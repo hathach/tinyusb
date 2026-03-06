@@ -607,48 +607,68 @@ def test_device_printer_to_cdc(board):
     # flush any stale data
     ser.reset_input_buffer()
 
-    # Test 1: Printer -> CDC with multiple sizes
+    # Test 1: Printer -> CDC with multiple sizes, write in random 1-64 byte chunks
     for size in sizes:
         test_data = rand_ascii(size)
-        with open(lp_dev, 'wb') as lp:
-            lp.write(test_data)
-            lp.flush()
+        ser.reset_input_buffer()
         rd = b''
+        offset = 0
+        with open(lp_dev, 'wb') as lp:
+            while offset < size:
+                chunk_size = min(random.randint(1, 64), size - offset)
+                lp.write(test_data[offset:offset + chunk_size])
+                lp.flush()
+                rd += ser.read(chunk_size)
+                offset += chunk_size
+        # read any remaining bytes (fullspeed devices may need extra time)
         while len(rd) < size:
-            chunk = ser.read(size - len(rd))
-            assert chunk, f'Printer->CDC timeout at {len(rd)}/{size} bytes'
-            rd += chunk
+            remaining = ser.read(size - len(rd))
+            if not remaining:
+                break
+            rd += remaining
         assert rd == test_data, (f'Printer->CDC wrong data ({size} bytes):\n'
                                  f'  expected: {test_data[:64]}\n  received: {rd[:64]}')
 
-    # Test 2: CDC -> Printer with multiple sizes
+    # Test 2: CDC -> Printer with multiple sizes, write in random 1-64 byte chunks
     # Use a thread to read from printer since /dev/usb/lp read blocks
+    ser.reset_input_buffer()
+    time.sleep(0.5)
     for size in sizes:
         test_data = rand_ascii(size)
         rd_result = [b'', None]  # [data, error]
+        reader_ready = threading.Event()
 
         def lp_reader():
             try:
                 rd = b''
-                with open(lp_dev, 'rb') as lp:
+                fd = os.open(lp_dev, os.O_RDONLY)
+                reader_ready.set()
+                try:
                     while len(rd) < size:
-                        chunk = lp.read(size - len(rd))
+                        chunk = os.read(fd, min(64, size - len(rd)))
                         if not chunk:
                             break
                         rd += chunk
+                finally:
+                    os.close(fd)
                 rd_result[0] = rd
             except Exception as e:
                 rd_result[1] = e
+                reader_ready.set()
 
         reader = threading.Thread(target=lp_reader, daemon=True)
         reader.start()
+        # wait for reader to open lp device before writing
+        reader_ready.wait(timeout=5)
+        time.sleep(0.1)
 
-        # Write to CDC in chunks
+        # Write to CDC in small chunks with flush to avoid overflowing device FIFO
         offset = 0
         while offset < size:
             chunk_size = min(random.randint(1, 64), size - offset)
             ser.write(test_data[offset:offset + chunk_size])
             ser.flush()
+            time.sleep(0.01)
             offset += chunk_size
 
         reader.join(timeout=10)
@@ -656,6 +676,7 @@ def test_device_printer_to_cdc(board):
         assert rd_result[1] is None, f'CDC->Printer read error: {rd_result[1]}'
         assert rd_result[0] == test_data, (f'CDC->Printer wrong data ({size} bytes):\n'
                                            f'  expected: {test_data[:64]}\n  received: {rd_result[0][:64]}')
+        time.sleep(0.2)
 
     ser.close()
 

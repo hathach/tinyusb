@@ -50,12 +50,13 @@
 
 // Forward data from Printer RX to CDC TX
 static void printer_to_cdc_task(void) {
-  if (tud_printer_read_available() == 0 || !tud_cdc_write_available()) {
+  uint32_t avail = tud_printer_read_available();
+  if (avail == 0 || !tud_cdc_write_available()) {
     return;
   }
 
   uint8_t buf[64];
-  uint32_t count = tud_printer_read(buf, sizeof(buf));
+  uint32_t count = tud_printer_read(buf, TU_MIN(sizeof(buf), tud_cdc_write_available()));
   if (count > 0) {
     tud_cdc_write(buf, count);
     tud_cdc_write_flush();
@@ -64,12 +65,13 @@ static void printer_to_cdc_task(void) {
 
 // Forward data from CDC RX to Printer TX
 static void cdc_to_printer_task(void) {
-  if (tud_cdc_available() == 0 || !tud_printer_write_available()) {
+  uint32_t avail = tud_printer_write_available();
+  if (tud_cdc_available() == 0 || avail == 0) {
     return;
   }
 
   uint8_t buf[64];
-  uint32_t count = tud_cdc_read(buf, sizeof(buf));
+  uint32_t count = tud_cdc_read(buf, TU_MIN(sizeof(buf), avail));
   if (count > 0) {
     tud_printer_write(buf, count);
     tud_printer_write_flush();
