@@ -21,6 +21,8 @@ information that does not match the info here.
 - For specific board families: `python3 tools/get_deps.py FAMILY_NAME` (e.g., rp2040, stm32f4), or
   `python3 tools/get_deps.py -b BOARD_NAME`
 - Dependencies are cached in `lib/` and `hw/mcu/` directories
+- For **Espressif** boards, initialize the ESP-IDF environment before any build/flash/monitor command:
+  `. $HOME/code/esp-idf/export.sh`
 
 ## Build Examples
 
@@ -59,6 +61,19 @@ make BOARD=raspberry_pi_pico all
 
 -- takes 2-3 seconds. NEVER CANCEL. Set timeout to 5+ minutes.
 
+**Option 4: Espressif Example with ESP-IDF**
+
+Only ESP-IDF-enabled examples are supported for Espressif boards. Use FreeRTOS examples such as `examples/device/cdc_msc_freertos`
+that contain `idf_component_register()` support.
+
+```bash
+. $HOME/code/esp-idf/export.sh
+cd examples/device/cdc_msc_freertos
+idf.py -DBOARD=espressif_s3_devkitc build
+```
+
+Use `-DBOARD=...` with any supported board under `hw/bsp/espressif/boards/`. NEVER CANCEL. Set timeout to 10+ minutes.
+
 
 ## Build Options
 
@@ -90,14 +105,74 @@ make BOARD=raspberry_pi_pico all
     - CMake: `ninja cdc_msc-uf2`
     - Make: `make BOARD=raspberry_pi_pico all uf2`
 - **List all targets** (CMake/Ninja): `ninja -t targets`
+- **Espressif flash**:
+    - Run `. $HOME/code/esp-idf/export.sh`
+    - `cd examples/device/cdc_msc_freertos`
+    - `idf.py -DBOARD=espressif_s3_devkitc flash`
+- **Espressif serial monitor / chip log output**:
+    - Run `. $HOME/code/esp-idf/export.sh`
+    - `cd examples/device/cdc_msc_freertos`
+    - `idf.py -DBOARD=espressif_s3_devkitc monitor`
 
-## J-Link GDB Server + RTT Logging
+## GDB Debugging
+
+Look up the board's `JLINK_DEVICE` and `OPENOCD_OPTION` from `hw/bsp/*/boards/*/board.cmake` (or `board.mk`).
+
+### JLinkGDBServer
+
+**Terminal 1 – start the GDB server:**
+```bash
+JLinkGDBServer -device stm32h743xi -if SWD -speed 4000 \
+  -port 2331 -swoport 2332 -telnetport 2333 -nogui
+```
+
+**Terminal 2 – connect GDB:**
+```bash
+arm-none-eabi-gdb /tmp/build/firmware.elf
+(gdb) target remote :2331
+(gdb) monitor reset halt
+(gdb) load
+(gdb) continue
+```
+
+To break on entry instead of running immediately:
+```bash
+(gdb) monitor reset halt
+(gdb) load
+(gdb) break main
+(gdb) continue
+```
+
+### OpenOCD
+
+**Terminal 1 – start the GDB server:**
+```bash
+openocd -f interface/stlink.cfg -f target/stm32h7x.cfg
+# or with J-Link probe:
+openocd -f interface/jlink.cfg -f target/stm32h7x.cfg
+```
+
+For boards that define `OPENOCD_OPTION` in `board.cmake`, use those options directly:
+```bash
+openocd $(cat hw/bsp/FAMILY/boards/BOARD/board.cmake | grep OPENOCD_OPTION | ...)
+```
+
+**Terminal 2 – connect GDB (OpenOCD default port is 3333):**
+```bash
+arm-none-eabi-gdb /tmp/build/firmware.elf
+(gdb) target remote :3333
+(gdb) monitor reset halt
+(gdb) load
+(gdb) continue
+```
+
+### RTT Logging with JLinkGDBServer
 
 - Build with RTT logging enabled (example):
   `cd examples/device/cdc_msc && make BOARD=stm32h743eval LOG=2 LOGGER=rtt all`
 - Flash with J-Link:
   `cd examples/device/cdc_msc && make BOARD=stm32h743eval LOG=2 LOGGER=rtt flash-jlink`
-- Launch GDB server (keep this running in terminal 1):
+- Launch GDB server with RTT port (keep this running in terminal 1):
   `JLinkGDBServer -device stm32h743xi -if SWD -speed 4000 -port 2331 -swoport 2332 -telnetport 2333 -RTTTelnetPort 19021 -nogui`
 - Read RTT output (terminal 2):
   `JLinkRTTClient`
@@ -105,7 +180,6 @@ make BOARD=raspberry_pi_pico all
   `JLinkRTTClient | tee rtt.log`
 - For non-interactive capture:
   `timeout 20s JLinkRTTClient > rtt.log`
-- Use the board-specific `JLINK_DEVICE` from `hw/bsp/*/boards/*/board.mk` if you are not using `stm32h743eval`.
 
 ## Unit Testing
 

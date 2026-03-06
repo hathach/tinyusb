@@ -285,6 +285,23 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   return true;
 }
 
+bool dcd_deinit(uint8_t rhport) {
+  ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
+
+  // disable all interrupt
+  dcd_reg->USBINTR = 0;
+
+  // unattach from bus
+  dcd_reg->USBCMD &= ~USBCMD_RUN_STOP;
+
+  // flush all endpoints
+  while (dcd_reg->ENDPTPRIME) {}
+  dcd_reg->ENDPTFLUSH = 0xFFFFFFFF;
+  while (dcd_reg->ENDPTFLUSH) {}
+
+  return true;
+}
+
 void dcd_int_enable(uint8_t rhport) {
   CI_DCD_INT_ENABLE(rhport);
 }

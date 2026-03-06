@@ -238,7 +238,7 @@ int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void *buffer, u
   (void) buffer;
   (void) bufsize;
 
-  // currently no other commands is supported
+  // currently no other commands are supported
 
   // Set Sense = Invalid Command Operation
   (void) tud_msc_set_sense(lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00);

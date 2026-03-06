@@ -585,7 +585,7 @@ bool tud_deinit(uint8_t rhport) {
   // Deinit device controller driver
   dcd_int_disable(rhport);
   dcd_disconnect(rhport);
-  TU_VERIFY(dcd_deinit(rhport));
+  TU_ASSERT(dcd_deinit(rhport));
 
   // Deinit class drivers
   for (uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++) {

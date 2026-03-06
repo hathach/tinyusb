@@ -30,11 +30,6 @@
 
 #define TU_FIFO_DBG 0
 
-// Suppress IAR warning
-// Warning[Pa082]: undefined behavior: the order of volatile accesses is undefined in this statement
-#if defined(__ICCARM__)
-  #pragma diag_suppress = Pa082
-#endif
 
 #if OSAL_MUTEX_REQUIRED
 
@@ -496,7 +491,9 @@ uint16_t tu_fifo_peek_n_access_mode(tu_fifo_t *f, void *p_buffer, uint16_t n, ui
 // Read n items without removing it from the FIFO, correct read pointer if overflowed
 uint16_t tu_fifo_peek_n(tu_fifo_t *f, void *p_buffer, uint16_t n) {
   ff_lock(f->mutex_rd);
-  const uint16_t ret = tu_fifo_peek_n_access_mode(f, p_buffer, n, f->wr_idx, f->rd_idx, NULL);
+  const uint16_t wr_idx = f->wr_idx;
+  const uint16_t rd_idx = f->rd_idx;
+  const uint16_t ret = tu_fifo_peek_n_access_mode(f, p_buffer, n, wr_idx, rd_idx, NULL);
   ff_unlock(f->mutex_rd);
   return ret;
 }
@@ -506,7 +503,8 @@ uint16_t tu_fifo_read_n_access_mode(tu_fifo_t *f, void *buffer, uint16_t n, cons
   ff_lock(f->mutex_rd);
 
   // Peek the data: f->rd_idx might get modified in case of an overflow so we can not use a local variable
-  n         = tu_fifo_peek_n_access_mode(f, buffer, n, f->wr_idx, f->rd_idx, access_mode);
+  const uint16_t wr_idx = f->wr_idx;
+  n         = tu_fifo_peek_n_access_mode(f, buffer, n, wr_idx, f->rd_idx, access_mode);
   f->rd_idx = advance_index(f->depth, f->rd_idx, n);
 
   ff_unlock(f->mutex_rd);
@@ -633,7 +631,8 @@ static bool ff_peek_local(tu_fifo_t *f, void *buf, uint16_t wr_idx, uint16_t rd_
 bool tu_fifo_read(tu_fifo_t *f, void *buffer) {
   // Peek the data
   // f->rd_idx might get modified in case of an overflow so we can not use a local variable
-  const bool ret = ff_peek_local(f, buffer, f->wr_idx, f->rd_idx);
+  const uint16_t wr_idx = f->wr_idx;
+  const bool ret = ff_peek_local(f, buffer, wr_idx, f->rd_idx);
   if (ret) {
     ff_lock(f->mutex_rd);
     f->rd_idx = advance_index(f->depth, f->rd_idx, 1);
@@ -645,7 +644,9 @@ bool tu_fifo_read(tu_fifo_t *f, void *buffer) {
 
 // Read one item without removing it from the FIFO, correct read index if overflowed
 bool tu_fifo_peek(tu_fifo_t *f, void *p_buffer) {
-  return ff_peek_local(f, p_buffer, f->wr_idx, f->rd_idx);
+  const uint16_t wr_idx = f->wr_idx;
+  const uint16_t rd_idx = f->rd_idx;
+  return ff_peek_local(f, p_buffer, wr_idx, rd_idx);
 }
 
 // Write one element into the buffer

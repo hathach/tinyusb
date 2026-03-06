@@ -139,6 +139,10 @@ void board_init(void) {
   #endif
 
   NVIC_SetPriority(OTG_HS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
+
+#elif CFG_TUSB_OS == OPT_OS_THREADX
+  // Disable SysTick before kernel entry; _tx_initialize_low_level() will re-configure it
+  SysTick->CTRL &= ~1UL;
 #endif
 
   GPIO_InitTypeDef GPIO_InitStruct;
@@ -295,10 +299,15 @@ void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void) {
+uint32_t tusb_time_millis_api(void) {
   return system_ticks;
 }
 
+#elif CFG_TUSB_OS == OPT_OS_THREADX
+// Keep HAL_GetTick() working for HAL functions called from board_init()
+void osal_threadx_tick_cb(void) {
+  HAL_IncTick();
+}
 #endif
 
 void HardFault_Handler(void) {

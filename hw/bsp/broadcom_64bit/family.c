@@ -146,7 +146,7 @@ void TIMER_1_IRQHandler(void) {
   SYSTMR->CS_b.M1 = 1;
 }
 
-uint32_t board_millis(void) {
+uint32_t tusb_time_millis_api(void) {
   return system_ticks;
 }
 

@@ -105,6 +105,12 @@ set(WARN_FLAGS_GNU
   )
 set(WARN_FLAGS_Clang ${WARN_FLAGS_GNU})
 
+set(WARN_FLAGS_IAR
+  --warnings_are_errors
+  --diag_suppress=Pa089
+  --diag_suppress=Pe236
+  )
+
 # Optimization
 if (NOT DEFINED CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
   set(CMAKE_BUILD_TYPE MinSizeRel CACHE STRING "Build type" FORCE)
@@ -380,6 +386,26 @@ function(family_add_rtos TARGET RTOS)
 
     target_link_libraries(${TARGET} PUBLIC freertos_kernel)
     target_compile_definitions(${TARGET} PUBLIC CFG_TUSB_OS=OPT_OS_FREERTOS)
+  elseif (RTOS STREQUAL "threadx")
+    if (NOT TARGET threadx)
+      # Derive THREADX_ARCH from CMAKE_SYSTEM_CPU if not explicitly set
+      if (NOT DEFINED THREADX_ARCH)
+        string(REPLACE "-" "_" THREADX_ARCH ${CMAKE_SYSTEM_CPU})
+      endif ()
+      # Derive THREADX_TOOLCHAIN from TOOLCHAIN if not explicitly set
+      if (NOT DEFINED THREADX_TOOLCHAIN)
+        if (TOOLCHAIN STREQUAL "iar")
+          set(THREADX_TOOLCHAIN "iar")
+        elseif (TOOLCHAIN STREQUAL "clang")
+          set(THREADX_TOOLCHAIN "ac6")
+        else ()
+          set(THREADX_TOOLCHAIN "gnu")
+        endif ()
+      endif ()
+      add_subdirectory(${TOP}/lib/threadx ${CMAKE_BINARY_DIR}/lib/threadx)
+    endif ()
+    target_link_libraries(${TARGET} PUBLIC threadx)
+    target_compile_definitions(${TARGET} PUBLIC CFG_TUSB_OS=OPT_OS_THREADX)
   elseif (RTOS STREQUAL "zephyr")
     target_compile_definitions(${TARGET} PUBLIC CFG_TUSB_OS=OPT_OS_ZEPHYR)
     target_include_directories(${TARGET} PUBLIC ${ZEPHYR_BASE}/include)
@@ -447,6 +473,7 @@ function(family_configure_common TARGET RTOS)
       target_link_options(${TARGET} PUBLIC "LINKER:--no-warn-rwx-segments")
     endif ()
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
+    target_compile_options(${TARGET} PRIVATE $<$<OR:$<COMPILE_LANGUAGE:C>,$<COMPILE_LANGUAGE:CXX>>:${WARN_FLAGS_IAR}>)
     target_link_options(${TARGET} PUBLIC "LINKER:--map=$<TARGET_FILE:${TARGET}>.map")
 
     if (IAR_CSTAT)
