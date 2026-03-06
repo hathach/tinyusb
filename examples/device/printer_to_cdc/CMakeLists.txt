@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/../../../hw/bsp/family_support.cmake)
 
-project(printer_to_hid C CXX ASM)
+project(printer_to_cdc C CXX ASM)
 
 # Checks this example is valid for the family and initializes the project
 family_initialize_project(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR})

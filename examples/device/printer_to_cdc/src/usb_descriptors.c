@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * Copyright (c) 2026 Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,7 +29,7 @@
 #include "usb_descriptors.h"
 
 #define USB_VID   0xCafe
-#define USB_PID   0x4004
+#define USB_PID   0x4005
 #define USB_BCD   0x0200
 
 //--------------------------------------------------------------------+
@@ -39,9 +39,12 @@ static tusb_desc_device_t const desc_device = {
   .bLength            = sizeof(tusb_desc_device_t),
   .bDescriptorType    = TUSB_DESC_DEVICE,
   .bcdUSB             = USB_BCD,
-  .bDeviceClass       = 0x00,
-  .bDeviceSubClass    = 0x00,
-  .bDeviceProtocol    = 0x00,
+
+  // Use Interface Association Descriptor (IAD) for CDC
+  // As required by USB Specs IAD's subclass must be common class (2) and protocol must be IAD (1)
+  .bDeviceClass       = TUSB_CLASS_MISC,
+  .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
+  .bDeviceProtocol    = MISC_PROTOCOL_IAD,
   .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
 
   .idVendor           = USB_VID,
@@ -60,30 +63,22 @@ uint8_t const *tud_descriptor_device_cb(void) {
 }
 
 //--------------------------------------------------------------------+
-// HID Report Descriptor
-//--------------------------------------------------------------------+
-static uint8_t const desc_hid_report[] = {
-  TUD_HID_REPORT_DESC_KEYBOARD(HID_REPORT_ID(REPORT_ID_KEYBOARD))
-};
-
-uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance) {
-  (void)instance;
-  return desc_hid_report;
-}
-
-//--------------------------------------------------------------------+
 // Configuration Descriptor
 //--------------------------------------------------------------------+
 
 // Endpoint numbers
 #if defined(TUD_ENDPOINT_ONE_DIRECTION_ONLY)
-  #define EPNUM_HID         0x81
-  #define EPNUM_PRINTER_OUT 0x02
-  #define EPNUM_PRINTER_IN  0x83
+  #define EPNUM_CDC_NOTIF   0x81
+  #define EPNUM_CDC_OUT     0x02
+  #define EPNUM_CDC_IN      0x83
+  #define EPNUM_PRINTER_OUT 0x04
+  #define EPNUM_PRINTER_IN  0x85
 #else
-  #define EPNUM_HID         0x81
-  #define EPNUM_PRINTER_OUT 0x02
-  #define EPNUM_PRINTER_IN  0x82
+  #define EPNUM_CDC_NOTIF   0x81
+  #define EPNUM_CDC_OUT     0x02
+  #define EPNUM_CDC_IN      0x82
+  #define EPNUM_PRINTER_OUT 0x03
+  #define EPNUM_PRINTER_IN  0x83
 #endif
 
 // full speed configuration
@@ -91,9 +86,8 @@ static uint8_t const desc_fs_configuration[] = {
   // Config number, interface count, string index, total length, attribute, power in mA
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
 
-  // Interface number, string index, protocol, report descriptor len, EP In address, size & polling interval
-  TUD_HID_DESCRIPTOR(ITF_NUM_HID, 4, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), EPNUM_HID,
-                     CFG_TUD_HID_EP_BUFSIZE, 5),
+  // Interface number, string index, EP notification address and size, EP data address (out, in) and size.
+  TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 4, EPNUM_CDC_NOTIF, 16, EPNUM_CDC_OUT, EPNUM_CDC_IN, 64),
 
   // Interface number, string index, EP Bulk Out address, EP Bulk In address, EP size
   TUD_PRINTER_DESCRIPTOR(ITF_NUM_PRINTER, 5, EPNUM_PRINTER_OUT, EPNUM_PRINTER_IN, 64),
@@ -104,8 +98,7 @@ static uint8_t const desc_fs_configuration[] = {
 static uint8_t const desc_hs_configuration[] = {
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
 
-  TUD_HID_DESCRIPTOR(ITF_NUM_HID, 4, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), EPNUM_HID,
-                     CFG_TUD_HID_EP_BUFSIZE, 5),
+  TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 4, EPNUM_CDC_NOTIF, 16, EPNUM_CDC_OUT, EPNUM_CDC_IN, 512),
 
   TUD_PRINTER_DESCRIPTOR(ITF_NUM_PRINTER, 5, EPNUM_PRINTER_OUT, EPNUM_PRINTER_IN, 512),
 };
@@ -119,9 +112,9 @@ static tusb_desc_device_qualifier_t const desc_device_qualifier = {
   .bDescriptorType    = TUSB_DESC_DEVICE_QUALIFIER,
   .bcdUSB             = USB_BCD,
 
-  .bDeviceClass       = 0x00,
-  .bDeviceSubClass    = 0x00,
-  .bDeviceProtocol    = 0x00,
+  .bDeviceClass       = TUSB_CLASS_MISC,
+  .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
+  .bDeviceProtocol    = MISC_PROTOCOL_IAD,
 
   .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
   .bNumConfigurations = 0x01,
@@ -166,7 +159,7 @@ enum {
   STRID_MANUFACTURER,
   STRID_PRODUCT,
   STRID_SERIAL,
-  STRID_HID,
+  STRID_CDC,
   STRID_PRINTER,
 };
 
@@ -175,7 +168,7 @@ static char const *string_desc_arr[] = {
   "TinyUSB",                     // 1: Manufacturer
   "TinyUSB Device",              // 2: Product
   NULL,                          // 3: Serial, use unique ID if possible
-  "TinyUSB HID",                 // 4: HID Interface
+  "TinyUSB CDC",                 // 4: CDC Interface
   "TinyUSB Printer",             // 5: Printer Interface
 };
 

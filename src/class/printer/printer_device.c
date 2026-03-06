@@ -242,43 +242,54 @@ uint16_t printerd_open(uint8_t rhport, const tusb_desc_interface_t *itf_desc, ui
 }
 
 bool printerd_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_request_t *request) {
-  TU_VERIFY(request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE);
-  uint8_t const itf_num = (uint8_t)request->wIndex;
+  TU_VERIFY(request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE &&
+    request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
 
-  if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD) {
-    if (stage != CONTROL_STAGE_SETUP) {
-      return true;
-    }
-  } else if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS) {
-    // https://www.usb.org/sites/default/files/usbprint11a021811.pdf
-    if (stage == CONTROL_STAGE_SETUP) {
-      switch (request->bRequest) {
-        case TUSB_PRINTER_REQUEST_GET_DEVICE_ID: {
-          const uint8_t *device_id = tud_printer_get_device_id_cb(itf_num);
-          TU_VERIFY(device_id);
-          const uint16_t total_len = (uint16_t)((device_id[0] << 8) | device_id[1]);
-          return tud_control_xfer(rhport, request, (void *)(uintptr_t)device_id, total_len);
-        }
-
-        case TUSB_PRINTER_REQUEST_GET_PORT_STATUS: {
-          static uint8_t port_status;
-          port_status = tud_printer_get_port_status_cb(itf_num);
-          return tud_control_xfer(rhport, request, &port_status, sizeof(port_status));
-        }
-
-        case TUSB_PRINTER_REQUEST_SOFT_RESET:
-          tud_printer_soft_reset_cb(itf_num);
-          tud_control_status(rhport, request);
-          return true;
-
-        default:
-          return false;
-      }
-    } else if (stage == CONTROL_STAGE_ACK) {
-      tud_printer_request_complete_cb(itf_num, request);
-    }
+  // GET_DEVICE_ID: wIndex = (interface_number << 8) | alt_setting
+  // GET_PORT_STATUS / SOFT_RESET: wIndex = interface_number
+  uint8_t itf_num;
+  if (TUSB_PRINTER_REQUEST_GET_DEVICE_ID == request->bRequest) {
+    itf_num = tu_u16_high(request->wIndex);
   } else {
-    return false;
+    itf_num = tu_u16_low(request->wIndex);
+  }
+
+  // Find the printer instance index from the USB interface number
+  uint8_t itf = TUSB_INDEX_INVALID_8;
+  for (uint8_t i = 0; i < CFG_TUD_PRINTER; i++) {
+    if (_printer_itf[i].itf_num == itf_num) {
+      itf = i;
+      break;
+    }
+  }
+  TU_VERIFY(itf < CFG_TUD_PRINTER);
+
+  // https://www.usb.org/sites/default/files/usbprint11a021811.pdf
+  if (stage == CONTROL_STAGE_SETUP) {
+    switch (request->bRequest) {
+      case TUSB_PRINTER_REQUEST_GET_DEVICE_ID: {
+        const uint8_t *device_id = tud_printer_get_device_id_cb(itf);
+        TU_VERIFY(device_id);
+        const uint16_t total_len = (uint16_t)((device_id[0] << 8) | device_id[1]);
+        return tud_control_xfer(rhport, request, (void *)(uintptr_t)device_id, total_len);
+      }
+
+      case TUSB_PRINTER_REQUEST_GET_PORT_STATUS: {
+        static uint8_t port_status;
+        port_status = tud_printer_get_port_status_cb(itf);
+        return tud_control_xfer(rhport, request, &port_status, sizeof(port_status));
+      }
+
+      case TUSB_PRINTER_REQUEST_SOFT_RESET:
+        tud_printer_soft_reset_cb(itf);
+        tud_control_status(rhport, request);
+        return true;
+
+      default:
+        return false;
+    }
+  } else if (stage == CONTROL_STAGE_ACK) {
+    tud_printer_request_complete_cb(itf, request);
   }
 
   return true;

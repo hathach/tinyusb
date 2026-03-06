@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * Copyright (c) 2026 Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,17 +25,13 @@
 #ifndef USB_DESCRIPTORS_H_
 #define USB_DESCRIPTORS_H_
 
-// HID report ID
 enum {
-  REPORT_ID_KEYBOARD = 1,
-};
-
-enum {
-  ITF_NUM_HID,
+  ITF_NUM_CDC,
+  ITF_NUM_CDC_DATA,
   ITF_NUM_PRINTER,
   ITF_NUM_TOTAL,
 };
 
-#define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN + TUD_PRINTER_DESC_LEN)
+#define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_PRINTER_DESC_LEN)
 
 #endif /* USB_DESCRIPTORS_H_ */

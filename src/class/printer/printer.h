@@ -35,9 +35,9 @@ extern "C" {
 
 /// Printer Class Specific Control Request
 typedef enum {
-  TUSB_PRINTER_REQUEST_GET_DEVICE_ID   = 0x01, ///< Get device ID
-  TUSB_PRINTER_REQUEST_GET_PORT_STATUS = 0x02, ///< Get port status
-  TUSB_PRINTER_REQUEST_SOFT_RESET      = 0x03, ///< Soft reset
+  TUSB_PRINTER_REQUEST_GET_DEVICE_ID   = 0x00, ///< Get device ID
+  TUSB_PRINTER_REQUEST_GET_PORT_STATUS = 0x01, ///< Get port status
+  TUSB_PRINTER_REQUEST_SOFT_RESET      = 0x02, ///< Soft reset
 } tusb_printer_request_type_t;
 
 /// Printer Port Status (returned by GET_PORT_STATUS request)
