@@ -28,9 +28,6 @@
 
 #if (CFG_TUD_ENABLED && CFG_TUD_PRINTER)
 
-//--------------------------------------------------------------------+
-// INCLUDE
-//--------------------------------------------------------------------+
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
 
@@ -42,73 +39,52 @@
 
 typedef struct {
   uint8_t itf_num;
-  uint8_t ep_out; // Bulk Out endpoint
-  uint8_t ep_in;  // optional Bulk In endpoint
 
   /*------------- From this point, data is not cleared by bus reset -------------*/
 
-  // FIFO
-  tu_fifo_t rx_ff;
-  tu_fifo_t tx_ff;
+  tu_edpt_stream_t rx_stream;
+  tu_edpt_stream_t tx_stream;
 
   uint8_t rx_ff_buf[CFG_TUD_PRINTER_RX_BUFSIZE];
   uint8_t tx_ff_buf[CFG_TUD_PRINTER_TX_BUFSIZE];
-
-  OSAL_MUTEX_DEF(rx_ff_mutex);
-  OSAL_MUTEX_DEF(tx_ff_mutex);
 } printer_interface_t;
 
+#define ITF_MEM_RESET_SIZE offsetof(printer_interface_t, rx_stream)
+
+#if CFG_TUD_EDPT_DEDICATED_HWFIFO == 0
 typedef struct {
   TUD_EPBUF_DEF(epout, CFG_TUD_PRINTER_EP_BUFSIZE);
   TUD_EPBUF_DEF(epin, CFG_TUD_PRINTER_EP_BUFSIZE);
 } printer_epbuf_t;
 
-#define ITF_MEM_RESET_SIZE offsetof(printer_interface_t, rx_ff)
-
-static printer_interface_t                 _printer_itf[CFG_TUD_PRINTER];
 CFG_TUD_MEM_SECTION static printer_epbuf_t _printer_epbuf[CFG_TUD_PRINTER];
+#endif
 
+static printer_interface_t _printer_itf[CFG_TUD_PRINTER];
 
 //--------------------------------------------------------------------+
-// INTERNAL OBJECT & FUNCTION DECLARATION
+// INTERNAL HELPERS
 //--------------------------------------------------------------------+
-static bool _prep_out_transaction(uint8_t itf) {
-  const uint8_t        rhport    = 0;
-  printer_interface_t *p_printer = &_printer_itf[itf];
-  printer_epbuf_t     *p_epbuf   = &_printer_epbuf[itf];
 
-  // Skip if usb is not ready yet
-  TU_VERIFY(tud_ready() && p_printer->ep_out);
-
-  uint16_t available = tu_fifo_remaining(&p_printer->rx_ff);
-
-  // Prepare for incoming data but only allow what we can store in the ring buffer.
-  // TODO Actually we can still carry out the transfer, keeping count of received bytes
-  // and slowly move it to the FIFO when read().
-  // This pre-check reduces endpoint claiming
-  TU_VERIFY(available >= CFG_TUD_PRINTER_EP_BUFSIZE);
-
-  // claim endpoint
-  TU_VERIFY(usbd_edpt_claim(rhport, p_printer->ep_out));
-
-  // fifo can be changed before endpoint is claimed
-  available = tu_fifo_remaining(&p_printer->rx_ff);
-
-  if (available >= CFG_TUD_PRINTER_EP_BUFSIZE) {
-    return usbd_edpt_xfer(rhport, p_printer->ep_out, p_epbuf->epout, CFG_TUD_PRINTER_EP_BUFSIZE, false);
-  } else {
-    // Release endpoint since we don't make any transfer
-    usbd_edpt_release(rhport, p_printer->ep_out);
-    return false;
+TU_ATTR_ALWAYS_INLINE static inline uint8_t _find_itf(uint8_t ep_addr) {
+  for (uint8_t i = 0; i < CFG_TUD_PRINTER; i++) {
+    const printer_interface_t *p = &_printer_itf[i];
+    if (ep_addr == p->rx_stream.ep_addr || ep_addr == p->tx_stream.ep_addr) {
+      return i;
+    }
   }
+  return TUSB_INDEX_INVALID_8;
 }
 
 //--------------------------------------------------------------------+
 // Weak stubs: invoked if no strong implementation is available
 //--------------------------------------------------------------------+
-TU_ATTR_WEAK void tud_printer_rx_cb(uint8_t itf, size_t n) {
+TU_ATTR_WEAK void tud_printer_rx_cb(uint8_t itf) {
   (void)itf;
-  (void)n;
+}
+
+TU_ATTR_WEAK void tud_printer_tx_complete_cb(uint8_t itf) {
+  (void)itf;
 }
 
 TU_ATTR_WEAK void tud_printer_request_complete_cb(uint8_t itf, tusb_control_request_t const *request) {
@@ -131,29 +107,53 @@ TU_ATTR_WEAK void tud_printer_soft_reset_cb(uint8_t itf) {
 }
 
 //--------------------------------------------------------------------+
-// APPLICATION API
+// READ API
 //--------------------------------------------------------------------+
-uint32_t tud_printer_n_available(uint8_t itf) {
-  return tu_fifo_count(&_printer_itf[itf].rx_ff);
+uint32_t tud_printer_n_read_available(uint8_t itf) {
+  TU_VERIFY(itf < CFG_TUD_PRINTER, 0);
+  return tu_edpt_stream_read_available(&_printer_itf[itf].rx_stream);
 }
 
 uint32_t tud_printer_n_read(uint8_t itf, void *buffer, uint32_t bufsize) {
-  printer_interface_t *p_printer = &_printer_itf[itf];
-  uint32_t             num_read  = tu_fifo_read_n(&p_printer->rx_ff, buffer, (uint16_t)TU_MIN(bufsize, UINT16_MAX));
-  _prep_out_transaction(itf);
-  return num_read;
+  TU_VERIFY(itf < CFG_TUD_PRINTER, 0);
+  return tu_edpt_stream_read(&_printer_itf[itf].rx_stream, buffer, bufsize);
 }
 
 bool tud_printer_n_peek(uint8_t itf, uint8_t *chr) {
-  return tu_fifo_peek(&_printer_itf[itf].rx_ff, chr);
+  TU_VERIFY(itf < CFG_TUD_PRINTER);
+  return tu_edpt_stream_peek(&_printer_itf[itf].rx_stream, chr);
 }
 
 void tud_printer_n_read_flush(uint8_t itf) {
-  printer_interface_t *p_printer = &_printer_itf[itf];
-  tu_fifo_clear(&p_printer->rx_ff);
-  _prep_out_transaction(itf);
+  TU_VERIFY(itf < CFG_TUD_PRINTER, );
+  printer_interface_t *p = &_printer_itf[itf];
+  tu_edpt_stream_clear(&p->rx_stream);
+  tu_edpt_stream_read_xfer(&p->rx_stream);
 }
 
+//--------------------------------------------------------------------+
+// WRITE API
+//--------------------------------------------------------------------+
+uint32_t tud_printer_n_write(uint8_t itf, const void *buffer, uint32_t bufsize) {
+  TU_VERIFY(itf < CFG_TUD_PRINTER, 0);
+  return tu_edpt_stream_write(&_printer_itf[itf].tx_stream, buffer, bufsize);
+}
+
+uint32_t tud_printer_n_write_flush(uint8_t itf) {
+  TU_VERIFY(itf < CFG_TUD_PRINTER, 0);
+  return tu_edpt_stream_write_xfer(&_printer_itf[itf].tx_stream);
+}
+
+uint32_t tud_printer_n_write_available(uint8_t itf) {
+  TU_VERIFY(itf < CFG_TUD_PRINTER, 0);
+  return tu_edpt_stream_write_available(&_printer_itf[itf].tx_stream);
+}
+
+bool tud_printer_n_write_clear(uint8_t itf) {
+  TU_VERIFY(itf < CFG_TUD_PRINTER);
+  tu_edpt_stream_clear(&_printer_itf[itf].tx_stream);
+  return true;
+}
 
 //--------------------------------------------------------------------+
 // USBD-CLASS API
@@ -162,41 +162,32 @@ void printerd_init(void) {
   tu_memclr(_printer_itf, sizeof(_printer_itf));
 
   for (uint8_t i = 0; i < CFG_TUD_PRINTER; i++) {
-    printer_interface_t *p_printer = &_printer_itf[i];
+    printer_interface_t *p = &_printer_itf[i];
 
-    tu_fifo_config(&p_printer->rx_ff, p_printer->rx_ff_buf, TU_ARRAY_SIZE(p_printer->rx_ff_buf), false);
-    tu_fifo_config(&p_printer->tx_ff, p_printer->tx_ff_buf, TU_ARRAY_SIZE(p_printer->tx_ff_buf), true);
-
-  #if OSAL_MUTEX_REQUIRED
-    osal_mutex_t mutex_rd = osal_mutex_create(&p_printer->rx_ff_mutex);
-    osal_mutex_t mutex_wr = osal_mutex_create(&p_printer->tx_ff_mutex);
-    TU_ASSERT(mutex_rd != NULL && mutex_wr != NULL, );
-
-    tu_fifo_config_mutex(&p_printer->rx_ff, NULL, mutex_rd);
-    tu_fifo_config_mutex(&p_printer->tx_ff, mutex_wr, NULL);
+  #if CFG_TUD_EDPT_DEDICATED_HWFIFO
+    uint8_t *epout_buf = NULL;
+    uint8_t *epin_buf  = NULL;
+  #else
+    uint8_t *epout_buf = _printer_epbuf[i].epout;
+    uint8_t *epin_buf  = _printer_epbuf[i].epin;
   #endif
+
+    tu_edpt_stream_init(&p->rx_stream, false, false, false,
+                        p->rx_ff_buf, CFG_TUD_PRINTER_RX_BUFSIZE,
+                        epout_buf, CFG_TUD_PRINTER_EP_BUFSIZE);
+
+    tu_edpt_stream_init(&p->tx_stream, false, true, true,
+                        p->tx_ff_buf, CFG_TUD_PRINTER_TX_BUFSIZE,
+                        epin_buf, CFG_TUD_PRINTER_EP_BUFSIZE);
   }
 }
 
 bool printerd_deinit(void) {
-  #if OSAL_MUTEX_REQUIRED
   for (uint8_t i = 0; i < CFG_TUD_PRINTER; i++) {
-    printer_interface_t *p_printer = &_printer_itf[i];
-    osal_mutex_t         mutex_rd  = p_printer->rx_ff.mutex_rd;
-    osal_mutex_t         mutex_wr  = p_printer->tx_ff.mutex_wr;
-
-    if (mutex_rd) {
-      osal_mutex_delete(mutex_rd);
-      tu_fifo_config_mutex(&p_printer->rx_ff, NULL, NULL);
-    }
-
-    if (mutex_wr) {
-      osal_mutex_delete(mutex_wr);
-      tu_fifo_config_mutex(&p_printer->tx_ff, NULL, NULL);
-    }
+    printer_interface_t *p = &_printer_itf[i];
+    tu_edpt_stream_deinit(&p->rx_stream);
+    tu_edpt_stream_deinit(&p->tx_stream);
   }
-  #endif
-
   return true;
 }
 
@@ -204,40 +195,48 @@ void printerd_reset(uint8_t rhport) {
   (void)rhport;
 
   for (uint8_t i = 0; i < CFG_TUD_PRINTER; i++) {
-    printer_interface_t *p_printer = &_printer_itf[i];
-
-    tu_memclr(p_printer, ITF_MEM_RESET_SIZE);
-    tu_fifo_clear(&p_printer->rx_ff);
-    tu_fifo_clear(&p_printer->tx_ff);
+    printer_interface_t *p = &_printer_itf[i];
+    tu_memclr(p, ITF_MEM_RESET_SIZE);
+    tu_edpt_stream_close(&p->rx_stream);
+    tu_edpt_stream_close(&p->tx_stream);
   }
 }
 
 uint16_t printerd_open(uint8_t rhport, const tusb_desc_interface_t *itf_desc, uint16_t max_len) {
-  (void)max_len;
   TU_VERIFY(TUSB_CLASS_PRINTER == itf_desc->bInterfaceClass, 0);
 
-  // Identify available interface to open
-  printer_interface_t *p_printer;
-  uint8_t              printer_id;
-  for (printer_id = 0; printer_id < CFG_TUD_PRINTER; printer_id++) {
-    p_printer = &_printer_itf[printer_id];
-    if (p_printer->ep_out == 0) {
-      break;
-    }
-  }
-  TU_ASSERT(printer_id < CFG_TUD_PRINTER);
+  // Find available interface slot
+  uint8_t const printer_id = _find_itf(0);
+  TU_ASSERT(printer_id < CFG_TUD_PRINTER, 0);
+  printer_interface_t *p = &_printer_itf[printer_id];
 
-  //------------- Interface -------------//
-  uint16_t drv_len = sizeof(tusb_desc_interface_t);
+  p->itf_num = itf_desc->bInterfaceNumber;
 
   //------------- Endpoints -------------//
-  TU_ASSERT(itf_desc->bNumEndpoints == 2);
-  drv_len += 2 * sizeof(tusb_desc_endpoint_t);
-  p_printer->itf_num    = itf_desc->bInterfaceNumber;
-  const uint8_t *p_desc = tu_desc_next(itf_desc);
-  TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, 2, TUSB_XFER_BULK, &p_printer->ep_out, &p_printer->ep_in), 0);
+  const uint8_t *p_desc   = (const uint8_t *)itf_desc;
+  const uint8_t *desc_end = p_desc + max_len;
+  uint16_t drv_len = sizeof(tusb_desc_interface_t);
 
-  _prep_out_transaction(printer_id);
+  p_desc = tu_desc_next(itf_desc);
+  for (uint8_t e = 0; e < itf_desc->bNumEndpoints; e++) {
+    TU_VERIFY(tu_desc_in_bounds(p_desc, desc_end), 0);
+    const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
+    TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_BULK == desc_ep->bmAttributes.xfer, 0);
+
+    TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
+
+    if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
+      tu_edpt_stream_open(&p->tx_stream, rhport, desc_ep);
+      tu_edpt_stream_clear(&p->tx_stream);
+    } else {
+      tu_edpt_stream_open(&p->rx_stream, rhport, desc_ep);
+      tu_edpt_stream_clear(&p->rx_stream);
+      TU_ASSERT(tu_edpt_stream_read_xfer(&p->rx_stream) > 0, 0);
+    }
+
+    drv_len += sizeof(tusb_desc_endpoint_t);
+    p_desc = tu_desc_next(p_desc);
+  }
 
   return drv_len;
 }
@@ -247,7 +246,6 @@ bool printerd_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_
   uint8_t const itf_num = (uint8_t)request->wIndex;
 
   if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD) {
-    //------------- STD Request -------------//
     if (stage != CONTROL_STAGE_SETUP) {
       return true;
     }
@@ -256,7 +254,6 @@ bool printerd_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_
     if (stage == CONTROL_STAGE_SETUP) {
       switch (request->bRequest) {
         case TUSB_PRINTER_REQUEST_GET_DEVICE_ID: {
-          // App provides buffer with IEEE 1284 format (first 2 bytes = big-endian length)
           const uint8_t *device_id = tud_printer_get_device_id_cb(itf_num);
           TU_VERIFY(device_id);
           const uint16_t total_len = (uint16_t)((device_id[0] << 8) | device_id[1]);
@@ -290,28 +287,29 @@ bool printerd_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_
 bool printerd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
   (void)rhport;
   (void)result;
-  uint8_t              itf;
-  printer_interface_t *p_printer;
 
-  // Identify which interface to use
-  for (itf = 0; itf < CFG_TUD_PRINTER; itf++) {
-    p_printer = &_printer_itf[itf];
-    if (ep_addr == p_printer->ep_out) {
-      break;
-    }
-  }
+  uint8_t const itf = _find_itf(ep_addr);
   TU_ASSERT(itf < CFG_TUD_PRINTER);
-  printer_epbuf_t *p_epbuf = &_printer_epbuf[itf];
+  printer_interface_t *p = &_printer_itf[itf];
 
   // Received new data
-  if (ep_addr == p_printer->ep_out) {
-    tu_fifo_write_n(&p_printer->rx_ff, p_epbuf->epout, (uint16_t)xferred_bytes);
-    // invoke receive callback (if there is still data)
-    if (!tu_fifo_empty(&p_printer->rx_ff)) {
-      tud_printer_rx_cb(itf, xferred_bytes);
+  if (ep_addr == p->rx_stream.ep_addr) {
+    tu_edpt_stream_read_xfer_complete(&p->rx_stream, xferred_bytes);
+
+    if (!tu_edpt_stream_empty(&p->rx_stream)) {
+      tud_printer_rx_cb(itf);
     }
-    // prepare for OUT transaction
-    _prep_out_transaction(itf);
+
+    tu_edpt_stream_read_xfer(&p->rx_stream);
+  }
+
+  // Data sent to host
+  if (ep_addr == p->tx_stream.ep_addr) {
+    tud_printer_tx_complete_cb(itf);
+
+    if (0 == tu_edpt_stream_write_xfer(&p->tx_stream)) {
+      tu_edpt_stream_write_zlp_if_needed(&p->tx_stream, xferred_bytes);
+    }
   }
 
   return true;

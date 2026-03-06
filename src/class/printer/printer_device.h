@@ -38,10 +38,13 @@ extern "C" {
 //--------------------------------------------------------------------+
 
 // Get the number of bytes available for reading
-uint32_t tud_printer_n_available(uint8_t itf);
+uint32_t tud_printer_n_read_available(uint8_t itf);
 
 // Read received bytes
 uint32_t tud_printer_n_read(uint8_t itf, void *buffer, uint32_t bufsize);
+
+// Get the number of bytes available for writing
+uint32_t tud_printer_n_write_available(uint8_t itf);
 
 // Clear the received FIFO
 void tud_printer_n_read_flush(uint8_t itf);
@@ -49,12 +52,60 @@ void tud_printer_n_read_flush(uint8_t itf);
 // Get a byte from FIFO without removing it
 bool tud_printer_n_peek(uint8_t itf, uint8_t *ui8);
 
+// Write data to host
+uint32_t tud_printer_n_write(uint8_t itf, const void *buffer, uint32_t bufsize);
+
+// Force sending data in the TX FIFO
+uint32_t tud_printer_n_write_flush(uint8_t itf);
+
+// Clear the transmit FIFO
+bool tud_printer_n_write_clear(uint8_t itf);
+
+//--------------------------------------------------------------------+
+// Application API (Single Port)
+//--------------------------------------------------------------------+
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_printer_read_available(void) {
+  return tud_printer_n_read_available(0);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_printer_write_available(void) {
+  return tud_printer_n_write_available(0);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_printer_read(void *buffer, uint32_t bufsize) {
+  return tud_printer_n_read(0, buffer, bufsize);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void tud_printer_read_flush(void) {
+  tud_printer_n_read_flush(0);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool tud_printer_peek(uint8_t *ui8) {
+  return tud_printer_n_peek(0, ui8);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_printer_write(const void *buffer, uint32_t bufsize) {
+  return tud_printer_n_write(0, buffer, bufsize);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_printer_write_flush(void) {
+  return tud_printer_n_write_flush(0);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool tud_printer_write_clear(void) {
+  return tud_printer_n_write_clear(0);
+}
+
 //--------------------------------------------------------------------+
 // Application Callback API (weak is optional)
 //--------------------------------------------------------------------+
 
 // Invoked when received new data
-void tud_printer_rx_cb(uint8_t itf, size_t n);
+void tud_printer_rx_cb(uint8_t itf);
+
+// Invoked when last write transfer is completed
+void tud_printer_tx_complete_cb(uint8_t itf);
 
 // Invoked when host requests device ID string (IEEE 1284).
 // Application returns pointer to device ID buffer (must remain valid until transfer completes).
