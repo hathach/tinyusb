@@ -411,17 +411,22 @@ bool ehci_init(uint8_t rhport, uint32_t capability_reg, uint32_t operatial_reg)
   return true;
 }
 
-#if 0
-static void ehci_stop(uint8_t rhport) {
+bool ehci_deinit(uint8_t rhport) {
   (void) rhport;
 
   ehci_registers_t* regs = ehci_data.regs;
+
+  // Disable all the interrupt
+  regs->inten  = 0;
+
+  // Disable schedules
   regs->command_bm.run_stop = 0;
 
   // USB Spec: controller has to stop within 16 uframe = 2 frames
   while( regs->status_bm.hc_halted == 0 ) {}
+
+  return true;
 }
-#endif
 
 //--------------------------------------------------------------------+
 // Endpoint API
