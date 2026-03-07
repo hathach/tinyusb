@@ -19,20 +19,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Download Artifacts
-        id: download
-        uses: actions/download-artifact@v5
-        with:
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          name: membrowse-comment
-          path: reports
-        continue-on-error: true
-
       - name: Post Membrowse PR comment
-        if: steps.download.outcome == 'success'
         uses: membrowse/membrowse-action/comment-action@v1
         with:
-          json_files: 'reports/*.json'
+          api_key: ${{ secrets.MEMBROWSE_API_KEY }}
+          api_url: ${{ vars.MEMBROWSE_API_URL }}
+          commit: ${{ github.event.workflow_run.head_sha }}
+          comment_template: top10_changes.j2
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

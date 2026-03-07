@@ -1,0 +1,44 @@
+{#- Top 10 targets with biggest memory changes + project dashboard link -#}
+{#- Usage: membrowse summary <sha> --api-key KEY --template top10_changes.j2 -#}
+{% set section_columns = ['.text', '.rodata', '.data', '.bss'] -%}
+{#- --- Compute per-target total absolute delta and collect changed targets --- -#}
+{% set changed = [] -%}
+{% for target in targets -%}
+{% if target.has_changes -%}
+{% set ns = namespace(total_delta=0, abs_delta=0, total_current=0) -%}
+{% for region in target.regions -%}
+{% set ns.total_delta = ns.total_delta + region.delta -%}
+{% set ns.abs_delta = ns.abs_delta + (region.delta if region.delta > 0 else -region.delta) -%}
+{% set ns.total_current = ns.total_current + region.used_size -%}
+{% endfor -%}
+{% set total_old = ns.total_current - ns.total_delta -%}
+{% set _ = changed.append({'target': target, 'total_current': ns.total_current, 'total_old': total_old, 'total_delta': ns.total_delta, 'abs_delta': ns.abs_delta}) -%}
+{% endif -%}
+{% endfor -%}
+{#- --- Sort by abs_delta descending and take top 10 --- -#}
+{% set sorted_changed = changed | sort(attribute='abs_delta', reverse=true) -%}
+{% set top10 = sorted_changed[:10] -%}
+{#- --- Render --- -#}
+{% if top10 %}
+### Top {{ top10 | length }} targets by memory change
+
+| target | .text | .rodata | .data | .bss | total | % diff |
+|--------|-------|---------|-------|------|-------|--------|
+{% for info in top10 -%}
+{% set target = info.target -%}
+{% set section_map = {} -%}
+{% for section in target.sections -%}
+{% set _ = section_map.update({section.name: section}) -%}
+{% endfor -%}
+| {% if target.comparison_url %}[{{ target.name }}]({{ target.comparison_url }}){% else %}{{ target.name }}{% endif %} |
+{%- for col in section_columns %} {% if col in section_map %}{{ "{:,}".format(section_map[col].old.size) }} → {{ "{:,}".format(section_map[col].size) }} ({{ section_map[col].delta_str }}){% else %}—{% endif %} |{% endfor %} {{ "{:,}".format(info.total_old) }} → {{ "{:,}".format(info.total_current) }} ({% if info.total_delta >= 0 %}+{{ "{:,}".format(info.total_delta) }}{% else %}{{ "{:,}".format(info.total_delta) }}{% endif %}) | {% if info.total_old > 0 %}{% if info.total_delta >= 0 %}+{% endif %}{{ "%.1f" | format(info.total_delta / info.total_old * 100) }}%{% else %}N/A{% endif %} |
+{% endfor %}
+{% if changed | length > 10 %}
+*Showing top 10 of {{ changed | length }} targets with changes ({{ targets | length }} total targets).*
+{% endif %}
+{% else %}
+No memory changes detected across {{ targets | length }} target{{ 's' if targets | length != 1 else '' }}.
+{% endif -%}
+{% if dashboard_url %}
+[View full project dashboard]({{ dashboard_url }})
+{% endif -%}
