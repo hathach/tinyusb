@@ -395,6 +395,24 @@
                                             // odd byte with byte access
 #endif
 
+//------- Microchip SAMX7X -------//
+// DMA mode for device
+#ifndef CFG_TUD_SAMX7X_DMA_ENABLE
+  #ifndef CFG_TUD_SAMX7X_DMA_ENABLE_DEFAULT
+  #define CFG_TUD_SAMX7X_DMA_ENABLE_DEFAULT 0
+  #endif
+
+  #define CFG_TUD_SAMX7X_DMA_ENABLE CFG_TUD_SAMX7X_DMA_ENABLE_DEFAULT
+#endif
+
+#if (CFG_TUSB_MCU == OPT_MCU_SAMX7X)
+  #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 4
+  #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 4
+  #define CFG_TUSB_FIFO_HWFIFO_DATA_ODD_16BIT_ACCESS
+  #define CFG_TUSB_FIFO_HWFIFO_DATA_ODD_8BIT_ACCESS
+  #define CFG_TUD_EDPT_DEDICATED_HWFIFO 1
+#endif
+
 //--------------------------------------------------------------------
 // RootHub Mode detection
 //--------------------------------------------------------------------
