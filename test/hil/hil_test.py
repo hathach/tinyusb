@@ -47,7 +47,7 @@ from multiprocessing import Pool
 import fs
 import hashlib
 import ctypes
-from pymtp import MTP, LIBMTP_MTPDevice, LIBMTP_RawDevice
+from pymtp import MTP
 import string
 
 ENUM_TIMEOUT = 30
@@ -150,9 +150,6 @@ def read_disk_file(uid, lun, fname):
 
 def open_mtp_dev(uid):
     mtp = MTP()
-    # Set proper return type for LIBMTP_Open_Raw_Device (pymtp doesn't define it)
-    mtp.mtp.LIBMTP_Open_Raw_Device.restype = ctypes.POINTER(LIBMTP_MTPDevice)
-    mtp.mtp.LIBMTP_Open_Raw_Device.argtypes = [ctypes.POINTER(LIBMTP_RawDevice)]
     # MTP seems to take a while to enumerate
     timeout = 2 * ENUM_TIMEOUT
     while timeout > 0:
