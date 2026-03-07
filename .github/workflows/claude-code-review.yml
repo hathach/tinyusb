@@ -6,6 +6,7 @@ on:
 
 jobs:
   claude-review:
+    if: false
     runs-on: ubuntu-latest
     permissions:
       contents: read

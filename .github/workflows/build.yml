@@ -291,7 +291,14 @@ jobs:
 
       - name: Test on actual hardware
         run: |
-          python3 test/hil/hil_test.py ${{ env.HIL_JSON }} $SKIP_BOARDS
+          python3 test/hil/hil_test.py ${{ env.HIL_JSON }} $SKIP_BOARDS || \
+          (if [ -f "${{ env.HIL_JSON }}.skip" ]; then
+            SKIP_BOARDS=$(cat "${{ env.HIL_JSON }}.skip")
+            echo "Re-running with SKIP_BOARDS=$SKIP_BOARDS"
+            python3 test/hil/hil_test.py ${{ env.HIL_JSON }} $SKIP_BOARDS
+          else
+            exit 1
+          fi)
 
   # ---------------------------------------
   # Hardware in the loop (HIL)

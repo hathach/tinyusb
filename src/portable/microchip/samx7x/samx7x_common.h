@@ -1,4 +1,4 @@
- /*
+/*
 * The MIT License (MIT)
 *
 * Copyright (c) 2019 Microchip Technology Inc.
@@ -2098,7 +2098,72 @@ typedef struct
 #define FIFO_RAM_ADDR     0xA0100000u
 
 // Errata: The DMA feature is not available for Pipe/Endpoint 7
-#define EP_DMA_SUPPORT(epnum) (epnum >= 1 && epnum <= 6)
+#define EP_DMA_SUPPORT(epnum) (epnum >= 1 && epnum <= 6 && CFG_TUD_SAMX7X_DMA_ENABLE)
+
+//------------- DCache -------------//
+#if CFG_TUD_MEM_DCACHE_ENABLE || CFG_TUH_MEM_DCACHE_ENABLE
+
+typedef struct {
+  uintptr_t start;
+  uintptr_t end;
+} mem_region_t;
+
+// Can be used to define additional uncached regions
+#ifndef CFG_SAMX7X_MEM_UNCACHED_REGIONS
+#define CFG_SAMX7X_MEM_UNCACHED_REGIONS
+#endif
+
+static mem_region_t uncached_regions[] = {
+  // DTCM
+  {.start = 0x20000000, .end = 0x203fffff},
+  CFG_SAMX7X_MEM_UNCACHED_REGIONS
+};
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t round_up_to_cache_line_size(uint32_t size) {
+  if (size & (CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT-1)) {
+    size = (size & ~(CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT-1)) + CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT;
+  }
+  return size;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool is_cache_mem(uintptr_t addr) {
+  if (0 == (SCB->CCR & SCB_CCR_DC_Msk)) {
+    return false; // D-Cache is disabled
+  }
+  for (unsigned int i = 0; i < TU_ARRAY_SIZE(uncached_regions); i++) {
+    if (uncached_regions[i].start <= addr && addr <= uncached_regions[i].end) { return false; }
+  }
+  return true;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool samx7x_dcache_clean(void const* addr, uint32_t data_size) {
+  const uintptr_t addr32 = (uintptr_t) addr;
+  if (is_cache_mem(addr32)) {
+    data_size = round_up_to_cache_line_size(data_size);
+    SCB_CleanDCache_by_Addr((uint32_t *) addr32, (int32_t) data_size);
+  }
+  return true;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool samx7x_dcache_invalidate(void const* addr, uint32_t data_size) {
+  const uintptr_t addr32 = (uintptr_t) addr;
+  if (is_cache_mem(addr32)) {
+    data_size = round_up_to_cache_line_size(data_size);
+    SCB_InvalidateDCache_by_Addr((void*) addr32, (int32_t) data_size);
+  }
+  return true;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool samx7x_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
+  const uintptr_t addr32 = (uintptr_t) addr;
+  if (is_cache_mem(addr32)) {
+    data_size = round_up_to_cache_line_size(data_size);
+    SCB_CleanInvalidateDCache_by_Addr((uint32_t *) addr32, (int32_t) data_size);
+  }
+  return true;
+}
+
+#endif
 
 #else // TODO : SAM3U
 
