@@ -392,7 +392,13 @@ static void const* _find_desc_ep(void const *beg, void const *end)
 static inline void const* _end_of_control_descriptor(void const *desc)
 {
   tusb_desc_vc_itf_t const *vc = (tusb_desc_vc_itf_t const *)desc;
-  return ((uint8_t const*) desc) + vc->std.bLength + tu_le16toh(vc->ctl.wTotalLength);
+  uint8_t const *end = (uint8_t const*)desc + vc->std.bLength
+                       + tu_le16toh(vc->ctl.wTotalLength);
+  if (vc->std.bNumEndpoints) {
+    end += sizeof(tusb_desc_endpoint_t);  // standard EP descriptor
+    end += 5;                             // class-specific EP descriptor (fixed 5 bytes per UVC spec)
+  }
+  return end;
 }
 
 /** Find the first entity descriptor with the entity ID
@@ -771,7 +777,7 @@ static bool _open_vc_itf(uint8_t rhport, videod_interface_t *self, uint_fast8_t 
   TU_ASSERT(vc->ctl.bInCollection <= CFG_TUD_VIDEO_STREAMING);
 
   /* Update to point the end of the video control interface descriptor. */
-  end = (uint8_t const *) _end_of_control_descriptor(cur) + sizeof(tusb_desc_endpoint_t);
+  end = _end_of_control_descriptor(cur);
 
   /* Advance to the next descriptor after the class-specific VC interface header descriptor. */
   cur += vc->std.bLength + vc->ctl.bLength;
