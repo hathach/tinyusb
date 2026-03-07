@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Post Membrowse PR comment
-        uses: membrowse/membrowse-action/comment-action@v1
+        uses: membrowse/membrowse-action/comment-action@main
         with:
           api_key: ${{ secrets.MEMBROWSE_API_KEY }}
           api_url: ${{ vars.MEMBROWSE_API_URL }}

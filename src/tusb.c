@@ -41,6 +41,9 @@
 
 tusb_role_t _tusb_rhport_role[TUP_USBIP_CONTROLLER_NUM] = { TUSB_ROLE_INVALID };
 
+// Diagnostic buffer for tracking USB transaction statistics
+TU_ATTR_USED static uint32_t _tusb_diag_counters[16];
+
 //--------------------------------------------------------------------
 // Weak/Default API, can be overwritten by Application
 //--------------------------------------------------------------------
