@@ -15,6 +15,7 @@ set(FAMILY_MCUS SAMX7X CACHE INTERNAL "")
 #------------------------------------
 set(STARTUP_FILE_GNU ${SDK_DIR}/same70b/gcc/gcc/startup_same70q21b.c)
 set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
+set(STARTUP_FILE_IAR ${SDK_DIR}/same70b/iar/iar/startup_same70q21b.c)
 set(LD_FILE_Clang ${LD_FILE_GNU})
 
 #------------------------------------
@@ -47,12 +48,14 @@ function(family_add_board BOARD_TARGET)
 
   update_board(${BOARD_TARGET})
 
-  target_compile_options(${BOARD_TARGET} PUBLIC
-    -Wno-error=unused-parameter
-    -Wno-error=cast-align
-    -Wno-error=redundant-decls
-    -Wno-error=cast-qual
-    )
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(${BOARD_TARGET} PUBLIC
+      -Wno-error=unused-parameter
+      -Wno-error=cast-align
+      -Wno-error=redundant-decls
+      -Wno-error=cast-qual
+      )
+  endif()
 endfunction()
 
 #------------------------------------
@@ -89,9 +92,11 @@ function(family_configure_example TARGET RTOS)
       "LINKER:--config=${LD_FILE_IAR}"
       )
   endif ()
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
   set_source_files_properties(${STARTUP_FILE_${CMAKE_C_COMPILER_ID}} PROPERTIES
     SKIP_LINTING ON
     COMPILE_OPTIONS -w)
+  endif()
 
   family_add_bin_hex(${TARGET})
   family_flash_jlink(${TARGET})
