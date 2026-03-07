@@ -42,56 +42,15 @@ static inline void board_vbus_set(uint8_t rhport, bool state);
 void _init(void);
 #include "board.h"
 
-#ifndef LED_STATE_ON
-  #define LED_STATE_ON 1
-#endif
-
-#ifndef LED_PORT_CLOCK
-  #define LED_PORT_CLOCK ID_PIOA
-#endif
-
-#ifndef BUTTON_PORT_CLOCK
-  #define BUTTON_PORT_CLOCK ID_PIOA
-#endif
-
-#ifndef UART_PORT_CLOCK
-  #define UART_PORT_CLOCK ID_USART1
-#endif
-
-#ifndef BOARD_USART
-  #define BOARD_USART USART1
-#endif
-
-#ifndef BOARD_UART_DESCRIPTOR
-  #define BOARD_UART_DESCRIPTOR edbg_com
-#endif
-
-#ifndef BOARD_UART_BUFFER
-  #define BOARD_UART_BUFFER edbg_com_buffer
-#endif
-
-#ifndef BUTTON_STATE_ACTIVE
-  #define BUTTON_STATE_ACTIVE 0
-#endif
-
-#ifndef UART_TX_FUNCTION
-  #define UART_TX_FUNCTION MUX_PB4D_USART1_TXD1
-#endif
-
-#ifndef UART_RX_FUNCTION
-  #define UART_RX_FUNCTION MUX_PA21A_USART1_RXD1
-#endif
-
 #ifndef UART_BUFFER_SIZE
   #define UART_BUFFER_SIZE 64
 #endif
 
 #define LED_STATE_OFF (1 - LED_STATE_ON)
 
-static struct usart_async_descriptor BOARD_UART_DESCRIPTOR;
-static uint8_t BOARD_UART_BUFFER[UART_BUFFER_SIZE];
+static struct usart_async_descriptor edbg_com;
+static uint8_t edbg_com_buffer[UART_BUFFER_SIZE];
 static volatile bool uart_busy = false;
-
 static void tx_complete_cb(const struct usart_async_descriptor *const io_descr) {
   (void) io_descr;
   uart_busy = false;
@@ -121,10 +80,10 @@ void board_init(void) {
   gpio_set_pin_function(UART_RX_PIN, UART_RX_FUNCTION);
   gpio_set_pin_function(UART_TX_PIN, UART_TX_FUNCTION);
 
-  usart_async_init(&BOARD_UART_DESCRIPTOR, BOARD_USART, BOARD_UART_BUFFER, sizeof(BOARD_UART_BUFFER), _usart_get_usart_async());
-  usart_async_set_baud_rate(&BOARD_UART_DESCRIPTOR, CFG_BOARD_UART_BAUDRATE);
-  usart_async_register_callback(&BOARD_UART_DESCRIPTOR, USART_ASYNC_TXC_CB, tx_complete_cb);
-  usart_async_enable(&BOARD_UART_DESCRIPTOR);
+  usart_async_init(&edbg_com, BOARD_USART, edbg_com_buffer, sizeof(edbg_com_buffer), _usart_get_usart_async());
+  usart_async_set_baud_rate(&edbg_com, CFG_BOARD_UART_BAUDRATE);
+  usart_async_register_callback(&edbg_com, USART_ASYNC_TXC_CB, tx_complete_cb);
+  usart_async_enable(&edbg_com);
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer (SystemCoreClock may not be correct after init)
@@ -181,8 +140,38 @@ int board_uart_write(void const *buf, int len) {
   while (uart_busy) {}
   uart_busy = true;
 
-  io_write(&BOARD_UART_DESCRIPTOR.io, buf, len);
+  io_write(&edbg_com.io, buf, len);
   return len;
+}
+
+// Read 128-bit unique ID via EFC STUI/SPUI commands
+// Must run from RAM since STUI remaps flash to the unique ID
+__attribute__((noinline)) TU_ATTR_SECTION(.ramfunc) static void read_unique_id(uint32_t uid[4]) {
+  // Wait for flash to be ready
+  while (!(EFC->EEFC_FSR & EEFC_FSR_FRDY)) {}
+
+  // Issue Start Read Unique Identifier command
+  EFC->EEFC_FCR = EEFC_FCR_FKEY_PASSWD | EEFC_FCR_FCMD_STUI;
+  while (EFC->EEFC_FSR & EEFC_FSR_FRDY) {}
+
+  // Read 128-bit unique ID from flash base address
+  const volatile uint32_t *flash = (const volatile uint32_t *) IFLASH_ADDR;
+  for (int i = 0; i < 4; i++) {
+    uid[i] = flash[i];
+  }
+
+  // Issue Stop Read Unique Identifier command
+  EFC->EEFC_FCR = EEFC_FCR_FKEY_PASSWD | EEFC_FCR_FCMD_SPUI;
+  while (!(EFC->EEFC_FSR & EEFC_FSR_FRDY)) {}
+}
+
+size_t board_get_unique_id(uint8_t id[], size_t max_len) {
+  const size_t uid_len = 16;
+  if (max_len < uid_len) {
+    return 0;
+  }
+  read_unique_id((uint32_t *)(uintptr_t) id);
+  return uid_len;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
