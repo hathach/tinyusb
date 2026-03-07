@@ -55,3 +55,10 @@ Release
 BrowseInfo
 .cmake_build
 README_processed.rst
+# fetched dependencies (managed by tools/get_deps.py)
+hw/mcu/st/
+lib/CMSIS_5
+lib/FreeRTOS-Kernel
+lib/lwip
+tools/linkermap
+tools/uf2
