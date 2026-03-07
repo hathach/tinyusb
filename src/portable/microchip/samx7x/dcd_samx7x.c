@@ -50,14 +50,6 @@
   #define EP_GET_FIFO_PTR(ep, scale)                                                            \
     (((TU_XSTRCAT(TU_STRCAT(uint, scale), _t)(*)[0x8000 / ((scale) / 8)]) FIFO_RAM_ADDR)[(ep)])
 
-// DMA Channel Transfer Descriptor
-typedef struct {
-  volatile uint32_t next_desc;
-  volatile uint32_t buff_addr;
-  volatile uint32_t chnl_ctrl;
-  uint32_t          padding;
-} dma_desc_t;
-
 // Transfer control context
 typedef struct {
   uint8_t   *buffer;
