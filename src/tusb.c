@@ -41,9 +41,6 @@
 
 tusb_role_t _tusb_rhport_role[TUP_USBIP_CONTROLLER_NUM] = { TUSB_ROLE_INVALID };
 
-// Diagnostic buffer for tracking USB transaction statistics
-TU_ATTR_USED static uint32_t _tusb_diag_counters[16];
-
 //--------------------------------------------------------------------
 // Weak/Default API, can be overwritten by Application
 //--------------------------------------------------------------------
@@ -79,6 +76,9 @@ TU_ATTR_WEAK void* tusb_app_phys_to_virt(void *phys_addr) {
 // Public API
 //--------------------------------------------------------------------+
 bool tusb_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  static uint8_t init_count = 0;
+  init_count++;
+
   //  backward compatible called with tusb_init(void)
   #if defined(TUD_OPT_RHPORT) || defined(TUH_OPT_RHPORT)
   if (rh_init == NULL) {

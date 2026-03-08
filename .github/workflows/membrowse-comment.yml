@@ -25,6 +25,6 @@ jobs:
           api_key: ${{ secrets.MEMBROWSE_API_KEY }}
           api_url: ${{ vars.MEMBROWSE_API_URL }}
           commit: ${{ github.event.workflow_run.head_sha }}
-          comment_template: top10_changes.j2
+          comment_template: membrowse_pr_message.j2
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

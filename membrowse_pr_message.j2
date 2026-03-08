@@ -1,5 +1,5 @@
 {#- Top 10 targets with biggest memory changes + project dashboard link -#}
-{#- Usage: membrowse summary <sha> --api-key KEY --template top10_changes.j2 -#}
+{#- Usage: membrowse summary <sha> --api-key KEY --template membrowse_pr_message.j2 -#}
 {% set section_columns = ['.text', '.rodata', '.data', '.bss'] -%}
 {#- --- Compute per-target total absolute delta and collect changed targets --- -#}
 {% set changed = [] -%}
@@ -32,13 +32,14 @@
 {% endfor -%}
 | {% if target.comparison_url %}[{{ target.name }}]({{ target.comparison_url }}){% else %}{{ target.name }}{% endif %} |
 {%- for col in section_columns %} {% if col in section_map %}{{ "{:,}".format(section_map[col].old.size) }} → {{ "{:,}".format(section_map[col].size) }} ({{ section_map[col].delta_str }}){% else %}—{% endif %} |{% endfor %} {{ "{:,}".format(info.total_old) }} → {{ "{:,}".format(info.total_current) }} ({% if info.total_delta >= 0 %}+{{ "{:,}".format(info.total_delta) }}{% else %}{{ "{:,}".format(info.total_delta) }}{% endif %}) | {% if info.total_old > 0 %}{% if info.total_delta >= 0 %}+{% endif %}{{ "%.1f" | format(info.total_delta / info.total_old * 100) }}%{% else %}N/A{% endif %} |
-{% endfor %}
+{% endfor -%}
+
 {% if changed | length > 10 %}
 *Showing top 10 of {{ changed | length }} targets with changes ({{ targets | length }} total targets).*
 {% endif %}
 {% else %}
 No memory changes detected across {{ targets | length }} target{{ 's' if targets | length != 1 else '' }}.
-{% endif -%}
+{% endif %}
 {% if dashboard_url %}
 [View full project dashboard]({{ dashboard_url }})
 {% endif -%}
