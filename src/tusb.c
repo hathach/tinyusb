@@ -76,9 +76,6 @@ TU_ATTR_WEAK void* tusb_app_phys_to_virt(void *phys_addr) {
 // Public API
 //--------------------------------------------------------------------+
 bool tusb_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
-  static uint8_t init_count = 0;
-  init_count++;
-
   //  backward compatible called with tusb_init(void)
   #if defined(TUD_OPT_RHPORT) || defined(TUH_OPT_RHPORT)
   if (rh_init == NULL) {
