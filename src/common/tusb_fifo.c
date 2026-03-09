@@ -280,7 +280,7 @@ static void hwff_push_n(const tu_fifo_t *f, const void *app_buf, uint16_t n, uin
     const uint32_t odd_mask    = data_stride - 1;
     uint16_t       lin_even    = lin_bytes & ~odd_mask;
     tu_hwfifo_read(hwfifo, ff_buf, lin_even, access_mode);
-    HWFIFO_ADDR_NEXT_N(hwfifo, const, lin_even);
+    HWFIFO_ADDR_NEXT_N(hwfifo, const, (lin_even / data_stride) * CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE);
     ff_buf += lin_even;
 
     // There could be odd 1 byte (16bit) or 1-3 bytes (32bit) before the wrap-around boundary
@@ -337,7 +337,7 @@ static void hwff_pull_n(const tu_fifo_t *f, void *app_buf, uint16_t n, uint16_t 
     const uint32_t odd_mask    = data_stride - 1;
     uint16_t       lin_even    = lin_bytes & ~odd_mask;
     tu_hwfifo_write(hwfifo, ff_buf, lin_even, access_mode);
-    HWFIFO_ADDR_NEXT_N(hwfifo, , lin_even);
+    HWFIFO_ADDR_NEXT_N(hwfifo, , (lin_even / data_stride) * CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE);
     ff_buf += lin_even;
 
     // There could be odd 1 byte (16bit) or 1-3 bytes (32bit) before the wrap-around boundary
