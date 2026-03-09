@@ -260,6 +260,7 @@ bool tu_edpt_release(tu_edpt_state_t* ep_state, osal_mutex_t mutex) {
 bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed) {
   const uint16_t max_packet_size = tu_edpt_packet_size(desc_ep);
   TU_LOG2("  Open EP %02X with Size = %u\r\n", desc_ep->bEndpointAddress, max_packet_size);
+  TU_ASSERT(max_packet_size > 0);
 
   switch (desc_ep->bmAttributes.xfer) {
     case TUSB_XFER_ISOCHRONOUS: {
@@ -279,7 +280,7 @@ bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed) {
       break;
 
     case TUSB_XFER_INTERRUPT: {
-      uint16_t const spec_size = (speed == TUSB_SPEED_HIGH ? 1024 : 64);
+      const uint16_t spec_size = (speed == TUSB_SPEED_HIGH ? 1024 : 64);
       TU_ASSERT(max_packet_size <= spec_size);
       break;
     }

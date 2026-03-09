@@ -1150,7 +1150,7 @@ static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size) {
 }
 
 bool tuh_edpt_open(uint8_t dev_addr, tusb_desc_endpoint_t const* desc_ep) {
-  // HACK: some device incorrectly always report 512 bulk regardless of link speed, overwrite descriptor to force 64
+  // HACK: some device incorrectly always reports 512 bulk regardless of link speed, overwrite descriptor to force 64
   if (desc_ep->bmAttributes.xfer == TUSB_XFER_BULK && tu_edpt_packet_size(desc_ep) > 64 &&
       tuh_speed_get(dev_addr) == TUSB_SPEED_FULL) {
     TU_LOG1("  WARN: EP max packet size is 512 in fullspeed, force to 64\r\n");
@@ -1655,6 +1655,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
     TU_ASSERT(dev != NULL,);
   }
   uint16_t langid = 0x0409; // default is English
+  bool is_enum_failed = false;
 
   switch (state) {
   #if CFG_TUH_HUB
@@ -1664,11 +1665,11 @@ static void process_enumeration(tuh_xfer_t *xfer) {
 
       if (0 == port_status.status.connection) {
         TU_LOG_USBH("Device unplugged from hub while debouncing\r\n");
-        enum_full_complete(false);
-        return;
+        is_enum_failed = true;
+      } else {
+        TU_ASSERT(hub_port_reset(dev0_bus->hub_addr, dev0_bus->hub_port, process_enumeration,
+                                 ENUM_HUB_RESET_COMPLETE), );
       }
-
-      TU_ASSERT(hub_port_reset(dev0_bus->hub_addr, dev0_bus->hub_port, process_enumeration, ENUM_HUB_RESET_COMPLETE), );
       break;
     }
 
@@ -1691,7 +1692,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
         usbh_defer_func_ms_async(ENUM_RESET_HUB_DELAY_MS, enum_delay_async, ENUM_AFTER_RESET_HUB_DELAY_RETRY);
       } else {
         // retry but still not set --> failed
-        enum_full_complete(false);
+        is_enum_failed = true;
       }
       break;
     }
@@ -1702,14 +1703,13 @@ static void process_enumeration(tuh_xfer_t *xfer) {
 
       if (0 == port_status.status.connection) {
         TU_LOG_USBH("Device unplugged from hub (not addressed yet)\r\n");
-        enum_full_complete(false);
-        return;
+        is_enum_failed = true;
+        break;
       }
 
       dev0_bus->speed = (port_status.status.high_speed)  ? TUSB_SPEED_HIGH
                         : (port_status.status.low_speed) ? TUSB_SPEED_LOW
                                                          : TUSB_SPEED_FULL;
-
       TU_ATTR_FALLTHROUGH;
     }
   #endif
@@ -1720,6 +1720,12 @@ static void process_enumeration(tuh_xfer_t *xfer) {
 
     case ENUM_SET_ADDR: {
       const tusb_desc_device_t *desc_device = (const tusb_desc_device_t *) _usbh_epbuf.ctrl;
+      if (!(desc_device->bDescriptorType == TUSB_DESC_DEVICE && desc_device->bMaxPacketSize0 >= 8)) {
+        TU_LOG_USBH("Invalid Device descriptor\r\n");
+        is_enum_failed = true;
+        break;
+      }
+
       const uint8_t new_addr = enum_get_new_address(desc_device->bDeviceClass == TUSB_CLASS_HUB);
       TU_ASSERT(new_addr != 0,);
 
@@ -1910,8 +1916,12 @@ static void process_enumeration(tuh_xfer_t *xfer) {
     }
 
     default:
-      enum_full_complete(false); // stop enumeration if unknown state
+      is_enum_failed = true;
       break;
+  }
+
+  if (is_enum_failed) {
+    enum_full_complete(false);
   }
 }
 

@@ -81,9 +81,8 @@ typedef struct {
 bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed);
 #else
 TU_ATTR_ALWAYS_INLINE static inline bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed) {
-  (void)desc_ep;
   (void)speed;
-  return true;
+  return tu_edpt_packet_size(desc_ep) > 0;
 }
 #endif
 
