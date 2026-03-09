@@ -399,13 +399,7 @@ static void const* _find_desc_ep(void const *beg, void const *end)
 static inline void const* _end_of_control_descriptor(void const *desc)
 {
   tusb_desc_vc_itf_t const *vc = (tusb_desc_vc_itf_t const *)desc;
-  uint8_t const *end = (uint8_t const*)desc + vc->std.bLength
-                       + tu_le16toh(vc->ctl.wTotalLength);
-  if (vc->std.bNumEndpoints) {
-    end += sizeof(tusb_desc_endpoint_t);  // standard EP descriptor
-    end += 5;                             // class-specific EP descriptor (fixed 5 bytes per UVC spec)
-  }
-  return end;
+  return ((uint8_t const*) desc) + vc->std.bLength + tu_le16toh(vc->ctl.wTotalLength);
 }
 
 /** Find the first entity descriptor with the entity ID
