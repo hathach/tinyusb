@@ -433,7 +433,7 @@ bool tuh_descriptor_get_device_local(uint8_t daddr, tusb_desc_device_t* desc_dev
 
   desc_device->bLength = sizeof(tusb_desc_device_t);
   desc_device->bDescriptorType = TUSB_DESC_DEVICE;
-  memcpy(&desc_device->bcdUSB, &dev->desc_device, sizeof(dev->desc_device));
+  memcpy((uint8_t*) desc_device + offsetof(tusb_desc_device_t, bcdUSB), &dev->desc_device, sizeof(desc_device_noheader_t));
 
   return true;
 }
@@ -1751,7 +1751,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
       // save the received device descriptor
       tusb_desc_device_t const *desc_device = (tusb_desc_device_t const *) _usbh_epbuf.ctrl;
 
-      memcpy(&dev->desc_device, &desc_device->bcdUSB, sizeof(dev->desc_device));
+      memcpy(&dev->desc_device, (const uint8_t*) desc_device + offsetof(tusb_desc_device_t, bcdUSB), sizeof(desc_device_noheader_t));
 
       tuh_enum_descriptor_device_cb(daddr, desc_device); // callback
       tuh_descriptor_get_string_langid(daddr, _usbh_epbuf.ctrl, 2,
