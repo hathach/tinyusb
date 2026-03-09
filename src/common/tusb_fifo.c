@@ -118,6 +118,16 @@ void tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable) {
 
   #define HWFIFO_ADDR_NEXT(_hwfifo, _const) HWFIFO_ADDR_NEXT_N(_hwfifo, _const, CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE)
 
+TU_ATTR_ALWAYS_INLINE static inline uint16_t lin_even_to_addr_advance(uint16_t lin_even, uint8_t data_stride) {
+  uint16_t words = lin_even;
+  if (data_stride == 4) {
+    words >>= 2;
+  } else if (data_stride == 2) {
+    words >>= 1;
+  }
+  return (uint16_t) (words * CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE);
+}
+
 //------------- Write -------------//
   #ifndef CFG_TUSB_FIFO_HWFIFO_CUSTOM_WRITE
 TU_ATTR_ALWAYS_INLINE static inline void stride_write(volatile void *hwfifo, const void *src, uint8_t data_stride) {
@@ -280,7 +290,7 @@ static void hwff_push_n(const tu_fifo_t *f, const void *app_buf, uint16_t n, uin
     const uint32_t odd_mask    = data_stride - 1;
     uint16_t       lin_even    = lin_bytes & ~odd_mask;
     tu_hwfifo_read(hwfifo, ff_buf, lin_even, access_mode);
-    HWFIFO_ADDR_NEXT_N(hwfifo, const, (lin_even / data_stride) * CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE);
+    HWFIFO_ADDR_NEXT_N(hwfifo, const, lin_even_to_addr_advance(lin_even, data_stride));
     ff_buf += lin_even;
 
     // There could be odd 1 byte (16bit) or 1-3 bytes (32bit) before the wrap-around boundary
@@ -337,7 +347,7 @@ static void hwff_pull_n(const tu_fifo_t *f, void *app_buf, uint16_t n, uint16_t 
     const uint32_t odd_mask    = data_stride - 1;
     uint16_t       lin_even    = lin_bytes & ~odd_mask;
     tu_hwfifo_write(hwfifo, ff_buf, lin_even, access_mode);
-    HWFIFO_ADDR_NEXT_N(hwfifo, , (lin_even / data_stride) * CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE);
+    HWFIFO_ADDR_NEXT_N(hwfifo, , lin_even_to_addr_advance(lin_even, data_stride));
     ff_buf += lin_even;
 
     // There could be odd 1 byte (16bit) or 1-3 bytes (32bit) before the wrap-around boundary
