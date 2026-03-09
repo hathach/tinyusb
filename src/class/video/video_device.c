@@ -70,6 +70,13 @@ typedef struct TU_ATTR_PACKED {
   uint8_t bEntityId;
 } tusb_desc_cs_video_entity_itf_t;
 
+typedef struct TU_ATTR_PACKED {
+  uint8_t  bLength;
+  uint8_t  bDescriptorType;
+  uint8_t  bDescriptorSubtype;
+  uint16_t wMaxTransferSize;
+} tusb_desc_cs_video_vc_ep_t;
+
 typedef union {
   struct TU_ATTR_PACKED {
     uint8_t bLength;
@@ -392,7 +399,13 @@ static void const* _find_desc_ep(void const *beg, void const *end)
 static inline void const* _end_of_control_descriptor(void const *desc)
 {
   tusb_desc_vc_itf_t const *vc = (tusb_desc_vc_itf_t const *)desc;
-  return ((uint8_t const*) desc) + vc->std.bLength + tu_le16toh(vc->ctl.wTotalLength);
+  uint8_t const *end = (uint8_t const*)desc + vc->std.bLength
+                       + tu_le16toh(vc->ctl.wTotalLength);
+  if (vc->std.bNumEndpoints) {
+    end += sizeof(tusb_desc_endpoint_t);  // standard EP descriptor
+    end += 5;                             // class-specific EP descriptor (fixed 5 bytes per UVC spec)
+  }
+  return end;
 }
 
 /** Find the first entity descriptor with the entity ID
@@ -740,6 +753,9 @@ static bool _close_vc_itf(uint8_t rhport, videod_interface_t *self)
   /* The end of the video control interface descriptor. */
   void const *end = _end_of_control_descriptor(vc);
   if (vc->std.bNumEndpoints != 0) {
+    /* Extend end to cover the standard endpoint and class-specific endpoint descriptors
+     * that follow wTotalLength */
+    end = (uint8_t const*)end + sizeof(tusb_desc_endpoint_t) + sizeof(tusb_desc_cs_video_vc_ep_t);
     /* Find the notification endpoint descriptor. */
     cur = _find_desc(cur, end, TUSB_DESC_ENDPOINT);
     TU_ASSERT(cur < end);
@@ -780,6 +796,9 @@ static bool _open_vc_itf(uint8_t rhport, videod_interface_t *self, uint_fast8_t 
   if (vc->std.bNumEndpoints != 0) {
     /* Support for 1 endpoint only. */
     TU_VERIFY(1 == vc->std.bNumEndpoints);
+    /* Extend end to cover the standard endpoint and class-specific endpoint descriptors
+     * that follow wTotalLength */
+    end = (uint8_t const*)end + sizeof(tusb_desc_endpoint_t) + sizeof(tusb_desc_cs_video_vc_ep_t);
     /* Find the notification endpoint descriptor. */
     cur = _find_desc(cur, end, TUSB_DESC_ENDPOINT);
     TU_VERIFY(cur < end);
