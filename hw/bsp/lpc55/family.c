@@ -33,8 +33,11 @@
 #include "fsl_device_registers.h"
 #include "fsl_gpio.h"
 #include "fsl_power.h"
-#include "fsl_iocon.h"
 #include "fsl_usart.h"
+
+#include "board/pin_mux.h"
+#include "board/clock_config.h"
+#include "board/peripherals.h"
 
 #ifdef NEOPIXEL_PIN
 #include "fsl_sctimer.h"
@@ -44,23 +47,6 @@
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
-
-// IOCON pin mux
-#define IOCON_PIO_DIGITAL_EN     0x0100u // Enables digital function
-#define IOCON_PIO_FUNC0          0x00u   // Selects pin function 0
-#define IOCON_PIO_FUNC1          0x01u   // Selects pin function 1
-#define IOCON_PIO_FUNC4          0x04u   // Selects pin function 4
-#define IOCON_PIO_FUNC7          0x07u   // Selects pin function 7
-#define IOCON_PIO_INV_DI         0x00u   // Input function is not inverted
-#define IOCON_PIO_MODE_INACT     0x00u   // No addition pin function
-#define IOCON_PIO_OPENDRAIN_DI   0x00u   // Open drain is disabled
-#define IOCON_PIO_SLEW_STANDARD  0x00u   // Standard mode, output slew rate control is enabled
-#define IOCON_PIO_MODE_PULLUP    0x20u   /*!<@brief Selects pull-up function */
-
-#define IOCON_PIO_DIG_FUNC0_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_FUNC0) // Digital pin function 0 enabled
-#define IOCON_PIO_DIG_FUNC1_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_FUNC1) // Digital pin function 1 enabled
-#define IOCON_PIO_DIG_FUNC4_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_FUNC4) // Digital pin function 2 enabled
-#define IOCON_PIO_DIG_FUNC7_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_FUNC7) // Digital pin function 2 enabled
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
@@ -73,74 +59,12 @@ void USB1_IRQHandler(void) {
   tusb_int_handler(1, true);
 }
 
-/****************************************************************
-name: BOARD_BootClockPLL100M
-outputs:
-- {id: System_clock.outFreq, value: 100 MHz}
-settings:
-- {id: PLL0_Mode, value: Normal}
-- {id: ANALOG_CONTROL_FRO192M_CTRL_ENDI_FRO_96M_CFG, value: Enable}
-- {id: ENABLE_CLKIN_ENA, value: Enabled}
-- {id: ENABLE_SYSTEM_CLK_OUT, value: Enabled}
-- {id: SYSCON.MAINCLKSELB.sel, value: SYSCON.PLL0_BYPASS}
-- {id: SYSCON.PLL0CLKSEL.sel, value: SYSCON.CLK_IN_EN}
-- {id: SYSCON.PLL0M_MULT.scale, value: '100', locked: true}
-- {id: SYSCON.PLL0N_DIV.scale, value: '4', locked: true}
-- {id: SYSCON.PLL0_PDEC.scale, value: '4', locked: true}
-sources:
-- {id: ANACTRL.fro_hf.outFreq, value: 96 MHz}
-- {id: SYSCON.XTAL32M.outFreq, value: 16 MHz, enabled: true}
-******************************************************************/
-void BOARD_BootClockPLL100M(void)
-{
-    /*!< Set up the clock sources */
-    /*!< Configure FRO192M */
-    POWER_DisablePD(kPDRUNCFG_PD_FRO192M);               /*!< Ensure FRO is on  */
-    CLOCK_SetupFROClocking(12000000U);                   /*!< Set up FRO to the 12 MHz, just for sure */
-    CLOCK_AttachClk(kFRO12M_to_MAIN_CLK);                /*!< Switch to FRO 12MHz first to ensure we can change the clock setting */
-
-    CLOCK_SetupFROClocking(96000000U);                   /* Enable FRO HF(96MHz) output */
-
-    /*!< Configure XTAL32M */
-    POWER_DisablePD(kPDRUNCFG_PD_XTAL32M);                        /* Ensure XTAL32M is powered */
-    POWER_DisablePD(kPDRUNCFG_PD_LDOXO32M);                       /* Ensure XTAL32M is powered */
-    CLOCK_SetupExtClocking(16000000U);                            /* Enable clk_in clock */
-    SYSCON->CLOCK_CTRL |= SYSCON_CLOCK_CTRL_CLKIN_ENA_MASK;       /* Enable clk_in from XTAL32M clock  */
-    ANACTRL->XO32M_CTRL |= ANACTRL_XO32M_CTRL_ENABLE_SYSTEM_CLK_OUT_MASK;    /* Enable clk_in to system  */
-
-    POWER_SetVoltageForFreq(100000000U);                  /*!< Set voltage for the one of the fastest clock outputs: System clock output */
-    CLOCK_SetFLASHAccessCyclesForFreq(100000000U);          /*!< Set FLASH wait states for core */
-
-    /*!< Set up PLL */
-    CLOCK_AttachClk(kEXT_CLK_to_PLL0);                    /*!< Switch PLL0CLKSEL to EXT_CLK */
-    POWER_DisablePD(kPDRUNCFG_PD_PLL0);                  /* Ensure PLL is on  */
-    POWER_DisablePD(kPDRUNCFG_PD_PLL0_SSCG);
-    const pll_setup_t pll0Setup = {
-        .pllctrl = SYSCON_PLL0CTRL_CLKEN_MASK | SYSCON_PLL0CTRL_SELI(53U) | SYSCON_PLL0CTRL_SELP(26U),
-        .pllndec = SYSCON_PLL0NDEC_NDIV(4U),
-        .pllpdec = SYSCON_PLL0PDEC_PDIV(2U),
-        .pllsscg = {0x0U,(SYSCON_PLL0SSCG1_MDIV_EXT(100U) | SYSCON_PLL0SSCG1_SEL_EXT_MASK)},
-        .pllRate = 100000000U,
-        .flags =  PLL_SETUPFLAG_WAITLOCK
-    };
-    CLOCK_SetPLL0Freq(&pll0Setup);                       /*!< Configure PLL0 to the desired values */
-
-    /*!< Set up dividers */
-    CLOCK_SetClkDiv(kCLOCK_DivAhbClk, 1U, false);         /*!< Set AHBCLKDIV divider to value 1 */
-
-    /*!< Set up clock selectors - Attach clocks to the peripheries */
-    CLOCK_AttachClk(kPLL0_to_MAIN_CLK);                 /*!< Switch MAIN_CLK to PLL0 */
-
-    /*< Set SystemCoreClock variable. */
-    SystemCoreClock = 100000000U;
-}
-
 void board_init(void) {
-  // Enable IOCON clock
-  CLOCK_EnableClock(kCLOCK_Iocon);
+  BOARD_InitBootPins();
+  BOARD_InitBootClocks();
+  BOARD_InitBootPeripherals();
 
-  // Init 100 MHz clock
-  BOARD_BootClockPLL100M();
+  board_led_write(0);
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
@@ -155,54 +79,8 @@ void board_init(void) {
   NVIC_SetPriority(USB1_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
 
-  // Init all GPIO ports
-  GPIO_PortInit(GPIO, 0);
-  GPIO_PortInit(GPIO, 1);
-
-  // LED
-  IOCON_PinMuxSet(IOCON, LED_PORT, LED_PIN, IOCON_PIO_DIG_FUNC0_EN);
-  gpio_pin_config_t const led_config = {kGPIO_DigitalOutput, 1};
-  GPIO_PinInit(GPIO, LED_PORT, LED_PIN, &led_config);
-
-  board_led_write(0);
-
-#ifdef NEOPIXEL_PIN
-  // Neopixel
-  static uint32_t pixelData[NEOPIXEL_NUMBER];
-  IOCON_PinMuxSet(IOCON, NEOPIXEL_PORT, NEOPIXEL_PIN, IOCON_PIO_DIG_FUNC4_EN);
-
-  sctpix_init(NEOPIXEL_TYPE);
-  sctpix_addCh(NEOPIXEL_CH, pixelData, NEOPIXEL_NUMBER);
-  sctpix_setPixel(NEOPIXEL_CH, 0, 0x100010);
-  sctpix_setPixel(NEOPIXEL_CH, 1, 0x100010);
-  sctpix_show();
-#endif
-
-  // Button
-  IOCON_PinMuxSet(IOCON, BUTTON_PORT, BUTTON_PIN, IOCON_PIO_DIG_FUNC0_EN);
-  gpio_pin_config_t const button_config = {kGPIO_DigitalInput, 0};
-  GPIO_PinInit(GPIO, BUTTON_PORT, BUTTON_PIN, &button_config);
-
-#ifdef UART_DEV
-  // UART
-  IOCON_PinMuxSet(IOCON, UART_RX_PINMUX);
-  IOCON_PinMuxSet(IOCON, UART_TX_PINMUX);
-
-  // Enable UART when debug log is on
-  CLOCK_AttachClk(kFRO12M_to_FLEXCOMM0);
-  usart_config_t uart_config;
-  USART_GetDefaultConfig(&uart_config);
-  uart_config.baudRate_Bps = CFG_BOARD_UART_BAUDRATE;
-  uart_config.enableTx = true;
-  uart_config.enableRx = true;
-  USART_Init(UART_DEV, &uart_config, 12000000);
-#endif
-
 #if (CFG_TUD_ENABLED && BOARD_TUD_RHPORT == 0) || (CFG_TUH_ENABLED && BOARD_TUH_RHPORT == 0)
-  /* PORT0 PIN22 configured as USB0_VBUS */
-  IOCON_PinMuxSet(IOCON, 0U, 22U, IOCON_PIO_DIG_FUNC7_EN);
   // Port0 is Full Speed
-
   NVIC_ClearPendingIRQ(USB0_IRQn);
   NVIC_ClearPendingIRQ(USB0_NEEDCLK_IRQn);
 
@@ -227,13 +105,6 @@ void board_init(void) {
     /* enable USB Device clock */
     CLOCK_EnableUsbfs0DeviceClock(kCLOCK_UsbfsSrcFro, CLOCK_GetFreq(kCLOCK_FroHf));
   } else {
-  #ifdef USBFS_POWER_PORT
-    /* Configure USB0 Power Switch Pin */
-    IOCON_PinMuxSet(IOCON, USBFS_POWER_PORT, USBFS_POWER_PIN, IOCON_PIO_DIG_FUNC0_EN);
-
-    gpio_pin_config_t const power_pin_config = {kGPIO_DigitalOutput, USBFS_POWER_STATE_ON};
-    GPIO_PinInit(GPIO, USBFS_POWER_PORT, USBFS_POWER_PIN, &power_pin_config);
-  #endif
     CLOCK_EnableUsbfs0HostClock(kCLOCK_UsbfsSrcPll1, 48000000U);
     USBFSH->PORTMODE &= ~USBFSH_PORTMODE_DEV_ENABLE_MASK;
   }
@@ -262,13 +133,6 @@ void board_init(void) {
     /* enable USB Device clock */
     CLOCK_EnableUsbhs0DeviceClock(kCLOCK_UsbSrcUnused, 0U);
   } else {
-  #ifdef USBHS_POWER_PORT
-    /* Configure USB1 Power Switch Pin */
-    IOCON_PinMuxSet(IOCON, USBHS_POWER_PORT, USBHS_POWER_PIN, IOCON_PIO_DIG_FUNC0_EN);
-
-    gpio_pin_config_t const power_pin_config = {kGPIO_DigitalOutput, USBHS_POWER_STATE_ON};
-    GPIO_PinInit(GPIO, USBHS_POWER_PORT, USBHS_POWER_PIN, &power_pin_config);
-  #endif
     CLOCK_EnableUsbhs0HostClock(kCLOCK_UsbSrcUnused, 0U);
   }
 
@@ -283,7 +147,7 @@ void board_init(void) {
   USBPHY->CTRL_SET = USBPHY_CTRL_SET_ENAUTOCLR_CLKGATE_MASK;
   USBPHY->CTRL_SET = USBPHY_CTRL_SET_ENAUTOCLR_PHY_PWD_MASK;
 
-  // PHY calibration values for LPCXPRESSO55S69 from mcux-sdk
+  // PHY Tx calibration
   USBPHY->TX = ((USBPHY->TX & (~(USBPHY_TX_D_CAL_MASK | USBPHY_TX_TXCAL45DM_MASK | USBPHY_TX_TXCAL45DP_MASK))) |
                (USBPHY_TX_D_CAL(0x05U) | USBPHY_TX_TXCAL45DP(0x0AU) | USBPHY_TX_TXCAL45DM(0x0AU)));
 
@@ -299,17 +163,6 @@ void board_init(void) {
 
 void board_led_write(bool state) {
   GPIO_PinWrite(GPIO, LED_PORT, LED_PIN, state ? LED_STATE_ON : (1 - LED_STATE_ON));
-
-#ifdef NEOPIXEL_PIN
-  if (state) {
-    sctpix_setPixel(NEOPIXEL_CH, 0, 0x100000);
-    sctpix_setPixel(NEOPIXEL_CH, 1, 0x101010);
-  } else {
-    sctpix_setPixel(NEOPIXEL_CH, 0, 0x001000);
-    sctpix_setPixel(NEOPIXEL_CH, 1, 0x000010);
-  }
-  sctpix_show();
-#endif
 }
 
 uint32_t board_button_read(void) {
