@@ -30,8 +30,8 @@ SRC_C += \
 	$(TOP)/$(MCUX_DIR)/drivers/flexcomm/usart/fsl_usart.c \
 
 INC += \
-    $(TOP)/$(BOARD_PATH) \
-    $(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
+	$(TOP)/$(BOARD_PATH) \
+	$(TOP)/lib/CMSIS_6/CMSIS/Core/Include \
 	$(TOP)/$(SDK_DIR)/LPC51U68/$(MCU_VARIANT) \
 	$(TOP)/$(SDK_DIR)/LPC51U68/$(MCU_VARIANT)/drivers \
 	$(TOP)/$(SDK_DIR)/LPC51U68/periph \

@@ -33,6 +33,7 @@ ifeq ($(RHPORT_HOST), 1)
   CFLAGS += -DBOARD_TUH_MAX_SPEED=OPT_MODE_HIGH_SPEED
   CFLAGS += -DCFG_TUH_MEM_SECTION='__attribute__((section("m_usb_global")))'
   CFLAGS += -DCFG_TUH_USBIP_IP3516=1
+	SRC_C += $(TOP)/src/portable/nxp/lpc_ip3516/hcd_lpc_ip3516.c
 else
   CFLAGS += -DBOARD_TUH_MAX_SPEED=OPT_MODE_FULL_SPEED
 endif
