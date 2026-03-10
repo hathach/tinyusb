@@ -72,11 +72,15 @@
 
 #define USBHSH_PORTSC1_W1C_MASK (USBHSH_PORTSC1_CSC_MASK | USBHSH_PORTSC1_PEDC_MASK | USBHSH_PORTSC1_OCC_MASK)
 
+#define IP3516_PSPD_LOW   0
+#define IP3516_PSPD_FULL  1
+#define IP3516_PSPD_HIGH  2
+
 //--------------------------------------------------------------------+
 // Proprietary Transfer Descriptor
 //--------------------------------------------------------------------+
 
-CFG_TUD_MEM_SECTION TU_ATTR_ALIGNED(1024) static ip3516_ptd_t _ptd;
+CFG_TUH_MEM_SECTION TU_ATTR_ALIGNED(1024) static ip3516_ptd_t _ptd;
 
 static struct {
   uint32_t uframe_number;
@@ -92,7 +96,7 @@ static inline bool is_ptd_free(const ptd_ctrl1_t ctrl1) {
   return ctrl1.mps == 0;
 }
 
-static inline bool is_xfer_asyc(tusb_xfer_type_t xfer_type) {
+static inline bool is_xfer_async(tusb_xfer_type_t xfer_type) {
   return (xfer_type == TUSB_XFER_CONTROL || xfer_type == TUSB_XFER_BULK);
 }
 
@@ -132,7 +136,7 @@ static inline uint8_t ptd_find_free(tusb_xfer_type_t xfer_type) {
   for (uint8_t i = 0; i < max_count; i++) {
     // For ATL: stride is sizeof(ip3516_atl_t) = 16 bytes = 4 words
     // For PTL: stride is sizeof(ip3516_ptl_t) = 32 bytes = 8 words
-    uint8_t      stride = is_xfer_asyc(xfer_type) ? sizeof(ip3516_atl_t) : sizeof(ip3516_ptl_t);
+    uint8_t      stride = is_xfer_async(xfer_type) ? sizeof(ip3516_atl_t) : sizeof(ip3516_ptl_t);
     ptd_ctrl1_t *ctrl1  = (ptd_ctrl1_t *)(ptd_array + i * stride);
 
     if (is_ptd_free(*ctrl1)) {
@@ -161,11 +165,14 @@ static void close_ptds_by_device(uint8_t dev_addr, intptr_t ptd_array, uint8_t m
   }
 
   if (skip_mask) {
-    // Wait 1 uframe for PTDs to be inactive
+    // Wait 1 uframe for PTDs to be inactive (with timeout)
     uint32_t start_uframe =
       (USBHSH->FLADJ_FRINDEX & USBHSH_FLADJ_FRINDEX_FRINDEX_MASK) >> USBHSH_FLADJ_FRINDEX_FRINDEX_SHIFT;
+    uint32_t timeout = 10000;
     while (((USBHSH->FLADJ_FRINDEX & USBHSH_FLADJ_FRINDEX_FRINDEX_MASK) >> USBHSH_FLADJ_FRINDEX_FRINDEX_SHIFT) ==
-           start_uframe) {}
+           start_uframe && timeout > 0) {
+      timeout--;
+    }
 
     // Clear PTDs
     for (uint8_t i = 0; i < max_count; i++) {
@@ -220,11 +227,14 @@ static bool find_and_close_ptd(uint8_t dev_addr, uint8_t ep_num, uint8_t ep_dir,
       if (skip_reg) {
         *skip_reg |= (1 << i);
 
-        // Wait 1 uframe for PTD to be inactive
+        // Wait 1 uframe for PTD to be inactive (with timeout)
         uint32_t start_uframe =
           (USBHSH->FLADJ_FRINDEX & USBHSH_FLADJ_FRINDEX_FRINDEX_MASK) >> USBHSH_FLADJ_FRINDEX_FRINDEX_SHIFT;
+        uint32_t timeout = 10000;
         while (((USBHSH->FLADJ_FRINDEX & USBHSH_FLADJ_FRINDEX_FRINDEX_MASK) >> USBHSH_FLADJ_FRINDEX_FRINDEX_SHIFT) ==
-               start_uframe) {}
+               start_uframe && timeout > 0) {
+          timeout--;
+        }
 
         // Just clear state
         ptd_ctrl1_t *ptd_ctrl1 = (ptd_ctrl1_t *)(ptd_ptr + offsetof(ip3516_atl_t, ctrl1));
@@ -272,7 +282,7 @@ static intptr_t find_opened_ptd(uint8_t dev_addr, uint8_t ep_addr) {
     }
   }
 
-  return TUSB_INDEX_INVALID_8;
+  return 0;
 }
 
 static bool edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t *buffer, uint16_t buflen, bool is_setup) {
@@ -280,7 +290,7 @@ static bool edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t *buffer, uint16
   const uint8_t ep_dir = tu_edpt_dir(ep_addr);
 
   intptr_t ptd_ptr = find_opened_ptd(dev_addr, ep_addr);
-  TU_ASSERT(ptd_ptr != TUSB_INDEX_INVALID_8);
+  TU_ASSERT(ptd_ptr != 0);
 
   ptd_ctrl1_t *ptd_ctrl1 = (ptd_ctrl1_t *)(ptd_ptr + offsetof(ip3516_atl_t, ctrl1));
   ptd_ctrl2_t *ptd_ctrl2 = (ptd_ctrl2_t *)(ptd_ptr + offsetof(ip3516_atl_t, ctrl2));
@@ -305,7 +315,7 @@ static bool edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t *buffer, uint16
     }
   }
 
-  // Interrupt split transfer needs to be relauched manually if NAKed
+  // Interrupt split transfer needs to be relaunched manually if NAKed
   if (ptd_ctrl2->split && ptd_state->ep_type == TUSB_XFER_INTERRUPT) {
     ptd_ctrl2->reload  = 0x0f;
     ptd_state->nak_cnt = 0x0f;
@@ -422,7 +432,7 @@ void hcd_port_reset_end(uint8_t rhport) {
   while (USBHSH->PORTSC1 & USBHSH_PORTSC1_PR_MASK) {}
 #if ((defined FSL_FEATURE_SOC_USBPHY_COUNT) && (FSL_FEATURE_SOC_USBPHY_COUNT > 0U))
   uint32_t pspd = (USBHSH->PORTSC1 & USBHSH_PORTSC1_PSPD_MASK) >> USBHSH_PORTSC1_PSPD_SHIFT;
-  if (pspd == 2) {
+  if (pspd == IP3516_PSPD_HIGH) {
     // enable phy disconnection for high speed
     USBPHY->CTRL |= USBPHY_CTRL_ENHOSTDISCONDETECT_MASK;
   }
@@ -440,11 +450,11 @@ tusb_speed_t hcd_port_speed_get(uint8_t rhport) {
   (void)rhport;
   uint32_t pspd = (USBHSH->PORTSC1 & USBHSH_PORTSC1_PSPD_MASK) >> USBHSH_PORTSC1_PSPD_SHIFT;
   switch (pspd) {
-    case 0:
+    case IP3516_PSPD_LOW:
       return TUSB_SPEED_LOW;
-    case 1:
+    case IP3516_PSPD_FULL:
       return TUSB_SPEED_FULL;
-    case 2:
+    case IP3516_PSPD_HIGH:
       return TUSB_SPEED_HIGH;
     default:
       return TUSB_SPEED_INVALID;
@@ -473,7 +483,7 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
 //--------------------------------------------------------------------+
 
 static inline intptr_t get_ptd_from_index(tusb_xfer_type_t xfer_type, uint8_t ptd_index) {
-  if (is_xfer_asyc(xfer_type)) {
+  if (is_xfer_async(xfer_type)) {
     return (intptr_t)&_ptd.atl[ptd_index];
   } else {
     if (xfer_type == TUSB_XFER_INTERRUPT) {
@@ -522,7 +532,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t 
   state->ep_type = (uint32_t)xfer_type;
   state->token   = tu_edpt_dir(ep_desc->bEndpointAddress) == TUSB_DIR_IN ? IP3516_PTD_TOKEN_IN : IP3516_PTD_TOKEN_OUT;
 
-  if (!is_xfer_asyc(xfer_type)) {
+  if (!is_xfer_async(xfer_type)) {
     ip3516_ptl_t *ptd = (ip3516_ptl_t *)ptd_ptr;
 
     uint32_t uframe_interval;
@@ -709,7 +719,7 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   (void)rhport;
 
   intptr_t ptd_ptr = find_opened_ptd(dev_addr, ep_addr);
-  TU_ASSERT(ptd_ptr != TUSB_INDEX_INVALID_8);
+  TU_ASSERT(ptd_ptr != 0);
 
   ptd_state_t *ptd_state = (ptd_state_t *)(ptd_ptr + offsetof(ip3516_atl_t, state));
   ptd_clear_state(ptd_state);
