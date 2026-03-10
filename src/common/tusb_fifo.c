@@ -120,16 +120,16 @@ void tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable) {
 
 // Convert linear byte count to hwfifo address advance without division.
 // data_stride is expected to be 1, 2, or 4.
-TU_ATTR_ALWAYS_INLINE static inline uint16_t lin_even_to_addr_advance(uint16_t lin_even, uint8_t data_stride) {
+TU_ATTR_ALWAYS_INLINE static inline uintptr_t lin_even_to_addr_advance(uint16_t lin_even, uint8_t data_stride) {
   TU_ASSERT((data_stride == 1) || (data_stride == 2) || (data_stride == 4), 0);
 
-  uint16_t data_units = lin_even;
+  uintptr_t data_units = lin_even;
   if (data_stride == 4) {
     data_units >>= 2;
   } else if (data_stride == 2) {
     data_units >>= 1;
   }
-  return (uint16_t) (data_units * CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE);
+  return data_units * CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE;
 }
 
 //------------- Write -------------//
