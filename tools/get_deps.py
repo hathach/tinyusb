@@ -14,6 +14,9 @@ deps_mandatory = {
     'lib/lwip': ['https://github.com/lwip-tcpip/lwip.git',
                  '159e31b689577dbf69cf0683bbaffbd71fa5ee10',
                  'all'],
+    'lib/threadx': ['https://github.com/eclipse-threadx/threadx.git',
+                    '4b6e8100d932a3a67b34c6eb17f84f3bffb9e2ae',
+                    'all'],
     'tools/linkermap': ['https://github.com/hathach/linkermap.git',
                         '8e1f440fa15c567aceb5aa0d14f6d18c329cc67f',
                         'all'],
@@ -45,7 +48,7 @@ deps_optional = {
                                         'xmc4000'],
     'hw/mcu/microchip': ['https://github.com/hathach/microchip_driver.git',
                          '9e8b37e307d8404033bb881623a113931e1edf27',
-                         'sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x saml2x samg'],
+                         'sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x samd2x_l2x samg'],
     'hw/mcu/mindmotion/mm32sdk': ['https://github.com/hathach/mm32sdk.git',
                                   'b93e856211060ae825216c6a1d6aa347ec758843',
                                   'mm32'],
@@ -58,9 +61,21 @@ deps_optional = {
     'hw/mcu/nxp/lpcopen': ['https://github.com/hathach/nxp_lpcopen.git',
                            'b41cf930e65c734d8ec6de04f1d57d46787c76ae',
                            'lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43'],
+    'hw/mcu/nxp/mcuxsdk-core': ['https://github.com/nxp-mcuxpresso/mcuxsdk-core',
+                            '0c5c6b16deb211110e06bde896cdff59ab213e16',
+                            'imxrt lpc51 lpc55 mcx'],
     'hw/mcu/nxp/mcux-sdk': ['https://github.com/nxp-mcuxpresso/mcux-sdk',
                             'a1bdae309a14ec95a4f64a96d3315a4f89c397c6',
-                            'kinetis_k kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx rw61x imxrt'],
+                            'kinetis_k kinetis_k32l2 kinetis_kl lpc54 rw61x'],
+    'hw/mcu/nxp/mcux-devices-lpc': ['https://github.com/nxp-mcuxpresso/mcux-devices-lpc',
+                            '8096b783ec09d0d1c8629025a5f9d8e7df26e520',
+                            'lpc51 lpc55'],
+    'hw/mcu/nxp/mcux-devices-mcx': ['https://github.com/nxp-mcuxpresso/mcux-devices-mcx',
+                            'ada1c97c761123ec0c179bb9bb9f744bf9a11475',
+                            'mcx'],
+    'hw/mcu/nxp/mcux-devices-rt': ['https://github.com/nxp-mcuxpresso/mcux-devices-rt',
+                            'dba2b523c9df61f3330bd186242f8210a8e47c45',
+                            'imxrt'],
     'hw/mcu/raspberry_pi/Pico-PIO-USB': ['https://github.com/sekigon-gonnoc/Pico-PIO-USB.git',
                                          '675543bcc9baa8170f868ab7ba316d418dbcf41f',
                                          'rp2040'],
@@ -252,15 +267,15 @@ deps_optional = {
                                'hpmicro'],
     'lib/CMSIS_5': ['https://github.com/ARM-software/CMSIS_5.git',
                     '2b7495b8535bdcb306dac29b9ded4cfb679d7e5c',
-                    'imxrt kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx rw61x mm32 msp432e4 nrf saml2x '
+                    'kinetis_k kinetis_k32l2 kinetis_kl lpc54 rw61x mm32 msp432e4 nrf samd2x_l2x '
                     'lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43 '
                     'stm32c0 stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 stm32h5 '
                     'stm32h7 stm32h7rs stm32l0 stm32l1 stm32l4 stm32l5 stm32u0 stm32u5 stm32wb stm32wba '
-                    'sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x saml2x samg '
+                    'sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x samd2x_l2x samg '
                     'tm4c '],
     'lib/CMSIS_6': ['https://github.com/ARM-software/CMSIS_6.git',
                     '6f0a58d01aa9bd2feba212097f9afe7acd991d52',
-                    'ra stm32n6'],
+                    'imxrt ra stm32n6 lpc51 lpc55 mcx'],
     'lib/sct_neopixel': ['https://github.com/gsteiert/sct_neopixel.git',
                          'e73e04ca63495672d955f9268e003cffe168fcd8',
                          'lpc55'],
@@ -330,18 +345,16 @@ def main():
     parser.add_argument('-b', '--board', action='append', default=[], help='Boards to fetch')
     parser.add_argument('-D', '--define', action='append', default=[], help='Have no effect')
     parser.add_argument('-f1', '--build-flags-on', action='append', default=[], help='Have no effect')
-    parser.add_argument('--print', action='store_true', help='Print commit hash only')
     args = parser.parse_args()
 
     families = args.families
     boards = args.board
-    print_only = args.print
 
     status = 0
-    deps = list(deps_mandatory.keys())
+    deps = []
 
     if 'all' in families:
-        deps += deps_optional.keys()
+        deps.extend(deps_optional.keys())
     else:
         families = list(families)
         if boards is not None:
@@ -349,24 +362,16 @@ def main():
                 f = find_family(b)
                 if f is not None:
                     families.append(f)
-
         for f in families:
             for d in deps_optional:
                 if d not in deps and f in deps_optional[d][2].split():
                     deps.append(d)
+        if len(deps) == 0:
+            print('WARN: no additional dependencies found for given boards or families')
 
-    if print_only:
-        pvalue = {}
-        # print only without arguments, always add CMSIS_5
-        if len(families) == 0 and len(boards) == 0:
-            deps.append('lib/CMSIS_5')
-        for d in deps:
-            commit = deps_all[d][1]
-            pvalue[d] = commit
-        print(pvalue)
-    else:
-        with Pool() as pool:
-            status = sum(pool.map(get_a_dep, deps))
+    deps.extend(deps_mandatory.keys())
+    with Pool() as pool:
+        status = sum(pool.map(get_a_dep, deps))
     return status
 
 

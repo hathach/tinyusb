@@ -85,8 +85,11 @@ extern "C" {
   #define EP_MAX_HS       9
   #define EP_FIFO_SIZE_HS 4096
 
-  #define USB_OTG_HS_PERIPH_BASE    USB1_OTG_HS_BASE
-  #define OTG_HS_IRQn               USB1_OTG_HS_IRQn
+  #define USB_OTG_FS_PERIPH_BASE    USB1_OTG_HS_BASE
+  #define OTG_FS_IRQn               USB1_OTG_HS_IRQn
+
+  #define USB_OTG_HS_PERIPH_BASE    USB2_OTG_HS_BASE
+  #define OTG_HS_IRQn               USB2_OTG_HS_IRQn
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F7
   #include "stm32f7xx.h"
@@ -261,6 +264,22 @@ static inline void dwc2_phy_init(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
   }
 }
 
+// MCU specific PHY deinit, disable PHY power
+static inline void dwc2_phy_deinit(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
+  if (hs_phy_type == GHWCFG2_HSPHY_NOT_SUPPORTED) {
+    // Disable on-chip FS PHY
+    dwc2->stm32_gccfg &= ~STM32_GCCFG_PWRDWN;
+  } else {
+    // Disable HS PHY
+    #ifdef USB_HS_PHYC
+    dwc2->stm32_gccfg &= ~STM32_GCCFG_PHYHSEN;
+    // Disable PLL and LDO
+    USB_HS_PHYC->USB_HS_PHYC_PLL &= ~USB_HS_PHYC_PLL_PLLEN;
+    USB_HS_PHYC->USB_HS_PHYC_LDO &= ~USB_HS_PHYC_LDO_ENABLE;
+    #endif
+  }
+}
+
 // MCU specific PHY update, it is called AFTER init() and core reset
 static inline void dwc2_phy_update(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
   // used to set turnaround time for fullspeed, nothing to do in highspeed mode
@@ -300,6 +319,66 @@ static inline void dwc2_phy_update(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
   }
 }
 
+//------------- GCCFG configuration -------------//
+static inline void dwc2_stm32_gccfg_cfg(dwc2_regs_t* dwc2, bool vbus_sensing, bool is_host) {
+  if (is_host) {
+    vbus_sensing = false;
+  }
+
+  uint32_t gccfg = dwc2->stm32_gccfg;
+  if (dwc2->guid < 0x2000) {
+    // use VBUSASEN/VBUSBSEN/NOVBUSSENS bits
+    if (is_host) {
+      gccfg &= ~(STM32_GCCFG_NOVBUSSENS | STM32_GCCFG_VBUSBSEN | STM32_GCCFG_VBUSASEN);
+    } else {
+      if (vbus_sensing) {
+        gccfg &= ~STM32_GCCFG_NOVBUSSENS;
+        gccfg |= STM32_GCCFG_VBUSBSEN;
+      } else {
+        gccfg |= STM32_GCCFG_NOVBUSSENS;
+        gccfg &= ~(STM32_GCCFG_VBUSBSEN | STM32_GCCFG_VBUSASEN);
+      }
+    }
+  } else if (dwc2->guid < 0x5000) {
+    // the later version uses VBDEN with battery charging detection
+    if (vbus_sensing) {
+      gccfg |= STM32_GCCFG_VBDEN;
+    } else {
+      gccfg &= ~STM32_GCCFG_VBDEN;
+    }
+  } else {
+    // from 0x5000 ST seems to use femtoPHY for UTMI+ HS PHY. Which use VBVALEXTOEN and VBVALOVAL for software override
+    // external VBUS sensing
+    // Note: N6 does not support hardware VBUS sensing, so the software override is always active. Therefore, VBDEN and
+    //       VBVALEXTOEN are not available
+#if CFG_TUSB_MCU == OPT_MCU_STM32N6
+    if (is_host) {
+      gccfg |= STM32_GCCFG_PULLDOWNEN;
+      gccfg &= ~(STM32_GCCFG_VBVALOVAL);
+    } else {
+      gccfg &= ~STM32_GCCFG_PULLDOWNEN;
+      gccfg |= STM32_GCCFG_VBVALOVAL;
+    }
+#else
+    if (is_host) {
+      gccfg |= STM32_GCCFG_PULLDOWNEN;
+      gccfg &= ~(STM32_GCCFG_VBDEN | STM32_GCCFG_VBVALEXTOEN | STM32_GCCFG_VBVALOVAL);
+    } else {
+      gccfg &= ~STM32_GCCFG_PULLDOWNEN;
+      if (vbus_sensing) {
+        gccfg |= STM32_GCCFG_VBDEN;
+        gccfg &= ~(STM32_GCCFG_VBVALEXTOEN | STM32_GCCFG_VBVALOVAL);
+      } else {
+        gccfg &= ~STM32_GCCFG_VBDEN;
+        gccfg |= STM32_GCCFG_VBVALEXTOEN | STM32_GCCFG_VBVALOVAL;
+      }
+    }
+#endif
+  }
+
+  dwc2->stm32_gccfg = gccfg;
+}
+
 //------------- DCache -------------//
 #if CFG_TUD_MEM_DCACHE_ENABLE || CFG_TUH_MEM_DCACHE_ENABLE
 
@@ -321,8 +400,13 @@ static mem_region_t uncached_regions[] = {
   // DTCM (although USB DMA can't transfer to/from DTCM)
   {.start = 0x20000000, .end = 0x2002FFFF},
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F7
-    // DTCM
+  // DTCM
   {.start = 0x20000000, .end = 0x2000FFFF},
+#elif CFG_TUSB_MCU == OPT_MCU_STM32N6
+  // DTCM NS
+  {.start = 0x20000000, .end = 0x2003FFFF},
+  // DTCM S
+  {.start = 0x30000000, .end = 0x3003FFFF},
 #else
 #error "Cache maintenance is not supported yet"
 #endif

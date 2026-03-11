@@ -36,9 +36,6 @@
 #include <device/dcd.h>
 #include "musb_def.h"
 
-//#include "bsp/board_api.h"
-extern uint32_t board_millis(void); // TODO remove
-
 typedef uint32_t u32;
 typedef uint16_t u16;
 typedef uint8_t u8;

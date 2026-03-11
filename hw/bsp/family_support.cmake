@@ -105,6 +105,12 @@ set(WARN_FLAGS_GNU
   )
 set(WARN_FLAGS_Clang ${WARN_FLAGS_GNU})
 
+set(WARN_FLAGS_IAR
+  --warnings_are_errors
+  --diag_suppress=Pa089
+  --diag_suppress=Pe236
+  )
+
 # Optimization
 if (NOT DEFINED CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
   set(CMAKE_BUILD_TYPE MinSizeRel CACHE STRING "Build type" FORCE)
@@ -238,7 +244,7 @@ function(family_add_bloaty TARGET)
     COMMAND ${BLOATY_EXE} ${OPTION_LIST} $<TARGET_FILE:${TARGET}>
     VERBATIM)
 
-  set_property(TARGET ${TARGET}-bloaty PROPERTY FOLDER ${TARGET})
+  set_property(TARGET ${TARGET}-bloaty PROPERTY FOLDER ${TARGET}-group)
   # post build
   #  add_custom_command(TARGET ${TARGET} POST_BUILD
   #    COMMAND ${BLOATY_EXE} --csv ${OPTION_LIST} $<TARGET_FILE:${TARGET}> > ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}_bloaty.csv
@@ -259,13 +265,102 @@ function(family_add_linkermap TARGET)
     VERBATIM
     )
 
-  set_property(TARGET ${TARGET}-linkermap PROPERTY FOLDER ${TARGET})
+  set_property(TARGET ${TARGET}-linkermap PROPERTY FOLDER ${TARGET}-group)
 
   # post build
   add_custom_command(TARGET ${TARGET} POST_BUILD
     COMMAND python ${LINKERMAP_PY} ${OPTION_LIST} $<TARGET_FILE:${TARGET}>.map
     VERBATIM)
 endfunction()
+
+# Add membrowse target (installed with pip install membrowse)
+function(family_add_membrowse TARGET)
+  find_program(MEMBROWSE_EXE membrowse)
+  if (MEMBROWSE_EXE STREQUAL MEMBROWSE_EXE-NOTFOUND)
+    # force anyway, bash login shell will find it from pip install path
+    set(MEMBROWSE_EXE membrowse)
+  endif ()
+
+  set(OPTION "")
+  if (DEFINED MEMBROWSE_OPTION)
+    string(APPEND OPTION " ${MEMBROWSE_OPTION}")
+  endif ()
+
+  # For Ninja generator, extract all linker scripts from Ninja commands (with INCLUDE) and pass them to membrowse.
+  if (CMAKE_GENERATOR MATCHES "Ninja")
+    set(TARGET_ELF_PATH "$<TARGET_FILE_DIR:${TARGET}>/$<TARGET_FILE_NAME:${TARGET}>")
+    set(MEMBROWSE_LD_SCRIPTS_CMD
+      "ld_scripts=\"$(${CMAKE_MAKE_PROGRAM} -C ${CMAKE_BINARY_DIR} -t commands ${TARGET} | grep -oP '(?:-Wl,--script=|-T\\s*)\\K[A-Za-z0-9_./-]+\\.ld' | xargs)\"; \
+all_ld_scripts=\"\"; \
+pending_ld_scripts=\"$ld_scripts\"; \
+while [ -n \"$pending_ld_scripts\" ]; do \
+  next_pending=\"\"; \
+  for script in $pending_ld_scripts; do \
+    case \" $all_ld_scripts \" in *\" $script \"*) continue ;; esac; \
+    all_ld_scripts=\"$all_ld_scripts $script\"; \
+    script_dir=$(dirname \"$script\"); \
+    include_scripts=$(grep -hoP '^\\s*INCLUDE\\s+[<\"]?\\K[^\">[:space:]]+\\.ld' \"$script\" 2>/dev/null | xargs); \
+    for include_script in $include_scripts; do \
+      resolved_script=\"\"; \
+      if [ -f \"$include_script\" ]; then \
+        resolved_script=\"$include_script\"; \
+      elif [ -f \"$script_dir/$include_script\" ]; then \
+        resolved_script=\"$script_dir/$include_script\"; \
+      fi; \
+      if [ -n \"$resolved_script\" ]; then \
+        case \" $all_ld_scripts $next_pending \" in *\" $resolved_script \"*) ;; *) next_pending=\"$next_pending $resolved_script\" ;; esac; \
+      fi; \
+    done; \
+  done; \
+  pending_ld_scripts=\"$(echo \"$next_pending\" | xargs)\"; \
+done; \
+ld_scripts=\"$(echo \"$all_ld_scripts\" | xargs)\"")
+    set(MEMBROWSE_LD_DEFS_CMD
+      "ld_symbols=\"$(${CMAKE_MAKE_PROGRAM} -C ${CMAKE_BINARY_DIR} -t commands ${TARGET} | grep -oP '(?<=--defsym[=,])[^[:space:]]+' | xargs)\"; \
+ld_defs=\"\"; \
+for symbol in $ld_symbols; do \
+  ld_defs=\"$ld_defs --def $symbol\"; \
+done; \
+ld_defs=\"$(echo \"$ld_defs\" | xargs)\"")
+    set(MEMBROWSE_PREPARE_CMD
+      "if [ -f \"${TARGET_ELF_PATH}\" ]; then \
+  ${MEMBROWSE_LD_SCRIPTS_CMD}; \
+  ${MEMBROWSE_LD_DEFS_CMD}; \
+  if [ \"$MEMBROWSE_UPLOAD\" = \"1\" ]; then \
+    MEMBROWSE_CMD=\"${MEMBROWSE_EXE} report ${OPTION} \\\"${TARGET_ELF_PATH}\\\" \\\"$ld_scripts\\\" $ld_defs --upload --github --target-name ${BOARD}/${TARGET} --api-key $ENV{MEMBROWSE_API_KEY}\"; \
+  else \
+    MEMBROWSE_CMD=\"${MEMBROWSE_EXE} report ${OPTION} \\\"${TARGET_ELF_PATH}\\\" \\\"$ld_scripts\\\" $ld_defs\"; \
+  fi; \
+else \
+  if [ \"$MEMBROWSE_UPLOAD\" = \"1\" ]; then \
+    MEMBROWSE_CMD=\"${MEMBROWSE_EXE} report ${OPTION} --identical --upload --github --target-name ${BOARD}/${TARGET} --api-key $ENV{MEMBROWSE_API_KEY}\"; \
+  else \
+    MEMBROWSE_CMD=\"${MEMBROWSE_EXE} report ${OPTION} --identical\"; \
+  fi; \
+fi; \
+echo \"$MEMBROWSE_CMD\"")
+
+    add_custom_target(${TARGET}-membrowse
+      DEPENDS ${TARGET}
+      COMMAND ${CMAKE_COMMAND} -E env MEMBROWSE_UPLOAD=0 bash -lc "${MEMBROWSE_PREPARE_CMD}; eval \"$MEMBROWSE_CMD\""
+      VERBATIM
+      )
+    set_property(TARGET ${TARGET}-membrowse PROPERTY FOLDER ${TARGET}-group)
+
+    add_custom_target(${TARGET}-membrowse-upload
+      COMMAND ${CMAKE_COMMAND} -E env MEMBROWSE_UPLOAD=1 bash -lc "${MEMBROWSE_PREPARE_CMD}; eval \"$MEMBROWSE_CMD\""
+      VERBATIM
+      )
+
+    if (NOT TARGET examples-membrowse-upload)
+      add_custom_target(examples-membrowse-upload)
+    endif ()
+    add_dependencies(examples-membrowse-upload ${TARGET}-membrowse-upload)
+
+    set_property(TARGET ${TARGET}-membrowse-upload PROPERTY FOLDER ${TARGET}-group)
+  endif ()
+endfunction()
+
 
 #-------------------------------------------------------------
 # Common Target Configure
@@ -291,6 +386,26 @@ function(family_add_rtos TARGET RTOS)
 
     target_link_libraries(${TARGET} PUBLIC freertos_kernel)
     target_compile_definitions(${TARGET} PUBLIC CFG_TUSB_OS=OPT_OS_FREERTOS)
+  elseif (RTOS STREQUAL "threadx")
+    if (NOT TARGET threadx)
+      # Derive THREADX_ARCH from CMAKE_SYSTEM_CPU if not explicitly set
+      if (NOT DEFINED THREADX_ARCH)
+        string(REPLACE "-" "_" THREADX_ARCH ${CMAKE_SYSTEM_CPU})
+      endif ()
+      # Derive THREADX_TOOLCHAIN from TOOLCHAIN if not explicitly set
+      if (NOT DEFINED THREADX_TOOLCHAIN)
+        if (TOOLCHAIN STREQUAL "iar")
+          set(THREADX_TOOLCHAIN "iar")
+        elseif (TOOLCHAIN STREQUAL "clang")
+          set(THREADX_TOOLCHAIN "ac6")
+        else ()
+          set(THREADX_TOOLCHAIN "gnu")
+        endif ()
+      endif ()
+      add_subdirectory(${TOP}/lib/threadx ${CMAKE_BINARY_DIR}/lib/threadx)
+    endif ()
+    target_link_libraries(${TARGET} PUBLIC threadx)
+    target_compile_definitions(${TARGET} PUBLIC CFG_TUSB_OS=OPT_OS_THREADX)
   elseif (RTOS STREQUAL "zephyr")
     target_compile_definitions(${TARGET} PUBLIC CFG_TUSB_OS=OPT_OS_ZEPHYR)
     target_include_directories(${TARGET} PUBLIC ${ZEPHYR_BASE}/include)
@@ -358,6 +473,7 @@ function(family_configure_common TARGET RTOS)
       target_link_options(${TARGET} PUBLIC "LINKER:--no-warn-rwx-segments")
     endif ()
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
+    target_compile_options(${TARGET} PRIVATE $<$<OR:$<COMPILE_LANGUAGE:C>,$<COMPILE_LANGUAGE:CXX>>:${WARN_FLAGS_IAR}>)
     target_link_options(${TARGET} PUBLIC "LINKER:--map=$<TARGET_FILE:${TARGET}>.map")
 
     if (IAR_CSTAT)
@@ -380,6 +496,7 @@ function(family_configure_common TARGET RTOS)
     # Analyze size with bloaty and linkermap
     family_add_bloaty(${TARGET})
     family_add_linkermap(${TARGET})
+    family_add_membrowse(${TARGET})
   endif ()
 
   # run size after build
@@ -512,7 +629,7 @@ exit"
     VERBATIM
     )
 
-  set_property(TARGET ${NAME_TARGET}-jlink PROPERTY FOLDER ${TARGET})
+  set_property(TARGET ${NAME_TARGET}-jlink PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 
@@ -527,7 +644,7 @@ function(family_flash_stlink TARGET)
     COMMAND ${STM32_PROGRAMMER_CLI} --connect port=swd --write $<TARGET_FILE:${TARGET}> --go
     )
 
-  set_property(TARGET ${TARGET}-stlink PROPERTY FOLDER ${TARGET})
+  set_property(TARGET ${TARGET}-stlink PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 
@@ -542,7 +659,7 @@ function(family_flash_stflash TARGET)
     COMMAND ${ST_FLASH} write $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.bin 0x8000000
     )
 
-  set_property(TARGET ${TARGET}-stflash PROPERTY FOLDER ${TARGET})
+  set_property(TARGET ${TARGET}-stflash PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 
@@ -570,7 +687,7 @@ function(family_flash_openocd TARGET)
     VERBATIM
     )
 
-  set_property(TARGET ${TARGET}-openocd PROPERTY FOLDER ${TARGET})
+  set_property(TARGET ${TARGET}-openocd PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 
@@ -633,7 +750,7 @@ function(family_flash_wlink_rs TARGET)
     COMMAND ${WLINK_RS} flash $<TARGET_FILE:${TARGET}>
     )
 
-  set_property(TARGET ${TARGET}-wlink-rs PROPERTY FOLDER ${TARGET})
+  set_property(TARGET ${TARGET}-wlink-rs PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 
@@ -648,7 +765,7 @@ function(family_flash_pyocd TARGET)
     COMMAND ${PYOCD} flash -t ${PYOCD_TARGET} $<TARGET_FILE:${TARGET}>
     )
 
-  set_property(TARGET ${TARGET}-pyocd PROPERTY FOLDER ${TARGET})
+  set_property(TARGET ${TARGET}-pyocd PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 
@@ -658,7 +775,7 @@ function(family_flash_uf2 TARGET FAMILY_ID)
     DEPENDS ${TARGET}
     COMMAND python ${UF2CONV_PY} -f ${FAMILY_ID} --deploy $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.uf2
     )
-  set_property(TARGET ${TARGET}-uf2 PROPERTY FOLDER ${TARGET})
+  set_property(TARGET ${TARGET}-uf2 PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 
@@ -674,7 +791,7 @@ function(family_flash_teensy TARGET)
     COMMAND ${TEENSY_CLI} --mcu=${TEENSY_MCU} -w -s $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.hex
     )
 
-  set_property(TARGET ${TARGET}-teensy PROPERTY FOLDER ${TARGET})
+  set_property(TARGET ${TARGET}-teensy PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 
@@ -694,7 +811,7 @@ function(family_flash_nxplink TARGET)
     COMMAND ${LINKSERVER_PATH} flash ${NXPLINK_DEVICE} load $<TARGET_FILE:${TARGET}>
     )
 
-  set_property(TARGET ${TARGET}-nxplink PROPERTY FOLDER ${TARGET})
+  set_property(TARGET ${TARGET}-nxplink PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 
@@ -709,7 +826,7 @@ function(family_flash_dfu_util TARGET OPTION)
     VERBATIM
     )
 
-  set_property(TARGET ${TARGET}-dfu-util PROPERTY FOLDER ${TARGET})
+  set_property(TARGET ${TARGET}-dfu-util PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 function(family_flash_msp430flasher TARGET)
@@ -726,7 +843,7 @@ function(family_flash_msp430flasher TARGET)
             ${MSP430FLASHER} -w $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.hex -z [VCC]
     )
 
-  set_property(TARGET ${TARGET}-msp430flasher PROPERTY FOLDER ${TARGET})
+  set_property(TARGET ${TARGET}-msp430flasher PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 function(family_flash_uniflash TARGET)
@@ -742,7 +859,7 @@ function(family_flash_uniflash TARGET)
     VERBATIM
     )
 
-  set_property(TARGET ${TARGET}-uniflash PROPERTY FOLDER ${TARGET})
+  set_property(TARGET ${TARGET}-uniflash PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 #----------------------------------

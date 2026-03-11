@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef TUSB_PRIVATE_H_
-#define TUSB_PRIVATE_H_
+#ifndef TUSB_PRIVATE_H
+#define TUSB_PRIVATE_H
 
 // Internal Helper used by Host and Device Stack
 
@@ -33,9 +33,11 @@
  extern "C" {
 #endif
 
-//--------------------------------------------------------------------+
-// Configuration
-//--------------------------------------------------------------------+
+typedef void (*tusb_defer_func_t)(uintptr_t param);
+
+ //--------------------------------------------------------------------+
+ // Configuration
+ //--------------------------------------------------------------------+
 
 #define TUP_USBIP_CONTROLLER_NUM 2
 extern tusb_role_t _tusb_rhport_role[TUP_USBIP_CONTROLLER_NUM];
@@ -79,9 +81,8 @@ typedef struct {
 bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed);
 #else
 TU_ATTR_ALWAYS_INLINE static inline bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed) {
-  (void)desc_ep;
   (void)speed;
-  return true;
+  return tu_edpt_packet_size(desc_ep) > 0;
 }
 #endif
 

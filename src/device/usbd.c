@@ -334,6 +334,19 @@ static const usbd_class_driver_t _usbd_driver[] = {
         .sof              = NULL
     },
     #endif
+
+    #if CFG_TUD_PRINTER
+    {
+        .name             = DRIVER_NAME("PRINTER"),
+        .init             = printerd_init,
+        .deinit           = printerd_deinit,
+        .reset            = printerd_reset,
+        .open             = printerd_open,
+        .control_xfer_cb  = printerd_control_xfer_cb,
+        .xfer_cb          = printerd_xfer_cb,
+        .sof              = NULL
+    },
+    #endif
 };
 
 enum { BUILTIN_DRIVER_COUNT = TU_ARRAY_SIZE(_usbd_driver) };
@@ -585,7 +598,7 @@ bool tud_deinit(uint8_t rhport) {
   // Deinit device controller driver
   dcd_int_disable(rhport);
   dcd_disconnect(rhport);
-  TU_VERIFY(dcd_deinit(rhport));
+  TU_ASSERT(dcd_deinit(rhport));
 
   // Deinit class drivers
   for (uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++) {
@@ -823,7 +836,9 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 #if CFG_TUSB_DEBUG >= CFG_TUD_LOG_LEVEL
   if (TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type && p_request->bRequest <= TUSB_REQ_SYNCH_FRAME) {
     TU_LOG_USBD("  %s", tu_str_std_request[p_request->bRequest]);
-    if (TUSB_REQ_GET_DESCRIPTOR != p_request->bRequest) TU_LOG_USBD("\r\n");
+    if (TUSB_REQ_GET_DESCRIPTOR != p_request->bRequest) {
+      TU_LOG_USBD("\r\n");
+    }
   }
 #endif
 
@@ -959,7 +974,25 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 
     //------------- Class/Interface Specific Request -------------//
     case TUSB_REQ_RCPT_INTERFACE: {
-      uint8_t const itf = tu_u16_low(p_request->wIndex);
+      uint8_t itf;
+      #if CFG_TUD_PRINTER
+      // Printer GET_DEVICE_ID has a weird wIndex = interface (high) | alt (low)
+      // attempt to interpret this as a printer request if matched
+      if (TUSB_REQ_TYPE_CLASS == p_request->bmRequestType_bit.type &&
+          TUSB_DIR_IN == p_request->bmRequestType_bit.direction &&
+          TUSB_PRINTER_REQUEST_GET_DEVICE_ID == p_request->bRequest) {
+        itf = tu_u16_high(p_request->wIndex);
+        if (itf < TU_ARRAY_SIZE(_usbd_dev.itf2drv)) {
+          const usbd_class_driver_t * driver = get_driver(_usbd_dev.itf2drv[itf]);
+          if (driver != NULL && driver->control_xfer_cb == printerd_control_xfer_cb) {
+            if (invoke_class_control(rhport, driver, p_request)) {
+              return true;
+            }
+          }
+        }
+      }
+      #endif
+      itf = tu_u16_low(p_request->wIndex);
       TU_VERIFY(itf < TU_ARRAY_SIZE(_usbd_dev.itf2drv));
 
       usbd_class_driver_t const * driver = get_driver(_usbd_dev.itf2drv[itf]);
