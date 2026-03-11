@@ -116,7 +116,7 @@ TU_ATTR_WEAK void tud_cdc_send_break_cb(uint8_t itf, uint16_t duration_ms) {
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC];
-static tud_cdc_configure_t _cdcd_cfg = TUD_CDC_CONFIGURE_DEFAULT();
+static tud_cdc_configure_t _cdcd_cfg = CFG_TUD_CDC_CONFIGURE_DEFAULT();
 
 TU_ATTR_ALWAYS_INLINE static inline uint8_t find_cdc_itf(uint8_t ep_addr) {
   for (uint8_t idx = 0; idx < CFG_TUD_CDC; idx++) {
@@ -347,7 +347,6 @@ uint16_t cdcd_open(uint8_t rhport, const tusb_desc_interface_t* itf_desc, uint16
         TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
         if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
           tu_edpt_stream_t *stream_tx = &p_cdc->tx_stream;
-
           tu_edpt_stream_open(stream_tx, rhport, desc_ep, CFG_TUD_CDC_EP_BUFSIZE);
           if (_cdcd_cfg.tx_persistent) {
             tu_edpt_stream_write_xfer(stream_tx); // flush pending data
@@ -356,9 +355,8 @@ uint16_t cdcd_open(uint8_t rhport, const tusb_desc_interface_t* itf_desc, uint16
           }
         } else {
           tu_edpt_stream_t *stream_rx = &p_cdc->rx_stream;
-
           tu_edpt_stream_open(stream_rx, rhport, desc_ep,
-                              _cdcd_cfg.rx_multiple_packet_transfer ? CFG_TUD_CDC_EP_BUFSIZE : tu_edpt_packet_size(desc_ep));
+                              _cdcd_cfg.rx_need_zlp ? CFG_TUD_CDC_EP_BUFSIZE : tu_edpt_packet_size(desc_ep));
           if (!_cdcd_cfg.rx_persistent) {
             tu_edpt_stream_clear(stream_rx);
           }

@@ -64,16 +64,19 @@ typedef struct TU_ATTR_PACKED {
   bool rx_persistent : 1; // keep rx fifo data even with bus reset or disconnect
   bool tx_persistent : 1; // keep tx fifo data even with reset or disconnect
   bool tx_overwritabe_if_not_connected : 1; // if not connected, tx fifo can be overwritten
-  bool rx_multiple_packet_transfer : 1; // allow transfer more than one packet in a single transfer, increase throughput but requires host sending ZLP at the end of transfer
+  bool rx_need_zlp : 1; // requires host support ZLP, allow transfer more than one packet in a single transfer, better throughput.
 } tud_cdc_configure_t;
 TU_VERIFY_STATIC(sizeof(tud_cdc_configure_t) == 1, "size is not correct");
 
-#define TUD_CDC_CONFIGURE_DEFAULT() { \
-  .rx_persistent = false, \
-  .tx_persistent = false, \
-  .tx_overwritabe_if_not_connected = true, \
-  .rx_multiple_packet_transfer = false, \
-}
+#ifndef CFG_TUD_CDC_CONFIGURE_DEFAULT
+  #define CFG_TUD_CDC_CONFIGURE_DEFAULT()       \
+    {                                           \
+      .rx_persistent                   = false, \
+      .tx_persistent                   = false, \
+      .tx_overwritabe_if_not_connected = true,  \
+      .rx_need_zlp                     = false  \
+    }
+#endif
 
 // Configure CDC driver behavior
 bool tud_cdc_configure(const tud_cdc_configure_t* driver_cfg);
@@ -86,13 +89,13 @@ bool tud_cdc_configure(const tud_cdc_configure_t* driver_cfg);
 // Application API (Multiple Ports) i.e. CFG_TUD_CDC > 1
 //--------------------------------------------------------------------+
 
-// Check if interface is ready
+// Check if the interface is ready
 bool tud_cdc_n_ready(uint8_t itf);
 
-// Check if terminal is connected to this port
+// Check if the terminal is connected to this port
 bool tud_cdc_n_connected(uint8_t itf);
 
-// Get current line state. Bit 0:  DTR (Data Terminal Ready), Bit 1: RTS (Request to Send)
+// Get the current line state. Bit 0:  DTR (Data Terminal Ready), Bit 1: RTS (Request to Send)
 uint8_t tud_cdc_n_get_line_state(uint8_t itf);
 
 // Get current line encoding: bit rate, stop bits parity etc ..
@@ -138,9 +141,8 @@ uint32_t tud_cdc_n_write_flush(uint8_t itf);
 // Return the number of bytes (characters) available for writing to TX FIFO buffer in a single n_write operation.
 uint32_t tud_cdc_n_write_available(uint8_t itf);
 
-// Clear the transmit FIFO
+// Clear the TX FIFO
 bool tud_cdc_n_write_clear(uint8_t itf);
-
 
 #if CFG_TUD_CDC_NOTIFY
 bool tud_cdc_n_notify_msg(uint8_t itf, cdc_notify_msg_t *msg);

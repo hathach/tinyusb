@@ -62,8 +62,9 @@ typedef struct {
   uint8_t  hwid;    // device: rhport, host: daddr
   bool     is_host; // 1: host, 0: device
   uint8_t ep_addr;
-  uint16_t mps;
+  // 1 byte padding
 
+  uint16_t mps;
   uint16_t xfer_len;
   uint8_t  *ep_buf; // set to NULL to use xfer_fifo when CFG_TUD_EDPT_DEDICATED_HWFIFO = 1
   tu_fifo_t ff;

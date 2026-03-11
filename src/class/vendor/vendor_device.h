@@ -66,13 +66,16 @@ extern "C" {
 // Driver Configuration
 //--------------------------------------------------------------------+
 typedef struct TU_ATTR_PACKED {
-  bool rx_multiple_packet_transfer : 1; // allow transfer more than one packet in a single transfer, increase throughput but requires host sending ZLP at the end of transfer
+  bool rx_need_zlp : 1; // requires host support ZLP, allow transfer more than one packet in a single transfer, better throughput.
 } tud_vendor_configure_t;
 TU_VERIFY_STATIC(sizeof(tud_vendor_configure_t) == 1, "size is not correct");
 
-#define TUD_VENDOR_CONFIGURE_DEFAULT() { \
-  .rx_multiple_packet_transfer = false, \
-}
+#ifndef CFG_TUD_VENDOR_CONFIGURE_DEFAULT
+  #define CFG_TUD_VENDOR_CONFIGURE_DEFAULT() \
+    {                                    \
+      .rx_need_zlp = false,              \
+    }
+#endif
 
 // Configure CDC driver behavior
 bool tud_vendor_configure(const tud_vendor_configure_t* driver_cfg);

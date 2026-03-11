@@ -71,7 +71,7 @@ typedef struct {
 CFG_TUD_MEM_SECTION static vendord_epbuf_t _vendord_epbuf[CFG_TUD_VENDOR];
   #endif
 
-static tud_vendor_configure_t _vendord_cfg = TUD_VENDOR_CONFIGURE_DEFAULT();
+static tud_vendor_configure_t _vendord_cfg = CFG_TUD_VENDOR_CONFIGURE_DEFAULT();
 
 //--------------------------------------------------------------------+
 // Weak stubs: invoked if no strong implementation is available
@@ -307,7 +307,7 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uin
       const tusb_desc_endpoint_t* desc_ep = (const tusb_desc_endpoint_t*) p_desc;
       TU_ASSERT(usbd_edpt_open(rhport, desc_ep));
 
-      uint16_t rx_xfer_len = _vendord_cfg.rx_multiple_packet_transfer ? CFG_TUD_VENDOR_EPSIZE : tu_edpt_packet_size(desc_ep);
+      uint16_t rx_xfer_len = _vendord_cfg.rx_need_zlp ? CFG_TUD_VENDOR_EPSIZE : tu_edpt_packet_size(desc_ep);
 
   #if CFG_TUD_VENDOR_TXRX_BUFFERED
       // open endpoint stream
