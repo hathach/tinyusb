@@ -1,9 +1,10 @@
+set(MCU_FAMILY RT1170)
 set(MCU_VARIANT MIMXRT1176)
 
 if (M4 STREQUAL "1")
   set(MCU_CORE _cm4)
   set(JLINK_CORE _M4)
-  set(LD_FILE_GNU ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_VARIANT}xxxxx${MCU_CORE}_ram.ld)
+  set(LD_FILE_GNU ${MCUX_DEVICES}/${MCU_FAMILY}/${MCU_VARIANT}/gcc/${MCU_VARIANT}xxxxx${MCU_CORE}_ram.ld)
   set(CMAKE_SYSTEM_CPU cortex-m4 CACHE INTERNAL "System Processor")
 else ()
   set(MCU_CORE _cm7)
