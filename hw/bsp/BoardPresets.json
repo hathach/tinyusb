@@ -91,6 +91,18 @@
       "inherits": "default"
     },
     {
+      "name": "at_start_f455",
+      "inherits": "default"
+    },
+    {
+      "name": "at_start_f456",
+      "inherits": "default"
+    },
+    {
+      "name": "at_start_f457",
+      "inherits": "default"
+    },
+    {
       "name": "atsamd21_xpro",
       "inherits": "default"
     },
@@ -368,10 +380,6 @@
     },
     {
       "name": "metro_m7_1011",
-      "inherits": "default"
-    },
-    {
-      "name": "metro_m7_1011_sd",
       "inherits": "default"
     },
     {
@@ -1012,6 +1020,21 @@
       "configurePreset": "at_start_f437"
     },
     {
+      "name": "at_start_f455",
+      "description": "Build preset for the at_start_f455 board",
+      "configurePreset": "at_start_f455"
+    },
+    {
+      "name": "at_start_f456",
+      "description": "Build preset for the at_start_f456 board",
+      "configurePreset": "at_start_f456"
+    },
+    {
+      "name": "at_start_f457",
+      "description": "Build preset for the at_start_f457 board",
+      "configurePreset": "at_start_f457"
+    },
+    {
       "name": "atsamd21_xpro",
       "description": "Build preset for the atsamd21_xpro board",
       "configurePreset": "atsamd21_xpro"
@@ -1405,11 +1428,6 @@
       "name": "metro_m7_1011",
       "description": "Build preset for the metro_m7_1011 board",
       "configurePreset": "metro_m7_1011"
-    },
-    {
-      "name": "metro_m7_1011_sd",
-      "description": "Build preset for the metro_m7_1011_sd board",
-      "configurePreset": "metro_m7_1011_sd"
     },
     {
       "name": "mimxrt1010_evk",
@@ -2288,6 +2306,45 @@
       ]
     },
     {
+      "name": "at_start_f455",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "at_start_f455"
+        },
+        {
+          "type": "build",
+          "name": "at_start_f455"
+        }
+      ]
+    },
+    {
+      "name": "at_start_f456",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "at_start_f456"
+        },
+        {
+          "type": "build",
+          "name": "at_start_f456"
+        }
+      ]
+    },
+    {
+      "name": "at_start_f457",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "at_start_f457"
+        },
+        {
+          "type": "build",
+          "name": "at_start_f457"
+        }
+      ]
+    },
+    {
       "name": "atsamd21_xpro",
       "steps": [
         {
@@ -3311,19 +3368,6 @@
         {
           "type": "build",
           "name": "metro_m7_1011"
-        }
-      ]
-    },
-    {
-      "name": "metro_m7_1011_sd",
-      "steps": [
-        {
-          "type": "configure",
-          "name": "metro_m7_1011_sd"
-        },
-        {
-          "type": "build",
-          "name": "metro_m7_1011_sd"
         }
       ]
     },
