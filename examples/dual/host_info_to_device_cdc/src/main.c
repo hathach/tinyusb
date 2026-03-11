@@ -213,13 +213,13 @@ void cdc_task(void) {
   static uint32_t connected_ms = 0;
 
   if (!tud_cdc_connected()) {
-    connected_ms = board_millis();
+    connected_ms = tusb_time_millis_api();
     return;
   }
 
   // delay a bit otherwise we can outpace host's terminal. Linux will set LineState (DTR) then Line Coding.
   // If we send data before Linux's terminal set Line Coding, it can be ignored --> missing data with hardware test loop
-  if (board_millis() - connected_ms < 100) {
+  if (tusb_time_millis_api() - connected_ms < 100) {
     return; // wait for stable connection
   }
 
@@ -246,10 +246,9 @@ static void print_device_info(uint8_t daddr, const tusb_desc_device_t* desc_devi
   cdc_printf("Device %u: ID %04x:%04x SN ", daddr, desc_device->idVendor, desc_device->idProduct);
   uint8_t xfer_result = tuh_descriptor_get_serial_string_sync(daddr, LANGUAGE_ID, serial, sizeof(serial));
   if (XFER_RESULT_SUCCESS != xfer_result) {
-    serial[0] = 'n';
-    serial[1] = '/';
-    serial[2] = 'a';
-    serial[3] = 0;
+    serial[0] = (uint16_t)((TUSB_DESC_STRING << 8) | (2 * 1 + 2));
+    serial[1] = '0';
+    serial[2] = 0;
   }
   print_utf16(serial, TU_ARRAY_SIZE(serial));
   cdc_printf("\r\n");
@@ -310,7 +309,7 @@ void led_blinking_task(void) {
   static bool led_state = false;
 
   // Blink every interval ms
-  if (board_millis() - start_ms < blink_interval_ms) {
+  if (tusb_time_millis_api() - start_ms < blink_interval_ms) {
     return;// not enough time
   }
   start_ms += blink_interval_ms;

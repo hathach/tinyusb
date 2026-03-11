@@ -15,7 +15,7 @@ Yes, TinyUSB is released under the MIT license, allowing commercial use with min
 
 **Q: Does TinyUSB require an RTOS?**
 
-No, TinyUSB works in bare metal environments. It also supports FreeRTOS, RT-Thread, and Mynewt.
+No, TinyUSB works in bare metal environments. It also supports FreeRTOS, RT-Thread, ThreadX, and Mynewt.
 
 **Q: How much memory does TinyUSB use?**
 

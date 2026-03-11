@@ -37,10 +37,12 @@
 #define BUF_COUNT   4
 
 
-tusb_desc_device_t desc_device;
+CFG_TUH_MEM_SECTION tusb_desc_device_t desc_device;
 
-uint8_t buf_pool[BUF_COUNT][64];
+CFG_TUH_MEM_SECTION uint8_t buf_pool[BUF_COUNT][64];
 uint8_t buf_owner[BUF_COUNT] = { 0 }; // device address that owns buffer
+
+CFG_TUH_MEM_SECTION uint16_t temp_buf[128]; // temp buffer for string descriptor
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
@@ -74,8 +76,6 @@ int main(void) {
     tuh_task();
     led_blinking_task();
   }
-
-  return 0;
 }
 
 /*------------- TinyUSB Callbacks -------------*/
@@ -120,8 +120,6 @@ void print_device_descriptor(tuh_xfer_t *xfer) {
   printf("  bcdDevice           %04x\r\n"   , desc_device.bcdDevice);
 
   // Get String descriptor using Sync API
-  uint16_t temp_buf[128];
-
   printf("  iManufacturer       %u     ", desc_device.iManufacturer);
   if (XFER_RESULT_SUCCESS == tuh_descriptor_get_manufacturer_string_sync(daddr, LANGUAGE_ID, temp_buf, sizeof(temp_buf))) {
     print_utf16(temp_buf, TU_ARRAY_SIZE(temp_buf));
@@ -335,7 +333,7 @@ void led_blinking_task(void) {
   static bool led_state = false;
 
   // Blink every interval ms
-  if (board_millis() - start_ms < interval_ms) {
+  if (tusb_time_millis_api() - start_ms < interval_ms) {
     return; // not enough time
   }
   start_ms += interval_ms;
@@ -386,12 +384,12 @@ static int _count_utf8_bytes(const uint16_t *buf, size_t len) {
   return (int) total_bytes;
 }
 
-static void print_utf16(uint16_t *temp_buf, size_t buf_len) {
-  if ((temp_buf[0] & 0xff) == 0) return;// empty
-  size_t utf16_len = ((temp_buf[0] & 0xff) - 2) / sizeof(uint16_t);
-  size_t utf8_len = (size_t) _count_utf8_bytes(temp_buf + 1, utf16_len);
-  _convert_utf16le_to_utf8(temp_buf + 1, utf16_len, (uint8_t *) temp_buf, sizeof(uint16_t) * buf_len);
-  ((uint8_t *) temp_buf)[utf8_len] = '\0';
+static void print_utf16(uint16_t *buf, size_t buf_len) {
+  if ((buf[0] & 0xff) == 0) return;// empty
+  size_t utf16_len = ((buf[0] & 0xff) - 2) / sizeof(uint16_t);
+  size_t utf8_len = (size_t) _count_utf8_bytes(buf + 1, utf16_len);
+  _convert_utf16le_to_utf8(buf + 1, utf16_len, (uint8_t *) buf, sizeof(uint16_t) * buf_len);
+  ((uint8_t *) buf)[utf8_len] = '\0';
 
-  printf("%s", (char *) temp_buf);
+  printf("%s", (char *) buf);
 }

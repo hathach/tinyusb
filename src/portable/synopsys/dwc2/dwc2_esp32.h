@@ -121,6 +121,13 @@ TU_ATTR_ALWAYS_INLINE static inline void dwc2_phy_init(dwc2_regs_t* dwc2, uint8_
 
 }
 
+// MCU specific PHY deinit, disable PHY power
+TU_ATTR_ALWAYS_INLINE static inline void dwc2_phy_deinit(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
+  (void)dwc2;
+  (void)hs_phy_type;
+  // PHY managed by ESP-IDF
+}
+
 // MCU specific PHY update, it is called AFTER init() and core reset
 TU_ATTR_ALWAYS_INLINE static inline void dwc2_phy_update(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
   (void)dwc2;

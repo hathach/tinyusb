@@ -175,6 +175,10 @@
       "inherits": "default"
     },
     {
+      "name": "ek_tm4c1294xl",
+      "inherits": "default"
+    },
+    {
       "name": "f1c100s",
       "inherits": "default"
     },
@@ -719,6 +723,10 @@
       "inherits": "default"
     },
     {
+      "name": "stm32h747disco",
+      "inherits": "default"
+    },
+    {
       "name": "stm32h750_weact",
       "inherits": "default"
     },
@@ -1107,6 +1115,11 @@
       "name": "ek_tm4c123gxl",
       "description": "Build preset for the ek_tm4c123gxl board",
       "configurePreset": "ek_tm4c123gxl"
+    },
+    {
+      "name": "ek_tm4c1294xl",
+      "description": "Build preset for the ek_tm4c1294xl board",
+      "configurePreset": "ek_tm4c1294xl"
     },
     {
       "name": "espressif_addax_1",
@@ -1834,6 +1847,11 @@
       "configurePreset": "stm32h745disco"
     },
     {
+      "name": "stm32h747disco",
+      "description": "Build preset for the stm32h747disco board",
+      "configurePreset": "stm32h747disco"
+    },
+    {
       "name": "stm32h750_weact",
       "description": "Build preset for the stm32h750_weact board",
       "configurePreset": "stm32h750_weact"
@@ -2539,6 +2557,19 @@
         {
           "type": "build",
           "name": "ek_tm4c123gxl"
+        }
+      ]
+    },
+    {
+      "name": "ek_tm4c1294xl",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ek_tm4c1294xl"
+        },
+        {
+          "type": "build",
+          "name": "ek_tm4c1294xl"
         }
       ]
     },
@@ -4424,6 +4455,19 @@
         {
           "type": "build",
           "name": "stm32h745disco"
+        }
+      ]
+    },
+    {
+      "name": "stm32h747disco",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32h747disco"
+        },
+        {
+          "type": "build",
+          "name": "stm32h747disco"
         }
       ]
     },

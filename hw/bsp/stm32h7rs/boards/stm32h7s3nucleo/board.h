@@ -44,7 +44,7 @@
 #define UART_CLK_EN           __HAL_RCC_USART3_CLK_ENABLE
 
 // VBUS Sense detection
-#define OTG_FS_VBUS_SENSE     1
+#define OTG_FS_VBUS_SENSE     0
 #define OTG_HS_VBUS_SENSE     0
 
 #define PINID_LED      0
@@ -62,7 +62,7 @@ static board_pindef_t board_pindef[] = {
   { // Button
     .port = GPIOC,
     .pin_init = { .Pin = GPIO_PIN_13, .Mode = GPIO_MODE_INPUT, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_FREQ_HIGH, .Alternate = 0 },
-    .active_state = 1
+    .active_state = 0
   },
   { // UART TX
     .port = GPIOD,

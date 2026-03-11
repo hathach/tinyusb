@@ -338,7 +338,7 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control
 
           default:
             if (stage == CONTROL_STAGE_SETUP) {
-              return reply_getstatus(rhport, request, _dfu_ctx.state, _dfu_ctx.status, 0);
+              return reply_getstatus(rhport, request, (dfu_state_t) _dfu_ctx.state, (dfu_status_t) _dfu_ctx.status, 0);
             }
             break;
         }
@@ -387,7 +387,7 @@ static bool process_download_get_status(uint8_t rhport, uint8_t stage, const tus
       timeout = 0;
     }
 
-    return reply_getstatus(rhport, request, next_state, _dfu_ctx.status, timeout);
+    return reply_getstatus(rhport, request, next_state, (dfu_status_t) _dfu_ctx.status, timeout);
   } else if (stage == CONTROL_STAGE_ACK) {
     if (_dfu_ctx.flashing_in_progress) {
       _dfu_ctx.state = DFU_DNBUSY;
@@ -416,7 +416,7 @@ static bool process_manifest_get_status(uint8_t rhport, uint8_t stage, const tus
       timeout = 0;
     }
 
-    return reply_getstatus(rhport, request, next_state, _dfu_ctx.status, timeout);
+    return reply_getstatus(rhport, request, next_state, (dfu_status_t) _dfu_ctx.status, timeout);
   } else if (stage == CONTROL_STAGE_ACK) {
     if (_dfu_ctx.flashing_in_progress) {
       _dfu_ctx.state = DFU_MANIFEST;

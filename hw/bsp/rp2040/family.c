@@ -370,7 +370,7 @@ bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const* tx_buf, uint8_t* rx
   }else if (rx_buf == NULL) {
     ret = spi_write_blocking(MAX3421_SPI, tx_buf, xfer_bytes);
   }else {
-    ret = spi_write_read_blocking(spi0, tx_buf, rx_buf, xfer_bytes);
+    ret = spi_write_read_blocking(MAX3421_SPI, tx_buf, rx_buf, xfer_bytes);
   }
 
   return ret == (int) xfer_bytes;

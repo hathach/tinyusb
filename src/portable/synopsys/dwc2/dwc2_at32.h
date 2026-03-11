@@ -61,6 +61,11 @@
   #define OTG1_FIFO_SIZE           1280
   #define OTG1_IRQn                OTGFS1_IRQn
   #define DWC2_OTG1_REG_BASE       0x50000000UL
+#elif CFG_TUSB_MCU == OPT_MCU_AT32F45X
+  #include <at32f45x.h>
+  #define OTG1_FIFO_SIZE           1280
+  #define OTG1_IRQn                OTGFS1_IRQn
+  #define DWC2_OTG1_REG_BASE       0x50000000UL
 #endif
 
 #ifdef __cplusplus
@@ -105,6 +110,12 @@ TU_ATTR_ALWAYS_INLINE static inline void dwc2_phy_init(dwc2_regs_t *dwc2, uint8_
   if (hs_phy_type == GHWCFG2_HSPHY_UTMI || hs_phy_type == GHWCFG2_HSPHY_UTMI_ULPI) {
   } else if (hs_phy_type == GHWCFG2_HSPHY_NOT_SUPPORTED) {
   }
+}
+
+// MCU specific PHY deinit, disable PHY power
+TU_ATTR_ALWAYS_INLINE static inline void dwc2_phy_deinit(dwc2_regs_t *dwc2, uint8_t hs_phy_type) {
+  (void) hs_phy_type;
+  dwc2->stm32_gccfg &= ~(STM32_GCCFG_PWRDWN | STM32_GCCFG_DCDEN | STM32_GCCFG_PDEN);
 }
 
 // MCU specific PHY update, it is called AFTER init() and core reset

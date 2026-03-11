@@ -50,7 +50,7 @@ static void max3421_init(void);
 #endif
 
 #if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3, OPT_MCU_ESP32H4, OPT_MCU_ESP32P4)
-static bool usb_init(void);
+static bool usb_init(uint8_t rhport, bool is_host);
 #endif
 
 //--------------------------------------------------------------------+
@@ -90,8 +90,14 @@ void board_init(void) {
   gpio_set_direction(BUTTON_PIN, GPIO_MODE_INPUT);
   gpio_set_pull_mode(BUTTON_PIN, BUTTON_STATE_ACTIVE ? GPIO_PULLDOWN_ONLY : GPIO_PULLUP_ONLY);
 
-#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3, OPT_MCU_ESP32P4)
-  usb_init();
+#if CONFIG_USB_OTG_SUPPORTED
+  #if CFG_TUD_ENABLED
+  usb_init(BOARD_TUD_RHPORT, false);
+  #endif
+
+  #if CFG_TUH_ENABLED
+  usb_init(BOARD_TUH_RHPORT, true);
+  #endif
 #endif
 
 #ifdef HIL_TS3USB30_MODE_PIN
@@ -179,24 +185,30 @@ void board_reset_to_bootloader(void) {
 
 static usb_phy_handle_t phy_hdl;
 
-bool usb_init(void) {
+bool usb_init(uint8_t rhport, bool is_host) {
+  (void) rhport;
   // Configure USB PHY
   usb_phy_config_t phy_conf = {
     .controller = USB_PHY_CTRL_OTG,
+#if defined(CONFIG_SOC_USB_UTMI_PHY_NUM) && CONFIG_SOC_USB_UTMI_PHY_NUM > 0
+    .target = USB_PHY_TARGET_UTMI,
+#else
     .target = USB_PHY_TARGET_INT,
+#endif
 
     // maybe we can use USB_OTG_MODE_DEFAULT and switch using dwc2 driver
-#if CFG_TUD_ENABLED
-    .otg_mode = USB_OTG_MODE_DEVICE,
-#elif CFG_TUH_ENABLED
-    .otg_mode = USB_OTG_MODE_HOST,
-#endif
+    .otg_mode = is_host ? USB_OTG_MODE_HOST : USB_OTG_MODE_DEVICE,
     // https://github.com/hathach/tinyusb/issues/2943#issuecomment-2601888322
     // Set speed to undefined (auto-detect) to avoid timinng/racing issue with S3 with host such as macOS
     .otg_speed = USB_PHY_SPEED_UNDEFINED,
   };
 
-  usb_new_phy(&phy_conf, &phy_hdl);
+  esp_err_t const err = usb_new_phy(&phy_conf, &phy_hdl);
+  if (err != ESP_OK) {
+    printf("usb_new_phy failed: %s\r\n", esp_err_to_name(err));
+    phy_hdl = NULL;
+    return false;
+  }
 
   return true;
 }
@@ -351,5 +363,4 @@ bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const* tx_buf, uint8_t* rx
   ESP_ERROR_CHECK(spi_device_transmit(max3421_spi, &xact));
   return true;
 }
-
 #endif

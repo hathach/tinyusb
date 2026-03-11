@@ -341,12 +341,10 @@ typedef struct TU_ATTR_PACKED {
   uint8_t  bLength            ; ///< Size of this descriptor in bytes.
   uint8_t  bDescriptorType    ; ///< DEVICE Descriptor Type.
   uint16_t bcdUSB             ; ///< BUSB Specification Release Number in Binary-Coded Decimal (i.e., 2.10 is 210H).
-
   uint8_t  bDeviceClass       ; ///< Class code (assigned by the USB-IF).
   uint8_t  bDeviceSubClass    ; ///< Subclass code (assigned by the USB-IF).
   uint8_t  bDeviceProtocol    ; ///< Protocol code (assigned by the USB-IF).
   uint8_t  bMaxPacketSize0    ; ///< Maximum packet size for endpoint zero (only 8, 16, 32, or 64 are valid). For HS devices is fixed to 64.
-
   uint16_t idVendor           ; ///< Vendor ID (assigned by the USB-IF).
   uint16_t idProduct          ; ///< Product ID (assigned by the manufacturer).
   uint16_t bcdDevice          ; ///< Device release number in binary-coded decimal.
@@ -554,7 +552,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_edpt_number(uint8_t addr) {
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_edpt_addr(uint8_t num, uint8_t dir) {
-  return (uint8_t) (num | (dir == TUSB_DIR_IN ? TUSB_DIR_IN_MASK : 0u));
+  return (uint8_t) (num | (dir == (uint8_t)TUSB_DIR_IN ? (uint8_t)TUSB_DIR_IN_MASK : 0u));
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_edpt_packet_size(tusb_desc_endpoint_t const* desc_ep) {

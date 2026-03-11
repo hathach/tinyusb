@@ -147,7 +147,7 @@ typedef struct TU_ATTR_PACKED {
 
 TU_VERIFY_STATIC(sizeof(musb_ep_csr_t) == 16, "size is not correct");
 
-typedef struct TU_ATTR_PACKED {
+typedef struct {
   //------------- Common -------------//
   __IO uint8_t  faddr;             // 0x00: FADDR
   union {

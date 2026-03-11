@@ -17,7 +17,7 @@ SECTIONS
     .text :
     {
         . = ALIGN(4) ;
-        *(.vectors)
+        KEEP(*(.vectors))
         *(.text)
         *(.text.*)
         *(.init)

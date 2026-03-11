@@ -168,6 +168,108 @@ uint32_t tud_midi_n_stream_read(uint8_t itf, uint8_t cable_num, void *buffer, ui
   return total_read;
 }
 
+// Note: this function shares stream->buffer with tud_midi_n_stream_read().
+// Do not mix calls to both functions on the same interface.
+uint32_t tud_midi_n_demux_stream_read(uint8_t itf, uint8_t *p_cable_num, void *buffer, uint32_t bufsize) {
+  TU_VERIFY(p_cable_num != NULL && buffer != NULL && bufsize > 0, 0);
+
+  midid_interface_t    *p_midi = &_midid_itf[itf];
+  midi_driver_stream_t *stream = &p_midi->stream_read;
+  tu_edpt_stream_t     *ep_str = &p_midi->ep_stream.rx;
+
+  uint8_t  *buf8 = (uint8_t *)buffer;
+  uint32_t total_read = 0;
+
+  // Initialize to invalid cable so callers can detect "no data" even when
+  // the return value is 0.
+  *p_cable_num = 0xff;
+
+  // If there are leftover bytes from a previous partial read, return them first
+  if (stream->total > 0) {
+    *p_cable_num = (stream->buffer[0] >> 4) & 0x0f;
+    const uint8_t count = (uint8_t)tu_min32((uint32_t)(stream->total - stream->index), bufsize);
+    TU_VERIFY(0 == tu_memcpy_s(buf8, bufsize, stream->buffer + 1 + stream->index, count));
+
+    total_read += count;
+    stream->index += count;
+    buf8 += count;
+    bufsize -= count;
+
+    if (stream->total == stream->index) {
+      stream->index = 0;
+      stream->total = 0;
+    }
+
+    if (bufsize == 0) {
+      return total_read;
+    }
+  }
+
+  while (bufsize > 0) {
+    // Peek at next packet header to get cable number without consuming
+    uint8_t one_byte;
+    if (!tu_edpt_stream_peek(ep_str, &one_byte)) {
+      break;
+    }
+
+    const uint8_t next_cable = (one_byte >> 4) & 0x0f;
+
+    // Stop if cable changed (covers both leftover-originated reads and
+    // freshly consumed packets — total_read > 0 in either case)
+    if (total_read > 0 && next_cable != *p_cable_num) {
+      break;
+    }
+    *p_cable_num = next_cable;
+
+    // Consume the packet
+    if (!tud_midi_n_packet_read(itf, stream->buffer)) {
+      break;
+    }
+
+    const uint8_t code_index = stream->buffer[0] & 0x0f;
+    uint8_t msg_bytes;
+
+    // MIDI 1.0 Table 4-1: Code Index Number Classifications
+    switch (code_index) {
+      case MIDI_CIN_MISC:
+      case MIDI_CIN_CABLE_EVENT:
+        // Reserved and unused, skip this packet
+        continue;
+
+      case MIDI_CIN_SYSEX_END_1BYTE:
+      case MIDI_CIN_1BYTE_DATA:
+        msg_bytes = 1;
+        break;
+
+      case MIDI_CIN_SYSCOM_2BYTE:
+      case MIDI_CIN_SYSEX_END_2BYTE:
+      case MIDI_CIN_PROGRAM_CHANGE:
+      case MIDI_CIN_CHANNEL_PRESSURE:
+        msg_bytes = 2;
+        break;
+
+      default:
+        msg_bytes = 3;
+        break;
+    }
+
+    const uint8_t count = (uint8_t)tu_min32((uint32_t)msg_bytes, bufsize);
+    TU_VERIFY(0 == tu_memcpy_s(buf8, bufsize, stream->buffer + 1, count));
+
+    total_read += count;
+    buf8 += count;
+    bufsize -= count;
+
+    if (count < msg_bytes) {
+      // Output buffer full, save remaining for next call
+      stream->total = msg_bytes;
+      stream->index = count;
+    }
+  }
+
+  return total_read;
+}
+
 bool tud_midi_n_packet_read(uint8_t itf, uint8_t packet[4]) {
   midid_interface_t *p_midi = &_midid_itf[itf];
   tu_edpt_stream_t  *ep_str = &p_midi->ep_stream.rx;

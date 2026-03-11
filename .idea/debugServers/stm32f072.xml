@@ -1,0 +1,13 @@
+<component name="DebugServers">
+  <jlink-debug-target name="stm32f072" uniqueID="f5c65701-0f8d-4923-a7ea-3ee2547147ae">
+    <debugger version="1">
+      <debugger kind="GDB" isBundled="true" />
+      <env />
+    </debugger>
+    <gdbserver exe="/usr/bin/JLinkGDBServerCLExe" />
+    <console port="19021" />
+    <target device="STM32F072RB" reset-before="false" frequency="12000" />
+    <connection extended-remote="false" port="4444" warmup-ms="500" />
+    <swo />
+  </jlink-debug-target>
+</component>

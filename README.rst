@@ -1,7 +1,7 @@
 TinyUSB
 =======
 
-|Build Status| |CircleCI Status| |Documentation Status| |Static Analysis| |Fuzzing Status| |License|
+|Build Status| |CircleCI Status| |Documentation Status| |Static Analysis| |Fuzzing Status| |Membrowse| |License|
 
 Sponsors
 --------
@@ -87,6 +87,7 @@ Supports multiple device configurations by dynamically changing USB descriptors,
 -  Communication Device Class (CDC)
 -  Device Firmware Update (DFU): DFU mode (WIP) and Runtime
 -  Human Interface Device (HID): Generic (In & Out), Keyboard, Mouse, Gamepad etc ...
+-  Printer class
 -  Mass Storage Class (MSC): with multiple LUNs
 -  Musical Instrument Digital Interface (MIDI)
 -  Media Transfer Protocol (MTP/PTP)
@@ -101,10 +102,11 @@ If you have a special requirement, ``usbd_app_driver_get_cb()`` can be used to w
 Host Stack
 ----------
 
-- Human Interface Device (HID): Keyboard, Mouse, Generic
-- Mass Storage Class (MSC)
 - Communication Device Class: CDC-ACM
 - Vendor serial over USB: FTDI, CP210x, CH34x, PL2303
+- Human Interface Device (HID): Keyboard, Mouse, Generic
+- Mass Storage Class (MSC)
+- Musical Instrument Digital Interface (MIDI)
 - Hub with multiple-level support
 
 Similar to the Device Stack, if you have a special requirement, ``usbh_app_driver_get_cb()`` can be used to write your own class driver without modifying the stack.
@@ -141,7 +143,8 @@ Supported CPUs
 +--------------+-----------------------------+--------+------+-----------+------------------------+--------------------+
 | Artery AT32  | F403a_407, F413             | ✔      |      |           | fsdev                  | 512 USB RAM        |
 |              +-----------------------------+--------+------+-----------+------------------------+--------------------+
-|              | F415, F435_437, F423, F425  | ✔      | ✔    |           | dwc2                   |                    |
+|              | F415, F435_437, F423,       | ✔      | ✔    |           | dwc2                   |                    |
+|              | F425, F45x                  |        |      |           |                        |                    |
 |              +-----------------------------+--------+------+-----------+------------------------+--------------------+
 |              | F402_F405                   | ✔      | ✔    | ✔         | dwc2                   | F405 is HS         |
 +--------------+-----------------------------+--------+------+-----------+------------------------+--------------------+
@@ -203,7 +206,9 @@ Supported CPUs
 |              |         +-------------------+--------+------+-----------+------------------------+--------------------+
 |              |         | 51u               | ✔      | ✖    | ✖         | lpc_ip3511             |                    |
 |              |         +-------------------+--------+------+-----------+------------------------+--------------------+
-|              |         | 54, 55            | ✔      |      | ✔         | lpc_ip3511             |                    |
+|              |         | 54                | ⚠      | ⚠    | ✔         | lpc_ip3511, lpc_ip3516 | NRND, read errata |
+|              |         +-------------------+--------+------+-----------+------------------------+-------------------+
+|              |         | 55                | ✔      | ✔    | ✔         | lpc_ip3511, lpc_ip3516 |                    |
 |              +---------+-------------------+--------+------+-----------+------------------------+--------------------+
 |              | MCX     | N9                | ✔      |      | ✔         | ci_fs, ci_hs, ehci     |                    |
 |              |         +-------------------+--------+------+-----------+------------------------+--------------------+
@@ -292,6 +297,8 @@ The following tools are provided freely to support the development of the TinyUS
    :target: https://github.com/hathach/tinyusb/actions/workflows/static_analysis.yml
 .. |Fuzzing Status| image:: https://oss-fuzz-build-logs.storage.googleapis.com/badges/tinyusb.svg
    :target: https://oss-fuzz-build-logs.storage.googleapis.com/index.html#tinyusb
+.. |Membrowse| image:: https://membrowse.com/badge.svg
+   :target: https://membrowse.com/public/hathach/tinyusb
 .. |License| image:: https://img.shields.io/badge/license-MIT-brightgreen.svg
    :target: https://opensource.org/licenses/MIT
 
