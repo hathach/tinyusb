@@ -85,6 +85,18 @@
   #define CFG_TUD_CDC_TX_OVERWRITABLE_IF_NOT_CONNECTED 1
 #endif
 
+// Backward compatible: tud_cdc_configure_t and tud_cdc_configure() are no longer used.
+// Configuration is now done via compile-time macros above.
+typedef struct {
+  bool rx_persistent;
+  bool tx_persistent;
+  bool tx_overwritabe_if_not_connected;
+} tud_cdc_configure_t;
+
+#define tud_cdc_configure(_cfg)          ((void)(_cfg))
+#define tud_cdc_configure_fifo_t         tud_cdc_configure_t
+#define tud_cdc_configure_fifo(_cfg)     ((void)(_cfg))
+
 //--------------------------------------------------------------------+
 // Application API (Multiple Ports) i.e. CFG_TUD_CDC > 1
 //--------------------------------------------------------------------+
