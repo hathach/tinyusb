@@ -808,8 +808,8 @@ void tud_network_link_state(uint8_t rhport, bool is_up) {
     return;
   }
 
-  // Reset notification state to send link state update
-  ncm_interface.notification_xmit_state = NOTIFICATION_CONNECTED;
+  // Reset notification state to send speed change notification first, then link state notification
+  ncm_interface.notification_xmit_state = NOTIFICATION_SPEED;
 
   // Trigger notification transmission
   notification_xmit(rhport, false);
@@ -978,7 +978,7 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
             notification_xmit(rhport, false);
           } else {
             // Reset notification state to send link state update when interface is re-activated
-            ncm_interface.notification_xmit_state = NOTIFICATION_CONNECTED;
+            ncm_interface.notification_xmit_state = NOTIFICATION_SPEED;
           }
           tud_control_status(rhport, request);
         } break;
