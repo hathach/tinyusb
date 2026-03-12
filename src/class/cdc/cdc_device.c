@@ -341,21 +341,26 @@ uint16_t cdcd_open(uint8_t rhport, const tusb_desc_interface_t* itf_desc, uint16
         if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
           tu_edpt_stream_t *stream_tx = &p_cdc->tx_stream;
           tu_edpt_stream_open(stream_tx, rhport, desc_ep, CFG_TUD_CDC_TX_EPSIZE);
-        #if CFG_TUD_CDC_TX_PERSISTENT
+
+  #if CFG_TUD_CDC_TX_PERSISTENT
           tu_edpt_stream_write_xfer(stream_tx); // flush pending data
-        #else
+  #else
           tu_edpt_stream_clear(stream_tx);
-        #endif
+  #endif
         } else {
           tu_edpt_stream_t *stream_rx = &p_cdc->rx_stream;
-        #if CFG_TUD_CDC_RX_NEED_ZLP
-          tu_edpt_stream_open(stream_rx, rhport, desc_ep, CFG_TUD_CDC_RX_EPSIZE);
-        #else
-          tu_edpt_stream_open(stream_rx, rhport, desc_ep, tu_edpt_packet_size(desc_ep));
-        #endif
-        #if !CFG_TUD_CDC_RX_PERSISTENT
+  #if CFG_TUD_CDC_RX_NEED_ZLP
+          const uint16_t xfer_len = CFG_TUD_CDC_RX_EPSIZE;
+  #else
+          const uint16_t xfer_len = tu_edpt_packet_size(desc_ep);
+  #endif
+
+          tu_edpt_stream_open(stream_rx, rhport, desc_ep, xfer_len);
+
+  #if !CFG_TUD_CDC_RX_PERSISTENT
           tu_edpt_stream_clear(stream_rx);
-        #endif
+  #endif
+
           TU_ASSERT(tu_edpt_stream_read_xfer(stream_rx) > 0, 0); // prepare for incoming data
         }
       }
@@ -420,12 +425,13 @@ bool cdcd_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_requ
         p_cdc->line_state = (uint8_t) request->wValue;
 
         // If enabled: fifo overwriting is disabled if DTR bit is set and vice versa
-      #if CFG_TUD_CDC_TX_OVERWRITABLE_IF_NOT_CONNECTED
-        tu_fifo_set_overwritable(&p_cdc->tx_stream.ff, !dtr);
-      #else
-        tu_fifo_set_overwritable(&p_cdc->tx_stream.ff, false);
-      #endif
+  #if CFG_TUD_CDC_TX_OVERWRITABLE_IF_NOT_CONNECTED
+        const bool is_overwritable = !dtr;
+  #else
+        const bool is_overwritable = false;
+  #endif
 
+        tu_fifo_set_overwritable(&p_cdc->tx_stream.ff, is_overwritable);
         TU_LOG_DRV("  Set Control Line State: DTR = %d, RTS = %d\r\n", dtr, rts);
         tud_cdc_line_state_cb(itf, dtr, rts); // invoke callback
       } else {
