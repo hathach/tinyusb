@@ -70,30 +70,20 @@
   #define CFG_TUD_CDC_RX_NEED_ZLP 0
 #endif
 
-#ifndef CFG_TUD_CDC_CONFIGURE_DEFAULT
-  #define CFG_TUD_CDC_CONFIGURE_DEFAULT()       \
-  {                                           \
-  .rx_persistent                   = false, \
-  .tx_persistent                   = false, \
-  .tx_overwritabe_if_not_connected = true,  \
-  }
+// Keep rx fifo data even with bus reset or disconnect
+#ifndef CFG_TUD_CDC_RX_PERSISTENT
+  #define CFG_TUD_CDC_RX_PERSISTENT 0
 #endif
 
-//--------------------------------------------------------------------+
-// Driver Configuration
-//--------------------------------------------------------------------+
-typedef struct {
-  bool rx_persistent; // keep rx fifo data even with bus reset or disconnect
-  bool tx_persistent; // keep tx fifo data even with reset or disconnect
-  bool tx_overwritabe_if_not_connected; // if not connected, tx fifo can be overwritten
-} tud_cdc_configure_t;
+// Keep tx fifo data even with bus reset or disconnect
+#ifndef CFG_TUD_CDC_TX_PERSISTENT
+  #define CFG_TUD_CDC_TX_PERSISTENT 0
+#endif
 
-// Configure CDC driver behavior
-bool tud_cdc_configure(const tud_cdc_configure_t* driver_cfg);
-
-// Backward compatible
-#define tud_cdc_configure_fifo_t tud_cdc_configure_t
-#define tud_cdc_configure_fifo   tud_cdc_configure
+// If not connected, tx fifo can be overwritten
+#ifndef CFG_TUD_CDC_TX_OVERWRITABLE_IF_NOT_CONNECTED
+  #define CFG_TUD_CDC_TX_OVERWRITABLE_IF_NOT_CONNECTED 1
+#endif
 
 //--------------------------------------------------------------------+
 // Application API (Multiple Ports) i.e. CFG_TUD_CDC > 1
