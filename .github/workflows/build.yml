@@ -182,6 +182,7 @@ jobs:
           name: metrics-comment
           path: |
             metrics_compare.md
+            metrics.json
             pr_number.txt
 
       - name: Post Code Metrics as PR Comment
