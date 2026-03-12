@@ -74,23 +74,10 @@ extern "C" {
   #define CFG_TUD_VENDOR_RX_MANUAL_XFER 0
 #endif
 
-//--------------------------------------------------------------------+
-// Driver Configuration
-//--------------------------------------------------------------------+
-typedef struct TU_ATTR_PACKED {
-  bool rx_need_zlp : 1; // requires host support ZLP, allow transfer more than one packet in a single transfer, better throughput.
-} tud_vendor_configure_t;
-TU_VERIFY_STATIC(sizeof(tud_vendor_configure_t) == 1, "size is not correct");
-
-#ifndef CFG_TUD_VENDOR_CONFIGURE_DEFAULT
-  #define CFG_TUD_VENDOR_CONFIGURE_DEFAULT() \
-    {                                    \
-      .rx_need_zlp = false,              \
-    }
+// Enable multi-packet RX transfer with ZLP termination for better throughput. Requires host support for ZLP.
+#ifndef CFG_TUD_VENDOR_RX_NEED_ZLP
+  #define CFG_TUD_VENDOR_RX_NEED_ZLP 0
 #endif
-
-// Configure CDC driver behavior
-bool tud_vendor_configure(const tud_vendor_configure_t* driver_cfg);
 
 //--------------------------------------------------------------------+
 // Application API (Multiple Interfaces) i.e CFG_TUD_VENDOR > 1

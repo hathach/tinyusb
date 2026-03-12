@@ -356,7 +356,7 @@ uint16_t cdcd_open(uint8_t rhport, const tusb_desc_interface_t* itf_desc, uint16
         } else {
           tu_edpt_stream_t *stream_rx = &p_cdc->rx_stream;
           tu_edpt_stream_open(stream_rx, rhport, desc_ep,
-                              _cdcd_cfg.rx_need_zlp ? CFG_TUD_CDC_RX_EPSIZE : tu_edpt_packet_size(desc_ep));
+                              CFG_TUD_CDC_RX_NEED_ZLP ? CFG_TUD_CDC_RX_EPSIZE : tu_edpt_packet_size(desc_ep));
           if (!_cdcd_cfg.rx_persistent) {
             tu_edpt_stream_clear(stream_rx);
           }

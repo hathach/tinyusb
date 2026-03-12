@@ -65,13 +65,17 @@
   #endif
 #endif
 
+// Enable multi-packet RX transfer with ZLP termination for better throughput. Requires host support for ZLP.
+#ifndef CFG_TUD_CDC_RX_NEED_ZLP
+  #define CFG_TUD_CDC_RX_NEED_ZLP 0
+#endif
+
 #ifndef CFG_TUD_CDC_CONFIGURE_DEFAULT
   #define CFG_TUD_CDC_CONFIGURE_DEFAULT()       \
   {                                           \
   .rx_persistent                   = false, \
   .tx_persistent                   = false, \
   .tx_overwritabe_if_not_connected = true,  \
-  .rx_need_zlp                     = false  \
   }
 #endif
 
@@ -82,7 +86,6 @@ typedef struct {
   bool rx_persistent; // keep rx fifo data even with bus reset or disconnect
   bool tx_persistent; // keep tx fifo data even with reset or disconnect
   bool tx_overwritabe_if_not_connected; // if not connected, tx fifo can be overwritten
-  bool rx_need_zlp; // requires host support ZLP, allow transfer more than one packet in a single transfer, better throughput.
 } tud_cdc_configure_t;
 
 // Configure CDC driver behavior
