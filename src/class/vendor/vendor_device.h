@@ -54,12 +54,12 @@ extern "C" {
 
 // RX FIFO can be disabled by setting this value to 0
 #ifndef CFG_TUD_VENDOR_RX_BUFSIZE
-  #define CFG_TUD_VENDOR_RX_BUFSIZE 64
+  #define CFG_TUD_VENDOR_RX_BUFSIZE TUD_EPSIZE_BULK_MAX
 #endif
 
 // TX FIFO can be disabled by setting this value to 0
 #ifndef CFG_TUD_VENDOR_TX_BUFSIZE
-  #define CFG_TUD_VENDOR_TX_BUFSIZE 64
+  #define CFG_TUD_VENDOR_TX_BUFSIZE TUD_EPSIZE_BULK_MAX
 #endif
 
 // Vendor is buffered (FIFO mode) if both TX and RX buffers are configured
