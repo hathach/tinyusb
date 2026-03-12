@@ -416,11 +416,6 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   // force host mode and wait for mode switch
   dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_FDMOD) | GUSBCFG_FHMOD;
- #if CFG_TUSB_MCU == OPT_MCU_STM32N6
-  // No hardware detection of Vbus B-session is available on the STM32N6
-  dwc2->stm32_gccfg &= ~STM32_GCCFG_VBVALOVAL;
-  #endif
-
   while ((dwc2->gintsts & GINTSTS_CMOD) != GINTSTS_CMODE_HOST) {}
 
   #ifdef TUP_USBIP_DWC2_STM32
@@ -440,13 +435,24 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   dwc2->hprt = HPRT_POWER; // turn on VBUS
 
   // Enable required interrupts
-  dwc2->gintmsk |= GINTSTS_OTGINT | GINTSTS_CONIDSTSCHNG | GINTSTS_HPRTINT | GINTSTS_HCINT | GINTSTS_DISCINT;
+  dwc2->gintmsk |= GINTSTS_OTGINT | GINTSTS_HPRTINT | GINTSTS_HCINT | GINTSTS_DISCINT;
 
   // NPTX can hold at least 2 packet, change interrupt level to half-empty
   uint32_t gahbcfg = dwc2->gahbcfg & ~GAHBCFG_TX_FIFO_EPMTY_LVL;
   gahbcfg |= GAHBCFG_GINT;   // Enable global interrupt
   dwc2->gahbcfg = gahbcfg;
 
+  return true;
+}
+
+bool hcd_deinit(uint8_t rhport) {
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+
+  // Turn off VBUS
+  dwc2->hprt = HPRT_W1_MASK; // clear w1c bits without side effects
+  // HPRT_POWER is not set -> VBUS off
+
+  dwc2_core_deinit(rhport);
   return true;
 }
 
@@ -874,7 +880,7 @@ static void handle_rxflvl_irq(uint8_t rhport) {
       break;
 
     case GRXSTS_PKTSTS_HOST_DATATOGGLE_ERR:
-      TU_ASSERT(0, ); // maybe try to change DToggle
+      // handle in channel interrupt
       break;
 
     case GRXSTS_PKTSTS_HOST_CHANNEL_HALTED:
@@ -1014,8 +1020,11 @@ static bool handle_channel_in_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t h
       channel_xfer_in_retry(dwc2, ch_id, hcint);
     }
   } else if (hcint & HCINT_DATATOGGLE_ERR) {
+    channel->hcintmsk &= ~HCINT_DATATOGGLE_ERR;
     xfer->err_count = 0;
-    TU_ASSERT(false);
+    hcsplt.split_compl = 0; // restart with start-split
+    channel->hcsplt = hcsplt.value;
+    channel_disable(dwc2, channel);
   } else {
     // nothing to do
   }
@@ -1351,6 +1360,17 @@ static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
 }
 
 // Config HCFG FS/LS clock and HFIR for SOF interval according to link speed (value is in PHY clock unit)
+// Databook Table 2-2: System Clock Speeds
+// +-----------+------------------+----------+-----------+-------------------+
+// | PHY       | PHY Clock (MHz)  | Width    | HCFG.Sel  | HFIR (clk cycles) |
+// +-----------+------------------+----------+-----------+-------------------+
+// | HS UTMI+  | 30               | 16-bit   | 30_60     | HS:3749 FS:29999  |
+// | HS UTMI+  | 60               |  8-bit   | 30_60     | HS:7499 FS:59999  |
+// | HS ULPI   | 60               |  8-bit   | 30_60     | HS:7499 FS:59999  |
+// | FS (dead.) | 48               | internal | 48        | FS:47999          |
+// | LS via FS | 48 (6 effective) | internal | 6         | LS:47999          |
+// +-----------+------------------+----------+-----------+-------------------+
+// HFIR = (interval_us * phy_clock) - 1, where interval is 125us (HS) or 1000us (FS/LS)
 static void port0_enable(dwc2_regs_t* dwc2, tusb_speed_t speed) {
   uint32_t hcfg = dwc2->hcfg & ~HCFG_FSLS_PHYCLK_SEL;
 
@@ -1442,16 +1462,6 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
   const uint32_t gintsts = dwc2->gintsts & gintmsk;
 
   // TU_LOG1_HEX(gintsts);
-
-  if (gintsts & GINTSTS_CONIDSTSCHNG) {
-    // Connector ID status change
-    dwc2->gintsts = GINTSTS_CONIDSTSCHNG;
-
-    //if (dwc2->gotgctl)
-    // dwc2->hprt = HPRT_POWER; // power on port to turn on VBUS
-    //dwc2->gintmsk |= GINTMSK_PRTIM;
-    // TODO wait for SRP if OTG
-  }
 
   if (gintsts & GINTSTS_SOF) {
     const bool more_sof = handle_sof_irq(rhport, in_isr);

@@ -9,30 +9,25 @@ on:
 jobs:
   post-comment:
     runs-on: ubuntu-latest
+    # Run the comment job even if some of the builds fail
     if: >
       github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.conclusion != 'cancelled'
     permissions:
+      contents: read
       actions: read
       pull-requests: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Download Artifacts
-        id: download
-        uses: actions/download-artifact@v5
-        with:
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          name: membrowse-comment
-          path: reports
-        continue-on-error: true
-
       - name: Post Membrowse PR comment
-        if: steps.download.outcome == 'success'
+        if: ${{ env.MEMBROWSE_API_KEY != '' }}
         uses: membrowse/membrowse-action/comment-action@v1
         with:
-          json_files: 'reports/*.json'
+          api_key: ${{ secrets.MEMBROWSE_API_KEY }}
+          commit: ${{ github.event.workflow_run.head_sha }}
+          comment_template: .github/membrowse_pr_message.j2
         env:
+          MEMBROWSE_API_KEY: ${{ secrets.MEMBROWSE_API_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

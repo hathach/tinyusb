@@ -71,13 +71,24 @@
   #define TUP_DCD_ENDPOINT_MAX 5
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC54)
+  #include "fsl_device_registers.h"
+
   // TODO USB0 has 5, USB1 has 6
   #define TUP_USBIP_IP3511
+
+  #if !defined(LPC54114_cm4_SERIES) && !defined(LPC54114_cm0plus_SERIES)
+    #define TUP_USBIP_IP3516
+    #define TUP_USBIP_OHCI
+    #define TUP_USBIP_OHCI_NXP
+    #define TUP_OHCI_RHPORTS     1 // 1 downstream port
+  #endif
+
   #define TUP_DCD_ENDPOINT_MAX 6
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC55)
   // TODO USB0 has 5, USB1 has 6
   #define TUP_USBIP_IP3511
+  #define TUP_USBIP_IP3516
   #define TUP_USBIP_OHCI
   #define TUP_USBIP_OHCI_NXP
   #define TUP_OHCI_RHPORTS     1 // 1 downstream port
@@ -171,6 +182,10 @@
   #define TUP_DCD_ENDPOINT_MAX 10
   #define TUP_RHPORT_HIGHSPEED 1
   #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
+
+  // Enable dcache if DMA is enabled
+  #define CFG_TUD_MEM_DCACHE_ENABLE_DEFAULT     CFG_TUD_SAMX7X_DMA_ENABLE
+  #define CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT 32
 
 #elif TU_CHECK_MCU(OPT_MCU_PIC32MZ)
   #define TUP_DCD_ENDPOINT_MAX 8

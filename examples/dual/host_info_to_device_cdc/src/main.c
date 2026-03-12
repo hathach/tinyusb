@@ -106,7 +106,7 @@ static void usb_device_init(void) {
     .speed = TUSB_SPEED_AUTO
   };
   tusb_init(BOARD_TUD_RHPORT, &dev_init);
-  tud_cdc_configure_t cdc_cfg = TUD_CDC_CONFIGURE_DEFAULT();
+  tud_cdc_configure_t cdc_cfg = CFG_TUD_CDC_CONFIGURE_DEFAULT();
   cdc_cfg.tx_persistent       = true;
   cdc_cfg.tx_overwritabe_if_not_connected = false;
   tud_cdc_configure(&cdc_cfg);
@@ -213,13 +213,13 @@ void cdc_task(void) {
   static uint32_t connected_ms = 0;
 
   if (!tud_cdc_connected()) {
-    connected_ms = board_millis();
+    connected_ms = tusb_time_millis_api();
     return;
   }
 
   // delay a bit otherwise we can outpace host's terminal. Linux will set LineState (DTR) then Line Coding.
   // If we send data before Linux's terminal set Line Coding, it can be ignored --> missing data with hardware test loop
-  if (board_millis() - connected_ms < 100) {
+  if (tusb_time_millis_api() - connected_ms < 100) {
     return; // wait for stable connection
   }
 
@@ -309,7 +309,7 @@ void led_blinking_task(void) {
   static bool led_state = false;
 
   // Blink every interval ms
-  if (board_millis() - start_ms < blink_interval_ms) {
+  if (tusb_time_millis_api() - start_ms < blink_interval_ms) {
     return;// not enough time
   }
   start_ms += blink_interval_ms;

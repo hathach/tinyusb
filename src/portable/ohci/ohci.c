@@ -243,7 +243,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
        OHCI_CONTROL_LIST_BULK_ENABLE_MASK | OHCI_CONTROL_LIST_PERIODIC_ENABLE_MASK; // TODO Isochronous
 
   OHCI_REG->frame_interval = (OHCI_FMINTERVAL_FSMPS << 16) | OHCI_FMINTERVAL_FI;
-  OHCI_REG->frame_interval ^= (1 << 31); //Must toggle when frame_interval is updated.
+  OHCI_REG->frame_interval ^= (1ul << 31); //Must toggle when frame_interval is updated.
   OHCI_REG->periodic_start = (OHCI_FMINTERVAL_FI * 9) / 10; // Periodic start is 90% of frame interval
 
   OHCI_REG->control_bit.hc_functional_state = OHCI_CONTROL_FUNCSTATE_OPERATIONAL; // make HC's state to operational state TODO use this to suspend (save power)
@@ -557,6 +557,7 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   (void) rhport;
   ohci_ed_t * const p_ed = ed_from_addr(dev_addr, ep_addr);
+  TU_ASSERT(p_ed);
 
   ohci_ed_word2_t td_head = p_ed->td_head;
   td_head.toggle = 0; // reset data toggle

@@ -36,18 +36,30 @@ extern "C" {
 //--------------------------------------------------------------------+
 // Configuration
 //--------------------------------------------------------------------+
-#ifndef CFG_TUD_VENDOR_EPSIZE
-  #define CFG_TUD_VENDOR_EPSIZE 64
+#ifndef CFG_TUD_VENDOR_RX_EPSIZE
+  #ifdef CFG_TUD_VENDOR_EPSIZE
+    #define CFG_TUD_VENDOR_RX_EPSIZE CFG_TUD_VENDOR_EPSIZE
+  #else
+    #define CFG_TUD_VENDOR_RX_EPSIZE TUD_EPSIZE_BULK_MAX
+  #endif
+#endif
+
+#ifndef CFG_TUD_VENDOR_TX_EPSIZE
+  #ifdef CFG_TUD_VENDOR_EPSIZE
+    #define CFG_TUD_VENDOR_TX_EPSIZE CFG_TUD_VENDOR_EPSIZE
+  #else
+    #define CFG_TUD_VENDOR_TX_EPSIZE TUD_EPSIZE_BULK_MAX
+  #endif
 #endif
 
 // RX FIFO can be disabled by setting this value to 0
 #ifndef CFG_TUD_VENDOR_RX_BUFSIZE
-  #define CFG_TUD_VENDOR_RX_BUFSIZE 64
+  #define CFG_TUD_VENDOR_RX_BUFSIZE TUD_EPSIZE_BULK_MAX
 #endif
 
 // TX FIFO can be disabled by setting this value to 0
 #ifndef CFG_TUD_VENDOR_TX_BUFSIZE
-  #define CFG_TUD_VENDOR_TX_BUFSIZE 64
+  #define CFG_TUD_VENDOR_TX_BUFSIZE TUD_EPSIZE_BULK_MAX
 #endif
 
 // Vendor is buffered (FIFO mode) if both TX and RX buffers are configured
@@ -60,6 +72,11 @@ extern "C" {
 // i.e. CFG_TUD_VENDOR_TXRX_BUFFERED = 0
 #ifndef CFG_TUD_VENDOR_RX_MANUAL_XFER
   #define CFG_TUD_VENDOR_RX_MANUAL_XFER 0
+#endif
+
+// Enable multi-packet RX transfer with ZLP termination for better throughput. Requires host support for ZLP.
+#ifndef CFG_TUD_VENDOR_RX_NEED_ZLP
+  #define CFG_TUD_VENDOR_RX_NEED_ZLP 0
 #endif
 
 //--------------------------------------------------------------------+

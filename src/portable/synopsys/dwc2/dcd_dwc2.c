@@ -492,6 +492,12 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   return true;
 }
 
+bool dcd_deinit(uint8_t rhport) {
+  dcd_disconnect(rhport);
+  dwc2_core_deinit(rhport);
+  return true;
+}
+
 void dcd_int_enable(uint8_t rhport) {
   dwc2_dcd_int_enable(rhport);
 }
@@ -527,34 +533,38 @@ void dcd_remote_wakeup(uint8_t rhport) {
 }
 
 void dcd_connect(uint8_t rhport) {
-  (void) rhport;
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
 #ifdef TUP_USBIP_DWC2_ESP32
-  usb_wrap_otg_conf_reg_t conf = USB_WRAP.otg_conf;
-  conf.pad_pull_override = 0;
-  conf.dp_pullup = 0;
-  conf.dp_pulldown = 0;
-  conf.dm_pullup = 0;
-  conf.dm_pulldown = 0;
-  USB_WRAP.otg_conf = conf;
+  // On ESP32-P4 HS PHY, do not write to USB_WRAP register which belongs to FS PHY
+  if (rhport == 0) {
+    usb_wrap_otg_conf_reg_t conf = USB_WRAP.otg_conf;
+    conf.pad_pull_override = 0;
+    conf.dp_pullup = 0;
+    conf.dp_pulldown = 0;
+    conf.dm_pullup = 0;
+    conf.dm_pulldown = 0;
+    USB_WRAP.otg_conf = conf;
+  }
 #endif
 
   dwc2->dctl &= ~DCTL_SDIS;
 }
 
 void dcd_disconnect(uint8_t rhport) {
-  (void) rhport;
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
 #ifdef TUP_USBIP_DWC2_ESP32
-  usb_wrap_otg_conf_reg_t conf = USB_WRAP.otg_conf;
-  conf.pad_pull_override = 1;
-  conf.dp_pullup = 0;
-  conf.dp_pulldown = 1;
-  conf.dm_pullup = 0;
-  conf.dm_pulldown = 1;
-  USB_WRAP.otg_conf = conf;
+  // On ESP32-P4 HS PHY, do not write to USB_WRAP register which belongs to FS PHY
+  if (rhport == 0) {
+    usb_wrap_otg_conf_reg_t conf = USB_WRAP.otg_conf;
+    conf.pad_pull_override = 1;
+    conf.dp_pullup = 0;
+    conf.dp_pulldown = 1;
+    conf.dm_pullup = 0;
+    conf.dm_pulldown = 1;
+    USB_WRAP.otg_conf = conf;
+  }
 #endif
 
   dwc2->dctl |= DCTL_SDIS;
