@@ -17,7 +17,7 @@ jobs:
       toolchains: ${{ steps.load.outputs.toolchains }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Load target matrix
         id: load
@@ -35,7 +35,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           submodules: recursive
@@ -45,7 +45,7 @@ jobs:
           ${{ fromJson(needs.load-targets.outputs.toolchains)[matrix.toolchain].setup_cmd }} && python3 tools/get_deps.py ${{ matrix.get_deps || matrix.port }}
 
       - name: Setup ccache
-        uses: hendrikmuhs/ccache-action@v1.2
+        uses: hendrikmuhs/ccache-action@v1
         with:
           key: ${{ matrix.port }}-${{ matrix.board }}
 
