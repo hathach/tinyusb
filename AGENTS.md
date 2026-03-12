@@ -211,6 +211,51 @@ take 2-5 minutes. NEVER CANCEL. Set timeout to 20+ minutes.
 - Install requirements: `pip install -r docs/requirements.txt`
 - Build docs: `cd docs && sphinx-build -b html . _build` -- takes 2-3 seconds. NEVER CANCEL. Set timeout to 10+ minutes.
 
+## Code Size Metrics
+
+Generate and compare code size metrics to evaluate the impact of changes. This is the most common workflow
+when making code changes — use it to verify size impact before committing.
+
+**Quick single-board metrics (preferred for iterative development):**
+
+```bash
+rm -rf cmake-build
+python3 tools/build.py -b raspberry_pi_pico --target all --target tinyusb_metrics
+python3 tools/metrics.py combine -j -m -f tinyusb/src cmake-build/cmake-build-*/metrics.json
+```
+
+This builds all examples for one board and produces `metrics.json` + `metrics.md`. Takes ~30 seconds.
+NEVER CANCEL. Set timeout to 10+ minutes.
+
+**Comparing with master (before/after workflow):**
+
+1. On master: build and save baseline
+   ```bash
+   rm -rf cmake-build
+   python3 tools/build.py -b raspberry_pi_pico --target all --target tinyusb_metrics
+   python3 tools/metrics.py combine -j -m -f tinyusb/src cmake-build/cmake-build-*/metrics.json
+   mv metrics.json metrics_master.json
+   ```
+2. Switch to your branch: rebuild
+   ```bash
+   rm -rf cmake-build
+   python3 tools/build.py -b raspberry_pi_pico --target all --target tinyusb_metrics
+   python3 tools/metrics.py combine -j -m -f tinyusb/src cmake-build/cmake-build-*/metrics.json
+   ```
+3. Compare: `python3 tools/metrics.py compare -m -f tinyusb/src metrics_master.json metrics.json`
+   Produces `metrics_compare.md` showing size differences.
+
+**Full CI metrics (all arm-gcc families, for thorough validation):**
+
+```bash
+rm -rf cmake-build
+FAMILIES=$(python3 .github/workflows/ci_set_matrix.py | python3 -c "import sys,json; d=json.load(sys.stdin); print(' '.join(d.get('arm-gcc',[])))")
+python3 tools/build.py --one-first --target all --target tinyusb_metrics $FAMILIES
+python3 tools/metrics.py combine -j -m -f tinyusb/src cmake-build/cmake-build-*/metrics.json
+```
+
+Builds the first board of each family. Takes 2-4 minutes. NEVER CANCEL. Set timeout to 10+ minutes.
+
 ## Code Quality and Validation
 
 - Format code: `clang-format -i path/to/file.c` (uses `.clang-format` config)
