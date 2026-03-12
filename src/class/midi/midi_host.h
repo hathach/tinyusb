@@ -38,15 +38,15 @@ extern "C" {
 // Class Driver Configuration
 //--------------------------------------------------------------------+
 #ifndef CFG_TUH_MIDI_RX_BUFSIZE
-  #define CFG_TUH_MIDI_RX_BUFSIZE TUH_EPSIZE_BULK_MPS
+  #define CFG_TUH_MIDI_RX_BUFSIZE TUH_EPSIZE_BULK_MAX
 #endif
 
 #ifndef CFG_TUH_MIDI_TX_BUFSIZE
-  #define CFG_TUH_MIDI_TX_BUFSIZE TUH_EPSIZE_BULK_MPS
+  #define CFG_TUH_MIDI_TX_BUFSIZE TUH_EPSIZE_BULK_MAX
 #endif
 
 #ifndef CFG_TUH_MIDI_EP_BUFSIZE
-  #define CFG_TUH_MIDI_EP_BUFSIZE TUH_EPSIZE_BULK_MPS
+  #define CFG_TUH_MIDI_EP_BUFSIZE TUH_EPSIZE_BULK_MAX
 #endif
 
 // Enable the MIDI stream read/write API. Some library can work with raw USB MIDI packet

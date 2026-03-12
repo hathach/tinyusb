@@ -27,10 +27,21 @@
 #ifndef TUSB_PRINTER_DEVICE_H_
 #define TUSB_PRINTER_DEVICE_H_
 
-#include "printer.h"
-
 #ifdef __cplusplus
 extern "C" {
+#endif
+
+#include "printer.h"
+
+//--------------------------------------------------------------------+
+// Configuration
+//--------------------------------------------------------------------+
+#ifndef CFG_TUD_PRINTER_RX_EPSIZE
+  #define CFG_TUD_PRINTER_RX_EPSIZE TUD_EPSIZE_BULK_MAX
+#endif
+
+#ifndef CFG_TUD_PRINTER_TX_EPSIZE
+  #define CFG_TUD_PRINTER_TX_EPSIZE TUD_EPSIZE_BULK_MAX
 #endif
 
 //--------------------------------------------------------------------+

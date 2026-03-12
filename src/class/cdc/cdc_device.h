@@ -29,6 +29,10 @@
 
 #include "cdc.h"
 
+#ifdef __cplusplus
+ extern "C" {
+#endif
+
 //--------------------------------------------------------------------+
 // Class Driver Configuration
 //--------------------------------------------------------------------+
@@ -37,41 +41,52 @@
 #endif
 
 #ifndef CFG_TUD_CDC_TX_BUFSIZE
-  #define CFG_TUD_CDC_TX_BUFSIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
+  #define CFG_TUD_CDC_TX_BUFSIZE TUD_EPSIZE_BULK_MAX
 #endif
 
 #ifndef CFG_TUD_CDC_RX_BUFSIZE
-  #define CFG_TUD_CDC_RX_BUFSIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
+  #define CFG_TUD_CDC_RX_BUFSIZE TUD_EPSIZE_BULK_MAX
 #endif
 
-#if !defined(CFG_TUD_CDC_EP_BUFSIZE) && defined(CFG_TUD_CDC_EPSIZE)
-  #warning CFG_TUD_CDC_EPSIZE is renamed to CFG_TUD_CDC_EP_BUFSIZE, please update to use the new name
-  #define CFG_TUD_CDC_EP_BUFSIZE    CFG_TUD_CDC_EPSIZE
+// EP_BUFSIZE is separated to RX_EPSIZE and TX_EPSIZE
+#ifndef CFG_TUD_CDC_RX_EPSIZE
+  #ifdef CFG_TUD_CDC_EP_BUFSIZE
+    #define CFG_TUD_CDC_RX_EPSIZE CFG_TUD_CDC_EP_BUFSIZE
+  #else
+    #define CFG_TUD_CDC_RX_EPSIZE TUD_EPSIZE_BULK_MAX
+  #endif
 #endif
 
-#ifndef CFG_TUD_CDC_EP_BUFSIZE
-  #define CFG_TUD_CDC_EP_BUFSIZE    (TUD_OPT_HIGH_SPEED ? 512 : 64)
+#ifndef CFG_TUD_CDC_TX_EPSIZE
+  #ifdef CFG_TUD_CDC_EP_BUFSIZE
+    #define CFG_TUD_CDC_TX_EPSIZE  CFG_TUD_CDC_EP_BUFSIZE
+  #else
+    #define CFG_TUD_CDC_TX_EPSIZE TUD_EPSIZE_BULK_MAX
+  #endif
 #endif
 
-#ifdef __cplusplus
- extern "C" {
+// Enable multi-packet RX transfer with ZLP termination for better throughput. Requires host support for ZLP.
+#ifndef CFG_TUD_CDC_RX_NEED_ZLP
+  #define CFG_TUD_CDC_RX_NEED_ZLP 0
+#endif
+
+#ifndef CFG_TUD_CDC_CONFIGURE_DEFAULT
+  #define CFG_TUD_CDC_CONFIGURE_DEFAULT()       \
+  {                                           \
+  .rx_persistent                   = false, \
+  .tx_persistent                   = false, \
+  .tx_overwritabe_if_not_connected = true,  \
+  }
 #endif
 
 //--------------------------------------------------------------------+
 // Driver Configuration
 //--------------------------------------------------------------------+
-typedef struct TU_ATTR_PACKED {
-  bool rx_persistent : 1; // keep rx fifo data even with bus reset or disconnect
-  bool tx_persistent : 1; // keep tx fifo data even with reset or disconnect
-  bool tx_overwritabe_if_not_connected : 1; // if not connected, tx fifo can be overwritten
+typedef struct {
+  bool rx_persistent; // keep rx fifo data even with bus reset or disconnect
+  bool tx_persistent; // keep tx fifo data even with reset or disconnect
+  bool tx_overwritabe_if_not_connected; // if not connected, tx fifo can be overwritten
 } tud_cdc_configure_t;
-TU_VERIFY_STATIC(sizeof(tud_cdc_configure_t) == 1, "size is not correct");
-
-#define TUD_CDC_CONFIGURE_DEFAULT() { \
-  .rx_persistent = false, \
-  .tx_persistent = false, \
-  .tx_overwritabe_if_not_connected = true, \
-}
 
 // Configure CDC driver behavior
 bool tud_cdc_configure(const tud_cdc_configure_t* driver_cfg);
@@ -84,13 +99,13 @@ bool tud_cdc_configure(const tud_cdc_configure_t* driver_cfg);
 // Application API (Multiple Ports) i.e. CFG_TUD_CDC > 1
 //--------------------------------------------------------------------+
 
-// Check if interface is ready
+// Check if the interface is ready
 bool tud_cdc_n_ready(uint8_t itf);
 
-// Check if terminal is connected to this port
+// Check if the terminal is connected to this port
 bool tud_cdc_n_connected(uint8_t itf);
 
-// Get current line state. Bit 0:  DTR (Data Terminal Ready), Bit 1: RTS (Request to Send)
+// Get the current line state. Bit 0:  DTR (Data Terminal Ready), Bit 1: RTS (Request to Send)
 uint8_t tud_cdc_n_get_line_state(uint8_t itf);
 
 // Get current line encoding: bit rate, stop bits parity etc ..
@@ -136,9 +151,8 @@ uint32_t tud_cdc_n_write_flush(uint8_t itf);
 // Return the number of bytes (characters) available for writing to TX FIFO buffer in a single n_write operation.
 uint32_t tud_cdc_n_write_available(uint8_t itf);
 
-// Clear the transmit FIFO
+// Clear the TX FIFO
 bool tud_cdc_n_write_clear(uint8_t itf);
-
 
 #if CFG_TUD_CDC_NOTIFY
 bool tud_cdc_n_notify_msg(uint8_t itf, cdc_notify_msg_t *msg);

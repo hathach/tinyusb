@@ -106,7 +106,7 @@ static void usb_device_init(void) {
     .speed = TUSB_SPEED_AUTO
   };
   tusb_init(BOARD_TUD_RHPORT, &dev_init);
-  tud_cdc_configure_t cdc_cfg = TUD_CDC_CONFIGURE_DEFAULT();
+  tud_cdc_configure_t cdc_cfg = CFG_TUD_CDC_CONFIGURE_DEFAULT();
   cdc_cfg.tx_persistent       = true;
   cdc_cfg.tx_overwritabe_if_not_connected = false;
   tud_cdc_configure(&cdc_cfg);
