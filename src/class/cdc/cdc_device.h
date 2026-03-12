@@ -29,6 +29,10 @@
 
 #include "cdc.h"
 
+#ifdef __cplusplus
+ extern "C" {
+#endif
+
 //--------------------------------------------------------------------+
 // Class Driver Configuration
 //--------------------------------------------------------------------+
@@ -37,46 +41,49 @@
 #endif
 
 #ifndef CFG_TUD_CDC_TX_BUFSIZE
-  #define CFG_TUD_CDC_TX_BUFSIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
+  #define CFG_TUD_CDC_TX_BUFSIZE TUD_EPSIZE_BULK_MAX
 #endif
 
 #ifndef CFG_TUD_CDC_RX_BUFSIZE
-  #define CFG_TUD_CDC_RX_BUFSIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
+  #define CFG_TUD_CDC_RX_BUFSIZE TUD_EPSIZE_BULK_MAX
 #endif
 
-#if !defined(CFG_TUD_CDC_EP_BUFSIZE) && defined(CFG_TUD_CDC_EPSIZE)
-  #warning CFG_TUD_CDC_EPSIZE is renamed to CFG_TUD_CDC_EP_BUFSIZE, please update to use the new name
-  #define CFG_TUD_CDC_EP_BUFSIZE    CFG_TUD_CDC_EPSIZE
+// EP_BUFSIZE is separated to RX_EPSIZE and TX_EPSIZE
+#ifndef CFG_TUD_CDC_RX_EPSIZE
+  #ifdef CFG_TUD_CDC_EP_BUFSIZE
+    #define CFG_TUD_CDC_RX_EPSIZE CFG_TUD_CDC_EP_BUFSIZE
+  #else
+    #define CFG_TUD_CDC_RX_EPSIZE TUD_EPSIZE_BULK_MAX
+  #endif
 #endif
 
-#ifndef CFG_TUD_CDC_EP_BUFSIZE
-  #define CFG_TUD_CDC_EP_BUFSIZE    (TUD_OPT_HIGH_SPEED ? 512 : 64)
+#ifndef CFG_TUD_CDC_TX_EPSIZE
+  #ifdef CFG_TUD_CDC_EP_BUFSIZE
+    #define CFG_TUD_CDC_TX_EPSIZE  CFG_TUD_CDC_EP_BUFSIZE
+  #else
+    #define CFG_TUD_CDC_TX_EPSIZE TUD_EPSIZE_BULK_MAX
+  #endif
 #endif
 
-#ifdef __cplusplus
- extern "C" {
+#ifndef CFG_TUD_CDC_CONFIGURE_DEFAULT
+  #define CFG_TUD_CDC_CONFIGURE_DEFAULT()       \
+  {                                           \
+  .rx_persistent                   = false, \
+  .tx_persistent                   = false, \
+  .tx_overwritabe_if_not_connected = true,  \
+  .rx_need_zlp                     = false  \
+  }
 #endif
 
 //--------------------------------------------------------------------+
 // Driver Configuration
 //--------------------------------------------------------------------+
-typedef struct TU_ATTR_PACKED {
-  bool rx_persistent : 1; // keep rx fifo data even with bus reset or disconnect
-  bool tx_persistent : 1; // keep tx fifo data even with reset or disconnect
-  bool tx_overwritabe_if_not_connected : 1; // if not connected, tx fifo can be overwritten
-  bool rx_need_zlp : 1; // requires host support ZLP, allow transfer more than one packet in a single transfer, better throughput.
+typedef struct {
+  bool rx_persistent; // keep rx fifo data even with bus reset or disconnect
+  bool tx_persistent; // keep tx fifo data even with reset or disconnect
+  bool tx_overwritabe_if_not_connected; // if not connected, tx fifo can be overwritten
+  bool rx_need_zlp; // requires host support ZLP, allow transfer more than one packet in a single transfer, better throughput.
 } tud_cdc_configure_t;
-TU_VERIFY_STATIC(sizeof(tud_cdc_configure_t) == 1, "size is not correct");
-
-#ifndef CFG_TUD_CDC_CONFIGURE_DEFAULT
-  #define CFG_TUD_CDC_CONFIGURE_DEFAULT()       \
-    {                                           \
-      .rx_persistent                   = false, \
-      .tx_persistent                   = false, \
-      .tx_overwritabe_if_not_connected = true,  \
-      .rx_need_zlp                     = false  \
-    }
-#endif
 
 // Configure CDC driver behavior
 bool tud_cdc_configure(const tud_cdc_configure_t* driver_cfg);

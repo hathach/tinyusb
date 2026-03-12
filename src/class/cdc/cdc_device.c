@@ -63,10 +63,10 @@ typedef struct {
 #define ITF_MEM_RESET_SIZE offsetof(cdcd_interface_t, line_coding)
 
 // Skip local EP buffer if dedicated hw FIFO is supported
-  #if CFG_TUD_EDPT_DEDICATED_HWFIFO == 0
+#if CFG_TUD_EDPT_DEDICATED_HWFIFO == 0
 typedef struct {
-  TUD_EPBUF_DEF(epout, CFG_TUD_CDC_EP_BUFSIZE);
-  TUD_EPBUF_DEF(epin, CFG_TUD_CDC_EP_BUFSIZE);
+  TUD_EPBUF_DEF(epout, CFG_TUD_CDC_RX_EPSIZE);
+  TUD_EPBUF_DEF(epin, CFG_TUD_CDC_TX_EPSIZE);
 
   #if CFG_TUD_CDC_NOTIFY
   TUD_EPBUF_TYPE_DEF(cdc_notify_msg_t, epnotify);
@@ -74,7 +74,7 @@ typedef struct {
 } cdcd_epbuf_t;
 
 CFG_TUD_MEM_SECTION static cdcd_epbuf_t _cdcd_epbuf[CFG_TUD_CDC];
-  #endif
+#endif
 
 //--------------------------------------------------------------------+
 // Weak stubs: invoked if no strong implementation is available
@@ -347,7 +347,7 @@ uint16_t cdcd_open(uint8_t rhport, const tusb_desc_interface_t* itf_desc, uint16
         TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
         if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
           tu_edpt_stream_t *stream_tx = &p_cdc->tx_stream;
-          tu_edpt_stream_open(stream_tx, rhport, desc_ep, CFG_TUD_CDC_EP_BUFSIZE);
+          tu_edpt_stream_open(stream_tx, rhport, desc_ep, CFG_TUD_CDC_TX_EPSIZE);
           if (_cdcd_cfg.tx_persistent) {
             tu_edpt_stream_write_xfer(stream_tx); // flush pending data
           } else {
@@ -356,7 +356,7 @@ uint16_t cdcd_open(uint8_t rhport, const tusb_desc_interface_t* itf_desc, uint16
         } else {
           tu_edpt_stream_t *stream_rx = &p_cdc->rx_stream;
           tu_edpt_stream_open(stream_rx, rhport, desc_ep,
-                              _cdcd_cfg.rx_need_zlp ? CFG_TUD_CDC_EP_BUFSIZE : tu_edpt_packet_size(desc_ep));
+                              _cdcd_cfg.rx_need_zlp ? CFG_TUD_CDC_RX_EPSIZE : tu_edpt_packet_size(desc_ep));
           if (!_cdcd_cfg.rx_persistent) {
             tu_edpt_stream_clear(stream_rx);
           }
@@ -511,7 +511,7 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   }
 
   // Data sent to host, we continue to fetch from tx fifo to send.
-  // Note: This will cause incorrect baudrate set in line coding. Though maybe the baudrate is not really important !
+  // Note: This will cause incorrect baudrate set in line coding. Though maybe the baudrate is not really important!
   if (ep_addr == stream_tx->ep_addr) {
     tud_cdc_tx_complete_cb(itf); // invoke callback to possibly refill tx fifo
 

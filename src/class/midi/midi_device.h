@@ -34,13 +34,20 @@
 // Class Driver Configuration
 //--------------------------------------------------------------------+
 
-#if !defined(CFG_TUD_MIDI_EP_BUFSIZE) && defined(CFG_TUD_MIDI_EPSIZE)
-  #warning CFG_TUD_MIDI_EPSIZE is renamed to CFG_TUD_MIDI_EP_BUFSIZE, please update to use the new name
-  #define CFG_TUD_MIDI_EP_BUFSIZE CFG_TUD_MIDI_EPSIZE
+#ifndef CFG_TUD_MIDI_RX_EPSIZE
+  #ifdef CFG_TUD_MIDI_EP_BUFSIZE
+    #define CFG_TUD_MIDI_RX_EPSIZE CFG_TUD_MIDI_EP_BUFSIZE
+  #else
+    #define CFG_TUD_MIDI_RX_EPSIZE TUD_EPSIZE_BULK_MAX
+  #endif
 #endif
 
-#ifndef CFG_TUD_MIDI_EP_BUFSIZE
-  #define CFG_TUD_MIDI_EP_BUFSIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
+#ifndef CFG_TUD_MIDI_TX_EPSIZE
+  #ifdef CFG_TUD_MIDI_EP_BUFSIZE
+    #define CFG_TUD_MIDI_TX_EPSIZE CFG_TUD_MIDI_EP_BUFSIZE
+  #else
+    #define CFG_TUD_MIDI_TX_EPSIZE TUD_EPSIZE_BULK_MAX
+  #endif
 #endif
 
 #ifdef __cplusplus

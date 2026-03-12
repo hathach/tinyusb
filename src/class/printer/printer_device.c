@@ -53,8 +53,8 @@ typedef struct {
 
 #if CFG_TUD_EDPT_DEDICATED_HWFIFO == 0
 typedef struct {
-  TUD_EPBUF_DEF(epout, CFG_TUD_PRINTER_EP_BUFSIZE);
-  TUD_EPBUF_DEF(epin, CFG_TUD_PRINTER_EP_BUFSIZE);
+  TUD_EPBUF_DEF(epout, CFG_TUD_PRINTER_RX_EPSIZE);
+  TUD_EPBUF_DEF(epin, CFG_TUD_PRINTER_TX_EPSIZE);
 } printer_epbuf_t;
 
 CFG_TUD_MEM_SECTION static printer_epbuf_t _printer_epbuf[CFG_TUD_PRINTER];
@@ -173,12 +173,10 @@ void printerd_init(void) {
   #endif
 
     tu_edpt_stream_init(&p->rx_stream, false, false, false,
-                        p->rx_ff_buf, CFG_TUD_PRINTER_RX_BUFSIZE,
-                        epout_buf, CFG_TUD_PRINTER_EP_BUFSIZE);
+                        p->rx_ff_buf, CFG_TUD_PRINTER_RX_BUFSIZE, epout_buf);
 
     tu_edpt_stream_init(&p->tx_stream, false, true, true,
-                        p->tx_ff_buf, CFG_TUD_PRINTER_TX_BUFSIZE,
-                        epin_buf, CFG_TUD_PRINTER_EP_BUFSIZE);
+                        p->tx_ff_buf, CFG_TUD_PRINTER_TX_BUFSIZE, epin_buf);
   }
 }
 
@@ -226,12 +224,14 @@ uint16_t printerd_open(uint8_t rhport, const tusb_desc_interface_t *itf_desc, ui
     TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
 
     if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
-      tu_edpt_stream_open(&p->tx_stream, rhport, desc_ep);
-      tu_edpt_stream_clear(&p->tx_stream);
+      tu_edpt_stream_t *stream_tx = &p->tx_stream;
+      tu_edpt_stream_open(stream_tx, rhport, desc_ep, CFG_TUD_PRINTER_TX_EPSIZE);
+      tu_edpt_stream_clear(stream_tx);
     } else {
-      tu_edpt_stream_open(&p->rx_stream, rhport, desc_ep);
-      tu_edpt_stream_clear(&p->rx_stream);
-      TU_ASSERT(tu_edpt_stream_read_xfer(&p->rx_stream) > 0, 0);
+      tu_edpt_stream_t *stream_rx = &p->rx_stream;
+      tu_edpt_stream_open(stream_rx, rhport, desc_ep, tu_edpt_packet_size(desc_ep));
+      tu_edpt_stream_clear(stream_rx);
+      TU_ASSERT(tu_edpt_stream_read_xfer(stream_rx) > 0, 0);
     }
 
     drv_len += sizeof(tusb_desc_endpoint_t);

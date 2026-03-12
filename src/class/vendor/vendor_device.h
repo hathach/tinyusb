@@ -36,8 +36,20 @@ extern "C" {
 //--------------------------------------------------------------------+
 // Configuration
 //--------------------------------------------------------------------+
-#ifndef CFG_TUD_VENDOR_EPSIZE
-  #define CFG_TUD_VENDOR_EPSIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
+#ifndef CFG_TUD_VENDOR_RX_EPSIZE
+  #ifdef CFG_TUD_VENDOR_EPSIZE
+    #define CFG_TUD_VENDOR_RX_EPSIZE CFG_TUD_VENDOR_EPSIZE
+  #else
+    #define CFG_TUD_VENDOR_RX_EPSIZE TUD_EPSIZE_BULK_MAX
+  #endif
+#endif
+
+#ifndef CFG_TUD_VENDOR_TX_EPSIZE
+  #ifdef CFG_TUD_VENDOR_EPSIZE
+    #define CFG_TUD_VENDOR_TX_EPSIZE CFG_TUD_VENDOR_EPSIZE
+  #else
+    #define CFG_TUD_VENDOR_TX_EPSIZE TUD_EPSIZE_BULK_MAX
+  #endif
 #endif
 
 // RX FIFO can be disabled by setting this value to 0

@@ -61,15 +61,15 @@ typedef struct {
 
 static vendord_interface_t _vendord_itf[CFG_TUD_VENDOR];
 
-  // Skip local EP buffer if dedicated hw FIFO is supported or no fifo mode
-  #if CFG_TUD_EDPT_DEDICATED_HWFIFO == 0 || !CFG_TUD_VENDOR_TXRX_BUFFERED
+// Skip local EP buffer if dedicated hw FIFO is supported or no fifo mode
+#if CFG_TUD_EDPT_DEDICATED_HWFIFO == 0 || !CFG_TUD_VENDOR_TXRX_BUFFERED
 typedef struct {
-  TUD_EPBUF_DEF(epout, CFG_TUD_VENDOR_EPSIZE);
-  TUD_EPBUF_DEF(epin, CFG_TUD_VENDOR_EPSIZE);
+  TUD_EPBUF_DEF(epout, CFG_TUD_VENDOR_RX_EPSIZE);
+  TUD_EPBUF_DEF(epin, CFG_TUD_VENDOR_TX_EPSIZE);
 } vendord_epbuf_t;
 
 CFG_TUD_MEM_SECTION static vendord_epbuf_t _vendord_epbuf[CFG_TUD_VENDOR];
-  #endif
+#endif
 
 static tud_vendor_configure_t _vendord_cfg = CFG_TUD_VENDOR_CONFIGURE_DEFAULT();
 
@@ -167,7 +167,7 @@ uint32_t tud_vendor_n_write(uint8_t idx, const void *buffer, uint32_t bufsize) {
   #else
   // non-fifo mode: direct transfer
   TU_VERIFY(usbd_edpt_claim(p_itf->rhport, p_itf->ep_in), 0);
-  const uint32_t xact_len = tu_min32(bufsize, CFG_TUD_VENDOR_EPSIZE);
+  const uint32_t xact_len = tu_min32(bufsize, CFG_TUD_VENDOR_TX_EPSIZE);
   memcpy(_vendord_epbuf[idx].epin, buffer, xact_len);
   TU_ASSERT(usbd_edpt_xfer(p_itf->rhport, p_itf->ep_in, _vendord_epbuf[idx].epin, (uint16_t)xact_len, false), 0);
   return xact_len;
@@ -184,7 +184,7 @@ uint32_t tud_vendor_n_write_available(uint8_t idx) {
   #else
   // Non-FIFO mode
   TU_VERIFY(p_itf->ep_in > 0, 0); // must be opened
-  return usbd_edpt_busy(p_itf->rhport, p_itf->ep_in) ? 0 : CFG_TUD_VENDOR_EPSIZE;
+  return usbd_edpt_busy(p_itf->rhport, p_itf->ep_in) ? 0 : CFG_TUD_VENDOR_TX_EPSIZE;
   #endif
 }
 
@@ -307,13 +307,13 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uin
       const tusb_desc_endpoint_t* desc_ep = (const tusb_desc_endpoint_t*) p_desc;
       TU_ASSERT(usbd_edpt_open(rhport, desc_ep));
 
-      uint16_t rx_xfer_len = _vendord_cfg.rx_need_zlp ? CFG_TUD_VENDOR_EPSIZE : tu_edpt_packet_size(desc_ep);
+      uint16_t rx_xfer_len = _vendord_cfg.rx_need_zlp ? CFG_TUD_VENDOR_RX_EPSIZE : tu_edpt_packet_size(desc_ep);
 
   #if CFG_TUD_VENDOR_TXRX_BUFFERED
       // open endpoint stream
       if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
         tu_edpt_stream_t *tx_stream = &p_vendor->tx_stream;
-        tu_edpt_stream_open(tx_stream, rhport, desc_ep, CFG_TUD_VENDOR_EPSIZE);
+        tu_edpt_stream_open(tx_stream, rhport, desc_ep, CFG_TUD_VENDOR_TX_EPSIZE);
         tu_edpt_stream_write_xfer(tx_stream); // flush pending data
       } else {
         tu_edpt_stream_t *rx_stream = &p_vendor->rx_stream;

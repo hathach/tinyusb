@@ -83,8 +83,8 @@ typedef struct {
 }midih_interface_t;
 
 typedef struct {
-  TUH_EPBUF_DEF(tx, TUH_EPSIZE_BULK_MPS);
-  TUH_EPBUF_DEF(rx, TUH_EPSIZE_BULK_MPS);
+  TUH_EPBUF_DEF(tx, TUH_EPSIZE_BULK_MAX);
+  TUH_EPBUF_DEF(rx, TUH_EPSIZE_BULK_MAX);
 } midih_epbuf_t;
 
 static midih_interface_t _midi_host[CFG_TUH_MIDI];

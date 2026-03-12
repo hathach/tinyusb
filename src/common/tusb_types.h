@@ -115,6 +115,10 @@ enum {
   TUSB_EPSIZE_ISO_HS_MAX = 1024,
 };
 
+// Endpoint Bulk size depending on host/device max speed
+#define TUD_EPSIZE_BULK_MAX   (TUD_OPT_HIGH_SPEED ? 512 : 64)
+#define TUH_EPSIZE_BULK_MAX   (TUH_OPT_HIGH_SPEED ? 512 : 64)
+
 /// Isochronous Endpoint Attributes
 typedef enum {
   TUSB_ISO_EP_ATT_NO_SYNC         = 0x00,
