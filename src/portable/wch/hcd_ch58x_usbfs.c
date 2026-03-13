@@ -305,7 +305,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   // Clear endpoint records
   tu_memclr(_edpt_list, sizeof(_edpt_list));
-  tu_memclr((void*)&_current_xfer, sizeof(_current_xfer));
+  _current_xfer = (const hcd_xfer_t){0};
 
   _hw_init_host(rhport, true);
 
