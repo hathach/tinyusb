@@ -90,6 +90,15 @@ Board               Name                Family     URL                          
 sipeed_longan_nano  Sipeed Longan Nano  gd32vf103  https://longan.sipeed.com/en/
 ==================  ==================  =========  =============================  ======
 
+HPMicro
+-------
+
+===========  ===========  ========  ==========================================================================  ======
+Board        Name         Family    URL                                                                         Note
+===========  ===========  ========  ==========================================================================  ======
+hpm6750evk2  HPM6750EVK2  hpmicro   https://hpm-sdk.readthedocs.io/en/v1.6.0/boards/hpm6750evk2/README_en.html
+===========  ===========  ========  ==========================================================================  ======
+
 Infineon
 --------
 
@@ -149,51 +158,51 @@ mm32f327x_pitaya_lite  DshanMCU Pitaya Lite with MM32F3273G8P  mm32      https:/
 NXP
 ---
 
-==================  =========================================  =============  =========================================================================================================================================================================  ======
-Board               Name                                       Family         URL                                                                                                                                                                        Note
-==================  =========================================  =============  =========================================================================================================================================================================  ======
-metro_m7_1011       Adafruit Metro M7 1011                     imxrt          https://www.adafruit.com/product/5600
-metro_m7_1011_sd    Adafruit Metro M7 1011 SD                  imxrt          https://www.adafruit.com/product/5600
-mimxrt1010_evk      i.MX RT1010 Evaluation Kit                 imxrt          https://www.nxp.com/design/design-center/development-boards-and-designs/i-mx-evaluation-and-development-boards/i-mx-rt1010-evaluation-kit:MIMXRT1010-EVK
-mimxrt1015_evk      i.MX RT1015 Evaluation Kit                 imxrt          https://www.nxp.com/design/design-center/development-boards-and-designs/MIMXRT1015-EVK
-mimxrt1020_evk      i.MX RT1020 Evaluation Kit                 imxrt          https://www.nxp.com/design/design-center/development-boards-and-designs/MIMXRT1020-EVK
-mimxrt1024_evk      i.MX RT1024 Evaluation Kit                 imxrt          https://www.nxp.com/design/design-center/development-boards-and-designs/i-mx-evaluation-and-development-boards/i-mx-rt1024-evaluation-kit:MIMXRT1024-EVK
-mimxrt1050_evkb     i.MX RT1050 Evaluation Kit revB            imxrt          https://www.nxp.com/part/IMXRT1050-EVKB
-mimxrt1060_evk      i.MX RT1060 Evaluation Kit revB            imxrt          https://www.nxp.com/design/design-center/development-boards-and-designs/MIMXRT1060-EVKB
-mimxrt1064_evk      i.MX RT1064 Evaluation Kit                 imxrt          https://www.nxp.com/design/design-center/development-boards-and-designs/MIMXRT1064-EVK
-mimxrt1170_evkb     i.MX RT1070 Evaluation Kit                 imxrt          https://www.nxp.com/design/design-center/development-boards-and-designs/i-mx-evaluation-and-development-boards/i-mx-rt1170-evaluation-kit:MIMXRT1170-EVKB
-teensy_40           Teensy 4.0                                 imxrt          https://www.pjrc.com/store/teensy40.html
-teensy_41           Teensy 4.1                                 imxrt          https://www.pjrc.com/store/teensy41.html
-frdm_k64f           Freedom K64F                               kinetis_k      https://www.nxp.com/design/design-center/development-boards-and-designs/general-purpose-mcus/freedom-development-platform-for-kinetis-k64-k63-and-k24-mcus:FRDM-K64F
-teensy_35           Teensy 3.5                                 kinetis_k      https://www.pjrc.com/store/teensy35.html
+==================  =========================================  ============  =========================================================================================================================================================================  ======
+Board               Name                                       Family        URL                                                                                                                                                                        Note
+==================  =========================================  ============  =========================================================================================================================================================================  ======
+metro_m7_1011       Adafruit Metro M7 1011                     imxrt         https://www.adafruit.com/product/5600
+mimxrt1010_evk      i.MX RT1010 Evaluation Kit                 imxrt         https://www.nxp.com/design/design-center/development-boards-and-designs/i-mx-evaluation-and-development-boards/i-mx-rt1010-evaluation-kit:MIMXRT1010-EVK
+mimxrt1015_evk      i.MX RT1015 Evaluation Kit                 imxrt         https://www.nxp.com/design/design-center/development-boards-and-designs/MIMXRT1015-EVK
+mimxrt1020_evk      i.MX RT1020 Evaluation Kit                 imxrt         https://www.nxp.com/design/design-center/development-boards-and-designs/MIMXRT1020-EVK
+mimxrt1024_evk      i.MX RT1024 Evaluation Kit                 imxrt         https://www.nxp.com/design/design-center/development-boards-and-designs/i-mx-evaluation-and-development-boards/i-mx-rt1024-evaluation-kit:MIMXRT1024-EVK
+mimxrt1050_evkb     i.MX RT1050 Evaluation Kit revB            imxrt         https://www.nxp.com/part/IMXRT1050-EVKB
+mimxrt1060_evk      i.MX RT1060 Evaluation Kit revB            imxrt         https://www.nxp.com/design/design-center/development-boards-and-designs/MIMXRT1060-EVKB
+mimxrt1064_evk      i.MX RT1064 Evaluation Kit                 imxrt         https://www.nxp.com/design/design-center/development-boards-and-designs/MIMXRT1064-EVK
+mimxrt1170_evkb     i.MX RT1070 Evaluation Kit                 imxrt         https://www.nxp.com/design/design-center/development-boards-and-designs/i-mx-evaluation-and-development-boards/i-mx-rt1170-evaluation-kit:MIMXRT1170-EVKB
+teensy_40           Teensy 4.0                                 imxrt         https://www.pjrc.com/store/teensy40.html
+teensy_41           Teensy 4.1                                 imxrt         https://www.pjrc.com/store/teensy41.html
+frdm_k64f           Freedom K64F                               kinetis_k     https://www.nxp.com/design/design-center/development-boards-and-designs/general-purpose-mcus/freedom-development-platform-for-kinetis-k64-k63-and-k24-mcus:FRDM-K64F
+teensy_35           Teensy 3.5                                 kinetis_k     https://www.pjrc.com/store/teensy35.html
 frdm_k32l2a4s       Freedom K32L2A4S                           kinetis_k32l  https://www.nxp.com/design/design-center/development-boards-and-designs/FRDM-K32L2A4S
 frdm_k32l2b         Freedom K32L2B3                            kinetis_k32l  https://www.nxp.com/design/design-center/development-boards-and-designs/general-purpose-mcus/nxp-freedom-development-platform-for-k32-l2b-mcus:FRDM-K32L2B3
 kuiic               Kuiic                                      kinetis_k32l  https://github.com/nxf58843/kuiic
-frdm_kl25z          fomu                                       kinetis_kl     https://www.nxp.com/design/design-center/development-boards-and-designs/general-purpose-mcus/freedom-development-platform-for-kinetis-kl14-kl15-kl24-kl25-mcus:FRDM-KL25Z
-lpcxpresso11u37     LPCXpresso11U37                            lpc11          https://www.nxp.com/design/design-center/development-boards-and-designs/OM13074
-lpcxpresso11u68     LPCXpresso11U68                            lpc11          https://www.nxp.com/design/design-center/development-boards-and-designs/OM13058
-lpcxpresso1347      LPCXpresso1347                             lpc13          https://www.nxp.com/products/no-longer-manufactured/lpcxpresso-board-for-lpc1347:OM13045
-lpcxpresso1549      LPCXpresso1549                             lpc15          https://www.nxp.com/design/design-center/development-boards-and-designs/OM13056
-lpcxpresso1769      LPCXpresso1769                             lpc17          https://www.nxp.com/design/design-center/development-boards-and-designs/OM13000
-mbed1768            mbed 1768                                  lpc17          https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpc1700-arm-cortex-m3/arm-mbed-lpc1768-board:OM11043
-lpcxpresso18s37     LPCXpresso18s37                            lpc18          https://www.nxp.com/design/design-center/software/development-software/mcuxpresso-software-and-tools-/lpcxpresso-boards/lpcxpresso18s37-development-board:OM13076
-mcb1800             Keil MCB1800                               lpc18          https://www.keil.com/arm/mcb1800/
-ea4088_quickstart   Embedded Artists LPC4088 QuickStart Board  lpc40          https://www.embeddedartists.com/products/lpc4088-quickstart-board/
-ea4357              Embedded Artists LPC4357 Development Kit   lpc43          https://www.embeddedartists.com/products/lpc4357-developers-kit/
-lpcxpresso43s67     LPCXpresso43S67                            lpc43          https://www.nxp.com/design/design-center/software/development-software/mcuxpresso-software-and-tools-/lpcxpresso-boards/lpcxpresso43s67-development-board:OM13084
-lpcxpresso51u68     LPCXpresso51u68                            lpc51          https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpcxpresso51u68-for-the-lpc51u68-mcus:OM40005
-lpcxpresso54114     LPCXpresso54114                            lpc54          https://www.nxp.com/design/design-center/software/development-software/mcuxpresso-software-and-tools-/lpcxpresso-boards/lpcxpresso54114-board:OM13089
-lpcxpresso54608     LPCXpresso54608                            lpc54          https://www.nxp.com/design/design-center/software/development-software/mcuxpresso-software-and-tools-/lpcxpresso-development-board-for-lpc5460x-mcus:OM13092
-lpcxpresso54628     LPCXpresso54628                            lpc54          https://www.nxp.com/design/design-center/software/development-software/mcuxpresso-software-and-tools-/lpcxpresso-boards/lpcxpresso54628-development-board:OM13098
-double_m33_express  Double M33 Express                         lpc55          https://www.crowdsupply.com/steiert-solutions/double-m33-express
-lpcxpresso55s28     LPCXpresso55s28                            lpc55          https://www.nxp.com/design/design-center/software/development-software/mcuxpresso-software-and-tools-/lpcxpresso-boards/lpcxpresso55s28-development-board:LPC55S28-EVK
-lpcxpresso55s69     LPCXpresso55s69                            lpc55          https://www.nxp.com/design/design-center/software/development-software/mcuxpresso-software-and-tools-/lpcxpresso-boards/lpcxpresso55s69-development-board:LPC55S69-EVK
-mcu_link            MCU Link                                   lpc55          https://www.nxp.com/design/design-center/software/development-software/mcuxpresso-software-and-tools-/mcu-link-debug-probe:MCU-LINK
-frdm_mcxa153        Freedom MCXA153                            mcx            https://www.nxp.com/design/design-center/development-boards-and-designs/FRDM-MCXA153
-frdm_mcxa156        Freedom MCXA156                            mcx            https://www.nxp.com/design/design-center/development-boards-and-designs/FRDM-MCXA156
-frdm_mcxn947        Freedom MCXN947                            mcx            https://www.nxp.com/design/design-center/development-boards-and-designs/FRDM-MCXN947
-mcxn947brk          MCXN947 Breakout                           mcx            n/a
-==================  =========================================  =============  =========================================================================================================================================================================  ======
+frdm_kl25z          fomu                                       kinetis_kl    https://www.nxp.com/design/design-center/development-boards-and-designs/general-purpose-mcus/freedom-development-platform-for-kinetis-kl14-kl15-kl24-kl25-mcus:FRDM-KL25Z
+lpcxpresso11u37     LPCXpresso11U37                            lpc11         https://www.nxp.com/design/design-center/development-boards-and-designs/OM13074
+lpcxpresso11u68     LPCXpresso11U68                            lpc11         https://www.nxp.com/design/design-center/development-boards-and-designs/OM13058
+lpcxpresso1347      LPCXpresso1347                             lpc13         https://www.nxp.com/products/no-longer-manufactured/lpcxpresso-board-for-lpc1347:OM13045
+lpcxpresso1549      LPCXpresso1549                             lpc15         https://www.nxp.com/design/design-center/development-boards-and-designs/OM13056
+lpcxpresso1769      LPCXpresso1769                             lpc17         https://www.nxp.com/design/design-center/development-boards-and-designs/OM13000
+mbed1768            mbed 1768                                  lpc17         https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpc1700-arm-cortex-m3/arm-mbed-lpc1768-board:OM11043
+lpcxpresso18s37     LPCXpresso18s37                            lpc18         https://www.nxp.com/design/design-center/software/development-software/mcuxpresso-software-and-tools-/lpcxpresso-boards/lpcxpresso18s37-development-board:OM13076
+mcb1800             Keil MCB1800                               lpc18         https://www.keil.com/arm/mcb1800/
+ea4088_quickstart   Embedded Artists LPC4088 QuickStart Board  lpc40         https://www.embeddedartists.com/products/lpc4088-quickstart-board/
+ea4357              Embedded Artists LPC4357 Development Kit   lpc43         https://www.embeddedartists.com/products/lpc4357-developers-kit/
+lpcxpresso43s67     LPCXpresso43S67                            lpc43         https://www.nxp.com/design/design-center/software/development-software/mcuxpresso-software-and-tools-/lpcxpresso-boards/lpcxpresso43s67-development-board:OM13084
+lpcxpresso51u68     LPCXpresso51u68                            lpc51         https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpcxpresso51u68-for-the-lpc51u68-mcus:OM40005
+lpcxpresso54114     LPCXpresso54114                            lpc54         https://www.nxp.com/design/design-center/software/development-software/mcuxpresso-software-and-tools-/lpcxpresso-boards/lpcxpresso54114-board:OM13089
+lpcxpresso54608     LPCXpresso54608                            lpc54         https://www.nxp.com/design/design-center/software/development-software/mcuxpresso-software-and-tools-/lpcxpresso-development-board-for-lpc5460x-mcus:OM13092
+lpcxpresso54628     LPCXpresso54628                            lpc54         https://www.nxp.com/design/design-center/software/development-software/mcuxpresso-software-and-tools-/lpcxpresso-boards/lpcxpresso54628-development-board:OM13098
+double_m33_express  Double M33 Express                         lpc55         https://www.crowdsupply.com/steiert-solutions/double-m33-express
+lpcxpresso55s28     LPCXpresso55s28                            lpc55         https://www.nxp.com/design/design-center/software/development-software/mcuxpresso-software-and-tools-/lpcxpresso-boards/lpcxpresso55s28-development-board:LPC55S28-EVK
+lpcxpresso55s69     LPCXpresso55s69                            lpc55         https://www.nxp.com/design/design-center/software/development-software/mcuxpresso-software-and-tools-/lpcxpresso-boards/lpcxpresso55s69-development-board:LPC55S69-EVK
+mcu_link            MCU Link                                   lpc55         https://www.nxp.com/design/design-center/software/development-software/mcuxpresso-software-and-tools-/mcu-link-debug-probe:MCU-LINK
+frdm_mcxa153        Freedom MCXA153                            mcx           https://www.nxp.com/design/design-center/development-boards-and-designs/FRDM-MCXA153
+frdm_mcxa156        Freedom MCXA156                            mcx           https://www.nxp.com/design/design-center/development-boards-and-designs/FRDM-MCXA156
+frdm_mcxn947        Freedom MCXN947                            mcx           https://www.nxp.com/design/design-center/development-boards-and-designs/FRDM-MCXN947
+mcxn947brk          MCXN947 Breakout                           mcx           n/a
+frdm_rw612          FRDM-RW612                                 rw61x         https://www.nxp.com/design/design-center/development-boards-and-designs/FRDM-RW612
+==================  =========================================  ============  =========================================================================================================================================================================  ======
 
 Nordic Semiconductor
 --------------------
@@ -292,7 +301,7 @@ stm32h723nucleo      STM32 H723 Nucleo                  stm32h7    https://www.s
 stm32h743eval        STM32 H743 Eval                    stm32h7    https://www.st.com/en/evaluation-tools/stm32h743i-eval.html
 stm32h743nucleo      STM32 H743 Nucleo                  stm32h7    https://www.st.com/en/evaluation-tools/nucleo-h743zi.html
 stm32h745disco       STM32 H745 Discovery               stm32h7    https://www.st.com/en/evaluation-tools/stm32h745i-disco.html
-stm32h747disco       STM32 H747 Discovery               stm32h7    https://www.st.com/en/evaluation-tools/stm32h747i-disco.html
+stm32h747disco       STM32 H745 Discovery               stm32h7    https://www.st.com/en/evaluation-tools/stm32h745i-disco.html
 stm32h750_weact      STM32 H750 WeAct                   stm32h7    https://www.adafruit.com/product/5032
 stm32h750bdk         STM32 H750b Discovery Kit          stm32h7    https://www.st.com/en/evaluation-tools/stm32h750b-dk.html
 waveshare_openh743i  Waveshare Open H743i               stm32h7    https://www.waveshare.com/openh743i-c-standard.htm

@@ -5,6 +5,11 @@
  *
  */
 
+/* metadata:
+   name: HPM6750EVK2
+   url: https://hpm-sdk.readthedocs.io/en/v1.6.0/boards/hpm6750evk2/README_en.html
+*/
+
 #ifndef _HPM_BOARD_H
 #define _HPM_BOARD_H
 

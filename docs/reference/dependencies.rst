@@ -4,9 +4,9 @@ Dependencies
 
 MCU low-level peripheral drivers and external libraries for building TinyUSB examples
 
-========================================  ================================================================  ========================================  ==============================================================================================================================================================================================================================================================================================================================================================
+========================================  ================================================================  ========================================  ===================================================================================================================================================================================================================================================================================================================================================
 Local Path                                Repo                                                              Commit                                    Required by
-========================================  ================================================================  ========================================  ==============================================================================================================================================================================================================================================================================================================================================================
+========================================  ================================================================  ========================================  ===================================================================================================================================================================================================================================================================================================================================================
 hw/mcu/allwinner                          https://github.com/hathach/allwinner_driver.git                   8e5e89e8e132c0fd90e72d5422e5d3d68232b756  fc100s
 hw/mcu/analog/msdk                        https://github.com/analogdevicesinc/msdk.git                      b20b398d3e5e2007594e54a74ba3d2a2e50ddd75  maxim
 hw/mcu/artery/at32f402_405                https://github.com/ArteryTek/AT32F402_405_Firmware_Library.git    4424515c2663e82438654e0947695295df2abdfe  at32f402_405
@@ -17,16 +17,22 @@ hw/mcu/artery/at32f423                    https://github.com/ArteryTek/AT32F423_
 hw/mcu/artery/at32f425                    https://github.com/ArteryTek/AT32F425_Firmware_Library.git        620233e1357d5c1b7e2bde6b9dd5196822b91817  at32f425
 hw/mcu/artery/at32f435_437                https://github.com/ArteryTek/AT32F435_437_Firmware_Library.git    25439cc6650a8ae0345934e8707a5f38c7ae41f8  at32f435_437
 hw/mcu/artery/at32f45x                    https://github.com/ArteryTek/AT32F45x_Firmware_Library.git        3d4a1b38be8ebac292e2350ca53bc4bfa4430233  at32f45x
-hw/mcu/bridgetek/ft9xx/ft90x-sdk          https://github.com/BRTSG-FOSS/ft90x-sdk.git                       91060164afe239fcb394122e8bf9eb24d3194eb1  ft9xx
+hw/mcu/bridgetek/ft9xx/ft90x-sdk          https://github.com/BRTSG-FOSS/ft90x-sdk.git                       03f74eac84645178fdde7f2e5ca9acdcb7bd9dcd  ft9xx
 hw/mcu/broadcom                           https://github.com/adafruit/broadcom-peripherals.git              08370086080759ed54ac1136d62d2ad24c6fa267  broadcom_32bit broadcom_64bit
 hw/mcu/gd/nuclei-sdk                      https://github.com/Nuclei-Software/nuclei-sdk.git                 7eb7bfa9ea4fbeacfafe1d5f77d5a0e6ed3922e7  gd32vf103
+hw/mcu/hpmicro/hpm_sdk                    https://github.com/hpmicro/hpm_sdk                                8d2af741ecc4aaa82d7ee395dc1ce25d7070c3ff  hpmicro
 hw/mcu/infineon/mtb-xmclib-cat3           https://github.com/Infineon/mtb-xmclib-cat3.git                   daf5500d03cba23e68c2f241c30af79cd9d63880  xmc4000
-hw/mcu/microchip                          https://github.com/hathach/microchip_driver.git                   9e8b37e307d8404033bb881623a113931e1edf27  sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x saml2x samg
+hw/mcu/microchip                          https://github.com/hathach/microchip_driver.git                   9e8b37e307d8404033bb881623a113931e1edf27  sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x samd2x_l2x samg
 hw/mcu/mindmotion/mm32sdk                 https://github.com/hathach/mm32sdk.git                            b93e856211060ae825216c6a1d6aa347ec758843  mm32
 hw/mcu/nordic/nrfx                        https://github.com/NordicSemiconductor/nrfx.git                   11f57e578c7feea13f21c79ea0efab2630ac68c7  nrf
 hw/mcu/nuvoton                            https://github.com/majbthrd/nuc_driver.git                        2204191ec76283371419fbcec207da02e1bc22fa  nuc100_120 nuc121_125 nuc126 nuc505
 hw/mcu/nxp/lpcopen                        https://github.com/hathach/nxp_lpcopen.git                        b41cf930e65c734d8ec6de04f1d57d46787c76ae  lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43
-hw/mcu/nxp/mcux-sdk                       https://github.com/nxp-mcuxpresso/mcux-sdk                        a1bdae309a14ec95a4f64a96d3315a4f89c397c6  kinetis_k kinetis_k32l kinetis_kl lpc51 lpc54 lpc55 mcx imxrt
+hw/mcu/nxp/mcux-devices-kinetis           https://github.com/nxp-mcuxpresso/mcux-devices-kinetis            98a155e666c54f396e528ec3131f27a5d5b71f76  kinetis_k32l
+hw/mcu/nxp/mcux-devices-lpc               https://github.com/nxp-mcuxpresso/mcux-devices-lpc                8096b783ec09d0d1c8629025a5f9d8e7df26e520  lpc51 lpc55
+hw/mcu/nxp/mcux-devices-mcx               https://github.com/nxp-mcuxpresso/mcux-devices-mcx                ada1c97c761123ec0c179bb9bb9f744bf9a11475  mcx
+hw/mcu/nxp/mcux-devices-rt                https://github.com/nxp-mcuxpresso/mcux-devices-rt                 dba2b523c9df61f3330bd186242f8210a8e47c45  imxrt
+hw/mcu/nxp/mcux-sdk                       https://github.com/nxp-mcuxpresso/mcux-sdk                        a1bdae309a14ec95a4f64a96d3315a4f89c397c6  kinetis_k kinetis_kl lpc54 rw61x
+hw/mcu/nxp/mcuxsdk-core                   https://github.com/nxp-mcuxpresso/mcuxsdk-core                    0c5c6b16deb211110e06bde896cdff59ab213e16  imxrt kinetis_k32l lpc51 lpc55 mcx
 hw/mcu/raspberry_pi/Pico-PIO-USB          https://github.com/sekigon-gonnoc/Pico-PIO-USB.git                675543bcc9baa8170f868ab7ba316d418dbcf41f  rp2040
 hw/mcu/renesas/fsp                        https://github.com/renesas/fsp.git                                edcc97d684b6f716728a60d7a6fea049d9870bd6  ra
 hw/mcu/renesas/rx                         https://github.com/kkitayam/rx_device.git                         706b4e0cf485605c32351e2f90f5698267996023  rx
@@ -54,7 +60,7 @@ hw/mcu/st/cmsis_device_n6                 https://github.com/STMicroelectronics/
 hw/mcu/st/cmsis_device_u5                 https://github.com/STMicroelectronics/cmsis_device_u5.git         6e67187dec98035893692ab2923914cb5f4e0117  stm32u5
 hw/mcu/st/cmsis_device_wb                 https://github.com/STMicroelectronics/cmsis_device_wb.git         cda2cb9fc4a5232ab18efece0bb06b0b60910083  stm32wb
 hw/mcu/st/stm32-mfxstm32l152              https://github.com/STMicroelectronics/stm32-mfxstm32l152.git      7f4389efee9c6a655b55e5df3fceef5586b35f9b  stm32h7
-hw/mcu/st/stm32-tcpp0203                  https://github.com/STMicroelectronics/stm32-tcpp0203.git          9918655bff176ac3046ccf378b5c7bbbc6a38d15  stm32h7rs stm32n6
+hw/mcu/st/stm32-tcpp0203                  https://github.com/STMicroelectronics/stm32-tcpp0203.git          9918655bff176ac3046ccf378b5c7bbbc6a38d15  stm32h5 stm32h7rs stm32n6
 hw/mcu/st/stm32c0xx_hal_driver            https://github.com/STMicroelectronics/stm32c0xx_hal_driver.git    c283b143bef6bdaacf64240ee6f15eb61dad6125  stm32c0
 hw/mcu/st/stm32f0xx_hal_driver            https://github.com/STMicroelectronics/stm32f0xx_hal_driver.git    94399697cb5eeaf8511b81b7f50dc62f0a5a3f6c  stm32f0
 hw/mcu/st/stm32f1xx_hal_driver            https://github.com/STMicroelectronics/stm32f1xx_hal_driver.git    18074e3e5ecad0b380a5cf5a9131fe4b5ed1b2b7  stm32f1
@@ -76,15 +82,17 @@ hw/mcu/st/stm32u0xx_hal_driver            https://github.com/STMicroelectronics/
 hw/mcu/st/stm32u5xx_hal_driver            https://github.com/STMicroelectronics/stm32u5xx_hal_driver.git    2c5e2568fbdb1900a13ca3b2901fdd302cac3444  stm32u5
 hw/mcu/st/stm32wbaxx_hal_driver           https://github.com/STMicroelectronics/stm32wbaxx_hal_driver.git   9442fbb71f855ff2e64fbf662b7726beba511a24  stm32wba
 hw/mcu/st/stm32wbxx_hal_driver            https://github.com/STMicroelectronics/stm32wbxx_hal_driver.git    d60dd46996876506f1d2e9abd6b1cc110c8004cd  stm32wb
-hw/mcu/ti                                 https://github.com/hathach/ti_driver.git                          143ed6cc20a7615d042b03b21e070197d473e6e5  msp430 msp432e4 tm4c
+hw/mcu/ti                                 https://github.com/hathach/ti_driver.git                          083944907e7d08fcb1f614b47598ce45935b8da1  msp430 msp432e4 tm4c
 hw/mcu/wch/ch32f20x                       https://github.com/openwch/ch32f20x.git                           77c4095087e5ed2c548ec9058e655d0b8757663b  ch32f20x
 hw/mcu/wch/ch32v103                       https://github.com/openwch/ch32v103.git                           7578cae0b21f86dd053a1f781b2fc6ab99d0ec17  ch32v10x
 hw/mcu/wch/ch32v20x                       https://github.com/openwch/ch32v20x.git                           c4c38f507e258a4e69b059ccc2dc27dde33cea1b  ch32v20x
 hw/mcu/wch/ch32v307                       https://github.com/openwch/ch32v307.git                           184f21b852cb95eed58e86e901837bc9fff68775  ch32v30x
-lib/CMSIS_5                               https://github.com/ARM-software/CMSIS_5.git                       2b7495b8535bdcb306dac29b9ded4cfb679d7e5c  imxrt kinetis_k32l kinetis_kl lpc51 lpc54 lpc55 mcx mm32 msp432e4 nrf saml2x lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43 stm32c0 stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 stm32h5 stm32h7 stm32h7rs stm32l0 stm32l1 stm32l4 stm32l5 stm32u0 stm32u5 stm32wb stm32wbasam3x samd11 samd21 samd51 samd5x_e5x same5x same7x saml2x samg tm4c
-lib/CMSIS_6                               https://github.com/ARM-software/CMSIS_6.git                       6f0a58d01aa9bd2feba212097f9afe7acd991d52  ra stm32n6
+lib/CMSIS_5                               https://github.com/ARM-software/CMSIS_5.git                       2b7495b8535bdcb306dac29b9ded4cfb679d7e5c  kinetis_k kinetis_kl lpc54 rw61x mm32 msp432e4 nrf samd2x_l2x lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43 stm32c0 stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 stm32h5 stm32h7 stm32h7rs stm32l0 stm32l1 stm32l4 stm32l5 stm32u0 stm32u5 stm32wb stm32wba sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x samd2x_l2x samg tm4c
+lib/CMSIS_6                               https://github.com/ARM-software/CMSIS_6.git                       6f0a58d01aa9bd2feba212097f9afe7acd991d52  imxrt kinetis_k32l ra stm32n6 lpc51 lpc55 mcx
 lib/FreeRTOS-Kernel                       https://github.com/FreeRTOS/FreeRTOS-Kernel.git                   cc0e0707c0c748713485b870bb980852b210877f  all
 lib/lwip                                  https://github.com/lwip-tcpip/lwip.git                            159e31b689577dbf69cf0683bbaffbd71fa5ee10  all
 lib/sct_neopixel                          https://github.com/gsteiert/sct_neopixel.git                      e73e04ca63495672d955f9268e003cffe168fcd8  lpc55
+lib/threadx                               https://github.com/eclipse-threadx/threadx.git                    4b6e8100d932a3a67b34c6eb17f84f3bffb9e2ae  all
+tools/linkermap                           https://github.com/hathach/linkermap.git                          8e1f440fa15c567aceb5aa0d14f6d18c329cc67f  all
 tools/uf2                                 https://github.com/microsoft/uf2.git                              c594542b2faa01cc33a2b97c9fbebc38549df80a  all
-========================================  ================================================================  ========================================  ==============================================================================================================================================================================================================================================================================================================================================================
+========================================  ================================================================  ========================================  ===================================================================================================================================================================================================================================================================================================================================================
