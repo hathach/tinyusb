@@ -90,7 +90,8 @@ typedef struct {
   bool nak_pending;
 } hcd_xfer_t;
 
-static volatile hcd_xfer_t _current_xfer = {};
+// One transfer state per root port (indexed by rhport).
+static volatile hcd_xfer_t _current_xfer[2] = {};
 
 //--------------------------------------------------------------------+
 // Per-port state
@@ -98,6 +99,7 @@ static volatile hcd_xfer_t _current_xfer = {};
 typedef struct {
   uint32_t usb_base;
   bool int_enabled;
+  bool int_state_before_reset;
 } hcd_port_t;
 
 static hcd_port_t _port_data[2] = {};
@@ -208,7 +210,7 @@ static bool _hw_start_xfer(uint8_t rhport, uint8_t pid, uint8_t ep_addr, uint8_t
   LOG_CH58X_HCD("_hw_start_xfer(pid=0x%02x, ep=0x%02x, tog=%d)\r\n", pid, ep_addr, data_toggle);
 
   // Workaround: small delay for low-speed devices
-  bool is_lowspeed = tuh_speed_get(_current_xfer.dev_addr) == TUSB_SPEED_LOW;
+  bool is_lowspeed = tuh_speed_get(_current_xfer[rhport].dev_addr) == TUSB_SPEED_LOW;
   if (is_lowspeed) {
     _delay_loops(60000000 / 1000000 * 40); // ~40us at 60MHz
   }
@@ -276,20 +278,23 @@ static void _xfer_retry(void* param) {
   LOG_CH58X_HCD("_xfer_retry()\r\n");
   hcd_edpt_t* edpt = (hcd_edpt_t*)param;
 
-  if (_current_xfer.nak_pending) {
-    uint8_t rhport = _current_xfer.rhport;
-    _current_xfer.nak_pending = false;
-    edpt->is_nak_pending = false;
+  // Find which rhport this endpoint belongs to by checking both ports
+  for (uint8_t rp = 0; rp < 2; rp++) {
+    if (_current_xfer[rp].nak_pending) {
+      _current_xfer[rp].nak_pending = false;
+      edpt->is_nak_pending = false;
 
-    uint8_t dev_addr = edpt->dev_addr;
-    uint8_t ep_addr = edpt->ep_addr;
-    uint16_t buflen = edpt->buflen;
-    uint8_t* buf = edpt->buf;
+      uint8_t dev_addr = edpt->dev_addr;
+      uint8_t ep_addr = edpt->ep_addr;
+      uint16_t buflen = edpt->buflen;
+      uint8_t* buf = edpt->buf;
 
-    // Check if endpoint is still valid
-    hcd_edpt_t* current = _get_edpt(dev_addr, ep_addr);
-    if (current) {
-      hcd_edpt_xfer(rhport, dev_addr, ep_addr, buf, buflen);
+      // Check if endpoint is still valid
+      hcd_edpt_t* current = _get_edpt(dev_addr, ep_addr);
+      if (current) {
+        hcd_edpt_xfer(rp, dev_addr, ep_addr, buf, buflen);
+      }
+      break;
     }
   }
 }
@@ -303,9 +308,13 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   _port_data[rhport].usb_base = _get_usb_base(rhport);
   _port_data[rhport].int_enabled = false;
 
-  // Clear endpoint records
-  tu_memclr(_edpt_list, sizeof(_edpt_list));
-  _current_xfer = (const hcd_xfer_t){0};
+  // Clear endpoint records only on first init to avoid wiping state of the other rhport
+  static bool _first_init = true;
+  if (_first_init) {
+    tu_memclr(_edpt_list, sizeof(_edpt_list));
+    _first_init = false;
+  }
+  _current_xfer[rhport] = (const hcd_xfer_t){0};
 
   _hw_init_host(rhport, true);
 
@@ -323,17 +332,14 @@ uint32_t hcd_frame_number(uint8_t rhport) {
 }
 
 void hcd_int_enable(uint8_t rhport) {
-  // PFIC interrupt enable
-  volatile uint32_t* pfic_ienr = (volatile uint32_t*)0xE000E100;
-  uint8_t irqn = (rhport == 0) ? 22 : 23; // USB_IRQn or USB2_IRQn
-  pfic_ienr[irqn / 32] = (1u << (irqn % 32));
+  uint8_t irqn = (rhport == 0) ? CH58X_USB_IRQn : CH58X_USB2_IRQn;
+  CH58X_PFIC_IENR[irqn / 32] = (1u << (irqn % 32));
   _port_data[rhport].int_enabled = true;
 }
 
 void hcd_int_disable(uint8_t rhport) {
-  volatile uint32_t* pfic_irer = (volatile uint32_t*)0xE000E180;
-  uint8_t irqn = (rhport == 0) ? 22 : 23;
-  pfic_irer[irqn / 32] = (1u << (irqn % 32));
+  uint8_t irqn = (rhport == 0) ? CH58X_USB_IRQn : CH58X_USB2_IRQn;
+  CH58X_PFIC_IRER[irqn / 32] = (1u << (irqn % 32));
   __asm volatile("fence.i");
   _port_data[rhport].int_enabled = false;
 }
@@ -347,21 +353,18 @@ bool hcd_port_connect_status(uint8_t rhport) {
 
 tusb_speed_t hcd_port_speed_get(uint8_t rhport) {
   uint32_t base = _port_data[rhport].usb_base;
-  // DM level high = low-speed device, low = full-speed
   if (CH58X_USB_MIS_ST(base) & CH58X_UMS_DM_LEVEL) {
     return TUSB_SPEED_LOW;
   }
   return TUSB_SPEED_FULL;
 }
 
-static bool _int_state_before_reset = false;
-
 void hcd_port_reset(uint8_t rhport) {
   uint32_t base = _port_data[rhport].usb_base;
 
   LOG_CH58X_HCD("hcd_port_reset()\r\n");
 
-  _int_state_before_reset = _port_data[rhport].int_enabled;
+  _port_data[rhport].int_state_before_reset = _port_data[rhport].int_enabled;
   hcd_int_disable(rhport);
 
   _hw_set_device_addr(rhport, 0x00);
@@ -397,7 +400,7 @@ void hcd_port_reset_end(uint8_t rhport) {
   // Suppress stale detect event
   CH58X_USB_INT_FG(base) = CH58X_UIF_DETECT;
 
-  if (_int_state_before_reset) {
+  if (_port_data[rhport].int_state_before_reset) {
     hcd_int_enable(rhport);
   }
 }
@@ -423,9 +426,9 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const*
 
   // Wait for any pending transfer
   uint32_t t0 = tusb_time_millis_api();
-  while (_current_xfer.is_busy) {
+  while (_current_xfer[rhport].is_busy) {
     if (tusb_time_millis_api() - t0 > 200) {
-      _current_xfer.is_busy = false;
+      _current_xfer[rhport].is_busy = false;
       break;
     }
   }
@@ -455,27 +458,27 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr,
 
   // Wait for any pending transfer (with 200ms timeout to avoid deadlock on disconnect)
   uint32_t t0 = tusb_time_millis_api();
-  while (_current_xfer.is_busy) {
+  while (_current_xfer[rhport].is_busy) {
     if (tusb_time_millis_api() - t0 > 200) {
-      _current_xfer.is_busy = false;
+      _current_xfer[rhport].is_busy = false;
       return false;
     }
   }
-  _current_xfer.is_busy = true;
+  _current_xfer[rhport].is_busy = true;
 
   hcd_edpt_t* edpt = _get_edpt(dev_addr, ep_addr);
   TU_ASSERT(edpt != NULL);
 
   _hw_set_addr_speed(rhport, dev_addr);
 
-  _current_xfer.rhport = rhport;
-  _current_xfer.dev_addr = dev_addr;
-  _current_xfer.ep_addr = ep_addr;
-  _current_xfer.buffer = buffer;
-  _current_xfer.bufferlen = buflen;
-  _current_xfer.start_ms = tusb_time_millis_api();
-  _current_xfer.xferred_len = 0;
-  _current_xfer.nak_pending = false;
+  _current_xfer[rhport].rhport = rhport;
+  _current_xfer[rhport].dev_addr = dev_addr;
+  _current_xfer[rhport].ep_addr = ep_addr;
+  _current_xfer[rhport].buffer = buffer;
+  _current_xfer[rhport].bufferlen = buflen;
+  _current_xfer[rhport].start_ms = tusb_time_millis_api();
+  _current_xfer[rhport].xferred_len = 0;
+  _current_xfer[rhport].nak_pending = false;
 
   if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN) {
     // IN transfer: host receives data
@@ -503,13 +506,13 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
 
   // Wait for any pending transfer
   uint32_t t0 = tusb_time_millis_api();
-  while (_current_xfer.is_busy) {
+  while (_current_xfer[rhport].is_busy) {
     if (tusb_time_millis_api() - t0 > 200) {
-      _current_xfer.is_busy = false;
+      _current_xfer[rhport].is_busy = false;
       return false;
     }
   }
-  _current_xfer.is_busy = true;
+  _current_xfer[rhport].is_busy = true;
 
   _hw_set_addr_speed(rhport, dev_addr);
 
@@ -525,14 +528,14 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   memcpy(_tx_buf[rhport], setup_packet, 8);
   CH58X_UH_TX_LEN(base) = 8;
 
-  _current_xfer.rhport = rhport;
-  _current_xfer.dev_addr = dev_addr;
-  _current_xfer.ep_addr = 0x00;  // SETUP always targets EP0 OUT
-  _current_xfer.start_ms = tusb_time_millis_api();
-  _current_xfer.buffer = _tx_buf[rhport];
-  _current_xfer.bufferlen = 8;
-  _current_xfer.xferred_len = 0;
-  _current_xfer.nak_pending = false;
+  _current_xfer[rhport].rhport = rhport;
+  _current_xfer[rhport].dev_addr = dev_addr;
+  _current_xfer[rhport].ep_addr = 0x00;  // SETUP always targets EP0 OUT
+  _current_xfer[rhport].start_ms = tusb_time_millis_api();
+  _current_xfer[rhport].buffer = _tx_buf[rhport];
+  _current_xfer[rhport].bufferlen = 8;
+  _current_xfer[rhport].xferred_len = 0;
+  _current_xfer[rhport].nak_pending = false;
 
   _hw_start_xfer(rhport, CH58X_USB_PID_SETUP, 0, 0);
 
@@ -569,8 +572,8 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     } else {
       // Stop any ongoing hardware transfer before reporting removal
       CH58X_UH_EP_PID(base) = 0x00;
-      _current_xfer.is_busy = false;
-      _current_xfer.nak_pending = false;
+      _current_xfer[rhport].is_busy = false;
+      _current_xfer[rhport].nak_pending = false;
       hcd_event_device_remove(rhport, in_isr);
     }
     return;
@@ -603,7 +606,7 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     if (edpt == NULL) {
       // Unknown endpoint, discard
       LOG_CH58X_HCD("hcd_int: unknown edpt dev=0x%02x ep=0x%02x\r\n", dev_addr, ep_addr);
-      _current_xfer.is_busy = false;
+      _current_xfer[rhport].is_busy = false;
       CH58X_USB_INT_FG(base) = CH58X_UIF_TRANSFER;
       return;
     }
@@ -616,19 +619,19 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
         case CH58X_USB_PID_SETUP:
         case CH58X_USB_PID_OUT: {
           uint8_t tx_len = CH58X_UH_TX_LEN(base);
-          _current_xfer.bufferlen -= tx_len;
-          _current_xfer.xferred_len += tx_len;
+          _current_xfer[rhport].bufferlen -= tx_len;
+          _current_xfer[rhport].xferred_len += tx_len;
 
-          if (_current_xfer.bufferlen == 0) {
-            LOG_CH58X_HCD("OUT/SETUP complete, %d bytes\r\n", _current_xfer.xferred_len);
-            _current_xfer.is_busy = false;
+          if (_current_xfer[rhport].bufferlen == 0) {
+            LOG_CH58X_HCD("OUT/SETUP complete, %d bytes\r\n", _current_xfer[rhport].xferred_len);
+            _current_xfer[rhport].is_busy = false;
             hcd_event_xfer_complete(dev_addr, ep_addr,
-                                    _current_xfer.xferred_len, XFER_RESULT_SUCCESS, in_isr);
+                                    _current_xfer[rhport].xferred_len, XFER_RESULT_SUCCESS, in_isr);
           } else {
             // Multi-packet OUT: send next chunk
-            _current_xfer.buffer += tx_len;
-            uint16_t copylen = TU_MIN(edpt->max_packet_size, _current_xfer.bufferlen);
-            memcpy(_tx_buf[rhport], _current_xfer.buffer, copylen);
+            _current_xfer[rhport].buffer += tx_len;
+            uint16_t copylen = TU_MIN(edpt->max_packet_size, _current_xfer[rhport].bufferlen);
+            memcpy(_tx_buf[rhport], _current_xfer[rhport].buffer, copylen);
             CH58X_UH_TX_LEN(base) = (uint8_t)copylen;
             _hw_start_xfer(rhport, CH58X_USB_PID_OUT, ep_addr, edpt->data_toggle);
           }
@@ -637,18 +640,18 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
 
         case CH58X_USB_PID_IN: {
           uint8_t rx_len = CH58X_USB_RX_LEN(base);
-          _current_xfer.xferred_len += rx_len;
-          uint16_t xferred = _current_xfer.xferred_len;
+          _current_xfer[rhport].xferred_len += rx_len;
+          uint16_t xferred = _current_xfer[rhport].xferred_len;
 
-          if (rx_len > 0 && _current_xfer.buffer != NULL) {
-            memcpy(_current_xfer.buffer, _rx_buf[rhport], rx_len);
-            _current_xfer.buffer += rx_len;
+          if (rx_len > 0 && _current_xfer[rhport].buffer != NULL) {
+            memcpy(_current_xfer[rhport].buffer, _rx_buf[rhport], rx_len);
+            _current_xfer[rhport].buffer += rx_len;
           }
 
-          if ((rx_len < edpt->max_packet_size) || (xferred == _current_xfer.bufferlen)) {
+          if ((rx_len < edpt->max_packet_size) || (xferred == _current_xfer[rhport].bufferlen)) {
             // Short packet or transfer complete
             LOG_CH58X_HCD("IN complete, %d bytes\r\n", xferred);
-            _current_xfer.is_busy = false;
+            _current_xfer[rhport].is_busy = false;
             hcd_event_xfer_complete(dev_addr, ep_addr, xferred,
                                     XFER_RESULT_SUCCESS, in_isr);
           } else {
@@ -660,7 +663,7 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
 
         default: {
           LOG_CH58X_HCD("unexpected PID 0x%02x\r\n", request_pid);
-          _current_xfer.is_busy = false;
+          _current_xfer[rhport].is_busy = false;
           hcd_event_xfer_complete(dev_addr, ep_addr, 0, XFER_RESULT_FAILED, in_isr);
           break;
         }
@@ -670,36 +673,42 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
       if (response_pid == CH58X_USB_PID_STALL) {
         LOG_CH58X_HCD("STALL response\r\n");
         edpt->data_toggle = 0;
-        _current_xfer.is_busy = false;
+        _current_xfer[rhport].is_busy = false;
         hcd_event_xfer_complete(dev_addr, ep_addr, 0, XFER_RESULT_STALLED, in_isr);
       } else if (response_pid == CH58X_USB_PID_NAK) {
         LOG_CH58X_HCD("NAK response\r\n");
-        // NAK: schedule retry via deferred callback for all endpoint types
-        // This avoids tight polling loops and allows other tasks to run
-        _current_xfer.is_busy = false;
-        _current_xfer.nak_pending = true;
+        // For interrupt endpoints, treat NAK as a successful 0-byte poll so
+        // that upper layers can reschedule based on the endpoint interval.
+        if (edpt->xfer_type == TUSB_XFER_INTERRUPT) {
+          _current_xfer[rhport].is_busy = false;
+          hcd_event_xfer_complete(dev_addr, ep_addr, 0, XFER_RESULT_SUCCESS, in_isr);
+        } else {
+          // For non-interrupt endpoints, schedule retry via deferred callback.
+          _current_xfer[rhport].is_busy = false;
+          _current_xfer[rhport].nak_pending = true;
 
-        edpt->is_nak_pending = true;
-        edpt->buflen = _current_xfer.bufferlen;
-        edpt->buf = _current_xfer.buffer;
+          edpt->is_nak_pending = true;
+          edpt->buflen = _current_xfer[rhport].bufferlen;
+          edpt->buf = _current_xfer[rhport].buffer;
 
-        hcd_event_t event = {
-          .rhport = rhport,
-          .dev_addr = dev_addr,
-          .event_id = USBH_EVENT_FUNC_CALL,
-          .func_call = {
-            .func = _xfer_retry,
-            .param = edpt
-          }
-        };
-        hcd_event_handler(&event, in_isr);
+          hcd_event_t event = {
+            .rhport = rhport,
+            .dev_addr = dev_addr,
+            .event_id = USBH_EVENT_FUNC_CALL,
+            .func_call = {
+              .func = _xfer_retry,
+              .param = edpt
+            }
+          };
+          hcd_event_handler(&event, in_isr);
+        }
       } else if (response_pid == CH58X_USB_PID_DATA0 || response_pid == CH58X_USB_PID_DATA1) {
         LOG_CH58X_HCD("toggle mismatch, DATA0/1 rx_len=%d\r\n", CH58X_USB_RX_LEN(base));
-        _current_xfer.is_busy = false;
+        _current_xfer[rhport].is_busy = false;
         hcd_event_xfer_complete(dev_addr, ep_addr, 0, XFER_RESULT_FAILED, in_isr);
       } else {
         LOG_CH58X_HCD("unexpected response 0x%02x\r\n", response_pid);
-        _current_xfer.is_busy = false;
+        _current_xfer[rhport].is_busy = false;
         hcd_event_xfer_complete(dev_addr, ep_addr, 0, XFER_RESULT_FAILED, in_isr);
       }
     }

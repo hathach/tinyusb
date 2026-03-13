@@ -84,13 +84,13 @@ static inline void ep_set_both_response(uint32_t base, uint8_t ep, uint8_t tx_re
 //--------------------------------------------------------------------+
 // Private data structures
 //--------------------------------------------------------------------+
-struct usb_xfer {
+typedef struct {
   bool valid;
   uint8_t* buffer;
   size_t len;
   size_t processed_len;
   size_t max_size;
-};
+} xfer_ctl_t;
 
 typedef struct {
   uint32_t usb_base;
@@ -99,7 +99,7 @@ typedef struct {
   volatile bool ep0_completion_pending; // EP0 XFER_COMPLETE in event queue, not yet processed
   uint8_t pending_addr;               // Address to set in ISR after Set Address status ZLP
   bool isochronous[EP_MAX][2]; // [ep][dir]
-  struct usb_xfer xfer[EP_MAX][2];  // [ep][dir]
+  xfer_ctl_t xfer[EP_MAX][2];  // [ep][dir]
 
   // EP0 + EP4 shared buffer: EP0 OUT(64) + EP4 OUT(64) + EP4 IN(64)
   TU_ATTR_ALIGNED(4) uint8_t ep0_buffer[EP_BUF_SIZE + EP_BUF_SIZE + EP_BUF_SIZE];
@@ -173,7 +173,7 @@ static uint8_t* ep_dma_buffer(dcd_data_t* d, uint8_t ep) {
 static void update_in(uint8_t rhport, uint8_t ep, bool force, bool in_isr) {
   dcd_data_t* d = &_dcd_data[rhport];
   uint32_t base = d->usb_base;
-  struct usb_xfer* xfer = &d->xfer[ep][TUSB_DIR_IN];
+  xfer_ctl_t* xfer = &d->xfer[ep][TUSB_DIR_IN];
 
   if (xfer->valid) {
     if (force || xfer->len) {
@@ -218,7 +218,7 @@ static void update_in(uint8_t rhport, uint8_t ep, bool force, bool in_isr) {
 static void update_out(uint8_t rhport, uint8_t ep, size_t rx_len, bool in_isr) {
   dcd_data_t* d = &_dcd_data[rhport];
   uint32_t base = d->usb_base;
-  struct usb_xfer* xfer = &d->xfer[ep][TUSB_DIR_OUT];
+  xfer_ctl_t* xfer = &d->xfer[ep][TUSB_DIR_OUT];
 
   if (xfer->valid) {
     size_t len = TU_MIN(xfer->max_size, TU_MIN(xfer->len, rx_len));
@@ -426,16 +426,13 @@ void dcd_int_handler(uint8_t rhport) {
 }
 
 void dcd_int_enable(uint8_t rhport) {
-  // PFIC enable: USB_IRQn=22, USB2_IRQn=23
-  volatile uint32_t* pfic_ienr = (volatile uint32_t*) 0xE000E100;
-  uint8_t irqn = (rhport == 0) ? 22 : 23;
-  pfic_ienr[irqn / 32] = (1u << (irqn % 32));
+  uint8_t irqn = (rhport == 0) ? CH58X_USB_IRQn : CH58X_USB2_IRQn;
+  CH58X_PFIC_IENR[irqn / 32] = (1u << (irqn % 32));
 }
 
 void dcd_int_disable(uint8_t rhport) {
-  volatile uint32_t* pfic_irer = (volatile uint32_t*) 0xE000E180;
-  uint8_t irqn = (rhport == 0) ? 22 : 23;
-  pfic_irer[irqn / 32] = (1u << (irqn % 32));
+  uint8_t irqn = (rhport == 0) ? CH58X_USB_IRQn : CH58X_USB2_IRQn;
+  CH58X_PFIC_IRER[irqn / 32] = (1u << (irqn % 32));
   __asm volatile ("fence.i");
 }
 
@@ -496,7 +493,11 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const* desc_ep) {
   TU_ASSERT(ep < EP_MAX);
 
   d->isochronous[ep][dir] = (desc_ep->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS);
-  d->xfer[ep][dir].max_size = tu_edpt_packet_size(desc_ep);
+  uint16_t max_size = tu_edpt_packet_size(desc_ep);
+  if (max_size > EP_BUF_SIZE) {
+    max_size = EP_BUF_SIZE;
+  }
+  d->xfer[ep][dir].max_size = max_size;
 
   if (ep != 0) {
     dcd_int_disable(rhport);
@@ -554,7 +555,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer,
   uint8_t dir = tu_edpt_dir(ep_addr);
 
   dcd_data_t* d = &_dcd_data[rhport];
-  struct usb_xfer* xfer = &d->xfer[ep][dir];
+  xfer_ctl_t* xfer = &d->xfer[ep][dir];
 
   dcd_int_disable(rhport);
 
@@ -576,7 +577,6 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer,
   if (dir == TUSB_DIR_IN) {
     update_in(rhport, ep, true, is_isr);
   } else {
-
     if (d->isochronous[ep][TUSB_DIR_OUT]) {
       ep_set_rx_response(d->usb_base, ep, CH58X_EP_R_RES_TOUT);
     } else {
