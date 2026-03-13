@@ -8,6 +8,7 @@ toolchain_list = [
     "arm-iar",
     "arm-gcc",
     "esp-idf",
+    "ft9xx-gcc",
     "msp430-gcc",
     "riscv-gcc",
     "rx-gcc"
@@ -30,6 +31,7 @@ family_list = {
     "ch32v30x": ["riscv-gcc"],
     "da1469x": ["arm-gcc"],
     "fomu": ["riscv-gcc"],
+    "ft9xx": ["ft9xx-gcc"],
     "gd32vf103": ["riscv-gcc"],
     "hpmicro": ["riscv-gcc"],
     "imxrt": ["arm-gcc", "arm-clang"],

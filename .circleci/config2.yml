@@ -33,6 +33,8 @@ commands:
                 wget --progress=dot:giga $toolchain_url -O toolchain.run
                 chmod +x toolchain.run
                 ./toolchain.run -p ~/cache/<< parameters.toolchain >>/gnurx -y
+              elif [[ << parameters.toolchain >> == ft9xx-gcc ]]; then
+                wget --progress=dot:giga $toolchain_url -O ~/cache/<< parameters.toolchain >>/ft9xxtoolchain.deb
               elif [[ << parameters.toolchain >> == arm-iar ]]; then
                 wget --progress=dot:giga https://netstorage.iar.com/FileStore/STANDARD/001/003/926/iar-lmsc-tools_1.8_amd64.deb -O ~/cache/<< parameters.toolchain >>/iar-lmsc-tools.deb
                 wget --progress=dot:giga $toolchain_url -O ~/cache/<< parameters.toolchain >>/toolchain.deb
@@ -48,6 +50,9 @@ commands:
               sudo dpkg -i ~/cache/<< parameters.toolchain >>/iar-lmsc-tools.deb
               sudo dpkg --ignore-depends=libusb-1.0-0 -i ~/cache/<< parameters.toolchain >>/toolchain.deb
               echo "export PATH=$PATH:/opt/iar/cxarm/arm/bin" >> $BASH_ENV
+            elif [[ << parameters.toolchain >> == ft9xx-gcc ]]; then
+              sudo apt install -y ~/cache/<< parameters.toolchain >>/ft9xxtoolchain.deb
+              echo "export PATH=$PATH:/opt/ft32/bin" >> $BASH_ENV
             else
               echo "export PATH=$PATH:`echo ~/cache/<< parameters.toolchain >>/*/bin`" >> $BASH_ENV
             fi
