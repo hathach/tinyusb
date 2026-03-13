@@ -846,6 +846,25 @@ function(family_flash_msp430flasher TARGET)
   set_property(TARGET ${TARGET}-msp430flasher PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
+function(family_flash_rfp TARGET)
+  if (NOT DEFINED RFP_CLI)
+    set(RFP_CLI rfp-cli)
+  endif ()
+
+  add_custom_target(${TARGET}-rfp
+    DEPENDS ${TARGET}
+    COMMAND ${CMAKE_OBJCOPY} -O srec -I elf32-rx-be-ns $<TARGET_FILE:${TARGET}> $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.mot
+    COMMAND ${RFP_CLI} -device ${RFP_DEVICE} -tool ${RFP_TOOL} -if fine
+      -fo id FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+      -auth id FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+      -auto $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.mot
+    VERBATIM
+    )
+
+  set_property(TARGET ${TARGET}-rfp PROPERTY FOLDER ${TARGET}-group)
+endfunction()
+
+
 function(family_flash_uniflash TARGET)
   if (NOT DEFINED DSLITE)
     set(DSLITE dslite.sh)

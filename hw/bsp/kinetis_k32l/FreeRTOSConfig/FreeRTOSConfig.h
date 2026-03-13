@@ -44,16 +44,18 @@
 
 // skip if included from IAR assembler
 #ifndef __IASMARM__
-// FIXME cause redundant-decls warnings
-extern uint32_t SystemCoreClock;
+  #include "fsl_device_registers.h"
 #endif
 
 /* Cortex M23/M33 port configuration. */
-#define configENABLE_MPU								        0
-#define configENABLE_FPU								        0
-#define configENABLE_TRUSTZONE					        0
-#define configMINIMAL_SECURE_STACK_SIZE					( 1024 )
-#define configRUN_FREERTOS_SECURE_ONLY          1
+#define configENABLE_MPU                        0
+#if defined(__ARM_FP) && __ARM_FP >= 4
+  #define configENABLE_FPU                      1
+#else
+  #define configENABLE_FPU                      0
+#endif
+#define configENABLE_TRUSTZONE                  0
+#define configMINIMAL_SECURE_STACK_SIZE         (1024)
 
 #define configUSE_PREEMPTION                    1
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION 0
@@ -68,7 +70,7 @@ extern uint32_t SystemCoreClock;
 #define configUSE_MUTEXES                       1
 #define configUSE_RECURSIVE_MUTEXES             1
 #define configUSE_COUNTING_SEMAPHORES           1
-#define configQUEUE_REGISTRY_SIZE               4
+#define configQUEUE_REGISTRY_SIZE               2
 #define configUSE_QUEUE_SETS                    0
 #define configUSE_TIME_SLICING                  0
 #define configUSE_NEWLIB_REENTRANT              0
@@ -87,6 +89,7 @@ extern uint32_t SystemCoreClock;
 
 /* Run time and task stats gathering related definitions. */
 #define configGENERATE_RUN_TIME_STATS          0
+#define configRECORD_STACK_HIGH_ADDRESS        1
 #define configUSE_TRACE_FACILITY               1 // legacy trace
 #define configUSE_STATS_FORMATTING_FUNCTIONS   0
 
@@ -118,15 +121,22 @@ extern uint32_t SystemCoreClock;
 #define INCLUDE_xEventGroupSetBitFromISR       0
 #define INCLUDE_xTimerPendFunctionCall         0
 
-#ifdef __RX__
-/* Renesas RX series */
-#define vSoftwareInterruptISR					        INT_Excep_ICU_SWINT
-#define vTickISR								              INT_Excep_CMT0_CMI0
-#define configPERIPHERAL_CLOCK_HZ				      (configCPU_CLOCK_HZ/2)
-#define configKERNEL_INTERRUPT_PRIORITY			  1
-#define configMAX_SYSCALL_INTERRUPT_PRIORITY	4
-
+/* Define to trap errors during development. */
+// Halt CPU (breakpoint) when hitting error, only apply for Cortex M3, M4, M7
+#if defined(__ARM_ARCH_7M__) || defined (__ARM_ARCH_7EM__)
+  #define configASSERT(_exp) \
+    do {\
+      if ( !(_exp) ) { \
+        volatile uint32_t* ARM_CM_DHCSR =  ((volatile uint32_t*) 0xE000EDF0UL); /* Cortex M CoreDebug->DHCSR */ \
+        if ( (*ARM_CM_DHCSR) & 1UL ) {  /* Only halt mcu if debugger is attached */ \
+          taskDISABLE_INTERRUPTS(); \
+           __asm("BKPT #0\n"); \
+        }\
+      }\
+    } while(0)
 #else
+  #define configASSERT( x )
+#endif
 
 /* FreeRTOS hooks to NVIC vectors */
 #define xPortPendSVHandler    PendSV_Handler
@@ -136,24 +146,9 @@ extern uint32_t SystemCoreClock;
 //--------------------------------------------------------------------+
 // Interrupt nesting behavior configuration.
 //--------------------------------------------------------------------+
-#if defined(__NVIC_PRIO_BITS)
-  // For Cortex-M specific: __NVIC_PRIO_BITS is defined in core_cmx.h
-	#define configPRIO_BITS       __NVIC_PRIO_BITS
 
-#elif defined(__ECLIC_INTCTLBITS)
-  // RISC-V Bumblebee core from nuclei
-  #define configPRIO_BITS       __ECLIC_INTCTLBITS
-
-#elif defined(__IASMARM__)
-  // FIXME: IAR Assembler cannot include mcu header directly to get __NVIC_PRIO_BITS.
-  // Therefore we will hard coded it to minimum value of 2 to get pass ci build.
-  // IAR user must update this to correct value of the target MCU
-  #message "configPRIO_BITS is hard coded to 2 to pass IAR build only. User should update it per MCU"
-  #define configPRIO_BITS       2
-
-#else
-  #error "FreeRTOS configPRIO_BITS to be defined"
-#endif
+// For Cortex-M specific: __NVIC_PRIO_BITS is defined in mcu header
+#define configPRIO_BITS       2
 
 /* The lowest interrupt priority that can be used in a call to a "set priority" function. */
 #define configLIBRARY_LOWEST_INTERRUPT_PRIORITY			  ((1<<configPRIO_BITS) - 1)
@@ -171,7 +166,5 @@ to all Cortex-M ports, and do not rely on any particular library functions. */
 /* !!!! configMAX_SYSCALL_INTERRUPT_PRIORITY must not be set to zero !!!!
 See http://www.FreeRTOS.org/RTOS-Cortex-M3-M4.html. */
 #define configMAX_SYSCALL_INTERRUPT_PRIORITY 	        ( configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY << (8 - configPRIO_BITS) )
-
-#endif
 
 #endif /* __FREERTOS_CONFIG__H */

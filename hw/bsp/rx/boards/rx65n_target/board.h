@@ -32,9 +32,37 @@
 #ifndef BOARD_H_
 #define BOARD_H_
 
+#include "iodefine.h"
+
 #ifdef __cplusplus
  extern "C" {
 #endif
+
+// LED: PD6, active low (open-drain)
+#define BOARD_LED_WRITE(state)    (PORTD.PODR.BIT.B6 = (state) ? 0 : 1)
+
+// Button: PB1, active low
+#define BOARD_BUTTON_READ()       (PORTB.PIDR.BIT.B1 ? 0 : 1)
+
+// UART: SCI5
+#define BOARD_UART_SCI            SCI5
+#define BOARD_SCI_TXI_HANDLER     INT_Excep_SCI5_TXI5
+#define BOARD_SCI_TEI_HANDLER     INT_Excep_ICU_GROUPBL0  // SCI5 TEI uses group interrupt
+#define BOARD_SCI_RXI_HANDLER     INT_Excep_SCI5_RXI5
+
+// USB interrupt handler (software configurable vector)
+#define IRQ_USB0_USBI0            62
+#define SLIBR_USBI0               SLIBR185
+#define IR_USB0_USBI0             IR_PERIB_INTB185
+#define IER_USB0_USBI0            IER_PERIB_INTB185
+#define IEN_USB0_USBI0            IEN_PERIB_INTB185
+#define IPR_USB0_USBI0            IPR_PERIB_INTB185
+#define INT_Excep_USB0_USBI0      INT_Excep_PERIB_INTB185
+#define BOARD_USB_IRQ_HANDLER     INT_Excep_USB0_USBI0
+
+// Clocks
+#define BOARD_PCLK                60000000
+#define BOARD_CPUCLK              120000000
 
 #ifdef __cplusplus
  }
