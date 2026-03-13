@@ -55,7 +55,7 @@ Bridgetek
 =========  =========  ========  =====================================  ======
 Board      Name       Family    URL                                    Note
 =========  =========  ========  =====================================  ======
-mm900evxb  MM900EVxB  brtmm90x  https://brtchip.com/product/mm900ev1b
+mm900evxb  MM900EVxB  ft9xx     https://brtchip.com/product/mm900ev1b
 =========  =========  ========  =====================================  ======
 
 Espressif

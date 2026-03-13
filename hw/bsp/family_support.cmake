@@ -881,6 +881,21 @@ function(family_flash_uniflash TARGET)
   set_property(TARGET ${TARGET}-uniflash PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
+# Add flash ft9xx target need to remove kernal's ftdi_sio and bind D2XX drivers
+# sudo rmmod ftdi_sio && for i in 0 1 2 3; do sudo sh -c "echo 3-3.4:1.$i > /sys/bus/usb/drivers/ftdi_sio/unbind" 2>/dev/null; done
+function(family_flash_ft9xx TARGET)
+  if (NOT DEFINED FT9XXPROG)
+    set(FT9XXPROG FT9xxProg)
+  endif ()
+
+  add_custom_target(${TARGET}-ft9xx
+    DEPENDS ${TARGET}
+    COMMAND ${FT9XXPROG} -f $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.bin
+    )
+
+  set_property(TARGET ${TARGET}-ft9xx PROPERTY FOLDER ${TARGET}-group)
+endfunction()
+
 #----------------------------------
 # Family specific
 #----------------------------------
