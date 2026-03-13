@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef __SYSTEM_CH58X_H
-#define __SYSTEM_CH58X_H
+#ifndef SYSTEM_CH58X_H_
+#define SYSTEM_CH58X_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -40,4 +40,4 @@ extern void SystemCoreClockUpdate(void);
 }
 #endif
 
-#endif /* __SYSTEM_CH58X_H */
+#endif /* SYSTEM_CH58X_H_ */

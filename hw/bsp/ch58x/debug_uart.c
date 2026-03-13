@@ -35,11 +35,11 @@
 #define UART_RINGBUFFER_MASK_TX  (UART_RINGBUFFER_SIZE_TX - 1)
 
 static char tx_buf[UART_RINGBUFFER_SIZE_TX];
-static unsigned int tx_produce;
-static volatile unsigned int tx_consume;
+static uint32_t tx_produce;
+static volatile uint32_t tx_consume;
 
 void uart_write(char c) {
-  unsigned int tx_produce_next = (tx_produce + 1) & UART_RINGBUFFER_MASK_TX;
+  uint32_t tx_produce_next = (tx_produce + 1) & UART_RINGBUFFER_MASK_TX;
 
   // If ring buffer is full, wait
   while (tx_produce_next == tx_consume) {}

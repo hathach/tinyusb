@@ -279,4 +279,13 @@
 #define CH58X_SLP_CLK_OFF1        (*(volatile uint8_t *)0x4000100D)
 #define CH58X_SLP_CLK_USB         0x10
 
+//--------------------------------------------------------------------+
+// PFIC (Platform-level Fast Interrupt Controller)
+//--------------------------------------------------------------------+
+#define CH58X_PFIC_IENR           ((volatile uint32_t *)0xE000E100)  // interrupt enable
+#define CH58X_PFIC_IRER           ((volatile uint32_t *)0xE000E180)  // interrupt reset (disable)
+
+#define CH58X_USB_IRQn            22
+#define CH58X_USB2_IRQn           23
+
 #endif /* CH58X_USBFS_REG_H */

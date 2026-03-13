@@ -29,8 +29,16 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void uart_write(char c);
 void uart_sync(void);
 void usart_printf_init(uint32_t baudrate);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* DEBUG_UART_H_ */

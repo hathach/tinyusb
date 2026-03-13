@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef __CH58X_IT_H
-#define __CH58X_IT_H
+#ifndef CH58X_IT_H_
+#define CH58X_IT_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -43,4 +43,4 @@ void SysTick_Handler(void);
 }
 #endif
 
-#endif /* __CH58X_IT_H */
+#endif /* CH58X_IT_H_ */
