@@ -166,9 +166,9 @@ teensy_40           Teensy 4.0                                 imxrt          ht
 teensy_41           Teensy 4.1                                 imxrt          https://www.pjrc.com/store/teensy41.html
 frdm_k64f           Freedom K64F                               kinetis_k      https://www.nxp.com/design/design-center/development-boards-and-designs/general-purpose-mcus/freedom-development-platform-for-kinetis-k64-k63-and-k24-mcus:FRDM-K64F
 teensy_35           Teensy 3.5                                 kinetis_k      https://www.pjrc.com/store/teensy35.html
-frdm_k32l2a4s       Freedom K32L2A4S                           kinetis_k32l2  https://www.nxp.com/design/design-center/development-boards-and-designs/FRDM-K32L2A4S
-frdm_k32l2b         Freedom K32L2B3                            kinetis_k32l2  https://www.nxp.com/design/design-center/development-boards-and-designs/general-purpose-mcus/nxp-freedom-development-platform-for-k32-l2b-mcus:FRDM-K32L2B3
-kuiic               Kuiic                                      kinetis_k32l2  https://github.com/nxf58843/kuiic
+frdm_k32l2a4s       Freedom K32L2A4S                           kinetis_k32l  https://www.nxp.com/design/design-center/development-boards-and-designs/FRDM-K32L2A4S
+frdm_k32l2b         Freedom K32L2B3                            kinetis_k32l  https://www.nxp.com/design/design-center/development-boards-and-designs/general-purpose-mcus/nxp-freedom-development-platform-for-k32-l2b-mcus:FRDM-K32L2B3
+kuiic               Kuiic                                      kinetis_k32l  https://github.com/nxf58843/kuiic
 frdm_kl25z          fomu                                       kinetis_kl     https://www.nxp.com/design/design-center/development-boards-and-designs/general-purpose-mcus/freedom-development-platform-for-kinetis-kl14-kl15-kl24-kl25-mcus:FRDM-KL25Z
 lpcxpresso11u37     LPCXpresso11U37                            lpc11          https://www.nxp.com/design/design-center/development-boards-and-designs/OM13074
 lpcxpresso11u68     LPCXpresso11U68                            lpc11          https://www.nxp.com/design/design-center/development-boards-and-designs/OM13058

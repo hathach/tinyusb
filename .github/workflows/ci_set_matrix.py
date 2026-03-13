@@ -34,7 +34,7 @@ family_list = {
     "hpmicro": ["riscv-gcc"],
     "imxrt": ["arm-gcc", "arm-clang"],
     "kinetis_k": ["arm-gcc", "arm-clang"],
-    "kinetis_k32l2": ["arm-gcc", "arm-clang"],
+    "kinetis_k32l": ["arm-gcc", "arm-clang"],
     "kinetis_kl": ["arm-gcc", "arm-clang"],
     "lpc11": ["arm-gcc", "arm-clang"],
     "lpc13": ["arm-gcc", "arm-clang"],
