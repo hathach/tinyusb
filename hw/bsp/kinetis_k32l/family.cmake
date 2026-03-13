@@ -34,7 +34,6 @@ function(family_add_board BOARD_TARGET)
   add_library(${BOARD_TARGET} STATIC
     # driver
     ${MCUX_DIR}/drivers/gpio/fsl_gpio.c
-    ${MCUX_DIR}/drivers/common/fsl_common_arm.c
     ${MCUX_DIR}/drivers/lpuart/fsl_lpuart.c
     # mcu
     ${SDK_DIR}/K32L/${MCU_VARIANT}/system_${MCU_VARIANT}.c
