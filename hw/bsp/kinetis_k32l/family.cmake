@@ -1,7 +1,7 @@
 include_guard()
 
-set(MCUX_DIR ${TOP}/hw/mcu/nxp/mcuxsdk-core)
-set(SDK_DIR ${TOP}/hw/mcu/nxp/mcux-devices-kinetis)
+set(MCUX_CORE ${TOP}/hw/mcu/nxp/mcuxsdk-core)
+set(MCUX_DEVICES ${TOP}/hw/mcu/nxp/mcux-devices-kinetis)
 set(CMSIS_DIR ${TOP}/lib/CMSIS_6)
 
 # include board specific
@@ -18,14 +18,11 @@ set(FAMILY_MCUS KINETIS_K32L CACHE INTERNAL "")
 # Startup & Linker script
 #------------------------------------
 if (NOT DEFINED LD_FILE_GNU)
-  set(LD_FILE_GNU ${SDK_DIR}/K32L/${MCU_VARIANT}/gcc/${MCU_CORE}_flash.ld)
+  set(LD_FILE_GNU ${MCUX_DEVICES}/K32L/${MCU_VARIANT}/gcc/${MCU_CORE}_flash.ld)
 endif ()
-set(LD_FILE_Clang ${LD_FILE_GNU})
-
 if (NOT DEFINED STARTUP_FILE_GNU)
-  set(STARTUP_FILE_GNU ${SDK_DIR}/K32L/${MCU_VARIANT}/gcc/startup_${MCU_VARIANT}.S)
+  set(STARTUP_FILE_GNU ${MCUX_DEVICES}/K32L/${MCU_VARIANT}/gcc/startup_${MCU_VARIANT}.S)
 endif ()
-set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 
 #------------------------------------
 # Board Target
@@ -33,24 +30,25 @@ set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 function(family_add_board BOARD_TARGET)
   add_library(${BOARD_TARGET} STATIC
     # driver
-    ${MCUX_DIR}/drivers/gpio/fsl_gpio.c
-    ${MCUX_DIR}/drivers/lpuart/fsl_lpuart.c
+    ${MCUX_CORE}/drivers/gpio/fsl_gpio.c
+    ${MCUX_CORE}/drivers/common/fsl_common_arm.c
+    ${MCUX_CORE}/drivers/lpuart/fsl_lpuart.c
     # mcu
-    ${SDK_DIR}/K32L/${MCU_VARIANT}/system_${MCU_VARIANT}.c
-    ${SDK_DIR}/K32L/${MCU_VARIANT}/drivers/fsl_clock.c
+    ${MCUX_DEVICES}/K32L/${MCU_VARIANT}/system_${MCU_VARIANT}.c
+    ${MCUX_DEVICES}/K32L/${MCU_VARIANT}/drivers/fsl_clock.c
     )
   target_compile_definitions(${BOARD_TARGET} PUBLIC
     __STARTUP_CLEAR_BSS
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
     ${CMSIS_DIR}/CMSIS/Core/Include
-    ${MCUX_DIR}/drivers/common
-    ${MCUX_DIR}/drivers/gpio
-    ${MCUX_DIR}/drivers/lpuart
-    ${MCUX_DIR}/drivers/port
-    ${MCUX_DIR}/drivers/smc
-    ${SDK_DIR}/K32L/${MCU_VARIANT}
-    ${SDK_DIR}/K32L/${MCU_VARIANT}/drivers
+    ${MCUX_CORE}/drivers/common
+    ${MCUX_CORE}/drivers/gpio
+    ${MCUX_CORE}/drivers/lpuart
+    ${MCUX_CORE}/drivers/port
+    ${MCUX_CORE}/drivers/smc
+    ${MCUX_DEVICES}/K32L/${MCU_VARIANT}
+    ${MCUX_DEVICES}/K32L/${MCU_VARIANT}/drivers
     )
 
   update_board(${BOARD_TARGET})
@@ -82,18 +80,11 @@ function(family_configure_example TARGET RTOS)
       --specs=nosys.specs --specs=nano.specs
       -nostartfiles
       )
-  elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    target_link_options(${TARGET} PUBLIC
-      "LINKER:--script=${LD_FILE_GNU}"
-      )
+    set_source_files_properties(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c PROPERTIES COMPILE_FLAGS "-Wno-missing-prototypes")
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
     target_link_options(${TARGET} PUBLIC
       "LINKER:--config=${LD_FILE_IAR}"
       )
-  endif ()
-
-  if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    set_source_files_properties(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c PROPERTIES COMPILE_FLAGS "-Wno-missing-prototypes")
   endif ()
   set_source_files_properties(${STARTUP_FILE_${CMAKE_C_COMPILER_ID}} PROPERTIES
     SKIP_LINTING ON

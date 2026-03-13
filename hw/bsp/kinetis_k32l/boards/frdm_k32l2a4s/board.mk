@@ -1,4 +1,4 @@
-MCU = K32L2A41A
+MCU_VARIANT = K32L2A41A
 
 CFLAGS += -DCPU_K32L2A41VLH1A
 
@@ -6,7 +6,13 @@ CFLAGS += -DCPU_K32L2A41VLH1A
 CFLAGS_GCC += -Wno-error=unused-parameter -Wno-error=redundant-decls -Wno-error=cast-qual
 
 # All source paths should be relative to the top level.
-LD_FILE = $(MCU_DIR)/gcc/K32L2A41xxxxA_flash.ld
+LD_FILE = $(MCUX_DEVICES)/K32L/$(MCU_VARIANT)/gcc/K32L2A41xxxxA_flash.ld
+
+INC += \
+	$(TOP)/$(MCUX_DEVICES)/K32L/periph1
+
+SRC_C += \
+	$(BOARD_PATH)/clock_config.c
 
 # For flash-jlink target
 JLINK_DEVICE = K32L2A41xxxxA

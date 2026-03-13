@@ -14,6 +14,6 @@ function(update_board TARGET)
     CPU_K32L2B31VLH0A
     )
   target_include_directories(${TARGET} PUBLIC
-    ${SDK_DIR}/K32L/periph2
+    ${MCUX_DEVICES}/K32L/periph2
     )
 endfunction()
