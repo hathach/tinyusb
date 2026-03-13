@@ -2,6 +2,7 @@
 #define RP2040_COMMON_H_
 
 #include "pico.h"
+#include "pico/critical_section.h"
 #include "hardware/structs/usb.h"
 #include "hardware/irq.h"
 #include "hardware/resets.h"
@@ -72,8 +73,8 @@ typedef struct hw_endpoint {
   uint8_t pending;     // Transfer scheduled but not active
 #endif
 
-#if CFG_TUH_ENABLED
   bool    configured;    // Is this a valid struct
+#if CFG_TUH_ENABLED
   uint8_t dev_addr;
   uint8_t interrupt_num; // for host interrupt endpoints
 #endif
@@ -107,10 +108,20 @@ bool hw_endpoint_xfer_continue(struct hw_endpoint *ep);
 void hw_endpoint_reset_transfer(struct hw_endpoint *ep);
 void hw_endpoint_start_next_buffer(struct hw_endpoint *ep);
 
-TU_ATTR_ALWAYS_INLINE static inline void hw_endpoint_lock_update(__unused struct hw_endpoint * ep, __unused int delta) {
-  // todo add critsec as necessary to prevent issues between worker and IRQ...
-  //  note that this is perhaps as simple as disabling IRQs because it would make
-  //  sense to have worker and IRQ on same core, however I think using critsec is about equivalent.
+TU_ATTR_ALWAYS_INLINE static inline void hw_endpoint_lock_update(__unused struct hw_endpoint * ep, int delta) {
+  static critical_section_t hw_endpoint_crit_sec;
+  static int hw_endpoint_crit_sec_ref = 0;
+  if ( !critical_section_is_initialized(&hw_endpoint_crit_sec) ) {
+    critical_section_init(&hw_endpoint_crit_sec);
+  }
+
+  if ( delta > 0 && !hw_endpoint_crit_sec_ref ) {
+    critical_section_enter_blocking(&hw_endpoint_crit_sec);
+  }
+  hw_endpoint_crit_sec_ref += delta;
+  if ( hw_endpoint_crit_sec_ref == 0 ) {
+    critical_section_exit(&hw_endpoint_crit_sec);
+  }
 }
 
 // #if CFG_TUD_ENABLED
