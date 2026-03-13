@@ -47,8 +47,12 @@ extern "C" {
 
 // Dual-port: USB1 (rhport 0) = Device, USB2 (rhport 1) = Host
 // Swap these two if you want the opposite assignment
+#ifndef BOARD_TUD_RHPORT
 #define BOARD_TUD_RHPORT  0
+#endif
+#ifndef BOARD_TUH_RHPORT
 #define BOARD_TUH_RHPORT  1
+#endif
 
 #ifdef __cplusplus
 }

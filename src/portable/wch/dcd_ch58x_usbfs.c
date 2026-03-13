@@ -95,7 +95,10 @@ struct usb_xfer {
 typedef struct {
   uint32_t usb_base;
   bool ep0_tog;
-  bool isochronous[EP_MAX];
+  volatile uint8_t setup_pending;     // SETUP arrived while EP0 completion pending in queue
+  volatile bool ep0_completion_pending; // EP0 XFER_COMPLETE in event queue, not yet processed
+  uint8_t pending_addr;               // Address to set in ISR after Set Address status ZLP
+  bool isochronous[EP_MAX][2]; // [ep][dir]
   struct usb_xfer xfer[EP_MAX][2];  // [ep][dir]
 
   // EP0 + EP4 shared buffer: EP0 OUT(64) + EP4 OUT(64) + EP4 IN(64)
@@ -117,9 +120,6 @@ static dcd_data_t _dcd_data[2];
 
 //--------------------------------------------------------------------+
 // Buffer address helpers
-// EP0: ep0_buffer[0..63]
-// EP4 OUT: ep0_buffer[64..127]  EP4 IN: ep0_buffer[128..191]
-// Other EPs: epX_buffer[0] = OUT, epX_buffer[1] = IN
 //--------------------------------------------------------------------+
 static uint8_t* ep_out_buffer(dcd_data_t* d, uint8_t ep) {
   switch (ep) {
@@ -149,8 +149,7 @@ static uint8_t* ep_in_buffer(dcd_data_t* d, uint8_t ep) {
   }
 }
 
-// Get DMA base pointer for endpoint (the buffer whose address is set to DMA register)
-// For EP4, DMA is shared with EP0, so we return EP0 buffer
+// DMA base pointer (EP4 shares with EP0)
 static uint8_t* ep_dma_buffer(dcd_data_t* d, uint8_t ep) {
   switch (ep) {
     case 0: case 4: return &d->ep0_buffer[0];
@@ -164,12 +163,9 @@ static uint8_t* ep_dma_buffer(dcd_data_t* d, uint8_t ep) {
   }
 }
 
-//--------------------------------------------------------------------+
-// AUTO_TOG supported on EP1/2/3/5/6/7 (no EP0 or EP4)
-//--------------------------------------------------------------------+
-static inline bool ep_has_auto_toggle(uint8_t ep) {
-  return (ep >= 1 && ep <= 3) || (ep >= 5 && ep <= 7);
-}
+// AUTO_TOG is not used (EP1-3/5-7 support it). When clear-stall resets T_TOG/
+// R_TOG to DATA0, the hardware internal toggle doesn't sync, causing mismatch
+// and bus resets. Use manual toggle (EP_CTRL ^= TOG) in ISR instead.
 
 //--------------------------------------------------------------------+
 // Private transfer helpers
@@ -203,7 +199,7 @@ static void update_in(uint8_t rhport, uint8_t ep, bool force, bool in_isr) {
         if (d->ep0_tog) ctrl |= CH58X_EP_T_TOG;
         EP_CTRL(base, 0) = ctrl;
         d->ep0_tog = !d->ep0_tog;
-      } else if (d->isochronous[ep]) {
+      } else if (d->isochronous[ep][TUSB_DIR_IN]) {
         ep_set_tx_response(base, ep, CH58X_EP_T_RES_TOUT);
       } else {
         ep_set_tx_response(base, ep, CH58X_EP_T_RES_ACK);
@@ -212,6 +208,7 @@ static void update_in(uint8_t rhport, uint8_t ep, bool force, bool in_isr) {
       // Transfer complete
       xfer->valid = false;
       ep_set_tx_response(base, ep, CH58X_EP_T_RES_NAK);
+      if (ep == 0) d->ep0_completion_pending = true;
       dcd_event_xfer_complete(rhport, ep | TUSB_DIR_IN_MASK,
                               xfer->processed_len, XFER_RESULT_SUCCESS, in_isr);
     }
@@ -238,11 +235,13 @@ static void update_out(uint8_t rhport, uint8_t ep, size_t rx_len, bool in_isr) {
 
     if (xfer->len == 0 || len < xfer->max_size) {
       xfer->valid = false;
+      // NAK to prevent hardware from accepting next OUT before a new xfer is queued
+      ep_set_rx_response(base, ep, CH58X_EP_R_RES_NAK);
+      if (ep == 0) d->ep0_completion_pending = true;
       dcd_event_xfer_complete(rhport, ep, xfer->processed_len,
                               XFER_RESULT_SUCCESS, in_isr);
-    }
-
-    if (ep == 0) {
+    } else if (ep == 0) {
+      // EP0 multi-packet: ensure ACK for next packet
       ep_set_rx_response(base, 0, CH58X_EP_R_RES_ACK);
     }
   }
@@ -262,6 +261,12 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   tu_memclr(d->xfer, sizeof(d->xfer));
   tu_memclr(d->isochronous, sizeof(d->isochronous));
   d->ep0_tog = true;
+  d->setup_pending = 0;
+  d->ep0_completion_pending = false;
+  d->pending_addr = 0;
+
+  // Reset USB control register first (SDK pattern)
+  USB_CTRL(base) = 0x00;
 
   // Init control registers
   USB_CTRL(base) = CH58X_UC_DEV_PU_EN | CH58X_UC_INT_BUSY | CH58X_UC_DMA_EN;
@@ -286,22 +291,22 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
                              CH58X_UEP6_RX_EN | CH58X_UEP6_TX_EN |
                              CH58X_UEP7_RX_EN | CH58X_UEP7_TX_EN;
 
-  // EP1-3: DMA + auto-toggle + NAK both directions
+  // EP1-3: DMA + manual toggle + NAK both directions
   for (uint8_t ep = 1; ep <= 3; ep++) {
     EP_DMA(base, ep) = (uint16_t)(uint32_t) ep_dma_buffer(d, ep);
     EP_TLEN(base, ep) = 0;
-    EP_CTRL(base, ep) = CH58X_EP_AUTO_TOG | CH58X_EP_R_RES_NAK | CH58X_EP_T_RES_NAK;
+    EP_CTRL(base, ep) = CH58X_EP_R_RES_NAK | CH58X_EP_T_RES_NAK;
   }
 
   // EP4: no independent DMA, no auto-toggle
   EP_TLEN(base, 4) = 0;
   EP_CTRL(base, 4) = CH58X_EP_R_RES_NAK | CH58X_EP_T_RES_NAK;
 
-  // EP5-7: DMA + auto-toggle
+  // EP5-7: DMA + manual toggle
   for (uint8_t ep = 5; ep <= 7; ep++) {
     EP_DMA(base, ep) = (uint16_t)(uint32_t) ep_dma_buffer(d, ep);
     EP_TLEN(base, ep) = 0;
-    EP_CTRL(base, ep) = CH58X_EP_AUTO_TOG | CH58X_EP_R_RES_NAK | CH58X_EP_T_RES_NAK;
+    EP_CTRL(base, ep) = CH58X_EP_R_RES_NAK | CH58X_EP_T_RES_NAK;
   }
 
   // Set EP0 max size
@@ -322,36 +327,33 @@ void dcd_int_handler(uint8_t rhport) {
     uint8_t ep = CH58X_INT_ST_ENDP(int_st);
     uint8_t token = CH58X_INT_ST_TOKEN(int_st);
 
-    // Check SETUP first via dedicated flag
-    if (int_st & CH58X_UIS_SETUP_ACT) {
-      // SETUP packet received on EP0
-      // After SETUP, both toggle bits must be set to DATA1 (SDK reference)
-      EP_CTRL(base, 0) = CH58X_EP_R_TOG | CH58X_EP_T_TOG |
-                         CH58X_EP_R_RES_ACK | CH58X_EP_T_RES_NAK;
-      d->ep0_tog = true;
-      dcd_event_setup_received(rhport, ep_out_buffer(d, 0), true);
-    } else {
+    // Process regular token before SETUP to avoid losing it
+    if (token != CH58X_PID_SETUP) {
       switch (token) {
         case CH58X_PID_OUT: {
           uint8_t rx_len = USB_RX_LEN(base);
           if (ep == 0) {
-            // EP0: always process (toggle managed via SETUP reset)
+            // EP0: manual toggle, always process
+            EP_CTRL(base, 0) ^= CH58X_EP_R_TOG;
             update_out(rhport, 0, rx_len, true);
           } else if (int_st & CH58X_UIS_TOG_OK) {
-            // Toggle matched: data is valid
-            if (!ep_has_auto_toggle(ep)) {
-              // EP4: manual toggle
-              EP_CTRL(base, ep) ^= CH58X_EP_R_TOG;
-            }
+            // Toggle OK: manual toggle and process
+            EP_CTRL(base, ep) ^= CH58X_EP_R_TOG;
             update_out(rhport, ep, rx_len, true);
           }
-          // else: toggle mismatch, discard packet per datasheet
+          // else: toggle mismatch, discard
           break;
         }
 
         case CH58X_PID_IN: {
-          if (!ep_has_auto_toggle(ep) && ep != 0) {
-            // Manual toggle for EP4-7
+          // Apply pending Set Address immediately after status ZLP
+          if (ep == 0 && d->pending_addr) {
+            USB_DEV_AD(base) = (USB_DEV_AD(base) & CH58X_UDA_GP_BIT) |
+                               (d->pending_addr & CH58X_USB_ADDR_MASK);
+            d->pending_addr = 0;
+          }
+          if (ep != 0) {
+            // Manual toggle for all non-EP0 endpoints
             EP_CTRL(base, ep) ^= CH58X_EP_T_TOG;
           }
           update_in(rhport, ep, false, true);
@@ -361,24 +363,61 @@ void dcd_int_handler(uint8_t rhport) {
         default:
           break;
       }
+      USB_INT_FG(base) = CH58X_UIF_TRANSFER;
     }
 
-    USB_INT_FG(base) = CH58X_UIF_TRANSFER;
-  } else if (status & CH58X_UIF_BUS_RST) {
-    // Bus reset
+    // SETUP_ACT is checked separately — it persists even if token field changed
+    if (int_st & CH58X_UIS_SETUP_ACT) {
+      // Reset toggles to DATA1, NAK both directions until stack is ready
+      EP_CTRL(base, 0) = CH58X_EP_R_TOG | CH58X_EP_T_TOG |
+                         CH58X_EP_R_RES_NAK | CH58X_EP_T_RES_NAK;
+      d->ep0_tog = true;
+
+      d->pending_addr = 0;
+
+      // Mark stale EP0 completion so dcd_edpt_xfer can skip it
+      d->setup_pending = d->ep0_completion_pending ? 1 : 0;
+      d->ep0_completion_pending = false;
+      d->xfer[0][TUSB_DIR_OUT].valid = false;
+      d->xfer[0][TUSB_DIR_IN].valid = false;
+
+      dcd_event_setup_received(rhport, ep_out_buffer(d, 0), true);
+      USB_INT_FG(base) = CH58X_UIF_TRANSFER;
+    }
+  }
+
+  // Process bus reset: reset all endpoints immediately (matching WCH SDK pattern)
+  if (status & CH58X_UIF_BUS_RST) {
     d->ep0_tog = true;
+    d->setup_pending = 0;
+    d->ep0_completion_pending = false;
+    d->pending_addr = 0;
+
+    // Reset EP0: ACK for RX (ready for SETUP), NAK for TX
+    EP_CTRL(base, 0) = CH58X_EP_R_RES_ACK | CH58X_EP_T_RES_NAK;
+    EP_TLEN(base, 0) = 0;
     d->xfer[0][TUSB_DIR_OUT].max_size = EP_BUF_SIZE;
     d->xfer[0][TUSB_DIR_IN].max_size = EP_BUF_SIZE;
 
-    USB_DEV_AD(base) = 0x00;
-    ep_set_rx_response(base, 0, CH58X_EP_R_RES_ACK);
+    // Reset EP1-7: NAK both directions, invalidate pending transfers
+    for (uint8_t ep = 1; ep < EP_MAX; ep++) {
+      d->xfer[ep][TUSB_DIR_IN].valid = false;
+      d->xfer[ep][TUSB_DIR_OUT].valid = false;
+      EP_CTRL(base, ep) = CH58X_EP_R_RES_NAK | CH58X_EP_T_RES_NAK;
+      EP_TLEN(base, ep) = 0;
+    }
 
-    tusb_speed_t speed = (USB_MIS_ST(base) & CH58X_UMS_DM_LEVEL) ?
+    USB_DEV_AD(base) = 0x00;
+
+    tusb_speed_t speed = (USB_CTRL(base) & CH58X_UC_LOW_SPEED) ?
                           TUSB_SPEED_LOW : TUSB_SPEED_FULL;
     dcd_event_bus_reset(rhport, speed, true);
 
     USB_INT_FG(base) = CH58X_UIF_BUS_RST;
-  } else if (status & CH58X_UIF_SUSPEND) {
+  }
+
+  // Process suspend/resume
+  if (status & CH58X_UIF_SUSPEND) {
     dcd_event_bus_signal(rhport,
       (USB_MIS_ST(base) & CH58X_UMS_SUSPEND) ? DCD_EVENT_SUSPEND : DCD_EVENT_RESUME,
       true);
@@ -401,16 +440,14 @@ void dcd_int_disable(uint8_t rhport) {
 }
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
-  (void) dev_addr;
-  // Address is set in status stage complete callback
+  // Defer to ISR: apply address right after status ZLP is ACK'd
+  _dcd_data[rhport].pending_addr = dev_addr;
   dcd_edpt_xfer(rhport, 0x80, NULL, 0, false);
 }
 
 void dcd_remote_wakeup(uint8_t rhport) {
-  uint32_t base = get_usb_base(rhport);
-  USB_UDEV_CTRL(base) |= CH58X_UD_GP_BIT;
-  tusb_time_delay_ms_api(1); // 1ms resume signal per USB spec
-  USB_UDEV_CTRL(base) &= ~CH58X_UD_GP_BIT;
+  (void) rhport;
+  // TODO: not supported
 }
 
 void dcd_connect(uint8_t rhport) {
@@ -424,8 +461,6 @@ void dcd_disconnect(uint8_t rhport) {
 }
 
 void dcd_sof_enable(uint8_t rhport, bool en) {
-  // CH58x has no device-mode SOF interrupt.
-  // RB_UIE_HST_SOF (0x08) is host-mode only and has no effect in device mode.
   (void) rhport;
   (void) en;
 }
@@ -437,11 +472,20 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const* req
   if (request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_DEVICE &&
       request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD &&
       request->bRequest == TUSB_REQ_SET_ADDRESS) {
-    // Preserve GP_BIT (bit7) when setting device address
+    // Safety net: re-apply address in case ISR path was skipped
     USB_DEV_AD(base) = (USB_DEV_AD(base) & CH58X_UDA_GP_BIT) |
                        ((uint8_t)request->wValue & CH58X_USB_ADDR_MASK);
   }
-  ep_set_both_response(base, 0, CH58X_EP_T_RES_NAK, CH58X_EP_R_RES_ACK);
+
+  dcd_int_disable(rhport);
+  d->ep0_completion_pending = false;
+  if (d->setup_pending) {
+    // SETUP already arrived — don't override its NAK with ACK
+    d->setup_pending = 0;
+  } else {
+    ep_set_both_response(base, 0, CH58X_EP_T_RES_NAK, CH58X_EP_R_RES_ACK);
+  }
+  dcd_int_enable(rhport);
 }
 
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const* desc_ep) {
@@ -451,29 +495,26 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const* desc_ep) {
   uint8_t dir = tu_edpt_dir(desc_ep->bEndpointAddress);
   TU_ASSERT(ep < EP_MAX);
 
-  d->isochronous[ep] = (desc_ep->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS);
+  d->isochronous[ep][dir] = (desc_ep->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS);
   d->xfer[ep][dir].max_size = tu_edpt_packet_size(desc_ep);
 
   if (ep != 0) {
     dcd_int_disable(rhport);
     uint8_t ctrl = EP_CTRL(base, ep);
     if (dir == TUSB_DIR_OUT) {
-      if (d->isochronous[ep]) {
+      // Clear RX toggle to DATA0 per USB spec
+      ctrl &= ~CH58X_EP_R_TOG;
+      if (d->isochronous[ep][TUSB_DIR_OUT]) {
         ctrl = (ctrl & ~CH58X_EP_R_RES_MASK) | CH58X_EP_R_RES_TOUT;
       } else {
         // Start with NAK; dcd_edpt_xfer will set ACK when a transfer is submitted
         ctrl = (ctrl & ~CH58X_EP_R_RES_MASK) | CH58X_EP_R_RES_NAK;
       }
-      // Enable auto toggle for EP1-3
-      if (ep_has_auto_toggle(ep)) {
-        ctrl |= CH58X_EP_AUTO_TOG;
-      }
     } else {
+      // Clear TX toggle to DATA0 per USB spec
+      ctrl &= ~CH58X_EP_T_TOG;
       EP_TLEN(base, ep) = 0;
       ctrl = (ctrl & ~CH58X_EP_T_RES_MASK) | CH58X_EP_T_RES_NAK;
-      if (ep_has_auto_toggle(ep)) {
-        ctrl |= CH58X_EP_AUTO_TOG;
-      }
     }
     EP_CTRL(base, ep) = ctrl;
     dcd_int_enable(rhport);
@@ -488,7 +529,8 @@ void dcd_edpt_close_all(uint8_t rhport) {
   for (uint8_t ep = 1; ep < EP_MAX; ep++) {
     d->xfer[ep][TUSB_DIR_IN].valid = false;
     d->xfer[ep][TUSB_DIR_OUT].valid = false;
-    d->isochronous[ep] = false;
+    d->isochronous[ep][TUSB_DIR_OUT] = false;
+    d->isochronous[ep][TUSB_DIR_IN] = false;
     EP_CTRL(base, ep) = CH58X_EP_R_RES_NAK | CH58X_EP_T_RES_NAK;
   }
 }
@@ -515,6 +557,17 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer,
   struct usb_xfer* xfer = &d->xfer[ep][dir];
 
   dcd_int_disable(rhport);
+
+  // Skip stale EP0 arm if a new SETUP has already arrived
+  if (ep == 0) {
+    d->ep0_completion_pending = false;
+    if (d->setup_pending) {
+      d->setup_pending = 0;
+      dcd_int_enable(rhport);
+      return true;
+    }
+  }
+
   xfer->valid = true;
   xfer->buffer = buffer;
   xfer->len = total_bytes;
@@ -523,13 +576,11 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer,
   if (dir == TUSB_DIR_IN) {
     update_in(rhport, ep, true, is_isr);
   } else {
-    // For OUT direction, set endpoint to ACK to start receiving data
-    if (ep != 0) {
-      if (d->isochronous[ep]) {
-        ep_set_rx_response(d->usb_base, ep, CH58X_EP_R_RES_TOUT);
-      } else {
-        ep_set_rx_response(d->usb_base, ep, CH58X_EP_R_RES_ACK);
-      }
+
+    if (d->isochronous[ep][TUSB_DIR_OUT]) {
+      ep_set_rx_response(d->usb_base, ep, CH58X_EP_R_RES_TOUT);
+    } else {
+      ep_set_rx_response(d->usb_base, ep, CH58X_EP_R_RES_ACK);
     }
   }
   dcd_int_enable(rhport);

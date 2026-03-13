@@ -56,20 +56,10 @@
 
 //--------------------------------------------------------------------+
 // Endpoint DMA / T_LEN / CTRL register accessors
-//
-// EP0-EP3 DMA : base + 0x10 + ep*4  (EP4 shares EP0 DMA, no own register)
-// EP5-EP7 DMA : base + 0x54 + (ep-5)*4
-// EP0-EP4 TLEN: base + 0x20 + ep*4
-// EP5-EP7 TLEN: base + 0x64 + (ep-5)*4
-// EP0-EP4 CTRL: base + 0x22 + ep*4
-// EP5-EP7 CTRL: base + 0x66 + (ep-5)*4
-//
-// Using computed addresses avoids per-TU copies of static lookup tables.
-// EP4 DMA is not accessed directly (it shares EP0's DMA register).
 //--------------------------------------------------------------------+
 
-// EP DMA is 16-bit (only low 16 bits of RAM address, high bits implied 0x2000)
-#define CH58X_EP_DMA(base, ep)   (*(volatile uint16_t *)((base) + ((ep) <= 3 ? (0x10u + (ep)*4u) : (0x54u + ((ep)-5u)*4u))))
+// EP DMA is 16-bit (only low 16 bits of RAM address, high bits implied 0x2000), EP4 shares EP0's DMA register (no independent DMA), so ep==4 maps to base+0x10
+#define CH58X_EP_DMA(base, ep)   (*(volatile uint16_t *)((base) + ((ep) <= 3 ? (0x10u + (ep)*4u) : ((ep) == 4 ? 0x10u : (0x54u + ((ep)-5u)*4u)))))
 #define CH58X_EP_TLEN(base, ep)  (*(volatile uint8_t  *)((base) + ((ep) <= 4 ? (0x20u + (ep)*4u) : (0x64u + ((ep)-5u)*4u))))
 #define CH58X_EP_CTRL(base, ep)  (*(volatile uint8_t  *)((base) + ((ep) <= 4 ? (0x22u + (ep)*4u) : (0x66u + ((ep)-5u)*4u))))
 
@@ -121,6 +111,7 @@
 //--------------------------------------------------------------------+
 #define CH58X_INT_ST_ENDP(x)    (((x) >> 0) & 0x0F)
 #define CH58X_INT_ST_TOKEN(x)   (((x) >> 4) & 0x03)
+#define CH58X_UIS_TOG_OK         0x40  // toggle match flag (device and host)
 #define CH58X_UIS_SETUP_ACT     0x80
 
 // Token PID values
@@ -147,7 +138,7 @@
 //  Bit 7: RB_UEP_R_TOG    RX data toggle
 //  Bit 6: RB_UEP_T_TOG    TX data toggle
 //  Bit 5: (reserved)
-//  Bit 4: RB_UEP_AUTO_TOG auto toggle (EP1/2/3 only)
+//  Bit 4: RB_UEP_AUTO_TOG auto toggle (EP1/2/3/5/6/7, not EP0/EP4)
 //  Bit 3: R_RES1           RX response high
 //  Bit 2: R_RES0           RX response low
 //  Bit 1: T_RES1           TX response high
@@ -253,7 +244,6 @@
 // USB_INT_ST host-mode bits
 //--------------------------------------------------------------------+
 #define CH58X_UIS_H_RES_MASK      0x0F
-#define CH58X_UIS_TOG_OK          0x40
 
 //--------------------------------------------------------------------+
 // USB_DEV_AD bits
