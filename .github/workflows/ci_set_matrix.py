@@ -26,6 +26,7 @@ family_list = {
     "at32f45x": ["arm-gcc"],
     "broadcom_32bit": ["arm-gcc"],
     "broadcom_64bit": ["aarch64-gcc"],
+    "ch32f20x": ["arm-gcc"],
     "ch32v10x": ["riscv-gcc"],
     "ch32v20x": ["riscv-gcc"],
     "ch32v30x": ["riscv-gcc"],

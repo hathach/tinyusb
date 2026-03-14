@@ -116,7 +116,7 @@ void board_pin_init(void)
   PORTA.PCR.BIT.B4 = 1U;
   MPC.PA4PFS.BYTE  = 0b01010;
   PORTA.PMR.BIT.B3 = 1U;
-  MPC.PA5PFS.BYTE  = 0b01010;
+  MPC.PA3PFS.BYTE  = 0b01010;
 
   /* USB VBUS -> P16 */
   PORT1.PMR.BIT.B6 = 1U;

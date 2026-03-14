@@ -19,9 +19,4 @@ function(update_board TARGET)
   target_include_directories(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     )
-  target_compile_definitions(${TARGET} PUBLIC
-    IR_USB0_USBI0=IR_PERIB_INTB185
-    IER_USB0_USBI0=IER_PERIB_INTB185
-    IEN_USB0_USBI0=IEN_PERIB_INTB185
-    )
 endfunction()
