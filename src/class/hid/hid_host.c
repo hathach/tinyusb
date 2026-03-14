@@ -625,8 +625,11 @@ static void process_set_config(tuh_xfer_t* xfer) {
     case CONFG_SET_IDLE: {
       // Idle rate = 0 mean only report when there is changes
       const uint16_t idle_rate = 0;
-      const uintptr_t next_state = (p_hid->itf_protocol != HID_ITF_PROTOCOL_NONE)
-                                   ? CONFIG_SET_PROTOCOL : CONFIG_GET_REPORT_DESC;
+      const uintptr_t next_state =
+          (p_hid->itf_protocol != HID_ITF_PROTOCOL_NONE &&
+          _hidh_default_protocol <= HID_PROTOCOL_REPORT)
+              ? CONFIG_SET_PROTOCOL
+              : CONFIG_GET_REPORT_DESC;
       _hidh_set_idle(daddr, itf_num, idle_rate, process_set_config, next_state);
       break;
     }

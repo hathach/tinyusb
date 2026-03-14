@@ -145,7 +145,8 @@ typedef enum
 typedef enum
 {
   HID_PROTOCOL_BOOT = 0,
-  HID_PROTOCOL_REPORT = 1
+  HID_PROTOCOL_REPORT = 1,
+  HID_PROTOCOL_SKIP = 2,
 } hid_protocol_mode_enum_t;
 
 /** @} */
