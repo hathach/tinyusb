@@ -109,7 +109,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t osal_time_millis(void) {
 #define OSAL_SPINLOCK_DEF(_name, _int_set) \
   osal_spinlock_t _name
 
-#if TUSB_MCU_VENDOR_ESPRESSIF
+#ifdef ESP_PLATFORM
 // Espressif critical take spinlock as argument and does not use in_isr
 typedef portMUX_TYPE osal_spinlock_t;
 

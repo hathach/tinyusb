@@ -28,6 +28,7 @@ jobs:
               "arm-clang"
               "arm-gcc"
               "esp-idf"
+              "ft9xx-gcc"
               "msp430-gcc"
               "riscv-gcc"
             )

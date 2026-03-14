@@ -32,6 +32,8 @@ runs:
           wget --progress=dot:giga ${TOOLCHAIN_URL} -O toolchain.run
           chmod +x toolchain.run
           ./toolchain.run -p ~/cache/${TOOLCHAIN}/gnurx -y
+        elif [[ ${TOOLCHAIN} == ft9xx-gcc ]]; then
+          wget --progress=dot:giga ${TOOLCHAIN_URL} -O ~/cache/${TOOLCHAIN}/ft9xxtoolchain.deb
         elif [[ ${TOOLCHAIN} == arm-iar ]]; then
           wget --progress=dot:giga https://netstorage.iar.com/FileStore/STANDARD/001/003/926/iar-lmsc-tools_1.8_amd64.deb -O ~/cache/${TOOLCHAIN}/iar-lmsc-tools.deb
           wget --progress=dot:giga ${TOOLCHAIN_URL} -O ~/cache/${TOOLCHAIN}/cxarm.deb
@@ -56,6 +58,9 @@ runs:
           sudo dpkg -i ~/cache/${TOOLCHAIN}/iar-lmsc-tools.deb
           sudo apt install -y ~/cache/${TOOLCHAIN}/cxarm.deb
           TOOLCHAIN_PATH="/opt/iar/cxarm/arm/bin"
+        elif [[ ${TOOLCHAIN} == ft9xx-gcc ]]; then
+          sudo apt install -y ~/cache/${TOOLCHAIN}/ft9xxtoolchain.deb
+          TOOLCHAIN_PATH="/opt/ft32/bin"
         else
           # Find the single toolchain bin directory
           TOOLCHAIN_BIN_DIRS=(~/cache/${TOOLCHAIN}/*/bin)

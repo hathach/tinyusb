@@ -846,6 +846,25 @@ function(family_flash_msp430flasher TARGET)
   set_property(TARGET ${TARGET}-msp430flasher PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
+function(family_flash_rfp TARGET)
+  if (NOT DEFINED RFP_CLI)
+    set(RFP_CLI rfp-cli)
+  endif ()
+
+  add_custom_target(${TARGET}-rfp
+    DEPENDS ${TARGET}
+    COMMAND ${CMAKE_OBJCOPY} -O srec -I elf32-rx-be-ns $<TARGET_FILE:${TARGET}> $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.mot
+    COMMAND ${RFP_CLI} -device ${RFP_DEVICE} -tool ${RFP_TOOL} -if fine
+      -fo id FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+      -auth id FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+      -auto $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.mot
+    VERBATIM
+    )
+
+  set_property(TARGET ${TARGET}-rfp PROPERTY FOLDER ${TARGET}-group)
+endfunction()
+
+
 function(family_flash_uniflash TARGET)
   if (NOT DEFINED DSLITE)
     set(DSLITE dslite.sh)
@@ -860,6 +879,21 @@ function(family_flash_uniflash TARGET)
     )
 
   set_property(TARGET ${TARGET}-uniflash PROPERTY FOLDER ${TARGET}-group)
+endfunction()
+
+# Add flash ft9xx target need to remove kernal's ftdi_sio and bind D2XX drivers
+# sudo rmmod ftdi_sio && for i in 0 1 2 3; do sudo sh -c "echo 3-3.4:1.$i > /sys/bus/usb/drivers/ftdi_sio/unbind" 2>/dev/null; done
+function(family_flash_ft9xx TARGET)
+  if (NOT DEFINED FT9XXPROG)
+    set(FT9XXPROG FT9xxProg)
+  endif ()
+
+  add_custom_target(${TARGET}-ft9xx
+    DEPENDS ${TARGET}
+    COMMAND ${FT9XXPROG} -f $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.bin
+    )
+
+  set_property(TARGET ${TARGET}-ft9xx PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 #----------------------------------

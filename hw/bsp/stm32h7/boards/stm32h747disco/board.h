@@ -25,8 +25,8 @@
  */
 
 /* metadata:
-   name: STM32 H745 Discovery
-   url: https://www.st.com/en/evaluation-tools/stm32h745i-disco.html
+   name: STM32 H747 Discovery
+   url: https://www.st.com/en/evaluation-tools/stm32h747i-disco.html
 */
 
 #ifndef BOARD_H_

@@ -18,13 +18,14 @@ FT9XX_SDK = hw/mcu/bridgetek/ft9xx/ft90x-sdk/Source
 INC += "$(TOP)/$(FT9XX_SDK)/include"
 endif
 
+include $(TOP)/$(BOARD_PATH)/board.mk
+
 # Add include files which are within the TinyUSB directory structure.
 INC += \
 	$(TOP)/$(BOARD_PATH)
 
-# Add required C Compiler flags for FT90X.
+# Add required C Compiler flags for FT9XX.
 CFLAGS += \
-	-D__FT900__ \
 	-fvar-tracking \
 	-fvar-tracking-assignments \
 	-fmessage-length=0 \
@@ -50,6 +51,7 @@ SRC_C += src/portable/bridgetek/ft9xx/dcd_ft9xx.c
 ifneq ($(FT9XX_PREBUILT_LIBS),1)
 # Optionally add in files from the Bridgetek SDK instead of the prebuilt
 # library. These are the minimum required.
+SRC_C += $(FT9XX_SDK)/src/bootstrap.c
 SRC_C += $(FT9XX_SDK)/src/sys.c
 SRC_C += $(FT9XX_SDK)/src/interrupt.c
 SRC_C += $(FT9XX_SDK)/src/delay.c
@@ -64,3 +66,10 @@ endif
 
 # Not required crt0 file for FT90X. Use compiler built-in file.
 #SRC_S += hw/mcu/bridgetek/ft9xx/scripts/crt0.S
+
+# Flash using FT9xxProg, need to remove kernal's ftdi_sio and bind D2XX drivers
+# sudo rmmod ftdi_sio && for i in 0 1 2 3; do sudo sh -c "echo 3-3.4:1.$i > /sys/bus/usb/drivers/ftdi_sio/unbind" 2>/dev/null; done
+FT9XXPROG ?= FT9xxProg
+flash: flash-ft9xx
+flash-ft9xx: $(BUILD)/$(PROJECT).bin
+	$(FT9XXPROG) -f $<

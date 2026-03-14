@@ -35,8 +35,8 @@ deps_optional = {
                              'b20b398d3e5e2007594e54a74ba3d2a2e50ddd75',
                              'maxim'],
     'hw/mcu/bridgetek/ft9xx/ft90x-sdk': ['https://github.com/BRTSG-FOSS/ft90x-sdk.git',
-                                         '91060164afe239fcb394122e8bf9eb24d3194eb1',
-                                         'brtmm90x'],
+                                         '03f74eac84645178fdde7f2e5ca9acdcb7bd9dcd',
+                                         'ft9xx'],
     'hw/mcu/broadcom': ['https://github.com/adafruit/broadcom-peripherals.git',
                         '08370086080759ed54ac1136d62d2ad24c6fa267',
                         'broadcom_32bit broadcom_64bit'],
@@ -63,10 +63,13 @@ deps_optional = {
                            'lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43'],
     'hw/mcu/nxp/mcuxsdk-core': ['https://github.com/nxp-mcuxpresso/mcuxsdk-core',
                             '0c5c6b16deb211110e06bde896cdff59ab213e16',
-                            'imxrt lpc51 lpc55 mcx'],
+                            'imxrt kinetis_k32l lpc51 lpc55 mcx'],
     'hw/mcu/nxp/mcux-sdk': ['https://github.com/nxp-mcuxpresso/mcux-sdk',
                             'a1bdae309a14ec95a4f64a96d3315a4f89c397c6',
-                            'kinetis_k kinetis_k32l2 kinetis_kl lpc54 rw61x'],
+                            'kinetis_k kinetis_kl lpc54 rw61x'],
+    'hw/mcu/nxp/mcux-devices-kinetis': ['https://github.com/nxp-mcuxpresso/mcux-devices-kinetis',
+                            '98a155e666c54f396e528ec3131f27a5d5b71f76',
+                            'kinetis_k32l'],
     'hw/mcu/nxp/mcux-devices-lpc': ['https://github.com/nxp-mcuxpresso/mcux-devices-lpc',
                             '8096b783ec09d0d1c8629025a5f9d8e7df26e520',
                             'lpc51 lpc55'],
@@ -267,15 +270,15 @@ deps_optional = {
                                'hpmicro'],
     'lib/CMSIS_5': ['https://github.com/ARM-software/CMSIS_5.git',
                     '2b7495b8535bdcb306dac29b9ded4cfb679d7e5c',
-                    'kinetis_k kinetis_k32l2 kinetis_kl lpc54 rw61x mm32 msp432e4 nrf samd2x_l2x '
+                    'kinetis_k kinetis_kl lpc54 rw61x mm32 msp432e4 nrf samd2x_l2x '
                     'lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43 '
                     'stm32c0 stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 stm32h5 '
                     'stm32h7 stm32h7rs stm32l0 stm32l1 stm32l4 stm32l5 stm32u0 stm32u5 stm32wb stm32wba '
-                    'sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x samd2x_l2x samg '
+                    'sam3x samd11 samd21 samd2x_l2x samd51 samd5x_e5x same5x same7x samg '
                     'tm4c '],
     'lib/CMSIS_6': ['https://github.com/ARM-software/CMSIS_6.git',
                     '6f0a58d01aa9bd2feba212097f9afe7acd991d52',
-                    'imxrt ra stm32n6 lpc51 lpc55 mcx'],
+                    'imxrt kinetis_k32l ra stm32n6 lpc51 lpc55 mcx'],
     'lib/sct_neopixel': ['https://github.com/gsteiert/sct_neopixel.git',
                          'e73e04ca63495672d955f9268e003cffe168fcd8',
                          'lpc55'],
