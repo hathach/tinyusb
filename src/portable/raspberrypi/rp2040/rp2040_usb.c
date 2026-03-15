@@ -43,14 +43,85 @@ static bool e15_is_critical_frame_period(struct hw_endpoint *ep);
     #define e15_is_critical_frame_period(x) (false)
   #endif
 
-//--------------------------------------------------------------------+
-// Implementation
-//--------------------------------------------------------------------+
-// Provide own byte by byte memcpy as not all copies are aligned
-static void unaligned_memcpy(uint8_t *dst, const uint8_t *src, size_t n) {
-  while (n--) {
-    *dst++ = *src++;
-  }
+/*
+ * unaligned_memcpy()
+ *
+ * Goal
+ * ----
+ * Be correct on RP2350 even when src and dst have arbitrary alignment,
+ * including cases where dst points into USB DPRAM / Device memory.
+ *
+ * Strategy
+ * --------
+ *    - Use 32-bit copies when BOTH src and dst are 4-byte aligned.
+ *    - Then use 16-bit copies when BOTH are 2-byte aligned.
+ *    - Finish with a byte tail using VOLATILE byte accesses.
+ *
+ * Why the RP2350 version is written this way
+ * ------------------------------------------
+ * A plain C loop like:
+ *
+ *     while (n--) *dst++ = *src++;
+ *
+ * is not enough. The compiler may recognize it as a memcpy-like pattern and
+ * rewrite it into wider 16-bit or 32-bit accesses. That is exactly what we
+ * must prevent for the unaligned case on RP2350.
+ *
+ * Therefore:
+ *
+ * - The 32-bit path runs ONLY when both pointers are 4-byte aligned.
+ *   Then 32-bit load/store is safe and fast.
+ *
+ * - The 16-bit path runs ONLY when both pointers are 2-byte aligned.
+ *   Then 16-bit load/store is safe.
+ *
+ * - The final byte path uses volatile uint8_t accesses.
+ *   This is deliberate: volatile forces the compiler to emit actual byte
+ *   loads/stores for the tail, instead of "helpfully" widening them.
+ *
+ * This function is for memcpy semantics, not memmove semantics.
+ * Overlapping ranges are still undefined.
+ */
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((noinline))
+#endif
+static void unaligned_memcpy(void *dst_void, const void *src_void, size_t n)
+{
+    uint8_t *dst = (uint8_t *) dst_void;
+    const uint8_t *src = (const uint8_t *) src_void;
+
+    /* Fast path: 32-bit copies, but ONLY when both pointers are 4-byte aligned. */
+    while (n >= 4 && ((((uintptr_t) dst) | ((uintptr_t) src)) & 0x3u) == 0u) {
+        *(volatile uint32_t *)(void *)dst = *(const uint32_t *)(const void *)src;
+        dst += 4;
+        src += 4;
+        n -= 4;
+    }
+
+    /* Next-fastest path: 16-bit copies, but ONLY when both pointers are 2-byte aligned. */
+    while (n >= 2 && ((((uintptr_t) dst) | ((uintptr_t) src)) & 0x1u) == 0u) {
+        *(volatile uint16_t *)(void *)dst = *(const uint16_t *)(const void *)src;
+        dst += 2;
+        src += 2;
+        n -= 2;
+    }
+
+    /*
+     * Tail path: byte copies only.
+     *
+     * The volatile qualifiers are intentional. They make each byte access an
+     * observable side effect, which prevents the compiler from collapsing this
+     * tail into wider accesses.
+     */
+    {
+        volatile uint8_t *vdst = (volatile uint8_t *)(void *)dst;
+        const volatile uint8_t *vsrc = (const volatile uint8_t *)(const void *)src;
+
+        while (n--) {
+            *vdst++ = *vsrc++;
+        }
+    }
 }
 
 void tu_hwfifo_write(volatile void *hwfifo, const uint8_t *src, uint16_t len, const tu_hwfifo_access_t *access_mode) {
