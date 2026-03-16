@@ -59,7 +59,6 @@
  * - Enable USB clock; Perhaps use __HAL_RCC_USB_CLK_ENABLE();
  * - (Optionally configure GPIO HAL to tell it the USB driver is using the USB pins)
  * - call tusb_init();
- * - periodically call tusb_task();
  *
  * Assumptions of the driver:
  * - You are not using CAN (it must share the packet buffer)
@@ -86,19 +85,6 @@
  *     everything?  However, the interrupts are configurable so the DisableInt and EnableInt
  *     below functions could be adjusting the wrong interrupts (if they had been reconfigured)
  * - LPM is not used correctly, or at all?
- *
- * USB documentation and Reference implementations
- * - STM32 Reference manuals
- * - STM32 USB Hardware Guidelines AN4879
- *
- * - STM32 HAL (much of this driver is based on this)
- * - libopencm3/lib/stm32/common/st_usbfs_core.c
- * - Keil USB Device http://www.keil.com/pack/doc/mw/USB/html/group__usbd.html
- *
- * - YouTube OpenTechLab 011; https://www.youtube.com/watch?v=4FOkJLp_PUw
- *
- * Advantages over HAL driver:
- * - Tiny (saves RAM, assumes a single USB peripheral)
  *
  * Notes:
  * - The buffer table is allocated as endpoints are opened. The allocation is only

@@ -38,7 +38,6 @@
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F0
   #include "stm32f0xx.h"
-  #define FSDEV_REG_BASE     USB_BASE
   #define FSDEV_HAS_SBUF_ISO 0
   // F0x2 models are crystal-less
   // All have internal D+ pull-up
@@ -51,21 +50,24 @@
   // NO internal Pull-ups
   //         *B, and *C:    2 x 16 bits/word
 
-#elif defined(STM32F302xB) || defined(STM32F302xC) || defined(STM32F303xB) || defined(STM32F303xC) || \
-  defined(STM32F373xC)
+#elif CFG_TUSB_MCU == OPT_MCU_STM32F3
   #include "stm32f3xx.h"
   #define FSDEV_HAS_SBUF_ISO 0
-  // NO internal Pull-ups
-  //         *B, and *C:    1 x 16 bits/word
-  // PMA dedicated to USB (no sharing with CAN)
+  // NO internal Pull-ups. PMA dedicated to USB (no sharing with CAN)
+  // xB, and xC: 512 bytes
+  // x6, x8, xD, and xE: 1024 bytes + LPM Support. When CAN clock is enabled, USB can use the first 768 bytes ONLY.
 
-#elif defined(STM32F302x6) || defined(STM32F302x8) || defined(STM32F302xD) || defined(STM32F302xE) || \
-  defined(STM32F303xD) || defined(STM32F303xE)
-  #include "stm32f3xx.h"
+#elif CFG_TUSB_MCU == OPT_MCU_STM32G0
+  #include "stm32g0xx.h"
+  #define FSDEV_HAS_SBUF_ISO 1
+
+#elif CFG_TUSB_MCU == OPT_MCU_STM32G4
+  #include "stm32g4xx.h"
   #define FSDEV_HAS_SBUF_ISO 0
-  // NO internal Pull-ups
-  // *6, *8, *D, and *E:    2 x 16 bits/word     LPM Support
-  // When CAN clock is enabled, USB can use first 768 bytes ONLY.
+
+#elif CFG_TUSB_MCU == OPT_MCU_STM32H5
+  #include "stm32h5xx.h"
+  #define FSDEV_HAS_SBUF_ISO 1
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32L0
   #include "stm32l0xx.h"
@@ -87,25 +89,13 @@
     #define USB_PMAADDR (USB_BASE + (USB_PMAADDR_NS - USB_BASE_NS))
   #endif
 
-#elif CFG_TUSB_MCU == OPT_MCU_STM32G0
-  #include "stm32g0xx.h"
-  #define FSDEV_HAS_SBUF_ISO 1
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32G4
-  #include "stm32g4xx.h"
-  #define FSDEV_HAS_SBUF_ISO 0
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32H5
-  #include "stm32h5xx.h"
-  #define FSDEV_HAS_SBUF_ISO 1
-
 #elif CFG_TUSB_MCU == OPT_MCU_STM32U0
   #include "stm32u0xx.h"
   #define FSDEV_HAS_SBUF_ISO 1
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32U3
   #include "stm32u3xx.h"
-  #define FSDEV_HAS_SBUF_ISO 1 // This is assumed to work but has not been tested...
+  #define FSDEV_HAS_SBUF_ISO 1
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32U5
   #include "stm32u5xx.h"
@@ -114,8 +104,6 @@
 #elif CFG_TUSB_MCU == OPT_MCU_STM32WB
   #include "stm32wbxx.h"
   #define FSDEV_HAS_SBUF_ISO 0
-  /* ST provided header has incorrect value of USB_PMAADDR */
-  #define FSDEV_PMA_BASE     USB1_PMAADDR
 
 #else
   #error You are using an untested or unimplemented STM32 variant. Please update the driver.
@@ -185,42 +173,33 @@
 #endif
 
 static const IRQn_Type fsdev_irq[] = {
-  #if TU_CHECK_MCU(OPT_MCU_STM32F0, OPT_MCU_STM32L0, OPT_MCU_STM32L4)
+  #if TU_CHECK_MCU(OPT_MCU_STM32F0, OPT_MCU_STM32L0, OPT_MCU_STM32L4, OPT_MCU_STM32U5)
     USB_IRQn,
-  #elif CFG_TUSB_MCU == OPT_MCU_STM32F1
-    USB_HP_CAN1_TX_IRQn,
-    USB_LP_CAN1_RX0_IRQn,
-    USBWakeUp_IRQn,
-  #elif CFG_TUSB_MCU == OPT_MCU_STM32F3
-    // USB remap handles dcd functions
-    USB_HP_CAN_TX_IRQn,
-    USB_LP_CAN_RX0_IRQn,
-    USBWakeUp_IRQn,
+  #elif TU_CHECK_MCU(OPT_MCU_STM32L5, OPT_MCU_STM32U3)
+    USB_FS_IRQn,
+  #elif TU_CHECK_MCU(OPT_MCU_STM32C0, OPT_MCU_STM32H5, OPT_MCU_STM32U0)
+    USB_DRD_FS_IRQn,
   #elif CFG_TUSB_MCU == OPT_MCU_STM32G0
     #ifdef STM32G0B0xx
     USB_IRQn,
     #else
     USB_UCPD1_2_IRQn,
     #endif
-  #elif CFG_TUSB_MCU == OPT_MCU_STM32C0
-    USB_DRD_FS_IRQn,
+  #elif CFG_TUSB_MCU == OPT_MCU_STM32F1
+    USB_HP_CAN1_TX_IRQn,
+    USB_LP_CAN1_RX0_IRQn,
+    USBWakeUp_IRQn,
+  #elif CFG_TUSB_MCU == OPT_MCU_STM32F3
+    USB_HP_CAN_TX_IRQn,
+    USB_LP_CAN_RX0_IRQn,
+    USBWakeUp_IRQn,
   #elif TU_CHECK_MCU(OPT_MCU_STM32G4, OPT_MCU_STM32L1)
     USB_HP_IRQn,
     USB_LP_IRQn,
     USBWakeUp_IRQn,
-  #elif CFG_TUSB_MCU == OPT_MCU_STM32H5
-    USB_DRD_FS_IRQn,
-  #elif CFG_TUSB_MCU == OPT_MCU_STM32L5
-    USB_FS_IRQn,
   #elif CFG_TUSB_MCU == OPT_MCU_STM32WB
     USB_HP_IRQn,
     USB_LP_IRQn,
-  #elif CFG_TUSB_MCU == OPT_MCU_STM32U5
-    USB_IRQn,
-  #elif CFG_TUSB_MCU == OPT_MCU_STM32U0
-    USB_DRD_FS_IRQn,
-  #elif CFG_TUSB_MCU == OPT_MCU_STM32U3
-    USB_FS_IRQn,
   #else
     #error Unknown arch in USB driver
   #endif
