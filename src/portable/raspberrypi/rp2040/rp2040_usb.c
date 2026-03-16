@@ -83,9 +83,6 @@ static bool e15_is_critical_frame_period(struct hw_endpoint *ep);
  * Overlapping ranges are still undefined.
  */
 
-#if defined(__GNUC__) || defined(__clang__)
-__attribute__((noinline))
-#endif
 static void unaligned_memcpy(void *dst_void, const void *src_void, size_t n)
 {
     uint8_t *dst = (uint8_t *) dst_void;
