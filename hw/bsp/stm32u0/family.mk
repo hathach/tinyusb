@@ -48,4 +48,6 @@ SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_${MCU_VARIANT}.s
 SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_${MCU_VARIANT}.s
 
 # Linker
+MCU_VARIANT_UPPER = $(subst stm32u,STM32U,$(MCU_VARIANT))
+LD_FILE ?= $(FAMILY_PATH)/linker/$(MCU_VARIANT_UPPER)_FLASH.ld
 LD_FILE_IAR ?= $(ST_CMSIS)/Source/Templates/iar/linker/$(MCU_VARIANT)_flash.icf
