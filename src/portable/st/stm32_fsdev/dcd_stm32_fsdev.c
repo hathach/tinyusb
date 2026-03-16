@@ -177,7 +177,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
 
   FSDEV_REG->CNTR = 0; // Enable USB
 
-  #if !defined(FSDEV_BUS_32BIT)
+  #if !defined( CFG_TUSB_FSDEV_32BIT)
   // BTABLE register does not exist any more on 32-bit bus devices
   FSDEV_REG->BTABLE = FSDEV_BTABLE_BASE;
   #endif
@@ -407,7 +407,7 @@ void dcd_int_handler(uint8_t rhport) {
     const uint32_t ep_reg = ep_read(ep_id);
 
     if (ep_reg & U_EP_CTR_RX) {
-  #ifdef FSDEV_BUS_32BIT
+  #ifdef  CFG_TUSB_FSDEV_32BIT
       /* https://www.st.com/resource/en/errata_sheet/es0561-stm32h503cbebkbrb-device-errata-stmicroelectronics.pdf
        * https://www.st.com/resource/en/errata_sheet/es0587-stm32u535xx-and-stm32u545xx-device-errata-stmicroelectronics.pdf
        * From H503/U535 errata: Buffer description table update completes after CTR interrupt triggers

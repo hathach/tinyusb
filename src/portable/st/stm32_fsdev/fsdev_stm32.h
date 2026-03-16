@@ -101,12 +101,10 @@
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32U0
   #include "stm32u0xx.h"
-  #define FSDEV_BUS_32BIT
   #define FSDEV_HAS_SBUF_ISO 1
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32U3
   #include "stm32u3xx.h"
-  #define FSDEV_BUS_32BIT
   #define FSDEV_HAS_SBUF_ISO 1 // This is assumed to work but has not been tested...
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32U5
@@ -121,16 +119,6 @@
 
 #else
   #error You are using an untested or unimplemented STM32 variant. Please update the driver.
-#endif
-
-//--------------------------------------------------------------------+
-// USB DRD compatibility aliases
-// These MCUs use a newer USB_DRD peripheral that needs the USB macro
-// mapped to USB_DRD_FS for connect/disconnect register access.
-//--------------------------------------------------------------------+
-#if TU_CHECK_MCU(OPT_MCU_STM32C0, OPT_MCU_STM32G0, OPT_MCU_STM32H5, \
-                  OPT_MCU_STM32U0, OPT_MCU_STM32U3, OPT_MCU_STM32U5)
-  #define USB                USB_DRD_FS
 #endif
 
 //--------------------------------------------------------------------+
@@ -292,12 +280,12 @@ TU_ATTR_ALWAYS_INLINE static inline void fsdev_int_disable(uint8_t rhport) {
 
 TU_ATTR_ALWAYS_INLINE static inline void fsdev_disconnect(uint8_t rhport) {
   (void)rhport;
-  USB->BCDR &= ~U_BCDR_DPPU;
+  FSDEV_REG->BCDR &= ~U_BCDR_DPPU;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void fsdev_connect(uint8_t rhport) {
   (void)rhport;
-  USB->BCDR |= U_BCDR_DPPU;
+  FSDEV_REG->BCDR |= U_BCDR_DPPU;
 }
 
 #elif defined(SYSCFG_PMC_USB_PU) // works e.g. on STM32L151

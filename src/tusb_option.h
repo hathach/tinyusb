@@ -340,12 +340,16 @@
   #define CFG_TUD_EDPT_DEDICATED_HWFIFO 1
 
   #if CFG_TUSB_FSDEV_PMA_SIZE == 2048 || TU_CHECK_MCU(OPT_MCU_STM32U0)
+    // 32-bit access scheme
     #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 4 // 32-bit data
     #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 4 // 32-bit address increase
+    #define CFG_TUSB_FSDEV_32BIT
   #elif CFG_TUSB_FSDEV_PMA_SIZE == 1024
+    // 2 x 16-bit access scheme
     #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 2 // 16-bit data
     #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 2 // 16-bit address increase
   #elif CFG_TUSB_FSDEV_PMA_SIZE == 512
+    // 1 x 16-bit access scheme
     #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 2 // 16-bit data
     #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 4 // 32-bit address increase
   #endif

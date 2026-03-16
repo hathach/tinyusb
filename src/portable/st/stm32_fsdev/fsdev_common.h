@@ -29,6 +29,10 @@
 #ifndef TUSB_FSDEV_COMMON_H
 #define TUSB_FSDEV_COMMON_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "common/tusb_common.h"
 
 #if CFG_TUD_ENABLED
@@ -88,7 +92,7 @@
 #define U_EPREG_MASK_32    (U_EP_ERRRX | U_EP_ERRTX | U_EP_LSEP | U_EP_NAK | U_EP_DEVADDR | U_EPREG_MASK_16)
 
 // EP register mask selection based on bus width
-#ifdef FSDEV_BUS_32BIT
+#ifdef  CFG_TUSB_FSDEV_32BIT
   #define U_EPREG_MASK     U_EPREG_MASK_32
 #else
   #define U_EPREG_MASK     U_EPREG_MASK_16
@@ -203,111 +207,17 @@
 #define U_CH_RX_VALID      0x3000u
 
 //--------------------------------------------------------------------+
-// Vendor-specific includes (after U_ definitions so they can use them)
+// Registers Typedef
 //--------------------------------------------------------------------+
-#if defined(TUP_USBIP_FSDEV_STM32)
-  #include "fsdev_stm32.h"
-#elif defined(TUP_USBIP_FSDEV_CH32)
-  #include "fsdev_ch32.h"
-#elif defined(TUP_USBIP_FSDEV_AT32)
-  #include "fsdev_at32.h"
-#else
-  #error "Unknown USB IP"
-#endif
-
-// LPM support - detect from vendor header (L1REQ bit position varies)
-#if defined(USB_ISTR_L1REQ)
-  #define U_ISTR_L1REQ     USB_ISTR_L1REQ
-#else
-  #define U_ISTR_L1REQ     0x0000u
-#endif
-
-#define U_ISTR_ALL_EVENTS (U_ISTR_PMAOVR | U_ISTR_ERR | U_ISTR_WKUP | U_ISTR_SUSP | \
-                           U_ISTR_RESET | U_ISTR_SOF | U_ISTR_ESOF | U_ISTR_L1REQ)
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-// If sharing with CAN, one can set this to be non-zero to give CAN space where it wants it
-// Both of these MUST be a multiple of 2, and are in byte units.
-#ifndef FSDEV_BTABLE_BASE
-  #define FSDEV_BTABLE_BASE 0U
-#endif
-
-TU_VERIFY_STATIC(FSDEV_BTABLE_BASE % 8 == 0, "BTABLE base must be aligned to 8 bytes");
-
-// CFG_TUSB_FSDEV_PMA_SIZE is PMA buffer size in bytes.
-// - 512-byte devices, access with a stride of two words (use every other 16-bit address)
-// - 1024-byte devices, access with a stride of one word (use every 16-bit address) or 32-bit address
-// - 2048-byte devices, access with 32-bit address
-#if CFG_TUSB_FSDEV_PMA_SIZE == 2048 || TU_CHECK_MCU(OPT_MCU_STM32U0)
-  // 32 bit access scheme
-  #define FSDEV_BUS_32BIT
-  #define FSDEV_PMA_STRIDE 1
-  #define pma_access_scheme
-#elif CFG_TUSB_FSDEV_PMA_SIZE == 1024
-  // 2x16 bit / word access scheme
-  #define FSDEV_PMA_STRIDE 1
-  #define pma_access_scheme
-#elif CFG_TUSB_FSDEV_PMA_SIZE == 512
-  // 1x16 bit / word access scheme
-  #define FSDEV_PMA_STRIDE  2
-  #define pma_access_scheme TU_ATTR_ALIGNED(4)
-#endif
+// hardware limit endpoint
+#define FSDEV_EP_COUNT 8
 
 // The fsdev_bus_t type can be used for both register and PMA access necessities
-#ifdef FSDEV_BUS_32BIT
+#ifdef CFG_TUSB_FSDEV_32BIT
 typedef uint32_t fsdev_bus_t;
 #else
 typedef uint16_t fsdev_bus_t;
 #endif
-
-enum {
-  FSDEV_BUS_SIZE = sizeof(fsdev_bus_t),
-};
-
-//--------------------------------------------------------------------+
-// BTable Typedef
-//--------------------------------------------------------------------+
-enum {
-  BTABLE_BUF_TX = 0,
-  BTABLE_BUF_RX = 1
-};
-
-// hardware limit endpoint
-#define FSDEV_EP_COUNT 8
-
-// Buffer Table is located in Packet Memory Area (PMA) and therefore its address access is forced to either
-// 16-bit or 32-bit depending on FSDEV_BUS_32BIT.
-// 0: TX (IN), 1: RX (OUT)
-typedef union {
-  // data is strictly 16-bit access (address could be 32-bit aligned)
-  struct {
-    volatile pma_access_scheme uint16_t addr;
-    volatile pma_access_scheme uint16_t count;
-  } ep16[FSDEV_EP_COUNT][2];
-
-  // strictly 32-bit access
-  struct {
-    volatile uint32_t count_addr;
-  } ep32[FSDEV_EP_COUNT][2];
-} fsdev_btable_t;
-
-TU_VERIFY_STATIC(sizeof(fsdev_btable_t) == FSDEV_EP_COUNT * 8 * FSDEV_PMA_STRIDE, "size is not correct");
-TU_VERIFY_STATIC(FSDEV_BTABLE_BASE + FSDEV_EP_COUNT * 8 <= CFG_TUSB_FSDEV_PMA_SIZE, "BTABLE does not fit in PMA RAM");
-
-#define FSDEV_BTABLE ((volatile fsdev_btable_t *)(FSDEV_PMA_BASE + FSDEV_PMA_STRIDE * (FSDEV_BTABLE_BASE)))
-
-typedef struct {
-  volatile pma_access_scheme fsdev_bus_t value;
-} fsdev_pma_buf_t;
-
-#define PMA_BUF_AT(_addr) ((fsdev_pma_buf_t *)(FSDEV_PMA_BASE + FSDEV_PMA_STRIDE * (_addr)))
-
-//--------------------------------------------------------------------+
-// Registers Typedef
-//--------------------------------------------------------------------+
 
 // volatile 32-bit aligned
 #define _va32 volatile TU_ATTR_ALIGNED(4)
@@ -332,7 +242,76 @@ TU_VERIFY_STATIC(sizeof(fsdev_regs_t) == 0x5C, "Size is not correct");
 
 #define FSDEV_REG ((fsdev_regs_t *)FSDEV_REG_BASE)
 
+//--------------------------------------------------------------------+
+// BTable and PMA Access
+//--------------------------------------------------------------------+
 
+// If sharing with CAN, one can set this to be non-zero to give CAN space where it wants it
+// Both of these MUST be a multiple of 2, and are in byte units.
+#ifndef FSDEV_BTABLE_BASE
+  #define FSDEV_BTABLE_BASE 0U
+#endif
+TU_VERIFY_STATIC((FSDEV_BTABLE_BASE & 0x7) == 0, "BTABLE base must be aligned to 8 bytes");
+
+#define FSDEV_ADDR_DATA_RATIO (CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE/CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE)
+
+// Need alignment when access address is 32 bit but data is only 16-bit
+#if FSDEV_ADDR_DATA_RATIO == 2
+  #define fsdev_addr_data_align TU_ATTR_ALIGNED(4)
+#else
+  #define fsdev_addr_data_align
+#endif
+
+enum {
+  BTABLE_BUF_TX = 0,
+  BTABLE_BUF_RX = 1
+};
+
+// Buffer Table is located in Packet Memory Area (PMA) and therefore its address access is forced to either
+// 16-bit or 32-bit depending on  CFG_TUSB_FSDEV_32BIT.
+// 0: TX (IN), 1: RX (OUT)
+typedef union {
+  // data is strictly 16-bit access (address could be 32-bit aligned)
+  struct {
+    volatile fsdev_addr_data_align uint16_t addr;
+    volatile fsdev_addr_data_align uint16_t count;
+  } ep16[FSDEV_EP_COUNT][2];
+
+  // strictly 32-bit access
+  struct {
+    volatile uint32_t count_addr;
+  } ep32[FSDEV_EP_COUNT][2];
+} fsdev_btable_t;
+
+TU_VERIFY_STATIC(sizeof(fsdev_btable_t) == FSDEV_EP_COUNT * 8 * FSDEV_ADDR_DATA_RATIO, "size is not correct");
+TU_VERIFY_STATIC(FSDEV_BTABLE_BASE + FSDEV_EP_COUNT * 8 <= CFG_TUSB_FSDEV_PMA_SIZE, "BTABLE does not fit in PMA RAM");
+
+#define FSDEV_BTABLE ((volatile fsdev_btable_t *)(FSDEV_PMA_BASE + FSDEV_ADDR_DATA_RATIO * FSDEV_BTABLE_BASE))
+
+typedef struct {
+  volatile fsdev_addr_data_align fsdev_bus_t value;
+} fsdev_pma_buf_t;
+
+#define PMA_BUF_AT(_addr) ((fsdev_pma_buf_t *)(FSDEV_PMA_BASE + FSDEV_ADDR_DATA_RATIO * (_addr)))
+
+//--------------------------------------------------------------------+
+// Vendor-specific includes
+//--------------------------------------------------------------------+
+#if defined(TUP_USBIP_FSDEV_STM32)
+  #include "fsdev_stm32.h"
+#elif defined(TUP_USBIP_FSDEV_CH32)
+  #include "fsdev_ch32.h"
+#elif defined(TUP_USBIP_FSDEV_AT32)
+  #include "fsdev_at32.h"
+#else
+  #error "Unknown USB IP"
+#endif
+
+//--------------------------------------------------------------------+
+// Endpoint Helper
+// - CTR is write 0 to clear
+// - DTOG and STAT are write 1 to toggle
+//--------------------------------------------------------------------+
 typedef enum {
   EP_STAT_DISABLED = 0,
   EP_STAT_STALL    = 1,
@@ -345,12 +324,6 @@ typedef enum {
 
 #define CH_STAT_MASK(_dir) (3u << (U_EPTX_STAT_Pos + ((_dir) == TUSB_DIR_IN ? 8 : 0)))
 #define CH_DTOG_MASK(_dir) (1u << (U_EP_DTOG_TX_Pos + ((_dir) == TUSB_DIR_IN ? 8 : 0)))
-
-//--------------------------------------------------------------------+
-// Endpoint Helper
-// - CTR is write 0 to clear
-// - DTOG and STAT are write 1 to toggle
-//--------------------------------------------------------------------+
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_read(uint32_t ep_id) {
   return FSDEV_REG->ep[ep_id].reg;
@@ -422,7 +395,7 @@ TU_ATTR_ALWAYS_INLINE static inline void ch_change_dtog(uint32_t *reg, tusb_dir_
 //--------------------------------------------------------------------+
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t btable_get_addr(uint32_t ep_id, uint8_t buf_id) {
-#ifdef FSDEV_BUS_32BIT
+#ifdef  CFG_TUSB_FSDEV_32BIT
   return FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr & 0x0000FFFFu;
 #else
   return FSDEV_BTABLE->ep16[ep_id][buf_id].addr;
@@ -430,9 +403,10 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t btable_get_addr(uint32_t ep_id, uin
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void btable_set_addr(uint32_t ep_id, uint8_t buf_id, uint16_t addr) {
-#ifdef FSDEV_BUS_32BIT
-  uint32_t count_addr                          = FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr;
-  count_addr                                   = (count_addr & 0xFFFF0000u) | (addr & 0x0000FFFCu);
+#ifdef  CFG_TUSB_FSDEV_32BIT
+  uint32_t count_addr = FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr;
+  count_addr          = (count_addr & 0xFFFF0000u) | (addr & 0x0000FFFCu);
+
   FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr = count_addr;
 #else
   FSDEV_BTABLE->ep16[ep_id][buf_id].addr = addr;
@@ -441,7 +415,7 @@ TU_ATTR_ALWAYS_INLINE static inline void btable_set_addr(uint32_t ep_id, uint8_t
 
 TU_ATTR_ALWAYS_INLINE static inline uint16_t btable_get_count(uint32_t ep_id, uint8_t buf_id) {
   uint16_t count;
-#ifdef FSDEV_BUS_32BIT
+#ifdef  CFG_TUSB_FSDEV_32BIT
   count = (FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr >> 16);
 #else
   count = FSDEV_BTABLE->ep16[ep_id][buf_id].count;
@@ -450,13 +424,15 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t btable_get_count(uint32_t ep_id, ui
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void btable_set_count(uint32_t ep_id, uint8_t buf_id, uint16_t byte_count) {
-#ifdef FSDEV_BUS_32BIT
-  uint32_t count_addr                          = FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr;
-  count_addr                                   = (count_addr & ~0x03FF0000u) | ((byte_count & 0x3FFu) << 16);
+#ifdef  CFG_TUSB_FSDEV_32BIT
+  uint32_t count_addr = FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr;
+  count_addr          = (count_addr & ~0x03FF0000u) | ((byte_count & 0x3FFu) << 16);
+
   FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr = count_addr;
 #else
-  uint16_t cnt                            = FSDEV_BTABLE->ep16[ep_id][buf_id].count;
-  cnt                                     = (cnt & ~0x3FFU) | (byte_count & 0x3FFU);
+  uint16_t cnt = FSDEV_BTABLE->ep16[ep_id][buf_id].count;
+  cnt          = (cnt & ~0x3FFU) | (byte_count & 0x3FFU);
+
   FSDEV_BTABLE->ep16[ep_id][buf_id].count = cnt;
 #endif
 }

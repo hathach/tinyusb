@@ -104,7 +104,7 @@ void btable_set_rx_bufsize(uint32_t ep_id, uint8_t buf_id, uint16_t wCount) {
     bl_nb = 1 << 15;
   }
 
-#ifdef FSDEV_BUS_32BIT
+#ifdef  CFG_TUSB_FSDEV_32BIT
   uint32_t count_addr = FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr;
   count_addr = (bl_nb << 16) | (count_addr & 0x0000FFFFu);
   FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr = count_addr;
