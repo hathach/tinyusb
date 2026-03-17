@@ -57,7 +57,7 @@ typedef struct {
   uint8_t daddr;
   uint8_t bInterfaceNumber; // interface number of MIDI streaming
   uint8_t iInterface;
-  uint8_t itf_count;        // number of interface including Audio Control + MIDI streaming
+  uint8_t itf_count;        // number of interfaces including Audio Control + MIDI streaming
 
   uint8_t rx_cable_count;  // IN endpoint CS descriptor bNumEmbMIDIJack value
   uint8_t tx_cable_count;  // OUT endpoint CS descriptor bNumEmbMIDIJack value
@@ -249,10 +249,12 @@ uint16_t midih_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_
   p_midi->itf_count++;
   desc_cb.desc_midi = desc_itf;
 
-  p_desc = tu_desc_next(p_desc); // next to CS Header
-
   bool found_new_interface = false;
-  while (tu_desc_in_bounds(p_desc, desc_end) && !found_new_interface) {
+  do {
+    p_desc = tu_desc_next(p_desc);
+    if (!tu_desc_in_bounds(p_desc, desc_end)) {
+      break;
+    }
     switch (tu_desc_type(p_desc)) {
       case TUSB_DESC_INTERFACE:
         found_new_interface = true;
@@ -314,8 +316,8 @@ uint16_t midih_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_
 
       default: break; // skip unknown descriptor
     }
-    p_desc = tu_desc_next(p_desc);
-  }
+  } while (!found_new_interface);
+
   desc_cb.desc_midi_total_len = (uint16_t)((uintptr_t)p_desc - (uintptr_t)desc_start);
 
   p_midi->daddr = dev_addr;
@@ -332,7 +334,7 @@ bool midih_set_config(uint8_t dev_addr, uint8_t itf_num) {
 
   const tuh_midi_mount_cb_t mount_cb_data = {
     .daddr = dev_addr,
-    .bInterfaceNumber = itf_num,
+    .bInterfaceNumber = p_midi->bInterfaceNumber,
     .rx_cable_count = p_midi->rx_cable_count,
     .tx_cable_count = p_midi->tx_cable_count,
   };
