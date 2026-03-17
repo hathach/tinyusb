@@ -130,11 +130,16 @@ static bool inquiry_complete_cb(uint8_t dev_addr, const tuh_msc_complete_data_t 
   drive_path[0] += drive_num;
 
   if (f_mount(&fatfs[drive_num], drive_path, 1) != FR_OK) {
-    puts("mount failed");
+    printf("mount failed\r\n");
+    return true;
   }
 
   // change to newly mounted drive
-  f_chdir(drive_path);
+  f_chdrive(drive_path);
+  FRESULT rc = f_chdir("/");
+  if (rc != FR_OK) {
+    printf("chdir failed: %d\r\n", rc);
+  }
 
   // print the drive label
   //  char label[34];
@@ -148,7 +153,7 @@ static bool inquiry_complete_cb(uint8_t dev_addr, const tuh_msc_complete_data_t 
 
 //------------- IMPLEMENTATION -------------//
 void tuh_msc_mount_cb(uint8_t dev_addr) {
-  printf("A MassStorage device is mounted\r\n");
+  printf("A MassStorage device (addr = %u) is mounted\r\n", dev_addr);
 
   const uint8_t lun = 0;
   tuh_msc_inquiry(dev_addr, lun, &scsi_resp.inquiry, inquiry_complete_cb, 0);

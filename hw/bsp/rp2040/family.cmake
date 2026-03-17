@@ -72,6 +72,12 @@ target_compile_definitions(tinyusb_common_base INTERFACE
 	CFG_TUSB_DEBUG=${TINYUSB_DEBUG_LEVEL}
 )
 
+if (CFG_TUH_RPI_PIO_USB)
+	target_compile_definitions(tinyusb_common_base INTERFACE
+		CFG_TUH_RPI_PIO_USB=1
+	)
+endif()
+
 target_link_libraries(tinyusb_common_base INTERFACE
 	hardware_structs
 	hardware_irq

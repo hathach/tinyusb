@@ -80,6 +80,11 @@ flash bank $_FLASHNAME wch_riscv 0x00000000 0 0 0 $_TARGETNAME.0
 echo "Ready for Remote Connections"
 """
 
+MSC_README_TXT = \
+b"This is tinyusb's MassStorage Class demo.\r\n\r\n\
+If you find any bugs or get any questions, feel free to file an\r\n\
+issue at github.com/hathach/tinyusb"
+
 # -------------------------------------------------------------
 # Path
 # -------------------------------------------------------------
@@ -360,10 +365,27 @@ def test_dual_host_info_to_device_cdc(board):
     declared_devs = [f'{d["vid_pid"]}_{d["serial"]}' for d in board['tests']['dev_attached']]
     port = get_serial_dev(uid, 'TinyUSB', "TinyUSB_Device", 0)
     ser = open_serial_dev(port)
+    ser.timeout = 0.1
 
-    # read from cdc, first line should contain vid/pid and serial
-    data = ser.read(10000)
+    # read until all expected devices are enumerated
+    data = b''
+    timeout = ENUM_TIMEOUT
+    while timeout > 0:
+        new_data = ser.read(ser.in_waiting or 1)
+        if new_data:
+            data += new_data
+        # check if all devices found
+        enum_dev_sn = []
+        for l in data.decode('utf-8', errors='ignore').splitlines():
+            vid_pid_sn = re.search(r'ID ([0-9a-fA-F]+):([0-9a-fA-F]+) SN (\w+)', l)
+            if vid_pid_sn:
+                enum_dev_sn.append(f'{vid_pid_sn.group(1)}_{vid_pid_sn.group(2)}_{vid_pid_sn.group(3)}')
+        if set(declared_devs).issubset(set(enum_dev_sn)):
+            break
+        time.sleep(0.1)
+        timeout -= 0.1
     ser.close()
+
     if len(data) == 0:
         assert False, 'No data from device'
     lines = data.decode('utf-8', errors='ignore').splitlines()
@@ -391,13 +413,31 @@ def test_host_device_info(board):
 
     port = get_serial_dev(flasher["uid"], None, None, 0)
     ser = open_serial_dev(port)
+    ser.timeout = 0.1
 
     # reset device since we can miss the first line
     ret = globals()[f'reset_{flasher["name"].lower()}'](board)
-    assert ret.returncode == 0,  'Failed to reset device'
+    assert ret.returncode == 0, 'Failed to reset device'
 
-    data = ser.read(10000)
+    # read until all expected devices are enumerated
+    data = b''
+    timeout = ENUM_TIMEOUT
+    while timeout > 0:
+        new_data = ser.read(ser.in_waiting or 1)
+        if new_data:
+            data += new_data
+        # check if all devices found
+        enum_dev_sn = []
+        for l in data.decode('utf-8', errors='ignore').splitlines():
+            vid_pid_sn = re.search(r'ID ([0-9a-fA-F]+):([0-9a-fA-F]+) SN (\w+)', l)
+            if vid_pid_sn:
+                enum_dev_sn.append(f'{vid_pid_sn.group(1)}_{vid_pid_sn.group(2)}_{vid_pid_sn.group(3)}')
+        if set(declared_devs).issubset(set(enum_dev_sn)):
+            break
+        time.sleep(0.1)
+        timeout -= 0.1
     ser.close()
+
     if len(data) == 0:
         assert False, 'No data from device'
     lines = data.decode('utf-8', errors='ignore').splitlines()
@@ -416,10 +456,25 @@ def test_host_device_info(board):
     return 0
 
 
+def print_msc_info(lines):
+    """Print MSC inquiry and disk size on a single line"""
+    inquiry = ''
+    disk_size = ''
+    for l in lines:
+        if re.match(r'^[A-Za-z].*\s+rev\s+', l):
+            inquiry = l.strip()
+        if 'Disk Size' in l:
+            disk_size = l.strip()
+    if inquiry or disk_size:
+        print(f'\r\n  {inquiry} {disk_size} ', end='')
+
+
 def test_host_cdc_msc_hid(board):
     flasher = board['flasher']
-    cdc_devs = [d for d in board['tests'].get('dev_attached', []) if d.get('is_cdc')]
-    if not cdc_devs:
+    dev_attached = board['tests'].get('dev_attached', [])
+    cdc_devs = [d for d in dev_attached if d.get('is_cdc')]
+    msc_devs = [d for d in dev_attached if d.get('is_msc')]
+    if not cdc_devs and not msc_devs:
         return
 
     port = get_serial_dev(flasher["uid"], None, None, 0)
@@ -430,18 +485,21 @@ def test_host_cdc_msc_hid(board):
     ret = globals()[f'reset_{flasher["name"].lower()}'](board)
     assert ret.returncode == 0, 'Failed to reset device'
 
-    # Wait for CDC mounted message
+    # Wait for all expected mount messages
     data = b''
     timeout = ENUM_TIMEOUT
+    wait_cdc = len(cdc_devs) > 0
+    wait_msc = len(msc_devs) > 0
     while timeout > 0:
         new_data = ser.read(ser.in_waiting or 1)
         if new_data:
             data += new_data
-            if b'CDC Interface is mounted' in data:
+            cdc_ok = (not wait_cdc) or (b'CDC Interface is mounted' in data)
+            msc_ok = (not wait_msc) or (b'Disk Size' in data)
+            if cdc_ok and msc_ok:
                 break
         time.sleep(0.1)
         timeout -= 0.1
-    assert b'CDC Interface is mounted' in data, 'CDC device not mounted on host'
 
     # Lookup serial chip name from vid_pid
     vid_pid_name = {
@@ -451,13 +509,29 @@ def test_host_cdc_msc_hid(board):
         '1a86_7523': 'CH340', '1a86_7522': 'CH340',
         '1a86_55d3': 'CH9102', '1a86_55d4': 'CH9102',
     }
-    dev = cdc_devs[0]
-    chip_name = vid_pid_name.get(dev['vid_pid'], dev['vid_pid'])
-    for l in data.decode('utf-8', errors='ignore').splitlines():
-        if 'CDC Interface is mounted' in l:
-            print(f'\r\n  {chip_name}: {l} ', end='')
+
+    lines = data.decode('utf-8', errors='ignore').splitlines()
+
+    # Verify and print CDC mount
+    if cdc_devs:
+        assert b'CDC Interface is mounted' in data, 'CDC device not mounted on host'
+        dev = cdc_devs[0]
+        chip_name = vid_pid_name.get(dev['vid_pid'], dev['vid_pid'])
+        for l in lines:
+            if 'CDC Interface is mounted' in l:
+                print(f'\r\n  {chip_name}: {l} ', end='')
+
+    # Verify and print MSC mount (inquiry + disk size)
+    if msc_devs:
+        assert b'MassStorage device is mounted' in data, 'MSC device not mounted on host'
+        assert b'Disk Size' in data, 'MSC Disk Size not reported'
+        print_msc_info(lines)
 
     # CDC echo test via flasher serial
+    if not cdc_devs:
+        ser.close()
+        return
+
     time.sleep(2)
     ser.reset_input_buffer()
 
@@ -486,6 +560,65 @@ def test_host_cdc_msc_hid(board):
             t -= 0.05
         assert echo == test_data, (f'CDC echo wrong data ({size} bytes):\n'
                                    f'  expected: {test_data}\n  received: {echo}')
+
+    ser.close()
+
+
+def test_host_msc_file_explorer(board):
+    flasher = board['flasher']
+    msc_devs = [d for d in board['tests'].get('dev_attached', []) if d.get('is_msc')]
+    if not msc_devs:
+        return
+
+    port = get_serial_dev(flasher["uid"], None, None, 0)
+    ser = open_serial_dev(port)
+    ser.timeout = 0.1
+
+    # reset device to catch mount messages
+    ret = globals()[f'reset_{flasher["name"].lower()}'](board)
+    assert ret.returncode == 0, 'Failed to reset device'
+
+    # Wait for MSC mount (Disk Size message)
+    data = b''
+    timeout = ENUM_TIMEOUT
+    while timeout > 0:
+        new_data = ser.read(ser.in_waiting or 1)
+        if new_data:
+            data += new_data
+            if b'Disk Size' in data:
+                break
+        time.sleep(0.1)
+        timeout -= 0.1
+    assert b'Disk Size' in data, 'MSC device not mounted'
+    lines = data.decode('utf-8', errors='ignore').splitlines()
+    print_msc_info(lines)
+
+    # Send "cat README.TXT" and read response
+    time.sleep(1)
+    ser.reset_input_buffer()
+    for ch in 'cat README.TXT\r':
+        ser.write(ch.encode())
+        ser.flush()
+        time.sleep(0.002)
+
+    # Read response
+    resp = b''
+    t = 10.0
+    while t > 0:
+        rd = ser.read(max(1, ser.in_waiting))
+        if rd:
+            resp += rd
+        # wait for prompt after command output
+        if b'>' in resp and resp.rstrip().endswith(b'>'):
+            break
+        time.sleep(0.05)
+        t -= 0.05
+
+    # Verify response contains README content
+    resp_text = resp.decode('utf-8', errors='ignore')
+    assert MSC_README_TXT.decode() in resp_text, (f'MSC README.TXT not found in response:\n'
+                                                   f'  received: {resp_text}')
+    print('README.TXT matched ', end='')
 
     ser.close()
 
@@ -565,12 +698,7 @@ def test_device_cdc_msc(board):
 
     # MSC Block test
     data = read_disk_file(uid, 0, 'README.TXT')
-    readme = \
-        b"This is tinyusb's MassStorage Class demo.\r\n\r\n\
-If you find any bugs or get any questions, feel free to file an\r\n\
-issue at github.com/hathach/tinyusb"
-
-    assert data == readme, f'MSC wrong data in README.TXT\n expected: {readme.decode()}\n received: {data.decode()}'
+    assert data == MSC_README_TXT, f'MSC wrong data in README.TXT\n expected: {MSC_README_TXT.decode()}\n received: {data.decode()}'
 
 
 def test_device_cdc_msc_freertos(board):
@@ -838,6 +966,7 @@ dual_tests = [
 
 host_test = [
     'host/cdc_msc_hid',
+    'host/msc_file_explorer',
     'host/device_info',
 ]
 
