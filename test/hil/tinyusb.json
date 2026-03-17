@@ -179,7 +179,7 @@
             "name": "adafruit_fruit_jam",
             "uid": "2B0DC7A45781189E",
             "tests": {
-                "device": false,
+                "device": true,
                 "host": true,
                 "dual": true,
                 "dev_attached": [

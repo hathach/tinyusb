@@ -944,6 +944,76 @@ def test_device_mtp(board):
         mtp.disconnect()
 
 
+def test_device_msc_dual_lun(board):
+    uid = board['uid']
+
+    # Read README from LUN 0
+    data0 = read_disk_file(uid, 0, 'README0.TXT')
+    readme0 = b"LUN0: " + MSC_README_TXT
+    assert data0 == readme0, f'MSC LUN0 wrong data in README0.TXT\n  expected: {readme0}\n  received: {data0}'
+
+    # Read README from LUN 1
+    data1 = read_disk_file(uid, 1, 'README1.TXT')
+    readme1 = b"LUN1: " + MSC_README_TXT
+    assert data1 == readme1, f'MSC LUN1 wrong data in README1.TXT\n  expected: {readme1}\n  received: {data1}'
+
+
+def test_device_midi_test(board):
+    uid = board['uid']
+
+    # Find MIDI device via /dev/snd/by-id using board UID
+    timeout = ENUM_TIMEOUT
+    midi_port = None
+    while timeout > 0:
+        pattern = f'/dev/snd/by-id/usb-*_{uid}-*'
+        devs = glob.glob(pattern)
+        if devs:
+            # by-id entry points to controlCX, derive card number for midiCXD0
+            link = os.path.basename(os.readlink(devs[0]))  # e.g. "controlC2"
+            card_num = link.replace('controlC', '')
+            midi_path = f'/dev/snd/midiC{card_num}D0'
+            if os.path.exists(midi_path):
+                midi_port = midi_path
+                break
+        time.sleep(1)
+        timeout -= 1
+    assert midi_port is not None, f'MIDI device not found for {uid}'
+
+    # Read MIDI messages and verify note on/off
+    import select
+    with open(midi_port, 'rb') as f:
+        notes = []
+        # Read for up to 3 seconds to capture a few notes (286ms interval)
+        end_time = time.time() + 3
+        while time.time() < end_time:
+            ready, _, _ = select.select([f], [], [], 0.5)
+            if ready:
+                data = f.read(64)
+                if data:
+                    # Parse MIDI bytes: note_on = 0x90, note_off = 0x80
+                    i = 0
+                    while i + 2 < len(data):
+                        status = data[i]
+                        if (status & 0xF0) == 0x90:  # Note On
+                            notes.append(data[i + 1])
+                            i += 3
+                        elif (status & 0xF0) == 0x80:  # Note Off
+                            i += 3
+                        else:
+                            i += 1
+
+    assert len(notes) >= 2, f'Expected at least 2 MIDI notes, got {len(notes)}'
+    # Verify notes are from the expected sequence
+    note_sequence = [
+        74, 78, 81, 86, 90, 93, 98, 102, 57, 61, 66, 69, 73, 78, 81, 85,
+        88, 92, 97, 100, 97, 92, 88, 85, 81, 78, 74, 69, 66, 62, 57, 62,
+        66, 69, 74, 78, 81, 86, 90, 93, 97, 102, 97, 93, 90, 85, 81, 78,
+        73, 68, 64, 61, 56, 61, 64, 68, 74, 78, 81, 86, 90, 93, 98, 102
+    ]
+    for n in notes:
+        assert n in note_sequence, f'Unexpected MIDI note {n}'
+
+
 # -------------------------------------------------------------
 # Main
 # -------------------------------------------------------------
@@ -956,7 +1026,9 @@ device_tests = [
     'device/dfu_runtime',
     'device/cdc_msc_freertos',
     'device/hid_boot_interface',
+    'device/msc_dual_lun',
     'device/printer_to_cdc',
+    'device/midi_test',
     'device/mtp'
 ]
 
