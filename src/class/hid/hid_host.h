@@ -36,7 +36,6 @@ extern "C" {
 //--------------------------------------------------------------------+
 // Class Driver Configuration
 //--------------------------------------------------------------------+
-
 // TODO Highspeed interrupt can be up to 512 bytes
 #ifndef CFG_TUH_HID_EPIN_BUFSIZE
   #define CFG_TUH_HID_EPIN_BUFSIZE 64
@@ -46,7 +45,13 @@ extern "C" {
   #define CFG_TUH_HID_EPOUT_BUFSIZE 64
 #endif
 
+#ifndef CFG_TUH_HID_SET_PROTOCOL_ON_ENUM
+  #define CFG_TUH_HID_SET_PROTOCOL_ON_ENUM 1
+#endif
 
+//--------------------------------------------------------------------+
+// Interface API
+//--------------------------------------------------------------------+
 typedef struct {
   uint8_t  report_id;
   uint8_t  usage;
@@ -56,10 +61,6 @@ typedef struct {
   //  uint8_t in_len;      // length of IN report
   //  uint8_t out_len;     // length of OUT report
 } tuh_hid_report_info_t;
-
-//--------------------------------------------------------------------+
-// Interface API
-//--------------------------------------------------------------------+
 
 // Get the total number of mounted HID interfaces of a device
 uint8_t tuh_hid_itf_get_count(uint8_t dev_addr);
