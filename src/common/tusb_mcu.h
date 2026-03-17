@@ -241,9 +241,11 @@
 
   #if defined(STM32F302xB) || defined(STM32F302xC) || defined(STM32F303xB) || defined(STM32F303xC) || \
     defined(STM32F373xC)
+    // xB, and xC: 512
     #define CFG_TUSB_FSDEV_PMA_SIZE 512u
   #elif defined(STM32F302x6) || defined(STM32F302x8) || defined(STM32F302xD) || defined(STM32F302xE) || \
     defined(STM32F303xD) || defined(STM32F303xE)
+    // x6, x8, xD, and xE: 1024 + LPM Support
     #define CFG_TUSB_FSDEV_PMA_SIZE 1024u
   #else
     #error "Unsupported STM32F3 mcu"

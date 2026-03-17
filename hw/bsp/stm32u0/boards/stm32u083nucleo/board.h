@@ -25,8 +25,8 @@
  */
 
 /* metadata:
-   name: STM32U083C-DK Discovery Kit
-   url: https://www.st.com/en/evaluation-tools/stm32u083c-dk.html
+   name: NUCLEO-U083RC
+   url: https://www.st.com/en/evaluation-tools/nucleo-u083rc.html
 */
 
 #ifndef BOARD_H_
@@ -36,17 +36,17 @@
  extern "C" {
 #endif
 
-// LED - using PA5 (Blue LED from CubeMX)
+// LED: PA5 (LD4, Green)
 #define LED_PORT              GPIOA
 #define LED_PIN               GPIO_PIN_5
 #define LED_STATE_ON          1
 
-// Button - using PC2 (from CubeMX generated code)
+// Button: PC13 (B1, Blue)
 #define BUTTON_PORT           GPIOC
-#define BUTTON_PIN            GPIO_PIN_2
-#define BUTTON_STATE_ACTIVE   0  // Active low (pressed = 0)
+#define BUTTON_PIN            GPIO_PIN_13
+#define BUTTON_STATE_ACTIVE   0
 
-// UART - using USART2 on PA2/PA3 (VCP TX/RX from CubeMX)
+// UART: USART2 on PA2/PA3 (VCP via ST-Link)
 #define UART_DEV              USART2
 #define UART_CLK_EN           __HAL_RCC_USART2_CLK_ENABLE
 #define UART_GPIO_PORT        GPIOA
@@ -60,17 +60,11 @@
 static inline void SystemClock_Config(void) {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-  RCC_CRSInitTypeDef RCC_CRSInitStruct = {0};
-  RCC_PeriphCLKInitTypeDef  PeriphClkInit = {0};
+  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
-  /** Configure the main internal regulator output voltage
-  */
   HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1);
 
-  /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSI48;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI | RCC_OSCILLATORTYPE_HSI48;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
@@ -83,42 +77,19 @@ static inline void SystemClock_Config(void) {
   RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
   HAL_RCC_OscConfig(&RCC_OscInitStruct);
 
-  /** Initializes the CPU, AHB and APB buses clocks
-  */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1;
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK
+                              | RCC_CLOCKTYPE_PCLK1;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
-
-  HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1);
-
-  /** Enable the CRS clock
-  */
-  __HAL_RCC_CRS_CLK_ENABLE();
-
-  /** Configures CRS
-  */
-  RCC_CRSInitStruct.Prescaler = RCC_CRS_SYNC_DIV1;
-  RCC_CRSInitStruct.Source = RCC_CRS_SYNC_SOURCE_USB;
-  RCC_CRSInitStruct.Polarity = RCC_CRS_SYNC_POLARITY_RISING;
-  RCC_CRSInitStruct.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(48000000,1000);
-  RCC_CRSInitStruct.ErrorLimitValue = 34;
-  RCC_CRSInitStruct.HSI48CalibrationValue = 32;
-  HAL_RCCEx_CRSConfig(&RCC_CRSInitStruct);
-
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART2;
-  PeriphClkInit.Usart2ClockSelection = RCC_USART2CLKSOURCE_PCLK1;
-  HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit);
+  HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2);
 
   PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USB;
   PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_HSI48;
   HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit);
 }
 
-static inline void board_vbus_sense_init(void)
-{
-  // USB VBUS sensing not required for device-only operation
+static inline void board_vbus_sense_init(void) {
 }
 
 #ifdef __cplusplus

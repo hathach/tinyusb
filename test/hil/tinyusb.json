@@ -182,7 +182,8 @@
                 "name": "jlink",
                 "uid": "779541626",
                 "args": "-device stm32f072rb"
-            }
+            },
+            "comment": "2x16 access scheme with 1KB USB SRAM"
         },
         {
             "name": "stm32f723disco",
@@ -226,7 +227,8 @@
                 "name": "openocd",
                 "uid": "066FFF495087534867063844",
                 "args": "-f interface/stlink.cfg -f target/stm32g0x.cfg"
-            }
+            },
+            "comment": "32-bit scheme, 2KB USB SRAM"
         }
     ],
     "boards-skip": [

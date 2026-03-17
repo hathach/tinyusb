@@ -35,20 +35,9 @@
 #if CFG_TUSB_MCU == OPT_MCU_STM32C0
   #include "stm32c0xx.h"
   #define FSDEV_HAS_SBUF_ISO 1
-  #define USB                USB_DRD_FS
-  #define USB_EP_CTR_RX      USB_CHEP_VTRX
-  #define USB_EP_CTR_TX      USB_CHEP_VTTX
-  #define USB_EPREG_MASK     USB_CHEP_REG_MASK
-  #define USB_CNTR_FRES      USB_CNTR_USBRST
-  #define USB_CNTR_RESUME    USB_CNTR_L2RES
-  #define USB_ISTR_EP_ID     USB_ISTR_IDN
-  #define USB_EPADDR_FIELD   USB_CHEP_ADDR
-  #define USB_CNTR_LPMODE    USB_CNTR_SUSPRDY
-  #define USB_CNTR_FSUSP     USB_CNTR_SUSPEN
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F0
   #include "stm32f0xx.h"
-  #define FSDEV_REG_BASE     USB_BASE
   #define FSDEV_HAS_SBUF_ISO 0
   // F0x2 models are crystal-less
   // All have internal D+ pull-up
@@ -61,24 +50,24 @@
   // NO internal Pull-ups
   //         *B, and *C:    2 x 16 bits/word
 
-  // F1 names this differently from the rest
-  #define USB_CNTR_LPMODE    USB_CNTR_LP_MODE
-
-#elif defined(STM32F302xB) || defined(STM32F302xC) || defined(STM32F303xB) || defined(STM32F303xC) || \
-  defined(STM32F373xC)
+#elif CFG_TUSB_MCU == OPT_MCU_STM32F3
   #include "stm32f3xx.h"
   #define FSDEV_HAS_SBUF_ISO 0
-  // NO internal Pull-ups
-  //         *B, and *C:    1 x 16 bits/word
-  // PMA dedicated to USB (no sharing with CAN)
+  // NO internal Pull-ups. PMA dedicated to USB (no sharing with CAN)
+  // xB, and xC: 512 bytes
+  // x6, x8, xD, and xE: 1024 bytes + LPM Support. When CAN clock is enabled, USB can use the first 768 bytes ONLY.
 
-#elif defined(STM32F302x6) || defined(STM32F302x8) || defined(STM32F302xD) || defined(STM32F302xE) || \
-  defined(STM32F303xD) || defined(STM32F303xE)
-  #include "stm32f3xx.h"
+#elif CFG_TUSB_MCU == OPT_MCU_STM32G0
+  #include "stm32g0xx.h"
+  #define FSDEV_HAS_SBUF_ISO 1
+
+#elif CFG_TUSB_MCU == OPT_MCU_STM32G4
+  #include "stm32g4xx.h"
   #define FSDEV_HAS_SBUF_ISO 0
-  // NO internal Pull-ups
-  // *6, *8, *D, and *E:    2 x 16 bits/word     LPM Support
-  // When CAN clock is enabled, USB can use first 768 bytes ONLY.
+
+#elif CFG_TUSB_MCU == OPT_MCU_STM32H5
+  #include "stm32h5xx.h"
+  #define FSDEV_HAS_SBUF_ISO 1
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32L0
   #include "stm32l0xx.h"
@@ -100,141 +89,24 @@
     #define USB_PMAADDR (USB_BASE + (USB_PMAADDR_NS - USB_BASE_NS))
   #endif
 
-#elif CFG_TUSB_MCU == OPT_MCU_STM32G0
-  #include "stm32g0xx.h"
-  #define FSDEV_HAS_SBUF_ISO     1
-  #define USB                    USB_DRD_FS
-
-  #define USB_EP_CTR_RX          USB_EP_VTRX
-  #define USB_EP_CTR_TX          USB_EP_VTTX
-  #define USB_EP_T_FIELD         USB_CHEP_UTYPE
-  #define USB_EPREG_MASK USB_CHEP_REG_MASK
-  #define USB_EPTX_DTOGMASK USB_CHEP_TX_DTOGMASK
-  #define USB_EPRX_DTOGMASK USB_CHEP_RX_DTOGMASK
-  #define USB_EPTX_DTOG1 USB_CHEP_TX_DTOG1
-  #define USB_EPTX_DTOG2 USB_CHEP_TX_DTOG2
-  #define USB_EPRX_DTOG1 USB_CHEP_RX_DTOG1
-  #define USB_EPRX_DTOG2 USB_CHEP_RX_DTOG2
-  #define USB_EPRX_STAT USB_CH_RX_VALID
-  #define USB_EPKIND_MASK USB_EP_KIND_MASK
-  #define USB_CNTR_FRES USB_CNTR_USBRST
-  #define USB_CNTR_RESUME USB_CNTR_L2RES
-  #define USB_ISTR_EP_ID USB_ISTR_IDN
-  #define USB_EPADDR_FIELD USB_CHEP_ADDR
-  #define USB_CNTR_LPMODE USB_CNTR_SUSPRDY
-  #define USB_CNTR_FSUSP         USB_CNTR_SUSPEN
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32G4
-  #include "stm32g4xx.h"
-  #define FSDEV_HAS_SBUF_ISO 0
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32H5
-  #include "stm32h5xx.h"
-  #define FSDEV_HAS_SBUF_ISO 1
-  #define USB                USB_DRD_FS
-
-  #define USB_EP_CTR_RX      USB_EP_VTRX
-  #define USB_EP_CTR_TX      USB_EP_VTTX
-  #define USB_EP_T_FIELD     USB_CHEP_UTYPE
-  #define USB_EPREG_MASK USB_CHEP_REG_MASK
-  #define USB_EPTX_DTOGMASK USB_CHEP_TX_DTOGMASK
-  #define USB_EPRX_DTOGMASK USB_CHEP_RX_DTOGMASK
-  #define USB_EPTX_DTOG1 USB_CHEP_TX_DTOG1
-  #define USB_EPTX_DTOG2 USB_CHEP_TX_DTOG2
-  #define USB_EPRX_DTOG1 USB_CHEP_RX_DTOG1
-  #define USB_EPRX_DTOG2 USB_CHEP_RX_DTOG2
-  #define USB_EPRX_STAT USB_CH_RX_VALID
-  #define USB_EPKIND_MASK USB_EP_KIND_MASK
-  #define USB_CNTR_FRES USB_CNTR_USBRST
-  #define USB_CNTR_RESUME USB_CNTR_L2RES
-  #define USB_ISTR_EP_ID USB_ISTR_IDN
-  #define USB_EPADDR_FIELD USB_CHEP_ADDR
-  #define USB_CNTR_LPMODE USB_CNTR_SUSPRDY
-  #define USB_CNTR_FSUSP USB_CNTR_SUSPEN
-
 #elif CFG_TUSB_MCU == OPT_MCU_STM32U0
   #include "stm32u0xx.h"
-  #define FSDEV_BUS_32BIT
   #define FSDEV_HAS_SBUF_ISO 1
-  #define USB USB_DRD_FS
-
-  #define USB_EP_CTR_RX USB_EP_VTRX
-  #define USB_EP_CTR_TX USB_EP_VTTX
-  #define USB_EP_T_FIELD USB_CHEP_UTYPE
-  #define USB_EPREG_MASK USB_CHEP_REG_MASK
-  #define USB_EPTX_DTOGMASK USB_CHEP_TX_DTOGMASK
-  #define USB_EPRX_DTOGMASK USB_CHEP_RX_DTOGMASK
-  #define USB_EPTX_DTOG1 USB_CHEP_TX_DTOG1
-  #define USB_EPTX_DTOG2 USB_CHEP_TX_DTOG2
-  #define USB_EPRX_DTOG1 USB_CHEP_RX_DTOG1
-  #define USB_EPRX_DTOG2 USB_CHEP_RX_DTOG2
-  #define USB_EPRX_STAT USB_CH_RX_VALID
-  #define USB_EPKIND_MASK USB_EP_KIND_MASK
-  #define USB_CNTR_FRES USB_CNTR_USBRST
-  #define USB_CNTR_RESUME USB_CNTR_L2RES
-  #define USB_ISTR_EP_ID USB_ISTR_IDN
-  #define USB_EPADDR_FIELD USB_CHEP_ADDR
-  #define USB_CNTR_LPMODE USB_CNTR_SUSPRDY
-  #define USB_CNTR_FSUSP USB_CNTR_SUSPEN
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32U3
   #include "stm32u3xx.h"
-  #define FSDEV_BUS_32BIT
-  #define FSDEV_HAS_SBUF_ISO 1 // This is assumed to work but has not been tested...
-  #define USB                USB_DRD_FS
-
-  #define USB_EP_CTR_RX USB_EP_VTRX
-  #define USB_EP_CTR_TX USB_EP_VTTX
-  #define USB_EP_T_FIELD USB_CHEP_UTYPE
-  #define USB_EPREG_MASK USB_CHEP_REG_MASK
-  #define USB_EPTX_DTOGMASK USB_CHEP_TX_DTOGMASK
-  #define USB_EPRX_DTOGMASK USB_CHEP_RX_DTOGMASK
-  #define USB_EPTX_DTOG1 USB_CHEP_TX_DTOG1
-  #define USB_EPTX_DTOG2 USB_CHEP_TX_DTOG2
-  #define USB_EPRX_DTOG1 USB_CHEP_RX_DTOG1
-  #define USB_EPRX_DTOG2     USB_CHEP_RX_DTOG2
-  #define USB_EPRX_STAT      USB_CH_RX_VALID
-  #define USB_EPKIND_MASK    USB_EP_KIND_MASK
-  #define USB_CNTR_FRES      USB_CNTR_USBRST
-  #define USB_CNTR_RESUME    USB_CNTR_L2RES
-  #define USB_ISTR_EP_ID     USB_ISTR_IDN
-  #define USB_EPADDR_FIELD   USB_CHEP_ADDR
-  #define USB_CNTR_LPMODE    USB_CNTR_SUSPRDY
-  #define USB_CNTR_FSUSP     USB_CNTR_SUSPEN
+  #define FSDEV_HAS_SBUF_ISO 1
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32U5
   #include "stm32u5xx.h"
   #define FSDEV_HAS_SBUF_ISO 1
-  #define USB                USB_DRD_FS
-
-  #define USB_EP_CTR_RX      USB_EP_VTRX
-  #define USB_EP_CTR_TX      USB_EP_VTTX
-  #define USB_EP_T_FIELD     USB_CHEP_UTYPE
-  #define USB_EPREG_MASK     USB_CHEP_REG_MASK
-  #define USB_EPTX_DTOGMASK  USB_CHEP_TX_DTOGMASK
-  #define USB_EPRX_DTOGMASK  USB_CHEP_RX_DTOGMASK
-  #define USB_EPTX_DTOG1     USB_CHEP_TX_DTOG1
-  #define USB_EPTX_DTOG2     USB_CHEP_TX_DTOG2
-  #define USB_EPRX_DTOG1     USB_CHEP_RX_DTOG1
-  #define USB_EPRX_DTOG2     USB_CHEP_RX_DTOG2
-  #define USB_EPRX_STAT      USB_CH_RX_VALID
-  #define USB_EPKIND_MASK    USB_EP_KIND_MASK
-  #define USB_CNTR_FRES      USB_CNTR_USBRST
-  #define USB_CNTR_RESUME    USB_CNTR_L2RES
-  #define USB_ISTR_EP_ID     USB_ISTR_IDN
-  #define USB_EPADDR_FIELD   USB_CHEP_ADDR
-  #define USB_CNTR_LPMODE    USB_CNTR_SUSPRDY
-  #define USB_CNTR_FSUSP     USB_CNTR_SUSPEN
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32WB
   #include "stm32wbxx.h"
   #define FSDEV_HAS_SBUF_ISO 0
-  /* ST provided header has incorrect value of USB_PMAADDR */
-  #define FSDEV_PMA_BASE     USB1_PMAADDR
 
 #else
   #error You are using an untested or unimplemented STM32 variant. Please update the driver.
-  // This includes U0
 #endif
 
 //--------------------------------------------------------------------+
@@ -261,16 +133,6 @@
   #error "FSDEV_PMA_BASE not defined"
 #endif
 #endif
-
-// This checks if the device has "LPM"
-#if defined(USB_ISTR_L1REQ)
-#define USB_ISTR_L1REQ_FORCED (USB_ISTR_L1REQ)
-#else
-#define USB_ISTR_L1REQ_FORCED ((uint16_t)0x0000U)
-#endif
-
-#define USB_ISTR_ALL_EVENTS (USB_ISTR_PMAOVR | USB_ISTR_ERR | USB_ISTR_WKUP | USB_ISTR_SUSP | \
-     USB_ISTR_RESET | USB_ISTR_SOF | USB_ISTR_ESOF | USB_ISTR_L1REQ_FORCED )
 
 #ifndef FSDEV_HAS_SBUF_ISO
   #error "FSDEV_HAS_SBUF_ISO not defined"
@@ -311,42 +173,33 @@
 #endif
 
 static const IRQn_Type fsdev_irq[] = {
-  #if TU_CHECK_MCU(OPT_MCU_STM32F0, OPT_MCU_STM32L0, OPT_MCU_STM32L4)
+  #if TU_CHECK_MCU(OPT_MCU_STM32F0, OPT_MCU_STM32L0, OPT_MCU_STM32L4, OPT_MCU_STM32U5)
     USB_IRQn,
-  #elif CFG_TUSB_MCU == OPT_MCU_STM32F1
-    USB_HP_CAN1_TX_IRQn,
-    USB_LP_CAN1_RX0_IRQn,
-    USBWakeUp_IRQn,
-  #elif CFG_TUSB_MCU == OPT_MCU_STM32F3
-    // USB remap handles dcd functions
-    USB_HP_CAN_TX_IRQn,
-    USB_LP_CAN_RX0_IRQn,
-    USBWakeUp_IRQn,
+  #elif TU_CHECK_MCU(OPT_MCU_STM32L5, OPT_MCU_STM32U3)
+    USB_FS_IRQn,
+  #elif TU_CHECK_MCU(OPT_MCU_STM32C0, OPT_MCU_STM32H5, OPT_MCU_STM32U0)
+    USB_DRD_FS_IRQn,
   #elif CFG_TUSB_MCU == OPT_MCU_STM32G0
     #ifdef STM32G0B0xx
     USB_IRQn,
     #else
     USB_UCPD1_2_IRQn,
     #endif
-  #elif CFG_TUSB_MCU == OPT_MCU_STM32C0
-    USB_DRD_FS_IRQn,
+  #elif CFG_TUSB_MCU == OPT_MCU_STM32F1
+    USB_HP_CAN1_TX_IRQn,
+    USB_LP_CAN1_RX0_IRQn,
+    USBWakeUp_IRQn,
+  #elif CFG_TUSB_MCU == OPT_MCU_STM32F3
+    USB_HP_CAN_TX_IRQn,
+    USB_LP_CAN_RX0_IRQn,
+    USBWakeUp_IRQn,
   #elif TU_CHECK_MCU(OPT_MCU_STM32G4, OPT_MCU_STM32L1)
     USB_HP_IRQn,
     USB_LP_IRQn,
     USBWakeUp_IRQn,
-  #elif CFG_TUSB_MCU == OPT_MCU_STM32H5
-    USB_DRD_FS_IRQn,
-  #elif CFG_TUSB_MCU == OPT_MCU_STM32L5
-    USB_FS_IRQn,
   #elif CFG_TUSB_MCU == OPT_MCU_STM32WB
     USB_HP_IRQn,
     USB_LP_IRQn,
-  #elif CFG_TUSB_MCU == OPT_MCU_STM32U5
-    USB_IRQn,
-  #elif CFG_TUSB_MCU == OPT_MCU_STM32U0
-    USB_DRD_FS_IRQn,
-  #elif CFG_TUSB_MCU == OPT_MCU_STM32U3
-    USB_FS_IRQn,
   #else
     #error Unknown arch in USB driver
   #endif
@@ -398,17 +251,20 @@ TU_ATTR_ALWAYS_INLINE static inline void fsdev_int_disable(uint8_t rhport) {
   // CMSIS has a membar after disabling interrupts
 }
 
-// Define only on MCU with internal pull-up. BSP can define on MCU without internal PU.
+//--------------------------------------------------------------------+
+// Connect / Disconnect
+//--------------------------------------------------------------------+
+
 #if defined(USB_BCDR_DPPU)
 
 TU_ATTR_ALWAYS_INLINE static inline void fsdev_disconnect(uint8_t rhport) {
   (void)rhport;
-  USB->BCDR &= ~(USB_BCDR_DPPU);
+  FSDEV_REG->BCDR &= ~U_BCDR_DPPU;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void fsdev_connect(uint8_t rhport) {
   (void)rhport;
-  USB->BCDR |= USB_BCDR_DPPU;
+  FSDEV_REG->BCDR |= U_BCDR_DPPU;
 }
 
 #elif defined(SYSCFG_PMC_USB_PU) // works e.g. on STM32L151

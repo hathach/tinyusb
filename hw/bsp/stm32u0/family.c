@@ -30,6 +30,9 @@
 
 #include "stm32u0xx_hal.h"
 #include "bsp/board_api.h"
+
+TU_ATTR_UNUSED static void Error_Handler(void) { }
+
 #include "board.h"
 
 //--------------------------------------------------------------------+
@@ -47,7 +50,7 @@ UART_HandleTypeDef UartHandle;
 #endif
 
 void board_init(void) {
-  board_stm32u0_clock_init();
+  SystemClock_Config();
 
   // Enable All GPIOs clocks
   __HAL_RCC_GPIOA_CLK_ENABLE();
