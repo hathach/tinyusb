@@ -211,7 +211,6 @@ static int32_t i2c_readreg(uint16_t DevAddr, uint16_t Reg, uint8_t *pData, uint1
     }
     HAL_Delay(10);
   }
-  TU_ASSERT(0);
   return -1;
 }
 
@@ -222,7 +221,6 @@ static int32_t i2c_writereg(uint16_t DevAddr, uint16_t Reg, uint8_t *pData, uint
     }
     HAL_Delay(10);
   }
-  TU_ASSERT(0);
   return -1;
 }
 
