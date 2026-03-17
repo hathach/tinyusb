@@ -1014,6 +1014,42 @@ def test_device_midi_test(board):
         assert n in note_sequence, f'Unexpected MIDI note {n}'
 
 
+def test_device_hid_generic_inout(board):
+    uid = board['uid']
+    import hid
+
+    # Find HID device by UID (VID=0xCafe)
+    timeout = ENUM_TIMEOUT
+    dev = None
+    while timeout > 0:
+        for d in hid.enumerate(0xCafe):
+            if d['serial_number'] == uid:
+                dev = d
+                break
+        if dev:
+            break
+        time.sleep(1)
+        timeout -= 1
+    assert dev is not None, f'HID device not found for {uid}'
+
+    h = hid.Device(vid=dev['vendor_id'], pid=dev['product_id'], serial=uid)
+
+    # Echo test: send random data and verify echo
+    for size in [8, 32, 63]:
+        # Report ID (0) + payload, padded to 64 bytes
+        payload = bytes([random.randint(1, 255) for _ in range(size)])
+        report = bytes([0]) + payload + bytes(64 - size)
+        h.write(report)
+        echo = h.read(64, timeout=2000)
+        assert echo is not None and len(echo) >= size, (
+            f'HID echo timeout or short read ({size} bytes)')
+        assert bytes(echo[:size]) == payload, (
+            f'HID echo wrong data ({size} bytes):\n'
+            f'  expected: {payload.hex()}\n  received: {bytes(echo[:size]).hex()}')
+
+    h.close()
+
+
 # -------------------------------------------------------------
 # Main
 # -------------------------------------------------------------
@@ -1027,6 +1063,7 @@ device_tests = [
     'device/cdc_msc_freertos',
     'device/hid_boot_interface',
     'device/msc_dual_lun',
+    'device/hid_generic_inout',
     'device/printer_to_cdc',
     'device/midi_test',
     'device/mtp'
