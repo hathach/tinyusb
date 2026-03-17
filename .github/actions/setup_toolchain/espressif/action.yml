@@ -21,7 +21,7 @@ runs:
       shell: bash
 
     - name: Cache Docker Image
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       id: cache-toolchain-espressif
       with:
         path: ${{ env.DOCKER_ESP_IDF }}
