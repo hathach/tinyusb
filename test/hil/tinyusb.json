@@ -8,7 +8,7 @@
             },
             "tests": {
                 "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos", "host/device_info"],
-                "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2002427"}]
+                "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2002427", "is_cdc": true}]
             },
             "flasher": {
                 "name": "esptool",
@@ -26,7 +26,7 @@
             },
             "tests": {
                 "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos", "host/device_info"],
-                "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2005402"}]
+                "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2005402", "is_cdc": true}]
             },
             "flasher": {
                 "name": "esptool",
@@ -67,7 +67,7 @@
             },
             "tests": {
                 "device": true, "host": false, "dual": true,
-                "dev_attached": [{"vid_pid": "067b_2303", "serial": "0"}],
+                "dev_attached": [{"vid_pid": "067b_2303", "serial": "0", "is_cdc": true}],
                 "comment": "pl23x"
             },
             "flasher": {
@@ -93,7 +93,7 @@
             "uid": "BAE96FB95AFA6DBB8F00005002001200",
             "tests": {
                 "device": true, "host": true, "dual": true,
-                "dev_attached": [{"vid_pid": "10c4_ea60", "serial": "0001"}],
+                "dev_attached": [{"vid_pid": "10c4_ea60", "serial": "0001", "is_cdc": true}],
                 "comment": "cp2102"
             },
             "flasher": {
@@ -136,7 +136,7 @@
             },
             "tests": {
                 "device": true, "host": true, "dual": true,
-                "dev_attached": [{"vid_pid": "1a86_7523", "serial": "0"}],
+                "dev_attached": [{"vid_pid": "1a86_7523", "serial": "0", "is_cdc": true}],
                 "comment": "ch34x"
             },
             "flasher": {
@@ -150,7 +150,7 @@
             "uid": "E6614C311B764A37",
             "tests": {
                 "device": false, "host": true, "dual": false,
-                "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2023934"}]
+                "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2023934", "is_cdc": true}]
             },
             "flasher": {
                 "name": "openocd",
@@ -167,7 +167,7 @@
             },
             "tests": {
                 "device": true, "host": true, "dual": true,
-                "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "533D004242"}]
+                "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "533D004242", "is_cdc": true}]
             },
             "flasher": {
                 "name": "openocd",
@@ -193,7 +193,7 @@
             },
             "tests": {
                 "device": true, "host": true, "dual": false,
-                "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2003414"}]
+                "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2003414", "is_cdc": true}]
             },
             "flasher": {
                 "name": "jlink",

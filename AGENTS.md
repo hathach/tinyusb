@@ -27,7 +27,6 @@ information that does not match the info here.
 ## Build Examples
 
 Choose ONE of these approaches:
-
 **Option 1: Individual Example with CMake and Ninja (RECOMMENDED)**
 
 ```bash

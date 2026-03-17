@@ -416,6 +416,80 @@ def test_host_device_info(board):
     return 0
 
 
+def test_host_cdc_msc_hid(board):
+    flasher = board['flasher']
+    cdc_devs = [d for d in board['tests'].get('dev_attached', []) if d.get('is_cdc')]
+    if not cdc_devs:
+        return
+
+    port = get_serial_dev(flasher["uid"], None, None, 0)
+    ser = open_serial_dev(port)
+    ser.timeout = 0.1
+
+    # reset device to catch mount messages
+    ret = globals()[f'reset_{flasher["name"].lower()}'](board)
+    assert ret.returncode == 0, 'Failed to reset device'
+
+    # Wait for CDC mounted message
+    data = b''
+    timeout = ENUM_TIMEOUT
+    while timeout > 0:
+        new_data = ser.read(ser.in_waiting or 1)
+        if new_data:
+            data += new_data
+            if b'CDC Interface is mounted' in data:
+                break
+        time.sleep(0.1)
+        timeout -= 0.1
+    assert b'CDC Interface is mounted' in data, 'CDC device not mounted on host'
+
+    # Lookup serial chip name from vid_pid
+    vid_pid_name = {
+        '0403_6001': 'FTDI', '0403_6010': 'FTDI', '0403_6011': 'FTDI', '0403_6014': 'FTDI',
+        '10c4_ea60': 'CP210x', '10c4_ea70': 'CP210x',
+        '067b_2303': 'PL2303', '067b_23a3': 'PL2303',
+        '1a86_7523': 'CH340', '1a86_7522': 'CH340',
+        '1a86_55d3': 'CH9102', '1a86_55d4': 'CH9102',
+    }
+    dev = cdc_devs[0]
+    chip_name = vid_pid_name.get(dev['vid_pid'], dev['vid_pid'])
+    for l in data.decode('utf-8', errors='ignore').splitlines():
+        if 'CDC Interface is mounted' in l:
+            print(f'\r\n  {chip_name}: {l} ', end='')
+
+    # CDC echo test via flasher serial
+    time.sleep(2)
+    ser.reset_input_buffer()
+
+    def rand_ascii(length):
+        return "".join(random.choices(string.ascii_letters + string.digits, k=length)).encode("ascii")
+
+    sizes = [8, 32, 64, 128]
+    for size in sizes:
+        test_data = rand_ascii(size)
+        ser.reset_input_buffer()
+
+        # Write byte-by-byte with delay to avoid UART overrun
+        for b in test_data:
+            ser.write(bytes([b]))
+            ser.flush()
+            time.sleep(0.001)
+
+        # Read echo back with timeout
+        echo = b''
+        t = 5.0
+        while t > 0 and len(echo) < size:
+            rd = ser.read(max(1, ser.in_waiting))
+            if rd:
+                echo += rd
+            time.sleep(0.05)
+            t -= 0.05
+        assert echo == test_data, (f'CDC echo wrong data ({size} bytes):\n'
+                                   f'  expected: {test_data}\n  received: {echo}')
+
+    ser.close()
+
+
 # -------------------------------------------------------------
 # Tests: device
 # -------------------------------------------------------------
@@ -763,6 +837,7 @@ dual_tests = [
 ]
 
 host_test = [
+    'host/cdc_msc_hid',
     'host/device_info',
 ]
 
