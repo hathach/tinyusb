@@ -240,7 +240,7 @@ void tuh_hid_set_default_protocol(uint8_t protocol) {
   _hidh_default_protocol = protocol;
 }
 
-static bool _hidh_set_protocol(uint8_t daddr, uint8_t itf_num, uint8_t protocol,
+static bool hidh_set_protocol(uint8_t daddr, uint8_t itf_num, uint8_t protocol,
                                tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   TU_LOG_DRV("HID Set Protocol = %d\r\n", protocol);
 
@@ -272,7 +272,7 @@ bool tuh_hid_set_protocol(uint8_t daddr, uint8_t idx, uint8_t protocol) {
   hidh_interface_t* p_hid = get_hid_itf(daddr, idx);
   TU_VERIFY(p_hid && p_hid->itf_protocol != HID_ITF_PROTOCOL_NONE);
 
-  return _hidh_set_protocol(daddr, p_hid->itf_num, protocol, set_protocol_complete, 0);
+  return hidh_set_protocol(daddr, p_hid->itf_num, protocol, set_protocol_complete, 0);
 }
 
 static void get_report_complete(tuh_xfer_t* xfer) {
@@ -359,7 +359,7 @@ bool tuh_hid_set_report(uint8_t daddr, uint8_t idx, uint8_t report_id, uint8_t r
   return tuh_control_xfer(&xfer);
 }
 
-static bool _hidh_set_idle(uint8_t daddr, uint8_t itf_num, uint16_t idle_rate,
+static bool hidh_set_idle(uint8_t daddr, uint8_t itf_num, uint16_t idle_rate,
                            tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   // SET IDLE request, device can stall if not support this request
   TU_LOG_DRV("HID Set Idle \r\n");
@@ -566,8 +566,8 @@ uint16_t hidh_open(uint8_t rhport, uint8_t daddr, const tusb_desc_interface_t *d
   // Use offsetof to avoid pointer to the odd/misaligned address
   p_hid->report_desc_len = tu_unaligned_read16((uint8_t const*)desc_hid + offsetof(tusb_hid_descriptor_hid_t, wReportLength));
 
-  // Per HID Specs: default is Report protocol, though we will force Boot protocol when set_config
-  p_hid->protocol_mode = _hidh_default_protocol;
+  // Per HID Specs: default is Report protocol
+  p_hid->protocol_mode = HID_PROTOCOL_REPORT;
   if (HID_SUBCLASS_BOOT == desc_itf->bInterfaceSubClass) {
     p_hid->itf_protocol = desc_itf->bInterfaceProtocol;
   }
@@ -623,25 +623,30 @@ static void process_set_config(tuh_xfer_t* xfer) {
 
   switch (state) {
     case CONFG_SET_IDLE: {
-      // Idle rate = 0 mean only report when there is changes
+      // Idle rate = 0 mean only report when there are changes
       const uint16_t idle_rate = 0;
       const uintptr_t next_state = (p_hid->itf_protocol != HID_ITF_PROTOCOL_NONE)
                                    ? CONFIG_SET_PROTOCOL : CONFIG_GET_REPORT_DESC;
-      _hidh_set_idle(daddr, itf_num, idle_rate, process_set_config, next_state);
+      hidh_set_idle(daddr, itf_num, idle_rate, process_set_config, next_state);
       break;
     }
 
     case CONFIG_SET_PROTOCOL:
-      _hidh_set_protocol(daddr, p_hid->itf_num, _hidh_default_protocol, process_set_config, CONFIG_GET_REPORT_DESC);
+  #if CFG_TUH_HID_SET_PROTOCOL_ON_ENUM
+      hidh_set_protocol(daddr, p_hid->itf_num, _hidh_default_protocol, process_set_config, CONFIG_GET_REPORT_DESC);
       break;
+  #else
+      TU_ATTR_FALLTHROUGH;
+  #endif
 
     case CONFIG_GET_REPORT_DESC:
+      if (xfer->setup->bRequest == HID_REQ_CONTROL_SET_PROTOCOL && xfer->result == XFER_RESULT_SUCCESS) {
+        p_hid->protocol_mode = (uint8_t) tu_le16toh(xfer->setup->wValue);
+      }
       // Get Report Descriptor if possible
-      // using usbh enumeration buffer since report descriptor can be very long
+      // using usbh enumeration buffer since the report descriptor can be very long
       if (p_hid->report_desc_len > CFG_TUH_ENUMERATION_BUFSIZE) {
         TU_LOG_DRV("HID Skip Report Descriptor since it is too large %u bytes\r\n", p_hid->report_desc_len);
-
-        // Driver is mounted without report descriptor
         config_driver_mount_complete(daddr, idx, NULL, 0);
       } else {
         tuh_descriptor_get_hid_report(daddr, itf_num, p_hid->report_desc_type, 0,
@@ -651,8 +656,8 @@ static void process_set_config(tuh_xfer_t* xfer) {
       break;
 
     case CONFIG_COMPLETE: {
-      uint8_t const* desc_report = usbh_get_enum_buf();
-      uint16_t const desc_len = tu_le16toh(xfer->setup->wLength);
+      const uint8_t *desc_report = usbh_get_enum_buf();
+      const uint16_t desc_len    = tu_le16toh(xfer->setup->wLength);
 
       config_driver_mount_complete(daddr, idx, desc_report, desc_len);
       break;
