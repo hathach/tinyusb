@@ -97,7 +97,15 @@ enum
 
 #define  CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_HID_INOUT_DESC_LEN)
 
-#define EPNUM_HID   0x01
+#if defined(TUD_ENDPOINT_ONE_DIRECTION_ONLY)
+  // MCUs that don't support a same endpoint number with different direction IN and OUT defined in tusb_mcu.h
+  //    e.g EP1 OUT & EP1 IN cannot exist together
+  #define EPNUM_HID_OUT   0x01
+  #define EPNUM_HID_IN    0x82
+#else
+  #define EPNUM_HID_OUT   0x01
+  #define EPNUM_HID_IN    0x81
+#endif
 
 uint8_t const desc_configuration[] =
 {
@@ -105,7 +113,7 @@ uint8_t const desc_configuration[] =
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
 
   // Interface number, string index, protocol, report descriptor len, EP Out & In address, size & polling interval
-  TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_HID, 0, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), EPNUM_HID, 0x80 | EPNUM_HID, CFG_TUD_HID_EP_BUFSIZE, 10)
+  TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_HID, 0, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), EPNUM_HID_OUT, EPNUM_HID_IN, CFG_TUD_HID_EP_BUFSIZE, 10)
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
