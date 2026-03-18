@@ -566,8 +566,8 @@ uint16_t hidh_open(uint8_t rhport, uint8_t daddr, const tusb_desc_interface_t *d
   // Use offsetof to avoid pointer to the odd/misaligned address
   p_hid->report_desc_len = tu_unaligned_read16((uint8_t const*)desc_hid + offsetof(tusb_hid_descriptor_hid_t, wReportLength));
 
-  // Per HID Specs: default is Report protocol, though we will force Boot protocol when set_config
-  p_hid->protocol_mode = _hidh_default_protocol;
+  // Per HID Specs: default is Report protocol
+  p_hid->protocol_mode = HID_PROTOCOL_REPORT;
   if (HID_SUBCLASS_BOOT == desc_itf->bInterfaceSubClass) {
     p_hid->itf_protocol = desc_itf->bInterfaceProtocol;
   }
@@ -632,14 +632,17 @@ static void process_set_config(tuh_xfer_t* xfer) {
     }
 
     case CONFIG_SET_PROTOCOL:
-      #if CFG_TUH_HID_SET_PROTOCOL_ON_ENUM
+  #if CFG_TUH_HID_SET_PROTOCOL_ON_ENUM
       hidh_set_protocol(daddr, p_hid->itf_num, _hidh_default_protocol, process_set_config, CONFIG_GET_REPORT_DESC);
       break;
-      #else
+  #else
       TU_ATTR_FALLTHROUGH;
-      #endif
+  #endif
 
     case CONFIG_GET_REPORT_DESC:
+      if (xfer->setup->bRequest == HID_REQ_CONTROL_SET_PROTOCOL && xfer->result == XFER_RESULT_SUCCESS) {
+        p_hid->protocol_mode = (uint8_t) tu_le16toh(xfer->setup->wValue);
+      }
       // Get Report Descriptor if possible
       // using usbh enumeration buffer since the report descriptor can be very long
       if (p_hid->report_desc_len > CFG_TUH_ENUMERATION_BUFSIZE) {
