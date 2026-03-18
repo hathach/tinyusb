@@ -27,7 +27,6 @@ information that does not match the info here.
 ## Build Examples
 
 Choose ONE of these approaches:
-
 **Option 1: Individual Example with CMake and Ninja (RECOMMENDED)**
 
 ```bash
@@ -150,6 +149,13 @@ To break on entry instead of running immediately:
 openocd -f interface/stlink.cfg -f target/stm32h7x.cfg
 # or with J-Link probe:
 openocd -f interface/jlink.cfg -f target/stm32h7x.cfg
+```
+
+For **rp2040/rp2350** with a CMSIS-DAP probe (e.g. Picoprobe, debugprobe):
+```bash
+openocd -f interface/cmsis-dap.cfg -f target/rp2040.cfg -c "adapter speed 5000"
+# or for rp2350:
+openocd -f interface/cmsis-dap.cfg -f target/rp2350.cfg -c "adapter speed 5000"
 ```
 
 For boards that define `OPENOCD_OPTION` in `board.cmake`, use those options directly:

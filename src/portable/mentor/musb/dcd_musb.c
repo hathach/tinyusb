@@ -494,7 +494,7 @@ static void process_bus_reset(uint8_t rhport) {
  *------------------------------------------------------------------*/
 
 #if CFG_TUSB_DEBUG >= MUSB_DEBUG
-void print_musb_info(musb_regs_t* musb_regs) {
+static void print_musb_info(musb_regs_t* musb_regs) {
   // print version, epinfo, raminfo, config_data0, fifo_size
   TU_LOG1("musb version = %u.%u\r\n", musb_regs->hwvers_bit.major, musb_regs->hwvers_bit.minor);
   TU_LOG1("Number of endpoints: %u TX, %u RX\r\n", musb_regs->epinfo_bit.tx_ep_num, musb_regs->epinfo_bit.rx_ep_num);

@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 2  # Needed for push commit comparison
-      - uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           filters: |
@@ -124,7 +124,7 @@ jobs:
 
       - name: Upload Metrics Artifact
         if: github.event_name == 'push' || github.event_name == 'release'
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: metrics-tinyusb
           path: metrics.json
@@ -179,7 +179,7 @@ jobs:
 
       - name: Upload Metrics Comment Artifact
         if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: metrics-comment
           path: |

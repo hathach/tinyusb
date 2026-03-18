@@ -275,9 +275,25 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len) {
 }
 
 int board_uart_read(uint8_t *buf, int len) {
-  (void) buf;
-  (void) len;
+#ifdef UART_DEV
+  int count = 0;
+  // clear overrun error if any
+  if (__HAL_UART_GET_FLAG(&UartHandle, UART_FLAG_ORE)) {
+    __HAL_UART_CLEAR_FLAG(&UartHandle, UART_CLEAR_OREF);
+  }
+  for (int i = 0; i < len; i++) {
+    if (__HAL_UART_GET_FLAG(&UartHandle, UART_FLAG_RXNE)) {
+      buf[i] = (uint8_t) UartHandle.Instance->RDR;
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
+#else
+  (void) buf; (void) len;
   return 0;
+#endif
 }
 
 int board_uart_write(void const *buf, int len) {

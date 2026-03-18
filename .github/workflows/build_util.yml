@@ -90,14 +90,14 @@ jobs:
 
       - name: Upload Artifacts for Metrics
         if: inputs.upload-metrics == true && inputs.code-changed == true
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: metrics-${{ matrix.arg }}
           path: cmake-build/cmake-build-*/metrics.json
 
       - name: Upload Artifacts for Hardware Testing
         if: inputs.upload-artifacts == true && inputs.code-changed == true
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: binaries-${{ matrix.arg }}
           path: |

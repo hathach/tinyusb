@@ -205,13 +205,23 @@ static int32_t board_i2c_deinit(void) {
 }
 
 static int32_t i2c_readreg(uint16_t DevAddr, uint16_t Reg, uint8_t *pData, uint16_t Length) {
-  TU_ASSERT (HAL_OK == HAL_I2C_Mem_Read(&i2c_handle, DevAddr, Reg, I2C_MEMADD_SIZE_8BIT, pData, Length, 10000));
-  return 0;
+  for (int retry = 0; retry < 3; retry++) {
+    if (HAL_OK == HAL_I2C_Mem_Read(&i2c_handle, DevAddr, Reg, I2C_MEMADD_SIZE_8BIT, pData, Length, 10000)) {
+      return 0;
+    }
+    HAL_Delay(10);
+  }
+  return -1;
 }
 
 static int32_t i2c_writereg(uint16_t DevAddr, uint16_t Reg, uint8_t *pData, uint16_t Length) {
-  TU_ASSERT(HAL_OK == HAL_I2C_Mem_Write(&i2c_handle, DevAddr, Reg, I2C_MEMADD_SIZE_8BIT, pData, Length, 10000));
-  return 0;
+  for (int retry = 0; retry < 3; retry++) {
+    if (HAL_OK == HAL_I2C_Mem_Write(&i2c_handle, DevAddr, Reg, I2C_MEMADD_SIZE_8BIT, pData, Length, 10000)) {
+      return 0;
+    }
+    HAL_Delay(10);
+  }
+  return -1;
 }
 
 static int32_t i2c_get_tick(void) {
