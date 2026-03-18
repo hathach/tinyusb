@@ -612,7 +612,7 @@ void dcd_edpt_close_all(uint8_t rhport) {
   dcd_int_enable(rhport);
 
   // Reset PMA allocation
-  ep_buf_ptr = FSDEV_BTABLE_BASE + 8 * CFG_TUD_ENDPPOINT_MAX + 2 * CFG_TUD_ENDPOINT0_SIZE;
+  ep_buf_ptr = FSDEV_BTABLE_BASE + 8 * FSDEV_EP_COUNT + 2 * CFG_TUD_ENDPOINT0_SIZE;
 }
 
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {

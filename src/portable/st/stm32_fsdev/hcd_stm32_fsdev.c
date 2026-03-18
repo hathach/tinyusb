@@ -38,8 +38,7 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUH_ENABLED && defined(TUP_USBIP_FSDEV) && \
-    TU_CHECK_MCU(OPT_MCU_STM32C0, OPT_MCU_STM32G0, OPT_MCU_STM32H5, OPT_MCU_STM32U5)
+#if CFG_TUH_ENABLED && defined(TUP_USBIP_FSDEV) && defined(TUP_USBIP_FSDEV_DRD)
 
 #include "host/hcd.h"
 #include "host/usbh.h"
@@ -672,10 +671,8 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
 // Clear stall, data toggle is also reset to DATA0
 bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   (void) rhport;
-  (void) dev_addr;
-  (void) ep_addr;
 
-  uint8_t const ep_id = endpoint_find(dev_addr, 0);
+  uint8_t const ep_id = endpoint_find(dev_addr, ep_addr);
   TU_ASSERT(ep_id != TUSB_INDEX_INVALID_8);
 
   hcd_endpoint_t *edpt = &_hcd_data.edpt[ep_id];
