@@ -106,6 +106,9 @@ TU_ATTR_ALWAYS_INLINE static inline bool need_pre(uint8_t dev_addr) {
   return hcd_port_speed_get(0) != tuh_speed_get(dev_addr);
 }
 
+// forward declaration
+static void __tusb_irq_path_func(edpt_schedule_next)(void);
+
 static void __tusb_irq_path_func(hw_xfer_complete)(hw_endpoint_t *ep, xfer_result_t xfer_result) {
   // Mark transfer as done before we tell the tinyusb stack
   uint8_t dev_addr    = ep->dev_addr;
@@ -113,6 +116,11 @@ static void __tusb_irq_path_func(hw_xfer_complete)(hw_endpoint_t *ep, xfer_resul
   uint    xferred_len = ep->xferred_len;
   hw_endpoint_reset_transfer(ep);
   hcd_event_xfer_complete(dev_addr, ep_addr, xferred_len, xfer_result, true);
+
+  // Schedule next pending EPX transfer (only for non-interrupt endpoints)
+  if (ep == epx) {
+    edpt_schedule_next();
+  }
 }
 
 static void __tusb_irq_path_func(handle_hwbuf_status_bit)(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg) {
@@ -169,8 +177,7 @@ static void __tusb_irq_path_func(handle_hwbuf_status)(void) {
 }
 
 // All non-interrupt endpoints use shared EPX.
-// static void edpt_scheduler(void) {
-// }
+// Forward declared above hw_xfer_complete, defined after edpt_xfer below.
 
 static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
   const uint32_t status = usb_hw->ints;
@@ -206,7 +213,7 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
   if (status & USB_INTS_TRANS_COMPLETE_BITS) {
     usb_hw_clear->sie_status = USB_SIE_STATUS_TRANS_COMPLETE_BITS;
 
-    // only handle setup packet
+    // only handle a setup packet
     if (usb_hw->sie_ctrl & USB_SIE_CTRL_SEND_SETUP_BITS) {
       epx->xferred_len = 8;
       hw_xfer_complete(epx, XFER_RESULT_SUCCESS);
@@ -214,6 +221,30 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
       // Don't care. Will handle this in buff status
     }
   }
+
+  // if (status & USB_INTS_EP_STALL_NAK_BITS) {
+  //   const uint32_t ep_stall_nak = usb_hw->ep_status_stall_nak;
+  //   usb_hw->ep_status_stall_nak = ep_stall_nak; // clear by writing back (WC)
+  //
+  //   // Preempt non-control EPX bulk transfer when a different ep is pending
+  //   if (epx->active && tu_edpt_number(epx->ep_addr) != 0) {
+  //     for (uint i = 0; i < TU_ARRAY_SIZE(ep_pool); i++) {
+  //       hw_endpoint_t *ep = &ep_pool[i];
+  //       if (ep->pending && ep != epx) {
+  //         // Stop current transaction
+  //         usb_hw_set->sie_ctrl = USB_SIE_CTRL_STOP_TRANS_BITS;
+  //
+  //         // Mark current EPX as pending to resume later
+  //         epx->pending = 1;
+  //         epx->active  = false;
+  //
+  //         // Start the next pending transfer
+  //         edpt_schedule_next();
+  //         break;
+  //       }
+  //     }
+  //   }
+  // }
 
   if (status & USB_INTS_ERROR_RX_TIMEOUT_BITS) {
     usb_hw_clear->sie_status = USB_SIE_STATUS_RX_TIMEOUT_BITS;
@@ -250,7 +281,7 @@ static void hw_endpoint_init(hw_endpoint_t *ep, uint8_t dev_addr, const tusb_des
     // from 15 interrupt endpoints pool
     uint8_t int_idx;
     for (int_idx = 0; int_idx < USB_HOST_INTERRUPT_ENDPOINTS; int_idx++) {
-      if (!tu_bit_test(usb_hw_set->int_ep_ctrl, 1 + int_idx)) {
+      if (!tu_bit_test(usb_hw->int_ep_ctrl, 1 + int_idx)) {
         ep->interrupt_num = int_idx + 1;
         break;
       }
@@ -313,6 +344,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
                  USB_INTE_HOST_RESUME_BITS      |
                  USB_INTE_STALL_BITS            |
                  USB_INTE_TRANS_COMPLETE_BITS   |
+                 // USB_INTE_EP_STALL_NAK_BITS    |
                  USB_INTE_ERROR_RX_TIMEOUT_BITS |
                  USB_INTE_ERROR_DATA_SEQ_BITS   ;
 
@@ -369,6 +401,8 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
   for (size_t i = 0; i < TU_ARRAY_SIZE(ep_pool); i++) {
     hw_endpoint_t *ep = &ep_pool[i];
     if (ep->dev_addr == dev_addr && ep->max_packet_size > 0) {
+      ep->pending = 0; // clear any pending transfer
+
       if (ep->interrupt_num) {
         // disable interrupt endpoint
         usb_hw_clear->int_ep_ctrl                       = 1u << ep->interrupt_num;
@@ -442,10 +476,18 @@ static void edpt_xfer(hw_endpoint_t *ep, uint8_t *buffer, tu_fifo_t *ff, uint16_
     const uint8_t    ep_num = tu_edpt_number(ep->ep_addr);
     const tusb_dir_t ep_dir = tu_edpt_dir(ep->ep_addr);
 
+    // RP2040-E4: USB host writes status to upper half of buffer control in single buffered mode.
+    // The buffer selector toggles even in single-buffered mode, so the previous transfer's status
+    // may have been written to BUF1 half, leaving BUF0 with stale AVAILABLE bit. Clear it here.
+#if defined(PICO_RP2040) && PICO_RP2040 == 1
+    usbh_dpram->epx_buf_ctrl = 0;
+#endif
+
     // ep control
     const uint32_t dpram_offset = hw_data_offset(ep->dpram_buf);
     const uint32_t ep_ctrl      = EP_CTRL_ENABLE_BITS | EP_CTRL_INTERRUPT_PER_BUFFER |
-                             ((uint32_t)ep->transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | dpram_offset;
+                             ((uint32_t)ep->transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | dpram_offset /*|
+                             (1u << 16)*/; // INTERRUPT_ON_NAK
     usbh_dpram->epx_ctrl = ep_ctrl;
 
     io_rw_32 *ep_reg  = &usbh_dpram->epx_ctrl;
@@ -464,6 +506,40 @@ static void edpt_xfer(hw_endpoint_t *ep, uint8_t *buffer, tu_fifo_t *ff, uint16_
   }
 }
 
+// Schedule next pending EPX transfer from ISR context
+static void __tusb_irq_path_func(edpt_schedule_next)(void) {
+  // EPX may already be active if the completion callback started a new transfer
+  if (epx->active) return;
+
+  for (uint i = 0; i < TU_ARRAY_SIZE(ep_pool); i++) {
+    hw_endpoint_t *ep = &ep_pool[i];
+    if (ep->pending == 0) continue;
+
+    if (ep->pending == 2) {
+      // Pending setup: DPRAM already has the setup packet
+      ep->ep_addr       = 0;
+      ep->remaining_len = 8;
+      ep->xferred_len   = 0;
+      ep->active        = true;
+      ep->pending       = 0;
+
+      epx = ep;
+      usb_hw->dev_addr_ctrl = ep->dev_addr;
+
+      const uint32_t sie_ctrl = USB_SIE_CTRL_SEND_SETUP_BITS |
+                                (ep->need_pre ? USB_SIE_CTRL_PREAMBLE_EN_BITS : 0);
+      sie_start_xfer(sie_ctrl);
+    } else {
+      // Pending data transfer: preserve partial progress from preemption
+      uint16_t prev_xferred = ep->xferred_len;
+      ep->pending = 0;
+      edpt_xfer(ep, ep->user_buf, NULL, ep->remaining_len);
+      epx->xferred_len += prev_xferred; // restore partial progress
+    }
+    return; // start only one transfer
+  }
+}
+
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *buffer, uint16_t buflen) {
   (void)rhport;
 
@@ -474,6 +550,14 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
   if (ep_addr != ep->ep_addr) {
     ep->ep_addr  = ep_addr;
     ep->next_pid = 1; // data and status stage start with DATA1
+  }
+
+  // If EPX is busy with another transfer, mark as pending
+  if (ep->transfer_type != TUSB_XFER_INTERRUPT && epx->active) {
+    ep->user_buf      = buffer;
+    ep->remaining_len = buflen;
+    ep->pending       = 1;
+    return true;
   }
 
   edpt_xfer(ep, buffer, NULL, buflen);
@@ -492,7 +576,7 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, const uint8_t setup_packet[8]) {
   (void)rhport;
 
-  // Copy data into setup packet buffer
+  // Copy data into setup packet buffer (usbh only schedules one setup at a time)
   for (uint8_t i = 0; i < 8; i++) {
     usbh_dpram->setup_packet[i] = setup_packet[i];
   }
@@ -500,7 +584,14 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, const uint8_t setup_packet
   hw_endpoint_t *ep = edpt_find(dev_addr, 0x00);
   TU_ASSERT(ep);
 
-  ep->ep_addr       = 0; // setup is OUT
+  ep->ep_addr = 0; // setup is OUT
+
+  // If EPX is busy, mark as pending setup (DPRAM already has the packet)
+  if (epx->active) {
+    ep->pending = 2;
+    return true;
+  }
+
   ep->remaining_len = 8;
   ep->xferred_len   = 0;
   ep->active        = true;

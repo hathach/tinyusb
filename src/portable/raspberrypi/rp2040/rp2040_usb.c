@@ -110,7 +110,17 @@ void __tusb_irq_path_func(hwbuf_ctrl_update)(io_rw_32 *buf_ctrl_reg, uint32_t an
     value |= or_mask;
     if (or_mask & USB_BUF_CTRL_AVAIL) {
       if (buf_ctrl & USB_BUF_CTRL_AVAIL) {
-        panic("buf_ctrl @ 0x%lX already available", (uintptr_t)buf_ctrl_reg);
+        if (is_host) {
+#if defined(PICO_RP2040) && PICO_RP2040 == 1
+          // RP2040-E4: host buffer selector toggles in single-buffered mode, causing status
+          // to be written to BUF1 half and leaving stale AVAILABLE in BUF0 half. Clear it.
+          *buf_ctrl_reg = 0;
+#else
+          panic("buf_ctrl @ 0x%lX already available (host)", (uintptr_t)buf_ctrl_reg);
+#endif
+        } else {
+          panic("buf_ctrl @ 0x%lX already available", (uintptr_t)buf_ctrl_reg);
+        }
       }
       *buf_ctrl_reg = value & ~USB_BUF_CTRL_AVAIL;
 

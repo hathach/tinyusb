@@ -475,7 +475,7 @@ def test_host_cdc_msc_hid(board):
     cdc_devs = [d for d in dev_attached if d.get('is_cdc')]
     msc_devs = [d for d in dev_attached if d.get('is_msc')]
     if not cdc_devs and not msc_devs:
-        return
+        return 'skipped'
 
     port = get_serial_dev(flasher["uid"], None, None, 0)
     ser = open_serial_dev(port)
@@ -568,7 +568,7 @@ def test_host_msc_file_explorer(board):
     flasher = board['flasher']
     msc_devs = [d for d in board['tests'].get('dev_attached', []) if d.get('is_msc')]
     if not msc_devs:
-        return
+        return 'skipped'
 
     port = get_serial_dev(flasher["uid"], None, None, 0)
     ser = open_serial_dev(port)
@@ -1113,8 +1113,11 @@ def test_example(board, f1, example):
         ret = globals()[f'flash_{board["flasher"]["name"].lower()}'](board, fw_name)
         if ret.returncode == 0:
             try:
-                globals()[f'test_{example.replace("/", "_")}'](board)
-                print('  OK', end='')
+                tret = globals()[f'test_{example.replace("/", "_")}'](board)
+                if tret == 'skipped':
+                    print(f'  {STATUS_SKIPPED}', end='')
+                else:
+                    print('  OK', end='')
                 break
             except Exception as e:
                 if i == max_rety - 1:
