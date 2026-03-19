@@ -53,6 +53,7 @@ static void unaligned_memcpy(uint8_t *dst, const uint8_t *src, size_t n) {
   }
 }
 
+#if CFG_TUD_EDPT_DEDICATED_HWFIFO
 void tu_hwfifo_write(volatile void *hwfifo, const uint8_t *src, uint16_t len, const tu_hwfifo_access_t *access_mode) {
   (void)access_mode;
   unaligned_memcpy((uint8_t *)(uintptr_t)hwfifo, src, len);
@@ -62,6 +63,7 @@ void tu_hwfifo_read(const volatile void *hwfifo, uint8_t *dest, uint16_t len, co
   (void)access_mode;
   unaligned_memcpy(dest, (const uint8_t *)(uintptr_t)hwfifo, len);
 }
+#endif
 
 void rp2usb_init(void) {
   // Reset usb controller
@@ -138,10 +140,13 @@ static uint32_t __tusb_irq_path_func(prepare_ep_buffer)(struct hw_endpoint *ep, 
     if (buflen) {
       // Copy data from user buffer/fifo to hw buffer
       uint8_t *hw_buf = ep->hw_data_buf + buf_id * 64;
+      #if CFG_TUD_EDPT_DEDICATED_HWFIFO
       if (ep->is_xfer_fifo) {
         // not in sram, may mess up timing with E15 workaround
         tu_hwfifo_write_from_fifo(hw_buf, ep->user_fifo, buflen, NULL);
-      } else {
+      } else
+      #endif
+      {
         unaligned_memcpy(hw_buf, ep->user_buf, buflen);
         ep->user_buf += buflen;
       }
@@ -227,6 +232,7 @@ void __tusb_irq_path_func(hw_endpoint_start_next_buffer)(struct hw_endpoint* ep)
 }
 
 void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, tu_fifo_t *ff, uint16_t total_len) {
+  (void) ff;
   hw_endpoint_lock_update(ep, 1);
 
   if (ep->active) {
@@ -240,10 +246,13 @@ void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, tu_fifo_t *
   ep->xferred_len = 0;
   ep->active = true;
 
+#if CFG_TUD_EDPT_DEDICATED_HWFIFO
   if (ff != NULL) {
     ep->user_fifo    = ff;
     ep->is_xfer_fifo = true;
-  } else {
+  } else
+#endif
+  {
     ep->user_buf     = buffer;
     ep->is_xfer_fifo = false;
   }
@@ -284,10 +293,13 @@ static uint16_t __tusb_irq_path_func(sync_ep_buffer)(hw_endpoint_t *ep, io_rw_32
     assert(buf_ctrl & USB_BUF_CTRL_FULL);
 
     uint8_t *hw_buf = ep->hw_data_buf + buf_id * 64;
+  #if CFG_TUD_EDPT_DEDICATED_HWFIFO
     if (ep->is_xfer_fifo) {
       // not in sram, may mess up timing with E15 workaround
       tu_hwfifo_read_to_fifo(hw_buf, ep->user_fifo, xferred_bytes, NULL);
-    } else {
+    } else
+  #endif
+    {
       unaligned_memcpy(ep->user_buf, hw_buf, xferred_bytes);
       ep->user_buf += xferred_bytes;
     }

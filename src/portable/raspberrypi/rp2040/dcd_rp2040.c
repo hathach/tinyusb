@@ -505,6 +505,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
   return true;
 }
 
+#if CFG_TUD_EDPT_DEDICATED_HWFIFO
 bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t *ff, uint16_t total_bytes, bool is_isr) {
   (void)rhport;
   (void)is_isr;
@@ -512,6 +513,7 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t *ff, uint16_t
   hw_endpoint_xfer_start(ep, NULL, ff, total_bytes);
   return true;
 }
+#endif
 
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   (void)rhport;
