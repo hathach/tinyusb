@@ -134,8 +134,6 @@
 #define OPT_MCU_ESP32C5           908 ///< Espressif ESP32-C5
 #define OPT_MCU_ESP32C61          909 ///< Espressif ESP32-C61
 #define OPT_MCU_ESP32H4           910 ///< Espressif ESP32-H4
-#define TUSB_MCU_VENDOR_ESPRESSIF (CFG_TUSB_MCU >= 900 && CFG_TUSB_MCU < 1000) // check if Espressif MCU
-#define TUP_MCU_ESPRESSIF        TUSB_MCU_VENDOR_ESPRESSIF //  for backward compatibility
 
 // Dialog
 #define OPT_MCU_DA1469X          1000 ///< Dialog Semiconductor DA1469x
@@ -238,6 +236,7 @@
 #define OPT_OS_RTTHREAD   6  ///< RT-Thread
 #define OPT_OS_RTX4       7  ///< Keil RTX 4
 #define OPT_OS_ZEPHYR     8  ///< Zephyr
+#define OPT_OS_THREADX    9  ///< ThreadX
 
 //--------------------------------------------------------------------+
 // Mode and Speed
@@ -340,14 +339,18 @@
 #if defined(TUP_USBIP_FSDEV)
   #define CFG_TUD_EDPT_DEDICATED_HWFIFO 1
 
-  #if CFG_TUSB_FSDEV_PMA_SIZE == 512
-    #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 2 // 16-bit data
+  #if CFG_TUSB_FSDEV_PMA_SIZE == 2048 || TU_CHECK_MCU(OPT_MCU_STM32U0)
+    // 32-bit access scheme
+    #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 4 // 32-bit data
     #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 4 // 32-bit address increase
+    #define CFG_TUSB_FSDEV_32BIT
   #elif CFG_TUSB_FSDEV_PMA_SIZE == 1024
+    // 2 x 16-bit access scheme
     #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 2 // 16-bit data
     #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 2 // 16-bit address increase
-  #elif CFG_TUSB_FSDEV_PMA_SIZE == 2048
-    #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 4 // 32-bit data
+  #elif CFG_TUSB_FSDEV_PMA_SIZE == 512
+    // 1 x 16-bit access scheme
+    #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 2 // 16-bit data
     #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 4 // 32-bit address increase
   #endif
 #endif
@@ -378,7 +381,7 @@
 #endif
 
 #if (CFG_TUSB_MCU == OPT_MCU_RP2040) && !CFG_TUD_RPI_PIO_USB
-  #define CFG_TUD_EDPT_DEDICATED_HWFIFO    1
+  #define CFG_TUD_EDPT_DEDICATED_HWFIFO    0
   #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 1
   #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 1
   #define CFG_TUSB_FIFO_HWFIFO_CUSTOM_WRITE
@@ -392,6 +395,24 @@
   #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE  0
   #define CFG_TUSB_FIFO_HWFIFO_CUSTOM_WRITE // custom write since rusb2 can change access width 32 -> 16 and can write
                                             // odd byte with byte access
+#endif
+
+//------- Microchip SAMX7X -------//
+// DMA mode for device
+#ifndef CFG_TUD_SAMX7X_DMA_ENABLE
+  #ifndef CFG_TUD_SAMX7X_DMA_ENABLE_DEFAULT
+  #define CFG_TUD_SAMX7X_DMA_ENABLE_DEFAULT 0
+  #endif
+
+  #define CFG_TUD_SAMX7X_DMA_ENABLE CFG_TUD_SAMX7X_DMA_ENABLE_DEFAULT
+#endif
+
+#if (CFG_TUSB_MCU == OPT_MCU_SAMX7X)
+  #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 4
+  #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 4
+  #define CFG_TUSB_FIFO_HWFIFO_DATA_ODD_16BIT_ACCESS
+  #define CFG_TUSB_FIFO_HWFIFO_DATA_ODD_8BIT_ACCESS
+  #define CFG_TUD_EDPT_DEDICATED_HWFIFO 1
 #endif
 
 //--------------------------------------------------------------------
@@ -469,7 +490,6 @@
   #define TUP_MCU_STRICT_ALIGN   0
 #endif
 
-
 //--------------------------------------------------------------------+
 // Common Options (Default)
 //--------------------------------------------------------------------+
@@ -512,6 +532,10 @@
 // OS selection
 #ifndef CFG_TUSB_OS
   #define CFG_TUSB_OS           OPT_OS_NONE
+#endif
+
+#ifndef CFG_TUSB_OS_HAS_SCHEDULER
+  #define CFG_TUSB_OS_HAS_SCHEDULER (CFG_TUSB_OS != OPT_OS_NONE && CFG_TUSB_OS != OPT_OS_PICO)
 #endif
 
 #ifndef CFG_TUSB_OS_INC_PATH
@@ -560,6 +584,11 @@
   #define CFG_TUD_INTERFACE_MAX   16
 #endif
 
+// max events processed in one tud_task_ext() call, 0 for unlimited
+#ifndef CFG_TUD_TASK_EVENTS_PER_RUN
+  #define CFG_TUD_TASK_EVENTS_PER_RUN  16
+#endif
+
 // default to max hardware endpoint, but can be smaller to save RAM
 #ifndef CFG_TUD_ENDPPOINT_MAX
   #define CFG_TUD_ENDPPOINT_MAX   TUP_DCD_ENDPOINT_MAX
@@ -574,9 +603,18 @@
   #define CFG_TUD_TEST_MODE       0
 #endif
 
+#ifndef CFG_TUD_VBUS_DETECT_HW_DEFAULT
+  #define CFG_TUD_VBUS_DETECT_HW_DEFAULT 0
+#endif
+
+// Enable VBUS Detect hardware, usually via functional GPIO
+#ifndef CFG_TUD_VBUS_DETECT_HW
+  #define CFG_TUD_VBUS_DETECT_HW CFG_TUD_VBUS_DETECT_HW_DEFAULT
+#endif
+
 //------------- Device Class Driver -------------//
 #ifndef CFG_TUD_BTH
-  #define CFG_TUD_BTH             0
+  #define CFG_TUD_BTH 0
 #endif
 
 #if CFG_TUD_BTH && !defined(CFG_TUD_BTH_ISO_ALT_COUNT)
@@ -640,6 +678,10 @@
   #define CFG_TUD_NCM         0
 #endif
 
+#ifndef CFG_TUD_PRINTER
+  #define CFG_TUD_PRINTER         0
+#endif
+
 #ifndef CFG_TUD_EDPT_DEDICATED_HWFIFO
   #define CFG_TUD_EDPT_DEDICATED_HWFIFO 0
 #endif
@@ -677,6 +719,11 @@
 
 #ifndef CFG_TUH_MEM_DCACHE_LINE_SIZE
   #define CFG_TUH_MEM_DCACHE_LINE_SIZE CFG_TUSB_MEM_DCACHE_LINE_SIZE
+#endif
+
+// max events processed in one tuh_task_ext() call, 0 for unlimited
+#ifndef CFG_TUH_TASK_EVENTS_PER_RUN
+  #define CFG_TUH_TASK_EVENTS_PER_RUN  16
 #endif
 
 //------------- CLASS -------------//

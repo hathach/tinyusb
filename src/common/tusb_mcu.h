@@ -71,13 +71,24 @@
   #define TUP_DCD_ENDPOINT_MAX 5
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC54)
+  #include "fsl_device_registers.h"
+
   // TODO USB0 has 5, USB1 has 6
   #define TUP_USBIP_IP3511
+
+  #if !defined(LPC54114_cm4_SERIES) && !defined(LPC54114_cm0plus_SERIES)
+    #define TUP_USBIP_IP3516
+    #define TUP_USBIP_OHCI
+    #define TUP_USBIP_OHCI_NXP
+    #define TUP_OHCI_RHPORTS     1 // 1 downstream port
+  #endif
+
   #define TUP_DCD_ENDPOINT_MAX 6
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC55)
   // TODO USB0 has 5, USB1 has 6
   #define TUP_USBIP_IP3511
+  #define TUP_USBIP_IP3516
   #define TUP_USBIP_OHCI
   #define TUP_USBIP_OHCI_NXP
   #define TUP_OHCI_RHPORTS     1 // 1 downstream port
@@ -172,6 +183,10 @@
   #define TUP_RHPORT_HIGHSPEED 1
   #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
 
+  // Enable dcache if DMA is enabled
+  #define CFG_TUD_MEM_DCACHE_ENABLE_DEFAULT     CFG_TUD_SAMX7X_DMA_ENABLE
+  #define CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT 32
+
 #elif TU_CHECK_MCU(OPT_MCU_PIC32MZ)
   #define TUP_DCD_ENDPOINT_MAX 8
   #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
@@ -187,6 +202,7 @@
 #elif TU_CHECK_MCU(OPT_MCU_STM32C0)
   #define TUP_USBIP_FSDEV
   #define TUP_USBIP_FSDEV_STM32
+  #define TUP_USBIP_FSDEV_DRD
   #define CFG_TUSB_FSDEV_PMA_SIZE 2048u
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32F0)
@@ -226,9 +242,11 @@
 
   #if defined(STM32F302xB) || defined(STM32F302xC) || defined(STM32F303xB) || defined(STM32F303xC) || \
     defined(STM32F373xC)
+    // xB, and xC: 512
     #define CFG_TUSB_FSDEV_PMA_SIZE 512u
   #elif defined(STM32F302x6) || defined(STM32F302x8) || defined(STM32F302xD) || defined(STM32F302xE) || \
     defined(STM32F303xD) || defined(STM32F303xE)
+    // x6, x8, xD, and xE: 1024 + LPM Support
     #define CFG_TUSB_FSDEV_PMA_SIZE 1024u
   #else
     #error "Unsupported STM32F3 mcu"
@@ -261,6 +279,7 @@
 #elif TU_CHECK_MCU(OPT_MCU_STM32G0)
   #define TUP_USBIP_FSDEV
   #define TUP_USBIP_FSDEV_STM32
+  #define TUP_USBIP_FSDEV_DRD
   #define CFG_TUSB_FSDEV_PMA_SIZE 2048u
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32G4)
@@ -276,6 +295,7 @@
 #elif TU_CHECK_MCU(OPT_MCU_STM32H5)
   #define TUP_USBIP_FSDEV
   #define TUP_USBIP_FSDEV_STM32
+  #define TUP_USBIP_FSDEV_DRD
   #define CFG_TUSB_FSDEV_PMA_SIZE 2048u
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32H7)
@@ -349,6 +369,7 @@
 #elif TU_CHECK_MCU(OPT_MCU_STM32U3)
   #define TUP_USBIP_FSDEV
   #define TUP_USBIP_FSDEV_STM32
+  #define TUP_USBIP_FSDEV_DRD
   #define CFG_TUSB_FSDEV_PMA_SIZE 2048u
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32U5)
@@ -356,6 +377,7 @@
   #if defined(STM32U535xx) || defined(STM32U545xx)
     #define TUP_USBIP_FSDEV
     #define TUP_USBIP_FSDEV_STM32
+    #define TUP_USBIP_FSDEV_DRD
     #define CFG_TUSB_FSDEV_PMA_SIZE 2048u
   #else
     #define TUP_USBIP_DWC2

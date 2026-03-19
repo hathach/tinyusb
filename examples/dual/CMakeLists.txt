@@ -12,6 +12,7 @@ else ()
   set(EXAMPLE_LIST
     host_hid_to_device_cdc
     host_info_to_device_cdc
+    dynamic_switch
     )
 
   foreach (example ${EXAMPLE_LIST})

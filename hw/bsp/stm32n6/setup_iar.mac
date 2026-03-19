@@ -1,0 +1,12 @@
+/* Called once after the target reset. */
+execUserReset()
+{
+    /* Re-load image as AIXRAM2 is erased after CPU reset */
+    __loadImage("$EXE_DIR$\\$TARGET_BNAME$.hex", 0, 0);
+
+    __restoreSoftwareBreakpoints();
+
+     #PC = __readMemory32(0x34180404, "Memory");
+
+     #SP = 0x341FFD00;
+}

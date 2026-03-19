@@ -92,6 +92,13 @@ enum {
   HUB_CHARS_OVER_CURRENT_INDIVIDUAL = 1,
 };
 
+// Hub Interface Protocol (USB 2.0 spec Table 11-16)
+typedef enum {
+  HUB_PROTOCOL_FULL_SPEED     = 0, // Full speed hub
+  HUB_PROTOCOL_HIGH_SPEED_STT = 1, // Hi-speed hub with single TT
+  HUB_PROTOCOL_HIGH_SPEED_MTT = 2, // Hi-speed hub with multiple TTs
+} hub_protocol_t;
+
 typedef struct TU_ATTR_PACKED{
   uint8_t  bLength           ; ///< Size of descriptor
   uint8_t  bDescriptorType   ; ///< Other_speed_Configuration Type

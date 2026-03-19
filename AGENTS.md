@@ -21,11 +21,12 @@ information that does not match the info here.
 - For specific board families: `python3 tools/get_deps.py FAMILY_NAME` (e.g., rp2040, stm32f4), or
   `python3 tools/get_deps.py -b BOARD_NAME`
 - Dependencies are cached in `lib/` and `hw/mcu/` directories
+- For **Espressif** boards, initialize the ESP-IDF environment before any build/flash/monitor command:
+  `. $HOME/code/esp-idf/export.sh`
 
 ## Build Examples
 
 Choose ONE of these approaches:
-
 **Option 1: Individual Example with CMake and Ninja (RECOMMENDED)**
 
 ```bash
@@ -59,6 +60,19 @@ make BOARD=raspberry_pi_pico all
 
 -- takes 2-3 seconds. NEVER CANCEL. Set timeout to 5+ minutes.
 
+**Option 4: Espressif Example with ESP-IDF**
+
+Only ESP-IDF-enabled examples are supported for Espressif boards. Use FreeRTOS examples such as `examples/device/cdc_msc_freertos`
+that contain `idf_component_register()` support.
+
+```bash
+. $HOME/code/esp-idf/export.sh
+cd examples/device/cdc_msc_freertos
+idf.py -DBOARD=espressif_s3_devkitc build
+```
+
+Use `-DBOARD=...` with any supported board under `hw/bsp/espressif/boards/`. NEVER CANCEL. Set timeout to 10+ minutes.
+
 
 ## Build Options
 
@@ -90,6 +104,88 @@ make BOARD=raspberry_pi_pico all
     - CMake: `ninja cdc_msc-uf2`
     - Make: `make BOARD=raspberry_pi_pico all uf2`
 - **List all targets** (CMake/Ninja): `ninja -t targets`
+- **Espressif flash**:
+    - Run `. $HOME/code/esp-idf/export.sh`
+    - `cd examples/device/cdc_msc_freertos`
+    - `idf.py -DBOARD=espressif_s3_devkitc flash`
+- **Espressif serial monitor / chip log output**:
+    - Run `. $HOME/code/esp-idf/export.sh`
+    - `cd examples/device/cdc_msc_freertos`
+    - `idf.py -DBOARD=espressif_s3_devkitc monitor`
+
+## GDB Debugging
+
+Look up the board's `JLINK_DEVICE` and `OPENOCD_OPTION` from `hw/bsp/*/boards/*/board.cmake` (or `board.mk`).
+
+### JLinkGDBServer
+
+**Terminal 1 – start the GDB server:**
+```bash
+JLinkGDBServer -device stm32h743xi -if SWD -speed 4000 \
+  -port 2331 -swoport 2332 -telnetport 2333 -nogui
+```
+
+**Terminal 2 – connect GDB:**
+```bash
+arm-none-eabi-gdb /tmp/build/firmware.elf
+(gdb) target remote :2331
+(gdb) monitor reset halt
+(gdb) load
+(gdb) continue
+```
+
+To break on entry instead of running immediately:
+```bash
+(gdb) monitor reset halt
+(gdb) load
+(gdb) break main
+(gdb) continue
+```
+
+### OpenOCD
+
+**Terminal 1 – start the GDB server:**
+```bash
+openocd -f interface/stlink.cfg -f target/stm32h7x.cfg
+# or with J-Link probe:
+openocd -f interface/jlink.cfg -f target/stm32h7x.cfg
+```
+
+For **rp2040/rp2350** with a CMSIS-DAP probe (e.g. Picoprobe, debugprobe):
+```bash
+openocd -f interface/cmsis-dap.cfg -f target/rp2040.cfg -c "adapter speed 5000"
+# or for rp2350:
+openocd -f interface/cmsis-dap.cfg -f target/rp2350.cfg -c "adapter speed 5000"
+```
+
+For boards that define `OPENOCD_OPTION` in `board.cmake`, use those options directly:
+```bash
+openocd $(cat hw/bsp/FAMILY/boards/BOARD/board.cmake | grep OPENOCD_OPTION | ...)
+```
+
+**Terminal 2 – connect GDB (OpenOCD default port is 3333):**
+```bash
+arm-none-eabi-gdb /tmp/build/firmware.elf
+(gdb) target remote :3333
+(gdb) monitor reset halt
+(gdb) load
+(gdb) continue
+```
+
+### RTT Logging with JLinkGDBServer
+
+- Build with RTT logging enabled (example):
+  `cd examples/device/cdc_msc && make BOARD=stm32h743eval LOG=2 LOGGER=rtt all`
+- Flash with J-Link:
+  `cd examples/device/cdc_msc && make BOARD=stm32h743eval LOG=2 LOGGER=rtt flash-jlink`
+- Launch GDB server with RTT port (keep this running in terminal 1):
+  `JLinkGDBServer -device stm32h743xi -if SWD -speed 4000 -port 2331 -swoport 2332 -telnetport 2333 -RTTTelnetPort 19021 -nogui`
+- Read RTT output (terminal 2):
+  `JLinkRTTClient`
+- Capture RTT to file (optional):
+  `JLinkRTTClient | tee rtt.log`
+- For non-interactive capture:
+  `timeout 20s JLinkRTTClient > rtt.log`
 
 ## Unit Testing
 
@@ -101,9 +197,15 @@ make BOARD=raspberry_pi_pico all
 
 ## Hardware-in-the-Loop (HIL) Testing
 
+- `-B examples` means `examples` is the parent folder that contains multi-board build outputs such as `examples/cmake-build-BOARD_NAME/...`
+- Select config file before running HIL tests:
+    - if GitHub Actions self-hosted runner service is running, use `tinyusb.json`
+    - otherwise use `local.json`
+    - example:
+      `HIL_CONFIG=$( (systemctl list-units --type=service --state=running 2>/dev/null; systemctl --user list-units --type=service --state=running 2>/dev/null) | grep -q 'actions\.runner' && echo tinyusb.json || echo local.json )`
 - Run tests on actual hardware, one of following ways:
-    - test a specific board `python test/hil/hil_test.py -b BOARD_NAME -B examples local.json`
-    - test all boards in config `python test/hil/hil_test.py -B examples local.json`
+    - test a specific board `python test/hil/hil_test.py -b BOARD_NAME -B examples $HIL_CONFIG`
+    - test all boards in config `python test/hil/hil_test.py -B examples $HIL_CONFIG`
 - In case of error, enabled verbose mode with `-v` flag for detailed logs. Also try to observe script output, and try to
   modify hil_test.py (temporarily) to add more debug prints to pinpoint the issue.
 - Requires pre-built (all) examples for target boards (see Build Examples section 2)
@@ -114,6 +216,51 @@ take 2-5 minutes. NEVER CANCEL. Set timeout to 20+ minutes.
 
 - Install requirements: `pip install -r docs/requirements.txt`
 - Build docs: `cd docs && sphinx-build -b html . _build` -- takes 2-3 seconds. NEVER CANCEL. Set timeout to 10+ minutes.
+
+## Code Size Metrics
+
+Generate and compare code size metrics to evaluate the impact of changes. This is the most common workflow
+when making code changes — use it to verify size impact before committing.
+
+**Quick single-board metrics (preferred for iterative development):**
+
+```bash
+rm -rf cmake-build
+python3 tools/build.py -b raspberry_pi_pico --target all --target tinyusb_metrics
+python3 tools/metrics.py combine -j -m -f tinyusb/src cmake-build/cmake-build-*/metrics.json
+```
+
+This builds all examples for one board and produces `metrics.json` + `metrics.md`. Takes ~30 seconds.
+NEVER CANCEL. Set timeout to 10+ minutes.
+
+**Comparing with master (before/after workflow):**
+
+1. On master: build and save baseline
+   ```bash
+   rm -rf cmake-build
+   python3 tools/build.py -b raspberry_pi_pico --target all --target tinyusb_metrics
+   python3 tools/metrics.py combine -j -m -f tinyusb/src cmake-build/cmake-build-*/metrics.json
+   mv metrics.json metrics_master.json
+   ```
+2. Switch to your branch: rebuild
+   ```bash
+   rm -rf cmake-build
+   python3 tools/build.py -b raspberry_pi_pico --target all --target tinyusb_metrics
+   python3 tools/metrics.py combine -j -m -f tinyusb/src cmake-build/cmake-build-*/metrics.json
+   ```
+3. Compare: `python3 tools/metrics.py compare -m -f tinyusb/src metrics_master.json metrics.json`
+   Produces `metrics_compare.md` showing size differences.
+
+**Full CI metrics (all arm-gcc families, for thorough validation):**
+
+```bash
+rm -rf cmake-build
+FAMILIES=$(python3 .github/workflows/ci_set_matrix.py | python3 -c "import sys,json; d=json.load(sys.stdin); print(' '.join(d.get('arm-gcc',[])))")
+python3 tools/build.py --one-first --target all --target tinyusb_metrics $FAMILIES
+python3 tools/metrics.py combine -j -m -f tinyusb/src cmake-build/cmake-build-*/metrics.json
+```
+
+Builds the first board of each family. Takes 2-4 minutes. NEVER CANCEL. Set timeout to 10+ minutes.
 
 ## Code Quality and Validation
 
@@ -235,6 +382,9 @@ take 2-5 minutes. NEVER CANCEL. Set timeout to 20+ minutes.
 - `src/tusb_config.h`: Configuration template
 - `examples/device/cdc_msc/`: Most commonly used example for testing
 - `test/unit-test/project.yml`: Ceedling test configuration
+
+#### MCU Reference Manuals and Datasheets
+- Look in `$HOME/Documents/Calibre Library` for all MCU reference manuals, datasheets and board schematics.
 
 #### Debugging Build Issues
 - **Missing compiler**: Install `gcc-arm-none-eabi` package

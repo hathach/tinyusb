@@ -72,6 +72,12 @@ target_compile_definitions(tinyusb_common_base INTERFACE
 	CFG_TUSB_DEBUG=${TINYUSB_DEBUG_LEVEL}
 )
 
+if (CFG_TUH_RPI_PIO_USB)
+	target_compile_definitions(tinyusb_common_base INTERFACE
+		CFG_TUH_RPI_PIO_USB=1
+	)
+endif()
+
 target_link_libraries(tinyusb_common_base INTERFACE
 	hardware_structs
 	hardware_irq
@@ -98,6 +104,7 @@ target_sources(tinyusb_device_base INTERFACE
 		${TOP}/src/class/mtp/mtp_device.c
 		${TOP}/src/class/net/ecm_rndis_device.c
 		${TOP}/src/class/net/ncm_device.c
+		${TOP}/src/class/printer/printer_device.c
 		${TOP}/src/class/usbtmc/usbtmc_device.c
 		${TOP}/src/class/vendor/vendor_device.c
 		${TOP}/src/class/video/video_device.c
@@ -250,9 +257,10 @@ function(family_configure_target TARGET RTOS)
   family_flash_openocd(${TARGET})
 	family_flash_jlink(${TARGET})
 
-  # Generate linkermap target and post build. LINKERMAP_OPTION can be set with -D to change default options
+	# Generate linkermap target and post build. LINKERMAP_OPTION can be set with -D to change default options
 	family_add_bloaty(${TARGET})
   family_add_linkermap(${TARGET})
+  family_add_membrowse(${TARGET})
 endfunction()
 
 

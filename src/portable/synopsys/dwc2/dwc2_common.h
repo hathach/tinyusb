@@ -42,6 +42,7 @@
 // - _dwc2_controller[]: array of controllers
 // - DWC2_EP_MAX: largest EP counts of all controllers
 // - dwc2_phy_init/dwc2_phy_update: phy init called before and after core reset
+// - dwc2_phy_deinit(dwc2, hs_phy_type): phy deinit to disable PHY power, only deinit the phy used by core
 // - dwc2_dcd_int_enable/dwc2_dcd_int_disable
 // - dwc2_remote_wakeup_delay
 
@@ -84,8 +85,10 @@ TU_ATTR_ALWAYS_INLINE static inline dwc2_regs_t* DWC2_REG(uint8_t rhport) {
   return (dwc2_regs_t*)_dwc2_controller[rhport].reg_base;
 }
 
-bool dwc2_core_is_highspeed(dwc2_regs_t* dwc2, tusb_role_t role);
-bool dwc2_core_init(uint8_t rhport, bool is_highspeed, bool is_dma);
+// check if highspeed phy should be used
+bool dwc2_core_is_highspeed_phy(dwc2_regs_t* dwc2, bool prefer_hs_phy);
+bool dwc2_core_init(uint8_t rhport, bool is_hs_phy, bool is_dma);
+void dwc2_core_deinit(uint8_t rhport);
 void dwc2_core_handle_common_irq(uint8_t rhport, bool in_isr);
 
 //--------------------------------------------------------------------+

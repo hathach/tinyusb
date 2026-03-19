@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef TUSB_PRIVATE_H_
-#define TUSB_PRIVATE_H_
+#ifndef TUSB_PRIVATE_H
+#define TUSB_PRIVATE_H
 
 // Internal Helper used by Host and Device Stack
 
@@ -33,9 +33,11 @@
  extern "C" {
 #endif
 
-//--------------------------------------------------------------------+
-// Configuration
-//--------------------------------------------------------------------+
+typedef void (*tusb_defer_func_t)(uintptr_t param);
+
+ //--------------------------------------------------------------------+
+ // Configuration
+ //--------------------------------------------------------------------+
 
 #define TUP_USBIP_CONTROLLER_NUM 2
 extern tusb_role_t _tusb_rhport_role[TUP_USBIP_CONTROLLER_NUM];
@@ -60,9 +62,10 @@ typedef struct {
   uint8_t  hwid;    // device: rhport, host: daddr
   bool     is_host; // 1: host, 0: device
   uint8_t ep_addr;
-  uint16_t mps;
+  // 1 byte padding
 
-  uint16_t ep_bufsize;
+  uint16_t mps;
+  uint16_t xfer_len;
   uint8_t  *ep_buf; // set to NULL to use xfer_fifo when CFG_TUD_EDPT_DEDICATED_HWFIFO = 1
   tu_fifo_t ff;
 
@@ -79,9 +82,8 @@ typedef struct {
 bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed);
 #else
 TU_ATTR_ALWAYS_INLINE static inline bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed) {
-  (void)desc_ep;
   (void)speed;
-  return true;
+  return tu_edpt_packet_size(desc_ep) > 0;
 }
 #endif
 
@@ -101,7 +103,7 @@ bool tu_edpt_release(tu_edpt_state_t* ep_state, osal_mutex_t mutex);
 
 // Init an endpoint stream
 bool tu_edpt_stream_init(tu_edpt_stream_t *s, bool is_host, bool is_tx, bool overwritable, void *ff_buf,
-                         uint16_t ff_bufsize, uint8_t *ep_buf, uint16_t ep_bufsize);
+                         uint16_t ff_bufsize, uint8_t *ep_buf);
 
 // Deinit an endpoint stream
 TU_ATTR_ALWAYS_INLINE static inline void tu_edpt_stream_deinit(tu_edpt_stream_t *s) {
@@ -118,10 +120,11 @@ TU_ATTR_ALWAYS_INLINE static inline void tu_edpt_stream_deinit(tu_edpt_stream_t 
 
 // Open an endpoint stream
 TU_ATTR_ALWAYS_INLINE static inline void tu_edpt_stream_open(tu_edpt_stream_t *s, uint8_t hwid,
-                                                             const tusb_desc_endpoint_t *desc_ep) {
+                                                             const tusb_desc_endpoint_t *desc_ep, uint16_t xfer_len) {
   s->hwid    = hwid;
   s->ep_addr = desc_ep->bEndpointAddress;
   s->mps = tu_edpt_packet_size(desc_ep);
+  s->xfer_len = xfer_len;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool tu_edpt_stream_is_opened(const tu_edpt_stream_t *s) {

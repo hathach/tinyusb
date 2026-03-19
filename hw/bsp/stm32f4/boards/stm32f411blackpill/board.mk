@@ -1,4 +1,4 @@
-CFLAGS += -DSTM32F411xE
+CFLAGS += -DSTM32F411xE -DHSE_VALUE=25000000
 
 # GCC
 SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_stm32f411xe.s

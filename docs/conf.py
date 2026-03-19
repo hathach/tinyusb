@@ -52,11 +52,11 @@ def preprocess_readme():
     src = Path(__file__).parent.parent / "README.rst"
     tgt = Path(__file__).parent.parent / "README_processed.rst"
     if src.exists():
-        content = src.read_text()
+        content = src.read_text(encoding='utf-8')
         content = re.sub(r"docs/", r"", content)
         content = re.sub(r"\.rst\b", r".html", content)
         if not content.endswith("\n"):
             content += "\n"
-        tgt.write_text(content)
+        tgt.write_text(content, encoding='utf-8')
 
 preprocess_readme()

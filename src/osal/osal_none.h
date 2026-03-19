@@ -31,6 +31,8 @@
 extern "C" {
 #endif
 
+// osal_time_millis() is not provided, tusb_time_millis_api() must be implemented by user application
+
 //--------------------------------------------------------------------+
 // Spinlock API
 //--------------------------------------------------------------------+
@@ -184,7 +186,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_receive(osal_queue_t qhdl, v
   (void) msec; // not used, always behave as msec = 0
 
   qhdl->interrupt_set(false);
-  const bool success = tu_fifo_read_n(&qhdl->ff, data, qhdl->item_size);
+  const bool success = (tu_fifo_read_n(&qhdl->ff, data, qhdl->item_size) > 0);
   qhdl->interrupt_set(true);
 
   return success;
@@ -195,7 +197,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_send(osal_queue_t qhdl, void
     qhdl->interrupt_set(false);
   }
 
-  const bool success = tu_fifo_write_n(&qhdl->ff, data, qhdl->item_size);
+  const bool success = (tu_fifo_write_n(&qhdl->ff, data, qhdl->item_size) > 0);
 
   if (!in_isr) {
     qhdl->interrupt_set(true);

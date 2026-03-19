@@ -44,7 +44,7 @@ static const uint8_t *const permanent_hwaddr = tud_network_mac_address;
 
 static usb_eth_stat_t usb_eth_stat = { 0, 0, 0, 0 };
 static uint32_t oid_packet_filter = 0x0000000;
-static rndis_state_t rndis_state;
+TU_ATTR_UNUSED static rndis_state_t rndis_state;
 
 static const uint32_t OIDSupportedList[] =
 {

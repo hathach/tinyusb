@@ -46,6 +46,10 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_task_delay(uint32_t msec) {
   os_dly_wait(lo);
 }
 
+TU_ATTR_ALWAYS_INLINE static inline uint32_t osal_time_millis(void) {
+  return os_time_get();
+}
+
 TU_ATTR_ALWAYS_INLINE static inline uint16_t msec2wait(uint32_t msec) {
   if (msec == OSAL_TIMEOUT_WAIT_FOREVER) {
     return 0xFFFF;

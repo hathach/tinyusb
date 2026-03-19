@@ -231,7 +231,7 @@ static void video_send_frame(void) {
   if (!already_sent) {
     already_sent = 1;
     tx_busy = 1;
-    start_ms = board_millis();
+    start_ms = tusb_time_millis_api();
 #if defined(CFG_EXAMPLE_VIDEO_BUFFERLESS)
     tud_video_n_frame_xfer(0, 0, NULL, FRAME_WIDTH * FRAME_HEIGHT * 16 / 8);
 #elif defined (CFG_EXAMPLE_VIDEO_READONLY)
@@ -247,7 +247,7 @@ static void video_send_frame(void) {
 #endif
   }
 
-  unsigned cur = board_millis();
+  unsigned cur = tusb_time_millis_api();
   if (cur - start_ms < interval_ms) {
     return; // not enough time
   }
@@ -316,7 +316,7 @@ void led_blinking_task(void* param) {
     #if CFG_TUSB_OS == OPT_OS_FREERTOS
     vTaskDelay(blink_interval_ms / portTICK_PERIOD_MS);
     #else
-    if (board_millis() - start_ms < blink_interval_ms) {
+    if (tusb_time_millis_api() - start_ms < blink_interval_ms) {
       return; // not enough time
     }
     #endif

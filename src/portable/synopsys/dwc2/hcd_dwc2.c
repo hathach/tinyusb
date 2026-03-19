@@ -111,7 +111,8 @@ typedef struct {
   hcd_endpoint_t edpt[CFG_TUH_DWC2_ENDPOINT_MAX];
 } hcd_data_t;
 
-hcd_data_t _hcd_data;
+static hcd_data_t _hcd_data;
+static tuh_configure_dwc2_t _tuh_cfg = {.use_hs_phy = TUH_OPT_HIGH_SPEED};
 
 //--------------------------------------------------------------------
 //
@@ -350,7 +351,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t cal_next_pid(uint8_t pid, uint8_t pa
  * TX periodic (PTX)
  * - At least largest-EPsize*MulCount/4 (MulCount up to 3 for high-bandwidth ISO/interrupt)
 */
-static void dfifo_host_init(uint8_t rhport) {
+static void dfifo_host_init(uint8_t rhport, bool is_hs_phy) {
   const dwc2_controller_t* dwc2_controller = &_dwc2_controller[rhport];
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   const dwc2_ghwcfg2_t ghwcfg2 = {.value = dwc2->ghwcfg2};
@@ -363,10 +364,9 @@ static void dfifo_host_init(uint8_t rhport) {
   }
 
   // fixed allocation for now, improve later:
-    // - ptx_largest is limited to 256 for FS since most FS core only has 1024 bytes total
-  bool is_highspeed = dwc2_core_is_highspeed(dwc2, TUSB_ROLE_HOST);
-  uint32_t nptx_largest = is_highspeed ? TUSB_EPSIZE_BULK_HS/4 : TUSB_EPSIZE_BULK_FS/4;
-  uint32_t ptx_largest = is_highspeed ? TUSB_EPSIZE_ISO_HS_MAX/4 : 256/4;
+  // - ptx_largest is limited to 256 for FS since most FS core only has 1024 bytes total
+  uint32_t nptx_largest = is_hs_phy ? TUSB_EPSIZE_BULK_HS / 4 : TUSB_EPSIZE_BULK_FS / 4;
+  uint32_t ptx_largest  = is_hs_phy ? TUSB_EPSIZE_ISO_HS_MAX / 4 : 256 / 4;
 
   uint16_t nptxfsiz = 2 * nptx_largest;
   uint16_t rxfsiz = 2 * (ptx_largest + 2) + ghwcfg2.num_host_ch;
@@ -392,29 +392,23 @@ static void dfifo_host_init(uint8_t rhport) {
 // optional hcd configuration, called by tuh_configure()
 bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
   (void) rhport;
-  (void) cfg_id;
-  (void) cfg_param;
-
+  TU_VERIFY(cfg_id == TUH_CFGID_DWC2 && cfg_param != NULL);
+  tuh_configure_param_t const* cfg = (tuh_configure_param_t const*) cfg_param;
+  _tuh_cfg = cfg->dwc2;
   return true;
 }
 
 // Initialize controller to host mode
 bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
-  (void) rh_init;
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-
   tu_memclr(&_hcd_data, sizeof(_hcd_data));
 
   // Core Initialization
-  const bool is_highspeed = dwc2_core_is_highspeed(dwc2, TUSB_ROLE_HOST);
+  const bool is_hs_phy = dwc2_core_is_highspeed_phy(dwc2, _tuh_cfg.use_hs_phy);
   const bool is_dma = dma_host_enabled(dwc2);
-  TU_ASSERT(dwc2_core_init(rhport, is_highspeed, is_dma));
+  TU_ASSERT(dwc2_core_init(rhport, is_hs_phy, is_dma));
 
   //------------- 3.1 Host Initialization -------------//
-
-  // work at max supported speed
-  dwc2->hcfg &= ~HCFG_FSLS_ONLY;
-
   // Enable HFIR reload
   if (dwc2->gsnpsid >= DWC2_CORE_REV_2_92a) {
     dwc2->hfir |= HFIR_RELOAD_CTRL;
@@ -422,26 +416,43 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   // force host mode and wait for mode switch
   dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_FDMOD) | GUSBCFG_FHMOD;
-#if CFG_TUSB_MCU == OPT_MCU_STM32N6
-  // No hardware detection of Vbus B-session is available on the STM32N6
-  dwc2->stm32_gccfg &= ~STM32_GCCFG_VBVALOVAL;
-#endif
   while ((dwc2->gintsts & GINTSTS_CMOD) != GINTSTS_CMODE_HOST) {}
 
-  // configure fixed-allocated fifo scheme
-  dfifo_host_init(rhport);
+  #ifdef TUP_USBIP_DWC2_STM32
+  dwc2_stm32_gccfg_cfg(dwc2, false, true);
+  #endif
+
+  if (is_hs_phy && (rh_init->speed == TUSB_SPEED_HIGH || rh_init->speed == TUSB_SPEED_AUTO)) {
+    dwc2->hcfg &= ~HCFG_FSLS_ONLY; // max speed
+  } else {
+    dwc2->hcfg |= HCFG_FSLS_ONLY;  // disable high speed mode
+  }
+
+  // configure a fixed-allocated fifo scheme
+  dfifo_host_init(rhport, is_hs_phy);
 
   dwc2->hprt = HPRT_W1_MASK; // clear all write-1-clear bits
   dwc2->hprt = HPRT_POWER; // turn on VBUS
 
   // Enable required interrupts
-  dwc2->gintmsk |= GINTSTS_OTGINT | GINTSTS_CONIDSTSCHNG | GINTSTS_HPRTINT | GINTSTS_HCINT | GINTSTS_DISCINT;
+  dwc2->gintmsk |= GINTSTS_OTGINT | GINTSTS_HPRTINT | GINTSTS_HCINT | GINTSTS_DISCINT;
 
   // NPTX can hold at least 2 packet, change interrupt level to half-empty
   uint32_t gahbcfg = dwc2->gahbcfg & ~GAHBCFG_TX_FIFO_EPMTY_LVL;
   gahbcfg |= GAHBCFG_GINT;   // Enable global interrupt
   dwc2->gahbcfg = gahbcfg;
 
+  return true;
+}
+
+bool hcd_deinit(uint8_t rhport) {
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+
+  // Turn off VBUS
+  dwc2->hprt = HPRT_W1_MASK; // clear w1c bits without side effects
+  // HPRT_POWER is not set -> VBUS off
+
+  dwc2_core_deinit(rhport);
   return true;
 }
 
@@ -869,7 +880,7 @@ static void handle_rxflvl_irq(uint8_t rhport) {
       break;
 
     case GRXSTS_PKTSTS_HOST_DATATOGGLE_ERR:
-      TU_ASSERT(0, ); // maybe try to change DToggle
+      // handle in channel interrupt
       break;
 
     case GRXSTS_PKTSTS_HOST_CHANNEL_HALTED:
@@ -1009,8 +1020,11 @@ static bool handle_channel_in_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t h
       channel_xfer_in_retry(dwc2, ch_id, hcint);
     }
   } else if (hcint & HCINT_DATATOGGLE_ERR) {
+    channel->hcintmsk &= ~HCINT_DATATOGGLE_ERR;
     xfer->err_count = 0;
-    TU_ASSERT(false);
+    hcsplt.split_compl = 0; // restart with start-split
+    channel->hcsplt = hcsplt.value;
+    channel_disable(dwc2, channel);
   } else {
     // nothing to do
   }
@@ -1346,6 +1360,17 @@ static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
 }
 
 // Config HCFG FS/LS clock and HFIR for SOF interval according to link speed (value is in PHY clock unit)
+// Databook Table 2-2: System Clock Speeds
+// +-----------+------------------+----------+-----------+-------------------+
+// | PHY       | PHY Clock (MHz)  | Width    | HCFG.Sel  | HFIR (clk cycles) |
+// +-----------+------------------+----------+-----------+-------------------+
+// | HS UTMI+  | 30               | 16-bit   | 30_60     | HS:3749 FS:29999  |
+// | HS UTMI+  | 60               |  8-bit   | 30_60     | HS:7499 FS:59999  |
+// | HS ULPI   | 60               |  8-bit   | 30_60     | HS:7499 FS:59999  |
+// | FS (dead.) | 48               | internal | 48        | FS:47999          |
+// | LS via FS | 48 (6 effective) | internal | 6         | LS:47999          |
+// +-----------+------------------+----------+-----------+-------------------+
+// HFIR = (interval_us * phy_clock) - 1, where interval is 125us (HS) or 1000us (FS/LS)
 static void port0_enable(dwc2_regs_t* dwc2, tusb_speed_t speed) {
   uint32_t hcfg = dwc2->hcfg & ~HCFG_FSLS_PHYCLK_SEL;
 
@@ -1437,16 +1462,6 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
   const uint32_t gintsts = dwc2->gintsts & gintmsk;
 
   // TU_LOG1_HEX(gintsts);
-
-  if (gintsts & GINTSTS_CONIDSTSCHNG) {
-    // Connector ID status change
-    dwc2->gintsts = GINTSTS_CONIDSTSCHNG;
-
-    //if (dwc2->gotgctl)
-    // dwc2->hprt = HPRT_POWER; // power on port to turn on VBUS
-    //dwc2->gintmsk |= GINTMSK_PRTIM;
-    // TODO wait for SRP if OTG
-  }
 
   if (gintsts & GINTSTS_SOF) {
     const bool more_sof = handle_sof_irq(rhport, in_isr);

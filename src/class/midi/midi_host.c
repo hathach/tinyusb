@@ -57,7 +57,7 @@ typedef struct {
   uint8_t daddr;
   uint8_t bInterfaceNumber; // interface number of MIDI streaming
   uint8_t iInterface;
-  uint8_t itf_count;        // number of interface including Audio Control + MIDI streaming
+  uint8_t itf_count;        // number of interfaces including Audio Control + MIDI streaming
 
   uint8_t rx_cable_count;  // IN endpoint CS descriptor bNumEmbMIDIJack value
   uint8_t tx_cable_count;  // OUT endpoint CS descriptor bNumEmbMIDIJack value
@@ -83,8 +83,8 @@ typedef struct {
 }midih_interface_t;
 
 typedef struct {
-  TUH_EPBUF_DEF(tx, TUH_EPSIZE_BULK_MPS);
-  TUH_EPBUF_DEF(rx, TUH_EPSIZE_BULK_MPS);
+  TUH_EPBUF_DEF(tx, TUH_EPSIZE_BULK_MAX);
+  TUH_EPBUF_DEF(rx, TUH_EPSIZE_BULK_MAX);
 } midih_epbuf_t;
 
 static midih_interface_t _midi_host[CFG_TUH_MIDI];
@@ -121,9 +121,9 @@ bool midih_init(void) {
   for (int inst = 0; inst < CFG_TUH_MIDI; inst++) {
     midih_interface_t *p_midi_host = &_midi_host[inst];
     tu_edpt_stream_init(&p_midi_host->ep_stream.rx, true, false, false,
-      p_midi_host->ep_stream.rx_ff_buf, CFG_TUH_MIDI_RX_BUFSIZE, _midi_epbuf->rx, TUH_EPSIZE_BULK_MPS);
+      p_midi_host->ep_stream.rx_ff_buf, CFG_TUH_MIDI_RX_BUFSIZE, _midi_epbuf[inst].rx);
     tu_edpt_stream_init(&p_midi_host->ep_stream.tx, true, true, false,
-      p_midi_host->ep_stream.tx_ff_buf, CFG_TUH_MIDI_TX_BUFSIZE, _midi_epbuf->tx, TUH_EPSIZE_BULK_MPS);
+      p_midi_host->ep_stream.tx_ff_buf, CFG_TUH_MIDI_TX_BUFSIZE, _midi_epbuf[inst].tx);
   }
   return true;
 }
@@ -249,10 +249,12 @@ uint16_t midih_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_
   p_midi->itf_count++;
   desc_cb.desc_midi = desc_itf;
 
-  p_desc = tu_desc_next(p_desc); // next to CS Header
-
   bool found_new_interface = false;
-  while (tu_desc_in_bounds(p_desc, desc_end) && !found_new_interface) {
+  do {
+    p_desc = tu_desc_next(p_desc);
+    if (!tu_desc_in_bounds(p_desc, desc_end)) {
+      break;
+    }
     switch (tu_desc_type(p_desc)) {
       case TUSB_DESC_INTERFACE:
         found_new_interface = true;
@@ -306,7 +308,7 @@ uint16_t midih_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_
           ep_stream              = &p_midi->ep_stream.rx;
         }
         TU_ASSERT(tuh_edpt_open(dev_addr, p_ep), 0);
-        tu_edpt_stream_open(ep_stream, dev_addr, p_ep);
+        tu_edpt_stream_open(ep_stream, dev_addr, p_ep, tu_edpt_packet_size(p_ep));
         tu_edpt_stream_clear(ep_stream);
 
         break;
@@ -314,8 +316,8 @@ uint16_t midih_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_
 
       default: break; // skip unknown descriptor
     }
-    p_desc = tu_desc_next(p_desc);
-  }
+  } while (!found_new_interface);
+
   desc_cb.desc_midi_total_len = (uint16_t)((uintptr_t)p_desc - (uintptr_t)desc_start);
 
   p_midi->daddr = dev_addr;
@@ -332,7 +334,7 @@ bool midih_set_config(uint8_t dev_addr, uint8_t itf_num) {
 
   const tuh_midi_mount_cb_t mount_cb_data = {
     .daddr = dev_addr,
-    .bInterfaceNumber = itf_num,
+    .bInterfaceNumber = p_midi->bInterfaceNumber,
     .rx_cable_count = p_midi->rx_cable_count,
     .tx_cable_count = p_midi->tx_cable_count,
   };
@@ -459,7 +461,7 @@ uint32_t tuh_midi_stream_write(uint8_t idx, uint8_t cable_num, uint8_t const *bu
     if (data >= MIDI_STATUS_SYSREAL_TIMING_CLOCK) {
       // real-time messages need to be sent right away
       midi_driver_stream_t streamrt;
-      streamrt.buffer[0] = MIDI_CIN_SYSEX_END_1BYTE;
+      streamrt.buffer[0] = (uint8_t)((cable_num << 4) | MIDI_CIN_SYSEX_END_1BYTE);
       streamrt.buffer[1] = data;
       streamrt.index = 2;
       streamrt.total = 2;
@@ -474,9 +476,9 @@ uint32_t tuh_midi_stream_write(uint8_t idx, uint8_t cable_num, uint8_t const *bu
       stream->buffer[1] = data;
 
       // Check to see if we're still in a SysEx transmit.
-      if (stream->buffer[0] == MIDI_CIN_SYSEX_START) {
+      if ((stream->buffer[0] & 0xF) == MIDI_CIN_SYSEX_START) {
         if (data == MIDI_STATUS_SYSEX_END) {
-          stream->buffer[0] = MIDI_CIN_SYSEX_END_1BYTE;
+          stream->buffer[0] = (uint8_t)((cable_num << 4) | MIDI_CIN_SYSEX_END_1BYTE);
           stream->total = 2;
         } else {
           stream->total = 4;
@@ -504,6 +506,7 @@ uint32_t tuh_midi_stream_write(uint8_t idx, uint8_t cable_num, uint8_t const *bu
           stream->buffer[0] = MIDI_CIN_SYSEX_END_1BYTE;
           stream->total = 2;
         }
+        stream->buffer[0] |= (uint8_t)(cable_num << 4);
       } else {
         // Pack individual bytes if we don't support packing them into words.
         stream->buffer[0] = (uint8_t) (cable_num << 4 | 0xf);
@@ -518,8 +521,8 @@ uint32_t tuh_midi_stream_write(uint8_t idx, uint8_t cable_num, uint8_t const *bu
       stream->buffer[stream->index] = data;
       stream->index++;
       // See if this byte ends a SysEx.
-      if (stream->buffer[0] == MIDI_CIN_SYSEX_START && data == MIDI_STATUS_SYSEX_END) {
-        stream->buffer[0] = MIDI_CIN_SYSEX_START + (stream->index - 1);
+      if ((stream->buffer[0] & 0xF) == MIDI_CIN_SYSEX_START && data == MIDI_STATUS_SYSEX_END) {
+        stream->buffer[0] = (uint8_t)((cable_num << 4) | (MIDI_CIN_SYSEX_START + (stream->index - 1)));
         stream->total = stream->index;
       }
     }

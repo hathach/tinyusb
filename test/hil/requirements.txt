@@ -1,2 +1,4 @@
 fs
+hid
 pyfatfs
+pyserial
