@@ -16,7 +16,7 @@ CPU_CORE ?= cortex-m4
 # EFM32_FAMILY should be set by board.mk (e.g. efm32gg12b)
 SILABS_CMSIS = hw/mcu/silabs/cmsis-dfp-$(EFM32_FAMILY)/Device/SiliconLabs/$(shell echo $(EFM32_FAMILY) | tr a-z A-Z)
 
-LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+LDFLAGS += -specs=nosys.specs -specs=nano.specs
 
 # All source paths should be relative to the top level.
 LD_FILE = $(SILABS_CMSIS)/Source/GCC/$(EFM32_FAMILY).ld

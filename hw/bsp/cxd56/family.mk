@@ -32,7 +32,7 @@ CPU_CORE ?= cortex-m4
 # lwip/src/core/raw.c:334:43: error: declaration of 'recv' shadows a global declaration
 CFLAGS += -Wno-error=shadow  -Wno-error=redundant-decls
 
-LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+LDFLAGS += -specs=nosys.specs -specs=nano.specs
 
 SPRESENSE_SDK = $(TOP)/hw/mcu/sony/cxd56/spresense-exported-sdk
 

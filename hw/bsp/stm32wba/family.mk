@@ -11,11 +11,11 @@ CPU_CORE ?= cortex-m33
 CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_STM32WBA
 
-CFLAGS_GCC += \
+CFLAGS += \
   -flto \
   -Wno-error=cast-align -Wno-unused-parameter
 
-LDFLAGS_GCC += \
+LDFLAGS += \
   -nostdlib -nostartfiles \
   -specs=nosys.specs -specs=nano.specs -Wl,--gc-sections
 
@@ -49,12 +49,10 @@ INC += \
 UPPERCASE_MCU_VARIANT = $(subst XX,xx,$(call to_upper,$(MCU_VARIANT)))
 
 # Startup - Manually specify lowercase version for startup file
-SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_$(MCU_VARIANT).s
-SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_$(MCU_VARIANT).s
+SRC_S += $(ST_CMSIS)/Source/Templates/gcc/startup_$(MCU_VARIANT).s
 
 # Linker
-LD_FILE_GCC ?= ${FAMILY_PATH}/linker/${UPPERCASE_MCU_VARIANT}_FLASH_ns.ld
-LD_FILE_IAR ?= $(ST_CMSIS)/Source/Templates/iar/linker/$(MCU_VARIANT)_flash_ns.icf
+LD_FILE ?= ${FAMILY_PATH}/linker/${UPPERCASE_MCU_VARIANT}_FLASH_ns.ld
 
 # flash target using on-board stlink
 flash: flash-stlink

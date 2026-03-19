@@ -14,7 +14,7 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_DA1469X \
   -DCFG_TUD_ENDPOINT0_SIZE=8\
 
-LDFLAGS_GCC += \
+LDFLAGS += \
   -nostdlib \
   --specs=nosys.specs --specs=nano.specs
 

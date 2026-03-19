@@ -15,7 +15,7 @@ CFLAGS += \
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter -Wno-error=old-style-declaration -Wno-error=redundant-decls
 
-LDFLAGS_GCC += \
+LDFLAGS += \
   --specs=nosys.specs --specs=nano.specs \
   -Wl,--defsym=__stack_size__=0x1000 \
   -Wl,--defsym=__heap_size__=0 \

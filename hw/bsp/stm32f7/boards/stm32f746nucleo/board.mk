@@ -11,7 +11,7 @@ CFLAGS += \
   -DHSE_VALUE=8000000
 
 # Linker
-LD_FILE_GCC = $(BOARD_PATH)/STM32F746ZGTx_FLASH.ld
+LD_FILE = $(BOARD_PATH)/STM32F746ZGTx_FLASH.ld
 
 # flash target using on-board stlink
 flash: flash-stlink

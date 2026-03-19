@@ -42,7 +42,7 @@ CFLAGS += \
 #CFLAGS += -D__START=main
 
 # suppress warning caused by vendor mcu driver
-CFLAGS_GCC += \
+CFLAGS += \
   -flto \
   -Wno-error=undef \
   -Wno-error=unused-parameter \
@@ -51,7 +51,7 @@ CFLAGS_GCC += \
   -Wno-error=cast-qual \
   -Wno-error=redundant-decls \
 
-LDFLAGS_GCC += \
+LDFLAGS += \
   -nostartfiles \
   --specs=nosys.specs --specs=nano.specs \
   -L$(TOP)/${NRFX_PATH}/mdk
