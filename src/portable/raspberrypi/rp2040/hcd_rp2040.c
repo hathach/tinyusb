@@ -30,11 +30,15 @@
 #if CFG_TUH_ENABLED && (CFG_TUSB_MCU == OPT_MCU_RP2040) && !CFG_TUH_RPI_PIO_USB && !CFG_TUH_MAX3421
 
 #include "pico.h"
-#include "rp2040_usb.h"
+
+#if defined(PICO_RP2350) && PICO_RP2350 == 1
+#define HAS_STOP_EPX_ON_NAK
+#endif
 
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
+#include "rp2040_usb.h"
 #include "osal/osal.h"
 
 #include "host/hcd.h"
@@ -224,11 +228,11 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
     }
   }
 
-#if defined(PICO_RP2350) && PICO_RP2350 == 1
+#ifdef HAS_STOP_EPX_ON_NAK
   if (status & USB_INTS_EPX_STOPPED_ON_NAK_BITS) {
-    // RP2350: EPX transfer stopped due to NAK from device.
+    // EPX transfer stopped due to NAK from the device.
     // Clear EPX_STOPPED_ON_NAK status (WC)
-    usb_hw->nak_poll |= USB_NAK_POLL_EPX_STOPPED_ON_NAK_BITS;
+    usb_hw_clear->nak_poll = USB_NAK_POLL_EPX_STOPPED_ON_NAK_BITS;
 
     bool preempted = false;
 
@@ -286,9 +290,7 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
     if (!preempted && epx->active) {
       // No preemption needed: disable stop-on-NAK and restart the transaction.
       // Buffer control still has AVAILABLE set, just re-trigger START_TRANS.
-      uint32_t nak_poll = usb_hw->nak_poll;
-      nak_poll &= ~USB_NAK_POLL_STOP_EPX_ON_NAK_BITS;
-      usb_hw->nak_poll = nak_poll;
+      usb_hw_clear->nak_poll = USB_NAK_POLL_STOP_EPX_ON_NAK_BITS;
 
       const tusb_dir_t ep_dir = tu_edpt_dir(epx->ep_addr);
       const uint32_t sie_ctrl = (ep_dir ? USB_SIE_CTRL_RECEIVE_DATA_BITS : USB_SIE_CTRL_SEND_DATA_BITS) |
@@ -399,8 +401,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
                  USB_INTE_ERROR_RX_TIMEOUT_BITS |
                  USB_INTE_ERROR_DATA_SEQ_BITS   ;
 
-#if defined(PICO_RP2350) && PICO_RP2350 == 1
-  // RP2350: Enable EPX stopped-on-NAK interrupt (feature is enabled dynamically when transfers are pending)
+#ifdef HAS_STOP_EPX_ON_NAK
   usb_hw_set->inte = USB_INTE_EPX_STOPPED_ON_NAK_BITS;
 #endif
 
@@ -613,8 +614,8 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
     ep->user_buf      = buffer;
     ep->remaining_len = buflen;
     ep->pending       = 1;
-#if defined(PICO_RP2350) && PICO_RP2350 == 1
-    // RP2350: Enable stop-on-NAK so current EPX transfer can be preempted
+#ifdef HAS_STOP_EPX_ON_NAK
+    // Enable stop-on-NAK to round-robin when NAK
     usb_hw_set->nak_poll = USB_NAK_POLL_STOP_EPX_ON_NAK_BITS;
 #endif
     return true;
@@ -649,8 +650,8 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, const uint8_t setup_packet
   // If EPX is busy, mark as pending setup (DPRAM already has the packet)
   if (epx->active) {
     ep->pending = 2;
-#if defined(PICO_RP2350) && PICO_RP2350 == 1
-    // RP2350: Enable stop-on-NAK so current EPX transfer can be preempted
+#ifdef HAS_STOP_EPX_ON_NAK
+    // Enable stop-on-NAK to round-robin when NAK
     usb_hw_set->nak_poll = USB_NAK_POLL_STOP_EPX_ON_NAK_BITS;
 #endif
     return true;
@@ -661,9 +662,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, const uint8_t setup_packet
   ep->active        = true;
 
   epx = ep;
-
-  // Set device address
-  usb_hw->dev_addr_ctrl = dev_addr;
+  usb_hw->dev_addr_ctrl = dev_addr; // Set device address
 
   // Set pre if we are a low speed device on full speed hub
   const uint32_t sie_ctrl = USB_SIE_CTRL_SEND_SETUP_BITS | (ep->need_pre ? USB_SIE_CTRL_PREAMBLE_EN_BITS : 0);
