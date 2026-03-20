@@ -538,28 +538,28 @@ def test_host_cdc_msc_hid(board):
     def rand_ascii(length):
         return "".join(random.choices(string.ascii_letters + string.digits, k=length)).encode("ascii")
 
-    sizes = [8, 32, 64, 128]
-    for size in sizes:
-        test_data = rand_ascii(size)
-        ser.reset_input_buffer()
+    packet_size = 64
 
-        # Write byte-by-byte with delay to avoid UART overrun
-        for b in test_data:
-            ser.write(bytes([b]))
-            ser.flush()
-            time.sleep(0.001)
-
-        # Read echo back with timeout
+    # Echo test: 1KB random data, write random 1-packet_size chunks, only write next once echo matched
+    echo_len = 1024
+    echo_data = rand_ascii(echo_len)
+    ser.reset_input_buffer()
+    offset = 0
+    while offset < echo_len:
+        chunk_size = min(random.randint(1, packet_size), echo_len - offset)
+        ser.write(echo_data[offset:offset + chunk_size])
+        ser.flush()
+        # wait until this chunk is echoed back
         echo = b''
         t = 5.0
-        while t > 0 and len(echo) < size:
-            rd = ser.read(max(1, ser.in_waiting))
+        while t > 0 and len(echo) < chunk_size:
+            rd = ser.read(chunk_size - len(echo))
             if rd:
                 echo += rd
-            time.sleep(0.05)
-            t -= 0.05
-        assert echo == test_data, (f'CDC echo wrong data ({size} bytes):\n'
-                                   f'  expected: {test_data}\n  received: {echo}')
+        expected = echo_data[offset:offset + chunk_size]
+        assert echo == expected, (f'CDC echo mismatch at offset {offset} ({chunk_size} bytes):\n'
+                                  f'  expected: {expected}\n  received: {echo}')
+        offset += chunk_size
 
     ser.close()
 
@@ -619,6 +619,32 @@ def test_host_msc_file_explorer(board):
     assert MSC_README_TXT.decode() in resp_text, (f'MSC README.TXT not found in response:\n'
                                                    f'  received: {resp_text}')
     print('README.TXT matched ', end='')
+
+    # MSC throughput test: send dd command to read sectors
+    time.sleep(0.5)
+    ser.reset_input_buffer()
+    for ch in 'dd 1024\r':
+        ser.write(ch.encode())
+        ser.flush()
+        time.sleep(0.002)
+
+    # Read dd output until prompt
+    resp = b''
+    t = 30.0
+    while t > 0:
+        rd = ser.read(max(1, ser.in_waiting))
+        if rd:
+            resp += rd
+        if b'KB/s' in resp and b'>' in resp:
+            break
+        time.sleep(0.05)
+        t -= 0.05
+
+    resp_text = resp.decode('utf-8', errors='ignore')
+    for line in resp_text.splitlines():
+        if 'KB/s' in line:
+            print(f'{line.strip()} ', end='')
+            break
 
     ser.close()
 

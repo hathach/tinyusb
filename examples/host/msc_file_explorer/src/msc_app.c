@@ -46,7 +46,7 @@
 #define CLI_RX_BUFFER_SIZE  16
 #define CLI_CMD_BUFFER_SIZE 64
 #define CLI_HISTORY_SIZE    32
-#define CLI_BINDING_COUNT   8
+#define CLI_BINDING_COUNT   9
 
 static EmbeddedCli *_cli;
 static CLI_UINT     cli_buffer[BYTES_TO_CLI_UINTS(CLI_BUFFER_SIZE)];
@@ -56,7 +56,11 @@ static CFG_TUH_MEM_SECTION FATFS fatfs[CFG_TUH_DEVICE_MAX]; // for simplicity on
 static volatile bool              _disk_busy[CFG_TUH_DEVICE_MAX];
 
 static CFG_TUH_MEM_SECTION FIL     file1, file2;
-static CFG_TUH_MEM_SECTION uint8_t rw_buf[512];
+
+#ifndef CFG_EXAMPLE_MSC_FILE_EXPLORER_RW_BUFSIZE
+#define CFG_EXAMPLE_MSC_FILE_EXPLORER_RW_BUFSIZE 4096
+#endif
+static CFG_TUH_MEM_SECTION uint8_t rw_buf[CFG_EXAMPLE_MSC_FILE_EXPLORER_RW_BUFSIZE];
 
 // define the buffer to be place in USB/DMA memory with correct alignment/cache line size
 CFG_TUH_MEM_SECTION static struct {
@@ -279,6 +283,7 @@ DRESULT disk_ioctl(BYTE  pdrv, /* Physical drive nmuber (0..) */
 void cli_cmd_cat(EmbeddedCli *cli, char *args, void *context);
 void cli_cmd_cd(EmbeddedCli *cli, char *args, void *context);
 void cli_cmd_cp(EmbeddedCli *cli, char *args, void *context);
+void cli_cmd_dd(EmbeddedCli *cli, char *args, void *context);
 void cli_cmd_ls(EmbeddedCli *cli, char *args, void *context);
 void cli_cmd_pwd(EmbeddedCli *cli, char *args, void *context);
 void cli_cmd_mkdir(EmbeddedCli *cli, char *args, void *context);
@@ -316,6 +321,9 @@ bool cli_init(void) {
   embeddedCliAddBinding(_cli, (CliCommandBinding){"cp", "Usage: cp SOURCE DEST\r\n\tCopy SOURCE to DEST.", true, NULL,
                                                   cli_cmd_cp});
 
+  embeddedCliAddBinding(_cli, (CliCommandBinding){"dd", "Usage: dd [COUNT]\r\n\t" "Read COUNT sectors (default 1024) and report speed.", true, NULL,
+                                                  cli_cmd_dd});
+
   embeddedCliAddBinding(_cli, (CliCommandBinding){"ls",
                                                   "Usage: ls [DIR]...\r\n\tList information about the FILEs (the "
                                                   "current directory by default).",
@@ -337,6 +345,69 @@ bool cli_init(void) {
                                                   NULL, cli_cmd_rm});
 
   return true;
+}
+
+void cli_cmd_dd(EmbeddedCli *cli, char *args, void *context) {
+  (void)cli;
+  (void)context;
+
+  uint32_t count = 1024; // default sectors to read
+  if (embeddedCliGetTokenCount(args) >= 1) {
+    count = (uint32_t)atoi(embeddedCliGetToken(args, 1));
+    if (count == 0) {
+      count = 1024;
+    }
+  }
+
+  // find first mounted MSC device
+  uint8_t dev_addr = 0;
+  for (uint8_t i = 1; i <= CFG_TUH_DEVICE_MAX; i++) {
+    if (tuh_msc_mounted(i)) {
+      dev_addr = i;
+      break;
+    }
+  }
+  if (dev_addr == 0) {
+    printf("no MSC device mounted\r\n");
+    return;
+  }
+
+  const uint8_t  lun         = 0;
+  const uint32_t block_size  = tuh_msc_get_block_size(dev_addr, lun);
+  const uint32_t block_count = tuh_msc_get_block_count(dev_addr, lun);
+  if (count > block_count) {
+    count = block_count;
+  }
+
+  const uint16_t sectors_per_xfer = (uint16_t)(sizeof(rw_buf) / block_size);
+  const uint32_t xfer_count = (count + sectors_per_xfer - 1) / sectors_per_xfer;
+
+  printf("dd: reading %" PRIu32 " sectors (%" PRIu32 " bytes), %u sectors/xfer ...\r\n",
+         count, count * block_size, sectors_per_xfer);
+
+  const uint32_t start_ms = tusb_time_millis_api();
+  const uint8_t  pdrv     = dev_addr - 1;
+
+  for (uint32_t i = 0; i < count; i += sectors_per_xfer) {
+    const uint16_t n = (uint16_t)((count - i < sectors_per_xfer) ? (count - i) : sectors_per_xfer);
+    _disk_busy[pdrv] = true;
+    tuh_msc_read10(dev_addr, lun, rw_buf, i, n, disk_io_complete, 0);
+    wait_for_disk_io(pdrv);
+  }
+
+  const uint32_t elapsed_ms = tusb_time_millis_api() - start_ms;
+  const uint32_t total_data = count * block_size;
+  // each SCSI transaction has 31-byte CBW + data + 13-byte CSW
+  const uint32_t total_bus = total_data + xfer_count * (31 + 13);
+
+  if (elapsed_ms > 0) {
+    const uint32_t data_kbs = total_data / elapsed_ms; // KB/s (bytes/ms = KB/s)
+    const uint32_t bus_kbs  = total_bus / elapsed_ms;
+    printf("dd: %" PRIu32 " bytes in %" PRIu32 " ms = %" PRIu32 " KB/s (bus %" PRIu32 " KB/s)\r\n",
+           total_data, elapsed_ms, data_kbs, bus_kbs);
+  } else {
+    printf("dd: %" PRIu32 " bytes in <1 ms\r\n", total_data);
+  }
 }
 
 void cli_cmd_cat(EmbeddedCli *cli, char *args, void *context) {
