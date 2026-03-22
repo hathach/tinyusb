@@ -189,13 +189,13 @@ Class Driver Interface
 See ``usbd.c``.
 
 **Required Functions**:
-- ``init()``: Initialize class driver
 - ``reset()``: Reset class state
 - ``open()``: Configure class endpoints
 - ``control_xfer_cb()``: Handle control requests
 - ``xfer_cb()``: Handle data transfer completion
 
 **Optional Functions**:
+- ``init()``: Initialize class driver
 - ``close()``: Clean up class resources
 - ``deinit()``: Deinitialize class driver
 - ``sof()``: Start-of-frame processing
