@@ -340,7 +340,7 @@ static xmit_ntb_t *xmit_get_next_ready_ntb(void) {
 static bool xmit_insert_required_zlp(uint8_t rhport, uint32_t xferred_bytes) {
   TU_LOG_DRV("xmit_insert_required_zlp(%d,%ld)\n", rhport, xferred_bytes);
 
-  if (xferred_bytes == 0 || xferred_bytes % CFG_TUD_NET_ENDPOINT_SIZE != 0) {
+  if (xferred_bytes == 0 || xferred_bytes % (tud_speed_get() == TUSB_SPEED_HIGH ? 512 : 64) != 0) {
     return false;
   }
 
