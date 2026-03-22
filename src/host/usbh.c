@@ -611,7 +611,8 @@ bool tuh_task_event_ready(void) {
   }
 
   #if CFG_TUH_HUB
-  if (!osal_queue_empty(_usbh_daq)) {
+  if (_usbh_data.enumerating_daddr == TUSB_INDEX_INVALID_8 &&
+      !osal_queue_empty(_usbh_daq)) {
     return true;
   }
   #endif
