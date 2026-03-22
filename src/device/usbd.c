@@ -803,10 +803,8 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
         break;
     }
 
-#if CFG_TUSB_OS != OPT_OS_NONE && CFG_TUSB_OS != OPT_OS_PICO
-    // return if there is no more events, for application to run other background
-    if (osal_queue_empty(_usbd_q)) { return; }
-#endif
+    // allow to exit tud_task() if there is no event in the next run
+    timeout_ms = 0;
   }
 }
 
