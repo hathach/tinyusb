@@ -374,7 +374,8 @@ bool usbh_defer_func_ms_async(uint32_t ms, tusb_defer_func_t func, uintptr_t par
   TU_LOG_USBH("USBH schedule function after %u ms\r\n", (unsigned int)ms);
   _usbh_data.call_after.func  = func;
   _usbh_data.call_after.arg   = param;
-  _usbh_data.call_after.at_ms = tusb_time_millis_api() + ms;
+  // add one to ensure we wait at least 'ms' milliseconds
+  _usbh_data.call_after.at_ms = tusb_time_millis_api() + ms + 1;
   return true;
 }
 
