@@ -236,7 +236,25 @@ static const uint8_t *const configuration_hs_arr[CONFIG_ID_COUNT] = {
 #endif
 };
 
-// device qualifier is mostly similar to device descriptor since we don't change configuration based on speed
+// Size array for each configuration
+static const uint16_t configuration_sz_arr[CONFIG_ID_COUNT] = {
+#if CFG_TUD_ECM_RNDIS
+  [CONFIG_ID_RNDIS] = MAIN_CONFIG_TOTAL_LEN,
+  [CONFIG_ID_ECM]   = ALT_CONFIG_TOTAL_LEN
+#else
+  [CONFIG_ID_NCM] = NCM_CONFIG_TOTAL_LEN
+#endif
+};
+
+// Scratch buffer for other speed configuration (sized to hold the largest config)
+#if CFG_TUD_ECM_RNDIS
+  #define MAX_CONFIG_TOTAL_LEN TU_MAX(MAIN_CONFIG_TOTAL_LEN, ALT_CONFIG_TOTAL_LEN)
+#else
+  #define MAX_CONFIG_TOTAL_LEN NCM_CONFIG_TOTAL_LEN
+#endif
+static uint8_t desc_other_speed_config[MAX_CONFIG_TOTAL_LEN];
+
+// device qualifier: device descriptor fields that differ at other speed
 static tusb_desc_device_qualifier_t const desc_device_qualifier = {
   .bLength            = sizeof(tusb_desc_device_qualifier_t),
   .bDescriptorType    = TUSB_DESC_DEVICE_QUALIFIER,
@@ -259,13 +277,20 @@ uint8_t const *tud_descriptor_device_qualifier_cb(void) {
   return (uint8_t const *) &desc_device_qualifier;
 }
 
-// Invoked when received GET OTHER SEED CONFIGURATION DESCRIPTOR request
+// Invoked when received GET OTHER SPEED CONFIGURATION DESCRIPTOR request
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
 // Configuration descriptor in the other speed e.g if high speed then this is for full speed and vice versa
 uint8_t const *tud_descriptor_other_speed_configuration_cb(uint8_t index) {
+  if (index >= CONFIG_ID_COUNT) return NULL;
+
   // if link speed is high return fullspeed config, and vice versa
   const uint8_t *const *arr = (tud_speed_get() == TUSB_SPEED_HIGH) ? configuration_fs_arr : configuration_hs_arr;
-  return (index < CONFIG_ID_COUNT) ? arr[index] : NULL;
+
+  // Note: the descriptor type is OTHER_SPEED_CONFIG instead of CONFIG
+  memcpy(desc_other_speed_config, arr[index], configuration_sz_arr[index]);
+  desc_other_speed_config[1] = TUSB_DESC_OTHER_SPEED_CONFIG;
+
+  return desc_other_speed_config;
 }
 
 #endif // highspeed
