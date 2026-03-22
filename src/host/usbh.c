@@ -617,6 +617,13 @@ bool tuh_task_event_ready(void) {
   }
   #endif
 
+  if (_usbh_data.call_after.func) {
+    int32_t remain_ms = (int32_t)(_usbh_data.call_after.at_ms - tusb_time_millis_api());
+    if (remain_ms <= 0) {
+      return true;
+    }
+  }
+
   return false;
 }
 
