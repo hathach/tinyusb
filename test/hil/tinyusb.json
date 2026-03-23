@@ -182,7 +182,7 @@
                 "dev_attached": [
                     {"vid_pid": "0403_6001", "serial": "0", "is_cdc": true},
                     {"vid_pid": "058f_6387", "serial": "A8BEE062633D", "is_msc": true,
-                        "msc_disk_size": 3730, "msc_inquiry": "Generic  Flash Disk       rev 8.07"}
+                        "block_size": 512, "block_count": 7639040, "msc_inquiry": "Generic  Flash Disk       8.07"}
                 ]
             },
             "flasher": {

@@ -118,15 +118,15 @@ static bool inquiry_complete_cb(uint8_t dev_addr, const tuh_msc_complete_data_t 
   }
 
   // Print out Vendor ID, Product ID and Rev
-  printf("%.8s %.16s rev %.4s\r\n", scsi_resp.inquiry.vendor_id, scsi_resp.inquiry.product_id,
+  printf("%.8s %.16s %.4s\r\n", scsi_resp.inquiry.vendor_id, scsi_resp.inquiry.product_id,
          scsi_resp.inquiry.product_rev);
 
   // Get capacity of device
   const uint32_t block_count = tuh_msc_get_block_count(dev_addr, cbw->lun);
   const uint32_t block_size  = tuh_msc_get_block_size(dev_addr, cbw->lun);
 
-  printf("Disk Size: %" PRIu32 " MB\r\n", block_count / ((1024 * 1024) / block_size));
-  // printf("Block Count = %lu, Block Size: %lu\r\n", block_count, block_size);
+  printf("Disk Size: %" PRIu32 " %" PRIu32 "-byte blocks: %" PRIu32 " MB\r\n",
+    block_count, block_size, block_count / ((1024 * 1024) / block_size));
 
   // For simplicity: we only mount 1 LUN per device
   const uint8_t drive_num     = dev_addr - 1;

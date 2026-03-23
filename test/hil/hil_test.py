@@ -456,17 +456,30 @@ def test_host_device_info(board):
     return 0
 
 
-def print_msc_info(lines):
-    """Print MSC inquiry and disk size on a single line"""
+def check_msc_info(lines, msc_devs):
+    """Print MSC info and verify block_count/block_size against config"""
     inquiry = ''
     disk_size = ''
     for l in lines:
-        if re.match(r'^[A-Za-z].*\s+rev\s+', l):
+        if re.match(r'^[A-Za-z].*\s+(rev\s+|[0-9])', l) and 'Disk Size' not in l:
             inquiry = l.strip()
         if 'Disk Size' in l:
             disk_size = l.strip()
     if inquiry or disk_size:
         print(f'\r\n  {inquiry} {disk_size} ', end='')
+    # Verify block_count and block_size from "Disk Size: COUNT SIZE-byte blocks: N MB"
+    if disk_size and msc_devs:
+        m = re.match(r'Disk Size:\s+(\d+)\s+(\d+)-byte blocks', disk_size)
+        if m:
+            actual_count = int(m.group(1))
+            actual_size = int(m.group(2))
+            for dev in msc_devs:
+                exp_count = dev.get('block_count')
+                exp_size = dev.get('block_size')
+                if exp_count and actual_count == exp_count:
+                    assert actual_size == exp_size, (
+                        f'MSC block_size mismatch: expected {exp_size}, got {actual_size}')
+                    break
 
 
 def test_host_cdc_msc_hid(board):
@@ -525,7 +538,7 @@ def test_host_cdc_msc_hid(board):
     if msc_devs:
         assert b'MassStorage device is mounted' in data, 'MSC device not mounted on host'
         assert b'Disk Size' in data, 'MSC Disk Size not reported'
-        print_msc_info(lines)
+        check_msc_info(lines, msc_devs)
 
     # CDC echo test via flasher serial
     if not cdc_devs:
@@ -533,6 +546,7 @@ def test_host_cdc_msc_hid(board):
         return
 
     time.sleep(2)
+    ser.read(ser.in_waiting)
     ser.reset_input_buffer()
 
     def rand_ascii(length):
@@ -540,7 +554,7 @@ def test_host_cdc_msc_hid(board):
 
     packet_size = 64
 
-    # Echo test: 1KB random data, write random 1-packet_size chunks, only write next once echo matched
+    # Echo test: write random 1-packet_size chunks, wait for echo before sending next
     echo_len = 1024
     echo_data = rand_ascii(echo_len)
     ser.reset_input_buffer()
@@ -551,8 +565,8 @@ def test_host_cdc_msc_hid(board):
         ser.flush()
         # wait until this chunk is echoed back
         echo = b''
-        t = 5.0
-        while t > 0 and len(echo) < chunk_size:
+        t_end = time.monotonic() + 5.0
+        while time.monotonic() < t_end and len(echo) < chunk_size:
             rd = ser.read(chunk_size - len(echo))
             if rd:
                 echo += rd
@@ -591,7 +605,7 @@ def test_host_msc_file_explorer(board):
         timeout -= 0.1
     assert b'Disk Size' in data, 'MSC device not mounted'
     lines = data.decode('utf-8', errors='ignore').splitlines()
-    print_msc_info(lines)
+    check_msc_info(lines, msc_devs)
 
     # Send "cat README.TXT" and read response
     time.sleep(1)
