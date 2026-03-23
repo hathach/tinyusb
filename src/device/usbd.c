@@ -572,10 +572,9 @@ bool tud_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   // Init class drivers
   for (uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++) {
     usbd_class_driver_t const* driver = get_driver(i);
-    if (driver && driver->init) {
-      TU_LOG_USBD("%s init\r\n", driver->name);
-      driver->init();
-    }
+    TU_ASSERT(driver && driver->init);
+    TU_LOG_USBD("%s init\r\n", driver->name);
+    driver->init();
   }
 
   _usbd_rhport = rhport;
