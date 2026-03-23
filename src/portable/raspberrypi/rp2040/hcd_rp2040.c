@@ -185,6 +185,54 @@ static void __tusb_irq_path_func(handle_hwbuf_status)(void) {
 // All non-interrupt endpoints use shared EPX.
 // Forward declared above hw_xfer_complete, defined after edpt_xfer below.
 
+// Save current EPX context, mark pending, switch to next_ep
+static void __tusb_irq_path_func(epx_switch_ep)(hw_endpoint_t *next_ep) {
+  const uint32_t buf_ctrl = usbh_dpram->epx_buf_ctrl;
+  const uint16_t buf0_len = buf_ctrl & USB_BUF_CTRL_LEN_MASK;
+  epx->remaining_len = (uint16_t)(epx->remaining_len + buf0_len);
+  epx->next_pid = (buf_ctrl & USB_BUF_CTRL_DATA1_PID) ? 1 : 0;
+  if (tu_edpt_dir(epx->ep_addr) == TUSB_DIR_OUT) {
+    epx->user_buf -= buf0_len;
+  }
+  epx->pending = 1;
+  epx->active  = false;
+  usbh_dpram->epx_buf_ctrl = 0;
+
+  if (next_ep->pending == 2) {
+    next_ep->ep_addr       = 0;
+    next_ep->remaining_len = 8;
+    next_ep->xferred_len   = 0;
+    next_ep->active        = true;
+    next_ep->pending       = 0;
+    epx = next_ep;
+    usb_hw->dev_addr_ctrl = next_ep->dev_addr;
+    const uint32_t sc = USB_SIE_CTRL_SEND_SETUP_BITS |
+                        (next_ep->need_pre ? USB_SIE_CTRL_PREAMBLE_EN_BITS : 0);
+    sie_start_xfer(sc);
+  } else {
+    uint16_t prev_xferred = next_ep->xferred_len;
+    next_ep->pending = 0;
+    edpt_xfer(next_ep, next_ep->user_buf, NULL, next_ep->remaining_len);
+    epx->xferred_len += prev_xferred;
+  }
+}
+
+// Round-robin find next pending ep after current epx
+static hw_endpoint_t *__tusb_irq_path_func(epx_find_pending)(void) {
+  const uint start = (uint)(epx - &ep_pool[0]) + 1;
+  for (uint i = start; i < TU_ARRAY_SIZE(ep_pool); i++) {
+    if (ep_pool[i].pending) {
+      return &ep_pool[i];
+    }
+  }
+  for (uint i = 0; i < start - 1; i++) {
+    if (ep_pool[i].pending) {
+      return &ep_pool[i];
+    }
+  }
+  return NULL;
+}
+
 static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
   const uint32_t status = usb_hw->ints;
 
@@ -229,73 +277,51 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
   }
 
 #ifdef HAS_STOP_EPX_ON_NAK
+  // RP2350: hardware stops EPX on NAK automatically
   if (status & USB_INTS_EPX_STOPPED_ON_NAK_BITS) {
-    // EPX transfer stopped due to NAK from the device.
-    // Clear EPX_STOPPED_ON_NAK status (WC)
     usb_hw_clear->nak_poll = USB_NAK_POLL_EPX_STOPPED_ON_NAK_BITS;
 
-    bool preempted = false;
-
-    // Only preempt non-control endpoints
+    hw_endpoint_t *next_ep = NULL;
     if (epx->active && tu_edpt_number(epx->ep_addr) != 0) {
-      // Find the next pending transfer (different from the current epx)
-      for (uint i = 0; i < TU_ARRAY_SIZE(ep_pool); i++) {
-        hw_endpoint_t *ep = &ep_pool[i];
-        if (ep->pending && ep != epx) {
-          // NAK means no data transferred. Restore remaining_len from buffer control
-          // so edpt_schedule_next can properly resume this transfer later.
-          const uint16_t buf0_len = usbh_dpram->epx_buf_ctrl & USB_BUF_CTRL_LEN_MASK;
-          epx->remaining_len = (uint16_t)(epx->remaining_len + buf0_len);
-          epx->next_pid ^= 1u; // undo PID toggle from hwbuf_prepare
-          if (tu_edpt_dir(epx->ep_addr) == TUSB_DIR_OUT) {
-            epx->user_buf -= buf0_len; // undo buffer advance for OUT
-          }
-
-          // Mark current EPX as pending to resume later
-          epx->pending = 1;
-          epx->active  = false;
-
-          // Clear EPX buffer control - AVAILABLE is still set from the NAK'd transfer
-          usbh_dpram->epx_buf_ctrl = 0;
-
-          // Start the found pending transfer directly
-          if (ep->pending == 2) {
-            // Pending setup: DPRAM already has the setup packet
-            ep->ep_addr       = 0;
-            ep->remaining_len = 8;
-            ep->xferred_len   = 0;
-            ep->active        = true;
-            ep->pending       = 0;
-
-            epx = ep;
-            usb_hw->dev_addr_ctrl = ep->dev_addr;
-
-            const uint32_t sc = USB_SIE_CTRL_SEND_SETUP_BITS |
-                                (ep->need_pre ? USB_SIE_CTRL_PREAMBLE_EN_BITS : 0);
-            sie_start_xfer(sc);
-          } else {
-            // Pending data transfer: preserve partial progress
-            uint16_t prev_xferred = ep->xferred_len;
-            ep->pending = 0;
-            edpt_xfer(ep, ep->user_buf, NULL, ep->remaining_len);
-            epx->xferred_len += prev_xferred;
-          }
-
-          preempted = true;
-          break;
-        }
+      next_ep = epx_find_pending();
+    }
+    if (next_ep) {
+      epx_switch_ep(next_ep);
+    } else {
+      // No preemption: disable stop-on-NAK, restart current transfer
+      usb_hw_clear->nak_poll = USB_NAK_POLL_STOP_EPX_ON_NAK_BITS;
+      if (epx->active) {
+        const tusb_dir_t ep_dir = tu_edpt_dir(epx->ep_addr);
+        const uint32_t sie_ctrl = (ep_dir ? USB_SIE_CTRL_RECEIVE_DATA_BITS : USB_SIE_CTRL_SEND_DATA_BITS) |
+                                  (epx->need_pre ? USB_SIE_CTRL_PREAMBLE_EN_BITS : 0);
+        sie_start_xfer(sie_ctrl);
       }
     }
-
-    if (!preempted && epx->active) {
-      // No preemption needed: disable stop-on-NAK and restart the transaction.
-      // Buffer control still has AVAILABLE set, just re-trigger START_TRANS.
-      usb_hw_clear->nak_poll = USB_NAK_POLL_STOP_EPX_ON_NAK_BITS;
-
-      const tusb_dir_t ep_dir = tu_edpt_dir(epx->ep_addr);
-      const uint32_t sie_ctrl = (ep_dir ? USB_SIE_CTRL_RECEIVE_DATA_BITS : USB_SIE_CTRL_SEND_DATA_BITS) |
-                                (epx->need_pre ? USB_SIE_CTRL_PREAMBLE_EN_BITS : 0);
-      sie_start_xfer(sie_ctrl);
+  }
+#else
+  // RP2040: on SOF, stop and switch if there's a pending ep
+  if (status & USB_INTS_HOST_SOF_BITS) {
+    (void) usb_hw->sof_rd; // clear SOF by reading SOF_RD
+    if (epx->active && tu_edpt_number(epx->ep_addr) != 0) {
+      hw_endpoint_t *next_ep = epx_find_pending();
+      if (next_ep) {
+        usb_hw_set->sie_ctrl = USB_SIE_CTRL_STOP_TRANS_BITS;
+        while (usb_hw->sie_ctrl & USB_SIE_CTRL_STOP_TRANS_BITS) {}
+        busy_wait_at_least_cycles(12);
+        if (usb_hw->buf_status & 1u) {
+          usb_hw->nak_poll = USB_NAK_POLL_RESET;
+          handle_hwbuf_status();
+        } else {
+          epx_switch_ep(next_ep);
+        }
+      } else {
+        usb_hw_clear->inte = USB_INTE_HOST_SOF_BITS;
+        usb_hw->nak_poll = USB_NAK_POLL_RESET;
+      }
+    } else if (!epx_find_pending()) {
+      // EPX is on control endpoint or inactive — disable SOF if nothing pending
+      usb_hw_clear->inte = USB_INTE_HOST_SOF_BITS;
+      usb_hw->nak_poll = USB_NAK_POLL_RESET;
     }
   }
 #endif
@@ -615,8 +641,14 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
     ep->remaining_len = buflen;
     ep->pending       = 1;
 #ifdef HAS_STOP_EPX_ON_NAK
-    // Enable stop-on-NAK to round-robin when NAK
     usb_hw_set->nak_poll = USB_NAK_POLL_STOP_EPX_ON_NAK_BITS;
+#else
+    // Only enable SOF preemption for non-control endpoints
+    if (tu_edpt_number(epx->ep_addr) != 0) {
+      usb_hw->nak_poll = (300 << USB_NAK_POLL_DELAY_FS_LSB) |
+                         (300 << USB_NAK_POLL_DELAY_LS_LSB);
+      usb_hw_set->inte = USB_INTE_HOST_SOF_BITS;
+    }
 #endif
     return true;
   }
@@ -651,8 +683,13 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, const uint8_t setup_packet
   if (epx->active) {
     ep->pending = 2;
 #ifdef HAS_STOP_EPX_ON_NAK
-    // Enable stop-on-NAK to round-robin when NAK
     usb_hw_set->nak_poll = USB_NAK_POLL_STOP_EPX_ON_NAK_BITS;
+#else
+    if (tu_edpt_number(epx->ep_addr) != 0) {
+      usb_hw->nak_poll = (300 << USB_NAK_POLL_DELAY_FS_LSB) |
+                         (300 << USB_NAK_POLL_DELAY_LS_LSB);
+      usb_hw_set->inte = USB_INTE_HOST_SOF_BITS;
+    }
 #endif
     return true;
   }

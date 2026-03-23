@@ -124,12 +124,10 @@ void __tusb_irq_path_func(hwbuf_ctrl_update)(io_rw_32 *buf_ctrl_reg, uint32_t an
       }
       *buf_ctrl_reg = value & ~USB_BUF_CTRL_AVAIL;
 
-      // Section 4.1.2.7.1 (rp2040) / 12.7.3.7.1 (rp2350) Concurrent access:  after write to buffer control, we need to
-      // wait at least 1/48 mhz (usb clock), 12 cycles should be good for 48*12Mhz = 576Mhz.
-      // Don't need delay in host mode as host is in charge
-      if (!is_host) {
-        busy_wait_at_least_cycles(12);
-      }
+      // Section 4.1.2.7.1 (rp2040) / 12.7.3.7.1 (rp2350) Concurrent access: after write to buffer control,
+      // wait for USB controller to see the update before setting AVAILABLE.
+      // Host also needs this for continuation buffers in multi-packet transfers.
+      busy_wait_at_least_cycles(12);
     }
   }
 
