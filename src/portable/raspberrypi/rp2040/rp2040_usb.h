@@ -26,6 +26,8 @@
   #if defined(PICO_RP2040_USB_DEVICE_UFRAME_FIX) && !defined(TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX)
     #define TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX PICO_RP2040_USB_DEVICE_UFRAME_FIX
   #endif
+
+  #define CFG_TUSB_RP2040_ERRATA_E4_FIX 1
 #endif
 
 #ifndef TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX
@@ -43,6 +45,10 @@
 
 #ifndef PICO_RP2040_USB_FAST_IRQ
 #define PICO_RP2040_USB_FAST_IRQ 0
+#endif
+
+#ifndef CFG_TUSB_RP2040_ERRATA_E4_FIX
+#define CFG_TUSB_RP2040_ERRATA_E4_FIX 0
 #endif
 
 #if PICO_RP2040_USB_FAST_IRQ
@@ -108,8 +114,8 @@ TU_ATTR_ALWAYS_INLINE static inline bool rp2usb_is_host_mode(void) {
 //--------------------------------------------------------------------+
 void hw_endpoint_xfer_start(struct hw_endpoint *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, uint8_t *buffer, tu_fifo_t *ff,
                             uint16_t total_len);
-bool hw_endpoint_xfer_continue(struct hw_endpoint *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg);
-void hw_endpoint_start_next_buffer(struct hw_endpoint *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg);
+bool hw_endpoint_xfer_continue(struct hw_endpoint *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, uint8_t buf_id);
+void hw_endpoint_buffer_xact(struct hw_endpoint *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg);
 void hw_endpoint_reset_transfer(struct hw_endpoint *ep);
 
 TU_ATTR_ALWAYS_INLINE static inline void hw_endpoint_lock_update(__unused struct hw_endpoint * ep, __unused int delta) {
