@@ -124,8 +124,10 @@ void __tusb_irq_path_func(hwbuf_ctrl_update)(io_rw_32 *buf_ctrl_reg, uint32_t an
 
       // Section 4.1.2.7.1 (rp2040) / 12.7.3.7.1 (rp2350) Concurrent access: after write to buffer control,
       // wait for USB controller to see the update before setting AVAILABLE.
-      // Host also needs this for continuation buffers in multi-packet transfers.
-      busy_wait_at_least_cycles(12);
+      // Don't need delay in host mode as host is in charge of when to start the transaction.
+      if (!is_host) {
+        busy_wait_at_least_cycles(12);
+      }
     }
   }
 
@@ -193,13 +195,13 @@ void __tusb_irq_path_func(hw_endpoint_buffer_xact)(struct hw_endpoint *ep, io_rw
     // If both complete simultaneously, buf_status re-sets on next clock (datasheet Table 406).
     uint32_t ep_ctrl = *ep_reg | EP_CTRL_INTERRUPT_PER_BUFFER;
 
-    // Since short packet on buf0 in double-buffered RX: buf1 may already contain data from the
-    // NEXT transfer (host sent it before CPU processed this IRQ). Cannot safely recover. Avoid by not using double
-    // buffering for rx transfer
-    bool force_single = is_rx;
-  #if CFG_TUH_ENABLED
-    force_single |= (is_host && ep->interrupt_num != 0); // host interrupt is single only
-  #endif
+    // For now: skip double buffered for RX e.g OUT endpoint in Device mode, since host could send < 64 bytes and cause
+    // short packet on buffer0
+    // NOTE: this could happen to Host mode IN endpoint Also, Host mode "interrupt" endpoint hardware is only single
+    // buffered,
+    // NOTE2: Currently Host bulk is implemented using "interrupt" endpoint
+    const bool force_single = (!is_host && is_rx) || (is_host && tu_edpt_number(ep->ep_addr) != 0);
+    // bool force_single = is_rx || (is_host && ep->interrupt_num != 0);
 
     if (ep->remaining_len && !force_single) {
       // Use buffer 1 (double buffered) if there is still data
@@ -318,14 +320,11 @@ bool __tusb_irq_path_func(hw_endpoint_xfer_continue)(struct hw_endpoint *ep, io_
   const bool is_rx       = is_host ? (dir == TUSB_DIR_IN) : (dir == TUSB_DIR_OUT);
   const bool is_double   = ep_reg != NULL && ((*ep_reg) & EP_CTRL_DOUBLE_BUFFERED_BITS);
 
-  const uint16_t xferred = hwbuf_sync(ep, buf_reg, is_double ? buf_id : 0, is_rx);
-  bool is_done = (ep->remaining_len == 0);
+  hwbuf_sync(ep, buf_reg, buf_id, is_rx);
+  const bool is_done = (ep->remaining_len == 0);
 
   if (is_double) {
-    if (xferred < ep->max_packet_size) {
-      // Short packet
-      is_done = true;
-    } else if (buf_id == 0) {
+    if (buf_id == 0) {
       // buf0 done: wait for buf1, don't start new buffers
       hw_endpoint_lock_update(ep, -1);
       return false;

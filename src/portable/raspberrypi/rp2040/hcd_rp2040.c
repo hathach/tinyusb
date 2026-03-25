@@ -94,7 +94,13 @@ static hw_endpoint_t *edpt_find(uint8_t daddr, uint8_t ep_addr) {
   return NULL;
 }
 
-// static hw_endpoint_t* epdt_find_interrupt(uint8_t )
+TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *dpram_int_ep_ctrl(uint8_t int_num) {
+  return &usbh_dpram->int_ep_ctrl[int_num-1].ctrl;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline io_rw_32 * dpram_int_ep_buffer_ctrl(uint8_t int_num) {
+  return &usbh_dpram->int_ep_buffer_ctrl[int_num-1].ctrl;
+}
 
 //--------------------------------------------------------------------+
 //
@@ -129,56 +135,52 @@ static void __tusb_irq_path_func(hw_xfer_complete)(hw_endpoint_t *ep, xfer_resul
   }
 }
 
-static void __tusb_irq_path_func(handle_hwbuf_status_bit)(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg) {
-  const bool done = hw_endpoint_xfer_continue(ep, ep_reg, buf_reg);
-  if (done) {
-    hw_xfer_complete(ep, XFER_RESULT_SUCCESS);
-  }
-}
-
 static void __tusb_irq_path_func(handle_hwbuf_status)(void) {
-  uint32_t buf_status = usb_hw->buf_status;
   pico_trace("buf_status 0x%08lx\n", buf_status);
+  enum {
+    BUF_STATUS_EPX = 1u
+  };
 
-  // Check EPX first
-  uint32_t bit = 1u;
-  if (buf_status & bit) {
-    buf_status &= ~bit;
-    usb_hw_clear->buf_status = bit;
+  // Check EPX first (bit 0). EPX is currently single-buffered, always use buf_id=0.
+  // Double-buffered: if both buffers completed at once, buf_status re-sets
+  // immediately after clearing (datasheet Table 406). Process the second buffer too.
+  while (usb_hw->buf_status & BUF_STATUS_EPX) {
+    const uint8_t buf_id = (usb_hw->buf_cpu_should_handle & BUF_STATUS_EPX) ? 1 : 0;
+    usb_hw_clear->buf_status = 1u; // clear
 
     io_rw_32 *ep_reg  = &usbh_dpram->epx_ctrl;
     io_rw_32 *buf_reg = &usbh_dpram->epx_buf_ctrl;
-    handle_hwbuf_status_bit(epx, ep_reg, buf_reg);
-  }
-
-  // Check "interrupt" (asynchronous) endpoints for both IN and OUT
-  // TODO use clz for better efficiency
-  for (uint i = 1; i <= USB_HOST_INTERRUPT_ENDPOINTS && buf_status; i++) {
-    // EPX  IN/OUT is bit 0, 1
-    // IEP1 IN/OUT is bit 2, 3
-    // IEP2 IN/OUT is bit 4, 5
-    // etc
-    for (uint j = 0; j < 2; j++) {
-      bit = 1 << (i * 2 + j);
-      if (buf_status & bit) {
-        buf_status &= ~bit;
-        usb_hw_clear->buf_status = bit;
-
-        for (uint8_t e = 0; e < USB_MAX_ENDPOINTS; e++) {
-          hw_endpoint_t *ep = &ep_pool[e];
-          if (ep->interrupt_num == i) {
-            io_rw_32 *ep_reg  = &usbh_dpram->int_ep_ctrl[ep->interrupt_num - 1].ctrl;
-            io_rw_32 *buf_reg = &usbh_dpram->int_ep_buffer_ctrl[ep->interrupt_num - 1].ctrl;
-            handle_hwbuf_status_bit(ep, ep_reg, buf_reg);
-            break;
-          }
-        }
-      }
+    if (hw_endpoint_xfer_continue(epx, ep_reg, buf_reg, buf_id)) {
+      hw_xfer_complete(epx, XFER_RESULT_SUCCESS);
     }
   }
 
-  if (buf_status) {
-    panic("Unhandled buffer %d\n", buf_status);
+  // Check "interrupt" (asynchronous) endpoints for both IN and OUT
+  uint32_t buf_status = usb_hw->buf_status & ~1u;
+  while (buf_status) {
+    // ctz/clz is faster than loop which has only a few bit set in general
+    const uint8_t idx = (uint8_t) __builtin_ctz(buf_status);
+    const uint bit = TU_BIT(idx);
+    usb_hw_clear->buf_status = bit;
+    buf_status &= ~bit;
+
+    // IN transfer for even i, OUT transfer for odd i
+    // EPX  is bit 0. Bit 1 is not used
+    // IEP1 IN/OUT is bit 2, 3
+    // IEP2 IN/OUT is bit 4, 5 etc
+    const uint8_t    epnum = idx >> 1u;
+    for (size_t e = 0; e < TU_ARRAY_SIZE(ep_pool); e++) {
+      hw_endpoint_t *ep = &ep_pool[e];
+      if (ep->interrupt_num == epnum) {
+        io_rw_32 *ep_reg  = dpram_int_ep_ctrl(ep->interrupt_num);
+        io_rw_32 *buf_reg = dpram_int_ep_buffer_ctrl(ep->interrupt_num);
+        const bool done = hw_endpoint_xfer_continue(ep, ep_reg, buf_reg, 0);
+        if (done) {
+          hw_xfer_complete(ep, XFER_RESULT_SUCCESS);
+        }
+        break;
+      }
+    }
   }
 }
 
@@ -491,8 +493,10 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
         usb_hw_clear->int_ep_ctrl                       = 1u << ep->interrupt_num;
         usb_hw->int_ep_addr_ctrl[ep->interrupt_num - 1] = 0;
 
-        usbh_dpram->int_ep_buffer_ctrl[ep->interrupt_num - 1].ctrl = 0;
-        usbh_dpram->int_ep_ctrl[ep->interrupt_num - 1].ctrl        = 0;
+        io_rw_32 *ep_reg  = dpram_int_ep_ctrl(ep->interrupt_num);
+        io_rw_32 *buf_reg = dpram_int_ep_buffer_ctrl(ep->interrupt_num);
+        *buf_reg = 0;
+        *ep_reg = 0;
       }
 
       ep->max_packet_size = 0; // mark as unused
@@ -547,13 +551,12 @@ TU_ATTR_ALWAYS_INLINE static inline void sie_start_xfer(uint32_t value) {
   usb_hw->sie_ctrl = value | USB_SIE_CTRL_START_TRANS_BITS;
 }
 
-// xfer using epx
 static void edpt_xfer(hw_endpoint_t *ep, uint8_t *buffer, tu_fifo_t *ff, uint16_t total_len) {
   if (ep->transfer_type == TUSB_XFER_INTERRUPT) {
     // For interrupt endpoint control and buffer is already configured
     // Note: Interrupt is single buffered only
-    io_rw_32 *ep_reg  = &usbh_dpram->int_ep_ctrl[ep->interrupt_num - 1].ctrl;
-    io_rw_32 *buf_reg = &usbh_dpram->int_ep_buffer_ctrl[ep->interrupt_num - 1].ctrl;
+    io_rw_32 *ep_reg  = dpram_int_ep_ctrl(ep->interrupt_num);
+    io_rw_32 *buf_reg = dpram_int_ep_buffer_ctrl(ep->interrupt_num);
     hw_endpoint_xfer_start(ep, ep_reg, buf_reg, buffer, ff, total_len);
   } else {
     const uint8_t    ep_num = tu_edpt_number(ep->ep_addr);

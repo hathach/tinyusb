@@ -165,7 +165,11 @@ void board_init(void)
 {
 #if (CFG_TUH_ENABLED && CFG_TUH_RPI_PIO_USB) || (CFG_TUD_ENABLED && CFG_TUD_RPI_PIO_USB)
   // Set the system clock to a multiple of 12mhz for bit-banging USB with pico-usb
-  set_sys_clock_khz(120000, true);
+  #if defined(PICO_RP2350) && PICO_RP2350 == 1
+  set_sys_clock_khz(156000, true); // rp2350 default is 150Mhz
+  #else
+  set_sys_clock_khz(120000, true); // rp2040 default is 125Mhz
+  #endif
   // set_sys_clock_khz(180000, true);
   // set_sys_clock_khz(192000, true);
   // set_sys_clock_khz(240000, true);

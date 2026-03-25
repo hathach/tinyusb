@@ -69,7 +69,7 @@ TU_ATTR_ALWAYS_INLINE static inline hw_endpoint_t *hw_endpoint_get_by_addr(uint8
   return hw_endpoint_get(num, dir);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *get_ep_ctrl(const uint8_t epnum, tusb_dir_t dir) {
+TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *get_ep_ctrl(uint8_t epnum, tusb_dir_t dir) {
   if (epnum == 0) {
     // EP0 has no endpoint control register because the buffer offsets are fixed and always enabled
     return NULL;
@@ -78,7 +78,7 @@ TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *get_ep_ctrl(const uint8_t epnum, t
   return (dir == TUSB_DIR_IN) ? &ep_ctrl->in : &ep_ctrl->out;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *get_buf_ctrl(const uint8_t epnum, tusb_dir_t dir) {
+TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *get_buf_ctrl(uint8_t epnum, tusb_dir_t dir) {
   struct usb_device_dpram_ep_buf_ctrl *buf_ctrl = &usb_dpram->ep_buf_ctrl[epnum];
   return (dir == TUSB_DIR_IN) ? &buf_ctrl->in : &buf_ctrl->out;
 }
@@ -182,6 +182,7 @@ static void __tusb_irq_path_func(handle_hw_buff_status)(void) {
     // Read which buffer to handle BEFORE clearing buf_status
     uint8_t buf_id = (usb_hw->buf_cpu_should_handle & bit) ? 1 : 0;
     usb_hw_clear->buf_status = bit;
+    buf_status &= ~bit;
 
     // IN transfer for even i, OUT transfer for odd i
     const uint8_t    epnum = i >> 1u;
@@ -205,8 +206,6 @@ static void __tusb_irq_path_func(handle_hw_buff_status)(void) {
       hw_endpoint_reset_transfer(ep);
       dcd_event_xfer_complete(0, ep->ep_addr, xferred_len, XFER_RESULT_SUCCESS, true);
     }
-
-    buf_status &= ~bit;
   }
 }
 
