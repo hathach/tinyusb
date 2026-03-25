@@ -21,12 +21,29 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Download PR number artifact
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: metrics-comment
+          path: /tmp/metrics-comment
+        continue-on-error: true
+
+      - name: Read PR number
+        id: pr_number
+        run: |
+          if [ -f /tmp/metrics-comment/pr_number.txt ]; then
+            echo "number=$(cat /tmp/metrics-comment/pr_number.txt)" >> $GITHUB_OUTPUT
+          fi
+
       - name: Post Membrowse PR comment
-        if: ${{ env.MEMBROWSE_API_KEY != '' }}
+        if: ${{ env.MEMBROWSE_API_KEY != '' && steps.pr_number.outputs.number != '' }}
         uses: membrowse/membrowse-action/comment-action@v1
         with:
           api_key: ${{ secrets.MEMBROWSE_API_KEY }}
           commit: ${{ github.event.workflow_run.head_sha }}
+          pr_number: ${{ steps.pr_number.outputs.number }}
           comment_template: .github/membrowse_pr_message.j2
         env:
           MEMBROWSE_API_KEY: ${{ secrets.MEMBROWSE_API_KEY }}
