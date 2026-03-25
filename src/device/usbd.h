@@ -425,6 +425,43 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   TUD_MIDI_JACKID_OUT_EMB(1)
 
 //--------------------------------------------------------------------+
+// MIDI 2.0 Descriptor Templates (USB-MIDI 2.0)
+//--------------------------------------------------------------------+
+
+// Alt Setting 1: MS Interface + MS Header (bcdMSC=0x0200)
+#define TUD_MIDI2_DESC_ALT1_HEAD_LEN (9 + 7)
+#define TUD_MIDI2_DESC_ALT1_HEAD(_itfnum, _stridx) \
+  /* MIDI Streaming Interface, Alt Setting 1 */\
+  9, TUSB_DESC_INTERFACE, (uint8_t)((_itfnum) + 1), 1, 2, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_MIDI_STREAMING, AUDIO_FUNC_PROTOCOL_CODE_UNDEF, _stridx,\
+  /* MS Header (MIDI 2.0) */\
+  7, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_HEADER, U16_TO_U8S_LE(0x0200), U16_TO_U8S_LE(7)
+
+// Alt Setting 1: Standard USB Endpoint (7 bytes) + CS Endpoint (subtype 0x02)
+#define TUD_MIDI2_DESC_ALT1_EP_LEN(_numgtbs) (7 + 4 + (_numgtbs))
+#define TUD_MIDI2_DESC_ALT1_EP(_ep, _epsize, _numgtbs) \
+  7, TUSB_DESC_ENDPOINT, _ep, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0, \
+  (uint8_t)(4 + (_numgtbs)), TUSB_DESC_CS_ENDPOINT, MIDI_CS_ENDPOINT_GENERAL_2_0, _numgtbs
+
+// Total length: Alt 0 (MIDI 1.0) + Alt 1 (UMP)
+#define TUD_MIDI2_DESC_LEN (TUD_MIDI_DESC_LEN + TUD_MIDI2_DESC_ALT1_HEAD_LEN + TUD_MIDI2_DESC_ALT1_EP_LEN(1) * 2)
+
+// Complete MIDI 2.0 descriptor with both alternate settings (single cable/GTB)
+#define TUD_MIDI2_DESCRIPTOR(_itfnum, _stridx, _epout, _epin, _epsize) \
+  /* Alt Setting 0 (MIDI 1.0) */\
+  TUD_MIDI_DESC_HEAD(_itfnum, _stridx, 1),\
+  TUD_MIDI_DESC_JACK_DESC(1, 0),\
+  TUD_MIDI_DESC_EP(_epout, _epsize, 1),\
+  TUD_MIDI_JACKID_IN_EMB(1),\
+  TUD_MIDI_DESC_EP(_epin, _epsize, 1),\
+  TUD_MIDI_JACKID_OUT_EMB(1),\
+  /* Alt Setting 1 (UMP) */\
+  TUD_MIDI2_DESC_ALT1_HEAD(_itfnum, _stridx),\
+  TUD_MIDI2_DESC_ALT1_EP(_epout, _epsize, 1),\
+  1, /* bAssoGrpTrmBlkID = 1 */\
+  TUD_MIDI2_DESC_ALT1_EP(_epin, _epsize, 1),\
+  1  /* bAssoGrpTrmBlkID = 1 */
+
+//--------------------------------------------------------------------+
 // Audio Descriptor Templates
 //--------------------------------------------------------------------+
 

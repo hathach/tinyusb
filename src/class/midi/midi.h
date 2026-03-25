@@ -186,6 +186,24 @@ typedef midi_desc_cs_endpoint_n_t(1) midi_desc_cs_endpoint_1jack_t;
 TU_VERIFY_STATIC(sizeof(midi_desc_cs_endpoint_1jack_t) == 4+1, "size is not correct");
 
 //--------------------------------------------------------------------+
+// MIDI 2.0 UMP Helpers
+//--------------------------------------------------------------------+
+
+// Return the number of 32-bit words for a UMP message given its Message Type
+static inline uint8_t midi2_ump_word_count(uint8_t mt) {
+  switch (mt) {
+    case 0x0: case 0x1: case 0x2: case 0x6: case 0x7:
+      return 1;
+    case 0x3: case 0x4: case 0x8: case 0x9: case 0xA:
+      return 2;
+    case 0xB: case 0xC:
+      return 3;
+    default: // 0x5, 0xD, 0xE, 0xF
+      return 4;
+  }
+}
+
+//--------------------------------------------------------------------+
 // For Internal Driver Use
 //--------------------------------------------------------------------+
 typedef struct {
