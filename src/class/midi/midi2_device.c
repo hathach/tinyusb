@@ -505,12 +505,19 @@ uint16_t midi2d_open(uint8_t rhport, const tusb_desc_interface_t* desc_itf, uint
   }
 
   // Skip remaining descriptors (alt setting 1, CS endpoints, GTB)
+  // Stop at any interface descriptor that is not our MIDI Streaming alt setting
   while (tu_desc_in_bounds(p_desc, desc_end)) {
     uint8_t dtype = tu_desc_type(p_desc);
-    if (dtype != TUSB_DESC_CS_INTERFACE && dtype != TUSB_DESC_CS_ENDPOINT &&
-        dtype != TUSB_DESC_INTERFACE && dtype != TUSB_DESC_ENDPOINT) {
+
+    if (dtype == TUSB_DESC_INTERFACE) {
+      const tusb_desc_interface_t* next_itf = (const tusb_desc_interface_t*) p_desc;
+      // Continue only if this is an alternate setting of our own interface
+      if (next_itf->bInterfaceNumber != desc_midi->bInterfaceNumber) break;
+    } else if (dtype != TUSB_DESC_CS_INTERFACE && dtype != TUSB_DESC_CS_ENDPOINT &&
+               dtype != TUSB_DESC_ENDPOINT) {
       break;
     }
+
     p_desc = tu_desc_next(p_desc);
   }
 
@@ -527,6 +534,9 @@ bool midi2d_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_re
     case TUSB_REQ_SET_INTERFACE: {
       uint8_t itf_num = tu_u16_low(request->wIndex);
       uint8_t alt     = tu_u16_low(request->wValue);
+
+      // Only Alt Setting 0 (MIDI 1.0) and 1 (UMP) are valid
+      if (alt > 1) return false;
 
       uint8_t idx = find_midi2_itf_by_num(itf_num);
       if (idx >= CFG_TUD_MIDI2) return false;

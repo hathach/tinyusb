@@ -6,7 +6,8 @@ project(midi2_host C CXX ASM)
 
 family_initialize_project(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR})
 
-if(FAMILY STREQUAL "espressif")
+# This example requires PIO-USB and Pico SDK (I2C, SSD1306 display)
+if(NOT FAMILY STREQUAL "rp2040")
   return()
 endif()
 
