@@ -237,6 +237,20 @@ static const usbd_class_driver_t _usbd_driver[] = {
     },
     #endif
 
+    #if CFG_TUD_MIDI2
+    {
+        .name             = DRIVER_NAME("MIDI2"),
+        .init             = midi2d_init,
+        .deinit           = midi2d_deinit,
+        .open             = midi2d_open,
+        .reset            = midi2d_reset,
+        .control_xfer_cb  = midi2d_control_xfer_cb,
+        .xfer_cb          = midi2d_xfer_cb,
+        .xfer_isr         = NULL,
+        .sof              = NULL
+    },
+    #endif
+
     #if CFG_TUD_VENDOR
     {
         .name             = DRIVER_NAME("VENDOR"),
