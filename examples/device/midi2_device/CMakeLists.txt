@@ -7,8 +7,8 @@ project(midi2_device C CXX ASM)
 # Checks this example is valid for the family and initializes the project
 family_initialize_project(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR})
 
-# Espressif has its own cmake build system
-if(FAMILY STREQUAL "espressif")
+# This example requires RP2040/RP2350 (USB descriptors and config are board-specific)
+if(NOT FAMILY STREQUAL "rp2040")
   return()
 endif()
 
