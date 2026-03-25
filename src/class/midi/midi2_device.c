@@ -158,10 +158,10 @@ static void _nego_send_endpoint_info(midi2d_interface_t* p_midi) {
          | ((uint32_t) STREAM_ENDPOINT_INFO << 16)
          | ((uint32_t) UMP_VER_MAJOR << 8)
          | (uint32_t) UMP_VER_MINOR;
-  msg[1] = (1u << 31)  // Static Function Blocks flag
+  msg[1] = (UINT32_C(1) << 31)  // Static Function Blocks flag
          | ((uint32_t)(CFG_TUD_MIDI2_NUM_FUNCTION_BLOCKS & 0x7F) << 24)
-         | (1u << 9)   // MIDI 2.0 Protocol capability
-         | (1u << 8);  // MIDI 1.0 Protocol capability
+         | (UINT32_C(1) << 9)   // MIDI 2.0 Protocol capability
+         | (UINT32_C(1) << 8);  // MIDI 1.0 Protocol capability
   _nego_send_ump(p_midi, msg, 4);
 }
 
@@ -214,7 +214,7 @@ static void _nego_send_fb_info(midi2d_interface_t* p_midi, uint8_t fb_idx) {
   uint32_t msg[4] = {0};
   msg[0] = ((uint32_t) MT_STREAM << 28)
          | ((uint32_t) STREAM_FB_INFO << 16)
-         | (1u << 15)
+         | (UINT32_C(1) << 15)
          | ((uint32_t) fb_idx << 8)
          | 0x02;  // bDirection: bidirectional
   msg[1] = ((uint32_t) 0 << 24)  // bFirstGroup
