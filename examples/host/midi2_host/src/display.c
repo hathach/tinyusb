@@ -190,6 +190,7 @@ void display_log(const char* text, uint16_t color) {
   if (log_count >= LOG_LINES) {
     for (int i = 0; i < LOG_LINES - 1; i++) {
       strncpy(log_lines[i], log_lines[i + 1], CHARS_PER_LINE);
+      log_lines[i][CHARS_PER_LINE] = '\0';
     }
     log_count = LOG_LINES - 1;
   }

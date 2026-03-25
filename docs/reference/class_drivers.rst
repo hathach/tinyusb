@@ -87,7 +87,7 @@ The MIDI 2.0 Host driver enables TinyUSB to enumerate and communicate with USB M
 **Key Features:**
 
 - **Reactive Architecture**: Auto-detects Alt Setting 1 (MIDI 2.0) capability during enumeration
-- **Auto-Selection**: Automatically selects the highest available protocol (MIDI 2.0 preferred)
+- **Auto-Selection**: Automatically selects the highest available protocol and issues SET_INTERFACE to activate Alt Setting 1 when MIDI 2.0 is detected
 - **Transparent Stream Messages**: All data (UMP packets + Stream Messages) flow through callbacks
 - **Memory Safe**: No dynamic allocation, fixed-size instances per device
 
@@ -271,9 +271,9 @@ Architecture
 The MIDI 2.0 Host driver uses a **reactive, callback-driven architecture** that mirrors the proven patterns in TinyUSB's existing device drivers (CDC, HID, etc.):
 
 - **Auto-Detection**: Host automatically detects Alt Setting 1 capability
-- **Auto-Selection**: Selects highest protocol available (MIDI 2.0 preferred)
-- **Application Control**: App makes protocol behavior decisions via callbacks
-- **Transparent I/O**: Stream Messages and UMP packets flow transparently
+- **Auto-Selection**: Selects highest protocol available and issues SET_INTERFACE
+- **Transparent I/O**: Stream Messages and UMP packets flow through callbacks
+- **Callback-Driven**: App receives events via callbacks (descriptor, mount, rx, tx, unmount)
 
 Differences from MIDI 1.0 Host
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

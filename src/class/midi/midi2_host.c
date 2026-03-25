@@ -125,9 +125,10 @@ static inline uint8_t get_idx_by_ep_addr(uint8_t daddr, uint8_t ep_addr) {
 // Descriptor parsing
 //--------------------------------------------------------------------+
 
-static void midih2_parse_descriptors_alt0(midih2_interface_t *p_midi,
+// Parse Alt Setting 0 (MIDI 1.0) descriptors. Returns pointer past last consumed descriptor.
+static const uint8_t* midih2_parse_descriptors_alt0(midih2_interface_t *p_midi,
     const tusb_desc_interface_t *desc_itf, const uint8_t *desc_end) {
-  TU_VERIFY(AUDIO_SUBCLASS_MIDI_STREAMING == desc_itf->bInterfaceSubClass,);
+  TU_VERIFY(AUDIO_SUBCLASS_MIDI_STREAMING == desc_itf->bInterfaceSubClass, NULL);
 
   p_midi->bInterfaceNumber = desc_itf->bInterfaceNumber;
 
@@ -136,93 +137,113 @@ static void midih2_parse_descriptors_alt0(midih2_interface_t *p_midi,
 
   uint8_t rx_cable_count = 0;
   uint8_t tx_cable_count = 0;
+  bool found_new_interface = false;
 
-  while (tu_desc_in_bounds(p_desc, desc_end)) {
-    if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE) {
-      break;
-    }
+  while (tu_desc_in_bounds(p_desc, desc_end) && !found_new_interface) {
+    switch (tu_desc_type(p_desc)) {
+      case TUSB_DESC_INTERFACE:
+        found_new_interface = true;
+        break;
 
-    if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT) {
-      const tusb_desc_endpoint_t *p_ep = (const tusb_desc_endpoint_t *) p_desc;
+      case TUSB_DESC_ENDPOINT: {
+        const tusb_desc_endpoint_t *p_ep = (const tusb_desc_endpoint_t *) p_desc;
 
-      // Open endpoint and stream
-      TU_ASSERT(tuh_edpt_open(p_midi->daddr, p_ep),);
-      if (tu_edpt_dir(p_ep->bEndpointAddress) == TUSB_DIR_IN) {
-        tu_edpt_stream_open(&p_midi->ep_stream.rx, p_midi->daddr, p_ep, tu_edpt_packet_size(p_ep));
-        tu_edpt_stream_clear(&p_midi->ep_stream.rx);
-      } else {
-        tu_edpt_stream_open(&p_midi->ep_stream.tx, p_midi->daddr, p_ep, tu_edpt_packet_size(p_ep));
-        tu_edpt_stream_clear(&p_midi->ep_stream.tx);
-      }
-
-      p_desc = tu_desc_next(p_desc);
-
-      if (tu_desc_in_bounds(p_desc, desc_end) && tu_desc_type(p_desc) == TUSB_DESC_CS_ENDPOINT) {
-        const midi_desc_cs_endpoint_t *p_csep = (const midi_desc_cs_endpoint_t *) p_desc;
-
-        if (tu_edpt_dir(p_ep->bEndpointAddress) == TUSB_DIR_OUT) {
-          tx_cable_count = p_csep->bNumEmbMIDIJack;
+        TU_ASSERT(tuh_edpt_open(p_midi->daddr, p_ep), NULL);
+        if (tu_edpt_dir(p_ep->bEndpointAddress) == TUSB_DIR_IN) {
+          tu_edpt_stream_open(&p_midi->ep_stream.rx, p_midi->daddr, p_ep, tu_edpt_packet_size(p_ep));
+          tu_edpt_stream_clear(&p_midi->ep_stream.rx);
         } else {
-          rx_cable_count = p_csep->bNumEmbMIDIJack;
+          tu_edpt_stream_open(&p_midi->ep_stream.tx, p_midi->daddr, p_ep, tu_edpt_packet_size(p_ep));
+          tu_edpt_stream_clear(&p_midi->ep_stream.tx);
         }
+
+        p_desc = tu_desc_next(p_desc);
+        if (tu_desc_in_bounds(p_desc, desc_end) && tu_desc_type(p_desc) == TUSB_DESC_CS_ENDPOINT) {
+          const midi_desc_cs_endpoint_t *p_csep = (const midi_desc_cs_endpoint_t *) p_desc;
+          if (tu_edpt_dir(p_ep->bEndpointAddress) == TUSB_DIR_OUT) {
+            tx_cable_count = p_csep->bNumEmbMIDIJack;
+          } else {
+            rx_cable_count = p_csep->bNumEmbMIDIJack;
+          }
+        }
+        break;
       }
+
+      default:
+        break;
     }
 
-    p_desc = tu_desc_next(p_desc);
+    if (!found_new_interface) {
+      p_desc = tu_desc_next(p_desc);
+    }
   }
 
   p_midi->rx_cable_count_alt0 = rx_cable_count;
   p_midi->tx_cable_count_alt0 = tx_cable_count;
+  return p_desc;
 }
 
-static void midih2_parse_descriptors_alt1(midih2_interface_t *p_midi,
+// Parse Alt Setting 1 (MIDI 2.0 UMP) descriptors. Returns pointer past last consumed descriptor.
+static const uint8_t* midih2_parse_descriptors_alt1(midih2_interface_t *p_midi,
     const tusb_desc_interface_t *desc_itf, const uint8_t *desc_end) {
-  TU_VERIFY(AUDIO_SUBCLASS_MIDI_STREAMING == desc_itf->bInterfaceSubClass,);
-  TU_VERIFY(desc_itf->bAlternateSetting == 1,);
+  TU_VERIFY(AUDIO_SUBCLASS_MIDI_STREAMING == desc_itf->bInterfaceSubClass, NULL);
+  TU_VERIFY(desc_itf->bAlternateSetting == 1, NULL);
 
   const uint8_t *p_desc = (const uint8_t *) desc_itf;
   p_desc = tu_desc_next(p_desc);
 
   uint8_t rx_cable_count = 0;
   uint8_t tx_cable_count = 0;
+  bool found_new_interface = false;
 
-  while (tu_desc_in_bounds(p_desc, desc_end)) {
-    if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE) {
-      break;
-    }
+  while (tu_desc_in_bounds(p_desc, desc_end) && !found_new_interface) {
+    switch (tu_desc_type(p_desc)) {
+      case TUSB_DESC_INTERFACE:
+        found_new_interface = true;
+        break;
 
-    if (tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE) {
-      if (tu_desc_subtype(p_desc) == MIDI_CS_INTERFACE_HEADER) {
-        const uint8_t *bcd_ptr = p_desc + 3;
-        p_midi->bcdMSC_lo = bcd_ptr[0];
-        p_midi->bcdMSC_hi = bcd_ptr[1];
-
-        if (p_midi->bcdMSC_hi == 0x02) {
-          p_midi->protocol_version = 1;
+      case TUSB_DESC_CS_INTERFACE:
+        if (tu_desc_subtype(p_desc) == MIDI_CS_INTERFACE_HEADER) {
+          // bcdMSC at offset 3-4 in CS Interface Header
+          const uint8_t *bcd_ptr = p_desc + 3;
+          p_midi->bcdMSC_lo = bcd_ptr[0];
+          p_midi->bcdMSC_hi = bcd_ptr[1];
+          if (p_midi->bcdMSC_hi == 0x02) {  // bcdMSC 0x0200 = USB-MIDI 2.0
+            p_midi->protocol_version = 1;
+          }
         }
+        break;
+
+      case TUSB_DESC_ENDPOINT: {
+        const tusb_desc_endpoint_t *p_ep = (const tusb_desc_endpoint_t *) p_desc;
+        p_desc = tu_desc_next(p_desc);
+
+        if (tu_desc_in_bounds(p_desc, desc_end) && tu_desc_type(p_desc) == TUSB_DESC_CS_ENDPOINT) {
+          // MIDI 2.0 CS Endpoint General 2.0: bNumGrpTrmBlk at offset 3
+          if (p_desc[0] >= 4 && p_desc[2] == MIDI_CS_ENDPOINT_GENERAL_2_0) {
+            uint8_t num_grp_trm_blk = p_desc[3];
+            if (tu_edpt_dir(p_ep->bEndpointAddress) == TUSB_DIR_OUT) {
+              tx_cable_count = num_grp_trm_blk;
+            } else {
+              rx_cable_count = num_grp_trm_blk;
+            }
+          }
+        }
+        break;
       }
+
+      default:
+        break;
     }
 
-    if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT) {
-      const tusb_desc_endpoint_t *p_ep = (const tusb_desc_endpoint_t *) p_desc;
+    if (!found_new_interface) {
       p_desc = tu_desc_next(p_desc);
-
-      if (tu_desc_in_bounds(p_desc, desc_end) && tu_desc_type(p_desc) == TUSB_DESC_CS_ENDPOINT) {
-        const midi_desc_cs_endpoint_t *p_csep = (const midi_desc_cs_endpoint_t *) p_desc;
-
-        if (tu_edpt_dir(p_ep->bEndpointAddress) == TUSB_DIR_OUT) {
-          tx_cable_count = p_csep->bNumEmbMIDIJack;
-        } else {
-          rx_cable_count = p_csep->bNumEmbMIDIJack;
-        }
-      }
     }
-
-    p_desc = tu_desc_next(p_desc);
   }
 
   p_midi->rx_cable_count_alt1 = rx_cable_count;
   p_midi->tx_cable_count_alt1 = tx_cable_count;
+  return p_desc;
 }
 
 //--------------------------------------------------------------------+
@@ -327,13 +348,74 @@ uint16_t midih2_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
              desc_itf->bInterfaceNumber, desc_itf->bAlternateSetting, dev_addr);
 
   // Dispatch to appropriate parser based on Alt Setting
+  const uint8_t *p_end = NULL;
   if (desc_itf->bAlternateSetting == 0) {
-    midih2_parse_descriptors_alt0(p_midi, desc_itf, desc_end);
+    p_end = midih2_parse_descriptors_alt0(p_midi, desc_itf, desc_end);
   } else if (desc_itf->bAlternateSetting == 1) {
-    midih2_parse_descriptors_alt1(p_midi, desc_itf, desc_end);
+    p_end = midih2_parse_descriptors_alt1(p_midi, desc_itf, desc_end);
   }
 
-  return max_len;
+  // Return number of bytes consumed (following midi_host.c pattern)
+  uint16_t const parsed_len = (p_end != NULL) ? (uint16_t)(p_end - desc_start) : 0;
+  return parsed_len;
+}
+
+static void midih2_set_config_complete(midih2_interface_t *p_midi, uint8_t idx) {
+  uint8_t dev_addr = p_midi->daddr;
+
+  // Invoke descriptor_cb
+  tuh_midi2_descriptor_cb_t desc_cb = {
+    .protocol_version = p_midi->protocol_version,
+    .bcdMSC_hi = p_midi->bcdMSC_hi,
+    .bcdMSC_lo = p_midi->bcdMSC_lo,
+    .rx_cable_count = (p_midi->alt_setting_current == 0) ?
+                      p_midi->rx_cable_count_alt0 : p_midi->rx_cable_count_alt1,
+    .tx_cable_count = (p_midi->alt_setting_current == 0) ?
+                      p_midi->tx_cable_count_alt0 : p_midi->tx_cable_count_alt1,
+  };
+  tuh_midi2_descriptor_cb(idx, &desc_cb);
+
+  // Mark as mounted
+  TU_LOG_DRV("MIDI2 mounted addr = %u, alt = %u, protocol = %u\r\n",
+             dev_addr, p_midi->alt_setting_current, p_midi->protocol_version);
+  p_midi->mounted = true;
+
+  // Invoke mount_cb
+  tuh_midi2_mount_cb_t mount_cb = {
+    .daddr = dev_addr,
+    .bInterfaceNumber = p_midi->bInterfaceNumber,
+    .protocol_version = p_midi->protocol_version,
+    .alt_setting_active = p_midi->alt_setting_current,
+    .rx_cable_count = desc_cb.rx_cable_count,
+    .tx_cable_count = desc_cb.tx_cable_count,
+  };
+  tuh_midi2_mount_cb(idx, &mount_cb);
+
+  // Prepare RX transfer
+  tu_edpt_stream_read_xfer(&p_midi->ep_stream.rx);
+
+  // Signal USBH that configuration is complete
+  usbh_driver_set_config_complete(dev_addr, p_midi->bInterfaceNumber);
+}
+
+static void midih2_set_interface_cb(tuh_xfer_t *xfer) {
+  uint8_t const dev_addr = xfer->daddr;
+  uint8_t const itf_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
+
+  // Find our interface
+  for (uint8_t idx = 0; idx < CFG_TUH_MIDI2; idx++) {
+    if (_midi2_host[idx].daddr == dev_addr && _midi2_host[idx].bInterfaceNumber == itf_num) {
+      if (xfer->result == XFER_RESULT_SUCCESS) {
+        midih2_set_config_complete(&_midi2_host[idx], idx);
+      } else {
+        // SET_INTERFACE failed, fall back to alt 0
+        TU_LOG_DRV("MIDI2 SET_INTERFACE failed, falling back to alt 0\r\n");
+        _midi2_host[idx].alt_setting_current = 0;
+        midih2_set_config_complete(&_midi2_host[idx], idx);
+      }
+      return;
+    }
+  }
 }
 
 bool midih2_set_config(uint8_t dev_addr, uint8_t itf_num) {
@@ -355,39 +437,14 @@ bool midih2_set_config(uint8_t dev_addr, uint8_t itf_num) {
   // Auto-select alt setting
   midih2_auto_select_alt_setting(p_midi);
 
-  // Invoke descriptor_cb
-  tuh_midi2_descriptor_cb_t desc_cb = {
-    .protocol_version = p_midi->protocol_version,
-    .bcdMSC_hi = p_midi->bcdMSC_hi,
-    .bcdMSC_lo = p_midi->bcdMSC_lo,
-    .rx_cable_count = (p_midi->alt_setting_current == 0) ?
-                      p_midi->rx_cable_count_alt0 : p_midi->rx_cable_count_alt1,
-    .tx_cable_count = (p_midi->alt_setting_current == 0) ?
-                      p_midi->tx_cable_count_alt0 : p_midi->tx_cable_count_alt1,
-  };
-  tuh_midi2_descriptor_cb(idx, &desc_cb);
-
-  // Mark as mounted
-  TU_LOG_DRV("MIDI2 mounted addr = %u, alt = %u, protocol = %u\r\n",
-             dev_addr, p_midi->alt_setting_current, p_midi->protocol_version);
-  p_midi->mounted = true;
-
-  // Invoke mount_cb
-  tuh_midi2_mount_cb_t mount_cb = {
-    .daddr = p_midi->daddr,
-    .bInterfaceNumber = p_midi->bInterfaceNumber,
-    .protocol_version = p_midi->protocol_version,
-    .alt_setting_active = p_midi->alt_setting_current,
-    .rx_cable_count = desc_cb.rx_cable_count,
-    .tx_cable_count = desc_cb.tx_cable_count,
-  };
-  tuh_midi2_mount_cb(idx, &mount_cb);
-
-  // Prepare RX transfer
-  tu_edpt_stream_read_xfer(&p_midi->ep_stream.rx);
-
-  // Signal USBH that configuration is complete
-  usbh_driver_set_config_complete(dev_addr, itf_num);
+  // If MIDI 2.0 detected, issue SET_INTERFACE to activate Alt Setting 1
+  if (p_midi->alt_setting_current == 1) {
+    TU_LOG_DRV("MIDI2 requesting SET_INTERFACE alt 1 for itf %u\r\n", itf_num);
+    TU_ASSERT(tuh_interface_set(dev_addr, itf_num, 1, midih2_set_interface_cb, 0));
+  } else {
+    // MIDI 1.0 only, complete immediately
+    midih2_set_config_complete(p_midi, idx);
+  }
 
   return true;
 }
