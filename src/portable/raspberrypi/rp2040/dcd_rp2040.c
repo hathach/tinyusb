@@ -368,7 +368,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rh_init;
   assert(rhport == 0);
 
-  TU_LOG(1, "Chip Version B%u\r\n", rp2040_chip_version());
+  // TU_LOG(1, "Chip Version B%u\r\n", rp2040_chip_version());
 
   // Reset hardware to default state
   rp2usb_init();

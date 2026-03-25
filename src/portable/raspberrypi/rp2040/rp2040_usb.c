@@ -135,7 +135,7 @@ void __tusb_irq_path_func(hwbuf_ctrl_update)(io_rw_32 *buf_ctrl_reg, uint32_t an
 }
 
 // prepare buffer, move data if tx, return buffer control
-static uint32_t __tusb_irq_path_func(hwbuf_prepare)(struct hw_endpoint *ep, uint8_t buf_id, bool is_rx) {
+static uint32_t __tusb_irq_path_func(hwbuf_prepare)(struct hw_endpoint *ep, uint8_t *dpram_buf, bool is_rx) {
   const uint16_t buflen = tu_min16(ep->remaining_len, ep->max_packet_size);
   ep->remaining_len -= buflen;
 
@@ -148,15 +148,14 @@ static uint32_t __tusb_irq_path_func(hwbuf_prepare)(struct hw_endpoint *ep, uint
   if (!is_rx) {
     if (buflen) {
       // Copy data from user buffer/fifo to hw buffer
-      uint8_t *hw_buf = ep->dpram_buf + (buf_id << 6);
       #if CFG_TUD_EDPT_DEDICATED_HWFIFO
       if (ep->is_xfer_fifo) {
         // not in sram, may mess up timing with E15 workaround
-        tu_hwfifo_write_from_fifo(hw_buf, ep->user_fifo, buflen, NULL);
+        tu_hwfifo_write_from_fifo(dpram_buf, ep->user_fifo, buflen, NULL);
       } else
       #endif
       {
-        unaligned_memcpy(hw_buf, ep->user_buf, buflen);
+        unaligned_memcpy(dpram_buf, ep->user_buf, buflen);
         ep->user_buf += buflen;
       }
     }
@@ -186,27 +185,40 @@ void __tusb_irq_path_func(hw_endpoint_buffer_xact)(struct hw_endpoint *ep, io_rw
     is_rx = (dir == TUSB_DIR_OUT);
   }
 
+  // In case short packet on buf0 in double-buffered RX, buf1 may already contain data from the
+  // NEXT transfer (host sent it before CPU processed this IRQ). Cannot safely recover. Avoid by not using double
+  // buffering for rx transfer
+
+  // RP2040-E4 (host only): in single-buffered multi-packet transfers, the controller may write completion status to
+  //   BUF1 half instead of BUF0. The side effect that controller can execute an extra packet after writing to BUF1
+  //   since it leave BUF0 intact, which can be polled before buf_status interrupt is trigger.
+  // Workaround for the side effect, we will enable double-buffered for rx but only prepare 1 buf at a time.
+  #if CFG_TUSB_RP2040_ERRATA_E4_FIX
+
+  #endif
+
   // always compute and start with buffer 0
-  uint32_t buf_ctrl = hwbuf_prepare(ep, 0, is_rx) | USB_BUF_CTRL_SEL;
+  uint32_t buf_ctrl = hwbuf_prepare(ep, ep->dpram_buf, is_rx) | USB_BUF_CTRL_SEL;
 
   // Device mode EP0 has no endpoint control register
   if (ep_reg != NULL) {
     // Each buffer completion triggers its own IRQ.
     // If both complete simultaneously, buf_status re-sets on next clock (datasheet Table 406).
     uint32_t ep_ctrl = *ep_reg | EP_CTRL_INTERRUPT_PER_BUFFER;
-
-    // For now: skip double buffered for RX e.g OUT endpoint in Device mode, since host could send < 64 bytes and cause
-    // short packet on buffer0
-    // NOTE: this could happen to Host mode IN endpoint Also, Host mode "interrupt" endpoint hardware is only single
-    // buffered,
-    // NOTE2: Currently Host bulk is implemented using "interrupt" endpoint
+#if 1
     const bool force_single = (!is_host && is_rx) || (is_host && tu_edpt_number(ep->ep_addr) != 0);
-    // bool force_single = is_rx || (is_host && ep->interrupt_num != 0);
+#else
+    bool force_single = false; // is_rx;
+    #if CFG_TUH_ENABLED
+    if (is_host && ep->interrupt_num != 0) {
+      force_single = true;
+    }
+    #endif
+#endif
 
     if (ep->remaining_len && !force_single) {
       // Use buffer 1 (double buffered) if there is still data
-      // TODO: Isochronous for buffer1 bit-field is different than CBI (control bulk, interrupt)
-      buf_ctrl |= (hwbuf_prepare(ep, 1, is_rx) << 16);
+      buf_ctrl |= hwbuf_prepare(ep, ep->dpram_buf+64, is_rx) << 16;
       ep_ctrl |= EP_CTRL_DOUBLE_BUFFERED_BITS;
     } else {
       // Single buffered since 1 is enough
@@ -215,6 +227,8 @@ void __tusb_irq_path_func(hw_endpoint_buffer_xact)(struct hw_endpoint *ep, io_rw
 
     *ep_reg = ep_ctrl;
   }
+
+  // TU_LOG(1, "xact: buf_ctrl = 0x%08lx\r\n", buf_ctrl);
 
   // Finally, write to buffer_control which will trigger the transfer the next time the controller polls this endpoint
   hwbuf_ctrl_set(buf_reg, buf_ctrl);
@@ -264,13 +278,7 @@ void hw_endpoint_xfer_start(struct hw_endpoint *ep, io_rw_32 *ep_reg, io_rw_32 *
 }
 
 // sync endpoint buffer and return transferred bytes
-static uint16_t __tusb_irq_path_func(hwbuf_sync)(hw_endpoint_t *ep, io_rw_32 *buf_ctrl_reg, uint8_t buf_id,
-                                                 bool is_rx) {
-  uint32_t buf_ctrl = *buf_ctrl_reg;
-  if (buf_id) {
-    buf_ctrl = buf_ctrl >> 16;
-  }
-
+static uint16_t __tusb_irq_path_func(hwbuf_sync)(hw_endpoint_t *ep, bool is_rx, uint32_t buf_ctrl, uint8_t *dpram_buf) {
   const uint16_t xferred_bytes = buf_ctrl & USB_BUF_CTRL_LEN_MASK;
 
   if (!is_rx) {
@@ -281,16 +289,14 @@ static uint16_t __tusb_irq_path_func(hwbuf_sync)(hw_endpoint_t *ep, io_rw_32 *bu
     // If we have received some data, so can increase the length
     // we have received AFTER we have copied it to the user buffer at the appropriate offset
     assert(buf_ctrl & USB_BUF_CTRL_FULL);
-
-    uint8_t *hw_buf = ep->dpram_buf + buf_id * 64;
   #if CFG_TUD_EDPT_DEDICATED_HWFIFO
     if (ep->is_xfer_fifo) {
       // not in sram, may mess up timing with E15 workaround
-      tu_hwfifo_read_to_fifo(hw_buf, ep->user_fifo, xferred_bytes, NULL);
+      tu_hwfifo_read_to_fifo(dpram_buf, ep->user_fifo, xferred_bytes, NULL);
     } else
   #endif
     {
-      unaligned_memcpy(ep->user_buf, hw_buf, xferred_bytes);
+      unaligned_memcpy(ep->user_buf, dpram_buf, xferred_bytes);
       ep->user_buf += xferred_bytes;
     }
   }
@@ -307,8 +313,7 @@ static uint16_t __tusb_irq_path_func(hwbuf_sync)(hw_endpoint_t *ep, io_rw_32 *bu
 
 // Returns true if transfer is complete.
 // buf_id: which buffer completed (from BUFF_CPU_SHOULD_HANDLE, only used for double-buffered).
-bool __tusb_irq_path_func(hw_endpoint_xfer_continue)(struct hw_endpoint *ep, io_rw_32 *ep_reg,
-                                                      io_rw_32 *buf_reg, uint8_t buf_id) {
+bool __tusb_irq_path_func(hw_endpoint_xfer_continue)(struct hw_endpoint *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, uint8_t buf_id) {
   hw_endpoint_lock_update(ep, 1);
 
   if (!ep->active) {
@@ -320,7 +325,31 @@ bool __tusb_irq_path_func(hw_endpoint_xfer_continue)(struct hw_endpoint *ep, io_
   const bool is_rx       = is_host ? (dir == TUSB_DIR_IN) : (dir == TUSB_DIR_OUT);
   const bool is_double   = ep_reg != NULL && ((*ep_reg) & EP_CTRL_DOUBLE_BUFFERED_BITS);
 
-  hwbuf_sync(ep, buf_reg, buf_id, is_rx);
+  #if CFG_TUSB_RP2040_ERRATA_E4_FIX
+  const bool need_e4_fix = (is_host && !is_double);
+  #endif
+
+  // Double-buffered: buf_id from BUFF_CPU_SHOULD_HANDLE indicates which buffer completed.
+
+  // RP2040-E4 (host only): in single-buffered multi-packet transfers, the controller may write completion status to
+  //   BUF1 half instead of BUF0. The side effect that controller can execute an extra packet after writing to BUF1
+  //   since it leave BUF0 intact, which can be poll before buf_status interrupt is trigger.
+  // Workaround for the side effect, we will enable double-buffered for rx but only prepare 1 buf at a time.
+  uint32_t buf_ctrl = *buf_reg;
+  // TU_LOG(1, "sync: buf_ctrl = 0x%08lx, buf id = %u\r\n", buf_ctrl, buf_id);
+
+  uint8_t* dpram_buf = ep->dpram_buf;
+  if (buf_id) {
+    buf_ctrl = buf_ctrl >> 16;
+  #if CFG_TUSB_RP2040_ERRATA_E4_FIX
+    if (!need_e4_fix) // incorrect buf_id, buffer pointer is still buf0
+  #endif
+    {
+      dpram_buf += 64; // buf1 offset
+    }
+  }
+
+  hwbuf_sync(ep, is_rx, buf_ctrl, dpram_buf);
   const bool is_done = (ep->remaining_len == 0);
 
   if (is_double) {
