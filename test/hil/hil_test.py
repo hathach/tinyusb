@@ -50,7 +50,7 @@ import ctypes
 from pymtp import MTP
 import string
 
-ENUM_TIMEOUT = 30
+ENUM_TIMEOUT = 10
 
 STATUS_OK = "\033[32mOK\033[0m"
 STATUS_FAILED = "\033[31mFailed\033[0m"

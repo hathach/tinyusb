@@ -15,46 +15,57 @@
   #error TinyUSB device and host mode not supported at the same time
 #endif
 
-// E5 and E15 only apply to RP2040
 #if defined(PICO_RP2040) && PICO_RP2040 == 1
-  // RP2040 E5: USB device fails to exit RESET state on busy USB bus.
+  // RP2040-E2 USB device endpoint abort is not cleared.
+  #define CFG_TUSB_RP2_ERRATA_E2 1
+
+  // RP2040-E4: USB host writes to upper half of buffer status in single buffered mode.
+  #define CFG_TUSB_RP2_ERRATA_E4 1
+
+  // RP2040-E5: USB device fails to exit RESET state on busy USB bus.
   #if defined(PICO_RP2040_USB_DEVICE_ENUMERATION_FIX) && !defined(TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX)
     #define TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX PICO_RP2040_USB_DEVICE_ENUMERATION_FIX
   #endif
 
-  // RP2040 E15: USB Device controller will hang if certain bus errors occur during an IN transfer.
-  #if defined(PICO_RP2040_USB_DEVICE_UFRAME_FIX) && !defined(TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX)
-    #define TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX PICO_RP2040_USB_DEVICE_UFRAME_FIX
+  // RP2040-E15: USB Device controller will hang if certain bus errors occur during an IN transfer.
+  #ifndef CFG_TUSB_RP2_ERRATA_E15
+    #if defined(PICO_RP2040_USB_DEVICE_UFRAME_FIX)
+      #define CFG_TUSB_RP2_ERRATA_E15 PICO_RP2040_USB_DEVICE_UFRAME_FIX
+    #elif defined(TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX)
+      #define CFG_TUSB_RP2_ERRATA_E15 TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
+    #endif
   #endif
+#endif
 
-  #define CFG_TUSB_RP2040_ERRATA_E4_FIX 1
+#ifndef CFG_TUSB_RP2_ERRATA_E2
+  #define CFG_TUSB_RP2_ERRATA_E2 0
+#endif
+
+#ifndef CFG_TUSB_RP2_ERRATA_E4
+  #define CFG_TUSB_RP2_ERRATA_E4 0
 #endif
 
 #ifndef TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX
   #define TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX 0
 #endif
 
-#ifndef TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
-  #define TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX 0
+#ifndef CFG_TUSB_RP2_ERRATA_E15
+  #define CFG_TUSB_RP2_ERRATA_E15 0
 #endif
 
-#if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
+#if CFG_TUSB_RP2_ERRATA_E15
   #undef PICO_RP2040_USB_FAST_IRQ
   #define PICO_RP2040_USB_FAST_IRQ 1
 #endif
 
 #ifndef PICO_RP2040_USB_FAST_IRQ
-#define PICO_RP2040_USB_FAST_IRQ 0
-#endif
-
-#ifndef CFG_TUSB_RP2040_ERRATA_E4_FIX
-#define CFG_TUSB_RP2040_ERRATA_E4_FIX 0
+  #define PICO_RP2040_USB_FAST_IRQ 0
 #endif
 
 #if PICO_RP2040_USB_FAST_IRQ
-#define __tusb_irq_path_func(x) __no_inline_not_in_flash_func(x)
+  #define __tusb_irq_path_func(x) __no_inline_not_in_flash_func(x)
 #else
-#define __tusb_irq_path_func(x) x
+  #define __tusb_irq_path_func(x) x
 #endif
 
 //--------------------------------------------------------------------+
@@ -66,6 +77,12 @@
 #define pico_info(...)  TU_LOG(2, __VA_ARGS__)
 #define pico_trace(...) TU_LOG(3, __VA_ARGS__)
 
+enum {
+  EPSTATE_IDLE = 0,
+  EPSTATE_ACTIVE,
+  EPSTATE_PENDING,
+};
+
 // Hardware information per endpoint
 typedef struct hw_endpoint {
   uint8_t ep_addr;
@@ -74,8 +91,11 @@ typedef struct hw_endpoint {
   uint8_t pending;      // Transfer scheduled but not active
   bool    is_xfer_fifo; // transfer using fifo
 
-#if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
-  bool    e15_bulk_in; // Errata15 device bulk in
+  uint8_t future_bufid;
+  uint8_t future_len;
+
+#if CFG_TUSB_RP2_ERRATA_E15
+  bool e15_bulk_in; // Errata15 device bulk in
 #endif
 
 #if CFG_TUH_ENABLED
@@ -98,7 +118,7 @@ typedef struct hw_endpoint {
 
 } hw_endpoint_t;
 
-#if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
+#if CFG_TUSB_RP2_ERRATA_E15
 extern volatile uint32_t e15_last_sof;
 #endif
 
@@ -115,7 +135,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool rp2usb_is_host_mode(void) {
 void hw_endpoint_xfer_start(struct hw_endpoint *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, uint8_t *buffer, tu_fifo_t *ff,
                             uint16_t total_len);
 bool hw_endpoint_xfer_continue(struct hw_endpoint *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, uint8_t buf_id);
-void hw_endpoint_buffer_xact(struct hw_endpoint *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg);
+void hw_endpoint_buffer_start(struct hw_endpoint *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg);
 void hw_endpoint_reset_transfer(struct hw_endpoint *ep);
 
 TU_ATTR_ALWAYS_INLINE static inline void hw_endpoint_lock_update(__unused struct hw_endpoint * ep, __unused int delta) {
@@ -128,6 +148,11 @@ TU_ATTR_ALWAYS_INLINE static inline void hw_endpoint_lock_update(__unused struct
 // Hardware Buffer
 //--------------------------------------------------------------------+
 void hwbuf_ctrl_update(io_rw_32 *buf_ctrl_reg, uint32_t and_mask, uint32_t or_mask);
+
+void bufctrl_write32(io_rw_32 *buf_reg, uint32_t value);
+void bufctrl_write16(io_rw_16 *buf_reg16, uint16_t value);
+
+uint16_t bufctrl_prepare(struct hw_endpoint *ep, uint8_t *dpram_buf, bool is_rx);
 
 TU_ATTR_ALWAYS_INLINE static inline void hwbuf_ctrl_set(io_rw_32 *buf_ctrl_reg, uint32_t value) {
   hwbuf_ctrl_update(buf_ctrl_reg, 0, value);

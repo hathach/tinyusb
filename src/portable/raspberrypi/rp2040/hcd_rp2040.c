@@ -351,11 +351,11 @@ static void hw_endpoint_init(hw_endpoint_t *ep, uint8_t dev_addr, const tusb_des
   // const uint8_t    bmInterval     = ep_desc->bInterval;
 
   ep->max_packet_size = wMaxPacketSize;
-  ep->ep_addr        = ep_addr;
-  ep->dev_addr            = dev_addr;
-  ep->transfer_type       = transfer_type;
-  ep->need_pre            = need_pre(dev_addr);
-  ep->next_pid       = 0u;
+  ep->ep_addr         = ep_addr;
+  ep->dev_addr        = dev_addr;
+  ep->transfer_type   = transfer_type;
+  ep->need_pre        = need_pre(dev_addr);
+  ep->next_pid        = 0u;
 
   if (transfer_type != TUSB_XFER_INTERRUPT) {
     ep->dpram_buf = usbh_dpram->epx_data;
@@ -572,8 +572,7 @@ static void edpt_xfer(hw_endpoint_t *ep, uint8_t *buffer, tu_fifo_t *ff, uint16_
     // ep control
     const uint32_t dpram_offset = hw_data_offset(ep->dpram_buf);
     const uint32_t ep_ctrl      = EP_CTRL_ENABLE_BITS | EP_CTRL_INTERRUPT_PER_BUFFER |
-                             ((uint32_t)ep->transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | dpram_offset /*|
-                             (1u << 16)*/; // INTERRUPT_ON_NAK
+                             ((uint32_t)ep->transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | dpram_offset;
     usbh_dpram->epx_ctrl = ep_ctrl;
 
     io_rw_32 *ep_reg  = &usbh_dpram->epx_ctrl;
