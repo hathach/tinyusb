@@ -749,27 +749,27 @@ def test_device_cdc_msc(board):
     block_size = 512
     tmp_file = f'/tmp/msc_dd_{uid}.bin'
 
+    # dd reports speed based on payload only. Each block also transfers 31-byte CBW + 13-byte CSW on USB.
+    scsi_ratio = (block_size + 31 + 13) / block_size
+
+    def parse_dd_speed(dd_output):
+        """Parse dd output, return USB-adjusted speed string"""
+        for line in dd_output.splitlines():
+            m = re.search(r'([\d.]+)\s+([kMG]?B/s)', line)
+            if m:
+                speed_val = float(m.group(1)) * scsi_ratio
+                return f'{speed_val:.1f} {m.group(2)}'
+        return ''
+
     # Read: dd from device to file
     ret = run_cmd(f'dd if={dev} of={tmp_file} bs={block_size} count={block_count} iflag=direct 2>&1')
     assert ret.returncode == 0, f'dd read failed: {ret.stdout.decode()}'
-    dd_out = ret.stdout.decode()
-    read_speed = ''
-    for line in dd_out.splitlines():
-        m = re.search(r'(\d+[\.\d]*\s+[kMG]?B/s)', line)
-        if m:
-            read_speed = m.group(1)
-            break
+    read_speed = parse_dd_speed(ret.stdout.decode())
 
     # Write back the same data to avoid corrupting the disk
     ret = run_cmd(f'dd if={tmp_file} of={dev} bs={block_size} count={block_count} oflag=direct 2>&1')
     assert ret.returncode == 0, f'dd write failed: {ret.stdout.decode()}'
-    dd_out = ret.stdout.decode()
-    write_speed = ''
-    for line in dd_out.splitlines():
-        m = re.search(r'(\d+[\.\d]*\s+[kMG]?B/s)', line)
-        if m:
-            write_speed = m.group(1)
-            break
+    write_speed = parse_dd_speed(ret.stdout.decode())
 
     try:
         os.remove(tmp_file)

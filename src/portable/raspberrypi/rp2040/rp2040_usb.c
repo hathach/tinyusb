@@ -39,7 +39,7 @@
 // MACRO CONSTANT TYPEDEF PROTOTYPE
 //--------------------------------------------------------------------+
   #if CFG_TUSB_RP2_ERRATA_E15
-static bool e15_is_critical_frame_period(struct hw_endpoint *ep);
+static bool e15_is_critical_frame_period(void);
   #endif
 
   #if CFG_TUSB_RP2_ERRATA_E2
@@ -178,7 +178,7 @@ void __tusb_irq_path_func(bufctrl_write16)(io_rw_16 *buf_reg16, uint16_t value) 
 }
 
 // prepare buffer, move data if tx, return buffer control
-uint16_t __tusb_irq_path_func(bufctrl_prepare)(struct hw_endpoint *ep, uint8_t *dpram_buf, bool is_rx) {
+uint16_t __tusb_irq_path_func(bufctrl_prepare16)(struct hw_endpoint *ep, uint8_t *dpram_buf, bool is_rx) {
   const uint16_t buflen = tu_min16(ep->remaining_len, ep->max_packet_size);
   ep->remaining_len -= buflen;
 
@@ -237,16 +237,12 @@ void __tusb_irq_path_func(hw_endpoint_buffer_start)(struct hw_endpoint *ep, io_r
   #endif
 
   // always compute and start with buffer 0
-  uint32_t buf_ctrl = bufctrl_prepare(ep, ep->dpram_buf, is_rx) | USB_BUF_CTRL_SEL;
+  uint32_t buf_ctrl = bufctrl_prepare16(ep, ep->dpram_buf, is_rx) | USB_BUF_CTRL_SEL;
 
-  // Device mode EP0 has no endpoint control register
+  // Note: device EP0 does not have an endpoint control register
   if (ep_reg != NULL) {
-    // Each buffer completion triggers its own IRQ.
-    // If both complete simultaneously, buf_status re-sets on next clock (datasheet Table 406).
-    uint32_t ep_ctrl = *ep_reg;
   #if 1
-    const bool force_single = // (!is_host && is_rx) ||
-      (is_host && tu_edpt_number(ep->ep_addr) != 0);
+    const bool force_single = (is_host && tu_edpt_number(ep->ep_addr) != 0);
   #else
     bool force_single = false; // is_rx;
     #if CFG_TUH_ENABLED
@@ -256,15 +252,15 @@ void __tusb_irq_path_func(hw_endpoint_buffer_start)(struct hw_endpoint *ep, io_r
     #endif
 #endif
 
+    uint32_t ep_ctrl = *ep_reg;
     if (ep->remaining_len && !force_single) {
       // Use buffer 1 (double buffered) if there is still data
-      buf_ctrl |= (uint32_t)bufctrl_prepare(ep, ep->dpram_buf + 64, is_rx) << 16;
+      buf_ctrl |= (uint32_t)bufctrl_prepare16(ep, ep->dpram_buf + 64, is_rx) << 16;
       ep_ctrl |= EP_CTRL_DOUBLE_BUFFERED_BITS;
     } else {
-      // Single buffered since 1 is enough
+      // Only buf0 used: clear DOUBLE_BUFFERED so controller doesn't toggle buffer selector
       ep_ctrl &= ~EP_CTRL_DOUBLE_BUFFERED_BITS;
     }
-
     *ep_reg = ep_ctrl;
   }
 
@@ -336,16 +332,17 @@ void hw_endpoint_xfer_start(struct hw_endpoint *ep, io_rw_32 *ep_reg, io_rw_32 *
   #if CFG_TUSB_RP2_ERRATA_E15
   if (ep->e15_bulk_in) {
     usb_hw_set->inte = USB_INTS_DEV_SOF_BITS;
-  }
 
-  if (e15_is_critical_frame_period(ep)) {
-    ep->pending = 1; // skip transfer if we are in critical frame period
-  } else
+    // skip transfer if we are in critical frame period
+    if (e15_is_critical_frame_period()) {
+      ep->pending = 1;
+      hw_endpoint_lock_update(ep, -1);
+      return;
+    }
+  }
   #endif
-  {
-    hw_endpoint_buffer_start(ep, ep_reg, buf_reg);
-  }
 
+  hw_endpoint_buffer_start(ep, ep_reg, buf_reg);
   hw_endpoint_lock_update(ep, -1);
 }
 
@@ -454,7 +451,7 @@ bool __tusb_irq_path_func(hw_endpoint_xfer_continue)(struct hw_endpoint *ep, io_
       ep->future_bufid = buf_id ^ 1;
       // buff_status will be clear by the next run
     } else {
-      ep->next_pid ^= 1u;
+      ep->next_pid ^= 1u; // roll back pid if aborted
     }
 
     *buf_reg = 0; // reset buffer control
@@ -473,13 +470,17 @@ bool __tusb_irq_path_func(hw_endpoint_xfer_continue)(struct hw_endpoint *ep, io_
 
   if (!is_done && ep->remaining_len > 0) {
   #if CFG_TUSB_RP2_ERRATA_E15
-    if (e15_is_critical_frame_period(ep)) {
+    if (ep->e15_bulk_in && e15_is_critical_frame_period()) {
+      // mark as pending if matches E15 condition
       ep->pending = 1;
+    } else if (ep->e15_bulk_in && ep->pending) {
+      // if already pending, meaning the other buf completes first, don't arm buffer, let SOF handle it
+      // do nothing
     } else
   #endif
     {
-      // ping-pong: do 16-bit write since controller is accessing the other half
-      const uint16_t buf_ctrl16_new = bufctrl_prepare(ep, dpram_buf, is_rx);
+      // ping-pong: arm the completed buffer with new data
+      const uint16_t buf_ctrl16_new = bufctrl_prepare16(ep, dpram_buf, is_rx);
       bufctrl_write16(buf_reg16 + buf_id, buf_ctrl16_new);
     }
   }
@@ -492,7 +493,7 @@ bool __tusb_irq_path_func(hw_endpoint_xfer_continue)(struct hw_endpoint *ep, io_
 // Errata 15
 //--------------------------------------------------------------------+
 
-#if CFG_TUSB_RP2_ERRATA_E15
+  #if CFG_TUSB_RP2_ERRATA_E15
 // E15 is fixed with RP2350
 
 /* Don't mark IN buffers as available during the last 200us of a full-speed
@@ -513,13 +514,8 @@ bool __tusb_irq_path_func(hw_endpoint_xfer_continue)(struct hw_endpoint *ep, io_
 
 volatile uint32_t e15_last_sof = 0;
 
-// check if we need to apply Errata 15 workaround : i.e
-// Endpoint is BULK IN and is currently in critical frame period i.e 20% of last usb frame
-static bool __tusb_irq_path_func(e15_is_critical_frame_period)(struct hw_endpoint* ep) {
-  if (!ep->e15_bulk_in) {
-    return false;
-  }
-
+// check if it is currently in critical frame period i.e 20% of last usb frame
+static bool __tusb_irq_path_func(e15_is_critical_frame_period)(void) {
   /* Avoid the last 200us (uframe 6.5-7) of a frame, up to the EOF2 point.
    * The device state machine cannot recover from receiving an incorrect PID
    * when it is expecting an ACK. */

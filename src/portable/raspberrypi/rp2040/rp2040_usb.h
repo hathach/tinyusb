@@ -152,7 +152,7 @@ void hwbuf_ctrl_update(io_rw_32 *buf_ctrl_reg, uint32_t and_mask, uint32_t or_ma
 void bufctrl_write32(io_rw_32 *buf_reg, uint32_t value);
 void bufctrl_write16(io_rw_16 *buf_reg16, uint16_t value);
 
-uint16_t bufctrl_prepare(struct hw_endpoint *ep, uint8_t *dpram_buf, bool is_rx);
+uint16_t bufctrl_prepare16(struct hw_endpoint *ep, uint8_t *dpram_buf, bool is_rx);
 
 TU_ATTR_ALWAYS_INLINE static inline void hwbuf_ctrl_set(io_rw_32 *buf_ctrl_reg, uint32_t value) {
   hwbuf_ctrl_update(buf_ctrl_reg, 0, value);
