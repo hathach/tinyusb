@@ -148,14 +148,9 @@ static void hw_endpoint_abort_xfer(struct hw_endpoint* ep) {
     while ((usb_hw->abort_done & abort_mask) != abort_mask) {}
   }
 
-  uint32_t buf_ctrl = USB_BUF_CTRL_SEL; // reset to buffer 0
-  if (ep->next_pid) {
-    buf_ctrl |= USB_BUF_CTRL_DATA1_PID;
-  }
-
-  io_rw_32 *buf_ctrl_reg = get_buf_ctrl(epnum, dir);
-  hwbuf_ctrl_set(buf_ctrl_reg, buf_ctrl);
-  hw_endpoint_reset_transfer(ep);
+  io_rw_32 *buf_reg = get_buf_ctrl(epnum, dir);
+  *buf_reg          = 0; // clear buffer control
+  rp2usb_reset_transfer(ep);
 
   if (rp2040_chip_version() >= 2) {
     usb_hw_clear->abort_done = abort_mask;
@@ -185,9 +180,9 @@ static void __tusb_irq_path_func(handle_hw_buff_status)(void) {
       usb_hw_clear->buf_status = bit;
       buf_status &= ~bit;
 
-      if (hw_endpoint_xfer_continue(ep, ep_reg, buf_reg, buf_id)) {
+      if (rp2usb_xfer_continue(ep, ep_reg, buf_reg, buf_id)) {
         const uint16_t xferred_len = ep->xferred_len;
-        hw_endpoint_reset_transfer(ep);
+        rp2usb_reset_transfer(ep);
         dcd_event_xfer_complete(0, ep->ep_addr, xferred_len, XFER_RESULT_SUCCESS, true);
       }
     }
@@ -281,7 +276,7 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
           if (buf0_idle && buf1_idle) {
             // both are idle, start fresh
             io_rw_32 *ep_reg = get_ep_ctrl(i, TUSB_DIR_IN);
-            hw_endpoint_buffer_start(ep, ep_reg, buf_reg32);
+            rp2usb_buffer_start(ep, ep_reg, buf_reg32);
           } else if (buf0_idle) {
             uint16_t buf0 = bufctrl_prepare16(ep, ep->dpram_buf, false);
             bufctrl_write16(buf_reg16, buf0);
@@ -534,7 +529,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
   hw_endpoint_t *ep = hw_endpoint_get(epnum, dir);
   io_rw_32      *ep_reg  = get_ep_ctrl(epnum, dir);
   io_rw_32      *buf_reg = get_buf_ctrl(epnum, dir);
-  hw_endpoint_xfer_start(ep, ep_reg, buf_reg, buffer, NULL, total_bytes);
+  rp2usb_xfer_start(ep, ep_reg, buf_reg, buffer, NULL, total_bytes);
   return true;
 }
 
@@ -545,7 +540,7 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t *ff, uint16_t
   hw_endpoint_t *ep = hw_endpoint_get(epnum, dir);
   io_rw_32      *ep_reg  = get_ep_ctrl(epnum, dir);
   io_rw_32      *buf_reg = get_buf_ctrl(epnum, dir);
-  hw_endpoint_xfer_start(ep, ep_reg, buf_reg, NULL, ff, total_bytes);
+  rp2usb_xfer_start(ep, ep_reg, buf_reg, NULL, ff, total_bytes);
   return true;
 }
 #endif
@@ -554,15 +549,17 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   (void)rhport;
   const uint8_t    epnum = tu_edpt_number(ep_addr);
   const tusb_dir_t dir   = tu_edpt_dir(ep_addr);
+  hw_endpoint_t   *ep    = hw_endpoint_get(epnum, dir);
 
   if (epnum == 0) {
     // A stall on EP0 has to be armed so it can be cleared on the next setup packet
     usb_hw_set->ep_stall_arm = (dir == TUSB_DIR_IN) ? USB_EP_STALL_ARM_EP0_IN_BITS : USB_EP_STALL_ARM_EP0_OUT_BITS;
   }
 
-  // stall and clear current pending buffer, may need to use EP_ABORT
-  io_rw_32 *buf_ctrl_reg = get_buf_ctrl(epnum, dir);
-  hwbuf_ctrl_set(buf_ctrl_reg, USB_BUF_CTRL_STALL);
+  // abort first then stall and clear current pending buffer
+  hw_endpoint_abort_xfer(ep);
+  io_rw_32 *buf_reg = get_buf_ctrl(epnum, dir);
+  *buf_reg          = USB_BUF_CTRL_STALL;
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
@@ -573,8 +570,8 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   if (epnum != 0) {
     struct hw_endpoint* ep = hw_endpoint_get(epnum, dir);
     ep->next_pid = 0; // reset data toggle
-    io_rw_32 *buf_ctrl_reg = get_buf_ctrl(epnum, dir);
-    hwbuf_ctrl_clear_mask(buf_ctrl_reg, USB_BUF_CTRL_STALL);
+    io_rw_32 *buf_reg      = get_buf_ctrl(epnum, dir);
+    *buf_reg               = 0;
   }
 }
 

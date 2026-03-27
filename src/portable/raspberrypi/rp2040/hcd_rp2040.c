@@ -119,14 +119,14 @@ TU_ATTR_ALWAYS_INLINE static inline bool need_pre(uint8_t dev_addr) {
 // forward declaration
 static void __tusb_irq_path_func(edpt_schedule_next)(void);
 TU_ATTR_ALWAYS_INLINE static inline void sie_start_xfer(uint32_t value);
-static void edpt_xfer(hw_endpoint_t *ep, uint8_t *buffer, tu_fifo_t *ff, uint16_t total_len);
+static void epx_xfer(hw_endpoint_t *ep, uint8_t *buffer, tu_fifo_t *ff, uint16_t total_len);
 
 static void __tusb_irq_path_func(hw_xfer_complete)(hw_endpoint_t *ep, xfer_result_t xfer_result) {
   // Mark transfer as done before we tell the tinyusb stack
   uint8_t dev_addr    = ep->dev_addr;
   uint8_t ep_addr     = ep->ep_addr;
   uint    xferred_len = ep->xferred_len;
-  hw_endpoint_reset_transfer(ep);
+  rp2usb_reset_transfer(ep);
   hcd_event_xfer_complete(dev_addr, ep_addr, xferred_len, xfer_result, true);
 
   // Schedule next pending EPX transfer (only for non-interrupt endpoints)
@@ -150,7 +150,7 @@ static void __tusb_irq_path_func(handle_hwbuf_status)(void) {
 
     io_rw_32 *ep_reg  = &usbh_dpram->epx_ctrl;
     io_rw_32 *buf_reg = &usbh_dpram->epx_buf_ctrl;
-    if (hw_endpoint_xfer_continue(epx, ep_reg, buf_reg, buf_id)) {
+    if (rp2usb_xfer_continue(epx, ep_reg, buf_reg, buf_id)) {
       hw_xfer_complete(epx, XFER_RESULT_SUCCESS);
     }
   }
@@ -174,7 +174,7 @@ static void __tusb_irq_path_func(handle_hwbuf_status)(void) {
       if (ep->interrupt_num == epnum) {
         io_rw_32 *ep_reg  = dpram_int_ep_ctrl(ep->interrupt_num);
         io_rw_32 *buf_reg = dpram_int_ep_buffer_ctrl(ep->interrupt_num);
-        const bool done = hw_endpoint_xfer_continue(ep, ep_reg, buf_reg, 0);
+        const bool done    = rp2usb_xfer_continue(ep, ep_reg, buf_reg, 0);
         if (done) {
           hw_xfer_complete(ep, XFER_RESULT_SUCCESS);
         }
@@ -185,8 +185,7 @@ static void __tusb_irq_path_func(handle_hwbuf_status)(void) {
 }
 
 // All non-interrupt endpoints use shared EPX.
-// Forward declared above hw_xfer_complete, defined after edpt_xfer below.
-
+// Forward declared above hw_xfer_complete, defined after epx_xfer below.
 // Save current EPX context, mark pending, switch to next_ep
 static void __tusb_irq_path_func(epx_switch_ep)(hw_endpoint_t *next_ep) {
   const uint32_t buf_ctrl = usbh_dpram->epx_buf_ctrl;
@@ -214,7 +213,7 @@ static void __tusb_irq_path_func(epx_switch_ep)(hw_endpoint_t *next_ep) {
   } else {
     uint16_t prev_xferred = next_ep->xferred_len;
     next_ep->pending = 0;
-    edpt_xfer(next_ep, next_ep->user_buf, NULL, next_ep->remaining_len);
+    epx_xfer(next_ep, next_ep->user_buf, NULL, next_ep->remaining_len);
     epx->xferred_len += prev_xferred;
   }
 }
@@ -342,57 +341,6 @@ void __tusb_irq_path_func(hcd_int_handler)(uint8_t rhport, bool in_isr) {
   (void)rhport;
   (void)in_isr;
   hcd_rp2040_irq();
-}
-
-static void hw_endpoint_init(hw_endpoint_t *ep, uint8_t dev_addr, const tusb_desc_endpoint_t *ep_desc) {
-  const uint8_t    ep_addr        = ep_desc->bEndpointAddress;
-  const uint16_t   wMaxPacketSize = tu_edpt_packet_size(ep_desc);
-  const uint8_t    transfer_type  = ep_desc->bmAttributes.xfer;
-  // const uint8_t    bmInterval     = ep_desc->bInterval;
-
-  ep->max_packet_size = wMaxPacketSize;
-  ep->ep_addr         = ep_addr;
-  ep->dev_addr        = dev_addr;
-  ep->transfer_type   = transfer_type;
-  ep->need_pre        = need_pre(dev_addr);
-  ep->next_pid        = 0u;
-
-  if (transfer_type != TUSB_XFER_INTERRUPT) {
-    ep->dpram_buf = usbh_dpram->epx_data;
-  } else {
-    // from 15 interrupt endpoints pool
-    uint8_t int_idx;
-    for (int_idx = 0; int_idx < USB_HOST_INTERRUPT_ENDPOINTS; int_idx++) {
-      if (!tu_bit_test(usb_hw->int_ep_ctrl, 1 + int_idx)) {
-        ep->interrupt_num = int_idx + 1;
-        break;
-      }
-    }
-    assert(int_idx < USB_HOST_INTERRUPT_ENDPOINTS);
-    assert(ep_desc->bInterval > 0);
-
-    //------------- dpram buf -------------//
-    // 15x64 last bytes of DPRAM for interrupt endpoint buffers
-    ep->dpram_buf = (uint8_t *)(USBCTRL_DPRAM_BASE + USB_DPRAM_MAX - (int_idx + 1u) * 64u);
-    uint32_t ep_ctrl     = EP_CTRL_ENABLE_BITS | EP_CTRL_INTERRUPT_PER_BUFFER |
-                       (TUSB_XFER_INTERRUPT << EP_CTRL_BUFFER_TYPE_LSB) | hw_data_offset(ep->dpram_buf) |
-                       (uint32_t)((ep_desc->bInterval - 1) << EP_CTRL_HOST_INTERRUPT_INTERVAL_LSB);
-    usbh_dpram->int_ep_ctrl[int_idx].ctrl = ep_ctrl;
-
-    //------------- address control -------------//
-    const uint8_t epnum     = tu_edpt_number(ep_addr);
-    uint32_t      addr_ctrl = (uint32_t)(dev_addr | (epnum << USB_ADDR_ENDP1_ENDPOINT_LSB));
-    if (tu_edpt_dir(ep_addr) == TUSB_DIR_OUT) {
-      addr_ctrl |= USB_ADDR_ENDP1_INTEP_DIR_BITS;
-    }
-    if (ep->need_pre) {
-      addr_ctrl |= USB_ADDR_ENDP1_INTEP_PREAMBLE_BITS;
-    }
-    usb_hw->int_ep_addr_ctrl[int_idx] = addr_ctrl;
-
-    // Finally, activate interrupt endpoint
-    usb_hw_set->int_ep_ctrl = 1u << ep->interrupt_num;
-  }
 }
 
 //--------------------------------------------------------------------+
@@ -528,7 +476,55 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t 
   pico_trace("hcd_edpt_open dev_addr %d, ep_addr %d\n", dev_addr, ep_desc->bEndpointAddress);
   hw_endpoint_t *ep = edpt_alloc();
   TU_ASSERT(ep);
-  hw_endpoint_init(ep, dev_addr, ep_desc);
+
+  const uint8_t  ep_addr         = ep_desc->bEndpointAddress;
+  const uint16_t max_packet_size = tu_edpt_packet_size(ep_desc);
+  const uint8_t  transfer_type   = ep_desc->bmAttributes.xfer;
+  // const uint8_t    bmInterval     = ep_desc->bInterval;
+
+  ep->max_packet_size = max_packet_size;
+  ep->ep_addr         = ep_addr;
+  ep->dev_addr        = dev_addr;
+  ep->transfer_type   = transfer_type;
+  ep->need_pre        = need_pre(dev_addr);
+  ep->next_pid        = 0u;
+
+  if (transfer_type != TUSB_XFER_INTERRUPT) {
+    ep->dpram_buf = usbh_dpram->epx_data;
+  } else {
+    // from 15 interrupt endpoints pool
+    uint8_t int_idx;
+    for (int_idx = 0; int_idx < USB_HOST_INTERRUPT_ENDPOINTS; int_idx++) {
+      if (!tu_bit_test(usb_hw->int_ep_ctrl, 1 + int_idx)) {
+        ep->interrupt_num = int_idx + 1;
+        break;
+      }
+    }
+    assert(int_idx < USB_HOST_INTERRUPT_ENDPOINTS);
+    assert(ep_desc->bInterval > 0);
+
+    //------------- dpram buf -------------//
+    // 15x64 last bytes of DPRAM for interrupt endpoint buffers
+    ep->dpram_buf    = (uint8_t *)(USBCTRL_DPRAM_BASE + USB_DPRAM_MAX - (int_idx + 1u) * 64u);
+    uint32_t ep_ctrl = EP_CTRL_ENABLE_BITS | EP_CTRL_INTERRUPT_PER_BUFFER |
+                       (TUSB_XFER_INTERRUPT << EP_CTRL_BUFFER_TYPE_LSB) | hw_data_offset(ep->dpram_buf) |
+                       (uint32_t)((ep_desc->bInterval - 1) << EP_CTRL_HOST_INTERRUPT_INTERVAL_LSB);
+    usbh_dpram->int_ep_ctrl[int_idx].ctrl = ep_ctrl;
+
+    //------------- address control -------------//
+    const uint8_t epnum     = tu_edpt_number(ep_addr);
+    uint32_t      addr_ctrl = (uint32_t)(dev_addr | (epnum << USB_ADDR_ENDP1_ENDPOINT_LSB));
+    if (tu_edpt_dir(ep_addr) == TUSB_DIR_OUT) {
+      addr_ctrl |= USB_ADDR_ENDP1_INTEP_DIR_BITS;
+    }
+    if (ep->need_pre) {
+      addr_ctrl |= USB_ADDR_ENDP1_INTEP_PREAMBLE_BITS;
+    }
+    usb_hw->int_ep_addr_ctrl[int_idx] = addr_ctrl;
+
+    // Finally, activate interrupt endpoint
+    usb_hw_set->int_ep_ctrl = 1u << ep->interrupt_num;
+  }
 
   return true;
 }
@@ -551,54 +547,51 @@ TU_ATTR_ALWAYS_INLINE static inline void sie_start_xfer(uint32_t value) {
   usb_hw->sie_ctrl = value | USB_SIE_CTRL_START_TRANS_BITS;
 }
 
-static void edpt_xfer(hw_endpoint_t *ep, uint8_t *buffer, tu_fifo_t *ff, uint16_t total_len) {
-  if (ep->transfer_type == TUSB_XFER_INTERRUPT) {
-    // For interrupt endpoint control and buffer is already configured
-    // Note: Interrupt is single buffered only
-    io_rw_32 *ep_reg  = dpram_int_ep_ctrl(ep->interrupt_num);
-    io_rw_32 *buf_reg = dpram_int_ep_buffer_ctrl(ep->interrupt_num);
-    hw_endpoint_xfer_start(ep, ep_reg, buf_reg, buffer, ff, total_len);
-  } else {
-    const uint8_t    ep_num = tu_edpt_number(ep->ep_addr);
-    const tusb_dir_t ep_dir = tu_edpt_dir(ep->ep_addr);
+// start a transfer on epx endpoint
+static void epx_xfer(hw_endpoint_t *ep, uint8_t *buffer, tu_fifo_t *ff, uint16_t total_len) {
+  const uint8_t    ep_num = tu_edpt_number(ep->ep_addr);
+  const tusb_dir_t ep_dir = tu_edpt_dir(ep->ep_addr);
 
-    // RP2040-E4: USB host writes status to upper half of buffer control in single buffered mode.
-    // The buffer selector toggles even in single-buffered mode, so the previous transfer's status
-    // may have been written to BUF1 half, leaving BUF0 with stale AVAILABLE bit. Clear it here.
-#if defined(PICO_RP2040) && PICO_RP2040 == 1
-    usbh_dpram->epx_buf_ctrl = 0;
-#endif
+  // RP2040-E4: USB host writes status to upper half of buffer control in single buffered mode.
+  // The buffer selector toggles even in single-buffered mode, so the previous transfer's status
+  // may have been written to BUF1 half, leaving BUF0 with stale AVAILABLE bit. Clear it here.
+  #if defined(PICO_RP2040) && PICO_RP2040 == 1
+  usbh_dpram->epx_buf_ctrl = 0;
+  #endif
 
-    // ep control
-    const uint32_t dpram_offset = hw_data_offset(ep->dpram_buf);
-    const uint32_t ep_ctrl      = EP_CTRL_ENABLE_BITS | EP_CTRL_INTERRUPT_PER_BUFFER |
-                             ((uint32_t)ep->transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | dpram_offset;
-    usbh_dpram->epx_ctrl = ep_ctrl;
+  // ep control
+  const uint32_t dpram_offset = hw_data_offset(ep->dpram_buf);
+  const uint32_t ep_ctrl      = EP_CTRL_ENABLE_BITS | EP_CTRL_INTERRUPT_PER_BUFFER |
+                           ((uint32_t)ep->transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | dpram_offset;
+  usbh_dpram->epx_ctrl = ep_ctrl;
 
-    io_rw_32 *ep_reg  = &usbh_dpram->epx_ctrl;
-    io_rw_32 *buf_reg = &usbh_dpram->epx_buf_ctrl;
-    hw_endpoint_xfer_start(ep, ep_reg, buf_reg, buffer, ff, total_len);
+  io_rw_32 *ep_reg  = &usbh_dpram->epx_ctrl;
+  io_rw_32 *buf_reg = &usbh_dpram->epx_buf_ctrl;
+  rp2usb_xfer_start(ep, ep_reg, buf_reg, buffer, ff, total_len);
 
-    // addr control
-    usb_hw->dev_addr_ctrl = (uint32_t)(ep->dev_addr | (ep_num << USB_ADDR_ENDP_ENDPOINT_LSB));
+  // addr control
+  usb_hw->dev_addr_ctrl = (uint32_t)(ep->dev_addr | (ep_num << USB_ADDR_ENDP_ENDPOINT_LSB));
 
-    epx = ep;
+  epx = ep;
 
-    // start transfer
-    const uint32_t sie_ctrl = (ep_dir ? USB_SIE_CTRL_RECEIVE_DATA_BITS : USB_SIE_CTRL_SEND_DATA_BITS) |
-                              (ep->need_pre ? USB_SIE_CTRL_PREAMBLE_EN_BITS : 0);
-    sie_start_xfer(sie_ctrl);
-  }
+  // start transfer
+  const uint32_t sie_ctrl = (ep_dir ? USB_SIE_CTRL_RECEIVE_DATA_BITS : USB_SIE_CTRL_SEND_DATA_BITS) |
+                            (ep->need_pre ? USB_SIE_CTRL_PREAMBLE_EN_BITS : 0);
+  sie_start_xfer(sie_ctrl);
 }
 
 // Schedule next pending EPX transfer from ISR context
 static void __tusb_irq_path_func(edpt_schedule_next)(void) {
   // EPX may already be active if the completion callback started a new transfer
-  if (epx->active) return;
+  if (epx->active) {
+    return;
+  }
 
   for (uint i = 0; i < TU_ARRAY_SIZE(ep_pool); i++) {
     hw_endpoint_t *ep = &ep_pool[i];
-    if (ep->pending == 0) continue;
+    if (ep->pending == 0) {
+      continue;
+    }
 
     if (ep->pending == 2) {
       // Pending setup: DPRAM already has the setup packet
@@ -618,7 +611,7 @@ static void __tusb_irq_path_func(edpt_schedule_next)(void) {
       // Pending data transfer: preserve partial progress from preemption
       uint16_t prev_xferred = ep->xferred_len;
       ep->pending = 0;
-      edpt_xfer(ep, ep->user_buf, NULL, ep->remaining_len);
+      epx_xfer(ep, ep->user_buf, NULL, ep->remaining_len);
       epx->xferred_len += prev_xferred; // restore partial progress
     }
     return; // start only one transfer
@@ -631,31 +624,39 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
   hw_endpoint_t *ep = edpt_find(dev_addr, ep_addr);
   TU_ASSERT(ep);
 
-  // Control endpoint can change direction 0x00 <-> 0x80
-  if (ep_addr != ep->ep_addr) {
-    ep->ep_addr  = ep_addr;
-    ep->next_pid = 1; // data and status stage start with DATA1
-  }
-
-  // If EPX is busy with another transfer, mark as pending
-  if (ep->transfer_type != TUSB_XFER_INTERRUPT && epx->active) {
-    ep->user_buf      = buffer;
-    ep->remaining_len = buflen;
-    ep->pending       = 1;
-#ifdef HAS_STOP_EPX_ON_NAK
-    usb_hw_set->nak_poll = USB_NAK_POLL_STOP_EPX_ON_NAK_BITS;
-#else
-    // Only enable SOF preemption for non-control endpoints
-    if (tu_edpt_number(epx->ep_addr) != 0) {
-      usb_hw->nak_poll = (300 << USB_NAK_POLL_DELAY_FS_LSB) |
-                         (300 << USB_NAK_POLL_DELAY_LS_LSB);
-      usb_hw_set->inte = USB_INTE_HOST_SOF_BITS;
+  if (ep->transfer_type == TUSB_XFER_INTERRUPT) {
+    // For interrupt endpoint control and buffer is already configured
+    // Note: Interrupt is single buffered only
+    io_rw_32 *ep_reg  = dpram_int_ep_ctrl(ep->interrupt_num);
+    io_rw_32 *buf_reg = dpram_int_ep_buffer_ctrl(ep->interrupt_num);
+    rp2usb_xfer_start(ep, ep_reg, buf_reg, buffer, NULL, buflen);
+  } else {
+    // Control endpoint can change direction 0x00 <-> 0x80 when changing stages
+    if (ep_addr != ep->ep_addr) {
+      ep->ep_addr  = ep_addr;
+      ep->next_pid = 1; // data and status stage start with DATA1
     }
-#endif
-    return true;
-  }
 
-  edpt_xfer(ep, buffer, NULL, buflen);
+    // If EPX is busy with another transfer, mark as pending
+    if (epx->active) {
+      ep->user_buf      = buffer;
+      ep->remaining_len = buflen;
+      ep->pending       = 1;
+
+  #ifdef HAS_STOP_EPX_ON_NAK
+      usb_hw_set->nak_poll = USB_NAK_POLL_STOP_EPX_ON_NAK_BITS;
+  #else
+      // Only enable SOF round-robin for non-control endpoints
+      if (tu_edpt_number(epx->ep_addr) != 0) {
+        usb_hw->nak_poll = (300 << USB_NAK_POLL_DELAY_FS_LSB) | (300 << USB_NAK_POLL_DELAY_LS_LSB);
+        usb_hw_set->inte = USB_INTE_HOST_SOF_BITS;
+      }
+  #endif
+      return true;
+    }
+
+    epx_xfer(ep, buffer, NULL, buflen);
+  }
 
   return true;
 }

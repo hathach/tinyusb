@@ -96,51 +96,12 @@ void rp2usb_init(void) {
   TU_LOG2_INT(sizeof(hw_endpoint_t));
 }
 
-void __tusb_irq_path_func(hw_endpoint_reset_transfer)(struct hw_endpoint* ep) {
+void __tusb_irq_path_func(rp2usb_reset_transfer)(hw_endpoint_t *ep) {
   ep->active = false;
   ep->remaining_len = 0;
   ep->xferred_len = 0;
   ep->user_buf = 0;
   ep->is_xfer_fifo  = false;
-}
-
-void __tusb_irq_path_func(hwbuf_ctrl_update)(io_rw_32 *buf_ctrl_reg, uint32_t and_mask, uint32_t or_mask) {
-  const bool is_host = rp2usb_is_host_mode();
-  uint32_t   value    = 0;
-  uint32_t   buf_ctrl = *buf_ctrl_reg;
-
-  if (and_mask) {
-    value = buf_ctrl & and_mask;
-  }
-
-  if (or_mask) {
-    value |= or_mask;
-    if (or_mask & USB_BUF_CTRL_AVAIL) {
-      if (buf_ctrl & USB_BUF_CTRL_AVAIL) {
-        if (is_host) {
-#if defined(PICO_RP2040) && PICO_RP2040 == 1
-          // RP2040-E4: host buffer selector toggles in single-buffered mode, causing status
-          // to be written to BUF1 half and leaving stale AVAILABLE in BUF0 half. Clear it.
-          *buf_ctrl_reg = 0;
-#else
-          panic("buf_ctrl @ 0x%lX already available (host)", (uintptr_t)buf_ctrl_reg);
-#endif
-        } else {
-          panic("buf_ctrl @ 0x%lX already available", (uintptr_t)buf_ctrl_reg);
-        }
-      }
-      *buf_ctrl_reg = value & ~USB_BUF_CTRL_AVAIL;
-
-      // Section 4.1.2.7.1 (rp2040) / 12.7.3.7.1 (rp2350) Concurrent access: after write to buffer control,
-      // wait for USB controller to see the update before setting AVAILABLE.
-      // Don't need delay in host mode as host is in charge of when to start the transaction.
-      if (!is_host) {
-        busy_wait_at_least_cycles(12);
-      }
-    }
-  }
-
-  *buf_ctrl_reg = value;
 }
 
 void __tusb_irq_path_func(bufctrl_write32)(io_rw_32 *buf_reg, uint32_t value) {
@@ -149,16 +110,17 @@ void __tusb_irq_path_func(bufctrl_write32)(io_rw_32 *buf_reg, uint32_t value) {
   if (current & value & avail_mask) {
     panic("buf_ctrl @ 0x%lX already available", (uintptr_t)buf_reg);
   }
-  *buf_reg = value & ~USB_BUF_CTRL_AVAIL; // write other bits first
+  *buf_reg = value & ~(USB_BUF_CTRL_AVAIL | (USB_BUF_CTRL_AVAIL << 16)); // write other bits first
 
   // Section 4.1.2.7.1 (rp2040) / 12.7.3.7.1 (rp2350) Concurrent access: after write to buffer control,
   // wait for USB controller to see the update before setting AVAILABLE.
   // Don't need delay in host mode as host is in charge of when to start the transaction.
-  if (!rp2usb_is_host_mode() && (value & (USB_BUF_CTRL_AVAIL | (USB_BUF_CTRL_AVAIL << 16)))) {
-    busy_wait_at_least_cycles(12);
+  if (value & (USB_BUF_CTRL_AVAIL | (USB_BUF_CTRL_AVAIL << 16))) {
+    if (!rp2usb_is_host_mode()) {
+      busy_wait_at_least_cycles(12);
+    }
+    *buf_reg = value; // then set AVAILABLE bit last
   }
-
-  *buf_reg = value; // then set AVAILABLE bit (if set) last
 }
 
 void __tusb_irq_path_func(bufctrl_write16)(io_rw_16 *buf_reg16, uint16_t value) {
@@ -171,10 +133,12 @@ void __tusb_irq_path_func(bufctrl_write16)(io_rw_16 *buf_reg16, uint16_t value) 
   // Section 4.1.2.7.1 (rp2040) / 12.7.3.7.1 (rp2350) Concurrent access: after write to buffer control,
   // wait for USB controller to see the update before setting AVAILABLE.
   // Don't need delay in host mode as host is in charge of when to start the transaction.
-  if (!rp2usb_is_host_mode() && (value & USB_BUF_CTRL_AVAIL)) {
-    busy_wait_at_least_cycles(12);
+  if (value & USB_BUF_CTRL_AVAIL) {
+    if (!rp2usb_is_host_mode()) {
+      busy_wait_at_least_cycles(12);
+    }
+    *buf_reg16 = value; // then set AVAILABLE bit last
   }
-  *buf_reg16 = value; // then set AVAILABLE bit (if set) last
 }
 
 // prepare buffer, move data if tx, return buffer control
@@ -217,7 +181,7 @@ uint16_t __tusb_irq_path_func(bufctrl_prepare16)(struct hw_endpoint *ep, uint8_t
 }
 
 // Start transaction on hw buffer
-void __tusb_irq_path_func(hw_endpoint_buffer_start)(struct hw_endpoint *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg) {
+void __tusb_irq_path_func(rp2usb_buffer_start)(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg) {
   const tusb_dir_t dir     = tu_edpt_dir(ep->ep_addr);
   const bool       is_host = rp2usb_is_host_mode();
 
@@ -227,14 +191,6 @@ void __tusb_irq_path_func(hw_endpoint_buffer_start)(struct hw_endpoint *ep, io_r
   } else {
     is_rx = (dir == TUSB_DIR_OUT);
   }
-
-  // RP2040-E4 (host only): in single-buffered multi-packet transfers, the controller may write completion status to
-  //   BUF1 half instead of BUF0. The side effect that controller can execute an extra packet after writing to BUF1
-  //   since it leave BUF0 intact, which can be polled before buf_status interrupt is trigger.
-  // Workaround for the side effect, we will enable double-buffered for rx but only prepare 1 buf at a time.
-  #if CFG_TUSB_RP2_ERRATA_E4
-
-  #endif
 
   // always compute and start with buffer 0
   uint32_t buf_ctrl = bufctrl_prepare16(ep, ep->dpram_buf, is_rx) | USB_BUF_CTRL_SEL;
@@ -268,15 +224,15 @@ void __tusb_irq_path_func(hw_endpoint_buffer_start)(struct hw_endpoint *ep, io_r
   bufctrl_write32(buf_reg, buf_ctrl);
 }
 
-void hw_endpoint_xfer_start(struct hw_endpoint *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, uint8_t *buffer, tu_fifo_t *ff,
-                            uint16_t total_len) {
+void rp2usb_xfer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, uint8_t *buffer, tu_fifo_t *ff,
+                       uint16_t total_len) {
   (void) ff;
   hw_endpoint_lock_update(ep, 1);
 
   if (ep->active) {
     // TODO: Is this acceptable for interrupt packets?
     TU_LOG(1, "WARN: starting new transfer on already active ep %02X\r\n", ep->ep_addr);
-    hw_endpoint_reset_transfer(ep);
+    rp2usb_reset_transfer(ep);
   }
 
   // Fill in info now that we're kicking off the hw
@@ -310,7 +266,7 @@ void hw_endpoint_xfer_start(struct hw_endpoint *ep, io_rw_32 *ep_reg, io_rw_32 *
       // all data has been received, no need to start hw transfer
       ep->active                 = false;
       const uint16_t xferred_len = ep->xferred_len;
-      hw_endpoint_reset_transfer(ep);
+      rp2usb_reset_transfer(ep);
 
       const bool is_host = rp2usb_is_host_mode();
   #if CFG_TUH_ENABLED
@@ -342,7 +298,7 @@ void hw_endpoint_xfer_start(struct hw_endpoint *ep, io_rw_32 *ep_reg, io_rw_32 *
   }
   #endif
 
-  hw_endpoint_buffer_start(ep, ep_reg, buf_reg);
+  rp2usb_buffer_start(ep, ep_reg, buf_reg);
   hw_endpoint_lock_update(ep, -1);
 }
 
@@ -382,7 +338,8 @@ static uint16_t __tusb_irq_path_func(hwbuf_sync)(hw_endpoint_t *ep, bool is_rx, 
 
 // Returns true if transfer is complete.
 // buf_id: which buffer completed (from BUFF_CPU_SHOULD_HANDLE, only used for double-buffered).
-bool __tusb_irq_path_func(hw_endpoint_xfer_continue)(struct hw_endpoint *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, uint8_t buf_id) {
+bool __tusb_irq_path_func(rp2usb_xfer_continue)(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg,
+                                                uint8_t buf_id) {
   hw_endpoint_lock_update(ep, 1);
 
   const tusb_dir_t dir     = tu_edpt_dir(ep->ep_addr);

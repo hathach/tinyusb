@@ -132,11 +132,11 @@ TU_ATTR_ALWAYS_INLINE static inline bool rp2usb_is_host_mode(void) {
 //--------------------------------------------------------------------+
 // Hardware Endpoint
 //--------------------------------------------------------------------+
-void hw_endpoint_xfer_start(struct hw_endpoint *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, uint8_t *buffer, tu_fifo_t *ff,
-                            uint16_t total_len);
-bool hw_endpoint_xfer_continue(struct hw_endpoint *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, uint8_t buf_id);
-void hw_endpoint_buffer_start(struct hw_endpoint *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg);
-void hw_endpoint_reset_transfer(struct hw_endpoint *ep);
+void rp2usb_xfer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, uint8_t *buffer, tu_fifo_t *ff,
+                       uint16_t total_len);
+bool rp2usb_xfer_continue(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, uint8_t buf_id);
+void rp2usb_buffer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg);
+void rp2usb_reset_transfer(hw_endpoint_t *ep);
 
 TU_ATTR_ALWAYS_INLINE static inline void hw_endpoint_lock_update(__unused struct hw_endpoint * ep, __unused int delta) {
   // todo add critsec as necessary to prevent issues between worker and IRQ...
@@ -147,26 +147,11 @@ TU_ATTR_ALWAYS_INLINE static inline void hw_endpoint_lock_update(__unused struct
 //--------------------------------------------------------------------+
 // Hardware Buffer
 //--------------------------------------------------------------------+
-void hwbuf_ctrl_update(io_rw_32 *buf_ctrl_reg, uint32_t and_mask, uint32_t or_mask);
-
 void bufctrl_write32(io_rw_32 *buf_reg, uint32_t value);
 void bufctrl_write16(io_rw_16 *buf_reg16, uint16_t value);
-
 uint16_t bufctrl_prepare16(struct hw_endpoint *ep, uint8_t *dpram_buf, bool is_rx);
 
-TU_ATTR_ALWAYS_INLINE static inline void hwbuf_ctrl_set(io_rw_32 *buf_ctrl_reg, uint32_t value) {
-  hwbuf_ctrl_update(buf_ctrl_reg, 0, value);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline void hwbuf_ctrl_set_mask(io_rw_32 *buf_ctrl_reg, uint32_t value) {
-  hwbuf_ctrl_update(buf_ctrl_reg, ~value, value);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline void hwbuf_ctrl_clear_mask(io_rw_32 *buf_ctrl_reg, uint32_t value) {
-  hwbuf_ctrl_update(buf_ctrl_reg, ~value, 0);
-}
-
-static inline uintptr_t hw_data_offset(uint8_t *buf) {
+TU_ATTR_ALWAYS_INLINE static inline uintptr_t hw_data_offset(uint8_t *buf) {
   // Remove usb base from buffer pointer
   return (uintptr_t)buf ^ (uintptr_t)usb_dpram;
 }
