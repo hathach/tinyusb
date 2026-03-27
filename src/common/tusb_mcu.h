@@ -166,6 +166,7 @@
   #define TUP_USBIP_DWC2
   #define TUP_USBIP_DWC2_NRF
   #define TUP_DCD_ENDPOINT_MAX            16
+  #define TUP_RHPORT_HIGHSPEED            1
   #define CFG_TUH_DWC2_DMA_ENABLE_DEFAULT 0
 
 //--------------------------------------------------------------------+

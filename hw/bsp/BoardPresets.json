@@ -471,6 +471,10 @@
       "inherits": "default"
     },
     {
+      "name": "nrf54lm20dk",
+      "inherits": "default"
+    },
+    {
       "name": "nutiny_nuc126v",
       "inherits": "default"
     },
@@ -1562,6 +1566,11 @@
       "name": "nrf54h20dk",
       "description": "Build preset for the nrf54h20dk board",
       "configurePreset": "nrf54h20dk"
+    },
+    {
+      "name": "nrf54lm20dk",
+      "description": "Build preset for the nrf54lm20dk board",
+      "configurePreset": "nrf54lm20dk"
     },
     {
       "name": "nutiny_nuc126v",
@@ -3708,6 +3717,19 @@
         {
           "type": "build",
           "name": "nrf54h20dk"
+        }
+      ]
+    },
+    {
+      "name": "nrf54lm20dk",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "nrf54lm20dk"
+        },
+        {
+          "type": "build",
+          "name": "nrf54lm20dk"
         }
       ]
     },
