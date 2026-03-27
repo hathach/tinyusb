@@ -265,7 +265,8 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
 
         if (ep->pending) {
           ep->pending         = 0;
-          io_rw_32 *buf_reg32 = (io_rw_32 *)get_buf_ctrl(i, TUSB_DIR_IN);
+
+          io_rw_32 *buf_reg32 = get_buf_ctrl(i, TUSB_DIR_IN);
           io_rw_16 *buf_reg16 = (io_rw_16 *)buf_reg32;
 
           // Check each buffer half: idle when both FULL and AVAIL are clear.
@@ -274,24 +275,18 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
             BUSY_MASK = USB_BUF_CTRL_FULL | USB_BUF_CTRL_AVAIL
           };
 
-          uint16_t   buf0, buf1;
-          const bool use_buf0 = !(buf_reg16[0] & BUSY_MASK);
+          const bool buf0_idle = !(buf_reg16[0] & BUSY_MASK);
+          const bool buf1_idle = (ep->remaining_len > 0) && !(buf_reg16[1] & BUSY_MASK);
 
-          if (use_buf0) {
-            buf0 = bufctrl_prepare16(ep, ep->dpram_buf, false);
-          }
-
-          const bool use_buf1 = (ep->remaining_len > 0) && !(buf_reg16[1] & BUSY_MASK);
-          if (use_buf1) {
-            buf1 = bufctrl_prepare16(ep, ep->dpram_buf + 64, false);
-          }
-
-          if (use_buf0 && use_buf1) {
-            buf0 |= USB_BUF_CTRL_SEL; // reset to buf0 since order of complete is not guaranteed
-            bufctrl_write32(buf_reg32, buf0 | ((uint32_t)buf1 << 16));
-          } else if (use_buf0) {
+          if (buf0_idle && buf1_idle) {
+            // both are idle, start fresh
+            io_rw_32 *ep_reg = get_ep_ctrl(i, TUSB_DIR_IN);
+            hw_endpoint_buffer_start(ep, ep_reg, buf_reg32);
+          } else if (buf0_idle) {
+            uint16_t buf0 = bufctrl_prepare16(ep, ep->dpram_buf, false);
             bufctrl_write16(buf_reg16, buf0);
-          } else if (use_buf1) {
+          } else if (buf1_idle) {
+            uint16_t buf1 = bufctrl_prepare16(ep, ep->dpram_buf + 64, false);
             bufctrl_write16(buf_reg16 + 1, buf1);
           }
         }
