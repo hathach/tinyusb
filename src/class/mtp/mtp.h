@@ -798,14 +798,17 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_array(mtp_contain
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_string(mtp_container_info_t* p_container, uint16_t* utf16) {
-  uint8_t count = 0;
+  uint32_t count = 0;
   while (utf16[count] != 0u) {
     count++;
   }
+  // MTP strings store length in a single uint8_t, including trailing null.
+  TU_ASSERT(count < UINT8_MAX, 0);
   count++;
+
   uint8_t* buf = p_container->payload + p_container->header->len - sizeof(mtp_container_header_t);
 
-  if(count == 1){
+  if (count == 1) {
     // empty string (size only): single zero byte
     TU_ASSERT(p_container->header->len + 1 < CFG_TUD_MTP_EP_BUFSIZE, 0);
     *buf = 0;
@@ -813,23 +816,27 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_string(mtp_contai
     return 1u;
   }
 
-  const uint32_t added_len = 1u + (uint32_t) count * 2u;
+  const uint32_t added_len = 1u + count * 2u;
   TU_ASSERT(p_container->header->len + added_len < CFG_TUD_MTP_EP_BUFSIZE, 0);
 
-  *buf++ = count;
+  *buf++ = (uint8_t) count;
   p_container->header->len++;
 
-  memcpy(buf, utf16, 2u * (uint32_t) count);
+  memcpy(buf, utf16, 2u * count);
   p_container->header->len += 2u * count;
 
   return added_len;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_cstring(mtp_container_info_t* p_container, const char* str) {
-  const uint8_t len = (uint8_t) (strlen(str) + 1); // include null
+  const size_t cstr_len = strlen(str);
+  // MTP strings store length in a single uint8_t, including trailing null.
+  TU_ASSERT(cstr_len < UINT8_MAX, 0);
+
+  const uint32_t count = (uint32_t) cstr_len + 1u; // include null
   uint8_t* buf = p_container->payload + p_container->header->len - sizeof(mtp_container_header_t);
 
-  if (len == 1) {
+  if (count == 1u) {
     // empty string (size only): single zero byte
     TU_ASSERT(p_container->header->len + 1 < CFG_TUD_MTP_EP_BUFSIZE, 0);
     *buf = 0;
@@ -837,18 +844,19 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_cstring(mtp_conta
     return 1u;
   }
 
-  TU_ASSERT(p_container->header->len + 1 + 2 * len < CFG_TUD_MTP_EP_BUFSIZE, 0);
+  const uint32_t added_len = 1u + 2u * count;
+  TU_ASSERT(p_container->header->len + added_len < CFG_TUD_MTP_EP_BUFSIZE, 0);
 
-  *buf++ = len;
+  *buf++ = (uint8_t) count;
   p_container->header->len++;
 
-  for (uint8_t i = 0; i < len; i++) {
-    *buf++ = str[i];
+  for (uint32_t i = 0; i < count; i++) {
+    *buf++ = (uint8_t) str[i];
     *buf++ = 0;
   }
-  p_container->header->len += 2u*len;
+  p_container->header->len += 2u * count;
 
-  return 1u + 2u * len;
+  return added_len;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_uint8(mtp_container_info_t* p_container, uint8_t data) {
