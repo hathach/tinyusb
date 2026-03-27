@@ -2,6 +2,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * Copyright (c) 2026, Gabriel Koppenstein
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -45,7 +46,7 @@
 #include "nrfx.h"
 #include "hal/nrf_gpio.h"
 #include "nrfx_gpiote.h"
-#if !defined(NRF54H20_XXAA)
+#if !defined(NRF54H20_XXAA) && !defined(NRF54LM20A_ENGA_XXAA)
 #include "nrfx_power.h"
 #endif
 #include "nrfx_uarte.h"
@@ -79,13 +80,17 @@ enum {
 };
 
 // Forward USB interrupt events to TinyUSB IRQ Handler
-#if defined(NRF54H20_XXAA)
+#if defined(NRF54H20_XXAA) || defined(NRF54LM20A_ENGA_XXAA)
 #define USBD_IRQn  USBHS_IRQn
 void USBHS_IRQHandler(void) {
   tusb_int_handler(0, true);
 }
 
+#if defined(NRF54LM20A_ENGA_XXAA)
+static nrfx_uarte_t _uart_id = NRFX_UARTE_INSTANCE(20);
+#else
 static nrfx_uarte_t _uart_id = NRFX_UARTE_INSTANCE(120);
+#endif
 
 #else
 
@@ -114,7 +119,7 @@ void USBD_IRQHandler(void) {
 // We must call it within SD's SOC event handler, or set it as power event handler if SD is not enabled.
 extern void tusb_hal_nrf_power_event(uint32_t event);
 
-#if !defined(NRF54H20_XXAA)
+#if !defined(NRF54H20_XXAA) && !defined(NRF54LM20A_ENGA_XXAA)
 // nrf power callback, could be unused if SD is enabled or usb is disabled (board_test example)
 TU_ATTR_UNUSED static void power_event_handler(nrfx_power_usb_evt_t event) {
   tusb_hal_nrf_power_event((uint32_t) event);
@@ -133,7 +138,7 @@ static nrfx_gpiote_t _gpiote = NRFX_GPIOTE_INSTANCE(0);
 //--------------------------------------------------------------------+
 
 void board_init(void) {
-#if !defined(NRF54H20_XXAA)
+#if !defined(NRF54H20_XXAA) && !defined(NRF54LM20A_ENGA_XXAA)
   // stop LF clock just in case we jump from application without reset
   NRF_CLOCK->TASKS_LFCLKSTOP = 1UL;
 
@@ -186,11 +191,63 @@ void board_init(void) {
 
   //------------- USB -------------//
 #if CFG_TUD_ENABLED
+
+#if defined(NRF54LM20A_ENGA_XXAA)
+  // Start the USB voltage regulator
+  NRF_VREGUSB->TASKS_START = VREGUSB_TASKS_START_TASKS_START_Trigger;
+
+  // Request HFXO crystal clock for PCLK24M (required by USBHS core)
+  NRF_CLOCK->TASKS_XO24MSTART = CLOCK_TASKS_XO24MSTART_TASKS_XO24MSTART_Trigger;
+  while (!NRF_CLOCK->EVENTS_XO24MSTARTED) {}
+  NRF_CLOCK->EVENTS_XO24MSTARTED = 0;
+#endif
+
+#if defined(NRF54H20_XXAA)
+  // Enable the USBHS wrapper (core + PHY) before any DWC2 register access
+  NRF_USBHS->ENABLE = (USBHS_ENABLE_PHY_Enabled << USBHS_ENABLE_PHY_Pos) |
+                       (USBHS_ENABLE_CORE_Enabled << USBHS_ENABLE_CORE_Pos);
+  NRF_USBHS->TASKS_START = USBHS_TASKS_START_TASKS_START_Trigger;
+  // Brief delay for PHY PLL lock and core power-up
+  for (volatile int i = 0; i < 1000; i++) {}
+#endif
+
+#if defined(NRF54LM20A_ENGA_XXAA)
+  // Based on Zephyr usbhs_enable_core() in drivers/usb/udc/udc_dwc2_vendor_quirks.h
+  // Step 1: Power up core only (PHY not yet)
+  NRF_USBHS->ENABLE = USBHS_ENABLE_CORE_Msk;
+
+  // Step 2: Override ID=Device (bit 31), and temporarily override VBUSVALID
+  NRF_USBHS->PHY.OVERRIDEVALUES = (USBHS_PHY_OVERRIDEVALUES_ID_Device << USBHS_PHY_OVERRIDEVALUES_ID_Pos);
+  NRF_USBHS->PHY.INPUTOVERRIDE = USBHS_PHY_INPUTOVERRIDE_ID_Msk | USBHS_PHY_INPUTOVERRIDE_VBUSVALID_Msk;
+
+  // Step 3: Release PHY power-on reset by enabling PHY
+  NRF_USBHS->ENABLE = USBHS_ENABLE_PHY_Msk | USBHS_ENABLE_CORE_Msk;
+
+  // Step 4: Wait 45us for PHY clock to start
+  NRFX_DELAY_US(45);
+
+  // Step 5: Release DWC2 reset
+  NRF_USBHS->TASKS_START = USBHS_TASKS_START_TASKS_START_Trigger;
+
+  // Step 6: Wait for clock to start to avoid hang on too early register read
+  NRFX_DELAY_US(2);
+
+  // Step 7: Clear VBUSVALID override (keep ID=Device override)
+  // DWC2 is now in Non-Driving opmode; D+ pull-up will activate when DWC2 clears DCTL SftDiscon
+  NRF_USBHS->PHY.INPUTOVERRIDE = USBHS_PHY_INPUTOVERRIDE_ID_Msk;
+
+  // Barrier: USBHS wrapper (0x5005A000) and USBHSCORE (0x50020000) are separate
+  // peripheral blocks. Ensure the ENABLE/TASKS_START writes have propagated from
+  // the Cortex-M33 write buffer to hardware before anyone reads DWC2 core regs.
+  __DSB();
+
+#endif
+
   // Priorities 0, 1, 4 (nRF52) are reserved for SoftDevice
   // 2 is highest for application
   NVIC_SetPriority(USBD_IRQn, 2);
 
-#if !defined(NRF54H20_XXAA)
+#if !defined(NRF54H20_XXAA) && !defined(NRF54LM20A_ENGA_XXAA)
   // USB power may already be ready at this time -> no event generated
   // We need to invoke the handler based on the status initially
   uint32_t usb_reg;
@@ -258,7 +315,7 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len) {
 
 #if defined(NRF54H20_XXAA)
   uintptr_t did_addr = (uintptr_t) NRF_FICR->BLE.ADDR;
-#elif defined(NRF5340_XXAA)
+#elif defined(NRF54LM20A_ENGA_XXAA) || defined(NRF5340_XXAA)
   uintptr_t did_addr = (uintptr_t) NRF_FICR->INFO.DEVICEID;
 #else
   uintptr_t did_addr = (uintptr_t) NRF_FICR->DEVICEID;
