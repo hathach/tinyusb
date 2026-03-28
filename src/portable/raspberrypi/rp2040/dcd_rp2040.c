@@ -180,7 +180,7 @@ static void __tusb_irq_path_func(handle_hw_buff_status)(void) {
       usb_hw_clear->buf_status = bit;
       buf_status &= ~bit;
 
-      if (rp2usb_xfer_continue(ep, ep_reg, buf_reg, buf_id)) {
+      if (rp2usb_xfer_continue(ep, ep_reg, buf_reg, buf_id, dir == TUSB_DIR_OUT)) {
         const uint16_t xferred_len = ep->xferred_len;
         rp2usb_reset_transfer(ep);
         dcd_event_xfer_complete(0, ep->ep_addr, xferred_len, XFER_RESULT_SUCCESS, true);
@@ -276,7 +276,7 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
           if (buf0_idle && buf1_idle) {
             // both are idle, start fresh
             io_rw_32 *ep_reg = get_ep_ctrl(i, TUSB_DIR_IN);
-            rp2usb_buffer_start(ep, ep_reg, buf_reg32);
+            rp2usb_buffer_start(ep, ep_reg, buf_reg32, false, false);
           } else if (buf0_idle) {
             uint16_t buf0 = bufctrl_prepare16(ep, ep->dpram_buf, false);
             bufctrl_write16(buf_reg16, buf0);

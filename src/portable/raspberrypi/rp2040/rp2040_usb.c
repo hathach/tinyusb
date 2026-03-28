@@ -58,7 +58,7 @@ static void unaligned_memcpy(uint8_t *dst, const uint8_t *src, size_t n) {
   }
 }
 
-#if CFG_TUD_EDPT_DEDICATED_HWFIFO
+  #if CFG_TUD_EDPT_DEDICATED_HWFIFO
 void tu_hwfifo_write(volatile void *hwfifo, const uint8_t *src, uint16_t len, const tu_hwfifo_access_t *access_mode) {
   (void)access_mode;
   unaligned_memcpy((uint8_t *)(uintptr_t)hwfifo, src, len);
@@ -68,25 +68,25 @@ void tu_hwfifo_read(const volatile void *hwfifo, uint8_t *dest, uint16_t len, co
   (void)access_mode;
   unaligned_memcpy(dest, (const uint8_t *)(uintptr_t)hwfifo, len);
 }
-#endif
+  #endif
 
 void rp2usb_init(void) {
   // Reset usb controller
   reset_block(RESETS_RESET_USBCTRL_BITS);
   unreset_block_wait(RESETS_RESET_USBCTRL_BITS);
 
-#ifdef __GNUC__
-  // Clear any previous state just in case
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Warray-bounds"
-#if __GNUC__ > 6
-#pragma GCC diagnostic ignored "-Wstringop-overflow"
-#endif
-#endif
+  #ifdef __GNUC__
+    // Clear any previous state just in case
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Warray-bounds"
+    #if __GNUC__ > 6
+      #pragma GCC diagnostic ignored "-Wstringop-overflow"
+    #endif
+  #endif
   memset(usb_dpram, 0, sizeof(*usb_dpram));
-#ifdef __GNUC__
-#pragma GCC diagnostic pop
-#endif
+  #ifdef __GNUC__
+    #pragma GCC diagnostic pop
+  #endif
 
   // Mux the controller to the onboard usb phy
   usb_hw->muxing = USB_USB_MUXING_TO_PHY_BITS | USB_USB_MUXING_SOFTCON_BITS;
@@ -101,10 +101,10 @@ void rp2usb_init(void) {
 }
 
 void __tusb_irq_path_func(rp2usb_reset_transfer)(hw_endpoint_t *ep) {
-  ep->active = false;
+  ep->active        = false;
   ep->remaining_len = 0;
-  ep->xferred_len = 0;
-  ep->user_buf = 0;
+  ep->xferred_len   = 0;
+  ep->user_buf      = 0;
   ep->is_xfer_fifo  = false;
 }
 
@@ -134,9 +134,7 @@ void __tusb_irq_path_func(bufctrl_write16)(io_rw_16 *buf_reg16, uint16_t value) 
   }
   *buf_reg16 = value & (uint16_t)~USB_BUF_CTRL_AVAIL; // write other bits first
 
-  // Section 4.1.2.7.1 (rp2040) / 12.7.3.7.1 (rp2350) Concurrent access: after write to buffer control,
-  // wait for USB controller to see the update before setting AVAILABLE.
-  // Don't need delay in host mode as host is in charge of when to start the transaction.
+  // Section 4.1.2.7.1 (rp2040) / 12.7.3.7.1 (rp2350) Concurrent access
   if (value & USB_BUF_CTRL_AVAIL) {
     if (!rp2usb_is_host_mode()) {
       busy_wait_at_least_cycles(12);
@@ -146,7 +144,7 @@ void __tusb_irq_path_func(bufctrl_write16)(io_rw_16 *buf_reg16, uint16_t value) 
 }
 
 // prepare buffer, move data if tx, return buffer control
-uint16_t __tusb_irq_path_func(bufctrl_prepare16)(struct hw_endpoint *ep, uint8_t *dpram_buf, bool is_rx) {
+uint16_t __tusb_irq_path_func(bufctrl_prepare16)(hw_endpoint_t *ep, uint8_t *dpram_buf, bool is_rx) {
   const uint16_t buflen = tu_min16(ep->remaining_len, ep->max_packet_size);
   ep->remaining_len -= buflen;
 
@@ -158,13 +156,13 @@ uint16_t __tusb_irq_path_func(bufctrl_prepare16)(struct hw_endpoint *ep, uint8_t
 
   if (!is_rx) {
     if (buflen) {
-      // Copy data from user buffer/fifo to hw buffer
-      #if CFG_TUD_EDPT_DEDICATED_HWFIFO
+  // Copy data from user buffer/fifo to hw buffer
+  #if CFG_TUD_EDPT_DEDICATED_HWFIFO
       if (ep->is_xfer_fifo) {
         // not in sram, may mess up timing with E15 workaround
         tu_hwfifo_write_from_fifo(dpram_buf, ep->user_fifo, buflen, NULL);
       } else
-      #endif
+  #endif
       {
         unaligned_memcpy(dpram_buf, ep->user_buf, buflen);
         ep->user_buf += buflen;
@@ -185,33 +183,13 @@ uint16_t __tusb_irq_path_func(bufctrl_prepare16)(struct hw_endpoint *ep, uint8_t
 }
 
 // Start transaction on hw buffer
-void __tusb_irq_path_func(rp2usb_buffer_start)(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg) {
-  const tusb_dir_t dir     = tu_edpt_dir(ep->ep_addr);
-  const bool       is_host = rp2usb_is_host_mode();
-
-  bool is_rx;
-  if (is_host) {
-    is_rx = (dir == TUSB_DIR_IN);
-  } else {
-    is_rx = (dir == TUSB_DIR_OUT);
-  }
-
+void __tusb_irq_path_func(rp2usb_buffer_start)(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, bool is_rx,
+                                               bool force_single) {
   // always compute and start with buffer 0
   uint32_t buf_ctrl = bufctrl_prepare16(ep, ep->dpram_buf, is_rx) | USB_BUF_CTRL_SEL;
 
   // Note: device EP0 does not have an endpoint control register
   if (ep_reg != NULL) {
-  #if 1
-    const bool force_single = (is_host && tu_edpt_number(ep->ep_addr) != 0);
-  #else
-    bool force_single = false; // is_rx;
-    #if CFG_TUH_ENABLED
-    if (is_host && ep->interrupt_num != 0) {
-      force_single = true;
-    }
-    #endif
-#endif
-
     uint32_t ep_ctrl = *ep_reg;
     if (ep->remaining_len && !force_single) {
       // Use buffer 1 (double buffered) if there is still data
@@ -224,13 +202,13 @@ void __tusb_irq_path_func(rp2usb_buffer_start)(hw_endpoint_t *ep, io_rw_32 *ep_r
     *ep_reg = ep_ctrl;
   }
 
-  // Finally, write to buffer_control which will trigger the transfer the next time the controller polls this endpoint
+  // Finally, write to buffer control which will trigger the transfer the next time the controller polls this endpoint
   bufctrl_write32(buf_reg, buf_ctrl);
 }
 
 void rp2usb_xfer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, uint8_t *buffer, tu_fifo_t *ff,
                        uint16_t total_len) {
-  (void) ff;
+  (void)ff;
   hw_endpoint_lock_update(ep, 1);
 
   if (ep->active) {
@@ -241,19 +219,21 @@ void rp2usb_xfer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, u
 
   // Fill in info now that we're kicking off the hw
   ep->remaining_len = total_len;
-  ep->xferred_len = 0;
-  ep->active = true;
+  ep->xferred_len   = 0;
+  ep->active        = true;
 
-#if CFG_TUD_EDPT_DEDICATED_HWFIFO
+  #if CFG_TUD_EDPT_DEDICATED_HWFIFO
   if (ff != NULL) {
     ep->user_fifo    = ff;
     ep->is_xfer_fifo = true;
   } else
-#endif
+  #endif
   {
     ep->user_buf     = buffer;
     ep->is_xfer_fifo = false;
   }
+
+  const bool is_host = rp2usb_is_host_mode();
 
   if (ep->future_len > 0) {
     // only on rx endpoint
@@ -272,7 +252,6 @@ void rp2usb_xfer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, u
       const uint16_t xferred_len = ep->xferred_len;
       rp2usb_reset_transfer(ep);
 
-      const bool is_host = rp2usb_is_host_mode();
   #if CFG_TUH_ENABLED
       if (is_host) {
         hcd_event_xfer_complete(0, ep->ep_addr, xferred_len, XFER_RESULT_SUCCESS, false);
@@ -302,12 +281,20 @@ void rp2usb_xfer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, u
   }
   #endif
 
-  rp2usb_buffer_start(ep, ep_reg, buf_reg);
+  const bool is_rx = (is_host == (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN));
+  #if CFG_TUH_ENABLED
+  const bool force_single = (is_host && (is_rx || ep->transfer_type == TUSB_XFER_INTERRUPT));
+  #else
+  const bool force_single = false;
+  #endif
+
+  rp2usb_buffer_start(ep, ep_reg, buf_reg, is_rx, force_single);
   hw_endpoint_lock_update(ep, -1);
 }
 
 // sync endpoint buffer and return transferred bytes
-static uint16_t __tusb_irq_path_func(hwbuf_sync)(hw_endpoint_t *ep, bool is_rx, uint16_t buf_ctrl, uint8_t *dpram_buf) {
+static uint16_t __tusb_irq_path_func(bufctrl_sync16)(hw_endpoint_t *ep, bool is_rx, uint16_t buf_ctrl,
+                                                     uint8_t *dpram_buf) {
   const uint16_t xferred_bytes = buf_ctrl & USB_BUF_CTRL_LEN_MASK;
 
   if (!is_rx) {
@@ -342,16 +329,9 @@ static uint16_t __tusb_irq_path_func(hwbuf_sync)(hw_endpoint_t *ep, bool is_rx, 
 
 // Returns true if transfer is complete.
 // buf_id: which buffer completed (from BUFF_CPU_SHOULD_HANDLE, only used for double-buffered).
-bool __tusb_irq_path_func(rp2usb_xfer_continue)(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg,
-                                                uint8_t buf_id) {
+bool __tusb_irq_path_func(rp2usb_xfer_continue)(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, uint8_t buf_id,
+                                                bool is_rx) {
   hw_endpoint_lock_update(ep, 1);
-
-  const tusb_dir_t dir     = tu_edpt_dir(ep->ep_addr);
-  const bool       is_host = rp2usb_is_host_mode();
-  const bool       is_rx   = is_host ? (dir == TUSB_DIR_IN) : (dir == TUSB_DIR_OUT);
-
-  io_rw_16 *buf_reg16  = (io_rw_16 *)buf_reg;
-  uint16_t  buf_ctrl16 = *(buf_reg16 + buf_id);
 
   if (!ep->active) {
     // probably land here due to short packet on rx with double buffered
@@ -360,7 +340,7 @@ bool __tusb_irq_path_func(rp2usb_xfer_continue)(hw_endpoint_t *ep, io_rw_32 *ep_
   }
 
   const bool is_double = (ep_reg != NULL && ((*ep_reg) & EP_CTRL_DOUBLE_BUFFERED_BITS));
-  (void)is_double;
+  const bool is_host   = rp2usb_is_host_mode();
 
   #if CFG_TUSB_RP2_ERRATA_E4
   const bool need_e4_fix = (is_host && !is_double);
@@ -372,7 +352,7 @@ bool __tusb_irq_path_func(rp2usb_xfer_continue)(hw_endpoint_t *ep, io_rw_32 *ep_
   //   BUF1 half instead of BUF0. The side effect that controller can execute an extra packet after writing to BUF1
   //   since it leave BUF0 intact, which can be poll before buf_status interrupt is trigger.
   // Workaround for the side effect, we will enable double-buffered for rx but only prepare 1 buf at a time.
-  uint8_t* dpram_buf = ep->dpram_buf;
+  uint8_t *dpram_buf = ep->dpram_buf;
   if (buf_id) {
   #if CFG_TUSB_RP2_ERRATA_E4
     if (!need_e4_fix)  // incorrect buf_id, buffer pointer is still buf0
@@ -382,7 +362,10 @@ bool __tusb_irq_path_func(rp2usb_xfer_continue)(hw_endpoint_t *ep, io_rw_32 *ep_
     }
   }
 
-  const uint16_t xact_bytes = hwbuf_sync(ep, is_rx, buf_ctrl16, dpram_buf);
+  io_rw_16 *buf_reg16  = (io_rw_16 *)buf_reg;
+  uint16_t  buf_ctrl16 = *(buf_reg16 + buf_id);
+
+  const uint16_t xact_bytes = bufctrl_sync16(ep, is_rx, buf_ctrl16, dpram_buf);
   const bool     is_last    = buf_ctrl16 & USB_BUF_CTRL_LAST;
   const bool     is_short   = xact_bytes < ep->max_packet_size;
   const bool     is_done    = is_short || (buf_ctrl16 & USB_BUF_CTRL_LAST);
@@ -391,40 +374,48 @@ bool __tusb_irq_path_func(rp2usb_xfer_continue)(hw_endpoint_t *ep, io_rw_32 *ep_
   // The other buffer may be: (a) still AVAIL, (b) in-progress (controller receiving), or (c) already completed.
   // We must abort to safely reclaim it. If it has valid data (FULL), save as future for the next transfer.
   // After abort, zero buf_ctrl.
-  // Note: Host mode we cannot save next transfer data due to shared epx -> force single
+  // Note: Host mode we cannot save next transfer data due to shared epx --> force single
   if (is_short && is_double && is_rx && !is_last) {
-    io_rw_16      *buf_reg16_other = buf_reg16 + (buf_id ^ 1);
-    const uint32_t abort_bit       = TU_BIT((tu_edpt_number(ep->ep_addr) << 1) | (dir ? 0 : 1));
-
-  #if CFG_TUSB_RP2_ERRATA_E2
-    if (rp2040_chipversion >= 2)
+  #if CFG_TUH_ENABLED
+    if (is_host) {}
   #endif
-    {
-      usb_hw_set->abort = abort_bit;
-      while ((usb_hw->abort_done & abort_bit) != abort_bit) {}
+
+  #if CFG_TUD_ENABLED
+    if (!is_host) {
+      io_rw_16      *buf_reg16_other = buf_reg16 + (buf_id ^ 1);
+      const uint32_t abort_bit       = TU_BIT(tu_edpt_number(ep->ep_addr) << 1); // IN endpoint
+
+    #if CFG_TUSB_RP2_ERRATA_E2
+      if (rp2040_chipversion >= 2)
+    #endif
+      {
+        usb_hw_set->abort = abort_bit;
+        while ((usb_hw->abort_done & abort_bit) != abort_bit) {}
+      }
+
+      // After abort, check if the other buffer received valid data
+      const uint16_t buf_ctrl16_other = *buf_reg16_other;
+      if (buf_ctrl16_other & USB_BUF_CTRL_FULL) {
+        // Host already sent data into this buffer (e.g. write payload right after short CBW).
+        // Save it for the next transfer.
+        ep->future_len   = (uint8_t)(buf_ctrl16_other & USB_BUF_CTRL_LEN_MASK);
+        ep->future_bufid = buf_id ^ 1;
+        // buff_status will be clear by the next run
+      } else {
+        ep->next_pid ^= 1u; // roll back pid if aborted
+      }
+
+      *buf_reg = 0;         // reset buffer control
+
+    #if CFG_TUSB_RP2_ERRATA_E2
+      if (rp2040_chipversion >= 2)
+    #endif
+      {
+        usb_hw_clear->abort_done = abort_bit;
+        usb_hw_clear->abort      = abort_bit;
+      }
     }
-
-    // After abort, check if the other buffer received valid data
-    const uint16_t buf_ctrl16_other = *buf_reg16_other;
-    if (buf_ctrl16_other & USB_BUF_CTRL_FULL) {
-      // Host already sent data into this buffer (e.g. write payload right after short CBW).
-      // Save it for the next transfer.
-      ep->future_len   = (uint8_t)(buf_ctrl16_other & USB_BUF_CTRL_LEN_MASK);
-      ep->future_bufid = buf_id ^ 1;
-      // buff_status will be clear by the next run
-    } else {
-      ep->next_pid ^= 1u; // roll back pid if aborted
-    }
-
-    *buf_reg = 0; // reset buffer control
-
-  #if CFG_TUSB_RP2_ERRATA_E2
-    if (rp2040_chipversion >= 2)
   #endif
-    {
-      usb_hw_clear->abort_done = abort_bit;
-      usb_hw_clear->abort      = abort_bit;
-    }
 
     hw_endpoint_lock_update(ep, -1);
     return true;

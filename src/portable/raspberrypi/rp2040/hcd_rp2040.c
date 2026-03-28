@@ -35,17 +35,17 @@
 #define HAS_STOP_EPX_ON_NAK
 #endif
 
+// port 0 is native USB port, other is counted as software PIO
+  #define RHPORT_NATIVE 0
+
 //--------------------------------------------------------------------+
-// INCLUDE
+  // INCLUDE
 //--------------------------------------------------------------------+
 #include "rp2040_usb.h"
 #include "osal/osal.h"
 
 #include "host/hcd.h"
 #include "host/usbh.h"
-
-  // port 0 is native USB port, other is counted as software PIO
-  #define RHPORT_NATIVE 0
 
 //--------------------------------------------------------------------+
 //
@@ -119,12 +119,12 @@ TU_ATTR_ALWAYS_INLINE static inline bool need_pre(uint8_t dev_addr) {
 //--------------------------------------------------------------------+
 // EPX
 //--------------------------------------------------------------------+
-TU_ATTR_ALWAYS_INLINE static inline void sie_start_xfer(bool send_setup, tusb_dir_t ep_dir, bool need_pre) {
+TU_ATTR_ALWAYS_INLINE static inline void sie_start_xfer(bool send_setup, bool is_rx, bool need_pre) {
   uint32_t value = usb_hw->sie_ctrl & SIE_CTRL_BASE_MASK; // preserve base bits
   if (send_setup) {
     value |= USB_SIE_CTRL_SEND_SETUP_BITS;
   } else {
-    value |= (ep_dir ? USB_SIE_CTRL_RECEIVE_DATA_BITS : USB_SIE_CTRL_SEND_DATA_BITS);
+    value |= (is_rx ? USB_SIE_CTRL_RECEIVE_DATA_BITS : USB_SIE_CTRL_SEND_DATA_BITS);
   }
   if (need_pre) {
     value |= USB_SIE_CTRL_PREAMBLE_EN_BITS;
@@ -179,18 +179,18 @@ static void __tusb_irq_path_func(epx_switch_ep)(hw_endpoint_t *ep) {
 
   if (is_setup) {
     usb_hw->dev_addr_ctrl = ep->dev_addr;
-    sie_start_xfer(true, TUSB_DIR_OUT, ep->need_pre);
+    sie_start_xfer(true, false, ep->need_pre);
   } else {
-    const uint8_t    ep_num  = tu_edpt_number(ep->ep_addr);
-    const tusb_dir_t ep_dir  = tu_edpt_dir(ep->ep_addr);
-    io_rw_32        *ep_reg  = &usbh_dpram->epx_ctrl;
-    io_rw_32        *buf_reg = &usbh_dpram->epx_buf_ctrl;
+    const uint8_t ep_num  = tu_edpt_number(ep->ep_addr);
+    const bool    is_rx   = tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN;
+    io_rw_32     *ep_reg  = &usbh_dpram->epx_ctrl;
+    io_rw_32     *buf_reg = &usbh_dpram->epx_buf_ctrl;
 
     epx_ctrl_prepare(ep);
-    rp2usb_buffer_start(ep, ep_reg, buf_reg);
+    rp2usb_buffer_start(ep, ep_reg, buf_reg, is_rx, is_rx || ep->transfer_type == TUSB_XFER_INTERRUPT);
 
     usb_hw->dev_addr_ctrl = (uint32_t)(ep->dev_addr | (ep_num << USB_ADDR_ENDP_ENDPOINT_LSB));
-    sie_start_xfer(false, ep_dir, ep->need_pre); // start transfer
+    sie_start_xfer(false, is_rx, ep->need_pre); // start transfer
   }
 }
 
@@ -246,13 +246,13 @@ static void __tusb_irq_path_func(handle_buf_status_isr)(void) {
 
     io_rw_32 *ep_reg  = &usbh_dpram->epx_ctrl;
     io_rw_32 *buf_reg = &usbh_dpram->epx_buf_ctrl;
-    if (rp2usb_xfer_continue(epx, ep_reg, buf_reg, buf_id)) {
+    if (rp2usb_xfer_continue(epx, ep_reg, buf_reg, buf_id, tu_edpt_dir(epx->ep_addr) == TUSB_DIR_IN)) {
       xfer_complete_isr(epx, XFER_RESULT_SUCCESS);
     }
   }
 
   // Check "interrupt" (asynchronous) endpoints for both IN and OUT
-  uint32_t buf_status = usb_hw->buf_status & ~1u;
+  uint32_t buf_status = usb_hw->buf_status & (uint32_t)~BUF_STATUS_EPX;
   while (buf_status) {
     // ctz/clz is faster than loop which has only a few bit set in general
     const uint8_t idx = (uint8_t) __builtin_ctz(buf_status);
@@ -268,9 +268,9 @@ static void __tusb_irq_path_func(handle_buf_status_isr)(void) {
     for (size_t e = 0; e < TU_ARRAY_SIZE(ep_pool); e++) {
       hw_endpoint_t *ep = &ep_pool[e];
       if (ep->interrupt_num == epnum) {
-        io_rw_32 *ep_reg  = dpram_int_ep_ctrl(ep->interrupt_num);
-        io_rw_32 *buf_reg = dpram_int_ep_buffer_ctrl(ep->interrupt_num);
-        const bool done    = rp2usb_xfer_continue(ep, ep_reg, buf_reg, 0);
+        io_rw_32  *ep_reg  = dpram_int_ep_ctrl(ep->interrupt_num);
+        io_rw_32  *buf_reg = dpram_int_ep_buffer_ctrl(ep->interrupt_num);
+        const bool done    = rp2usb_xfer_continue(ep, ep_reg, buf_reg, 0, tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN);
         if (done) {
           xfer_complete_isr(ep, XFER_RESULT_SUCCESS);
         }
@@ -326,21 +326,20 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
   #ifdef HAS_STOP_EPX_ON_NAK
   if (status & USB_INTS_EPX_STOPPED_ON_NAK_BITS) {
     usb_hw_clear->nak_poll = USB_NAK_POLL_EPX_STOPPED_ON_NAK_BITS;
-
     hw_endpoint_t *next_ep = epx_next_pending(epx);
     if (next_ep != NULL) {
       epx_save_context();
       epx_switch_ep(next_ep);
     } else {
-      // No switch: disable stop-on-NAK, restart current transfer
+      // No pending endpoint, this is the only active one: disable stop-on-NAK, continue current transfer
       usb_hw_clear->nak_poll = USB_NAK_POLL_STOP_EPX_ON_NAK_BITS;
-      sie_start_xfer(false, tu_edpt_dir(epx->ep_addr), epx->need_pre);
+      sie_start_xfer(false, TUSB_DIR_IN == tu_edpt_dir(epx->ep_addr), epx->need_pre);
     }
   }
-#else
+  #else
   // RP2040: on SOF, stop and switch if there's a pending ep
   if (status & USB_INTS_HOST_SOF_BITS) {
-    (void) usb_hw->sof_rd; // clear SOF by reading SOF_RD
+    (void)usb_hw->sof_rd; // clear SOF by reading SOF_RD
     if (epx->active && tu_edpt_number(epx->ep_addr) != 0) {
       hw_endpoint_t *next_ep = epx_next_pending(epx);
       if (next_ep) {
@@ -360,10 +359,10 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
     } else if (!epx_next_pending(epx)) {
       // EPX is on control endpoint or inactive — disable SOF if nothing pending
       usb_hw_clear->inte = USB_INTE_HOST_SOF_BITS;
-      usb_hw->nak_poll = USB_NAK_POLL_RESET;
+      usb_hw->nak_poll   = USB_NAK_POLL_RESET;
     }
   }
-#endif
+  #endif
 
   if (status & USB_INTS_ERROR_RX_TIMEOUT_BITS) {
     usb_hw_clear->sie_status = USB_SIE_STATUS_RX_TIMEOUT_BITS;
@@ -611,6 +610,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
     } else {
       const uint8_t    ep_num  = tu_edpt_number(ep->ep_addr);
       const tusb_dir_t ep_dir  = tu_edpt_dir(ep->ep_addr);
+      const bool       is_rx   = (ep_dir == TUSB_DIR_IN);
       io_rw_32        *ep_reg  = &usbh_dpram->epx_ctrl;
       io_rw_32        *buf_reg = &usbh_dpram->epx_buf_ctrl;
 
@@ -620,7 +620,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
       rp2usb_xfer_start(ep, ep_reg, buf_reg, buffer, NULL, buflen); // prepare bufctrl
 
       usb_hw->dev_addr_ctrl = (uint32_t)(ep->dev_addr | (ep_num << USB_ADDR_ENDP_ENDPOINT_LSB));
-      sie_start_xfer(false, ep_dir, ep->need_pre);                  // start transfer
+      sie_start_xfer(false, is_rx, ep->need_pre);                   // start transfer
     }
     rp2usb_critical_exit();
   }
@@ -667,7 +667,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, const uint8_t setup_packet
     ep->active = true;
 
     usb_hw->dev_addr_ctrl = dev_addr;                 // Set device address
-    sie_start_xfer(true, TUSB_DIR_OUT, ep->need_pre); // start transfer
+    sie_start_xfer(true, false, ep->need_pre); // start transfer
   }
 
   rp2usb_critical_exit();

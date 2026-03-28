@@ -145,8 +145,8 @@ TU_ATTR_ALWAYS_INLINE static inline void rp2usb_critical_exit(void) {
 //--------------------------------------------------------------------+
 void rp2usb_xfer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, uint8_t *buffer, tu_fifo_t *ff,
                        uint16_t total_len);
-bool rp2usb_xfer_continue(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, uint8_t buf_id);
-void rp2usb_buffer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg);
+bool rp2usb_xfer_continue(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, uint8_t buf_id, bool is_rx);
+void rp2usb_buffer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, bool is_rx, bool force_single);
 void rp2usb_reset_transfer(hw_endpoint_t *ep);
 
 
@@ -161,7 +161,7 @@ TU_ATTR_ALWAYS_INLINE static inline void hw_endpoint_lock_update(__unused struct
 //--------------------------------------------------------------------+
 void bufctrl_write32(io_rw_32 *buf_reg, uint32_t value);
 void bufctrl_write16(io_rw_16 *buf_reg16, uint16_t value);
-uint16_t bufctrl_prepare16(struct hw_endpoint *ep, uint8_t *dpram_buf, bool is_rx);
+uint16_t bufctrl_prepare16(hw_endpoint_t *ep, uint8_t *dpram_buf, bool is_rx);
 
 TU_ATTR_ALWAYS_INLINE static inline uintptr_t hw_data_offset(uint8_t *buf) {
   // Remove usb base from buffer pointer
