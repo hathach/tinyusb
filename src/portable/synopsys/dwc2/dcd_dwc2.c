@@ -347,25 +347,10 @@ static void edpt_disable(uint8_t rhport, uint8_t ep_addr, bool stall) {
   }
 }
 
-// Reset stale ISO OUT endpoint state before re-activation with a different MPS.
-// Unlike edpt_disable(), this does not perform disable handshakes — the endpoint
-// is being immediately re-activated by the caller.
+// Force ISO OUT EP into NAK before re-activating it with a changed MPS.
 static void edpt_iso_out_reset(uint8_t rhport, uint8_t epnum) {
-  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  dwc2_dep_t* epout = &dwc2->epout[epnum];
-
-  dwc2->daintmsk &= ~TU_BIT(epnum + DAINT_SHIFT(TUSB_DIR_OUT));
-  // Full register write (not |=) to clear all bits including active/enabled state
+  dwc2_dep_t* epout = &DWC2_REG(rhport)->epout[epnum];
   epout->doepctl = DOEPCTL_SNAK;
-  epout->doepint = 0xFFFFFFFFu;
-  epout->doeptsiz = 0;
-  epout->doepdma = 0;
-
-  xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
-  xfer->buffer = NULL;
-  xfer->ff = NULL;
-  xfer->total_len = 0;
-  xfer->iso_retry = 0;
 }
 
 // Since this function returns void, it is not possible to return a boolean success message
