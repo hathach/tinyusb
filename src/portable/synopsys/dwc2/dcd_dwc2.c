@@ -347,6 +347,27 @@ static void edpt_disable(uint8_t rhport, uint8_t ep_addr, bool stall) {
   }
 }
 
+// Reset stale ISO OUT endpoint state before re-activation with a different MPS.
+// Unlike edpt_disable(), this does not perform disable handshakes — the endpoint
+// is being immediately re-activated by the caller.
+static void edpt_iso_out_reset(uint8_t rhport, uint8_t epnum) {
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  dwc2_dep_t* epout = &dwc2->epout[epnum];
+
+  dwc2->daintmsk &= ~TU_BIT(epnum + DAINT_SHIFT(TUSB_DIR_OUT));
+  // Full register write (not |=) to clear all bits including active/enabled state
+  epout->doepctl = DOEPCTL_SNAK;
+  epout->doepint = 0xFFFFFFFFu;
+  epout->doeptsiz = 0;
+  epout->doepdma = 0;
+
+  xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
+  xfer->buffer = NULL;
+  xfer->ff = NULL;
+  xfer->total_len = 0;
+  xfer->iso_retry = 0;
+}
+
 // Since this function returns void, it is not possible to return a boolean success message
 // We must make sure that this function is not called when the EP is disabled
 // Must be called from critical section
@@ -631,8 +652,22 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
 }
 
 bool dcd_edpt_iso_activate(uint8_t rhport,  tusb_desc_endpoint_t const * p_endpoint_desc) {
-  // Disable EP to clear potential incomplete transfers
-  edpt_disable(rhport, p_endpoint_desc->bEndpointAddress, false);
+  const uint8_t ep_addr = p_endpoint_desc->bEndpointAddress;
+  const uint8_t epnum = tu_edpt_number(ep_addr);
+  const uint8_t dir = tu_edpt_dir(ep_addr);
+
+  if (dir == TUSB_DIR_OUT) {
+    const uint16_t new_mps = tu_edpt_packet_size(p_endpoint_desc);
+    xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, dir);
+    if (xfer->max_size != 0 && xfer->max_size != new_mps) {
+      edpt_iso_out_reset(rhport, epnum);
+    } else {
+      edpt_disable(rhport, ep_addr, false);
+    }
+  } else {
+    edpt_disable(rhport, ep_addr, false);
+  }
+
   edpt_activate(rhport, p_endpoint_desc);
   return true;
 }
