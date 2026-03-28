@@ -7,6 +7,8 @@
 #include "hardware/resets.h"
 #include "hardware/timer.h"
 
+#include "pico/critical_section.h"
+
 #include "common/tusb_common.h"
 #include "osal/osal.h"
 #include "common/tusb_fifo.h"
@@ -129,6 +131,15 @@ TU_ATTR_ALWAYS_INLINE static inline bool rp2usb_is_host_mode(void) {
   return (usb_hw->main_ctrl & USB_MAIN_CTRL_HOST_NDEVICE_BITS) ? true : false;
 }
 
+extern critical_section_t rp2usb_lock;
+
+TU_ATTR_ALWAYS_INLINE static inline void rp2usb_critical_enter(void) {
+  critical_section_enter_blocking(&rp2usb_lock);
+}
+TU_ATTR_ALWAYS_INLINE static inline void rp2usb_critical_exit(void) {
+  critical_section_exit(&rp2usb_lock);
+}
+
 //--------------------------------------------------------------------+
 // Hardware Endpoint
 //--------------------------------------------------------------------+
@@ -138,7 +149,8 @@ bool rp2usb_xfer_continue(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg
 void rp2usb_buffer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg);
 void rp2usb_reset_transfer(hw_endpoint_t *ep);
 
-TU_ATTR_ALWAYS_INLINE static inline void hw_endpoint_lock_update(__unused struct hw_endpoint * ep, __unused int delta) {
+
+TU_ATTR_ALWAYS_INLINE static inline void hw_endpoint_lock_update(__unused struct hw_endpoint *ep, __unused int delta) {
   // todo add critsec as necessary to prevent issues between worker and IRQ...
   //  note that this is perhaps as simple as disabling IRQs because it would make
   //  sense to have worker and IRQ on same core, however I think using critsec is about equivalent.

@@ -46,6 +46,8 @@ static bool e15_is_critical_frame_period(void);
 static uint8_t rp2040_chipversion = 2;
   #endif
 
+critical_section_t rp2usb_lock;
+
 //--------------------------------------------------------------------+
 // Implementation
 //--------------------------------------------------------------------+
@@ -94,6 +96,8 @@ void rp2usb_init(void) {
   #endif
 
   TU_LOG2_INT(sizeof(hw_endpoint_t));
+
+  critical_section_init(&rp2usb_lock);
 }
 
 void __tusb_irq_path_func(rp2usb_reset_transfer)(hw_endpoint_t *ep) {
@@ -383,10 +387,11 @@ bool __tusb_irq_path_func(rp2usb_xfer_continue)(hw_endpoint_t *ep, io_rw_32 *ep_
   const bool     is_short   = xact_bytes < ep->max_packet_size;
   const bool     is_done    = is_short || (buf_ctrl16 & USB_BUF_CTRL_LAST);
 
-  // short packet on rx with double buffer: abort the other half (if not last) and reset double-buffer state.
+  // Short packet on rx with double buffer: abort the other half (if not last) and reset double-buffer state.
   // The other buffer may be: (a) still AVAIL, (b) in-progress (controller receiving), or (c) already completed.
   // We must abort to safely reclaim it. If it has valid data (FULL), save as future for the next transfer.
-  // After abort, zero buf_ctrl
+  // After abort, zero buf_ctrl.
+  // Note: Host mode we cannot save next transfer data due to shared epx -> force single
   if (is_short && is_double && is_rx && !is_last) {
     io_rw_16      *buf_reg16_other = buf_reg16 + (buf_id ^ 1);
     const uint32_t abort_bit       = TU_BIT((tu_edpt_number(ep->ep_addr) << 1) | (dir ? 0 : 1));
