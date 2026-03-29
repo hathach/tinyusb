@@ -374,7 +374,8 @@ bool usbh_defer_func_ms_async(uint32_t ms, tusb_defer_func_t func, uintptr_t par
   TU_LOG_USBH("USBH schedule function after %u ms\r\n", (unsigned int)ms);
   _usbh_data.call_after.func  = func;
   _usbh_data.call_after.arg   = param;
-  _usbh_data.call_after.at_ms = tusb_time_millis_api() + ms;
+  // add one to ensure we wait at least 'ms' milliseconds
+  _usbh_data.call_after.at_ms = tusb_time_millis_api() + ms + 1;
   return true;
 }
 
@@ -610,10 +611,18 @@ bool tuh_task_event_ready(void) {
   }
 
   #if CFG_TUH_HUB
-  if (!osal_queue_empty(_usbh_daq)) {
+  if (_usbh_data.enumerating_daddr == TUSB_INDEX_INVALID_8 &&
+      !osal_queue_empty(_usbh_daq)) {
     return true;
   }
   #endif
+
+  if (_usbh_data.call_after.func) {
+    int32_t remain_ms = (int32_t)(_usbh_data.call_after.at_ms - tusb_time_millis_api());
+    if (remain_ms <= 0) {
+      return true;
+    }
+  }
 
   return false;
 }
