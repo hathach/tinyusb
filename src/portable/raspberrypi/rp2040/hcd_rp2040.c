@@ -55,12 +55,6 @@
 static hw_endpoint_t  ep_pool[USB_MAX_ENDPOINTS];
 static hw_endpoint_t *epx = &ep_pool[0]; // current active endpoint
 
-// Flags we set by default in sie_ctrl (we add other bits on top)
-enum {
-  SIE_CTRL_BASE      = USB_SIE_CTRL_PULLDOWN_EN_BITS | USB_SIE_CTRL_EP0_INT_1BUF_BITS,
-  SIE_CTRL_BASE_MASK = USB_SIE_CTRL_PULLDOWN_EN_BITS | USB_SIE_CTRL_EP0_INT_1BUF_BITS | USB_SIE_CTRL_SOF_EN_BITS |
-                       USB_SIE_CTRL_KEEP_ALIVE_EN_BITS
-};
 
 enum {
   SIE_CTRL_SPEED_DISCONNECT = 0,
@@ -187,7 +181,7 @@ static void __tusb_irq_path_func(epx_switch_ep)(hw_endpoint_t *ep) {
     io_rw_32     *buf_reg = &usbh_dpram->epx_buf_ctrl;
 
     epx_ctrl_prepare(ep);
-    rp2usb_buffer_start(ep, ep_reg, buf_reg, is_rx, is_rx || ep->transfer_type == TUSB_XFER_INTERRUPT);
+    rp2usb_buffer_start(ep, ep_reg, buf_reg, is_rx, ep->transfer_type == TUSB_XFER_INTERRUPT);
 
     usb_hw->dev_addr_ctrl = (uint32_t)(ep->dev_addr | (ep_num << USB_ADDR_ENDP_ENDPOINT_LSB));
     sie_start_xfer(false, is_rx, ep->need_pre); // start transfer
@@ -340,26 +334,20 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
   // RP2040: on SOF, stop and switch if there's a pending ep
   if (status & USB_INTS_HOST_SOF_BITS) {
     (void)usb_hw->sof_rd; // clear SOF by reading SOF_RD
-    if (epx->active && tu_edpt_number(epx->ep_addr) != 0) {
-      hw_endpoint_t *next_ep = epx_next_pending(epx);
-      if (next_ep) {
-        usb_hw_set->sie_ctrl = USB_SIE_CTRL_STOP_TRANS_BITS;
-        while (usb_hw->sie_ctrl & USB_SIE_CTRL_STOP_TRANS_BITS) {}
-        busy_wait_at_least_cycles(12);
-        if (usb_hw->buf_status & 1u) {
-          usb_hw->nak_poll = USB_NAK_POLL_RESET;
-          handle_buf_status_isr();
-        } else {
-          epx_switch_ep(next_ep);
-        }
-      } else {
-        usb_hw_clear->inte = USB_INTE_HOST_SOF_BITS;
-        usb_hw->nak_poll   = USB_NAK_POLL_RESET;
-      }
-    } else if (!epx_next_pending(epx)) {
-      // EPX is on control endpoint or inactive — disable SOF if nothing pending
+    hw_endpoint_t *next_ep = epx_next_pending(epx);
+    if (next_ep == NULL) {
+      // no more pending --> disable SOF
       usb_hw_clear->inte = USB_INTE_HOST_SOF_BITS;
       usb_hw->nak_poll   = USB_NAK_POLL_RESET;
+    } else {
+      // stop transfer if is active
+      if (epx->active) {
+        usb_hw_set->sie_ctrl = USB_SIE_CTRL_STOP_TRANS_BITS;
+        while (usb_hw->sie_ctrl & USB_SIE_CTRL_STOP_TRANS_BITS) {}
+      }
+
+      epx_save_context();
+      epx_switch_ep(next_ep);
     }
   }
   #endif
@@ -602,10 +590,8 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
       usb_hw_set->nak_poll = USB_NAK_POLL_STOP_EPX_ON_NAK_BITS;
   #else
       // Only enable SOF round-robin for non-control endpoints
-      if (tu_edpt_number(epx->ep_addr) != 0) {
-        usb_hw->nak_poll = (300 << USB_NAK_POLL_DELAY_FS_LSB) | (300 << USB_NAK_POLL_DELAY_LS_LSB);
-        usb_hw_set->inte = USB_INTE_HOST_SOF_BITS;
-      }
+      usb_hw->nak_poll = (300 << USB_NAK_POLL_DELAY_FS_LSB) | (300 << USB_NAK_POLL_DELAY_LS_LSB);
+      usb_hw_set->inte = USB_INTE_HOST_SOF_BITS;
   #endif
     } else {
       const uint8_t    ep_num  = tu_edpt_number(ep->ep_addr);

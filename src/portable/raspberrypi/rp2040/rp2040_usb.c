@@ -283,7 +283,7 @@ void rp2usb_xfer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, u
 
   const bool is_rx = (is_host == (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN));
   #if CFG_TUH_ENABLED
-  const bool force_single = (is_host && (is_rx || ep->transfer_type == TUSB_XFER_INTERRUPT));
+  const bool force_single = (is_host && ep->transfer_type == TUSB_XFER_INTERRUPT);
   #else
   const bool force_single = false;
   #endif
@@ -339,23 +339,17 @@ bool __tusb_irq_path_func(rp2usb_xfer_continue)(hw_endpoint_t *ep, io_rw_32 *ep_
     return false;
   }
 
-  const bool is_double = (ep_reg != NULL && ((*ep_reg) & EP_CTRL_DOUBLE_BUFFERED_BITS));
   const bool is_host   = rp2usb_is_host_mode();
-
-  #if CFG_TUSB_RP2_ERRATA_E4
-  const bool need_e4_fix = (is_host && !is_double);
-  #endif
+  const bool is_double = (ep_reg != NULL && ((*ep_reg) & EP_CTRL_DOUBLE_BUFFERED_BITS));
 
   // Double-buffered: buf_id from BUFF_CPU_SHOULD_HANDLE indicates which buffer completed.
-
   // RP2040-E4 (host only): in single-buffered multi-packet transfers, the controller may write completion status to
-  //   BUF1 half instead of BUF0. The side effect that controller can execute an extra packet after writing to BUF1
-  //   since it leave BUF0 intact, which can be poll before buf_status interrupt is trigger.
-  // Workaround for the side effect, we will enable double-buffered for rx but only prepare 1 buf at a time.
+  // BUF1 half instead of BUF0. The side effect is that controller can execute an extra packet after writing to BUF1
+  // since it leaves BUF0 intact, which can be polled before buf_status interrupt is triggered.
   uint8_t *dpram_buf = ep->dpram_buf;
   if (buf_id) {
   #if CFG_TUSB_RP2_ERRATA_E4
-    if (!need_e4_fix)  // incorrect buf_id, buffer pointer is still buf0
+    if (!(is_host && !is_double)) // incorrect buf_id, buffer data is still buf0
   #endif
     {
       dpram_buf += 64; // buf1 offset
@@ -368,16 +362,24 @@ bool __tusb_irq_path_func(rp2usb_xfer_continue)(hw_endpoint_t *ep, io_rw_32 *ep_
   const uint16_t xact_bytes = bufctrl_sync16(ep, is_rx, buf_ctrl16, dpram_buf);
   const bool     is_last    = buf_ctrl16 & USB_BUF_CTRL_LAST;
   const bool     is_short   = xact_bytes < ep->max_packet_size;
-  const bool     is_done    = is_short || (buf_ctrl16 & USB_BUF_CTRL_LAST);
+  const bool     is_done    = is_short || is_last;
 
-  // Short packet on rx with double buffer: abort the other half (if not last) and reset double-buffer state.
+  // Short packet on rx with double buffer: abort the other half (if not last) and reset the buffer control.
   // The other buffer may be: (a) still AVAIL, (b) in-progress (controller receiving), or (c) already completed.
   // We must abort to safely reclaim it. If it has valid data (FULL), save as future for the next transfer.
-  // After abort, zero buf_ctrl.
-  // Note: Host mode we cannot save next transfer data due to shared epx --> force single
+  // Note: Host mode current does not save next transfer data due to shared epx --> potential issue. However, RP2040-E4
+  // causes more or less of the same issue since it write to buf1 and next time it continues to transfer on buf0 (stale)
   if (is_short && is_double && is_rx && !is_last) {
   #if CFG_TUH_ENABLED
-    if (is_host) {}
+    if (is_host) {
+      // stop current transfer
+      uint32_t sie_ctrl = usb_hw->sie_ctrl & SIE_CTRL_BASE_MASK;
+      sie_ctrl |= USB_SIE_CTRL_STOP_TRANS_BITS;
+      usb_hw->sie_ctrl = sie_ctrl;
+      // maybe wait until STOP_TRANS bit is clear
+
+      *buf_reg = 0; // reset buffer control
+    }
   #endif
 
   #if CFG_TUD_ENABLED

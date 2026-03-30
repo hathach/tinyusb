@@ -70,6 +70,13 @@
   #define __tusb_irq_path_func(x) x
 #endif
 
+// Flags we set by default in sie_ctrl (we add other bits on top)
+enum {
+  SIE_CTRL_BASE      = USB_SIE_CTRL_PULLDOWN_EN_BITS | USB_SIE_CTRL_EP0_INT_1BUF_BITS,
+  SIE_CTRL_BASE_MASK = USB_SIE_CTRL_PULLDOWN_EN_BITS | USB_SIE_CTRL_EP0_INT_1BUF_BITS | USB_SIE_CTRL_SOF_EN_BITS |
+                       USB_SIE_CTRL_KEEP_ALIVE_EN_BITS
+};
+
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
