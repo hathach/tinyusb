@@ -133,22 +133,6 @@ static inline void SystemClock_Config(void) {
     Error_Handler();
   }
 
-  // Initialize USB clock
-  // RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
-  // PeriphClkInitStruct.PeriphClockSelection     = RCC_PERIPHCLK_USB;
-  // PeriphClkInitStruct.PLL3.PLL3M               = 1;
-  // PeriphClkInitStruct.PLL3.PLL3N               = 24;
-  // PeriphClkInitStruct.PLL3.PLL3P               = 2;
-  // PeriphClkInitStruct.PLL3.PLL3Q               = 4;
-  // PeriphClkInitStruct.PLL3.PLL3R               = 2;
-  // PeriphClkInitStruct.PLL3.PLL3RGE             = RCC_PLL3VCIRANGE_3;
-  // PeriphClkInitStruct.PLL3.PLL3FRACN           = 0;
-  // PeriphClkInitStruct.UsbClockSelection        = RCC_USBCLKSOURCE_PLL3;
-  // if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK) {
-  //   //assert(false);
-  //   Error_Handler();
-  // }
-
   // Initialize USB clock from internal HSI
   RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
   PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USB;
