@@ -25,8 +25,8 @@
  */
 
 /* metadata:
-   name: STM32 H743 Eval
-   url: https://www.st.com/en/evaluation-tools/stm32h743i-eval.html
+   name: STM32 H743 WeAct board
+   url: https://github.com/WeActStudio/MiniSTM32H7xx
 */
 
 #ifndef BOARD_H_
