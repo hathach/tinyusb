@@ -345,12 +345,11 @@ static void edpt_disable(uint8_t rhport, uint8_t ep_addr, bool stall) {
       dwc2->dctl |= DCTL_CGONAK;
     }
   }
-}
 
-// Clear stale active-endpoint state before re-activating ISO OUT with a changed MPS.
-static void edpt_iso_out_reset(uint8_t rhport, uint8_t epnum) {
-  dwc2_dep_t* epout = &DWC2_REG(rhport)->epout[epnum];
-  epout->doepctl &= ~DOEPCTL_USBAEP;
+  // Clear ActEP
+  if (!stall && epnum != 0) {
+    dep->ctl &= ~EPCTL_USBAEP;
+  }
 }
 
 // Since this function returns void, it is not possible to return a boolean success message
@@ -637,20 +636,7 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
 }
 
 bool dcd_edpt_iso_activate(uint8_t rhport,  tusb_desc_endpoint_t const * p_endpoint_desc) {
-  const uint8_t ep_addr = p_endpoint_desc->bEndpointAddress;
-  const uint8_t epnum = tu_edpt_number(ep_addr);
-  const uint8_t dir = tu_edpt_dir(ep_addr);
-
-  edpt_disable(rhport, ep_addr, false);
-
-  if (dir == TUSB_DIR_OUT) {
-    const uint16_t new_mps = tu_edpt_packet_size(p_endpoint_desc);
-    xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, dir);
-    if (xfer->max_size != 0 && xfer->max_size != new_mps) {
-      edpt_iso_out_reset(rhport, epnum);
-    }
-  }
-
+  edpt_disable(rhport, p_endpoint_desc->bEndpointAddress, false);
   edpt_activate(rhport, p_endpoint_desc);
   return true;
 }
