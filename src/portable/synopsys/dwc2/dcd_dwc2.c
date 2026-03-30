@@ -636,6 +636,7 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
 }
 
 bool dcd_edpt_iso_activate(uint8_t rhport,  tusb_desc_endpoint_t const * p_endpoint_desc) {
+  // Disable EP to clear potential incomplete transfers
   edpt_disable(rhport, p_endpoint_desc->bEndpointAddress, false);
   edpt_activate(rhport, p_endpoint_desc);
   return true;
