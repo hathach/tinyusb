@@ -345,6 +345,11 @@ static void edpt_disable(uint8_t rhport, uint8_t ep_addr, bool stall) {
       dwc2->dctl |= DCTL_CGONAK;
     }
   }
+
+  // Clear ActEP
+  if (!stall && epnum != 0) {
+    dep->ctl &= ~EPCTL_USBAEP;
+  }
 }
 
 // Since this function returns void, it is not possible to return a boolean success message
