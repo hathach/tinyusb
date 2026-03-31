@@ -102,6 +102,7 @@ void rp2usb_init(void) {
 
 void __tusb_irq_path_func(rp2usb_reset_transfer)(hw_endpoint_t *ep) {
   ep->active        = false;
+  ep->pending       = 0;
   ep->remaining_len = 0;
   ep->xferred_len   = 0;
   ep->user_buf      = 0;
@@ -172,9 +173,8 @@ uint16_t __tusb_irq_path_func(bufctrl_prepare16)(hw_endpoint_t *ep, uint8_t *dpr
     buf_ctrl |= USB_BUF_CTRL_FULL;
   }
 
-  // Is this the last buffer? Only really matters for host mode. Will trigger
-  // the trans complete irq but also stop it polling. We only really care about
-  // trans complete for setup packets being sent
+  // Is this the last buffer? Will trigger the trans complete irq but also stop it polling.
+  // This is used to detect setup packets being sent in host mode
   if (ep->remaining_len == 0) {
     buf_ctrl |= USB_BUF_CTRL_LAST;
   }
@@ -349,7 +349,7 @@ bool __tusb_irq_path_func(rp2usb_xfer_continue)(hw_endpoint_t *ep, io_rw_32 *ep_
   uint8_t *dpram_buf = ep->dpram_buf;
   if (buf_id) {
   #if CFG_TUSB_RP2_ERRATA_E4
-    if (!(is_host && !is_double)) // incorrect buf_id, buffer data is still buf0
+    if (!(is_host && !is_double)) // E4 bug: incorrect buf_id, buffer data is still buf0
   #endif
     {
       dpram_buf += 64; // buf1 offset
@@ -370,54 +370,51 @@ bool __tusb_irq_path_func(rp2usb_xfer_continue)(hw_endpoint_t *ep, io_rw_32 *ep_
   // Note: Host mode current does not save next transfer data due to shared epx --> potential issue. However, RP2040-E4
   // causes more or less of the same issue since it write to buf1 and next time it continues to transfer on buf0 (stale)
   if (is_short && is_double && is_rx && !is_last) {
-  #if CFG_TUH_ENABLED
+    const uint32_t abort_bit = TU_BIT(tu_edpt_number(ep->ep_addr) << 1); // abort is device only -> IN endpoint
+
     if (is_host) {
-      // stop current transfer
-      uint32_t sie_ctrl = usb_hw->sie_ctrl & SIE_CTRL_BASE_MASK;
-      sie_ctrl |= USB_SIE_CTRL_STOP_TRANS_BITS;
+      // host stop current transfer, not safe, can be racing
+      const uint32_t sie_ctrl = (usb_hw->sie_ctrl & SIE_CTRL_BASE_MASK) | USB_SIE_CTRL_STOP_TRANS_BITS;
       usb_hw->sie_ctrl = sie_ctrl;
-      // maybe wait until STOP_TRANS bit is clear
-
-      *buf_reg = 0; // reset buffer control
-    }
-  #endif
-
-  #if CFG_TUD_ENABLED
-    if (!is_host) {
-      io_rw_16      *buf_reg16_other = buf_reg16 + (buf_id ^ 1);
-      const uint32_t abort_bit       = TU_BIT(tu_edpt_number(ep->ep_addr) << 1); // IN endpoint
-
-    #if CFG_TUSB_RP2_ERRATA_E2
+      while (usb_hw->sie_ctrl & USB_SIE_CTRL_STOP_TRANS_BITS) {}
+    } else {
+      // device abort current transfer
+  #if CFG_TUSB_RP2_ERRATA_E2
       if (rp2040_chipversion >= 2)
-    #endif
+  #endif
       {
         usb_hw_set->abort = abort_bit;
         while ((usb_hw->abort_done & abort_bit) != abort_bit) {}
       }
+    }
 
-      // After abort, check if the other buffer received valid data
-      const uint16_t buf_ctrl16_other = *buf_reg16_other;
-      if (buf_ctrl16_other & USB_BUF_CTRL_FULL) {
-        // Host already sent data into this buffer (e.g. write payload right after short CBW).
-        // Save it for the next transfer.
-        ep->future_len   = (uint8_t)(buf_ctrl16_other & USB_BUF_CTRL_LEN_MASK);
-        ep->future_bufid = buf_id ^ 1;
-        // buff_status will be clear by the next run
+    // After abort, check if the other buffer received valid data
+    io_rw_16      *buf_reg16_other  = buf_reg16 + (buf_id ^ 1);
+    const uint16_t buf_ctrl16_other = *buf_reg16_other;
+    if (buf_ctrl16_other & USB_BUF_CTRL_FULL) {
+      // Data already sent into this buffer. Save it for the next transfer.
+      // buff_status will be clear by the next run
+      if (is_host) {
+        // host put future_len pointer at end of epx_data
       } else {
-        ep->next_pid ^= 1u; // roll back pid if aborted
+        ep->future_len   = (uint8_t)(buf_ctrl16_other & USB_BUF_CTRL_LEN_MASK);
       }
+      ep->future_bufid = buf_id ^ 1;
+    } else {
+      ep->next_pid ^= 1u; // roll back pid if aborted
+    }
 
-      *buf_reg = 0;         // reset buffer control
+    *buf_reg = 0;         // reset buffer control
 
-    #if CFG_TUSB_RP2_ERRATA_E2
+    if (!is_host) {
+  #if CFG_TUSB_RP2_ERRATA_E2
       if (rp2040_chipversion >= 2)
-    #endif
+  #endif
       {
         usb_hw_clear->abort_done = abort_bit;
         usb_hw_clear->abort      = abort_bit;
       }
     }
-  #endif
 
     hw_endpoint_lock_update(ep, -1);
     return true;
