@@ -197,7 +197,7 @@ void __tusb_irq_path_func(rp2usb_buffer_start)(hw_endpoint_t *ep, io_rw_32 *ep_r
       ep_ctrl |= EP_CTRL_DOUBLE_BUFFERED_BITS;
     } else {
       // Only buf0 used: clear DOUBLE_BUFFERED so controller doesn't toggle buffer selector
-      ep_ctrl &= ~EP_CTRL_DOUBLE_BUFFERED_BITS;
+      ep_ctrl &= ~(uint32_t)EP_CTRL_DOUBLE_BUFFERED_BITS;
     }
     *ep_reg = ep_ctrl;
   }

@@ -164,7 +164,7 @@ static void __tusb_irq_path_func(handle_hw_buff_status)(void) {
   while (buf_status) {
     // ctz/clz is faster than loop which has only a few bit set in general
     const uint8_t i = (uint8_t) __builtin_ctz(buf_status);
-    const uint bit = TU_BIT(i);
+    const uint32_t bit = TU_BIT(i);
 
     // IN transfer for even i, OUT transfer for odd i
     const uint8_t    epnum   = i >> 1u;

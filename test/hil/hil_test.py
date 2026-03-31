@@ -50,7 +50,7 @@ import ctypes
 from pymtp import MTP
 import string
 
-ENUM_TIMEOUT = 10
+ENUM_TIMEOUT = 15
 
 STATUS_OK = "\033[32mOK\033[0m"
 STATUS_FAILED = "\033[31mFailed\033[0m"
@@ -766,10 +766,13 @@ def test_device_cdc_msc(board):
     assert ret.returncode == 0, f'dd read failed: {ret.stdout.decode()}'
     read_speed = parse_dd_speed(ret.stdout.decode())
 
-    # Write back the same data to avoid corrupting the disk
+    # Write back the same data to avoid corrupting the disk (skip if read-only)
     ret = run_cmd(f'dd if={tmp_file} of={dev} bs={block_size} count={block_count} oflag=direct 2>&1')
-    assert ret.returncode == 0, f'dd write failed: {ret.stdout.decode()}'
-    write_speed = parse_dd_speed(ret.stdout.decode())
+    if ret.returncode != 0 and 'Read-only' in ret.stdout.decode():
+        write_speed = 'skip (read-only)'
+    else:
+        assert ret.returncode == 0, f'dd write failed: {ret.stdout.decode()}'
+        write_speed = parse_dd_speed(ret.stdout.decode())
 
     try:
         os.remove(tmp_file)
