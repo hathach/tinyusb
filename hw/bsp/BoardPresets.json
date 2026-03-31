@@ -119,6 +119,10 @@
       "inherits": "default"
     },
     {
+      "name": "ch32f205r-r0",
+      "inherits": "default"
+    },
+    {
       "name": "ch32v103r_r1_1v0",
       "inherits": "default"
     },
@@ -252,6 +256,10 @@
     },
     {
       "name": "frdm_rw612",
+      "inherits": "default"
+    },
+    {
+      "name": "gr_citrus",
       "inherits": "default"
     },
     {
@@ -423,6 +431,10 @@
       "inherits": "default"
     },
     {
+      "name": "mm900evxb",
+      "inherits": "default"
+    },
+    {
       "name": "msp_exp430f5529lp",
       "inherits": "default"
     },
@@ -548,6 +560,10 @@
     },
     {
       "name": "raspberrypi_zero2",
+      "inherits": "default"
+    },
+    {
+      "name": "rx65n_target",
       "inherits": "default"
     },
     {
@@ -719,6 +735,10 @@
       "inherits": "default"
     },
     {
+      "name": "stm32h743_weact",
+      "inherits": "default"
+    },
+    {
       "name": "stm32h743eval",
       "inherits": "default"
     },
@@ -784,6 +804,10 @@
     },
     {
       "name": "stm32u083cdk",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32u083nucleo",
       "inherits": "default"
     },
     {
@@ -1055,6 +1079,11 @@
       "configurePreset": "b_u585i_iot2a"
     },
     {
+      "name": "ch32f205r-r0",
+      "description": "Build preset for the ch32f205r-r0 board",
+      "configurePreset": "ch32f205r-r0"
+    },
+    {
       "name": "ch32v103r_r1_1v0",
       "description": "Build preset for the ch32v103r_r1_1v0 board",
       "configurePreset": "ch32v103r_r1_1v0"
@@ -1270,6 +1299,11 @@
       "configurePreset": "frdm_rw612"
     },
     {
+      "name": "gr_citrus",
+      "description": "Build preset for the gr_citrus board",
+      "configurePreset": "gr_citrus"
+    },
+    {
       "name": "hpm6750evk2",
       "description": "Build preset for the hpm6750evk2 board",
       "configurePreset": "hpm6750evk2"
@@ -1480,6 +1514,11 @@
       "configurePreset": "mm32f327x_pitaya_lite"
     },
     {
+      "name": "mm900evxb",
+      "description": "Build preset for the mm900evxb board",
+      "configurePreset": "mm900evxb"
+    },
+    {
       "name": "msp_exp430f5529lp",
       "description": "Build preset for the msp_exp430f5529lp board",
       "configurePreset": "msp_exp430f5529lp"
@@ -1638,6 +1677,11 @@
       "name": "raspberrypi_zero2",
       "description": "Build preset for the raspberrypi_zero2 board",
       "configurePreset": "raspberrypi_zero2"
+    },
+    {
+      "name": "rx65n_target",
+      "description": "Build preset for the rx65n_target board",
+      "configurePreset": "rx65n_target"
     },
     {
       "name": "samd11_xplained",
@@ -1850,6 +1894,11 @@
       "configurePreset": "stm32h723nucleo"
     },
     {
+      "name": "stm32h743_weact",
+      "description": "Build preset for the stm32h743_weact board",
+      "configurePreset": "stm32h743_weact"
+    },
+    {
       "name": "stm32h743eval",
       "description": "Build preset for the stm32h743eval board",
       "configurePreset": "stm32h743eval"
@@ -1933,6 +1982,11 @@
       "name": "stm32u083cdk",
       "description": "Build preset for the stm32u083cdk board",
       "configurePreset": "stm32u083cdk"
+    },
+    {
+      "name": "stm32u083nucleo",
+      "description": "Build preset for the stm32u083nucleo board",
+      "configurePreset": "stm32u083nucleo"
     },
     {
       "name": "stm32u545nucleo",
@@ -2397,6 +2451,19 @@
       ]
     },
     {
+      "name": "ch32f205r-r0",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ch32f205r-r0"
+        },
+        {
+          "type": "build",
+          "name": "ch32f205r-r0"
+        }
+      ]
+    },
+    {
       "name": "ch32v103r_r1_1v0",
       "steps": [
         {
@@ -2956,6 +3023,19 @@
       ]
     },
     {
+      "name": "gr_citrus",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "gr_citrus"
+        },
+        {
+          "type": "build",
+          "name": "gr_citrus"
+        }
+      ]
+    },
+    {
       "name": "hpm6750evk2",
       "steps": [
         {
@@ -3502,6 +3582,19 @@
       ]
     },
     {
+      "name": "mm900evxb",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "mm900evxb"
+        },
+        {
+          "type": "build",
+          "name": "mm900evxb"
+        }
+      ]
+    },
+    {
       "name": "msp_exp430f5529lp",
       "steps": [
         {
@@ -3914,6 +4007,19 @@
         {
           "type": "build",
           "name": "raspberrypi_zero2"
+        }
+      ]
+    },
+    {
+      "name": "rx65n_target",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "rx65n_target"
+        },
+        {
+          "type": "build",
+          "name": "rx65n_target"
         }
       ]
     },
@@ -4464,6 +4570,19 @@
       ]
     },
     {
+      "name": "stm32h743_weact",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32h743_weact"
+        },
+        {
+          "type": "build",
+          "name": "stm32h743_weact"
+        }
+      ]
+    },
+    {
       "name": "stm32h743eval",
       "steps": [
         {
@@ -4681,6 +4800,19 @@
         {
           "type": "build",
           "name": "stm32u083cdk"
+        }
+      ]
+    },
+    {
+      "name": "stm32u083nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32u083nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32u083nucleo"
         }
       ]
     },
