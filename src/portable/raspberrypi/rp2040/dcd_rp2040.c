@@ -253,7 +253,7 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
       struct hw_endpoint *ep = hw_endpoint_get(i, TUSB_DIR_IN);
 
       // Active Bulk IN endpoint requires SOF
-      if (ep->e15_bulk_in && ep->state == EPSTATE_ACTIVE) {
+      if (ep->e15_bulk_in && ep->state >= EPSTATE_ACTIVE) {
         keep_sof_alive = true;
         hw_endpoint_lock_update(ep, 1);
 

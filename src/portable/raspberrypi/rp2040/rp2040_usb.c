@@ -322,7 +322,7 @@ bool __tusb_irq_path_func(rp2usb_xfer_continue)(hw_endpoint_t *ep, io_rw_32 *ep_
                                                 bool is_rx) {
   hw_endpoint_lock_update(ep, 1);
 
-  if (ep->state != EPSTATE_ACTIVE) {
+  if (ep->state == EPSTATE_IDLE) {
     // probably land here due to short packet on rx with double buffered
     hw_endpoint_lock_update(ep, -1);
     return false;
