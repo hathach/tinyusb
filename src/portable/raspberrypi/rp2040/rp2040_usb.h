@@ -32,9 +32,9 @@
   // RP2040-E15: USB Device controller will hang if certain bus errors occur during an IN transfer.
   #ifndef CFG_TUSB_RP2_ERRATA_E15
     #if defined(PICO_RP2040_USB_DEVICE_UFRAME_FIX)
-      #define CFG_TUSB_RP2_ERRATA_E15 PICO_RP2040_USB_DEVICE_UFRAME_FIX
+      #define CFG_TUSB_RP2_ERRATA_E15 (CFG_TUD_ENABLED && PICO_RP2040_USB_DEVICE_UFRAME_FIX)
     #elif defined(TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX)
-      #define CFG_TUSB_RP2_ERRATA_E15 TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
+      #define CFG_TUSB_RP2_ERRATA_E15 (CFG_TUD_ENABLED && TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX)
     #endif
   #endif
 #endif
@@ -90,18 +90,23 @@ enum {
   EPSTATE_IDLE = 0,
   EPSTATE_ACTIVE,
   EPSTATE_PENDING,
+  EPSTATE_PENDING_SETUP
 };
 
 // Hardware information per endpoint
 typedef struct hw_endpoint {
   uint8_t ep_addr;
   uint8_t next_pid;
-  bool    active;       // transferring data
-  uint8_t pending;      // Transfer scheduled but not active
-  bool    is_xfer_fifo; // transfer using fifo
+  uint8_t state;
 
-  uint8_t future_bufid;
-  uint8_t future_len;
+#if CFG_TUD_EDPT_DEDICATED_HWFIFO
+  bool is_xfer_fifo; // transfer using fifo
+#endif
+
+#if CFG_TUD_ENABLED
+  uint8_t future_bufid; // which buffer holds next data
+  uint8_t future_len;   // next data len
+#endif
 
 #if CFG_TUSB_RP2_ERRATA_E15
   bool e15_bulk_in; // Errata15 device bulk in
@@ -110,8 +115,10 @@ typedef struct hw_endpoint {
 #if CFG_TUH_ENABLED
   uint8_t dev_addr;
   uint8_t interrupt_num; // 1-15 for interrupt endpoints
-  uint8_t transfer_type;
-  bool    need_pre;      // need preamble for low speed device behind full speed hub
+  struct TU_ATTR_PACKED {
+    uint8_t transfer_type : 2;
+    uint8_t need_pre      : 1; // preamble for low-speed device behind full speed hub
+  };
 #endif
 
   uint16_t max_packet_size; // max packet size also indicates configured
@@ -153,7 +160,7 @@ TU_ATTR_ALWAYS_INLINE static inline void rp2usb_critical_exit(void) {
 void rp2usb_xfer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, uint8_t *buffer, tu_fifo_t *ff,
                        uint16_t total_len);
 bool rp2usb_xfer_continue(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, uint8_t buf_id, bool is_rx);
-void rp2usb_buffer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, bool is_rx, bool force_single);
+void rp2usb_buffer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, bool is_rx);
 void rp2usb_reset_transfer(hw_endpoint_t *ep);
 
 

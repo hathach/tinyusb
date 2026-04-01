@@ -101,12 +101,13 @@ void rp2usb_init(void) {
 }
 
 void __tusb_irq_path_func(rp2usb_reset_transfer)(hw_endpoint_t *ep) {
-  ep->active        = false;
-  ep->pending       = 0;
+  ep->state         = EPSTATE_IDLE;
   ep->remaining_len = 0;
   ep->xferred_len   = 0;
   ep->user_buf      = 0;
+#if CFG_TUD_EDPT_DEDICATED_HWFIFO
   ep->is_xfer_fifo  = false;
+#endif
 }
 
 void __tusb_irq_path_func(bufctrl_write32)(io_rw_32 *buf_reg, uint32_t value) {
@@ -183,14 +184,19 @@ uint16_t __tusb_irq_path_func(bufctrl_prepare16)(hw_endpoint_t *ep, uint8_t *dpr
 }
 
 // Start transaction on hw buffer
-void __tusb_irq_path_func(rp2usb_buffer_start)(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, bool is_rx,
-                                               bool force_single) {
+void __tusb_irq_path_func(rp2usb_buffer_start)(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, bool is_rx) {
   // always compute and start with buffer 0
   uint32_t buf_ctrl = bufctrl_prepare16(ep, ep->dpram_buf, is_rx) | USB_BUF_CTRL_SEL;
 
   // Note: device EP0 does not have an endpoint control register
   if (ep_reg != NULL) {
     uint32_t ep_ctrl = *ep_reg;
+  #if CFG_TUH_ENABLED
+    const bool force_single = (rp2usb_is_host_mode() && ep->interrupt_num > 0);
+  #else
+    const bool force_single = false;
+  #endif
+
     if (ep->remaining_len && !force_single) {
       // Use buffer 1 (double buffered) if there is still data
       buf_ctrl |= (uint32_t)bufctrl_prepare16(ep, ep->dpram_buf + 64, is_rx) << 16;
@@ -211,8 +217,7 @@ void rp2usb_xfer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, u
   (void)ff;
   hw_endpoint_lock_update(ep, 1);
 
-  if (ep->active) {
-    // TODO: Is this acceptable for interrupt packets?
+  if (ep->state == EPSTATE_ACTIVE) {
     TU_LOG(1, "WARN: starting new transfer on already active ep %02X\r\n", ep->ep_addr);
     rp2usb_reset_transfer(ep);
   }
@@ -220,7 +225,7 @@ void rp2usb_xfer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, u
   // Fill in info now that we're kicking off the hw
   ep->remaining_len = total_len;
   ep->xferred_len   = 0;
-  ep->active        = true;
+  ep->state         = EPSTATE_ACTIVE;
 
   #if CFG_TUD_EDPT_DEDICATED_HWFIFO
   if (ff != NULL) {
@@ -229,66 +234,50 @@ void rp2usb_xfer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, u
   } else
   #endif
   {
-    ep->user_buf     = buffer;
+    ep->user_buf = buffer;
+  #if CFG_TUD_EDPT_DEDICATED_HWFIFO
     ep->is_xfer_fifo = false;
+  #endif
   }
 
   const bool is_host = rp2usb_is_host_mode();
+  const bool is_rx   = (is_host == (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN));
 
-  if (ep->future_len > 0) {
-    // only on rx endpoint
+  #if CFG_TUD_ENABLED
+  if (!is_host && ep->future_len > 0) {
+    // Device only: previous short-packet abort saved data from the other buffer
     const uint8_t future_len = ep->future_len;
     memcpy(ep->user_buf, ep->dpram_buf + (ep->future_bufid << 6), future_len);
     ep->xferred_len += future_len;
     ep->remaining_len -= future_len;
     ep->user_buf += future_len;
-
     ep->future_len   = 0;
     ep->future_bufid = 0;
 
     if (ep->remaining_len == 0) {
-      // all data has been received, no need to start hw transfer
-      ep->active                 = false;
       const uint16_t xferred_len = ep->xferred_len;
       rp2usb_reset_transfer(ep);
-
-  #if CFG_TUH_ENABLED
-      if (is_host) {
-        hcd_event_xfer_complete(0, ep->ep_addr, xferred_len, XFER_RESULT_SUCCESS, false);
-      }
-  #endif
-  #if CFG_TUD_ENABLED
-      if (!is_host) {
-        dcd_event_xfer_complete(0, ep->ep_addr, xferred_len, XFER_RESULT_SUCCESS, false);
-      }
-  #endif
-
+      dcd_event_xfer_complete(0, ep->ep_addr, xferred_len, XFER_RESULT_SUCCESS, false);
       hw_endpoint_lock_update(ep, -1);
       return;
     }
   }
 
-  #if CFG_TUSB_RP2_ERRATA_E15
+    #if CFG_TUSB_RP2_ERRATA_E15
   if (ep->e15_bulk_in) {
     usb_hw_set->inte = USB_INTS_DEV_SOF_BITS;
 
     // skip transfer if we are in critical frame period
     if (e15_is_critical_frame_period()) {
-      ep->pending = 1;
+      ep->state = EPSTATE_PENDING;
       hw_endpoint_lock_update(ep, -1);
       return;
     }
   }
-  #endif
+    #endif // CFG_TUSB_RP2_ERRATA_E15
+  #endif   // CFG_TUD_ENABLED
 
-  const bool is_rx = (is_host == (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN));
-  #if CFG_TUH_ENABLED
-  const bool force_single = (is_host && ep->transfer_type == TUSB_XFER_INTERRUPT);
-  #else
-  const bool force_single = false;
-  #endif
-
-  rp2usb_buffer_start(ep, ep_reg, buf_reg, is_rx, force_single);
+  rp2usb_buffer_start(ep, ep_reg, buf_reg, is_rx);
   hw_endpoint_lock_update(ep, -1);
 }
 
@@ -333,7 +322,7 @@ bool __tusb_irq_path_func(rp2usb_xfer_continue)(hw_endpoint_t *ep, io_rw_32 *ep_
                                                 bool is_rx) {
   hw_endpoint_lock_update(ep, 1);
 
-  if (!ep->active) {
+  if (ep->state != EPSTATE_ACTIVE) {
     // probably land here due to short packet on rx with double buffered
     hw_endpoint_lock_update(ep, -1);
     return false;
@@ -394,12 +383,12 @@ bool __tusb_irq_path_func(rp2usb_xfer_continue)(hw_endpoint_t *ep, io_rw_32 *ep_
     if (buf_ctrl16_other & USB_BUF_CTRL_FULL) {
       // Data already sent into this buffer. Save it for the next transfer.
       // buff_status will be clear by the next run
-      if (is_host) {
-        // host put future_len pointer at end of epx_data
-      } else {
+  #if CFG_TUD_ENABLED
+      if (!is_host) {
         ep->future_len   = (uint8_t)(buf_ctrl16_other & USB_BUF_CTRL_LEN_MASK);
+        ep->future_bufid = buf_id ^ 1;
       }
-      ep->future_bufid = buf_id ^ 1;
+  #endif
     } else {
       ep->next_pid ^= 1u; // roll back pid if aborted
     }
@@ -422,10 +411,11 @@ bool __tusb_irq_path_func(rp2usb_xfer_continue)(hw_endpoint_t *ep, io_rw_32 *ep_
 
   if (!is_done && ep->remaining_len > 0) {
   #if CFG_TUSB_RP2_ERRATA_E15
-    if (ep->e15_bulk_in && e15_is_critical_frame_period()) {
+    const bool need_e15 = ep->e15_bulk_in;
+    if (need_e15 && e15_is_critical_frame_period()) {
       // mark as pending if matches E15 condition
-      ep->pending = 1;
-    } else if (ep->e15_bulk_in && ep->pending) {
+      ep->state = EPSTATE_PENDING;
+    } else if (need_e15 && ep->state == EPSTATE_PENDING) {
       // if already pending, meaning the other buf completes first, don't arm buffer, let SOF handle it
       // do nothing
     } else

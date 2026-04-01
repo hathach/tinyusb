@@ -111,7 +111,6 @@ static void hw_endpoint_open(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t t
     // double buffered Bulk endpoint
     if (transfer_type == TUSB_XFER_BULK) {
       size *= 2u;
-
   #if CFG_TUSB_RP2_ERRATA_E15
       if (dir == TUSB_DIR_IN) {
         ep->e15_bulk_in = true;
@@ -195,7 +194,7 @@ TU_ATTR_ALWAYS_INLINE static inline void reset_ep0(void) {
   for (uint8_t dir = 0; dir < 2; dir++) {
     struct hw_endpoint *ep = hw_endpoint_get(0, dir);
     ep->next_pid = 1u;
-    if (ep->active) {
+    if (ep->state == EPSTATE_ACTIVE) {
       hw_endpoint_abort_xfer(ep); // Abort any pending transfer per USB specs
     }
   }
@@ -254,12 +253,12 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
       struct hw_endpoint *ep = hw_endpoint_get(i, TUSB_DIR_IN);
 
       // Active Bulk IN endpoint requires SOF
-      if (ep->e15_bulk_in && ep->active) {
+      if (ep->e15_bulk_in && ep->state == EPSTATE_ACTIVE) {
         keep_sof_alive = true;
         hw_endpoint_lock_update(ep, 1);
 
-        if (ep->pending) {
-          ep->pending         = 0;
+        if (ep->state == EPSTATE_PENDING) {
+          ep->state = EPSTATE_ACTIVE;
 
           io_rw_32 *buf_reg32 = get_buf_ctrl(i, TUSB_DIR_IN);
           io_rw_16 *buf_reg16 = (io_rw_16 *)buf_reg32;
@@ -276,7 +275,7 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
           if (buf0_idle && buf1_idle) {
             // both are idle, start fresh
             io_rw_32 *ep_reg = get_ep_ctrl(i, TUSB_DIR_IN);
-            rp2usb_buffer_start(ep, ep_reg, buf_reg32, false, false);
+            rp2usb_buffer_start(ep, ep_reg, buf_reg32, false);
           } else if (buf0_idle) {
             uint16_t buf0 = bufctrl_prepare16(ep, ep->dpram_buf, false);
             bufctrl_write16(buf_reg16, buf0);
@@ -501,7 +500,7 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *ep_desc) 
   struct hw_endpoint *ep    = hw_endpoint_get(epnum, dir);
   TU_ASSERT(ep->dpram_buf != NULL); // must be inited and allocated previously
 
-  if (ep->active) {
+  if (ep->state == EPSTATE_ACTIVE) {
     hw_endpoint_abort_xfer(ep); // abort any pending transfer
   }
   ep->max_packet_size = ep_desc->wMaxPacketSize;
