@@ -235,6 +235,12 @@ void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, tu_fifo_t *
   (void) ff;
   hw_endpoint_lock_update(ep, 1);
 
+  // We need to make sure the ep didn't get cleared from under us by an IRQ
+  if (!ep->configured) {
+    hw_endpoint_lock_update(ep, -1);
+    return;
+  }
+
   if (ep->active) {
     // TODO: Is this acceptable for interrupt packets?
     TU_LOG(1, "WARN: starting new transfer on already active ep %02X\r\n", ep->ep_addr);
