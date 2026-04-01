@@ -147,7 +147,7 @@
         },
         {
             "name": "raspberry_pi_pico_w",
-            "uid": "E6614C311B764A37",
+            "uid": "E6614864D35DAE36",
             "tests": {
                 "device": false, "host": true, "dual": false,
                 "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2023934", "is_cdc": true}]
