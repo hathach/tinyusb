@@ -123,7 +123,7 @@ void __tusb_irq_path_func(bufctrl_write32)(io_rw_32 *buf_reg, uint32_t value) {
   // Don't need delay in host mode as host is in charge of when to start the transaction.
   if (value & (USB_BUF_CTRL_AVAIL | (USB_BUF_CTRL_AVAIL << 16))) {
     if (!rp2usb_is_host_mode()) {
-      busy_wait_at_least_cycles(12);
+      busy_wait_us(1);
     }
     *buf_reg = value; // then set AVAILABLE bit last
   }
@@ -139,7 +139,7 @@ void __tusb_irq_path_func(bufctrl_write16)(io_rw_16 *buf_reg16, uint16_t value) 
   // Section 4.1.2.7.1 (rp2040) / 12.7.3.7.1 (rp2350) Concurrent access
   if (value & USB_BUF_CTRL_AVAIL) {
     if (!rp2usb_is_host_mode()) {
-      busy_wait_at_least_cycles(12);
+      busy_wait_us(1);
     }
     *buf_reg16 = value; // then set AVAILABLE bit last
   }
@@ -257,6 +257,7 @@ void rp2usb_xfer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, u
     if (ep->remaining_len == 0) {
       const uint16_t xferred_len = ep->xferred_len;
       rp2usb_reset_transfer(ep);
+
       dcd_event_xfer_complete(0, ep->ep_addr, xferred_len, XFER_RESULT_SUCCESS, false);
       hw_endpoint_lock_update(ep, -1);
       return;
@@ -275,7 +276,7 @@ void rp2usb_xfer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, u
     }
   }
     #endif // CFG_TUSB_RP2_ERRATA_E15
-  #endif   // CFG_TUD_ENABLED
+  #endif  // CFG_TUD_ENABLED
 
   rp2usb_buffer_start(ep, ep_reg, buf_reg, is_rx);
   hw_endpoint_lock_update(ep, -1);
