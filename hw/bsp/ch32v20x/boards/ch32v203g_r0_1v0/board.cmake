@@ -9,5 +9,6 @@ function(update_board TARGET)
   target_compile_definitions(${TARGET} PUBLIC
     SYSCLK_FREQ_144MHz_HSI=144000000
     CFG_EXAMPLE_MSC_DUAL_READONLY
+    CFG_EXAMPLE_MSC_FILE_EXPLORER_RW_BUFSIZE=1024
     )
 endfunction()

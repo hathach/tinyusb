@@ -166,6 +166,9 @@ def compute_avg(all_json_data):
                 file_accumulator[fname]["symbols"][name].append(sym.get("size", 0))
             sections_map = f.get("sections") or {}
             for sname, ssize in sections_map.items():
+                # linkermap -v produces nested dicts {subsection: size}, flatten to total
+                if isinstance(ssize, dict):
+                    ssize = sum(ssize.values())
                 file_accumulator[fname]["sections"][sname].append(ssize)
 
     # Build json_average with averaged values
@@ -209,7 +212,7 @@ def compute_avg(all_json_data):
 
 
 def compare_files(base_file, new_file, filters=None):
-    """Compare two CSV or JSON inputs and generate difference report."""
+    """Compare two CSV or JSON inputs and generate a difference report."""
     filters = filters or []
 
     base_avg = compute_avg(combine_files([base_file], filters))

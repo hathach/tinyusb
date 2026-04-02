@@ -147,10 +147,24 @@
         },
         {
             "name": "raspberry_pi_pico_w",
-            "uid": "E6614C311B764A37",
+            "uid": "E6614864D35DAE36",
             "tests": {
                 "device": false, "host": true, "dual": false,
-                "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2023934", "is_cdc": true}]
+                "dev_attached": [
+                    {
+                        "vid_pid": "1a86_55d4",
+                        "serial": "52D2023934",
+                        "is_cdc": true
+                    },
+                    {
+                        "vid_pid": "2008_2018",
+                        "serial": "O20070925A002746",
+                        "is_msc": true,
+                        "block_size": 512,
+                        "block_count": 4124152,
+                        "msc_inquiry": "USB2.0   Flash Disk       2.10"
+                    }
+                ]
             },
             "flasher": {
                 "name": "openocd",
@@ -182,7 +196,7 @@
                 "dev_attached": [
                     {"vid_pid": "0403_6001", "serial": "0", "is_cdc": true},
                     {"vid_pid": "058f_6387", "serial": "A8BEE062633D", "is_msc": true,
-                        "msc_disk_size": 3730, "msc_inquiry": "Generic  Flash Disk       rev 8.07"}
+                        "block_size": 512, "block_count": 7639040, "msc_inquiry": "Generic  Flash Disk       8.07"}
                 ]
             },
             "flasher": {

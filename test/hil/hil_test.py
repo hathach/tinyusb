@@ -50,7 +50,7 @@ import ctypes
 from pymtp import MTP
 import string
 
-ENUM_TIMEOUT = 30
+ENUM_TIMEOUT = 15
 
 STATUS_OK = "\033[32mOK\033[0m"
 STATUS_FAILED = "\033[31mFailed\033[0m"
@@ -155,8 +155,7 @@ def read_disk_file(uid, lun, fname):
 
 def open_mtp_dev(uid):
     mtp = MTP()
-    # MTP seems to take a while to enumerate
-    timeout = 2 * ENUM_TIMEOUT
+    timeout = ENUM_TIMEOUT
     while timeout > 0:
         # unmount gio/gvfs MTP mount which blocks libmtp from accessing the device
         subprocess.run(f"gio mount -u mtp://TinyUsb_TinyUsb_Device_{uid}/",
@@ -456,17 +455,30 @@ def test_host_device_info(board):
     return 0
 
 
-def print_msc_info(lines):
-    """Print MSC inquiry and disk size on a single line"""
+def check_msc_info(lines, msc_devs):
+    """Print MSC info and verify block_count/block_size against config"""
     inquiry = ''
     disk_size = ''
     for l in lines:
-        if re.match(r'^[A-Za-z].*\s+rev\s+', l):
+        if re.match(r'^[A-Za-z].*\s+(rev\s+|[0-9])', l) and 'Disk Size' not in l:
             inquiry = l.strip()
         if 'Disk Size' in l:
             disk_size = l.strip()
     if inquiry or disk_size:
         print(f'\r\n  {inquiry} {disk_size} ', end='')
+    # Verify block_count and block_size from "Disk Size: COUNT SIZE-byte blocks: N MB"
+    if disk_size and msc_devs:
+        m = re.match(r'Disk Size:\s+(\d+)\s+(\d+)-byte blocks', disk_size)
+        if m:
+            actual_count = int(m.group(1))
+            actual_size = int(m.group(2))
+            for dev in msc_devs:
+                exp_count = dev.get('block_count')
+                exp_size = dev.get('block_size')
+                if exp_count and actual_count == exp_count:
+                    assert actual_size == exp_size, (
+                        f'MSC block_size mismatch: expected {exp_size}, got {actual_size}')
+                    break
 
 
 def test_host_cdc_msc_hid(board):
@@ -475,7 +487,7 @@ def test_host_cdc_msc_hid(board):
     cdc_devs = [d for d in dev_attached if d.get('is_cdc')]
     msc_devs = [d for d in dev_attached if d.get('is_msc')]
     if not cdc_devs and not msc_devs:
-        return
+        return 'skipped'
 
     port = get_serial_dev(flasher["uid"], None, None, 0)
     ser = open_serial_dev(port)
@@ -525,7 +537,7 @@ def test_host_cdc_msc_hid(board):
     if msc_devs:
         assert b'MassStorage device is mounted' in data, 'MSC device not mounted on host'
         assert b'Disk Size' in data, 'MSC Disk Size not reported'
-        print_msc_info(lines)
+        check_msc_info(lines, msc_devs)
 
     # CDC echo test via flasher serial
     if not cdc_devs:
@@ -533,33 +545,34 @@ def test_host_cdc_msc_hid(board):
         return
 
     time.sleep(2)
+    ser.read(ser.in_waiting)
     ser.reset_input_buffer()
 
     def rand_ascii(length):
         return "".join(random.choices(string.ascii_letters + string.digits, k=length)).encode("ascii")
 
-    sizes = [8, 32, 64, 128]
-    for size in sizes:
-        test_data = rand_ascii(size)
-        ser.reset_input_buffer()
+    packet_size = 64
 
-        # Write byte-by-byte with delay to avoid UART overrun
-        for b in test_data:
-            ser.write(bytes([b]))
-            ser.flush()
-            time.sleep(0.001)
-
-        # Read echo back with timeout
+    # Echo test: write random 1-packet_size chunks, wait for echo before sending next
+    echo_len = 1024
+    echo_data = rand_ascii(echo_len)
+    ser.reset_input_buffer()
+    offset = 0
+    while offset < echo_len:
+        chunk_size = min(random.randint(1, packet_size), echo_len - offset)
+        ser.write(echo_data[offset:offset + chunk_size])
+        ser.flush()
+        # wait until this chunk is echoed back
         echo = b''
-        t = 5.0
-        while t > 0 and len(echo) < size:
-            rd = ser.read(max(1, ser.in_waiting))
+        t_end = time.monotonic() + 5.0
+        while time.monotonic() < t_end and len(echo) < chunk_size:
+            rd = ser.read(chunk_size - len(echo))
             if rd:
                 echo += rd
-            time.sleep(0.05)
-            t -= 0.05
-        assert echo == test_data, (f'CDC echo wrong data ({size} bytes):\n'
-                                   f'  expected: {test_data}\n  received: {echo}')
+        expected = echo_data[offset:offset + chunk_size]
+        assert echo == expected, (f'CDC echo mismatch at offset {offset} ({chunk_size} bytes):\n'
+                                  f'  expected: {expected}\n  received: {echo}')
+        offset += chunk_size
 
     ser.close()
 
@@ -568,7 +581,7 @@ def test_host_msc_file_explorer(board):
     flasher = board['flasher']
     msc_devs = [d for d in board['tests'].get('dev_attached', []) if d.get('is_msc')]
     if not msc_devs:
-        return
+        return 'skipped'
 
     port = get_serial_dev(flasher["uid"], None, None, 0)
     ser = open_serial_dev(port)
@@ -591,9 +604,9 @@ def test_host_msc_file_explorer(board):
         timeout -= 0.1
     assert b'Disk Size' in data, 'MSC device not mounted'
     lines = data.decode('utf-8', errors='ignore').splitlines()
-    print_msc_info(lines)
+    check_msc_info(lines, msc_devs)
 
-    # Send "cat README.TXT" and read response
+    # Send "cat README.TXT" and check response (optional — file may not exist on all drives)
     time.sleep(1)
     ser.reset_input_buffer()
     for ch in 'cat README.TXT\r':
@@ -601,24 +614,46 @@ def test_host_msc_file_explorer(board):
         ser.flush()
         time.sleep(0.002)
 
-    # Read response
     resp = b''
     t = 10.0
     while t > 0:
         rd = ser.read(max(1, ser.in_waiting))
         if rd:
             resp += rd
-        # wait for prompt after command output
         if b'>' in resp and resp.rstrip().endswith(b'>'):
             break
         time.sleep(0.05)
         t -= 0.05
 
-    # Verify response contains README content
     resp_text = resp.decode('utf-8', errors='ignore')
-    assert MSC_README_TXT.decode() in resp_text, (f'MSC README.TXT not found in response:\n'
-                                                   f'  received: {resp_text}')
-    print('README.TXT matched ', end='')
+    if MSC_README_TXT.decode() in resp_text:
+        print('README.TXT matched ', end='')
+
+    # MSC throughput test: send dd command to read sectors
+    time.sleep(0.5)
+    ser.reset_input_buffer()
+    for ch in 'dd 1024\r':
+        ser.write(ch.encode())
+        ser.flush()
+        time.sleep(0.002)
+
+    # Read dd output until prompt
+    resp = b''
+    t = 30.0
+    while t > 0:
+        rd = ser.read(max(1, ser.in_waiting))
+        if rd:
+            resp += rd
+        if b'KB/s' in resp and b'>' in resp:
+            break
+        time.sleep(0.05)
+        t -= 0.05
+
+    resp_text = resp.decode('utf-8', errors='ignore')
+    for line in resp_text.splitlines():
+        if 'KB/s' in line:
+            print(f'{line.strip()} ', end='')
+            break
 
     ser.close()
 
@@ -699,6 +734,53 @@ def test_device_cdc_msc(board):
     # MSC Block test
     data = read_disk_file(uid, 0, 'README.TXT')
     assert data == MSC_README_TXT, f'MSC wrong data in README.TXT\n expected: {MSC_README_TXT.decode()}\n received: {data.decode()}'
+
+    # MSC dd throughput test: read all sectors then write back same data
+    dev = get_disk_dev(uid, 'TinyUSB', 0)
+    timeout = ENUM_TIMEOUT
+    while timeout > 0:
+        if os.path.exists(dev):
+            break
+        time.sleep(1)
+        timeout -= 1
+    assert timeout > 0, f'Disk {dev} not found for dd test'
+
+    block_count = 16
+    block_size = 512
+    tmp_file = f'/tmp/msc_dd_{uid}.bin'
+
+    # dd reports speed based on payload only. Each block also transfers 31-byte CBW + 13-byte CSW on USB.
+    scsi_ratio = (block_size + 31 + 13) / block_size
+
+    def parse_dd_speed(dd_output):
+        """Parse dd output, return USB-adjusted speed string"""
+        for line in dd_output.splitlines():
+            m = re.search(r'([\d.]+)\s+([kMG]?B/s)', line)
+            if m:
+                speed_val = float(m.group(1)) * scsi_ratio
+                return f'{speed_val:.1f} {m.group(2)}'
+        return ''
+
+    # Read: dd from device to file
+    ret = run_cmd(f'dd if={dev} of={tmp_file} bs={block_size} count={block_count} iflag=direct 2>&1')
+    assert ret.returncode == 0, f'dd read failed: {ret.stdout.decode()}'
+    read_speed = parse_dd_speed(ret.stdout.decode())
+
+    # Write back the same data to avoid corrupting the disk (skip if read-only)
+    ret = run_cmd(f'dd if={tmp_file} of={dev} bs={block_size} count={block_count} oflag=direct 2>&1')
+    if ret.returncode != 0 and 'Read-only' in ret.stdout.decode():
+        write_speed = 'skip (read-only)'
+    else:
+        assert ret.returncode == 0, f'dd write failed: {ret.stdout.decode()}'
+        write_speed = parse_dd_speed(ret.stdout.decode())
+
+    try:
+        os.remove(tmp_file)
+    except OSError:
+        pass
+
+    if read_speed and write_speed:
+        print(f'  dd read: {read_speed}, write: {write_speed}', end='')
 
 
 def test_device_cdc_msc_freertos(board):
@@ -1113,8 +1195,11 @@ def test_example(board, f1, example):
         ret = globals()[f'flash_{board["flasher"]["name"].lower()}'](board, fw_name)
         if ret.returncode == 0:
             try:
-                globals()[f'test_{example.replace("/", "_")}'](board)
-                print('  OK', end='')
+                tret = globals()[f'test_{example.replace("/", "_")}'](board)
+                if tret == 'skipped':
+                    print(f'  {STATUS_SKIPPED}', end='')
+                else:
+                    print('  OK', end='')
                 break
             except Exception as e:
                 if i == max_rety - 1:
