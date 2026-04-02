@@ -288,8 +288,8 @@ int board_getchar(void) {
   return getchar_timeout_us(0);
 }
 
-void board_putchar(int c) {
-  stdio_putchar(c);
+int board_putchar(int c) {
+  return stdio_putchar(c);
 }
 
 void board_init_after_tusb(void) {

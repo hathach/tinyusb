@@ -53,7 +53,7 @@ void cdc_app_init(void) {
 }
 
 // helper
-static size_t get_console_inputs(uint8_t *buf, size_t bufsize) {
+static size_t console_read(uint8_t *buf, size_t bufsize) {
   size_t count = 0;
   while (count < bufsize) {
     int ch = board_getchar();
@@ -75,7 +75,7 @@ static void cdc_app_task(void* param) {
   uint32_t const bufsize = sizeof(buf) - 1;
 
   while (1) {
-    uint32_t count = get_console_inputs(buf, bufsize);
+    uint32_t count = console_read(buf, bufsize);
     buf[count] = 0;
 
     if (count) {

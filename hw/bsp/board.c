@@ -97,9 +97,17 @@ int sys_read (int fhdl, char *buf, size_t count) {
 #else
 
 // Default logging with on-board UART
+// Retry to ensure printf/log output is not lost when board_uart_write is non-blocking
 int sys_write (int fhdl, const char *buf, size_t count) {
   (void) fhdl;
-  return board_uart_write(buf, (int) count);
+  int written = 0;
+  while ((size_t)written < count) {
+    int wr = board_uart_write(buf + written, (int)(count - (size_t)written));
+    if (wr > 0) {
+      written += wr;
+    }
+  }
+  return written;
 }
 
 int sys_read (int fhdl, char *buf, size_t count) {
@@ -157,10 +165,13 @@ int board_getchar(void) {
   return (sys_read(0, &c, 1) > 0) ? (int) c : (-1);
 }
 
-void board_putchar(int c) {
-  (void) sys_write(0, (const char*)&c, 1);
+int board_putchar(int c) {
+  if (board_uart_write((const char *)&c, 1)) {
+    return c;
+  } else {
+    return -1;
+  }
 }
-
 //--------------------------------------------------------------------
 // FreeRTOS hooks
 //--------------------------------------------------------------------
