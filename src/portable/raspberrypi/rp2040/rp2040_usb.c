@@ -51,10 +51,14 @@ critical_section_t rp2usb_lock;
 //--------------------------------------------------------------------+
 // Implementation
 //--------------------------------------------------------------------+
-// Provide own byte by byte memcpy as not all copies are aligned
+// Provide own byte by byte memcpy as not all copies are aligned.
+// Use volatile to prevent compiler from widening to 16/32-bit accesses
+// which cause hard fault on RP2350 when dst/src point to USB DPRAM.
 static void unaligned_memcpy(uint8_t *dst, const uint8_t *src, size_t n) {
+  volatile uint8_t *vdst = dst;
+  const volatile uint8_t *vsrc = src;
   while (n--) {
-    *dst++ = *src++;
+    *vdst++ = *vsrc++;
   }
 }
 
