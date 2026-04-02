@@ -1189,9 +1189,8 @@ def test_example(board, f1, example):
         print(f'Flashing {fw_name}.elf')
 
     # flash firmware. It may fail randomly, retry a few times
-    max_rety = max_retry
     start_s = time.time()
-    for i in range(max_rety):
+    for i in range(max_retry):
         ret = globals()[f'flash_{board["flasher"]["name"].lower()}'](board, fw_name)
         if ret.returncode == 0:
             try:
@@ -1202,14 +1201,14 @@ def test_example(board, f1, example):
                     print('  OK', end='')
                 break
             except Exception as e:
-                if i == max_rety - 1:
+                if i == max_retry - 1:
                     err_count += 1
                     print(f'{STATUS_FAILED}: {e}')
                 else:
-                    print(f'\n  Test failed: {e}, retry {i+2}/{max_rety}', end='')
+                    print(f'\n  Test failed: {e}, retry {i+2}/{max_retry}', end='')
                     time.sleep(0.5)
         else:
-            print(f'\n  Flash failed, retry {i+2}/{max_rety}', end='')
+            print(f'\n  Flash failed, retry {i+2}/{max_retry}', end='')
             time.sleep(0.5)
 
     if ret.returncode != 0:

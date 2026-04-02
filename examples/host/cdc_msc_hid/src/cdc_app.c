@@ -43,14 +43,10 @@ static size_t console_read(uint8_t *buf, size_t bufsize) {
 }
 
 static size_t console_write(const uint8_t *buf, size_t bufsize) {
-  size_t count = 0;
-  while (count < bufsize) {
-    if (board_putchar((int)buf[count]) < 0) {
-      break;
-    }
-    count++;
-  }
-  return count;
+  // Use board_uart_write directly for non-blocking behavior.
+  // board_putchar -> sys_write has a blocking retry loop that causes UART RX overrun.
+  int wr = board_uart_write(buf, (int) bufsize);
+  return (wr > 0) ? (size_t) wr : 0;
 }
 
 // forward from console to usbh
@@ -78,7 +74,7 @@ void cdc_app_task(void) {
   do {
     // uart write is slow, while waiting forward uart -> usbh else uart rx can be overflow
     if (count) {
-      wr += console_write(buf + wr, count);
+      wr += console_write(buf + wr, count - wr);
     }
     console_to_usbh(idx);
   } while (wr < count);
