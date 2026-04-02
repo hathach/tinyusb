@@ -8,6 +8,9 @@ from multiprocessing import Pool
 # Mandatory Dependencies that is always fetched
 # path, url, commit, family (Alphabet sorted by path)
 deps_mandatory = {
+    'lib/fatfs': ['https://github.com/abbrev/fatfs.git',
+                  '30ca13c62615df0d2e9104ab41256985b96590c1',
+                  'all'],
     'lib/FreeRTOS-Kernel': ['https://github.com/FreeRTOS/FreeRTOS-Kernel.git',
                             'cc0e0707c0c748713485b870bb980852b210877f',
                             'all'],
@@ -284,6 +287,11 @@ deps_optional = {
                          'lpc55'],
 }
 
+# Files to remove after cloning to avoid conflicts with TinyUSB's custom versions
+deps_remove_files = {
+    'lib/fatfs': ['source/ffconf.h'],
+}
+
 # combined 2 deps
 deps_all = {**deps_mandatory, **deps_optional}
 
@@ -328,6 +336,13 @@ def get_a_dep(d):
     if commit != head:
         run_cmd(f"{git_cmd} fetch --depth 1 origin {commit}")
         run_cmd(f"{git_cmd} checkout FETCH_HEAD")
+
+    # Remove files that conflict with TinyUSB's custom versions
+    if d in deps_remove_files:
+        for f in deps_remove_files[d]:
+            fp = p / f
+            if fp.exists():
+                fp.unlink()
 
     return 0
 
