@@ -127,7 +127,7 @@ void __tusb_irq_path_func(bufctrl_write32)(io_rw_32 *buf_reg, uint32_t value) {
   // Don't need delay in host mode as host is in charge of when to start the transaction.
   if (value & (USB_BUF_CTRL_AVAIL | (USB_BUF_CTRL_AVAIL << 16))) {
     if (!rp2usb_is_host_mode()) {
-      busy_wait_us(1);
+      busy_wait_at_least_cycles(32);
     }
     *buf_reg = value; // then set AVAILABLE bit last
   }
@@ -143,7 +143,7 @@ void __tusb_irq_path_func(bufctrl_write16)(io_rw_16 *buf_reg16, uint16_t value) 
   // Section 4.1.2.7.1 (rp2040) / 12.7.3.7.1 (rp2350) Concurrent access
   if (value & USB_BUF_CTRL_AVAIL) {
     if (!rp2usb_is_host_mode()) {
-      busy_wait_us(1);
+      busy_wait_at_least_cycles(32);
     }
     *buf_reg16 = value; // then set AVAILABLE bit last
   }

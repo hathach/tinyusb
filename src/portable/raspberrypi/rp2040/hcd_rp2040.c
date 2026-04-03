@@ -84,7 +84,6 @@ enum {
 };
 
 //--------------------------------------------------------------------+
-//--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
 
@@ -179,10 +178,10 @@ static void __tusb_irq_path_func(sie_start_xfer)(bool send_setup, bool is_rx, bo
   }
 
   // START_TRANS bit on SIE_CTRL has the same behavior as the AVAILABLE bit
-  // described in RP2040 Datasheet, release 2.1, section "4.1.2.5.1. Concurrent access".
+  // described in RP2040 Datasheet, release 2.1, section "4.1.2.5.1. Concurrent access".!
   // We write everything except the START_TRANS bit first, then wait some cycles.
   usb_hw->sie_ctrl = sie_ctrl;
-  busy_wait_us(1);
+  busy_wait_at_least_cycles(32);
   usb_hw->sie_ctrl = sie_ctrl | USB_SIE_CTRL_START_TRANS_BITS;
 }
 
@@ -232,7 +231,7 @@ static void __tusb_irq_path_func(epx_save_context)(hw_endpoint_t *ep) {
 static void __tusb_irq_path_func(epx_switch_ep)(hw_endpoint_t *ep) {
   const bool is_setup = (ep->state == EPSTATE_PENDING_SETUP);
 
-  epx      = ep; // switch pointer
+  epx       = ep; // switch pointer
   ep->state = EPSTATE_ACTIVE;
 
   if (is_setup) {
@@ -350,7 +349,7 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
   if (status & USB_INTS_HOST_CONN_DIS_BITS) {
     // Clear speed latch first; after settle the re-read reflects the true current state.
     usb_hw_clear->sie_status = USB_SIE_STATUS_SPEED_BITS;
-    busy_wait_us(1);
+    busy_wait_at_least_cycles(32);
     const uint8_t speed = dev_speed();
     if (speed == SIE_CTRL_SPEED_DISCONNECT) {
       // Stop SIE and silence hardware before emitting remove. Concurrent
