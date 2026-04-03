@@ -150,6 +150,7 @@ void board_init(void) {
 #ifdef UART_DEV
   UART_CLK_EN();
   HAL_UART_Init(&UartHandle);
+  HAL_UARTEx_EnableFifoMode(&UartHandle);
 #endif
 
   //------------- USB FS -------------//
@@ -298,12 +299,20 @@ int board_uart_read(uint8_t *buf, int len) {
 
 int board_uart_write(void const *buf, int len) {
 #ifdef UART_DEV
-  HAL_UART_Transmit(&UartHandle, (uint8_t * )(uintptr_t)
-  buf, len, 0xffff);
-  return len;
+  const uint8_t *p = (const uint8_t *) buf;
+  int count = 0;
+  while (count < len) {
+    if (__HAL_UART_GET_FLAG(&UartHandle, UART_FLAG_TXE)) {
+      UartHandle.Instance->TDR = p[count];
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
 #else
   (void) buf; (void) len;
-  return -1;
+  return 0;
 #endif
 }
 

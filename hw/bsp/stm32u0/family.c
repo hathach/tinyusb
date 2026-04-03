@@ -115,6 +115,7 @@ void board_init(void) {
   UartHandle.Init.Mode       = UART_MODE_TX_RX;
   UartHandle.Init.OverSampling = UART_OVERSAMPLING_16;
   HAL_UART_Init(&UartHandle);
+  HAL_UARTEx_EnableFifoMode(&UartHandle);
 #endif
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
@@ -154,17 +155,35 @@ uint32_t board_button_read(void) {
 
 int board_uart_read(uint8_t* buf, int len) {
 #ifdef UART_DEV
-  (void) buf; (void) len;
-  return 0;
+  int count = 0;
+  while (count < len) {
+    if (__HAL_UART_GET_FLAG(&UartHandle, UART_FLAG_RXNE)) {
+      buf[count] = (uint8_t) UartHandle.Instance->RDR;
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
 #else
+  (void) buf; (void) len;
   return 0;
 #endif
 }
 
-int board_uart_write(void const * buf, int len) {
+int board_uart_write(void const *buf, int len) {
 #ifdef UART_DEV
-  HAL_UART_Transmit(&UartHandle, (uint8_t*)(uintptr_t) buf, len, 0xffff);
-  return len;
+  const uint8_t *p = (const uint8_t *) buf;
+  int count = 0;
+  while (count < len) {
+    if (__HAL_UART_GET_FLAG(&UartHandle, UART_FLAG_TXE)) {
+      UartHandle.Instance->TDR = p[count];
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
 #else
   (void) buf; (void) len;
   return 0;

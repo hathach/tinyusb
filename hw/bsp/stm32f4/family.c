@@ -30,6 +30,7 @@
 
 #include "stm32f4xx_hal.h"
 #include "bsp/board_api.h"
+#include "common/tusb_fifo.h"
 
 typedef struct {
   GPIO_TypeDef* port;
@@ -57,15 +58,39 @@ void OTG_HS_IRQHandler(void) {
 static UART_HandleTypeDef UartHandle = {
     .Instance = UART_DEV,
     .Init = {
-      .BaudRate   = CFG_BOARD_UART_BAUDRATE,
-      .WordLength = UART_WORDLENGTH_8B,
-      .StopBits   = UART_STOPBITS_1,
-      .Parity     = UART_PARITY_NONE,
-      .HwFlowCtl  = UART_HWCONTROL_NONE,
-      .Mode       = UART_MODE_TX_RX,
+      .BaudRate     = CFG_BOARD_UART_BAUDRATE,
+      .WordLength   = UART_WORDLENGTH_8B,
+      .StopBits     = UART_STOPBITS_1,
+      .Parity       = UART_PARITY_NONE,
+      .HwFlowCtl    = UART_HWCONTROL_NONE,
+      .Mode         = UART_MODE_TX_RX,
       .OverSampling = UART_OVERSAMPLING_16
     }
 };
+
+// RX ring buffer via RXNE interrupt
+static uint8_t   uart_rx_ff_buf[32];
+static tu_fifo_t uart_rx_ff;
+
+// F4 uses old USART IP (SR/DR)
+static void uart_rx_isr(void) {
+  uint32_t sr = UART_DEV->SR;
+  if (sr & USART_SR_RXNE) {
+    uint8_t byte = (uint8_t) UART_DEV->DR;
+    tu_fifo_write(&uart_rx_ff, &byte);
+  }
+  // Reading DR clears RXNE. OR is cleared by reading SR then DR (already done).
+}
+
+void USART1_IRQHandler(void) {
+  uart_rx_isr();
+}
+void USART2_IRQHandler(void) {
+  uart_rx_isr();
+}
+void USART3_IRQHandler(void) {
+  uart_rx_isr();
+}
 #endif
 
 void board_init(void) {
@@ -113,6 +138,13 @@ void board_init(void) {
 
 #ifdef UART_DEV
   HAL_UART_Init(&UartHandle);
+  tu_fifo_config(&uart_rx_ff, uart_rx_ff_buf, sizeof(uart_rx_ff_buf), false);
+  UART_DEV->CR1 |= USART_CR1_RXNEIE;
+  const IRQn_Type uart_irqn = (UART_DEV == USART1) ? USART1_IRQn
+                            : (UART_DEV == USART2) ? USART2_IRQn
+                                                   : USART3_IRQn;
+  NVIC_SetPriority(uart_irqn, (1 << __NVIC_PRIO_BITS) - 1);
+  NVIC_EnableIRQ(uart_irqn);
 #endif
 
   //------------- USB FS -------------//
@@ -228,15 +260,27 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len) {
 }
 
 int board_uart_read(uint8_t *buf, int len) {
-  (void) buf;
-  (void) len;
+#ifdef UART_DEV
+  return (int) tu_fifo_read_n(&uart_rx_ff, buf, (uint16_t) len);
+#else
+  (void) buf; (void) len;
   return 0;
+#endif
 }
 
 int board_uart_write(void const *buf, int len) {
 #ifdef UART_DEV
-  HAL_UART_Transmit(&UartHandle, (uint8_t *) (uintptr_t) buf, len, 0xffff);
-  return len;
+  const uint8_t *p = (const uint8_t *) buf;
+  int count = 0;
+  while (count < len) {
+    if (UartHandle.Instance->SR & USART_SR_TXE) {
+      UartHandle.Instance->DR = p[count];
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
 #else
   (void) buf; (void) len;
   return 0;
