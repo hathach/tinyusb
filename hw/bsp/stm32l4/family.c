@@ -34,6 +34,16 @@
 #include "bsp/board_api.h"
 #include "board.h"
 
+#ifdef UART_ID
+  #if UART_ID == 2
+    #define USARTn            USART2
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART2_CLK_ENABLE
+  #elif UART_ID == 11
+    #define USARTn            LPUART1
+    #define UARTn_CLK_ENABLE  __HAL_RCC_LPUART1_CLK_ENABLE
+  #endif
+#endif
+
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
@@ -50,7 +60,9 @@ void USB_IRQHandler(void)
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
 
+#ifdef UART_ID
 UART_HandleTypeDef UartHandle;
+#endif
 
 void board_init(void) {
   board_clock_init();
@@ -72,7 +84,9 @@ void board_init(void) {
   __HAL_RCC_GPIOG_CLK_ENABLE();
 #endif
   __HAL_RCC_GPIOH_CLK_ENABLE();
-  UART_CLK_EN();
+#ifdef UART_ID
+  UARTn_CLK_ENABLE();
+#endif
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
   // 1ms tick timer
@@ -121,6 +135,7 @@ void board_init(void) {
   HAL_PWREx_EnableVddIO2();
 #endif
 
+#ifdef UART_ID
   // Uart
   GPIO_InitStruct.Pin       = UART_TX_PIN | UART_RX_PIN;
   GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
@@ -128,7 +143,7 @@ void board_init(void) {
   GPIO_InitStruct.Alternate = UART_GPIO_AF;
   HAL_GPIO_Init(UART_GPIO_PORT, &GPIO_InitStruct);
 
-  UartHandle.Instance        = UART_DEV;
+  UartHandle.Instance        = USARTn;
   UartHandle.Init.BaudRate   = CFG_BOARD_UART_BAUDRATE;
   UartHandle.Init.WordLength = UART_WORDLENGTH_8B;
   UartHandle.Init.StopBits   = UART_STOPBITS_1;
@@ -141,8 +156,9 @@ void board_init(void) {
   UartHandle.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
 
   HAL_UART_Init(&UartHandle);
-#if defined(USART_CR1_FIFOEN)
+  #if defined(USART_CR1_FIFOEN)
   HAL_UARTEx_EnableFifoMode(&UartHandle);
+  #endif
 #endif
 
   /* Configure USB FS GPIOs */
@@ -216,7 +232,7 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len) {
 }
 
 int board_uart_read(uint8_t *buf, int len) {
-#ifdef UART_DEV
+#ifdef UART_ID
   int count = 0;
   while (count < len) {
     if (__HAL_UART_GET_FLAG(&UartHandle, UART_FLAG_RXNE)) {
@@ -234,7 +250,7 @@ int board_uart_read(uint8_t *buf, int len) {
 }
 
 int board_uart_write(void const *buf, int len) {
-#ifdef UART_DEV
+#ifdef UART_ID
   const uint8_t *p = (const uint8_t *) buf;
   int count = 0;
   while (count < len) {

@@ -47,8 +47,7 @@
 #define BUTTON_STATE_ACTIVE   0  // Active low (pressed = 0)
 
 // UART - using USART2 on PA2/PA3 (VCP TX/RX from CubeMX)
-#define UART_DEV              USART2
-#define UART_CLK_EN           __HAL_RCC_USART2_CLK_ENABLE
+#define UART_ID               2
 #define UART_GPIO_PORT        GPIOA
 #define UART_GPIO_AF          GPIO_AF7_USART2
 #define UART_TX_PIN           GPIO_PIN_2

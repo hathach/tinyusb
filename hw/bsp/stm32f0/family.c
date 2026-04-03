@@ -33,6 +33,20 @@
 #include "common/tusb_fifo.h"
 #include "board.h"
 
+#ifdef UART_ID
+  #if UART_ID == 1
+    #define USARTn            USART1
+    #define USARTn_IRQn       USART1_IRQn
+    #define USARTn_IRQHandler USART1_IRQHandler
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART1_CLK_ENABLE
+  #elif UART_ID == 2
+    #define USARTn            USART2
+    #define USARTn_IRQn       USART2_IRQn
+    #define USARTn_IRQHandler USART2_IRQHandler
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART2_CLK_ENABLE
+  #endif
+#endif
+
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
@@ -43,9 +57,9 @@ void USB_IRQHandler(void) {
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
-#ifdef UART_DEV
+#ifdef UART_ID
 static UART_HandleTypeDef UartHandle = {
-  .Instance = UART_DEV,
+  .Instance = USARTn,
   .Init = {
     .BaudRate     = CFG_BOARD_UART_BAUDRATE,
     .WordLength   = UART_WORDLENGTH_8B,
@@ -62,22 +76,15 @@ static uint8_t   uart_rx_ff_buf[32];
 static tu_fifo_t uart_rx_ff;
 
 // F0 uses new USART IP (ISR/RDR/TDR/ICR) — same as F7
-static void uart_rx_isr(void) {
-  uint32_t isr = UART_DEV->ISR;
+void USARTn_IRQHandler(void) {
+  uint32_t isr = USARTn->ISR;
   if (isr & USART_ISR_RXNE) {
-    uint8_t byte = (uint8_t) UART_DEV->RDR;
+    uint8_t byte = (uint8_t) USARTn->RDR;
     tu_fifo_write(&uart_rx_ff, &byte);
   }
   if (isr & (USART_ISR_ORE | USART_ISR_FE | USART_ISR_NE | USART_ISR_PE)) {
-    UART_DEV->ICR = USART_ICR_ORECF | USART_ICR_FECF | USART_ICR_NCF | USART_ICR_PECF;
+    USARTn->ICR = USART_ICR_ORECF | USART_ICR_FECF | USART_ICR_NCF | USART_ICR_PECF;
   }
-}
-
-void USART1_IRQHandler(void) {
-  uart_rx_isr();
-}
-void USART2_IRQHandler(void) {
-  uart_rx_isr();
 }
 #endif
 
@@ -118,9 +125,9 @@ void board_init(void) {
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
 
-#ifdef UART_DEV
+#ifdef UART_ID
   // Enable UART Clock
-  UART_CLK_EN();
+  UARTn_CLK_ENABLE();
 
   // Uart
   GPIO_InitStruct.Pin = UART_TX_PIN | UART_RX_PIN;
@@ -132,10 +139,9 @@ void board_init(void) {
 
   HAL_UART_Init(&UartHandle);
   tu_fifo_config(&uart_rx_ff, uart_rx_ff_buf, sizeof(uart_rx_ff_buf), false);
-  UART_DEV->CR1 |= USART_CR1_RXNEIE;
-  const IRQn_Type uart_irqn = (UART_DEV == USART1) ? USART1_IRQn : USART2_IRQn;
-  NVIC_SetPriority(uart_irqn, (1 << __NVIC_PRIO_BITS) - 1);
-  NVIC_EnableIRQ(uart_irqn);
+  USARTn->CR1 |= USART_CR1_RXNEIE;
+  NVIC_SetPriority(USARTn_IRQn, (1 << __NVIC_PRIO_BITS) - 1);
+  NVIC_EnableIRQ(USARTn_IRQn);
 #endif
 
   // USB Pins
@@ -177,7 +183,7 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len) {
 }
 
 int board_uart_read(uint8_t *buf, int len) {
-#ifdef UART_DEV
+#ifdef UART_ID
   return (int) tu_fifo_read_n(&uart_rx_ff, buf, (uint16_t) len);
 #else
   (void) buf; (void) len;
@@ -186,7 +192,7 @@ int board_uart_read(uint8_t *buf, int len) {
 }
 
 int board_uart_write(void const *buf, int len) {
-#ifdef UART_DEV
+#ifdef UART_ID
   const uint8_t *p = (const uint8_t *) buf;
   int count = 0;
   while (count < len) {

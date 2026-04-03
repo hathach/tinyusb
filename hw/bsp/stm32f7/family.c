@@ -42,12 +42,36 @@ typedef struct {
 
 #include "board.h"
 
+#ifdef UART_ID
+  #if UART_ID == 1
+    #define USARTn            USART1
+    #define USARTn_IRQn       USART1_IRQn
+    #define USARTn_IRQHandler USART1_IRQHandler
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART1_CLK_ENABLE
+  #elif UART_ID == 2
+    #define USARTn            USART2
+    #define USARTn_IRQn       USART2_IRQn
+    #define USARTn_IRQHandler USART2_IRQHandler
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART2_CLK_ENABLE
+  #elif UART_ID == 3
+    #define USARTn            USART3
+    #define USARTn_IRQn       USART3_IRQn
+    #define USARTn_IRQHandler USART3_IRQHandler
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART3_CLK_ENABLE
+  #elif UART_ID == 6
+    #define USARTn            USART6
+    #define USARTn_IRQn       USART6_IRQn
+    #define USARTn_IRQHandler USART6_IRQHandler
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART6_CLK_ENABLE
+  #endif
+#endif
+
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
 
-#ifdef UART_DEV
-static UART_HandleTypeDef UartHandle = {.Instance = UART_DEV,
+#ifdef UART_ID
+static UART_HandleTypeDef UartHandle = {.Instance = USARTn,
                                         .Init     = {
                                               .BaudRate     = CFG_BOARD_UART_BAUDRATE,
                                               .WordLength   = UART_WORDLENGTH_8B,
@@ -62,31 +86,15 @@ static UART_HandleTypeDef UartHandle = {.Instance = UART_DEV,
 static uint8_t   uart_rx_ff_buf[32];
 static tu_fifo_t uart_rx_ff;
 
-// Minimal UART RX ISR: direct register access, no HAL overhead
-static void uart_rx_isr(void) {
-  uint32_t isr = UART_DEV->ISR;
-  // Read data if available
+void USARTn_IRQHandler(void) {
+  uint32_t isr = USARTn->ISR;
   if (isr & USART_ISR_RXNE) {
-    uint8_t byte = (uint8_t)UART_DEV->RDR;
+    uint8_t byte = (uint8_t) USARTn->RDR;
     tu_fifo_write(&uart_rx_ff, &byte);
   }
-  // Clear error flags (OR, FE, NE, PE) via ICR
   if (isr & (USART_ISR_ORE | USART_ISR_FE | USART_ISR_NE | USART_ISR_PE)) {
-    UART_DEV->ICR = USART_ICR_ORECF | USART_ICR_FECF | USART_ICR_NCF | USART_ICR_PECF;
+    USARTn->ICR = USART_ICR_ORECF | USART_ICR_FECF | USART_ICR_NCF | USART_ICR_PECF;
   }
-}
-
-void USART1_IRQHandler(void) {
-  uart_rx_isr();
-}
-void USART2_IRQHandler(void) {
-  uart_rx_isr();
-}
-void USART3_IRQHandler(void) {
-  uart_rx_isr();
-}
-void USART6_IRQHandler(void) {
-  uart_rx_isr();
 }
 #endif
 
@@ -143,18 +151,13 @@ void board_init(void) {
   NVIC_SetPriority(OTG_HS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 #endif
 
-#ifdef UART_DEV
+#ifdef UART_ID
+  UARTn_CLK_ENABLE();
   HAL_UART_Init(&UartHandle);
   tu_fifo_config(&uart_rx_ff, uart_rx_ff_buf, sizeof(uart_rx_ff_buf), false);
-  // Enable RXNE interrupt via direct register (not HAL_UART_Receive_IT)
-  UART_DEV->CR1 |= USART_CR1_RXNEIE;
-  const IRQn_Type uart_irqn = (UART_DEV == USART1)   ? USART1_IRQn
-                              : (UART_DEV == USART2) ? USART2_IRQn
-                              : (UART_DEV == USART3) ? USART3_IRQn
-                                                     : USART6_IRQn;
-  // Lowest priority: UART RX ISR only writes to tu_fifo, no FreeRTOS API calls
-  NVIC_SetPriority(uart_irqn, (1 << __NVIC_PRIO_BITS) - 1);
-  NVIC_EnableIRQ(uart_irqn);
+  USARTn->CR1 |= USART_CR1_RXNEIE;
+  NVIC_SetPriority(USARTn_IRQn, (1 << __NVIC_PRIO_BITS) - 1);
+  NVIC_EnableIRQ(USARTn_IRQn);
 #endif
 
   GPIO_InitTypeDef GPIO_InitStruct;
@@ -329,7 +332,7 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len) {
 }
 
 int board_uart_read(uint8_t *buf, int len) {
-#ifdef UART_DEV
+#ifdef UART_ID
   return (int)tu_fifo_read_n(&uart_rx_ff, buf, (uint16_t)len);
 #else
   (void)buf;
@@ -339,7 +342,7 @@ int board_uart_read(uint8_t *buf, int len) {
 }
 
 int board_uart_write(const void *buf, int len) {
-#ifdef UART_DEV
+#ifdef UART_ID
   const uint8_t *p     = (const uint8_t *)buf;
   int            count = 0;
   while (count < len) {

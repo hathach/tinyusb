@@ -36,8 +36,7 @@
  extern "C" {
 #endif
 
-#define UART_DEV              USART3
-#define UART_CLK_EN           __HAL_RCC_USART3_CLK_ENABLE
+#define UART_ID               3
 
 // VBUS Sense detection
 #define OTG_FS_VBUS_SENSE     1

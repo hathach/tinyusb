@@ -34,6 +34,22 @@
 #include "bsp/board_api.h"
 #include "board.h"
 
+#ifdef UART_ID
+  #if UART_ID == 1
+    #define USARTn            USART1
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART1_CLK_ENABLE
+  #elif UART_ID == 2
+    #define USARTn            USART2
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART2_CLK_ENABLE
+  #elif UART_ID == 3
+    #define USARTn            USART3
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART3_CLK_ENABLE
+  #elif UART_ID == 11
+    #define USARTn            LPUART1
+    #define UARTn_CLK_ENABLE  __HAL_RCC_LPUART1_CLK_ENABLE
+  #endif
+#endif
+
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
@@ -57,7 +73,7 @@ void UCPD1_IRQHandler(void) {
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
-#ifdef UART_DEV
+#ifdef UART_ID
 UART_HandleTypeDef UartHandle;
 #endif
 
@@ -106,8 +122,8 @@ void board_init(void) {
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
 
-#ifdef UART_DEV
-  UART_CLK_EN();
+#ifdef UART_ID
+  UARTn_CLK_ENABLE();
 
   // UART
   memset(&GPIO_InitStruct, 0, sizeof(GPIO_InitStruct));
@@ -119,7 +135,7 @@ void board_init(void) {
   HAL_GPIO_Init(UART_GPIO_PORT, &GPIO_InitStruct);
 
   UartHandle = (UART_HandleTypeDef){
-    .Instance        = UART_DEV,
+    .Instance        = USARTn,
     .Init.BaudRate   = CFG_BOARD_UART_BAUDRATE,
     .Init.WordLength = UART_WORDLENGTH_8B,
     .Init.StopBits   = UART_STOPBITS_1,
@@ -188,7 +204,7 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len) {
 }
 
 int board_uart_read(uint8_t *buf, int len) {
-#ifdef UART_DEV
+#ifdef UART_ID
   int count = 0;
   while (count < len) {
     if (__HAL_UART_GET_FLAG(&UartHandle, UART_FLAG_RXNE)) {
@@ -206,7 +222,7 @@ int board_uart_read(uint8_t *buf, int len) {
 }
 
 int board_uart_write(void const *buf, int len) {
-#ifdef UART_DEV
+#ifdef UART_ID
   const uint8_t *p = (const uint8_t *) buf;
   int count = 0;
   while (count < len) {

@@ -41,8 +41,7 @@ extern "C" {
 #include "stm32n6xx_ll_system.h"
 #include "tcpp0203.h"
 
-#define UART_DEV USART1
-#define UART_CLK_EN __HAL_RCC_USART1_CLK_ENABLE
+#define UART_ID  1
 
 // VBUS Sense detection
 #define OTG_FS_VBUS_SENSE 0

@@ -44,13 +44,29 @@ typedef struct {
 
 #include "board.h"
 
+#ifdef UART_ID
+  #if UART_ID == 1
+    #define USARTn            USART1
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART1_CLK_ENABLE
+  #elif UART_ID == 2
+    #define USARTn            USART2
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART2_CLK_ENABLE
+  #elif UART_ID == 3
+    #define USARTn            USART3
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART3_CLK_ENABLE
+  #elif UART_ID == 6
+    #define USARTn            USART6
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART6_CLK_ENABLE
+  #endif
+#endif
+
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
 
-#ifdef UART_DEV
+#ifdef UART_ID
 static UART_HandleTypeDef UartHandle = {
-  .Instance = UART_DEV,
+  .Instance = USARTn,
   .Init = {
     .BaudRate = CFG_BOARD_UART_BAUDRATE,
     .WordLength = UART_WORDLENGTH_8B,
@@ -147,8 +163,8 @@ void board_init(void) {
 
   GPIO_InitTypeDef GPIO_InitStruct;
 
-#ifdef UART_DEV
-  UART_CLK_EN();
+#ifdef UART_ID
+  UARTn_CLK_ENABLE();
   HAL_UART_Init(&UartHandle);
   HAL_UARTEx_EnableFifoMode(&UartHandle);
 #endif
@@ -276,7 +292,7 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len) {
 }
 
 int board_uart_read(uint8_t *buf, int len) {
-#ifdef UART_DEV
+#ifdef UART_ID
   int count = 0;
   // clear overrun error if any
   if (__HAL_UART_GET_FLAG(&UartHandle, UART_FLAG_ORE)) {
@@ -298,7 +314,7 @@ int board_uart_read(uint8_t *buf, int len) {
 }
 
 int board_uart_write(void const *buf, int len) {
-#ifdef UART_DEV
+#ifdef UART_ID
   const uint8_t *p = (const uint8_t *) buf;
   int count = 0;
   while (count < len) {

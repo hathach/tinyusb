@@ -48,6 +48,22 @@ TU_ATTR_UNUSED static void Error_Handler(void) {
 
 #include "board.h"
 
+#ifdef UART_ID
+  #if UART_ID == 1
+    #define USARTn            USART1
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART1_CLK_ENABLE
+  #elif UART_ID == 2
+    #define USARTn            USART2
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART2_CLK_ENABLE
+  #elif UART_ID == 3
+    #define USARTn            USART3
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART3_CLK_ENABLE
+  #elif UART_ID == 11
+    #define USARTn            LPUART1
+    #define UARTn_CLK_ENABLE  __HAL_RCC_LPUART1_CLK_ENABLE
+  #endif
+#endif
+
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
@@ -70,7 +86,9 @@ void OTG_HS_IRQHandler(void) {
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
 
+#ifdef UART_ID
 UART_HandleTypeDef UartHandle;
+#endif
 
 void board_init(void) {
   // Init clock, implemented in board.h
@@ -88,8 +106,6 @@ void board_init(void) {
 #endif
   __HAL_RCC_GPIOG_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
-
-  UART_CLK_EN();
 
   /* Enable Instruction cache */
   HAL_ICACHE_Enable();
@@ -119,6 +135,7 @@ void board_init(void) {
   // IOSV bit MUST be set to access GPIO port G[2:15] */
   HAL_PWREx_EnableVddIO2();
 
+#ifdef UART_ID
   // Uart
   GPIO_InitStruct.Pin = UART_TX_PIN | UART_RX_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -127,7 +144,8 @@ void board_init(void) {
   GPIO_InitStruct.Alternate = UART_GPIO_AF;
   HAL_GPIO_Init(UART_GPIO_PORT, &GPIO_InitStruct);
 
-  UartHandle.Instance = UART_DEV;
+  UARTn_CLK_ENABLE();
+  UartHandle.Instance = USARTn;
   UartHandle.Init.BaudRate = CFG_BOARD_UART_BAUDRATE;
   UartHandle.Init.WordLength = UART_WORDLENGTH_8B;
   UartHandle.Init.StopBits = UART_STOPBITS_1;
@@ -140,6 +158,7 @@ void board_init(void) {
   UartHandle.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
   HAL_UART_Init(&UartHandle);
   HAL_UARTEx_EnableFifoMode(&UartHandle);
+#endif
 
   /* Configure USB GPIOs */
   /* Configure DM DP Pins */
@@ -253,7 +272,7 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len) {
 }
 
 int board_uart_read(uint8_t *buf, int len) {
-#ifdef UART_DEV
+#ifdef UART_ID
   int count = 0;
   while (count < len) {
     if (__HAL_UART_GET_FLAG(&UartHandle, UART_FLAG_RXNE)) {
@@ -271,7 +290,7 @@ int board_uart_read(uint8_t *buf, int len) {
 }
 
 int board_uart_write(void const *buf, int len) {
-#ifdef UART_DEV
+#ifdef UART_ID
   const uint8_t *p = (const uint8_t *) buf;
   int count = 0;
   while (count < len) {

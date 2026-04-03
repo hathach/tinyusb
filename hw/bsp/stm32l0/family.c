@@ -32,6 +32,16 @@
 #include "bsp/board_api.h"
 #include "board.h"
 
+#ifdef UART_ID
+  #if UART_ID == 2
+    #define USARTn            USART2
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART2_CLK_ENABLE
+  #elif UART_ID == 4
+    #define USARTn            USART4
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART4_CLK_ENABLE
+  #endif
+#endif
+
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
@@ -42,7 +52,7 @@ void USB_IRQHandler(void) {
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
-#ifdef UART_DEV
+#ifdef UART_ID
 UART_HandleTypeDef UartHandle;
 #endif
 
@@ -84,9 +94,9 @@ void board_init(void) {
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
 
-#ifdef UART_DEV
+#ifdef UART_ID
   // Enable UART Clock
-  UART_CLK_EN();
+  UARTn_CLK_ENABLE();
 
   GPIO_InitStruct.Pin       = UART_TX_PIN | UART_RX_PIN;
   GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
@@ -95,7 +105,7 @@ void board_init(void) {
   GPIO_InitStruct.Alternate = UART_GPIO_AF;
   HAL_GPIO_Init(UART_GPIO_PORT, &GPIO_InitStruct);
 
-  UartHandle.Instance        = UART_DEV;
+  UartHandle.Instance        = USARTn;
   UartHandle.Init.BaudRate   = CFG_BOARD_UART_BAUDRATE;
   UartHandle.Init.WordLength = UART_WORDLENGTH_8B;
   UartHandle.Init.StopBits   = UART_STOPBITS_1;
@@ -151,7 +161,7 @@ int board_uart_read(uint8_t* buf, int len) {
 }
 
 int board_uart_write(void const* buf, int len) {
-#ifdef UART_DEV
+#ifdef UART_ID
   HAL_UART_Transmit(&UartHandle, (uint8_t*)(uintptr_t) buf, len, 0xffff);
   return len;
 #else
