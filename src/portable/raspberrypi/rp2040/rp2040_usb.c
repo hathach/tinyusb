@@ -30,7 +30,7 @@
 #if CFG_TUSB_MCU == OPT_MCU_RP2040 && (CFG_TUD_ENABLED || CFG_TUH_ENABLED)
 
   #include <stdlib.h>
-  #include "rp2040_usb.h"
+  #include "portable/raspberrypi/rp2040/rp2040_usb.h"
 
   #include "device/dcd.h"
   #include "host/hcd.h"
@@ -261,7 +261,6 @@ void rp2usb_xfer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, u
     if (ep->remaining_len == 0) {
       const uint16_t xferred_len = ep->xferred_len;
       rp2usb_reset_transfer(ep);
-
       dcd_event_xfer_complete(0, ep->ep_addr, xferred_len, XFER_RESULT_SUCCESS, false);
       hw_endpoint_lock_update(ep, -1);
       return;
@@ -280,7 +279,7 @@ void rp2usb_xfer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, u
     }
   }
     #endif // CFG_TUSB_RP2_ERRATA_E15
-  #endif  // CFG_TUD_ENABLED
+  #endif   // CFG_TUD_ENABLED
 
   rp2usb_buffer_start(ep, ep_reg, buf_reg, is_rx);
   hw_endpoint_lock_update(ep, -1);

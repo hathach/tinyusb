@@ -607,6 +607,7 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
         *ep_reg           = 0;
       }
 
+      ep->interrupt_num   = 0;
       ep->max_packet_size = 0; // mark as unused
     }
   }
@@ -660,6 +661,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t 
   }
 
   if (ep->transfer_type != TUSB_XFER_INTERRUPT) {
+    ep->interrupt_num = 0;
     ep->dpram_buf = usbh_dpram->epx_data;
   } else {
     // Scan ep_pool (not usb_hw->int_ep_ctrl) to find a free interrupt slot.
@@ -729,6 +731,7 @@ bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
     }
   }
   rp2usb_reset_transfer(ep);
+  ep->interrupt_num   = 0;
   ep->max_packet_size = 0;
   rp2usb_critical_exit();
   return true;
@@ -737,7 +740,7 @@ bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
 bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   (void)rhport;
   hw_endpoint_t *ep = edpt_find(dev_addr, ep_addr);
-  if (!ep) return true;
+  if (!ep) return false;
 
   rp2usb_critical_enter();
 
