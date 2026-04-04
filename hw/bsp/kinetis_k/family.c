@@ -125,13 +125,21 @@ int board_uart_read(uint8_t *buf, int len) {
 }
 
 int board_uart_write(void const *buf, int len) {
+#ifdef UART_DEV
+  const uint8_t *p = (const uint8_t *) buf;
+  int count = 0;
+  while (count < len) {
+    if (UART_DEV->S1 & UART_S1_TDRE_MASK) {
+      UART_DEV->D = p[count];
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
+#else
   (void) buf;
   (void) len;
-
-#ifdef UART_DEV
-  UART_WriteBlocking(UART_DEV, (uint8_t const*) buf, len);
-  return len;
-#else
   return 0;
 #endif
 }

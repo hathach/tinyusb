@@ -160,12 +160,17 @@ int board_uart_read(uint8_t* buf, int len) {
 
 int board_uart_write(void const* buf, int len) {
 #if defined(UART_DEV)
-  int txsize = len;
-  while (txsize--) {
-    usart_write(UART_DEV, *(uint8_t const*)buf);
-    buf++;
+  uint8_t const *p = (uint8_t const *) buf;
+  int count = 0;
+  while (count < len) {
+    if (usart_flag_get(UART_DEV, USART_FLAG_TBE) != RESET) {
+      usart_data_transmit(UART_DEV, p[count]);
+      count++;
+    } else {
+      break;
+    }
   }
-  return len;
+  return count;
 #else
   (void)buf;
   (void)len;

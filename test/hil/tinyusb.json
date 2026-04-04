@@ -62,11 +62,10 @@
         {
             "name": "metro_m4_express",
             "uid": "9995AD485337433231202020FF100A34",
-            "build" : {
-                "args": ["MAX3421_HOST=1"]
-            },
             "tests": {
-                "device": true, "host": false, "dual": true,
+                "device": true,
+                "host": false,
+                "dual": true,
                 "dev_attached": [{"vid_pid": "067b_2303", "serial": "0", "is_cdc": true}],
                 "comment": "pl23x"
             },

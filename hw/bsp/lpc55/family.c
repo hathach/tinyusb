@@ -177,8 +177,23 @@ int board_uart_read(uint8_t* buf, int len) {
 }
 
 int board_uart_write(void const* buf, int len) {
-  USART_WriteBlocking(UART_DEV, (uint8_t const*) buf, len);
-  return len;
+#ifdef UART_DEV
+  const uint8_t *p = (const uint8_t *) buf;
+  int count = 0;
+  while (count < len) {
+    if (UART_DEV->FIFOSTAT & USART_FIFOSTAT_TXNOTFULL_MASK) {
+      UART_DEV->FIFOWR = p[count];
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
+#else
+  (void) buf;
+  (void) len;
+  return 0;
+#endif
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE

@@ -189,13 +189,16 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len) {
 
 int board_uart_write(void const* buf, int len) {
   uint8_t const* data = buf;
-
-  for (int i = 0; i < len; i++) {
-    while ((UART0->FR & (1 << 5)) != 0) {} // Poll until previous data was shofted out
-    UART0->DR = data[i];                   // Write UART0 DATA REGISTER
+  int count = 0;
+  while (count < len) {
+    if ((UART0->FR & (1 << 5)) == 0) { // TX FIFO not full
+      UART0->DR = data[count];
+      count++;
+    } else {
+      break;
+    }
   }
-
-  return len;
+  return count;
 }
 
 int board_uart_read(uint8_t* buf, int len) {

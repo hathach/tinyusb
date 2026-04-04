@@ -188,11 +188,16 @@ int board_uart_read(uint8_t * buf, int len)
 int board_uart_write(void const * buf, int len)
 {
   uint8_t const *p = (uint8_t const *)buf;
-  for (int i = 0; i < len; ++i) {
-    while (UART0->FR & UART_FR_TXFF) ;
-    UART0->DR = *p++;
+  int count = 0;
+  while (count < len) {
+    if (!(UART0->FR & UART_FR_TXFF)) {
+      UART0->DR = p[count];
+      count++;
+    } else {
+      break;
+    }
   }
-  return len;
+  return count;
 }
 
 #if CFG_TUSB_OS  == OPT_OS_NONE

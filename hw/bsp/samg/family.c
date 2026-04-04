@@ -134,11 +134,16 @@ int board_uart_read(uint8_t* buf, int len) {
 
 int board_uart_write(void const* buf, int len) {
   uint8_t const* buf8 = (uint8_t const*) buf;
-  for (int i = 0; i < len; i++) {
-    while (!_usart_sync_is_ready_to_send(&edbg_com)) {}
-    _usart_sync_write_byte(&edbg_com, buf8[i]);
+  int count = 0;
+  while (count < len) {
+    if (_usart_sync_is_ready_to_send(&edbg_com)) {
+      _usart_sync_write_byte(&edbg_com, buf8[count]);
+      count++;
+    } else {
+      break;
+    }
   }
-  return len;
+  return count;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE

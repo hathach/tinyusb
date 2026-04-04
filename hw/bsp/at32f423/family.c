@@ -224,19 +224,18 @@ int board_uart_read(uint8_t *buf, int len) {
 
 int board_uart_write(void const *buf, int len) {
 #if CFG_TUSB_OS == OPT_OS_NONE
-  int txsize = len;
-  u16 timeout = 0xffff;
-  while (txsize--) {
-    while (usart_flag_get(PRINT_UART, USART_TDBE_FLAG) == RESET) {
-      timeout--;
-      if (timeout == 0) {
-        return 0;
-      }
+  uint8_t const *p = (uint8_t const *) buf;
+  int count = 0;
+  while (count < len) {
+    if (usart_flag_get(PRINT_UART, USART_TDBE_FLAG) != RESET) {
+      PRINT_UART->dt = (*p & 0x01FF);
+      p++;
+      count++;
+    } else {
+      break;
     }
-    PRINT_UART->dt = (*((uint8_t const *) buf) & 0x01FF);
-    buf++;
   }
-  return len;
+  return count;
 #else
   (void) buf;
   (void) len;
