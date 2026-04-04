@@ -7,27 +7,21 @@ Run Hardware-in-the-Loop (HIL) tests on physical boards.
 
 ## Instructions
 
-1. Determine the HIL config file:
-   ```bash
-   HIL_CONFIG=$( (systemctl list-units --type=service --state=running 2>/dev/null; systemctl --user list-units --type=service --state=running 2>/dev/null) | grep -q 'actions\.runner' && echo tinyusb.json || echo local.json )
-   ```
-   Default is `local.json` for local development.
-
-2. Parse $ARGUMENTS:
+1. Parse $ARGUMENTS:
    - If $ARGUMENTS contains `-b BOARD_NAME`, run for that specific board only.
    - If $ARGUMENTS is empty or has no `-b`, run for all boards in the config.
    - Pass through any other flags (e.g. `-v` for verbose, `-r N` for retry count) directly to the command.
 
-3. Determine whether to run **locally** or **remotely via SSH**:
+2. Determine whether to run **locally** or **remotely via SSH**:
    - **Local**: boards are attached to this machine (default when `local.json` is used)
    - **Remote (`ssh ci.lan`)**: boards are attached to the CI machine (when `tinyusb.json` is used)
 
-4. **Local execution** (boards attached to this machine):
+3. **Local execution** (boards attached to this machine):
    ```bash
    python test/hil/hil_test.py -b BOARD_NAME -B examples $HIL_CONFIG $EXTRA_ARGS
    ```
 
-5. **Remote execution** (boards attached to `ci.lan`):
+4. **Remote execution** (boards attached to `ci.lan`):
    Only copy the minimal files needed (firmware binaries + test script + config), then run remotely.
 
    ```bash
@@ -56,9 +50,9 @@ Run Hardware-in-the-Loop (HIL) tests on physical boards.
    - Flasher tools: `JLinkExe`, `openocd`, etc. as needed by the board
    - USB access to the boards (udev rules configured)
 
-6. Use a timeout of at least 20 minutes (600000ms). HIL tests take 2-5 minutes. NEVER cancel early.
+5. Use a timeout of at least 20 minutes (600000ms). HIL tests take 2-5 minutes. NEVER cancel early.
 
-7. After the test completes:
+6. After the test completes:
    - Show the test output to the user.
    - Summarize pass/fail results per board.
    - If there are failures, suggest re-running with `-v` flag for verbose output to help debug.

@@ -177,7 +177,21 @@
             "uid": "560AE75E1C7152C9",
             "tests": {
                 "device": false, "host": true, "dual": false,
-                "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2002694", "is_cdc": true}]
+                "dev_attached": [
+                    {
+                        "vid_pid": "1a86_55d4",
+                        "serial": "52D2002694",
+                        "is_cdc": true
+                    },
+                    {
+                        "vid_pid": "0951_1603",
+                        "serial": "820000000000000045B46338",
+                        "is_msc": true,
+                        "block_size": 512,
+                        "block_count": 3987456,
+                        "msc_inquiry": "Kingston DataTraveler 2.0 1.0"
+                    }
+                ]
             },
             "flasher": {
                 "name": "openocd",

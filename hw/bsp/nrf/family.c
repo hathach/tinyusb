@@ -274,7 +274,7 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len) {
 int board_uart_read(uint8_t* buf, int len) {
   (void) buf;
   (void) len;
-  return 0;
+  return -1;
 //  nrfx_err_t err = nrfx_uarte_rx(&_uart_id, buf, (size_t) len);
 //  return NRFX_SUCCESS == err ? len : 0;
 }

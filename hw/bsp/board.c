@@ -97,17 +97,22 @@ int sys_read (int fhdl, char *buf, size_t count) {
 #else
 
 // Default logging with on-board UART
-// Retry to ensure printf/log output is not lost when board_uart_write is non-blocking
+// board_uart_write() is non-blocking, retry until all bytes sent.
+// Returns negative if UART is not available (stub), break immediately.
 int sys_write (int fhdl, const char *buf, size_t count) {
   (void) fhdl;
-  int written = 0;
-  while ((size_t)written < count) {
-    int wr = board_uart_write(buf + written, (int)(count - (size_t)written));
-    if (wr > 0) {
-      written += wr;
+  size_t written = 0;
+  while (written < count) {
+    int wr = board_uart_write(buf + written, (int)(count - written));
+    if (wr < 0) {
+      break; // UART not available
     }
+    if (wr == 0) {
+      continue; // TX busy, keep trying
+    }
+    written += (size_t) wr;
   }
-  return written;
+  return (int) written;
 }
 
 int sys_read (int fhdl, char *buf, size_t count) {

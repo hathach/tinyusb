@@ -199,7 +199,7 @@ uint32_t board_button_read(void) {
 int board_uart_read(uint8_t* buf, int len) {
   (void) buf;
   (void) len;
-  return 0;
+  return -1;
 }
 
 int board_uart_write(void const* buf, int len) {
@@ -217,7 +217,7 @@ int board_uart_write(void const* buf, int len) {
   return count;
 #else
   (void) buf; (void) len;
-  return 0;
+  return -1;
 #endif
 }
 
