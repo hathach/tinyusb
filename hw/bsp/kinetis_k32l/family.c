@@ -117,28 +117,30 @@ uint32_t board_button_read(void) {
 }
 
 int board_uart_read(uint8_t* buf, int len) {
-#if 0 /*
-	Use this version if want the LED to blink during BOARD=board_test,
-	without having to hit a key.
-      */
-  if( 0U != (kLPUART_RxDataRegFullFlag & LPUART_GetStatusFlags( UART_PORT )) )
-    {
-      LPUART_ReadBlocking(UART_PORT, buf, len);
-      return len;
+  int count = 0;
+  while (count < len) {
+    if (UART_PORT->STAT & LPUART_STAT_RDRF_MASK) {
+      buf[count] = (uint8_t) UART_PORT->DATA;
+      count++;
+    } else {
+      break;
     }
-
-  return( 0 );
-#else /* Wait for 'len' characters to come in */
-
-  LPUART_ReadBlocking(UART_PORT, buf, len);
-  return len;
-
-#endif
+  }
+  return count;
 }
 
 int board_uart_write(void const* buf, int len) {
-  LPUART_WriteBlocking(UART_PORT, (uint8_t const*) buf, len);
-  return len;
+  const uint8_t *p = (const uint8_t *) buf;
+  int count = 0;
+  while (count < len) {
+    if (UART_PORT->STAT & LPUART_STAT_TDRE_MASK) {
+      UART_PORT->DATA = p[count];
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE

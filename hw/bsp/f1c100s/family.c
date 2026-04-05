@@ -68,12 +68,20 @@ int board_uart_read(uint8_t* buf, int len) {
 }
 
 int board_uart_write(void const* buf, int len) {
-  int txsize = len;
-  while (txsize--) {
-    sys_uart_putc(*(uint8_t const*) buf);
-    buf++;
+  // UART0 base = 0x01c25000, USR register at +0x7c, bit 1 = TFNF (TX FIFO not full)
+  volatile uint32_t *uart_usr = (volatile uint32_t *) (0x01c25000 + 0x7c);
+  volatile uint32_t *uart_thr = (volatile uint32_t *) (0x01c25000 + 0x00);
+  const uint8_t *p = (const uint8_t *) buf;
+  int count = 0;
+  while (count < len) {
+    if (*uart_usr & (1 << 1)) {
+      *uart_thr = p[count];
+      count++;
+    } else {
+      break;
+    }
   }
-  return len;
+  return count;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE

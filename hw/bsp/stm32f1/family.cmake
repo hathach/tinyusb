@@ -39,6 +39,7 @@ function(family_add_board BOARD_TARGET)
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_rcc.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_rcc_ex.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_gpio.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_dma.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_uart.c
     )
   target_include_directories(${BOARD_TARGET} PUBLIC

@@ -54,6 +54,7 @@ function(family_add_board BOARD_TARGET)
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_rcc.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_rcc_ex.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_uart.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_uart_ex.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_gpio.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_pcd.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_pcd_ex.c

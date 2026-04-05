@@ -92,10 +92,10 @@ uint32_t board_button_read(void);
 // Get board unique ID for USB serial number. Return number of bytes. Note max_len is typically 16
 size_t board_get_unique_id(uint8_t id[], size_t max_len);
 
-// Get characters from UART. Return number of read bytes
+// Get characters from UART (non-blocking). Return number of read bytes.
 int board_uart_read(uint8_t *buf, int len);
 
-// Send characters to UART. Return number of sent bytes
+// Send characters to UART (non-blocking). Return number of sent bytes
 int board_uart_write(void const *buf, int len);
 
 //--------------------------------------------------------------------+
@@ -153,7 +153,7 @@ static inline void board_delay(uint32_t ms) {
 
 // stdio getchar() is blocking, this is non-blocking version
 int board_getchar(void);
-void board_putchar(int c);
+int board_putchar(int c);
 
 #ifdef __cplusplus
 }

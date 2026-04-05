@@ -186,13 +186,17 @@ int board_uart_read(uint8_t *buf, int len) {
 }
 
 int board_uart_write(void const *buf, int len) {
-  int act_len = 0;
-  const uint8_t *ch_ptr = (const uint8_t *) buf;
-  while (act_len < len) {
-    MXC_UART_WriteCharacter(ConsoleUart, *ch_ptr++);
-    act_len++;
+  const uint8_t *p = (const uint8_t *) buf;
+  int count = 0;
+  while (count < len) {
+    if (MXC_UART_GetTXFIFOAvailable(ConsoleUart) > 0) {
+      MXC_UART_WriteCharacterRaw(ConsoleUart, p[count]);
+      count++;
+    } else {
+      break;
+    }
   }
-  return len;
+  return count;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE

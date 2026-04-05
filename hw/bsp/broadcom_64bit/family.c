@@ -125,16 +125,16 @@ int board_uart_read(uint8_t* buf, int len) {
 }
 
 int board_uart_write(void const* buf, int len) {
-  for (int i = 0; i < len; i++) {
-    const char* cbuf = buf;
-    while (!UART1->STAT_b.TX_READY) {}
-    if (cbuf[i] == '\n') {
-      UART1->IO = '\r';
-      while (!UART1->STAT_b.TX_READY) {}
+  const uint8_t* p = (const uint8_t*) buf;
+  int count = 0;
+  while (count < len) {
+    if (!UART1->STAT_b.TX_READY) {
+      break;
     }
-    UART1->IO = cbuf[i];
+    UART1->IO = p[count];
+    count++;
   }
-  return len;
+  return count;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE

@@ -30,7 +30,22 @@
 
 #include "stm32f0xx_hal.h"
 #include "bsp/board_api.h"
+#include "common/tusb_fifo.h"
 #include "board.h"
+
+#ifdef UART_ID
+  #if UART_ID == 1
+    #define USARTn            USART1
+    #define USARTn_IRQn       USART1_IRQn
+    #define USARTn_IRQHandler USART1_IRQHandler
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART1_CLK_ENABLE
+  #elif UART_ID == 2
+    #define USARTn            USART2
+    #define USARTn_IRQn       USART2_IRQn
+    #define USARTn_IRQHandler USART2_IRQHandler
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART2_CLK_ENABLE
+  #endif
+#endif
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
@@ -42,7 +57,36 @@ void USB_IRQHandler(void) {
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
-UART_HandleTypeDef UartHandle;
+#ifdef UART_ID
+static UART_HandleTypeDef UartHandle = {
+  .Instance = USARTn,
+  .Init = {
+    .BaudRate     = CFG_BOARD_UART_BAUDRATE,
+    .WordLength   = UART_WORDLENGTH_8B,
+    .StopBits     = UART_STOPBITS_1,
+    .Parity       = UART_PARITY_NONE,
+    .HwFlowCtl    = UART_HWCONTROL_NONE,
+    .Mode         = UART_MODE_TX_RX,
+    .OverSampling = UART_OVERSAMPLING_16,
+  }
+};
+
+// RX ring buffer via RXNE interrupt
+static uint8_t   uart_rx_ff_buf[32];
+static tu_fifo_t uart_rx_ff;
+
+// F0 uses new USART IP (ISR/RDR/TDR/ICR) — same as F7
+void USARTn_IRQHandler(void) {
+  uint32_t isr = USARTn->ISR;
+  if (isr & USART_ISR_RXNE) {
+    uint8_t byte = (uint8_t) USARTn->RDR;
+    tu_fifo_write(&uart_rx_ff, &byte);
+  }
+  if (isr & (USART_ISR_ORE | USART_ISR_FE | USART_ISR_NE | USART_ISR_PE)) {
+    USARTn->ICR = USART_ICR_ORECF | USART_ICR_FECF | USART_ICR_NCF | USART_ICR_PECF;
+  }
+}
+#endif
 
 void board_init(void) {
   board_stm32f0_clock_init();
@@ -53,9 +97,6 @@ void board_init(void) {
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOF_CLK_ENABLE();
-
-  // Enable UART Clock
-  UART_CLK_EN();
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
@@ -84,6 +125,10 @@ void board_init(void) {
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
 
+#ifdef UART_ID
+  // Enable UART Clock
+  UARTn_CLK_ENABLE();
+
   // Uart
   GPIO_InitStruct.Pin = UART_TX_PIN | UART_RX_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -92,15 +137,12 @@ void board_init(void) {
   GPIO_InitStruct.Alternate = UART_GPIO_AF;
   HAL_GPIO_Init(UART_GPIO_PORT, &GPIO_InitStruct);
 
-  UartHandle.Instance = UART_DEV;
-  UartHandle.Init.BaudRate = CFG_BOARD_UART_BAUDRATE;
-  UartHandle.Init.WordLength = UART_WORDLENGTH_8B;
-  UartHandle.Init.StopBits = UART_STOPBITS_1;
-  UartHandle.Init.Parity = UART_PARITY_NONE;
-  UartHandle.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  UartHandle.Init.Mode = UART_MODE_TX_RX;
-  UartHandle.Init.OverSampling = UART_OVERSAMPLING_16;
   HAL_UART_Init(&UartHandle);
+  tu_fifo_config(&uart_rx_ff, uart_rx_ff_buf, sizeof(uart_rx_ff_buf), false);
+  USARTn->CR1 |= USART_CR1_RXNEIE;
+  NVIC_SetPriority(USARTn_IRQn, (1 << __NVIC_PRIO_BITS) - 1);
+  NVIC_EnableIRQ(USARTn_IRQn);
+#endif
 
   // USB Pins
   // Configure USB DM and DP pins. This is optional, and maintained only for user guidance.
@@ -141,15 +183,31 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len) {
 }
 
 int board_uart_read(uint8_t *buf, int len) {
-  (void) buf;
-  (void) len;
+#ifdef UART_ID
+  return (int) tu_fifo_read_n(&uart_rx_ff, buf, (uint16_t) len);
+#else
+  (void) buf; (void) len;
   return 0;
+#endif
 }
 
 int board_uart_write(void const *buf, int len) {
-  HAL_UART_Transmit(&UartHandle, (uint8_t * )(uintptr_t)
-  buf, len, 0xffff);
-  return len;
+#ifdef UART_ID
+  const uint8_t *p = (const uint8_t *) buf;
+  int count = 0;
+  while (count < len) {
+    if (__HAL_UART_GET_FLAG(&UartHandle, UART_FLAG_TXE)) {
+      UartHandle.Instance->TDR = p[count];
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
+#else
+  (void) buf; (void) len;
+  return 0;
+#endif
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE

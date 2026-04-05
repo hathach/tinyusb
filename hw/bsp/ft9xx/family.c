@@ -221,16 +221,21 @@ int board_uart_read(uint8_t *buf, int len)
 // Send characters to UART
 int board_uart_write(void const *buf, int len)
 {
-    int r = 0;
-
+    int count = 0;
 #ifdef BOARD_UART
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcast-qual" // uart_writen does not have const for buffer parameter.
-    r = uart_writen(BOARD_UART, (uint8_t *)((const void *)buf), len);
-#pragma GCC diagnostic pop
+    uint8_t const *p = (uint8_t const *) buf;
+    while (count < len) {
+        if (BOARD_UART->LSR_ICR_XON2 & MASK_UART_LSR_THRE) {
+            BOARD_UART->RHR_THR_DLL = p[count];
+            count++;
+        } else {
+            break;
+        }
+    }
+#else
+    (void) buf; (void) len;
 #endif
-
-    return r;
+    return count;
 }
 
 // Get current milliseconds
