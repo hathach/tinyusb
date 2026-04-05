@@ -564,7 +564,7 @@ def test_host_cdc_msc_hid(board):
         ser.flush()
         # wait until this chunk is echoed back
         echo = b''
-        t_end = time.monotonic() + 5.0
+        t_end = time.monotonic() + 1.0
         while time.monotonic() < t_end and len(echo) < chunk_size:
             rd = ser.read(chunk_size - len(echo))
             if rd:
@@ -1189,9 +1189,8 @@ def test_example(board, f1, example):
         print(f'Flashing {fw_name}.elf')
 
     # flash firmware. It may fail randomly, retry a few times
-    max_rety = 3
     start_s = time.time()
-    for i in range(max_rety):
+    for i in range(max_retry):
         ret = globals()[f'flash_{board["flasher"]["name"].lower()}'](board, fw_name)
         if ret.returncode == 0:
             try:
@@ -1202,14 +1201,14 @@ def test_example(board, f1, example):
                     print('  OK', end='')
                 break
             except Exception as e:
-                if i == max_rety - 1:
+                if i == max_retry - 1:
                     err_count += 1
                     print(f'{STATUS_FAILED}: {e}')
                 else:
-                    print(f'\n  Test failed: {e}, retry {i+2}/{max_rety}', end='')
+                    print(f'\n  Test failed: {e}, retry {i+2}/{max_retry}', end='')
                     time.sleep(0.5)
         else:
-            print(f'\n  Flash failed, retry {i+2}/{max_rety}', end='')
+            print(f'\n  Flash failed, retry {i+2}/{max_retry}', end='')
             time.sleep(0.5)
 
     if ret.returncode != 0:
@@ -1269,6 +1268,7 @@ def main():
     global verbose
     global test_only
     global build_dir
+    global max_retry
 
     duration = time.time()
 
@@ -1278,6 +1278,7 @@ def main():
     parser.add_argument('-s', '--skip', action='append', default=[], help='Skip boards from test')
     parser.add_argument('-t', '--test-only', action='append', default=[], help='Tests to run, all if not specified')
     parser.add_argument('-B', '--build', default='cmake-build', help='Build folder name (default: cmake-build)')
+    parser.add_argument('-r', '--retry', type=int, default=3, help='Retry count for failed tests (default: 3)')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
     args = parser.parse_args()
 
@@ -1287,6 +1288,7 @@ def main():
     verbose = args.verbose
     test_only = args.test_only
     build_dir = args.build
+    max_retry = args.retry
 
     # if config file is not found, try to find it in the same directory as this script
     if not os.path.exists(config_file):

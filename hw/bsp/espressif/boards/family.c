@@ -162,8 +162,8 @@ int board_getchar(void) {
   return getchar();
 }
 
-void board_putchar(int c) {
-  putchar(c);
+int board_putchar(int c) {
+  return putchar(c);
 }
 
 void board_init_after_tusb(void) {

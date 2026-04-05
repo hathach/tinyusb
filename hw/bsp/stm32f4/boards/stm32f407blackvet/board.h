@@ -37,7 +37,7 @@
 #endif
 
 // Enable PA2 as the debug log UART
-#define UART_DEV              USART2
+#define UART_ID               2
 
 #define PINID_LED      0
 #define PINID_BUTTON   1
@@ -104,8 +104,6 @@ static inline void board_clock_init(void)
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
   HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_5);
 
-  // Enable clocks for LED, Button, Uart
-  __HAL_RCC_USART2_CLK_ENABLE();
 }
 
 static inline void board_vbus_set(uint8_t rhport, bool state) {

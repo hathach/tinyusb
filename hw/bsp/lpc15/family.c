@@ -130,7 +130,17 @@ int board_uart_read(uint8_t* buf, int len)
 
 int board_uart_write(void const * buf, int len)
 {
-  return Chip_UART_SendBlocking(UART_PORT, buf, len);
+  uint8_t const *p = (uint8_t const *) buf;
+  int count = 0;
+  while (count < len) {
+    if (Chip_UART_GetStatus(UART_PORT) & UART_STAT_TXRDY) {
+      Chip_UART_SendByte(UART_PORT, p[count]);
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE

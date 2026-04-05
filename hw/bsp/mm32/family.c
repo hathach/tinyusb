@@ -153,14 +153,17 @@ int board_uart_read(uint8_t* buf, int len) {
 
 int board_uart_write(void const* buf, int len) {
   #ifdef UART_DEV
-  const char* buff = buf;
-  while (len) {
-    while ((UART1->CSR & UART_IT_TXIEN) == 0);    //The loop is sent until it is finished
-    UART1->TDR = (*buff & 0xFF);
-    buff++;
-    len--;
+  uint8_t const *p = (uint8_t const *) buf;
+  int count = 0;
+  while (count < len) {
+    if (UART1->CSR & UART_IT_TXIEN) {
+      UART1->TDR = (p[count] & 0xFF);
+      count++;
+    } else {
+      break;
+    }
   }
-  return len;
+  return count;
   #else
   (void) buf;
   (void) len;

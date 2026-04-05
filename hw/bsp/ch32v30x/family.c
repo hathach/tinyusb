@@ -173,12 +173,10 @@ int board_uart_read(uint8_t* buf, int len) {
 }
 
 int board_uart_write(void const* buf, int len) {
-  int txsize = len;
-  const char* bufc = (const char*) buf;
-  while (txsize--) {
-    uart_write(*bufc++);
+  uint8_t const *p = (uint8_t const *) buf;
+  for (int i = 0; i < len; i++) {
+    uart_write(p[i]);
   }
-  uart_sync();
   return len;
 }
 

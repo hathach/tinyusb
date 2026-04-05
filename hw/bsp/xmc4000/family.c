@@ -128,11 +128,25 @@ int board_uart_read(uint8_t* buf, int len) {
 
 int board_uart_write(void const* buf, int len) {
 #ifdef UART_DEV
-  char const* bufch = (char const*) buf;
-  for(int i=0;i<len;i++) {
-    XMC_UART_CH_Transmit(UART_DEV, bufch[i]);
+  uint8_t const *p = (uint8_t const *) buf;
+  int count = 0;
+  bool fifo_enabled = (UART_DEV->TBCTR & USIC_CH_TBCTR_SIZE_Msk) != 0UL;
+  while (count < len) {
+    if (fifo_enabled) {
+      if (XMC_USIC_CH_TXFIFO_IsFull(UART_DEV)) {
+        break;
+      }
+      UART_DEV->IN[0U] = p[count];
+    } else {
+      if (XMC_USIC_CH_GetTransmitBufferStatus(UART_DEV) == XMC_USIC_CH_TBUF_STATUS_BUSY) {
+        break;
+      }
+      XMC_UART_CH_ClearStatusFlag(UART_DEV, (uint32_t)XMC_UART_CH_STATUS_FLAG_TRANSMIT_BUFFER_INDICATION);
+      UART_DEV->TBUF[0U] = p[count];
+    }
+    count++;
   }
-  return len;
+  return count;
 #else
   (void) buf;
   (void) len;

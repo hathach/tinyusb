@@ -244,12 +244,16 @@ int board_uart_read(uint8_t *buf, int len) {
 
 int board_uart_write(void const *buf, int len) {
   uint8_t const *buf8 = (uint8_t const *) buf;
-  for ( int i = 0; i < len; i++ ) {
-    while ( (Chip_UART_ReadLineStatus(UART_DEV) & UART_LSR_THRE) == 0 ) {}
-    Chip_UART_SendByte(UART_DEV, buf8[i]);
+  int count = 0;
+  while (count < len) {
+    if (Chip_UART_ReadLineStatus(UART_DEV) & UART_LSR_THRE) {
+      Chip_UART_SendByte(UART_DEV, buf8[count]);
+      count++;
+    } else {
+      break;
+    }
   }
-
-  return len;
+  return count;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
