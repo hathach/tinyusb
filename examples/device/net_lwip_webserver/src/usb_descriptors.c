@@ -65,17 +65,19 @@ enum {
   CONFIG_ID_COUNT
 };
 
+#if CFG_TUD_NCM
+#define USB_BCD 0x0201
+#else
+#define USB_BCD 0x0200
+#endif
+
 //--------------------------------------------------------------------+
 // Device Descriptors
 //--------------------------------------------------------------------+
 static const tusb_desc_device_t desc_device = {
   .bLength         = sizeof(tusb_desc_device_t),
   .bDescriptorType = TUSB_DESC_DEVICE,
-#if CFG_TUD_NCM
-  .bcdUSB = 0x0201,
-#else
-  .bcdUSB = 0x0200,
-#endif
+  .bcdUSB          = USB_BCD,
   // Use Interface Association Descriptor (IAD) device class
   .bDeviceClass    = TUSB_CLASS_MISC,
   .bDeviceSubClass = MISC_SUBCLASS_COMMON,
@@ -136,36 +138,78 @@ const uint8_t *tud_descriptor_device_cb(void) {
 
 #if CFG_TUD_ECM_RNDIS
 
-static uint8_t const rndis_configuration[] = {
+// full speed configuration
+static uint8_t const rndis_fs_configuration[] = {
   // Config number (index+1), interface count, string index, total length, attribute, power in mA
   TUD_CONFIG_DESCRIPTOR(CONFIG_ID_RNDIS + 1, ITF_NUM_TOTAL, 0, MAIN_CONFIG_TOTAL_LEN, 0, 100),
 
   // Interface number, string index, EP notification address and size, EP data address (out, in) and size.
   TUD_RNDIS_DESCRIPTOR(
-      ITF_NUM_CDC, STRID_INTERFACE, EPNUM_NET_NOTIF, 8, EPNUM_NET_OUT, EPNUM_NET_IN, CFG_TUD_NET_ENDPOINT_SIZE),
+      ITF_NUM_CDC, STRID_INTERFACE, EPNUM_NET_NOTIF, 8, EPNUM_NET_OUT, EPNUM_NET_IN, 64),
 };
 
-static const uint8_t ecm_configuration[] = {
+static const uint8_t ecm_fs_configuration[] = {
   // Config number (index+1), interface count, string index, total length, attribute, power in mA
   TUD_CONFIG_DESCRIPTOR(CONFIG_ID_ECM + 1, ITF_NUM_TOTAL, 0, ALT_CONFIG_TOTAL_LEN, 0, 100),
 
   // Interface number, description string index, MAC address string index, EP notification address and size, EP data address (out, in), and size, max segment size.
   TUD_CDC_ECM_DESCRIPTOR(
       ITF_NUM_CDC, STRID_INTERFACE, STRID_MAC, EPNUM_NET_NOTIF, 64, EPNUM_NET_OUT, EPNUM_NET_IN,
-      CFG_TUD_NET_ENDPOINT_SIZE, CFG_TUD_NET_MTU),
+      64, CFG_TUD_NET_MTU),
 };
+
+#if TUD_OPT_HIGH_SPEED
+// Per USB specs: high speed capable device must report device_qualifier and other_speed_configuration
+
+// high speed configuration
+static uint8_t const rndis_hs_configuration[] = {
+  // Config number (index+1), interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_DESCRIPTOR(CONFIG_ID_RNDIS + 1, ITF_NUM_TOTAL, 0, MAIN_CONFIG_TOTAL_LEN, 0, 100),
+
+  // Interface number, string index, EP notification address and size, EP data address (out, in) and size.
+  TUD_RNDIS_DESCRIPTOR(
+      ITF_NUM_CDC, STRID_INTERFACE, EPNUM_NET_NOTIF, 8, EPNUM_NET_OUT, EPNUM_NET_IN, 512),
+};
+
+static const uint8_t ecm_hs_configuration[] = {
+  // Config number (index+1), interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_DESCRIPTOR(CONFIG_ID_ECM + 1, ITF_NUM_TOTAL, 0, ALT_CONFIG_TOTAL_LEN, 0, 100),
+
+  // Interface number, description string index, MAC address string index, EP notification address and size, EP data address (out, in), and size, max segment size.
+  TUD_CDC_ECM_DESCRIPTOR(
+      ITF_NUM_CDC, STRID_INTERFACE, STRID_MAC, EPNUM_NET_NOTIF, 64, EPNUM_NET_OUT, EPNUM_NET_IN,
+      512, CFG_TUD_NET_MTU),
+};
+#endif // highspeed
 
 #else
 
-static uint8_t const ncm_configuration[] = {
+// full speed configuration
+static uint8_t const ncm_fs_configuration[] = {
   // Config number (index+1), interface count, string index, total length, attribute, power in mA
   TUD_CONFIG_DESCRIPTOR(CONFIG_ID_NCM + 1, ITF_NUM_TOTAL, 0, NCM_CONFIG_TOTAL_LEN, 0, 100),
 
-  // Interface number, description string index, MAC address string index, EP notification address and size, EP data address (out, in), and size, max segment size.
+  // Interface number, description string index, MAC address string index, EP notification address and size, EP data address (out, in), and size, max segment size, EP notification bInterval.
   TUD_CDC_NCM_DESCRIPTOR(
       ITF_NUM_CDC, STRID_INTERFACE, STRID_MAC, EPNUM_NET_NOTIF, 64, EPNUM_NET_OUT, EPNUM_NET_IN,
-      CFG_TUD_NET_ENDPOINT_SIZE, CFG_TUD_NET_MTU),
+      64, CFG_TUD_NET_MTU, 50),
 };
+
+#if TUD_OPT_HIGH_SPEED
+// Per USB specs: high speed capable device must report device_qualifier and other_speed_configuration
+
+// high speed configuration
+// bInterval: FS=50 means 50ms; HS encodes as 2^(n-1) * 125us, so 9 = 2^8 * 125us = 32ms
+static uint8_t const ncm_hs_configuration[] = {
+  // Config number (index+1), interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_DESCRIPTOR(CONFIG_ID_NCM + 1, ITF_NUM_TOTAL, 0, NCM_CONFIG_TOTAL_LEN, 0, 100),
+
+  // Interface number, description string index, MAC address string index, EP notification address and size, EP data address (out, in), and size, max segment size, EP notification bInterval.
+  TUD_CDC_NCM_DESCRIPTOR(
+      ITF_NUM_CDC, STRID_INTERFACE, STRID_MAC, EPNUM_NET_NOTIF, 64, EPNUM_NET_OUT, EPNUM_NET_IN,
+      512, CFG_TUD_NET_MTU, 9),
+};
+#endif // highspeed
 
 #endif
 
@@ -173,20 +217,95 @@ static uint8_t const ncm_configuration[] = {
 // - Windows only works with RNDIS
 // - MacOS only works with CDC-ECM
 // - Linux will work on both
-static const uint8_t *const configuration_arr[CONFIG_ID_COUNT] = {
+static const uint8_t *const configuration_fs_arr[CONFIG_ID_COUNT] = {
 #if CFG_TUD_ECM_RNDIS
-  [CONFIG_ID_RNDIS] = rndis_configuration,
-  [CONFIG_ID_ECM]   = ecm_configuration
+  [CONFIG_ID_RNDIS] = rndis_fs_configuration,
+  [CONFIG_ID_ECM]   = ecm_fs_configuration
 #else
-  [CONFIG_ID_NCM] = ncm_configuration
+  [CONFIG_ID_NCM] = ncm_fs_configuration
 #endif
 };
+
+#if TUD_OPT_HIGH_SPEED
+static const uint8_t *const configuration_hs_arr[CONFIG_ID_COUNT] = {
+#if CFG_TUD_ECM_RNDIS
+  [CONFIG_ID_RNDIS] = rndis_hs_configuration,
+  [CONFIG_ID_ECM]   = ecm_hs_configuration
+#else
+  [CONFIG_ID_NCM] = ncm_hs_configuration
+#endif
+};
+
+// Size array for each configuration
+static const uint16_t configuration_sz_arr[CONFIG_ID_COUNT] = {
+#if CFG_TUD_ECM_RNDIS
+  [CONFIG_ID_RNDIS] = MAIN_CONFIG_TOTAL_LEN,
+  [CONFIG_ID_ECM]   = ALT_CONFIG_TOTAL_LEN
+#else
+  [CONFIG_ID_NCM] = NCM_CONFIG_TOTAL_LEN
+#endif
+};
+
+// Scratch buffer for other speed configuration (sized to hold the largest config)
+#if CFG_TUD_ECM_RNDIS
+  #define MAX_CONFIG_TOTAL_LEN TU_MAX(MAIN_CONFIG_TOTAL_LEN, ALT_CONFIG_TOTAL_LEN)
+#else
+  #define MAX_CONFIG_TOTAL_LEN NCM_CONFIG_TOTAL_LEN
+#endif
+static uint8_t desc_other_speed_config[MAX_CONFIG_TOTAL_LEN];
+
+// device qualifier: device descriptor fields that differ at other speed
+static tusb_desc_device_qualifier_t const desc_device_qualifier = {
+  .bLength            = sizeof(tusb_desc_device_qualifier_t),
+  .bDescriptorType    = TUSB_DESC_DEVICE_QUALIFIER,
+  .bcdUSB             = USB_BCD,
+
+  .bDeviceClass       = TUSB_CLASS_MISC,
+  .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
+  .bDeviceProtocol    = MISC_PROTOCOL_IAD,
+
+  .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
+  .bNumConfigurations = CONFIG_ID_COUNT,
+  .bReserved          = 0x00
+};
+
+// Invoked when received GET DEVICE QUALIFIER DESCRIPTOR request
+// Application return pointer to descriptor, whose contents must exist long enough for transfer to complete.
+// device_qualifier descriptor describes information about a high-speed capable device that would
+// change if the device were operating at the other speed. If not highspeed capable stall this request.
+uint8_t const *tud_descriptor_device_qualifier_cb(void) {
+  return (uint8_t const *) &desc_device_qualifier;
+}
+
+// Invoked when received GET OTHER SPEED CONFIGURATION DESCRIPTOR request
+// Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
+// Configuration descriptor in the other speed e.g if high speed then this is for full speed and vice versa
+uint8_t const *tud_descriptor_other_speed_configuration_cb(uint8_t index) {
+  if (index >= CONFIG_ID_COUNT) return NULL;
+
+  // if link speed is high return fullspeed config, and vice versa
+  const uint8_t *const *arr = (tud_speed_get() == TUSB_SPEED_HIGH) ? configuration_fs_arr : configuration_hs_arr;
+
+  // Note: the descriptor type is OTHER_SPEED_CONFIG instead of CONFIG
+  memcpy(desc_other_speed_config, arr[index], configuration_sz_arr[index]);
+  desc_other_speed_config[1] = TUSB_DESC_OTHER_SPEED_CONFIG;
+
+  return desc_other_speed_config;
+}
+
+#endif // highspeed
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
 // Application return pointer to descriptor
 // Descriptor contents must exist long enough for transfer to complete
 const uint8_t *tud_descriptor_configuration_cb(uint8_t index) {
-  return (index < CONFIG_ID_COUNT) ? configuration_arr[index] : NULL;
+  if (index >= CONFIG_ID_COUNT) return NULL;
+#if TUD_OPT_HIGH_SPEED
+  // Although we are highspeed, host may be fullspeed.
+  return (tud_speed_get() == TUSB_SPEED_HIGH) ? configuration_hs_arr[index] : configuration_fs_arr[index];
+#else
+  return configuration_fs_arr[index];
+#endif
 }
 
 #if CFG_TUD_NCM
