@@ -47,6 +47,7 @@ void BOARD_InitBootPins(void);
 
 /* Symbols to be used with GPIO driver */
 #define BOARD_INITPINS_USER_LED_GPIO                                       GPIO2   /*!< GPIO peripheral base pointer */
+#define BOARD_INITPINS_USER_LED_INIT_GPIO_VALUE                               0U   /*!< GPIO output initial state */
 #define BOARD_INITPINS_USER_LED_GPIO_PIN                                      3U   /*!< GPIO pin number */
 #define BOARD_INITPINS_USER_LED_GPIO_PIN_MASK                         (1U << 3U)   /*!< GPIO pin mask */
 #define BOARD_INITPINS_USER_LED_PORT                                       GPIO2   /*!< PORT peripheral base pointer */
@@ -72,16 +73,6 @@ void BOARD_InitBootPins(void);
  *
  */
 void BOARD_InitPins(void);
-
-/* GPIO_AD_B0_12 (coord K14), UART1_TXD */
-/* Routed pin properties */
-#define BOARD_INITDEBUG_UARTPINS_UART1_TXD_PERIPHERAL                    LPUART1   /*!< Peripheral name */
-#define BOARD_INITDEBUG_UARTPINS_UART1_TXD_SIGNAL                             TX   /*!< Signal name */
-
-/* GPIO_AD_B0_13 (coord L14), UART1_RXD */
-/* Routed pin properties */
-#define BOARD_INITDEBUG_UARTPINS_UART1_RXD_PERIPHERAL                    LPUART1   /*!< Peripheral name */
-#define BOARD_INITDEBUG_UARTPINS_UART1_RXD_SIGNAL                             RX   /*!< Signal name */
 
 /*!
  * @brief Configures pin routing and optionally pin electrical features.
