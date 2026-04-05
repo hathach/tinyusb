@@ -27,6 +27,7 @@ set(EXAMPLE_LIST
   hid_multiple_interface
   midi_test
   midi_test_freertos
+  midi2_device
   msc_dual_lun
   mtp
   net_lwip_webserver
