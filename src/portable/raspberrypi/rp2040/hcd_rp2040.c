@@ -283,6 +283,12 @@ static void __tusb_irq_path_func(xfer_complete_isr)(hw_endpoint_t *ep, xfer_resu
       epx_switch_ep(next_ep);
     }
   }
+#ifdef HAS_STOP_EPX_ON_NAK
+  // RP2350: after EP0 completes EPX is idle and STOP_EPX_ON_NAK cannot fire.
+  else if (is_more && epx_next_pending(epx) != NULL) {
+    usb_hw_set->inte = USB_INTE_HOST_SOF_BITS;
+  }
+#endif
 }
 
 static void __tusb_irq_path_func(handle_buf_status_isr)(void) {
