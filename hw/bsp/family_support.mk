@@ -7,12 +7,10 @@ to_upper = $(subst a,A,$(subst b,B,$(subst c,C,$(subst d,D,$(subst e,E,$(subst f
 
 #-------------------------------------------------------------
 # Toolchain
-# Can be changed via TOOLCHAIN=gcc|iar or CC=arm-none-eabi-gcc|iccarm|clang
+# Can be changed via TOOLCHAIN=gcc|clang or CC=arm-none-eabi-gcc|clang
 #-------------------------------------------------------------
 ifneq (,$(findstring clang,$(CC)))
   TOOLCHAIN = clang
-else ifneq (,$(findstring iccarm,$(CC)))
-  TOOLCHAIN = iar
 else ifneq (,$(findstring gcc,$(CC)))
   TOOLCHAIN = gcc
 endif
@@ -149,7 +147,7 @@ endif
 
 #---------------------- FreeRTOS -----------------------
 FREERTOS_SRC = lib/FreeRTOS-Kernel
-FREERTOS_PORTABLE_PATH = $(FREERTOS_SRC)/portable/$(if $(findstring iar,$(TOOLCHAIN)),IAR,GCC)
+FREERTOS_PORTABLE_PATH = $(FREERTOS_SRC)/portable/GCC
 
 ifeq ($(RTOS),freertos)
 	SRC_C += \
@@ -168,13 +166,13 @@ ifeq ($(RTOS),freertos)
 	CFLAGS += -DCFG_TUSB_OS=OPT_OS_FREERTOS
 
 	# Suppress FreeRTOSConfig.h warnings
-	CFLAGS_GCC += -Wno-error=redundant-decls
+	CFLAGS += -Wno-error=redundant-decls
 
 	# Suppress FreeRTOS source warnings
-	CFLAGS_GCC += -Wno-error=cast-qual
+	CFLAGS += -Wno-error=cast-qual
 
 	# FreeRTOS (lto + Os) linker issue
-	LDFLAGS_GCC += -Wl,--undefined=vTaskSwitchContext
+	LDFLAGS += -Wl,--undefined=vTaskSwitchContext
 endif
 
 #---------------- Helper ----------------

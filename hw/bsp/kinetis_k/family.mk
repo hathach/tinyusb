@@ -12,7 +12,7 @@ LDFLAGS += \
   -Wl,--defsym,__stack_size__=0x400 \
   -Wl,--defsym,__heap_size__=0
 
-LDFLAGS_GCC += \
+LDFLAGS += \
   -nostartfiles \
   --specs=nosys.specs --specs=nano.specs \
 

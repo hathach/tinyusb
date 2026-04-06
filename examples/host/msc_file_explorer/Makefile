@@ -21,6 +21,6 @@ SRC_C += \
   $(FATFS_PATH)/ffunicode.c \
 
 # suppress warning caused by fatfs
-CFLAGS_GCC += -Wno-error=cast-qual
+CFLAGS += -Wno-error=cast-qual
 
 include ../../../hw/bsp/family_rules.mk

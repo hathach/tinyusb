@@ -60,8 +60,8 @@ CFLAGS += \
 	-Wno-error=sign-compare \
 	-Wno-error=enum-conversion \
 
-LDFLAGS_GCC += -nostartfiles --specs=nosys.specs --specs=nano.specs
-LD_FILE_GCC ?= $(FAMILY_PATH)/linker/${MAX_DEVICE}.ld
+LDFLAGS += -nostartfiles --specs=nosys.specs --specs=nano.specs
+LD_FILE ?= $(FAMILY_PATH)/linker/${MAX_DEVICE}.ld
 
 # If the applications needs to be signed (for the MAX32651), sign it first and
 # then need to use MSDK's OpenOCD to flash it
@@ -99,7 +99,7 @@ SRC_C += \
 	${MSDK_LIB}/PeriphDrivers/Source/UART/uart_common.c \
 	${MSDK_LIB}/PeriphDrivers/Source/UART/uart_${PERIPH_SUFFIX}${PERIPH_ID}.c \
 
-SRC_S_GCC += ${MSDK_LIB}/CMSIS/Device/Maxim/${MAX_DEVICE_UPPER}/Source/GCC/startup_${MAX_DEVICE}.S
+SRC_S += ${MSDK_LIB}/CMSIS/Device/Maxim/${MAX_DEVICE_UPPER}/Source/GCC/startup_${MAX_DEVICE}.S
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \

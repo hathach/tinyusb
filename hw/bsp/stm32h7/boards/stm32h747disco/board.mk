@@ -6,8 +6,7 @@ CFLAGS += -DSTM32H747xx -DCORE_CM7 -DHSE_VALUE=25000000
 # Default is FulSpeed port
 PORT ?= 0
 
-LD_FILE_GCC = $(FAMILY_PATH)/linker/${MCU_VARIANT}_flash_CM7.ld
-LD_FILE_IAR = $(ST_CMSIS)/Source/Templates/iar/linker/stm32h747xx_flash_CM7.icf
+LD_FILE = $(FAMILY_PATH)/linker/${MCU_VARIANT}_flash_CM7.ld
 
 # For flash-jlink target
 JLINK_DEVICE = stm32h747xi_m7

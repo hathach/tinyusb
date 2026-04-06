@@ -12,7 +12,7 @@ CFLAGS += \
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter
 
-LDFLAGS_GCC += \
+LDFLAGS += \
   -nostartfiles \
   --specs=nosys.specs --specs=nano.specs \
 

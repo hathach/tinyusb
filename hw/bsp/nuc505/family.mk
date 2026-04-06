@@ -9,7 +9,7 @@ CPU_CORE ?= cortex-m4
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=redundant-decls
 
-LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+LDFLAGS += -specs=nosys.specs -specs=nano.specs
 
 # LD_FILE is defined in board.mk
 

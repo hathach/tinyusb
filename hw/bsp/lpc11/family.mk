@@ -13,7 +13,7 @@ CFLAGS += \
 CFLAGS += \
   -Wno-error=incompatible-pointer-types \
 
-LDFLAGS_GCC += --specs=nosys.specs --specs=nano.specs
+LDFLAGS += --specs=nosys.specs --specs=nano.specs
 
 SRC_C += \
 	src/portable/nxp/lpc_ip3511/dcd_lpc_ip3511.c \

@@ -10,7 +10,7 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_STM32U5
 
 # suppress warning caused by vendor mcu driver
-CFLAGS_GCC += \
+CFLAGS += \
   -flto \
   -Wno-error=cast-align \
   -Wno-error=undef \
@@ -19,10 +19,10 @@ CFLAGS_GCC += \
   -Wno-self-assign \
 
 ifeq ($(TOOLCHAIN),gcc)
-CFLAGS_GCC += -Wno-error=maybe-uninitialized
+CFLAGS += -Wno-error=maybe-uninitialized
 endif
 
-LDFLAGS_GCC += \
+LDFLAGS += \
   -nostdlib -nostartfiles \
   --specs=nosys.specs --specs=nano.specs
 
@@ -61,11 +61,9 @@ INC += \
 	$(TOP)/$(BOARD_PATH)
 
 # Startup
-SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_$(MCU_VARIANT).s
-SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_$(MCU_VARIANT).s
+SRC_S += $(ST_CMSIS)/Source/Templates/gcc/startup_$(MCU_VARIANT).s
 
 # Linker
-LD_FILE_IAR ?= $(ST_CMSIS)/Source/Templates/iar/linker/$(MCU_VARIANT)_flash.icf
 
 # flash target using on-board stlink
 flash: flash-stlink

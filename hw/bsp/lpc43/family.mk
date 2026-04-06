@@ -9,14 +9,14 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_LPC43XX
 
 # mcu driver cause following warnings
-CFLAGS_GCC += \
+CFLAGS += \
   -flto \
   -nostdlib \
   -Wno-error=unused-parameter \
   -Wno-error=cast-qual \
   -Wno-error=incompatible-pointer-types \
 
-LDFLAGS_GCC += --specs=nosys.specs --specs=nano.specs
+LDFLAGS += --specs=nosys.specs --specs=nano.specs
 
 SRC_C += \
 	src/portable/chipidea/ci_hs/dcd_ci_hs.c \
