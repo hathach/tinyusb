@@ -1,7 +1,7 @@
 include ../../../hw/bsp/family_support.mk
 
 # suppress warning caused by lwip
-CFLAGS_GCC += \
+CFLAGS += \
   -Wno-error=null-dereference \
   -Wno-error=unused-parameter \
   -Wno-error=unused-variable

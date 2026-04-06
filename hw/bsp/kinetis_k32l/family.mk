@@ -8,7 +8,7 @@ MCUX_DEVICES = hw/mcu/nxp/mcux-devices-kinetis
 CFLAGS += \
 	-DCFG_TUSB_MCU=OPT_MCU_KINETIS_K32L
 
-LDFLAGS_GCC += \
+LDFLAGS += \
   -nostartfiles \
   -specs=nosys.specs -specs=nano.specs
 

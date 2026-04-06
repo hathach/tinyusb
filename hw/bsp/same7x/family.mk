@@ -18,7 +18,7 @@ CFLAGS += -Wno-error=unused-parameter -Wno-error=cast-align -Wno-error=redundant
 # SAM driver is flooded with -Wcast-qual which slows down compilation significantly
 CFLAGS_SKIP += -Wcast-qual
 
-LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+LDFLAGS += -specs=nosys.specs -specs=nano.specs
 
 # All source paths should be relative to the top level.
 SRC_C += \

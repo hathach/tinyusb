@@ -47,15 +47,15 @@ CFLAGS += \
 	-DBUFFER_SIZE_UP=0x300 \
 
 # GCC Flags
-CFLAGS_GCC += \
+CFLAGS += \
   -flto \
 
 # suppress warning caused by vendor mcu driver
-CFLAGS_GCC += \
+CFLAGS += \
   -Wno-error=cast-align \
   -Wno-error=unused-parameter \
 
-LDFLAGS_GCC += \
+LDFLAGS += \
   -nostdlib -nostartfiles \
   --specs=nosys.specs --specs=nano.specs
 
@@ -87,9 +87,7 @@ INC += \
 	$(TOP)/$(ST_HAL_DRIVER)/Inc
 
 # Startup
-SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_$(MCU_VARIANT).s
-SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_$(MCU_VARIANT).s
+SRC_S += $(ST_CMSIS)/Source/Templates/gcc/startup_$(MCU_VARIANT).s
 
 # Linker
-LD_FILE_GCC ?= $(FAMILY_PATH)/linker/$(MCU_VARIANT)_flash.ld
-LD_FILE_IAR ?= $(ST_CMSIS)/Source/Templates/iar/linker/$(MCU_VARIANT)_flash.icf
+LD_FILE ?= $(FAMILY_PATH)/linker/$(MCU_VARIANT)_flash.ld

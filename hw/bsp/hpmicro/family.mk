@@ -27,7 +27,7 @@ endif
 CFLAGS += -Wno-error=cast-align -Wno-error=double-promotion -Wno-error=discarded-qualifiers \
           -Wno-error=undef -Wno-error=unused-parameter -Wno-error=redundant-decls
 
-LDFLAGS_GCC += \
+LDFLAGS += \
   -nostartfiles \
   --specs=nosys.specs --specs=nano.specs
 

@@ -11,7 +11,7 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_STM32L0
 
 # mcu driver cause following warnings
-CFLAGS_GCC += \
+CFLAGS += \
   -flto \
 	-Wno-error=unused-parameter \
 	-Wno-error=redundant-decls \
@@ -21,7 +21,7 @@ CFLAGS_GCC += \
 CFLAGS_CLANG += \
   -Wno-error=parentheses-equality
 
-LDFLAGS_GCC += \
+LDFLAGS += \
   -nostdlib -nostartfiles \
   --specs=nosys.specs --specs=nano.specs
 
@@ -43,8 +43,6 @@ INC += \
   $(TOP)/$(ST_HAL_DRIVER)/Inc
 
 # Startup
-SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_${MCU_VARIANT}.s
-SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_${MCU_VARIANT}.s
+SRC_S += $(ST_CMSIS)/Source/Templates/gcc/startup_${MCU_VARIANT}.s
 
 # Linker
-LD_FILE_IAR ?= $(ST_CMSIS)/Source/Templates/iar/linker/$(MCU_VARIANT)_flash.icf

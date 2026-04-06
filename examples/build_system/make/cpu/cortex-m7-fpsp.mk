@@ -11,15 +11,6 @@ else ifeq ($(TOOLCHAIN),clang)
 	  -mcpu=cortex-m7 \
 	  -mfpu=fpv5-sp-d16 \
 
-else ifeq ($(TOOLCHAIN),iar)
-  CFLAGS += \
-  	--cpu cortex-m7 \
-  	--fpu VFPv5_sp \
-
-  ASFLAGS += \
-		--cpu cortex-m7 \
-		--fpu VFPv5_sp \
-
 else
   $(error "TOOLCHAIN is not supported")
 endif

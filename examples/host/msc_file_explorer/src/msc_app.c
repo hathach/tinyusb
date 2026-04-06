@@ -260,7 +260,7 @@ DRESULT disk_ioctl(BYTE  pdrv, /* Physical drive nmuber (0..) */
       return RES_OK;
 
     case GET_SECTOR_COUNT:
-      *((DWORD *)buff) = (WORD)tuh_msc_get_block_count(dev_addr, lun);
+      *((DWORD *)buff) = (DWORD)tuh_msc_get_block_count(dev_addr, lun);
       return RES_OK;
 
     case GET_SECTOR_SIZE:

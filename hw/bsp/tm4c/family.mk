@@ -14,7 +14,7 @@ CFLAGS += \
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=strict-prototypes -Wno-error=cast-qual
 
-LDFLAGS_GCC += --specs=nosys.specs --specs=nano.specs
+LDFLAGS += --specs=nosys.specs --specs=nano.specs
 
 INC += \
 	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \

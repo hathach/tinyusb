@@ -11,7 +11,7 @@ CFLAGS += \
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=cast-qual -Wno-error=format=
 
-LDFLAGS_GCC += --specs=nosys.specs --specs=nano.specs
+LDFLAGS += --specs=nosys.specs --specs=nano.specs
 
 LD_FILE = hw/mcu/ti/msp432e4/Source/${MCU_VARIANT}.ld
 

@@ -9,11 +9,6 @@ else ifeq ($(TOOLCHAIN),clang)
 	  --target=arm-none-eabi \
 	  -mcpu=cortex-m0 \
 
-else ifeq ($(TOOLCHAIN),iar)
-  # IAR Flags
-  CFLAGS += --cpu cortex-m0
-  ASFLAGS += --cpu cortex-m0
-
 else
   $(error "TOOLCHAIN is not supported")
 endif

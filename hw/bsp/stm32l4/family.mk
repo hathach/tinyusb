@@ -13,15 +13,15 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_STM32L4
 
 # GCC Flags
-CFLAGS_GCC += \
+CFLAGS += \
   -flto \
   -Wno-error=cast-align \
 
 ifeq ($(TOOLCHAIN),gcc)
-CFLAGS_GCC += -Wno-error=maybe-uninitialized
+CFLAGS += -Wno-error=maybe-uninitialized
 endif
 
-LDFLAGS_GCC += \
+LDFLAGS += \
   -nostdlib -nostartfiles \
   --specs=nosys.specs --specs=nano.specs
 

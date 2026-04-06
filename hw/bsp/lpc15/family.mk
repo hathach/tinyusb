@@ -10,10 +10,10 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_LPC15XX \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))'
 
-LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+LDFLAGS += -specs=nosys.specs -specs=nano.specs
 
 # mcu driver cause following warnings
-CFLAGS_GCC += -Wno-error=strict-prototypes -Wno-error=unused-parameter -Wno-error=unused-variable -Wno-error=cast-qual
+CFLAGS += -Wno-error=strict-prototypes -Wno-error=unused-parameter -Wno-error=unused-variable -Wno-error=cast-qual
 
 MCU_DIR = hw/mcu/nxp/lpcopen/lpc15xx/lpc_chip_15xx
 

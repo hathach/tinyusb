@@ -13,7 +13,7 @@ CFLAGS += \
   -DHSE_VALUE=25000000 \
 
 # Linker
-LD_FILE_GCC = $(BOARD_PATH)/STM32F723xE_FLASH.ld
+LD_FILE = $(BOARD_PATH)/STM32F723xE_FLASH.ld
 
 # flash target using on-board stlink
 flash: flash-stlink
