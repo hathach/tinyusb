@@ -152,7 +152,8 @@ static inline void channel_write_status(uint8_t ch_id, uint32_t ch_reg, tusb_dir
 
 static inline uint16_t channel_get_rx_count(uint8_t ch_id) {
   uint32_t ch_reg = ch_read(ch_id);
-  fsdev_btable_workaround_delay((FSDEV_REG->ISTR & U_ISTR_LS_DCONN) || (ch_reg & U_EP_LSEP));
+  const bool is_low_speed = (FSDEV_REG->ISTR & U_ISTR_LS_DCONN) || (ch_reg & U_EP_LSEP);
+  fsdev_btable_workaround_delay(is_low_speed);
 
   return btable_get_count(ch_id, BTABLE_BUF_RX);
 }
