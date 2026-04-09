@@ -39,7 +39,7 @@
 static const dwc2_controller_t _dwc2_controller[] =
 {
   // Note: XMC has some custom control registers before DWC registers
-  { .reg_base = USB0_BASE, .irqnum = USB0_0_IRQn, .ep_count = DWC2_EP_MAX, .ep_fifo_size = 2048 }
+  { .reg_base = USB0_BASE, .irqnum = USB0_0_IRQn, .ep_count = DWC2_EP_MAX, .otg_dfifo_depth = 512 }
 };
 
 TU_ATTR_ALWAYS_INLINE

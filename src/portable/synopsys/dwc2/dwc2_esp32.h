@@ -44,7 +44,7 @@
 #define DWC2_EP_MAX        7
 
 static const dwc2_controller_t _dwc2_controller[] = {
-  { .reg_base = DWC2_FS_REG_BASE, .irqnum = ETS_USB_INTR_SOURCE, .ep_count = 7, .ep_in_count = 5, .ep_fifo_size = 1024 }
+  { .reg_base = DWC2_FS_REG_BASE, .irqnum = ETS_USB_INTR_SOURCE, .ep_count = 7, .ep_in_count = 5, .otg_dfifo_depth = 256 }
 };
 
 #elif TU_CHECK_MCU(OPT_MCU_ESP32H4)
@@ -61,7 +61,7 @@ static const dwc2_controller_t _dwc2_controller[] = {
 #define DWC2_EP_MAX        7
 
 static const dwc2_controller_t _dwc2_controller[] = {
-  { .reg_base = DWC2_FS_REG_BASE, .irqnum = ETS_USB_OTG11_INTR_SOURCE, .ep_count = 7, .ep_in_count = 5, .ep_fifo_size = 1024 }
+  { .reg_base = DWC2_FS_REG_BASE, .irqnum = ETS_USB_OTG11_INTR_SOURCE, .ep_count = 7, .ep_in_count = 5, .otg_dfifo_depth = 256 }
 };
 
 #elif TU_CHECK_MCU(OPT_MCU_ESP32P4)
@@ -72,8 +72,8 @@ static const dwc2_controller_t _dwc2_controller[] = {
 // On ESP32 for consistency we associate
 // - Port0 to OTG_FS, and Port1 to OTG_HS
 static const dwc2_controller_t _dwc2_controller[] = {
-  { .reg_base = DWC2_FS_REG_BASE, .irqnum = ETS_USB_OTG11_CH0_INTR_SOURCE, .ep_count = 7, .ep_in_count = 5, .ep_fifo_size = 1024 },
-  { .reg_base = DWC2_HS_REG_BASE, .irqnum = ETS_USB_OTG_INTR_SOURCE, .ep_count = 16, .ep_in_count = 8, .ep_fifo_size = 4096 }
+  { .reg_base = DWC2_FS_REG_BASE, .irqnum = ETS_USB_OTG11_CH0_INTR_SOURCE, .ep_count = 7, .ep_in_count = 5, .otg_dfifo_depth = 256 },
+  { .reg_base = DWC2_HS_REG_BASE, .irqnum = ETS_USB_OTG_INTR_SOURCE, .ep_count = 16, .ep_in_count = 8, .otg_dfifo_depth = 1024 }
 };
 #endif
 

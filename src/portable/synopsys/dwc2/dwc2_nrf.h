@@ -2,7 +2,6 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2025 Ha Thach (tinyusb.org)
- * Copyright (c) 2026, Gabriel Koppenstein
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +22,9 @@
  * THE SOFTWARE.
  *
  * This file is part of the TinyUSB stack.
+ *
+ * Modification
+ * - Gabriel Koppenstein add nRF54LM20 support
  */
 #ifndef TUSB_DWC2_NRF_H
 #define TUSB_DWC2_NRF_H
@@ -33,18 +35,18 @@
 
 // Use the auto-resolving peripheral pointer (respects TrustZone secure/non-secure mapping)
 #if defined(NRF54LM20A_ENGA_XXAA)
-  #define _DWC2_NRF_REG_BASE ((uintptr_t) NRF_USBHSCORE)
+  #define DWC2_REG_BASE ((uintptr_t)NRF_USBHSCORE)
 #else
-  #define _DWC2_NRF_REG_BASE ((uintptr_t) NRF_USBHSCORE0)
+  #define DWC2_REG_BASE ((uintptr_t)NRF_USBHSCORE0)
 #endif
 
 static const dwc2_controller_t _dwc2_controller[] = {
-  { .reg_base = _DWC2_NRF_REG_BASE, .irqnum = USBHS_IRQn, .ep_count = 16, .ep_fifo_size = 12160 },
+  {.reg_base = DWC2_REG_BASE, .irqnum = USBHS_IRQn, .ep_count = 16, .otg_dfifo_depth = 3072},
 };
 
 TU_ATTR_ALWAYS_INLINE static inline void dwc2_int_set(uint8_t rhport, tusb_role_t role, bool enabled) {
-  (void) rhport;
-  (void) role;
+  (void)rhport;
+  (void)role;
   if (enabled) {
     NVIC_EnableIRQ(USBHS_IRQn);
   } else {
@@ -59,32 +61,38 @@ TU_ATTR_ALWAYS_INLINE static inline void dwc2_remote_wakeup_delay(void) {
 }
 
 // MCU specific PHY init, called BEFORE core reset
-TU_ATTR_ALWAYS_INLINE static inline void dwc2_phy_init(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
+TU_ATTR_ALWAYS_INLINE static inline void dwc2_phy_init(dwc2_regs_t *dwc2, uint8_t hs_phy_type) {
   (void)dwc2;
   (void)hs_phy_type;
 }
 
 // MCU specific PHY deinit, disable PHY power
-TU_ATTR_ALWAYS_INLINE static inline void dwc2_phy_deinit(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
+TU_ATTR_ALWAYS_INLINE static inline void dwc2_phy_deinit(dwc2_regs_t *dwc2, uint8_t hs_phy_type) {
   (void)dwc2;
   (void)hs_phy_type;
 }
 
 // MCU specific PHY update, it is called AFTER init() and core reset
-TU_ATTR_ALWAYS_INLINE static inline void dwc2_phy_update(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
+TU_ATTR_ALWAYS_INLINE static inline void dwc2_phy_update(dwc2_regs_t *dwc2, uint8_t hs_phy_type) {
   (void)dwc2;
   (void)hs_phy_type;
 }
 
 // nRF54 Cortex-M33 has no D-cache, provide no-op stubs for DMA mode
-TU_ATTR_ALWAYS_INLINE static inline bool dwc2_dcache_clean(const void* addr, uint32_t data_size) {
-  (void)addr; (void)data_size; return true;
+TU_ATTR_ALWAYS_INLINE static inline bool dwc2_dcache_clean(const void *addr, uint32_t data_size) {
+  (void)addr;
+  (void)data_size;
+  return true;
 }
-TU_ATTR_ALWAYS_INLINE static inline bool dwc2_dcache_invalidate(const void* addr, uint32_t data_size) {
-  (void)addr; (void)data_size; return true;
+TU_ATTR_ALWAYS_INLINE static inline bool dwc2_dcache_invalidate(const void *addr, uint32_t data_size) {
+  (void)addr;
+  (void)data_size;
+  return true;
 }
-TU_ATTR_ALWAYS_INLINE static inline bool dwc2_dcache_clean_invalidate(const void* addr, uint32_t data_size) {
-  (void)addr; (void)data_size; return true;
+TU_ATTR_ALWAYS_INLINE static inline bool dwc2_dcache_clean_invalidate(const void *addr, uint32_t data_size) {
+  (void)addr;
+  (void)data_size;
+  return true;
 }
 
 #endif

@@ -40,7 +40,7 @@
 
 static const dwc2_controller_t _dwc2_controller[] =
 {
-  { .reg_base = DWC2_REG_BASE, .irqnum = USB_IRQn, .ep_count = DWC2_EP_MAX, .ep_fifo_size = 2048 }
+  { .reg_base = DWC2_REG_BASE, .irqnum = USB_IRQn, .ep_count = DWC2_EP_MAX, .otg_dfifo_depth = 512 }
 };
 
 TU_ATTR_ALWAYS_INLINE

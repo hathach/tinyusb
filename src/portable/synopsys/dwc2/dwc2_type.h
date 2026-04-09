@@ -47,7 +47,7 @@ typedef struct
   uint32_t  irqnum;
   uint8_t   ep_count;
   uint8_t   ep_in_count;
-  uint32_t  ep_fifo_size;
+  uint16_t  otg_dfifo_depth; // total SPRAM in 32-bit words = ghwcfg3.dfifo_depth + EP_LOC_CNT
 }dwc2_controller_t;
 
 // DWC OTG HW Release versions
@@ -63,6 +63,7 @@ typedef struct
 #define DWC2_CORE_REV_4_00a   0x4f54400a
 #define DWC2_CORE_REV_4_11a   0x4f54411a
 #define DWC2_CORE_REV_4_20a   0x4f54420a
+#define DWC2_CORE_REV_5_00b   0x4F54500b
 #define DWC2_FS_IOT_REV_1_00a 0x5531100a
 #define DWC2_HS_IOT_REV_1_00a 0x5532100a
 #define DWC2_CORE_REV_MASK    0x0000ffff

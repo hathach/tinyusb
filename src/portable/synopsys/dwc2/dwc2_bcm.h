@@ -39,7 +39,7 @@
 
 static const dwc2_controller_t _dwc2_controller[] =
 {
-  { .reg_base = USB_OTG_GLOBAL_BASE, .irqnum = USB_IRQn, .ep_count = DWC2_EP_MAX, .ep_fifo_size = 16384 }
+  { .reg_base = USB_OTG_GLOBAL_BASE, .irqnum = USB_IRQn, .ep_count = DWC2_EP_MAX, .otg_dfifo_depth = 4096 }
 };
 
 #define dcache_clean(_addr, _size)              data_clean(_addr, _size)

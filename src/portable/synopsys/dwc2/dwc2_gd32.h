@@ -37,7 +37,7 @@
 
 static const dwc2_controller_t _dwc2_controller[] =
 {
-  { .reg_base = DWC2_REG_BASE, .irqnum = 86, .ep_count = DWC2_EP_MAX, .ep_fifo_size = 1280 }
+  { .reg_base = DWC2_REG_BASE, .irqnum = 86, .ep_count = DWC2_EP_MAX, .otg_dfifo_depth = 320 }
 };
 
 extern uint32_t SystemCoreClock;
