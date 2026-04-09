@@ -145,10 +145,14 @@
     #define FSDEV_STM32_CPU_MHZ 160U
   #elif CFG_TUSB_MCU == OPT_MCU_STM32U3
     #define FSDEV_STM32_CPU_MHZ 96U
+  #elif CFG_TUSB_MCU == OPT_MCU_STM32U0
+    #define FSDEV_STM32_CPU_MHZ 56U
   #elif CFG_TUSB_MCU == OPT_MCU_STM32G0
     #define FSDEV_STM32_CPU_MHZ 64U
   #elif CFG_TUSB_MCU == OPT_MCU_STM32C0
     #define FSDEV_STM32_CPU_MHZ 48U
+  #elif defined(CFG_TUSB_FSDEV_32BIT)
+    #error "FSDEV_STM32_CPU_MHZ not defined for this STM32 MCU"
   #endif
 #endif
 

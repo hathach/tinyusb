@@ -312,8 +312,7 @@ typedef struct {
     #if defined(FSDEV_STM32_CPU_MHZ)
       #define CFG_TUSB_FSDEV_BTABLE_FS_DELAY_COUNT (FSDEV_STM32_CPU_MHZ / 4U)
     #else
-      // Keep conservative default and allow board/application override.
-      #define CFG_TUSB_FSDEV_BTABLE_FS_DELAY_COUNT 20U
+      #error "Define CFG_TUSB_FSDEV_BTABLE_FS_DELAY_COUNT or FSDEV_STM32_CPU_MHZ for STM32 FSDEV 32-bit"
     #endif
   #endif
 
@@ -321,8 +320,7 @@ typedef struct {
     #if defined(FSDEV_STM32_CPU_MHZ)
       #define CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT (FSDEV_STM32_CPU_MHZ * 2U)
     #else
-      // Keep conservative default and allow board/application override.
-      #define CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT 20U
+      #error "Define CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT or FSDEV_STM32_CPU_MHZ for STM32 FSDEV 32-bit"
     #endif
   #endif
 #endif
