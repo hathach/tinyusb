@@ -307,6 +307,26 @@ typedef struct {
   #error "Unknown USB IP"
 #endif
 
+#if defined(TUP_USBIP_FSDEV_STM32) && defined(CFG_TUSB_FSDEV_32BIT)
+  #ifndef CFG_TUSB_FSDEV_BTABLE_FS_DELAY_COUNT
+    #if defined(FSDEV_STM32_CPU_MHZ)
+      #define CFG_TUSB_FSDEV_BTABLE_FS_DELAY_COUNT (FSDEV_STM32_CPU_MHZ / 4U)
+    #else
+      // Keep conservative default and allow board/application override.
+      #define CFG_TUSB_FSDEV_BTABLE_FS_DELAY_COUNT 20U
+    #endif
+  #endif
+
+  #ifndef CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT
+    #if defined(FSDEV_STM32_CPU_MHZ)
+      #define CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT (FSDEV_STM32_CPU_MHZ * 2U)
+    #else
+      // Keep conservative default and allow board/application override.
+      #define CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT 20U
+    #endif
+  #endif
+#endif
+
 //--------------------------------------------------------------------+
 // Endpoint Helper
 // - CTR is write 0 to clear
@@ -448,6 +468,9 @@ uint16_t pma_align_buffer_size(uint16_t size, uint8_t *blsize, uint8_t *num_bloc
 
 // Set RX buffer size
 void btable_set_rx_bufsize(uint32_t ep_id, uint8_t buf_id, uint16_t wCount);
+
+// STM32 FSDEV PMA Buffer Description Table errata workaround delay.
+void fsdev_btable_workaround_delay(bool low_speed);
 
 #ifdef __cplusplus
 }

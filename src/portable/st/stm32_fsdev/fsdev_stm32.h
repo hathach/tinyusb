@@ -138,6 +138,20 @@
   #error "FSDEV_HAS_SBUF_ISO not defined"
 #endif
 
+#ifndef FSDEV_STM32_CPU_MHZ
+  #if CFG_TUSB_MCU == OPT_MCU_STM32H5
+    #define FSDEV_STM32_CPU_MHZ 250U
+  #elif CFG_TUSB_MCU == OPT_MCU_STM32U5
+    #define FSDEV_STM32_CPU_MHZ 160U
+  #elif CFG_TUSB_MCU == OPT_MCU_STM32U3
+    #define FSDEV_STM32_CPU_MHZ 96U
+  #elif CFG_TUSB_MCU == OPT_MCU_STM32G0
+    #define FSDEV_STM32_CPU_MHZ 64U
+  #elif CFG_TUSB_MCU == OPT_MCU_STM32C0
+    #define FSDEV_STM32_CPU_MHZ 48U
+  #endif
+#endif
+
 #ifndef CFG_TUD_FSDEV_DOUBLE_BUFFERED_ISO_EP
   // Default configuration for double-buffered isochronous endpoints:
   // - Enable double buffering on devices with >1KB Packet Memory Area (PMA)
