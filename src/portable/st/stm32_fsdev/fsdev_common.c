@@ -123,7 +123,7 @@ void fsdev_btable_workaround_delay(bool low_speed) {
   uint32_t cycle_count = low_speed ? CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT : CFG_TUSB_FSDEV_BTABLE_FS_DELAY_COUNT;
   volatile uint32_t delay_count = cycle_count;
   while (delay_count > 0U) {
-    delay_count--; // each count take 3 cycles (1 for sub, jump, and compare)
+    delay_count--; // each count takes 3 cycles (1 for sub, jump, and compare)
   }
 #else
   (void) low_speed;

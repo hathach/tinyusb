@@ -469,7 +469,8 @@ uint16_t pma_align_buffer_size(uint16_t size, uint8_t *blsize, uint8_t *num_bloc
 // Set RX buffer size
 void btable_set_rx_bufsize(uint32_t ep_id, uint8_t buf_id, uint16_t wCount);
 
-// STM32 FSDEV PMA Buffer Description Table errata workaround delay.
+// Delay helper for STM32 FSDEV PMA Buffer Description Table errata (ES0561/ES0587).
+// Low-speed path uses CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT, otherwise full-speed count.
 void fsdev_btable_workaround_delay(bool low_speed);
 
 #ifdef __cplusplus
