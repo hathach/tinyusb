@@ -146,6 +146,7 @@
   #elif CFG_TUSB_MCU == OPT_MCU_STM32U3
     #define FSDEV_STM32_CPU_MHZ 96U
   #elif CFG_TUSB_MCU == OPT_MCU_STM32U0
+    // Used by STM32 FSDEV PMA delay defaults as a conservative max CPU frequency.
     #define FSDEV_STM32_CPU_MHZ 56U
   #elif CFG_TUSB_MCU == OPT_MCU_STM32G0
     #define FSDEV_STM32_CPU_MHZ 64U
