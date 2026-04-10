@@ -230,13 +230,19 @@ static bool handle_xfer_out(uint8_t rhport, uint_fast8_t ep_addr)
   musb_ep_csr_t* ep_csr = get_ep_csr(musb_regs, epnum);
   // TU_LOG1(" RXCSRL%d = %x\r\n", epnum_minus1 + 1, ep_csr->rx_csrl);
 
-  TU_ASSERT(ep_csr->rx_csrl & MUSB_RXCSRL1_RXRDY);
+  //Fail gracefully. Spurious interrupt.
+  if (!(ep_csr->rx_csrl & MUSB_RXCSRL1_RXRDY)) return false;
+
+  void *buf = pipe->buf;
+  if (buf == NULL) {
+    ep_csr->rx_csrl = MUSB_RXCSRL1_FLUSH;
+    return false;
+  }
 
   const unsigned mps = ep_csr->rx_maxp;
   const unsigned rem = pipe->remaining;
   const unsigned vld = ep_csr->rx_count;
   const unsigned len = TU_MIN(TU_MIN(rem, mps), vld);
-  void          *buf = pipe->buf;
   volatile void *fifo_ptr = &musb_regs->fifo[epnum];
   if (len) {
     if (_dcd.pipe_buf_is_fifo[TUSB_DIR_OUT] & TU_BIT(epnum_minus1)) {
@@ -247,11 +253,12 @@ static bool handle_xfer_out(uint8_t rhport, uint_fast8_t ep_addr)
     }
     pipe->remaining = rem - len;
   }
+
+  ep_csr->rx_csrl = 0; /* Always Clear RXRDY bit */
   if ((len < mps) || (rem == len)) {
     pipe->buf = NULL;
     return NULL != buf;
   }
-  ep_csr->rx_csrl = 0; /* Clear RXRDY bit */
   return false;
 }
 
