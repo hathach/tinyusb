@@ -110,11 +110,11 @@ extern "C" {
   #ifdef USB_OTG_FS
     #define USB_OTG_FS_PERIPH_BASE    USB_OTG_FS_BASE
     #define EP_MAX_FS                 6
-    #define DFIFO_DEPTH_FS           1280
+    #define DFIFO_DEPTH_FS           320
   #else
     #define USB_OTG_HS_PERIPH_BASE    USB_OTG_HS_BASE
     #define EP_MAX_HS                 9
-    #define DFIFO_DEPTH_HS           4096
+    #define DFIFO_DEPTH_HS           1024
   #endif
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32WBA
@@ -131,7 +131,7 @@ extern "C" {
   #define USB_OTG_HS_PERIPH_BASE    USB_OTG_HS_BASE_NS
   #define OTG_HS_IRQn               USB_OTG_HS_IRQn
   #define EP_MAX_HS                 9
-  #define DFIFO_DEPTH_HS           4096
+  #define DFIFO_DEPTH_HS           1024
 #else
   #error "Unsupported MCUs"
 #endif
