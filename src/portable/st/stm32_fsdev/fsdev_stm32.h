@@ -152,8 +152,9 @@
     #define FSDEV_STM32_CPU_MHZ 64U
   #elif CFG_TUSB_MCU == OPT_MCU_STM32C0
     #define FSDEV_STM32_CPU_MHZ 48U
-  #elif defined(CFG_TUSB_FSDEV_32BIT)
-    #error "FSDEV_STM32_CPU_MHZ not defined for this STM32 MCU"
+  #elif defined(CFG_TUSB_FSDEV_32BIT) && \
+      (!defined(CFG_TUSB_FSDEV_BTABLE_FS_DELAY_COUNT) || !defined(CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT))
+    #error "Define FSDEV_STM32_CPU_MHZ or both CFG_TUSB_FSDEV_BTABLE_{FS,LS}_DELAY_COUNT for this STM32 MCU"
   #endif
 #endif
 
