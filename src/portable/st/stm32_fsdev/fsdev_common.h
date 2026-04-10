@@ -469,7 +469,17 @@ void btable_set_rx_bufsize(uint32_t ep_id, uint8_t buf_id, uint16_t wCount);
 
 // Delay helper for STM32 FSDEV PMA Buffer Description Table errata (ES0561/ES0587).
 // Low-speed path uses CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT, otherwise full-speed count.
-void fsdev_btable_workaround_delay(bool low_speed);
+TU_ATTR_ALWAYS_INLINE static inline void fsdev_btable_workaround_delay(bool low_speed) {
+#if defined(TUP_USBIP_FSDEV_STM32) && defined(CFG_TUSB_FSDEV_32BIT)
+  uint32_t cycle_count = low_speed ? CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT : CFG_TUSB_FSDEV_BTABLE_FS_DELAY_COUNT;
+  volatile uint32_t delay_count = cycle_count;
+  while (delay_count > 0U) {
+    delay_count--;
+  }
+#else
+  (void) low_speed;
+#endif
+}
 
 #ifdef __cplusplus
 }
