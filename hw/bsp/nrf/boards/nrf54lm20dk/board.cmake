@@ -5,7 +5,4 @@ function(update_board TARGET)
   target_compile_definitions(${TARGET} PUBLIC
     CFG_EXAMPLE_VIDEO_READONLY
     )
-  target_sources(${TARGET} PRIVATE
-#    ${NRFX_PATH}/drivers/src/nrfx_usbreg.c
-    )
 endfunction()
