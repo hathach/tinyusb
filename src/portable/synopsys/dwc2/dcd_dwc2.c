@@ -164,7 +164,7 @@ static void dma_setup_prepare(uint8_t rhport) {
 
    --------------- otg_dfifo_depth
   |  EPInfo      |   DxEPDMAn (DMA only, sized per runtime DMA mode)
-  |-------------|-- gdfifocfg.EPINFOBASE (= gdfifocfg.GDFIFOCfg)
+  |-------------|-- gdfifocfg.EPINFOBASE (start of EPInfo; FIFO space sized by GDFIFOCFG)
   | IN FIFO 0   |       control EP
   |-------------|
   | IN FIFO 1   |
