@@ -46,6 +46,12 @@ static const dwc2_controller_t _dwc2_controller[] =
 #define dcache_invalidate(_addr, _size)         data_invalidate(_addr, _size)
 #define dcache_clean_invalidate(_addr, _size)   data_clean_and_invalidate(_addr, _size)
 
+// MCU specific to enable dwc2 clock/power before any access to register
+TU_ATTR_ALWAYS_INLINE static inline void dwc2_clock_init(uint8_t rhport, tusb_role_t role) {
+  (void) rhport;
+  (void) role;
+}
+
 TU_ATTR_ALWAYS_INLINE
 static inline void dwc2_dcd_int_enable(uint8_t rhport)
 {

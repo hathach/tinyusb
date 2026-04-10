@@ -97,6 +97,12 @@ static void dwc2_int_handler_wrap(void* arg) {
 #endif
 }
 
+// MCU specific to enable dwc2 clock/power before any access to register
+TU_ATTR_ALWAYS_INLINE static inline void dwc2_clock_init(uint8_t rhport, tusb_role_t role) {
+  (void) rhport;
+  (void) role;
+}
+
 TU_ATTR_ALWAYS_INLINE static inline void dwc2_int_set(uint8_t rhport, tusb_role_t role, bool enabled) {
   if (enabled) {
     esp_intr_alloc(_dwc2_controller[rhport].irqnum, ESP_INTR_FLAG_LOWMED,

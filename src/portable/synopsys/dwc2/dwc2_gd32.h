@@ -57,6 +57,12 @@ static inline void __eclic_disable_interrupt (uint32_t irq){
   *(volatile uint8_t*)(ECLIC_INTERRUPT_ENABLE_BASE + (irq * 4)) = 0;
 }
 
+// MCU specific to enable dwc2 clock/power before any access to register
+TU_ATTR_ALWAYS_INLINE static inline void dwc2_clock_init(uint8_t rhport, tusb_role_t role) {
+  (void) rhport;
+  (void) role;
+}
+
 TU_ATTR_ALWAYS_INLINE
 static inline void dwc2_dcd_int_enable(uint8_t rhport)
 {

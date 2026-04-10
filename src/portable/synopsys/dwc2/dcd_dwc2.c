@@ -442,12 +442,12 @@ bool dcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
 }
 
 bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
-  (void) rh_init;
-  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  dwc2_clock_init(rhport, rh_init->role);
 
   tu_memclr(&_dcd_data, sizeof(_dcd_data));
 
   // Core Initialization
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   const bool is_hs_phy = dwc2_core_is_highspeed_phy(dwc2, TUD_OPT_HIGH_SPEED);
   const bool is_dma = dma_device_enabled(dwc2);
   TU_ASSERT(dwc2_core_init(rhport, is_hs_phy, is_dma));

@@ -81,39 +81,67 @@ enum {
 
 // Forward USB interrupt events to TinyUSB IRQ Handler
 #if defined(NRF54H20_XXAA) || defined(NRF54LM20A_ENGA_XXAA)
-#define USBD_IRQn  USBHS_IRQn
+  #define USBD_IRQn USBHS_IRQn
 void USBHS_IRQHandler(void) {
   tusb_int_handler(0, true);
 }
 
-#if defined(NRF54LM20A_ENGA_XXAA)
+  #if defined(NRF54LM20A_ENGA_XXAA)
 static nrfx_uarte_t _uart_id = NRFX_UARTE_INSTANCE(20);
-#else
+  #else
 static nrfx_uarte_t _uart_id = NRFX_UARTE_INSTANCE(120);
-#endif
+  #endif
 
 #else
+  #ifdef NRF5340_XXAA
+    #define LFCLK_SRC_RC   CLOCK_LFCLKSRC_SRC_LFRC
+    #define VBUSDETECT_Msk USBREG_USBREGSTATUS_VBUSDETECT_Msk
+    #define OUTPUTRDY_Msk  USBREG_USBREGSTATUS_OUTPUTRDY_Msk
+    #define GPIOTE_IRQn    GPIOTE1_IRQn
+  #else
+    #define LFCLK_SRC_RC   CLOCK_LFCLKSRC_SRC_RC
+    #define VBUSDETECT_Msk POWER_USBREGSTATUS_VBUSDETECT_Msk
+    #define OUTPUTRDY_Msk  POWER_USBREGSTATUS_OUTPUTRDY_Msk
+  #endif
 
-#ifdef NRF5340_XXAA
-#define LFCLK_SRC_RC CLOCK_LFCLKSRC_SRC_LFRC
-#define VBUSDETECT_Msk USBREG_USBREGSTATUS_VBUSDETECT_Msk
-#define OUTPUTRDY_Msk USBREG_USBREGSTATUS_OUTPUTRDY_Msk
-#define GPIOTE_IRQn GPIOTE1_IRQn
-#else
-#define LFCLK_SRC_RC CLOCK_LFCLKSRC_SRC_RC
-#define VBUSDETECT_Msk POWER_USBREGSTATUS_VBUSDETECT_Msk
-#define OUTPUTRDY_Msk POWER_USBREGSTATUS_OUTPUTRDY_Msk
-#endif
-
-#if CFG_TUSB_OS != OPT_OS_ZEPHYR
+  #if CFG_TUSB_OS != OPT_OS_ZEPHYR
 static nrfx_uarte_t _uart_id = NRFX_UARTE_INSTANCE(0);
-#endif
+  #endif
 
 void USBD_IRQHandler(void) {
-  tud_int_handler(0);
+  tusb_int_handler(0, true);
 }
 #endif
 
+//--------------------------------------------------------------------+
+// UART RX ring buffer and event handler
+//--------------------------------------------------------------------+
+#if CFG_TUSB_OS != OPT_OS_ZEPHYR
+
+#define UART_RX_BUFSIZE 64
+
+static uint8_t rx_fifo[UART_RX_BUFSIZE];
+static volatile uint16_t rx_fifo_head = 0;
+static volatile uint16_t rx_fifo_tail = 0;
+
+static uint8_t rx_dma_buf[1]; // 1-byte DMA target for continuous RX
+
+static void uart_event_handler(nrfx_uarte_event_t const* p_event, void* p_context) {
+  (void) p_context;
+  if (p_event->type == NRFX_UARTE_EVT_RX_DONE) {
+    for (size_t i = 0; i < p_event->data.rx.length; i++) {
+      uint16_t next_head = (rx_fifo_head + 1) & (UART_RX_BUFSIZE - 1);
+      if (next_head != rx_fifo_tail) {
+        rx_fifo[rx_fifo_head] = p_event->data.rx.p_buffer[i];
+        rx_fifo_head = next_head;
+      }
+    }
+    // re-arm 1-byte RX
+    nrfx_uarte_rx(&_uart_id, rx_dma_buf, sizeof(rx_dma_buf));
+  }
+}
+
+#endif
 
 // tinyusb function that handles power event (detected, ready, removed)
 // We must call it within SD's SOC event handler, or set it as power event handler if SD is not enabled.
@@ -136,7 +164,6 @@ static nrfx_gpiote_t _gpiote = NRFX_GPIOTE_INSTANCE(0);
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
-
 void board_init(void) {
 #if !defined(NRF54H20_XXAA) && !defined(NRF54LM20A_ENGA_XXAA)
   // stop LF clock just in case we jump from application without reset
@@ -172,12 +199,14 @@ void board_init(void) {
 
 #if CFG_TUSB_OS != OPT_OS_ZEPHYR
   // UART
+  static uint8_t uart_tx_cache[64];
   nrfx_uarte_config_t uart_cfg = {
       .txd_pin   = UART_TX_PIN,
       .rxd_pin   = UART_RX_PIN,
       .rts_pin   = NRF_UARTE_PSEL_DISCONNECTED,
       .cts_pin   = NRF_UARTE_PSEL_DISCONNECTED,
       .p_context = NULL,
+      .tx_cache  = { .p_buffer = uart_tx_cache, .length = sizeof(uart_tx_cache) },
       .baudrate  = NRF_UARTE_BAUDRATE_115200, // CFG_BOARD_UART_BAUDRATE
       .interrupt_priority = 7,
       .config = {
@@ -186,61 +215,19 @@ void board_init(void) {
       }
   };
 
-  nrfx_uarte_init(&_uart_id, &uart_cfg, NULL);
+  nrfx_uarte_init(&_uart_id, &uart_cfg, uart_event_handler);
+  // start continuous 1-byte RX
+  nrfx_uarte_rx(&_uart_id, rx_dma_buf, sizeof(rx_dma_buf));
 #endif
 
   //------------- USB -------------//
 #if CFG_TUD_ENABLED
 
 #if defined(NRF54LM20A_ENGA_XXAA)
-  // Start the USB voltage regulator
-  NRF_VREGUSB->TASKS_START = VREGUSB_TASKS_START_TASKS_START_Trigger;
-
   // Request HFXO crystal clock for PCLK24M (required by USBHS core)
   NRF_CLOCK->TASKS_XO24MSTART = CLOCK_TASKS_XO24MSTART_TASKS_XO24MSTART_Trigger;
   while (!NRF_CLOCK->EVENTS_XO24MSTARTED) {}
   NRF_CLOCK->EVENTS_XO24MSTARTED = 0;
-#endif
-
-#if defined(NRF54H20_XXAA)
-  // Enable the USBHS wrapper (core + PHY) before any DWC2 register access
-  NRF_USBHS->ENABLE = (USBHS_ENABLE_PHY_Enabled << USBHS_ENABLE_PHY_Pos) |
-                       (USBHS_ENABLE_CORE_Enabled << USBHS_ENABLE_CORE_Pos);
-  NRF_USBHS->TASKS_START = USBHS_TASKS_START_TASKS_START_Trigger;
-  // Brief delay for PHY PLL lock and core power-up
-  for (volatile int i = 0; i < 1000; i++) {}
-#endif
-
-#if defined(NRF54LM20A_ENGA_XXAA)
-  // Based on Zephyr usbhs_enable_core() in drivers/usb/udc/udc_dwc2_vendor_quirks.h
-  // Step 1: Power up core only (PHY not yet)
-  NRF_USBHS->ENABLE = USBHS_ENABLE_CORE_Msk;
-
-  // Step 2: Override ID=Device (bit 31), and temporarily override VBUSVALID
-  NRF_USBHS->PHY.OVERRIDEVALUES = (USBHS_PHY_OVERRIDEVALUES_ID_Device << USBHS_PHY_OVERRIDEVALUES_ID_Pos);
-  NRF_USBHS->PHY.INPUTOVERRIDE = USBHS_PHY_INPUTOVERRIDE_ID_Msk | USBHS_PHY_INPUTOVERRIDE_VBUSVALID_Msk;
-
-  // Step 3: Release PHY power-on reset by enabling PHY
-  NRF_USBHS->ENABLE = USBHS_ENABLE_PHY_Msk | USBHS_ENABLE_CORE_Msk;
-
-  // Step 4: Wait 45us for PHY clock to start
-  NRFX_DELAY_US(45);
-
-  // Step 5: Release DWC2 reset
-  NRF_USBHS->TASKS_START = USBHS_TASKS_START_TASKS_START_Trigger;
-
-  // Step 6: Wait for clock to start to avoid hang on too early register read
-  NRFX_DELAY_US(2);
-
-  // Step 7: Clear VBUSVALID override (keep ID=Device override)
-  // DWC2 is now in Non-Driving opmode; D+ pull-up will activate when DWC2 clears DCTL SftDiscon
-  NRF_USBHS->PHY.INPUTOVERRIDE = USBHS_PHY_INPUTOVERRIDE_ID_Msk;
-
-  // Barrier: USBHS wrapper (0x5005A000) and USBHSCORE (0x50020000) are separate
-  // peripheral blocks. Ensure the ENABLE/TASKS_START writes have propagated from
-  // the Cortex-M33 write buffer to hardware before anyone reads DWC2 core regs.
-  __DSB();
-
 #endif
 
   // Priorities 0, 1, 4 (nRF52) are reserved for SoftDevice
@@ -329,11 +316,18 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len) {
 }
 
 int board_uart_read(uint8_t* buf, int len) {
+#if CFG_TUSB_OS == OPT_OS_ZEPHYR
   (void) buf;
   (void) len;
   return -1;
-//  nrfx_err_t err = nrfx_uarte_rx(&_uart_id, buf, (size_t) len);
-//  return NRFX_SUCCESS == err ? len : 0;
+#else
+  int count = 0;
+  while (count < len && rx_fifo_tail != rx_fifo_head) {
+    buf[count++] = rx_fifo[rx_fifo_tail];
+    rx_fifo_tail = (rx_fifo_tail + 1) & (UART_RX_BUFSIZE - 1);
+  }
+  return count;
+#endif
 }
 
 int board_uart_write(void const* buf, int len) {
@@ -341,7 +335,10 @@ int board_uart_write(void const* buf, int len) {
   (void) buf;
   return len;
 #else
-  nrfx_err_t err = nrfx_uarte_tx(&_uart_id, (uint8_t const*) buf, (size_t) len ,0);
+  if (nrfx_uarte_tx_in_progress(&_uart_id)) {
+    return 0;
+  }
+  nrfx_err_t err = nrfx_uarte_tx(&_uart_id, (uint8_t const*) buf, (size_t) len, 0);
   return (NRFX_SUCCESS == err) ? len : 0;
 #endif
 }

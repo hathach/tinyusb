@@ -79,6 +79,12 @@ static const dwc2_controller_t _dwc2_controller[] = {
 #endif
 };
 
+// MCU specific to enable dwc2 clock/power before any access to register
+TU_ATTR_ALWAYS_INLINE static inline void dwc2_clock_init(uint8_t rhport, tusb_role_t role) {
+  (void) rhport;
+  (void) role;
+}
+
 TU_ATTR_ALWAYS_INLINE static inline void dwc2_int_set(uint8_t rhport, tusb_role_t role, bool enabled) {
   (void) role;
   const IRQn_Type irqn = (IRQn_Type) _dwc2_controller[rhport].irqnum;
