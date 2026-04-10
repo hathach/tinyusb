@@ -307,24 +307,6 @@ typedef struct {
   #error "Unknown USB IP"
 #endif
 
-#if defined(TUP_USBIP_FSDEV_STM32) && defined(CFG_TUSB_FSDEV_32BIT)
-  #ifndef CFG_TUSB_FSDEV_BTABLE_FS_DELAY_COUNT
-    #if defined(FSDEV_STM32_CPU_MHZ)
-      #define CFG_TUSB_FSDEV_BTABLE_FS_DELAY_COUNT (FSDEV_STM32_CPU_MHZ / 4U)
-    #else
-      #error "Define CFG_TUSB_FSDEV_BTABLE_FS_DELAY_COUNT or FSDEV_STM32_CPU_MHZ for STM32 FSDEV 32-bit"
-    #endif
-  #endif
-
-  #ifndef CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT
-    #if defined(FSDEV_STM32_CPU_MHZ)
-      #define CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT (FSDEV_STM32_CPU_MHZ * 2U)
-    #else
-      #error "Define CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT or FSDEV_STM32_CPU_MHZ for STM32 FSDEV 32-bit"
-    #endif
-  #endif
-#endif
-
 //--------------------------------------------------------------------+
 // Endpoint Helper
 // - CTR is write 0 to clear
@@ -466,25 +448,6 @@ uint16_t pma_align_buffer_size(uint16_t size, uint8_t *blsize, uint8_t *num_bloc
 
 // Set RX buffer size
 void btable_set_rx_bufsize(uint32_t ep_id, uint8_t buf_id, uint16_t wCount);
-
-/* STM32 FSDEV PMA Buffer Description Table errata workaround:
- * - ES0561 (STM32H503), ES0587 (STM32U535/U545)
- * - CTR may trigger before final PMA SRAM accesses complete on OUT transfers.
- * - Insert delay before reading PMA count/data.
- *
- * Low-speed path uses CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT, otherwise full-speed count.
- */
-TU_ATTR_ALWAYS_INLINE static inline void fsdev_btable_workaround_delay(bool low_speed) {
-#if defined(TUP_USBIP_FSDEV_STM32) && defined(CFG_TUSB_FSDEV_32BIT)
-  uint32_t cycle_count = low_speed ? CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT : CFG_TUSB_FSDEV_BTABLE_FS_DELAY_COUNT;
-  volatile uint32_t delay_count = cycle_count;
-  while (delay_count > 0U) {
-    delay_count--;
-  }
-#else
-  (void) low_speed;
-#endif
-}
 
 #ifdef __cplusplus
 }

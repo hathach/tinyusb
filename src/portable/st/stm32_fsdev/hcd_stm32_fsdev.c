@@ -197,11 +197,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   // If DCON_STAT is already set, the controller sometimes misses the initial connection interrupt
   if (FSDEV_REG->ISTR & U_ISTR_DCON_STAT) {
-    // Wait DP/DM stabilize time
-    volatile uint32_t cycle_count = FSDEV_STM32_CPU_MHZ / 4U;
-    while (cycle_count > 0U) {
-      cycle_count--;
-    }
+    tusb_time_delay_ms_api(2);
     port_status_handler(rhport, false);
   }
 

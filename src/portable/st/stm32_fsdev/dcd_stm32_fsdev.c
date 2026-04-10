@@ -393,7 +393,7 @@ void dcd_int_handler(uint8_t rhport) {
     const uint32_t ep_reg = ep_read(ep_id);
 
     if (ep_reg & U_EP_CTR_RX) {
-  #ifdef  CFG_TUSB_FSDEV_32BIT
+  #if defined(TUP_USBIP_FSDEV_STM32) && defined(CFG_TUSB_FSDEV_32BIT)
       fsdev_btable_workaround_delay(false);
   #endif
 

@@ -138,26 +138,6 @@
   #error "FSDEV_HAS_SBUF_ISO not defined"
 #endif
 
-#ifndef FSDEV_STM32_CPU_MHZ
-  // Max CPU frequency in MHz, used to derive conservative FSDEV PMA delay defaults.
-  #if CFG_TUSB_MCU == OPT_MCU_STM32H5
-    #define FSDEV_STM32_CPU_MHZ 250U
-  #elif CFG_TUSB_MCU == OPT_MCU_STM32U5
-    #define FSDEV_STM32_CPU_MHZ 160U
-  #elif CFG_TUSB_MCU == OPT_MCU_STM32U3
-    #define FSDEV_STM32_CPU_MHZ 96U
-  #elif CFG_TUSB_MCU == OPT_MCU_STM32U0
-    #define FSDEV_STM32_CPU_MHZ 56U
-  #elif CFG_TUSB_MCU == OPT_MCU_STM32G0
-    #define FSDEV_STM32_CPU_MHZ 64U
-  #elif CFG_TUSB_MCU == OPT_MCU_STM32C0
-    #define FSDEV_STM32_CPU_MHZ 48U
-  #elif defined(CFG_TUSB_FSDEV_32BIT) && \
-      (!defined(CFG_TUSB_FSDEV_BTABLE_FS_DELAY_COUNT) || !defined(CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT))
-    #error "Define FSDEV_STM32_CPU_MHZ or both CFG_TUSB_FSDEV_BTABLE_{FS,LS}_DELAY_COUNT for this STM32 MCU"
-  #endif
-#endif
-
 #ifndef CFG_TUD_FSDEV_DOUBLE_BUFFERED_ISO_EP
   // Default configuration for double-buffered isochronous endpoints:
   // - Enable double buffering on devices with >1KB Packet Memory Area (PMA)
@@ -270,6 +250,46 @@ TU_ATTR_ALWAYS_INLINE static inline void fsdev_int_disable(uint8_t rhport) {
 
   // CMSIS has a membar after disabling interrupts
 }
+
+//--------------------------------------------------------------------+
+// STM32 FSDEV PMA Buffer Description Table errata workaround
+//--------------------------------------------------------------------+
+
+#ifdef CFG_TUSB_FSDEV_32BIT
+// ES0561 (STM32H503), ES0587 (STM32U535/U545)
+// CTR may trigger before final PMA SRAM accesses complete on OUT transfers.
+// Insert delay before reading PMA count/data.
+// Max CPU frequency in MHz, used to derive conservative FSDEV PMA delay defaults.
+#if CFG_TUSB_MCU == OPT_MCU_STM32H5
+  #define FSDEV_STM32_CPU_MHZ 250U
+#elif CFG_TUSB_MCU == OPT_MCU_STM32U5
+  #define FSDEV_STM32_CPU_MHZ 160U
+#elif CFG_TUSB_MCU == OPT_MCU_STM32U3
+  #define FSDEV_STM32_CPU_MHZ 96U
+#elif CFG_TUSB_MCU == OPT_MCU_STM32U0
+  #define FSDEV_STM32_CPU_MHZ 56U
+#elif CFG_TUSB_MCU == OPT_MCU_STM32G0
+  #define FSDEV_STM32_CPU_MHZ 64U
+#elif CFG_TUSB_MCU == OPT_MCU_STM32C0
+  #define FSDEV_STM32_CPU_MHZ 48U
+#endif
+
+#ifndef CFG_TUSB_FSDEV_BTABLE_FS_DELAY_COUNT
+  #define CFG_TUSB_FSDEV_BTABLE_FS_DELAY_COUNT (FSDEV_STM32_CPU_MHZ / 4U)
+#endif
+
+#ifndef CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT
+  #define CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT (FSDEV_STM32_CPU_MHZ * 2U)
+#endif
+
+TU_ATTR_ALWAYS_INLINE static inline void fsdev_btable_workaround_delay(bool low_speed) {
+  uint32_t cycle_count = low_speed ? CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT : CFG_TUSB_FSDEV_BTABLE_FS_DELAY_COUNT;
+  volatile uint32_t delay_count = cycle_count;
+  while (delay_count > 0U) {
+    delay_count--;
+  }
+}
+#endif
 
 //--------------------------------------------------------------------+
 // Connect / Disconnect
