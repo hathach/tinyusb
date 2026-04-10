@@ -46,6 +46,10 @@
 TU_ATTR_UNUSED static void Error_Handler(void) {
 }
 
+// STM32H5 errata: reading UID_BASE with ICACHE enabled causes hard fault.
+// Cache the unique ID early in board_init() before ICACHE may be enabled.
+static uint32_t cached_uid[3];
+
 typedef struct {
   GPIO_TypeDef* port;
   GPIO_InitTypeDef pin_init;
@@ -94,6 +98,12 @@ static UART_HandleTypeDef UartHandle = {
 #endif
 
 void board_init(void) {
+  // Cache UID before ICACHE is enabled (STM32H5 errata: reading UID_BASE with ICACHE causes hard fault)
+  volatile uint32_t* stm32_uuid = (volatile uint32_t*) UID_BASE;
+  cached_uid[0] = stm32_uuid[0];
+  cached_uid[1] = stm32_uuid[1];
+  cached_uid[2] = stm32_uuid[2];
+
   HAL_Init(); // required for HAL_RCC_Osc TODO check with freeRTOS
   SystemClock_Config(); // implemented in board.h
   SystemCoreClockUpdate();
@@ -185,13 +195,12 @@ uint32_t board_button_read(void) {
 
 size_t board_get_unique_id(uint8_t id[], size_t max_len) {
   (void) max_len;
-  volatile uint32_t* stm32_uuid = (volatile uint32_t*) UID_BASE;
   uint32_t* id32 = (uint32_t*) (uintptr_t) id;
   uint8_t const len = 12;
 
-  id32[0] = stm32_uuid[0];
-  id32[1] = stm32_uuid[1];
-  id32[2] = stm32_uuid[2];
+  id32[0] = cached_uid[0];
+  id32[1] = cached_uid[1];
+  id32[2] = cached_uid[2];
 
   return len;
 }
