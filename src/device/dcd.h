@@ -219,6 +219,11 @@ TU_ATTR_ALWAYS_INLINE static inline void dcd_event_setup_received(uint8_t rhport
   event.rhport = rhport;
   event.event_id = DCD_EVENT_SETUP_RECEIVED;
   (void) memcpy(&event.setup_received, setup, sizeof(tusb_control_request_t));
+  // USB wire format is little-endian. Convert multi-byte fields to host byte order
+  // so the stack always sees correct values regardless of CPU endianness.
+  event.setup_received.wValue  = tu_le16toh(event.setup_received.wValue);
+  event.setup_received.wIndex  = tu_le16toh(event.setup_received.wIndex);
+  event.setup_received.wLength = tu_le16toh(event.setup_received.wLength);
   dcd_event_handler(&event, in_isr);
 }
 
