@@ -221,6 +221,7 @@ nrf52840dk                   Nordic nRF52840DK                      nrf       ht
 nrf52840dongle               Nordic nRF52840 Dongle                 nrf       https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-Dongle
 nrf5340dk                    Nordic nRF5340 DK                      nrf       https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF5340-DK
 nrf54h20dk                   Nordic nRF54H20 DK                     nrf       https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF5340-DK
+nrf54lm20dk                  Nordic nRF54LM20 DK                    nrf       https://www.nordicsemi.com/Products/Development-hardware/nRF54LM20-DK
 ===========================  =====================================  ========  ==============================================================================  ======
 
 Raspberry Pi

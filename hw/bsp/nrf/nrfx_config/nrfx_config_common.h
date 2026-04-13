@@ -62,6 +62,9 @@
 #if defined(NRF54H20_XXAA)
 #define NRFX_UARTE120_ENABLED  1
 
+#elif defined(NRF54LM20A_ENGA_XXAA)
+#define NRFX_UARTE20_ENABLED   1
+
 #else
 
 #define NRFX_POWER_ENABLED   1

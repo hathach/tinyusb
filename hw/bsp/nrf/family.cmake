@@ -10,15 +10,19 @@ if (NOT board_cmake_included)
 endif ()
 
 # toolchain set up
-if (MCU_VARIANT STREQUAL nrf5340 OR MCU_VARIANT STREQUAL nrf54h20)
+if (MCU_VARIANT STREQUAL nrf5340 OR MCU_VARIANT STREQUAL nrf54h20 OR MCU_VARIANT STREQUAL nrf54lm20a_enga)
   set(CMAKE_SYSTEM_CPU cortex-m33 CACHE INTERNAL "System Processor")
-  set(JLINK_DEVICE ${MCU_VARIANT}_xxaa_app)
+  if (NOT DEFINED JLINK_DEVICE)
+    set(JLINK_DEVICE ${MCU_VARIANT}_xxaa_app)
+  endif ()
 else ()
   set(CMAKE_SYSTEM_CPU cortex-m4 CACHE INTERNAL "System Processor")
-  set(JLINK_DEVICE ${MCU_VARIANT}_xxaa)
+  if (NOT DEFINED JLINK_DEVICE)
+    set(JLINK_DEVICE ${MCU_VARIANT}_xxaa)
+  endif ()
 endif ()
 
-if (MCU_VARIANT STREQUAL "nrf54h20")
+if (MCU_VARIANT STREQUAL "nrf54h20" OR MCU_VARIANT STREQUAL "nrf54lm20a_enga")
   set(FAMILY_MCUS NRF54 CACHE INTERNAL "")
 else ()
   set(FAMILY_MCUS NRF5X CACHE INTERNAL "")
@@ -29,7 +33,10 @@ set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOL
 #------------------------------------
 # Startup & Linker script
 #------------------------------------
-if (MCU_VARIANT STREQUAL nrf54h20)
+if (MCU_VARIANT STREQUAL nrf54lm20a_enga)
+  set(LD_FILE_GNU_DEFAULT ${CMAKE_CURRENT_LIST_DIR}/linker/${MCU_VARIANT}_xxaa_application.ld)
+  set(STARTUP_FILE_GNU ${NRFX_PATH}/mdk/gcc_startup_${MCU_VARIANT}_application.S)
+elseif (MCU_VARIANT STREQUAL nrf54h20)
   set(LD_FILE_GNU_DEFAULT ${CMAKE_CURRENT_LIST_DIR}/linker/${MCU_VARIANT}_xxaa_application.ld)
   set(STARTUP_FILE_GNU ${NRFX_PATH}/mdk/gcc_startup_${MCU_VARIANT}_application.S)
 elseif (MCU_VARIANT STREQUAL nrf5340)
@@ -52,13 +59,20 @@ function(family_add_board BOARD_TARGET)
   add_library(${BOARD_TARGET} STATIC
     ${NRFX_PATH}/helpers/nrfx_flag32_allocator.c
     ${NRFX_PATH}/drivers/src/nrfx_gpiote.c
-    ${NRFX_PATH}/drivers/src/nrfx_power.c
     ${NRFX_PATH}/drivers/src/nrfx_spim.c
     ${NRFX_PATH}/drivers/src/nrfx_uarte.c
     ${NRFX_PATH}/soc/nrfx_atomic.c
     )
 
-  if (MCU_VARIANT STREQUAL nrf54h20)
+  if (NOT FAMILY_MCUS STREQUAL "NRF54")
+    target_sources(${BOARD_TARGET} PRIVATE ${NRFX_PATH}/drivers/src/nrfx_power.c)
+  endif ()
+
+  if (MCU_VARIANT STREQUAL nrf54lm20a_enga)
+    target_sources(${BOARD_TARGET} PRIVATE
+      ${NRFX_PATH}/mdk/system_nrf54l.c
+    )
+  elseif (MCU_VARIANT STREQUAL nrf54h20)
     target_sources(${BOARD_TARGET} PRIVATE
       ${NRFX_PATH}/mdk/system_nrf54h.c
     )
