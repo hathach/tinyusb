@@ -167,8 +167,10 @@
 // For TI ARM compiler, __BYTE_ORDER__ is not defined for MSP430 but still LE
   #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ || defined(__MSP430__)
     #define TU_BYTE_ORDER TU_LITTLE_ENDIAN
+    #define TU_LITTLE_ENDIAN_BITFIELD
   #else
     #define TU_BYTE_ORDER TU_BIG_ENDIAN
+    #define TU_BIG_ENDIAN_BITFIELD
   #endif
 
   // Unfortunately XC16 doesn't provide builtins for 32bit endian conversion
@@ -212,8 +214,10 @@
   // Endian conversion use well-known host to network (big endian) naming
   #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
     #define TU_BYTE_ORDER TU_LITTLE_ENDIAN
+    #define TU_LITTLE_ENDIAN_BITFIELD
   #else
     #define TU_BYTE_ORDER TU_BIG_ENDIAN
+    #define TU_BIG_ENDIAN_BITFIELD
   #endif
 
   #define TU_BSWAP16(u16) (__iar_builtin_REV16(u16))
