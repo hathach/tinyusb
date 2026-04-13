@@ -66,6 +66,9 @@
 #define TU_LITTLE_ENDIAN (0x12u)
 #define TU_BIG_ENDIAN (0x21u)
 
+#define TU_BITFIELD_LE (0x34u)
+#define TU_BITFIELD_BE (0x43u)
+
 /*------------------------------------------------------------------*/
 /* Count number of arguments of __VA_ARGS__
  * - reference www.stackoverflow.com/questions/2124339/c-preprocessor-va-args-number-of-arguments
@@ -167,10 +170,10 @@
 // For TI ARM compiler, __BYTE_ORDER__ is not defined for MSP430 but still LE
   #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ || defined(__MSP430__)
     #define TU_BYTE_ORDER TU_LITTLE_ENDIAN
-    #define TU_LITTLE_ENDIAN_BITFIELD
+    #define TU_BITFIELD_ORDER TU_BITFIELD_LE
   #else
     #define TU_BYTE_ORDER TU_BIG_ENDIAN
-    #define TU_BIG_ENDIAN_BITFIELD
+    #define TU_BITFIELD_ORDER TU_BITFIELD_BE
   #endif
 
   // Unfortunately XC16 doesn't provide builtins for 32bit endian conversion
@@ -214,10 +217,10 @@
   // Endian conversion use well-known host to network (big endian) naming
   #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
     #define TU_BYTE_ORDER TU_LITTLE_ENDIAN
-    #define TU_LITTLE_ENDIAN_BITFIELD
+    #define TU_BITFIELD_ORDER TU_BITFIELD_LE
   #else
     #define TU_BYTE_ORDER TU_BIG_ENDIAN
-    #define TU_BIG_ENDIAN_BITFIELD
+    #define TU_BITFIELD_ORDER TU_BITFIELD_BE
   #endif
 
   #define TU_BSWAP16(u16) (__iar_builtin_REV16(u16))
