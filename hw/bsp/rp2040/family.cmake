@@ -231,36 +231,32 @@ function(family_add_default_example_warnings TARGET)
   endif()
 endfunction()
 
+function(family_add_board BOARD_TARGET)
+	add_library(${BOARD_TARGET} INTERFACE)
+endfunction()
 
-# TODO merge with family_configure_common from family_support.cmake
-function(family_configure_target TARGET RTOS)
-	if (RTOS STREQUAL noos OR RTOS STREQUAL "")
-		set(RTOS_SUFFIX "")
-	else()
-		set(RTOS_SUFFIX _${RTOS})
-	endif()
-	# export RTOS_SUFFIX to parent scope
-	set(RTOS_SUFFIX ${RTOS_SUFFIX} PARENT_SCOPE)
 
-	# compile define from command line
-	if(DEFINED CFLAGS_CLI)
-		separate_arguments(CFLAGS_CLI)
-		target_compile_options(${TARGET} PUBLIC ${CFLAGS_CLI})
+function(family_configure_example TARGET RTOS)
+	# Set OS per-target: FreeRTOS or Pico SDK
+	if (NOT DEFINED RTOS)
+		set(RTOS noos CACHE STRING "RTOS")
+	endif ()
+
+	family_configure_common(${TARGET} ${RTOS})
+
+	# Set OS for non-RTOS targets (RTOS targets get it from family_add_rtos)
+	if (NOT RTOS STREQUAL "freertos")
+		target_compile_definitions(${TARGET} PUBLIC CFG_TUSB_OS=${TINYUSB_OPT_OS})
 	endif()
 
 	pico_add_extra_outputs(${TARGET})
 	pico_enable_stdio_uart(${TARGET} 1)
 
-  target_link_options(${TARGET} PUBLIC "LINKER:-Map=$<TARGET_FILE:${TARGET}>.map")
-	target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_board${RTOS_SUFFIX} tinyusb_additions)
+	target_link_options(${TARGET} PUBLIC "LINKER:-Map=$<TARGET_FILE:${TARGET}>.map")
+	target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_board tinyusb_additions)
 
-  family_flash_openocd(${TARGET})
+	family_flash_openocd(${TARGET})
 	family_flash_jlink(${TARGET})
-
-	# Generate linkermap target and post build. LINKERMAP_OPTION can be set with -D to change default options
-	family_add_bloaty(${TARGET})
-  family_add_linkermap(${TARGET})
-  family_add_membrowse(${TARGET})
 endfunction()
 
 
@@ -276,8 +272,8 @@ endfunction()
 
 
 function(family_configure_device_example TARGET RTOS)
-	family_configure_target(${TARGET} ${RTOS})
-	target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_device${RTOS_SUFFIX})
+	family_configure_example(${TARGET} ${RTOS})
+	target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_device)
 	rp2040_family_configure_example_warnings(${TARGET})
 endfunction()
 
@@ -298,8 +294,8 @@ function(is_compiler_supported_by_pico_pio_usb OUTVAR)
 endfunction()
 
 function(family_configure_host_example TARGET RTOS)
-	family_configure_target(${TARGET} ${RTOS})
-	target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_host${RTOS_SUFFIX})
+	family_configure_example(${TARGET} ${RTOS})
+	target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_host)
 	rp2040_family_configure_example_warnings(${TARGET})
 
 	# For rp2040 enable pico-pio-usb
@@ -319,7 +315,7 @@ endfunction()
 
 
 function(family_configure_dual_usb_example TARGET RTOS)
-	family_configure_target(${TARGET} ${RTOS})
+	family_configure_example(${TARGET} ${RTOS})
 	# require tinyusb_pico_pio_usb
 	target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_device tinyusb_host tinyusb_pico_pio_usb )
 	rp2040_family_configure_example_warnings(${TARGET})

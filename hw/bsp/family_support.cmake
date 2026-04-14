@@ -367,24 +367,66 @@ endfunction()
 # Most families use these settings except rp2040 and espressif
 #-------------------------------------------------------------
 function(family_add_board BOARD_TARGET)
-  # empty function, should be redefined in FAMILY/family.cmake
+  # empty function, should be overridden in FAMILY/family.cmake
 endfunction()
 
 # Add RTOS to example
 function(family_add_rtos TARGET RTOS)
   if (RTOS STREQUAL "freertos")
-    if (NOT TARGET freertos_config)
-      add_library(freertos_config INTERFACE)
-      target_include_directories(freertos_config INTERFACE ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${FAMILY}/FreeRTOSConfig)
-      # add board definition to freertos_config mostly for SystemCoreClock
-      target_link_libraries(freertos_config INTERFACE board_${BOARD})
+    # RP2040 family uses Raspberry Pi's FreeRTOS-Kernel fork with platform-specific SMP port
+    if (FAMILY STREQUAL "rp2040")
+      if (NOT TARGET FreeRTOS-Kernel)
+        set(FREERTOS_KERNEL_PATH ${TOP}/hw/mcu/raspberry_pi/FreeRTOS-Kernel)
+        set(FREERTOS_CONFIG_FILE_DIRECTORY ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${FAMILY}/FreeRTOSConfig)
+        if (PICO_PLATFORM STREQUAL "rp2040")
+          set(FREERTOS_PORT_PATH ${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2040)
+        else()
+          set(FREERTOS_PORT_PATH ${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2350_ARM_NTZ)
+        endif()
+        include(${FREERTOS_PORT_PATH}/library.cmake)
+      endif()
+      target_link_libraries(${TARGET} PUBLIC FreeRTOS-Kernel-Static)
+
+      # Suppress warnings in FreeRTOS kernel port sources
+      foreach(_ft IN ITEMS FreeRTOS-Kernel FreeRTOS-Kernel-Core FreeRTOS-Kernel-Static)
+        get_target_property(_srcs ${_ft} INTERFACE_SOURCES)
+        if (_srcs)
+          set_source_files_properties(${_srcs} PROPERTIES COMPILE_OPTIONS "-w")
+        endif()
+      endforeach()
+
+      # FreeRTOS headers use undefined macros in #if (triggers -Wundef/-Werror).
+      # Convert all FreeRTOS include dirs to SYSTEM to suppress warnings.
+      foreach(_ft IN ITEMS FreeRTOS-Kernel FreeRTOS-Kernel-Core)
+        get_target_property(_incs ${_ft} INTERFACE_INCLUDE_DIRECTORIES)
+        if (_incs)
+          set_target_properties(${_ft} PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "")
+          target_include_directories(${_ft} SYSTEM INTERFACE ${_incs})
+        endif()
+      endforeach()
+    else()
+      # All other families: use upstream FreeRTOS-Kernel with add_subdirectory
+      if (NOT TARGET freertos_config)
+        add_library(freertos_config INTERFACE)
+        target_include_directories(freertos_config INTERFACE
+          ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${FAMILY}/FreeRTOSConfig)
+        target_link_libraries(freertos_config INTERFACE board_${BOARD})
+      endif()
+
+      if (NOT TARGET freertos_kernel)
+        add_subdirectory(${TOP}/lib/FreeRTOS-Kernel ${CMAKE_BINARY_DIR}/lib/freertos_kernel)
+      endif ()
+
+      target_link_libraries(${TARGET} PUBLIC freertos_kernel)
     endif()
 
-    if (NOT TARGET freertos_kernel)
-      add_subdirectory(${TOP}/lib/FreeRTOS-Kernel ${CMAKE_BINARY_DIR}/lib/freertos_kernel)
-    endif ()
+    # RP2040: remove CFG_TUSB_OS=OPT_OS_PICO from tinyusb_common_base to avoid redefinition
+    if (FAMILY STREQUAL "rp2040" AND TARGET tinyusb_common_base)
+      get_target_property(_defs tinyusb_common_base INTERFACE_COMPILE_DEFINITIONS)
+      list(REMOVE_ITEM _defs "CFG_TUSB_OS=${TINYUSB_OPT_OS}")
+      set_property(TARGET tinyusb_common_base PROPERTY INTERFACE_COMPILE_DEFINITIONS ${_defs})
+    endif()
 
-    target_link_libraries(${TARGET} PUBLIC freertos_kernel)
     target_compile_definitions(${TARGET} PUBLIC CFG_TUSB_OS=OPT_OS_FREERTOS)
   elseif (RTOS STREQUAL "threadx")
     if (NOT TARGET threadx)
@@ -465,7 +507,10 @@ function(family_configure_common TARGET RTOS)
     target_compile_definitions(${TARGET} PUBLIC LOGGER_UART)
   endif ()
 
-  if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
+  # rp2040 family handles warnings and linker map in its own family_configure_example
+  if (FAMILY STREQUAL "rp2040")
+    # skip - handled by rp2040_family_configure_example_warnings
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
     target_compile_options(${TARGET} PRIVATE ${WARN_FLAGS_${CMAKE_C_COMPILER_ID}})
     target_link_options(${TARGET} PUBLIC "LINKER:-Map=$<TARGET_FILE:${TARGET}>.map")
     if (CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0
@@ -557,11 +602,11 @@ endfunction()
 
 #-------------------------------------------------------
 # Example Target Configure (Default rule)
-# These function can be redefined in FAMILY/family.cmake
+# These function can be overridden in FAMILY/family.cmake
 #--------------------------------------------------------
 
 function(family_configure_example TARGET RTOS)
-  # empty function, should be redefined in FAMILY/family.cmake
+  # empty function, should be overridden in FAMILY/family.cmake
 endfunction()
 
 # Configure device example with RTOS

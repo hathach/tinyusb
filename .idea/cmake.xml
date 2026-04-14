@@ -5,9 +5,9 @@
       <configuration PROFILE_NAME="raspberrypi_zero" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberrypi_zero -DLOG=1" />
       <configuration PROFILE_NAME="raspberrypi_zero2" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberrypi_zero2 -DLOG=1" />
       <configuration PROFILE_NAME="raspberrypi_cm4" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberrypi_cm4 -DLOG=1" />
-      <configuration PROFILE_NAME="raspberry_pi_pico" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberry_pi_pico -DLOG=1" />
+      <configuration PROFILE_NAME="raspberry_pi_pico" ENABLED="true" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberry_pi_pico -DLOG=1" />
       <configuration PROFILE_NAME="raspberry_pi_pico-pio_host" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberry_pi_pico -DLOG=1 -DCFLAGS_CLI=&quot;-DCFG_TUH_RPI_PIO_USB=1&quot;" />
-      <configuration PROFILE_NAME="raspberry_pi_pico2" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberry_pi_pico2 -DLOG=1" />
+      <configuration PROFILE_NAME="raspberry_pi_pico2" ENABLED="true" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberry_pi_pico2 -DLOG=1" />
       <configuration PROFILE_NAME="raspberry_pi_pico2-pio_host" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberry_pi_pico2 -DLOG=1 -DCFLAGS_CLI=&quot;-DCFG_TUH_RPI_PIO_USB=1&quot;" />
       <configuration PROFILE_NAME="feather_rp2040" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=pico_sdk -DPICO_BOARD=adafruit_feather_rp2040 -DLOG=1" />
       <configuration PROFILE_NAME="feather_rp2040_max3421" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=feather_rp2040_max3421 -DLOG=1" />
@@ -101,6 +101,8 @@
       <configuration PROFILE_NAME="nrf52840dk" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=nrf52840dk -DLOG=1 -DLOGGER=RTT -DTRACE_ETM=1" />
       <configuration PROFILE_NAME="nrf52840dk-zephyr" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=nrf52840dk -DLOG=1 -DTRACE_ETM=1 -DRTOS=zephyr" BUILD_OPTIONS="-v" />
       <configuration PROFILE_NAME="nrf5340dk" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=nrf5340dk -DLOG=1 -DLOGGER=RTT -DTRACE_ETM=1" />
+      <configuration PROFILE_NAME="nrf54h20dk" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=nrf54h20dk -DLOG=1 -DLOGGER=RTT -DTRACE_ETM=1" />
+      <configuration PROFILE_NAME="nrf54lm20dk" ENABLED="false" CONFIG_NAME="MinSizeRel" GENERATION_OPTIONS="-DBOARD=nrf54lm20dk -DLOG=0 -DLOGGER=RTT -DTRACE_ETM=1" />
       <configuration PROFILE_NAME="metro m7 1011 sd" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m7_1011_sd -DLOG=1 -DLOGGER=RTT -DTRACE_ETM=1" />
       <configuration PROFILE_NAME="metro_m7_1011" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m7_1011 -DLOG=1 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="rt1010 evk" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=mimxrt1010_evk -DLOG=1 -DLOGGER=RTT" />
