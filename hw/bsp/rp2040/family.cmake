@@ -200,8 +200,13 @@ function(family_add_default_example_warnings TARGET)
 
   # Apply warnings to all TinyUSB interface library sources as well as examples sources
   # we cannot set compile options for target since it will not propagate to INTERFACE sources then picosdk files
+	# Remove -Werror from example sources so per-file warning suppressions can work.
+	# -Werror is kept on TinyUSB sources to catch real issues.
+	set(example_warn_flags ${WARN_FLAGS_${CMAKE_C_COMPILER_ID}})
+	list(REMOVE_ITEM example_warn_flags -Werror)
+
 	get_target_property(EXAMPLE_SOURCES ${TARGET} SOURCES)
-	set_source_files_properties(${EXAMPLE_SOURCES} PROPERTIES COMPILE_OPTIONS "${WARN_FLAGS_${CMAKE_C_COMPILER_ID}}")
+	set_source_files_properties(${EXAMPLE_SOURCES} PROPERTIES COMPILE_OPTIONS "${example_warn_flags}")
 
   foreach(TINYUSB_TARGET IN ITEMS tinyusb_common_base tinyusb_device_base tinyusb_host_base tinyusb_host_max3421 tinyusb_bsp)
     get_target_property(TINYUSB_SOURCES ${TINYUSB_TARGET} INTERFACE_SOURCES)
