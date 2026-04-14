@@ -37,6 +37,6 @@ family_configure_host_example(${PROJECT_NAME} noos)
 # Suppress warnings on fatfs
 if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
   set_source_files_properties(${TOP}/lib/fatfs/source/ff.c PROPERTIES
-    COMPILE_OPTIONS "-Wno-conversion -Wno-cast-qual"
+    COMPILE_OPTIONS "-Wno-conversion;-Wno-cast-qual"
     )
 endif ()
