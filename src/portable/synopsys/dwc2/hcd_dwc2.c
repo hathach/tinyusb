@@ -323,9 +323,9 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t cal_next_pid(uint8_t pid, uint8_t pa
   We allocated TX FIFO from top to bottom (using top pointer), this to allow the RX FIFO to grow dynamically which is
   possible since the free space is located between the RX and TX FIFOs.
 
-   ----------------- ep_fifo_size
-  |    HCDMAn    |
-  |--------------|-- gdfifocfg.EPINFOBASE (max is ghwcfg3.dfifo_depth)
+   ----------------- otg_dfifo_depth
+  |    HCDMAn    |   (DMA only, sized per runtime DMA mode)
+  |--------------|-- gdfifocfg.EPINFOBASE (= gdfifocfg.GDFIFOCfg)
   | Non-Periodic |
   |   TX FIFO    |
   |--------------|--- GNPTXFSIZ.addr (fixed size)
@@ -358,15 +358,22 @@ static void dfifo_host_init(uint8_t rhport, bool is_hs_phy) {
 
   // Scatter/Gather DMA mode is not yet supported. Buffer DMA only need 1 words per channel
   const bool is_dma = dma_host_enabled(dwc2);
-  uint16_t dfifo_top = dwc2_controller->ep_fifo_size/4;
+  uint16_t dfifo_top = dwc2_controller->otg_dfifo_depth;
   if (is_dma) {
     dfifo_top -= ghwcfg2.num_host_ch;
   }
 
   // fixed allocation for now, improve later:
-  // - ptx_largest is limited to 256 for FS since most FS core only has 1024 bytes total
-  uint32_t nptx_largest = is_hs_phy ? TUSB_EPSIZE_BULK_HS / 4 : TUSB_EPSIZE_BULK_FS / 4;
-  uint32_t ptx_largest  = is_hs_phy ? TUSB_EPSIZE_ISO_HS_MAX / 4 : 256 / 4;
+  // - ptx_largest is limited to 64 words for FS since most FS core only has 256-320 words total
+  uint32_t nptx_largest;
+  uint32_t ptx_largest;
+  if (is_hs_phy) {
+    nptx_largest = TUSB_EPSIZE_BULK_HS / 4;
+    ptx_largest = TUSB_EPSIZE_ISO_HS_MAX / 4;
+  } else {
+    nptx_largest = TUSB_EPSIZE_BULK_FS / 4;
+    ptx_largest = 256 / 4;
+  }
 
   uint16_t nptxfsiz = 2 * nptx_largest;
   uint16_t rxfsiz = 2 * (ptx_largest + 2) + ghwcfg2.num_host_ch;
@@ -400,10 +407,12 @@ bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
 
 // Initialize controller to host mode
 bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
-  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  dwc2_clock_init(rhport, rh_init->role);
+
   tu_memclr(&_hcd_data, sizeof(_hcd_data));
 
   // Core Initialization
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   const bool is_hs_phy = dwc2_core_is_highspeed_phy(dwc2, _tuh_cfg.use_hs_phy);
   const bool is_dma = dma_host_enabled(dwc2);
   TU_ASSERT(dwc2_core_init(rhport, is_hs_phy, is_dma));

@@ -4,6 +4,15 @@ NRFX_PATH = hw/mcu/nordic/nrfx
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
+ifeq (${MCU_VARIANT},nrf54lm20a_enga)
+	CPU_CORE = cortex-m33
+	CFLAGS += -DCFG_TUSB_MCU=OPT_MCU_NRF54
+	LD_FILE_DEFAULT = ${FAMILY_PATH}/linker/${MCU_VARIANT}_xxaa_application.ld
+	SRC_C += ${NRFX_PATH}/mdk/system_nrf54l.c
+	SRC_S += ${NRFX_PATH}/mdk/gcc_startup_$(MCU_VARIANT)_application.S
+	JLINK_DEVICE ?= $(MCU_VARIANT)_xxaa_app
+
+else
 ifeq (${MCU_VARIANT},nrf54h20)
 	CPU_CORE = cortex-m33
 	CFLAGS += -DCFG_TUSB_MCU=OPT_MCU_NRF54
@@ -30,6 +39,7 @@ else
 	SRC_C += ${NRFX_PATH}/mdk/system_$(MCU_VARIANT).c
 	SRC_S += ${NRFX_PATH}/mdk/gcc_startup_$(MCU_VARIANT).S
 	JLINK_DEVICE ?= $(MCU_VARIANT)_xxaa
+endif
 endif
 endif
 
@@ -70,10 +80,13 @@ SRC_C += \
 	src/portable/synopsys/dwc2/hcd_dwc2.c \
 	${NRFX_PATH}/helpers/nrfx_flag32_allocator.c \
 	${NRFX_PATH}/drivers/src/nrfx_gpiote.c \
-  ${NRFX_PATH}/drivers/src/nrfx_power.c \
   ${NRFX_PATH}/drivers/src/nrfx_spim.c \
   ${NRFX_PATH}/drivers/src/nrfx_uarte.c \
   ${NRFX_PATH}/soc/nrfx_atomic.c
+
+ifeq (,$(findstring OPT_MCU_NRF54,$(CFLAGS)))
+SRC_C += ${NRFX_PATH}/drivers/src/nrfx_power.c
+endif
 
 INC += \
   $(TOP)/$(BOARD_PATH) \
