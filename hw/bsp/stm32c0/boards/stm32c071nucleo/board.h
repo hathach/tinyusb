@@ -27,7 +27,7 @@
 
 /* metadata:
    name: STM32C071 Nucleo
-   url: https://www.st.com/en/evaluation-tools/nucleo-g071rb.html
+   url: https://www.st.com/en/evaluation-tools/nucleo-c071rb.html
 */
 
 #ifndef BOARD_H_
