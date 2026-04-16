@@ -367,24 +367,37 @@ endfunction()
 # Most families use these settings except rp2040 and espressif
 #-------------------------------------------------------------
 function(family_add_board BOARD_TARGET)
-  # empty function, should be redefined in FAMILY/family.cmake
+  # empty function, should be overridden in FAMILY/family.cmake
 endfunction()
 
 # Add RTOS to example
 function(family_add_rtos TARGET RTOS)
   if (RTOS STREQUAL "freertos")
-    if (NOT TARGET freertos_config)
-      add_library(freertos_config INTERFACE)
-      target_include_directories(freertos_config INTERFACE ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${FAMILY}/FreeRTOSConfig)
-      # add board definition to freertos_config mostly for SystemCoreClock
-      target_link_libraries(freertos_config INTERFACE board_${BOARD})
+    # RP2040 family uses Raspberry Pi's FreeRTOS-Kernel fork with platform-specific SMP port
+    if (FAMILY STREQUAL "rp2040")
+      if (NOT TARGET FreeRTOS-Kernel)
+        set(FREERTOS_KERNEL_PATH ${TOP}/hw/mcu/raspberry_pi/FreeRTOS-Kernel)
+        set(FREERTOS_CONFIG_FILE_DIRECTORY ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${FAMILY}/FreeRTOSConfig)
+        # FreeRTOS_Kernel_import.cmake auto-selects RP2040/RP2350/RISC-V port based on PICO_PLATFORM
+        include(${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)
+      endif()
+      target_link_libraries(${TARGET} PUBLIC FreeRTOS-Kernel-Static)
+    else()
+      # All other families: use upstream FreeRTOS-Kernel with add_subdirectory
+      if (NOT TARGET freertos_config)
+        add_library(freertos_config INTERFACE)
+        target_include_directories(freertos_config INTERFACE
+          ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${FAMILY}/FreeRTOSConfig)
+        target_link_libraries(freertos_config INTERFACE board_${BOARD})
+      endif()
+
+      if (NOT TARGET freertos_kernel)
+        add_subdirectory(${TOP}/lib/FreeRTOS-Kernel ${CMAKE_BINARY_DIR}/lib/freertos_kernel)
+      endif ()
+
+      target_link_libraries(${TARGET} PUBLIC freertos_kernel)
     endif()
 
-    if (NOT TARGET freertos_kernel)
-      add_subdirectory(${TOP}/lib/FreeRTOS-Kernel ${CMAKE_BINARY_DIR}/lib/freertos_kernel)
-    endif ()
-
-    target_link_libraries(${TARGET} PUBLIC freertos_kernel)
     target_compile_definitions(${TARGET} PUBLIC CFG_TUSB_OS=OPT_OS_FREERTOS)
   elseif (RTOS STREQUAL "threadx")
     if (NOT TARGET threadx)
@@ -465,7 +478,11 @@ function(family_configure_common TARGET RTOS)
     target_compile_definitions(${TARGET} PUBLIC LOGGER_UART)
   endif ()
 
-  if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
+  if (FAMILY STREQUAL "rp2040")
+    # RP2040: apply warnings per-source-file (not per-target) since Pico SDK sources
+    # are INTERFACE and would not inherit target-level warnings correctly
+    family_add_default_example_warnings(${TARGET})
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
     target_compile_options(${TARGET} PRIVATE ${WARN_FLAGS_${CMAKE_C_COMPILER_ID}})
     target_link_options(${TARGET} PUBLIC "LINKER:-Map=$<TARGET_FILE:${TARGET}>.map")
     if (CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0
@@ -557,11 +574,11 @@ endfunction()
 
 #-------------------------------------------------------
 # Example Target Configure (Default rule)
-# These function can be redefined in FAMILY/family.cmake
+# These function can be overridden in FAMILY/family.cmake
 #--------------------------------------------------------
 
 function(family_configure_example TARGET RTOS)
-  # empty function, should be redefined in FAMILY/family.cmake
+  # empty function, should be overridden in FAMILY/family.cmake
 endfunction()
 
 # Configure device example with RTOS

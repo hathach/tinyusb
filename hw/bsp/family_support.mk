@@ -170,6 +170,7 @@ ifeq ($(RTOS),freertos)
 
 	# Suppress FreeRTOS source warnings
 	CFLAGS += -Wno-error=cast-qual
+	CFLAGS += -Wno-error=null-dereference
 
 	# FreeRTOS (lto + Os) linker issue
 	LDFLAGS += -Wl,--undefined=vTaskSwitchContext

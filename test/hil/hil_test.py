@@ -102,6 +102,8 @@ def get_serial_dev(id, vendor_str, product_str, ifnum):
         # just use id: mostly for cp210x/ftdi flasher
         pattern = f'/dev/serial/by-id/usb-*_{id}-if*'
         port_list = glob.glob(pattern)
+        if len(port_list) == 0:
+            raise RuntimeError(f'No serial device found for {pattern}')
         return port_list[0]
 
 

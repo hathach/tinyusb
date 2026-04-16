@@ -23,13 +23,6 @@ target_sources(${PROJECT_NAME} PUBLIC
   ${TOP}/lib/fatfs/source/ffunicode.c
   )
 
-# Suppress warnings on fatfs
-if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
-  set_source_files_properties(${TOP}/lib/fatfs/source/ff.c PROPERTIES
-    COMPILE_FLAGS "-Wno-conversion -Wno-cast-qual"
-    )
-endif ()
-
 # Example include
 target_include_directories(${PROJECT_NAME} PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -40,3 +33,10 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 # Configure compilation flags and libraries for the example without RTOS.
 # See the corresponding function in hw/bsp/FAMILY/family.cmake for details.
 family_configure_host_example(${PROJECT_NAME} noos)
+
+# Suppress warnings on fatfs
+if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
+  set_source_files_properties(${TOP}/lib/fatfs/source/ff.c PROPERTIES
+    COMPILE_OPTIONS "-Wno-conversion;-Wno-cast-qual"
+    )
+endif ()
