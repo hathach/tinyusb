@@ -34,6 +34,8 @@
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wcast-qual"
+#pragma GCC diagnostic ignored "-Wconversion"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
 #endif
 
 #include "hal/include/hal_gpio.h"
@@ -66,7 +68,7 @@ void USB_Handler(void)
 //--------------------------------------------------------------------+
 
 /* Referenced GCLKs, should be initialized firstly */
-#define _GCLK_INIT_1ST (1 << 0 | 1 << 1)
+#define _GCLK_INIT_1ST (1u << 0 | 1u << 1)
 
 /* Not referenced GCLKs, initialized last */
 #define _GCLK_INIT_LAST (~_GCLK_INIT_1ST)

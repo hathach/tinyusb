@@ -259,7 +259,7 @@ static void handle_ctr_tx(uint32_t ep_id) {
   }
 
   if (xfer->total_len != xfer->queued_len) {
-    dcd_transmit_packet(xfer, ep_id);
+    dcd_transmit_packet(xfer, (uint16_t)ep_id);
   } else {
     dcd_event_xfer_complete(0, ep_num | TUSB_DIR_IN_MASK, xfer->queued_len, XFER_RESULT_SUCCESS, true);
   }
@@ -267,7 +267,7 @@ static void handle_ctr_tx(uint32_t ep_id) {
 
 static void handle_ctr_setup(uint32_t ep_id) {
   uint16_t rx_count = btable_get_count(ep_id, BTABLE_BUF_RX);
-  uint16_t rx_addr  = btable_get_addr(ep_id, BTABLE_BUF_RX);
+  uint16_t rx_addr  = (uint16_t)btable_get_addr(ep_id, BTABLE_BUF_RX);
   uint8_t  setup_packet[8] TU_ATTR_ALIGNED(4);
 
   tu_hwfifo_read(PMA_BUF_AT(rx_addr), setup_packet, rx_count, NULL);
@@ -531,8 +531,8 @@ void edpt0_open(uint8_t rhport) {
   xfer_status[0][1].max_packet_size = CFG_TUD_ENDPOINT0_SIZE;
   xfer_status[0][1].ep_idx          = 0;
 
-  uint16_t pma_addr0 = dcd_pma_alloc(CFG_TUD_ENDPOINT0_SIZE, false);
-  uint16_t pma_addr1 = dcd_pma_alloc(CFG_TUD_ENDPOINT0_SIZE, false);
+  uint16_t pma_addr0 = (uint16_t)dcd_pma_alloc(CFG_TUD_ENDPOINT0_SIZE, false);
+  uint16_t pma_addr1 = (uint16_t)dcd_pma_alloc(CFG_TUD_ENDPOINT0_SIZE, false);
 
   btable_set_addr(0, BTABLE_BUF_RX, pma_addr0);
   btable_set_addr(0, BTABLE_BUF_TX, pma_addr1);
@@ -574,7 +574,7 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
   }
 
   /* Create a packet memory buffer area. */
-  uint16_t pma_addr = dcd_pma_alloc(packet_size, false);
+  uint16_t pma_addr = (uint16_t)dcd_pma_alloc(packet_size, false);
   btable_set_addr(ep_idx, dir == TUSB_DIR_IN ? BTABLE_BUF_TX : BTABLE_BUF_RX, pma_addr);
 
   xfer_ctl_t *xfer      = xfer_ctl_ptr(ep_num, dir);
@@ -624,17 +624,17 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
 
   #if CFG_TUD_FSDEV_DOUBLE_BUFFERED_ISO_EP != 0
   uint32_t pma_addr  = dcd_pma_alloc(largest_packet_size, true);
-  uint16_t pma_addr2 = pma_addr >> 16;
+  uint16_t pma_addr2 = (uint16_t)(pma_addr >> 16);
   #else
   uint32_t pma_addr  = dcd_pma_alloc(largest_packet_size, false);
-  uint16_t pma_addr2 = pma_addr;
+  uint16_t pma_addr2 = (uint16_t)pma_addr;
   #endif
 
   #if FSDEV_USE_SBUF_ISO == 0
-  btable_set_addr(ep_idx, 0, pma_addr);
+  btable_set_addr(ep_idx, 0, (uint16_t)pma_addr);
   btable_set_addr(ep_idx, 1, pma_addr2);
   #else
-  btable_set_addr(ep_idx, dir == TUSB_DIR_IN ? BTABLE_BUF_TX : BTABLE_BUF_RX, pma_addr);
+  btable_set_addr(ep_idx, dir == TUSB_DIR_IN ? BTABLE_BUF_TX : BTABLE_BUF_RX, (uint16_t)pma_addr);
   (void)pma_addr2;
   #endif
 

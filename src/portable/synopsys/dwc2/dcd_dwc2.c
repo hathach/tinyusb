@@ -191,7 +191,7 @@ static void dma_setup_prepare(uint8_t rhport) {
 */
 
 TU_ATTR_ALWAYS_INLINE static inline uint16_t calc_device_grxfsiz(uint16_t largest_ep_size, uint8_t ep_count) {
-  return 13 + 1 + 2 * ((largest_ep_size / 4) + 1) + 2 * ep_count;
+  return (uint16_t)(13 + 1 + 2 * ((largest_ep_size / 4) + 1) + 2 * ep_count);
 }
 
 static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size, bool is_bulk) {
@@ -203,7 +203,7 @@ static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size, b
 
   TU_ASSERT(epnum < ep_count);
 
-  uint16_t fifo_size = tu_div_ceil(packet_size, 4);
+  uint16_t fifo_size = (uint16_t)tu_div_ceil(packet_size, 4);
   if (dir == TUSB_DIR_OUT) {
     // Calculate required size of RX FIFO
     const uint16_t new_sz = calc_device_grxfsiz(4 * fifo_size, ep_count);
@@ -371,7 +371,7 @@ static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uin
     num_packets = 1;
   } else {
     total_bytes = xfer->total_len;
-    num_packets = tu_div_ceil(total_bytes, xfer->max_size);
+    num_packets = (uint16_t)tu_div_ceil(total_bytes, xfer->max_size);
     if (num_packets == 0) {
       num_packets = 1; // zero length packet still count as 1
     }

@@ -51,12 +51,12 @@ int sys_read(int fhdl, char *buf, size_t count) TU_ATTR_USED;
 
 int sys_write(int fhdl, const char *buf, size_t count) {
   (void) fhdl;
-  return (int) SEGGER_RTT_Write(0, buf, (int) count);
+  return (int) SEGGER_RTT_Write(0, buf, (unsigned) count);
 }
 
 int sys_read(int fhdl, char *buf, size_t count) {
   (void) fhdl;
-  int rd = (int) SEGGER_RTT_Read(0, buf, count);
+  int rd = (int) SEGGER_RTT_Read(0, buf, (unsigned) count);
   return (rd > 0) ? rd : -1;
 }
 #endif

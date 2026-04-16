@@ -345,7 +345,7 @@ TU_ATTR_ALWAYS_INLINE static inline void ep_write_clear_ctr(uint32_t ep_id, tusb
   uint32_t reg = FSDEV_REG->ep[ep_id].reg;
   reg |= U_EP_CTR_TX | U_EP_CTR_RX;
   reg &= U_EPREG_MASK;
-  reg &= ~(1 << (U_EP_CTR_TX_Pos + (dir == TUSB_DIR_IN ? 0 : 8)));
+  reg &= ~(1u << (U_EP_CTR_TX_Pos + (dir == TUSB_DIR_IN ? 0u : 8u)));
   ep_write(ep_id, reg, false);
 }
 
@@ -378,7 +378,7 @@ TU_ATTR_ALWAYS_INLINE static inline void ch_write_clear_ctr(uint32_t ch_id, tusb
   uint32_t reg = FSDEV_REG->ep[ch_id].reg;
   reg |= U_EP_CTR_TX | U_EP_CTR_RX;
   reg &= U_EPREG_MASK;
-  reg &= ~(1 << (U_EP_CTR_TX_Pos + (dir == TUSB_DIR_IN ? 8 : 0)));
+  reg &= ~(1u << (U_EP_CTR_TX_Pos + (dir == TUSB_DIR_IN ? 8u : 0u)));
   ep_write(ch_id, reg, false);
 }
 
