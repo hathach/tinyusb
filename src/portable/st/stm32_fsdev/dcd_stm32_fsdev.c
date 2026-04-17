@@ -393,26 +393,8 @@ void dcd_int_handler(uint8_t rhport) {
     const uint32_t ep_reg = ep_read(ep_id);
 
     if (ep_reg & U_EP_CTR_RX) {
-  #ifdef  CFG_TUSB_FSDEV_32BIT
-      /* https://www.st.com/resource/en/errata_sheet/es0561-stm32h503cbebkbrb-device-errata-stmicroelectronics.pdf
-       * https://www.st.com/resource/en/errata_sheet/es0587-stm32u535xx-and-stm32u545xx-device-errata-stmicroelectronics.pdf
-       * From H503/U535 errata: Buffer description table update completes after CTR interrupt triggers
-       * Description:
-       * - During OUT transfers, the correct transfer interrupt (CTR) is triggered a little before the last USB SRAM
-       * accesses have completed. If the software responds quickly to the interrupt, the full buffer contents may not be
-       * correct. Workaround:
-       * - Software should ensure that a small delay is included before accessing the SRAM contents. This delay
-       * should be 800 ns in Full Speed mode and 6.4 μs in Low Speed mode
-       * - Since H5 can run up to 250Mhz -> 1 cycle = 4ns. Per errata, we need to wait 200 cycles. Though executing code
-       * also takes time, so we'll wait 60 cycles (count = 20).
-       * - Since Low Speed mode is not supported/popular, we will ignore it for now.
-       *
-       * Note: this errata may also apply to G0, U5, H5 etc.
-       */
-      volatile uint32_t cycle_count = 20; // defined as PCD_RX_PMA_CNT in stm32 hal_driver
-      while (cycle_count > 0U) {
-        cycle_count--;                    // each count take 3 cycles (1 for sub, jump, and compare)
-      }
+  #if defined(TUP_USBIP_FSDEV_STM32) && defined(CFG_TUSB_FSDEV_32BIT)
+      fsdev_btable_workaround_delay(false);
   #endif
 
       if (ep_reg & U_EP_SETUP) {
