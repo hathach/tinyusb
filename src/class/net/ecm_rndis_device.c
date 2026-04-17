@@ -51,6 +51,7 @@ typedef struct {
   uint8_t ep_notif;
   uint8_t ep_in;
   uint8_t ep_out;
+  uint16_t ep_size;     // bulk endpoint max packet size (IN and OUT assumed equal)
 
   bool ecm_mode;
 
@@ -175,6 +176,9 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
 
   // Pair of endpoints
   TU_ASSERT(TUSB_DESC_ENDPOINT == tu_desc_type(p_desc), 0);
+
+  // Save the actual bulk endpoint size (IN and OUT assumed equal)
+  _netd_itf.ep_size = tu_edpt_packet_size((tusb_desc_endpoint_t const *) p_desc);
 
   if (_netd_itf.ecm_mode) {
     // ECM by default is in-active, save the endpoint attribute
@@ -356,8 +360,7 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   /* data transmission finished */
   if (ep_addr == _netd_itf.ep_in) {
     /* TinyUSB requires the class driver to implement ZLP (since ZLP usage is class-specific) */
-
-    if (xferred_bytes && (0 == (xferred_bytes % CFG_TUD_NET_ENDPOINT_SIZE))) {
+    if (xferred_bytes && (0 == (xferred_bytes % _netd_itf.ep_size))) {
       do_in_xfer(NULL, 0); /* a ZLP is needed */
     } else {
       /* we're finally finished */

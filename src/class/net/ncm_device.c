@@ -83,6 +83,7 @@ typedef struct {
   uint8_t itf_num;      // interface number
   uint8_t itf_data_alt; // ==0 -> no endpoints, i.e. no network traffic, ==1 -> normal operation with two endpoints (spec, chapter 5.3)
   uint8_t rhport;       // storage of \a rhport because some callbacks are done without it
+  uint16_t ep_size;     // bulk endpoint max packet size (IN and OUT assumed equal)
 
   // recv handling
   recv_ntb_t *recv_free_ntb[RECV_NTB_N];                // free list of recv NTBs
@@ -340,7 +341,8 @@ static xmit_ntb_t *xmit_get_next_ready_ntb(void) {
 static bool xmit_insert_required_zlp(uint8_t rhport, uint32_t xferred_bytes) {
   TU_LOG_DRV("xmit_insert_required_zlp(%d,%ld)\n", rhport, xferred_bytes);
 
-  if (xferred_bytes == 0 || xferred_bytes % CFG_TUD_NET_ENDPOINT_SIZE != 0) {
+  uint16_t const ep_size = ncm_interface.ep_size;
+  if (xferred_bytes == 0 || xferred_bytes % ep_size != 0) {
     return false;
   }
 
@@ -905,6 +907,7 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16
   // a TUSB_DESC_ENDPOINT (actually two) must follow, open these endpoints
   TU_ASSERT(tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT, 0);
   TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, 2, TUSB_XFER_BULK, &ncm_interface.ep_out, &ncm_interface.ep_in));
+  ncm_interface.ep_size = tu_edpt_packet_size((tusb_desc_endpoint_t const *) p_desc);
   drv_len += 2 * sizeof(tusb_desc_endpoint_t);
 
   return drv_len;
