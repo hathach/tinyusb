@@ -36,7 +36,7 @@ static void board_uart_init(void) {
   // BAUDRATE = 115200, with SystemCoreClock = 50 Mhz refer manual for calculation
   //  - BRDI = SystemCoreClock / (16* baud)
   //  - BRDF = int(fraction*64 + 0.5)
-  UART0->CTL &= ~(1 << 0);                     // Disable UART0 by clearing UARTEN bit in the UARTCTL register
+  UART0->CTL &= ~(1U << 0);                     // Disable UART0 by clearing UARTEN bit in the UARTCTL register
   UART0->IBRD = 27;                            // Write the integer portion of the BRD to the UARTIRD register
   UART0->FBRD = 8;                             // Write the fractional portion of the BRD to the UARTFBRD registerer
 

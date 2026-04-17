@@ -100,8 +100,8 @@ typedef enum {
 } tusb_xfer_type_t;
 
 typedef enum {
-  TUSB_DIR_OUT = 0,
-  TUSB_DIR_IN  = 1,
+  TUSB_DIR_OUT = 0u,
+  TUSB_DIR_IN  = 1u,
 
   TUSB_EPNUM_MASK = 0x0F,
   TUSB_DIR_IN_MASK = 0x80

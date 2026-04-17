@@ -59,11 +59,11 @@ void OTG_FS_IRQHandler(void) {
 void USB_DeviceClockInit(void) {
   /* Select USBCLK source */
   //  RCC_USBCLKConfig(RCC_USBCLKSource_PLLCLK_Div1);
-  RCC->CFGR &= ~(0x3 << 22);
-  RCC->CFGR |= (0x1 << 22);
+  RCC->CFGR &= ~(0x3U << 22);
+  RCC->CFGR |= (0x1U << 22);
 
   /* Enable USB clock */
-  RCC->AHB2ENR |= 0x1 << 7;
+  RCC->AHB2ENR |= 0x1U << 7;
 }
 
 void board_init(void) {

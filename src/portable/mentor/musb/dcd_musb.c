@@ -111,8 +111,8 @@ TU_ATTR_ALWAYS_INLINE static inline void hwfifo_reset(musb_regs_t* musb, unsigne
 TU_ATTR_ALWAYS_INLINE static inline bool hwfifo_config(musb_regs_t* musb, unsigned epnum, unsigned is_rx, unsigned mps,
                                                        bool double_packet) {
   (void) epnum;
-  uint8_t ffsize = hwfifo_byte2size(mps);
-  mps = 8 << ffsize; // round up to the next power of 2
+  uint8_t ffsize = hwfifo_byte2size((uint16_t)mps);
+  mps = 8u << ffsize; // round up to the next power of 2
 
   if (double_packet) {
     ffsize |= MUSB_FIFOSZ_DOUBLE_PACKET;
@@ -120,7 +120,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool hwfifo_config(musb_regs_t* musb, unsign
   }
 
   TU_ASSERT(alloced_fifo_bytes + mps <= MUSB_CFG_DYNAMIC_FIFO_SIZE);
-  musb->fifo_addr[is_rx] = alloced_fifo_bytes / 8;
+  musb->fifo_addr[is_rx] = (uint16_t)(alloced_fifo_bytes / 8);
   musb->fifo_size[is_rx] = ffsize;
 
   alloced_fifo_bytes += mps;
@@ -157,12 +157,12 @@ TU_ATTR_ALWAYS_INLINE static inline bool hwfifo_config(musb_regs_t* musb, unsign
 // Flush FIFO and clear data toggle
 TU_ATTR_ALWAYS_INLINE static inline void hwfifo_flush(musb_regs_t* musb, unsigned epnum, unsigned is_rx, bool clear_dtog) {
   (void) epnum;
-  const uint8_t csrl_dtog = clear_dtog ? MUSB_CSRL_CLEAR_DATA_TOGGLE(is_rx) : 0;
+  const uint8_t csrl_dtog = clear_dtog ? (uint8_t)MUSB_CSRL_CLEAR_DATA_TOGGLE(is_rx) : 0;
   musb_ep_maxp_csr_t* maxp_csr = &musb->indexed_csr.maxp_csr[is_rx];
   // may need to flush twice for double packet
   for (unsigned i=0; i<2; i++) {
     if (maxp_csr->csrl & MUSB_CSRL_PACKET_READY(is_rx)) {
-      maxp_csr->csrl = MUSB_CSRL_FLUSH_FIFO(is_rx) | csrl_dtog;
+      maxp_csr->csrl = (uint8_t)(MUSB_CSRL_FLUSH_FIFO(is_rx) | csrl_dtog);
     }
   }
 }
@@ -180,7 +180,7 @@ static void process_setup_packet(uint8_t rhport) {
   dcd_event_setup_received(rhport, (const uint8_t*)(uintptr_t)&_dcd.setup_packet, true);
 
   const unsigned len    = _dcd.setup_packet.wLength;
-  _dcd.remaining_ctrl   = len;
+  _dcd.remaining_ctrl   = (uint16_t)len;
   const unsigned dir_in = tu_edpt_dir(_dcd.setup_packet.bmRequestType);
   /* Clear RX FIFO and reverse the transaction direction */
   if (len && dir_in) {
@@ -441,14 +441,14 @@ static void process_edpt_n(uint8_t rhport, uint_fast8_t ep_addr)
   if (dir_in) {
     // TU_LOG1(" TX CSRL%d = %x\r\n", epn, ep_csr->tx_csrl);
     if (ep_csr->tx_csrl & MUSB_TXCSRL1_STALLED) {
-      ep_csr->tx_csrl &= ~(MUSB_TXCSRL1_STALLED | MUSB_TXCSRL1_UNDRN);
+      ep_csr->tx_csrl = (uint8_t)(ep_csr->tx_csrl & ~(MUSB_TXCSRL1_STALLED | MUSB_TXCSRL1_UNDRN));
       return;
     }
     completed = handle_xfer_in(rhport, ep_addr);
   } else {
     // TU_LOG1(" RX CSRL%d = %x\r\n", epn, ep_csr->rx_csrl);
     if (ep_csr->rx_csrl & MUSB_RXCSRL1_STALLED) {
-      ep_csr->rx_csrl &= ~(MUSB_RXCSRL1_STALLED | MUSB_RXCSRL1_OVER);
+      ep_csr->rx_csrl = (uint8_t)(ep_csr->rx_csrl & ~(MUSB_RXCSRL1_STALLED | MUSB_RXCSRL1_OVER));
       return;
     }
     completed = handle_xfer_out(rhport, ep_addr);
@@ -778,7 +778,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   musb_ep_csr_t* ep_csr = get_ep_csr(musb_regs, epn);
   const uint8_t is_rx = 1 - tu_edpt_dir(ep_addr);
 
-  ep_csr->maxp_csr[is_rx].csrl = MUSB_CSRL_CLEAR_DATA_TOGGLE(is_rx);
+  ep_csr->maxp_csr[is_rx].csrl = (uint8_t)MUSB_CSRL_CLEAR_DATA_TOGGLE(is_rx);
 
   if (ie) musb_dcd_int_enable(rhport);
 }
@@ -794,8 +794,8 @@ void dcd_int_handler(uint8_t rhport) {
   musb_dcd_int_handler_enter(rhport);
 
   uint_fast8_t intr_usb = musb_regs->intr_usb; // a read will clear this interrupt status
-  uint_fast8_t intr_tx = musb_regs->intr_tx; // a read will clear this interrupt status
-  uint_fast8_t intr_rx = musb_regs->intr_rx; // a read will clear this interrupt status
+  uint_fast16_t intr_tx = musb_regs->intr_tx; // a read will clear this interrupt status
+  uint_fast16_t intr_rx = musb_regs->intr_rx; // a read will clear this interrupt status
   // TU_LOG1("D%2x T%2x R%2x\r\n", is, txis, rxis);
 
   intr_usb &= musb_regs->intr_usben; /* Clear disabled interrupts */

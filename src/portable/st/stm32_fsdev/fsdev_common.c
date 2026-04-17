@@ -81,11 +81,11 @@ uint16_t pma_align_buffer_size(uint16_t size, uint8_t* blsize, uint8_t* num_bloc
   if (size > 62) {
     block_in_bytes = 32;
     *blsize = 1;
-    *num_block = tu_div_ceil(size, 32);
+    *num_block = (uint8_t)tu_div_ceil(size, 32);
   } else {
     block_in_bytes = 2;
     *blsize = 0;
-    *num_block = tu_div_ceil(size, 2);
+    *num_block = (uint8_t)tu_div_ceil(size, 2);
   }
 
   return (*num_block) * block_in_bytes;
