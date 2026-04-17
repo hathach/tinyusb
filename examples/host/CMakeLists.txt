@@ -13,6 +13,7 @@ set(EXAMPLE_LIST
   device_info
   hid_controller
   midi_rx
+  midi2_host_feather
   msc_file_explorer
   )
 
