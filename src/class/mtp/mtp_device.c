@@ -321,7 +321,7 @@ bool mtpd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
     .session_id = p_mtp->session_id,
     .request = request,
     .buf = p_mtp->control_buf,
-    .bufsize = tu_le16toh(request->wLength),
+    .bufsize = request->wLength,
   };
 
   switch (request->bRequest) {
