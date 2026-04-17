@@ -256,10 +256,14 @@ TU_ATTR_ALWAYS_INLINE static inline void fsdev_int_disable(uint8_t rhport) {
 //--------------------------------------------------------------------+
 
 #ifdef CFG_TUSB_FSDEV_32BIT
-// ES0561 (STM32H503), ES0587 (STM32U535/U545)
-// CTR may trigger before final PMA SRAM accesses complete on OUT transfers.
-// Insert delay before reading PMA count/data.
-// Max CPU frequency in MHz, used to derive conservative FSDEV PMA delay defaults.
+/* Errata: Buffer description table update completes after CTR interrupt triggers
+ * https://www.st.com/resource/en/errata_sheet/es0561-stm32h503cbebkbrb-device-errata-stmicroelectronics.pdf
+ * https://www.st.com/resource/en/errata_sheet/es0587-stm32u535xx-and-stm32u545xx-device-errata-stmicroelectronics.pdf
+ *
+ * CTR may trigger before final PMA SRAM accesses complete on OUT transfers.
+ * Insert delay before reading PMA count/data.
+ * Max CPU frequency in MHz, used to derive conservative FSDEV PMA delay defaults.
+ */
 #if CFG_TUSB_MCU == OPT_MCU_STM32H5
   #define FSDEV_STM32_CPU_MHZ 250U
 #elif CFG_TUSB_MCU == OPT_MCU_STM32U5
@@ -283,10 +287,9 @@ TU_ATTR_ALWAYS_INLINE static inline void fsdev_int_disable(uint8_t rhport) {
 #endif
 
 TU_ATTR_ALWAYS_INLINE static inline void fsdev_btable_workaround_delay(bool low_speed) {
-  uint32_t cycle_count = low_speed ? CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT : CFG_TUSB_FSDEV_BTABLE_FS_DELAY_COUNT;
-  volatile uint32_t delay_count = cycle_count;
-  while (delay_count > 0U) {
-    delay_count--;
+  volatile uint32_t cycle_count = low_speed ? CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT : CFG_TUSB_FSDEV_BTABLE_FS_DELAY_COUNT;
+  while (cycle_count > 0U) {
+    cycle_count--;
   }
 }
 #endif
