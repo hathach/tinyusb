@@ -1212,7 +1212,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
       TU_LOG_USBD(" String[%u]\r\n", desc_index);
 
       // String Descriptor always uses the desc set from user
-      uint8_t const* desc_str = (uint8_t const*) tud_descriptor_string_cb(desc_index, tu_le16toh(p_request->wIndex));
+      uint8_t const* desc_str = (uint8_t const*) tud_descriptor_string_cb(desc_index, p_request->wIndex);
       TU_VERIFY(desc_str);
 
       // first byte of descriptor is its size

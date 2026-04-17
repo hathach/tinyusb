@@ -246,8 +246,10 @@
   // Endian conversion use well-known host to network (big endian) naming
   #if defined(__LIT)
     #define TU_BYTE_ORDER TU_LITTLE_ENDIAN
+    #define TU_BITFIELD_ORDER TU_BITFIELD_LE
   #else
     #define TU_BYTE_ORDER TU_BIG_ENDIAN
+    #define TU_BITFIELD_ORDER TU_BITFIELD_BE
   #endif
 
   #define TU_BSWAP16(u16) ((unsigned short)_builtin_revw((unsigned long)u16))
