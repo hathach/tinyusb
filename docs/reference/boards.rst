@@ -265,7 +265,7 @@ STMicroelectronics
 ===================  =================================  =========  =================================================================  ======
 Board                Name                               Family     URL                                                                Note
 ===================  =================================  =========  =================================================================  ======
-stm32c071nucleo      STM32C071 Nucleo                   stm32c0    https://www.st.com/en/evaluation-tools/nucleo-g071rb.html
+stm32c071nucleo      STM32C071 Nucleo                   stm32c0    https://www.st.com/en/evaluation-tools/nucleo-c071rb.html
 stm32f070rbnucleo    STM32 F070 Nucleo                  stm32f0    https://www.st.com/en/evaluation-tools/nucleo-f070rb.html
 stm32f072disco       STM32 F072 Discovery               stm32f0    https://www.st.com/en/evaluation-tools/32f072bdiscovery.html
 stm32f072eval        STM32 F072 Eval                    stm32f0    https://www.st.com/en/evaluation-tools/stm32072b-eval.html
