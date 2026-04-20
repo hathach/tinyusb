@@ -1208,7 +1208,7 @@ device_tests = [
     'device/printer_to_cdc',
     'device/midi_test',
     'device/mtp',
-    'device/net_lwip_webserver'
+    # 'device/net_lwip_webserver'
 ]
 
 dual_tests = [

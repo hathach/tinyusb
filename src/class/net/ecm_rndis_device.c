@@ -206,14 +206,15 @@ static void ecm_report(bool nc) {
     },
   };
 
+  const uint32_t link_bps = (tud_speed_get() == TUSB_SPEED_HIGH) ? 480000000U : 12000000U;
   const ecm_notify_t ecm_notify_csc = {
     .header = {
       .bmRequestType = 0xA1,
       .bRequest = 0x2A, /* CONNECTION_SPEED_CHANGE aka ConnectionSpeedChange */
       .wLength = 8,
     },
-    .downlink = 9728000,
-    .uplink = 9728000,
+    .downlink = link_bps,
+    .uplink = link_bps,
   };
 
   ecm_notify_t notify = (nc) ? ecm_notify_nc : ecm_notify_csc;
