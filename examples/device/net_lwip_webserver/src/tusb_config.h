@@ -96,8 +96,11 @@ extern "C" {
   #define USE_ECM 1
 #else
   #define USE_ECM 0
-  #define INCLUDE_IPERF
 #endif
+#endif
+
+#ifndef INCLUDE_IPERF
+  #define INCLUDE_IPERF
 #endif
 
 //--------------------------------------------------------------------
