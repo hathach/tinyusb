@@ -226,6 +226,9 @@
         {
             "name": "stm32f072disco",
             "uid": "3A001A001357364230353532",
+            "tests": {
+                "device": true, "host": false, "dual": false
+            },
             "flasher": {
                 "name": "jlink",
                 "uid": "779541626",

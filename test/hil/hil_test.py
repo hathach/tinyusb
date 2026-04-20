@@ -1028,6 +1028,63 @@ def test_device_mtp(board):
         mtp.disconnect()
 
 
+def test_device_net_lwip_webserver(board):
+    # MAC hard-coded in examples/device/net_lwip_webserver/src/main.c; Linux names the
+    # USB network interface enx<MAC_lowercase_no_colons>. Device IP is 192.168.7.1 and
+    # the example runs an iperf2 TCP server on port 5001 (INCLUDE_IPERF).
+    import socket
+    mac_no_colons = '0202846a9600'
+    iface = 'enx' + mac_no_colons
+    device_ip = '192.168.7.1'
+    iperf_port = 5001
+
+    # Wait for the host to get an IPv4 address in the device's subnet (DHCP served by the device).
+    deadline = time.time() + ENUM_TIMEOUT
+    host_ip = None
+    while time.time() < deadline:
+        ret = subprocess.run(['ip', '-o', '-4', 'addr', 'show', iface],
+                             capture_output=True, text=True, timeout=2)
+        m = re.search(r'inet (192\.168\.7\.\d+)/', ret.stdout) if ret.returncode == 0 else None
+        if m:
+            host_ip = m.group(1)
+            break
+        time.sleep(0.5)
+    assert host_ip, f'USB net iface {iface} did not come up with 192.168.7.x within {ENUM_TIMEOUT}s'
+
+    # Poll the iperf TCP port until the device is accepting. The net stack comes up a bit
+    # after DHCP completes; iperf server binding isn't instantaneous after reflash.
+    deadline = time.time() + ENUM_TIMEOUT
+    last_err = None
+    while time.time() < deadline:
+        try:
+            with socket.create_connection((device_ip, iperf_port), timeout=1):
+                last_err = None
+                break
+        except OSError as e:
+            last_err = e
+            time.sleep(0.3)
+    assert last_err is None, f'iperf TCP {device_ip}:{iperf_port} not accepting within {ENUM_TIMEOUT}s: {last_err}'
+
+    # Throughput: 5-second iperf2 TCP test, CSV output for stable parsing.
+    # iperf2 CSV final summary line: timestamp,src_ip,src_port,dst_ip,dst_port,id,interval,bytes,bps
+    ret = subprocess.run(['iperf', '-c', device_ip, '-t', '5', '-y', 'C'],
+                         capture_output=True, text=True, timeout=30)
+    stderr = ret.stderr.strip()
+    stdout = ret.stdout.strip()
+    assert ret.returncode == 0, f'iperf rc={ret.returncode}: stderr={stderr!r} stdout={stdout!r}'
+    lines = [l for l in stdout.splitlines() if l]
+    assert lines, f'iperf produced no output (rc={ret.returncode}, stderr={stderr!r})'
+    try:
+        bps = int(lines[-1].split(',')[-1])
+    except (ValueError, IndexError) as e:
+        raise AssertionError(f'could not parse iperf output: {lines[-1]!r} ({e})')
+    mbps = bps / 1e6
+    print(f'  iperf {mbps:5.1f} Mbps', end='')
+
+    # Reject implausibly low throughput - a working USB-net link should clear this easily.
+    assert mbps >= 1.0, f'iperf throughput too low: {mbps:.2f} Mbps'
+
+
 def test_device_msc_dual_lun(board):
     uid = board['uid']
 
@@ -1150,7 +1207,8 @@ device_tests = [
     'device/hid_generic_inout',
     'device/printer_to_cdc',
     'device/midi_test',
-    'device/mtp'
+    'device/mtp',
+    # 'device/net_lwip_webserver'
 ]
 
 dual_tests = [
