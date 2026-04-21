@@ -110,14 +110,12 @@ TU_VERIFY_STATIC(CFG_TUD_MIDI2_NUM_FUNCTION_BLOCKS >= 1 && CFG_TUD_MIDI2_NUM_FUN
 
 static midi2d_interface_t _midi2d_itf[CFG_TUD_MIDI2];
 
-#if CFG_TUD_EDPT_DEDICATED_HWFIFO == 0
 typedef struct {
   TUD_EPBUF_DEF(epin, CFG_TUD_MIDI2_TX_EPSIZE);
   TUD_EPBUF_DEF(epout, CFG_TUD_MIDI2_RX_EPSIZE);
 } midi2d_epbuf_t;
 
 CFG_TUD_MEM_SECTION static midi2d_epbuf_t _midi2d_epbuf[CFG_TUD_MIDI2];
-#endif
 
 // Default Group Terminal Block descriptor (USB-MIDI 2.0 spec, Table 5-5/5-6)
 static const uint8_t _default_gtb_desc[] = {
@@ -385,14 +383,9 @@ void midi2d_init(void) {
     midi2d_interface_t* p_midi = &_midi2d_itf[i];
     p_midi->protocol = MIDI_PROTOCOL_MIDI2;
 
-  #if CFG_TUD_EDPT_DEDICATED_HWFIFO
-    uint8_t* epout_buf = NULL;
-    uint8_t* epin_buf  = NULL;
-  #else
     midi2d_epbuf_t* p_epbuf = &_midi2d_epbuf[i];
     uint8_t* epout_buf = p_epbuf->epout;
     uint8_t* epin_buf  = p_epbuf->epin;
-  #endif
 
     tu_edpt_stream_init(&p_midi->ep_stream.rx, false, false, false,
                         p_midi->ep_stream.rx_ff_buf, CFG_TUD_MIDI2_RX_BUFSIZE, epout_buf);

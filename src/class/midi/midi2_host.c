@@ -88,14 +88,12 @@ typedef struct {
 
 static midih2_interface_t _midi2_host[CFG_TUH_MIDI2];
 
-#if CFG_TUH_EDPT_DEDICATED_HWFIFO == 0
 typedef struct {
   TUH_EPBUF_DEF(tx, TUH_EPSIZE_BULK_MAX);
   TUH_EPBUF_DEF(rx, TUH_EPSIZE_BULK_MAX);
 } midih2_epbuf_t;
 
 CFG_TUH_MEM_SECTION static midih2_epbuf_t _midi2_epbuf[CFG_TUH_MIDI2];
-#endif
 
 //--------------------------------------------------------------------+
 // Helper functions
@@ -266,13 +264,8 @@ bool midih2_init(void) {
   for (int inst = 0; inst < CFG_TUH_MIDI2; inst++) {
     midih2_interface_t *p_midi = &_midi2_host[inst];
 
-  #if CFG_TUH_EDPT_DEDICATED_HWFIFO
-    uint8_t* rx_buf = NULL;
-    uint8_t* tx_buf = NULL;
-  #else
     uint8_t* rx_buf = _midi2_epbuf[inst].rx;
     uint8_t* tx_buf = _midi2_epbuf[inst].tx;
-  #endif
 
     tu_edpt_stream_init(&p_midi->ep_stream.rx, true, false, false,
       p_midi->ep_stream.rx_ff_buf, CFG_TUH_MIDI2_RX_BUFSIZE, rx_buf);
