@@ -75,6 +75,10 @@ uint8_t* usbd_get_ctrl_buf(void) {
 static inline bool status_stage_xact(uint8_t rhport, const tusb_control_request_t* request) {
   // Opposite to endpoint in Data Phase
   const uint8_t ep_addr = request->bmRequestType_bit.direction ? EDPT_CTRL_OUT : EDPT_CTRL_IN;
+  // No data stage, and always use IN endpoint
+  if (request->wLength==0) {
+    return usbd_edpt_xfer(rhport, EDPT_CTRL_IN, NULL, 0);
+  }
   return usbd_edpt_xfer(rhport, ep_addr, NULL, 0, false);
 }
 
@@ -156,8 +160,8 @@ void usbd_control_set_request(const tusb_control_request_t* request) {
 bool usbd_control_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
   (void) result;
 
-  // Endpoint Address is opposite to direction bit, this is Status Stage complete event
-  if (tu_edpt_dir(ep_addr) != _ctrl_xfer.request.bmRequestType_bit.direction) {
+  // Endpoint Address is opposite to direction bit or IN control with zero wLength, this is Status Stage complete event
+if ((tu_edpt_dir(ep_addr) != _ctrl_xfer.request.bmRequestType_bit.direction)||(_ctrl_xfer.request.wLength==0&&_ctrl_xfer.request.bmRequestType_bit.direction==TUSB_DIR_IN)) {
     TU_ASSERT(0 == xferred_bytes);
 
     // invoke optional dcd hook if available
