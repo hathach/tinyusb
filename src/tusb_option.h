@@ -682,6 +682,12 @@
   #define CFG_TUD_MIDI2_PRODUCT_ID  "TinyUSB-MIDI2"
 #endif
 
+// String descriptor index for the Group Terminal Block (iBlockItem, Table 5-6).
+// 0 = no string descriptor (default, spec-allowed).
+#ifndef CFG_TUD_MIDI2_BLOCK_STRIDX
+  #define CFG_TUD_MIDI2_BLOCK_STRIDX 0
+#endif
+
 #ifndef CFG_TUD_VENDOR
   #define CFG_TUD_VENDOR          0
 #endif

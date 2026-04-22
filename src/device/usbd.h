@@ -429,14 +429,14 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 //--------------------------------------------------------------------+
 
 // Alt Setting 1: MS Interface + MS Header (bcdMSC=0x0200)
-// wTotalLength covers MS Header + all CS Endpoint descriptors
-#define TUD_MIDI2_DESC_ALT1_CS_LEN(_numgtbs) (7 + (4 + (_numgtbs)) * 2)
+// Per USB-MIDI 2.0 Table 5-2: wTotalLength in the MS Header is not used in 2.0
+// and shall be set to match bLength (= 0x0007) for conformity with USB-MIDI 1.0.
 #define TUD_MIDI2_DESC_ALT1_HEAD_LEN (9 + 7)
-#define TUD_MIDI2_DESC_ALT1_HEAD(_itfnum, _stridx, _numgtbs) \
+#define TUD_MIDI2_DESC_ALT1_HEAD(_itfnum, _stridx) \
   /* MIDI Streaming Interface, Alt Setting 1 */\
   9, TUSB_DESC_INTERFACE, (uint8_t)((_itfnum) + 1), 1, 2, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_MIDI_STREAMING, AUDIO_FUNC_PROTOCOL_CODE_UNDEF, 0,\
-  /* MS Header (MIDI 2.0): wTotalLength = header + 2x CS Endpoint */\
-  7, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_HEADER, U16_TO_U8S_LE(0x0200), U16_TO_U8S_LE(TUD_MIDI2_DESC_ALT1_CS_LEN(_numgtbs))
+  /* MS Header (MIDI 2.0): wTotalLength = bLength per spec */\
+  7, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_HEADER, U16_TO_U8S_LE(0x0200), U16_TO_U8S_LE(0x0007)
 
 // Alt Setting 1: Standard USB Endpoint (7 bytes) + CS Endpoint General 2.0
 #define TUD_MIDI2_DESC_ALT1_EP_LEN(_numgtbs) (7 + 4 + (_numgtbs))
@@ -457,7 +457,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   TUD_MIDI_DESC_EP(_epin, _epsize, 1),\
   TUD_MIDI_JACKID_OUT_EMB(1),\
   /* Alt Setting 1 (UMP) */\
-  TUD_MIDI2_DESC_ALT1_HEAD(_itfnum, _stridx, 1),\
+  TUD_MIDI2_DESC_ALT1_HEAD(_itfnum, _stridx),\
   TUD_MIDI2_DESC_ALT1_EP(_epout, _epsize, 1, 1 /* bAssoGrpTrmBlkID */),\
   TUD_MIDI2_DESC_ALT1_EP(_epin, _epsize, 1, 1 /* bAssoGrpTrmBlkID */)
 

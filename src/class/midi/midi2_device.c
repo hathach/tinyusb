@@ -44,6 +44,16 @@ TU_ATTR_WEAK bool tud_midi2_get_req_itf_cb(uint8_t rhport, const tusb_control_re
 }
 
 //--------------------------------------------------------------------+
+// Byte order note
+//--------------------------------------------------------------------+
+// Per USB-MIDI 2.0 Section 3.2.2, each 32-bit UMP word is transmitted with the
+// least significant byte first. This driver reads and writes UMP words as
+// native uint32_t through tu_edpt_stream_read/write. All TinyUSB targets are
+// little-endian, so the in-memory layout already matches the wire order and no
+// swap is needed. If a big-endian target is ever supported, wrap access with
+// tu_htole32 / tu_le32toh at the buffer boundary.
+
+//--------------------------------------------------------------------+
 // UMP Stream Message Constants
 //--------------------------------------------------------------------+
 // UMP Message Type for Stream messages (bits 31:28)
@@ -133,7 +143,7 @@ static const uint8_t _default_gtb_desc[] = {
   0x00,                                     // bGrpTrmBlkType: bidirectional
   0x00,                                     // nGroupTrm: first group (0)
   CFG_TUD_MIDI2_NUM_GROUPS,                 // nNumGroupTrm
-  0,                                        // iBlockItem: no string
+  CFG_TUD_MIDI2_BLOCK_STRIDX,               // iBlockItem: string descriptor index (0 = none)
   0x00,                                     // bMIDIProtocol: unknown/not fixed
   0, 0,                                     // wMaxInputBandwidth: unknown
   0, 0                                      // wMaxOutputBandwidth: unknown
@@ -554,19 +564,30 @@ bool midi2d_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_re
     }
 
     case TUSB_REQ_GET_DESCRIPTOR: {
-      // wValue: descriptor type (high) | index (low)
-      // 0x26 = CS_GRP_TRM_BLOCK, index 0x01
-      if (request->wValue == ((uint16_t)MIDI2_CS_GRP_TRM_BLOCK << 8 | 0x01)) {
-        if (tud_midi2_get_req_itf_cb(rhport, request)) return true;
+      // USB-MIDI 2.0 Section 6: GTB descriptor retrieval
+      //   bmRequestType = 0x81 (Device-to-Host, Standard, Interface)
+      //   wValue  = CS_GR_TRM_BLOCK (0x26) in high byte, alt setting in low byte
+      //   wIndex  = interface number
+      if (request->bmRequestType_bit.direction != TUSB_DIR_IN) return false;
+      if (request->bmRequestType_bit.type      != TUSB_REQ_TYPE_STANDARD) return false;
+      if (request->bmRequestType_bit.recipient != TUSB_REQ_RCPT_INTERFACE) return false;
+      if (tu_u16_high(request->wValue)         != MIDI2_CS_GRP_TRM_BLOCK) return false;
 
-        uint16_t len = request->wLength;
-        if (len > sizeof(_default_gtb_desc)) {
-          len = sizeof(_default_gtb_desc);
-        }
-        tud_control_xfer(rhport, request, (void*)(uintptr_t) _default_gtb_desc, len);
-        return true;
+      uint8_t itf_num = tu_u16_low(request->wIndex);
+      uint8_t idx     = find_midi2_itf_by_num(itf_num);
+      if (idx >= CFG_TUD_MIDI2) return false;
+
+      // Only Alt Setting 1 exposes Group Terminal Block descriptors.
+      if (tu_u16_low(request->wValue) != 0x01) return false;
+
+      if (tud_midi2_get_req_itf_cb(rhport, request)) return true;
+
+      uint16_t len = request->wLength;
+      if (len > sizeof(_default_gtb_desc)) {
+        len = sizeof(_default_gtb_desc);
       }
-      return false;
+      tud_control_xfer(rhport, request, (void*)(uintptr_t) _default_gtb_desc, len);
+      return true;
     }
 
     default:

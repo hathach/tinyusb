@@ -147,6 +147,9 @@ void test_midi2_descriptor_bytes(void) {
   TEST_ASSERT_EQUAL(MIDI_CS_INTERFACE_HEADER, desc[ms2_offset + 2]);
   TEST_ASSERT_EQUAL(0x00, desc[ms2_offset + 3]);
   TEST_ASSERT_EQUAL(0x02, desc[ms2_offset + 4]);
+  // USB-MIDI 2.0 Table 5-2: wTotalLength shall match bLength (= 0x0007)
+  TEST_ASSERT_EQUAL(0x07, desc[ms2_offset + 5]);
+  TEST_ASSERT_EQUAL(0x00, desc[ms2_offset + 6]);
 }
 
 void test_midi2_descriptor_alt1_cs_endpoint_subtype(void) {
