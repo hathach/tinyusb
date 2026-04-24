@@ -63,6 +63,7 @@ enum {
 
 
 static uint8_t* _rx_buf;
+static uint16_t _rx_buf_len;
 static uint8_t const* _tx_pending_buf;
 static uint16_t _tx_pending_bytes;
 static uint16_t _tx_xferring_bytes;
@@ -212,6 +213,7 @@ void tcd_int_disable(uint8_t rhport) {
 
 bool tcd_msg_receive(uint8_t rhport, uint8_t* buffer, uint16_t total_bytes) {
   _rx_buf = buffer;
+  _rx_buf_len = total_bytes;
   dma_start(rhport, true, buffer, total_bytes);
   return true;
 }
@@ -307,12 +309,14 @@ void tcd_int_handler(uint8_t rhport) {
     if (!(sr & UCPD_SR_RXERR)) {
       // Send GoodCRC in response, unless the received message is itself a GoodCRC.
       // TODO move this to usbc stack
-      pd_header_t const* rx_header = (pd_header_t const*) _rx_buf;
-      bool is_good_crc = (rx_header->n_data_obj == 0) && (rx_header->msg_type == PD_CTRL_GOOD_CRC);
+      if (_rx_buf) {
+        pd_header_t const* rx_header = (pd_header_t const*) _rx_buf;
+        bool is_good_crc = (rx_header->n_data_obj == 0) && (rx_header->msg_type == PD_CTRL_GOOD_CRC);
 
-      if (_rx_buf && !is_good_crc) {
-        _good_crc.msg_id = rx_header->msg_id;
-        dma_tx_start(rhport, &_good_crc, 2);
+        if (!is_good_crc) {
+          _good_crc.msg_id = rx_header->msg_id;
+          dma_tx_start(rhport, &_good_crc, 2);
+        }
       }
 
       result = XFER_RESULT_SUCCESS;
@@ -338,9 +342,8 @@ void tcd_int_handler(uint8_t rhport) {
   // flag will remain set and re-enter the ISR immediately
   if (sr & UCPD_SR_RXHRSTDET) {
     TU_LOG3("Hard Reset received\r\n");
-    // Re-arm RX DMA. _rx_buf is a pointer so sizeof(_rx_buf) would be 4 bytes —
-    // use the same size as usbc.c's _rx_buf (64 bytes) to avoid truncating messages.
-    tcd_msg_receive(rhport, _rx_buf, 64);
+    dma_stop(rhport, true);
+    tcd_msg_receive(rhport, _rx_buf, _rx_buf_len);
     UCPD1->ICR = UCPD_ICR_RXHRSTDETCF;
   }
 
