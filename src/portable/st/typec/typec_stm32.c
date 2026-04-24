@@ -342,8 +342,10 @@ void tcd_int_handler(uint8_t rhport) {
   // flag will remain set and re-enter the ISR immediately
   if (sr & UCPD_SR_RXHRSTDET) {
     TU_LOG3("Hard Reset received\r\n");
-    dma_stop(rhport, true);
-    tcd_msg_receive(rhport, _rx_buf, _rx_buf_len);
+    if (_rx_buf != NULL && _rx_buf_len > 0) {
+      dma_stop(rhport, true);
+      tcd_msg_receive(rhport, _rx_buf, _rx_buf_len);
+    }
     UCPD1->ICR = UCPD_ICR_RXHRSTDETCF;
   }
 
