@@ -62,7 +62,7 @@ enum {
 #define PHY_ORDERED_SET_SOP_PP_DEBUG (PHY_SYNC1 | (PHY_RST2<<5u)  | (PHY_SYNC3<<10u) | (PHY_SYNC2<<15u)) // SOP'' Debug Ordered set coding
 
 
-static uint8_t const* _rx_buf;
+static uint8_t* _rx_buf;
 static uint8_t const* _tx_pending_buf;
 static uint16_t _tx_pending_bytes;
 static uint16_t _tx_xferring_bytes;
@@ -340,7 +340,7 @@ void tcd_int_handler(uint8_t rhport) {
     TU_LOG3("Hard Reset received\r\n");
     // Re-arm RX DMA. _rx_buf is a pointer so sizeof(_rx_buf) would be 4 bytes —
     // use the same size as usbc.c's _rx_buf (64 bytes) to avoid truncating messages.
-    tcd_msg_receive(rhport, (uint8_t*) _rx_buf, 64);
+    tcd_msg_receive(rhport, _rx_buf, 64);
     UCPD1->ICR = UCPD_ICR_RXHRSTDETCF;
   }
 
