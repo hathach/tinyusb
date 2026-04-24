@@ -251,14 +251,12 @@ void tcd_int_handler(uint8_t rhport) {
     uint32_t cr = UCPD1->CR;
 
     // TODO only support SNK for now, required highest voltage for now
-    // Enable PHY on active CC and disable Rd on other CC
-    // FIXME somehow CC2 is vstate is not correct, always 1 even not attached.
-    // on DPOW1 board, it is connected to PA10 (USBPD_DBCC2), we probably miss something.
-    if ((sr & UCPD_SR_TYPECEVT1) && (v_cc[0] == 3)) {
+    // Determine attach/detach by checking both CC vstates.
+    if (v_cc[0] >= 1) {
       TU_LOG3("Attach CC1\r\n");
       cr &= ~(UCPD_CR_PHYCCSEL | UCPD_CR_CCENABLE);
       cr |= UCPD_CR_PHYRXEN | UCPD_CR_CCENABLE_0;
-    } else if ((sr & UCPD_SR_TYPECEVT2) && (v_cc[1] == 3)) {
+    } else if (v_cc[1] >= 1) {
       TU_LOG3("Attach CC2\r\n");
       cr &= ~UCPD_CR_CCENABLE;
       cr |= (UCPD_CR_PHYCCSEL | UCPD_CR_PHYRXEN | UCPD_CR_CCENABLE_1);
@@ -307,10 +305,13 @@ void tcd_int_handler(uint8_t rhport) {
     uint8_t result;
 
     if (!(sr & UCPD_SR_RXERR)) {
-      // response with good crc
+      // Send GoodCRC in response, unless the received message is itself a GoodCRC.
       // TODO move this to usbc stack
-      if (_rx_buf) {
-        _good_crc.msg_id = ((pd_header_t const *) _rx_buf)->msg_id;
+      pd_header_t const* rx_header = (pd_header_t const*) _rx_buf;
+      bool is_good_crc = (rx_header->n_data_obj == 0) && (rx_header->msg_type == PD_CTRL_GOOD_CRC);
+
+      if (_rx_buf && !is_good_crc) {
+        _good_crc.msg_id = rx_header->msg_id;
         dma_tx_start(rhport, &_good_crc, 2);
       }
 
@@ -331,6 +332,16 @@ void tcd_int_handler(uint8_t rhport) {
     TU_LOG3("RXOVR\r\n");
     // ack
     UCPD1->ICR = UCPD_ICR_RXOVRCF;
+  }
+
+  // Handle Hard Reset received from source. If not cleared here, the
+  // flag will remain set and re-enter the ISR immediately
+  if (sr & UCPD_SR_RXHRSTDET) {
+    TU_LOG3("Hard Reset received\r\n");
+    // Re-arm RX DMA. _rx_buf is a pointer so sizeof(_rx_buf) would be 4 bytes —
+    // use the same size as usbc.c's _rx_buf (64 bytes) to avoid truncating messages.
+    tcd_msg_receive(rhport, (uint8_t*) _rx_buf, 64);
+    UCPD1->ICR = UCPD_ICR_RXHRSTDETCF;
   }
 
   //------------- TX -------------//
