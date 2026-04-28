@@ -56,3 +56,12 @@ BrowseInfo
 .cmake_build
 README_processed.rst
 .worktrees
+# Fetched dependencies (get_deps.py)
+hw/mcu/*/
+lib/CMSIS_5/
+lib/FreeRTOS-Kernel/
+lib/fatfs/
+lib/lwip/
+lib/threadx/
+tools/linkermap/
+tools/uf2/
