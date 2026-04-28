@@ -118,6 +118,9 @@ static void update_out(uint8_t rhport, uint8_t ep, size_t rx_len) {
 
     if (ep == 0) {
       EP_RX_CTRL(0) = USBFS_EP_R_RES_ACK;
+    } else {
+      EP_RX_CTRL(ep) = (EP_RX_CTRL(ep) & ~USBFS_EP_R_RES_MASK) |
+                       (xfer->valid ? USBFS_EP_R_RES_ACK : USBFS_EP_R_RES_NAK);
     }
   }
 }
@@ -312,6 +315,8 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 
   if (dir == TUSB_DIR_IN) {
     update_in(rhport, ep, true);
+  } else {
+    EP_RX_CTRL(ep) = (EP_RX_CTRL(ep) & ~USBFS_EP_R_RES_MASK) | USBFS_EP_R_RES_ACK;
   }
   return true;
 }
