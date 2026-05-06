@@ -781,12 +781,15 @@ bool cdch_set_config(uint8_t daddr, uint8_t itf_num) {
   TU_ASSERT(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT);
   TU_LOG_CDC(p_cdc, "set config");
 
-  // fake transfer to kick-off process_set_config()
-  tuh_xfer_t xfer;
-  xfer.daddr = daddr;
-  xfer.result = XFER_RESULT_SUCCESS;
-  xfer.setup = &request;
-  xfer.user_data = 0; // initial state 0
+  // fake transfer to kick-off process_set_config(). Designated init
+  // so future tuh_xfer_t fields (e.g. timeout_ms) are zero-initialised
+  // rather than holding stack canary garbage.
+  tuh_xfer_t xfer = {
+    .daddr     = daddr,
+    .result    = XFER_RESULT_SUCCESS,
+    .setup     = &request,
+    .user_data = 0, // initial state 0
+  };
   cdch_process_set_config(&xfer);
 
   return true;

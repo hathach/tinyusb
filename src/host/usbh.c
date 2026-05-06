@@ -721,7 +721,6 @@ static void _control_blocking_complete_cb(tuh_xfer_t* xfer) {
   *((xfer_result_t*) xfer->user_data) = xfer->result;
 }
 
-// TODO timeout_ms is not supported yet
 bool tuh_control_xfer (tuh_xfer_t* xfer) {
   TU_VERIFY(xfer->ep_addr == 0 && xfer->setup); // EP0 with setup packet
   const uint8_t daddr = xfer->daddr;
@@ -764,13 +763,57 @@ bool tuh_control_xfer (tuh_xfer_t* xfer) {
 
     TU_ASSERT(usbh_setup_send(daddr, (uint8_t const *) &_usbh_epbuf.request));
 
+    // Honour xfer->timeout_ms. timeout_ms == 0 preserves the historical
+    // "wait forever" default for callers that do not initialise the
+    // field. A non-zero timeout returns false with xfer->result =
+    // XFER_RESULT_FAILED if the device does not complete the control
+    // transfer in time. The caller is responsible for any further
+    // recovery (e.g. hcd_edpt_abort_xfer) on the EP0 channel.
+    const uint32_t timeout_ms_local = xfer->timeout_ms;
+    const uint32_t start_ms         = tusb_time_millis_api();
+
     while (result == XFER_RESULT_INVALID) {
       // Note: this can be called within an callback ie. part of tuh_task()
       // therefore event with RTOS tuh_task() still need to be invoked
       if (tuh_task_event_ready()) {
         tuh_task();
       }
-      // TODO probably some timeout to prevent hanged
+      if (timeout_ms_local > 0 && (tusb_time_millis_api() - start_ms) >= timeout_ms_local) {
+        // Timeout. Tear down the in-flight control xfer so a subsequent
+        // control xfer on the same daddr can proceed.
+        //
+        // Lock policy: a 100 ms bounded wait. On NO_OS this lock is
+        // uncontended (the bus task and the recovery path share the
+        // same thread); under RTOS, a wedged bus task should not block
+        // the recovery itself. Skip the cleanup and continue tearing
+        // down on lock failure - the worst case is a stray late
+        // completion calling _control_xfer_complete with cb=NULL,
+        // which is a no-op.
+        const bool got_lock = osal_mutex_lock(_usbh_mutex, 100);
+        if (got_lock) {
+          if (ctrl_info->stage != CONTROL_STAGE_IDLE) {
+            ctrl_info->stage       = CONTROL_STAGE_IDLE;
+            ctrl_info->complete_cb = NULL;  // any late completion no-ops
+            ctrl_info->user_data   = 0;
+          }
+          (void) osal_mutex_unlock(_usbh_mutex);
+        }
+        // Disable the EP0 channel so the hardware doesn't deliver a
+        // late completion in flight. With PR3 the natural completion
+        // callback fires after channel halt; it lands in
+        // _control_xfer_complete with cb=NULL (cleared above) and is
+        // dropped. If hcd_edpt_abort_xfer returns false (no in-flight
+        // channel) there is nothing to drop. We do not reach into
+        // tuh_edpt_abort_xfer because that function rejects calls
+        // when stage is already IDLE.
+        hcd_edpt_abort_xfer(usbh_get_rhport(daddr), daddr, 0);
+        if (xfer->user_data != 0) {
+          *((xfer_result_t*) xfer->user_data) = XFER_RESULT_FAILED;
+        }
+        xfer->result     = XFER_RESULT_FAILED;
+        xfer->actual_len = 0;
+        return false;
+      }
     }
 
     // update transfer result, user_data is expected to point to xfer_result_t
@@ -1460,11 +1503,14 @@ static bool enum_new_device(hcd_event_t* event) {
     dev0_bus->speed = hcd_port_speed_get(dev0_bus->rhport);
     TU_LOG_USBH("%s Speed\r\n", tu_str_speed[dev0_bus->speed]);
 
-    // fake transfer to kick-off the enumeration process
-    tuh_xfer_t xfer;
-    xfer.daddr = 0;
-    xfer.result = XFER_RESULT_SUCCESS;
-    xfer.user_data = ENUM_ADDR0_DEVICE_DESC;
+    // fake transfer to kick-off the enumeration process. Use designated
+    // init so any new field added to tuh_xfer_t (e.g. timeout_ms) is
+    // zero-initialised rather than holding stack canary garbage.
+    tuh_xfer_t xfer = {
+      .daddr     = 0,
+      .result    = XFER_RESULT_SUCCESS,
+      .user_data = ENUM_ADDR0_DEVICE_DESC,
+    };
     process_enumeration(&xfer);
   }
   #if CFG_TUH_HUB

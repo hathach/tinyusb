@@ -45,6 +45,13 @@ tusb_role_t _tusb_rhport_role[TUP_USBIP_CONTROLLER_NUM] = { TUSB_ROLE_INVALID };
 // Weak/Default API, can be overwritten by Application
 //--------------------------------------------------------------------
 
+TU_ATTR_WEAK uint32_t tusb_time_millis_api(void) {
+  // BSP must override for any feature that needs a real wall clock
+  // (e.g. tuh_xfer_t.timeout_ms). Returning 0 makes timeout-based paths
+  // behave as wait-forever, matching the historical default.
+  return 0;
+}
+
 TU_ATTR_WEAK void tusb_time_delay_ms_api(uint32_t ms) {
 #if CFG_TUSB_OS != OPT_OS_NONE
   osal_task_delay(ms);

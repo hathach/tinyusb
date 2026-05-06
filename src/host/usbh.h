@@ -70,7 +70,19 @@ struct tuh_xfer_s {
   tuh_xfer_cb_t complete_cb;
   uintptr_t user_data;
 
-  // uint32_t timeout_ms;    // place holder, not supported yet
+  // Synchronous control transfer timeout in milliseconds. 0 means
+  // wait forever (preserves the historical default for callers that
+  // do not initialise this field). Currently honoured only by
+  // tuh_control_xfer with complete_cb == NULL.
+  //
+  // Callers using timeout_ms != 0 MUST inspect xfer->result rather
+  // than the function's bool return for a non-fatal timeout. The
+  // bool return is now overloaded with TU_VERIFY-style programming
+  // errors (precondition false) AND runtime timeouts; only the
+  // latter sets xfer->result = XFER_RESULT_FAILED. timeout_ms == 0
+  // callers are unaffected because the timeout branch is unreachable
+  // for them.
+  uint32_t timeout_ms;
 };
 
 // Subject to change

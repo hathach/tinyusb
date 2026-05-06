@@ -583,11 +583,14 @@ bool hidh_set_config(uint8_t daddr, uint8_t itf_num) {
   tusb_control_request_t request;
   request.wIndex = tu_htole16((uint16_t) itf_num);
 
-  tuh_xfer_t xfer;
-  xfer.daddr = daddr;
-  xfer.result = XFER_RESULT_SUCCESS;
-  xfer.setup = &request;
-  xfer.user_data = CONFG_SET_IDLE;
+  // Designated init so future tuh_xfer_t fields (e.g. timeout_ms) are
+  // zero-initialised rather than holding stack canary garbage.
+  tuh_xfer_t xfer = {
+    .daddr     = daddr,
+    .result    = XFER_RESULT_SUCCESS,
+    .setup     = &request,
+    .user_data = CONFG_SET_IDLE,
+  };
 
   // fake request to kick-off the set config process
   process_set_config(&xfer);
