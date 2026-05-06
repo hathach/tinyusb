@@ -1120,6 +1120,25 @@ static bool handle_channel_in_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
       const uint16_t actual_len = edpt->buflen - remain_bytes;
       xfer->xferred_bytes += actual_len;
 
+      // Save the post-transfer PID from the channel size register so the
+      // next URB on this endpoint starts with the correct data toggle.
+      // The slave-mode IN handler does this at the matching point (see
+      // handle_channel_in_slave); the DMA-mode handler was missing the
+      // save, so on a short-packet completion the toggle pre-computed in
+      // channel_xfer_start (based on the requested packet count) was
+      // stale, causing DATATOGGLE_ERR on the next IN URB. The hardware
+      // either retried (dropping the device's first packet) or coalesced
+      // the duplicate (delivering corrupt bytes). Save the authoritative
+      // post-transfer PID so the next URB matches the device's toggle.
+      //
+      // OUT direction is exempt from this save: the host is the source
+      // of truth for the PID toggle on OUT, so cal_next_pid() in
+      // channel_xfer_start (run synchronously before the next submit)
+      // produces the right next PID without needing a hardware readback.
+      // The handle_channel_out_dma / handle_channel_out_slave paths
+      // therefore do not save hctsiz.pid.
+      edpt->next_pid = hctsiz.pid;
+
       is_done = true;
 
       if (hcint & HCINT_STALL) {
