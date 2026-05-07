@@ -98,6 +98,7 @@ typedef struct {
     uint8_t period_split_nyet_count : 3;
     uint8_t halted_nyet : 1;
     uint8_t closing : 1; // closing channel
+    uint8_t aborted : 1; // hcd_edpt_abort_xfer marked this channel for abort
   };
   uint8_t result;
 
@@ -721,8 +722,23 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   return edpt_xfer_kickoff(dwc2, ep_id);
 }
 
-// Abort a queued transfer. Note: it can only abort transfer that has not been started
-// Return true if a queued transfer is aborted, false if there is no transfer to abort
+// Abort the in-flight transfer (if any) on the given endpoint. The channel
+// is disabled, which causes the channel-halted interrupt to fire; the IRQ
+// handler observes xfer->aborted and reports completion via
+// hcd_event_xfer_complete with XFER_RESULT_FAILED so the caller always
+// receives a callback. Returns true if an in-flight transfer was aborted,
+// false if no channel was active for this endpoint.
+//
+// EP0 special case: aborting EP0 mid-control-stage does not unwind
+// _control_xfer_complete's retry/decrement logic on its own. Callers
+// must park the upper-layer ctrl_info->stage to IDLE before invoking
+// (tuh_control_xfer's timeout path does this).
+//
+// The flag-set + channel_disable sequence is bracketed with
+// hcd_int_disable/enable so a real completion firing in the same
+// instant cannot land in handle_channel_irq with the abort flag
+// already set, which would let the IRQ overwrite the genuine result
+// with XFER_RESULT_FAILED.
 bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   const uint8_t ep_num = tu_edpt_number(ep_addr);
@@ -730,17 +746,27 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   const uint8_t ep_id = edpt_find_opened(dev_addr, ep_num, ep_dir);
   TU_VERIFY(ep_id < CFG_TUH_DWC2_ENDPOINT_MAX);
 
-  // hcd_int_disable(rhport);
+  hcd_int_disable(rhport);
 
-  // Find enabled channeled and disable it, channel will be de-allocated in the interrupt handler
+  // Find enabled channel and disable it. The channel will be de-allocated
+  // in the interrupt handler after the channel-halted interrupt fires.
   const uint8_t ch_id = channel_find_enabled(dwc2, dev_addr, ep_num, ep_dir);
-  if (ch_id < 16) {
-    dwc2_channel_t* channel = &dwc2->channel[ch_id];
-    channel_disable(dwc2, channel);
+  if (ch_id >= 16) {
+    hcd_int_enable(rhport);
+    return false; // no in-flight transfer
   }
 
-  // hcd_int_enable(rhport);
+  hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
+  dwc2_channel_t* channel = &dwc2->channel[ch_id];
 
+  // Mark the xfer as aborted before disabling the channel so the IRQ
+  // handler's channel_irq path reports completion with XFER_RESULT_FAILED
+  // rather than treating the halt as a no-op.
+  xfer->aborted = 1;
+  xfer->result  = XFER_RESULT_FAILED;
+
+  channel_disable(dwc2, channel);
+  hcd_int_enable(rhport);
   return true;
 }
 
@@ -1318,6 +1344,38 @@ static void handle_channel_irq(uint8_t rhport, bool in_isr) {
         }
   #endif
       }
+
+      // hcd_edpt_abort_xfer marked this channel for abort. Force the
+      // halted interrupt to be treated as a terminal completion so the
+      // host stack receives a callback. The dispatch handlers leave
+      // is_done=false on a NAK retry (channel re-armed), so guard
+      // against firing on a re-armed channel by also requiring that
+      // the channel is not currently enabled. The flag is single-shot;
+      // clear it after observing the halt.
+      //
+      // Override note: this OVERWRITES whatever xfer->result the
+      // dispatch handler set above (success path included) with
+      // XFER_RESULT_FAILED. That is the desired behaviour for an
+      // unlink: the caller asked us to abort, so the giveback should
+      // report failure even if the natural completion happened to
+      // race with the abort.
+      //
+      // TODO: confirm slave-mode IN NAK retry interaction. If the
+      // dispatch handler can re-arm the channel BEFORE this block
+      // runs, the hcchar_post.enable check would skip the abort
+      // completion and the kernel would be left waiting for a
+      // RET_SUBMIT(FAILED) that never arrives. The PR3 test bench
+      // (cdc-acm bulk IN) didn't trip this, but a stress test on
+      // slave-mode IN would be the right confirmation.
+      if (xfer->aborted && (hcint & HCINT_HALTED)) {
+        const dwc2_channel_char_t hcchar_post = {.value = channel->hcchar};
+        if (!hcchar_post.enable) {
+          is_done = true;
+          xfer->result = XFER_RESULT_FAILED;
+          xfer->aborted = 0;
+        }
+      }
+
 
       if (is_done) {
         if (xfer->closing == 1) {

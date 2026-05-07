@@ -165,8 +165,32 @@ bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr);
 // Submit a transfer, when complete hcd_event_xfer_complete() must be invoked
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen);
 
-// Abort a queued transfer. Note: it can only abort transfer that has not been started
-// Return true if a queued transfer is aborted, false if there is no transfer to abort
+// Abort the in-flight transfer (if any) on the given endpoint.
+//
+// Return true if a transfer was aborted, false if there is no
+// transfer to abort.
+//
+// Contract (host stack relies on this for clean teardown of timed-out
+// or unlinked URBs):
+//
+//  - On success the HCD MUST cause hcd_event_xfer_complete to fire
+//    for the aborted transfer (typically with XFER_RESULT_FAILED).
+//    Callers that need a giveback for the abort can rely on the
+//    natural completion path; without this guarantee they would have
+//    to synthesise a completion externally and risk double-free or
+//    stuck EP claims.
+//
+//  - For EP0 the upper-layer control state machine
+//    (_usbh_data.ctrl_xfer_info.stage) must be parked by the caller
+//    BEFORE this is invoked; the synthetic completion will land in
+//    _control_xfer_complete which sets stage IDLE and fires the
+//    user callback. tuh_control_xfer's timeout path does this.
+//
+//  - The synopsys/dwc2 implementation honours this contract as of
+//    https://github.com/hathach/tinyusb/pull/<TBD>. Other ports
+//    (max3421e, rp2040, ehci, ohci, wch, musb, rusb2) may still
+//    behave per the older "queued transfer only, no callback"
+//    contract; cross-port audit pending.
 bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr);
 
 // Submit a special transfer to send 8-byte Setup Packet, when complete hcd_event_xfer_complete() must be invoked
