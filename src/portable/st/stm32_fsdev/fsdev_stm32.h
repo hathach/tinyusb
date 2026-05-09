@@ -36,6 +36,10 @@
   #include "stm32c0xx.h"
   #define FSDEV_HAS_SBUF_ISO 1
 
+#elif CFG_TUSB_MCU == OPT_MCU_STM32C5
+  #include "stm32c5xx.h"
+  #define FSDEV_HAS_SBUF_ISO 1
+
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F0
   #include "stm32f0xx.h"
   #define FSDEV_HAS_SBUF_ISO 0
@@ -177,7 +181,7 @@ static const IRQn_Type fsdev_irq[] = {
     USB_IRQn,
   #elif TU_CHECK_MCU(OPT_MCU_STM32L5, OPT_MCU_STM32U3)
     USB_FS_IRQn,
-  #elif TU_CHECK_MCU(OPT_MCU_STM32C0, OPT_MCU_STM32H5, OPT_MCU_STM32U0)
+  #elif TU_CHECK_MCU(OPT_MCU_STM32C0, OPT_MCU_STM32C5, OPT_MCU_STM32H5, OPT_MCU_STM32U0)
     USB_DRD_FS_IRQn,
   #elif CFG_TUSB_MCU == OPT_MCU_STM32G0
     #ifdef STM32G0B0xx
@@ -276,6 +280,8 @@ TU_ATTR_ALWAYS_INLINE static inline void fsdev_int_disable(uint8_t rhport) {
   #define FSDEV_STM32_CPU_MHZ 64U
 #elif CFG_TUSB_MCU == OPT_MCU_STM32C0
   #define FSDEV_STM32_CPU_MHZ 48U
+#elif CFG_TUSB_MCU == OPT_MCU_STM32C5
+  #define FSDEV_STM32_CPU_MHZ 144U
 #endif
 
 #ifndef CFG_TUSB_FSDEV_BTABLE_FS_DELAY_COUNT
