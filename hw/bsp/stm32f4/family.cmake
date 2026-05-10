@@ -129,3 +129,46 @@ function(family_configure_example TARGET RTOS)
   family_flash_stlink(${TARGET})
   family_flash_jlink(${TARGET})
 endfunction()
+
+#------------------------------------
+# Optional Ethernet support (HAL_ETH + LAN8742 PHY + lwIP netif)
+#------------------------------------
+# Pull HAL_ETH, the LAN8742 PHY driver and the lwIP netif glue into
+# TARGET, plus the board-specific MspInit (RMII pin map). Boards
+# that wire an Ethernet PHY provide
+# hw/bsp/stm32f4/boards/${BOARD}/board_eth.c defining
+# HAL_ETH_MspInit; family_add_eth fails if that file is missing.
+#
+# The caller must already have lwIP set up on TARGET's include path
+# (the netif glue includes lwip/netif.h and lwip/timeouts.h).
+function(family_add_eth TARGET)
+  set(BOARD_ETH_SRC ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/board_eth.c)
+  if (NOT EXISTS ${BOARD_ETH_SRC})
+    message(FATAL_ERROR
+      "family_add_eth: ${BOARD} has no board_eth.c. "
+      "Boards that wire an Ethernet PHY must provide one alongside "
+      "their board.h with the HAL_ETH MspInit pin map.")
+  endif ()
+
+  set(ETH_LWIP_DIR ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/eth_lwip)
+
+  target_compile_definitions(${TARGET} PUBLIC HAL_ETH_MODULE_ENABLED)
+  target_sources(${TARGET} PUBLIC
+    ${BOARD_ETH_SRC}
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_eth.c
+    ${TOP}/hw/mcu/st/stm32_lan8742/lan8742.c
+    ${ETH_LWIP_DIR}/ethernetif.c
+    )
+  target_include_directories(${TARGET} PUBLIC
+    ${TOP}/hw/mcu/st/stm32_lan8742
+    ${ETH_LWIP_DIR}
+    )
+  # Vendored sources don't pass tinyusb's strict warning baseline.
+  set_source_files_properties(
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_eth.c
+    ${TOP}/hw/mcu/st/stm32_lan8742/lan8742.c
+    ${ETH_LWIP_DIR}/ethernetif.c
+    ${BOARD_ETH_SRC}
+    PROPERTIES COMPILE_FLAGS
+    "-Wno-error=conversion -Wno-error=sign-conversion -Wno-error=sign-compare -Wno-error=unused-parameter -Wno-error=cast-align -Wno-error=redundant-decls -Wno-error=missing-prototypes")
+endfunction()

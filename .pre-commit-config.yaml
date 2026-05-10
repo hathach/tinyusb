@@ -10,13 +10,17 @@ repos:
   - id: trailing-whitespace
     exclude: |
       (?x)^(
-        hw/bsp/mcx/sdk/
+        hw/bsp/mcx/sdk/|
+        hw/mcu/st/stm32_lan8742/|
+        hw/bsp/stm32f4/eth_lwip/
       )
   - id: end-of-file-fixer
     exclude: |
       (?x)^(
         .idea/|
         hw/bsp/mcx/sdk/|
+        hw/mcu/st/stm32_lan8742/|
+        hw/bsp/stm32f4/eth_lwip/|
         docs/contributing/code_of_conduct.rst|
         docs/info/contributors.rst
       )
@@ -30,7 +34,9 @@ repos:
     exclude: |
       (?x)^(
         lib/|
-        hw/bsp/mcx/sdk/
+        hw/bsp/mcx/sdk/|
+        hw/mcu/st/stm32_lan8742/|
+        hw/bsp/stm32f4/eth_lwip/
       )
 
 - repo: local
