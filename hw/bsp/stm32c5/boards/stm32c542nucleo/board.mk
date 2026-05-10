@@ -6,7 +6,7 @@ CFLAGS += \
 	-DHSE_STARTUP_TIMEOUT=100
 
 # GCC
-LD_FILE = $(ST_CMSIS)/Source/Templates/gcc/linker/stm32c542xc_flash.ld
+LD_FILE = $(FAMILY_PATH)/linker/stm32c542xc_flash.ld
 
 
 # For flash-jlink target
