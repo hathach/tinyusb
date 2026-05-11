@@ -14,6 +14,7 @@ set(EXAMPLE_LIST
   hid_controller
   midi_rx
   msc_file_explorer
+  msc_file_explorer_freertos
   )
 
 foreach (example ${EXAMPLE_LIST})

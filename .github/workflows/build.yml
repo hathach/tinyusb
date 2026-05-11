@@ -326,13 +326,15 @@ jobs:
       github.repository_owner == 'hathach' &&
       !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true)
     runs-on: [ self-hosted, Linux, X64, hifiphile ]
+    timeout-minutes: 30
     env:
       IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
+      PYTHONUNBUFFERED: '1'
     steps:
       - name: Clean workspace
         run: |
           echo "Cleaning up previous run"
-          rm -rf "${{ github.workspace }}"3
+          rm -rf "${{ github.workspace }}"
           mkdir -p "${{ github.workspace }}"
 
       - name: Toolchain version
@@ -356,4 +358,5 @@ jobs:
         run: python3 tools/build.py --toolchain iar $BUILD_ARGS
 
       - name: Test on actual hardware (hardware in the loop)
-        run: python3 test/hil/hil_test.py hfp.json
+        run: |
+          python3 test/hil/hil_test.py hfp.json
