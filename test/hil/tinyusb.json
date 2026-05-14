@@ -7,7 +7,7 @@
                 "flags_on": ["", "CFG_TUD_DWC2_DMA_ENABLE CFG_TUH_DWC2_DMA_ENABLE"]
             },
             "tests": {
-                "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos", "host/device_info"],
+                "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos", "device/audio_test_freertos", "host/device_info"],
                 "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2002427", "is_cdc": true}]
             },
             "flasher": {
@@ -25,7 +25,7 @@
                 "flags_on": ["", "CFG_TUD_DWC2_DMA_ENABLE CFG_TUH_DWC2_DMA_ENABLE"]
             },
             "tests": {
-                "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos", "host/device_info"],
+                "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos", "device/audio_test_freertos", "host/device_info"],
                 "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2005402", "is_cdc": true}]
             },
             "flasher": {

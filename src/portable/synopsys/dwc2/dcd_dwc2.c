@@ -1136,8 +1136,9 @@ static void handle_incomplete_iso_in(uint8_t rhport) {
         }
         epin->diepctl = depctl.value;
       } else {
-        // too many retries, give up
+        // too many retries, give up, but keep endpoint activated
         edpt_disable(rhport, epnum | TUSB_DIR_IN_MASK, false);
+        epin->diepctl |= DIEPCTL_USBAEP;
         dcd_event_xfer_complete(rhport, epnum | TUSB_DIR_IN_MASK, 0, XFER_RESULT_FAILED, true);
       }
     }

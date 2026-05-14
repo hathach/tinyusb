@@ -27,6 +27,7 @@
 # ACTION=="add", SUBSYSTEM=="block", SUBSYSTEMS=="usb", ENV{ID_FS_USAGE}=="filesystem", MODE="0666", PROGRAM="/bin/sh -c 'echo $$ID_SERIAL_SHORT | rev | cut -c -8 | rev'", RUN{program}+="/usr/bin/systemd-mount --no-block --automount=yes --collect $devnode /media/blkUSB_%c.%s{bInterfaceNumber}"
 
 import argparse
+import io
 import os
 import random
 import re
@@ -35,6 +36,7 @@ import sys
 import time
 import warnings
 import signal
+from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Any, TypedDict, NotRequired, cast
 
@@ -47,7 +49,8 @@ import serial
 import subprocess
 import json
 import glob
-from multiprocessing import Pool
+import shutil
+from multiprocessing import Pool, Lock
 from multiprocessing import TimeoutError as MpTimeoutError
 import fs
 import hashlib
@@ -66,6 +69,28 @@ test_only = []
 board_test = {}
 build_dir = 'cmake-build'
 skip_flash = False
+print_lock = None
+
+
+def init_worker(lock):
+    global print_lock
+    print_lock = lock
+
+
+def log_line(msg: str) -> None:
+    out = sys.__stdout__ if sys.__stdout__ is not None else sys.stdout
+    if print_lock is not None:
+        with print_lock:
+            print(msg, file=out, flush=True)
+    else:
+        print(msg, file=out, flush=True)
+
+
+def compact_output(raw: str) -> str:
+    if not raw:
+        return ''
+    lines = [ln.strip() for ln in raw.replace('\r', '\n').split('\n') if ln.strip()]
+    return ' | '.join(lines)
 
 class FlasherCfg(TypedDict):
     name: str
@@ -172,6 +197,19 @@ def get_disk_dev(id, vendor_str, lun):
 
 def get_hid_dev(id, vendor_str, product_str, event):
     return f'/dev/input/by-id/usb-{vendor_str}_{product_str}_{id}-{event}'
+
+
+def get_alsa_capture_dev(id):
+    pattern = f'/dev/snd/by-id/usb-*_{id}-*'
+    for dev in glob.glob(pattern):
+        try:
+            link = os.path.basename(os.path.realpath(dev))
+        except OSError:
+            continue
+        m = re.match(r'controlC(\d+)', link)
+        if m:
+            return f'hw:{m.group(1)},0'
+    return None
 
 
 def open_serial_dev(port: str):
@@ -1289,6 +1327,79 @@ def test_device_midi_test(board):
         assert n in note_sequence, f'Unexpected MIDI note {n}'
 
 
+def test_device_audio_test_freertos(board):
+    uid = board['uid']
+
+    if os.name == 'nt':
+        return 'skipped'
+
+    arecord = shutil.which('arecord')
+    if arecord is None:
+        return 'skipped'
+
+    pcm = None
+    timeout = ENUM_TIMEOUT
+    while timeout > 0:
+        pcm = get_alsa_capture_dev(uid)
+        if pcm:
+            break
+        time.sleep(1)
+        timeout -= 1
+
+    assert pcm is not None, f'ALSA capture device not found for {uid}'
+
+    raw_path = f'/tmp/tinyusb_audio_{uid}.raw'
+    cmd = [
+        arecord,
+        '-D', pcm,
+        '-q',
+        '-f', 'S16_LE',
+        '-c', '1',
+        '-r', '48000',
+        '-d', '2',
+        '-t', 'raw',
+        raw_path,
+    ]
+
+    ret = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+    assert ret.returncode == 0, f'arecord failed: {ret.stderr.strip() or ret.stdout.strip()}'
+
+    try:
+        with open(raw_path, 'rb') as f:
+            raw = f.read()
+    finally:
+        try:
+            os.remove(raw_path)
+        except OSError:
+            pass
+
+    assert len(raw) >= 48000, f'Captured too little audio: {len(raw)} bytes'
+    assert (len(raw) % 2) == 0, f'Invalid 16-bit audio length: {len(raw)}'
+
+    sample_count = len(raw) // 2
+    samples = [int.from_bytes(raw[i:i + 2], 'little', signed=False) for i in range(0, len(raw), 2)]
+    assert sample_count > 1024, f'Not enough samples captured: {sample_count}'
+
+    # The firmware sends a continuous uint16 ramp. Using ALSA hw: capture bypasses
+    # PulseAudio processing, so most adjacent samples should differ by exactly 1.
+    total_diffs = sample_count - 1
+    one_step = 0
+    near_step = 0
+    for i in range(total_diffs):
+        d = (samples[i + 1] - samples[i]) & 0xFFFF
+        if d == 1:
+            one_step += 1
+        if d in (0, 1, 2, 47, 48, 49):
+            near_step += 1
+
+    one_ratio = one_step / total_diffs
+    near_ratio = near_step / total_diffs
+    assert one_ratio >= 0.85, f'Unexpected audio pattern (strict ratio={one_ratio:.3f})'
+    assert near_ratio >= 0.98, f'Unexpected audio pattern (relaxed ratio={near_ratio:.3f})'
+
+    print(f'  ALSA {pcm} strict={one_ratio:.3f} relaxed={near_ratio:.3f}', end='')
+
+
 def test_device_hid_generic_inout(board):
     uid = board['uid']
     import hid
@@ -1335,6 +1446,7 @@ device_tests = [
     'device/dfu',
     'device/cdc_msc',
     'device/cdc_msc_throughput',
+    'device/audio_test_freertos',
     'device/dfu_runtime',
     'device/cdc_msc_freertos',
     'device/hid_boot_interface',
@@ -1374,47 +1486,76 @@ def test_example(board: Board, f1: str, example: str) -> int:
 
     fw_dir = TINYUSB_ROOT / build_dir / f'cmake-build-{name}{f1_str}' / example
     fw_name = fw_dir / Path(example).name
-    print(f'{name+f1_str:40} {example:30} ...', end='')
+    test_name = f'{name+f1_str:40} {example:30} ...'
 
     if not fw_dir.exists() or not ((fw_name.with_suffix('.elf')).exists() or (fw_name.with_suffix('.bin')).exists()):
-        print('Skip (no binary)')
+        log_line(f'{test_name} Skip (no binary)')
         return 0
 
     if verbose:
-        print(f'Flashing {fw_name}.elf')
+        log_line(f'Flashing {fw_name}.elf')
 
     # flash firmware (unless --skip-flash), then run the test. Both may fail randomly,
     # retry a few times.
     start_s = time.time()
     flash_ok = True
+    last_err = ''
+    last_detail = ''
     for i in range(max_retry):
-        if not skip_flash:
-            ret = globals()[f'flash_{board["flasher"]["name"].lower()}'](board, str(fw_name))
-            flash_ok = (ret.returncode == 0)
-        if flash_ok:
-            try:
-                tret = globals()[f'test_{example.replace("/", "_")}'](board)
-                if tret == 'skipped':
-                    print(f'  {STATUS_SKIPPED}', end='')
-                else:
-                    print('  OK', end='')
-                break
-            except Exception as e:
-                if i == max_retry - 1:
-                    err_count += 1
-                    print(f'{STATUS_FAILED}: {e}')
-                else:
-                    print(f'\n  Test failed: {e}, retry {i+2}/{max_retry}', end='')
-                    time.sleep(0.5)
-        else:
-            print(f'\n  Flash failed, retry {i+2}/{max_retry}', end='')
-            time.sleep(0.5)
+        attempt_out = io.StringIO()
+        with redirect_stdout(attempt_out):
+            if not skip_flash:
+                ret = globals()[f'flash_{board["flasher"]["name"].lower()}'](board, str(fw_name))
+                flash_ok = (ret.returncode == 0)
+            if flash_ok:
+                try:
+                    tret = globals()[f'test_{example.replace("/", "_")}'](board)
+                    last_detail = compact_output(attempt_out.getvalue())
+                    if tret == 'skipped':
+                        status = STATUS_SKIPPED
+                    else:
+                        status = STATUS_OK
+                    msg = f'{test_name}  {status}'
+                    if last_detail:
+                        msg += f'  {last_detail}'
+                    msg += f'  in {time.time() - start_s:.1f}s'
+                    log_line(msg)
+                    break
+                except Exception as e:
+                    last_err = str(e)
+                    last_detail = compact_output(attempt_out.getvalue())
+                    if i == max_retry - 1:
+                        err_count += 1
+                        msg = f'{test_name}  {STATUS_FAILED}: {e}'
+                        if last_detail:
+                            msg += f'  {last_detail}'
+                        msg += f'  in {time.time() - start_s:.1f}s'
+                        log_line(msg)
+                    else:
+                        msg = f'{test_name}  retry {i+2}/{max_retry}: test failed: {e}'
+                        if last_detail:
+                            msg += f'  {last_detail}'
+                        log_line(msg)
+                        time.sleep(0.5)
+            else:
+                last_err = 'Flash failed'
+                last_detail = compact_output(attempt_out.getvalue())
+                if i < max_retry - 1:
+                    msg = f'{test_name}  retry {i+2}/{max_retry}: flash failed'
+                    if last_detail:
+                        msg += f'  {last_detail}'
+                    log_line(msg)
+                time.sleep(0.5)
 
     if not flash_ok:
         err_count += 1
-        print(f'  Flash {STATUS_FAILED}', end='')
-
-    print(f'  in {time.time() - start_s:.1f}s')
+        msg = f'{test_name}  Flash {STATUS_FAILED}'
+        if last_err:
+            msg += f': {last_err}'
+        if last_detail:
+            msg += f'  {last_detail}'
+        msg += f'  in {time.time() - start_s:.1f}s'
+        log_line(msg)
 
     return err_count
 
@@ -1471,7 +1612,7 @@ def test_board(board: Board) -> tuple[str, int, list[str]]:
                 for skip in board_tests['skip']:
                     if skip in test_list:
                         test_list.remove(skip)
-                        print(f'{name:25} {skip:30} ... Skip')
+                        log_line(f'{name:25} {skip:30} ... Skip')
 
     err_count = 0
     failed_tests = []
@@ -1560,7 +1701,7 @@ def main() -> None:
         print(f'Build phase done: {build_err} failed')
         print('-' * 30)
 
-    with Pool(processes=os.cpu_count() or 1) as pool:
+    with Pool(processes=os.cpu_count() or 1, initializer=init_worker, initargs=(Lock(),)) as pool:
         async_ret = pool.map_async(test_board, config_boards)
         try:
             mret = async_ret.get(timeout=POOL_TIMEOUT)
@@ -1568,6 +1709,7 @@ def main() -> None:
             pool.terminate()
             pool.join()
             raise RuntimeError(f'HIL worker pool timed out after {POOL_TIMEOUT}s')
+
         err_count = build_err + sum(e[1] for e in mret)
         # generate skip list for next re-run if failed: skip boards that fully passed,
         # and emit -bt BOARD:t1,t2 so each failed board only re-runs its own failed tests.
