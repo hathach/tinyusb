@@ -653,6 +653,17 @@
     #define TUP_DCD_EDPT_CLOSE_API
   #endif
 
+#elif TU_CHECK_MCU(OPT_MCU_CH32H417)
+  #define TUP_USBIP_WCH_USBHS
+
+  #if !defined(CFG_TUD_WCH_USBIP_USBHS)
+    #define CFG_TUD_WCH_USBIP_USBHS 1
+  #endif
+
+  #define TUP_RHPORT_HIGHSPEED 1
+  #define TUP_DCD_ENDPOINT_MAX 8
+  #define TUP_DCD_EDPT_CLOSE_API
+
 //--------------------------------------------------------------------+
 // Analog Devices
 //--------------------------------------------------------------------+
