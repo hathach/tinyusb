@@ -35,16 +35,12 @@
 
 #ifdef UART_ID
   #if UART_ID == 1
-    #define UARTn             HAL_UART1
+    #define UARTn              USART1
     #define UARTn_CLK_ENABLE   HAL_RCC_USART1_EnableClock
   #elif UART_ID == 2
-    #define UARTn             HAL_UART2
+    #define UARTn              USART2
     #define UARTn_CLK_ENABLE   HAL_RCC_USART2_EnableClock
   #endif
-#endif
-
-#ifndef UART_GET_INSTANCE
-  #define UART_GET_INSTANCE(handle)   ((USART_TypeDef *)((uint32_t)(handle)->instance))
 #endif
 
 //--------------------------------------------------------------------+
@@ -57,11 +53,12 @@ void USB_DRD_FS_IRQHandler(void) {
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
-#ifdef UART_ID
-static hal_uart_handle_t hUSART;
-#endif
+static void mpu_init(void);
 
 void board_init(void) {
+  mpu_init();
+  LL_ICACHE_Enable(ICACHE);
+
   HAL_Init();
   board_clock_init();
 
@@ -117,27 +114,43 @@ void board_init(void) {
     HAL_GPIO_Init(UART_GPIO_PORT, UART_TX_PIN | UART_RX_PIN, &gpio_config);
   }
 
-  hal_uart_config_t uart_config;
-  HAL_UART_Init(&hUSART, UARTn);
-  uart_config.baud_rate = 115200;
-  uart_config.clock_prescaler = HAL_UART_PRESCALER_DIV1;
-  uart_config.word_length = HAL_UART_WORD_LENGTH_8_BIT;
-  uart_config.stop_bits = HAL_UART_STOP_BIT_1;
-  uart_config.parity = HAL_UART_PARITY_NONE;
-  uart_config.direction = HAL_UART_DIRECTION_TX_RX;
-  uart_config.hw_flow_ctl = HAL_UART_HW_CONTROL_NONE;
-  uart_config.oversampling = HAL_UART_OVERSAMPLING_16;
-  uart_config.one_bit_sampling = HAL_UART_ONE_BIT_SAMPLE_DISABLE;
-
-  HAL_UART_SetConfig(&hUSART, &uart_config);
-
-  /* Fifo configuration */
-  HAL_UART_SetTxFifoThreshold(&hUSART, HAL_UART_FIFO_THRESHOLD_1_8);
-  HAL_UART_SetRxFifoThreshold(&hUSART, HAL_UART_FIFO_THRESHOLD_1_8);
-  HAL_UART_EnableFifoMode(&hUSART);
-
-  LL_USART_Enable(UART_GET_INSTANCE(&hUSART));
+  LL_USART_ConfigAsyncMode(UARTn);
+  uint32_t reg_temp = (LL_USART_DATAWIDTH_8_BIT | LL_USART_PARITY_NONE
+                     | LL_USART_DIRECTION_TX_RX | LL_USART_OVERSAMPLING_16);
+  LL_USART_ConfigXfer(UARTn, reg_temp, LL_USART_STOP_BIT_1);
+  LL_USART_SetBaudRate(UARTn, SystemCoreClock, LL_USART_PRESCALER_DIV1, LL_USART_OVERSAMPLING_16,
+                       115200);
+  LL_USART_EnableFIFO(UARTn);
+  LL_USART_Enable(UARTn);
 #endif
+}
+
+static void mpu_init(void)
+{
+  /* Disables the MPU */
+  HAL_CORTEX_MPU_Disable();
+
+  /*
+     Initializes and configures the MPU attributes
+  */
+  HAL_CORTEX_MPU_SetCacheMemAttr(HAL_CORTEX_MPU_MEM_ATTR_0, HAL_CORTEX_MPU_NORMAL_MEM_NCACHEABLE);
+
+  /*
+     Initializes and configures the MPU Region
+  */
+  hal_cortex_mpu_region_config_t p_region_config = {0};
+
+  p_region_config.base_addr = 0x8FFE000;
+  p_region_config.limit_addr = 0x8FFFFFF;
+  p_region_config.access_attr = HAL_CORTEX_MPU_REGION_ALL_RO;
+  p_region_config.exec_attr = HAL_CORTEX_MPU_EXECUTION_ATTR_DISABLE;
+  p_region_config.attr_idx = HAL_CORTEX_MPU_MEM_ATTR_0;
+  HAL_CORTEX_MPU_SetConfigRegion(HAL_CORTEX_MPU_REGION_0, &p_region_config);
+
+  HAL_CORTEX_MPU_EnableRegion(HAL_CORTEX_MPU_REGION_0);
+
+  /* Enables the MPU */
+  HAL_CORTEX_MPU_Enable(HAL_CORTEX_MPU_HARDFAULT_NMI_DISABLE, HAL_CORTEX_MPU_ACCESS_FAULT_ONLY_PRIV);
 }
 
 //--------------------------------------------------------------------+
@@ -170,8 +183,8 @@ int board_uart_read(uint8_t *buf, int len) {
 #ifdef UART_ID
   int count = 0;
   while (count < len) {
-    if (LL_USART_IsActiveFlag_RXNE_RXFNE(UART_GET_INSTANCE(&hUSART))) {
-      buf[count] = (uint8_t) UART_GET_INSTANCE(&hUSART)->RDR;
+    if (LL_USART_IsActiveFlag_RXNE_RXFNE(UARTn)) {
+      buf[count] = LL_USART_ReceiveData8(UARTn);
       count++;
     } else {
       break;
@@ -189,8 +202,8 @@ int board_uart_write(void const *buf, int len) {
   const uint8_t *p = (const uint8_t *) buf;
   int count = 0;
   while (count < len) {
-    if (LL_USART_IsActiveFlag_TXE_TXFNF(UART_GET_INSTANCE(&hUSART))) {
-      UART_GET_INSTANCE(&hUSART)->TDR = p[count];
+    if (LL_USART_IsActiveFlag_TXE_TXFNF(UARTn)) {
+      LL_USART_TransmitData8(UARTn, p[count]);
       count++;
     } else {
       break;

@@ -39,7 +39,7 @@
 // Button
 #define BUTTON_PORT           HAL_GPIOC
 #define BUTTON_PIN            HAL_GPIO_PIN_13
-#define BUTTON_STATE_ACTIVE   0
+#define BUTTON_STATE_ACTIVE   1
 
 // Enable UART serial communication with the ST-Link
 #define UART_ID               2
