@@ -33,8 +33,14 @@
 
   #include "device/dcd.h"
 
+  #if CFG_TUSB_MCU == OPT_MCU_CH32H417
+    #include "usbhs_h41x.h"
+  #else
+    #include "usbhs_f20x_v30x.h"
+  #endif
+
   // Max number of bi-directional endpoints including EP0
-  #define EP_MAX 16
+  #define EP_MAX TUP_DCD_ENDPOINT_MAX
 
 typedef struct {
   uint8_t* buffer;
@@ -52,14 +58,6 @@ typedef enum {
 
 #define XFER_CTL_BASE(_ep, _dir) &xfer_status[_ep][_dir]
 static xfer_ctl_t xfer_status[EP_MAX][2];
-
-#define EP_TX_LEN(ep)     *(volatile uint16_t *)((volatile uint16_t *)&(USBHSD->UEP0_TX_LEN) + (ep) * 2)
-#define EP_TX_CTRL(ep)    *(volatile uint8_t *)((volatile uint8_t *)&(USBHSD->UEP0_TX_CTRL) + (ep) * 4)
-#define EP_RX_CTRL(ep)    *(volatile uint8_t *)((volatile uint8_t *)&(USBHSD->UEP0_RX_CTRL) + (ep) * 4)
-#define EP_RX_MAX_LEN(ep) *(volatile uint16_t *)((volatile uint16_t *)&(USBHSD->UEP0_MAX_LEN) + (ep) * 2)
-
-#define EP_TX_DMA_ADDR(ep) *(volatile uint32_t *)((volatile uint32_t *)&(USBHSD->UEP1_TX_DMA) + (ep - 1))
-#define EP_RX_DMA_ADDR(ep) *(volatile uint32_t *)((volatile uint32_t *)&(USBHSD->UEP1_RX_DMA) + (ep - 1))
 
 /* Endpoint Buffer */
 TU_ATTR_ALIGNED(4) static uint8_t ep0_buffer[CFG_TUD_ENDPOINT0_SIZE];
@@ -114,7 +112,7 @@ static void xfer_data_packet(uint8_t ep_num, tusb_dir_t ep_dir, xfer_ctl_t* xfer
     }
     if (xfer->is_iso == true) {
       /* Enable EP to generate ISA_ACT interrupt */
-      USBHSD->ENDP_CONFIG |= (USBHS_EP0_T_EN << ep_num);
+      wch_usbhs_edpt_enable_iso_in(ep_num);
     }
   } else { /* TUSB_DIR_OUT */
     uint16_t left_to_receive = xfer->total_len - xfer->queued_len;
@@ -129,7 +127,7 @@ static void xfer_data_packet(uint8_t ep_num, tusb_dir_t ep_dir, xfer_ctl_t* xfer
       EP_RX_MAX_LEN(ep_num) = max_possible_rx_size;
     }
   }
-  ep_set_response_and_toggle(ep_num, ep_dir, USBHS_EP_R_RES_ACK);
+  ep_set_response_and_toggle(ep_num, ep_dir, EP_RESPONSE_ACK);
 }
 
 bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
@@ -138,24 +136,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   memset(&xfer_status, 0, sizeof(xfer_status));
 
-  USBHSD->HOST_CTRL = 0x00;
-  USBHSD->HOST_CTRL = USBHS_PHY_SUSPENDM;
-
-  USBHSD->CONTROL = 0;
-
-#if TUD_OPT_HIGH_SPEED
-  USBHSD->CONTROL = USBHS_DMA_EN | USBHS_INT_BUSY_EN | USBHS_HIGH_SPEED;
-#else
-  #error OPT_MODE_FULL_SPEED not currently supported on CH32
-  USBHSD->CONTROL = USBHS_DMA_EN | USBHS_INT_BUSY_EN | USBHS_FULL_SPEED;
-#endif
-
-  USBHSD->INT_EN = 0;
-  USBHSD->INT_EN = USBHS_SETUP_ACT_EN | USBHS_TRANSFER_EN | USBHS_BUS_RST_EN | USBHS_SUSPEND_EN | USBHS_ISO_ACT_EN;
-
-  USBHSD->ENDP_CONFIG = USBHS_EP0_T_EN | USBHS_EP0_R_EN;
-  USBHSD->ENDP_TYPE = 0x00;
-  USBHSD->BUF_MODE = 0x00;
+  wch_usbhs_dcd_hw_init();
 
   for (int ep = 0; ep < EP_MAX; ep++) {
     EP_TX_LEN(ep) = 0;
@@ -171,7 +152,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   xfer_status[0][TUSB_DIR_IN].max_size = CFG_TUD_ENDPOINT0_SIZE;
 
   USBHSD->DEV_AD = 0;
-  USBHSD->CONTROL |= USBHS_DEV_PU_EN;
+  wch_usbhs_dcd_connect();
 
   return true;
 }
@@ -197,7 +178,7 @@ void dcd_edpt_close_all(uint8_t rhport) {
     EP_RX_MAX_LEN(ep) = 0;
   }
 
-  USBHSD->ENDP_CONFIG = USBHS_EP0_T_EN | USBHS_EP0_R_EN;
+  wch_usbhs_edpt_close_all();
 }
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
@@ -213,11 +194,7 @@ void dcd_remote_wakeup(uint8_t rhport) {
 
 void dcd_sof_enable(uint8_t rhport, bool en) {
   (void) rhport;
-  if (en) {
-    USBHSD->INT_EN |= USBHS_SOF_ACT_EN;
-  } else {
-    USBHSD->INT_EN &= ~(USBHS_SOF_ACT_EN);
-  }
+  wch_usbhs_dcd_sof_enable(en);
 }
 
 void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const* request) {
@@ -250,19 +227,11 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const* desc_edpt) {
 
   xfer->is_iso = (desc_edpt->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS);
   if (dir == TUSB_DIR_OUT) {
-    USBHSD->ENDP_CONFIG |= (USBHS_EP0_R_EN << ep_num);
+    wch_usbhs_edpt_enable(ep_num, dir, xfer->is_iso);
     EP_RX_CTRL(ep_num) = USBHS_EP_R_AUTOTOG | USBHS_EP_R_RES_NAK;
-    if (xfer->is_iso == true) {
-      USBHSD->ENDP_TYPE |= (USBHS_EP0_R_TYP << ep_num);
-    }
     EP_RX_MAX_LEN(ep_num) = xfer->max_size;
   } else {
-    if (xfer->is_iso == true) {
-      USBHSD->ENDP_TYPE |= (USBHS_EP0_T_TYP << ep_num);
-    } else {
-      /* Enable all types except Isochronous to avoid ISO_ACT interrupt generation */
-      USBHSD->ENDP_CONFIG |= (USBHS_EP0_T_EN << ep_num);
-    }
+    wch_usbhs_edpt_enable(ep_num, dir, xfer->is_iso);
     EP_TX_LEN(ep_num) = 0;
     EP_TX_CTRL(ep_num) = USBHS_EP_T_AUTOTOG | USBHS_EP_T_RES_NAK | USBHS_EP_T_TOG_0;
   }
@@ -279,14 +248,11 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
   if (dir == TUSB_DIR_OUT) {
     EP_RX_CTRL(ep_num) = USBHS_EP_R_AUTOTOG | USBHS_EP_R_RES_NAK;
     EP_RX_MAX_LEN(ep_num) = 0;
-    USBHSD->ENDP_TYPE &= ~(USBHS_EP0_R_TYP << ep_num);
-    USBHSD->ENDP_CONFIG &= ~(USBHS_EP0_R_EN << ep_num);
   } else {  // TUSB_DIR_IN
     EP_TX_CTRL(ep_num) = USBHS_EP_T_AUTOTOG | USBHS_EP_T_RES_NAK | USBHS_EP_T_TOG_0;
     EP_TX_LEN(ep_num) = 0;
-    USBHSD->ENDP_TYPE &= ~(USBHS_EP0_T_TYP << ep_num);
-    USBHSD->ENDP_CONFIG &= ~(USBHS_EP0_T_EN << ep_num);
   }
+  wch_usbhs_edpt_disable(ep_num, dir);
 }
 
   #if 0
@@ -354,6 +320,74 @@ void dcd_int_handler(uint8_t rhport) {
   uint8_t int_flag = USBHSD->INT_FG;
   uint8_t int_status = USBHSD->INT_ST;
 
+  #if CFG_TUSB_MCU == OPT_MCU_CH32H417
+  if (int_flag & USBHS_UDIF_TRANSFER) {
+    uint8_t const ep_num = int_status & USBHS_UDIS_EP_ID_MASK;
+    tusb_dir_t const ep_dir = (int_status & USBHS_UDIS_EP_DIR) ? TUSB_DIR_IN : TUSB_DIR_OUT;
+    uint8_t const ep_addr = tu_edpt_addr(ep_num, ep_dir);
+    xfer_ctl_t* xfer = XFER_CTL_BASE(ep_num, ep_dir);
+
+    if (ep_dir == TUSB_DIR_OUT) {
+      if (wch_usbhs_edpt_setup_received(ep_num)) {
+        wch_usbhs_edpt_rx_done_clear(0);
+        ep_set_response_and_toggle(0, TUSB_DIR_IN, EP_RESPONSE_NAK);
+        ep_set_response_and_toggle(0, TUSB_DIR_OUT, EP_RESPONSE_NAK);
+        dcd_event_setup_received(rhport, ep0_buffer, true);
+
+        USBHSD->INT_FG = USBHS_UDIF_TRANSFER;
+        return;
+      }
+
+      uint16_t rx_len = wch_usbhs_edpt_rx_len(ep_num);
+      wch_usbhs_edpt_rx_done_clear(ep_num);
+
+      if (ep_num == 0) {
+        memcpy(&xfer->buffer[xfer->queued_len], ep0_buffer, rx_len);
+      }
+
+      xfer->queued_len += rx_len;
+      if (rx_len < xfer->max_size) {
+        xfer->is_last_packet = true;
+      }
+    } else {
+      wch_usbhs_edpt_tx_done_clear(ep_num);
+      if (xfer->is_iso && xfer->is_last_packet) {
+        wch_usbhs_edpt_disable_iso_in(ep_num);
+      } else {
+        // Do nothing, no need to update xfer->is_last_packet, it is already updated in xfer_data_packet
+      }
+    }
+
+    if (xfer->is_last_packet == true) {
+      ep_set_response_and_toggle(ep_num, ep_dir, EP_RESPONSE_NAK);
+      dcd_event_xfer_complete(rhport, ep_addr, xfer->queued_len, XFER_RESULT_SUCCESS, true);
+    } else {
+      /* prepare next part of packet to xref */
+      xfer_data_packet(ep_num, ep_dir, xfer);
+    }
+
+    USBHSD->INT_FG = USBHS_UDIF_TRANSFER;
+  } else if (int_flag & USBHS_UDIF_RX_SOF) {
+    uint32_t frame_count = USBHSD->FRAME_NO & USBHS_UD_FRAME_NO;
+    dcd_event_sof(rhport, frame_count, true);
+    USBHSD->INT_FG = USBHS_UDIF_RX_SOF;
+  } else if (int_flag & USBHS_UDIF_BUS_RST) {
+    dcd_event_bus_reset(rhport, TUSB_SPEED_HIGH, true);
+
+    USBHSD->DEV_AD = 0;
+    EP_RX_CTRL(0) = USBHS_EP_R_RES_ACK | USBHS_EP_R_TOG_0;
+    EP_TX_CTRL(0) = USBHS_EP_T_RES_NAK | USBHS_EP_T_TOG_0;
+
+    USBHSD->INT_FG = USBHS_UDIF_BUS_RST;
+  } else if (int_flag & (USBHS_UDIF_SUSPEND | USBHS_UDIF_BUS_SLEEP)) {
+    dcd_event_t event = {.rhport = rhport, .event_id = DCD_EVENT_SUSPEND};
+    dcd_event_handler(&event, true);
+
+    USBHSD->INT_FG = int_flag & (USBHS_UDIF_SUSPEND | USBHS_UDIF_BUS_SLEEP);
+  } else if (int_flag & USBHS_UDIF_LINK_RDY) {
+    USBHSD->INT_FG = USBHS_UDIF_LINK_RDY;
+  }
+  #else
   if (int_flag & (USBHS_ISO_ACT_FLAG | USBHS_TRANSFER_FLAG)) {
     uint8_t const token = int_status & MASK_UIS_TOKEN;
 
@@ -435,5 +469,6 @@ void dcd_int_handler(uint8_t rhport) {
 
     USBHSD->INT_FG = USBHS_SUSPEND_FLAG; /* Clear flag */
   }
+  #endif
 }
 #endif
