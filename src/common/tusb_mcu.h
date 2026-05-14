@@ -654,6 +654,7 @@
     #define CFG_TUD_WCH_USBIP_USBFS 1
   #endif
 
+#elif TU_CHECK_MCU(OPT_MCU_CH32H417)
   #define TUP_DCD_ENDPOINT_MAX 8
 
 //--------------------------------------------------------------------+
