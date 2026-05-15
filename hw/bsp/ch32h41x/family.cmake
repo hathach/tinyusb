@@ -3,7 +3,6 @@ include_guard()
 set(CH32_FAMILY ch32h417)
 set(SDK_DIR ${TOP}/hw/mcu/wch/${CH32_FAMILY})
 set(SDK_SRC_DIR ${SDK_DIR}/EVT/EXAM/SRC)
-set(SDK_SYSTEM_DIR ${SDK_DIR}/EVT/EXAM/USBHS/DEVICE/SimulateCDC/V3F/User)
 
 # include board specific
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
@@ -38,14 +37,13 @@ function(family_add_board BOARD_TARGET)
     ${SDK_SRC_DIR}/Peripheral/src/${CH32_FAMILY}_flash.c
     ${SDK_SRC_DIR}/Peripheral/src/${CH32_FAMILY}_gpio.c
     ${SDK_SRC_DIR}/Peripheral/src/${CH32_FAMILY}_rcc.c
-    ${SDK_SYSTEM_DIR}/system_${CH32_FAMILY}.c
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/system_${CH32_FAMILY}.c
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
     ${SDK_SRC_DIR}/Core
     ${SDK_SRC_DIR}/Peripheral/inc
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
-    ${SDK_SYSTEM_DIR}
     )
   target_compile_definitions(${BOARD_TARGET} PUBLIC
     CFG_TUD_WCH_USBIP_USBHS=1
@@ -83,7 +81,6 @@ function(family_configure_example TARGET RTOS)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
-    ${SDK_SYSTEM_DIR}
     )
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
