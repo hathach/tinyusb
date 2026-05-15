@@ -37,7 +37,7 @@ function(family_add_board BOARD_TARGET)
     ${SDK_SRC_DIR}/Peripheral/src/${CH32_FAMILY}_flash.c
     ${SDK_SRC_DIR}/Peripheral/src/${CH32_FAMILY}_gpio.c
     ${SDK_SRC_DIR}/Peripheral/src/${CH32_FAMILY}_rcc.c
-    ${SDK_SRC_DIR}/system_${CH32_FAMILY}.c
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/system_${CH32_FAMILY}.c
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
     ${SDK_SRC_DIR}/Core
