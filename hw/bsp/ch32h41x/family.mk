@@ -4,7 +4,6 @@ CROSS_COMPILE ?= riscv-none-elf-
 CH32_FAMILY = ch32h417
 SDK_DIR = hw/mcu/wch/$(CH32_FAMILY)
 SDK_SRC_DIR = $(SDK_DIR)/EVT/EXAM/SRC
-SDK_SYSTEM_DIR = $(SDK_DIR)/EVT/EXAM/USBHS/DEVICE/SimulateCDC/V3F/User
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
@@ -35,7 +34,7 @@ SRC_C += \
 	$(SDK_SRC_DIR)/Peripheral/src/$(CH32_FAMILY)_flash.c \
 	$(SDK_SRC_DIR)/Peripheral/src/$(CH32_FAMILY)_gpio.c \
 	$(SDK_SRC_DIR)/Peripheral/src/$(CH32_FAMILY)_rcc.c \
-	$(SDK_SYSTEM_DIR)/system_$(CH32_FAMILY).c \
+	$(FAMILY_PATH)/system_$(CH32_FAMILY).c \
 
 SRC_S += \
 	$(SDK_SRC_DIR)/Startup/startup_$(CH32_FAMILY)_v3f.S \
@@ -45,7 +44,6 @@ INC += \
 	$(TOP)/$(SDK_SRC_DIR)/Peripheral/inc \
 	$(TOP)/$(FAMILY_PATH) \
 	$(TOP)/$(BOARD_PATH) \
-	$(TOP)/$(SDK_SYSTEM_DIR) \
 
 LD_FILE ?= $(SDK_SRC_DIR)/Ld/V3F/Link_v3f.ld
 
