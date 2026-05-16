@@ -99,7 +99,7 @@ enum {
 static char const *string_desc_arr[] = {
   (const char[]) { 0x09, 0x04 },  // 0: Language
   "TinyUSB",                      // 1: Manufacturer
-  "RP2040 MIDI 2.0",              // 2: Product
+  "TinyUSB MIDI 2.0",             // 2: Product
   NULL,                           // 3: Serial
 };
 

@@ -187,6 +187,226 @@ static inline void ump_per_note_mgmt(uint8_t group, uint8_t channel,
 }
 
 //--------------------------------------------------------------------+
+// MIDI 1.0 Channel Voice Builders (UMP MT 0x2, 32-bit)
+//--------------------------------------------------------------------+
+// Used on Alt 1 when negotiated protocol is MIDI 1.0.
+// Word layout: [MT(0x2) | Group(4b) | Status(8b) | Data1(8b) | Data2(8b)]
+//   Status nibbles: 0x8=NoteOff, 0x9=NoteOn, 0xA=PolyPress, 0xB=CC,
+//                   0xC=ProgChg, 0xD=ChanPress, 0xE=PitchBend.
+
+static inline void ump_midi1_send(uint8_t group, uint8_t status,
+                                   uint8_t data1, uint8_t data2) {
+  uint32_t w = UMP_MT_MIDI1_CV
+             | ((uint32_t)(group & 0x0F) << 24)
+             | ((uint32_t)status << 16)
+             | ((uint32_t)data1 << 8)
+             | (uint32_t)data2;
+  ump_send_32(w);
+}
+
+static inline void ump_midi1_note_on(uint8_t group, uint8_t channel,
+                                      uint8_t note, uint8_t vel7) {
+  ump_midi1_send(group, 0x90 | (channel & 0x0F), note & 0x7F, vel7 & 0x7F);
+}
+
+static inline void ump_midi1_note_off(uint8_t group, uint8_t channel,
+                                       uint8_t note, uint8_t vel7) {
+  ump_midi1_send(group, 0x80 | (channel & 0x0F), note & 0x7F, vel7 & 0x7F);
+}
+
+static inline void ump_midi1_cc(uint8_t group, uint8_t channel,
+                                 uint8_t cc, uint8_t val7) {
+  ump_midi1_send(group, 0xB0 | (channel & 0x0F), cc & 0x7F, val7 & 0x7F);
+}
+
+static inline void ump_midi1_program(uint8_t group, uint8_t channel,
+                                      uint8_t program) {
+  ump_midi1_send(group, 0xC0 | (channel & 0x0F), program & 0x7F, 0);
+}
+
+static inline void ump_midi1_pitch_bend(uint8_t group, uint8_t channel,
+                                         uint16_t value14) {
+  // 14-bit pitch bend: LSB first, then MSB. Center = 0x2000.
+  ump_midi1_send(group, 0xE0 | (channel & 0x0F),
+                 (uint8_t)(value14 & 0x7F),
+                 (uint8_t)((value14 >> 7) & 0x7F));
+}
+
+static inline void ump_midi1_channel_pressure(uint8_t group, uint8_t channel,
+                                                uint8_t val7) {
+  ump_midi1_send(group, 0xD0 | (channel & 0x0F), val7 & 0x7F, 0);
+}
+
+static inline void ump_midi1_poly_pressure(uint8_t group, uint8_t channel,
+                                             uint8_t note, uint8_t val7) {
+  ump_midi1_send(group, 0xA0 | (channel & 0x0F), note & 0x7F, val7 & 0x7F);
+}
+
+//--------------------------------------------------------------------+
+// USB-MIDI 1.0 32-bit Event Packet Builders (Alt 0 transport)
+//--------------------------------------------------------------------+
+// Used on Alt 0 (USB-MIDI 1.0). Each packet is 4 raw bytes:
+//   [(Cable << 4) | CIN] [Status] [Data1] [Data2]
+// CIN = Code Index Number. See USB-MIDI 1.0 spec Section 4.
+
+static inline void midi1_pkt_send(uint8_t cable, uint8_t cin,
+                                    uint8_t status, uint8_t data1,
+                                    uint8_t data2) {
+  uint8_t packet[4] = {
+    (uint8_t)(((cable & 0x0F) << 4) | (cin & 0x0F)),
+    status, data1, data2
+  };
+  tud_midi2_packet_write(packet);
+}
+
+static inline void midi1_pkt_note_on(uint8_t cable, uint8_t channel,
+                                       uint8_t note, uint8_t vel7) {
+  midi1_pkt_send(cable, 0x9, 0x90 | (channel & 0x0F),
+                  note & 0x7F, vel7 & 0x7F);
+}
+
+static inline void midi1_pkt_note_off(uint8_t cable, uint8_t channel,
+                                        uint8_t note, uint8_t vel7) {
+  midi1_pkt_send(cable, 0x8, 0x80 | (channel & 0x0F),
+                  note & 0x7F, vel7 & 0x7F);
+}
+
+static inline void midi1_pkt_cc(uint8_t cable, uint8_t channel,
+                                  uint8_t cc, uint8_t val7) {
+  midi1_pkt_send(cable, 0xB, 0xB0 | (channel & 0x0F),
+                  cc & 0x7F, val7 & 0x7F);
+}
+
+static inline void midi1_pkt_program(uint8_t cable, uint8_t channel,
+                                       uint8_t program) {
+  midi1_pkt_send(cable, 0xC, 0xC0 | (channel & 0x0F),
+                  program & 0x7F, 0);
+}
+
+static inline void midi1_pkt_pitch_bend(uint8_t cable, uint8_t channel,
+                                          uint16_t value14) {
+  midi1_pkt_send(cable, 0xE, 0xE0 | (channel & 0x0F),
+                  (uint8_t)(value14 & 0x7F),
+                  (uint8_t)((value14 >> 7) & 0x7F));
+}
+
+static inline void midi1_pkt_channel_pressure(uint8_t cable, uint8_t channel,
+                                                uint8_t val7) {
+  midi1_pkt_send(cable, 0xD, 0xD0 | (channel & 0x0F), val7 & 0x7F, 0);
+}
+
+static inline void midi1_pkt_poly_pressure(uint8_t cable, uint8_t channel,
+                                             uint8_t note, uint8_t val7) {
+  midi1_pkt_send(cable, 0xA, 0xA0 | (channel & 0x0F),
+                  note & 0x7F, val7 & 0x7F);
+}
+
+//--------------------------------------------------------------------+
+// Scaling Helpers (MIDI 2.0 ↔ MIDI 1.0)
+//--------------------------------------------------------------------+
+
+static inline uint8_t  scale_vel16_to_vel7(uint16_t v16)  { return (uint8_t)(v16 >> 9); }
+static inline uint8_t  scale_val32_to_val7(uint32_t v32)  { return (uint8_t)(v32 >> 25); }
+static inline uint16_t scale_pb32_to_pb14(uint32_t pb32)  { return (uint16_t)(pb32 >> 18); }
+
+//--------------------------------------------------------------------+
+// Dispatch Layer - Transport + Protocol Fallback
+//--------------------------------------------------------------------+
+// Follows the same idea as the UAC examples (`tud_descriptor_configuration_cb`
+// returning UAC1 or UAC2 based on bus speed): pick the path that matches the
+// state the host put us in. Here the decision is made per message because
+// MIDI 2.0 advertises both alts in a single config descriptor; the host
+// selects via SetInterface and UMP Stream protocol negotiation.
+
+static void send_note_on(uint8_t grp, uint8_t ch, uint8_t note, uint16_t vel16) {
+  uint8_t alt = tud_midi2_alt_setting();
+  if (alt == 0) {
+    midi1_pkt_note_on(grp, ch, note, scale_vel16_to_vel7(vel16));
+  } else if (tud_midi2_protocol() == MIDI_PROTOCOL_MIDI1) {
+    ump_midi1_note_on(grp, ch, note, scale_vel16_to_vel7(vel16));
+  } else {
+    ump_note_on(grp, ch, note, vel16, UMP_ATTR_NONE, 0);
+  }
+}
+
+static void send_note_off(uint8_t grp, uint8_t ch, uint8_t note, uint16_t vel16) {
+  uint8_t alt = tud_midi2_alt_setting();
+  if (alt == 0) {
+    midi1_pkt_note_off(grp, ch, note, scale_vel16_to_vel7(vel16));
+  } else if (tud_midi2_protocol() == MIDI_PROTOCOL_MIDI1) {
+    ump_midi1_note_off(grp, ch, note, scale_vel16_to_vel7(vel16));
+  } else {
+    ump_note_off(grp, ch, note, vel16, UMP_ATTR_NONE, 0);
+  }
+}
+
+static void send_cc(uint8_t grp, uint8_t ch, uint8_t cc, uint32_t val32) {
+  uint8_t alt = tud_midi2_alt_setting();
+  if (alt == 0) {
+    midi1_pkt_cc(grp, ch, cc, scale_val32_to_val7(val32));
+  } else if (tud_midi2_protocol() == MIDI_PROTOCOL_MIDI1) {
+    ump_midi1_cc(grp, ch, cc, scale_val32_to_val7(val32));
+  } else {
+    ump_cc(grp, ch, cc, val32);
+  }
+}
+
+static void send_program_change(uint8_t grp, uint8_t ch, uint8_t program,
+                                  bool with_bank, uint8_t bank_msb,
+                                  uint8_t bank_lsb) {
+  uint8_t alt = tud_midi2_alt_setting();
+  if (alt == 0) {
+    if (with_bank) {
+      midi1_pkt_cc(grp, ch, 0x00, bank_msb);
+      midi1_pkt_cc(grp, ch, 0x20, bank_lsb);
+    }
+    midi1_pkt_program(grp, ch, program);
+  } else if (tud_midi2_protocol() == MIDI_PROTOCOL_MIDI1) {
+    if (with_bank) {
+      ump_midi1_cc(grp, ch, 0x00, bank_msb);
+      ump_midi1_cc(grp, ch, 0x20, bank_lsb);
+    }
+    ump_midi1_program(grp, ch, program);
+  } else {
+    ump_program_change(grp, ch, program, with_bank, bank_msb, bank_lsb);
+  }
+}
+
+static void send_pitch_bend(uint8_t grp, uint8_t ch, uint32_t pb32) {
+  uint8_t alt = tud_midi2_alt_setting();
+  if (alt == 0) {
+    midi1_pkt_pitch_bend(grp, ch, scale_pb32_to_pb14(pb32));
+  } else if (tud_midi2_protocol() == MIDI_PROTOCOL_MIDI1) {
+    ump_midi1_pitch_bend(grp, ch, scale_pb32_to_pb14(pb32));
+  } else {
+    ump_pitch_bend(grp, ch, pb32);
+  }
+}
+
+static void send_channel_pressure(uint8_t grp, uint8_t ch, uint32_t val32) {
+  uint8_t alt = tud_midi2_alt_setting();
+  if (alt == 0) {
+    midi1_pkt_channel_pressure(grp, ch, scale_val32_to_val7(val32));
+  } else if (tud_midi2_protocol() == MIDI_PROTOCOL_MIDI1) {
+    ump_midi1_channel_pressure(grp, ch, scale_val32_to_val7(val32));
+  } else {
+    ump_channel_pressure(grp, ch, val32);
+  }
+}
+
+static void send_poly_pressure(uint8_t grp, uint8_t ch, uint8_t note,
+                                uint32_t val32) {
+  uint8_t alt = tud_midi2_alt_setting();
+  if (alt == 0) {
+    midi1_pkt_poly_pressure(grp, ch, note, scale_val32_to_val7(val32));
+  } else if (tud_midi2_protocol() == MIDI_PROTOCOL_MIDI1) {
+    ump_midi1_poly_pressure(grp, ch, note, scale_val32_to_val7(val32));
+  } else {
+    ump_poly_pressure(grp, ch, note, val32);
+  }
+}
+
+//--------------------------------------------------------------------+
 // Song Data
 //--------------------------------------------------------------------+
 
@@ -316,23 +536,42 @@ void tud_midi2_rx_cb(uint8_t itf) {
   (void)itf;
 }
 
+// Reset playback state and re-send setup when host switches alt setting or
+// renegotiates the UMP Stream protocol.
+void tud_midi2_set_itf_cb(uint8_t itf, uint8_t alt) {
+  (void)itf;
+  song.setup_sent = false;
+  printf("[ALT] Host selected alt=%u\r\n", (unsigned)alt);
+}
+
 //--------------------------------------------------------------------+
 // Initial Setup - Program Change, CC, Per-Note Management
 //--------------------------------------------------------------------+
 
 void send_initial_setup(void) {
-  ump_jr_timestamp(0x0001);
-  ump_program_change(0, 0, 0, true, 0, 0);
-  ump_cc(0, 0, 7,  0xCCCCCCCC);              // Volume 80% (32-bit)
-  ump_cc(0, 0, 11, 0xFFFFFFFF);              // Expression 100%
-  ump_cc(0, 0, 64, 0x00000000);              // Sustain off
-  ump_cc(0, 0, 1,  0x20000000);              // Modulation
-  ump_cc(0, 0, 10, 0x80000000);              // Pan center
-  ump_per_note_mgmt(0, 0, 0, false, true);   // Per-Note reset
-  ump_pitch_bend(0, 0, 0x80000000);          // Pitch Bend center
-  ump_channel_pressure(0, 0, 0x00000000);
+  // JR Timestamp is UMP-only (Utility MT 0x0); skipped on Alt 0 transport.
+  if (tud_midi2_alt_setting() == 1) ump_jr_timestamp(0x0001);
 
-  printf("[SETUP] Piano | Vol 80%% | UMP\r\n");
+  send_program_change(0, 0, 0, true, 0, 0);
+  send_cc(0, 0, 7,  0xCCCCCCCC);             // Volume 80%
+  send_cc(0, 0, 11, 0xFFFFFFFF);             // Expression 100%
+  send_cc(0, 0, 64, 0x00000000);             // Sustain off
+  send_cc(0, 0, 1,  0x20000000);             // Modulation
+  send_cc(0, 0, 10, 0x80000000);             // Pan center
+
+  // Per-Note Management is MIDI 2.0 exclusive (MT 0x4 status 0xF).
+  // Skipped when the active path falls back to MIDI 1.0 in any form.
+  if (tud_midi2_alt_setting() == 1 &&
+      tud_midi2_protocol() == MIDI_PROTOCOL_MIDI2) {
+    ump_per_note_mgmt(0, 0, 0, false, true);
+  }
+
+  send_pitch_bend(0, 0, 0x80000000);         // Center
+  send_channel_pressure(0, 0, 0x00000000);
+
+  printf("[SETUP] Piano | Vol 80%% | alt=%u proto=%u\r\n",
+         (unsigned)tud_midi2_alt_setting(),
+         (unsigned)tud_midi2_protocol());
 }
 
 //--------------------------------------------------------------------+
@@ -364,9 +603,9 @@ void update_song_playback(uint32_t now_ms) {
   // Note duration elapsed: send Note Off, advance
   if (song.note_is_active && (now_ms - song.note_start_ms) >= current->duration_ms) {
     if (song.active_pitch > 0) {
-      if (current->bend_cents != 0) ump_pitch_bend(0, 0, 0x80000000);
-      if (current->pressure > 0)    ump_channel_pressure(0, 0, 0x00000000);
-      ump_note_off(0, 0, song.active_pitch, V_P, UMP_ATTR_NONE, 0);
+      if (current->bend_cents != 0) send_pitch_bend(0, 0, 0x80000000);
+      if (current->pressure > 0)    send_channel_pressure(0, 0, 0x00000000);
+      send_note_off(0, 0, song.active_pitch, V_P);
     }
 
     song.note_is_active = false;
@@ -395,16 +634,19 @@ void update_song_playback(uint32_t now_ms) {
     }
 
     if (next->pitch > 0) {
-      ump_jr_timestamp((uint16_t)(now_ms & 0xFFFF));
-      if (next->bend_cents != 0) {
-        ump_pitch_bend(0, 0, cents_to_pitch_bend(next->bend_cents));
+      // JR Timestamp is UMP-only; skip on Alt 0 transport.
+      if (tud_midi2_alt_setting() == 1) {
+        ump_jr_timestamp((uint16_t)(now_ms & 0xFFFF));
       }
-      ump_note_on(0, 0, next->pitch, next->velocity, UMP_ATTR_NONE, 0);
+      if (next->bend_cents != 0) {
+        send_pitch_bend(0, 0, cents_to_pitch_bend(next->bend_cents));
+      }
+      send_note_on(0, 0, next->pitch, next->velocity);
       if (next->pressure > 0) {
-        ump_channel_pressure(0, 0, next->pressure);
+        send_channel_pressure(0, 0, next->pressure);
       }
       if (next->pressure > 0x40000000 && next->duration_ms > 500) {
-        ump_poly_pressure(0, 0, next->pitch, next->pressure);
+        send_poly_pressure(0, 0, next->pitch, next->pressure);
       }
 
       song.active_pitch = next->pitch;
@@ -428,20 +670,13 @@ int main(void) {
   board_init();
   printf("\r\n");
   printf("===========================================\r\n");
-  printf("  RP2040 MIDI 2.0 Device\r\n");
+  printf("  TinyUSB MIDI 2.0 Device\r\n");
   printf("===========================================\r\n");
-  printf("Tempo: 120 BPM | Format: UMP 64-bit\r\n");
-  printf("Song: %u notes with full MIDI 2.0 expression\r\n",
-         (unsigned)SONG_LENGTH);
-  printf("Features:\r\n");
-  printf("  - 16-bit Velocity (vs 7-bit MIDI 1.0)\r\n");
-  printf("  - 32-bit Control Change\r\n");
-  printf("  - 32-bit Pitch Bend (vs 14-bit MIDI 1.0)\r\n");
-  printf("  - 32-bit Channel Pressure\r\n");
-  printf("  - 32-bit Poly Pressure (per-note)\r\n");
-  printf("  - Per-Note Management (MIDI 2.0 exclusive)\r\n");
-  printf("  - Program Change with Bank Select\r\n");
-  printf("  - JR Timestamps\r\n");
+  printf("Tempo: 120 BPM | Song: %u notes\r\n", (unsigned)SONG_LENGTH);
+  printf("Transport + protocol fallback:\r\n");
+  printf("  Alt 0           -> USB-MIDI 1.0 32-bit Event Packets (packet_write)\r\n");
+  printf("  Alt 1 + MIDI1   -> UMP MT 0x2 MIDI 1.0 Channel Voice  (ump_write)\r\n");
+  printf("  Alt 1 + MIDI2   -> UMP MT 0x4 MIDI 2.0 Channel Voice  (ump_write)\r\n");
   printf("Status: Initializing...\r\n");
 
   tusb_rhport_init_t dev_init = {.role = TUSB_ROLE_DEVICE, .speed = TUSB_SPEED_AUTO};
