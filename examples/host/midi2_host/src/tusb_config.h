@@ -37,6 +37,10 @@ extern "C" {
 #error CFG_TUSB_MCU must be defined
 #endif
 
+#ifdef ESP_PLATFORM
+#define CFG_TUSB_OS_INC_PATH  freertos/
+#endif
+
 #ifndef CFG_TUSB_OS
 #define CFG_TUSB_OS           OPT_OS_NONE
 #endif
@@ -55,20 +59,31 @@ extern "C" {
 
 //--------------------------------------------------------------------+
 // Host Configuration
-// Adafruit Feather RP2040 USB Host: PIO-USB on GP16/GP17 (USB-A Host port)
 //--------------------------------------------------------------------+
 
 #define CFG_TUH_ENABLED       1
 
-// PIO-USB Host on rhport 1 (USB-A connector on GP16/GP17)
-#define CFG_TUH_RPI_PIO_USB   1
-#define BOARD_TUH_RHPORT      1
+#if CFG_TUSB_MCU == OPT_MCU_RP2040
+  // #define CFG_TUH_RPI_PIO_USB   1 // use pio-usb as host controller
+  // #define CFG_TUH_MAX3421       1 // use max3421 as host controller
 
-#ifndef BOARD_TUH_MAX_SPEED
-#define BOARD_TUH_MAX_SPEED   OPT_MODE_FULL_SPEED
+  // host roothub port is 1 if using either pio-usb or max3421
+  #if (defined(CFG_TUH_RPI_PIO_USB) && CFG_TUH_RPI_PIO_USB) || (defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421)
+    #define BOARD_TUH_RHPORT      1
+  #endif
 #endif
 
 #define CFG_TUH_MAX_SPEED     BOARD_TUH_MAX_SPEED
+
+//------------------------- Board Specific --------------------------+
+
+#ifndef BOARD_TUH_RHPORT
+#define BOARD_TUH_RHPORT      0
+#endif
+
+#ifndef BOARD_TUH_MAX_SPEED
+#define BOARD_TUH_MAX_SPEED   OPT_MODE_DEFAULT_SPEED
+#endif
 
 //--------------------------------------------------------------------+
 // Driver Configuration
@@ -76,13 +91,13 @@ extern "C" {
 
 #define CFG_TUH_ENUMERATION_BUFSIZE 256
 
-#define CFG_TUH_HUB                0
-#define CFG_TUH_DEVICE_MAX         1
+#define CFG_TUH_HUB                 1
+#define CFG_TUH_DEVICE_MAX          (3*CFG_TUH_HUB + 1)
 
-// MIDI 2.0 Host
-#define CFG_TUH_MIDI2              1
-#define CFG_TUH_MIDI2_RX_BUFSIZE   512
-#define CFG_TUH_MIDI2_TX_BUFSIZE   512
+// USB-MIDI 2.0 Host
+#define CFG_TUH_MIDI2               CFG_TUH_DEVICE_MAX
+#define CFG_TUH_MIDI2_RX_BUFSIZE    512
+#define CFG_TUH_MIDI2_TX_BUFSIZE    512
 
 #ifdef __cplusplus
 }
