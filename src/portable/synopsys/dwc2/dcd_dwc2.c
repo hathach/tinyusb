@@ -62,6 +62,7 @@ static xfer_ctl_t xfer_status[DWC2_EP_MAX][2];
 typedef struct {
   // EP0 transfers are limited to 1 packet - larger sizes has to be split
   uint16_t ep0_pending[2];  // Index determines direction as tusb_dir_t type
+  bool ep0_out_zlp_armed;   // EP0 OUT ZLP transfer is armed and waiting for completion
   uint16_t dfifo_top;      // top free location in DFIFO in words
 
   // Number of IN endpoints active
@@ -665,6 +666,9 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
     // EP0 can only handle one packet
     if (epnum == 0) {
       _dcd_data.ep0_pending[dir] = total_bytes;
+      if (dir == TUSB_DIR_OUT) {
+        _dcd_data.ep0_out_zlp_armed = (total_bytes == 0);
+      }
     }
 
     // Schedule packets to be sent within interrupt
@@ -744,6 +748,9 @@ static void handle_bus_reset(uint8_t rhport) {
 
   tu_memclr(xfer_status, sizeof(xfer_status));
 
+  _dcd_data.ep0_pending[TUSB_DIR_OUT] = 0;
+  _dcd_data.ep0_pending[TUSB_DIR_IN] = 0;
+  _dcd_data.ep0_out_zlp_armed = false;
   _dcd_data.sof_en = false;
   _dcd_data.allocated_epin_count = 0;
 
@@ -946,7 +953,21 @@ static void handle_rxflvl_irq(uint8_t rhport) {
 }
 
 static void handle_epout_slave(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepint_bm) {
+  xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
+  const bool ep0_status_complete_before_setup = (epnum == 0) && doepint_bm.setup_phase_done &&
+                                                doepint_bm.xfer_complete &&
+                                                _dcd_data.ep0_out_zlp_armed &&
+                                                (_dcd_data.ep0_pending[TUSB_DIR_OUT] == 0) &&
+                                                (xfer->total_len == 0);
+
   if (doepint_bm.setup_phase_done) {
+    if (ep0_status_complete_before_setup) {
+      _dcd_data.ep0_out_zlp_armed = false;
+      dcd_event_xfer_complete(rhport, epnum, 0, XFER_RESULT_SUCCESS, true);
+    } else if (epnum == 0) {
+      _dcd_data.ep0_out_zlp_armed = false;
+    }
+
     // Cleanup previous pending EP0 IN transfer if any
     dwc2_dep_t* epin0 = &DWC2_REG(rhport)->epin[0];
     if (edpt_is_enabled(epin0)) {
@@ -962,11 +983,13 @@ static void handle_epout_slave(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doe
     // Note: even though (xfer_complete + status_phase_rx) is for buffered DMA only, for STM32L47x (dwc2 v3.00a) they
     // can is set when GRXSTS_PKTSTS_SETUP_RX is popped therefore they can bet set before/together with setup_phase_done
     if (!doepint_bm.status_phase_rx && !doepint_bm.setup_packet_rx) {
-      xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
       if ((epnum == 0) && _dcd_data.ep0_pending[TUSB_DIR_OUT]) {
         // EP0 can only handle one packet, Schedule another packet to be received.
         edpt_schedule_packets(rhport, epnum, TUSB_DIR_OUT);
       } else {
+        if (epnum == 0) {
+          _dcd_data.ep0_out_zlp_armed = false;
+        }
         dcd_event_xfer_complete(rhport, epnum, xfer->total_len, XFER_RESULT_SUCCESS, true);
       }
     }
@@ -1005,8 +1028,21 @@ static void handle_epin_slave(uint8_t rhport, uint8_t epnum, dwc2_diepint_t diep
 #if CFG_TUD_DWC2_DMA_ENABLE
 static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepint_bm) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
+  const bool ep0_status_complete_before_setup = (epnum == 0) && doepint_bm.setup_phase_done &&
+                                                doepint_bm.xfer_complete &&
+                                                _dcd_data.ep0_out_zlp_armed &&
+                                                (_dcd_data.ep0_pending[TUSB_DIR_OUT] == 0) &&
+                                                (xfer->total_len == 0);
 
   if (doepint_bm.setup_phase_done) {
+    if (ep0_status_complete_before_setup) {
+      _dcd_data.ep0_out_zlp_armed = false;
+      dcd_event_xfer_complete(rhport, epnum, 0, XFER_RESULT_SUCCESS, true);
+    } else if (epnum == 0) {
+      _dcd_data.ep0_out_zlp_armed = false;
+    }
+
     // Cleanup previous pending EP0 IN transfer if any
     dwc2_dep_t* epin0 = &DWC2_REG(rhport)->epin[0];
     if (edpt_is_enabled(epin0)) {
@@ -1028,7 +1064,6 @@ static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepi
         edpt_schedule_packets(rhport, epnum, TUSB_DIR_OUT);
       } else {
         dwc2_dep_t* epout = &dwc2->epout[epnum];
-        xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
 
         // determine actual received bytes
         const dwc2_ep_tsize_t tsiz = {.value = epout->tsiz};
@@ -1041,6 +1076,9 @@ static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepi
           dma_setup_prepare(rhport);
         }
 
+        if (epnum == 0) {
+          _dcd_data.ep0_out_zlp_armed = false;
+        }
         dcd_dcache_invalidate(xfer->buffer, xfer->total_len);
         dcd_event_xfer_complete(rhport, epnum, xfer->total_len, XFER_RESULT_SUCCESS, true);
       }
