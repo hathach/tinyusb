@@ -347,11 +347,20 @@ uint32_t tud_midi2_n_ump_write(uint8_t itf, const uint32_t* words, uint32_t coun
   while (written < count) {
     uint8_t mt = (uint8_t)((words[written] >> 28) & 0x0F);
     uint8_t pkt_words = midi2_ump_word_count(mt);
+    uint32_t pkt_bytes = (uint32_t)pkt_words * 4;
 
     if (written + pkt_words > count) break;
-    if (tu_edpt_stream_write_available(ep_tx) < pkt_words * 4) break;
+    if (tu_edpt_stream_write_available(ep_tx) < pkt_bytes) break;
 
-    tu_edpt_stream_write(ep_tx, &words[written], pkt_words * 4);
+    // Flush whole packets already queued before adding one that would cross
+    // the wMaxPacketSize boundary. Prevents an UMP message from being split
+    // across two USB transfers, which would corrupt the host RX context.
+    uint16_t ff_count = tu_fifo_count(&ep_tx->ff);
+    if (ff_count > 0 && ff_count + pkt_bytes > ep_tx->mps) {
+      tu_edpt_stream_write_xfer(ep_tx);
+    }
+
+    tu_edpt_stream_write(ep_tx, &words[written], pkt_bytes);
     written += pkt_words;
   }
 
