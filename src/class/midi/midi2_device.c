@@ -73,12 +73,6 @@ enum {
   STREAM_FB_INFO            = 0x011,
 };
 
-// MIDI Protocol values (per USB-MIDI 2.0 spec)
-enum {
-  MIDI_PROTOCOL_MIDI1       = 0x01,
-  MIDI_PROTOCOL_MIDI2       = 0x02,
-};
-
 enum {
   UMP_VER_MAJOR = 1,
   UMP_VER_MINOR = 1,
@@ -304,6 +298,11 @@ uint32_t tud_midi2_n_available(uint8_t itf) {
 uint32_t tud_midi2_n_ump_read(uint8_t itf, uint32_t* words, uint32_t max_words) {
   TU_VERIFY(itf < CFG_TUD_MIDI2 && words != NULL && max_words > 0, 0);
   midi2d_interface_t* p_midi = &_midi2d_itf[itf];
+
+  // UMP API is only valid on Alt Setting 1 (USB-MIDI 2.0).
+  // Alt 0 carries USB-MIDI 1.0 32-bit Event Packets, not UMP words.
+  if (p_midi->alt_setting != 1) { return 0; }
+
   tu_edpt_stream_t* ep_rx = &p_midi->ep_stream.rx;
 
   uint32_t total_read = 0;
@@ -336,6 +335,11 @@ bool tud_midi2_n_packet_read(uint8_t itf, uint8_t packet[4]) {
 uint32_t tud_midi2_n_ump_write(uint8_t itf, const uint32_t* words, uint32_t count) {
   TU_VERIFY(itf < CFG_TUD_MIDI2 && words != NULL && count > 0, 0);
   midi2d_interface_t* p_midi = &_midi2d_itf[itf];
+
+  // UMP API is only valid on Alt Setting 1 (USB-MIDI 2.0).
+  // Alt 0 carries USB-MIDI 1.0 32-bit Event Packets, not UMP words.
+  if (p_midi->alt_setting != 1) { return 0; }
+
   tu_edpt_stream_t* ep_tx = &p_midi->ep_stream.tx;
   TU_VERIFY(tu_edpt_stream_is_opened(ep_tx), 0);
 

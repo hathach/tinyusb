@@ -45,6 +45,15 @@ extern "C" {
 #endif
 
 //--------------------------------------------------------------------+
+// MIDI Protocol Values (returned by tud_midi2_n_protocol)
+//--------------------------------------------------------------------+
+// Per USB-MIDI 2.0 spec, UMP Stream Configuration messages.
+enum {
+  MIDI_PROTOCOL_MIDI1 = 0x01,
+  MIDI_PROTOCOL_MIDI2 = 0x02,
+};
+
+//--------------------------------------------------------------------+
 // Application Callback API (weak, optional)
 //--------------------------------------------------------------------+
 void tud_midi2_rx_cb(uint8_t itf);
