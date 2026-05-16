@@ -62,7 +62,8 @@ enum {
 #define PHY_ORDERED_SET_SOP_PP_DEBUG (PHY_SYNC1 | (PHY_RST2<<5u)  | (PHY_SYNC3<<10u) | (PHY_SYNC2<<15u)) // SOP'' Debug Ordered set coding
 
 
-static uint8_t const* _rx_buf;
+static uint8_t* _rx_buf;
+static uint16_t _rx_buf_len;
 static uint8_t const* _tx_pending_buf;
 static uint16_t _tx_pending_bytes;
 static uint16_t _tx_xferring_bytes;
@@ -212,6 +213,7 @@ void tcd_int_disable(uint8_t rhport) {
 
 bool tcd_msg_receive(uint8_t rhport, uint8_t* buffer, uint16_t total_bytes) {
   _rx_buf = buffer;
+  _rx_buf_len = total_bytes;
   dma_start(rhport, true, buffer, total_bytes);
   return true;
 }
@@ -251,14 +253,12 @@ void tcd_int_handler(uint8_t rhport) {
     uint32_t cr = UCPD1->CR;
 
     // TODO only support SNK for now, required highest voltage for now
-    // Enable PHY on active CC and disable Rd on other CC
-    // FIXME somehow CC2 is vstate is not correct, always 1 even not attached.
-    // on DPOW1 board, it is connected to PA10 (USBPD_DBCC2), we probably miss something.
-    if ((sr & UCPD_SR_TYPECEVT1) && (v_cc[0] == 3)) {
+    // Determine attach/detach by checking both CC vstates.
+    if (v_cc[0] >= 1) {
       TU_LOG3("Attach CC1\r\n");
       cr &= ~(UCPD_CR_PHYCCSEL | UCPD_CR_CCENABLE);
       cr |= UCPD_CR_PHYRXEN | UCPD_CR_CCENABLE_0;
-    } else if ((sr & UCPD_SR_TYPECEVT2) && (v_cc[1] == 3)) {
+    } else if (v_cc[1] >= 1) {
       TU_LOG3("Attach CC2\r\n");
       cr &= ~UCPD_CR_CCENABLE;
       cr |= (UCPD_CR_PHYCCSEL | UCPD_CR_PHYRXEN | UCPD_CR_CCENABLE_1);
@@ -307,11 +307,16 @@ void tcd_int_handler(uint8_t rhport) {
     uint8_t result;
 
     if (!(sr & UCPD_SR_RXERR)) {
-      // response with good crc
+      // Send GoodCRC in response, unless the received message is itself a GoodCRC.
       // TODO move this to usbc stack
       if (_rx_buf) {
-        _good_crc.msg_id = ((pd_header_t const *) _rx_buf)->msg_id;
-        dma_tx_start(rhport, &_good_crc, 2);
+        pd_header_t const* rx_header = (pd_header_t const*) _rx_buf;
+        bool is_good_crc = (rx_header->n_data_obj == 0) && (rx_header->msg_type == PD_CTRL_GOOD_CRC);
+
+        if (!is_good_crc) {
+          _good_crc.msg_id = rx_header->msg_id;
+          dma_tx_start(rhport, &_good_crc, 2);
+        }
       }
 
       result = XFER_RESULT_SUCCESS;
@@ -331,6 +336,17 @@ void tcd_int_handler(uint8_t rhport) {
     TU_LOG3("RXOVR\r\n");
     // ack
     UCPD1->ICR = UCPD_ICR_RXOVRCF;
+  }
+
+  // Handle Hard Reset received from source. If not cleared here, the
+  // flag will remain set and re-enter the ISR immediately
+  if (sr & UCPD_SR_RXHRSTDET) {
+    TU_LOG3("Hard Reset received\r\n");
+    if (_rx_buf != NULL && _rx_buf_len > 0) {
+      dma_stop(rhport, true);
+      tcd_msg_receive(rhport, _rx_buf, _rx_buf_len);
+    }
+    UCPD1->ICR = UCPD_ICR_RXHRSTDETCF;
   }
 
   //------------- TX -------------//
