@@ -1,5 +1,1 @@
 mcu:SAMD11
-board:stm32h7s3nucleo
-board:stm32h573i_dk
-board:stm32n657nucleo
-board:stm32n6570dk
