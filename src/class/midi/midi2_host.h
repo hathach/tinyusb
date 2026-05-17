@@ -77,6 +77,14 @@ uint8_t  tuh_midi2_get_cable_count(uint8_t idx);
 // Application API - I/O
 //--------------------------------------------------------------------+
 
+// Read up to max_words UMP words from the RX FIFO. Returns the number of
+// words actually read (0 if FIFO is empty).
+//
+// NOTE: this function returns when max_words is reached or when the FIFO is
+// empty, whichever comes first. Applications should invoke it in a loop
+// until it returns 0 to guarantee the RX FIFO is fully drained per
+// tuh_midi2_rx_cb callback. Leaving words in the FIFO across callbacks can
+// prevent subsequent bulk IN transfers from landing.
 uint32_t tuh_midi2_ump_read(uint8_t idx, uint32_t* words, uint32_t max_words);
 uint32_t tuh_midi2_ump_write(uint8_t idx, const uint32_t* words, uint32_t count);
 uint32_t tuh_midi2_write_flush(uint8_t idx);

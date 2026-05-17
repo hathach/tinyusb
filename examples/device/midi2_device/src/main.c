@@ -529,7 +529,13 @@ void send_initial_setup(void);
 //--------------------------------------------------------------------+
 
 void tud_midi2_rx_cb(uint8_t itf) {
-  (void)itf;
+  // Drain the RX FIFO in a loop until empty. Leaving words in the FIFO
+  // across callbacks can prevent subsequent bulk OUT transfers from landing.
+  uint32_t words[8];
+  uint32_t n;
+  while ((n = tud_midi2_n_ump_read(itf, words, TU_ARRAY_SIZE(words))) > 0) {
+    (void) n;
+  }
 }
 
 // Reset playback state and re-send setup when host switches alt setting or

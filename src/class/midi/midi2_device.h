@@ -57,11 +57,11 @@ extern "C" {
 #endif
 
 #ifndef CFG_TUD_MIDI2_TX_BUFSIZE
-  #define CFG_TUD_MIDI2_TX_BUFSIZE  (4 * CFG_TUD_MIDI2_TX_EPSIZE)
+  #define CFG_TUD_MIDI2_TX_BUFSIZE  CFG_TUD_MIDI2_TX_EPSIZE
 #endif
 
 #ifndef CFG_TUD_MIDI2_RX_BUFSIZE
-  #define CFG_TUD_MIDI2_RX_BUFSIZE  (4 * CFG_TUD_MIDI2_RX_EPSIZE)
+  #define CFG_TUD_MIDI2_RX_BUFSIZE  CFG_TUD_MIDI2_RX_EPSIZE
 #endif
 
 #ifndef CFG_TUD_MIDI2_NUM_GROUPS
@@ -119,6 +119,14 @@ uint8_t  tud_midi2_n_alt_setting(uint8_t itf);
 bool     tud_midi2_n_negotiated(uint8_t itf);
 uint8_t  tud_midi2_n_protocol(uint8_t itf);
 
+// Read up to max_words UMP words from the RX FIFO. Returns the number of
+// words actually read (0 if FIFO is empty).
+//
+// NOTE: this function returns when max_words is reached or when the FIFO is
+// empty, whichever comes first. Applications should invoke it in a loop
+// until it returns 0 to guarantee the RX FIFO is fully drained per
+// tud_midi2_rx_cb callback. Leaving words in the FIFO across callbacks can
+// prevent subsequent bulk OUT transfers from landing.
 uint32_t tud_midi2_n_ump_read(uint8_t itf, uint32_t* words, uint32_t max_words);
 uint32_t tud_midi2_n_ump_write(uint8_t itf, const uint32_t* words, uint32_t count);
 
