@@ -49,11 +49,11 @@ extern "C" {
 //--------------------------------------------------------------------+
 
 #ifndef CFG_TUD_MIDI2_TX_BUFSIZE
-  #define CFG_TUD_MIDI2_TX_BUFSIZE  TUD_EPSIZE_BULK_MAX
+  #define CFG_TUD_MIDI2_TX_BUFSIZE  256
 #endif
 
 #ifndef CFG_TUD_MIDI2_RX_BUFSIZE
-  #define CFG_TUD_MIDI2_RX_BUFSIZE  TUD_EPSIZE_BULK_MAX
+  #define CFG_TUD_MIDI2_RX_BUFSIZE  256
 #endif
 
 #ifndef CFG_TUD_MIDI2_TX_EPSIZE

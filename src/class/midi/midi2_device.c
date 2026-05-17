@@ -266,10 +266,12 @@ static void _nego_handle_stream_msg(midi2d_interface_t* p_midi, const uint32_t* 
 
 static void _nego_process_rx(midi2d_interface_t* p_midi) {
   tu_edpt_stream_t* ep_rx = &p_midi->ep_stream.rx;
-  uint8_t first_byte;
+  uint8_t word_bytes[4];
 
-  while (tu_edpt_stream_peek(ep_rx, &first_byte)) {
-    uint8_t mt = (first_byte >> 4) & 0x0F;
+  while (tu_fifo_peek_n(&ep_rx->ff, word_bytes, 4) == 4) {
+    // UMP words travel LSB-first on the wire and in LE memory, so MT is in
+    // the high nibble of byte 3, not byte 0.
+    uint8_t mt = (word_bytes[3] >> 4) & 0x0F;
     uint8_t pkt_words = midi2_ump_word_count(mt);
     uint32_t pkt_bytes = (uint32_t)pkt_words * 4;
 
@@ -310,10 +312,11 @@ uint32_t tud_midi2_n_ump_read(uint8_t itf, uint32_t* words, uint32_t max_words) 
 
   uint32_t total_read = 0;
   while (total_read < max_words) {
-    uint8_t first_byte;
-    if (!tu_edpt_stream_peek(ep_rx, &first_byte)) break;
+    uint8_t word_bytes[4];
+    if (tu_fifo_peek_n(&ep_rx->ff, word_bytes, 4) < 4) break;
 
-    uint8_t mt = (first_byte >> 4) & 0x0F;
+    // UMP words travel LSB-first; MT is the high nibble of byte 3, not byte 0.
+    uint8_t mt = (word_bytes[3] >> 4) & 0x0F;
     uint8_t pkt_words = midi2_ump_word_count(mt);
 
     if (total_read + pkt_words > max_words) break;
