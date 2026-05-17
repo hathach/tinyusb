@@ -103,6 +103,12 @@ void tud_midi2_rx_cb(uint8_t itf);
 void tud_midi2_set_itf_cb(uint8_t itf, uint8_t alt);
 bool tud_midi2_get_req_itf_cb(uint8_t rhport, const tusb_control_request_t* request);
 
+// Per-interface UMP Stream config (override for per-itf values).
+uint8_t     tud_midi2_num_groups_cb(uint8_t itf);
+uint8_t     tud_midi2_num_function_blocks_cb(uint8_t itf);
+const char* tud_midi2_ep_name_cb(uint8_t itf);
+const char* tud_midi2_product_id_cb(uint8_t itf);
+
 //--------------------------------------------------------------------+
 // Application API (Multiple Interfaces)
 //--------------------------------------------------------------------+

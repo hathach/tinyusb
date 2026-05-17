@@ -42,6 +42,18 @@ TU_ATTR_WEAK void tud_midi2_set_itf_cb(uint8_t itf, uint8_t alt) { (void) itf; (
 TU_ATTR_WEAK bool tud_midi2_get_req_itf_cb(uint8_t rhport, const tusb_control_request_t* request) {
   (void) rhport; (void) request; return false;
 }
+TU_ATTR_WEAK uint8_t tud_midi2_num_groups_cb(uint8_t itf) {
+  (void) itf; return CFG_TUD_MIDI2_NUM_GROUPS;
+}
+TU_ATTR_WEAK uint8_t tud_midi2_num_function_blocks_cb(uint8_t itf) {
+  (void) itf; return CFG_TUD_MIDI2_NUM_FUNCTION_BLOCKS;
+}
+TU_ATTR_WEAK const char* tud_midi2_ep_name_cb(uint8_t itf) {
+  (void) itf; return CFG_TUD_MIDI2_EP_NAME;
+}
+TU_ATTR_WEAK const char* tud_midi2_product_id_cb(uint8_t itf) {
+  (void) itf; return CFG_TUD_MIDI2_PRODUCT_ID;
+}
 
 //--------------------------------------------------------------------+
 // Byte order note
@@ -114,6 +126,10 @@ TU_VERIFY_STATIC(CFG_TUD_MIDI2_NUM_FUNCTION_BLOCKS >= 1 && CFG_TUD_MIDI2_NUM_FUN
 
 static midi2d_interface_t _midi2d_itf[CFG_TUD_MIDI2];
 
+static inline uint8_t _itf_idx(const midi2d_interface_t* p_midi) {
+  return (uint8_t)(p_midi - _midi2d_itf);
+}
+
 // Skip local EP buffer if dedicated hw FIFO is supported
 #if CFG_TUD_EDPT_DEDICATED_HWFIFO == 0
 typedef struct {
@@ -164,7 +180,7 @@ static void _nego_send_endpoint_info(midi2d_interface_t* p_midi) {
          | ((uint32_t) UMP_VER_MAJOR << 8)
          | (uint32_t) UMP_VER_MINOR;
   msg[1] = (UINT32_C(1) << 31)  // Static Function Blocks flag
-         | ((uint32_t)(CFG_TUD_MIDI2_NUM_FUNCTION_BLOCKS & 0x7F) << 24)
+         | ((uint32_t)(tud_midi2_num_function_blocks_cb(_itf_idx(p_midi)) & 0x7F) << 24)
          | (UINT32_C(1) << 9)   // MIDI 2.0 Protocol capability
          | (UINT32_C(1) << 8);  // MIDI 1.0 Protocol capability
   _nego_send_ump(p_midi, msg, 4);
@@ -223,7 +239,7 @@ static void _nego_send_fb_info(midi2d_interface_t* p_midi, uint8_t fb_idx) {
          | ((uint32_t) fb_idx << 8)
          | 0x02;  // bDirection: bidirectional
   msg[1] = ((uint32_t) 0 << 24)  // bFirstGroup
-         | ((uint32_t) CFG_TUD_MIDI2_NUM_GROUPS << 16);
+         | ((uint32_t) tud_midi2_num_groups_cb(_itf_idx(p_midi)) << 16);
   _nego_send_ump(p_midi, msg, 4);
 }
 
@@ -233,8 +249,8 @@ static void _nego_handle_stream_msg(midi2d_interface_t* p_midi, const uint32_t* 
   switch (status) {
     case STREAM_ENDPOINT_DISCOVERY:
       _nego_send_endpoint_info(p_midi);
-      _nego_send_stream_text(p_midi, STREAM_EP_NAME, CFG_TUD_MIDI2_EP_NAME);
-      _nego_send_stream_text(p_midi, STREAM_PROD_INSTANCE_ID, CFG_TUD_MIDI2_PRODUCT_ID);
+      _nego_send_stream_text(p_midi, STREAM_EP_NAME, tud_midi2_ep_name_cb(_itf_idx(p_midi)));
+      _nego_send_stream_text(p_midi, STREAM_PROD_INSTANCE_ID, tud_midi2_product_id_cb(_itf_idx(p_midi)));
       break;
 
     case STREAM_CONFIG_REQUEST: {
@@ -249,11 +265,12 @@ static void _nego_handle_stream_msg(midi2d_interface_t* p_midi, const uint32_t* 
 
     case STREAM_FB_DISCOVERY: {
       uint8_t fb_idx = (words[0] >> 8) & 0xFF;
+      uint8_t fb_count = tud_midi2_num_function_blocks_cb(_itf_idx(p_midi));
       if (fb_idx == 0xFF) {
-        for (uint8_t f = 0; f < CFG_TUD_MIDI2_NUM_FUNCTION_BLOCKS; f++) {
+        for (uint8_t f = 0; f < fb_count; f++) {
           _nego_send_fb_info(p_midi, f);
         }
-      } else if (fb_idx < CFG_TUD_MIDI2_NUM_FUNCTION_BLOCKS) {
+      } else if (fb_idx < fb_count) {
         _nego_send_fb_info(p_midi, fb_idx);
       }
       break;
