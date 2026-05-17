@@ -57,11 +57,7 @@ enum {
   CONFIG_ID_COUNT
 };
 
-#if CFG_TUD_NCM
-#define USB_BCD 0x0201
-#else
-#define USB_BCD 0x0200
-#endif
+#define USB_BCD (TUD_OPT_SUPER_SPEED ? 0x0300 : (CFG_TUD_NCM ? 0x0201 : 0x0200))
 
 //--------------------------------------------------------------------+
 // Device Descriptors
@@ -75,7 +71,7 @@ static const tusb_desc_device_t desc_device = {
   .bDeviceSubClass = MISC_SUBCLASS_COMMON,
   .bDeviceProtocol = MISC_PROTOCOL_IAD,
 
-  .bMaxPacketSize0 = CFG_TUD_ENDPOINT0_SIZE,
+  .bMaxPacketSize0 = TUD_OPT_SUPER_SPEED ? 9 : CFG_TUD_ENDPOINT0_SIZE,
 
   .idVendor  = 0xCafe,
   .idProduct = USB_PID,
@@ -97,9 +93,10 @@ const uint8_t *tud_descriptor_device_cb(void) {
 //--------------------------------------------------------------------+
 // Configuration Descriptor
 //--------------------------------------------------------------------+
-#define MAIN_CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_RNDIS_DESC_LEN)
-#define ALT_CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_CDC_ECM_DESC_LEN)
-#define NCM_CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_CDC_NCM_DESC_LEN)
+#define MAIN_CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_RNDIS_DESC_LEN)
+#define ALT_CONFIG_TOTAL_LEN     (TUD_CONFIG_DESC_LEN + TUD_CDC_ECM_DESC_LEN)
+#define NCM_CONFIG_TOTAL_LEN     (TUD_CONFIG_DESC_LEN + TUD_CDC_NCM_DESC_LEN)
+#define NCM_CONFIG_TOTAL_LEN_SS  (NCM_CONFIG_TOTAL_LEN + 3 * TUD_SUPERSPEED_DESC_EP_COMPANION_LEN)
 
 #if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
 // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
@@ -209,6 +206,39 @@ static uint8_t const ncm_hs_configuration[] = {
 };
 #endif // highspeed
 
+#if TUD_OPT_SUPER_SPEED
+static uint8_t const ncm_ss_configuration[] = {
+  // Config number (index+1), interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_DESCRIPTOR(CONFIG_ID_NCM + 1, ITF_NUM_TOTAL, 0, NCM_CONFIG_TOTAL_LEN_SS, 0, 100),
+
+  // Interface Association
+  8, TUSB_DESC_INTERFACE_ASSOCIATION, ITF_NUM_CDC, 2, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_NETWORK_CONTROL_MODEL, 0, 0,
+
+  // CDC Control Interface
+  9, TUSB_DESC_INTERFACE, ITF_NUM_CDC, 0, 1, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_NETWORK_CONTROL_MODEL, 0, STRID_INTERFACE,
+  5, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_HEADER, U16_TO_U8S_LE(0x0110),
+  5, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_UNION, ITF_NUM_CDC, ITF_NUM_CDC_DATA,
+  13, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_ETHERNET_NETWORKING, STRID_MAC, 0, 0, 0, 0,
+  U16_TO_U8S_LE(CFG_TUD_NET_MTU), U16_TO_U8S_LE(0), 0,
+  6, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_NCM, U16_TO_U8S_LE(0x0100),
+  (uint8_t)((uint8_t)NCM_NETWORK_CAPS_ETH_FILTER | (uint8_t)NCM_NETWORK_CAPS_NTB_INPUT_SIZE),
+
+  // Endpoint Notification
+  7, TUSB_DESC_ENDPOINT, EPNUM_NET_NOTIF, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(64), 9,
+  TUD_SUPERSPEED_DESC_EP_COMPANION(0, 0, 64),
+
+  // CDC Data Interface (default inactive)
+  9, TUSB_DESC_INTERFACE, ITF_NUM_CDC_DATA, 0, 0, TUSB_CLASS_CDC_DATA, 0, NCM_DATA_PROTOCOL_NETWORK_TRANSFER_BLOCK, 0,
+
+  // CDC Data Interface (alternative active)
+  9, TUSB_DESC_INTERFACE, ITF_NUM_CDC_DATA, 1, 2, TUSB_CLASS_CDC_DATA, 0, NCM_DATA_PROTOCOL_NETWORK_TRANSFER_BLOCK, 0,
+  7, TUSB_DESC_ENDPOINT, EPNUM_NET_IN, TUSB_XFER_BULK, U16_TO_U8S_LE(1024), 0,
+  TUD_SUPERSPEED_DESC_EP_COMPANION(0, 0, 0),
+  7, TUSB_DESC_ENDPOINT, EPNUM_NET_OUT, TUSB_XFER_BULK, U16_TO_U8S_LE(1024), 0,
+  TUD_SUPERSPEED_DESC_EP_COMPANION(0, 0, 0),
+};
+#endif
+
 #endif
 
 // NCM work with all latest OS i.e macos 10.10+, windows 10+, and Linux.
@@ -250,6 +280,12 @@ static const uint8_t *const configuration_hs_arr[CONFIG_ID_COUNT] = {
   [CONFIG_ID_NCM] = ncm_hs_configuration
 };
 
+#if TUD_OPT_SUPER_SPEED
+static const uint8_t *const configuration_ss_arr[CONFIG_ID_COUNT] = {
+  [CONFIG_ID_NCM] = ncm_ss_configuration
+};
+#endif
+
 // Size array for each configuration
 static const uint16_t configuration_sz_arr[CONFIG_ID_COUNT] = {
   [CONFIG_ID_NCM] = NCM_CONFIG_TOTAL_LEN
@@ -274,7 +310,7 @@ static tusb_desc_device_qualifier_t const desc_device_qualifier = {
   .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
   .bDeviceProtocol    = MISC_PROTOCOL_IAD,
 
-  .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
+  .bMaxPacketSize0    = TUD_OPT_SUPER_SPEED ? 64 : CFG_TUD_ENDPOINT0_SIZE,
   .bNumConfigurations = CONFIG_ID_COUNT,
   .bReserved          = 0x00
 };
@@ -311,6 +347,12 @@ uint8_t const *tud_descriptor_other_speed_configuration_cb(uint8_t index) {
 const uint8_t *tud_descriptor_configuration_cb(uint8_t index) {
   if (index >= CONFIG_ID_COUNT) return NULL;
 #if TUD_OPT_HIGH_SPEED
+  #if TUD_OPT_SUPER_SPEED && CFG_TUD_NCM
+  if (tud_speed_get() == TUSB_SPEED_SUPER) {
+    return configuration_ss_arr[index];
+  }
+  #endif
+
   // Although we are highspeed, host may be fullspeed.
   return (tud_speed_get() == TUSB_SPEED_HIGH) ? configuration_hs_arr[index] : configuration_fs_arr[index];
 #else
@@ -340,14 +382,24 @@ https://developers.google.com/web/fundamentals/native-hardware/build-for-webusb/
 (Section Microsoft OS compatibility descriptors)
 */
 
-#define BOS_TOTAL_LEN     (TUD_BOS_DESC_LEN + TUD_BOS_MICROSOFT_OS_DESC_LEN)
+#if TUD_OPT_SUPER_SPEED
+  #define BOS_TOTAL_LEN (TUD_BOS_DESC_LEN + TUD_BOS_USB20_EXT_DESC_LEN + TUD_BOS_SUPERSPEED_USB_DESC_LEN + \
+                         TUD_BOS_MICROSOFT_OS_DESC_LEN)
+#else
+  #define BOS_TOTAL_LEN (TUD_BOS_DESC_LEN + TUD_BOS_MICROSOFT_OS_DESC_LEN)
+#endif
 
 #define MS_OS_20_DESC_LEN 0xB2
 
 // BOS Descriptor is required for webUSB
 const uint8_t desc_bos[] = {
   // total length, number of device caps
-  TUD_BOS_DESCRIPTOR(BOS_TOTAL_LEN, 1),
+  TUD_BOS_DESCRIPTOR(BOS_TOTAL_LEN, TUD_OPT_SUPER_SPEED ? 3 : 1),
+
+#if TUD_OPT_SUPER_SPEED
+  TUD_BOS_USB20_EXT_DESCRIPTOR(0x00000002),
+  TUD_BOS_SUPERSPEED_USB_DESCRIPTOR(0, 0x000e, 1, 0x0a, 0x07ff),
+#endif
 
   // Microsoft OS 2.0 descriptor
   TUD_BOS_MS_OS_20_DESCRIPTOR(MS_OS_20_DESC_LEN, 1)};
