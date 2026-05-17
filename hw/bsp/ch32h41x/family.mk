@@ -10,6 +10,7 @@ include $(TOP)/$(BOARD_PATH)/board.mk
 # In actual fact, it is IMACBF
 CPU_CORE ?= rv32imac-ilp32
 
+CFG_TUD_WCH_USBSS_DEBUG ?= 1
 SPEED ?= super
 
 CFLAGS += \
@@ -19,7 +20,17 @@ CFLAGS += \
 	-fmessage-length=0 \
 	-fsigned-char \
 	-DCH32H417 \
-	-DCFG_TUSB_MCU=OPT_MCU_CH32H417 \
+	-DCFG_TUSB_MCU=OPT_MCU_CH32H41X
+
+CFLAGS += \
+	-DCFG_TUD_WCH_USBIP_USBSS=1 \
+	-DCFG_TUD_WCH_USBSS_DEBUG=$(CFG_TUD_WCH_USBSS_DEBUG) \
+	-DBOARD_TUD_MAX_SPEED=OPT_MODE_SUPER_SPEED \
+	-DCFG_TUD_ENDPOINT0_SIZE=512
+
+SRC_C += \
+	src/portable/wch/dcd_ch32_usbss.c
+
 
 LDFLAGS += \
 	-nostdlib -nostartfiles \
@@ -30,6 +41,7 @@ SRC_C += \
 	$(SDK_SRC_DIR)/Peripheral/src/$(CH32_FAMILY)_flash.c \
 	$(SDK_SRC_DIR)/Peripheral/src/$(CH32_FAMILY)_gpio.c \
 	$(SDK_SRC_DIR)/Peripheral/src/$(CH32_FAMILY)_rcc.c \
+	$(SDK_SRC_DIR)/Peripheral/src/$(CH32_FAMILY)_usart.c \
 	$(FAMILY_PATH)/system_$(CH32_FAMILY).c \
 
 SRC_S += \

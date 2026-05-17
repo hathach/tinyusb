@@ -303,20 +303,19 @@ uint16_t cdcd_open(uint8_t rhport, const tusb_desc_interface_t* itf_desc, uint16
     p_cdc->ep_notify = desc_ep->bEndpointAddress;
 
     p_desc = tu_desc_next(p_desc);
+    p_desc = tu_desc_skip_ss_ep_companion(p_desc, desc_end);
   }
 
   //------------- Data Interface (optional) -------------//
   if (TUSB_DESC_INTERFACE == tu_desc_type(p_desc)) {
     const tusb_desc_interface_t *data_itf_desc = (const tusb_desc_interface_t *)p_desc;
     if (TUSB_CLASS_CDC_DATA == data_itf_desc->bInterfaceClass) {
-      for (uint8_t e = 0; e < data_itf_desc->bNumEndpoints; e++) {
-        if (!tu_desc_in_bounds(p_desc, desc_end)) {
-          break;
-        }
-        p_desc = tu_desc_next(p_desc);
+      p_desc = tu_desc_next(p_desc);
 
+      for (uint8_t e = 0; e < data_itf_desc->bNumEndpoints; e++) {
         const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
-        TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_BULK == desc_ep->bmAttributes.xfer, 0);
+        TU_ASSERT(tu_desc_in_bounds(p_desc, desc_end) && TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType &&
+                  TUSB_XFER_BULK == desc_ep->bmAttributes.xfer, 0);
 
         TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
         if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
@@ -344,9 +343,10 @@ uint16_t cdcd_open(uint8_t rhport, const tusb_desc_interface_t* itf_desc, uint16
 
           TU_ASSERT(tu_edpt_stream_read_xfer(stream_rx) > 0, 0); // prepare for incoming data
         }
-      }
 
-      p_desc = tu_desc_next(p_desc);
+        p_desc = tu_desc_next(p_desc);
+        p_desc = tu_desc_skip_ss_ep_companion(p_desc, desc_end);
+      }
     }
   }
 

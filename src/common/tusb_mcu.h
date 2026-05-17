@@ -654,8 +654,17 @@
     #define CFG_TUD_WCH_USBIP_USBFS 1
   #endif
 
-#elif TU_CHECK_MCU(OPT_MCU_CH32H417)
+#elif TU_CHECK_MCU(OPT_MCU_CH32H41X)
+  #define TUP_USBIP_WCH_USBSS
+
+  #if !defined(CFG_TUD_WCH_USBIP_USBSS)
+    #define CFG_TUD_WCH_USBIP_USBSS 1
+  #endif
+
+  #define TUP_RHPORT_HIGHSPEED  CFG_TUD_WCH_USBIP_USBSS
+  #define TUP_RHPORT_SUPERSPEED CFG_TUD_WCH_USBIP_USBSS
   #define TUP_DCD_ENDPOINT_MAX 8
+  #define TUP_DCD_EDPT_CLOSE_API
 
 //--------------------------------------------------------------------+
 // Analog Devices
@@ -747,6 +756,10 @@
 // Default to fullspeed if not defined
 #ifndef TUP_RHPORT_HIGHSPEED
   #define TUP_RHPORT_HIGHSPEED 0
+#endif
+
+#ifndef TUP_RHPORT_SUPERSPEED
+  #define TUP_RHPORT_SUPERSPEED 0
 #endif
 
 // fast function, normally mean placing function in SRAM

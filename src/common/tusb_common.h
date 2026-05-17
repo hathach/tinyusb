@@ -372,6 +372,14 @@ TU_ATTR_ALWAYS_INLINE static inline bool tu_desc_in_bounds(const uint8_t *p_desc
   return p_desc < desc_end && tu_desc_next(p_desc) <= desc_end;
 }
 
+TU_ATTR_ALWAYS_INLINE static inline uint8_t const *tu_desc_skip_ss_ep_companion(uint8_t const *p_desc,
+                                                                                uint8_t const *desc_end) {
+  if (tu_desc_in_bounds(p_desc, desc_end) && TUSB_DESC_SUPERSPEED_ENDPOINT_COMPANION == tu_desc_type(p_desc)) {
+    p_desc = tu_desc_next(p_desc);
+  }
+  return p_desc;
+}
+
 // find descriptor that match byte1 (type)
 uint8_t const * tu_desc_find(uint8_t const* desc, uint8_t const* end, uint8_t byte1);
 
