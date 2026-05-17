@@ -72,10 +72,6 @@ static inline void ump_send_32(uint32_t w0) {
 
 // -- Utility Messages (MT=0x0, 32-bit) --
 
-static inline void ump_noop(void) {
-  ump_send_32(UMP_MT_UTILITY);
-}
-
 static inline void ump_jr_timestamp(uint16_t timestamp) {
   // Word 0: [MT(0x0) | Group(0) | Status(0x0020) | Timestamp(16-bit)]
   ump_send_32(UMP_MT_UTILITY | 0x00200000 | (uint32_t)timestamp);
