@@ -1,1 +1,2 @@
 board:lpcxpresso54114
+board:stm32h7s3nucleo
