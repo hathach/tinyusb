@@ -45,8 +45,51 @@ extern "C" {
 #endif
 
 //--------------------------------------------------------------------+
+// Class Driver Configuration
+//--------------------------------------------------------------------+
+
+#ifndef CFG_TUD_MIDI2_TX_BUFSIZE
+  #define CFG_TUD_MIDI2_TX_BUFSIZE  TUD_EPSIZE_BULK_MAX
+#endif
+
+#ifndef CFG_TUD_MIDI2_RX_BUFSIZE
+  #define CFG_TUD_MIDI2_RX_BUFSIZE  TUD_EPSIZE_BULK_MAX
+#endif
+
+#ifndef CFG_TUD_MIDI2_TX_EPSIZE
+  #define CFG_TUD_MIDI2_TX_EPSIZE   TUD_EPSIZE_BULK_MAX
+#endif
+
+#ifndef CFG_TUD_MIDI2_RX_EPSIZE
+  #define CFG_TUD_MIDI2_RX_EPSIZE   TUD_EPSIZE_BULK_MAX
+#endif
+
+#ifndef CFG_TUD_MIDI2_NUM_GROUPS
+  #define CFG_TUD_MIDI2_NUM_GROUPS  1
+#endif
+
+#ifndef CFG_TUD_MIDI2_NUM_FUNCTION_BLOCKS
+  #define CFG_TUD_MIDI2_NUM_FUNCTION_BLOCKS 1
+#endif
+
+#ifndef CFG_TUD_MIDI2_EP_NAME
+  #define CFG_TUD_MIDI2_EP_NAME     "TinyUSB MIDI 2.0"
+#endif
+
+#ifndef CFG_TUD_MIDI2_PRODUCT_ID
+  #define CFG_TUD_MIDI2_PRODUCT_ID  "TinyUSB-MIDI2"
+#endif
+
+// String descriptor index for the Group Terminal Block (iBlockItem, Table 5-6).
+// 0 = no string descriptor (default, spec-allowed).
+#ifndef CFG_TUD_MIDI2_BLOCK_STRIDX
+  #define CFG_TUD_MIDI2_BLOCK_STRIDX 0
+#endif
+
+//--------------------------------------------------------------------+
 // MIDI Protocol Values (returned by tud_midi2_n_protocol)
 //--------------------------------------------------------------------+
+
 // Per USB-MIDI 2.0 spec, UMP Stream Configuration messages.
 enum {
   MIDI_PROTOCOL_MIDI1 = 0x01,
