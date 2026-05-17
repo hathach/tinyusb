@@ -1,7 +1,4 @@
 mcu:SAMD11
-# Skip boards exposing a pre-existing uninitialized io_ctx.GetTick in
-# their board.h (called from board_init2 before TCPP0203_RegisterBusIO).
-# Trips with Make+LTO; CMake passes.
 board:stm32h7s3nucleo
 board:stm32h573i_dk
 board:stm32n657nucleo
