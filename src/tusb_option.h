@@ -179,7 +179,7 @@
 #define OPT_MCU_CH583            2240 ///< WCH CH583
 #define OPT_MCU_CH582            OPT_MCU_CH583 ///< WCH CH582 (alias, same USB IP as CH583)
 #define OPT_MCU_CH32X035         2250 ///< WCH CH32X035
-#define OPT_MCU_CH32H417         2260 ///< WCH CH32H417
+#define OPT_MCU_CH32H41X         2260 ///< WCH CH32H41X
 
 // NXP LPC MCX
 #define OPT_MCU_MCXN9            2300  ///< NXP MCX N9 Series
@@ -245,6 +245,7 @@
 #define OPT_MODE_LOW_SPEED      0x0100u ///< Low Speed
 #define OPT_MODE_FULL_SPEED     0x0200u ///< Full Speed
 #define OPT_MODE_HIGH_SPEED     0x0400u ///< High Speed
+#define OPT_MODE_SUPER_SPEED    0x0800u ///< SuperSpeed
 #define OPT_MODE_SPEED_MASK     0xff00u
 
 //--------------------------------------------------------------------+
@@ -500,8 +501,9 @@
 // For backward compatible
 #define TUSB_OPT_DEVICE_ENABLED CFG_TUD_ENABLED
 
-// highspeed support indicator
-#define TUD_OPT_HIGH_SPEED    (CFG_TUD_MAX_SPEED ? (CFG_TUD_MAX_SPEED & OPT_MODE_HIGH_SPEED) : TUP_RHPORT_HIGHSPEED)
+// highspeed/superspeed support indicator
+#define TUD_OPT_SUPER_SPEED   (CFG_TUD_MAX_SPEED ? (CFG_TUD_MAX_SPEED & OPT_MODE_SUPER_SPEED) : TUP_RHPORT_SUPERSPEED)
+#define TUD_OPT_HIGH_SPEED    (TUD_OPT_SUPER_SPEED || (CFG_TUD_MAX_SPEED ? (CFG_TUD_MAX_SPEED & OPT_MODE_HIGH_SPEED) : TUP_RHPORT_HIGHSPEED))
 
 //------------- Root hub as Host -------------//
 
@@ -528,8 +530,9 @@
 // For backward compatible
 #define TUSB_OPT_HOST_ENABLED   CFG_TUH_ENABLED
 
-// highspeed support indicator
-#define TUH_OPT_HIGH_SPEED    (CFG_TUH_MAX_SPEED ? (CFG_TUH_MAX_SPEED & OPT_MODE_HIGH_SPEED) : TUP_RHPORT_HIGHSPEED)
+// highspeed/superspeed support indicator
+#define TUH_OPT_SUPER_SPEED   (CFG_TUH_MAX_SPEED ? (CFG_TUH_MAX_SPEED & OPT_MODE_SUPER_SPEED) : TUP_RHPORT_SUPERSPEED)
+#define TUH_OPT_HIGH_SPEED    (TUH_OPT_SUPER_SPEED || (CFG_TUH_MAX_SPEED ? (CFG_TUH_MAX_SPEED & OPT_MODE_HIGH_SPEED) : TUP_RHPORT_HIGHSPEED))
 
 
 //--------------------------------------------------------------------+
@@ -933,8 +936,12 @@
 //------------------------------------------------------------------
 // Configuration Validation
 //------------------------------------------------------------------
-#if CFG_TUD_ENDPOINT0_SIZE > 64
+#if !TUD_OPT_SUPER_SPEED && CFG_TUD_ENDPOINT0_SIZE > 64
   #error Control Endpoint Max Packet Size cannot be larger than 64
+#endif
+
+#if TUD_OPT_SUPER_SPEED && CFG_TUD_ENDPOINT0_SIZE != 512
+  #error SuperSpeed Control Endpoint Max Packet Size must be 512
 #endif
 
 // To avoid GCC compiler warnings when -pedantic option is used (strict ISO C)

@@ -16,6 +16,17 @@ set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/riscv_${TO
 set(FAMILY_MCUS CH32H417 CACHE INTERNAL "")
 set(OPENOCD_OPTION "-f ${CMAKE_CURRENT_LIST_DIR}/wch-dual-core.cfg -c noload")
 
+if (NOT DEFINED CFG_TUD_WCH_USBSS_DEBUG)
+  set(CFG_TUD_WCH_USBSS_DEBUG 1)
+endif ()
+
+set(CH32_USBIP_DEFS
+  CFG_TUD_WCH_USBIP_USBSS=1
+  CFG_TUD_WCH_USBSS_DEBUG=${CFG_TUD_WCH_USBSS_DEBUG}
+  BOARD_TUD_MAX_SPEED=OPT_MODE_SUPER_SPEED
+  CFG_TUD_ENDPOINT0_SIZE=512
+  )
+
 #------------------------------------
 # Startup & Linker script
 #------------------------------------
@@ -37,6 +48,7 @@ function(family_add_board BOARD_TARGET)
     ${SDK_SRC_DIR}/Peripheral/src/${CH32_FAMILY}_flash.c
     ${SDK_SRC_DIR}/Peripheral/src/${CH32_FAMILY}_gpio.c
     ${SDK_SRC_DIR}/Peripheral/src/${CH32_FAMILY}_rcc.c
+    ${SDK_SRC_DIR}/Peripheral/src/${CH32_FAMILY}_usart.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/system_${CH32_FAMILY}.c
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
@@ -46,6 +58,7 @@ function(family_add_board BOARD_TARGET)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
     )
   target_compile_definitions(${BOARD_TARGET} PUBLIC
+    ${CH32_USBIP_DEFS}
     )
 
   update_board(${BOARD_TARGET})
@@ -65,11 +78,12 @@ endfunction()
 #------------------------------------
 function(family_configure_example TARGET RTOS)
   family_configure_common(${TARGET} ${RTOS})
-  family_add_tinyusb(${TARGET} OPT_MCU_CH32H417)
+  family_add_tinyusb(${TARGET} OPT_MCU_CH32H41X)
 
   target_sources(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
+    ${TOP}/src/portable/wch/dcd_ch32_usbss.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
   target_include_directories(${TARGET} PUBLIC
