@@ -48,20 +48,20 @@ extern "C" {
 // Class Driver Configuration
 //--------------------------------------------------------------------+
 
-#ifndef CFG_TUD_MIDI2_TX_BUFSIZE
-  #define CFG_TUD_MIDI2_TX_BUFSIZE  256
-#endif
-
-#ifndef CFG_TUD_MIDI2_RX_BUFSIZE
-  #define CFG_TUD_MIDI2_RX_BUFSIZE  256
-#endif
-
 #ifndef CFG_TUD_MIDI2_TX_EPSIZE
   #define CFG_TUD_MIDI2_TX_EPSIZE   TUD_EPSIZE_BULK_MAX
 #endif
 
 #ifndef CFG_TUD_MIDI2_RX_EPSIZE
   #define CFG_TUD_MIDI2_RX_EPSIZE   TUD_EPSIZE_BULK_MAX
+#endif
+
+#ifndef CFG_TUD_MIDI2_TX_BUFSIZE
+  #define CFG_TUD_MIDI2_TX_BUFSIZE  (4 * CFG_TUD_MIDI2_TX_EPSIZE)
+#endif
+
+#ifndef CFG_TUD_MIDI2_RX_BUFSIZE
+  #define CFG_TUD_MIDI2_RX_BUFSIZE  (4 * CFG_TUD_MIDI2_RX_EPSIZE)
 #endif
 
 #ifndef CFG_TUD_MIDI2_NUM_GROUPS
