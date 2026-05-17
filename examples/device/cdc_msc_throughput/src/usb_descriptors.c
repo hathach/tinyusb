@@ -29,7 +29,7 @@
 // Unique PID per example: guarantees re-enumeration on re-flash and a fresh host driver match.
 #define USB_PID           0x4009
 #define USB_VID           0xCafe
-#define USB_BCD           0x0200
+#define USB_BCD           (TUD_OPT_SUPER_SPEED ? 0x0300 : 0x0200)
 
 static tusb_desc_device_t const desc_device = {
     .bLength            = sizeof(tusb_desc_device_t),
@@ -40,7 +40,7 @@ static tusb_desc_device_t const desc_device = {
     .bDeviceClass       = TUSB_CLASS_MISC,
     .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
     .bDeviceProtocol    = MISC_PROTOCOL_IAD,
-    .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
+    .bMaxPacketSize0    = TUD_OPT_SUPER_SPEED ? 9 : CFG_TUD_ENDPOINT0_SIZE,
 
     .idVendor           = USB_VID,
     .idProduct          = USB_PID,
@@ -96,7 +96,8 @@ enum {
   #define EPNUM_MSC_IN      0x83
 #endif
 
-#define CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_MSC_DESC_LEN)
+#define CONFIG_TOTAL_LEN     (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_MSC_DESC_LEN)
+#define CONFIG_TOTAL_LEN_SS  (CONFIG_TOTAL_LEN + 5 * TUD_SUPERSPEED_DESC_EP_COMPANION_LEN)
 
 static uint8_t const desc_fs_configuration[] = {
     TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
@@ -120,7 +121,7 @@ static tusb_desc_device_qualifier_t const desc_device_qualifier = {
     .bDeviceClass       = 0x00,
     .bDeviceSubClass    = 0x00,
     .bDeviceProtocol    = 0x00,
-    .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
+    .bMaxPacketSize0    = TUD_OPT_SUPER_SPEED ? 64 : CFG_TUD_ENDPOINT0_SIZE,
     .bNumConfigurations = 0x01,
     .bReserved          = 0x00,
 };
@@ -139,9 +140,63 @@ uint8_t const *tud_descriptor_other_speed_configuration_cb(uint8_t index) {
 }
 #endif
 
+#if TUD_OPT_SUPER_SPEED
+static uint8_t const desc_ss_configuration[] = {
+    TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN_SS, 0x00, 100),
+
+    // Interface Associate
+    8, TUSB_DESC_INTERFACE_ASSOCIATION, ITF_NUM_CDC, 2, TUSB_CLASS_CDC,
+    CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL, CDC_COMM_PROTOCOL_NONE, 0,
+
+    // CDC Control Interface
+    9, TUSB_DESC_INTERFACE, ITF_NUM_CDC, 0, 1, TUSB_CLASS_CDC,
+    CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL, CDC_COMM_PROTOCOL_NONE, 4,
+    5, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_HEADER, U16_TO_U8S_LE(0x0120),
+    5, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_CALL_MANAGEMENT, 0, ITF_NUM_CDC_DATA,
+    4, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT, 6,
+    5, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_UNION, ITF_NUM_CDC, ITF_NUM_CDC_DATA,
+
+    // CDC notification endpoint
+    7, TUSB_DESC_ENDPOINT, EPNUM_CDC_NOTIF, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(16), 4,
+    TUD_SUPERSPEED_DESC_EP_COMPANION(0, 0, 16),
+
+    // CDC Data Interface
+    9, TUSB_DESC_INTERFACE, ITF_NUM_CDC_DATA, 0, 2, TUSB_CLASS_CDC_DATA, 0, 0, 0,
+    7, TUSB_DESC_ENDPOINT, EPNUM_CDC_OUT, TUSB_XFER_BULK, U16_TO_U8S_LE(1024), 0,
+    TUD_SUPERSPEED_DESC_EP_COMPANION(0, 0, 0),
+    7, TUSB_DESC_ENDPOINT, EPNUM_CDC_IN, TUSB_XFER_BULK, U16_TO_U8S_LE(1024), 0,
+    TUD_SUPERSPEED_DESC_EP_COMPANION(0, 0, 0),
+
+    // MSC Interface
+    9, TUSB_DESC_INTERFACE, ITF_NUM_MSC, 0, 2, TUSB_CLASS_MSC, MSC_SUBCLASS_SCSI, MSC_PROTOCOL_BOT, 5,
+    7, TUSB_DESC_ENDPOINT, EPNUM_MSC_OUT, TUSB_XFER_BULK, U16_TO_U8S_LE(1024), 0,
+    TUD_SUPERSPEED_DESC_EP_COMPANION(0, 0, 0),
+    7, TUSB_DESC_ENDPOINT, EPNUM_MSC_IN, TUSB_XFER_BULK, U16_TO_U8S_LE(1024), 0,
+    TUD_SUPERSPEED_DESC_EP_COMPANION(0, 0, 0),
+};
+
+#define BOS_TOTAL_LEN (TUD_BOS_DESC_LEN + TUD_BOS_USB20_EXT_DESC_LEN + TUD_BOS_SUPERSPEED_USB_DESC_LEN)
+
+static uint8_t const desc_bos[] = {
+    TUD_BOS_DESCRIPTOR(BOS_TOTAL_LEN, 2),
+    TUD_BOS_USB20_EXT_DESCRIPTOR(0x00000002),
+    TUD_BOS_SUPERSPEED_USB_DESCRIPTOR(0, 0x000e, 1, 0x0a, 0x07ff),
+};
+
+uint8_t const *tud_descriptor_bos_cb(void) {
+  return desc_bos;
+}
+#endif
+
 uint8_t const *tud_descriptor_configuration_cb(uint8_t index) {
   (void) index;
 #if TUD_OPT_HIGH_SPEED
+  #if TUD_OPT_SUPER_SPEED
+  if (tud_speed_get() == TUSB_SPEED_SUPER) {
+    return desc_ss_configuration;
+  }
+  #endif
+
   return (tud_speed_get() == TUSB_SPEED_HIGH) ? desc_hs_configuration : desc_fs_configuration;
 #else
   return desc_fs_configuration;
