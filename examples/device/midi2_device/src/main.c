@@ -252,7 +252,7 @@ static inline void midi1_pkt_send(uint8_t cable, uint8_t cin,
     (uint8_t)(((cable & 0x0F) << 4) | (cin & 0x0F)),
     status, data1, data2
   };
-  tud_midi2_packet_write(packet);
+  (void) tud_midi2_packet_write(packet, 1);
 }
 
 static inline void midi1_pkt_note_on(uint8_t cable, uint8_t channel,
