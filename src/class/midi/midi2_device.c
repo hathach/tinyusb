@@ -635,6 +635,53 @@ bool midi2d_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_re
   }
 }
 
+// Drain whole UMP packets from the TX FIFO into the EP buffer, capped at
+// wMaxPacketSize. Needed when CFG_TUD_MIDI2_TX_BUFSIZE > mps: the FIFO can
+// then hold more bytes than fit in a single USB transfer, and a blind
+// tu_edpt_stream_write_xfer would split a UMP across two transfers.
+static void midi2d_flush_tx_boundary_aware(midi2d_interface_t* p_midi, uint32_t last_xferred) {
+  tu_edpt_stream_t* ep_tx = &p_midi->ep_stream.tx;
+  const uint16_t   mps      = ep_tx->mps;
+  const uint16_t   ff_count = tu_fifo_count(&ep_tx->ff);
+
+  if (ff_count == 0) {
+    (void) tu_edpt_stream_write_zlp_if_needed(ep_tx, last_xferred);
+    return;
+  }
+  if (ff_count <= mps) {
+    // Whole FIFO fits in one transfer; the stream API drain is safe.
+    (void) tu_edpt_stream_write_xfer(ep_tx);
+    return;
+  }
+  if (ep_tx->ep_buf == NULL) {
+    // HWFIFO mode: relies on CFG_TUD_MIDI2_TX_BUFSIZE <= mps for UMP integrity.
+    (void) tu_edpt_stream_write_xfer(ep_tx);
+    return;
+  }
+
+  // ff_count > mps and a local EP buffer is available: drain only whole UMP
+  // packets up to mps to preserve packet boundaries on the USB wire.
+  uint8_t  word_bytes[4];
+  uint8_t* buf   = ep_tx->ep_buf;
+  uint16_t bytes = 0;
+  while (bytes < mps) {
+    if (tu_fifo_count(&ep_tx->ff) < 4) break;
+    if (4 != tu_fifo_peek_n(&ep_tx->ff, word_bytes, 4)) break;
+    uint8_t  mt        = (uint8_t)((word_bytes[3] >> 4) & 0x0F);
+    uint8_t  pkt_words = midi2_ump_word_count(mt);
+    uint16_t pkt_bytes = (uint16_t)(pkt_words * 4);
+    if (tu_fifo_count(&ep_tx->ff) < pkt_bytes) break;
+    if (bytes + pkt_bytes > mps) break;
+    tu_fifo_read_n(&ep_tx->ff, buf + bytes, pkt_bytes);
+    bytes = (uint16_t)(bytes + pkt_bytes);
+  }
+  if (bytes == 0) return;
+  if (!usbd_edpt_claim(p_midi->rhport, ep_tx->ep_addr)) return;
+  if (!usbd_edpt_xfer(p_midi->rhport, ep_tx->ep_addr, buf, bytes, false)) {
+    usbd_edpt_release(p_midi->rhport, ep_tx->ep_addr);
+  }
+}
+
 bool midi2d_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
   (void) rhport;
 
@@ -655,9 +702,7 @@ bool midi2d_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
     }
     tu_edpt_stream_read_xfer(ep_rx);
   } else if (ep_addr == ep_tx->ep_addr && result == XFER_RESULT_SUCCESS) {
-    if (0 == tu_edpt_stream_write_xfer(ep_tx)) {
-      (void) tu_edpt_stream_write_zlp_if_needed(ep_tx, xferred_bytes);
-    }
+    midi2d_flush_tx_boundary_aware(p_midi, xferred_bytes);
   } else {
     return false;
   }

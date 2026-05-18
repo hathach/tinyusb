@@ -455,6 +455,44 @@ void midih2_close(uint8_t dev_addr) {
   }
 }
 
+// Drain whole UMP packets from the TX FIFO into the EP buffer, capped at
+// wMaxPacketSize. Needed when CFG_TUH_MIDI2_TX_BUFSIZE > mps to keep UMP
+// packets from crossing USB transfer boundaries.
+static void midih2_flush_tx_boundary_aware(midih2_interface_t* p_midi, uint32_t last_xferred) {
+  tu_edpt_stream_t* ep_tx = &p_midi->ep_stream.tx;
+  const uint16_t   mps      = ep_tx->mps;
+  const uint16_t   ff_count = tu_fifo_count(&ep_tx->ff);
+
+  if (ff_count == 0) {
+    (void) tu_edpt_stream_write_zlp_if_needed(ep_tx, last_xferred);
+    return;
+  }
+  if (ff_count <= mps || ep_tx->ep_buf == NULL) {
+    (void) tu_edpt_stream_write_xfer(ep_tx);
+    return;
+  }
+
+  uint8_t  word_bytes[4];
+  uint8_t* buf   = ep_tx->ep_buf;
+  uint16_t bytes = 0;
+  while (bytes < mps) {
+    if (tu_fifo_count(&ep_tx->ff) < 4) break;
+    if (4 != tu_fifo_peek_n(&ep_tx->ff, word_bytes, 4)) break;
+    uint8_t  mt        = (uint8_t)((word_bytes[3] >> 4) & 0x0F);
+    uint8_t  pkt_words = midi2_ump_word_count(mt);
+    uint16_t pkt_bytes = (uint16_t)(pkt_words * 4);
+    if (tu_fifo_count(&ep_tx->ff) < pkt_bytes) break;
+    if (bytes + pkt_bytes > mps) break;
+    tu_fifo_read_n(&ep_tx->ff, buf + bytes, pkt_bytes);
+    bytes = (uint16_t)(bytes + pkt_bytes);
+  }
+  if (bytes == 0) return;
+  if (!usbh_edpt_claim(p_midi->daddr, ep_tx->ep_addr)) return;
+  if (!usbh_edpt_xfer(p_midi->daddr, ep_tx->ep_addr, buf, bytes)) {
+    usbh_edpt_release(p_midi->daddr, ep_tx->ep_addr);
+  }
+}
+
 bool midih2_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
   uint8_t idx = get_idx_by_ep_addr(dev_addr, ep_addr);
   TU_VERIFY(idx < CFG_TUH_MIDI2);
@@ -469,8 +507,8 @@ bool midih2_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uin
     tu_edpt_stream_read_xfer(&p_midi->ep_stream.rx);
   } else if (ep_addr == p_midi->ep_stream.tx.ep_addr) {
     tuh_midi2_tx_cb(idx, xferred_bytes);
-    if (0 == tu_edpt_stream_write_xfer(&p_midi->ep_stream.tx)) {
-      tu_edpt_stream_write_zlp_if_needed(&p_midi->ep_stream.tx, xferred_bytes);
+    if (result == XFER_RESULT_SUCCESS) {
+      midih2_flush_tx_boundary_aware(p_midi, xferred_bytes);
     }
   }
 
