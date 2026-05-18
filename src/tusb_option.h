@@ -98,6 +98,7 @@
 #define OPT_MCU_STM32N6           319 ///< ST N6
 #define OPT_MCU_STM32WBA          320 ///< ST WBA
 #define OPT_MCU_STM32U3           321 ///< ST U3
+#define OPT_MCU_STM32C5           322 ///< ST C5
 
 // Sony
 #define OPT_MCU_CXD56             400 ///< SONY CXD56

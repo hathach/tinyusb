@@ -68,6 +68,7 @@ family_list = {
     "samd5x_e5x": ["arm-gcc", "arm-clang"],
     "samg": ["arm-gcc", "arm-clang"],
     "stm32c0": ["arm-gcc", "arm-clang", "arm-iar"],
+    "stm32c5": ["arm-gcc", "arm-clang", "arm-iar"],
     "stm32f0": ["arm-gcc", "arm-clang", "arm-iar"],
     "stm32f1": ["arm-gcc", "arm-clang", "arm-iar"],
     "stm32f2": ["arm-gcc", "arm-clang", "arm-iar"],
