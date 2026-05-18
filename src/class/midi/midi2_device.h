@@ -130,8 +130,8 @@ uint8_t  tud_midi2_n_protocol(uint8_t itf);
 uint32_t tud_midi2_n_ump_read(uint8_t itf, uint32_t* words, uint32_t max_words);
 uint32_t tud_midi2_n_ump_write(uint8_t itf, const uint32_t* words, uint32_t count);
 
-bool     tud_midi2_n_packet_read(uint8_t itf, uint8_t packet[4]);
-bool     tud_midi2_n_packet_write(uint8_t itf, const uint8_t packet[4]);
+uint32_t tud_midi2_n_packet_read(uint8_t itf, uint8_t packets[], uint32_t max_packets);
+uint32_t tud_midi2_n_packet_write(uint8_t itf, const uint8_t packets[], uint32_t count);
 
 //--------------------------------------------------------------------+
 // Application API (Single Interface)
@@ -166,12 +166,14 @@ tud_midi2_ump_write(const uint32_t* words, uint32_t count) {
   return tud_midi2_n_ump_write(0, words, count);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline bool tud_midi2_packet_read(uint8_t packet[4]) {
-  return tud_midi2_n_packet_read(0, packet);
+TU_ATTR_ALWAYS_INLINE static inline uint32_t
+tud_midi2_packet_read(uint8_t packets[], uint32_t max_packets) {
+  return tud_midi2_n_packet_read(0, packets, max_packets);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline bool tud_midi2_packet_write(const uint8_t packet[4]) {
-  return tud_midi2_n_packet_write(0, packet);
+TU_ATTR_ALWAYS_INLINE static inline uint32_t
+tud_midi2_packet_write(const uint8_t packets[], uint32_t count) {
+  return tud_midi2_n_packet_write(0, packets, count);
 }
 
 //--------------------------------------------------------------------+

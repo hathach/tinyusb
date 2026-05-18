@@ -64,8 +64,8 @@ I/O Functions
 
    uint32_t tud_midi2_ump_read(uint32_t* words, uint32_t max_words);
    uint32_t tud_midi2_ump_write(const uint32_t* words, uint32_t count);
-   bool     tud_midi2_packet_read(uint8_t packet[4]);
-   bool     tud_midi2_packet_write(const uint8_t packet[4]);
+  uint32_t tud_midi2_packet_read(uint8_t packets[], uint32_t max_packets);
+  uint32_t tud_midi2_packet_write(const uint8_t packets[], uint32_t count);
 
 Callbacks
 ^^^^^^^^^
