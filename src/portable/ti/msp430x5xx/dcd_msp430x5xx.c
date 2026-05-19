@@ -242,7 +242,7 @@ void dcd_sof_enable(uint8_t rhport, bool en)
 /* DCD Endpoint port
  *------------------------------------------------------------------*/
 
-bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
+bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt, uint8_t const * desc_end TU_ATTR_UNUSED)
 {
   (void) rhport;
 

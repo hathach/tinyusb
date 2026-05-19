@@ -368,7 +368,7 @@ uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
     tusb_desc_endpoint_t const* desc_ep = (tusb_desc_endpoint_t const*) p_desc;
     TU_ASSERT(tu_desc_in_bounds((uint8_t const*) desc_ep, desc_end) && TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType &&
               TUSB_XFER_BULK == desc_ep->bmAttributes.xfer, 0);
-    TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
+    TU_ASSERT(usbd_edpt_open(rhport, desc_ep, desc_end), 0);
 
     if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
       p_msc->ep_in = desc_ep->bEndpointAddress;

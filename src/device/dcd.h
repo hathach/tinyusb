@@ -134,7 +134,7 @@ void dcd_enter_test_mode(uint8_t rhport, tusb_feature_test_mode_t test_selector)
 void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * request);
 
 // Configure endpoint's registers according to descriptor
-bool dcd_edpt_open            (uint8_t rhport, tusb_desc_endpoint_t const * desc_ep);
+bool dcd_edpt_open            (uint8_t rhport, tusb_desc_endpoint_t const * desc_ep, uint8_t const * desc_end);
 
 // Close all non-control endpoints, cancel all pending transfers if any.
 // Invoked when switching from a non-zero Configuration by SET_CONFIGURE therefore

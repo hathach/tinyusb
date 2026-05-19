@@ -900,7 +900,7 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16
 
   // get notification endpoint
   TU_ASSERT(tu_desc_in_bounds(p_desc, desc_end) && tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT, 0);
-  TU_ASSERT(usbd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc), 0);
+  TU_ASSERT(usbd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc, desc_end), 0);
   ncm_interface.ep_notif = ((tusb_desc_endpoint_t const *) p_desc)->bEndpointAddress;
   p_desc = tu_desc_next(p_desc);
   p_desc = tu_desc_skip_ss_ep_companion(p_desc, desc_end);
@@ -918,7 +918,7 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16
     tusb_desc_endpoint_t const *desc_ep = (tusb_desc_endpoint_t const *) p_desc;
     TU_ASSERT(tu_desc_in_bounds(p_desc, desc_end) && tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT &&
               desc_ep->bmAttributes.xfer == TUSB_XFER_BULK, 0);
-    TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
+    TU_ASSERT(usbd_edpt_open(rhport, desc_ep, desc_end), 0);
 
     if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
       ncm_interface.ep_in = desc_ep->bEndpointAddress;

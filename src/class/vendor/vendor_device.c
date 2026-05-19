@@ -796,7 +796,7 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uin
       }
   #endif
 
-      TU_ASSERT(usbd_edpt_open(rhport, desc_ep));
+      TU_ASSERT(usbd_edpt_open(rhport, desc_ep, desc_end));
 
       uint16_t rx_xfer_len = CFG_TUD_VENDOR_RX_NEED_ZLP ? CFG_TUD_VENDOR_RX_EPSIZE : tu_edpt_packet_size(desc_ep);
 

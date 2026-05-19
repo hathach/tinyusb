@@ -665,7 +665,6 @@
   #define TUP_RHPORT_SUPERSPEED CFG_TUD_WCH_USBIP_USBSS
   #define TUP_DCD_ENDPOINT_MAX 8
   #define TUP_DCD_EDPT_CLOSE_API
-
 //--------------------------------------------------------------------+
 // Analog Devices
 //--------------------------------------------------------------------+

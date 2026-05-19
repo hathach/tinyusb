@@ -417,7 +417,7 @@ static void qhd_init(dcd_qhd_t *p_qhd, uint16_t max_packet_size, uint8_t iso_mul
   dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
 }
 
-bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *endpoint_desc) {
+bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *endpoint_desc, uint8_t const * desc_end TU_ATTR_UNUSED) {
   ci_hs_regs_t *dcd_reg   = CI_HS_REG(rhport);
   const uint8_t epnum     = tu_edpt_number(endpoint_desc->bEndpointAddress);
   const uint8_t dir       = tu_edpt_dir(endpoint_desc->bEndpointAddress);

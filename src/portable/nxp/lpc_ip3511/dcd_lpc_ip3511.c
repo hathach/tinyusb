@@ -385,7 +385,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   _dcd.ep[ep_id][0].cmd_sts.rf_tv        = 0;
 }
 
-bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
+bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc, uint8_t const * desc_end TU_ATTR_UNUSED)
 {
   //------------- Prepare Queue Head -------------//
   uint8_t ep_id = ep_addr2id(p_endpoint_desc->bEndpointAddress);

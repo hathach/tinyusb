@@ -40,7 +40,6 @@
 
 #define EP_MAX                8u
 #define EP0_STATUS_IDLE       0xffu
-// TODO: Derive this from the SuperSpeed endpoint companion MaxBurst field when descriptors advertise bursts.
 #define EP_CHAIN_PACKET_LIMIT 1u
 
 #define USBSS_PHY_CFG_CR      (*((__IO uint32_t *)0x400341f8))
@@ -64,6 +63,7 @@ typedef struct {
   uint16_t total_len;
   uint16_t queued_len;
   uint16_t max_size;
+  uint8_t  max_burst;
 } xfer_ctl_t;
 
 typedef struct {
@@ -667,7 +667,7 @@ void dcd_edpt_close_all(uint8_t rhport) {
   }
 }
 
-bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt) {
+bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt, uint8_t const * desc_end) {
   (void)rhport;
 
   const uint8_t    ep_num = tu_edpt_number(desc_edpt->bEndpointAddress);
@@ -680,6 +680,13 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt) {
 
   xfer_ctl_t *xfer = xfer_ctl(ep_num, dir);
   xfer->max_size = tu_edpt_packet_size(desc_edpt);
+  xfer->max_burst = 0;
+
+  uint8_t const *desc_next = tu_desc_next(desc_edpt);
+  if (tu_desc_in_bounds(desc_next, desc_end) && TUSB_DESC_SUPERSPEED_ENDPOINT_COMPANION == tu_desc_type(desc_next)) {
+    xfer->max_burst = desc_next[2];
+  }
+
   const bool is_iso = desc_edpt->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS;
 
   if (dir == TUSB_DIR_IN) {

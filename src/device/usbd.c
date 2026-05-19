@@ -1535,13 +1535,13 @@ void usbd_spin_unlock(bool in_isr) {
 }
 
 // Parse consecutive endpoint descriptors (IN & OUT)
-bool usbd_open_edpt_pair(uint8_t rhport, const uint8_t *p_desc, uint8_t ep_count, uint8_t xfer_type, uint8_t *ep_out,
-                         uint8_t *ep_in) {
+bool usbd_open_edpt_pair(uint8_t rhport, const uint8_t *p_desc, uint8_t const *desc_end, uint8_t ep_count,
+                         uint8_t xfer_type, uint8_t *ep_out, uint8_t *ep_in) {
   for (int i = 0; i < ep_count; i++) {
     const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
 
     TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && xfer_type == desc_ep->bmAttributes.xfer);
-    TU_ASSERT(usbd_edpt_open(rhport, desc_ep));
+    TU_ASSERT(usbd_edpt_open(rhport, desc_ep, desc_end));
 
     if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
       (*ep_in) = desc_ep->bEndpointAddress;
@@ -1550,6 +1550,7 @@ bool usbd_open_edpt_pair(uint8_t rhport, const uint8_t *p_desc, uint8_t ep_count
     }
 
     p_desc = tu_desc_next(p_desc);
+    p_desc = tu_desc_skip_ss_ep_companion(p_desc, desc_end);
   }
 
   return true;
@@ -1571,13 +1572,13 @@ void usbd_defer_func(osal_task_func_t func, void* param, bool in_isr) {
 // USBD Endpoint API
 //--------------------------------------------------------------------+
 
-bool usbd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const* desc_ep) {
+bool usbd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const* desc_ep, uint8_t const *desc_end) {
   rhport = _usbd_rhport;
 
   TU_ASSERT(tu_edpt_number(desc_ep->bEndpointAddress) < CFG_TUD_ENDPPOINT_MAX);
   TU_ASSERT(tu_edpt_validate(desc_ep, (tusb_speed_t)_usbd_dev.speed));
 
-  return dcd_edpt_open(rhport, desc_ep);
+  return dcd_edpt_open(rhport, desc_ep, desc_end);
 }
 
 bool usbd_edpt_claim(uint8_t rhport, uint8_t ep_addr) {

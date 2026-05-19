@@ -226,7 +226,7 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * re
 // Configure endpoint's registers according to descriptor
 // SAMG doesn't support a same endpoint number with IN and OUT
 //    e.g EP1 OUT & EP1 IN cannot exist together
-bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
+bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc, uint8_t const * desc_end TU_ATTR_UNUSED)
 {
   (void) rhport;
 
