@@ -103,9 +103,7 @@ void board_init(void) {
   SystemInit();
   SystemAndCoreClockUpdate();
 
-#if CFG_TUSB_DEBUG || (defined(CFG_TUD_WCH_USBSS_DEBUG) && CFG_TUD_WCH_USBSS_DEBUG)
   uart_init();
-#endif
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   systick_config(SystemCoreClock / 1000);
