@@ -353,11 +353,14 @@ static void handle_ep0_in(uint8_t rhport) {
 static void handle_ep0_out(uint8_t rhport) {
   xfer_ctl_t    *xfer   = xfer_ctl(0, TUSB_DIR_OUT);
   const uint16_t rx_len = (uint16_t)(USBSSD->UEP0_RX_CTRL & USBSS_EP0_RX_LEN_MASK);
+  const uint16_t remaining = (uint16_t)(xfer->total_len - xfer->queued_len);
+  const uint16_t copy_len = tu_min16(rx_len, remaining);
 
-  if (rx_len > 0 && xfer->buffer != NULL) {
-    memcpy(&xfer->buffer[xfer->queued_len], ep0_buffer, rx_len);
+  if (copy_len > 0 && xfer->buffer != NULL) {
+    // TODO: Treat rx_len > remaining as a control transfer protocol error instead of silently truncating.
+    memcpy(&xfer->buffer[xfer->queued_len], ep0_buffer, copy_len);
   }
-  xfer->queued_len = (uint16_t)(xfer->queued_len + rx_len);
+  xfer->queued_len = (uint16_t)(xfer->queued_len + copy_len);
   ep0_rx_ready();
 
   if (xfer->queued_len >= xfer->total_len || rx_len < xfer->max_size) {
@@ -468,6 +471,12 @@ static void handle_link_irq(uint8_t rhport) {
     USBSSD->LINK_INT_FLAG = LINK_IF_STATE_CHG;
 
     if (link_state == LINK_STATE_RXDET) {
+      protocol_reset();
+      endpoints_reset();
+      usbss_set_address(0);
+      _dcd.dev_addr = 0;
+      _dcd.set_addr_pending = false;
+      _dcd.ep0_status_ep = EP0_STATUS_IDLE;
       _dcd.link_configured = false;
       _dcd.link_low_power = false;
       _dcd.link_reset_seen = false;
