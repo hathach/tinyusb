@@ -313,7 +313,7 @@ void dcd_remote_wakeup(uint8_t rhport)
   USBD->OPER |= USBD_OPER_RESUMEEN_Msk;
 }
 
-bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
+bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc, uint8_t const * desc_end TU_ATTR_UNUSED)
 {
   (void) rhport;
 

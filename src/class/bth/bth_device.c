@@ -109,6 +109,7 @@ void btd_reset(uint8_t rhport) {
 
 uint16_t btd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_t max_len) {
   tusb_desc_endpoint_t const *desc_ep;
+  uint8_t const *desc_end = (uint8_t const *)itf_desc + max_len;
   uint16_t drv_len = 0;
   // Size of single alternative of ISO interface
   const uint16_t iso_alt_itf_size = sizeof(tusb_desc_interface_t) + 2 * sizeof(tusb_desc_endpoint_t);
@@ -127,13 +128,13 @@ uint16_t btd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_
   desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next(itf_desc);
 
   TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_INTERRUPT == desc_ep->bmAttributes.xfer, 0);
-  TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
+  TU_ASSERT(usbd_edpt_open(rhport, desc_ep, desc_end), 0);
   _btd_itf.ep_ev = desc_ep->bEndpointAddress;
 
   desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep);
 
   // Open endpoint pair
-  TU_ASSERT(usbd_open_edpt_pair(rhport, (uint8_t const *) desc_ep, 2,
+  TU_ASSERT(usbd_open_edpt_pair(rhport, (uint8_t const *) desc_ep, desc_end, 2,
                                 TUSB_XFER_BULK, &_btd_itf.ep_acl_out,
                                 &_btd_itf.ep_acl_in),
             0);
