@@ -354,7 +354,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   if (dir == TUSB_DIR_OUT) {
     EP_RX_CTRL(ep_num) = USBHS_EP_R_RES_STALL;
   } else {
-    EP_TX_LEN(0)       = 0;
+    EP_TX_LEN(ep_num) = 0;
     EP_TX_CTRL(ep_num) = USBHS_EP_T_RES_STALL;
   }
 }
