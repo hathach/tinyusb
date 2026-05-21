@@ -796,6 +796,10 @@ def test_host_msc_file_explorer(board):
     ser.close()
 
 
+def test_host_msc_file_explorer_freertos(board):
+    return test_host_msc_file_explorer(board)
+
+
 # -------------------------------------------------------------
 # Tests: device
 # -------------------------------------------------------------
@@ -1465,6 +1469,7 @@ dual_tests = [
 host_test = [
     'host/cdc_msc_hid',
     'host/msc_file_explorer',
+    'host/msc_file_explorer_freertos',
     'host/device_info',
 ]
 
