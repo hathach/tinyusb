@@ -186,9 +186,12 @@ void dcd_int_handler(uint8_t rhport) {
       case PID_SETUP:
         // setup clears stall
         EP_TX_CTRL(0) = USBFS_EP_T_RES_NAK;
-        EP_RX_CTRL(0) = USBFS_EP_R_RES_ACK;
-
         data.ep0_tog = true;
+
+        tusb_control_request_t const* setup =
+            (tusb_control_request_t const*) &data.buffer[0][TUSB_DIR_OUT][0];
+        EP_RX_CTRL(0) = (setup->wLength == 0) ? USBFS_EP_R_RES_ACK : USBFS_EP_R_RES_NAK;
+
         dcd_event_setup_received(rhport, &data.buffer[0][TUSB_DIR_OUT][0], true);
         break;
     }
