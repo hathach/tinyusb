@@ -125,6 +125,16 @@ static void update_out(uint8_t rhport, uint8_t ep, size_t rx_len) {
   }
 }
 
+static void reset_ep_ctrls(void) {
+  for (uint8_t ep = 1; ep < EP_MAX; ep++) {
+    EP_DMA(ep) = (uint32_t) &data.buffer[ep][0];
+    EP_TX_LEN(ep) = 0;
+    EP_TX_CTRL(ep) = USBFS_EP_T_AUTO_TOG | USBFS_EP_T_RES_NYET;
+    EP_RX_CTRL(ep) = USBFS_EP_R_AUTO_TOG | USBFS_EP_R_RES_NYET;
+  }
+  EP_DMA(3) = (uint32_t) &data.ep3_buffer.out[0];
+}
+
 /* public functions */
 bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rh_init;
@@ -148,13 +158,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   USBOTG_FS->UEP5_6_MOD = 0xCC;
   USBOTG_FS->UEP7_MOD = 0x0C;
 
-  for (uint8_t ep = 1; ep < EP_MAX; ep++) {
-    EP_DMA(ep) = (uint32_t) &data.buffer[ep][0];
-    EP_TX_LEN(ep) = 0;
-    EP_TX_CTRL(ep) = USBFS_EP_T_AUTO_TOG | USBFS_EP_T_RES_NAK;
-    EP_RX_CTRL(ep) = USBFS_EP_R_AUTO_TOG | USBFS_EP_R_RES_NAK;
-  }
-  EP_DMA(3) = (uint32_t) &data.ep3_buffer.out[0];
+  reset_ep_ctrls();
 
   dcd_connect(rhport);
 
@@ -200,6 +204,8 @@ void dcd_int_handler(uint8_t rhport) {
 
     USBOTG_FS->DEV_ADDR = 0x00;
     EP_RX_CTRL(0) = USBFS_EP_R_RES_ACK;
+
+    reset_ep_ctrls();
 
     USBOTG_FS->INT_FG = USBFS_INT_FG_BUS_RST;
   } else if (status & USBFS_INT_FG_SUSPEND) {
