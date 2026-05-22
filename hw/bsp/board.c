@@ -171,7 +171,7 @@ int board_getchar(void) {
 }
 
 int board_putchar(int c) {
-  if (board_uart_write((const char *)&c, 1)) {
+  if (board_uart_write((const char *)&c, 1) > 0) {
     return c;
   } else {
     return -1;

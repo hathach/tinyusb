@@ -8,7 +8,6 @@ function(tinyusb_sources_get OUTPUT_VAR)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/common/tusb_fifo.c
     # device
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/device/usbd.c
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/device/usbd_control.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/audio/audio_device.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/cdc/cdc_device.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/dfu/dfu_device.c

@@ -16,6 +16,7 @@ set(EXAMPLE_LIST
   cdc_dual_ports
   cdc_msc
   cdc_msc_freertos
+  cdc_msc_throughput
   cdc_uac2
   dfu
   dfu_runtime

@@ -1,428 +1,217 @@
 # TinyUSB Agent Instructions
 
-TinyUSB is an open-source cross-platform USB Host/Device stack for embedded systems, designed to be memory-safe with no
-dynamic allocation and thread-safe with all interrupt events deferred to non-ISR task functions.
+TinyUSB is a cross-platform USB Host/Device stack for embedded systems: memory-safe (no dynamic allocation) and thread-safe (ISR events deferred to task context).
 
-Always reference these instructions first and fallback to search or bash commands only when you encounter unexpected
-information that does not match the info here.
+Reference these instructions first; fall back to search/bash only when reality diverges.
 
-## Shared Ground Rules
-- Keep TinyUSB memory-safe: avoid dynamic allocation, defer ISR work to task context, and follow C99 with two-space indentation/no tabs.
-- Match file organization: core stack under `src`, MCU/BSP support in `hw/{mcu,bsp}`, examples under `examples/{device,host,dual}`, docs in `docs`, tests under `test/{unit-test,fuzz,hil}`.
-- Use descriptive snake_case for helpers, reserve `tud_`/`tuh_` for public APIs, `TU_` for macros, and keep headers self-contained with `#if CFG_TUSB_MCU` guards where needed.
-- Prefer `.clang-format` for C/C++ formatting, run `pre-commit run --all-files` before submitting, and document board/HIL coverage when applicable.
-- Commit in imperative mood, keep changes scoped, and supply PRs with linked issues plus test/build evidence.
+## Behavioral Guidelines
 
+Bias toward caution over speed. For trivial tasks, use judgment.
 
-## Bootstrap and Build Setup
+- **Think first** — state assumptions; ask if unclear; present alternatives instead of picking silently.
+- **Simplicity** — no features, abstractions, flexibility, or error handling beyond what was asked. If 200 lines could be 50, rewrite.
+- **Surgical changes** — touch only what the task requires; match existing style; don't refactor working code; mention unrelated dead code rather than deleting it. Remove only orphans *your* changes created.
+- **Goal-driven** — turn tasks into verifiable goals ("write failing test, make it pass"). For multi-step work, state a brief `step → verify` plan.
 
-- Install ARM GCC toolchain: `sudo apt-get update && sudo apt-get install -y gcc-arm-none-eabi`
-- Fetch core dependencies: `python3 tools/get_deps.py` -- takes <1 second. NEVER CANCEL.
-- For specific board families: `python3 tools/get_deps.py FAMILY_NAME` (e.g., rp2040, stm32f4), or
-  `python3 tools/get_deps.py -b BOARD_NAME`
-- Dependencies are cached in `lib/` and `hw/mcu/` directories
-- For **Espressif** boards, initialize the ESP-IDF environment before any build/flash/monitor command:
-  `. $HOME/code/esp-idf/export.sh`
+## Ground Rules
 
-## Build Examples
+- **Language/style:** C99, 2-space indent (no tabs), snake_case helpers, `UPPER_CASE` macros. Public APIs use `tud_`/`tuh_`; macros use `TU_`. Headers self-contained with `#if CFG_TUSB_MCU` guards.
+- **Safety:** no dynamic allocation; defer ISR work to task context; use `TU_ASSERT()` for error checks; always check return values; include order: C stdlib → tusb common → drivers → classes.
+- **Layout:** `src/` core, `hw/{mcu,bsp}/` MCU+BSP, `examples/{device,host,dual}/`, `test/{unit-test,fuzz,hil}/`, `docs/`, `tools/`.
+- **Commits/PRs:** imperative mood, scoped changes, link issues, include test/build evidence.
+- **Formatting/lint:** `clang-format` (`.clang-format`), `codespell` (`.codespellrc`), run `pre-commit run --all-files` before submitting.
 
-Choose ONE of these approaches:
-**Option 1: Individual Example with CMake and Ninja (RECOMMENDED)**
+## Bootstrap
 
 ```bash
-cd examples/device/cdc_msc
-mkdir -p build && cd build
+sudo apt-get install -y gcc-arm-none-eabi          # ARM toolchain (2-5 min, one-time)
+python3 tools/get_deps.py [FAMILY|-b BOARD]        # fetch deps into lib/, hw/mcu/ (<1 s)
+. $HOME/code/esp-idf/export.sh                     # Espressif only: before any build/flash/monitor
+```
+
+## Build
+
+Single example (CMake+Ninja, recommended, 1-3 s):
+```bash
+cd examples/device/cdc_msc && mkdir -p build && cd build
 cmake -DBOARD=raspberry_pi_pico -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel ..
 cmake --build .
 ```
 
--- takes 1-2 seconds. NEVER CANCEL. Set timeout to 5+ minutes.
-
-**Option 2: All Examples for a Board**
-
-different folder than Option 1
-
+All examples for a board (15-20 s; some objcopy failures are non-critical). Use `cmake-build-<board>` as the build dir — HIL tests expect that exact name:
 ```bash
-cd examples/
-mkdir -p build && cd build
-cmake -DBOARD=raspberry_pi_pico -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel ..
-cmake --build .
+cd examples
+cmake -B cmake-build-raspberry_pi_pico -DBOARD=raspberry_pi_pico -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel .
+cmake --build cmake-build-raspberry_pi_pico
 ```
 
--- takes 15-20 seconds, may have some objcopy failures that are non-critical. NEVER CANCEL. Set timeout to 30+ minutes.
-
-**Option 3: Individual Example with Make**
-
+Single example with Make:
 ```bash
-cd examples/device/cdc_msc
-make BOARD=raspberry_pi_pico all
+cd examples/device/cdc_msc && make BOARD=raspberry_pi_pico all
 ```
 
--- takes 2-3 seconds. NEVER CANCEL. Set timeout to 5+ minutes.
-
-**Option 4: Espressif Example with ESP-IDF**
-
-Only ESP-IDF-enabled examples are supported for Espressif boards. Use FreeRTOS examples such as `examples/device/cdc_msc_freertos`
-that contain `idf_component_register()` support.
-
+Espressif (only ESP-IDF examples like `cdc_msc_freertos`):
 ```bash
 . $HOME/code/esp-idf/export.sh
 cd examples/device/cdc_msc_freertos
 idf.py -DBOARD=espressif_s3_devkitc build
 ```
 
-Use `-DBOARD=...` with any supported board under `hw/bsp/espressif/boards/`. NEVER CANCEL. Set timeout to 10+ minutes.
+**Build options** (CMake `-D…` / Make `…=…`):
+- Debug: `CMAKE_BUILD_TYPE=Debug` / `DEBUG=1`
+- Logging: `LOG=2` (add `LOGGER=rtt` for RTT)
+- Root hub port: `RHPORT_DEVICE=1`
+- Speed: `RHPORT_DEVICE_SPEED=OPT_MODE_FULL_SPEED`
 
+## Flash
 
-## Build Options
+```bash
+# JLink
+ninja cdc_msc-jlink                                       # CMake
+make BOARD=<board> flash-jlink                            # Make
 
-- **Debug build**:
-    - CMake: `-DCMAKE_BUILD_TYPE=Debug`
-    - Make: `DEBUG=1`
-- **With logging**:
-    - CMake: `-DLOG=2`
-    - Make: `LOG=2`
-- **With RTT logger**:
-    - CMake: `-DLOG=2 -DLOGGER=rtt`
-    - Make: `LOG=2 LOGGER=rtt`
-- **RootHub port selection**:
-    - CMake: `-DRHPORT_DEVICE=1`
-    - Make: `RHPORT_DEVICE=1`
-- **Port speed**:
-    - CMake: `-DRHPORT_DEVICE_SPEED=OPT_MODE_FULL_SPEED`
-    - Make: `RHPORT_DEVICE_SPEED=OPT_MODE_FULL_SPEED`
+# OpenOCD
+ninja cdc_msc-openocd                                     # CMake
+make BOARD=<board> flash-openocd                          # Make
 
-## Flashing and Deployment
+# UF2
+ninja cdc_msc-uf2                                         # CMake
+make BOARD=<board> all uf2                                # Make
 
-- **Flash with JLink**:
-    - CMake: `ninja cdc_msc-jlink`
-    - Make: `make BOARD=raspberry_pi_pico flash-jlink`
-- **Flash with OpenOCD**:
-    - CMake: `ninja cdc_msc-openocd`
-    - Make: `make BOARD=raspberry_pi_pico flash-openocd`
-- **Generate UF2**:
-    - CMake: `ninja cdc_msc-uf2`
-    - Make: `make BOARD=raspberry_pi_pico all uf2`
-- **List all targets** (CMake/Ninja): `ninja -t targets`
-- **Espressif flash**:
-    - Run `. $HOME/code/esp-idf/export.sh`
-    - `cd examples/device/cdc_msc_freertos`
-    - `idf.py -DBOARD=espressif_s3_devkitc flash`
-- **Espressif serial monitor / chip log output**:
-    - Run `. $HOME/code/esp-idf/export.sh`
-    - `cd examples/device/cdc_msc_freertos`
-    - `idf.py -DBOARD=espressif_s3_devkitc monitor`
+ninja -t targets                                          # list CMake targets
+
+# Espressif (after . $HOME/code/esp-idf/export.sh)
+idf.py -DBOARD=<board> flash
+idf.py -DBOARD=<board> monitor
+```
 
 ## GDB Debugging
 
-Look up the board's `JLINK_DEVICE` and `OPENOCD_OPTION` from `hw/bsp/*/boards/*/board.cmake` (or `board.mk`).
+Look up `JLINK_DEVICE` / `OPENOCD_OPTION` in `hw/bsp/*/boards/*/board.cmake` (CMake builds) or `board.mk` (Make builds).
 
-### JLinkGDBServer
-
-**Terminal 1 – start the GDB server:**
+**JLink — Terminal 1:**
 ```bash
-JLinkGDBServer -device stm32h743xi -if SWD -speed 4000 \
-  -port 2331 -swoport 2332 -telnetport 2333 -nogui
+JLinkGDBServer -device stm32h743xi -if SWD -speed 4000 -port 2331 -swoport 2332 -telnetport 2333 -nogui
 ```
 
-**Terminal 2 – connect GDB:**
-```bash
-arm-none-eabi-gdb /tmp/build/firmware.elf
-(gdb) target remote :2331
-(gdb) monitor reset halt
-(gdb) load
-(gdb) continue
-```
-
-To break on entry instead of running immediately:
-```bash
-(gdb) monitor reset halt
-(gdb) load
-(gdb) break main
-(gdb) continue
-```
-
-### OpenOCD
-
-**Terminal 1 – start the GDB server:**
+**OpenOCD — Terminal 1:**
 ```bash
 openocd -f interface/stlink.cfg -f target/stm32h7x.cfg
-# or with J-Link probe:
+# or with a J-Link interface:
 openocd -f interface/jlink.cfg -f target/stm32h7x.cfg
-```
-
-For **rp2040/rp2350** with a CMSIS-DAP probe (e.g. Picoprobe, debugprobe):
-```bash
+# rp2040/rp2350 via CMSIS-DAP:
 openocd -f interface/cmsis-dap.cfg -f target/rp2040.cfg -c "adapter speed 5000"
-# or for rp2350:
-openocd -f interface/cmsis-dap.cfg -f target/rp2350.cfg -c "adapter speed 5000"
 ```
 
-For boards that define `OPENOCD_OPTION` in `board.cmake`, use those options directly:
-```bash
-openocd $(cat hw/bsp/FAMILY/boards/BOARD/board.cmake | grep OPENOCD_OPTION | ...)
-```
-
-**Terminal 2 – connect GDB (OpenOCD default port is 3333):**
+**Terminal 2 — connect GDB** (replace `<port>` with `2331` for JLinkGDBServer or `3333` for OpenOCD):
 ```bash
 arm-none-eabi-gdb /tmp/build/firmware.elf
-(gdb) target remote :3333
+(gdb) target remote :<port>
 (gdb) monitor reset halt
 (gdb) load
+(gdb) break main         # optional, to stop at entry
 (gdb) continue
 ```
 
-### RTT Logging with JLinkGDBServer
+**RTT logging:** build with `LOG=2 LOGGER=rtt`, flash, then run JLinkGDBServer with `-RTTTelnetPort 19021`, and in another terminal `JLinkRTTClient` (pipe to `tee rtt.log` or use `timeout 20s JLinkRTTClient > rtt.log` for non-interactive capture).
 
-- Build with RTT logging enabled (example):
-  `cd examples/device/cdc_msc && make BOARD=stm32h743eval LOG=2 LOGGER=rtt all`
-- Flash with J-Link:
-  `cd examples/device/cdc_msc && make BOARD=stm32h743eval LOG=2 LOGGER=rtt flash-jlink`
-- Launch GDB server with RTT port (keep this running in terminal 1):
-  `JLinkGDBServer -device stm32h743xi -if SWD -speed 4000 -port 2331 -swoport 2332 -telnetport 2333 -RTTTelnetPort 19021 -nogui`
-- Read RTT output (terminal 2):
-  `JLinkRTTClient`
-- Capture RTT to file (optional):
-  `JLinkRTTClient | tee rtt.log`
-- For non-interactive capture:
-  `timeout 20s JLinkRTTClient > rtt.log`
+## Testing
 
-## Unit Testing
+**Unit (Ceedling, Unity+CMock, ~4 s):**
+```bash
+sudo gem install ceedling
+cd test/unit-test && ceedling test:all        # or ceedling test:test_fifo
+```
 
-- Install Ceedling: `sudo gem install ceedling`
-- Run all unit tests: `cd test/unit-test && ceedling` or `cd test/unit-test && ceedling test:all` -- takes 4 seconds.
-  NEVER CANCEL. Set timeout to 10+ minutes.
-- Run specific test: `cd test/unit-test && ceedling test:test_fifo`
-- Tests use Unity framework with CMock for mocking
-
-## Hardware-in-the-Loop (HIL) Testing
-
-- `-B examples` means `examples` is the parent folder that contains multi-board build outputs such as `examples/cmake-build-BOARD_NAME/...`
-- Select config file before running HIL tests:
-    - if GitHub Actions self-hosted runner service is running, use `tinyusb.json`
-    - otherwise use `local.json`
-    - example:
-      `HIL_CONFIG=$( (systemctl list-units --type=service --state=running 2>/dev/null; systemctl --user list-units --type=service --state=running 2>/dev/null) | grep -q 'actions\.runner' && echo tinyusb.json || echo local.json )`
-- Run tests on actual hardware, one of following ways:
-    - test a specific board `python test/hil/hil_test.py -b BOARD_NAME -B examples $HIL_CONFIG`
-    - test all boards in config `python test/hil/hil_test.py -B examples $HIL_CONFIG`
-- In case of error, enabled verbose mode with `-v` flag for detailed logs. Also try to observe script output, and try to
-  modify hil_test.py (temporarily) to add more debug prints to pinpoint the issue.
-- Requires pre-built (all) examples for target boards (see Build Examples section 2)
-
-take 2-5 minutes. NEVER CANCEL. Set timeout to 20+ minutes.
+**HIL (2-5 min):** invoke the `hil` skill (`.claude/skills/hil/SKILL.md`) for the full procedure (local vs remote mode, config selection, SSH copy steps, debugging tips). Requires pre-built examples — see Build → "All examples for a board".
 
 ## Documentation
 
-- Install requirements: `pip install -r docs/requirements.txt`
-- Build docs: `cd docs && sphinx-build -b html . _build` -- takes 2-3 seconds. NEVER CANCEL. Set timeout to 10+ minutes.
+```bash
+pip install -r docs/requirements.txt
+cd docs && sphinx-build -b html . _build        # ~2.5 s
+```
 
 ## Code Size Metrics
 
-Generate and compare code size metrics to evaluate the impact of changes. This is the most common workflow
-when making code changes — use it to verify size impact before committing.
+Verify size impact before committing. Invoke the `code-size` skill (`.claude/skills/code-size/SKILL.md`) — it wraps `tools/metrics_compare_base.py` to handle the base-vs-branch worktree + build + compare flow.
 
-**Quick single-board metrics (preferred for iterative development):**
+Quick reference:
+```bash
+# Single example, one board:
+python3 tools/metrics_compare_base.py -b raspberry_pi_pico -e device/cdc_msc
+# Add --bloaty for section/symbol breakdown.
+
+# All examples, one board:
+python3 tools/metrics_compare_base.py -b raspberry_pi_pico
+
+# All arm-gcc CI families combined (pre-merge sweep, 4-8 min):
+python3 tools/metrics_compare_base.py --ci
+```
+
+Reports land in `cmake-metrics/<board>/metrics_compare.md` (per-board) and `cmake-metrics/_combined/metrics_compare.md` (with `--combined`/`--ci`).
+
+## Static Analysis (PVS-Studio)
+
+Requires `compile_commands.json` (CMake `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`).
 
 ```bash
-rm -rf cmake-build
-python3 tools/build.py -b raspberry_pi_pico --target all --target tinyusb_metrics
-python3 tools/metrics.py combine -j -m -f tinyusb/src cmake-build/cmake-build-*/metrics.json
+# Whole project:
+pvs-studio-analyzer analyze \
+  -f examples/cmake-build-raspberry_pi_pico/compile_commands.json \
+  -R .PVS-Studio/.pvsconfig \
+  -o pvs-report.log -j12 --dump-files \
+  --misra-c-version 2023 --misra-cpp-version 2008 --use-old-parser
+
+# Specific files (add one or more `-S <file>`):
+pvs-studio-analyzer analyze \
+  -f examples/cmake-build-raspberry_pi_pico/compile_commands.json \
+  -R .PVS-Studio/.pvsconfig \
+  -S src/foo.c -S src/bar.c \
+  -o pvs-report.log -j12 --dump-files \
+  --misra-c-version 2023 --misra-cpp-version 2008 --use-old-parser
+
+plog-converter -a GA:1,2 -t errorfile pvs-report.log     # view results
 ```
 
-This builds all examples for one board and produces `metrics.json` + `metrics.md`. Takes ~30 seconds.
-NEVER CANCEL. Set timeout to 10+ minutes.
+Takes ~10-30 s.
 
-**Comparing with master (before/after workflow):**
+## Validation After Changes
 
-1. On master: build and save baseline
-   ```bash
-   rm -rf cmake-build
-   python3 tools/build.py -b raspberry_pi_pico --target all --target tinyusb_metrics
-   python3 tools/metrics.py combine -j -m -f tinyusb/src cmake-build/cmake-build-*/metrics.json
-   mv metrics.json metrics_master.json
-   ```
-2. Switch to your branch: rebuild
-   ```bash
-   rm -rf cmake-build
-   python3 tools/build.py -b raspberry_pi_pico --target all --target tinyusb_metrics
-   python3 tools/metrics.py combine -j -m -f tinyusb/src cmake-build/cmake-build-*/metrics.json
-   ```
-3. Compare: `python3 tools/metrics.py compare -m -f tinyusb/src metrics_master.json metrics.json`
-   Produces `metrics_compare.md` showing size differences.
+1. `pre-commit run --all-files` — format, spell, unit tests (10-15 s).
+2. Build at least one board's full example set (Build → "All examples for a board") for modules you touched.
+3. Run relevant unit tests; add fuzz/HIL coverage for parsers or protocol state machines.
 
-**Full CI metrics (all arm-gcc families, for thorough validation):**
+**Boards good for local testing:**
+- `stm32f407disco` — no external SDK
+- `raspberry_pi_pico` — Pico SDK required
+- Others: see `hw/bsp/FAMILY/boards/`
 
-```bash
-rm -rf cmake-build
-FAMILIES=$(python3 .github/workflows/ci_set_matrix.py | python3 -c "import sys,json; d=json.load(sys.stdin); print(' '.join(d.get('arm-gcc',[])))")
-python3 tools/build.py --one-first --target all --target tinyusb_metrics $FAMILIES
-python3 tools/metrics.py combine -j -m -f tinyusb/src cmake-build/cmake-build-*/metrics.json
-```
+Device examples need real hardware to validate runtime behavior; must at least build.
 
-Builds the first board of each family. Takes 2-4 minutes. NEVER CANCEL. Set timeout to 10+ minutes.
+## Release
 
-## Code Quality and Validation
+**Do not commit automatically — leave changes for maintainer review.**
 
-- Format code: `clang-format -i path/to/file.c` (uses `.clang-format` config)
-- Check spelling: `pip install codespell && codespell` (uses `.codespellrc` config)
-- Pre-commit hooks validate unit tests and code quality automatically
+1. Bump version at top of `tools/make_release.py`.
+2. Run `python3 tools/make_release.py` to refresh: `src/tusb_option.h`, `repository.yml`, `library.json`, `sonar-project.properties`, `docs/reference/boards.rst`, `hw/bsp/BoardPresets.json`.
+3. Changelog `docs/info/changelog.rst`:
+   - `git log <last-tag>..HEAD --oneline` for commit list.
+   - Read merged PRs for context (`gh pr view`, or github MCP tools).
+   - Follow existing format: version + `======` underline, italic date, sections (General, API Changes, DCD & HCD, Device Stack, Host Stack, Testing), RST inline code for symbols.
+4. Validate: `ceedling test:all`, build `cdc_msc` for `stm32f407disco`, review `git diff --stat`.
+5. Leave unstaged. Maintainer commits `Bump version to X.Y.Z`, then: `git tag -a vX.Y.Z -m "Release X.Y.Z" && git push origin <branch> vX.Y.Z`. Create GitHub release from tag.
 
-## Static Analysis with PVS-Studio
+## References
 
-- **Analyze whole project**:
-  ```bash
-  pvs-studio-analyzer analyze -f examples/cmake-build-raspberry_pi_pico/compile_commands.json -R .PVS-Studio/.pvsconfig -o pvs-report.log -j12 --dump-files --misra-cpp-version 2008 --misra-c-version 2023 --use-old-parser
-  ```
-- **Analyze specific source files**:
-  ```bash
-  pvs-studio-analyzer analyze -f examples/cmake-build-raspberry_pi_pico/compile_commands.json -R .PVS-Studio/.pvsconfig -S path/to/file.c -o pvs-report.log -j12 --dump-files --misra-cpp-version 2008 --misra-c-version 2023 --use-old-parser
-  ```
-- **Multiple specific files**:
-  ```bash
-  pvs-studio-analyzer analyze -f examples/cmake-build-raspberry_pi_pico/compile_commands.json -R .PVS-Studio/.pvsconfig -S src/file1.c -S src/file2.c -o pvs-report.log -j12 --dump-files --misra-cpp-version 2008 --misra-c-version 2023 --use-old-parser
-  ```
-- Requires `compile_commands.json` in the build directory (generated by CMake with `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`)
-- Use `-f` option to specify path to `compile_commands.json`
-- Use `-R .PVS-Studio/.pvsconfig` to specify rule configuration file
-- Use `-j12` for parallel analysis with 12 threads
-- `--dump-files` saves preprocessed files for debugging
-- `--misra-c-version 2023` enables MISRA C:2023 checks
-- `--misra-cpp-version 2008` enables MISRA C++:2008 checks
-- `--use-old-parser` uses legacy parser for compatibility
-- Analysis takes ~10-30 seconds depending on project size. Set timeout to 5+ minutes.
-- View results: `plog-converter -a GA:1,2 -t errorfile pvs-report.log` or open in PVS-Studio GUI
+- MCU reference manuals, datasheets, schematics: `$HOME/Documents/Calibre Library`.
+- Supported MCUs/boards: `hw/bsp/` and `docs/reference/boards.rst`.
+- USB classes: `src/class/{cdc,hid,msc,audio,…}/` — each has `*_device.c` and `*_host.c`.
+- Key files: `src/tusb.h`, `src/tusb_config.h`, `tools/get_deps.py`, `tools/build.py`, `test/unit-test/project.yml`.
 
-## Validation Checklist
+## Common Build Issues
 
-### ALWAYS Run These After Making Changes
-
-1. **Pre-commit validation** (RECOMMENDED): `pre-commit run --all-files`
-    - Install pre-commit: `pip install pre-commit && pre-commit install`
-    - Runs all quality checks, unit tests, spell checking, and formatting
-    - Takes 10-15 seconds. NEVER CANCEL. Set timeout to 15+ minutes.
-2. **Build validation**: Build at least one board with all example that exercises your changes, see Build Examples
-   section (option 2)
-3. Run unit tests relevant to touched modules; add fuzz/HIL coverage when modifying parsers or protocol state machines.
-
-### Manual Testing Scenarios
-- **Device examples**: Cannot be fully tested without real hardware, but must build successfully
-- **Unit tests**: Exercise core stack functionality - ALL tests must pass
-- **Build system**: Must be able to build examples for multiple board families
-
-### Board Selection for Testing
-- **STM32F4**: `stm32f407disco` - no external SDK required, good for testing
-- **RP2040**: `raspberry_pi_pico` - requires Pico SDK, commonly used
-- **Other families**: Check `hw/bsp/FAMILY/boards/` for available boards
-
-## Release Instructions
-
-**DO NOT commit files automatically - only modify files and let the maintainer review before committing.**
-
-1. Bump the release version variable at the top of `tools/make_release.py`.
-2. Execute `python3 tools/make_release.py` to refresh:
-   - `src/tusb_option.h` (version defines)
-   - `repository.yml` (version mapping)
-   - `library.json` (PlatformIO version)
-   - `sonar-project.properties` (SonarQube version)
-   - `docs/reference/boards.rst` (generated board documentation)
-   - `hw/bsp/BoardPresets.json` (CMake presets)
-3. Generate release notes for `docs/info/changelog.rst`:
-   - Get commit list: `git log <last-release-tag>..HEAD --oneline`
-   - **Visit GitHub PRs** for merged pull requests to understand context and gather details
-   - Use GitHub tools to search/read PRs: `github-mcp-server-list_pull_requests`, `github-mcp-server-pull_request_read`
-   - Extract key changes, API modifications, bug fixes, and new features from PR descriptions
-   - Add new changelog entry following the existing format:
-     - Version heading with equals underline (e.g., `0.20.0` followed by `======`)
-     - Release date in italics (e.g., `*November 19, 2024*`)
-     - Major sections: General, API Changes, Controller Driver (DCD & HCD), Device Stack, Host Stack, Testing
-     - Use bullet lists with descriptive categorization
-     - Reference function names, config macros, and file paths using RST inline code (double backticks)
-     - Include meaningful descriptions, not just commit messages
-4. **Validation before commit**:
-   - Run unit tests: `cd test/unit-test && ceedling test:all`
-   - Build at least one example: `cd examples/device/cdc_msc && make BOARD=stm32f407disco all`
-   - Verify changed files look correct: `git diff --stat`
-5. **Leave files unstaged** for maintainer to review, modify if needed, and commit with message: `Bump version to X.Y.Z`
-6. **After maintainer commits**: Create annotated tag with `git tag -a vX.Y.Z -m "Release X.Y.Z"`
-7. Push commit and tag: `git push origin <branch> && git push origin vX.Y.Z`
-8. Create GitHub release from the tag with changelog content
-
-## Repository Structure Quick Reference
-```
-├── src/                  # Core TinyUSB stack
-│   ├── class/            # USB device classes (CDC, HID, MSC, Audio, etc.)
-│   ├── portable/         # MCU-specific drivers (organized by vendor)
-│   ├── device/           # USB device stack core
-│   ├── host/             # USB host stack core
-│   └── common/           # Shared utilities (FIFO, etc.)
-├── examples/             # Example applications
-│   ├── device/           # Device examples (cdc_msc, hid_generic, etc.)
-│   ├── host/             # Host examples
-│   └── dual/             # Dual-role examples
-├── hw/bsp/               # Board Support Packages
-│   └── FAMILY/boards/    # Board-specific configurations
-├── test/unit-test/       # Unit tests using Ceedling
-├── tools/                # Build and utility scripts
-└── docs/                 # Sphinx documentation
-```
-
-#### Build Time Reference
-- **Dependency fetch**: <1 second
-- **Single example build**: 1-3 seconds
-- **Unit tests**: ~4 seconds
-- **Documentation build**: ~2.5 seconds
-- **Full board examples**: 15-20 seconds
-- **Toolchain installation**: 2-5 minutes (one-time)
-
-#### Key Files to Know
-- `tools/get_deps.py`: Manages dependencies for MCU families
-- `tools/build.py`: Builds multiple examples, supports make/cmake
-- `src/tusb.h`: Main TinyUSB header file
-- `src/tusb_config.h`: Configuration template
-- `examples/device/cdc_msc/`: Most commonly used example for testing
-- `test/unit-test/project.yml`: Ceedling test configuration
-
-#### MCU Reference Manuals and Datasheets
-- Look in `$HOME/Documents/Calibre Library` for all MCU reference manuals, datasheets and board schematics.
-
-#### Debugging Build Issues
-- **Missing compiler**: Install `gcc-arm-none-eabi` package
-- **Missing dependencies**: Run `python3 tools/get_deps.py FAMILY`
-- **Board not found**: Check `hw/bsp/FAMILY/boards/` for valid board names
-- **objcopy errors**: Often non-critical in full builds, try individual example builds
-
-#### Working with USB Device Classes
-- **CDC (Serial)**: `src/class/cdc/` - Virtual serial port
-- **HID**: `src/class/hid/` - Human Interface Device (keyboard, mouse, etc.)
-- **MSC**: `src/class/msc/` - Mass Storage Class (USB drive)
-- **Audio**: `src/class/audio/` - USB Audio Class
-- Each class has device (`*_device.c`) and host (`*_host.c`) implementations
-
-#### MCU Family Support
-- **STM32**: Largest support (F0, F1, F2, F3, F4, F7, G0, G4, H7, L4, U5, etc.)
-- **Raspberry Pi**: RP2040, RP2350 with PIO-USB host support
-- **NXP**: iMXRT, Kinetis, LPC families
-- **Microchip**: SAM D/E/G/L families
-- Check `hw/bsp/` for complete list and `docs/reference/boards.rst` for details
-
-### Code Style Guidelines
-
-#### General Coding Standards
-- Use C99 standard
-- Memory-safe: no dynamic allocation
-- Thread-safe: defer all interrupt events to non-ISR task functions
-- 2-space indentation, no tabs
-- Use snake_case for variables/functions
-- Use UPPER_CASE for macros and constants
-- Follow existing variable naming patterns in files you're modifying
-- Include proper header comments with MIT license
-- Add descriptive comments for non-obvious functions
-
-#### Best Practices
-- When including headers, group in order: C stdlib, tusb common, drivers, classes
-- Always check return values from functions that can fail
-- Use TU_ASSERT() for error checking with return statements
-- Follow the existing code patterns in the files you're modifying
-
-Remember: TinyUSB is designed for embedded systems - builds are fast, tests are focused, and the codebase is optimized for resource-constrained environments.
+- Missing compiler → install `gcc-arm-none-eabi`.
+- Missing deps → `python3 tools/get_deps.py FAMILY`.
+- Unknown board → check `hw/bsp/FAMILY/boards/`.
+- `objcopy` errors in full builds are often non-critical; retry the single example.

@@ -93,7 +93,6 @@ target_sources(tinyusb_device_base INTERFACE
 		${TOP}/src/portable/raspberrypi/rp2040/dcd_rp2040.c
 		${TOP}/src/portable/raspberrypi/rp2040/rp2040_usb.c
 		${TOP}/src/device/usbd.c
-		${TOP}/src/device/usbd_control.c
 		${TOP}/src/class/audio/audio_device.c
 		${TOP}/src/class/cdc/cdc_device.c
 		${TOP}/src/class/dfu/dfu_device.c

@@ -336,7 +336,7 @@ TU_ATTR_ALWAYS_INLINE static inline musb_ep_csr_t* get_ep_csr(musb_regs_t* musb_
 #define MUSB_CSRL_CLEAR_DATA_TOGGLE(_rx) (1u << ((_rx) ? 7 : 6))
 
 // 0x13, 0x17: TX/RX CSRH
-#define MUSB_CSRH_DISABLE_DOUBLE_PACKET(_rx) (1u << 1)
+#define MUSB_CSRH_DISABLE_DOUBLE_PACKET      (1u << 1)
 #define MUSB_CSRH_TX_MODE                    (1u << 5) // 1 = TX, 0 = RX. only relevant for SHARED FIFO
 #define MUSB_CSRH_ISO                        (1u << 6)
 
@@ -565,6 +565,16 @@ TU_ATTR_ALWAYS_INLINE static inline musb_ep_csr_t* get_ep_csr(musb_regs_t* musb_
 //*****************************************************************************
 #define MUSB_NAKLMT_NAKLMT_M     0x001F  // EP0 NAK Limit
 #define MUSB_NAKLMT_NAKLMT_S     0
+
+//*****************************************************************************
+//
+// The following are defines for the bit fields in the MUSB_O_TXMAXP / MUSB_O_RXMAXP
+// registers. Bits [10:0] carry the maximum packet size; bits [15:11] carry
+// numpackminus1 (HB-iso / HS-bulk multiplier - 1).
+//
+//*****************************************************************************
+#define MUSB_TXMAXP_PACKET_SIZE_M  0x07FFu
+#define MUSB_RXMAXP_PACKET_SIZE_M  0x07FFu
 
 //*****************************************************************************
 //

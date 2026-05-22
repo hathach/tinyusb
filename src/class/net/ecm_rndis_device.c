@@ -48,9 +48,10 @@ typedef struct {
   uint8_t itf_num;      // Index number of Management Interface, +1 for Data Interface
   uint8_t itf_data_alt; // Alternate setting of Data Interface. 0 : inactive, 1 : active
 
-  uint8_t ep_notif;
   uint8_t ep_in;
   uint8_t ep_out;
+  uint16_t ep_size;     // bulk endpoint max packet size (IN and OUT assumed equal)
+  uint8_t ep_notif;
 
   bool ecm_mode;
 
@@ -80,6 +81,13 @@ static netd_interface_t _netd_itf;
 CFG_TUD_MEM_SECTION static netd_epbuf_t _netd_epbuf;
 static bool can_xmit;
 static bool ecm_link_is_up = true;  // Store link state for ECM mode
+
+//--------------------------------------------------------------------+
+// Weak stubs: invoked if no strong implementation is available
+//--------------------------------------------------------------------+
+TU_ATTR_WEAK void tud_network_set_packet_filter_cb(uint16_t packet_filter) {
+  (void) packet_filter;
+}
 
 void tud_network_recv_renew(void) {
   usbd_edpt_xfer(0, _netd_itf.ep_out, _netd_epbuf.rx, NETD_PACKET_SIZE, false);
@@ -176,6 +184,9 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   // Pair of endpoints
   TU_ASSERT(TUSB_DESC_ENDPOINT == tu_desc_type(p_desc), 0);
 
+  // Save the actual bulk endpoint size (IN and OUT assumed equal)
+  _netd_itf.ep_size = tu_edpt_packet_size((tusb_desc_endpoint_t const *) p_desc);
+
   if (_netd_itf.ecm_mode) {
     // ECM by default is in-active, save the endpoint attribute
     // to open later when received setInterface
@@ -206,14 +217,15 @@ static void ecm_report(bool nc) {
     },
   };
 
+  const uint32_t link_bps = (tud_speed_get() == TUSB_SPEED_HIGH) ? 480000000U : 12000000U;
   const ecm_notify_t ecm_notify_csc = {
     .header = {
       .bmRequestType = 0xA1,
       .bRequest = 0x2A, /* CONNECTION_SPEED_CHANGE aka ConnectionSpeedChange */
       .wLength = 8,
     },
-    .downlink = 9728000,
-    .uplink = 9728000,
+    .downlink = link_bps,
+    .uplink = link_bps,
   };
 
   ecm_notify_t notify = (nc) ? ecm_notify_nc : ecm_notify_csc;
@@ -285,6 +297,7 @@ bool netd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t
         if (_netd_itf.ecm_mode) {
           /* the only required CDC-ECM Management Element Request is SetEthernetPacketFilter */
           if (0x43 /* SET_ETHERNET_PACKET_FILTER */ == request->bRequest) {
+            tud_network_set_packet_filter_cb(request->wValue);
             tud_control_xfer(rhport, request, NULL, 0);
             // Only send connection notification if link is up
             if (ecm_link_is_up) {
@@ -356,8 +369,7 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   /* data transmission finished */
   if (ep_addr == _netd_itf.ep_in) {
     /* TinyUSB requires the class driver to implement ZLP (since ZLP usage is class-specific) */
-
-    if (xferred_bytes && (0 == (xferred_bytes % CFG_TUD_NET_ENDPOINT_SIZE))) {
+    if (xferred_bytes > 0 && 0 == (xferred_bytes & (_netd_itf.ep_size-1))) {
       do_in_xfer(NULL, 0); /* a ZLP is needed */
     } else {
       /* we're finally finished */

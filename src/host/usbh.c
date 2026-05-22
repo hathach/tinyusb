@@ -140,7 +140,7 @@ typedef struct {
   uint8_t itf2drv[CFG_TUH_INTERFACE_MAX];  // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[CFG_TUH_ENDPOINT_MAX][2]; // map endpoint to driver ( 0xff is invalid ), can use only 4-bit each
 
-  tu_edpt_state_t ep_status[CFG_TUH_ENDPOINT_MAX][2];
+  volatile uint8_t ep_status[CFG_TUH_ENDPOINT_MAX][2];
 
 #if CFG_TUH_API_EDPT_XFER
   // TODO array can be CFG_TUH_ENDPOINT_MAX-1
@@ -744,8 +744,8 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
           usbh_device_t* dev = get_device(event.dev_addr);
           TU_VERIFY(dev && dev->connected,);
 
-          dev->ep_status[epnum][ep_dir].busy = 0;
-          dev->ep_status[epnum][ep_dir].claimed = 0;
+          // clear busy and claimed
+          dev->ep_status[epnum][ep_dir] &= (uint8_t) ~(TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED);
 
           if (0 == epnum) {
             usbh_control_xfer_cb(event.dev_addr, ep_addr, (xfer_result_t) event.xfer_complete.result, event.xfer_complete.len);
@@ -1016,10 +1016,10 @@ bool tuh_edpt_abort_xfer(uint8_t daddr, uint8_t ep_addr) {
     usbh_device_t* dev = get_device(daddr);
     TU_VERIFY(dev);
 
-    TU_VERIFY(dev->ep_status[epnum][dir].busy); // non-control skip if not busy
+    TU_VERIFY(dev->ep_status[epnum][dir] & TU_EDPT_STATE_BUSY); // non-control skip if not busy
     // abort then mark as ready and release endpoint
     hcd_edpt_abort_xfer(dev->bus_info.rhport, daddr, ep_addr);
-    dev->ep_status[epnum][dir].busy = false;
+    dev->ep_status[epnum][dir] &= (uint8_t) ~TU_EDPT_STATE_BUSY; // clear busy
     tu_edpt_release(&dev->ep_status[epnum][dir], _usbh_mutex);
   }
 
@@ -1110,16 +1110,16 @@ bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t* bu
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
-  tu_edpt_state_t* ep_state = &dev->ep_status[epnum][dir];
+  volatile uint8_t* ep_state = &dev->ep_status[epnum][dir];
 
   TU_LOG_USBH("  Queue EP %02X with %u bytes ... \r\n", ep_addr, total_bytes);
 
   // Attempt to transfer on a busy endpoint, sound like an race condition !
-  TU_ASSERT(ep_state->busy == 0);
+  TU_ASSERT((*ep_state & TU_EDPT_STATE_BUSY) == 0);
 
   // Set busy first since the actual transfer can be complete before hcd_edpt_xfer()
   // could return and USBH task can preempt and clear the busy
-  ep_state->busy = 1;
+  *ep_state |= TU_EDPT_STATE_BUSY;
 
 #if CFG_TUH_API_EDPT_XFER
   dev->ep_callback[epnum][dir].complete_cb = complete_cb;
@@ -1130,9 +1130,8 @@ bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t* bu
     TU_LOG_USBH("OK\r\n");
     return true;
   } else {
-    // HCD error, mark endpoint as ready to allow next transfer
-    ep_state->busy = 0;
-    ep_state->claimed = 0;
+    // HCD error, clear busy and claimed to allow next transfer
+    *ep_state &= (uint8_t) ~(TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED);
     TU_LOG1("Failed\r\n");
 //    TU_BREAKPOINT();
     return false;
@@ -1178,7 +1177,7 @@ bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr) {
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
 
-  return dev->ep_status[epnum][dir].busy;
+  return (dev->ep_status[epnum][dir] & TU_EDPT_STATE_BUSY) != 0;
 }
 
 //--------------------------------------------------------------------+
