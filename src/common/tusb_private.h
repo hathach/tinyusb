@@ -46,17 +46,10 @@ extern tusb_role_t _tusb_rhport_role[TUP_USBIP_CONTROLLER_NUM];
 // Endpoint
 //--------------------------------------------------------------------+
 
-enum {
- TU_EDPT_STATE_BUSY    = 0x01,
- TU_EDPT_STATE_STALLED = 0x02,
- TU_EDPT_STATE_CLAIMED = 0x04,
-};
-
-typedef struct TU_ATTR_PACKED {
-  volatile uint8_t busy    : 1;
-  volatile uint8_t stalled : 1;
-  volatile uint8_t claimed : 1;
-} tu_edpt_state_t;
+// Endpoint state bits — manipulate the bare uint8_t with these masks.
+#define TU_EDPT_STATE_BUSY    0x01u
+#define TU_EDPT_STATE_STALLED 0x02u
+#define TU_EDPT_STATE_CLAIMED 0x04u
 
 typedef struct {
   uint8_t  hwid;    // device: rhport, host: daddr
@@ -92,10 +85,10 @@ bool tu_bind_driver_to_ep_itf(uint8_t driver_id, uint8_t ep2drv[][2], uint8_t it
                               const uint8_t *p_desc, uint16_t desc_len);
 
 // Claim an endpoint with provided mutex
-bool tu_edpt_claim(tu_edpt_state_t* ep_state, osal_mutex_t mutex);
+bool tu_edpt_claim(volatile uint8_t* ep_state, osal_mutex_t mutex);
 
 // Release an endpoint with provided mutex
-bool tu_edpt_release(tu_edpt_state_t* ep_state, osal_mutex_t mutex);
+bool tu_edpt_release(volatile uint8_t* ep_state, osal_mutex_t mutex);
 
 //--------------------------------------------------------------------+
 // Endpoint Stream

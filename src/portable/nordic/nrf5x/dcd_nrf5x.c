@@ -1049,6 +1049,12 @@ void tusb_hal_nrf_power_event(uint32_t event) {
         NVIC_EnableIRQ(USBD_IRQn);
       }
 
+      // Ensure HFCLK is requested in the current context. The hfclk_enable() in
+      // USB_EVT_DETECTED may have been pre-SoftDevice. After Softdevice is
+      // enabled, HFXO is physically off again. So any caller that fires
+      // USB_EVT_READY post-SD would hang here.
+      hfclk_enable();
+
       // Wait for HFCLK
       while (!hfclk_running()) {}
 

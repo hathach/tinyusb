@@ -58,6 +58,14 @@ static void board_button_init(GPIOA_Type* port, uint8_t PinMsk) {
 
   /* Set direction */
   port->DIR &= ~PinMsk;
+
+  /* Enable internal pull so the idle state is deterministic. LaunchPad buttons
+   * connect the pin to GND when pressed (active-low) and require a pull-up. */
+#if BUTTON_STATE_ACTIVE == 0
+  port->PUR |= PinMsk;
+#else
+  port->PDR |= PinMsk;
+#endif
 }
 
 static void board_led_init(GPIOA_Type* port, uint8_t PinMsk, uint8_t dirmsk) {

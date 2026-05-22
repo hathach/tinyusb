@@ -903,9 +903,6 @@ static void handle_rxflvl_irq(uint8_t rhport) {
 
 // return true if there is still pending data and need more ISR
 static bool handle_txfifo_empty(dwc2_regs_t* dwc2, bool is_periodic) {
-  // Use period txsts for both p/np to get request queue space available (1-bit difference, it is small enough)
-  const dwc2_hptxsts_t txsts = {.value = (is_periodic ? dwc2->hptxsts : dwc2->hnptxsts)};
-
   const uint8_t max_channel = dwc2_channel_count(dwc2);
   for (uint8_t ch_id = 0; ch_id < max_channel; ch_id++) {
     dwc2_channel_t* channel = &dwc2->channel[ch_id];
@@ -923,6 +920,8 @@ static bool handle_txfifo_empty(dwc2_regs_t* dwc2, bool is_periodic) {
 
         // skip if there is not enough space in FIFO and RequestQueue.
         // Packet's last word written to FIFO will trigger a request queue
+        // Use period txsts for both p/np to get request queue space available (1-bit difference, it is small enough)
+        const dwc2_hptxsts_t txsts = {.value = (is_periodic ? dwc2->hptxsts : dwc2->hnptxsts)};
         if ((xact_bytes > (txsts.fifo_available << 2)) || (txsts.req_queue_available == 0)) {
           return true;
         }

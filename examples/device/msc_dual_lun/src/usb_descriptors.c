@@ -91,11 +91,17 @@ enum
   #define EPNUM_MSC_OUT  0x02
   #define EPNUM_MSC_IN   0x81
 
-#elif defined(TUD_ENDPOINT_ONE_DIRECTION_ONLY)
+#elif CFG_TUD_ENDPOINT_ONE_DIRECTION_ONLY
   // MCUs that don't support a same endpoint number with different direction IN and OUT defined in tusb_mcu.h
   //    e.g EP1 OUT & EP1 IN cannot exist together
-  #define EPNUM_MSC_OUT  0x01
-  #define EPNUM_MSC_IN   0x82
+  #if TU_CHECK_MCU(OPT_MCU_MAX32650, OPT_MCU_MAX32666, OPT_MCU_MAX32690, OPT_MCU_MAX78002)
+    // Put bulk on EP>=8 so the 2048/4096-byte FIFOs can back double packet buffering
+    #define EPNUM_MSC_OUT  0x08
+    #define EPNUM_MSC_IN   0x89
+  #else
+    #define EPNUM_MSC_OUT  0x01
+    #define EPNUM_MSC_IN   0x82
+  #endif
 
 #else
   #define EPNUM_MSC_OUT   0x01

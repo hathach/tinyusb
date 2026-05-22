@@ -9,11 +9,8 @@ on:
     types: [ published ]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
-
-env:
-  HIL_JSON: test/hil/tinyusb.json
 
 jobs:
   # Check if the code changes and we need to run ci build
@@ -59,11 +56,12 @@ jobs:
         id: set-matrix-json
         run: |
           # build matrix
-          MATRIX_JSON=$(python .github/workflows/ci_set_matrix.py)/
+          MATRIX_JSON=$(python .github/workflows/ci_set_matrix.py)
           echo "matrix=$MATRIX_JSON"
           echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
-          # hil matrix
-          HIL_MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py ${{ env.HIL_JSON }})
+
+          # HIL matrix (merged from tinyusb + hifiphile configs)
+          HIL_MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py test/hil/tinyusb.json test/hil/hfp.json)
           echo "hil_matrix=$HIL_MATRIX_JSON"
           echo "hil_matrix=$HIL_MATRIX_JSON" >> $GITHUB_OUTPUT
 
@@ -239,7 +237,7 @@ jobs:
 
   # ---------------------------------------
   # Hardware in the loop (HIL)
-  # Run on PR only (hil-tinyusb), hil-hfp only run on non-forked PR
+  # Run on PR only (hil-tinyusb), hil-hfp-iar only run on non-forked PR
   # ---------------------------------------
   hil-build:
     needs: [ check-paths, set-matrix ]
@@ -263,7 +261,20 @@ jobs:
   # ---------------------------------------
   hil-tinyusb:
     needs: hil-build
-    runs-on: [ self-hosted, X64, hathach, hardware-in-the-loop ]
+    name: hil-tinyusb (${{ matrix.display }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - display: tinyusb.json
+            runner: [ self-hosted, X64, hathach, hardware-in-the-loop ]
+            hil_json: test/hil/tinyusb.json
+          - display: hfp.json
+            runner: [ self-hosted, Linux, X64, hifiphile ]
+            hil_json: test/hil/hfp.json
+    runs-on: ${{ matrix.runner }}
+    env:
+      HIL_JSON: ${{ matrix.hil_json }}
     steps:
       - name: Get Skip Boards from previous run
         if: github.run_attempt != '1'
@@ -308,20 +319,22 @@ jobs:
   # self-hosted by HFP, build with IAR toolchain, for attached hardware checkout test/hil/hfp.json
   # Since IAR Token secret is not passed to forked PR, only build non-forked PR
   # ---------------------------------------
-  hil-hfp:
+  hil-hfp-iar:
     needs: [ check-paths ]
     if: |
       needs.check-paths.outputs.code_changed == 'true' &&
       github.repository_owner == 'hathach' &&
       !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true)
     runs-on: [ self-hosted, Linux, X64, hifiphile ]
+    timeout-minutes: 30
     env:
       IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
+      PYTHONUNBUFFERED: '1'
     steps:
       - name: Clean workspace
         run: |
           echo "Cleaning up previous run"
-          rm -rf "${{ github.workspace }}"3
+          rm -rf "${{ github.workspace }}"
           mkdir -p "${{ github.workspace }}"
 
       - name: Toolchain version
@@ -345,4 +358,5 @@ jobs:
         run: python3 tools/build.py --toolchain iar $BUILD_ARGS
 
       - name: Test on actual hardware (hardware in the loop)
-        run: python3 test/hil/hil_test.py hfp.json
+        run: |
+          python3 test/hil/hil_test.py hfp.json
