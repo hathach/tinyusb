@@ -119,8 +119,10 @@ static void update_out(uint8_t rhport, uint8_t ep, size_t rx_len) {
     if (ep == 0) {
       EP_RX_CTRL(0) = USBFS_EP_R_RES_ACK;
     } else {
-      EP_RX_CTRL(ep) = (EP_RX_CTRL(ep) & ~USBFS_EP_R_RES_MASK) |
-                       (xfer->valid ? USBFS_EP_R_RES_ACK : USBFS_EP_R_RES_NAK);
+      uint8_t rx_res = data.isochronous[ep]
+                      ? USBFS_EP_R_RES_NYET
+                      : (xfer->valid ? USBFS_EP_R_RES_ACK : USBFS_EP_R_RES_NAK);
+      EP_RX_CTRL(ep) = (EP_RX_CTRL(ep) & ~USBFS_EP_R_RES_MASK) | rx_res;
     }
   }
 }
@@ -272,18 +274,12 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const* desc_ep) {
   uint8_t dir = tu_edpt_dir(desc_ep->bEndpointAddress);
   TU_ASSERT(ep < EP_MAX);
 
-  data.isochronous[ep] = desc_ep->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS;
   data.xfer[ep][dir].max_size = tu_edpt_packet_size(desc_ep);
 
   if (ep != 0) {
     if (dir == TUSB_DIR_OUT) {
-      if (data.isochronous[ep]) {
-        EP_RX_CTRL(ep) = USBFS_EP_R_AUTO_TOG | USBFS_EP_R_RES_NYET;
-      } else {
-        EP_RX_CTRL(ep) = USBFS_EP_R_AUTO_TOG | USBFS_EP_R_RES_ACK;
-      }
+      EP_RX_CTRL(ep) = USBFS_EP_R_AUTO_TOG | USBFS_EP_T_RES_NAK;
     } else {
-      EP_TX_LEN(ep) = 0;
       EP_TX_CTRL(ep) = USBFS_EP_T_AUTO_TOG | USBFS_EP_T_RES_NAK;
     }
   }
@@ -299,13 +295,18 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
   (void) rhport;
   (void) ep_addr;
   (void)largest_packet_size;
-  return false;
+  uint8_t ep = tu_edpt_number(ep_addr);
+  uint8_t dir = tu_edpt_dir(ep_addr);
+
+  data.isochronous[ep] = true;
+  data.xfer[ep][dir].max_size = largest_packet_size;
+  return true;
 }
 
 bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
   (void)rhport;
   (void)desc_ep;
-  return false;
+  return true;
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr) {
@@ -325,7 +326,8 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
   if (dir == TUSB_DIR_IN) {
     update_in(rhport, ep, true);
   } else {
-    EP_RX_CTRL(ep) = (EP_RX_CTRL(ep) & ~USBFS_EP_R_RES_MASK) | USBFS_EP_R_RES_ACK;
+    uint8_t rx_res = data.isochronous[ep] ? USBFS_EP_R_RES_NYET : USBFS_EP_R_RES_ACK;
+    EP_RX_CTRL(ep) = (EP_RX_CTRL(ep) & ~USBFS_EP_R_RES_MASK) | rx_res;
   }
   return true;
 }
