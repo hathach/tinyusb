@@ -362,9 +362,9 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
     }
   } else {
     if (dir == TUSB_DIR_OUT) {
-      EP_RX_CTRL(ep) = (EP_RX_CTRL(ep) & ~(USBFS_EP_R_RES_MASK | USBFS_EP_R_TOG)) | USBFS_EP_R_RES_ACK;
+      EP_RX_CTRL(ep) = USBFS_EP_R_AUTO_TOG | USBFS_EP_R_RES_NAK;
     } else {
-      EP_TX_CTRL(ep) = (EP_TX_CTRL(ep) & ~(USBFS_EP_T_RES_MASK | USBFS_EP_T_TOG)) | USBFS_EP_T_RES_NAK;
+      EP_TX_CTRL(ep) = USBFS_EP_T_AUTO_TOG | USBFS_EP_T_RES_NAK;
     }
   }
 }
