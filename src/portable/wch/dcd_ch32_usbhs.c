@@ -123,17 +123,13 @@ static void update_in(uint8_t rhport, uint8_t ep_num, bool force) {
     ep_data_tog[ep_num][TUSB_DIR_IN] = !ep_data_tog[ep_num][TUSB_DIR_IN];
   }
 
-  if (ep_num == 0) {
-    EP_TX_CTRL(0) = USBHS_EP_T_RES_NAK | (ep0_tog ? USBHS_EP_T_TOG_1 : USBHS_EP_T_TOG_0);
-  } else if (!xfer->is_iso) {
-    EP_TX_CTRL(ep_num) = (EP_TX_CTRL(ep_num) & ~(USBHS_EP_T_RES_MASK)) | USBHS_EP_T_RES_NAK;
-  }
-
   if (force || (xfer->total_len > xfer->queued_len)) {
     queue_in_packet(ep_num, xfer);
   } else {
     xfer->valid = false;
-    if (ep_num != 0) {
+    if (ep_num == 0) {
+      EP_TX_CTRL(0) = USBHS_EP_T_RES_NAK | (ep0_tog ? USBHS_EP_T_TOG_1 : USBHS_EP_T_TOG_0);
+    } else {
       EP_TX_CTRL(ep_num) = (EP_TX_CTRL(ep_num) & ~(USBHS_EP_T_RES_MASK)) | USBHS_EP_T_RES_NAK;
     }
     dcd_event_xfer_complete(rhport, ep_num | TUSB_DIR_IN_MASK, xfer->queued_len, XFER_RESULT_SUCCESS, true);
@@ -144,12 +140,6 @@ static void update_out(uint8_t rhport, uint8_t ep_num, uint16_t rx_len) {
   xfer_ctl_t* xfer = XFER_CTL_BASE(ep_num, TUSB_DIR_OUT);
   if (!xfer->valid) {
     return;
-  }
-
-  if (ep_num == 0) {
-    EP_RX_CTRL(0) = (EP_RX_CTRL(0) & ~(USBHS_EP_R_RES_MASK)) | USBHS_EP_R_RES_NAK;
-  } else if (!xfer->is_iso) {
-    EP_RX_CTRL(ep_num) = (EP_RX_CTRL(ep_num) & ~(USBHS_EP_R_RES_MASK)) | USBHS_EP_R_RES_NAK;
   }
 
   uint16_t remaining = xfer->total_len - xfer->queued_len;
@@ -167,6 +157,9 @@ static void update_out(uint8_t rhport, uint8_t ep_num, uint16_t rx_len) {
 
   if ((xfer->queued_len == xfer->total_len) || (len < xfer->max_size)) {
     xfer->valid = false;
+    if (ep_num == 0) {
+      EP_RX_CTRL(0) = (EP_RX_CTRL(0) & ~(USBHS_EP_R_RES_MASK)) | USBHS_EP_R_RES_NAK;
+    }
     dcd_event_xfer_complete(rhport, ep_num, xfer->queued_len, XFER_RESULT_SUCCESS, true);
   }
 

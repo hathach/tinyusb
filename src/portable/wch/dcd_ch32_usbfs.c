@@ -66,13 +66,6 @@ static struct {
 static void update_in(uint8_t rhport, uint8_t ep, bool force) {
   struct usb_xfer *xfer = &data.xfer[ep][TUSB_DIR_IN];
   if (xfer->valid) {
-    // Set EP to NAK to avoid spurious tramsfer
-    if (ep == 0) {
-      EP_TX_CTRL(0) = USBFS_EP_T_RES_NAK | (data.ep0_tog ? USBFS_EP_T_TOG : 0);
-    } else if (!data.isochronous[ep]) {
-      EP_TX_CTRL(ep) = (EP_TX_CTRL(ep) & ~(USBFS_EP_T_RES_MASK)) | USBFS_EP_T_RES_NAK;
-    }
-
     if (force || xfer->len) {
       size_t len = TU_MIN(xfer->max_size, xfer->len);
       if (ep == 0) {
@@ -96,8 +89,12 @@ static void update_in(uint8_t rhport, uint8_t ep, bool force) {
         EP_TX_CTRL(ep) = (EP_TX_CTRL(ep) & ~(USBFS_EP_T_RES_MASK)) | USBFS_EP_T_RES_ACK;
       }
     } else {
-      xfer->valid    = false;
-      EP_TX_CTRL(ep) = (EP_TX_CTRL(ep) & ~(USBFS_EP_T_RES_MASK)) | USBFS_EP_T_RES_NAK;
+      xfer->valid = false;
+      if (ep == 0) {
+        EP_TX_CTRL(0) = USBFS_EP_T_RES_NAK | (data.ep0_tog ? USBFS_EP_T_TOG : 0);
+      } else if (!data.isochronous[ep]) {
+        EP_TX_CTRL(ep) = (EP_TX_CTRL(ep) & ~(USBFS_EP_T_RES_MASK)) | USBFS_EP_T_RES_NAK;
+      }
       dcd_event_xfer_complete(rhport, ep | TUSB_DIR_IN_MASK, xfer->processed_len, XFER_RESULT_SUCCESS, true);
     }
   }
@@ -106,13 +103,6 @@ static void update_in(uint8_t rhport, uint8_t ep, bool force) {
 static void update_out(uint8_t rhport, uint8_t ep, size_t rx_len) {
   struct usb_xfer *xfer = &data.xfer[ep][TUSB_DIR_OUT];
   if (xfer->valid) {
-    // Set EP to NAK to avoid spurious tramsfer
-    if (ep == 0) {
-      EP_RX_CTRL(0) = USBFS_EP_R_RES_NAK;
-    } else if (!data.isochronous[ep]) {
-      EP_RX_CTRL(ep) = (EP_RX_CTRL(ep) & ~USBFS_EP_R_RES_MASK) | USBFS_EP_R_RES_NAK;
-    }
-
     size_t len = TU_MIN(xfer->max_size, TU_MIN(xfer->len, rx_len));
     if (ep == 3) {
       memcpy(xfer->buffer, data.ep3_buffer.out, len);
@@ -128,7 +118,9 @@ static void update_out(uint8_t rhport, uint8_t ep, size_t rx_len) {
       dcd_event_xfer_complete(rhport, ep, xfer->processed_len, XFER_RESULT_SUCCESS, true);
     }
 
-    if (ep != 0) {
+    if (ep == 0) {
+      EP_RX_CTRL(0) = USBFS_EP_R_RES_NAK;
+    } else {
       uint8_t rx_res =
         data.isochronous[ep] ? USBFS_EP_R_RES_NYET : (xfer->valid ? USBFS_EP_R_RES_ACK : USBFS_EP_R_RES_NAK);
       EP_RX_CTRL(ep) = (EP_RX_CTRL(ep) & ~USBFS_EP_R_RES_MASK) | rx_res;
