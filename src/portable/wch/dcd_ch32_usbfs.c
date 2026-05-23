@@ -183,7 +183,6 @@ void dcd_int_handler(uint8_t rhport) {
     uint8_t  ep       = USBFS_INT_ST_MASK_UIS_ENDP(USBOTG_FS->INT_ST);
     uint8_t  token    = USBFS_INT_ST_MASK_UIS_TOKEN(USBOTG_FS->INT_ST);
     uint16_t rx_len   = USBOTG_FS->RX_LEN;
-    USBOTG_FS->INT_FG = USBFS_INT_FG_TRANSFER;
 
     switch (token) {
       case PID_OUT: {
@@ -207,6 +206,7 @@ void dcd_int_handler(uint8_t rhport) {
         break;
     }
 
+    USBOTG_FS->INT_FG = USBFS_INT_FG_TRANSFER;
   } else if (status & USBFS_INT_FG_BUS_RST) {
     data.ep0_tog                        = true;
     data.xfer[0][TUSB_DIR_OUT].max_size = 64;
