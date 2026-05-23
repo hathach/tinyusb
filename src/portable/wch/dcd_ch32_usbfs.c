@@ -273,8 +273,6 @@ void dcd_edpt0_status_complete(uint8_t rhport, const tusb_control_request_t *req
       request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD && request->bRequest == TUSB_REQ_SET_ADDRESS) {
     USBOTG_FS->DEV_ADDR = (uint8_t)request->wValue;
   }
-  EP_TX_CTRL(0) = USBFS_EP_T_RES_NAK;
-  EP_RX_CTRL(0) = USBFS_EP_R_RES_ACK;
 }
 
 bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
