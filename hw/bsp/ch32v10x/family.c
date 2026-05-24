@@ -69,13 +69,13 @@ uint32_t tusb_time_millis_api(void) {
 // 0x800 CSR register is writable in U-mode
 // according to manual: https://www.wch-ic.com/downloads/QingKeV3_Processor_Manual_PDF.html
 __attribute__((always_inline)) RV_STATIC_INLINE
-void __wch_vendor_enable_irq()
+void __wch_vendor_enable_irq(void)
 {
   __asm volatile ("csrs 0x800, %0" : : "r" (0x88) );
 }
 
 __attribute__((always_inline)) RV_STATIC_INLINE
-void __wch_vendor_disable_irq()
+void __wch_vendor_disable_irq(void)
 {
   __asm volatile ("csrc 0x800, %0" : : "r" (0x88) );
   __asm volatile ("fence.i");
@@ -84,7 +84,7 @@ void __wch_vendor_disable_irq()
 void board_init(void) {
   /* __disable_irq() in CH32V103 EVT attempts to call
    * `csrc mstatus, 0x88` in U-mode, which is allowed ONLY in M-mode.
-   * Disable this to avoid hard-fault. */
+   * Replace this with CSR 0x800 to avoid hard-fault. */
   __wch_vendor_disable_irq();
 
 #if CFG_TUSB_OS == OPT_OS_NONE
