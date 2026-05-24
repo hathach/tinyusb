@@ -1,4 +1,4 @@
-/* Some chinese manufactors use CH32V103C8T6 to make Bluepill boards
+/* Some Chinese manufacturers use CH32V103C8T6 to make Bluepill boards
  */
 /* metadata:
    name: CH32V103C8T6-Bluepill
