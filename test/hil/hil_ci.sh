@@ -76,8 +76,11 @@ if [ -n "$BOARD" ]; then
   copy_board_binaries "$BUILD_DIR"
 else
   echo "==> Copying all built binaries"
+  # Use `%/` parameter expansion to strip the trailing slash from the glob —
+  # rsync needs the bare dir name so the per-board cmake-build-<BOARD>/ subdir
+  # is preserved on the remote (hil_test.py looks up binaries by that path).
   for dir in "$ROOT_DIR"/examples/cmake-build-*/; do
-    [ -d "$dir" ] && copy_board_binaries "$dir"
+    [ -d "$dir" ] && copy_board_binaries "${dir%/}"
   done
 fi
 
