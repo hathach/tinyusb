@@ -97,15 +97,25 @@ uint8_t const * tud_descriptor_device_cb(void)
   #define EPNUM_CDC_OUT     0x02
   #define EPNUM_CDC_IN      0x82
 
-#elif defined(TUD_ENDPOINT_ONE_DIRECTION_ONLY)
+#elif CFG_TUD_ENDPOINT_ONE_DIRECTION_ONLY
   // MCUs that don't support a same endpoint number with different direction IN and OUT defined in tusb_mcu.h
   //    e.g EP1 OUT & EP1 IN cannot exist together
-  #define EPNUM_AUDIO_IN    0x01
-  #define EPNUM_AUDIO_OUT   0x02
+  #if TU_CHECK_MCU(OPT_MCU_MAX32650, OPT_MCU_MAX32666, OPT_MCU_MAX32690, OPT_MCU_MAX78002)
+    // Put CDC bulk on EP>=8 and audio iso on EP10/11 so the 2048/4096-byte FIFOs can back double packet buffering
+    #define EPNUM_AUDIO_OUT   0x0A
+    #define EPNUM_AUDIO_IN    0x0B
 
-  #define EPNUM_CDC_NOTIF   0x83
-  #define EPNUM_CDC_OUT     0x04
-  #define EPNUM_CDC_IN      0x85
+    #define EPNUM_CDC_NOTIF   0x83
+    #define EPNUM_CDC_OUT     0x08
+    #define EPNUM_CDC_IN      0x89
+  #else
+    #define EPNUM_AUDIO_IN    0x01
+    #define EPNUM_AUDIO_OUT   0x02
+
+    #define EPNUM_CDC_NOTIF   0x83
+    #define EPNUM_CDC_OUT     0x04
+    #define EPNUM_CDC_IN      0x85
+  #endif
 
 #else
   #define EPNUM_AUDIO_IN    0x01

@@ -34,10 +34,10 @@
   #define USBD_STACK_SIZE     4096
 #else
   // Increase stack size when debug log is enabled
-  #define USBD_STACK_SIZE    (3*configMINIMAL_STACK_SIZE/2) * (CFG_TUSB_DEBUG ? 2 : 1)
+  #define USBD_STACK_SIZE    (configMINIMAL_STACK_SIZE * (CFG_TUSB_DEBUG ? 4 : 2))
 #endif
 
-#define CDC_STACK_SIZE      (configMINIMAL_STACK_SIZE * (CFG_TUSB_DEBUG ? 2 : 1))
+#define CDC_STACK_SIZE      (configMINIMAL_STACK_SIZE * (CFG_TUSB_DEBUG ? 3 : 2))
 #define BLINKY_STACK_SIZE   configMINIMAL_STACK_SIZE
 
 //--------------------------------------------------------------------+

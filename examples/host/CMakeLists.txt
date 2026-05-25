@@ -13,7 +13,9 @@ set(EXAMPLE_LIST
   device_info
   hid_controller
   midi_rx
+  midi2_host
   msc_file_explorer
+  msc_file_explorer_freertos
   )
 
 foreach (example ${EXAMPLE_LIST})

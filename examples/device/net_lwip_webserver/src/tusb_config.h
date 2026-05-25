@@ -30,8 +30,6 @@
 extern "C" {
 #endif
 
-#include "lwipopts.h"
-
 //--------------------------------------------------------------------+
 // Board Specific Configuration
 //--------------------------------------------------------------------+
@@ -92,32 +90,50 @@ extern "C" {
   #define USE_ECM 1
 #elif TU_CHECK_MCU(OPT_MCU_STM32F0, OPT_MCU_STM32F1)
   #define USE_ECM 1
-#elif TU_CHECK_MCU(OPT_MCU_MAX32690, OPT_MCU_MAX32650, OPT_MCU_MAX32666, OPT_MCU_MAX78002)
-  #define USE_ECM 1
 #else
   #define USE_ECM 0
-  #define INCLUDE_IPERF
 #endif
+#endif
+
+// MCU SRAM tier — drives the bigger lwIP buffers in lwipopts.h, the larger
+// NCM OUT NTB size below, and whether iperf is built. Small-RAM MCUs
+// (stm32c0/f1/wb, lpc11/13, samd11) keep modest defaults to fit.
+#ifndef LWIP_HIGH_THROUGHPUT
+  #if TU_CHECK_MCU(OPT_MCU_MAX32650, OPT_MCU_MAX32666, OPT_MCU_MAX32690, OPT_MCU_MAX78002) || \
+      TU_CHECK_MCU(OPT_MCU_STM32F2,  OPT_MCU_STM32F4,  OPT_MCU_STM32F7) || \
+      TU_CHECK_MCU(OPT_MCU_STM32H5,  OPT_MCU_STM32H7,  OPT_MCU_STM32H7RS) || \
+      TU_CHECK_MCU(OPT_MCU_STM32U5,  OPT_MCU_STM32N6) || \
+      TU_CHECK_MCU(OPT_MCU_RP2040,   OPT_MCU_CH32V307) || \
+      TU_CHECK_MCU(OPT_MCU_MIMXRT1XXX) || \
+      TU_CHECK_MCU(OPT_MCU_NRF5X)
+    #define LWIP_HIGH_THROUGHPUT 1
+  #else
+    #define LWIP_HIGH_THROUGHPUT 0
+  #endif
+#endif
+
+#if LWIP_HIGH_THROUGHPUT && !defined(INCLUDE_IPERF)
+  #define INCLUDE_IPERF
 #endif
 
 //--------------------------------------------------------------------
 // NCM CLASS CONFIGURATION, SEE "ncm.h" FOR PERFORMANCE TUNING
 //--------------------------------------------------------------------
 
-// Must be >> MTU
-// Can be set to 2048 without impact
-#define CFG_TUD_NCM_IN_NTB_MAX_SIZE (2 * TCP_MSS + 100)
+// CDC-NCM 1.0 Table 6-4 defines 2048 as the minimum required NTB size
+#define CFG_TUD_NCM_IN_NTB_MAX_SIZE 2048
 
-// Must be >> MTU
-// Can be set to smaller values if wNtbOutMaxDatagrams==1
-#define CFG_TUD_NCM_OUT_NTB_MAX_SIZE (2 * TCP_MSS + 100)
+#if LWIP_HIGH_THROUGHPUT
+  #define CFG_TUD_NCM_OUT_NTB_MAX_SIZE 4096
+#else
+  #define CFG_TUD_NCM_OUT_NTB_MAX_SIZE 2048
+#endif
 
 // Number of NCM transfer blocks for reception side
 #ifndef CFG_TUD_NCM_OUT_NTB_N
   #define CFG_TUD_NCM_OUT_NTB_N 1
 #endif
 
-// Number of NCM transfer blocks for transmission side
 #ifndef CFG_TUD_NCM_IN_NTB_N
   #define CFG_TUD_NCM_IN_NTB_N 1
 #endif

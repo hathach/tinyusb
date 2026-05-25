@@ -1,0 +1,709 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2019 Ha Thach (tinyusb.org)
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *
+ */
+
+#include <ctype.h>
+#include "tusb.h"
+#include "bsp/board_api.h"
+#ifdef ESP_PLATFORM
+  // ESP-IDF need "freertos/" prefix in include path.
+  // CFG_TUSB_OS_INC_PATH should be defined accordingly.
+  #include "freertos/FreeRTOS.h"
+  #include "freertos/task.h"
+  #include "freertos/timers.h"
+#else
+  #include "FreeRTOS.h"
+  #include "task.h"
+  #include "timers.h"
+#endif
+
+#include "ff.h"
+#include "diskio.h"
+
+// lib/embedded-cli
+#define EMBEDDED_CLI_IMPL
+#include "embedded_cli.h"
+
+#include "msc_app.h"
+
+
+//--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM DECLARATION
+//--------------------------------------------------------------------+
+
+//------------- embedded-cli -------------//
+#define CLI_BUFFER_SIZE     512
+#define CLI_RX_BUFFER_SIZE  16
+#define CLI_CMD_BUFFER_SIZE 64
+#define CLI_HISTORY_SIZE    32
+#define CLI_BINDING_COUNT   9
+
+#ifdef ESP_PLATFORM
+  #define MSC_APP_STACK_SIZE     4096
+#else
+  #define MSC_APP_STACK_SIZE    (configMINIMAL_STACK_SIZE * (CFG_TUSB_DEBUG ? 3 : 2))
+#endif
+
+static EmbeddedCli *_cli;
+static CLI_UINT     cli_buffer[BYTES_TO_CLI_UINTS(CLI_BUFFER_SIZE)];
+
+#if configSUPPORT_STATIC_ALLOCATION
+StackType_t  msc_app_stack[MSC_APP_STACK_SIZE];
+StaticTask_t msc_app_taskdef;
+#endif
+
+//------------- Elm Chan FatFS -------------//
+static CFG_TUH_MEM_SECTION FATFS fatfs[CFG_TUH_DEVICE_MAX]; // for simplicity only support 1 LUN per device
+static volatile bool              _disk_busy[CFG_TUH_DEVICE_MAX];
+static volatile bool              _mount_pending[CFG_TUH_DEVICE_MAX];
+
+static CFG_TUH_MEM_SECTION FIL     file1, file2;
+
+#ifndef CFG_EXAMPLE_MSC_FILE_EXPLORER_RW_BUFSIZE
+#define CFG_EXAMPLE_MSC_FILE_EXPLORER_RW_BUFSIZE 4096
+#endif
+static CFG_TUH_MEM_SECTION uint8_t rw_buf[CFG_EXAMPLE_MSC_FILE_EXPLORER_RW_BUFSIZE];
+
+// define the buffer to be place in USB/DMA memory with correct alignment/cache line size
+CFG_TUH_MEM_SECTION static struct {
+  TUH_EPBUF_TYPE_DEF(scsi_inquiry_resp_t, inquiry);
+} scsi_resp;
+
+
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
+
+static bool cli_init(void);
+static void msc_app_task(void* param);
+static void process_pending_mount(void);
+
+bool msc_app_init(void) {
+  for (size_t i = 0; i < CFG_TUH_DEVICE_MAX; i++) {
+    _disk_busy[i] = false;
+    _mount_pending[i] = false;
+  }
+
+// disable stdout buffered for echoing typing command
+#ifndef __ICCARM__ // TODO IAR doesn't support stream control ?
+  setbuf(stdout, NULL);
+#endif
+
+  cli_init();
+
+#if configSUPPORT_STATIC_ALLOCATION
+  TaskHandle_t task_hdl = xTaskCreateStatic(msc_app_task, "msc", MSC_APP_STACK_SIZE, NULL,
+                                             configMAX_PRIORITIES - 2, msc_app_stack, &msc_app_taskdef);
+  TU_ASSERT(task_hdl != NULL);
+#else
+  TU_ASSERT(xTaskCreate(msc_app_task, "msc", MSC_APP_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, NULL) == pdPASS);
+#endif
+
+  return true;
+}
+
+static void msc_app_task(void* param) {
+  (void) param;
+
+  while (1) {
+    process_pending_mount();
+
+    if (!_cli) {
+      vTaskDelay(1);
+      continue;
+    }
+
+    int ch = board_getchar();
+    if (ch > 0) {
+      while (ch > 0) {
+        embeddedCliReceiveChar(_cli, (char) ch);
+        ch = board_getchar();
+      }
+      embeddedCliProcess(_cli);
+    }
+
+    vTaskDelay(1);
+  }
+}
+
+static void process_pending_mount(void) {
+  for (uint8_t drive_num = 0; drive_num < CFG_TUH_DEVICE_MAX; drive_num++) {
+    if (!_mount_pending[drive_num]) {
+      continue;
+    }
+
+    _mount_pending[drive_num] = false;
+
+    const uint8_t dev_addr = drive_num + 1;
+    if (!tuh_msc_mounted(dev_addr)) {
+      continue;
+    }
+
+    char drive_path[3] = "0:";
+    drive_path[0] += drive_num;
+
+    if (f_mount(&fatfs[drive_num], drive_path, 1) != FR_OK) {
+      printf("mount failed\r\n");
+      continue;
+    }
+
+    f_chdrive(drive_path);
+    FRESULT rc = f_chdir("/");
+    if (rc != FR_OK) {
+      printf("chdir failed: %d\r\n", rc);
+    }
+  }
+}
+
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
+
+static bool inquiry_complete_cb(uint8_t dev_addr, const tuh_msc_complete_data_t *cb_data) {
+  const msc_cbw_t *cbw = cb_data->cbw;
+  const msc_csw_t *csw = cb_data->csw;
+
+  if (csw->status != 0) {
+    printf("Inquiry failed\r\n");
+    return false;
+  }
+
+  // Print out Vendor ID, Product ID and Rev
+  printf("%.8s %.16s %.4s\r\n", scsi_resp.inquiry.vendor_id, scsi_resp.inquiry.product_id,
+         scsi_resp.inquiry.product_rev);
+
+  // Get capacity of device
+  const uint32_t block_count = tuh_msc_get_block_count(dev_addr, cbw->lun);
+  const uint32_t block_size  = tuh_msc_get_block_size(dev_addr, cbw->lun);
+
+  printf("Disk Size: %" PRIu32 " %" PRIu32 "-byte blocks: %" PRIu32 " MB\r\n",
+    block_count, block_size, block_count / ((1024 * 1024) / block_size));
+
+  // For simplicity: we only mount 1 LUN per device
+  const uint8_t drive_num     = dev_addr - 1;
+  _mount_pending[drive_num] = true;
+
+  // print the drive label
+  //  char label[34];
+  //  if ( FR_OK == f_getlabel(drive_path, label, NULL) )
+  //  {
+  //    puts(label);
+  //  }
+
+  return true;
+}
+
+//------------- IMPLEMENTATION -------------//
+void tuh_msc_mount_cb(uint8_t dev_addr) {
+  printf("A MassStorage device (addr = %u) is mounted\r\n", dev_addr);
+
+  const uint8_t lun = 0;
+  tuh_msc_inquiry(dev_addr, lun, &scsi_resp.inquiry, inquiry_complete_cb, 0);
+}
+
+void tuh_msc_umount_cb(uint8_t dev_addr) {
+  printf("A MassStorage device is unmounted\r\n");
+
+  const uint8_t drive_num     = dev_addr - 1;
+  char          drive_path[3] = "0:";
+  drive_path[0] += drive_num;
+
+  _mount_pending[drive_num] = false;
+
+  f_unmount(drive_path);
+
+  //  if ( phy_disk == f_get_current_drive() )
+  //  { // active drive is unplugged --> change to other drive
+  //    for(uint8_t i=0; i<CFG_TUH_DEVICE_MAX; i++)
+  //    {
+  //      if ( disk_is_ready(i) )
+  //      {
+  //        f_chdrive(i);
+  //        cli_init(); // refractor, rename
+  //      }
+  //    }
+  //  }
+}
+
+//--------------------------------------------------------------------+
+// DiskIO
+//--------------------------------------------------------------------+
+
+static void wait_for_disk_io(BYTE pdrv) {
+  while (_disk_busy[pdrv]) {
+    vTaskDelay(1);
+  }
+}
+
+static bool disk_io_complete(uint8_t dev_addr, const tuh_msc_complete_data_t *cb_data) {
+  (void)dev_addr;
+  (void)cb_data;
+  _disk_busy[dev_addr - 1] = false;
+  return true;
+}
+
+DSTATUS disk_status(BYTE pdrv /* Physical drive nmuber to identify the drive */
+) {
+  uint8_t dev_addr = pdrv + 1;
+  return tuh_msc_mounted(dev_addr) ? 0 : STA_NODISK;
+}
+
+DSTATUS disk_initialize(BYTE pdrv /* Physical drive nmuber to identify the drive */
+) {
+  (void)pdrv;
+  return 0;                       // nothing to do
+}
+
+DRESULT disk_read(BYTE  pdrv,     /* Physical drive nmuber to identify the drive */
+                  BYTE *buff,     /* Data buffer to store read data */
+                  LBA_t sector,   /* Start sector in LBA */
+                  UINT  count     /* Number of sectors to read */
+) {
+  const uint8_t dev_addr = pdrv + 1;
+  const uint8_t lun      = 0;
+
+  _disk_busy[pdrv] = true;
+  tuh_msc_read10(dev_addr, lun, buff, sector, (uint16_t)count, disk_io_complete, 0);
+  wait_for_disk_io(pdrv);
+
+  return RES_OK;
+}
+
+#if FF_FS_READONLY == 0
+
+DRESULT disk_write(BYTE        pdrv,   /* Physical drive nmuber to identify the drive */
+                   const BYTE *buff,   /* Data to be written */
+                   LBA_t       sector, /* Start sector in LBA */
+                   UINT        count   /* Number of sectors to write */
+) {
+  const uint8_t dev_addr = pdrv + 1;
+  const uint8_t lun      = 0;
+
+  _disk_busy[pdrv] = true;
+  tuh_msc_write10(dev_addr, lun, buff, sector, (uint16_t)count, disk_io_complete, 0);
+  wait_for_disk_io(pdrv);
+
+  return RES_OK;
+}
+
+#endif
+
+DRESULT disk_ioctl(BYTE  pdrv, /* Physical drive nmuber (0..) */
+                   BYTE  cmd,  /* Control code */
+                   void *buff  /* Buffer to send/receive control data */
+) {
+  const uint8_t dev_addr = pdrv + 1;
+  const uint8_t lun      = 0;
+  switch (cmd) {
+    case CTRL_SYNC:
+      // nothing to do since we do blocking
+      return RES_OK;
+
+    case GET_SECTOR_COUNT:
+      *((DWORD *)buff) = (DWORD)tuh_msc_get_block_count(dev_addr, lun);
+      return RES_OK;
+
+    case GET_SECTOR_SIZE:
+      *((WORD *)buff) = (WORD)tuh_msc_get_block_size(dev_addr, lun);
+      return RES_OK;
+
+    case GET_BLOCK_SIZE:
+      *((DWORD *)buff) = 1; // erase block size in units of sector size
+      return RES_OK;
+
+    default:
+      return RES_PARERR;
+  }
+}
+
+//--------------------------------------------------------------------+
+// CLI Commands
+//--------------------------------------------------------------------+
+
+void cli_cmd_cat(EmbeddedCli *cli, char *args, void *context);
+void cli_cmd_cd(EmbeddedCli *cli, char *args, void *context);
+void cli_cmd_cp(EmbeddedCli *cli, char *args, void *context);
+void cli_cmd_dd(EmbeddedCli *cli, char *args, void *context);
+void cli_cmd_ls(EmbeddedCli *cli, char *args, void *context);
+void cli_cmd_pwd(EmbeddedCli *cli, char *args, void *context);
+void cli_cmd_mkdir(EmbeddedCli *cli, char *args, void *context);
+void cli_cmd_mv(EmbeddedCli *cli, char *args, void *context);
+void cli_cmd_rm(EmbeddedCli *cli, char *args, void *context);
+
+static void cli_write_char(EmbeddedCli *cli, char c) {
+  (void)cli;
+  putchar((int)c);
+}
+
+bool cli_init(void) {
+  EmbeddedCliConfig *config = embeddedCliDefaultConfig();
+  config->cliBuffer         = cli_buffer;
+  config->cliBufferSize     = CLI_BUFFER_SIZE;
+  config->rxBufferSize      = CLI_RX_BUFFER_SIZE;
+  config->cmdBufferSize     = CLI_CMD_BUFFER_SIZE;
+  config->historyBufferSize = CLI_HISTORY_SIZE;
+  config->maxBindingCount   = CLI_BINDING_COUNT;
+
+  TU_ASSERT(embeddedCliRequiredSize(config) <= CLI_BUFFER_SIZE);
+
+  _cli = embeddedCliNew(config);
+  TU_ASSERT(_cli != NULL);
+
+  _cli->writeChar = cli_write_char;
+
+  embeddedCliAddBinding(_cli,
+                        (CliCommandBinding){"cat", "Usage: cat [FILE]...\r\n\tConcatenate FILE(s) to standard output..",
+                                            true, NULL, cli_cmd_cat});
+
+  embeddedCliAddBinding(_cli, (CliCommandBinding){"cd", "Usage: cd [DIR]...\r\n\tChange the current directory to DIR.",
+                                                  true, NULL, cli_cmd_cd});
+
+  embeddedCliAddBinding(_cli, (CliCommandBinding){"cp", "Usage: cp SOURCE DEST\r\n\tCopy SOURCE to DEST.", true, NULL,
+                                                  cli_cmd_cp});
+
+  embeddedCliAddBinding(_cli, (CliCommandBinding){"dd", "Usage: dd [COUNT]\r\n\t" "Read COUNT sectors (default 1024) and report speed.", true, NULL,
+                                                  cli_cmd_dd});
+
+  embeddedCliAddBinding(_cli, (CliCommandBinding){"ls",
+                                                  "Usage: ls [DIR]...\r\n\tList information about the FILEs (the "
+                                                  "current directory by default).",
+                                                  true, NULL, cli_cmd_ls});
+
+  embeddedCliAddBinding(_cli,
+                        (CliCommandBinding){"pwd", "Usage: pwd\r\n\tPrint the name of the current working directory.",
+                                            true, NULL, cli_cmd_pwd});
+
+  embeddedCliAddBinding(_cli, (CliCommandBinding){"mkdir",
+                                                  "Usage: mkdir DIR...\r\n\tCreate the DIRECTORY(ies), if they do not "
+                                                  "already exist..",
+                                                  true, NULL, cli_cmd_mkdir});
+
+  embeddedCliAddBinding(_cli, (CliCommandBinding){"mv", "Usage: mv SOURCE DEST...\r\n\tRename SOURCE to DEST.", true,
+                                                  NULL, cli_cmd_mv});
+
+  embeddedCliAddBinding(_cli, (CliCommandBinding){"rm", "Usage: rm [FILE]...\r\n\tRemove (unlink) the FILE(s).", true,
+                                                  NULL, cli_cmd_rm});
+
+  return true;
+}
+
+void cli_cmd_dd(EmbeddedCli *cli, char *args, void *context) {
+  (void)cli;
+  (void)context;
+
+  uint32_t count = 1024; // default sectors to read
+  if (embeddedCliGetTokenCount(args) >= 1) {
+    count = (uint32_t)atoi(embeddedCliGetToken(args, 1));
+    if (count == 0) {
+      count = 1024;
+    }
+  }
+
+  // find first mounted MSC device
+  uint8_t dev_addr = 0;
+  for (uint8_t i = 1; i <= CFG_TUH_DEVICE_MAX; i++) {
+    if (tuh_msc_mounted(i)) {
+      dev_addr = i;
+      break;
+    }
+  }
+  if (dev_addr == 0) {
+    printf("no MSC device mounted\r\n");
+    return;
+  }
+
+  const uint8_t  lun         = 0;
+  const uint32_t block_size  = tuh_msc_get_block_size(dev_addr, lun);
+  const uint32_t block_count = tuh_msc_get_block_count(dev_addr, lun);
+  if (count > block_count) {
+    count = block_count;
+  }
+
+  const uint16_t sectors_per_xfer = (uint16_t)(sizeof(rw_buf) / block_size);
+  const uint32_t xfer_count = (count + sectors_per_xfer - 1) / sectors_per_xfer;
+
+  printf("dd: reading %" PRIu32 " sectors (%" PRIu32 " bytes), %u sectors/xfer ...\r\n",
+         count, count * block_size, sectors_per_xfer);
+
+  const uint32_t start_ms = tusb_time_millis_api();
+  const uint8_t  pdrv     = dev_addr - 1;
+  bool submit_failed = false;
+
+  for (uint32_t i = 0; i < count; i += sectors_per_xfer) {
+    const uint16_t n = (uint16_t)((count - i < sectors_per_xfer) ? (count - i) : sectors_per_xfer);
+    _disk_busy[pdrv] = true;
+
+    if (!tuh_msc_read10(dev_addr, lun, rw_buf, i, n, disk_io_complete, 0)) {
+      _disk_busy[pdrv] = false;
+      printf("dd: failed to submit read at sector %" PRIu32 " (%u sectors)\r\n", i, n);
+      submit_failed = true;
+      break;
+    }
+
+    wait_for_disk_io(pdrv);
+  }
+
+  if (submit_failed) {
+    return;
+  }
+
+  const uint32_t elapsed_ms = tusb_time_millis_api() - start_ms;
+  const uint32_t total_data = count * block_size;
+  // each SCSI transaction has 31-byte CBW + data + 13-byte CSW
+  const uint32_t total_bus = total_data + xfer_count * (31 + 13);
+
+  if (elapsed_ms > 0) {
+    const uint32_t data_kbs = total_data / elapsed_ms; // KB/s (bytes/ms = KB/s)
+    const uint32_t bus_kbs  = total_bus / elapsed_ms;
+    printf("dd: %" PRIu32 " bytes in %" PRIu32 " ms = %" PRIu32 " KB/s (bus %" PRIu32 " KB/s)\r\n",
+           total_data, elapsed_ms, data_kbs, bus_kbs);
+  } else {
+    printf("dd: %" PRIu32 " bytes in <1 ms\r\n", total_data);
+  }
+}
+
+void cli_cmd_cat(EmbeddedCli *cli, char *args, void *context) {
+  (void)cli;
+  (void)context;
+
+  uint16_t argc = embeddedCliGetTokenCount(args);
+
+  // need at least 1 argument
+  if (argc == 0) {
+    printf("invalid arguments\r\n");
+    return;
+  }
+
+  for (uint16_t i = 0; i < argc; i++) {
+    FIL        *fi    = &file1;
+    const char *fpath = embeddedCliGetToken(args, i + 1); // token count from 1
+
+    if (FR_OK != f_open(fi, fpath, FA_READ)) {
+      printf("%s: No such file or directory\r\n", fpath);
+    } else {
+      UINT count = 0;
+      while ((FR_OK == f_read(fi, rw_buf, sizeof(rw_buf), &count)) && (count > 0)) {
+        for (UINT c = 0; c < count; c++) {
+          const uint8_t ch = rw_buf[c];
+          if (isprint(ch) || iscntrl(ch)) {
+            putchar(ch);
+          } else {
+            putchar('.');
+          }
+        }
+      }
+    }
+
+    f_close(fi);
+  }
+}
+
+void cli_cmd_cd(EmbeddedCli *cli, char *args, void *context) {
+  (void)cli;
+  (void)context;
+
+  uint16_t argc = embeddedCliGetTokenCount(args);
+
+  // only support 1 argument
+  if (argc != 1) {
+    printf("invalid arguments\r\n");
+    return;
+  }
+
+  // default is current directory
+  const char *dpath = args;
+
+  if (FR_OK != f_chdir(dpath)) {
+    printf("%s: No such file or directory\r\n", dpath);
+    return;
+  }
+}
+
+void cli_cmd_cp(EmbeddedCli *cli, char *args, void *context) {
+  (void)cli;
+  (void)context;
+
+  uint16_t argc = embeddedCliGetTokenCount(args);
+  if (argc != 2) {
+    printf("invalid arguments\r\n");
+    return;
+  }
+
+  // default is current directory
+  const char *src = embeddedCliGetToken(args, 1);
+  const char *dst = embeddedCliGetToken(args, 2);
+
+  FIL *f_src = &file1;
+  FIL *f_dst = &file2;
+
+  if (FR_OK != f_open(f_src, src, FA_READ)) {
+    printf("cannot stat '%s': No such file or directory\r\n", src);
+    return;
+  }
+
+  if (FR_OK != f_open(f_dst, dst, FA_WRITE | FA_CREATE_ALWAYS)) {
+    printf("cannot create '%s'\r\n", dst);
+    f_close(f_src);
+    return;
+  } else {
+    UINT rd_count = 0;
+    while ((FR_OK == f_read(f_src, rw_buf, sizeof(rw_buf), &rd_count)) && (rd_count > 0)) {
+      UINT wr_count = 0;
+
+      if (FR_OK != f_write(f_dst, rw_buf, rd_count, &wr_count)) {
+        printf("cannot write to '%s'\r\n", dst);
+        break;
+      }
+    }
+  }
+
+  f_close(f_src);
+  f_close(f_dst);
+}
+
+void cli_cmd_ls(EmbeddedCli *cli, char *args, void *context) {
+  (void)cli;
+  (void)context;
+
+  uint16_t argc = embeddedCliGetTokenCount(args);
+
+  // only support 1 argument
+  if (argc > 1) {
+    printf("invalid arguments\r\n");
+    return;
+  }
+
+  // default is current directory
+  const char *dpath = ".";
+  if (argc) {
+    dpath = args;
+  }
+
+  DIR dir;
+  if (FR_OK != f_opendir(&dir, dpath)) {
+    printf("cannot access '%s': No such file or directory\r\n", dpath);
+    return;
+  }
+
+  FILINFO fno;
+  while ((f_readdir(&dir, &fno) == FR_OK) && (fno.fname[0] != 0)) {
+    if (fno.fname[0] != '.') // ignore . and .. entry
+    {
+      if (fno.fattrib & AM_DIR) {
+        // directory
+        printf("/%s\r\n", fno.fname);
+      } else {
+        printf("%-40s", fno.fname);
+        if (fno.fsize < 1024) {
+          printf("%" PRIu32 " B\r\n", fno.fsize);
+        } else {
+          printf("%" PRIu32 " KB\r\n", fno.fsize / 1024);
+        }
+      }
+    }
+  }
+
+  f_closedir(&dir);
+}
+
+void cli_cmd_pwd(EmbeddedCli *cli, char *args, void *context) {
+  (void)cli;
+  (void)context;
+  uint16_t argc = embeddedCliGetTokenCount(args);
+
+  if (argc != 0) {
+    printf("invalid arguments\r\n");
+    return;
+  }
+
+  char path[256];
+  if (FR_OK != f_getcwd(path, sizeof(path))) {
+    printf("cannot get current working directory\r\n");
+    return;
+  }
+
+  puts(path);
+}
+
+void cli_cmd_mkdir(EmbeddedCli *cli, char *args, void *context) {
+  (void)cli;
+  (void)context;
+
+  uint16_t argc = embeddedCliGetTokenCount(args);
+
+  // only support 1 argument
+  if (argc != 1) {
+    printf("invalid arguments\r\n");
+    return;
+  }
+
+  // default is current directory
+  const char *dpath = args;
+
+  if (FR_OK != f_mkdir(dpath)) {
+    printf("%s: cannot create this directory\r\n", dpath);
+    return;
+  }
+}
+
+void cli_cmd_mv(EmbeddedCli *cli, char *args, void *context) {
+  (void)cli;
+  (void)context;
+
+  uint16_t argc = embeddedCliGetTokenCount(args);
+  if (argc != 2) {
+    printf("invalid arguments\r\n");
+    return;
+  }
+
+  // default is current directory
+  const char *src = embeddedCliGetToken(args, 1);
+  const char *dst = embeddedCliGetToken(args, 2);
+
+  if (FR_OK != f_rename(src, dst)) {
+    printf("cannot mv %s to %s\r\n", src, dst);
+    return;
+  }
+}
+
+void cli_cmd_rm(EmbeddedCli *cli, char *args, void *context) {
+  (void)cli;
+  (void)context;
+
+  uint16_t argc = embeddedCliGetTokenCount(args);
+
+  // need at least 1 argument
+  if (argc == 0) {
+    printf("invalid arguments\r\n");
+    return;
+  }
+
+  for (uint16_t i = 0; i < argc; i++) {
+    const char *fpath = embeddedCliGetToken(args, i + 1); // token count from 1
+
+    if (FR_OK != f_unlink(fpath)) {
+      printf("cannot remove '%s': No such file or directory\r\n", fpath);
+    }
+  }
+}

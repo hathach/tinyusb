@@ -102,10 +102,12 @@ typedef enum {
 typedef enum {
   TUSB_DIR_OUT = 0u,
   TUSB_DIR_IN  = 1u,
-
-  TUSB_EPNUM_MASK = 0x0F,
-  TUSB_DIR_IN_MASK = 0x80
 } tusb_dir_t;
+
+enum {
+  TUSB_EPNUM_MASK  = 0x0F,
+  TUSB_DIR_IN_MASK = 0x80
+};
 
 enum {
   TUSB_EPSIZE_BULK_FS = 64,
@@ -318,6 +320,12 @@ enum {
 enum {
   TUSB_INDEX_INVALID_8 = 0xFF
 };
+
+enum {
+ TU_EP0_OUT = 0x00,
+ TU_EP0_IN = 0x80
+};
+
 
 //--------------------------------------------------------------------+
 //
