@@ -343,7 +343,7 @@ void dcd_int_handler(uint8_t rhport) {
   uint32_t int_status = FSDEV_REG->ISTR;
 
   /* Put SOF flag at the beginning of ISR in case to get least amount of jitter if it is used for timing purposes */
-  if (int_status & U_ISTR_SOF) {
+  if ((int_status & U_ISTR_SOF) && (FSDEV_REG->CNTR & U_CNTR_SOFM)) {
     FSDEV_REG->ISTR = (fsdev_bus_t)~U_ISTR_SOF;
     dcd_event_sof(0, FSDEV_REG->FNR & U_FNR_FN, true);
   }
