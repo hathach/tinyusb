@@ -616,10 +616,6 @@
     #define CFG_TUH_WCH_USBIP_USBFS 1
   #endif
 
-  #define TUP_USBIP_FSDEV
-  #define TUP_USBIP_FSDEV_CH32
-  #define CFG_TUSB_FSDEV_PMA_SIZE 512u
-
   // default to FSDEV for device
   #if !defined(CFG_TUD_WCH_USBIP_USBFS)
     #define CFG_TUD_WCH_USBIP_USBFS 0
@@ -627,6 +623,12 @@
 
   #if !defined(CFG_TUD_WCH_USBIP_FSDEV)
     #define CFG_TUD_WCH_USBIP_FSDEV (CFG_TUD_WCH_USBIP_USBFS ? 0 : 1)
+  #endif
+
+  #if CFG_TUD_WCH_USBIP_FSDEV
+    #define TUP_USBIP_FSDEV
+    #define TUP_USBIP_FSDEV_CH32
+    #define CFG_TUSB_FSDEV_PMA_SIZE 512u
   #endif
 
   #define TUP_DCD_ENDPOINT_MAX 8
