@@ -69,9 +69,6 @@ typedef struct {
 
   // SOF enabling flag - required for SOF to not get disabled in ISR when SOF was enabled by
   bool sof_en;
-
-  // EP0 status OUT flag
-  bool ep0_status_out;
 } dcd_data_t;
 
 static dcd_data_t _dcd_data;
@@ -668,9 +665,6 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
     // EP0 can only handle one packet
     if (epnum == 0) {
       _dcd_data.ep0_pending[dir] = total_bytes;
-      if (dir == TUSB_DIR_OUT) {
-        _dcd_data.ep0_status_out = (total_bytes == 0);
-      }
     }
 
     // Schedule packets to be sent within interrupt
@@ -752,7 +746,6 @@ static void handle_bus_reset(uint8_t rhport) {
 
   _dcd_data.sof_en = false;
   _dcd_data.allocated_epin_count = 0;
-  _dcd_data.ep0_status_out = false;
 
   // 1. NAK for all OUT endpoints
   for (uint8_t n = 0; n < ep_count; n++) {
@@ -907,9 +900,6 @@ static void handle_rxflvl_irq(uint8_t rhport) {
       // We can receive up to three setup packets in succession, but only the last one is valid.
       setup[0] = (*rx_fifo);
       setup[1] = (*rx_fifo);
-
-      // Clear previous pending EP0 OUT if any
-      _dcd_data.ep0_status_out = false;
       break;
     }
 
@@ -940,6 +930,10 @@ static void handle_rxflvl_irq(uint8_t rhport) {
         xfer->total_len -= tsiz.xfer_size;
         if (epnum == 0) {
           _dcd_data.ep0_pending[TUSB_DIR_OUT] = 0;
+          // Handle EP0 STATUS OUT (or ZLP) here to avoid mix with next SETUP packet received IRQ
+          if (xfer->total_len == 0) {
+            dcd_event_xfer_complete(rhport, 0, 0, XFER_RESULT_SUCCESS, true);
+          }
         }
       }
       break;
@@ -949,12 +943,6 @@ static void handle_rxflvl_irq(uint8_t rhport) {
       // Out packet done
       // After this entry is popped from the receive FIFO, dwc2 asserts a Transfer Completed interrupt on
       // the specified OUT endpoint which will be handled by handle_epout_irq()
-
-      // EP0 status OUT is complete
-      if (epnum == 0 && _dcd_data.ep0_status_out) {
-        _dcd_data.ep0_status_out = false;
-        dcd_event_xfer_complete(rhport, epnum, 0, XFER_RESULT_SUCCESS, true);
-      }
       break;
 
     default: break; // nothing to do
@@ -984,7 +972,7 @@ static void handle_epout_slave(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doe
           // EP0 can only handle one packet, Schedule another packet to be received.
           edpt_schedule_packets(rhport, epnum, TUSB_DIR_OUT);
         } else if (xfer->total_len > 0) {
-          // EP0 status out is handled in handle_rxflvl_irq
+          // EP0 STATUS OUT (or ZLP) is handled in handle_rxflvl_irq()
           dcd_event_xfer_complete(rhport, epnum, xfer->total_len, XFER_RESULT_SUCCESS, true);
         }
       } else {
