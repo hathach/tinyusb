@@ -77,14 +77,13 @@ static inline void wch_usbhs_edpt_enable(uint8_t ep_num, tusb_dir_t dir, bool is
   } else {
     if (is_iso) {
       USBHSD->ENDP_TYPE |= (USBHS_EP0_T_TYP << ep_num);
-    } else {
-      USBHSD->ENDP_CONFIG |= (USBHS_EP0_T_EN << ep_num);
     }
+    USBHSD->ENDP_CONFIG |= (USBHS_EP0_T_EN << ep_num);
   }
 }
 
 static inline void wch_usbhs_edpt_enable_iso_in(uint8_t ep_num) {
-  USBHSD->ENDP_CONFIG |= (USBHS_EP0_T_EN << ep_num);
+  (void)ep_num;
 }
 
 static inline void wch_usbhs_edpt_disable(uint8_t ep_num, tusb_dir_t dir) {
@@ -98,7 +97,7 @@ static inline void wch_usbhs_edpt_disable(uint8_t ep_num, tusb_dir_t dir) {
 }
 
 static inline void wch_usbhs_edpt_disable_iso_in(uint8_t ep_num) {
-  USBHSD->ENDP_CONFIG &= ~(USBHS_EP0_T_EN << ep_num);
+  (void)ep_num;
 }
 
 static inline void wch_usbhs_edpt_close_all(void) {
