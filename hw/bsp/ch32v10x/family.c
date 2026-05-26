@@ -92,6 +92,7 @@ void board_init(void) {
 #endif
 
   RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+  RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOC, ENABLE);
 
   EXTEN->EXTEN_CTR |= EXTEN_USBFS_IO_EN;
   uint8_t usb_div;
