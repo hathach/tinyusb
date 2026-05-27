@@ -83,6 +83,13 @@ typedef struct {
 //--------------------------------------------------------------------+
 // TASK API
 //--------------------------------------------------------------------+
+typedef TaskHandle_t osal_task_handle_t;
+
+// Requires INCLUDE_xTaskGetCurrentTaskHandle == 1 in FreeRTOSConfig.h.
+TU_ATTR_ALWAYS_INLINE static inline osal_task_handle_t osal_task_get_current_handle(void) {
+  return xTaskGetCurrentTaskHandle();
+}
+
 TU_ATTR_ALWAYS_INLINE static inline uint32_t _osal_ms2tick(uint32_t msec) {
   if (msec == OSAL_TIMEOUT_WAIT_FOREVER) { return portMAX_DELAY; }
   if (msec == 0) { return 0; }
