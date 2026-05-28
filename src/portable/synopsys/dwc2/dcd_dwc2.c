@@ -794,13 +794,15 @@ static void handle_bus_reset(uint8_t rhport) {
   xfer_status[0][TUSB_DIR_OUT].max_size = CFG_TUD_ENDPOINT0_SIZE;
   xfer_status[0][TUSB_DIR_IN].max_size = CFG_TUD_ENDPOINT0_SIZE;
 
+  uint32_t oepmsk = 0;
   if(dma_device_enabled(dwc2)) {
+    oepmsk = GINTMSK_OEPINT;
     dma_setup_prepare(rhport);
   } else {
     dwc2->epout[0].doeptsiz |= (3 << DOEPTSIZ_STUPCNT_Pos);
   }
 
-  dwc2->gintmsk |= GINTMSK_OTGINT | GINTMSK_OEPINT | GINTMSK_IEPINT | GINTMSK_IISOIXFRM;
+  dwc2->gintmsk |= GINTMSK_OTGINT | oepmsk | GINTMSK_IEPINT | GINTMSK_IISOIXFRM;
 }
 
 static void handle_enum_done(uint8_t rhport) {
@@ -901,13 +903,27 @@ static void handle_rxflvl_irq(uint8_t rhport) {
       // We can receive up to three setup packets in succession, but only the last one is valid.
       setup[0] = (*rx_fifo);
       setup[1] = (*rx_fifo);
+
+      dwc2_dep_t* epin0 = &dwc2->epin[0];
+      if (edpt_is_enabled(epin0)) {
+        edpt_disable(rhport, 0x80, false);
+      }
+
+      // (GenID < 3.00a) Must wait SETUP_DONE before next OUT transfer, otherwise OUT data may be corrupted.
+      // (GenID >= 3.00a) On the other hand STUPCNT is auto reloaded and SETUP_DONE is only triggered once after bus reset.
+      if (dwc2->gsnpsid >= DWC2_CORE_REV_3_00a) {
+        dcd_event_setup_received(rhport, _dcd_usbbuf.setup_buffer, true);
+      }
       break;
     }
 
     case GRXSTS_PKTSTS_SETUP_DONE:
       // Setup packet done:
-      // After popping this out, dwc2 asserts a DOEPINT_SETUP interrupt which is handled by handle_epout_irq()
       epout->doeptsiz |= (3 << DOEPTSIZ_STUPCNT_Pos);
+
+      if (dwc2->gsnpsid < DWC2_CORE_REV_3_00a) {
+        dcd_event_setup_received(rhport, _dcd_usbbuf.setup_buffer, true);
+      }
       break;
 
     case GRXSTS_PKTSTS_RX_DATA: {
@@ -931,55 +947,24 @@ static void handle_rxflvl_irq(uint8_t rhport) {
         xfer->total_len -= tsiz.xfer_size;
         if (epnum == 0) {
           _dcd_data.ep0_pending[TUSB_DIR_OUT] = 0;
-          // Handle EP0 STATUS OUT (or ZLP) here to avoid mix with next SETUP packet received IRQ
-          if (xfer->total_len == 0) {
-            dcd_event_xfer_complete(rhport, 0, 0, XFER_RESULT_SUCCESS, true);
-          }
         }
       }
       break;
     }
 
-    case GRXSTS_PKTSTS_RX_COMPLETE:
+    case GRXSTS_PKTSTS_RX_COMPLETE: {
       // Out packet done
-      // After this entry is popped from the receive FIFO, dwc2 asserts a Transfer Completed interrupt on
-      // the specified OUT endpoint which will be handled by handle_epout_irq()
-      break;
-
-    default: break; // nothing to do
-  }
-}
-
-static void handle_epout_slave(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepint_bm) {
-  if (doepint_bm.setup_phase_done) {
-    // Cleanup previous pending EP0 IN transfer if any
-    dwc2_dep_t* epin0 = &DWC2_REG(rhport)->epin[0];
-    if (edpt_is_enabled(epin0)) {
-      edpt_disable(rhport, 0x80, false);
-    }
-    dcd_event_setup_received(rhport, _dcd_usbbuf.setup_buffer, true);
-    return;
-  }
-
-  // Normal OUT transfer complete
-  if (doepint_bm.xfer_complete) {
-    // only handle data skip if it is setup or status related
-    // Note: even though (xfer_complete + status_phase_rx) is for buffered DMA only, for STM32L47x (dwc2 v3.00a) they
-    // can is set when GRXSTS_PKTSTS_SETUP_RX is popped therefore they can bet set before/together with setup_phase_done
-    if (!doepint_bm.status_phase_rx && !doepint_bm.setup_packet_rx) {
       xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
-      if (epnum == 0) {
-        if (_dcd_data.ep0_pending[TUSB_DIR_OUT]) {
-          // EP0 can only handle one packet, Schedule another packet to be received.
-          edpt_schedule_packets(rhport, epnum, TUSB_DIR_OUT);
-        } else if (xfer->total_len > 0) {
-          // EP0 STATUS OUT (or ZLP) is handled in handle_rxflvl_irq()
-          dcd_event_xfer_complete(rhport, epnum, xfer->total_len, XFER_RESULT_SUCCESS, true);
-        }
+      if (epnum == 0 && _dcd_data.ep0_pending[TUSB_DIR_OUT] > 0) {
+        // EP0 can only handle one packet, schedule another packet to be received.
+        edpt_schedule_packets(rhport, 0, TUSB_DIR_OUT);
       } else {
         dcd_event_xfer_complete(rhport, epnum, xfer->total_len, XFER_RESULT_SUCCESS, true);
       }
+      break;
     }
+
+    default: break; // nothing to do
   }
 }
 
@@ -1108,8 +1093,6 @@ static void handle_ep_irq(uint8_t rhport, uint8_t dir) {
         #if CFG_TUD_DWC2_SLAVE_ENABLE
         if (dir == TUSB_DIR_IN) {
           handle_epin_slave(rhport, epnum, intr.diepint_bm);
-        } else {
-          handle_epout_slave(rhport, epnum, intr.doepint_bm);
         }
         #endif
       }
@@ -1217,7 +1200,7 @@ void dcd_int_handler(uint8_t rhport) {
     dwc2->gotgint = otg_int;
   }
 
-  if(gintsts & GINTSTS_SOF) {
+  if(gintsts & GINTSTS_SOF && dwc2->gintmsk & GINTMSK_SOFM) {
     dwc2->gintsts = GINTSTS_SOF;
     dwc2->gintmsk |= GINTMSK_USBSUSPM;
     const uint32_t frame = (dwc2->dsts & DSTS_FNSOF) >> DSTS_FNSOF_Pos;
@@ -1244,11 +1227,13 @@ void dcd_int_handler(uint8_t rhport) {
   }
 #endif
 
+#if CFG_TUD_DWC2_DMA_ENABLE
   // OUT endpoint interrupt handling.
   if (gintsts & GINTSTS_OEPINT) {
     // OEPINT is read-only, clear using DOEPINTn
     handle_ep_irq(rhport, TUSB_DIR_OUT);
   }
+#endif
 
   // IN endpoint interrupt handling.
   if (gintsts & GINTSTS_IEPINT) {
