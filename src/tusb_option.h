@@ -535,6 +535,18 @@
   #define CFG_TUSB_OS           OPT_OS_NONE
 #endif
 
+// 1 when CFG_TUSB_OS provides a preemptive scheduler with distinct tasks
+// (FreeRTOS, Zephyr, ThreadX, etc.); 0 when the application is single-context
+// (bare-metal OS_NONE or Pico SDK). Sync host control xfers from the host
+// task are forbidden when this is 1.
+#ifndef CFG_TUSB_OS_HAS_SCHEDULER
+  #if CFG_TUSB_OS == OPT_OS_NONE || CFG_TUSB_OS == OPT_OS_PICO
+    #define CFG_TUSB_OS_HAS_SCHEDULER 0
+  #else
+    #define CFG_TUSB_OS_HAS_SCHEDULER 1
+  #endif
+#endif
+
 #ifndef CFG_TUSB_OS_INC_PATH
   #ifndef CFG_TUSB_OS_INC_PATH_DEFAULT
   #define CFG_TUSB_OS_INC_PATH_DEFAULT
