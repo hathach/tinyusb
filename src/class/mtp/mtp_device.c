@@ -441,9 +441,19 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
         threshold = CFG_TUD_MTP_EP_BUFSIZE;
       }
 
-      // Check completion: ZLP, short packet, or total length reached
-      const bool is_complete =
-        (xferred_bytes == 0 || xferred_bytes < threshold || p_mtp->xferred_len >= p_mtp->total_len);
+      // Check completion for IN and OUT separately
+      bool is_complete;
+
+      if (is_data_in)
+      {
+        // IN completion: short packet, ZLP, or reaching total_len
+        is_complete = (xferred_bytes == 0 || xferred_bytes < threshold || p_mtp->xferred_len >= p_mtp->total_len);
+      }
+      else
+      {
+        // OUT completion: reaching total_len or ZLP
+        is_complete = (p_mtp->xferred_len >= p_mtp->total_len) || ((xferred_bytes == 0 && p_mtp->xferred_len > 0));
+      }
 
       TU_LOG_DRV("  MTP Data %s CB: xferred_bytes=%lu, xferred_len/total_len=%lu/%lu, is_complete=%d\r\n",
                  is_data_in ? "IN" : "OUT", xferred_bytes, p_mtp->xferred_len, p_mtp->total_len, is_complete ? 1 : 0);
