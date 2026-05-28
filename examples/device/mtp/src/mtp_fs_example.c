@@ -143,6 +143,7 @@ static int32_t fs_get_device_properties(tud_mtp_cb_data_t* cb_data);
 static int32_t fs_get_object_handles(tud_mtp_cb_data_t* cb_data);
 static int32_t fs_get_object_info(tud_mtp_cb_data_t* cb_data);
 static int32_t fs_get_object(tud_mtp_cb_data_t* cb_data);
+static int32_t fs_get_partial_object(tud_mtp_cb_data_t* cb_data);
 static int32_t fs_delete_object(tud_mtp_cb_data_t* cb_data);
 static int32_t fs_send_object_info(tud_mtp_cb_data_t* cb_data);
 static int32_t fs_send_object(tud_mtp_cb_data_t* cb_data);
@@ -164,6 +165,7 @@ fs_op_handler_dict_t fs_op_handler_dict[] = {
   { MTP_OP_GET_OBJECT_HANDLES,    fs_get_object_handles    },
   { MTP_OP_GET_OBJECT_INFO,       fs_get_object_info       },
   { MTP_OP_GET_OBJECT,            fs_get_object            },
+  { MTP_OP_GET_PARTIAL_OBJECT,    fs_get_partial_object    },
   { MTP_OP_DELETE_OBJECT,         fs_delete_object         },
   { MTP_OP_SEND_OBJECT_INFO,      fs_send_object_info      },
   { MTP_OP_SEND_OBJECT,           fs_send_object           },
@@ -326,6 +328,14 @@ int32_t tud_mtp_data_complete_cb(tud_mtp_cb_data_t* cb_data) {
       (void) mtp_container_add_uint32(resp, SUPPORTED_STORAGE_ID);
       (void) mtp_container_add_uint32(resp, f->parent);
       (void) mtp_container_add_uint32(resp, send_obj_handle);
+      resp->header->code = MTP_RESP_OK;
+      break;
+    }
+
+    case MTP_OP_GET_PARTIAL_OBJECT: {
+      // response parameter: actual length of data sent excluding container header
+      const uint32_t len = cb_data->total_xferred_bytes - sizeof(mtp_container_header_t);
+      (void) mtp_container_add_uint32(resp, len);
       resp->header->code = MTP_RESP_OK;
       break;
     }
@@ -526,6 +536,40 @@ static int32_t fs_get_object(tud_mtp_cb_data_t* cb_data) {
     const uint32_t xact_len = tu_min32(f->size - offset, io_container->payload_bytes);
     if (xact_len > 0) {
       memcpy(io_container->payload, f->data + offset, xact_len);
+      tud_mtp_data_send(io_container);
+    }
+  } else {
+    // nothing to do
+  }
+
+  return 0;
+}
+
+static int32_t fs_get_partial_object(tud_mtp_cb_data_t* cb_data) {
+  const mtp_container_command_t* command = cb_data->command_container;
+  mtp_container_info_t* io_container = &cb_data->io_container;
+  const uint32_t obj_handle = command->params[0];
+  const uint32_t req_offset = command->params[1];
+  const uint32_t req_max    = command->params[2];
+  const fs_file_t* f = fs_get_file(obj_handle);
+  if (f == NULL) {
+    return MTP_RESP_INVALID_OBJECT_HANDLE;
+  }
+
+  const uint32_t avail   = (req_offset >= f->size) ? 0u : (f->size - req_offset);
+  const uint32_t to_send = tu_min32(avail, req_max);
+
+  if (cb_data->phase == MTP_PHASE_COMMAND) {
+    // If file contents is larger than CFG_TUD_MTP_EP_BUFSIZE, data may only partially be added here
+    // the rest will be sent in tud_mtp_data_more_cb
+    (void) mtp_container_add_raw(io_container, f->data + req_offset, to_send);
+    tud_mtp_data_send(io_container);
+  } else if (cb_data->phase == MTP_PHASE_DATA) {
+    // continue sending remaining data: file contents offset is xferred byte minus header size
+    const uint32_t offset = cb_data->total_xferred_bytes - sizeof(mtp_container_header_t);
+    const uint32_t xact_len = tu_min32(to_send - offset, io_container->payload_bytes);
+    if (xact_len > 0) {
+      memcpy(io_container->payload, f->data + offset + req_offset, xact_len);
       tud_mtp_data_send(io_container);
     }
   } else {

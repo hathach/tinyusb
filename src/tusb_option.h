@@ -646,6 +646,10 @@
   #define CFG_TUD_MIDI            0
 #endif
 
+#ifndef CFG_TUD_MIDI2
+  #define CFG_TUD_MIDI2           0
+#endif
+
 #ifndef CFG_TUD_VENDOR
   #define CFG_TUD_VENDOR          0
 #endif
@@ -813,6 +817,22 @@
 
 #ifndef CFG_TUH_MIDI
   #define CFG_TUH_MIDI   0
+#endif
+
+#ifndef CFG_TUH_MIDI2
+  #define CFG_TUH_MIDI2  0
+#endif
+
+#ifndef CFG_TUH_MIDI2_RX_BUFSIZE
+  #define CFG_TUH_MIDI2_RX_BUFSIZE TUH_EPSIZE_BULK_MAX
+#endif
+
+#ifndef CFG_TUH_MIDI2_TX_BUFSIZE
+  #define CFG_TUH_MIDI2_TX_BUFSIZE TUH_EPSIZE_BULK_MAX
+#endif
+
+#ifndef CFG_TUH_MIDI2_LOG_LEVEL
+  #define CFG_TUH_MIDI2_LOG_LEVEL CFG_TUH_LOG_LEVEL
 #endif
 
 #ifndef CFG_TUH_MSC

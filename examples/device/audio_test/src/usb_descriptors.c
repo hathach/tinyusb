@@ -95,6 +95,10 @@ enum
   // Put audio iso on EP>=8 so the 2048/4096-byte FIFOs can back double packet buffering
   #define EPNUM_AUDIO   0x0A
 
+#elif TU_CHECK_MCU(OPT_MCU_CH32V20X, OPT_MCU_CH32V307)
+  // Only EP3 is available for ISO
+  #define EPNUM_AUDIO   0x03
+
 #else
   #define EPNUM_AUDIO   0x01
 #endif
