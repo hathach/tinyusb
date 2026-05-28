@@ -79,6 +79,9 @@ StaticTask_t usb_taskdef;
 
 StackType_t cdc_stack[CDC_STACK_SIZE];
 StaticTask_t cdc_taskdef;
+
+StackType_t devinfo_stack[USBH_STACK_SIZE];
+StaticTask_t devinfo_taskdef;
 #endif
 #endif
 
@@ -87,14 +90,13 @@ static tusb_role_t current_role = TUSB_ROLE_DEVICE;
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
 static void usb_task(void *param);
-void led_blinking_task(void *param);
-void cdc_task(void *params);
-#else
-void led_blinking_task(void);
-void cdc_task(void);
 #endif
+void led_blinking_task(void *param);
+void cdc_task(void *param);
+void print_devinfo_task(void *param);
+
 void usb_mode_switch(void);
-static void print_device_info(uint8_t daddr);
+static void print_one_device(uint8_t daddr);
 static void print_utf16(uint16_t* temp_buf, size_t buf_len);
 
 // Declare buffer for USB transfer
@@ -124,11 +126,13 @@ int main(void) {
   xTaskCreateStatic(usb_task, "usb", USBD_STACK_SIZE > USBH_STACK_SIZE ? USBD_STACK_SIZE : USBH_STACK_SIZE,
                     NULL, configMAX_PRIORITIES-1, usb_stack, &usb_taskdef);
   xTaskCreateStatic(cdc_task, "cdc", CDC_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, cdc_stack, &cdc_taskdef);
+  xTaskCreateStatic(print_devinfo_task, "devinfo", USBH_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, devinfo_stack, &devinfo_taskdef);
 #else
   xTaskCreate(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, NULL);
   xTaskCreate(usb_task, "usb", USBD_STACK_SIZE > USBH_STACK_SIZE ? USBD_STACK_SIZE : USBH_STACK_SIZE,
               NULL, configMAX_PRIORITIES - 1, NULL);
   xTaskCreate(cdc_task, "cdc", CDC_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, NULL);
+  xTaskCreate(print_devinfo_task, "devinfo", USBH_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, NULL);
 #endif
 
 #ifndef ESP_PLATFORM
@@ -162,12 +166,13 @@ int main(void) {
     // Process USB tasks based on current mode
     if (current_role == TUSB_ROLE_DEVICE) {
       tud_task();
-      cdc_task();
+      cdc_task(NULL);
     } else {
       tuh_task();
+      print_devinfo_task(NULL);
     }
 
-    led_blinking_task();
+    led_blinking_task(NULL);
   }
 #endif
 }
@@ -227,21 +232,28 @@ static void usb_task(void *param) {
 void usb_mode_switch(void) {
   printf("\r\n--- Switching USB mode ---\r\n");
 
-  // Deinitialize current mode
-  if (current_role == TUSB_ROLE_DEVICE) {
+  // Snapshot then clear current_role BEFORE tusb_deinit() so concurrent
+  // tasks (cdc_task / print_devinfo_task on RTOS) see the role-change
+  // boundary and exit cleanly instead of calling host/device APIs against
+  // a deinitialised stack.
+  const tusb_role_t prev_role = current_role;
+  current_role = TUSB_ROLE_INVALID;
+
+  if (prev_role == TUSB_ROLE_DEVICE) {
     printf("Stopping DEVICE mode...\r\n");
-    tusb_deinit(BOARD_RHPORT);
   } else {
     printf("Stopping HOST mode...\r\n");
-    tusb_deinit(BOARD_RHPORT);
   }
+  tusb_deinit(BOARD_RHPORT);
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
   vTaskDelay(pdMS_TO_TICKS(100)); // Small delay for clean transition
 #else
-  tusb_time_delay_ms_api(100); // Small delay for clean transition
-#endif  // Switch to the other mode
-  if (current_role == TUSB_ROLE_DEVICE) {
+  tusb_time_delay_ms_api(100);
+#endif
+
+  // Switch to the other mode
+  if (prev_role == TUSB_ROLE_DEVICE) {
     printf("Starting HOST mode...\r\n");
     tusb_rhport_init_t host_init = {
       .role = TUSB_ROLE_HOST,
@@ -267,61 +279,30 @@ void usb_mode_switch(void) {
 // Device Mode: CDC Task
 //--------------------------------------------------------------------+
 
-#if CFG_TUSB_OS == OPT_OS_FREERTOS
-void cdc_task(void *params) {
-  (void) params;
-
-  // RTOS forever loop
+void cdc_task(void *param) {
+  (void) param;
   while (1) {
-    // Only process CDC when in device mode
+    // Only touch device-CDC APIs while we're in device mode. After
+    // usb_mode_switch() sets current_role to INVALID and tusb_deinit() runs,
+    // calling tud_cdc_write_flush() here would hit a deinit'd device stack.
     if (current_role == TUSB_ROLE_DEVICE) {
-      // Connected and there are data available
-      while (tud_cdc_available()) {
+      if (tud_cdc_available()) {
         uint8_t buf[64];
-
-        // Read data
-        uint32_t count = tud_cdc_read(buf, sizeof(buf));
-
-        // Echo back
-        tud_cdc_write(buf, count);
-
-        // Add newline for carriage return
-        for (uint32_t i = 0; i < count; i++) {
-          if (buf[i] == '\r') {
-            tud_cdc_write_char('\n');
-            break;
-          }
+        const uint32_t count = tud_cdc_read(buf, sizeof(buf));
+        if (count) {
+          tud_cdc_write(buf, count);
         }
       }
-
       tud_cdc_write_flush();
     }
 
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
     vTaskDelay(pdMS_TO_TICKS(10));
-  }
-}
 #else
-void cdc_task(void) {
-  // Connected and there are data available
-  if (tud_cdc_available()) {
-    uint8_t buf[64];
-
-    // Read data
-    uint32_t count = tud_cdc_read(buf, sizeof(buf));
-
-    // Echo back
-    for (uint32_t i = 0; i < count; i++) {
-      tud_cdc_write_char(buf[i]);
-
-      if (buf[i] == '\r') {
-        tud_cdc_write_char('\n');
-      }
-    }
-
-    tud_cdc_write_flush();
+    return; // main loop will call us again
+#endif
   }
 }
-#endif
 
 //--------------------------------------------------------------------+
 // Device Callbacks
@@ -356,24 +337,57 @@ void tud_resume_cb(void) {
 // Host Callbacks
 //--------------------------------------------------------------------+
 
-// Invoked when device is mounted (configured)
+// One flag per possible device address — set by tuh_mount_cb (host task) and
+// cleared by print_devinfo_task once the device's descriptors are printed.
+static volatile bool need_devinfo[CFG_TUH_DEVICE_MAX + 1];
+
+// Invoked when device is mounted (configured). Runs in the host task — keep
+// minimal; descriptor fetching happens in print_devinfo_task (different
+// context so sync helpers are safe).
 void tuh_mount_cb(uint8_t daddr) {
   printf("[HOST] Device attached, address = %d\r\n", daddr);
   blink_interval_ms = BLINK_MOUNTED;
-  print_device_info(daddr);
+  if (daddr < TU_ARRAY_SIZE(need_devinfo)) {
+    need_devinfo[daddr] = true;
+  }
 }
 
 // Invoked when device is unmounted (unplugged)
 void tuh_umount_cb(uint8_t daddr) {
   printf("[HOST] Device removed, address = %d\r\n", daddr);
   blink_interval_ms = BLINK_NOT_MOUNTED;
+  if (daddr < TU_ARRAY_SIZE(need_devinfo)) {
+    need_devinfo[daddr] = false;
+  }
 }
 
 //--------------------------------------------------------------------+
-// Host Device Info
+// Host Device Info — serialises descriptor fetching across all mounted
+// devices using sync helpers. Safe to call from main loop (OS_NONE) or a
+// dedicated task (FreeRTOS) — but NOT from a host-stack callback.
 //--------------------------------------------------------------------+
 
-static void print_device_info(uint8_t daddr) {
+void print_devinfo_task(void *param) {
+  (void) param;
+  while (1) {
+    if (current_role == TUSB_ROLE_HOST) {
+      for (uint8_t daddr = 1; daddr < TU_ARRAY_SIZE(need_devinfo); daddr++) {
+        if (need_devinfo[daddr]) {
+          need_devinfo[daddr] = false;
+          print_one_device(daddr);
+        }
+      }
+    }
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+    vTaskDelay(pdMS_TO_TICKS(10));
+#else
+    return;
+#endif
+  }
+}
+
+static void print_one_device(uint8_t daddr) {
   // Get Device Descriptor
   uint8_t xfer_result = tuh_descriptor_get_device_sync(daddr, &desc.device, 18);
   if (XFER_RESULT_SUCCESS != xfer_result) {
@@ -467,30 +481,20 @@ static void print_utf16(uint16_t* temp_buf, size_t buf_len) {
 // Blinking Task
 //--------------------------------------------------------------------+
 
-#if CFG_TUSB_OS == OPT_OS_FREERTOS
 void led_blinking_task(void *param) {
   (void) param;
-  static bool led_state = false;
-
-  // RTOS forever loop
-  while (1) {
-    board_led_write(led_state);
-    led_state = 1 - led_state; // toggle
-    vTaskDelay(pdMS_TO_TICKS(blink_interval_ms));
-  }
-}
-#else
-void led_blinking_task(void) {
   static uint32_t start_ms = 0;
   static bool led_state = false;
-
-  // Blink every interval ms
-  if (tusb_time_millis_api() - start_ms < blink_interval_ms) {
-    return; // not enough time
-  }
-  start_ms += blink_interval_ms;
-
-  board_led_write(led_state);
-  led_state = 1 - led_state; // toggle
-}
+  while (1) {
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+    vTaskDelay(pdMS_TO_TICKS(blink_interval_ms));
+#else
+    if (tusb_time_millis_api() - start_ms < blink_interval_ms) {
+      return; // not enough time
+    }
 #endif
+    start_ms += blink_interval_ms;
+    board_led_write(led_state);
+    led_state = 1 - led_state; // toggle
+  }
+}
