@@ -35,7 +35,7 @@
 // State
 //--------------------------------------------------------------------+
 
-static uint8_t midi2_idx = 0xFF;
+TU_ATTR_UNUSED static uint8_t midi2_idx = 0xFF;
 
 //--------------------------------------------------------------------+
 // UMP printer - shows MT and word(s) in hex; decodes Channel Voice
