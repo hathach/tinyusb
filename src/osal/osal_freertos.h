@@ -85,7 +85,13 @@ typedef struct {
 //--------------------------------------------------------------------+
 typedef TaskHandle_t osal_task_handle_t;
 
-// Requires INCLUDE_xTaskGetCurrentTaskHandle == 1 in FreeRTOSConfig.h.
+// Requires INCLUDE_xTaskGetCurrentTaskHandle == 1 in FreeRTOSConfig.h. FreeRTOS
+// also exposes the symbol when configUSE_MUTEXES == 1, so accept either.
+#if !defined(INCLUDE_xTaskGetCurrentTaskHandle) || (INCLUDE_xTaskGetCurrentTaskHandle == 0)
+  #if !defined(configUSE_MUTEXES) || (configUSE_MUTEXES == 0)
+    #error "TinyUSB host stack requires INCLUDE_xTaskGetCurrentTaskHandle or configUSE_MUTEXES to be enabled in FreeRTOSConfig.h"
+  #endif
+#endif
 TU_ATTR_ALWAYS_INLINE static inline osal_task_handle_t osal_task_get_current_handle(void) {
   return xTaskGetCurrentTaskHandle();
 }
