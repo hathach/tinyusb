@@ -160,6 +160,4 @@ int main(void) {
   while (1) {
     tuh_task();
   }
-
-  return 0;
 }
