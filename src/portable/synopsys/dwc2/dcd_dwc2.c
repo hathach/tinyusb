@@ -1213,6 +1213,12 @@ void dcd_int_handler(uint8_t rhport) {
     dcd_event_sof(rhport, frame, true);
   }
 
+  // IN endpoint interrupt handling.
+  if (gintsts & GINTSTS_IEPINT) {
+    // IEPINT bit read-only, clear using DIEPINTn
+    handle_ep_irq(rhport, TUSB_DIR_IN);
+  }
+
 #if CFG_TUD_DWC2_SLAVE_ENABLE
   // RxFIFO non-empty interrupt handling.
   if (gintsts & GINTSTS_RXFLVL) {
@@ -1234,12 +1240,6 @@ void dcd_int_handler(uint8_t rhport) {
     handle_ep_irq(rhport, TUSB_DIR_OUT);
   }
 #endif
-
-  // IN endpoint interrupt handling.
-  if (gintsts & GINTSTS_IEPINT) {
-    // IEPINT bit read-only, clear using DIEPINTn
-    handle_ep_irq(rhport, TUSB_DIR_IN);
-  }
 
   // Incomplete isochronous IN transfer interrupt handling.
   if (gintsts & GINTSTS_IISOIXFR) {
