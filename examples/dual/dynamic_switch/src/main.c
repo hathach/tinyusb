@@ -281,7 +281,9 @@ void usb_mode_switch(void) {
 
 void cdc_task(void *param) {
   (void) param;
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
   while (1) {
+#endif
     // Only touch device-CDC APIs while we're in device mode. After
     // usb_mode_switch() sets current_role to INVALID and tusb_deinit() runs,
     // calling tud_cdc_write_flush() here would hit a deinit'd device stack.
@@ -295,13 +297,10 @@ void cdc_task(void *param) {
       }
       tud_cdc_write_flush();
     }
-
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
     vTaskDelay(pdMS_TO_TICKS(10));
-#else
-    return; // main loop will call us again
-#endif
   }
+#endif
 }
 
 //--------------------------------------------------------------------+
@@ -369,7 +368,9 @@ void tuh_umount_cb(uint8_t daddr) {
 
 void print_devinfo_task(void *param) {
   (void) param;
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
   while (1) {
+#endif
     if (current_role == TUSB_ROLE_HOST) {
       for (uint8_t daddr = 1; daddr < TU_ARRAY_SIZE(need_devinfo); daddr++) {
         if (need_devinfo[daddr]) {
@@ -378,13 +379,10 @@ void print_devinfo_task(void *param) {
         }
       }
     }
-
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
     vTaskDelay(pdMS_TO_TICKS(10));
-#else
-    return;
-#endif
   }
+#endif
 }
 
 static void print_one_device(uint8_t daddr) {
