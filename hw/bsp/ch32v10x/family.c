@@ -66,14 +66,33 @@ uint32_t tusb_time_millis_api(void) {
 }
 #endif
 
+// 0x800 CSR register is writable in U-mode
+// according to manual: https://www.wch-ic.com/downloads/QingKeV3_Processor_Manual_PDF.html
+__attribute__((always_inline)) RV_STATIC_INLINE
+void __wch_vendor_enable_irq(void)
+{
+  __asm volatile ("csrs 0x800, %0" : : "r" (0x88) );
+}
+
+__attribute__((always_inline)) RV_STATIC_INLINE
+void __wch_vendor_disable_irq(void)
+{
+  __asm volatile ("csrc 0x800, %0" : : "r" (0x88) );
+  __asm volatile ("fence.i");
+}
+
 void board_init(void) {
-  __disable_irq();
+  /* __disable_irq() in CH32V103 EVT attempts to call
+   * `csrc mstatus, 0x88` in U-mode, which is allowed ONLY in M-mode.
+   * Replace this with CSR 0x800 to avoid hard-fault. */
+  __wch_vendor_disable_irq();
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   SysTick_Config(SystemCoreClock / 1000);
 #endif
 
   RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+  RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOC, ENABLE);
 
   EXTEN->EXTEN_CTR |= EXTEN_USBFS_IO_EN;
   uint8_t usb_div;
@@ -123,7 +142,7 @@ void board_init(void) {
   USART_Init(USART1, &usart);
   USART_Cmd(USART1, ENABLE);
 
-  __enable_irq();
+  __wch_vendor_enable_irq();
 
   board_led_write(true);
 }
