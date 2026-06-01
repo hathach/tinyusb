@@ -27,41 +27,23 @@
 #ifndef DCD_CH32_USBHS_H41X_H_
 #define DCD_CH32_USBHS_H41X_H_
 
+// These alias new USBHS_UEP_* names to older WCH USBHS_EP_* names, so that
+// the common DCD can use the same code path
 #define USBHS_EP_T_RES_MASK  USBHS_UEP_T_RES_MASK
 #define USBHS_EP_T_RES_ACK   USBHS_UEP_T_RES_ACK
-#ifdef USBHS_UEP_T_RES_NYET
-#define USBHS_EP_T_RES_NYET  USBHS_UEP_T_RES_NYET
-#else
-#define USBHS_EP_T_RES_NYET  (1 << 0)
-#endif
 #define USBHS_EP_T_RES_NAK   USBHS_UEP_T_RES_NAK
 #define USBHS_EP_T_RES_STALL USBHS_UEP_T_RES_STALL
-#ifdef USBHS_UEP_T_TOG_MASK
 #define USBHS_EP_T_TOG_MASK  USBHS_UEP_T_TOG_MASK
-#else
-#define USBHS_EP_T_TOG_MASK  (3 << 3)
-#endif
 #define USBHS_EP_T_TOG_0     USBHS_UEP_T_TOG_DATA0
 #define USBHS_EP_T_TOG_1     USBHS_UEP_T_TOG_DATA1
-#define USBHS_EP_T_AUTOTOG   0
 
 #define USBHS_EP_R_RES_MASK  USBHS_UEP_R_RES_MASK
 #define USBHS_EP_R_RES_ACK   USBHS_UEP_R_RES_ACK
-#ifdef USBHS_UEP_R_RES_NYET
-#define USBHS_EP_R_RES_NYET  USBHS_UEP_R_RES_NYET
-#else
-#define USBHS_EP_R_RES_NYET  (1 << 0)
-#endif
 #define USBHS_EP_R_RES_NAK   USBHS_UEP_R_RES_NAK
 #define USBHS_EP_R_RES_STALL USBHS_UEP_R_RES_STALL
-#ifdef USBHS_UEP_R_TOG_MASK
 #define USBHS_EP_R_TOG_MASK  USBHS_UEP_R_TOG_MASK
-#else
-#define USBHS_EP_R_TOG_MASK  (3 << 3)
-#endif
 #define USBHS_EP_R_TOG_0     USBHS_UEP_R_TOG_DATA0
 #define USBHS_EP_R_TOG_1     USBHS_UEP_R_TOG_DATA1
-#define USBHS_EP_R_AUTOTOG   0
 
 #define EP_TX_LEN(ep)     *(volatile uint16_t *)((volatile uint16_t *)&(USBHSD->UEP0_TX_LEN) + (ep) * 2)
 #define EP_TX_CTRL(ep)    *(volatile uint8_t *)((volatile uint8_t *)&(USBHSD->UEP0_TX_CTRL) + (ep) * 4)
