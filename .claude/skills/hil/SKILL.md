@@ -27,27 +27,37 @@ If `local.json` is missing on `htpc`, ask the user to supply one (only fall back
 
 ## Local execution
 
-Set `CONFIG` from `hostname` first, then run:
+Set `CONFIG` from `hostname` first (`test/hil/local.json` on htpc, `test/hil/tinyusb.json` on ci):
 
 ```bash
-CONFIG=test/hil/local.json      # on htpc
-# CONFIG=test/hil/tinyusb.json  # on ci
-python3 test/hil/hil_test.py [-b BOARD_NAME] -B examples "$CONFIG" $EXTRA_ARGS
+CONFIG=test/hil/local.json      # on ci use: CONFIG=test/hil/tinyusb.json
+
+# All boards in the config:
+python3 test/hil/hil_test.py -B examples "$CONFIG"
+
+# A single board (replace stm32f723disco):
+python3 test/hil/hil_test.py -b stm32f723disco -B examples "$CONFIG"
 ```
+
+Append pass-through flags (`-v`, `-r 1`, …) to either command as needed.
 
 ## Remote execution (htpc → ci.lan only)
 
 `test/hil/hil_ci.sh` handles dir setup, scp of test scripts, rsync of firmware (`.elf`/`.bin`/`.hex`), and runs `hil_test.py` on `ci.lan` with `tinyusb.json`:
 
 ```bash
-bash test/hil/hil_ci.sh [-b BOARD_NAME] [extra hil_test.py args...]
+# All boards:
+bash test/hil/hil_ci.sh
+
+# A single board, with pass-through flags:
+bash test/hil/hil_ci.sh -b raspberry_pi_pico2 -t host/cdc_msc_hid -r 1
 ```
 
 Env overrides: `REMOTE`, `REMOTE_DIR`, `CONFIG`. Fails fast if the build dir/repo layout is missing.
 
 ## Timing
 
-Runs take 2-5 min. Use a timeout ≥ 20 min (600000 ms). NEVER cancel early.
+Runs take 2-5 min. Use a timeout ≥ 20 min (1200000 ms). NEVER cancel early.
 
 ## Reporting
 

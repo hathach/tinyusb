@@ -6,7 +6,10 @@ on:
   pull_request_review_comment:
     types: [created]
   issues:
-    types: [opened, assigned]
+    # only "opened" — an issue's author_association gates the summon below;
+    # "assigned" would gate on the issue author, not the assigner, so a
+    # maintainer assigning an outsider's issue would be wrongly skipped.
+    types: [opened]
   pull_request_review:
     types: [submitted]
 
