@@ -483,16 +483,19 @@ void led_blinking_task(void *param) {
   (void) param;
   static uint32_t start_ms = 0;
   static bool led_state = false;
-  while (1) {
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
+  while (1) {
     vTaskDelay(pdMS_TO_TICKS(blink_interval_ms));
-#else
-    if (tusb_time_millis_api() - start_ms < blink_interval_ms) {
-      return; // not enough time
-    }
-#endif
     start_ms += blink_interval_ms;
     board_led_write(led_state);
-    led_state = 1 - led_state; // toggle
+    led_state = 1 - led_state;
   }
+#else
+  if (tusb_time_millis_api() - start_ms < blink_interval_ms) {
+    return; // not enough time
+  }
+  start_ms += blink_interval_ms;
+  board_led_write(led_state);
+  led_state = 1 - led_state;
+#endif
 }
