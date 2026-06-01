@@ -76,6 +76,8 @@ Invalid board name in build command.
 Runtime Issues
 ==============
 
+Check :doc:`reference/errata` for known hardware-specific issues that may affect USB functionality on your device.
+
 Device Mode Problems
 --------------------
 

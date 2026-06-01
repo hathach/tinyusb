@@ -10,6 +10,7 @@
    reference/index
    faq
    troubleshooting
+   reference/errata
 
 .. toctree::
    :maxdepth: 1
