@@ -497,7 +497,7 @@ char const* const tu_str_std_request[] = {
 };
 
 char const* const tu_str_xfer_result[] = {
-    "OK", "FAILED", "STALLED", "TIMEOUT"
+    "OK", "FAILED", "STALLED", "TIMEOUT", "ABORTED", "INVALID"
 };
 #endif
 

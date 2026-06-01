@@ -40,6 +40,14 @@
   #define CFG_TUH_TASK_QUEUE_SZ   16
 #endif
 
+#ifndef CFG_TUH_CONTROL_PENDING_QUEUE_SZ
+  #if CFG_TUH_HUB
+    #define CFG_TUH_CONTROL_PENDING_QUEUE_SZ 4
+  #else
+    #define CFG_TUH_CONTROL_PENDING_QUEUE_SZ 2
+  #endif
+#endif
+
 #ifndef CFG_TUH_INTERFACE_MAX
   #define CFG_TUH_INTERFACE_MAX   8
 #endif
@@ -175,11 +183,11 @@ static OSAL_SPINLOCK_DEF(_usbh_spin, usbh_int_set);
 OSAL_QUEUE_DEF(usbh_int_set, _usbh_qdef, CFG_TUH_TASK_QUEUE_SZ, hcd_event_t);
 static osal_queue_t _usbh_q;
 
-  #if CFG_TUH_HUB
+#if CFG_TUH_HUB
 // Deferred attachment queue, only needed when using hub
 OSAL_QUEUE_DEF(usbh_int_set, _usbh_daqdef, CFG_TUH_HUB, hcd_event_t);
 static osal_queue_t _usbh_daq;
-  #endif
+#endif
 
 // Control transfers: since most controllers do not support multiple control transfers
 // on multiple devices concurrently and control transfers are not used much except for
@@ -189,9 +197,9 @@ typedef struct {
   tuh_xfer_cb_t complete_cb;
   uintptr_t user_data;
 
+  volatile uint16_t actual_len;
   volatile uint8_t stage;
   uint8_t daddr;
-  volatile uint16_t actual_len;
   uint8_t failed_count;
 } usbh_ctrl_xfer_info_t;
 
@@ -202,17 +210,32 @@ typedef struct {
 } usbh_call_after_t;
 
 typedef struct {
-  uint8_t controller_id;      // controller ID
+  tusb_control_request_t setup;
+  uint8_t*               buffer;
+  tuh_xfer_cb_t          complete_cb;
+  uintptr_t              user_data;
+  uint8_t                daddr;
+  uint8_t                daddr_gen;
+} usbh_pending_ctrl_t;
+
+// FIFO for pending async control transfers since we only execute 1 control transfer at a time
+TU_FIFO_DEF(_usbh_pending_ctrl_q, CFG_TUH_CONTROL_PENDING_QUEUE_SZ * sizeof(usbh_pending_ctrl_t), false);
+
+typedef struct {
   uint8_t enumerating_daddr;  // device address of the device being enumerated
   uint8_t attach_debouncing_bm;  // bitmask for roothub port attach debouncing
   tuh_bus_info_t dev0_bus;    // bus info for dev0 in enumeration
   usbh_ctrl_xfer_info_t ctrl_xfer_info; // control transfer
   usbh_call_after_t call_after;
+  // Per-daddr generation counter — bumped on usbh_device_close() to identify stale pending control transfer
+  uint8_t daddr_gen[TOTAL_DEVICES + 1];
+#if CFG_TUSB_OS_HAS_SCHEDULER
+  osal_task_handle_t task_hdl;  // host task handle, lazy-captured on first tuh_task_ext()
+#endif
 } usbh_data_t;
 
-static usbh_data_t _usbh_data = {
-  .controller_id = TUSB_INDEX_INVALID_8,
-};
+static uint8_t _usbh_controller_id = TUSB_INDEX_INVALID_8;
+static usbh_data_t _usbh_data;
 
 typedef struct {
   TUH_EPBUF_TYPE_DEF(tusb_control_request_t, request);
@@ -346,8 +369,11 @@ static void enum_new_device(hcd_event_t* event);
 static void enum_delay_async(uintptr_t state);
 static void process_remove_event(hcd_event_t *event);
 static void remove_device_tree(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port);
+
 static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size);
 static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
+static void control_xfer_dispatch_pending(void);
+static void control_xfer_complete(uint8_t daddr, xfer_result_t result);
 
 TU_ATTR_ALWAYS_INLINE static inline usbh_device_t* get_device(uint8_t dev_addr) {
   TU_VERIFY(dev_addr > 0 && dev_addr <= TOTAL_DEVICES, NULL);
@@ -364,21 +390,12 @@ TU_ATTR_ALWAYS_INLINE static inline bool queue_event(hcd_event_t const * event, 
   return true;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void _control_set_xfer_stage(uint8_t stage) {
+TU_ATTR_ALWAYS_INLINE static inline void control_xfer_set_stage(uint8_t stage) {
   if (_usbh_data.ctrl_xfer_info.stage != stage) {
     (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
     _usbh_data.ctrl_xfer_info.stage = stage;
     (void) osal_mutex_unlock(_usbh_mutex);
   }
-}
-
-TU_ATTR_ALWAYS_INLINE static inline bool usbh_setup_send(uint8_t daddr, const uint8_t setup_packet[8]) {
-  const uint8_t rhport = usbh_get_rhport(daddr);
-  const bool ret = hcd_setup_send(rhport, daddr, setup_packet);
-  if (!ret) {
-    _control_set_xfer_stage(CONTROL_STAGE_IDLE);
-  }
-  return ret;
 }
 
 bool usbh_defer_func_ms_async(uint32_t ms, tusb_defer_func_t func, uintptr_t param) {
@@ -394,9 +411,16 @@ bool usbh_defer_func_ms_async(uint32_t ms, tusb_defer_func_t func, uintptr_t par
 TU_ATTR_ALWAYS_INLINE static inline void usbh_device_close(uint8_t rhport, uint8_t daddr) {
   hcd_device_close(rhport, daddr);
 
-  // abort any ongoing control transfer
-  if (daddr == _usbh_data.ctrl_xfer_info.daddr) {
-    _control_set_xfer_stage(CONTROL_STAGE_IDLE);
+  // Bump the generation under the mutex so a concurrent producer in
+  // tuh_control_xfer stamps a value that is strictly monotonic w.r.t. close.
+  (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+  _usbh_data.daddr_gen[daddr]++;
+  (void) osal_mutex_unlock(_usbh_mutex);
+
+  // If this device has in-flight control xfer, complete as FAILED
+  usbh_ctrl_xfer_info_t* ctrl_info = &_usbh_data.ctrl_xfer_info;
+  if (daddr == ctrl_info->daddr && ctrl_info->stage != CONTROL_STAGE_IDLE) {
+    control_xfer_complete(daddr, XFER_RESULT_FAILED);
   }
 
   // invalidate if enumerating
@@ -458,7 +482,7 @@ tusb_speed_t tuh_speed_get(uint8_t daddr) {
 }
 
 bool tuh_rhport_is_active(uint8_t rhport) {
-  return _usbh_data.controller_id == rhport;
+  return _usbh_controller_id == rhport;
 }
 
 bool tuh_rhport_reset_bus(uint8_t rhport, bool active) {
@@ -485,7 +509,7 @@ static void clear_device(usbh_device_t* dev) {
 }
 
 bool tuh_inited(void) {
-  return _usbh_data.controller_id != TUSB_INDEX_INVALID_8;
+  return _usbh_controller_id != TUSB_INDEX_INVALID_8;
 }
 
 bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
@@ -547,7 +571,7 @@ bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
     tu_memclr(_usbh_devices, sizeof(_usbh_devices));
     tu_memclr(&_usbh_data, sizeof(_usbh_data));
 
-    _usbh_data.controller_id = TUSB_INDEX_INVALID_8;
+    _usbh_controller_id = TUSB_INDEX_INVALID_8;
     _usbh_data.enumerating_daddr = TUSB_INDEX_INVALID_8;
 
     for (uint8_t i = 0; i < TOTAL_DEVICES; i++) {
@@ -565,7 +589,7 @@ bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   }
 
   // Init host controller
-  _usbh_data.controller_id = rhport;
+  _usbh_controller_id = rhport;
   TU_ASSERT(hcd_init(rhport, rh_init));
   hcd_int_enable(rhport);
 
@@ -580,7 +604,7 @@ bool tuh_deinit(uint8_t rhport) {
   // deinit host controller
   hcd_int_disable(rhport);
   TU_ASSERT(hcd_deinit(rhport));
-  _usbh_data.controller_id = TUSB_INDEX_INVALID_8;
+  _usbh_controller_id = TUSB_INDEX_INVALID_8;
 
   // remove all devices on this rhport (hub_addr = 0, hub_port = 0)
   remove_device_tree(rhport, 0, 0);
@@ -603,6 +627,25 @@ bool tuh_deinit(uint8_t rhport) {
     osal_queue_delete(_usbh_daq);
     _usbh_daq = NULL;
   #endif
+
+    // Fire FAILED cb for any queued async control xfer so callers aren't stranded.
+    usbh_pending_ctrl_t pending;
+    while (tu_fifo_read_n(&_usbh_pending_ctrl_q, &pending, sizeof(pending)) == sizeof(pending)) {
+      if (pending.complete_cb) {
+        tuh_xfer_t x = {
+          .daddr       = pending.daddr,
+          .ep_addr     = 0,
+          .result      = XFER_RESULT_FAILED,
+          .actual_len  = 0,
+          .setup       = &pending.setup,
+          .buffer      = pending.buffer,
+          .complete_cb = pending.complete_cb,
+          .user_data   = pending.user_data,
+        };
+        pending.complete_cb(&x);
+      }
+    }
+    tu_fifo_clear(&_usbh_pending_ctrl_q);
 
   #if OSAL_MUTEX_REQUIRED
     // TODO make sure there is no task waiting on this mutex
@@ -628,6 +671,12 @@ bool tuh_task_event_ready(void) {
     return true;
   }
   #endif
+
+  // Pending control xfer waiting for an idle slot
+  if (_usbh_data.ctrl_xfer_info.stage == CONTROL_STAGE_IDLE &&
+      !tu_fifo_empty(&_usbh_pending_ctrl_q)) {
+    return true;
+  }
 
   if (_usbh_data.call_after.func) {
     int32_t remain_ms = (int32_t)(_usbh_data.call_after.at_ms - tusb_time_millis_api());
@@ -663,6 +712,13 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
 
   (void) in_isr; // not implemented yet
 
+#if CFG_TUSB_OS_HAS_SCHEDULER
+  // Save task handle on 1st run
+  if (_usbh_data.task_hdl == NULL) {
+    _usbh_data.task_hdl = osal_task_get_current_handle();
+  }
+#endif
+
   // Loop until there are no more events in the queue or CFG_TUH_TASK_EVENTS_PER_RUN is reached
   for (unsigned epr = 0;; epr++) {
   #if CFG_TUH_TASK_EVENTS_PER_RUN > 0
@@ -693,6 +749,16 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
           timeout_ms = (uint32_t)remain_ms;
         }
       }
+    }
+
+    // Drain pending async control xfers. Slot transitions and dispatch are
+    // decoupled: completion / abort / device_close set stage = IDLE via
+    // control_xfer_set_stage() and the actual FIFO drain happens here in the
+    // event loop. The check is a fast non-mutex sanity gate; the dispatcher
+    // itself re-checks under the mutex.
+    if (_usbh_data.ctrl_xfer_info.stage == CONTROL_STAGE_IDLE &&
+        !tu_fifo_empty(&_usbh_pending_ctrl_q)) {
+      control_xfer_dispatch_pending();
     }
 
     hcd_event_t event;
@@ -818,73 +884,179 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
 // Control transfer
 //--------------------------------------------------------------------+
 
-static void _control_blocking_complete_cb(tuh_xfer_t* xfer) {
-  // update result
-  *((xfer_result_t*) xfer->user_data) = xfer->result;
+// Carries both fields the sync waiter cares about — capturing from xfer_temp
+// (snapshot taken before release_slot resets ctrl_info for the next pending
+// entry) so the waiter sees this xfer's data, not the next dispatched one's.
+typedef struct {
+  volatile xfer_result_t result;
+  volatile uint32_t      actual_len;
+} control_xfer_sync_param_t;
+
+static void control_xfer_sync_complete(tuh_xfer_t* xfer) {
+  control_xfer_sync_param_t* s = (control_xfer_sync_param_t*) xfer->user_data;
+  s->actual_len = xfer->actual_len;
+  s->result     = xfer->result;
 }
 
 // TODO timeout_ms is not supported yet
 bool tuh_control_xfer (tuh_xfer_t* xfer) {
-  TU_VERIFY(xfer->ep_addr == 0 && xfer->setup); // EP0 with setup packet
   const uint8_t daddr = xfer->daddr;
-  TU_VERIFY(tuh_connected(daddr));
-
+  TU_VERIFY(daddr <= TOTAL_DEVICES && xfer->ep_addr == 0 && xfer->setup); // EP0 with setup packet
   usbh_ctrl_xfer_info_t* ctrl_info = &_usbh_data.ctrl_xfer_info;
 
-  TU_VERIFY(ctrl_info->stage == CONTROL_STAGE_IDLE); // pre-check to help reducing mutex lock
-  (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
-  bool const is_idle = (ctrl_info->stage == CONTROL_STAGE_IDLE);
-  if (is_idle) {
-    ctrl_info->stage        = CONTROL_STAGE_SETUP;
-    ctrl_info->daddr        = daddr;
-    ctrl_info->actual_len   = 0;
-    ctrl_info->failed_count = 0;
+#if CFG_TUSB_OS_HAS_SCHEDULER
+  // Sync (complete_cb == NULL) from a host-stack callback is forbidden on
+  // RTOS targets — the event-loop driver can't block on its own pending xfer
+  // (deadlock if other control xfers are queued behind). Use async with a
+  // chained cb instead. OS_NONE / OS_PICO are exempt: they have a single
+  // execution context and the recursive-drive path is the only way to wait.
+  TU_ASSERT(!(xfer->complete_cb == NULL &&
+              osal_task_get_current_handle() == _usbh_data.task_hdl));
+#endif
 
-    ctrl_info->buffer       = xfer->buffer;
-    ctrl_info->complete_cb  = xfer->complete_cb;
-    ctrl_info->user_data    = xfer->user_data;
-    _usbh_epbuf.request     = (*xfer->setup);
+  // Slot is single-threaded — when busy, sync callers block until it frees
+  // (blocking semantics require the result); async callers get queued in the
+  // pending FIFO and submitted by control_xfer_complete() when the slot
+  // drains. The test-and-{claim|enqueue} is one critical section so a slot
+  // that becomes IDLE between the check and the enqueue can't strand an async
+  // request in a queue nothing else drains.
+  const bool is_nonblocking = (xfer->complete_cb != NULL);
+  while (true) {
+    TU_VERIFY(tuh_connected(daddr));
+    bool claimed = false;
+    bool is_queued = false;
+    (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+    if (ctrl_info->stage == CONTROL_STAGE_IDLE) {
+      ctrl_info->stage        = CONTROL_STAGE_SETUP;
+      ctrl_info->daddr        = daddr;
+      ctrl_info->actual_len   = 0;
+      ctrl_info->failed_count = 0;
+
+      ctrl_info->buffer       = xfer->buffer;
+      ctrl_info->complete_cb  = xfer->complete_cb;
+      ctrl_info->user_data    = xfer->user_data;
+      _usbh_epbuf.request     = (*xfer->setup);
+      claimed = true;
+    } else if (is_nonblocking) {
+      // Async + busy: queue the transfer.
+      const usbh_pending_ctrl_t entry = {
+        .setup       = *xfer->setup,
+        .buffer      = xfer->buffer,
+        .complete_cb = xfer->complete_cb,
+        .user_data   = xfer->user_data,
+        .daddr       = daddr,
+        .daddr_gen   = _usbh_data.daddr_gen[daddr]
+      };
+      is_queued = tu_fifo_write_n(&_usbh_pending_ctrl_q, &entry, sizeof(entry)) == sizeof(entry);
+    }
+
+    (void) osal_mutex_unlock(_usbh_mutex);
+
+    if (claimed) {
+      break;
+    }
+
+    if (is_nonblocking) {
+      return is_queued;
+    }
+
+    // - OS_HAS_SCHEDULER: delay 1 ms
+    // - Otherwise: single execution context; drive the loop ourselves to progress the in-flight transfer.
+#if CFG_TUSB_OS_HAS_SCHEDULER
+    osal_task_delay(1);
+#else
+    tuh_task_ext(0, false);
+#endif
   }
-  (void) osal_mutex_unlock(_usbh_mutex);
-
-  TU_VERIFY(is_idle);
   TU_LOG_USBH("[%u:%u] %s: ", usbh_get_rhport(daddr), daddr,
               (xfer->setup->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD && xfer->setup->bRequest <= TUSB_REQ_SYNCH_FRAME) ?
                   tu_str_std_request[xfer->setup->bRequest] : "Class Request");
   TU_LOG_BUF_USBH(xfer->setup, 8);
 
-  if (xfer->complete_cb != NULL) {
-    TU_ASSERT(usbh_setup_send(daddr, (uint8_t const *) &_usbh_epbuf.request));
-  }else {
-    // blocking if complete callback is not provided
-    // change callback to internal blocking, and result as user argument
-    volatile xfer_result_t result = XFER_RESULT_INVALID;
+  // Sync: wire control_xfer_sync_complete BEFORE submit so a fast completion
+  // event has the cb in place. control_xfer_complete() captures both result
+  // and actual_len through this cb before release_slot overwrites ctrl_info.
+  volatile control_xfer_sync_param_t sync_state;
+  if (!is_nonblocking) {
+    sync_state.result = XFER_RESULT_INVALID;
+    sync_state.actual_len = 0;
+    ctrl_info->user_data   = (uintptr_t) &sync_state;
+    ctrl_info->complete_cb = control_xfer_sync_complete;
+  }
 
-    // use user_data to point to xfer_result_t
-    ctrl_info->user_data   = (uintptr_t) &result;
-    ctrl_info->complete_cb = _control_blocking_complete_cb;
+  if (!hcd_setup_send(usbh_get_rhport(daddr), daddr, (uint8_t const *) &_usbh_epbuf.request)) {
+    control_xfer_set_stage(CONTROL_STAGE_IDLE);
+    return false;
+  }
 
-    TU_ASSERT(usbh_setup_send(daddr, (uint8_t const *) &_usbh_epbuf.request));
-
-    while (result == XFER_RESULT_INVALID) {
-      // Note: this can be called within an callback ie. part of tuh_task()
-      // therefore even with RTOS tuh_task_ext() still need to be invoked
+  if (!is_nonblocking) {
+    // No tuh_connected() escape needed: usbh_device_close() routes through
+    // control_xfer_complete(daddr, FAILED) on disconnect, which fires
+    // sync_complete and unblocks this poll.
+    while (sync_state.result == XFER_RESULT_INVALID) {
+#if CFG_TUSB_OS_HAS_SCHEDULER
+      osal_task_delay(1);
+#else
       tuh_task_ext(0, false);
-      // TODO probably some timeout to prevent hanged
+#endif
     }
 
-    // update transfer result, user_data is expected to point to xfer_result_t
+    // Forward to caller (xfer->user_data, if set, is a xfer_result_t pointer).
     if (xfer->user_data != 0) {
-      *((xfer_result_t*) xfer->user_data) = result;
+      *((xfer_result_t*) xfer->user_data) = sync_state.result;
     }
-    xfer->result     = result;
-    xfer->actual_len = ctrl_info->actual_len;
+    xfer->result     = sync_state.result;
+    xfer->actual_len = sync_state.actual_len;
   }
 
   return true;
 }
 
-static void _control_xfer_complete(uint8_t daddr, xfer_result_t result) {
+// Start control transfer from pending fifo
+static void control_xfer_dispatch_pending(void) {
+  usbh_ctrl_xfer_info_t* ctrl_info = &_usbh_data.ctrl_xfer_info;
+
+  while (true) {
+    usbh_pending_ctrl_t xfer;
+    bool has_xfer = false;
+
+    (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+    if (ctrl_info->stage == CONTROL_STAGE_IDLE &&
+        tu_fifo_read_n(&_usbh_pending_ctrl_q, &xfer, sizeof(xfer)) == sizeof(xfer)) {
+      ctrl_info->stage        = CONTROL_STAGE_SETUP;
+      ctrl_info->daddr        = xfer.daddr;
+      ctrl_info->actual_len   = 0;
+      ctrl_info->failed_count = 0;
+      ctrl_info->buffer       = xfer.buffer;
+      ctrl_info->complete_cb  = xfer.complete_cb;
+      ctrl_info->user_data    = xfer.user_data;
+      _usbh_epbuf.request     = xfer.setup;
+      has_xfer = true;
+    }
+    (void) osal_mutex_unlock(_usbh_mutex);
+
+    if (!has_xfer) {
+      return; // nothing to do
+    }
+
+    // mismatched daddr_gen means pending transfer is stale due to the device got disconnected while in the FIFO
+    // Note: the address can be re-allocated to another device at this point.
+    if (xfer.daddr_gen == _usbh_data.daddr_gen[xfer.daddr]) {
+      TU_LOG_USBH("[%u:%u] %s: ", usbh_get_rhport(xfer.daddr), xfer.daddr,
+                  (xfer.setup.bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD && xfer.setup.bRequest <= TUSB_REQ_SYNCH_FRAME) ?
+                      tu_str_std_request[xfer.setup.bRequest] : "Class Request");
+      TU_LOG_BUF_USBH(&xfer.setup, 8);
+      if (hcd_setup_send(usbh_get_rhport(xfer.daddr), xfer.daddr, (uint8_t const *) &_usbh_epbuf.request)) {
+        return; // transfer kicked-off, we are done
+      }
+    }
+
+    // complete callback as FAILED and continue with next pending xfer
+    control_xfer_complete(xfer.daddr, XFER_RESULT_FAILED);
+  }
+}
+
+static void control_xfer_complete(uint8_t daddr, xfer_result_t result) {
   TU_LOG_USBH("\r\n");
   usbh_ctrl_xfer_info_t* ctrl_info = &_usbh_data.ctrl_xfer_info;
 
@@ -901,7 +1073,8 @@ static void _control_xfer_complete(uint8_t daddr, xfer_result_t result) {
     .user_data   = ctrl_info->user_data
   };
 
-  _control_set_xfer_stage(CONTROL_STAGE_IDLE);
+  // set to IDLE before callback since cb can invoke another transfer
+  control_xfer_set_stage(CONTROL_STAGE_IDLE);
 
   if (xfer_temp.complete_cb != NULL) {
     xfer_temp.complete_cb(&xfer_temp);
@@ -915,11 +1088,17 @@ static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t 
   tusb_control_request_t const * request = &_usbh_epbuf.request;
   usbh_ctrl_xfer_info_t* ctrl_info = &_usbh_data.ctrl_xfer_info;
 
+  // Drop stale completions: slot already released (abort/close fired its cb)
+  // or now owns a different device's xfer (a pending entry was dispatched).
+  if (ctrl_info->stage == CONTROL_STAGE_IDLE || ctrl_info->daddr != daddr) {
+    return true;
+  }
+
   switch (result) {
     case XFER_RESULT_STALLED:
       TU_LOG_USBH("[%u:%u] Control STALLED, xferred_bytes = %" PRIu32 "\r\n", rhport, daddr, xferred_bytes);
       TU_LOG_BUF_USBH(request, 8);
-      _control_xfer_complete(daddr, result);
+      control_xfer_complete(daddr, result);
     break;
 
     case XFER_RESULT_FAILED:
@@ -931,11 +1110,14 @@ static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t 
         ctrl_info->actual_len = 0; // reset actual_len
         (void) osal_mutex_unlock(_usbh_mutex);
 
-        TU_ASSERT(usbh_setup_send(daddr, (uint8_t const *) request));
+        if (!hcd_setup_send(rhport, daddr, (uint8_t const *) request)) {
+          control_xfer_complete(daddr, XFER_RESULT_FAILED);
+          return false;
+        }
       } else {
         TU_LOG_USBH("[%u:%u] Control FAILED, xferred_bytes = %" PRIu32 "\r\n", rhport, daddr, xferred_bytes);
         TU_LOG_BUF_USBH(request, 8);
-        _control_xfer_complete(daddr, result);
+        control_xfer_complete(daddr, result);
       }
     break;
 
@@ -944,7 +1126,7 @@ static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t 
         case CONTROL_STAGE_SETUP:
           if (request->wLength > 0) {
             // DATA stage: initial data toggle is always 1
-            _control_set_xfer_stage(CONTROL_STAGE_DATA);
+            control_xfer_set_stage(CONTROL_STAGE_DATA);
             const uint8_t ep_data = tu_edpt_addr(0, request->bmRequestType_bit.direction);
             TU_ASSERT(hcd_edpt_xfer(rhport, daddr, ep_data, ctrl_info->buffer, request->wLength));
             return true;
@@ -959,7 +1141,7 @@ static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t 
             ctrl_info->actual_len = (uint16_t) xferred_bytes;
 
             // ACK stage: toggle is always 1
-            _control_set_xfer_stage(CONTROL_STAGE_ACK);
+            control_xfer_set_stage(CONTROL_STAGE_ACK);
             const uint8_t ep_status = tu_edpt_addr(0, 1 - request->bmRequestType_bit.direction);
             TU_ASSERT(hcd_edpt_xfer(rhport, daddr, ep_status, NULL, 0));
             break;
@@ -976,7 +1158,7 @@ static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t 
             }
           }
 
-          _control_xfer_complete(daddr, result);
+          control_xfer_complete(daddr, result);
           break;
         }
 
@@ -1023,7 +1205,7 @@ bool tuh_edpt_abort_xfer(uint8_t daddr, uint8_t ep_addr) {
     const usbh_ctrl_xfer_info_t* ctrl_info = &_usbh_data.ctrl_xfer_info;
     TU_VERIFY(daddr == ctrl_info->daddr && ctrl_info->stage != CONTROL_STAGE_IDLE);
     hcd_edpt_abort_xfer(rhport, daddr, ep_addr);
-    _control_set_xfer_stage(CONTROL_STAGE_IDLE); // reset control transfer state to idle
+    control_xfer_complete(daddr, XFER_RESULT_ABORTED);
   } else {
     usbh_device_t* dev = get_device(daddr);
     TU_VERIFY(dev);
@@ -1055,9 +1237,9 @@ uint8_t *usbh_get_enum_buf(void) {
 void usbh_int_set(bool enabled) {
   // TODO all host controller if multiple are used since they shared the same event queue
   if (enabled) {
-    hcd_int_enable(_usbh_data.controller_id);
+    hcd_int_enable(_usbh_controller_id);
   } else {
-    hcd_int_disable(_usbh_data.controller_id);
+    hcd_int_disable(_usbh_controller_id);
   }
 }
 

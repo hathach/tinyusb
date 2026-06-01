@@ -22,6 +22,14 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+# Host setup:
+#   - System packages: sudo apt install mtools libmtp9 alsa-utils iperf
+#       mtools     - read_disk_file (device/cdc_msc, device/msc_dual_lun)
+#       libmtp9    - pymtp ctypes load (device/mtp); Debian 13 uses libmtp9t64
+#       alsa-utils - arecord (device/audio_test_freertos)
+#       iperf      - throughput tests (device/net_lwip_*)
+#   - Python packages: pip install -r requirements.txt
+#
 # udev rules :
 # ACTION=="add", SUBSYSTEM=="tty", SUBSYSTEMS=="usb", MODE="0666", PROGRAM="/bin/sh -c 'echo $$ID_SERIAL_SHORT | rev | cut -c -8 | rev'", SYMLINK+="ttyUSB_%c.%s{bInterfaceNumber}"
 # ACTION=="add", SUBSYSTEM=="block", SUBSYSTEMS=="usb", ENV{ID_FS_USAGE}=="filesystem", MODE="0666", PROGRAM="/bin/sh -c 'echo $$ID_SERIAL_SHORT | rev | cut -c -8 | rev'", RUN{program}+="/usr/bin/systemd-mount --no-block --automount=yes --collect $devnode /media/blkUSB_%c.%s{bInterfaceNumber}"
@@ -34,16 +42,10 @@ import re
 import select
 import sys
 import time
-import warnings
 import signal
 from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Any, TypedDict, NotRequired, cast
-
-# Suppress pkg_resources deprecation warning from fs module
-warnings.filterwarnings("ignore", message="pkg_resources is deprecated")
-# Suppress pyfatfs unclean unmount warning
-warnings.filterwarnings("ignore", message="Filesystem was not cleanly unmounted")
 
 import serial
 import subprocess
@@ -52,7 +54,6 @@ import glob
 import shutil
 from multiprocessing import Pool, Lock
 from multiprocessing import TimeoutError as MpTimeoutError
-import fs
 import hashlib
 import ctypes
 from pymtp import MTP
@@ -232,23 +233,24 @@ def open_serial_dev(port: str):
 
 
 def read_disk_file(uid: str, lun: int, fname: str) -> bytes:
-    # open_fs("fat://{dev}) require 'pip install pyfatfs'
+    # Reads a file from a FAT volume on a block device without mounting it.
+    # Requires mtools: `apt install mtools` (no pip dependency).
     dev = get_disk_dev(uid, 'TinyUSB', lun)
     timeout = ENUM_TIMEOUT
+    last_err = None
     while timeout > 0:
         if os.path.exists(dev):
-            fat = fs.open_fs(f'fat://{dev}?read_only=true')
             try:
-                with fat.open(fname, 'rb') as f:
-                    data = f.read()
-            finally:
-                fat.close()
-            assert data, f'Cannot read file {fname} from {dev}'
-            return data
+                data = subprocess.check_output(
+                    ['mtype', '-i', dev, f'::/{fname}'], stderr=subprocess.PIPE)
+                assert data, f'Cannot read file {fname} from {dev}'
+                return data
+            except subprocess.CalledProcessError as e:
+                last_err = e.stderr.decode(errors='replace').strip()
         time.sleep(1)
         timeout -= 1
 
-    raise AssertionError(f'Storage {dev} not existed')
+    raise AssertionError(f'mtype failed on {dev}: {last_err}' if last_err else f'Storage {dev} not existed')
 
 
 def open_mtp_dev(uid):
@@ -794,6 +796,10 @@ def test_host_msc_file_explorer(board):
             break
 
     ser.close()
+
+
+def test_host_msc_file_explorer_freertos(board):
+    return test_host_msc_file_explorer(board)
 
 
 # -------------------------------------------------------------
@@ -1402,7 +1408,7 @@ def test_device_audio_test_freertos(board):
 
 def test_device_hid_generic_inout(board):
     uid = board['uid']
-    import hid
+    import hid  # cython-hidapi (pip: hidapi, apt: python3-hid)
 
     # Find HID device by UID (VID=0xCafe)
     timeout = ENUM_TIMEOUT
@@ -1418,22 +1424,23 @@ def test_device_hid_generic_inout(board):
         timeout -= 1
     assert dev is not None, f'HID device not found for {uid}'
 
-    h = hid.Device(vid=dev['vendor_id'], pid=dev['product_id'], serial=uid)
-
-    # Echo test: send random data and verify echo
-    for size in [8, 32, 63]:
-        # Report ID (0) + payload, padded to 64 bytes
-        payload = bytes([random.randint(1, 255) for _ in range(size)])
-        report = bytes([0]) + payload + bytes(64 - size)
-        h.write(report)
-        echo = h.read(64, timeout=2000)
-        assert echo is not None and len(echo) >= size, (
-            f'HID echo timeout or short read ({size} bytes)')
-        assert bytes(echo[:size]) == payload, (
-            f'HID echo wrong data ({size} bytes):\n'
-            f'  expected: {payload.hex()}\n  received: {bytes(echo[:size]).hex()}')
-
-    h.close()
+    h = hid.device()
+    h.open(dev['vendor_id'], dev['product_id'], uid)
+    try:
+        # Echo test: send random data and verify echo
+        for size in [8, 32, 63]:
+            # Report ID (0) + payload, padded to 64 bytes
+            payload = bytes([random.randint(1, 255) for _ in range(size)])
+            report = bytes([0]) + payload + bytes(64 - size)
+            h.write(report)
+            echo = h.read(64, 2000)
+            assert echo and len(echo) >= size, (
+                f'HID echo timeout or short read ({size} bytes)')
+            assert bytes(echo[:size]) == payload, (
+                f'HID echo wrong data ({size} bytes):\n'
+                f'  expected: {payload.hex()}\n  received: {bytes(echo[:size]).hex()}')
+    finally:
+        h.close()
 
 
 # -------------------------------------------------------------
@@ -1465,6 +1472,7 @@ dual_tests = [
 host_test = [
     'host/cdc_msc_hid',
     'host/msc_file_explorer',
+    'host/msc_file_explorer_freertos',
     'host/device_info',
 ]
 
@@ -1596,7 +1604,18 @@ def test_board(board: Board) -> tuple[str, int, list[str]]:
     if name in board_test:
         test_list = board_test[name]
     elif len(test_only) > 0:
-        test_list = test_only
+        # Explicit -t: filter against the board's capabilities so a device-only
+        # board doesn't try to run host/dual tests (the test functions need a
+        # `dev_attached` entry in the board config that won't exist).
+        board_tests = board.get('tests', {})
+        if 'only' in board_tests:
+            allowed = set(board_tests['only'])
+            test_list = [t for t in test_only if t in allowed]
+        else:
+            for t in test_only:
+                category = t.split('/', 1)[0]
+                if board_tests.get(category) is True:
+                    test_list.append(t)
     else:
         if 'tests' in board:
             board_tests = board['tests']
