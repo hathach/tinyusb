@@ -41,7 +41,11 @@
 #endif
 
 #ifndef CFG_TUH_CONTROL_PENDING_QUEUE_SZ
-  #define CFG_TUH_CONTROL_PENDING_QUEUE_SZ 4
+  #if CFG_TUH_HUB
+    #define CFG_TUH_CONTROL_PENDING_QUEUE_SZ 4
+  #else
+    #define CFG_TUH_CONTROL_PENDING_QUEUE_SZ 2
+  #endif
 #endif
 
 #ifndef CFG_TUH_INTERFACE_MAX
