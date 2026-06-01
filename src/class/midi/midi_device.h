@@ -84,6 +84,9 @@ uint32_t tud_midi_n_packet_write_n(uint8_t itf, const uint8_t packets[], uint32_
 // Get the number of bytes available for writing
 uint32_t tud_midi_n_tx_available(uint8_t itf);
 
+// Get the number of bytes available for reading
+uint32_t tud_midi_n_rx_available(uint8_t itf);
+
 //--------------------------------------------------------------------+
 // Application API (Single Interface)
 //--------------------------------------------------------------------+
@@ -122,6 +125,10 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_midi_packet_write_n(const uint8
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_midi_tx_available(void) {
   return tud_midi_n_tx_available(0);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_midi_rx_available(void) {
+  return tud_midi_n_rx_available(0);
 }
 
 //--------------------------------------------------------------------+
