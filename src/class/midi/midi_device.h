@@ -81,6 +81,9 @@ bool tud_midi_n_packet_write(uint8_t itf, const uint8_t packet[4]);
 // Write multiple event packets, return number of written packets
 uint32_t tud_midi_n_packet_write_n(uint8_t itf, const uint8_t packets[], uint32_t n_packets);
 
+// Get the number of bytes available for writing
+uint32_t tud_midi_n_tx_available(uint8_t itf);
+
 //--------------------------------------------------------------------+
 // Application API (Single Interface)
 //--------------------------------------------------------------------+
@@ -115,6 +118,10 @@ TU_ATTR_ALWAYS_INLINE static inline bool tud_midi_packet_write(const uint8_t pac
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_midi_packet_write_n(const uint8_t packets[], uint32_t n_packets) {
   return tud_midi_n_packet_write_n(0, packets, n_packets);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_midi_tx_available(void) {
+  return tud_midi_n_tx_available(0);
 }
 
 //--------------------------------------------------------------------+
