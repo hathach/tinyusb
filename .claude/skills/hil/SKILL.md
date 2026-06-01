@@ -5,12 +5,12 @@ description: Use when running TinyUSB Hardware-in-the-Loop (HIL) tests on physic
 
 # Hardware-in-the-Loop (HIL) Testing
 
-Run TinyUSB HIL tests on real boards. **Run `hostname` first** — it sets the default config and whether remote mode is possible.
+Run TinyUSB HIL tests on real boards. **Run `hostname` first** — it tells you which host you are on, which determines the default config and whether remote mode is possible.
 
-| Host | Local boards | Remote (SSH → ci.lan)? |
+| Host | Local config | Remote (SSH → ci.lan)? |
 |------|--------------|------------------------|
-| `htpc` (dev PC) | `local.json` | yes (large pool, `tinyusb.json`) |
-| `ci` (the rig) | `tinyusb.json` (large pool) | no — can't SSH to htpc, and boards are already local |
+| `htpc` (dev PC) | `test/hil/local.json` | yes (large pool, `test/hil/tinyusb.json`) |
+| `ci` (the rig) | `test/hil/tinyusb.json` (large pool) | no — can't SSH to htpc, and boards are already local |
 
 Default to **local**. Use **remote** only when on `htpc` and the user says `remote`/`ci.lan`. Never attempt remote on `ci`.
 
@@ -27,10 +27,12 @@ If `local.json` is missing on `htpc`, ask the user to supply one (only fall back
 
 ## Local execution
 
-Pick `$CONFIG` from `hostname`: `local.json` on `htpc`, `tinyusb.json` on `ci`.
+Set `CONFIG` from `hostname` first, then run:
 
 ```bash
-python3 test/hil/hil_test.py [-b BOARD_NAME] -B examples $CONFIG $EXTRA_ARGS
+CONFIG=test/hil/local.json      # on htpc
+# CONFIG=test/hil/tinyusb.json  # on ci
+python3 test/hil/hil_test.py [-b BOARD_NAME] -B examples "$CONFIG" $EXTRA_ARGS
 ```
 
 ## Remote execution (htpc → ci.lan only)
