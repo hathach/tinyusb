@@ -45,6 +45,10 @@
 #define USBHS_EP_R_TOG_0     USBHS_UEP_R_TOG_DATA0
 #define USBHS_EP_R_TOG_1     USBHS_UEP_R_TOG_DATA1
 
+// TODO: are these correct?
+#define USBHS_EP_T_RES_NYET  USBHS_UEP_T_RES_NAK
+#define USBHS_EP_R_RES_NYET  USBHS_UEP_R_RES_NAK
+
 #define EP_TX_LEN(ep)     *(volatile uint16_t *)((volatile uint16_t *)&(USBHSD->UEP0_TX_LEN) + (ep) * 2)
 #define EP_TX_CTRL(ep)    *(volatile uint8_t *)((volatile uint8_t *)&(USBHSD->UEP0_TX_CTRL) + (ep) * 4)
 #define EP_RX_CTRL(ep)    *(volatile uint8_t *)((volatile uint8_t *)&(USBHSD->UEP0_RX_CTRL) + (ep) * 4)
