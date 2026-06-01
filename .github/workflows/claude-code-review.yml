@@ -1,18 +1,27 @@
 name: Claude Code Review
 
 on:
-  pull_request_target:
-    types: [opened, synchronize, ready_for_review, reopened]
+  pull_request:
+    # opened/reopened/ready_for_review -> first auto review
+    # synchronize                      -> auto re-review on new pushes
+    #
+    # NOTE: pull_request (not _target) means fork PRs from non-write-access
+    # contributors get NO token, so they are not auto-reviewed -> use @claude
+    # on those. Same-repo branches (yours or write-access contributors) get
+    # full auto-review safely.
+    types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:
   claude-review:
-    if: false
+    # Skip drafts; review real PRs only
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
       issues: read
       id-token: write
+      actions: read # Required for Claude to read CI results on PRs
 
     steps:
       - name: Checkout repository
@@ -28,5 +37,7 @@ jobs:
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
           prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
+          # Reuse one comment instead of posting a new one each push
+          use_sticky_comment: true
+          claude_args: '--max-turns 20'
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
