@@ -57,18 +57,12 @@ jobs:
 
           # No custom prompt: Claude performs the instructions in the @claude comment.
 
-          # Let summoned runs actually fix bugs: allow the repo's build/test/lint
-          # commands so Claude can verify the change before it commits, plus enough
-          # turns to investigate. File edits (Edit/Write) and git push are handled
-          # by the action itself.
-          #
-          # Bash is scoped to a curated allowlist rather than wide-open: the job `if`
-          # gate trusts the *commenter*, but @claude can be summoned on a fork PR
-          # (claude-code-review.yml even directs fork PRs here), so the checked-out
-          # PR content is potentially attacker-controlled. Scoping blocks prompt
-          # injection from steering Claude into arbitrary shell/network commands
-          # while this job holds the OAuth secret + write token. Keep `bash`/`sh`/
-          # `curl`/`wget`/`eval` OUT of this list.
-          claude_args: >-
-            --allowedTools "Bash(git:*),Bash(cmake:*),Bash(ninja:*),Bash(make:*),Bash(ctest:*),Bash(python3:*),Bash(python:*),Bash(pre-commit:*),Bash(clang-format:*),Bash(codespell:*)"
-            --max-turns 30
+          # Deliberately NO Bash in the tool allowlist. @claude can be summoned on a
+          # fork PR (claude-code-review.yml even directs fork PRs here), and this job
+          # holds the OAuth secret + a write token. Any build/interpreter command
+          # (python -c, cmake/make custom targets, etc.) run against attacker-
+          # controlled PR content is arbitrary code + network execution, so no
+          # command allowlist can safely contain it. Claude still edits files and
+          # the action commits/opens the PR; the resulting commit is verified by the
+          # repo's CircleCI matrix. --max-turns gives room to investigate + fix.
+          claude_args: '--max-turns 30'
