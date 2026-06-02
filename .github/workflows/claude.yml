@@ -6,22 +6,32 @@ on:
   pull_request_review_comment:
     types: [created]
   issues:
-    types: [opened, assigned]
+    # only "opened" — an issue's author_association gates the summon below;
+    # "assigned" would gate on the issue author, not the assigner, so a
+    # maintainer assigning an outsider's issue would be wrongly skipped.
+    types: [opened]
   pull_request_review:
     types: [submitted]
 
 jobs:
   claude:
+    # Only trusted actors (repo owner/member/collaborator) may summon @claude, so the
+    # write-scoped token and OAuth secret are never issued for an outside contributor's
+    # comment on this public repo. Defense-in-depth on top of the action's own check.
     if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude') &&
+        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude') &&
+        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude') &&
+        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.review.author_association)) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')) &&
+        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.issue.author_association))
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      pull-requests: read
-      issues: read
+      contents: write       # allow Claude to push commits/branches when asked
+      pull-requests: write  # allow Claude to comment on / update PRs
+      issues: write         # allow Claude to comment on / update issues
       id-token: write
       actions: read # Required for Claude to read CI results on PRs
     steps:

@@ -1,18 +1,29 @@
 name: Claude Code Review
 
 on:
-  pull_request_target:
-    types: [opened, synchronize, ready_for_review, reopened]
+  pull_request:
+    # opened/reopened/ready_for_review -> first auto review
+    # synchronize                      -> auto re-review on new pushes
+    #
+    # NOTE: pull_request (not _target) means fork PRs get a read-only GITHUB_TOKEN
+    # and NO repository secrets (CLAUDE_CODE_OAUTH_TOKEN), so they cannot be
+    # auto-reviewed. The job condition below skips them cleanly -> use @claude on
+    # those. Same-repo branches (yours or write-access contributors) auto-review.
+    types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:
   claude-review:
-    if: false
+    # Skip drafts, and skip fork PRs (no secrets -> would only fail noisily)
+    if: >
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
-      issues: read
+      issues: write # use_sticky_comment posts/updates a PR comment via the issues API
       id-token: write
+      actions: read # Required for Claude to read CI results on PRs
 
     steps:
       - name: Checkout repository
@@ -25,8 +36,13 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Pairs with the actions: read permission so Claude can read CI results
+          additional_permissions: |
+            actions: read
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
           prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
+          # Reuse one comment instead of posting a new one each push
+          use_sticky_comment: true
+          claude_args: '--max-turns 20'
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
