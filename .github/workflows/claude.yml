@@ -50,10 +50,19 @@ jobs:
           additional_permissions: |
             actions: read
 
-          # Optional: Give a custom prompt to Claude. If this is not specified, Claude will perform the instructions specified in the comment that tagged it.
-          # prompt: 'Update the pull request description to include a summary of changes.'
+          # Sign the bot's commits so they show as "Verified". The action commits
+          # automatically — on a PR comment it pushes to that PR's branch; on an
+          # issue comment it opens a new claude/* branch + PR with the fix.
+          use_commit_signing: true
 
-          # Optional: Add claude_args to customize behavior and configuration
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
-          # claude_args: '--allowed-tools Bash(gh pr:*)'
+          # No custom prompt: Claude performs the instructions in the @claude comment.
+
+          # Deliberately NO Bash in the tool allowlist. @claude can be summoned on a
+          # fork PR (claude-code-review.yml even directs fork PRs here), and this job
+          # holds the OAuth secret + a write token. Any build/interpreter command
+          # (python -c, cmake/make custom targets, etc.) run against attacker-
+          # controlled PR content is arbitrary code + network execution, so no
+          # command allowlist can safely contain it. Claude still edits files and
+          # the action commits/opens the PR; the resulting commit is verified by the
+          # repo's CircleCI matrix. --max-turns gives room to investigate + fix.
+          claude_args: '--max-turns 30'
