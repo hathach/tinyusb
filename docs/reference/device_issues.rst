@@ -12,7 +12,7 @@ Reference: `LPC54600 Errata Sheet`_
 
 .. _LPC54600 Errata Sheet: https://www.nxp.com/docs/en/errata/ES_LPC546XX.pdf
 
-The LPC54600 series have a very buggy USB controller, with totally 17 issues listed in the errata which is more than half of the total issues.
+The LPC54600 series have a very buggy USB controller, with 17 issues listed in the errata which is more than half of the total issues.
 
 Most severe issues are:
 
@@ -20,7 +20,7 @@ Most severe issues are:
 - USB.5: In USB full-speed host mode, linked list on done queue is broken.
 - USB.15: USB high-speed device in endpoint TX data corruption
 
-WCH CH32V10X/CH32V20X/CH32V30X
+WCH CH32F20x/CH32V20x/CH32V30x
 ---------------------------------
 **Severity: Medium**
 
@@ -32,4 +32,4 @@ Reference: `CH32V30X Reference Manual`_ USBFS/USBHS controller chapter
 
 Data corruption may occur on isochronous endpoints. Due to the lacking of FIFO for interrupt status registers, later completed transfer will overwrite `INT_ST` and `RX_LEN` register if previous transfer processing is not completed.
 
-Other types of transfers are not affected.
+For USBHS devices (CH32F20x, CH32V305/CH32V307), other transfer types are protected by the ``USBHS_INT_BUSY_EN`` mechanism which holds off new transfers while an interrupt is being processed. USBFS device behavior is not fully confirmed.

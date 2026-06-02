@@ -10,7 +10,6 @@
    reference/index
    faq
    troubleshooting
-   reference/device_issues
 
 .. toctree::
    :maxdepth: 1
