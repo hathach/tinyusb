@@ -140,7 +140,7 @@ bool tuh_hid_send_ready(uint8_t dev_addr, uint8_t idx);
 bool tuh_hid_send_report(uint8_t dev_addr, uint8_t idx, uint8_t report_id, const void *report, uint16_t len);
 
 //--------------------------------------------------------------------+
-// Callbacks (Weak is optional)
+// Callbacks (optional)
 //--------------------------------------------------------------------+
 
 // Invoked when device with hid interface is mounted

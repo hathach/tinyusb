@@ -35,9 +35,6 @@
 #error "Cannot enable both ECM_RNDIS and NCM network drivers"
 #endif
 
-/* declared here, NOT in usb_descriptors.c, so that the driver can intelligently ZLP as needed */
-#define CFG_TUD_NET_ENDPOINT_SIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
-
 /* Maximum Transmission Unit (in bytes) of the network, including Ethernet header */
 #ifndef CFG_TUD_NET_MTU
 #define CFG_TUD_NET_MTU           1514
@@ -50,6 +47,16 @@ typedef enum
   NCM_DATA_PROTOCOL_NETWORK_TRANSFER_BLOCK = 0x01
 } ncm_data_interface_protocol_code_t;
 
+// Table 5.2 bmNetworkCapabilities bits
+typedef enum {
+  NCM_NETWORK_CAPS_NONE              = 0x00,
+  NCM_NETWORK_CAPS_ETH_FILTER        = (1 << 0),
+  NCM_NETWORK_CAPS_NET_ADDRESS       = (1 << 1),
+  NCM_NETWORK_CAPS_ENCAP_COMMAND     = (1 << 2),
+  NCM_NETWORK_CAPS_MAX_DATAGRAM_SIZE = (1 << 3),
+  NCM_NETWORK_CAPS_CRC_MODE          = (1 << 4),
+  NCM_NETWORK_CAPS_NTB_INPUT_SIZE    = (1 << 5)
+} ncm_network_capabilities_t;
 
 #ifdef __cplusplus
  extern "C" {
@@ -95,6 +102,9 @@ void tud_network_init_cb(void);
 extern uint8_t tud_network_mac_address[6];
 
 //------------- NCM -------------//
+
+// Optional callback: informs the application about host requested packet filter bits
+void tud_network_set_packet_filter_cb(uint16_t packet_filter);
 
 // Set the network link state (up/down) and notify the host
 void tud_network_link_state(uint8_t rhport, bool is_up);

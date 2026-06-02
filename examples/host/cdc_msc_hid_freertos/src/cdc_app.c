@@ -29,16 +29,16 @@
 #include "app.h"
 
 #ifdef ESP_PLATFORM
-  #define CDC_STACK_SZIE      2048
+  #define CDC_STACK_SIZE      2048
 #else
-  #define CDC_STACK_SZIE     (3*configMINIMAL_STACK_SIZE/2)
+  #define CDC_STACK_SIZE     (3*configMINIMAL_STACK_SIZE/2)
 #endif
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 #if configSUPPORT_STATIC_ALLOCATION
-StackType_t  cdc_stack[CDC_STACK_SZIE];
+StackType_t  cdc_stack[CDC_STACK_SIZE];
 StaticTask_t cdc_taskdef;
 #endif
 
@@ -46,9 +46,9 @@ static void cdc_app_task(void* param);
 
 void cdc_app_init(void) {
   #if configSUPPORT_STATIC_ALLOCATION
-  (void) xTaskCreateStatic(cdc_app_task, "cdc", CDC_STACK_SZIE, NULL, configMAX_PRIORITIES-2, cdc_stack, &cdc_taskdef);
+  (void) xTaskCreateStatic(cdc_app_task, "cdc", CDC_STACK_SIZE, NULL, configMAX_PRIORITIES-2, cdc_stack, &cdc_taskdef);
   #else
-  (void) xTaskCreate(cdc_app_task, "cdc", CDC_STACK_SZIE, NULL, configMAX_PRIORITIES-2, NULL);
+  (void) xTaskCreate(cdc_app_task, "cdc", CDC_STACK_SIZE, NULL, configMAX_PRIORITIES-2, NULL);
   #endif
 }
 

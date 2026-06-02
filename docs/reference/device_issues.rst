@@ -2,8 +2,6 @@ Device specific known issues and workarounds
 ===============================================
 This page lists known issues and workarounds for specific devices.
 
-.. _LPC54600 Issues:
-
 NXP LPC54600
 ----------------
 **Severity: High**
@@ -21,8 +19,6 @@ Most severe issues are:
 - USB.2: In USB high-speed device mode, the NBytes field is not correct after BULK IN transfer
 - USB.5: In USB full-speed host mode, linked list on done queue is broken.
 - USB.15: USB high-speed device in endpoint TX data corruption
-
-.. _WCH CH32X Issues:
 
 WCH CH32V10X/CH32V20X/CH32V30X
 ---------------------------------

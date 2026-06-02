@@ -83,6 +83,7 @@ typedef struct {
   uint8_t itf_num;      // interface number
   uint8_t itf_data_alt; // ==0 -> no endpoints, i.e. no network traffic, ==1 -> normal operation with two endpoints (spec, chapter 5.3)
   uint8_t rhport;       // storage of \a rhport because some callbacks are done without it
+  uint16_t ep_size;     // bulk endpoint max packet size (IN and OUT assumed equal)
 
   // recv handling
   recv_ntb_t *recv_free_ntb[RECV_NTB_N];                // free list of recv NTBs
@@ -118,6 +119,12 @@ typedef struct {
   bool notification_xmit_is_running;                    // notification is currently transmitted
   bool link_is_up;                                      // current link state
 
+  // host-configured transmit limits
+  uint8_t bm_capabilities;
+  uint16_t xmit_max_ntb_size;                           // maximum NTB size device may send
+  uint16_t xmit_max_datagrams;                          // maximum datagrams per NTB device may send
+  ncm_ntb_input_size_t ntb_input_size;
+
   // misc
   bool tud_network_recv_renew_active;                   // tud_network_recv_renew() is active (avoid recursive invocations)
   bool tud_network_recv_renew_process_again;            // tud_network_recv_renew() should process again
@@ -137,6 +144,13 @@ typedef struct {
 
 static ncm_interface_t ncm_interface;
 CFG_TUD_MEM_SECTION static ncm_epbuf_t ncm_epbuf;
+
+//--------------------------------------------------------------------+
+// Weak stubs: invoked if no strong implementation is available
+//--------------------------------------------------------------------+
+TU_ATTR_WEAK void tud_network_set_packet_filter_cb(uint16_t packet_filter) {
+  (void) packet_filter;
+}
 
 /**
  * This is the NTB parameter structure
@@ -340,7 +354,8 @@ static xmit_ntb_t *xmit_get_next_ready_ntb(void) {
 static bool xmit_insert_required_zlp(uint8_t rhport, uint32_t xferred_bytes) {
   TU_LOG_DRV("xmit_insert_required_zlp(%d,%ld)\n", rhport, xferred_bytes);
 
-  if (xferred_bytes == 0 || xferred_bytes % CFG_TUD_NET_ENDPOINT_SIZE != 0) {
+  uint16_t const ep_size = ncm_interface.ep_size;
+  if (xferred_bytes == 0 || (xferred_bytes & (ep_size-1)) != 0) {
     return false;
   }
 
@@ -408,10 +423,10 @@ static bool xmit_requested_datagram_fits_into_current_ntb(uint16_t datagram_size
   if (ncm_interface.xmit_glue_ntb == NULL) {
     return false;
   }
-  if (ncm_interface.xmit_glue_ntb_datagram_ndx >= CFG_TUD_NCM_IN_MAX_DATAGRAMS_PER_NTB) {
+  if (ncm_interface.xmit_glue_ntb_datagram_ndx >= ncm_interface.xmit_max_datagrams) {
     return false;
   }
-  if (ncm_interface.xmit_glue_ntb->nth.wBlockLength + datagram_size + XMIT_ALIGN_OFFSET(datagram_size) > CFG_TUD_NCM_IN_NTB_MAX_SIZE) {
+  if (ncm_interface.xmit_glue_ntb->nth.wBlockLength + datagram_size + (uint32_t)XMIT_ALIGN_OFFSET(datagram_size) > (uint32_t)ncm_interface.xmit_max_ntb_size) {
     return false;
   }
   return true;
@@ -708,7 +723,7 @@ static void recv_transfer_datagram_to_glue_logic(void) {
 bool tud_network_can_xmit(uint16_t size) {
   TU_LOG_DRV("tud_network_can_xmit(%d)\n", size);
 
-  TU_ASSERT(size <= CFG_TUD_NCM_IN_NTB_MAX_SIZE - (sizeof(nth16_t) + sizeof(ndp16_t) + 2 * sizeof(ndp16_datagram_t)), false);
+  TU_ASSERT(size <= ncm_interface.xmit_max_ntb_size - (sizeof(nth16_t) + sizeof(ndp16_t) + 2 * sizeof(ndp16_datagram_t)), false);
 
   if (xmit_requested_datagram_fits_into_current_ntb(size) || xmit_setup_next_glue_ntb()) {
     // -> everything is fine
@@ -828,6 +843,9 @@ void netd_init(void) {
 
   memset(&ncm_interface, 0, sizeof(ncm_interface));
 
+  ncm_interface.xmit_max_ntb_size = CFG_TUD_NCM_IN_NTB_MAX_SIZE;
+  ncm_interface.xmit_max_datagrams = CFG_TUD_NCM_IN_MAX_DATAGRAMS_PER_NTB;
+
   for (int i = 0; i < XMIT_NTB_N; ++i) {
     ncm_interface.xmit_free_ntb[i] = &ncm_epbuf.xmit[i].ntb;
   }
@@ -878,10 +896,14 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16
 
   ncm_interface.itf_num = itf_desc->bInterfaceNumber;// management interface
 
-  // skip the two first entries and the following TUSB_DESC_CS_INTERFACE entries
   uint16_t drv_len = sizeof(tusb_desc_interface_t);
   uint8_t const *p_desc = tu_desc_next(itf_desc);
   while (tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE && drv_len <= max_len) {
+    if (tu_desc_subtype(p_desc) == CDC_FUNC_DESC_NCM) {
+      TU_ASSERT(tu_desc_len(p_desc) >= sizeof(tusb_desc_cdc_ncm_func_t), 0);
+      tusb_desc_cdc_ncm_func_t const *ncm_func = (tusb_desc_cdc_ncm_func_t const *) p_desc;
+      ncm_interface.bm_capabilities = ncm_func->bmCapabilities;
+    }
     drv_len += tu_desc_len(p_desc);
     p_desc = tu_desc_next(p_desc);
   }
@@ -905,6 +927,7 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16
   // a TUSB_DESC_ENDPOINT (actually two) must follow, open these endpoints
   TU_ASSERT(tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT, 0);
   TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, 2, TUSB_XFER_BULK, &ncm_interface.ep_out, &ncm_interface.ep_in));
+  ncm_interface.ep_size = tu_edpt_packet_size((tusb_desc_endpoint_t const *) p_desc);
   drv_len += 2 * sizeof(tusb_desc_endpoint_t);
 
   return drv_len;
@@ -954,12 +977,12 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
  * At startup transmission of notification packets are done here.
  */
 bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request) {
-  if (stage != CONTROL_STAGE_SETUP) {
-    return true;
-  }
 
   switch (request->bmRequestType_bit.type) {
     case TUSB_REQ_TYPE_STANDARD:
+      if (stage != CONTROL_STAGE_SETUP) {
+        return true;
+      }
 
       switch (request->bRequest) {
         case TUSB_REQ_GET_INTERFACE: {
@@ -993,16 +1016,75 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
       TU_VERIFY(ncm_interface.itf_num == request->wIndex, false);
       switch (request->bRequest) {
         case NCM_GET_NTB_PARAMETERS: {
+          if (stage != CONTROL_STAGE_SETUP) {
+            return true;
+          }
           // transfer NTB parameters to host.
           tud_control_xfer(rhport, request, (void *) (uintptr_t) &ntb_parameters, sizeof(ntb_parameters));
         } break;
 
-          // unsupported request
+        case NCM_SET_ETHERNET_PACKET_FILTER: {
+          if (stage != CONTROL_STAGE_SETUP) {
+            return true;
+          }
+
+          // Some hosts issue this request even if ETH_FILTER is not advertised,
+          // see https://bugzilla.kernel.org/show_bug.cgi?id=217290
+
+          tud_network_set_packet_filter_cb(request->wValue);
+          tud_control_xfer(rhport, request, NULL, 0);
+        } break;
+
+        case NCM_GET_NTB_INPUT_SIZE: {
+          if (stage != CONTROL_STAGE_SETUP) {
+            return true;
+          }
+
+          TU_VERIFY(request->wLength >=4, false);
+
+          uint8_t resp_len = (request->wLength >= 8 && (ncm_interface.bm_capabilities & NCM_NETWORK_CAPS_NTB_INPUT_SIZE)) ? 8 : 4;
+
+          ncm_ntb_input_size_t ntb_input_size = {
+            .dwNtbInMaxSize = ncm_interface.xmit_max_ntb_size,
+            .wNtbInMaxDatagrams = ncm_interface.xmit_max_datagrams
+          };
+          tud_control_xfer(rhport, request, &ntb_input_size, resp_len);
+        } break;
+
+        case NCM_SET_NTB_INPUT_SIZE: {
+          if (stage == CONTROL_STAGE_SETUP) {
+            /* wLength == 8 -> the NTB Input Size Structure (if NCM_NETWORK_CAPS_NTB_INPUT_SIZE is set)
+               wLength == 4 -> dwNtbInMaxSize field of the NTB Input Size Structure. */
+            TU_VERIFY(request->wLength == 4 || request->wLength == 8, false);
+            if (request->wLength == 8) {
+              TU_VERIFY(ncm_interface.bm_capabilities & NCM_NETWORK_CAPS_NTB_INPUT_SIZE, false);
+            }
+
+            tu_memclr(&ncm_interface.ntb_input_size, sizeof(ncm_interface.ntb_input_size));
+            tud_control_xfer(rhport, request, &ncm_interface.ntb_input_size, request->wLength);
+          } else if (stage == CONTROL_STAGE_DATA) {
+            /* CDC-NCM 1.0 Table 6-4, up to NTB16 size */
+            const uint32_t requested_size = ncm_interface.ntb_input_size.dwNtbInMaxSize;
+            if (requested_size < 2048u || requested_size > 65535u) {
+              return false;
+            }
+            ncm_interface.xmit_max_ntb_size = tu_min16(requested_size, CFG_TUD_NCM_IN_NTB_MAX_SIZE);
+
+            if (ncm_interface.ntb_input_size.wNtbInMaxDatagrams == 0 || ncm_interface.ntb_input_size.wNtbInMaxDatagrams > CFG_TUD_NCM_IN_MAX_DATAGRAMS_PER_NTB) {
+              ncm_interface.xmit_max_datagrams = CFG_TUD_NCM_IN_MAX_DATAGRAMS_PER_NTB;
+            } else {
+              ncm_interface.xmit_max_datagrams = ncm_interface.ntb_input_size.wNtbInMaxDatagrams;
+            }
+          }
+        } break;
+
+        // unsupported request
         default:
           return false;
       }
       break;
-      // unsupported request
+
+    // unsupported request
     default:
       return false;
   }

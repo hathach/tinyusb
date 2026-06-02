@@ -1,0 +1,4 @@
+mcu:CH32F20X
+board:lpcxpresso54114
+mcu:FT90X
+board:stm32h7s3nucleo

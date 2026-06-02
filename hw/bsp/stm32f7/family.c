@@ -357,7 +357,7 @@ int board_uart_write(const void *buf, int len) {
 #else
   (void)buf;
   (void)len;
-  return 0;
+  return -1;
 #endif
 }
 

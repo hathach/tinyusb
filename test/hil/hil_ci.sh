@@ -54,11 +54,14 @@ scp -q "$ROOT_DIR/test/hil/hil_test.py" \
        "$CONFIG" \
        "$REMOTE:$REMOTE_DIR/test/hil/"
 
-# Copy only firmware binaries (elf/bin/hex), preserving directory structure
+# Copy only firmware binaries (elf/bin/hex) plus esptool metadata
+# (config.env + flash_args needed by the esptool flasher), preserving structure
 copy_board_binaries() {
   local src="$1"
   rsync -a --prune-empty-dirs \
-    --include='*/' --include='*.elf' --include='*.bin' --include='*.hex' --exclude='*' \
+    --include='*/' --include='*.elf' --include='*.bin' --include='*.hex' \
+    --include='config.env' --include='flash_args' \
+    --exclude='*' \
     "$src" "$REMOTE:$REMOTE_DIR/examples/"
 }
 
@@ -73,8 +76,11 @@ if [ -n "$BOARD" ]; then
   copy_board_binaries "$BUILD_DIR"
 else
   echo "==> Copying all built binaries"
+  # Use `%/` parameter expansion to strip the trailing slash from the glob —
+  # rsync needs the bare dir name so the per-board cmake-build-<BOARD>/ subdir
+  # is preserved on the remote (hil_test.py looks up binaries by that path).
   for dir in "$ROOT_DIR"/examples/cmake-build-*/; do
-    [ -d "$dir" ] && copy_board_binaries "$dir"
+    [ -d "$dir" ] && copy_board_binaries "${dir%/}"
   done
 fi
 
@@ -85,5 +91,8 @@ echo "==> Running HIL test on $REMOTE"
 ssh "$REMOTE" bash -s -- "$REMOTE_DIR" "${ARGS[@]}" "test/hil/$CONFIG_BASENAME" <<'REMOTE'
 cd -- "$1"
 shift
+# esptool/idf tools live in ~/.local/bin on ci.lan; the non-interactive shell
+# subprocess used for flashing doesn't pick that up otherwise.
+export PATH="$HOME/.local/bin:$PATH"
 exec python3 -u test/hil/hil_test.py -B examples "$@"
 REMOTE

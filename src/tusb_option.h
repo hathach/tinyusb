@@ -535,6 +535,18 @@
   #define CFG_TUSB_OS           OPT_OS_NONE
 #endif
 
+// 1 when CFG_TUSB_OS provides a preemptive scheduler with distinct tasks
+// (FreeRTOS, Zephyr, ThreadX, etc.); 0 when the application is single-context
+// (bare-metal OS_NONE or Pico SDK). Sync host control xfers from the host
+// task are forbidden when this is 1.
+#ifndef CFG_TUSB_OS_HAS_SCHEDULER
+  #if CFG_TUSB_OS == OPT_OS_NONE || CFG_TUSB_OS == OPT_OS_PICO
+    #define CFG_TUSB_OS_HAS_SCHEDULER 0
+  #else
+    #define CFG_TUSB_OS_HAS_SCHEDULER 1
+  #endif
+#endif
+
 #ifndef CFG_TUSB_OS_INC_PATH
   #ifndef CFG_TUSB_OS_INC_PATH_DEFAULT
   #define CFG_TUSB_OS_INC_PATH_DEFAULT
@@ -644,6 +656,10 @@
 
 #ifndef CFG_TUD_MIDI
   #define CFG_TUD_MIDI            0
+#endif
+
+#ifndef CFG_TUD_MIDI2
+  #define CFG_TUD_MIDI2           0
 #endif
 
 #ifndef CFG_TUD_VENDOR
@@ -813,6 +829,22 @@
 
 #ifndef CFG_TUH_MIDI
   #define CFG_TUH_MIDI   0
+#endif
+
+#ifndef CFG_TUH_MIDI2
+  #define CFG_TUH_MIDI2  0
+#endif
+
+#ifndef CFG_TUH_MIDI2_RX_BUFSIZE
+  #define CFG_TUH_MIDI2_RX_BUFSIZE TUH_EPSIZE_BULK_MAX
+#endif
+
+#ifndef CFG_TUH_MIDI2_TX_BUFSIZE
+  #define CFG_TUH_MIDI2_TX_BUFSIZE TUH_EPSIZE_BULK_MAX
+#endif
+
+#ifndef CFG_TUH_MIDI2_LOG_LEVEL
+  #define CFG_TUH_MIDI2_LOG_LEVEL CFG_TUH_LOG_LEVEL
 #endif
 
 #ifndef CFG_TUH_MSC

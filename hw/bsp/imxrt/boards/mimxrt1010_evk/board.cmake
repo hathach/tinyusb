@@ -12,5 +12,6 @@ function(update_board TARGET)
   target_compile_definitions(${TARGET} PUBLIC
     CPU_MIMXRT1011DAE5A
     CFG_EXAMPLE_VIDEO_READONLY
+    LWIP_HIGH_THROUGHPUT=0
     )
 endfunction()

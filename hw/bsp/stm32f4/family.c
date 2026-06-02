@@ -109,6 +109,11 @@ void USARTn_IRQHandler(void) {
 
 void board_init(void) {
   board_clock_init();
+
+  __HAL_FLASH_INSTRUCTION_CACHE_ENABLE();
+  __HAL_FLASH_DATA_CACHE_ENABLE();
+  __HAL_FLASH_PREFETCH_BUFFER_ENABLE();
+
   //SystemCoreClockUpdate();
 
   // Enable All GPIOs clocks
@@ -295,7 +300,7 @@ int board_uart_write(void const *buf, int len) {
   return count;
 #else
   (void) buf; (void) len;
-  return 0;
+  return -1;
 #endif
 }
 

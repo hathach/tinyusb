@@ -150,6 +150,13 @@ uint32_t tuh_midi_stream_write(uint8_t idx, uint8_t cable_num, const uint8_t *p_
 // Note that this function ignores the CIN field of the MIDI packet
 // because a number of commercial devices out there do not encode
 // it properly.
+//
+// NOTE: this function terminates when it encounters an event whose cable
+// number differs from the one being returned. Applications should invoke
+// it in a loop until it returns 0 (or until tuh_midi_read_available()
+// returns 0) to guarantee the stream FIFO is fully drained per callback.
+// Leaving bytes in the FIFO across callbacks can prevent subsequent bulk
+// IN transfers from landing.
 uint32_t tuh_midi_stream_read(uint8_t idx, uint8_t *p_cable_num, uint8_t *p_buffer, uint16_t bufsize);
 
 #endif

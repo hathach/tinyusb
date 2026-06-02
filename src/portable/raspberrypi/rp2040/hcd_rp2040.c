@@ -617,10 +617,16 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
     io_rw_32 *buf_reg = dpram_int_ep_buffer_ctrl(ep->interrupt_num);
     rp2usb_xfer_start(ep, ep_reg, buf_reg, buffer, NULL, buflen);
   } else {
-    // Control endpoint can change direction 0x00 <-> 0x80 when changing stages
-    if (ep_addr != ep->ep_addr) {
+    // Control transfer data and status stages always start with DATA1, regardless of
+    // whether the direction changed since the previous stage. SET_REPORT (and any other
+    // host-to-device class request with an OUT data stage) keeps the same direction
+    // across SETUP -> DATA, so we cannot key off "direction changed" -- we must reset
+    // next_pid every time hcd_edpt_xfer is invoked on ep 0. Without this, the data stage
+    // of SET_REPORT goes out as DATA0 because ep->next_pid is still 0 from hcd_edpt_open(),
+    // which strict devices treat as a protocol violation and disconnect.
+    if (tu_edpt_number(ep_addr) == 0) {
       ep->ep_addr  = ep_addr;
-      ep->next_pid = 1; // data and status stage start with DATA1
+      ep->next_pid = 1;
     }
 
     // If EPX is busy with another transfer, mark as pending

@@ -326,10 +326,12 @@ ld_defs=\"$(echo \"$ld_defs\" | xargs)\"")
       "if [ -f \"${TARGET_ELF_PATH}\" ]; then \
   ${MEMBROWSE_LD_SCRIPTS_CMD}; \
   ${MEMBROWSE_LD_DEFS_CMD}; \
+  map_arg=\"\"; \
+  if [ -f \"${TARGET_ELF_PATH}.map\" ]; then map_arg=\"--map-file \\\"${TARGET_ELF_PATH}.map\\\"\"; fi; \
   if [ \"$MEMBROWSE_UPLOAD\" = \"1\" ]; then \
-    MEMBROWSE_CMD=\"${MEMBROWSE_EXE} report ${OPTION} \\\"${TARGET_ELF_PATH}\\\" \\\"$ld_scripts\\\" $ld_defs --upload --github --target-name ${BOARD}/${TARGET} --api-key $ENV{MEMBROWSE_API_KEY}\"; \
+    MEMBROWSE_CMD=\"${MEMBROWSE_EXE} report ${OPTION} \\\"${TARGET_ELF_PATH}\\\" \\\"$ld_scripts\\\" $ld_defs $map_arg --upload --github --target-name ${BOARD}/${TARGET} --api-key $ENV{MEMBROWSE_API_KEY}\"; \
   else \
-    MEMBROWSE_CMD=\"${MEMBROWSE_EXE} report ${OPTION} \\\"${TARGET_ELF_PATH}\\\" \\\"$ld_scripts\\\" $ld_defs\"; \
+    MEMBROWSE_CMD=\"${MEMBROWSE_EXE} report ${OPTION} \\\"${TARGET_ELF_PATH}\\\" \\\"$ld_scripts\\\" $ld_defs $map_arg\"; \
   fi; \
 else \
   if [ \"$MEMBROWSE_UPLOAD\" = \"1\" ]; then \

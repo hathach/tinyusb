@@ -30,8 +30,6 @@
 extern "C" {
 #endif
 
-#include "lwipopts.h"
-
 //--------------------------------------------------------------------+
 // Board Specific Configuration
 //--------------------------------------------------------------------+
@@ -105,7 +103,7 @@ extern "C" {
       TU_CHECK_MCU(OPT_MCU_STM32F2,  OPT_MCU_STM32F4,  OPT_MCU_STM32F7) || \
       TU_CHECK_MCU(OPT_MCU_STM32H5,  OPT_MCU_STM32H7,  OPT_MCU_STM32H7RS) || \
       TU_CHECK_MCU(OPT_MCU_STM32U5,  OPT_MCU_STM32N6) || \
-      TU_CHECK_MCU(OPT_MCU_RP2040) || \
+      TU_CHECK_MCU(OPT_MCU_RP2040,   OPT_MCU_CH32V307) || \
       TU_CHECK_MCU(OPT_MCU_MIMXRT1XXX) || \
       TU_CHECK_MCU(OPT_MCU_NRF5X)
     #define LWIP_HIGH_THROUGHPUT 1
@@ -122,16 +120,13 @@ extern "C" {
 // NCM CLASS CONFIGURATION, SEE "ncm.h" FOR PERFORMANCE TUNING
 //--------------------------------------------------------------------
 
-// Must be >> MTU
-// Can be set to 2048 without impact
-#define CFG_TUD_NCM_IN_NTB_MAX_SIZE (1 * TCP_MSS + 100)
+// CDC-NCM 1.0 Table 6-4 defines 2048 as the minimum required NTB size
+#define CFG_TUD_NCM_IN_NTB_MAX_SIZE 2048
 
-// Must be >> MTU
-// Can be set to smaller values if wNtbOutMaxDatagrams==1
 #if LWIP_HIGH_THROUGHPUT
-  #define CFG_TUD_NCM_OUT_NTB_MAX_SIZE (3 * TCP_MSS + 100)
+  #define CFG_TUD_NCM_OUT_NTB_MAX_SIZE 4096
 #else
-  #define CFG_TUD_NCM_OUT_NTB_MAX_SIZE (2 * TCP_MSS + 100)
+  #define CFG_TUD_NCM_OUT_NTB_MAX_SIZE 2048
 #endif
 
 // Number of NCM transfer blocks for reception side
