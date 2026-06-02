@@ -1,21 +1,7 @@
 TinyUSB
 =======
 
-|Build Status| |CircleCI Status| |Documentation Status| |Static Analysis| |Fuzzing Status| |Membrowse| |License|
-
-Sponsors
---------
-
-TinyUSB is funded by: Adafruit. Purchasing products from them helps to support this project.
-
-.. figure:: docs/assets/adafruit_logo.svg
-   :alt: Adafruit Logo
-   :align: left
-   :target: https://www.adafruit.com
-
-.. raw:: html
-
-   <div class="clear-both"></div>
+|Sponsor| |Build Status| |CircleCI Status| |Documentation Status| |Static Analysis| |Fuzzing Status| |Membrowse| |License|
 
 Overview
 --------
@@ -31,6 +17,64 @@ Overview
 TinyUSB is an open-source cross-platform USB Host/Device stack for embedded systems. It’s designed for memory safety
 (no dynamic allocation) and thread safety (all interrupts deferred to non-ISR task functions). The stack emphasizes portability,
 small footprint, and real-time performance across 50+ MCU families.
+
+Sponsors
+--------
+
+TinyUSB's continued development is made possible by its sponsors. If TinyUSB helps your products or projects, consider funding its development on `GitHub Sponsors`_.
+
+Platinum
+^^^^^^^^
+
+`Adafruit`_ has backed TinyUSB since day one as its founding and sole Platinum sponsor. Buying their products directly funds the project's development.
+
+.. figure:: docs/assets/adafruit_logo.svg
+   :alt: Adafruit Logo
+   :align: left
+   :target: https://www.adafruit.com
+
+.. raw:: html
+
+   <div class="clear-both"></div>
+
+Sponsors (QWORD)
+^^^^^^^^^^^^^^^^
+
+.. QWORD-SPONSORS-START
+
+*No QWORD sponsors yet — be the first!*
+
+.. QWORD-SPONSORS-END
+
+Backers (DWORD)
+^^^^^^^^^^^^^^^
+
+.. DWORD-BACKERS-START
+
+*No backers yet — be the first!*
+
+.. DWORD-BACKERS-END
+
+Supporters (Word)
+^^^^^^^^^^^^^^^^^
+
+.. WORD-SUPPORTERS-START
+
+*No supporters yet — be the first!*
+
+.. WORD-SUPPORTERS-END
+
+Thanks (Byte)
+^^^^^^^^^^^^^
+
+.. BYTE-THANKS-START
+
+*No names listed yet — be the first!*
+
+.. BYTE-THANKS-END
+
+.. _GitHub Sponsors: https://github.com/sponsors/hathach
+.. _Adafruit: https://www.adafruit.com
 
 Key Features
 ------------
@@ -303,6 +347,8 @@ The following tools are provided freely to support the development of the TinyUS
    :target: https://membrowse.com/public/hathach/tinyusb
 .. |License| image:: https://img.shields.io/badge/license-MIT-brightgreen.svg
    :target: https://opensource.org/licenses/MIT
+.. |Sponsor| image:: https://img.shields.io/badge/sponsor-%E2%9D%A4-ec6cb9.svg
+   :target: https://github.com/sponsors/hathach
 
 
 .. _Changelog: docs/info/changelog.rst
