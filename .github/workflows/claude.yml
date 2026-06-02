@@ -50,10 +50,15 @@ jobs:
           additional_permissions: |
             actions: read
 
-          # Optional: Give a custom prompt to Claude. If this is not specified, Claude will perform the instructions specified in the comment that tagged it.
-          # prompt: 'Update the pull request description to include a summary of changes.'
+          # Sign the bot's commits so they show as "Verified". The action commits
+          # automatically — on a PR comment it pushes to that PR's branch; on an
+          # issue comment it opens a new claude/* branch + PR with the fix.
+          use_commit_signing: true
 
-          # Optional: Add claude_args to customize behavior and configuration
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
-          # claude_args: '--allowed-tools Bash(gh pr:*)'
+          # No custom prompt: Claude performs the instructions in the @claude comment.
+
+          # Let summoned runs actually fix bugs: allow Bash so Claude can build/test
+          # and verify the change before it commits, plus enough turns to investigate.
+          # File edits (Edit/Write) and git push are handled by the action itself.
+          # Safe because the job `if` gate restricts this to OWNER/MEMBER/COLLABORATOR.
+          claude_args: '--allowedTools Bash --max-turns 30'
