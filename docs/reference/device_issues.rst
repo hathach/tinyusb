@@ -32,4 +32,4 @@ Reference: `CH32V30X Reference Manual`_ USBFS/USBHS controller chapter
 
 Data corruption may occur on isochronous endpoints. Due to the lacking of FIFO for interrupt status registers, later completed transfer will overwrite `INT_ST` and `RX_LEN` register if previous transfer processing is not completed.
 
-For USBHS devices (CH32F20x, CH32V305/CH32V307), other transfer types are protected by the ``USBHS_INT_BUSY_EN`` mechanism which holds off new transfers while an interrupt is being processed. USBFS device behavior is not fully confirmed.
+Other types of transfers are not affected.
