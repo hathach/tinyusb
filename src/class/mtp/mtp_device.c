@@ -443,15 +443,12 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
 
       // Check completion for IN and OUT separately
       bool is_complete;
-
-      if (is_data_in)
-      {
+      if (is_data_in) {
         // IN completion: short packet, ZLP, or reaching total_len
         is_complete = (xferred_bytes == 0 || xferred_bytes < threshold || p_mtp->xferred_len >= p_mtp->total_len);
-      }
-      else
-      {
-        // OUT completion: reaching total_len or ZLP
+      } else {
+        // OUT completion: reaching total_len or ZLP only. A short packet does NOT end the phase
+        // (an early short packet before total_len is the cancel case, not normal completion).
         is_complete = (p_mtp->xferred_len >= p_mtp->total_len) || ((xferred_bytes == 0 && p_mtp->xferred_len > 0));
       }
 
