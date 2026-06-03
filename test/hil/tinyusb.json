@@ -477,20 +477,6 @@
                 "uid": "EBCA8F0670AF",
                 "args": ""
             }
-        },
-        {
-            "name": "stm32f407disco",
-            "uid": "30001A000647313332353735",
-            "tests": {
-                "device": true,
-                "host": false,
-                "dual": false
-            },
-            "flasher": {
-                "name": "jlink",
-                "uid": "000773661813",
-                "args": "-device stm32f407vg"
-            }
         }
     ]
 }

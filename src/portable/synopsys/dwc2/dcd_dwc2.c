@@ -918,7 +918,7 @@ static void handle_rxflvl_irq(uint8_t rhport) {
     }
 
     case GRXSTS_PKTSTS_SETUP_DONE: {
-      // Pop this word cause Setup interrupt
+      // Pop this word causes the Setup interrupt
       epout->doeptsiz |= (3 << DOEPTSIZ_STUPCNT_Pos);
       epout->doepint = DOEPINT_SETUP | DOEPINT_STPKTRX; // Clear SETUP interrupt, required for core to re-write this control word
       if (edpt_is_enabled(&dwc2->epin[0])) {
@@ -955,7 +955,7 @@ static void handle_rxflvl_irq(uint8_t rhport) {
     }
 
     case GRXSTS_PKTSTS_RX_COMPLETE: {
-      // Pop this word cause xfer complete interrupt
+      // Pop this word causes the xfer complete interrupt
       const uint32_t doepint = epout->doepint;
       epout->doepint = DOEPINT_XFRC;
 
@@ -1108,7 +1108,7 @@ static void handle_ep_irq(uint8_t rhport, uint8_t dir) {
         if (dir == TUSB_DIR_IN) {
           handle_epin_slave(rhport, epnum, intr.diepint_bm);
         } else {
-          // epout is handled in rxflv
+          // epout is handled in handle_rxflvl_irq
         }
         #endif
       }
