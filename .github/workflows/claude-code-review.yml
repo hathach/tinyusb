@@ -21,7 +21,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-      issues: write # use_sticky_comment posts/updates a PR comment via the issues API
+      issues: write # Claude posts the review comment via the issues API
       id-token: write
       actions: read # Required for Claude to read CI results on PRs
 
@@ -36,13 +36,17 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Allow claude[bot]'s own pushes to be handled gracefully (skip) instead
+          # of erroring out the workflow
+          allowed_bots: 'claude'
           # Pairs with the actions: read permission so Claude can read CI results
           additional_permissions: |
             actions: read
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
           prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
-          # Reuse one comment instead of posting a new one each push
-          use_sticky_comment: true
+          # TEMPORARY: expose the full Claude transcript in the Actions log for
+          # debugging. Revert to remove once done.
+          show_full_output: true
           claude_args: '--max-turns 20'
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
