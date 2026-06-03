@@ -455,6 +455,7 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
     } else if (epx->state == EPSTATE_ACTIVE && ((usb_hw->buf_status & 0x3u) == 0)) {
       // STATUS-phase ZLP (0-byte transfer): TRANS_COMPLETE fires but BUFF_STATUS does not
       // because there is no DPRAM movement for zero bytes. Complete EPX now.
+      usbh_dpram->epx_buf_ctrl = 0;
       xfer_complete_isr(epx, XFER_RESULT_SUCCESS, true);
     }
   }
