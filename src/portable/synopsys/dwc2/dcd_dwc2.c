@@ -903,8 +903,6 @@ static void handle_rxflvl_irq(uint8_t rhport) {
 
   dwc2_dep_t* epout = &dwc2->epout[epnum];
 
-  TU_LOG1("packet_status = %u, ep %u, doepint = 0x%04lX\r\n", packet_status, epnum, epout->doepint);
-
   switch (packet_status) {
     case GRXSTS_PKTSTS_GLOBAL_OUT_NAK:
       // Global OUT NAK: do nothing
@@ -921,7 +919,6 @@ static void handle_rxflvl_irq(uint8_t rhport) {
 
     case GRXSTS_PKTSTS_SETUP_DONE: {
       // Pop this word cause Setup interrupt
-      // TU_LOG1("\r\n");
       epout->doeptsiz |= (3 << DOEPTSIZ_STUPCNT_Pos);
       epout->doepint = DOEPINT_SETUP | DOEPINT_STPKTRX; // Clear SETUP interrupt, required for core to re-write this control word
       if (edpt_is_enabled(&dwc2->epin[0])) {
@@ -970,7 +967,6 @@ static void handle_rxflvl_irq(uint8_t rhport) {
           break;
         }
       }
-      // TU_LOG1("\r\n");
 
       xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
       if (epnum == 0 && _dcd_data.ep0_pending[TUSB_DIR_OUT] > 0) {
