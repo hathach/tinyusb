@@ -1031,7 +1031,9 @@ static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepi
 
     dcd_dcache_invalidate(_dcd_usbbuf.setup_buffer, sizeof(_dcd_usbbuf.setup_buffer));
 
-    tusb_control_request_t *setup_packet = (tusb_control_request_t *) (epout0->doepdma - 8);
+    // DOEPDMA0 has advanced past the last received SETUP packet; back up one packet to the latest valid one
+    // (Programming Guide v4.20a section 9.1.2.1: "DOEPDMAn-8 provides the pointer to the last valid SETUP data")
+    tusb_control_request_t *setup_packet = (tusb_control_request_t *) (uintptr_t) (epout0->doepdma - sizeof(tusb_control_request_t));
     dcd_event_setup_received(rhport, (uint8_t*)setup_packet, true);
 
     // Prepare EP0 for next setup if this setup has no data stage
