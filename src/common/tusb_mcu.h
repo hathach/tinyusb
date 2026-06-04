@@ -700,6 +700,14 @@
 
   #define TU_ATTR_FAST_FUNC __attribute__((section(".fast")))
 
+//--------------------------------------------------------------------+
+// Geehy
+//--------------------------------------------------------------------+
+#elif TU_CHECK_MCU(OPT_MCU_APM32F0XX)
+  #define TUP_USBIP_FSDEV
+  #define TUP_USBIP_FSDEV_APM32
+  #define CFG_TUSB_FSDEV_PMA_SIZE 1024u
+
 #endif
 
 // External USB controller
