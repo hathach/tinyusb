@@ -1,0 +1,100 @@
+name: Adafruit Board
+
+# Periodically add open issues and PRs to the private "Adafruit" project board (#4):
+#   1. Anything across the whole adafruit org that involves hathach
+#      (authored, assigned, mentioned, or commented on = participating).
+#   2. Everything open in a set of core repos hathach maintains, regardless of author.
+# Requires a PAT in secret SPONSOR_TOKEN with scopes:
+#   - project    (write project items)
+#   - read:org   (search org issues/PRs)
+
+on:
+  schedule:
+    - cron: '30 */6 * * *'   # every 6 hours, offset from sponsor-triage
+  workflow_dispatch:
+
+concurrency:
+  group: adafruit-board
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync Adafruit issues to project board
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ secrets.SPONSOR_TOKEN }}
+          script: |
+            const PROJECT_OWNER = 'hathach';
+            const PROJECT_NUMBER = 4;
+
+            // Search queries (search type ISSUE returns both issues and PRs).
+            const QUERIES = [
+              // Everything across the org that hathach is involved in
+              // (involves = author OR assignee OR mentions OR commenter).
+              'org:adafruit is:open involves:hathach',
+              // All open items in maintained core repos, regardless of author.
+              'repo:adafruit/ArduinoCore-samd is:open',
+              'repo:adafruit/Adafruit_nRF52_Arduino is:open',
+              'repo:adafruit/Adafruit_nRF52_Bootloader is:open',
+              'repo:adafruit/tinyuf2 is:open',
+              'repo:adafruit/Adafruit_TinyUSB_Arduino is:open',
+              'repo:adafruit/Adafruit_SPIFlash is:open',
+            ];
+
+            // --- 1. Resolve project id ---
+            const proj = await github.graphql(`
+              query($owner: String!, $number: Int!) {
+                user(login: $owner) {
+                  projectV2(number: $number) { id }
+                }
+              }`, { owner: PROJECT_OWNER, number: PROJECT_NUMBER });
+            const projectId = proj.user.projectV2.id;
+
+            // --- 2. Collect content node ids from every query (paginated) ---
+            const found = new Set();
+            for (const q of QUERIES) {
+              let after = null;
+              for (let page = 0; page < 20; page++) {   // up to 2000 items per query
+                let res;
+                try {
+                  res = await github.graphql(`
+                    query($q: String!, $after: String) {
+                      search(query: $q, type: ISSUE, first: 100, after: $after) {
+                        pageInfo { hasNextPage endCursor }
+                        nodes {
+                          ... on Issue { id }
+                          ... on PullRequest { id }
+                        }
+                      }
+                    }`, { q, after });
+                } catch (e) {
+                  core.warning(`Search failed for one query: ${e.message}`);
+                  break;
+                }
+                for (const node of res.search.nodes) {
+                  if (node && node.id) found.add(node.id);
+                }
+                if (!res.search.pageInfo.hasNextPage) break;
+                after = res.search.pageInfo.endCursor;
+              }
+            }
+            core.info(`Found ${found.size} open item(s) to sync.`);
+
+            // --- 3. Add to board (addProjectV2ItemById is idempotent) ---
+            let added = 0;
+            for (const contentId of found) {
+              try {
+                await github.graphql(`
+                  mutation($p: ID!, $c: ID!) {
+                    addProjectV2ItemById(input: { projectId: $p, contentId: $c }) {
+                      item { id }
+                    }
+                  }`, { p: projectId, c: contentId });
+                added++;
+              } catch (e) {
+                core.warning(`Add failed for one item: ${e.message}`);
+              }
+            }
+            core.info(`Synced ${added} item(s) to the Adafruit board.`);
