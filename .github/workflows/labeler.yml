@@ -51,7 +51,7 @@ jobs:
 
                 if (adafruitResponse.status === 204) {
                   console.log('Adafruit Member');
-                  labels = ['Adafruit', 'Sponsor', 'Prio Top'];
+                  labels = ['Adafruit 🌸', 'Sponsor 💖', 'Prio Top 🚨'];
                 }
               } catch (error) {
                 console.log('Not an Adafruit member');
@@ -93,13 +93,13 @@ jobs:
 
                   if (monthly >= 128) {
                     console.log('Sponsor (DWORD/QWORD tier)');
-                    labels = ['Sponsor', 'Prio Top'];
+                    labels = ['Sponsor 💖', 'Prio Top 🚨'];
                   } else if (monthly >= 32) {
                     console.log('Sponsor (Word tier)');
-                    labels = ['Sponsor', 'Prio'];
+                    labels = ['Sponsor 💖', 'Prio 📌'];
                   } else {
                     console.log('Sponsor (below Word tier or tier not visible)');
-                    labels = ['Sponsor'];
+                    labels = ['Sponsor 💖'];
                   }
                 } else {
                   console.log('Not a public sponsor');
@@ -120,7 +120,7 @@ jobs:
 
                 if (collaboratorResponse.status === 204) {
                   console.log('Contributor');
-                  labels = ['Prio'];
+                  labels = ['Prio 📌'];
                 }
               } catch (error) {
                 console.log('Not a contributor');
