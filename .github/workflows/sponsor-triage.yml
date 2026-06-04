@@ -121,7 +121,7 @@ jobs:
                   const res = await github.graphql(`
                     query($q: String!) {
                       search(query: $q, type: ISSUE, first: 100) {
-                        nodes { ... on Issue { id } }
+                        nodes { ... on Issue { id } ... on PullRequest { id } }
                       }
                     }`, { q });
                   for (const node of res.search.nodes) {
