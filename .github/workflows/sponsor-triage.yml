@@ -1,6 +1,6 @@
 name: Sponsor Triage
 
-# Periodically add open issues opened by sponsors (public and private) to the private "Sponsor Triage" project board
+# Periodically add open issues and PRs opened by sponsors (public and private) to the private "Sponsor Triage" project board
 # Requires a PAT in secret SPONSOR_TOKEN with scopes:
 #   - project       (write project items / fields)
 #   - read:org      (search org issues, check Adafruit membership)
@@ -111,11 +111,12 @@ jobs:
               } catch (e) { /* not an Adafruit member */ }
             }
 
-            // --- 3. Find each sponsor's open issues in the search scopes ---
+            // --- 3. Find each sponsor's open issues and PRs in the search scopes ---
+            // (search type ISSUE returns both issues and pull requests)
             const found = new Map(); // contentId -> { tier, visibility }
             for (const s of sponsors.values()) {
               for (const scope of SEARCH_SCOPES) {
-                const q = `${scope} is:open is:issue author:${s.login}`;
+                const q = `${scope} is:open author:${s.login}`;
                 try {
                   const res = await github.graphql(`
                     query($q: String!) {
