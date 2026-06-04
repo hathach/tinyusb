@@ -244,7 +244,7 @@ function(family_add_bloaty TARGET)
     COMMAND ${BLOATY_EXE} ${OPTION_LIST} $<TARGET_FILE:${TARGET}>
     VERBATIM)
 
-  set_property(TARGET ${TARGET}-bloaty PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-bloaty PROPERTY FOLDER ${TARGET}-group)
   # post build
   #  add_custom_command(TARGET ${TARGET} POST_BUILD
   #    COMMAND ${BLOATY_EXE} --csv ${OPTION_LIST} $<TARGET_FILE:${TARGET}> > ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}_bloaty.csv
@@ -265,7 +265,7 @@ function(family_add_linkermap TARGET)
     VERBATIM
     )
 
-  set_property(TARGET ${TARGET}-linkermap PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-linkermap PROPERTY FOLDER ${TARGET}-group)
 
   # post build
   add_custom_command(TARGET ${TARGET} POST_BUILD
@@ -347,7 +347,7 @@ echo \"$MEMBROWSE_CMD\"")
       COMMAND ${CMAKE_COMMAND} -E env MEMBROWSE_UPLOAD=0 bash -lc "${MEMBROWSE_PREPARE_CMD}; eval \"$MEMBROWSE_CMD\""
       VERBATIM
       )
-    set_property(TARGET ${TARGET}-membrowse PROPERTY FOLDER ${TARGET}-group)
+    #set_property(TARGET ${TARGET}-membrowse PROPERTY FOLDER ${TARGET}-group)
 
     add_custom_target(${TARGET}-membrowse-upload
       COMMAND ${CMAKE_COMMAND} -E env MEMBROWSE_UPLOAD=1 bash -lc "${MEMBROWSE_PREPARE_CMD}; eval \"$MEMBROWSE_CMD\""
@@ -359,7 +359,7 @@ echo \"$MEMBROWSE_CMD\"")
     endif ()
     add_dependencies(examples-membrowse-upload ${TARGET}-membrowse-upload)
 
-    set_property(TARGET ${TARGET}-membrowse-upload PROPERTY FOLDER ${TARGET}-group)
+    #set_property(TARGET ${TARGET}-membrowse-upload PROPERTY FOLDER ${TARGET}-group)
   endif ()
 endfunction()
 
@@ -648,7 +648,7 @@ exit"
     VERBATIM
     )
 
-  set_property(TARGET ${NAME_TARGET}-jlink PROPERTY FOLDER ${TARGET}-group)
+#  set_property(TARGET ${NAME_TARGET}-jlink PROPERTY FOLDER ${NAME_TARGET}-group)
 endfunction()
 
 
@@ -663,7 +663,7 @@ function(family_flash_stlink TARGET)
     COMMAND ${STM32_PROGRAMMER_CLI} --connect port=swd --write $<TARGET_FILE:${TARGET}> --go
     )
 
-  set_property(TARGET ${TARGET}-stlink PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-stlink PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 
@@ -678,7 +678,7 @@ function(family_flash_stflash TARGET)
     COMMAND ${ST_FLASH} write $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.bin 0x8000000
     )
 
-  set_property(TARGET ${TARGET}-stflash PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-stflash PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 
@@ -706,7 +706,7 @@ function(family_flash_openocd TARGET)
     VERBATIM
     )
 
-  set_property(TARGET ${TARGET}-openocd PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-openocd PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 
@@ -769,7 +769,7 @@ function(family_flash_wlink_rs TARGET)
     COMMAND ${WLINK_RS} flash $<TARGET_FILE:${TARGET}>
     )
 
-  set_property(TARGET ${TARGET}-wlink-rs PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-wlink-rs PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 
@@ -784,7 +784,7 @@ function(family_flash_pyocd TARGET)
     COMMAND ${PYOCD} flash -t ${PYOCD_TARGET} $<TARGET_FILE:${TARGET}>
     )
 
-  set_property(TARGET ${TARGET}-pyocd PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-pyocd PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 
@@ -794,7 +794,7 @@ function(family_flash_uf2 TARGET FAMILY_ID)
     DEPENDS ${TARGET}
     COMMAND python ${UF2CONV_PY} -f ${FAMILY_ID} --deploy $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.uf2
     )
-  set_property(TARGET ${TARGET}-uf2 PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-uf2 PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 
@@ -810,7 +810,7 @@ function(family_flash_teensy TARGET)
     COMMAND ${TEENSY_CLI} --mcu=${TEENSY_MCU} -w -s $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.hex
     )
 
-  set_property(TARGET ${TARGET}-teensy PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-teensy PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 
@@ -830,7 +830,7 @@ function(family_flash_nxplink TARGET)
     COMMAND ${LINKSERVER_PATH} flash ${NXPLINK_DEVICE} load $<TARGET_FILE:${TARGET}>
     )
 
-  set_property(TARGET ${TARGET}-nxplink PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-nxplink PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 
@@ -845,7 +845,7 @@ function(family_flash_dfu_util TARGET OPTION)
     VERBATIM
     )
 
-  set_property(TARGET ${TARGET}-dfu-util PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-dfu-util PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 function(family_flash_msp430flasher TARGET)
@@ -862,7 +862,7 @@ function(family_flash_msp430flasher TARGET)
             ${MSP430FLASHER} -w $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.hex -z [VCC]
     )
 
-  set_property(TARGET ${TARGET}-msp430flasher PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-msp430flasher PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 function(family_flash_rfp TARGET)
@@ -880,7 +880,7 @@ function(family_flash_rfp TARGET)
     VERBATIM
     )
 
-  set_property(TARGET ${TARGET}-rfp PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-rfp PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 
@@ -897,7 +897,7 @@ function(family_flash_uniflash TARGET)
     VERBATIM
     )
 
-  set_property(TARGET ${TARGET}-uniflash PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-uniflash PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 # Add flash ft9xx target need to remove kernal's ftdi_sio and bind D2XX drivers
@@ -912,7 +912,7 @@ function(family_flash_ft9xx TARGET)
     COMMAND ${FT9XXPROG} -f $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.bin
     )
 
-  set_property(TARGET ${TARGET}-ft9xx PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-ft9xx PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 #----------------------------------
