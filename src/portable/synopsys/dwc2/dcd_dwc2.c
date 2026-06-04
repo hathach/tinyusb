@@ -794,15 +794,15 @@ static void handle_bus_reset(uint8_t rhport) {
   xfer_status[0][TUSB_DIR_OUT].max_size = CFG_TUD_ENDPOINT0_SIZE;
   xfer_status[0][TUSB_DIR_IN].max_size = CFG_TUD_ENDPOINT0_SIZE;
 
-  uint32_t oepmsk = 0;
+  uint32_t gintmsk = GINTMSK_OTGINT | GINTMSK_IEPINT | GINTMSK_IISOIXFRM;
   if(dma_device_enabled(dwc2)) {
-    oepmsk = GINTMSK_OEPINT;
+    gintmsk |= GINTMSK_OEPINT;
     dma_setup_prepare(rhport);
   } else {
     dwc2->epout[0].doeptsiz |= (3 << DOEPTSIZ_STUPCNT_Pos);
   }
 
-  dwc2->gintmsk |= GINTMSK_OTGINT | oepmsk | GINTMSK_IEPINT | GINTMSK_IISOIXFRM;
+  dwc2->gintmsk |= gintmsk;
 }
 
 static void handle_enum_done(uint8_t rhport) {
@@ -886,45 +886,47 @@ static void handle_rxflvl_irq(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   const volatile uint32_t* rx_fifo = dwc2->fifo[0];
 
+  // DWC2 v3.10a (e.g. STM32L476) emits an extra EP0 RX_COMPLETE that is NOT a real OUT data transfer completion, in two
+  // situations - each flagged by a DOEPINT bit set on that word:
+  // - DOEPINT.STPKTRX (Setup Packet Received): pushed between SETUP_RX and SETUP_DONE of every control transfer.
+  // - DOEPINT.STSPHSRX (Status Phase Received for control write): pushed after the OUT data stage when the host
+  //   starts the IN status phase.
+  // Both are dropped in the RX_COMPLETE case below, clearing the flag (W1C) so a latched STSPHSRX
+  // does not block the core from emitting the next SETUP_DONE. usbd still processes the real OUT data
+  // and queues the IN status ZLP itself - the core does not auto-complete the control-write status.
+  const bool quirk_v310a = (dwc2->gsnpsid == DWC2_CORE_REV_3_10a);
+
   // Pop control word off FIFO
   const dwc2_grxstsp_t grxstsp = {.value = dwc2->grxstsp};
+  const uint8_t packet_status = grxstsp.packet_status;
   const uint8_t epnum = grxstsp.ep_ch_num;
 
   dwc2_dep_t* epout = &dwc2->epout[epnum];
 
-  switch (grxstsp.packet_status) {
+  switch (packet_status) {
     case GRXSTS_PKTSTS_GLOBAL_OUT_NAK:
       // Global OUT NAK: do nothing
       break;
 
     case GRXSTS_PKTSTS_SETUP_RX: {
       // Setup packet received
-      uint32_t* setup = (uint32_t*)(uintptr_t) _dcd_usbbuf.setup_buffer;
+      uint32_t * setup = (uint32_t*)(uintptr_t) _dcd_usbbuf.setup_buffer;
       // We can receive up to three setup packets in succession, but only the last one is valid.
       setup[0] = (*rx_fifo);
       setup[1] = (*rx_fifo);
-
-      dwc2_dep_t* epin0 = &dwc2->epin[0];
-      if (edpt_is_enabled(epin0)) {
-        edpt_disable(rhport, 0x80, false);
-      }
-
-      // (GenID < 3.00a) Must wait SETUP_DONE before next OUT transfer, otherwise OUT data may be corrupted.
-      // (GenID >= 3.00a) On the other hand STUPCNT is auto reloaded and SETUP_DONE is only triggered once after bus reset.
-      if (dwc2->gsnpsid >= DWC2_CORE_REV_3_00a) {
-        dcd_event_setup_received(rhport, _dcd_usbbuf.setup_buffer, true);
-      }
       break;
     }
 
-    case GRXSTS_PKTSTS_SETUP_DONE:
-      // Setup packet done:
+    case GRXSTS_PKTSTS_SETUP_DONE: {
+      // Pop this word causes the Setup interrupt
       epout->doeptsiz |= (3 << DOEPTSIZ_STUPCNT_Pos);
-
-      if (dwc2->gsnpsid < DWC2_CORE_REV_3_00a) {
-        dcd_event_setup_received(rhport, _dcd_usbbuf.setup_buffer, true);
+      epout->doepint = DOEPINT_SETUP | DOEPINT_STPKTRX; // Clear SETUP interrupt, required for core to re-write this control word
+      if (edpt_is_enabled(&dwc2->epin[0])) {
+        edpt_disable(rhport, 0x80, false);
       }
+      dcd_event_setup_received(rhport, _dcd_usbbuf.setup_buffer, true);
       break;
+    }
 
     case GRXSTS_PKTSTS_RX_DATA: {
       // Out packet received
@@ -953,7 +955,19 @@ static void handle_rxflvl_irq(uint8_t rhport) {
     }
 
     case GRXSTS_PKTSTS_RX_COMPLETE: {
-      // Out packet done
+      // Pop this word causes the xfer complete interrupt
+      const uint32_t doepint = epout->doepint;
+      epout->doepint = DOEPINT_XFRC;
+
+      // v3.10a quirk (see top of function): the extra RX_COMPLETE flagged with Setup Packet Received (STPKTRX) or
+      // Status Phase Received for control write (STSPHSRX) is not a real OUT completion. Drop it
+      if (quirk_v310a) {
+        if (doepint & (DOEPINT_STPKTRX | DOEPINT_STSPHSRX)) {
+          epout->doepint = DOEPINT_STPKTRX | DOEPINT_STSPHSRX;
+          break;
+        }
+      }
+
       xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
       if (epnum == 0 && _dcd_data.ep0_pending[TUSB_DIR_OUT] > 0) {
         // EP0 can only handle one packet, schedule another packet to be received.
@@ -1093,6 +1107,8 @@ static void handle_ep_irq(uint8_t rhport, uint8_t dir) {
         #if CFG_TUD_DWC2_SLAVE_ENABLE
         if (dir == TUSB_DIR_IN) {
           handle_epin_slave(rhport, epnum, intr.diepint_bm);
+        } else {
+          // epout is handled in handle_rxflvl_irq
         }
         #endif
       }
