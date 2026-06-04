@@ -4,12 +4,14 @@ on:
   issues:
     types: [opened]
   pull_request_target:
-    types: [opened]
+    types: [opened, synchronize, reopened]
   discussion:
     types: [created]
 
 jobs:
   label-priority:
+    # Author-based priority labels: only on issue/PR/discussion creation, not on PR updates.
+    if: github.event_name != 'pull_request_target' || github.event.action == 'opened'
     runs-on: ubuntu-latest
     permissions:
       issues: write
@@ -160,3 +162,21 @@ jobs:
                 });
               }
             }
+
+  # Path-based Port labels: attach "Port <ip>" when a PR touches the matching
+  # dcd/hcd driver under src/portable/. Mapping lives in .github/labeler.yml.
+  label-port:
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write # allow auto-creating a Port label that doesn't exist yet
+    steps:
+      - uses: actions/labeler@v5
+        with:
+          configuration-path: .github/labeler.yml
+          # sync-labels so a Port label is removed once a PR no longer touches
+          # that driver (job reruns on synchronize). Only labels listed in
+          # labeler.yml are managed, so author-based Prio/Sponsor labels are untouched.
+          sync-labels: true
