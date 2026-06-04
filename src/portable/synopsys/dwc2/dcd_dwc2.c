@@ -73,9 +73,15 @@ typedef struct {
 
 static dcd_data_t _dcd_data;
 
-CFG_TUD_MEM_SECTION static union {
-  TUD_EPBUF_DEF(setup_buffer, 8);
-  tusb_control_request_t setup_packet;
+// DMA receives up to 3 back-to-back SETUP packets (3 x 8 bytes), Slave mode only needs 1 packet (8 bytes)
+#if CFG_TUD_DWC2_DMA_ENABLE
+  #define DWC2_SETUP_BUFFER_SIZE 24
+#else
+  #define DWC2_SETUP_BUFFER_SIZE 8
+#endif
+
+CFG_TUD_MEM_SECTION static struct {
+  TUD_EPBUF_DEF(setup_buffer, DWC2_SETUP_BUFFER_SIZE);
 } _dcd_usbbuf;
 
 static tud_configure_dwc2_t _tud_cfg = CFG_TUD_CONFIGURE_DWC2_DEFAULT;
@@ -137,8 +143,8 @@ static void dma_setup_prepare(uint8_t rhport) {
     }
   }
 
-  // Receive only 1 packet
-  dwc2->epout[0].doeptsiz = (1 << DOEPTSIZ_STUPCNT_Pos) | (1 << DOEPTSIZ_PKTCNT_Pos) | (8 << DOEPTSIZ_XFRSIZ_Pos);
+  // Receive back-to-back setup packets
+  dwc2->epout[0].doeptsiz = (3 << DOEPTSIZ_STUPCNT_Pos);
   dwc2->epout[0].doepdma = (uintptr_t) _dcd_usbbuf.setup_buffer;
   dwc2->epout[0].doepctl |= DOEPCTL_EPENA | DOEPCTL_USBAEP;
 }
@@ -1017,15 +1023,21 @@ static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepi
 
   if (doepint_bm.setup_phase_done) {
     // Cleanup previous pending EP0 IN transfer if any
-    dwc2_dep_t* epin0 = &DWC2_REG(rhport)->epin[0];
+    dwc2_dep_t* epin0 = &dwc2->epin[0];
+    dwc2_dep_t* epout0 = &dwc2->epout[0];
     if (edpt_is_enabled(epin0)) {
       edpt_disable(rhport, 0x80, false);
     }
-    dcd_dcache_invalidate(_dcd_usbbuf.setup_buffer, 8);
-    dcd_event_setup_received(rhport, _dcd_usbbuf.setup_buffer, true);
+
+    dcd_dcache_invalidate(_dcd_usbbuf.setup_buffer, sizeof(_dcd_usbbuf.setup_buffer));
+
+    // DOEPDMA0 has advanced past the last received SETUP packet; back up one packet to the latest valid one
+    // (Programming Guide v4.20a section 9.1.2.1: "DOEPDMAn-8 provides the pointer to the last valid SETUP data")
+    tusb_control_request_t *setup_packet = (tusb_control_request_t *) (uintptr_t) (epout0->doepdma - sizeof(tusb_control_request_t));
+    dcd_event_setup_received(rhport, (uint8_t*)setup_packet, true);
 
     // Prepare EP0 for next setup if this setup has no data stage
-    if (_dcd_usbbuf.setup_packet.wLength == 0) {
+    if (setup_packet->wLength == 0) {
       dma_setup_prepare(rhport);
     }
     return;
