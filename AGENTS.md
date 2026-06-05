@@ -153,28 +153,32 @@ Reports land in `cmake-metrics/<board>/metrics_compare.md` (per-board) and `cmak
 
 ## Static Analysis (PVS-Studio)
 
-Requires `compile_commands.json` (CMake `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`).
+Requires `compile_commands.json` (CMake `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`). The
+`pvs` skill (`.claude/skills/pvs/SKILL.md`) wraps the build + analyze flow for a
+board; the commands below are the underlying steps.
 
 ```bash
 # Whole project:
 pvs-studio-analyzer analyze \
   -f examples/cmake-build-raspberry_pi_pico/compile_commands.json \
   -R .PVS-Studio/.pvsconfig \
-  -o pvs-report.log -j12 --dump-files \
+  -o pvs-report.log -j12 \
   --misra-c-version 2023 --misra-cpp-version 2008 --use-old-parser
 
-# Specific files (add one or more `-S <file>`):
+# Specific files: -S takes a plaintext list (one path per line), not paths directly:
+printf 'src/foo.c\nsrc/bar.c\n' > files.txt
 pvs-studio-analyzer analyze \
   -f examples/cmake-build-raspberry_pi_pico/compile_commands.json \
   -R .PVS-Studio/.pvsconfig \
-  -S src/foo.c -S src/bar.c \
-  -o pvs-report.log -j12 --dump-files \
+  -S files.txt \
+  -o pvs-report.log -j12 \
   --misra-c-version 2023 --misra-cpp-version 2008 --use-old-parser
 
 plog-converter -a GA:1,2 -t errorfile pvs-report.log     # view results
 ```
 
-Takes ~10-30 s.
+Takes ~10-30 s. (`--dump-files` adds preprocessed `.PVS-Studio.i/.cfg` dumps next
+to every source for false-positive debugging — omit it for normal runs.)
 
 ## Validation After Changes
 
