@@ -207,10 +207,13 @@ jobs:
         uses: dawidd6/action-download-artifact@v11
         with:
           workflow: build.yml
+          workflow_conclusion: ''      # any conclusion, matching the PR-side baseline download
+          search_artifacts: true       # scan back past runs that lack the artifact (e.g. earlier no-code pushes)
           branch: ${{ github.ref_name }}
           name: metrics-tinyusb
           path: .
           if_no_artifact_found: warn
+        continue-on-error: true        # best-effort: never make a no-code push red
 
       - name: Re-publish baseline so the latest run keeps it
         if: hashFiles('metrics.json') != ''
