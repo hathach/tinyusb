@@ -204,7 +204,7 @@ Device examples need real hardware to validate runtime behavior; must at least b
 
 ## References
 
-- MCU reference manuals, datasheets, schematics: `$HOME/Documents/Calibre Library`.
+- MCU reference manuals, datasheets, schematics: `$HOME/Documents/calibre-library`.
 - Supported MCUs/boards: `hw/bsp/` and `docs/reference/boards.rst`.
 - USB classes: `src/class/{cdc,hid,msc,audio,…}/` — each has `*_device.c` and `*_host.c`.
 - Key files: `src/tusb.h`, `src/tusb_config.h`, `tools/get_deps.py`, `tools/build.py`, `test/unit-test/project.yml`.
