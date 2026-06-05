@@ -82,8 +82,9 @@ static UART_HandleTypeDef UartHandle = {.Instance = USARTn,
                                               .OverSampling = UART_OVERSAMPLING_16,
                                         }};
 
-// RX ring buffer via RXNE interrupt — no HAL IT functions used (avoid HAL state conflicts)
-static uint8_t   uart_rx_ff_buf[32];
+// RX ring buffer via RXNE interrupt — no HAL IT functions used (avoid HAL state conflicts).
+// Sized to absorb a full host-forwarding burst (>64B) when the main loop briefly stalls.
+static uint8_t   uart_rx_ff_buf[256];
 static tu_fifo_t uart_rx_ff;
 
 void USARTn_IRQHandler(void) {
@@ -142,6 +143,12 @@ void board_init(void) {
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
 
+  // Demote USB OTG just below the UART RX ISR (set to priority 0 below): the F7 USART has no
+  // hardware RX FIFO, so a host example's UART RX must not be starved by the frequent USB
+  // host interrupts or incoming bytes overrun (ORE) and are dropped.
+  NVIC_SetPriority(OTG_FS_IRQn, 1);
+  NVIC_SetPriority(OTG_HS_IRQn, 1);
+
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
   // Explicitly disable systick to prevent its ISR from running before scheduler start
   SysTick->CTRL &= ~1U;
@@ -156,7 +163,10 @@ void board_init(void) {
   HAL_UART_Init(&UartHandle);
   tu_fifo_config(&uart_rx_ff, uart_rx_ff_buf, sizeof(uart_rx_ff_buf), false);
   USARTn->CR1 |= USART_CR1_RXNEIE;
-  NVIC_SetPriority(USARTn_IRQn, (1 << __NVIC_PRIO_BITS) - 1);
+  // RX ISR must preempt the USB IRQ (demoted above): the single-byte RXNE register overruns
+  // otherwise under heavy host traffic. Priority 0 is safe even under FreeRTOS since the ISR
+  // only reads RDR into a lock-free fifo and calls no RTOS API.
+  NVIC_SetPriority(USARTn_IRQn, 0);
   NVIC_EnableIRQ(USARTn_IRQn);
 #endif
 
