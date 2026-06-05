@@ -1140,10 +1140,15 @@ static bool handle_channel_in_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
   if (hcint & HCINT_HALTED) {
     if (xfer->nak_disabled) {
       // Halt from the channel-disable we issued to throttle a split NAK retry (see the NAK handling
-      // below): the channel is cleanly disabled now, so re-issue the start-split. Databook 3.5
-      // "Halting a Channel".
+      // below). If the endpoint is being closed in the meantime (edpt_close() also disables the
+      // channel), let the teardown complete instead of re-arming; otherwise re-issue the
+      // start-split now that the channel is cleanly disabled. Databook 3.5 "Halting a Channel".
       xfer->nak_disabled = 0;
-      channel_send_in_token(dwc2, channel);
+      if (xfer->closing) {
+        is_done = true;
+      } else {
+        channel_send_in_token(dwc2, channel);
+      }
     } else if (hcint & (HCINT_XFER_COMPLETE | HCINT_STALL | HCINT_BABBLE_ERR)) {
       const uint16_t remain_bytes = (uint16_t) hctsiz.xfer_size;
       const uint16_t remain_packets = hctsiz.packet_count;

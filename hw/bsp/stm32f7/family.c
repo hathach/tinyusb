@@ -143,11 +143,14 @@ void board_init(void) {
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
 
+  #ifdef UART_ID
   // Demote USB OTG just below the UART RX ISR (set to priority 0 below): the F7 USART has no
-  // hardware RX FIFO, so a host example's UART RX must not be starved by the frequent USB
-  // host interrupts or incoming bytes overrun (ORE) and are dropped.
+  // hardware RX FIFO, so a host example's UART RX must not be starved by the frequent USB host
+  // interrupts or incoming bytes overrun (ORE) and are dropped. Only scoped to boards with a UART
+  // console; boards without UART_ID keep the default OTG priority.
   NVIC_SetPriority(OTG_FS_IRQn, 1);
   NVIC_SetPriority(OTG_HS_IRQn, 1);
+  #endif
 
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
   // Explicitly disable systick to prevent its ISR from running before scheduler start
