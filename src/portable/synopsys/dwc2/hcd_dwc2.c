@@ -104,6 +104,7 @@ typedef struct {
   uint16_t xferred_bytes;  // bytes that accumulate transferred though USB bus for the whole hcd_edpt_xfer(), which can
                            // be composed of multiple channel_xfer_start() (retry with NAK/NYET)
   uint16_t fifo_bytes;     // bytes written/read from/to FIFO (may not be transferred on USB bus).
+  uint8_t  nak_disabled;   // 1: channel was disabled to throttle a split NAK retry; re-arm on its halt
 } hcd_xfer_t;
 
 typedef struct {
@@ -1137,7 +1138,13 @@ static bool handle_channel_in_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
   // TU_LOG1("in  hcint = %02lX\r\n", hcint);
 
   if (hcint & HCINT_HALTED) {
-    if (hcint & (HCINT_XFER_COMPLETE | HCINT_STALL | HCINT_BABBLE_ERR)) {
+    if (xfer->nak_disabled) {
+      // Halt from the channel-disable we issued to throttle a split NAK retry (see the NAK handling
+      // below): the channel is cleanly disabled now, so re-issue the start-split. Databook 3.5
+      // "Halting a Channel".
+      xfer->nak_disabled = 0;
+      channel_send_in_token(dwc2, channel);
+    } else if (hcint & (HCINT_XFER_COMPLETE | HCINT_STALL | HCINT_BABBLE_ERR)) {
       const uint16_t remain_bytes = (uint16_t) hctsiz.xfer_size;
       const uint16_t remain_packets = hctsiz.packet_count;
       const uint16_t actual_len = edpt->buflen - remain_bytes;
@@ -1203,7 +1210,18 @@ static bool handle_channel_in_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
       channel->hcintmsk &= ~(HCINT_NAK | HCINT_DATATOGGLE_ERR);
       hcsplt.split_compl = 0; // restart with start-split
       channel->hcsplt = hcsplt.value;
-      channel_xfer_in_retry(dwc2, ch_id, hcint);
+      // A split bulk/control IN device that persistently NAKs (e.g. an idle endpoint being polled)
+      // would be re-enabled immediately, creating an interrupt storm that starves the task context.
+      // Instead disable the channel and re-issue the start-split on the resulting halt: the disable's
+      // arbitration/flush latency throttles the poll and yields to the task, exactly as the slave
+      // path does. Databook p73 permits channel disable for NAK on split channels; no frame deferral,
+      // so split timing is preserved.
+      if ((hcint & HCINT_NAK) && hcsplt.split_en && !channel_is_periodic(channel->hcchar)) {
+        xfer->nak_disabled = 1;
+        channel_disable(dwc2, channel);
+      } else {
+        channel_xfer_in_retry(dwc2, ch_id, hcint);
+      }
     } else if (hcint & HCINT_FARME_OVERRUN) {
       // retry start-split in next binterval
       channel_xfer_in_retry(dwc2, ch_id, hcint);
