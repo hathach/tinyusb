@@ -1,6 +1,20 @@
 {
     "boards": [
         {
+            "name": "ek_tm4c123gxl",
+            "uid": "010105186C60A110",
+            "tests": {
+                "device": true,
+                "host": false,
+                "dual": false
+            },
+            "flasher": {
+                "name": "lm4flash",
+                "uid": "0E205D19",
+                "args": "-v"
+            }
+        },
+        {
             "name": "espressif_p4_function_ev",
             "uid": "6055F9F98715",
             "build": {

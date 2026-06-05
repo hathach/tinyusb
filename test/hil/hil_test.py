@@ -496,6 +496,19 @@ def reset_uniflash(board):
     return subprocess.CompletedProcess(args=['dummy'], returncode=0)
 
 
+def flash_lm4flash(board, firmware):
+    # TI Tiva-C / Stellaris ICDI: lightweight lm4flash, resets and runs after write
+    flasher = board['flasher']
+    ret = run_cmd(f'lm4flash -s {flasher["uid"]} {flasher["args"]} {firmware}.bin')
+    return ret
+
+
+def reset_lm4flash(board):
+    # lm4flash has no reset-only mode; it resets+runs on flash, so reset is a no-op
+    flasher = board['flasher']
+    return subprocess.CompletedProcess(args=['dummy'], returncode=0)
+
+
 # -------------------------------------------------------------
 # Tests: dual
 # -------------------------------------------------------------
