@@ -193,6 +193,33 @@ jobs:
           path: metrics_compare.md
 
   # ---------------------------------------
+  # Keep the metrics baseline available on no-code-change pushes
+  # The code-metrics job only runs (and uploads metrics-tinyusb) when code changed, so a
+  # workflow/docs-only push to master would leave the latest run without a baseline for PRs
+  # to compare against. Carry the previous artifact forward so the baseline is never missing.
+  # ---------------------------------------
+  metrics-carry-forward:
+    needs: [ check-paths ]
+    if: github.event_name == 'push' && needs.check-paths.outputs.code_changed != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download previous metrics baseline from this branch
+        uses: dawidd6/action-download-artifact@v11
+        with:
+          workflow: build.yml
+          branch: ${{ github.ref_name }}
+          name: metrics-tinyusb
+          path: .
+          if_no_artifact_found: warn
+
+      - name: Re-publish baseline so the latest run keeps it
+        if: hashFiles('metrics.json') != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: metrics-tinyusb
+          path: metrics.json
+
+  # ---------------------------------------
   # Build Make/CMake on Windows/MacOS
   # ---------------------------------------
   build-os:
