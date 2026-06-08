@@ -143,13 +143,12 @@ void board_init(void) {
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
 
-  #ifdef UART_ID
-  // Demote USB OTG just below the UART RX ISR (set to priority 0 below): the F7 USART has no
-  // hardware RX FIFO, so a host example's UART RX must not be starved by the frequent USB host
-  // interrupts or incoming bytes overrun (ORE) and are dropped. Only scoped to boards with a UART
-  // console; boards without UART_ID keep the default OTG priority.
+  // Set UART interrupt higher priority than USB OTG since the F7 USART has no hardware RX FIFO, so a host example's
+  // UART RX must not be starved by the frequent USB host interrupts or incoming bytes overrun (ORE) and dropped.
   NVIC_SetPriority(OTG_FS_IRQn, 1);
   NVIC_SetPriority(OTG_HS_IRQn, 1);
+  #ifdef UART_ID
+  NVIC_SetPriority(USARTn_IRQn, 0);
   #endif
 
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
@@ -157,8 +156,11 @@ void board_init(void) {
   SysTick->CTRL &= ~1U;
 
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
-  NVIC_SetPriority(OTG_FS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
-  NVIC_SetPriority(OTG_HS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+  NVIC_SetPriority(OTG_FS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY + 1);
+  NVIC_SetPriority(OTG_HS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY + 1);
+  #ifdef UART_ID
+  NVIC_SetPriority(USARTn_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+  #endif
 #endif
 
 #ifdef UART_ID
@@ -166,10 +168,6 @@ void board_init(void) {
   HAL_UART_Init(&UartHandle);
   tu_fifo_config(&uart_rx_ff, uart_rx_ff_buf, sizeof(uart_rx_ff_buf), false);
   USARTn->CR1 |= USART_CR1_RXNEIE;
-  // RX ISR must preempt the USB IRQ (demoted above): the single-byte RXNE register overruns
-  // otherwise under heavy host traffic. Priority 0 is safe even under FreeRTOS since the ISR
-  // only reads RDR into a lock-free fifo and calls no RTOS API.
-  NVIC_SetPriority(USARTn_IRQn, 0);
   NVIC_EnableIRQ(USARTn_IRQn);
 #endif
 
