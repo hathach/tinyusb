@@ -1,5 +1,6 @@
 html
 latex
+hil_report.md
 *.a
 *.d
 *.o

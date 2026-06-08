@@ -65,6 +65,10 @@ STATUS_OK = "\033[32mOK\033[0m"
 STATUS_FAILED = "\033[31mFailed\033[0m"
 STATUS_SKIPPED = "\033[33mSkipped\033[0m"
 
+# Plain (non-ANSI) cell symbols for the markdown matrix report (hil_report.md).
+# A missing binary is reported as skipped too.
+REPORT_CELL = {'pass': '✔', 'fail': '✖', 'skip': '➖'}
+
 verbose = False
 test_only = []
 board_test = {}
@@ -1490,20 +1494,26 @@ host_test = [
 ]
 
 
-def test_example(board: Board, f1: str, example: str) -> int:
+def f1_suffix(f1: str) -> str:
+    """Build dir / row-label suffix for a flags-on variant ('' for the default)."""
+    return '-f1_' + f1.replace(' ', '_') if f1 else ''
+
+
+def test_example(board: Board, f1: str, example: str) -> tuple[int, str]:
     """
     Test example firmware
     :param board: board dict
     :param f1: flags on
     :param example: example name
-    :return: 0 if success/skip, 1 if failed
+    :return: (err_count, status) where err_count is 0 on success/skip or 1 on
+             failure, and status is one of 'pass'/'fail'/'skip' (a missing
+             binary counts as 'skip')
     """
     name = board['name']
     err_count = 0
+    result_status = 'fail'
 
-    f1_str = ""
-    if f1 != "":
-        f1_str = '-f1_' + f1.replace(' ', '_')
+    f1_str = f1_suffix(f1)
 
     fw_dir = TINYUSB_ROOT / build_dir / f'cmake-build-{name}{f1_str}' / example
     fw_name = fw_dir / Path(example).name
@@ -1511,7 +1521,7 @@ def test_example(board: Board, f1: str, example: str) -> int:
 
     if not fw_dir.exists() or not ((fw_name.with_suffix('.elf')).exists() or (fw_name.with_suffix('.bin')).exists()):
         log_line(f'{test_name} Skip (no binary)')
-        return 0
+        return 0, 'skip'
 
     if verbose:
         log_line(f'Flashing {fw_name}.elf')
@@ -1534,8 +1544,10 @@ def test_example(board: Board, f1: str, example: str) -> int:
                     last_detail = compact_output(attempt_out.getvalue())
                     if tret == 'skipped':
                         status = STATUS_SKIPPED
+                        result_status = 'skip'
                     else:
                         status = STATUS_OK
+                        result_status = 'pass'
                     msg = f'{test_name}  {status}'
                     if last_detail:
                         msg += f'  {last_detail}'
@@ -1578,7 +1590,7 @@ def test_example(board: Board, f1: str, example: str) -> int:
         msg += f'  in {time.time() - start_s:.1f}s'
         log_line(msg)
 
-    return err_count
+    return err_count, result_status
 
 
 def build_board(board: Board) -> tuple[str, int]:
@@ -1607,7 +1619,7 @@ def build_board(board: Board) -> tuple[str, int]:
     return name, failed
 
 
-def test_board(board: Board) -> tuple[str, int, list[str]]:
+def test_board(board: Board) -> tuple[str, int, list[str], list]:
     name = board['name']
     flasher = board['flasher']
 
@@ -1648,22 +1660,68 @@ def test_board(board: Board) -> tuple[str, int, list[str]]:
 
     err_count = 0
     failed_tests = []
+    rows = []  # list of (row_label, {example: status}) — one row per board[-f1] variant
     flags_on_list = [""]
     if 'build' in board and 'flags_on' in board['build']:
         flags_on_list = board['build']['flags_on']
 
     for f1 in flags_on_list:
+        cells = {}
         for test in test_list:
-            ec = test_example(board, f1, test)
+            ec, status = test_example(board, f1, test)
             err_count += ec
+            cells[test] = status
             if ec > 0:
                 failed_tests.append(test)
+        rows.append((name + f1_suffix(f1), cells))
 
     # flash board_test last to disable board's usb (skipped when --skip-flash is set)
     if not skip_flash:
-        test_example(board, flags_on_list[0], 'device/board_test')
+        _ec, status = test_example(board, flags_on_list[0], 'device/board_test')
+        if rows:
+            rows[0][1]['device/board_test'] = status
 
-    return name, err_count, sorted(set(failed_tests))
+    return name, err_count, sorted(set(failed_tests)), rows
+
+
+def generate_report(mret: list) -> str:
+    """Build a markdown matrix (rows = boards, columns = tests) from test_board
+    results. Each mret entry is (name, err, failed_tests, rows) where rows is a
+    list of (row_label, {example: status}). Columns are padded so the raw table
+    is aligned in plain text (boards left-aligned, test cells centered)."""
+    canonical = device_tests + dual_tests + host_test + ['device/board_test']
+    rows_all = []  # flattened (row_label, cells), preserving board/f1 order
+    seen = set()
+    for _, _, _, rows in mret:
+        for row_label, cells in rows:
+            rows_all.append((row_label, cells))
+            seen.update(cells)
+    if not seen:
+        return 'No tests were run.'
+
+    # columns: canonical order first, then any extras (e.g. from -t) alphabetically
+    columns = [t for t in canonical if t in seen]
+    columns += [t for t in sorted(seen) if t not in canonical]
+    headers = [c.rsplit('/', 1)[-1] for c in columns]  # bare example name
+
+    def cell(cells, col):
+        return REPORT_CELL.get(cells.get(col), '')
+
+    board_hdr = 'Board'
+    board_w = max([len(board_hdr)] + [len(lbl) for lbl, _ in rows_all])
+    col_w = [max([len(h)] + [len(cell(cells, c)) for _, cells in rows_all])
+             for h, c in zip(headers, columns)]
+
+    def line(label, values):
+        padded = [label.ljust(board_w)] + [v.center(w) for v, w in zip(values, col_w)]
+        return '| ' + ' | '.join(padded) + ' |'
+
+    header = line(board_hdr, headers)
+    sep = '| ' + '-' * board_w + ' | ' + ' | '.join(':' + '-' * (w - 2) + ':' for w in col_w) + ' |'
+    body = [line(lbl, [cell(cells, c) for c in columns]) for lbl, cells in rows_all]
+
+    legend = 'Legend: ✔ pass · ✖ fail · ➖ skipped · blank not run'
+    return '\n'.join([header, sep] + body) + '\n\n' + legend
 
 
 def main() -> None:
@@ -1747,13 +1805,21 @@ def main() -> None:
         # and emit -bt BOARD:t1,t2 so each failed board only re-runs its own failed tests.
         skip_fname = config_file.with_suffix(config_file.suffix + '.skip')
         if err_count > 0:
-            skip_boards += [name for name, err, _ in mret if err == 0]
+            skip_boards += [name for name, err, _, _ in mret if err == 0]
             parts = [f'--skip-board {i}' for i in skip_boards]
-            parts += [f'-bt {name}:{",".join(fts)}' for name, err, fts in mret if err > 0 and fts]
+            parts += [f'-bt {name}:{",".join(fts)}' for name, err, fts, _ in mret if err > 0 and fts]
             with skip_fname.open('w') as f:
                 f.write(' '.join(parts))
         elif skip_fname.exists():
             skip_fname.unlink()
+
+    # board x test result matrix -> hil_report.md and stdout
+    report = generate_report(mret)
+    report_path = Path('hil_report.md')
+    report_path.write_text(report + '\n', encoding='utf-8')
+    print()
+    print(report)
+    print(f'\nReport written to {report_path.resolve()}')
 
     duration = time.time() - duration
     print()
