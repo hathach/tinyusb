@@ -1313,6 +1313,13 @@ static bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hc
         channel->hcsplt = hcsplt.value;
         channel->hcchar |= HCCHAR_CHENA;
       }
+    } else if ((hcint & HCINT_NAK) && hcsplt.split_en) {
+      // Programming Guide 5.1.4.2 (OUT/SETUP SPLIT in buffer DMA): on NAK, rewind buffer pointers and retry
+      // the start-split. Without this a pure split-OUT NAK leaves the channel halted and the transfer stalls.
+      // Non-split OUT NAK is auto-handled by the core (5.1.2.2), so this is scoped to split only.
+      xfer->err_count = 0;
+      channel_xfer_out_wrapup(dwc2, ch_id);
+      channel_xfer_start(dwc2, ch_id);
     }
 
     if (xfer->closing == 1) {
