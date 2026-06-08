@@ -91,8 +91,9 @@ echo "==> Running HIL test on $REMOTE"
 ssh "$REMOTE" bash -s -- "$REMOTE_DIR" "${ARGS[@]}" "test/hil/$CONFIG_BASENAME" <<'REMOTE'
 cd -- "$1"
 shift
-# esptool/idf tools live in ~/.local/bin on ci.lan; the non-interactive shell
-# subprocess used for flashing doesn't pick that up otherwise.
-export PATH="$HOME/.local/bin:$PATH"
+# Flasher CLIs live in the user bin dirs on ci.lan (esptool/idf in ~/.local/bin,
+# STM32CubeProgrammer's STM32_Programmer_CLI in ~/bin); the non-interactive shell
+# subprocess used for flashing doesn't source profile/rc, so add them explicitly.
+export PATH="$HOME/.local/bin:$HOME/bin:$PATH"
 exec python3 -u test/hil/hil_test.py -B examples "$@"
 REMOTE
