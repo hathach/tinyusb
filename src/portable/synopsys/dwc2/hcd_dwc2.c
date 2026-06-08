@@ -104,7 +104,7 @@ typedef struct {
   uint16_t xferred_bytes;  // bytes that accumulate transferred though USB bus for the whole hcd_edpt_xfer(), which can
                            // be composed of multiple channel_xfer_start() (retry with NAK/NYET)
   uint16_t fifo_bytes;     // bytes written/read from/to FIFO (may not be transferred on USB bus).
-  uint8_t  nak_disabled;   // 1: channel was disabled to throttle a split NAK retry; re-arm on its halt
+  uint8_t  retry_disabled; // 1: channel was disabled to throttle a split retry (NAK in / XactErr out); re-arm on its halt
 } hcd_xfer_t;
 
 typedef struct {
@@ -1138,12 +1138,12 @@ static bool handle_channel_in_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
   // TU_LOG1("in  hcint = %02lX\r\n", hcint);
 
   if (hcint & HCINT_HALTED) {
-    if (xfer->nak_disabled) {
+    if (xfer->retry_disabled) {
       // Halt from the channel-disable we issued to throttle a split NAK retry (see the NAK handling
       // below). If the endpoint is being closed in the meantime (edpt_close() also disables the
       // channel), let the teardown complete instead of re-arming; otherwise re-issue the
       // start-split now that the channel is cleanly disabled. Databook 3.5 "Halting a Channel".
-      xfer->nak_disabled = 0;
+      xfer->retry_disabled = 0;
       if (xfer->closing) {
         is_done = true;
       } else {
@@ -1222,7 +1222,7 @@ static bool handle_channel_in_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
       // path does. Databook p73 permits channel disable for NAK on split channels; no frame deferral,
       // so split timing is preserved.
       if ((hcint & HCINT_NAK) && hcsplt.split_en && !channel_is_periodic(channel->hcchar)) {
-        xfer->nak_disabled = 1;
+        xfer->retry_disabled = 1;
         channel_disable(dwc2, channel);
       } else {
         channel_xfer_in_retry(dwc2, ch_id, hcint);
@@ -1251,7 +1251,17 @@ static bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hc
   // TU_LOG1("out hcint = %02lX\r\n", hcint);
 
   if (hcint & HCINT_HALTED) {
-    if (hcint & (HCINT_XFER_COMPLETE | HCINT_STALL)) {
+    if (xfer->retry_disabled) {
+      // Halt from the channel-disable we issued to throttle a split XactErr retry (see below). Re-issue
+      // the start-split (buffer pointers were already rewound) now that the channel is cleanly disabled,
+      // giving the hub's transaction translator a recovery gap. Databook 3.5 "Halting a Channel".
+      xfer->retry_disabled = 0;
+      if (xfer->closing) {
+        is_done = true;
+      } else {
+        channel_xfer_start(dwc2, ch_id);
+      }
+    } else if (hcint & (HCINT_XFER_COMPLETE | HCINT_STALL)) {
       is_done = true;
       xfer->err_count = 0;
       if (hcint & HCINT_XFER_COMPLETE) {
@@ -1274,9 +1284,18 @@ static bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hc
          xfer->result = XFER_RESULT_FAILED;
          is_done = true;
        } else {
-         // clean up transfer so far and start again
+         // Rewind buffer pointers, then retry the start-split. For SPLIT, throttle via channel_disable and
+         // re-issue on the resulting halt (see retry_disabled above): immediately re-firing a split XactErr
+         // exhausts the 3-retry budget before the transient clears, whereas the disable's flush/arbitration
+         // latency gives the hub TT a recovery gap (mirrors the slave path). Non-split XactErr is
+         // re-initialized immediately per Programming Guide 5.1.1.2.
          channel_xfer_out_wrapup(dwc2, ch_id);
-         channel_xfer_start(dwc2, ch_id);
+         if (hcsplt.split_en) {
+           xfer->retry_disabled = 1;
+           channel_disable(dwc2, channel);
+         } else {
+           channel_xfer_start(dwc2, ch_id);
+         }
        }
      }
     } else if (hcint & HCINT_NYET) {
