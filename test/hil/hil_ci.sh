@@ -66,14 +66,19 @@ copy_board_binaries() {
 }
 
 if [ -n "$BOARD" ]; then
-  BUILD_DIR="$ROOT_DIR/examples/cmake-build-$BOARD"
-  if [ ! -d "$BUILD_DIR" ]; then
-    echo "Error: build directory not found: $BUILD_DIR"
-    echo "Build first with: cd examples && cmake -DBOARD=$BOARD -G Ninja -B cmake-build-$BOARD . && cmake --build cmake-build-$BOARD"
+  # Copy the board's build dir plus any variant dirs (cmake-build-<BOARD>-<variant>).
+  shopt -s nullglob
+  BUILD_DIRS=("$ROOT_DIR"/examples/cmake-build-"$BOARD" "$ROOT_DIR"/examples/cmake-build-"$BOARD"-*)
+  shopt -u nullglob
+  if [ ${#BUILD_DIRS[@]} -eq 0 ]; then
+    echo "Error: no build directory found for $BOARD under $ROOT_DIR/examples/"
+    echo "Build first with: cd examples && cmake --preset $BOARD && cmake --build --preset $BOARD"
     exit 1
   fi
-  echo "==> Copying binaries for $BOARD"
-  copy_board_binaries "$BUILD_DIR"
+  echo "==> Copying binaries for $BOARD (${#BUILD_DIRS[@]} build dir(s))"
+  for d in "${BUILD_DIRS[@]}"; do
+    [ -d "$d" ] && copy_board_binaries "$d"
+  done
 else
   echo "==> Copying all built binaries"
   # Use `%/` parameter expansion to strip the trailing slash from the glob —

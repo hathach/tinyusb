@@ -122,8 +122,12 @@ class TestsCfg(TypedDict, total=False):
 
 
 class BuildCfg(TypedDict, total=False):
-    flags_on: list[str]
     args: list[str]
+
+
+class VariantCfg(TypedDict, total=False):
+    name: str   # build dir (cmake-build-<name>) and HIL report row
+    flags: str  # raw CFLAGS, e.g. "-DCFG_TUD_DWC2_DMA_ENABLE=1"
 
 
 class Board(TypedDict):
@@ -132,6 +136,7 @@ class Board(TypedDict):
     tests: TestsCfg
     flasher: FlasherCfg
     build: NotRequired[BuildCfg]
+    variant: NotRequired[list[VariantCfg]]
 
 
 class HilConfig(TypedDict):
@@ -1502,17 +1507,12 @@ host_test = [
 ]
 
 
-def f1_suffix(f1: str) -> str:
-    """Build dir / row-label suffix for a flags-on variant ('' for the default)."""
-    return '-f1_' + f1.replace(' ', '_') if f1 else ''
-
-
-def find_firmware(name: str, f1: str, example: str):
+def find_firmware(variant: str, example: str):
     """Locate a built example's firmware base path (no extension) under
-    cmake-build-<board>[-f1_...]/<example>/. Accepts the single-config layout
-    (firmware directly in the example dir) or Ninja Multi-Config (a per-config
-    subdir like RelWithDebInfo/). Returns the base Path, or None if not built."""
-    fw_dir = TINYUSB_ROOT / build_dir / f'cmake-build-{name}{f1_suffix(f1)}' / example
+    cmake-build-<variant>/<example>/. Accepts the single-config layout (firmware
+    directly in the example dir) or Ninja Multi-Config (a per-config subdir like
+    RelWithDebInfo/). Returns the base Path, or None if not built."""
+    fw_dir = TINYUSB_ROOT / build_dir / f'cmake-build-{variant}' / example
     base = Path(example).name
     if fw_dir.is_dir():
         for cand in [fw_dir / base, fw_dir / 'RelWithDebInfo' / base,
@@ -1522,25 +1522,24 @@ def find_firmware(name: str, f1: str, example: str):
     return None
 
 
-def test_example(board: Board, f1: str, example: str) -> tuple[int, str]:
+def test_example(board: Board, variant: str, example: str) -> tuple[int, str]:
     """
     Test example firmware
     :param board: board dict
-    :param f1: flags on
+    :param variant: build variant name = build dir (cmake-build-<variant>) and report row
     :param example: example name
     :return: (err_count, status, metric) where err_count is 0 on success/skip or
              1 on failure, status is one of 'pass'/'fail'/'skip' (a missing binary
              counts as 'skip'), and metric is an optional string a test returns to
              show in its report cell instead of the pass symbol (e.g. speed)
     """
-    name = board['name']
     err_count = 0
     result_status = 'fail'
     metric = None
 
-    test_name = f'{name + f1_suffix(f1):40} {example:30} ...'
+    test_name = f'{variant:40} {example:30} ...'
 
-    fw_name = find_firmware(name, f1, example)
+    fw_name = find_firmware(variant, example)
     if fw_name is None:
         log_line(f'{test_name} Skip (no binary)')
         return 0, 'skip', None
@@ -1619,21 +1618,22 @@ def test_example(board: Board, f1: str, example: str) -> tuple[int, str]:
 
 def build_board(board: Board) -> tuple[str, int]:
     """Build firmware for this board via tools/build.py.
-    Honors board config's build.flags_on variants and build.args defines.
-    Output goes to cmake-build/cmake-build-BOARD[-f1_...]/ (tools/build.py layout)."""
+    Honors board config's variant list and build.args defines.
+    Output goes to cmake-build/cmake-build-<variant>/ (tools/build.py layout)."""
     name = board['name']
     bcfg = cast(BuildCfg, board.get('build', {}))
-    flags_on_list = bcfg.get('flags_on', [''])
     extra_defs = bcfg.get('args', [])
+    variants = board.get('variant') or [{'name': name, 'flags': ''}]
 
     failed = 0
-    for f1 in flags_on_list:
+    for v in variants:
         cmd = [sys.executable, str(TINYUSB_ROOT / 'tools' / 'build.py'), '-b', name]
         for d in extra_defs:
             cmd += ['-D', d]
-        if f1:
-            for flag in f1.split():
-                cmd += ['-f1', flag]
+        if v['name'] != name:
+            cmd += ['--build-name', v['name']]
+        for tok in v.get('flags', '').split():
+            cmd += [f'--cflag={tok}']
         if verbose:
             cmd.append('-v')
             print(f'  + {" ".join(cmd)}')
@@ -1684,25 +1684,24 @@ def test_board(board: Board) -> tuple[str, int, list[str], list]:
 
     err_count = 0
     failed_tests = []
-    rows = []  # list of (row_label, {example: status}) — one row per board[-f1] variant
-    flags_on_list = [""]
-    if 'build' in board and 'flags_on' in board['build']:
-        flags_on_list = board['build']['flags_on']
+    rows = []  # list of (row_label, {example: status}) — one row per build variant
+    variants = board.get('variant') or [{'name': name, 'flags': ''}]
 
-    for f1 in flags_on_list:
+    for v in variants:
+        vname = v['name']
         cells = {}
         for test in test_list:
-            ec, status, metric = test_example(board, f1, test)
+            ec, status, metric = test_example(board, vname, test)
             err_count += ec
             cells[test] = metric if metric else status
             if ec > 0:
                 failed_tests.append(test)
-        rows.append((name + f1_suffix(f1), cells))
+        rows.append((vname, cells))
 
     # flash board_test last to disable board's usb (skipped when --skip-flash is set);
     # this is teardown/park, not a test — not recorded in the report
     if not skip_flash:
-        test_example(board, flags_on_list[0], 'device/board_test')
+        test_example(board, variants[0]['name'], 'device/board_test')
 
     return name, err_count, sorted(set(failed_tests)), rows
 

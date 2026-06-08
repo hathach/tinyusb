@@ -17,12 +17,10 @@
         {
             "name": "espressif_p4_function_ev",
             "uid": "6055F9F98715",
-            "build": {
-                "flags_on": [
-                    "",
-                    "CFG_TUD_DWC2_DMA_ENABLE CFG_TUH_DWC2_DMA_ENABLE"
-                ]
-            },
+            "variant": [
+                { "name": "espressif_p4_function_ev", "flags": "" },
+                { "name": "espressif_p4_function_ev-DMA", "flags": "-DCFG_TUD_DWC2_DMA_ENABLE=1 -DCFG_TUH_DWC2_DMA_ENABLE=1" }
+            ],
             "tests": {
                 "only": [
                     "device/cdc_msc_freertos",
@@ -58,12 +56,10 @@
         {
             "name": "espressif_s3_devkitm",
             "uid": "84F703C084E4",
-            "build": {
-                "flags_on": [
-                    "",
-                    "CFG_TUD_DWC2_DMA_ENABLE CFG_TUH_DWC2_DMA_ENABLE"
-                ]
-            },
+            "variant": [
+                { "name": "espressif_s3_devkitm", "flags": "" },
+                { "name": "espressif_s3_devkitm-DMA", "flags": "-DCFG_TUD_DWC2_DMA_ENABLE=1 -DCFG_TUH_DWC2_DMA_ENABLE=1" }
+            ],
             "tests": {
                 "only": [
                     "device/cdc_msc_freertos",
@@ -226,11 +222,9 @@
         {
             "name": "raspberry_pi_pico",
             "uid": "E6614C311B764A37",
-            "build": {
-                "flags_on": [
-                    "CFG_TUH_RPI_PIO_USB"
-                ]
-            },
+            "variant": [
+                { "name": "raspberry_pi_pico", "flags": "-DCFG_TUH_RPI_PIO_USB=1" }
+            ],
             "tests": {
                 "device": true,
                 "host": true,
@@ -374,12 +368,10 @@
         {
             "name": "stm32f723disco",
             "uid": "460029001951373031313335",
-            "build": {
-                "flags_on": [
-                    "",
-                    "CFG_TUH_DWC2_DMA_ENABLE"
-                ]
-            },
+            "variant": [
+                { "name": "stm32f723disco", "flags": "" },
+                { "name": "stm32f723disco-DMA", "flags": "-DCFG_TUH_DWC2_DMA_ENABLE=1" }
+            ],
             "tests": {
                 "device": true,
                 "host": true,
@@ -410,12 +402,10 @@
         {
             "name": "stm32h743nucleo",
             "uid": "110018000951383432343236",
-            "build": {
-                "flags_on": [
-                    "",
-                    "CFG_TUD_DWC2_DMA_ENABLE"
-                ]
-            },
+            "variant": [
+                { "name": "stm32h743nucleo", "flags": "" },
+                { "name": "stm32h743nucleo-DMA", "flags": "-DCFG_TUD_DWC2_DMA_ENABLE=1" }
+            ],
             "tests": {
                 "device": true,
                 "host": false,
@@ -474,12 +464,10 @@
         {
             "name": "stm32f769disco",
             "uid": "21002F000F51363531383437",
-            "build": {
-                "flags_on": [
-                    "",
-                    "CFG_TUD_DWC2_DMA_ENABLE"
-                ]
-            },
+            "variant": [
+                { "name": "stm32f769disco", "flags": "" },
+                { "name": "stm32f769disco-DMA", "flags": "-DCFG_TUD_DWC2_DMA_ENABLE=1" }
+            ],
             "tests": {
                 "device": true,
                 "host": false,
