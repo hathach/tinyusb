@@ -5,10 +5,10 @@
       "name": "default",
       "hidden": true,
       "description": "Configure preset for the ${presetName} board",
-      "generator": "Ninja",
+      "generator": "Ninja Multi-Config",
       "binaryDir": "${sourceDir}/cmake-build-${presetName}",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_DEFAULT_BUILD_TYPE": "RelWithDebInfo",
         "BOARD": "${presetName}"
       }
     },

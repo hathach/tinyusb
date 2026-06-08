@@ -1516,10 +1516,20 @@ def test_example(board: Board, f1: str, example: str) -> tuple[int, str]:
     f1_str = f1_suffix(f1)
 
     fw_dir = TINYUSB_ROOT / build_dir / f'cmake-build-{name}{f1_str}' / example
-    fw_name = fw_dir / Path(example).name
+    base = Path(example).name
     test_name = f'{name+f1_str:40} {example:30} ...'
 
-    if not fw_dir.exists() or not ((fw_name.with_suffix('.elf')).exists() or (fw_name.with_suffix('.bin')).exists()):
+    # firmware sits directly in the example dir (single-config Ninja) or under a
+    # per-config subdir like RelWithDebInfo/ (Ninja Multi-Config); accept either.
+    fw_name = None
+    if fw_dir.is_dir():
+        for cand in [fw_dir / base, fw_dir / 'RelWithDebInfo' / base,
+                     *(p.with_suffix('') for p in sorted(fw_dir.glob(f'*/{base}.elf')))]:
+            if cand.with_suffix('.elf').exists() or cand.with_suffix('.bin').exists():
+                fw_name = cand
+                break
+
+    if fw_name is None:
         log_line(f'{test_name} Skip (no binary)')
         return 0, 'skip'
 

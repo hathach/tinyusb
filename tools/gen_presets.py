@@ -31,10 +31,10 @@ def main():
         {"name": "default",
          "hidden": True,
          "description": r"Configure preset for the ${presetName} board",
-         "generator": "Ninja",
+         "generator": "Ninja Multi-Config",
          "binaryDir": r"${sourceDir}/cmake-build-${presetName}",
          "cacheVariables": {
-             "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+             "CMAKE_DEFAULT_BUILD_TYPE": "RelWithDebInfo",
              "BOARD": r"${presetName}"
          }},
          {"name": "default single config",
