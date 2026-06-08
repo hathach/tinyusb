@@ -1828,6 +1828,17 @@ def main() -> None:
         print(f'Build phase done: {build_err} failed')
         print('-' * 30)
 
+    # HIL report sidecar (hil_report.json/.md). A full run starts fresh; a re-run
+    # (--skip-board / -bt, i.e. the .skip file) accumulates so already-passed
+    # boards/tests are preserved. Clear any prior report up front on a fresh run so
+    # a crash mid-run can't leave stale results to be merged by a retry or posted.
+    report_dir = Path(os.environ.get('HIL_REPORT_DIR', '.'))
+    fresh = not (args.skip_board or args.board_test)
+    if fresh:
+        report_dir.mkdir(parents=True, exist_ok=True)
+        for f in (REPORT_JSON, REPORT_MD):
+            (report_dir / f).unlink(missing_ok=True)
+
     with Pool(processes=os.cpu_count() or 1, initializer=init_worker, initargs=(Lock(),)) as pool:
         async_ret = pool.map_async(test_board, config_boards)
         try:
@@ -1850,11 +1861,7 @@ def main() -> None:
         elif skip_fname.exists():
             skip_fname.unlink()
 
-    # board x test result matrix -> hil_report.md (accumulates across re-runs) + stdout.
-    # A full run starts fresh; a re-run (--skip-board / -bt, i.e. the .skip file) merges
-    # into the existing report so already-passed boards/tests are preserved.
-    report_dir = Path(os.environ.get('HIL_REPORT_DIR', '.'))
-    fresh = not (args.skip_board or args.board_test)
+    # board x test result matrix -> hil_report.md (accumulates across re-runs) + stdout
     report = accumulate_report(mret, report_dir, fresh)
     print()
     print(report)
