@@ -1694,18 +1694,17 @@ def test_board(board: Board) -> tuple[str, int, list[str], list]:
     return name, err_count, sorted(set(failed_tests)), rows
 
 
-def generate_report(mret: list) -> str:
-    """Build a markdown matrix (rows = boards, columns = tests) from test_board
-    results. Each mret entry is (name, err, failed_tests, rows) where rows is a
-    list of (row_label, {example: status}). Columns are padded so the raw table
-    is aligned in plain text (boards left-aligned, test cells centered)."""
+REPORT_MD = 'hil_report.md'
+REPORT_JSON = 'hil_report.json'
+
+
+def render_matrix(rows_all: list) -> str:
+    """Render rows (list of (row_label, {example: status})) as an aligned markdown
+    matrix: columns = tests (bare names) centered, boards left-aligned."""
     canonical = device_tests + dual_tests + host_test + ['device/board_test']
-    rows_all = []  # flattened (row_label, cells), preserving board/f1 order
     seen = set()
-    for _, _, _, rows in mret:
-        for row_label, cells in rows:
-            rows_all.append((row_label, cells))
-            seen.update(cells)
+    for _, cells in rows_all:
+        seen.update(cells)
     if not seen:
         return 'No tests were run.'
 
@@ -1732,6 +1731,34 @@ def generate_report(mret: list) -> str:
 
     legend = 'Legend: ✔ pass · ✖ fail · ➖ skipped · blank not run'
     return '\n'.join([header, sep] + body) + '\n\n' + legend
+
+
+def accumulate_report(mret: list, report_dir: Path, fresh: bool) -> str:
+    """Merge this run's results into hil_report.json in report_dir, then (re)write
+    the markdown matrix to hil_report.md. `fresh` (a full run, no --skip-board/-bt)
+    starts a new report; otherwise a re-run accumulates so boards/tests that
+    already passed are preserved while re-run cells are updated. Returns the md."""
+    acc = {}  # ordered {row_label: {example: status}}
+    jpath = report_dir / REPORT_JSON
+    if not fresh and jpath.is_file():
+        try:
+            for entry in json.loads(jpath.read_text()).get('rows', []):
+                acc[entry['board']] = dict(entry['cells'])
+        except (ValueError, KeyError, TypeError):
+            pass  # corrupt/old sidecar: start fresh
+
+    # merge this run: current cells override prior for boards/tests that ran
+    for _, _, _, rows in mret:
+        for row_label, cells in rows:
+            acc.setdefault(row_label, {}).update(cells)
+
+    report_dir.mkdir(parents=True, exist_ok=True)
+    jpath.write_text(json.dumps({'rows': [{'board': k, 'cells': v} for k, v in acc.items()]},
+                                indent=2) + '\n')
+
+    md = render_matrix(list(acc.items()))
+    (report_dir / REPORT_MD).write_text(md + '\n', encoding='utf-8')
+    return md
 
 
 def main() -> None:
@@ -1823,13 +1850,15 @@ def main() -> None:
         elif skip_fname.exists():
             skip_fname.unlink()
 
-    # board x test result matrix -> hil_report.md and stdout
-    report = generate_report(mret)
-    report_path = Path('hil_report.md')
-    report_path.write_text(report + '\n', encoding='utf-8')
+    # board x test result matrix -> hil_report.md (accumulates across re-runs) + stdout.
+    # A full run starts fresh; a re-run (--skip-board / -bt, i.e. the .skip file) merges
+    # into the existing report so already-passed boards/tests are preserved.
+    report_dir = Path(os.environ.get('HIL_REPORT_DIR', '.'))
+    fresh = not (args.skip_board or args.board_test)
+    report = accumulate_report(mret, report_dir, fresh)
     print()
     print(report)
-    print(f'\nReport written to {report_path.resolve()}')
+    print(f'\nReport written to {(report_dir / REPORT_MD).resolve()}')
 
     duration = time.time() - duration
     print()
