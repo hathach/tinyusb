@@ -67,8 +67,13 @@ copy_board_binaries() {
 
 if [ -n "$BOARD" ]; then
   # Copy the board's build dir plus any variant dirs (cmake-build-<BOARD>-<variant>).
+  # Collect only dirs that actually exist (the bare cmake-build-<BOARD> is a literal,
+  # not a glob, so it would otherwise stay in the list even when missing).
   shopt -s nullglob
-  BUILD_DIRS=("$ROOT_DIR"/examples/cmake-build-"$BOARD" "$ROOT_DIR"/examples/cmake-build-"$BOARD"-*)
+  BUILD_DIRS=()
+  for d in "$ROOT_DIR"/examples/cmake-build-"$BOARD" "$ROOT_DIR"/examples/cmake-build-"$BOARD"-*; do
+    [ -d "$d" ] && BUILD_DIRS+=("$d")
+  done
   shopt -u nullglob
   if [ ${#BUILD_DIRS[@]} -eq 0 ]; then
     echo "Error: no build directory found for $BOARD under $ROOT_DIR/examples/"
@@ -77,7 +82,7 @@ if [ -n "$BOARD" ]; then
   fi
   echo "==> Copying binaries for $BOARD (${#BUILD_DIRS[@]} build dir(s))"
   for d in "${BUILD_DIRS[@]}"; do
-    [ -d "$d" ] && copy_board_binaries "$d"
+    copy_board_binaries "$d"
   done
 else
   echo "==> Copying all built binaries"
