@@ -436,7 +436,7 @@ jobs:
       - name: Combine rig reports (one table per rig)
         run: |
           {
-            echo "## HIL test results"
+            echo "## Hardware-in-the-loop (HIL) Test Report"
             echo
             for d in hil-reports/hil-report-*; do
               [ -d "$d" ] || continue
