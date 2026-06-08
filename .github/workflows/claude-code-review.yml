@@ -47,7 +47,9 @@ jobs:
           # Post/update a single summary comment every run, so a clean review
           # ("no issues found") is still visible instead of posting nothing.
           use_sticky_comment: true
-          prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
+          # --comment makes the code-review command post its findings to the PR.
+          # Without it the command only prints the review to the Actions log.
+          prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }} --comment'
           # TEMPORARY: expose the full Claude transcript in the Actions log for
           # debugging. Revert to remove once done.
           show_full_output: true
