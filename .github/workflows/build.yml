@@ -403,14 +403,23 @@ jobs:
         run: |
           python3 test/hil/hil_test.py hfp.json
 
+      - name: Upload HIL report
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: hil-report-hfp-iar
+          path: hil_report.md
+          if-no-files-found: ignore
+          overwrite: true
+
   # ---------------------------------------
   # Combine HIL results from the rigs into a single sticky PR comment (one table per rig)
   # ---------------------------------------
   hil-report:
-    needs: hil-tinyusb
+    needs: [ hil-tinyusb, hil-hfp-iar ]
     if: |
       always() &&
-      needs.hil-tinyusb.result != 'skipped' &&
+      (needs.hil-tinyusb.result != 'skipped' || needs.hil-hfp-iar.result != 'skipped') &&
       github.event_name == 'pull_request' &&
       github.repository_owner == 'hathach' &&
       github.event.pull_request.head.repo.fork == false
