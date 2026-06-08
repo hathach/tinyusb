@@ -67,7 +67,7 @@ STATUS_SKIPPED = "\033[33mSkipped\033[0m"
 
 # Plain (non-ANSI) cell symbols for the markdown matrix report (hil_report.md).
 # A missing binary is reported as skipped too.
-REPORT_CELL = {'pass': '✅', 'fail': '❌', 'skip': '➖'}
+REPORT_CELL = {'pass': '✅', 'fail': '❌', 'skip': '⚪'}
 
 verbose = False
 test_only = []
@@ -1729,7 +1729,7 @@ def render_matrix(rows_all: list) -> str:
     sep = '| ' + '-' * board_w + ' | ' + ' | '.join(':' + '-' * (w - 2) + ':' for w in col_w) + ' |'
     body = [line(lbl, [cell(cells, c) for c in columns]) for lbl, cells in rows_all]
 
-    legend = 'Legend: ✅ pass · ❌ fail · ➖ skipped · blank not run'
+    legend = 'Legend: ✅ pass · ❌ fail · ⚪ skipped · blank not run'
     return '\n'.join([header, sep] + body) + '\n\n' + legend
 
 
