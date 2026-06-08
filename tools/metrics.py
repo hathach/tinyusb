@@ -384,7 +384,7 @@ def render_combine_table(json_data, sort_order='name+'):
 def write_combine_markdown(json_data, path, sort_order='name+', title="TinyUSB Average Code Size Metrics"):
     """Write averaged size data to a markdown file."""
 
-    md_lines = [f"# {title}", ""]
+    md_lines = [f"## {title}", ""]
     md_lines.extend(render_combine_table(json_data, sort_order))
     md_lines.append("")
 
