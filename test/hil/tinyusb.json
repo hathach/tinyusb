@@ -370,7 +370,7 @@
             "uid": "460029001951373031313335",
             "variant": [
                 { "name": "stm32f723disco", "flags": "" },
-                { "name": "stm32f723disco-DMA", "flags": "-DCFG_TUH_DWC2_DMA_ENABLE=1" }
+                { "name": "stm32f723disco-DMA", "flags": "-DCFG_TUD_DWC2_DMA_ENABLE=1 -DCFG_TUH_DWC2_DMA_ENABLE=1" }
             ],
             "tests": {
                 "device": true,
@@ -404,7 +404,7 @@
             "uid": "110018000951383432343236",
             "variant": [
                 { "name": "stm32h743nucleo", "flags": "" },
-                { "name": "stm32h743nucleo-DMA", "flags": "-DCFG_TUD_DWC2_DMA_ENABLE=1" }
+                { "name": "stm32h743nucleo-DMA", "flags": "-DCFG_TUD_DWC2_DMA_ENABLE=1 -DCFG_TUH_DWC2_DMA_ENABLE=1" }
             ],
             "tests": {
                 "device": true,
@@ -466,7 +466,7 @@
             "uid": "21002F000F51363531383437",
             "variant": [
                 { "name": "stm32f769disco", "flags": "" },
-                { "name": "stm32f769disco-DMA", "flags": "-DCFG_TUD_DWC2_DMA_ENABLE=1" }
+                { "name": "stm32f769disco-DMA", "flags": "-DCFG_TUD_DWC2_DMA_ENABLE=1 -DCFG_TUH_DWC2_DMA_ENABLE=1" }
             ],
             "tests": {
                 "device": true,
