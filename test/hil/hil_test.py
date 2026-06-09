@@ -40,6 +40,7 @@ import os
 import random
 import re
 import select
+import struct
 import sys
 import time
 import signal
@@ -64,6 +65,10 @@ ENUM_TIMEOUT = 15
 STATUS_OK = "\033[32mOK\033[0m"
 STATUS_FAILED = "\033[31mFailed\033[0m"
 STATUS_SKIPPED = "\033[33mSkipped\033[0m"
+
+# Plain (non-ANSI) cell symbols for the markdown matrix report (hil_report.md).
+# A missing binary is reported as skipped too.
+REPORT_CELL = {'pass': '✅', 'fail': '❌', 'skip': '⚪'}
 
 verbose = False
 test_only = []
@@ -510,6 +515,80 @@ def reset_lm4flash(board):
 
 
 # -------------------------------------------------------------
+# Erase: wipe the first flash sector (vector table) after a board's tests so the
+# MCU faults to an idle state — no USB, lower power, and faster than programming
+# device/board_test. Same (board, firmware) signature as flash_*; `firmware` is
+# only used to find the flash origin (jlink) or the esp flash metadata.
+# -------------------------------------------------------------
+def elf_flash_origin(elf_path: str) -> int:
+    """Flash base address (first PT_LOAD segment physical address) of a
+    little-endian ELF32 firmware — i.e. where the vector table is programmed."""
+    data = Path(elf_path).read_bytes()
+    if data[:4] != b'\x7fELF':
+        raise ValueError(f'not an ELF: {elf_path}')
+    e_phoff = struct.unpack_from('<I', data, 0x1c)[0]
+    e_phentsize = struct.unpack_from('<H', data, 0x2a)[0]
+    e_phnum = struct.unpack_from('<H', data, 0x2c)[0]
+    for i in range(e_phnum):
+        p_type, _off, _vaddr, p_paddr = struct.unpack_from('<IIII', data, e_phoff + i * e_phentsize)
+        if p_type == 1:  # PT_LOAD
+            return p_paddr
+    raise ValueError(f'no PT_LOAD segment in {elf_path}')
+
+
+def erase_jlink(board: Board, firmware: str) -> subprocess.CompletedProcess:
+    flasher = board['flasher']
+    origin = elf_flash_origin(f'{firmware}.elf')
+    script = ['halt', f'erase 0x{origin:x} 0x{origin + 4:x}', 'exit']
+    f_jlink = Path(f'{board["name"]}_erase.jlink')
+    with f_jlink.open('w') as f:
+        f.writelines(f'{s}\n' for s in script)
+    ret = run_cmd(f'JLinkExe -USB {flasher["uid"]} {flasher["args"]} -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile {f_jlink}')
+    f_jlink.unlink(missing_ok=True)
+    return ret
+
+
+def erase_stlink(board: Board, firmware: str) -> subprocess.CompletedProcess:
+    flasher = board['flasher']
+    return run_cmd(f'STM32_Programmer_CLI --connect port=swd sn={flasher["uid"]} --erase 0')
+
+
+def erase_openocd(board: Board, firmware: str) -> subprocess.CompletedProcess:
+    flasher = board['flasher']
+    return run_cmd(f'openocd -c "tcl_port disabled" -c "gdb_port disabled" -c "adapter serial {flasher["uid"]}" '
+                   f'{flasher["args"]} -c "init; reset halt; flash erase_sector 0 0 0; exit"')
+
+
+def erase_openocd_adi(board: Board, firmware: str) -> subprocess.CompletedProcess:
+    flasher = board['flasher']
+    openocd = OPENCOD_ADI_PATH / 'src' / 'openocd'
+    tcl_dir = OPENCOD_ADI_PATH / 'tcl'
+    return run_cmd(f'{openocd} -c "adapter serial {flasher["uid"]}" -s {tcl_dir} '
+                   f'{flasher["args"]} -c "init; reset halt; flash erase_sector 0 0 0; exit"')
+
+
+def erase_esptool(board: Board, firmware: str) -> subprocess.CompletedProcess:
+    flasher = board['flasher']
+    port = get_serial_dev(flasher["uid"], None, None, 0)
+    fw_dir = Path(f'{firmware}.bin').parent
+    with (fw_dir / 'config.env').open() as f:
+        idf_target = json.load(f)['IDF_TARGET']
+    return run_cmd(f'esptool --chip {idf_target} -p {port} {flasher["args"]} erase_region 0x0 0x4000',
+                   cwd=str(fw_dir))
+
+
+def erase_lm4flash(board: Board, firmware: str) -> subprocess.CompletedProcess:
+    # lm4flash has no erase command, but it erases the sectors it programs — so
+    # writing a blank (all-0xFF) image leaves the first sector erased.
+    flasher = board['flasher']
+    blank = Path(f'{board["name"]}_blank.bin')
+    blank.write_bytes(b'\xff' * 4096)
+    ret = run_cmd(f'lm4flash -s {flasher["uid"]} {flasher["args"]} {blank}')
+    blank.unlink(missing_ok=True)
+    return ret
+
+
+# -------------------------------------------------------------
 # Tests: dual
 # -------------------------------------------------------------
 def test_dual_host_info_to_device_cdc(board):
@@ -803,12 +882,17 @@ def test_host_msc_file_explorer(board):
         t -= 0.05
 
     resp_text = resp.decode('utf-8', errors='ignore')
+    speed = None
     for line in resp_text.splitlines():
         if 'KB/s' in line:
             print(f'{line.strip()} ', end='')
+            m = re.search(r'([\d.]+\s*[KMG]B/s)', line)  # MSC read speed for the report cell
+            if m:
+                speed = 'rd ' + m.group(1).replace(' ', '')
             break
 
     ser.close()
+    return speed
 
 
 def test_host_msc_file_explorer_freertos(board):
@@ -967,6 +1051,9 @@ def test_device_cdc_msc_throughput(board):
         pass
 
     print(f'  CDC read {cdc_r} write {cdc_w}, MSC read {msc_r} write {msc_w}  ', end='')
+    # compact read/write speed for the report cell, e.g. "C 652k/422k M 1.1M/783k"
+    short = lambda s: (s.split()[0].rstrip('0').rstrip('.') + s.split()[-1][0]) if ' ' in s else s
+    return f'C {short(cdc_r)}/{short(cdc_w)} M {short(msc_r)}/{short(msc_w)}'
 
 
 def test_device_dfu(board):
@@ -1490,28 +1577,48 @@ host_test = [
 ]
 
 
-def test_example(board: Board, f1: str, example: str) -> int:
+def f1_suffix(f1: str) -> str:
+    """Build dir / row-label suffix for a flags-on variant ('' for the default)."""
+    return '-f1_' + f1.replace(' ', '_') if f1 else ''
+
+
+def find_firmware(name: str, f1: str, example: str):
+    """Locate a built example's firmware base path (no extension) under
+    cmake-build-<board>[-f1_...]/<example>/. Accepts the single-config layout
+    (firmware directly in the example dir) or Ninja Multi-Config (a per-config
+    subdir like RelWithDebInfo/). Returns the base Path, or None if not built."""
+    fw_dir = TINYUSB_ROOT / build_dir / f'cmake-build-{name}{f1_suffix(f1)}' / example
+    base = Path(example).name
+    if fw_dir.is_dir():
+        for cand in [fw_dir / base, fw_dir / 'RelWithDebInfo' / base,
+                     *(p.with_suffix('') for p in sorted(fw_dir.glob(f'*/{base}.elf')))]:
+            if cand.with_suffix('.elf').exists() or cand.with_suffix('.bin').exists():
+                return cand
+    return None
+
+
+def test_example(board: Board, f1: str, example: str) -> tuple[int, str]:
     """
     Test example firmware
     :param board: board dict
     :param f1: flags on
     :param example: example name
-    :return: 0 if success/skip, 1 if failed
+    :return: (err_count, status, metric) where err_count is 0 on success/skip or
+             1 on failure, status is one of 'pass'/'fail'/'skip' (a missing binary
+             counts as 'skip'), and metric is an optional string a test returns to
+             show in its report cell instead of the pass symbol (e.g. speed)
     """
     name = board['name']
     err_count = 0
+    result_status = 'fail'
+    metric = None
 
-    f1_str = ""
-    if f1 != "":
-        f1_str = '-f1_' + f1.replace(' ', '_')
+    test_name = f'{name + f1_suffix(f1):40} {example:30} ...'
 
-    fw_dir = TINYUSB_ROOT / build_dir / f'cmake-build-{name}{f1_str}' / example
-    fw_name = fw_dir / Path(example).name
-    test_name = f'{name+f1_str:40} {example:30} ...'
-
-    if not fw_dir.exists() or not ((fw_name.with_suffix('.elf')).exists() or (fw_name.with_suffix('.bin')).exists()):
+    fw_name = find_firmware(name, f1, example)
+    if fw_name is None:
         log_line(f'{test_name} Skip (no binary)')
-        return 0
+        return 0, 'skip', None
 
     if verbose:
         log_line(f'Flashing {fw_name}.elf')
@@ -1534,8 +1641,12 @@ def test_example(board: Board, f1: str, example: str) -> int:
                     last_detail = compact_output(attempt_out.getvalue())
                     if tret == 'skipped':
                         status = STATUS_SKIPPED
+                        result_status = 'skip'
                     else:
                         status = STATUS_OK
+                        result_status = 'pass'
+                        # a test may return a string to show in its report cell (e.g. speed)
+                        metric = tret if isinstance(tret, str) else None
                     msg = f'{test_name}  {status}'
                     if last_detail:
                         msg += f'  {last_detail}'
@@ -1578,7 +1689,7 @@ def test_example(board: Board, f1: str, example: str) -> int:
         msg += f'  in {time.time() - start_s:.1f}s'
         log_line(msg)
 
-    return err_count
+    return err_count, result_status, metric
 
 
 def build_board(board: Board) -> tuple[str, int]:
@@ -1607,7 +1718,29 @@ def build_board(board: Board) -> tuple[str, int]:
     return name, failed
 
 
-def test_board(board: Board) -> tuple[str, int, list[str]]:
+def disable_board(board: Board, f1: str):
+    """Quiesce the board after its tests so it stops drawing power / enumerating
+    USB: erase the first flash sector (vector table) where the flasher supports
+    it, otherwise flash device/board_test. Skipped when --skip-flash is set.
+    Returns (report_key, status) or None."""
+    if skip_flash:
+        return None
+    name = board['name']
+    erase_fn = globals().get(f'erase_{board["flasher"]["name"].lower()}')
+    fw = find_firmware(name, f1, 'device/board_test')
+    if erase_fn and fw is not None:
+        start_s = time.time()
+        ret = erase_fn(board, str(fw))
+        status = 'pass' if ret.returncode == 0 else 'fail'
+        st = STATUS_OK if status == 'pass' else STATUS_FAILED
+        log_line(f'{name:40} {"erase (disable)":30} ...  {st}  in {time.time() - start_s:.1f}s')
+        return 'erase', status
+    # flasher has no erase support (or board_test not built): flash board_test
+    _ec, status, _ = test_example(board, f1, 'device/board_test')
+    return 'device/board_test', status
+
+
+def test_board(board: Board) -> tuple[str, int, list[str], list]:
     name = board['name']
     flasher = board['flasher']
 
@@ -1648,22 +1781,97 @@ def test_board(board: Board) -> tuple[str, int, list[str]]:
 
     err_count = 0
     failed_tests = []
+    rows = []  # list of (row_label, {example: status}) — one row per board[-f1] variant
     flags_on_list = [""]
     if 'build' in board and 'flags_on' in board['build']:
         flags_on_list = board['build']['flags_on']
 
     for f1 in flags_on_list:
+        cells = {}
         for test in test_list:
-            ec = test_example(board, f1, test)
+            ec, status, metric = test_example(board, f1, test)
             err_count += ec
+            cells[test] = metric if metric else status
             if ec > 0:
                 failed_tests.append(test)
+        rows.append((name + f1_suffix(f1), cells))
 
-    # flash board_test last to disable board's usb (skipped when --skip-flash is set)
-    if not skip_flash:
-        test_example(board, flags_on_list[0], 'device/board_test')
+    # disable the board's usb after its tests (erase first flash sector, or flash
+    # board_test where the flasher can't erase); skipped when --skip-flash is set.
+    # This is teardown, not a test — not recorded in the report.
+    disable_board(board, flags_on_list[0])
 
-    return name, err_count, sorted(set(failed_tests))
+    return name, err_count, sorted(set(failed_tests)), rows
+
+
+REPORT_MD = 'hil_report.md'
+REPORT_JSON = 'hil_report.json'
+
+
+def render_matrix(rows_all: list) -> str:
+    """Render rows (list of (row_label, {example: status})) as an aligned markdown
+    matrix: columns = tests (bare names) centered, boards left-aligned."""
+    canonical = device_tests + dual_tests + host_test
+    seen = set()
+    for _, cells in rows_all:
+        seen.update(cells)
+    if not seen:
+        return 'No tests were run.'
+
+    # columns: canonical order first, then any extras (e.g. from -t) alphabetically
+    columns = [t for t in canonical if t in seen]
+    columns += [t for t in sorted(seen) if t not in canonical]
+    headers = [c.rsplit('/', 1)[-1] for c in columns]  # bare example name
+
+    def cell(cells, col):
+        v = cells.get(col)
+        if v is None:
+            return ''
+        return REPORT_CELL.get(v, v)  # status symbol, or a metric string (e.g. speed) verbatim
+
+    board_hdr = 'Board'
+    board_w = max([len(board_hdr)] + [len(lbl) for lbl, _ in rows_all])
+    col_w = [max([len(h)] + [len(cell(cells, c)) for _, cells in rows_all])
+             for h, c in zip(headers, columns)]
+
+    def line(label, values):
+        padded = [label.ljust(board_w)] + [v.center(w) for v, w in zip(values, col_w)]
+        return '| ' + ' | '.join(padded) + ' |'
+
+    header = line(board_hdr, headers)
+    sep = '| ' + '-' * board_w + ' | ' + ' | '.join(':' + '-' * (w - 2) + ':' for w in col_w) + ' |'
+    body = [line(lbl, [cell(cells, c) for c in columns]) for lbl, cells in rows_all]
+
+    legend = 'Legend: ✅ pass · ❌ fail · ⚪ skipped · blank not run'
+    return '\n'.join([header, sep] + body) + '\n\n' + legend
+
+
+def accumulate_report(mret: list, report_dir: Path, fresh: bool) -> str:
+    """Merge this run's results into hil_report.json in report_dir, then (re)write
+    the markdown matrix to hil_report.md. `fresh` (a full run, no --skip-board/-bt)
+    starts a new report; otherwise a re-run accumulates so boards/tests that
+    already passed are preserved while re-run cells are updated. Returns the md."""
+    acc = {}  # ordered {row_label: {example: status}}
+    jpath = report_dir / REPORT_JSON
+    if not fresh and jpath.is_file():
+        try:
+            for entry in json.loads(jpath.read_text()).get('rows', []):
+                acc[entry['board']] = dict(entry['cells'])
+        except (ValueError, KeyError, TypeError):
+            pass  # corrupt/old sidecar: start fresh
+
+    # merge this run: current cells override prior for boards/tests that ran
+    for _, _, _, rows in mret:
+        for row_label, cells in rows:
+            acc.setdefault(row_label, {}).update(cells)
+
+    report_dir.mkdir(parents=True, exist_ok=True)
+    jpath.write_text(json.dumps({'rows': [{'board': k, 'cells': v} for k, v in acc.items()]},
+                                indent=2) + '\n')
+
+    md = render_matrix(list(acc.items()))
+    (report_dir / REPORT_MD).write_text(md + '\n', encoding='utf-8')
+    return md
 
 
 def main() -> None:
@@ -1733,6 +1941,17 @@ def main() -> None:
         print(f'Build phase done: {build_err} failed')
         print('-' * 30)
 
+    # HIL report sidecar (hil_report.json/.md). A full run starts fresh; a re-run
+    # (--skip-board / -bt, i.e. the .skip file) accumulates so already-passed
+    # boards/tests are preserved. Clear any prior report up front on a fresh run so
+    # a crash mid-run can't leave stale results to be merged by a retry or posted.
+    report_dir = Path(os.environ.get('HIL_REPORT_DIR', '.'))
+    fresh = not (args.skip_board or args.board_test)
+    if fresh:
+        report_dir.mkdir(parents=True, exist_ok=True)
+        for f in (REPORT_JSON, REPORT_MD):
+            (report_dir / f).unlink(missing_ok=True)
+
     with Pool(processes=os.cpu_count() or 1, initializer=init_worker, initargs=(Lock(),)) as pool:
         async_ret = pool.map_async(test_board, config_boards)
         try:
@@ -1747,13 +1966,19 @@ def main() -> None:
         # and emit -bt BOARD:t1,t2 so each failed board only re-runs its own failed tests.
         skip_fname = config_file.with_suffix(config_file.suffix + '.skip')
         if err_count > 0:
-            skip_boards += [name for name, err, _ in mret if err == 0]
+            skip_boards += [name for name, err, _, _ in mret if err == 0]
             parts = [f'--skip-board {i}' for i in skip_boards]
-            parts += [f'-bt {name}:{",".join(fts)}' for name, err, fts in mret if err > 0 and fts]
+            parts += [f'-bt {name}:{",".join(fts)}' for name, err, fts, _ in mret if err > 0 and fts]
             with skip_fname.open('w') as f:
                 f.write(' '.join(parts))
         elif skip_fname.exists():
             skip_fname.unlink()
+
+    # board x test result matrix -> hil_report.md (accumulates across re-runs) + stdout
+    report = accumulate_report(mret, report_dir, fresh)
+    print()
+    print(report)
+    print(f'\nReport written to {(report_dir / REPORT_MD).resolve()}')
 
     duration = time.time() - duration
     print()

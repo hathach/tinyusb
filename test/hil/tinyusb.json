@@ -455,6 +455,19 @@
                 "uid": "777632258",
                 "args": "-device STM32L476VG"
             }
+        },
+        {
+            "name": "stm32u083nucleo",
+            "uid": "300044000D5036394E373620",
+            "tests": {
+                "device": true,
+                "host": false,
+                "dual": false
+            },
+            "flasher": {
+                "name": "stlink",
+                "uid": "0668FF575457657187061314"
+            }
         }
     ],
     "boards-skip": [

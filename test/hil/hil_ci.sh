@@ -88,11 +88,21 @@ fi
 # parameters; quoting and metacharacters in args are preserved.
 CONFIG_BASENAME="$(basename "$CONFIG")"
 echo "==> Running HIL test on $REMOTE"
-ssh "$REMOTE" bash -s -- "$REMOTE_DIR" "${ARGS[@]}" "test/hil/$CONFIG_BASENAME" <<'REMOTE'
+rc=0
+ssh "$REMOTE" bash -s -- "$REMOTE_DIR" "${ARGS[@]}" "test/hil/$CONFIG_BASENAME" <<'REMOTE' || rc=$?
 cd -- "$1"
 shift
-# esptool/idf tools live in ~/.local/bin on ci.lan; the non-interactive shell
-# subprocess used for flashing doesn't pick that up otherwise.
-export PATH="$HOME/.local/bin:$PATH"
-exec python3 -u test/hil/hil_test.py -B examples "$@"
+# Flasher CLIs live in the user bin dirs on ci.lan (esptool/idf in ~/.local/bin,
+# STM32CubeProgrammer's STM32_Programmer_CLI in ~/bin); the non-interactive shell
+# subprocess used for flashing doesn't source profile/rc, so add them explicitly.
+export PATH="$HOME/.local/bin:$HOME/bin:$PATH"
+python3 -u test/hil/hil_test.py -B examples "$@"
 REMOTE
+
+# Copy the generated report back to the local checkout (best-effort; the run's
+# exit code is preserved regardless of whether a report was produced).
+scp -q "$REMOTE:$REMOTE_DIR/hil_report.md" "$ROOT_DIR/hil_report.md" \
+  && echo "==> Report copied to $ROOT_DIR/hil_report.md" \
+  || echo "==> warning: no hil_report.md copied back" >&2
+
+exit $rc

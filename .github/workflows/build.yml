@@ -306,6 +306,9 @@ jobs:
     env:
       HIL_JSON: ${{ matrix.hil_json }}
     steps:
+      - name: Set HIL report dir (sibling of workspace; persists across run attempts)
+        run: echo "HIL_REPORT_DIR=$(dirname "$GITHUB_WORKSPACE")/hil-report" >> "$GITHUB_ENV"
+
       - name: Get Skip Boards from previous run
         if: github.run_attempt != '1'
         run: |
@@ -343,6 +346,15 @@ jobs:
           else
             exit 1
           fi)
+
+      - name: Upload HIL report
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: hil-report-${{ matrix.display }}
+          path: ${{ env.HIL_REPORT_DIR }}/hil_report.md
+          if-no-files-found: ignore
+          overwrite: true
 
   # ---------------------------------------
   # Hardware in the loop (HIL)
@@ -390,3 +402,54 @@ jobs:
       - name: Test on actual hardware (hardware in the loop)
         run: |
           python3 test/hil/hil_test.py hfp.json
+
+      - name: Upload HIL report
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: hil-report-hfp-iar
+          path: hil_report.md
+          if-no-files-found: ignore
+          overwrite: true
+
+  # ---------------------------------------
+  # Combine HIL results from the rigs into a single sticky PR comment (one table per rig)
+  # ---------------------------------------
+  hil-report:
+    needs: [ hil-tinyusb, hil-hfp-iar ]
+    if: |
+      always() &&
+      (needs.hil-tinyusb.result != 'skipped' || needs.hil-hfp-iar.result != 'skipped') &&
+      github.event_name == 'pull_request' &&
+      github.repository_owner == 'hathach' &&
+      github.event.pull_request.head.repo.fork == false
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Download HIL reports
+        uses: actions/download-artifact@v5
+        with:
+          pattern: hil-report-*
+          path: hil-reports
+
+      - name: Combine rig reports (one table per rig)
+        run: |
+          {
+            echo "## Hardware-in-the-loop (HIL) Test Report"
+            echo
+            for d in hil-reports/hil-report-*; do
+              [ -d "$d" ] || continue
+              echo "### ${d#hil-reports/hil-report-}"
+              echo
+              cat "$d/hil_report.md" 2>/dev/null || echo "_no report produced_"
+              echo
+            done
+          } > hil_combined.md
+          cat hil_combined.md
+
+      - name: Post HIL report as sticky PR comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: hil-report
+          path: hil_combined.md

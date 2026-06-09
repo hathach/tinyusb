@@ -6,7 +6,7 @@
       "hidden": true,
       "description": "Configure preset for the ${presetName} board",
       "generator": "Ninja Multi-Config",
-      "binaryDir": "${sourceDir}/build/${presetName}",
+      "binaryDir": "${sourceDir}/cmake-build-${presetName}",
       "cacheVariables": {
         "CMAKE_DEFAULT_BUILD_TYPE": "RelWithDebInfo",
         "BOARD": "${presetName}"
@@ -17,7 +17,7 @@
       "hidden": true,
       "description": "Configure preset for the ${presetName} board",
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/${presetName}",
+      "binaryDir": "${sourceDir}/cmake-build-${presetName}",
       "cacheVariables": {
         "BOARD": "${presetName}"
       }
@@ -120,6 +120,10 @@
     },
     {
       "name": "ch32f205r-r0",
+      "inherits": "default"
+    },
+    {
+      "name": "ch32v103c_bluepill",
       "inherits": "default"
     },
     {
@@ -1086,6 +1090,11 @@
       "name": "ch32f205r-r0",
       "description": "Build preset for the ch32f205r-r0 board",
       "configurePreset": "ch32f205r-r0"
+    },
+    {
+      "name": "ch32v103c_bluepill",
+      "description": "Build preset for the ch32v103c_bluepill board",
+      "configurePreset": "ch32v103c_bluepill"
     },
     {
       "name": "ch32v103r_r1_1v0",
@@ -2469,6 +2478,19 @@
         {
           "type": "build",
           "name": "ch32f205r-r0"
+        }
+      ]
+    },
+    {
+      "name": "ch32v103c_bluepill",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ch32v103c_bluepill"
+        },
+        {
+          "type": "build",
+          "name": "ch32v103c_bluepill"
         }
       ]
     },
