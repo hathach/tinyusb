@@ -1139,10 +1139,8 @@ static bool handle_channel_in_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
 
   if (hcint & HCINT_HALTED) {
     if (xfer->retry_disabled) {
-      // Halt from the channel-disable we issued to throttle a split NAK retry (see the NAK handling
-      // below). If the endpoint is being closed in the meantime (edpt_close() also disables the
-      // channel), let the teardown complete instead of re-arming; otherwise re-issue the
-      // start-split now that the channel is cleanly disabled. Databook 3.5 "Halting a Channel".
+      // Halt from our split-NAK throttle disable (below): re-arm the start-split, or let teardown finish
+      // if the endpoint is closing. Programming Guide 3.5 "Halting a Channel" (p73).
       xfer->retry_disabled = 0;
       if (xfer->closing) {
         is_done = true;
@@ -1215,12 +1213,9 @@ static bool handle_channel_in_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
       channel->hcintmsk &= ~(HCINT_NAK | HCINT_DATATOGGLE_ERR);
       hcsplt.split_compl = 0; // restart with start-split
       channel->hcsplt = hcsplt.value;
-      // A split bulk/control IN device that persistently NAKs (e.g. an idle endpoint being polled)
-      // would be re-enabled immediately, creating an interrupt storm that starves the task context.
-      // Instead disable the channel and re-issue the start-split on the resulting halt: the disable's
-      // arbitration/flush latency throttles the poll and yields to the task, exactly as the slave
-      // path does. Databook p73 permits channel disable for NAK on split channels; no frame deferral,
-      // so split timing is preserved.
+      // Persistent split bulk/control IN NAK (e.g. idle polled endpoint): re-enabling immediately storms
+      // the ISR and starves the task. Disable + re-arm on the resulting halt to throttle (like the slave
+      // path); no frame deferral. Programming Guide 3.5 (p73) Note permits disable on NAK/FrmOvrn splits.
       if ((hcint & HCINT_NAK) && hcsplt.split_en && !channel_is_periodic(channel->hcchar)) {
         xfer->retry_disabled = 1;
         channel_disable(dwc2, channel);
@@ -1252,9 +1247,8 @@ static bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hc
 
   if (hcint & HCINT_HALTED) {
     if (xfer->retry_disabled) {
-      // Halt from the channel-disable we issued to throttle a split XactErr retry (see below). Re-issue
-      // the start-split (buffer pointers were already rewound) now that the channel is cleanly disabled,
-      // giving the hub's transaction translator a recovery gap. Databook 3.5 "Halting a Channel".
+      // Halt from our split-XactErr throttle disable (below): re-issue the start-split (pointers already
+      // rewound), giving the hub TT a recovery gap. Programming Guide 3.5 "Halting a Channel" (p73).
       xfer->retry_disabled = 0;
       if (xfer->closing) {
         is_done = true;
@@ -1284,13 +1278,12 @@ static bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hc
          xfer->result = XFER_RESULT_FAILED;
          is_done = true;
        } else {
-         // Rewind buffer pointers, then retry the start-split. For SPLIT, throttle via channel_disable and
-         // re-issue on the resulting halt (see retry_disabled above): immediately re-firing a split XactErr
-         // exhausts the 3-retry budget before the transient clears, whereas the disable's flush/arbitration
-         // latency gives the hub TT a recovery gap (mirrors the slave path). Non-split XactErr is
-         // re-initialized immediately per Programming Guide 5.1.1.2.
+         // Rewind, then retry the start-split. Non-periodic SPLIT throttles via channel_disable + re-arm on
+         // the halt (immediate re-fire exhausts the retry budget; the disable gives the hub TT a recovery
+         // gap, like slave). Periodic split is excluded: channel_disable() is a no-op for it, so the halt
+         // never fires and the channel would wedge. Non-split re-inits immediately (Programming Guide 5.1.2.3).
          channel_xfer_out_wrapup(dwc2, ch_id);
-         if (hcsplt.split_en) {
+         if (hcsplt.split_en && !channel_is_periodic(channel->hcchar)) {
            xfer->retry_disabled = 1;
            channel_disable(dwc2, channel);
          } else {
@@ -1314,9 +1307,8 @@ static bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hc
         channel->hcchar |= HCCHAR_CHENA;
       }
     } else if ((hcint & HCINT_NAK) && hcsplt.split_en) {
-      // Programming Guide 5.1.4.2 (OUT/SETUP SPLIT in buffer DMA): on NAK, rewind buffer pointers and retry
-      // the start-split. Without this a pure split-OUT NAK leaves the channel halted and the transfer stalls.
-      // Non-split OUT NAK is auto-handled by the core (5.1.2.2), so this is scoped to split only.
+      // Split OUT NAK: rewind + retry the start-split, else the channel stalls (Programming Guide 5.1.4.2).
+      // Non-split OUT NAK is core-handled (5.1.2.2), so this is split-only.
       xfer->err_count = 0;
       channel_xfer_out_wrapup(dwc2, ch_id);
       channel_xfer_start(dwc2, ch_id);
