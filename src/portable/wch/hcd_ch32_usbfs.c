@@ -23,6 +23,7 @@
 
 #include "ch32_usbfs_reg.h"
 #include "host/hcd.h"
+#include "host/usbh.h"
 #include "wch_usbfs_ll.h"   // Delay_Us/Ms, USBFS_RX/TX_Buf, USBFSH_* control primitives
 
 //--------------------------------------------------------------------+
@@ -199,19 +200,45 @@ static inline void select_dev(uint8_t daddr) {
   USBFSH->DEV_ADDR = (uint8_t)((USBFSH->DEV_ADDR & USBFS_UDA_GP_BIT) | (daddr & USBFS_USB_ADDR_MASK));
 }
 
-// Apply the link speed to the host registers from the latched root speed.
-// Per-device speed for low-speed devices behind a hub is not tracked here;
-// never trust a speed==0 inherit value.
-static inline void apply_speed(void) {
-  if (_hcd.root_speed == TUSB_SPEED_LOW) {
-    USBFSH->BASE_CTRL  |= USBFS_UC_LOW_SPEED;
+// Program device address, port timing and host-port enable state for the
+// selected device. Low-speed direct attach uses LOW_SPEED with no PRE;
+// low-speed behind a full-speed hub needs PRE while tokens still go out at
+// full-speed.
+static inline void select_dev_speed(uint8_t daddr) {
+  select_dev(daddr);
+
+  tuh_bus_info_t bus_info;
+  tuh_bus_info_get(daddr, &bus_info);
+
+  tusb_speed_t const dev_speed = bus_info.speed;
+  bool const via_hub = (bus_info.hub_addr != 0);
+  bool const low_speed_direct = (!via_hub && dev_speed == TUSB_SPEED_LOW);
+  bool const low_speed_via_hub = (via_hub &&
+                                  _hcd.root_speed == TUSB_SPEED_FULL &&
+                                  dev_speed == TUSB_SPEED_LOW);
+
+  if (low_speed_direct || low_speed_via_hub) {
+    USBFSH->BASE_CTRL |= USBFS_UC_LOW_SPEED;
+  } else {
+    USBFSH->BASE_CTRL &= ~USBFS_UC_LOW_SPEED;
+  }
+
+  if (low_speed_direct) {
     USBFSH->HOST_CTRL  |= USBFS_UH_LOW_SPEED;
+    USBFSH->HOST_SETUP &= ~USBFS_UH_PRE_PID_EN;
+  } else if (low_speed_via_hub) {
+    USBFSH->HOST_CTRL  &= ~USBFS_UH_LOW_SPEED;
     USBFSH->HOST_SETUP |= USBFS_UH_PRE_PID_EN;
   } else {
-    USBFSH->BASE_CTRL  &= ~USBFS_UC_LOW_SPEED;
     USBFSH->HOST_CTRL  &= ~USBFS_UH_LOW_SPEED;
     USBFSH->HOST_SETUP &= ~USBFS_UH_PRE_PID_EN;
   }
+
+  // Re-assert the host port state before every launch. CH32 USBFS can miss the
+  // first EP0 transaction after reset/hub-port reset unless both bits are
+  // armed again immediately before the transfer.
+  USBFSH->HOST_CTRL  |= USBFS_UH_PORT_EN;
+  USBFSH->HOST_SETUP |= USBFS_UH_SOF_EN;
 }
 
 // Mark the engine as armed and (re)set the no-response deadline base. Called by
@@ -225,7 +252,7 @@ static inline void mark_armed(void) {
 // Arm an 8-byte SETUP packet. SETUP is always DATA0.
 static void xact_setup(ch32_ep_t* ep) {
   mark_armed();
-  select_dev(ep->daddr);
+  select_dev_speed(ep->daddr);
 
   memcpy(USBFS_TX_Buf, ep->setup, 8);
 
@@ -245,8 +272,7 @@ static void xact_setup(ch32_ep_t* ep) {
 static void xact_inout(ch32_ep_t* ep, bool switch_ep) {
   mark_armed();
   if (switch_ep) {
-    select_dev(ep->daddr);
-    apply_speed();
+    select_dev_speed(ep->daddr);
   }
 
   CH32_WAIT_SIE_IDLE();
@@ -689,7 +715,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr,
         USBFSH_EnableRootHubPort(&sp);
         tusb_time_delay_ms_api(2);
       }
-      select_dev(daddr);
+      select_dev_speed(daddr);
       ch32_ep_t* e0 = find_ep(daddr, 0, 0);
       uint8_t  ep0sz = (e0 && e0->packet_size) ? (uint8_t) e0->packet_size : 8;
       uint16_t got   = 0;
