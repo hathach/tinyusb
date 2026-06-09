@@ -40,6 +40,7 @@ import os
 import random
 import re
 import select
+import struct
 import sys
 import time
 import signal
@@ -514,6 +515,80 @@ def reset_lm4flash(board):
 
 
 # -------------------------------------------------------------
+# Erase: wipe the first flash sector (vector table) after a board's tests so the
+# MCU faults to an idle state — no USB, lower power, and faster than programming
+# device/board_test. Same (board, firmware) signature as flash_*; `firmware` is
+# only used to find the flash origin (jlink) or the esp flash metadata.
+# -------------------------------------------------------------
+def elf_flash_origin(elf_path: str) -> int:
+    """Flash base address (first PT_LOAD segment physical address) of a
+    little-endian ELF32 firmware — i.e. where the vector table is programmed."""
+    data = Path(elf_path).read_bytes()
+    if data[:4] != b'\x7fELF':
+        raise ValueError(f'not an ELF: {elf_path}')
+    e_phoff = struct.unpack_from('<I', data, 0x1c)[0]
+    e_phentsize = struct.unpack_from('<H', data, 0x2a)[0]
+    e_phnum = struct.unpack_from('<H', data, 0x2c)[0]
+    for i in range(e_phnum):
+        p_type, _off, _vaddr, p_paddr = struct.unpack_from('<IIII', data, e_phoff + i * e_phentsize)
+        if p_type == 1:  # PT_LOAD
+            return p_paddr
+    raise ValueError(f'no PT_LOAD segment in {elf_path}')
+
+
+def erase_jlink(board: Board, firmware: str) -> subprocess.CompletedProcess:
+    flasher = board['flasher']
+    origin = elf_flash_origin(f'{firmware}.elf')
+    script = ['halt', f'erase 0x{origin:x} 0x{origin + 4:x}', 'exit']
+    f_jlink = Path(f'{board["name"]}_erase.jlink')
+    with f_jlink.open('w') as f:
+        f.writelines(f'{s}\n' for s in script)
+    ret = run_cmd(f'JLinkExe -USB {flasher["uid"]} {flasher["args"]} -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile {f_jlink}')
+    f_jlink.unlink(missing_ok=True)
+    return ret
+
+
+def erase_stlink(board: Board, firmware: str) -> subprocess.CompletedProcess:
+    flasher = board['flasher']
+    return run_cmd(f'STM32_Programmer_CLI --connect port=swd sn={flasher["uid"]} --erase 0')
+
+
+def erase_openocd(board: Board, firmware: str) -> subprocess.CompletedProcess:
+    flasher = board['flasher']
+    return run_cmd(f'openocd -c "tcl_port disabled" -c "gdb_port disabled" -c "adapter serial {flasher["uid"]}" '
+                   f'{flasher["args"]} -c "init; reset halt; flash erase_sector 0 0 0; exit"')
+
+
+def erase_openocd_adi(board: Board, firmware: str) -> subprocess.CompletedProcess:
+    flasher = board['flasher']
+    openocd = OPENCOD_ADI_PATH / 'src' / 'openocd'
+    tcl_dir = OPENCOD_ADI_PATH / 'tcl'
+    return run_cmd(f'{openocd} -c "adapter serial {flasher["uid"]}" -s {tcl_dir} '
+                   f'{flasher["args"]} -c "init; reset halt; flash erase_sector 0 0 0; exit"')
+
+
+def erase_esptool(board: Board, firmware: str) -> subprocess.CompletedProcess:
+    flasher = board['flasher']
+    port = get_serial_dev(flasher["uid"], None, None, 0)
+    fw_dir = Path(f'{firmware}.bin').parent
+    with (fw_dir / 'config.env').open() as f:
+        idf_target = json.load(f)['IDF_TARGET']
+    return run_cmd(f'esptool --chip {idf_target} -p {port} {flasher["args"]} erase_region 0x0 0x4000',
+                   cwd=str(fw_dir))
+
+
+def erase_lm4flash(board: Board, firmware: str) -> subprocess.CompletedProcess:
+    # lm4flash has no erase command, but it erases the sectors it programs — so
+    # writing a blank (all-0xFF) image leaves the first sector erased.
+    flasher = board['flasher']
+    blank = Path(f'{board["name"]}_blank.bin')
+    blank.write_bytes(b'\xff' * 4096)
+    ret = run_cmd(f'lm4flash -s {flasher["uid"]} {flasher["args"]} {blank}')
+    blank.unlink(missing_ok=True)
+    return ret
+
+
+# -------------------------------------------------------------
 # Tests: dual
 # -------------------------------------------------------------
 def test_dual_host_info_to_device_cdc(board):
@@ -807,12 +882,17 @@ def test_host_msc_file_explorer(board):
         t -= 0.05
 
     resp_text = resp.decode('utf-8', errors='ignore')
+    speed = None
     for line in resp_text.splitlines():
         if 'KB/s' in line:
             print(f'{line.strip()} ', end='')
+            m = re.search(r'([\d.]+\s*[KMG]B/s)', line)  # MSC read speed for the report cell
+            if m:
+                speed = 'rd ' + m.group(1).replace(' ', '')
             break
 
     ser.close()
+    return speed
 
 
 def test_host_msc_file_explorer_freertos(board):
@@ -971,6 +1051,9 @@ def test_device_cdc_msc_throughput(board):
         pass
 
     print(f'  CDC read {cdc_r} write {cdc_w}, MSC read {msc_r} write {msc_w}  ', end='')
+    # compact read/write speed for the report cell, e.g. "C 652k/422k M 1.1M/783k"
+    short = lambda s: (s.split()[0].rstrip('0').rstrip('.') + s.split()[-1][0]) if ' ' in s else s
+    return f'C {short(cdc_r)}/{short(cdc_w)} M {short(msc_r)}/{short(msc_w)}'
 
 
 def test_device_dfu(board):
@@ -1499,39 +1582,43 @@ def f1_suffix(f1: str) -> str:
     return '-f1_' + f1.replace(' ', '_') if f1 else ''
 
 
+def find_firmware(name: str, f1: str, example: str):
+    """Locate a built example's firmware base path (no extension) under
+    cmake-build-<board>[-f1_...]/<example>/. Accepts the single-config layout
+    (firmware directly in the example dir) or Ninja Multi-Config (a per-config
+    subdir like RelWithDebInfo/). Returns the base Path, or None if not built."""
+    fw_dir = TINYUSB_ROOT / build_dir / f'cmake-build-{name}{f1_suffix(f1)}' / example
+    base = Path(example).name
+    if fw_dir.is_dir():
+        for cand in [fw_dir / base, fw_dir / 'RelWithDebInfo' / base,
+                     *(p.with_suffix('') for p in sorted(fw_dir.glob(f'*/{base}.elf')))]:
+            if cand.with_suffix('.elf').exists() or cand.with_suffix('.bin').exists():
+                return cand
+    return None
+
+
 def test_example(board: Board, f1: str, example: str) -> tuple[int, str]:
     """
     Test example firmware
     :param board: board dict
     :param f1: flags on
     :param example: example name
-    :return: (err_count, status) where err_count is 0 on success/skip or 1 on
-             failure, and status is one of 'pass'/'fail'/'skip' (a missing
-             binary counts as 'skip')
+    :return: (err_count, status, metric) where err_count is 0 on success/skip or
+             1 on failure, status is one of 'pass'/'fail'/'skip' (a missing binary
+             counts as 'skip'), and metric is an optional string a test returns to
+             show in its report cell instead of the pass symbol (e.g. speed)
     """
     name = board['name']
     err_count = 0
     result_status = 'fail'
+    metric = None
 
-    f1_str = f1_suffix(f1)
+    test_name = f'{name + f1_suffix(f1):40} {example:30} ...'
 
-    fw_dir = TINYUSB_ROOT / build_dir / f'cmake-build-{name}{f1_str}' / example
-    base = Path(example).name
-    test_name = f'{name+f1_str:40} {example:30} ...'
-
-    # firmware sits directly in the example dir (single-config Ninja) or under a
-    # per-config subdir like RelWithDebInfo/ (Ninja Multi-Config); accept either.
-    fw_name = None
-    if fw_dir.is_dir():
-        for cand in [fw_dir / base, fw_dir / 'RelWithDebInfo' / base,
-                     *(p.with_suffix('') for p in sorted(fw_dir.glob(f'*/{base}.elf')))]:
-            if cand.with_suffix('.elf').exists() or cand.with_suffix('.bin').exists():
-                fw_name = cand
-                break
-
+    fw_name = find_firmware(name, f1, example)
     if fw_name is None:
         log_line(f'{test_name} Skip (no binary)')
-        return 0, 'skip'
+        return 0, 'skip', None
 
     if verbose:
         log_line(f'Flashing {fw_name}.elf')
@@ -1558,6 +1645,8 @@ def test_example(board: Board, f1: str, example: str) -> tuple[int, str]:
                     else:
                         status = STATUS_OK
                         result_status = 'pass'
+                        # a test may return a string to show in its report cell (e.g. speed)
+                        metric = tret if isinstance(tret, str) else None
                     msg = f'{test_name}  {status}'
                     if last_detail:
                         msg += f'  {last_detail}'
@@ -1600,7 +1689,7 @@ def test_example(board: Board, f1: str, example: str) -> tuple[int, str]:
         msg += f'  in {time.time() - start_s:.1f}s'
         log_line(msg)
 
-    return err_count, result_status
+    return err_count, result_status, metric
 
 
 def build_board(board: Board) -> tuple[str, int]:
@@ -1627,6 +1716,28 @@ def build_board(board: Board) -> tuple[str, int]:
         if r.returncode != 0:
             failed += 1
     return name, failed
+
+
+def disable_board(board: Board, f1: str):
+    """Quiesce the board after its tests so it stops drawing power / enumerating
+    USB: erase the first flash sector (vector table) where the flasher supports
+    it, otherwise flash device/board_test. Skipped when --skip-flash is set.
+    Returns (report_key, status) or None."""
+    if skip_flash:
+        return None
+    name = board['name']
+    erase_fn = globals().get(f'erase_{board["flasher"]["name"].lower()}')
+    fw = find_firmware(name, f1, 'device/board_test')
+    if erase_fn and fw is not None:
+        start_s = time.time()
+        ret = erase_fn(board, str(fw))
+        status = 'pass' if ret.returncode == 0 else 'fail'
+        st = STATUS_OK if status == 'pass' else STATUS_FAILED
+        log_line(f'{name:40} {"erase (disable)":30} ...  {st}  in {time.time() - start_s:.1f}s')
+        return 'erase', status
+    # flasher has no erase support (or board_test not built): flash board_test
+    _ec, status, _ = test_example(board, f1, 'device/board_test')
+    return 'device/board_test', status
 
 
 def test_board(board: Board) -> tuple[str, int, list[str], list]:
@@ -1678,18 +1789,17 @@ def test_board(board: Board) -> tuple[str, int, list[str], list]:
     for f1 in flags_on_list:
         cells = {}
         for test in test_list:
-            ec, status = test_example(board, f1, test)
+            ec, status, metric = test_example(board, f1, test)
             err_count += ec
-            cells[test] = status
+            cells[test] = metric if metric else status
             if ec > 0:
                 failed_tests.append(test)
         rows.append((name + f1_suffix(f1), cells))
 
-    # flash board_test last to disable board's usb (skipped when --skip-flash is set)
-    if not skip_flash:
-        _ec, status = test_example(board, flags_on_list[0], 'device/board_test')
-        if rows:
-            rows[0][1]['device/board_test'] = status
+    # disable the board's usb after its tests (erase first flash sector, or flash
+    # board_test where the flasher can't erase); skipped when --skip-flash is set.
+    # This is teardown, not a test — not recorded in the report.
+    disable_board(board, flags_on_list[0])
 
     return name, err_count, sorted(set(failed_tests)), rows
 
@@ -1701,7 +1811,7 @@ REPORT_JSON = 'hil_report.json'
 def render_matrix(rows_all: list) -> str:
     """Render rows (list of (row_label, {example: status})) as an aligned markdown
     matrix: columns = tests (bare names) centered, boards left-aligned."""
-    canonical = device_tests + dual_tests + host_test + ['device/board_test']
+    canonical = device_tests + dual_tests + host_test
     seen = set()
     for _, cells in rows_all:
         seen.update(cells)
@@ -1714,7 +1824,10 @@ def render_matrix(rows_all: list) -> str:
     headers = [c.rsplit('/', 1)[-1] for c in columns]  # bare example name
 
     def cell(cells, col):
-        return REPORT_CELL.get(cells.get(col), '')
+        v = cells.get(col)
+        if v is None:
+            return ''
+        return REPORT_CELL.get(v, v)  # status symbol, or a metric string (e.g. speed) verbatim
 
     board_hdr = 'Board'
     board_w = max([len(board_hdr)] + [len(lbl) for lbl, _ in rows_all])
