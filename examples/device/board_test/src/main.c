@@ -116,16 +116,16 @@ static void board_test_loop(RTOS_PARAM param) {
 
 int main(void) {
 #ifdef CI_BUILD
-  // Park the board in a quiet, low-power idle loop. board_init() is intentionally
-  // skipped: no clocks, peripherals, USB, LED, or UART are brought up, so the MCU
-  // just idles after CI flashes this over a board's previous test firmware.
+  // Park the board in a quiet idle loop. board_init() is intentionally skipped:
+  // no clocks, peripherals, USB, LED, or UART are brought up, so the MCU just
+  // idles after CI flashes this over a board's previous test firmware.
+  // Deliberately a busy spin, NOT wfe/wfi: on some MCUs (i.MX RT1064, MAX32666)
+  // sleeping gates the debug clocks, and since this image is the boot image the
+  // board comes back unflashable — SWD attach and connect-under-reset both fail,
+  // surviving power cycles until the chip is manually recovered.
   while (1) {
     #if defined(ESP_PLATFORM)
     vTaskDelay(portMAX_DELAY); // ESP runs FreeRTOS: yield this task indefinitely
-    #elif defined(__ARM_ARCH) || defined(__arm__)
-    __asm volatile("wfe");     // Cortex-M: sleep until an event
-    #else
-    // other architectures (e.g. RISC-V): spin
     #endif
   }
   // no return: the loop never exits (an unreachable return trips IAR's Pe111)
