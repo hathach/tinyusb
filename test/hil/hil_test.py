@@ -228,7 +228,9 @@ def open_serial_dev(port: str):
     while timeout > 0:
         if os.path.exists(port):
             try:
-                ser = serial.Serial(port, baudrate=115200, timeout=5)
+                # write_timeout: a wedged device otherwise blocks ser.write() forever,
+                # hanging the worker until the pool/job timeout kills the whole run
+                ser = serial.Serial(port, baudrate=115200, timeout=5, write_timeout=5)
                 break
             except serial.SerialException:
                 print(f'serial {port} not reaady {timeout} sec')
