@@ -66,15 +66,32 @@ copy_board_binaries() {
 }
 
 if [ -n "$BOARD" ]; then
-  # Copy the board's build dir plus any variant dirs (cmake-build-<BOARD>-<variant>).
-  # Collect only dirs that actually exist (the bare cmake-build-<BOARD> is a literal,
-  # not a glob, so it would otherwise stay in the list even when missing).
-  shopt -s nullglob
+  # Copy the board's build dir plus its variant dirs. Variant names come from
+  # $CONFIG (they are not required to be prefixed with the board name); the
+  # cmake-build-<BOARD>-* glob is kept as a fallback for ad-hoc local builds.
+  # Collect only dirs that actually exist, deduplicated.
+  declare -A SEEN_DIRS=()
   BUILD_DIRS=()
+  add_build_dir() {
+    [[ -d "$1" && -z "${SEEN_DIRS[$1]:-}" ]] || return 0
+    SEEN_DIRS[$1]=1
+    BUILD_DIRS+=("$1")
+  }
+  shopt -s nullglob
   for d in "$ROOT_DIR"/examples/cmake-build-"$BOARD" "$ROOT_DIR"/examples/cmake-build-"$BOARD"-*; do
-    [ -d "$d" ] && BUILD_DIRS+=("$d")
+    add_build_dir "$d"
   done
   shopt -u nullglob
+  while IFS= read -r v; do
+    add_build_dir "$ROOT_DIR/examples/cmake-build-$v"
+  done < <(python3 -c '
+import json, sys
+cfg = json.load(open(sys.argv[1]))
+for b in cfg.get("boards", []):
+    if b["name"] == sys.argv[2]:
+        for v in b.get("variant") or []:
+            print(v["name"])
+' "$CONFIG" "$BOARD")
   if [ ${#BUILD_DIRS[@]} -eq 0 ]; then
     echo "Error: no build directory found for $BOARD under $ROOT_DIR/examples/"
     echo "Build first with: cd examples && cmake --preset $BOARD && cmake --build --preset $BOARD"

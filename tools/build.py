@@ -292,6 +292,12 @@ def main():
         print("Please specify families or board to build")
         return 1
 
+    # --build-name renames the single shared build dir, so building more than one
+    # board with it would clobber/mix artifacts
+    if build_name and (len(families) > 0 or len(boards) != 1):
+        print("--build-name requires exactly one board (-b) and no families")
+        return 1
+
     print(build_separator)
     print(build_format.format('Board', 'Target', '\033[39mResult\033[0m', 'Time'))
     total_time = time.monotonic()
