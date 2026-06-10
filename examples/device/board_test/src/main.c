@@ -115,11 +115,10 @@ static void board_test_loop(RTOS_PARAM param) {
 #endif // CI_BUILD
 
 int main(void) {
-  board_init();
-
 #ifdef CI_BUILD
-  // Park the board in a quiet, low-power idle loop (no USB/LED/UART). Used by CI
-  // to disable a board's previous test firmware once HIL testing is complete.
+  // Park the board in a quiet, low-power idle loop. board_init() is intentionally
+  // skipped: no clocks, peripherals, USB, LED, or UART are brought up, so the MCU
+  // just idles after CI flashes this over a board's previous test firmware.
   while (1) {
     #if defined(ESP_PLATFORM)
     vTaskDelay(portMAX_DELAY); // ESP runs FreeRTOS: yield this task indefinitely
@@ -131,6 +130,7 @@ int main(void) {
   }
   // no return: the loop never exits (an unreachable return trips IAR's Pe111)
 #else
+  board_init();
   board_led_write(true);
 
   #if CFG_TUSB_OS == OPT_OS_FREERTOS
