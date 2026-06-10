@@ -983,9 +983,9 @@ def test_device_cdc_msc_throughput(board):
         pass
 
     print(f'  CDC read {cdc_r} write {cdc_w}, MSC read {msc_r} write {msc_w}  ', end='')
-    # compact read/write speed for the report cell, e.g. "C 652k/422k M 1.1M/783k"
+    # compact read/write speed for the report cell, e.g. "✅ CDC 652k/422k MSC 1.1M/783k"
     short = lambda s: (s.split()[0].rstrip('0').rstrip('.') + s.split()[-1][0]) if ' ' in s else s
-    return f'C {short(cdc_r)}/{short(cdc_w)} M {short(msc_r)}/{short(msc_w)}'
+    return f'{REPORT_CELL["pass"]} CDC {short(cdc_r)}/{short(cdc_w)} MSC {short(msc_r)}/{short(msc_w)}'
 
 
 def test_device_dfu(board):
