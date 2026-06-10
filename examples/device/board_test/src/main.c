@@ -64,7 +64,7 @@ int main(void) {
     vTaskDelay(portMAX_DELAY);
     #endif
   }
-  return 0;
+  // no return: the loop never exits (an unreachable return trips IAR's Pe111)
 }
 
 #else
