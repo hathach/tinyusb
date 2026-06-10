@@ -57,8 +57,17 @@ void tusb_time_delay_ms_api(uint32_t ms) {
 // CI_BUILD (defined for all CI builds, see hw/bsp/family_support.cmake) skips the
 // blink/echo loop below: after HIL tests, this firmware is flashed to park the
 // board in a quiet, low-power idle state (no USB, LED, or UART activity).
-#ifndef CI_BUILD
+#ifdef CI_BUILD
+int main(void) {
+  while (1) {
+    #if defined(ESP_PLATFORM)
+    vTaskDelay(portMAX_DELAY);
+    #endif
+  }
+  return 0;
+}
 
+#else
 // Task parameter type: ULONG for ThreadX, void* for FreeRTOS and noos
 #if CFG_TUSB_OS == OPT_OS_THREADX
   #define RTOS_PARAM ULONG
@@ -112,46 +121,21 @@ static void board_test_loop(RTOS_PARAM param) {
   }
 }
 
-#endif // CI_BUILD
-
 int main(void) {
-#ifdef CI_BUILD
-  // Park the board in a quiet idle loop. board_init() is intentionally skipped:
-  // no clocks, peripherals, USB, LED, or UART are brought up, so the MCU just
-  // idles after CI flashes this over a board's previous test firmware.
-  // Deliberately a busy spin, NOT wfe/wfi: on some MCUs (i.MX RT1064, MAX32666)
-  // sleeping gates the debug clocks, and since this image is the boot image the
-  // board comes back unflashable — SWD attach and connect-under-reset both fail,
-  // surviving power cycles until the chip is manually recovered.
-  while (1) {
-    #if defined(ESP_PLATFORM)
-    vTaskDelay(portMAX_DELAY); // ESP runs FreeRTOS: yield this task indefinitely
-    #endif
-  }
-  // no return: the loop never exits (an unreachable return trips IAR's Pe111)
-#else
   board_init();
   board_led_write(true);
 
-  #if CFG_TUSB_OS == OPT_OS_FREERTOS
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
   freertos_init();
-  #elif CFG_TUSB_OS == OPT_OS_THREADX
+#elif CFG_TUSB_OS == OPT_OS_THREADX
   tx_kernel_enter();
-  #else
+#else
   board_test_loop(NULL);
-  #endif
+#endif
 
   return 0;
-#endif
 }
 
-#ifdef ESP_PLATFORM
-void app_main(void) {
-  main();
-}
-#endif
-
-#ifndef CI_BUILD
 //--------------------------------------------------------------------+
 // FreeRTOS
 //--------------------------------------------------------------------+
@@ -197,5 +181,10 @@ void tx_application_define(void *first_unused_memory) {
                    1, 1, TX_NO_TIME_SLICE, TX_AUTO_START);
 }
 #endif
-
 #endif // CI_BUILD
+
+#ifdef ESP_PLATFORM
+void app_main(void) {
+  main();
+}
+#endif
