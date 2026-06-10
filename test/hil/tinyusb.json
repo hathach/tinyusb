@@ -370,7 +370,7 @@
             "uid": "460029001951373031313335",
             "variant": [
                 { "name": "stm32f723disco", "flags": "" },
-                { "name": "stm32f723disco-DMA", "flags": "-DCFG_TUD_DWC2_DMA_ENABLE=1 -DCFG_TUH_DWC2_DMA_ENABLE=1" }
+                { "name": "stm32f723disco-DMA", "flags": "-DCFG_TUH_DWC2_DMA_ENABLE=1" }
             ],
             "tests": {
                 "device": true,
