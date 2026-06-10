@@ -1699,11 +1699,10 @@ def test_board(board: Board) -> tuple[str, int, list[str], list]:
                 failed_tests.append(test)
         rows.append((name + f1_suffix(f1), cells))
 
-    # flash board_test last to disable board's usb (skipped when --skip-flash is set)
+    # flash board_test last to disable board's usb (skipped when --skip-flash is set);
+    # this is teardown/park, not a test — not recorded in the report
     if not skip_flash:
-        _ec, status, _metric = test_example(board, flags_on_list[0], 'device/board_test')
-        if rows:
-            rows[0][1]['device/board_test'] = status
+        test_example(board, flags_on_list[0], 'device/board_test')
 
     return name, err_count, sorted(set(failed_tests)), rows
 
@@ -1715,7 +1714,7 @@ REPORT_JSON = 'hil_report.json'
 def render_matrix(rows_all: list) -> str:
     """Render rows (list of (row_label, {example: status})) as an aligned markdown
     matrix: columns = tests (bare names) centered, boards left-aligned."""
-    canonical = device_tests + dual_tests + host_test + ['device/board_test']
+    canonical = device_tests + dual_tests + host_test
     seen = set()
     for _, cells in rows_all:
         seen.update(cells)
