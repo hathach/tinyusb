@@ -1,4 +1,4 @@
-set(PYOCD_TARGET py32f071ex8)
+set(PYOCD_TARGET py32f071xb)
 set(LD_FILE_GNU ${CMAKE_CURRENT_LIST_DIR}/py32f071xb.ld)
 
 function(update_board TARGET)

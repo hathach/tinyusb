@@ -4,6 +4,6 @@ CFLAGS += \
   -DCFG_EXAMPLE_VIDEO_READONLY
 
 LD_FILE = $(BOARD_PATH)/py32f071xb.ld
-PYOCD_TARGET = py32f071ex8
+PYOCD_TARGET = py32f071xb
 
 flash: flash-pyocd
