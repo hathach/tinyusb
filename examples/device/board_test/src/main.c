@@ -129,6 +129,7 @@ int main(void) {
     // other architectures (e.g. RISC-V): spin
     #endif
   }
+  // no return: the loop never exits (an unreachable return trips IAR's Pe111)
 #else
   board_led_write(true);
 
@@ -139,9 +140,9 @@ int main(void) {
   #else
   board_test_loop(NULL);
   #endif
-#endif
 
   return 0;
+#endif
 }
 
 #ifdef ESP_PLATFORM
