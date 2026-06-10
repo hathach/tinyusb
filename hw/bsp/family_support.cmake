@@ -454,6 +454,12 @@ function(family_configure_common TARGET RTOS)
     BOARD_${BOARD_UPPER}
   )
 
+  # CI_BUILD marks firmware built in CI (GitHub Actions sets CI). Examples can use
+  # it to alter behavior under test, e.g. board_test idles to park HIL boards.
+  if(DEFINED ENV{CI})
+    target_compile_definitions(${TARGET} PUBLIC CI_BUILD=1)
+  endif()
+
   # compile define from command line
   if(DEFINED CFLAGS_CLI)
     separate_arguments(CFLAGS_CLI)

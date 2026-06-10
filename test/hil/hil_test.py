@@ -40,7 +40,6 @@ import os
 import random
 import re
 import select
-import struct
 import sys
 import time
 import signal
@@ -512,80 +511,6 @@ def reset_lm4flash(board):
     # lm4flash has no reset-only mode; it resets+runs on flash, so reset is a no-op
     flasher = board['flasher']
     return subprocess.CompletedProcess(args=['dummy'], returncode=0)
-
-
-# -------------------------------------------------------------
-# Erase: wipe the first flash sector (vector table) after a board's tests so the
-# MCU faults to an idle state — no USB, lower power, and faster than programming
-# device/board_test. Same (board, firmware) signature as flash_*; `firmware` is
-# only used to find the flash origin (jlink) or the esp flash metadata.
-# -------------------------------------------------------------
-def elf_flash_origin(elf_path: str) -> int:
-    """Flash base address (first PT_LOAD segment physical address) of a
-    little-endian ELF32 firmware — i.e. where the vector table is programmed."""
-    data = Path(elf_path).read_bytes()
-    if data[:4] != b'\x7fELF':
-        raise ValueError(f'not an ELF: {elf_path}')
-    e_phoff = struct.unpack_from('<I', data, 0x1c)[0]
-    e_phentsize = struct.unpack_from('<H', data, 0x2a)[0]
-    e_phnum = struct.unpack_from('<H', data, 0x2c)[0]
-    for i in range(e_phnum):
-        p_type, _off, _vaddr, p_paddr = struct.unpack_from('<IIII', data, e_phoff + i * e_phentsize)
-        if p_type == 1:  # PT_LOAD
-            return p_paddr
-    raise ValueError(f'no PT_LOAD segment in {elf_path}')
-
-
-def erase_jlink(board: Board, firmware: str) -> subprocess.CompletedProcess:
-    flasher = board['flasher']
-    origin = elf_flash_origin(f'{firmware}.elf')
-    script = ['halt', f'erase 0x{origin:x} 0x{origin + 4:x}', 'exit']
-    f_jlink = Path(f'{board["name"]}_erase.jlink')
-    with f_jlink.open('w') as f:
-        f.writelines(f'{s}\n' for s in script)
-    ret = run_cmd(f'JLinkExe -USB {flasher["uid"]} {flasher["args"]} -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile {f_jlink}')
-    f_jlink.unlink(missing_ok=True)
-    return ret
-
-
-def erase_stlink(board: Board, firmware: str) -> subprocess.CompletedProcess:
-    flasher = board['flasher']
-    return run_cmd(f'STM32_Programmer_CLI --connect port=swd sn={flasher["uid"]} --erase 0')
-
-
-def erase_openocd(board: Board, firmware: str) -> subprocess.CompletedProcess:
-    flasher = board['flasher']
-    return run_cmd(f'openocd -c "tcl_port disabled" -c "gdb_port disabled" -c "adapter serial {flasher["uid"]}" '
-                   f'{flasher["args"]} -c "init; reset halt; flash erase_sector 0 0 0; exit"')
-
-
-def erase_openocd_adi(board: Board, firmware: str) -> subprocess.CompletedProcess:
-    flasher = board['flasher']
-    openocd = OPENCOD_ADI_PATH / 'src' / 'openocd'
-    tcl_dir = OPENCOD_ADI_PATH / 'tcl'
-    return run_cmd(f'{openocd} -c "adapter serial {flasher["uid"]}" -s {tcl_dir} '
-                   f'{flasher["args"]} -c "init; reset halt; flash erase_sector 0 0 0; exit"')
-
-
-def erase_esptool(board: Board, firmware: str) -> subprocess.CompletedProcess:
-    flasher = board['flasher']
-    port = get_serial_dev(flasher["uid"], None, None, 0)
-    fw_dir = Path(f'{firmware}.bin').parent
-    with (fw_dir / 'config.env').open() as f:
-        idf_target = json.load(f)['IDF_TARGET']
-    return run_cmd(f'esptool --chip {idf_target} -p {port} {flasher["args"]} erase_region 0x0 0x4000',
-                   cwd=str(fw_dir))
-
-
-def erase_lm4flash(board: Board, firmware: str) -> subprocess.CompletedProcess:
-    # lm4flash has no erase command, but it erases the sectors it programs — so
-    # writing a blank (all-0xFF) image leaves the first sector erased.
-    flasher = board['flasher']
-    blank = Path(f'{board["name"]}_blank.bin')
-    blank.write_bytes(b'\xff' * 4096)
-    ret = run_cmd(f'lm4flash -s {flasher["uid"]} {flasher["args"]} {blank}')
-    blank.unlink(missing_ok=True)
-    return ret
 
 
 # -------------------------------------------------------------
@@ -1718,28 +1643,6 @@ def build_board(board: Board) -> tuple[str, int]:
     return name, failed
 
 
-def disable_board(board: Board, f1: str):
-    """Quiesce the board after its tests so it stops drawing power / enumerating
-    USB: erase the first flash sector (vector table) where the flasher supports
-    it, otherwise flash device/board_test. Skipped when --skip-flash is set.
-    Returns (report_key, status) or None."""
-    if skip_flash:
-        return None
-    name = board['name']
-    erase_fn = globals().get(f'erase_{board["flasher"]["name"].lower()}')
-    fw = find_firmware(name, f1, 'device/board_test')
-    if erase_fn and fw is not None:
-        start_s = time.time()
-        ret = erase_fn(board, str(fw))
-        status = 'pass' if ret.returncode == 0 else 'fail'
-        st = STATUS_OK if status == 'pass' else STATUS_FAILED
-        log_line(f'{name:40} {"erase (disable)":30} ...  {st}  in {time.time() - start_s:.1f}s')
-        return 'erase', status
-    # flasher has no erase support (or board_test not built): flash board_test
-    _ec, status, _ = test_example(board, f1, 'device/board_test')
-    return 'device/board_test', status
-
-
 def test_board(board: Board) -> tuple[str, int, list[str], list]:
     name = board['name']
     flasher = board['flasher']
@@ -1796,10 +1699,10 @@ def test_board(board: Board) -> tuple[str, int, list[str], list]:
                 failed_tests.append(test)
         rows.append((name + f1_suffix(f1), cells))
 
-    # disable the board's usb after its tests (erase first flash sector, or flash
-    # board_test where the flasher can't erase); skipped when --skip-flash is set.
-    # This is teardown, not a test — not recorded in the report.
-    disable_board(board, flags_on_list[0])
+    # flash board_test last to disable board's usb (skipped when --skip-flash is set);
+    # this is teardown/park, not a test — not recorded in the report
+    if not skip_flash:
+        test_example(board, flags_on_list[0], 'device/board_test')
 
     return name, err_count, sorted(set(failed_tests)), rows
 
