@@ -1643,16 +1643,6 @@ def build_board(board: Board) -> tuple[str, int]:
     return name, failed
 
 
-def disable_board(board: Board, f1: str):
-    """Quiesce the board after its tests so it stops drawing power / enumerating
-    USB: flash device/board_test, which CI builds as a quiet low-power idle loop
-    (CI_BUILD, see examples/device/board_test). Skipped when --skip-flash
-    is set."""
-    if skip_flash:
-        return
-    test_example(board, f1, 'device/board_test')
-
-
 def test_board(board: Board) -> tuple[str, int, list[str], list]:
     name = board['name']
     flasher = board['flasher']
@@ -1709,10 +1699,11 @@ def test_board(board: Board) -> tuple[str, int, list[str], list]:
                 failed_tests.append(test)
         rows.append((name + f1_suffix(f1), cells))
 
-    # disable the board's usb after its tests by flashing the idle board_test;
-    # skipped when --skip-flash is set.
-    # This is teardown, not a test — not recorded in the report.
-    disable_board(board, flags_on_list[0])
+    # flash board_test last to disable board's usb (skipped when --skip-flash is set)
+    if not skip_flash:
+        _ec, status, _metric = test_example(board, flags_on_list[0], 'device/board_test')
+        if rows:
+            rows[0][1]['device/board_test'] = status
 
     return name, err_count, sorted(set(failed_tests)), rows
 
@@ -1724,7 +1715,7 @@ REPORT_JSON = 'hil_report.json'
 def render_matrix(rows_all: list) -> str:
     """Render rows (list of (row_label, {example: status})) as an aligned markdown
     matrix: columns = tests (bare names) centered, boards left-aligned."""
-    canonical = device_tests + dual_tests + host_test
+    canonical = device_tests + dual_tests + host_test + ['device/board_test']
     seen = set()
     for _, cells in rows_all:
         seen.update(cells)
