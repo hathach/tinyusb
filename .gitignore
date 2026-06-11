@@ -12,6 +12,7 @@ hil_report.json
 *.env
 *.ind
 *.log
+*.sarif
 *.map
 *.obj
 *.jlink
