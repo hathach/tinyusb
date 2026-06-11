@@ -209,7 +209,7 @@ static uint16_t _tx_nonseg_len_to_mps(midi2d_tx_t* tx) {
     uint8_t pkt_words = midi2_ump_word_count(mt);
     uint16_t pkt_bytes = (uint16_t) pkt_words * 4;
 
-    if (pkt_bytes == 0) break;
+    if (pkt_bytes == 0) break; //-V547 defensive guard; midi2_ump_word_count() currently never returns 0
     if ((uint16_t) (available - bytes) < pkt_bytes) break;
     if ((uint16_t) (bytes + pkt_bytes) > tx->mps) break;
 
@@ -313,7 +313,7 @@ static void _nego_send_stream_text(midi2d_interface_t* p_midi, uint16_t status, 
            | ((uint32_t) status << 16);
 
     const char* p = str + offset;
-    if (n > 0) msg[0] |= ((uint32_t)(uint8_t) p[0] << 8);
+    if (n > 0) msg[0] |= ((uint32_t)(uint8_t) p[0] << 8); //-V547 readability; n >= 1 in this chunking loop
     if (n > 1) msg[0] |= (uint32_t)(uint8_t) p[1];
     for (uint8_t i = 2; i < n; i++) {
       uint8_t word_idx = (uint8_t)(1 + (i - 2) / 4);

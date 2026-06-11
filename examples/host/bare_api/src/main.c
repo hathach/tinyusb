@@ -161,7 +161,7 @@ static void print_one_device(uint8_t daddr) {
 
   // Get configuration descriptor with sync API
   if (XFER_RESULT_SUCCESS == tuh_descriptor_get_configuration_sync(daddr, 0, temp_buf, sizeof(temp_buf))) {
-    parse_config_descriptor(daddr, (tusb_desc_configuration_t *) temp_buf);
+    parse_config_descriptor(daddr, (tusb_desc_configuration_t *) temp_buf); //-V641 temp_buf is a raw byte buffer holding the full configuration descriptor
   }
 }
 

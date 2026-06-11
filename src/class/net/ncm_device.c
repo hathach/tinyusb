@@ -613,7 +613,7 @@ static bool recv_validate_datagram(const recv_ntb_t *ntb, uint32_t len) {
     TU_LOG_DRV("(EE) ill block length2: %d > %d\n", nth16->wBlockLength, CFG_TUD_NCM_OUT_NTB_MAX_SIZE);
     return false;
   }
-  if (nth16->wNdpIndex < sizeof(nth16) || nth16->wNdpIndex > len - (sizeof(ndp16_t) + 2 * sizeof(ndp16_datagram_t))) {
+  if (nth16->wNdpIndex < sizeof(nth16_t) || nth16->wNdpIndex > len - (sizeof(ndp16_t) + 2 * sizeof(ndp16_datagram_t))) {
     TU_LOG_DRV("(EE) ill position of first ndp: %d (%lu)\n", nth16->wNdpIndex, len);
     return false;
   }

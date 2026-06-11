@@ -84,10 +84,14 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
   return false;
 }
 
+// Hidden from PVS-Studio: the analyzer binds dcd_deinit() calls to this always-false weak stub
+// (it cannot model the linker picking the port implementation) and flags dead code after TU_ASSERT(dcd_deinit()).
+#ifndef PVS_STUDIO
 TU_ATTR_WEAK bool dcd_deinit(uint8_t rhport) {
   (void) rhport;
   return false;
 }
+#endif
 
 TU_ATTR_WEAK void dcd_connect(uint8_t rhport) {
   (void) rhport;

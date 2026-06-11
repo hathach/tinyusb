@@ -536,7 +536,7 @@ static bool _update_streaming_parameters(videod_streaming_interface_t const *stm
         break;
 
       case VIDEO_CS_ITF_VS_FORMAT_MJPEG:
-        frame_size = (uint_fast32_t)frm->wWidth * frm->wHeight * 16 / 8; /* YUV422 */
+        frame_size = (uint_fast32_t)frm->wWidth * frm->wHeight * 16 / 8; /* YUV422 */ //-V1037 same estimate as FRAME_BASED by design
         break;
 
       case VIDEO_CS_ITF_VS_FORMAT_FRAME_BASED:
@@ -651,7 +651,7 @@ static bool _negotiate_streaming_parameters(videod_streaming_interface_t const *
         break;
 
       case VIDEO_CS_ITF_VS_FORMAT_MJPEG:
-        frame_size = (uint_fast32_t)frm->wWidth * frm->wHeight * 16 / 8; /* YUV422 */
+        frame_size = (uint_fast32_t)frm->wWidth * frm->wHeight * 16 / 8; /* YUV422 */ //-V1037 same estimate as FRAME_BASED by design
         break;
 
       case VIDEO_CS_ITF_VS_FORMAT_FRAME_BASED:
@@ -1302,7 +1302,7 @@ bool tud_video_n_frame_xfer(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *bu
   uint8_t ep_addr = 0;
   for (uint_fast8_t i = 0; i < CFG_TUD_VIDEO_STREAMING; ++i) {
     uint_fast16_t ofs_ep = stm->desc.ep[i];
-    if (0 == ofs_ep) {
+    if (0 == ofs_ep) { //-V547 provably false only when CFG_TUD_VIDEO_STREAMING == 1
       continue;
     }
     ep_addr = _desc_ep_addr(desc + ofs_ep);
