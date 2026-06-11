@@ -163,6 +163,7 @@ pvs-studio-analyzer analyze \
   -f examples/cmake-build-raspberry_pi_pico/compile_commands.json \
   -R .PVS-Studio/.pvsconfig \
   -o pvs-report.log -j12 \
+  --security-related-issues \
   --misra-c-version 2023 --misra-cpp-version 2008 --use-old-parser
 
 # Specific files: -S takes a plaintext list (one path per line), not paths directly:
@@ -172,6 +173,7 @@ pvs-studio-analyzer analyze \
   -R .PVS-Studio/.pvsconfig \
   -S files.txt \
   -o pvs-report.log -j12 \
+  --security-related-issues \
   --misra-c-version 2023 --misra-cpp-version 2008 --use-old-parser
 
 plog-converter -a GA:1,2 -t errorfile pvs-report.log     # view results

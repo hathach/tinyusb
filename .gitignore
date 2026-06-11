@@ -10,6 +10,7 @@ latex
 *.env
 *.ind
 *.log
+*.sarif
 *.map
 *.obj
 *.jlink

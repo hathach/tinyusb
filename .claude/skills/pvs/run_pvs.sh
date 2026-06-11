@@ -69,6 +69,7 @@ pvs-studio-analyzer analyze \
   -f "${COMPILE_DB}" \
   -R .PVS-Studio/.pvsconfig \
   -o "${REPORT_LOG}" -j"${JOBS}" \
+  --security-related-issues \
   --misra-c-version 2023 --misra-cpp-version 2008 --use-old-parser \
   "$@"
 
