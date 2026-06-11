@@ -153,7 +153,8 @@ Reports land in `cmake-metrics/<board>/metrics_compare.md` (per-board) and `cmak
 
 ## Static Analysis (PVS-Studio)
 
-Requires `compile_commands.json` (CMake `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`). The
+Requires `compile_commands.json`, which the examples build exports by default
+(`hw/bsp/family_support.cmake` sets `CMAKE_EXPORT_COMPILE_COMMANDS ON`). The
 `pvs` skill (`.claude/skills/pvs/SKILL.md`) wraps the build + analyze flow for a
 board; the commands below are the underlying steps.
 

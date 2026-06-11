@@ -39,8 +39,10 @@ JOBS="$(nproc 2>/dev/null || echo 4)"
 if ! pvs-studio-analyzer lic-info >/dev/null 2>&1; then
   if [ -n "${PVS_STUDIO_CREDENTIALS:-}" ]; then
     echo ">>> Registering PVS-Studio license from PVS_STUDIO_CREDENTIALS"
-    # shellcheck disable=SC2086 # credentials expects two whitespace-separated args
-    pvs-studio-analyzer credentials $PVS_STUDIO_CREDENTIALS
+    # Split "<name> <key>" into exactly two fields, quoted, so a key containing
+    # glob chars or extra spaces can't be word-split/expanded.
+    read -r _pvs_name _pvs_key <<< "$PVS_STUDIO_CREDENTIALS"
+    pvs-studio-analyzer credentials "$_pvs_name" "$_pvs_key"
   else
     echo "ERROR: no PVS-Studio license found and PVS_STUDIO_CREDENTIALS is unset." >&2
     exit 1
