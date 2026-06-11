@@ -397,7 +397,15 @@ jobs:
         run: python3 tools/get_deps.py $BUILD_ARGS
 
       - name: Build
-        run: python3 tools/build.py --toolchain iar $BUILD_ARGS
+        run: |
+          # Each variant carries its own --build-name/--cflag, which are global to a
+          # single build.py invocation — so build one matrix entry at a time rather
+          # than joining them (joining would leak a variant's flags onto every board).
+          readarray -t ENTRIES < <(python test/hil/hil_ci_set_matrix.py test/hil/hfp.json | jq -r '.["arm-gcc"][]')
+          for entry in "${ENTRIES[@]}"; do
+            echo "+ tools/build.py --toolchain iar $entry"
+            python3 tools/build.py --toolchain iar $entry
+          done
 
       - name: Test on actual hardware (hardware in the loop)
         run: |
