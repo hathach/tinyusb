@@ -95,7 +95,6 @@ void tuh_cdc_mount_cb(uint8_t idx) {
   printf("CDC Interface is mounted: address = %u, itf_num = %u\r\n", itf_info.daddr,
          itf_info.desc.bInterfaceNumber);
 
-#ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
   // If CFG_TUH_CDC_LINE_CODING_ON_ENUM is defined, line coding will be set by tinyusb stack
   // while eneumerating new cdc device
   cdc_line_coding_t line_coding = {0};
@@ -103,11 +102,6 @@ void tuh_cdc_mount_cb(uint8_t idx) {
     printf("  Baudrate: %" PRIu32 ", Stop Bits : %u\r\n", line_coding.bit_rate, line_coding.stop_bits);
     printf("  Parity  : %u, Data Width: %u\r\n", line_coding.parity, line_coding.data_bits);
   }
-#else
-  // Set Line Coding upon mounted
-  cdc_line_coding_t new_line_coding = { 115200, CDC_LINE_CODING_STOP_BITS_1, CDC_LINE_CODING_PARITY_NONE, 8 };
-  tuh_cdc_set_line_coding(idx, &new_line_coding, NULL, 0);
-#endif
 }
 
 // Invoked when a device with CDC interface is unmounted

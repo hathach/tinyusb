@@ -2,6 +2,7 @@ family:espressif
 mcu:LPC43XX
 mcu:MIMXRT1XXX
 mcu:STM32C0
+mcu:STM32C5
 mcu:STM32G0
 mcu:STM32H5
 mcu:STM32F2

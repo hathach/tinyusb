@@ -104,6 +104,7 @@ typedef struct {
   uint16_t xferred_bytes;  // bytes that accumulate transferred though USB bus for the whole hcd_edpt_xfer(), which can
                            // be composed of multiple channel_xfer_start() (retry with NAK/NYET)
   uint16_t fifo_bytes;     // bytes written/read from/to FIFO (may not be transferred on USB bus).
+  uint8_t  retry_disabled; // 1: channel was disabled to throttle a split retry (NAK in / XactErr out); re-arm on its halt
 } hcd_xfer_t;
 
 typedef struct {
@@ -1137,7 +1138,16 @@ static bool handle_channel_in_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
   // TU_LOG1("in  hcint = %02lX\r\n", hcint);
 
   if (hcint & HCINT_HALTED) {
-    if (hcint & (HCINT_XFER_COMPLETE | HCINT_STALL | HCINT_BABBLE_ERR)) {
+    if (xfer->retry_disabled) {
+      // Halt from our split-NAK throttle disable (below): re-arm the start-split, or let teardown finish
+      // if the endpoint is closing. Programming Guide 3.5 "Halting a Channel" (p73).
+      xfer->retry_disabled = 0;
+      if (xfer->closing) {
+        is_done = true;
+      } else {
+        channel_send_in_token(dwc2, channel);
+      }
+    } else if (hcint & (HCINT_XFER_COMPLETE | HCINT_STALL | HCINT_BABBLE_ERR)) {
       const uint16_t remain_bytes = (uint16_t) hctsiz.xfer_size;
       const uint16_t remain_packets = hctsiz.packet_count;
       const uint16_t actual_len = edpt->buflen - remain_bytes;
@@ -1203,7 +1213,15 @@ static bool handle_channel_in_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
       channel->hcintmsk &= ~(HCINT_NAK | HCINT_DATATOGGLE_ERR);
       hcsplt.split_compl = 0; // restart with start-split
       channel->hcsplt = hcsplt.value;
-      channel_xfer_in_retry(dwc2, ch_id, hcint);
+      // Persistent split bulk/control IN NAK (e.g. idle polled endpoint): re-enabling immediately storms
+      // the ISR and starves the task. Disable + re-arm on the resulting halt to throttle (like the slave
+      // path); no frame deferral. Programming Guide 3.5 (p73) Note permits disable on NAK/FrmOvrn splits.
+      if ((hcint & HCINT_NAK) && hcsplt.split_en && !channel_is_periodic(channel->hcchar)) {
+        xfer->retry_disabled = 1;
+        channel_disable(dwc2, channel);
+      } else {
+        channel_xfer_in_retry(dwc2, ch_id, hcint);
+      }
     } else if (hcint & HCINT_FARME_OVERRUN) {
       // retry start-split in next binterval
       channel_xfer_in_retry(dwc2, ch_id, hcint);
@@ -1228,7 +1246,16 @@ static bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hc
   // TU_LOG1("out hcint = %02lX\r\n", hcint);
 
   if (hcint & HCINT_HALTED) {
-    if (hcint & (HCINT_XFER_COMPLETE | HCINT_STALL)) {
+    if (xfer->retry_disabled) {
+      // Halt from our split-XactErr throttle disable (below): re-issue the start-split (pointers already
+      // rewound), giving the hub TT a recovery gap. Programming Guide 3.5 "Halting a Channel" (p73).
+      xfer->retry_disabled = 0;
+      if (xfer->closing) {
+        is_done = true;
+      } else {
+        channel_xfer_start(dwc2, ch_id);
+      }
+    } else if (hcint & (HCINT_XFER_COMPLETE | HCINT_STALL)) {
       is_done = true;
       xfer->err_count = 0;
       if (hcint & HCINT_XFER_COMPLETE) {
@@ -1251,9 +1278,17 @@ static bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hc
          xfer->result = XFER_RESULT_FAILED;
          is_done = true;
        } else {
-         // clean up transfer so far and start again
+         // Rewind, then retry the start-split. Non-periodic SPLIT throttles via channel_disable + re-arm on
+         // the halt (immediate re-fire exhausts the retry budget; the disable gives the hub TT a recovery
+         // gap, like slave). Periodic split is excluded: channel_disable() is a no-op for it, so the halt
+         // never fires and the channel would wedge. Non-split re-inits immediately (Programming Guide 5.1.2.3).
          channel_xfer_out_wrapup(dwc2, ch_id);
-         channel_xfer_start(dwc2, ch_id);
+         if (hcsplt.split_en && !channel_is_periodic(channel->hcchar)) {
+           xfer->retry_disabled = 1;
+           channel_disable(dwc2, channel);
+         } else {
+           channel_xfer_start(dwc2, ch_id);
+         }
        }
      }
     } else if (hcint & HCINT_NYET) {
@@ -1271,6 +1306,12 @@ static bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hc
         channel->hcsplt = hcsplt.value;
         channel->hcchar |= HCCHAR_CHENA;
       }
+    } else if ((hcint & HCINT_NAK) && hcsplt.split_en) {
+      // Split OUT NAK: rewind + retry the start-split, else the channel stalls (Programming Guide 5.1.4.2).
+      // Non-split OUT NAK is core-handled (5.1.2.2), so this is split-only.
+      xfer->err_count = 0;
+      channel_xfer_out_wrapup(dwc2, ch_id);
+      channel_xfer_start(dwc2, ch_id);
     }
 
     if (xfer->closing == 1) {

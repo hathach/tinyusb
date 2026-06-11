@@ -18,7 +18,7 @@ Bias toward caution over speed. For trivial tasks, use judgment.
 - **Language/style:** C99, 2-space indent (no tabs), snake_case helpers, `UPPER_CASE` macros. Public APIs use `tud_`/`tuh_`; macros use `TU_`. Headers self-contained with `#if CFG_TUSB_MCU` guards.
 - **Safety:** no dynamic allocation; defer ISR work to task context; use `TU_ASSERT()` for error checks; always check return values; include order: C stdlib → tusb common → drivers → classes.
 - **Layout:** `src/` core, `hw/{mcu,bsp}/` MCU+BSP, `examples/{device,host,dual}/`, `test/{unit-test,fuzz,hil}/`, `docs/`, `tools/`.
-- **Commits/PRs:** imperative mood, scoped changes, link issues, include test/build evidence.
+- **Commits/PRs:** imperative mood, scoped changes, link issues, include test/build evidence. After opening a PR, monitor it and drive it to green: address automated review comments (Copilot/Codex/Claude) and fix any failing CI builds, pushing follow-up commits until checks pass and review threads are resolved. Useful: `gh pr checks <num> --watch`, `gh pr view <num> --comments`.
 - **Formatting/lint:** `clang-format` (`.clang-format`), `codespell` (`.codespellrc`), run `pre-commit run --all-files` before submitting.
 
 ## Bootstrap
@@ -204,7 +204,7 @@ Device examples need real hardware to validate runtime behavior; must at least b
 
 ## References
 
-- MCU reference manuals, datasheets, schematics: `$HOME/Documents/Calibre Library`.
+- MCU reference manuals, datasheets, schematics: `$HOME/Documents/calibre-library`.
 - Supported MCUs/boards: `hw/bsp/` and `docs/reference/boards.rst`.
 - USB classes: `src/class/{cdc,hid,msc,audio,…}/` — each has `*_device.c` and `*_host.c`.
 - Key files: `src/tusb.h`, `src/tusb_config.h`, `tools/get_deps.py`, `tools/build.py`, `test/unit-test/project.yml`.

@@ -2,6 +2,11 @@ cmake_minimum_required(VERSION 3.20)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/../../../hw/bsp/family_support.cmake)
 
+# Need to set Espressif defaults before project() is called
+if(FAMILY STREQUAL "espressif")
+  list(APPEND SDKCONFIG_DEFAULTS "${CMAKE_CURRENT_LIST_DIR}/sdkconfig.defaults")
+endif()
+
 project(audio_test_freertos C CXX ASM)
 
 # Checks this example is valid for the family and initializes the project

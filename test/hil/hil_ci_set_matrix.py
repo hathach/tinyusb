@@ -44,19 +44,19 @@ def main():
                 toolchain = 'arm-gcc'
 
             build_board = f'-b {name}'
-            if 'build' in board:
-                if 'args' in board['build']:
-                    build_board += ' ' + ' '.join(f'-D{a}' for a in board['build']['args'])
-                if 'flags_on' in board['build']:
-                    for f in board['build']['flags_on']:
-                        if f == '':
-                            append_build_arg(toolchain, build_board)
-                        else:
-                            append_build_arg(toolchain, f'{build_board} -f1 {f.replace(" ", " -f1 ")}')
-                else:
-                    append_build_arg(toolchain, build_board)
-            else:
-                append_build_arg(toolchain, build_board)
+            if 'build' in board and 'args' in board['build']:
+                build_board += ' ' + ' '.join(f'-D{a}' for a in board['build']['args'])
+
+            # Each variant builds into cmake-build-<variant.name> with its raw CFLAGS.
+            # No 'variant' -> a single build named after the board.
+            variants = board.get('variant') or [{'name': name, 'flags': ''}]
+            for v in variants:
+                arg = build_board
+                if v['name'] != name:
+                    arg += f' --build-name {v["name"]}'
+                for tok in v.get('flags', '').split():
+                    arg += f' --cflag={tok}'
+                append_build_arg(toolchain, arg)
 
     print(json.dumps(matrix))
 

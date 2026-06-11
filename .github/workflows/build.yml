@@ -193,6 +193,36 @@ jobs:
           path: metrics_compare.md
 
   # ---------------------------------------
+  # Keep the metrics baseline available on no-code-change pushes
+  # The code-metrics job only runs (and uploads metrics-tinyusb) when code changed, so a
+  # workflow/docs-only push to master would leave the latest run without a baseline for PRs
+  # to compare against. Carry the previous artifact forward so the baseline is never missing.
+  # ---------------------------------------
+  metrics-carry-forward:
+    needs: [ check-paths ]
+    if: github.event_name == 'push' && needs.check-paths.outputs.code_changed != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download previous metrics baseline from this branch
+        uses: dawidd6/action-download-artifact@v11
+        with:
+          workflow: build.yml
+          workflow_conclusion: ''      # any conclusion, matching the PR-side baseline download
+          search_artifacts: true       # scan back past runs that lack the artifact (e.g. earlier no-code pushes)
+          branch: ${{ github.ref_name }}
+          name: metrics-tinyusb
+          path: .
+          if_no_artifact_found: warn
+        continue-on-error: true        # best-effort: never make a no-code push red
+
+      - name: Re-publish baseline so the latest run keeps it
+        if: hashFiles('metrics.json') != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: metrics-tinyusb
+          path: metrics.json
+
+  # ---------------------------------------
   # Build Make/CMake on Windows/MacOS
   # ---------------------------------------
   build-os:
@@ -276,6 +306,9 @@ jobs:
     env:
       HIL_JSON: ${{ matrix.hil_json }}
     steps:
+      - name: Set HIL report dir (sibling of workspace; persists across run attempts)
+        run: echo "HIL_REPORT_DIR=$(dirname "$GITHUB_WORKSPACE")/hil-report" >> "$GITHUB_ENV"
+
       - name: Get Skip Boards from previous run
         if: github.run_attempt != '1'
         run: |
@@ -313,6 +346,15 @@ jobs:
           else
             exit 1
           fi)
+
+      - name: Upload HIL report
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: hil-report-${{ matrix.display }}
+          path: ${{ env.HIL_REPORT_DIR }}/hil_report.md
+          if-no-files-found: ignore
+          overwrite: true
 
   # ---------------------------------------
   # Hardware in the loop (HIL)
@@ -355,8 +397,67 @@ jobs:
         run: python3 tools/get_deps.py $BUILD_ARGS
 
       - name: Build
-        run: python3 tools/build.py --toolchain iar $BUILD_ARGS
+        run: |
+          # Each variant carries its own --build-name/--cflag, which are global to a
+          # single build.py invocation — so build one matrix entry at a time rather
+          # than joining them (joining would leak a variant's flags onto every board).
+          readarray -t ENTRIES < <(python test/hil/hil_ci_set_matrix.py test/hil/hfp.json | jq -r '.["arm-gcc"][]')
+          for entry in "${ENTRIES[@]}"; do
+            echo "+ tools/build.py --toolchain iar $entry"
+            python3 tools/build.py --toolchain iar $entry
+          done
 
       - name: Test on actual hardware (hardware in the loop)
         run: |
           python3 test/hil/hil_test.py hfp.json
+
+      - name: Upload HIL report
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: hil-report-hfp-iar
+          path: hil_report.md
+          if-no-files-found: ignore
+          overwrite: true
+
+  # ---------------------------------------
+  # Combine HIL results from the rigs into a single sticky PR comment (one table per rig)
+  # ---------------------------------------
+  hil-report:
+    needs: [ hil-tinyusb, hil-hfp-iar ]
+    if: |
+      always() &&
+      (needs.hil-tinyusb.result != 'skipped' || needs.hil-hfp-iar.result != 'skipped') &&
+      github.event_name == 'pull_request' &&
+      github.repository_owner == 'hathach' &&
+      github.event.pull_request.head.repo.fork == false
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Download HIL reports
+        uses: actions/download-artifact@v5
+        with:
+          pattern: hil-report-*
+          path: hil-reports
+
+      - name: Combine rig reports (one table per rig)
+        run: |
+          {
+            echo "## Hardware-in-the-loop (HIL) Test Report"
+            echo
+            for d in hil-reports/hil-report-*; do
+              [ -d "$d" ] || continue
+              echo "### ${d#hil-reports/hil-report-}"
+              echo
+              cat "$d/hil_report.md" 2>/dev/null || echo "_no report produced_"
+              echo
+            done
+          } > hil_combined.md
+          cat hil_combined.md
+
+      - name: Post HIL report as sticky PR comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: hil-report
+          path: hil_combined.md

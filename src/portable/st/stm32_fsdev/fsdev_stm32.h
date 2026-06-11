@@ -36,6 +36,10 @@
   #include "stm32c0xx.h"
   #define FSDEV_HAS_SBUF_ISO 1
 
+#elif CFG_TUSB_MCU == OPT_MCU_STM32C5
+  #include "stm32c5xx.h"
+  #define FSDEV_HAS_SBUF_ISO 1
+
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F0
   #include "stm32f0xx.h"
   #define FSDEV_HAS_SBUF_ISO 0
@@ -177,7 +181,7 @@ static const IRQn_Type fsdev_irq[] = {
     USB_IRQn,
   #elif TU_CHECK_MCU(OPT_MCU_STM32L5, OPT_MCU_STM32U3)
     USB_FS_IRQn,
-  #elif TU_CHECK_MCU(OPT_MCU_STM32C0, OPT_MCU_STM32H5, OPT_MCU_STM32U0)
+  #elif TU_CHECK_MCU(OPT_MCU_STM32C0, OPT_MCU_STM32C5, OPT_MCU_STM32H5, OPT_MCU_STM32U0)
     USB_DRD_FS_IRQn,
   #elif CFG_TUSB_MCU == OPT_MCU_STM32G0
     #ifdef STM32G0B0xx
@@ -262,30 +266,45 @@ TU_ATTR_ALWAYS_INLINE static inline void fsdev_int_disable(uint8_t rhport) {
  *
  * CTR may trigger before final PMA SRAM accesses complete on OUT transfers.
  * Insert delay before reading PMA count/data.
- * Max CPU frequency in MHz, used to derive conservative FSDEV PMA delay defaults.
+ * Max CPU frequency in Hz, used to derive conservative FSDEV PMA delay defaults.
  */
 #if CFG_TUSB_MCU == OPT_MCU_STM32H5
-  #define FSDEV_STM32_CPU_MHZ 250U
+  #define FSDEV_STM32_CPU_HZ 250000000U
 #elif CFG_TUSB_MCU == OPT_MCU_STM32U5
-  #define FSDEV_STM32_CPU_MHZ 160U
+  #define FSDEV_STM32_CPU_HZ 160000000U
 #elif CFG_TUSB_MCU == OPT_MCU_STM32U3
-  #define FSDEV_STM32_CPU_MHZ 96U
+  #define FSDEV_STM32_CPU_HZ 96000000U
 #elif CFG_TUSB_MCU == OPT_MCU_STM32U0
-  #define FSDEV_STM32_CPU_MHZ 56U
+  #define FSDEV_STM32_CPU_HZ 56000000U
 #elif CFG_TUSB_MCU == OPT_MCU_STM32G0
-  #define FSDEV_STM32_CPU_MHZ 64U
+  #define FSDEV_STM32_CPU_HZ 64000000U
 #elif CFG_TUSB_MCU == OPT_MCU_STM32C0
-  #define FSDEV_STM32_CPU_MHZ 48U
+  #define FSDEV_STM32_CPU_HZ 48000000U
+#elif CFG_TUSB_MCU == OPT_MCU_STM32C5
+  #define FSDEV_STM32_CPU_HZ 144000000U
 #endif
 
+// 11 cycles / 800ns = ~13750000 cycles per second, used to derive conservative FSDEV PMA delay defaults
 #ifndef CFG_TUSB_FSDEV_BTABLE_FS_DELAY_COUNT
-  #define CFG_TUSB_FSDEV_BTABLE_FS_DELAY_COUNT (FSDEV_STM32_CPU_MHZ / 4U)
+  #define CFG_TUSB_FSDEV_BTABLE_FS_DELAY_COUNT (FSDEV_STM32_CPU_HZ / 13750000U)
 #endif
 
+// 11 cycles / 6.4us = ~1718750 cycles per second, used to derive conservative FSDEV PMA delay defaults
 #ifndef CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT
-  #define CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT (FSDEV_STM32_CPU_MHZ * 2U)
+  #define CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT (FSDEV_STM32_CPU_HZ / 1718750U)
 #endif
 
+/**
+ * LDR from SP-relative: 2 cycles
+ * SUBS: 1 cycle
+ * STR to SP-relative: 2 cycles
+ * LDR from SP-relative: 2 cycles
+ * CMP: 1 cycle
+ * BNE:
+ * taken: 3 cycles total (often shown as 1 + pipeline refill)
+ * not taken: 1 cycle
+ * Total cycles if delay is needed: 11 cycles
+ */
 TU_ATTR_ALWAYS_INLINE static inline void fsdev_btable_workaround_delay(bool low_speed) {
   volatile uint32_t cycle_count = low_speed ? CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT : CFG_TUSB_FSDEV_BTABLE_FS_DELAY_COUNT;
   while (cycle_count > 0U) {
