@@ -53,6 +53,25 @@ def preprocess_readme():
     tgt = Path(__file__).parent.parent / "README_processed.rst"
     if src.exists():
         content = src.read_text(encoding='utf-8')
+        # if the matching is inside a table, keep the table cell width by adding the same number of spaces in the end of the line
+        # match pattern: | ... `... <docs/...>`_ ... |
+        # change into:   | ... `... <...>`_ ...      |
+        def _rewrite_table_line(line):
+            if not (line.startswith('|') and line.rstrip().endswith('|')):
+                return line
+
+            rewritten = re.sub(r"<docs/([^>]+)>", r"<\1>", line)
+            delta = len(line) - len(rewritten) - 1  # -1 for rst->html
+
+            if delta > 0:
+                last_pipe = rewritten.rfind('|')
+                if last_pipe >= 0:
+                    rewritten = rewritten[:last_pipe] + (' ' * delta) + rewritten[last_pipe:]
+
+            return rewritten
+
+        content = ''.join(_rewrite_table_line(line) for line in content.splitlines(keepends=True))
+
         content = re.sub(r"docs/", r"", content)
         content = re.sub(r"\.rst\b", r".html", content)
         if not content.endswith("\n"):

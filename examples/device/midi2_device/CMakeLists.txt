@@ -30,4 +30,6 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 family_configure_device_example(${PROJECT_NAME} noos)
 
 # Suppress pre-existing warning in usbd.c (uint8_t comparison always true/false)
-target_compile_options(${PROJECT_NAME} PRIVATE -Wno-type-limits)
+if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
+  target_compile_options(${PROJECT_NAME} PRIVATE -Wno-type-limits)
+endif()

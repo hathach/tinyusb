@@ -372,6 +372,8 @@ def main():
     parser.add_argument('-b', '--board', action='append', default=[], help='Boards to fetch')
     parser.add_argument('-D', '--define', action='append', default=[], help='Have no effect')
     parser.add_argument('-f1', '--build-flags-on', action='append', default=[], help='Have no effect')
+    parser.add_argument('--build-name', default=None, help='Have no effect')
+    parser.add_argument('--cflag', action='append', default=[], help='Have no effect')
     args = parser.parse_args()
 
     families = args.families
