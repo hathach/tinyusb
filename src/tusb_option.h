@@ -123,9 +123,6 @@
 #define OPT_MCU_NUC120            802
 #define OPT_MCU_NUC505            803
 
-// Puya
-#define OPT_MCU_PY32F0            850 ///< Puya PY32F0
-
 // Espressif
 #define OPT_MCU_ESP32S2           900 ///< Espressif ESP32-S2
 #define OPT_MCU_ESP32S3           901 ///< Espressif ESP32-S3
@@ -223,6 +220,9 @@
 
 // HPMicro
 #define OPT_MCU_HPM              2600  ///< HPMicro
+
+// Puya
+#define OPT_MCU_PY32F0           2700  ///< Puya PY32F0
 
 // Check if configured MCU is one of listed
 // Apply TU_MCU_IS_EQUAL with || as separator to list of input
@@ -369,13 +369,11 @@
 //------------ MUSB --------------//
 #if defined(TUP_USBIP_MUSB)
   #define CFG_TUD_EDPT_DEDICATED_HWFIFO              1
-  #if defined(TUP_USBIP_MUSB_PY32)
-    #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE         1 // 8 bit data
-  #else
-    #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE         4 // 32 bit data
+  #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE           4 // 32 bit data
+  #if !defined(TUP_USBIP_MUSB_PY32)
     #define CFG_TUSB_FIFO_HWFIFO_DATA_ODD_16BIT_ACCESS // allow odd 16bit access
-    #define CFG_TUSB_FIFO_HWFIFO_DATA_ODD_8BIT_ACCESS  // allow odd 8bit access
   #endif
+  #define CFG_TUSB_FIFO_HWFIFO_DATA_ODD_8BIT_ACCESS    // allow odd 8bit access
   #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE           0 // fixed hwfifo
 #endif
 

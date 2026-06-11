@@ -747,28 +747,38 @@ void dcd_remote_wakeup(uint8_t rhport) {
   musb_regs->power &= ~MUSB_POWER_RESUME;
 }
 
+#if defined(TUP_USBIP_MUSB_PY32)
+
+// Connect by enabling internal pull-up resistor on D+/D-
+void dcd_connect(uint8_t rhport)
+{
+  (void) rhport;
+}
+
+// Disconnect by disabling internal pull-up resistor on D+/D-
+void dcd_disconnect(uint8_t rhport)
+{
+  (void) rhport;
+}
+
+#else
+
 // Connect by enabling internal pull-up resistor on D+/D-
 void dcd_connect(uint8_t rhport)
 {
   musb_regs_t* musb_regs = MUSB_REGS(rhport);
-#if defined(TUP_USBIP_MUSB_PY32)
-  (void) musb_regs;
-#else
   musb_regs->power |= TUD_OPT_HIGH_SPEED ? MUSB_POWER_HSENAB : 0;
   musb_regs->power |= MUSB_POWER_SOFTCONN;
-#endif
 }
 
 // Disconnect by disabling internal pull-up resistor on D+/D-
 void dcd_disconnect(uint8_t rhport)
 {
   musb_regs_t* musb_regs = MUSB_REGS(rhport);
-#if defined(TUP_USBIP_MUSB_PY32)
-  (void) musb_regs;
-#else
   musb_regs->power &= ~MUSB_POWER_SOFTCONN;
-#endif
 }
+
+#endif
 
 void dcd_sof_enable(uint8_t rhport, bool en)
 {
