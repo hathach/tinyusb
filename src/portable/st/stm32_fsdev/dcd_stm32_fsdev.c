@@ -41,6 +41,7 @@
  * F302xB/C, F303xB/C, F373        512 byte buffer; no internal D+ pull-up
  * F302x6/8, F302xD/E2, F303xD/E  1024 byte buffer; no internal D+ pull-up
  * C0                             2048 byte buffer; 32-bit bus; host mode
+ * C5                             2048 byte buffer; 32-bit bus; host mode
  * G0                             2048 byte buffer; 32-bit bus; host mode
  * G4                             1024 byte buffer
  * H5                             2048 byte buffer; 32-bit bus; host mode
@@ -342,7 +343,7 @@ void dcd_int_handler(uint8_t rhport) {
   uint32_t int_status = FSDEV_REG->ISTR;
 
   /* Put SOF flag at the beginning of ISR in case to get least amount of jitter if it is used for timing purposes */
-  if (int_status & U_ISTR_SOF) {
+  if ((int_status & U_ISTR_SOF) && (FSDEV_REG->CNTR & U_CNTR_SOFM)) {
     FSDEV_REG->ISTR = (fsdev_bus_t)~U_ISTR_SOF;
     dcd_event_sof(0, FSDEV_REG->FNR & U_FNR_FN, true);
   }

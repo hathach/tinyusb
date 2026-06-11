@@ -631,6 +631,10 @@
       "inherits": "default"
     },
     {
+      "name": "stm32c542nucleo",
+      "inherits": "default"
+    },
+    {
       "name": "stm32f070rbnucleo",
       "inherits": "default"
     },
@@ -1770,6 +1774,11 @@
       "name": "stm32c071nucleo",
       "description": "Build preset for the stm32c071nucleo board",
       "configurePreset": "stm32c071nucleo"
+    },
+    {
+      "name": "stm32c542nucleo",
+      "description": "Build preset for the stm32c542nucleo board",
+      "configurePreset": "stm32c542nucleo"
     },
     {
       "name": "stm32f070rbnucleo",
@@ -4246,6 +4255,19 @@
         {
           "type": "build",
           "name": "stm32c071nucleo"
+        }
+      ]
+    },
+    {
+      "name": "stm32c542nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32c542nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32c542nucleo"
         }
       ]
     },
