@@ -425,7 +425,7 @@ def write_compare_markdown(comparison, path, sort_order='size'):
             md_lines.append("")
 
     render("Changes >1% in size", significant)
-    render("Changes <1% in size", minor)
+    render("Changes <1% in size", minor, collapsed=True)
     render("No changes", unchanged, collapsed=True)
 
     with open(path, "w", encoding="utf-8") as f:
