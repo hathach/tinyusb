@@ -458,10 +458,7 @@ static void process_ep0(uint8_t rhport) {
   musb_ep_csr_t* ep_csr = get_ep_csr(musb_regs, 0);
   uint_fast8_t csrl = ep_csr->csr0l;
 
-  if (csrl & MUSB_CSRL0_DATAEND) {
-    return;
-  }
-
+  // 21.1.5: SentStall and SetupEnd must be checked before anything else.
   if (csrl & MUSB_CSRL0_STALLED) {
     ep_csr->csr0l = 0;
     _dcd.pipe0.state = PIPE0_STATE_IDLE;
@@ -556,6 +553,13 @@ static void process_ep0(uint8_t rhport) {
       default: break;
     }
 
+    return;
+  }
+
+  if (csrl & MUSB_CSRL0_DATAEND) {
+    // Last DATA IN chunk / STATUS IN arm wrote TXRDY|DATAEND and the status stage has not completed
+    // yet — nothing to service. DataEnd is CPU-set-only per the CSR access table; whether it ever
+    // reads back 1 is vendor-dependent (on cores where it reads 0 this guard is dead code).
     return;
   }
 
