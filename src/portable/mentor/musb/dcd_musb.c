@@ -510,20 +510,55 @@ static void process_ep0(uint8_t rhport) {
       // - Status IN/OUT finished, IRQ and new setup packet IRQ arrive at the same time.
       // - Data IN finished and status OUT is received, both IRQs and new setup packet IRQ arrive at the same time.
       // could happen when CPU load is high, save the new setup packet for later processing after current status stage complete.
+      case PIPE0_STATE_DATA_IN:
       case PIPE0_STATE_STATUS_OUT:
       case PIPE0_STATE_STATUS_OUT_PENDING:
-      case PIPE0_STATE_STATUS_IN:
-      case PIPE0_STATE_DATA_IN: {
+      case PIPE0_STATE_STATUS_IN: {
         TU_VERIFY(pipe0_read_setup(musb_regs, ep_csr, &_dcd.pipe0.deferred_setup), );
         _dcd.pipe0.deferred_setup_valid = true;
-        goto process_status;
+
+        switch (_dcd.pipe0.state) {
+          case PIPE0_STATE_DATA_IN:
+            // Last DATA IN packet sent (TXRDY-clear coalesced with the SETUP IRQ). The STATUS OUT
+            // confirm IRQ is missed too — promote so edpt0_xfer(STATUS OUT) fires complete immediately.
+            if (_dcd.pipe0.remain_wlength == 0) {
+              _dcd.pipe0.state = PIPE0_STATE_STATUS_OUT_PENDING;
+            }
+            dcd_event_xfer_complete(rhport, TU_EP0_IN, _dcd.pipe0.xact_len, XFER_RESULT_SUCCESS, true);
+            break;
+
+          case PIPE0_STATE_STATUS_OUT:
+            // Status confirm IRQ coalesced with the SETUP — edpt0_xfer(STATUS OUT) fires complete.
+            _dcd.pipe0.state = PIPE0_STATE_STATUS_OUT_PENDING;
+            break;
+
+          case PIPE0_STATE_STATUS_OUT_PENDING:
+            // edpt0_xfer(STATUS OUT) already called — fire complete and replay now.
+            _dcd.pipe0.state = PIPE0_STATE_IDLE;
+            dcd_event_xfer_complete(rhport, TU_EP0_OUT, 0, XFER_RESULT_SUCCESS, true);
+            pipe0_process_deferred_setup(rhport, ep_csr, true);
+            break;
+
+          default:
+            // PIPE0_STATE_STATUS_IN: ZLP-sent IRQ coalesced with the SETUP.
+            if (_dcd.pipe0.pending_addr) {
+              musb_regs->faddr = _dcd.pipe0.pending_addr;
+              _dcd.pipe0.pending_addr = 0;
+            }
+            _dcd.pipe0.state = PIPE0_STATE_IDLE;
+            dcd_event_xfer_complete(rhport, TU_EP0_IN, 0, XFER_RESULT_SUCCESS, true);
+            pipe0_process_deferred_setup(rhport, ep_csr, true);
+            break;
+        }
+        break;
       }
+
+      default: break;
     }
 
     return;
   }
 
-process_status:
   /* When CSRL0 is zero, it means that either
  * - completion of sending any length packet TxPktRdy clear
  * - or status stage is complete (ZLP) after DataEnd is set */
