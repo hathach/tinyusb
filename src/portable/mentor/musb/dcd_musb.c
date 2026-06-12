@@ -86,7 +86,8 @@ enum {
   PIPE0_STATE_DATA_OUT,         // DATA OUT stage
   PIPE0_STATE_STATUS_IN,        // STATUS IN — device sends IN-ZLP; awaits send-ACK IRQ
   PIPE0_STATE_STATUS_OUT,       // post-DATAEND, neither edpt0_xfer(STATUS OUT) nor confirmation IRQ has happened yet
-  PIPE0_STATE_STATUS_OUT_PENDING, // one of {edpt0_xfer(STATUS OUT), confirmation IRQ} has happened; the other fires xfer_complete
+  PIPE0_STATE_STATUS_OUT_PENDING_XFER, // edpt0_xfer(STATUS OUT) called first; the confirmation IRQ fires xfer_complete
+  PIPE0_STATE_STATUS_OUT_PENDING_IRQ,  // confirmation IRQ seen (or synthesized) first; edpt0_xfer(STATUS OUT) fires xfer_complete
 };
 
 typedef struct {
@@ -436,11 +437,12 @@ static bool edpt0_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_
     case PIPE0_STATE_STATUS_OUT:
       TU_ASSERT(!dir_in && total_bytes == 0); // only STATUS OUT allowed
       // First event of the STATUS OUT pair — wait for the IRQ to fire complete.
-      _dcd.pipe0.state = PIPE0_STATE_STATUS_OUT_PENDING;
+      _dcd.pipe0.state = PIPE0_STATE_STATUS_OUT_PENDING_XFER;
       break;
 
-    case PIPE0_STATE_STATUS_OUT_PENDING:
-      // Second event — IRQ already arrived, fire complete now.
+    case PIPE0_STATE_STATUS_OUT_PENDING_IRQ:
+      // Second event — IRQ already arrived, fire complete now. The old transfer is retired here,
+      // so a deferred SETUP can be replayed safely.
       _dcd.pipe0.state = PIPE0_STATE_IDLE;
       dcd_event_xfer_complete(rhport, ep_addr, 0, XFER_RESULT_SUCCESS, is_isr);
       pipe0_process_deferred_setup(rhport, ep_csr, is_isr);
@@ -492,6 +494,7 @@ static void process_ep0(uint8_t rhport) {
         // so the whole packet drains in one shot.
         const uint16_t count0 = ep_csr->count0;
         if (count0) {
+          TU_ASSERT(_dcd.pipe0.buf, );
           tu_hwfifo_read(&musb_regs->fifo[0], _dcd.pipe0.buf, count0, NULL);
           _dcd.pipe0.remain_wlength -= count0;
         }
@@ -503,37 +506,46 @@ static void process_ep0(uint8_t rhport) {
         break;
       }
 
-      // New SETUP packet arrived  while old control transfer is not finished yet. This could happen in following scenarios:
-      // - Status IN/OUT finished, IRQ and new setup packet IRQ arrive at the same time.
-      // - Data IN finished and status OUT is received, both IRQs and new setup packet IRQ arrive at the same time.
-      // could happen when CPU load is high, save the new setup packet for later processing after current status stage complete.
+      // New SETUP packet arrived while the old control transfer's tail events are still in flight
+      // (IRQs coalesced under high CPU load), e.g.:
+      // - Status IN/OUT finished, its IRQ and the new SETUP IRQ arrive at the same time.
+      // - Data IN finished and status OUT is received, both IRQs and the new SETUP IRQ arrive at the same time.
+      // Save the SETUP; it is replayed only once the old transfer is fully retired — i.e. when usbd has
+      // made (or already made) its final edpt0_xfer() call for it.
       case PIPE0_STATE_DATA_IN:
       case PIPE0_STATE_STATUS_OUT:
-      case PIPE0_STATE_STATUS_OUT_PENDING:
+      case PIPE0_STATE_STATUS_OUT_PENDING_XFER:
+      case PIPE0_STATE_STATUS_OUT_PENDING_IRQ:
       case PIPE0_STATE_STATUS_IN: {
         TU_VERIFY(pipe0_read_setup(musb_regs, ep_csr, &_dcd.pipe0.deferred_setup), );
         _dcd.pipe0.deferred_setup_valid = true;
 
         switch (_dcd.pipe0.state) {
           case PIPE0_STATE_DATA_IN:
-            // Last DATA IN packet sent (TXRDY-clear coalesced with the SETUP IRQ). The STATUS OUT
-            // confirm IRQ is missed too — promote so edpt0_xfer(STATUS OUT) fires complete immediately.
-            if (_dcd.pipe0.remain_wlength == 0) {
-              _dcd.pipe0.state = PIPE0_STATE_STATUS_OUT_PENDING;
-            }
+            // Coalesced: last DATA IN sent + status OUT done + new SETUP in one csrl read. Fire the
+            // DATA IN completion and synthesize the missed status confirm; usbd's edpt0_xfer(STATUS OUT)
+            // fires the status completion and replays.
+            TU_ASSERT(_dcd.pipe0.remain_wlength == 0, );
+            _dcd.pipe0.state = PIPE0_STATE_STATUS_OUT_PENDING_IRQ;
             dcd_event_xfer_complete(rhport, TU_EP0_IN, _dcd.pipe0.xact_len, XFER_RESULT_SUCCESS, true);
             break;
 
           case PIPE0_STATE_STATUS_OUT:
             // Status confirm IRQ coalesced with the SETUP — edpt0_xfer(STATUS OUT) fires complete.
-            _dcd.pipe0.state = PIPE0_STATE_STATUS_OUT_PENDING;
+            _dcd.pipe0.state = PIPE0_STATE_STATUS_OUT_PENDING_IRQ;
             break;
 
-          case PIPE0_STATE_STATUS_OUT_PENDING:
-            // edpt0_xfer(STATUS OUT) already called — fire complete and replay now.
+          case PIPE0_STATE_STATUS_OUT_PENDING_XFER:
+            // edpt0_xfer(STATUS OUT) already called — old transfer retired, complete and replay now.
             _dcd.pipe0.state = PIPE0_STATE_IDLE;
             dcd_event_xfer_complete(rhport, TU_EP0_OUT, 0, XFER_RESULT_SUCCESS, true);
             pipe0_process_deferred_setup(rhport, ep_csr, true);
+            break;
+
+          case PIPE0_STATE_STATUS_OUT_PENDING_IRQ:
+            // usbd has not called edpt0_xfer(STATUS OUT) for the old transfer yet — only hold the
+            // SETUP. Replaying here would let that still-outstanding call land in the replayed
+            // transfer's state and corrupt it (e.g. NULL DATA OUT drain buffer).
             break;
 
           default:
@@ -573,25 +585,24 @@ static void process_ep0(uint8_t rhport) {
       // to STATUS_OUT to await the host's STATUS-OUT ZLP confirmation IRQ.
       if (_dcd.pipe0.remain_wlength == 0) {
         _dcd.pipe0.state = PIPE0_STATE_STATUS_OUT;
-        // If a new SETUP was deferred then STATUS OUT IRQ is missed, manually transition to STATUS_OUT_PENDING to allow ep0_xfer(STATUS OUT) to fire complete immediately.
-        if (_dcd.pipe0.deferred_setup_valid) {
-          _dcd.pipe0.state = PIPE0_STATE_STATUS_OUT_PENDING;
-        }
       }
       dcd_event_xfer_complete(rhport, TU_EP0_IN, _dcd.pipe0.xact_len, XFER_RESULT_SUCCESS, true);
-
       break;
 
     case PIPE0_STATE_STATUS_OUT:
       // First event of the STATUS OUT pair — wait for edpt0_xfer(STATUS OUT) to fire complete.
-      _dcd.pipe0.state = PIPE0_STATE_STATUS_OUT_PENDING;
+      _dcd.pipe0.state = PIPE0_STATE_STATUS_OUT_PENDING_IRQ;
       break;
 
-    case PIPE0_STATE_STATUS_OUT_PENDING:
+    case PIPE0_STATE_STATUS_OUT_PENDING_XFER:
       // Second event — edpt0_xfer(STATUS OUT) already called, fire complete now.
       _dcd.pipe0.state = PIPE0_STATE_IDLE;
       dcd_event_xfer_complete(rhport, TU_EP0_OUT, 0, XFER_RESULT_SUCCESS, true);
       pipe0_process_deferred_setup(rhport, ep_csr, true);
+      break;
+
+    case PIPE0_STATE_STATUS_OUT_PENDING_IRQ:
+      // Stale duplicate of the status confirm — already accounted for; edpt0_xfer fires complete.
       break;
 
     case PIPE0_STATE_STATUS_IN:
