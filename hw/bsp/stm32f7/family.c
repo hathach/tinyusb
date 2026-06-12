@@ -82,8 +82,9 @@ static UART_HandleTypeDef UartHandle = {.Instance = USARTn,
                                               .OverSampling = UART_OVERSAMPLING_16,
                                         }};
 
-// RX ring buffer via RXNE interrupt — no HAL IT functions used (avoid HAL state conflicts)
-static uint8_t   uart_rx_ff_buf[32];
+// RX ring buffer via RXNE interrupt — no HAL IT functions used (avoid HAL state conflicts).
+// Sized to absorb a full host-forwarding burst (>64B) when the main loop briefly stalls.
+static uint8_t   uart_rx_ff_buf[256];
 static tu_fifo_t uart_rx_ff;
 
 void USARTn_IRQHandler(void) {
@@ -142,13 +143,24 @@ void board_init(void) {
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
 
+  // Set UART interrupt higher priority than USB OTG since the F7 USART has no hardware RX FIFO, so a host example's
+  // UART RX must not be starved by the frequent USB host interrupts or incoming bytes overrun (ORE) and dropped.
+  NVIC_SetPriority(OTG_FS_IRQn, 1);
+  NVIC_SetPriority(OTG_HS_IRQn, 1);
+  #ifdef UART_ID
+  NVIC_SetPriority(USARTn_IRQn, 0);
+  #endif
+
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
   // Explicitly disable systick to prevent its ISR from running before scheduler start
   SysTick->CTRL &= ~1U;
 
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
-  NVIC_SetPriority(OTG_FS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
-  NVIC_SetPriority(OTG_HS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+  NVIC_SetPriority(OTG_FS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY + 1);
+  NVIC_SetPriority(OTG_HS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY + 1);
+  #ifdef UART_ID
+  NVIC_SetPriority(USARTn_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+  #endif
 #endif
 
 #ifdef UART_ID
@@ -156,7 +168,6 @@ void board_init(void) {
   HAL_UART_Init(&UartHandle);
   tu_fifo_config(&uart_rx_ff, uart_rx_ff_buf, sizeof(uart_rx_ff_buf), false);
   USARTn->CR1 |= USART_CR1_RXNEIE;
-  NVIC_SetPriority(USARTn_IRQn, (1 << __NVIC_PRIO_BITS) - 1);
   NVIC_EnableIRQ(USARTn_IRQn);
 #endif
 

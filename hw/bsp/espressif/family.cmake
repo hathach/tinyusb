@@ -44,3 +44,10 @@ set(EXTRA_COMPONENT_DIRS "src" "${CMAKE_CURRENT_LIST_DIR}/boards" "${CMAKE_CURRE
 set(SDKCONFIG ${CMAKE_BINARY_DIR}/sdkconfig)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+
+# CI_BUILD marks firmware built in CI (GitHub Actions sets CI). Mirrors the
+# non-espressif define added in family_configure_common(); applied build-wide
+# here since espressif examples return before that function runs.
+if(DEFINED ENV{CI})
+  idf_build_set_property(COMPILE_DEFINITIONS "CI_BUILD=1" APPEND)
+endif()

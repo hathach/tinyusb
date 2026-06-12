@@ -1,66 +1,64 @@
 ---
 name: hil
-description: Use when running TinyUSB Hardware-in-the-Loop (HIL) tests on physical boards, debugging HIL failures, or copying firmware to the ci.lan test rig. Covers local execution and remote execution over SSH, config selection, and debugging tips.
+description: Use when running TinyUSB Hardware-in-the-Loop (HIL) tests on physical boards, debugging HIL failures, or copying firmware to the ci.lan test rig. Covers per-host config selection (htpc uses local.json, ci uses tinyusb.json), local execution on either htpc or ci, remote execution over SSH from htpc, and debugging tips.
 ---
 
 # Hardware-in-the-Loop (HIL) Testing
 
-Run TinyUSB HIL tests against real boards. Two execution modes — **local** (boards attached to this machine) and **remote** (boards attached to `ci.lan`, reached over SSH). Default to **local** unless the user specifies `remote`. Do not auto-detect.
+Run TinyUSB HIL tests on real boards. **Run `hostname` first** — it tells you which host you are on, which determines the default config and whether remote mode is possible.
+
+| Host | Local config | Remote (SSH → ci.lan)? |
+|------|--------------|------------------------|
+| `htpc` (dev PC) | `test/hil/local.json` | yes (large pool, `test/hil/tinyusb.json`) |
+| `ci` (the rig) | `test/hil/tinyusb.json` (large pool) | no — can't SSH to htpc, and boards are already local |
+
+Default to **local**. Use **remote** only when on `htpc` and the user says `remote`/`ci.lan`. Never attempt remote on `ci`.
 
 ## Prerequisites
 
-- Examples must already be built for the target board(s). See AGENTS.md "Build" → "All examples for a board", which produces `examples/cmake-build-<board>/`.
-- `-B examples` tells `hil_test.py` that `examples/` is the parent folder containing the per-board build outputs.
+Examples must be built for the target board(s) — see AGENTS.md "Build" → "All examples for a board" (produces `examples/cmake-build-<board>/`). `-B examples` points `hil_test.py` at that parent folder.
 
-## Choosing arguments
+## Arguments
 
-Infer from the user's request:
+- **Board:** `-b BOARD_NAME` for one board; omit to run all boards in the config.
+- **Pass-through:** `-v`, `-r N`, etc. forwarded unchanged.
 
-- **Mode:** `local` (default) or `remote`. Only switch to `remote` if the user explicitly says so or names `ci.lan`.
-- **Board:** if the user names a specific board, pass `-b BOARD_NAME`. Otherwise omit `-b` to run all boards in the config.
-- **Pass-through flags:** `-v` (verbose), `-r N` (retry count), etc. — pass through unchanged.
-
-Config file follows from mode:
-- **Local** → `test/hil/local.json` (user-supplied; not tracked in repo — describes boards attached locally)
-- **Remote** → `test/hil/tinyusb.json` (tracked; describes the `ci.lan` test rig)
-
-If `local.json` is missing, fall back to `tinyusb.json` only when explicitly told to; otherwise stop and ask the user to supply one.
+If `local.json` is missing on `htpc`, ask the user to supply one (only fall back to `tinyusb.json` if told to).
 
 ## Local execution
 
-Boards attached to this machine:
+Set `CONFIG` from `hostname` first (`test/hil/local.json` on htpc, `test/hil/tinyusb.json` on ci):
 
 ```bash
-# Specific board:
-python3 test/hil/hil_test.py -b BOARD_NAME -B examples test/hil/local.json $EXTRA_ARGS
-# All boards in the config (no -b):
-python3 test/hil/hil_test.py -B examples test/hil/local.json $EXTRA_ARGS
+CONFIG=test/hil/local.json      # on ci use: CONFIG=test/hil/tinyusb.json
+
+# All boards in the config:
+python3 test/hil/hil_test.py -B examples "$CONFIG"
+
+# A single board (replace stm32f723disco):
+python3 test/hil/hil_test.py -b stm32f723disco -B examples "$CONFIG"
 ```
 
-## Remote execution (ci.lan)
+Append pass-through flags (`-v`, `-r 1`, …) to either command as needed.
 
-Use `test/hil/hil_ci.sh` — it handles dir setup, scp of test scripts, rsync of firmware artifacts (`.elf` / `.bin` / `.hex` only), and running `hil_test.py` on `ci.lan`:
+## Remote execution (htpc → ci.lan only)
+
+`test/hil/hil_ci.sh` handles dir setup, scp of test scripts, rsync of firmware (`.elf`/`.bin`/`.hex`), and runs `hil_test.py` on `ci.lan` with `tinyusb.json`:
 
 ```bash
-# Specific board:
-bash test/hil/hil_ci.sh -b raspberry_pi_pico2
-# All boards in tinyusb.json:
+# All boards:
 bash test/hil/hil_ci.sh
-# Pass-through extra args (any non -b flag is forwarded to hil_test.py):
+
+# A single board, with pass-through flags:
 bash test/hil/hil_ci.sh -b raspberry_pi_pico2 -t host/cdc_msc_hid -r 1
 ```
 
-Overrides via env vars: `REMOTE=ci.lan`, `REMOTE_DIR=/tmp/tinyusb-hil`, `CONFIG=test/hil/tinyusb.json`.
-
-The script fails fast if the build dir or repo layout is missing.
+Env overrides: `REMOTE`, `REMOTE_DIR`, `CONFIG`. Fails fast if the build dir/repo layout is missing.
 
 ## Timing
 
-HIL runs take 2-5 minutes. Use a timeout of at least 20 minutes (600000 ms). NEVER cancel early.
+Runs take 2-5 min. Use a timeout ≥ 20 min (1200000 ms). NEVER cancel early.
 
-## Reporting results
+## Reporting
 
-After the test completes:
-- Show the test output to the user.
-- Summarize pass/fail per board.
-- On failure, suggest re-running with `-v` for verbose output. If `-v` isn't enough, temporarily add debug prints to `test/hil/hil_test.py` to pinpoint the issue.
+Show the output, summarize pass/fail per board. On failure, retry with `-v`; if that's not enough, add temporary debug prints to `hil_test.py`.

@@ -1,5 +1,7 @@
 html
 latex
+hil_report.md
+hil_report.json
 *.a
 *.d
 *.o
@@ -10,6 +12,7 @@ latex
 *.env
 *.ind
 *.log
+*.sarif
 *.map
 *.obj
 *.jlink

@@ -130,7 +130,7 @@ static void main_task(void* param) {
     led_blinking_task();
 
     // preempted RTOS run device/host stack in its own task
-#if CFG_TUSB_OS == OPT_OS_NONE || CFG_TUSB_OS == OPT_OS_PICO
+#if CFG_TUSB_OS_HAS_SCHEDULER == 0
     tud_task(); // tinyusb device task
     tuh_task(); // tinyusb host task
 #endif
@@ -140,7 +140,7 @@ static void main_task(void* param) {
 int main(void) {
   board_init();
 
-#if CFG_TUSB_OS == OPT_OS_NONE || CFG_TUSB_OS == OPT_OS_PICO
+#if CFG_TUSB_OS_HAS_SCHEDULER == 0
   printf("TinyUSB Host Information -> Device CDC Example\r\n");
 
   usb_device_init();
@@ -156,7 +156,7 @@ int main(void) {
   return 0;
 }
 
-#if CFG_TUSB_OS != OPT_OS_NONE && CFG_TUSB_OS != OPT_OS_PICO
+#if CFG_TUSB_OS_HAS_SCHEDULER
 // USB Device Driver task for RTOS
 static void usb_device_task(void *param) {
   (void) param;

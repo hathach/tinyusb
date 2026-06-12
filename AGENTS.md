@@ -18,7 +18,7 @@ Bias toward caution over speed. For trivial tasks, use judgment.
 - **Language/style:** C99, 2-space indent (no tabs), snake_case helpers, `UPPER_CASE` macros. Public APIs use `tud_`/`tuh_`; macros use `TU_`. Headers self-contained with `#if CFG_TUSB_MCU` guards.
 - **Safety:** no dynamic allocation; defer ISR work to task context; use `TU_ASSERT()` for error checks; always check return values; include order: C stdlib → tusb common → drivers → classes.
 - **Layout:** `src/` core, `hw/{mcu,bsp}/` MCU+BSP, `examples/{device,host,dual}/`, `test/{unit-test,fuzz,hil}/`, `docs/`, `tools/`.
-- **Commits/PRs:** imperative mood, scoped changes, link issues, include test/build evidence.
+- **Commits/PRs:** imperative mood, scoped changes, link issues, include test/build evidence. After opening a PR, monitor it and drive it to green: address automated review comments (Copilot/Codex/Claude) and fix any failing CI builds, pushing follow-up commits until checks pass and review threads are resolved. Useful: `gh pr checks <num> --watch`, `gh pr view <num> --comments`.
 - **Formatting/lint:** `clang-format` (`.clang-format`), `codespell` (`.codespellrc`), run `pre-commit run --all-files` before submitting.
 
 ## Bootstrap
@@ -153,28 +153,35 @@ Reports land in `cmake-metrics/<board>/metrics_compare.md` (per-board) and `cmak
 
 ## Static Analysis (PVS-Studio)
 
-Requires `compile_commands.json` (CMake `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`).
+Requires `compile_commands.json`, which the examples build exports by default
+(`hw/bsp/family_support.cmake` sets `CMAKE_EXPORT_COMPILE_COMMANDS ON`). The
+`pvs` skill (`.claude/skills/pvs/SKILL.md`) wraps the build + analyze flow for a
+board; the commands below are the underlying steps.
 
 ```bash
 # Whole project:
 pvs-studio-analyzer analyze \
   -f examples/cmake-build-raspberry_pi_pico/compile_commands.json \
   -R .PVS-Studio/.pvsconfig \
-  -o pvs-report.log -j12 --dump-files \
+  -o pvs-report.log -j12 \
+  --security-related-issues \
   --misra-c-version 2023 --misra-cpp-version 2008 --use-old-parser
 
-# Specific files (add one or more `-S <file>`):
+# Specific files: -S takes a plaintext list (one path per line), not paths directly:
+printf 'src/foo.c\nsrc/bar.c\n' > files.txt
 pvs-studio-analyzer analyze \
   -f examples/cmake-build-raspberry_pi_pico/compile_commands.json \
   -R .PVS-Studio/.pvsconfig \
-  -S src/foo.c -S src/bar.c \
-  -o pvs-report.log -j12 --dump-files \
+  -S files.txt \
+  -o pvs-report.log -j12 \
+  --security-related-issues \
   --misra-c-version 2023 --misra-cpp-version 2008 --use-old-parser
 
 plog-converter -a GA:1,2 -t errorfile pvs-report.log     # view results
 ```
 
-Takes ~10-30 s.
+Takes ~10-30 s. (`--dump-files` adds preprocessed `.PVS-Studio.i/.cfg` dumps next
+to every source for false-positive debugging — omit it for normal runs.)
 
 ## Validation After Changes
 
@@ -204,7 +211,7 @@ Device examples need real hardware to validate runtime behavior; must at least b
 
 ## References
 
-- MCU reference manuals, datasheets, schematics: `$HOME/Documents/Calibre Library`.
+- MCU reference manuals, datasheets, schematics: `$HOME/Documents/calibre-library`.
 - Supported MCUs/boards: `hw/bsp/` and `docs/reference/boards.rst`.
 - USB classes: `src/class/{cdc,hid,msc,audio,…}/` — each has `*_device.c` and `*_host.c`.
 - Key files: `src/tusb.h`, `src/tusb_config.h`, `tools/get_deps.py`, `tools/build.py`, `test/unit-test/project.yml`.

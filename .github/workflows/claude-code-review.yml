@@ -1,18 +1,29 @@
 name: Claude Code Review
 
 on:
-  pull_request_target:
-    types: [opened, synchronize, ready_for_review, reopened]
+  pull_request:
+    # opened/reopened/ready_for_review -> first auto review
+    # synchronize                      -> auto re-review on new pushes
+    #
+    # NOTE: pull_request (not _target) means fork PRs get a read-only GITHUB_TOKEN
+    # and NO repository secrets (CLAUDE_CODE_OAUTH_TOKEN), so they cannot be
+    # auto-reviewed. The job condition below skips them cleanly -> use @claude on
+    # those. Same-repo branches (yours or write-access contributors) auto-review.
+    types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:
   claude-review:
-    if: false
+    # Skip drafts, and skip fork PRs (no secrets -> would only fail noisily)
+    if: >
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
-      issues: read
+      issues: write # Claude posts the review comment via the issues API
       id-token: write
+      actions: read # Required for Claude to read CI results on PRs
 
     steps:
       - name: Checkout repository
@@ -25,8 +36,22 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Allow claude[bot]'s own pushes to be handled gracefully (skip) instead
+          # of erroring out the workflow
+          allowed_bots: 'claude'
+          # Pairs with the actions: read permission so Claude can read CI results
+          additional_permissions: |
+            actions: read
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
-          prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
+          # Post/update a single summary comment every run, so a clean review
+          # ("no issues found") is still visible instead of posting nothing.
+          use_sticky_comment: true
+          # --comment makes the code-review command post its findings to the PR.
+          # Without it the command only prints the review to the Actions log.
+          prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }} --comment'
+          # TEMPORARY: expose the full Claude transcript in the Actions log for
+          # debugging. Revert to remove once done.
+          show_full_output: true
+          claude_args: '--max-turns 50 --model claude-opus-4-8'
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
