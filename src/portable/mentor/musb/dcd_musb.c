@@ -128,6 +128,9 @@ static void pipe0_start_setup(uint8_t rhport, musb_ep_csr_t* ep_csr,
       _dcd.pipe0.state = PIPE0_STATE_DATA_IN;
       ep_csr->csr0l = MUSB_CSRL0_RXRDYC;
     } else {
+      // If OUT (rx) direction, let edpt0_xfer() clear RXRDY when it's ready to receive data.
+      // Deliberate deviation from the databook's canonical flow (ack right after unload),
+      // used as NAK flow control until usbd arms the drain buffer.
       _dcd.pipe0.state = PIPE0_STATE_DATA_OUT;
     }
   }
