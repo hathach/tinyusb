@@ -534,7 +534,7 @@ static void process_ep0(uint8_t rhport) {
       // - Status IN/OUT finished, its IRQ and the new SETUP IRQ arrive at the same time.
       // - Data IN finished and status OUT is received, both IRQs and the new SETUP IRQ arrive at the same time.
       // Save the SETUP; it is replayed only once the old transfer is fully retired — i.e. when usbd has
-      // made (or already made) its final edpt0_xfer() call for it. Until the replayed
+      // made (or already made) its final edpt0_xfer()/dcd_edpt_stall() call for it. Until the replayed
       // packet is acked, its RXRDY stays parked so a stale latched EP0 IRQ cannot re-process it.
       case PIPE0_STATE_DATA_IN:
       case PIPE0_STATE_STATUS_OUT:
@@ -935,11 +935,17 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   musb_ep_csr_t* ep_csr = get_ep_csr(musb_regs, epn);
 
   if (0 == epn) {
-    if (ep_addr == TU_EP0_OUT) { /* Ignore EP0 OUT */
+    if (ep_addr == TU_EP0_OUT) { /* Ignore EP0 IN */
       _dcd.pipe0.state = PIPE0_STATE_IDLE;
       _dcd.pipe0.buf = NULL;
-      _dcd.pipe0.deferred_setup_valid = false;
-      ep_csr->csr0l = MUSB_CSRL0_STALL;
+      if (_dcd.pipe0.deferred_setup_valid) {
+        // The transfer being stalled already completed on the wire (a deferred SETUP can only exist
+        // once its status stage was seen) and the host's next request was already ACKed — SendStall
+        // would land on that innocent request. Skip the stall and replay the deferred SETUP instead.
+        pipe0_process_deferred_setup(rhport, ep_csr, false);
+      } else {
+        ep_csr->csr0l = MUSB_CSRL0_STALL;
+      }
     }
   } else {
     const tusb_dir_t ep_dir = tu_edpt_dir(ep_addr);
