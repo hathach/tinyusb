@@ -7,7 +7,6 @@
 
 //-V:TUD_HID_DESCRIPTOR:501 _boot_protocol comparison inside the macro is constant when HID_ITF_PROTOCOL_NONE is passed
 //-V:TUD_HID_INOUT_DESCRIPTOR:501 _boot_protocol comparison inside the macro is constant when HID_ITF_PROTOCOL_NONE is passed
-//-V::763 rhport parameter is deliberately overridden with the configured root port (single-port stack)
 //-V::785 audio_device.c: switch over function index is constant when CFG_TUD_AUDIO == 1
 //-V::1044 wait loops on volatile hardware status registers are idiomatic in DCD/HCD ports
 
