@@ -104,6 +104,19 @@ typedef struct {
 
 static dcd_data_t _dcd;
 
+// Drain a SETUP packet (8 bytes) from the EP0 FIFO. Does not ack RxPktRdy.
+static bool pipe0_read_setup(musb_regs_t* musb_regs, musb_ep_csr_t* ep_csr, tusb_control_request_t* req) {
+  TU_ASSERT(sizeof(tusb_control_request_t) == ep_csr->count0);
+  union {
+    tusb_control_request_t req;
+    uint32_t               u32[2];
+  } setup_packet;
+  setup_packet.u32[0] = musb_regs->fifo[0];
+  setup_packet.u32[1] = musb_regs->fifo[0];
+  *req = setup_packet.req;
+  return true;
+}
+
 static void pipe0_start_setup(uint8_t rhport, musb_ep_csr_t* ep_csr,
                               tusb_control_request_t const* req, bool is_isr) {
   _dcd.pipe0.remain_wlength = req->wLength;
@@ -466,23 +479,18 @@ static void process_ep0(uint8_t rhport) {
 
   // Receive Data (Setup or OUT)
   if (csrl & MUSB_CSRL0_RXRDY) {
-    const uint16_t count0 = ep_csr->count0;
     switch (_dcd.pipe0.state) {
       case PIPE0_STATE_IDLE: {
-        TU_ASSERT(sizeof(tusb_control_request_t) == count0, );
-        union {
-          tusb_control_request_t req;
-          uint32_t               u32[2];
-        } setup_packet;
-        setup_packet.u32[0] = musb_regs->fifo[0];
-        setup_packet.u32[1] = musb_regs->fifo[0];
-        pipe0_start_setup(rhport, ep_csr, &setup_packet.req, true);
+        tusb_control_request_t req;
+        TU_VERIFY(pipe0_read_setup(musb_regs, ep_csr, &req), );
+        pipe0_start_setup(rhport, ep_csr, &req, true);
         break;
       }
 
       case PIPE0_STATE_DATA_OUT: {
         // EP0 OUT is single-packet (TU_ASSERT total_bytes <= EP0_SIZE in edpt0_xfer)
         // so the whole packet drains in one shot.
+        const uint16_t count0 = ep_csr->count0;
         if (count0) {
           tu_hwfifo_read(&musb_regs->fifo[0], _dcd.pipe0.buf, count0, NULL);
           _dcd.pipe0.remain_wlength -= count0;
@@ -503,15 +511,7 @@ static void process_ep0(uint8_t rhport) {
       case PIPE0_STATE_STATUS_OUT_PENDING:
       case PIPE0_STATE_STATUS_IN:
       case PIPE0_STATE_DATA_IN: {
-        TU_ASSERT(sizeof(tusb_control_request_t) == count0, );
-        union {
-          tusb_control_request_t req;
-          uint32_t               u32[2];
-        } setup_packet;
-        setup_packet.u32[0] = musb_regs->fifo[0];
-        setup_packet.u32[1] = musb_regs->fifo[0];
-
-        _dcd.pipe0.deferred_setup = setup_packet.req;
+        TU_VERIFY(pipe0_read_setup(musb_regs, ep_csr, &_dcd.pipe0.deferred_setup), );
         _dcd.pipe0.deferred_setup_valid = true;
         goto process_status;
       }
