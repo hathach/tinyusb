@@ -79,6 +79,7 @@ hw/mcu/gd/
 hw/mcu/hpmicro/
 hw/mcu/infineon/
 hw/mcu/microchip/
+hw/mcu/puya/
 hw/mcu/mindmotion/
 hw/mcu/nordic/nrfx/
 hw/mcu/nuvoton/
