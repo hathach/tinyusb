@@ -236,7 +236,7 @@ bool tud_usbtmc_transmit_dev_msg_data(
 
   TU_VERIFY(usbtmc_state.state == STATE_TX_REQUESTED);
   usbtmc_msg_dev_dep_msg_in_header_t *hdr = (usbtmc_msg_dev_dep_msg_in_header_t *) usbtmc_epbuf.epin;
-  tu_varclr(hdr);
+  tu_varclr(hdr); //-V1086 clears the 12-byte header only, not the whole endpoint buffer (intentional)
   if (usbtmcVendorSpecificRequested) {
     hdr->header.MsgID = USBTMC_MSGID_VENDOR_SPECIFIC_IN;
   } else {
@@ -823,7 +823,7 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
       bTag = request->wValue & 0x7F;
       TU_VERIFY(request->bmRequestType == 0xA1);
       TU_VERIFY((request->wValue & (~0x7F)) == 0u);// Other bits are required to be zero (USB488v1.0 Table 11)
-      TU_VERIFY(bTag >= 0x02 && bTag <= 127);
+      TU_VERIFY(bTag >= 0x02 && bTag <= 127); //-V560 bTag is masked to 7 bits; upper bound kept to mirror USB488v1.0 Table 11
       TU_VERIFY(request->wIndex == usbtmc_state.itf_id);
       TU_VERIFY(request->wLength == 0x0003);
       rsp.bTag = (uint8_t) bTag;

@@ -98,7 +98,7 @@ bool hcd_port_connect_status(uint8_t rhport) {
 tusb_speed_t hcd_port_speed_get(uint8_t rhport) {
   // TODO determine link speed
   uint8_t const pio_rhport = RHPORT_PIO(rhport);
-  return PIO_USB_ROOT_PORT(pio_rhport)->is_fullspeed ? TUSB_SPEED_FULL : TUSB_SPEED_LOW;
+  return PIO_USB_ROOT_PORT(pio_rhport)->is_fullspeed ? TUSB_SPEED_FULL : TUSB_SPEED_LOW; //-V619 PIO_USB_ROOT_PORT() indexes Pico-PIO-USB's root-port array
 }
 
 // Close all opened endpoint belong to this device

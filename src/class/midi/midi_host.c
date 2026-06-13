@@ -369,8 +369,8 @@ uint8_t tuh_midi_itf_get_index(uint8_t daddr, uint8_t itf_num) {
 }
 
 bool tuh_midi_itf_get_info(uint8_t idx, tuh_itf_info_t* info) {
+  TU_VERIFY(idx < CFG_TUH_MIDI && info != NULL);
   midih_interface_t* p_midi = &_midi_host[idx];
-  TU_VERIFY(p_midi && info);
 
   info->daddr = p_midi->daddr;
 
@@ -512,7 +512,7 @@ uint32_t tuh_midi_stream_write(uint8_t idx, uint8_t cable_num, uint8_t const *bu
         stream->buffer[0] = (uint8_t) (cable_num << 4 | 0xf);
         stream->buffer[2] = 0;
         stream->buffer[3] = 0;
-        stream->index = 2;
+        stream->index = 2; //-V1048 already set at packet start; kept beside total for clarity
         stream->total = 2;
       }
     } else {
