@@ -197,7 +197,10 @@ static const IRQn_Type fsdev_irq[] = {
     USB_HP_CAN_TX_IRQn,
     USB_LP_CAN_RX0_IRQn,
     USBWakeUp_IRQn,
-  #elif TU_CHECK_MCU(OPT_MCU_STM32G4, OPT_MCU_STM32L1)
+  #elif CFG_TUSB_MCU == OPT_MCU_STM32G4
+    USB_HP_IRQn,
+    USB_LP_IRQn,
+  #elif CFG_TUSB_MCU == OPT_MCU_STM32L1
     USB_HP_IRQn,
     USB_LP_IRQn,
     USBWakeUp_IRQn,
