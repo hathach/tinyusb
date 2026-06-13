@@ -145,8 +145,7 @@ class HilConfig(TypedDict):
 CMD_TIMEOUT = int(os.getenv('HIL_CMD_TIMEOUT', '180'))
 POOL_TIMEOUT = int(os.getenv('HIL_POOL_TIMEOUT', '3000'))
 SERIAL_READ_TIMEOUT = float(os.getenv('HIL_SERIAL_READ_TIMEOUT', '5'))
-SERIAL_WRITE_TIMEOUT = float(os.getenv('HIL_SERIAL_WRITE_TIMEOUT', '2'))
-SERIAL_WRITE_DEADLINE = float(os.getenv('HIL_SERIAL_WRITE_DEADLINE', '10'))
+SERIAL_WRITE_TIMEOUT = float(os.getenv('HIL_SERIAL_WRITE_TIMEOUT', '10'))
 
 
 def cmd_stdout_text(out: Any) -> str:
@@ -247,24 +246,14 @@ def open_serial_dev(port: str):
     return ser
 
 
-def serial_write_all(ser: serial.Serial, data: bytes, deadline: float = SERIAL_WRITE_DEADLINE):
-    total = 0
-    end = time.monotonic() + deadline
-
-    while total < len(data):
-        try:
-            written = ser.write(data[total:])
-        except serial.SerialTimeoutException:
-            written = 0
-
-        if written:
-            total += written
-            continue
-
-        if time.monotonic() >= end:
-            raise AssertionError(f'Serial write timeout after {deadline:.1f}s')
-
-        time.sleep(0.01)
+def serial_write_all(ser: serial.Serial, data: bytes):
+    # write_timeout is a total deadline for the whole call (pyserial keeps partial progress
+    # internally). A timeout means the device stopped draining — treat it as fatal: pyserial
+    # loses the partial-write count on raise, so retrying would duplicate bytes on the wire.
+    try:
+        ser.write(data)
+    except serial.SerialTimeoutException:
+        raise AssertionError(f'Serial write timeout after {SERIAL_WRITE_TIMEOUT:.1f}s')
 
 
 def read_disk_file(uid: str, lun: int, fname: str) -> bytes:
