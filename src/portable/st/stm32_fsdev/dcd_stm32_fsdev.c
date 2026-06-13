@@ -125,6 +125,10 @@ typedef struct {
 static xfer_ctl_t xfer_status[CFG_TUD_ENDPPOINT_MAX][2];
 static ep_alloc_t ep_alloc_status[FSDEV_EP_COUNT];
 static uint8_t    remoteWakeCountdown; // When wake is requested
+#if defined(TUP_USBIP_FSDEV_CH32)
+static bool       ep0_ctrl_dir_in;
+static bool       ep0_ctrl_has_data;
+#endif
 
 //--------------------------------------------------------------------+
 // Prototypes
@@ -153,6 +157,16 @@ TU_ATTR_ALWAYS_INLINE static inline void edpt0_prepare_setup(void) {
 TU_ATTR_ALWAYS_INLINE static inline xfer_ctl_t *xfer_ctl_ptr(uint8_t epnum, uint8_t dir) {
   return &xfer_status[epnum][dir];
 }
+
+#if defined(TUP_USBIP_FSDEV_CH32)
+// CH32 FSDEV workaround: gate EP0 handshakes by switching type between CONTROL and BULK.
+TU_ATTR_ALWAYS_INLINE static inline void ep0_set_type(uint32_t ep_type, bool need_exclusive) {
+  uint32_t ep_reg = ep_read(0) | U_EP_CTR_TX | U_EP_CTR_RX;
+  ep_reg &= U_EPREG_MASK;
+  ep_reg = (ep_reg & ~U_EP_T_FIELD) | ep_type;
+  ep_write(0, ep_reg, need_exclusive);
+}
+#endif
 
 //--------------------------------------------------------------------+
 // Controller API
@@ -231,6 +245,11 @@ static void handle_bus_reset(uint8_t rhport) {
   // Reset PMA allocation
   ep_buf_ptr = FSDEV_BTABLE_BASE + 8 * FSDEV_EP_COUNT;
 
+#if defined(TUP_USBIP_FSDEV_CH32)
+  ep0_ctrl_dir_in = false;
+  ep0_ctrl_has_data = false;
+#endif
+
   edpt0_open(rhport);              // open control endpoint (both IN & OUT)
 
   FSDEV_REG->DADDR = U_DADDR_EF; // Enable USB Function
@@ -262,6 +281,12 @@ static void handle_ctr_tx(uint32_t ep_id) {
   if (xfer->total_len != xfer->queued_len) {
     dcd_transmit_packet(xfer, (uint16_t)ep_id);
   } else {
+#if defined(TUP_USBIP_FSDEV_CH32)
+    // Control read: block unsolicited EP0 OUT ACK.
+    if ((ep_num == 0u) && ep0_ctrl_dir_in && ep0_ctrl_has_data) {
+        ep0_set_type(U_EP_BULK, false);
+    }
+#endif
     dcd_event_xfer_complete(0, ep_num | TUSB_DIR_IN_MASK, xfer->queued_len, XFER_RESULT_SUCCESS, true);
   }
 }
@@ -278,6 +303,16 @@ static void handle_ctr_setup(uint32_t ep_id) {
 
   // Setup packet should always be 8 bytes. If not, we probably missed the packet
   if (rx_count == 8) {
+#if defined(TUP_USBIP_FSDEV_CH32)
+    uint16_t const setup_w_length = (uint16_t) setup_packet[6] | ((uint16_t) setup_packet[7] << 8);
+    ep0_ctrl_dir_in = (setup_packet[0] & TUSB_DIR_IN_MASK) != 0u;
+    ep0_ctrl_has_data = (setup_w_length != 0u);
+
+    // For control write, block unsolicited EP0 OUT ACK until transfer is armed in edpt_xfer().
+    if (!ep0_ctrl_dir_in && ep0_ctrl_has_data) {
+      ep0_set_type(U_EP_BULK, false);
+    }
+#endif
     dcd_event_setup_received(0, (uint8_t *)setup_packet, true);
     // Hardware should reset EP0 RX/TX to NAK and both toggle to 1
   } else {
@@ -293,6 +328,14 @@ static void handle_ctr_rx(uint32_t ep_id) {
   const uint8_t ep_num = ep_reg & U_EPADDR_FIELD;
   const bool    is_iso = ep_is_iso(ep_reg);
   xfer_ctl_t   *xfer   = xfer_ctl_ptr(ep_num, TUSB_DIR_OUT);
+
+#if defined(TUP_USBIP_FSDEV_CH32)
+  // Control write: re-lock EP0 OUT after each DATA OUT packet until next edpt_xfer().
+  if ((ep_num == 0u) && !ep0_ctrl_dir_in && ep0_ctrl_has_data) {
+    ep0_set_type(U_EP_BULK, false);
+    ep_reg = (ep_reg & ~U_EP_T_FIELD) | U_EP_BULK;
+  }
+#endif
 
   uint8_t buf_id;
   #if FSDEV_USE_SBUF_ISO == 0
@@ -315,6 +358,7 @@ static void handle_ctr_rx(uint32_t ep_id) {
     tu_hwfifo_read(pma_buf, xfer->buffer + xfer->queued_len, rx_count, NULL);
   }
   xfer->queued_len += rx_count;
+
 
   if ((rx_count < xfer->max_packet_size) || (xfer->queued_len >= xfer->total_len)) {
     // all bytes received or short packet
@@ -432,8 +476,6 @@ void dcd_edpt0_status_complete(uint8_t rhport, const tusb_control_request_t *req
     const uint8_t dev_addr = (uint8_t)request->wValue;
     FSDEV_REG->DADDR       = (U_DADDR_EF | dev_addr);
   }
-
-  edpt0_prepare_setup();
 }
 
 /***
@@ -706,6 +748,12 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, tusb_dir_t dir) {
 
   xfer_ctl_t   *xfer   = xfer_ctl_ptr(ep_num, dir);
   const uint8_t ep_idx = xfer->ep_idx;
+#if defined(TUP_USBIP_FSDEV_CH32)
+  // Re-enable normal control transfer semantics when EP0 transfer is explicitly armed.
+  if (ep_num == 0u) {
+    ep0_set_type(U_EP_CONTROL, true);
+  }
+#endif
 
   if (dir == TUSB_DIR_IN) {
     dcd_transmit_packet(xfer, ep_idx);
