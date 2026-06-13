@@ -39,12 +39,16 @@
   #include <ch32v30x.h>
 #elif CFG_TUSB_MCU == OPT_MCU_CH32F20X
   #include <ch32f20x.h>
+#elif CFG_TUSB_MCU == OPT_MCU_CH32H417
+  #include <ch32h417.h>
+  #include <ch32h417_usb.h>
 #endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif
 
+#if CFG_TUSB_MCU != OPT_MCU_CH32H417
 
 /******************* GLOBAL ******************/
 
@@ -391,5 +395,6 @@
 #define USBHS_UH_T_TOG_AUTO (1 << 5)
 #define USBHS_UH_T_DATA_NO  (1 << 6)
 
+#endif
 
 #endif
