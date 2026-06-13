@@ -944,6 +944,9 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
         // would land on that innocent request. Skip the stall and replay the deferred SETUP instead.
         pipe0_process_deferred_setup(rhport, ep_csr, false);
       } else {
+        // Forcing EP0 to IDLE: any RXRDY parked by the aborted transfer's flow control is stale,
+        // clear it so the next SETUP IRQ is not gated off.
+        _dcd.pipe0.rxrdy_consumed = false;
         ep_csr->csr0l = MUSB_CSRL0_STALL;
       }
     }
