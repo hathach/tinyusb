@@ -89,6 +89,7 @@ hw/mcu/wch/ch32f20x                       https://github.com/openwch/ch32f20x.gi
 hw/mcu/wch/ch32v103                       https://github.com/openwch/ch32v103.git                           7578cae0b21f86dd053a1f781b2fc6ab99d0ec17  ch32v10x
 hw/mcu/wch/ch32v20x                       https://github.com/openwch/ch32v20x.git                           c4c38f507e258a4e69b059ccc2dc27dde33cea1b  ch32v20x
 hw/mcu/wch/ch32v307                       https://github.com/openwch/ch32v307.git                           184f21b852cb95eed58e86e901837bc9fff68775  ch32v30x
+hw/mcu/wch/ch32x035                       https://github.com/openwch/ch32x035.git                           c6253942b29ff2a3f5e2829182a874afffa45881  ch32x035
 lib/CMSIS_5                               https://github.com/ARM-software/CMSIS_5.git                       2b7495b8535bdcb306dac29b9ded4cfb679d7e5c  kinetis_k kinetis_kl lpc54 rw61x mm32 msp432e4 nrf samd2x_l2x lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43 stm32c0 stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 stm32h5 stm32h7 stm32h7rs stm32l0 stm32l1 stm32l4 stm32l5 stm32u0 stm32u5 stm32wb stm32wba sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x samg tm4c
 lib/CMSIS_6                               https://github.com/ARM-software/CMSIS_6.git                       6f0a58d01aa9bd2feba212097f9afe7acd991d52  imxrt kinetis_k32l ra stm32n6 lpc51 lpc55 mcx stm32c5
 lib/FreeRTOS-Kernel                       https://github.com/FreeRTOS/FreeRTOS-Kernel.git                   cc0e0707c0c748713485b870bb980852b210877f  all

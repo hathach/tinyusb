@@ -37,6 +37,8 @@
 
 #if CFG_TUSB_MCU == OPT_MCU_CH32F20X
   #include <ch32f20x.h>
+#elif CFG_TUSB_MCU == OPT_MCU_CH32X035
+  #include <ch32x035.h>
 #elif CFG_TUSB_MCU == OPT_MCU_CH32V103
   #include <ch32v10x.h>
   typedef struct
@@ -103,6 +105,12 @@
 #pragma GCC diagnostic pop
 #endif
 
+#if CFG_TUSB_MCU == OPT_MCU_CH32X035
+  #include "usbfs_x035.h"
+#else
+  #include "usbfs_generic.h"
+#endif
+
 // CTRL
 #define USBFS_CTRL_DMA_EN    (1 << 0)
 #define USBFS_CTRL_CLR_ALL   (1 << 1)
@@ -145,26 +153,6 @@
 #define USBFS_UDEV_CTRL_DM_PIN    (1 << 4)
 #define USBFS_UDEV_CTRL_DP_PIN    (1 << 5)
 #define USBFS_UDEV_CTRL_PD_DIS    (1 << 7)
-
-// TX_CTRL
-#define USBFS_EP_T_RES_MASK (3 << 0)
-#define USBFS_EP_T_TOG      (1 << 2)
-#define USBFS_EP_T_AUTO_TOG (1 << 3)
-
-#define USBFS_EP_T_RES_ACK   (0 << 0)
-#define USBFS_EP_T_RES_NYET  (1 << 0)
-#define USBFS_EP_T_RES_NAK   (2 << 0)
-#define USBFS_EP_T_RES_STALL (3 << 0)
-
-// RX_CTRL
-#define USBFS_EP_R_RES_MASK (3 << 0)
-#define USBFS_EP_R_TOG      (1 << 2)
-#define USBFS_EP_R_AUTO_TOG (1 << 3)
-
-#define USBFS_EP_R_RES_ACK   (0 << 0)
-#define USBFS_EP_R_RES_NYET  (1 << 0)
-#define USBFS_EP_R_RES_NAK   (2 << 0)
-#define USBFS_EP_R_RES_STALL (3 << 0)
 
 // token PID
 #define PID_OUT   0
