@@ -594,11 +594,59 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
 }
 
 bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
-  (void) rhport;
-  (void) dev_addr;
-  (void) ep_addr;
-  // TODO not implemented yet
-  return false;
+  struct hw_endpoint *ep = get_dev_ep(dev_addr, ep_addr);
+  if ( ep == NULL )
+  {
+    return false;
+  }
+
+  // Nothing in flight: the previous transfer already reset the endpoint and the
+  // controller cleared AVAIL on write-back, so there is nothing to abort.
+  if ( !ep->active )
+  {
+    return true;
+  }
+
+  // Mask the USB interrupt for the brief teardown. hw_endpoint_lock_update is a
+  // no-op on this port, so without this the buff_status ISR could run
+  // hw_endpoint_xfer_continue on this endpoint after we clear ep->active and
+  // panic on the inactive ep.
+  hcd_int_disable(rhport);
+
+  if ( ep == &epx )
+  {
+    // Control endpoint is driven directly by the SIE, not the EP_ABORT register.
+    // Drop any armed buffer and reset our view; leave the SIE_CTRL SOF /
+    // keep-alive base untouched.
+    *ep->buffer_control = 0;
+    hw_endpoint_reset_transfer(ep);
+  }
+  else
+  {
+    // Interrupt endpoint (host bulk is implemented using these here). Run the
+    // EP_ABORT / EP_ABORT_DONE handshake so the controller stops touching the
+    // buffer before we clear it, otherwise clearing an AVAILABLE buffer races the
+    // in-progress poll. The abort/buf_status bit for ep_pool[i] is
+    // 1 << (i*2 + dir), with i == interrupt_num + 1 and dir 0=IN, 1=OUT.
+    // EP_ABORT/EP_ABORT_DONE are tagged "Device only" in the datasheet but are
+    // confirmed to work for host interrupt endpoints on rp2040/rp2350; done
+    // asserts within a few cycles, like the device-side abort in rp2040_usb.c.
+    uint32_t const bit = 1ul << ((ep->interrupt_num + 1) * 2 + (ep->rx ? 0 : 1));
+    usb_hw->abort_done = bit;   // EP_ABORT_DONE is write-clear: drop any stale done so we wait on a fresh abort
+    usb_hw_set->abort = bit;
+    while ( !(usb_hw->abort_done & bit) ) {}
+
+    // Controller is idle on this endpoint: clear the armed buffer, drop any
+    // completion latched for it, clear done for the next abort, release abort.
+    *ep->buffer_control = 0;
+    usb_hw_clear->buf_status = bit;
+    usb_hw->abort_done = bit;
+    usb_hw_clear->abort = bit;
+    hw_endpoint_reset_transfer(ep);
+  }
+
+  hcd_int_enable(rhport);
+  return true;
 }
 
 bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8])
