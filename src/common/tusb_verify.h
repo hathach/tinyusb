@@ -87,7 +87,18 @@
   } while(0)
 
 #elif defined(__riscv) && !defined(ESP_PLATFORM)
-  #define TU_BREAKPOINT() do { __asm("ebreak\n"); } while(0)
+  // NOTE: unlike the ARM path above, a plain `ebreak` does NOT check whether a
+  // debugger is attached. On WCH QingKe cores (CH32V307) the debug module is
+  // left configured by the WCH-LinkE after flashing, so an `ebreak` from a
+  // failed TU_ASSERT/TU_VERIFY (e.g. a transient error during host enumeration)
+  // RESETS the chip (SFT reset, never reaching the trap handler) instead of
+  // returning false. That turns recoverable enumeration hiccups into reboot
+  // loops. Make it a no-op on CH32 so TU_ASSERT just returns its error value.
+  #if defined(CFG_TUSB_MCU) && (CFG_TUSB_MCU == OPT_MCU_CH32V307 || CFG_TUSB_MCU == OPT_MCU_CH32V20X || CFG_TUSB_MCU == OPT_MCU_CH32F20X)
+    #define TU_BREAKPOINT() do {} while (0)
+  #else
+    #define TU_BREAKPOINT() do { __asm("ebreak\n"); } while(0)
+  #endif
 
 #elif defined(_mips)
   #define TU_BREAKPOINT() do { __asm("sdbbp 0"); } while (0)

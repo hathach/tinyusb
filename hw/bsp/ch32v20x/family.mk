@@ -46,6 +46,7 @@ LD_FILE = $(FAMILY_PATH)/linker/${CH32_FAMILY}.ld
 SRC_C += \
 	src/portable/wch/dcd_ch32_usbfs.c \
 	src/portable/wch/hcd_ch32_usbfs.c \
+	src/portable/wch/wch_usbfs_ll.c \
 	src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
 	src/portable/st/stm32_fsdev/fsdev_common.c \
 	$(SDK_SRC_DIR)/Core/core_riscv.c \
