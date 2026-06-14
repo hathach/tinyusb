@@ -49,6 +49,25 @@
     #define EP_DMA(ep)    (*((ep) <= 3u ? &USBOTG_FS->EP_DMA_0_3[0].DMA + (ep) * 2u \
                              : (ep) == 4u ? &USBOTG_FS->EP_DMA_0_3[0].DMA \
                                           : &USBOTG_FS->EP_DMA_5_7[0].DMA + ((ep) - 5u) * 2u))
+  #elif CFG_TUSB_MCU == OPT_MCU_CH32X035
+    static inline volatile uint32_t* ch32_usbfs_ep_dma_reg(uint8_t ep) {
+      switch (ep) {
+        case 0: return &USBOTG_FS->UEP0_DMA;
+        case 1: return &USBOTG_FS->UEP1_DMA;
+        case 2: return &USBOTG_FS->UEP2_DMA;
+        case 3: return &USBOTG_FS->UEP3_DMA;
+        case 4: return &USBOTG_FS->UEP0_DMA;
+        case 5: return &USBOTG_FS->UEP5_DMA;
+        case 6: return &USBOTG_FS->UEP6_DMA;
+        default: return &USBOTG_FS->UEP7_DMA;
+      }
+    }
+
+    // There's a gap between EP4 and EP5 registers.
+    #define EP_DMA(ep)     (*ch32_usbfs_ep_dma_reg(ep))
+    #define EP_TX_LEN(ep)  ((&USBOTG_FS->UEP0_TX_LEN)[2 * (ep) + ((ep) > 4 ? 24 : 0)])
+    #define EP_TX_CTRL(ep) ((&USBOTG_FS->UEP0_CTRL_H)[2 * (ep) + ((ep) > 4 ? 24 : 0)])
+    #define EP_RX_CTRL(ep) EP_TX_CTRL(ep)
   #else
     #define EP_DMA(ep)     ((&USBOTG_FS->UEP0_DMA)[ep])
     #define EP_TX_LEN(ep)  ((&USBOTG_FS->UEP0_TX_LEN)[2 * ep])
@@ -56,9 +75,8 @@
     #define EP_RX_CTRL(ep) ((&USBOTG_FS->UEP0_RX_CTRL)[4 * ep])
   #endif
 
-// Endpoint control register access. The newer USBFS IP (CH32V20x/V307/X035) has separate
-// TX_CTRL and RX_CTRL bytes per endpoint; the older IP (CH32V103) has a single combined
-// UEPn_CTRL register. These helpers hide the difference so the rest of the driver is shared.
+// Endpoint control register access. Some WCH USBFS IPs have separate TX_CTRL/RX_CTRL bytes per
+// endpoint; others have a single combined UEPn_CTRL register. These helpers hide the difference.
 // Values use the newer-IP encoding (USBFS_EP_T_*/USBFS_EP_R_*); the combined path remaps them.
 #ifdef CH32_USBFS_EP_CTRL_COMBINED
   #ifndef EP_CTRL // parts with a custom register map (CH58X) define EP_CTRL directly in reg.h
@@ -312,6 +330,8 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   // CH58X: a single mode register enables EP5/6/7 RX+TX (different bit layout than CH32).
   USBOTG_FS->UEP567_MOD = RB_UEP5_RX_EN | RB_UEP5_TX_EN | RB_UEP6_RX_EN | RB_UEP6_TX_EN |
                           RB_UEP7_RX_EN | RB_UEP7_TX_EN;
+#elif CFG_TUSB_MCU == OPT_MCU_CH32X035
+  USBOTG_FS->UEP567_MOD = 0x3F;
 #else
   USBOTG_FS->UEP5_6_MOD = 0xCC;
   USBOTG_FS->UEP7_MOD   = 0x0C;

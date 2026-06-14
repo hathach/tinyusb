@@ -360,15 +360,16 @@ fomu     fomu    fomu      https://tomu.im/fomu.html
 WCH
 ---
 
-================  ================  ========  =====================================================================  ======
-Board             Name              Family    URL                                                                    Note
-================  ================  ========  =====================================================================  ======
-ch32f205r-r0      CH32F205r-r0      ch32f20x  https://github.com/openwch/ch32f20x
-ch32v103r_r1_1v0  CH32V103R-R1-1v1  ch32v10x  https://github.com/openwch/ch32v103/tree/main/SCHPCB/CH32V103R-R1-1v1
-ch32v203c_r0_1v0  CH32V203C-R0-1v0  ch32v20x  https://github.com/openwch/ch32v20x/tree/main/SCHPCB/CH32V203C-R0
-ch32v203g_r0_1v0  CH32V203G-R0-1v0  ch32v20x  https://github.com/openwch/ch32v20x/tree/main/SCHPCB/CH32V203C-R0
-nanoch32v203      nanoCH32V203      ch32v20x  https://github.com/wuxx/nanoCH32V203
-ch32v307v_r1_1v0  CH32V307V-R1-1v0  ch32v30x  https://github.com/openwch/ch32v307/tree/main/SCHPCB/CH32V307V-R1-1v0
-nanoch32v305      nanoCH32V305      ch32v30x  https://github.com/wuxx/nanoCH32V305
-yd-ch582m         yd-ch582m         ch583     http://vcc-gnd.com
-================  ================  ========  =====================================================================  ======
+==========================  ===========================  ========  =====================================================================  ======
+Board                       Name                         Family    URL                                                                    Note
+==========================  ===========================  ========  =====================================================================  ======
+ch32f205r-r0                CH32F205r-r0                 ch32f20x  https://github.com/openwch/ch32f20x
+ch32v103r_r1_1v0            CH32V103R-R1-1v1             ch32v10x  https://github.com/openwch/ch32v103/tree/main/SCHPCB/CH32V103R-R1-1v1
+ch32v203c_r0_1v0            CH32V203C-R0-1v0             ch32v20x  https://github.com/openwch/ch32v20x/tree/main/SCHPCB/CH32V203C-R0
+ch32v203g_r0_1v0            CH32V203G-R0-1v0             ch32v20x  https://github.com/openwch/ch32v20x/tree/main/SCHPCB/CH32V203C-R0
+nanoch32v203                nanoCH32V203                 ch32v20x  https://github.com/wuxx/nanoCH32V203
+ch32v307v_r1_1v0            CH32V307V-R1-1v0             ch32v30x  https://github.com/openwch/ch32v307/tree/main/SCHPCB/CH32V307V-R1-1v0
+nanoch32v305                nanoCH32V305                 ch32v30x  https://github.com/wuxx/nanoCH32V305
+yd-ch582m                   yd-ch582m                    ch583     http://vcc-gnd.com
+weact_ch32x035_core_board   WeAct CH32X035 Core Board    ch32x035  https://github.com/WeActStudio/WeActStudio.CH32X035CoreBoard
+==========================  ===========================  ========  =====================================================================  ======
