@@ -70,7 +70,11 @@ enum {
 
 // Endpoint addresses
 #define EPNUM_MIDI2_OUT 0x01
+#if CFG_TUD_ENDPOINT_ONE_DIRECTION_ONLY
+#define EPNUM_MIDI2_IN 0x82
+#else
 #define EPNUM_MIDI2_IN 0x81
+#endif
 
 static uint8_t const desc_fs_configuration[] = {
   // Config number, interface count, string index, total length, attribute, power in mA
