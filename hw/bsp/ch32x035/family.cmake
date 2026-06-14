@@ -49,6 +49,8 @@ function(family_add_board BOARD_TARGET)
     )
   target_compile_definitions(${BOARD_TARGET} PUBLIC
     BOARD_TUD_RHPORT=${RHPORT_DEVICE}
+    CFG_EXAMPLE_MSC_DUAL_READONLY
+    CFG_EXAMPLE_VIDEO_READONLY
     )
 
   update_board(${BOARD_TARGET})
