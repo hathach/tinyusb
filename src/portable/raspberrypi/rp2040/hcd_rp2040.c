@@ -535,8 +535,29 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
 }
 
 bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
-  (void) rhport; (void) daddr; (void) ep_addr;
-  return false; // TODO not implemented yet
+  (void) rhport;
+
+  // EP0/EPX is opened implicitly and shared; it is never closed individually
+  // (tuh_edpt_close already rejects EP0).
+  struct hw_endpoint *ep = get_dev_ep(daddr, ep_addr);
+  if ( ep == NULL || ep == &epx )
+  {
+    return false;
+  }
+
+  // Deconfigure the interrupt endpoint: stop the controller polling it,
+  // clear its registers and buffer, and free the pool slot for reuse. Mirrors the
+  // per-endpoint teardown in hcd_device_close. tuh_edpt_close aborts any pending
+  // transfer before calling this, so the endpoint is already idle.
+  hcd_int_disable(rhport);
+  usb_hw_clear->int_ep_ctrl = (1u << (ep->interrupt_num + 1));
+  usb_hw->int_ep_addr_ctrl[ep->interrupt_num] = 0;
+  ep->configured = false;
+  *ep->endpoint_control = 0;
+  *ep->buffer_control = 0;
+  hw_endpoint_reset_transfer(ep);
+  hcd_int_enable(rhport);
+  return true;
 }
 
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen)
