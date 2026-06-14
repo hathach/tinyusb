@@ -177,6 +177,13 @@
     #define NVIC_EnableIRQ(n)  PFIC_EnableIRQ(n)
     #define NVIC_DisableIRQ(n) PFIC_DisableIRQ(n)
   #endif
+#elif CFG_TUSB_MCU == OPT_MCU_CH32X035
+  #include <ch32x035.h>
+  #define USBOTG_FS USBFSD
+  #define CH32_USBFS_EP_CTRL_COMBINED 1
+  #define CH32_USBFS_EP_MANUAL_TOG    1
+  #define CH32_USBFS_EP4_SHARES_EP0   1
+  #define USBHD_IRQn USBFS_IRQn
 #endif
 
 // CH32V20x/V30x/F20x USBFS gives endpoint 3 a 1023-byte isochronous packet (CH32FV2x_V3xRM ch23:
