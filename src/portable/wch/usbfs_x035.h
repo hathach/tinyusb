@@ -71,35 +71,10 @@ static inline volatile uint32_t *ch32_usbfs_ep_dma_reg(uint8_t ep) {
   }
 }
 
-static inline volatile uint16_t *ch32_usbfs_ep_tx_len_reg(uint8_t ep) {
-  switch (ep) {
-    case 0: return &USBOTG_FS->UEP0_TX_LEN;
-    case 1: return &USBOTG_FS->UEP1_TX_LEN;
-    case 2: return &USBOTG_FS->UEP2_TX_LEN;
-    case 3: return &USBOTG_FS->UEP3_TX_LEN;
-    case 4: return &USBOTG_FS->UEP4_TX_LEN;
-    case 5: return &USBOTG_FS->UEP5_TX_LEN;
-    case 6: return &USBOTG_FS->UEP6_TX_LEN;
-    default: return &USBOTG_FS->UEP7_TX_LEN;
-  }
-}
-
-static inline volatile uint16_t *ch32_usbfs_ep_ctrl_reg(uint8_t ep) {
-  switch (ep) {
-    case 0: return &USBOTG_FS->UEP0_CTRL_H;
-    case 1: return &USBOTG_FS->UEP1_CTRL_H;
-    case 2: return &USBOTG_FS->UEP2_CTRL_H;
-    case 3: return &USBOTG_FS->UEP3_CTRL_H;
-    case 4: return &USBOTG_FS->UEP4_CTRL_H;
-    case 5: return &USBOTG_FS->UEP5_CTRL_H;
-    case 6: return &USBOTG_FS->UEP6_CTRL_H;
-    default: return &USBOTG_FS->UEP7_CTRL_H;
-  }
-}
-
+// There's a gap between EP4 and EP5 registers
 #define EP_DMA(ep)     (*ch32_usbfs_ep_dma_reg(ep))
-#define EP_TX_LEN(ep)  (*ch32_usbfs_ep_tx_len_reg(ep))
-#define EP_TX_CTRL(ep) (*ch32_usbfs_ep_ctrl_reg(ep))
+#define EP_TX_LEN(ep)  ((&USBOTG_FS->UEP0_TX_LEN)[2 * (ep) + ((ep) > 4 ? 24 : 0)])
+#define EP_TX_CTRL(ep) ((&USBOTG_FS->UEP0_CTRL_H)[2 * (ep) + ((ep) > 4 ? 24 : 0)])
 #define EP_RX_CTRL(ep) EP_TX_CTRL(ep)
 
 // MASK are bits to preserve when writing one direction
