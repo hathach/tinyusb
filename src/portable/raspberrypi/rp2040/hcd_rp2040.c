@@ -619,11 +619,11 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 
   if (ep->interrupt_num > 0) {
     // Interrupt endpoint: dedicated hardware that polls autonomously, not on the
-    // shared EPX path. There is no STOP_TRANS for it. Drop state to IDLE first so a
-    // buf_status latched just before this is ignored by rp2usb_xfer_continue's IDLE
-    // guard, then de-arm the buffer (clears AVAIL) and clear its latched completion.
-    // Leave int_ep_ctrl polling enabled (abort != close): the next hcd_edpt_xfer
-    // re-arms via the buffer control.
+    // shared EPX path. There is no STOP_TRANS for it. Drop state to IDLE, de-arm the
+    // buffer (clears AVAIL), and clear its latched completion bit. The critical
+    // section already blocks the ISR; the cleared bit plus the IDLE state also cover
+    // the post-exit window. Leave int_ep_ctrl polling enabled (abort != close): the
+    // next hcd_edpt_xfer re-arms via the buffer control.
     ep->state                     = EPSTATE_IDLE;
     *dpram_int_ep_buffer_ctrl(ep->interrupt_num) = 0;
     // buf_status bit layout: IN at (interrupt_num << 1), OUT at ((interrupt_num << 1) | 1)
@@ -638,7 +638,11 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 
     // Retract any half still marked AVAIL so the controller cannot poll a stale
     // buffer after we reset state. Unlike epx_save_context (the preemption path),
-    // we do NOT roll back PID/len and re-queue: abort means do-not-resume.
+    // we do NOT roll back PID/len and re-queue: abort means do-not-resume. The data
+    // toggle (next_pid) is therefore left as-armed, the same stance as the
+    // device-side hw_endpoint_abort_xfer; a bulk EP re-armed after abort (without a
+    // close or a CLEAR_FEATURE(ENDPOINT_HALT) toggle reset) may resend with an
+    // unexpected toggle.
     usbh_dpram->epx_buf_ctrl = 0;
 
     // Drop the endpoint to IDLE, then clear latched completions so the ISR cannot
@@ -652,6 +656,11 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
     // is free); otherwise leave epx on the idle slot and disarm the scheduler.
     hw_endpoint_t *next_ep = epx_next_pending(epx);
     if (next_ep != NULL) {
+      #ifdef HAS_STOP_EPX_ON_NAK
+      // Drop any latched NAK-stop so it cannot fire a spurious preemption round-trip
+      // against the transfer we are about to start on the promoted endpoint.
+      usb_hw_clear->nak_poll = USB_NAK_POLL_EPX_STOPPED_ON_NAK_BITS;
+      #endif
       epx_switch_ep(next_ep);
     } else {
       epx_scheduler_disarm();
@@ -668,7 +677,8 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
       epx_scheduler_disarm();
     }
   }
-  // else: already IDLE, nothing to stop (idempotent).
+  // else: already IDLE, nothing to stop (idempotent). Invariant: a control/bulk EP
+  // is ACTIVE only while it is epx, so the branches above catch every active case.
 
   rp2usb_critical_exit();
   return true;
@@ -691,6 +701,14 @@ bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
   rp2usb_critical_enter();
 
   ep->state = EPSTATE_IDLE; // defensive: drop from any scheduling (abort already did)
+
+  // Defensive: tuh_edpt_close aborts first, but the HCD API does not require it. If
+  // this slot is somehow still the active EPX owner, disarm the scheduler so a stale
+  // SOF/NAK wakeup cannot start a transfer on the slot we are about to free. After
+  // the normal abort-first path this is a no-op.
+  if (epx == ep) {
+    epx_scheduler_disarm();
+  }
 
   if (ep->interrupt_num > 0) {
     // Interrupt endpoint: tear down the dedicated hardware so the int_idx is returned
