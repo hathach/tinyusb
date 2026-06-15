@@ -423,35 +423,31 @@ static bool edpt0_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_
   const unsigned dir_in = tu_edpt_dir(ep_addr);
 
   switch (pipe0->state) {
-    // Combined: usbd can arm the opposite-direction status/ZLP while pipe0 is still in a DATA
-    // state, so dispatch on the call direction (dir_in), not the state. (Splitting into separate
-    // DATA_IN/DATA_OUT cases mis-routes those dir != state calls and breaks ADI MUSB.)
+    // DATA stage exits on its last packet, so state matches the call direction here.
     case PIPE0_STATE_DATA_IN:
-    case PIPE0_STATE_DATA_OUT: {
+      TU_ASSERT(dir_in);
       pipe0->xact_len = total_bytes;
-      if (dir_in) {
-        // Replayed SETUP keeps its RXRDY parked until here; ack it before loading the shared FIFO.
-        if (pipe0->rxrdy_consumed) {
-          ep_csr->csr0l = MUSB_CSRL0_RXRDYC;
-          pipe0->rxrdy_consumed = false;
-        }
-        // DATA IN: load FIFO, set TXRDY. Add DATAEND on the last chunk
-        // (remain_wlength == 0 after this load) to end the data stage.
-        tu_hwfifo_write(&musb_regs->fifo[0], buffer, total_bytes, NULL);
-        pipe0->remain_wlength -= total_bytes;
-        if (pipe0->remain_wlength == 0) {
-          ep_csr->csr0l = MUSB_CSRL0_TXRDY | MUSB_CSRL0_DATAEND;
-        } else {
-          ep_csr->csr0l = MUSB_CSRL0_TXRDY;
-        }
-      } else {
-        // DATA OUT: arm drain target, ack RXRDY so host can send DATA OUT.
-        pipe0->buf = buffer;
+      if (pipe0->rxrdy_consumed) { // replayed SETUP: ack its parked RXRDY before loading the FIFO
         ep_csr->csr0l = MUSB_CSRL0_RXRDYC;
         pipe0->rxrdy_consumed = false;
       }
+      tu_hwfifo_write(&musb_regs->fifo[0], buffer, total_bytes, NULL);
+      pipe0->remain_wlength -= total_bytes;
+      // DATAEND on the last packet: wLength met, or a short packet (incl. ZLP) ends the data stage.
+      if (pipe0->remain_wlength == 0 || total_bytes < CFG_TUD_ENDPOINT0_SIZE) {
+        ep_csr->csr0l = MUSB_CSRL0_TXRDY | MUSB_CSRL0_DATAEND;
+      } else {
+        ep_csr->csr0l = MUSB_CSRL0_TXRDY;
+      }
       break;
-    }
+
+    case PIPE0_STATE_DATA_OUT:
+      TU_ASSERT(!dir_in);
+      pipe0->xact_len = total_bytes;
+      pipe0->buf = buffer; // arm drain target, ack RXRDY so host can send DATA OUT
+      ep_csr->csr0l = MUSB_CSRL0_RXRDYC;
+      pipe0->rxrdy_consumed = false;
+      break;
 
     case PIPE0_STATE_STATUS_IN:
       TU_ASSERT(dir_in && total_bytes == 0); // only STATUS IN allowed
@@ -616,10 +612,9 @@ static void process_ep0(uint8_t rhport) {
  * - or status stage is complete (ZLP) after DataEnd is set */
   switch (pipe0->state) {
     case PIPE0_STATE_DATA_IN:
-      // csrl == 0 in DATA IN = TXRDY just cleared, i.e. a DATA IN packet was successfully sent. If the
-      // just-sent packet was the last (DATAEND set when remain_wlength hit 0), transition to STATUS_OUT
-      // to await the host's STATUS-OUT ZLP confirmation IRQ.
-      if (pipe0->remain_wlength == 0) {
+      // DATA IN packet sent (TXRDY cleared). On the last packet (DATAEND condition above) move to
+      // STATUS_OUT to await the host's STATUS-OUT ZLP IRQ.
+      if (pipe0->remain_wlength == 0 || pipe0->xact_len < CFG_TUD_ENDPOINT0_SIZE) {
         pipe0->state = PIPE0_STATE_STATUS_OUT;
       }
       dcd_event_xfer_complete(rhport, TU_EP0_IN, pipe0->xact_len, XFER_RESULT_SUCCESS, true);
