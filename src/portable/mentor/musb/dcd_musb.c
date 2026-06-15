@@ -474,7 +474,7 @@ static bool edpt0_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_
 
 // Advance EP0's status-stage state machine on a tail event: the csrl==0 confirmation IRQ, or such a
 // confirmation combined with a new SETUP (caller sets deferred_setup_valid first). ISR context only.
-static void pipe0_process_status_isr(uint8_t rhport, musb_regs_t* musb_regs, musb_ep_csr_t* ep_csr) {
+static void pipe0_process_xfer_state_isr(uint8_t rhport, musb_regs_t* musb_regs, musb_ep_csr_t* ep_csr) {
   pipe0_state_t* pipe0 = &_dcd.pipe0;
   switch (pipe0->state) {
     case PIPE0_STATE_DATA_IN:
@@ -587,12 +587,12 @@ static void process_ep0_isr(uint8_t rhport) {
       case PIPE0_STATE_STATUS_OUT_PENDING_IRQ:
       case PIPE0_STATE_STATUS_IN:
         // Save it, then finish the old transfer's tail event; deferred_setup_valid makes
-        // pipe0_process_status_isr() synthesize the coalesced status confirm and replay the SETUP
+        // pipe0_process_xfer_state_isr() synthesize the coalesced status confirm and replay the SETUP
         // once the old transfer is retired. Its RXRDY stays parked so a stale IRQ can't re-process it.
         TU_VERIFY(pipe0_read_setup(musb_regs, ep_csr, pipe0->deferred_setup), );
         pipe0->deferred_setup_valid = true;
         pipe0->rxrdy_consumed = true;
-        pipe0_process_status_isr(rhport, musb_regs, ep_csr);
+        pipe0_process_xfer_state_isr(rhport, musb_regs, ep_csr);
         break;
 
       default: break;
@@ -611,7 +611,7 @@ static void process_ep0_isr(uint8_t rhport) {
   /* When CSRL0 is zero, it means that either
  * - completion of sending any length packet TxPktRdy clear
  * - or status stage is complete (ZLP) after DataEnd is set */
-  pipe0_process_status_isr(rhport, musb_regs, ep_csr);
+  pipe0_process_xfer_state_isr(rhport, musb_regs, ep_csr);
 }
 
 // Upon BUS RESET is detected, hardware havs already done:
