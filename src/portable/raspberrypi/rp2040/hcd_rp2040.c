@@ -589,19 +589,128 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t 
   return true;
 }
 
-bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
-  (void)rhport;
-  (void)daddr;
-  (void)ep_addr;
-  return false; // TODO not implemented yet
+// Disarm the EPX round-robin scheduler. Call when the active EPX endpoint is torn
+// down and no other endpoint is pending, so a stale SOF / NAK-stop wakeup cannot
+// resurrect the aborted transfer. Mirrors the "no more pending" cleanup in the ISR.
+TU_ATTR_ALWAYS_INLINE static inline void epx_scheduler_disarm(void) {
+  #ifdef HAS_STOP_EPX_ON_NAK
+  usb_hw_clear->nak_poll = USB_NAK_POLL_STOP_EPX_ON_NAK_BITS;
+  usb_hw_clear->nak_poll = USB_NAK_POLL_EPX_STOPPED_ON_NAK_BITS; // clear any latched NAK-stop
+  #else
+  usb_hw_clear->inte = USB_INTE_HOST_SOF_BITS;
+  usb_hw->nak_poll   = USB_NAK_POLL_RESET;
+  epx_switch_request = false;
+  #endif
 }
 
+// Abort an in-flight (or queued) transfer and leave the endpoint configured and
+// re-armable. The caller (tuh_edpt_abort_xfer) has already cleared the usbh-layer
+// BUSY/claim, so this only quiesces hardware + the EPSTATE machine. The endpoint is
+// NOT deconfigured here (that is hcd_edpt_close's job).
 bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   (void)rhport;
-  (void)dev_addr;
-  (void)ep_addr;
-  // TODO not implemented yet
-  return false;
+
+  hw_endpoint_t *ep = edpt_find(dev_addr, ep_addr);
+  TU_ASSERT(ep);
+
+  // hw_endpoint_lock_update is a no-op on this port; the critical section is the
+  // only serialisation against hcd_rp2040_irq, which mutates epx/state/buf_status.
+  rp2usb_critical_enter();
+
+  if (ep->interrupt_num > 0) {
+    // Interrupt endpoint: dedicated hardware that polls autonomously, not on the
+    // shared EPX path. There is no STOP_TRANS for it. Drop state to IDLE first so a
+    // buf_status latched just before this is ignored by rp2usb_xfer_continue's IDLE
+    // guard, then de-arm the buffer (clears AVAIL) and clear its latched completion.
+    // Leave int_ep_ctrl polling enabled (abort != close): the next hcd_edpt_xfer
+    // re-arms via the buffer control.
+    ep->state                     = EPSTATE_IDLE;
+    *dpram_int_ep_buffer_ctrl(ep->interrupt_num) = 0;
+    // buf_status bit layout: IN at (interrupt_num << 1), OUT at ((interrupt_num << 1) | 1)
+    const uint8_t bit_idx    = (uint8_t)((ep->interrupt_num << 1u) | (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN ? 0u : 1u));
+    usb_hw_clear->buf_status = TU_BIT(bit_idx);
+    rp2usb_reset_transfer(ep);
+  } else if (epx == ep && ep->state == EPSTATE_ACTIVE) {
+    // Active control/bulk endpoint owning the shared EPX engine. Stop the in-flight
+    // transaction on the wire BEFORE touching state (host stop primitive is SIE
+    // STOP_TRANS via sie_stop_xfer; the device usb_hw->abort handshake is device-only).
+    sie_stop_xfer();
+
+    // Retract any half still marked AVAIL so the controller cannot poll a stale
+    // buffer after we reset state. Unlike epx_save_context (the preemption path),
+    // we do NOT roll back PID/len and re-queue: abort means do-not-resume.
+    usbh_dpram->epx_buf_ctrl = 0;
+
+    // Drop the endpoint to IDLE, then clear latched completions so the ISR cannot
+    // fire xfer_complete_isr into the now-idle EP.
+    rp2usb_reset_transfer(ep);
+    usb_hw_clear->buf_status = 1u; // BUF_STATUS_EPX (bit 0)
+    usb_hw_clear->sie_status =
+      USB_SIE_STATUS_TRANS_COMPLETE_BITS | USB_SIE_STATUS_RX_TIMEOUT_BITS | USB_SIE_STATUS_STALL_REC_BITS;
+
+    // epx now points at an idle slot. Promote a queued endpoint if any (the engine
+    // is free); otherwise leave epx on the idle slot and disarm the scheduler.
+    hw_endpoint_t *next_ep = epx_next_pending(epx);
+    if (next_ep != NULL) {
+      epx_switch_ep(next_ep);
+    } else {
+      epx_scheduler_disarm();
+    }
+  } else if (ep->state >= EPSTATE_PENDING) {
+    // Queued control/bulk endpoint (PENDING or PENDING_SETUP) that does NOT own the
+    // engine: another endpoint is on the wire. No SIE stop / buf_ctrl touch. Setting
+    // state to IDLE removes it from the implicit pending set (epx_next_pending only
+    // matches state >= EPSTATE_PENDING); the staged setup_packet bytes are harmless.
+    rp2usb_reset_transfer(ep);
+
+    // If that emptied the pending set and EPX itself is idle, disarm the scheduler.
+    if (epx->state != EPSTATE_ACTIVE && epx_next_pending(epx) == NULL) {
+      epx_scheduler_disarm();
+    }
+  }
+  // else: already IDLE, nothing to stop (idempotent).
+
+  rp2usb_critical_exit();
+  return true;
+}
+
+// Deconfigure a single endpoint and free its ep_pool slot. The caller
+// (tuh_edpt_close) always aborts first and rejects EP0, so by here the transfer is
+// already stopped; this only deconfigures hardware and releases the slot. Mirrors
+// the per-slot body of hcd_device_close.
+bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
+  (void)rhport;
+
+  // Reject EP0 / the shared EPX control slot: it is never closed and ep_pool[0]
+  // must not be freed.
+  TU_VERIFY(tu_edpt_number(ep_addr) != 0);
+
+  hw_endpoint_t *ep = edpt_find(daddr, ep_addr);
+  TU_VERIFY(ep);
+
+  rp2usb_critical_enter();
+
+  ep->state = EPSTATE_IDLE; // defensive: drop from any scheduling (abort already did)
+
+  if (ep->interrupt_num > 0) {
+    // Interrupt endpoint: tear down the dedicated hardware so the int_idx is returned
+    // to the free pool that hcd_edpt_open scans. Disable SIE polling, clear the
+    // address control, then zero the DPRAM buffer + control words.
+    usb_hw_clear->int_ep_ctrl                       = TU_BIT(ep->interrupt_num);
+    usb_hw->int_ep_addr_ctrl[ep->interrupt_num - 1] = 0;
+
+    io_rw_32 *ep_reg  = dpram_int_ep_ctrl(ep->interrupt_num);
+    io_rw_32 *buf_reg = dpram_int_ep_buffer_ctrl(ep->interrupt_num);
+    *buf_reg          = 0;
+    *ep_reg           = 0;
+  }
+  // Control/bulk endpoints share the EPX registers (re-prepared on every xfer), so
+  // there is no per-endpoint hardware to deconfigure here.
+
+  ep->max_packet_size = 0; // mark slot unused (must be last: the allocation sentinel)
+
+  rp2usb_critical_exit();
+  return true;
 }
 
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *buffer, uint16_t buflen) {
