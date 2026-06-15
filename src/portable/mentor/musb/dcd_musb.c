@@ -566,12 +566,13 @@ static void process_ep0_isr(uint8_t rhport) {
         if (count0) {
           TU_ASSERT(pipe0->buf, );
           tu_hwfifo_read(&musb_regs->fifo[0], pipe0->buf, count0, NULL);
-          pipe0->remain_wlength -= count0;
+          pipe0->remain_wlength -= tu_min16(count0, pipe0->remain_wlength); // clamp: host may overrun
         }
         // RXRDY stays set until the next edpt0_xfer arm acks it (NAK flow control):
         // edpt0_xfer(DATA OUT) for a mid-stream packet, edpt0_xfer(STATUS IN) for the last.
         pipe0->rxrdy_consumed = true;
-        if (pipe0->remain_wlength == 0) {
+        // Last packet: wLength received, or a short packet (host's end-of-data).
+        if (pipe0->remain_wlength == 0 || count0 < CFG_TUD_ENDPOINT0_SIZE) {
           pipe0->state = PIPE0_STATE_STATUS_IN;
         }
         dcd_event_xfer_complete(rhport, TU_EP0_OUT, count0, XFER_RESULT_SUCCESS, true);
