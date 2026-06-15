@@ -914,6 +914,12 @@ static bool usbd_control_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t 
   // Data stage progress
   if (ctrl_xfer->request.bmRequestType_bit.direction == TUSB_DIR_OUT) {
     TU_VERIFY(ctrl_xfer->buffer);
+    // A non-compliant host can send more than requested; clamp to the remaining buffer so we
+    // never copy past the caller's buffer (data_len = min(len, wLength) is its capacity).
+    uint16_t const remain = ctrl_xfer->data_len - ctrl_xfer->total_xferred;
+    if (xferred_bytes > remain) {
+      xferred_bytes = remain;
+    }
     if (ctrl_xfer->buffer != _ctrl_epbuf.buf) {
       memcpy(ctrl_xfer->buffer, _ctrl_epbuf.buf, xferred_bytes);
     }
