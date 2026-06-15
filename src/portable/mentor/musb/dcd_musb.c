@@ -90,18 +90,21 @@ enum {
   PIPE0_STATE_STATUS_OUT_PENDING_IRQ,  // confirmation IRQ seen (or synthesized) first; edpt0_xfer(STATUS OUT) fires xfer_complete
 };
 
+// EP0 control-transfer state (own scalars, not a pipe[] slot).
 typedef struct {
-  struct {
-    uint8_t  *buf;            // DATA OUT drain target (only valid while EP0 is in DATA OUT stage)
-    uint16_t xact_len;        // chunk length most recently armed via edpt0_xfer; reported in xfer_complete
-    uint16_t remain_wlength;  // bytes remaining in the control transfer's DATA stage
-    uint8_t  state;
-    uint8_t  pending_addr;    // new USB address latched by dcd_set_address; applied when STATUS IN completes
-    tusb_control_request_t deferred_setup;
-    bool     deferred_setup_valid;
-    bool     rxrdy_consumed;    // RxPktRdy left set in hw for an already-consumed packet (NAK flow control);
-                              // RXRDY events are stale while set. Cleared when RXRDYC is written.
-  } pipe0;
+  uint8_t  *buf;            // DATA OUT drain target (only valid while EP0 is in DATA OUT stage)
+  uint16_t xact_len;        // chunk length most recently armed via edpt0_xfer; reported in xfer_complete
+  uint16_t remain_wlength;  // bytes remaining in the control transfer's DATA stage
+  uint8_t  state;
+  uint8_t  pending_addr;    // new USB address latched by dcd_set_address; applied when STATUS IN completes
+  bool     rxrdy_consumed;  // RxPktRdy left set in hw for an already-consumed packet (NAK flow control);
+                            // RXRDY events are stale while set. Cleared when RXRDYC is written.
+  bool     deferred_setup_valid;
+  tusb_control_request_t deferred_setup;
+} pipe0_state_t;
+
+typedef struct {
+  pipe0_state_t pipe0;
   pipe_state_t pipe[MUSB_PIPE_COUNT];
 } dcd_data_t;
 
@@ -122,26 +125,27 @@ static bool pipe0_read_setup(musb_regs_t* musb_regs, musb_ep_csr_t* ep_csr, tusb
 
 static void pipe0_start_setup(uint8_t rhport, musb_ep_csr_t* ep_csr,
                               tusb_control_request_t const* req, bool is_isr) {
-  _dcd.pipe0.remain_wlength = req->wLength;
+  pipe0_state_t* pipe0 = &_dcd.pipe0;
+  pipe0->remain_wlength = req->wLength;
 
   if (req->wLength == 0) {
     // Leave RXRDY set; edpt0_xfer(STATUS IN) acks it together with DATAEND.
-    _dcd.pipe0.state = PIPE0_STATE_STATUS_IN;
-    _dcd.pipe0.rxrdy_consumed = true;
+    pipe0->state = PIPE0_STATE_STATUS_IN;
+    pipe0->rxrdy_consumed = true;
   } else {
     if (req->bmRequestType & TUSB_DIR_IN_MASK) {
-      _dcd.pipe0.state = PIPE0_STATE_DATA_IN;
+      pipe0->state = PIPE0_STATE_DATA_IN;
       // On a deferred replay the packet's RXRDY stays parked until the edpt0_xfer(DATA IN) arm
       // acks it — a stale latched EP0 IRQ in between is gated by rxrdy_consumed.
-      if (!_dcd.pipe0.rxrdy_consumed) {
+      if (!pipe0->rxrdy_consumed) {
         ep_csr->csr0l = MUSB_CSRL0_RXRDYC;
       }
     } else {
       // If OUT (rx) direction, let edpt0_xfer() clear RXRDY when it's ready to receive data.
       // Deliberate deviation from the databook's canonical flow (ack right after unload),
       // used as NAK flow control until usbd arms the drain buffer.
-      _dcd.pipe0.state = PIPE0_STATE_DATA_OUT;
-      _dcd.pipe0.rxrdy_consumed = true;
+      pipe0->state = PIPE0_STATE_DATA_OUT;
+      pipe0->rxrdy_consumed = true;
     }
   }
 
@@ -149,12 +153,13 @@ static void pipe0_start_setup(uint8_t rhport, musb_ep_csr_t* ep_csr,
 }
 
 static void pipe0_process_deferred_setup(uint8_t rhport, musb_ep_csr_t* ep_csr, bool is_isr) {
-  if (!_dcd.pipe0.deferred_setup_valid) {
+  pipe0_state_t* pipe0 = &_dcd.pipe0;
+  if (!pipe0->deferred_setup_valid) {
     return;
   }
 
-  _dcd.pipe0.deferred_setup_valid = false;
-  pipe0_start_setup(rhport, ep_csr, &_dcd.pipe0.deferred_setup, is_isr);
+  pipe0->deferred_setup_valid = false;
+  pipe0_start_setup(rhport, ep_csr, &pipe0->deferred_setup, is_isr);
 }
 
 // EP0 must not call this — it has its own scalars in dcd_data_t.
@@ -414,32 +419,36 @@ static bool edpt0_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_
   TU_ASSERT(total_bytes <= CFG_TUD_ENDPOINT0_SIZE); /* EP0 only supports 1 packet per dcd_edpt_xfer()*/
   musb_regs_t* musb_regs = MUSB_REGS(rhport);
   musb_ep_csr_t* ep_csr = get_ep_csr(musb_regs, 0);
+  pipe0_state_t* pipe0 = &_dcd.pipe0;
   const unsigned dir_in = tu_edpt_dir(ep_addr);
 
-  switch (_dcd.pipe0.state) {
+  switch (pipe0->state) {
+    // Combined: usbd can arm the opposite-direction status/ZLP while pipe0 is still in a DATA
+    // state, so dispatch on the call direction (dir_in), not the state. (Splitting into separate
+    // DATA_IN/DATA_OUT cases mis-routes those dir != state calls and breaks ADI MUSB.)
     case PIPE0_STATE_DATA_IN:
     case PIPE0_STATE_DATA_OUT: {
-      _dcd.pipe0.xact_len = total_bytes;
+      pipe0->xact_len = total_bytes;
       if (dir_in) {
         // Replayed SETUP keeps its RXRDY parked until here; ack it before loading the shared FIFO.
-        if (_dcd.pipe0.rxrdy_consumed) {
+        if (pipe0->rxrdy_consumed) {
           ep_csr->csr0l = MUSB_CSRL0_RXRDYC;
-          _dcd.pipe0.rxrdy_consumed = false;
+          pipe0->rxrdy_consumed = false;
         }
         // DATA IN: load FIFO, set TXRDY. Add DATAEND on the last chunk
-        // (ep0_remain_datalen == 0 after this load) to end the data stage.
+        // (remain_wlength == 0 after this load) to end the data stage.
         tu_hwfifo_write(&musb_regs->fifo[0], buffer, total_bytes, NULL);
-        _dcd.pipe0.remain_wlength -= total_bytes;
-        if (_dcd.pipe0.remain_wlength == 0) {
+        pipe0->remain_wlength -= total_bytes;
+        if (pipe0->remain_wlength == 0) {
           ep_csr->csr0l = MUSB_CSRL0_TXRDY | MUSB_CSRL0_DATAEND;
         } else {
           ep_csr->csr0l = MUSB_CSRL0_TXRDY;
         }
       } else {
         // DATA OUT: arm drain target, ack RXRDY so host can send DATA OUT.
-        _dcd.pipe0.buf = buffer;
+        pipe0->buf = buffer;
         ep_csr->csr0l = MUSB_CSRL0_RXRDYC;
-        _dcd.pipe0.rxrdy_consumed = false;
+        pipe0->rxrdy_consumed = false;
       }
       break;
     }
@@ -447,19 +456,19 @@ static bool edpt0_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_
     case PIPE0_STATE_STATUS_IN:
       TU_ASSERT(dir_in && total_bytes == 0); // only STATUS IN allowed
       ep_csr->csr0l = MUSB_CSRL0_RXRDYC | MUSB_CSRL0_DATAEND;
-      _dcd.pipe0.rxrdy_consumed = false;
+      pipe0->rxrdy_consumed = false;
       break;
 
     case PIPE0_STATE_STATUS_OUT:
       TU_ASSERT(!dir_in && total_bytes == 0); // only STATUS OUT allowed
       // First event of the STATUS OUT pair — wait for the IRQ to fire complete.
-      _dcd.pipe0.state = PIPE0_STATE_STATUS_OUT_PENDING_XFER;
+      pipe0->state = PIPE0_STATE_STATUS_OUT_PENDING_XFER;
       break;
 
     case PIPE0_STATE_STATUS_OUT_PENDING_IRQ:
       // Second event — IRQ already arrived, fire complete now. The old transfer is retired here,
       // so a deferred SETUP can be replayed safely.
-      _dcd.pipe0.state = PIPE0_STATE_IDLE;
+      pipe0->state = PIPE0_STATE_IDLE;
       dcd_event_xfer_complete(rhport, ep_addr, 0, XFER_RESULT_SUCCESS, is_isr);
       pipe0_process_deferred_setup(rhport, ep_csr, is_isr);
       break;
@@ -474,14 +483,15 @@ static bool edpt0_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_
 static void process_ep0(uint8_t rhport) {
   musb_regs_t* musb_regs = MUSB_REGS(rhport);
   musb_ep_csr_t* ep_csr = get_ep_csr(musb_regs, 0);
+  pipe0_state_t* pipe0 = &_dcd.pipe0;
   uint_fast8_t csrl = ep_csr->csr0l;
 
   // 21.1.5: SentStall and SetupEnd must be checked before anything else.
   if (csrl & MUSB_CSRL0_STALLED) {
     ep_csr->csr0l = 0;
-    _dcd.pipe0.state = PIPE0_STATE_IDLE;
-    _dcd.pipe0.deferred_setup_valid = false;
-    _dcd.pipe0.rxrdy_consumed = false;
+    pipe0->state = PIPE0_STATE_IDLE;
+    pipe0->deferred_setup_valid = false;
+    pipe0->rxrdy_consumed = false;
     return;
   }
 
@@ -489,9 +499,9 @@ static void process_ep0(uint8_t rhport) {
     // Host aborted the current control transfer (new SETUP or premature STATUS).
     // do nothing, it is probably another setup packet, usbd will reset its state.
     ep_csr->csr0l = MUSB_CSRL0_SETENDC;
-    _dcd.pipe0.state = PIPE0_STATE_IDLE;
-    _dcd.pipe0.deferred_setup_valid = false;
-    _dcd.pipe0.rxrdy_consumed = false;
+    pipe0->state = PIPE0_STATE_IDLE;
+    pipe0->deferred_setup_valid = false;
+    pipe0->rxrdy_consumed = false;
     if (!(csrl & MUSB_CSRL0_RXRDY)) {
       return; /* no SETUP waiting behind it */
     }
@@ -499,10 +509,10 @@ static void process_ep0(uint8_t rhport) {
 
   // Receive Data (Setup or OUT)
   if (csrl & MUSB_CSRL0_RXRDY) {
-    if (_dcd.pipe0.rxrdy_consumed) {
+    if (pipe0->rxrdy_consumed) {
       return; // stale latched IRQ: this RXRDY's packet was already drained
     }
-    switch (_dcd.pipe0.state) {
+    switch (pipe0->state) {
       case PIPE0_STATE_IDLE: {
         tusb_control_request_t req;
         TU_VERIFY(pipe0_read_setup(musb_regs, ep_csr, &req), );
@@ -515,22 +525,22 @@ static void process_ep0(uint8_t rhport) {
         // so the whole packet drains in one shot.
         const uint16_t count0 = ep_csr->count0;
         if (count0) {
-          TU_ASSERT(_dcd.pipe0.buf, );
-          tu_hwfifo_read(&musb_regs->fifo[0], _dcd.pipe0.buf, count0, NULL);
-          _dcd.pipe0.remain_wlength -= count0;
+          TU_ASSERT(pipe0->buf, );
+          tu_hwfifo_read(&musb_regs->fifo[0], pipe0->buf, count0, NULL);
+          pipe0->remain_wlength -= count0;
         }
         // RXRDY stays set until the next edpt0_xfer arm acks it (NAK flow control):
         // edpt0_xfer(DATA OUT) for a mid-stream packet, edpt0_xfer(STATUS IN) for the last.
-        _dcd.pipe0.rxrdy_consumed = true;
-        if (_dcd.pipe0.remain_wlength == 0) {
-          _dcd.pipe0.state = PIPE0_STATE_STATUS_IN;
+        pipe0->rxrdy_consumed = true;
+        if (pipe0->remain_wlength == 0) {
+          pipe0->state = PIPE0_STATE_STATUS_IN;
         }
         dcd_event_xfer_complete(rhport, TU_EP0_OUT, count0, XFER_RESULT_SUCCESS, true);
         break;
       }
 
       // New SETUP packet arrived while the old control transfer's tail events are still in flight
-      // (IRQs coalesced under high CPU load), e.g.:
+      // (IRQs combined under high CPU load), e.g.:
       // - Status IN/OUT finished, its IRQ and the new SETUP IRQ arrive at the same time.
       // - Data IN finished and status OUT is received, both IRQs and the new SETUP IRQ arrive at the same time.
       // Save the SETUP; it is replayed only once the old transfer is fully retired — i.e. when usbd has
@@ -541,28 +551,28 @@ static void process_ep0(uint8_t rhport) {
       case PIPE0_STATE_STATUS_OUT_PENDING_XFER:
       case PIPE0_STATE_STATUS_OUT_PENDING_IRQ:
       case PIPE0_STATE_STATUS_IN: {
-        TU_VERIFY(pipe0_read_setup(musb_regs, ep_csr, &_dcd.pipe0.deferred_setup), );
-        _dcd.pipe0.deferred_setup_valid = true;
-        _dcd.pipe0.rxrdy_consumed = true;
+        TU_VERIFY(pipe0_read_setup(musb_regs, ep_csr, &pipe0->deferred_setup), );
+        pipe0->deferred_setup_valid = true;
+        pipe0->rxrdy_consumed = true;
 
-        switch (_dcd.pipe0.state) {
+        switch (pipe0->state) {
           case PIPE0_STATE_DATA_IN:
-            // Coalesced: last DATA IN sent + status OUT done + new SETUP in one csrl read. Fire the
+            // Combined: last DATA IN sent + status OUT done + new SETUP in one csrl read. Fire the
             // DATA IN completion and synthesize the missed status confirm; usbd's edpt0_xfer(STATUS OUT)
             // fires the status completion and replays.
-            TU_ASSERT(_dcd.pipe0.remain_wlength == 0, );
-            _dcd.pipe0.state = PIPE0_STATE_STATUS_OUT_PENDING_IRQ;
-            dcd_event_xfer_complete(rhport, TU_EP0_IN, _dcd.pipe0.xact_len, XFER_RESULT_SUCCESS, true);
+            TU_ASSERT(pipe0->remain_wlength == 0, );
+            pipe0->state = PIPE0_STATE_STATUS_OUT_PENDING_IRQ;
+            dcd_event_xfer_complete(rhport, TU_EP0_IN, pipe0->xact_len, XFER_RESULT_SUCCESS, true);
             break;
 
           case PIPE0_STATE_STATUS_OUT:
-            // Status confirm IRQ coalesced with the SETUP — edpt0_xfer(STATUS OUT) fires complete.
-            _dcd.pipe0.state = PIPE0_STATE_STATUS_OUT_PENDING_IRQ;
+            // Status confirm IRQ combined with the SETUP — edpt0_xfer(STATUS OUT) fires complete.
+            pipe0->state = PIPE0_STATE_STATUS_OUT_PENDING_IRQ;
             break;
 
           case PIPE0_STATE_STATUS_OUT_PENDING_XFER:
             // edpt0_xfer(STATUS OUT) already called — old transfer retired, complete and replay now.
-            _dcd.pipe0.state = PIPE0_STATE_IDLE;
+            pipe0->state = PIPE0_STATE_IDLE;
             dcd_event_xfer_complete(rhport, TU_EP0_OUT, 0, XFER_RESULT_SUCCESS, true);
             pipe0_process_deferred_setup(rhport, ep_csr, true);
             break;
@@ -575,12 +585,12 @@ static void process_ep0(uint8_t rhport) {
 
           default:
             // PIPE0_STATE_STATUS_IN: rxrdy_consumed gate + SetupEnd guarantee DATAEND was armed, i.e.
-            // usbd already made its status call; the ZLP-sent IRQ coalesced with the SETUP.
-            if (_dcd.pipe0.pending_addr) {
-              musb_regs->faddr = _dcd.pipe0.pending_addr;
-              _dcd.pipe0.pending_addr = 0;
+            // usbd already made its status call; the ZLP-sent IRQ combined with the SETUP.
+            if (pipe0->pending_addr) {
+              musb_regs->faddr = pipe0->pending_addr;
+              pipe0->pending_addr = 0;
             }
-            _dcd.pipe0.state = PIPE0_STATE_IDLE;
+            pipe0->state = PIPE0_STATE_IDLE;
             dcd_event_xfer_complete(rhport, TU_EP0_IN, 0, XFER_RESULT_SUCCESS, true);
             pipe0_process_deferred_setup(rhport, ep_csr, true);
             break;
@@ -604,25 +614,25 @@ static void process_ep0(uint8_t rhport) {
   /* When CSRL0 is zero, it means that either
  * - completion of sending any length packet TxPktRdy clear
  * - or status stage is complete (ZLP) after DataEnd is set */
-  switch (_dcd.pipe0.state) {
+  switch (pipe0->state) {
     case PIPE0_STATE_DATA_IN:
-      // csrl == 0 in DATA state = TXRDY just cleared, i.e. a DATA IN packet was successfully sent. If the just-sent
-      // packet was the last (DATAEND was set when ep0_remain_datalen hit zero), transition
-      // to STATUS_OUT to await the host's STATUS-OUT ZLP confirmation IRQ.
-      if (_dcd.pipe0.remain_wlength == 0) {
-        _dcd.pipe0.state = PIPE0_STATE_STATUS_OUT;
+      // csrl == 0 in DATA IN = TXRDY just cleared, i.e. a DATA IN packet was successfully sent. If the
+      // just-sent packet was the last (DATAEND set when remain_wlength hit 0), transition to STATUS_OUT
+      // to await the host's STATUS-OUT ZLP confirmation IRQ.
+      if (pipe0->remain_wlength == 0) {
+        pipe0->state = PIPE0_STATE_STATUS_OUT;
       }
-      dcd_event_xfer_complete(rhport, TU_EP0_IN, _dcd.pipe0.xact_len, XFER_RESULT_SUCCESS, true);
+      dcd_event_xfer_complete(rhport, TU_EP0_IN, pipe0->xact_len, XFER_RESULT_SUCCESS, true);
       break;
 
     case PIPE0_STATE_STATUS_OUT:
       // First event of the STATUS OUT pair — wait for edpt0_xfer(STATUS OUT) to fire complete.
-      _dcd.pipe0.state = PIPE0_STATE_STATUS_OUT_PENDING_IRQ;
+      pipe0->state = PIPE0_STATE_STATUS_OUT_PENDING_IRQ;
       break;
 
     case PIPE0_STATE_STATUS_OUT_PENDING_XFER:
       // Second event — edpt0_xfer(STATUS OUT) already called, fire complete now.
-      _dcd.pipe0.state = PIPE0_STATE_IDLE;
+      pipe0->state = PIPE0_STATE_IDLE;
       dcd_event_xfer_complete(rhport, TU_EP0_OUT, 0, XFER_RESULT_SUCCESS, true);
       pipe0_process_deferred_setup(rhport, ep_csr, true);
       break;
@@ -632,11 +642,11 @@ static void process_ep0(uint8_t rhport) {
       break;
 
     case PIPE0_STATE_STATUS_IN:
-      if (_dcd.pipe0.pending_addr) {
-        musb_regs->faddr = _dcd.pipe0.pending_addr;
-        _dcd.pipe0.pending_addr = 0;
+      if (pipe0->pending_addr) {
+        musb_regs->faddr = pipe0->pending_addr;
+        pipe0->pending_addr = 0;
       }
-      _dcd.pipe0.state = PIPE0_STATE_IDLE;
+      pipe0->state = PIPE0_STATE_IDLE;
       dcd_event_xfer_complete(rhport, TU_EP0_IN, 0, XFER_RESULT_SUCCESS, true);
       pipe0_process_deferred_setup(rhport, ep_csr, true);
       break;
@@ -654,12 +664,13 @@ static void process_bus_reset(uint8_t rhport) {
   alloced_fifo_bytes = CFG_TUD_ENDPOINT0_SIZE;
 #endif
 
-  _dcd.pipe0.state = PIPE0_STATE_IDLE;
-  _dcd.pipe0.buf = NULL;
-  _dcd.pipe0.xact_len = 0;
-  _dcd.pipe0.remain_wlength = 0;
-  _dcd.pipe0.deferred_setup_valid = false;
-  _dcd.pipe0.rxrdy_consumed = false;
+  pipe0_state_t* pipe0 = &_dcd.pipe0;
+  pipe0->state = PIPE0_STATE_IDLE;
+  pipe0->buf = NULL;
+  pipe0->xact_len = 0;
+  pipe0->remain_wlength = 0;
+  pipe0->deferred_setup_valid = false;
+  pipe0->rxrdy_consumed = false;
 
   musb->intr_txen = 1; /* Enable only EP0 */
   musb->intr_rxen = 0;
@@ -729,13 +740,14 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   musb_regs_t* musb_regs = MUSB_REGS(rhport);
   musb_ep_csr_t* ep_csr = get_ep_csr(musb_regs, 0);
 
-  _dcd.pipe0.pending_addr = dev_addr;
-  _dcd.pipe0.buf      = NULL;
-  _dcd.pipe0.xact_len   = 0;
-  _dcd.pipe0.state    = PIPE0_STATE_STATUS_IN;
+  pipe0_state_t* pipe0 = &_dcd.pipe0;
+  pipe0->pending_addr = dev_addr;
+  pipe0->buf = NULL;
+  pipe0->xact_len = 0;
+  pipe0->state = PIPE0_STATE_STATUS_IN;
   /* Send STATUS IN ZLP with DATAEND; host ACK fires the confirmation IRQ. */
   ep_csr->csr0l = MUSB_CSRL0_RXRDYC | MUSB_CSRL0_DATAEND;
-  _dcd.pipe0.rxrdy_consumed = false;
+  pipe0->rxrdy_consumed = false;
 }
 
 // Wake up host
@@ -936,9 +948,10 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
 
   if (0 == epn) {
     if (ep_addr == TU_EP0_OUT) { /* Ignore EP0 IN */
-      _dcd.pipe0.state = PIPE0_STATE_IDLE;
-      _dcd.pipe0.buf = NULL;
-      if (_dcd.pipe0.deferred_setup_valid) {
+      pipe0_state_t* pipe0 = &_dcd.pipe0;
+      pipe0->state = PIPE0_STATE_IDLE;
+      pipe0->buf = NULL;
+      if (pipe0->deferred_setup_valid) {
         // The transfer being stalled already completed on the wire (a deferred SETUP can only exist
         // once its status stage was seen) and the host's next request was already ACKed — SendStall
         // would land on that innocent request. Skip the stall and replay the deferred SETUP instead.
@@ -946,7 +959,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
       } else {
         // Forcing EP0 to IDLE: any RXRDY parked by the aborted transfer's flow control is stale,
         // clear it so the next SETUP IRQ is not gated off.
-        _dcd.pipe0.rxrdy_consumed = false;
+        pipe0->rxrdy_consumed = false;
         ep_csr->csr0l = MUSB_CSRL0_STALL;
       }
     }
