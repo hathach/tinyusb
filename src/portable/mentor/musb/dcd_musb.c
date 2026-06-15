@@ -299,7 +299,7 @@ static void pipe_write(musb_regs_t* musb_regs, pipe_state_t* pipe, uint8_t epnum
 
 // Called from the TX interrupt. If the last queued packet finished the transfer,
 // signal completion; otherwise queue the next packet.
-static void process_epin(uint8_t rhport, musb_regs_t *musb_regs, uint8_t epnum) {
+static void process_epin_isr(uint8_t rhport, musb_regs_t *musb_regs, uint8_t epnum) {
   musb_ep_csr_t* ep_csr = get_ep_csr(musb_regs, epnum);
   const uint_fast8_t csrl = ep_csr->tx_csrl;
   if (csrl & MUSB_TXCSRL1_STALLED) {
@@ -329,7 +329,7 @@ static void process_epin(uint8_t rhport, musb_regs_t *musb_regs, uint8_t epnum) 
 // Drain one packet from the Rx FIFO into pipe->buf/fifo, update pipe state, and
 // release the FIFO slot by clearing RXRDY. return true if short packet
 static bool pipe_read(musb_regs_t* musb_regs, pipe_state_t* pipe, uint8_t epnum) {
-  musb_ep_csr_t* ep_csr = &musb_regs->indexed_csr; // index already set in process_epout()
+  musb_ep_csr_t* ep_csr = &musb_regs->indexed_csr; // index already set in process_epout_isr()
   const uint16_t mps = ep_csr->rx_maxp & MUSB_RXMAXP_PACKET_SIZE_M;
   const uint16_t rx_count = ep_csr->rx_count;
   const uint16_t xact_len = tu_min16(tu_min16(pipe->remaining, mps), rx_count);
@@ -348,7 +348,7 @@ static bool pipe_read(musb_regs_t* musb_regs, pipe_state_t* pipe, uint8_t epnum)
   return (xact_len < mps);
 }
 
-static void process_epout(uint8_t rhport, musb_regs_t *musb_regs, uint8_t epnum, bool is_isr) {
+static void process_epout_isr(uint8_t rhport, musb_regs_t *musb_regs, uint8_t epnum, bool is_isr) {
   musb_ep_csr_t* ep_csr = get_ep_csr(musb_regs, epnum);
   if (ep_csr->rx_csrl & MUSB_RXCSRL1_STALLED) {
     ep_csr->rx_csrl &= ~(MUSB_RXCSRL1_STALLED | MUSB_RXCSRL1_OVER);
@@ -403,13 +403,13 @@ static bool edpt_n_xfer(uint8_t rhport, uint8_t ep_addr, void *buffer, uint16_t 
   if (dir_in) {
     pipe_write(musb_regs, pipe, epnum);
   } else {
-    // Re-enable Rx interrupt (may have been masked by the no-buffer path in process_epout)
+    // Re-enable Rx interrupt (may have been masked by the no-buffer path in process_epout_isr)
     musb_regs->intr_rxen |= (uint16_t)TU_BIT(epnum);
 
     // Drain any packet staged in the Rx FIFO from a prior no-buffer interrupt.
-    // process_epout() fires dcd_event_xfer_complete() itself if the drain completes.
+    // process_epout_isr() fires dcd_event_xfer_complete() itself if the drain completes.
     if (ep_csr->rx_csrl & MUSB_RXCSRL1_RXRDY) {
-      process_epout(rhport, musb_regs, epnum, is_isr);
+      process_epout_isr(rhport, musb_regs, epnum, is_isr);
     }
   }
   return true;
@@ -476,7 +476,7 @@ static bool edpt0_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_
 }
 
 // 21.1.5: endpoint 0 service routine as peripheral
-static void process_ep0(uint8_t rhport) {
+static void process_ep0_isr(uint8_t rhport) {
   musb_regs_t* musb_regs = MUSB_REGS(rhport);
   musb_ep_csr_t* ep_csr = get_ep_csr(musb_regs, 0);
   pipe0_state_t* pipe0 = &_dcd.pipe0;
@@ -652,7 +652,7 @@ static void process_ep0(uint8_t rhport) {
 
 // Upon BUS RESET is detected, hardware havs already done:
 // faddr = 0, index = 0, flushes all ep fifos, clears all ep csr, enabled all ep interrupts
-static void process_bus_reset(uint8_t rhport) {
+static void process_bus_reset_isr(uint8_t rhport) {
   musb_regs_t* musb = MUSB_REGS(rhport);
 
 #if MUSB_CFG_DYNAMIC_FIFO
@@ -728,7 +728,7 @@ void dcd_int_disable(uint8_t rhport) {
 }
 
 // Receive Set Address request. Stash the new address here; hardware faddr is
-// latched from pending_addr in process_ep0 once the STATUS IN completes (per
+// latched from pending_addr in process_ep0_isr once the STATUS IN completes (per
 // USB spec, address must only take effect after the status stage).
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 {
@@ -1008,7 +1008,7 @@ void dcd_int_handler(uint8_t rhport) {
     dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
   }
   if (intr_usb & MUSB_IS_RESET) {
-    process_bus_reset(rhport);
+    process_bus_reset_isr(rhport);
   }
   if (intr_usb & MUSB_IS_RESUME) {
     dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
@@ -1022,9 +1022,9 @@ void dcd_int_handler(uint8_t rhport) {
   while (intr_tx) {
     const unsigned epnum = __builtin_ctz(intr_tx);
     if (epnum == 0) {
-      process_ep0(rhport);  // EP0 has its own state machine (control transfers)
+      process_ep0_isr(rhport);  // EP0 has its own state machine (control transfers)
     } else {
-      process_epin(rhport, musb_regs, epnum);
+      process_epin_isr(rhport, musb_regs, epnum);
     }
     intr_tx &= ~TU_BIT(epnum);
 
@@ -1039,7 +1039,7 @@ void dcd_int_handler(uint8_t rhport) {
   intr_rx &= musb_regs->intr_rxen; /* Clear disabled interrupts */
   while (intr_rx) {
     unsigned const epnum = __builtin_ctz(intr_rx);
-    process_epout(rhport, musb_regs, epnum, true);
+    process_epout_isr(rhport, musb_regs, epnum, true);
     intr_rx &= ~TU_BIT(epnum);
 
     // Double packet endpoint: RxPktRdy is set and interrupt is generated immediately if 2nd packet is received
