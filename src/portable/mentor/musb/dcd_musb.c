@@ -100,7 +100,7 @@ typedef struct {
   bool     rxrdy_consumed;  // RxPktRdy left set in hw for an already-consumed packet (NAK flow control);
                             // RXRDY events are stale while set. Cleared when RXRDYC is written.
   bool     deferred_setup_valid;
-  tusb_control_request_t deferred_setup;
+  uint32_t deferred_setup[2];  // raw SETUP words, replayed via pipe0_start_setup
 } pipe0_state_t;
 
 typedef struct {
@@ -110,21 +110,17 @@ typedef struct {
 
 static dcd_data_t _dcd;
 
-// Drain a SETUP packet (8 bytes) from the EP0 FIFO. Does not ack RxPktRdy.
-static bool pipe0_read_setup(musb_regs_t* musb_regs, musb_ep_csr_t* ep_csr, tusb_control_request_t* req) {
+// Read the 8-byte SETUP packet (2 words) from the EP0 FIFO into setup[]. Does not ack RxPktRdy.
+static bool pipe0_read_setup(musb_regs_t* musb_regs, musb_ep_csr_t* ep_csr, uint32_t setup[2]) {
   TU_ASSERT(sizeof(tusb_control_request_t) == ep_csr->count0);
-  union {
-    tusb_control_request_t req;
-    uint32_t               u32[2];
-  } setup_packet;
-  setup_packet.u32[0] = musb_regs->fifo[0];
-  setup_packet.u32[1] = musb_regs->fifo[0];
-  *req = setup_packet.req;
+  setup[0] = musb_regs->fifo[0];
+  setup[1] = musb_regs->fifo[0];
   return true;
 }
 
 static void pipe0_start_setup(uint8_t rhport, musb_ep_csr_t* ep_csr,
-                              tusb_control_request_t const* req, bool is_isr) {
+                              const uint32_t setup[2], bool is_isr) {
+  tusb_control_request_t const* req = (tusb_control_request_t const*) setup;
   pipe0_state_t* pipe0 = &_dcd.pipe0;
   pipe0->remain_wlength = req->wLength;
 
@@ -149,7 +145,7 @@ static void pipe0_start_setup(uint8_t rhport, musb_ep_csr_t* ep_csr,
     }
   }
 
-  dcd_event_setup_received(rhport, (const uint8_t *) req, is_isr);
+  dcd_event_setup_received(rhport, (const uint8_t *) setup, is_isr);
 }
 
 // Replay a previously deferred SETUP, if any.
@@ -160,7 +156,7 @@ static void pipe0_try_deferred_setup(uint8_t rhport, musb_ep_csr_t* ep_csr, bool
   }
 
   pipe0->deferred_setup_valid = false;
-  pipe0_start_setup(rhport, ep_csr, &pipe0->deferred_setup, is_isr);
+  pipe0_start_setup(rhport, ep_csr, pipe0->deferred_setup, is_isr);
 }
 
 // EP0 must not call this — it has its own scalars in dcd_data_t.
@@ -557,9 +553,9 @@ static void process_ep0_isr(uint8_t rhport) {
     }
     switch (pipe0->state) {
       case PIPE0_STATE_IDLE: {
-        tusb_control_request_t req;
-        TU_VERIFY(pipe0_read_setup(musb_regs, ep_csr, &req), );
-        pipe0_start_setup(rhport, ep_csr, &req, true);
+        uint32_t setup[2];
+        TU_VERIFY(pipe0_read_setup(musb_regs, ep_csr, setup), );
+        pipe0_start_setup(rhport, ep_csr, setup, true);
         break;
       }
 
@@ -592,7 +588,7 @@ static void process_ep0_isr(uint8_t rhport) {
         // Save it, then finish the old transfer's tail event; deferred_setup_valid makes
         // pipe0_process_status_isr() synthesize the coalesced status confirm and replay the SETUP
         // once the old transfer is retired. Its RXRDY stays parked so a stale IRQ can't re-process it.
-        TU_VERIFY(pipe0_read_setup(musb_regs, ep_csr, &pipe0->deferred_setup), );
+        TU_VERIFY(pipe0_read_setup(musb_regs, ep_csr, pipe0->deferred_setup), );
         pipe0->deferred_setup_valid = true;
         pipe0->rxrdy_consumed = true;
         pipe0_process_status_isr(rhport, musb_regs, ep_csr);
