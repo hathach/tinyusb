@@ -19,8 +19,12 @@ def main():
     parser.add_argument('config_files', nargs='+', help='Configuration JSON file(s)')
     args = parser.parse_args()
 
+    # Toolchain buckets must match the toolchains instantiated by the hil-build
+    # job in .github/workflows/build.yml. Keep all keys present (even if empty)
+    # so `fromJSON(hil_json)[toolchain]` always resolves to a list.
     matrix = {
         'arm-gcc': [],
+        'riscv-gcc': [],
         'esp-idf': []
     }
 
@@ -38,10 +42,13 @@ def main():
         for board in config['boards']:
             name = board['name']
             flasher = board['flasher']
+            # esptool boards must build under esp-idf; others default to arm-gcc
+            # but may opt into another bucket via an explicit "toolchain" field
+            # (e.g. RISC-V boards like ch32v20x need "riscv-gcc").
             if flasher['name'] == 'esptool':
                 toolchain = 'esp-idf'
             else:
-                toolchain = 'arm-gcc'
+                toolchain = board.get('toolchain', 'arm-gcc')
 
             build_board = f'-b {name}'
             if 'build' in board and 'args' in board['build']:

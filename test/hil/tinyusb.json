@@ -462,6 +462,7 @@
         {
             "name": "nanoch32v203",
             "uid": "CDAB277B0FBC03E339E339E3",
+            "toolchain": "riscv-gcc",
             "variant": [
                 {"name": "nanoch32v203-fsdev", "defines": ["RHPORT_DEVICE=0"]},
                 {"name": "nanoch32v203-usbfs", "defines": ["RHPORT_DEVICE=1"]}

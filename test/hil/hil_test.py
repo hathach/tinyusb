@@ -138,6 +138,7 @@ class Board(TypedDict):
     flasher: FlasherCfg
     build: NotRequired[BuildCfg]
     variant: NotRequired[list[VariantCfg]]
+    toolchain: NotRequired[str]  # CI build bucket override, e.g. "riscv-gcc" (consumed by hil_ci_set_matrix.py)
 
 
 class HilConfig(TypedDict):
