@@ -126,8 +126,9 @@ class BuildCfg(TypedDict, total=False):
 
 
 class VariantCfg(TypedDict, total=False):
-    name: str   # build dir (cmake-build-<name>) and HIL report row
-    flags: str  # raw CFLAGS, e.g. "-DCFG_TUD_DWC2_DMA_ENABLE=1"
+    name: str           # build dir (cmake-build-<name>) and HIL report row
+    flags: str          # raw CFLAGS, e.g. "-DCFG_TUD_DWC2_DMA_ENABLE=1"
+    defines: list[str]  # cmake -D defines, e.g. ["RHPORT_DEVICE=1"] (vs flags which are compiler-only)
 
 
 class Board(TypedDict):
@@ -1634,6 +1635,8 @@ def build_board(board: Board) -> tuple[str, int]:
             cmd += ['-D', d]
         if v['name'] != name:
             cmd += ['--build-name', v['name']]
+        for d in v.get('defines', []):
+            cmd += ['-D', d]
         for tok in v.get('flags', '').split():
             cmd += [f'--cflag={tok}']
         if verbose:
