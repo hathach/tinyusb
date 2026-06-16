@@ -106,6 +106,10 @@ extern uint8_t tud_network_mac_address[6];
 // Optional callback: informs the application about host requested packet filter bits
 void tud_network_set_packet_filter_cb(uint16_t packet_filter);
 
+// Optional callback: called during netd_init() to get the initial link state.
+// Override to return the actual physical link state instead of the compile-time default.
+bool tud_network_default_link_state_cb(void);
+
 // Set the network link state (up/down) and notify the host
 void tud_network_link_state(uint8_t rhport, bool is_up);
 

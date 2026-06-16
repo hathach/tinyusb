@@ -152,6 +152,14 @@ TU_ATTR_WEAK void tud_network_set_packet_filter_cb(uint16_t packet_filter) {
   (void) packet_filter;
 }
 
+TU_ATTR_WEAK bool tud_network_default_link_state_cb(void) {
+  #ifdef CFG_TUD_NCM_DEFAULT_LINK_UP
+  return CFG_TUD_NCM_DEFAULT_LINK_UP;
+  #else
+  return true;
+  #endif
+}
+
 /**
  * This is the NTB parameter structure
  *
@@ -852,12 +860,7 @@ void netd_init(void) {
   for (int i = 0; i < RECV_NTB_N; ++i) {
     ncm_interface.recv_free_ntb[i] = &ncm_epbuf.recv[i].ntb;
   }
-  // Default link state - can be configured via CFG_TUD_NCM_DEFAULT_LINK_UP
-  #ifdef CFG_TUD_NCM_DEFAULT_LINK_UP
-  ncm_interface.link_is_up = CFG_TUD_NCM_DEFAULT_LINK_UP;
-  #else
-  ncm_interface.link_is_up = true; // Default to link up if not set.
-  #endif
+  ncm_interface.link_is_up = tud_network_default_link_state_cb();
 } // netd_init
 
 /**
