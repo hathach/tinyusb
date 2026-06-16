@@ -93,7 +93,7 @@ enum {
 // EP0 control-transfer state (own scalars, not a pipe[] slot).
 typedef struct {
   uint8_t  *buf;            // DATA OUT drain target (only valid while EP0 is in DATA OUT stage)
-  uint16_t xact_len;        // chunk length most recently armed via edpt0_xfer; reported in xfer_complete
+  uint16_t xact_len;        // DATA IN chunk length armed via edpt0_xfer; reported in its xfer_complete (OUT reports count0)
   uint16_t remain_wlength;  // bytes remaining in the control transfer's DATA stage
   uint8_t  state;
   uint8_t  pending_addr;    // new USB address latched by dcd_set_address; applied when STATUS IN completes
@@ -157,6 +157,11 @@ static void pipe0_try_deferred_setup(uint8_t rhport, musb_ep_csr_t* ep_csr, bool
 
   pipe0->deferred_setup_valid = false;
   pipe0_start_setup(rhport, ep_csr, pipe0->deferred_setup, is_isr);
+}
+
+// Last DATA packet: wLength satisfied, or a short packet (incl. ZLP) ends the stage.
+TU_ATTR_ALWAYS_INLINE static inline bool pipe0_data_stage_done(uint16_t xfer_len) {
+  return _dcd.pipe0.remain_wlength == 0 || xfer_len < CFG_TUD_ENDPOINT0_SIZE;
 }
 
 // EP0 must not call this — it has its own scalars in dcd_data_t.
@@ -430,8 +435,8 @@ static bool edpt0_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_
       }
       tu_hwfifo_write(&musb_regs->fifo[0], buffer, total_bytes, NULL);
       pipe0->remain_wlength -= total_bytes;
-      // DATAEND on the last packet: wLength met, or a short packet (incl. ZLP) ends the data stage.
-      if (pipe0->remain_wlength == 0 || total_bytes < CFG_TUD_ENDPOINT0_SIZE) {
+      // Add DATAEND on the last packet to end the data stage.
+      if (pipe0_data_stage_done(total_bytes)) {
         ep_csr->csr0l = MUSB_CSRL0_TXRDY | MUSB_CSRL0_DATAEND;
       } else {
         ep_csr->csr0l = MUSB_CSRL0_TXRDY;
@@ -478,7 +483,7 @@ static void pipe0_process_xfer_state_isr(uint8_t rhport, musb_regs_t* musb_regs,
   pipe0_state_t* pipe0 = &_dcd.pipe0;
   switch (pipe0->state) {
     case PIPE0_STATE_DATA_IN:
-      if (pipe0->remain_wlength == 0 || pipe0->xact_len < CFG_TUD_ENDPOINT0_SIZE) { // last DATA IN packet
+      if (pipe0_data_stage_done(pipe0->xact_len)) {
         if (pipe0->deferred_setup_valid) {
           pipe0->state = PIPE0_STATE_STATUS_OUT_PENDING_IRQ; // status confirm coalesced with deferred SETUP
         } else {
@@ -571,8 +576,7 @@ static void process_ep0_isr(uint8_t rhport) {
         // RXRDY stays set until the next edpt0_xfer arm acks it (NAK flow control):
         // edpt0_xfer(DATA OUT) for a mid-stream packet, edpt0_xfer(STATUS IN) for the last.
         pipe0->rxrdy_consumed = true;
-        // Last packet: wLength received, or a short packet (host's end-of-data).
-        if (pipe0->remain_wlength == 0 || count0 < CFG_TUD_ENDPOINT0_SIZE) {
+        if (pipe0_data_stage_done(count0)) {
           pipe0->state = PIPE0_STATE_STATUS_IN;
         }
         dcd_event_xfer_complete(rhport, TU_EP0_OUT, count0, XFER_RESULT_SUCCESS, true);
@@ -911,9 +915,8 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
       pipe0->state = PIPE0_STATE_IDLE;
       pipe0->buf = NULL;
       if (pipe0->deferred_setup_valid) {
-        // The transfer being stalled already completed on the wire (a deferred SETUP can only exist
-        // once its status stage was seen) and the host's next request was already ACKed — SendStall
-        // would land on that innocent request. Skip the stall and replay the deferred SETUP instead.
+        // A deferred SETUP means the stalled transfer already ended on the wire and the host's next
+        // request was ACKed — SendStall would hit that innocent request. Replay it instead of stalling.
         pipe0_try_deferred_setup(rhport, ep_csr, false);
       } else {
         // Forcing EP0 to IDLE: any RXRDY parked by the aborted transfer's flow control is stale,
