@@ -126,8 +126,9 @@ class BuildCfg(TypedDict, total=False):
 
 
 class VariantCfg(TypedDict, total=False):
-    name: str   # build dir (cmake-build-<name>) and HIL report row
-    flags: str  # raw CFLAGS, e.g. "-DCFG_TUD_DWC2_DMA_ENABLE=1"
+    name: str           # build dir (cmake-build-<name>) and HIL report row
+    flags: str          # raw CFLAGS, e.g. "-DCFG_TUD_DWC2_DMA_ENABLE=1"
+    defines: list[str]  # cmake -D defines, e.g. ["RHPORT_DEVICE=1"] (vs flags which are compiler-only)
 
 
 class Board(TypedDict):
@@ -137,6 +138,7 @@ class Board(TypedDict):
     flasher: FlasherCfg
     build: NotRequired[BuildCfg]
     variant: NotRequired[list[VariantCfg]]
+    toolchain: NotRequired[str]  # CI build bucket override, e.g. "riscv-gcc" (consumed by hil_ci_set_matrix.py)
 
 
 class HilConfig(TypedDict):
@@ -144,6 +146,8 @@ class HilConfig(TypedDict):
 
 CMD_TIMEOUT = int(os.getenv('HIL_CMD_TIMEOUT', '180'))
 POOL_TIMEOUT = int(os.getenv('HIL_POOL_TIMEOUT', '3000'))
+SERIAL_READ_TIMEOUT = float(os.getenv('HIL_SERIAL_READ_TIMEOUT', '5'))
+SERIAL_WRITE_TIMEOUT = float(os.getenv('HIL_SERIAL_WRITE_TIMEOUT', '10'))
 
 
 def cmd_stdout_text(out: Any) -> str:
@@ -230,7 +234,8 @@ def open_serial_dev(port: str):
             try:
                 # write_timeout: a wedged device otherwise blocks ser.write() forever,
                 # hanging the worker until the pool/job timeout kills the whole run
-                ser = serial.Serial(port, baudrate=115200, timeout=5, write_timeout=5)
+                ser = serial.Serial(port, baudrate=115200, timeout=SERIAL_READ_TIMEOUT,
+                                    write_timeout=SERIAL_WRITE_TIMEOUT)
                 break
             except serial.SerialException:
                 print(f'serial {port} not reaady {timeout} sec')
@@ -241,6 +246,16 @@ def open_serial_dev(port: str):
     assert timeout > 0, f'Cannot open port f{port}' if os.path.exists(port) else f'Port {port} not existed'
     assert ser is not None
     return ser
+
+
+def serial_write_all(ser: serial.Serial, data: bytes):
+    # write_timeout is a total deadline for the whole call (pyserial keeps partial progress
+    # internally). A timeout means the device stopped draining — treat it as fatal: pyserial
+    # loses the partial-write count on raise, so retrying would duplicate bytes on the wire.
+    try:
+        ser.write(data)
+    except serial.SerialTimeoutException:
+        raise AssertionError(f'Serial write timeout after {SERIAL_WRITE_TIMEOUT:.1f}s')
 
 
 def read_disk_file(uid: str, lun: int, fname: str) -> bytes:
@@ -724,8 +739,7 @@ def test_host_cdc_msc_hid(board):
     offset = 0
     while offset < echo_len:
         chunk_size = min(random.randint(1, packet_size), echo_len - offset)
-        ser.write(echo_data[offset:offset + chunk_size])
-        ser.flush()
+        serial_write_all(ser, echo_data[offset:offset + chunk_size])
         # wait until this chunk is echoed back
         echo = b''
         t_end = time.monotonic() + 1.0
@@ -774,8 +788,7 @@ def test_host_msc_file_explorer(board):
     time.sleep(1)
     ser.reset_input_buffer()
     for ch in 'cat README.TXT\r':
-        ser.write(ch.encode())
-        ser.flush()
+        serial_write_all(ser, ch.encode())
         time.sleep(0.002)
 
     resp = b''
@@ -797,8 +810,7 @@ def test_host_msc_file_explorer(board):
     time.sleep(0.5)
     ser.reset_input_buffer()
     for ch in 'dd 1024\r':
-        ser.write(ch.encode())
-        ser.flush()
+        serial_write_all(ser, ch.encode())
         time.sleep(0.002)
 
     # Read dd output until prompt
@@ -862,8 +874,7 @@ def test_device_cdc_dual_ports(board):
         # Write in chunks of random 1-64 bytes (device has 64-byte buffer)
         while offset < payload_len:
             chunk_size = min(random.randint(1, 64), payload_len - offset)
-            ser[writer].write(payload[offset:offset + chunk_size])
-            ser[writer].flush()
+            serial_write_all(ser[writer], payload[offset:offset + chunk_size])
             rd0 += ser[0].read(chunk_size)
             rd1 += ser[1].read(chunk_size)
             offset += chunk_size
@@ -897,8 +908,7 @@ def test_device_cdc_msc(board):
         # Write in chunks of random 1-64 bytes (device has 64-byte buffer)
         while offset < size:
             chunk_size = min(random.randint(1, 64), size - offset)
-            ser.write(test_str[offset:offset + chunk_size])
-            ser.flush()
+            serial_write_all(ser, test_str[offset:offset + chunk_size])
             rd_str += ser.read(chunk_size)
             offset += chunk_size
         assert rd_str == test_str, f'CDC wrong data ({size} bytes):\n  expected: {test_str}\n  received: {rd_str}'
@@ -1162,8 +1172,7 @@ def test_device_printer_to_cdc(board):
         offset = 0
         while offset < size:
             chunk_size = min(random.randint(1, 64), size - offset)
-            ser.write(test_data[offset:offset + chunk_size])
-            ser.flush()
+            serial_write_all(ser, test_data[offset:offset + chunk_size])
             time.sleep(0.01)
             offset += chunk_size
 
@@ -1634,6 +1643,8 @@ def build_board(board: Board) -> tuple[str, int]:
             cmd += ['-D', d]
         if v['name'] != name:
             cmd += ['--build-name', v['name']]
+        for d in v.get('defines', []):
+            cmd += ['-D', d]
         for tok in v.get('flags', '').split():
             cmd += [f'--cflag={tok}']
         if verbose:

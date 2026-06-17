@@ -278,6 +278,7 @@ jobs:
       matrix:
         toolchain:
           - 'arm-gcc'
+          - 'riscv-gcc'
           - 'esp-idf'
     with:
       build-system: 'cmake'

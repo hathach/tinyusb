@@ -914,6 +914,8 @@ static bool usbd_control_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t 
   // Data stage progress
   if (ctrl_xfer->request.bmRequestType_bit.direction == TUSB_DIR_OUT) {
     TU_VERIFY(ctrl_xfer->buffer);
+    // Clamp host overrun to remaining capacity (data_len) so memcpy can't overflow the caller buffer
+    xferred_bytes = tu_min32(xferred_bytes, ctrl_xfer->data_len - ctrl_xfer->total_xferred);
     if (ctrl_xfer->buffer != _ctrl_epbuf.buf) {
       memcpy(ctrl_xfer->buffer, _ctrl_epbuf.buf, xferred_bytes);
     }
