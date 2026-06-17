@@ -833,6 +833,14 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   ep_reg &= U_EPREG_MASK | EP_STAT_MASK(dir);
   ep_change_status(&ep_reg, dir, EP_STAT_STALL);
 
+#if defined(TUP_USBIP_FSDEV_CH32)
+  // Stall ends the transfer without edpt_xfer() (the only other CONTROL restore); else a rejected
+  // control-write leaves EP0 typed BULK and the host's recovery SETUP is ignored until bus reset.
+  if (ep_num == 0u) {
+    ep_reg = (ep_reg & ~U_EP_T_FIELD) | U_EP_CONTROL;
+  }
+#endif
+
   ep_write(ep_idx, ep_reg, true);
 }
 
