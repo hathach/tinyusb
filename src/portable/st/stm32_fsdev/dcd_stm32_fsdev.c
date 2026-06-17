@@ -159,12 +159,19 @@ TU_ATTR_ALWAYS_INLINE static inline xfer_ctl_t *xfer_ctl_ptr(uint8_t epnum, uint
 }
 
 #if defined(TUP_USBIP_FSDEV_CH32)
-// CH32 FSDEV workaround: gate EP0 handshakes by switching type between CONTROL and BULK.
+// CH32 EP0 workaround: gate handshakes by switching EP0 type CONTROL<->BULK.
+// need_exclusive brackets the read-modify-write so the USB ISR can't race it.
 TU_ATTR_ALWAYS_INLINE static inline void ep0_set_type(uint32_t ep_type, bool need_exclusive) {
+  if (need_exclusive) {
+    fsdev_int_disable(0);
+  }
   uint32_t ep_reg = ep_read(0) | U_EP_CTR_TX | U_EP_CTR_RX;
   ep_reg &= U_EPREG_MASK;
   ep_reg = (ep_reg & ~U_EP_T_FIELD) | ep_type;
-  ep_write(0, ep_reg, need_exclusive);
+  ep_write(0, ep_reg, false);
+  if (need_exclusive) {
+    fsdev_int_enable(0);
+  }
 }
 #endif
 
