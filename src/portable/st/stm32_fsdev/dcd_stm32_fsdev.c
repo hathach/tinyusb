@@ -754,14 +754,13 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, tusb_dir_t dir) {
 
   xfer_ctl_t   *xfer   = xfer_ctl_ptr(ep_num, dir);
   const uint8_t ep_idx = xfer->ep_idx;
-#if defined(TUP_USBIP_FSDEV_CH32)
-  // Re-enable normal control transfer semantics when EP0 transfer is explicitly armed.
-  if (ep_num == 0u) {
-    ep0_set_type(U_EP_CONTROL, true);
-  }
-#endif
-
   if (dir == TUSB_DIR_IN) {
+#if defined(TUP_USBIP_FSDEV_CH32)
+    // Safe to restore CONTROL before arming IN: no pending OUT for the errata to blind-ACK.
+    if (ep_num == 0u) {
+      ep0_set_type(U_EP_CONTROL, true);
+    }
+#endif
     dcd_transmit_packet(xfer, ep_idx);
   } else {
     uint32_t ep_reg = ep_read(ep_idx) | U_EP_CTR_TX | U_EP_CTR_RX; // reserve CTR
@@ -781,6 +780,13 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, tusb_dir_t dir) {
       btable_set_rx_bufsize(ep_idx, BTABLE_BUF_RX, cnt);
     }
 
+#if defined(TUP_USBIP_FSDEV_CH32)
+    // Restore CONTROL in the same write as STAT_RX=VALID (after bufsize): a separate earlier
+    // write would re-enable the blind OUT ACK while still NAK'd with a stale buffer.
+    if (ep_num == 0u) {
+      ep_reg = (ep_reg & ~U_EP_T_FIELD) | U_EP_CONTROL;
+    }
+#endif
     ep_change_status(&ep_reg, dir, EP_STAT_VALID);
     ep_write(ep_idx, ep_reg, true);
   }
