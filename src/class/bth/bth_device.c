@@ -136,7 +136,7 @@ uint16_t btd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_
   // Open endpoint pair
   TU_ASSERT(usbd_open_edpt_pair(rhport, (uint8_t const *) desc_ep, desc_end, 2,
                                 TUSB_XFER_BULK, &_btd_itf.ep_acl_out,
-                                &_btd_itf.ep_acl_in),
+                                &_btd_itf.ep_acl_in, NULL),
             0);
 
   // Save acl in endpoint max packet size

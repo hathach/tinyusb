@@ -244,7 +244,7 @@ bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed) {
 
   switch (desc_ep->bmAttributes.xfer) {
     case TUSB_XFER_ISOCHRONOUS: {
-      const uint16_t spec_size = (speed == TUSB_SPEED_FULL ? 1023 : 1024);
+      const uint16_t spec_size = (speed == TUSB_SPEED_HIGH || speed == TUSB_SPEED_SUPER) ? 1024 : 1023;
       TU_ASSERT(max_packet_size <= spec_size);
       break;
     }
@@ -263,7 +263,7 @@ bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed) {
       break;
 
     case TUSB_XFER_INTERRUPT: {
-      const uint16_t spec_size = (speed == TUSB_SPEED_FULL ? 64 : 1024);
+      const uint16_t spec_size = (speed == TUSB_SPEED_HIGH || speed == TUSB_SPEED_SUPER) ? 1024 : 64;
       TU_ASSERT(max_packet_size <= spec_size);
       break;
     }
