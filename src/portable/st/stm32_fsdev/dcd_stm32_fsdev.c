@@ -291,7 +291,7 @@ static void handle_ctr_tx(uint32_t ep_id) {
 #if defined(TUP_USBIP_FSDEV_CH32)
     // Control read: block unsolicited EP0 OUT ACK.
     if ((ep_num == 0u) && ep0_ctrl_dir_in && ep0_ctrl_has_data) {
-        ep0_set_type(U_EP_BULK, false);
+      ep0_set_type(U_EP_BULK, false);
     }
 #endif
     dcd_event_xfer_complete(0, ep_num | TUSB_DIR_IN_MASK, xfer->queued_len, XFER_RESULT_SUCCESS, true);
@@ -311,9 +311,9 @@ static void handle_ctr_setup(uint32_t ep_id) {
   // Setup packet should always be 8 bytes. If not, we probably missed the packet
   if (rx_count == 8) {
 #if defined(TUP_USBIP_FSDEV_CH32)
-    uint16_t const setup_w_length = (uint16_t) setup_packet[6] | ((uint16_t) setup_packet[7] << 8);
-    ep0_ctrl_dir_in = (setup_packet[0] & TUSB_DIR_IN_MASK) != 0u;
-    ep0_ctrl_has_data = (setup_w_length != 0u);
+    tusb_control_request_t const *request = (tusb_control_request_t const *) (void *) setup_packet;
+    ep0_ctrl_dir_in = (request->bmRequestType_bit.direction == TUSB_DIR_IN);
+    ep0_ctrl_has_data = (request->wLength != 0u);
 
     // For control write, block unsolicited EP0 OUT ACK until transfer is armed in edpt_xfer().
     if (!ep0_ctrl_dir_in && ep0_ctrl_has_data) {
@@ -365,7 +365,6 @@ static void handle_ctr_rx(uint32_t ep_id) {
     tu_hwfifo_read(pma_buf, xfer->buffer + xfer->queued_len, rx_count, NULL);
   }
   xfer->queued_len += rx_count;
-
 
   if ((rx_count < xfer->max_packet_size) || (xfer->queued_len >= xfer->total_len)) {
     // all bytes received or short packet
