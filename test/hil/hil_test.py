@@ -22,7 +22,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-# Host setup:
+# Host setup (required: a missing tool fails its test rather than skipping it):
 #   - System packages: sudo apt install mtools libmtp9 alsa-utils iperf
 #       mtools     - read_disk_file (device/cdc_msc, device/msc_dual_lun)
 #       libmtp9    - pymtp ctypes load (device/mtp); Debian 13 uses libmtp9t64
@@ -51,7 +51,6 @@ import serial
 import subprocess
 import json
 import glob
-import shutil
 from multiprocessing import Pool, Lock
 from multiprocessing import TimeoutError as MpTimeoutError
 import hashlib
@@ -1380,10 +1379,6 @@ def test_device_audio_test_freertos(board):
     if os.name == 'nt':
         return 'skipped'
 
-    arecord = shutil.which('arecord')
-    if arecord is None:
-        return 'skipped'
-
     pcm = None
     timeout = ENUM_TIMEOUT
     while timeout > 0:
@@ -1397,7 +1392,7 @@ def test_device_audio_test_freertos(board):
 
     raw_path = f'/tmp/tinyusb_audio_{uid}.raw'
     cmd = [
-        arecord,
+        'arecord',
         '-D', pcm,
         '-q',
         '-f', 'S16_LE',
