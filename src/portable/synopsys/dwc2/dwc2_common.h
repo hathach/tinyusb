@@ -38,13 +38,15 @@
 #include "host/hcd.h"
 #endif
 
-// Following symbols must be defined by port header
-// - _dwc2_controller[]: array of controllers
-// - DWC2_EP_MAX: largest EP counts of all controllers
-// - dwc2_phy_init/dwc2_phy_update: phy init called before and after core reset
-// - dwc2_phy_deinit(dwc2, hs_phy_type): phy deinit to disable PHY power, only deinit the phy used by core
-// - dwc2_dcd_int_enable/dwc2_dcd_int_disable
-// - dwc2_remote_wakeup_delay
+/* Following symbols must be defined by port header
+  - _dwc2_controller[]: array of controllers
+  - DWC2_EP_MAX: largest EP counts of all controllers
+  - dwc2_clock_init(): clock init call before
+  - dwc2_phy_init/dwc2_phy_update: phy init called before and after core reset
+  - dwc2_phy_deinit(dwc2, hs_phy_type): phy deinit to disable PHY power, only deinit the phy used by core
+  - dwc2_dcd_int_enable/dwc2_dcd_int_disable
+  - dwc2_remote_wakeup_delay
+*/
 
 #if defined(TUP_USBIP_DWC2_STM32)
   #include "dwc2_stm32.h"

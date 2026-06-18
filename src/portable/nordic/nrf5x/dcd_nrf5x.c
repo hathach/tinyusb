@@ -36,6 +36,8 @@
 #pragma GCC diagnostic ignored "-Wcast-qual"
 #pragma GCC diagnostic ignored "-Wcast-align"
 #pragma GCC diagnostic ignored "-Wunused-parameter"
+#pragma GCC diagnostic ignored "-Wconversion"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
 #endif
 
 #include "nrf.h"
@@ -461,7 +463,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
   xfer->actual_len = 0;
 
   // Control endpoint with zero-length packet and opposite direction to 1st request byte --> status stage
-  bool const control_status = (epnum == 0 && total_bytes == 0 && dir != tu_edpt_dir(NRF_USBD->BMREQUESTTYPE));
+  bool const control_status = (epnum == 0 && total_bytes == 0 && dir != tu_edpt_dir((uint8_t)NRF_USBD->BMREQUESTTYPE));
 
   if (control_status) {
     // The nRF doesn't interrupt on status transmit so we queue up a success response.
@@ -1046,6 +1048,12 @@ void tusb_hal_nrf_power_event(uint32_t event) {
       if (tud_inited()) {
         NVIC_EnableIRQ(USBD_IRQn);
       }
+
+      // Ensure HFCLK is requested in the current context. The hfclk_enable() in
+      // USB_EVT_DETECTED may have been pre-SoftDevice. After Softdevice is
+      // enabled, HFXO is physically off again. So any caller that fires
+      // USB_EVT_READY post-SD would hang here.
+      hfclk_enable();
 
       // Wait for HFCLK
       while (!hfclk_running()) {}

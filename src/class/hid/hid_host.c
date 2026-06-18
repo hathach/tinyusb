@@ -74,44 +74,31 @@ static uint8_t _hidh_default_protocol = HID_PROTOCOL_BOOT;
 // Weak stubs: invoked if no strong implementation is available
 //--------------------------------------------------------------------+
 TU_ATTR_WEAK void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t idx, uint8_t const* report_desc, uint16_t desc_len) {
-  (void) dev_addr;
-  (void) idx;
-  (void) report_desc;
-  (void) desc_len;
+  (void) dev_addr; (void) idx; (void) report_desc; (void) desc_len;
 }
 
 TU_ATTR_WEAK void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t idx) {
-  (void) dev_addr;
-  (void) idx;
+  (void) dev_addr; (void) idx;
+}
+
+TU_ATTR_WEAK void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *report, uint16_t len) {
+  (void) dev_addr; (void) idx; (void) report; (void) len;
 }
 
 TU_ATTR_WEAK void tuh_hid_report_sent_cb(uint8_t dev_addr, uint8_t idx, uint8_t const* report, uint16_t len) {
-  (void) dev_addr;
-  (void) idx;
-  (void) report;
-  (void) len;
+  (void) dev_addr; (void) idx; (void) report; (void) len;
 }
 
 TU_ATTR_WEAK void tuh_hid_get_report_complete_cb(uint8_t dev_addr, uint8_t idx, uint8_t report_id, uint8_t report_type, uint16_t len) {
-  (void) dev_addr;
-  (void) idx;
-  (void) report_id;
-  (void) report_type;
-  (void) len;
+  (void) dev_addr; (void) idx; (void) report_id; (void) report_type; (void) len;
 }
 
 TU_ATTR_WEAK void tuh_hid_set_report_complete_cb(uint8_t dev_addr, uint8_t idx, uint8_t report_id, uint8_t report_type, uint16_t len) {
-  (void) dev_addr;
-  (void) idx;
-  (void) report_id;
-  (void) report_type;
-  (void) len;
+  (void) dev_addr; (void) idx; (void) report_id; (void) report_type; (void) len;
 }
 
 TU_ATTR_WEAK void tuh_hid_set_protocol_complete_cb(uint8_t dev_addr, uint8_t idx, uint8_t protocol) {
-  (void) dev_addr;
-  (void) idx;
-  (void) protocol;
+  (void) dev_addr; (void) idx; (void) protocol;
 }
 
 //--------------------------------------------------------------------+

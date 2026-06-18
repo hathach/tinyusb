@@ -43,13 +43,13 @@ CFLAGS += \
 	-DBOARD_TUH_MAX_SPEED=${RHPORT_HOST_SPEED} \
 
 # GCC Flags
-CFLAGS_GCC += \
+CFLAGS += \
   -flto \
 
 # suppress warning caused by vendor mcu driver
-CFLAGS_GCC += -Wno-error=cast-align
+CFLAGS += -Wno-error=cast-align
 
-LDFLAGS_GCC += \
+LDFLAGS += \
   -nostdlib -nostartfiles \
   --specs=nosys.specs --specs=nano.specs
 

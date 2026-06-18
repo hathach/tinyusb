@@ -12,6 +12,7 @@ MEMORY
 ENTRY( _start )
 
 PROVIDE( _stack_size = __stack_size );
+_estack = ORIGIN(RAM) + LENGTH(RAM);
 
 SECTIONS
 {
@@ -149,16 +150,16 @@ SECTIONS
 		PROVIDE( _ebss = .);
 	} >RAM AT>FLASH
 
-	PROVIDE( _end = _ebss);
-	PROVIDE( end = . );
+	._user_heap_stack :
+	{
+		. = ALIGN(8);
+		PROVIDE( end = . );
+		PROVIDE( _end = . );
+		. = . + __stack_size;
+		. = ALIGN(8);
+	} >RAM
 
-    .stack ORIGIN(RAM) + LENGTH(RAM) - __stack_size :
-    {
-        PROVIDE( _heap_end = . );
-        . = ALIGN(4);
-        PROVIDE(_susrstack = . );
-        . = . + __stack_size;
-        PROVIDE( _eusrstack = .);
-    } >RAM
-
+	PROVIDE( _heap_end = ORIGIN(RAM) + LENGTH(RAM) - __stack_size );
+	PROVIDE( _susrstack = _heap_end );
+	PROVIDE( _eusrstack = ORIGIN(RAM) + LENGTH(RAM) );
 }

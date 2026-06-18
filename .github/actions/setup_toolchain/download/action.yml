@@ -13,7 +13,7 @@ runs:
   steps:
     - name: Cache Toolchain
       if: ${{ !startsWith(inputs.toolchain_url, 'https://github.com') }}
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       id: cache-toolchain-download
       with:
         path: ~/cache/${{ inputs.toolchain }}

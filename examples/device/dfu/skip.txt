@@ -1,3 +1,2 @@
-mcu:TM4C
 mcu:BCM2835
 family:espressif

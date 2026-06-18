@@ -229,8 +229,17 @@ int board_uart_read(uint8_t *buf, int len) {
 }
 
 int board_uart_write(void const *buf, int len) {
-  LPUART_WriteBlocking(UART_PORT, (uint8_t const *) buf, len);
-  return len;
+  const uint8_t *p     = (const uint8_t *)buf;
+  int            count = 0;
+  while (count < len) {
+    if (LPUART_GetStatusFlags(UART_PORT) & kLPUART_TxDataRegEmptyFlag) {
+      LPUART_WriteByte(UART_PORT, p[count]);
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE

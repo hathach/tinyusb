@@ -41,14 +41,14 @@ static bool inquiry_complete_cb(uint8_t dev_addr, tuh_msc_complete_data_t const 
   }
 
   // Print out Vendor ID, Product ID and Rev
-  printf("%.8s %.16s rev %.4s\r\n", inquiry_resp.vendor_id, inquiry_resp.product_id, inquiry_resp.product_rev);
+  printf("%.8s %.16s %.4s\r\n", inquiry_resp.vendor_id, inquiry_resp.product_id, inquiry_resp.product_rev);
 
   // Get capacity of device
   uint32_t const block_count = tuh_msc_get_block_count(dev_addr, cbw->lun);
   uint32_t const block_size = tuh_msc_get_block_size(dev_addr, cbw->lun);
 
-  printf("Disk Size: %" PRIu32 " MB\r\n", block_count / ((1024*1024)/block_size));
-  printf("Block Count = %" PRIu32 ", Block Size: %" PRIu32 "\r\n", block_count, block_size);
+  printf("Disk Size: %" PRIu32 " %" PRIu32 "-byte blocks: %" PRIu32 " MB\r\n",
+    block_count, block_size, block_count / ((1024 * 1024) / block_size));
 
   return true;
 }

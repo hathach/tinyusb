@@ -166,6 +166,9 @@ def compute_avg(all_json_data):
                 file_accumulator[fname]["symbols"][name].append(sym.get("size", 0))
             sections_map = f.get("sections") or {}
             for sname, ssize in sections_map.items():
+                # linkermap -v produces nested dicts {subsection: size}, flatten to total
+                if isinstance(ssize, dict):
+                    ssize = sum(ssize.values())
                 file_accumulator[fname]["sections"][sname].append(ssize)
 
     # Build json_average with averaged values
@@ -209,7 +212,7 @@ def compute_avg(all_json_data):
 
 
 def compare_files(base_file, new_file, filters=None):
-    """Compare two CSV or JSON inputs and generate difference report."""
+    """Compare two CSV or JSON inputs and generate a difference report."""
     filters = filters or []
 
     base_avg = compute_avg(combine_files([base_file], filters))
@@ -381,7 +384,7 @@ def render_combine_table(json_data, sort_order='name+'):
 def write_combine_markdown(json_data, path, sort_order='name+', title="TinyUSB Average Code Size Metrics"):
     """Write averaged size data to a markdown file."""
 
-    md_lines = [f"# {title}", ""]
+    md_lines = [f"## {title}", ""]
     md_lines.extend(render_combine_table(json_data, sort_order))
     md_lines.append("")
 
@@ -397,7 +400,7 @@ def write_combine_markdown(json_data, path, sort_order='name+', title="TinyUSB A
 def write_compare_markdown(comparison, path, sort_order='size'):
     """Write comparison data to markdown file."""
     md_lines = [
-        "# Size Difference Report",
+        "## Size Difference Report",
         "",
         "Because TinyUSB code size varies by port and configuration, the metrics below represent the averaged totals across all example builds.",
         "",
@@ -412,7 +415,7 @@ def write_compare_markdown(comparison, path, sort_order='size'):
             md_lines.append(f"<details><summary>{title}</summary>")
             md_lines.append("")
         else:
-            md_lines.append(f"## {title}")
+            md_lines.append(f"### {title}")
 
         md_lines.extend(render_compare_table(_build_rows(rows, sort_order), include_sum=True))
         md_lines.append("")
@@ -422,7 +425,7 @@ def write_compare_markdown(comparison, path, sort_order='size'):
             md_lines.append("")
 
     render("Changes >1% in size", significant)
-    render("Changes <1% in size", minor)
+    render("Changes <1% in size", minor, collapsed=True)
     render("No changes", unchanged, collapsed=True)
 
     with open(path, "w", encoding="utf-8") as f:

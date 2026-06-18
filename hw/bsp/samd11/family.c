@@ -34,6 +34,8 @@
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wcast-qual"
+#pragma GCC diagnostic ignored "-Wconversion"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
 #endif
 
 #include "hal/include/hal_gpio.h"
@@ -66,7 +68,7 @@ void USB_Handler(void)
 //--------------------------------------------------------------------+
 
 /* Referenced GCLKs, should be initialized firstly */
-#define _GCLK_INIT_1ST (1 << 0 | 1 << 1)
+#define _GCLK_INIT_1ST (1u << 0 | 1u << 1)
 
 /* Not referenced GCLKs, initialized last */
 #define _GCLK_INIT_LAST (~_GCLK_INIT_1ST)
@@ -137,13 +139,13 @@ uint32_t board_button_read(void)
 int board_uart_read(uint8_t* buf, int len)
 {
   (void) buf; (void) len;
-  return 0;
+  return -1;
 }
 
 int board_uart_write(void const * buf, int len)
 {
   (void) buf; (void) len;
-  return 0;
+  return -1;
 }
 
 #if CFG_TUSB_OS  == OPT_OS_NONE

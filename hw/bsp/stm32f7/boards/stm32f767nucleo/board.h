@@ -36,8 +36,7 @@
  extern "C" {
 #endif
 
-#define UART_DEV              USART3
-#define UART_CLK_EN           __HAL_RCC_USART3_CLK_ENABLE
+#define UART_ID               3
 
 // VBUS Sense detection
 #define OTG_FS_VBUS_SENSE     1
@@ -113,7 +112,6 @@ static inline void board_clock_init(void)
 
   HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_7);
 
-  UART_CLK_EN();
 }
 
 static inline void board_vbus_set(uint8_t rhport, bool state) {

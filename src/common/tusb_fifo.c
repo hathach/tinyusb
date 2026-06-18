@@ -281,14 +281,14 @@ static void hwff_push_n(const tu_fifo_t *f, const void *app_buf, uint16_t n, uin
     // Write full words to the linear part of the buffer
     const uint8_t  data_stride = access_mode->data_stride;
     const uint32_t odd_mask    = data_stride - 1;
-    uint16_t       lin_even    = lin_bytes & ~odd_mask;
+    uint16_t       lin_even    = (uint16_t)(lin_bytes & ~odd_mask);
     tu_hwfifo_read(hwfifo, ff_buf, lin_even, access_mode);
     HWFIFO_ADDR_NEXT_N(hwfifo, const, lin_even * HWFIFO_ADDR_DATA_RATIO);
     ff_buf += lin_even;
 
     // There could be an odd 1 byte (16bit) or 1-3 bytes (32bit) before the wrap-around boundary
     // combine it with the wrapped part to form a full word for data stride
-    const uint8_t lin_odd = lin_bytes & odd_mask;
+    const uint8_t lin_odd = (uint8_t)(lin_bytes & odd_mask);
     if (lin_odd > 0) {
       const uint8_t wrap_odd = (uint8_t)tu_min16(wrap_bytes, data_stride - lin_odd);
       uint8_t       buf_temp[4];
@@ -338,13 +338,13 @@ static void hwff_pull_n(const tu_fifo_t *f, void *app_buf, uint16_t n, uint16_t 
     // Read full words from linear part
     const uint8_t  data_stride = access_mode->data_stride;
     const uint32_t odd_mask    = data_stride - 1;
-    uint16_t       lin_even    = lin_bytes & ~odd_mask;
+    uint16_t       lin_even    = (uint16_t)(lin_bytes & ~odd_mask);
     tu_hwfifo_write(hwfifo, ff_buf, lin_even, access_mode);
     HWFIFO_ADDR_NEXT_N(hwfifo, , lin_even * HWFIFO_ADDR_DATA_RATIO);
     ff_buf += lin_even;
 
     // There could be odd 1 byte (16bit) or 1-3 bytes (32bit) before the wrap-around boundary
-    const uint8_t lin_odd = lin_bytes & odd_mask;
+    const uint8_t lin_odd = (uint8_t)(lin_bytes & odd_mask);
     if (lin_odd > 0) {
       const uint8_t wrap_odd = (uint8_t)tu_min16(wrap_bytes, data_stride - lin_odd);
 

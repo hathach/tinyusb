@@ -310,7 +310,7 @@ bool tud_audio_set_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p
         // Request uses format layout 2
         TU_VERIFY(p_request->wLength == sizeof(audio20_control_cur_2_t));
 
-        volume[channelNum] = ((audio20_control_cur_2_t *) pBuff)->bCur;
+        volume[channelNum] = (uint16_t) ((audio20_control_cur_2_t *) pBuff)->bCur;
         TU_LOG1("    Set Volume: %d dB of channel: %u\r\n", volume[channelNum], channelNum);
         return true;
 

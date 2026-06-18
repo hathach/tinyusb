@@ -141,7 +141,7 @@ if (NOT FAMILY STREQUAL rp2040)
   endif()
 endif()
 
-if (NOT NO_WARN_RWX_SEGMENTS_SUPPORTED)
+if (NOT DEFINED NO_WARN_RWX_SEGMENTS_SUPPORTED)
   set(NO_WARN_RWX_SEGMENTS_SUPPORTED 1)
 endif()
 
@@ -244,7 +244,7 @@ function(family_add_bloaty TARGET)
     COMMAND ${BLOATY_EXE} ${OPTION_LIST} $<TARGET_FILE:${TARGET}>
     VERBATIM)
 
-  set_property(TARGET ${TARGET}-bloaty PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-bloaty PROPERTY FOLDER ${TARGET}-group)
   # post build
   #  add_custom_command(TARGET ${TARGET} POST_BUILD
   #    COMMAND ${BLOATY_EXE} --csv ${OPTION_LIST} $<TARGET_FILE:${TARGET}> > ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}_bloaty.csv
@@ -265,7 +265,7 @@ function(family_add_linkermap TARGET)
     VERBATIM
     )
 
-  set_property(TARGET ${TARGET}-linkermap PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-linkermap PROPERTY FOLDER ${TARGET}-group)
 
   # post build
   add_custom_command(TARGET ${TARGET} POST_BUILD
@@ -326,10 +326,12 @@ ld_defs=\"$(echo \"$ld_defs\" | xargs)\"")
       "if [ -f \"${TARGET_ELF_PATH}\" ]; then \
   ${MEMBROWSE_LD_SCRIPTS_CMD}; \
   ${MEMBROWSE_LD_DEFS_CMD}; \
+  map_arg=\"\"; \
+  if [ -f \"${TARGET_ELF_PATH}.map\" ]; then map_arg=\"--map-file \\\"${TARGET_ELF_PATH}.map\\\"\"; fi; \
   if [ \"$MEMBROWSE_UPLOAD\" = \"1\" ]; then \
-    MEMBROWSE_CMD=\"${MEMBROWSE_EXE} report ${OPTION} \\\"${TARGET_ELF_PATH}\\\" \\\"$ld_scripts\\\" $ld_defs --upload --github --target-name ${BOARD}/${TARGET} --api-key $ENV{MEMBROWSE_API_KEY}\"; \
+    MEMBROWSE_CMD=\"${MEMBROWSE_EXE} report ${OPTION} \\\"${TARGET_ELF_PATH}\\\" \\\"$ld_scripts\\\" $ld_defs $map_arg --upload --github --target-name ${BOARD}/${TARGET} --api-key $ENV{MEMBROWSE_API_KEY}\"; \
   else \
-    MEMBROWSE_CMD=\"${MEMBROWSE_EXE} report ${OPTION} \\\"${TARGET_ELF_PATH}\\\" \\\"$ld_scripts\\\" $ld_defs\"; \
+    MEMBROWSE_CMD=\"${MEMBROWSE_EXE} report ${OPTION} \\\"${TARGET_ELF_PATH}\\\" \\\"$ld_scripts\\\" $ld_defs $map_arg\"; \
   fi; \
 else \
   if [ \"$MEMBROWSE_UPLOAD\" = \"1\" ]; then \
@@ -345,7 +347,7 @@ echo \"$MEMBROWSE_CMD\"")
       COMMAND ${CMAKE_COMMAND} -E env MEMBROWSE_UPLOAD=0 bash -lc "${MEMBROWSE_PREPARE_CMD}; eval \"$MEMBROWSE_CMD\""
       VERBATIM
       )
-    set_property(TARGET ${TARGET}-membrowse PROPERTY FOLDER ${TARGET}-group)
+    #set_property(TARGET ${TARGET}-membrowse PROPERTY FOLDER ${TARGET}-group)
 
     add_custom_target(${TARGET}-membrowse-upload
       COMMAND ${CMAKE_COMMAND} -E env MEMBROWSE_UPLOAD=1 bash -lc "${MEMBROWSE_PREPARE_CMD}; eval \"$MEMBROWSE_CMD\""
@@ -357,7 +359,7 @@ echo \"$MEMBROWSE_CMD\"")
     endif ()
     add_dependencies(examples-membrowse-upload ${TARGET}-membrowse-upload)
 
-    set_property(TARGET ${TARGET}-membrowse-upload PROPERTY FOLDER ${TARGET}-group)
+    #set_property(TARGET ${TARGET}-membrowse-upload PROPERTY FOLDER ${TARGET}-group)
   endif ()
 endfunction()
 
@@ -367,24 +369,37 @@ endfunction()
 # Most families use these settings except rp2040 and espressif
 #-------------------------------------------------------------
 function(family_add_board BOARD_TARGET)
-  # empty function, should be redefined in FAMILY/family.cmake
+  # empty function, should be overridden in FAMILY/family.cmake
 endfunction()
 
 # Add RTOS to example
 function(family_add_rtos TARGET RTOS)
   if (RTOS STREQUAL "freertos")
-    if (NOT TARGET freertos_config)
-      add_library(freertos_config INTERFACE)
-      target_include_directories(freertos_config INTERFACE ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${FAMILY}/FreeRTOSConfig)
-      # add board definition to freertos_config mostly for SystemCoreClock
-      target_link_libraries(freertos_config INTERFACE board_${BOARD})
+    # RP2040 family uses Raspberry Pi's FreeRTOS-Kernel fork with platform-specific SMP port
+    if (FAMILY STREQUAL "rp2040")
+      if (NOT TARGET FreeRTOS-Kernel)
+        set(FREERTOS_KERNEL_PATH ${TOP}/hw/mcu/raspberry_pi/FreeRTOS-Kernel)
+        set(FREERTOS_CONFIG_FILE_DIRECTORY ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${FAMILY}/FreeRTOSConfig)
+        # FreeRTOS_Kernel_import.cmake auto-selects RP2040/RP2350/RISC-V port based on PICO_PLATFORM
+        include(${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)
+      endif()
+      target_link_libraries(${TARGET} PUBLIC FreeRTOS-Kernel-Static)
+    else()
+      # All other families: use upstream FreeRTOS-Kernel with add_subdirectory
+      if (NOT TARGET freertos_config)
+        add_library(freertos_config INTERFACE)
+        target_include_directories(freertos_config INTERFACE
+          ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${FAMILY}/FreeRTOSConfig)
+        target_link_libraries(freertos_config INTERFACE board_${BOARD})
+      endif()
+
+      if (NOT TARGET freertos_kernel)
+        add_subdirectory(${TOP}/lib/FreeRTOS-Kernel ${CMAKE_BINARY_DIR}/lib/freertos_kernel)
+      endif ()
+
+      target_link_libraries(${TARGET} PUBLIC freertos_kernel)
     endif()
 
-    if (NOT TARGET freertos_kernel)
-      add_subdirectory(${TOP}/lib/FreeRTOS-Kernel ${CMAKE_BINARY_DIR}/lib/freertos_kernel)
-    endif ()
-
-    target_link_libraries(${TARGET} PUBLIC freertos_kernel)
     target_compile_definitions(${TARGET} PUBLIC CFG_TUSB_OS=OPT_OS_FREERTOS)
   elseif (RTOS STREQUAL "threadx")
     if (NOT TARGET threadx)
@@ -439,6 +454,12 @@ function(family_configure_common TARGET RTOS)
     BOARD_${BOARD_UPPER}
   )
 
+  # CI_BUILD marks firmware built in CI (GitHub Actions sets CI). Examples can use
+  # it to alter behavior under test, e.g. board_test idles to park HIL boards.
+  if(DEFINED ENV{CI})
+    target_compile_definitions(${TARGET} PUBLIC CI_BUILD=1)
+  endif()
+
   # compile define from command line
   if(DEFINED CFLAGS_CLI)
     separate_arguments(CFLAGS_CLI)
@@ -465,7 +486,11 @@ function(family_configure_common TARGET RTOS)
     target_compile_definitions(${TARGET} PUBLIC LOGGER_UART)
   endif ()
 
-  if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
+  if (FAMILY STREQUAL "rp2040")
+    # RP2040: apply warnings per-source-file (not per-target) since Pico SDK sources
+    # are INTERFACE and would not inherit target-level warnings correctly
+    family_add_default_example_warnings(${TARGET})
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
     target_compile_options(${TARGET} PRIVATE ${WARN_FLAGS_${CMAKE_C_COMPILER_ID}})
     target_link_options(${TARGET} PUBLIC "LINKER:-Map=$<TARGET_FILE:${TARGET}>.map")
     if (CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0
@@ -557,11 +582,11 @@ endfunction()
 
 #-------------------------------------------------------
 # Example Target Configure (Default rule)
-# These function can be redefined in FAMILY/family.cmake
+# These function can be overridden in FAMILY/family.cmake
 #--------------------------------------------------------
 
 function(family_configure_example TARGET RTOS)
-  # empty function, should be redefined in FAMILY/family.cmake
+  # empty function, should be overridden in FAMILY/family.cmake
 endfunction()
 
 # Configure device example with RTOS
@@ -629,7 +654,7 @@ exit"
     VERBATIM
     )
 
-  set_property(TARGET ${NAME_TARGET}-jlink PROPERTY FOLDER ${TARGET}-group)
+#  set_property(TARGET ${NAME_TARGET}-jlink PROPERTY FOLDER ${NAME_TARGET}-group)
 endfunction()
 
 
@@ -644,7 +669,7 @@ function(family_flash_stlink TARGET)
     COMMAND ${STM32_PROGRAMMER_CLI} --connect port=swd --write $<TARGET_FILE:${TARGET}> --go
     )
 
-  set_property(TARGET ${TARGET}-stlink PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-stlink PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 
@@ -659,7 +684,7 @@ function(family_flash_stflash TARGET)
     COMMAND ${ST_FLASH} write $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.bin 0x8000000
     )
 
-  set_property(TARGET ${TARGET}-stflash PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-stflash PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 
@@ -687,7 +712,7 @@ function(family_flash_openocd TARGET)
     VERBATIM
     )
 
-  set_property(TARGET ${TARGET}-openocd PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-openocd PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 
@@ -750,7 +775,7 @@ function(family_flash_wlink_rs TARGET)
     COMMAND ${WLINK_RS} flash $<TARGET_FILE:${TARGET}>
     )
 
-  set_property(TARGET ${TARGET}-wlink-rs PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-wlink-rs PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 
@@ -765,7 +790,7 @@ function(family_flash_pyocd TARGET)
     COMMAND ${PYOCD} flash -t ${PYOCD_TARGET} $<TARGET_FILE:${TARGET}>
     )
 
-  set_property(TARGET ${TARGET}-pyocd PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-pyocd PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 
@@ -775,7 +800,7 @@ function(family_flash_uf2 TARGET FAMILY_ID)
     DEPENDS ${TARGET}
     COMMAND python ${UF2CONV_PY} -f ${FAMILY_ID} --deploy $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.uf2
     )
-  set_property(TARGET ${TARGET}-uf2 PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-uf2 PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 
@@ -791,7 +816,7 @@ function(family_flash_teensy TARGET)
     COMMAND ${TEENSY_CLI} --mcu=${TEENSY_MCU} -w -s $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.hex
     )
 
-  set_property(TARGET ${TARGET}-teensy PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-teensy PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 
@@ -811,7 +836,7 @@ function(family_flash_nxplink TARGET)
     COMMAND ${LINKSERVER_PATH} flash ${NXPLINK_DEVICE} load $<TARGET_FILE:${TARGET}>
     )
 
-  set_property(TARGET ${TARGET}-nxplink PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-nxplink PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 
@@ -826,7 +851,7 @@ function(family_flash_dfu_util TARGET OPTION)
     VERBATIM
     )
 
-  set_property(TARGET ${TARGET}-dfu-util PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-dfu-util PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 function(family_flash_msp430flasher TARGET)
@@ -843,7 +868,7 @@ function(family_flash_msp430flasher TARGET)
             ${MSP430FLASHER} -w $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.hex -z [VCC]
     )
 
-  set_property(TARGET ${TARGET}-msp430flasher PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-msp430flasher PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 function(family_flash_rfp TARGET)
@@ -861,7 +886,7 @@ function(family_flash_rfp TARGET)
     VERBATIM
     )
 
-  set_property(TARGET ${TARGET}-rfp PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-rfp PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 
@@ -878,7 +903,27 @@ function(family_flash_uniflash TARGET)
     VERBATIM
     )
 
-  set_property(TARGET ${TARGET}-uniflash PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-uniflash PROPERTY FOLDER ${TARGET}-group)
+endfunction()
+
+# Add flash lm4flash target (lightweight flasher for TI Tiva-C/Stellaris ICDI boards)
+function(family_flash_lm4flash TARGET)
+  if (NOT DEFINED LM4FLASH)
+    set(LM4FLASH lm4flash)
+  endif ()
+
+  if (NOT DEFINED LM4FLASH_OPTION)
+    set(LM4FLASH_OPTION "")
+  endif ()
+  separate_arguments(OPTION_LIST UNIX_COMMAND ${LM4FLASH_OPTION})
+
+  add_custom_target(${TARGET}-lm4flash
+    DEPENDS ${TARGET}
+    COMMAND ${LM4FLASH} ${OPTION_LIST} $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.bin
+    VERBATIM
+    )
+
+  #set_property(TARGET ${TARGET}-lm4flash PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 # Add flash ft9xx target need to remove kernal's ftdi_sio and bind D2XX drivers
@@ -893,7 +938,7 @@ function(family_flash_ft9xx TARGET)
     COMMAND ${FT9XXPROG} -f $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.bin
     )
 
-  set_property(TARGET ${TARGET}-ft9xx PROPERTY FOLDER ${TARGET}-group)
+  #set_property(TARGET ${TARGET}-ft9xx PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
 #----------------------------------

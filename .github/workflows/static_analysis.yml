@@ -84,7 +84,7 @@ jobs:
           category: CodeQL
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: codeql-${{ matrix.board }}
           path: ${{ steps.analyze.outputs.sarif-output }}
@@ -136,7 +136,7 @@ jobs:
           category: PVS-Studio
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: pvs-studio-${{ matrix.board }}
           path: pvs-studio-${{ matrix.board }}.sarif
@@ -236,7 +236,7 @@ jobs:
           category: IAR-CStat
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: iar-cstat-${{ matrix.board }}
           path: iar-cstat-${{ matrix.board }}.sarif

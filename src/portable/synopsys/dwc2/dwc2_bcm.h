@@ -39,12 +39,18 @@
 
 static const dwc2_controller_t _dwc2_controller[] =
 {
-  { .reg_base = USB_OTG_GLOBAL_BASE, .irqnum = USB_IRQn, .ep_count = DWC2_EP_MAX, .ep_fifo_size = 16384 }
+  { .reg_base = USB_OTG_GLOBAL_BASE, .irqnum = USB_IRQn, .ep_count = DWC2_EP_MAX, .otg_dfifo_depth = 4096 }
 };
 
 #define dcache_clean(_addr, _size)              data_clean(_addr, _size)
 #define dcache_invalidate(_addr, _size)         data_invalidate(_addr, _size)
 #define dcache_clean_invalidate(_addr, _size)   data_clean_and_invalidate(_addr, _size)
+
+// MCU specific to enable dwc2 clock/power before any access to register
+TU_ATTR_ALWAYS_INLINE static inline void dwc2_clock_init(uint8_t rhport, tusb_role_t role) {
+  (void) rhport;
+  (void) role;
+}
 
 TU_ATTR_ALWAYS_INLINE
 static inline void dwc2_dcd_int_enable(uint8_t rhport)

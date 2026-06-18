@@ -7,7 +7,7 @@ CFLAGS += \
   -flto \
   -DCFG_TUSB_MCU=OPT_MCU_VALENTYUSB_EPTRI
 
-LDFLAGS_GCC += \
+LDFLAGS += \
   -nostdlib \
   --specs=nosys.specs --specs=nano.specs \
 

@@ -76,28 +76,31 @@ typedef void (*osal_task_func_t)(void* param);
 /*--------------------------------------------------------------------
   OSAL Porting API
   Should be implemented as static inline function in osal_port.h header
-   uint32_t osal_time_millis(void);
+    uint32_t osal_time_millis(void);
 
-   void osal_spin_init(osal_spinlock_t *ctx);
-   void osal_spin_lock(osal_spinlock_t *ctx, bool in_isr)
-   void osal_spin_unlock(osal_spinlock_t *ctx, bool in_isr);
+    void osal_task_delay(uint32_t msec);
+    osal_task_handle_t osal_task_get_current_handle(void);
 
-   osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semdef);
-   bool osal_semaphore_delete(osal_semaphore_t semd_hdl);
-   bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr);
-   bool osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec);
-   void osal_semaphore_reset(osal_semaphore_t sem_hdl);
+    void osal_spin_init(osal_spinlock_t *ctx);
+    void osal_spin_lock(osal_spinlock_t *ctx, bool in_isr)
+    void osal_spin_unlock(osal_spinlock_t *ctx, bool in_isr);
 
-   osal_mutex_t osal_mutex_create(osal_mutex_def_t* mdef);
-   bool osal_mutex_delete(osal_mutex_t mutex_hdl)
-   bool osal_mutex_lock (osal_mutex_t sem_hdl, uint32_t msec);
-   bool osal_mutex_unlock(osal_mutex_t mutex_hdl);
+    osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semdef);
+    bool osal_semaphore_delete(osal_semaphore_t semd_hdl);
+    bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr);
+    bool osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec);
+    void osal_semaphore_reset(osal_semaphore_t sem_hdl);
 
-   osal_queue_t osal_queue_create(osal_queue_def_t* qdef);
-   bool osal_queue_delete(osal_queue_t qhdl);
-   bool osal_queue_receive(osal_queue_t qhdl, void* data, uint32_t msec);
-   bool osal_queue_send(osal_queue_t qhdl, void const * data, bool in_isr);
-   bool osal_queue_empty(osal_queue_t qhdl);
+    osal_mutex_t osal_mutex_create(osal_mutex_def_t* mdef);
+    bool osal_mutex_delete(osal_mutex_t mutex_hdl)
+    bool osal_mutex_lock (osal_mutex_t sem_hdl, uint32_t msec);
+    bool osal_mutex_unlock(osal_mutex_t mutex_hdl);
+
+    osal_queue_t osal_queue_create(osal_queue_def_t* qdef);
+    bool osal_queue_delete(osal_queue_t qhdl);
+    bool osal_queue_receive(osal_queue_t qhdl, void* data, uint32_t msec);
+    bool osal_queue_send(osal_queue_t qhdl, void const * data, bool in_isr);
+    bool osal_queue_empty(osal_queue_t qhdl);
 --------------------------------------------------------------------------*/
 
 

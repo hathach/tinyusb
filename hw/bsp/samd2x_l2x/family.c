@@ -79,7 +79,7 @@
 
 #ifdef SAMD21_FAMILY
 /* Referenced GCLKs, should be initialized firstly */
-#define _GCLK_INIT_1ST (1 << 0 | 1 << 1)
+#define _GCLK_INIT_1ST (1u << 0 | 1u << 1)
 /* Not referenced GCLKs, initialized last */
 #define _GCLK_INIT_LAST (~_GCLK_INIT_1ST)
 #endif
@@ -322,7 +322,7 @@ static inline void uart_send_str(const char* text)
 int board_uart_read(uint8_t* buf, int len)
 {
   (void) buf; (void) len;
-  return 0;
+  return -1;
 }
 
 int board_uart_write(void const * buf, int len)
@@ -343,13 +343,13 @@ static void uart_init(void) {
 int board_uart_read(uint8_t* buf, int len) {
   (void) buf;
   (void) len;
-  return 0;
+  return -1;
 }
 
 int board_uart_write(void const* buf, int len) {
   (void) buf;
   (void) len;
-  return 0;
+  return -1;
 }
 
 #endif

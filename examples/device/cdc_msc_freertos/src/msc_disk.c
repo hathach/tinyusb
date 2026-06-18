@@ -168,7 +168,7 @@ static void io_task(void *params) {
   while (1) {
     if (xQueueReceive(io_queue, &io_ops, portMAX_DELAY)) {
       uint8_t* addr = (uint8_t*) (uintptr_t) (msc_disk[io_ops.lba] + io_ops.offset);
-      int32_t nbytes = io_ops.bufsize;
+      int32_t nbytes = (int32_t) io_ops.bufsize;
       if (io_ops.is_read) {
         memcpy(io_ops.buffer, addr, io_ops.bufsize);
       } else {

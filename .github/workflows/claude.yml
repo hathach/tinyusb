@@ -6,22 +6,32 @@ on:
   pull_request_review_comment:
     types: [created]
   issues:
-    types: [opened, assigned]
+    # only "opened" — an issue's author_association gates the summon below;
+    # "assigned" would gate on the issue author, not the assigner, so a
+    # maintainer assigning an outsider's issue would be wrongly skipped.
+    types: [opened]
   pull_request_review:
     types: [submitted]
 
 jobs:
   claude:
+    # Only trusted actors (repo owner/member/collaborator) may summon @claude, so the
+    # write-scoped token and OAuth secret are never issued for an outside contributor's
+    # comment on this public repo. Defense-in-depth on top of the action's own check.
     if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude') &&
+        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude') &&
+        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude') &&
+        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.review.author_association)) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')) &&
+        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.issue.author_association))
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      pull-requests: read
-      issues: read
+      contents: write       # allow Claude to push commits/branches when asked
+      pull-requests: write  # allow Claude to comment on / update PRs
+      issues: write         # allow Claude to comment on / update issues
       id-token: write
       actions: read # Required for Claude to read CI results on PRs
     steps:
@@ -40,10 +50,19 @@ jobs:
           additional_permissions: |
             actions: read
 
-          # Optional: Give a custom prompt to Claude. If this is not specified, Claude will perform the instructions specified in the comment that tagged it.
-          # prompt: 'Update the pull request description to include a summary of changes.'
+          # Sign the bot's commits so they show as "Verified". The action commits
+          # automatically — on a PR comment it pushes to that PR's branch; on an
+          # issue comment it opens a new claude/* branch + PR with the fix.
+          use_commit_signing: true
 
-          # Optional: Add claude_args to customize behavior and configuration
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
-          # claude_args: '--allowed-tools Bash(gh pr:*)'
+          # No custom prompt: Claude performs the instructions in the @claude comment.
+
+          # Deliberately NO Bash in the tool allowlist. @claude can be summoned on a
+          # fork PR (claude-code-review.yml even directs fork PRs here), and this job
+          # holds the OAuth secret + a write token. Any build/interpreter command
+          # (python -c, cmake/make custom targets, etc.) run against attacker-
+          # controlled PR content is arbitrary code + network execution, so no
+          # command allowlist can safely contain it. Claude still edits files and
+          # the action commits/opens the PR; the resulting commit is verified by the
+          # repo's CircleCI matrix. --max-turns gives room to investigate + fix.
+          claude_args: '--max-turns 30'

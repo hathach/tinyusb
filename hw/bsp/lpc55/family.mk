@@ -41,7 +41,7 @@ endif
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter -Wno-error=float-equal
 
-LDFLAGS_GCC += \
+LDFLAGS += \
   -nostartfiles \
   --specs=nosys.specs --specs=nano.specs \
   -Wl,--defsym=__stack_size__=0x1000 \

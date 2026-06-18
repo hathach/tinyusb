@@ -37,7 +37,7 @@ else
   CFLAGS += -DCFG_TUD_WCH_USBIP_USBFS=1
 endif
 
-LDFLAGS_GCC += \
+LDFLAGS += \
 	-nostdlib -nostartfiles \
 	--specs=nosys.specs --specs=nano.specs \
 

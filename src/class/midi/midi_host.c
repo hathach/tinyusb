@@ -461,7 +461,7 @@ uint32_t tuh_midi_stream_write(uint8_t idx, uint8_t cable_num, uint8_t const *bu
     if (data >= MIDI_STATUS_SYSREAL_TIMING_CLOCK) {
       // real-time messages need to be sent right away
       midi_driver_stream_t streamrt;
-      streamrt.buffer[0] = MIDI_CIN_SYSEX_END_1BYTE;
+      streamrt.buffer[0] = (uint8_t)((cable_num << 4) | MIDI_CIN_SYSEX_END_1BYTE);
       streamrt.buffer[1] = data;
       streamrt.index = 2;
       streamrt.total = 2;
@@ -476,9 +476,9 @@ uint32_t tuh_midi_stream_write(uint8_t idx, uint8_t cable_num, uint8_t const *bu
       stream->buffer[1] = data;
 
       // Check to see if we're still in a SysEx transmit.
-      if (stream->buffer[0] == MIDI_CIN_SYSEX_START) {
+      if ((stream->buffer[0] & 0xF) == MIDI_CIN_SYSEX_START) {
         if (data == MIDI_STATUS_SYSEX_END) {
-          stream->buffer[0] = MIDI_CIN_SYSEX_END_1BYTE;
+          stream->buffer[0] = (uint8_t)((cable_num << 4) | MIDI_CIN_SYSEX_END_1BYTE);
           stream->total = 2;
         } else {
           stream->total = 4;
@@ -506,6 +506,7 @@ uint32_t tuh_midi_stream_write(uint8_t idx, uint8_t cable_num, uint8_t const *bu
           stream->buffer[0] = MIDI_CIN_SYSEX_END_1BYTE;
           stream->total = 2;
         }
+        stream->buffer[0] |= (uint8_t)(cable_num << 4);
       } else {
         // Pack individual bytes if we don't support packing them into words.
         stream->buffer[0] = (uint8_t) (cable_num << 4 | 0xf);
@@ -520,8 +521,8 @@ uint32_t tuh_midi_stream_write(uint8_t idx, uint8_t cable_num, uint8_t const *bu
       stream->buffer[stream->index] = data;
       stream->index++;
       // See if this byte ends a SysEx.
-      if (stream->buffer[0] == MIDI_CIN_SYSEX_START && data == MIDI_STATUS_SYSEX_END) {
-        stream->buffer[0] = MIDI_CIN_SYSEX_START + (stream->index - 1);
+      if ((stream->buffer[0] & 0xF) == MIDI_CIN_SYSEX_START && data == MIDI_STATUS_SYSEX_END) {
+        stream->buffer[0] = (uint8_t)((cable_num << 4) | (MIDI_CIN_SYSEX_START + (stream->index - 1)));
         stream->total = stream->index;
       }
     }

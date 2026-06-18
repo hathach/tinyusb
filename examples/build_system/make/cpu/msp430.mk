@@ -2,8 +2,6 @@ ifeq ($(TOOLCHAIN),gcc)
   # nothing to add
 else ifeq ($(TOOLCHAIN),clang)
   # nothing to add
-else ifeq ($(TOOLCHAIN),iar)
-  # nothing to add
 else
   $(error "TOOLCHAIN is not supported")
 endif

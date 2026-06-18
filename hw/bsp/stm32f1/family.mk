@@ -12,13 +12,13 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F1
 
 # GCC Flags
-CFLAGS_GCC += \
+CFLAGS += \
   -flto \
 
 # mcu driver cause following warnings
-CFLAGS_GCC += -Wno-error=cast-align
+CFLAGS += -Wno-error=cast-align
 
-LDFLAGS_GCC += \
+LDFLAGS += \
   -nostdlib -nostartfiles \
   -specs=nosys.specs -specs=nano.specs
 
@@ -34,6 +34,7 @@ SRC_C += \
   ${ST_HAL_DRIVER}/Src/stm32${ST_FAMILY}xx_hal_rcc.c \
   ${ST_HAL_DRIVER}/Src/stm32${ST_FAMILY}xx_hal_rcc_ex.c \
   ${ST_HAL_DRIVER}/Src/stm32${ST_FAMILY}xx_hal_gpio.c \
+  ${ST_HAL_DRIVER}/Src/stm32${ST_FAMILY}xx_hal_dma.c \
   ${ST_HAL_DRIVER}/Src/stm32${ST_FAMILY}xx_hal_uart.c
 
 INC += \
@@ -43,8 +44,7 @@ INC += \
   ${TOP}/${ST_HAL_DRIVER}/Inc
 
 # Startup
-SRC_S_GCC += ${ST_CMSIS}/Source/Templates/gcc/startup_${MCU_VARIANT}.s
-SRC_S_IAR += ${ST_CMSIS}/Source/Templates/iar/startup_${MCU_VARIANT}.s
+SRC_S += ${ST_CMSIS}/Source/Templates/gcc/startup_${MCU_VARIANT}.s
 
 # flash target ROM bootloader: flash-dfu-util
 DFU_UTIL_OPTION = -a 0 --dfuse-address 0x08000000

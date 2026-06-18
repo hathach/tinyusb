@@ -8,7 +8,7 @@ CFLAGS += \
 
 CPU_CORE ?= cortex-m0
 
-LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+LDFLAGS += -specs=nosys.specs -specs=nano.specs
 
 # LD_FILE is defined in board.mk
 

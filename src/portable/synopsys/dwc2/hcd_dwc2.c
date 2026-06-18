@@ -104,6 +104,7 @@ typedef struct {
   uint16_t xferred_bytes;  // bytes that accumulate transferred though USB bus for the whole hcd_edpt_xfer(), which can
                            // be composed of multiple channel_xfer_start() (retry with NAK/NYET)
   uint16_t fifo_bytes;     // bytes written/read from/to FIFO (may not be transferred on USB bus).
+  uint8_t  retry_disabled; // 1: channel was disabled to throttle a split retry (NAK in / XactErr out); re-arm on its halt
 } hcd_xfer_t;
 
 typedef struct {
@@ -323,9 +324,9 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t cal_next_pid(uint8_t pid, uint8_t pa
   We allocated TX FIFO from top to bottom (using top pointer), this to allow the RX FIFO to grow dynamically which is
   possible since the free space is located between the RX and TX FIFOs.
 
-   ----------------- ep_fifo_size
-  |    HCDMAn    |
-  |--------------|-- gdfifocfg.EPINFOBASE (max is ghwcfg3.dfifo_depth)
+   ----------------- otg_dfifo_depth
+  |    HCDMAn    |   (DMA only, sized per runtime DMA mode)
+  |--------------|-- gdfifocfg.EPINFOBASE (= gdfifocfg.GDFIFOCfg)
   | Non-Periodic |
   |   TX FIFO    |
   |--------------|--- GNPTXFSIZ.addr (fixed size)
@@ -358,15 +359,22 @@ static void dfifo_host_init(uint8_t rhport, bool is_hs_phy) {
 
   // Scatter/Gather DMA mode is not yet supported. Buffer DMA only need 1 words per channel
   const bool is_dma = dma_host_enabled(dwc2);
-  uint16_t dfifo_top = dwc2_controller->ep_fifo_size/4;
+  uint16_t dfifo_top = dwc2_controller->otg_dfifo_depth;
   if (is_dma) {
     dfifo_top -= ghwcfg2.num_host_ch;
   }
 
   // fixed allocation for now, improve later:
-  // - ptx_largest is limited to 256 for FS since most FS core only has 1024 bytes total
-  uint32_t nptx_largest = is_hs_phy ? TUSB_EPSIZE_BULK_HS / 4 : TUSB_EPSIZE_BULK_FS / 4;
-  uint32_t ptx_largest  = is_hs_phy ? TUSB_EPSIZE_ISO_HS_MAX / 4 : 256 / 4;
+  // - ptx_largest is limited to 64 words for FS since most FS core only has 256-320 words total
+  uint32_t nptx_largest;
+  uint32_t ptx_largest;
+  if (is_hs_phy) {
+    nptx_largest = TUSB_EPSIZE_BULK_HS / 4;
+    ptx_largest = TUSB_EPSIZE_ISO_HS_MAX / 4;
+  } else {
+    nptx_largest = TUSB_EPSIZE_BULK_FS / 4;
+    ptx_largest = 256 / 4;
+  }
 
   uint16_t nptxfsiz = 2 * nptx_largest;
   uint16_t rxfsiz = 2 * (ptx_largest + 2) + ghwcfg2.num_host_ch;
@@ -400,10 +408,12 @@ bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
 
 // Initialize controller to host mode
 bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
-  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  dwc2_clock_init(rhport, rh_init->role);
+
   tu_memclr(&_hcd_data, sizeof(_hcd_data));
 
   // Core Initialization
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   const bool is_hs_phy = dwc2_core_is_highspeed_phy(dwc2, _tuh_cfg.use_hs_phy);
   const bool is_dma = dma_host_enabled(dwc2);
   TU_ASSERT(dwc2_core_init(rhport, is_hs_phy, is_dma));
@@ -894,9 +904,6 @@ static void handle_rxflvl_irq(uint8_t rhport) {
 
 // return true if there is still pending data and need more ISR
 static bool handle_txfifo_empty(dwc2_regs_t* dwc2, bool is_periodic) {
-  // Use period txsts for both p/np to get request queue space available (1-bit difference, it is small enough)
-  const dwc2_hptxsts_t txsts = {.value = (is_periodic ? dwc2->hptxsts : dwc2->hnptxsts)};
-
   const uint8_t max_channel = dwc2_channel_count(dwc2);
   for (uint8_t ch_id = 0; ch_id < max_channel; ch_id++) {
     dwc2_channel_t* channel = &dwc2->channel[ch_id];
@@ -914,6 +921,8 @@ static bool handle_txfifo_empty(dwc2_regs_t* dwc2, bool is_periodic) {
 
         // skip if there is not enough space in FIFO and RequestQueue.
         // Packet's last word written to FIFO will trigger a request queue
+        // Use period txsts for both p/np to get request queue space available (1-bit difference, it is small enough)
+        const dwc2_hptxsts_t txsts = {.value = (is_periodic ? dwc2->hptxsts : dwc2->hnptxsts)};
         if ((xact_bytes > (txsts.fifo_available << 2)) || (txsts.req_queue_available == 0)) {
           return true;
         }
@@ -1129,7 +1138,16 @@ static bool handle_channel_in_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
   // TU_LOG1("in  hcint = %02lX\r\n", hcint);
 
   if (hcint & HCINT_HALTED) {
-    if (hcint & (HCINT_XFER_COMPLETE | HCINT_STALL | HCINT_BABBLE_ERR)) {
+    if (xfer->retry_disabled) {
+      // Halt from our split-NAK throttle disable (below): re-arm the start-split, or let teardown finish
+      // if the endpoint is closing. Programming Guide 3.5 "Halting a Channel" (p73).
+      xfer->retry_disabled = 0;
+      if (xfer->closing) {
+        is_done = true;
+      } else {
+        channel_send_in_token(dwc2, channel);
+      }
+    } else if (hcint & (HCINT_XFER_COMPLETE | HCINT_STALL | HCINT_BABBLE_ERR)) {
       const uint16_t remain_bytes = (uint16_t) hctsiz.xfer_size;
       const uint16_t remain_packets = hctsiz.packet_count;
       const uint16_t actual_len = edpt->buflen - remain_bytes;
@@ -1195,7 +1213,15 @@ static bool handle_channel_in_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
       channel->hcintmsk &= ~(HCINT_NAK | HCINT_DATATOGGLE_ERR);
       hcsplt.split_compl = 0; // restart with start-split
       channel->hcsplt = hcsplt.value;
-      channel_xfer_in_retry(dwc2, ch_id, hcint);
+      // Persistent split bulk/control IN NAK (e.g. idle polled endpoint): re-enabling immediately storms
+      // the ISR and starves the task. Disable + re-arm on the resulting halt to throttle (like the slave
+      // path); no frame deferral. Programming Guide 3.5 (p73) Note permits disable on NAK/FrmOvrn splits.
+      if ((hcint & HCINT_NAK) && hcsplt.split_en && !channel_is_periodic(channel->hcchar)) {
+        xfer->retry_disabled = 1;
+        channel_disable(dwc2, channel);
+      } else {
+        channel_xfer_in_retry(dwc2, ch_id, hcint);
+      }
     } else if (hcint & HCINT_FARME_OVERRUN) {
       // retry start-split in next binterval
       channel_xfer_in_retry(dwc2, ch_id, hcint);
@@ -1220,7 +1246,16 @@ static bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hc
   // TU_LOG1("out hcint = %02lX\r\n", hcint);
 
   if (hcint & HCINT_HALTED) {
-    if (hcint & (HCINT_XFER_COMPLETE | HCINT_STALL)) {
+    if (xfer->retry_disabled) {
+      // Halt from our split-XactErr throttle disable (below): re-issue the start-split (pointers already
+      // rewound), giving the hub TT a recovery gap. Programming Guide 3.5 "Halting a Channel" (p73).
+      xfer->retry_disabled = 0;
+      if (xfer->closing) {
+        is_done = true;
+      } else {
+        channel_xfer_start(dwc2, ch_id);
+      }
+    } else if (hcint & (HCINT_XFER_COMPLETE | HCINT_STALL)) {
       is_done = true;
       xfer->err_count = 0;
       if (hcint & HCINT_XFER_COMPLETE) {
@@ -1243,9 +1278,17 @@ static bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hc
          xfer->result = XFER_RESULT_FAILED;
          is_done = true;
        } else {
-         // clean up transfer so far and start again
+         // Rewind, then retry the start-split. Non-periodic SPLIT throttles via channel_disable + re-arm on
+         // the halt (immediate re-fire exhausts the retry budget; the disable gives the hub TT a recovery
+         // gap, like slave). Periodic split is excluded: channel_disable() is a no-op for it, so the halt
+         // never fires and the channel would wedge. Non-split re-inits immediately (Programming Guide 5.1.2.3).
          channel_xfer_out_wrapup(dwc2, ch_id);
-         channel_xfer_start(dwc2, ch_id);
+         if (hcsplt.split_en && !channel_is_periodic(channel->hcchar)) {
+           xfer->retry_disabled = 1;
+           channel_disable(dwc2, channel);
+         } else {
+           channel_xfer_start(dwc2, ch_id);
+         }
        }
      }
     } else if (hcint & HCINT_NYET) {
@@ -1263,6 +1306,12 @@ static bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hc
         channel->hcsplt = hcsplt.value;
         channel->hcchar |= HCCHAR_CHENA;
       }
+    } else if ((hcint & HCINT_NAK) && hcsplt.split_en) {
+      // Split OUT NAK: rewind + retry the start-split, else the channel stalls (Programming Guide 5.1.4.2).
+      // Non-split OUT NAK is core-handled (5.1.2.2), so this is split-only.
+      xfer->err_count = 0;
+      channel_xfer_out_wrapup(dwc2, ch_id);
+      channel_xfer_start(dwc2, ch_id);
     }
 
     if (xfer->closing == 1) {

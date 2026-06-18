@@ -39,7 +39,7 @@ CFLAGS += \
 	-DBOARD_TUH_RHPORT=${RHPORT_HOST} \
 	-DBOARD_TUH_MAX_SPEED=${RHPORT_HOST_SPEED}
 
-CFLAGS_GCC += \
+CFLAGS += \
   -flto \
 	-Wno-error=undef \
 	-Wno-error=strict-prototypes \
@@ -49,7 +49,7 @@ CFLAGS_GCC += \
 	-Wno-error=unused-variable \
 	-ffreestanding
 
-LDFLAGS_GCC += \
+LDFLAGS += \
 	-nostartfiles -nostdlib \
   -specs=nosys.specs -specs=nano.specs
 

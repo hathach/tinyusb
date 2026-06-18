@@ -26,9 +26,3 @@ add_custom_target(tinyusb_metrics
   COMMENT "Generating average code size metrics"
   VERBATIM
   )
-
-#add_custom_command(TARGET tinyusb_metrics POST_BUILD
-#  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../tools/metrics.py compare ${TOP}/cmake-build/cmake-build-${BOARD}/metrics.json ${CMAKE_BINARY_DIR}/metrics.json
-#  COMMENT "Generating average code size metrics"
-#  VERBATIM
-#  )

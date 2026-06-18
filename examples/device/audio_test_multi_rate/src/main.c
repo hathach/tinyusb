@@ -532,7 +532,7 @@ static bool audio20_get_req_entity(uint8_t rhport, tusb_control_request_t const 
 bool tud_audio_set_itf_cb(uint8_t rhport, tusb_control_request_t const *p_request) {
   (void) rhport;
   //uint8_t const itf = tu_u16_low(tu_le16toh(p_request->wIndex));
-  uint8_t const alt = tu_u16_low(tu_le16toh(p_request->wValue));
+  uint8_t const alt = tu_u16_low(p_request->wValue);
 
   // Clear buffer when streaming format is changed
   if (alt != 0) {

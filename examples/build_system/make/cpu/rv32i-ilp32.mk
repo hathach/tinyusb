@@ -8,8 +8,6 @@ else ifeq ($(TOOLCHAIN),clang)
     -march=rv32i_zicsr \
     -mabi=ilp32 \
 
-else ifeq ($(TOOLCHAIN),iar)
-  $(error not support)
 endif
 
 # For freeRTOS port source
