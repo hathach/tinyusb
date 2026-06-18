@@ -33,8 +33,7 @@ LDFLAGS_GCC += \
 LIBS += $(TOP)/$(SDK_SRC_DIR)/StdPeriphDriver/libISP583.a
 
 SRC_C += \
-	src/portable/wch/dcd_ch58x_usbfs.c \
-	src/portable/wch/hcd_ch58x_usbfs.c \
+	src/portable/wch/dcd_ch32_usbfs.c \
 	$(SDK_SRC_DIR)/StdPeriphDriver/CH58x_gpio.c \
 	$(SDK_SRC_DIR)/StdPeriphDriver/CH58x_clk.c \
 	$(SDK_SRC_DIR)/StdPeriphDriver/CH58x_uart1.c \

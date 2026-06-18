@@ -23,8 +23,8 @@
  */
 
 /* metadata:
-   name: yd-ch582m from vcc-gnd studio
-   url: http://vcc-gnd.com/
+   name: CH582M-EVT evaluation board
+   url: https://www.wch-ic.com/products/CH582.html
 */
 
 #ifndef BOARD_H_
@@ -34,7 +34,7 @@
 extern "C" {
 #endif
 
-// LED: PB4 on yd-ch582m board
+// LED: PB4 on CH582M-EVT
 #define LED_PIN               GPIO_Pin_4
 #define LED_STATE_ON          0
 

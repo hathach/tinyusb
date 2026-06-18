@@ -50,13 +50,16 @@
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
 
+// Device only: the shared dcd_ch32_usbfs.c drives USB0 (rhport 0). CH58x's second controller
+// (USB2 / rhport 1) was driven by the now-removed ch58x host driver; its handler is kept
+// commented out below to ease re-adding host support.
 __INTERRUPT __HIGH_CODE void USB_IRQHandler(void) {
   tusb_int_handler(0, true);
 }
 
-__INTERRUPT __HIGH_CODE void USB2_IRQHandler(void) {
-  tusb_int_handler(1, true);
-}
+// __INTERRUPT __HIGH_CODE void USB2_IRQHandler(void) {
+//   tusb_int_handler(1, true);
+// }
 
 //--------------------------------------------------------------------+
 // SysTick
@@ -111,16 +114,12 @@ void board_init(void) {
   #endif
 #endif
 
-  // USB pin enable: enable analog function for USB1 and USB2 D+/D-
-  R16_PIN_ANALOG_IE |= RB_PIN_USB_IE | RB_PIN_USB2_IE;
-
-  // D+ pull-up is only needed for the device-role port
+  // Device only on USB0 (rhport 0): enable analog function for USB1 D+/D- and assert its D+
+  // pull-up. The shared dcd_ch32_usbfs.c drives USB0; CH58x host / USB2 (rhport 1) is unsupported
+  // here — to re-add host, also OR in RB_PIN_USB2_IE below.
+  R16_PIN_ANALOG_IE |= RB_PIN_USB_IE; // | RB_PIN_USB2_IE  (re-add for host on USB2)
 #if CFG_TUD_ENABLED
-  #if BOARD_TUD_RHPORT == 0
-    R16_PIN_ANALOG_IE |= RB_PIN_USB_DP_PU;
-  #else
-    R16_PIN_ANALOG_IE |= RB_PIN_USB2_DP_PU;
-  #endif
+  R16_PIN_ANALOG_IE |= RB_PIN_USB_DP_PU;
 #endif
 
   // Keep USB clock active during sleep
@@ -163,6 +162,10 @@ uint32_t board_button_read(void) {
   return 0;
 #endif
 }
+
+// Note: CH58x exposes no memory-mapped unique-ID register (unlike ch32v10x/v20x at
+// 0x1FFFF7E8), and the SDK's GET_UNIQUE_ID() is a BootROM stub not present in
+// libISP583.a. So board_get_unique_id() falls back to the fixed default in board.c.
 
 int board_uart_read(uint8_t* buf, int len) {
   (void) buf;

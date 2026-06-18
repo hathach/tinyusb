@@ -35,17 +35,23 @@
   /* private defines */
   #define EP_MAX         (8)
 
+  // Struct-based EP register access (uniform layout). Some parts (e.g. CH58X) have a different
+  // register map and define EP_DMA/EP_TX_LEN/EP_CTRL themselves in ch32_usbfs_reg.h.
+  #ifndef CH32_USBFS_EP_REGS_CUSTOM
   #define EP_DMA(ep)     ((&USBOTG_FS->UEP0_DMA)[ep])
   #define EP_TX_LEN(ep)  ((&USBOTG_FS->UEP0_TX_LEN)[2 * ep])
   #define EP_TX_CTRL(ep) ((&USBOTG_FS->UEP0_TX_CTRL)[4 * ep])
   #define EP_RX_CTRL(ep) ((&USBOTG_FS->UEP0_RX_CTRL)[4 * ep])
+  #endif
 
 // Endpoint control register access. The newer USBFS IP (CH32V20x/V307/X035) has separate
 // TX_CTRL and RX_CTRL bytes per endpoint; the older IP (CH32V103) has a single combined
 // UEPn_CTRL register. These helpers hide the difference so the rest of the driver is shared.
 // Values use the newer-IP encoding (USBFS_EP_T_*/USBFS_EP_R_*); the combined path remaps them.
 #ifdef CH32_USBFS_EP_CTRL_COMBINED
+  #ifndef EP_CTRL // parts with a custom register map (CH58X) define EP_CTRL directly in reg.h
   #define EP_CTRL(ep) EP_TX_CTRL(ep) // UEPn_TX_CTRL field aliases the combined UEPn_CTRL register
+  #endif
 
   static inline uint8_t ep_tx_to_comb(uint8_t v) {
     uint8_t c = v & USBFS_EP_T_RES_MASK; // IN response: bits [1:0] in both encodings
@@ -86,6 +92,17 @@
   #define EP0_SETUP_RX_TOG 0
 #endif
 
+// Hardware auto data-toggle flag. Parts whose AUTO_TOG is reliable OR it into the EP setup so the
+// controller flips DATA0/DATA1 itself; CH58x (CH32_USBFS_EP_MANUAL_TOG) leaves it clear and the
+// ISR flips the toggle bit after each packet instead.
+#ifdef CH32_USBFS_EP_MANUAL_TOG
+  #define EP_T_AUTO_TOG 0
+  #define EP_R_AUTO_TOG 0
+#else
+  #define EP_T_AUTO_TOG USBFS_EP_T_AUTO_TOG
+  #define EP_R_AUTO_TOG USBFS_EP_R_AUTO_TOG
+#endif
+
 /* private data */
 struct usb_xfer {
   bool     valid;
@@ -100,6 +117,12 @@ static struct {
   bool            isochronous[EP_MAX];
   struct usb_xfer xfer[EP_MAX][2];
   TU_ATTR_ALIGNED(4) uint8_t buffer[EP_MAX][2][64];
+#ifdef CH32_USBFS_EP4_SHARES_EP0
+  // CH58X: EP0 and EP4 share one DMA region (EP4 has no DMA register). Layout:
+  // EP0 [0:63] (half-duplex, OUT+IN) + EP4 OUT [64:127] + EP4 IN [128:191]. buffer[0]/buffer[4]
+  // are left unused for this part.
+  TU_ATTR_ALIGNED(4) uint8_t ep0_ep4_buffer[3 * 64];
+#endif
   TU_ATTR_ALIGNED(4) struct {
     // OUT transfers >64 bytes will overwrite queued IN data!
     uint8_t out[64];
@@ -108,19 +131,50 @@ static struct {
   } ep3_buffer;
 } data;
 
+// DMA / copy buffer pointers per endpoint. The WCH USBFS buffer holds OUT (RX) at offset 0 and
+// IN (TX) at +64; EP0 is half-duplex and reuses its OUT chunk for IN; EP3 has an enlarged IN
+// buffer for throughput. On CH58X, EP4 overlays EP0's region (see ep0_ep4_buffer above).
+static inline uint32_t ep_dma_addr(uint8_t ep) {
+#ifdef CH32_USBFS_EP4_SHARES_EP0
+  if (ep == 0) { return (uint32_t) &data.ep0_ep4_buffer[0]; }
+#endif
+  if (ep == 3) { return (uint32_t) &data.ep3_buffer.out[0]; }
+  return (uint32_t) &data.buffer[ep][0];
+}
+static inline uint8_t* ep_out_buf(uint8_t ep) {
+#ifdef CH32_USBFS_EP4_SHARES_EP0
+  if (ep == 0) { return &data.ep0_ep4_buffer[0]; }
+  if (ep == 4) { return &data.ep0_ep4_buffer[64]; }
+#endif
+  if (ep == 3) { return data.ep3_buffer.out; }
+  return data.buffer[ep][TUSB_DIR_OUT];
+}
+static inline uint8_t* ep_in_buf(uint8_t ep) {
+#ifdef CH32_USBFS_EP4_SHARES_EP0
+  if (ep == 0) { return &data.ep0_ep4_buffer[0]; } // EP0 half-duplex: IN reuses OUT chunk
+  if (ep == 4) { return &data.ep0_ep4_buffer[128]; }
+#endif
+  if (ep == 0) { return data.buffer[0][TUSB_DIR_OUT]; } // EP0 half-duplex: IN reuses OUT chunk
+  if (ep == 3) { return data.ep3_buffer.in; }
+  return data.buffer[ep][TUSB_DIR_IN];
+}
+// EP4 on CH58X has no DMA register (shares EP0's); skip its EP_DMA() write.
+static inline bool ep_shares_ep0_dma(uint8_t ep) {
+#ifdef CH32_USBFS_EP4_SHARES_EP0
+  return ep == 4;
+#else
+  (void) ep;
+  return false;
+#endif
+}
+
 /* private helpers */
 static void update_in(uint8_t rhport, uint8_t ep, bool force) {
   struct usb_xfer *xfer = &data.xfer[ep][TUSB_DIR_IN];
   if (xfer->valid) {
     if (force || xfer->len) {
       size_t len = TU_MIN(xfer->max_size, xfer->len);
-      if (ep == 0) {
-        memcpy(data.buffer[ep][TUSB_DIR_OUT], xfer->buffer, len); // ep0 uses same chunk
-      } else if (ep == 3) {
-        memcpy(data.ep3_buffer.in, xfer->buffer, len);
-      } else {
-        memcpy(data.buffer[ep][TUSB_DIR_IN], xfer->buffer, len);
-      }
+      memcpy(ep_in_buf(ep), xfer->buffer, len);
       xfer->buffer += len;
       xfer->len -= len;
       xfer->processed_len += len;
@@ -150,11 +204,7 @@ static void update_out(uint8_t rhport, uint8_t ep, size_t rx_len) {
   struct usb_xfer *xfer = &data.xfer[ep][TUSB_DIR_OUT];
   if (xfer->valid) {
     size_t len = TU_MIN(xfer->max_size, TU_MIN(xfer->len, rx_len));
-    if (ep == 3) {
-      memcpy(xfer->buffer, data.ep3_buffer.out, len);
-    } else {
-      memcpy(xfer->buffer, data.buffer[ep][TUSB_DIR_OUT], len);
-    }
+    memcpy(xfer->buffer, ep_out_buf(ep), len);
     xfer->buffer += len;
     xfer->len -= len;
     xfer->processed_len += len;
@@ -176,12 +226,11 @@ static void update_out(uint8_t rhport, uint8_t ep, size_t rx_len) {
 
 static void reset_ep_ctrls(void) {
   for (uint8_t ep = 1; ep < EP_MAX; ep++) {
-    EP_DMA(ep)     = (uint32_t)&data.buffer[ep][0];
+    if (!ep_shares_ep0_dma(ep)) { EP_DMA(ep) = ep_dma_addr(ep); }
     EP_TX_LEN(ep)  = 0;
-    ep_tx_ctrl_set(ep, USBFS_EP_T_AUTO_TOG | USBFS_EP_T_RES_NYET);
-    ep_rx_ctrl_set(ep, USBFS_EP_R_AUTO_TOG | USBFS_EP_R_RES_NYET);
+    ep_tx_ctrl_set(ep, EP_T_AUTO_TOG | USBFS_EP_T_RES_NYET);
+    ep_rx_ctrl_set(ep, EP_R_AUTO_TOG | USBFS_EP_R_RES_NYET);
   }
-  EP_DMA(3) = (uint32_t)&data.ep3_buffer.out[0];
 }
 
 /* public functions */
@@ -195,8 +244,8 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   USBOTG_FS->INT_FG = 0xFF;
   USBOTG_FS->INT_EN = USBFS_INT_EN_BUS_RST | USBFS_INT_EN_TRANSFER | USBFS_INT_EN_SUSPEND;
 
-  // setup endpoint 0
-  EP_DMA(0)     = (uint32_t)&data.buffer[0][0];
+  // setup endpoint 0 (also backs EP4's buffer on CH58X via the shared DMA region)
+  EP_DMA(0)     = ep_dma_addr(0);
   EP_TX_LEN(0)  = 0;
   ep_tx_ctrl_set(0, USBFS_EP_T_RES_NAK);
   ep_rx_ctrl_set(0, USBFS_EP_R_RES_ACK);
@@ -204,8 +253,14 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   // enable other endpoints but NAK everything
   USBOTG_FS->UEP4_1_MOD = 0xCC;
   USBOTG_FS->UEP2_3_MOD = 0xCC;
+#ifdef CH32_USBFS_EP_REGS_CUSTOM
+  // CH58X: a single mode register enables EP5/6/7 RX+TX (different bit layout than CH32).
+  USBOTG_FS->UEP567_MOD = RB_UEP5_RX_EN | RB_UEP5_TX_EN | RB_UEP6_RX_EN | RB_UEP6_TX_EN |
+                          RB_UEP7_RX_EN | RB_UEP7_TX_EN;
+#else
   USBOTG_FS->UEP5_6_MOD = 0xCC;
   USBOTG_FS->UEP7_MOD   = 0x0C;
+#endif
 
   reset_ep_ctrls();
 
@@ -218,17 +273,31 @@ void dcd_int_handler(uint8_t rhport) {
   (void)rhport;
   uint8_t status = USBOTG_FS->INT_FG;
   if (status & USBFS_INT_FG_TRANSFER) {
-    uint8_t  ep       = USBFS_INT_ST_MASK_UIS_ENDP(USBOTG_FS->INT_ST);
-    uint8_t  token    = USBFS_INT_ST_MASK_UIS_TOKEN(USBOTG_FS->INT_ST);
+    uint8_t  int_st   = USBOTG_FS->INT_ST;
+    uint8_t  ep       = USBFS_INT_ST_MASK_UIS_ENDP(int_st);
+    uint8_t  token    = USBFS_INT_ST_MASK_UIS_TOKEN(int_st);
     uint16_t rx_len   = USBOTG_FS->RX_LEN;
 
     switch (token) {
       case PID_OUT: {
+#ifdef CH32_USBFS_EP_MANUAL_TOG
+        // Manual toggle: drop OUT packets whose data toggle doesn't match (host retransmit),
+        // otherwise flip the expected RX toggle for the next packet. EP0 is driven by the
+        // SETUP/status flow below, so its toggle is left to that path.
+        if (ep != 0) {
+          if (!(int_st & USBFS_INT_ST_TOG_OK)) { break; }
+          EP_CTRL(ep) ^= USBFS_EPC_R_TOG;
+        }
+#endif
         update_out(rhport, ep, rx_len);
         break;
       }
 
       case PID_IN:
+#ifdef CH32_USBFS_EP_MANUAL_TOG
+        // Manual toggle: flip the TX toggle after each ACK'd IN packet (EP0 manages its own).
+        if (ep != 0) { EP_CTRL(ep) ^= USBFS_EPC_T_TOG; }
+#endif
         update_in(rhport, ep, false);
         break;
 
@@ -237,11 +306,12 @@ void dcd_int_handler(uint8_t rhport) {
         ep_tx_ctrl_set(0, USBFS_EP_T_RES_NAK);
         data.ep0_tog  = true;
 
-        const tusb_control_request_t *setup = (const tusb_control_request_t *)&data.buffer[0][TUSB_DIR_OUT][0];
+        uint8_t *ep0_out = ep_out_buf(0);
+        const tusb_control_request_t *setup = (const tusb_control_request_t *)ep0_out;
         // EP0_SETUP_RX_TOG arms the data/status stage at DATA1 on the combined-control IP
         ep_rx_ctrl_set(0, ((setup->wLength == 0) ? USBFS_EP_R_RES_ACK : USBFS_EP_R_RES_NAK) | EP0_SETUP_RX_TOG);
 
-        dcd_event_setup_received(rhport, &data.buffer[0][TUSB_DIR_OUT][0], true);
+        dcd_event_setup_received(rhport, ep0_out, true);
         break;
     }
 
@@ -323,10 +393,12 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
   data.xfer[ep][dir].max_size = tu_edpt_packet_size(desc_ep);
 
   if (ep != 0) {
+    // Opening clears the toggle to DATA0 (ep_*_ctrl_set writes the toggle bit clear since v has no
+    // R/T_TOG); with manual toggle EP_*_AUTO_TOG is 0 so the ISR owns subsequent toggling.
     if (dir == TUSB_DIR_OUT) {
-      ep_rx_ctrl_set(ep, USBFS_EP_R_AUTO_TOG | USBFS_EP_R_RES_NAK);
+      ep_rx_ctrl_set(ep, EP_R_AUTO_TOG | USBFS_EP_R_RES_NAK);
     } else {
-      ep_tx_ctrl_set(ep, USBFS_EP_T_AUTO_TOG | USBFS_EP_T_RES_NAK);
+      ep_tx_ctrl_set(ep, EP_T_AUTO_TOG | USBFS_EP_T_RES_NAK);
     }
   }
   return true;
@@ -407,10 +479,11 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
       ep_rx_ctrl_set(0, USBFS_EP_R_RES_ACK);
     }
   } else {
+    // clear-stall resets the toggle to DATA0 (USB spec); manual-toggle parts then re-sync via ISR
     if (dir == TUSB_DIR_OUT) {
-      ep_rx_ctrl_set(ep, USBFS_EP_R_AUTO_TOG | USBFS_EP_R_RES_NAK);
+      ep_rx_ctrl_set(ep, EP_R_AUTO_TOG | USBFS_EP_R_RES_NAK);
     } else {
-      ep_tx_ctrl_set(ep, USBFS_EP_T_AUTO_TOG | USBFS_EP_T_RES_NAK);
+      ep_tx_ctrl_set(ep, EP_T_AUTO_TOG | USBFS_EP_T_RES_NAK);
     }
   }
 }

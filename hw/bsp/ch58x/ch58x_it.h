@@ -36,7 +36,7 @@ extern "C" {
 void NMI_Handler(void);
 void HardFault_Handler(void);
 void USB_IRQHandler(void);
-void USB2_IRQHandler(void);
+// void USB2_IRQHandler(void); // host on USB2 (rhport 1) — re-add together with the host driver
 void SysTick_Handler(void);
 
 #ifdef __cplusplus

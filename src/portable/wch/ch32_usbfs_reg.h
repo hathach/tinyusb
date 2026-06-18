@@ -130,6 +130,53 @@
 #elif CFG_TUSB_MCU == OPT_MCU_CH32V307
   #include <ch32v30x.h>
   #define USBHD_IRQn OTG_FS_IRQn
+#elif CFG_TUSB_MCU == OPT_MCU_CH58X
+  #include "CH58x_common.h"
+  // CH582/583 USBFS device controller: same combined per-endpoint control register as
+  // CH32V103 (IN response bits[1:0], OUT response bits[3:2]) but a different register map -
+  // the EP control/length block sits lower (EP0_CTRL @ +0x22), EP5-7 are split out, EP4
+  // shares EP0's DMA buffer, and EP5/6/7 mode bits live in one UEP567_MOD. The control/status
+  // block matches CH32. Two FS controllers exist (USB @ 0x40008000, USB2 @ 0x40008400); the
+  // device uses USB0. EP registers are accessed via the CH58X macros below (not the struct).
+  #define CH58X_USBFS_BASE  0x40008000u
+  typedef struct {
+    __IO uint8_t  BASE_CTRL;        // 0x00
+    __IO uint8_t  UDEV_CTRL;        // 0x01
+    __IO uint8_t  INT_EN;           // 0x02
+    __IO uint8_t  DEV_ADDR;         // 0x03
+    __IO uint8_t  Reserve0;         // 0x04
+    __IO uint8_t  MIS_ST;           // 0x05
+    __IO uint8_t  INT_FG;           // 0x06
+    __IO uint8_t  INT_ST;           // 0x07
+    __IO uint8_t  RX_LEN;           // 0x08 (8-bit on CH58X)
+    __IO uint8_t  Reserve1[3];      // 0x09..0x0B
+    __IO uint8_t  UEP4_1_MOD;       // 0x0C
+    __IO uint8_t  UEP2_3_MOD;       // 0x0D
+    __IO uint8_t  UEP567_MOD;       // 0x0E
+  } USBOTG_FS_TypeDef;
+  #define USBOTG_FS  ((USBOTG_FS_TypeDef *) CH58X_USBFS_BASE)
+
+  #define CH32_USBFS_EP_CTRL_COMBINED 1
+  #define CH32_USBFS_EP_REGS_CUSTOM   1   // EP register macros provided here, not by the driver
+  // CH58x's hardware AUTO_TOG does not stay in sync (notably across clear-stall and multi-packet
+  // bulk transfers), causing data-toggle mismatch and bus resets. Drive the toggle manually in
+  // the ISR instead. CH32V103/V20x/V307 keep AUTO_TOG (this macro is undefined for them).
+  #define CH32_USBFS_EP_MANUAL_TOG    1
+  // CH58x EP4 has no DMA register of its own: it overlays EP0's DMA region as
+  // EP0[0:63] + EP4_OUT[64:127] + EP4_IN[128:191], so EP0 needs a 192-byte buffer.
+  #define CH32_USBFS_EP4_SHARES_EP0   1
+  #define USBHD_IRQn USB_IRQn
+  #ifndef NVIC_EnableIRQ
+    #define NVIC_EnableIRQ(n)  PFIC_EnableIRQ(n)
+    #define NVIC_DisableIRQ(n) PFIC_DisableIRQ(n)
+  #endif
+
+  // EP register access. EP0-4: T_LEN @ +0x20+ep*4, CTRL @ +0x22+ep*4. EP5-7 split: T_LEN @
+  // +0x64, CTRL @ +0x66. DMA: EP0-3 @ +0x10+ep*4, EP5-7 @ +0x54; EP4 shares EP0's buffer
+  // (no own DMA reg) so its slot points at a reserved word.
+  #define EP_TX_LEN(ep)  (*(volatile uint8_t  *)(CH58X_USBFS_BASE + ((ep) <= 4u ? 0x20u + (ep)*4u : 0x64u + ((ep)-5u)*4u)))
+  #define EP_CTRL(ep)    (*(volatile uint8_t  *)(CH58X_USBFS_BASE + ((ep) <= 4u ? 0x22u + (ep)*4u : 0x66u + ((ep)-5u)*4u)))
+  #define EP_DMA(ep)     (*(volatile uint16_t *)(CH58X_USBFS_BASE + ((ep) <= 3u ? 0x10u + (ep)*4u : (ep) == 4u ? 0x40u : 0x54u + ((ep)-5u)*4u)))
 #endif
 
 #ifdef __GNUC__
@@ -170,6 +217,7 @@
 // INT_ST
 #define USBFS_INT_ST_MASK_UIS_ENDP(x)  (((x) >> 0) & 0x0F)
 #define USBFS_INT_ST_MASK_UIS_TOKEN(x) (((x) >> 4) & 0x03)
+#define USBFS_INT_ST_TOG_OK            (1 << 6)  // received packet's data toggle matched expectation
 
 // UDEV_CTRL
 #define USBFS_UDEV_CTRL_PORT_EN   (1 << 0)
