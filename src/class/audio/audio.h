@@ -1186,37 +1186,6 @@ typedef struct TU_ATTR_PACKED {
   uint16_t wLockDelay;       ///< Indicates the time it takes this endpoint to reliably lock its internal clock recovery circuitry. Units used depend on the value of the bLockDelayUnits field.
 } audio20_desc_cs_as_iso_data_ep_t;
 
-// 5.2.2 Control Request Layout
-typedef struct TU_ATTR_PACKED {
-  union {
-    struct TU_ATTR_PACKED {
-#if (TU_BITFIELD_ORDER == TU_BITFIELD_LE)
-      uint8_t recipient : 5;///< Recipient type tusb_request_recipient_t.
-      uint8_t type : 2;     ///< Request type tusb_request_type_t.
-      uint8_t direction : 1;///< Direction type. tusb_dir_t
-#elif (TU_BITFIELD_ORDER == TU_BITFIELD_BE)
-      uint8_t direction : 1;///< Direction type. tusb_dir_t
-      uint8_t type : 2;     ///< Request type tusb_request_type_t.
-      uint8_t recipient : 5;///< Recipient type tusb_request_recipient_t.
-#else
-  #error "Please define TU_BITFIELD_ORDER as TU_BITFIELD_LE or TU_BITFIELD_BE"
-#endif
-    } bmRequestType_bit;
-
-    uint8_t bmRequestType;
-  };
-
-  uint8_t bRequest;///< Request type audio_cs_req_t
-  uint8_t bChannelNumber;
-  uint8_t bControlSelector;
-  union {
-    uint8_t bInterface;
-    uint8_t bEndpoint;
-  };
-  uint8_t bEntityID;
-  uint16_t wLength;
-} audio20_control_request_t;
-
 //// 5.2.3 Control Request Parameter Block Layout
 
 // 5.2.3.1 1-byte Control CUR Parameter Block
