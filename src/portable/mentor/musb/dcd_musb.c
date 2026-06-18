@@ -253,7 +253,10 @@ TU_ATTR_ALWAYS_INLINE static inline bool hwfifo_config(musb_regs_t* musb, unsign
   (void) mps;
 
   #if defined(TUP_USBIP_MUSB_PY32)
-  (void) musb; (void) epnum; (void) is_rx; (void) double_packet;
+  (void) musb; (void) is_rx; (void) double_packet;
+  // Puya FIFO sizes: EP0 = 64 B, EP1 = 512 B, EP2..4 = 128 B, EP5 = 64 B, shared between IN and OUT.
+  static const uint16_t py32_fifo_size[] = { 64, 512, 128, 128, 128, 64 };
+  // TU_VERIFY(epnum < TU_ARRAY_SIZE(py32_fifo_size) && mps <= py32_fifo_size[epnum]);
   #elif defined(TUP_USBIP_MUSB_ADI)
   // AnalogDevice FIFO sizes: EP1..7 = 512 B, EP8..9 = 2048 B, EP10..11 = 4096 B.
   // DPB requires FIFO >= 2 * MPS. For HS bulk (MPS=512) only EP >= 8 qualifies.
