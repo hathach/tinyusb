@@ -1,3 +1,6 @@
 CONFIG_IDF_CMAKE=y
+# 1000 Hz tick: the UAC iso IN endpoint must be serviced every 1 ms frame;
+# ESP-IDF's default 100 Hz starves the audio task -> host capture fails (arecord EIO).
+CONFIG_FREERTOS_HZ=1000
 CONFIG_FREERTOS_WATCHPOINT_END_OF_STACK=y
 CONFIG_FREERTOS_SUPPORT_STATIC_ALLOCATION=y
