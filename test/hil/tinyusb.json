@@ -477,6 +477,22 @@
                 "uid": "EBCA8F0670AF",
                 "args": ""
             }
+        },
+        {
+            "name": "ch32v103r_r1_1v0",
+            "uid": "CDAB3E8749BC54EF0F410025",
+            "toolchain": "riscv-gcc",
+            "tests": {
+                "device": true,
+                "host": false,
+                "dual": false,
+                "skip": ["device/cdc_msc_throughput"]
+            },
+            "flasher": {
+                "name": "openocd_wch",
+                "uid": "BC4954081051",
+                "args": ""
+            }
         }
     ],
     "boards-skip": [
