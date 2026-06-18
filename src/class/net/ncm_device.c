@@ -914,22 +914,10 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16
   }
 
   // a TUSB_DESC_ENDPOINT (actually two) must follow, open these endpoints
-  for (uint8_t i = 0; i < 2; i++) {
-    tusb_desc_endpoint_t const *desc_ep = (tusb_desc_endpoint_t const *) p_desc;
-    TU_ASSERT(tu_desc_in_bounds(p_desc, desc_end) && tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT &&
-              desc_ep->bmAttributes.xfer == TUSB_XFER_BULK, 0);
-    TU_ASSERT(usbd_edpt_open(rhport, desc_ep, desc_end), 0);
-
-    if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
-      ncm_interface.ep_in = desc_ep->bEndpointAddress;
-    } else {
-      ncm_interface.ep_out = desc_ep->bEndpointAddress;
-    }
-
-    ncm_interface.ep_size = tu_edpt_packet_size(desc_ep);
-    p_desc = tu_desc_next(p_desc);
-    p_desc = tu_desc_skip_ss_ep_companion(p_desc, desc_end);
-  }
+  TU_ASSERT(tu_desc_in_bounds(p_desc, desc_end) && tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT, 0);
+  ncm_interface.ep_size = tu_edpt_packet_size((tusb_desc_endpoint_t const *) p_desc);
+  TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, desc_end, 2, TUSB_XFER_BULK, &ncm_interface.ep_out,
+                                &ncm_interface.ep_in, &p_desc), 0);
 
   return (uint16_t)(p_desc - desc_start);
 } // netd_open

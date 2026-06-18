@@ -109,7 +109,7 @@ bool usbd_edpt_ready(uint8_t rhport, uint8_t ep_addr) {
 void usbd_sof_enable(uint8_t rhport, sof_consumer_t consumer, bool en);
 
 bool usbd_open_edpt_pair(uint8_t rhport, uint8_t const* p_desc, uint8_t const * desc_end, uint8_t ep_count,
-                         uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in);
+                         uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in, uint8_t const** p_desc_next);
 void usbd_defer_func(osal_task_func_t func, void *param, bool in_isr);
 
 #ifdef __cplusplus

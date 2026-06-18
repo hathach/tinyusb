@@ -1536,11 +1536,12 @@ void usbd_spin_unlock(bool in_isr) {
 
 // Parse consecutive endpoint descriptors (IN & OUT)
 bool usbd_open_edpt_pair(uint8_t rhport, const uint8_t *p_desc, uint8_t const *desc_end, uint8_t ep_count,
-                         uint8_t xfer_type, uint8_t *ep_out, uint8_t *ep_in) {
+                         uint8_t xfer_type, uint8_t *ep_out, uint8_t *ep_in, uint8_t const **p_desc_next) {
   for (int i = 0; i < ep_count; i++) {
     const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
 
-    TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && xfer_type == desc_ep->bmAttributes.xfer);
+    TU_ASSERT(tu_desc_in_bounds(p_desc, desc_end) && TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType &&
+              xfer_type == desc_ep->bmAttributes.xfer);
     TU_ASSERT(usbd_edpt_open(rhport, desc_ep, desc_end));
 
     if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
@@ -1551,6 +1552,12 @@ bool usbd_open_edpt_pair(uint8_t rhport, const uint8_t *p_desc, uint8_t const *d
 
     p_desc = tu_desc_next(p_desc);
     p_desc = tu_desc_skip_ss_ep_companion(p_desc, desc_end);
+  }
+
+  // Report descriptor position past the consumed endpoints (incl. any SS companions) so callers
+  // can compute their exact driver length.
+  if (p_desc_next != NULL) {
+    *p_desc_next = p_desc;
   }
 
   return true;

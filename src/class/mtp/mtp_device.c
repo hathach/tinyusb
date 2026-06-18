@@ -284,7 +284,7 @@ uint16_t mtpd_open(uint8_t rhport, tusb_desc_interface_t const* itf_desc, uint16
   // Open endpoint pair
   const tusb_desc_endpoint_t* ep_desc_bulk = (const tusb_desc_endpoint_t*) tu_desc_next(ep_desc_int);
   TU_ASSERT(usbd_open_edpt_pair(rhport, (const uint8_t*)ep_desc_bulk, desc_end, 2, TUSB_XFER_BULK, &p_mtp->ep_out,
-                                &p_mtp->ep_in), 0);
+                                &p_mtp->ep_in, NULL), 0);
   TU_ASSERT(prepare_new_command(p_mtp), 0);
 
   if (tud_speed_get() == TUSB_SPEED_FULL) {

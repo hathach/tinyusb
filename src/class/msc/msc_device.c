@@ -364,21 +364,7 @@ uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   // Open endpoint pair
   uint8_t const* p_desc = tu_desc_next(itf_desc);
   uint8_t const* desc_end = ((uint8_t const*) itf_desc) + max_len;
-  for (uint8_t i = 0; i < 2; i++) {
-    tusb_desc_endpoint_t const* desc_ep = (tusb_desc_endpoint_t const*) p_desc;
-    TU_ASSERT(tu_desc_in_bounds((uint8_t const*) desc_ep, desc_end) && TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType &&
-              TUSB_XFER_BULK == desc_ep->bmAttributes.xfer, 0);
-    TU_ASSERT(usbd_edpt_open(rhport, desc_ep, desc_end), 0);
-
-    if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
-      p_msc->ep_in = desc_ep->bEndpointAddress;
-    } else {
-      p_msc->ep_out = desc_ep->bEndpointAddress;
-    }
-
-    p_desc = tu_desc_next(p_desc);
-    p_desc = tu_desc_skip_ss_ep_companion(p_desc, desc_end);
-  }
+  TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, desc_end, 2, TUSB_XFER_BULK, &p_msc->ep_out, &p_msc->ep_in, &p_desc), 0);
 
   // Prepare for Command Block Wrapper
   TU_ASSERT(prepare_cbw(p_msc), drv_len);
