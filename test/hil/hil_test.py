@@ -22,6 +22,14 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+# Host setup:
+#   - System packages: sudo apt install mtools libmtp9 alsa-utils iperf
+#       mtools     - read_disk_file (device/cdc_msc, device/msc_dual_lun)
+#       libmtp9    - pymtp ctypes load (device/mtp); Debian 13 uses libmtp9t64
+#       alsa-utils - arecord (device/audio_test_freertos)
+#       iperf      - throughput tests (device/net_lwip_*)
+#   - Python packages: pip install -r requirements.txt
+#
 # udev rules :
 # ACTION=="add", SUBSYSTEM=="tty", SUBSYSTEMS=="usb", MODE="0666", PROGRAM="/bin/sh -c 'echo $$ID_SERIAL_SHORT | rev | cut -c -8 | rev'", SYMLINK+="ttyUSB_%c.%s{bInterfaceNumber}"
 # ACTION=="add", SUBSYSTEM=="block", SUBSYSTEMS=="usb", ENV{ID_FS_USAGE}=="filesystem", MODE="0666", PROGRAM="/bin/sh -c 'echo $$ID_SERIAL_SHORT | rev | cut -c -8 | rev'", RUN{program}+="/usr/bin/systemd-mount --no-block --automount=yes --collect $devnode /media/blkUSB_%c.%s{bInterfaceNumber}"
@@ -34,16 +42,10 @@ import re
 import select
 import sys
 import time
-import warnings
 import signal
 from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Any, TypedDict, NotRequired, cast
-
-# Suppress pkg_resources deprecation warning from fs module
-warnings.filterwarnings("ignore", message="pkg_resources is deprecated")
-# Suppress pyfatfs unclean unmount warning
-warnings.filterwarnings("ignore", message="Filesystem was not cleanly unmounted")
 
 import serial
 import subprocess
@@ -52,7 +54,6 @@ import glob
 import shutil
 from multiprocessing import Pool, Lock
 from multiprocessing import TimeoutError as MpTimeoutError
-import fs
 import hashlib
 import ctypes
 from pymtp import MTP
@@ -63,6 +64,10 @@ ENUM_TIMEOUT = 15
 STATUS_OK = "\033[32mOK\033[0m"
 STATUS_FAILED = "\033[31mFailed\033[0m"
 STATUS_SKIPPED = "\033[33mSkipped\033[0m"
+
+# Plain (non-ANSI) cell symbols for the markdown matrix report (hil_report.md).
+# A missing binary is reported as skipped too.
+REPORT_CELL = {'pass': '✅', 'fail': '❌', 'skip': '⚪'}
 
 verbose = False
 test_only = []
@@ -117,8 +122,13 @@ class TestsCfg(TypedDict, total=False):
 
 
 class BuildCfg(TypedDict, total=False):
-    flags_on: list[str]
     args: list[str]
+
+
+class VariantCfg(TypedDict, total=False):
+    name: str           # build dir (cmake-build-<name>) and HIL report row
+    flags: str          # raw CFLAGS, e.g. "-DCFG_TUD_DWC2_DMA_ENABLE=1"
+    defines: list[str]  # cmake -D defines, e.g. ["RHPORT_DEVICE=1"] (vs flags which are compiler-only)
 
 
 class Board(TypedDict):
@@ -127,6 +137,8 @@ class Board(TypedDict):
     tests: TestsCfg
     flasher: FlasherCfg
     build: NotRequired[BuildCfg]
+    variant: NotRequired[list[VariantCfg]]
+    toolchain: NotRequired[str]  # CI build bucket override, e.g. "riscv-gcc" (consumed by hil_ci_set_matrix.py)
 
 
 class HilConfig(TypedDict):
@@ -134,6 +146,8 @@ class HilConfig(TypedDict):
 
 CMD_TIMEOUT = int(os.getenv('HIL_CMD_TIMEOUT', '180'))
 POOL_TIMEOUT = int(os.getenv('HIL_POOL_TIMEOUT', '3000'))
+SERIAL_READ_TIMEOUT = float(os.getenv('HIL_SERIAL_READ_TIMEOUT', '5'))
+SERIAL_WRITE_TIMEOUT = float(os.getenv('HIL_SERIAL_WRITE_TIMEOUT', '10'))
 
 
 def cmd_stdout_text(out: Any) -> str:
@@ -218,7 +232,10 @@ def open_serial_dev(port: str):
     while timeout > 0:
         if os.path.exists(port):
             try:
-                ser = serial.Serial(port, baudrate=115200, timeout=5)
+                # write_timeout: a wedged device otherwise blocks ser.write() forever,
+                # hanging the worker until the pool/job timeout kills the whole run
+                ser = serial.Serial(port, baudrate=115200, timeout=SERIAL_READ_TIMEOUT,
+                                    write_timeout=SERIAL_WRITE_TIMEOUT)
                 break
             except serial.SerialException:
                 print(f'serial {port} not reaady {timeout} sec')
@@ -231,24 +248,35 @@ def open_serial_dev(port: str):
     return ser
 
 
+def serial_write_all(ser: serial.Serial, data: bytes):
+    # write_timeout is a total deadline for the whole call (pyserial keeps partial progress
+    # internally). A timeout means the device stopped draining — treat it as fatal: pyserial
+    # loses the partial-write count on raise, so retrying would duplicate bytes on the wire.
+    try:
+        ser.write(data)
+    except serial.SerialTimeoutException:
+        raise AssertionError(f'Serial write timeout after {SERIAL_WRITE_TIMEOUT:.1f}s')
+
+
 def read_disk_file(uid: str, lun: int, fname: str) -> bytes:
-    # open_fs("fat://{dev}) require 'pip install pyfatfs'
+    # Reads a file from a FAT volume on a block device without mounting it.
+    # Requires mtools: `apt install mtools` (no pip dependency).
     dev = get_disk_dev(uid, 'TinyUSB', lun)
     timeout = ENUM_TIMEOUT
+    last_err = None
     while timeout > 0:
         if os.path.exists(dev):
-            fat = fs.open_fs(f'fat://{dev}?read_only=true')
             try:
-                with fat.open(fname, 'rb') as f:
-                    data = f.read()
-            finally:
-                fat.close()
-            assert data, f'Cannot read file {fname} from {dev}'
-            return data
+                data = subprocess.check_output(
+                    ['mtype', '-i', dev, f'::/{fname}'], stderr=subprocess.PIPE)
+                assert data, f'Cannot read file {fname} from {dev}'
+                return data
+            except subprocess.CalledProcessError as e:
+                last_err = e.stderr.decode(errors='replace').strip()
         time.sleep(1)
         timeout -= 1
 
-    raise AssertionError(f'Storage {dev} not existed')
+    raise AssertionError(f'mtype failed on {dev}: {last_err}' if last_err else f'Storage {dev} not existed')
 
 
 def open_mtp_dev(uid):
@@ -494,6 +522,19 @@ def reset_uniflash(board):
     return subprocess.CompletedProcess(args=['dummy'], returncode=0)
 
 
+def flash_lm4flash(board, firmware):
+    # TI Tiva-C / Stellaris ICDI: lightweight lm4flash, resets and runs after write
+    flasher = board['flasher']
+    ret = run_cmd(f'lm4flash -s {flasher["uid"]} {flasher["args"]} {firmware}.bin')
+    return ret
+
+
+def reset_lm4flash(board):
+    # lm4flash has no reset-only mode; it resets+runs on flash, so reset is a no-op
+    flasher = board['flasher']
+    return subprocess.CompletedProcess(args=['dummy'], returncode=0)
+
+
 # -------------------------------------------------------------
 # Tests: dual
 # -------------------------------------------------------------
@@ -698,8 +739,7 @@ def test_host_cdc_msc_hid(board):
     offset = 0
     while offset < echo_len:
         chunk_size = min(random.randint(1, packet_size), echo_len - offset)
-        ser.write(echo_data[offset:offset + chunk_size])
-        ser.flush()
+        serial_write_all(ser, echo_data[offset:offset + chunk_size])
         # wait until this chunk is echoed back
         echo = b''
         t_end = time.monotonic() + 1.0
@@ -748,8 +788,7 @@ def test_host_msc_file_explorer(board):
     time.sleep(1)
     ser.reset_input_buffer()
     for ch in 'cat README.TXT\r':
-        ser.write(ch.encode())
-        ser.flush()
+        serial_write_all(ser, ch.encode())
         time.sleep(0.002)
 
     resp = b''
@@ -771,8 +810,7 @@ def test_host_msc_file_explorer(board):
     time.sleep(0.5)
     ser.reset_input_buffer()
     for ch in 'dd 1024\r':
-        ser.write(ch.encode())
-        ser.flush()
+        serial_write_all(ser, ch.encode())
         time.sleep(0.002)
 
     # Read dd output until prompt
@@ -788,12 +826,21 @@ def test_host_msc_file_explorer(board):
         t -= 0.05
 
     resp_text = resp.decode('utf-8', errors='ignore')
+    speed = None
     for line in resp_text.splitlines():
         if 'KB/s' in line:
             print(f'{line.strip()} ', end='')
+            m = re.search(r'([\d.]+\s*[KMG]B/s)', line)  # MSC read speed for the report cell
+            if m:
+                speed = 'rd ' + m.group(1).replace(' ', '')
             break
 
     ser.close()
+    return speed
+
+
+def test_host_msc_file_explorer_freertos(board):
+    return test_host_msc_file_explorer(board)
 
 
 # -------------------------------------------------------------
@@ -827,8 +874,7 @@ def test_device_cdc_dual_ports(board):
         # Write in chunks of random 1-64 bytes (device has 64-byte buffer)
         while offset < payload_len:
             chunk_size = min(random.randint(1, 64), payload_len - offset)
-            ser[writer].write(payload[offset:offset + chunk_size])
-            ser[writer].flush()
+            serial_write_all(ser[writer], payload[offset:offset + chunk_size])
             rd0 += ser[0].read(chunk_size)
             rd1 += ser[1].read(chunk_size)
             offset += chunk_size
@@ -862,8 +908,7 @@ def test_device_cdc_msc(board):
         # Write in chunks of random 1-64 bytes (device has 64-byte buffer)
         while offset < size:
             chunk_size = min(random.randint(1, 64), size - offset)
-            ser.write(test_str[offset:offset + chunk_size])
-            ser.flush()
+            serial_write_all(ser, test_str[offset:offset + chunk_size])
             rd_str += ser.read(chunk_size)
             offset += chunk_size
         assert rd_str == test_str, f'CDC wrong data ({size} bytes):\n  expected: {test_str}\n  received: {rd_str}'
@@ -948,6 +993,9 @@ def test_device_cdc_msc_throughput(board):
         pass
 
     print(f'  CDC read {cdc_r} write {cdc_w}, MSC read {msc_r} write {msc_w}  ', end='')
+    # compact read/write speed for the report cell, e.g. "✅ CDC 652k/422k MSC 1.1M/783k"
+    short = lambda s: (s.split()[0].rstrip('0').rstrip('.') + s.split()[-1][0]) if ' ' in s else s
+    return f'{REPORT_CELL["pass"]} CDC {short(cdc_r)}/{short(cdc_w)} MSC {short(msc_r)}/{short(msc_w)}'
 
 
 def test_device_dfu(board):
@@ -1124,8 +1172,7 @@ def test_device_printer_to_cdc(board):
         offset = 0
         while offset < size:
             chunk_size = min(random.randint(1, 64), size - offset)
-            ser.write(test_data[offset:offset + chunk_size])
-            ser.flush()
+            serial_write_all(ser, test_data[offset:offset + chunk_size])
             time.sleep(0.01)
             offset += chunk_size
 
@@ -1402,7 +1449,7 @@ def test_device_audio_test_freertos(board):
 
 def test_device_hid_generic_inout(board):
     uid = board['uid']
-    import hid
+    import hid  # cython-hidapi (pip: hidapi, apt: python3-hid)
 
     # Find HID device by UID (VID=0xCafe)
     timeout = ENUM_TIMEOUT
@@ -1418,22 +1465,23 @@ def test_device_hid_generic_inout(board):
         timeout -= 1
     assert dev is not None, f'HID device not found for {uid}'
 
-    h = hid.Device(vid=dev['vendor_id'], pid=dev['product_id'], serial=uid)
-
-    # Echo test: send random data and verify echo
-    for size in [8, 32, 63]:
-        # Report ID (0) + payload, padded to 64 bytes
-        payload = bytes([random.randint(1, 255) for _ in range(size)])
-        report = bytes([0]) + payload + bytes(64 - size)
-        h.write(report)
-        echo = h.read(64, timeout=2000)
-        assert echo is not None and len(echo) >= size, (
-            f'HID echo timeout or short read ({size} bytes)')
-        assert bytes(echo[:size]) == payload, (
-            f'HID echo wrong data ({size} bytes):\n'
-            f'  expected: {payload.hex()}\n  received: {bytes(echo[:size]).hex()}')
-
-    h.close()
+    h = hid.device()
+    h.open(dev['vendor_id'], dev['product_id'], uid)
+    try:
+        # Echo test: send random data and verify echo
+        for size in [8, 32, 63]:
+            # Report ID (0) + payload, padded to 64 bytes
+            payload = bytes([random.randint(1, 255) for _ in range(size)])
+            report = bytes([0]) + payload + bytes(64 - size)
+            h.write(report)
+            echo = h.read(64, 2000)
+            assert echo and len(echo) >= size, (
+                f'HID echo timeout or short read ({size} bytes)')
+            assert bytes(echo[:size]) == payload, (
+                f'HID echo wrong data ({size} bytes):\n'
+                f'  expected: {payload.hex()}\n  received: {bytes(echo[:size]).hex()}')
+    finally:
+        h.close()
 
 
 # -------------------------------------------------------------
@@ -1465,32 +1513,47 @@ dual_tests = [
 host_test = [
     'host/cdc_msc_hid',
     'host/msc_file_explorer',
+    'host/msc_file_explorer_freertos',
     'host/device_info',
 ]
 
 
-def test_example(board: Board, f1: str, example: str) -> int:
+def find_firmware(variant: str, example: str):
+    """Locate a built example's firmware base path (no extension) under
+    cmake-build-<variant>/<example>/. Accepts the single-config layout (firmware
+    directly in the example dir) or Ninja Multi-Config (a per-config subdir like
+    RelWithDebInfo/). Returns the base Path, or None if not built."""
+    fw_dir = TINYUSB_ROOT / build_dir / f'cmake-build-{variant}' / example
+    base = Path(example).name
+    if fw_dir.is_dir():
+        for cand in [fw_dir / base, fw_dir / 'RelWithDebInfo' / base,
+                     *(p.with_suffix('') for p in sorted(fw_dir.glob(f'*/{base}.elf')))]:
+            if cand.with_suffix('.elf').exists() or cand.with_suffix('.bin').exists():
+                return cand
+    return None
+
+
+def test_example(board: Board, variant: str, example: str) -> tuple[int, str]:
     """
     Test example firmware
     :param board: board dict
-    :param f1: flags on
+    :param variant: build variant name = build dir (cmake-build-<variant>) and report row
     :param example: example name
-    :return: 0 if success/skip, 1 if failed
+    :return: (err_count, status, metric) where err_count is 0 on success/skip or
+             1 on failure, status is one of 'pass'/'fail'/'skip' (a missing binary
+             counts as 'skip'), and metric is an optional string a test returns to
+             show in its report cell instead of the pass symbol (e.g. speed)
     """
-    name = board['name']
     err_count = 0
+    result_status = 'fail'
+    metric = None
 
-    f1_str = ""
-    if f1 != "":
-        f1_str = '-f1_' + f1.replace(' ', '_')
+    test_name = f'{variant:40} {example:30} ...'
 
-    fw_dir = TINYUSB_ROOT / build_dir / f'cmake-build-{name}{f1_str}' / example
-    fw_name = fw_dir / Path(example).name
-    test_name = f'{name+f1_str:40} {example:30} ...'
-
-    if not fw_dir.exists() or not ((fw_name.with_suffix('.elf')).exists() or (fw_name.with_suffix('.bin')).exists()):
+    fw_name = find_firmware(variant, example)
+    if fw_name is None:
         log_line(f'{test_name} Skip (no binary)')
-        return 0
+        return 0, 'skip', None
 
     if verbose:
         log_line(f'Flashing {fw_name}.elf')
@@ -1513,8 +1576,12 @@ def test_example(board: Board, f1: str, example: str) -> int:
                     last_detail = compact_output(attempt_out.getvalue())
                     if tret == 'skipped':
                         status = STATUS_SKIPPED
+                        result_status = 'skip'
                     else:
                         status = STATUS_OK
+                        result_status = 'pass'
+                        # a test may return a string to show in its report cell (e.g. speed)
+                        metric = tret if isinstance(tret, str) else None
                     msg = f'{test_name}  {status}'
                     if last_detail:
                         msg += f'  {last_detail}'
@@ -1557,26 +1624,29 @@ def test_example(board: Board, f1: str, example: str) -> int:
         msg += f'  in {time.time() - start_s:.1f}s'
         log_line(msg)
 
-    return err_count
+    return err_count, result_status, metric
 
 
 def build_board(board: Board) -> tuple[str, int]:
     """Build firmware for this board via tools/build.py.
-    Honors board config's build.flags_on variants and build.args defines.
-    Output goes to cmake-build/cmake-build-BOARD[-f1_...]/ (tools/build.py layout)."""
+    Honors board config's variant list and build.args defines.
+    Output goes to cmake-build/cmake-build-<variant>/ (tools/build.py layout)."""
     name = board['name']
     bcfg = cast(BuildCfg, board.get('build', {}))
-    flags_on_list = bcfg.get('flags_on', [''])
     extra_defs = bcfg.get('args', [])
+    variants = board.get('variant') or [{'name': name, 'flags': ''}]
 
     failed = 0
-    for f1 in flags_on_list:
+    for v in variants:
         cmd = [sys.executable, str(TINYUSB_ROOT / 'tools' / 'build.py'), '-b', name]
         for d in extra_defs:
             cmd += ['-D', d]
-        if f1:
-            for flag in f1.split():
-                cmd += ['-f1', flag]
+        if v['name'] != name:
+            cmd += ['--build-name', v['name']]
+        for d in v.get('defines', []):
+            cmd += ['-D', d]
+        for tok in v.get('flags', '').split():
+            cmd += [f'--cflag={tok}']
         if verbose:
             cmd.append('-v')
             print(f'  + {" ".join(cmd)}')
@@ -1586,7 +1656,7 @@ def build_board(board: Board) -> tuple[str, int]:
     return name, failed
 
 
-def test_board(board: Board) -> tuple[str, int, list[str]]:
+def test_board(board: Board) -> tuple[str, int, list[str], list]:
     name = board['name']
     flasher = board['flasher']
 
@@ -1596,7 +1666,18 @@ def test_board(board: Board) -> tuple[str, int, list[str]]:
     if name in board_test:
         test_list = board_test[name]
     elif len(test_only) > 0:
-        test_list = test_only
+        # Explicit -t: filter against the board's capabilities so a device-only
+        # board doesn't try to run host/dual tests (the test functions need a
+        # `dev_attached` entry in the board config that won't exist).
+        board_tests = board.get('tests', {})
+        if 'only' in board_tests:
+            allowed = set(board_tests['only'])
+            test_list = [t for t in test_only if t in allowed]
+        else:
+            for t in test_only:
+                category = t.split('/', 1)[0]
+                if board_tests.get(category) is True:
+                    test_list.append(t)
     else:
         if 'tests' in board:
             board_tests = board['tests']
@@ -1616,22 +1697,96 @@ def test_board(board: Board) -> tuple[str, int, list[str]]:
 
     err_count = 0
     failed_tests = []
-    flags_on_list = [""]
-    if 'build' in board and 'flags_on' in board['build']:
-        flags_on_list = board['build']['flags_on']
+    rows = []  # list of (row_label, {example: status}) — one row per build variant
+    variants = board.get('variant') or [{'name': name, 'flags': ''}]
 
-    for f1 in flags_on_list:
+    for v in variants:
+        vname = v['name']
+        cells = {}
         for test in test_list:
-            ec = test_example(board, f1, test)
+            ec, status, metric = test_example(board, vname, test)
             err_count += ec
+            cells[test] = metric if metric else status
             if ec > 0:
                 failed_tests.append(test)
+        rows.append((vname, cells))
 
-    # flash board_test last to disable board's usb (skipped when --skip-flash is set)
+    # flash board_test last to disable board's usb (skipped when --skip-flash is set);
+    # this is teardown/park, not a test — not recorded in the report
     if not skip_flash:
-        test_example(board, flags_on_list[0], 'device/board_test')
+        test_example(board, variants[0]['name'], 'device/board_test')
 
-    return name, err_count, sorted(set(failed_tests))
+    return name, err_count, sorted(set(failed_tests)), rows
+
+
+REPORT_MD = 'hil_report.md'
+REPORT_JSON = 'hil_report.json'
+
+
+def render_matrix(rows_all: list) -> str:
+    """Render rows (list of (row_label, {example: status})) as an aligned markdown
+    matrix: columns = tests (bare names) centered, boards left-aligned."""
+    canonical = device_tests + dual_tests + host_test
+    seen = set()
+    for _, cells in rows_all:
+        seen.update(cells)
+    if not seen:
+        return 'No tests were run.'
+
+    # columns: canonical order first, then any extras (e.g. from -t) alphabetically
+    columns = [t for t in canonical if t in seen]
+    columns += [t for t in sorted(seen) if t not in canonical]
+    headers = [c.rsplit('/', 1)[-1] for c in columns]  # bare example name
+
+    def cell(cells, col):
+        v = cells.get(col)
+        if v is None:
+            return ''
+        return REPORT_CELL.get(v, v)  # status symbol, or a metric string (e.g. speed) verbatim
+
+    board_hdr = 'Board'
+    board_w = max([len(board_hdr)] + [len(lbl) for lbl, _ in rows_all])
+    col_w = [max([len(h)] + [len(cell(cells, c)) for _, cells in rows_all])
+             for h, c in zip(headers, columns)]
+
+    def line(label, values):
+        padded = [label.ljust(board_w)] + [v.center(w) for v, w in zip(values, col_w)]
+        return '| ' + ' | '.join(padded) + ' |'
+
+    header = line(board_hdr, headers)
+    sep = '| ' + '-' * board_w + ' | ' + ' | '.join(':' + '-' * (w - 2) + ':' for w in col_w) + ' |'
+    body = [line(lbl, [cell(cells, c) for c in columns]) for lbl, cells in rows_all]
+
+    legend = 'Legend: ✅ pass · ❌ fail · ⚪ skipped · blank not run'
+    return '\n'.join([header, sep] + body) + '\n\n' + legend
+
+
+def accumulate_report(mret: list, report_dir: Path, fresh: bool) -> str:
+    """Merge this run's results into hil_report.json in report_dir, then (re)write
+    the markdown matrix to hil_report.md. `fresh` (a full run, no --skip-board/-bt)
+    starts a new report; otherwise a re-run accumulates so boards/tests that
+    already passed are preserved while re-run cells are updated. Returns the md."""
+    acc = {}  # ordered {row_label: {example: status}}
+    jpath = report_dir / REPORT_JSON
+    if not fresh and jpath.is_file():
+        try:
+            for entry in json.loads(jpath.read_text()).get('rows', []):
+                acc[entry['board']] = dict(entry['cells'])
+        except (ValueError, KeyError, TypeError):
+            pass  # corrupt/old sidecar: start fresh
+
+    # merge this run: current cells override prior for boards/tests that ran
+    for _, _, _, rows in mret:
+        for row_label, cells in rows:
+            acc.setdefault(row_label, {}).update(cells)
+
+    report_dir.mkdir(parents=True, exist_ok=True)
+    jpath.write_text(json.dumps({'rows': [{'board': k, 'cells': v} for k, v in acc.items()]},
+                                indent=2) + '\n')
+
+    md = render_matrix(list(acc.items()))
+    (report_dir / REPORT_MD).write_text(md + '\n', encoding='utf-8')
+    return md
 
 
 def main() -> None:
@@ -1701,6 +1856,17 @@ def main() -> None:
         print(f'Build phase done: {build_err} failed')
         print('-' * 30)
 
+    # HIL report sidecar (hil_report.json/.md). A full run starts fresh; a re-run
+    # (--skip-board / -bt, i.e. the .skip file) accumulates so already-passed
+    # boards/tests are preserved. Clear any prior report up front on a fresh run so
+    # a crash mid-run can't leave stale results to be merged by a retry or posted.
+    report_dir = Path(os.environ.get('HIL_REPORT_DIR', '.'))
+    fresh = not (args.skip_board or args.board_test)
+    if fresh:
+        report_dir.mkdir(parents=True, exist_ok=True)
+        for f in (REPORT_JSON, REPORT_MD):
+            (report_dir / f).unlink(missing_ok=True)
+
     with Pool(processes=os.cpu_count() or 1, initializer=init_worker, initargs=(Lock(),)) as pool:
         async_ret = pool.map_async(test_board, config_boards)
         try:
@@ -1715,13 +1881,19 @@ def main() -> None:
         # and emit -bt BOARD:t1,t2 so each failed board only re-runs its own failed tests.
         skip_fname = config_file.with_suffix(config_file.suffix + '.skip')
         if err_count > 0:
-            skip_boards += [name for name, err, _ in mret if err == 0]
+            skip_boards += [name for name, err, _, _ in mret if err == 0]
             parts = [f'--skip-board {i}' for i in skip_boards]
-            parts += [f'-bt {name}:{",".join(fts)}' for name, err, fts in mret if err > 0 and fts]
+            parts += [f'-bt {name}:{",".join(fts)}' for name, err, fts, _ in mret if err > 0 and fts]
             with skip_fname.open('w') as f:
                 f.write(' '.join(parts))
         elif skip_fname.exists():
             skip_fname.unlink()
+
+    # board x test result matrix -> hil_report.md (accumulates across re-runs) + stdout
+    report = accumulate_report(mret, report_dir, fresh)
+    print()
+    print(report)
+    print(f'\nReport written to {(report_dir / REPORT_MD).resolve()}')
 
     duration = time.time() - duration
     print()

@@ -98,6 +98,7 @@
 #define OPT_MCU_STM32N6           319 ///< ST N6
 #define OPT_MCU_STM32WBA          320 ///< ST WBA
 #define OPT_MCU_STM32U3           321 ///< ST U3
+#define OPT_MCU_STM32C5           322 ///< ST C5
 
 // Sony
 #define OPT_MCU_CXD56             400 ///< SONY CXD56
@@ -533,6 +534,18 @@
 // OS selection
 #ifndef CFG_TUSB_OS
   #define CFG_TUSB_OS           OPT_OS_NONE
+#endif
+
+// 1 when CFG_TUSB_OS provides a preemptive scheduler with distinct tasks
+// (FreeRTOS, Zephyr, ThreadX, etc.); 0 when the application is single-context
+// (bare-metal OS_NONE or Pico SDK). Sync host control xfers from the host
+// task are forbidden when this is 1.
+#ifndef CFG_TUSB_OS_HAS_SCHEDULER
+  #if CFG_TUSB_OS == OPT_OS_NONE || CFG_TUSB_OS == OPT_OS_PICO
+    #define CFG_TUSB_OS_HAS_SCHEDULER 0
+  #else
+    #define CFG_TUSB_OS_HAS_SCHEDULER 1
+  #endif
 #endif
 
 #ifndef CFG_TUSB_OS_INC_PATH

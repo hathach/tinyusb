@@ -109,6 +109,11 @@ void USARTn_IRQHandler(void) {
 
 void board_init(void) {
   board_clock_init();
+
+  __HAL_FLASH_INSTRUCTION_CACHE_ENABLE();
+  __HAL_FLASH_DATA_CACHE_ENABLE();
+  __HAL_FLASH_PREFETCH_BUFFER_ENABLE();
+
   //SystemCoreClockUpdate();
 
   // Enable All GPIOs clocks
