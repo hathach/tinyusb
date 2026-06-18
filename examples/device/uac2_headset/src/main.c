@@ -320,10 +320,7 @@ static bool audio10_get_req_entity(uint8_t rhport, tusb_control_request_t const 
 
 // Helper for clock get requests
 static bool audio20_clock_get_request(uint8_t rhport, tusb_control_request_t const *p_request) {
-  uint8_t const entity_id = TU_U16_HIGH(p_request->wIndex);
-  uint8_t const ctrl_sel  = TU_U16_HIGH(p_request->wValue);
-
-  TU_ASSERT(entity_id == UAC2_ENTITY_CLOCK);
+  uint8_t const ctrl_sel = TU_U16_HIGH(p_request->wValue);
 
   if (ctrl_sel == AUDIO20_CS_CTRL_SAM_FREQ) {
     if (p_request->bRequest == AUDIO20_CS_REQ_CUR) {
@@ -351,8 +348,8 @@ static bool audio20_clock_get_request(uint8_t rhport, tusb_control_request_t con
     TU_LOG1("Clock get is valid %u\r\n", cur_valid.bCur);
     return tud_audio_buffer_and_schedule_control_xfer(rhport, p_request, &cur_valid, sizeof(cur_valid));
   }
-  TU_LOG1("Clock get request not supported, entity = %u, selector = %u, request = %u\r\n",
-          entity_id, ctrl_sel, p_request->bRequest);
+  TU_LOG1("Clock get request not supported, selector = %u, request = %u\r\n",
+          ctrl_sel, p_request->bRequest);
   return false;
 }
 
@@ -360,10 +357,8 @@ static bool audio20_clock_get_request(uint8_t rhport, tusb_control_request_t con
 static bool audio20_clock_set_request(uint8_t rhport, tusb_control_request_t const *p_request, uint8_t const *buf) {
   (void) rhport;
 
-  uint8_t const entity_id = TU_U16_HIGH(p_request->wIndex);
-  uint8_t const ctrl_sel  = TU_U16_HIGH(p_request->wValue);
+  uint8_t const ctrl_sel = TU_U16_HIGH(p_request->wValue);
 
-  TU_ASSERT(entity_id == UAC2_ENTITY_CLOCK);
   TU_VERIFY(p_request->bRequest == AUDIO20_CS_REQ_CUR);
 
   if (ctrl_sel == AUDIO20_CS_CTRL_SAM_FREQ) {
@@ -375,19 +370,16 @@ static bool audio20_clock_set_request(uint8_t rhport, tusb_control_request_t con
 
     return true;
   } else {
-    TU_LOG1("Clock set request not supported, entity = %u, selector = %u, request = %u\r\n",
-            entity_id, ctrl_sel, p_request->bRequest);
+    TU_LOG1("Clock set request not supported, selector = %u, request = %u\r\n",
+            ctrl_sel, p_request->bRequest);
     return false;
   }
 }
 
 // Helper for feature unit get requests
 static bool audio20_feature_unit_get_request(uint8_t rhport, tusb_control_request_t const *p_request) {
-  uint8_t const entity_id   = TU_U16_HIGH(p_request->wIndex);
   uint8_t const ctrl_sel    = TU_U16_HIGH(p_request->wValue);
   uint8_t const channel_num = TU_U16_LOW(p_request->wValue);
-
-  TU_ASSERT(entity_id == UAC2_ENTITY_SPK_FEATURE_UNIT);
 
   if (ctrl_sel == AUDIO20_FU_CTRL_MUTE && p_request->bRequest == AUDIO20_CS_REQ_CUR) {
     audio20_control_cur_1_t mute1 = {.bCur = mute[channel_num]};
@@ -407,8 +399,8 @@ static bool audio20_feature_unit_get_request(uint8_t rhport, tusb_control_reques
       return tud_audio_buffer_and_schedule_control_xfer(rhport, p_request, &cur_vol, sizeof(cur_vol));
     }
   }
-  TU_LOG1("Feature unit get request not supported, entity = %u, selector = %u, request = %u\r\n",
-          entity_id, ctrl_sel, p_request->bRequest);
+  TU_LOG1("Feature unit get request not supported, selector = %u, request = %u\r\n",
+          ctrl_sel, p_request->bRequest);
 
   return false;
 }
@@ -417,11 +409,9 @@ static bool audio20_feature_unit_get_request(uint8_t rhport, tusb_control_reques
 static bool audio20_feature_unit_set_request(uint8_t rhport, tusb_control_request_t const *p_request, uint8_t const *buf) {
   (void) rhport;
 
-  uint8_t const entity_id   = TU_U16_HIGH(p_request->wIndex);
   uint8_t const ctrl_sel    = TU_U16_HIGH(p_request->wValue);
   uint8_t const channel_num = TU_U16_LOW(p_request->wValue);
 
-  TU_ASSERT(entity_id == UAC2_ENTITY_SPK_FEATURE_UNIT);
   TU_VERIFY(p_request->bRequest == AUDIO20_CS_REQ_CUR);
 
   if (ctrl_sel == AUDIO20_FU_CTRL_MUTE) {
@@ -441,8 +431,8 @@ static bool audio20_feature_unit_set_request(uint8_t rhport, tusb_control_reques
 
     return true;
   } else {
-    TU_LOG1("Feature unit set request not supported, entity = %u, selector = %u, request = %u\r\n",
-            entity_id, ctrl_sel, p_request->bRequest);
+    TU_LOG1("Feature unit set request not supported, selector = %u, request = %u\r\n",
+            ctrl_sel, p_request->bRequest);
     return false;
   }
 }

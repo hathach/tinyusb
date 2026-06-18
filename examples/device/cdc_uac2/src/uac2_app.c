@@ -84,10 +84,7 @@ void audio_task(void) {
 // Helper for clock get requests
 static bool tud_audio_clock_get_request(uint8_t rhport, tusb_control_request_t const *p_request)
 {
-  uint8_t const entity_id   = TU_U16_HIGH(p_request->wIndex);
-  uint8_t const ctrl_sel    = TU_U16_HIGH(p_request->wValue);
-
-  TU_ASSERT(entity_id == UAC2_ENTITY_CLOCK);
+  uint8_t const ctrl_sel = TU_U16_HIGH(p_request->wValue);
 
   if (ctrl_sel == AUDIO20_CS_CTRL_SAM_FREQ)
   {
@@ -123,8 +120,8 @@ static bool tud_audio_clock_get_request(uint8_t rhport, tusb_control_request_t c
     TU_LOG1("Clock get is valid %u\r\n", cur_valid.bCur);
     return tud_audio_buffer_and_schedule_control_xfer(rhport, p_request, &cur_valid, sizeof(cur_valid));
   }
-  TU_LOG1("Clock get request not supported, entity = %u, selector = %u, request = %u\r\n",
-          entity_id, ctrl_sel, p_request->bRequest);
+  TU_LOG1("Clock get request not supported, selector = %u, request = %u\r\n",
+          ctrl_sel, p_request->bRequest);
   return false;
 }
 
@@ -133,10 +130,8 @@ static bool tud_audio_clock_set_request(uint8_t rhport, tusb_control_request_t c
 {
   (void)rhport;
 
-  uint8_t const entity_id = TU_U16_HIGH(p_request->wIndex);
-  uint8_t const ctrl_sel  = TU_U16_HIGH(p_request->wValue);
+  uint8_t const ctrl_sel = TU_U16_HIGH(p_request->wValue);
 
-  TU_ASSERT(entity_id == UAC2_ENTITY_CLOCK);
   TU_VERIFY(p_request->bRequest == AUDIO20_CS_REQ_CUR);
 
   if (ctrl_sel == AUDIO20_CS_CTRL_SAM_FREQ)
@@ -151,8 +146,8 @@ static bool tud_audio_clock_set_request(uint8_t rhport, tusb_control_request_t c
   }
   else
   {
-    TU_LOG1("Clock set request not supported, entity = %u, selector = %u, request = %u\r\n",
-            entity_id, ctrl_sel, p_request->bRequest);
+    TU_LOG1("Clock set request not supported, selector = %u, request = %u\r\n",
+            ctrl_sel, p_request->bRequest);
     return false;
   }
 }
@@ -160,11 +155,8 @@ static bool tud_audio_clock_set_request(uint8_t rhport, tusb_control_request_t c
 // Helper for feature unit get requests
 static bool tud_audio_feature_unit_get_request(uint8_t rhport, tusb_control_request_t const *p_request)
 {
-  uint8_t const entity_id  = TU_U16_HIGH(p_request->wIndex);
-  uint8_t const ctrl_sel   = TU_U16_HIGH(p_request->wValue);
+  uint8_t const ctrl_sel    = TU_U16_HIGH(p_request->wValue);
   uint8_t const channel_num = TU_U16_LOW(p_request->wValue);
-
-  TU_ASSERT(entity_id == UAC2_ENTITY_SPK_FEATURE_UNIT);
 
   if (ctrl_sel == AUDIO20_FU_CTRL_MUTE && p_request->bRequest == AUDIO20_CS_REQ_CUR)
   {
@@ -191,8 +183,8 @@ static bool tud_audio_feature_unit_get_request(uint8_t rhport, tusb_control_requ
       return tud_audio_buffer_and_schedule_control_xfer(rhport, p_request, &cur_vol, sizeof(cur_vol));
     }
   }
-  TU_LOG1("Feature unit get request not supported, entity = %u, selector = %u, request = %u\r\n",
-          entity_id, ctrl_sel, p_request->bRequest);
+  TU_LOG1("Feature unit get request not supported, selector = %u, request = %u\r\n",
+          ctrl_sel, p_request->bRequest);
 
   return false;
 }
@@ -202,11 +194,9 @@ static bool tud_audio_feature_unit_set_request(uint8_t rhport, tusb_control_requ
 {
   (void)rhport;
 
-  uint8_t const entity_id   = TU_U16_HIGH(p_request->wIndex);
   uint8_t const ctrl_sel    = TU_U16_HIGH(p_request->wValue);
   uint8_t const channel_num = TU_U16_LOW(p_request->wValue);
 
-  TU_ASSERT(entity_id == UAC2_ENTITY_SPK_FEATURE_UNIT);
   TU_VERIFY(p_request->bRequest == AUDIO20_CS_REQ_CUR);
 
   if (ctrl_sel == AUDIO20_FU_CTRL_MUTE)
@@ -231,8 +221,8 @@ static bool tud_audio_feature_unit_set_request(uint8_t rhport, tusb_control_requ
   }
   else
   {
-    TU_LOG1("Feature unit set request not supported, entity = %u, selector = %u, request = %u\r\n",
-            entity_id, ctrl_sel, p_request->bRequest);
+    TU_LOG1("Feature unit set request not supported, selector = %u, request = %u\r\n",
+            ctrl_sel, p_request->bRequest);
     return false;
   }
 }
