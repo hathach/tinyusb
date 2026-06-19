@@ -1,6 +1,6 @@
 include_guard()
 
-set(SDK_DIR ${TOP}/hw/mcu/wch/ch58x)
+set(SDK_DIR ${TOP}/hw/mcu/wch/ch583)
 set(SDK_SRC_DIR ${SDK_DIR}/EVT/EXAM/SRC)
 
 # include board specific

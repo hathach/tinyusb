@@ -7,7 +7,7 @@
 # Toolchain from https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack
 CROSS_COMPILE ?= riscv-none-elf-
 
-SDK_DIR = hw/mcu/wch/ch58x
+SDK_DIR = hw/mcu/wch/ch583
 SDK_SRC_DIR = $(SDK_DIR)/EVT/EXAM/SRC
 
 include $(TOP)/$(BOARD_PATH)/board.mk
