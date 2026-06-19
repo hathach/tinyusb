@@ -336,10 +336,13 @@ void dcd_int_handler(uint8_t rhport) {
     switch (token) {
       case PID_OUT: {
 #ifdef CH32_USBFS_EP_MANUAL_TOG
-        // Manual toggle: drop OUT packets whose data toggle doesn't match (host retransmit),
-        // otherwise flip the expected RX toggle for the next packet. EP0 is driven by the
-        // SETUP/status flow below, so its toggle is left to that path.
-        if (ep != 0) {
+        // Manual toggle. EP0 has no hardware auto-toggle (RB_UEP_AUTO_TOG covers only EP1/2/3/5/6/7),
+        // so advance its RX toggle on every OUT and always process it; a control-OUT data stage
+        // longer than the EP0 packet size would otherwise stall on the second packet. For the other
+        // endpoints, drop toggle-mismatched OUT (host retransmit) and flip the expected RX toggle.
+        if (ep == 0) {
+          EP_CTRL(0) ^= USBFS_EPC_R_TOG;
+        } else {
           if (!(int_st & USBFS_INT_ST_TOG_OK)) { break; }
           EP_CTRL(ep) ^= USBFS_EPC_R_TOG;
         }
