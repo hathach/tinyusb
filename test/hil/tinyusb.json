@@ -493,6 +493,21 @@
                 "uid": "BC4954081051",
                 "args": ""
             }
+        },
+        {
+            "name": "ch582m_evt",
+            "uid": "0123456789ABCDEF",
+            "toolchain": "riscv-gcc",
+            "tests": {
+                "device": true,
+                "host": false,
+                "dual": false
+            },
+            "flasher": {
+                "name": "openocd_wch",
+                "uid": "7FD88F0604B5",
+                "args": ""
+            }
         }
     ],
     "boards-skip": [

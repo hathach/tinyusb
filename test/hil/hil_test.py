@@ -1490,9 +1490,13 @@ def test_device_hid_generic_inout(board):
 # device tests
 # note don't test 2 examples with cdc or 2 msc next to each other
 device_tests = [
+    # Order matters: cdc_msc and cdc_msc_throughput share the same VID:PID (cafe:4003), so keep a
+    # differently-PID'd example (dfu, cafe:4000) between them. Boards whose CPU-reset does not drop
+    # D+ (e.g. WCH CH58x via openocd) only re-enumerate when the PID changes; back-to-back same-PID
+    # firmware would otherwise leave the host on the previous example's cached descriptors.
     'device/cdc_dual_ports',
-    'device/dfu',
     'device/cdc_msc',
+    'device/dfu',
     'device/cdc_msc_throughput',
     'device/audio_test_freertos',
     'device/dfu_runtime',
