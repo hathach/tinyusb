@@ -500,12 +500,14 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
   uint8_t dir = tu_edpt_dir(ep_addr);
 
   struct usb_xfer *xfer = &data.xfer[ep][dir];
+  // Keep the IRQ masked across the whole arming sequence: update_in()/ep_rx_set_response() do a
+  // read-modify-write of the (combined) EP control register, which the ISR also RMWs to flip the
+  // manual data toggle; re-enabling before they run lets a transfer IRQ clobber that toggle.
   dcd_int_disable(rhport);
   xfer->valid         = true;
   xfer->buffer        = buffer;
   xfer->len           = total_bytes;
   xfer->processed_len = 0;
-  dcd_int_enable(rhport);
 
   if (dir == TUSB_DIR_IN) {
     update_in(rhport, ep, true);
@@ -513,6 +515,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
     uint8_t rx_res = data.isochronous[ep] ? USBFS_EP_R_RES_NYET : USBFS_EP_R_RES_ACK;
     ep_rx_set_response(ep, rx_res);
   }
+  dcd_int_enable(rhport);
   return true;
 }
 
