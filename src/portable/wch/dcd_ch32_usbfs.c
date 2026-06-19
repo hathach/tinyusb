@@ -363,6 +363,10 @@ void dcd_int_handler(uint8_t rhport) {
         // setup clears stall
         ep_tx_ctrl_set(0, USBFS_EP_T_RES_NAK);
         data.ep0_tog  = true;
+        // A new SETUP supersedes any control transfer still in flight; drop its stale EP0 state so a
+        // spurious EP0 IN/OUT can't run update_in()/update_out() against the previous request.
+        data.xfer[0][TUSB_DIR_OUT].valid = false;
+        data.xfer[0][TUSB_DIR_IN].valid  = false;
 
         uint8_t *ep0_out = ep_out_buf(0);
         const tusb_control_request_t *setup = (const tusb_control_request_t *)ep0_out;
