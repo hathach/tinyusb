@@ -137,27 +137,53 @@
   // the EP control/length block sits lower (EP0_CTRL @ +0x22), EP5-7 are split out, EP4
   // shares EP0's DMA buffer, and EP5/6/7 mode bits live in one UEP567_MOD. The control/status
   // block matches CH32. Two FS controllers exist (USB @ 0x40008000, USB2 @ 0x40008400); the
-  // device uses USB0. EP registers are accessed via the CH58X macros below (not the struct).
+  // device uses USB0. Full register map per CH583/582 datasheet Table 17-2; the parameterized
+  // EP_* macros below index off these named fields.
   #define CH58X_USBFS_BASE  0x40008000u
+  // Per-endpoint register slots, 4-byte stride each; the EP_* macros index arrays of these.
   typedef struct {
-    __IO uint8_t  BASE_CTRL;        // 0x00
-    __IO uint8_t  UDEV_CTRL;        // 0x01
-    __IO uint8_t  INT_EN;           // 0x02
-    __IO uint8_t  DEV_ADDR;         // 0x03
+    __IO uint16_t DMA;              // R16_UEPn_DMA: endpoint n buffer start address
+    __IO uint16_t reserved;
+  } ch58x_ep_dma_t;
+  typedef struct {
+    __IO uint8_t T_LEN;           // R8_UEPn_T_LEN (+0): transmit length
+    __IO uint8_t reserved0;
+    __IO uint8_t CTRL;            // R8_UEPn_CTRL  (+2): endpoint control
+    __IO uint8_t reserved1;
+  } ch58x_ep_ctrl_t;
+  typedef struct {
+    __IO uint8_t  BASE_CTRL;        // 0x00 R8_USB_CTRL
+    __IO uint8_t  UDEV_CTRL;        // 0x01 R8_UDEV_CTRL
+    __IO uint8_t  INT_EN;           // 0x02 R8_USB_INT_EN
+    __IO uint8_t  DEV_ADDR;         // 0x03 R8_USB_DEV_AD
     __IO uint8_t  Reserve0;         // 0x04
-    __IO uint8_t  MIS_ST;           // 0x05
-    __IO uint8_t  INT_FG;           // 0x06
-    __IO uint8_t  INT_ST;           // 0x07
-    __IO uint8_t  RX_LEN;           // 0x08 (8-bit on CH58X)
+    __IO uint8_t  MIS_ST;           // 0x05 R8_USB_MIS_ST
+    __IO uint8_t  INT_FG;           // 0x06 R8_USB_INT_FG
+    __IO uint8_t  INT_ST;           // 0x07 R8_USB_INT_ST
+    __IO uint8_t  RX_LEN;           // 0x08 R8_USB_RX_LEN (8-bit on CH58X)
     __IO uint8_t  Reserve1[3];      // 0x09..0x0B
-    __IO uint8_t  UEP4_1_MOD;       // 0x0C
-    __IO uint8_t  UEP2_3_MOD;       // 0x0D
-    __IO uint8_t  UEP567_MOD;       // 0x0E
+    __IO uint8_t  UEP4_1_MOD;       // 0x0C R8_UEP4_1_MOD
+    __IO uint8_t  UEP2_3_MOD;       // 0x0D R8_UEP2_3_MOD
+    __IO uint8_t  UEP567_MOD;       // 0x0E R8_UEP567_MOD
+    __IO uint8_t    Reserve2;       // 0x0F
+    ch58x_ep_dma_t  EP_DMA_0_3[4];      // 0x10 EP0-3 DMA  (EP4 has no DMA reg; it shares EP0's, index 0)
+    ch58x_ep_ctrl_t EP_CTRL_0_4[5];     // 0x20 EP0-4 length/control
+    __IO uint8_t    Reserve3[0x54u - 0x34u]; // 0x34..0x53
+    ch58x_ep_dma_t  EP_DMA_5_7[3];      // 0x54 EP5-7 DMA
+    __IO uint8_t    Reserve4[0x64u - 0x60u]; // 0x60..0x63
+    ch58x_ep_ctrl_t EP_CTRL_5_7[3];     // 0x64 EP5-7 length/control
   } USBOTG_FS_TypeDef;
   #define USBOTG_FS  ((USBOTG_FS_TypeDef *) CH58X_USBFS_BASE)
 
+  // 4-byte slot stride + these block offsets pin every EP register to its datasheet address.
+  TU_VERIFY_STATIC(sizeof(ch58x_ep_dma_t)  == 4, "CH58x EP DMA slot must be 4 bytes");
+  TU_VERIFY_STATIC(sizeof(ch58x_ep_ctrl_t) == 4, "CH58x EP ctrl slot must be 4 bytes");
+  TU_VERIFY_STATIC(offsetof(USBOTG_FS_TypeDef, EP_DMA_0_3)  == 0x10, "CH58x EP_DMA_0_3 @0x10");
+  TU_VERIFY_STATIC(offsetof(USBOTG_FS_TypeDef, EP_CTRL_0_4) == 0x20, "CH58x EP_CTRL_0_4 @0x20");
+  TU_VERIFY_STATIC(offsetof(USBOTG_FS_TypeDef, EP_DMA_5_7)  == 0x54, "CH58x EP_DMA_5_7 @0x54");
+  TU_VERIFY_STATIC(offsetof(USBOTG_FS_TypeDef, EP_CTRL_5_7) == 0x64, "CH58x EP_CTRL_5_7 @0x64");
+
   #define CH32_USBFS_EP_CTRL_COMBINED 1
-  #define CH32_USBFS_EP_REGS_CUSTOM   1   // EP register macros provided here, not by the driver
   // CH58x's hardware AUTO_TOG does not stay in sync (notably across clear-stall and multi-packet
   // bulk transfers), causing data-toggle mismatch and bus resets. Drive the toggle manually in
   // the ISR instead. CH32V103/V20x/V307 keep AUTO_TOG (this macro is undefined for them).
@@ -170,13 +196,6 @@
     #define NVIC_EnableIRQ(n)  PFIC_EnableIRQ(n)
     #define NVIC_DisableIRQ(n) PFIC_DisableIRQ(n)
   #endif
-
-  // EP register access. EP0-4: T_LEN @ +0x20+ep*4, CTRL @ +0x22+ep*4. EP5-7 split: T_LEN @
-  // +0x64, CTRL @ +0x66. DMA: EP0-3 @ +0x10+ep*4, EP5-7 @ +0x54; EP4 shares EP0's buffer
-  // (no own DMA reg) so its slot points at a reserved word.
-  #define EP_TX_LEN(ep)  (*(volatile uint8_t  *)(CH58X_USBFS_BASE + ((ep) <= 4u ? 0x20u + (ep)*4u : 0x64u + ((ep)-5u)*4u)))
-  #define EP_CTRL(ep)    (*(volatile uint8_t  *)(CH58X_USBFS_BASE + ((ep) <= 4u ? 0x22u + (ep)*4u : 0x66u + ((ep)-5u)*4u)))
-  #define EP_DMA(ep)     (*(volatile uint16_t *)(CH58X_USBFS_BASE + ((ep) <= 3u ? 0x10u + (ep)*4u : (ep) == 4u ? 0x40u : 0x54u + ((ep)-5u)*4u)))
 #endif
 
 #ifdef __GNUC__

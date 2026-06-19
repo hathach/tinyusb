@@ -35,13 +35,25 @@
   /* private defines */
   #define EP_MAX         (8)
 
-  // Struct-based EP register access (uniform layout). Some parts (e.g. CH58X) have a different
-  // register map and define EP_DMA/EP_TX_LEN/EP_CTRL themselves in ch32_usbfs_reg.h.
-  #ifndef CH32_USBFS_EP_REGS_CUSTOM
-  #define EP_DMA(ep)     ((&USBOTG_FS->UEP0_DMA)[ep])
-  #define EP_TX_LEN(ep)  ((&USBOTG_FS->UEP0_TX_LEN)[2 * ep])
-  #define EP_TX_CTRL(ep) ((&USBOTG_FS->UEP0_TX_CTRL)[4 * ep])
-  #define EP_RX_CTRL(ep) ((&USBOTG_FS->UEP0_RX_CTRL)[4 * ep])
+  // Struct-based EP register access (uniform layout). CH58X has a different register map and
+  // defines EP_DMA/EP_TX_LEN/EP_CTRL itself in ch32_usbfs_reg.h.
+  #if CFG_TUSB_MCU == OPT_MCU_CH58X
+    // CH58X EP registers split into a low block (EP0-4) and a high block (EP5-7). Walk from each
+    // block's first slot by the 4-byte slot stride (pointer arithmetic off slot 0, so the unused
+    // ternary branch's index can't trip -Warray-bounds). EP4 has no DMA register of its own (it
+    // shares EP0's, slot 0) and is never written (see ep_shares_ep0_dma()).
+    #define EP_TX_LEN(ep) (*((ep) <= 4u ? &USBOTG_FS->EP_CTRL_0_4[0].T_LEN + (ep) * 4u \
+                                        : &USBOTG_FS->EP_CTRL_5_7[0].T_LEN + ((ep) - 5u) * 4u))
+    #define EP_CTRL(ep)   (*((ep) <= 4u ? &USBOTG_FS->EP_CTRL_0_4[0].CTRL  + (ep) * 4u \
+                                        : &USBOTG_FS->EP_CTRL_5_7[0].CTRL  + ((ep) - 5u) * 4u))
+    #define EP_DMA(ep)    (*((ep) <= 3u ? &USBOTG_FS->EP_DMA_0_3[0].DMA + (ep) * 2u \
+                             : (ep) == 4u ? &USBOTG_FS->EP_DMA_0_3[0].DMA \
+                                          : &USBOTG_FS->EP_DMA_5_7[0].DMA + ((ep) - 5u) * 2u))
+  #else
+    #define EP_DMA(ep)     ((&USBOTG_FS->UEP0_DMA)[ep])
+    #define EP_TX_LEN(ep)  ((&USBOTG_FS->UEP0_TX_LEN)[2 * ep])
+    #define EP_TX_CTRL(ep) ((&USBOTG_FS->UEP0_TX_CTRL)[4 * ep])
+    #define EP_RX_CTRL(ep) ((&USBOTG_FS->UEP0_RX_CTRL)[4 * ep])
   #endif
 
 // Endpoint control register access. The newer USBFS IP (CH32V20x/V307/X035) has separate
@@ -116,48 +128,82 @@ static struct {
   bool            ep0_tog;
   bool            isochronous[EP_MAX];
   struct usb_xfer xfer[EP_MAX][2];
-  TU_ATTR_ALIGNED(4) uint8_t buffer[EP_MAX][2][64];
 #ifdef CH32_USBFS_EP4_SHARES_EP0
-  // CH58X: EP0 and EP4 share one DMA region (EP4 has no DMA register). Layout:
-  // EP0 [0:63] (half-duplex, OUT+IN) + EP4 OUT [64:127] + EP4 IN [128:191]. buffer[0]/buffer[4]
-  // are left unused for this part.
+  // CH58X buffers laid out by hand so EP0/EP4 don't burn two unused buffer[] slots. EP0 and EP4
+  // share one contiguous 192-byte DMA region (EP4 has no DMA register of its own):
+  // EP0 [0:63] (half-duplex OUT+IN) + EP4 OUT [64:127] + EP4 IN [128:191]. Every other endpoint
+  // (incl. EP3, which is bulk-only here — CH58X has no isochronous support) gets a plain 128-byte
+  // OUT+IN buffer, so no oversized EP3 buffer is needed.
   TU_ATTR_ALIGNED(4) uint8_t ep0_ep4_buffer[3 * 64];
-#endif
+  TU_ATTR_ALIGNED(4) uint8_t ep1_buffer[2][64];
+  TU_ATTR_ALIGNED(4) uint8_t ep2_buffer[2][64];
+  TU_ATTR_ALIGNED(4) uint8_t ep3_buffer[2][64];
+  TU_ATTR_ALIGNED(4) uint8_t ep5_buffer[2][64];
+  TU_ATTR_ALIGNED(4) uint8_t ep6_buffer[2][64];
+  TU_ATTR_ALIGNED(4) uint8_t ep7_buffer[2][64];
+#else
+  TU_ATTR_ALIGNED(4) uint8_t buffer[EP_MAX][2][64];
+  // EP3 IN gets an enlarged buffer for full-speed isochronous (packets up to 1023 B).
   TU_ATTR_ALIGNED(4) struct {
     // OUT transfers >64 bytes will overwrite queued IN data!
     uint8_t out[64];
     uint8_t in[1023];
     uint8_t pad;
   } ep3_buffer;
+#endif
 } data;
 
 // DMA / copy buffer pointers per endpoint. The WCH USBFS buffer holds OUT (RX) at offset 0 and
 // IN (TX) at +64; EP0 is half-duplex and reuses its OUT chunk for IN; EP3 has an enlarged IN
-// buffer for throughput. On CH58X, EP4 overlays EP0's region (see ep0_ep4_buffer above).
+// buffer for throughput. On CH58X, EP0/EP4 share ep0_ep4_buffer and the regular endpoints use
+// their own named buffer (see the struct above).
+#ifdef CH32_USBFS_EP4_SHARES_EP0
+// OUT base of the regular CH58X endpoints (EP1/2/3/5/6/7; EP0/EP4 share ep0_ep4_buffer).
+static inline uint8_t* ch58x_ep_buffer(uint8_t ep) {
+  switch (ep) {
+    case 1:  return data.ep1_buffer[0];
+    case 2:  return data.ep2_buffer[0];
+    case 3:  return data.ep3_buffer[0];
+    case 5:  return data.ep5_buffer[0];
+    case 6:  return data.ep6_buffer[0];
+    default: return data.ep7_buffer[0]; // ep == 7
+  }
+}
+#endif
+
 static inline uint32_t ep_dma_addr(uint8_t ep) {
 #ifdef CH32_USBFS_EP4_SHARES_EP0
-  if (ep == 0) { return (uint32_t) &data.ep0_ep4_buffer[0]; }
-#endif
+  if (ep == 0 || ep == 4) { return (uint32_t) &data.ep0_ep4_buffer[0]; } // EP4 shares EP0's DMA
+  return (uint32_t) ch58x_ep_buffer(ep);
+#else
   if (ep == 3) { return (uint32_t) &data.ep3_buffer.out[0]; }
   return (uint32_t) &data.buffer[ep][0];
+#endif
 }
+
 static inline uint8_t* ep_out_buf(uint8_t ep) {
 #ifdef CH32_USBFS_EP4_SHARES_EP0
   if (ep == 0) { return &data.ep0_ep4_buffer[0]; }
   if (ep == 4) { return &data.ep0_ep4_buffer[64]; }
-#endif
+  return ch58x_ep_buffer(ep);
+#else
   if (ep == 3) { return data.ep3_buffer.out; }
   return data.buffer[ep][TUSB_DIR_OUT];
+#endif
 }
+
 static inline uint8_t* ep_in_buf(uint8_t ep) {
 #ifdef CH32_USBFS_EP4_SHARES_EP0
   if (ep == 0) { return &data.ep0_ep4_buffer[0]; } // EP0 half-duplex: IN reuses OUT chunk
   if (ep == 4) { return &data.ep0_ep4_buffer[128]; }
-#endif
+  return ch58x_ep_buffer(ep) + 64; // IN at +64 within the endpoint's 128-byte buffer
+#else
   if (ep == 0) { return data.buffer[0][TUSB_DIR_OUT]; } // EP0 half-duplex: IN reuses OUT chunk
   if (ep == 3) { return data.ep3_buffer.in; }
   return data.buffer[ep][TUSB_DIR_IN];
+#endif
 }
+
 // EP4 on CH58X has no DMA register (shares EP0's); skip its EP_DMA() write.
 static inline bool ep_shares_ep0_dma(uint8_t ep) {
 #ifdef CH32_USBFS_EP4_SHARES_EP0
@@ -174,6 +220,12 @@ static void update_in(uint8_t rhport, uint8_t ep, bool force) {
   if (xfer->valid) {
     if (force || xfer->len) {
       size_t len = TU_MIN(xfer->max_size, xfer->len);
+#if CFG_TUSB_MCU == OPT_MCU_CH58X
+      // Every CH58x endpoint buffer is 64 bytes. Isochronous (which would push max_size up to 1023)
+      // is refused in dcd_edpt_iso_alloc(), but some classes (e.g. video) ignore that result, so cap
+      // the copy here to guarantee we never write past the buffer into a neighbouring endpoint's.
+      len = TU_MIN(len, 64u);
+#endif
       memcpy(ep_in_buf(ep), xfer->buffer, len);
       xfer->buffer += len;
       xfer->len -= len;
@@ -204,6 +256,9 @@ static void update_out(uint8_t rhport, uint8_t ep, size_t rx_len) {
   struct usb_xfer *xfer = &data.xfer[ep][TUSB_DIR_OUT];
   if (xfer->valid) {
     size_t len = TU_MIN(xfer->max_size, TU_MIN(xfer->len, rx_len));
+#if CFG_TUSB_MCU == OPT_MCU_CH58X
+    len = TU_MIN(len, 64u); // cap to the 64-byte EP buffer (see update_in)
+#endif
     memcpy(xfer->buffer, ep_out_buf(ep), len);
     xfer->buffer += len;
     xfer->len -= len;
@@ -253,7 +308,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   // enable other endpoints but NAK everything
   USBOTG_FS->UEP4_1_MOD = 0xCC;
   USBOTG_FS->UEP2_3_MOD = 0xCC;
-#ifdef CH32_USBFS_EP_REGS_CUSTOM
+#if CFG_TUSB_MCU == OPT_MCU_CH58X
   // CH58X: a single mode register enables EP5/6/7 RX+TX (different bit layout than CH32).
   USBOTG_FS->UEP567_MOD = RB_UEP5_RX_EN | RB_UEP5_TX_EN | RB_UEP6_RX_EN | RB_UEP6_TX_EN |
                           RB_UEP7_RX_EN | RB_UEP7_TX_EN;
@@ -413,18 +468,29 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
   (void)rhport;
   (void)ep_addr;
   (void)largest_packet_size;
+#if CFG_TUSB_MCU == OPT_MCU_CH58X
+  // No isochronous support on CH58x: its 8-bit T_LEN caps a packet at 255B and the endpoints use
+  // plain 64-byte buffers, so accepting an iso max_size (up to 1023) would let update_in()/
+  // update_out() run off the end of the buffer into neighbouring ones. Refuse it outright.
+  return false;
+#else
   uint8_t ep  = tu_edpt_number(ep_addr);
   uint8_t dir = tu_edpt_dir(ep_addr);
 
   data.isochronous[ep]        = true;
   data.xfer[ep][dir].max_size = largest_packet_size;
   return true;
+#endif
 }
 
 bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
   (void)rhport;
   (void)desc_ep;
+#if CFG_TUSB_MCU == OPT_MCU_CH58X
+  return false; // CH58x has no isochronous support (see dcd_edpt_iso_alloc)
+#else
   return true;
+#endif
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes, bool is_isr) {
