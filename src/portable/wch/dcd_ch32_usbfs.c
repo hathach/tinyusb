@@ -391,7 +391,14 @@ void dcd_int_handler(uint8_t rhport) {
 
     USBOTG_FS->INT_FG = USBFS_INT_FG_BUS_RST;
   } else if (status & USBFS_INT_FG_SUSPEND) {
+#if CFG_TUSB_MCU == OPT_MCU_CH58X
+    // CH58x raises this single interrupt for both suspend and resume; MIS_ST's suspend bit tells
+    // them apart (set while suspended, clear once resumed) so tud_resume_cb() actually fires.
+    dcd_event_t event = {.rhport = rhport,
+                         .event_id = (USBOTG_FS->MIS_ST & USBFS_MIS_ST_SUSPEND) ? DCD_EVENT_SUSPEND : DCD_EVENT_RESUME};
+#else
     dcd_event_t event = {.rhport = rhport, .event_id = DCD_EVENT_SUSPEND};
+#endif
     dcd_event_handler(&event, true);
     USBOTG_FS->INT_FG = USBFS_INT_FG_SUSPEND;
   }

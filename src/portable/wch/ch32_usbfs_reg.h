@@ -233,6 +233,10 @@
 #define USBFS_INT_FG_TOG_OK   (1 << 6)
 #define USBFS_INT_FG_IS_NAK   (1 << 7)
 
+// MIS_ST: the SUSPEND interrupt fires on both suspend and resume; this bit (R8_USB_MIS_ST) is 1
+// while the bus is suspended and 0 once it has resumed, so it tells the two apart.
+#define USBFS_MIS_ST_SUSPEND  (1 << 2)
+
 // INT_ST
 #define USBFS_INT_ST_MASK_UIS_ENDP(x)  (((x) >> 0) & 0x0F)
 #define USBFS_INT_ST_MASK_UIS_TOKEN(x) (((x) >> 4) & 0x03)
