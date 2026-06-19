@@ -449,7 +449,12 @@ void dcd_edpt0_status_complete(uint8_t rhport, const tusb_control_request_t *req
   (void)rhport;
   if (request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_DEVICE &&
       request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD && request->bRequest == TUSB_REQ_SET_ADDRESS) {
+#if CFG_TUSB_MCU == OPT_MCU_CH58X
+    // On CH58x R8_USB_DEV_AD bit 7 is a user general-purpose flag; only bits [6:0] are the address.
+    USBOTG_FS->DEV_ADDR = (uint8_t)((USBOTG_FS->DEV_ADDR & 0x80u) | (request->wValue & 0x7Fu));
+#else
     USBOTG_FS->DEV_ADDR = (uint8_t)request->wValue;
+#endif
   }
 }
 
