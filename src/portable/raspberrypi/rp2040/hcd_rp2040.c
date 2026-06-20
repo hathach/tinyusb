@@ -99,16 +99,6 @@ static hw_endpoint_t *edpt_alloc(void) {
   return NULL;
 }
 
-int hcd_free_ep_count(void) {
-  int count = 0;
-  for (uint i = 1; i < TU_ARRAY_SIZE(ep_pool); i++) {
-    if (ep_pool[i].max_packet_size == 0) {
-      count++;
-    }
-  }
-  return count;
-}
-
 static hw_endpoint_t *edpt_find(uint8_t daddr, uint8_t ep_addr) {
   // EP0 (control) always uses the shared EPX at ep_pool[0]
   if (tu_edpt_number(ep_addr) == 0) {
