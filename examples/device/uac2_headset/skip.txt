@@ -6,3 +6,4 @@ mcu:SAME5X
 mcu:SAMG
 board:stm32l052dap52
 family:espressif
+mcu:CH58X
