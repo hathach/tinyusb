@@ -335,17 +335,15 @@ void dcd_int_handler(uint8_t rhport) {
 
     switch (token) {
       case PID_OUT: {
+        // Drop an OUT packet whose data toggle doesn't match what we expect -- a host retransmit
+        // after a lost ACK, or a host that doesn't alternate DATA0/DATA1. The hardware auto-toggle
+        // does not reject these on its own, so the check is needed on every variant. EP0 keeps its
+        // own toggle via the SETUP/status flow and is exempt.
+        if (ep != 0 && !(int_st & USBFS_INT_ST_TOG_OK)) { break; }
 #ifdef CH32_USBFS_EP_MANUAL_TOG
-        // Manual toggle. EP0 has no hardware auto-toggle (RB_UEP_AUTO_TOG covers only EP1/2/3/5/6/7),
-        // so advance its RX toggle on every OUT and always process it; a control-OUT data stage
-        // longer than the EP0 packet size would otherwise stall on the second packet. For the other
-        // endpoints, drop toggle-mismatched OUT (host retransmit) and flip the expected RX toggle.
-        if (ep == 0) {
-          EP_CTRL(0) ^= USBFS_EPC_R_TOG;
-        } else {
-          if (!(int_st & USBFS_INT_ST_TOG_OK)) { break; }
-          EP_CTRL(ep) ^= USBFS_EPC_R_TOG;
-        }
+        // CH58x has no hardware auto-toggle: advance the expected RX toggle after each accepted packet
+        // (EP0 included -- it also has no auto-toggle and a control-OUT data stage can span packets).
+        EP_CTRL(ep) ^= USBFS_EPC_R_TOG;
 #endif
         update_out(rhport, ep, rx_len);
         break;
