@@ -26,7 +26,7 @@ CFLAGS += \
 	-DINT_SOFT \
 	-Wno-error=strict-prototypes
 
-LDFLAGS_GCC += \
+LDFLAGS += \
 	-nostartfiles \
 	--specs=nosys.specs --specs=nano.specs \
 
