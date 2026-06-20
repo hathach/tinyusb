@@ -496,7 +496,7 @@
         },
         {
             "name": "ch582m_evt",
-            "uid": "0123456789ABCDEF",
+            "uid": "D443627B5450",
             "toolchain": "riscv-gcc",
             "tests": {
                 "device": true,

@@ -28,7 +28,7 @@ CFLAGS += \
 
 LDFLAGS += \
 	-nostartfiles \
-	--specs=nosys.specs --specs=nano.specs \
+	--specs=nosys.specs --specs=nano.specs
 
 LIBS += $(TOP)/$(SDK_SRC_DIR)/StdPeriphDriver/libISP583.a
 
@@ -40,7 +40,7 @@ SRC_C += \
 	$(SDK_SRC_DIR)/StdPeriphDriver/CH58x_sys.c \
 	$(FAMILY_PATH)/debug_uart.c \
 	$(FAMILY_PATH)/ch58x_it.c \
-	$(FAMILY_PATH)/system_ch58x.c \
+	$(FAMILY_PATH)/system_ch58x.c
 
 SRC_S += \
 	$(SDK_SRC_DIR)/Startup/startup_CH583.S

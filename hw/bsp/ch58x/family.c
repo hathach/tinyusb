@@ -163,9 +163,19 @@ uint32_t board_button_read(void) {
 #endif
 }
 
-// Note: CH58x exposes no memory-mapped unique-ID register (unlike ch32v10x/v20x at
-// 0x1FFFF7E8), and the SDK's GET_UNIQUE_ID() is a BootROM stub not present in
-// libISP583.a. So board_get_unique_id() falls back to the fixed default in board.c.
+// CH58x has no memory-mapped unique-ID register (unlike ch32v10x/v20x at 0x1FFFF7E8), but the
+// factory programs a unique 6-byte MAC address into FlashROM (it is a BLE part). GetMACAddress()
+// reads it via the ISP ROM command FLASH_EEPROM_CMD, which is provided by libISP583.a.
+size_t board_get_unique_id(uint8_t id[], size_t max_len) {
+  // FLASH_EEPROM_CMD writes word-granular and requires a 4-byte-aligned buffer (CH58x_flash.c);
+  // size 8 matches the SDK's GET_UNIQUE_ID buffer (6 MAC bytes + 2 it pads), so the read can't
+  // run past the end whether it returns 6 or a full 8.
+  TU_ATTR_ALIGNED(4) uint8_t mac[8];
+  GetMACAddress(mac);
+  size_t len = TU_MIN(max_len, (size_t) 6); // the 6-byte MAC is the unique part
+  memcpy(id, mac, len);
+  return len;
+}
 
 int board_uart_read(uint8_t* buf, int len) {
   (void) buf;

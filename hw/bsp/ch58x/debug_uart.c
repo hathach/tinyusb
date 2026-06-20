@@ -41,8 +41,14 @@ static volatile uint32_t tx_consume;
 void uart_write(char c) {
   uint32_t tx_produce_next = (tx_produce + 1) & UART_RINGBUFFER_MASK_TX;
 
-  // If ring buffer is full, wait
-  while (tx_produce_next == tx_consume) {}
+  // If the ring buffer is full, drain it here as the FIFO frees up: nothing else advances
+  // tx_consume between uart_write() calls, so a plain spin would deadlock on a >buffer-size burst.
+  while (tx_produce_next == tx_consume) {
+    if (R8_UART1_LSR & RB_LSR_TX_FIFO_EMP) {
+      R8_UART1_THR = tx_buf[tx_consume];
+      tx_consume = (tx_consume + 1) & UART_RINGBUFFER_MASK_TX;
+    }
+  }
 
   // If UART TX FIFO is empty and no pending data, send directly
   if ((tx_consume == tx_produce) && (R8_UART1_LSR & RB_LSR_TX_FIFO_EMP)) {
