@@ -71,7 +71,7 @@ static void usb_device_init(void) {
   board_init_after_tusb();
 }
 
-#if CFG_TUSB_OS != OPT_OS_NONE && CFG_TUSB_OS != OPT_OS_PICO
+#if CFG_TUSB_OS_HAS_SCHEDULER
 static void usb_device_task(RTOS_PARAM param) {
   (void) param;
   usb_device_init();

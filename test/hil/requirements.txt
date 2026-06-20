@@ -1,4 +1,9 @@
-fs
-hid
-pyfatfs
+# System packages (install separately):
+#   sudo apt install mtools libmtp9 alsa-utils iperf
+#     mtools     - read_disk_file (device/cdc_msc, device/msc_dual_lun)
+#     libmtp9    - pymtp ctypes load (device/mtp); Debian 13 uses libmtp9t64
+#     alsa-utils - arecord (device/audio_test_freertos)
+#     iperf      - throughput tests (device/net_lwip_*)
+hidapi
 pyserial
+esptool

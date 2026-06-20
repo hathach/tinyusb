@@ -131,7 +131,7 @@ static uint8_t sie_read (uint8_t cmd_code)
 //--------------------------------------------------------------------+
 static inline uint8_t ep_addr2idx(uint8_t ep_addr)
 {
-  return 2*(ep_addr & 0x0F) + ((ep_addr & TUSB_DIR_IN_MASK) ? 1 : 0);
+  return (uint8_t)(2*(ep_addr & 0x0F) + ((ep_addr & TUSB_DIR_IN_MASK) ? 1 : 0));
 }
 
 static void set_ep_size(uint8_t ep_id, uint16_t max_packet_size)
@@ -243,7 +243,7 @@ void dcd_sof_enable(uint8_t rhport, bool en)
 //--------------------------------------------------------------------+
 static inline uint8_t byte2dword(uint8_t bytes)
 {
-  return (bytes + 3) / 4; // length in dwords
+  return (uint8_t)((bytes + 3) / 4); // length in dwords
 }
 
 static void control_ep_write(void const * buffer, uint8_t len)

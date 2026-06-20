@@ -47,8 +47,7 @@
 #define BUTTON_STATE_ACTIVE   0
 
 // UART Enable for STLink VCOM
-#define UART_DEV              USART1
-#define UART_CLK_EN           __HAL_RCC_USART1_CLK_ENABLE
+#define UART_ID               1
 #define UART_GPIO_PORT        GPIOB
 #define UART_GPIO_AF          GPIO_AF7_USART1
 #define UART_TX_PIN           GPIO_PIN_6

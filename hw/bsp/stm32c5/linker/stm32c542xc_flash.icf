@@ -1,0 +1,46 @@
+/**
+******************************************************************************
+* @file    stm32c542xc_flash.icf
+* @brief   Linker File
+******************************************************************************
+* @attention
+*
+* Copyright (c) 2026 STMicroelectronics.
+* All rights reserved.
+*
+* This software is licensed under terms that can be found in the LICENSE file
+* in the root directory of this software component.
+* If no LICENSE file comes with this software, it is provided AS-IS.
+*
+******************************************************************************
+*/
+
+define memory mem with size = 4G;
+define region ROM = mem:[from 0x8000000 size 0x40000];
+define region RAM = mem:[from 0x20000000 size 0x10000];
+
+/* define blocks */
+define block HEAP with alignment = 8, size = 0x200 { };
+define block CSTACK with alignment = 8, size = 0x1000 { };
+
+/* setup initialization strategies */
+initialize by copy {
+  readwrite
+};
+
+do not initialize {
+  section .noinit
+};
+
+place at start of ROM { readonly section .intvec } ;
+
+/* sections placements */
+place in ROM {
+  readonly
+};
+
+place in RAM {
+  readwrite,
+  block HEAP,
+  block CSTACK
+};

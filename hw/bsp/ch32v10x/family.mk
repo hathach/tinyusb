@@ -26,7 +26,7 @@ CFLAGS += \
 # https://github.com/openwch/ch32v20x/pull/12
 CFLAGS += -Wno-error=strict-prototypes
 
-LDFLAGS_GCC += \
+LDFLAGS += \
 	-nostdlib -nostartfiles \
 	--specs=nosys.specs --specs=nano.specs \
 

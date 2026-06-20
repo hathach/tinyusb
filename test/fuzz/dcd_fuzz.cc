@@ -61,14 +61,22 @@ void dcd_int_handler(uint8_t rhport) {
 
   // Choose if we want to generate a signal based on the fuzzed data.
   if (_fuzz_data_provider->ConsumeBool()) {
-    dcd_event_bus_signal(
-        rhport,
-        // Choose a random event based on the fuzz data.
-        (dcd_eventid_t)_fuzz_data_provider->ConsumeIntegralInRange<uint8_t>(
-            DCD_EVENT_INVALID + 1, DCD_EVENT_COUNT - 1),
-        // Identify trigger as either an interrupt or a syncrhonous call
-        // depending on fuzz data.
-        _fuzz_data_provider->ConsumeBool());
+    // Only generate bus signal events that don't carry additional union data.
+    // DCD_EVENT_XFER_COMPLETE, DCD_EVENT_SOF, and DCD_EVENT_BUS_RESET need
+    // properly initialized union fields; USBD_EVENT_FUNC_CALL is internal only.
+    // Valid bus-signal-only events: UNPLUGGED(2), SUSPEND(4), RESUME(5).
+    static const dcd_eventid_t bus_signal_events[] = {
+        DCD_EVENT_UNPLUGGED, DCD_EVENT_SUSPEND, DCD_EVENT_RESUME};
+    uint8_t idx = _fuzz_data_provider->ConsumeIntegralInRange<uint8_t>(0, 2);
+    dcd_event_bus_signal(rhport, bus_signal_events[idx],
+                         _fuzz_data_provider->ConsumeBool());
+  }
+
+  // Optionally generate a BUS_RESET event with a valid speed value.
+  if (_fuzz_data_provider->ConsumeBool()) {
+    tusb_speed_t speed = (tusb_speed_t)_fuzz_data_provider->ConsumeIntegralInRange<uint8_t>(
+        TUSB_SPEED_FULL, TUSB_SPEED_HIGH);
+    dcd_event_bus_reset(rhport, speed, _fuzz_data_provider->ConsumeBool());
   }
 
   if (_fuzz_data_provider->ConsumeBool()) {

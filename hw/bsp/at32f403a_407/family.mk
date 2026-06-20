@@ -5,13 +5,13 @@ include $(TOP)/$(BOARD_PATH)/board.mk
 
 CPU_CORE ?= cortex-m4
 
-CFLAGS_GCC += \
+CFLAGS += \
   -flto
 
 CFLAGS += \
 	-DCFG_TUSB_MCU=OPT_MCU_AT32F403A_407
 
-LDFLAGS_GCC += \
+LDFLAGS += \
 	-flto --specs=nosys.specs -nostdlib -nostartfiles
 
 SRC_C += \
@@ -30,11 +30,9 @@ INC += \
 	$(TOP)/$(AT32_SDK_LIB)/cmsis/cm4/core_support \
 	$(TOP)/$(AT32_SDK_LIB)/cmsis/cm4/device_support
 
-SRC_S_GCC += ${AT32_SDK_LIB}/cmsis/cm4/device_support/startup/gcc/startup_${AT32_FAMILY}.s
-SRC_S_IAR += ${AT32_SDK_LIB}/cmsis/cm4/device_support/startup/iar/startup_${AT32_FAMILY}.s
+SRC_S += ${AT32_SDK_LIB}/cmsis/cm4/device_support/startup/gcc/startup_${AT32_FAMILY}.s
 
-LD_FILE_GCC ?= ${AT32_SDK_LIB}/cmsis/cm4/device_support/startup/gcc/linker/${MCU_LINKER_NAME}_FLASH.ld
-LD_FILE_IAR ?= ${AT32_SDK_LIB}/cmsis/cm4/device_support/startup/iar/linker/${MCU_LINKER_NAME}.icf
+LD_FILE ?= ${AT32_SDK_LIB}/cmsis/cm4/device_support/startup/gcc/linker/${MCU_LINKER_NAME}_FLASH.ld
 
 # For freeRTOS port source
 FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM4F

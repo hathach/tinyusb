@@ -100,12 +100,14 @@ typedef enum {
 } tusb_xfer_type_t;
 
 typedef enum {
-  TUSB_DIR_OUT = 0,
-  TUSB_DIR_IN  = 1,
-
-  TUSB_EPNUM_MASK = 0x0F,
-  TUSB_DIR_IN_MASK = 0x80
+  TUSB_DIR_OUT = 0u,
+  TUSB_DIR_IN  = 1u,
 } tusb_dir_t;
+
+enum {
+  TUSB_EPNUM_MASK  = 0x0F,
+  TUSB_DIR_IN_MASK = 0x80
+};
 
 enum {
   TUSB_EPSIZE_BULK_FS = 64,
@@ -280,6 +282,7 @@ typedef enum {
   XFER_RESULT_FAILED,
   XFER_RESULT_STALLED,
   XFER_RESULT_TIMEOUT,
+  XFER_RESULT_ABORTED,
   XFER_RESULT_INVALID
 } xfer_result_t;
 
@@ -318,6 +321,12 @@ enum {
 enum {
   TUSB_INDEX_INVALID_8 = 0xFF
 };
+
+enum {
+ TU_EP0_OUT = 0x00,
+ TU_EP0_IN = 0x80
+};
+
 
 //--------------------------------------------------------------------+
 //
@@ -409,10 +418,19 @@ typedef struct TU_ATTR_PACKED {
   uint8_t  bEndpointAddress ; // The address of the endpoint
 
   struct TU_ATTR_PACKED {
+#if (TU_BITFIELD_ORDER == TU_BITFIELD_LE)
     uint8_t xfer  : 2;        // Control, ISO, Bulk, Interrupt
     uint8_t sync  : 2;        // None, Asynchronous, Adaptive, Synchronous
     uint8_t usage : 2;        // Data, Feedback, Implicit feedback
     uint8_t       : 2;
+#elif (TU_BITFIELD_ORDER == TU_BITFIELD_BE)
+    uint8_t       : 2;
+    uint8_t usage : 2;
+    uint8_t sync  : 2;
+    uint8_t xfer  : 2;
+#else
+  #error "Please define TU_BITFIELD_ORDER as TU_BITFIELD_LE or TU_BITFIELD_BE"
+#endif
   } bmAttributes;
 
   uint16_t wMaxPacketSize   ; // Bit 10..0 : max packet size, bit 12..11 additional transaction per highspeed micro-frame
@@ -522,9 +540,17 @@ typedef struct TU_ATTR_PACKED {
 typedef struct TU_ATTR_PACKED {
   union {
     struct TU_ATTR_PACKED {
+#if (TU_BITFIELD_ORDER == TU_BITFIELD_LE)
       uint8_t recipient :  5; ///< Recipient type tusb_request_recipient_t.
       uint8_t type      :  2; ///< Request type tusb_request_type_t.
       uint8_t direction :  1; ///< Direction type. tusb_dir_t
+#elif (TU_BITFIELD_ORDER == TU_BITFIELD_BE)
+      uint8_t direction :  1; ///< Direction type. tusb_dir_t
+      uint8_t type      :  2; ///< Request type tusb_request_type_t.
+      uint8_t recipient :  5; ///< Recipient type tusb_request_recipient_t.
+#else
+  #error "Please define TU_BITFIELD_ORDER as TU_BITFIELD_LE or TU_BITFIELD_BE"
+#endif
     } bmRequestType_bit;
 
     uint8_t bmRequestType;

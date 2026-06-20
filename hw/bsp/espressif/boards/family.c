@@ -49,7 +49,7 @@ static led_strip_handle_t led_strip;
 static void max3421_init(void);
 #endif
 
-#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3, OPT_MCU_ESP32H4, OPT_MCU_ESP32P4)
+#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3, OPT_MCU_ESP32H4, OPT_MCU_ESP32P4, OPT_MCU_ESP32S31)
 static bool usb_init(uint8_t rhport, bool is_host);
 #endif
 
@@ -111,10 +111,6 @@ void board_init(void) {
 #endif
 }
 
-#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3, OPT_MCU_ESP32H4)
-
-#endif
-
 //--------------------------------------------------------------------+
 // Board porting API
 //--------------------------------------------------------------------+
@@ -162,8 +158,8 @@ int board_getchar(void) {
   return getchar();
 }
 
-void board_putchar(int c) {
-  putchar(c);
+int board_putchar(int c) {
+  return putchar(c);
 }
 
 void board_init_after_tusb(void) {
@@ -178,7 +174,7 @@ void board_reset_to_bootloader(void) {
 // PHY Init
 //--------------------------------------------------------------------
 
-#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3, OPT_MCU_ESP32H4, OPT_MCU_ESP32P4)
+#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3, OPT_MCU_ESP32H4, OPT_MCU_ESP32P4, OPT_MCU_ESP32S31)
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
 
 #include "esp_private/usb_phy.h"

@@ -12,7 +12,7 @@ CPU_CORE ?= cortex-m0
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=redundant-decls
 
-LDFLAGS_GCC += \
+LDFLAGS += \
   --specs=nosys.specs --specs=nano.specs
 
 # All source paths should be relative to the top level.

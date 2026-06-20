@@ -8,8 +8,11 @@ from multiprocessing import Pool
 # Mandatory Dependencies that is always fetched
 # path, url, commit, family (Alphabet sorted by path)
 deps_mandatory = {
+    'lib/fatfs': ['https://github.com/abbrev/fatfs.git',
+                  '30ca13c62615df0d2e9104ab41256985b96590c1',
+                  'all'],
     'lib/FreeRTOS-Kernel': ['https://github.com/FreeRTOS/FreeRTOS-Kernel.git',
-                            'cc0e0707c0c748713485b870bb980852b210877f',
+                            '9b777ae5c5b8e9e456065a00294d1e5f5f9facf5',
                             'all'],
     'lib/lwip': ['https://github.com/lwip-tcpip/lwip.git',
                  '159e31b689577dbf69cf0683bbaffbd71fa5ee10',
@@ -79,6 +82,9 @@ deps_optional = {
     'hw/mcu/nxp/mcux-devices-rt': ['https://github.com/nxp-mcuxpresso/mcux-devices-rt',
                             'dba2b523c9df61f3330bd186242f8210a8e47c45',
                             'imxrt'],
+    'hw/mcu/raspberry_pi/FreeRTOS-Kernel': ['https://github.com/raspberrypi/FreeRTOS-Kernel.git',
+                                           '4f7299d6ea746b27a9dd19e87af568e34bd65b15',
+                                           'rp2040'],
     'hw/mcu/raspberry_pi/Pico-PIO-USB': ['https://github.com/sekigon-gonnoc/Pico-PIO-USB.git',
                                          '675543bcc9baa8170f868ab7ba316d418dbcf41f',
                                          'rp2040'],
@@ -157,6 +163,9 @@ deps_optional = {
     'hw/mcu/st/cmsis-device-wba': ['https://github.com/STMicroelectronics/cmsis-device-wba.git',
                                    '647d8522e5fd15049e9a1cc30ed19d85e5911eaf',
                                    'stm32wba'],
+    'hw/mcu/st/stm32c5xx-dfp': ['https://github.com/STMicroelectronics/stm32c5xx-dfp.git',
+                                  '6d0940882511d9430f83af9bd3da6bcb77f79239',
+                                  'stm32c5'],
     'hw/mcu/st/stm32-mfxstm32l152': ['https://github.com/STMicroelectronics/stm32-mfxstm32l152.git',
                                      '7f4389efee9c6a655b55e5df3fceef5586b35f9b',
                                      'stm32h7'],
@@ -226,6 +235,9 @@ deps_optional = {
     'hw/mcu/st/stm32wbaxx_hal_driver': ['https://github.com/STMicroelectronics/stm32wbaxx_hal_driver.git',
                                        '9442fbb71f855ff2e64fbf662b7726beba511a24',
                                        'stm32wba'],
+    'hw/mcu/st/stm32c5xx-drivers': ['https://github.com/STMicroelectronics/stm32c5xx-drivers.git',
+                                       '79b901285a7efeaf87c4c25db81d24cb5d8c9465',
+                                       'stm32c5'],
     'hw/mcu/ti': ['https://github.com/hathach/ti_driver.git',
                   '083944907e7d08fcb1f614b47598ce45935b8da1',
                   'msp430 msp432e4 tm4c'],
@@ -278,10 +290,15 @@ deps_optional = {
                     'tm4c '],
     'lib/CMSIS_6': ['https://github.com/ARM-software/CMSIS_6.git',
                     '6f0a58d01aa9bd2feba212097f9afe7acd991d52',
-                    'imxrt kinetis_k32l ra stm32n6 lpc51 lpc55 mcx'],
+                    'imxrt kinetis_k32l ra stm32n6 lpc51 lpc55 mcx stm32c5'],
     'lib/sct_neopixel': ['https://github.com/gsteiert/sct_neopixel.git',
                          'e73e04ca63495672d955f9268e003cffe168fcd8',
                          'lpc55'],
+}
+
+# Files to remove after cloning to avoid conflicts with TinyUSB's custom versions
+deps_remove_files = {
+    'lib/fatfs': ['source/ffconf.h'],
 }
 
 # combined 2 deps
@@ -329,6 +346,13 @@ def get_a_dep(d):
         run_cmd(f"{git_cmd} fetch --depth 1 origin {commit}")
         run_cmd(f"{git_cmd} checkout FETCH_HEAD")
 
+    # Remove files that conflict with TinyUSB's custom versions
+    if d in deps_remove_files:
+        for f in deps_remove_files[d]:
+            fp = p / f
+            if fp.exists():
+                fp.unlink()
+
     return 0
 
 
@@ -348,6 +372,8 @@ def main():
     parser.add_argument('-b', '--board', action='append', default=[], help='Boards to fetch')
     parser.add_argument('-D', '--define', action='append', default=[], help='Have no effect')
     parser.add_argument('-f1', '--build-flags-on', action='append', default=[], help='Have no effect')
+    parser.add_argument('--build-name', default=None, help='Have no effect')
+    parser.add_argument('--cflag', action='append', default=[], help='Have no effect')
     args = parser.parse_args()
 
     families = args.families

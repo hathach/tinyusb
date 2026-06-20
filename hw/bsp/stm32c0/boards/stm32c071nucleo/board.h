@@ -27,7 +27,7 @@
 
 /* metadata:
    name: STM32C071 Nucleo
-   url: https://www.st.com/en/evaluation-tools/nucleo-g071rb.html
+   url: https://www.st.com/en/evaluation-tools/nucleo-c071rb.html
 */
 
 #ifndef BOARD_H_
@@ -54,8 +54,7 @@
 #define BUTTON_STATE_ACTIVE   0
 
 // Enable UART serial communication with the ST-Link
-#define UART_DEV              USART2
-#define UART_CLK_EN           __HAL_RCC_USART2_CLK_ENABLE
+#define UART_ID               2
 #define UART_GPIO_PORT        GPIOA
 #define UART_GPIO_AF          GPIO_AF1_USART2
 #define UART_TX_PIN           GPIO_PIN_2

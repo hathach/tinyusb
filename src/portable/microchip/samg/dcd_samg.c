@@ -352,8 +352,8 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
   csr_clear(epnum, UDP_CSR_FORCESTALL_Msk);
 
   // must also reset EP to clear data toggle
-  UDP->UDP_RST_EP |= (1 << epnum);
-  UDP->UDP_RST_EP &= ~(1 << epnum);
+  UDP->UDP_RST_EP |= (1u << epnum);
+  UDP->UDP_RST_EP &= ~(1u << epnum);
 }
 
 //--------------------------------------------------------------------+

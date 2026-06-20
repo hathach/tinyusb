@@ -67,12 +67,21 @@ uint8_t const *tud_descriptor_device_cb(void) {
 //--------------------------------------------------------------------+
 
 // Endpoint numbers
-#if defined(TUD_ENDPOINT_ONE_DIRECTION_ONLY)
-  #define EPNUM_CDC_NOTIF   0x81
-  #define EPNUM_CDC_OUT     0x02
-  #define EPNUM_CDC_IN      0x83
-  #define EPNUM_PRINTER_OUT 0x04
-  #define EPNUM_PRINTER_IN  0x85
+#if CFG_TUD_ENDPOINT_ONE_DIRECTION_ONLY
+  #if TU_CHECK_MCU(OPT_MCU_MAX32650, OPT_MCU_MAX32666, OPT_MCU_MAX32690, OPT_MCU_MAX78002)
+    // Put bulk on EP>=8 so the 2048/4096-byte FIFOs can back double packet buffering
+    #define EPNUM_CDC_NOTIF   0x81
+    #define EPNUM_CDC_OUT     0x08
+    #define EPNUM_CDC_IN      0x89
+    #define EPNUM_PRINTER_OUT 0x0A
+    #define EPNUM_PRINTER_IN  0x8B
+  #else
+    #define EPNUM_CDC_NOTIF   0x81
+    #define EPNUM_CDC_OUT     0x02
+    #define EPNUM_CDC_IN      0x83
+    #define EPNUM_PRINTER_OUT 0x04
+    #define EPNUM_PRINTER_IN  0x85
+  #endif
 #else
   #define EPNUM_CDC_NOTIF   0x81
   #define EPNUM_CDC_OUT     0x02

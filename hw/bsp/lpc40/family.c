@@ -139,14 +139,14 @@ int board_uart_read(uint8_t *buf, int len) {
   //return UART_ReceiveByte(BOARD_UART_PORT);
   (void) buf;
   (void) len;
-  return 0;
+  return -1;
 }
 
 int board_uart_write(void const *buf, int len) {
   //UART_Send(BOARD_UART_PORT, &c, 1, BLOCKING);
   (void) buf;
   (void) len;
-  return 0;
+  return -1;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE

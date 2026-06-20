@@ -384,9 +384,9 @@ def render_combine_table(json_data, sort_order='name+'):
 def write_combine_markdown(json_data, path, sort_order='name+', title="TinyUSB Average Code Size Metrics"):
     """Write averaged size data to a markdown file."""
 
-    md_lines = [f"# {title}", ""]
+    md_lines = [f"## {title}", "", "<details><summary>Size table</summary>", ""]
     md_lines.extend(render_combine_table(json_data, sort_order))
-    md_lines.append("")
+    md_lines.extend(["", "</details>", ""])
 
     if json_data.get("file_list"):
         md_lines.extend(["<details>", "<summary>Input files</summary>", ""])
@@ -400,7 +400,7 @@ def write_combine_markdown(json_data, path, sort_order='name+', title="TinyUSB A
 def write_compare_markdown(comparison, path, sort_order='size'):
     """Write comparison data to markdown file."""
     md_lines = [
-        "# Size Difference Report",
+        "## Size Difference Report",
         "",
         "Because TinyUSB code size varies by port and configuration, the metrics below represent the averaged totals across all example builds.",
         "",
@@ -415,7 +415,7 @@ def write_compare_markdown(comparison, path, sort_order='size'):
             md_lines.append(f"<details><summary>{title}</summary>")
             md_lines.append("")
         else:
-            md_lines.append(f"## {title}")
+            md_lines.append(f"### {title}")
 
         md_lines.extend(render_compare_table(_build_rows(rows, sort_order), include_sum=True))
         md_lines.append("")
@@ -425,7 +425,7 @@ def write_compare_markdown(comparison, path, sort_order='size'):
             md_lines.append("")
 
     render("Changes >1% in size", significant)
-    render("Changes <1% in size", minor)
+    render("Changes <1% in size", minor, collapsed=True)
     render("No changes", unchanged, collapsed=True)
 
     with open(path, "w", encoding="utf-8") as f:

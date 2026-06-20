@@ -34,6 +34,22 @@ extern "C" {
 // osal_time_millis() is not provided, tusb_time_millis_api() must be implemented by user application
 
 //--------------------------------------------------------------------+
+// TASK API
+//--------------------------------------------------------------------+
+// Bare-metal single context: return a non-NULL sentinel so equality compares true.
+typedef void* osal_task_handle_t;
+
+TU_ATTR_ALWAYS_INLINE static inline osal_task_handle_t osal_task_get_current_handle(void) {
+  return (osal_task_handle_t) 1;
+}
+
+// Bare-metal has no scheduler to yield to; this is dead code in practice because
+// callers gate it on running outside the host task, which can't happen here.
+TU_ATTR_ALWAYS_INLINE static inline void osal_task_delay(uint32_t msec) {
+  (void) msec;
+}
+
+//--------------------------------------------------------------------+
 // Spinlock API
 //--------------------------------------------------------------------+
 // Note: This implementation is designed for bare-metal single-core systems without RTOS.

@@ -11,9 +11,9 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_LPC40XX
 
 # mcu driver cause following warnings
-CFLAGS_GCC += -Wno-error=strict-prototypes -Wno-error=unused-parameter -Wno-error=cast-qual
+CFLAGS += -Wno-error=strict-prototypes -Wno-error=unused-parameter -Wno-error=cast-qual
 
-LDFLAGS_GCC += --specs=nosys.specs --specs=nano.specs
+LDFLAGS += --specs=nosys.specs --specs=nano.specs
 
 # All source paths should be relative to the top level.
 SRC_C += \

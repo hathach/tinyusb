@@ -38,6 +38,8 @@ Get the Code
 
    * **rp2040**: Requires `pico-sdk <https://github.com/raspberrypi/pico-sdk>`_
    * **Espressif (esp32)**: Requires `esp-idf <https://github.com/espressif/esp-idf>`_. Only a few examples support the ESP-IDF build system. Look for ones with `src/CMakeLists.txt` that contain `idf_component_register()`, such as `cdc_msc_freertos`.
+.. note::
+   For MacOS native build with arm-none-eabi-gcc toolchain it's better to install it via brew install --cask gcc-arm-embedded
 
 Simple Device Example
 ---------------------

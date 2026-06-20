@@ -38,6 +38,12 @@ extern "C" {
 //--------------------------------------------------------------------+
 // TASK API
 //--------------------------------------------------------------------+
+typedef rt_thread_t osal_task_handle_t;
+
+TU_ATTR_ALWAYS_INLINE static inline osal_task_handle_t osal_task_get_current_handle(void) {
+  return rt_thread_self();
+}
+
 TU_ATTR_ALWAYS_INLINE static inline void osal_task_delay(uint32_t msec) {
   rt_thread_mdelay(msec);
 }

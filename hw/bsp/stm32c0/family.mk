@@ -13,13 +13,13 @@ CFLAGS += \
   -DCFG_EXAMPLE_VIDEO_READONLY \
 
 # GCC Flags
-CFLAGS_GCC += \
+CFLAGS += \
   -flto \
 
 # suppress warning caused by vendor mcu driver
-CFLAGS_GCC += -Wno-error=cast-align -Wno-error=unused-parameter
+CFLAGS += -Wno-error=cast-align -Wno-error=unused-parameter
 
-LDFLAGS_GCC += \
+LDFLAGS += \
   -nostdlib -nostartfiles \
   --specs=nosys.specs --specs=nano.specs
 

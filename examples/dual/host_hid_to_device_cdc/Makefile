@@ -8,7 +8,7 @@ INC += \
 EXAMPLE_SOURCE += $(wildcard src/*.c)
 SRC_C += $(addprefix $(EXAMPLE_PATH)/, $(EXAMPLE_SOURCE))
 
-CFLAGS_GCC += -Wno-error=cast-align -Wno-error=null-dereference
+CFLAGS += -Wno-error=cast-align -Wno-error=null-dereference
 
 SRC_C += \
 	src/class/hid/hid_host.c \

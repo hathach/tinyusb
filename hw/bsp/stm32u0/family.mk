@@ -11,7 +11,7 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_STM32U0
 
 # mcu driver cause following warnings
-CFLAGS_GCC += \
+CFLAGS += \
   -flto \
 	-Wno-error=unused-parameter \
 	-Wno-error=redundant-decls \
@@ -21,7 +21,7 @@ CFLAGS_GCC += \
 CFLAGS_CLANG += \
   -Wno-error=parentheses-equality
 
-LDFLAGS_GCC += \
+LDFLAGS += \
   -nostdlib -nostartfiles \
   --specs=nosys.specs --specs=nano.specs
 
@@ -35,7 +35,8 @@ SRC_C += \
   $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_rcc_ex.c \
   $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_gpio.c \
   ${ST_HAL_DRIVER}/Src/stm32$(ST_FAMILY)xx_hal_pwr_ex.c \
-  $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_uart.c
+  $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_uart.c \
+  $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_uart_ex.c
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
@@ -44,10 +45,8 @@ INC += \
   $(TOP)/$(ST_HAL_DRIVER)/Inc
 
 # Startup
-SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_${MCU_VARIANT}.s
-SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_${MCU_VARIANT}.s
+SRC_S += $(ST_CMSIS)/Source/Templates/gcc/startup_${MCU_VARIANT}.s
 
 # Linker
 MCU_VARIANT_UPPER = $(subst stm32u,STM32U,$(MCU_VARIANT))
 LD_FILE ?= $(FAMILY_PATH)/linker/$(MCU_VARIANT_UPPER)_FLASH.ld
-LD_FILE_IAR ?= $(ST_CMSIS)/Source/Templates/iar/linker/$(MCU_VARIANT)_flash.icf

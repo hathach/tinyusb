@@ -58,20 +58,6 @@
 
 TU_VERIFY_STATIC(CFG_TUH_FSDEV_ENDPOINT_MAX <= 255, "currently only use 8-bit for index");
 
-#if CFG_TUSB_MCU == OPT_MCU_STM32H5
-  #define CPU_FREQUENCY_MHZ 250U
-#elif CFG_TUSB_MCU == OPT_MCU_STM32U5
-  #define CPU_FREQUENCY_MHZ 160U
-#elif CFG_TUSB_MCU == OPT_MCU_STM32U3
-  #define CPU_FREQUENCY_MHZ 96U
-#elif CFG_TUSB_MCU == OPT_MCU_STM32G0
-  #define CPU_FREQUENCY_MHZ 64U
-#elif CFG_TUSB_MCU == OPT_MCU_STM32C0
-  #define CPU_FREQUENCY_MHZ 48U
-#else
-  #error "CPU_FREQUENCY_MHZ not defined for this STM32 MCU"
-#endif
-
 enum {
   HCD_XFER_ERROR_MAX = 3,
   HCD_XFER_NAK_MAX = 15,
@@ -165,35 +151,9 @@ static inline void channel_write_status(uint8_t ch_id, uint32_t ch_reg, tusb_dir
 }
 
 static inline uint16_t channel_get_rx_count(uint8_t ch_id) {
-  /* https://www.st.com/resource/en/errata_sheet/es0561-stm32h503cbebkbrb-device-errata-stmicroelectronics.pdf
-  * https://www.st.com/resource/en/errata_sheet/es0587-stm32u535xx-and-stm32u545xx-device-errata-stmicroelectronics.pdf
-  * From H503/U535 errata: Buffer description table update completes after CTR interrupt triggers
-  * Description:
-  * - During OUT transfers, the correct transfer interrupt (CTR) is triggered a little before the last USB SRAM accesses
-  * have completed. If the software responds quickly to the interrupt, the full buffer contents may not be correct.
-  * Workaround:
-  * - Software should ensure that a small delay is included before accessing the SRAM contents. This delay
-  * should be 800 ns in Full Speed mode and 6.4 μs in Low Speed mode
-  *
-  * Note: this errata may also apply to G0, U5, H5 etc.
-  *
-  * We choose the delay count based on max CPU frequency (in MHz) to ensure the delay is at least the required time.
-  */
-
   uint32_t ch_reg = ch_read(ch_id);
-  if (FSDEV_REG->ISTR & U_ISTR_LS_DCONN || ch_reg & U_EP_LSEP) {
-    // Low speed mode: 6.4 us delay -> about 2 cycles per MHz
-    volatile uint32_t cycle_count = CPU_FREQUENCY_MHZ * 2U;
-    while (cycle_count > 0U) {
-      cycle_count--; // each count take 3 cycles (1 for sub, jump, and compare)
-    }
-  } else {
-    // Full speed mode: 800 ns delay -> about 0.25 cycles per MHz
-    volatile uint32_t cycle_count = CPU_FREQUENCY_MHZ / 4U;
-    while (cycle_count > 0U) {
-      cycle_count--; // each count take 3 cycles (1 for sub, jump, and compare)
-    }
-  }
+  const bool is_low_speed = (FSDEV_REG->ISTR & U_ISTR_LS_DCONN) || (ch_reg & U_EP_LSEP);
+  fsdev_btable_workaround_delay(is_low_speed);
 
   return btable_get_count(ch_id, BTABLE_BUF_RX);
 }
@@ -237,11 +197,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   // If DCON_STAT is already set, the controller sometimes misses the initial connection interrupt
   if (FSDEV_REG->ISTR & U_ISTR_DCON_STAT) {
-    // Wait DP/DM stabilize time
-    volatile uint32_t cycle_count = CPU_FREQUENCY_MHZ / 4U;
-    while (cycle_count > 0U) {
-      cycle_count--;
-    }
+    tusb_time_delay_ms_api(2);
     port_status_handler(rhport, false);
   }
 

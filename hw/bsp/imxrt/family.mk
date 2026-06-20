@@ -41,7 +41,7 @@ endif
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter -Wno-error=implicit-fallthrough -Wno-error=redundant-decls
 
-LDFLAGS_GCC += \
+LDFLAGS += \
   -nostartfiles \
   --specs=nosys.specs --specs=nano.specs
 

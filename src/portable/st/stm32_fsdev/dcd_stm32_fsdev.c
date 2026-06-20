@@ -41,6 +41,7 @@
  * F302xB/C, F303xB/C, F373        512 byte buffer; no internal D+ pull-up
  * F302x6/8, F302xD/E2, F303xD/E  1024 byte buffer; no internal D+ pull-up
  * C0                             2048 byte buffer; 32-bit bus; host mode
+ * C5                             2048 byte buffer; 32-bit bus; host mode
  * G0                             2048 byte buffer; 32-bit bus; host mode
  * G4                             1024 byte buffer
  * H5                             2048 byte buffer; 32-bit bus; host mode
@@ -259,7 +260,7 @@ static void handle_ctr_tx(uint32_t ep_id) {
   }
 
   if (xfer->total_len != xfer->queued_len) {
-    dcd_transmit_packet(xfer, ep_id);
+    dcd_transmit_packet(xfer, (uint16_t)ep_id);
   } else {
     dcd_event_xfer_complete(0, ep_num | TUSB_DIR_IN_MASK, xfer->queued_len, XFER_RESULT_SUCCESS, true);
   }
@@ -267,7 +268,7 @@ static void handle_ctr_tx(uint32_t ep_id) {
 
 static void handle_ctr_setup(uint32_t ep_id) {
   uint16_t rx_count = btable_get_count(ep_id, BTABLE_BUF_RX);
-  uint16_t rx_addr  = btable_get_addr(ep_id, BTABLE_BUF_RX);
+  uint16_t rx_addr  = (uint16_t)btable_get_addr(ep_id, BTABLE_BUF_RX);
   uint8_t  setup_packet[8] TU_ATTR_ALIGNED(4);
 
   tu_hwfifo_read(PMA_BUF_AT(rx_addr), setup_packet, rx_count, NULL);
@@ -342,7 +343,7 @@ void dcd_int_handler(uint8_t rhport) {
   uint32_t int_status = FSDEV_REG->ISTR;
 
   /* Put SOF flag at the beginning of ISR in case to get least amount of jitter if it is used for timing purposes */
-  if (int_status & U_ISTR_SOF) {
+  if ((int_status & U_ISTR_SOF) && (FSDEV_REG->CNTR & U_CNTR_SOFM)) {
     FSDEV_REG->ISTR = (fsdev_bus_t)~U_ISTR_SOF;
     dcd_event_sof(0, FSDEV_REG->FNR & U_FNR_FN, true);
   }
@@ -393,26 +394,8 @@ void dcd_int_handler(uint8_t rhport) {
     const uint32_t ep_reg = ep_read(ep_id);
 
     if (ep_reg & U_EP_CTR_RX) {
-  #ifdef  CFG_TUSB_FSDEV_32BIT
-      /* https://www.st.com/resource/en/errata_sheet/es0561-stm32h503cbebkbrb-device-errata-stmicroelectronics.pdf
-       * https://www.st.com/resource/en/errata_sheet/es0587-stm32u535xx-and-stm32u545xx-device-errata-stmicroelectronics.pdf
-       * From H503/U535 errata: Buffer description table update completes after CTR interrupt triggers
-       * Description:
-       * - During OUT transfers, the correct transfer interrupt (CTR) is triggered a little before the last USB SRAM
-       * accesses have completed. If the software responds quickly to the interrupt, the full buffer contents may not be
-       * correct. Workaround:
-       * - Software should ensure that a small delay is included before accessing the SRAM contents. This delay
-       * should be 800 ns in Full Speed mode and 6.4 μs in Low Speed mode
-       * - Since H5 can run up to 250Mhz -> 1 cycle = 4ns. Per errata, we need to wait 200 cycles. Though executing code
-       * also takes time, so we'll wait 60 cycles (count = 20).
-       * - Since Low Speed mode is not supported/popular, we will ignore it for now.
-       *
-       * Note: this errata may also apply to G0, U5, H5 etc.
-       */
-      volatile uint32_t cycle_count = 20; // defined as PCD_RX_PMA_CNT in stm32 hal_driver
-      while (cycle_count > 0U) {
-        cycle_count--;                    // each count take 3 cycles (1 for sub, jump, and compare)
-      }
+  #if defined(TUP_USBIP_FSDEV_STM32) && defined(CFG_TUSB_FSDEV_32BIT)
+      fsdev_btable_workaround_delay(false);
   #endif
 
       if (ep_reg & U_EP_SETUP) {
@@ -531,8 +514,8 @@ void edpt0_open(uint8_t rhport) {
   xfer_status[0][1].max_packet_size = CFG_TUD_ENDPOINT0_SIZE;
   xfer_status[0][1].ep_idx          = 0;
 
-  uint16_t pma_addr0 = dcd_pma_alloc(CFG_TUD_ENDPOINT0_SIZE, false);
-  uint16_t pma_addr1 = dcd_pma_alloc(CFG_TUD_ENDPOINT0_SIZE, false);
+  uint16_t pma_addr0 = (uint16_t)dcd_pma_alloc(CFG_TUD_ENDPOINT0_SIZE, false);
+  uint16_t pma_addr1 = (uint16_t)dcd_pma_alloc(CFG_TUD_ENDPOINT0_SIZE, false);
 
   btable_set_addr(0, BTABLE_BUF_RX, pma_addr0);
   btable_set_addr(0, BTABLE_BUF_TX, pma_addr1);
@@ -574,7 +557,7 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
   }
 
   /* Create a packet memory buffer area. */
-  uint16_t pma_addr = dcd_pma_alloc(packet_size, false);
+  uint16_t pma_addr = (uint16_t)dcd_pma_alloc(packet_size, false);
   btable_set_addr(ep_idx, dir == TUSB_DIR_IN ? BTABLE_BUF_TX : BTABLE_BUF_RX, pma_addr);
 
   xfer_ctl_t *xfer      = xfer_ctl_ptr(ep_num, dir);
@@ -624,17 +607,17 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
 
   #if CFG_TUD_FSDEV_DOUBLE_BUFFERED_ISO_EP != 0
   uint32_t pma_addr  = dcd_pma_alloc(largest_packet_size, true);
-  uint16_t pma_addr2 = pma_addr >> 16;
+  uint16_t pma_addr2 = (uint16_t)(pma_addr >> 16);
   #else
   uint32_t pma_addr  = dcd_pma_alloc(largest_packet_size, false);
-  uint16_t pma_addr2 = pma_addr;
+  uint16_t pma_addr2 = (uint16_t)pma_addr;
   #endif
 
   #if FSDEV_USE_SBUF_ISO == 0
-  btable_set_addr(ep_idx, 0, pma_addr);
+  btable_set_addr(ep_idx, 0, (uint16_t)pma_addr);
   btable_set_addr(ep_idx, 1, pma_addr2);
   #else
-  btable_set_addr(ep_idx, dir == TUSB_DIR_IN ? BTABLE_BUF_TX : BTABLE_BUF_RX, pma_addr);
+  btable_set_addr(ep_idx, dir == TUSB_DIR_IN ? BTABLE_BUF_TX : BTABLE_BUF_RX, (uint16_t)pma_addr);
   (void)pma_addr2;
   #endif
 

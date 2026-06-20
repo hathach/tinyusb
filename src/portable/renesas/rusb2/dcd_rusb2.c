@@ -93,7 +93,9 @@ static unsigned find_pipe(unsigned xfer_type) {
   const uint8_t idx_last  = pipe_idx_arr[xfer_type][1];
 
   for (int i = idx_last; i >= idx_first; i--) {
-    if (0 == _dcd.pipe[i].ep) return i;
+    if (0 == _dcd.pipe[i].ep) {
+      return (unsigned)i;
+    }
   }
 
   return 0;
@@ -117,10 +119,10 @@ static volatile reg_pipetre_t* get_pipetre(rusb2_reg_t *rusb, unsigned num) {
 
 static volatile uint16_t* ep_addr_to_pipectr(uint8_t rhport, unsigned ep_addr) {
   rusb2_reg_t *rusb = RUSB2_REG(rhport);
-  const unsigned epn = tu_edpt_number(ep_addr);
+  const unsigned epn = tu_edpt_number((uint8_t)ep_addr);
 
   if (epn) {
-    const unsigned dir = tu_edpt_dir(ep_addr);
+    const unsigned dir = tu_edpt_dir((uint8_t)ep_addr);
     const unsigned num = _dcd.ep[dir][epn];
     return get_pipectr(rusb, num);
   } else {
@@ -129,11 +131,11 @@ static volatile uint16_t* ep_addr_to_pipectr(uint8_t rhport, unsigned ep_addr) {
 }
 
 static uint16_t edpt0_max_packet_size(rusb2_reg_t* rusb) {
-  return rusb->DCPMAXP_b.MXPS;
+  return (uint16_t)rusb->DCPMAXP_b.MXPS;
 }
 
 static uint16_t edpt_max_packet_size(rusb2_reg_t *rusb, unsigned num) {
-  rusb->PIPESEL = num;
+  rusb->PIPESEL = (uint16_t)num;
   return rusb->PIPEMAXP;
 }
 
@@ -285,7 +287,7 @@ static bool pipe_xfer_out(rusb2_reg_t* rusb, unsigned num)
   const uint16_t mps = edpt_max_packet_size(rusb, num);
   pipe_wait_for_ready(rusb, num);
 
-  const uint16_t vld  = rusb->D0FIFOCTR_b.DTLN;
+  const uint16_t vld  = (uint16_t)rusb->D0FIFOCTR_b.DTLN;
   const uint16_t len  = tu_min16(tu_min16(rem, mps), vld);
   void          *buf  = pipe->buf;
 
@@ -498,7 +500,7 @@ static void process_bus_reset(uint8_t rhport)
   volatile uint16_t *ctr = (volatile uint16_t*)((uintptr_t) (&rusb->PIPE_CTR[0]));
   volatile uint16_t *tre = (volatile uint16_t*)((uintptr_t) (&rusb->PIPE_TR[0].E));
 
-  for (int i = 1; i <= 5; ++i) {
+  for (uint16_t i = 1; i <= 5; ++i) {
     rusb->PIPESEL = i;
     rusb->PIPECFG = 0;
     *ctr = RUSB2_PIPE_CTR_ACLRM_Msk;
@@ -508,7 +510,7 @@ static void process_bus_reset(uint8_t rhport)
     tre += 2;
   }
 
-  for (int i = 6; i <= 9; ++i) {
+  for (uint16_t i = 6; i <= 9; ++i) {
     rusb->PIPESEL = i;
     rusb->PIPECFG = 0;
     *ctr = RUSB2_PIPE_CTR_ACLRM_Msk;
@@ -542,7 +544,7 @@ static void process_bus_reset(uint8_t rhport)
 static void process_set_address(uint8_t rhport)
 {
   rusb2_reg_t* rusb = RUSB2_REG(rhport);
-  const uint16_t addr = rusb->USBADDR_b.USBADDR;
+  const uint16_t addr = (uint16_t)rusb->USBADDR_b.USBADDR;
   if (!addr) {
     return;
   }
@@ -706,7 +708,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   (void)rhport;
 
   rusb2_reg_t * rusb = RUSB2_REG(rhport);
-  const unsigned ep_addr = ep_desc->bEndpointAddress;
+  const uint8_t  ep_addr = ep_desc->bEndpointAddress;
   const unsigned epn     = tu_edpt_number(ep_addr);
   const unsigned dir     = tu_edpt_dir(ep_addr);
   const unsigned xfer    = ep_desc->bmAttributes.xfer;
@@ -770,8 +772,10 @@ void dcd_edpt_close_all(uint8_t rhport)
   dcd_int_disable(rhport);
   while (--i) { /* Close all pipes except 0 */
     const unsigned ep_addr = _dcd.pipe[i].ep;
-    if (!ep_addr) continue;
-    dcd_edpt_close(rhport, ep_addr);
+    if (!ep_addr) {
+      continue;
+    }
+    dcd_edpt_close(rhport, (uint8_t)ep_addr);
   }
   dcd_int_enable(rhport);
 }
@@ -783,10 +787,10 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
   const unsigned dir = tu_edpt_dir(ep_addr);
   const unsigned num = _dcd.ep[dir][epn];
 
-  rusb->BRDYENB &= ~TU_BIT(num);
+  rusb->BRDYENB &= (uint16_t)~TU_BIT(num);
   volatile uint16_t *ctr = get_pipectr(rusb, num);
   *ctr = 0;
-  rusb->PIPESEL = num;
+  rusb->PIPESEL = (uint16_t)num;
   rusb->PIPECFG = 0;
   _dcd.pipe[num].ep = 0;
   _dcd.ep[dir][epn] = 0;
@@ -860,7 +864,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
     *ctr = RUSB2_PIPE_CTR_PID_BUF;
   } else {
     const unsigned num = _dcd.ep[0][tu_edpt_number(ep_addr)];
-    rusb->PIPESEL = num;
+    rusb->PIPESEL = (uint16_t)num;
     if (rusb->PIPECFG_b.TYPE != 1) {
       *ctr = RUSB2_PIPE_CTR_PID_BUF;
     }
