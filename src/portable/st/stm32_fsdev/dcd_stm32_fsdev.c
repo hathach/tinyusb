@@ -159,12 +159,19 @@ TU_ATTR_ALWAYS_INLINE static inline xfer_ctl_t *xfer_ctl_ptr(uint8_t epnum, uint
 }
 
 #if defined(TUP_USBIP_FSDEV_CH32)
-// CH32 FSDEV workaround: gate EP0 handshakes by switching type between CONTROL and BULK.
+// CH32 EP0 workaround: gate handshakes by switching EP0 type CONTROL<->BULK.
+// need_exclusive brackets the read-modify-write so the USB ISR can't race it.
 TU_ATTR_ALWAYS_INLINE static inline void ep0_set_type(uint32_t ep_type, bool need_exclusive) {
+  if (need_exclusive) {
+    fsdev_int_disable(0);
+  }
   uint32_t ep_reg = ep_read(0) | U_EP_CTR_TX | U_EP_CTR_RX;
   ep_reg &= U_EPREG_MASK;
   ep_reg = (ep_reg & ~U_EP_T_FIELD) | ep_type;
-  ep_write(0, ep_reg, need_exclusive);
+  ep_write(0, ep_reg, false);
+  if (need_exclusive) {
+    fsdev_int_enable(0);
+  }
 }
 #endif
 
@@ -284,7 +291,7 @@ static void handle_ctr_tx(uint32_t ep_id) {
 #if defined(TUP_USBIP_FSDEV_CH32)
     // Control read: block unsolicited EP0 OUT ACK.
     if ((ep_num == 0u) && ep0_ctrl_dir_in && ep0_ctrl_has_data) {
-        ep0_set_type(U_EP_BULK, false);
+      ep0_set_type(U_EP_BULK, false);
     }
 #endif
     dcd_event_xfer_complete(0, ep_num | TUSB_DIR_IN_MASK, xfer->queued_len, XFER_RESULT_SUCCESS, true);
@@ -304,9 +311,9 @@ static void handle_ctr_setup(uint32_t ep_id) {
   // Setup packet should always be 8 bytes. If not, we probably missed the packet
   if (rx_count == 8) {
 #if defined(TUP_USBIP_FSDEV_CH32)
-    uint16_t const setup_w_length = (uint16_t) setup_packet[6] | ((uint16_t) setup_packet[7] << 8);
-    ep0_ctrl_dir_in = (setup_packet[0] & TUSB_DIR_IN_MASK) != 0u;
-    ep0_ctrl_has_data = (setup_w_length != 0u);
+    tusb_control_request_t const *request = (tusb_control_request_t const *) (void *) setup_packet;
+    ep0_ctrl_dir_in = (request->bmRequestType_bit.direction == TUSB_DIR_IN);
+    ep0_ctrl_has_data = (request->wLength != 0u);
 
     // For control write, block unsolicited EP0 OUT ACK until transfer is armed in edpt_xfer().
     if (!ep0_ctrl_dir_in && ep0_ctrl_has_data) {
@@ -358,7 +365,6 @@ static void handle_ctr_rx(uint32_t ep_id) {
     tu_hwfifo_read(pma_buf, xfer->buffer + xfer->queued_len, rx_count, NULL);
   }
   xfer->queued_len += rx_count;
-
 
   if ((rx_count < xfer->max_packet_size) || (xfer->queued_len >= xfer->total_len)) {
     // all bytes received or short packet
@@ -748,14 +754,13 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, tusb_dir_t dir) {
 
   xfer_ctl_t   *xfer   = xfer_ctl_ptr(ep_num, dir);
   const uint8_t ep_idx = xfer->ep_idx;
-#if defined(TUP_USBIP_FSDEV_CH32)
-  // Re-enable normal control transfer semantics when EP0 transfer is explicitly armed.
-  if (ep_num == 0u) {
-    ep0_set_type(U_EP_CONTROL, true);
-  }
-#endif
-
   if (dir == TUSB_DIR_IN) {
+#if defined(TUP_USBIP_FSDEV_CH32)
+    // Safe to restore CONTROL before arming IN: no pending OUT for the errata to blind-ACK.
+    if (ep_num == 0u) {
+      ep0_set_type(U_EP_CONTROL, true);
+    }
+#endif
     dcd_transmit_packet(xfer, ep_idx);
   } else {
     uint32_t ep_reg = ep_read(ep_idx) | U_EP_CTR_TX | U_EP_CTR_RX; // reserve CTR
@@ -775,6 +780,13 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, tusb_dir_t dir) {
       btable_set_rx_bufsize(ep_idx, BTABLE_BUF_RX, cnt);
     }
 
+#if defined(TUP_USBIP_FSDEV_CH32)
+    // Restore CONTROL in the same write as STAT_RX=VALID (after bufsize): a separate earlier
+    // write would re-enable the blind OUT ACK while still NAK'd with a stale buffer.
+    if (ep_num == 0u) {
+      ep_reg = (ep_reg & ~U_EP_T_FIELD) | U_EP_CONTROL;
+    }
+#endif
     ep_change_status(&ep_reg, dir, EP_STAT_VALID);
     ep_write(ep_idx, ep_reg, true);
   }
@@ -820,6 +832,14 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   uint32_t ep_reg = ep_read(ep_idx) | U_EP_CTR_TX | U_EP_CTR_RX; // reserve CTR bits
   ep_reg &= U_EPREG_MASK | EP_STAT_MASK(dir);
   ep_change_status(&ep_reg, dir, EP_STAT_STALL);
+
+#if defined(TUP_USBIP_FSDEV_CH32)
+  // Stall ends the transfer without edpt_xfer() (the only other CONTROL restore); else a rejected
+  // control-write leaves EP0 typed BULK and the host's recovery SETUP is ignored until bus reset.
+  if (ep_num == 0u) {
+    ep_reg = (ep_reg & ~U_EP_T_FIELD) | U_EP_CONTROL;
+  }
+#endif
 
   ep_write(ep_idx, ep_reg, true);
 }
