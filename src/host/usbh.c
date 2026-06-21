@@ -557,6 +557,11 @@ bool tuh_deinit(uint8_t rhport) {
     osal_mutex_delete(_usbh_mutex);
     _usbh_mutex = NULL;
     #endif
+
+    // Release the spinlock claimed by osal_spin_init() in tuh_rhport_init().
+    // Pairs with that init; without it each init/deinit cycle leaks a hardware
+    // spinlock and a few host rebuilds exhaust the pool (panic in claim).
+    osal_spin_deinit(&_usbh_spin);
   }
 
   return true;
