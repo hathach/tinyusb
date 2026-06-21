@@ -1,0 +1,112 @@
+name: PR Comment
+
+on:
+  workflow_run:
+    workflows: ["Build"]
+    types:
+      - completed
+
+jobs:
+  metrics-comment:
+    runs-on: ubuntu-latest
+    if: >
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
+    permissions:
+      actions: read
+      pull-requests: write
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v5
+        with:
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: metrics-comment
+
+      - name: Read PR Number
+        id: pr_number
+        run: |
+          if [ -f pr_number.txt ]; then
+            echo "number=$(cat pr_number.txt)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Post Code Metrics as PR Comment
+        if: steps.pr_number.outputs.number != ''
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: code-metrics
+          path: metrics_compare.md
+          number: ${{ steps.pr_number.outputs.number }}
+
+  # ---------------------------------------
+  # Combine the rigs' HIL reports into one sticky PR comment (one table per rig).
+  # Runs here (workflow_run / base-repo context) rather than in build.yml so it also works on
+  # forked PRs, whose build-side GITHUB_TOKEN is read-only and cannot post comments. Posts even
+  # on build/HIL failure (when the report matters most); skips only on cancellation.
+  # The PR number is carried in the metrics-comment artifact (the code-metrics and HIL jobs both
+  # run only on code changes, so it is present); workflow_run.pull_requests is empty for forks.
+  # ---------------------------------------
+  hil-comment:
+    runs-on: ubuntu-latest
+    if: >
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion != 'cancelled'
+    permissions:
+      actions: read
+      pull-requests: write
+    steps:
+      - name: Download HIL reports
+        uses: actions/download-artifact@v5
+        with:
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          pattern: hil-report-*
+          path: hil-reports
+        continue-on-error: true
+
+      - name: Download PR number (carried in the metrics-comment artifact)
+        uses: actions/download-artifact@v5
+        with:
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: metrics-comment
+          path: pr-meta
+        continue-on-error: true
+
+      - name: Read PR Number
+        id: pr_number
+        run: |
+          if [ -f pr-meta/pr_number.txt ]; then
+            echo "number=$(cat pr-meta/pr_number.txt)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Combine rig reports (one table per rig)
+        id: combine
+        run: |
+          shopt -s nullglob
+          dirs=(hil-reports/hil-report-*)
+          if [ ${#dirs[@]} -eq 0 ]; then
+            echo "No HIL reports found"
+            exit 0
+          fi
+          {
+            echo "## Hardware-in-the-loop (HIL) Test Report"
+            echo
+            for d in "${dirs[@]}"; do
+              [ -d "$d" ] || continue
+              echo "### ${d#hil-reports/hil-report-}"
+              echo
+              cat "$d/hil_report.md" 2>/dev/null || echo "_no report produced_"
+              echo
+            done
+          } > hil_combined.md
+          cat hil_combined.md
+          echo "found=true" >> $GITHUB_OUTPUT
+
+      - name: Post HIL report as sticky PR comment
+        if: steps.combine.outputs.found == 'true' && steps.pr_number.outputs.number != ''
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: hil-report
+          path: hil_combined.md
+          number: ${{ steps.pr_number.outputs.number }}
