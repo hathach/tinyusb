@@ -1731,20 +1731,44 @@ bool tud_audio_buffer_and_schedule_control_xfer(uint8_t rhport, tusb_control_req
 static bool audiod_verify_entity_exists(uint8_t itf, uint8_t entityID, uint8_t *func_id) {
   uint8_t i;
   for (i = 0; i < CFG_TUD_AUDIO; i++) {
-    // Look for the correct driver by checking if the unique standard AC interface number fits
-    if (_audiod_fct[i].p_desc && ((tusb_desc_interface_t const *) _audiod_fct[i].p_desc)->bInterfaceNumber == itf) {
-      // Get pointers after class specific AC descriptors and end of AC descriptors - entities are defined in between
-      uint8_t const *p_desc = tu_desc_next(_audiod_fct[i].p_desc);// Points to CS AC descriptor
-      p_desc = tu_desc_next(p_desc);// Get past CS AC descriptor
+    if (_audiod_fct[i].p_desc == NULL) {
+      continue;
+    }
 
-      while (_audiod_fct[i].p_desc_as - p_desc > 0) {
-        // Entity IDs are always at offset 3
-        if (p_desc[3] == entityID) {
-          *func_id = i;
-          return true;
+    // The class-specific request's wIndex (itf) normally carries this function's
+    // standard Audio Control (AC) interface number. However, some hosts (notably
+    // Linux/ALSA) address entity requests using one of the function's Audio
+    // Streaming (AS) interface numbers instead. Accept the request if itf belongs
+    // to this audio function: either the AC interface (original behaviour) or any
+    // interface descriptor within the function's descriptor block.
+    bool itf_in_fct = (((tusb_desc_interface_t const *) _audiod_fct[i].p_desc)->bInterfaceNumber == itf);
+    if (!itf_in_fct) {
+      uint8_t const *p = _audiod_fct[i].p_desc;
+      uint8_t const *p_end = _audiod_fct[i].p_desc + _audiod_fct[i].desc_length;
+      while (p_end - p > 0) {
+        if (tu_desc_type(p) == TUSB_DESC_INTERFACE &&
+            ((tusb_desc_interface_t const *) p)->bInterfaceNumber == itf) {
+          itf_in_fct = true;
+          break;
         }
-        p_desc = tu_desc_next(p_desc);
+        p = tu_desc_next(p);
       }
+    }
+    if (!itf_in_fct) {
+      continue;
+    }
+
+    // Get pointers after class specific AC descriptors and end of AC descriptors - entities are defined in between
+    uint8_t const *p_desc = tu_desc_next(_audiod_fct[i].p_desc);// Points to CS AC descriptor
+    p_desc = tu_desc_next(p_desc);// Get past CS AC descriptor
+
+    while (_audiod_fct[i].p_desc_as - p_desc > 0) {
+      // Entity IDs are always at offset 3
+      if (p_desc[3] == entityID) {
+        *func_id = i;
+        return true;
+      }
+      p_desc = tu_desc_next(p_desc);
     }
   }
   return false;
