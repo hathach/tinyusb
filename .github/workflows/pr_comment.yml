@@ -22,6 +22,8 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           name: metrics-comment
+        # Best-effort: docs-only PRs skip code-metrics, so the artifact may be absent.
+        continue-on-error: true
 
       - name: Read PR Number
         id: pr_number
@@ -43,8 +45,9 @@ jobs:
   # Runs here (workflow_run / base-repo context) rather than in build.yml so it also works on
   # forked PRs, whose build-side GITHUB_TOKEN is read-only and cannot post comments. Posts even
   # on build/HIL failure (when the report matters most); skips only on cancellation.
-  # The PR number is carried in the metrics-comment artifact (the code-metrics and HIL jobs both
-  # run only on code changes, so it is present); workflow_run.pull_requests is empty for forks.
+  # workflow_run.pull_requests is empty for forks, so each hil-report-* artifact carries its own
+  # pr_number.txt (written in build.yml); the comment is self-contained and survives an unrelated
+  # build/metrics failure on both same-repo and forked PRs.
   # ---------------------------------------
   hil-comment:
     runs-on: ubuntu-latest
@@ -64,21 +67,17 @@ jobs:
           path: hil-reports
         continue-on-error: true
 
-      - name: Download PR number (carried in the metrics-comment artifact)
-        uses: actions/download-artifact@v5
-        with:
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          name: metrics-comment
-          path: pr-meta
-        continue-on-error: true
-
       - name: Read PR Number
         id: pr_number
         run: |
-          if [ -f pr-meta/pr_number.txt ]; then
-            echo "number=$(cat pr-meta/pr_number.txt)" >> $GITHUB_OUTPUT
-          fi
+          # Each hil-report-* artifact carries its own pr_number.txt (see build.yml), so any rig's
+          # copy works and they are all the same number.
+          for f in hil-reports/hil-report-*/pr_number.txt; do
+            if [ -f "$f" ]; then
+              echo "number=$(cat "$f")" >> $GITHUB_OUTPUT
+              break
+            fi
+          done
 
       - name: Combine rig reports (one table per rig)
         id: combine
@@ -100,6 +99,10 @@ jobs:
               echo
             done
           } > hil_combined.md
+          # Fork PRs can influence report content and this job posts in base-repo context, so
+          # neutralize @-mentions (insert a zero-width space) to prevent notification abuse.
+          zwsp=$(printf '\342\200\213')
+          sed -i -E "s/@([A-Za-z0-9_-])/@${zwsp}\1/g" hil_combined.md
           cat hil_combined.md
           echo "found=true" >> $GITHUB_OUTPUT
 

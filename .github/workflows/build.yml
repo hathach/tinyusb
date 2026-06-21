@@ -348,12 +348,20 @@ jobs:
             exit 1
           fi)
 
+      - name: Save PR number (carried with the HIL report so the comment job is self-contained)
+        if: always() && github.event_name == 'pull_request'
+        run: |
+          mkdir -p "${{ env.HIL_REPORT_DIR }}"
+          echo ${{ github.event.number }} > "${{ env.HIL_REPORT_DIR }}/pr_number.txt"
+
       - name: Upload HIL report
         if: always() && github.event_name == 'pull_request'
         uses: actions/upload-artifact@v7
         with:
           name: hil-report-${{ matrix.display }}
-          path: ${{ env.HIL_REPORT_DIR }}/hil_report.md
+          path: |
+            ${{ env.HIL_REPORT_DIR }}/hil_report.md
+            ${{ env.HIL_REPORT_DIR }}/pr_number.txt
           if-no-files-found: ignore
           overwrite: true
 
@@ -412,11 +420,17 @@ jobs:
         run: |
           python3 test/hil/hil_test.py hfp.json
 
+      - name: Save PR number (carried with the HIL report so the comment job is self-contained)
+        if: always() && github.event_name == 'pull_request'
+        run: echo ${{ github.event.number }} > pr_number.txt
+
       - name: Upload HIL report
         if: always() && github.event_name == 'pull_request'
         uses: actions/upload-artifact@v7
         with:
           name: hil-report-hfp-iar
-          path: hil_report.md
+          path: |
+            hil_report.md
+            pr_number.txt
           if-no-files-found: ignore
           overwrite: true
