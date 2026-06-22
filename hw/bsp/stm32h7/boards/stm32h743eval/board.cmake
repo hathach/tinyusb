@@ -15,7 +15,7 @@ if (NOT DEFINED RHPORT_HOST)
 endif()
 
 function(update_board TARGET)
-  target_sources(${TARGET} PUBLIC
+  target_sources(${TARGET} PRIVATE
     ${ST_MFXSTM32L152}/mfxstm32l152.c
     ${ST_MFXSTM32L152}/mfxstm32l152_reg.c
     )

@@ -67,7 +67,7 @@ static bool bt_tx_data(uint8_t ep, void *data, uint16_t len) {
   // skip if previous transfer not complete
   TU_VERIFY(!usbd_edpt_busy(rhport, ep));
 
-  TU_ASSERT(usbd_edpt_xfer(rhport, ep, data, len));
+  TU_ASSERT(usbd_edpt_xfer(rhport, ep, data, len, false));
 
   return true;
 }
@@ -169,7 +169,7 @@ uint16_t btd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_
   itf_desc = (tusb_desc_interface_t const *) tu_desc_next(tu_desc_next(desc_ep));
 
   // Prepare for incoming data from host
-  TU_ASSERT(usbd_edpt_xfer(rhport, _btd_itf.ep_acl_out, _btd_epbuf.epout_buf, CFG_TUD_BTH_DATA_EPSIZE), 0);
+  TU_ASSERT(usbd_edpt_xfer(rhport, _btd_itf.ep_acl_out, _btd_epbuf.epout_buf, CFG_TUD_BTH_DATA_EPSIZE, false), 0);
 
   drv_len = hci_itf_size;
 
@@ -272,7 +272,7 @@ bool btd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result,
     tud_bt_acl_data_received_cb(_btd_epbuf.epout_buf, xferred_bytes);
 
     // prepare for next data
-    TU_ASSERT(usbd_edpt_xfer(rhport, _btd_itf.ep_acl_out, _btd_epbuf.epout_buf, CFG_TUD_BTH_DATA_EPSIZE));
+    TU_ASSERT(usbd_edpt_xfer(rhport, _btd_itf.ep_acl_out, _btd_epbuf.epout_buf, CFG_TUD_BTH_DATA_EPSIZE, false));
   } else if (ep_addr == _btd_itf.ep_ev) {
     tud_bt_event_sent_cb((uint16_t) xferred_bytes);
   } else if (ep_addr == _btd_itf.ep_acl_in) {

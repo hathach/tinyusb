@@ -1,0 +1,33 @@
+name: Membrowse Comment
+
+on:
+  workflow_run:
+    workflows: ["Build"]
+    types:
+      - completed
+
+jobs:
+  post-comment:
+    runs-on: ubuntu-latest
+    # Run the comment job even if some of the builds fail
+    if: >
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion != 'cancelled'
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Post Membrowse PR comment
+        if: ${{ env.MEMBROWSE_API_KEY != '' }}
+        uses: membrowse/membrowse-action/comment-action@v1
+        with:
+          api_key: ${{ secrets.MEMBROWSE_API_KEY }}
+          commit: ${{ github.event.workflow_run.head_sha }}
+          comment_template: .github/membrowse_pr_message.j2
+        env:
+          MEMBROWSE_API_KEY: ${{ secrets.MEMBROWSE_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

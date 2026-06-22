@@ -29,6 +29,7 @@
 */
 
 #include "at32f402_405_clock.h"
+#include "at32f402_405_int.h"
 #include "bsp/board_api.h"
 #include "board.h"
 
@@ -40,20 +41,16 @@ void usb_gpio_config(void);
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
-void OTGFS1_IRQHandler(void)
-{
+void OTGFS1_IRQHandler(void) {
   tusb_int_handler(0, true);
 }
-void OTGHS_IRQHandler(void)
-{
+void OTGHS_IRQHandler(void) {
   tusb_int_handler(1, true);
 }
-void OTGFS1_WKUP_IRQHandler(void)
-{
+void OTGFS1_WKUP_IRQHandler(void) {
   tusb_int_handler(0, true);
 }
-void OTGHS_WKUP_IRQHandler(void)
-{
+void OTGHS_WKUP_IRQHandler(void) {
   tusb_int_handler(1, true);
 }
 
@@ -78,16 +75,17 @@ void board_init(void)
   /* vbus ignore */
   board_vbus_sense_init();
 
-  /* configure systick */
-  SysTick_Config(system_core_clock / 1000);
-
-  #if CFG_TUSB_OS == OPT_OS_FREERTOS
+  #if CFG_TUSB_OS == OPT_OS_NONE
+    /* configure systick */
+    SysTick_Config(system_core_clock / 1000);
+    NVIC_SetPriority(OTGHS_IRQn, 0);
+    NVIC_SetPriority(OTGFS1_IRQn, 0);
+  #elif CFG_TUSB_OS == OPT_OS_FREERTOS
+    // Explicitly disable systick to prevent its ISR from running before scheduler start
+    SysTick->CTRL &= ~1U;
     // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
     NVIC_SetPriority(OTGHS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
     NVIC_SetPriority(OTGFS1_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
-  #else
-    NVIC_SetPriority(OTGHS_IRQn, 0);
-    NVIC_SetPriority(OTGFS1_IRQn, 0);
   #endif
 
   /* config led and key */
@@ -207,26 +205,22 @@ int board_uart_read(uint8_t *buf, int len) {
 int board_uart_write(void const *buf, int len)
 {
   #if CFG_TUSB_OS == OPT_OS_NONE
-    int txsize = len;
-    u16 timeout = 0xffff;
-    while (txsize--)
-    {
-      while(usart_flag_get(PRINT_UART, USART_TDBE_FLAG) == RESET)
-      {
-        timeout--;
-        if(timeout == 0)
-        {
-          return 0;
-        }
+    uint8_t const *p = (uint8_t const *) buf;
+    int count = 0;
+    while (count < len) {
+      if (usart_flag_get(PRINT_UART, USART_TDBE_FLAG) != RESET) {
+        PRINT_UART->dt = (*p & 0x01FF);
+        p++;
+        count++;
+      } else {
+        break;
       }
-      PRINT_UART->dt = (*((uint8_t const *)buf) & 0x01FF);
-      buf++;
     }
-    return len;
+    return count;
   #else
     (void) buf;
     (void) len;
-    return 0;
+    return -1;
   #endif
 }
 
@@ -260,7 +254,7 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len)
   {
     system_ticks++;
   }
-  uint32_t board_millis(void)
+  uint32_t tusb_time_millis_api(void)
   {
     return system_ticks;
   }
@@ -278,6 +272,7 @@ void HardFault_Handler(void) {
 
 // Required by __libc_init_array in startup code if we are compiling using
 // -nostdlib/-nostartfiles.
+void _init(void);
 void _init(void) {
 }
 

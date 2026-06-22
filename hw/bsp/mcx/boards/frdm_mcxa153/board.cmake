@@ -1,4 +1,5 @@
 set(MCU_VARIANT MCXA153)
+set(MCU_FAMILY MCXA)
 set(MCU_CORE MCXA153)
 
 set(JLINK_DEVICE MCXA153_M33)
@@ -14,8 +15,11 @@ function(update_board TARGET)
     BOARD_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
     CFG_EXAMPLE_VIDEO_READONLY
     )
-  target_sources(${TARGET} PUBLIC
+  target_sources(${TARGET} PRIVATE
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/clock_config.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/pin_mux.c
+    )
+  target_include_directories(${TARGET} PUBLIC
+    ${SDK_DIR}/${MCU_FAMILY}/periph
     )
 endfunction()

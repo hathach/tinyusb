@@ -30,7 +30,27 @@
 
 #include "stm32f3xx_hal.h"
 #include "bsp/board_api.h"
+#include "common/tusb_fifo.h"
 #include "board.h"
+
+#ifdef UART_ID
+  #if UART_ID == 1
+    #define USARTn            USART1
+    #define USARTn_IRQn       USART1_IRQn
+    #define USARTn_IRQHandler USART1_IRQHandler
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART1_CLK_ENABLE
+  #elif UART_ID == 2
+    #define USARTn            USART2
+    #define USARTn_IRQn       USART2_IRQn
+    #define USARTn_IRQHandler USART2_IRQHandler
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART2_CLK_ENABLE
+  #elif UART_ID == 3
+    #define USARTn            USART3
+    #define USARTn_IRQn       USART3_IRQn
+    #define USARTn_IRQHandler USART3_IRQHandler
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART3_CLK_ENABLE
+  #endif
+#endif
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
@@ -56,9 +76,44 @@ void USB_LP_IRQHandler(void) {
 
 // USB wakeup interrupt (Channel 76): Triggered by the wakeup event from the USB
 // Suspend mode.
-void USBWakeUp_RMP_IRQHandler(void) {
-  tud_int_handler(0);
+// Not enabled by the fsdev driver (see fsdev_stm32.h); restore for STOP-mode wakeup.
+//void USBWakeUp_RMP_IRQHandler(void) {
+//  tud_int_handler(0);
+//}
+
+//--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM
+//--------------------------------------------------------------------+
+#ifdef UART_ID
+static UART_HandleTypeDef UartHandle = {
+  .Instance = USARTn,
+  .Init = {
+    .BaudRate     = CFG_BOARD_UART_BAUDRATE,
+    .WordLength   = UART_WORDLENGTH_8B,
+    .StopBits     = UART_STOPBITS_1,
+    .Parity       = UART_PARITY_NONE,
+    .HwFlowCtl    = UART_HWCONTROL_NONE,
+    .Mode         = UART_MODE_TX_RX,
+    .OverSampling = UART_OVERSAMPLING_16,
+  }
+};
+
+// RX ring buffer via RXNE interrupt
+static uint8_t   uart_rx_ff_buf[32];
+static tu_fifo_t uart_rx_ff;
+
+// F3 uses new USART IP (ISR/RDR/TDR/ICR) — same as F7
+void USARTn_IRQHandler(void) {
+  uint32_t isr = USARTn->ISR;
+  if (isr & USART_ISR_RXNE) {
+    uint8_t byte = (uint8_t) USARTn->RDR;
+    tu_fifo_write(&uart_rx_ff, &byte);
+  }
+  if (isr & (USART_ISR_ORE | USART_ISR_FE | USART_ISR_NE | USART_ISR_PE)) {
+    USARTn->ICR = USART_ICR_ORECF | USART_ICR_FECF | USART_ICR_NCF | USART_ICR_PECF;
+  }
 }
+#endif
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
@@ -68,10 +123,13 @@ void USBWakeUp_RMP_IRQHandler(void) {
 void board_init(void) {
   SystemClock_Config();
 
-  #if CFG_TUSB_OS == OPT_OS_NONE
+#if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
-  #endif
+#elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // Explicitly disable systick to prevent its ISR from running before scheduler start
+  SysTick->CTRL &= ~1U;
+#endif
 
   // Remap the USB interrupts
   __HAL_RCC_SYSCFG_CLK_ENABLE();
@@ -105,6 +163,14 @@ void board_init(void) {
 
   // Enable USB clock
   __HAL_RCC_USB_CLK_ENABLE();
+
+#ifdef UART_ID
+  HAL_UART_Init(&UartHandle);
+  tu_fifo_config(&uart_rx_ff, uart_rx_ff_buf, sizeof(uart_rx_ff_buf), false);
+  USARTn->CR1 |= USART_CR1_RXNEIE;
+  NVIC_SetPriority(USARTn_IRQn, (1 << __NVIC_PRIO_BITS) - 1);
+  NVIC_EnableIRQ(USARTn_IRQn);
+#endif
 }
 
 //--------------------------------------------------------------------+
@@ -134,15 +200,31 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len) {
 }
 
 int board_uart_read(uint8_t* buf, int len) {
-  (void) buf;
-  (void) len;
+#ifdef UART_ID
+  return (int) tu_fifo_read_n(&uart_rx_ff, buf, (uint16_t) len);
+#else
+  (void) buf; (void) len;
   return 0;
+#endif
 }
 
 int board_uart_write(void const* buf, int len) {
-  (void) buf;
-  (void) len;
-  return 0;
+#ifdef UART_ID
+  const uint8_t *p = (const uint8_t *) buf;
+  int count = 0;
+  while (count < len) {
+    if (__HAL_UART_GET_FLAG(&UartHandle, UART_FLAG_TXE)) {
+      UartHandle.Instance->TDR = p[count];
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
+#else
+  (void) buf; (void) len;
+  return -1;
+#endif
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
@@ -153,7 +235,7 @@ void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void) {
+uint32_t tusb_time_millis_api(void) {
   return system_ticks;
 }
 

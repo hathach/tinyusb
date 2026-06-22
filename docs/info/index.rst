@@ -10,3 +10,4 @@ Index
 
    changelog
    contributors
+   code_of_conduct

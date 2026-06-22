@@ -31,13 +31,23 @@
 extern "C" {
 #endif
 
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wredundant-decls"
+#endif
+
 #include "mxc_device.h"
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
 #include "usbhs_regs.h"
 
 #define MUSB_CFG_SHARED_FIFO   1 // shared FIFO for TX and RX endpoints
 #define MUSB_CFG_DYNAMIC_FIFO  0 // dynamic EP FIFO sizing
 
-const uintptr_t MUSB_BASES[] = { MXC_BASE_USBHS };
+static const uintptr_t MUSB_BASES[] = { MXC_BASE_USBHS };
 
 #if CFG_TUD_ENABLED
 #define USBHS_M31_CLOCK_RECOVERY

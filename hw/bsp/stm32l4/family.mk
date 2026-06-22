@@ -13,15 +13,15 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_STM32L4
 
 # GCC Flags
-CFLAGS_GCC += \
+CFLAGS += \
   -flto \
   -Wno-error=cast-align \
 
 ifeq ($(TOOLCHAIN),gcc)
-CFLAGS_GCC += -Wno-error=maybe-uninitialized
+CFLAGS += -Wno-error=maybe-uninitialized
 endif
 
-LDFLAGS_GCC += \
+LDFLAGS += \
   -nostdlib -nostartfiles \
   --specs=nosys.specs --specs=nano.specs
 
@@ -34,6 +34,7 @@ SRC_C += \
 	src/portable/synopsys/dwc2/hcd_dwc2.c \
 	src/portable/synopsys/dwc2/dwc2_common.c \
 	src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
+	src/portable/st/stm32_fsdev/fsdev_common.c \
 	$(ST_CMSIS)/Source/Templates/system_stm32$(ST_FAMILY)xx.c \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal.c \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_cortex.c \

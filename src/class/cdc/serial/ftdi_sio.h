@@ -215,17 +215,4 @@ typedef struct ftdi_private {
 #define FTDI_NOT_POSSIBLE -1
 #define FTDI_REQUESTED    -2
 
-// division and round function overtaken from math.h
-#define DIV_ROUND_CLOSEST(x, divisor)(      \
-{             \
-  typeof(x) __x = x;        \
-  typeof(divisor) __d = divisor;      \
-  (((typeof(x))-1) > 0 ||       \
-   ((typeof(divisor))-1) > 0 ||     \
-   (((__x) > 0) == ((__d) > 0))) ?    \
-    (((__x) + ((__d) / 2)) / (__d)) : \
-    (((__x) - ((__d) / 2)) / (__d));  \
-}             \
-)
-
 #endif //TUSB_FTDI_SIO_H

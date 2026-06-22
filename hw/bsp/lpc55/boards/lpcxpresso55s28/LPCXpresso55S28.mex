@@ -1,0 +1,856 @@
+<?xml version="1.0" encoding= "UTF-8" ?>
+<configuration name="LPCXpresso55S28" xsi:schemaLocation="http://mcuxpresso.nxp.com/XSD/mex_configuration_19 http://mcuxpresso.nxp.com/XSD/mex_configuration_19.xsd" uuid="485a5299-e2fe-41ab-bc43-80d8d2a4ae02" version="19" xmlns="http://mcuxpresso.nxp.com/XSD/mex_configuration_19" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+   <common>
+      <processor>LPC55S28</processor>
+      <package>LPC55S28JBD100</package>
+      <board>LPCXpresso55S28</board>
+      <board_revision>A2</board_revision>
+      <mcu_data>ksdk2_0</mcu_data>
+      <cores selected="cm33_core0">
+         <core name="Cortex-M33 (Core #0)" id="cm33_core0" description=""/>
+      </cores>
+      <description></description>
+   </common>
+   <preferences>
+      <validate_boot_init_only>true</validate_boot_init_only>
+      <generate_code_modified_registers_only>false</generate_code_modified_registers_only>
+      <custom_copyright>
+         <text>/*
+ * Copyright 2026 NXP
+ * All rights reserved.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+</text>
+         <enabled>true</enabled>
+      </custom_copyright>
+      <update_include_paths>true</update_include_paths>
+      <enable_parallel_routing>true</enable_parallel_routing>
+      <generate_registers_defines>false</generate_registers_defines>
+   </preferences>
+   <tools>
+      <pins name="Pins" version="17.0" enabled="true" update_project_code="true">
+         <generated_project_files>
+            <file path="board/pin_mux.c" update_enabled="true"/>
+            <file path="board/pin_mux.h" update_enabled="true"/>
+         </generated_project_files>
+         <pins_profile>
+            <processor_version>25.09.10</processor_version>
+            <external_user_signals>
+               <properties/>
+            </external_user_signals>
+         </pins_profile>
+         <functions_list>
+            <function name="BOARD_InitDEBUG_UARTPins">
+               <description>Configures pin routing and optionally pin electrical features.</description>
+               <options>
+                  <callFromInitBoot>true</callFromInitBoot>
+                  <coreID>cm33_core0</coreID>
+                  <enableClock>true</enableClock>
+               </options>
+               <dependencies>
+                  <dependency resourceType="Peripheral" resourceId="FLEXCOMM0" description="Peripheral FLEXCOMM0 signals are routed in the Pins Tool, but the peripheral is not initialized in the Peripherals Tool." problem_level="1" source="Pins:BOARD_InitDEBUG_UARTPins">
+                     <feature name="initialized" evaluation="equal">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.common" description="Pins initialization requires the COMMON Driver in the project." problem_level="2" source="Pins:BOARD_InitDEBUG_UARTPins">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.lpc_iocon" description="Pins initialization requires the LPC_IOCON Driver in the project." problem_level="2" source="Pins:BOARD_InitDEBUG_UARTPins">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+               </dependencies>
+               <pins>
+                  <pin peripheral="FLEXCOMM0" signal="RXD_SDA_MOSI_DATA" pin_num="92" pin_signal="PIO0_29/FC0_RXD_SDA_MOSI_DATA/SD1_D2/CTIMER2_MAT3/SCT0_OUT8/CMP0_OUT/PLU_OUT2/SECURE_GPIO0_29">
+                     <pin_features>
+                        <pin_feature name="mode" value="inactive"/>
+                        <pin_feature name="slew_rate" value="standard"/>
+                        <pin_feature name="invert" value="disabled"/>
+                        <pin_feature name="open_drain" value="disabled"/>
+                     </pin_features>
+                  </pin>
+                  <pin peripheral="FLEXCOMM0" signal="TXD_SCL_MISO_WS" pin_num="94" pin_signal="PIO0_30/FC0_TXD_SCL_MISO_WS/SD1_D3/CTIMER0_MAT0/SCT0_OUT9/SECURE_GPIO0_30">
+                     <pin_features>
+                        <pin_feature name="mode" value="inactive"/>
+                        <pin_feature name="slew_rate" value="standard"/>
+                        <pin_feature name="invert" value="disabled"/>
+                        <pin_feature name="open_drain" value="disabled"/>
+                     </pin_features>
+                  </pin>
+               </pins>
+            </function>
+            <function name="BOARD_InitSWD_DEBUGPins">
+               <description>Configures pin routing and optionally pin electrical features.</description>
+               <options>
+                  <callFromInitBoot>false</callFromInitBoot>
+                  <coreID>cm33_core0</coreID>
+                  <enableClock>true</enableClock>
+               </options>
+               <dependencies>
+                  <dependency resourceType="Peripheral" resourceId="SWD" description="Peripheral SWD signals are routed in the Pins Tool, but the peripheral is not initialized in the Peripherals Tool." problem_level="1" source="Pins:BOARD_InitSWD_DEBUGPins">
+                     <feature name="initialized" evaluation="equal">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.common" description="Pins initialization requires the COMMON Driver in the project." problem_level="2" source="Pins:BOARD_InitSWD_DEBUGPins">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.lpc_iocon" description="Pins initialization requires the LPC_IOCON Driver in the project." problem_level="2" source="Pins:BOARD_InitSWD_DEBUGPins">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+               </dependencies>
+               <pins>
+                  <pin peripheral="SWD" signal="SWCLK" pin_num="13" pin_signal="PIO0_11/FC6_RXD_SDA_MOSI_DATA/CTIMER2_MAT2/FREQME_GPIO_CLK_A/SWCLK/SECURE_GPIO0_11/ADC0_9">
+                     <pin_features>
+                        <pin_feature name="mode" value="pullDown"/>
+                        <pin_feature name="slew_rate" value="standard"/>
+                        <pin_feature name="invert" value="disabled"/>
+                        <pin_feature name="open_drain" value="disabled"/>
+                        <pin_feature name="asw" value="enabled"/>
+                     </pin_features>
+                  </pin>
+                  <pin peripheral="SWD" signal="SWDIO" pin_num="12" pin_signal="PIO0_12/FC3_TXD_SCL_MISO_WS/SD1_BACKEND_PWR/FREQME_GPIO_CLK_B/SCT_GPI7/SD0_POW_EN/SWDIO/FC6_TXD_SCL_MISO_WS/SECURE_GPIO0_12/ADC0_10">
+                     <pin_features>
+                        <pin_feature name="mode" value="pullUp"/>
+                        <pin_feature name="slew_rate" value="standard"/>
+                        <pin_feature name="invert" value="disabled"/>
+                        <pin_feature name="open_drain" value="disabled"/>
+                        <pin_feature name="asw" value="enabled"/>
+                     </pin_features>
+                  </pin>
+                  <pin peripheral="SWD" signal="SWO" pin_num="21" pin_signal="PIO0_10/FC6_SCK/CT_INP10/CTIMER2_MAT0/FC1_TXD_SCL_MISO_WS/SCT0_OUT2/SWO/SECURE_GPIO0_10/ADC0_1">
+                     <pin_features>
+                        <pin_feature name="identifier" value="DEBUG_SWD_SWO"/>
+                        <pin_feature name="mode" value="inactive"/>
+                        <pin_feature name="slew_rate" value="standard"/>
+                        <pin_feature name="invert" value="disabled"/>
+                        <pin_feature name="open_drain" value="disabled"/>
+                        <pin_feature name="asw" value="disabled"/>
+                     </pin_features>
+                  </pin>
+               </pins>
+            </function>
+            <function name="BOARD_InitUSBPins">
+               <description>Configures pin routing and optionally pin electrical features.</description>
+               <options>
+                  <callFromInitBoot>true</callFromInitBoot>
+                  <coreID>cm33_core0</coreID>
+                  <enableClock>true</enableClock>
+               </options>
+               <dependencies>
+                  <dependency resourceType="Peripheral" resourceId="USBFSH" description="Peripheral USBFSH signals are routed in the Pins Tool, but the peripheral is not initialized in the Peripherals Tool." problem_level="1" source="Pins:BOARD_InitUSBPins">
+                     <feature name="initialized" evaluation="equal">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="Peripheral" resourceId="USBHSH" description="Peripheral USBHSH signals are routed in the Pins Tool, but the peripheral is not initialized in the Peripherals Tool." problem_level="1" source="Pins:BOARD_InitUSBPins">
+                     <feature name="initialized" evaluation="equal">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.common" description="Pins initialization requires the COMMON Driver in the project." problem_level="2" source="Pins:BOARD_InitUSBPins">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.lpc_iocon" description="Pins initialization requires the LPC_IOCON Driver in the project." problem_level="2" source="Pins:BOARD_InitUSBPins">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+               </dependencies>
+               <pins>
+                  <pin peripheral="USBFSH" signal="USB_DP" pin_num="97" pin_signal="USB0_DP"/>
+                  <pin peripheral="USBFSH" signal="USB_DM" pin_num="98" pin_signal="USB0_DM"/>
+                  <pin peripheral="USBFSH" signal="USB_VBUS" pin_num="78" pin_signal="PIO0_22/FC6_TXD_SCL_MISO_WS/UTICK_CAP1/CT_INP15/SCT0_OUT3/USB0_VBUS/SD1_D0/PLU_OUT7/SECURE_GPIO0_22">
+                     <pin_features>
+                        <pin_feature name="mode" value="inactive"/>
+                        <pin_feature name="slew_rate" value="standard"/>
+                        <pin_feature name="invert" value="disabled"/>
+                        <pin_feature name="open_drain" value="disabled"/>
+                     </pin_features>
+                  </pin>
+                  <pin peripheral="USBHSH" signal="USB_DM" pin_num="35" pin_signal="USB1_DM"/>
+                  <pin peripheral="USBHSH" signal="USB_DP" pin_num="34" pin_signal="USB1_DP"/>
+                  <pin peripheral="USBHSH" signal="USB_VBUS" pin_num="36" pin_signal="USB1_VBUS"/>
+                  <pin peripheral="USBHSH" signal="USB_PORTPWRN" pin_num="80" pin_signal="PIO1_29/FC7_RXD_SDA_MOSI_DATA/SD0_D6/SCT_GPI6/USB1_PORTPWRN/USB1_FRAME/PLU_IN2">
+                     <pin_features>
+                        <pin_feature name="mode" value="pullUp"/>
+                     </pin_features>
+                  </pin>
+                  <pin peripheral="USBFSH" signal="USB_PORTPWRN" pin_num="67" pin_signal="PIO1_12/FC6_SCK/CTIMER1_MAT1/USB0_PORTPWRN/HS_SPI_SSEL2">
+                     <pin_features>
+                        <pin_feature name="mode" value="pullUp"/>
+                     </pin_features>
+                  </pin>
+                  <pin peripheral="USBFSH" signal="USB_OVERCURRENTN" pin_num="66" pin_signal="PIO0_28/FC0_SCK/SD1_CMD/CT_INP11/SCT0_OUT7/USB0_OVERCURRENTN/PLU_OUT1/SECURE_GPIO0_28">
+                     <pin_features>
+                        <pin_feature name="mode" value="pullUp"/>
+                     </pin_features>
+                  </pin>
+                  <pin peripheral="USBHSH" signal="USB_OVERCURRENTN" pin_num="65" pin_signal="PIO1_30/FC7_TXD_SCL_MISO_WS/SD0_D7/SCT_GPI7/USB1_OVERCURRENTN/USB1_LEDN/PLU_IN1">
+                     <pin_features>
+                        <pin_feature name="mode" value="pullUp"/>
+                     </pin_features>
+                  </pin>
+               </pins>
+            </function>
+            <function name="BOARD_InitLEDsPins">
+               <description>Configures pin routing and optionally pin electrical features.</description>
+               <options>
+                  <callFromInitBoot>true</callFromInitBoot>
+                  <coreID>cm33_core0</coreID>
+                  <enableClock>true</enableClock>
+               </options>
+               <dependencies>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.common" description="Pins initialization requires the COMMON Driver in the project." problem_level="2" source="Pins:BOARD_InitLEDsPins">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.lpc_gpio" description="Pins initialization requires the LPC_GPIO Driver in the project." problem_level="2" source="Pins:BOARD_InitLEDsPins">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.lpc_iocon" description="Pins initialization requires the LPC_IOCON Driver in the project." problem_level="2" source="Pins:BOARD_InitLEDsPins">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+               </dependencies>
+               <pins>
+                  <pin peripheral="GPIO" signal="PIO1, 4" pin_num="1" pin_signal="PIO1_4/FC0_SCK/SD0_D0/CTIMER2_MAT1/SCT0_OUT0/FREQME_GPIO_CLK_A">
+                     <pin_features>
+                        <pin_feature name="direction" value="OUTPUT"/>
+                        <pin_feature name="gpio_init_state" value="true"/>
+                        <pin_feature name="mode" value="pullUp"/>
+                        <pin_feature name="slew_rate" value="standard"/>
+                        <pin_feature name="invert" value="disabled"/>
+                        <pin_feature name="open_drain" value="disabled"/>
+                     </pin_features>
+                  </pin>
+                  <pin peripheral="GPIO" signal="PIO1, 6" pin_num="5" pin_signal="PIO1_6/FC0_TXD_SCL_MISO_WS/SD0_D3/CTIMER2_MAT1/SCT_GPI3">
+                     <pin_features>
+                        <pin_feature name="direction" value="OUTPUT"/>
+                        <pin_feature name="gpio_init_state" value="true"/>
+                        <pin_feature name="mode" value="pullUp"/>
+                        <pin_feature name="slew_rate" value="standard"/>
+                        <pin_feature name="invert" value="disabled"/>
+                        <pin_feature name="open_drain" value="disabled"/>
+                     </pin_features>
+                  </pin>
+                  <pin peripheral="GPIO" signal="PIO1, 7" pin_num="9" pin_signal="PIO1_7/FC0_RTS_SCL_SSEL1/SD0_D1/CTIMER2_MAT2/SCT_GPI4">
+                     <pin_features>
+                        <pin_feature name="direction" value="OUTPUT"/>
+                        <pin_feature name="gpio_init_state" value="true"/>
+                        <pin_feature name="mode" value="pullUp"/>
+                        <pin_feature name="slew_rate" value="standard"/>
+                        <pin_feature name="invert" value="disabled"/>
+                        <pin_feature name="open_drain" value="disabled"/>
+                     </pin_features>
+                  </pin>
+               </pins>
+            </function>
+            <function name="BOARD_InitBUTTONsPins">
+               <description>Configures pin routing and optionally pin electrical features.</description>
+               <options>
+                  <callFromInitBoot>true</callFromInitBoot>
+                  <coreID>cm33_core0</coreID>
+                  <enableClock>true</enableClock>
+               </options>
+               <dependencies>
+                  <dependency resourceType="Peripheral" resourceId="SYSCON" description="Peripheral SYSCON signals are routed in the Pins Tool, but the peripheral is not initialized in the Peripherals Tool." problem_level="1" source="Pins:BOARD_InitBUTTONsPins">
+                     <feature name="initialized" evaluation="equal">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.common" description="Pins initialization requires the COMMON Driver in the project." problem_level="2" source="Pins:BOARD_InitBUTTONsPins">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.lpc_gpio" description="Pins initialization requires the LPC_GPIO Driver in the project." problem_level="2" source="Pins:BOARD_InitBUTTONsPins">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.lpc_iocon" description="Pins initialization requires the LPC_IOCON Driver in the project." problem_level="2" source="Pins:BOARD_InitBUTTONsPins">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+               </dependencies>
+               <pins>
+                  <pin peripheral="GPIO" signal="PIO0, 5" pin_num="88" pin_signal="PIO0_5/FC4_RXD_SDA_MOSI_DATA/CTIMER3_MAT0/SCT_GPI5/FC3_RTS_SCL_SSEL1/MCLK/SECURE_GPIO0_5">
+                     <pin_features>
+                        <pin_feature name="direction" value="INPUT"/>
+                        <pin_feature name="mode" value="pullUp"/>
+                        <pin_feature name="slew_rate" value="standard"/>
+                        <pin_feature name="invert" value="disabled"/>
+                        <pin_feature name="open_drain" value="disabled"/>
+                     </pin_features>
+                  </pin>
+                  <pin peripheral="GPIO" signal="PIO1, 18" pin_num="64" pin_signal="PIO1_18/SD1_POW_EN/SCT0_OUT5/PLU_OUT0">
+                     <pin_features>
+                        <pin_feature name="direction" value="INPUT"/>
+                        <pin_feature name="mode" value="pullUp"/>
+                        <pin_feature name="slew_rate" value="standard"/>
+                        <pin_feature name="invert" value="disabled"/>
+                        <pin_feature name="open_drain" value="disabled"/>
+                     </pin_features>
+                  </pin>
+                  <pin peripheral="GPIO" signal="PIO1, 9" pin_num="10" pin_signal="PIO1_9/FC1_SCK/CT_INP4/SCT0_OUT2/FC4_CTS_SDA_SSEL0/ADC0_12">
+                     <pin_features>
+                        <pin_feature name="direction" value="INPUT"/>
+                        <pin_feature name="mode" value="pullUp"/>
+                        <pin_feature name="slew_rate" value="standard"/>
+                        <pin_feature name="invert" value="disabled"/>
+                        <pin_feature name="open_drain" value="disabled"/>
+                        <pin_feature name="asw" value="enabled"/>
+                     </pin_features>
+                  </pin>
+                  <pin peripheral="SYSCON" signal="RESET" pin_num="32" pin_signal="RESETN"/>
+               </pins>
+            </function>
+            <function name="BOARD_InitPins_Core0">
+               <description>Configures pin routing and optionally pin electrical features.</description>
+               <options>
+                  <callFromInitBoot>true</callFromInitBoot>
+                  <coreID>cm33_core0</coreID>
+                  <enableClock>true</enableClock>
+               </options>
+               <dependencies>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.common" description="Pins initialization requires the COMMON Driver in the project." problem_level="2" source="Pins:BOARD_InitPins_Core0">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+               </dependencies>
+               <pins/>
+            </function>
+            <function name="BOARD_InitI2SPins">
+               <description>Configures pin routing and optionally pin electrical features.</description>
+               <options>
+                  <callFromInitBoot>false</callFromInitBoot>
+                  <coreID>cm33_core0</coreID>
+                  <enableClock>true</enableClock>
+               </options>
+               <dependencies>
+                  <dependency resourceType="Peripheral" resourceId="FLEXCOMM4" description="Peripheral FLEXCOMM4 signals are routed in the Pins Tool, but the peripheral is not initialized in the Peripherals Tool." problem_level="1" source="Pins:BOARD_InitI2SPins">
+                     <feature name="initialized" evaluation="equal">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="Peripheral" resourceId="SYSCON" description="Peripheral SYSCON signals are routed in the Pins Tool, but the peripheral is not initialized in the Peripherals Tool." problem_level="1" source="Pins:BOARD_InitI2SPins">
+                     <feature name="initialized" evaluation="equal">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="Peripheral" resourceId="FLEXCOMM7" description="Peripheral FLEXCOMM7 signals are routed in the Pins Tool, but the peripheral is not initialized in the Peripherals Tool." problem_level="1" source="Pins:BOARD_InitI2SPins">
+                     <feature name="initialized" evaluation="equal">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="Peripheral" resourceId="FLEXCOMM6" description="Peripheral FLEXCOMM6 signals are routed in the Pins Tool, but the peripheral is not initialized in the Peripherals Tool." problem_level="1" source="Pins:BOARD_InitI2SPins">
+                     <feature name="initialized" evaluation="equal">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.common" description="Pins initialization requires the COMMON Driver in the project." problem_level="2" source="Pins:BOARD_InitI2SPins">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.lpc_iocon" description="Pins initialization requires the LPC_IOCON Driver in the project." problem_level="2" source="Pins:BOARD_InitI2SPins">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+               </dependencies>
+               <pins>
+                  <pin peripheral="FLEXCOMM4" signal="TXD_SCL_MISO_WS" pin_num="4" pin_signal="PIO1_20/FC7_RTS_SCL_SSEL1/CT_INP14/FC4_TXD_SCL_MISO_WS/PLU_OUT2">
+                     <pin_features>
+                        <pin_feature name="mode" value="pullUp"/>
+                        <pin_feature name="slew_rate" value="standard"/>
+                        <pin_feature name="invert" value="disabled"/>
+                        <pin_feature name="open_drain" value="disabled"/>
+                     </pin_features>
+                  </pin>
+                  <pin peripheral="FLEXCOMM4" signal="RXD_SDA_MOSI_DATA" pin_num="30" pin_signal="PIO1_21/FC7_CTS_SDA_SSEL0/CTIMER3_MAT2/FC4_RXD_SDA_MOSI_DATA/PLU_OUT3">
+                     <pin_features>
+                        <pin_feature name="mode" value="pullUp"/>
+                        <pin_feature name="slew_rate" value="standard"/>
+                        <pin_feature name="invert" value="disabled"/>
+                        <pin_feature name="open_drain" value="disabled"/>
+                     </pin_features>
+                  </pin>
+                  <pin peripheral="SYSCON" signal="MCLK" pin_num="91" pin_signal="PIO1_31/MCLK/SD1_CLK/CTIMER0_MAT2/SCT0_OUT6/PLU_IN0">
+                     <pin_features>
+                        <pin_feature name="mode" value="inactive"/>
+                        <pin_feature name="slew_rate" value="standard"/>
+                        <pin_feature name="invert" value="disabled"/>
+                        <pin_feature name="open_drain" value="disabled"/>
+                     </pin_features>
+                  </pin>
+                  <pin peripheral="FLEXCOMM7" signal="SCK" pin_num="76" pin_signal="PIO0_21/FC3_RTS_SCL_SSEL1/UTICK_CAP3/CTIMER3_MAT3/SCT_GPI3/FC7_SCK/PLU_CLKIN/SECURE_GPIO0_21">
+                     <pin_features>
+                        <pin_feature name="mode" value="pullUp"/>
+                        <pin_feature name="slew_rate" value="standard"/>
+                        <pin_feature name="invert" value="disabled"/>
+                        <pin_feature name="open_drain" value="disabled"/>
+                     </pin_features>
+                  </pin>
+                  <pin peripheral="FLEXCOMM7" signal="RXD_SDA_MOSI_DATA" pin_num="74" pin_signal="PIO0_20/FC3_CTS_SDA_SSEL0/CTIMER1_MAT1/CT_INP15/SCT_GPI2/FC7_RXD_SDA_MOSI_DATA/HS_SPI_SSEL0/PLU_IN5/SECURE_GPIO0_20/FC4_TXD_SCL_MISO_WS">
+                     <pin_features>
+                        <pin_feature name="mode" value="pullUp"/>
+                        <pin_feature name="slew_rate" value="standard"/>
+                        <pin_feature name="invert" value="disabled"/>
+                        <pin_feature name="open_drain" value="disabled"/>
+                     </pin_features>
+                  </pin>
+                  <pin peripheral="FLEXCOMM7" signal="TXD_SCL_MISO_WS" pin_num="90" pin_signal="PIO0_19/FC4_RTS_SCL_SSEL1/UTICK_CAP0/CTIMER0_MAT2/SCT0_OUT2/FC7_TXD_SCL_MISO_WS/PLU_IN4/SECURE_GPIO0_19">
+                     <pin_features>
+                        <pin_feature name="mode" value="pullUp"/>
+                        <pin_feature name="slew_rate" value="standard"/>
+                        <pin_feature name="invert" value="disabled"/>
+                        <pin_feature name="open_drain" value="disabled"/>
+                     </pin_features>
+                  </pin>
+                  <pin peripheral="FLEXCOMM6" signal="SCK" pin_num="21" pin_signal="PIO0_10/FC6_SCK/CT_INP10/CTIMER2_MAT0/FC1_TXD_SCL_MISO_WS/SCT0_OUT2/SWO/SECURE_GPIO0_10/ADC0_1">
+                     <pin_features>
+                        <pin_feature name="identifier" value="FC6_I2S_CLK"/>
+                        <pin_feature name="mode" value="pullUp"/>
+                        <pin_feature name="slew_rate" value="standard"/>
+                        <pin_feature name="invert" value="disabled"/>
+                        <pin_feature name="open_drain" value="disabled"/>
+                        <pin_feature name="asw" value="enabled"/>
+                     </pin_features>
+                  </pin>
+                  <pin peripheral="FLEXCOMM6" signal="RXD_SDA_MOSI_DATA" pin_num="2" pin_signal="PIO1_13/FC6_RXD_SDA_MOSI_DATA/CT_INP6/USB0_OVERCURRENTN/USB0_FRAME/SD0_CARD_DET_N">
+                     <pin_features>
+                        <pin_feature name="mode" value="pullUp"/>
+                        <pin_feature name="slew_rate" value="standard"/>
+                        <pin_feature name="invert" value="disabled"/>
+                        <pin_feature name="open_drain" value="disabled"/>
+                     </pin_features>
+                  </pin>
+                  <pin peripheral="FLEXCOMM6" signal="TXD_SCL_MISO_WS" pin_num="87" pin_signal="PIO1_16/FC6_TXD_SCL_MISO_WS/CTIMER1_MAT3/SD0_CMD">
+                     <pin_features>
+                        <pin_feature name="mode" value="pullUp"/>
+                        <pin_feature name="slew_rate" value="standard"/>
+                        <pin_feature name="invert" value="disabled"/>
+                        <pin_feature name="open_drain" value="disabled"/>
+                     </pin_features>
+                  </pin>
+               </pins>
+            </function>
+            <function name="BOARD_InitACCELPins">
+               <description>Configures pin routing and optionally pin electrical features.</description>
+               <options>
+                  <callFromInitBoot>false</callFromInitBoot>
+                  <coreID>cm33_core0</coreID>
+                  <enableClock>true</enableClock>
+               </options>
+               <dependencies>
+                  <dependency resourceType="Peripheral" resourceId="FLEXCOMM4" description="Peripheral FLEXCOMM4 signals are routed in the Pins Tool, but the peripheral is not initialized in the Peripherals Tool." problem_level="1" source="Pins:BOARD_InitACCELPins">
+                     <feature name="initialized" evaluation="equal">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.common" description="Pins initialization requires the COMMON Driver in the project." problem_level="2" source="Pins:BOARD_InitACCELPins">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.lpc_gpio" description="Pins initialization requires the LPC_GPIO Driver in the project." problem_level="2" source="Pins:BOARD_InitACCELPins">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.lpc_iocon" description="Pins initialization requires the LPC_IOCON Driver in the project." problem_level="2" source="Pins:BOARD_InitACCELPins">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+               </dependencies>
+               <pins>
+                  <pin peripheral="FLEXCOMM4" signal="RXD_SDA_MOSI_DATA" pin_num="30" pin_signal="PIO1_21/FC7_CTS_SDA_SSEL0/CTIMER3_MAT2/FC4_RXD_SDA_MOSI_DATA/PLU_OUT3">
+                     <pin_features>
+                        <pin_feature name="mode" value="pullUp"/>
+                        <pin_feature name="slew_rate" value="standard"/>
+                        <pin_feature name="invert" value="disabled"/>
+                        <pin_feature name="open_drain" value="disabled"/>
+                     </pin_features>
+                  </pin>
+                  <pin peripheral="FLEXCOMM4" signal="TXD_SCL_MISO_WS" pin_num="4" pin_signal="PIO1_20/FC7_RTS_SCL_SSEL1/CT_INP14/FC4_TXD_SCL_MISO_WS/PLU_OUT2">
+                     <pin_features>
+                        <pin_feature name="mode" value="pullUp"/>
+                        <pin_feature name="slew_rate" value="standard"/>
+                        <pin_feature name="invert" value="disabled"/>
+                        <pin_feature name="open_drain" value="disabled"/>
+                     </pin_features>
+                  </pin>
+                  <pin peripheral="GPIO" signal="PIO1, 19" pin_num="58" pin_signal="PIO1_19/SCT0_OUT7/CTIMER3_MAT1/SCT_GPI7/FC4_SCK/PLU_OUT1/ACMPVREF">
+                     <pin_features>
+                        <pin_feature name="direction" value="INPUT"/>
+                        <pin_feature name="mode" value="inactive"/>
+                        <pin_feature name="slew_rate" value="standard"/>
+                        <pin_feature name="invert" value="disabled"/>
+                        <pin_feature name="open_drain" value="disabled"/>
+                        <pin_feature name="asw" value="disabled"/>
+                     </pin_features>
+                  </pin>
+               </pins>
+            </function>
+         </functions_list>
+      </pins>
+      <clocks name="Clocks" version="18.0" enabled="true" update_project_code="true">
+         <generated_project_files>
+            <file path="board/clock_config.c" update_enabled="true"/>
+            <file path="board/clock_config.h" update_enabled="true"/>
+         </generated_project_files>
+         <clocks_profile>
+            <processor_version>25.09.10</processor_version>
+         </clocks_profile>
+         <clock_configurations>
+            <clock_configuration name="BOARD_BootClockFRO12M" id_prefix="" prefix_user_defined="false">
+               <description></description>
+               <options/>
+               <dependencies>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.common" description="Clocks initialization requires the COMMON Driver in the project." problem_level="2" source="Clocks:BOARD_BootClockFRO12M">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.power" description="Clocks initialization requires the POWER Driver in the project." problem_level="2" source="Clocks:BOARD_BootClockFRO12M">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.clock" description="Clocks initialization requires the CLOCK Driver in the project." problem_level="2" source="Clocks:BOARD_BootClockFRO12M">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+               </dependencies>
+               <clock_sources/>
+               <clock_outputs>
+                  <clock_output id="System_clock.outFreq" value="12 MHz" locked="false" accuracy=""/>
+               </clock_outputs>
+               <clock_settings>
+                  <setting id="PLL1_Mode" value="Normal" locked="false"/>
+               </clock_settings>
+               <called_from_default_init>false</called_from_default_init>
+            </clock_configuration>
+            <clock_configuration name="BOARD_BootClockFROHF96M" id_prefix="" prefix_user_defined="false">
+               <description></description>
+               <options/>
+               <dependencies>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.common" description="Clocks initialization requires the COMMON Driver in the project." problem_level="2" source="Clocks:BOARD_BootClockFROHF96M">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.power" description="Clocks initialization requires the POWER Driver in the project." problem_level="2" source="Clocks:BOARD_BootClockFROHF96M">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.clock" description="Clocks initialization requires the CLOCK Driver in the project." problem_level="2" source="Clocks:BOARD_BootClockFROHF96M">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+               </dependencies>
+               <clock_sources>
+                  <clock_source id="ANACTRL.fro_hf.outFreq" value="96 MHz" locked="false" enabled="false"/>
+               </clock_sources>
+               <clock_outputs>
+                  <clock_output id="System_clock.outFreq" value="96 MHz" locked="false" accuracy=""/>
+               </clock_outputs>
+               <clock_settings>
+                  <setting id="ANALOG_CONTROL_FRO192M_CTRL_ENDI_FRO_96M_CFG" value="Enable" locked="false"/>
+                  <setting id="SYSCON.MAINCLKSELA.sel" value="ANACTRL.fro_hf_clk" locked="false"/>
+               </clock_settings>
+               <called_from_default_init>false</called_from_default_init>
+            </clock_configuration>
+            <clock_configuration name="BOARD_BootClockPLL100M" id_prefix="" prefix_user_defined="false">
+               <description></description>
+               <options/>
+               <dependencies>
+                  <dependency resourceType="PinSignal" resourceId="SYSCON.XTALIN" description="&apos;XTALIN&apos; (Pins tool id: SYSCON.XTALIN, Clocks tool id: SYSCON.XTALIN) needs to be routed" problem_level="1" source="Clocks:BOARD_BootClockPLL100M">
+                     <feature name="routed" evaluation="">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="PinSignal" resourceId="SYSCON.XTALIN" description="&apos;XTALIN&apos; (Pins tool id: SYSCON.XTALIN, Clocks tool id: SYSCON.XTALIN) needs to have &apos;INPUT&apos; direction" problem_level="1" source="Clocks:BOARD_BootClockPLL100M">
+                     <feature name="direction" evaluation="">
+                        <data>INPUT</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="PinSignal" resourceId="SYSCON.XTALOUT" description="&apos;XTALOUT&apos; (Pins tool id: SYSCON.XTALOUT, Clocks tool id: SYSCON.XTALOUT) needs to be routed" problem_level="1" source="Clocks:BOARD_BootClockPLL100M">
+                     <feature name="routed" evaluation="">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="PinSignal" resourceId="SYSCON.XTALOUT" description="&apos;XTALOUT&apos; (Pins tool id: SYSCON.XTALOUT, Clocks tool id: SYSCON.XTALOUT) needs to have &apos;OUTPUT&apos; direction" problem_level="1" source="Clocks:BOARD_BootClockPLL100M">
+                     <feature name="direction" evaluation="">
+                        <data>OUTPUT</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.common" description="Clocks initialization requires the COMMON Driver in the project." problem_level="2" source="Clocks:BOARD_BootClockPLL100M">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.power" description="Clocks initialization requires the POWER Driver in the project." problem_level="2" source="Clocks:BOARD_BootClockPLL100M">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.clock" description="Clocks initialization requires the CLOCK Driver in the project." problem_level="2" source="Clocks:BOARD_BootClockPLL100M">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+               </dependencies>
+               <clock_sources>
+                  <clock_source id="SYSCON.XTAL32M.outFreq" value="16 MHz" locked="false" enabled="true"/>
+               </clock_sources>
+               <clock_outputs>
+                  <clock_output id="System_clock.outFreq" value="100 MHz" locked="false" accuracy=""/>
+               </clock_outputs>
+               <clock_settings>
+                  <setting id="PLL0_Mode" value="Normal" locked="false"/>
+                  <setting id="ENABLE_CLKIN_ENA" value="Enabled" locked="false"/>
+                  <setting id="ENABLE_SYSTEM_CLK_OUT" value="Enabled" locked="false"/>
+                  <setting id="SYSCON.MAINCLKSELB.sel" value="SYSCON.PLL0_BYPASS" locked="false"/>
+                  <setting id="SYSCON.PLL0CLKSEL.sel" value="SYSCON.CLK_IN_EN" locked="false"/>
+                  <setting id="SYSCON.PLL0M_MULT.scale" value="100" locked="true"/>
+                  <setting id="SYSCON.PLL0N_DIV.scale" value="4" locked="true"/>
+                  <setting id="SYSCON.PLL0_PDEC.scale" value="4" locked="true"/>
+               </clock_settings>
+               <called_from_default_init>false</called_from_default_init>
+            </clock_configuration>
+            <clock_configuration name="BOARD_BootClockPLL150M" id_prefix="" prefix_user_defined="false">
+               <description></description>
+               <options/>
+               <dependencies>
+                  <dependency resourceType="PinSignal" resourceId="SYSCON.XTALIN" description="&apos;XTALIN&apos; (Pins tool id: SYSCON.XTALIN, Clocks tool id: SYSCON.XTALIN) needs to be routed" problem_level="1" source="Clocks:BOARD_BootClockPLL150M">
+                     <feature name="routed" evaluation="">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="PinSignal" resourceId="SYSCON.XTALIN" description="&apos;XTALIN&apos; (Pins tool id: SYSCON.XTALIN, Clocks tool id: SYSCON.XTALIN) needs to have &apos;INPUT&apos; direction" problem_level="1" source="Clocks:BOARD_BootClockPLL150M">
+                     <feature name="direction" evaluation="">
+                        <data>INPUT</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="PinSignal" resourceId="SYSCON.XTALOUT" description="&apos;XTALOUT&apos; (Pins tool id: SYSCON.XTALOUT, Clocks tool id: SYSCON.XTALOUT) needs to be routed" problem_level="1" source="Clocks:BOARD_BootClockPLL150M">
+                     <feature name="routed" evaluation="">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="PinSignal" resourceId="SYSCON.XTALOUT" description="&apos;XTALOUT&apos; (Pins tool id: SYSCON.XTALOUT, Clocks tool id: SYSCON.XTALOUT) needs to have &apos;OUTPUT&apos; direction" problem_level="1" source="Clocks:BOARD_BootClockPLL150M">
+                     <feature name="direction" evaluation="">
+                        <data>OUTPUT</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.common" description="Clocks initialization requires the COMMON Driver in the project." problem_level="2" source="Clocks:BOARD_BootClockPLL150M">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.power" description="Clocks initialization requires the POWER Driver in the project." problem_level="2" source="Clocks:BOARD_BootClockPLL150M">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.clock" description="Clocks initialization requires the CLOCK Driver in the project." problem_level="2" source="Clocks:BOARD_BootClockPLL150M">
+                     <feature name="enabled" evaluation="equal" configuration="cm33_core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+               </dependencies>
+               <clock_sources>
+                  <clock_source id="SYSCON.XTAL32M.outFreq" value="16 MHz" locked="false" enabled="true"/>
+               </clock_sources>
+               <clock_outputs>
+                  <clock_output id="FXCOM0_clock.outFreq" value="48 MHz" locked="false" accuracy=""/>
+                  <clock_output id="SYSTICK0_clock.outFreq" value="144 MHz" locked="false" accuracy=""/>
+                  <clock_output id="System_clock.outFreq" value="144 MHz" locked="false" accuracy=""/>
+                  <clock_output id="USB0_clock.outFreq" value="48 MHz" locked="false" accuracy=""/>
+                  <clock_output id="USB1_PHY_clock.outFreq" value="16 MHz" locked="false" accuracy=""/>
+               </clock_outputs>
+               <clock_settings>
+                  <setting id="PLL0_Mode" value="Normal" locked="false"/>
+                  <setting id="PLL1_Mode" value="Normal" locked="false"/>
+                  <setting id="ENABLE_CLKIN_ENA" value="Enabled" locked="false"/>
+                  <setting id="ENABLE_PLL_USB_OUT" value="Enabled" locked="false"/>
+                  <setting id="ENABLE_SYSTEM_CLK_OUT" value="Enabled" locked="false"/>
+                  <setting id="SYSCON.FCCLKSEL0.sel" value="SYSCON.PLL0DIV" locked="false"/>
+                  <setting id="SYSCON.FRGCTRL0_DIV.scale" value="400" locked="false"/>
+                  <setting id="SYSCON.MAINCLKSELB.sel" value="SYSCON.PLL1_BYPASS" locked="false"/>
+                  <setting id="SYSCON.PLL0CLKSEL.sel" value="SYSCON.CLK_IN_EN" locked="false"/>
+                  <setting id="SYSCON.PLL0DIV.scale" value="2" locked="false"/>
+                  <setting id="SYSCON.PLL0M_MULT.scale" value="150" locked="true"/>
+                  <setting id="SYSCON.PLL0N_DIV.scale" value="8" locked="true"/>
+                  <setting id="SYSCON.PLL0_PDEC.scale" value="2" locked="true"/>
+                  <setting id="SYSCON.PLL1CLKSEL.sel" value="SYSCON.CLK_IN_EN" locked="false"/>
+                  <setting id="SYSCON.PLL1M_MULT.scale" value="18" locked="false"/>
+                  <setting id="SYSCON.PLL1_PDEC.scale" value="2" locked="false"/>
+                  <setting id="SYSCON.SYSTICKCLKSEL0.sel" value="SYSCON.SYSTICKCLKDIV0" locked="false"/>
+                  <setting id="SYSCON.USB0CLKDIV.scale" value="3" locked="false"/>
+                  <setting id="SYSCON.USB0CLKSEL.sel" value="SYSCON.MAINCLKSELB" locked="false"/>
+               </clock_settings>
+               <called_from_default_init>true</called_from_default_init>
+            </clock_configuration>
+         </clock_configurations>
+      </clocks>
+      <dcdx name="DCDx" version="2.0" enabled="false" update_project_code="true">
+         <generated_project_files/>
+         <dcdx_profile>
+            <processor_version>N/A</processor_version>
+         </dcdx_profile>
+         <dcdx_configurations/>
+      </dcdx>
+      <periphs name="Peripherals" version="15.0" enabled="true" update_project_code="true">
+         <dependencies>
+            <dependency resourceType="SWComponent" resourceId="platform.drivers.flexcomm_usart" description="FLEXCOMM USART Driver is not found in the toolchain/IDE project. The project will not compile!" problem_level="2" source="Peripherals">
+               <feature name="enabled" evaluation="equal">
+                  <data type="Boolean">true</data>
+               </feature>
+            </dependency>
+            <dependency resourceType="SWComponent" resourceId="platform.drivers.flexcomm_usart" description="An unsupported version of the FLEXCOMM USART Driver in the toolchain/IDE project. Required: ${required_value}, actual: ${actual_value}. The project might not compile correctly." problem_level="1" source="Peripherals">
+               <feature name="version" evaluation="equivalent">
+                  <data type="Version">2.2.0</data>
+               </feature>
+            </dependency>
+            <dependency resourceType="Tool" resourceId="Clocks" description="The Clocks tool is required by the Peripherals tool, but it is disabled." problem_level="2" source="Peripherals">
+               <feature name="enabled" evaluation="equal">
+                  <data>true</data>
+               </feature>
+            </dependency>
+         </dependencies>
+         <generated_project_files>
+            <file path="board/peripherals.c" update_enabled="true"/>
+            <file path="board/peripherals.h" update_enabled="true"/>
+         </generated_project_files>
+         <peripherals_profile>
+            <processor_version>25.09.10</processor_version>
+         </peripherals_profile>
+         <functional_groups>
+            <functional_group name="BOARD_InitPeripherals" uuid="61d0725d-b300-49cb-9c66-b5edfbf8ffc1" called_from_default_init="true" id_prefix="" core="cm33_core0">
+               <description></description>
+               <options/>
+               <dependencies>
+                  <dependency resourceType="ClockOutput" resourceId="FXCOM0_clock" description="FXCOM0 clock is inactive." problem_level="2" source="Peripherals:BOARD_InitPeripherals">
+                     <feature name="frequency" evaluation="greaterThan">
+                        <data type="Frequency" unit="Hz">0</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="PeripheralUnifiedSignal" resourceId="FLEXCOMM0.usart_rxd" description="Signal RX is not routed." problem_level="1" source="Peripherals:BOARD_InitPeripherals">
+                     <feature name="routed" evaluation="equal">
+                        <data type="Boolean">true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="PeripheralUnifiedSignal" resourceId="FLEXCOMM0.usart_txd" description="Signal TX is not routed." problem_level="1" source="Peripherals:BOARD_InitPeripherals">
+                     <feature name="routed" evaluation="equal">
+                        <data type="Boolean">true</data>
+                     </feature>
+                  </dependency>
+               </dependencies>
+               <instances>
+                  <instance name="DEBUG_UART" uuid="30367b6e-4b43-4345-bc10-e4052723fa66" type="flexcomm_usart" type_id="flexcomm_usart_2.2.0" mode="polling" peripheral="FLEXCOMM0" enabled="true" comment="" custom_name_enabled="true" editing_lock="false">
+                     <config_set name="usartConfig_t">
+                        <struct name="usartConfig">
+                           <setting name="clockSource" value="FXCOMFunctionClock"/>
+                           <setting name="clockSourceFreq" value="ClocksTool_DefaultInit"/>
+                           <setting name="baudRate_Bps" value="115200"/>
+                           <setting name="syncMode" value="kUSART_SyncModeDisabled"/>
+                           <setting name="parityMode" value="kUSART_ParityDisabled"/>
+                           <setting name="stopBitCount" value="kUSART_OneStopBit"/>
+                           <setting name="bitCountPerChar" value="kUSART_8BitsPerChar"/>
+                           <setting name="loopback" value="false"/>
+                           <setting name="txWatermark" value="kUSART_TxFifo0"/>
+                           <setting name="rxWatermark" value="kUSART_RxFifo1"/>
+                           <setting name="enableRx" value="true"/>
+                           <setting name="enableTx" value="true"/>
+                           <setting name="clockPolarity" value="kUSART_RxSampleOnFallingEdge"/>
+                           <setting name="enableContinuousSCLK" value="false"/>
+                        </struct>
+                     </config_set>
+                  </instance>
+                  <instance name="ACCEL" uuid="796441cb-6cbf-48af-8003-54caaeb9a132" type="flexcomm_i2c" type_id="flexcomm_i2c_2.0.1" mode="I2C_Polling" peripheral="FLEXCOMM4" enabled="false" comment="" custom_name_enabled="true" editing_lock="false">
+                     <config_set name="fsl_i2c" quick_selection="QS_I2C_Master">
+                        <setting name="i2c_mode" value="kI2C_Master"/>
+                        <setting name="clockSource" value="FXCOMFunctionClock"/>
+                        <setting name="clockSourceFreq" value="ClocksTool_DefaultInit"/>
+                        <struct name="i2c_master_config">
+                           <setting name="enableMaster" value="true"/>
+                           <setting name="baudRate_Bps" value="100000"/>
+                           <setting name="enableTimeout" value="false"/>
+                        </struct>
+                     </config_set>
+                  </instance>
+                  <instance name="SW" uuid="723cdb07-2d95-4daf-94b4-1dfaf0ce6c04" type="lpc_gpio" type_id="lpc_gpio_2.1.1" mode="GPIO" peripheral="GPIO" enabled="false" comment="" custom_name_enabled="true" editing_lock="false">
+                     <config_set name="lpc_gpio"/>
+                  </instance>
+                  <instance name="LEDS" uuid="7ec70f15-5deb-44fa-b8cf-2d12230a37ac" type="lpc_gpio" type_id="lpc_gpio_2.1.1" mode="GPIO" peripheral="GPIO" enabled="false" comment="" custom_name_enabled="true" editing_lock="false">
+                     <config_set name="lpc_gpio"/>
+                  </instance>
+                  <instance name="NVIC" uuid="d00e8bd3-19f3-445c-9444-103d6461e0d1" type="nvic" type_id="nvic" mode="general" peripheral="NVIC" enabled="true" comment="" custom_name_enabled="false" editing_lock="false">
+                     <config_set name="nvic">
+                        <array name="interrupt_table"/>
+                        <array name="interrupts"/>
+                     </config_set>
+                  </instance>
+               </instances>
+            </functional_group>
+         </functional_groups>
+         <components>
+            <component name="system" uuid="4e239a4c-f368-4554-b66e-d1af6e8b1f5d" type_id="system_54b53072540eeeb8f8e9343e71f28176">
+               <config_set_global name="global_system_definitions">
+                  <setting name="user_definitions" value=""/>
+                  <setting name="user_includes" value=""/>
+                  <setting name="global_init" value=""/>
+               </config_set_global>
+            </component>
+            <component name="msg" uuid="7bbbd3b5-f7c2-4cb2-8b95-c037fdaf8e02" type_id="msg_6e2baaf3b97dbeef01c0043275f9a0e7">
+               <config_set_global name="global_messages"/>
+            </component>
+            <component name="generic_can" uuid="1560ea56-1bfb-4123-a192-daeeed8f2a1d" type_id="generic_can">
+               <config_set_global name="global_can"/>
+            </component>
+            <component name="uart_cmsis_common" uuid="4305ffdd-d7f2-418a-b81b-8a042e7e4c75" type_id="uart_cmsis_common">
+               <config_set_global name="global_USART_CMSIS_common" quick_selection="default"/>
+            </component>
+            <component name="generic_uart" uuid="fe22d2c9-7984-4e79-a7b1-8d26fad750be" type_id="generic_uart">
+               <config_set_global name="global_uart"/>
+            </component>
+            <component name="generic_enet" uuid="f5a27f2d-a41b-4143-ad53-b9ee09903619" type_id="generic_enet">
+               <config_set_global name="global_enet"/>
+            </component>
+            <component name="gpio_adapter_common" uuid="03fd1bc8-0fd6-4b47-a53c-1c40e2aa781e" type_id="gpio_adapter_common">
+               <config_set_global name="global_gpio_adapter_common" quick_selection="default"/>
+            </component>
+         </components>
+      </periphs>
+      <tee name="TEE" version="10.0" enabled="false" update_project_code="true">
+         <generated_project_files/>
+         <tee_profile>
+            <processor_version>N/A</processor_version>
+         </tee_profile>
+      </tee>
+   </tools>
+</configuration>

@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_DFU_RT_DEVICE_H_
-#define _TUSB_DFU_RT_DEVICE_H_
+#ifndef TUSB_DFU_RT_DEVICE_H_
+#define TUSB_DFU_RT_DEVICE_H_
 
 #include "dfu.h"
 
@@ -52,4 +52,4 @@ bool     dfu_rtd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_req
  }
 #endif
 
-#endif /* _TUSB_DFU_RT_DEVICE_H_ */
+#endif /* TUSB_DFU_RT_DEVICE_H_ */

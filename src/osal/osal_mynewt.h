@@ -36,8 +36,18 @@
 //--------------------------------------------------------------------+
 // TASK API
 //--------------------------------------------------------------------+
+typedef struct os_task* osal_task_handle_t;
+
+TU_ATTR_ALWAYS_INLINE static inline osal_task_handle_t osal_task_get_current_handle(void) {
+  return os_sched_get_current_task();
+}
+
 TU_ATTR_ALWAYS_INLINE static inline void osal_task_delay(uint32_t msec) {
   os_time_delay( os_time_ms_to_ticks32(msec) );
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t osal_time_millis(void) {
+  return os_time_ticks_to_ms32(os_time_get());
 }
 
 //--------------------------------------------------------------------+
@@ -123,6 +133,24 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_mutex_unlock(osal_mutex_t mutex_hd
   return os_mutex_release(mutex_hdl) == OS_OK;
 }
 
+TU_ATTR_ALWAYS_INLINE static inline os_time_t _osal_ms2tick(uint32_t msec) {
+  if (msec == OSAL_TIMEOUT_WAIT_FOREVER) {
+    return OS_TIMEOUT_NEVER;
+  }
+  if (msec == 0) {
+    return 0;
+  }
+
+  os_time_t ticks = os_time_ms_to_ticks32(msec);
+
+  // If 1 tick > 1 ms, still wait at least 1 tick for non-zero timeout.
+  if (ticks == 0) {
+    ticks = 1;
+  }
+
+  return ticks;
+}
+
 //--------------------------------------------------------------------+
 // QUEUE API
 //--------------------------------------------------------------------+
@@ -161,10 +189,11 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_delete(osal_queue_t qhdl) {
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_receive(osal_queue_t qhdl, void* data, uint32_t msec) {
-  (void) msec; // os_eventq_get() does not take timeout, always behave as msec = WAIT_FOREVER
-
-  struct os_event* ev;
-  ev = os_eventq_get(&qhdl->evq);
+  struct os_eventq* evq = &qhdl->evq;
+  struct os_event* ev = os_eventq_poll(&evq, 1, _osal_ms2tick(msec));
+  if (!ev) {
+    return false;
+  }
 
   memcpy(data, ev->ev_arg, qhdl->item_sz); // copy message
   os_memblock_put(&qhdl->mpool, ev->ev_arg); // put back mem block

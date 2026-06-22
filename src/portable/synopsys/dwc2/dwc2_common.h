@@ -30,12 +30,23 @@
 #include "common/tusb_common.h"
 #include "dwc2_type.h"
 
-// Following symbols must be defined by port header
-// - _dwc2_controller[]: array of controllers
-// - DWC2_EP_MAX: largest EP counts of all controllers
-// - dwc2_phy_init/dwc2_phy_update: phy init called before and after core reset
-// - dwc2_dcd_int_enable/dwc2_dcd_int_disable
-// - dwc2_remote_wakeup_delay
+#if CFG_TUD_ENABLED
+#include "device/dcd.h"
+#endif
+
+#if CFG_TUH_ENABLED
+#include "host/hcd.h"
+#endif
+
+/* Following symbols must be defined by port header
+  - _dwc2_controller[]: array of controllers
+  - DWC2_EP_MAX: largest EP counts of all controllers
+  - dwc2_clock_init(): clock init call before
+  - dwc2_phy_init/dwc2_phy_update: phy init called before and after core reset
+  - dwc2_phy_deinit(dwc2, hs_phy_type): phy deinit to disable PHY power, only deinit the phy used by core
+  - dwc2_dcd_int_enable/dwc2_dcd_int_disable
+  - dwc2_remote_wakeup_delay
+*/
 
 #if defined(TUP_USBIP_DWC2_STM32)
   #include "dwc2_stm32.h"
@@ -51,6 +62,8 @@
   #include "dwc2_xmc.h"
 #elif defined(TUP_USBIP_DWC2_AT32)
   #include "dwc2_at32.h"
+#elif defined(TUP_USBIP_DWC2_NRF)
+  #include "dwc2_nrf.h"
 #else
   #error "Unsupported MCUs"
 #endif
@@ -74,8 +87,10 @@ TU_ATTR_ALWAYS_INLINE static inline dwc2_regs_t* DWC2_REG(uint8_t rhport) {
   return (dwc2_regs_t*)_dwc2_controller[rhport].reg_base;
 }
 
-bool dwc2_core_is_highspeed(dwc2_regs_t* dwc2, tusb_role_t role);
-bool dwc2_core_init(uint8_t rhport, bool is_highspeed, bool is_dma);
+// check if highspeed phy should be used
+bool dwc2_core_is_highspeed_phy(dwc2_regs_t* dwc2, bool prefer_hs_phy);
+bool dwc2_core_init(uint8_t rhport, bool is_hs_phy, bool is_dma);
+void dwc2_core_deinit(uint8_t rhport);
 void dwc2_core_handle_common_irq(uint8_t rhport, bool in_isr);
 
 //--------------------------------------------------------------------+
@@ -84,13 +99,13 @@ void dwc2_core_handle_common_irq(uint8_t rhport, bool in_isr);
 TU_ATTR_ALWAYS_INLINE static inline void dfifo_flush_tx(dwc2_regs_t* dwc2, uint8_t fnum) {
   // flush TX fifo and wait for it cleared
   dwc2->grstctl = GRSTCTL_TXFFLSH | (fnum << GRSTCTL_TXFNUM_Pos);
-  while (dwc2->grstctl & GRSTCTL_TXFFLSH_Msk) {}
+  while (0 != (dwc2->grstctl & GRSTCTL_TXFFLSH_Msk)) {}
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void dfifo_flush_rx(dwc2_regs_t* dwc2) {
   // flush RX fifo and wait for it cleared
   dwc2->grstctl = GRSTCTL_RXFFLSH;
-  while (dwc2->grstctl & GRSTCTL_RXFFLSH_Msk) {}
+  while (0 != (dwc2->grstctl & GRSTCTL_RXFFLSH_Msk)) {}
 }
 
 void dfifo_read_packet(dwc2_regs_t* dwc2, uint8_t* dst, uint16_t len);

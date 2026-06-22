@@ -78,7 +78,7 @@ void board_init(void) {
   SysTick_Config(SystemCoreClock / 1000);
 
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
-  // Explicitly disable systick to prevent its ISR runs before scheduler start
+  // Explicitly disable systick to prevent its ISR from running before scheduler start
   SysTick->CTRL &= ~1U;
 
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
@@ -128,15 +128,29 @@ int board_uart_read(uint8_t* buf, int len) {
 
 int board_uart_write(void const* buf, int len) {
 #ifdef UART_DEV
-  char const* bufch = (char const*) buf;
-  for(int i=0;i<len;i++) {
-    XMC_UART_CH_Transmit(UART_DEV, bufch[i]);
+  uint8_t const *p = (uint8_t const *) buf;
+  int count = 0;
+  bool fifo_enabled = (UART_DEV->TBCTR & USIC_CH_TBCTR_SIZE_Msk) != 0UL;
+  while (count < len) {
+    if (fifo_enabled) {
+      if (XMC_USIC_CH_TXFIFO_IsFull(UART_DEV)) {
+        break;
+      }
+      UART_DEV->IN[0U] = p[count];
+    } else {
+      if (XMC_USIC_CH_GetTransmitBufferStatus(UART_DEV) == XMC_USIC_CH_TBUF_STATUS_BUSY) {
+        break;
+      }
+      XMC_UART_CH_ClearStatusFlag(UART_DEV, (uint32_t)XMC_UART_CH_STATUS_FLAG_TRANSMIT_BUFFER_INDICATION);
+      UART_DEV->TBUF[0U] = p[count];
+    }
+    count++;
   }
-  return len;
+  return count;
 #else
   (void) buf;
   (void) len;
-  return 0;
+  return -1;
 #endif
 }
 
@@ -147,7 +161,7 @@ void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void) {
+uint32_t tusb_time_millis_api(void) {
   return system_ticks;
 }
 

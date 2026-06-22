@@ -1,0 +1,12 @@
+set(JLINK_DEVICE ATSAME70Q21B)
+set(LD_FILE_GNU ${TOP}/hw/mcu/microchip/same70/same70b/gcc/gcc/same70q21b_flash.ld)
+set(LD_FILE_IAR ${TOP}/hw/mcu/microchip/same70/same70b/iar/config/linker/Microchip/atsame70q21b/flash.icf)
+
+set(STARTUP_FILE_GNU ${TOP}/hw/mcu/microchip/same70/same70b/gcc/gcc/startup_same70q21b.c)
+set(STARTUP_FILE_IAR ${TOP}/hw/mcu/microchip/same70/same70b/iar/iar/startup_same70q21b.c)
+
+function(update_board TARGET)
+  target_compile_definitions(${TARGET} PUBLIC
+    __SAME70Q21B__
+    )
+endfunction()

@@ -29,8 +29,8 @@
  * Author: Adam Dunkels <adam@sics.se>
  *
  */
-#ifndef __CC_H__
-#define __CC_H__
+#ifndef CC_H__
+#define CC_H__
 
 //#include "cpu.h"
 
@@ -72,4 +72,4 @@ typedef int sys_prot_t;
 
 #define LWIP_PLATFORM_ASSERT(x) do { if(!(x)) while(1); } while(0)
 
-#endif /* __CC_H__ */
+#endif /* CC_H__ */

@@ -1,9 +1,9 @@
 RTOS = freertos
-include ../../build_system/make/make.mk
+include ../../../hw/bsp/family_support.mk
 
 INC += \
 	src \
-	$(TOP)/hw \
+
 
 # Example source
 EXAMPLE_SOURCE = \
@@ -11,6 +11,6 @@ EXAMPLE_SOURCE = \
 	src/msc_disk.c \
 	src/usb_descriptors.c
 
-SRC_C += $(addprefix $(CURRENT_PATH)/, $(EXAMPLE_SOURCE))
+SRC_C += $(addprefix $(EXAMPLE_PATH)/, $(EXAMPLE_SOURCE))
 
-include ../../build_system/make/rules.mk
+include ../../../hw/bsp/family_rules.mk

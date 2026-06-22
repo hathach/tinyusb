@@ -44,13 +44,29 @@ typedef struct {
 
 #include "board.h"
 
+#ifdef UART_ID
+  #if UART_ID == 1
+    #define USARTn            USART1
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART1_CLK_ENABLE
+  #elif UART_ID == 2
+    #define USARTn            USART2
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART2_CLK_ENABLE
+  #elif UART_ID == 3
+    #define USARTn            USART3
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART3_CLK_ENABLE
+  #elif UART_ID == 6
+    #define USARTn            USART6
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART6_CLK_ENABLE
+  #endif
+#endif
+
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
 
-#ifdef UART_DEV
-UART_HandleTypeDef UartHandle = {
-  .Instance = UART_DEV,
+#ifdef UART_ID
+static UART_HandleTypeDef UartHandle = {
+  .Instance = USARTn,
   .Init = {
     .BaudRate = CFG_BOARD_UART_BAUDRATE,
     .WordLength = UART_WORDLENGTH_8B,
@@ -127,11 +143,11 @@ void board_init(void) {
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
-  SysTick_Config(SystemCoreClock / 1000);
+  SysTick_Config(SystemCoreClock / 1000u);
 
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
-  // Explicitly disable systick to prevent its ISR runs before scheduler start
-  SysTick->CTRL &= ~1U;
+  // Explicitly disable systick to prevent its ISR from running before scheduler start
+  SysTick->CTRL &= ~1UL;
 
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   #ifdef USB_OTG_FS_PERIPH_BASE
@@ -139,13 +155,18 @@ void board_init(void) {
   #endif
 
   NVIC_SetPriority(OTG_HS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
+
+#elif CFG_TUSB_OS == OPT_OS_THREADX
+  // Disable SysTick before kernel entry; _tx_initialize_low_level() will re-configure it
+  SysTick->CTRL &= ~1UL;
 #endif
 
   GPIO_InitTypeDef GPIO_InitStruct;
 
-#ifdef UART_DEV
-  UART_CLK_EN();
+#ifdef UART_ID
+  UARTn_CLK_ENABLE();
   HAL_UART_Init(&UartHandle);
+  HAL_UARTEx_EnableFifoMode(&UartHandle);
 #endif
 
   //------------- USB FS -------------//
@@ -180,17 +201,13 @@ void board_init(void) {
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  // Enable VBUS sense (B device) via pin PA9
-  USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN;
-#else
-  // Disable VBUS sense (B device) via pin PA9
-  USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
-
-  // B-peripheral session valid override enable
-  USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
-  USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
 #endif // vbus sense
+
+#if CFG_TUD_ENABLED && BOARD_TUD_RHPORT == 0
+  tud_configure_dwc2_t cfg = CFG_TUD_CONFIGURE_DWC2_DEFAULT;
+  cfg.vbus_sensing = OTG_FS_VBUS_SENSE;
+  tud_configure(0, TUD_CFGID_DWC2, &cfg);
+#endif
 
   //------------- USB HS -------------//
 #if (CFG_TUD_ENABLED && BOARD_TUD_RHPORT == 1) || (CFG_TUH_ENABLED && BOARD_TUH_RHPORT == 1)
@@ -216,28 +233,24 @@ void board_init(void) {
   __HAL_RCC_USB1_OTG_HS_ULPI_CLK_ENABLE();
   __HAL_RCC_USB1_OTG_HS_CLK_ENABLE();
 
-#if OTG_HS_VBUS_SENSE
-  #error OTG HS VBUS Sense enabled is not implemented
-#else
-  // No VBUS sense
-  USB_OTG_HS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
-
-  // B-peripheral session valid override enable
-  USB_OTG_HS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
-  USB_OTG_HS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
-#endif
-
-  // Force device mode
-  USB_OTG_HS->GUSBCFG &= ~USB_OTG_GUSBCFG_FHMOD;
-  USB_OTG_HS->GUSBCFG |= USB_OTG_GUSBCFG_FDMOD;
+  #if CFG_TUD_ENABLED && BOARD_TUD_RHPORT == 1
+  tud_configure_dwc2_t cfg = CFG_TUD_CONFIGURE_DWC2_DEFAULT;
+  cfg.vbus_sensing = OTG_HS_VBUS_SENSE;
+  tud_configure(1, TUD_CFGID_DWC2, &cfg);
+  #endif
 #endif
 
   HAL_PWREx_EnableUSBVoltageDetector();
 
   board_init2(); // optional init
 
+  // Turn off device vbus
+#if CFG_TUD_ENABLED
+  board_vbus_set(BOARD_TUD_RHPORT, false);
+#endif
+  // Turn on host vbus
 #if CFG_TUH_ENABLED
-  board_vbus_set(BOARD_TUH_RHPORT, 1);
+  board_vbus_set(BOARD_TUH_RHPORT, true);
 #endif
 
 }
@@ -279,16 +292,40 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len) {
 }
 
 int board_uart_read(uint8_t *buf, int len) {
-  (void) buf;
-  (void) len;
+#ifdef UART_ID
+  int count = 0;
+  // clear overrun error if any
+  if (__HAL_UART_GET_FLAG(&UartHandle, UART_FLAG_ORE)) {
+    __HAL_UART_CLEAR_FLAG(&UartHandle, UART_CLEAR_OREF);
+  }
+  for (int i = 0; i < len; i++) {
+    if (__HAL_UART_GET_FLAG(&UartHandle, UART_FLAG_RXNE)) {
+      buf[i] = (uint8_t) UartHandle.Instance->RDR;
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
+#else
+  (void) buf; (void) len;
   return 0;
+#endif
 }
 
 int board_uart_write(void const *buf, int len) {
-#ifdef UART_DEV
-  HAL_UART_Transmit(&UartHandle, (uint8_t * )(uintptr_t)
-  buf, len, 0xffff);
-  return len;
+#ifdef UART_ID
+  const uint8_t *p = (const uint8_t *) buf;
+  int count = 0;
+  while (count < len) {
+    if (__HAL_UART_GET_FLAG(&UartHandle, UART_FLAG_TXE)) {
+      UartHandle.Instance->TDR = p[count];
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
 #else
   (void) buf; (void) len;
   return -1;
@@ -303,10 +340,15 @@ void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void) {
+uint32_t tusb_time_millis_api(void) {
   return system_ticks;
 }
 
+#elif CFG_TUSB_OS == OPT_OS_THREADX
+// Keep HAL_GetTick() working for HAL functions called from board_init()
+void osal_threadx_tick_cb(void) {
+  HAL_IncTick();
+}
 #endif
 
 void HardFault_Handler(void) {

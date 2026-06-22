@@ -15,11 +15,11 @@
 
 /* TEXT BELOW IS USED AS SETTING FOR TOOLS *************************************
 !!GlobalInfo
-product: Clocks v11.0
+product: Clocks v20.0
 processor: MIMXRT1062xxxxA
 package_id: MIMXRT1062DVL6A
 mcu_data: ksdk2_0
-processor_version: 13.0.2
+processor_version: 26.03.10
 board: MIMXRT1060-EVK
  * BE CAREFUL MODIFYING THIS COMMENT - IT IS YAML SETTINGS FOR TOOLS **********/
 

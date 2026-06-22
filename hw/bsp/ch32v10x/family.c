@@ -12,6 +12,7 @@
 #endif
 
 #include "ch32v10x.h"
+#include "ch32v10x_it.h"
 
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
@@ -44,7 +45,7 @@ void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t SysTick_Config(uint32_t ticks) {
+static uint32_t SysTick_Config(uint32_t ticks) {
   NVIC_EnableIRQ(SysTicK_IRQn);
   SysTick->CTLR = 0;
   SysTick->CNTL0 = SysTick->CNTL1 = SysTick->CNTL2 = SysTick->CNTL3 = 0;
@@ -60,19 +61,26 @@ uint32_t SysTick_Config(uint32_t ticks) {
   return 0;
 }
 
-uint32_t board_millis(void) {
+uint32_t tusb_time_millis_api(void) {
   return system_ticks;
 }
 #endif
 
 void board_init(void) {
-  __disable_irq();
+  /* Do NOT toggle the global interrupt enable here.
+   * CH32V103 startup enters U-mode (mret with mstatus.MPP=0), so:
+   *  - the SDK __disable_irq()/__enable_irq() write mstatus, which faults in U-mode;
+   *  - writing CSR 0x800 (INTSYSCR) corrupts the QingKe V3 interrupt-mode config,
+   *    which made the USB interrupt vector to a bad address (PC=0) and hang.
+   * The startup already leaves interrupts correctly configured, and machine-mode
+   * interrupts are globally enabled while running in U-mode regardless of mstatus.MIE. */
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   SysTick_Config(SystemCoreClock / 1000);
 #endif
 
   RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+  RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOC, ENABLE);
 
   EXTEN->EXTEN_CTR |= EXTEN_USBFS_IO_EN;
   uint8_t usb_div;
@@ -122,8 +130,6 @@ void board_init(void) {
   USART_Init(USART1, &usart);
   USART_Cmd(USART1, ENABLE);
 
-  __enable_irq();
-
   board_led_write(true);
 }
 
@@ -135,6 +141,17 @@ uint32_t board_button_read(void) {
   return BUTTON_STATE_ACTIVE == GPIO_ReadInputDataBit(BUTTON_PORT, BUTTON_PIN);
 }
 
+size_t board_get_unique_id(uint8_t id[], size_t max_len) {
+  (void) max_len;
+  volatile uint32_t* ch32_uuid = ((volatile uint32_t*) 0x1FFFF7E8UL);
+  uint32_t* serial_32 = (uint32_t*) (uintptr_t) id;
+  serial_32[0] = ch32_uuid[0];
+  serial_32[1] = ch32_uuid[1];
+  serial_32[2] = ch32_uuid[2];
+
+  return 12;
+}
+
 int board_uart_read(uint8_t *buf, int len) {
   (void) buf;
   (void) len;
@@ -142,11 +159,15 @@ int board_uart_read(uint8_t *buf, int len) {
 }
 
 int board_uart_write(void const *buf, int len) {
-  const char *bufc = (const char *) buf;
-  for (int i = 0; i < len; i++) {
-    while (USART_GetFlagStatus(USART1, USART_FLAG_TC) == RESET);
-    USART_SendData(USART1, *bufc++);
+  uint8_t const *p = (uint8_t const *) buf;
+  int count = 0;
+  while (count < len) {
+    if (USART_GetFlagStatus(USART1, USART_FLAG_TC) != RESET) {
+      USART_SendData(USART1, p[count]);
+      count++;
+    } else {
+      break;
+    }
   }
-
-  return len;
+  return count;
 }

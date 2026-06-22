@@ -12,4 +12,21 @@
 #ifndef __CH32V20x_IT_H
 #define __CH32V20x_IT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "ch32v20x.h"
+
+void USB_LP_CAN1_RX0_IRQHandler(void);
+void USB_HP_CAN1_TX_IRQHandler(void);
+void USBWakeUp_IRQHandler(void);
+void USBHD_IRQHandler(void);
+void USBHDWakeUp_IRQHandler(void);
+void SysTick_Handler(void);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* __CH32V20x_IT_H */

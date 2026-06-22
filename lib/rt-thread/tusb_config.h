@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_CONFIG_H_
-#define _TUSB_CONFIG_H_
+#ifndef TUSB_CONFIG_H_
+#define TUSB_CONFIG_H_
 
 #ifdef __RTTHREAD__
 #include <rtconfig.h>
@@ -215,4 +215,4 @@ extern "C" {
 #endif
 #endif /*__RTTHREAD__*/
 
-#endif /* _TUSB_CONFIG_H_ */
+#endif /* TUSB_CONFIG_H_ */

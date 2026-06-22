@@ -2,6 +2,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * Copyright (c) 2026, Gabriel Koppenstein
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -45,7 +46,9 @@
 #include "nrfx.h"
 #include "hal/nrf_gpio.h"
 #include "nrfx_gpiote.h"
+#if !defined(NRF54H20_XXAA) && !defined(NRF54LM20A_ENGA_XXAA)
 #include "nrfx_power.h"
+#endif
 #include "nrfx_uarte.h"
 #include "nrfx_spim.h"
 
@@ -58,21 +61,12 @@
 #pragma GCC diagnostic pop
 #endif
 
-
-// There is API changes between nrfx v2 and v3
-#if 85301 >= (10000*MDK_MAJOR_VERSION + 100*MDK_MINOR_VERSION + MDK_MICRO_VERSION)
-  // note MDK 8.53.1 is also used by nrfx v3.0.0, just skip this version and use later 3.x
-  #define NRFX_VER 2
-#else
-  #define NRFX_VER 3
+// example only supports nrfx v3 for code simplicity
+#if !(defined(NRFX_CONFIG_API_VER_MAJOR) && NRFX_CONFIG_API_VER_MAJOR >= 3) && \
+    !(85301 >= (10000*MDK_MAJOR_VERSION + 100*MDK_MINOR_VERSION + MDK_MICRO_VERSION))
+  #error "Example requires nrfx v3.0.0 or later"
 #endif
 
-//--------------------------------------------------------------------+
-// Forward USB interrupt events to TinyUSB IRQ Handler
-//--------------------------------------------------------------------+
-void USBD_IRQHandler(void) {
-  tud_int_handler(0);
-}
 
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
@@ -85,50 +79,100 @@ enum {
   USB_EVT_READY = 2
 };
 
-#ifdef NRF5340_XXAA
-  #define LFCLK_SRC_RC CLOCK_LFCLKSRC_SRC_LFRC
-  #define VBUSDETECT_Msk USBREG_USBREGSTATUS_VBUSDETECT_Msk
-  #define OUTPUTRDY_Msk USBREG_USBREGSTATUS_OUTPUTRDY_Msk
-  #define GPIOTE_IRQn GPIOTE1_IRQn
+// Forward USB interrupt events to TinyUSB IRQ Handler
+#if defined(NRF54H20_XXAA) || defined(NRF54LM20A_ENGA_XXAA)
+  #define USBD_IRQn USBHS_IRQn
+void USBHS_IRQHandler(void) {
+  tusb_int_handler(0, true);
+}
+
+  #if defined(NRF54LM20A_ENGA_XXAA)
+static nrfx_uarte_t _uart_id = NRFX_UARTE_INSTANCE(20);
+  #else
+static nrfx_uarte_t _uart_id = NRFX_UARTE_INSTANCE(120);
+  #endif
+
 #else
-  #define LFCLK_SRC_RC CLOCK_LFCLKSRC_SRC_RC
-  #define VBUSDETECT_Msk POWER_USBREGSTATUS_VBUSDETECT_Msk
-  #define OUTPUTRDY_Msk POWER_USBREGSTATUS_OUTPUTRDY_Msk
+  #ifdef NRF5340_XXAA
+    #define LFCLK_SRC_RC   CLOCK_LFCLKSRC_SRC_LFRC
+    #define VBUSDETECT_Msk USBREG_USBREGSTATUS_VBUSDETECT_Msk
+    #define OUTPUTRDY_Msk  USBREG_USBREGSTATUS_OUTPUTRDY_Msk
+    #define GPIOTE_IRQn    GPIOTE1_IRQn
+  #else
+    #define LFCLK_SRC_RC   CLOCK_LFCLKSRC_SRC_RC
+    #define VBUSDETECT_Msk POWER_USBREGSTATUS_VBUSDETECT_Msk
+    #define OUTPUTRDY_Msk  POWER_USBREGSTATUS_OUTPUTRDY_Msk
+  #endif
+
+  #if CFG_TUSB_OS != OPT_OS_ZEPHYR
+static nrfx_uarte_t _uart_id = NRFX_UARTE_INSTANCE(0);
+  #endif
+
+void USBD_IRQHandler(void) {
+  tusb_int_handler(0, true);
+}
 #endif
 
-static nrfx_uarte_t _uart_id = NRFX_UARTE_INSTANCE(0);
+//--------------------------------------------------------------------+
+// UART RX ring buffer and event handler
+//--------------------------------------------------------------------+
+#if CFG_TUSB_OS != OPT_OS_ZEPHYR
+
+#define UART_RX_BUFSIZE 64
+
+static uint8_t rx_fifo[UART_RX_BUFSIZE];
+static volatile uint16_t rx_fifo_head = 0;
+static volatile uint16_t rx_fifo_tail = 0;
+
+static uint8_t rx_dma_buf[1]; // 1-byte DMA target for continuous RX
+
+static void uart_event_handler(nrfx_uarte_event_t const* p_event, void* p_context) {
+  (void) p_context;
+  if (p_event->type == NRFX_UARTE_EVT_RX_DONE) {
+    for (size_t i = 0; i < p_event->data.rx.length; i++) {
+      uint16_t next_head = (rx_fifo_head + 1) & (UART_RX_BUFSIZE - 1);
+      if (next_head != rx_fifo_tail) {
+        rx_fifo[rx_fifo_head] = p_event->data.rx.p_buffer[i];
+        rx_fifo_head = next_head;
+      }
+    }
+    // re-arm 1-byte RX
+    nrfx_uarte_rx(&_uart_id, rx_dma_buf, sizeof(rx_dma_buf));
+  }
+}
+
+#endif
 
 // tinyusb function that handles power event (detected, ready, removed)
 // We must call it within SD's SOC event handler, or set it as power event handler if SD is not enabled.
 extern void tusb_hal_nrf_power_event(uint32_t event);
 
+#if !defined(NRF54H20_XXAA) && !defined(NRF54LM20A_ENGA_XXAA)
 // nrf power callback, could be unused if SD is enabled or usb is disabled (board_test example)
 TU_ATTR_UNUSED static void power_event_handler(nrfx_power_usb_evt_t event) {
   tusb_hal_nrf_power_event((uint32_t) event);
 }
+#endif
 
 //------------- Host using MAX2341E -------------//
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
 static void max3421_init(void);
 static nrfx_spim_t _spi = NRFX_SPIM_INSTANCE(1);
-
-#if NRFX_VER > 2
 static nrfx_gpiote_t _gpiote = NRFX_GPIOTE_INSTANCE(0);
-#endif
-
 #endif
 
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
-
 void board_init(void) {
+#if !defined(NRF54H20_XXAA) && !defined(NRF54LM20A_ENGA_XXAA)
   // stop LF clock just in case we jump from application without reset
   NRF_CLOCK->TASKS_LFCLKSTOP = 1UL;
 
   // Use Internal OSC to compatible with all boards
   NRF_CLOCK->LFCLKSRC = LFCLK_SRC_RC;
   NRF_CLOCK->TASKS_LFCLKSTART = 1UL;
+#endif
 
   // LED
   nrf_gpio_cfg_output(LED_PIN);
@@ -140,6 +184,7 @@ void board_init(void) {
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
+
 #elif CFG_TUSB_OS == OPT_OS_ZEPHYR
   #ifdef CONFIG_HAS_HW_NRF_USBREG
   // IRQ_CONNECT(USBREGULATOR_IRQn, DT_IRQ(DT_INST(0, nordic_nrf_clock), priority), nrfx_isr, nrfx_usbreg_irq_handler, 0);
@@ -152,28 +197,16 @@ void board_init(void) {
   irq_enable(DT_INST_IRQN(0));
 #endif
 
+#if CFG_TUSB_OS != OPT_OS_ZEPHYR
   // UART
-  #if NRFX_VER <= 2
-  nrfx_uarte_config_t uart_cfg = {
-      .pseltxd   = UART_TX_PIN,
-      .pselrxd   = UART_RX_PIN,
-      .pselcts   = NRF_UARTE_PSEL_DISCONNECTED,
-      .pselrts   = NRF_UARTE_PSEL_DISCONNECTED,
-      .p_context = NULL,
-      .baudrate  = NRF_UARTE_BAUDRATE_115200, // CFG_BOARD_UART_BAUDRATE
-      .interrupt_priority = 7,
-      .hal_cfg = {
-          .hwfc      = NRF_UARTE_HWFC_DISABLED,
-          .parity    = NRF_UARTE_PARITY_EXCLUDED,
-      }
-  };
-  #else
+  static uint8_t uart_tx_cache[64];
   nrfx_uarte_config_t uart_cfg = {
       .txd_pin   = UART_TX_PIN,
       .rxd_pin   = UART_RX_PIN,
       .rts_pin   = NRF_UARTE_PSEL_DISCONNECTED,
       .cts_pin   = NRF_UARTE_PSEL_DISCONNECTED,
       .p_context = NULL,
+      .tx_cache  = { .p_buffer = uart_tx_cache, .length = sizeof(uart_tx_cache) },
       .baudrate  = NRF_UARTE_BAUDRATE_115200, // CFG_BOARD_UART_BAUDRATE
       .interrupt_priority = 7,
       .config = {
@@ -181,16 +214,27 @@ void board_init(void) {
           .parity    = NRF_UARTE_PARITY_EXCLUDED,
       }
   };
-  #endif
 
-  nrfx_uarte_init(&_uart_id, &uart_cfg, NULL);
+  nrfx_uarte_init(&_uart_id, &uart_cfg, uart_event_handler);
+  // start continuous 1-byte RX
+  nrfx_uarte_rx(&_uart_id, rx_dma_buf, sizeof(rx_dma_buf));
+#endif
 
   //------------- USB -------------//
 #if CFG_TUD_ENABLED
+
+#if defined(NRF54LM20A_ENGA_XXAA)
+  // Request HFXO crystal clock for PCLK24M (required by USBHS core)
+  NRF_CLOCK->TASKS_XO24MSTART = CLOCK_TASKS_XO24MSTART_TASKS_XO24MSTART_Trigger;
+  while (!NRF_CLOCK->EVENTS_XO24MSTARTED) {}
+  NRF_CLOCK->EVENTS_XO24MSTARTED = 0;
+#endif
+
   // Priorities 0, 1, 4 (nRF52) are reserved for SoftDevice
   // 2 is highest for application
   NVIC_SetPriority(USBD_IRQn, 2);
 
+#if !defined(NRF54H20_XXAA) && !defined(NRF54LM20A_ENGA_XXAA)
   // USB power may already be ready at this time -> no event generated
   // We need to invoke the handler based on the status initially
   uint32_t usb_reg;
@@ -234,6 +278,7 @@ void board_init(void) {
     tusb_hal_nrf_power_event(USB_EVT_READY);
   }
 #endif
+#endif
 
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
   max3421_init();
@@ -255,7 +300,9 @@ uint32_t board_button_read(void) {
 size_t board_get_unique_id(uint8_t id[], size_t max_len) {
   (void) max_len;
 
-#ifdef NRF5340_XXAA
+#if defined(NRF54H20_XXAA)
+  uintptr_t did_addr = (uintptr_t) NRF_FICR->BLE.ADDR;
+#elif defined(NRF54LM20A_ENGA_XXAA) || defined(NRF5340_XXAA)
   uintptr_t did_addr = (uintptr_t) NRF_FICR->INFO.DEVICEID;
 #else
   uintptr_t did_addr = (uintptr_t) NRF_FICR->DEVICEID;
@@ -269,20 +316,31 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len) {
 }
 
 int board_uart_read(uint8_t* buf, int len) {
+#if CFG_TUSB_OS == OPT_OS_ZEPHYR
   (void) buf;
   (void) len;
-  return 0;
-//  nrfx_err_t err = nrfx_uarte_rx(&_uart_id, buf, (size_t) len);
-//  return NRFX_SUCCESS == err ? len : 0;
+  return -1;
+#else
+  int count = 0;
+  while (count < len && rx_fifo_tail != rx_fifo_head) {
+    buf[count++] = rx_fifo[rx_fifo_tail];
+    rx_fifo_tail = (rx_fifo_tail + 1) & (UART_RX_BUFSIZE - 1);
+  }
+  return count;
+#endif
 }
 
 int board_uart_write(void const* buf, int len) {
-  nrfx_err_t err = nrfx_uarte_tx(&_uart_id, (uint8_t const*) buf, (size_t) len
-                                 #if NRFX_VER > 2
-                                 ,0
-                                 #endif
-                                );
+#if CFG_TUSB_OS == OPT_OS_ZEPHYR
+  (void) buf;
+  return len;
+#else
+  if (nrfx_uarte_tx_in_progress(&_uart_id)) {
+    return 0;
+  }
+  nrfx_err_t err = nrfx_uarte_tx(&_uart_id, (uint8_t const*) buf, (size_t) len, 0);
   return (NRFX_SUCCESS == err) ? len : 0;
+#endif
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
@@ -292,7 +350,7 @@ void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void) {
+uint32_t tusb_time_millis_api(void) {
   return system_ticks;
 }
 #endif
@@ -352,18 +410,16 @@ void nrf_error_cb(uint32_t id, uint32_t pc, uint32_t info) {
 // API: SPI transfer with MAX3421E, must be implemented by application
 //--------------------------------------------------------------------+
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
-
-#if NRFX_VER <= 2
-void max3421_int_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action ) {
-  if (action != NRF_GPIOTE_POLARITY_HITOLO) return;
-#else
 void max3421_int_handler(nrfx_gpiote_pin_t pin, nrfx_gpiote_trigger_t action, void* p_context) {
   (void) p_context;
-  if (action != NRFX_GPIOTE_TRIGGER_HITOLO) return;
-#endif
+  if (action != NRFX_GPIOTE_TRIGGER_HITOLO) {
+    return;
+  }
+  if (pin != MAX3421_INTR_PIN) {
+    return;
+  }
 
-  if (pin != MAX3421_INTR_PIN) return;
-  tuh_int_handler(1, true);
+  tusb_int_handler(1, true);
 }
 
 static void max3421_init(void) {
@@ -378,13 +434,8 @@ static void max3421_init(void) {
       .sck_pin        = MAX3421_SCK_PIN,
       .mosi_pin       = MAX3421_MOSI_PIN,
       .miso_pin       = MAX3421_MISO_PIN,
-  #if NRFX_VER <= 2
-      .ss_pin         = NRFX_SPIM_PIN_NOT_USED,
-      .frequency      = NRF_SPIM_FREQ_4M,
-  #else
       .ss_pin         = NRF_SPIM_PIN_NOT_CONNECTED,
       .frequency      = 4000000u,
-  #endif
       .ss_active_high = false,
       .irq_priority   = 3,
       .orc            = 0xFF,
@@ -398,14 +449,6 @@ static void max3421_init(void) {
   TU_ASSERT(NRFX_SUCCESS == nrfx_spim_init(&_spi, &cfg, NULL, NULL), );
 
   // max3421e interrupt pin
-  #if NRFX_VER <= 2
-  nrfx_gpiote_init(1);
-  nrfx_gpiote_in_config_t in_config = NRFX_GPIOTE_CONFIG_IN_SENSE_HITOLO(true);
-  in_config.pull = NRF_GPIO_PIN_PULLUP;
-  NVIC_SetPriority(GPIOTE_IRQn, 2);
-  nrfx_gpiote_in_init(MAX3421_INTR_PIN, &in_config, max3421_int_handler);
-  nrfx_gpiote_trigger_enable(MAX3421_INTR_PIN, true);
-  #else
   nrf_gpio_pin_pull_t intr_pull = NRF_GPIO_PIN_PULLUP;
   nrfx_gpiote_trigger_config_t intr_trigger = {
       .trigger = NRFX_GPIOTE_TRIGGER_HITOLO,
@@ -426,7 +469,6 @@ static void max3421_init(void) {
 
   nrfx_gpiote_input_configure(&_gpiote, MAX3421_INTR_PIN, &intr_config);
   nrfx_gpiote_trigger_enable(&_gpiote, MAX3421_INTR_PIN, true);
-  #endif
 }
 
 // API to enable/disable MAX3421 INTR pin interrupt

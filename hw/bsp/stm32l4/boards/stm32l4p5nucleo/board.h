@@ -44,12 +44,13 @@
 #define BUTTON_PIN            GPIO_PIN_13
 #define BUTTON_STATE_ACTIVE   1
 
-#define UART_DEV              LPUART1
-#define UART_CLK_EN           __HAL_RCC_LPUART1_CLK_ENABLE
+#define UART_ID               11
 #define UART_GPIO_PORT        GPIOG
 #define UART_GPIO_AF          GPIO_AF8_LPUART1
 #define UART_TX_PIN           GPIO_PIN_7
 #define UART_RX_PIN           GPIO_PIN_8
+
+#define VBUS_SENSE_EN         1
 
 //--------------------------------------------------------------------+
 // RCC Clock
@@ -127,12 +128,6 @@ static inline void board_clock_init(void)
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_5);
-}
-
-static inline void board_vbus_sense_init(void)
-{
-  // Enable VBUS sense (B device) via pin PA9
-  USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN;
 }
 
 #ifdef __cplusplus

@@ -37,13 +37,15 @@
 #endif
 
 // UART Enable for STLink VCOM
-#define UART_DEV              USART3
+#define UART_ID               3
 
 #define PINID_LED      0
 #define PINID_BUTTON   1
 #define PINID_UART_TX  2
 #define PINID_UART_RX  3
 #define PINID_VBUS0_EN 4
+
+#define VBUS_SENSE_EN  1
 
 static board_pindef_t board_pindef[] = {
   { // LED
@@ -124,15 +126,6 @@ static inline void board_clock_init(void)
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
   HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3);
 
-  // Enable clocks for Uart
-  __HAL_RCC_USART3_CLK_ENABLE();
-}
-
-static inline void board_vbus_sense_init(uint8_t rhport) {
-  if (rhport == 0) {
-    // Enable VBUS sense (B device) via pin PA9
-    USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN;
-  }
 }
 
 static inline void board_vbus_set(uint8_t rhport, bool state) {

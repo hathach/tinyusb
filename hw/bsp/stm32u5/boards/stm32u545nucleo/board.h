@@ -48,8 +48,7 @@ extern "C"
 #define BUTTON_STATE_ACTIVE 1
 
 // UART Enable for STLink VCOM
-#define UART_DEV LPUART1
-#define UART_CLK_EN __HAL_RCC_LPUART1_CLK_ENABLE
+#define UART_ID  11
 #define UART_GPIO_PORT GPIOA
 #define UART_GPIO_AF GPIO_AF8_LPUART1
 #define UART_TX_PIN GPIO_PIN_2
@@ -108,6 +107,9 @@ static void SystemClock_Config(void) {
 }
 
 static void SystemPower_Config(void) {
+}
+
+static inline void board_vbus_sense_init(void) {
 }
 
 #ifdef __cplusplus

@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_VENDOR_HOST_H_
-#define _TUSB_VENDOR_HOST_H_
+#ifndef TUSB_VENDOR_HOST_H_
+#define TUSB_VENDOR_HOST_H_
 
 #include "common/tusb_common.h"
 
@@ -64,4 +64,4 @@ void cush_close(uint8_t dev_addr);
  }
 #endif
 
-#endif /* _TUSB_VENDOR_HOST_H_ */
+#endif /* TUSB_VENDOR_HOST_H_ */

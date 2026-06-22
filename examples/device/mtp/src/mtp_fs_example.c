@@ -39,12 +39,15 @@
 #define DEV_PROP_FRIENDLY_NAME  "TinyUSB MTP"
 
 //------------- storage info -------------//
-#define STORAGE_DESCRIPTRION { 'd', 'i', 's', 'k', 0 }
+#define STORAGE_DESCRIPTION { 'd', 'i', 's', 'k', 0 }
 #define VOLUME_IDENTIFIER { 'v', 'o', 'l', 0 }
 
-typedef MTP_STORAGE_INFO_STRUCT(TU_ARRAY_SIZE((uint16_t[]) STORAGE_DESCRIPTRION),
-                                 TU_ARRAY_SIZE(((uint16_t[])VOLUME_IDENTIFIER))
-) storage_info_t;
+enum {
+  STORAGE_DESC_LEN = TU_ARRAY_SIZE((uint16_t[]) STORAGE_DESCRIPTION),
+  VOLUME_ID_LEN = TU_ARRAY_SIZE((uint16_t[])VOLUME_IDENTIFIER)
+};
+
+typedef MTP_STORAGE_INFO_STRUCT(STORAGE_DESC_LEN, VOLUME_ID_LEN) storage_info_t;
 
 storage_info_t storage_info = {
   #ifdef CFG_EXAMPLE_MTP_READONLY
@@ -59,11 +62,11 @@ storage_info_t storage_info = {
   .free_space_in_bytes = 0, // calculated at runtime
   .free_space_in_objects = 0, // calculated at runtime
   .storage_description = {
-    .count = (TU_FIELD_SZIE(storage_info_t, storage_description)-1) / sizeof(uint16_t),
-    .utf16 = STORAGE_DESCRIPTRION
+    .count = (TU_FIELD_SIZE(storage_info_t, storage_description)-1) / sizeof(uint16_t),
+    .utf16 = STORAGE_DESCRIPTION
   },
   .volume_identifier = {
-    .count = (TU_FIELD_SZIE(storage_info_t, volume_identifier)-1) / sizeof(uint16_t),
+    .count = (TU_FIELD_SIZE(storage_info_t, volume_identifier)-1) / sizeof(uint16_t),
     .utf16 = VOLUME_IDENTIFIER
   }
 };
@@ -111,8 +114,8 @@ static fs_file_t fs_objects[FS_MAX_FILE_COUNT] = {
     .image_bit_depth = 0,
     .parent = 0,
     .association_type = MTP_ASSOCIATION_UNDEFINED,
+    .size = sizeof(README_TXT_CONTENT)-1,
     .data = (uint8_t*) (uintptr_t) README_TXT_CONTENT,
-    .size = sizeof(README_TXT_CONTENT)-1
   },
   {
     .name = { 't', 'i', 'n', 'y', 'u', 's', 'b', '.', 'p', 'n', 'g', 0 }, // "tinyusb.png"
@@ -123,8 +126,8 @@ static fs_file_t fs_objects[FS_MAX_FILE_COUNT] = {
     .image_bit_depth = 32,
     .parent = 0,
     .association_type = MTP_ASSOCIATION_UNDEFINED,
-    .data = (uint8_t*) (uintptr_t) logo_bin,
-    .size = logo_len,
+    .size = LOGO_LEN,
+    .data = (uint8_t*) (uintptr_t) logo_bin
   }
 };
 
@@ -140,6 +143,7 @@ static int32_t fs_get_device_properties(tud_mtp_cb_data_t* cb_data);
 static int32_t fs_get_object_handles(tud_mtp_cb_data_t* cb_data);
 static int32_t fs_get_object_info(tud_mtp_cb_data_t* cb_data);
 static int32_t fs_get_object(tud_mtp_cb_data_t* cb_data);
+static int32_t fs_get_partial_object(tud_mtp_cb_data_t* cb_data);
 static int32_t fs_delete_object(tud_mtp_cb_data_t* cb_data);
 static int32_t fs_send_object_info(tud_mtp_cb_data_t* cb_data);
 static int32_t fs_send_object(tud_mtp_cb_data_t* cb_data);
@@ -161,6 +165,7 @@ fs_op_handler_dict_t fs_op_handler_dict[] = {
   { MTP_OP_GET_OBJECT_HANDLES,    fs_get_object_handles    },
   { MTP_OP_GET_OBJECT_INFO,       fs_get_object_info       },
   { MTP_OP_GET_OBJECT,            fs_get_object            },
+  { MTP_OP_GET_PARTIAL_OBJECT,    fs_get_partial_object    },
   { MTP_OP_DELETE_OBJECT,         fs_delete_object         },
   { MTP_OP_SEND_OBJECT_INFO,      fs_send_object_info      },
   { MTP_OP_SEND_OBJECT,           fs_send_object           },
@@ -272,11 +277,11 @@ int32_t tud_mtp_command_received_cb(tud_mtp_cb_data_t* cb_data) {
     resp_code = MTP_RESP_OPERATION_NOT_SUPPORTED;
   } else {
     resp_code = handler(cb_data);
-    if (resp_code > MTP_RESP_UNDEFINED) {
-      // send response if needed
-      io_container->header->code = (uint16_t)resp_code;
-      tud_mtp_response_send(io_container);
-    }
+  }
+  if (resp_code > MTP_RESP_UNDEFINED) {
+    // send response if needed
+    io_container->header->code = (uint16_t)resp_code;
+    tud_mtp_response_send(io_container);
   }
 
   return resp_code;
@@ -299,11 +304,11 @@ int32_t tud_mtp_data_xfer_cb(tud_mtp_cb_data_t* cb_data) {
     resp_code = MTP_RESP_OPERATION_NOT_SUPPORTED;
   } else {
     resp_code = handler(cb_data);
-    if (resp_code > MTP_RESP_UNDEFINED) {
-      // send response if needed
-      io_container->header->code = (uint16_t)resp_code;
-      tud_mtp_response_send(io_container);
-    }
+  }
+  if (resp_code > MTP_RESP_UNDEFINED) {
+    // send response if needed
+    io_container->header->code = (uint16_t)resp_code;
+    tud_mtp_response_send(io_container);
   }
 
   return 0;
@@ -320,9 +325,17 @@ int32_t tud_mtp_data_complete_cb(tud_mtp_cb_data_t* cb_data) {
         break;
       }
       // parameter is: storage id, parent handle, new handle
-      mtp_container_add_uint32(resp, SUPPORTED_STORAGE_ID);
-      mtp_container_add_uint32(resp, f->parent);
-      mtp_container_add_uint32(resp, send_obj_handle);
+      (void) mtp_container_add_uint32(resp, SUPPORTED_STORAGE_ID);
+      (void) mtp_container_add_uint32(resp, f->parent);
+      (void) mtp_container_add_uint32(resp, send_obj_handle);
+      resp->header->code = MTP_RESP_OK;
+      break;
+    }
+
+    case MTP_OP_GET_PARTIAL_OBJECT: {
+      // response parameter: actual length of data sent excluding container header
+      const uint32_t len = cb_data->total_xferred_bytes - sizeof(mtp_container_header_t);
+      (void) mtp_container_add_uint32(resp, len);
       resp->header->code = MTP_RESP_OK;
       break;
     }
@@ -346,19 +359,22 @@ int32_t tud_mtp_response_complete_cb(tud_mtp_cb_data_t* cb_data) {
 //--------------------------------------------------------------------+
 static int32_t fs_get_device_info(tud_mtp_cb_data_t* cb_data) {
   // Device info is already prepared up to playback formats. Application only need to add string fields
+  int32_t resp_code = 0;
   mtp_container_info_t* io_container = &cb_data->io_container;
-  mtp_container_add_cstring(io_container, DEV_INFO_MANUFACTURER);
-  mtp_container_add_cstring(io_container, DEV_INFO_MODEL);
-  mtp_container_add_cstring(io_container, DEV_INFO_VERSION);
+  (void) mtp_container_add_cstring(io_container, DEV_INFO_MANUFACTURER);
+  (void) mtp_container_add_cstring(io_container, DEV_INFO_MODEL);
+  (void) mtp_container_add_cstring(io_container, DEV_INFO_VERSION);
 
   enum { MAX_SERIAL_NCHARS = 32 };
   uint16_t serial_utf16[MAX_SERIAL_NCHARS+1];
   size_t nchars = board_usb_get_serial(serial_utf16, MAX_SERIAL_NCHARS);
   serial_utf16[tu_min32(nchars, MAX_SERIAL_NCHARS)] = 0; // ensure null termination
-  mtp_container_add_string(io_container, serial_utf16);
+  (void) mtp_container_add_string(io_container, serial_utf16);
 
-  tud_mtp_data_send(io_container);
-  return 0;
+  if (!tud_mtp_data_send(io_container)) {
+    resp_code = MTP_RESP_DEVICE_BUSY;
+  }
+  return resp_code;
 }
 
 static int32_t fs_open_close_session(tud_mtp_cb_data_t* cb_data) {
@@ -380,7 +396,7 @@ static int32_t fs_open_close_session(tud_mtp_cb_data_t* cb_data) {
 static int32_t fs_get_storage_ids(tud_mtp_cb_data_t* cb_data) {
   mtp_container_info_t* io_container = &cb_data->io_container;
   uint32_t storage_ids [] = { SUPPORTED_STORAGE_ID };
-  mtp_container_add_auint32(io_container, 1, storage_ids);
+  (void) mtp_container_add_auint32(io_container, 1, storage_ids);
   tud_mtp_data_send(io_container);
   return 0;
 }
@@ -391,10 +407,10 @@ static int32_t fs_get_storage_info(tud_mtp_cb_data_t* cb_data) {
   const uint32_t storage_id = command->params[0];
   TU_VERIFY(SUPPORTED_STORAGE_ID == storage_id, -1);
   // update storage info with current free space
-  storage_info.max_capacity_in_bytes = sizeof(README_TXT_CONTENT) + logo_len + FS_MAX_CAPACITY_BYTES;
+  storage_info.max_capacity_in_bytes = sizeof(README_TXT_CONTENT) + LOGO_LEN + FS_MAX_CAPACITY_BYTES;
   storage_info.free_space_in_objects = FS_MAX_FILE_COUNT - fs_get_file_count();
   storage_info.free_space_in_bytes = storage_info.free_space_in_objects ? FS_MAX_CAPACITY_BYTES : 0;
-  mtp_container_add_raw(io_container, &storage_info, sizeof(storage_info));
+  (void) mtp_container_add_raw(io_container, &storage_info, sizeof(storage_info));
   tud_mtp_data_send(io_container);
   return 0;
 }
@@ -412,10 +428,10 @@ static int32_t fs_get_device_properties(tud_mtp_cb_data_t* cb_data) {
       case MTP_DEV_PROP_DEVICE_FRIENDLY_NAME:
         device_prop_header.datatype = MTP_DATA_TYPE_STR;
         device_prop_header.get_set = MTP_MODE_GET;
-        mtp_container_add_raw(io_container, &device_prop_header, sizeof(device_prop_header));
-        mtp_container_add_cstring(io_container, DEV_PROP_FRIENDLY_NAME); // factory
-        mtp_container_add_cstring(io_container, DEV_PROP_FRIENDLY_NAME); // current
-        mtp_container_add_uint8(io_container, 0); // no form
+        (void) mtp_container_add_raw(io_container, &device_prop_header, sizeof(device_prop_header));
+        (void) mtp_container_add_cstring(io_container, DEV_PROP_FRIENDLY_NAME); // factory
+        (void) mtp_container_add_cstring(io_container, DEV_PROP_FRIENDLY_NAME); // current
+        (void) mtp_container_add_uint8(io_container, 0); // no form
         tud_mtp_data_send(io_container);
         break;
 
@@ -426,7 +442,7 @@ static int32_t fs_get_device_properties(tud_mtp_cb_data_t* cb_data) {
     // get value
     switch (dev_prop_code) {
       case MTP_DEV_PROP_DEVICE_FRIENDLY_NAME:
-        mtp_container_add_cstring(io_container, DEV_PROP_FRIENDLY_NAME);
+        (void) mtp_container_add_cstring(io_container, DEV_PROP_FRIENDLY_NAME);
         tud_mtp_data_send(io_container);
         break;
 
@@ -446,20 +462,20 @@ static int32_t fs_get_object_handles(tud_mtp_cb_data_t* cb_data) {
   const uint32_t parent_handle = command->params[2]; // folder handle, 0xFFFFFFFF is root
   (void)obj_format;
 
-  if (storage_id != 0xFFFFFFFF && storage_id != SUPPORTED_STORAGE_ID) {
+  if (storage_id != 0xFFFFFFFFu && storage_id != SUPPORTED_STORAGE_ID) {
     return MTP_RESP_INVALID_STORAGE_ID;
   }
 
   uint32_t handles[FS_MAX_FILE_COUNT] = { 0 };
-  uint32_t count = 0;
-  for (uint8_t i = 0; i < FS_MAX_FILE_COUNT; i++) {
+  uint32_t count = 0u;
+  for (uint8_t i = 0u; i < FS_MAX_FILE_COUNT; i++) {
     fs_file_t* f = &fs_objects[i];
     if (fs_file_exist(f) &&
-        (parent_handle == f->parent || (parent_handle == 0xFFFFFFFF && f->parent == 0))) {
-      handles[count++] = i + 1; // handle is index + 1
+        (parent_handle == f->parent || (parent_handle == 0xFFFFFFFFu && f->parent == 0u))) {
+      handles[count++] = (uint32_t) i + 1u; // handle is index + 1
     }
   }
-  mtp_container_add_auint32(io_container, count, handles);
+  (void) mtp_container_add_auint32(io_container, count, handles);
   tud_mtp_data_send(io_container);
 
   return 0;
@@ -490,11 +506,11 @@ static int32_t fs_get_object_info(tud_mtp_cb_data_t* cb_data) {
     .association_desc = 0,
     .sequence_number = 0
   };
-  mtp_container_add_raw(io_container, &obj_info_header, sizeof(obj_info_header));
-  mtp_container_add_string(io_container, f->name);
-  mtp_container_add_cstring(io_container, FS_FIXED_DATETIME);
-  mtp_container_add_cstring(io_container, FS_FIXED_DATETIME);
-  mtp_container_add_cstring(io_container, ""); // keywords, not used
+  (void) mtp_container_add_raw(io_container, &obj_info_header, sizeof(obj_info_header));
+  (void) mtp_container_add_string(io_container, f->name);
+  (void) mtp_container_add_cstring(io_container, FS_FIXED_DATETIME);
+  (void) mtp_container_add_cstring(io_container, FS_FIXED_DATETIME);
+  (void) mtp_container_add_cstring(io_container, ""); // keywords, not used
   tud_mtp_data_send(io_container);
 
   return 0;
@@ -512,7 +528,7 @@ static int32_t fs_get_object(tud_mtp_cb_data_t* cb_data) {
   if (cb_data->phase == MTP_PHASE_COMMAND) {
     // If file contents is larger than CFG_TUD_MTP_EP_BUFSIZE, data may only partially is added here
     // the rest will be sent in tud_mtp_data_more_cb
-    mtp_container_add_raw(io_container, f->data, f->size);
+    (void) mtp_container_add_raw(io_container, f->data, f->size);
     tud_mtp_data_send(io_container);
   } else if (cb_data->phase == MTP_PHASE_DATA) {
     // continue sending remaining data: file contents offset is xferred byte minus header size
@@ -522,6 +538,42 @@ static int32_t fs_get_object(tud_mtp_cb_data_t* cb_data) {
       memcpy(io_container->payload, f->data + offset, xact_len);
       tud_mtp_data_send(io_container);
     }
+  } else {
+    // nothing to do
+  }
+
+  return 0;
+}
+
+static int32_t fs_get_partial_object(tud_mtp_cb_data_t* cb_data) {
+  const mtp_container_command_t* command = cb_data->command_container;
+  mtp_container_info_t* io_container = &cb_data->io_container;
+  const uint32_t obj_handle = command->params[0];
+  const uint32_t req_offset = command->params[1];
+  const uint32_t req_max    = command->params[2];
+  const fs_file_t* f = fs_get_file(obj_handle);
+  if (f == NULL) {
+    return MTP_RESP_INVALID_OBJECT_HANDLE;
+  }
+
+  const uint32_t avail   = (req_offset >= f->size) ? 0u : (f->size - req_offset);
+  const uint32_t to_send = tu_min32(avail, req_max);
+
+  if (cb_data->phase == MTP_PHASE_COMMAND) {
+    // If file contents is larger than CFG_TUD_MTP_EP_BUFSIZE, data may only partially be added here
+    // the rest will be sent in tud_mtp_data_more_cb
+    (void) mtp_container_add_raw(io_container, f->data + req_offset, to_send);
+    tud_mtp_data_send(io_container);
+  } else if (cb_data->phase == MTP_PHASE_DATA) {
+    // continue sending remaining data: file contents offset is xferred byte minus header size
+    const uint32_t offset = cb_data->total_xferred_bytes - sizeof(mtp_container_header_t);
+    const uint32_t xact_len = tu_min32(to_send - offset, io_container->payload_bytes);
+    if (xact_len > 0) {
+      memcpy(io_container->payload, f->data + offset + req_offset, xact_len);
+      tud_mtp_data_send(io_container);
+    }
+  } else {
+    // nothing to do
   }
 
   return 0;
@@ -537,21 +589,21 @@ static int32_t fs_send_object_info(tud_mtp_cb_data_t* cb_data) {
   if (!is_session_opened) {
     return MTP_RESP_SESSION_NOT_OPEN;
   }
-  if (storage_id != 0xFFFFFFFF && storage_id != SUPPORTED_STORAGE_ID) {
+  if (storage_id != 0xFFFFFFFFu && storage_id != SUPPORTED_STORAGE_ID) {
     return MTP_RESP_INVALID_STORAGE_ID;
   }
 
   if (cb_data->phase == MTP_PHASE_COMMAND) {
-    tud_mtp_data_receive(io_container);
+    (void) tud_mtp_data_receive(io_container);
   } else if (cb_data->phase == MTP_PHASE_DATA) {
     mtp_object_info_header_t* obj_info = (mtp_object_info_header_t*) io_container->payload;
     if (obj_info->storage_id != 0 && obj_info->storage_id != SUPPORTED_STORAGE_ID) {
       return MTP_RESP_INVALID_STORAGE_ID;
     }
 
-    if (obj_info->parent_object) {
+    if (obj_info->parent_object != 0 && obj_info->parent_object != 0xFFFFFFFFu) { // not root
       fs_file_t* parent = fs_get_file(obj_info->parent_object);
-      if (parent == NULL || !parent->association_type) {
+      if (parent == NULL || 0u == parent->association_type) {
         return MTP_RESP_INVALID_PARENT_OBJECT;
       }
     }
@@ -575,8 +627,10 @@ static int32_t fs_send_object_info(tud_mtp_cb_data_t* cb_data) {
     f->size = obj_info->object_compressed_size;
     f->data = f_buf;
     uint8_t* buf = io_container->payload + sizeof(mtp_object_info_header_t);
-    mtp_container_get_string(buf, f->name);
+    (void) mtp_container_get_string(buf, f->name);
     // ignore date created/modified/keywords
+  } else {
+    // nothing to do
   }
 
   return 0;

@@ -375,7 +375,7 @@ void dcd_int_disable(uint8_t rhport)
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 {
   // Respond with ACK status first before changing device address
-  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
+  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0, false);
 
   // Wait for the response packet to get sent
   while (tx_active)
@@ -438,9 +438,17 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   return true;
 }
 
-void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
-  (void) rhport; (void) ep_addr;
-  // TODO implement dcd_edpt_close()
+bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
+  (void)rhport;
+  (void)ep_addr;
+  (void)largest_packet_size;
+  return false;
+}
+
+bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
+  (void)rhport;
+  (void)desc_ep;
+  return false;
 }
 
 void dcd_edpt_close_all (uint8_t rhport)
@@ -475,8 +483,9 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   // IN endpoints will get un-stalled when more data is written.
 }
 
-bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes)
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr)
 {
+  (void) is_isr;
   (void)rhport;
   uint8_t ep_num = tu_edpt_number(ep_addr);
   uint8_t ep_dir = tu_edpt_dir(ep_addr);
@@ -659,5 +668,4 @@ void dcd_int_handler(uint8_t rhport)
     }
   }
 }
-
 #endif

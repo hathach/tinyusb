@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_USBD_H_
-#define _TUSB_USBD_H_
+#ifndef TUSB_USBD_H_
+#define TUSB_USBD_H_
 
 #include "common/tusb_common.h"
 
@@ -33,11 +33,37 @@
 extern "C" {
 #endif
 
+// ConfigID for tud_configure()
+enum {
+  TUD_CFGID_INVALID = 0,
+  TUD_CFGID_DWC2 = 100,
+};
+
+typedef struct {
+  uint16_t bm_double_buffered; // bitmap of IN endpoints to be double buffered, only effective for bulk endpoints
+  bool vbus_sensing; // Vbus pin is used for device connection detection, mandatory for tud_umount_cb()
+} tud_configure_dwc2_t;
+
+  #ifndef CFG_TUD_CONFIGURE_DWC2_DEFAULT
+    #define CFG_TUD_CONFIGURE_DWC2_DEFAULT {.bm_double_buffered = 0, .vbus_sensing = CFG_TUD_VBUS_DETECT_HW}
+  #endif
+
+typedef union {
+  tud_configure_dwc2_t dwc2;
+} tud_configure_param_t;
+
 //--------------------------------------------------------------------+
 // Application API
 //--------------------------------------------------------------------+
 
+// Configure device stack behavior with dynamic or port-specific parameters.
+// Should be called before initialization of the device stack
+// - cfg_id   : configure ID from TUD_CFGID_* enum values
+// - cfg_param: configure data, structure depends on the ID
+bool tud_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param);
+
 // New API to replace tud_init() to init device stack on specific roothub port
+// Must be called in the same task/context as tud_task() if RTOS is used
 bool tud_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init);
 
 // Init device stack on roothub port
@@ -53,6 +79,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool tud_init (uint8_t rhport) {
 }
 
 // Deinit device stack on roothub port
+// Must be called in the same task/context as tud_task() if RTOS is used
 bool tud_deinit(uint8_t rhport);
 
 // Check if device stack is already initialized
@@ -95,7 +122,9 @@ bool tud_suspended(void);
 // Check if device is ready to transfer
 TU_ATTR_ALWAYS_INLINE static inline
 bool tud_ready(void) {
-  return tud_mounted() && !tud_suspended();
+  const bool is_mounted = tud_mounted();
+  const bool is_suspended = tud_suspended();
+  return is_mounted && !is_suspended;
 }
 
 // Remote wake up host, only if suspended and enabled by host
@@ -268,6 +297,19 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   /* Endpoint In */\
   7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0
 
+//--------------------------------------------------------------------+
+// Printer Descriptor Templates
+//--------------------------------------------------------------------+
+
+#define TUD_PRINTER_DESC_LEN (9 + 7 + 7)  // one interface, two endpoints
+
+#define TUD_PRINTER_DESCRIPTOR(_itfnum, _stridx, _epout, _epin, _epsize) \
+  /* Interface */\
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 2, TUSB_CLASS_PRINTER, 1, 2, _stridx,\
+  /* Endpoint Out */\
+  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0,\
+  /* Endpoint In */\
+  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0
 
 //--------------------------------------------------------------------+
 // MTP Descriptor Templates
@@ -299,7 +341,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 // Interface number, string index, protocol, report descriptor len, EP In address, size & polling interval
 #define TUD_HID_DESCRIPTOR(_itfnum, _stridx, _boot_protocol, _report_desc_len, _epin, _epsize, _ep_interval) \
   /* Interface */\
-  9, TUSB_DESC_INTERFACE, _itfnum, 0, 1, TUSB_CLASS_HID, (uint8_t)((_boot_protocol) ? (uint8_t)HID_SUBCLASS_BOOT : 0), _boot_protocol, _stridx,\
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 1, TUSB_CLASS_HID, (uint8_t)((_boot_protocol != HID_ITF_PROTOCOL_NONE) ? (uint8_t)HID_SUBCLASS_BOOT : 0u), _boot_protocol, _stridx,\
   /* HID descriptor */\
   9, HID_DESC_TYPE_HID, U16_TO_U8S_LE(0x0111), 0, 1, HID_DESC_TYPE_REPORT, U16_TO_U8S_LE(_report_desc_len),\
   /* Endpoint In */\
@@ -312,7 +354,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 // Interface number, string index, protocol, report descriptor len, EP OUT & IN address, size & polling interval
 #define TUD_HID_INOUT_DESCRIPTOR(_itfnum, _stridx, _boot_protocol, _report_desc_len, _epout, _epin, _epsize, _ep_interval) \
   /* Interface */\
-  9, TUSB_DESC_INTERFACE, _itfnum, 0, 2, TUSB_CLASS_HID, (uint8_t)((_boot_protocol) ? (uint8_t)HID_SUBCLASS_BOOT : 0), _boot_protocol, _stridx,\
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 2, TUSB_CLASS_HID, (uint8_t)((_boot_protocol != HID_ITF_PROTOCOL_NONE) ? (uint8_t)HID_SUBCLASS_BOOT : 0u), _boot_protocol, _stridx,\
   /* HID descriptor */\
   9, HID_DESC_TYPE_HID, U16_TO_U8S_LE(0x0111), 0, 1, HID_DESC_TYPE_REPORT, U16_TO_U8S_LE(_report_desc_len),\
   /* Endpoint Out */\
@@ -330,7 +372,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   /* Audio Control (AC) Interface */\
   9, TUSB_DESC_INTERFACE, _itfnum, 0, 0, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_CONTROL, AUDIO_FUNC_PROTOCOL_CODE_UNDEF, _stridx,\
   /* AC Header */\
-  9, TUSB_DESC_CS_INTERFACE, AUDIO_CS_AC_INTERFACE_HEADER, U16_TO_U8S_LE(0x0100), U16_TO_U8S_LE(0x0009), 1, (uint8_t)((_itfnum) + 1),\
+  9, TUSB_DESC_CS_INTERFACE, AUDIO10_CS_AC_INTERFACE_HEADER, U16_TO_U8S_LE(0x0100), U16_TO_U8S_LE(0x0009), 1, (uint8_t)((_itfnum) + 1),\
   /* MIDI Streaming (MS) Interface */\
   9, TUSB_DESC_INTERFACE, (uint8_t)((_itfnum) + 1), 0, 2, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_MIDI_STREAMING, AUDIO_FUNC_PROTOCOL_CODE_UNDEF, 0,\
   /* MS Header */\
@@ -383,242 +425,389 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   TUD_MIDI_JACKID_OUT_EMB(1)
 
 //--------------------------------------------------------------------+
-// Audio v2.0 Descriptor Templates
+// MIDI 2.0 Descriptor Templates (USB-MIDI 2.0)
 //--------------------------------------------------------------------+
 
+// Alt Setting 1: MS Interface + MS Header (bcdMSC=0x0200)
+// Per USB-MIDI 2.0 Table 5-2: wTotalLength in the MS Header is not used in 2.0
+// and shall be set to match bLength (= 0x0007) for conformity with USB-MIDI 1.0.
+#define TUD_MIDI2_DESC_ALT1_HEAD_LEN (9 + 7)
+#define TUD_MIDI2_DESC_ALT1_HEAD(_itfnum, _stridx) \
+  /* MIDI Streaming Interface, Alt Setting 1 */\
+  9, TUSB_DESC_INTERFACE, (uint8_t)((_itfnum) + 1), 1, 2, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_MIDI_STREAMING, AUDIO_FUNC_PROTOCOL_CODE_UNDEF, 0,\
+  /* MS Header (MIDI 2.0): wTotalLength = bLength per spec */\
+  7, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_HEADER, U16_TO_U8S_LE(0x0200), U16_TO_U8S_LE(0x0007)
+
+// Alt Setting 1: Standard USB Endpoint (7 bytes) + CS Endpoint General 2.0
+#define TUD_MIDI2_DESC_ALT1_EP_LEN(_numgtbs) (7 + 4 + (_numgtbs))
+#define TUD_MIDI2_DESC_ALT1_EP(_ep, _epsize, _numgtbs, ...) \
+  7, TUSB_DESC_ENDPOINT, _ep, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0, \
+  (uint8_t)(4 + (_numgtbs)), TUSB_DESC_CS_ENDPOINT, MIDI_CS_ENDPOINT_GENERAL_2_0, _numgtbs, ## __VA_ARGS__
+
+// Total length: Alt 0 (MIDI 1.0) + Alt 1 (UMP)
+#define TUD_MIDI2_DESC_LEN (TUD_MIDI_DESC_LEN + TUD_MIDI2_DESC_ALT1_HEAD_LEN + TUD_MIDI2_DESC_ALT1_EP_LEN(1) * 2)
+
+// Complete MIDI 2.0 descriptor with both alternate settings (single cable/GTB)
+#define TUD_MIDI2_DESCRIPTOR(_itfnum, _stridx, _epout, _epin, _epsize) \
+  /* Alt Setting 0 (MIDI 1.0) */\
+  TUD_MIDI_DESC_HEAD(_itfnum, _stridx, 1),\
+  TUD_MIDI_DESC_JACK_DESC(1, 0),\
+  TUD_MIDI_DESC_EP(_epout, _epsize, 1),\
+  TUD_MIDI_JACKID_IN_EMB(1),\
+  TUD_MIDI_DESC_EP(_epin, _epsize, 1),\
+  TUD_MIDI_JACKID_OUT_EMB(1),\
+  /* Alt Setting 1 (UMP) */\
+  TUD_MIDI2_DESC_ALT1_HEAD(_itfnum, _stridx),\
+  TUD_MIDI2_DESC_ALT1_EP(_epout, _epsize, 1, 1 /* bAssoGrpTrmBlkID */),\
+  TUD_MIDI2_DESC_ALT1_EP(_epin, _epsize, 1, 1 /* bAssoGrpTrmBlkID */)
+
+//--------------------------------------------------------------------+
+// Audio Descriptor Templates
+//--------------------------------------------------------------------+
+
+
+/* Audio v1.0 Descriptor Templates */
+
+/* Standard AC Interface Descriptor UAC1 (4.3.1) */
+#define TUD_AUDIO10_DESC_STD_AC_LEN 9
+#define TUD_AUDIO10_DESC_STD_AC(_itfnum, _nEPs, _stridx) \
+  TUD_AUDIO10_DESC_STD_AC_LEN, TUSB_DESC_INTERFACE, _itfnum, 0x00, _nEPs, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_CONTROL, AUDIO_INT_PROTOCOL_CODE_V1, _stridx
+
+/* Class-Specific AC Interface Header Descriptor UAC1 (4.3.2) */
+#define TUD_AUDIO10_DESC_CS_AC_LEN(_nintfs) (8 + (_nintfs))
+// Class-Specific AC Interface Header descriptor, take list of streaming interface numbers as variable arguments
+#define TUD_AUDIO10_DESC_CS_AC(_bcdADC, _totallen, ...) \
+  TUD_AUDIO10_DESC_CS_AC_LEN(TU_ARGS_NUM(__VA_ARGS__)), TUSB_DESC_CS_INTERFACE, AUDIO10_CS_AC_INTERFACE_HEADER, U16_TO_U8S_LE(_bcdADC), U16_TO_U8S_LE(_totallen + TUD_AUDIO10_DESC_CS_AC_LEN(TU_ARGS_NUM(__VA_ARGS__))), TU_ARGS_NUM(__VA_ARGS__), __VA_ARGS__
+
+/* Input Terminal Descriptor UAC1 (4.3.2.1) */
+#define TUD_AUDIO10_DESC_INPUT_TERM_LEN 12
+#define TUD_AUDIO10_DESC_INPUT_TERM(_termid, _termtype, _assocTerm, _nchannels, _channelcfg, _idxchannelnames, _stridx) \
+  TUD_AUDIO10_DESC_INPUT_TERM_LEN, TUSB_DESC_CS_INTERFACE, AUDIO10_CS_AC_INTERFACE_INPUT_TERMINAL, _termid, U16_TO_U8S_LE(_termtype), _assocTerm, _nchannels, U16_TO_U8S_LE(_channelcfg), _idxchannelnames, _stridx
+
+/* Output Terminal Descriptor UAC1 (4.3.2.2) */
+#define TUD_AUDIO10_DESC_OUTPUT_TERM_LEN 9
+#define TUD_AUDIO10_DESC_OUTPUT_TERM(_termid, _termtype, _assocTerm, _srcid, _stridx) \
+  TUD_AUDIO10_DESC_OUTPUT_TERM_LEN, TUSB_DESC_CS_INTERFACE, AUDIO10_CS_AC_INTERFACE_OUTPUT_TERMINAL, _termid, U16_TO_U8S_LE(_termtype), _assocTerm, _srcid, _stridx
+
+/* Mixer Unit Descriptor UAC1 (4.3.2.3) - One Input Pin */
+#define TUD_AUDIO10_DESC_MIXER_UNIT_ONE_PIN_LEN(_ctrlsize) (11 + (_ctrlsize))
+#define TUD_AUDIO10_DESC_MIXER_UNIT_ONE_PIN(_unitid, _srcid, _nrchannels, _channelcfg, _idxchannelnames, _ctrlsize, _stridx, ...) \
+  TUD_AUDIO10_DESC_MIXER_UNIT_ONE_PIN_LEN(_ctrlsize), TUSB_DESC_CS_INTERFACE, AUDIO10_CS_AC_INTERFACE_MIXER_UNIT, _unitid, 1, _srcid, _nrchannels, U16_TO_U8S_LE(_channelcfg), _idxchannelnames, __VA_ARGS__, _stridx
+
+/* Selector Unit Descriptor UAC1 (4.3.2.4) - One Input Pin */
+#define TUD_AUDIO10_DESC_SELECTOR_UNIT_ONE_PIN_LEN 7
+#define TUD_AUDIO10_DESC_SELECTOR_UNIT_ONE_PIN(_unitid, _srcid, _stridx) \
+  TUD_AUDIO10_DESC_SELECTOR_UNIT_ONE_PIN_LEN, TUSB_DESC_CS_INTERFACE, AUDIO10_CS_AC_INTERFACE_SELECTOR_UNIT, _unitid, 1, _srcid, _stridx
+
+/* Feature Unit Descriptor UAC1 (4.3.2.5) - Variable Channels */
+#define TUD_AUDIO10_DESC_FEATURE_UNIT_LEN(_nchannels) (7 + ((_nchannels) + 1) * 2)
+// Feature Unit descriptor, take list of control bitmaps for master channel + each channel as variable arguments
+#define TUD_AUDIO10_DESC_FEATURE_UNIT(_unitid, _srcid, _stridx, ...) \
+  TUD_AUDIO10_DESC_FEATURE_UNIT_LEN(TU_ARGS_NUM(__VA_ARGS__) - 1), TUSB_DESC_CS_INTERFACE, AUDIO10_CS_AC_INTERFACE_FEATURE_UNIT, _unitid, _srcid, 2, TU_ARGS_APPLY_EXPAND(U16_TO_U8S_LE, __VA_ARGS__), _stridx
+
+/* Standard AS Interface Descriptor UAC1 (4.5.1) */
+#define TUD_AUDIO10_DESC_STD_AS_LEN 9
+#define TUD_AUDIO10_DESC_STD_AS_INT(_itfnum, _altset, _nEPs, _stridx) \
+  TUD_AUDIO10_DESC_STD_AS_LEN, TUSB_DESC_INTERFACE, _itfnum, _altset, _nEPs, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_STREAMING, AUDIO_INT_PROTOCOL_CODE_V1, _stridx
+
+/* Class-Specific AS Interface Descriptor UAC1 (4.5.2) */
+#define TUD_AUDIO10_DESC_CS_AS_INT_LEN 7
+#define TUD_AUDIO10_DESC_CS_AS_INT(_termid, _delay, _formattype) \
+  TUD_AUDIO10_DESC_CS_AS_INT_LEN, TUSB_DESC_CS_INTERFACE, AUDIO10_CS_AS_INTERFACE_AS_GENERAL, _termid, _delay, U16_TO_U8S_LE(_formattype)
+
+/* Type I Format Type Descriptor UAC1 (2.2.5) */
+#define TUD_AUDIO10_DESC_TYPE_I_FORMAT_LEN(_nfreqs) (8 + (_nfreqs)*3)
+// Type I Format descriptor, take list of sample rates in Hz as variable arguments
+#define TUD_AUDIO10_DESC_TYPE_I_FORMAT(_nrchannels, _subframesize, _bitresolution, ...) \
+  TUD_AUDIO10_DESC_TYPE_I_FORMAT_LEN(TU_ARGS_NUM(__VA_ARGS__)), TUSB_DESC_CS_INTERFACE, AUDIO10_CS_AS_INTERFACE_FORMAT_TYPE, AUDIO10_FORMAT_TYPE_I, _nrchannels, _subframesize, _bitresolution, TU_ARGS_NUM(__VA_ARGS__), TU_ARGS_APPLY_EXPAND(U24_TO_U8S_LE, __VA_ARGS__)
+
+/* Standard AS Isochronous Audio Data Endpoint Descriptor UAC1 (4.6.1.1) */
+#define TUD_AUDIO10_DESC_STD_AS_ISO_EP_LEN 9
+#define TUD_AUDIO10_DESC_STD_AS_ISO_EP(_ep, _attr, _maxEPsize, _interval, _sync_ep) \
+  TUD_AUDIO10_DESC_STD_AS_ISO_EP_LEN, TUSB_DESC_ENDPOINT, _ep, _attr, U16_TO_U8S_LE(_maxEPsize), _interval, 0x00, _sync_ep
+
+/* Class-Specific AS Isochronous Audio Data Endpoint Descriptor UAC1 (4.6.1.2) */
+#define TUD_AUDIO10_DESC_CS_AS_ISO_EP_LEN 7
+#define TUD_AUDIO10_DESC_CS_AS_ISO_EP(_attr, _lockdelayunits, _lockdelay) \
+  TUD_AUDIO10_DESC_CS_AS_ISO_EP_LEN, TUSB_DESC_CS_ENDPOINT, AUDIO10_CS_EP_SUBTYPE_GENERAL, _attr, _lockdelayunits, U16_TO_U8S_LE(_lockdelay)
+
+/* Standard AS Isochronous Synch Endpoint Descriptor UAC1 (4.6.2.1) */
+#define TUD_AUDIO10_DESC_STD_AS_ISO_SYNC_EP_LEN 9
+#define TUD_AUDIO10_DESC_STD_AS_ISO_SYNC_EP(_ep, _bRefresh) \
+  TUD_AUDIO10_DESC_STD_AS_ISO_SYNC_EP_LEN, TUSB_DESC_ENDPOINT, _ep, TUSB_XFER_ISOCHRONOUS, U16_TO_U8S_LE(3), 1, _bRefresh, 0x00
+
+/* Standard AC Interrupt Endpoint Descriptor UAC1 (4.4.2) */
+#define TUD_AUDIO10_DESC_STD_AC_INT_EP_LEN 9
+#define TUD_AUDIO10_DESC_STD_AC_INT_EP(_ep, _interval) \
+  TUD_AUDIO10_DESC_STD_AC_INT_EP_LEN, TUSB_DESC_ENDPOINT, _ep, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(2), _interval, 0x00, 0x00
+
+// AUDIO simple descriptor templates for UAC1
+
+// AUDIO simple descriptor (UAC1) for 1 microphone input
+// - 1 Input Terminal, 1 Feature Unit (Mute and Volume Control), 1 Output Terminal
+
+#define TUD_AUDIO10_MIC_ONE_CH_DESC_LEN(_nfreqs) (\
+  + TUD_AUDIO10_DESC_STD_AC_LEN\
+  + TUD_AUDIO10_DESC_CS_AC_LEN(1)\
+  + TUD_AUDIO10_DESC_INPUT_TERM_LEN\
+  + TUD_AUDIO10_DESC_OUTPUT_TERM_LEN\
+  + TUD_AUDIO10_DESC_FEATURE_UNIT_LEN(1)\
+  + TUD_AUDIO10_DESC_STD_AS_LEN\
+  + TUD_AUDIO10_DESC_STD_AS_LEN\
+  + TUD_AUDIO10_DESC_CS_AS_INT_LEN\
+  + TUD_AUDIO10_DESC_TYPE_I_FORMAT_LEN(_nfreqs)\
+  + TUD_AUDIO10_DESC_STD_AS_ISO_EP_LEN\
+  + TUD_AUDIO10_DESC_CS_AS_ISO_EP_LEN)
+
+#define TUD_AUDIO10_MIC_ONE_CH_DESCRIPTOR(_itfnum, _stridx, _nBytesPerSample, _nBitsUsedPerSample, _epin, _epsize, ...) \
+  /* Standard AC Interface Descriptor(4.3.1) */\
+  TUD_AUDIO10_DESC_STD_AC(/*_itfnum*/ _itfnum, /*_nEPs*/ 0x00, /*_stridx*/ _stridx),\
+  /* Class-Specific AC Interface Header Descriptor(4.3.2) */\
+  TUD_AUDIO10_DESC_CS_AC(/*_bcdADC*/ 0x0100, /*_totallen*/ (TUD_AUDIO10_DESC_INPUT_TERM_LEN+TUD_AUDIO10_DESC_OUTPUT_TERM_LEN+TUD_AUDIO10_DESC_FEATURE_UNIT_LEN(1)), /*_itf*/ ((_itfnum)+1)),\
+  /* Input Terminal Descriptor(4.3.2.1) */\
+  TUD_AUDIO10_DESC_INPUT_TERM(/*_termid*/ 0x01, /*_termtype*/ AUDIO_TERM_TYPE_IN_GENERIC_MIC, /*_assocTerm*/ 0x03, /*_nchannels*/ 0x01, /*_channelcfg*/ AUDIO10_CHANNEL_CONFIG_NON_PREDEFINED, /*_idxchannelnames*/ 0x00, /*_stridx*/ 0x00),\
+  /* Output Terminal Descriptor(4.3.2.2) */\
+  TUD_AUDIO10_DESC_OUTPUT_TERM(/*_termid*/ 0x03, /*_termtype*/ AUDIO_TERM_TYPE_USB_STREAMING, /*_assocTerm*/ 0x01, /*_srcid*/ 0x02, /*_stridx*/ 0x00),\
+  /* Feature Unit Descriptor(4.3.2.5) */\
+  TUD_AUDIO10_DESC_FEATURE_UNIT(/*_unitid*/ 0x02, /*_srcid*/ 0x01, /*_stridx*/ 0x00, /*_ctrlmaster*/ (AUDIO10_FU_CONTROL_BM_MUTE | AUDIO10_FU_CONTROL_BM_VOLUME), /*_ctrlch1*/ (AUDIO10_FU_CONTROL_BM_MUTE | AUDIO10_FU_CONTROL_BM_VOLUME)),\
+  /* Standard AS Interface Descriptor(4.5.1) */\
+  /* Interface 1, Alternate 0 - default alternate setting with 0 bandwidth */\
+  TUD_AUDIO10_DESC_STD_AS_INT(/*_itfnum*/ (uint8_t)((_itfnum)+1), /*_altset*/ 0x00, /*_nEPs*/ 0x00, /*_stridx*/ 0x00),\
+  /* Standard AS Interface Descriptor(4.5.1) */\
+  /* Interface 1, Alternate 1 - alternate interface for data streaming */\
+  TUD_AUDIO10_DESC_STD_AS_INT(/*_itfnum*/ (uint8_t)((_itfnum)+1), /*_altset*/ 0x01, /*_nEPs*/ 0x01, /*_stridx*/ 0x00),\
+  /* Class-Specific AS Interface Descriptor(4.5.2) */\
+  TUD_AUDIO10_DESC_CS_AS_INT(/*_termid*/ 0x03, /*_delay*/ 0x01, /*_formattype*/ AUDIO10_DATA_FORMAT_TYPE_I_PCM),\
+  /* Type I Format Type Descriptor(2.2.5) */\
+  TUD_AUDIO10_DESC_TYPE_I_FORMAT(/*_nrchannels*/ 0x01, /*_subframesize*/ _nBytesPerSample, /*_bitresolution*/ _nBitsUsedPerSample, /*_freq*/ __VA_ARGS__),\
+  /* Standard AS Isochronous Audio Data Endpoint Descriptor(4.6.1.1) */\
+  TUD_AUDIO10_DESC_STD_AS_ISO_EP(/*_ep*/ _epin, /*_attr*/ (uint8_t) ((uint8_t)TUSB_XFER_ISOCHRONOUS | (uint8_t)TUSB_ISO_EP_ATT_ASYNCHRONOUS), /*_maxEPsize*/ _epsize, /*_interval*/ 0x01, /* _sync_ep */ 0x00),\
+  /* Class-Specific AS Isochronous Audio Data Endpoint Descriptor(4.6.1.2) */\
+  TUD_AUDIO10_DESC_CS_AS_ISO_EP(/*_attr*/ AUDIO10_CS_AS_ISO_DATA_EP_ATT_SAMPLING_FRQ, /*_lockdelayunits*/ AUDIO10_CS_AS_ISO_DATA_EP_LOCK_DELAY_UNIT_MILLISEC, /*_lockdelay*/ 0x0001)
+
+/* Audio v2.0 Descriptor Templates */
+
 /* Standard Interface Association Descriptor (IAD) */
-#define TUD_AUDIO_DESC_IAD_LEN 8
-#define TUD_AUDIO_DESC_IAD(_firstitf, _nitfs, _stridx) \
-  TUD_AUDIO_DESC_IAD_LEN, TUSB_DESC_INTERFACE_ASSOCIATION, _firstitf, _nitfs, TUSB_CLASS_AUDIO, AUDIO_FUNCTION_SUBCLASS_UNDEFINED, AUDIO_FUNC_PROTOCOL_CODE_V2, _stridx
+#define TUD_AUDIO20_DESC_IAD_LEN 8
+#define TUD_AUDIO20_DESC_IAD(_firstitf, _nitfs, _stridx) \
+  TUD_AUDIO20_DESC_IAD_LEN, TUSB_DESC_INTERFACE_ASSOCIATION, _firstitf, _nitfs, TUSB_CLASS_AUDIO, AUDIO_FUNCTION_SUBCLASS_UNDEFINED, AUDIO_FUNC_PROTOCOL_CODE_V2, _stridx
 
 /* Standard AC Interface Descriptor(4.7.1) */
-#define TUD_AUDIO_DESC_STD_AC_LEN 9
-#define TUD_AUDIO_DESC_STD_AC(_itfnum, _nEPs, _stridx) /* _nEPs is 0 or 1 */\
-  TUD_AUDIO_DESC_STD_AC_LEN, TUSB_DESC_INTERFACE, _itfnum, /* fixed to zero */ 0x00, _nEPs, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_CONTROL, AUDIO_INT_PROTOCOL_CODE_V2, _stridx
+#define TUD_AUDIO20_DESC_STD_AC_LEN 9
+#define TUD_AUDIO20_DESC_STD_AC(_itfnum, _nEPs, _stridx) /* _nEPs is 0 or 1 */\
+  TUD_AUDIO20_DESC_STD_AC_LEN, TUSB_DESC_INTERFACE, _itfnum, /* fixed to zero */ 0x00, _nEPs, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_CONTROL, AUDIO_INT_PROTOCOL_CODE_V2, _stridx
 
 /* Class-Specific AC Interface Header Descriptor(4.7.2) */
-#define TUD_AUDIO_DESC_CS_AC_LEN 9
-#define TUD_AUDIO_DESC_CS_AC(_bcdADC, _category, _totallen, _ctrl) /* _bcdADC : Audio Device Class Specification Release Number in Binary-Coded Decimal, _category : see audio_function_t, _totallen : Total number of bytes returned for the class-specific AudioControl interface i.e. Clock Source, Unit and Terminal descriptors - Do not include TUD_AUDIO_DESC_CS_AC_LEN, we already do this here*/ \
-  TUD_AUDIO_DESC_CS_AC_LEN, TUSB_DESC_CS_INTERFACE, AUDIO_CS_AC_INTERFACE_HEADER, U16_TO_U8S_LE(_bcdADC), _category, U16_TO_U8S_LE(_totallen + TUD_AUDIO_DESC_CS_AC_LEN), _ctrl
+#define TUD_AUDIO20_DESC_CS_AC_LEN 9
+#define TUD_AUDIO20_DESC_CS_AC(_bcdADC, _category, _totallen, _ctrl) /* _bcdADC : Audio Device Class Specification Release Number in Binary-Coded Decimal, _category : see audio20_function_t, _totallen : Total number of bytes returned for the class-specific AudioControl interface i.e. Clock Source, Unit and Terminal descriptors - Do not include TUD_AUDIO20_DESC_CS_AC_LEN, we already do this here*/ \
+  TUD_AUDIO20_DESC_CS_AC_LEN, TUSB_DESC_CS_INTERFACE, AUDIO20_CS_AC_INTERFACE_HEADER, U16_TO_U8S_LE(_bcdADC), _category, U16_TO_U8S_LE(_totallen + TUD_AUDIO20_DESC_CS_AC_LEN), _ctrl
 
 /* Clock Source Descriptor(4.7.2.1) */
-#define TUD_AUDIO_DESC_CLK_SRC_LEN 8
-#define TUD_AUDIO_DESC_CLK_SRC(_clkid, _attr, _ctrl, _assocTerm, _stridx) \
-  TUD_AUDIO_DESC_CLK_SRC_LEN, TUSB_DESC_CS_INTERFACE, AUDIO_CS_AC_INTERFACE_CLOCK_SOURCE, _clkid, _attr, _ctrl, _assocTerm, _stridx
+#define TUD_AUDIO20_DESC_CLK_SRC_LEN 8
+#define TUD_AUDIO20_DESC_CLK_SRC(_clkid, _attr, _ctrl, _assocTerm, _stridx) \
+  TUD_AUDIO20_DESC_CLK_SRC_LEN, TUSB_DESC_CS_INTERFACE, AUDIO20_CS_AC_INTERFACE_CLOCK_SOURCE, _clkid, _attr, _ctrl, _assocTerm, _stridx
 
 /* Input Terminal Descriptor(4.7.2.4) */
-#define TUD_AUDIO_DESC_INPUT_TERM_LEN 17
-#define TUD_AUDIO_DESC_INPUT_TERM(_termid, _termtype, _assocTerm, _clkid, _nchannelslogical, _channelcfg, _idxchannelnames, _ctrl, _stridx) \
-  TUD_AUDIO_DESC_INPUT_TERM_LEN, TUSB_DESC_CS_INTERFACE, AUDIO_CS_AC_INTERFACE_INPUT_TERMINAL, _termid, U16_TO_U8S_LE(_termtype), _assocTerm, _clkid, _nchannelslogical, U32_TO_U8S_LE(_channelcfg), _idxchannelnames, U16_TO_U8S_LE(_ctrl), _stridx
+#define TUD_AUDIO20_DESC_INPUT_TERM_LEN 17
+#define TUD_AUDIO20_DESC_INPUT_TERM(_termid, _termtype, _assocTerm, _clkid, _nchannelslogical, _channelcfg, _idxchannelnames, _ctrl, _stridx) \
+  TUD_AUDIO20_DESC_INPUT_TERM_LEN, TUSB_DESC_CS_INTERFACE, AUDIO20_CS_AC_INTERFACE_INPUT_TERMINAL, _termid, U16_TO_U8S_LE(_termtype), _assocTerm, _clkid, _nchannelslogical, U32_TO_U8S_LE(_channelcfg), _idxchannelnames, U16_TO_U8S_LE(_ctrl), _stridx
 
 /* Output Terminal Descriptor(4.7.2.5) */
-#define TUD_AUDIO_DESC_OUTPUT_TERM_LEN 12
-#define TUD_AUDIO_DESC_OUTPUT_TERM(_termid, _termtype, _assocTerm, _srcid, _clkid, _ctrl, _stridx) \
-  TUD_AUDIO_DESC_OUTPUT_TERM_LEN, TUSB_DESC_CS_INTERFACE, AUDIO_CS_AC_INTERFACE_OUTPUT_TERMINAL, _termid, U16_TO_U8S_LE(_termtype), _assocTerm, _srcid, _clkid, U16_TO_U8S_LE(_ctrl), _stridx
+#define TUD_AUDIO20_DESC_OUTPUT_TERM_LEN 12
+#define TUD_AUDIO20_DESC_OUTPUT_TERM(_termid, _termtype, _assocTerm, _srcid, _clkid, _ctrl, _stridx) \
+  TUD_AUDIO20_DESC_OUTPUT_TERM_LEN, TUSB_DESC_CS_INTERFACE, AUDIO20_CS_AC_INTERFACE_OUTPUT_TERMINAL, _termid, U16_TO_U8S_LE(_termtype), _assocTerm, _srcid, _clkid, U16_TO_U8S_LE(_ctrl), _stridx
 
 /* Feature Unit Descriptor(4.7.2.8) */
-// 1 - Channel
-#define TUD_AUDIO_DESC_FEATURE_UNIT_ONE_CHANNEL_LEN 6+(1+1)*4
-#define TUD_AUDIO_DESC_FEATURE_UNIT_ONE_CHANNEL(_unitid, _srcid, _ctrlch0master, _ctrlch1, _stridx) \
-  TUD_AUDIO_DESC_FEATURE_UNIT_ONE_CHANNEL_LEN, TUSB_DESC_CS_INTERFACE, AUDIO_CS_AC_INTERFACE_FEATURE_UNIT, _unitid, _srcid, U32_TO_U8S_LE(_ctrlch0master), U32_TO_U8S_LE(_ctrlch1), _stridx
-
-// 2 - Channels
-#define TUD_AUDIO_DESC_FEATURE_UNIT_TWO_CHANNEL_LEN (6+(2+1)*4)
-#define TUD_AUDIO_DESC_FEATURE_UNIT_TWO_CHANNEL(_unitid, _srcid, _ctrlch0master, _ctrlch1, _ctrlch2, _stridx) \
-		TUD_AUDIO_DESC_FEATURE_UNIT_TWO_CHANNEL_LEN, TUSB_DESC_CS_INTERFACE, AUDIO_CS_AC_INTERFACE_FEATURE_UNIT, _unitid, _srcid, U32_TO_U8S_LE(_ctrlch0master), U32_TO_U8S_LE(_ctrlch1), U32_TO_U8S_LE(_ctrlch2), _stridx
-// 4 - Channels
-#define TUD_AUDIO_DESC_FEATURE_UNIT_FOUR_CHANNEL_LEN (6+(4+1)*4)
-#define TUD_AUDIO_DESC_FEATURE_UNIT_FOUR_CHANNEL(_unitid, _srcid, _ctrlch0master, _ctrlch1, _ctrlch2, _ctrlch3, _ctrlch4, _stridx) \
-                    TUD_AUDIO_DESC_FEATURE_UNIT_FOUR_CHANNEL_LEN, TUSB_DESC_CS_INTERFACE, AUDIO_CS_AC_INTERFACE_FEATURE_UNIT, _unitid, _srcid, U32_TO_U8S_LE(_ctrlch0master), U32_TO_U8S_LE(_ctrlch1), U32_TO_U8S_LE(_ctrlch2), U32_TO_U8S_LE(_ctrlch3), U32_TO_U8S_LE(_ctrlch4), _stridx
-
-// For more channels, add definitions here
+#define TUD_AUDIO20_DESC_FEATURE_UNIT_LEN(_nchannels) (6 + ((_nchannels) + 1) * 4)
+#define TUD_AUDIO20_DESC_FEATURE_UNIT(_unitid, _srcid, _stridx, ...) \
+  TUD_AUDIO20_DESC_FEATURE_UNIT_LEN(TU_ARGS_NUM(__VA_ARGS__) - 1), TUSB_DESC_CS_INTERFACE, AUDIO20_CS_AC_INTERFACE_FEATURE_UNIT, _unitid, _srcid, TU_ARGS_APPLY_EXPAND(U32_TO_U8S_LE, __VA_ARGS__), _stridx
 
 /* Standard AC Interrupt Endpoint Descriptor(4.8.2.1) */
-#define TUD_AUDIO_DESC_STD_AC_INT_EP_LEN 7
-#define TUD_AUDIO_DESC_STD_AC_INT_EP(_ep, _interval) \
-  TUD_AUDIO_DESC_STD_AC_INT_EP_LEN, TUSB_DESC_ENDPOINT, _ep, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(6), _interval
+#define TUD_AUDIO20_DESC_STD_AC_INT_EP_LEN 7
+#define TUD_AUDIO20_DESC_STD_AC_INT_EP(_ep, _interval) \
+  TUD_AUDIO20_DESC_STD_AC_INT_EP_LEN, TUSB_DESC_ENDPOINT, _ep, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(6), _interval
 
 /* Standard AS Interface Descriptor(4.9.1) */
-#define TUD_AUDIO_DESC_STD_AS_INT_LEN 9
-#define TUD_AUDIO_DESC_STD_AS_INT(_itfnum, _altset, _nEPs, _stridx) \
-  TUD_AUDIO_DESC_STD_AS_INT_LEN, TUSB_DESC_INTERFACE, _itfnum, _altset, _nEPs, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_STREAMING, AUDIO_INT_PROTOCOL_CODE_V2, _stridx
+#define TUD_AUDIO20_DESC_STD_AS_LEN 9
+#define TUD_AUDIO20_DESC_STD_AS_INT(_itfnum, _altset, _nEPs, _stridx) \
+  TUD_AUDIO20_DESC_STD_AS_LEN, TUSB_DESC_INTERFACE, _itfnum, _altset, _nEPs, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_STREAMING, AUDIO_INT_PROTOCOL_CODE_V2, _stridx
 
 /* Class-Specific AS Interface Descriptor(4.9.2) */
-#define TUD_AUDIO_DESC_CS_AS_INT_LEN 16
-#define TUD_AUDIO_DESC_CS_AS_INT(_termid, _ctrl, _formattype, _formats, _nchannelsphysical, _channelcfg, _stridx) \
-  TUD_AUDIO_DESC_CS_AS_INT_LEN, TUSB_DESC_CS_INTERFACE, AUDIO_CS_AS_INTERFACE_AS_GENERAL, _termid, _ctrl, _formattype, U32_TO_U8S_LE(_formats), _nchannelsphysical, U32_TO_U8S_LE(_channelcfg), _stridx
+#define TUD_AUDIO20_DESC_CS_AS_INT_LEN 16
+#define TUD_AUDIO20_DESC_CS_AS_INT(_termid, _ctrl, _formattype, _formats, _nchannelsphysical, _channelcfg, _stridx) \
+  TUD_AUDIO20_DESC_CS_AS_INT_LEN, TUSB_DESC_CS_INTERFACE, AUDIO20_CS_AS_INTERFACE_AS_GENERAL, _termid, _ctrl, _formattype, U32_TO_U8S_LE(_formats), _nchannelsphysical, U32_TO_U8S_LE(_channelcfg), _stridx
 
 /* Type I Format Type Descriptor(2.3.1.6 - Audio Formats) */
-#define TUD_AUDIO_DESC_TYPE_I_FORMAT_LEN 6
-#define TUD_AUDIO_DESC_TYPE_I_FORMAT(_subslotsize, _bitresolution) /* _subslotsize is number of bytes per sample (i.e. subslot) and can be 1,2,3, or 4 */\
-  TUD_AUDIO_DESC_TYPE_I_FORMAT_LEN, TUSB_DESC_CS_INTERFACE, AUDIO_CS_AS_INTERFACE_FORMAT_TYPE, AUDIO_FORMAT_TYPE_I, _subslotsize, _bitresolution
+#define TUD_AUDIO20_DESC_TYPE_I_FORMAT_LEN 6
+#define TUD_AUDIO20_DESC_TYPE_I_FORMAT(_subslotsize, _bitresolution) /* _subslotsize is number of bytes per sample (i.e. subslot) and can be 1,2,3, or 4 */\
+  TUD_AUDIO20_DESC_TYPE_I_FORMAT_LEN, TUSB_DESC_CS_INTERFACE, AUDIO20_CS_AS_INTERFACE_FORMAT_TYPE, AUDIO20_FORMAT_TYPE_I, _subslotsize, _bitresolution
 
 /* Standard AS Isochronous Audio Data Endpoint Descriptor(4.10.1.1) */
-#define TUD_AUDIO_DESC_STD_AS_ISO_EP_LEN 7
-#define TUD_AUDIO_DESC_STD_AS_ISO_EP(_ep, _attr, _maxEPsize, _interval) \
-  TUD_AUDIO_DESC_STD_AS_ISO_EP_LEN, TUSB_DESC_ENDPOINT, _ep, _attr, U16_TO_U8S_LE(_maxEPsize), _interval
+#define TUD_AUDIO20_DESC_STD_AS_ISO_EP_LEN 7
+#define TUD_AUDIO20_DESC_STD_AS_ISO_EP(_ep, _attr, _maxEPsize, _interval) \
+  TUD_AUDIO20_DESC_STD_AS_ISO_EP_LEN, TUSB_DESC_ENDPOINT, _ep, _attr, U16_TO_U8S_LE(_maxEPsize), _interval
 
 /* Class-Specific AS Isochronous Audio Data Endpoint Descriptor(4.10.1.2) */
-#define TUD_AUDIO_DESC_CS_AS_ISO_EP_LEN 8
-#define TUD_AUDIO_DESC_CS_AS_ISO_EP(_attr, _ctrl, _lockdelayunit, _lockdelay) \
-  TUD_AUDIO_DESC_CS_AS_ISO_EP_LEN, TUSB_DESC_CS_ENDPOINT, AUDIO_CS_EP_SUBTYPE_GENERAL, _attr, _ctrl, _lockdelayunit, U16_TO_U8S_LE(_lockdelay)
+#define TUD_AUDIO20_DESC_CS_AS_ISO_EP_LEN 8
+#define TUD_AUDIO20_DESC_CS_AS_ISO_EP(_attr, _ctrl, _lockdelayunit, _lockdelay) \
+  TUD_AUDIO20_DESC_CS_AS_ISO_EP_LEN, TUSB_DESC_CS_ENDPOINT, AUDIO20_CS_EP_SUBTYPE_GENERAL, _attr, _ctrl, _lockdelayunit, U16_TO_U8S_LE(_lockdelay)
 
 /* Standard AS Isochronous Feedback Endpoint Descriptor(4.10.2.1) */
-#define TUD_AUDIO_DESC_STD_AS_ISO_FB_EP_LEN 7
-#define TUD_AUDIO_DESC_STD_AS_ISO_FB_EP(_ep, _epsize, _interval) \
-  TUD_AUDIO_DESC_STD_AS_ISO_FB_EP_LEN, TUSB_DESC_ENDPOINT, _ep, (uint8_t) ((uint8_t)TUSB_XFER_ISOCHRONOUS | (uint8_t)TUSB_ISO_EP_ATT_NO_SYNC | (uint8_t)TUSB_ISO_EP_ATT_EXPLICIT_FB), U16_TO_U8S_LE(_epsize), _interval
+#define TUD_AUDIO20_DESC_STD_AS_ISO_FB_EP_LEN 7
+#define TUD_AUDIO20_DESC_STD_AS_ISO_FB_EP(_ep, _epsize, _interval) \
+  TUD_AUDIO20_DESC_STD_AS_ISO_FB_EP_LEN, TUSB_DESC_ENDPOINT, _ep, (uint8_t) ((uint8_t)TUSB_XFER_ISOCHRONOUS | (uint8_t)TUSB_ISO_EP_ATT_NO_SYNC | (uint8_t)TUSB_ISO_EP_ATT_EXPLICIT_FB), U16_TO_U8S_LE(_epsize), _interval
 
 // AUDIO simple descriptor (UAC2) for 1 microphone input
 // - 1 Input Terminal, 1 Feature Unit (Mute and Volume Control), 1 Output Terminal, 1 Clock Source
 
-#define TUD_AUDIO_MIC_ONE_CH_DESC_LEN (TUD_AUDIO_DESC_IAD_LEN\
-  + TUD_AUDIO_DESC_STD_AC_LEN\
-  + TUD_AUDIO_DESC_CS_AC_LEN\
-  + TUD_AUDIO_DESC_CLK_SRC_LEN\
-  + TUD_AUDIO_DESC_INPUT_TERM_LEN\
-  + TUD_AUDIO_DESC_OUTPUT_TERM_LEN\
-  + TUD_AUDIO_DESC_FEATURE_UNIT_ONE_CHANNEL_LEN\
-  + TUD_AUDIO_DESC_STD_AS_INT_LEN\
-  + TUD_AUDIO_DESC_STD_AS_INT_LEN\
-  + TUD_AUDIO_DESC_CS_AS_INT_LEN\
-  + TUD_AUDIO_DESC_TYPE_I_FORMAT_LEN\
-  + TUD_AUDIO_DESC_STD_AS_ISO_EP_LEN\
-  + TUD_AUDIO_DESC_CS_AS_ISO_EP_LEN)
+#define TUD_AUDIO20_MIC_ONE_CH_DESC_LEN (TUD_AUDIO20_DESC_IAD_LEN\
+  + TUD_AUDIO20_DESC_STD_AC_LEN\
+  + TUD_AUDIO20_DESC_CS_AC_LEN\
+  + TUD_AUDIO20_DESC_CLK_SRC_LEN\
+  + TUD_AUDIO20_DESC_INPUT_TERM_LEN\
+  + TUD_AUDIO20_DESC_OUTPUT_TERM_LEN\
+  + TUD_AUDIO20_DESC_FEATURE_UNIT_LEN(1)\
+  + TUD_AUDIO20_DESC_STD_AS_LEN\
+  + TUD_AUDIO20_DESC_STD_AS_LEN\
+  + TUD_AUDIO20_DESC_CS_AS_INT_LEN\
+  + TUD_AUDIO20_DESC_TYPE_I_FORMAT_LEN\
+  + TUD_AUDIO20_DESC_STD_AS_ISO_EP_LEN\
+  + TUD_AUDIO20_DESC_CS_AS_ISO_EP_LEN)
 
-#define TUD_AUDIO_MIC_ONE_CH_DESC_N_AS_INT 1 	// Number of AS interfaces
+#define TUD_AUDIO20_MIC_ONE_CH_DESC_N_AS_INT 1 	// Number of AS interfaces
 
-#define TUD_AUDIO_MIC_ONE_CH_DESCRIPTOR(_itfnum, _stridx, _nBytesPerSample, _nBitsUsedPerSample, _epin, _epsize) \
+#define TUD_AUDIO20_MIC_ONE_CH_DESCRIPTOR(_itfnum, _stridx, _nBytesPerSample, _nBitsUsedPerSample, _epin, _epsize) \
   /* Standard Interface Association Descriptor (IAD) */\
-  TUD_AUDIO_DESC_IAD(/*_firstitf*/ _itfnum, /*_nitfs*/ 0x02, /*_stridx*/ 0x00),\
+  TUD_AUDIO20_DESC_IAD(/*_firstitf*/ _itfnum, /*_nitfs*/ 0x02, /*_stridx*/ 0x00),\
   /* Standard AC Interface Descriptor(4.7.1) */\
-  TUD_AUDIO_DESC_STD_AC(/*_itfnum*/ _itfnum, /*_nEPs*/ 0x00, /*_stridx*/ _stridx),\
+  TUD_AUDIO20_DESC_STD_AC(/*_itfnum*/ _itfnum, /*_nEPs*/ 0x00, /*_stridx*/ _stridx),\
   /* Class-Specific AC Interface Header Descriptor(4.7.2) */\
-  TUD_AUDIO_DESC_CS_AC(/*_bcdADC*/ 0x0200, /*_category*/ AUDIO_FUNC_MICROPHONE, /*_totallen*/ TUD_AUDIO_DESC_CLK_SRC_LEN+TUD_AUDIO_DESC_INPUT_TERM_LEN+TUD_AUDIO_DESC_OUTPUT_TERM_LEN+TUD_AUDIO_DESC_FEATURE_UNIT_ONE_CHANNEL_LEN, /*_ctrl*/ AUDIO_CS_AS_INTERFACE_CTRL_LATENCY_POS),\
+  TUD_AUDIO20_DESC_CS_AC(/*_bcdADC*/ 0x0200, /*_category*/ AUDIO20_FUNC_MICROPHONE, /*_totallen*/ TUD_AUDIO20_DESC_CLK_SRC_LEN+TUD_AUDIO20_DESC_INPUT_TERM_LEN+TUD_AUDIO20_DESC_OUTPUT_TERM_LEN+TUD_AUDIO20_DESC_FEATURE_UNIT_LEN(1), /*_ctrl*/ AUDIO20_CS_AS_INTERFACE_CTRL_LATENCY_POS),\
   /* Clock Source Descriptor(4.7.2.1) */\
-  TUD_AUDIO_DESC_CLK_SRC(/*_clkid*/ 0x04, /*_attr*/ AUDIO_CLOCK_SOURCE_ATT_INT_FIX_CLK, /*_ctrl*/ (AUDIO_CTRL_R << AUDIO_CLOCK_SOURCE_CTRL_CLK_FRQ_POS), /*_assocTerm*/ 0x01,  /*_stridx*/ 0x00),\
+  TUD_AUDIO20_DESC_CLK_SRC(/*_clkid*/ 0x04, /*_attr*/ AUDIO20_CLOCK_SOURCE_ATT_INT_FIX_CLK, /*_ctrl*/ (AUDIO20_CTRL_R << AUDIO20_CLOCK_SOURCE_CTRL_CLK_FRQ_POS), /*_assocTerm*/ 0x01,  /*_stridx*/ 0x00),\
   /* Input Terminal Descriptor(4.7.2.4) */\
-  TUD_AUDIO_DESC_INPUT_TERM(/*_termid*/ 0x01, /*_termtype*/ AUDIO_TERM_TYPE_IN_GENERIC_MIC, /*_assocTerm*/ 0x03, /*_clkid*/ 0x04, /*_nchannelslogical*/ 0x01, /*_channelcfg*/ AUDIO_CHANNEL_CONFIG_NON_PREDEFINED, /*_idxchannelnames*/ 0x00, /*_ctrl*/ AUDIO_CTRL_R << AUDIO_IN_TERM_CTRL_CONNECTOR_POS, /*_stridx*/ 0x00),\
+  TUD_AUDIO20_DESC_INPUT_TERM(/*_termid*/ 0x01, /*_termtype*/ AUDIO_TERM_TYPE_IN_GENERIC_MIC, /*_assocTerm*/ 0x03, /*_clkid*/ 0x04, /*_nchannelslogical*/ 0x01, /*_channelcfg*/ AUDIO20_CHANNEL_CONFIG_NON_PREDEFINED, /*_idxchannelnames*/ 0x00, /*_ctrl*/ AUDIO20_CTRL_R << AUDIO20_IN_TERM_CTRL_CONNECTOR_POS, /*_stridx*/ 0x00),\
   /* Output Terminal Descriptor(4.7.2.5) */\
-  TUD_AUDIO_DESC_OUTPUT_TERM(/*_termid*/ 0x03, /*_termtype*/ AUDIO_TERM_TYPE_USB_STREAMING, /*_assocTerm*/ 0x01, /*_srcid*/ 0x02, /*_clkid*/ 0x04, /*_ctrl*/ 0x0000, /*_stridx*/ 0x00),\
+  TUD_AUDIO20_DESC_OUTPUT_TERM(/*_termid*/ 0x03, /*_termtype*/ AUDIO_TERM_TYPE_USB_STREAMING, /*_assocTerm*/ 0x01, /*_srcid*/ 0x02, /*_clkid*/ 0x04, /*_ctrl*/ 0x0000, /*_stridx*/ 0x00),\
   /* Feature Unit Descriptor(4.7.2.8) */\
-  TUD_AUDIO_DESC_FEATURE_UNIT_ONE_CHANNEL(/*_unitid*/ 0x02, /*_srcid*/ 0x01, /*_ctrlch0master*/ AUDIO_CTRL_RW << AUDIO_FEATURE_UNIT_CTRL_MUTE_POS | AUDIO_CTRL_RW << AUDIO_FEATURE_UNIT_CTRL_VOLUME_POS, /*_ctrlch1*/ AUDIO_CTRL_RW << AUDIO_FEATURE_UNIT_CTRL_MUTE_POS | AUDIO_CTRL_RW << AUDIO_FEATURE_UNIT_CTRL_VOLUME_POS, /*_stridx*/ 0x00),\
+  TUD_AUDIO20_DESC_FEATURE_UNIT(/*_unitid*/ 0x02, /*_srcid*/ 0x01, /*_stridx*/ 0x00, /*_ctrlch0master*/ AUDIO20_CTRL_RW << AUDIO20_FEATURE_UNIT_CTRL_MUTE_POS | AUDIO20_CTRL_RW << AUDIO20_FEATURE_UNIT_CTRL_VOLUME_POS, /*_ctrlch1*/ AUDIO20_CTRL_RW << AUDIO20_FEATURE_UNIT_CTRL_MUTE_POS | AUDIO20_CTRL_RW << AUDIO20_FEATURE_UNIT_CTRL_VOLUME_POS),\
   /* Standard AS Interface Descriptor(4.9.1) */\
   /* Interface 1, Alternate 0 - default alternate setting with 0 bandwidth */\
-  TUD_AUDIO_DESC_STD_AS_INT(/*_itfnum*/ (uint8_t)((_itfnum)+1), /*_altset*/ 0x00, /*_nEPs*/ 0x00, /*_stridx*/ 0x00),\
+  TUD_AUDIO20_DESC_STD_AS_INT(/*_itfnum*/ (uint8_t)((_itfnum)+1), /*_altset*/ 0x00, /*_nEPs*/ 0x00, /*_stridx*/ 0x00),\
   /* Standard AS Interface Descriptor(4.9.1) */\
   /* Interface 1, Alternate 1 - alternate interface for data streaming */\
-  TUD_AUDIO_DESC_STD_AS_INT(/*_itfnum*/ (uint8_t)((_itfnum)+1), /*_altset*/ 0x01, /*_nEPs*/ 0x01, /*_stridx*/ 0x00),\
+  TUD_AUDIO20_DESC_STD_AS_INT(/*_itfnum*/ (uint8_t)((_itfnum)+1), /*_altset*/ 0x01, /*_nEPs*/ 0x01, /*_stridx*/ 0x00),\
   /* Class-Specific AS Interface Descriptor(4.9.2) */\
-  TUD_AUDIO_DESC_CS_AS_INT(/*_termid*/ 0x03, /*_ctrl*/ AUDIO_CTRL_NONE, /*_formattype*/ AUDIO_FORMAT_TYPE_I, /*_formats*/ AUDIO_DATA_FORMAT_TYPE_I_PCM, /*_nchannelsphysical*/ 0x01, /*_channelcfg*/ AUDIO_CHANNEL_CONFIG_NON_PREDEFINED, /*_stridx*/ 0x00),\
+  TUD_AUDIO20_DESC_CS_AS_INT(/*_termid*/ 0x03, /*_ctrl*/ AUDIO20_CTRL_NONE, /*_formattype*/ AUDIO20_FORMAT_TYPE_I, /*_formats*/ AUDIO20_DATA_FORMAT_TYPE_I_PCM, /*_nchannelsphysical*/ 0x01, /*_channelcfg*/ AUDIO20_CHANNEL_CONFIG_NON_PREDEFINED, /*_stridx*/ 0x00),\
   /* Type I Format Type Descriptor(2.3.1.6 - Audio Formats) */\
-  TUD_AUDIO_DESC_TYPE_I_FORMAT(_nBytesPerSample, _nBitsUsedPerSample),\
+  TUD_AUDIO20_DESC_TYPE_I_FORMAT(_nBytesPerSample, _nBitsUsedPerSample),\
   /* Standard AS Isochronous Audio Data Endpoint Descriptor(4.10.1.1) */\
-  TUD_AUDIO_DESC_STD_AS_ISO_EP(/*_ep*/ _epin, /*_attr*/ (uint8_t) ((uint8_t)TUSB_XFER_ISOCHRONOUS | (uint8_t)TUSB_ISO_EP_ATT_ASYNCHRONOUS | (uint8_t)TUSB_ISO_EP_ATT_DATA), /*_maxEPsize*/ _epsize, /*_interval*/ 0x01),\
+  TUD_AUDIO20_DESC_STD_AS_ISO_EP(/*_ep*/ _epin, /*_attr*/ (uint8_t) ((uint8_t)TUSB_XFER_ISOCHRONOUS | (uint8_t)TUSB_ISO_EP_ATT_ASYNCHRONOUS | (uint8_t)TUSB_ISO_EP_ATT_DATA), /*_maxEPsize*/ _epsize, /*_interval*/ 0x01),\
   /* Class-Specific AS Isochronous Audio Data Endpoint Descriptor(4.10.1.2) */\
-  TUD_AUDIO_DESC_CS_AS_ISO_EP(/*_attr*/ AUDIO_CS_AS_ISO_DATA_EP_ATT_NON_MAX_PACKETS_OK, /*_ctrl*/ AUDIO_CTRL_NONE, /*_lockdelayunit*/ AUDIO_CS_AS_ISO_DATA_EP_LOCK_DELAY_UNIT_UNDEFINED, /*_lockdelay*/ 0x0000)
+  TUD_AUDIO20_DESC_CS_AS_ISO_EP(/*_attr*/ AUDIO20_CS_AS_ISO_DATA_EP_ATT_NON_MAX_PACKETS_OK, /*_ctrl*/ AUDIO20_CTRL_NONE, /*_lockdelayunit*/ AUDIO20_CS_AS_ISO_DATA_EP_LOCK_DELAY_UNIT_UNDEFINED, /*_lockdelay*/ 0x0000)
 
 // AUDIO simple descriptor (UAC2) for 4 microphone input
 // - 1 Input Terminal, 1 Feature Unit (Mute and Volume Control), 1 Output Terminal, 1 Clock Source
 
-#define TUD_AUDIO_MIC_FOUR_CH_DESC_LEN (TUD_AUDIO_DESC_IAD_LEN\
-  + TUD_AUDIO_DESC_STD_AC_LEN\
-  + TUD_AUDIO_DESC_CS_AC_LEN\
-  + TUD_AUDIO_DESC_CLK_SRC_LEN\
-  + TUD_AUDIO_DESC_INPUT_TERM_LEN\
-  + TUD_AUDIO_DESC_OUTPUT_TERM_LEN\
-  + TUD_AUDIO_DESC_FEATURE_UNIT_FOUR_CHANNEL_LEN\
-  + TUD_AUDIO_DESC_STD_AS_INT_LEN\
-  + TUD_AUDIO_DESC_STD_AS_INT_LEN\
-  + TUD_AUDIO_DESC_CS_AS_INT_LEN\
-  + TUD_AUDIO_DESC_TYPE_I_FORMAT_LEN\
-  + TUD_AUDIO_DESC_STD_AS_ISO_EP_LEN\
-  + TUD_AUDIO_DESC_CS_AS_ISO_EP_LEN)
+#define TUD_AUDIO20_MIC_FOUR_CH_DESC_LEN (TUD_AUDIO20_DESC_IAD_LEN\
+  + TUD_AUDIO20_DESC_STD_AC_LEN\
+  + TUD_AUDIO20_DESC_CS_AC_LEN\
+  + TUD_AUDIO20_DESC_CLK_SRC_LEN\
+  + TUD_AUDIO20_DESC_INPUT_TERM_LEN\
+  + TUD_AUDIO20_DESC_OUTPUT_TERM_LEN\
+  + TUD_AUDIO20_DESC_FEATURE_UNIT_LEN(4)\
+  + TUD_AUDIO20_DESC_STD_AS_LEN\
+  + TUD_AUDIO20_DESC_STD_AS_LEN\
+  + TUD_AUDIO20_DESC_CS_AS_INT_LEN\
+  + TUD_AUDIO20_DESC_TYPE_I_FORMAT_LEN\
+  + TUD_AUDIO20_DESC_STD_AS_ISO_EP_LEN\
+  + TUD_AUDIO20_DESC_CS_AS_ISO_EP_LEN)
 
-#define TUD_AUDIO_MIC_FOUR_CH_DESC_N_AS_INT 1   // Number of AS interfaces
+#define TUD_AUDIO20_MIC_FOUR_CH_DESC_N_AS_INT 1   // Number of AS interfaces
 
-#define TUD_AUDIO_MIC_FOUR_CH_DESCRIPTOR(_itfnum, _stridx, _nBytesPerSample, _nBitsUsedPerSample, _epin, _epsize) \
+#define TUD_AUDIO20_MIC_FOUR_CH_DESCRIPTOR(_itfnum, _stridx, _nBytesPerSample, _nBitsUsedPerSample, _epin, _epsize) \
   /* Standard Interface Association Descriptor (IAD) */\
-  TUD_AUDIO_DESC_IAD(/*_firstitf*/ _itfnum, /*_nitfs*/ 0x02, /*_stridx*/ 0x00),\
+  TUD_AUDIO20_DESC_IAD(/*_firstitf*/ _itfnum, /*_nitfs*/ 0x02, /*_stridx*/ 0x00),\
   /* Standard AC Interface Descriptor(4.7.1) */\
-  TUD_AUDIO_DESC_STD_AC(/*_itfnum*/ _itfnum, /*_nEPs*/ 0x00, /*_stridx*/ _stridx),\
+  TUD_AUDIO20_DESC_STD_AC(/*_itfnum*/ _itfnum, /*_nEPs*/ 0x00, /*_stridx*/ _stridx),\
   /* Class-Specific AC Interface Header Descriptor(4.7.2) */\
-  TUD_AUDIO_DESC_CS_AC(/*_bcdADC*/ 0x0200, /*_category*/ AUDIO_FUNC_MICROPHONE, /*_totallen*/ TUD_AUDIO_DESC_CLK_SRC_LEN+TUD_AUDIO_DESC_INPUT_TERM_LEN+TUD_AUDIO_DESC_OUTPUT_TERM_LEN+TUD_AUDIO_DESC_FEATURE_UNIT_FOUR_CHANNEL_LEN, /*_ctrl*/ AUDIO_CS_AS_INTERFACE_CTRL_LATENCY_POS),\
+  TUD_AUDIO20_DESC_CS_AC(/*_bcdADC*/ 0x0200, /*_category*/ AUDIO20_FUNC_MICROPHONE, /*_totallen*/ TUD_AUDIO20_DESC_CLK_SRC_LEN+TUD_AUDIO20_DESC_INPUT_TERM_LEN+TUD_AUDIO20_DESC_OUTPUT_TERM_LEN+TUD_AUDIO20_DESC_FEATURE_UNIT_LEN(4), /*_ctrl*/ AUDIO20_CS_AS_INTERFACE_CTRL_LATENCY_POS),\
   /* Clock Source Descriptor(4.7.2.1) */\
-  TUD_AUDIO_DESC_CLK_SRC(/*_clkid*/ 0x04, /*_attr*/ AUDIO_CLOCK_SOURCE_ATT_INT_FIX_CLK, /*_ctrl*/ (AUDIO_CTRL_R << AUDIO_CLOCK_SOURCE_CTRL_CLK_FRQ_POS), /*_assocTerm*/ 0x01,  /*_stridx*/ 0x00),\
+  TUD_AUDIO20_DESC_CLK_SRC(/*_clkid*/ 0x04, /*_attr*/ AUDIO20_CLOCK_SOURCE_ATT_INT_FIX_CLK, /*_ctrl*/ (AUDIO20_CTRL_R << AUDIO20_CLOCK_SOURCE_CTRL_CLK_FRQ_POS), /*_assocTerm*/ 0x01,  /*_stridx*/ 0x00),\
   /* Input Terminal Descriptor(4.7.2.4) */\
-  TUD_AUDIO_DESC_INPUT_TERM(/*_termid*/ 0x01, /*_termtype*/ AUDIO_TERM_TYPE_IN_GENERIC_MIC, /*_assocTerm*/ 0x03, /*_clkid*/ 0x04, /*_nchannelslogical*/ 0x04, /*_channelcfg*/ AUDIO_CHANNEL_CONFIG_NON_PREDEFINED, /*_idxchannelnames*/ 0x00, /*_ctrl*/ AUDIO_CTRL_R << AUDIO_IN_TERM_CTRL_CONNECTOR_POS, /*_stridx*/ 0x00),\
+  TUD_AUDIO20_DESC_INPUT_TERM(/*_termid*/ 0x01, /*_termtype*/ AUDIO_TERM_TYPE_IN_GENERIC_MIC, /*_assocTerm*/ 0x03, /*_clkid*/ 0x04, /*_nchannelslogical*/ 0x04, /*_channelcfg*/ AUDIO20_CHANNEL_CONFIG_NON_PREDEFINED, /*_idxchannelnames*/ 0x00, /*_ctrl*/ AUDIO20_CTRL_R << AUDIO20_IN_TERM_CTRL_CONNECTOR_POS, /*_stridx*/ 0x00),\
   /* Output Terminal Descriptor(4.7.2.5) */\
-  TUD_AUDIO_DESC_OUTPUT_TERM(/*_termid*/ 0x03, /*_termtype*/ AUDIO_TERM_TYPE_USB_STREAMING, /*_assocTerm*/ 0x01, /*_srcid*/ 0x02, /*_clkid*/ 0x04, /*_ctrl*/ 0x0000, /*_stridx*/ 0x00),\
+  TUD_AUDIO20_DESC_OUTPUT_TERM(/*_termid*/ 0x03, /*_termtype*/ AUDIO_TERM_TYPE_USB_STREAMING, /*_assocTerm*/ 0x01, /*_srcid*/ 0x02, /*_clkid*/ 0x04, /*_ctrl*/ 0x0000, /*_stridx*/ 0x00),\
   /* Feature Unit Descriptor(4.7.2.8) */\
-  TUD_AUDIO_DESC_FEATURE_UNIT_FOUR_CHANNEL(/*_unitid*/ 0x02, /*_srcid*/ 0x01, /*_ctrlch0master*/ AUDIO_CTRL_RW << AUDIO_FEATURE_UNIT_CTRL_MUTE_POS | AUDIO_CTRL_RW << AUDIO_FEATURE_UNIT_CTRL_VOLUME_POS, /*_ctrlch1*/ AUDIO_CTRL_RW << AUDIO_FEATURE_UNIT_CTRL_MUTE_POS | AUDIO_CTRL_RW << AUDIO_FEATURE_UNIT_CTRL_VOLUME_POS, /*_ctrlch2*/ AUDIO_CTRL_RW << AUDIO_FEATURE_UNIT_CTRL_MUTE_POS | AUDIO_CTRL_RW << AUDIO_FEATURE_UNIT_CTRL_VOLUME_POS, /*_ctrlch3*/ AUDIO_CTRL_RW << AUDIO_FEATURE_UNIT_CTRL_MUTE_POS | AUDIO_CTRL_RW << AUDIO_FEATURE_UNIT_CTRL_VOLUME_POS, /*_ctrlch4*/ AUDIO_CTRL_RW << AUDIO_FEATURE_UNIT_CTRL_MUTE_POS | AUDIO_CTRL_RW << AUDIO_FEATURE_UNIT_CTRL_VOLUME_POS, /*_stridx*/ 0x00),\
+  TUD_AUDIO20_DESC_FEATURE_UNIT(/*_unitid*/ 0x02, /*_srcid*/ 0x01, /*_stridx*/ 0x00, /*_ctrlch0master*/ AUDIO20_CTRL_RW << AUDIO20_FEATURE_UNIT_CTRL_MUTE_POS | AUDIO20_CTRL_RW << AUDIO20_FEATURE_UNIT_CTRL_VOLUME_POS, /*_ctrlch1*/ AUDIO20_CTRL_RW << AUDIO20_FEATURE_UNIT_CTRL_MUTE_POS | AUDIO20_CTRL_RW << AUDIO20_FEATURE_UNIT_CTRL_VOLUME_POS, /*_ctrlch2*/ AUDIO20_CTRL_RW << AUDIO20_FEATURE_UNIT_CTRL_MUTE_POS | AUDIO20_CTRL_RW << AUDIO20_FEATURE_UNIT_CTRL_VOLUME_POS, /*_ctrlch3*/ AUDIO20_CTRL_RW << AUDIO20_FEATURE_UNIT_CTRL_MUTE_POS | AUDIO20_CTRL_RW << AUDIO20_FEATURE_UNIT_CTRL_VOLUME_POS, /*_ctrlch4*/ AUDIO20_CTRL_RW << AUDIO20_FEATURE_UNIT_CTRL_MUTE_POS | AUDIO20_CTRL_RW << AUDIO20_FEATURE_UNIT_CTRL_VOLUME_POS),\
   /* Standard AS Interface Descriptor(4.9.1) */\
   /* Interface 1, Alternate 0 - default alternate setting with 0 bandwidth */\
-  TUD_AUDIO_DESC_STD_AS_INT(/*_itfnum*/ (uint8_t)((_itfnum)+1), /*_altset*/ 0x00, /*_nEPs*/ 0x00, /*_stridx*/ 0x00),\
+  TUD_AUDIO20_DESC_STD_AS_INT(/*_itfnum*/ (uint8_t)((_itfnum)+1), /*_altset*/ 0x00, /*_nEPs*/ 0x00, /*_stridx*/ 0x00),\
   /* Standard AS Interface Descriptor(4.9.1) */\
   /* Interface 1, Alternate 1 - alternate interface for data streaming */\
-  TUD_AUDIO_DESC_STD_AS_INT(/*_itfnum*/ (uint8_t)((_itfnum)+1), /*_altset*/ 0x01, /*_nEPs*/ 0x01, /*_stridx*/ 0x00),\
+  TUD_AUDIO20_DESC_STD_AS_INT(/*_itfnum*/ (uint8_t)((_itfnum)+1), /*_altset*/ 0x01, /*_nEPs*/ 0x01, /*_stridx*/ 0x00),\
   /* Class-Specific AS Interface Descriptor(4.9.2) */\
-  TUD_AUDIO_DESC_CS_AS_INT(/*_termid*/ 0x03, /*_ctrl*/ AUDIO_CTRL_NONE, /*_formattype*/ AUDIO_FORMAT_TYPE_I, /*_formats*/ AUDIO_DATA_FORMAT_TYPE_I_PCM, /*_nchannelsphysical*/ 0x04, /*_channelcfg*/ AUDIO_CHANNEL_CONFIG_NON_PREDEFINED, /*_stridx*/ 0x00),\
+  TUD_AUDIO20_DESC_CS_AS_INT(/*_termid*/ 0x03, /*_ctrl*/ AUDIO20_CTRL_NONE, /*_formattype*/ AUDIO20_FORMAT_TYPE_I, /*_formats*/ AUDIO20_DATA_FORMAT_TYPE_I_PCM, /*_nchannelsphysical*/ 0x04, /*_channelcfg*/ AUDIO20_CHANNEL_CONFIG_NON_PREDEFINED, /*_stridx*/ 0x00),\
   /* Type I Format Type Descriptor(2.3.1.6 - Audio Formats) */\
-  TUD_AUDIO_DESC_TYPE_I_FORMAT(_nBytesPerSample, _nBitsUsedPerSample),\
+  TUD_AUDIO20_DESC_TYPE_I_FORMAT(_nBytesPerSample, _nBitsUsedPerSample),\
   /* Standard AS Isochronous Audio Data Endpoint Descriptor(4.10.1.1) */\
-  TUD_AUDIO_DESC_STD_AS_ISO_EP(/*_ep*/ _epin, /*_attr*/ (uint8_t) ((uint8_t)TUSB_XFER_ISOCHRONOUS | (uint8_t)TUSB_ISO_EP_ATT_ASYNCHRONOUS | (uint8_t)TUSB_ISO_EP_ATT_DATA), /*_maxEPsize*/ _epsize, /*_interval*/ 0x01),\
+  TUD_AUDIO20_DESC_STD_AS_ISO_EP(/*_ep*/ _epin, /*_attr*/ (uint8_t) ((uint8_t)TUSB_XFER_ISOCHRONOUS | (uint8_t)TUSB_ISO_EP_ATT_ASYNCHRONOUS | (uint8_t)TUSB_ISO_EP_ATT_DATA), /*_maxEPsize*/ _epsize, /*_interval*/ 0x01),\
   /* Class-Specific AS Isochronous Audio Data Endpoint Descriptor(4.10.1.2) */\
-  TUD_AUDIO_DESC_CS_AS_ISO_EP(/*_attr*/ AUDIO_CS_AS_ISO_DATA_EP_ATT_NON_MAX_PACKETS_OK, /*_ctrl*/ AUDIO_CTRL_NONE, /*_lockdelayunit*/ AUDIO_CS_AS_ISO_DATA_EP_LOCK_DELAY_UNIT_UNDEFINED, /*_lockdelay*/ 0x0000)
+  TUD_AUDIO20_DESC_CS_AS_ISO_EP(/*_attr*/ AUDIO20_CS_AS_ISO_DATA_EP_ATT_NON_MAX_PACKETS_OK, /*_ctrl*/ AUDIO20_CTRL_NONE, /*_lockdelayunit*/ AUDIO20_CS_AS_ISO_DATA_EP_LOCK_DELAY_UNIT_UNDEFINED, /*_lockdelay*/ 0x0000)
 
 // AUDIO simple descriptor (UAC2) for mono speaker
 // - 1 Input Terminal, 2 Feature Unit (Mute and Volume Control), 3 Output Terminal, 4 Clock Source
 
-#define TUD_AUDIO_SPEAKER_MONO_FB_DESC_LEN (TUD_AUDIO_DESC_IAD_LEN\
-  + TUD_AUDIO_DESC_STD_AC_LEN\
-  + TUD_AUDIO_DESC_CS_AC_LEN\
-  + TUD_AUDIO_DESC_CLK_SRC_LEN\
-  + TUD_AUDIO_DESC_INPUT_TERM_LEN\
-  + TUD_AUDIO_DESC_OUTPUT_TERM_LEN\
-  + TUD_AUDIO_DESC_FEATURE_UNIT_ONE_CHANNEL_LEN\
-  + TUD_AUDIO_DESC_STD_AS_INT_LEN\
-  + TUD_AUDIO_DESC_STD_AS_INT_LEN\
-  + TUD_AUDIO_DESC_CS_AS_INT_LEN\
-  + TUD_AUDIO_DESC_TYPE_I_FORMAT_LEN\
-  + TUD_AUDIO_DESC_STD_AS_ISO_EP_LEN\
-  + TUD_AUDIO_DESC_CS_AS_ISO_EP_LEN\
-  + TUD_AUDIO_DESC_STD_AS_ISO_FB_EP_LEN)
+#define TUD_AUDIO20_SPEAKER_MONO_FB_DESC_LEN (TUD_AUDIO20_DESC_IAD_LEN\
+  + TUD_AUDIO20_DESC_STD_AC_LEN\
+  + TUD_AUDIO20_DESC_CS_AC_LEN\
+  + TUD_AUDIO20_DESC_CLK_SRC_LEN\
+  + TUD_AUDIO20_DESC_INPUT_TERM_LEN\
+  + TUD_AUDIO20_DESC_OUTPUT_TERM_LEN\
+  + TUD_AUDIO20_DESC_FEATURE_UNIT_LEN(1)\
+  + TUD_AUDIO20_DESC_STD_AS_LEN\
+  + TUD_AUDIO20_DESC_STD_AS_LEN\
+  + TUD_AUDIO20_DESC_CS_AS_INT_LEN\
+  + TUD_AUDIO20_DESC_TYPE_I_FORMAT_LEN\
+  + TUD_AUDIO20_DESC_STD_AS_ISO_EP_LEN\
+  + TUD_AUDIO20_DESC_CS_AS_ISO_EP_LEN\
+  + TUD_AUDIO20_DESC_STD_AS_ISO_FB_EP_LEN)
 
-#define TUD_AUDIO_SPEAKER_MONO_FB_DESCRIPTOR(_itfnum, _stridx, _nBytesPerSample, _nBitsUsedPerSample, _epout, _epoutsize, _epfb, _epfbsize) \
+#define TUD_AUDIO20_SPEAKER_MONO_FB_DESCRIPTOR(_itfnum, _stridx, _nBytesPerSample, _nBitsUsedPerSample, _epout, _epoutsize, _epfb, _epfbsize) \
   /* Standard Interface Association Descriptor (IAD) */\
-  TUD_AUDIO_DESC_IAD(/*_firstitf*/ _itfnum, /*_nitfs*/ 0x02, /*_stridx*/ 0x00),\
+  TUD_AUDIO20_DESC_IAD(/*_firstitf*/ _itfnum, /*_nitfs*/ 0x02, /*_stridx*/ 0x00),\
   /* Standard AC Interface Descriptor(4.7.1) */\
-  TUD_AUDIO_DESC_STD_AC(/*_itfnum*/ _itfnum, /*_nEPs*/ 0x00, /*_stridx*/ _stridx),\
+  TUD_AUDIO20_DESC_STD_AC(/*_itfnum*/ _itfnum, /*_nEPs*/ 0x00, /*_stridx*/ _stridx),\
   /* Class-Specific AC Interface Header Descriptor(4.7.2) */\
-  TUD_AUDIO_DESC_CS_AC(/*_bcdADC*/ 0x0200, /*_category*/ AUDIO_FUNC_DESKTOP_SPEAKER, /*_totallen*/ TUD_AUDIO_DESC_CLK_SRC_LEN+TUD_AUDIO_DESC_INPUT_TERM_LEN+TUD_AUDIO_DESC_OUTPUT_TERM_LEN+TUD_AUDIO_DESC_FEATURE_UNIT_ONE_CHANNEL_LEN, /*_ctrl*/ AUDIO_CS_AS_INTERFACE_CTRL_LATENCY_POS),\
+  TUD_AUDIO20_DESC_CS_AC(/*_bcdADC*/ 0x0200, /*_category*/ AUDIO20_FUNC_DESKTOP_SPEAKER, /*_totallen*/ TUD_AUDIO20_DESC_CLK_SRC_LEN+TUD_AUDIO20_DESC_INPUT_TERM_LEN+TUD_AUDIO20_DESC_OUTPUT_TERM_LEN+TUD_AUDIO20_DESC_FEATURE_UNIT_LEN(1), /*_ctrl*/ AUDIO20_CS_AS_INTERFACE_CTRL_LATENCY_POS),\
   /* Clock Source Descriptor(4.7.2.1) */\
-  TUD_AUDIO_DESC_CLK_SRC(/*_clkid*/ 0x04, /*_attr*/ AUDIO_CLOCK_SOURCE_ATT_INT_FIX_CLK, /*_ctrl*/ (AUDIO_CTRL_R << AUDIO_CLOCK_SOURCE_CTRL_CLK_FRQ_POS), /*_assocTerm*/ 0x01,  /*_stridx*/ 0x00),\
+  TUD_AUDIO20_DESC_CLK_SRC(/*_clkid*/ 0x04, /*_attr*/ AUDIO20_CLOCK_SOURCE_ATT_INT_FIX_CLK, /*_ctrl*/ (AUDIO20_CTRL_R << AUDIO20_CLOCK_SOURCE_CTRL_CLK_FRQ_POS), /*_assocTerm*/ 0x01,  /*_stridx*/ 0x00),\
   /* Input Terminal Descriptor(4.7.2.4) */\
-  TUD_AUDIO_DESC_INPUT_TERM(/*_termid*/ 0x01, /*_termtype*/ AUDIO_TERM_TYPE_USB_STREAMING, /*_assocTerm*/ 0x00, /*_clkid*/ 0x04, /*_nchannelslogical*/ 0x01, /*_channelcfg*/ AUDIO_CHANNEL_CONFIG_NON_PREDEFINED, /*_idxchannelnames*/ 0x00, /*_ctrl*/ 0 * (AUDIO_CTRL_R << AUDIO_IN_TERM_CTRL_CONNECTOR_POS), /*_stridx*/ 0x00),\
+  TUD_AUDIO20_DESC_INPUT_TERM(/*_termid*/ 0x01, /*_termtype*/ AUDIO_TERM_TYPE_USB_STREAMING, /*_assocTerm*/ 0x00, /*_clkid*/ 0x04, /*_nchannelslogical*/ 0x01, /*_channelcfg*/ AUDIO20_CHANNEL_CONFIG_NON_PREDEFINED, /*_idxchannelnames*/ 0x00, /*_ctrl*/ 0 * (AUDIO20_CTRL_R << AUDIO20_IN_TERM_CTRL_CONNECTOR_POS), /*_stridx*/ 0x00),\
   /* Output Terminal Descriptor(4.7.2.5) */\
-  TUD_AUDIO_DESC_OUTPUT_TERM(/*_termid*/ 0x03, /*_termtype*/ AUDIO_TERM_TYPE_OUT_DESKTOP_SPEAKER, /*_assocTerm*/ 0x01, /*_srcid*/ 0x02, /*_clkid*/ 0x04, /*_ctrl*/ 0x0000, /*_stridx*/ 0x00),\
+  TUD_AUDIO20_DESC_OUTPUT_TERM(/*_termid*/ 0x03, /*_termtype*/ AUDIO_TERM_TYPE_OUT_DESKTOP_SPEAKER, /*_assocTerm*/ 0x01, /*_srcid*/ 0x02, /*_clkid*/ 0x04, /*_ctrl*/ 0x0000, /*_stridx*/ 0x00),\
   /* Feature Unit Descriptor(4.7.2.8) */\
-  TUD_AUDIO_DESC_FEATURE_UNIT_ONE_CHANNEL(/*_unitid*/ 0x02, /*_srcid*/ 0x01, /*_ctrlch0master*/ AUDIO_CTRL_RW << AUDIO_FEATURE_UNIT_CTRL_MUTE_POS | AUDIO_CTRL_RW << AUDIO_FEATURE_UNIT_CTRL_VOLUME_POS, /*_ctrlch1*/ AUDIO_CTRL_RW << AUDIO_FEATURE_UNIT_CTRL_MUTE_POS | AUDIO_CTRL_RW << AUDIO_FEATURE_UNIT_CTRL_VOLUME_POS, /*_stridx*/ 0x00),\
+  TUD_AUDIO20_DESC_FEATURE_UNIT(/*_unitid*/ 0x02, /*_srcid*/ 0x01, /*_stridx*/ 0x00, /*_ctrlch0master*/ AUDIO20_CTRL_RW << AUDIO20_FEATURE_UNIT_CTRL_MUTE_POS | AUDIO20_CTRL_RW << AUDIO20_FEATURE_UNIT_CTRL_VOLUME_POS, /*_ctrlch1*/ AUDIO20_CTRL_RW << AUDIO20_FEATURE_UNIT_CTRL_MUTE_POS | AUDIO20_CTRL_RW << AUDIO20_FEATURE_UNIT_CTRL_VOLUME_POS),\
   /* Standard AS Interface Descriptor(4.9.1) */\
   /* Interface 1, Alternate 0 - default alternate setting with 0 bandwidth */\
-  TUD_AUDIO_DESC_STD_AS_INT(/*_itfnum*/ (uint8_t)((_itfnum) + 1), /*_altset*/ 0x00, /*_nEPs*/ 0x00, /*_stridx*/ 0x00),\
+  TUD_AUDIO20_DESC_STD_AS_INT(/*_itfnum*/ (uint8_t)((_itfnum) + 1), /*_altset*/ 0x00, /*_nEPs*/ 0x00, /*_stridx*/ 0x00),\
   /* Standard AS Interface Descriptor(4.9.1) */\
   /* Interface 1, Alternate 1 - alternate interface for data streaming */\
-  TUD_AUDIO_DESC_STD_AS_INT(/*_itfnum*/ (uint8_t)((_itfnum) + 1), /*_altset*/ 0x01, /*_nEPs*/ 0x02, /*_stridx*/ 0x00),\
+  TUD_AUDIO20_DESC_STD_AS_INT(/*_itfnum*/ (uint8_t)((_itfnum) + 1), /*_altset*/ 0x01, /*_nEPs*/ 0x02, /*_stridx*/ 0x00),\
   /* Class-Specific AS Interface Descriptor(4.9.2) */\
-  TUD_AUDIO_DESC_CS_AS_INT(/*_termid*/ 0x01, /*_ctrl*/ AUDIO_CTRL_NONE, /*_formattype*/ AUDIO_FORMAT_TYPE_I, /*_formats*/ AUDIO_DATA_FORMAT_TYPE_I_PCM, /*_nchannelsphysical*/ 0x01, /*_channelcfg*/ AUDIO_CHANNEL_CONFIG_NON_PREDEFINED, /*_stridx*/ 0x00),\
+  TUD_AUDIO20_DESC_CS_AS_INT(/*_termid*/ 0x01, /*_ctrl*/ AUDIO20_CTRL_NONE, /*_formattype*/ AUDIO20_FORMAT_TYPE_I, /*_formats*/ AUDIO20_DATA_FORMAT_TYPE_I_PCM, /*_nchannelsphysical*/ 0x01, /*_channelcfg*/ AUDIO20_CHANNEL_CONFIG_NON_PREDEFINED, /*_stridx*/ 0x00),\
   /* Type I Format Type Descriptor(2.3.1.6 - Audio Formats) */\
-  TUD_AUDIO_DESC_TYPE_I_FORMAT(_nBytesPerSample, _nBitsUsedPerSample),\
+  TUD_AUDIO20_DESC_TYPE_I_FORMAT(_nBytesPerSample, _nBitsUsedPerSample),\
   /* Standard AS Isochronous Audio Data Endpoint Descriptor(4.10.1.1) */\
-  TUD_AUDIO_DESC_STD_AS_ISO_EP(/*_ep*/ _epout, /*_attr*/ (uint8_t) ((uint8_t)TUSB_XFER_ISOCHRONOUS | (uint8_t)TUSB_ISO_EP_ATT_ASYNCHRONOUS | (uint8_t)TUSB_ISO_EP_ATT_DATA), /*_maxEPsize*/ _epoutsize, /*_interval*/ 0x01),\
+  TUD_AUDIO20_DESC_STD_AS_ISO_EP(/*_ep*/ _epout, /*_attr*/ (uint8_t) ((uint8_t)TUSB_XFER_ISOCHRONOUS | (uint8_t)TUSB_ISO_EP_ATT_ASYNCHRONOUS | (uint8_t)TUSB_ISO_EP_ATT_DATA), /*_maxEPsize*/ _epoutsize, /*_interval*/ 0x01),\
   /* Class-Specific AS Isochronous Audio Data Endpoint Descriptor(4.10.1.2) */\
-  TUD_AUDIO_DESC_CS_AS_ISO_EP(/*_attr*/ AUDIO_CS_AS_ISO_DATA_EP_ATT_NON_MAX_PACKETS_OK, /*_ctrl*/ AUDIO_CTRL_NONE, /*_lockdelayunit*/ AUDIO_CS_AS_ISO_DATA_EP_LOCK_DELAY_UNIT_UNDEFINED, /*_lockdelay*/ 0x0000),\
+  TUD_AUDIO20_DESC_CS_AS_ISO_EP(/*_attr*/ AUDIO20_CS_AS_ISO_DATA_EP_ATT_NON_MAX_PACKETS_OK, /*_ctrl*/ AUDIO20_CTRL_NONE, /*_lockdelayunit*/ AUDIO20_CS_AS_ISO_DATA_EP_LOCK_DELAY_UNIT_UNDEFINED, /*_lockdelay*/ 0x0000),\
   /* Standard AS Isochronous Feedback Endpoint Descriptor(4.10.2.1) */\
-  TUD_AUDIO_DESC_STD_AS_ISO_FB_EP(/*_ep*/ _epfb, /*_epsize*/ _epfbsize, /*_interval*/ 1)
+  TUD_AUDIO20_DESC_STD_AS_ISO_FB_EP(/*_ep*/ _epfb, /*_epsize*/ _epfbsize, /*_interval*/ 1)
 
 //   Calculate wMaxPacketSize of Endpoints
-#define TUD_AUDIO_EP_SIZE(_maxFrequency, _nBytesPerSample, _nChannels) \
-    ((((_maxFrequency + (TUD_OPT_HIGH_SPEED ? 7999 : 999)) / (TUD_OPT_HIGH_SPEED ? 8000 : 1000)) + 1) * _nBytesPerSample * _nChannels)
+#define TUD_AUDIO_EP_SIZE(_is_highspeed, _maxFrequency, _nBytesPerSample, _nChannels) \
+    (((((_maxFrequency) + ((_is_highspeed) ? 7999 : 999)) / ((_is_highspeed) ? 8000 : 1000)) + 1) * (_nBytesPerSample) * (_nChannels))
 
 
 //--------------------------------------------------------------------+
@@ -685,7 +874,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   /* Interface */ \
   9, TUSB_DESC_INTERFACE, _itfnum, 0, 0, TUD_DFU_APP_CLASS, TUD_DFU_APP_SUBCLASS, DFU_PROTOCOL_RT, _stridx, \
   /* Function */ \
-  9, DFU_DESC_FUNCTIONAL, _attr, U16_TO_U8S_LE(_timeout), U16_TO_U8S_LE(_xfer_size), U16_TO_U8S_LE(0x0101)
+  9, DFU_DESC_FUNCTIONAL, _attr, U16_TO_U8S_LE(_timeout), U16_TO_U8S_LE(_xfer_size), U16_TO_U8S_LE(0x0110)
 
 //--------------------------------------------------------------------+
 // DFU Descriptor Templates
@@ -697,44 +886,44 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 // Interface number, Alternate count, starting string index, attributes, detach timeout, transfer size
 // Note: Alternate count must be numeric or macro, string index is increased by one for each Alt interface
 #define TUD_DFU_DESCRIPTOR(_itfnum, _alt_count, _stridx, _attr, _timeout, _xfer_size) \
-  TU_XSTRCAT(_TUD_DFU_ALT_,_alt_count)(_itfnum, 0, _stridx), \
+  TU_XSTRCAT(TUD_DFU_ALT_,_alt_count)(_itfnum, 0, _stridx), \
   /* Function */ \
-  9, DFU_DESC_FUNCTIONAL, _attr, U16_TO_U8S_LE(_timeout), U16_TO_U8S_LE(_xfer_size), U16_TO_U8S_LE(0x0101)
+  9, DFU_DESC_FUNCTIONAL, _attr, U16_TO_U8S_LE(_timeout), U16_TO_U8S_LE(_xfer_size), U16_TO_U8S_LE(0x0110)
 
-#define _TUD_DFU_ALT(_itfnum, _alt, _stridx) \
+#define TUD_DFU_ALT(_itfnum, _alt, _stridx) \
   /* Interface */ \
   9, TUSB_DESC_INTERFACE, _itfnum, _alt, 0, TUD_DFU_APP_CLASS, TUD_DFU_APP_SUBCLASS, DFU_PROTOCOL_DFU, _stridx
 
-#define _TUD_DFU_ALT_1(_itfnum, _alt_count, _stridx) \
-  _TUD_DFU_ALT(_itfnum, _alt_count, _stridx)
+#define TUD_DFU_ALT_1(_itfnum, _alt_count, _stridx) \
+  TUD_DFU_ALT(_itfnum, _alt_count, _stridx)
 
-#define _TUD_DFU_ALT_2(_itfnum, _alt_count, _stridx) \
-  _TUD_DFU_ALT(_itfnum, _alt_count, _stridx),      \
-  _TUD_DFU_ALT_1(_itfnum, _alt_count+1, _stridx+1)
+#define TUD_DFU_ALT_2(_itfnum, _alt_count, _stridx) \
+  TUD_DFU_ALT(_itfnum, _alt_count, _stridx),      \
+  TUD_DFU_ALT_1(_itfnum, _alt_count+1, _stridx+1)
 
-#define _TUD_DFU_ALT_3(_itfnum, _alt_count, _stridx) \
-  _TUD_DFU_ALT(_itfnum, _alt_count, _stridx),      \
-  _TUD_DFU_ALT_2(_itfnum, _alt_count+1, _stridx+1)
+#define TUD_DFU_ALT_3(_itfnum, _alt_count, _stridx) \
+  TUD_DFU_ALT(_itfnum, _alt_count, _stridx),      \
+  TUD_DFU_ALT_2(_itfnum, _alt_count+1, _stridx+1)
 
-#define _TUD_DFU_ALT_4(_itfnum, _alt_count, _stridx) \
-  _TUD_DFU_ALT(_itfnum, _alt_count, _stridx),      \
-  _TUD_DFU_ALT_3(_itfnum, _alt_count+1, _stridx+1)
+#define TUD_DFU_ALT_4(_itfnum, _alt_count, _stridx) \
+  TUD_DFU_ALT(_itfnum, _alt_count, _stridx),      \
+  TUD_DFU_ALT_3(_itfnum, _alt_count+1, _stridx+1)
 
-#define _TUD_DFU_ALT_5(_itfnum, _alt_count, _stridx) \
-  _TUD_DFU_ALT(_itfnum, _alt_count, _stridx),      \
-  _TUD_DFU_ALT_4(_itfnum, _alt_count+1, _stridx+1)
+#define TUD_DFU_ALT_5(_itfnum, _alt_count, _stridx) \
+  TUD_DFU_ALT(_itfnum, _alt_count, _stridx),      \
+  TUD_DFU_ALT_4(_itfnum, _alt_count+1, _stridx+1)
 
-#define _TUD_DFU_ALT_6(_itfnum, _alt_count, _stridx) \
-  _TUD_DFU_ALT(_itfnum, _alt_count, _stridx),      \
-  _TUD_DFU_ALT_5(_itfnum, _alt_count+1, _stridx+1)
+#define TUD_DFU_ALT_6(_itfnum, _alt_count, _stridx) \
+  TUD_DFU_ALT(_itfnum, _alt_count, _stridx),      \
+  TUD_DFU_ALT_5(_itfnum, _alt_count+1, _stridx+1)
 
-#define _TUD_DFU_ALT_7(_itfnum, _alt_count, _stridx) \
-  _TUD_DFU_ALT(_itfnum, _alt_count, _stridx),      \
-  _TUD_DFU_ALT_6(_itfnum, _alt_count+1, _stridx+1)
+#define TUD_DFU_ALT_7(_itfnum, _alt_count, _stridx) \
+  TUD_DFU_ALT(_itfnum, _alt_count, _stridx),      \
+  TUD_DFU_ALT_6(_itfnum, _alt_count+1, _stridx+1)
 
-#define _TUD_DFU_ALT_8(_itfnum, _alt_count, _stridx) \
-  _TUD_DFU_ALT(_itfnum, _alt_count, _stridx),      \
-  _TUD_DFU_ALT_7(_itfnum, _alt_count+1, _stridx+1)
+#define TUD_DFU_ALT_8(_itfnum, _alt_count, _stridx) \
+  TUD_DFU_ALT(_itfnum, _alt_count, _stridx),      \
+  TUD_DFU_ALT_7(_itfnum, _alt_count+1, _stridx+1)
 
 //--------------------------------------------------------------------+
 // CDC-ECM Descriptor Templates
@@ -874,23 +1063,23 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 // Length of template descriptor
 #define TUD_CDC_NCM_DESC_LEN  (8+9+5+5+13+6+7+9+9+7+7)
 
-// CDC-ECM Descriptor Template
-// Interface number, description string index, MAC address string index, EP notification address and size, EP data address (out, in), and size, max segment size.
-#define TUD_CDC_NCM_DESCRIPTOR(_itfnum, _desc_stridx, _mac_stridx, _ep_notif, _ep_notif_size, _epout, _epin, _epsize, _maxsegmentsize) \
+// CDC-NCM Descriptor Template
+// Interface number, description string index, MAC address string index, EP notification address and size, EP data address (out, in), and size, max segment size, EP notification bInterval, capability.
+#define TUD_CDC_NCM_DESCRIPTOR(_itfnum, _desc_stridx, _mac_stridx, _ep_notif, _ep_notif_size, _epout, _epin, _epsize, _maxsegmentsize, _ep_notif_interval, _capability) \
   /* Interface Association */\
   8, TUSB_DESC_INTERFACE_ASSOCIATION, _itfnum, 2, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_NETWORK_CONTROL_MODEL, 0, 0,\
   /* CDC Control Interface */\
   9, TUSB_DESC_INTERFACE, _itfnum, 0, 1, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_NETWORK_CONTROL_MODEL, 0, _desc_stridx,\
-  /* CDC-NCM Header */\
+  /* CDC Header */\
   5, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_HEADER, U16_TO_U8S_LE(0x0110),\
-  /* CDC-NCM Union */\
+  /* CDC Union */\
   5, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_UNION, _itfnum, (uint8_t)((_itfnum) + 1),\
-  /* CDC-NCM Functional Descriptor */\
+  /* CDC Ethernet Networking Descriptor */\
   13, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_ETHERNET_NETWORKING, _mac_stridx, 0, 0, 0, 0, U16_TO_U8S_LE(_maxsegmentsize), U16_TO_U8S_LE(0), 0, \
   /* CDC-NCM Functional Descriptor */\
-  6, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_NCM, U16_TO_U8S_LE(0x0100), 0, \
+  6, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_NCM, U16_TO_U8S_LE(0x0100), _capability, \
   /* Endpoint Notification */\
-  7, TUSB_DESC_ENDPOINT, _ep_notif, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_notif_size), 50,\
+  7, TUSB_DESC_ENDPOINT, _ep_notif, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_notif_size), _ep_notif_interval,\
   /* CDC Data Interface (default inactive) */\
   9, TUSB_DESC_INTERFACE, (uint8_t)((_itfnum)+1), 0, 0, TUSB_CLASS_CDC_DATA, 0, NCM_DATA_PROTOCOL_NETWORK_TRANSFER_BLOCK, 0,\
   /* CDC Data Interface (alternative active) */\
@@ -904,6 +1093,6 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 }
 #endif
 
-#endif /* _TUSB_USBD_H_ */
+#endif /* TUSB_USBD_H_ */
 
 /** @} */

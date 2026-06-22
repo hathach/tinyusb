@@ -40,6 +40,7 @@
 
 #include "debug_uart.h"
 #include "ch32v30x.h"
+#include "ch32v30x_it.h"
 
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
@@ -70,7 +71,7 @@ __attribute__((interrupt)) void OTG_FS_IRQHandler(void) {
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
 
-uint32_t SysTick_Config(uint32_t ticks) {
+static uint32_t SysTick_Config(uint32_t ticks) {
   NVIC_EnableIRQ(SysTicK_IRQn);
   SysTick->CTLR = 0;
   SysTick->SR = 0;
@@ -143,7 +144,7 @@ __attribute__((interrupt)) void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void) {
+uint32_t tusb_time_millis_api(void) {
   return system_ticks;
 }
 
@@ -172,12 +173,10 @@ int board_uart_read(uint8_t* buf, int len) {
 }
 
 int board_uart_write(void const* buf, int len) {
-  int txsize = len;
-  const char* bufc = (const char*) buf;
-  while (txsize--) {
-    uart_write(*bufc++);
+  uint8_t const *p = (uint8_t const *) buf;
+  for (int i = 0; i < len; i++) {
+    uart_write(p[i]);
   }
-  uart_sync();
   return len;
 }
 

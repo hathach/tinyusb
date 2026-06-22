@@ -59,19 +59,24 @@ void OTG_FS_IRQHandler(void) {
 void USB_DeviceClockInit(void) {
   /* Select USBCLK source */
   //  RCC_USBCLKConfig(RCC_USBCLKSource_PLLCLK_Div1);
-  RCC->CFGR &= ~(0x3 << 22);
-  RCC->CFGR |= (0x1 << 22);
+  RCC->CFGR &= ~(0x3U << 22);
+  RCC->CFGR |= (0x1U << 22);
 
   /* Enable USB clock */
-  RCC->AHB2ENR |= 0x1 << 7;
+  RCC->AHB2ENR |= 0x1U << 7;
 }
 
 void board_init(void) {
 //   usb clock
   USB_DeviceClockInit();
 
+#if CFG_TUSB_OS == OPT_OS_NONE
   SysTick_Config(SystemCoreClock / 1000);
   NVIC_SetPriority(SysTick_IRQn, 0x0);
+#elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // Explicitly disable systick to prevent its ISR from running before scheduler start
+  SysTick->CTRL &= ~1U;
+#endif
 
   RCC_AHBPeriphClockCmd(RCC_AHBENR_GPIOA, ENABLE);
 
@@ -148,18 +153,21 @@ int board_uart_read(uint8_t* buf, int len) {
 
 int board_uart_write(void const* buf, int len) {
   #ifdef UART_DEV
-  const char* buff = buf;
-  while (len) {
-    while ((UART1->CSR & UART_IT_TXIEN) == 0);    //The loop is sent until it is finished
-    UART1->TDR = (*buff & 0xFF);
-    buff++;
-    len--;
+  uint8_t const *p = (uint8_t const *) buf;
+  int count = 0;
+  while (count < len) {
+    if (UART1->CSR & UART_IT_TXIEN) {
+      UART1->TDR = (p[count] & 0xFF);
+      count++;
+    } else {
+      break;
+    }
   }
-  return len;
+  return count;
   #else
   (void) buf;
   (void) len;
-  return 0;
+  return -1;
   #endif
 }
 
@@ -170,7 +178,7 @@ void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void) {
+uint32_t tusb_time_millis_api(void) {
   return system_ticks;
 }
 #endif

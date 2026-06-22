@@ -47,7 +47,7 @@ typedef struct
   uint32_t  irqnum;
   uint8_t   ep_count;
   uint8_t   ep_in_count;
-  uint32_t  ep_fifo_size;
+  uint16_t  otg_dfifo_depth; // total SPRAM in 32-bit words = ghwcfg3.dfifo_depth + EP_LOC_CNT
 }dwc2_controller_t;
 
 // DWC OTG HW Release versions
@@ -63,6 +63,7 @@ typedef struct
 #define DWC2_CORE_REV_4_00a   0x4f54400a
 #define DWC2_CORE_REV_4_11a   0x4f54411a
 #define DWC2_CORE_REV_4_20a   0x4f54420a
+#define DWC2_CORE_REV_5_00b   0x4F54500b
 #define DWC2_FS_IOT_REV_1_00a 0x5531100a
 #define DWC2_HS_IOT_REV_1_00a 0x5532100a
 #define DWC2_CORE_REV_MASK    0x0000ffff
@@ -89,6 +90,16 @@ typedef struct
 enum {
   GOTGCTL_OTG_VERSION_1_3 = 0,
   GOTGCTL_OTG_VERSION_2_0 = 1,
+};
+
+enum {
+  GUSBCFG_PHYSEL_HIGHSPEED = 0,
+  GUSBCFG_PHYSEL_FULLSPEED = 1,
+};
+
+enum {
+  GUSBCFG_PHYHS_UTMI = 0,
+  GUSBCFG_PHYHS_ULPI = 1,
 };
 
 enum {
@@ -1435,7 +1446,7 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define DAINTMSK_OEPM_Msk                (0xFFFFUL << DAINTMSK_OEPM_Pos)          // 0xFFFF0000
 #define DAINTMSK_OEPM                    DAINTMSK_OEPM_Msk                        // OUT EP interrupt mask bits
 
-#define DAINT_SHIFT(_dir)            ((_dir == TUSB_DIR_IN) ? 0 : 16)
+#define DAINT_SHIFT(_dir)                (((_dir) == TUSB_DIR_IN) ? 0 : 16)
 
 #if 0
 /********************  Bit definition for OTG register  ********************/
@@ -1640,24 +1651,38 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define STM32_GCCFG_PHYHSEN_Msk          (0x1UL << STM32_GCCFG_PHYHSEN_Pos)       // 0x00800000
 #define STM32_GCCFG_PHYHSEN              STM32_GCCFG_PHYHSEN_Msk                  // HS PHY enable
 
-// TODO stm32u5a5 SDEN is 22nd bit, conflict with 20th bit above
-//#define STM32_GCCFG_SDEN_Pos                   (22U)
-//#define STM32_GCCFG_SDEN_Msk                   (0x1U << STM32_GCCFG_SDEN_Pos)             // 0x00400000
-//#define STM32_GCCFG_SDEN                       STM32_GCCFG_SDEN_Msk                       // Secondary detection (PD) mode enable
+// GUID < 0x2000: VBUSASEN, VBUSBSEN, NOVBUSSENS bits
+#define STM32_GCCFG_VBUSASEN_Pos         (18U)
+#define STM32_GCCFG_VBUSASEN_Msk         (0x1UL << STM32_GCCFG_VBUSASEN_Pos)      // 0x00040000
+#define STM32_GCCFG_VBUSASEN             STM32_GCCFG_VBUSASEN_Msk                 // Enable A-device (host) VBUS sensing
 
-// TODO stm32u5a5 VBVALOVA is 23rd bit, conflict with PHYHSEN bit above
-#define STM32_GCCFG_VBVALOVAL_Pos              (23U)
-#define STM32_GCCFG_VBVALOVAL_Msk              (0x1U << STM32_GCCFG_VBVALOVAL_Pos)        // 0x00800000
-#define STM32_GCCFG_VBVALOVAL                  STM32_GCCFG_VBVALOVAL_Msk                  // Value of VBUSVLDEXT0 femtoPHY input
+#define STM32_GCCFG_VBUSBSEN_Pos         (19U)
+#define STM32_GCCFG_VBUSBSEN_Msk         (0x1UL << STM32_GCCFG_VBUSBSEN_Pos)      // 0x00080000
+#define STM32_GCCFG_VBUSBSEN             STM32_GCCFG_VBUSBSEN_Msk                 // Enable B-device (peripheral) VBUS sensing
 
-#define STM32_GCCFG_VBVALEXTOEN_Pos            (24U)
-#define STM32_GCCFG_VBVALEXTOEN_Msk            (0x1U << STM32_GCCFG_VBVALEXTOEN_Pos)      // 0x01000000
-#define STM32_GCCFG_VBVALEXTOEN                STM32_GCCFG_VBVALEXTOEN_Msk                // Enables of VBUSVLDEXT0 femtoPHY input override
+#define STM32_GCCFG_NOVBUSSENS_Pos       (21U)
+#define STM32_GCCFG_NOVBUSSENS_Msk       (0x1UL << STM32_GCCFG_NOVBUSSENS_Pos)     // 0x00200000
+#define STM32_GCCFG_NOVBUSSENS           STM32_GCCFG_NOVBUSSENS_Msk                // VBUS sensing disable option
+// GUID < 0x2000: end
 
-#define STM32_GCCFG_PULLDOWNEN_Pos             (25U)
-#define STM32_GCCFG_PULLDOWNEN_Msk             (0x1U << STM32_GCCFG_PULLDOWNEN_Pos)       // 0x02000000
-#define STM32_GCCFG_PULLDOWNEN                 STM32_GCCFG_PULLDOWNEN_Msk                 // Enables of femtoPHY pulldown resistors, used when ID PAD is disabled
+// TODO: stm32u5a5 SDEN is 22nd bit, conflict with 20th bit above
+// #define STM32_GCCFG_SDEN_Pos             (22U)
+// #define STM32_GCCFG_SDEN_Msk             (0x1U << STM32_GCCFG_SDEN_Pos)             // 0x00400000
+// #define STM32_GCCFG_SDEN                 STM32_GCCFG_SDEN_Msk                       // Secondary detection (PD) mode enable
 
+// GUID >= 0x5000 use femtoPHY: VBVALOVA, VBVALEXTOEN, PULLDOWNEN
+#define STM32_GCCFG_VBVALOVAL_Pos        (23U)
+#define STM32_GCCFG_VBVALOVAL_Msk        (0x1U << STM32_GCCFG_VBVALOVAL_Pos)        // 0x00800000
+#define STM32_GCCFG_VBVALOVAL            STM32_GCCFG_VBVALOVAL_Msk                  // Value of VBUSVLDEXT0 femtoPHY input
+
+#define STM32_GCCFG_VBVALEXTOEN_Pos      (24U)
+#define STM32_GCCFG_VBVALEXTOEN_Msk      (0x1U << STM32_GCCFG_VBVALEXTOEN_Pos)      // 0x01000000
+#define STM32_GCCFG_VBVALEXTOEN          STM32_GCCFG_VBVALEXTOEN_Msk                // Enables of VBUSVLDEXT0 femtoPHY input override
+
+#define STM32_GCCFG_PULLDOWNEN_Pos       (25U)
+#define STM32_GCCFG_PULLDOWNEN_Msk       (0x1U << STM32_GCCFG_PULLDOWNEN_Pos)       // 0x02000000
+#define STM32_GCCFG_PULLDOWNEN           STM32_GCCFG_PULLDOWNEN_Msk                 // Enables of femtoPHY pulldown resistors, used when ID PAD is disabled
+// GUID >= 0x5000: end
 
 /********************  Bit definition for DEACHINTMSK register  ********************/
 #define DEACHINTMSK_IEP1INTM_Pos         (1U)
@@ -1847,6 +1872,9 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define HPTXFSIZ_PTXFD                   HPTXFSIZ_PTXFD_Msk                       // Host periodic TxFIFO depth
 
 /********************  Bit definition for DIEPCTL register  ********************/
+#define DIEPCTL0_MPSIZ_Pos               (0U)
+#define DIEPCTL0_MPSIZ_Msk               (0x3UL << DIEPCTL0_MPSIZ_Pos)            // 0x00000003
+#define DIEPCTL0_MPSIZ                   DIEPCTL0_MPSIZ_Msk                       // Maximum packet size(endpoint 0)
 #define DIEPCTL_MPSIZ_Pos                (0U)
 #define DIEPCTL_MPSIZ_Msk                (0x7FFUL << DIEPCTL_MPSIZ_Pos)           // 0x000007FF
 #define DIEPCTL_MPSIZ                    DIEPCTL_MPSIZ_Msk                        // Maximum packet size
@@ -2155,6 +2183,9 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define EPCTL_EPENA                    EPCTL_EPENA_Msk                        // Endpoint enable
 
 /********************  Bit definition for DOEPCTL register  ********************/
+#define DOEPCTL0_MPSIZ_Pos               (0U)
+#define DOEPCTL0_MPSIZ_Msk               (0x3UL << DOEPCTL0_MPSIZ_Pos)            // 0x00000003
+#define DOEPCTL0_MPSIZ                   DOEPCTL0_MPSIZ_Msk                       // Maximum packet size(endpoint 0)
 #define DOEPCTL_MPSIZ_Pos                (0U)
 #define DOEPCTL_MPSIZ_Msk                (0x7FFUL << DOEPCTL_MPSIZ_Pos)           // 0x000007FF
 #define DOEPCTL_MPSIZ                    DOEPCTL_MPSIZ_Msk                        // Maximum packet size          //Bit 1

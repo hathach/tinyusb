@@ -29,12 +29,13 @@
 
 #include "bsp/board_api.h"
 #include "tusb.h"
+#include "app.h"
 
 #ifdef ESP_PLATFORM
   #define USBH_STACK_SIZE     4096
 #else
   // Increase stack size when debug log is enabled
-  #define USBH_STACK_SIZE    (3*configMINIMAL_STACK_SIZE/2) * (CFG_TUSB_DEBUG ? 2 : 1)
+  #define USBH_STACK_SIZE    (configMINIMAL_STACK_SIZE * (CFG_TUSB_DEBUG ? 4 : 2))
 #endif
 
 
@@ -65,9 +66,6 @@ TimerHandle_t blinky_tm;
 static void led_blinky_cb(TimerHandle_t xTimer);
 static void usb_host_task(void* param);
 
-extern void cdc_app_init(void);
-extern void hid_app_init(void);
-extern void msc_app_init(void);
 
 /*------------- MAIN -------------*/
 int main(void) {

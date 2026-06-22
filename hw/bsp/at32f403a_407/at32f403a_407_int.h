@@ -48,6 +48,12 @@ void DebugMon_Handler(void);
 void PendSV_Handler(void);
 void SysTick_Handler(void);
 
+void USBFS_H_CAN1_TX_IRQHandler(void);
+void USBFS_L_CAN1_RX0_IRQHandler(void);
+void USBFS_MAPH_IRQHandler(void);
+void USBFS_MAPL_IRQHandler(void);
+void USBFSWakeUp_IRQHandler(void);
+
 #ifdef __cplusplus
 }
 #endif

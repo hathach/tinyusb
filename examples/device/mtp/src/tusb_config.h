@@ -23,8 +23,8 @@
  *
  */
 
-#ifndef _TUSB_CONFIG_H_
-#define _TUSB_CONFIG_H_
+#ifndef TUSB_CONFIG_H_
+#define TUSB_CONFIG_H_
 
 #ifdef __cplusplus
  extern "C" {
@@ -106,6 +106,7 @@
    MTP_OP_GET_OBJECT_HANDLES, \
    MTP_OP_GET_OBJECT_INFO, \
    MTP_OP_GET_OBJECT, \
+   MTP_OP_GET_PARTIAL_OBJECT, \
    MTP_OP_DELETE_OBJECT, \
    MTP_OP_SEND_OBJECT_INFO, \
    MTP_OP_SEND_OBJECT, \
@@ -136,4 +137,4 @@
  }
 #endif
 
-#endif /* _TUSB_CONFIG_H_ */
+#endif /* TUSB_CONFIG_H_ */

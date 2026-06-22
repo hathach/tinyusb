@@ -74,44 +74,31 @@ static uint8_t _hidh_default_protocol = HID_PROTOCOL_BOOT;
 // Weak stubs: invoked if no strong implementation is available
 //--------------------------------------------------------------------+
 TU_ATTR_WEAK void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t idx, uint8_t const* report_desc, uint16_t desc_len) {
-  (void) dev_addr;
-  (void) idx;
-  (void) report_desc;
-  (void) desc_len;
+  (void) dev_addr; (void) idx; (void) report_desc; (void) desc_len;
 }
 
 TU_ATTR_WEAK void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t idx) {
-  (void) dev_addr;
-  (void) idx;
+  (void) dev_addr; (void) idx;
+}
+
+TU_ATTR_WEAK void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *report, uint16_t len) {
+  (void) dev_addr; (void) idx; (void) report; (void) len;
 }
 
 TU_ATTR_WEAK void tuh_hid_report_sent_cb(uint8_t dev_addr, uint8_t idx, uint8_t const* report, uint16_t len) {
-  (void) dev_addr;
-  (void) idx;
-  (void) report;
-  (void) len;
+  (void) dev_addr; (void) idx; (void) report; (void) len;
 }
 
 TU_ATTR_WEAK void tuh_hid_get_report_complete_cb(uint8_t dev_addr, uint8_t idx, uint8_t report_id, uint8_t report_type, uint16_t len) {
-  (void) dev_addr;
-  (void) idx;
-  (void) report_id;
-  (void) report_type;
-  (void) len;
+  (void) dev_addr; (void) idx; (void) report_id; (void) report_type; (void) len;
 }
 
 TU_ATTR_WEAK void tuh_hid_set_report_complete_cb(uint8_t dev_addr, uint8_t idx, uint8_t report_id, uint8_t report_type, uint16_t len) {
-  (void) dev_addr;
-  (void) idx;
-  (void) report_id;
-  (void) report_type;
-  (void) len;
+  (void) dev_addr; (void) idx; (void) report_id; (void) report_type; (void) len;
 }
 
 TU_ATTR_WEAK void tuh_hid_set_protocol_complete_cb(uint8_t dev_addr, uint8_t idx, uint8_t protocol) {
-  (void) dev_addr;
-  (void) idx;
-  (void) protocol;
+  (void) dev_addr; (void) idx; (void) protocol;
 }
 
 //--------------------------------------------------------------------+
@@ -141,7 +128,9 @@ static uint8_t get_idx_by_epaddr(uint8_t daddr, uint8_t ep_addr) {
 
 static hidh_interface_t* find_new_itf(void) {
   for (uint8_t i = 0; i < CFG_TUH_HID; i++) {
-    if (_hidh_itf[i].daddr == 0) return &_hidh_itf[i];
+    if (_hidh_itf[i].daddr == 0) {
+      return &_hidh_itf[i];
+    }
   }
   return NULL;
 }
@@ -152,7 +141,9 @@ static hidh_interface_t* find_new_itf(void) {
 uint8_t tuh_hid_itf_get_count(uint8_t daddr) {
   uint8_t count = 0;
   for (uint8_t i = 0; i < CFG_TUH_HID; i++) {
-    if (_hidh_itf[i].daddr == daddr) count++;
+    if (_hidh_itf[i].daddr == daddr) {
+      count++;
+    }
   }
   return count;
 }
@@ -160,7 +151,9 @@ uint8_t tuh_hid_itf_get_count(uint8_t daddr) {
 uint8_t tuh_hid_itf_get_total_count(void) {
   uint8_t count = 0;
   for (uint8_t i = 0; i < CFG_TUH_HID; i++) {
-    if (_hidh_itf[i].daddr != 0) count++;
+    if (_hidh_itf[i].daddr != 0) {
+      count++;
+    }
   }
   return count;
 }
@@ -234,7 +227,7 @@ void tuh_hid_set_default_protocol(uint8_t protocol) {
   _hidh_default_protocol = protocol;
 }
 
-static bool _hidh_set_protocol(uint8_t daddr, uint8_t itf_num, uint8_t protocol,
+static bool hidh_set_protocol(uint8_t daddr, uint8_t itf_num, uint8_t protocol,
                                tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   TU_LOG_DRV("HID Set Protocol = %d\r\n", protocol);
 
@@ -266,7 +259,7 @@ bool tuh_hid_set_protocol(uint8_t daddr, uint8_t idx, uint8_t protocol) {
   hidh_interface_t* p_hid = get_hid_itf(daddr, idx);
   TU_VERIFY(p_hid && p_hid->itf_protocol != HID_ITF_PROTOCOL_NONE);
 
-  return _hidh_set_protocol(daddr, p_hid->itf_num, protocol, set_protocol_complete, 0);
+  return hidh_set_protocol(daddr, p_hid->itf_num, protocol, set_protocol_complete, 0);
 }
 
 static void get_report_complete(tuh_xfer_t* xfer) {
@@ -353,7 +346,7 @@ bool tuh_hid_set_report(uint8_t daddr, uint8_t idx, uint8_t report_id, uint8_t r
   return tuh_control_xfer(&xfer);
 }
 
-static bool _hidh_set_idle(uint8_t daddr, uint8_t itf_num, uint16_t idle_rate,
+static bool hidh_set_idle(uint8_t daddr, uint8_t itf_num, uint16_t idle_rate,
                            tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   // SET IDLE request, device can stall if not support this request
   TU_LOG_DRV("HID Set Idle \r\n");
@@ -506,36 +499,43 @@ void hidh_close(uint8_t daddr) {
 //--------------------------------------------------------------------+
 // Enumeration
 //--------------------------------------------------------------------+
-
-bool hidh_open(uint8_t rhport, uint8_t daddr, tusb_desc_interface_t const* desc_itf, uint16_t max_len) {
+uint16_t hidh_open(uint8_t rhport, uint8_t daddr, const tusb_desc_interface_t *desc_itf, uint16_t max_len) {
   (void) rhport;
   (void) max_len;
 
-  TU_VERIFY(TUSB_CLASS_HID == desc_itf->bInterfaceClass);
+  TU_VERIFY(TUSB_CLASS_HID == desc_itf->bInterfaceClass, 0);
   TU_LOG_DRV("[%u] HID opening Interface %u\r\n", daddr, desc_itf->bInterfaceNumber);
 
   // len = interface + hid + n*endpoints
-  uint16_t const drv_len = (uint16_t) (sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) +
-                                       desc_itf->bNumEndpoints * sizeof(tusb_desc_endpoint_t));
-  TU_ASSERT(max_len >= drv_len);
-  uint8_t const* p_desc = (uint8_t const*) desc_itf;
+  const uint16_t drv_len = (uint16_t)(sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) +
+                                      desc_itf->bNumEndpoints * sizeof(tusb_desc_endpoint_t));
+  TU_ASSERT(drv_len <= max_len, 0);
+  const uint8_t *p_desc = (const uint8_t *)desc_itf;
 
-  //------------- HID descriptor -------------//
+  // HID descriptor: mostly right after interface descriptor, in some rare case it might be after endpoint descriptors
   p_desc = tu_desc_next(p_desc);
-  tusb_hid_descriptor_hid_t const* desc_hid = (tusb_hid_descriptor_hid_t const*) p_desc;
-  TU_ASSERT(HID_DESC_TYPE_HID == desc_hid->bDescriptorType);
+  const tusb_hid_descriptor_hid_t *desc_hid;
+  if (tu_desc_type(p_desc) == HID_DESC_TYPE_HID) {
+    // HID after interface
+    desc_hid = (const tusb_hid_descriptor_hid_t *)p_desc;
+    p_desc   = tu_desc_next(p_desc);
+  } else {
+    // HID after endpoint
+    desc_hid = (const tusb_hid_descriptor_hid_t *)(p_desc + sizeof(tusb_desc_endpoint_t) * desc_itf->bNumEndpoints);
+    TU_ASSERT(tu_desc_type(desc_hid) == HID_DESC_TYPE_HID, 0);
+  }
 
-  hidh_interface_t* p_hid = find_new_itf();
-  TU_ASSERT(p_hid); // not enough interface, try to increase CFG_TUH_HID
-  p_hid->daddr = daddr;
+  // Allocate new interface
+  hidh_interface_t *p_hid = find_new_itf();
+  TU_ASSERT(p_hid, 0); // not enough interface, try to increase CFG_TUH_HID
+  p_hid->daddr   = daddr;
+  p_hid->itf_num = desc_itf->bInterfaceNumber;
 
-  //------------- Endpoint Descriptors -------------//
-  p_desc = tu_desc_next(p_desc);
-  tusb_desc_endpoint_t const* desc_ep = (tusb_desc_endpoint_t const*) p_desc;
-
-  for (int i = 0; i < desc_itf->bNumEndpoints; i++) {
-    TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType);
-    TU_ASSERT(tuh_edpt_open(daddr, desc_ep));
+  // Endpoint Descriptors
+  for (uint8_t i = 0; i < desc_itf->bNumEndpoints; i++) {
+    const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
+    TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType, 0);
+    TU_ASSERT(tuh_edpt_open(daddr, desc_ep), 0);
 
     if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
       p_hid->ep_in = desc_ep->bEndpointAddress;
@@ -546,23 +546,20 @@ bool hidh_open(uint8_t rhport, uint8_t daddr, tusb_desc_interface_t const* desc_
     }
 
     p_desc = tu_desc_next(p_desc);
-    desc_ep = (tusb_desc_endpoint_t const*) p_desc;
   }
-
-  p_hid->itf_num = desc_itf->bInterfaceNumber;
 
   // Assume bNumDescriptors = 1
   p_hid->report_desc_type = desc_hid->bReportType;
   // Use offsetof to avoid pointer to the odd/misaligned address
   p_hid->report_desc_len = tu_unaligned_read16((uint8_t const*)desc_hid + offsetof(tusb_hid_descriptor_hid_t, wReportLength));
 
-  // Per HID Specs: default is Report protocol, though we will force Boot protocol when set_config
-  p_hid->protocol_mode = _hidh_default_protocol;
+  // Per HID Specs: default is Report protocol
+  p_hid->protocol_mode = HID_PROTOCOL_REPORT;
   if (HID_SUBCLASS_BOOT == desc_itf->bInterfaceSubClass) {
     p_hid->itf_protocol = desc_itf->bInterfaceProtocol;
   }
 
-  return true;
+  return drv_len;
 }
 
 //--------------------------------------------------------------------+
@@ -613,25 +610,30 @@ static void process_set_config(tuh_xfer_t* xfer) {
 
   switch (state) {
     case CONFG_SET_IDLE: {
-      // Idle rate = 0 mean only report when there is changes
+      // Idle rate = 0 mean only report when there are changes
       const uint16_t idle_rate = 0;
       const uintptr_t next_state = (p_hid->itf_protocol != HID_ITF_PROTOCOL_NONE)
                                    ? CONFIG_SET_PROTOCOL : CONFIG_GET_REPORT_DESC;
-      _hidh_set_idle(daddr, itf_num, idle_rate, process_set_config, next_state);
+      hidh_set_idle(daddr, itf_num, idle_rate, process_set_config, next_state);
       break;
     }
 
     case CONFIG_SET_PROTOCOL:
-      _hidh_set_protocol(daddr, p_hid->itf_num, _hidh_default_protocol, process_set_config, CONFIG_GET_REPORT_DESC);
+  #if CFG_TUH_HID_SET_PROTOCOL_ON_ENUM
+      hidh_set_protocol(daddr, p_hid->itf_num, _hidh_default_protocol, process_set_config, CONFIG_GET_REPORT_DESC);
       break;
+  #else
+      TU_ATTR_FALLTHROUGH;
+  #endif
 
     case CONFIG_GET_REPORT_DESC:
+      if (xfer->setup->bRequest == HID_REQ_CONTROL_SET_PROTOCOL && xfer->result == XFER_RESULT_SUCCESS) {
+        p_hid->protocol_mode = (uint8_t) tu_le16toh(xfer->setup->wValue);
+      }
       // Get Report Descriptor if possible
-      // using usbh enumeration buffer since report descriptor can be very long
+      // using usbh enumeration buffer since the report descriptor can be very long
       if (p_hid->report_desc_len > CFG_TUH_ENUMERATION_BUFSIZE) {
         TU_LOG_DRV("HID Skip Report Descriptor since it is too large %u bytes\r\n", p_hid->report_desc_len);
-
-        // Driver is mounted without report descriptor
         config_driver_mount_complete(daddr, idx, NULL, 0);
       } else {
         tuh_descriptor_get_hid_report(daddr, itf_num, p_hid->report_desc_type, 0,
@@ -641,8 +643,8 @@ static void process_set_config(tuh_xfer_t* xfer) {
       break;
 
     case CONFIG_COMPLETE: {
-      uint8_t const* desc_report = usbh_get_enum_buf();
-      uint16_t const desc_len = tu_le16toh(xfer->setup->wLength);
+      const uint8_t *desc_report = usbh_get_enum_buf();
+      const uint16_t desc_len    = tu_le16toh(xfer->setup->wLength);
 
       config_driver_mount_complete(daddr, idx, desc_report, desc_len);
       break;

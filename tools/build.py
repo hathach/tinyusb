@@ -5,6 +5,7 @@ import os
 import sys
 import time
 import subprocess
+import shlex
 from pathlib import Path
 from multiprocessing import Pool
 
@@ -25,13 +26,35 @@ build_status = [STATUS_OK, STATUS_FAILED, STATUS_SKIPPED]
 verbose = False
 parallel_jobs = os.cpu_count()
 
+# CI board control lists (used when running under CI)
+ci_skip_boards = {
+    'rp2040': [
+        'adafruit_feather_rp2040_usb_host',
+        'adafruit_fruit_jam',
+        'adafruit_metro_rp2350',
+        'feather_rp2040_max3421',
+        'pico_sdk',
+        'raspberry_pi_pico_w',
+    ],
+}
+
+ci_preferred_boards = {
+    'samd2x_l2x': ['metro_m0_express'],
+    'samd5x_e5x': ['metro_m4_express'],
+    'stm32h7': ['stm32h743eval']
+}
+
+
 # -----------------------------
 # Helper
 # -----------------------------
 def run_cmd(cmd):
-    #print(cmd)
-    r = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    title = f'Command Error: {cmd}'
+    if isinstance(cmd, str):
+        raise TypeError("run_cmd expects a list/tuple of args, not a string")
+    args = cmd
+    cmd_display = " ".join(args)
+    r = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    title = f'Command Error: {cmd_display}'
     if r.returncode != 0:
         # print build output if failed
         if os.getenv('GITHUB_ACTIONS'):
@@ -42,7 +65,7 @@ def run_cmd(cmd):
             print(title)
             print(r.stdout.decode("utf-8"))
     elif verbose:
-        print(cmd)
+        print(cmd_display)
         print(r.stdout.decode("utf-8"))
     return r
 
@@ -74,24 +97,22 @@ def get_examples(family):
     return all_examples
 
 
-def print_build_result(board, example, status, duration):
+def print_build_result(board, build_target, status, duration):
     if isinstance(duration, (int, float)):
         duration = "{:.2f}s".format(duration)
-    print(build_format.format(board, example, build_status[status], duration))
+    print(build_format.format(board, build_target, build_status[status], duration))
 
 # -----------------------------
 # CMake
 # -----------------------------
-def cmake_board(board, build_args, build_flags_on):
+def cmake_board(board, build_args, build_name, build_cflags, build_targets):
     ret = [0, 0, 0]
     start_time = time.monotonic()
 
-    build_dir = f'cmake-build/cmake-build-{board}'
-    build_flags = ''
-    if len(build_flags_on) > 0:
-        build_flags =  ' '.join(f'-D{flag}=1' for flag in build_flags_on)
-        build_flags = f'-DCFLAGS_CLI="{build_flags}"'
-        build_dir += '-f1_' + '_'.join(build_flags_on)
+    build_dir = f'cmake-build/cmake-build-{build_name or board}'
+    build_flags = []
+    if build_cflags:
+        build_flags.append('-DCFLAGS_CLI=' + ' '.join(build_cflags))
 
     family = find_family(board)
     if family == 'espressif':
@@ -101,50 +122,46 @@ def cmake_board(board, build_args, build_flags_on):
             if build_utils.skip_example(example, board):
                 ret[2] += 1
             else:
-                rcmd = run_cmd(f'idf.py -C examples/{example} -B {build_dir}/{example} -G Ninja '
-                               f'-DBOARD={board} {build_flags} build')
+                rcmd = run_cmd([
+                    'idf.py', '-C', f'examples/{example}', '-B', f'{build_dir}/{example}', '-GNinja',
+                    f'-DBOARD={board}', *build_flags, 'build'
+                ])
                 ret[0 if rcmd.returncode == 0 else 1] += 1
     else:
-        rcmd = run_cmd(f'cmake examples -B {build_dir} -G Ninja -DBOARD={board} -DCMAKE_BUILD_TYPE=MinSizeRel '
-                       f'{build_args} {build_flags}')
+        rcmd = run_cmd(['cmake', 'examples', '-B', build_dir, '-GNinja',
+                        f'-DBOARD={board}', '-DCMAKE_BUILD_TYPE=MinSizeRel', '-DLINKERMAP_OPTION=-q -f tinyusb/src',
+                        *build_args, *build_flags])
         if rcmd.returncode == 0:
-            cmd = f"cmake --build {build_dir}"
-            njobs = parallel_jobs
-
-            # circleci docker return $nproc as 36 core, limit parallel according to resource class.
-            # Required for IAR, also prevent crashed/killed by docker
-            if os.getenv('CIRCLECI'):
-                resource_class = { 'small': 1, 'medium': 2, 'medium+': 3, 'large': 4 }
-                for rc in resource_class:
-                    if rc in os.getenv('CIRCLE_JOB'):
-                        njobs = resource_class[rc]
-                        break
-            cmd += f' --parallel {njobs}'
-            rcmd = run_cmd(cmd)
+            cmd = ["cmake", "--build", build_dir, '--parallel', str(parallel_jobs)]
+            for target in build_targets:
+                rcmd = run_cmd(cmd + ['--target', target])
+                if rcmd.returncode != 0:
+                    break
         ret[0 if rcmd.returncode == 0 else 1] += 1
 
-    example = 'all'
-    print_build_result(board, example, 0 if ret[1] == 0 else 1, time.monotonic() - start_time)
+    print_build_result(board, ','.join(build_targets), 0 if ret[1] == 0 else 1, time.monotonic() - start_time)
     return ret
 
 
 # -----------------------------
 # Make
 # -----------------------------
-def make_one_example(example, board, make_option):
+def make_one_example(example, board, make_option, build_targets):
     # Check if board is skipped
     if build_utils.skip_example(example, board):
         print_build_result(board, example, 2, '-')
         r = 2
     else:
         start_time = time.monotonic()
-        # skip -j for circleci
-        if not os.getenv('CIRCLECI'):
-            make_option += ' -j'
-        make_cmd = f"make -C examples/{example} BOARD={board} {make_option}"
-        # run_cmd(f"{make_cmd} clean")
-        build_result = run_cmd(f"{make_cmd} all")
-        r = 0 if build_result.returncode == 0 else 1
+        make_cmd = ["make", "-C", f"examples/{example}", f"BOARD={board}", '-j', str(parallel_jobs)]
+        if make_option:
+            make_cmd += shlex.split(make_option)
+        r = 0
+        for target in build_targets:
+            build_result = run_cmd(make_cmd + [target])
+            if build_result.returncode != 0:
+                r = 1
+                break
         print_build_result(board, example, r, time.monotonic() - start_time)
 
     ret = [0, 0, 0]
@@ -152,7 +169,7 @@ def make_one_example(example, board, make_option):
     return ret
 
 
-def make_board(board, build_args):
+def make_board(board, build_args, build_targets):
     print(build_separator)
     family = find_family(board);
     all_examples = get_examples(family)
@@ -163,7 +180,7 @@ def make_board(board, build_args):
         final_status = 2
     else:
         with Pool(processes=os.cpu_count()) as pool:
-            pool_args = list((map(lambda e, b=board, o=f"{build_args}": [e, b, o], all_examples)))
+            pool_args = list((map(lambda e, b=board, o=f"{build_args}", t=build_targets: [e, b, o, t], all_examples)))
             r = pool.starmap(make_one_example, pool_args)
             # sum all element of same index (column sum)
             ret = list(map(sum, list(zip(*r))))
@@ -175,45 +192,58 @@ def make_board(board, build_args):
 # -----------------------------
 # Build Family
 # -----------------------------
-def build_boards_list(boards, build_defines, build_system, build_flags_on):
+def build_boards_list(boards, build_defines, build_system, build_name, build_cflags, build_targets):
     ret = [0, 0, 0]
     for b in boards:
         r = [0, 0, 0]
         if build_system == 'cmake':
-            build_args = ' '.join(f'-D{d}' for d in build_defines)
-            r = cmake_board(b, build_args, build_flags_on)
+            build_args = [f'-D{d}' for d in build_defines]
+            r = cmake_board(b, build_args, build_name, build_cflags, build_targets)
         elif build_system == 'make':
             build_args = ' '.join(f'{d}' for d in build_defines)
-            r = make_board(b, build_args)
+            r = make_board(b, build_args, build_targets)
         ret[0] += r[0]
         ret[1] += r[1]
         ret[2] += r[2]
     return ret
 
 
-def build_family(family, build_defines, build_system, build_flags_on, one_per_family, boards):
-    skip_ci = ['pico_sdk']
+def get_family_boards(family, one_random, one_first):
+    """Get list of boards for a family.
+
+    Args:
+        family: Family name
+        one_random: If True, return only one random board
+        one_first: If True, return only the first board (alphabetical)
+
+    Returns:
+        List of board names
+    """
+    skip_list = []
+    preferred_list = []
     if os.getenv('GITHUB_ACTIONS') or os.getenv('CIRCLECI'):
-        skip_ci_file = Path(f"hw/bsp/{family}/skip_ci.txt")
-        if skip_ci_file.exists():
-            skip_ci = skip_ci_file.read_text().split()
+        skip_list = ci_skip_boards.get(family, [])
+        preferred_list = ci_preferred_boards.get(family, [])
+
     all_boards = []
     for entry in os.scandir(f"hw/bsp/{family}/boards"):
-        if entry.is_dir() and not entry.name in skip_ci:
+        if entry.is_dir() and entry.name not in skip_list:
             all_boards.append(entry.name)
+    if not all_boards:
+        print(f"No boards found for family '{family}'")
+        return []
     all_boards.sort()
 
-    ret = [0, 0, 0]
-    # If only-one flag is set, select one random board
-    if one_per_family:
-        for b in boards:
-            # skip if -b already specify one in this family
-            if find_family(b) == family:
-                return ret
-        all_boards = [random.choice(all_boards)]
+    # If only-one flags are set, honor select list first, then pick first or random
+    if one_first or one_random:
+        if preferred_list:
+            return [preferred_list[0]]
+        if one_first:
+            return [all_boards[0]]
+        if one_random:
+            return [random.choice(all_boards)]
 
-    ret = build_boards_list(all_boards, build_defines, build_system, build_flags_on)
-    return ret
+    return all_boards
 
 
 # -----------------------------
@@ -229,9 +259,17 @@ def main():
     parser.add_argument('-t', '--toolchain', default='gcc', help='Toolchain to use, default is gcc')
     parser.add_argument('-s', '--build-system', default='cmake', help='Build system to use, default is cmake')
     parser.add_argument('-D', '--define-symbol', action='append', default=[], help='Define to pass to build system')
-    parser.add_argument('-f1', '--build-flags-on', action='append', default=[], help='Build flag to pass to build system')
-    parser.add_argument('-1', '--one-per-family', action='store_true', default=False, help='Build only one random board inside a family')
+    parser.add_argument('--build-name', default=None,
+                        help='Override build dir name (cmake-build-<name>); default is the board name. Used for HIL variants.')
+    parser.add_argument('--cflag', action='append', default=[],
+                        help='Raw compiler flag appended to CFLAGS_CLI, e.g. --cflag=-DCFG_TUD_DWC2_DMA_ENABLE=1 (repeatable)')
+    parser.add_argument('--one-random', action='store_true', default=False,
+                        help='Build only one random board of each specified family')
+    parser.add_argument('--one-first', action='store_true', default=False,
+                        help='Build only the first board (alphabetical) of each specified family')
     parser.add_argument('-j', '--jobs', type=int, default=os.cpu_count(), help='Number of jobs to run in parallel')
+    parser.add_argument('-T', '--target', action='append', default=[],
+                        help='Build target to use, may be specified multiple times (default: all)')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
     args = parser.parse_args()
 
@@ -240,8 +278,11 @@ def main():
     toolchain = args.toolchain
     build_system = args.build_system
     build_defines = args.define_symbol
-    build_flags_on = args.build_flags_on
-    one_per_family = args.one_per_family
+    build_name = args.build_name
+    build_cflags = args.cflag
+    one_random = args.one_random
+    one_first = args.one_first
+    build_targets = args.target if args.target else ['all']
     verbose = args.verbose
     parallel_jobs = args.jobs
 
@@ -251,12 +292,17 @@ def main():
         print("Please specify families or board to build")
         return 1
 
-    print(build_separator)
-    print(build_format.format('Board', 'Example', '\033[39mResult\033[0m', 'Time'))
-    total_time = time.monotonic()
-    result = [0, 0, 0]
+    # --build-name renames the single shared build dir, so building more than one
+    # board with it would clobber/mix artifacts
+    if build_name and (len(families) > 0 or len(boards) != 1):
+        print("--build-name requires exactly one board (-b) and no families")
+        return 1
 
-    # build families
+    print(build_separator)
+    print(build_format.format('Board', 'Target', '\033[39mResult\033[0m', 'Time'))
+    total_time = time.monotonic()
+
+    # get all families
     all_families = []
     if 'all' in families:
         for entry in os.scandir("hw/bsp"):
@@ -266,23 +312,19 @@ def main():
         all_families = list(families)
     all_families.sort()
 
-    # succeeded, failed, skipped
+    # get boards from families and append to boards list
+    all_boards = list(boards)
     for f in all_families:
-        r = build_family(f, build_defines, build_system, build_flags_on, one_per_family, boards)
-        result[0] += r[0]
-        result[1] += r[1]
-        result[2] += r[2]
+        all_boards.extend(get_family_boards(f, one_random, one_first))
 
-    # build boards
-    r = build_boards_list(boards, build_defines, build_system, build_flags_on)
-    result[0] += r[0]
-    result[1] += r[1]
-    result[2] += r[2]
+    # build all boards
+    result = build_boards_list(all_boards, build_defines, build_system, build_name, build_cflags, build_targets)
 
     total_time = time.monotonic() - total_time
     print(build_separator)
     print(f"Build Summary: {result[0]} {STATUS_OK}, {result[1]} {STATUS_FAILED} and took {total_time:.2f}s")
     print(build_separator)
+
     return result[1]
 
 

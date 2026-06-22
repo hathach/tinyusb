@@ -37,7 +37,7 @@ else
   CFLAGS += -DCFG_TUD_WCH_USBIP_USBFS=1
 endif
 
-LDFLAGS_GCC += \
+LDFLAGS += \
 	-nostdlib -nostartfiles \
 	--specs=nosys.specs --specs=nano.specs \
 
@@ -47,6 +47,7 @@ SRC_C += \
 	src/portable/wch/dcd_ch32_usbfs.c \
 	src/portable/wch/hcd_ch32_usbfs.c \
 	src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
+	src/portable/st/stm32_fsdev/fsdev_common.c \
 	$(SDK_SRC_DIR)/Core/core_riscv.c \
 	$(SDK_SRC_DIR)/Peripheral/src/${CH32_FAMILY}_gpio.c \
 	$(SDK_SRC_DIR)/Peripheral/src/${CH32_FAMILY}_misc.c \

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding= "UTF-8" ?>
-<configuration name="MIMXRT1060-EVK" xsi:schemaLocation="http://mcuxpresso.nxp.com/XSD/mex_configuration_13 http://mcuxpresso.nxp.com/XSD/mex_configuration_13.xsd" uuid="2174caba-38fe-48d5-8f89-42a23354d23b" version="13" xmlns="http://mcuxpresso.nxp.com/XSD/mex_configuration_13" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<configuration name="MIMXRT1060-EVK" xsi:schemaLocation="http://mcuxpresso.nxp.com/XSD/mex_configuration_19 http://mcuxpresso.nxp.com/XSD/mex_configuration_19.xsd" uuid="2174caba-38fe-48d5-8f89-42a23354d23b" version="19" xmlns="http://mcuxpresso.nxp.com/XSD/mex_configuration_19" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
    <common>
       <processor>MIMXRT1062xxxxA</processor>
       <package>MIMXRT1062DVL6A</package>
@@ -13,19 +13,19 @@
    </common>
    <preferences>
       <validate_boot_init_only>false</validate_boot_init_only>
-      <generate_extended_information>false</generate_extended_information>
       <generate_code_modified_registers_only>false</generate_code_modified_registers_only>
       <update_include_paths>true</update_include_paths>
+      <enable_parallel_routing>true</enable_parallel_routing>
       <generate_registers_defines>false</generate_registers_defines>
    </preferences>
    <tools>
-      <pins name="Pins" version="13.1" enabled="true" update_project_code="true">
+      <pins name="Pins" version="17.0" enabled="true" update_project_code="true">
          <generated_project_files>
             <file path="board/pin_mux.c" update_enabled="true"/>
             <file path="board/pin_mux.h" update_enabled="true"/>
          </generated_project_files>
          <pins_profile>
-            <processor_version>13.0.2</processor_version>
+            <processor_version>26.03.10</processor_version>
             <pin_labels>
                <pin_label pin_num="E7" pin_signal="GPIO_B0_01" label="LCDIF_ENABLE" identifier="USER_BUTTON"/>
                <pin_label pin_num="D8" pin_signal="GPIO_B0_03" label="LCDIF_VSYNC" identifier="USER_LED"/>
@@ -41,7 +41,7 @@
                   <enableClock>true</enableClock>
                </options>
                <dependencies>
-                  <dependency resourceType="Peripheral" resourceId="GPIO2" description="Peripheral GPIO2 is not initialized" problem_level="1" source="Pins:BOARD_InitPins">
+                  <dependency resourceType="Peripheral" resourceId="GPIO2" description="Peripheral GPIO2 signals are routed in the Pins Tool, but the peripheral is not initialized in the Peripherals Tool." problem_level="1" source="Pins:BOARD_InitPins">
                      <feature name="initialized" evaluation="equal">
                         <data>true</data>
                      </feature>
@@ -85,7 +85,7 @@
                   <enableClock>true</enableClock>
                </options>
                <dependencies>
-                  <dependency resourceType="Peripheral" resourceId="LPUART1" description="Peripheral LPUART1 is not initialized" problem_level="1" source="Pins:BOARD_InitDEBUG_UARTPins">
+                  <dependency resourceType="Peripheral" resourceId="LPUART6" description="Peripheral LPUART6 signals are routed in the Pins Tool, but the peripheral is not initialized in the Peripherals Tool." problem_level="1" source="Pins:BOARD_InitDEBUG_UARTPins">
                      <feature name="initialized" evaluation="equal">
                         <data>true</data>
                      </feature>
@@ -102,30 +102,14 @@
                   </dependency>
                </dependencies>
                <pins>
-                  <pin peripheral="LPUART1" signal="TX" pin_num="K14" pin_signal="GPIO_AD_B0_12">
+                  <pin peripheral="LPUART6" signal="RX" pin_num="G11" pin_signal="GPIO_AD_B0_03">
                      <pin_features>
-                        <pin_feature name="software_input_on" value="Disable"/>
-                        <pin_feature name="hysteresis_enable" value="Disable"/>
-                        <pin_feature name="pull_up_down_config" value="Pull_Down_100K_Ohm"/>
-                        <pin_feature name="pull_keeper_select" value="Keeper"/>
-                        <pin_feature name="pull_keeper_enable" value="Enable"/>
-                        <pin_feature name="open_drain" value="Disable"/>
-                        <pin_feature name="speed" value="MHZ_100"/>
-                        <pin_feature name="drive_strength" value="R0_6"/>
-                        <pin_feature name="slew_rate" value="Slow"/>
+                        <pin_feature name="speed" value="MHZ_50"/>
                      </pin_features>
                   </pin>
-                  <pin peripheral="LPUART1" signal="RX" pin_num="L14" pin_signal="GPIO_AD_B0_13">
+                  <pin peripheral="LPUART6" signal="TX" pin_num="M11" pin_signal="GPIO_AD_B0_02">
                      <pin_features>
-                        <pin_feature name="software_input_on" value="Disable"/>
-                        <pin_feature name="hysteresis_enable" value="Disable"/>
-                        <pin_feature name="pull_up_down_config" value="Pull_Down_100K_Ohm"/>
-                        <pin_feature name="pull_keeper_select" value="Keeper"/>
-                        <pin_feature name="pull_keeper_enable" value="Enable"/>
-                        <pin_feature name="open_drain" value="Disable"/>
-                        <pin_feature name="speed" value="MHZ_100"/>
-                        <pin_feature name="drive_strength" value="R0_6"/>
-                        <pin_feature name="slew_rate" value="Slow"/>
+                        <pin_feature name="speed" value="MHZ_50"/>
                      </pin_features>
                   </pin>
                </pins>
@@ -138,7 +122,7 @@
                   <enableClock>true</enableClock>
                </options>
                <dependencies>
-                  <dependency resourceType="Peripheral" resourceId="USDHC1" description="Peripheral USDHC1 is not initialized" problem_level="1" source="Pins:BOARD_InitUSDHCPins">
+                  <dependency resourceType="Peripheral" resourceId="USDHC1" description="Peripheral USDHC1 signals are routed in the Pins Tool, but the peripheral is not initialized in the Peripherals Tool." problem_level="1" source="Pins:BOARD_InitUSDHCPins">
                      <feature name="initialized" evaluation="equal">
                         <data>true</data>
                      </feature>
@@ -172,7 +156,7 @@
                   <enableClock>true</enableClock>
                </options>
                <dependencies>
-                  <dependency resourceType="Peripheral" resourceId="FLEXSPI" description="Peripheral FLEXSPI is not initialized" problem_level="1" source="Pins:BOARD_InitQSPIPins">
+                  <dependency resourceType="Peripheral" resourceId="FLEXSPI" description="Peripheral FLEXSPI signals are routed in the Pins Tool, but the peripheral is not initialized in the Peripherals Tool." problem_level="1" source="Pins:BOARD_InitQSPIPins">
                      <feature name="initialized" evaluation="equal">
                         <data>true</data>
                      </feature>
@@ -200,13 +184,13 @@
             </function>
          </functions_list>
       </pins>
-      <clocks name="Clocks" version="11.0" enabled="true" update_project_code="true">
+      <clocks name="Clocks" version="20.0" enabled="true" update_project_code="true">
          <generated_project_files>
             <file path="board/clock_config.c" update_enabled="true"/>
             <file path="board/clock_config.h" update_enabled="true"/>
          </generated_project_files>
          <clocks_profile>
-            <processor_version>13.0.2</processor_version>
+            <processor_version>26.03.10</processor_version>
          </clocks_profile>
          <clock_configurations>
             <clock_configuration name="BOARD_BootClockRUN" id_prefix="" prefix_user_defined="false">

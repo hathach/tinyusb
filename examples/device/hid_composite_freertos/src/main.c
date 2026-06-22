@@ -53,7 +53,7 @@
   #define USBD_STACK_SIZE    (3*configMINIMAL_STACK_SIZE/2) * (CFG_TUSB_DEBUG ? 2 : 1)
 #endif
 
-#define HID_STACK_SZIE      configMINIMAL_STACK_SIZE
+#define HID_STACK_SZIE      (configMINIMAL_STACK_SIZE * (CFG_TUSB_DEBUG ? 2 : 1))
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES

@@ -23,40 +23,6 @@
  *
  */
 
-/* Example to show how to navigate mass storage device with built-in command line.
- * Type help for list of supported commands and syntax (mostly linux commands)
-
- > help
- * help
-        Print list of commands
- * cat
-        Usage: cat [FILE]...
-        Concatenate FILE(s) to standard output..
- * cd
-        Usage: cd [DIR]...
-        Change the current directory to DIR.
- * cp
-        Usage: cp SOURCE DEST
-        Copy SOURCE to DEST.
- * ls
-        Usage: ls [DIR]...
-        List information about the FILEs (the current directory by default).
- * pwd
-        Usage: pwd
-        Print the name of the current working directory.
- * mkdir
-        Usage: mkdir DIR...
-        Create the DIRECTORY(ies), if they do not already exist..
- * mv
-        Usage: mv SOURCE DEST...
-        Rename SOURCE to DEST.
- * rm
-        Usage: rm [FILE]...
-        Remove (unlink) the FILE(s).
- */
-
-#include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 
 #include "bsp/board_api.h"
@@ -93,8 +59,6 @@ int main(void) {
     msc_app_task();
     led_blinking_task();
   }
-
-  return 0;
 }
 
 //--------------------------------------------------------------------+
@@ -119,7 +83,7 @@ void led_blinking_task(void) {
   static bool led_state = false;
 
   // Blink every interval ms
-  if (board_millis() - start_ms < interval_ms) return; // not enough time
+  if (tusb_time_millis_api() - start_ms < interval_ms) return; // not enough time
   start_ms += interval_ms;
 
   board_led_write(led_state);

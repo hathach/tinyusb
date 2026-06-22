@@ -14,12 +14,14 @@ CFLAGS += \
 # suppress warning caused by vendor mcu driver
 CFLAGS += -Wno-error=redundant-decls
 
-LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+LDFLAGS += -specs=nosys.specs -specs=nano.specs
 
 SRC_C += \
 	src/portable/renesas/rusb2/dcd_rusb2.c \
 	src/portable/renesas/rusb2/hcd_rusb2.c \
-	$(MCU_DIR)/vects.c
+	src/portable/renesas/rusb2/rusb2_common.c \
+	$(MCU_DIR)/vects.c \
+	$(FAMILY_PATH)/family.c
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \

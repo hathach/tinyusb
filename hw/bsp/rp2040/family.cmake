@@ -72,6 +72,12 @@ target_compile_definitions(tinyusb_common_base INTERFACE
 	CFG_TUSB_DEBUG=${TINYUSB_DEBUG_LEVEL}
 )
 
+if (CFG_TUH_RPI_PIO_USB)
+	target_compile_definitions(tinyusb_common_base INTERFACE
+		CFG_TUH_RPI_PIO_USB=1
+	)
+endif()
+
 target_link_libraries(tinyusb_common_base INTERFACE
 	hardware_structs
 	hardware_irq
@@ -87,17 +93,18 @@ target_sources(tinyusb_device_base INTERFACE
 		${TOP}/src/portable/raspberrypi/rp2040/dcd_rp2040.c
 		${TOP}/src/portable/raspberrypi/rp2040/rp2040_usb.c
 		${TOP}/src/device/usbd.c
-		${TOP}/src/device/usbd_control.c
 		${TOP}/src/class/audio/audio_device.c
 		${TOP}/src/class/cdc/cdc_device.c
 		${TOP}/src/class/dfu/dfu_device.c
 		${TOP}/src/class/dfu/dfu_rt_device.c
 		${TOP}/src/class/hid/hid_device.c
 		${TOP}/src/class/midi/midi_device.c
+		${TOP}/src/class/midi/midi2_device.c
 		${TOP}/src/class/msc/msc_device.c
 		${TOP}/src/class/mtp/mtp_device.c
 		${TOP}/src/class/net/ecm_rndis_device.c
 		${TOP}/src/class/net/ncm_device.c
+		${TOP}/src/class/printer/printer_device.c
 		${TOP}/src/class/usbtmc/usbtmc_device.c
 		${TOP}/src/class/vendor/vendor_device.c
 		${TOP}/src/class/video/video_device.c
@@ -115,6 +122,7 @@ target_sources(tinyusb_host_base INTERFACE
 		${TOP}/src/class/cdc/cdc_host.c
 		${TOP}/src/class/hid/hid_host.c
 		${TOP}/src/class/midi/midi_host.c
+		${TOP}/src/class/midi/midi2_host.c
 		${TOP}/src/class/msc/msc_host.c
 		${TOP}/src/class/vendor/vendor_host.c
 		)
@@ -157,10 +165,12 @@ target_link_libraries(tinyusb_bsp INTERFACE
 # tinyusb_additions will hold our extra settings for examples
 add_library(tinyusb_additions INTERFACE)
 
+if (PICO_PLATFORM STREQUAL rp2040)
 target_compile_definitions(tinyusb_additions INTERFACE
 	PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
 	PICO_RP2040_USB_DEVICE_UFRAME_FIX=1
-)
+	)
+endif ()
 
 if(LOGGER STREQUAL "RTT" OR LOGGER STREQUAL "rtt")
 	target_compile_definitions(tinyusb_additions INTERFACE
@@ -184,46 +194,72 @@ endif()
 #------------------------------------
 # Functions
 #------------------------------------
+function(family_add_default_example_warnings TARGET)
+	if (DEFINED PICO_TINYUSB_NO_EXAMPLE_WARNINGS)
+		return()
+	endif ()
 
-function(family_configure_target TARGET RTOS)
-	if (RTOS STREQUAL noos OR RTOS STREQUAL "")
-		set(RTOS_SUFFIX "")
-	else()
-		set(RTOS_SUFFIX _${RTOS})
+  # Apply warnings to all TinyUSB interface library sources as well as examples sources
+  # we cannot set compile options for target since it will not propagate to INTERFACE sources then picosdk files
+	# Remove -Werror from example sources so per-file warning suppressions can work.
+	# -Werror is kept on TinyUSB sources to catch real issues.
+	set(example_warn_flags ${WARN_FLAGS_${CMAKE_C_COMPILER_ID}})
+	list(REMOVE_ITEM example_warn_flags -Werror)
+
+	get_target_property(EXAMPLE_SOURCES ${TARGET} SOURCES)
+	set_source_files_properties(${EXAMPLE_SOURCES} PROPERTIES COMPILE_OPTIONS "${example_warn_flags}")
+
+  foreach(TINYUSB_TARGET IN ITEMS tinyusb_common_base tinyusb_device_base tinyusb_host_base tinyusb_host_max3421 tinyusb_bsp)
+    get_target_property(TINYUSB_SOURCES ${TINYUSB_TARGET} INTERFACE_SOURCES)
+    set_source_files_properties(${TINYUSB_SOURCES} PROPERTIES COMPILE_OPTIONS "${WARN_FLAGS_${CMAKE_C_COMPILER_ID}}")
+	endforeach()
+
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0 AND NO_WARN_RWX_SEGMENTS_SUPPORTED)
+      target_link_options(${TARGET} PRIVATE "LINKER:--no-warn-rwx-segments")
+    endif()
+	elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+		target_compile_options(${TARGET} PRIVATE -Wno-unreachable-code)
+	endif ()
+endfunction()
+
+function(family_add_board BOARD_TARGET)
+	add_library(${BOARD_TARGET} INTERFACE)
+endfunction()
+
+
+function(family_configure_example TARGET RTOS)
+	# Set OS per-target: FreeRTOS or Pico SDK
+	if (NOT DEFINED RTOS)
+		set(RTOS noos)
+	endif ()
+
+	# Set OS for non-RTOS targets (RTOS targets get it from family_add_rtos)
+	if (RTOS STREQUAL noos)
+		target_compile_definitions(${TARGET} PUBLIC CFG_TUSB_OS=${TINYUSB_OPT_OS})
+	else ()
+		# remove CFG_TUSB_OS=OPT_OS_PICO from tinyusb_common_base to avoid redefinition
+		# NOTE: cannot remove it from interface declaration as pico-sdk use that
+		get_target_property(_defs tinyusb_common_base INTERFACE_COMPILE_DEFINITIONS)
+		list(REMOVE_ITEM _defs "CFG_TUSB_OS=${TINYUSB_OPT_OS}")
+		set_property(TARGET tinyusb_common_base PROPERTY INTERFACE_COMPILE_DEFINITIONS ${_defs})
 	endif()
-	# export RTOS_SUFFIX to parent scope
-	set(RTOS_SUFFIX ${RTOS_SUFFIX} PARENT_SCOPE)
 
-	# compile define from command line
-	if(DEFINED CFLAGS_CLI)
-		separate_arguments(CFLAGS_CLI)
-		target_compile_options(${TARGET} PUBLIC ${CFLAGS_CLI})
-	endif()
-
+	family_configure_common(${TARGET} ${RTOS})
 	pico_add_extra_outputs(${TARGET})
 	pico_enable_stdio_uart(${TARGET} 1)
-	target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_board${RTOS_SUFFIX} tinyusb_additions)
+
+	target_link_options(${TARGET} PUBLIC "LINKER:-Map=$<TARGET_FILE:${TARGET}>.map")
+	target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_board tinyusb_additions)
 
 	family_flash_openocd(${TARGET})
 	family_flash_jlink(${TARGET})
 endfunction()
 
 
-function(rp2040_family_configure_example_warnings TARGET)
-	if (NOT PICO_TINYUSB_NO_EXAMPLE_WARNINGS)
-		family_add_default_example_warnings(${TARGET})
-	endif()
-	if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
-		target_compile_options(${TARGET} PRIVATE -Wno-unreachable-code)
-	endif()
-	suppress_tinyusb_warnings()
-endfunction()
-
-
 function(family_configure_device_example TARGET RTOS)
-	family_configure_target(${TARGET} ${RTOS})
-	target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_device${RTOS_SUFFIX})
-	rp2040_family_configure_example_warnings(${TARGET})
+	family_configure_example(${TARGET} ${RTOS})
+	target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_device)
 endfunction()
 
 
@@ -243,16 +279,15 @@ function(is_compiler_supported_by_pico_pio_usb OUTVAR)
 endfunction()
 
 function(family_configure_host_example TARGET RTOS)
-	family_configure_target(${TARGET} ${RTOS})
-	target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_host${RTOS_SUFFIX})
-	rp2040_family_configure_example_warnings(${TARGET})
+	family_configure_example(${TARGET} ${RTOS})
+	target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_host)
 
 	# For rp2040 enable pico-pio-usb
 	if (TARGET tinyusb_pico_pio_usb)
 		# Pico-PIO-USB does not compile with all pico-sdk supported compilers, so check before enabling it
 		is_compiler_supported_by_pico_pio_usb(PICO_PIO_USB_COMPILER_SUPPORTED)
 		if (PICO_PIO_USB_COMPILER_SUPPORTED)
-			family_add_pico_pio_usb(${PROJECT})
+			family_add_pico_pio_usb(${TARGET})
 		endif()
 	endif()
 
@@ -264,10 +299,9 @@ endfunction()
 
 
 function(family_configure_dual_usb_example TARGET RTOS)
-	family_configure_target(${TARGET} ${RTOS})
+	family_configure_example(${TARGET} ${RTOS})
 	# require tinyusb_pico_pio_usb
-	target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_device tinyusb_host tinyusb_pico_pio_usb )
-	rp2040_family_configure_example_warnings(${TARGET})
+	target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_device tinyusb_host tinyusb_pico_pio_usb)
 endfunction()
 
 
@@ -278,7 +312,6 @@ function(check_and_add_pico_pio_usb_support)
 		#------------------------------------
 		# PIO USB for both host and device
 		#------------------------------------
-
 		if (NOT DEFINED PICO_PIO_USB_PATH)
 			set(PICO_PIO_USB_PATH "${TOP}/hw/mcu/raspberry_pi/Pico-PIO-USB")
 		endif()
@@ -333,80 +366,4 @@ function(family_initialize_project PROJECT DIR)
 
 	# now re-check for adding Pico-PIO_USB support now SDK is definitely available
 	check_and_add_pico_pio_usb_support()
-endfunction()
-
-
-# This method must be called from the project scope to suppress known warnings in TinyUSB source files
-function(suppress_tinyusb_warnings)
-	# some of these are pretty silly warnings only occurring in some older GCC versions 9 or prior
-	if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-		if (CMAKE_C_COMPILER_VERSION VERSION_LESS 10.0)
-			set(CONVERSION_WARNING_FILES
-				${PICO_TINYUSB_PATH}/src/tusb.c
-				${PICO_TINYUSB_PATH}/src/common/tusb_fifo.c
-				${PICO_TINYUSB_PATH}/src/device/usbd.c
-				${PICO_TINYUSB_PATH}/src/device/usbd_control.c
-				${PICO_TINYUSB_PATH}/src/host/usbh.c
-				${PICO_TINYUSB_PATH}/src/class/cdc/cdc_device.c
-				${PICO_TINYUSB_PATH}/src/class/cdc/cdc_host.c
-				${PICO_TINYUSB_PATH}/src/class/hid/hid_device.c
-				${PICO_TINYUSB_PATH}/src/class/hid/hid_host.c
-				${PICO_TINYUSB_PATH}/src/class/audio/audio_device.c
-				${PICO_TINYUSB_PATH}/src/class/dfu/dfu_device.c
-				${PICO_TINYUSB_PATH}/src/class/dfu/dfu_rt_device.c
-				${PICO_TINYUSB_PATH}/src/class/midi/midi_device.c
-				${PICO_TINYUSB_PATH}/src/class/usbtmc/usbtmc_device.c
-				${PICO_TINYUSB_PATH}/src/portable/raspberrypi/rp2040/hcd_rp2040.c
-				)
-			foreach(SOURCE_FILE IN LISTS CONVERSION_WARNING_FILES)
-				set_source_files_properties(
-						${SOURCE_FILE}
-						PROPERTIES
-						COMPILE_FLAGS "-Wno-conversion")
-			endforeach()
-		endif()
-		if (CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 11.0)
-			set_source_files_properties(
-					${PICO_TINYUSB_PATH}/lib/fatfs/source/ff.c
-					COMPILE_FLAGS "-Wno-stringop-overflow -Wno-array-bounds")
-		endif()
-		set_source_files_properties(
-				${PICO_TINYUSB_PATH}/lib/fatfs/source/ff.c
-				PROPERTIES
-				COMPILE_FLAGS "-Wno-conversion -Wno-cast-qual")
-
-		set_source_files_properties(
-				${PICO_TINYUSB_PATH}/lib/lwip/src/core/tcp_in.c
-				${PICO_TINYUSB_PATH}/lib/lwip/src/core/tcp_out.c
-				PROPERTIES
-				COMPILE_FLAGS "-Wno-conversion")
-
-		set_source_files_properties(
-				${PICO_TINYUSB_PATH}/lib/networking/dnserver.c
-				${PICO_TINYUSB_PATH}/lib/networking/dhserver.c
-				${PICO_TINYUSB_PATH}/lib/networking/rndis_reports.c
-				PROPERTIES
-				COMPILE_FLAGS "-Wno-conversion -Wno-sign-conversion")
-
-		if (TARGET tinyusb_pico_pio_usb)
-			set_source_files_properties(
-					${PICO_TINYUSB_PATH}/hw/mcu/raspberry_pi/Pico-PIO-USB/src/pio_usb_device.c
-					${PICO_TINYUSB_PATH}/hw/mcu/raspberry_pi/Pico-PIO-USB/src/pio_usb.c
-					${PICO_TINYUSB_PATH}/hw/mcu/raspberry_pi/Pico-PIO-USB/src/pio_usb_host.c
-					${PICO_TINYUSB_PATH}/src/portable/raspberrypi/pio_usb/hcd_pio_usb.c
-					PROPERTIES
-					COMPILE_FLAGS "-Wno-conversion -Wno-cast-qual -Wno-attributes")
-		endif()
-	elseif(CMAKE_C_COMPILER_ID STREQUAL "Clang")
-		set_source_files_properties(
-				${PICO_TINYUSB_PATH}/src/class/cdc/cdc_device.c
-				COMPILE_FLAGS "-Wno-unreachable-code")
-		set_source_files_properties(
-				${PICO_TINYUSB_PATH}/src/class/cdc/cdc_host.c
-				COMPILE_FLAGS "-Wno-unreachable-code-fallthrough")
-		set_source_files_properties(
-				${PICO_TINYUSB_PATH}/lib/fatfs/source/ff.c
-				PROPERTIES
-				COMPILE_FLAGS "-Wno-cast-qual")
-	endif()
 endfunction()

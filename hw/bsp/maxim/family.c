@@ -31,6 +31,7 @@
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstrict-prototypes" // _mxc_crit_get_state()
+#pragma GCC diagnostic ignored "-Wredundant-decls"
 #endif
 
 #include "gpio.h"
@@ -65,6 +66,8 @@ void board_init(void) {
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // Explicitly disable systick to prevent its ISR from running before scheduler start
+  SysTick->CTRL &= ~1U;
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   NVIC_SetPriority(USB_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 #endif
@@ -154,6 +157,7 @@ uint32_t board_button_read(void) {
 size_t board_get_unique_id(uint8_t id[], size_t max_len) {
 #if defined(MAX32650)
   // USN is 13 bytes on this device
+  (void) max_len;
   MXC_SYS_GetUSN(id, 13);
   return 13;
 #else
@@ -182,13 +186,17 @@ int board_uart_read(uint8_t *buf, int len) {
 }
 
 int board_uart_write(void const *buf, int len) {
-  int act_len = 0;
-  const uint8_t *ch_ptr = (const uint8_t *) buf;
-  while (act_len < len) {
-    MXC_UART_WriteCharacter(ConsoleUart, *ch_ptr++);
-    act_len++;
+  const uint8_t *p = (const uint8_t *) buf;
+  int count = 0;
+  while (count < len) {
+    if (MXC_UART_GetTXFIFOAvailable(ConsoleUart) > 0) {
+      MXC_UART_WriteCharacterRaw(ConsoleUart, p[count]);
+      count++;
+    } else {
+      break;
+    }
   }
-  return len;
+  return count;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
@@ -198,7 +206,7 @@ void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void) {
+uint32_t tusb_time_millis_api(void) {
   return system_ticks;
 }
 #endif

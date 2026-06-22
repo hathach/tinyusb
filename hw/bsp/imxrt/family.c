@@ -107,6 +107,13 @@ static void init_usb_phy(uint8_t usb_id) {
 }
 
 void board_init(void) {
+// make sure the dcache is on.
+#if defined(__DCACHE_PRESENT) && __DCACHE_PRESENT
+  if (SCB_CCR_DC_Msk != (SCB_CCR_DC_Msk & SCB->CCR)) {
+    SCB_EnableDCache();
+  }
+#endif
+
   BOARD_InitBootPins();
   BOARD_BootClockRUN();
   SystemCoreClockUpdate();
@@ -120,8 +127,9 @@ void board_init(void) {
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
-
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // Explicitly disable systick to prevent its ISR from running before scheduler start
+  SysTick->CTRL &= ~1U;
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   NVIC_SetPriority(USB_OTG1_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
   #ifdef USBPHY2
@@ -221,8 +229,17 @@ int board_uart_read(uint8_t *buf, int len) {
 }
 
 int board_uart_write(void const *buf, int len) {
-  LPUART_WriteBlocking(UART_PORT, (uint8_t const *) buf, len);
-  return len;
+  const uint8_t *p     = (const uint8_t *)buf;
+  int            count = 0;
+  while (count < len) {
+    if (LPUART_GetStatusFlags(UART_PORT) & kLPUART_TxDataRegEmptyFlag) {
+      LPUART_WriteByte(UART_PORT, p[count]);
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
@@ -231,25 +248,14 @@ void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void) {
+uint32_t tusb_time_millis_api(void) {
   return system_ticks;
 }
 #endif
 
-
-#ifndef __ICCARM__
-// Implement _start() since we use linker flag '-nostartfiles'.
-// Requires defined __STARTUP_CLEAR_BSS,
-extern int main(void);
-TU_ATTR_UNUSED void _start(void) {
-  // called by startup code
-  main();
-  while (1) {}
-}
-
 #ifdef __clang__
 void _exit(int __status) {
+  (void) __status;
   while (1) {}
 }
-#endif
 #endif

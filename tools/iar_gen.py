@@ -74,7 +74,7 @@ def ListPath(path, blacklist=[]):
         print('</group>')
 
 def List():
-    ListPath('src', [ 'template.c', 'dcd_synopsys.c', 'dcd_esp32sx.c' ])
+    ListPath('src', [ 'template.c' ])
     ListPath('lib/SEGGER_RTT')
 
 if __name__ == "__main__":

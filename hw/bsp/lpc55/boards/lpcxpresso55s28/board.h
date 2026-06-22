@@ -36,20 +36,18 @@
  extern "C" {
 #endif
 
-// LED
-#define LED_PORT              1
-#define LED_PIN               6
+// LED: use red LED from generated pin_mux
+#define LED_PORT              BOARD_INITLEDSPINS_LED_RED_PORT
+#define LED_PIN               BOARD_INITLEDSPINS_LED_RED_PIN
 #define LED_STATE_ON          0
 
-// WAKE button
-#define BUTTON_PORT           1
-#define BUTTON_PIN            18
+// WAKE button: use S2 from generated pin_mux
+#define BUTTON_PORT           BOARD_INITBUTTONSPINS_S2_PORT
+#define BUTTON_PIN            BOARD_INITBUTTONSPINS_S2_PIN
 #define BUTTON_STATE_ACTIVE   0
 
 // UART
 #define UART_DEV              USART0
-#define UART_RX_PINMUX        0, 29, IOCON_PIO_DIG_FUNC1_EN
-#define UART_TX_PINMUX        0, 30, IOCON_PIO_DIG_FUNC1_EN
 
 // XTAL
 #define XTAL0_CLK_HZ          (16 * 1000 * 1000U)

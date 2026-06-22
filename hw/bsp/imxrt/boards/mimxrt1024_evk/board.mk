@@ -1,4 +1,5 @@
 CFLAGS += -DCPU_MIMXRT1024DAG5A
+MCU_FAMILY = RT1020
 MCU_VARIANT = MIMXRT1024
 
 # warnings caused by mcu driver

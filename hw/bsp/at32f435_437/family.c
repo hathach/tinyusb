@@ -29,6 +29,7 @@
 */
 
 #include "at32f435_437_clock.h"
+#include "at32f435_437_int.h"
 #include "board.h"
 #include "bsp/board_api.h"
 
@@ -73,12 +74,14 @@ void board_init(void) {
   /* vbus ignore */
   board_vbus_sense_init();
 
-  SysTick_Config(SystemCoreClock / 1000);
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
+  // Explicitly disable systick to prevent its ISR from running before scheduler start
+  SysTick->CTRL &= ~1U;
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   NVIC_SetPriority(OTGFS1_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
   NVIC_SetPriority(OTGFS2_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 #else
+  SysTick_Config(SystemCoreClock / 1000);
   NVIC_SetPriority(OTGFS1_IRQn, 0);
   NVIC_SetPriority(OTGFS2_IRQn, 0);
 #endif
@@ -247,23 +250,22 @@ int board_uart_read(uint8_t *buf, int len) {
 // Send characters to UART. Return number of sent bytes
 int board_uart_write(void const *buf, int len) {
 #if CFG_TUSB_OS == OPT_OS_NONE
-  int txsize = len;
-  u16 timeout = 0xffff;
-  while (txsize--) {
-    while (usart_flag_get(PRINT_UART, USART_TDBE_FLAG) == RESET) {
-      timeout--;
-      if (timeout == 0) {
-        return 0;
-      }
+  uint8_t const *p = (uint8_t const *) buf;
+  int count = 0;
+  while (count < len) {
+    if (usart_flag_get(PRINT_UART, USART_TDBE_FLAG) != RESET) {
+      PRINT_UART->dt = (*p & 0x01FF);
+      p++;
+      count++;
+    } else {
+      break;
     }
-    PRINT_UART->dt = (*((uint8_t const *) buf) & 0x01FF);
-    buf++;
   }
-  return len;
+  return count;
 #else
   (void) buf;
   (void) len;
-  return 0;
+  return -1;
 #endif
 }
 
@@ -317,7 +319,7 @@ volatile uint32_t system_ticks = 0;
 void SysTick_Handler(void) {
   system_ticks++;
 }
-uint32_t board_millis(void) {
+uint32_t tusb_time_millis_api(void) {
   return system_ticks;
 }
 void SVC_Handler(void) {
@@ -332,6 +334,7 @@ void HardFault_Handler(void) {
 
 // Required by __libc_init_array in startup code if we are compiling using
 // -nostdlib/-nostartfiles.
+void _init(void);
 void _init(void) {
 }
 

@@ -29,13 +29,12 @@
 
 #include "bsp/board_api.h"
 #include "tusb.h"
+#include "app.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTOTYPES
 //--------------------------------------------------------------------+
 void led_blinking_task(void);
-extern void cdc_app_task(void);
-extern void hid_app_task(void);
 
 /*------------- MAIN -------------*/
 int main(void) {
@@ -93,7 +92,7 @@ void led_blinking_task(void) {
   static bool led_state = false;
 
   // Blink every interval ms
-  if (board_millis() - start_ms < interval_ms) {
+  if (tusb_time_millis_api() - start_ms < interval_ms) {
     return;// not enough time
   }
   start_ms += interval_ms;

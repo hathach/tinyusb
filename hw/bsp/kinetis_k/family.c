@@ -61,6 +61,8 @@ void board_init(void) {
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // Explicitly disable systick to prevent its ISR from running before scheduler start
+  SysTick->CTRL &= ~1U;
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
@@ -123,14 +125,22 @@ int board_uart_read(uint8_t *buf, int len) {
 }
 
 int board_uart_write(void const *buf, int len) {
+#ifdef UART_DEV
+  const uint8_t *p = (const uint8_t *) buf;
+  int count = 0;
+  while (count < len) {
+    if (UART_DEV->S1 & UART_S1_TDRE_MASK) {
+      UART_DEV->D = p[count];
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
+#else
   (void) buf;
   (void) len;
-
-#ifdef UART_DEV
-  UART_WriteBlocking(UART_DEV, (uint8_t const*) buf, len);
-  return len;
-#else
-  return 0;
+  return -1;
 #endif
 }
 
@@ -141,7 +151,7 @@ void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void) {
+uint32_t tusb_time_millis_api(void) {
   return system_ticks;
 }
 #endif
@@ -159,6 +169,7 @@ TU_ATTR_UNUSED void _start(void) {
 
 #ifdef __clang__
 void	_exit (int __status) {
+  (void) __status;
   while (1) {}
 }
 #endif

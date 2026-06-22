@@ -28,6 +28,7 @@
 #include "tusb.h"
 #include "bsp/board_api.h"
 #include "main.h"
+#include "usbtmc_app.h"
 
 #if (CFG_TUD_USBTMC_ENABLE_488)
 static usbtmc_response_capabilities_488_t const
@@ -208,19 +209,19 @@ void usbtmc_app_task_iter(void) {
   case 0:
     break;
   case 1:
-    queryDelayStart = board_millis();
+    queryDelayStart = tusb_time_millis_api();
     queryState = 2;
     break;
   case 2:
-    if( (board_millis() - queryDelayStart) > resp_delay) {
-      queryDelayStart = board_millis();
+    if( (tusb_time_millis_api() - queryDelayStart) > resp_delay) {
+      queryDelayStart = tusb_time_millis_api();
       queryState=3;
       status |= 0x10u; // MAV
       status |= 0x40u; // SRQ
     }
     break;
   case 3:
-    if( (board_millis() - queryDelayStart) > resp_delay) {
+    if( (tusb_time_millis_api() - queryDelayStart) > resp_delay) {
       queryState = 4;
     }
     break;

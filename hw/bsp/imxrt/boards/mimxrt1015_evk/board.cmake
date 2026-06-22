@@ -1,3 +1,4 @@
+set(MCU_FAMILY RT1015)
 set(MCU_VARIANT MIMXRT1015)
 
 set(JLINK_DEVICE MIMXRT1015DAF5A)
@@ -11,5 +12,6 @@ function(update_board TARGET)
   target_compile_definitions(${TARGET} PUBLIC
     CPU_MIMXRT1015DAF5A
     CFG_EXAMPLE_VIDEO_READONLY
+    LWIP_HIGH_THROUGHPUT=0
     )
 endfunction()

@@ -15,6 +15,10 @@
         {
             "name": "stm32f746disco",
             "uid": "210041000C51343237303334",
+            "variant": [
+                { "name": "stm32f746disco", "flags": "" },
+                { "name": "stm32f746disco-DMA", "flags": "-DCFG_TUD_DWC2_DMA_ENABLE=1 -DCFG_TUH_DWC2_DMA_ENABLE=1" }
+            ],
             "tests": {
                 "device": true, "host": false, "dual": false
             },

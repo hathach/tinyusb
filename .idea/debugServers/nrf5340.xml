@@ -1,0 +1,13 @@
+<component name="DebugServers">
+  <jlink-debug-target name="nrf5340" uniqueID="d82e668b-1307-4266-8a5c-3752be6795c9" selected="true">
+    <debugger version="1">
+      <debugger kind="GDB" isBundled="true" />
+      <env />
+    </debugger>
+    <gdbserver exe="/usr/bin/JLinkGDBServerCLExe" />
+    <console port="19021" />
+    <target device="nRF5340_xxAA_APP" reset-before="false" frequency="12000" />
+    <connection extended-remote="false" port="4444" warmup-ms="500" />
+    <swo />
+  </jlink-debug-target>
+</component>

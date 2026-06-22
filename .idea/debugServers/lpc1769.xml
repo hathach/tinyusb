@@ -1,0 +1,13 @@
+<component name="DebugServers">
+  <jlink-debug-target name="lpc1769" uniqueID="8f746157-a0c3-435f-b417-10f26c3b2699">
+    <debugger version="1">
+      <debugger kind="GDB" isBundled="true" />
+      <env />
+    </debugger>
+    <gdbserver exe="/usr/bin/JLinkGDBServerCLExe" />
+    <console port="19021" />
+    <target device="LPC1769" reset-before="false" frequency="12000" />
+    <connection extended-remote="false" port="4444" warmup-ms="500" />
+    <swo />
+  </jlink-debug-target>
+</component>

@@ -37,22 +37,29 @@
 #define BUF_COUNT   4
 
 
-tusb_desc_device_t desc_device;
+CFG_TUH_MEM_SECTION tusb_desc_device_t desc_device;
 
-uint8_t buf_pool[BUF_COUNT][64];
+CFG_TUH_MEM_SECTION uint8_t buf_pool[BUF_COUNT][64];
 uint8_t buf_owner[BUF_COUNT] = { 0 }; // device address that owns buffer
+
+CFG_TUH_MEM_SECTION uint16_t temp_buf[128]; // temp buffer for string descriptor
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
 void led_blinking_task(void);
+void print_devinfo_task(void);
 
 static void print_utf16(uint16_t *temp_buf, size_t buf_len);
-void print_device_descriptor(tuh_xfer_t* xfer);
+static void print_one_device(uint8_t daddr);
 void parse_config_descriptor(uint8_t dev_addr, tusb_desc_configuration_t const* desc_cfg);
 
 uint8_t* get_hid_buf(uint8_t daddr);
 void free_hid_buf(uint8_t daddr);
+
+// One flag per possible device address — set in tuh_mount_cb (host task) and
+// cleared by print_devinfo_task (main loop) once the descriptors are printed.
+static volatile bool need_devinfo[CFG_TUH_DEVICE_MAX + 1];
 
 /*------------- MAIN -------------*/
 int main(void) {
@@ -72,39 +79,52 @@ int main(void) {
   while (1) {
     // tinyusb host task
     tuh_task();
+    print_devinfo_task();
     led_blinking_task();
   }
-
-  return 0;
 }
 
 /*------------- TinyUSB Callbacks -------------*/
 
-// Invoked when device is mounted (configured)
+// Invoked when device is mounted (configured). Runs in the host task — keep
+// it minimal. The descriptor fetching/printing happens in print_devinfo_task()
+// below where the sync helpers are safe (different context).
 void tuh_mount_cb(uint8_t daddr) {
   printf("Device attached, address = %d\r\n", daddr);
-
-  // Get Device Descriptor
-  // TODO: invoking control transfer now has issue with mounting hub with multiple devices attached, fix later
-  tuh_descriptor_get_device(daddr, &desc_device, 18, print_device_descriptor, 0);
+  if (daddr < TU_ARRAY_SIZE(need_devinfo)) {
+    need_devinfo[daddr] = true;
+  }
 }
 
 /// Invoked when device is unmounted (bus reset/unplugged)
 void tuh_umount_cb(uint8_t daddr) {
   printf("Device removed, address = %d\r\n", daddr);
+  if (daddr < TU_ARRAY_SIZE(need_devinfo)) {
+    need_devinfo[daddr] = false;
+  }
   free_hid_buf(daddr);
 }
 
 //--------------------------------------------------------------------+
-// Device Descriptor
+// Print device info task — serialises descriptor fetching across all
+// mounted devices via sync helpers. Sync calls are safe here because this
+// runs in the main loop (outside any host-stack callback context).
 //--------------------------------------------------------------------+
-void print_device_descriptor(tuh_xfer_t *xfer) {
-  if (XFER_RESULT_SUCCESS != xfer->result) {
+void print_devinfo_task(void) {
+  for (uint8_t daddr = 1; daddr < TU_ARRAY_SIZE(need_devinfo); daddr++) {
+    if (need_devinfo[daddr]) {
+      need_devinfo[daddr] = false;
+      print_one_device(daddr);
+    }
+  }
+}
+
+static void print_one_device(uint8_t daddr) {
+  // Get Device Descriptor
+  if (XFER_RESULT_SUCCESS != tuh_descriptor_get_device_sync(daddr, &desc_device, 18)) {
     printf("Failed to get device descriptor\r\n");
     return;
   }
-
-  uint8_t const daddr = xfer->daddr;
 
   printf("Device %u: ID %04x:%04x\r\n", daddr, desc_device.idVendor, desc_device.idProduct);
   printf("Device Descriptor:\r\n");
@@ -118,9 +138,6 @@ void print_device_descriptor(tuh_xfer_t *xfer) {
   printf("  idVendor            0x%04x\r\n" , desc_device.idVendor);
   printf("  idProduct           0x%04x\r\n" , desc_device.idProduct);
   printf("  bcdDevice           %04x\r\n"   , desc_device.bcdDevice);
-
-  // Get String descriptor using Sync API
-  uint16_t temp_buf[128];
 
   printf("  iManufacturer       %u     ", desc_device.iManufacturer);
   if (XFER_RESULT_SUCCESS == tuh_descriptor_get_manufacturer_string_sync(daddr, LANGUAGE_ID, temp_buf, sizeof(temp_buf))) {
@@ -335,7 +352,7 @@ void led_blinking_task(void) {
   static bool led_state = false;
 
   // Blink every interval ms
-  if (board_millis() - start_ms < interval_ms) {
+  if (tusb_time_millis_api() - start_ms < interval_ms) {
     return; // not enough time
   }
   start_ms += interval_ms;
@@ -386,12 +403,12 @@ static int _count_utf8_bytes(const uint16_t *buf, size_t len) {
   return (int) total_bytes;
 }
 
-static void print_utf16(uint16_t *temp_buf, size_t buf_len) {
-  if ((temp_buf[0] & 0xff) == 0) return;// empty
-  size_t utf16_len = ((temp_buf[0] & 0xff) - 2) / sizeof(uint16_t);
-  size_t utf8_len = (size_t) _count_utf8_bytes(temp_buf + 1, utf16_len);
-  _convert_utf16le_to_utf8(temp_buf + 1, utf16_len, (uint8_t *) temp_buf, sizeof(uint16_t) * buf_len);
-  ((uint8_t *) temp_buf)[utf8_len] = '\0';
+static void print_utf16(uint16_t *buf, size_t buf_len) {
+  if ((buf[0] & 0xff) == 0) return;// empty
+  size_t utf16_len = ((buf[0] & 0xff) - 2) / sizeof(uint16_t);
+  size_t utf8_len = (size_t) _count_utf8_bytes(buf + 1, utf16_len);
+  _convert_utf16le_to_utf8(buf + 1, utf16_len, (uint8_t *) buf, sizeof(uint16_t) * buf_len);
+  ((uint8_t *) buf)[utf8_len] = '\0';
 
-  printf("%s", (char *) temp_buf);
+  printf("%s", (char *) buf);
 }

@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_DCD_VALENTYUSB_EPTRI_H_
-#define _TUSB_DCD_VALENTYUSB_EPTRI_H_
+#ifndef TUSB_DCD_VALENTYUSB_EPTRI_H_
+#define TUSB_DCD_VALENTYUSB_EPTRI_H_
 
 #include "common/tusb_common.h"
 #ifdef __cplusplus
@@ -36,4 +36,4 @@
  }
 #endif
 
-#endif /* _TUSB_DCD_VALENTYUSB_EPTRI_H_ */
+#endif /* TUSB_DCD_VALENTYUSB_EPTRI_H_ */

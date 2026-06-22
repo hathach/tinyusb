@@ -29,6 +29,7 @@
 */
 
 #include "at32f415_clock.h"
+#include "at32f415_int.h"
 #include "board.h"
 #include "bsp/board_api.h"
 
@@ -196,23 +197,22 @@ int board_uart_read(uint8_t *buf, int len) {
 // Send characters to UART. Return number of sent bytes
 int board_uart_write(void const *buf, int len) {
 #if CFG_TUSB_OS == OPT_OS_NONE
-  int txsize = len;
-  u16 timeout = 0xffff;
-  while (txsize--) {
-    while (usart_flag_get(PRINT_UART, USART_TDBE_FLAG) == RESET) {
-      timeout--;
-      if (timeout == 0) {
-        return 0;
-      }
+  uint8_t const *p = (uint8_t const *) buf;
+  int count = 0;
+  while (count < len) {
+    if (usart_flag_get(PRINT_UART, USART_TDBE_FLAG) != RESET) {
+      PRINT_UART->dt = (*p & 0x01FF);
+      p++;
+      count++;
+    } else {
+      break;
     }
-    PRINT_UART->dt = (*((uint8_t const *) buf) & 0x01FF);
-    buf++;
   }
-  return len;
+  return count;
 #else
   (void) buf;
   (void) len;
-  return 0;
+  return -1;
 #endif
 }
 
@@ -245,7 +245,7 @@ void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void) {
+uint32_t tusb_time_millis_api(void) {
   return system_ticks;
 }
 
@@ -262,6 +262,7 @@ void HardFault_Handler(void) {
 
 // Required by __libc_init_array in startup code if we are compiling using
 // -nostdlib/-nostartfiles.
+void _init(void);
 void _init(void) {
 }
 

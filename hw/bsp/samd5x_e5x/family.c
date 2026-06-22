@@ -103,7 +103,13 @@ void board_init(void) {
   // Update SystemCoreClock since it is hard coded with asf4 and not correct
   // Init 1ms tick timer (samd SystemCoreClock may not correct)
   SystemCoreClock = CONF_CPU_FREQUENCY;
+
+#if CFG_TUSB_OS == OPT_OS_NONE
   SysTick_Config(CONF_CPU_FREQUENCY / 1000);
+#elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // Explicitly disable systick to prevent its ISR from running before scheduler start
+  SysTick->CTRL &= ~1U;
+#endif
 
   // Led init
   gpio_set_pin_direction(LED_PIN, GPIO_DIRECTION_OUT);
@@ -179,7 +185,7 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len) {
   for (int i = 0; i < 4; i++) {
     uint32_t did = *((uint32_t const*) did_addr[i]);
     did = TU_BSWAP32(did); // swap endian to match samd51 uf2 bootloader
-    memcpy(id + i * 4, &did, 4);
+    memcpy(id + i * 4, &did, sizeof(uint32_t));
   }
 
   return 16;
@@ -188,13 +194,13 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len) {
 int board_uart_read(uint8_t* buf, int len) {
   (void) buf;
   (void) len;
-  return 0;
+  return -1;
 }
 
 int board_uart_write(void const* buf, int len) {
   (void) buf;
   (void) len;
-  return 0;
+  return -1;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
@@ -204,7 +210,7 @@ void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void) {
+uint32_t tusb_time_millis_api(void) {
   return system_ticks;
 }
 

@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_DFU_H_
-#define _TUSB_DFU_H_
+#ifndef TUSB_DFU_H_
+#define TUSB_DFU_H_
 
 #include "common/tusb_common.h"
 
@@ -116,4 +116,4 @@ TU_VERIFY_STATIC( sizeof(dfu_status_response_t) == 6, "size is not correct");
  }
 #endif
 
-#endif /* _TUSB_DFU_H_ */
+#endif /* TUSB_DFU_H_ */

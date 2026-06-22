@@ -22,9 +22,9 @@
  * THE SOFTWARE.
  *
  */
-
 #include "bsp/board_api.h"
 #include "tusb.h"
+#include "app.h"
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION

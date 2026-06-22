@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_HCD_H_
-#define _TUSB_HCD_H_
+#ifndef TUSB_HCD_H_
+#define TUSB_HCD_H_
 
 #include "common/tusb_common.h"
 #include "osal/osal.h"
@@ -59,7 +59,7 @@ typedef enum {
   HCD_EVENT_XFER_COMPLETE,
 
   USBH_EVENT_FUNC_CALL, // Not an HCD event
-  HCD_EVENT_COUNT
+  HCD_EVENT_INVALID
 } hcd_eventid_t;
 
 typedef struct {
@@ -72,7 +72,6 @@ typedef struct {
     struct {
       uint8_t hub_addr;
       uint8_t hub_port;
-      uint8_t speed;
     } connection;
 
     // XFER_COMPLETE
@@ -84,7 +83,7 @@ typedef struct {
 
     // FUNC_CALL
     struct {
-      void (*func) (void*);
+      void (*func) (void* param);
       void* param;
     }func_call;
   };

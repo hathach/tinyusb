@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_UTCD_H_
-#define _TUSB_UTCD_H_
+#ifndef TUSB_UTCD_H_
+#define TUSB_UTCD_H_
 
 #include "common/tusb_common.h"
 #include "pd_types.h"
@@ -63,7 +63,7 @@ void tuc_task (void) {
   tuc_task_ext(UINT32_MAX, false);
 }
 
-#ifndef _TUSB_TCD_H_
+#ifndef TUSB_TCD_H_
 extern void tcd_int_handler(uint8_t rhport);
 #endif
 

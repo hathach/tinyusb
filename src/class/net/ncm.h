@@ -25,8 +25,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_NCM_H_
-#define _TUSB_NCM_H_
+#ifndef TUSB_NCM_H_
+#define TUSB_NCM_H_
 
 #include "common/tusb_common.h"
 
@@ -160,5 +160,19 @@ typedef struct {
   uint32_t downlink;
   uint32_t uplink;
 } ncm_notify_t;
+
+typedef struct TU_ATTR_PACKED {
+  uint8_t bFunctionLength;
+  uint8_t bDescriptorType;
+  uint8_t bDescriptorSubType;
+  uint16_t bcdNcmVersion;
+  uint8_t bmCapabilities;
+} tusb_desc_cdc_ncm_func_t;
+
+typedef struct TU_ATTR_PACKED {
+  uint32_t dwNtbInMaxSize;
+  uint16_t wNtbInMaxDatagrams;
+  uint16_t wReserved;
+} ncm_ntb_input_size_t;
 
 #endif

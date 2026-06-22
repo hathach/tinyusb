@@ -13,12 +13,6 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - name: Install ARM GCC
-      if: inputs.toolchain == 'arm-gcc'
-      uses: carlosperate/arm-none-eabi-gcc-action@v1
-      with:
-        release: '14.2.Rel1'
-
     - name: Pull ESP-IDF docker
       if: inputs.toolchain == 'esp-idf'
       uses: ./.github/actions/setup_toolchain/espressif
@@ -26,20 +20,18 @@ runs:
         toolchain: ${{ inputs.toolchain }}
 
     - name: Get Toolchain URL
-      if: >-
-        inputs.toolchain != 'arm-gcc' &&
-        inputs.toolchain != 'esp-idf'
+      if: inputs.toolchain != 'esp-idf'
       id: set-toolchain-url
+      env:
+        TOOLCHAIN: ${{ inputs.toolchain }}
       run: |
-        TOOLCHAIN_URL=$(jq -r '."${{ inputs.toolchain }}"' .github/actions/setup_toolchain/toolchain.json)
+        TOOLCHAIN_URL=$(jq -r --arg tc "$TOOLCHAIN" '.[$tc]' .github/actions/setup_toolchain/toolchain.json)
         echo "toolchain_url=$TOOLCHAIN_URL"
         echo "toolchain_url=$TOOLCHAIN_URL" >> $GITHUB_OUTPUT
       shell: bash
 
     - name: Download Toolchain
-      if: >-
-        inputs.toolchain != 'arm-gcc' &&
-        inputs.toolchain != 'esp-idf'
+      if: inputs.toolchain != 'esp-idf'
       uses: ./.github/actions/setup_toolchain/download
       with:
         toolchain: ${{ inputs.toolchain }}
@@ -47,11 +39,13 @@ runs:
 
     - name: Set toolchain option
       id: set-toolchain-option
+      env:
+        TOOLCHAIN: ${{ inputs.toolchain }}
       run: |
           BUILD_OPTION=""
-          if [[ "${{ inputs.toolchain }}" == *"clang"* ]]; then
+          if [[ "$TOOLCHAIN" == *"clang"* ]]; then
             BUILD_OPTION="--toolchain clang"
-          elif [[ "${{ inputs.toolchain }}" == "arm-iar" ]]; then
+          elif [[ "$TOOLCHAIN" == "arm-iar" ]]; then
             BUILD_OPTION="--toolchain iar"
           fi
           echo "build_option=$BUILD_OPTION"

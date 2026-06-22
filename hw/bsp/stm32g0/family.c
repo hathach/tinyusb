@@ -33,17 +33,33 @@
 #include "bsp/board_api.h"
 #include "board.h"
 
+#ifdef UART_ID
+  #if UART_ID == 1
+    #define USARTn            USART1
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART1_CLK_ENABLE
+  #elif UART_ID == 2
+    #define USARTn            USART2
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART2_CLK_ENABLE
+  #elif UART_ID == 3
+    #define USARTn            USART3
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART3_CLK_ENABLE
+  #elif UART_ID == 4
+    #define USARTn            USART4
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART4_CLK_ENABLE
+  #endif
+#endif
+
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
 void USB_UCPD1_2_IRQHandler(void) {
-  tud_int_handler(0);
+  tusb_int_handler(0, true);
 }
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
-#ifdef UART_DEV
+#ifdef UART_ID
 UART_HandleTypeDef UartHandle;
 #endif
 
@@ -65,7 +81,7 @@ void board_init(void) {
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
-  // Explicitly disable systick to prevent its ISR runs before scheduler start
+  // Explicitly disable systick to prevent its ISR from running before scheduler start
   SysTick->CTRL &= ~1U;
 
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
@@ -90,8 +106,8 @@ void board_init(void) {
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
 
-#ifdef UART_DEV
-  UART_CLK_EN();
+#ifdef UART_ID
+  UARTn_CLK_ENABLE();
 
   // UART
   GPIO_InitStruct.Pin       = UART_TX_PIN | UART_RX_PIN;
@@ -102,7 +118,7 @@ void board_init(void) {
   HAL_GPIO_Init(UART_GPIO_PORT, &GPIO_InitStruct);
 
   UartHandle = (UART_HandleTypeDef){
-    .Instance        = UART_DEV,
+    .Instance        = USARTn,
     .Init.BaudRate   = CFG_BOARD_UART_BAUDRATE,
     .Init.WordLength = UART_WORDLENGTH_8B,
     .Init.StopBits   = UART_STOPBITS_1,
@@ -113,6 +129,7 @@ void board_init(void) {
     .AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT
   };
   HAL_UART_Init(&UartHandle);
+  HAL_UARTEx_EnableFifoMode(&UartHandle);
 #endif
 
   // USB Pins TODO double check USB clock and pin setup
@@ -157,19 +174,39 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len) {
 }
 
 int board_uart_read(uint8_t *buf, int len) {
-  (void) buf;
-  (void) len;
+#ifdef UART_ID
+  int count = 0;
+  while (count < len) {
+    if (__HAL_UART_GET_FLAG(&UartHandle, UART_FLAG_RXNE)) {
+      buf[count] = (uint8_t) UartHandle.Instance->RDR;
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
+#else
+  (void) buf; (void) len;
   return 0;
+#endif
 }
 
 int board_uart_write(void const *buf, int len) {
-#ifdef UART_DEV
-  HAL_UART_Transmit(&UartHandle, (uint8_t*)(uintptr_t) buf, len, 0xffff);
-  return len;
+#ifdef UART_ID
+  const uint8_t *p = (const uint8_t *) buf;
+  int count = 0;
+  while (count < len) {
+    if (__HAL_UART_GET_FLAG(&UartHandle, UART_FLAG_TXE)) {
+      UartHandle.Instance->TDR = p[count];
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
 #else
-  (void) buf;
-  (void) len;
-  return 0;
+  (void) buf; (void) len;
+  return -1;
 #endif
 }
 
@@ -181,7 +218,7 @@ void SysTick_Handler(void) {
   HAL_IncTick();
 }
 
-uint32_t board_millis(void) {
+uint32_t tusb_time_millis_api(void) {
   return system_ticks;
 }
 #endif

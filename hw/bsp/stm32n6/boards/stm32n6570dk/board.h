@@ -41,20 +41,18 @@ extern "C" {
 #include "stm32n6xx_ll_system.h"
 #include "tcpp0203.h"
 
-#define UART_DEV USART1
-#define UART_CLK_EN __HAL_RCC_USART1_CLK_ENABLE
-
-#define BOARD_TUD_RHPORT 1
+#define UART_ID  1
 
 // VBUS Sense detection
-#define OTG_FS_VBUS_SENSE 1
-#define OTG_HS_VBUS_SENSE 1
+#define OTG_FS_VBUS_SENSE 0
+#define OTG_HS_VBUS_SENSE 0
 
 #define PINID_LED 0
 #define PINID_BUTTON 1
 #define PINID_UART_TX 2
 #define PINID_UART_RX 3
 #define PINID_TCPP0203_EN 4
+#define PINID_PWR_USB2 8
 
 static board_pindef_t board_pindef[] = {
     {// LED
@@ -77,27 +75,28 @@ static board_pindef_t board_pindef[] = {
      .port = GPIOA,
      .pin_init = {.Pin = GPIO_PIN_4, .Mode = GPIO_MODE_OUTPUT_PP, .Pull = GPIO_PULLDOWN, .Speed = GPIO_SPEED_FREQ_HIGH, .Alternate = 0},
      .active_state = 0},
-    {
-        // I2C SCL for TCPP0203
-        .port = GPIOD,
-        .pin_init = {.Pin = GPIO_PIN_14, .Mode = GPIO_MODE_AF_OD, .Pull = GPIO_NOPULL, .Speed = GPIO_SPEED_FREQ_LOW, .Alternate = GPIO_AF4_I2C2},
+    { // I2C SCL for TCPP0203
+      .port = GPIOD,
+      .pin_init = {.Pin = GPIO_PIN_14, .Mode = GPIO_MODE_AF_OD, .Pull = GPIO_NOPULL, .Speed = GPIO_SPEED_FREQ_LOW, .Alternate = GPIO_AF4_I2C2},
     },
-    {
-        // I2C SDA for TCPP0203
-        .port = GPIOD,
-        .pin_init = {.Pin = GPIO_PIN_4, .Mode = GPIO_MODE_AF_OD, .Pull = GPIO_NOPULL, .Speed = GPIO_SPEED_FREQ_LOW, .Alternate = GPIO_AF4_I2C2},
+    {// I2C SDA for TCPP0203
+      .port = GPIOD,
+      .pin_init = {.Pin = GPIO_PIN_4, .Mode = GPIO_MODE_AF_OD, .Pull = GPIO_NOPULL, .Speed = GPIO_SPEED_FREQ_LOW, .Alternate = GPIO_AF4_I2C2},
     },
-    {
-        // INT for TCPP0203
-        .port = GPIOD,
-        .pin_init = {.Pin = GPIO_PIN_10, .Mode = GPIO_MODE_IT_FALLING, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_FREQ_HIGH, .Alternate = 0},
+    {// INT for TCPP0203
+      .port = GPIOD,
+      .pin_init = {.Pin = GPIO_PIN_10, .Mode = GPIO_MODE_IT_FALLING, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_FREQ_HIGH, .Alternate = 0},
     },
+    {// PWR for USB2
+      .port = GPIOB,
+      .pin_init = {.Pin = GPIO_PIN_9, .Mode = GPIO_MODE_OUTPUT_PP, .Pull = GPIO_NOPULL, .Speed = GPIO_SPEED_FREQ_HIGH, .Alternate = 0},
+    }
 };
 
 //--------------------------------------------------------------------+
 // RCC Clock
 //--------------------------------------------------------------------+
-void SystemClock_Config(void) {
+static void SystemClock_Config(void) {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
   /* Configure the power domain */
@@ -214,7 +213,7 @@ static I2C_HandleTypeDef i2c_handle = {
     }};
 static TCPP0203_Object_t tcpp0203_obj = {0};
 
-int32_t board_tcpp0203_init(void) {
+static int32_t board_tcpp0203_init(void) {
   board_pindef_t *pindef = &board_pindef[PINID_TCPP0203_EN];
   HAL_GPIO_WritePin(pindef->port, pindef->pin_init.Pin, GPIO_PIN_SET);
 
@@ -231,18 +230,22 @@ int32_t board_tcpp0203_init(void) {
   return 0;
 }
 
-int32_t board_tcpp0203_deinit(void) {
+static int32_t board_tcpp0203_deinit(void) {
   return 0;
 }
 
-int32_t i2c_readreg(uint16_t DevAddr, uint16_t Reg, uint8_t *pData, uint16_t Length) {
+static int32_t i2c_readreg(uint16_t DevAddr, uint16_t Reg, uint8_t *pData, uint16_t Length) {
   TU_ASSERT(HAL_OK == HAL_I2C_Mem_Read(&i2c_handle, DevAddr, Reg, I2C_MEMADD_SIZE_8BIT, pData, Length, 10000));
   return 0;
 }
 
-int32_t i2c_writereg(uint16_t DevAddr, uint16_t Reg, uint8_t *pData, uint16_t Length) {
+static int32_t i2c_writereg(uint16_t DevAddr, uint16_t Reg, uint8_t *pData, uint16_t Length) {
   TU_ASSERT(HAL_OK == HAL_I2C_Mem_Write(&i2c_handle, DevAddr, Reg, I2C_MEMADD_SIZE_8BIT, pData, Length, 10000));
   return 0;
+}
+
+static int32_t i2c_get_tick(void) {
+  return (int32_t) HAL_GetTick();
 }
 
 static inline void board_init2(void) {
@@ -253,6 +256,7 @@ static inline void board_init2(void) {
   io_ctx.DeInit = board_tcpp0203_deinit;
   io_ctx.ReadReg = i2c_readreg;
   io_ctx.WriteReg = i2c_writereg;
+  io_ctx.GetTick = i2c_get_tick;
 
   TU_ASSERT(TCPP0203_RegisterBusIO(&tcpp0203_obj, &io_ctx) == TCPP0203_OK, );
 
@@ -262,9 +266,12 @@ static inline void board_init2(void) {
 }
 
 void board_vbus_set(uint8_t rhport, bool state) {
-  (void) state;
-  if (rhport == 1) {
-    TU_ASSERT(TCPP0203_SetGateDriverProvider(&tcpp0203_obj, TCPP0203_GD_PROVIDER_SWITCH_CLOSED) == TCPP0203_OK, );
+  if (rhport == 0) {
+    uint8_t switch_state = state ? TCPP0203_GD_PROVIDER_SWITCH_CLOSED : TCPP0203_GD_PROVIDER_SWITCH_OPEN;
+    TU_ASSERT(TCPP0203_SetGateDriverProvider(&tcpp0203_obj, switch_state) == TCPP0203_OK, );
+  } else if (rhport == 1) {
+    board_pindef_t *pindef = &board_pindef[PINID_PWR_USB2];
+    HAL_GPIO_WritePin(pindef->port, pindef->pin_init.Pin, state ? GPIO_PIN_SET : GPIO_PIN_RESET);
   }
 }
 

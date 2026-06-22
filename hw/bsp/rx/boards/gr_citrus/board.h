@@ -32,9 +32,30 @@
 #ifndef BOARD_H_
 #define BOARD_H_
 
+#include "iodefine.h"
+
 #ifdef __cplusplus
  extern "C" {
 #endif
+
+// LED: PA0, active high
+#define BOARD_LED_WRITE(state)    (PORTA.PODR.BIT.B0 = (state) ? 1 : 0)
+
+// No user button
+#define BOARD_BUTTON_READ()       0
+
+// UART: SCI0
+#define BOARD_UART_SCI            SCI0
+#define BOARD_SCI_TXI_HANDLER     INT_Excep_SCI0_TXI0
+#define BOARD_SCI_TEI_HANDLER     INT_Excep_SCI0_TEI0
+#define BOARD_SCI_RXI_HANDLER     INT_Excep_SCI0_RXI0
+
+// USB interrupt handler
+#define BOARD_USB_IRQ_HANDLER     INT_Excep_USB0_USBI0
+
+// Clocks
+#define BOARD_PCLK                48000000
+#define BOARD_CPUCLK              96000000
 
 #ifdef __cplusplus
  }

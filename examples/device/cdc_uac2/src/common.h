@@ -31,4 +31,7 @@ enum
   VOLUME_CTRL_SILENCE = 0x8000,
 };
 
+void led_blinking_task(void);
+void audio_task(void);
+
 #endif

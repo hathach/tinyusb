@@ -34,6 +34,8 @@
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wcast-qual"
+#pragma GCC diagnostic ignored "-Wconversion"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
 #endif
 
 #include "hal/include/hal_gpio.h"
@@ -66,7 +68,7 @@ void USB_Handler(void)
 //--------------------------------------------------------------------+
 
 /* Referenced GCLKs, should be initialized firstly */
-#define _GCLK_INIT_1ST (1 << 0 | 1 << 1)
+#define _GCLK_INIT_1ST (1u << 0 | 1u << 1)
 
 /* Not referenced GCLKs, initialized last */
 #define _GCLK_INIT_LAST (~_GCLK_INIT_1ST)
@@ -86,7 +88,12 @@ void board_init(void)
 
   // 1ms tick timer (samd SystemCoreClock may not correct)
   SystemCoreClock = CONF_CPU_FREQUENCY;
+#if CFG_TUSB_OS == OPT_OS_NONE
   SysTick_Config(CONF_CPU_FREQUENCY / 1000);
+#elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // Explicitly disable systick to prevent its ISR from running before scheduler start
+  SysTick->CTRL &= ~1U;
+#endif
 
   // Led init
   gpio_set_pin_direction(LED_PIN, GPIO_DIRECTION_OUT);
@@ -132,13 +139,13 @@ uint32_t board_button_read(void)
 int board_uart_read(uint8_t* buf, int len)
 {
   (void) buf; (void) len;
-  return 0;
+  return -1;
 }
 
 int board_uart_write(void const * buf, int len)
 {
   (void) buf; (void) len;
-  return 0;
+  return -1;
 }
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
@@ -150,17 +157,16 @@ void SysTick_Handler (void)
   system_ticks++;
 }
 
-uint32_t board_millis(void)
+uint32_t tusb_time_millis_api(void)
 {
   return system_ticks;
 }
 
-void _init(void)
-{
+void _init(void);
+void _init(void) {
   // This _init() standin makes certain GCC environments happier.
   // They expect the main binary to have a constructor called _init; but don't provide a weak default.
   // Providing an empty constructor satisfies this odd case, and doesn't harm anything.
 }
-
 
 #endif

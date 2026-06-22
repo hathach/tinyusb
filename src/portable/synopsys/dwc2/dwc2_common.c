@@ -29,16 +29,6 @@
 #define DWC2_COMMON_DEBUG   2
 
 #if defined(TUP_USBIP_DWC2) && (CFG_TUH_ENABLED || CFG_TUD_ENABLED)
-
-#if CFG_TUD_ENABLED
-#include "device/dcd.h"
-#endif
-
-#if CFG_TUH_ENABLED
-#include "host/hcd.h"
-#include "host/usbh.h"
-#endif
-
 #include "dwc2_common.h"
 
 //--------------------------------------------------------------------
@@ -49,14 +39,11 @@ static void reset_core(dwc2_regs_t* dwc2) {
   while (!(dwc2->grstctl & GRSTCTL_AHBIDL)) {
   }
 
-  // load gsnpsid (it is not readable after reset is asserted)
-  const uint32_t gsnpsid = dwc2->gsnpsid;
-
-  // reset core
-  dwc2->grstctl |= GRSTCTL_CSRST;
+  const uint32_t gsnpsid = dwc2->gsnpsid; // preload gsnpsid which is not readable while resetting
+  dwc2->grstctl |= GRSTCTL_CSRST; // reset core
 
   if ((gsnpsid & DWC2_CORE_REV_MASK) < (DWC2_CORE_REV_4_20a & DWC2_CORE_REV_MASK)) {
-    // prior v4.20a: CSRST is self-clearing and the core clears this bit after all the necessary logic is reset in
+    // prior v4.20a: CSRST is self-clearing, and the core clears this bit after all the necessary logic is reset in
     // the core, which can take several clocks, depending on the current state of the core. Once this bit has been
     // cleared, the software must wait at least 3 PHY clocks before accessing the PHY domain (synchronization delay).
     while (dwc2->grstctl & GRSTCTL_CSRST) {}
@@ -70,6 +57,7 @@ static void reset_core(dwc2_regs_t* dwc2) {
   while (!(dwc2->grstctl & GRSTCTL_AHBIDL)) {} // wait for AHB master IDLE
 }
 
+// Dedicated FS PHY is internal with a clock 48Mhz.
 static void phy_fs_init(dwc2_regs_t* dwc2) {
   TU_LOG(DWC2_COMMON_DEBUG, "Fullspeed PHY init\r\n");
 
@@ -96,6 +84,12 @@ static void phy_fs_init(dwc2_regs_t* dwc2) {
   dwc2_phy_update(dwc2, GHWCFG2_HSPHY_NOT_SUPPORTED);
 }
 
+/* dwc2 has 2 highspeed PHYs options
+ * - UTMI+ is internal highspeed PHY, can be clocked at 30 Mhz (8-bit) or 60 Mhz (16-bit).
+ * - ULPI is external highspeed PHY, clocked at 60Mhz with 8-bit interface.
+ *
+ * In addition, UTMI+/ULPI can be shared to run at fullspeed mode with 48Mhz
+ */
 static void phy_hs_init(dwc2_regs_t* dwc2) {
   uint32_t gusbcfg = dwc2->gusbcfg;
   const dwc2_ghwcfg2_t ghwcfg2 = {.value = dwc2->ghwcfg2};
@@ -189,32 +183,20 @@ static bool check_dwc2(dwc2_regs_t* dwc2) {
 //--------------------------------------------------------------------
 //
 //--------------------------------------------------------------------
-bool dwc2_core_is_highspeed(dwc2_regs_t* dwc2, tusb_role_t role) {
-  (void)dwc2;
-#if CFG_TUD_ENABLED
-  if (role == TUSB_ROLE_DEVICE && !TUD_OPT_HIGH_SPEED) {
-    return false;
-  }
-#endif
-#if CFG_TUH_ENABLED
-  if (role == TUSB_ROLE_HOST && !TUH_OPT_HIGH_SPEED) {
-    return false;
-  }
-#endif
+bool dwc2_core_is_highspeed_phy(dwc2_regs_t* dwc2, bool prefer_hs_phy) {
+  const dwc2_ghwcfg2_t ghwcfg2    = {.value = dwc2->ghwcfg2};
+  const bool           has_hs_phy = (ghwcfg2.hs_phy_type != GHWCFG2_HSPHY_NOT_SUPPORTED);
 
-  const dwc2_ghwcfg2_t ghwcfg2 = {.value = dwc2->ghwcfg2};
-  return ghwcfg2.hs_phy_type != GHWCFG2_HSPHY_NOT_SUPPORTED;
+  if (prefer_hs_phy) {
+    return has_hs_phy;
+  } else {
+    const bool has_fs_phy = (ghwcfg2.fs_phy_type != GHWCFG2_FSPHY_NOT_SUPPORTED);
+    // false if has fs phy, otherwise true since hs phy is the only available phy
+    return !has_fs_phy && has_hs_phy;
+  }
 }
 
-/* dwc2 has several PHYs option
- * - UTMI+ is internal highspeed PHY, clock can be 30 Mhz (8-bit) or 60 Mhz (16-bit)
- * - ULPI is external highspeed PHY, clock is 60Mhz with only 8-bit interface
- * - Dedicated FS PHY is internal with clock 48Mhz.
- *
- * In addition, UTMI+/ULPI can be shared to run at fullspeed mode with 48Mhz
- *
-*/
-bool dwc2_core_init(uint8_t rhport, bool is_highspeed, bool is_dma) {
+bool dwc2_core_init(uint8_t rhport, bool is_hs_phy, bool is_dma) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
   // Check Synopsys ID register, failed if controller clock/power is not enabled
@@ -223,7 +205,7 @@ bool dwc2_core_init(uint8_t rhport, bool is_highspeed, bool is_dma) {
   // disable global interrupt
   dwc2->gahbcfg &= ~GAHBCFG_GINT;
 
-  if (is_highspeed) {
+  if (is_hs_phy) {
     phy_hs_init(dwc2);
   } else {
     phy_fs_init(dwc2);
@@ -261,6 +243,24 @@ bool dwc2_core_init(uint8_t rhport, bool is_highspeed, bool is_dma) {
   return true;
 }
 
+void dwc2_core_deinit(uint8_t rhport) {
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+
+  // Disable global interrupt
+  dwc2->gahbcfg &= ~GAHBCFG_GINT;
+
+  // Reset core: this also flushes FIFOs and clears all interrupt registers
+  reset_core(dwc2);
+
+  // Stop PHY clock and gate HCLK for power saving (per databook chapter 14)
+  dwc2->pcgcctl |= PCGCCTL_STOPPCLK | PCGCCTL_GATEHCLK;
+
+  // MCU-specific PHY deinit (disable PHY power)
+  const dwc2_ghwcfg2_t ghwcfg2 = {.value = dwc2->ghwcfg2};
+  const uint8_t hs_phy_type = (dwc2->gusbcfg & GUSBCFG_PHYSEL) ? GHWCFG2_HSPHY_NOT_SUPPORTED : ghwcfg2.hs_phy_type;
+  dwc2_phy_deinit(dwc2, hs_phy_type);
+}
+
 // void dwc2_core_handle_common_irq(uint8_t rhport, bool in_isr) {
 //   (void) in_isr;
 //   dwc2_regs_t * const dwc2 = DWC2_REG(rhport);
@@ -273,59 +273,5 @@ bool dwc2_core_init(uint8_t rhport, bool is_highspeed, bool is_dma) {
 //   }
 //
 // }
-
-//--------------------------------------------------------------------
-// DFIFO
-//--------------------------------------------------------------------
-// Read a single data packet from receive DFIFO
-void dfifo_read_packet(dwc2_regs_t* dwc2, uint8_t* dst, uint16_t len) {
-  const volatile uint32_t* rx_fifo = dwc2->fifo[0];
-
-  // Reading full available 32 bit words from fifo
-  uint16_t word_count = len >> 2;
-  while (word_count--) {
-    tu_unaligned_write32(dst, *rx_fifo);
-    dst += 4;
-  }
-
-  // Read the remaining 1-3 bytes from fifo
-  const uint8_t bytes_rem = len & 0x03;
-  if (bytes_rem != 0) {
-    const uint32_t tmp = *rx_fifo;
-    dst[0] = tu_u32_byte0(tmp);
-    if (bytes_rem > 1) {
-      dst[1] = tu_u32_byte1(tmp);
-    }
-    if (bytes_rem > 2) {
-      dst[2] = tu_u32_byte2(tmp);
-    }
-  }
-}
-
-// Write a single data packet to DFIFO
-void dfifo_write_packet(dwc2_regs_t* dwc2, uint8_t fifo_num, const uint8_t* src, uint16_t len) {
-  volatile uint32_t* tx_fifo = dwc2->fifo[fifo_num];
-
-  // Pushing full available 32 bit words to fifo
-  uint16_t word_count = len >> 2;
-  while (word_count--) {
-    *tx_fifo = tu_unaligned_read32(src);
-    src += 4;
-  }
-
-  // Write the remaining 1-3 bytes into fifo
-  const uint8_t bytes_rem = len & 0x03;
-  if (bytes_rem) {
-    uint32_t tmp_word = src[0];
-    if (bytes_rem > 1) {
-      tmp_word |= (src[1] << 8);
-    }
-    if (bytes_rem > 2) {
-      tmp_word |= (src[2] << 16);
-    }
-
-    *tx_fifo = tmp_word;
-  }
-}
 
 #endif

@@ -29,7 +29,7 @@
 #include "tusb_fifo.h"
 #include "tusb.h"
 #include "usbd.h"
-TEST_SOURCE_FILE("usbd_control.c")
+TEST_SOURCE_FILE("usbd.c")
 
 // Mock File
 #include "mock_dcd.h"
@@ -100,6 +100,16 @@ tusb_control_request_t const req_get_desc_configuration =
   .wLength = 256
 };
 
+// Vendor OUT control request (direction OUT, type Vendor, recipient Device), 8-byte data stage
+tusb_control_request_t const req_vendor_out =
+{
+  .bmRequestType = 0x40,
+  .bRequest = 0x01,
+  .wValue = 0x0000,
+  .wIndex = 0x0000,
+  .wLength = 8
+};
+
 uint8_t const* desc_device;
 uint8_t const* desc_configuration;
 
@@ -118,6 +128,19 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
   (void) langid;
 
   return NULL;
+}
+
+// Backing buffer for the vendor OUT data stage. Sized to EP0 max packet so an (untested) regression
+// that drops the clamp can't corrupt memory here; the regression is caught by the expectation below.
+static uint8_t vendor_out_buf[CFG_TUD_ENDPOINT0_SIZE];
+
+bool tud_vendor_control_xfer_cb(uint8_t rhport_, uint8_t stage, tusb_control_request_t const* request) {
+  (void) request;
+  if (stage == CONTROL_STAGE_SETUP) {
+    // Offer only an 8-byte capacity even though the data stage may receive a larger packet
+    return tud_control_xfer(rhport_, request, vendor_out_buf, 8);
+  }
+  return true;
 }
 
 void setUp(void) {
@@ -151,11 +174,11 @@ void test_usbd_get_device_descriptor(void)
   dcd_event_setup_received(rhport, (uint8_t*) &req_get_desc_device, false);
 
   // data
-  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*)&data_desc_device, sizeof(tusb_desc_device_t), sizeof(tusb_desc_device_t), true);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*)&data_desc_device, sizeof(tusb_desc_device_t), sizeof(tusb_desc_device_t), false, true);
   dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, sizeof(tusb_desc_device_t), 0, false);
 
   // status
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, false, true);
   dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
   dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_desc_device, 1);
 
@@ -184,11 +207,11 @@ void test_usbd_get_configuration_descriptor(void)
   dcd_event_setup_received(rhport, (uint8_t*) &req_get_desc_configuration, false);
 
   // data
-  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*) data_desc_configuration, total_len, total_len, true);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*) data_desc_configuration, total_len, total_len, false, true);
   dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, total_len, 0, false);
 
   // status
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, false, true);
   dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
   dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_desc_configuration, 1);
 
@@ -227,22 +250,49 @@ void test_usbd_control_in_zlp(void)
 
   // 1st transaction
   dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_CTRL_IN,
-                                         zlp_desc_configuration, CFG_TUD_ENDPOINT0_SIZE, CFG_TUD_ENDPOINT0_SIZE, true);
+                                         zlp_desc_configuration, CFG_TUD_ENDPOINT0_SIZE, CFG_TUD_ENDPOINT0_SIZE, false, true);
   dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, CFG_TUD_ENDPOINT0_SIZE, 0, false);
 
   // 2nd transaction
   dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_CTRL_IN,
-                                         zlp_desc_configuration + CFG_TUD_ENDPOINT0_SIZE, CFG_TUD_ENDPOINT0_SIZE, CFG_TUD_ENDPOINT0_SIZE, true);
+                                         zlp_desc_configuration + CFG_TUD_ENDPOINT0_SIZE, CFG_TUD_ENDPOINT0_SIZE, CFG_TUD_ENDPOINT0_SIZE, false, true);
   dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, CFG_TUD_ENDPOINT0_SIZE, 0, false);
 
   // Expect Zero length Packet
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
   dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
 
   // Status
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, false, true);
   dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
   dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_desc_configuration, 1);
+
+  tud_task();
+}
+
+//--------------------------------------------------------------------+
+// Control OUT data stage host overrun
+//--------------------------------------------------------------------+
+
+// A non-compliant host sends an OUT data packet larger than the buffer the class offered:
+// wLength = 8, but the DCD reports a full CFG_TUD_ENDPOINT0_SIZE packet. usbd must clamp the
+// copy/accounting to the 8-byte capacity so total_xferred reaches wLength, ends the data stage,
+// and queues the IN status stage. Without the clamp total_xferred overshoots wLength and usbd
+// re-arms an OUT data packet (EDPT_CTRL_OUT) instead, failing the EDPT_CTRL_IN expectation below.
+void test_usbd_control_out_overrun_clamp(void)
+{
+  dcd_event_setup_received(rhport, (uint8_t*) &req_vendor_out, false);
+
+  // Data stage: usbd arms an 8-byte OUT into its internal bounce buffer (buffer ptr is internal)
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 8, false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  // Host overrun: DCD reports a full max packet, larger than the 8-byte capacity
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, CFG_TUD_ENDPOINT0_SIZE, XFER_RESULT_SUCCESS, false);
+
+  // Clamp -> total_xferred == wLength -> data stage done -> IN status stage queued
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_vendor_out, 1);
 
   tud_task();
 }

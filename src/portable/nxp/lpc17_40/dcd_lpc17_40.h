@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_DCD_LPC17_40_H_
-#define _TUSB_DCD_LPC17_40_H_
+#ifndef TUSB_DCD_LPC17_40_H_
+#define TUSB_DCD_LPC17_40_H_
 
 #include "common/tusb_common.h"
 

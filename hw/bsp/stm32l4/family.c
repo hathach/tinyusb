@@ -34,6 +34,16 @@
 #include "bsp/board_api.h"
 #include "board.h"
 
+#ifdef UART_ID
+  #if UART_ID == 2
+    #define USARTn            USART2
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART2_CLK_ENABLE
+  #elif UART_ID == 11
+    #define USARTn            LPUART1
+    #define UARTn_CLK_ENABLE  __HAL_RCC_LPUART1_CLK_ENABLE
+  #endif
+#endif
+
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
@@ -50,7 +60,9 @@ void USB_IRQHandler(void)
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
 
+#ifdef UART_ID
 UART_HandleTypeDef UartHandle;
+#endif
 
 void board_init(void) {
   board_clock_init();
@@ -72,12 +84,16 @@ void board_init(void) {
   __HAL_RCC_GPIOG_CLK_ENABLE();
 #endif
   __HAL_RCC_GPIOH_CLK_ENABLE();
-  UART_CLK_EN();
+#ifdef UART_ID
+  UARTn_CLK_ENABLE();
+#endif
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // Explicitly disable systick to prevent its ISR from running before scheduler start
+  SysTick->CTRL &= ~1U;
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
 #if defined(USB_OTG_FS)
   NVIC_SetPriority(OTG_FS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
@@ -119,6 +135,7 @@ void board_init(void) {
   HAL_PWREx_EnableVddIO2();
 #endif
 
+#ifdef UART_ID
   // Uart
   GPIO_InitStruct.Pin       = UART_TX_PIN | UART_RX_PIN;
   GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
@@ -126,7 +143,7 @@ void board_init(void) {
   GPIO_InitStruct.Alternate = UART_GPIO_AF;
   HAL_GPIO_Init(UART_GPIO_PORT, &GPIO_InitStruct);
 
-  UartHandle.Instance        = UART_DEV;
+  UartHandle.Instance        = USARTn;
   UartHandle.Init.BaudRate   = CFG_BOARD_UART_BAUDRATE;
   UartHandle.Init.WordLength = UART_WORDLENGTH_8B;
   UartHandle.Init.StopBits   = UART_STOPBITS_1;
@@ -139,13 +156,17 @@ void board_init(void) {
   UartHandle.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
 
   HAL_UART_Init(&UartHandle);
+  #if defined(USART_CR1_FIFOEN)
+  HAL_UARTEx_EnableFifoMode(&UartHandle);
+  #endif
+#endif
 
   /* Configure USB FS GPIOs */
   /* Configure DM DP Pins */
   GPIO_InitStruct.Pin = (GPIO_PIN_11 | GPIO_PIN_12);
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_HIGH;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
 #if defined(USB_OTG_FS)
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG_FS;
 #else
@@ -168,10 +189,16 @@ void board_init(void) {
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 #endif
 
-  /* Enable USB FS Clocks */
 #if defined(USB_OTG_FS)
+  /* Enable USB FS Clocks */
   __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
-  board_vbus_sense_init();
+
+  #if CFG_TUD_ENABLED
+  /* Set Vbus sense */
+  tud_configure_dwc2_t cfg = CFG_TUD_CONFIGURE_DWC2_DEFAULT;
+  cfg.vbus_sensing = VBUS_SENSE_EN;
+  tud_configure(0, TUD_CFGID_DWC2, &cfg);
+  #endif
 #else
   __HAL_RCC_USB_CLK_ENABLE();
 #endif
@@ -205,14 +232,40 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len) {
 }
 
 int board_uart_read(uint8_t *buf, int len) {
-  (void) buf;
-  (void) len;
+#ifdef UART_ID
+  int count = 0;
+  while (count < len) {
+    if (__HAL_UART_GET_FLAG(&UartHandle, UART_FLAG_RXNE)) {
+      buf[count] = (uint8_t) UartHandle.Instance->RDR;
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
+#else
+  (void) buf; (void) len;
   return 0;
+#endif
 }
 
 int board_uart_write(void const *buf, int len) {
-  HAL_UART_Transmit(&UartHandle, (uint8_t *) (uintptr_t) buf, len, 0xffff);
-  return len;
+#ifdef UART_ID
+  const uint8_t *p = (const uint8_t *) buf;
+  int count = 0;
+  while (count < len) {
+    if (__HAL_UART_GET_FLAG(&UartHandle, UART_FLAG_TXE)) {
+      UartHandle.Instance->TDR = p[count];
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
+#else
+  (void) buf; (void) len;
+  return -1;
+#endif
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
@@ -223,7 +276,7 @@ void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void) {
+uint32_t tusb_time_millis_api(void) {
   return system_ticks;
 }
 

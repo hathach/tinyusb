@@ -6,9 +6,19 @@
       "hidden": true,
       "description": "Configure preset for the ${presetName} board",
       "generator": "Ninja Multi-Config",
-      "binaryDir": "${sourceDir}/build/${presetName}",
+      "binaryDir": "${sourceDir}/cmake-build-${presetName}",
       "cacheVariables": {
         "CMAKE_DEFAULT_BUILD_TYPE": "RelWithDebInfo",
+        "BOARD": "${presetName}"
+      }
+    },
+    {
+      "name": "default single config",
+      "hidden": true,
+      "description": "Configure preset for the ${presetName} board",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/cmake-build-${presetName}",
+      "cacheVariables": {
         "BOARD": "${presetName}"
       }
     },
@@ -17,35 +27,11 @@
       "inherits": "default"
     },
     {
-      "name": "adafruit_feather_esp32_v2",
-      "inherits": "default"
-    },
-    {
-      "name": "adafruit_feather_esp32c6",
-      "inherits": "default"
-    },
-    {
-      "name": "adafruit_feather_esp32s2",
-      "inherits": "default"
-    },
-    {
-      "name": "adafruit_feather_esp32s3",
-      "inherits": "default"
-    },
-    {
       "name": "adafruit_feather_rp2040_usb_host",
       "inherits": "default"
     },
     {
       "name": "adafruit_fruit_jam",
-      "inherits": "default"
-    },
-    {
-      "name": "adafruit_magtag_29gray",
-      "inherits": "default"
-    },
-    {
-      "name": "adafruit_metro_esp32s2",
       "inherits": "default"
     },
     {
@@ -105,6 +91,18 @@
       "inherits": "default"
     },
     {
+      "name": "at_start_f455",
+      "inherits": "default"
+    },
+    {
+      "name": "at_start_f456",
+      "inherits": "default"
+    },
+    {
+      "name": "at_start_f457",
+      "inherits": "default"
+    },
+    {
       "name": "atsamd21_xpro",
       "inherits": "default"
     },
@@ -118,6 +116,14 @@
     },
     {
       "name": "b_u585i_iot2a",
+      "inherits": "default"
+    },
+    {
+      "name": "ch32f205r-r0",
+      "inherits": "default"
+    },
+    {
+      "name": "ch32v103c_bluepill",
       "inherits": "default"
     },
     {
@@ -189,39 +195,7 @@
       "inherits": "default"
     },
     {
-      "name": "espressif_addax_1",
-      "inherits": "default"
-    },
-    {
-      "name": "espressif_c3_devkitc",
-      "inherits": "default"
-    },
-    {
-      "name": "espressif_c6_devkitc",
-      "inherits": "default"
-    },
-    {
-      "name": "espressif_kaluga_1",
-      "inherits": "default"
-    },
-    {
-      "name": "espressif_p4_function_ev",
-      "inherits": "default"
-    },
-    {
-      "name": "espressif_s2_devkitc",
-      "inherits": "default"
-    },
-    {
-      "name": "espressif_s3_devkitc",
-      "inherits": "default"
-    },
-    {
-      "name": "espressif_s3_devkitm",
-      "inherits": "default"
-    },
-    {
-      "name": "espressif_saola_1",
+      "name": "ek_tm4c1294xl",
       "inherits": "default"
     },
     {
@@ -282,6 +256,18 @@
     },
     {
       "name": "frdm_mcxn947",
+      "inherits": "default"
+    },
+    {
+      "name": "frdm_rw612",
+      "inherits": "default"
+    },
+    {
+      "name": "gr_citrus",
+      "inherits": "default"
+    },
+    {
+      "name": "hpm6750evk2",
       "inherits": "default"
     },
     {
@@ -409,10 +395,6 @@
       "inherits": "default"
     },
     {
-      "name": "metro_m7_1011_sd",
-      "inherits": "default"
-    },
-    {
       "name": "mimxrt1010_evk",
       "inherits": "default"
     },
@@ -453,6 +435,10 @@
       "inherits": "default"
     },
     {
+      "name": "mm900evxb",
+      "inherits": "default"
+    },
+    {
       "name": "msp_exp430f5529lp",
       "inherits": "default"
     },
@@ -469,19 +455,47 @@
       "inherits": "default"
     },
     {
-      "name": "pca10056",
+      "name": "nrf52833dk",
       "inherits": "default"
     },
     {
-      "name": "pca10059",
+      "name": "nrf52840dk",
       "inherits": "default"
     },
     {
-      "name": "pca10095",
+      "name": "nrf52840dongle",
       "inherits": "default"
     },
     {
-      "name": "pca10100",
+      "name": "nrf5340dk",
+      "inherits": "default"
+    },
+    {
+      "name": "nrf54h20dk",
+      "inherits": "default"
+    },
+    {
+      "name": "nrf54lm20dk",
+      "inherits": "default"
+    },
+    {
+      "name": "nutiny_nuc126v",
+      "inherits": "default"
+    },
+    {
+      "name": "nutiny_sdk_nuc120",
+      "inherits": "default"
+    },
+    {
+      "name": "nutiny_sdk_nuc121",
+      "inherits": "default"
+    },
+    {
+      "name": "nutiny_sdk_nuc125",
+      "inherits": "default"
+    },
+    {
+      "name": "nutiny_sdk_nuc505",
       "inherits": "default"
     },
     {
@@ -557,11 +571,23 @@
       "inherits": "default"
     },
     {
+      "name": "rx65n_target",
+      "inherits": "default"
+    },
+    {
       "name": "samd11_xplained",
       "inherits": "default"
     },
     {
       "name": "same54_xplained",
+      "inherits": "default"
+    },
+    {
+      "name": "same70_qmtech",
+      "inherits": "default"
+    },
+    {
+      "name": "same70_xplained",
       "inherits": "default"
     },
     {
@@ -585,7 +611,15 @@
       "inherits": "default"
     },
     {
+      "name": "sltb009a",
+      "inherits": "default"
+    },
+    {
       "name": "sparkfun_samd21_mini_usb",
+      "inherits": "default"
+    },
+    {
+      "name": "spresense",
       "inherits": "default"
     },
     {
@@ -594,6 +628,10 @@
     },
     {
       "name": "stm32c071nucleo",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32c542nucleo",
       "inherits": "default"
     },
     {
@@ -709,6 +747,10 @@
       "inherits": "default"
     },
     {
+      "name": "stm32h743_weact",
+      "inherits": "default"
+    },
+    {
       "name": "stm32h743eval",
       "inherits": "default"
     },
@@ -718,6 +760,10 @@
     },
     {
       "name": "stm32h745disco",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32h747disco",
       "inherits": "default"
     },
     {
@@ -749,6 +795,10 @@
       "inherits": "default"
     },
     {
+      "name": "stm32l496nucleo",
+      "inherits": "default"
+    },
+    {
       "name": "stm32l4p5nucleo",
       "inherits": "default"
     },
@@ -766,6 +816,10 @@
     },
     {
       "name": "stm32u083cdk",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32u083nucleo",
       "inherits": "default"
     },
     {
@@ -823,6 +877,66 @@
     {
       "name": "xmc4700_relax",
       "inherits": "default"
+    },
+    {
+      "name": "adafruit_feather_esp32_v2",
+      "inherits": "default single config"
+    },
+    {
+      "name": "adafruit_feather_esp32c6",
+      "inherits": "default single config"
+    },
+    {
+      "name": "adafruit_feather_esp32s2",
+      "inherits": "default single config"
+    },
+    {
+      "name": "adafruit_feather_esp32s3",
+      "inherits": "default single config"
+    },
+    {
+      "name": "adafruit_magtag_29gray",
+      "inherits": "default single config"
+    },
+    {
+      "name": "adafruit_metro_esp32s2",
+      "inherits": "default single config"
+    },
+    {
+      "name": "espressif_addax_1",
+      "inherits": "default single config"
+    },
+    {
+      "name": "espressif_c3_devkitc",
+      "inherits": "default single config"
+    },
+    {
+      "name": "espressif_c6_devkitc",
+      "inherits": "default single config"
+    },
+    {
+      "name": "espressif_kaluga_1",
+      "inherits": "default single config"
+    },
+    {
+      "name": "espressif_p4_function_ev",
+      "inherits": "default single config"
+    },
+    {
+      "name": "espressif_s2_devkitc",
+      "inherits": "default single config"
+    },
+    {
+      "name": "espressif_s3_devkitc",
+      "inherits": "default single config"
+    },
+    {
+      "name": "espressif_s3_devkitm",
+      "inherits": "default single config"
+    },
+    {
+      "name": "espressif_saola_1",
+      "inherits": "default single config"
     }
   ],
   "buildPresets": [
@@ -942,6 +1056,21 @@
       "configurePreset": "at_start_f437"
     },
     {
+      "name": "at_start_f455",
+      "description": "Build preset for the at_start_f455 board",
+      "configurePreset": "at_start_f455"
+    },
+    {
+      "name": "at_start_f456",
+      "description": "Build preset for the at_start_f456 board",
+      "configurePreset": "at_start_f456"
+    },
+    {
+      "name": "at_start_f457",
+      "description": "Build preset for the at_start_f457 board",
+      "configurePreset": "at_start_f457"
+    },
+    {
       "name": "atsamd21_xpro",
       "description": "Build preset for the atsamd21_xpro board",
       "configurePreset": "atsamd21_xpro"
@@ -960,6 +1089,16 @@
       "name": "b_u585i_iot2a",
       "description": "Build preset for the b_u585i_iot2a board",
       "configurePreset": "b_u585i_iot2a"
+    },
+    {
+      "name": "ch32f205r-r0",
+      "description": "Build preset for the ch32f205r-r0 board",
+      "configurePreset": "ch32f205r-r0"
+    },
+    {
+      "name": "ch32v103c_bluepill",
+      "description": "Build preset for the ch32v103c_bluepill board",
+      "configurePreset": "ch32v103c_bluepill"
     },
     {
       "name": "ch32v103r_r1_1v0",
@@ -1045,6 +1184,11 @@
       "name": "ek_tm4c123gxl",
       "description": "Build preset for the ek_tm4c123gxl board",
       "configurePreset": "ek_tm4c123gxl"
+    },
+    {
+      "name": "ek_tm4c1294xl",
+      "description": "Build preset for the ek_tm4c1294xl board",
+      "configurePreset": "ek_tm4c1294xl"
     },
     {
       "name": "espressif_addax_1",
@@ -1165,6 +1309,21 @@
       "name": "frdm_mcxn947",
       "description": "Build preset for the frdm_mcxn947 board",
       "configurePreset": "frdm_mcxn947"
+    },
+    {
+      "name": "frdm_rw612",
+      "description": "Build preset for the frdm_rw612 board",
+      "configurePreset": "frdm_rw612"
+    },
+    {
+      "name": "gr_citrus",
+      "description": "Build preset for the gr_citrus board",
+      "configurePreset": "gr_citrus"
+    },
+    {
+      "name": "hpm6750evk2",
+      "description": "Build preset for the hpm6750evk2 board",
+      "configurePreset": "hpm6750evk2"
     },
     {
       "name": "itsybitsy_m0",
@@ -1322,11 +1481,6 @@
       "configurePreset": "metro_m7_1011"
     },
     {
-      "name": "metro_m7_1011_sd",
-      "description": "Build preset for the metro_m7_1011_sd board",
-      "configurePreset": "metro_m7_1011_sd"
-    },
-    {
       "name": "mimxrt1010_evk",
       "description": "Build preset for the mimxrt1010_evk board",
       "configurePreset": "mimxrt1010_evk"
@@ -1377,6 +1531,11 @@
       "configurePreset": "mm32f327x_pitaya_lite"
     },
     {
+      "name": "mm900evxb",
+      "description": "Build preset for the mm900evxb board",
+      "configurePreset": "mm900evxb"
+    },
+    {
       "name": "msp_exp430f5529lp",
       "description": "Build preset for the msp_exp430f5529lp board",
       "configurePreset": "msp_exp430f5529lp"
@@ -1397,24 +1556,59 @@
       "configurePreset": "nanoch32v305"
     },
     {
-      "name": "pca10056",
-      "description": "Build preset for the pca10056 board",
-      "configurePreset": "pca10056"
+      "name": "nrf52833dk",
+      "description": "Build preset for the nrf52833dk board",
+      "configurePreset": "nrf52833dk"
     },
     {
-      "name": "pca10059",
-      "description": "Build preset for the pca10059 board",
-      "configurePreset": "pca10059"
+      "name": "nrf52840dk",
+      "description": "Build preset for the nrf52840dk board",
+      "configurePreset": "nrf52840dk"
     },
     {
-      "name": "pca10095",
-      "description": "Build preset for the pca10095 board",
-      "configurePreset": "pca10095"
+      "name": "nrf52840dongle",
+      "description": "Build preset for the nrf52840dongle board",
+      "configurePreset": "nrf52840dongle"
     },
     {
-      "name": "pca10100",
-      "description": "Build preset for the pca10100 board",
-      "configurePreset": "pca10100"
+      "name": "nrf5340dk",
+      "description": "Build preset for the nrf5340dk board",
+      "configurePreset": "nrf5340dk"
+    },
+    {
+      "name": "nrf54h20dk",
+      "description": "Build preset for the nrf54h20dk board",
+      "configurePreset": "nrf54h20dk"
+    },
+    {
+      "name": "nrf54lm20dk",
+      "description": "Build preset for the nrf54lm20dk board",
+      "configurePreset": "nrf54lm20dk"
+    },
+    {
+      "name": "nutiny_nuc126v",
+      "description": "Build preset for the nutiny_nuc126v board",
+      "configurePreset": "nutiny_nuc126v"
+    },
+    {
+      "name": "nutiny_sdk_nuc120",
+      "description": "Build preset for the nutiny_sdk_nuc120 board",
+      "configurePreset": "nutiny_sdk_nuc120"
+    },
+    {
+      "name": "nutiny_sdk_nuc121",
+      "description": "Build preset for the nutiny_sdk_nuc121 board",
+      "configurePreset": "nutiny_sdk_nuc121"
+    },
+    {
+      "name": "nutiny_sdk_nuc125",
+      "description": "Build preset for the nutiny_sdk_nuc125 board",
+      "configurePreset": "nutiny_sdk_nuc125"
+    },
+    {
+      "name": "nutiny_sdk_nuc505",
+      "description": "Build preset for the nutiny_sdk_nuc505 board",
+      "configurePreset": "nutiny_sdk_nuc505"
     },
     {
       "name": "pico_sdk",
@@ -1507,6 +1701,11 @@
       "configurePreset": "raspberrypi_zero2"
     },
     {
+      "name": "rx65n_target",
+      "description": "Build preset for the rx65n_target board",
+      "configurePreset": "rx65n_target"
+    },
+    {
       "name": "samd11_xplained",
       "description": "Build preset for the samd11_xplained board",
       "configurePreset": "samd11_xplained"
@@ -1515,6 +1714,16 @@
       "name": "same54_xplained",
       "description": "Build preset for the same54_xplained board",
       "configurePreset": "same54_xplained"
+    },
+    {
+      "name": "same70_qmtech",
+      "description": "Build preset for the same70_qmtech board",
+      "configurePreset": "same70_qmtech"
+    },
+    {
+      "name": "same70_xplained",
+      "description": "Build preset for the same70_xplained board",
+      "configurePreset": "same70_xplained"
     },
     {
       "name": "samg55_xplained",
@@ -1542,9 +1751,19 @@
       "configurePreset": "sipeed_longan_nano"
     },
     {
+      "name": "sltb009a",
+      "description": "Build preset for the sltb009a board",
+      "configurePreset": "sltb009a"
+    },
+    {
       "name": "sparkfun_samd21_mini_usb",
       "description": "Build preset for the sparkfun_samd21_mini_usb board",
       "configurePreset": "sparkfun_samd21_mini_usb"
+    },
+    {
+      "name": "spresense",
+      "description": "Build preset for the spresense board",
+      "configurePreset": "spresense"
     },
     {
       "name": "stlinkv3mini",
@@ -1555,6 +1774,11 @@
       "name": "stm32c071nucleo",
       "description": "Build preset for the stm32c071nucleo board",
       "configurePreset": "stm32c071nucleo"
+    },
+    {
+      "name": "stm32c542nucleo",
+      "description": "Build preset for the stm32c542nucleo board",
+      "configurePreset": "stm32c542nucleo"
     },
     {
       "name": "stm32f070rbnucleo",
@@ -1697,6 +1921,11 @@
       "configurePreset": "stm32h723nucleo"
     },
     {
+      "name": "stm32h743_weact",
+      "description": "Build preset for the stm32h743_weact board",
+      "configurePreset": "stm32h743_weact"
+    },
+    {
       "name": "stm32h743eval",
       "description": "Build preset for the stm32h743eval board",
       "configurePreset": "stm32h743eval"
@@ -1710,6 +1939,11 @@
       "name": "stm32h745disco",
       "description": "Build preset for the stm32h745disco board",
       "configurePreset": "stm32h745disco"
+    },
+    {
+      "name": "stm32h747disco",
+      "description": "Build preset for the stm32h747disco board",
+      "configurePreset": "stm32h747disco"
     },
     {
       "name": "stm32h750_weact",
@@ -1747,6 +1981,11 @@
       "configurePreset": "stm32l476disco"
     },
     {
+      "name": "stm32l496nucleo",
+      "description": "Build preset for the stm32l496nucleo board",
+      "configurePreset": "stm32l496nucleo"
+    },
+    {
       "name": "stm32l4p5nucleo",
       "description": "Build preset for the stm32l4p5nucleo board",
       "configurePreset": "stm32l4p5nucleo"
@@ -1770,6 +2009,11 @@
       "name": "stm32u083cdk",
       "description": "Build preset for the stm32u083cdk board",
       "configurePreset": "stm32u083cdk"
+    },
+    {
+      "name": "stm32u083nucleo",
+      "description": "Build preset for the stm32u083nucleo board",
+      "configurePreset": "stm32u083nucleo"
     },
     {
       "name": "stm32u545nucleo",
@@ -2143,6 +2387,45 @@
       ]
     },
     {
+      "name": "at_start_f455",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "at_start_f455"
+        },
+        {
+          "type": "build",
+          "name": "at_start_f455"
+        }
+      ]
+    },
+    {
+      "name": "at_start_f456",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "at_start_f456"
+        },
+        {
+          "type": "build",
+          "name": "at_start_f456"
+        }
+      ]
+    },
+    {
+      "name": "at_start_f457",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "at_start_f457"
+        },
+        {
+          "type": "build",
+          "name": "at_start_f457"
+        }
+      ]
+    },
+    {
       "name": "atsamd21_xpro",
       "steps": [
         {
@@ -2191,6 +2474,32 @@
         {
           "type": "build",
           "name": "b_u585i_iot2a"
+        }
+      ]
+    },
+    {
+      "name": "ch32f205r-r0",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ch32f205r-r0"
+        },
+        {
+          "type": "build",
+          "name": "ch32f205r-r0"
+        }
+      ]
+    },
+    {
+      "name": "ch32v103c_bluepill",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ch32v103c_bluepill"
+        },
+        {
+          "type": "build",
+          "name": "ch32v103c_bluepill"
         }
       ]
     },
@@ -2412,6 +2721,19 @@
         {
           "type": "build",
           "name": "ek_tm4c123gxl"
+        }
+      ]
+    },
+    {
+      "name": "ek_tm4c1294xl",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ek_tm4c1294xl"
+        },
+        {
+          "type": "build",
+          "name": "ek_tm4c1294xl"
         }
       ]
     },
@@ -2724,6 +3046,45 @@
         {
           "type": "build",
           "name": "frdm_mcxn947"
+        }
+      ]
+    },
+    {
+      "name": "frdm_rw612",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "frdm_rw612"
+        },
+        {
+          "type": "build",
+          "name": "frdm_rw612"
+        }
+      ]
+    },
+    {
+      "name": "gr_citrus",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "gr_citrus"
+        },
+        {
+          "type": "build",
+          "name": "gr_citrus"
+        }
+      ]
+    },
+    {
+      "name": "hpm6750evk2",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "hpm6750evk2"
+        },
+        {
+          "type": "build",
+          "name": "hpm6750evk2"
         }
       ]
     },
@@ -3131,19 +3492,6 @@
       ]
     },
     {
-      "name": "metro_m7_1011_sd",
-      "steps": [
-        {
-          "type": "configure",
-          "name": "metro_m7_1011_sd"
-        },
-        {
-          "type": "build",
-          "name": "metro_m7_1011_sd"
-        }
-      ]
-    },
-    {
       "name": "mimxrt1010_evk",
       "steps": [
         {
@@ -3274,6 +3622,19 @@
       ]
     },
     {
+      "name": "mm900evxb",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "mm900evxb"
+        },
+        {
+          "type": "build",
+          "name": "mm900evxb"
+        }
+      ]
+    },
+    {
       "name": "msp_exp430f5529lp",
       "steps": [
         {
@@ -3326,54 +3687,145 @@
       ]
     },
     {
-      "name": "pca10056",
+      "name": "nrf52833dk",
       "steps": [
         {
           "type": "configure",
-          "name": "pca10056"
+          "name": "nrf52833dk"
         },
         {
           "type": "build",
-          "name": "pca10056"
+          "name": "nrf52833dk"
         }
       ]
     },
     {
-      "name": "pca10059",
+      "name": "nrf52840dk",
       "steps": [
         {
           "type": "configure",
-          "name": "pca10059"
+          "name": "nrf52840dk"
         },
         {
           "type": "build",
-          "name": "pca10059"
+          "name": "nrf52840dk"
         }
       ]
     },
     {
-      "name": "pca10095",
+      "name": "nrf52840dongle",
       "steps": [
         {
           "type": "configure",
-          "name": "pca10095"
+          "name": "nrf52840dongle"
         },
         {
           "type": "build",
-          "name": "pca10095"
+          "name": "nrf52840dongle"
         }
       ]
     },
     {
-      "name": "pca10100",
+      "name": "nrf5340dk",
       "steps": [
         {
           "type": "configure",
-          "name": "pca10100"
+          "name": "nrf5340dk"
         },
         {
           "type": "build",
-          "name": "pca10100"
+          "name": "nrf5340dk"
+        }
+      ]
+    },
+    {
+      "name": "nrf54h20dk",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "nrf54h20dk"
+        },
+        {
+          "type": "build",
+          "name": "nrf54h20dk"
+        }
+      ]
+    },
+    {
+      "name": "nrf54lm20dk",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "nrf54lm20dk"
+        },
+        {
+          "type": "build",
+          "name": "nrf54lm20dk"
+        }
+      ]
+    },
+    {
+      "name": "nutiny_nuc126v",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "nutiny_nuc126v"
+        },
+        {
+          "type": "build",
+          "name": "nutiny_nuc126v"
+        }
+      ]
+    },
+    {
+      "name": "nutiny_sdk_nuc120",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "nutiny_sdk_nuc120"
+        },
+        {
+          "type": "build",
+          "name": "nutiny_sdk_nuc120"
+        }
+      ]
+    },
+    {
+      "name": "nutiny_sdk_nuc121",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "nutiny_sdk_nuc121"
+        },
+        {
+          "type": "build",
+          "name": "nutiny_sdk_nuc121"
+        }
+      ]
+    },
+    {
+      "name": "nutiny_sdk_nuc125",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "nutiny_sdk_nuc125"
+        },
+        {
+          "type": "build",
+          "name": "nutiny_sdk_nuc125"
+        }
+      ]
+    },
+    {
+      "name": "nutiny_sdk_nuc505",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "nutiny_sdk_nuc505"
+        },
+        {
+          "type": "build",
+          "name": "nutiny_sdk_nuc505"
         }
       ]
     },
@@ -3612,6 +4064,19 @@
       ]
     },
     {
+      "name": "rx65n_target",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "rx65n_target"
+        },
+        {
+          "type": "build",
+          "name": "rx65n_target"
+        }
+      ]
+    },
+    {
       "name": "samd11_xplained",
       "steps": [
         {
@@ -3634,6 +4099,32 @@
         {
           "type": "build",
           "name": "same54_xplained"
+        }
+      ]
+    },
+    {
+      "name": "same70_qmtech",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "same70_qmtech"
+        },
+        {
+          "type": "build",
+          "name": "same70_qmtech"
+        }
+      ]
+    },
+    {
+      "name": "same70_xplained",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "same70_xplained"
+        },
+        {
+          "type": "build",
+          "name": "same70_xplained"
         }
       ]
     },
@@ -3703,6 +4194,19 @@
       ]
     },
     {
+      "name": "sltb009a",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "sltb009a"
+        },
+        {
+          "type": "build",
+          "name": "sltb009a"
+        }
+      ]
+    },
+    {
       "name": "sparkfun_samd21_mini_usb",
       "steps": [
         {
@@ -3712,6 +4216,19 @@
         {
           "type": "build",
           "name": "sparkfun_samd21_mini_usb"
+        }
+      ]
+    },
+    {
+      "name": "spresense",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "spresense"
+        },
+        {
+          "type": "build",
+          "name": "spresense"
         }
       ]
     },
@@ -3738,6 +4255,19 @@
         {
           "type": "build",
           "name": "stm32c071nucleo"
+        }
+      ]
+    },
+    {
+      "name": "stm32c542nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32c542nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32c542nucleo"
         }
       ]
     },
@@ -4106,6 +4636,19 @@
       ]
     },
     {
+      "name": "stm32h743_weact",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32h743_weact"
+        },
+        {
+          "type": "build",
+          "name": "stm32h743_weact"
+        }
+      ]
+    },
+    {
       "name": "stm32h743eval",
       "steps": [
         {
@@ -4141,6 +4684,19 @@
         {
           "type": "build",
           "name": "stm32h745disco"
+        }
+      ]
+    },
+    {
+      "name": "stm32h747disco",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32h747disco"
+        },
+        {
+          "type": "build",
+          "name": "stm32h747disco"
         }
       ]
     },
@@ -4236,6 +4792,19 @@
       ]
     },
     {
+      "name": "stm32l496nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32l496nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32l496nucleo"
+        }
+      ]
+    },
+    {
       "name": "stm32l4p5nucleo",
       "steps": [
         {
@@ -4297,6 +4866,19 @@
         {
           "type": "build",
           "name": "stm32u083cdk"
+        }
+      ]
+    },
+    {
+      "name": "stm32u083nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32u083nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32u083nucleo"
         }
       ]
     },

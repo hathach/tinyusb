@@ -21,11 +21,7 @@ set(FAMILY_MCUS LPC11UXX CACHE INTERNAL "")
 # BOARD_TARGET
 #------------------------------------
 # only need to be built ONCE for all examples
-function(add_board_target BOARD_TARGET)
-  if (TARGET ${BOARD_TARGET})
-    return()
-  endif ()
-
+function(family_add_board BOARD_TARGET)
   add_library(${BOARD_TARGET} STATIC
     ${SDK_DIR}/../gcc/cr_startup_lpc${LPC_FAMILY}.c
     ${SDK_DIR}/src/chip_${LPC_FAMILY}.c
@@ -48,24 +44,7 @@ function(add_board_target BOARD_TARGET)
 
   update_board(${BOARD_TARGET})
 
-  if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-    target_compile_options(${BOARD_TARGET} PUBLIC
-      -nostdlib
-      -Wno-error=incompatible-pointer-types
-      )
-    target_link_options(${BOARD_TARGET} PUBLIC
-      "LINKER:--script=${LD_FILE_GNU}"
-      --specs=nosys.specs --specs=nano.specs
-      )
-  elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    target_link_options(${BOARD_TARGET} PUBLIC
-      "LINKER:--script=${LD_FILE_GNU}"
-      )
-  elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
-    target_link_options(${BOARD_TARGET} PUBLIC
-      "LINKER:--config=${LD_FILE_IAR}"
-      )
-  endif ()
+  set_target_properties(${BOARD_TARGET} PROPERTIES COMPILE_FLAGS "-Wno-incompatible-pointer-types")
 endfunction()
 
 
@@ -74,16 +53,14 @@ endfunction()
 #------------------------------------
 function(family_configure_example TARGET RTOS)
   family_configure_common(${TARGET} ${RTOS})
-
-  # Board target
-  add_board_target(board_${BOARD})
+  family_add_tinyusb(${TARGET} OPT_MCU_LPC11UXX)
 
   #---------- Port Specific ----------
   # These files are built for each example since it depends on example's tusb_config.h
   target_sources(${TARGET} PUBLIC
-    # BSP
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
+    ${TOP}/src/portable/nxp/lpc_ip3511/dcd_lpc_ip3511.c
     )
   target_include_directories(${TARGET} PUBLIC
     # family, hw, board
@@ -92,14 +69,24 @@ function(family_configure_example TARGET RTOS)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
     )
 
-  # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_LPC11UXX)
-  target_sources(${TARGET} PUBLIC
-    ${TOP}/src/portable/nxp/lpc_ip3511/dcd_lpc_ip3511.c
-    )
-  target_link_libraries(${TARGET} PUBLIC board_${BOARD})
-
-
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(${TARGET} PUBLIC
+      -nostdlib
+      -Wno-error=incompatible-pointer-types
+      )
+    target_link_options(${TARGET} PUBLIC
+      "LINKER:--script=${LD_FILE_GNU}"
+      --specs=nosys.specs --specs=nano.specs
+      )
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    target_link_options(${TARGET} PUBLIC
+      "LINKER:--script=${LD_FILE_GNU}"
+      )
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
+    target_link_options(${TARGET} PUBLIC
+      "LINKER:--config=${LD_FILE_IAR}"
+      )
+  endif ()
 
   # Flashing
   family_add_bin_hex(${TARGET})

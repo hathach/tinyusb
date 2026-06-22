@@ -39,12 +39,11 @@
 #include "mfxstm32l152.h"
 
 // Need to change jumper setting J7 and J8 from RS-232 to STLink
-#define UART_DEV              USART1
-#define UART_CLK_EN           __HAL_RCC_USART1_CLK_ENABLE
+#define UART_ID               1
 
 // VBUS Sense detection
 #define OTG_FS_VBUS_SENSE     1
-#define OTG_HS_VBUS_SENSE     0
+#define OTG_HS_VBUS_SENSE     1
 
 // USB HS External PHY Pin: CLK, STP, DIR, NXT, D0-D7
 #define ULPI_PINS \
@@ -61,7 +60,7 @@ static board_pindef_t board_pindef[] = {
   { // LED
     .port = GPIOA,
     .pin_init = { .Pin = GPIO_PIN_4, .Mode = GPIO_MODE_OUTPUT_PP, .Pull = GPIO_PULLDOWN, .Speed = GPIO_SPEED_HIGH, .Alternate = 0 },
-    .active_state = 1
+    .active_state = 0
   },
   { // Button
     .port = GPIOC,
@@ -120,13 +119,13 @@ static inline void SystemClock_Config(void) {
   // From H743 eval manual ETM can only work at 50 MHz clock by default because ETM signals
   // are shared with other peripherals. Trace CLK = PLL1R.
   RCC_OscInitStruct.PLL.PLLM = 5;
-  RCC_OscInitStruct.PLL.PLLN = 160;
-  RCC_OscInitStruct.PLL.PLLP = 2;
-  RCC_OscInitStruct.PLL.PLLQ = 4;
-  RCC_OscInitStruct.PLL.PLLR = 6; // Trace clock is 400/6 = 66.67 MHz (larger than 50 MHz but work well)
+  RCC_OscInitStruct.PLL.PLLN      = 160; // May reduce to 100/200 Mhz when tracing to avoid overflowing trace buffer
+  RCC_OscInitStruct.PLL.PLLP      = 2;
+  RCC_OscInitStruct.PLL.PLLQ      = 4;
+  RCC_OscInitStruct.PLL.PLLR      = RCC_OscInitStruct.PLL.PLLN/10;  // Trace clock is limit to 50 Mhz to meet board requirement
+  RCC_OscInitStruct.PLL.PLLRGE    = RCC_PLL1VCIRANGE_2;
   RCC_OscInitStruct.PLL.PLLVCOSEL = RCC_PLL1VCOMEDIUM;
   RCC_OscInitStruct.PLL.PLLFRACN = 0;
-  RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1VCIRANGE_2;
   HAL_RCC_OscConfig(&RCC_OscInitStruct);
 
 
@@ -205,13 +204,27 @@ static int32_t board_i2c_deinit(void) {
 }
 
 static int32_t i2c_readreg(uint16_t DevAddr, uint16_t Reg, uint8_t *pData, uint16_t Length) {
-  TU_ASSERT (HAL_OK == HAL_I2C_Mem_Read(&i2c_handle, DevAddr, Reg, I2C_MEMADD_SIZE_8BIT, pData, Length, 10000));
-  return 0;
+  for (int retry = 0; retry < 3; retry++) {
+    if (HAL_OK == HAL_I2C_Mem_Read(&i2c_handle, DevAddr, Reg, I2C_MEMADD_SIZE_8BIT, pData, Length, 10000)) {
+      return 0;
+    }
+    HAL_Delay(10);
+  }
+  return -1;
 }
 
 static int32_t i2c_writereg(uint16_t DevAddr, uint16_t Reg, uint8_t *pData, uint16_t Length) {
-  TU_ASSERT(HAL_OK == HAL_I2C_Mem_Write(&i2c_handle, DevAddr, Reg, I2C_MEMADD_SIZE_8BIT, pData, Length, 10000));
-  return 0;
+  for (int retry = 0; retry < 3; retry++) {
+    if (HAL_OK == HAL_I2C_Mem_Write(&i2c_handle, DevAddr, Reg, I2C_MEMADD_SIZE_8BIT, pData, Length, 10000)) {
+      return 0;
+    }
+    HAL_Delay(10);
+  }
+  return -1;
+}
+
+static int32_t i2c_get_tick(void) {
+  return (int32_t) HAL_GetTick();
 }
 
 static inline void board_init2(void) {
@@ -221,7 +234,7 @@ static inline void board_init2(void) {
   io_ctx.DeInit      = board_i2c_deinit;
   io_ctx.ReadReg     = i2c_readreg;
   io_ctx.WriteReg    = i2c_writereg;
-  io_ctx.GetTick     = (MFXSTM32L152_GetTick_Func) HAL_GetTick;
+  io_ctx.GetTick     = i2c_get_tick;
 
   uint16_t i2c_addr[] = { 0x84, 0x86 };
   for(uint8_t i = 0U; i < 2U; i++) {

@@ -1,0 +1,13 @@
+<component name="DebugServers">
+  <jlink-debug-target name="lpc55s69" uniqueID="7de47452-94f1-4f1d-b03c-0f4ad3556d01">
+    <debugger version="1">
+      <debugger kind="GDB" isBundled="true" />
+      <env />
+    </debugger>
+    <gdbserver exe="/usr/bin/JLinkGDBServerCLExe" />
+    <console port="19021" />
+    <target device="LPC55S69_M33_0" reset-before="false" frequency="12000" />
+    <connection extended-remote="false" port="4444" warmup-ms="500" />
+    <swo />
+  </jlink-debug-target>
+</component>

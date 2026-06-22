@@ -72,7 +72,13 @@ CFG_TUH_MEM_SECTION struct {
 } desc;
 
 void led_blinking_task(void* param);
+void print_devinfo_task(void* param);
 static void print_utf16(uint16_t* temp_buf, size_t buf_len);
+
+// One flag per possible device address — set by tuh_mount_cb (host task) and
+// cleared by print_devinfo_task (separate task / main loop) once the device's
+// descriptor info has been printed.
+static volatile bool need_devinfo[CFG_TUH_DEVICE_MAX + 1];
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
 void init_freertos_task(void);
@@ -99,21 +105,46 @@ int main(void) {
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
   init_freertos_task();
 #else
+  board_delay(100); // wait for uart to be ready
   init_tinyusb();
   while (1) {
     tuh_task();     // tinyusb host task
+    print_devinfo_task(NULL);
     led_blinking_task(NULL);
   }
-  return 0;
 #endif
 }
 
 /*------------- TinyUSB Callbacks -------------*/
 
-// Invoked when device is mounted (configured)
+// Invoked when device is mounted (configured). Runs in the host task — keep
+// it minimal. The actual descriptor fetching/printing happens in
+// print_devinfo_task() below, which runs in a different context (main loop
+// on OS_NONE / dedicated task on RTOS) where the sync helpers are safe.
 void tuh_mount_cb(uint8_t daddr) {
   blink_interval_ms = BLINK_MOUNTED;
+  if (daddr < TU_ARRAY_SIZE(need_devinfo)) {
+    need_devinfo[daddr] = true;
+  }
+}
 
+// Invoked when device is unmounted (bus reset/unplugged)
+void tuh_umount_cb(uint8_t daddr) {
+  blink_interval_ms = BLINK_NOT_MOUNTED;
+  if (daddr < TU_ARRAY_SIZE(need_devinfo)) {
+    need_devinfo[daddr] = false;
+  }
+  printf("Device removed, address = %d\r\n", daddr);
+}
+
+//--------------------------------------------------------------------+
+// Print device info task — serialises descriptor fetching across all
+// mounted devices using the sync helpers. Sync calls are safe here because
+// this task runs outside the host-task callback context (main loop on
+// OS_NONE / dedicated FreeRTOS task on RTOS).
+//--------------------------------------------------------------------+
+
+static void print_one_device(uint8_t daddr) {
   // Get Device Descriptor
   uint8_t xfer_result = tuh_descriptor_get_device_sync(daddr, &desc.device, 18);
   if (XFER_RESULT_SUCCESS != xfer_result) {
@@ -129,11 +160,9 @@ void tuh_mount_cb(uint8_t daddr) {
   }
   if (XFER_RESULT_SUCCESS != xfer_result) {
     uint16_t* serial = (uint16_t*)(uintptr_t) desc.serial;
-    serial[0] = (uint16_t) ((TUSB_DESC_STRING << 8) | (2 * 3 + 2));
-    serial[1] = 'n';
-    serial[2] = '/';
-    serial[3] = 'a';
-    serial[4] = 0;
+    serial[0] = (uint16_t)((TUSB_DESC_STRING << 8) | (2 * 1 + 2));
+    serial[1] = '0';
+    serial[2] = 0;
   }
   print_utf16((uint16_t*)(uintptr_t) desc.serial, sizeof(desc.serial)/2);
   printf("\r\n");
@@ -150,12 +179,9 @@ void tuh_mount_cb(uint8_t daddr) {
   printf("  idProduct           0x%04x\r\n", desc.device.idProduct);
   printf("  bcdDevice           %04x\r\n", desc.device.bcdDevice);
 
-  // Get String descriptor using Sync API
-
   printf("  iManufacturer       %u     ", desc.device.iManufacturer);
   if (desc.device.iManufacturer != 0) {
-    xfer_result = tuh_descriptor_get_manufacturer_string_sync(daddr, LANGUAGE_ID, desc.buf, sizeof(desc.buf));
-    if (XFER_RESULT_SUCCESS == xfer_result) {
+    if (XFER_RESULT_SUCCESS == tuh_descriptor_get_manufacturer_string_sync(daddr, LANGUAGE_ID, desc.buf, sizeof(desc.buf))) {
       print_utf16((uint16_t*)(uintptr_t) desc.buf, sizeof(desc.buf)/2);
     }
   }
@@ -163,24 +189,33 @@ void tuh_mount_cb(uint8_t daddr) {
 
   printf("  iProduct            %u     ", desc.device.iProduct);
   if (desc.device.iProduct != 0) {
-    xfer_result = tuh_descriptor_get_product_string_sync(daddr, LANGUAGE_ID, desc.buf, sizeof(desc.buf));
-    if (XFER_RESULT_SUCCESS == xfer_result) {
+    if (XFER_RESULT_SUCCESS == tuh_descriptor_get_product_string_sync(daddr, LANGUAGE_ID, desc.buf, sizeof(desc.buf))) {
       print_utf16((uint16_t*)(uintptr_t) desc.buf, sizeof(desc.buf)/2);
     }
   }
   printf("\r\n");
 
   printf("  iSerialNumber       %u     ", desc.device.iSerialNumber);
-  printf((char*)desc.serial); // serial is already to UTF-8
-  printf("\r\n");
-
+  printf("%s\r\n", (char*)desc.serial); // serial is already UTF-8
   printf("  bNumConfigurations  %u\r\n", desc.device.bNumConfigurations);
 }
 
-// Invoked when device is unmounted (bus reset/unplugged)
-void tuh_umount_cb(uint8_t daddr) {
-  blink_interval_ms = BLINK_NOT_MOUNTED;
-  printf("Device removed, address = %d\r\n", daddr);
+void print_devinfo_task(void* param) {
+  (void) param;
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  while (1) {
+#endif
+    for (uint8_t daddr = 1; daddr < TU_ARRAY_SIZE(need_devinfo); daddr++) {
+      if (need_devinfo[daddr]) {
+        need_devinfo[daddr] = false;
+        print_one_device(daddr);
+      }
+    }
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+    vTaskDelay(pdMS_TO_TICKS(10));
+  }
+#endif
 }
 
 //--------------------------------------------------------------------+
@@ -248,7 +283,7 @@ void led_blinking_task(void* param) {
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
     vTaskDelay(blink_interval_ms / portTICK_PERIOD_MS);
 #else
-    if (board_millis() - start_ms < blink_interval_ms) {
+    if (tusb_time_millis_api() - start_ms < blink_interval_ms) {
       return; // not enough time
     }
 #endif
@@ -281,6 +316,9 @@ StaticTask_t blinky_taskdef;
 
 StackType_t  usb_stack[USB_STACK_SIZE];
 StaticTask_t usb_taskdef;
+
+StackType_t  devinfo_stack[USB_STACK_SIZE];
+StaticTask_t devinfo_taskdef;
 #endif
 
 #ifdef ESP_PLATFORM
@@ -291,6 +329,7 @@ void app_main(void) {
 
 void usb_host_task(void *param) {
   (void) param;
+  board_delay(100); // wait for uart to be ready
   init_tinyusb();
   while (1) {
     tuh_task();
@@ -301,9 +340,11 @@ void init_freertos_task(void) {
 #if configSUPPORT_STATIC_ALLOCATION
   xTaskCreateStatic(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, blinky_stack, &blinky_taskdef);
   xTaskCreateStatic(usb_host_task, "usbh", USB_STACK_SIZE, NULL, configMAX_PRIORITIES-1, usb_stack, &usb_taskdef);
+  xTaskCreateStatic(print_devinfo_task, "devinfo", USB_STACK_SIZE, NULL, configMAX_PRIORITIES-2, devinfo_stack, &devinfo_taskdef);
 #else
   xTaskCreate(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, NULL);
   xTaskCreate(usb_host_task, "usbh", USB_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, NULL);
+  xTaskCreate(print_devinfo_task, "devinfo", USB_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, NULL);
 #endif
 
   // only start scheduler for non-espressif mcu

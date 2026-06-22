@@ -24,14 +24,20 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef TUSB_PRIVATE_H_
-#define TUSB_PRIVATE_H_
+#ifndef TUSB_PRIVATE_H
+#define TUSB_PRIVATE_H
 
 // Internal Helper used by Host and Device Stack
 
 #ifdef __cplusplus
  extern "C" {
 #endif
+
+typedef void (*tusb_defer_func_t)(uintptr_t param);
+
+ //--------------------------------------------------------------------+
+ // Configuration
+ //--------------------------------------------------------------------+
 
 #define TUP_USBIP_CONTROLLER_NUM 2
 extern tusb_role_t _tusb_rhport_role[TUP_USBIP_CONTROLLER_NUM];
@@ -40,75 +46,94 @@ extern tusb_role_t _tusb_rhport_role[TUP_USBIP_CONTROLLER_NUM];
 // Endpoint
 //--------------------------------------------------------------------+
 
-typedef struct TU_ATTR_PACKED {
-  volatile uint8_t busy    : 1;
-  volatile uint8_t stalled : 1;
-  volatile uint8_t claimed : 1;
-}tu_edpt_state_t;
+// Endpoint state bits — manipulate the bare uint8_t with these masks.
+#define TU_EDPT_STATE_BUSY    0x01u
+#define TU_EDPT_STATE_STALLED 0x02u
+#define TU_EDPT_STATE_CLAIMED 0x04u
 
 typedef struct {
-  struct TU_ATTR_PACKED  {
-    uint8_t is_host   : 1; // 1: host, 0: device
-    uint8_t is_mps512 : 1; // 1: 512, 0: 64 since stream is used for Bulk only
-  };
+  uint8_t  hwid;    // device: rhport, host: daddr
+  bool     is_host; // 1: host, 0: device
   uint8_t ep_addr;
-  uint16_t ep_bufsize;
+  // 1 byte padding
 
-  uint8_t* ep_buf; // TODO xfer_fifo can skip this buffer
+  uint16_t mps;
+  uint16_t xfer_len;
+  uint8_t  *ep_buf; // set to NULL to use xfer_fifo when CFG_TUD_EDPT_DEDICATED_HWFIFO = 1
   tu_fifo_t ff;
 
   // mutex: read if rx, otherwise write
   OSAL_MUTEX_DEF(ff_mutexdef);
-
 }tu_edpt_stream_t;
 
 //--------------------------------------------------------------------+
 // Endpoint
 //--------------------------------------------------------------------+
 
-// Check if endpoint descriptor is valid per USB specs
-bool tu_edpt_validate(tusb_desc_endpoint_t const * desc_ep, tusb_speed_t speed, bool is_host);
+// Check if endpoint descriptor is valid per USB specs if debug is enabled
+#if CFG_TUSB_DEBUG
+bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed);
+#else
+TU_ATTR_ALWAYS_INLINE static inline bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed) {
+  (void)speed;
+  return tu_edpt_packet_size(desc_ep) > 0;
+}
+#endif
 
-// Bind all endpoint of a interface descriptor to class driver
-void tu_edpt_bind_driver(uint8_t ep2drv[][2], tusb_desc_interface_t const* p_desc, uint16_t desc_len, uint8_t driver_id);
-
-// Calculate total length of n interfaces (depending on IAD)
-uint16_t tu_desc_get_interface_total_len(tusb_desc_interface_t const* desc_itf, uint8_t itf_count, uint16_t max_len);
+// Bind drivers to all interfaces and endpoints in the provided configuration descriptor
+bool tu_bind_driver_to_ep_itf(uint8_t driver_id, uint8_t ep2drv[][2], uint8_t itf2drv[], uint8_t itf_max,
+                              const uint8_t *p_desc, uint16_t desc_len);
 
 // Claim an endpoint with provided mutex
-bool tu_edpt_claim(tu_edpt_state_t* ep_state, osal_mutex_t mutex);
+bool tu_edpt_claim(volatile uint8_t* ep_state, osal_mutex_t mutex);
 
 // Release an endpoint with provided mutex
-bool tu_edpt_release(tu_edpt_state_t* ep_state, osal_mutex_t mutex);
+bool tu_edpt_release(volatile uint8_t* ep_state, osal_mutex_t mutex);
 
 //--------------------------------------------------------------------+
 // Endpoint Stream
 //--------------------------------------------------------------------+
 
 // Init an endpoint stream
-bool tu_edpt_stream_init(tu_edpt_stream_t* s, bool is_host, bool is_tx, bool overwritable,
-                         void* ff_buf, uint16_t ff_bufsize, uint8_t* ep_buf, uint16_t ep_bufsize);
+bool tu_edpt_stream_init(tu_edpt_stream_t *s, bool is_host, bool is_tx, bool overwritable, void *ff_buf,
+                         uint16_t ff_bufsize, uint8_t *ep_buf);
 
 // Deinit an endpoint stream
-bool tu_edpt_stream_deinit(tu_edpt_stream_t* s);
-
-// Open an stream for an endpoint
-TU_ATTR_ALWAYS_INLINE static inline
-void tu_edpt_stream_open(tu_edpt_stream_t* s, tusb_desc_endpoint_t const *desc_ep) {
-  tu_fifo_clear(&s->ff);
-  s->ep_addr = desc_ep->bEndpointAddress;
-  s->is_mps512 = (tu_edpt_packet_size(desc_ep) == 512) ? 1 : 0;
+TU_ATTR_ALWAYS_INLINE static inline void tu_edpt_stream_deinit(tu_edpt_stream_t *s) {
+  (void)s;
+#if OSAL_MUTEX_REQUIRED
+  if (s->ff.mutex_wr) {
+    osal_mutex_delete(s->ff.mutex_wr);
+  }
+  if (s->ff.mutex_rd) {
+    osal_mutex_delete(s->ff.mutex_rd);
+  }
+#endif
 }
 
-TU_ATTR_ALWAYS_INLINE static inline
-void tu_edpt_stream_close(tu_edpt_stream_t* s) {
+// Open an endpoint stream
+TU_ATTR_ALWAYS_INLINE static inline void tu_edpt_stream_open(tu_edpt_stream_t *s, uint8_t hwid,
+                                                             const tusb_desc_endpoint_t *desc_ep, uint16_t xfer_len) {
+  s->hwid    = hwid;
+  s->ep_addr = desc_ep->bEndpointAddress;
+  s->mps = tu_edpt_packet_size(desc_ep);
+  s->xfer_len = xfer_len;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool tu_edpt_stream_is_opened(const tu_edpt_stream_t *s) {
+  return s->ep_addr != 0;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void tu_edpt_stream_close(tu_edpt_stream_t* s) {
   s->ep_addr = 0;
 }
 
-// Clear fifo
-TU_ATTR_ALWAYS_INLINE static inline
-bool tu_edpt_stream_clear(tu_edpt_stream_t* s) {
-  return tu_fifo_clear(&s->ff);
+TU_ATTR_ALWAYS_INLINE static inline void tu_edpt_stream_clear(tu_edpt_stream_t *s) {
+  tu_fifo_clear(&s->ff);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool tu_edpt_stream_empty(tu_edpt_stream_t *s) {
+  return tu_fifo_empty(&s->ff);
 }
 
 //--------------------------------------------------------------------+
@@ -116,52 +141,48 @@ bool tu_edpt_stream_clear(tu_edpt_stream_t* s) {
 //--------------------------------------------------------------------+
 
 // Write to stream
-uint32_t tu_edpt_stream_write(uint8_t hwid, tu_edpt_stream_t* s, void const *buffer, uint32_t bufsize);
+uint32_t tu_edpt_stream_write(tu_edpt_stream_t *s, const void *buffer, uint32_t bufsize);
 
-// Start an usb transfer if endpoint is not busy
-uint32_t tu_edpt_stream_write_xfer(uint8_t hwid, tu_edpt_stream_t* s);
+// Start an usb transfer if endpoint is not busy. Return number of queued bytes
+uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t *s);
 
 // Start an zero-length packet if needed
-bool tu_edpt_stream_write_zlp_if_needed(uint8_t hwid, tu_edpt_stream_t* s, uint32_t last_xferred_bytes);
+bool tu_edpt_stream_write_zlp_if_needed(tu_edpt_stream_t *s, uint32_t last_xferred_bytes);
 
 // Get the number of bytes available for writing to FIFO
 // Note: if no fifo, return endpoint size if not busy, 0 otherwise
-uint32_t tu_edpt_stream_write_available(uint8_t hwid, tu_edpt_stream_t* s);
+uint32_t tu_edpt_stream_write_available(tu_edpt_stream_t *s);
 
 //--------------------------------------------------------------------+
 // Stream Read
 //--------------------------------------------------------------------+
 
 // Read from stream
-uint32_t tu_edpt_stream_read(uint8_t hwid, tu_edpt_stream_t* s, void* buffer, uint32_t bufsize);
+uint32_t tu_edpt_stream_read(tu_edpt_stream_t *s, void *buffer, uint32_t bufsize);
 
 // Start an usb transfer if endpoint is not busy
-uint32_t tu_edpt_stream_read_xfer(uint8_t hwid, tu_edpt_stream_t* s);
+uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s);
 
 // Complete read transfer by writing EP -> FIFO. Must be called in the transfer complete callback
 TU_ATTR_ALWAYS_INLINE static inline
 void tu_edpt_stream_read_xfer_complete(tu_edpt_stream_t* s, uint32_t xferred_bytes) {
-  if (tu_fifo_depth(&s->ff)) {
-    tu_fifo_write_n(&s->ff, s->ep_buf, (uint16_t) xferred_bytes);
+  if (s->ep_buf != NULL) {
+    tu_fifo_write_n(&s->ff, s->ep_buf, (uint16_t)xferred_bytes);
   }
 }
 
 // Complete read transfer with provided buffer
 TU_ATTR_ALWAYS_INLINE static inline
-void tu_edpt_stream_read_xfer_complete_with_buf(tu_edpt_stream_t* s, const void * buf, uint32_t xferred_bytes) {
-  if (tu_fifo_depth(&s->ff)) {
-    tu_fifo_write_n(&s->ff, buf, (uint16_t) xferred_bytes);
-  }
+void tu_edpt_stream_read_xfer_complete_with_buf(tu_edpt_stream_t *s, const void *buf, uint32_t xferred_bytes) {
+  tu_fifo_write_n(&s->ff, buf, (uint16_t)xferred_bytes);
 }
 
 // Get the number of bytes available for reading
-TU_ATTR_ALWAYS_INLINE static inline
-uint32_t tu_edpt_stream_read_available(tu_edpt_stream_t* s) {
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_edpt_stream_read_available(const tu_edpt_stream_t *s) {
   return (uint32_t) tu_fifo_count(&s->ff);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline
-bool tu_edpt_stream_peek(tu_edpt_stream_t* s, uint8_t* ch) {
+TU_ATTR_ALWAYS_INLINE static inline bool tu_edpt_stream_peek(tu_edpt_stream_t *s, uint8_t *ch) {
   return tu_fifo_peek(&s->ff, ch);
 }
 

@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_USBH_H_
-#define _TUSB_USBH_H_
+#ifndef TUSB_USBH_H_
+#define TUSB_USBH_H_
 
 #ifdef __cplusplus
  extern "C" {
@@ -41,8 +41,7 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
-// Endpoint Bulk size depending on host mx speed
-#define TUH_EPSIZE_BULK_MPS   (TUH_OPT_HIGH_SPEED ? TUSB_EPSIZE_BULK_HS : TUSB_EPSIZE_BULK_FS)
+
 
 // forward declaration
 struct tuh_xfer_s;
@@ -95,18 +94,29 @@ enum {
   TUH_CFGID_INVALID = 0,
   TUH_CFGID_RPI_PIO_USB_CONFIGURATION = 100, // cfg_param: pio_usb_configuration_t
   TUH_CFGID_MAX3421 = 200,
+  TUH_CFGID_FSDEV = 300,
+  TUH_CFGID_DWC2 = 400
 };
 
 typedef struct {
-  uint8_t max_nak; // max NAK per endpoint per frame to save CPU/SPI bus usage
+  uint8_t max_nak; // max NAK per endpoint per frame to save CPU/SPI bus usage (0=unlimited)
   uint8_t cpuctl; // R16: CPU Control Register
   uint8_t pinctl; // R17: Pin Control Register. FDUPSPI bit is ignored
 } tuh_configure_max3421_t;
 
+typedef struct {
+  uint8_t max_nak; // max NAK per endpoint per frame to save CPU usage (0=unlimited)
+} tuh_configure_fsdev_t;
+
+typedef struct {
+  bool use_hs_phy; // Always use high-speed ULPI/UTMI phy even when working at full-speed
+} tuh_configure_dwc2_t;
+
 typedef union {
   // For TUH_CFGID_RPI_PIO_USB_CONFIGURATION use pio_usb_configuration_t
-
   tuh_configure_max3421_t max3421;
+  tuh_configure_fsdev_t fsdev;
+  tuh_configure_dwc2_t dwc2;
 } tuh_configure_param_t;
 
 //--------------------------------------------------------------------+
@@ -145,6 +155,7 @@ void tuh_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr);
 bool tuh_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param);
 
 // New API to replace tuh_init() to init host stack on specific roothub port
+// Must be called in the same task/context as tuh_task() if RTOS is used
 bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init);
 
 // Init host stack
@@ -160,6 +171,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool tuh_init(uint8_t rhport) {
 }
 
 // Deinit host stack on rhport
+// Must be called in the same task/context as tuh_task() if RTOS is used
 bool tuh_deinit(uint8_t rhport);
 
 // Check if host stack is already initialized with any roothub ports
@@ -179,7 +191,7 @@ TU_ATTR_ALWAYS_INLINE static inline void tuh_task(void) {
 // Check if there is pending events need processing by tuh_task()
 bool tuh_task_event_ready(void);
 
-#ifndef _TUSB_HCD_H_
+#ifndef TUSB_HCD_H_
 extern void hcd_int_handler(uint8_t rhport, bool in_isr);
 #endif
 

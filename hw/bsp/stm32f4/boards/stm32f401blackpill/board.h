@@ -37,12 +37,14 @@
 #endif
 
 // Enable PA2 as the debug log UART
-#define UART_DEV              USART2
+#define UART_ID               2
 
 #define PINID_LED      0
 #define PINID_BUTTON   1
 #define PINID_UART_TX  2
 #define PINID_UART_RX  3
+
+#define VBUS_SENSE_EN  0
 
 static board_pindef_t board_pindef[] = {
   { // LED
@@ -103,17 +105,6 @@ static inline void board_clock_init(void)
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
   HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2);
 
-  // Enable clocks for Uart
-  __HAL_RCC_USART2_CLK_ENABLE();
-}
-
-static inline void board_vbus_sense_init(uint8_t rhport) {
-  // Blackpill doesn't use VBUS sense (B device) explicitly disable it
-  if  (rhport == 0) {
-    USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_NOVBUSSENS;
-    USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBUSBSEN;
-    USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBUSASEN;
-  }
 }
 
 static inline void board_vbus_set(uint8_t rhport, bool state) {

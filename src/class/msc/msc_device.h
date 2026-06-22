@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_MSC_DEVICE_H_
-#define _TUSB_MSC_DEVICE_H_
+#ifndef TUSB_MSC_DEVICE_H_
+#define TUSB_MSC_DEVICE_H_
 
 #include "common/tusb_common.h"
 #include "msc.h"
@@ -167,4 +167,4 @@ bool     mscd_xfer_cb         (uint8_t rhport, uint8_t ep_addr, xfer_result_t ev
  }
 #endif
 
-#endif /* _TUSB_MSC_DEVICE_H_ */
+#endif /* TUSB_MSC_DEVICE_H_ */

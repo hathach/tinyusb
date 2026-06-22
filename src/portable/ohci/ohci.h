@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_OHCI_H_
-#define _TUSB_OHCI_H_
+#ifndef TUSB_OHCI_H_
+#define TUSB_OHCI_H_
 
 #ifdef __cplusplus
  extern "C" {
@@ -48,6 +48,10 @@ enum {
 // tinyUSB's OHCI implementation caps number of EDs to 8 bits
 TU_VERIFY_STATIC (ED_MAX <= 256, "Reduce CFG_TUH_DEVICE_MAX or CFG_TUH_ENDPOINT_MAX");
 
+#define GTD_ALIGN_SIZE TU_MAX(CFG_TUH_MEM_DCACHE_LINE_SIZE, 16)
+#define ED_ALIGN_SIZE  TU_MAX(CFG_TUH_MEM_DCACHE_LINE_SIZE, 16)
+#define ITD_ALIGN_SIZE TU_MAX(CFG_TUH_MEM_DCACHE_LINE_SIZE, 32)
+
 //--------------------------------------------------------------------+
 // OHCI Data Structure
 //--------------------------------------------------------------------+
@@ -61,18 +65,35 @@ typedef struct {
 
 TU_VERIFY_STATIC( sizeof(ohci_hcca_t) == 256, "size is not correct" );
 
+// An OHCI host controller is controlled using data structures placed in memory (RAM).
+// It needs to both read and write these data structures (as defined by the OHCI specification),
+// and this can be mentally conceptualized similar to two software threads running on
+// two different CPUs. In order to prevent a _data race_ where data gets corrupted,
+// the CPU and the OHCI host controller need to agree on how the memory should be accessed.
+// In this driver, we do this by transferring logical ownership of transfer descriptors (TDs)
+// between the CPU and the OHCI host controller. Only the device which holds the logical ownership
+// is allowed to read or write the TD. This ownership is not visible anywhere in the code,
+// but it instead must be inferred based on the logical state of the transfer.
+//
+// If dcache-supporting mode is enabled, we need to do additional manual cache operations
+// in order to correctly transfer this logical ownership and prevent data corruption.
+// In order to do this, we also choose to align each OHCI TD so that it doesn't
+// share CPU cache lines with other TDs. This is because manual cache operations
+// can only be performed on cache line granularity. In other words, one cache line is
+// the _smallest_ amount that can be read/written at a time. If there were to be multiple TDs
+// in the same cache line, they would be required to always have the same logical ownership.
+// This ends up being impossible to guarantee, so we choose a design which avoids the situation entirely.
+
 // common link item for gtd and itd for list travel
-// use as pointer only
 typedef struct TU_ATTR_ALIGNED(16) {
   uint32_t reserved[2];
   volatile uint32_t next;
   uint32_t reserved2;
 }ohci_td_item_t;
 
-typedef struct TU_ATTR_ALIGNED(16)
-{
-	// Word 0
-	uint32_t used                    : 1;
+typedef struct TU_ATTR_ALIGNED(GTD_ALIGN_SIZE) {
+  // Word 0
+  uint32_t used                    : 1;
   uint32_t index                   : 8; // endpoint index the gtd belongs to, or device address in case of control xfer
   uint32_t                         : 9; // can be used
   uint32_t buffer_rounding         : 1;
@@ -82,56 +103,55 @@ typedef struct TU_ATTR_ALIGNED(16)
   volatile uint32_t error_count    : 2;
   volatile uint32_t condition_code : 4;
 
-	// Word 1
-	uint8_t* volatile current_buffer_pointer;
+  // Word 1
+  uint8_t* volatile current_buffer_pointer;
 
-	// Word 2 : next TD
-	volatile uint32_t next;
+  // Word 2 : next TD
+  volatile uint32_t next;
 
-	// Word 3
-	uint8_t* buffer_end;
+  // Word 3
+  uint8_t* buffer_end;
 } ohci_gtd_t;
+TU_VERIFY_STATIC(sizeof(ohci_gtd_t) == GTD_ALIGN_SIZE, "size is not correct" );
 
-TU_VERIFY_STATIC( sizeof(ohci_gtd_t) == 16, "size is not correct" );
+typedef union {
+  struct {
+    uint32_t dev_addr          : 7;
+    uint32_t ep_number         : 4;
+    uint32_t pid               : 2;
+    uint32_t speed             : 1;
+    uint32_t skip              : 1;
+    uint32_t is_iso            : 1;
+    uint32_t max_packet_size   : 11;
+    // HCD: make use of 5 reserved bits
+    uint32_t used              : 1;
+    uint32_t is_interrupt_xfer : 1;
+    uint32_t                   : 3;
+  };
+  uint32_t value;
+} ohci_ed_word0_t;
+TU_VERIFY_STATIC(sizeof(ohci_ed_word0_t) == 4, "size is not correct" );
 
-typedef struct TU_ATTR_ALIGNED(16)
-{
-  // Word 0
-	uint32_t dev_addr          : 7;
-	uint32_t ep_number         : 4;
-	uint32_t pid               : 2;
-	uint32_t speed             : 1;
-	uint32_t skip              : 1;
-	uint32_t is_iso            : 1;
-	uint32_t max_packet_size   : 11;
-	      // HCD: make use of 5 reserved bits
-	uint32_t used              : 1;
-	uint32_t is_interrupt_xfer : 1;
-	uint32_t is_stalled        : 1;
-	uint32_t                   : 2;
+typedef union {
+  uint32_t address;
+  struct {
+    uint32_t halted : 1;
+    uint32_t toggle : 1;
+    uint32_t : 30;
+  };
+} ohci_ed_word2_t;
+TU_VERIFY_STATIC(sizeof(ohci_ed_word2_t) == 4, "size is not correct" );
 
-	// Word 1
-	uint32_t td_tail;
-
-	// Word 2
-	volatile union {
-		uint32_t address;
-		struct {
-			uint32_t halted : 1;
-			uint32_t toggle : 1;
-			uint32_t : 30;
-		};
-	}td_head;
-
-	// Word 3: next ED
-	uint32_t next;
+typedef struct TU_ATTR_ALIGNED(ED_ALIGN_SIZE) {
+  ohci_ed_word0_t w0; // Word 0
+  uint32_t td_tail; // Word 1
+  volatile ohci_ed_word2_t td_head; // Word 2
+  uint32_t next; // Word 3
 } ohci_ed_t;
+TU_VERIFY_STATIC(sizeof(ohci_ed_t) == ED_ALIGN_SIZE, "size is not correct" );
 
-TU_VERIFY_STATIC( sizeof(ohci_ed_t) == 16, "size is not correct" );
-
-typedef struct TU_ATTR_ALIGNED(32)
-{
-	/*---------- Word 1 ----------*/
+typedef struct TU_ATTR_ALIGNED(ITD_ALIGN_SIZE) {
+  /*---------- Word 1 ----------*/
   uint32_t starting_frame          : 16;
   uint32_t                         : 5; // can be used
   uint32_t delay_interrupt         : 3;
@@ -139,24 +159,25 @@ typedef struct TU_ATTR_ALIGNED(32)
   uint32_t                         : 1; // can be used
   volatile uint32_t condition_code : 4;
 
-	/*---------- Word 2 ----------*/
-	uint32_t buffer_page0;	// 12 lsb bits can be used
 
-	/*---------- Word 3 ----------*/
-	volatile uint32_t next;
+  /*---------- Word 2 ----------*/
+  uint32_t buffer_page0; // 12 lsb bits can be used
 
-	/*---------- Word 4 ----------*/
-	uint32_t buffer_end;
+  /*---------- Word 3 ----------*/
+  volatile uint32_t next;
 
-	/*---------- Word 5-8 ----------*/
-	volatile uint16_t offset_packetstatus[8];
-} ochi_itd_t;
+  /*---------- Word 4 ----------*/
+  uint32_t buffer_end;
 
-TU_VERIFY_STATIC( sizeof(ochi_itd_t) == 32, "size is not correct" );
+  /*---------- Word 5-8 ----------*/
+  volatile uint16_t offset_packetstatus[8];
+} ohci_itd_t;
+TU_VERIFY_STATIC(sizeof(ohci_itd_t) == ITD_ALIGN_SIZE, "size is not correct" );
 
 typedef struct {
   uint16_t expected_bytes; // up to 8192 bytes so max is 13 bits
 } gtd_extra_data_t;
+TU_VERIFY_STATIC(sizeof(gtd_extra_data_t) == 2, "size is not correct" );
 
 // structure with member alignment required from large to small
 typedef struct TU_ATTR_ALIGNED(256) {
@@ -192,10 +213,10 @@ typedef struct TU_ATTR_ALIGNED(256) {
 //--------------------------------------------------------------------+
 typedef volatile struct
 {
-  uint32_t revision;
+  uint32_t revision;                               // 0x00
 
   union {
-    uint32_t control;
+    uint32_t control;                              // 0x04
     struct {
       uint32_t control_bulk_service_ratio : 2;
       uint32_t periodic_list_enable       : 1;
@@ -211,7 +232,7 @@ typedef volatile struct
   };
 
   union {
-    uint32_t command_status;
+    uint32_t command_status;                       // 0x08
     struct {
       uint32_t controller_reset         : 1;
       uint32_t control_list_filled      : 1;
@@ -222,26 +243,24 @@ typedef volatile struct
     }command_status_bit;
   };
 
-  uint32_t interrupt_status;
-  uint32_t interrupt_enable;
-  uint32_t interrupt_disable;
-
-  uint32_t hcca;
-  uint32_t period_current_ed;
-  uint32_t control_head_ed;
-  uint32_t control_current_ed;
-  uint32_t bulk_head_ed;
-  uint32_t bulk_current_ed;
-  uint32_t done_head;
-
-  uint32_t frame_interval;
-  uint32_t frame_remaining;
-  uint32_t frame_number;
-  uint32_t periodic_start;
-  uint32_t lowspeed_threshold;
+  uint32_t interrupt_status;                       // 0x0C
+  uint32_t interrupt_enable;                       // 0x10
+  uint32_t interrupt_disable;                      // 0x14
+  uint32_t hcca;                                   // 0x18
+  uint32_t period_current_ed;                      // 0x1C
+  uint32_t control_head_ed;                        // 0x20
+  uint32_t control_current_ed;                     // 0x24
+  uint32_t bulk_head_ed;                           // 0x28
+  uint32_t bulk_current_ed;                        // 0x2C
+  uint32_t done_head;                              // 0x30
+  uint32_t frame_interval;                         // 0x34
+  uint32_t frame_remaining;                        // 0x38
+  uint32_t frame_number;                           // 0x3C
+  uint32_t periodic_start;                         // 0x40
+  uint32_t lowspeed_threshold;                     // 0x44
 
   union {
-    uint32_t rh_descriptorA;
+    uint32_t rh_descriptorA;                       // 0x48
     struct {
       uint32_t number_downstream_ports     : 8;
       uint32_t power_switching_mode        : 1;
@@ -255,7 +274,7 @@ typedef volatile struct
   };
 
   union {
-    uint32_t rh_descriptorB;
+    uint32_t rh_descriptorB;                       // 0x4C
     struct {
       uint32_t device_removable        : 16;
       uint32_t port_power_control_mask : 16;
@@ -263,9 +282,9 @@ typedef volatile struct
   };
 
   union {
-    uint32_t rh_status;
+    uint32_t rh_status;                            // 0x50
     struct {
-      uint32_t local_power_status            : 1; // read Local Power Status; write: Clear Global Power
+      uint32_t local_power_status            : 1;  // read Local Power Status; write: Clear Global Power
       uint32_t over_current_indicator        : 1;
       uint32_t                               : 13;
       uint32_t device_remote_wakeup_enable   : 1;
@@ -277,7 +296,8 @@ typedef volatile struct
   };
 
   union {
-    uint32_t rhport_status[TUP_OHCI_RHPORTS];
+    uint32_t rhport_status[TUP_OHCI_RHPORTS];      // 0x54
+
     struct {
       uint32_t current_connect_status             : 1;
       uint32_t port_enable_status                 : 1;
@@ -304,4 +324,4 @@ TU_VERIFY_STATIC( sizeof(ohci_registers_t) == (0x54 + (4 * TUP_OHCI_RHPORTS)), "
  }
 #endif
 
-#endif /* _TUSB_OHCI_H_ */
+#endif /* TUSB_OHCI_H_ */

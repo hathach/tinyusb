@@ -39,8 +39,14 @@
 static const dwc2_controller_t _dwc2_controller[] =
 {
   // Note: XMC has some custom control registers before DWC registers
-  { .reg_base = USB0_BASE, .irqnum = USB0_0_IRQn, .ep_count = DWC2_EP_MAX, .ep_fifo_size = 2048 }
+  { .reg_base = USB0_BASE, .irqnum = USB0_0_IRQn, .ep_count = DWC2_EP_MAX, .otg_dfifo_depth = 512 }
 };
+
+// MCU specific to enable dwc2 clock/power before any access to register
+TU_ATTR_ALWAYS_INLINE static inline void dwc2_clock_init(uint8_t rhport, tusb_role_t role) {
+  (void) rhport;
+  (void) role;
+}
 
 TU_ATTR_ALWAYS_INLINE
 static inline void dwc2_dcd_int_enable(uint8_t rhport)
@@ -69,6 +75,13 @@ static inline void dwc2_phy_init(dwc2_regs_t * dwc2, uint8_t hs_phy_type)
 
   // Enable PHY
   //USB->ROUTE = USB_ROUTE_PHYPEN;
+}
+
+// MCU specific PHY deinit, disable PHY power
+static inline void dwc2_phy_deinit(dwc2_regs_t * dwc2, uint8_t hs_phy_type) {
+  (void) dwc2;
+  (void) hs_phy_type;
+  // nothing to do
 }
 
 // MCU specific PHY update, it is called AFTER init() and core reset

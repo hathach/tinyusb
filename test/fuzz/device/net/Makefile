@@ -8,15 +8,14 @@ CFLAGS += \
 
 INC += \
   src \
-  $(TOP)/hw \
   $(TOP)/lib/lwip/src/include \
   $(TOP)/lib/lwip/src/include/ipv4 \
   $(TOP)/lib/lwip/src/include/lwip/apps \
   $(TOP)/lib/networking
 
 # Example source
-SRC_C += $(addprefix $(CURRENT_PATH)/, $(wildcard src/*.c))
-SRC_CXX += $(addprefix $(CURRENT_PATH)/, $(wildcard src/*.cc))
+SRC_C += $(addprefix $(EXAMPLE_PATH)/, $(wildcard src/*.c))
+SRC_CXX += $(addprefix $(EXAMPLE_PATH)/, $(wildcard src/*.cc))
 
 # lwip sources
 SRC_C += \

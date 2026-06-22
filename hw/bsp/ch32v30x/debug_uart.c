@@ -49,7 +49,8 @@ void USART1_IRQHandler(void) {
       __asm volatile ("call USART1_IRQHandler_impl; mret");
 }
 
-__attribute__((used)) void USART1_IRQHandler_impl(void)
+void USART1_IRQHandler_impl(void) __attribute__((used)) ;
+void USART1_IRQHandler_impl(void)
 {
 	if(USART_GetITStatus(USART1, USART_IT_TC) != RESET)
     {

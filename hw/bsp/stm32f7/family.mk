@@ -56,13 +56,13 @@ CFLAGS += \
 #endif
 
 # GCC Flags
-CFLAGS_GCC += \
+CFLAGS += \
   -flto \
 
 # mcu driver cause following warnings
-CFLAGS_GCC += -Wno-error=cast-align
+CFLAGS += -Wno-error=cast-align
 
-LDFLAGS_GCC += \
+LDFLAGS += \
   -nostdlib -nostartfiles \
   --specs=nosys.specs --specs=nano.specs
 
@@ -91,8 +91,6 @@ INC += \
 	$(TOP)/$(ST_HAL_DRIVER)/Inc
 
 # Startup
-SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_$(MCU_VARIANT).s
-SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_$(MCU_VARIANT).s
+SRC_S += $(ST_CMSIS)/Source/Templates/gcc/startup_$(MCU_VARIANT).s
 
 # Linker
-LD_FILE_IAR = $(ST_CMSIS)/Source/Templates/iar/linker/$(MCU_VARIANT)_flash.icf

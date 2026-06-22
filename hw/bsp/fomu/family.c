@@ -38,7 +38,6 @@
 //--------------------------------------------------------------------+
 // Board porting API
 //--------------------------------------------------------------------+
-
 void fomu_error(uint32_t line)
 {
   (void)line;
@@ -105,20 +104,22 @@ int board_uart_read(uint8_t* buf, int len)
 
 int board_uart_write(void const * buf, int len)
 {
-  int32_t offset = 0;
   uint8_t const* buf8 = (uint8_t const*) buf;
-  for (offset = 0; offset < len; offset++)
+  int count = 0;
+  while (count < len)
   {
-    if (!(messible_status_read() & CSR_MESSIBLE_STATUS_FULL_OFFSET))
+    if (messible_status_read() & CSR_MESSIBLE_STATUS_FULL_OFFSET)
     {
-      messible_in_write(buf8[offset]);
+      break;
     }
+    messible_in_write(buf8[count]);
+    count++;
   }
-  return len;
+  return count;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
-uint32_t board_millis(void)
+uint32_t tusb_time_millis_api(void)
 {
   return system_ticks;
 }

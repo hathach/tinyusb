@@ -27,15 +27,17 @@
    manufacturer: Microchip
 */
 
-#include "sam.h"
 
 // Suppress warning caused by mcu driver
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wcast-qual"
 #pragma GCC diagnostic ignored "-Wredundant-decls"
+#pragma GCC diagnostic ignored "-Wconversion"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
 #endif
 
+#include "sam.h"
 #include "peripheral_clk_config.h"
 #include "hal/include/hal_init.h"
 #include "hal/include/hpl_usart_sync.h"
@@ -88,6 +90,8 @@ void board_init(void) {
   // 1ms tick timer (samd SystemCoreClock may not correct)
   SysTick_Config(CONF_CPU_FREQUENCY / 1000);
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // Explicitly disable systick to prevent its ISR from running before scheduler start
+  SysTick->CTRL &= ~1U;
   NVIC_SetPriority(UDP_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 #endif
 
@@ -132,11 +136,16 @@ int board_uart_read(uint8_t* buf, int len) {
 
 int board_uart_write(void const* buf, int len) {
   uint8_t const* buf8 = (uint8_t const*) buf;
-  for (int i = 0; i < len; i++) {
-    while (!_usart_sync_is_ready_to_send(&edbg_com)) {}
-    _usart_sync_write_byte(&edbg_com, buf8[i]);
+  int count = 0;
+  while (count < len) {
+    if (_usart_sync_is_ready_to_send(&edbg_com)) {
+      _usart_sync_write_byte(&edbg_com, buf8[count]);
+      count++;
+    } else {
+      break;
+    }
   }
-  return len;
+  return count;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
@@ -146,7 +155,7 @@ void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void) {
+uint32_t tusb_time_millis_api(void) {
   return system_ticks;
 }
 
@@ -154,6 +163,7 @@ uint32_t board_millis(void) {
 
 // Required by __libc_init_array in startup code if we are compiling using
 // -nostdlib/-nostartfiles.
+void _init(void);
 void _init(void) {
 
 }

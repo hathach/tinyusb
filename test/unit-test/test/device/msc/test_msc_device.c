@@ -256,7 +256,7 @@ void test_msc(void)
   dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep), true);
 
   // Prepare SCSI command
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
   dcd_edpt_xfer_IgnoreArg_buffer();
   dcd_edpt_xfer_ReturnMemThruPtr_buffer( (uint8_t*) &cbw_read10, sizeof(msc_cbw_t));
 
@@ -264,20 +264,20 @@ void test_msc(void)
   dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
 
   // control status
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
 
   // SCSI Data transfer
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, NULL, 512, true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, NULL, 512, false, true);
   dcd_edpt_xfer_IgnoreArg_buffer();
   dcd_event_xfer_complete(rhport, EDPT_MSC_IN, 512, 0, true); // complete
 
   // SCSI Status
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, NULL, 13, true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, NULL, 13, false, true);
   dcd_edpt_xfer_IgnoreArg_buffer();
   dcd_event_xfer_complete(rhport, EDPT_MSC_IN, 13, 0, true);
 
   // Prepare for next command
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
   dcd_edpt_xfer_IgnoreArg_buffer();
 
   tud_task();

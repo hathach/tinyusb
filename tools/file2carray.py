@@ -35,7 +35,8 @@ def main():
             fout_name = fin_name + '.h'
             with open(fout_name, 'w') as fout:
                 print(f"Converting {fin_name} to {fout_name}")
-                fout.write(f'const size_t bindata_len = {len(contents)};\n')
+                fout.write(f'enum {{ BINDATA_LEN = {len(contents)} }};\n')
+                fout.write(f'const size_t bindata_len = BINDATA_LEN;\n')
                 fout.write(f'const uint8_t bindata[] __attribute__((aligned(16))) = {{')
                 print_carray(fout, contents)
                 fout.write('};\n')

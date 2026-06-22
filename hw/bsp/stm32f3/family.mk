@@ -9,16 +9,17 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F3
 
 # mcu driver cause following warnings
-CFLAGS_GCC += \
+CFLAGS += \
   -flto \
   -Wno-error=unused-parameter
 
-LDFLAGS_GCC += \
+LDFLAGS += \
   -nostdlib -nostartfiles \
   --specs=nosys.specs --specs=nano.specs
 
 SRC_C += \
   src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
+  src/portable/st/stm32_fsdev/fsdev_common.c \
   $(ST_CMSIS)/Source/Templates/system_stm32$(ST_FAMILY)xx.c \
   $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal.c \
   $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_cortex.c \
@@ -33,8 +34,6 @@ INC += \
   $(TOP)/$(BOARD_PATH)
 
 # Startup
-SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_${MCU_VARIANT}.s
-SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_${MCU_VARIANT}.s
+SRC_S += $(ST_CMSIS)/Source/Templates/gcc/startup_${MCU_VARIANT}.s
 
 # Linker
-LD_FILE_IAR ?= $(ST_CMSIS)/Source/Templates/iar/linker/${MCU_VARIANT}_flash.icf

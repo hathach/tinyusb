@@ -28,8 +28,8 @@
  *  \defgroup ClassDriver_HID Human Interface Device (HID)
  *  @{ */
 
-#ifndef _TUSB_HID_H_
-#define _TUSB_HID_H_
+#ifndef TUSB_HID_H_
+#define TUSB_HID_H_
 
 #include "common/tusb_common.h"
 
@@ -2071,6 +2071,6 @@ enum {
  }
 #endif
 
-#endif /* _TUSB_HID_H__ */
+#endif /* TUSB_HID_H__ */
 
 /// @}

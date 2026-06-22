@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_H_
-#define _TUSB_H_
+#ifndef TUSB_H_
+#define TUSB_H_
 
 #ifdef __cplusplus
  extern "C" {
@@ -63,6 +63,10 @@
     #include "class/midi/midi_host.h"
   #endif
 
+  #if CFG_TUH_MIDI2
+    #include "class/midi/midi2_host.h"
+  #endif
+
   #if CFG_TUH_VENDOR
     #include "class/vendor/vendor_host.h"
   #endif
@@ -88,6 +92,10 @@
     #include "class/msc/msc_device.h"
   #endif
 
+  #if CFG_TUD_PRINTER
+    #include "class/printer/printer_device.h"
+  #endif
+
   #if CFG_TUD_MTP
     #include "class/mtp/mtp_device.h"
   #endif
@@ -102,6 +110,10 @@
 
   #if CFG_TUD_MIDI
     #include "class/midi/midi_device.h"
+  #endif
+
+  #if CFG_TUD_MIDI2
+    #include "class/midi/midi2_device.h"
   #endif
 
   #if CFG_TUD_VENDOR
@@ -135,7 +147,7 @@
 
 
 //--------------------------------------------------------------------+
-// User API
+// Application API
 //--------------------------------------------------------------------+
 #if CFG_TUH_ENABLED || CFG_TUD_ENABLED
 
@@ -178,4 +190,4 @@ bool tusb_deinit(uint8_t rhport);
  }
 #endif
 
-#endif /* _TUSB_H_ */
+#endif /* TUSB_H_ */

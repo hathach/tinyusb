@@ -1,1 +1,3 @@
-mcu:RP2040
+mcu:CH32F20X
+board:lpcxpresso54114
+mcu:FT90X

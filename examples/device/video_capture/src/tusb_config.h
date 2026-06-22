@@ -23,8 +23,8 @@
  *
  */
 
-#ifndef _TUSB_CONFIG_H_
-#define _TUSB_CONFIG_H_
+#ifndef TUSB_CONFIG_H_
+#define TUSB_CONFIG_H_
 
 #ifdef __cplusplus
  extern "C" {
@@ -110,9 +110,10 @@
 
 //#define CFG_EXAMPLE_VIDEO_READONLY
 //#define CFG_EXAMPLE_VIDEO_DISABLE_MJPEG
+//#define CFG_EXAMPLE_VIDEO_BUFFERLESS
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_CONFIG_H_ */
+#endif /* TUSB_CONFIG_H_ */

@@ -98,8 +98,6 @@ int main(void) {
     tuh_task(); // tinyusb host task
     led_blinking_task();
   }
-
-  return 0;
 }
 
 //--------------------------------------------------------------------+
@@ -284,7 +282,7 @@ void led_blinking_task(void) {
   static bool led_state = false;
 
   // Blink every interval ms
-  if (board_millis() - start_ms < blink_interval_ms) return; // not enough time
+  if (tusb_time_millis_api() - start_ms < blink_interval_ms) return; // not enough time
   start_ms += blink_interval_ms;
 
   board_led_write(led_state);

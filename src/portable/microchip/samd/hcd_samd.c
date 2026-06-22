@@ -26,11 +26,8 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUH_ENABLED && \
-    !(defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421) &&                     \
-    (CFG_TUSB_MCU == OPT_MCU_SAMD11 || CFG_TUSB_MCU == OPT_MCU_SAMD21  || \
-     CFG_TUSB_MCU == OPT_MCU_SAMD51 ||  CFG_TUSB_MCU == OPT_MCU_SAME5X || \
-     CFG_TUSB_MCU == OPT_MCU_SAML22 || CFG_TUSB_MCU == OPT_MCU_SAML21)
+#if CFG_TUH_ENABLED && !(defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421) && \
+    TU_CHECK_MCU(OPT_MCU_SAMD11, OPT_MCU_SAMD21, OPT_MCU_SAML2X, OPT_MCU_SAMD51, OPT_MCU_SAME5X)
 
 #include "host/hcd.h"
 #include "sam.h"
@@ -428,7 +425,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   return true;
 }
 
-#if CFG_TUSB_MCU == OPT_MCU_SAMD51 || CFG_TUSB_MCU == OPT_MCU_SAME5X
+#if TU_CHECK_MCU(OPT_MCU_SAMD51, OPT_MCU_SAME5X)
 
 // Enable USB interrupt
 void hcd_int_enable(uint8_t rhport)
@@ -450,8 +447,7 @@ void hcd_int_disable(uint8_t rhport)
   NVIC_DisableIRQ(USB_0_IRQn);
 }
 
-#elif CFG_TUSB_MCU == OPT_MCU_SAMD11 || CFG_TUSB_MCU == OPT_MCU_SAMD21 || \
-      CFG_TUSB_MCU == OPT_MCU_SAML22 ||  CFG_TUSB_MCU == OPT_MCU_SAML21
+#elif TU_CHECK_MCU(OPT_MCU_SAMD11, OPT_MCU_SAMD21, OPT_MCU_SAML2X)
 
 // Enable USB interrupt
 void hcd_int_enable(uint8_t rhport)

@@ -3,17 +3,17 @@ Concurrency
 ***********
 
 The TinyUSB library is designed to operate on single-core MCUs with multi-threaded applications in mind. Interaction with interrupts is especially important to pay attention to.
-It is compatible with optionally using a RTOS.
+It is compatible with optionally using an RTOS.
 
 General
 -------
 
-When writing code, keep in mind that the OS (if using a RTOS) may swap out your code at any time. Also, your code can be preempted by an interrupt at any time.
+When writing code, keep in mind that the OS (if using an RTOS) may swap out your code at any time. Also, your code can be preempted by an interrupt at any time.
 
 Application Code
 ----------------
 
-The USB core does not execute application callbacks while in an interrupt context. Calls to application code are from within the USB core task context. Note that the application core will call class drivers from within their own task.
+The USB core does not execute application callbacks while in an interrupt context. Calls to application code are from within the USB core task context. Note that the application core will call class drivers from within its own task.
 
 Class Drivers
 -------------
@@ -38,5 +38,5 @@ Much of the processing of the USB stack is done in an interrupt context, and car
 
 In particular:
 
-*  Ensure that all memory-mapped registers (including packet memory) are marked as volatile. GCC's optimizer will even combine memory access (like two 16-bit to be a 32-bit) if you don't mark the pointers as volatile. On some architectures, this can use macros like _I , _O , or _IO.
-*  All defined global variables are marked as  ``static``.
+*  Ensure that all memory-mapped registers (including packet memory) are marked as volatile. GCC's optimizer will even combine memory accesses (like two 16-bit to be a 32-bit) if you don't mark the pointers as volatile. On some architectures, this can use macros like _I , _O , or _IO.
+*  All defined global variables are marked as ``static``.

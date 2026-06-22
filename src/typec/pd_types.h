@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_PD_TYPES_H_
-#define _TUSB_PD_TYPES_H_
+#ifndef TUSB_PD_TYPES_H_
+#define TUSB_PD_TYPES_H_
 
 #ifdef __cplusplus
 extern "C" {

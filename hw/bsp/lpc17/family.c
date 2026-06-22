@@ -54,6 +54,8 @@ void board_init(void) {
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // Explicitly disable systick to prevent its ISR from running before scheduler start
+  SysTick->CTRL &= ~1U;
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   NVIC_SetPriority(USB_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
@@ -62,29 +64,13 @@ void board_init(void) {
   Chip_GPIO_SetPinDIROutput(LPC_GPIO, LED_PORT, LED_PIN);
   Chip_GPIO_SetPinDIRInput(LPC_GPIO, BUTTON_PORT, BUTTON_PIN);
 
-#if 0
   //------------- UART -------------//
-  PINSEL_CFG_Type PinCfg =
-  {
-      .Portnum   = 0,
-      .Pinnum    = 0, // TXD is P0.0
-      .Funcnum   = 2,
-      .OpenDrain = 0,
-      .Pinmode   = 0
-  };
-  PINSEL_ConfigPin(&PinCfg);
-
-  PinCfg.Portnum = 0;
-  PinCfg.Pinnum  = 1; // RXD is P0.1
-  PINSEL_ConfigPin(&PinCfg);
-
-  UART_CFG_Type UARTConfigStruct;
-  UART_ConfigStructInit(&UARTConfigStruct);
-  UARTConfigStruct.Baud_rate = CFG_BOARD_UART_BAUDRATE;
-
-  UART_Init(BOARD_UART_PORT, &UARTConfigStruct);
-  UART_TxCmd(BOARD_UART_PORT, ENABLE); // Enable UART Transmit
-#endif
+  // Pin muxing for UART3 (TXD3=P0.0, RXD3=P0.1) is configured in board.h pinmuxing[]
+  Chip_UART_Init(BOARD_UART_PORT);
+  Chip_UART_SetBaud(BOARD_UART_PORT, CFG_BOARD_UART_BAUDRATE);
+  Chip_UART_ConfigData(BOARD_UART_PORT, (UART_LCR_WLEN8 | UART_LCR_SBS_1BIT | UART_LCR_PARITY_DIS));
+  Chip_UART_SetupFIFOS(BOARD_UART_PORT, (UART_FCR_FIFO_EN | UART_FCR_TRG_LEV0));
+  Chip_UART_TXEnable(BOARD_UART_PORT);
 
   //------------- USB -------------//
   Chip_IOCON_SetPinMuxing(LPC_IOCON, pin_usb_mux, sizeof(pin_usb_mux) / sizeof(PINMUX_GRP_T));
@@ -96,7 +82,11 @@ void board_init(void) {
 //    0x1B // Host + Device + OTG + AHB
   };
 
-  uint32_t const clk_en = CFG_TUD_ENABLED ? USBCLK_DEVCIE : USBCLK_HOST;
+#if CFG_TUD_ENABLED
+  uint32_t const clk_en = USBCLK_DEVCIE;
+#else
+  uint32_t const clk_en = USBCLK_HOST;
+#endif
 
   LPC_USB->OTGClkCtrl = clk_en;
   while ((LPC_USB->OTGClkSt & clk_en) != clk_en) {}
@@ -119,17 +109,30 @@ uint32_t board_button_read(void) {
 }
 
 int board_uart_read(uint8_t* buf, int len) {
-//  return UART_ReceiveByte(BOARD_UART_PORT);
-  (void) buf;
-  (void) len;
-  return 0;
+  int count = 0;
+  while (count < len) {
+    if (BOARD_UART_PORT->LSR & UART_LSR_RDR) {
+      buf[count] = (uint8_t) BOARD_UART_PORT->RBR;
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
 }
 
 int board_uart_write(void const* buf, int len) {
-//  UART_Send(BOARD_UART_PORT, &c, 1, BLOCKING);
-  (void) buf;
-  (void) len;
-  return 0;
+  const uint8_t *p = (const uint8_t *) buf;
+  int count = 0;
+  while (count < len) {
+    if (BOARD_UART_PORT->LSR & UART_LSR_THRE) {
+      BOARD_UART_PORT->THR = p[count];
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
@@ -139,7 +142,7 @@ void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void) {
+uint32_t tusb_time_millis_api(void) {
   return system_ticks;
 }
 

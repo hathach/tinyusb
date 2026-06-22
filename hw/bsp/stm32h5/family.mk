@@ -1,6 +1,7 @@
 ST_FAMILY = h5
 ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
 ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
+ST_TCPP0203 = hw/mcu/st/stm32-tcpp0203
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m33
@@ -14,11 +15,11 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_STM32H5
 
 # GCC Flags
-CFLAGS_GCC += \
+CFLAGS += \
   -flto \
 
 # suppress warning caused by vendor mcu driver
-CFLAGS_GCC += \
+CFLAGS += \
   -Wno-error=cast-align \
   -Wno-error=undef \
   -Wno-error=unused-parameter \
@@ -26,7 +27,7 @@ CFLAGS_GCC += \
 CFLAGS_CLANG += \
   -Wno-error=parentheses-equality
 
-LDFLAGS_GCC += \
+LDFLAGS += \
   -nostdlib -nostartfiles \
   --specs=nosys.specs --specs=nano.specs
 
@@ -36,6 +37,8 @@ LDFLAGS_GCC += \
 
 SRC_C += \
 	src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
+	src/portable/st/stm32_fsdev/hcd_stm32_fsdev.c \
+	src/portable/st/stm32_fsdev/fsdev_common.c \
 	$(ST_CMSIS)/Source/Templates/system_stm32$(ST_FAMILY)xx.c \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal.c \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_cortex.c \
@@ -46,6 +49,7 @@ SRC_C += \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_uart.c \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_uart_ex.c \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_gpio.c \
+	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_i2c.c \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_dma.c
 
 INC += \
@@ -55,12 +59,10 @@ INC += \
 	$(TOP)/$(ST_HAL_DRIVER)/Inc
 
 # Startup
-SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_$(MCU_VARIANT).s
-SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_$(MCU_VARIANT).s
+SRC_S += $(ST_CMSIS)/Source/Templates/gcc/startup_$(MCU_VARIANT).s
 
 # Linker
-LD_FILE_IAR = $(ST_CMSIS)/Source/Templates/iar/linker/$(MCU_VARIANT)_flash.icf
-LD_FILE_GCC = $(FAMILY_PATH)/linker/$(MCU_VARIANT_UPPER)_FLASH.ld
+LD_FILE = $(FAMILY_PATH)/linker/$(MCU_VARIANT_UPPER)_FLASH.ld
 
 # flash target using on-board stlink
 flash: flash-stlink

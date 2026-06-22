@@ -6,10 +6,8 @@ set(PYOCD_TARGET LPC54114)
 
 set(LD_FILE_GNU ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/LPC54114J256_cm4_flash.ld)
 
-# Device port default to PORT1 Highspeed
-if (NOT DEFINED PORT)
-  set(PORT 1)
-endif()
+# Only Port 0 Full-Speed
+set(RHPORT_DEVICE 0)
 
 function(update_board TARGET)
   target_compile_definitions(${TARGET} PUBLIC

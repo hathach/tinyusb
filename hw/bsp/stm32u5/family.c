@@ -48,22 +48,47 @@ TU_ATTR_UNUSED static void Error_Handler(void) {
 
 #include "board.h"
 
+#ifdef UART_ID
+  #if UART_ID == 1
+    #define USARTn            USART1
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART1_CLK_ENABLE
+  #elif UART_ID == 2
+    #define USARTn            USART2
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART2_CLK_ENABLE
+  #elif UART_ID == 3
+    #define USARTn            USART3
+    #define UARTn_CLK_ENABLE  __HAL_RCC_USART3_CLK_ENABLE
+  #elif UART_ID == 11
+    #define USARTn            LPUART1
+    #define UARTn_CLK_ENABLE  __HAL_RCC_LPUART1_CLK_ENABLE
+  #endif
+#endif
+
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
+#ifdef USB_DRD_FS
+void USB_IRQHandler(void) {
+  tusb_int_handler(0, true);
+}
+#endif
+#ifdef USB_OTG_FS
 void OTG_FS_IRQHandler(void) {
-  tud_int_handler(0);
+  tusb_int_handler(0, true);
 }
-
+#endif
+#ifdef USB_OTG_HS
 void OTG_HS_IRQHandler(void) {
-  tud_int_handler(0);
+  tusb_int_handler(0, true);
 }
-
+#endif
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
 
+#ifdef UART_ID
 UART_HandleTypeDef UartHandle;
+#endif
 
 void board_init(void) {
   // Init clock, implemented in board.h
@@ -82,14 +107,15 @@ void board_init(void) {
   __HAL_RCC_GPIOG_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
 
-  UART_CLK_EN();
-
   /* Enable Instruction cache */
   HAL_ICACHE_Enable();
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
+#elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // Explicitly disable systick to prevent its ISR from running before scheduler start
+  SysTick->CTRL &= ~1U;
 #endif
 
   GPIO_InitTypeDef GPIO_InitStruct;
@@ -109,6 +135,7 @@ void board_init(void) {
   // IOSV bit MUST be set to access GPIO port G[2:15] */
   HAL_PWREx_EnableVddIO2();
 
+#ifdef UART_ID
   // Uart
   GPIO_InitStruct.Pin = UART_TX_PIN | UART_RX_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -117,7 +144,8 @@ void board_init(void) {
   GPIO_InitStruct.Alternate = UART_GPIO_AF;
   HAL_GPIO_Init(UART_GPIO_PORT, &GPIO_InitStruct);
 
-  UartHandle.Instance = UART_DEV;
+  UARTn_CLK_ENABLE();
+  UartHandle.Instance = USARTn;
   UartHandle.Init.BaudRate = CFG_BOARD_UART_BAUDRATE;
   UartHandle.Init.WordLength = UART_WORDLENGTH_8B;
   UartHandle.Init.StopBits = UART_STOPBITS_1;
@@ -129,6 +157,8 @@ void board_init(void) {
   UartHandle.Init.ClockPrescaler = UART_PRESCALER_DIV1;
   UartHandle.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
   HAL_UART_Init(&UartHandle);
+  HAL_UARTEx_EnableFifoMode(&UartHandle);
+#endif
 
   /* Configure USB GPIOs */
   /* Configure DM DP Pins */
@@ -169,17 +199,13 @@ void board_init(void) {
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  // Enable VBUS sense (B device) via pin PA9
-  USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN;
-  #else
-  // Disable VBUS sense (B device) via pin PA9
-  USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
-
-  // B-peripheral session valid override enable
-  USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
-  USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
   #endif // vbus sense
+
+#if CFG_TUD_ENABLED
+  tud_configure_dwc2_t cfg = CFG_TUD_CONFIGURE_DWC2_DEFAULT;
+  cfg.vbus_sensing = VBUS_SENSE_EN;
+  tud_configure(0, TUD_CFGID_DWC2, &cfg);
+#endif
 
   /* Enable USB power on Pwrctrl CR2 register */
   HAL_PWREx_EnableVddUSB();
@@ -208,13 +234,15 @@ void board_init(void) {
   /*Configuring the SYSCFG registers OTG_HS PHY*/
   HAL_SYSCFG_EnableOTGPHY(SYSCFG_OTG_HS_PHY_ENABLE);
 
-  // Disable VBUS sense (B device)
-  USB_OTG_HS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
-
-  // B-peripheral session valid override enable
-  USB_OTG_HS->GCCFG |= USB_OTG_GCCFG_VBVALEXTOEN;
-  USB_OTG_HS->GCCFG |= USB_OTG_GCCFG_VBVALOVAL;
+#if CFG_TUD_ENABLED
+  tud_configure_dwc2_t cfg = CFG_TUD_CONFIGURE_DWC2_DEFAULT;
+  cfg.vbus_sensing = VBUS_SENSE_EN;
+  tud_configure(0, TUD_CFGID_DWC2, &cfg);
+#endif
 #endif // USB_OTG_FS
+
+  /* Non-standard VBus sense settings */
+  board_vbus_sense_init();
 }
 
 //--------------------------------------------------------------------+
@@ -244,14 +272,40 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len) {
 }
 
 int board_uart_read(uint8_t *buf, int len) {
-  (void) buf;
-  (void) len;
+#ifdef UART_ID
+  int count = 0;
+  while (count < len) {
+    if (__HAL_UART_GET_FLAG(&UartHandle, UART_FLAG_RXNE)) {
+      buf[count] = (uint8_t) UartHandle.Instance->RDR;
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
+#else
+  (void) buf; (void) len;
   return 0;
+#endif
 }
 
 int board_uart_write(void const *buf, int len) {
-  HAL_UART_Transmit(&UartHandle, (uint8_t *) (uintptr_t) buf, len, 0xffff);
-  return len;
+#ifdef UART_ID
+  const uint8_t *p = (const uint8_t *) buf;
+  int count = 0;
+  while (count < len) {
+    if (__HAL_UART_GET_FLAG(&UartHandle, UART_FLAG_TXE)) {
+      UartHandle.Instance->TDR = p[count];
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
+#else
+  (void) buf; (void) len;
+  return -1;
+#endif
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
@@ -262,7 +316,7 @@ void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void) {
+uint32_t tusb_time_millis_api(void) {
   return system_ticks;
 }
 
