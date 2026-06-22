@@ -865,7 +865,7 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint
       /* FS must be less than or equal to max packet size */
       TU_VERIFY (tu_edpt_packet_size(ep) >= max_size);
 #ifdef TUP_DCD_EDPT_ISO_ALLOC
-      usbd_edpt_iso_activate(rhport, ep);
+      TU_ASSERT(usbd_edpt_iso_activate(rhport, ep));
 #else
       TU_ASSERT(usbd_edpt_open(rhport, ep));
 #endif

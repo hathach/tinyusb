@@ -53,5 +53,8 @@ jobs:
           # TEMPORARY: expose the full Claude transcript in the Actions log for
           # debugging. Revert to remove once done.
           show_full_output: true
-          claude_args: '--max-turns 50 --model claude-opus-4-8'
+          claude_args: |
+            --max-turns 50
+            --model claude-opus-4-8
+            --effort max
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md

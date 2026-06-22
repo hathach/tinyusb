@@ -168,14 +168,18 @@
   #define FSDEV_USE_SBUF_ISO 0
 #endif
 
-//--------------------------------------------------------------------+
-//
-//--------------------------------------------------------------------+
-
+// STM32L1 calls it USB_FS_WKUP_IRQn; alias so the commented USBWakeUp_IRQn below
+// can be uncommented as-is.
 #if TU_CHECK_MCU(OPT_MCU_STM32L1) && !defined(USBWakeUp_IRQn)
   #define USBWakeUp_IRQn USB_FS_WKUP_IRQn
 #endif
 
+// USB interrupt vectors to enable in NVIC. The EXTI-line USB wakeup interrupt
+// (USBWakeUp_IRQn, and USBWakeUp_RMP_IRQn on F3) is left commented out: resume is
+// handled in-band via ISTR.WKUP in the USB_LP/HP ISR; the EXTI line is only needed to
+// wake the core from STOP mode, which this driver does not implement (it never arms or
+// clears that EXTI line, so enabling its NVIC vector can only spuriously fire/freeze).
+// TODO: uncomment USBWakeUp_IRQn (+ arm/clear its EXTI line) when adding STOP-mode wakeup.
 static const IRQn_Type fsdev_irq[] = {
   #if TU_CHECK_MCU(OPT_MCU_STM32F0, OPT_MCU_STM32L0, OPT_MCU_STM32L4, OPT_MCU_STM32U5)
     USB_IRQn,
@@ -192,15 +196,15 @@ static const IRQn_Type fsdev_irq[] = {
   #elif CFG_TUSB_MCU == OPT_MCU_STM32F1
     USB_HP_CAN1_TX_IRQn,
     USB_LP_CAN1_RX0_IRQn,
-    USBWakeUp_IRQn,
+    //USBWakeUp_IRQn,
   #elif CFG_TUSB_MCU == OPT_MCU_STM32F3
     USB_HP_CAN_TX_IRQn,
     USB_LP_CAN_RX0_IRQn,
-    USBWakeUp_IRQn,
+    //USBWakeUp_IRQn,
   #elif TU_CHECK_MCU(OPT_MCU_STM32G4, OPT_MCU_STM32L1)
     USB_HP_IRQn,
     USB_LP_IRQn,
-    USBWakeUp_IRQn,
+    //USBWakeUp_IRQn,
   #elif CFG_TUSB_MCU == OPT_MCU_STM32WB
     USB_HP_IRQn,
     USB_LP_IRQn,
@@ -223,7 +227,7 @@ TU_ATTR_ALWAYS_INLINE static inline void fsdev_int_enable(uint8_t rhport) {
   if (SYSCFG->CFGR1 & SYSCFG_CFGR1_USB_IT_RMP) {
     NVIC_EnableIRQ(USB_HP_IRQn);
     NVIC_EnableIRQ(USB_LP_IRQn);
-    NVIC_EnableIRQ(USBWakeUp_RMP_IRQn);
+    //NVIC_EnableIRQ(USBWakeUp_RMP_IRQn);
   } else
   #endif
   {
@@ -243,7 +247,7 @@ TU_ATTR_ALWAYS_INLINE static inline void fsdev_int_disable(uint8_t rhport) {
   if (SYSCFG->CFGR1 & SYSCFG_CFGR1_USB_IT_RMP) {
     NVIC_DisableIRQ(USB_HP_IRQn);
     NVIC_DisableIRQ(USB_LP_IRQn);
-    NVIC_DisableIRQ(USBWakeUp_RMP_IRQn);
+    //NVIC_DisableIRQ(USBWakeUp_RMP_IRQn);
   } else
   #endif
   {
