@@ -171,10 +171,6 @@ jobs:
           mv metrics_compare.md $COMPARE_FILE
           gh release upload $CURR_TAG metrics.json $COMPARE_FILE
 
-      - name: Save PR number
-        if: github.event_name == 'pull_request'
-        run: echo ${{ github.event.number }} > pr_number.txt
-
       - name: Upload Metrics Comment Artifact
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v7
@@ -183,7 +179,6 @@ jobs:
           path: |
             metrics_compare.md
             metrics.json
-            pr_number.txt
 
       - name: Post Code Metrics as PR Comment
         if: (github.event_name == 'workflow_dispatch') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false)
@@ -420,45 +415,3 @@ jobs:
           path: hil_report.md
           if-no-files-found: ignore
           overwrite: true
-
-  # ---------------------------------------
-  # Combine HIL results from the rigs into a single sticky PR comment (one table per rig)
-  # ---------------------------------------
-  hil-report:
-    needs: [ hil-tinyusb, hil-hfp-iar ]
-    if: |
-      always() &&
-      (needs.hil-tinyusb.result != 'skipped' || needs.hil-hfp-iar.result != 'skipped') &&
-      github.event_name == 'pull_request' &&
-      github.repository_owner == 'hathach' &&
-      github.event.pull_request.head.repo.fork == false
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-    steps:
-      - name: Download HIL reports
-        uses: actions/download-artifact@v5
-        with:
-          pattern: hil-report-*
-          path: hil-reports
-
-      - name: Combine rig reports (one table per rig)
-        run: |
-          {
-            echo "## Hardware-in-the-loop (HIL) Test Report"
-            echo
-            for d in hil-reports/hil-report-*; do
-              [ -d "$d" ] || continue
-              echo "### ${d#hil-reports/hil-report-}"
-              echo
-              cat "$d/hil_report.md" 2>/dev/null || echo "_no report produced_"
-              echo
-            done
-          } > hil_combined.md
-          cat hil_combined.md
-
-      - name: Post HIL report as sticky PR comment
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          header: hil-report
-          path: hil_combined.md
