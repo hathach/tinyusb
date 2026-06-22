@@ -805,8 +805,16 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 
   rp2usb_critical_enter();
 
+  // Contract (hcd.h): true only if a transfer was actually aborted.
+  const bool had_xfer = (ep->state != EPSTATE_IDLE);
+
   if (ep->interrupt_num) {
     *dpram_int_ep_buffer_ctrl(ep->interrupt_num) = 0;
+    // Drain a completion latched during teardown (IN at even bit, OUT at odd)
+    // so it can't fire into the reset endpoint when IRQs re-enable.
+    const uint8_t bit_idx = (uint8_t)((ep->interrupt_num << 1u) |
+                                      (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN ? 0u : 1u));
+    usb_hw_clear->buf_status = TU_BIT(bit_idx);
     rp2usb_reset_transfer(ep);
   } else {
     if (ep->state == EPSTATE_ACTIVE && ep == epx) {
@@ -818,14 +826,23 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
       epx_rollback_pid(ep, bc);
       rp2usb_reset_transfer(ep);
 
-      // Clear any pending NAK/SOF round-robin state so a stale interrupt
-      // doesn't immediately dispatch another endpoint when IRQs re-enable.
+      // Drain latched EPX completion/error state so a stale bit can't fire a
+      // spurious completion into the now-idle EPX when IRQs re-enable.
+      usb_hw_clear->buf_status = EPX_BUF_STATUS_MASK;
+      usb_hw_clear->sie_status = SIE_STATUS_ERROR_CLEAR | USB_SIE_STATUS_STALL_REC_BITS;
+
+      // Drop any latched NAK round-robin state; the deferred dispatch below, not
+      // a stale NAK-stop, is what re-homes the scheduler.
   #ifdef HAS_STOP_EPX_ON_NAK
       usb_hw_clear->nak_poll = USB_NAK_POLL_EPX_STOPPED_ON_NAK_BITS |
                                USB_NAK_POLL_STOP_EPX_ON_NAK_BITS;
   #else
       epx_switch_request = false;
   #endif
+
+      // EPX is idle now: dispatch any endpoint queued behind the aborted one
+      // (deferred to the next SOF so the SIE settles after STOP_TRANS).
+      arm_deferred_dispatch();
     } else {
       ep->state         = EPSTATE_IDLE;
       ep->remaining_len = 0;
@@ -834,7 +851,7 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   }
 
   rp2usb_critical_exit();
-  return true;
+  return had_xfer;
 }
 
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *buffer, uint16_t buflen) {
