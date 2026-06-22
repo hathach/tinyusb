@@ -557,6 +557,12 @@
   #define TUP_USBIP_DWC2
   #define TUP_DCD_ENDPOINT_MAX 8
 
+#elif TU_CHECK_MCU(OPT_MCU_PSE84)
+  #define TUP_USBIP_DWC2
+  #define TUP_USBIP_DWC2_IFX
+  #define TUP_DCD_ENDPOINT_MAX            9
+  #define TUP_RHPORT_HIGHSPEED            1
+
 //--------------------------------------------------------------------+
 // BridgeTek
 //--------------------------------------------------------------------+
