@@ -255,7 +255,7 @@ deps_optional = {
                             'ch32f20x'],
     'hw/mcu/wch/ch583': ['https://github.com/openwch/ch583.git',
                          'bd508ad7ceed48377619837051412a651952857f',
-                         'ch58x'],
+                         'ch583'],
     'hw/mcu/artery/at32f403a_407': ['https://github.com/ArteryTek/AT32F403A_407_Firmware_Library.git',
                                     'f2cb360c3d28fada76b374308b8c4c61d37a090b',
                                     'at32f403a_407'],

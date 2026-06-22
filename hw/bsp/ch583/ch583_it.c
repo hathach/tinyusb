@@ -24,7 +24,7 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "ch58x_it.h"
+#include "ch583_it.h"
 
 // NMI exception handler
 __INTERRUPT __HIGH_CODE void NMI_Handler(void) {

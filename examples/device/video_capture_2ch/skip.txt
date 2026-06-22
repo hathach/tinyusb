@@ -5,7 +5,7 @@ mcu:GD32VF103
 mcu:CH32V103
 mcu:CH32V20X
 mcu:CH32V307
-mcu:CH58X
+mcu:CH583
 mcu:STM32L0
 family:espressif
 board:curiosity_nano

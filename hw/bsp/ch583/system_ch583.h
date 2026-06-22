@@ -24,23 +24,20 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef CH58X_IT_H_
-#define CH58X_IT_H_
+#ifndef SYSTEM_CH583_H_
+#define SYSTEM_CH583_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "CH58x_common.h"
+extern uint32_t SystemCoreClock;  // System Clock Frequency (Core Clock)
 
-void NMI_Handler(void);
-void HardFault_Handler(void);
-void USB_IRQHandler(void);
-// void USB2_IRQHandler(void); // host on USB2 (rhport 1) — re-add together with the host driver
-void SysTick_Handler(void);
+extern void SystemInit(void);
+extern void SystemCoreClockUpdate(void);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* CH58X_IT_H_ */
+#endif /* SYSTEM_CH583_H_ */

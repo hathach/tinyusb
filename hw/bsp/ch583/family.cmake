@@ -10,7 +10,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 set(CMAKE_SYSTEM_CPU rv32imac-ilp32 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/riscv_${TOOLCHAIN}.cmake)
 
-set(FAMILY_MCUS CH58X CACHE INTERNAL "")
+set(FAMILY_MCUS CH583 CACHE INTERNAL "")
 set(OPENOCD_OPTION "-f ${CMAKE_CURRENT_LIST_DIR}/wch-riscv.cfg")
 
 #------------------------------------
@@ -34,8 +34,8 @@ function(family_add_board BOARD_TARGET)
     ${SDK_SRC_DIR}/StdPeriphDriver/CH58x_clk.c
     ${SDK_SRC_DIR}/StdPeriphDriver/CH58x_uart1.c
     ${SDK_SRC_DIR}/StdPeriphDriver/CH58x_sys.c
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/ch58x_it.c
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/system_ch58x.c
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/ch583_it.c
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/system_ch583.c
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
     ${SDK_SRC_DIR}/RVMSIS
@@ -71,7 +71,7 @@ endfunction()
 #------------------------------------
 function(family_configure_example TARGET RTOS)
   family_configure_common(${TARGET} ${RTOS})
-  family_add_tinyusb(${TARGET} OPT_MCU_CH58X)
+  family_add_tinyusb(${TARGET} OPT_MCU_CH583)
 
   target_sources(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c

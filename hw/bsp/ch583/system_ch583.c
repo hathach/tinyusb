@@ -24,20 +24,16 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef SYSTEM_CH58X_H_
-#define SYSTEM_CH58X_H_
+#include "CH58x_common.h"
+#include "system_ch583.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+uint32_t SystemCoreClock = FREQ_SYS;
 
-extern uint32_t SystemCoreClock;  // System Clock Frequency (Core Clock)
-
-extern void SystemInit(void);
-extern void SystemCoreClockUpdate(void);
-
-#ifdef __cplusplus
+void SystemInit(void) {
+  SetSysClock(CLK_SOURCE_PLL_60MHz);
+  SystemCoreClock = GetSysClock();
 }
-#endif
 
-#endif /* SYSTEM_CH58X_H_ */
+void SystemCoreClockUpdate(void) {
+  SystemCoreClock = GetSysClock();
+}

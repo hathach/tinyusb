@@ -41,7 +41,7 @@
 
 #include "debug_uart.h"
 #include "CH58x_common.h"
-#include "ch58x_it.h"
+#include "ch583_it.h"
 
 #include "bsp/board_api.h"
 #include "board.h"

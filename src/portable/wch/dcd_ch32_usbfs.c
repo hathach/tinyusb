@@ -37,7 +37,7 @@
 
   // Struct-based EP register access (uniform layout). CH58X has a different register map and
   // defines EP_DMA/EP_TX_LEN/EP_CTRL itself in ch32_usbfs_reg.h.
-  #if CFG_TUSB_MCU == OPT_MCU_CH58X
+  #if CFG_TUSB_MCU == OPT_MCU_CH583
     // CH58X EP registers split into a low block (EP0-4) and a high block (EP5-7). Walk from each
     // block's first slot by the 4-byte slot stride (pointer arithmetic off slot 0, so the unused
     // ternary branch's index can't trip -Warray-bounds). EP4 has no DMA register of its own (it
@@ -220,7 +220,7 @@ static void update_in(uint8_t rhport, uint8_t ep, bool force) {
   if (xfer->valid) {
     if (force || xfer->len) {
       size_t len = TU_MIN(xfer->max_size, xfer->len);
-#if CFG_TUSB_MCU == OPT_MCU_CH58X
+#if CFG_TUSB_MCU == OPT_MCU_CH583
       // Every CH58x endpoint buffer is 64 bytes. Isochronous (which would push max_size up to 1023)
       // is refused in dcd_edpt_iso_alloc(), but some classes (e.g. video) ignore that result, so cap
       // the copy here to guarantee we never write past the buffer into a neighbouring endpoint's.
@@ -256,7 +256,7 @@ static void update_out(uint8_t rhport, uint8_t ep, size_t rx_len) {
   struct usb_xfer *xfer = &data.xfer[ep][TUSB_DIR_OUT];
   if (xfer->valid) {
     size_t len = TU_MIN(xfer->max_size, TU_MIN(xfer->len, rx_len));
-#if CFG_TUSB_MCU == OPT_MCU_CH58X
+#if CFG_TUSB_MCU == OPT_MCU_CH583
     len = TU_MIN(len, 64u); // cap to the 64-byte EP buffer (see update_in)
 #endif
     memcpy(xfer->buffer, ep_out_buf(ep), len);
@@ -308,7 +308,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   // enable other endpoints but NAK everything
   USBOTG_FS->UEP4_1_MOD = 0xCC;
   USBOTG_FS->UEP2_3_MOD = 0xCC;
-#if CFG_TUSB_MCU == OPT_MCU_CH58X
+#if CFG_TUSB_MCU == OPT_MCU_CH583
   // CH58X: a single mode register enables EP5/6/7 RX+TX (different bit layout than CH32).
   USBOTG_FS->UEP567_MOD = RB_UEP5_RX_EN | RB_UEP5_TX_EN | RB_UEP6_RX_EN | RB_UEP6_TX_EN |
                           RB_UEP7_RX_EN | RB_UEP7_TX_EN;
@@ -393,7 +393,7 @@ void dcd_int_handler(uint8_t rhport) {
 
     USBOTG_FS->INT_FG = USBFS_INT_FG_BUS_RST;
   } else if (status & USBFS_INT_FG_SUSPEND) {
-#if CFG_TUSB_MCU == OPT_MCU_CH58X
+#if CFG_TUSB_MCU == OPT_MCU_CH583
     // CH58x raises this single interrupt for both suspend and resume; MIS_ST's suspend bit tells
     // them apart (set while suspended, clear once resumed) so tud_resume_cb() actually fires.
     dcd_event_t event = {.rhport = rhport,
@@ -447,7 +447,7 @@ void dcd_edpt0_status_complete(uint8_t rhport, const tusb_control_request_t *req
   (void)rhport;
   if (request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_DEVICE &&
       request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD && request->bRequest == TUSB_REQ_SET_ADDRESS) {
-#if CFG_TUSB_MCU == OPT_MCU_CH58X
+#if CFG_TUSB_MCU == OPT_MCU_CH583
     // On CH58x R8_USB_DEV_AD bit 7 is a user general-purpose flag; only bits [6:0] are the address.
     USBOTG_FS->DEV_ADDR = (uint8_t)((USBOTG_FS->DEV_ADDR & 0x80u) | (request->wValue & 0x7Fu));
 #else
@@ -485,7 +485,7 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
   (void)rhport;
   (void)ep_addr;
   (void)largest_packet_size;
-#if CFG_TUSB_MCU == OPT_MCU_CH58X
+#if CFG_TUSB_MCU == OPT_MCU_CH583
   // No isochronous support on CH58x: its 8-bit T_LEN caps a packet at 255B and the endpoints use
   // plain 64-byte buffers, so accepting an iso max_size (up to 1023) would let update_in()/
   // update_out() run off the end of the buffer into neighbouring ones. Refuse it outright.
@@ -503,7 +503,7 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
 bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
   (void)rhport;
   (void)desc_ep;
-#if CFG_TUSB_MCU == OPT_MCU_CH58X
+#if CFG_TUSB_MCU == OPT_MCU_CH583
   return false; // CH58x has no isochronous support (see dcd_edpt_iso_alloc)
 #else
   return true;

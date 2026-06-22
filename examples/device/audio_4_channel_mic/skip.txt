@@ -3,4 +3,4 @@ mcu:SAME5X
 mcu:SAMG
 family:broadcom_64bit
 family:espressif
-mcu:CH58X
+mcu:CH583

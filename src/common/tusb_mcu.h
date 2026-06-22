@@ -659,7 +659,7 @@
     #define TUP_DCD_EDPT_CLOSE_API
   #endif
 
-#elif TU_CHECK_MCU(OPT_MCU_CH58X)
+#elif TU_CHECK_MCU(OPT_MCU_CH583)
   // CH582/583 USBFS: older WCH USBFS IP with a single combined per-endpoint control register
   // (like CH32V103), driven by the shared dcd_ch32_usbfs.c on USB0 (rhport 0). Device only:
   // the shared hcd_ch32_usbfs.c is CH32V20x-specific and does not support CH58x, so host /

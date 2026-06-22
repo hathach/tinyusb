@@ -19,7 +19,7 @@ CFLAGS += \
 	-mno-save-restore \
 	-fmessage-length=0 \
 	-fsigned-char \
-	-DCFG_TUSB_MCU=OPT_MCU_CH58X \
+	-DCFG_TUSB_MCU=OPT_MCU_CH583 \
 	-DCFG_TUD_WCH_USBIP_USBFS=1 \
 	-DFREQ_SYS=60000000 \
 	-DDISK_LIB_ENABLE=0 \
@@ -39,8 +39,8 @@ SRC_C += \
 	$(SDK_SRC_DIR)/StdPeriphDriver/CH58x_uart1.c \
 	$(SDK_SRC_DIR)/StdPeriphDriver/CH58x_sys.c \
 	$(FAMILY_PATH)/debug_uart.c \
-	$(FAMILY_PATH)/ch58x_it.c \
-	$(FAMILY_PATH)/system_ch58x.c
+	$(FAMILY_PATH)/ch583_it.c \
+	$(FAMILY_PATH)/system_ch583.c
 
 SRC_S += \
 	$(SDK_SRC_DIR)/Startup/startup_CH583.S
