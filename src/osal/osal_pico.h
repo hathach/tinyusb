@@ -65,9 +65,6 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_spin_init(osal_spinlock_t *ctx) {
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_deinit(osal_spinlock_t *ctx) {
-  // Release the hardware spinlock claimed by critical_section_init. Without this,
-  // every tuh_init()/tuh_deinit() cycle leaks one spinlock (RP2350's pool is
-  // small), so a few host rebuilds exhaust it and hw_claim_unused_from_range panics.
   critical_section_deinit(ctx);
 }
 
