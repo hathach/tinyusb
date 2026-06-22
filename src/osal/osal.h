@@ -82,7 +82,8 @@ typedef void (*osal_task_func_t)(void* param);
     osal_task_handle_t osal_task_get_current_handle(void);
 
     void osal_spin_init(osal_spinlock_t *ctx);
-    void osal_spin_lock(osal_spinlock_t *ctx, bool in_isr)
+    void osal_spin_deinit(osal_spinlock_t *ctx);
+    void osal_spin_lock(osal_spinlock_t *ctx, bool in_isr);
     void osal_spin_unlock(osal_spinlock_t *ctx, bool in_isr);
 
     osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semdef);

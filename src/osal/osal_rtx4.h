@@ -77,6 +77,10 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_spin_init(osal_spinlock_t *ctx) {
   (void) ctx;
 }
 
+TU_ATTR_ALWAYS_INLINE static inline void osal_spin_deinit(osal_spinlock_t *ctx) {
+  (void) ctx;
+}
+
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_lock(osal_spinlock_t *ctx, bool in_isr) {
   (void) ctx; (void) in_isr;
 }

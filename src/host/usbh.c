@@ -652,6 +652,8 @@ bool tuh_deinit(uint8_t rhport) {
     osal_mutex_delete(_usbh_mutex);
     _usbh_mutex = NULL;
   #endif
+
+    osal_spin_deinit(&_usbh_spin);
   }
 
   return true;
