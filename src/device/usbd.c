@@ -593,6 +593,8 @@ bool tud_deinit(uint8_t rhport) {
   _usbd_mutex = NULL;
 #endif
 
+  osal_spin_deinit(&_usbd_spin);
+
   _usbd_rhport = RHPORT_INVALID;
 
   return true;
