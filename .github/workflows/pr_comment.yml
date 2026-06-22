@@ -7,11 +7,41 @@ on:
       - completed
 
 jobs:
-  metrics-comment:
+  # Resolve the PR number from trusted workflow_run metadata, NOT from build artifacts: a forked PR
+  # controls its own Build run and could plant any number, which the privileged jobs below would
+  # then post to. Same-repo PRs populate workflow_run.pull_requests; for forks it is empty, so look
+  # the PR up by the trusted head SHA.
+  pr_number:
+    if: github.event.workflow_run.event == 'pull_request'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      number: ${{ steps.resolve.outputs.number }}
+    steps:
+      - name: Resolve PR number
+        id: resolve
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SAME_REPO_PR: ${{ github.event.workflow_run.pull_requests[0].number }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          if [ -n "$SAME_REPO_PR" ]; then
+            echo "number=$SAME_REPO_PR" >> "$GITHUB_OUTPUT"
+          else
+            # Fork PR: match the trusted head SHA to an open PR in this repo.
+            num=$(gh api "repos/${{ github.repository }}/commits/$HEAD_SHA/pulls" \
+              --jq '[.[] | select(.state == "open" and .head.sha == env.HEAD_SHA)][0].number // empty')
+            echo "number=$num" >> "$GITHUB_OUTPUT"
+          fi
+
+  metrics-comment:
+    needs: pr_number
     if: >
-      github.event.workflow_run.event == 'pull_request' &&
-      github.event.workflow_run.conclusion == 'success'
+      github.event.workflow_run.conclusion == 'success' &&
+      needs.pr_number.outputs.number != ''
+    runs-on: ubuntu-latest
     permissions:
       actions: read
       pull-requests: write
@@ -25,35 +55,26 @@ jobs:
         # Best-effort: docs-only PRs skip code-metrics, so the artifact may be absent.
         continue-on-error: true
 
-      - name: Read PR Number
-        id: pr_number
-        run: |
-          if [ -f pr_number.txt ]; then
-            echo "number=$(cat pr_number.txt)" >> $GITHUB_OUTPUT
-          fi
-
       - name: Post Code Metrics as PR Comment
-        if: steps.pr_number.outputs.number != ''
+        if: hashFiles('metrics_compare.md') != ''
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           header: code-metrics
           path: metrics_compare.md
-          number: ${{ steps.pr_number.outputs.number }}
+          number: ${{ needs.pr_number.outputs.number }}
 
   # ---------------------------------------
   # Combine the rigs' HIL reports into one sticky PR comment (one table per rig).
   # Runs here (workflow_run / base-repo context) rather than in build.yml so it also works on
   # forked PRs, whose build-side GITHUB_TOKEN is read-only and cannot post comments. Posts even
   # on build/HIL failure (when the report matters most); skips only on cancellation.
-  # workflow_run.pull_requests is empty for forks, so each hil-report-* artifact carries its own
-  # pr_number.txt (written in build.yml); the comment is self-contained and survives an unrelated
-  # build/metrics failure on both same-repo and forked PRs.
   # ---------------------------------------
   hil-comment:
-    runs-on: ubuntu-latest
+    needs: pr_number
     if: >
-      github.event.workflow_run.event == 'pull_request' &&
-      github.event.workflow_run.conclusion != 'cancelled'
+      github.event.workflow_run.conclusion != 'cancelled' &&
+      needs.pr_number.outputs.number != ''
+    runs-on: ubuntu-latest
     permissions:
       actions: read
       pull-requests: write
@@ -66,18 +87,6 @@ jobs:
           pattern: hil-report-*
           path: hil-reports
         continue-on-error: true
-
-      - name: Read PR Number
-        id: pr_number
-        run: |
-          # Each hil-report-* artifact carries its own pr_number.txt (see build.yml), so any rig's
-          # copy works and they are all the same number.
-          for f in hil-reports/hil-report-*/pr_number.txt; do
-            if [ -f "$f" ]; then
-              echo "number=$(cat "$f")" >> $GITHUB_OUTPUT
-              break
-            fi
-          done
 
       - name: Combine rig reports (one table per rig)
         id: combine
@@ -104,12 +113,12 @@ jobs:
           zwsp=$(printf '\342\200\213')
           sed -i -E "s/@([A-Za-z0-9_-])/@${zwsp}\1/g" hil_combined.md
           cat hil_combined.md
-          echo "found=true" >> $GITHUB_OUTPUT
+          echo "found=true" >> "$GITHUB_OUTPUT"
 
       - name: Post HIL report as sticky PR comment
-        if: steps.combine.outputs.found == 'true' && steps.pr_number.outputs.number != ''
+        if: steps.combine.outputs.found == 'true'
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           header: hil-report
           path: hil_combined.md
-          number: ${{ steps.pr_number.outputs.number }}
+          number: ${{ needs.pr_number.outputs.number }}
