@@ -24,17 +24,24 @@ jobs:
         id: resolve
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SAME_REPO_PR: ${{ github.event.workflow_run.pull_requests[0].number }}
+          REPO: ${{ github.repository }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_REPO: ${{ github.event.workflow_run.head_repository.full_name }}
+          PRS_JSON: ${{ toJSON(github.event.workflow_run.pull_requests) }}
         run: |
-          if [ -n "$SAME_REPO_PR" ]; then
-            echo "number=$SAME_REPO_PR" >> "$GITHUB_OUTPUT"
-          else
-            # Fork PR: match the trusted head SHA to an open PR in this repo.
-            num=$(gh api "repos/${{ github.repository }}/commits/$HEAD_SHA/pulls" \
-              --jq '[.[] | select(.state == "open" and .head.sha == env.HEAD_SHA)][0].number // empty')
-            echo "number=$num" >> "$GITHUB_OUTPUT"
+          # Every lookup is best-effort: on any miss the number stays empty and the comment jobs
+          # below simply skip (never a failed check).
+          # Same-repo PRs: workflow_run.pull_requests is populated.
+          num=$(printf '%s' "$PRS_JSON" | jq -r '.[0].number // empty')
+          # Fork PRs: pull_requests is empty. Find the open PR by its trusted head ref and confirm
+          # its head SHA matches the built commit.
+          if [ -z "$num" ] && [ -n "$HEAD_BRANCH" ] && [ -n "$HEAD_REPO" ]; then
+            num=$(gh api --method GET "repos/$REPO/pulls" \
+              -f state=open -f head="${HEAD_REPO%%/*}:$HEAD_BRANCH" \
+              --jq '[.[] | select(.head.sha == env.HEAD_SHA)][0].number // empty' 2>/dev/null || true)
           fi
+          echo "number=$num" >> "$GITHUB_OUTPUT"
 
   metrics-comment:
     needs: pr_number
