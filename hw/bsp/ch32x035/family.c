@@ -160,7 +160,7 @@ int board_uart_write(const void *buf, int len) {
   const uint8_t *p     = (const uint8_t *)buf;
   int            count = 0;
   while (count < len) {
-    if (USART_GetFlagStatus(UART_DEV, USART_FLAG_TC) != RESET) {
+    if (USART_GetFlagStatus(UART_DEV, USART_FLAG_TXE) != RESET) {
       USART_SendData(UART_DEV, p[count]);
       count++;
     } else {
