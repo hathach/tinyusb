@@ -418,7 +418,9 @@ void dcd_int_handler(uint8_t rhport) {
     if (token == USBHS_TOKEN_PID_SOF) {
       uint32_t frame_count = USBHSD->FRAME_NO & USBHS_FRAME_NO_NUM_MASK;
       dcd_event_sof(rhport, frame_count, true);
-    } else if (token == USBHS_TOKEN_PID_OUT) {
+    // Drop an OUT packet whose data toggle doesn't match what we expect -- a host retransmit
+    // after a lost ACK, or a host that doesn't alternate DATA0/DATA1.
+    } else if (token == USBHS_TOKEN_PID_OUT && (int_status & USBHS_DEV_UIS_TOG_OK)) {
       update_out(rhport, ep_num, len);
     } else if (token == USBHS_TOKEN_PID_IN) {
       update_in(rhport, ep_num, false);
