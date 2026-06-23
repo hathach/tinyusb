@@ -19,6 +19,9 @@
 
 Makefile text
 
+# Shell scripts must stay LF even when core.autocrlf=true (CRLF breaks bash)
+*.sh text eol=lf
+
 # Windows-only Visual Studio things
 
 *.sln        text eol=crlf

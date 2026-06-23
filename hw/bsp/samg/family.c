@@ -27,15 +27,17 @@
    manufacturer: Microchip
 */
 
-#include "sam.h"
 
 // Suppress warning caused by mcu driver
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wcast-qual"
 #pragma GCC diagnostic ignored "-Wredundant-decls"
+#pragma GCC diagnostic ignored "-Wconversion"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
 #endif
 
+#include "sam.h"
 #include "peripheral_clk_config.h"
 #include "hal/include/hal_init.h"
 #include "hal/include/hpl_usart_sync.h"

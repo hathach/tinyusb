@@ -37,7 +37,11 @@
 
 #include "esp_intr_alloc.h"
 #include "soc/periph_defs.h"
+
+// ESP32-S31 does not have USB_WRAP peripheral (HS-only with UTMI PHY)
+#if !TU_CHECK_MCU(OPT_MCU_ESP32S31)
 #include "soc/usb_wrap_struct.h"
+#endif
 
 #if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
 #define DWC2_FS_REG_BASE   0x60080000UL
@@ -74,6 +78,14 @@ static const dwc2_controller_t _dwc2_controller[] = {
 static const dwc2_controller_t _dwc2_controller[] = {
   { .reg_base = DWC2_FS_REG_BASE, .irqnum = ETS_USB_OTG11_CH0_INTR_SOURCE, .ep_count = 7, .ep_in_count = 5, .otg_dfifo_depth = 256 },
   { .reg_base = DWC2_HS_REG_BASE, .irqnum = ETS_USB_OTG_INTR_SOURCE, .ep_count = 16, .ep_in_count = 8, .otg_dfifo_depth = 1024 }
+};
+
+#elif TU_CHECK_MCU(OPT_MCU_ESP32S31)
+#define DWC2_HS_REG_BASE   0x20300000UL
+#define DWC2_EP_MAX        16
+
+static const dwc2_controller_t _dwc2_controller[] = {
+  { .reg_base = DWC2_HS_REG_BASE, .irqnum = ETS_USB_OTGHS_INTR_SOURCE, .ep_count = 16, .ep_in_count = 8, .otg_dfifo_depth = 1024 }
 };
 #endif
 

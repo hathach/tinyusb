@@ -6,6 +6,7 @@ fro
 hsi
 inout
 mot
+ore
 pris
 ptd
 ser

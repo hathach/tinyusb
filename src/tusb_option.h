@@ -98,6 +98,7 @@
 #define OPT_MCU_STM32N6           319 ///< ST N6
 #define OPT_MCU_STM32WBA          320 ///< ST WBA
 #define OPT_MCU_STM32U3           321 ///< ST U3
+#define OPT_MCU_STM32C5           322 ///< ST C5
 
 // Sony
 #define OPT_MCU_CXD56             400 ///< SONY CXD56
@@ -134,6 +135,7 @@
 #define OPT_MCU_ESP32C5           908 ///< Espressif ESP32-C5
 #define OPT_MCU_ESP32C61          909 ///< Espressif ESP32-C61
 #define OPT_MCU_ESP32H4           910 ///< Espressif ESP32-H4
+#define OPT_MCU_ESP32S31          911 ///< Espressif ESP32-S31
 
 // Dialog
 #define OPT_MCU_DA1469X          1000 ///< Dialog Semiconductor DA1469x
@@ -193,6 +195,8 @@
 #define OPT_MCU_CH32F20X         2210 ///< WCH CH32F20x
 #define OPT_MCU_CH32V20X         2220 ///< WCH CH32V20X
 #define OPT_MCU_CH32V103         2230 ///< WCH CH32V103
+#define OPT_MCU_CH583            2240 ///< WCH CH583
+#define OPT_MCU_CH582            OPT_MCU_CH583 ///< WCH CH582 (alias, same USB IP as CH583)
 
 // NXP LPC MCX
 #define OPT_MCU_MCXN9            2300  ///< NXP MCX N9 Series
@@ -534,6 +538,18 @@
   #define CFG_TUSB_OS           OPT_OS_NONE
 #endif
 
+// 1 when CFG_TUSB_OS provides a preemptive scheduler with distinct tasks
+// (FreeRTOS, Zephyr, ThreadX, etc.); 0 when the application is single-context
+// (bare-metal OS_NONE or Pico SDK). Sync host control xfers from the host
+// task are forbidden when this is 1.
+#ifndef CFG_TUSB_OS_HAS_SCHEDULER
+  #if CFG_TUSB_OS == OPT_OS_NONE || CFG_TUSB_OS == OPT_OS_PICO
+    #define CFG_TUSB_OS_HAS_SCHEDULER 0
+  #else
+    #define CFG_TUSB_OS_HAS_SCHEDULER 1
+  #endif
+#endif
+
 #ifndef CFG_TUSB_OS_INC_PATH
   #ifndef CFG_TUSB_OS_INC_PATH_DEFAULT
   #define CFG_TUSB_OS_INC_PATH_DEFAULT
@@ -643,6 +659,10 @@
 
 #ifndef CFG_TUD_MIDI
   #define CFG_TUD_MIDI            0
+#endif
+
+#ifndef CFG_TUD_MIDI2
+  #define CFG_TUD_MIDI2           0
 #endif
 
 #ifndef CFG_TUD_VENDOR
@@ -812,6 +832,22 @@
 
 #ifndef CFG_TUH_MIDI
   #define CFG_TUH_MIDI   0
+#endif
+
+#ifndef CFG_TUH_MIDI2
+  #define CFG_TUH_MIDI2  0
+#endif
+
+#ifndef CFG_TUH_MIDI2_RX_BUFSIZE
+  #define CFG_TUH_MIDI2_RX_BUFSIZE TUH_EPSIZE_BULK_MAX
+#endif
+
+#ifndef CFG_TUH_MIDI2_TX_BUFSIZE
+  #define CFG_TUH_MIDI2_TX_BUFSIZE TUH_EPSIZE_BULK_MAX
+#endif
+
+#ifndef CFG_TUH_MIDI2_LOG_LEVEL
+  #define CFG_TUH_MIDI2_LOG_LEVEL CFG_TUH_LOG_LEVEL
 #endif
 
 #ifndef CFG_TUH_MSC

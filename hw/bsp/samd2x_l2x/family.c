@@ -79,7 +79,7 @@
 
 #ifdef SAMD21_FAMILY
 /* Referenced GCLKs, should be initialized firstly */
-#define _GCLK_INIT_1ST (1 << 0 | 1 << 1)
+#define _GCLK_INIT_1ST (1u << 0 | 1u << 1)
 /* Not referenced GCLKs, initialized last */
 #define _GCLK_INIT_LAST (~_GCLK_INIT_1ST)
 #endif

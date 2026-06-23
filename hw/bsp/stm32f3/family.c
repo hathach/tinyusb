@@ -76,9 +76,10 @@ void USB_LP_IRQHandler(void) {
 
 // USB wakeup interrupt (Channel 76): Triggered by the wakeup event from the USB
 // Suspend mode.
-void USBWakeUp_RMP_IRQHandler(void) {
-  tud_int_handler(0);
-}
+// Not enabled by the fsdev driver (see fsdev_stm32.h); restore for STOP-mode wakeup.
+//void USBWakeUp_RMP_IRQHandler(void) {
+//  tud_int_handler(0);
+//}
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
@@ -222,7 +223,7 @@ int board_uart_write(void const* buf, int len) {
   return count;
 #else
   (void) buf; (void) len;
-  return 0;
+  return -1;
 #endif
 }
 

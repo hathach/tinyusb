@@ -36,7 +36,7 @@ static void board_uart_init(void) {
   // BAUDRATE = 115200, with SystemCoreClock = 50 Mhz refer manual for calculation
   //  - BRDI = SystemCoreClock / (16* baud)
   //  - BRDF = int(fraction*64 + 0.5)
-  UART0->CTL &= ~(1 << 0);                     // Disable UART0 by clearing UARTEN bit in the UARTCTL register
+  UART0->CTL &= ~(1U << 0);                     // Disable UART0 by clearing UARTEN bit in the UARTCTL register
   UART0->IBRD = 27;                            // Write the integer portion of the BRD to the UARTIRD register
   UART0->FBRD = 8;                             // Write the fractional portion of the BRD to the UARTFBRD registerer
 
@@ -58,6 +58,14 @@ static void board_button_init(GPIOA_Type* port, uint8_t PinMsk) {
 
   /* Set direction */
   port->DIR &= ~PinMsk;
+
+  /* Enable internal pull so the idle state is deterministic. LaunchPad buttons
+   * connect the pin to GND when pressed (active-low) and require a pull-up. */
+#if BUTTON_STATE_ACTIVE == 0
+  port->PUR |= PinMsk;
+#else
+  port->PDR |= PinMsk;
+#endif
 }
 
 static void board_led_init(GPIOA_Type* port, uint8_t PinMsk, uint8_t dirmsk) {

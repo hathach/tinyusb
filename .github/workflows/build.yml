@@ -9,11 +9,8 @@ on:
     types: [ published ]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
-
-env:
-  HIL_JSON: test/hil/tinyusb.json
 
 jobs:
   # Check if the code changes and we need to run ci build
@@ -59,11 +56,12 @@ jobs:
         id: set-matrix-json
         run: |
           # build matrix
-          MATRIX_JSON=$(python .github/workflows/ci_set_matrix.py)/
+          MATRIX_JSON=$(python .github/workflows/ci_set_matrix.py)
           echo "matrix=$MATRIX_JSON"
           echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
-          # hil matrix
-          HIL_MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py ${{ env.HIL_JSON }})
+
+          # HIL matrix (merged from tinyusb + hifiphile configs)
+          HIL_MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py test/hil/tinyusb.json test/hil/hfp.json)
           echo "hil_matrix=$HIL_MATRIX_JSON"
           echo "hil_matrix=$HIL_MATRIX_JSON" >> $GITHUB_OUTPUT
 
@@ -173,10 +171,6 @@ jobs:
           mv metrics_compare.md $COMPARE_FILE
           gh release upload $CURR_TAG metrics.json $COMPARE_FILE
 
-      - name: Save PR number
-        if: github.event_name == 'pull_request'
-        run: echo ${{ github.event.number }} > pr_number.txt
-
       - name: Upload Metrics Comment Artifact
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v7
@@ -185,7 +179,6 @@ jobs:
           path: |
             metrics_compare.md
             metrics.json
-            pr_number.txt
 
       - name: Post Code Metrics as PR Comment
         if: (github.event_name == 'workflow_dispatch') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false)
@@ -193,6 +186,36 @@ jobs:
         with:
           header: code-metrics
           path: metrics_compare.md
+
+  # ---------------------------------------
+  # Keep the metrics baseline available on no-code-change pushes
+  # The code-metrics job only runs (and uploads metrics-tinyusb) when code changed, so a
+  # workflow/docs-only push to master would leave the latest run without a baseline for PRs
+  # to compare against. Carry the previous artifact forward so the baseline is never missing.
+  # ---------------------------------------
+  metrics-carry-forward:
+    needs: [ check-paths ]
+    if: github.event_name == 'push' && needs.check-paths.outputs.code_changed != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download previous metrics baseline from this branch
+        uses: dawidd6/action-download-artifact@v11
+        with:
+          workflow: build.yml
+          workflow_conclusion: ''      # any conclusion, matching the PR-side baseline download
+          search_artifacts: true       # scan back past runs that lack the artifact (e.g. earlier no-code pushes)
+          branch: ${{ github.ref_name }}
+          name: metrics-tinyusb
+          path: .
+          if_no_artifact_found: warn
+        continue-on-error: true        # best-effort: never make a no-code push red
+
+      - name: Re-publish baseline so the latest run keeps it
+        if: hashFiles('metrics.json') != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: metrics-tinyusb
+          path: metrics.json
 
   # ---------------------------------------
   # Build Make/CMake on Windows/MacOS
@@ -239,7 +262,7 @@ jobs:
 
   # ---------------------------------------
   # Hardware in the loop (HIL)
-  # Run on PR only (hil-tinyusb), hil-hfp only run on non-forked PR
+  # Run on PR only (hil-tinyusb), hil-hfp-iar only run on non-forked PR
   # ---------------------------------------
   hil-build:
     needs: [ check-paths, set-matrix ]
@@ -250,6 +273,7 @@ jobs:
       matrix:
         toolchain:
           - 'arm-gcc'
+          - 'riscv-gcc'
           - 'esp-idf'
     with:
       build-system: 'cmake'
@@ -263,8 +287,24 @@ jobs:
   # ---------------------------------------
   hil-tinyusb:
     needs: hil-build
-    runs-on: [ self-hosted, X64, hathach, hardware-in-the-loop ]
+    name: hil-tinyusb (${{ matrix.display }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - display: tinyusb.json
+            runner: [ self-hosted, X64, hathach, hardware-in-the-loop ]
+            hil_json: test/hil/tinyusb.json
+          - display: hfp.json
+            runner: [ self-hosted, Linux, X64, hifiphile ]
+            hil_json: test/hil/hfp.json
+    runs-on: ${{ matrix.runner }}
+    env:
+      HIL_JSON: ${{ matrix.hil_json }}
     steps:
+      - name: Set HIL report dir (sibling of workspace; persists across run attempts)
+        run: echo "HIL_REPORT_DIR=$(dirname "$GITHUB_WORKSPACE")/hil-report" >> "$GITHUB_ENV"
+
       - name: Get Skip Boards from previous run
         if: github.run_attempt != '1'
         run: |
@@ -303,25 +343,36 @@ jobs:
             exit 1
           fi)
 
+      - name: Upload HIL report
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: hil-report-${{ matrix.display }}
+          path: ${{ env.HIL_REPORT_DIR }}/hil_report.md
+          if-no-files-found: ignore
+          overwrite: true
+
   # ---------------------------------------
   # Hardware in the loop (HIL)
   # self-hosted by HFP, build with IAR toolchain, for attached hardware checkout test/hil/hfp.json
   # Since IAR Token secret is not passed to forked PR, only build non-forked PR
   # ---------------------------------------
-  hil-hfp:
+  hil-hfp-iar:
     needs: [ check-paths ]
     if: |
       needs.check-paths.outputs.code_changed == 'true' &&
       github.repository_owner == 'hathach' &&
       !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true)
     runs-on: [ self-hosted, Linux, X64, hifiphile ]
+    timeout-minutes: 30
     env:
       IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
+      PYTHONUNBUFFERED: '1'
     steps:
       - name: Clean workspace
         run: |
           echo "Cleaning up previous run"
-          rm -rf "${{ github.workspace }}"3
+          rm -rf "${{ github.workspace }}"
           mkdir -p "${{ github.workspace }}"
 
       - name: Toolchain version
@@ -342,7 +393,25 @@ jobs:
         run: python3 tools/get_deps.py $BUILD_ARGS
 
       - name: Build
-        run: python3 tools/build.py --toolchain iar $BUILD_ARGS
+        run: |
+          # Each variant carries its own --build-name/--cflag, which are global to a
+          # single build.py invocation — so build one matrix entry at a time rather
+          # than joining them (joining would leak a variant's flags onto every board).
+          readarray -t ENTRIES < <(python test/hil/hil_ci_set_matrix.py test/hil/hfp.json | jq -r '.["arm-gcc"][]')
+          for entry in "${ENTRIES[@]}"; do
+            echo "+ tools/build.py --toolchain iar $entry"
+            python3 tools/build.py --toolchain iar $entry
+          done
 
       - name: Test on actual hardware (hardware in the loop)
-        run: python3 test/hil/hil_test.py hfp.json
+        run: |
+          python3 test/hil/hil_test.py hfp.json
+
+      - name: Upload HIL report
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: hil-report-hfp-iar
+          path: hil_report.md
+          if-no-files-found: ignore
+          overwrite: true

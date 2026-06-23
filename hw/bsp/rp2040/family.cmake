@@ -93,13 +93,13 @@ target_sources(tinyusb_device_base INTERFACE
 		${TOP}/src/portable/raspberrypi/rp2040/dcd_rp2040.c
 		${TOP}/src/portable/raspberrypi/rp2040/rp2040_usb.c
 		${TOP}/src/device/usbd.c
-		${TOP}/src/device/usbd_control.c
 		${TOP}/src/class/audio/audio_device.c
 		${TOP}/src/class/cdc/cdc_device.c
 		${TOP}/src/class/dfu/dfu_device.c
 		${TOP}/src/class/dfu/dfu_rt_device.c
 		${TOP}/src/class/hid/hid_device.c
 		${TOP}/src/class/midi/midi_device.c
+		${TOP}/src/class/midi/midi2_device.c
 		${TOP}/src/class/msc/msc_device.c
 		${TOP}/src/class/mtp/mtp_device.c
 		${TOP}/src/class/net/ecm_rndis_device.c
@@ -122,6 +122,7 @@ target_sources(tinyusb_host_base INTERFACE
 		${TOP}/src/class/cdc/cdc_host.c
 		${TOP}/src/class/hid/hid_host.c
 		${TOP}/src/class/midi/midi_host.c
+		${TOP}/src/class/midi/midi2_host.c
 		${TOP}/src/class/msc/msc_host.c
 		${TOP}/src/class/vendor/vendor_host.c
 		)

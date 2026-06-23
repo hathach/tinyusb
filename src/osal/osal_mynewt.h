@@ -36,6 +36,12 @@
 //--------------------------------------------------------------------+
 // TASK API
 //--------------------------------------------------------------------+
+typedef struct os_task* osal_task_handle_t;
+
+TU_ATTR_ALWAYS_INLINE static inline osal_task_handle_t osal_task_get_current_handle(void) {
+  return os_sched_get_current_task();
+}
+
 TU_ATTR_ALWAYS_INLINE static inline void osal_task_delay(uint32_t msec) {
   os_time_delay( os_time_ms_to_ticks32(msec) );
 }

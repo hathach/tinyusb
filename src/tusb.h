@@ -63,6 +63,10 @@
     #include "class/midi/midi_host.h"
   #endif
 
+  #if CFG_TUH_MIDI2
+    #include "class/midi/midi2_host.h"
+  #endif
+
   #if CFG_TUH_VENDOR
     #include "class/vendor/vendor_host.h"
   #endif
@@ -106,6 +110,10 @@
 
   #if CFG_TUD_MIDI
     #include "class/midi/midi_device.h"
+  #endif
+
+  #if CFG_TUD_MIDI2
+    #include "class/midi/midi2_device.h"
   #endif
 
   #if CFG_TUD_VENDOR

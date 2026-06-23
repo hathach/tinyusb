@@ -266,6 +266,7 @@ STMicroelectronics
 Board                Name                               Family     URL                                                                Note
 ===================  =================================  =========  =================================================================  ======
 stm32c071nucleo      STM32C071 Nucleo                   stm32c0    https://www.st.com/en/evaluation-tools/nucleo-c071rb.html
+stm32c542nucleo      STM32C542 Nucleo                   stm32c5    https://www.st.com/en/evaluation-tools/nucleo-c542rc.html
 stm32f070rbnucleo    STM32 F070 Nucleo                  stm32f0    https://www.st.com/en/evaluation-tools/nucleo-f070rb.html
 stm32f072disco       STM32 F072 Discovery               stm32f0    https://www.st.com/en/evaluation-tools/32f072bdiscovery.html
 stm32f072eval        STM32 F072 Eval                    stm32f0    https://www.st.com/en/evaluation-tools/stm32072b-eval.html
@@ -369,4 +370,5 @@ ch32v203g_r0_1v0  CH32V203G-R0-1v0  ch32v20x  https://github.com/openwch/ch32v20
 nanoch32v203      nanoCH32V203      ch32v20x  https://github.com/wuxx/nanoCH32V203
 ch32v307v_r1_1v0  CH32V307V-R1-1v0  ch32v30x  https://github.com/openwch/ch32v307/tree/main/SCHPCB/CH32V307V-R1-1v0
 nanoch32v305      nanoCH32V305      ch32v30x  https://github.com/wuxx/nanoCH32V305
+yd-ch582m         yd-ch582m         ch583     http://vcc-gnd.com
 ================  ================  ========  =====================================================================  ======

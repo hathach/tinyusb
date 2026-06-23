@@ -105,16 +105,14 @@ def print_build_result(board, build_target, status, duration):
 # -----------------------------
 # CMake
 # -----------------------------
-def cmake_board(board, build_args, build_flags_on, build_targets):
+def cmake_board(board, build_args, build_name, build_cflags, build_targets):
     ret = [0, 0, 0]
     start_time = time.monotonic()
 
-    build_dir = f'cmake-build/cmake-build-{board}'
+    build_dir = f'cmake-build/cmake-build-{build_name or board}'
     build_flags = []
-    if len(build_flags_on) > 0:
-        cli_flags = ' '.join(f'-D{flag}=1' for flag in build_flags_on)
-        build_flags.append(f'-DCFLAGS_CLI={cli_flags}')
-        build_dir += '-f1_' + '_'.join(build_flags_on)
+    if build_cflags:
+        build_flags.append('-DCFLAGS_CLI=' + ' '.join(build_cflags))
 
     family = find_family(board)
     if family == 'espressif':
@@ -194,13 +192,13 @@ def make_board(board, build_args, build_targets):
 # -----------------------------
 # Build Family
 # -----------------------------
-def build_boards_list(boards, build_defines, build_system, build_flags_on, build_targets):
+def build_boards_list(boards, build_defines, build_system, build_name, build_cflags, build_targets):
     ret = [0, 0, 0]
     for b in boards:
         r = [0, 0, 0]
         if build_system == 'cmake':
             build_args = [f'-D{d}' for d in build_defines]
-            r = cmake_board(b, build_args, build_flags_on, build_targets)
+            r = cmake_board(b, build_args, build_name, build_cflags, build_targets)
         elif build_system == 'make':
             build_args = ' '.join(f'{d}' for d in build_defines)
             r = make_board(b, build_args, build_targets)
@@ -261,7 +259,10 @@ def main():
     parser.add_argument('-t', '--toolchain', default='gcc', help='Toolchain to use, default is gcc')
     parser.add_argument('-s', '--build-system', default='cmake', help='Build system to use, default is cmake')
     parser.add_argument('-D', '--define-symbol', action='append', default=[], help='Define to pass to build system')
-    parser.add_argument('-f1', '--build-flags-on', action='append', default=[], help='Build flag to pass to build system')
+    parser.add_argument('--build-name', default=None,
+                        help='Override build dir name (cmake-build-<name>); default is the board name. Used for HIL variants.')
+    parser.add_argument('--cflag', action='append', default=[],
+                        help='Raw compiler flag appended to CFLAGS_CLI, e.g. --cflag=-DCFG_TUD_DWC2_DMA_ENABLE=1 (repeatable)')
     parser.add_argument('--one-random', action='store_true', default=False,
                         help='Build only one random board of each specified family')
     parser.add_argument('--one-first', action='store_true', default=False,
@@ -277,7 +278,8 @@ def main():
     toolchain = args.toolchain
     build_system = args.build_system
     build_defines = args.define_symbol
-    build_flags_on = args.build_flags_on
+    build_name = args.build_name
+    build_cflags = args.cflag
     one_random = args.one_random
     one_first = args.one_first
     build_targets = args.target if args.target else ['all']
@@ -288,6 +290,12 @@ def main():
 
     if len(families) == 0 and len(boards) == 0:
         print("Please specify families or board to build")
+        return 1
+
+    # --build-name renames the single shared build dir, so building more than one
+    # board with it would clobber/mix artifacts
+    if build_name and (len(families) > 0 or len(boards) != 1):
+        print("--build-name requires exactly one board (-b) and no families")
         return 1
 
     print(build_separator)
@@ -310,7 +318,7 @@ def main():
         all_boards.extend(get_family_boards(f, one_random, one_first))
 
     # build all boards
-    result = build_boards_list(all_boards, build_defines, build_system, build_flags_on, build_targets)
+    result = build_boards_list(all_boards, build_defines, build_system, build_name, build_cflags, build_targets)
 
     total_time = time.monotonic() - total_time
     print(build_separator)

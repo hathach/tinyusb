@@ -16,6 +16,7 @@ set(EXAMPLE_LIST
   cdc_dual_ports
   cdc_msc
   cdc_msc_freertos
+  cdc_msc_throughput
   cdc_uac2
   dfu
   dfu_runtime
@@ -27,6 +28,7 @@ set(EXAMPLE_LIST
   hid_multiple_interface
   midi_test
   midi_test_freertos
+  midi2_device
   msc_dual_lun
   mtp
   net_lwip_webserver

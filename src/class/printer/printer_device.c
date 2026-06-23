@@ -41,7 +41,6 @@ typedef struct {
   uint8_t itf_num;
 
   /*------------- From this point, data is not cleared by bus reset -------------*/
-
   tu_edpt_stream_t rx_stream;
   tu_edpt_stream_t tx_stream;
 

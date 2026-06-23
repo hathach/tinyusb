@@ -63,9 +63,11 @@ void USB_LP_IRQHandler(void) {
   tud_int_handler(0);
 }
 
-void USBWakeUp_IRQHandler(void) {
-  tud_int_handler(0);
-}
+// USB wakeup EXTI IRQ is not enabled by the fsdev driver (see fsdev_stm32.h);
+// restore when STOP-mode wakeup is implemented.
+//void USBWakeUp_IRQHandler(void) {
+//  tud_int_handler(0);
+//}
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
@@ -128,7 +130,7 @@ void board_init(void) {
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   NVIC_SetPriority(USB_HP_CAN1_TX_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
   NVIC_SetPriority(USB_LP_CAN1_RX0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
-  NVIC_SetPriority(USBWakeUp_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+  //NVIC_SetPriority(USBWakeUp_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 #endif
 
   // LED
@@ -246,7 +248,7 @@ int board_uart_write(void const *buf, int len) {
   return count;
 #else
   (void) buf; (void) len;
-  return 0;
+  return -1;
 #endif
 }
 
