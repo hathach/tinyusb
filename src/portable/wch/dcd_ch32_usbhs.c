@@ -59,6 +59,7 @@ static xfer_ctl_t xfer_status[EP_MAX][2];
 TU_ATTR_ALIGNED(4) static uint8_t ep0_buffer[CFG_TUD_ENDPOINT0_SIZE];
 static bool ep0_tog;
 static bool ep_data_tog[EP_MAX][2];
+static bool reset_evt_pending;
 
 static void set_ep_toggle(uint8_t ep_num, tusb_dir_t ep_dir, bool data1) {
   if (ep_dir == TUSB_DIR_IN) {
@@ -424,6 +425,23 @@ void dcd_int_handler(uint8_t rhport) {
     }
     USBHSD->INT_FG = (int_flag & USBHS_TRANSFER_FLAG); /* Clear flag */
   } else if (int_flag & USBHS_SETUP_FLAG) {
+    if (reset_evt_pending) {
+      reset_evt_pending = false;
+      tusb_speed_t actual_speed;
+      switch(USBHSD->SPEED_TYPE & USBHS_SPEED_TYPE_MASK){
+        case USBHS_SPEED_TYPE_FULL:
+          actual_speed = TUSB_SPEED_FULL;
+          break;
+        case USBHS_SPEED_TYPE_LOW:
+          actual_speed = TUSB_SPEED_LOW;
+          break;
+        default:
+          actual_speed = TUSB_SPEED_HIGH;
+          break;
+      }
+      dcd_event_bus_reset(0, actual_speed, true);
+    }
+
     tusb_control_request_t const* setup =
         (tusb_control_request_t const*) ep0_buffer;
     ep0_tog = true;
@@ -434,27 +452,9 @@ void dcd_int_handler(uint8_t rhport) {
 
     USBHSD->INT_FG = USBHS_SETUP_FLAG; /* Clear flag */
   } else if (int_flag & USBHS_BUS_RST_FLAG) {
-    // TODO CH32 does not detect actual speed at this time (should be known at end of reset)
-    // This interrupt probably triggered at start of bus reset
-    //    tusb_speed_t actual_speed;
-    //    switch(USBHSD->SPEED_TYPE & USBHS_SPEED_TYPE_MASK){
-    //      case USBHS_SPEED_TYPE_HIGH:
-    //        actual_speed = TUSB_SPEED_HIGH;
-    //        break;
-    //      case USBHS_SPEED_TYPE_FULL:
-    //        actual_speed = TUSB_SPEED_FULL;
-    //        break;
-    //      case USBHS_SPEED_TYPE_LOW:
-    //        actual_speed = TUSB_SPEED_LOW;
-    //        break;
-    //      default:
-    //        TU_ASSERT(0,);
-    //        break;
-    //    }
-    //    dcd_event_bus_reset(0, actual_speed, true);
-
-    dcd_event_bus_reset(0, TUSB_SPEED_HIGH, true);
-
+    // This interrupt probably triggered at start of bus reset before the speed negotiation has completed.
+    // Defer the bus reset event until the next setup packet is received in order to determine the actual speed of the bus.
+    reset_evt_pending = true;
     USBHSD->DEV_AD = 0;
     memset(ep_data_tog, 0, sizeof(ep_data_tog));
     ep0_tog = true;
