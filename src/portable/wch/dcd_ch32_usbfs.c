@@ -66,8 +66,7 @@
     // There's a gap between EP4 and EP5 registers.
     #define EP_DMA(ep)     (*ch32_usbfs_ep_dma_reg(ep))
     #define EP_TX_LEN(ep)  ((&USBOTG_FS->UEP0_TX_LEN)[2 * (ep) + ((ep) > 4 ? 24 : 0)])
-    #define EP_TX_CTRL(ep) ((&USBOTG_FS->UEP0_CTRL_H)[2 * (ep) + ((ep) > 4 ? 24 : 0)])
-    #define EP_RX_CTRL(ep) EP_TX_CTRL(ep)
+    #define EP_CTRL(ep)    ((&USBOTG_FS->UEP0_CTRL_H)[2 * (ep) + ((ep) > 4 ? 24 : 0)])
   #else
     #define EP_DMA(ep)     ((&USBOTG_FS->UEP0_DMA)[ep])
     #define EP_TX_LEN(ep)  ((&USBOTG_FS->UEP0_TX_LEN)[2 * ep])
@@ -79,10 +78,6 @@
 // endpoint; others have a single combined UEPn_CTRL register. These helpers hide the difference.
 // Values use the newer-IP encoding (USBFS_EP_T_*/USBFS_EP_R_*); the combined path remaps them.
 #ifdef CH32_USBFS_EP_CTRL_COMBINED
-  #ifndef EP_CTRL // parts with a custom register map (CH58X) define EP_CTRL directly in reg.h
-  #define EP_CTRL(ep) EP_TX_CTRL(ep) // UEPn_TX_CTRL field aliases the combined UEPn_CTRL register
-  #endif
-
   static inline uint8_t ep_tx_to_comb(uint8_t v) {
     uint8_t c = v & USBFS_EP_T_RES_MASK; // IN response: bits [1:0] in both encodings
     if (v & USBFS_EP_T_TOG)      { c |= USBFS_EPC_T_TOG; }
@@ -326,11 +321,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   // enable other endpoints but NAK everything
   USBOTG_FS->UEP4_1_MOD = 0xCC;
   USBOTG_FS->UEP2_3_MOD = 0xCC;
-#if CFG_TUSB_MCU == OPT_MCU_CH583
-  // CH58X: a single mode register enables EP5/6/7 RX+TX (different bit layout than CH32).
-  USBOTG_FS->UEP567_MOD = RB_UEP5_RX_EN | RB_UEP5_TX_EN | RB_UEP6_RX_EN | RB_UEP6_TX_EN |
-                          RB_UEP7_RX_EN | RB_UEP7_TX_EN;
-#elif CFG_TUSB_MCU == OPT_MCU_CH32X035
+#if CFG_TUSB_MCU == OPT_MCU_CH583 || CFG_TUSB_MCU == OPT_MCU_CH32X035
   USBOTG_FS->UEP567_MOD = 0x3F;
 #else
   USBOTG_FS->UEP5_6_MOD = 0xCC;
