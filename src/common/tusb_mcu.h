@@ -659,6 +659,11 @@
   #define TUP_USBIP_WCH_USBFS
   #define TUP_USBD_XFER_ISR 0
 
+  // USBFS can act as host (v307 has no USBHS host IP), same as v20x
+  #ifndef CFG_TUH_WCH_USBIP_USBFS
+    #define CFG_TUH_WCH_USBIP_USBFS 1
+  #endif
+
   #if !defined(CFG_TUD_WCH_USBIP_USBFS)
     #define CFG_TUD_WCH_USBIP_USBFS 0
   #endif
