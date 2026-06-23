@@ -121,9 +121,7 @@
 
   #define USBOTG_FS ((USBOTG_FS_TypeDef *) 0x40023400)
 
-  // CH32V103 has the older USBFS IP: a single combined control register per endpoint
-  // (UEPn_CTRL) instead of separate TX_CTRL/RX_CTRL bytes. The struct's UEPn_TX_CTRL field
-  // aliases that combined register (same address); UEPn_RX_CTRL maps to unused padding.
+  // CH32V103 has one combined UEPn_CTRL byte at the TX_CTRL offset.
   #define CH32_USBFS_EP_CTRL_COMBINED 1
 #elif CFG_TUSB_MCU == OPT_MCU_CH32V20X
   #include <ch32v20x.h>
@@ -132,15 +130,10 @@
   #define USBHD_IRQn OTG_FS_IRQn
 #elif CFG_TUSB_MCU == OPT_MCU_CH583
   #include "CH58x_common.h"
-  // CH582/583 USBFS device controller: same combined per-endpoint control register as
-  // CH32V103 (IN response bits[1:0], OUT response bits[3:2]) but a different register map -
-  // the EP control/length block sits lower (EP0_CTRL @ +0x22), EP5-7 are split out, EP4
-  // shares EP0's DMA buffer, and EP5/6/7 mode bits live in one UEP567_MOD. The control/status
-  // block matches CH32. Two FS controllers exist (USB @ 0x40008000, USB2 @ 0x40008400); the
-  // device uses USB0. Full register map per CH583/582 datasheet Table 17-2; the parameterized
-  // EP_* macros below index off these named fields.
+  // CH58x uses a combined UEPn_CTRL byte, with split EP blocks and EP4 sharing EP0 DMA.
+  // Device mode uses USB0.
   #define CH58X_USBFS_BASE  0x40008000u
-  // Per-endpoint register slots, 4-byte stride each; the EP_* macros index arrays of these.
+  // Per-endpoint slots use a 4-byte stride.
   typedef struct {
     __IO uint16_t DMA;              // R16_UEPn_DMA: endpoint n buffer start address
     __IO uint16_t reserved;
@@ -175,7 +168,7 @@
   } USBOTG_FS_TypeDef;
   #define USBOTG_FS  ((USBOTG_FS_TypeDef *) CH58X_USBFS_BASE)
 
-  // 4-byte slot stride + these block offsets pin every EP register to its datasheet address.
+  // Catch accidental register-layout drift.
   TU_VERIFY_STATIC(sizeof(ch58x_ep_dma_t)  == 4, "CH58x EP DMA slot must be 4 bytes");
   TU_VERIFY_STATIC(sizeof(ch58x_ep_ctrl_t) == 4, "CH58x EP ctrl slot must be 4 bytes");
   TU_VERIFY_STATIC(offsetof(USBOTG_FS_TypeDef, EP_DMA_0_3)  == 0x10, "CH58x EP_DMA_0_3 @0x10");
@@ -184,12 +177,9 @@
   TU_VERIFY_STATIC(offsetof(USBOTG_FS_TypeDef, EP_CTRL_5_7) == 0x64, "CH58x EP_CTRL_5_7 @0x64");
 
   #define CH32_USBFS_EP_CTRL_COMBINED 1
-  // CH58x's hardware AUTO_TOG does not stay in sync (notably across clear-stall and multi-packet
-  // bulk transfers), causing data-toggle mismatch and bus resets. Drive the toggle manually in
-  // the ISR instead. CH32V103/V20x/V307 keep AUTO_TOG (this macro is undefined for them).
+  // Hardware AUTO_TOG is unreliable on CH58x; toggle in the ISR instead.
   #define CH32_USBFS_EP_MANUAL_TOG    1
-  // CH58x EP4 has no DMA register of its own: it overlays EP0's DMA region as
-  // EP0[0:63] + EP4_OUT[64:127] + EP4_IN[128:191], so EP0 needs a 192-byte buffer.
+  // EP4 has no DMA register; it overlays EP0's DMA region.
   #define CH32_USBFS_EP4_SHARES_EP0   1
   #define USBHD_IRQn USB_IRQn
   #ifndef NVIC_EnableIRQ
