@@ -81,7 +81,16 @@ Reference: `CH32V30X Reference Manual`_ USBFS/USBHS controller chapter
 
 The controllers have no FIFO for transfer completion status. A later isochronous transfer can
 overwrite ``INT_ST`` and ``RX_LEN`` before software finishes processing the previous transfer,
-causing data corruption.
+causing data corruption. Other transfer types are not affected.
+
+Partial workaround:
+
+- Keep the USB interrupt at the highest interrupt priority.
+- Force full speed (``dev_init.speed = TUSB_SPEED_FULL`` in ``tusb_init()``, see
+  :ref:`item 2 <wch-usbhs-interrupt-starvation>`) to give software more time to process a transfer
+  before the next one completes.
+- Keep the configuration simple, e.g. a single isochronous endpoint, to shorten the processing
+  time of each transfer.
 
 .. _wch-usbhs-interrupt-starvation:
 
