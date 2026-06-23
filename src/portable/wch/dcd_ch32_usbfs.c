@@ -74,6 +74,10 @@
 // Combined: V103/CH58X/X035
 // Split: V20x/V307
 #ifdef CH32_USBFS_EP_CTRL_COMBINED
+  #ifndef EP_CTRL
+    #define EP_CTRL(ep) EP_TX_CTRL(ep)
+  #endif
+
   static inline uint8_t ep_tx_to_comb(uint8_t v) {
     uint8_t c = v & USBFS_EP_T_RES_MASK; // IN response: bits [1:0] in both encodings
     if (v & USBFS_EP_T_TOG)      { c |= USBFS_EPC_T_TOG; }
@@ -224,10 +228,9 @@ static void update_in(uint8_t rhport, uint8_t ep, bool force) {
   if (xfer->valid) {
     if (force || xfer->len) {
       size_t len = TU_MIN(xfer->max_size, xfer->len);
-#if CFG_TUSB_MCU == OPT_MCU_CH583
-      // Every CH58x endpoint buffer is 64 bytes. Isochronous (which would push max_size up to 1023)
-      // is refused in dcd_edpt_iso_alloc(), but some classes (e.g. video) ignore that result, so cap
-      // the copy here to guarantee we never write past the buffer into a neighbouring endpoint's.
+#if CFG_TUSB_MCU == OPT_MCU_CH583 || CFG_TUSB_MCU == OPT_MCU_CH32X035
+      // These variants only have 64-byte endpoint buffers. Cap the copy here to guarantee we never
+      // write past the buffer into a neighbouring endpoint's.
       len = TU_MIN(len, 64u);
 #endif
       memcpy(ep_in_buf(ep), xfer->buffer, len);
@@ -260,7 +263,7 @@ static void update_out(uint8_t rhport, uint8_t ep, size_t rx_len) {
   struct usb_xfer *xfer = &data.xfer[ep][TUSB_DIR_OUT];
   if (xfer->valid) {
     size_t len = TU_MIN(xfer->max_size, TU_MIN(xfer->len, rx_len));
-#if CFG_TUSB_MCU == OPT_MCU_CH583
+#if CFG_TUSB_MCU == OPT_MCU_CH583 || CFG_TUSB_MCU == OPT_MCU_CH32X035
     len = TU_MIN(len, 64u); // cap to the 64-byte EP buffer (see update_in)
 #endif
     memcpy(xfer->buffer, ep_out_buf(ep), len);
@@ -488,6 +491,9 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
   // update_out() run off the end of the buffer into neighbouring ones. Refuse it outright.
   return false;
 #else
+  #if CFG_TUSB_MCU == OPT_MCU_CH32X035
+  if (largest_packet_size > 64u) { return false; }
+  #endif
   uint8_t ep  = tu_edpt_number(ep_addr);
   uint8_t dir = tu_edpt_dir(ep_addr);
 
@@ -503,6 +509,9 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
 #if CFG_TUSB_MCU == OPT_MCU_CH583
   return false; // CH58x has no isochronous support (see dcd_edpt_iso_alloc)
 #else
+  #if CFG_TUSB_MCU == OPT_MCU_CH32X035
+  if (tu_edpt_packet_size(desc_ep) > 64u) { return false; }
+  #endif
   return true;
 #endif
 }
