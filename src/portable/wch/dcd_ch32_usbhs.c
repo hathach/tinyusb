@@ -176,7 +176,6 @@ static void update_out(uint8_t rhport, uint8_t ep_num, uint16_t rx_len) {
 
 bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   (void)rhport;
-  (void)rh_init;
 
   memset(&xfer_status, 0, sizeof(xfer_status));
   memset(ep_data_tog, 0, sizeof(ep_data_tog));
@@ -187,12 +186,15 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
 
   USBHSD->CONTROL = 0;
 
-  #if TUD_OPT_HIGH_SPEED
-  USBHSD->CONTROL = USBHS_DMA_EN | USBHS_INT_BUSY_EN | USBHS_HIGH_SPEED;
-  #else
-    #error OPT_MODE_FULL_SPEED not currently supported on CH32
-  USBHSD->CONTROL = USBHS_DMA_EN | USBHS_INT_BUSY_EN | USBHS_FULL_SPEED;
-  #endif
+  if (rh_init->speed == TUSB_SPEED_HIGH || rh_init->speed == TUSB_SPEED_AUTO) {
+    USBHSD->CONTROL = USBHS_DMA_EN | USBHS_INT_BUSY_EN | USBHS_HIGH_SPEED;
+  } else if (rh_init->speed == TUSB_SPEED_FULL) {
+    USBHSD->CONTROL = USBHS_DMA_EN | USBHS_INT_BUSY_EN | USBHS_FULL_SPEED;
+  } else if (rh_init->speed == TUSB_SPEED_LOW) {
+    USBHSD->CONTROL = USBHS_DMA_EN | USBHS_INT_BUSY_EN | USBHS_LOW_SPEED;
+  } else {
+    return false;
+  }
 
   USBHSD->INT_EN = 0;
   USBHSD->INT_EN = USBHS_SETUP_ACT_EN | USBHS_TRANSFER_EN | USBHS_BUS_RST_EN | USBHS_SUSPEND_EN;
