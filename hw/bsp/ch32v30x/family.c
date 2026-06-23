@@ -61,9 +61,18 @@ __attribute__((interrupt)) void USBHS_IRQHandler(void) {
   #endif
 }
 
-__attribute__((interrupt)) void OTG_FS_IRQHandler(void) {
-  #if CFG_TUD_WCH_USBIP_USBFS
+// The startup vector table names this vector USBFS_IRQHandler (OTG_FS_IRQn ==
+// USBFS_IRQn == 83 on CH32V307). The OTG_FS register block is shared between the
+// full-speed device (USBFSD) and host (USBFSH) views, so route the IRQ to
+// whichever stack owns the USBFS controller in this build. (Previously this was
+// named OTG_FS_IRQHandler, which is NOT the symbol the vector table references,
+// so it was never installed — host-on-USBFS got no interrupts.)
+__attribute__((interrupt)) void USBFS_IRQHandler(void) {
+  #if CFG_TUD_ENABLED && defined(CFG_TUD_WCH_USBIP_USBFS) && CFG_TUD_WCH_USBIP_USBFS
   tud_int_handler(0);
+  #endif
+  #if CFG_TUH_ENABLED && defined(CFG_TUH_WCH_USBIP_USBFS) && CFG_TUH_WCH_USBIP_USBFS
+  tuh_int_handler(BOARD_TUH_RHPORT, true);
   #endif
 }
 
@@ -71,23 +80,20 @@ __attribute__((interrupt)) void OTG_FS_IRQHandler(void) {
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
 
-static uint32_t SysTick_Config(uint32_t ticks) {
-  NVIC_EnableIRQ(SysTicK_IRQn);
-  SysTick->CTLR = 0;
-  SysTick->SR = 0;
-  SysTick->CNT = 0;
-  SysTick->CMP = ticks - 1;
-  SysTick->CTLR = 0xF;
-  return 0;
-}
-
 void board_init(void) {
 
   /* Disable interrupts during init */
   __disable_irq();
 
 #if CFG_TUSB_OS == OPT_OS_NONE
-  SysTick_Config(SystemCoreClock / 1000);
+  // Free-running 64-bit SysTick (HCLK), no interrupt. board_millis() reads CNT
+  // directly (below), so the 1ms SysTick interrupt is neither used nor wanted.
+  // This stays compatible with an application HAL that reconfigures SysTick to the
+  // same free-running mode for its own time source.
+  SysTick->CTLR = 0;
+  SysTick->CNT  = 0;
+  SysTick->CMP  = 0xFFFFFFFFFFFFFFFFULL;
+  SysTick->CTLR = (1u << 0) | (1u << 2);
 #endif
 
   usart_printf_init(CFG_BOARD_UART_BAUDRATE);
@@ -145,7 +151,15 @@ __attribute__((interrupt)) void SysTick_Handler(void) {
 }
 
 uint32_t tusb_time_millis_api(void) {
-  return system_ticks;
+  // Derive ms from the free-running 64-bit SysTick CNT (HCLK rate) rather than
+  // the interrupt-driven `system_ticks`. An application that reconfigures SysTick
+  // to free-running mode WITHOUT the 1ms interrupt freezes `system_ticks` — and
+  // every tusb_time_delay_ms_api() that waits on board_millis() would then hang
+  // forever (breaking host enumeration delays).
+  // CNT keeps advancing in either SysTick mode, so this is always correct.
+  uint32_t per_ms = SystemCoreClock / 1000u;
+  if (per_ms == 0) per_ms = 1;
+  return (uint32_t) ((uint64_t) SysTick->CNT / per_ms);
 }
 
 #endif
