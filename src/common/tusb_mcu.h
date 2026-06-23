@@ -589,6 +589,7 @@
 #elif TU_CHECK_MCU(OPT_MCU_CH32F20X)
   #define TUP_USBIP_WCH_USBHS
   #define TUP_USBIP_WCH_USBFS
+  #define TUP_USBD_XFER_ISR 0
 
   #if !defined(CFG_TUD_WCH_USBIP_USBFS)
     #define CFG_TUD_WCH_USBIP_USBFS 0
@@ -607,6 +608,7 @@
 
 #elif TU_CHECK_MCU(OPT_MCU_CH32V103)
   #define TUP_USBIP_WCH_USBFS
+  #define TUP_USBD_XFER_ISR 0
 
   #if !defined(CFG_TUD_WCH_USBIP_USBFS)
     #define CFG_TUD_WCH_USBIP_USBFS 1
@@ -617,6 +619,7 @@
 #elif TU_CHECK_MCU(OPT_MCU_CH32V20X)
   // v20x support both port0 FSDEV (USBD) and port1 USBFS
   #define TUP_USBIP_WCH_USBFS
+  #define TUP_USBD_XFER_ISR 0
 
   #ifndef CFG_TUH_WCH_USBIP_USBFS
     #define CFG_TUH_WCH_USBIP_USBFS 1
@@ -643,6 +646,7 @@
   // v307 support both FS and HS, default to HS
   #define TUP_USBIP_WCH_USBHS
   #define TUP_USBIP_WCH_USBFS
+  #define TUP_USBD_XFER_ISR 0
 
   #if !defined(CFG_TUD_WCH_USBIP_USBFS)
     #define CFG_TUD_WCH_USBIP_USBFS 0
@@ -665,6 +669,7 @@
   // the shared hcd_ch32_usbfs.c is CH32V20x-specific and does not support CH58x, so host /
   // USB2 (rhport 1) is not provided here.
   #define TUP_USBIP_WCH_USBFS
+  #define TUP_USBD_XFER_ISR 0
 
   #ifndef CFG_TUD_WCH_USBIP_USBFS
     #define CFG_TUD_WCH_USBIP_USBFS 1
@@ -774,4 +779,10 @@
 // Backward-compatible alias: legacy code only tests defined(TUD_ENDPOINT_ONE_DIRECTION_ONLY)
 #if CFG_TUD_ENDPOINT_ONE_DIRECTION_ONLY && !defined(TUD_ENDPOINT_ONE_DIRECTION_ONLY)
   #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
+#endif
+
+// Enable xfer_isr callback in usbd for handling transfer completion in ISR context.
+// Set to 0 for DCDs that cannot safely re-arm transfers from within their own ISR (e.g. WCH).
+#ifndef TUP_USBD_XFER_ISR
+  #define TUP_USBD_XFER_ISR 1
 #endif
