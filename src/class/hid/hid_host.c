@@ -704,6 +704,10 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, 
       size = 4; // HID 1.11 6.2.2.2 3 is 4 bytes
     }
 
+    // item data must fit in the remaining descriptor; a truncated item would
+    // read past the buffer and underflow desc_len below
+    if (size > desc_len) break;
+
     uint8_t const data8 = (size > 0) ? desc_report[0] : 0;
 
     TU_LOG(3, "tag = %d, type = %d, size = %d, data = ", tag, type, size);
@@ -738,7 +742,12 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, 
         switch (tag) {
           case RI_GLOBAL_USAGE_PAGE:
             // only take in account the "usage page" before REPORT ID
-            if (ri_collection_depth == 0) memcpy(&info->usage_page, desc_report, size);
+            if (ri_collection_depth == 0) {
+              // zero-extend: a shorter payload must not leave a stale high byte
+              // from a previous usage page item in the same report
+              info->usage_page = 0;
+              memcpy(&info->usage_page, desc_report, TU_MIN(size, sizeof(info->usage_page)));
+            }
             break;
 
           case RI_GLOBAL_LOGICAL_MIN: break;
