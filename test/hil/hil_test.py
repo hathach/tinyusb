@@ -1756,8 +1756,14 @@ def render_matrix(rows_all: list) -> str:
     sep = '| ' + '-' * board_w + ' | ' + ' | '.join(':' + '-' * (w - 2) + ':' for w in col_w) + ' |'
     body = [line(lbl, [cell(cells, c) for c in columns]) for lbl, cells in rows_all]
 
-    legend = 'Legend: ✅ pass · ❌ fail · ⚪ skipped · blank not run'
-    return '\n'.join([header, sep] + body) + '\n\n' + legend
+    # tally run cells (blank/not-run cells are absent from the dicts); a metric string counts as pass
+    failed = sum(v == 'fail' for _, cells in rows_all for v in cells.values())
+    skipped = sum(v == 'skip' for _, cells in rows_all for v in cells.values())
+    passed = sum(v not in ('fail', 'skip') for _, cells in rows_all for v in cells.values())
+    summary = (f'**{REPORT_CELL["pass"]} {passed} passed · {REPORT_CELL["fail"]} {failed} failed · '
+               f'{REPORT_CELL["skip"]} {skipped} skipped · blank not run**')
+
+    return summary + '\n\n' + '\n'.join([header, sep] + body)
 
 
 def accumulate_report(mret: list, report_dir: Path, fresh: bool) -> str:
