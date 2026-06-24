@@ -47,7 +47,9 @@
 enum {
   IMR_ATTACHED = UCPD_IMR_TXMSGDISCIE | UCPD_IMR_TXMSGSENTIE | UCPD_IMR_TXMSGABTIE | UCPD_IMR_TXUNDIE |
                  UCPD_IMR_RXHRSTDETIE | UCPD_IMR_RXOVRIE | UCPD_IMR_RXMSGENDIE | UCPD_IMR_RXORDDETIE |
-                 UCPD_IMR_HRSTDISCIE | UCPD_IMR_HRSTSENTIE | UCPD_IMR_FRSEVTIE
+                 UCPD_IMR_HRSTDISCIE | UCPD_IMR_HRSTSENTIE | UCPD_IMR_FRSEVTIE,
+
+  RX_ORDERED_SET_SOP = 0
 };
 
 #define PHY_SYNC1 0x18u
@@ -72,6 +74,7 @@ static uint8_t const* _tx_pending_buf;
 static uint16_t _tx_pending_bytes;
 static uint16_t _tx_xferring_bytes;
 static bool _cc_enabled[TUP_TYPEC_RHPORTS_NUM];
+static uint32_t _rx_ordered_set;
 
 static pd_header_t _good_crc = {
     .msg_type   = PD_CTRL_GOOD_CRC,
@@ -404,8 +407,8 @@ void tcd_int_handler(uint8_t rhport) {
   //------------- RX -------------//
   if (sr & UCPD_SR_RXORDDET) {
     // SOP: Start of Packet.
-    TU_LOG3("SOP\r\n");
-    // UCPD1->RX_ORDSET & UCPD_RX_ORDSET_RXORDSET_Msk;
+    _rx_ordered_set = UCPD1->RX_ORDSET & UCPD_RX_ORDSET_RXORDSET;
+    TU_LOG3("SOP %lu\r\n", _rx_ordered_set);
 
     // ack
     UCPD1->ICR = UCPD_ICR_RXORDDETCF;
@@ -418,32 +421,40 @@ void tcd_int_handler(uint8_t rhport) {
     // stop TX
     dma_stop(rhport, true);
 
-    uint8_t result;
+    if (_rx_ordered_set == RX_ORDERED_SET_SOP) {
+      uint8_t result;
 
-    if (!(sr & UCPD_SR_RXERR)) {
-      // Send GoodCRC in response, unless the received message is itself a GoodCRC.
-      // TODO move this to usbc stack
-      if (_rx_buf) {
-        pd_header_t const* rx_header = (pd_header_t const*) _rx_buf;
-        bool is_good_crc = (rx_header->n_data_obj == 0) && (rx_header->msg_type == PD_CTRL_GOOD_CRC);
+      if (!(sr & UCPD_SR_RXERR)) {
+        // Send GoodCRC in response, unless the received message is itself a GoodCRC.
+        // TODO move this to usbc stack
+        if (_rx_buf) {
+          pd_header_t const* rx_header = (pd_header_t const*) _rx_buf;
+          bool is_good_crc = (rx_header->n_data_obj == 0) && (rx_header->msg_type == PD_CTRL_GOOD_CRC);
 
-        if (!is_good_crc) {
-          _good_crc.msg_id = rx_header->msg_id;
-          dma_tx_start(rhport, &_good_crc, 2);
+          if (!is_good_crc) {
+            _good_crc.msg_id = rx_header->msg_id;
+            dma_tx_start(rhport, &_good_crc, 2);
+          }
         }
+
+        result = XFER_RESULT_SUCCESS;
+      } else {
+        // CRC failed
+        result = XFER_RESULT_FAILED;
       }
 
-      result = XFER_RESULT_SUCCESS;
-    }else {
-      // CRC failed
-      result = XFER_RESULT_FAILED;
+      // notify stack
+      tcd_event_rx_complete(rhport, UCPD1->RX_PAYSZ, result, true);
+    } else {
+      TU_LOG3("Ignore SOP* RX %lu\r\n", _rx_ordered_set);
     }
-
-    // notify stack
-    tcd_event_rx_complete(rhport, UCPD1->RX_PAYSZ, result, true);
 
     // ack
     UCPD1->ICR = UCPD_ICR_RXMSGENDCF;
+
+    if (_rx_ordered_set != RX_ORDERED_SET_SOP && _rx_buf != NULL && _rx_buf_len > 0) {
+      tcd_msg_receive(rhport, _rx_buf, _rx_buf_len);
+    }
   }
 
   if (sr & UCPD_SR_RXOVR) {
