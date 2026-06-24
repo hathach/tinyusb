@@ -32,6 +32,10 @@
 #if CFG_TUSB_MCU == OPT_MCU_STM32G4
   #include "stm32g4xx.h"
   #include "stm32g4xx_ll_dma.h" // for UCPD REQID
+#elif CFG_TUSB_MCU == OPT_MCU_STM32U5
+  #include "stm32u5xx.h"
+  #include "stm32u5xx_ll_dma.h" // for UCPD REQID
+  #include "stm32u5xx_ll_system.h" // for DevID/RevID
 #else
   #error "Unsupported STM32 family"
 #endif
@@ -78,8 +82,15 @@ static pd_header_t _good_crc = {
     .extended   = 0
 };
 
+#ifdef DMA1
 // address of DMA channel rx, tx for each port
 #define CFG_TUC_STM32_DMA  { { DMA1_Channel1_BASE, DMA1_Channel2_BASE } }
+#elif defined(GPDMA1)
+// address of DMA channel rx, tx for each port
+#define CFG_TUC_STM32_DMA  { { GPDMA1_Channel0_BASE, GPDMA1_Channel1_BASE } }
+#else
+#error "Unsupported STM32 family"
+#endif
 
 //--------------------------------------------------------------------+
 // DMA
@@ -92,6 +103,10 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t dma_get_addr(uint8_t rhport, bool i
 }
 
 static void dma_init(uint8_t rhport, bool is_rx) {
+  (void) rhport;
+  (void) is_rx;
+
+#if CFG_TUSB_MCU == OPT_MCU_STM32G4
   uint32_t dma_addr = dma_get_addr(rhport, is_rx);
   DMA_Channel_TypeDef* dma_ch = (DMA_Channel_TypeDef*) dma_addr;
   uint32_t req_id;
@@ -130,19 +145,48 @@ static void dma_init(uint8_t rhport, bool is_rx) {
   uint32_t mux_ccr = mux_ch->CCR & ~(DMAMUX_CxCR_DMAREQ_ID);
   mux_ccr |= req_id;
   mux_ch->CCR = mux_ccr;
+#endif
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void dma_start(uint8_t rhport, bool is_rx, void const* buf, uint16_t len) {
   DMA_Channel_TypeDef* dma_ch = (DMA_Channel_TypeDef*) dma_get_addr(rhport, is_rx);
-
+#if CFG_TUSB_MCU == OPT_MCU_STM32G4
   dma_ch->CMAR = (uint32_t) buf;
   dma_ch->CNDTR = len;
   dma_ch->CCR |= DMA_CCR_EN;
+#elif CFG_TUSB_MCU == OPT_MCU_STM32U5
+  if (is_rx) {
+    // Peripheral -> Memory, Memory inc, 8-bit
+    dma_ch->CTR1 = DMA_CTR1_DINC | DMA_CTR1_DAP;
+    dma_ch->CTR2 = LL_GPDMA1_REQUEST_UCPD1_RX;
+    dma_ch->CSAR = (uint32_t) &UCPD1->RXDR;
+    dma_ch->CDAR = (uint32_t) buf;
+    dma_ch->CBR1 = len;
+  } else {
+    // Memory -> Peripheral, Memory inc, 8-bit
+    dma_ch->CTR1 = DMA_CTR1_SINC | DMA_CTR1_DAP;
+    dma_ch->CTR2 = DMA_CTR2_DREQ | LL_GPDMA1_REQUEST_UCPD1_TX;
+    dma_ch->CSAR = (uint32_t) buf;
+    dma_ch->CDAR = (uint32_t) &UCPD1->TXDR;
+    dma_ch->CBR1 = len;
+  }
+  // High priority
+  dma_ch->CCR = DMA_CCR_PRIO | DMA_CCR_EN;
+  if (is_rx) {
+  } else {
+  }
+#endif
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void dma_stop(uint8_t rhport, bool is_rx) {
   DMA_Channel_TypeDef* dma_ch = (DMA_Channel_TypeDef*) dma_get_addr(rhport, is_rx);
+#if CFG_TUSB_MCU == OPT_MCU_STM32G4
   dma_ch->CCR &= ~DMA_CCR_EN;
+#elif CFG_TUSB_MCU == OPT_MCU_STM32U5
+  dma_ch->CCR |= DMA_CCR_SUSP;
+  while((dma_ch->CSR & (DMA_CSR_SUSPF | DMA_CSR_IDLEF)) == 0U);
+  dma_ch->CCR = DMA_CCR_RESET;
+#endif
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool dma_enabled(uint8_t rhport, bool is_rx) {
@@ -177,6 +221,33 @@ bool tcd_init(uint8_t rhport, uint32_t port_type) {
                 (0x01 << UCPD_CFG1_PSC_UCPDCLK_Pos) | (0x1f << UCPD_CFG1_RXORDSETEN_Pos);
   UCPD1->CFG1 |= UCPD_CFG1_UCPDEN;
 
+#ifdef UCPD_CFG2_RXAFILTEN
+  // Enable Rx analog filter
+  UCPD1->CFG2 |= UCPD_CFG2_RXAFILTEN;
+#endif
+
+  // The CC pull-up (Rp) and pull-down (Rd) must be trimmed for some STM32U5 devices.
+#ifdef UCPD_CFG3_TRIM_CC1_RP
+  uint32_t dev_id = LL_DBGMCU_GetDeviceID();
+  uint32_t rev_id = LL_DBGMCU_GetRevisionID();
+
+  // Values taken from STM32U5 UCPD middleware.
+  // The list might be not complete, a case has been raised to ST.
+  if (((dev_id == 0x482UL) && (rev_id == 0x3000UL)) ||
+      ((dev_id == 0x481UL) && (rev_id == 0x2001UL)) ||
+      ((dev_id == 0x481UL) && (rev_id == 0x3000UL)) ||
+      ((dev_id == 0x481UL) && (rev_id == 0x3001UL)) ||
+      ((dev_id == 0x476UL) && (rev_id == 0x1000UL))) {
+    const uint8_t trim_3a0_cc1 = (*(uint8_t*) 0x0BFA0545) & 0x0F;
+    const uint8_t trim_3a0_cc2 = (*(uint8_t*) 0x0BFA0547) & 0x0F;
+    const uint8_t trim_rd_cc1  = (*(uint8_t*) 0x0BFA0544) & 0x0F;
+    const uint8_t trim_rd_cc2  = (*(uint8_t*) 0x0BFA0546) & 0x0F;
+
+    UCPD1->CFG3 = trim_3a0_cc1 << UCPD_CFG3_TRIM_CC1_RP_Pos | trim_3a0_cc2 << UCPD_CFG3_TRIM_CC2_RP_Pos |
+                  trim_rd_cc1  << UCPD_CFG3_TRIM_CC1_RD_Pos | trim_rd_cc2  << UCPD_CFG3_TRIM_CC2_RD_Pos;
+  }
+#endif
+
   // General programming sequence (with UCPD configured then enabled)
   if (port_type == TUSB_TYPEC_PORT_SNK) {
     // Set analog mode enable both CC Phy
@@ -184,7 +255,6 @@ bool tcd_init(uint8_t rhport, uint32_t port_type) {
 
     // Read Voltage State on CC1 & CC2 fore initial state
     uint32_t v_cc[2];
-    (void) v_cc;
     v_cc[0] = (UCPD1->SR >> UCPD_SR_TYPEC_VSTATE_CC1_Pos) & 0x03;
     v_cc[1] = (UCPD1->SR >> UCPD_SR_TYPEC_VSTATE_CC2_Pos) & 0x03;
     TU_LOG1("Initial VState CC1 = %lu, CC2 = %lu\r\n", v_cc[0], v_cc[1]);
@@ -193,14 +263,19 @@ bool tcd_init(uint8_t rhport, uint32_t port_type) {
     UCPD1->IMR = UCPD_IMR_TYPECEVT1IE | UCPD_IMR_TYPECEVT2IE;
   }
 
+#if CFG_TUSB_MCU == OPT_MCU_STM32G4
   // Disable dead battery in PWR's CR3
   PWR->CR3 |= PWR_CR3_UCPD_DBDIS;
+#elif CFG_TUSB_MCU == OPT_MCU_STM32U5
+  // Disable dead battery in PWR's UCPDR
+  PWR->UCPDR |= PWR_UCPDR_UCPD_DBDIS;
+#endif
 
   return true;
 }
 
 // Enable interrupt
-void tcd_int_enable (uint8_t rhport) {
+void tcd_int_enable(uint8_t rhport) {
   (void) rhport;
   NVIC_EnableIRQ(UCPD1_IRQn);
 }

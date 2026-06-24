@@ -400,6 +400,10 @@
     #endif
   #endif
 
+  // TypeC controller
+  #define TUP_USBIP_TYPEC_STM32
+  #define TUP_TYPEC_RHPORTS_NUM 1
+
 #elif TU_CHECK_MCU(OPT_MCU_STM32WB)
   #define TUP_USBIP_FSDEV
   #define TUP_USBIP_FSDEV_STM32
