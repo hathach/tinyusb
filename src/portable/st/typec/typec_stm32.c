@@ -173,9 +173,6 @@ TU_ATTR_ALWAYS_INLINE static inline void dma_start(uint8_t rhport, bool is_rx, v
   }
   // High priority
   dma_ch->CCR = DMA_CCR_PRIO | DMA_CCR_EN;
-  if (is_rx) {
-  } else {
-  }
 #endif
 }
 
@@ -299,6 +296,10 @@ void tcd_disconnect(uint8_t rhport) {
     return;
   }
 
+  // Mask UCPD interrupts/DMA early to avoid the ISR touching DMA/pointers while we tear down.
+  UCPD1->IMR &= ~(UCPD_IMR_TYPECEVT1IE | UCPD_IMR_TYPECEVT2IE | IMR_ATTACHED);
+  UCPD1->CFG1 &= ~(UCPD_CFG1_RXDMAEN | UCPD_CFG1_TXDMAEN);
+
   _cc_enabled[rhport] = false;
 
   if (dma_enabled(rhport, true)) {
@@ -314,9 +315,6 @@ void tcd_disconnect(uint8_t rhport) {
   _tx_pending_buf = NULL;
   _tx_pending_bytes = 0;
   _tx_xferring_bytes = 0;
-
-  UCPD1->CFG1 &= ~(UCPD_CFG1_RXDMAEN | UCPD_CFG1_TXDMAEN);
-  UCPD1->IMR &= ~(UCPD_IMR_TYPECEVT1IE | UCPD_IMR_TYPECEVT2IE | IMR_ATTACHED);
 
   uint32_t cr = UCPD1->CR;
   cr &= ~(UCPD_CR_PHYRXEN | UCPD_CR_PHYCCSEL | UCPD_CR_CCENABLE);
