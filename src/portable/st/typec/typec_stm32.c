@@ -71,6 +71,7 @@ static uint16_t _rx_buf_len;
 static uint8_t const* _tx_pending_buf;
 static uint16_t _tx_pending_bytes;
 static uint16_t _tx_xferring_bytes;
+static bool _cc_enabled[TUP_TYPEC_RHPORTS_NUM];
 
 static pd_header_t _good_crc = {
     .msg_type   = PD_CTRL_GOOD_CRC,
@@ -250,17 +251,7 @@ bool tcd_init(uint8_t rhport, uint32_t port_type) {
 
   // General programming sequence (with UCPD configured then enabled)
   if (port_type == TUSB_TYPEC_PORT_SNK) {
-    // Set analog mode enable both CC Phy
-    UCPD1->CR = (0x01 << UCPD_CR_ANAMODE_Pos) | (UCPD_CR_CCENABLE_0 | UCPD_CR_CCENABLE_1);
-
-    // Read Voltage State on CC1 & CC2 fore initial state
-    uint32_t v_cc[2];
-    v_cc[0] = (UCPD1->SR >> UCPD_SR_TYPEC_VSTATE_CC1_Pos) & 0x03;
-    v_cc[1] = (UCPD1->SR >> UCPD_SR_TYPEC_VSTATE_CC2_Pos) & 0x03;
-    TU_LOG1("Initial VState CC1 = %lu, CC2 = %lu\r\n", v_cc[0], v_cc[1]);
-
-    // Enable CC1 & CC2 Interrupt
-    UCPD1->IMR = UCPD_IMR_TYPECEVT1IE | UCPD_IMR_TYPECEVT2IE;
+    tcd_connect(rhport);
   }
 
 #if CFG_TUSB_MCU == OPT_MCU_STM32G4
@@ -284,6 +275,56 @@ void tcd_int_enable(uint8_t rhport) {
 void tcd_int_disable(uint8_t rhport) {
   (void) rhport;
   NVIC_DisableIRQ(UCPD1_IRQn);
+}
+
+void tcd_connect(uint8_t rhport) {
+  if (_cc_enabled[rhport]) {
+    return;
+  }
+
+  _cc_enabled[rhport] = true;
+
+  // Set analog mode and enable both CC Phy as sink.
+  uint32_t cr = UCPD1->CR;
+  cr &= ~(UCPD_CR_PHYRXEN | UCPD_CR_PHYCCSEL | UCPD_CR_CCENABLE);
+  cr |= (0x01 << UCPD_CR_ANAMODE_Pos) | UCPD_CR_CCENABLE_0 | UCPD_CR_CCENABLE_1;
+  UCPD1->CR = cr;
+
+  UCPD1->ICR = UCPD_ICR_TYPECEVT1CF | UCPD_ICR_TYPECEVT2CF;
+  UCPD1->IMR |= UCPD_IMR_TYPECEVT1IE | UCPD_IMR_TYPECEVT2IE;
+}
+
+void tcd_disconnect(uint8_t rhport) {
+  if (!_cc_enabled[rhport]) {
+    return;
+  }
+
+  _cc_enabled[rhport] = false;
+
+  if (dma_enabled(rhport, true)) {
+    dma_stop(rhport, true);
+  }
+
+  if (dma_enabled(rhport, false)) {
+    dma_tx_stop(rhport);
+  }
+
+  _rx_buf = NULL;
+  _rx_buf_len = 0;
+  _tx_pending_buf = NULL;
+  _tx_pending_bytes = 0;
+  _tx_xferring_bytes = 0;
+
+  UCPD1->CFG1 &= ~(UCPD_CFG1_RXDMAEN | UCPD_CFG1_TXDMAEN);
+  UCPD1->IMR &= ~(UCPD_IMR_TYPECEVT1IE | UCPD_IMR_TYPECEVT2IE | IMR_ATTACHED);
+
+  uint32_t cr = UCPD1->CR;
+  cr &= ~(UCPD_CR_PHYRXEN | UCPD_CR_PHYCCSEL | UCPD_CR_CCENABLE);
+  UCPD1->CR = cr;
+
+  UCPD1->ICR = UCPD_ICR_TYPECEVT1CF | UCPD_ICR_TYPECEVT2CF;
+
+  tcd_event_cc_changed(rhport, 0, 0, false);
 }
 
 bool tcd_msg_receive(uint8_t rhport, uint8_t* buffer, uint16_t total_bytes) {
@@ -347,7 +388,7 @@ void tcd_int_handler(uint8_t rhport) {
       // Attached
       UCPD1->IMR |= IMR_ATTACHED;
       UCPD1->CFG1 |= UCPD_CFG1_RXDMAEN | UCPD_CFG1_TXDMAEN;
-    }else {
+    } else {
       // Detached
       UCPD1->CFG1 &= ~(UCPD_CFG1_RXDMAEN | UCPD_CFG1_TXDMAEN);
       UCPD1->IMR &= ~IMR_ATTACHED;

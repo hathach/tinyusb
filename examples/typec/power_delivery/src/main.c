@@ -42,19 +42,18 @@
 #define CURRENT_OPERATING_MA 100  // operating current in mA
 
 /* Blink pattern
- * - 250 ms  : button is not pressed
- * - 1000 ms : button is pressed (and hold)
+ * - 250 ms  : Type-C disconnected
+ * - 1000 ms : Type-C connected
  */
 enum  {
-  BLINK_PRESSED = 250,
-  BLINK_UNPRESSED = 1000
+  BLINK_DISCONNECTED = 250,
+  BLINK_CONNECTED = 1000
 };
 
-static uint32_t blink_interval_ms = BLINK_UNPRESSED;
+static uint32_t blink_interval_ms = BLINK_CONNECTED;
 
+void typec_connect_task(void);
 void led_blinking_task(void);
-
-#define HELLO_STR   "Hello from TinyUSB\r\n"
 
 int main(void)
 {
@@ -64,6 +63,7 @@ int main(void)
   tuc_init(0, TUSB_TYPEC_PORT_SNK);
 
   while (1) {
+    typec_connect_task();
     led_blinking_task();
 
     // tinyusb typec task
@@ -173,6 +173,33 @@ bool tuc_pd_control_received_cb(uint8_t rhport, pd_header_t const* header) {
   }
 
   return true;
+}
+
+//--------------------------------------------------------------------+
+// TypeC CONNECT TASK
+//--------------------------------------------------------------------+
+void typec_connect_task(void)
+{
+  static uint32_t btn_prev = 0;
+  static bool connected = true;
+
+  uint32_t const btn = board_button_read();
+
+  if ((btn_prev == 0u) && (btn != 0u)) {
+    bool const connect = !connected;
+
+    if (connect && tuc_connect(0)) {
+      connected = true;
+      blink_interval_ms = BLINK_CONNECTED;
+      printf("Type-C connect\r\n");
+    } else if (!connect && tuc_disconnect(0)) {
+      connected = false;
+      blink_interval_ms = BLINK_DISCONNECTED;
+      printf("Type-C disconnect\r\n");
+    }
+  }
+
+  btn_prev = btn;
 }
 
 //--------------------------------------------------------------------+
