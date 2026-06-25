@@ -1427,10 +1427,11 @@ static void port0_enable(dwc2_regs_t* dwc2, tusb_speed_t speed) {
   uint32_t             phy_clock;
 
   if (gusbcfg.phy_sel == GUSBCFG_PHYSEL_FULLSPEED) {
-    phy_clock = 48; // dedicated FS is 48Mhz
     if (speed == TUSB_SPEED_LOW) {
+      phy_clock = 6;  // LS via FS PHY: effective clock is 6MHz
       hcfg |= HCFG_FSLS_PHYCLK_SEL_6MHZ;
     } else {
+      phy_clock = 48; // dedicated FS is 48Mhz
       hcfg |= HCFG_FSLS_PHYCLK_SEL_48MHZ;
     }
   } else {
