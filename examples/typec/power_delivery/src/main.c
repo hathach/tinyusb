@@ -39,31 +39,31 @@
 // defined here. Otherwise, you may damage your board, smoke can come out
 #define VOLTAGE_MAX_MV       5000 // maximum voltage in mV
 #define CURRENT_MAX_MA       500  // maximum current in mA
-#define CURRENT_OPERATING_MA 100  // operating current in mA
+#define CURRENT_OPERATING_MA 300  // operating current in mA
 
 /* Blink pattern
- * - 250 ms  : button is not pressed
- * - 1000 ms : button is pressed (and hold)
+ * - 250 ms  : Type-C disconnected
+ * - 1000 ms : Type-C connected
  */
 enum  {
-  BLINK_PRESSED = 250,
-  BLINK_UNPRESSED = 1000
+  BLINK_DISCONNECTED = 250,
+  BLINK_CONNECTED = 1000
 };
 
-static uint32_t blink_interval_ms = BLINK_UNPRESSED;
+static uint32_t blink_interval_ms = BLINK_CONNECTED;
 
+void typec_connect_task(void);
 void led_blinking_task(void);
-
-#define HELLO_STR   "Hello from TinyUSB\r\n"
 
 int main(void)
 {
   board_init();
   board_led_write(true);
 
-  tuc_init(0, TUSB_TYPEC_PORT_SNK);
+  tuc_init(0, TUSB_TYPEC_PORT_DISCONNECTED);
 
   while (1) {
+    typec_connect_task();
     led_blinking_task();
 
     // tinyusb typec task
@@ -87,6 +87,7 @@ bool tuc_pd_data_received_cb(uint8_t rhport, pd_header_t const* header, uint8_t 
       printf("PD Source Capabilities\r\n");
       // Examine source capability and select a suitable PDO (starting from 1 with safe5v)
       uint8_t selected_pos = 1;
+      bool voltage_available = false;
 
       for(size_t i=0; i<header->n_data_obj; i++) {
         TU_VERIFY(dobj < p_end);
@@ -97,11 +98,15 @@ bool tuc_pd_data_received_cb(uint8_t rhport, pd_header_t const* header, uint8_t 
             pd_pdo_fixed_t const* fixed = (pd_pdo_fixed_t const*) &pdo;
             uint32_t const voltage_mv = fixed->voltage_50mv*50;
             uint32_t const current_ma = fixed->current_max_10ma*10;
-            printf("[Fixed] %"PRIu32" mV %"PRIu32" mA\r\n", voltage_mv, current_ma);
+            printf("[Fixed] PDO%"PRIu8" %"PRIu32" mV %"PRIu32" mA\r\n", i+1, voltage_mv, current_ma);
 
-            if (voltage_mv <= VOLTAGE_MAX_MV && current_ma >= CURRENT_MAX_MA) {
-              // Found a suitable PDO
-              selected_pos = i+1;
+            if (voltage_mv <= VOLTAGE_MAX_MV) {
+              voltage_available = true;
+
+              if (current_ma >= CURRENT_MAX_MA) {
+                // Found a suitable PDO
+                selected_pos = i+1;
+              }
             }
 
             break;
@@ -124,12 +129,17 @@ bool tuc_pd_data_received_cb(uint8_t rhport, pd_header_t const* header, uint8_t 
       // Be careful and make sure your board can withstand the selected PDO
       // voltage other than safe5v e.g 12v or 20v
 
+      if (!voltage_available) {
+        printf("No PDO within %"PRIu32" mV, skip request\r\n", (uint32_t) VOLTAGE_MAX_MV);
+        break;
+      }
+
       printf("Selected PDO %u\r\n", selected_pos);
 
       // Send request with selected PDO position as response to Source Cap
       pd_rdo_fixed_variable_t rdo = {
-          .current_extremum_10ma = 50, // max 500mA
-          .current_operate_10ma = 30, // 300mA
+          .current_extremum_10ma = CURRENT_MAX_MA / 10,
+          .current_operate_10ma = CURRENT_OPERATING_MA / 10,
           .reserved = 0,
           .epr_mode_capable = 0,
           .unchunked_ext_msg_support = 0,
@@ -173,6 +183,33 @@ bool tuc_pd_control_received_cb(uint8_t rhport, pd_header_t const* header) {
   }
 
   return true;
+}
+
+//--------------------------------------------------------------------+
+// TypeC CONNECT TASK
+//--------------------------------------------------------------------+
+void typec_connect_task(void)
+{
+  static uint32_t btn_prev = 0;
+  static bool connected = false;
+
+  uint32_t const btn = board_button_read();
+
+  if ((btn_prev == 0u) && (btn != 0u)) {
+    bool const connect = !connected;
+
+    if (connect && tuc_connect(0)) {
+      connected = true;
+      blink_interval_ms = BLINK_CONNECTED;
+      printf("Type-C connect\r\n");
+    } else if (!connect && tuc_disconnect(0)) {
+      connected = false;
+      blink_interval_ms = BLINK_DISCONNECTED;
+      printf("Type-C disconnect\r\n");
+    }
+  }
+
+  btn_prev = btn;
 }
 
 //--------------------------------------------------------------------+

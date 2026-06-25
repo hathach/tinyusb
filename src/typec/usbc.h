@@ -52,6 +52,14 @@ bool tuc_init(uint8_t rhport, uint32_t port_type);
 // Check if typec port is initialized
 bool tuc_inited(uint8_t rhport);
 
+// Enable Type-C port terminations
+// Return false if port is not initialized
+bool tuc_connect(uint8_t rhport);
+
+// Disable Type-C port terminations
+// Return false if port is not initialized
+bool tuc_disconnect(uint8_t rhport);
+
 // Task function should be called in main/rtos loop, extended version of tud_task()
 // - timeout_ms: millisecond to wait, zero = no wait, 0xFFFFFFFF = wait forever
 // - in_isr: if function is called in ISR
