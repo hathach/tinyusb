@@ -53,6 +53,8 @@ SRC_C += \
 	src/portable/synopsys/dwc2/hcd_dwc2.c \
 	src/portable/synopsys/dwc2/dwc2_common.c
 endif
+SRC_C += \
+	src/portable/st/typec/typec_stm32.c
 
 INC += \
 	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \

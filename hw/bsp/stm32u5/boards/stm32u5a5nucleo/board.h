@@ -49,6 +49,10 @@ extern "C"
 #define BUTTON_PIN GPIO_PIN_13
 #define BUTTON_STATE_ACTIVE 1
 
+// UCPD DBn
+#define UCPD_DBn_PORT GPIOB
+#define UCPD_DBn_PIN GPIO_PIN_5
+
 // UART Enable for STLink VCOM
 #define UART_ID  1
 #define UART_GPIO_PORT GPIOA

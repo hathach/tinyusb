@@ -76,11 +76,33 @@ TU_ATTR_WEAK bool tuc_pd_control_received_cb(uint8_t rhport, pd_header_t const* 
   return false;
 }
 
+TU_ATTR_WEAK void tcd_connect(uint8_t rhport) {
+  (void) rhport;
+}
+
+TU_ATTR_WEAK void tcd_disconnect(uint8_t rhport) {
+  (void) rhport;
+}
+
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
 bool tuc_inited(uint8_t rhport) {
   return _usbc_inited && _port_inited[rhport];
+}
+
+bool tuc_connect(uint8_t rhport) {
+  TU_VERIFY(rhport < TUP_TYPEC_RHPORTS_NUM && tuc_inited(rhport));
+
+  tcd_connect(rhport);
+  return true;
+}
+
+bool tuc_disconnect(uint8_t rhport) {
+  TU_VERIFY(rhport < TUP_TYPEC_RHPORTS_NUM && tuc_inited(rhport));
+
+  tcd_disconnect(rhport);
+  return true;
 }
 
 bool tuc_init(uint8_t rhport, uint32_t port_type) {
