@@ -486,8 +486,7 @@
             "tests": {
                 "device": true,
                 "host": false,
-                "dual": false,
-                "skip": ["device/cdc_msc_throughput"]
+                "dual": false
             },
             "flasher": {
                 "name": "openocd_wch",
