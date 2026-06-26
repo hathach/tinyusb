@@ -23,6 +23,7 @@
  * THE SOFTWARE.
  *
  * This file is part of the TinyUSB stack.
+ *
  */
 
 /* metadata:
