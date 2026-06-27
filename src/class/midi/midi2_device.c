@@ -270,6 +270,7 @@ static uint32_t _tx_ump_write(midi2d_interface_t* p_midi, const uint32_t* words,
 //--------------------------------------------------------------------+
 // Protocol Negotiation
 //--------------------------------------------------------------------+
+#if !CFG_TUD_MIDI2_USER_RESPONDER
 static void _nego_send_ump(midi2d_interface_t* p_midi, const uint32_t* words, uint8_t count) {
   if (!_tx_opened(p_midi)) return;
   if (tu_fifo_remaining(&p_midi->ep_stream.tx.ff) < (uint32_t) count * 4) return;
@@ -383,8 +384,16 @@ static void _nego_handle_stream_msg(midi2d_interface_t* p_midi, const uint32_t* 
       break;
   }
 }
+#endif // !CFG_TUD_MIDI2_USER_RESPONDER
 
 static void _nego_process_rx(midi2d_interface_t* p_midi) {
+#if CFG_TUD_MIDI2_USER_RESPONDER
+  // User responder owns UMP Stream discovery: MT 0xF messages stay in the
+  // RX FIFO and surface through tud_midi2_n_ump_read so the application can
+  // answer Endpoint / Function Block discovery itself. The app must drain
+  // them (e.g. in tud_midi2_rx_cb) to avoid RX FIFO backpressure.
+  (void)p_midi;
+#else
   tu_edpt_stream_t* ep_rx = &p_midi->ep_stream.rx;
   uint8_t word_bytes[4];
 
@@ -402,6 +411,7 @@ static void _nego_process_rx(midi2d_interface_t* p_midi) {
     tu_edpt_stream_read(ep_rx, buf, pkt_bytes);
     _nego_handle_stream_msg(p_midi, buf);
   }
+#endif
 }
 
 //--------------------------------------------------------------------+
@@ -508,6 +518,12 @@ bool tud_midi2_n_negotiated(uint8_t itf) {
 uint8_t tud_midi2_n_protocol(uint8_t itf) {
   TU_VERIFY(itf < CFG_TUD_MIDI2, 0);
   return _midi2d_itf[itf].protocol;
+}
+
+void tud_midi2_n_set_protocol(uint8_t itf, uint8_t protocol) {
+  TU_VERIFY(itf < CFG_TUD_MIDI2, );
+  _midi2d_itf[itf].protocol = protocol;
+  _midi2d_itf[itf].negotiated = true;
 }
 
 //--------------------------------------------------------------------+

@@ -86,6 +86,16 @@ extern "C" {
   #define CFG_TUD_MIDI2_BLOCK_STRIDX 0
 #endif
 
+// When set to 1, the built-in UMP Stream responder is disabled and MT 0xF
+// (Stream) messages are left in the RX FIFO for the application to handle
+// (Endpoint / Function Block discovery, Stream Configuration). The app must
+// drain them (e.g. in tud_midi2_rx_cb) to avoid RX FIFO backpressure, and
+// call tud_midi2_n_set_protocol() after accepting a Stream Configuration
+// Request to keep tud_midi2_n_protocol / tud_midi2_n_negotiated accurate.
+#ifndef CFG_TUD_MIDI2_USER_RESPONDER
+  #define CFG_TUD_MIDI2_USER_RESPONDER 0
+#endif
+
 //--------------------------------------------------------------------+
 // MIDI Protocol Values (returned by tud_midi2_n_protocol)
 //--------------------------------------------------------------------+
@@ -118,6 +128,10 @@ uint32_t tud_midi2_n_available(uint8_t itf);
 uint8_t  tud_midi2_n_alt_setting(uint8_t itf);
 bool     tud_midi2_n_negotiated(uint8_t itf);
 uint8_t  tud_midi2_n_protocol(uint8_t itf);
+
+// Record the negotiated protocol when the application owns UMP Stream
+// negotiation (CFG_TUD_MIDI2_USER_RESPONDER). Marks the endpoint negotiated.
+void     tud_midi2_n_set_protocol(uint8_t itf, uint8_t protocol);
 
 // Read up to max_words UMP words from the RX FIFO. Returns the number of
 // words actually read (0 if FIFO is empty).
@@ -154,6 +168,10 @@ TU_ATTR_ALWAYS_INLINE static inline bool tud_midi2_negotiated(void) {
 
 TU_ATTR_ALWAYS_INLINE static inline uint8_t tud_midi2_protocol(void) {
   return tud_midi2_n_protocol(0);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void tud_midi2_set_protocol(uint8_t protocol) {
+  tud_midi2_n_set_protocol(0, protocol);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t
