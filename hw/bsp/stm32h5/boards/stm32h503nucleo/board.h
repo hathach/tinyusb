@@ -37,6 +37,8 @@
 extern "C" {
 #endif
 
+#define UART_ID        3
+
 #define PINID_LED      0
 #define PINID_BUTTON   1
 #define PINID_UART_TX  2

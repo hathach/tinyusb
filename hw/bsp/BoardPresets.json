@@ -143,6 +143,10 @@
       "inherits": "default"
     },
     {
+      "name": "ch582m_evt",
+      "inherits": "default"
+    },
+    {
       "name": "circuitplayground_bluefruit",
       "inherits": "default"
     },
@@ -735,6 +739,10 @@
       "inherits": "default"
     },
     {
+      "name": "stm32h533nucleo",
+      "inherits": "default"
+    },
+    {
       "name": "stm32h563nucleo",
       "inherits": "default"
     },
@@ -876,6 +884,10 @@
     },
     {
       "name": "xmc4700_relax",
+      "inherits": "default"
+    },
+    {
+      "name": "yd-ch582m",
       "inherits": "default"
     },
     {
@@ -1119,6 +1131,11 @@
       "name": "ch32v307v_r1_1v0",
       "description": "Build preset for the ch32v307v_r1_1v0 board",
       "configurePreset": "ch32v307v_r1_1v0"
+    },
+    {
+      "name": "ch582m_evt",
+      "description": "Build preset for the ch582m_evt board",
+      "configurePreset": "ch582m_evt"
     },
     {
       "name": "circuitplayground_bluefruit",
@@ -1906,6 +1923,11 @@
       "configurePreset": "stm32h503nucleo"
     },
     {
+      "name": "stm32h533nucleo",
+      "description": "Build preset for the stm32h533nucleo board",
+      "configurePreset": "stm32h533nucleo"
+    },
+    {
       "name": "stm32h563nucleo",
       "description": "Build preset for the stm32h563nucleo board",
       "configurePreset": "stm32h563nucleo"
@@ -2084,6 +2106,11 @@
       "name": "xmc4700_relax",
       "description": "Build preset for the xmc4700_relax board",
       "configurePreset": "xmc4700_relax"
+    },
+    {
+      "name": "yd-ch582m",
+      "description": "Build preset for the yd-ch582m board",
+      "configurePreset": "yd-ch582m"
     }
   ],
   "workflowPresets": [
@@ -2552,6 +2579,19 @@
         {
           "type": "build",
           "name": "ch32v307v_r1_1v0"
+        }
+      ]
+    },
+    {
+      "name": "ch582m_evt",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ch582m_evt"
+        },
+        {
+          "type": "build",
+          "name": "ch582m_evt"
         }
       ]
     },
@@ -4597,6 +4637,19 @@
       ]
     },
     {
+      "name": "stm32h533nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32h533nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32h533nucleo"
+        }
+      ]
+    },
+    {
       "name": "stm32h563nucleo",
       "steps": [
         {
@@ -5061,6 +5114,19 @@
         {
           "type": "build",
           "name": "xmc4700_relax"
+        }
+      ]
+    },
+    {
+      "name": "yd-ch582m",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "yd-ch582m"
+        },
+        {
+          "type": "build",
+          "name": "yd-ch582m"
         }
       ]
     }
