@@ -296,6 +296,7 @@ b_g474e_dpow1        STM32 B-G474E-DPOW1 Discovery kit  stm32g4    https://www.s
 stm32g474nucleo      STM32 G474 Nucleo                  stm32g4    https://www.st.com/en/evaluation-tools/nucleo-g474re.html
 stm32g491nucleo      STM32 G491 Nucleo                  stm32g4    https://www.st.com/en/evaluation-tools/nucleo-g491re.html
 stm32h503nucleo      STM32 H503 Nucleo                  stm32h5    https://www.st.com/en/evaluation-tools/nucleo-h503rb.html
+stm32h533nucleo      STM32 H533 Nucleo                  stm32h5    https://www.st.com/en/evaluation-tools/nucleo-h533re.html
 stm32h563nucleo      STM32 H563 Nucleo                  stm32h5    https://www.st.com/en/evaluation-tools/nucleo-h563zi.html
 stm32h573i_dk        STM32 H573i Discovery              stm32h5    https://www.st.com/en/evaluation-tools/stm32h573i-dk.html
 daisyseed            Daisy Seed                         stm32h7    https://electro-smith.com/products/daisy-seed

@@ -134,7 +134,7 @@ deps_optional = {
                                   '57ea11f70ebf1850e1048989d665c9070f0bb863',
                                   'stm32h7rs'],
     'hw/mcu/st/cmsis_device_h5': ['https://github.com/STMicroelectronics/cmsis_device_h5.git',
-                                  '5273b8f134ba65f5b8174c4141b711b5c0d295b2',
+                                  '884b8dc78e41cbfca008363342b17f4a9e8641f7',
                                   'stm32h5'],
     'hw/mcu/st/cmsis_device_l0': ['https://github.com/STMicroelectronics/cmsis_device_l0.git',
                                   '7b7ae8cd71437331e1d7824f157d00c7bb4a5044',

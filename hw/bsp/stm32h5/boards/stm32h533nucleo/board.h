@@ -38,6 +38,8 @@
 extern "C" {
 #endif
 
+#define UART_ID        2
+
 #define PINID_LED      0
 #define PINID_BUTTON   1
 #define PINID_UART_TX  2
@@ -46,22 +48,22 @@ extern "C" {
 static board_pindef_t board_pindef[] = {
   { // LED
     .port = GPIOA,
-    .pin_init = { .Pin = GPIO_PIN_5, .Mode = GPIO_MODE_OUTPUT_PP, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_FREQ_HIGH, .Alternate = 0 },
-    .active_state = 0
+    .pin_init = { .Pin = GPIO_PIN_5, .Mode = GPIO_MODE_OUTPUT_PP, .Pull = GPIO_NOPULL, .Speed = GPIO_SPEED_FREQ_HIGH, .Alternate = 0 },
+    .active_state = 1
   },
   { // Button
     .port = GPIOC,
-    .pin_init = { .Pin = GPIO_PIN_13, .Mode = GPIO_MODE_INPUT, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_FREQ_HIGH, .Alternate = 0 },
+    .pin_init = { .Pin = GPIO_PIN_13, .Mode = GPIO_MODE_INPUT, .Pull = GPIO_PULLDOWN, .Speed = GPIO_SPEED_FREQ_HIGH, .Alternate = 0 },
     .active_state = 1
   },
   { // UART TX
     .port = GPIOA,
-    .pin_init = { .Pin = GPIO_PIN_2, .Mode = GPIO_MODE_AF_PP, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_FREQ_HIGH, .Alternate = GPIO_AF7_USART3 },
+    .pin_init = { .Pin = GPIO_PIN_2, .Mode = GPIO_MODE_AF_PP, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_FREQ_HIGH, .Alternate = GPIO_AF7_USART2 },
     .active_state = 0
   },
   { // UART RX
     .port = GPIOA,
-    .pin_init = { .Pin = GPIO_PIN_3, .Mode = GPIO_MODE_AF_PP, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_FREQ_HIGH, .Alternate = GPIO_AF7_USART3 },
+    .pin_init = { .Pin = GPIO_PIN_3, .Mode = GPIO_MODE_AF_PP, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_FREQ_HIGH, .Alternate = GPIO_AF7_USART2 },
     .active_state = 0
   },
 };

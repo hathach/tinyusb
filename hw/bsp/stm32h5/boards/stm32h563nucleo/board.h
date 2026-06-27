@@ -37,6 +37,8 @@
 extern "C" {
 #endif
 
+#define UART_ID        3
+
 #define PINID_LED      0
 #define PINID_BUTTON   1
 #define PINID_UART_TX  2
@@ -54,13 +56,13 @@ static board_pindef_t board_pindef[] = {
     .active_state = 0
   },
   { // UART TX
-    .port = GPIOA,
-    .pin_init = { .Pin = GPIO_PIN_9, .Mode = GPIO_MODE_AF_PP, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_FREQ_HIGH, .Alternate = GPIO_AF7_USART1 },
+    .port = GPIOD,
+    .pin_init = { .Pin = GPIO_PIN_8, .Mode = GPIO_MODE_AF_PP, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_FREQ_HIGH, .Alternate = GPIO_AF7_USART3 },
     .active_state = 0
   },
   { // UART RX
-    .port = GPIOA,
-    .pin_init = { .Pin = GPIO_PIN_10, .Mode = GPIO_MODE_AF_PP, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_FREQ_HIGH, .Alternate = GPIO_AF7_USART1 },
+    .port = GPIOD,
+    .pin_init = { .Pin = GPIO_PIN_9, .Mode = GPIO_MODE_AF_PP, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_FREQ_HIGH, .Alternate = GPIO_AF7_USART3 },
     .active_state = 0
   },
 };

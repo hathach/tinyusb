@@ -91,8 +91,10 @@ static UART_HandleTypeDef UartHandle = {
     .Parity = UART_PARITY_NONE,
     .HwFlowCtl = UART_HWCONTROL_NONE,
     .Mode = UART_MODE_TX_RX,
-    .OverSampling = UART_OVERSAMPLING_16,
-    .AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT
+    .OverSampling = UART_OVERSAMPLING_16
+  },
+  .AdvancedInit = {
+    .AdvFeatureInit = UART_ADVFEATURE_NO_INIT
   }
 };
 #endif
