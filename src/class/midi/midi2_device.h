@@ -37,7 +37,7 @@
 // Config defaults are in tusb_option.h:
 //   CFG_TUD_MIDI2_RX_EPSIZE, CFG_TUD_MIDI2_TX_EPSIZE,
 //   CFG_TUD_MIDI2_RX_BUFSIZE, CFG_TUD_MIDI2_TX_BUFSIZE,
-//   CFG_TUD_MIDI2_NUM_GROUPS, CFG_TUD_MIDI2_NUM_FUNCTION_BLOCKS,
+//   CFG_TUD_MIDI2_NUM_GROUPS,
 //   CFG_TUD_MIDI2_EP_NAME, CFG_TUD_MIDI2_PRODUCT_ID
 
 #ifdef __cplusplus
@@ -68,10 +68,6 @@ extern "C" {
   #define CFG_TUD_MIDI2_NUM_GROUPS  1
 #endif
 
-#ifndef CFG_TUD_MIDI2_NUM_FUNCTION_BLOCKS
-  #define CFG_TUD_MIDI2_NUM_FUNCTION_BLOCKS 1
-#endif
-
 #ifndef CFG_TUD_MIDI2_EP_NAME
   #define CFG_TUD_MIDI2_EP_NAME     "TinyUSB MIDI 2.0"
 #endif
@@ -87,6 +83,39 @@ extern "C" {
 #endif
 
 //--------------------------------------------------------------------+
+// Group Terminal Block descriptor builders (USB-MIDI 2.0 Table 5-5/5-6)
+//--------------------------------------------------------------------+
+// Group Terminal Block descriptor type and subtypes.
+enum {
+  MIDI2_CS_GRP_TRM_BLOCK     = 0x26,  // bDescriptorType
+  MIDI2_GRP_TRM_BLOCK_HEADER = 0x01,  // bDescriptorSubtype: list header
+  MIDI2_GRP_TRM_BLOCK_ENTRY  = 0x02,  // bDescriptorSubtype: block entry
+};
+
+// Block direction (bGrpTrmBlkType).
+enum {
+  MIDI2_GTB_BIDIRECTIONAL = 0x00,
+  MIDI2_GTB_INPUT_ONLY    = 0x01,
+  MIDI2_GTB_OUTPUT_ONLY   = 0x02,
+};
+
+// GTB descriptor sizes (bytes).
+enum {
+  MIDI2_GTB_HEADER_LEN = 5,   // list header
+  MIDI2_GTB_ENTRY_LEN  = 13,  // one block entry
+};
+
+// Build a multi-block GTB descriptor for tud_midi2_gtb_desc_cb. Function Block
+// Info is derived from these blocks (direction + group span).
+#define TUD_MIDI2_GTB_DESC_LEN(_nblocks)  (MIDI2_GTB_HEADER_LEN + MIDI2_GTB_ENTRY_LEN * (_nblocks))
+#define TUD_MIDI2_GTB_HEADER(_nblocks) \
+  MIDI2_GTB_HEADER_LEN, MIDI2_CS_GRP_TRM_BLOCK, MIDI2_GRP_TRM_BLOCK_HEADER, \
+  U16_TO_U8S_LE(TUD_MIDI2_GTB_DESC_LEN(_nblocks))
+#define TUD_MIDI2_GTB_BLOCK(_id, _type, _first_group, _num_groups, _stridx) \
+  MIDI2_GTB_ENTRY_LEN, MIDI2_CS_GRP_TRM_BLOCK, MIDI2_GRP_TRM_BLOCK_ENTRY, \
+  (_id), (_type), (_first_group), (_num_groups), (_stridx), 0x00, 0, 0, 0, 0
+
+//--------------------------------------------------------------------+
 // MIDI Protocol Values (returned by tud_midi2_n_protocol)
 //--------------------------------------------------------------------+
 
@@ -96,6 +125,17 @@ enum {
   MIDI_PROTOCOL_MIDI2 = 0x02,
 };
 
+// Result of the optional UMP Stream message callback (tud_midi2_stream_msg_cb).
+// PASS lets the built-in responder handle the message; the others mean the
+// application answered it. NEGOTIATED_* also record the protocol so
+// tud_midi2_n_protocol / tud_midi2_n_negotiated stay accurate.
+typedef enum {
+  MIDI2_STREAM_PASS = 0,
+  MIDI2_STREAM_HANDLED,
+  MIDI2_STREAM_NEGOTIATED_MIDI1,
+  MIDI2_STREAM_NEGOTIATED_MIDI2,
+} tud_midi2_stream_result_t;
+
 //--------------------------------------------------------------------+
 // Application Callback API (weak, optional)
 //--------------------------------------------------------------------+
@@ -104,10 +144,23 @@ void tud_midi2_set_itf_cb(uint8_t itf, uint8_t alt);
 bool tud_midi2_get_req_itf_cb(uint8_t rhport, const tusb_control_request_t* request);
 
 // Per-interface UMP Stream config (override for per-itf values).
-uint8_t     tud_midi2_num_groups_cb(uint8_t itf);
-uint8_t     tud_midi2_num_function_blocks_cb(uint8_t itf);
 const char* tud_midi2_ep_name_cb(uint8_t itf);
 const char* tud_midi2_product_id_cb(uint8_t itf);
+
+// Group Terminal Block descriptor source: the single source of truth for block
+// topology. Override to expose multiple blocks with independent directions and
+// group spans. Function Block Info is derived from this descriptor.
+const uint8_t* tud_midi2_gtb_desc_cb(uint8_t itf, uint16_t* len);
+
+// Optional per-block name, sent as a Function Block Name Notification during
+// discovery. Return NULL or "" for no name.
+const char* tud_midi2_fb_name_cb(uint8_t itf, uint8_t fb_idx);
+
+// Optional: intercept an incoming UMP Stream message (MT 0xF). Return PASS to
+// let the built-in responder handle it, or HANDLED / NEGOTIATED_* if the app
+// answered it (e.g. via tud_midi2_n_ump_write). Lets an app override a single
+// response without reimplementing the whole negotiation.
+tud_midi2_stream_result_t tud_midi2_stream_msg_cb(uint8_t itf, const uint32_t* ump_words);
 
 //--------------------------------------------------------------------+
 // Application API (Multiple Interfaces)
