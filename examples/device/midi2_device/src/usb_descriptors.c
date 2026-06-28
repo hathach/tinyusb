@@ -62,7 +62,7 @@ uint8_t const * tud_descriptor_device_cb(void) {
 
 enum {
   ITF_NUM_MIDI2 = 0,       // Audio Control interface
-  ITF_NUM_MIDI2_STREAMING,  // MIDI Streaming interface (auto-created by TUD_MIDI2_DESCRIPTOR)
+  ITF_NUM_MIDI2_STREAMING,  // MIDI Streaming interface
   ITF_NUM_TOTAL
 };
 
@@ -80,8 +80,20 @@ static uint8_t const desc_fs_configuration[] = {
   // Config number, interface count, string index, total length, attribute, power in mA
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
 
-  // MIDI 2.0 Interface
-  TUD_MIDI2_DESCRIPTOR(ITF_NUM_MIDI2, 0, EPNUM_MIDI2_OUT, EPNUM_MIDI2_IN, 64)
+  // MIDI 2.0 Interface, two Group Terminal Blocks associated per direction:
+  //   bulk OUT (host to device) carries the input block (ID 2)
+  //   bulk IN  (device to host) carries the output block (ID 1)
+  // Alt Setting 0 (MIDI 1.0)
+  TUD_MIDI_DESC_HEAD(ITF_NUM_MIDI2, 0, 1),
+  TUD_MIDI_DESC_JACK_DESC(1, 0),
+  TUD_MIDI_DESC_EP(EPNUM_MIDI2_OUT, 64, 1),
+  TUD_MIDI_JACKID_IN_EMB(1),
+  TUD_MIDI_DESC_EP(EPNUM_MIDI2_IN, 64, 1),
+  TUD_MIDI_JACKID_OUT_EMB(1),
+  // Alt Setting 1 (UMP)
+  TUD_MIDI2_DESC_ALT1_HEAD(ITF_NUM_MIDI2, 0),
+  TUD_MIDI2_DESC_ALT1_EP(EPNUM_MIDI2_OUT, 64, 1, 2),
+  TUD_MIDI2_DESC_ALT1_EP(EPNUM_MIDI2_IN, 64, 1, 1)
 };
 
 uint8_t const * tud_descriptor_configuration_cb(uint8_t index) {
