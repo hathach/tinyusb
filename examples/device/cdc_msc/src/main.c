@@ -59,6 +59,7 @@ int main(void) {
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
   freertos_init();
+  return 0;
 #else
   // init device stack on configured roothub port
   tusb_rhport_init_t dev_init = {.role = TUSB_ROLE_DEVICE, .speed = TUSB_SPEED_AUTO};
@@ -74,8 +75,6 @@ int main(void) {
     cdc_task(NULL);
   }
 #endif
-
-  return 0;
 }
 
 //--------------------------------------------------------------------+
@@ -112,47 +111,47 @@ void tud_resume_cb(void) {
 void cdc_task(void *param) {
   (void) param;
 
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
   while (1) {
-    // connected() check for DTR bit
-    // Most but not all terminal client set this when making connection
-    // if ( tud_cdc_connected() )
-    {
-      // connected and there are data available
-      while (tud_cdc_available()) {
-        // read data
-        char     buf[64];
-        uint32_t count = tud_cdc_read(buf, sizeof(buf));
-        (void)count;
+#endif
+  // connected() check for DTR bit
+  // Most but not all terminal client set this when making connection
+  // if ( tud_cdc_connected() )
+  {
+    // connected and there are data available
+    while (tud_cdc_available()) {
+      // read data
+      char     buf[64];
+      uint32_t count = tud_cdc_read(buf, sizeof(buf));
+      (void)count;
 
-        // Echo back
-        // Note: Skip echo by commenting out write() and write_flush()
-        // for throughput test e.g
-        //    $ dd if=/dev/zero of=/dev/ttyACM0 count=10000
-        tud_cdc_write(buf, count);
-      }
-
-      tud_cdc_write_flush();
-
-      // Press on-board button to send Uart status notification
-      static cdc_notify_uart_state_t uart_state = {.value = 0};
-
-      static uint32_t btn_prev = 0;
-      const uint32_t  btn      = board_button_read();
-
-      if ((btn_prev == 0u) && (btn != 0u)) {
-        uart_state.dsr ^= 1;
-        uart_state.dcd ^= 1;
-        tud_cdc_notify_uart_state(&uart_state);
-      }
-      btn_prev = btn;
+      // Echo back
+      // Note: Skip echo by commenting out write() and write_flush()
+      // for throughput test e.g
+      //    $ dd if=/dev/zero of=/dev/ttyACM0 count=10000
+      tud_cdc_write(buf, count);
     }
 
-#if CFG_TUSB_OS == OPT_OS_FREERTOS
-    vTaskDelay(1);
-#else
-    break;
-#endif
+    tud_cdc_write_flush();
+
+    // Press on-board button to send Uart status notification
+    static cdc_notify_uart_state_t uart_state = {.value = 0};
+
+    static uint32_t btn_prev = 0;
+    const uint32_t  btn      = board_button_read();
+
+    if ((btn_prev == 0u) && (btn != 0u)) {
+      uart_state.dsr ^= 1;
+      uart_state.dcd ^= 1;
+      tud_cdc_notify_uart_state(&uart_state);
+    }
+    btn_prev = btn;
   }
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  vTaskDelay(1);
+  }
+#endif
 }
 
 // Invoked when cdc when line state changed e.g connected/disconnected
@@ -185,33 +184,34 @@ void led_blinking_task(void *param) {
   static uint32_t start_ms  = 0;
 #endif
 
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
   while (1) {
-    if (!blink_enable) {
-#if CFG_TUSB_OS == OPT_OS_FREERTOS
-      vTaskDelay(1);
-      continue;
-#else
-      return;
-#endif
-    }
-
-#if CFG_TUSB_OS == OPT_OS_FREERTOS
-    vTaskDelay(blink_interval_ms / portTICK_PERIOD_MS);
-#else
-    // Blink every interval ms
-    if (tusb_time_millis_api() - start_ms < blink_interval_ms) {
-      return; // not enough time
-    }
-    start_ms += blink_interval_ms;
-#endif
-
-    board_led_write(led_state);
-    led_state = !led_state;
-
-#if CFG_TUSB_OS != OPT_OS_FREERTOS
-    break;
-#endif
+  if (!blink_enable) {
+    vTaskDelay(1);
+    continue;
   }
+#else
+  if (!blink_enable) {
+    return;
+  }
+#endif
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  vTaskDelay(blink_interval_ms / portTICK_PERIOD_MS);
+#else
+  // Blink every interval ms
+  if (tusb_time_millis_api() - start_ms < blink_interval_ms) {
+    return; // not enough time
+  }
+  start_ms += blink_interval_ms;
+#endif
+
+  board_led_write(led_state);
+  led_state = !led_state;
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  }
+#endif
 }
 
 //--------------------------------------------------------------------+

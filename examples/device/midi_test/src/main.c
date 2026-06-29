@@ -68,6 +68,7 @@ int main(void) {
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
   freertos_init();
+  return 0;
 #else
   // init device stack on configured roothub port
   tusb_rhport_init_t dev_init = {
@@ -84,8 +85,6 @@ int main(void) {
     midi_task(NULL);
   }
 #endif
-
-  return 0;
 }
 
 //--------------------------------------------------------------------+
@@ -134,55 +133,56 @@ void midi_task(void *param) {
   uint8_t const cable_num = 0; // MIDI jack associated with USB endpoint
   uint8_t const channel   = 0; // 0 for channel 1
 
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
   while (1) {
-    // The MIDI interface always creates input and output port/jack descriptors
-    // regardless of these being used or not. Therefore incoming traffic should be read
-    // (possibly just discarded) to avoid the sender blocking in IO
-    while (tud_midi_available()) {
-      uint8_t packet[4];
-      tud_midi_packet_read(packet);
-    }
+#endif
+  // The MIDI interface always creates input and output port/jack descriptors
+  // regardless of these being used or not. Therefore incoming traffic should be read
+  // (possibly just discarded) to avoid the sender blocking in IO
+  while (tud_midi_available()) {
+    uint8_t packet[4];
+    tud_midi_packet_read(packet);
+  }
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
-    vTaskDelay(286 / portTICK_PERIOD_MS);
+  vTaskDelay(286 / portTICK_PERIOD_MS);
 #else
-    static uint32_t start_ms = 0;
-    // send note periodically
-    if (tusb_time_millis_api() - start_ms < 286) {
-      return; // not enough time
-    }
-    start_ms += 286;
-#endif
-
-    // Previous positions in the note sequence.
-    int previous = (int) (note_pos - 1);
-
-    // If we currently are at position 0, set the
-    // previous position to the last note in the sequence.
-    if (previous < 0) {
-      previous = sizeof(note_sequence) - 1;
-    }
-
-    // Send Note On for current position at full velocity (127) on channel 1.
-    uint8_t note_on[3] = { 0x90 | channel, note_sequence[note_pos], 127 };
-    tud_midi_stream_write(cable_num, note_on, 3);
-
-    // Send Note Off for previous note.
-    uint8_t note_off[3] = { 0x80 | channel, note_sequence[previous], 0};
-    tud_midi_stream_write(cable_num, note_off, 3);
-
-    // Increment position
-    note_pos++;
-
-    // If we are at the end of the sequence, start over.
-    if (note_pos >= sizeof(note_sequence)) {
-      note_pos = 0;
-    }
-
-#if CFG_TUSB_OS != OPT_OS_FREERTOS
-    break;
-#endif
+  static uint32_t start_ms = 0;
+  // send note periodically
+  if (tusb_time_millis_api() - start_ms < 286) {
+    return; // not enough time
   }
+  start_ms += 286;
+#endif
+
+  // Previous positions in the note sequence.
+  int previous = (int) (note_pos - 1);
+
+  // If we currently are at position 0, set the
+  // previous position to the last note in the sequence.
+  if (previous < 0) {
+    previous = sizeof(note_sequence) - 1;
+  }
+
+  // Send Note On for current position at full velocity (127) on channel 1.
+  uint8_t note_on[3] = { 0x90 | channel, note_sequence[note_pos], 127 };
+  tud_midi_stream_write(cable_num, note_on, 3);
+
+  // Send Note Off for previous note.
+  uint8_t note_off[3] = { 0x80 | channel, note_sequence[previous], 0};
+  tud_midi_stream_write(cable_num, note_off, 3);
+
+  // Increment position
+  note_pos++;
+
+  // If we are at the end of the sequence, start over.
+  if (note_pos >= sizeof(note_sequence)) {
+    note_pos = 0;
+  }
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  }
+#endif
 }
 
 //--------------------------------------------------------------------+
@@ -195,24 +195,23 @@ void led_blinking_task(void *param) {
   static uint32_t start_ms = 0;
 #endif
 
-  while (1) {
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
+  while (1) {
     vTaskDelay(blink_interval_ms / portTICK_PERIOD_MS);
 #else
-    // Blink every interval ms
-    if (tusb_time_millis_api() - start_ms < blink_interval_ms) {
-      return; // not enough time
-    }
-    start_ms += blink_interval_ms;
-#endif
-
-    board_led_write(led_state);
-    led_state = 1 - led_state; // toggle
-
-#if CFG_TUSB_OS != OPT_OS_FREERTOS
-    break;
-#endif
+  // Blink every interval ms
+  if (tusb_time_millis_api() - start_ms < blink_interval_ms) {
+    return; // not enough time
   }
+  start_ms += blink_interval_ms;
+#endif
+
+  board_led_write(led_state);
+  led_state = 1 - led_state; // toggle
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  }
+#endif
 }
 
 //--------------------------------------------------------------------+

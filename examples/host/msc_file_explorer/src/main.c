@@ -87,6 +87,8 @@ int main(void) {
   #ifndef ESP_PLATFORM
   vTaskStartScheduler();
   #endif
+
+  return 0;
 #else
   // init host stack on configured roothub port
   tusb_rhport_init_t host_init = {
@@ -107,8 +109,6 @@ int main(void) {
     led_blinking_task();
   }
 #endif
-
-  return 0;
 }
 
 #ifdef ESP_PLATFORM
