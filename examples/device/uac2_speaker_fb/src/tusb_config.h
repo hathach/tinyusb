@@ -60,6 +60,11 @@ extern "C" {
 #define CFG_TUSB_OS           OPT_OS_NONE
 #endif
 
+// Espressif IDF requires "freertos/" prefix in include path
+#ifdef ESP_PLATFORM
+#define CFG_TUSB_OS_INC_PATH  freertos/
+#endif
+
 // It's recommended to disable debug unless for control requests debugging,
 // as the extra time needed will impact data stream !
 #ifndef CFG_TUSB_DEBUG

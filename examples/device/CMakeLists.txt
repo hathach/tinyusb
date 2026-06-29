@@ -8,14 +8,11 @@ family_initialize_project(tinyusb_device_examples ${CMAKE_CURRENT_LIST_DIR})
 # family_add_subdirectory will filter what to actually add based on selected FAMILY
 set(EXAMPLE_LIST
   audio_4_channel_mic
-  audio_4_channel_mic_freertos
   audio_test
-  audio_test_freertos
   audio_test_multi_rate
   board_test
   cdc_dual_ports
   cdc_msc
-  cdc_msc_freertos
   cdc_msc_throughput
   cdc_uac2
   dfu
@@ -23,11 +20,9 @@ set(EXAMPLE_LIST
   dynamic_configuration
   hid_boot_interface
   hid_composite
-  hid_composite_freertos
   hid_generic_inout
   hid_multiple_interface
   midi_test
-  midi_test_freertos
   midi2_device
   msc_dual_lun
   mtp

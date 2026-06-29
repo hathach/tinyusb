@@ -1,5 +1,26 @@
-mcu:SAMD11
-mcu:SAME5X
-mcu:SAMG
-family:espressif
-mcu:CH583
+rtos:noos mcu:SAMD11
+rtos:noos mcu:SAME5X
+rtos:noos mcu:SAMG
+rtos:noos family:espressif
+rtos:noos mcu:CH583
+
+rtos:freertos mcu:CH32F20X
+rtos:freertos mcu:CH32V103
+rtos:freertos mcu:CH32V20X
+rtos:freertos mcu:CH32V307
+rtos:freertos mcu:CH583
+rtos:freertos mcu:CXD56
+rtos:freertos mcu:F1C100S
+rtos:freertos mcu:GD32VF103
+rtos:freertos mcu:MCXA15
+rtos:freertos mcu:MKL25ZXX
+rtos:freertos mcu:MSP430x5xx
+rtos:freertos mcu:FT90X
+rtos:freertos mcu:SAMD11
+rtos:freertos mcu:VALENTYUSB_EPTRI
+rtos:freertos mcu:RAXXX
+rtos:freertos family:broadcom_32bit
+rtos:freertos family:broadcom_64bit
+rtos:freertos board:stm32l0538disco
+rtos:freertos family:nuc121_125
+rtos:freertos family:hpmicro
