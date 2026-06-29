@@ -1,0 +1,70 @@
+0.6.0
+=====
+
+*2020-03-30*
+
+Added **CONTRIBUTORS.md** to give proper credit for contributors to the stack. Special thanks to `Nathan Conrad <https://github.com/pigrew>`__ , `Peter Lawrence <https://github.com/majbthrd>`__ , `William D. Jones <https://github.com/cr1901>`__ and `Sean Cross <https://github.com/xobs>`__ and others for spending their precious time to add lots of features and ports for this release.
+
+Added
+-----
+
+MCU
+^^^
+
+- Added support for Microchip SAMG55
+- Added support for Nordic nRF52833
+- Added support for Nuvoton: NUC120, NUC121/NUC125, NUC126, NUC505
+- Added support for NXP LPC: 51Uxx, 54xxx, 55xx
+- Added support for NXP iMXRT: RT1011, RT1015, RT1021, RT1052, RT1062, RT1064
+- Added support for Sony CXD56 (Spresense)
+- Added support for STM32: L0, F0, F1, F2, F3, F4, F7, H7
+- Added support for TI MSP430
+- Added support for ValentyUSB's eptri
+
+Class Driver
+^^^^^^^^^^^^
+
+- Added DFU Runtime class driver
+- Added Network class driver with RNDIS, CDC-ECM, CDC-EEM (work in progress)
+- Added USBTMC class driver
+- Added WebUSB class driver using vendor-specific class
+- Added multiple instances support for CDC and MIDI
+- Added a handful of unit test with Ceedling.
+- Added LOG support for debugging with CFG_TUSB_DEBUG
+- Added ``tud_descriptor_bos_cb()`` for BOS descriptor (required for USB 2.1)
+- Added ``dcd_edpt0_status_complete()`` as optional API for DCD
+
+Examples
+^^^^^^^^
+
+Following examples are added:
+
+- ``board_test``
+- ``cdc_dual_ports``
+- ``dfu_rt``
+- ``hid_composite``
+- ``net_lwip_webserver``
+- ``usbtmc``
+- ``webusb_serial``
+
+Changed
+-------
+
+- Changed ``tud_descriptor_string_cb()`` to have additional Language ID argument
+- Merged ``hal_nrf5x.c`` into ``dcd_nrf5x.c``
+- Merged ``dcd_samd21.c`` and ``dcd_samd51.c`` into ``dcd_samd.c``
+- Generalized ``dcd_stm32f4.c`` to ``dcd_synopsys.c``
+- Changed ``cdc_msc_hid`` to ``cdc_msc`` (drop hid) due to limited endpoints number of some MCUs
+- Improved DCD SAMD stability, fix missing setup packet occasionally
+- Improved ``usbd/usbd_control`` with proper handling of zero-length packet (ZLP)
+- Improved STM32 DCD FSDev
+- Improved STM32 DCD Synopsys
+- Migrated CI from Travis to Github Action
+- Updated nrfx submodule to 2.1.0
+- Fixed mynewt osal queue definition
+- Fixed ``cdc_msc_freertos`` example build for all MCUs
+
+Contributors
+------------
+
+Thanks to everyone who contributed to this release: @an-dr, @arturo182, @chang196700, @cr1901, @hathach, @jepler, @jeremyherbert, @kamtom480, @kasjer, @ladyada, @majbthrd, @mateusz-holenko, @noebrun, @nxf58843, @pigrew, @samveen, @smunaut, @tannewt, @xobs.

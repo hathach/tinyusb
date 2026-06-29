@@ -3,7 +3,7 @@ import re
 import gen_doc
 import gen_presets
 
-version = '0.20.0'
+version = '0.21.0'
 
 print('version {}'.format(version))
 ver_id = version.split('.')
@@ -63,7 +63,7 @@ gen_doc.gen_boards_doc()
 # gen presets
 gen_presets.main()
 
-##################(ver#
-# docs/info/changelog.rst
 ###################
-print("Update docs/info/changelog.rst")
+# docs/info/changelog/
+###################
+print("Add docs/info/changelog/{}.rst and list it at the top of docs/info/changelog/index.rst".format(version))

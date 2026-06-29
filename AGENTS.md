@@ -195,14 +195,17 @@ Device examples need real hardware to validate runtime behavior; must at least b
 
 ## Release
 
+Use the `make-release` skill (`.claude/skills/make-release/SKILL.md`) for the full procedure — PR-set reconciliation, regenerated-file gotchas, and validation.
+
 **Do not commit automatically — leave changes for maintainer review.**
 
 1. Bump version at top of `tools/make_release.py`.
 2. Run `python3 tools/make_release.py` to refresh: `src/tusb_option.h`, `repository.yml`, `library.json`, `sonar-project.properties`, `docs/reference/boards.rst`, `hw/bsp/BoardPresets.json`.
-3. Changelog `docs/info/changelog.rst`:
-   - `git log <last-tag>..HEAD --oneline` for commit list.
+3. Changelog: add `docs/info/changelog/X.Y.Z.rst` and list it first in `docs/info/changelog/index.rst`:
+   - Determine the PR set by commit reachability — `git log --first-parent <last-tag>..HEAD` — not by merge date (see the `make-release` skill; a date query misses squash merges and includes the prior release's own PR).
    - Read merged PRs for context (`gh pr view`, or github MCP tools).
-   - Follow existing format: version + `======` underline, italic date, sections (General, API Changes, DCD & HCD, Device Stack, Host Stack, Testing), RST inline code for symbols.
+   - Follow existing format: version title + `======` underline, italic date, sections (General, API Changes, Device Stack, Host Stack, DCD & HCD, Testing, Contributors) with driver/class groups as `^^^` sub-headings, RST inline code for symbols.
+   - End with a **Contributors** section thanking the release's PR authors (unique non-bot `@handles`) — contributor credit lives here, not in a separate page.
 4. Validate: `ceedling test:all`, build `cdc_msc` for `stm32f407disco`, review `git diff --stat`.
 5. Leave unstaged. Maintainer commits `Bump version to X.Y.Z`, then: `git tag -a vX.Y.Z -m "Release X.Y.Z" && git push origin <branch> vX.Y.Z`. Create GitHub release from tag.
 
