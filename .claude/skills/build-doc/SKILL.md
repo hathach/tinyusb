@@ -14,7 +14,7 @@ python3 tools/build_doc.py -o            # build docs/_build/ and open it
 
 `tools/build_doc.py` wraps `sphinx-build`: `-c` clean, `-W` fail on warnings, `-o` open. Raw form: `sphinx-build -b html docs docs/_build`.
 
-- Pages can be `.rst` or `.md` (MyST). Example `README.md`s under `examples/{device,host,dual}/*/` are **auto-collected** at build time into `docs/examples/` + `examples.rst` (both git-ignored) — add/rename an example and just rebuild; edit the source README, never the generated copies.
+- Pages can be `.rst` or `.md` (MyST). Example `README.md`s under `examples/{device,host,dual}/*/` are **auto-collected** at build time into `docs/examples/` (per-group `index` pages, git-ignored) — add/rename an example and just rebuild; edit the source README, never the generated copies.
 - Watch the output for `WARNING:` (broken refs, missing toctree entries).
 
 ## Regenerate after adding a board or dependency

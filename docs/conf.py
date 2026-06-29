@@ -83,7 +83,7 @@ def preprocess_readme():
 preprocess_readme()
 
 
-# scan example READMEs into docs/examples/ and (re)generate examples.rst
+# scan example READMEs into docs/examples/ and generate a per-group index page
 EXAMPLE_GROUPS = ('device', 'host', 'dual')
 
 _HEADING_RE = re.compile(r'^(#{1,6})(\s.*)$')

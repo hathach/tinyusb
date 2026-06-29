@@ -20,6 +20,7 @@ Notable `tusb_config.h` settings:
 ```c
 #define CFG_TUH_ENABLED             1
 #define CFG_TUH_HUB                 1
+#define CFG_TUH_DEVICE_MAX          (3*CFG_TUH_HUB + 1)
 #define CFG_TUH_CDC                 1
 #define CFG_TUH_CDC_FTDI            1
 #define CFG_TUH_CDC_CP210X          1
@@ -27,7 +28,6 @@ Notable `tusb_config.h` settings:
 #define CFG_TUH_CDC_PL2303          1
 #define CFG_TUH_HID                 (3*CFG_TUH_DEVICE_MAX)
 #define CFG_TUH_MSC                 1
-#define CFG_TUH_DEVICE_MAX          (3*CFG_TUH_HUB + 1)
 #define CFG_TUH_HID_EPIN_BUFSIZE    64
 #define CFG_TUH_HID_EPOUT_BUFSIZE   64
 #define CFG_TUH_CDC_LINE_CONTROL_ON_ENUM  (CDC_CONTROL_LINE_STATE_DTR | CDC_CONTROL_LINE_STATE_RTS)

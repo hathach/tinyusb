@@ -22,8 +22,8 @@ Notable `tusb_config.h` settings:
 ```c
 #define CFG_TUH_ENABLED             1
 #define CFG_TUH_HUB                 0
-#define CFG_TUH_HID                 (3*CFG_TUH_DEVICE_MAX)
 #define CFG_TUH_DEVICE_MAX          (3*CFG_TUH_HUB + 1)
+#define CFG_TUH_HID                 (3*CFG_TUH_DEVICE_MAX)
 #define CFG_TUH_HID_EP_BUFSIZE      64
 ```
 
