@@ -34,6 +34,6 @@ target_include_directories(${EXE_NAME} PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src
   )
 
-# Configure compilation flags and libraries for the example without RTOS.
+# Configure compilation flags and libraries for the selected RTOS.
 # See the corresponding function in hw/bsp/FAMILY/family.cmake for details.
 family_configure_device_example(${EXE_NAME} ${RTOS})
