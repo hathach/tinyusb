@@ -127,10 +127,7 @@ cd test/unit-test && ceedling test:all        # or ceedling test:test_fifo
 
 ## Documentation
 
-```bash
-pip install -r docs/requirements.txt
-cd docs && sphinx-build -b html . _build        # ~2.5 s
-```
+Sphinx docs in `docs/` (reStructuredText `.rst` or Markdown `.md` via MyST). Use the `build-doc` skill (`.claude/skills/build-doc/SKILL.md`) to build/preview locally (`sphinx-build`) and to regenerate auto-generated files (`tools/gen_doc.py` + `tools/gen_presets.py`) after adding a board or dependency.
 
 ## Code Size Metrics
 

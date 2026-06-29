@@ -9,6 +9,17 @@ This example demonstrates TinyUSB's dual-role capability by allowing runtime swi
 - **Host Mode**: Enumerates connected USB devices and prints device information
 - **Dynamic switching**: Deinitializes the current stack and reinitializes in the new mode
 
+## Configuration
+
+Notable `tusb_config.h` settings:
+
+```c
+#define CFG_TUD_CDC 1
+#define CFG_TUH_HUB 1
+#define CFG_TUH_DEVICE_MAX (CFG_TUH_HUB ? 4 : 1)
+#define CFG_TUH_ENUMERATION_BUFSIZE 256
+```
+
 ## Usage
 
 1. **Build and flash** the example to your board

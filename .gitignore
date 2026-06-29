@@ -58,6 +58,7 @@ Release
 BrowseInfo
 .cmake_build
 README_processed.rst
+docs/examples/
 .worktrees
 cmake-metrics/
 # Directories fetched by tools/get_deps.py - not to be committed
