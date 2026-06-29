@@ -27,15 +27,37 @@ CLI is presented over the board's serial console.
 | mv      | `mv <src> <dest>`  | Rename/move a file or directory                      |
 | rm      | `rm <file>`        | Remove a file                                        |
 
+## Configuration
+
+Notable `tusb_config.h` settings:
+
+```c
+#define CFG_TUH_ENABLED       1
+#define CFG_TUH_HUB           1
+#define CFG_TUH_MSC           1
+#define CFG_TUH_DEVICE_MAX    (3*CFG_TUH_HUB + 1)
+#define CFG_TUH_MSC_MAXLUN    4
+```
+
 ## Build
 
-Build for a specific board using CMake (see [Getting Started](https://docs.tinyusb.org/en/latest/getting_started.html)):
+CMake:
 
 ```bash
-# Example: build for Raspberry Pi Pico
-cmake -B build -DBOARD=raspberry_pi_pico -DFAMILY=rp2040 examples/host/msc_file_explorer
-cmake --build build
+mkdir build && cd build
+cmake -DBOARD=raspberry_pi_pico ..
+cmake --build .
 ```
+
+Make:
+
+```bash
+make BOARD=raspberry_pi_pico all
+```
+
+## FreeRTOS variant
+
+A FreeRTOS build is in `examples/host/msc_file_explorer_freertos` — identical MSC FatFS file-explorer CLI, running the host stack and CLI as FreeRTOS tasks.
 
 ## Usage
 

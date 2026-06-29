@@ -14,29 +14,40 @@ native UMP (Universal MIDI Packet) format with full MIDI 2.0 expression.
 - Program Change with Bank Select
 - JR Timestamps
 
-## USB Descriptor
+## USB Descriptors
 
 The device exposes both USB-MIDI 1.0 (Alt Setting 0) and USB-MIDI 2.0 (Alt Setting 1)
 as required by the USB-MIDI 2.0 specification. A MIDI 2.0 capable host (e.g. Windows
 MIDI Services) will select Alt Setting 1 for native UMP transport. Legacy hosts use
 Alt Setting 0 with automatic MIDI 1.0 fallback.
 
-## Hardware
+| Interface | Class driver |
+|-----------|--------------|
+| 0–1 | MIDI 2.0 (audio control + MIDI streaming) |
 
-- Any RP2040 board with USB (e.g. Raspberry Pi Pico)
-- LED on GPIO 25: steady = playing, slow blink = waiting for host
+## Configuration
+
+Notable `tusb_config.h` settings:
+
+```c
+#define CFG_TUD_MIDI2           1
+```
 
 ## Building
 
+CMake:
+
 ```bash
 mkdir build && cd build
-cmake -DBOARD=raspberry_pi_pico -DPICO_SDK_FETCH_FROM_GIT=on -G Ninja ..
+cmake -DBOARD=raspberry_pi_pico ..
 cmake --build .
 ```
 
-## Flashing
+Make:
 
-Hold BOOTSEL, connect USB, drag `midi2_device.uf2` to the RPI-RP2 drive.
+```bash
+make BOARD=raspberry_pi_pico all
+```
 
 ## Testing
 

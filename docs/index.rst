@@ -12,6 +12,14 @@
    troubleshooting
 
 .. toctree::
+   :maxdepth: 2
+   :caption: Examples
+
+   examples/device/index
+   examples/host/index
+   examples/dual/index
+
+.. toctree::
    :maxdepth: 1
    :caption: Project Info
 
