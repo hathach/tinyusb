@@ -111,6 +111,7 @@ int main(void) {
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
   freertos_init();
+  return 0;
 #else
   // init device stack on configured roothub port
   tusb_rhport_init_t dev_init = {
@@ -126,8 +127,6 @@ int main(void) {
     audio_task(NULL);
   }
 #endif
-
-  return 0;
 }
 
 //--------------------------------------------------------------------+
@@ -168,19 +167,19 @@ void audio_task(void *param) {
   (void) param;
   static uint32_t start_ms = 0;
 
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
   while (1) {
-    uint32_t curr_ms = tusb_time_millis_api();
-    if (start_ms != curr_ms) {
-      start_ms = curr_ms;
-      tud_audio_write(i2s_dummy_buffer, AUDIO_SAMPLE_RATE / 1000 * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX);
-    }
+#endif
+  uint32_t curr_ms = tusb_time_millis_api();
+  if (start_ms != curr_ms) {
+    start_ms = curr_ms;
+    tud_audio_write(i2s_dummy_buffer, AUDIO_SAMPLE_RATE / 1000 * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX);
+  }
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
-    vTaskDelay(1);
-#else
-    return;
-#endif
+  vTaskDelay(1);
   }
+#endif
 }
 
 //--------------------------------------------------------------------+
@@ -427,21 +426,24 @@ void led_blinking_task(void *param) {
   (void) param;
   static bool led_state = false;
 
-  while (1) {
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
+  while (1) {
     vTaskDelay(blink_interval_ms / portTICK_PERIOD_MS);
 #else
-    static uint32_t start_ms = 0;
-    // Blink every interval ms
-    if (tusb_time_millis_api() - start_ms < blink_interval_ms) {
-      return; // not enough time
-    }
-    start_ms += blink_interval_ms;
+  static uint32_t start_ms = 0;
+  // Blink every interval ms
+  if (tusb_time_millis_api() - start_ms < blink_interval_ms) {
+    return; // not enough time
+  }
+  start_ms += blink_interval_ms;
 #endif
 
-    board_led_write(led_state);
-    led_state = 1 - led_state;// toggle
+  board_led_write(led_state);
+  led_state = 1 - led_state;// toggle
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
   }
+#endif
 }
 
 //--------------------------------------------------------------------+

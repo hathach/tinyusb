@@ -63,6 +63,7 @@ int main(void) {
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
   freertos_init();
+  return 0;
 #else
   // init device stack on configured roothub port
   tusb_rhport_init_t dev_init = {.role = TUSB_ROLE_DEVICE, .speed = TUSB_SPEED_AUTO};
@@ -76,8 +77,6 @@ int main(void) {
     hid_task(NULL);
   }
 #endif
-
-  return 0;
 }
 
 //--------------------------------------------------------------------+
@@ -218,36 +217,35 @@ static void send_hid_report(uint8_t report_id, uint32_t btn) {
 void hid_task(void *param) {
   (void) param;
 
-  while (1) {
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
+  while (1) {
     vTaskDelay(pdMS_TO_TICKS(10));
 #else
-    // Poll every 10ms
-    const uint32_t  interval_ms = 10;
-    static uint32_t start_ms    = 0;
+  // Poll every 10ms
+  const uint32_t  interval_ms = 10;
+  static uint32_t start_ms    = 0;
 
-    if (tusb_time_millis_api() - start_ms < interval_ms) {
-      return; // not enough time
-    }
-    start_ms += interval_ms;
-#endif
-
-    uint32_t const btn = board_button_read();
-
-    // Remote wakeup
-    if (tud_suspended() && btn != 0u) {
-      // Wake up host if we are in suspend mode
-      // and REMOTE_WAKEUP feature is enabled by host
-      tud_remote_wakeup();
-    } else {
-      // Send the 1st of report chain, the rest will be sent by tud_hid_report_complete_cb()
-      send_hid_report(REPORT_ID_KEYBOARD, btn);
-    }
-
-#if CFG_TUSB_OS != OPT_OS_FREERTOS
-    break;
-#endif
+  if (tusb_time_millis_api() - start_ms < interval_ms) {
+    return; // not enough time
   }
+  start_ms += interval_ms;
+#endif
+
+  uint32_t const btn = board_button_read();
+
+  // Remote wakeup
+  if (tud_suspended() && btn != 0u) {
+    // Wake up host if we are in suspend mode
+    // and REMOTE_WAKEUP feature is enabled by host
+    tud_remote_wakeup();
+  } else {
+    // Send the 1st of report chain, the rest will be sent by tud_hid_report_complete_cb()
+    send_hid_report(REPORT_ID_KEYBOARD, btn);
+  }
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  }
+#endif
 }
 
 // Invoked when sent REPORT successfully to host
@@ -318,34 +316,36 @@ void led_blinking_task(void *param) {
   static uint32_t start_ms  = 0;
 #endif
 
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
   while (1) {
-    // blink is disabled
-    if (0u == blink_interval_ms) {
-#if CFG_TUSB_OS == OPT_OS_FREERTOS
-      vTaskDelay(1);
-      continue;
-#else
-      return;
-#endif
-    }
-
-#if CFG_TUSB_OS == OPT_OS_FREERTOS
-    vTaskDelay(blink_interval_ms / portTICK_PERIOD_MS);
-#else
-    // Blink every interval ms
-    if (tusb_time_millis_api() - start_ms < blink_interval_ms) {
-      return; // not enough time
-    }
-    start_ms += blink_interval_ms;
-#endif
-
-    board_led_write(led_state);
-    led_state = 1 - led_state; // toggle
-
-#if CFG_TUSB_OS != OPT_OS_FREERTOS
-    break;
-#endif
+  // blink is disabled
+  if (0u == blink_interval_ms) {
+    vTaskDelay(1);
+    continue;
   }
+#else
+  // blink is disabled
+  if (0u == blink_interval_ms) {
+    return;
+  }
+#endif
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  vTaskDelay(blink_interval_ms / portTICK_PERIOD_MS);
+#else
+  // Blink every interval ms
+  if (tusb_time_millis_api() - start_ms < blink_interval_ms) {
+    return; // not enough time
+  }
+  start_ms += blink_interval_ms;
+#endif
+
+  board_led_write(led_state);
+  led_state = 1 - led_state; // toggle
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  }
+#endif
 }
 
 //--------------------------------------------------------------------+

@@ -95,6 +95,7 @@ int main(void) {
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
   freertos_init();
+  return 0;
 #else
   // init device stack on configured roothub port
   tusb_rhport_init_t dev_init = {
@@ -115,8 +116,6 @@ int main(void) {
     audio_task(NULL);
   }
 #endif
-
-  return 0;
 }
 
 //--------------------------------------------------------------------+
@@ -602,32 +601,32 @@ void audio_task(void *param) {
   (void) param;
   static uint32_t start_ms = 0;
 
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
   while (1) {
-    uint32_t curr_ms = tusb_time_millis_api();
-    if (start_ms != curr_ms) {
-      start_ms = curr_ms;
+#endif
+  uint32_t curr_ms = tusb_time_millis_api();
+  if (start_ms != curr_ms) {
+    start_ms = curr_ms;
 
-      uint16_t length = (uint16_t) (current_sample_rate / 1000 * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX);
+    uint16_t length = (uint16_t) (current_sample_rate / 1000 * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX);
 
-      if (current_sample_rate == 44100 && (curr_ms % 10 == 0)) {
-        // Take one more sample every 10 cycles, to have a average reading speed of 44.1
-        // This correction is not needed in real world cases
-        length += CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX;
-      } else if (current_sample_rate == 88200 && (curr_ms % 5 == 0)) {
-        // Take one more sample every 5 cycles, to have a average reading speed of 88.2
-        // This correction is not needed in real world cases
-        length += CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX;
-      }
-
-      tud_audio_read(i2s_dummy_buffer, length);
+    if (current_sample_rate == 44100 && (curr_ms % 10 == 0)) {
+      // Take one more sample every 10 cycles, to have a average reading speed of 44.1
+      // This correction is not needed in real world cases
+      length += CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX;
+    } else if (current_sample_rate == 88200 && (curr_ms % 5 == 0)) {
+      // Take one more sample every 5 cycles, to have a average reading speed of 88.2
+      // This correction is not needed in real world cases
+      length += CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX;
     }
 
-#if CFG_TUSB_OS == OPT_OS_FREERTOS
-    vTaskDelay(1);
-#else
-    return;
-#endif
+    tud_audio_read(i2s_dummy_buffer, length);
   }
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  vTaskDelay(1);
+  }
+#endif
 }
 
 //--------------------------------------------------------------------+
@@ -637,19 +636,22 @@ void led_blinking_task(void *param) {
   (void) param;
   static bool led_state = false;
 
-  while (1) {
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
+  while (1) {
     vTaskDelay(blink_interval_ms / portTICK_PERIOD_MS);
 #else
-    static uint32_t start_ms = 0;
-    // Blink every interval ms
-    if (tusb_time_millis_api() - start_ms < blink_interval_ms) return;
-    start_ms += blink_interval_ms;
+  static uint32_t start_ms = 0;
+  // Blink every interval ms
+  if (tusb_time_millis_api() - start_ms < blink_interval_ms) return;
+  start_ms += blink_interval_ms;
 #endif
 
-    board_led_write(led_state);
-    led_state = 1 - led_state;
+  board_led_write(led_state);
+  led_state = 1 - led_state;
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
   }
+#endif
 }
 
 #if CFG_AUDIO_DEBUG
