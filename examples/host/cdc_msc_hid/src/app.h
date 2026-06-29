@@ -27,8 +27,16 @@
 #define TUSB_TINYUSB_EXAMPLES_APP_H
 
 #include <stdio.h>
+#include "tusb.h"
 
+void msc_app_init(void);
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+void cdc_app_init(void);
+void hid_app_init(void);
+#else
 void cdc_app_task(void);
 void hid_app_task(void);
+#endif
 
 #endif

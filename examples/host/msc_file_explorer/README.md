@@ -57,7 +57,7 @@ make BOARD=raspberry_pi_pico all
 
 ## FreeRTOS variant
 
-A FreeRTOS build is in `examples/host/msc_file_explorer_freertos` — identical MSC FatFS file-explorer CLI, running the host stack and CLI as FreeRTOS tasks.
+Build this example with `RTOS=freertos` / `-DRTOS=freertos` for the FreeRTOS variant. It keeps the same MSC FatFS file-explorer CLI, running the host stack and CLI as FreeRTOS tasks.
 
 ## Usage
 

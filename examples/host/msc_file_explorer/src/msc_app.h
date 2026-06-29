@@ -28,9 +28,11 @@
 
 #include <stdbool.h>
 #include <stdio.h>
+#include "tusb.h"
 
 bool msc_app_init(void);
+#if CFG_TUSB_OS != OPT_OS_FREERTOS
 void msc_app_task(void);
-
+#endif
 
 #endif
