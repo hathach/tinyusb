@@ -28,6 +28,82 @@
 #include "bsp/board_api.h"
 #include "app.h"
 
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+#ifdef ESP_PLATFORM
+  #define CDC_STACK_SIZE      2048
+#else
+  #define CDC_STACK_SIZE     (3*configMINIMAL_STACK_SIZE/2)
+#endif
+
+#if configSUPPORT_STATIC_ALLOCATION
+StackType_t  cdc_stack[CDC_STACK_SIZE];
+StaticTask_t cdc_taskdef;
+#endif
+
+static void cdc_app_task(void* param);
+
+void cdc_app_init(void) {
+  #if configSUPPORT_STATIC_ALLOCATION
+  (void) xTaskCreateStatic(cdc_app_task, "cdc", CDC_STACK_SIZE, NULL, configMAX_PRIORITIES-2, cdc_stack, &cdc_taskdef);
+  #else
+  (void) xTaskCreate(cdc_app_task, "cdc", CDC_STACK_SIZE, NULL, configMAX_PRIORITIES-2, NULL);
+  #endif
+}
+
+static size_t console_read(uint8_t *buf, size_t bufsize) {
+  size_t count = 0;
+  while (count < bufsize) {
+    int ch = board_getchar();
+    if (ch <= 0) {
+      break;
+    }
+
+    buf[count] = (uint8_t) ch;
+    count++;
+  }
+
+  return count;
+}
+
+static void cdc_app_task(void* param) {
+  (void) param;
+
+  uint8_t buf[64 + 1]; // +1 for extra null character
+  uint32_t const bufsize = sizeof(buf) - 1;
+
+  while (1) {
+    uint32_t count = console_read(buf, bufsize);
+    buf[count] = 0;
+
+    if (count) {
+      // loop over all mounted interfaces
+      for (uint8_t idx = 0; idx < CFG_TUH_CDC; idx++) {
+        if (tuh_cdc_mounted(idx)) {
+          // console --> cdc interfaces
+          tuh_cdc_write(idx, buf, count);
+          tuh_cdc_write_flush(idx);
+        }
+      }
+    }
+
+    vTaskDelay(1);
+  }
+}
+
+// Invoked when received new data
+void tuh_cdc_rx_cb(uint8_t idx) {
+  uint8_t buf[64 + 1]; // +1 for extra null character
+  uint32_t const bufsize = sizeof(buf) - 1;
+
+  // forward cdc interfaces -> console
+  uint32_t count = tuh_cdc_read(idx, buf, bufsize);
+  buf[count] = 0;
+
+  printf("%s", (char *) buf);
+}
+
+#else
+
 static size_t console_read(uint8_t *buf, size_t bufsize) {
   size_t count = 0;
   while (count < bufsize) {
@@ -81,6 +157,7 @@ void cdc_app_task(void) {
 
   tuh_cdc_write_flush(idx);
 }
+#endif
 
 //--------------------------------------------------------------------+
 // TinyUSB callbacks
@@ -96,7 +173,7 @@ void tuh_cdc_mount_cb(uint8_t idx) {
          itf_info.desc.bInterfaceNumber);
 
   // If CFG_TUH_CDC_LINE_CODING_ON_ENUM is defined, line coding will be set by tinyusb stack
-  // while eneumerating new cdc device
+  // while enumerating new cdc device
   cdc_line_coding_t line_coding = {0};
   if (tuh_cdc_get_line_coding_local(idx, &line_coding)) {
     printf("  Baudrate: %" PRIu32 ", Stop Bits : %u\r\n", line_coding.bit_rate, line_coding.stop_bits);

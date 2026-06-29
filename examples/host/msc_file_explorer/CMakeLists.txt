@@ -30,9 +30,9 @@ target_include_directories(${PROJECT_NAME} PUBLIC
   ${TOP}/lib/embedded-cli
   )
 
-# Configure compilation flags and libraries for the example without RTOS.
+# Configure compilation flags and libraries for the selected RTOS.
 # See the corresponding function in hw/bsp/FAMILY/family.cmake for details.
-family_configure_host_example(${PROJECT_NAME} noos)
+family_configure_host_example(${PROJECT_NAME} ${RTOS})
 
 # Suppress warnings on fatfs
 if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")

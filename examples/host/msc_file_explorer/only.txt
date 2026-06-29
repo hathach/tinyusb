@@ -1,3 +1,4 @@
+family:espressif
 family:hpmicro
 family:samd21
 family:samd5x_e5x

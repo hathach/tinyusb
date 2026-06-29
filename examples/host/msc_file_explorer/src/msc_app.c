@@ -48,12 +48,30 @@
 #define CLI_HISTORY_SIZE    32
 #define CLI_BINDING_COUNT   9
 
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+#ifdef ESP_PLATFORM
+  #define MSC_APP_STACK_SIZE     4096
+#else
+  #define MSC_APP_STACK_SIZE    (configMINIMAL_STACK_SIZE * (CFG_TUSB_DEBUG ? 3 : 2))
+#endif
+#endif
+
 static EmbeddedCli *_cli;
 static CLI_UINT     cli_buffer[BYTES_TO_CLI_UINTS(CLI_BUFFER_SIZE)];
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+#if configSUPPORT_STATIC_ALLOCATION
+static StackType_t  msc_app_stack[MSC_APP_STACK_SIZE];
+static StaticTask_t msc_app_taskdef;
+#endif
+#endif
 
 //------------- Elm Chan FatFS -------------//
 static CFG_TUH_MEM_SECTION FATFS fatfs[CFG_TUH_DEVICE_MAX]; // for simplicity only support 1 LUN per device
 static volatile bool              _disk_busy[CFG_TUH_DEVICE_MAX];
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+static volatile bool              _mount_pending[CFG_TUH_DEVICE_MAX];
+#endif
 
 static CFG_TUH_MEM_SECTION FIL     file1, file2;
 
@@ -73,10 +91,17 @@ CFG_TUH_MEM_SECTION static struct {
 //--------------------------------------------------------------------+
 
 bool cli_init(void);
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+static void msc_app_task(void* param);
+static void process_pending_mount(void);
+#endif
 
 bool msc_app_init(void) {
   for (size_t i = 0; i < CFG_TUH_DEVICE_MAX; i++) {
     _disk_busy[i] = false;
+    #if CFG_TUSB_OS == OPT_OS_FREERTOS
+    _mount_pending[i] = false;
+    #endif
   }
 
 // disable stdout buffered for echoing typing command
@@ -86,9 +111,73 @@ bool msc_app_init(void) {
 
   cli_init();
 
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  #if configSUPPORT_STATIC_ALLOCATION
+  TaskHandle_t task_hdl = xTaskCreateStatic(msc_app_task, "msc", MSC_APP_STACK_SIZE, NULL,
+                                             configMAX_PRIORITIES - 2, msc_app_stack, &msc_app_taskdef);
+  TU_ASSERT(task_hdl != NULL);
+  #else
+  TU_ASSERT(xTaskCreate(msc_app_task, "msc", MSC_APP_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, NULL) == pdPASS);
+  #endif
+#endif
+
   return true;
 }
 
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+static void msc_app_task(void* param) {
+  (void) param;
+
+  while (1) {
+    process_pending_mount();
+
+    if (!_cli) {
+      vTaskDelay(1);
+      continue;
+    }
+
+    int ch = board_getchar();
+    if (ch > 0) {
+      while (ch > 0) {
+        embeddedCliReceiveChar(_cli, (char) ch);
+        ch = board_getchar();
+      }
+      embeddedCliProcess(_cli);
+    }
+
+    vTaskDelay(1);
+  }
+}
+
+static void process_pending_mount(void) {
+  for (uint8_t drive_num = 0; drive_num < CFG_TUH_DEVICE_MAX; drive_num++) {
+    if (!_mount_pending[drive_num]) {
+      continue;
+    }
+
+    _mount_pending[drive_num] = false;
+
+    const uint8_t dev_addr = drive_num + 1;
+    if (!tuh_msc_mounted(dev_addr)) {
+      continue;
+    }
+
+    char drive_path[3] = "0:";
+    drive_path[0] += drive_num;
+
+    if (f_mount(&fatfs[drive_num], drive_path, 1) != FR_OK) {
+      printf("mount failed\r\n");
+      continue;
+    }
+
+    f_chdrive(drive_path);
+    FRESULT rc = f_chdir("/");
+    if (rc != FR_OK) {
+      printf("chdir failed: %d\r\n", rc);
+    }
+  }
+}
+#else
 void msc_app_task(void) {
   if (!_cli) {
     return;
@@ -103,6 +192,7 @@ void msc_app_task(void) {
     embeddedCliProcess(_cli);
   }
 }
+#endif
 
 //--------------------------------------------------------------------+
 //
@@ -130,6 +220,9 @@ static bool inquiry_complete_cb(uint8_t dev_addr, const tuh_msc_complete_data_t 
 
   // For simplicity: we only mount 1 LUN per device
   const uint8_t drive_num     = dev_addr - 1;
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  _mount_pending[drive_num] = true;
+#else
   char          drive_path[3] = "0:";
   drive_path[0] += drive_num;
 
@@ -144,6 +237,7 @@ static bool inquiry_complete_cb(uint8_t dev_addr, const tuh_msc_complete_data_t 
   if (rc != FR_OK) {
     printf("chdir failed: %d\r\n", rc);
   }
+#endif
 
   // print the drive label
   //  char label[34];
@@ -170,6 +264,10 @@ void tuh_msc_umount_cb(uint8_t dev_addr) {
   char          drive_path[3] = "0:";
   drive_path[0] += drive_num;
 
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  _mount_pending[drive_num] = false;
+#endif
+
   f_unmount(drive_path);
 
   //  if ( phy_disk == f_get_current_drive() )
@@ -191,7 +289,11 @@ void tuh_msc_umount_cb(uint8_t dev_addr) {
 
 static void wait_for_disk_io(BYTE pdrv) {
   while (_disk_busy[pdrv]) {
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+    vTaskDelay(1);
+#else
     tuh_task();
+#endif
   }
 }
 
@@ -387,12 +489,24 @@ void cli_cmd_dd(EmbeddedCli *cli, char *args, void *context) {
 
   const uint32_t start_ms = tusb_time_millis_api();
   const uint8_t  pdrv     = dev_addr - 1;
+  bool submit_failed = false;
 
   for (uint32_t i = 0; i < count; i += sectors_per_xfer) {
     const uint16_t n = (uint16_t)((count - i < sectors_per_xfer) ? (count - i) : sectors_per_xfer);
     _disk_busy[pdrv] = true;
-    tuh_msc_read10(dev_addr, lun, rw_buf, i, n, disk_io_complete, 0);
+
+    if (!tuh_msc_read10(dev_addr, lun, rw_buf, i, n, disk_io_complete, 0)) {
+      _disk_busy[pdrv] = false;
+      printf("dd: failed to submit read at sector %" PRIu32 " (%u sectors)\r\n", i, n);
+      submit_failed = true;
+      break;
+    }
+
     wait_for_disk_io(pdrv);
+  }
+
+  if (submit_failed) {
+    return;
   }
 
   const uint32_t elapsed_ms = tusb_time_millis_api() - start_ms;
@@ -491,6 +605,7 @@ void cli_cmd_cp(EmbeddedCli *cli, char *args, void *context) {
 
   if (FR_OK != f_open(f_dst, dst, FA_WRITE | FA_CREATE_ALWAYS)) {
     printf("cannot create '%s'\r\n", dst);
+    f_close(f_src);
     return;
   } else {
     UINT rd_count = 0;
@@ -566,6 +681,7 @@ void cli_cmd_pwd(EmbeddedCli *cli, char *args, void *context) {
   char path[256];
   if (FR_OK != f_getcwd(path, sizeof(path))) {
     printf("cannot get current working directory\r\n");
+    return;
   }
 
   puts(path);
