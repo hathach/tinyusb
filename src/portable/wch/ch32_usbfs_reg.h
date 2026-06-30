@@ -127,8 +127,10 @@
   #define CH32_USBFS_EP_CTRL_COMBINED 1
 #elif CFG_TUSB_MCU == OPT_MCU_CH32V20X
   #include <ch32v20x.h>
+  #include <ch32v20x_usb.h>
 #elif CFG_TUSB_MCU == OPT_MCU_CH32V307
   #include <ch32v30x.h>
+  #include <ch32v30x_usb.h>
   #define USBHD_IRQn OTG_FS_IRQn
 #elif CFG_TUSB_MCU == OPT_MCU_CH583
   #include "CH58x_common.h"
@@ -201,6 +203,11 @@
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif
+
+// we only speak up to full-speed here, i.e. 64 bytes per packet
+#define MAX_PACKET_SIZE 64
+
+
 
 // CTRL
 #define USBFS_CTRL_DMA_EN    (1 << 0)
@@ -287,4 +294,119 @@
 #define PID_IN    2
 #define PID_SETUP 3
 
-#endif // USB_CH32_USBFS_REG_H
+// USB host defines taken from ch32v20x_usb.h
+#define USBFS_UH_EP_TX_EN 0x40
+#define USBFS_UH_EP_RX_EN 0x08
+
+#define USBFS_UIF_DETECT 0x01
+#define USBFS_UMS_DEV_ATTACH 0x01
+
+#define USBFS_UDA_GP_BIT 0x80
+#define USBFS_USB_ADDR_MASK 0x7F
+
+#define USBFS_UH_LOW_SPEED 0x04
+#define USBFS_UH_PRE_PID_EN 0x0400
+
+#define USBFS_UH_BUS_RESET 0x02
+#define USBFS_UH_PORT_EN 0x01
+
+#define USBFS_UMS_DM_LEVEL 0x02
+#define USB_LOW_SPEED 0x00
+#define USB_FULL_SPEED 0x01
+#define USBFS_UC_LOW_SPEED 0x40
+
+#define USBFS_UH_SOF_EN 0x0004
+
+/* USB PID */
+#ifndef USB_PID_SETUP
+  #define USB_PID_NULL 0x00
+  #define USB_PID_SOF 0x05
+  #define USB_PID_SETUP 0x0D
+  #define USB_PID_IN 0x09
+  #define USB_PID_OUT 0x01
+  #define USB_PID_NYET 0x06
+  #define USB_PID_ACK 0x02
+  #define USB_PID_NAK 0x0A
+  #define USB_PID_STALL 0x0E
+  #define USB_PID_DATA0 0x03
+  #define USB_PID_DATA1 0x0B
+  #define USB_PID_PRE 0x0C
+#endif
+
+#define USBFS_UIF_HST_SOF 0x08
+#define USBFS_UIF_TRANSFER 0x02
+
+/* R8_USB_MIS_ST */
+#define USBFS_UMS_SOF_PRES 0x80
+#define USBFS_UMS_SOF_ACT 0x40
+#define USBFS_UMS_SIE_FREE 0x20
+#define USBFS_UMS_R_FIFO_RDY 0x10
+#define USBFS_UMS_BUS_RESET 0x08
+#define USBFS_UMS_SUSPEND 0x04
+#define USBFS_UMS_DM_LEVEL 0x02
+#define USBFS_UMS_DEV_ATTACH 0x01
+
+#define USBFS_UIS_IS_NAK 0x80    // RO, indicate current USB transfer is NAK received for USB device mode
+#define USBFS_UIS_TOG_OK 0x40    // RO, indicate current USB transfer toggle is OK
+#define USBFS_UIS_TOKEN_MASK 0x30// RO, bit mask of current token PID code received for USB device mode
+#define USBFS_UIS_TOKEN_OUT 0x00
+#define USBFS_UIS_TOKEN_SOF 0x10
+#define USBFS_UIS_TOKEN_IN 0x20
+#define USBFS_UIS_TOKEN_SETUP 0x30
+
+#define USBFS_UH_ENDP_MASK 0x0F
+#define USBFS_UIS_H_RES_MASK 0x0F// RO, bit mask of current transfer handshake response for USB host mode:
+#define USBFS_UH_TOKEN_MASK 0xF0
+
+
+/* R8_UHOST_CTRL */
+#define USBFS_UH_PD_DIS 0x80   // disable USB UDP/UDM pulldown resistance: 0=enable pulldown, 1=disable
+#define USBFS_UH_DP_PIN 0x20   // ReadOnly: indicate current UDP pin level
+#define USBFS_UH_DM_PIN 0x10   // ReadOnly: indicate current UDM pin level
+#define USBFS_UH_LOW_SPEED 0x04// enable USB port low speed: 0=full speed, 1=low speed
+#define USBFS_UH_BUS_RESET 0x02// control USB bus reset: 0=normal, 1=force bus reset
+#define USBFS_UH_PORT_EN 0x01  // enable USB port: 0=disable, 1=enable port, automatic disabled if USB device detached
+
+/* R32_UH_EP_MOD */
+#define USBFS_UH_EP_TX_EN 0x40   // enable USB host OUT endpoint transmittal
+#define USBFS_UH_EP_TBUF_MOD 0x10// buffer mode of USB host OUT endpoint
+// bUH_EP_TX_EN & bUH_EP_TBUF_MOD: USB host OUT endpoint buffer mode, buffer start address is UH_TX_DMA
+//   0 x:  disable endpoint and disable buffer
+//   1 0:  64 bytes buffer for transmittal (OUT endpoint)
+//   1 1:  dual 64 bytes buffer by toggle bit bUH_T_TOG selection for transmittal (OUT endpoint), total=128bytes
+#define USBFS_UH_EP_RX_EN 0x08   // enable USB host IN endpoint receiving
+#define USBFS_UH_EP_RBUF_MOD 0x01// buffer mode of USB host IN endpoint
+// bUH_EP_RX_EN & bUH_EP_RBUF_MOD: USB host IN endpoint buffer mode, buffer start address is UH_RX_DMA
+//   0 x:  disable endpoint and disable buffer
+//   1 0:  64 bytes buffer for receiving (IN endpoint)
+//   1 1:  dual 64 bytes buffer by toggle bit bUH_R_TOG selection for receiving (IN endpoint), total=128bytes
+
+/* R16_UH_SETUP */
+#define USBFS_UH_PRE_PID_EN 0x0400// USB host PRE PID enable for low speed device via hub
+#define USBFS_UH_SOF_EN 0x0004    // USB host automatic SOF enable
+
+/* R8_UH_EP_PID */
+#define USBFS_UH_TOKEN_MASK 0xF0// bit mask of token PID for USB host transfer
+#define USBFS_UH_ENDP_MASK 0x0F // bit mask of endpoint number for USB host transfer
+
+/* R8_UH_RX_CTRL */
+#define USBFS_UH_R_AUTO_TOG 0x08// enable automatic toggle after successful transfer completion: 0=manual toggle, 1=automatic toggle
+#define USBFS_UH_R_TOG 0x04     // expected data toggle flag of host receiving (IN): 0=DATA0, 1=DATA1
+#define USBFS_UH_R_RES 0x01     // prepared handshake response type for host receiving (IN): 0=ACK (ready), 1=no response, time out to device, for isochronous transactions
+
+/* R8_UH_TX_CTRL */
+#define USBFS_UH_T_AUTO_TOG 0x08// enable automatic toggle after successful transfer completion: 0=manual toggle, 1=automatic toggle
+#define USBFS_UH_T_TOG 0x04     // prepared data toggle flag of host transmittal (SETUP/OUT): 0=DATA0, 1=DATA1
+#define USBFS_UH_T_RES 0x01     // expected handshake response type for host transmittal (SETUP/OUT): 0=ACK (ready), 1=no response, time out from device, for isochronous transactions
+
+/* R8_USB_MIS_ST */
+#define USBFS_UMS_SOF_PRES 0x80
+#define USBFS_UMS_SOF_ACT 0x40
+#define USBFS_UMS_SIE_FREE 0x20
+#define USBFS_UMS_R_FIFO_RDY 0x10
+#define USBFS_UMS_BUS_RESET 0x08
+#define USBFS_UMS_SUSPEND 0x04
+#define USBFS_UMS_DM_LEVEL 0x02
+#define USBFS_UMS_DEV_ATTACH 0x01
+
+#endif// USB_CH32_USBFS_REG_H
