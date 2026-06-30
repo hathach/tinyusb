@@ -64,6 +64,6 @@ gen_doc.gen_boards_doc()
 gen_presets.main()
 
 ###################
-# docs/info/changelog/
+# docs/changelog/
 ###################
-print("Add docs/info/changelog/{}.rst and list it at the top of docs/info/changelog/index.rst".format(version))
+print("Add docs/changelog/{}.rst and list it at the top of docs/changelog/index.rst".format(version))

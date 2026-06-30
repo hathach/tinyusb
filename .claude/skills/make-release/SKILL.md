@@ -1,6 +1,6 @@
 ---
 name: make-release
-description: Use when cutting a new TinyUSB release — bumping the version, running tools/make_release.py, writing the per-release docs/info/changelog/ entry from the PRs merged since the last tag, and validating before the maintainer commits and tags. Covers the changelog PR-boundary reconciliation and the regenerated-file gotchas.
+description: Use when cutting a new TinyUSB release — bumping the version, running tools/make_release.py, writing the per-release docs/changelog/ entry from the PRs merged since the last tag, and validating before the maintainer commits and tags. Covers the changelog PR-boundary reconciliation and the regenerated-file gotchas.
 ---
 
 # Cut a TinyUSB Release
@@ -20,9 +20,9 @@ Gotchas:
 - `gen_doc` imports `pandas` + `tabulate` at line 3 and crashes before writing if they're missing (not in `docs/requirements.txt`) → `pip install pandas tabulate`. See the **build-doc** skill.
 - `boards.rst` is written with no trailing newline → pre-commit's `end-of-file-fixer` adds it; run pre-commit on the regenerated files (step 3).
 
-## 2. Changelog — `docs/info/changelog/` (the hard part)
+## 2. Changelog — `docs/changelog/` (the hard part)
 
-Each release is its own file: create `docs/info/changelog/X.Y.Z.rst` and add it as the **first** entry in the `docs/info/changelog/index.rst` toctree (newest first). Determine the PR set by **git commit reachability, not by merge date** — a date query (`gh ... --search merged:>=DATE`) both includes the *previous* release's own changelog PR (its `mergedAt` shares the tag day) and is awkward at the boundary; `--merges | grep "Merge pull request"` silently drops squash-merged PRs.
+Each release is its own file: create `docs/changelog/X.Y.Z.rst` and add it as the **first** entry in the `docs/changelog/index.rst` toctree (newest first). Determine the PR set by **git commit reachability, not by merge date** — a date query (`gh ... --search merged:>=DATE`) both includes the *previous* release's own changelog PR (its `mergedAt` shares the tag day) and is awkward at the boundary; `--merges | grep "Merge pull request"` silently drops squash-merged PRs.
 
 ```bash
 PREV=0.20.0   # last release tag
@@ -42,7 +42,7 @@ Why this is correct: `$PREV..HEAD` excludes everything reachable from the last t
 A PR merged into a *feature branch* (rather than master) is folded into its parent top-level PR and won't appear on its own — intended (review follow-ups aren't double-listed), but make the parent's changelog bullet reflect the final merged state. This is also why a date-based `gh` query returns *more* numbers than this set: those extras are the prior changelog PR plus these sub-PRs.
 
 Then **curate** into the existing sections, matching the prior release file's RST style exactly:
-- The file's title is the version (`X.Y.Z` with `======` underline matching its length), then the italic date (the planned tag date — ask if unknown). Add the file to the top of `docs/info/changelog/index.rst`.
+- The file's title is the version (`X.Y.Z` with `======` underline matching its length), then the italic date (the planned tag date — ask if unknown). Add the file to the top of `docs/changelog/index.rst`.
 - Sections in order: **General** (New MCUs and Boards / Code Quality and Build / Documentation), **API Changes**, **Device Stack** (per class: Audio, CDC, HID, MIDI, MSC, MTP, Net, Video, …), **Host Stack**, **Controller Driver (DCD & HCD)** (per driver: DWC2, FSDEV, MUSB, RP2040, …), **Testing**, **Contributors**. Within a section, each driver/class group is a ``^^^``-underlined sub-heading (not a bullet).
 - RST inline code (double backticks) for symbols. Group related PRs into one bullet — summarize, don't dump 200 lines. Driver/`Port *` PR labels help bucket DCD/HCD entries.
 - **Contributors** section credits the release's PR authors (this is where contributor credit lives — there is no separate contributors page). List the unique non-bot author handles alphabetically:
@@ -55,7 +55,7 @@ Then **curate** into the existing sections, matching the prior release file's RS
 ## 3. Validate (all unstaged)
 
 ```bash
-pre-commit run --files docs/info/changelog/X.Y.Z.rst docs/info/changelog/index.rst \
+pre-commit run --files docs/changelog/X.Y.Z.rst docs/changelog/index.rst \
   docs/reference/boards.rst docs/reference/dependencies.rst \
   library.json repository.yml sonar-project.properties src/tusb_option.h tools/make_release.py
 python3 tools/build_doc.py -c                                 # docs build clean; new release page wired into the toctree (see build-doc skill)

@@ -6,5 +6,5 @@ Maintainers
 - `Zixun Li (HiFiPhile) <https://github.com/HiFiPhile>`__ — maintainer; audio expertise
 
 Everyone who has contributed is credited per release in the
-`changelog <https://docs.tinyusb.org/en/latest/info/changelog/index.html>`__ and in the GitHub
+`changelog <https://docs.tinyusb.org/en/latest/changelog/index.html>`__ and in the GitHub
 `contributors graph <https://github.com/hathach/tinyusb/graphs/contributors>`__.
