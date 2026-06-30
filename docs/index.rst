@@ -18,6 +18,7 @@
    troubleshooting
    faq
    info/changelog/index
+   maintainers
 
 .. toctree::
    :maxdepth: 2
