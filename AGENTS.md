@@ -195,16 +195,7 @@ Device examples need real hardware to validate runtime behavior; must at least b
 
 ## Release
 
-**Do not commit automatically — leave changes for maintainer review.**
-
-1. Bump version at top of `tools/make_release.py`.
-2. Run `python3 tools/make_release.py` to refresh: `src/tusb_option.h`, `repository.yml`, `library.json`, `sonar-project.properties`, `docs/reference/boards.rst`, `hw/bsp/BoardPresets.json`.
-3. Changelog `docs/info/changelog.rst`:
-   - `git log <last-tag>..HEAD --oneline` for commit list.
-   - Read merged PRs for context (`gh pr view`, or github MCP tools).
-   - Follow existing format: version + `======` underline, italic date, sections (General, API Changes, DCD & HCD, Device Stack, Host Stack, Testing), RST inline code for symbols.
-4. Validate: `ceedling test:all`, build `cdc_msc` for `stm32f407disco`, review `git diff --stat`.
-5. Leave unstaged. Maintainer commits `Bump version to X.Y.Z`, then: `git tag -a vX.Y.Z -m "Release X.Y.Z" && git push origin <branch> vX.Y.Z`. Create GitHub release from tag.
+Cutting a release — version bump, regenerated files, the per-release changelog, validation, and the maintainer's commit/tag/GitHub-release — is handled by the `make-release` skill (`.claude/skills/make-release/SKILL.md`).
 
 ## References
 

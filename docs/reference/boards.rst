@@ -301,6 +301,7 @@ stm32h563nucleo      STM32 H563 Nucleo                  stm32h5    https://www.s
 stm32h573i_dk        STM32 H573i Discovery              stm32h5    https://www.st.com/en/evaluation-tools/stm32h573i-dk.html
 daisyseed            Daisy Seed                         stm32h7    https://electro-smith.com/products/daisy-seed
 stm32h723nucleo      STM32 H723 Nucleo                  stm32h7    https://www.st.com/en/evaluation-tools/nucleo-h723zg.html
+stm32h743_weact      STM32 H743 WeAct board             stm32h7    https://github.com/WeActStudio/MiniSTM32H7xx
 stm32h743eval        STM32 H743 Eval                    stm32h7    https://www.st.com/en/evaluation-tools/stm32h743i-eval.html
 stm32h743nucleo      STM32 H743 Nucleo                  stm32h7    https://www.st.com/en/evaluation-tools/nucleo-h743zi.html
 stm32h745disco       STM32 H745 Discovery               stm32h7    https://www.st.com/en/evaluation-tools/stm32h745i-disco.html
@@ -319,6 +320,7 @@ stm32l4r5nucleo      STM32 L4R5 Nucleo                  stm32l4    https://www.s
 stm32n6570dk         STM32 N6570-DK                     stm32n6    https://www.st.com/en/evaluation-tools/stm32n6570-dk.html
 stm32n657nucleo      STM32 N657X0-Q Nucleo              stm32n6    https://www.st.com/en/evaluation-tools/nucleo-n657x0-q.html
 stm32u083cdk         STM32U083C-DK Discovery Kit        stm32u0    https://www.st.com/en/evaluation-tools/stm32u083c-dk.html
+stm32u083nucleo      NUCLEO-U083RC                      stm32u0    https://www.st.com/en/evaluation-tools/nucleo-u083rc.html
 b_u585i_iot2a        STM32 B-U585i IOT2A Discovery kit  stm32u5    https://www.st.com/en/evaluation-tools/b-u585i-iot02a.html
 stm32u545nucleo      STM32 U545 Nucleo                  stm32u5    https://www.st.com/en/evaluation-tools/nucleo-u545re-q.html
 stm32u575eval        STM32 U575 Eval                    stm32u5    https://www.st.com/en/evaluation-tools/stm32u575i-ev.html
@@ -361,15 +363,17 @@ fomu     fomu    fomu      https://tomu.im/fomu.html
 WCH
 ---
 
-================  ================  ========  =====================================================================  ======
-Board             Name              Family    URL                                                                    Note
-================  ================  ========  =====================================================================  ======
-ch32f205r-r0      CH32F205r-r0      ch32f20x  https://github.com/openwch/ch32f20x
-ch32v103r_r1_1v0  CH32V103R-R1-1v1  ch32v10x  https://github.com/openwch/ch32v103/tree/main/SCHPCB/CH32V103R-R1-1v1
-ch32v203c_r0_1v0  CH32V203C-R0-1v0  ch32v20x  https://github.com/openwch/ch32v20x/tree/main/SCHPCB/CH32V203C-R0
-ch32v203g_r0_1v0  CH32V203G-R0-1v0  ch32v20x  https://github.com/openwch/ch32v20x/tree/main/SCHPCB/CH32V203C-R0
-nanoch32v203      nanoCH32V203      ch32v20x  https://github.com/wuxx/nanoCH32V203
-ch32v307v_r1_1v0  CH32V307V-R1-1v0  ch32v30x  https://github.com/openwch/ch32v307/tree/main/SCHPCB/CH32V307V-R1-1v0
-nanoch32v305      nanoCH32V305      ch32v30x  https://github.com/wuxx/nanoCH32V305
-yd-ch582m         yd-ch582m         ch583     http://vcc-gnd.com
-================  ================  ========  =====================================================================  ======
+==================  =============================  ========  =====================================================================  ======
+Board               Name                           Family    URL                                                                    Note
+==================  =============================  ========  =====================================================================  ======
+ch32f205r-r0        CH32F205r-r0                   ch32f20x  https://github.com/openwch/ch32f20x
+ch32v103c_bluepill  CH32V103C8T6-Bluepill          ch32v10x  https://stm32-base.org/boards/STM32F103C8T6-Blue-Pill
+ch32v103r_r1_1v0    CH32V103R-R1-1v1               ch32v10x  https://github.com/openwch/ch32v103/tree/main/SCHPCB/CH32V103R-R1-1v1
+ch32v203c_r0_1v0    CH32V203C-R0-1v0               ch32v20x  https://github.com/openwch/ch32v20x/tree/main/SCHPCB/CH32V203C-R0
+ch32v203g_r0_1v0    CH32V203G-R0-1v0               ch32v20x  https://github.com/openwch/ch32v20x/tree/main/SCHPCB/CH32V203C-R0
+nanoch32v203        nanoCH32V203                   ch32v20x  https://github.com/wuxx/nanoCH32V203
+ch32v307v_r1_1v0    CH32V307V-R1-1v0               ch32v30x  https://github.com/openwch/ch32v307/tree/main/SCHPCB/CH32V307V-R1-1v0
+nanoch32v305        nanoCH32V305                   ch32v30x  https://github.com/wuxx/nanoCH32V305
+ch582m_evt          CH582M-EVT evaluation board    ch583     https://www.wch-ic.com/products/CH582.html
+yd-ch582m           yd-ch582m from vcc-gnd studio  ch583     http://vcc-gnd.com/
+==================  =============================  ========  =====================================================================  ======

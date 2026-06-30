@@ -16,9 +16,7 @@ repos:
     exclude: |
       (?x)^(
         .idea/|
-        hw/bsp/mcx/sdk/|
-        docs/contributing/code_of_conduct.rst|
-        docs/info/contributors.rst
+        hw/bsp/mcx/sdk/
       )
   - id: forbid-submodules
 

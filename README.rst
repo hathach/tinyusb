@@ -184,7 +184,7 @@ Supported CPUs
 |              | MAX32 650, 666, 690,        | ✅     |      | ✅        | musb                   | 1-dir ep           |
 |              | MAX78002                    |        |      |           |                        |                    |
 +--------------+-----------------------------+--------+------+-----------+------------------------+--------------------+
-| Artery AT32  | F403a_407, F413             | ✅     |      |           | fsdev                  | 512 USB RAM        |
+| Artery AT32  | F403a_407, F413             | ✅     |      |           | stm32_fsdev            | 512 USB RAM        |
 |              +-----------------------------+--------+------+-----------+------------------------+--------------------+
 |              | F415, F435_437, F423,       | ✅     | ✅   |           | dwc2                   |                    |
 |              | F425, F45x                  |        |      |           |                        |                    |
@@ -311,9 +311,7 @@ Supported CPUs
 |              +-----------------------------+--------+------+-----------+------------------------+--------------------+
 |              | CH32V305, CH32V307          | 🟡     |      | ✅        | ch32_usbfs/hs          | ISO data loss [2]_ |
 |              +-----------------------------+--------+------+-----------+------------------------+--------------------+
-|              | CH32V103                    | 🟡     |      | ❌        | ch32_usbfs             | ISO data loss [2]_ |
-|              +-----------------------------+--------+------+-----------+------------------------+--------------------+
-|              | CH583, CH582                | 🟡     |      | ❌        | ch32_usbfs             | Device only        |
+|              | CH583/2, CH32V103           | 🟡     |      | ❌        | ch32_usbfs             | ISO data loss [2]_ |
 +--------------+-----------------------------+--------+------+-----------+------------------------+--------------------+
 
 Table Legend
@@ -357,8 +355,7 @@ The following tools are provided freely to support the development of the TinyUS
    :target: https://github.com/sponsors/hathach
 
 
-.. _Changelog: docs/info/changelog.rst
-.. _Contributors: CONTRIBUTORS.rst
+.. _Changelog: docs/changelog/index.rst
 .. _Getting Started: docs/getting_started.rst
 .. _Supported Boards: docs/reference/boards.rst
 .. _Dependencies: docs/reference/dependencies.rst

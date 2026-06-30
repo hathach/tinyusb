@@ -1,0 +1,213 @@
+0.21.0
+======
+
+*June 29, 2026*
+
+General
+-------
+
+New MCUs and Boards
+^^^^^^^^^^^^^^^^^^^
+
+- Add HPMicro HPM6xxx support with HPM6750EVK2 board
+- Add NXP RW61x (RW612, ChipIdea high-speed) support
+- Add Artery AT32F45x series support
+- Add STM32C5 series support
+- Add Espressif ESP32-S31 (high-speed) support
+- Add WCH CH582/CH583 (USBFS) support
+- Add CH32V103 USB device support (combined-control USBFS) with CH32V103C8T6 Bluepill board
+- Add FreeRTOS support for RP2040/RP2350
+- New boards: nRF54LM20-DK, WeAct STM32H743, EK-TM4C1294XL, STM32H747-DISCO, NUCLEO-H533RE
+- Migrate i.MX RT to the new ``mcux-devices-rt`` SDK package
+
+Code Quality and Build
+^^^^^^^^^^^^^^^^^^^^^^
+
+- Major refactor of dedicated hardware-FIFO (HWFIFO) handling: omit per-endpoint RAM buffers on ports with a dedicated hardware FIFO, add stride-aware FIFO access, and store raw bytes in ``tusb_fifo``
+- Reduce code size via control/descriptor and stream refactors, and remove ``snprintf`` usage
+- Remove IAR toolchain support from the Make build; add IAR warning flags and resolve warnings in CMake
+- Fix Zephyr build with nrfx v4, C++/``-Werror=extra`` builds, and various ``-Wconversion`` warnings
+- Update FatFS to R0.16
+- Fix the fuzzing harness
+- Various BSP fixes (STM32H5 UID read with ICACHE, STM32F411 Black Pill HSE, RT1011 data cache, Teensy)
+
+Documentation
+^^^^^^^^^^^^^
+
+- Add a README for every example and ``build-doc`` tooling
+- Add Sponsors section and ``FUNDING`` configuration
+- Various README/doc fixes (FTDI host, STM32C071 Nucleo URL, Supported CPUs table)
+
+API Changes
+-----------
+
+- Add ``is_isr`` parameter to ``dcd_edpt_xfer``, ``dcd_edpt_xfer_fifo``, ``usbd_edpt_xfer`` and ``usbd_edpt_xfer_fifo``
+- Remove the no-FIFO mode from the endpoint stream API
+- Add ``tud_vendor_write_clear()`` to forcefully clear the TX buffer
+- Add ``tud_midi_n_demux_stream_read()`` cable-aware MIDI stream read
+- Add ``CFG_TUH_HID_SET_PROTOCOL_ON_ENUM`` host HID option
+- Add ``CFG_TUSB_DEBUG_BREAKPOINT`` hook for ``TU_BREAKPOINT``
+- Add ThreadX OSAL support
+- ``tud_task_ext()`` / ``tuh_task_ext()`` now limit the number of events processed per call
+- Replace ``CFG_TUD_NET_ENDPOINT_SIZE`` with the descriptor-based endpoint size
+
+Device Stack
+------------
+
+USBD Core
+^^^^^^^^^
+
+- Refactor and validate device descriptor handling; move control transfer handling into ``usbd.c``
+- Use the EP0 buffer directly when large enough; clamp EP0 OUT data copy to the control buffer
+- Fix stream write logic/racing without FIFO; fix zero ``wLength`` control request
+- Fix ISO OUT endpoint failure on alt-setting MPS change
+
+Audio
+^^^^^
+
+- Fix ``audiod_open`` with MIDI interfaces
+- Fix big-endian bitfield guards for audio structs and endian-safe ``wValue``/``wIndex`` extraction in UAC2 examples
+
+CDC
+^^^
+
+- Remove ``tud_cdc_configure``
+- Fix CDC echo test issue on i.MX RT and fast MCUs
+
+HID
+^^^
+
+- Bound item size to remaining length in the report-descriptor parser
+- Remove host enumeration assumption; add ``CFG_TUH_HID_SET_PROTOCOL_ON_ENUM``
+
+MIDI
+^^^^
+
+- Add USB-MIDI 2.0 device and host class drivers
+- Add cable-aware stream read ``tud_midi_n_demux_stream_read()``
+- Fix MIDI host issue
+
+MSC
+^^^
+
+- Skip the command stage if the OUT endpoint is stalled
+- Cap ``tud_msc_scsi_cb`` buffer size to the endpoint buffer size
+
+MTP
+^^^
+
+- Fix transfer completion detection for exact-length packets; queue ZLP when needed
+- Fix premature phase change after a short OUT transfer; fixes in ``add_string``
+
+Network (NCM)
+^^^^^^^^^^^^^
+
+- Fix NCM state on restart
+- Support ``SetEthernetPacketFilter`` and ``SetNtbInputSize`` requests
+- Add a weak callback for the initial link state
+
+Video (UVC)
+^^^^^^^^^^^
+
+- Fix VC interface parsing when ``bNumEndpoints`` != 0
+- Assert the ``usbd_edpt_iso_activate()`` result
+
+DFU
+^^^
+
+- Fix the DFU functional descriptor version (1.0.1 → 1.1.0)
+
+Printer
+^^^^^^^
+
+- Add the USB Printer device class driver
+
+Vendor
+^^^^^^
+
+- Omit the endpoint buffer for ports with a dedicated hardware FIFO
+
+Host Stack
+----------
+
+- Fully asynchronous host code: remove blocking delays from ``tuh_task_ext()``, respect its ``timeout_ms``, and avoid stalling one device while another enumerates
+- Add an async control-transfer FIFO so queued control transfers are dispatched instead of dropped
+- Hub enumeration reliability improvements; add MTT hub support
+- Support full-speed host with a high-speed PHY (DWC2)
+- Fix FTDI host multi-channel loop
+- CDC host: use a local control buffer; fix ``cdch_open`` typo
+- Big-endian host support for SETUP packet handling
+- Use ``TUSB_ROLE_HOST`` in host stack initialization
+
+Controller Driver (DCD & HCD)
+-----------------------------
+
+DWC2
+^^^^
+
+- Add ``dcd_configure`` for FIFO config and DWC2 deinit support
+- Support full-speed host operation on a high-speed PHY
+- Vbus sensing enhancement; do not modify FS PHY registers on HS PHY (ESP32-P4)
+- Fix HCD TX FIFO full check, ISO IN endpoint disabled after incomplete transfer, and EP0 status completion before SETUP
+- Submit SETUP on SETUP_DONE and handle v3.10a spurious RX_COMPLETE (STM32L476)
+- HCD: correct HFIR for low-speed devices via internal FS PHY; fix split-IN NAK storm and UART starvation (STM32F723)
+
+FSDEV (STM32 / CH32)
+^^^^^^^^^^^^^^^^^^^^
+
+- Add FSDEV host (HCD) driver
+- Refactor FSDEV; share the PMA errata delay helper between DCD/HCD with overridable timing
+- Fix single-buffered isochronous endpoint cases, STM32U0 data stride, and PMA pointer advance on ring-buffer wrap
+- Fix CH32V20x enumeration by enabling the D+ pull-up; work around CH32 EP0 premature OUT ACK
+- Do not enable the unused USB wakeup EXTI IRQ (F1/F3/G4/L1)
+
+MUSB
+^^^^
+
+- Enhance driver: double packet, EP0 refactor, fix DATAEND race with EP0
+- Fix ZLP IN transfer, RXRDY clearing, and defer EP0 SETUP during the DATA_IN/STATUS race
+
+RP2040 / RP2350
+^^^^^^^^^^^^^^^
+
+- Refactor RP2 driver
+- HCD rework: EPX for non-interrupt endpoints and ping-pong double buffering
+- Fix RP2350 hard fault in unaligned memcpy to USB DPRAM
+- Host: fix OUT-data control transfers sending DATA0 instead of DATA1
+
+CH32 USBFS / USBHS (WCH)
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Fix dropped bulk OUT packets by re-arming the EP_RX_CTRL state (usbfs)
+- Fix endpoint stall length index and clear-stall response (usbhs)
+- Fix CH32V103 hard fault
+
+RUSB2 / SAMx7x
+^^^^^^^^^^^^^^
+
+- Fix RUSB2 FIFO write
+- Refresh ``dcd_samx7x``
+
+New host controllers
+^^^^^^^^^^^^^^^^^^^^
+
+- Add NXP IP3516 HCD (EHCI-like)
+- Add MTT (multi-TT) hub support
+
+nRF5x
+^^^^^
+
+- Request HFCLK in ``USB_EVT_READY`` to fix the post-SoftDevice deadlock
+
+Testing
+-------
+
+- Expand Hardware-in-the-Loop (HIL) coverage (MTP, audio, throughput; nanoch32v203, ch32v103, stm32u083nucleo, tm4c123x) and post pass/fail/skip HIL reports as PR comments
+- Add MemBrowse code-size CI integration and size-difference reporting
+- Add automated Claude Code PR review and bug-fix CI workflows
+- Add ``hil``, ``code-size``, ``pvs``, ``usbmon`` and ``build-doc`` developer skills
+
+Contributors
+------------
+
+Thanks to everyone who contributed to this release: @Alex-Schaefer, @alt-0191, @andrewleech, @armusin, @bdolgov, @BrentK-ADI, @ceedriic, @chenzhihong007, @dangfan, @DavidKorczynski, @dinsfire64, @dxbjavid, @embedded-ideas, @felhub, @gab-k, @gabChouin, @HakanL, @hathach, @HiFiPhile, @igi540, @IntegraSources, @kira-live, @LeZerb, @michael-membrowse, @michaelajax, @mickabrig7, @Milek7, @morse-cedricvandenbergh, @nminaylov, @non-bin, @Phozer, @remiberthoz, @renjieah, @rhgndf, @RobertDaleSmith, @roma-jam, @sauloverissimo, @sgrunza-at-BadgerMeter, @sidcha, @StefanOroel, @Tails86, @thamul, @tore-espressif, @UMRnInside, @ValentiWorkLearning, @verylowfreq, @wjklimek1, @YixingShen, @zhiqiang-ch, @zjzhang-cn.
