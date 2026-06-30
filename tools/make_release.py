@@ -66,4 +66,4 @@ gen_presets.main()
 ###################
 # docs/changelog/
 ###################
-print("Add docs/changelog/{}.rst and list it at the top of docs/changelog/index.rst".format(version))
+print("Add docs/changelog/{}.md and list it at the top of docs/changelog/index.md".format(version))

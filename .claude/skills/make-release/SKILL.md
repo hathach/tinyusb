@@ -19,7 +19,7 @@ Gotchas: `gen_doc` needs `pandas`+`tabulate` (not in requirements) → `pip inst
 
 ## 2. Changelog — `docs/changelog/` (the hard part)
 
-New file `docs/changelog/X.Y.Z.rst`, listed **first** in `docs/changelog/index.rst`. Get the PR set by **commit reachability, not merge date** (a date query wrongly pulls in the prior release's changelog PR at the boundary):
+New file `docs/changelog/X.Y.Z.md`, listed **first** in `docs/changelog/index.md`. Get the PR set by **commit reachability, not merge date** (a date query wrongly pulls in the prior release's changelog PR at the boundary):
 
 ```bash
 PREV=0.20.0
@@ -46,7 +46,7 @@ xargs -P8 -I{} gh pr view {} --json number,title,labels \
 ## 3. Validate (leave unstaged)
 
 ```bash
-pre-commit run --files docs/changelog/X.Y.Z.rst docs/changelog/index.rst \
+pre-commit run --files docs/changelog/X.Y.Z.md docs/changelog/index.md \
   docs/reference/boards.rst docs/reference/dependencies.rst \
   library.json repository.yml sonar-project.properties src/tusb_option.h tools/make_release.py
 python3 tools/build_doc.py -c            # docs build clean (see build-doc skill)
