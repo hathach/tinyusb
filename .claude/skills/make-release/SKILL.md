@@ -1,84 +1,71 @@
 ---
 name: make-release
-description: Use when cutting a new TinyUSB release — bumping the version, running tools/make_release.py, writing the per-release docs/changelog/ entry from the PRs merged since the last tag, and validating before the maintainer commits and tags. Covers the changelog PR-boundary reconciliation and the regenerated-file gotchas.
+description: Use when cutting a new TinyUSB release — version bump, regenerated files, the per-release changelog, and validation before the maintainer commits and tags.
 ---
 
 # Cut a TinyUSB Release
 
-**Do NOT commit or tag** during prep — leave every change unstaged for maintainer review; the maintainer finalizes (commit, tag, release) in step 4. Work in a worktree. Agree the target version `X.Y.Z` with the maintainer before starting (it is their call, not derivable from the diff).
+**Don't commit or tag during prep** — leave changes unstaged for the maintainer (step 4). Work in a worktree. Agree the version `X.Y.Z` with the maintainer first (their call, not derivable from the diff).
 
-## 1. Bump version + regenerate files
+## 1. Bump + regenerate
 
 ```bash
-# edit tools/make_release.py: version = 'X.Y.Z'
-python3 tools/make_release.py        # MUST run from repo root (uses relative paths)
+# set version = 'X.Y.Z' in tools/make_release.py, then FROM REPO ROOT:
+python3 tools/make_release.py
 ```
+Refreshes `tusb_option.h`, `repository.yml`, `library.json`, `sonar-project.properties`, and (via gen_doc/gen_presets) `docs/reference/{boards,dependencies}.rst` + preset JSONs (presets/docs change only if boards/deps changed).
 
-Refreshes `src/tusb_option.h`, `repository.yml`, `library.json`, `sonar-project.properties`, and (via `gen_doc`/`gen_presets`) `docs/reference/{boards,dependencies}.rst`, `hw/bsp/BoardPresets.json`, per-example `CMakePresets.json`. The presets/docs only change if boards/deps changed since the last release.
-
-Gotchas:
-- `gen_doc` imports `pandas` + `tabulate` at line 3 and crashes before writing if they're missing (not in `docs/requirements.txt`) → `pip install pandas tabulate`. See the **build-doc** skill.
-- `boards.rst` is written with no trailing newline → pre-commit's `end-of-file-fixer` adds it; run pre-commit on the regenerated files (step 3).
+Gotchas: `gen_doc` needs `pandas`+`tabulate` (not in requirements) → `pip install pandas tabulate`; `boards.rst` lands with no trailing newline → let pre-commit fix it (step 3).
 
 ## 2. Changelog — `docs/changelog/` (the hard part)
 
-Each release is its own file: create `docs/changelog/X.Y.Z.rst` and add it as the **first** entry in the `docs/changelog/index.rst` toctree (newest first). Determine the PR set by **git commit reachability, not by merge date** — a date query (`gh ... --search merged:>=DATE`) both includes the *previous* release's own changelog PR (its `mergedAt` shares the tag day) and is awkward at the boundary; `--merges | grep "Merge pull request"` silently drops squash-merged PRs.
+New file `docs/changelog/X.Y.Z.rst`, listed **first** in `docs/changelog/index.rst`. Get the PR set by **commit reachability, not merge date** (a date query wrongly pulls in the prior release's changelog PR at the boundary):
 
 ```bash
-PREV=0.20.0   # last release tag
-git merge-base --is-ancestor $PREV HEAD && echo OK   # else range math invalid — stop
+PREV=0.20.0
+git merge-base --is-ancestor $PREV HEAD && echo OK   # else stop: range invalid
 git log --first-parent $PREV..HEAD --pretty=%s > /tmp/fp.txt
-{ sed -nE 's/^Merge pull request #([0-9]+).*/\1/p' /tmp/fp.txt
-  sed -nE 's/.*\(#([0-9]+)\)$/\1/p'                /tmp/fp.txt ; } | sort -un > /tmp/prs.txt
-# guard: any mainline commit with NO PR ref (direct push / rebase-merge). Must be empty; investigate if not:
-grep -vE '^Merge pull request #[0-9]+|\(#[0-9]+\)$' /tmp/fp.txt
-# titles + labels to categorize (parallelize — 200+ sequential gh calls take minutes):
+{ sed -nE 's/^Merge pull request #([0-9]+).*/\1/p' /tmp/fp.txt   # merge-button
+  sed -nE 's/.*\(#([0-9]+)\)$/\1/p'                /tmp/fp.txt ; } | sort -un > /tmp/prs.txt   # squash
+grep -vE '^Merge pull request #[0-9]+|\(#[0-9]+\)$' /tmp/fp.txt   # guard: must be empty (direct pushes)
 xargs -P8 -I{} gh pr view {} --json number,title,labels \
-  --jq '"#\(.number)\t\(.title)\t[\(.labels|map(.name)|join(","))]"' < /tmp/prs.txt
+  --jq '"#\(.number)\t\(.title)\t[\(.labels|map(.name)|join(","))]"' < /tmp/prs.txt   # categorize
 ```
+`--first-parent` skips dev-merges; the two `sed`s catch merge-button + squash. A PR merged into a *feature branch* folds into its parent (won't appear alone) — reflect its final state in the parent's bullet.
 
-Why this is correct: `$PREV..HEAD` excludes everything reachable from the last tag (nothing already shipped leaks in — including the prior release's own changelog PR, which the tag sits on); `--first-parent` skips `Merge branch … into <feature>` dev-merges that aren't PRs; the two `sed` patterns catch both merge-button (`Merge pull request #N` — the ` from <branch>` suffix is sometimes edited out) and squash (`… (#N)`) merges. The anchored patterns avoid grabbing stray `#numbers` from prose/issue refs.
-
-A PR merged into a *feature branch* (rather than master) is folded into its parent top-level PR and won't appear on its own — intended (review follow-ups aren't double-listed), but make the parent's changelog bullet reflect the final merged state. This is also why a date-based `gh` query returns *more* numbers than this set: those extras are the prior changelog PR plus these sub-PRs.
-
-Then **curate** into the existing sections, matching the prior release file's RST style exactly:
-- The file's title is the version (`X.Y.Z` with `======` underline matching its length), then the italic date (the planned tag date — ask if unknown). Add the file to the top of `docs/changelog/index.rst`.
-- Sections in order: **General** (New MCUs and Boards / Code Quality and Build / Documentation), **API Changes**, **Device Stack** (per class: Audio, CDC, HID, MIDI, MSC, MTP, Net, Video, …), **Host Stack**, **Controller Driver (DCD & HCD)** (per driver: DWC2, FSDEV, MUSB, RP2040, …), **Testing**, **Contributors**. Within a section, each driver/class group is a ``^^^``-underlined sub-heading (not a bullet).
-- RST inline code (double backticks) for symbols. Group related PRs into one bullet — summarize, don't dump 200 lines. Driver/`Port *` PR labels help bucket DCD/HCD entries.
-- **Contributors** section credits the release's PR authors (this is where contributor credit lives — there is no separate contributors page). List the unique non-bot author handles alphabetically:
-
+**Curate** into the prior file's exact RST style:
+- Title = version (`======` underline), then italic date (ask if unknown). Add to top of `index.rst`.
+- Section order: **General** (New MCUs and Boards / Code Quality and Build / Documentation) → **API Changes** → **Device Stack** (per class) → **Host Stack** → **Controller Driver (DCD & HCD)** (per driver) → **Testing** → **Contributors**. Each class/driver group is a ``^^^`` sub-heading, not a bullet.
+- Double-backticks for symbols; group related PRs into one bullet (don't dump). `Port *`/driver labels help bucket DCD/HCD.
+- **Contributors**: unique non-bot PR authors, alphabetical (the only contributor credit — no separate page):
   ```bash
   xargs -P8 -I{} gh pr view {} --json author --jq '.author.login' < /tmp/prs.txt \
-    | grep -viE '\[bot\]$|^(copilot|claude|dependabot|github-actions)$' | sort -uf | sed 's/^/@/' | paste -sd, - | sed 's/,/, /g'   # then drop any CI/service accounts
+    | grep -viE '\[bot\]$|^(copilot|claude|dependabot|github-actions)$' | sort -uf | sed 's/^/@/' | paste -sd, - | sed 's/,/, /g'   # drop any CI/service accounts
   ```
 
-## 3. Validate (all unstaged)
+## 3. Validate (leave unstaged)
 
 ```bash
 pre-commit run --files docs/changelog/X.Y.Z.rst docs/changelog/index.rst \
   docs/reference/boards.rst docs/reference/dependencies.rst \
   library.json repository.yml sonar-project.properties src/tusb_option.h tools/make_release.py
-python3 tools/build_doc.py -c                                 # docs build clean; new release page wired into the toctree (see build-doc skill)
-( cd test/unit-test && ceedling test:all )                   # expect all pass
+python3 tools/build_doc.py -c            # docs build clean (see build-doc skill)
+( cd test/unit-test && ceedling test:all )
 ( cd examples/device/cdc_msc && rm -rf build && mkdir build && cd build && \
   cmake -DBOARD=stm32f407disco -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel .. && cmake --build . )
-git diff --stat -- ':!.idea'                                 # review; `.idea/*` is IDE noise, exclude it
+git diff --stat -- ':!.idea'             # .idea/* is IDE noise
 ```
-
-Confirm version is consistent across `tusb_option.h` / `library.json` / `repository.yml` / `sonar-project.properties`, then leave everything unstaged for the maintainer.
+Confirm the version matches across `tusb_option.h` / `library.json` / `repository.yml` / `sonar-project.properties`.
 
 ## 4. Finalize (maintainer)
 
-After reviewing the unstaged diff:
-
 ```bash
-git add -A -- ':!.idea' && git commit -m "Bump version to X.Y.Z"   # match the reviewed diff; stages the new changelog file
-git tag -a X.Y.Z -m "Release X.Y.Z"                   # tags are unprefixed (e.g. 0.20.0, not v0.20.0)
+git add -A -- ':!.idea' && git commit -m "Bump version to X.Y.Z"
+git tag -a X.Y.Z -m "Release X.Y.Z"      # tags are unprefixed (0.20.0, not v0.20.0)
 git push origin <branch> X.Y.Z
 ```
+Then create the GitHub release from the tag.
 
-Then create a GitHub release from the `X.Y.Z` tag.
+## 5. Code size (automatic)
 
-## 5. Code size vs the previous release (CI-automatic)
-
-On the GitHub **release** event, `build.yml`'s `code-metrics` job builds the matrix with `--target tinyusb_metrics`, combines per-board `metrics.json`, downloads the **previous** tag's `metrics.json` (`gh release download $PREV -p metrics.json`), runs `metrics.py compare`, and uploads both `metrics.json` and `metrics_compare_<curr>-<prev>.md` to the release. No manual step — **provided the previous release has a `metrics.json` asset**. After releasing, confirm those two assets appeared.
+On the release event, CI's `code-metrics` job diffs against the previous tag's `metrics.json` and uploads `metrics.json` + a compare to the release — **only if the previous release has a `metrics.json` asset**. Confirm both appeared.
