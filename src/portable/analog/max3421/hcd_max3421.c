@@ -504,8 +504,15 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   // reset
   reg_write(rhport, USBCTL_ADDR, USBCTL_CHIPRES, false);
   reg_write(rhport, USBCTL_ADDR, 0, false);
+  // Bound the oscillator-OK wait. On boards where the MAX3421E is only
+  // soft-reset (CHIPRES) rather than hardware-reset via nRST, OSCOK may never
+  // latch, which would otherwise hang the host forever (adafruit/circuitpython#10053).
+  // The oscillator is generally running regardless, so proceed after a timeout.
+  uint32_t oscok_retries = 200000;
   while( !(reg_read(rhport, USBIRQ_ADDR, false) & USBIRQ_OSCOK_IRQ) ) {
-    // wait for oscillator to stabilize
+    if (--oscok_retries == 0) {
+      break;
+    }
   }
 
   // Mode: Host and DP/DM pull down
