@@ -39,7 +39,7 @@ ci_skip_boards = {
 }
 
 ci_preferred_boards = {
-    'rp2040': ['raspberry_pi_pico', 'raspberry_pi_pico2'],
+    'rp2040': ['raspberry_pi_pico'],
     'samd2x_l2x': ['metro_m0_express'],
     'samd5x_e5x': ['metro_m4_express'],
     'stm32h7': ['stm32h743eval']
