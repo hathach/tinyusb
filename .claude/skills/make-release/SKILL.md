@@ -33,10 +33,10 @@ xargs -P8 -I{} gh pr view {} --json number,title,labels \
 ```
 `--first-parent` skips dev-merges; the two `sed`s catch merge-button + squash. A PR merged into a *feature branch* folds into its parent (won't appear alone) — reflect its final state in the parent's bullet.
 
-**Curate** into the prior file's exact RST style:
-- Title = version (`======` underline), then italic date (ask if unknown). Add to top of `index.rst`.
-- Section order: **General** (New MCUs and Boards / Code Quality and Build / Documentation) → **API Changes** → **Device Stack** (per class) → **Host Stack** → **Controller Driver (DCD & HCD)** (per driver) → **Testing** → **Contributors**. Each class/driver group is a ``^^^`` sub-heading, not a bullet.
-- Double-backticks for symbols; group related PRs into one bullet (don't dump). `Port *`/driver labels help bucket DCD/HCD.
+**Curate** into the prior file's exact Markdown (MyST) style:
+- Title = version (`# X.Y.Z`), then italic date (ask if unknown). Add to top of `index.md`.
+- Section order: **General** (New MCUs and Boards / Code Quality and Build / Documentation) → **API Changes** → **Device Stack** (per class) → **Host Stack** → **Controller Driver (DCD & HCD)** (per driver) → **Testing** → **Contributors**. Sections are `##`; each class/driver group is a `###` sub-heading, not a bullet.
+- Single backticks for symbols; group related PRs into one bullet (don't dump). `Port *`/driver labels help bucket DCD/HCD.
 - **Contributors**: unique non-bot PR authors, alphabetical (the only contributor credit — no separate page):
   ```bash
   xargs -P8 -I{} gh pr view {} --json author --jq '.author.login' < /tmp/prs.txt \
