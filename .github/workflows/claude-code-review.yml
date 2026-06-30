@@ -53,15 +53,14 @@ jobs:
           # TEMPORARY: expose the full Claude transcript in the Actions log for
           # debugging. Revert to remove once done.
           show_full_output: true
-          # /code-review needs git/gh (Bash), file search, and the sub-agents it
-          # fans out (Task). This job runs ONLY on same-repo PRs (the `if` above)
-          # with a contents:read token that cannot push — so, unlike claude.yml's
-          # fork-exposed @claude job, allowlisting these is safe. Without it the
-          # headless run stalls on per-tool approval and can't read the diff or
-          # spawn reviewers. (Bash is broad; scope it to git/gh/grep if preferred.)
+          # The review's only blocked calls were COMPOUND Bash commands (sed/python/
+          # grep pipelines): default permission mode splits a multi-op command and
+          # gates the parts not on its allowlist. Bare `Bash` allows them all;
+          # Read/Grep/Glob/Task already run un-prompted. Safe here (unlike claude.yml):
+          # same-repo-only + contents:read token that cannot push.
           claude_args: |
             --max-turns 50
             --model claude-opus-4-8
             --effort max
-            --allowedTools Bash,Read,Grep,Glob,Task,WebFetch,WebSearch,TodoWrite
+            --allowedTools Bash
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
