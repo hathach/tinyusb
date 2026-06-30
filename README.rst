@@ -355,7 +355,7 @@ The following tools are provided freely to support the development of the TinyUS
    :target: https://github.com/sponsors/hathach
 
 
-.. _Changelog: docs/changelog/index.md
+.. _Changelog: docs/changelog/index.rst
 .. _Getting Started: docs/getting_started.rst
 .. _Supported Boards: docs/reference/boards.rst
 .. _Dependencies: docs/reference/dependencies.rst
