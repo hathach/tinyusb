@@ -392,11 +392,11 @@ TU_ATTR_WEAK bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_reque
 tu_static CFG_TUD_MEM_SECTION audiod_function_t _audiod_fct[CFG_TUD_AUDIO];
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
-static bool audiod_rx_xfer_isr(uint8_t rhport, audiod_function_t* audio, uint16_t n_bytes_received);
+static bool audiod_rx_done(uint8_t rhport, audiod_function_t* audio, uint16_t n_bytes_received, bool is_isr);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
-static bool audiod_tx_xfer_isr(uint8_t rhport, audiod_function_t* audio, uint16_t n_bytes_sent);
+static bool audiod_tx_done(uint8_t rhport, audiod_function_t* audio, uint16_t n_bytes_sent, bool is_isr);
 #endif
 
 static bool audiod_get_interface(uint8_t rhport, tusb_control_request_t const *p_request);
@@ -463,7 +463,7 @@ tu_fifo_t *tud_audio_n_get_ep_out_ff(uint8_t func_id) {
   return NULL;
 }
 
-static bool audiod_rx_xfer_isr(uint8_t rhport, audiod_function_t* audio, uint16_t n_bytes_received) {
+static bool audiod_rx_done(uint8_t rhport, audiod_function_t* audio, uint16_t n_bytes_received, bool is_isr) {
   uint8_t idx_audio_fct = audiod_get_audio_fct_idx(audio);
 
   #if !CFG_TUD_EDPT_DEDICATED_HWFIFO
@@ -471,10 +471,10 @@ static bool audiod_rx_xfer_isr(uint8_t rhport, audiod_function_t* audio, uint16_
   TU_VERIFY(0 < tu_fifo_write_n(&audio->ep_out_ff, audio->lin_buf_out, n_bytes_received));
 
   // Schedule for next receive
-  TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_out, audio->lin_buf_out, audio->ep_out_sz, true));
+  TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_out, audio->lin_buf_out, audio->ep_out_sz, is_isr));
   #else
   // Data is already placed in EP FIFO, schedule for next receive
-  TU_VERIFY(usbd_edpt_xfer_fifo(rhport, audio->ep_out, &audio->ep_out_ff, audio->ep_out_sz, true));
+  TU_VERIFY(usbd_edpt_xfer_fifo(rhport, audio->ep_out, &audio->ep_out_ff, audio->ep_out_sz, is_isr));
   #endif
 
   #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
@@ -526,7 +526,7 @@ void tud_audio_n_set_ep_in_fifo_threshold(uint8_t func_id, uint16_t threshold) {
   }
 }
 
-static bool audiod_tx_xfer_isr(uint8_t rhport, audiod_function_t * audio, uint16_t n_bytes_sent) {
+static bool audiod_tx_done(uint8_t rhport, audiod_function_t * audio, uint16_t n_bytes_sent, bool is_isr) {
   uint8_t idx_audio_fct = audiod_get_audio_fct_idx(audio);
 
   // Only send something if current alternate interface is not 0 as in this case nothing is to be sent due to UAC2 specifications
@@ -543,10 +543,10 @@ static bool audiod_tx_xfer_isr(uint8_t rhport, audiod_function_t * audio, uint16
   #endif
   #if !CFG_TUD_EDPT_DEDICATED_HWFIFO
   tu_fifo_read_n(&audio->ep_in_ff, audio->lin_buf_in, n_bytes_tx);
-  TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_in, audio->lin_buf_in, n_bytes_tx, true));
+  TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_in, audio->lin_buf_in, n_bytes_tx, is_isr));
   #else
   // Send everything in ISO EP FIFO
-  TU_VERIFY(usbd_edpt_xfer_fifo(rhport, audio->ep_in, &audio->ep_in_ff, n_bytes_tx, true));
+  TU_VERIFY(usbd_edpt_xfer_fifo(rhport, audio->ep_in, &audio->ep_in_ff, n_bytes_tx, is_isr));
   #endif
 
   // Call a weak callback here - a possibility for user to get informed former TX was completed and data gets now loaded into EP in buffer
@@ -1463,38 +1463,53 @@ bool audiod_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_
 
 bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
   (void) result;
-  (void) xferred_bytes;
 
-  #if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
-  // Search for interface belonging to given end point address and proceed as required
   for (uint8_t func_id = 0; func_id < CFG_TUD_AUDIO; func_id++) {
     audiod_function_t *audio = &_audiod_fct[func_id];
+    (void) func_id;
 
+#if !TUP_USBD_XFER_ISR
+  #if CFG_TUD_AUDIO_ENABLE_EP_IN
+    if (audio->ep_in == ep_addr) {
+      audiod_tx_done(rhport, audio, (uint16_t) xferred_bytes, false);
+      return true;
+    }
+  #endif
+
+  #if CFG_TUD_AUDIO_ENABLE_EP_OUT
+    if (audio->ep_out == ep_addr) {
+      audiod_rx_done(rhport, audio, (uint16_t) xferred_bytes, false);
+      return true;
+    }
+    #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
+    if (audio->ep_fb == ep_addr) {
+      audiod_fb_send(func_id, false);
+      return true;
+    }
+    #endif
+  #endif
+#endif // !TUP_USBD_XFER_ISR
+
+  #if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
     // Data transmission of control interrupt finished
     if (audio->ep_int == ep_addr) {
-      // According to USB2 specification, maximum payload of interrupt EP is 8 bytes on low speed, 64 bytes on full speed, and 1024 bytes on high speed (but only if an alternate interface other than 0 is used - see specification p. 49)
-      // In case there is nothing to send we have to return a NAK - this is taken care of by PHY ???
-      // In case of an erroneous transmission a retransmission is conducted - this is taken care of by PHY ???
-
-      // I assume here, that things above are handled by PHY
-      // All transmission is done - what remains to do is to inform job was completed
-
       tud_audio_int_done_cb(rhport);
       return true;
     }
-
-  }
-  #else
-  (void) rhport;
-  (void) ep_addr;
   #endif
 
+    (void) audio;
+  }
+
+  (void) rhport;
+  (void) ep_addr;
+  (void) xferred_bytes;
   return false;
 }
 
+#if TUP_USBD_XFER_ISR
 bool audiod_xfer_isr(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
   (void) result;
-  (void) xferred_bytes;
 
   // Search for interface belonging to given end point address and proceed as required
   for (uint8_t func_id = 0; func_id < CFG_TUD_AUDIO; func_id++)
@@ -1514,7 +1529,7 @@ bool audiod_xfer_isr(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
       // This is the only place where we can fill something into the EPs buffer!
 
       // Load new data
-      audiod_tx_xfer_isr(rhport, audio, (uint16_t) xferred_bytes);
+      audiod_tx_done(rhport, audio, (uint16_t) xferred_bytes, true);
       return true;
     }
 #endif
@@ -1522,7 +1537,7 @@ bool audiod_xfer_isr(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
     // New audio packet received
     if (audio->ep_out == ep_addr) {
-      audiod_rx_xfer_isr(rhport, audio, (uint16_t) xferred_bytes);
+      audiod_rx_done(rhport, audio, (uint16_t) xferred_bytes, true);
       return true;
     }
   #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
@@ -1539,6 +1554,7 @@ bool audiod_xfer_isr(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
 
   return false;
 }
+#endif // TUP_USBD_XFER_ISR
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
 

@@ -33,3 +33,8 @@ Reference: `CH32V30X Reference Manual`_ USBFS/USBHS controller chapter
 Data corruption may occur on isochronous endpoints. Due to the lacking of FIFO for interrupt status registers, later completed transfer will overwrite `INT_ST` and `RX_LEN` register if previous transfer processing is not completed.
 
 Other types of transfers are not affected.
+
+**Partial workaround:**
+  - Keep USB interrupt as the highest priority interrupt.
+  - Force the device to full-speed mode by setting dev_init.speed = TUSB_SPEED_FULL when calling tusb_init() to give more time for the device to process the transfer before the next transfer is completed.
+  - Keep the device configuration simple, e.g. only one isochronous endpoint, to reduce the processing time of each transfer.
