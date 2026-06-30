@@ -82,17 +82,3 @@ Then create a GitHub release from the `X.Y.Z` tag.
 ## 5. Code size vs the previous release (CI-automatic)
 
 On the GitHub **release** event, `build.yml`'s `code-metrics` job builds the matrix with `--target tinyusb_metrics`, combines per-board `metrics.json`, downloads the **previous** tag's `metrics.json` (`gh release download $PREV -p metrics.json`), runs `metrics.py compare`, and uploads both `metrics.json` and `metrics_compare_<curr>-<prev>.md` to the release. No manual step — **provided the previous release has a `metrics.json` asset**. After releasing, confirm those two assets appeared.
-
-**Backfilling a missing baseline** (e.g. 0.20.0 predates the upload): do NOT try to graft current metrics tooling onto the old tag — the build system, `hw/bsp`, examples and `src/` are co-evolved (current `family_support.cmake` renamed cmake funcs the old example `CMakeLists` call; current `hw/bsp` uses newer `src/` APIs), so every build fails. Build the **old tag's own tree** and post-process its linker maps (0.20.0 already emits `*.elf.map` via `-Map`):
-
-```bash
-git worktree add <wt> <OLD_TAG> && cd <wt>
-# one board per arm-gcc family, all examples:
-#   for fam: python3 tools/get_deps.py <fam>; (cd examples && cmake -B build-<board> -DBOARD=<board> -GNinja -DCMAKE_BUILD_TYPE=MinSizeRel . && cmake --build build-<board>)
-# old tag lacks linkermap/metrics.py — use the CURRENT checkout's copies:
-for m in $(find examples -name '*.elf.map'); do python3 <CUR>/tools/linkermap/linkermap.py -j "$m"; done
-python3 <CUR>/tools/metrics.py combine -j -m -f "$(pwd)/src" -o metrics $(find examples -name '*.map.json')
-gh release upload <OLD_TAG> metrics.json
-```
-
-`metrics.py` keys units by **basename**, so the local absolute `-f <wt>/src` filter stays comparable to CI's `-f tinyusb/src`. Caveat: this is arm-gcc-only unless you also build the other CI toolchains (riscv/aarch64/…); files only built by those will show as spurious "added" in the next release's compare.
