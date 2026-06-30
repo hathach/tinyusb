@@ -19,7 +19,7 @@ Gotchas: `gen_doc` needs `pandas`+`tabulate` (not in requirements) → `pip inst
 
 ## 2. Changelog — `docs/changelog/` (the hard part)
 
-New file `docs/changelog/X.Y.Z.rst`, listed **first** in `docs/changelog/index.rst`. Get the PR set by **commit reachability, not merge date** (a date query wrongly pulls in the prior release's changelog PR at the boundary):
+New file `docs/changelog/X.Y.Z.md`, listed **first** in `docs/changelog/index.rst`. Get the PR set by **commit reachability, not merge date** (a date query wrongly pulls in the prior release's changelog PR at the boundary):
 
 ```bash
 PREV=0.20.0
@@ -33,10 +33,10 @@ xargs -P8 -I{} gh pr view {} --json number,title,labels \
 ```
 `--first-parent` skips dev-merges; the two `sed`s catch merge-button + squash. A PR merged into a *feature branch* folds into its parent (won't appear alone) — reflect its final state in the parent's bullet.
 
-**Curate** into the prior file's exact RST style:
-- Title = version (`======` underline), then italic date (ask if unknown). Add to top of `index.rst`.
-- Section order: **General** (New MCUs and Boards / Code Quality and Build / Documentation) → **API Changes** → **Device Stack** (per class) → **Host Stack** → **Controller Driver (DCD & HCD)** (per driver) → **Testing** → **Contributors**. Each class/driver group is a ``^^^`` sub-heading, not a bullet.
-- Double-backticks for symbols; group related PRs into one bullet (don't dump). `Port *`/driver labels help bucket DCD/HCD.
+**Curate** into the prior file's exact Markdown (MyST) style:
+- Title = version (`# X.Y.Z`), then italic date (ask if unknown). Add to top of `index.rst`.
+- Section order: **General** (New MCUs and Boards / Code Quality and Build / Documentation) → **API Changes** → **Device Stack** (per class) → **Host Stack** → **Controller Driver (DCD & HCD)** (per driver) → **Testing** → **Contributors**. Sections are `##`; each class/driver group is a `###` sub-heading, not a bullet.
+- Single backticks for symbols; group related PRs into one bullet (don't dump). `Port *`/driver labels help bucket DCD/HCD.
 - **Contributors**: unique non-bot PR authors, alphabetical (the only contributor credit — no separate page):
   ```bash
   xargs -P8 -I{} gh pr view {} --json author --jq '.author.login' < /tmp/prs.txt \
@@ -46,7 +46,7 @@ xargs -P8 -I{} gh pr view {} --json number,title,labels \
 ## 3. Validate (leave unstaged)
 
 ```bash
-pre-commit run --files docs/changelog/X.Y.Z.rst docs/changelog/index.rst \
+pre-commit run --files docs/changelog/X.Y.Z.md docs/changelog/index.rst \
   docs/reference/boards.rst docs/reference/dependencies.rst \
   library.json repository.yml sonar-project.properties src/tusb_option.h tools/make_release.py
 python3 tools/build_doc.py -c            # docs build clean (see build-doc skill)
