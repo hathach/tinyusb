@@ -53,14 +53,15 @@ jobs:
           # TEMPORARY: expose the full Claude transcript in the Actions log for
           # debugging. Revert to remove once done.
           show_full_output: true
-          # The review's only blocked calls were COMPOUND Bash commands (sed/python/
-          # grep pipelines): default permission mode splits a multi-op command and
-          # gates the parts not on its allowlist. Bare `Bash` allows them all;
-          # Read/Grep/Glob/Task already run un-prompted. Safe here (unlike claude.yml):
-          # same-repo-only + contents:read token that cannot push.
+          # The headless review was blocked on two tools: compound Bash pipelines
+          # (sed/python/grep) and Write (it dropped a check_headings.py helper to
+          # inspect the diff). Default permission mode gates both; Read/Grep/Glob/
+          # Task already run un-prompted. Allowlist them. Safe here (unlike
+          # claude.yml's fork-exposed @claude job): same-repo-only + contents:read
+          # token, so any write is ephemeral and nothing can be pushed.
           claude_args: |
             --max-turns 50
             --model claude-opus-4-8
             --effort max
-            --allowedTools Bash
+            --allowedTools Bash,Write
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
