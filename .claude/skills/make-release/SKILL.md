@@ -60,9 +60,9 @@ pre-commit run --files docs/info/changelog/X.Y.Z.rst docs/info/changelog/index.r
   docs/reference/boards.rst docs/reference/dependencies.rst \
   library.json repository.yml sonar-project.properties src/tusb_option.h tools/make_release.py
 python3 tools/build_doc.py -c                                 # docs build clean; new release page wired into the toctree (see build-doc skill)
-cd test/unit-test && ceedling test:all                       # expect all pass
-cd examples/device/cdc_msc && rm -rf build && mkdir build && cd build && \
-  cmake -DBOARD=stm32f407disco -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel .. && cmake --build .
+( cd test/unit-test && ceedling test:all )                   # expect all pass
+( cd examples/device/cdc_msc && rm -rf build && mkdir build && cd build && \
+  cmake -DBOARD=stm32f407disco -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel .. && cmake --build . )
 git diff --stat -- ':!.idea'                                 # review; `.idea/*` is IDE noise, exclude it
 ```
 
@@ -73,9 +73,9 @@ Confirm version is consistent across `tusb_option.h` / `library.json` / `reposit
 After reviewing the unstaged diff:
 
 ```bash
-git commit -am "Bump version to X.Y.Z"
-git tag -a vX.Y.Z -m "Release X.Y.Z"
-git push origin <branch> vX.Y.Z
+git add -A && git commit -m "Bump version to X.Y.Z"   # -A so the new changelog file is staged
+git tag -a X.Y.Z -m "Release X.Y.Z"                   # tags are unprefixed (e.g. 0.20.0, not v0.20.0)
+git push origin <branch> X.Y.Z
 ```
 
-Then create a GitHub release from the `vX.Y.Z` tag.
+Then create a GitHub release from the `X.Y.Z` tag.
