@@ -30,7 +30,7 @@ dwc2
 - [EHCI] Fix an issue with EHCI driver
 - [msp430] Fix for possible bug in msp430-elf-gcc 9.3.0
 - [nrf5x] Fix DMA access race condition using atomic function
-- [pic32] Fix PIC32 santiy
+- [pic32] Fix PIC32 sanity
 
 rp2040
 ^^^^^^
@@ -53,12 +53,12 @@ Device Stack
 
 - [DFU] Fix coexistence with other interfaces BTH, RNDIS
 - [MSC] Fix inquiry response additional length field
-- [Venndor] Improve write performance
+- [Vendor] Improve write performance
 
 Host Stack
 ----------
 
-- Add new API ``tuh_configure(rhport, cfg_id, cfg_param)`` for dynamnic port specific behavior configuration
+- Add new API ``tuh_configure(rhport, cfg_id, cfg_param)`` for dynamic port specific behavior configuration
 - [HID] Open OUT endpoint if available
 - [Hub] hub clear port and device interrupts
 

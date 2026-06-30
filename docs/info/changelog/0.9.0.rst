@@ -13,7 +13,7 @@ RP2040
 - Fix osal_pico queue overflow in initialization
 - Fix Isochronous endpoint buffer size in transfer
 - Optimize hardware endpoint struct to reduce RAM usage
-- Fix enum walkaround forever check for SE0 when pull up is disabled
+- Fix enum workaround forever check for SE0 when pull up is disabled
 
 Sony CXD56
 ^^^^^^^^^^

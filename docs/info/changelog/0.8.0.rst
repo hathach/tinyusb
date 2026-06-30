@@ -18,7 +18,7 @@ ESP32-S2
 SAMD21
 ^^^^^^
 
-- Fix (walkaround) samd21 setup_packet overflow by USB DMA
+- Fix (workaround) samd21 setup_packet overflow by USB DMA
 
 STM32 Synopsys
 ^^^^^^^^^^^^^^
@@ -28,7 +28,7 @@ STM32 Synopsys
 Sony CXD56
 ^^^^^^^^^^
 
-- Update Update Spresense SDK to 2.0.2
+- Update Spresense SDK to 2.0.2
 - Fix dcd issues with setup packets
 - Correct EP number for cdc_msc example
 

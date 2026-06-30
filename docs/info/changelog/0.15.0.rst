@@ -2,7 +2,7 @@
 ======
 
 - Add codespell to detect typo
-- Add support for fuzzing and bagde for oss-fuzz
+- Add support for fuzzing and badge for oss-fuzz
 
 osal
 ^^^^
@@ -72,7 +72,7 @@ Host Stack
 ----------
 
 - Retry a few times with transfers in enumeration since device can be unstable when starting up
-- [MSC] Rework host masstorage API. Add new ``host/msc_file_explorer`` example
+- [MSC] Rework host mass storage API. Add new ``host/msc_file_explorer`` example
 
 CDC
 ^^^

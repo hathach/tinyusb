@@ -5,7 +5,7 @@ description: Use when cutting a new TinyUSB release — bumping the version, run
 
 # Cut a TinyUSB Release
 
-Mirrors CLAUDE.md "Release". **Do NOT commit or tag** — leave every change unstaged for maintainer review (they commit `Bump version to X.Y.Z`, then tag). Work in a worktree. Agree the target version `X.Y.Z` with the maintainer before starting (it is their call, not derivable from the diff).
+**Do NOT commit or tag** during prep — leave every change unstaged for maintainer review; the maintainer finalizes (commit, tag, release) in step 4. Work in a worktree. Agree the target version `X.Y.Z` with the maintainer before starting (it is their call, not derivable from the diff).
 
 ## 1. Bump version + regenerate files
 
@@ -67,3 +67,15 @@ git diff --stat -- ':!.idea'                                 # review; `.idea/*`
 ```
 
 Confirm version is consistent across `tusb_option.h` / `library.json` / `repository.yml` / `sonar-project.properties`, then leave everything unstaged for the maintainer.
+
+## 4. Finalize (maintainer)
+
+After reviewing the unstaged diff:
+
+```bash
+git commit -am "Bump version to X.Y.Z"
+git tag -a vX.Y.Z -m "Release X.Y.Z"
+git push origin <branch> vX.Y.Z
+```
+
+Then create a GitHub release from the `vX.Y.Z` tag.

@@ -36,7 +36,7 @@ RP2040
 ^^^^^^
 
 - Add RP2040 suspend & resume support
-- Implement double buffer for both host and device (#891). However device EPOUT is still single buffered due to techinical issue with short packet
+- Implement double buffer for both host and device (#891). However device EPOUT is still single buffered due to technical issue with short packet
 
 Device Stack
 ------------
