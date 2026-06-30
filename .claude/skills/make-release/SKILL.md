@@ -18,7 +18,6 @@ Refreshes `src/tusb_option.h`, `repository.yml`, `library.json`, `sonar-project.
 
 Gotchas:
 - `gen_doc` imports `pandas` + `tabulate` at line 3 and crashes before writing if they're missing (not in `docs/requirements.txt`) → `pip install pandas tabulate`. See the **build-doc** skill.
-- The `repository.yml` regex inserts a literal `\r\n`, leaving one CRLF line → `sed -i 's/\r$//' repository.yml`.
 - `boards.rst` is written with no trailing newline → pre-commit's `end-of-file-fixer` adds it; run pre-commit on the regenerated files (step 3).
 
 ## 2. Changelog — `docs/info/changelog/` (the hard part)
@@ -49,8 +48,8 @@ Then **curate** into the existing sections, matching the prior release file's RS
 - **Contributors** section credits the release's PR authors (this is where contributor credit lives — there is no separate contributors page). List the unique non-bot author handles alphabetically:
 
   ```bash
-  while read n; do gh pr view "$n" --json author --jq '.author.login'; done < /tmp/prs.txt \
-    | grep -viE 'bot|copilot|claude' | sort -uf | sed 's/^/@/' | paste -sd', '
+  xargs -P8 -I{} gh pr view {} --json author --jq '.author.login' < /tmp/prs.txt \
+    | grep -viE '\[bot\]$|^(copilot|claude|dependabot|github-actions)$' | sort -uf | sed 's/^/@/' | paste -sd, - | sed 's/,/, /g'   # then drop any CI/service accounts
   ```
 
 ## 3. Validate (all unstaged)
@@ -73,7 +72,7 @@ Confirm version is consistent across `tusb_option.h` / `library.json` / `reposit
 After reviewing the unstaged diff:
 
 ```bash
-git add -A && git commit -m "Bump version to X.Y.Z"   # -A so the new changelog file is staged
+git add -A -- ':!.idea' && git commit -m "Bump version to X.Y.Z"   # match the reviewed diff; stages the new changelog file
 git tag -a X.Y.Z -m "Release X.Y.Z"                   # tags are unprefixed (e.g. 0.20.0, not v0.20.0)
 git push origin <branch> X.Y.Z
 ```

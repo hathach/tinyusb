@@ -68,7 +68,7 @@ Audio
 ^^^^^
 
 - Add UAC1 support
-- Implement RX FIFO threshold adjustment with `tud_audio_get/set_ep_in_fifo_threshold()`
+- Implement RX FIFO threshold adjustment with ``tud_audio_get/set_ep_in_fifo_threshold()``
 
 CDC
 ^^^

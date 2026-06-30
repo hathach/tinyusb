@@ -12,7 +12,7 @@ New MCUs
 
 - Better support dcache, make sure all usb-transferred buffer are cache line aligned and occupy full cache line
 - Build ARM IAR with CircleCI
-- Improve HIL with `dual/host_info_to_device_cdc`` optional for pico/pico2, enable dwc2 dma test
+- Improve HIL with ``dual/host_info_to_device_cdc`` optional for pico/pico2, enable dwc2 dma test
 
 API Changes
 -----------

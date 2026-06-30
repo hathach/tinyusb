@@ -43,19 +43,6 @@ html_favicon = 'assets/logo.svg'
 html_theme_options = {
     'sidebar_hide_name': True,
 }
-# Furo default sidebar with a Sponsor button inserted just below the logo.
-html_sidebars = {
-    '**': [
-        'sidebar/brand.html',
-        'sidebar/sponsor.html',
-        'sidebar/search.html',
-        'sidebar/scroll-start.html',
-        'sidebar/navigation.html',
-        'sidebar/ethical-ads.html',
-        'sidebar/scroll-end.html',
-        'sidebar/variant-selector.html',
-    ]
-}
 html_static_path = ['_static']
 html_css_files = ['custom.css']
 

@@ -1,0 +1,11 @@
+{# Override furo's sidebar brand: keep the original (logo, links home), then add
+   a GitHub Sponsors button just below it. Using "!sidebar/brand.html" includes
+   the theme's own template, so we don't re-list furo's sidebar components and
+   stay decoupled from furo's internal layout. #}
+{% include "!sidebar/brand.html" %}
+<div class="sidebar-sponsor">
+  <iframe src="https://github.com/sponsors/hathach/button"
+          title="Sponsor TinyUSB"
+          height="32" width="114"
+          loading="lazy"></iframe>
+</div>

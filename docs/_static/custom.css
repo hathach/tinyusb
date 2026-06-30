@@ -1,3 +1,13 @@
 .clear-both {
   clear: both;
 }
+
+.sidebar-sponsor {
+  display: flex;
+  justify-content: center;
+  padding: 0.4rem var(--sidebar-item-spacing-horizontal) 0.6rem;
+}
+.sidebar-sponsor iframe {
+  border: 0;
+  border-radius: 6px;
+}

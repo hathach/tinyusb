@@ -53,7 +53,7 @@ USB Device
 USBD
 ^^^^
 
-- Add new class driver for **Bluetooth HCI** class driver with example can be found in [mynewt-tinyusb-example](https://github.com/hathach/mynewt-tinyusb-example) since it needs mynewt OS to run with.
+- Add new class driver for **Bluetooth HCI** class driver with example can be found in `mynewt-tinyusb-example <https://github.com/hathach/mynewt-tinyusb-example>`__ since it needs mynewt OS to run with.
 - Fix USBD endpoint usage racing condition with ``usbd_edpt_claim()``/``usbd_edpt_release()``
 - Added ``tud_task_event_ready()`` and ``osal_queue_empty()``. This API is needed to check before enter low power mode with WFI/WFE
 - Rename USB IRQ Handler to ``dcd_int_handler()``. Application must define IRQ handler in which it calls this API.

@@ -30,7 +30,7 @@ with open(f_repository_yml) as f:
     fdata = f.read()
 
 if fdata.find(version) < 0:
-    fdata = re.sub(r'("0-latest"): "\d+\.\d+\.\d+"', r'"{}": "{}"\r\n    \1: "{}"'.format(version, version, version), fdata)
+    fdata = re.sub(r'("0-latest"): "\d+\.\d+\.\d+"', r'"{}": "{}"\n    \1: "{}"'.format(version, version, version), fdata)
     with open(f_repository_yml, 'w') as f:
         f.write(fdata)
 
