@@ -59,6 +59,7 @@ static xfer_ctl_t xfer_status[EP_MAX][2];
 TU_ATTR_ALIGNED(4) static uint8_t ep0_buffer[CFG_TUD_ENDPOINT0_SIZE];
 static bool ep0_tog;
 static bool ep_data_tog[EP_MAX][2];
+static bool reset_evt_pending;
 
 static void set_ep_toggle(uint8_t ep_num, tusb_dir_t ep_dir, bool data1) {
   if (ep_dir == TUSB_DIR_IN) {
@@ -175,7 +176,6 @@ static void update_out(uint8_t rhport, uint8_t ep_num, uint16_t rx_len) {
 
 bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   (void)rhport;
-  (void)rh_init;
 
   memset(&xfer_status, 0, sizeof(xfer_status));
   memset(ep_data_tog, 0, sizeof(ep_data_tog));
@@ -186,12 +186,15 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
 
   USBHSD->CONTROL = 0;
 
-  #if TUD_OPT_HIGH_SPEED
-  USBHSD->CONTROL = USBHS_DMA_EN | USBHS_INT_BUSY_EN | USBHS_HIGH_SPEED;
-  #else
-    #error OPT_MODE_FULL_SPEED not currently supported on CH32
-  USBHSD->CONTROL = USBHS_DMA_EN | USBHS_INT_BUSY_EN | USBHS_FULL_SPEED;
-  #endif
+  if (rh_init->speed == TUSB_SPEED_HIGH || rh_init->speed == TUSB_SPEED_AUTO) {
+    USBHSD->CONTROL = USBHS_DMA_EN | USBHS_INT_BUSY_EN | USBHS_HIGH_SPEED;
+  } else if (rh_init->speed == TUSB_SPEED_FULL) {
+    USBHSD->CONTROL = USBHS_DMA_EN | USBHS_INT_BUSY_EN | USBHS_FULL_SPEED;
+  } else if (rh_init->speed == TUSB_SPEED_LOW) {
+    USBHSD->CONTROL = USBHS_DMA_EN | USBHS_INT_BUSY_EN | USBHS_LOW_SPEED;
+  } else {
+    return false;
+  }
 
   USBHSD->INT_EN = 0;
   USBHSD->INT_EN = USBHS_SETUP_ACT_EN | USBHS_TRANSFER_EN | USBHS_BUS_RST_EN | USBHS_SUSPEND_EN;
@@ -417,13 +420,32 @@ void dcd_int_handler(uint8_t rhport) {
     if (token == USBHS_TOKEN_PID_SOF) {
       uint32_t frame_count = USBHSD->FRAME_NO & USBHS_FRAME_NO_NUM_MASK;
       dcd_event_sof(rhport, frame_count, true);
-    } else if (token == USBHS_TOKEN_PID_OUT) {
+    // Drop an OUT packet whose data toggle doesn't match what we expect -- a host retransmit
+    // after a lost ACK, or a host that doesn't alternate DATA0/DATA1.
+    } else if (token == USBHS_TOKEN_PID_OUT && (int_status & USBHS_DEV_UIS_TOG_OK)) {
       update_out(rhport, ep_num, len);
     } else if (token == USBHS_TOKEN_PID_IN) {
       update_in(rhport, ep_num, false);
     }
     USBHSD->INT_FG = (int_flag & USBHS_TRANSFER_FLAG); /* Clear flag */
   } else if (int_flag & USBHS_SETUP_FLAG) {
+    if (reset_evt_pending) {
+      reset_evt_pending = false;
+      tusb_speed_t actual_speed;
+      switch(USBHSD->SPEED_TYPE & USBHS_SPEED_TYPE_MASK){
+        case USBHS_SPEED_TYPE_FULL:
+          actual_speed = TUSB_SPEED_FULL;
+          break;
+        case USBHS_SPEED_TYPE_LOW:
+          actual_speed = TUSB_SPEED_LOW;
+          break;
+        default:
+          actual_speed = TUSB_SPEED_HIGH;
+          break;
+      }
+      dcd_event_bus_reset(0, actual_speed, true);
+    }
+
     tusb_control_request_t const* setup =
         (tusb_control_request_t const*) ep0_buffer;
     ep0_tog = true;
@@ -434,27 +456,9 @@ void dcd_int_handler(uint8_t rhport) {
 
     USBHSD->INT_FG = USBHS_SETUP_FLAG; /* Clear flag */
   } else if (int_flag & USBHS_BUS_RST_FLAG) {
-    // TODO CH32 does not detect actual speed at this time (should be known at end of reset)
-    // This interrupt probably triggered at start of bus reset
-    //    tusb_speed_t actual_speed;
-    //    switch(USBHSD->SPEED_TYPE & USBHS_SPEED_TYPE_MASK){
-    //      case USBHS_SPEED_TYPE_HIGH:
-    //        actual_speed = TUSB_SPEED_HIGH;
-    //        break;
-    //      case USBHS_SPEED_TYPE_FULL:
-    //        actual_speed = TUSB_SPEED_FULL;
-    //        break;
-    //      case USBHS_SPEED_TYPE_LOW:
-    //        actual_speed = TUSB_SPEED_LOW;
-    //        break;
-    //      default:
-    //        TU_ASSERT(0,);
-    //        break;
-    //    }
-    //    dcd_event_bus_reset(0, actual_speed, true);
-
-    dcd_event_bus_reset(0, TUSB_SPEED_HIGH, true);
-
+    // This interrupt probably triggered at start of bus reset before the speed negotiation has completed.
+    // Defer the bus reset event until the next setup packet is received in order to determine the actual speed of the bus.
+    reset_evt_pending = true;
     USBHSD->DEV_AD = 0;
     memset(ep_data_tog, 0, sizeof(ep_data_tog));
     ep0_tog = true;
