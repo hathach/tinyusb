@@ -174,6 +174,7 @@
 
 // Infineon
 #define OPT_MCU_XMC4000          1800 ///< Infineon XMC4000
+#define OPT_MCU_PSE84            1801 ///< Infineon PSOC Edge E84 (PSE84)
 
 // PIC
 #define OPT_MCU_PIC32MZ          1900 ///< MicroChip PIC32MZ family
