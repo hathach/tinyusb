@@ -105,6 +105,11 @@ uint8_t const * tud_descriptor_device_cb(void)
     #define EPNUM_AUDIO_OUT   0x0A
     #define EPNUM_AUDIO_IN    0x0B
     #define EPNUM_AUDIO_INT   0x01
+  #elif TU_CHECK_MCU(OPT_MCU_PY32F0)
+    // Speaker OUT (196 B) only fits EP1 (512 B FIFO); mic IN (98 B) fits EP2 (128 B)
+    #define EPNUM_AUDIO_OUT   0x01
+    #define EPNUM_AUDIO_IN    0x02
+    #define EPNUM_AUDIO_INT   0x03
   #else
     #define EPNUM_AUDIO_IN    0x01
     #define EPNUM_AUDIO_OUT   0x02

@@ -33,3 +33,14 @@ Reference: `CH32V30X Reference Manual`_ USBFS/USBHS controller chapter
 Data corruption may occur on isochronous endpoints. Due to the lacking of FIFO for interrupt status registers, later completed transfer will overwrite `INT_ST` and `RX_LEN` register if previous transfer processing is not completed.
 
 Other types of transfers are not affected.
+
+Puya PY32F071/072
+---------------------------------
+**Severity: Very Low**
+
+Reference: `PY32F07x Reference Manual` USBD chapter
+
+The USB device controller (MUSB-like) has 5 application endpoints EP1-EP5 with fixed FIFO sizes
+shared between IN and OUT of the same endpoint number: EP1 = 512 B, EP2-4 = 128 B, EP5 = 64 B.
+This is much lower than the max ISO ep size of 1024 for high EP numbers.
+Place large isochronous endpoints on EP1 and size descriptors accordingly.
