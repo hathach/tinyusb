@@ -394,6 +394,16 @@ bool tud_midi_n_packet_write (uint8_t itf, const uint8_t packet[4]) {
   return true;
 }
 
+uint32_t tud_midi_n_tx_available(uint8_t itf) {
+  midid_interface_t *p_midi = &_midid_itf[itf];
+  tu_edpt_stream_t  *ep_str = &p_midi->ep_stream.tx;
+  return tu_edpt_stream_write_available(p_midi->rhport, ep_str);
+}
+
+uint32_t tud_midi_n_rx_available(uint8_t itf) {
+  return tud_midi_n_available(itf, 0);
+}
+
 uint32_t tud_midi_n_packet_write_n(uint8_t itf, const uint8_t packets[], uint32_t n_packets) {
   midid_interface_t *p_midi = &_midid_itf[itf];
   tu_edpt_stream_t  *ep_str = &p_midi->ep_stream.tx;
