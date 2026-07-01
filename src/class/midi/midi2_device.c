@@ -42,17 +42,17 @@ TU_ATTR_WEAK void tud_midi2_set_itf_cb(uint8_t itf, uint8_t alt) { (void) itf; (
 TU_ATTR_WEAK bool tud_midi2_get_req_itf_cb(uint8_t rhport, const tusb_control_request_t* request) {
   (void) rhport; (void) request; return false;
 }
-TU_ATTR_WEAK uint8_t tud_midi2_num_groups_cb(uint8_t itf) {
-  (void) itf; return CFG_TUD_MIDI2_NUM_GROUPS;
-}
-TU_ATTR_WEAK uint8_t tud_midi2_num_function_blocks_cb(uint8_t itf) {
-  (void) itf; return CFG_TUD_MIDI2_NUM_FUNCTION_BLOCKS;
-}
 TU_ATTR_WEAK const char* tud_midi2_ep_name_cb(uint8_t itf) {
   (void) itf; return CFG_TUD_MIDI2_EP_NAME;
 }
 TU_ATTR_WEAK const char* tud_midi2_product_id_cb(uint8_t itf) {
   (void) itf; return CFG_TUD_MIDI2_PRODUCT_ID;
+}
+TU_ATTR_WEAK const char* tud_midi2_fb_name_cb(uint8_t itf, uint8_t fb_idx) {
+  (void) itf; (void) fb_idx; return NULL;
+}
+TU_ATTR_WEAK tud_midi2_stream_result_t tud_midi2_stream_msg_cb(uint8_t itf, const uint32_t* ump_words) {
+  (void) itf; (void) ump_words; return MIDI2_STREAM_PASS;
 }
 
 //--------------------------------------------------------------------+
@@ -83,6 +83,7 @@ enum {
   STREAM_CONFIG_NOTIFY      = 0x006,
   STREAM_FB_DISCOVERY       = 0x010,
   STREAM_FB_INFO            = 0x011,
+  STREAM_FB_NAME            = 0x012,
 };
 
 enum {
@@ -90,11 +91,14 @@ enum {
   UMP_VER_MINOR = 1,
 };
 
-// Group Terminal Block descriptor types (USB-MIDI 2.0)
+// Function Block Info Notification low byte: UI hint (bits 5:4) + direction
+// (bits 1:0). See USB-MIDI 2.0 / UMP Function Block Info Notification.
 enum {
-  MIDI2_CS_GRP_TRM_BLOCK      = 0x26,
-  MIDI2_GRP_TRM_BLOCK_HEADER  = 0x01,
-  MIDI2_GRP_TRM_BLOCK_ENTRY   = 0x02,
+  FB_DIR_INPUT   = 0x1,
+  FB_DIR_OUTPUT  = 0x2,
+  FB_DIR_BIDIR   = 0x3,
+  FB_UI_RECEIVER = (1u << 4),
+  FB_UI_SENDER   = (1u << 5),
 };
 
 //--------------------------------------------------------------------+
@@ -139,8 +143,6 @@ CFG_TUD_MEM_SECTION static midi2d_epbuf_t _midi2d_epbuf[CFG_TUD_MIDI2];
 
 TU_VERIFY_STATIC(CFG_TUD_MIDI2_NUM_GROUPS >= 1 && CFG_TUD_MIDI2_NUM_GROUPS <= 16,
                  "CFG_TUD_MIDI2_NUM_GROUPS must be 1..16");
-TU_VERIFY_STATIC(CFG_TUD_MIDI2_NUM_FUNCTION_BLOCKS >= 1 && CFG_TUD_MIDI2_NUM_FUNCTION_BLOCKS <= 32,
-                 "CFG_TUD_MIDI2_NUM_FUNCTION_BLOCKS must be 1..32");
 
 #define ITF_MEM_RESET_SIZE offsetof(midi2d_interface_t, ep_stream)
 
@@ -168,12 +170,56 @@ static const uint8_t _default_gtb_desc[] = {
   0, 0                                      // wMaxOutputBandwidth: unknown
 };
 
+// Map GTB bGrpTrmBlkType to the FB Info Notification low byte (UI hint + dir).
+static inline uint8_t _fb_dir_byte(uint8_t gtb_type) {
+  switch (gtb_type) {
+    case MIDI2_GTB_INPUT_ONLY:  return FB_UI_RECEIVER | FB_DIR_INPUT;
+    case MIDI2_GTB_OUTPUT_ONLY: return FB_UI_SENDER | FB_DIR_OUTPUT;
+    default:                    return FB_UI_RECEIVER | FB_UI_SENDER | FB_DIR_BIDIR;
+  }
+}
+
+// Walk the GTB descriptor. Returns the number of block entries. When block
+// `idx` exists, fills its type / first group / group count.
+static uint8_t _gtb_blocks(const uint8_t* desc, uint16_t len, uint8_t idx,
+                           uint8_t* type, uint8_t* first_group, uint8_t* num_groups) {
+  uint8_t count = 0;
+  uint16_t off = MIDI2_GTB_HEADER_LEN;  // skip the list header
+  while (off + MIDI2_GTB_ENTRY_LEN <= len && desc[off] >= MIDI2_GTB_ENTRY_LEN) {
+    if (desc[off + 2] == MIDI2_GRP_TRM_BLOCK_ENTRY) {
+      if (count == idx) {
+        if (type)        *type = desc[off + 4];        // bGrpTrmBlkType
+        if (first_group) *first_group = desc[off + 5]; // nGroupTrm
+        if (num_groups)  *num_groups = desc[off + 6];  // nNumGroupTrm
+      }
+      count++;
+    }
+    off = (uint16_t)(off + desc[off]);
+  }
+  return count;
+}
+
+// GTB descriptor source: the single source of truth for block topology.
+// Override to expose multiple Group Terminal Blocks with independent
+// directions and group spans.
+TU_ATTR_WEAK const uint8_t* tud_midi2_gtb_desc_cb(uint8_t itf, uint16_t* len) {
+  (void) itf;
+  *len = (uint16_t) sizeof(_default_gtb_desc);
+  return _default_gtb_desc;
+}
+
 //--------------------------------------------------------------------+
 // Common utility functions
 //--------------------------------------------------------------------+
 
 static inline uint8_t _itf_idx(const midi2d_interface_t* p_midi) {
   return (uint8_t)(p_midi - _midi2d_itf);
+}
+
+static uint8_t _gtb_block_count(midi2d_interface_t* p_midi) {
+  uint16_t len = 0;
+  const uint8_t* gtb = tud_midi2_gtb_desc_cb(_itf_idx(p_midi), &len);
+  return _gtb_blocks(gtb, len, 0xFF, NULL, NULL, NULL);
 }
 
 static inline bool _tx_opened(const midi2d_interface_t* p_midi) {
@@ -283,23 +329,31 @@ static void _nego_send_endpoint_info(midi2d_interface_t* p_midi) {
          | ((uint32_t) UMP_VER_MAJOR << 8)
          | (uint32_t) UMP_VER_MINOR;
   msg[1] = (UINT32_C(1) << 31)  // Static Function Blocks flag
-         | ((uint32_t)(tud_midi2_num_function_blocks_cb(_itf_idx(p_midi)) & 0x7F) << 24)
+         | ((uint32_t)(_gtb_block_count(p_midi) & 0x7F) << 24)
          | (UINT32_C(1) << 9)   // MIDI 2.0 Protocol capability
          | (UINT32_C(1) << 8);  // MIDI 1.0 Protocol capability
   _nego_send_ump(p_midi, msg, 4);
 }
 
-static void _nego_send_stream_text(midi2d_interface_t* p_midi, uint16_t status, const char* str) {
+// Send a UMP Stream text notification, multi-packet (Complete/Start/Continue/
+// End in the Format field). When has_index is set, word0 bits 15:8 carry an
+// index byte (the Function Block number for FB Name) and 13 chars fit per
+// packet; otherwise the text starts there and 14 chars fit (Endpoint Name,
+// Product Instance Id).
+static void _nego_send_stream_text(midi2d_interface_t* p_midi, uint16_t status,
+                                   bool has_index, uint8_t index, const char* str) {
   if (!str || str[0] == '\0') return;
 
   uint16_t total_len = (uint16_t) strlen(str);
   uint16_t offset = 0;
+  const uint8_t per_pkt = has_index ? 13 : 14;
+  const uint8_t head_chars = has_index ? 1 : 2;  // chars carried in word0
 
   while (offset < total_len) {
     uint16_t remaining = total_len - offset;
-    uint8_t n = (uint8_t)((remaining > 14) ? 14 : remaining);
+    uint8_t n = (uint8_t)((remaining > per_pkt) ? per_pkt : remaining);
     bool is_first = (offset == 0);
-    bool is_last  = (remaining <= 14);
+    bool is_last  = (remaining <= per_pkt);
 
     uint8_t form;
     if (is_first && is_last) form = 0;
@@ -313,11 +367,16 @@ static void _nego_send_stream_text(midi2d_interface_t* p_midi, uint16_t status, 
            | ((uint32_t) status << 16);
 
     const char* p = str + offset;
-    if (n > 0) msg[0] |= ((uint32_t)(uint8_t) p[0] << 8);
-    if (n > 1) msg[0] |= (uint32_t)(uint8_t) p[1];
-    for (uint8_t i = 2; i < n; i++) {
-      uint8_t word_idx = (uint8_t)(1 + (i - 2) / 4);
-      uint8_t shift    = (uint8_t)(24 - ((i - 2) % 4) * 8);
+    if (has_index) {
+      msg[0] |= ((uint32_t) index << 8);                       // bits 15:8 = index
+      if (n > 0) msg[0] |= (uint32_t)(uint8_t) p[0];           // bits  7:0 = char 0
+    } else {
+      if (n > 0) msg[0] |= ((uint32_t)(uint8_t) p[0] << 8);    // bits 15:8 = char 0
+      if (n > 1) msg[0] |= (uint32_t)(uint8_t) p[1];           // bits  7:0 = char 1
+    }
+    for (uint8_t i = head_chars; i < n; i++) {
+      uint8_t word_idx = (uint8_t)(1 + (i - head_chars) / 4);
+      uint8_t shift    = (uint8_t)(24 - ((i - head_chars) % 4) * 8);
       msg[word_idx] |= ((uint32_t)(uint8_t) p[i] << shift);
     }
 
@@ -335,25 +394,48 @@ static void _nego_send_config_notify(midi2d_interface_t* p_midi, uint8_t protoco
 }
 
 static void _nego_send_fb_info(midi2d_interface_t* p_midi, uint8_t fb_idx) {
+  // Derive direction and group span for this block from the GTB descriptor.
+  uint16_t gtb_len = 0;
+  const uint8_t* gtb = tud_midi2_gtb_desc_cb(_itf_idx(p_midi), &gtb_len);
+  uint8_t type = 0x00, first_group = 0, num_groups = (uint8_t) CFG_TUD_MIDI2_NUM_GROUPS;
+  _gtb_blocks(gtb, gtb_len, fb_idx, &type, &first_group, &num_groups);
+
   uint32_t msg[4] = {0};
   msg[0] = ((uint32_t) MT_STREAM << 28)
          | ((uint32_t) STREAM_FB_INFO << 16)
          | (UINT32_C(1) << 15)
          | ((uint32_t) fb_idx << 8)
-         | 0x02;  // bDirection: bidirectional
-  msg[1] = ((uint32_t) 0 << 24)  // bFirstGroup
-         | ((uint32_t) tud_midi2_num_groups_cb(_itf_idx(p_midi)) << 16);
+         | _fb_dir_byte(type);  // UI hint + bDirection from the GTB block type
+  msg[1] = ((uint32_t) first_group << 24)
+         | ((uint32_t) num_groups << 16);
   _nego_send_ump(p_midi, msg, 4);
 }
 
 static void _nego_handle_stream_msg(midi2d_interface_t* p_midi, const uint32_t* words) {
+  // Let the application override this message before the built-in responder.
+  switch (tud_midi2_stream_msg_cb(_itf_idx(p_midi), words)) {
+    case MIDI2_STREAM_HANDLED:
+      return;
+    case MIDI2_STREAM_NEGOTIATED_MIDI1:
+      p_midi->protocol = MIDI_PROTOCOL_MIDI1;
+      p_midi->negotiated = true;
+      return;
+    case MIDI2_STREAM_NEGOTIATED_MIDI2:
+      p_midi->protocol = MIDI_PROTOCOL_MIDI2;
+      p_midi->negotiated = true;
+      return;
+    case MIDI2_STREAM_PASS:
+    default:
+      break;
+  }
+
   uint16_t status = (words[0] >> 16) & 0x3FF;
 
   switch (status) {
     case STREAM_ENDPOINT_DISCOVERY:
       _nego_send_endpoint_info(p_midi);
-      _nego_send_stream_text(p_midi, STREAM_EP_NAME, tud_midi2_ep_name_cb(_itf_idx(p_midi)));
-      _nego_send_stream_text(p_midi, STREAM_PROD_INSTANCE_ID, tud_midi2_product_id_cb(_itf_idx(p_midi)));
+      _nego_send_stream_text(p_midi, STREAM_EP_NAME, false, 0, tud_midi2_ep_name_cb(_itf_idx(p_midi)));
+      _nego_send_stream_text(p_midi, STREAM_PROD_INSTANCE_ID, false, 0, tud_midi2_product_id_cb(_itf_idx(p_midi)));
       break;
 
     case STREAM_CONFIG_REQUEST: {
@@ -368,13 +450,12 @@ static void _nego_handle_stream_msg(midi2d_interface_t* p_midi, const uint32_t* 
 
     case STREAM_FB_DISCOVERY: {
       uint8_t fb_idx = (words[0] >> 8) & 0xFF;
-      uint8_t fb_count = tud_midi2_num_function_blocks_cb(_itf_idx(p_midi));
-      if (fb_idx == 0xFF) {
-        for (uint8_t f = 0; f < fb_count; f++) {
-          _nego_send_fb_info(p_midi, f);
-        }
-      } else if (fb_idx < fb_count) {
-        _nego_send_fb_info(p_midi, fb_idx);
+      uint8_t filter = words[0] & 0xFF;  // bit 0: FB Info, bit 1: FB Name
+      uint8_t fb_count = _gtb_block_count(p_midi);
+      for (uint8_t f = 0; f < fb_count; f++) {
+        if (fb_idx != 0xFF && fb_idx != f) continue;
+        if (filter & 0x01) _nego_send_fb_info(p_midi, f);
+        if (filter & 0x02) _nego_send_stream_text(p_midi, STREAM_FB_NAME, true, f, tud_midi2_fb_name_cb(_itf_idx(p_midi), f));
       }
       break;
     }
@@ -718,11 +799,14 @@ bool midi2d_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_re
 
       if (tud_midi2_get_req_itf_cb(rhport, request)) return true;
 
+      uint16_t gtb_len = 0;
+      const uint8_t* gtb = tud_midi2_gtb_desc_cb(idx, &gtb_len);
+
       uint16_t len = request->wLength;
-      if (len > sizeof(_default_gtb_desc)) {
-        len = sizeof(_default_gtb_desc);
+      if (len > gtb_len) {
+        len = gtb_len;
       }
-      tud_control_xfer(rhport, request, (void*)(uintptr_t) _default_gtb_desc, len);
+      tud_control_xfer(rhport, request, (void*)(uintptr_t) gtb, len);
       return true;
     }
 
