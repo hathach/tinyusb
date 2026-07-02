@@ -63,6 +63,11 @@ enum {
 };
 
 enum {
+  TIME_TO_EXIT_SUSPEND_MS = 4u, // datasheet: PWRDOWN = 1 to 0 to OSCOKIRQ = 3 ms + 1 ms margin
+  TIME_CHIPRES_DELAY_MS   = 2u  // CHIPRES hold: 2 guarantees >= 1 ms actual despite ms-tick quantization
+};
+
+enum {
   CPUCTL_IE        = 1u << 0,
   CPUCTL_PULSEWID0 = 1u << 6,
   CPUCTL_PULSEWID1 = 1u << 7,
@@ -471,8 +476,6 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   _hcd_data.spi_mutex = osal_mutex_create(&_hcd_data.spi_mutexdef);
 #endif
 
-  // NOTE: driver does not seem to work without nRST pin signal
-
   // full duplex, interrupt negative edge
   reg_write(rhport, PINCTL_ADDR, _tuh_cfg.pinctl | PINCTL_FDUPSPI, false);
 
@@ -482,12 +485,21 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   TU_LOG2_HEX(revision);
   TU_ASSERT(revision == 0x01 || revision == 0x12 || revision == 0x13, false);
 
-  // reset
+  // Software reset via CHIPRES. Per the Programming Guide, CHIPRES stops the internal oscillator;
+  // clearing it restarts the oscillator, and OSCOKIRQ latches on the resulting OSCOK 0->1 edge.
+  // Back-to-back writes hold reset for only ~us, too short for the high-Q crystal to actually stop,
+  // so no edge is generated and OSCOK never re-latches - this is the startup hang. Hold reset >= 1 ms
+  // (datasheet "PWRDOWN = 1 to oscillator stop = 5 us") so the oscillator fully stops and the edge fires.
   reg_write(rhport, USBCTL_ADDR, USBCTL_CHIPRES, false);
+  const uint32_t reset_start_ms = tusb_time_millis_api();
+  while (tusb_time_millis_api() - reset_start_ms < TIME_CHIPRES_DELAY_MS) {} // hold reset so the oscillator stops
   reg_write(rhport, USBCTL_ADDR, 0, false);
-  while( !(reg_read(rhport, USBIRQ_ADDR, false) & USBIRQ_OSCOK_IRQ) ) {
-    // wait for oscillator to stabilize
-  }
+
+  // Wait for OSCOK (12 MHz oscillator + 48 MHz PLL relock). Bounded as a safety net, so the host never
+  // hangs if the edge is still missed on some board - the clock is running regardless.
+  const uint32_t oscok_start_ms = tusb_time_millis_api();
+  while (!(reg_read(rhport, USBIRQ_ADDR, false) & USBIRQ_OSCOK_IRQ) &&
+         (tusb_time_millis_api() - oscok_start_ms < TIME_TO_EXIT_SUSPEND_MS)) {}
 
   // Mode: Host and DP/DM pull down
   mode_write(rhport, MODE_DPPULLDN | MODE_DMPULLDN | MODE_HOST, false);
