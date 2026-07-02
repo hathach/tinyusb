@@ -277,9 +277,12 @@ def main():
         if r['status'] == 'HUNG':
             pci = pci_addr_of_bus(dev['node'].split('/')[-2])
             print(f'aborting battery: kernel-side hang, device wedged mid-transfer.\n'
-                  f'Recover with: sudo usb_recover.sh pci-reset {pci}\n'
-                  f'(pci-reset FIRST — any rebind/authorized attempt now deadlocks the bus; '
-                  f'see .claude/skills/usb-recover)', file=sys.stderr)
+                  f'auto-recovering: sudo usb_recover.sh pci-reset {pci} '
+                  f'(see .claude/skills/usb-recover)', file=sys.stderr)
+            # FLR frees the D-state ioctl without the device lock; must run BEFORE
+            # any unbind/remove_id below, which would deadlock the bus otherwise
+            sudo(['/usr/local/sbin/usb_recover.sh', 'pci-reset', pci])
+            time.sleep(5)  # let the bus re-enumerate before cleanup touches sysfs
             break
         if not find_device(args.serial, first=True):
             results.append({'num': num, 'status': 'FAIL',
