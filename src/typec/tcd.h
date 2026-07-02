@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2023 Ha Thach (thach@tinyusb.org)
+ * SPDX-FileCopyrightText: Copyright (c) 2023 Ha Thach (tinyusb.org)
  * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
