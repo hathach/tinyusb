@@ -1173,6 +1173,13 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
             tud_control_status(rhport, p_request);
             break;
 
+          case TUSB_REQ_GET_STATUS: {
+            // USB 2.0 9.4.5: GET_STATUS to interface must return 2 bytes, all reserved (zero)
+            uint16_t status = 0;
+            tud_control_xfer(rhport, p_request, &status, 2);
+            break;
+          }
+
           default: return false;
         }
       }
@@ -1214,16 +1221,16 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
             if (driver != NULL) {
               // Some classes such as USBTMC needs to clear/re-init its buffer when receiving CLEAR_FEATURE request
               // We will also forward std request targeted endpoint to class drivers as well
-
-              // STD request must always be ACKed regardless of driver returned value
-              // Also clear complete callback if driver set since it can also stall the request.
+              // Clear complete callback if driver set since it can also stall the request.
               (void) invoke_class_control(rhport, driver, p_request);
               ctrl_xfer->complete_cb = NULL;
+            }
 
-              // skip ZLP status if driver already did that
-              if (!(_usbd_dev.ep_status[0][TUSB_DIR_IN] & TU_EDPT_STATE_BUSY)) {
-                tud_control_status(rhport, p_request);
-              }
+            // STD request must always be ACKed even without an owning class driver, e.g.
+            // clear/set halt on EP0 itself: queuing no response would hang the control pipe.
+            // Skip ZLP status if driver already did that
+            if (!(_usbd_dev.ep_status[0][TUSB_DIR_IN] & TU_EDPT_STATE_BUSY)) {
+              tud_control_status(rhport, p_request);
             }
           }
           break;
