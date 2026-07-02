@@ -1031,6 +1031,7 @@ static uint16_t acm_open(uint8_t daddr, const tusb_desc_interface_t *itf_desc, u
 
   // Open notification endpoint of control interface if any
   if (itf_desc->bNumEndpoints == 1) {
+    TU_ASSERT(tu_desc_in_bounds(p_desc, desc_end), 0);
     TU_ASSERT(TUSB_DESC_ENDPOINT == tu_desc_type(p_desc), 0);
     const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
     TU_ASSERT(tuh_edpt_open(daddr, desc_ep), 0);
@@ -1040,12 +1041,13 @@ static uint16_t acm_open(uint8_t daddr, const tusb_desc_interface_t *itf_desc, u
   }
 
   //------------- Data Interface (if any) -------------//
-  if (TUSB_DESC_INTERFACE == tu_desc_type(p_desc)) {
+  if (tu_desc_in_bounds(p_desc, desc_end) && TUSB_DESC_INTERFACE == tu_desc_type(p_desc)) {
     const tusb_desc_interface_t *data_itf = (const tusb_desc_interface_t *)p_desc;
     if (data_itf->bInterfaceClass == TUSB_CLASS_CDC_DATA) {
       p_desc = tu_desc_next(p_desc); // next to endpoint descriptor
 
-      // data endpoints expected to be in pairs
+      // data endpoints expected to be in pairs, make sure both fit before reading them
+      TU_ASSERT((uint16_t)(desc_end - p_desc) >= 2 * sizeof(tusb_desc_endpoint_t), 0);
       TU_ASSERT(open_ep_stream_pair(p_cdc, (const tusb_desc_endpoint_t *)p_desc), 0);
       p_desc += data_itf->bNumEndpoints * sizeof(tusb_desc_endpoint_t);
     }
