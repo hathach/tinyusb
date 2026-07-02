@@ -5,9 +5,8 @@ description: Use when a USB device or fixture on the ci HIL rig is stuck, hung, 
 
 # USB Recovery on the HIL Rig
 
-`/usr/local/sbin/usb_recover.sh` (passwordless sudo on ci) wraps three sysfs reset
-actions plus a resolver. Its built-in usage output is broken (prints shell code
-instead of help); the real interface:
+`/usr/local/sbin/usb_recover.sh` (passwordless sudo on ci; versioned copy in this
+skill's `scripts/`) wraps four sysfs reset actions plus a resolver:
 
 ```bash
 sudo usb_recover.sh resolve    /dev/ttyACM3    # /dev node -> busport (e.g. 3-4.7); also ttyUSB*, sg*
@@ -69,3 +68,14 @@ port power switching — uhubctl reports "No compatible devices" there.
   cycle and forces a reboot.
 - A J-Link reset (`r; go`) does not disconnect a wedged DUT from the host: the
   DWC2 soft-connect pullup stays up through a core halt, so stuck URBs stay stuck.
+
+## Deploy (new rig / after reimage)
+
+The script is versioned in this skill's `scripts/`; install + sudoers (needs a
+password once):
+
+```bash
+sudo install -m0755 -oroot -groot .claude/skills/usb-recover/scripts/usb_recover.sh /usr/local/sbin/
+sudo install -m0440 -oroot -groot test/hil/tinyusb-sudoer /etc/sudoers.d/tinyusb-sudoer
+sudo visudo -c
+```

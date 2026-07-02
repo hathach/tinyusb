@@ -1,0 +1,23 @@
+# Sudoers grants for the TinyUSB HIL rig agent user. Adjust 'hathach' to the rig user.
+#
+# Deploy (from the repo root, needs your password once):
+#   sudo install -m0440 -oroot -groot test/hil/tinyusb-sudoer /etc/sudoers.d/tinyusb-sudoer
+#   sudo visudo -c
+#
+# The referenced helper scripts are versioned under .claude/skills/ and installed with:
+#   sudo install -m0755 -oroot -groot .claude/skills/usb-recover/scripts/usb_recover.sh /usr/local/sbin/
+#   sudo install -m0755 -oroot -groot .claude/skills/usb-debug/scripts/usb_dyndbg.sh   /usr/local/sbin/
+#
+# What each grant is for:
+#   dmesg                    - read kernel log (USB events, usbtest results)
+#   uhubctl                  - hub port power control (only works on buses with ppps)
+#   debugfs                  - ext4 debugger, read root-only files for diagnostics
+#   usb_recover.sh           - narrow sysfs USB reset helper (see .claude/skills/usb-recover)
+#   usb_dyndbg.sh            - kernel dynamic-debug toggle for USB modules (see .claude/skills/usb-debug)
+#   tee usbtest sysfs paths  - bind/unbind the usbtest host driver (test/hil/usbtest.py)
+#   modprobe usbtest         - load the usbtest module on demand
+
+hathach ALL=(ALL) NOPASSWD: /usr/bin/dmesg, /sbin/uhubctl, /sbin/debugfs
+hathach ALL=(root) NOPASSWD: /usr/local/sbin/usb_recover.sh
+hathach ALL=(root) NOPASSWD: /usr/local/sbin/usb_dyndbg.sh
+hathach ALL=(root) NOPASSWD: /usr/bin/tee /sys/bus/usb/drivers/usbtest/new_id, /usr/bin/tee /sys/bus/usb/drivers/usbtest/remove_id, /usr/bin/tee /sys/bus/usb/drivers/usbtest/bind, /usr/bin/tee /sys/bus/usb/drivers/usbtest/unbind, /usr/bin/tee /sys/module/usbtest/parameters/pattern, /usr/sbin/modprobe usbtest
