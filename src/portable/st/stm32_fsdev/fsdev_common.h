@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) Nathan Conrad
+ * SPDX-FileCopyrightText: Copyright (c) 2019 Nathan Conrad
  * SPDX-FileCopyrightText: Copyright (c) 2024, Ha Thach (tinyusb.org)
  * SPDX-FileCopyrightText: Copyright (c) 2025, HiFiPhile (Zixun LI)
  * SPDX-License-Identifier: MIT
