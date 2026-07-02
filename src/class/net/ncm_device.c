@@ -614,6 +614,12 @@ static bool recv_validate_datagram(const recv_ntb_t *ntb, uint32_t len) {
     TU_LOG_DRV("(EE) ill ndp16 length: %d\n", ndp16->wLength);
     return false;
   }
+  // the NDP block (wLength bytes from wNdpIndex) must fit within the received NTB, otherwise the
+  // datagram pointer array walked below (max_ndx is derived from wLength) runs past ntb->data
+  if ((uint32_t) nth16->wNdpIndex + ndp16->wLength > len) {
+    TU_LOG_DRV("(EE) ill ndp16 length: %d (%lu)\n", ndp16->wLength, len);
+    return false;
+  }
   if (ndp16->dwSignature != NDP16_SIGNATURE_NCM0 && ndp16->dwSignature != NDP16_SIGNATURE_NCM1) {
     TU_LOG_DRV("(EE) ill signature: 0x%08x\n", (unsigned) ndp16->dwSignature);
     return false;
