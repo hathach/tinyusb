@@ -5,6 +5,11 @@
 //V_EXCLUDE_PATH */hw/bsp/espressif/components/*
 //V_EXCLUDE_PATH */lib/*
 
+//-V:TUD_HID_DESCRIPTOR:501 _boot_protocol comparison inside the macro is constant when HID_ITF_PROTOCOL_NONE is passed
+//-V:TUD_HID_INOUT_DESCRIPTOR:501 _boot_protocol comparison inside the macro is constant when HID_ITF_PROTOCOL_NONE is passed
+//-V::785 audio_device.c: switch over function index is constant when CFG_TUD_AUDIO == 1
+//-V::1044 wait loops on volatile hardware status registers are idiomatic in DCD/HCD ports
+
 //-V::2506 MISRA. A function should have a single point of exit at the end.
 //-V::2514 MISRA. Unions should not be used.
 //-V::2520 [MISRA-C-16.3] Every switch-clause should be terminated by an unconditional 'break' statement

@@ -736,7 +736,7 @@ uint16_t cdch_open(uint8_t rhport, uint8_t daddr, const tusb_desc_interface_t *i
   if (TUSB_CLASS_CDC == itf_desc->bInterfaceClass &&
       CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL == itf_desc->bInterfaceSubClass) {
     return acm_open(daddr, itf_desc, max_len);
-  } else if (SERIAL_DRIVER_COUNT > 1 &&
+  } else if (SERIAL_DRIVER_COUNT > 1 && //-V560 compile-time constant; depends on which vendor serial drivers are enabled
              TUSB_CLASS_VENDOR_SPECIFIC == itf_desc->bInterfaceClass) {
     uint16_t vid, pid;
     TU_VERIFY(tuh_vid_pid_get(daddr, &vid, &pid), 0);
@@ -989,7 +989,7 @@ static bool acm_set_line_coding(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_
   // use local ctrl buf to hold line coding since user line_coding variable does not live long enough
   uint8_t const idx = get_idx_by_ptr(p_cdc);
   uint8_t *ctrl_buf = cdch_epbuf[idx].ctrl;
-  memcpy(ctrl_buf, &p_cdc->requested_line.coding, sizeof(cdc_line_coding_t));
+  memcpy(ctrl_buf, &p_cdc->requested_line.coding, sizeof(cdc_line_coding_t)); //-V512 ctrl is an 8-byte TUH_EPBUF; cdc_line_coding_t is 7 bytes
 
   tuh_xfer_t xfer = {
     .daddr       = p_cdc->daddr,
