@@ -1671,7 +1671,10 @@ void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   // only clear if currently stalled
   TU_LOG_USBD("    Clear Stall EP %02X\r\n", ep_addr);
   dcd_edpt_clear_stall(rhport, ep_addr);
-  _usbd_dev.ep_status[epnum][dir] &= (uint8_t) ~(TU_EDPT_STATE_STALLED | TU_EDPT_STATE_BUSY);
+  // Also release CLAIMED: a transfer that was in flight when the endpoint got stalled is killed by
+  // the dcd without a completion event, and the completion event is the only other place the claim
+  // is released. Keeping it would fail every subsequent claim i.e. starve the endpoint forever.
+  _usbd_dev.ep_status[epnum][dir] &= (uint8_t) ~(TU_EDPT_STATE_STALLED | TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED);
 }
 
 bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr) {
