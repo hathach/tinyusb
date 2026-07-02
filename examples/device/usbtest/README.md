@@ -25,7 +25,8 @@ the matching test battery automatically.
 | 3 | + interrupt source/sink | + 25, 26 |
 | 4 | + isochronous source/sink | + 15, 16, 22, 23 |
 
-This example currently implements **Tier 1**.
+This example currently implements **Tier 2** (bulk source/sink + `0x5b`/`0x5c`
+control write/read-back).
 
 ## Running
 
@@ -46,9 +47,11 @@ non-packet-aligned read length overflows (`-EOVERFLOW`), and never run bare `tes
 at full speed).
 
 ```bash
-# bind (VID/PID of this example)
+# bind: MUST use the 5-field form referencing Gadget Zero (0525:a4a0) so the
+# dynamic id inherits its capability profile. A plain "cafe 4010" id leaves
+# driver_info NULL, which usbtest_probe() dereferences -> kernel oops.
 sudo modprobe usbtest
-echo "cafe 4010" | sudo tee /sys/bus/usb/drivers/usbtest/new_id
+echo "cafe 4010 0 0525 a4a0" | sudo tee /sys/bus/usb/drivers/usbtest/new_id
 # example: bulk write/read
 sudo testusb -D /dev/bus/usb/<BBB>/<DDD> -t 1 -c 128 -s 1024 -v 512
 sudo testusb -D /dev/bus/usb/<BBB>/<DDD> -t 2 -c 128 -s 1024 -v 512

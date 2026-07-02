@@ -32,6 +32,6 @@
 //   2: + vendor control 0x5b/0x5c (ctrl_out)
 //   3: + interrupt source/sink
 //   4: + isochronous source/sink
-#define USBTEST_TIER  1
+#define USBTEST_TIER  2
 
 #endif /* USB_DESCRIPTORS_H_ */

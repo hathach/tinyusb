@@ -28,6 +28,7 @@
  * style source/sink protocol on a vendor interface:
  *   - bulk IN  = infinite source (pattern 0: all zeros)
  *   - bulk OUT = infinite sink (data discarded)
+ *   - EP0 0x5b/0x5c = control write then read-back (ctrl_out tests)
  * See examples/device/usbtest/README.md and test/hil/usbtest.py for usage.
  */
 
@@ -118,15 +119,40 @@ void tud_vendor_tx_cb(uint8_t idx, uint32_t sent_bytes) {
   tud_vendor_write(tx_chunk, sizeof(tx_chunk));
 }
 
-// Invoked when a control transfer occurred on an interface of this class.
-// Tier 1 supports no vendor requests: stall them. Standard endpoint requests
-// (halt set/clear) are also forwarded here by usbd, which ignores the return
-// value and handles them itself — false is correct for those too.
+// Control write/read-back for the ctrl_out tests (14/21), same protocol as
+// Gadget Zero: 0x5b stores the host's wLength bytes, 0x5c returns them.
+static uint8_t ctrl_buf[1024];
+
+// Invoked on vendor control transfers, and by usbd for forwarded standard
+// endpoint requests (halt set/clear) whose return value it ignores — return
+// false for anything that is not a supported vendor request.
 bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const* request) {
-  (void) rhport;
-  (void) stage;
-  (void) request;
-  return false;
+  if (request->bmRequestType_bit.type != TUSB_REQ_TYPE_VENDOR) {
+    return false;
+  }
+
+  switch (request->bRequest) {
+    case 0x5b: // control WRITE: receive wLength bytes into ctrl_buf
+      TU_VERIFY(request->bmRequestType_bit.direction == TUSB_DIR_OUT);
+      TU_VERIFY(request->wValue == 0 && request->wIndex == 0);
+      TU_VERIFY(request->wLength <= sizeof(ctrl_buf));
+      if (stage == CONTROL_STAGE_SETUP) {
+        return tud_control_xfer(rhport, request, ctrl_buf, request->wLength);
+      }
+      return true; // DATA/ACK: payload already landed in ctrl_buf
+
+    case 0x5c: // control READ: send back the previously written bytes
+      TU_VERIFY(request->bmRequestType_bit.direction == TUSB_DIR_IN);
+      TU_VERIFY(request->wValue == 0 && request->wIndex == 0);
+      TU_VERIFY(request->wLength <= sizeof(ctrl_buf));
+      if (stage == CONTROL_STAGE_SETUP) {
+        return tud_control_xfer(rhport, request, ctrl_buf, request->wLength);
+      }
+      return true;
+
+    default:
+      return false;
+  }
 }
 
 //--------------------------------------------------------------------+
