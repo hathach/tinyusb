@@ -49,13 +49,22 @@ enum {
 
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
-void led_blinking_task(void);
-void hid_task(void);
+void led_blinking_task(void *param);
+void hid_task(void *param);
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+static void usb_device_task(void *param);
+static void freertos_init(void);
+#endif
 
 /*------------- MAIN -------------*/
 int main(void) {
   board_init();
 
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  freertos_init();
+  return 0;
+#else
   // init device stack on configured roothub port
   tusb_rhport_init_t dev_init = {.role = TUSB_ROLE_DEVICE, .speed = TUSB_SPEED_AUTO};
   tusb_init(BOARD_TUD_RHPORT, &dev_init);
@@ -64,9 +73,10 @@ int main(void) {
 
   while (1) {
     tud_task(); // tinyusb device task
-    led_blinking_task();
-    hid_task();
+    led_blinking_task(NULL);
+    hid_task(NULL);
   }
+#endif
 }
 
 //--------------------------------------------------------------------+
@@ -204,7 +214,13 @@ static void send_hid_report(uint8_t report_id, uint32_t btn) {
 
 // Every 10ms, we will sent 1 report for each HID profile (keyboard, mouse etc ..)
 // tud_hid_report_complete_cb() is used to send the next report after previous one is complete
-void hid_task(void) {
+void hid_task(void *param) {
+  (void) param;
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  while (1) {
+    vTaskDelay(pdMS_TO_TICKS(10));
+#else
   // Poll every 10ms
   const uint32_t  interval_ms = 10;
   static uint32_t start_ms    = 0;
@@ -213,6 +229,7 @@ void hid_task(void) {
     return; // not enough time
   }
   start_ms += interval_ms;
+#endif
 
   uint32_t const btn = board_button_read();
 
@@ -225,6 +242,10 @@ void hid_task(void) {
     // Send the 1st of report chain, the rest will be sent by tud_hid_report_complete_cb()
     send_hid_report(REPORT_ID_KEYBOARD, btn);
   }
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  }
+#endif
 }
 
 // Invoked when sent REPORT successfully to host
@@ -288,21 +309,110 @@ void tud_hid_set_report_cb(
 //--------------------------------------------------------------------+
 // BLINKING TASK
 //--------------------------------------------------------------------+
-void led_blinking_task(void) {
-  static uint32_t start_ms  = 0;
+void led_blinking_task(void *param) {
+  (void) param;
   static bool     led_state = false;
+#if CFG_TUSB_OS != OPT_OS_FREERTOS
+  static uint32_t start_ms  = 0;
+#endif
 
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  while (1) {
+  // blink is disabled
+  if (0u == blink_interval_ms) {
+    vTaskDelay(1);
+    continue;
+  }
+#else
   // blink is disabled
   if (0u == blink_interval_ms) {
     return;
   }
+#endif
 
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  vTaskDelay(blink_interval_ms / portTICK_PERIOD_MS);
+#else
   // Blink every interval ms
   if (tusb_time_millis_api() - start_ms < blink_interval_ms) {
     return; // not enough time
   }
   start_ms += blink_interval_ms;
+#endif
 
   board_led_write(led_state);
   led_state = 1 - led_state; // toggle
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  }
+#endif
 }
+
+//--------------------------------------------------------------------+
+// FreeRTOS
+//--------------------------------------------------------------------+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+
+#ifdef ESP_PLATFORM
+  #define USBD_STACK_SIZE     4096
+
+void app_main(void) {
+  main();
+}
+#else
+  // Increase stack size when debug log is enabled
+  #define USBD_STACK_SIZE     ((3 * configMINIMAL_STACK_SIZE / 2) * (CFG_TUSB_DEBUG ? 2 : 1))
+#endif
+
+#define HID_STACK_SIZE      (configMINIMAL_STACK_SIZE * (CFG_TUSB_DEBUG ? 2 : 1))
+#define BLINKY_STACK_SIZE   configMINIMAL_STACK_SIZE
+
+#if configSUPPORT_STATIC_ALLOCATION
+StackType_t blinky_stack[BLINKY_STACK_SIZE];
+StaticTask_t blinky_taskdef;
+
+StackType_t  usb_device_stack[USBD_STACK_SIZE];
+StaticTask_t usb_device_taskdef;
+
+StackType_t  hid_stack[HID_STACK_SIZE];
+StaticTask_t hid_taskdef;
+#endif
+
+// USB Device Driver task
+// This top level thread processes all USB events and invokes callbacks.
+static void usb_device_task(void *param) {
+  (void) param;
+
+  // init device stack on configured roothub port.
+  // This should be called after scheduler/kernel is started.
+  // Otherwise, it could cause kernel issue since USB IRQ handler uses RTOS queue API.
+  tusb_rhport_init_t dev_init = {
+    .role = TUSB_ROLE_DEVICE,
+    .speed = TUSB_SPEED_AUTO
+  };
+  tusb_init(BOARD_TUD_RHPORT, &dev_init);
+
+  board_init_after_tusb();
+
+  while (1) {
+    tud_task();// tinyusb device task
+  }
+}
+
+static void freertos_init(void) {
+#if configSUPPORT_STATIC_ALLOCATION
+  xTaskCreateStatic(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, blinky_stack, &blinky_taskdef);
+  xTaskCreateStatic(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, usb_device_stack, &usb_device_taskdef);
+  xTaskCreateStatic(hid_task, "hid", HID_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, hid_stack, &hid_taskdef);
+#else
+  xTaskCreate(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, NULL);
+  xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, NULL);
+  xTaskCreate(hid_task, "hid", HID_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, NULL);
+#endif
+
+#ifndef ESP_PLATFORM
+  vTaskStartScheduler();
+#endif
+}
+
+#endif

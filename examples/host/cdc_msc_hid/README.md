@@ -52,7 +52,7 @@ make BOARD=raspberry_pi_pico all
 
 ## FreeRTOS variant
 
-A FreeRTOS build is in `examples/host/cdc_msc_hid_freertos` — identical CDC/MSC/HID host behavior, running the host stack in a FreeRTOS task with a software-timer LED.
+Build this example with `RTOS=freertos` / `-DRTOS=freertos` for the FreeRTOS variant. It keeps the same CDC/MSC/HID host behavior, running the host stack in a FreeRTOS task with a software-timer LED.
 
 ## How to use
 

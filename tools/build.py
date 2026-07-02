@@ -81,19 +81,55 @@ def find_family(board):
     return None
 
 
+def default_rtos(family):
+    return 'freertos' if family == 'espressif' else 'noos'
+
+
+def cmake_define_value(args, name):
+    for arg in reversed(args):
+        if not arg.startswith('-D'):
+            continue
+
+        key, sep, value = arg[2:].partition('=')
+        if not sep:
+            continue
+
+        if key.split(':', 1)[0] == name:
+            return value
+
+    return None
+
+
+def cmake_args_with_default(args, name, value):
+    if cmake_define_value(args, name) is not None:
+        return list(args)
+
+    return [*args, f'-D{name}={value}']
+
+
+def make_option_value(options, name):
+    for option in reversed(shlex.split(options or '')):
+        if option.startswith(name + '='):
+            return option.split('=', 1)[1]
+
+    return None
+
+
 def get_examples(family):
     all_examples = []
     for d in os.scandir("examples"):
         if d.is_dir() and 'cmake' not in d.name and 'build_system' not in d.name:
             for entry in os.scandir(d.path):
-                if entry.is_dir() and 'cmake' not in entry.name:
-                    if family != 'espressif' or 'freertos' in entry.name:
-                        all_examples.append(d.name + '/' + entry.name)
+                if not entry.is_dir() or 'cmake' in entry.name:
+                    continue
 
-    if family == 'espressif':
-        all_examples.append('device/board_test')
-        all_examples.append('device/video_capture')
-        all_examples.append('host/device_info')
+                path = Path(entry.path)
+                if family == 'espressif':
+                    if (path / 'src' / 'CMakeLists.txt').is_file():
+                        all_examples.append(d.name + '/' + entry.name)
+                elif (path / 'CMakeLists.txt').is_file() or (path / 'Makefile').is_file():
+                    all_examples.append(d.name + '/' + entry.name)
+
     all_examples.sort()
     return all_examples
 
@@ -116,16 +152,18 @@ def cmake_board(board, build_args, build_name, build_cflags, build_targets):
         build_flags.append('-DCFLAGS_CLI=' + ' '.join(build_cflags))
 
     family = find_family(board)
+    rtos = cmake_define_value(build_args, 'RTOS') or default_rtos(family)
     if family == 'espressif':
         # for espressif, we have to build example individually
+        build_args = cmake_args_with_default(build_args, 'RTOS', rtos)
         all_examples = get_examples(family)
         for example in all_examples:
-            if build_utils.skip_example(example, board):
+            if build_utils.skip_example(example, board, rtos=rtos):
                 ret[2] += 1
             else:
                 rcmd = run_cmd([
                     'idf.py', '-C', f'examples/{example}', '-B', f'{build_dir}/{example}', '-GNinja',
-                    f'-DBOARD={board}', *build_flags, 'build'
+                    f'-DBOARD={board}', *build_args, *build_flags, 'build'
                 ])
                 ret[0 if rcmd.returncode == 0 else 1] += 1
     else:
@@ -148,8 +186,11 @@ def cmake_board(board, build_args, build_name, build_cflags, build_targets):
 # Make
 # -----------------------------
 def make_one_example(example, board, make_option, build_targets):
+    family = find_family(board)
+    rtos = make_option_value(make_option, 'RTOS') or default_rtos(family)
+
     # Check if board is skipped
-    if build_utils.skip_example(example, board):
+    if build_utils.skip_example(example, board, rtos=rtos):
         print_build_result(board, example, 2, '-')
         r = 2
     else:

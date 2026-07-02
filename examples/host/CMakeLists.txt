@@ -9,13 +9,11 @@ family_initialize_project(tinyusb_host_examples ${CMAKE_CURRENT_LIST_DIR})
 set(EXAMPLE_LIST
   bare_api
   cdc_msc_hid
-  cdc_msc_hid_freertos
   device_info
   hid_controller
   midi_rx
   midi2_host
   msc_file_explorer
-  msc_file_explorer_freertos
   )
 
 foreach (example ${EXAMPLE_LIST})

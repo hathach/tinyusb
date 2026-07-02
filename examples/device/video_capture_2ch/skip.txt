@@ -7,7 +7,6 @@ mcu:CH32V20X
 mcu:CH32V307
 mcu:CH583
 mcu:STM32L0
-family:espressif
 board:curiosity_nano
 board:kuiic
 board:frdm_k32l2b
