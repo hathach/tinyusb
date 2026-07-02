@@ -1,5 +1,6 @@
 /*
  * SPDX-FileCopyrightText: Copyright (c) 2022 SudoMaker, Ltd.
+ * SPDX-FileCopyrightText: Copyright (c) 2020 Koji Kitayama
  * SPDX-FileCopyrightText: Copyright (c) 2022 Ha Thach (tinyusb.org)
  * SPDX-License-Identifier: MIT
  *
