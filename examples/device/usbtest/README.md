@@ -25,8 +25,9 @@ the matching test battery automatically.
 | 3 | + interrupt source/sink | + 25, 26 |
 | 4 | + isochronous source/sink | + 15, 16, 22, 23 |
 
-This example currently implements **Tier 2** (bulk source/sink + `0x5b`/`0x5c`
-control write/read-back).
+This example currently implements **Tier 3** (bulk + interrupt source/sink,
+`0x5b`/`0x5c` control write/read-back) using the vendor class with
+`CFG_TUD_VENDOR_EP_INT_OUT`/`CFG_TUD_VENDOR_EP_INT_IN` enabled.
 
 ## Running
 

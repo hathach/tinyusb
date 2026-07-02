@@ -32,6 +32,9 @@
 //   2: + vendor control 0x5b/0x5c (ctrl_out)
 //   3: + interrupt source/sink
 //   4: + isochronous source/sink
-#define USBTEST_TIER  2
+#define USBTEST_TIER  3
+
+// Interrupt endpoint max packet size, must match the configuration descriptor
+#define USBTEST_INT_EP_MPS  (TUD_OPT_HIGH_SPEED ? 512 : 64)
 
 #endif /* USB_DESCRIPTORS_H_ */

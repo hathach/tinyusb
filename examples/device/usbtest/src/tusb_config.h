@@ -110,6 +110,12 @@
 // Multi-packet IN transfers; must be a multiple of bulk MPS at both speeds (64/512)
 #define CFG_TUD_VENDOR_TX_EPSIZE      2048
 
+// Interrupt IN/OUT source/sink pair (usbtest cases 25/26)
+#define CFG_TUD_VENDOR_EP_INT_OUT          1
+#define CFG_TUD_VENDOR_EP_INT_IN           1
+#define CFG_TUD_VENDOR_EP_INT_OUT_BUFSIZE  512
+#define CFG_TUD_VENDOR_EP_INT_IN_BUFSIZE   512
+
 #ifdef __cplusplus
  }
 #endif

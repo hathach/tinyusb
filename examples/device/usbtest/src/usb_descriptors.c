@@ -65,43 +65,57 @@ enum {
   ITF_NUM_TOTAL
 };
 
-#define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_VENDOR_DESC_LEN)
+// Vendor interface with bulk IN/OUT source/sink plus interrupt IN/OUT: the host
+// usbtest driver collects all pipe types from one altsetting. No TUD_ macro
+// covers this layout, hand-rolled: interface + 2 bulk + 2 interrupt endpoints.
+#define USBTEST_DESC_LEN  (9 + 4*7)
+#define USBTEST_DESCRIPTOR(_itfnum, _stridx, _epout, _epin, _bulk_mps, _intout, _intin, _int_mps, _int_interval) \
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 4, TUSB_CLASS_VENDOR_SPECIFIC, 0x00, 0x00, _stridx,\
+  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_bulk_mps), 0,\
+  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_bulk_mps), 0,\
+  7, TUSB_DESC_ENDPOINT, _intout, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_int_mps), _int_interval,\
+  7, TUSB_DESC_ENDPOINT, _intin, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_int_mps), _int_interval
+
+#define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + USBTEST_DESC_LEN)
 
 #if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
   // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
-  // 0 control, 1 In, 2 Bulk, 3 Iso, 4 In etc ...
-  #define EPNUM_VENDOR_OUT 0x02
-  #define EPNUM_VENDOR_IN  0x82
-
-#elif CFG_TUSB_MCU == OPT_MCU_CXD56
-  // CXD56 USB driver has fixed endpoint type (bulk/interrupt/iso) and direction (IN/OUT) by its number
-  // 0 control (IN/OUT), 1 Bulk (IN), 2 Bulk (OUT), 3 In (IN), 4 Bulk (IN), 5 Bulk (OUT), 6 In (IN)
-  #define EPNUM_VENDOR_OUT 0x02
-  #define EPNUM_VENDOR_IN  0x81
+  // 0 control, 1 Interrupt, 2 Bulk, 3 Iso, 4 Interrupt etc ...
+  #define EPNUM_BULK_OUT 0x02
+  #define EPNUM_BULK_IN  0x85
+  #define EPNUM_INT_OUT  0x01
+  #define EPNUM_INT_IN   0x84
 
 #elif CFG_TUD_ENDPOINT_ONE_DIRECTION_ONLY
   // MCUs that don't support a same endpoint number with different direction IN and OUT
   //    e.g EP1 OUT & EP1 IN cannot exist together
   #if TU_CHECK_MCU(OPT_MCU_MAX32650, OPT_MCU_MAX32666, OPT_MCU_MAX32690, OPT_MCU_MAX78002)
     // Put bulk on EP>=8 so the 2048/4096-byte FIFOs can back double packet buffering
-    #define EPNUM_VENDOR_OUT 0x08
-    #define EPNUM_VENDOR_IN  0x89
+    #define EPNUM_BULK_OUT 0x08
+    #define EPNUM_BULK_IN  0x89
+    #define EPNUM_INT_OUT  0x02
+    #define EPNUM_INT_IN   0x83
   #else
-    #define EPNUM_VENDOR_OUT 0x01
-    #define EPNUM_VENDOR_IN  0x82
+    #define EPNUM_BULK_OUT 0x01
+    #define EPNUM_BULK_IN  0x82
+    #define EPNUM_INT_OUT  0x03
+    #define EPNUM_INT_IN   0x84
   #endif
 
 #else
-  #define EPNUM_VENDOR_OUT 0x01
-  #define EPNUM_VENDOR_IN  0x81
+  #define EPNUM_BULK_OUT 0x01
+  #define EPNUM_BULK_IN  0x81
+  #define EPNUM_INT_OUT  0x02
+  #define EPNUM_INT_IN   0x82
 #endif
 
 static uint8_t const desc_fs_configuration[] = {
   // Config number, interface count, string index, total length, attribute, power in mA
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
 
-  // Interface number, string index, EP Out & IN address, EP size
-  TUD_VENDOR_DESCRIPTOR(ITF_NUM_VENDOR, 4, EPNUM_VENDOR_OUT, 0x80 | EPNUM_VENDOR_IN, 64)
+  // Interface number, string index, bulk EP out/in + mps, interrupt EP out/in + mps + interval
+  USBTEST_DESCRIPTOR(ITF_NUM_VENDOR, 4, EPNUM_BULK_OUT, 0x80 | EPNUM_BULK_IN, 64,
+                     EPNUM_INT_OUT, 0x80 | EPNUM_INT_IN, 64, 1)
 };
 
 #if TUD_OPT_HIGH_SPEED
@@ -111,8 +125,9 @@ static uint8_t const desc_hs_configuration[] = {
   // Config number, interface count, string index, total length, attribute, power in mA
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
 
-  // Interface number, string index, EP Out & IN address, EP size
-  TUD_VENDOR_DESCRIPTOR(ITF_NUM_VENDOR, 4, EPNUM_VENDOR_OUT, 0x80 | EPNUM_VENDOR_IN, 512)
+  // Interface number, string index, bulk EP out/in + mps, interrupt EP out/in + mps + interval (1 ms)
+  USBTEST_DESCRIPTOR(ITF_NUM_VENDOR, 4, EPNUM_BULK_OUT, 0x80 | EPNUM_BULK_IN, 512,
+                     EPNUM_INT_OUT, 0x80 | EPNUM_INT_IN, 512, 4)
 };
 
 // other speed configuration

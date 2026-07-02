@@ -26,8 +26,8 @@
 /* Device-side peer of the Linux kernel host test driver drivers/usb/misc/usbtest.c
  * (driven from userspace by tools/usb/testusb.c). Implements the Gadget-Zero
  * style source/sink protocol on a vendor interface:
- *   - bulk IN  = infinite source (pattern 0: all zeros)
- *   - bulk OUT = infinite sink (data discarded)
+ *   - bulk/interrupt IN  = infinite source (pattern 0: all zeros)
+ *   - bulk/interrupt OUT = infinite sink (data discarded)
  *   - EP0 0x5b/0x5c = control write then read-back (ctrl_out tests)
  * See examples/device/usbtest/README.md and test/hil/usbtest.py for usage.
  */
@@ -57,9 +57,11 @@ enum {
 
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
-// Source data, all zeros = usbtest pattern 0. Size is a multiple of bulk MPS at
-// both speeds: transfers are always whole packets, never an unintended short/ZLP.
+// Source data, all zeros = usbtest pattern 0. Sizes are a multiple of the
+// endpoint max packet size: transfers are always whole packets, never an
+// unintended short packet or ZLP.
 static uint8_t const tx_chunk[CFG_TUD_VENDOR_TX_EPSIZE];
+static uint8_t const int_tx_chunk[USBTEST_INT_EP_MPS];
 
 //------------- prototypes -------------//
 void led_blinking_task(void);
@@ -89,18 +91,22 @@ int main(void) {
 // Source/sink pumps
 //--------------------------------------------------------------------+
 
-// Polling keeps both directions armed and self-heals after endpoint halt
-// (set/clear feature tests): stall marks the endpoint busy so both calls fail
+// Polling keeps all four endpoints armed and self-heals after endpoint halt
+// (set/clear feature tests): stall marks the endpoint busy so the calls fail
 // quietly until the host clears the halt, then the next tick re-arms.
 static void usbtest_task(void) {
   if (!tud_vendor_mounted()) {
     return;
   }
 
-  tud_vendor_read_xfer(); // sink: arm/re-arm OUT, quiet fail if already armed or halted
-
-  if (tud_vendor_write_available()) { // 0 while IN is busy or halted
+  tud_vendor_read_xfer();     // bulk sink: arm/re-arm, quiet fail if armed or halted
+  if (tud_vendor_write_available()) { // 0 while bulk IN is busy or halted
     tud_vendor_write(tx_chunk, sizeof(tx_chunk));
+  }
+
+  tud_vendor_int_read_xfer(); // interrupt sink
+  if (tud_vendor_int_write_available()) {
+    tud_vendor_int_write(int_tx_chunk, sizeof(int_tx_chunk));
   }
 }
 
@@ -112,12 +118,30 @@ void tud_vendor_rx_cb(uint8_t idx, const uint8_t* buffer, uint32_t bufsize) {
   tud_vendor_read_xfer();
 }
 
-// Invoked when last tx transfer finished: keep the source saturated
+// Invoked when last bulk tx transfer finished: keep the source saturated
 void tud_vendor_tx_cb(uint8_t idx, uint32_t sent_bytes) {
   (void) idx;
   (void) sent_bytes;
   tud_vendor_write(tx_chunk, sizeof(tx_chunk));
 }
+
+// Interrupt pair: same discard/refill pumps as bulk
+void tud_vendor_int_rx_cb(uint8_t idx, const uint8_t* buffer, uint32_t bufsize) {
+  (void) idx;
+  (void) buffer;
+  (void) bufsize;
+  tud_vendor_int_read_xfer();
+}
+
+void tud_vendor_int_tx_cb(uint8_t idx, uint32_t sent_bytes) {
+  (void) idx;
+  (void) sent_bytes;
+  tud_vendor_int_write(int_tx_chunk, sizeof(int_tx_chunk));
+}
+
+//--------------------------------------------------------------------+
+// Vendor control requests (EP0)
+//--------------------------------------------------------------------+
 
 // Control write/read-back for the ctrl_out tests (14/21), same protocol as
 // Gadget Zero: 0x5b stores the host's wLength bytes, 0x5c returns them.
