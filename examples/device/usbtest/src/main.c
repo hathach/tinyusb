@@ -1,0 +1,174 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2026 Ha Thach (tinyusb.org)
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *
+ */
+
+/* Device-side peer of the Linux kernel host test driver drivers/usb/misc/usbtest.c
+ * (driven from userspace by tools/usb/testusb.c). Implements the Gadget-Zero
+ * style source/sink protocol on a vendor interface:
+ *   - bulk IN  = infinite source (pattern 0: all zeros)
+ *   - bulk OUT = infinite sink (data discarded)
+ * See examples/device/usbtest/README.md and test/hil/usbtest.py for usage.
+ */
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+
+#include "bsp/board_api.h"
+#include "tusb.h"
+#include "usb_descriptors.h"
+
+//--------------------------------------------------------------------+
+// MACRO CONSTANT TYPEDEF PROTYPES
+//--------------------------------------------------------------------+
+
+/* Blink pattern
+ * - 250 ms  : device not mounted
+ * - 1000 ms : device mounted
+ * - 2500 ms : device is suspended
+ */
+enum {
+  BLINK_NOT_MOUNTED = 250,
+  BLINK_MOUNTED     = 1000,
+  BLINK_SUSPENDED   = 2500,
+};
+
+static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
+
+// Source data, all zeros = usbtest pattern 0. Size is a multiple of bulk MPS at
+// both speeds: transfers are always whole packets, never an unintended short/ZLP.
+static uint8_t const tx_chunk[CFG_TUD_VENDOR_TX_EPSIZE];
+
+//------------- prototypes -------------//
+void led_blinking_task(void);
+static void usbtest_task(void);
+
+/*------------- MAIN -------------*/
+int main(void) {
+  board_init();
+
+  // init device stack on configured roothub port
+  tusb_rhport_init_t dev_init = {
+    .role = TUSB_ROLE_DEVICE,
+    .speed = TUSB_SPEED_AUTO
+  };
+  tusb_init(BOARD_TUD_RHPORT, &dev_init);
+
+  board_init_after_tusb();
+
+  while (1) {
+    tud_task(); // tinyusb device task
+    usbtest_task();
+    led_blinking_task();
+  }
+}
+
+//--------------------------------------------------------------------+
+// Source/sink pumps
+//--------------------------------------------------------------------+
+
+// Polling keeps both directions armed and self-heals after endpoint halt
+// (set/clear feature tests): stall marks the endpoint busy so both calls fail
+// quietly until the host clears the halt, then the next tick re-arms.
+static void usbtest_task(void) {
+  if (!tud_vendor_mounted()) {
+    return;
+  }
+
+  tud_vendor_read_xfer(); // sink: arm/re-arm OUT, quiet fail if already armed or halted
+
+  if (tud_vendor_write_available()) { // 0 while IN is busy or halted
+    tud_vendor_write(tx_chunk, sizeof(tx_chunk));
+  }
+}
+
+// Invoked when received data from host: discard and immediately re-arm
+void tud_vendor_rx_cb(uint8_t idx, const uint8_t* buffer, uint32_t bufsize) {
+  (void) idx;
+  (void) buffer;
+  (void) bufsize;
+  tud_vendor_read_xfer();
+}
+
+// Invoked when last tx transfer finished: keep the source saturated
+void tud_vendor_tx_cb(uint8_t idx, uint32_t sent_bytes) {
+  (void) idx;
+  (void) sent_bytes;
+  tud_vendor_write(tx_chunk, sizeof(tx_chunk));
+}
+
+// Invoked when a control transfer occurred on an interface of this class.
+// Tier 1 supports no vendor requests: stall them. Standard endpoint requests
+// (halt set/clear) are also forwarded here by usbd, which ignores the return
+// value and handles them itself — false is correct for those too.
+bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const* request) {
+  (void) rhport;
+  (void) stage;
+  (void) request;
+  return false;
+}
+
+//--------------------------------------------------------------------+
+// Device callbacks
+//--------------------------------------------------------------------+
+
+// Invoked when device is mounted
+void tud_mount_cb(void) {
+  blink_interval_ms = BLINK_MOUNTED;
+}
+
+// Invoked when device is unmounted
+void tud_umount_cb(void) {
+  blink_interval_ms = BLINK_NOT_MOUNTED;
+}
+
+// Invoked when usb bus is suspended
+// remote_wakeup_en : if host allow us  to perform remote wakeup
+// Within 7ms, device must draw an average of current less than 2.5 mA from bus
+void tud_suspend_cb(bool remote_wakeup_en) {
+  (void) remote_wakeup_en;
+  blink_interval_ms = BLINK_SUSPENDED;
+}
+
+// Invoked when usb bus is resumed
+void tud_resume_cb(void) {
+  blink_interval_ms = tud_mounted() ? BLINK_MOUNTED : BLINK_NOT_MOUNTED;
+}
+
+//--------------------------------------------------------------------+
+// BLINKING TASK
+//--------------------------------------------------------------------+
+void led_blinking_task(void) {
+  static uint32_t start_ms = 0;
+  static bool led_state = false;
+
+  // Blink every interval ms
+  if (tusb_time_millis_api() - start_ms < blink_interval_ms) {
+    return; // not enough time
+  }
+  start_ms += blink_interval_ms;
+
+  board_led_write(led_state);
+  led_state = 1 - led_state; // toggle
+}
