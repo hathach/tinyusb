@@ -14,6 +14,7 @@ sudo usb_recover.sh resolve    /dev/ttyACM3    # /dev node -> busport (e.g. 3-4.
 sudo usb_recover.sh authorized <busport>       # deauthorize+reauthorize: re-enumerate, no VBUS cut
 sudo usb_recover.sh rebind     <busport>       # usb driver unbind+bind: re-probe
 sudo usb_recover.sh pci-rebind <pciaddr>       # whole HCD controller unbind+bind, e.g. 0000:02:00.0
+sudo usb_recover.sh pci-reset  <pciaddr>       # PCI function-level reset: kills URBs at HW level, no device lock
 ```
 
 ## Decide first: is anything stuck in D state?
@@ -23,18 +24,21 @@ ps -eo pid,stat,wchan:30,cmd | awk '$2 ~ /D/'
 ```
 
 **If yes** (uninterruptible sleep, typically a usbfs ioctl — e.g. testusb inside
-`usb_sg_wait`): **do not run this script.** All three write modes go through
-orderly kernel paths that take the same per-device lock the stuck ioctl holds;
-they block, join the lock convoy, and soon every libusb tool (uhubctl, JLinkExe)
-hangs too. Only hardware-level URB death breaks the convoy:
+`usb_sg_wait`): run `pci-reset` and NOTHING ELSE first:
 
 ```bash
-# PCI function-level reset (real root; NOT covered by sudoers) — or reboot the rig
-echo 1 | sudo tee /sys/bus/pci/devices/<pciaddr>/reset
+sudo usb_recover.sh pci-reset <pciaddr>
 ```
 
-Once the URBs die, the ioctl returns and any convoyed unbind/rebind writes
-complete on their own.
+FLR kills the URBs at the hardware level without taking the per-device lock;
+the ioctl then returns and the convoy unwinds on its own.
+
+**Ordering is critical.** `authorized`/`rebind`/`pci-rebind` all take the
+per-device lock the stuck ioctl holds — they block and join the convoy, and
+soon every libusb tool (uhubctl, JLinkExe) hangs too. Worse, a blocked
+`pci-rebind` grabs the PCI device lock on its way in, which `pci-reset` also
+needs: once a rebind has been attempted and is stuck, even FLR deadlocks and
+**only a rig reboot recovers**. pci-reset first, always.
 
 **If no** (device merely dead or silent), escalate gently:
 
@@ -57,8 +61,11 @@ port power switching — uhubctl reports "No compatible devices" there.
 ## Common mistakes
 
 - `resolve` takes a **/dev node**, not a busport or serial ("no such device node").
-- `authorized`/`rebind` take a **busport** (`3-4.7`); `pci-rebind` takes a **PCI addr**.
+- `authorized`/`rebind` take a **busport** (`3-4.7`); `pci-rebind`/`pci-reset`
+  take a **PCI addr**.
 - Command produces no output and doesn't return → it is blocked on the device
   lock: a D-state holder exists; see above.
+- Trying `pci-rebind` on a D-state hang before `pci-reset` — closes the lock
+  cycle and forces a reboot.
 - A J-Link reset (`r; go`) does not disconnect a wedged DUT from the host: the
   DWC2 soft-connect pullup stays up through a core halt, so stuck URBs stay stuck.

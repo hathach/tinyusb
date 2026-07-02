@@ -14,6 +14,13 @@ testusb reporting quirks this script works around:
   check) returns -EOPNOTSUPP, which testusb silently skips: a missing result line
   means NOT RUN, and is reported as a failure since every case in the selected
   battery is expected to run.
+
+Binding uses the 5-field new_id form referencing Gadget Zero (0525:a4a0) so the
+dynamic id inherits its capability profile (autoconf + ctrl_out + iso + intr).
+Never register a plain "vid pid" dynamic id with usbtest: the dynid then has
+driver_info == 0 and usbtest_probe() dereferences it without a NULL check
+(kernel oops). autoconf is also what enables bulk endpoint discovery; the
+capability flags only unlock cases, they don't require the endpoints to exist.
 """
 
 import argparse
@@ -131,18 +138,16 @@ def find_device(serial, first=False):
     return matches[0]
 
 
-def bind_usbtest(dev, gz):
-    """Bind the device's interface 0 to the usbtest driver with the wanted profile."""
+def bind_usbtest(dev):
+    """Bind the device's interface 0 to the usbtest driver."""
     if not DRIVER.exists():
         r = sudo(['modprobe', 'usbtest'])
         if r.returncode != 0 or not DRIVER.exists():
             sys.exit(f'cannot load usbtest module: {r.stderr.strip()}')
 
-    # always re-register: a stale dynamic id from a previous run may carry the
-    # wrong capability profile, which silently disables gated cases
-    new_id = f'{VID} {PID} 0 {GZ_REF}' if gz else f'{VID} {PID}'
+    # always re-register in case a stale dynamic id carries a different profile
     sysfs_write(DRIVER / 'remove_id', f'{VID} {PID}', check=False)
-    sysfs_write(DRIVER / 'new_id', new_id)
+    sysfs_write(DRIVER / 'new_id', f'{VID} {PID} 0 {GZ_REF}')
 
     intf = f'{dev["sysname"]}:1.0'
     deadline = time.monotonic() + 3
@@ -169,20 +174,40 @@ def dmesg_tail():
     return '\n'.join(lines[-8:])
 
 
+def pci_addr_of_bus(busnum):
+    m = re.search(r'([0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-9])/usb\d+$',
+                  os.path.realpath(f'/sys/bus/usb/devices/usb{int(busnum)}'))
+    return m.group(1) if m else '<pci-addr-of-controller>'
+
+
 def run_case(num, dev, testusb, quick, timeout):
     fs_hs = PARAMS[num][0 if dev['speed'] == '12' else 1]
     if quick:
         fs_hs = re.sub(r'-c (\d+)', lambda m: f'-c {max(1, int(m.group(1)) // 8)}', fs_hs)
     cmd = [testusb, '-D', dev['node'], '-t', str(num)] + fs_hs.split()
+    # device nodes are usually opened directly (udev rule); sudo only if not
+    if not os.access(dev['node'], os.W_OK) and os.geteuid() != 0:
+        cmd = ['sudo', '-n'] + cmd
     result = {'num': num, 'name': CASE_NAMES[num], 'params': fs_hs}
 
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     try:
-        r = sudo(cmd, timeout=timeout)
+        out, _ = p.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
-        result.update(status='FAIL', detail=f'timeout after {timeout}s')
+        p.kill()
+        try:
+            out, _ = p.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            # SIGKILL had no effect: the child is in uninterruptible sleep on an
+            # in-kernel usbfs ioctl (device stopped responding mid-transfer).
+            # Abandon it — waiting or re-signalling can never succeed.
+            result.update(status='HUNG', detail=f'testusb stuck in D state after {timeout}s',
+                          dmesg=dmesg_tail())
+            return result
+        result.update(status='FAIL', detail=f'timeout after {timeout}s', dmesg=dmesg_tail())
         return result
 
-    m = RE_PASS.search(r.stdout)
+    m = RE_PASS.search(out)
     if m and int(m.group(1)) == num:
         secs = float(f'{m.group(2)}.{m.group(3)}')
         result.update(status='PASS', secs=secs)
@@ -192,7 +217,7 @@ def run_case(num, dev, testusb, quick, timeout):
             result['mbps'] = round(total / secs / 1e6, 2)
         return result
 
-    m = RE_FAIL.search(r.stdout)
+    m = RE_FAIL.search(out)
     if m and int(m.group(1)) == num:
         result.update(status='FAIL', detail=f'errno {m.group(2)} ({m.group(3)})',
                       dmesg=dmesg_tail())
@@ -201,7 +226,7 @@ def run_case(num, dev, testusb, quick, timeout):
     # no result line: the kernel returned -EOPNOTSUPP (capability profile or
     # in-kernel parameter gate) and testusb skipped silently
     result.update(status='NOTRUN', detail='case gated off: check binding profile/pattern',
-                  stderr=r.stdout.strip() or r.stderr.strip())
+                  stderr=out.strip())
     return result
 
 
@@ -217,6 +242,7 @@ def main():
     p.add_argument('--testusb', default=None, help='path to testusb binary')
     p.add_argument('--timeout', type=int, default=120, help='per-case timeout in seconds')
     args = p.parse_args()
+    sys.stdout.reconfigure(line_buffering=True)  # per-case results visible when piped/logged
 
     testusb = args.testusb or shutil.which('testusb') or os.path.expanduser('~/testusb')
     if not os.access(testusb, os.X_OK):
@@ -237,17 +263,24 @@ def main():
     if not args.json:
         print(info)
 
-    bind_usbtest(dev, gz=(tier >= 2))
+    bind_usbtest(dev)
     set_pattern(0)  # tier 1 firmware sources zeros; also required by perf cases 27/28
 
     results = []
     for num in cases:
         results.append(run_case(num, dev, testusb, args.quick, args.timeout))
+        r = results[-1]
         if not args.json:
-            r = results[-1]
             extra = f" {r.get('secs', '')}s" if r['status'] == 'PASS' else f" {r.get('detail', '')}"
             extra += f" {r['mbps']} MB/s" if 'mbps' in r else ''
             print(f"test {num:2d} {r['name']:22s} {r['status']:6s}{extra}")
+        if r['status'] == 'HUNG':
+            pci = pci_addr_of_bus(dev['node'].split('/')[-2])
+            print(f'aborting battery: kernel-side hang, device wedged mid-transfer.\n'
+                  f'Recover with: sudo usb_recover.sh pci-reset {pci}\n'
+                  f'(pci-reset FIRST — any rebind/authorized attempt now deadlocks the bus; '
+                  f'see .claude/skills/usb-recover)', file=sys.stderr)
+            break
         if not find_device(args.serial, first=True):
             results.append({'num': num, 'status': 'FAIL',
                             'detail': f'device dropped off the bus after case {num}'})
@@ -255,6 +288,11 @@ def main():
 
     if not args.keep_binding:
         sysfs_write(DRIVER / 'remove_id', f'{VID} {PID}', check=False)
+        # release every claimed interface: other devices sharing the VID:PID
+        # (stale example firmware on a test rig) may have been grabbed on probe
+        # and would otherwise stay bound to usbtest until re-plugged
+        for intf in DRIVER.glob('*:*'):
+            sysfs_write(DRIVER / 'unbind', intf.name, check=False)
 
     failed = [r for r in results if r['status'] != 'PASS']
     if args.json:
