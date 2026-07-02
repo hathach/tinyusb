@@ -79,6 +79,27 @@ extern "C" {
   #define CFG_TUD_VENDOR_RX_NEED_ZLP 0
 #endif
 
+// Enable support for an optional interrupt OUT / interrupt IN endpoint in the vendor
+// interface, each direction gated separately. Interrupt endpoints are non-buffered:
+// OUT is armed manually one packet at a time with tud_vendor_n_int_read_xfer() (data
+// delivered via tud_vendor_int_rx_cb), IN is a direct transfer via tud_vendor_n_int_write().
+#ifndef CFG_TUD_VENDOR_EP_INT_OUT
+  #define CFG_TUD_VENDOR_EP_INT_OUT 0
+#endif
+
+#ifndef CFG_TUD_VENDOR_EP_INT_IN
+  #define CFG_TUD_VENDOR_EP_INT_IN 0
+#endif
+
+// Buffer sizes for interrupt endpoint transfers, must be >= the endpoint max packet size
+#ifndef CFG_TUD_VENDOR_EP_INT_OUT_BUFSIZE
+  #define CFG_TUD_VENDOR_EP_INT_OUT_BUFSIZE 64
+#endif
+
+#ifndef CFG_TUD_VENDOR_EP_INT_IN_BUFSIZE
+  #define CFG_TUD_VENDOR_EP_INT_IN_BUFSIZE 64
+#endif
+
 //--------------------------------------------------------------------+
 // Application API (Multiple Interfaces) i.e CFG_TUD_VENDOR > 1
 //--------------------------------------------------------------------+
@@ -125,6 +146,22 @@ bool tud_vendor_n_write_clear(uint8_t idx);
 TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_n_write_str(uint8_t idx, const char *str) {
   return tud_vendor_n_write(idx, str, strlen(str));
 }
+
+//------------- Interrupt endpoints -------------//
+#if CFG_TUD_VENDOR_EP_INT_OUT
+// Arm the interrupt OUT endpoint for one packet, return false if a transfer is still ongoing.
+// Received data is delivered via tud_vendor_int_rx_cb(); re-arm from the callback or by polling.
+bool tud_vendor_n_int_read_xfer(uint8_t idx);
+#endif
+
+#if CFG_TUD_VENDOR_EP_INT_IN
+// Send on the interrupt IN endpoint (direct transfer, up to CFG_TUD_VENDOR_EP_INT_IN_BUFSIZE
+// bytes). Returns number of bytes queued, 0 if the endpoint is busy or not opened.
+uint32_t tud_vendor_n_int_write(uint8_t idx, const void *buffer, uint32_t bufsize);
+
+// Return available bytes for interrupt IN write: 0 while busy, else the buffer size
+uint32_t tud_vendor_n_int_write_available(uint8_t idx);
+#endif
 
 // backward compatible
 #define tud_vendor_n_flush(idx) tud_vendor_n_write_flush(idx)
@@ -180,6 +217,22 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_write_available(void) {
   return tud_vendor_n_write_available(0);
 }
 
+#if CFG_TUD_VENDOR_EP_INT_OUT
+TU_ATTR_ALWAYS_INLINE static inline bool tud_vendor_int_read_xfer(void) {
+  return tud_vendor_n_int_read_xfer(0);
+}
+#endif
+
+#if CFG_TUD_VENDOR_EP_INT_IN
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_int_write(const void *buffer, uint32_t bufsize) {
+  return tud_vendor_n_int_write(0, buffer, bufsize);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_int_write_available(void) {
+  return tud_vendor_n_int_write_available(0);
+}
+#endif
+
 // backward compatible
 #define tud_vendor_flush() tud_vendor_write_flush()
 
@@ -194,6 +247,17 @@ void tud_vendor_rx_cb(uint8_t idx, const uint8_t *buffer, uint32_t bufsize);
 
 // Invoked when tx transfer is finished
 void tud_vendor_tx_cb(uint8_t idx, uint32_t sent_bytes);
+
+#if CFG_TUD_VENDOR_EP_INT_OUT
+// Invoked when data is received on the interrupt OUT endpoint. The endpoint is not
+// re-armed automatically: call tud_vendor_n_int_read_xfer() to receive more.
+void tud_vendor_int_rx_cb(uint8_t idx, const uint8_t *buffer, uint32_t bufsize);
+#endif
+
+#if CFG_TUD_VENDOR_EP_INT_IN
+// Invoked when an interrupt IN transfer is finished
+void tud_vendor_int_tx_cb(uint8_t idx, uint32_t sent_bytes);
+#endif
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API
