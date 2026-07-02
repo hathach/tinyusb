@@ -25,9 +25,10 @@
 
 /* Device-side peer of the Linux kernel host test driver drivers/usb/misc/usbtest.c
  * (driven from userspace by tools/usb/testusb.c). Implements the Gadget-Zero
- * style source/sink protocol on a vendor interface:
- *   - bulk/interrupt IN  = infinite source (pattern 0: all zeros)
- *   - bulk/interrupt OUT = infinite sink (data discarded)
+ * style source/sink protocol on a vendor interface (alt 0 = no endpoints,
+ * alt 1 = full set, selected by the host usbtest driver):
+ *   - bulk/interrupt/isochronous IN  = infinite source (pattern 0: all zeros)
+ *   - bulk/interrupt/isochronous OUT = infinite sink (data discarded)
  *   - EP0 0x5b/0x5c = control write then read-back (ctrl_out tests)
  * See examples/device/usbtest/README.md and test/hil/usbtest.py for usage.
  */
@@ -62,6 +63,7 @@ static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 // unintended short packet or ZLP.
 static uint8_t const tx_chunk[CFG_TUD_VENDOR_TX_EPSIZE];
 static uint8_t const int_tx_chunk[USBTEST_INT_EP_MPS];
+static uint8_t const iso_tx_chunk[USBTEST_ISO_EP_MPS];
 
 //------------- prototypes -------------//
 void led_blinking_task(void);
@@ -108,6 +110,11 @@ static void usbtest_task(void) {
   if (tud_vendor_int_write_available()) {
     tud_vendor_int_write(int_tx_chunk, sizeof(int_tx_chunk));
   }
+
+  tud_vendor_iso_read_xfer(); // isochronous sink
+  if (tud_vendor_iso_write_available()) {
+    tud_vendor_iso_write(iso_tx_chunk, sizeof(iso_tx_chunk));
+  }
 }
 
 // Invoked when received data from host: discard and immediately re-arm
@@ -137,6 +144,21 @@ void tud_vendor_int_tx_cb(uint8_t idx, uint32_t sent_bytes) {
   (void) idx;
   (void) sent_bytes;
   tud_vendor_int_write(int_tx_chunk, sizeof(int_tx_chunk));
+}
+
+// Isochronous pair: same discard/refill pumps; a completion may be a missed
+// frame, re-arm regardless
+void tud_vendor_iso_rx_cb(uint8_t idx, const uint8_t* buffer, uint32_t bufsize) {
+  (void) idx;
+  (void) buffer;
+  (void) bufsize;
+  tud_vendor_iso_read_xfer();
+}
+
+void tud_vendor_iso_tx_cb(uint8_t idx, uint32_t sent_bytes) {
+  (void) idx;
+  (void) sent_bytes;
+  tud_vendor_iso_write(iso_tx_chunk, sizeof(iso_tx_chunk));
 }
 
 //--------------------------------------------------------------------+

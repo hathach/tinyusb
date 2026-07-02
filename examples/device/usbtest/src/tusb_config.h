@@ -116,6 +116,14 @@
 #define CFG_TUD_VENDOR_EP_INT_OUT_BUFSIZE  512
 #define CFG_TUD_VENDOR_EP_INT_IN_BUFSIZE   512
 
+// Isochronous IN/OUT source/sink pair (usbtest cases 15/16/22/23), placed in
+// altsetting 1: alt 0 has no endpoints so no iso bandwidth is claimed by default
+#define CFG_TUD_VENDOR_EP_ISO_OUT          1
+#define CFG_TUD_VENDOR_EP_ISO_IN           1
+#define CFG_TUD_VENDOR_EP_ISO_OUT_BUFSIZE  512
+#define CFG_TUD_VENDOR_EP_ISO_IN_BUFSIZE   512
+#define CFG_TUD_VENDOR_ALT_SETTINGS        1
+
 #ifdef __cplusplus
  }
 #endif

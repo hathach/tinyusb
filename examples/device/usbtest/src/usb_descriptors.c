@@ -65,16 +65,23 @@ enum {
   ITF_NUM_TOTAL
 };
 
-// Vendor interface with bulk IN/OUT source/sink plus interrupt IN/OUT: the host
-// usbtest driver collects all pipe types from one altsetting. No TUD_ macro
-// covers this layout, hand-rolled: interface + 2 bulk + 2 interrupt endpoints.
-#define USBTEST_DESC_LEN  (9 + 4*7)
-#define USBTEST_DESCRIPTOR(_itfnum, _stridx, _epout, _epin, _bulk_mps, _intout, _intin, _int_mps, _int_interval) \
-  9, TUSB_DESC_INTERFACE, _itfnum, 0, 4, TUSB_CLASS_VENDOR_SPECIFIC, 0x00, 0x00, _stridx,\
+// Vendor interface, Gadget-Zero style altsettings: alt 0 carries no endpoints (an
+// isochronous endpoint must not claim bandwidth in the default altsetting, USB 2.0
+// 5.6.3), alt 1 carries bulk + interrupt + isochronous IN/OUT. The host usbtest
+// driver skips altsettings without pipes and selects alt 1 itself. No TUD_ macro
+// covers this layout, hand-rolled.
+#define USBTEST_DESC_LEN  (9 + 9 + 6*7)
+#define USBTEST_DESCRIPTOR(_itfnum, _stridx, _epout, _epin, _bulk_mps, _intout, _intin, _int_mps, _int_interval, _isoout, _isoin, _iso_mps, _iso_interval) \
+  /* alt 0: zero bandwidth, no endpoints */\
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 0, TUSB_CLASS_VENDOR_SPECIFIC, 0x00, 0x00, _stridx,\
+  /* alt 1: full source/sink set */\
+  9, TUSB_DESC_INTERFACE, _itfnum, 1, 6, TUSB_CLASS_VENDOR_SPECIFIC, 0x00, 0x00, _stridx,\
   7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_bulk_mps), 0,\
   7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_bulk_mps), 0,\
   7, TUSB_DESC_ENDPOINT, _intout, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_int_mps), _int_interval,\
-  7, TUSB_DESC_ENDPOINT, _intin, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_int_mps), _int_interval
+  7, TUSB_DESC_ENDPOINT, _intin, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_int_mps), _int_interval,\
+  7, TUSB_DESC_ENDPOINT, _isoout, (uint8_t)(TUSB_XFER_ISOCHRONOUS | (uint8_t)(TUSB_ISO_EP_ATT_ASYNCHRONOUS)), U16_TO_U8S_LE(_iso_mps), _iso_interval,\
+  7, TUSB_DESC_ENDPOINT, _isoin, (uint8_t)(TUSB_XFER_ISOCHRONOUS | (uint8_t)(TUSB_ISO_EP_ATT_ASYNCHRONOUS)), U16_TO_U8S_LE(_iso_mps), _iso_interval
 
 #define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + USBTEST_DESC_LEN)
 
@@ -85,6 +92,8 @@ enum {
   #define EPNUM_BULK_IN  0x85
   #define EPNUM_INT_OUT  0x01
   #define EPNUM_INT_IN   0x84
+  #define EPNUM_ISO_OUT  0x03
+  #define EPNUM_ISO_IN   0x86
 
 #elif CFG_TUD_ENDPOINT_ONE_DIRECTION_ONLY
   // MCUs that don't support a same endpoint number with different direction IN and OUT
@@ -95,11 +104,15 @@ enum {
     #define EPNUM_BULK_IN  0x89
     #define EPNUM_INT_OUT  0x02
     #define EPNUM_INT_IN   0x83
+    #define EPNUM_ISO_OUT  0x04
+    #define EPNUM_ISO_IN   0x85
   #else
     #define EPNUM_BULK_OUT 0x01
     #define EPNUM_BULK_IN  0x82
     #define EPNUM_INT_OUT  0x03
     #define EPNUM_INT_IN   0x84
+    #define EPNUM_ISO_OUT  0x05
+    #define EPNUM_ISO_IN   0x86
   #endif
 
 #else
@@ -107,15 +120,18 @@ enum {
   #define EPNUM_BULK_IN  0x81
   #define EPNUM_INT_OUT  0x02
   #define EPNUM_INT_IN   0x82
+  #define EPNUM_ISO_OUT  0x03
+  #define EPNUM_ISO_IN   0x83
 #endif
 
 static uint8_t const desc_fs_configuration[] = {
   // Config number, interface count, string index, total length, attribute, power in mA
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
 
-  // Interface number, string index, bulk EP out/in + mps, interrupt EP out/in + mps + interval
+  // Interface number, string index, bulk out/in + mps, int out/in + mps + interval, iso out/in + mps + interval
   USBTEST_DESCRIPTOR(ITF_NUM_VENDOR, 4, EPNUM_BULK_OUT, 0x80 | EPNUM_BULK_IN, 64,
-                     EPNUM_INT_OUT, 0x80 | EPNUM_INT_IN, 64, 1)
+                     EPNUM_INT_OUT, 0x80 | EPNUM_INT_IN, 64, 1,
+                     EPNUM_ISO_OUT, 0x80 | EPNUM_ISO_IN, USBTEST_ISO_EP_MPS, 1)
 };
 
 #if TUD_OPT_HIGH_SPEED
@@ -125,9 +141,10 @@ static uint8_t const desc_hs_configuration[] = {
   // Config number, interface count, string index, total length, attribute, power in mA
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
 
-  // Interface number, string index, bulk EP out/in + mps, interrupt EP out/in + mps + interval (1 ms)
+  // Interface number, string index, bulk out/in + mps, int out/in + mps + interval, iso out/in + mps + interval (1 ms)
   USBTEST_DESCRIPTOR(ITF_NUM_VENDOR, 4, EPNUM_BULK_OUT, 0x80 | EPNUM_BULK_IN, 512,
-                     EPNUM_INT_OUT, 0x80 | EPNUM_INT_IN, 512, 4)
+                     EPNUM_INT_OUT, 0x80 | EPNUM_INT_IN, 512, 4,
+                     EPNUM_ISO_OUT, 0x80 | EPNUM_ISO_IN, USBTEST_ISO_EP_MPS, 4)
 };
 
 // other speed configuration
