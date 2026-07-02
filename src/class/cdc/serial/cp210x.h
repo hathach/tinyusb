@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2023 Ha Thach (thach@tinyusb.org) for Adafruit Industries
+ * SPDX-FileCopyrightText: Copyright (c) 2023 Ha Thach (thach@tinyusb.org)
  * SPDX-License-Identifier: MIT
  */
 
