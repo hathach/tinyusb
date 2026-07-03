@@ -1173,13 +1173,20 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
           }
 
           case TUSB_REQ_SET_INTERFACE:
+            // A class that implements altsettings handles SET_INTERFACE itself and returns true,
+            // so reaching here means the class does not — where only alt 0 is valid. Any non-zero
+            // alt (unimplemented, or rejected as invalid by the class) is a Request Error (stall).
+            TU_VERIFY(tu_u16_low(p_request->wValue) == 0);
             tud_control_status(rhport, p_request);
             break;
 
           case TUSB_REQ_GET_STATUS: {
-            // USB 2.0 9.4.5: GET_STATUS to interface must return 2 bytes, all reserved (zero)
-            uint16_t status = 0;
-            tud_control_xfer(rhport, p_request, &status, 2);
+            // USB 2.0 9.4.5: interface GET_STATUS returns 2 reserved (zero) bytes; only valid
+            // Device-to-host. Reject a mis-directed (OUT) request instead of handing usbd a stack
+            // buffer it would write into after this frame is gone.
+            uint16_t status = 0x0000;
+            TU_VERIFY(p_request->bmRequestType_bit.direction == TUSB_DIR_IN);
+            TU_VERIFY(tud_control_xfer(rhport, p_request, &status, 2));
             break;
           }
 
@@ -1213,25 +1220,25 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
 
           case TUSB_REQ_CLEAR_FEATURE:
           case TUSB_REQ_SET_FEATURE: {
-            if ( TUSB_REQ_FEATURE_EDPT_HALT == p_request->wValue ) {
-              if ( TUSB_REQ_CLEAR_FEATURE ==  p_request->bRequest ) {
-                usbd_edpt_clear_stall(rhport, ep_addr);
-              }else {
-                usbd_edpt_stall(rhport, ep_addr);
-              }
+            // ENDPOINT_HALT is the only endpoint feature; it exists only on a non-control endpoint
+            // that an interface actually owns. Any other selector, the control endpoint (EP0 has no
+            // Halt feature, USB 2.0 9.4.9), or an endpoint no driver owns is a Request Error (stall).
+            TU_VERIFY(TUSB_REQ_FEATURE_EDPT_HALT == p_request->wValue);
+            TU_VERIFY(ep_num != 0);
+            TU_VERIFY(driver != NULL);
+
+            if ( TUSB_REQ_CLEAR_FEATURE == p_request->bRequest ) {
+              usbd_edpt_clear_stall(rhport, ep_addr);
+            } else {
+              usbd_edpt_stall(rhport, ep_addr);
             }
 
-            if (driver != NULL) {
-              // Some classes such as USBTMC needs to clear/re-init its buffer when receiving CLEAR_FEATURE request
-              // We will also forward std request targeted endpoint to class drivers as well
-              // Clear complete callback if driver set since it can also stall the request.
-              (void) invoke_class_control(rhport, driver, p_request);
-              ctrl_xfer->complete_cb = NULL;
-            }
+            // Some classes such as USBTMC need to clear/re-init their buffer on CLEAR_FEATURE.
+            // Clear complete callback if driver set since it can also stall the request.
+            (void) invoke_class_control(rhport, driver, p_request);
+            ctrl_xfer->complete_cb = NULL;
 
-            // STD request must always be ACKed even without an owning class driver, e.g.
-            // clear/set halt on EP0 itself: queuing no response would hang the control pipe.
-            // Skip ZLP status if driver already did that
+            // STD request must always be ACKed; skip ZLP status if driver already did that.
             if (!(_usbd_dev.ep_status[0][TUSB_DIR_IN] & TU_EDPT_STATE_BUSY)) {
               tud_control_status(rhport, p_request);
             }
@@ -1678,13 +1685,16 @@ void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
 
-  // only clear if currently stalled
   TU_LOG_USBD("    Clear Stall EP %02X\r\n", ep_addr);
   dcd_edpt_clear_stall(rhport, ep_addr);
-  // Also release CLAIMED: a transfer that was in flight when the endpoint got stalled is killed by
-  // the dcd without a completion event, and the completion event is the only other place the claim
-  // is released. Keeping it would fail every subsequent claim i.e. starve the endpoint forever.
-  _usbd_dev.ep_status[epnum][dir] &= (uint8_t) ~(TU_EDPT_STATE_STALLED | TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED);
+  // Only release BUSY/CLAIMED when the endpoint was actually stalled: a stall aborts the in-flight
+  // transfer in the dcd without a completion event, and that completion is the only other place the
+  // claim is released, so clearing it here prevents endpoint starvation. If the endpoint was NOT
+  // stalled (e.g. clear-halt used only to reset the data toggle), a transfer may still be
+  // legitimately in flight or claimed by another task, so leave those bits untouched.
+  if (_usbd_dev.ep_status[epnum][dir] & TU_EDPT_STATE_STALLED) {
+    _usbd_dev.ep_status[epnum][dir] &= (uint8_t) ~(TU_EDPT_STATE_STALLED | TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED);
+  }
 }
 
 bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr) {
