@@ -766,6 +766,8 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   return true;
 }
 
+static void edpt_close(uint8_t rhport, uint8_t ep_addr);
+
 void dcd_edpt_close_all(uint8_t rhport)
 {
   unsigned i = TU_ARRAY_SIZE(_dcd.pipe);
@@ -775,12 +777,14 @@ void dcd_edpt_close_all(uint8_t rhport)
     if (!ep_addr) {
       continue;
     }
-    dcd_edpt_close(rhport, (uint8_t)ep_addr);
+    edpt_close(rhport, (uint8_t)ep_addr);
   }
   dcd_int_enable(rhport);
 }
 
-void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
+// Internal helper: on this (ISO_ALLOC) IP the stack no longer calls dcd_edpt_close(); only
+// dcd_edpt_close_all() uses it to tear down each pipe.
+static void edpt_close(uint8_t rhport, uint8_t ep_addr)
 {
   rusb2_reg_t * rusb = RUSB2_REG(rhport);
   const unsigned epn = tu_edpt_number(ep_addr);

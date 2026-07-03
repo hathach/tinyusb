@@ -396,43 +396,6 @@ void dcd_edpt_close_all(uint8_t rhport) {
   dcd_int_enable(rhport);
 }
 
-void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
-  (void) rhport;
-
-  uint8_t const epnum = tu_edpt_number(ep_addr);
-  uint8_t const dir = tu_edpt_dir(ep_addr);
-
-  if (epnum != EP_ISO_NUM) {
-    // CBI
-    if (dir == TUSB_DIR_OUT) {
-      NRF_USBD->INTENCLR = TU_BIT(USBD_INTEN_ENDEPOUT0_Pos + epnum);
-      NRF_USBD->EPOUTEN &= ~TU_BIT(epnum);
-    } else {
-      NRF_USBD->INTENCLR = TU_BIT(USBD_INTEN_ENDEPIN0_Pos + epnum);
-      NRF_USBD->EPINEN &= ~TU_BIT(epnum);
-    }
-  } else {
-    _dcd.xfer[EP_ISO_NUM][dir].mps = 0;
-    // ISO
-    if (dir == TUSB_DIR_OUT) {
-      NRF_USBD->INTENCLR = USBD_INTENCLR_ENDISOOUT_Msk;
-      NRF_USBD->EPOUTEN &= ~USBD_EPOUTEN_ISOOUT_Msk;
-      NRF_USBD->EVENTS_ENDISOOUT = 0;
-    } else {
-      NRF_USBD->INTENCLR = USBD_INTENCLR_ENDISOIN_Msk;
-      NRF_USBD->EPINEN &= ~USBD_EPINEN_ISOIN_Msk;
-    }
-    // One of the ISO endpoints closed, no need to split buffers any more.
-    NRF_USBD->ISOSPLIT = USBD_ISOSPLIT_SPLIT_OneDir;
-    // When both ISO endpoint are close there is no need for SOF any more.
-    if (_dcd.xfer[EP_ISO_NUM][TUSB_DIR_IN].mps + _dcd.xfer[EP_ISO_NUM][TUSB_DIR_OUT].mps == 0)
-      NRF_USBD->INTENCLR = USBD_INTENCLR_SOF_Msk;
-  }
-  _dcd.xfer[epnum][dir].started = false;
-  __ISB();
-  __DSB();
-}
-
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
   (void)rhport;
   (void)largest_packet_size;

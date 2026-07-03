@@ -423,15 +423,6 @@ void dcd_edpt_close_all (uint8_t rhport)
   }
 }
 
-void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
-{
-  (void) rhport;
-
-  uint8_t ep_id = ep_addr2id(ep_addr);
-  _dcd.ep[ep_id][0].cmd_sts.active = _dcd.ep[ep_id][0].cmd_sts.active = 0; // TODO proper way is to EPSKIP then wait ep[][].active then write ep[][].disable (see table 778 in LPC55S69 Use Manual)
-  _dcd.ep[ep_id][0].cmd_sts.disable = _dcd.ep[ep_id][1].cmd_sts.disable = 1;
-}
-
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
   (void) largest_packet_size;
   // Reserve the endpoint command/status entry once (persists across altsetting changes); the
