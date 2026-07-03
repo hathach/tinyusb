@@ -433,20 +433,44 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
   __DSB();
 }
 
-#if 0
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
   (void)rhport;
-  (void)ep_addr;
   (void)largest_packet_size;
-  return false;
+  // nRF ISO endpoints are hardware-fixed to EP8 and use EasyDMA, so there is no packet buffer to
+  // pre-allocate here; the endpoint is enabled on dcd_edpt_iso_activate().
+  TU_ASSERT(tu_edpt_number(ep_addr) == EP_ISO_NUM);
+  return true;
 }
 
 bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
   (void)rhport;
-  (void)desc_ep;
-  return false;
+  uint8_t const ep_addr = desc_ep->bEndpointAddress;
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir = tu_edpt_dir(ep_addr);
+  TU_ASSERT(epnum == EP_ISO_NUM);
+
+  _dcd.xfer[epnum][dir].mps = tu_edpt_packet_size(desc_ep);
+
+  if (dir == TUSB_DIR_OUT) {
+    // SPLIT ISO buffer when the ISO IN endpoint is already active.
+    if (_dcd.xfer[EP_ISO_NUM][TUSB_DIR_IN].mps) NRF_USBD->ISOSPLIT = USBD_ISOSPLIT_SPLIT_HalfIN;
+    NRF_USBD->EVENTS_ENDISOOUT = 0;
+    if ((NRF_USBD->INTEN & USBD_INTEN_SOF_Msk) == 0) NRF_USBD->EVENTS_SOF = 0;
+    NRF_USBD->INTENSET = USBD_INTENSET_ENDISOOUT_Msk | USBD_INTENSET_SOF_Msk;
+    NRF_USBD->EPOUTEN |= USBD_EPOUTEN_ISOOUT_Msk;
+  } else {
+    NRF_USBD->EVENTS_ENDISOIN = 0;
+    // SPLIT ISO buffer when the ISO OUT endpoint is already active.
+    if (_dcd.xfer[EP_ISO_NUM][TUSB_DIR_OUT].mps) NRF_USBD->ISOSPLIT = USBD_ISOSPLIT_SPLIT_HalfIN;
+    if ((NRF_USBD->INTEN & USBD_INTEN_SOF_Msk) == 0) NRF_USBD->EVENTS_SOF = 0;
+    NRF_USBD->INTENSET = USBD_INTENSET_ENDISOIN_Msk | USBD_INTENSET_SOF_Msk;
+    NRF_USBD->EPINEN |= USBD_EPINEN_ISOIN_Msk;
+  }
+
+  __ISB();
+  __DSB();
+  return true;
 }
-#endif
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes, bool is_isr) {
   (void) rhport;

@@ -432,20 +432,34 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
   _dcd.ep[ep_id][0].cmd_sts.disable = _dcd.ep[ep_id][1].cmd_sts.disable = 1;
 }
 
-#if 0
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
-  (void)rhport;
-  (void)ep_addr;
-  (void)largest_packet_size;
-  return false;
+  (void) largest_packet_size;
+  // Reserve the endpoint command/status entry once (persists across altsetting changes); the
+  // buffer pointer is filled per-transfer, so nothing to pre-allocate. Mirrors the ISO branch of
+  // dcd_edpt_open().
+  uint8_t ep_id = ep_addr2id(ep_addr);
+  ep_cmd_sts_t* ep_cs = get_ep_cs(ep_id);
+  TU_ASSERT( ep_cs[0].cmd_sts.disable && ep_cs[1].cmd_sts.disable );
+
+  edpt_reset(rhport, ep_id);
+  ep_cs[0].cmd_sts.type = 1; // ISO
+
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  dcd_reg->INTEN |= TU_BIT(ep_id);
+  return true;
 }
 
 bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
-  (void)rhport;
-  (void)desc_ep;
-  return false;
+  (void) rhport;
+  // (Re)activate on altsetting selection: clear stall and reset the data toggle. The endpoint is
+  // (re)armed by the class via dcd_edpt_xfer().
+  uint8_t ep_id = ep_addr2id(desc_ep->bEndpointAddress);
+  ep_cmd_sts_t* ep_cs = get_ep_cs(ep_id);
+  ep_cs[0].cmd_sts.stall        = 0;
+  ep_cs[0].cmd_sts.toggle_reset = 1;
+  ep_cs[0].cmd_sts.rf_tv        = 0;
+  return true;
 }
-#endif
 
 static void prepare_ep_xfer(uint8_t rhport, uint8_t ep_id, uint16_t buf_offset, uint16_t total_bytes) {
   uint16_t nbytes;

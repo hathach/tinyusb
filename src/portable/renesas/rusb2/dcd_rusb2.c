@@ -796,20 +796,58 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
   _dcd.ep[dir][epn] = 0;
 }
 
-#if 0
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
-  (void)rhport;
-  (void)ep_addr;
-  (void)largest_packet_size;
-  return false;
+  rusb2_reg_t * rusb = RUSB2_REG(rhport);
+  const unsigned epn = tu_edpt_number(ep_addr);
+  const unsigned dir = tu_edpt_dir(ep_addr);
+
+  // Fullspeed ISO is limited to 256 bytes
+  if (!rusb2_is_highspeed_rhport(rhport) && largest_packet_size > 256) {
+    return false;
+  }
+
+  // Reserve an ISO-capable pipe (1 or 2) once; it persists across altsetting changes so
+  // dcd_edpt_iso_activate() only has to re-arm it in place (no pipe free/realloc, which on this
+  // shared-register IP would churn PIPESEL/PIPECFG and disturb the other pipes).
+  const unsigned num = find_pipe(TUSB_XFER_ISOCHRONOUS);
+  TU_ASSERT(num);
+  _dcd.pipe[num].ep = ep_addr;
+  _dcd.ep[dir][epn] = num;
+
+  dcd_int_disable(rhport);
+  if (rusb2_is_highspeed_rhport(rhport)) {
+    rusb->PIPEBUF = 0x7C08;
+  }
+  rusb->PIPESEL = (uint16_t) num;
+  rusb->PIPEMAXP = largest_packet_size;
+  volatile uint16_t *ctr = get_pipectr(rusb, num);
+  *ctr = RUSB2_PIPE_CTR_ACLRM_Msk | RUSB2_PIPE_CTR_SQCLR_Msk;
+  *ctr = 0; // leave the pipe NAKing until activated
+  rusb->PIPECFG = (uint16_t) ((dir << 4) | epn | RUSB2_PIPECFG_TYPE_ISO | RUSB2_PIPECFG_DBLB_Msk);
+  rusb->BRDYSTS = (uint16_t) (0x3FFu ^ TU_BIT(num));
+  rusb->BRDYENB |= TU_BIT(num);
+  dcd_int_enable(rhport);
+  return true;
 }
 
 bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
-  (void)rhport;
-  (void)desc_ep;
-  return false;
+  rusb2_reg_t * rusb = RUSB2_REG(rhport);
+  const uint8_t ep_addr = desc_ep->bEndpointAddress;
+  const unsigned epn = tu_edpt_number(ep_addr);
+  const unsigned dir = tu_edpt_dir(ep_addr);
+  const unsigned num = _dcd.ep[dir][epn];
+  TU_ASSERT(num); // must have been iso-alloc'd
+
+  dcd_int_disable(rhport);
+  rusb->PIPESEL = (uint16_t) num;
+  rusb->PIPEMAXP = tu_edpt_packet_size(desc_ep);
+  volatile uint16_t *ctr = get_pipectr(rusb, num);
+  *ctr = RUSB2_PIPE_CTR_ACLRM_Msk | RUSB2_PIPE_CTR_SQCLR_Msk; // abort in-flight + reset data toggle
+  *ctr = 0;
+  *ctr = RUSB2_PIPE_CTR_PID_BUF; // enable
+  dcd_int_enable(rhport);
+  return true;
 }
-#endif
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr)
 {
