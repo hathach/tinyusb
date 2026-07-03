@@ -115,6 +115,15 @@ enum {
     #define EPNUM_ISO_IN   0x86
   #endif
 
+#elif CFG_TUSB_MCU == OPT_MCU_NRF5X
+  // nRF5x: ISO endpoints are hardware-fixed to EP8 (ISOOUT/ISOIN)
+  #define EPNUM_BULK_OUT 0x01
+  #define EPNUM_BULK_IN  0x81
+  #define EPNUM_INT_OUT  0x02
+  #define EPNUM_INT_IN   0x82
+  #define EPNUM_ISO_OUT  0x08
+  #define EPNUM_ISO_IN   0x88
+
 #else
   #define EPNUM_BULK_OUT 0x01
   #define EPNUM_BULK_IN  0x81
