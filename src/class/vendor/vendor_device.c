@@ -484,25 +484,13 @@ static inline bool vendord_iso_ep_alloc(uint8_t rhport, const tusb_desc_endpoint
 // (Re)activate an isochronous endpoint on altsetting selection.
 static inline bool vendord_iso_ep_activate(uint8_t rhport, const tusb_desc_endpoint_t* desc_ep) {
   #ifdef TUP_DCD_EDPT_ISO_ALLOC
-  return usbd_edpt_iso_activate(rhport, desc_ep);
+  return usbd_edpt_iso_activate(rhport, desc_ep); // resets ep_status, aborting any stale transfer
   #else
-  (void) rhport; (void) desc_ep;
-  return true; // already opened by vendord_iso_ep_alloc(); nothing to re-activate
+  // No iso alloc/activate API: close (which zeros ep_status and frees a stale claim left by a
+  // prior selection) then re-open, so a re-selected altsetting starts from a clean state.
+  usbd_edpt_close(rhport, desc_ep->bEndpointAddress);
+  return usbd_edpt_open(rhport, desc_ep);
   #endif
-}
-
-// Return true if the interface has the requested altsetting (without mutating any state).
-static bool vendord_has_alt(const vendord_interface_t* p_vendor, uint8_t alt) {
-  const uint8_t* p_desc = p_vendor->p_itf_desc;
-  const uint8_t* desc_end = p_desc + p_vendor->itf_desc_len;
-  while (tu_desc_in_bounds(p_desc, desc_end)) {
-    if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE &&
-        ((const tusb_desc_interface_t*)p_desc)->bAlternateSetting == alt) {
-      return true;
-    }
-    p_desc = tu_desc_next(p_desc);
-  }
-  return false;
 }
 
 // Select an altsetting. Endpoints were hardware-opened once at vendord_open (dcds like
@@ -511,37 +499,37 @@ static bool vendord_has_alt(const vendord_interface_t* p_vendor, uint8_t alt) {
 // endpoints get a stall/clear-stall cycle, which portably aborts any in-flight transfer
 // (stall disables the endpoint in the dcd) and resets the data toggle to DATA0 as
 // SET_INTERFACE requires. Isochronous endpoints are (re)activated, which does the same.
+// Single pass: the current altsetting's endpoints are dropped only once the target altsetting
+// is confirmed present, so a SET_INTERFACE to an unknown alt leaves the interface intact.
 static bool vendord_set_alt(uint8_t rhport, uint8_t idx, uint8_t alt) {
   vendord_interface_t *p_vendor = &_vendord_itf[idx];
-
-  // Validate the altsetting exists before touching any state, so a rejected (invalid)
-  // SET_INTERFACE leaves the current altsetting intact instead of a half-cleared interface.
-  TU_VERIFY(vendord_has_alt(p_vendor, alt));
-
-  // forget current altsetting's endpoints
-  p_vendor->ep_in = 0;
-  p_vendor->ep_out = 0;
-  #if CFG_TUD_VENDOR_EP_INT_OUT
-  p_vendor->ep_int_out = 0;
-  #endif
-  #if CFG_TUD_VENDOR_EP_INT_IN
-  p_vendor->ep_int_in = 0;
-  #endif
-  #if CFG_TUD_VENDOR_EP_ISO_OUT
-  p_vendor->ep_iso_out = 0;
-  #endif
-  #if CFG_TUD_VENDOR_EP_ISO_IN
-  p_vendor->ep_iso_in = 0;
-  #endif
-
   const uint8_t* p_desc = p_vendor->p_itf_desc;
   const uint8_t* desc_end = p_desc + p_vendor->itf_desc_len;
   bool in_target_alt = false;
+  bool alt_found = false;
 
   while (tu_desc_in_bounds(p_desc, desc_end)) {
     const uint8_t desc_type = tu_desc_type(p_desc);
     if (desc_type == TUSB_DESC_INTERFACE) {
       in_target_alt = (((const tusb_desc_interface_t*)p_desc)->bAlternateSetting == alt);
+      if (in_target_alt && !alt_found) {
+        alt_found = true;
+        // target altsetting confirmed present: now drop the previous altsetting's endpoints
+        p_vendor->ep_in = 0;
+        p_vendor->ep_out = 0;
+  #if CFG_TUD_VENDOR_EP_INT_OUT
+        p_vendor->ep_int_out = 0;
+  #endif
+  #if CFG_TUD_VENDOR_EP_INT_IN
+        p_vendor->ep_int_in = 0;
+  #endif
+  #if CFG_TUD_VENDOR_EP_ISO_OUT
+        p_vendor->ep_iso_out = 0;
+  #endif
+  #if CFG_TUD_VENDOR_EP_ISO_IN
+        p_vendor->ep_iso_in = 0;
+  #endif
+      }
     } else if (in_target_alt && desc_type == TUSB_DESC_ENDPOINT) {
       const tusb_desc_endpoint_t* desc_ep = (const tusb_desc_endpoint_t*) p_desc;
       const uint8_t ep_addr = desc_ep->bEndpointAddress;
@@ -613,6 +601,7 @@ static bool vendord_set_alt(uint8_t rhport, uint8_t idx, uint8_t alt) {
     p_desc = tu_desc_next(p_desc);
   }
 
+  TU_VERIFY(alt_found); // unknown alt: endpoints were never cleared, current altsetting intact
   p_vendor->cur_alt = alt;
   return true;
 }
@@ -626,7 +615,9 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uin
   vendord_interface_t *p_vendor = &_vendord_itf[idx];
   p_vendor->rhport     = rhport;
   p_vendor->itf_num    = desc_itf->bInterfaceNumber;
-  p_vendor->p_itf_desc = (const uint8_t*) desc_itf;
+  // p_itf_desc is assigned only after the parse succeeds: find_vendor_itf() treats a non-NULL
+  // p_itf_desc as an occupied slot, so setting it before a mid-parse TU_ASSERT could fail would
+  // leak the slot (a retry would find no free interface until the next bus reset).
 
   // Consume every altsetting of this interface and hardware-open each endpoint exactly once
   // (bulk/interrupt via usbd_edpt_open, isochronous FIFO-allocated; iso activation and the
@@ -706,6 +697,8 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uin
     }
     p_desc = tu_desc_next(p_desc);
   }
+  // parse succeeded: commit the descriptor pointer (marks the slot occupied) before selecting alt 0
+  p_vendor->p_itf_desc   = (const uint8_t*) desc_itf;
   p_vendor->itf_desc_len = (uint16_t)((uintptr_t)p_desc - (uintptr_t)desc_itf);
 
   // default altsetting active until the host selects another

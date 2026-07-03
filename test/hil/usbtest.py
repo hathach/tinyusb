@@ -167,8 +167,9 @@ def set_pattern(value):
     try:
         if PATTERN_PARAM.read_text().strip() != str(value):
             sysfs_write(PATTERN_PARAM, str(value))
-    except FileNotFoundError:
-        sys.exit(f'{PATTERN_PARAM} not available: this usbtest module build has no "pattern" param')
+    except OSError as e:  # FileNotFoundError (no param), PermissionError (root-only), ...
+        sys.exit(f'{PATTERN_PARAM} not usable ({e.strerror}): this usbtest module build may lack '
+                 'the "pattern" param, or it is not readable')
 
 
 def dmesg_tail():
@@ -242,7 +243,7 @@ def run_case(num, dev, testusb, quick, timeout):
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('--serial', help='board uid (USB serial string) to select the device')
-    p.add_argument('--tier', type=int, choices=(1, 2, 3, 4),
+    p.add_argument('--tier', type=int, choices=sorted(TIER_CASES),
                    help='override tier (default: from device bcdDevice)')
     p.add_argument('--tests', help='comma-separated case numbers, overrides tier battery')
     p.add_argument('--quick', action='store_true', help='divide iteration counts by 8')
@@ -270,10 +271,11 @@ def main():
                  f"or pass --tier 1..{max(TIER_CASES)} — refusing to run an unknown/empty battery")
     if args.tests:
         cases = []
-        for n in args.tests.split(','):
-            if not n.strip().isdigit() or int(n) not in PARAMS:
-                sys.exit(f'--tests: {n!r} is not a known case number (valid 0..{max(PARAMS)})')
-            cases.append(int(n))
+        for tok in args.tests.split(','):
+            tok = tok.strip()
+            if not tok.isdecimal() or int(tok) not in PARAMS:  # isdecimal rejects unicode digits
+                sys.exit(f'--tests: {tok!r} is not a known case number (valid 0..{max(PARAMS)})')
+            cases.append(int(tok))
     else:
         cases = [n for t in range(1, tier + 1) for n in TIER_CASES[t]]
 
@@ -308,21 +310,28 @@ def main():
                           'for FLR recovery — manual intervention (reboot) required', file=sys.stderr)
                 break
             # re-resolve: after a mid-battery re-enumeration the devnum (and thus the node
-            # path) changes; keep testing the live node instead of the stale one
-            live = find_device(args.serial, first=True)
+            # path) changes; keep testing the live node instead of the stale one. Match on the
+            # concrete serial (not args.serial, which may be None) so this can never retarget to
+            # a different device that happens to share the VID:PID.
+            live = find_device(dev['serial'], first=True)
             if not live:
                 results.append({'num': num, 'status': 'FAIL',
                                 'detail': f'device dropped off the bus after case {num}'})
                 break
             dev = live
     finally:
-        if not args.keep_binding:
-            sysfs_write(DRIVER / 'remove_id', f'{VID} {PID}', check=False)
-            # release every claimed interface: other devices sharing the VID:PID (stale example
-            # firmware on a test rig) may have been grabbed on probe and would otherwise stay
-            # bound to usbtest until re-plugged, hijacking the next test's device
-            for intf in DRIVER.glob('*:*'):
-                sysfs_write(DRIVER / 'unbind', intf.name, check=False)
+        # best-effort cleanup: a sudo/sysfs failure here (sudo() may sys.exit) must not replace
+        # an exception propagating out of the try body with a less useful one
+        try:
+            if not args.keep_binding:
+                sysfs_write(DRIVER / 'remove_id', f'{VID} {PID}', check=False)
+                # release every claimed interface: other devices sharing the VID:PID (stale example
+                # firmware on a test rig) may have been grabbed on probe and would otherwise stay
+                # bound to usbtest until re-plugged, hijacking the next test's device
+                for intf in DRIVER.glob('*:*'):
+                    sysfs_write(DRIVER / 'unbind', intf.name, check=False)
+        except SystemExit:
+            pass
 
     failed = [r for r in results if r['status'] != 'PASS']
     if args.json:

@@ -441,6 +441,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool queue_event(dcd_event_t const * event, 
 //--------------------------------------------------------------------+
 static bool usbd_control_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
 static bool process_setup_received(uint8_t rhport, tusb_control_request_t const * p_request);
+static bool process_get_status(uint8_t rhport, tusb_control_request_t const * request, uint16_t status);
 static bool process_set_config(uint8_t rhport, uint8_t cfg_num);
 static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const * p_request);
 
@@ -1064,9 +1065,7 @@ static bool process_std_device_request(uint8_t rhport, tusb_control_request_t co
       // Device status bit mask
       // - Bit 0: Self Powered TODO must invoke callback to get actual status
       // - Bit 1: Remote Wakeup enabled
-      uint16_t status = (uint16_t) _usbd_dev.dev_state_bm;
-      tud_control_xfer(rhport, p_request, &status, 2);
-      return true;
+      return process_get_status(rhport, p_request, (uint16_t) _usbd_dev.dev_state_bm);
     }
 
     default:
@@ -1075,6 +1074,14 @@ static bool process_std_device_request(uint8_t rhport, tusb_control_request_t co
   }
 }
 
+
+// Reply to a standard GET_STATUS (device/interface/endpoint) with its 2-byte status word.
+// GET_STATUS is Device-to-host only; reject a mis-directed (OUT) request rather than handing
+// usbd the address of a stack local to write host data into after this frame has returned.
+static bool process_get_status(uint8_t rhport, tusb_control_request_t const * request, uint16_t status) {
+  TU_VERIFY(request->bmRequestType_bit.direction == TUSB_DIR_IN);
+  return tud_control_xfer(rhport, request, &status, 2);
+}
 
 // This handles the actual request and its response.
 // Returns false if unable to complete the request, causing caller to stall control endpoints.
@@ -1180,15 +1187,10 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
             tud_control_status(rhport, p_request);
             break;
 
-          case TUSB_REQ_GET_STATUS: {
-            // USB 2.0 9.4.5: interface GET_STATUS returns 2 reserved (zero) bytes; only valid
-            // Device-to-host. Reject a mis-directed (OUT) request instead of handing usbd a stack
-            // buffer it would write into after this frame is gone.
-            uint16_t status = 0x0000;
-            TU_VERIFY(p_request->bmRequestType_bit.direction == TUSB_DIR_IN);
-            TU_VERIFY(tud_control_xfer(rhport, p_request, &status, 2));
+          case TUSB_REQ_GET_STATUS:
+            // USB 2.0 9.4.5: interface GET_STATUS returns 2 reserved (zero) bytes
+            TU_VERIFY(process_get_status(rhport, p_request, 0x0000));
             break;
-          }
 
           default: return false;
         }
@@ -1212,11 +1214,10 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
       } else {
         // Handle STD request to endpoint
         switch (p_request->bRequest) { //-V2520
-          case TUSB_REQ_GET_STATUS: {
-            uint16_t status = usbd_edpt_stalled(rhport, ep_addr) ? 0x0001u : 0x0000u;
-            tud_control_xfer(rhport, p_request, &status, 2);
-          }
-          break;
+          case TUSB_REQ_GET_STATUS:
+            // USB 2.0 9.4.5: endpoint GET_STATUS bit 0 = Halt
+            TU_VERIFY(process_get_status(rhport, p_request, usbd_edpt_stalled(rhport, ep_addr) ? 0x0001u : 0x0000u));
+            break;
 
           case TUSB_REQ_CLEAR_FEATURE:
           case TUSB_REQ_SET_FEATURE: {
@@ -1686,15 +1687,20 @@ void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   uint8_t const dir = tu_edpt_dir(ep_addr);
 
   TU_LOG_USBD("    Clear Stall EP %02X\r\n", ep_addr);
+  const bool was_stalled = (_usbd_dev.ep_status[epnum][dir] & TU_EDPT_STATE_STALLED) != 0;
   dcd_edpt_clear_stall(rhport, ep_addr);
-  // Only release BUSY/CLAIMED when the endpoint was actually stalled: a stall aborts the in-flight
-  // transfer in the dcd without a completion event, and that completion is the only other place the
-  // claim is released, so clearing it here prevents endpoint starvation. If the endpoint was NOT
-  // stalled (e.g. clear-halt used only to reset the data toggle), a transfer may still be
-  // legitimately in flight or claimed by another task, so leave those bits untouched.
-  if (_usbd_dev.ep_status[epnum][dir] & TU_EDPT_STATE_STALLED) {
-    _usbd_dev.ep_status[epnum][dir] &= (uint8_t) ~(TU_EDPT_STATE_STALLED | TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED);
+  // Clear STALLED|BUSY unconditionally (long-standing behavior; some classes, e.g. audio's
+  // set-interface, call this on a non-stalled endpoint solely to drop a leftover BUSY bit).
+  // Only release the CLAIMED ownership bit when the endpoint was actually stalled: the stall
+  // aborts the in-flight transfer in the dcd with no completion event to release the claim, so
+  // clearing it here prevents starvation. On a non-stalled clear (e.g. a data-toggle reset) a
+  // transfer may still be legitimately claimed by another task, so keep CLAIMED to preserve the
+  // claim->xfer mutual exclusion.
+  uint8_t clear_mask = TU_EDPT_STATE_STALLED | TU_EDPT_STATE_BUSY;
+  if (was_stalled) {
+    clear_mask |= TU_EDPT_STATE_CLAIMED;
   }
+  _usbd_dev.ep_status[epnum][dir] &= (uint8_t) ~clear_mask;
 }
 
 bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr) {
