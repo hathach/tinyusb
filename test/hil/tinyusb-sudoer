@@ -20,9 +20,13 @@
 #   testusb                  - run test cases when the device node is not user-writable (no udev
 #                              rule); with the shipped 99-tinyusb udev rule the node is 0666 and
 #                              this grant is unused
+#   actions-runner/svc.sh    - stop/start the CI GitHub Actions runner around manual hardware runs
+#                              so it doesn't reflash boards mid-test (see the hil skill). Must be
+#                              invoked from the runner root: cd ~/actions-runner && sudo ./svc.sh stop
 
 hathach ALL=(ALL) NOPASSWD: /usr/bin/dmesg, /sbin/uhubctl, /sbin/debugfs
 hathach ALL=(root) NOPASSWD: /usr/local/sbin/usb_recover.sh
 hathach ALL=(root) NOPASSWD: /usr/local/sbin/usb_dyndbg.sh
+hathach ALL=(root) NOPASSWD: /home/hathach/actions-runner/svc.sh
 hathach ALL=(root) NOPASSWD: /usr/local/bin/testusb *
 hathach ALL=(root) NOPASSWD: /usr/bin/tee /sys/bus/usb/drivers/usbtest/new_id, /usr/bin/tee /sys/bus/usb/drivers/usbtest/remove_id, /usr/bin/tee /sys/bus/usb/drivers/usbtest/bind, /usr/bin/tee /sys/bus/usb/drivers/usbtest/unbind, /usr/bin/tee /sys/bus/usb/devices/*/driver/unbind, /usr/bin/tee /sys/module/usbtest/parameters/pattern, /usr/sbin/modprobe usbtest

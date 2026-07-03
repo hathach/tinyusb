@@ -18,15 +18,15 @@ Default to **local**. Use **remote** only when on `htpc` and the user says `remo
 
 The `ci` rig also hosts a GitHub Actions runner that flashes boards and runs HIL as part of CI. If it fires while you are driving the hardware yourself — any HIL run, flashing, `test/hil/usbtest.py`, GDB, raw USB — it reflashes boards mid-test and churns the bus, producing spurious failures and even wedged devices.
 
-**Before touching hardware on `ci`, stop the runner; restart it when done** (needs sudo; path is `actions-runner`, plural):
+**Before touching hardware on `ci`, stop the runner; restart it when done.** `svc.sh` is sudoers-allowed (passwordless) but must be run **from the runner root** (`~/actions-runner`, plural), else it errors "Must run from runner root":
 
 ```bash
-sudo ~/actions-runner/svc.sh stop     # before any hardware/HIL action
+(cd ~/actions-runner && sudo ./svc.sh stop)     # before any hardware/HIL action
 # ... flash / run hil_test.py / usbtest.py / GDB ...
-sudo ~/actions-runner/svc.sh start    # ALWAYS restart when finished
+(cd ~/actions-runner && sudo ./svc.sh start)    # ALWAYS restart when finished
 ```
 
-Treat the restart as mandatory cleanup — leaving the runner stopped silently disables CI for the whole repo. Only applies on `ci` (htpc has no runner). Check state with `sudo ~/actions-runner/svc.sh status`.
+Treat the restart as mandatory cleanup — leaving the runner stopped silently disables CI for the whole repo. Only applies on `ci` (htpc has no runner). Check state with `(cd ~/actions-runner && sudo ./svc.sh status)`.
 
 ## Prerequisites
 
