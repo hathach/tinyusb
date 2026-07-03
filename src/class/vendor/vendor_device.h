@@ -135,6 +135,12 @@ extern "C" {
   #error CFG_TUD_VENDOR_ALT_SETTINGS requires non-buffered mode (CFG_TUD_VENDOR_RX/TX_BUFSIZE = 0)
 #endif
 
+// An isochronous endpoint must not claim bandwidth in the default altsetting (USB 2.0 5.6.3),
+// so it can only live in a non-zero altsetting, which requires alternate-setting support.
+#if (CFG_TUD_VENDOR_EP_ISO_OUT || CFG_TUD_VENDOR_EP_ISO_IN) && !CFG_TUD_VENDOR_ALT_SETTINGS
+  #error CFG_TUD_VENDOR_EP_ISO_OUT/IN requires CFG_TUD_VENDOR_ALT_SETTINGS
+#endif
+
 //--------------------------------------------------------------------+
 // Application API (Multiple Interfaces) i.e CFG_TUD_VENDOR > 1
 //--------------------------------------------------------------------+

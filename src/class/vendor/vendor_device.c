@@ -223,6 +223,7 @@ bool tud_vendor_n_read_xfer(uint8_t idx) {
 
     #else
   // Non-FIFO mode
+  TU_VERIFY(p_itf->ep_out > 0); // must be opened (0 while an altsetting without a bulk OUT ep is active)
   TU_VERIFY(usbd_edpt_claim(p_itf->rhport, p_itf->ep_out));
   return usbd_edpt_xfer(p_itf->rhport, p_itf->ep_out, _vendord_epbuf[idx].epout, p_itf->rx_xfer_len, false);
     #endif
@@ -242,6 +243,7 @@ uint32_t tud_vendor_n_write(uint8_t idx, const void *buffer, uint32_t bufsize) {
 
   #else
   // non-fifo mode: direct transfer
+  TU_VERIFY(p_itf->ep_in > 0, 0); // must be opened (0 while an altsetting without a bulk IN ep is active)
   TU_VERIFY(usbd_edpt_claim(p_itf->rhport, p_itf->ep_in), 0);
   const uint32_t xact_len = tu_min32(bufsize, CFG_TUD_VENDOR_TX_EPSIZE);
   memcpy(_vendord_epbuf[idx].epin, buffer, xact_len);
@@ -415,8 +417,14 @@ static uint8_t find_vendor_itf(uint8_t ep_addr) {
   for (uint8_t idx = 0; idx < CFG_TUD_VENDOR; idx++) {
     const vendord_interface_t *p_vendor = &_vendord_itf[idx];
     if (ep_addr == 0) {
-      // find unused: require both ep == 0
-  #if CFG_TUD_VENDOR_TXRX_BUFFERED
+      // find unused interface slot
+  #if CFG_TUD_VENDOR_ALT_SETTINGS
+      // an opened interface parked in an altsetting without endpoints (the mandatory empty alt 0)
+      // has all ep fields 0, so the endpoint fields cannot distinguish free from open: use p_itf_desc
+      if (p_vendor->p_itf_desc == NULL) {
+        return idx;
+      }
+  #elif CFG_TUD_VENDOR_TXRX_BUFFERED
       if (p_vendor->rx_stream.ep_addr == 0 && p_vendor->tx_stream.ep_addr == 0) {
         return idx;
       }
@@ -462,6 +470,41 @@ static uint8_t find_vendor_itf(uint8_t ep_addr) {
 
 #if CFG_TUD_VENDOR_ALT_SETTINGS
 
+// Reserve an isochronous endpoint at open time. Ports with a dedicated iso allocator
+// (TUP_DCD_EDPT_ISO_ALLOC) reserve the FIFO here and (re)activate on altsetting selection;
+// ports with dcd_edpt_close instead open it once here (open == allocate + activate).
+static inline bool vendord_iso_ep_alloc(uint8_t rhport, const tusb_desc_endpoint_t* desc_ep) {
+  #ifdef TUP_DCD_EDPT_ISO_ALLOC
+  return usbd_edpt_iso_alloc(rhport, desc_ep->bEndpointAddress, tu_edpt_packet_size(desc_ep));
+  #else
+  return usbd_edpt_open(rhport, desc_ep);
+  #endif
+}
+
+// (Re)activate an isochronous endpoint on altsetting selection.
+static inline bool vendord_iso_ep_activate(uint8_t rhport, const tusb_desc_endpoint_t* desc_ep) {
+  #ifdef TUP_DCD_EDPT_ISO_ALLOC
+  return usbd_edpt_iso_activate(rhport, desc_ep);
+  #else
+  (void) rhport; (void) desc_ep;
+  return true; // already opened by vendord_iso_ep_alloc(); nothing to re-activate
+  #endif
+}
+
+// Return true if the interface has the requested altsetting (without mutating any state).
+static bool vendord_has_alt(const vendord_interface_t* p_vendor, uint8_t alt) {
+  const uint8_t* p_desc = p_vendor->p_itf_desc;
+  const uint8_t* desc_end = p_desc + p_vendor->itf_desc_len;
+  while (tu_desc_in_bounds(p_desc, desc_end)) {
+    if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE &&
+        ((const tusb_desc_interface_t*)p_desc)->bAlternateSetting == alt) {
+      return true;
+    }
+    p_desc = tu_desc_next(p_desc);
+  }
+  return false;
+}
+
 // Select an altsetting. Endpoints were hardware-opened once at vendord_open (dcds like
 // dwc2 allocate FIFO linearly and cannot close/re-open endpoints dynamically): switching
 // only re-targets the API to the selected altsetting's endpoints. Bulk/interrupt
@@ -470,6 +513,10 @@ static uint8_t find_vendor_itf(uint8_t ep_addr) {
 // SET_INTERFACE requires. Isochronous endpoints are (re)activated, which does the same.
 static bool vendord_set_alt(uint8_t rhport, uint8_t idx, uint8_t alt) {
   vendord_interface_t *p_vendor = &_vendord_itf[idx];
+
+  // Validate the altsetting exists before touching any state, so a rejected (invalid)
+  // SET_INTERFACE leaves the current altsetting intact instead of a half-cleared interface.
+  TU_VERIFY(vendord_has_alt(p_vendor, alt));
 
   // forget current altsetting's endpoints
   p_vendor->ep_in = 0;
@@ -490,13 +537,11 @@ static bool vendord_set_alt(uint8_t rhport, uint8_t idx, uint8_t alt) {
   const uint8_t* p_desc = p_vendor->p_itf_desc;
   const uint8_t* desc_end = p_desc + p_vendor->itf_desc_len;
   bool in_target_alt = false;
-  bool alt_found = false;
 
   while (tu_desc_in_bounds(p_desc, desc_end)) {
     const uint8_t desc_type = tu_desc_type(p_desc);
     if (desc_type == TUSB_DESC_INTERFACE) {
       in_target_alt = (((const tusb_desc_interface_t*)p_desc)->bAlternateSetting == alt);
-      alt_found = alt_found || in_target_alt;
     } else if (in_target_alt && desc_type == TUSB_DESC_ENDPOINT) {
       const tusb_desc_endpoint_t* desc_ep = (const tusb_desc_endpoint_t*) p_desc;
       const uint8_t ep_addr = desc_ep->bEndpointAddress;
@@ -521,17 +566,21 @@ static bool vendord_set_alt(uint8_t rhport, uint8_t idx, uint8_t alt) {
           }
           break;
 
-  #if CFG_TUD_VENDOR_EP_INT_OUT || CFG_TUD_VENDOR_EP_INT_IN
+  #if CFG_TUD_VENDOR_EP_INT_IN || CFG_TUD_VENDOR_EP_INT_OUT
         case TUSB_XFER_INTERRUPT:
-          usbd_edpt_stall(rhport, ep_addr);
-          usbd_edpt_clear_stall(rhport, ep_addr);
+          // stall/clear only for the enabled direction (an endpoint of a disabled
+          // direction was never opened, so must not be poked in the dcd)
     #if CFG_TUD_VENDOR_EP_INT_IN
           if (is_in) {
+            usbd_edpt_stall(rhport, ep_addr);
+            usbd_edpt_clear_stall(rhport, ep_addr);
             p_vendor->ep_int_in = ep_addr;
           }
     #endif
     #if CFG_TUD_VENDOR_EP_INT_OUT
           if (!is_in) {
+            usbd_edpt_stall(rhport, ep_addr);
+            usbd_edpt_clear_stall(rhport, ep_addr);
             p_vendor->ep_int_out = ep_addr;
             p_vendor->int_rx_xfer_len = tu_edpt_packet_size(desc_ep);
           }
@@ -539,17 +588,17 @@ static bool vendord_set_alt(uint8_t rhport, uint8_t idx, uint8_t alt) {
           break;
   #endif
 
-  #if CFG_TUD_VENDOR_EP_ISO_OUT || CFG_TUD_VENDOR_EP_ISO_IN
+  #if CFG_TUD_VENDOR_EP_ISO_IN || CFG_TUD_VENDOR_EP_ISO_OUT
         case TUSB_XFER_ISOCHRONOUS:
     #if CFG_TUD_VENDOR_EP_ISO_IN
           if (is_in) {
-            TU_ASSERT(usbd_edpt_iso_activate(rhport, desc_ep));
+            TU_ASSERT(vendord_iso_ep_activate(rhport, desc_ep));
             p_vendor->ep_iso_in = ep_addr;
           }
     #endif
     #if CFG_TUD_VENDOR_EP_ISO_OUT
           if (!is_in) {
-            TU_ASSERT(usbd_edpt_iso_activate(rhport, desc_ep));
+            TU_ASSERT(vendord_iso_ep_activate(rhport, desc_ep));
             p_vendor->ep_iso_out = ep_addr;
             p_vendor->iso_rx_xfer_len = tu_edpt_packet_size(desc_ep);
           }
@@ -564,7 +613,6 @@ static bool vendord_set_alt(uint8_t rhport, uint8_t idx, uint8_t alt) {
     p_desc = tu_desc_next(p_desc);
   }
 
-  TU_VERIFY(alt_found);
   p_vendor->cur_alt = alt;
   return true;
 }
@@ -580,11 +628,14 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uin
   p_vendor->itf_num    = desc_itf->bInterfaceNumber;
   p_vendor->p_itf_desc = (const uint8_t*) desc_itf;
 
-  // Consume every altsetting of this interface and hardware-open each endpoint exactly
-  // once (first occurrence wins: endpoint addresses reused across altsettings must have
-  // an identical configuration). Bulk/interrupt endpoints are opened, isochronous ones
-  // FIFO-allocated; activation/toggle handling happens on altsetting selection.
-  uint16_t opened_in = 0, opened_out = 0; // bitmask by endpoint number
+  // Consume every altsetting of this interface and hardware-open each endpoint exactly once
+  // (bulk/interrupt via usbd_edpt_open, isochronous FIFO-allocated; iso activation and the
+  // toggle reset happen on altsetting selection). An endpoint address that recurs in another
+  // altsetting must carry an identical configuration, since it is opened only on first sight;
+  // reconfiguring the same address per-alt is not supported and is rejected here.
+  uint8_t seen_type[CFG_TUD_ENDPPOINT_MAX][2];
+  uint16_t seen_mps[CFG_TUD_ENDPPOINT_MAX][2];
+  tu_memclr(seen_type, sizeof(seen_type)); // 0 == TUSB_XFER_CONTROL, never used as a data ep here
   const uint8_t* p_desc = tu_desc_next(desc_itf);
   while (tu_desc_in_bounds(p_desc, desc_end)) {
     const uint8_t desc_type = tu_desc_type(p_desc);
@@ -597,52 +648,60 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uin
       }
     } else if (desc_type == TUSB_DESC_ENDPOINT) {
       const tusb_desc_endpoint_t* desc_ep = (const tusb_desc_endpoint_t*) p_desc;
-      const uint16_t epnum_bit = (uint16_t)(1u << tu_edpt_number(desc_ep->bEndpointAddress));
-      uint16_t* opened_mask =
-        (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) ? &opened_in : &opened_out;
-      if (!(*opened_mask & epnum_bit)) {
-        const uint16_t mps = tu_edpt_packet_size(desc_ep);
-        (void) mps;
-        switch (desc_ep->bmAttributes.xfer) {
+      const uint8_t epnum = tu_edpt_number(desc_ep->bEndpointAddress);
+      const uint8_t dir = tu_edpt_dir(desc_ep->bEndpointAddress);
+      const uint8_t xfer = desc_ep->bmAttributes.xfer;
+      const uint16_t mps = tu_edpt_packet_size(desc_ep);
+      TU_ASSERT(epnum < CFG_TUD_ENDPPOINT_MAX, 0);
+
+      if (seen_type[epnum][dir] != 0) {
+        // reused address in a later altsetting: must be an exact match (opened only once)
+        TU_ASSERT(seen_type[epnum][dir] == xfer && seen_mps[epnum][dir] == mps, 0);
+      } else {
+        switch (xfer) {
           case TUSB_XFER_BULK:
             TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
             break;
-  #if CFG_TUD_VENDOR_EP_INT_OUT || CFG_TUD_VENDOR_EP_INT_IN
+
+  #if CFG_TUD_VENDOR_EP_INT_IN || CFG_TUD_VENDOR_EP_INT_OUT
           case TUSB_XFER_INTERRUPT:
     #if CFG_TUD_VENDOR_EP_INT_IN
-            if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
+            if (dir == TUSB_DIR_IN) {
               TU_ASSERT(mps <= CFG_TUD_VENDOR_EP_INT_IN_BUFSIZE, 0);
               TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
             }
     #endif
     #if CFG_TUD_VENDOR_EP_INT_OUT
-            if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_OUT) {
+            if (dir == TUSB_DIR_OUT) {
               TU_ASSERT(mps <= CFG_TUD_VENDOR_EP_INT_OUT_BUFSIZE, 0);
               TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
             }
     #endif
             break;
   #endif
-  #if CFG_TUD_VENDOR_EP_ISO_OUT || CFG_TUD_VENDOR_EP_ISO_IN
+
+  #if CFG_TUD_VENDOR_EP_ISO_IN || CFG_TUD_VENDOR_EP_ISO_OUT
           case TUSB_XFER_ISOCHRONOUS:
     #if CFG_TUD_VENDOR_EP_ISO_IN
-            if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
+            if (dir == TUSB_DIR_IN) {
               TU_ASSERT(mps <= CFG_TUD_VENDOR_EP_ISO_IN_BUFSIZE, 0);
-              TU_ASSERT(usbd_edpt_iso_alloc(rhport, desc_ep->bEndpointAddress, mps), 0);
+              TU_ASSERT(vendord_iso_ep_alloc(rhport, desc_ep), 0);
             }
     #endif
     #if CFG_TUD_VENDOR_EP_ISO_OUT
-            if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_OUT) {
+            if (dir == TUSB_DIR_OUT) {
               TU_ASSERT(mps <= CFG_TUD_VENDOR_EP_ISO_OUT_BUFSIZE, 0);
-              TU_ASSERT(usbd_edpt_iso_alloc(rhport, desc_ep->bEndpointAddress, mps), 0);
+              TU_ASSERT(vendord_iso_ep_alloc(rhport, desc_ep), 0);
             }
     #endif
             break;
   #endif
+
           default:
             break; // unsupported endpoint type / direction gate disabled: ignore
         }
-        *opened_mask |= epnum_bit;
+        seen_type[epnum][dir] = xfer;
+        seen_mps[epnum][dir] = mps;
       }
     }
     p_desc = tu_desc_next(p_desc);
