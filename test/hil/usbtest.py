@@ -164,8 +164,11 @@ def bind_usbtest(dev):
 
 
 def set_pattern(value):
-    if PATTERN_PARAM.read_text().strip() != str(value):
-        sysfs_write(PATTERN_PARAM, str(value))
+    try:
+        if PATTERN_PARAM.read_text().strip() != str(value):
+            sysfs_write(PATTERN_PARAM, str(value))
+    except FileNotFoundError:
+        sys.exit(f'{PATTERN_PARAM} not available: this usbtest module build has no "pattern" param')
 
 
 def dmesg_tail():
@@ -175,9 +178,10 @@ def dmesg_tail():
 
 
 def pci_addr_of_bus(busnum):
+    """Return the PCI B:D.F backing a USB bus, or None for a non-PCI (SoC/platform) controller."""
     m = re.search(r'([0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-9])/usb\d+$',
                   os.path.realpath(f'/sys/bus/usb/devices/usb{int(busnum)}'))
-    return m.group(1) if m else '<pci-addr-of-controller>'
+    return m.group(1) if m else None
 
 
 def run_case(num, dev, testusb, quick, timeout):
@@ -223,6 +227,11 @@ def run_case(num, dev, testusb, quick, timeout):
                       dmesg=dmesg_tail())
         return result
 
+    if cmd[0] == 'sudo' and ('password is required' in out or 'a terminal is required' in out):
+        result.update(status='FAIL', detail='sudo needs a password to run testusb: the device node '
+                      'is not writable and testusb is not in the sudoers allowlist')
+        return result
+
     # no result line: the kernel returned -EOPNOTSUPP (capability profile or
     # in-kernel parameter gate) and testusb skipped silently
     result.update(status='NOTRUN', detail='case gated off: check binding profile/pattern',
@@ -253,9 +262,18 @@ def main():
     if not dev:
         sys.exit(f'no {VID}:{PID} device' + (f' with serial {args.serial}' if args.serial else ''))
 
+    # tier drives which cases run; a stale/foreign device advertising an out-of-range tier
+    # must not silently run an empty battery ('0/0 passed' would read as green in CI)
     tier = args.tier or dev['tier']
+    if not 1 <= tier <= max(TIER_CASES):
+        sys.exit(f"device advertises tier {tier} (bcdDevice ...{tier:02x}); reflash a usbtest build "
+                 f"or pass --tier 1..{max(TIER_CASES)} — refusing to run an unknown/empty battery")
     if args.tests:
-        cases = [int(n) for n in args.tests.split(',')]
+        cases = []
+        for n in args.tests.split(','):
+            if not n.strip().isdigit() or int(n) not in PARAMS:
+                sys.exit(f'--tests: {n!r} is not a known case number (valid 0..{max(PARAMS)})')
+            cases.append(int(n))
     else:
         cases = [n for t in range(1, tier + 1) for n in TIER_CASES[t]]
 
@@ -263,39 +281,48 @@ def main():
     if not args.json:
         print(info)
 
-    bind_usbtest(dev)
-    set_pattern(0)  # tier 1 firmware sources zeros; also required by perf cases 27/28
-
     results = []
-    for num in cases:
-        results.append(run_case(num, dev, testusb, args.quick, args.timeout))
-        r = results[-1]
-        if not args.json:
-            extra = f" {r.get('secs', '')}s" if r['status'] == 'PASS' else f" {r.get('detail', '')}"
-            extra += f" {r['mbps']} MB/s" if 'mbps' in r else ''
-            print(f"test {num:2d} {r['name']:22s} {r['status']:6s}{extra}")
-        if r['status'] == 'HUNG':
-            pci = pci_addr_of_bus(dev['node'].split('/')[-2])
-            print(f'aborting battery: kernel-side hang, device wedged mid-transfer.\n'
-                  f'auto-recovering: sudo usb_recover.sh pci-reset {pci} '
-                  f'(see .claude/skills/usb-recover)', file=sys.stderr)
-            # FLR frees the D-state ioctl without the device lock; must run BEFORE
-            # any unbind/remove_id below, which would deadlock the bus otherwise
-            sudo(['/usr/local/sbin/usb_recover.sh', 'pci-reset', pci])
-            time.sleep(5)  # let the bus re-enumerate before cleanup touches sysfs
-            break
-        if not find_device(args.serial, first=True):
-            results.append({'num': num, 'status': 'FAIL',
-                            'detail': f'device dropped off the bus after case {num}'})
-            break
+    try:
+        bind_usbtest(dev)
+        set_pattern(0)  # tier 1 firmware sources zeros; also required by perf cases 27/28
 
-    if not args.keep_binding:
-        sysfs_write(DRIVER / 'remove_id', f'{VID} {PID}', check=False)
-        # release every claimed interface: other devices sharing the VID:PID
-        # (stale example firmware on a test rig) may have been grabbed on probe
-        # and would otherwise stay bound to usbtest until re-plugged
-        for intf in DRIVER.glob('*:*'):
-            sysfs_write(DRIVER / 'unbind', intf.name, check=False)
+        for num in cases:
+            results.append(run_case(num, dev, testusb, args.quick, args.timeout))
+            r = results[-1]
+            if not args.json:
+                extra = f" {r.get('secs', '')}s" if r['status'] == 'PASS' else f" {r.get('detail', '')}"
+                extra += f" {r['mbps']} MB/s" if 'mbps' in r else ''
+                print(f"test {num:2d} {r['name']:22s} {r['status']:6s}{extra}")
+            if r['status'] == 'HUNG':
+                pci = pci_addr_of_bus(dev['node'].split('/')[-2])
+                if pci:
+                    print(f'aborting battery: kernel-side hang, device wedged mid-transfer.\n'
+                          f'auto-recovering: sudo usb_recover.sh pci-reset {pci} '
+                          f'(see .claude/skills/usb-recover)', file=sys.stderr)
+                    # FLR frees the D-state ioctl without the device lock; must run BEFORE
+                    # any unbind/remove_id, which would deadlock the bus otherwise
+                    sudo(['/usr/local/sbin/usb_recover.sh', 'pci-reset', pci])
+                    time.sleep(5)  # let the bus re-enumerate before cleanup touches sysfs
+                else:
+                    print('aborting battery: kernel-side hang, and the controller has no PCI address '
+                          'for FLR recovery — manual intervention (reboot) required', file=sys.stderr)
+                break
+            # re-resolve: after a mid-battery re-enumeration the devnum (and thus the node
+            # path) changes; keep testing the live node instead of the stale one
+            live = find_device(args.serial, first=True)
+            if not live:
+                results.append({'num': num, 'status': 'FAIL',
+                                'detail': f'device dropped off the bus after case {num}'})
+                break
+            dev = live
+    finally:
+        if not args.keep_binding:
+            sysfs_write(DRIVER / 'remove_id', f'{VID} {PID}', check=False)
+            # release every claimed interface: other devices sharing the VID:PID (stale example
+            # firmware on a test rig) may have been grabbed on probe and would otherwise stay
+            # bound to usbtest until re-plugged, hijacking the next test's device
+            for intf in DRIVER.glob('*:*'):
+                sysfs_write(DRIVER / 'unbind', intf.name, check=False)
 
     failed = [r for r in results if r['status'] != 'PASS']
     if args.json:

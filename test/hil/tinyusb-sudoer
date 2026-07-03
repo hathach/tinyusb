@@ -15,9 +15,14 @@
 #   usb_recover.sh           - narrow sysfs USB reset helper (see .claude/skills/usb-recover)
 #   usb_dyndbg.sh            - kernel dynamic-debug toggle for USB modules (see .claude/skills/usb-debug)
 #   tee usbtest sysfs paths  - bind/unbind the usbtest host driver (test/hil/usbtest.py)
+#   tee .../driver/unbind    - steal the interface from a foreign driver before binding usbtest
 #   modprobe usbtest         - load the usbtest module on demand
+#   testusb                  - run test cases when the device node is not user-writable (no udev
+#                              rule); with the shipped 99-tinyusb udev rule the node is 0666 and
+#                              this grant is unused
 
 hathach ALL=(ALL) NOPASSWD: /usr/bin/dmesg, /sbin/uhubctl, /sbin/debugfs
 hathach ALL=(root) NOPASSWD: /usr/local/sbin/usb_recover.sh
 hathach ALL=(root) NOPASSWD: /usr/local/sbin/usb_dyndbg.sh
-hathach ALL=(root) NOPASSWD: /usr/bin/tee /sys/bus/usb/drivers/usbtest/new_id, /usr/bin/tee /sys/bus/usb/drivers/usbtest/remove_id, /usr/bin/tee /sys/bus/usb/drivers/usbtest/bind, /usr/bin/tee /sys/bus/usb/drivers/usbtest/unbind, /usr/bin/tee /sys/module/usbtest/parameters/pattern, /usr/sbin/modprobe usbtest
+hathach ALL=(root) NOPASSWD: /usr/local/bin/testusb *
+hathach ALL=(root) NOPASSWD: /usr/bin/tee /sys/bus/usb/drivers/usbtest/new_id, /usr/bin/tee /sys/bus/usb/drivers/usbtest/remove_id, /usr/bin/tee /sys/bus/usb/drivers/usbtest/bind, /usr/bin/tee /sys/bus/usb/drivers/usbtest/unbind, /usr/bin/tee /sys/bus/usb/devices/*/driver/unbind, /usr/bin/tee /sys/module/usbtest/parameters/pattern, /usr/sbin/modprobe usbtest

@@ -110,18 +110,20 @@
 // Multi-packet IN transfers; must be a multiple of bulk MPS at both speeds (64/512)
 #define CFG_TUD_VENDOR_TX_EPSIZE      2048
 
-// Interrupt IN/OUT source/sink pair (usbtest cases 25/26)
+// Interrupt IN/OUT source/sink pair (usbtest cases 25/26). Buffer sizes track the
+// per-speed endpoint max packet size (see usb_descriptors.c) so full-speed builds
+// don't over-allocate the scarce USB DMA section.
 #define CFG_TUD_VENDOR_EP_INT_OUT          1
 #define CFG_TUD_VENDOR_EP_INT_IN           1
-#define CFG_TUD_VENDOR_EP_INT_OUT_BUFSIZE  512
-#define CFG_TUD_VENDOR_EP_INT_IN_BUFSIZE   512
+#define CFG_TUD_VENDOR_EP_INT_OUT_BUFSIZE  (TUD_OPT_HIGH_SPEED ? 512 : 64)
+#define CFG_TUD_VENDOR_EP_INT_IN_BUFSIZE   (TUD_OPT_HIGH_SPEED ? 512 : 64)
 
 // Isochronous IN/OUT source/sink pair (usbtest cases 15/16/22/23), placed in
 // altsetting 1: alt 0 has no endpoints so no iso bandwidth is claimed by default
 #define CFG_TUD_VENDOR_EP_ISO_OUT          1
 #define CFG_TUD_VENDOR_EP_ISO_IN           1
-#define CFG_TUD_VENDOR_EP_ISO_OUT_BUFSIZE  512
-#define CFG_TUD_VENDOR_EP_ISO_IN_BUFSIZE   512
+#define CFG_TUD_VENDOR_EP_ISO_OUT_BUFSIZE  (TUD_OPT_HIGH_SPEED ? 512 : 128)
+#define CFG_TUD_VENDOR_EP_ISO_IN_BUFSIZE   (TUD_OPT_HIGH_SPEED ? 512 : 128)
 #define CFG_TUD_VENDOR_ALT_SETTINGS        1
 
 #ifdef __cplusplus
