@@ -362,7 +362,11 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 
   // TODO cannot able to STALL Control OUT endpoint !!!!! FIXME try some walk-around
   uint8_t const ep_id = ep_addr2id(ep_addr);
-  _dcd.ep[ep_id][0].cmd_sts.stall = 1;
+  // Clear Active before setting Stall: the hardware services an armed (Active) buffer instead of
+  // returning STALL, so a halt requested while a transfer is queued would not actually stall the
+  // endpoint (usbtest case 13). Software must not leave both Active and Stall set.
+  _dcd.ep[ep_id][0].cmd_sts.active = 0;
+  _dcd.ep[ep_id][0].cmd_sts.stall  = 1;
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
