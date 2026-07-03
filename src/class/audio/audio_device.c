@@ -1179,8 +1179,10 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const *p
             is_feedback_ep = (desc_ep->bmAttributes.usage == 1);
           }
 
-          //TODO: We need to set EP non busy since this is not taken care of right now in ep_close() - THIS IS A WORKAROUND!
-          usbd_edpt_clear_stall(rhport, ep_addr);
+          // Note: the endpoint state (incl. a leftover BUSY bit from a transfer that was armed
+          // when streaming stopped) is already cleared before we get here - by usbd_edpt_close()
+          // above on close-API ports, or by usbd_edpt_iso_activate() above on iso-alloc ports -
+          // so no explicit "set EP non busy" workaround is needed.
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
           // For data or data with implicit feedback IN EP
