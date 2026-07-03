@@ -568,9 +568,25 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
 
   if (epnum != 0) {
     struct hw_endpoint* ep = hw_endpoint_get(epnum, dir);
-    ep->next_pid = 0; // reset data toggle
-    io_rw_32 *buf_reg      = get_buf_ctrl(epnum, dir);
-    *buf_reg               = 0;
+
+    if (ep->state == EPSTATE_ACTIVE) {
+      // Clear-halt on an endpoint with an in-flight transfer is used as a data-toggle reset
+      // (e.g. usbtest case 29) rather than to recover from a real stall (a stall aborts the
+      // transfer, leaving the endpoint IDLE). Abort and re-issue the transfer with the toggle
+      // reset to DATA0 so it still completes and releases the usbd claim, instead of silently
+      // dropping it and starving the endpoint. Save the buffer/length before the abort clears them.
+      uint8_t*       user_buf  = ep->user_buf;
+      const uint16_t remaining = ep->remaining_len;
+      hw_endpoint_abort_xfer(ep); // safe abort (handles RP2040-E2), resets ep transfer state
+      ep->next_pid = 0;           // DATA0
+      io_rw_32 *ep_reg  = get_ep_ctrl(epnum, dir);
+      io_rw_32 *buf_reg = get_buf_ctrl(epnum, dir);
+      rp2usb_xfer_start(ep, ep_reg, buf_reg, user_buf, NULL, remaining);
+    } else {
+      ep->next_pid = 0; // reset data toggle
+      io_rw_32 *buf_reg = get_buf_ctrl(epnum, dir);
+      *buf_reg          = 0; // clear the stall response
+    }
   }
 }
 
