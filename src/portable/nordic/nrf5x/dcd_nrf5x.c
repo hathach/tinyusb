@@ -141,8 +141,22 @@ TU_ATTR_ALWAYS_INLINE static inline bool is_in_isr(void) {
   return (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) ? true : false;
 }
 
+// Errata 199 "USBD cannot receive tasks during DMA": while an EasyDMA transfer is in progress the
+// controller may drop an incoming SETUP/IN/OUT token (lost event -> stuck EP0, esp. under rapid
+// back-to-back control transfers). The workaround latches an undocumented "DMA in progress" test
+// register (0x40027C1C) so tokens are held instead. Gated on the anomaly being present (all
+// nRF52840 revisions; absent on other nRF52 parts). Mirrors nrfx usbd_dma_pending_set/clear().
+#define NRF_USBD_ERRATA_199_REG (*((volatile uint32_t*) 0x40027C1CUL))
+
 // helper to start DMA
 static void start_dma(volatile uint32_t* reg_startep) {
+  // EP0STATUS / EP0RCVOUT take the EasyDMA slot but do not transfer data, so no ERRATA-199 latch.
+  const bool no_dma = (reg_startep == &NRF_USBD->TASKS_EP0STATUS) || (reg_startep == &NRF_USBD->TASKS_EP0RCVOUT);
+
+  if (!no_dma && nrf52_errata_199()) {
+    NRF_USBD_ERRATA_199_REG = 0x00000082UL;
+  }
+
   (*reg_startep) = 1;
   __ISB();
   __DSB();
@@ -150,7 +164,7 @@ static void start_dma(volatile uint32_t* reg_startep) {
   // TASKS_EP0STATUS, TASKS_EP0RCVOUT seem to need EasyDMA to be available
   // However these don't trigger any DMA transfer and got ENDED event subsequently
   // Therefore dma_pending is corrected right away
-  if ((reg_startep == &NRF_USBD->TASKS_EP0STATUS) || (reg_startep == &NRF_USBD->TASKS_EP0RCVOUT)) {
+  if (no_dma) {
     atomic_flag_clear(&_dcd.dma_running);
   }
 }
@@ -165,6 +179,10 @@ static void edpt_dma_start(volatile uint32_t* reg_startep) {
 
 // DMA is complete
 static void edpt_dma_end(void) {
+  // Clear the ERRATA-199 "DMA in progress" latch set in start_dma().
+  if (nrf52_errata_199()) {
+    NRF_USBD_ERRATA_199_REG = 0x00000000UL;
+  }
   atomic_flag_clear(&_dcd.dma_running);
 }
 
