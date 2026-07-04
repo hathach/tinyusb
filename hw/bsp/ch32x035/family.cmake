@@ -15,8 +15,6 @@ set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/riscv_${TO
 set(FAMILY_MCUS CH32X035 CACHE INTERNAL "")
 set(OPENOCD_OPTION "-f ${CMAKE_CURRENT_LIST_DIR}/wch-riscv.cfg")
 
-set(RHPORT_DEVICE 0)
-
 #------------------------------------
 # Startup & Linker script
 #------------------------------------
@@ -48,7 +46,6 @@ function(family_add_board BOARD_TARGET)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     )
   target_compile_definitions(${BOARD_TARGET} PUBLIC
-    BOARD_TUD_RHPORT=${RHPORT_DEVICE}
     CFG_EXAMPLE_MSC_DUAL_READONLY
     CFG_EXAMPLE_VIDEO_READONLY
     )
