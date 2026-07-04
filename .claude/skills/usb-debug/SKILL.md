@@ -38,7 +38,7 @@ The script is versioned here; install + sudoers (needs a password once):
 
 ```bash
 sudo install -m0755 -oroot -groot .claude/skills/usb-debug/scripts/usb_dyndbg.sh /usr/local/sbin/
-sudo install -m0440 -oroot -groot test/hil/tinyusb-sudoer /etc/sudoers.d/tinyusb-sudoer
+sudo install -m0440 -oroot -groot test/hil/tinyusb-sudoer /etc/sudoers.d/tinyusb-sudoer  # grants target #1000
 sudo visudo -c
 ```
 

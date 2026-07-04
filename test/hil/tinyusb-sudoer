@@ -1,4 +1,8 @@
-# Sudoers grants for the TinyUSB HIL rig agent user. Adjust 'hathach' to the rig user.
+# Sudoers grants for the TinyUSB HIL rig agent user. Generic-by-UID: grants target "#1000", the
+# first regular account on Debian/Ubuntu (the rig agent user) — no username hardcoded, no edit
+# needed. If your agent user is a different UID, change #1000 accordingly (e.g. #1001), or swap
+# to a group with "%groupname". The actions-runner path is wildcarded (/home/*/) since a UID
+# doesn't name a home directory.
 #
 # Deploy (from the repo root, needs your password once):
 #   sudo install -m0440 -oroot -groot test/hil/tinyusb-sudoer /etc/sudoers.d/tinyusb-sudoer
@@ -23,10 +27,20 @@
 #   actions-runner/svc.sh    - stop/start the CI GitHub Actions runner around manual hardware runs
 #                              so it doesn't reflash boards mid-test (see the hil skill). Must be
 #                              invoked from the runner root: cd ~/actions-runner && sudo ./svc.sh stop
+#   (controller re-bind after a driverless pci-rebind is handled by usb_recover.sh pci-bind, which
+#    is already covered by the usb_recover.sh grant above — no extra sudoers rule needed.)
+#   systemctl reboot --force - last-resort USB recovery when a testusb D-state URB is unkillable and
+#                              neither pci-reset (ENOTTY on Renesas) nor pci-bind can revive the
+#                              controller (see the usb-recover skill). --force is required: a graceful
+#                              reboot blocks in shutdown waiting for the wedged D-state process to
+#                              terminate (it never does), so plain reboot stalls; --force terminates
+#                              services and reboots immediately. Plain reboot kept for non-wedge use.
+#                              An @reboot one-shot resumes the working session afterwards.
 
-hathach ALL=(ALL) NOPASSWD: /usr/bin/dmesg, /sbin/uhubctl, /sbin/debugfs
-hathach ALL=(root) NOPASSWD: /usr/local/sbin/usb_recover.sh
-hathach ALL=(root) NOPASSWD: /usr/local/sbin/usb_dyndbg.sh
-hathach ALL=(root) NOPASSWD: /home/hathach/actions-runner/svc.sh
-hathach ALL=(root) NOPASSWD: /usr/local/bin/testusb *
-hathach ALL=(root) NOPASSWD: /usr/bin/tee /sys/bus/usb/drivers/usbtest/new_id, /usr/bin/tee /sys/bus/usb/drivers/usbtest/remove_id, /usr/bin/tee /sys/bus/usb/drivers/usbtest/bind, /usr/bin/tee /sys/bus/usb/drivers/usbtest/unbind, /usr/bin/tee /sys/bus/usb/devices/*/driver/unbind, /usr/bin/tee /sys/module/usbtest/parameters/pattern, /usr/sbin/modprobe usbtest
+#1000 ALL=(ALL) NOPASSWD: /usr/bin/dmesg, /sbin/uhubctl, /sbin/debugfs
+#1000 ALL=(root) NOPASSWD: /usr/local/sbin/usb_recover.sh
+#1000 ALL=(root) NOPASSWD: /usr/local/sbin/usb_dyndbg.sh
+#1000 ALL=(root) NOPASSWD: /home/*/actions-runner/svc.sh
+#1000 ALL=(root) NOPASSWD: /usr/local/bin/testusb *
+#1000 ALL=(root) NOPASSWD: /usr/bin/systemctl reboot --force, /usr/bin/systemctl reboot
+#1000 ALL=(root) NOPASSWD: /usr/bin/tee /sys/bus/usb/drivers/usbtest/new_id, /usr/bin/tee /sys/bus/usb/drivers/usbtest/remove_id, /usr/bin/tee /sys/bus/usb/drivers/usbtest/bind, /usr/bin/tee /sys/bus/usb/drivers/usbtest/unbind, /usr/bin/tee /sys/bus/usb/devices/*/driver/unbind, /usr/bin/tee /sys/module/usbtest/parameters/pattern, /usr/sbin/modprobe usbtest

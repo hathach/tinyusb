@@ -18,11 +18,15 @@
 #   sudo usb_recover.sh pci-reset  <pciaddr>   # e.g. 0000:01:00.0 -> PCI function-level reset: kills URBs at
 #                                              # HW level WITHOUT the device lock; the only cure when a process
 #                                              # is stuck in D state (usbfs ioctl) and unbind paths would convoy
+#   sudo usb_recover.sh pci-bind   <pciaddr> [driver]  # bind a DRIVERLESS controller (e.g. after a pci-rebind
+#                                              # whose re-bind hung and left it unbound). Auto-tries the xHCI
+#                                              # drivers (xhci-pci-renesas, xhci_hcd) unless one is named.
 #   sudo usb_recover.sh resolve    <devnode>   # e.g. /dev/ttyACM3 -> print its <busport> (no privilege needed)
 set -euo pipefail
 
 USBPATH_RE='^[0-9]+-[0-9]+(\.[0-9]+)*$'
 PCI_RE='^[0-9a-fA-F]{4}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-9]$'
+DRIVER_RE='^[A-Za-z0-9_-]+$'
 
 die() { echo "usb_recover: $*" >&2; exit 1; }
 usage() { grep -E '^#   sudo usb_recover' "$0" >&2; exit 2; }
@@ -70,6 +74,28 @@ case "$action" in
     echo "$target" > "/sys/bus/pci/drivers/$drv/unbind"; sleep 1
     echo "$target" > "/sys/bus/pci/drivers/$drv/bind"
     echo "rebound pci $target ($drv)"
+    ;;
+  pci-bind)
+    # Re-attach a driver to a controller left DRIVERLESS (e.g. a pci-rebind whose re-bind hung).
+    [[ "$target" =~ $PCI_RE ]] || die "bad pci addr: $target"
+    [ -e "/sys/bus/pci/devices/$target" ] || die "no such pci device: $target"
+    [ -e "/sys/bus/pci/devices/$target/driver" ] && die "$target already has a driver bound"
+    drv=${3:-}
+    if [ -n "$drv" ]; then
+      [[ "$drv" =~ $DRIVER_RE ]] || die "bad driver name: $drv"
+      [ -e "/sys/bus/pci/drivers/$drv/bind" ] || die "no such pci driver: $drv"
+      echo "$target" > "/sys/bus/pci/drivers/$drv/bind"
+      echo "bound pci $target ($drv)"
+    else
+      # Auto-try the xHCI drivers (Renesas uPD720201 uses xhci-pci-renesas; others xhci_hcd).
+      for cand in xhci-pci-renesas xhci_hcd; do
+        [ -e "/sys/bus/pci/drivers/$cand/bind" ] || continue
+        if echo "$target" > "/sys/bus/pci/drivers/$cand/bind" 2>/dev/null; then
+          echo "bound pci $target ($cand)"; exit 0
+        fi
+      done
+      die "could not bind $target with a known xHCI driver; pass the driver explicitly"
+    fi
     ;;
   pci-reset)
     [[ "$target" =~ $PCI_RE ]] || die "bad pci addr: $target"
