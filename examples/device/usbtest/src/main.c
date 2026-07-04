@@ -66,13 +66,21 @@ static uint8_t const int_tx_chunk[USBTEST_INT_EP_MPS];
 static uint8_t const iso_tx_chunk[USBTEST_ISO_EP_MPS];
 
 //------------- prototypes -------------//
-void led_blinking_task(void);
-static void usbtest_task(void);
+void led_blinking_task(void* param);
+void usbtest_task(void* param);
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+void freertos_init(void);
+#endif
 
 /*------------- MAIN -------------*/
 int main(void) {
   board_init();
 
+  // If using FreeRTOS: create blinky, tinyusb device, and usbtest source/sink tasks
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  freertos_init();
+#else
   // init device stack on configured roothub port
   tusb_rhport_init_t dev_init = {
     .role = TUSB_ROLE_DEVICE,
@@ -84,9 +92,10 @@ int main(void) {
 
   while (1) {
     tud_task(); // tinyusb device task
-    usbtest_task();
-    led_blinking_task();
+    usbtest_task(NULL);
+    led_blinking_task(NULL);
   }
+#endif
 }
 
 //--------------------------------------------------------------------+
@@ -96,24 +105,32 @@ int main(void) {
 // Polling keeps all four endpoints armed and self-heals after endpoint halt
 // (set/clear feature tests): stall marks the endpoint busy so the calls fail
 // quietly until the host clears the halt, then the next tick re-arms.
-static void usbtest_task(void) {
-  if (!tud_vendor_mounted()) {
+void usbtest_task(void* param) {
+  (void) param;
+
+  while (1) {
+    if (tud_vendor_mounted()) {
+      tud_vendor_read_xfer();     // bulk sink: arm/re-arm, quiet fail if armed or halted
+      if (tud_vendor_write_available()) { // 0 while bulk IN is busy or halted
+        tud_vendor_write(tx_chunk, sizeof(tx_chunk));
+      }
+
+      tud_vendor_int_read_xfer(); // interrupt sink
+      if (tud_vendor_int_write_available()) {
+        tud_vendor_int_write(int_tx_chunk, sizeof(int_tx_chunk));
+      }
+
+      tud_vendor_iso_read_xfer(); // isochronous sink
+      if (tud_vendor_iso_write_available()) {
+        tud_vendor_iso_write(iso_tx_chunk, sizeof(iso_tx_chunk));
+      }
+    }
+
+    #if CFG_TUSB_OS == OPT_OS_FREERTOS
+    vTaskDelay(1); // yield; tx/rx completion callbacks keep the pipes saturated between polls
+    #else
     return;
-  }
-
-  tud_vendor_read_xfer();     // bulk sink: arm/re-arm, quiet fail if armed or halted
-  if (tud_vendor_write_available()) { // 0 while bulk IN is busy or halted
-    tud_vendor_write(tx_chunk, sizeof(tx_chunk));
-  }
-
-  tud_vendor_int_read_xfer(); // interrupt sink
-  if (tud_vendor_int_write_available()) {
-    tud_vendor_int_write(int_tx_chunk, sizeof(int_tx_chunk));
-  }
-
-  tud_vendor_iso_read_xfer(); // isochronous sink
-  if (tud_vendor_iso_write_available()) {
-    tud_vendor_iso_write(iso_tx_chunk, sizeof(iso_tx_chunk));
+    #endif
   }
 }
 
@@ -231,16 +248,92 @@ void tud_resume_cb(void) {
 //--------------------------------------------------------------------+
 // BLINKING TASK
 //--------------------------------------------------------------------+
-void led_blinking_task(void) {
+void led_blinking_task(void* param) {
+  (void) param;
   static uint32_t start_ms = 0;
   static bool led_state = false;
 
-  // Blink every interval ms
-  if (tusb_time_millis_api() - start_ms < blink_interval_ms) {
-    return; // not enough time
-  }
-  start_ms += blink_interval_ms;
+  while (1) {
+    #if CFG_TUSB_OS == OPT_OS_FREERTOS
+    vTaskDelay(blink_interval_ms / portTICK_PERIOD_MS);
+    #else
+    // Blink every interval ms
+    if (tusb_time_millis_api() - start_ms < blink_interval_ms) {
+      return; // not enough time
+    }
+    #endif
 
-  board_led_write(led_state);
-  led_state = 1 - led_state; // toggle
+    start_ms += blink_interval_ms;
+    board_led_write(led_state);
+    led_state = 1 - led_state; // toggle
+  }
 }
+
+//--------------------------------------------------------------------+
+// FreeRTOS
+//--------------------------------------------------------------------+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+
+#define BLINKY_STACK_SIZE    configMINIMAL_STACK_SIZE
+#define USBTEST_STACK_SIZE   (configMINIMAL_STACK_SIZE*2)
+
+#ifdef ESP_PLATFORM
+  #define USBD_STACK_SIZE    4096
+  int main(void);
+  void app_main(void) {
+    main();
+  }
+#else
+  // Increase stack size when debug log is enabled
+  #define USBD_STACK_SIZE    (3*configMINIMAL_STACK_SIZE/2) * (CFG_TUSB_DEBUG ? 2 : 1)
+#endif
+
+// static task allocation
+#if configSUPPORT_STATIC_ALLOCATION
+StackType_t  blinky_stack[BLINKY_STACK_SIZE];
+StaticTask_t blinky_taskdef;
+
+StackType_t  usb_device_stack[USBD_STACK_SIZE];
+StaticTask_t usb_device_taskdef;
+
+StackType_t  usbtest_stack[USBTEST_STACK_SIZE];
+StaticTask_t usbtest_taskdef;
+#endif
+
+// USB Device Driver task: processes all usb events and invokes callbacks
+void usb_device_task(void* param) {
+  (void) param;
+
+  // init device stack on configured roothub port. Must be called after the
+  // scheduler starts: the USB IRQ handler uses RTOS queue APIs.
+  tusb_rhport_init_t dev_init = {
+    .role = TUSB_ROLE_DEVICE,
+    .speed = TUSB_SPEED_AUTO
+  };
+  tusb_init(BOARD_TUD_RHPORT, &dev_init);
+
+  board_init_after_tusb();
+
+  // RTOS forever loop
+  while (1) {
+    tud_task(); // put thread to waiting state until there is a new event
+  }
+}
+
+void freertos_init(void) {
+  #if configSUPPORT_STATIC_ALLOCATION
+  xTaskCreateStatic(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, blinky_stack, &blinky_taskdef);
+  xTaskCreateStatic(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, usb_device_stack, &usb_device_taskdef);
+  xTaskCreateStatic(usbtest_task, "usbtest", USBTEST_STACK_SIZE, NULL, configMAX_PRIORITIES-2, usbtest_stack, &usbtest_taskdef);
+  #else
+  xTaskCreate(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, NULL);
+  xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, NULL);
+  xTaskCreate(usbtest_task, "usbtest", USBTEST_STACK_SIZE, NULL, configMAX_PRIORITIES-2, NULL);
+  #endif
+
+  // only start scheduler for non-espressif mcu (espressif starts it in startup code)
+  #ifndef ESP_PLATFORM
+  vTaskStartScheduler();
+  #endif
+}
+#endif
