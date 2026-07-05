@@ -170,7 +170,9 @@ TU_VERIFY_STATIC(sizeof(midi_desc_cs_endpoint_1jack_t) == 4+1, "size is not corr
 // MIDI 2.0 UMP Helpers
 //--------------------------------------------------------------------+
 
-// Return the number of 32-bit words for a UMP message given its Message Type
+// Return the number of 32-bit words for a UMP message given its Message Type.
+// Must never return 0: the tx packing loops in midi2_device/midi2_host advance
+// by this count and would spin forever on a zero (they have no == 0 guard).
 static inline uint8_t midi2_ump_word_count(uint8_t mt) {
   switch (mt) {
     case 0x0: case 0x1: case 0x2: case 0x6: case 0x7:

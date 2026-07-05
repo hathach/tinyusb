@@ -137,7 +137,6 @@ static uint16_t _tuh_tx_nonseg_len_to_mps(midih2_tx_t* tx) {
     uint8_t pkt_words = midi2_ump_word_count(mt);
     uint16_t pkt_bytes = (uint16_t)(pkt_words * 4);
 
-    if (pkt_bytes == 0) break;
     if ((uint16_t)(available - bytes) < pkt_bytes) break;
     if ((uint16_t)(bytes + pkt_bytes) > tx->mps) break;
 

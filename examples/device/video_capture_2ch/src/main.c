@@ -116,9 +116,9 @@ void tud_resume_cb(void) {
 //--------------------------------------------------------------------+
 #define FRAMEBUF_SIZE (FRAME_WIDTH * FRAME_HEIGHT * 16 / 8)
 
-static unsigned frame_num[CFG_TUD_VIDEO_STREAMING] = {1};
+static unsigned frame_num[CFG_TUD_VIDEO_STREAMING] = {1, 1};
 static unsigned tx_busy = 0;
-static unsigned interval_ms[CFG_TUD_VIDEO_STREAMING] = {1000 / FRAME_RATE};
+static unsigned interval_ms[CFG_TUD_VIDEO_STREAMING] = {1000 / FRAME_RATE, 1000 / FRAME_RATE};
 
 // For mcus that does not have enough SRAM for frame buffer, we use fixed frame data.
 // To further reduce the size, we use MJPEG format instead of YUY2.

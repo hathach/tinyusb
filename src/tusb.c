@@ -313,10 +313,8 @@ bool tu_edpt_stream_init(tu_edpt_stream_t *s, bool is_host, bool is_tx, bool ove
   tu_fifo_config(&s->ff, ff_buf, ff_bufsize, overwritable);
 
   #if OSAL_MUTEX_REQUIRED
-  if (ff_buf != NULL && ff_bufsize > 0) {
-    osal_mutex_t new_mutex = osal_mutex_create(&s->ff_mutexdef);
-    tu_fifo_config_mutex(&s->ff, is_tx ? new_mutex : NULL, is_tx ? NULL : new_mutex);
-  }
+  osal_mutex_t new_mutex = osal_mutex_create(&s->ff_mutexdef);
+  tu_fifo_config_mutex(&s->ff, is_tx ? new_mutex : NULL, is_tx ? NULL : new_mutex);
   #endif
 
   s->ep_buf = ep_buf;

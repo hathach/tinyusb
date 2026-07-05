@@ -40,9 +40,13 @@ enum {
 //--------------------------------------------------------------------+
 // Weak stubs: invoked if no strong implementation is available
 //--------------------------------------------------------------------+
+// Hidden from PVS-Studio: the analyzer binds hcd_deinit() calls to this always-false weak stub
+// (it cannot model the linker picking the port implementation) and flags dead code after TU_ASSERT(hcd_deinit()).
+#ifndef PVS_STUDIO
 TU_ATTR_WEAK bool hcd_deinit(uint8_t rhport) {
   (void) rhport; return false;
 }
+#endif
 
 TU_ATTR_WEAK bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
   (void) rhport; (void) cfg_id; (void) cfg_param;
@@ -570,7 +574,7 @@ bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   }
 
   // Init host controller
-  _usbh_controller_id = rhport;
+  _usbh_controller_id = rhport; //-V519 overrides the clean-slate value set during one-time init above
   TU_ASSERT(hcd_init(rhport, rh_init));
   hcd_int_enable(rhport);
 
@@ -1024,7 +1028,7 @@ static void control_xfer_dispatch_pending(void) {
 
     // mismatched daddr_gen means pending transfer is stale due to the device got disconnected while in the FIFO
     // Note: the address can be re-allocated to another device at this point.
-    if (xfer.daddr_gen == _usbh_data.daddr_gen[xfer.daddr]) {
+    if (xfer.daddr_gen == _usbh_data.daddr_gen[xfer.daddr]) { //-V614 xfer is filled by osal_queue_receive() when has_xfer is true
       TU_LOG_USBH("[%u:%u] %s: ", usbh_get_rhport(xfer.daddr), xfer.daddr,
                   (xfer.setup.bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD && xfer.setup.bRequest <= TUSB_REQ_SYNCH_FRAME) ?
                       tu_str_std_request[xfer.setup.bRequest] : "Class Request");
@@ -1620,7 +1624,7 @@ static void remove_device_tree(uint8_t rhport, uint8_t hub_addr, uint8_t hub_por
         #if CFG_TUH_HUB
         if (is_hub_addr(daddr)) {
           TU_LOG_USBH("  is a HUB device %u\r\n", daddr);
-          removing_hubs[dev_id - CFG_TUH_DEVICE_MAX] = 1;
+          removing_hubs[dev_id - CFG_TUH_DEVICE_MAX] = 1; //-V557 is_hub_addr() guarantees daddr > CFG_TUH_DEVICE_MAX
         } else
         #endif
         {
@@ -2106,7 +2110,7 @@ static uint8_t enum_get_new_address(bool is_hub) {
     end   = start + CFG_TUH_DEVICE_MAX;
   }
 
-  for (uint8_t idx = start; idx < end; idx++) {
+  for (uint8_t idx = start; idx < end; idx++) { //-V1008 single iteration when CFG_TUH_DEVICE_MAX/CFG_TUH_HUB is 1
     if (0 == _usbh_devices[idx].connected) {
       return (idx + 1);
     }

@@ -190,7 +190,7 @@ static void __tusb_irq_path_func(reset_non_control_endpoints)(void) {
   }
 
   // clear non-control hw endpoints
-  tu_memclr(hw_endpoints[1], sizeof(hw_endpoints) - 2 * sizeof(hw_endpoint_t));
+  tu_memclr(hw_endpoints[1], sizeof(hw_endpoints) - 2 * sizeof(hw_endpoint_t)); //-V512 intentional contiguous clear of endpoints 1..15, both directions
 
   // reclaim buffer space
   hw_buffer_ptr = &usb_dpram->epx_data[0];
