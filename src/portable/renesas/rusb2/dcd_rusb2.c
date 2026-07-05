@@ -139,9 +139,19 @@ static uint16_t edpt_max_packet_size(rusb2_reg_t *rusb, unsigned num) {
   return rusb->PIPEMAXP;
 }
 
-static inline void pipe_wait_for_ready(rusb2_reg_t * rusb, unsigned num) {
-  while ( rusb->D0FIFOSEL_b.CURPIPE != num ) {}
-  while ( !rusb->D0FIFOCTR_b.FRDY ) {}
+// Select the D0FIFO for `num` and wait until its buffer is ready for CPU access. Both flags
+// normally settle within a few cycles (the pipe was just armed, or a BRDY freed a plane). But an
+// IN pipe whose double buffer is already full stalls FRDY until the host drains it, and a
+// no-handshake iso IN endpoint the host has stopped polling never drains at all — so FRDY would
+// hang forever. This runs with the USB IRQ masked, so a naked spin freezes the whole stack; bound
+// it and let the caller abort the FIFO access. Returns false on timeout.
+#define RUSB2_FIFO_READY_SPIN 100000u
+static inline bool pipe_wait_for_ready(rusb2_reg_t *rusb, unsigned num) {
+  uint32_t spin = RUSB2_FIFO_READY_SPIN;
+  while ( rusb->D0FIFOSEL_b.CURPIPE != num ) { if (!spin--) return false; }
+  spin = RUSB2_FIFO_READY_SPIN;
+  while ( !rusb->D0FIFOCTR_b.FRDY ) { if (!spin--) return false; }
+  return true;
 }
 
 //--------------------------------------------------------------------+
@@ -219,6 +229,12 @@ static bool pipe0_xfer_out(rusb2_reg_t *rusb) {
   pipe->remaining = rem - len;
   if ((len < mps) || (rem == len)) {
     pipe->buf = NULL;
+    // Flow-control the single-buffer control pipe: NAK further OUT until usbd arms the next
+    // data-stage chunk. usbd receives a multi-packet control-OUT one CFG_TUD_ENDPOINT0_SIZE
+    // packet per submit; without this the DCP auto-accepts the next back-to-back packet into the
+    // just-emptied buffer and the following BRDY (remaining==0) BCLR-discards it, dropping 64
+    // bytes mid-transfer (e.g. usbtest ctrl_out 512B). RA4M1 UM R01UH0887 DCPCTR.PID.
+    rusb->DCPCTR = RUSB2_PIPE_CTR_PID_NAK;
     return true;
   }
 
@@ -244,7 +260,12 @@ static bool pipe_xfer_in(rusb2_reg_t* rusb, unsigned num)
   }
 
   const uint16_t mps = edpt_max_packet_size(rusb, num);
-  pipe_wait_for_ready(rusb, num);
+  if (!pipe_wait_for_ready(rusb, num)) {
+    // Buffer never came ready (double-buffered IN pipe full, host not draining). Drop this load;
+    // the transfer stays pending and is retried when a BRDY frees a plane or the pipe is re-armed.
+    rusb->D0FIFOSEL = 0;
+    return false;
+  }
   uint16_t len = tu_min16(rem, mps);
   void    *buf = pipe->buf;
 
@@ -285,7 +306,10 @@ static bool pipe_xfer_out(rusb2_reg_t* rusb, unsigned num)
   rusb->D0FIFOSEL = fifo_sel;
 
   const uint16_t mps = edpt_max_packet_size(rusb, num);
-  pipe_wait_for_ready(rusb, num);
+  if (!pipe_wait_for_ready(rusb, num)) {
+    rusb->D0FIFOSEL = 0;
+    return false; // FIFO not ready; leave the receive pending (BRDY re-enters when data arrives)
+  }
 
   const uint16_t vld  = (uint16_t)rusb->D0FIFOCTR_b.DTLN;
   const uint16_t len  = tu_min16(tu_min16(rem, mps), vld);
@@ -409,8 +433,9 @@ static bool process_pipe_xfer(rusb2_reg_t* rusb, int buffer_type, uint8_t ep_add
     } else {
       /* ZLP */
       rusb->D0FIFOSEL = num;
-      pipe_wait_for_ready(rusb, num);
-      rusb->D0FIFOCTR = RUSB2_CFIFOCTR_BVAL_Msk;
+      if (pipe_wait_for_ready(rusb, num)) {
+        rusb->D0FIFOCTR = RUSB2_CFIFOCTR_BVAL_Msk;
+      }
       rusb->D0FIFOSEL = 0;
       /* if CURPIPE bits changes, check written value */
       while (rusb->D0FIFOSEL_b.CURPIPE) {}
@@ -907,7 +932,12 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   } else {
     const unsigned num = _dcd.ep[0][tu_edpt_number(ep_addr)];
     rusb->PIPESEL = (uint16_t)num;
-    if (rusb->PIPECFG_b.TYPE != 1) {
+    // Non-bulk OUT re-enables straight away. Bulk OUT is normally armed together with its transaction
+    // counter (TRE) by process_pipe_xfer(), so we don't blindly re-enable it here — but if a receive
+    // was already armed (its TRE is still valid), SQCLR above just left it NAKing. Re-assert BUF so it
+    // keeps receiving; the class driver still considers that read submitted and never re-arms it, so
+    // otherwise the endpoint NAKs forever (usbtest toggle test 29 clears the halt on an armed pipe).
+    if (rusb->PIPECFG_b.TYPE != 1 || _dcd.pipe[num].buf) {
       *ctr = RUSB2_PIPE_CTR_PID_BUF;
     }
   }
