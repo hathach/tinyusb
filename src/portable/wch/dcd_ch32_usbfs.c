@@ -142,21 +142,16 @@ static struct {
   TU_ATTR_ALIGNED(4) uint8_t ep6_buffer[2][64];
   TU_ATTR_ALIGNED(4) uint8_t ep7_buffer[2][64];
 #else
+  // The USB FS controller maxes every endpoint (bulk/interrupt/iso) at a 64-byte packet
+  // (CH32V20x/V103 RM "USB Full-speed Host/Device Controller"), so every endpoint — EP3 iso
+  // included — uses the same 64-byte OUT + 64-byte IN buffer; no endpoint needs a larger one.
   TU_ATTR_ALIGNED(4) uint8_t buffer[EP_MAX][2][64];
-  // EP3 IN gets an enlarged buffer for full-speed isochronous (packets up to 1023 B).
-  TU_ATTR_ALIGNED(4) struct {
-    // OUT transfers >64 bytes will overwrite queued IN data!
-    uint8_t out[64];
-    uint8_t in[1023];
-    uint8_t pad;
-  } ep3_buffer;
 #endif
 } data;
 
 // DMA / copy buffer pointers per endpoint. The WCH USBFS buffer holds OUT (RX) at offset 0 and
-// IN (TX) at +64; EP0 is half-duplex and reuses its OUT chunk for IN; EP3 has an enlarged IN
-// buffer for throughput. On CH58X, EP0/EP4 share ep0_ep4_buffer and the regular endpoints use
-// their own named buffer (see the struct above).
+// IN (TX) at +64; EP0 is half-duplex and reuses its OUT chunk for IN. On CH58X, EP0/EP4 share
+// ep0_ep4_buffer and the regular endpoints use their own named buffer (see the struct above).
 #ifdef CH32_USBFS_EP4_SHARES_EP0
 // OUT base of the regular CH58X endpoints (EP1/2/3/5/6/7; EP0/EP4 share ep0_ep4_buffer).
 static inline uint8_t* ch58x_ep_buffer(uint8_t ep) {
@@ -176,7 +171,6 @@ static inline uint32_t ep_dma_addr(uint8_t ep) {
   if (ep == 0 || ep == 4) { return (uint32_t) &data.ep0_ep4_buffer[0]; } // EP4 shares EP0's DMA
   return (uint32_t) ch58x_ep_buffer(ep);
 #else
-  if (ep == 3) { return (uint32_t) &data.ep3_buffer.out[0]; }
   return (uint32_t) &data.buffer[ep][0];
 #endif
 }
@@ -187,7 +181,6 @@ static inline uint8_t* ep_out_buf(uint8_t ep) {
   if (ep == 4) { return &data.ep0_ep4_buffer[64]; }
   return ch58x_ep_buffer(ep);
 #else
-  if (ep == 3) { return data.ep3_buffer.out; }
   return data.buffer[ep][TUSB_DIR_OUT];
 #endif
 }
@@ -199,7 +192,6 @@ static inline uint8_t* ep_in_buf(uint8_t ep) {
   return ch58x_ep_buffer(ep) + 64; // IN at +64 within the endpoint's 128-byte buffer
 #else
   if (ep == 0) { return data.buffer[0][TUSB_DIR_OUT]; } // EP0 half-duplex: IN reuses OUT chunk
-  if (ep == 3) { return data.ep3_buffer.in; }
   return data.buffer[ep][TUSB_DIR_IN];
 #endif
 }
@@ -493,6 +485,10 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
 #else
   uint8_t ep  = tu_edpt_number(ep_addr);
   uint8_t dir = tu_edpt_dir(ep_addr);
+
+  // Every endpoint buffer is 64 B (the controller's max packet size); reject a larger iso mps
+  // rather than running off the end into the neighbouring endpoint's memory.
+  TU_VERIFY(largest_packet_size <= 64);
 
   data.isochronous[ep]        = true;
   data.xfer[ep][dir].max_size = largest_packet_size;
