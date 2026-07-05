@@ -139,7 +139,7 @@ static uint8_t const desc_fs_configuration[] = {
 
   // Interface number, string index, bulk out/in + mps, int out/in + mps + interval, iso out/in + mps + interval
   USBTEST_DESCRIPTOR(ITF_NUM_VENDOR, 4, EPNUM_BULK_OUT, 0x80 | EPNUM_BULK_IN, 64,
-                     EPNUM_INT_OUT, 0x80 | EPNUM_INT_IN, 64, 1,
+                     EPNUM_INT_OUT, 0x80 | EPNUM_INT_IN, USBTEST_INT_EP_MPS, 1,
                      EPNUM_ISO_OUT, 0x80 | EPNUM_ISO_IN, USBTEST_ISO_EP_MPS, 1)
 };
 
@@ -152,7 +152,7 @@ static uint8_t const desc_hs_configuration[] = {
 
   // Interface number, string index, bulk out/in + mps, int out/in + mps + interval, iso out/in + mps + interval (1 ms)
   USBTEST_DESCRIPTOR(ITF_NUM_VENDOR, 4, EPNUM_BULK_OUT, 0x80 | EPNUM_BULK_IN, 512,
-                     EPNUM_INT_OUT, 0x80 | EPNUM_INT_IN, 512, 4,
+                     EPNUM_INT_OUT, 0x80 | EPNUM_INT_IN, USBTEST_INT_EP_MPS, 4,
                      EPNUM_ISO_OUT, 0x80 | EPNUM_ISO_IN, USBTEST_ISO_EP_MPS, 4)
 };
 

@@ -34,8 +34,19 @@
 //   4: + isochronous source/sink
 #define USBTEST_TIER  4
 
-// Interrupt/isochronous endpoint max packet sizes, must match the configuration descriptor
-#define USBTEST_INT_EP_MPS  (TUD_OPT_HIGH_SPEED ? 512 : 64)
-#define USBTEST_ISO_EP_MPS  (TUD_OPT_HIGH_SPEED ? 512 : 128)
+// Interrupt/isochronous endpoint max packet sizes, must match the configuration descriptor. The
+// CH32 USB IPs have tiny per-endpoint buffers so tier-4's six endpoints don't fit at the usual FS
+// sizes: usbfs gives 64 B/ep (iso must drop to 64), and the CH32V20X fsdev port shares one 512 B
+// PMA across every endpoint (needs iso 64 AND a small interrupt mps to fit alongside EP0+bulk+iso).
+#if CFG_TUSB_MCU == OPT_MCU_CH32V20X && defined(CFG_TUD_WCH_USBIP_FSDEV) && CFG_TUD_WCH_USBIP_FSDEV
+  #define USBTEST_INT_EP_MPS  16
+  #define USBTEST_ISO_EP_MPS  32  // double-buffered on fsdev: 2x32=64/ep, same 512 B PMA budget
+#elif TU_CHECK_MCU(OPT_MCU_CH32V20X, OPT_MCU_CH32V103, OPT_MCU_CH32F20X)
+  #define USBTEST_INT_EP_MPS  (TUD_OPT_HIGH_SPEED ? 512 : 64)
+  #define USBTEST_ISO_EP_MPS  (TUD_OPT_HIGH_SPEED ? 512 : 64)
+#else
+  #define USBTEST_INT_EP_MPS  (TUD_OPT_HIGH_SPEED ? 512 : 64)
+  #define USBTEST_ISO_EP_MPS  (TUD_OPT_HIGH_SPEED ? 512 : 128)
+#endif
 
 #endif /* USB_DESCRIPTORS_H_ */

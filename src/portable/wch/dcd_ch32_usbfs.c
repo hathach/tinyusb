@@ -565,9 +565,15 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
       ep_rx_ctrl_set(0, USBFS_EP_R_RES_ACK);
     }
   } else {
-    // clear-stall resets the toggle to DATA0 (USB spec); manual-toggle parts then re-sync via ISR
+    // clear-stall resets the toggle to DATA0 (USB spec); manual-toggle parts then re-sync via ISR.
+    // Preserve an in-flight receive: if a read is still armed (the class driver considers it
+    // submitted and won't re-arm), fall back to ACK, not NAK, or the endpoint NAKs forever and the
+    // host times out (usbtest toggle test 29 clears the halt between bulk writes on an armed EP).
     if (dir == TUSB_DIR_OUT) {
-      ep_rx_ctrl_set(ep, EP_R_AUTO_TOG | USBFS_EP_R_RES_NAK);
+      uint8_t res = data.xfer[ep][TUSB_DIR_OUT].valid
+                    ? (data.isochronous[ep] ? USBFS_EP_R_RES_NYET : USBFS_EP_R_RES_ACK)
+                    : USBFS_EP_R_RES_NAK;
+      ep_rx_ctrl_set(ep, EP_R_AUTO_TOG | res);
     } else {
       ep_tx_ctrl_set(ep, EP_T_AUTO_TOG | USBFS_EP_T_RES_NAK);
     }

@@ -131,6 +131,13 @@
 #define CFG_TUD_VENDOR_EP_ISO_IN_BUFSIZE   (TUD_OPT_HIGH_SPEED ? 512 : 128)
 #define CFG_TUD_VENDOR_ALT_SETTINGS        1
 
+// CH32V20X fsdev port has only 512 B PMA and single-buffered iso can't keep the iso IN endpoint
+// fed under load. Double-buffer iso; the descriptor drops iso mps to 32 there so 2x32 = 64 B/ep
+// keeps the same PMA budget (see usb_descriptors.h). Other fsdev parts have room and stay single.
+#if CFG_TUSB_MCU == OPT_MCU_CH32V20X
+#define CFG_TUD_FSDEV_DOUBLE_BUFFERED_ISO_EP  1
+#endif
+
 #ifdef __cplusplus
  }
 #endif
