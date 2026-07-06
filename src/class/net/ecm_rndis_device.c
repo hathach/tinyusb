@@ -1,26 +1,7 @@
 /*
- * The MIT License (MIT)
- *
- * Copyright (c) 2020 Peter Lawrence
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * SPDX-FileCopyrightText: Copyright (c) 2020 Peter Lawrence
+ * SPDX-FileCopyrightText: Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
  */
@@ -343,8 +324,11 @@ static void handle_incoming_packet(uint32_t len) {
     rndis_data_packet_t* r = (rndis_data_packet_t*)((void*)pnt);
     if (len >= sizeof(rndis_data_packet_t)) {
       if ((r->MessageType == REMOTE_NDIS_PACKET_MSG) && (r->MessageLength <= len)) {
-        if ((r->DataOffset + offsetof(rndis_data_packet_t, DataOffset) + r->DataLength) <= len) {
-          pnt = &_netd_epbuf.rx[r->DataOffset + offsetof(rndis_data_packet_t, DataOffset)];
+        // DataOffset and DataLength are host-controlled; validate the payload window fits
+        // within the received data without overflowing the uint32 addition (len >= header)
+        const uint32_t hdr = offsetof(rndis_data_packet_t, DataOffset);
+        if ((r->DataOffset <= len - hdr) && (r->DataLength <= len - hdr - r->DataOffset)) {
+          pnt = &_netd_epbuf.rx[hdr + r->DataOffset];
           size = r->DataLength;
         }
       }

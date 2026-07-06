@@ -53,7 +53,7 @@
   #define USBD_STACK_SIZE    (3*configMINIMAL_STACK_SIZE/2) * (CFG_TUSB_DEBUG ? 2 : 1)
 #endif
 
-#define HID_STACK_SZIE      (configMINIMAL_STACK_SIZE * (CFG_TUSB_DEBUG ? 2 : 1))
+#define HID_STACK_SIZE      (configMINIMAL_STACK_SIZE * (CFG_TUSB_DEBUG ? 2 : 1))
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
@@ -77,7 +77,7 @@ StaticTimer_t blinky_tmdef;
 StackType_t  usb_device_stack[USBD_STACK_SIZE];
 StaticTask_t usb_device_taskdef;
 
-StackType_t  hid_stack[HID_STACK_SZIE];
+StackType_t  hid_stack[HID_STACK_SIZE];
 StaticTask_t hid_taskdef;
 #endif
 
@@ -103,11 +103,11 @@ int main(void)
   xTaskCreateStatic(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, usb_device_stack, &usb_device_taskdef);
 
   // Create HID task
-  xTaskCreateStatic(hid_task, "hid", HID_STACK_SZIE, NULL, configMAX_PRIORITIES-2, hid_stack, &hid_taskdef);
+  xTaskCreateStatic(hid_task, "hid", HID_STACK_SIZE, NULL, configMAX_PRIORITIES-2, hid_stack, &hid_taskdef);
 #else
   blinky_tm = xTimerCreate(NULL, pdMS_TO_TICKS(BLINK_NOT_MOUNTED), true, NULL, led_blinky_cb);
   xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, NULL);
-  xTaskCreate(hid_task, "hid", HID_STACK_SZIE, NULL, configMAX_PRIORITIES-2, NULL);
+  xTaskCreate(hid_task, "hid", HID_STACK_SIZE, NULL, configMAX_PRIORITIES-2, NULL);
 #endif
 
   xTimerStart(blinky_tm, 0);

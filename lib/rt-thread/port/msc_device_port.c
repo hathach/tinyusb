@@ -49,9 +49,9 @@ void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16
     const char pid[] = PKG_TINYUSB_DEVICE_MSC_PID;
     const char rev[] = PKG_TINYUSB_DEVICE_MSC_REV;
 
-    memcpy(vendor_id, vid, strlen(vid) < 8u ? strlen(vid) : 8u);
-    memcpy(product_id, pid, strlen(pid) < 16u ? strlen(pid) : 16u);
-    memcpy(product_rev, rev, strlen(rev) < 4u ? strlen(rev) : 4u);
+    strncpy((char*) vendor_id, vid, 8);
+    strncpy((char*) product_id, pid, 16);
+    strncpy((char*) product_rev, rev, 4);
 }
 
 bool tud_msc_test_unit_ready_cb(uint8_t lun)

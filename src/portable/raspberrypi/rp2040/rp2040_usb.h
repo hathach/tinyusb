@@ -1,3 +1,11 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2020 Raspberry Pi (Trading) Ltd.
+ * SPDX-FileCopyrightText: Copyright (c) 2020 Ha Thach (tinyusb.org)
+ * SPDX-License-Identifier: MIT
+ *
+ * This file is part of the TinyUSB stack.
+ */
+
 #ifndef RP2040_COMMON_H_
 #define RP2040_COMMON_H_
 

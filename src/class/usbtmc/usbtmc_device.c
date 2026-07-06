@@ -1,25 +1,7 @@
 /*
- * The MIT License (MIT)
- *
- * Copyright (c) 2019 Nathan Conrad
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * SPDX-FileCopyrightText: Copyright (c) 2019 Nathan Conrad
+ * SPDX-FileCopyrightText: Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
  */
@@ -270,9 +252,12 @@ bool tud_usbtmc_transmit_notification_data(const void *data, size_t len) {
   TU_ASSERT(len > 0);
   TU_ASSERT(usbtmc_state.ep_int_in != 0);
 #endif
-  TU_VERIFY(usbd_edpt_busy(usbtmc_state.rhport, usbtmc_state.ep_int_in));
+  TU_VERIFY(usbd_edpt_claim(usbtmc_state.rhport, usbtmc_state.ep_int_in));
 
-  TU_VERIFY(tu_memcpy_s(usbtmc_epbuf.epnotif, CFG_TUD_USBTMC_INT_EP_SIZE, data, len) == 0);
+  if (tu_memcpy_s(usbtmc_epbuf.epnotif, CFG_TUD_USBTMC_INT_EP_SIZE, data, len) != 0) {
+    usbd_edpt_release(usbtmc_state.rhport, usbtmc_state.ep_int_in);
+    return false;
+  }
   TU_VERIFY(usbd_edpt_xfer(usbtmc_state.rhport, usbtmc_state.ep_int_in, usbtmc_epbuf.epnotif, (uint16_t) len, false));
   return true;
 }
@@ -841,7 +826,7 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
                   },
                   .StatusByte = tud_usbtmc_get_stb_cb(&(rsp.USBTMC_status))};
           // Must be queued before control request response sent (USB488v1.0 4.3.1.2)
-          usbd_edpt_xfer(rhport, usbtmc_state.ep_int_in, (void *) &intMsg, sizeof(intMsg), false);
+          (void) tud_usbtmc_transmit_notification_data(&intMsg, sizeof(intMsg));
         }
       } else {
         rsp.statusByte = tud_usbtmc_get_stb_cb(&(rsp.USBTMC_status));

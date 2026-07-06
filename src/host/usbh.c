@@ -1,25 +1,6 @@
 /*
- * The MIT License (MIT)
- *
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * SPDX-FileCopyrightText: Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
  */
@@ -338,13 +319,12 @@ static usbh_class_driver_t const usbh_class_drivers[] = {
   #endif
 };
 
-enum { BUILTIN_DRIVER_COUNT = TU_ARRAY_SIZE(usbh_class_drivers) };
-
 // Additional class drivers implemented by application
 static usbh_class_driver_t const * _app_driver = NULL;
-static uint8_t _app_driver_count = 0;
+static const uint8_t _builtin_driver_count     = TU_ARRAY_SIZE(usbh_class_drivers);
+static uint8_t _app_driver_count               = 0;
 
-#define TOTAL_DRIVER_COUNT    (_app_driver_count + BUILTIN_DRIVER_COUNT)
+#define TOTAL_DRIVER_COUNT    (_app_driver_count + _builtin_driver_count)
 
 // virtually joins built-in and application drivers together.
 // Application is positioned first to allow overwriting built-in ones.
@@ -354,7 +334,7 @@ TU_ATTR_ALWAYS_INLINE static inline usbh_class_driver_t const *get_driver(uint8_
     driver = &_app_driver[drv_id];
   } else {
     drv_id -= _app_driver_count;
-    if (drv_id < BUILTIN_DRIVER_COUNT) {
+    if (_builtin_driver_count > 0 && drv_id < _builtin_driver_count) {
       driver = &usbh_class_drivers[drv_id];
     }
   }
@@ -566,6 +546,7 @@ bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
     // Get application driver if available
     _app_driver = usbh_app_driver_get_cb(&_app_driver_count);
+    TU_ASSERT(_app_driver_count + _builtin_driver_count <= UINT8_MAX);
 
     // Device
     tu_memclr(_usbh_devices, sizeof(_usbh_devices));
