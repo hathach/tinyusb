@@ -59,7 +59,9 @@
 #define USBTEST_INT_EP_MPS_HS  512
 #define USBTEST_ISO_EP_MPS_HS  512
 
-// Live-speed sizes for the source buffers / vendor epbufs (capability max == operating mps).
+// Compile-time capability maximum: sizes the source buffers / vendor epbufs for the largest
+// packet the build can negotiate. Runtime write lengths follow tud_speed_get() (see main.c) —
+// a high-speed build enumerated at full speed submits the _FS lengths.
 #define USBTEST_INT_EP_MPS  (TUD_OPT_HIGH_SPEED ? USBTEST_INT_EP_MPS_HS : USBTEST_INT_EP_MPS_FS)
 #define USBTEST_ISO_EP_MPS  (TUD_OPT_HIGH_SPEED ? USBTEST_ISO_EP_MPS_HS : USBTEST_ISO_EP_MPS_FS)
 
