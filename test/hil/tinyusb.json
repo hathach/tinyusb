@@ -107,6 +107,20 @@
             }
         },
         {
+            "name": "nrf54lm20dk",
+            "uid": "899C3DE5B0F4D5CA",
+            "tests": {
+                "device": true,
+                "host": false,
+                "dual": false
+            },
+            "flasher": {
+                "name": "jlink",
+                "uid": "1051856258",
+                "args": "-device NRF54LM20A_M33"
+            }
+        },
+        {
             "name": "max32666fthr",
             "uid": "0C81464124010B20FF0A08CC2C",
             "tests": {
