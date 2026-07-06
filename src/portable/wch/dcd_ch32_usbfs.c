@@ -213,9 +213,8 @@ static void update_in(uint8_t rhport, uint8_t ep, bool force) {
     if (force || xfer->len) {
       size_t len = TU_MIN(xfer->max_size, xfer->len);
 #if CFG_TUSB_MCU == OPT_MCU_CH583
-      // Every CH58x endpoint buffer is 64 bytes. Isochronous (which would push max_size up to 1023)
-      // is refused in dcd_edpt_iso_alloc(), but some classes (e.g. video) ignore that result, so cap
-      // the copy here to guarantee we never write past the buffer into a neighbouring endpoint's.
+      // Every CH58x endpoint buffer is 64 bytes; cap the copy so an iso mps a class mistakenly set
+      // larger can't write past the buffer into a neighbouring endpoint's.
       len = TU_MIN(len, 64u);
 #endif
       memcpy(ep_in_buf(ep), xfer->buffer, len);
@@ -344,7 +343,8 @@ void dcd_int_handler(uint8_t rhport) {
       case PID_IN:
 #ifdef CH32_USBFS_EP_MANUAL_TOG
         // Manual toggle: flip the TX toggle after each ACK'd IN packet (EP0 manages its own).
-        if (ep != 0) { EP_CTRL(ep) ^= USBFS_EPC_T_TOG; }
+        // Isochronous transfers are DATA0-only (no toggle), so leave iso endpoints alone.
+        if (ep != 0 && !data.isochronous[ep]) { EP_CTRL(ep) ^= USBFS_EPC_T_TOG; }
 #endif
         update_in(rhport, ep, false);
         break;
@@ -475,35 +475,23 @@ void dcd_edpt_close_all(uint8_t rhport) {
 
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
   (void)rhport;
-  (void)ep_addr;
-  (void)largest_packet_size;
-#if CFG_TUSB_MCU == OPT_MCU_CH583
-  // No isochronous support on CH58x: its 8-bit T_LEN caps a packet at 255B and the endpoints use
-  // plain 64-byte buffers, so accepting an iso max_size (up to 1023) would let update_in()/
-  // update_out() run off the end of the buffer into neighbouring ones. Refuse it outright.
-  return false;
-#else
   uint8_t ep  = tu_edpt_number(ep_addr);
   uint8_t dir = tu_edpt_dir(ep_addr);
 
-  // Every endpoint buffer is 64 B (the controller's max packet size); reject a larger iso mps
-  // rather than running off the end into the neighbouring endpoint's memory.
+  // Every endpoint buffer is 64 B (the controller's max packet size, all WCH USBFS variants incl.
+  // CH58x which also supports synchronous/real-time transfers per its datasheet); reject a larger
+  // iso mps rather than running off the end into the neighbouring endpoint's memory.
   TU_VERIFY(largest_packet_size <= 64);
 
   data.isochronous[ep]        = true;
   data.xfer[ep][dir].max_size = largest_packet_size;
   return true;
-#endif
 }
 
 bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
   (void)rhport;
   (void)desc_ep;
-#if CFG_TUSB_MCU == OPT_MCU_CH583
-  return false; // CH58x has no isochronous support (see dcd_edpt_iso_alloc)
-#else
   return true;
-#endif
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes, bool is_isr) {
