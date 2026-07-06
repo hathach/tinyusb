@@ -577,11 +577,15 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
       // dropping it and starving the endpoint. Save the buffer/length before the abort clears them.
       uint8_t*       user_buf  = ep->user_buf;
       const uint16_t remaining = ep->remaining_len;
+      const uint16_t xferred   = ep->xferred_len; // bytes already moved on this submission
       hw_endpoint_abort_xfer(ep); // safe abort (handles RP2040-E2), resets ep transfer state
       ep->next_pid = 0;           // DATA0
       io_rw_32 *ep_reg  = get_ep_ctrl(epnum, dir);
       io_rw_32 *buf_reg = get_buf_ctrl(epnum, dir);
       rp2usb_xfer_start(ep, ep_reg, buf_reg, user_buf, NULL, remaining);
+      // rp2usb_xfer_start() zeroes xferred_len; add back what the aborted transfer already moved so
+      // the eventual completion reports the full length, not just the post-clear-halt remainder.
+      ep->xferred_len += xferred;
     } else {
       ep->next_pid = 0; // reset data toggle
       io_rw_32 *buf_reg = get_buf_ctrl(epnum, dir);

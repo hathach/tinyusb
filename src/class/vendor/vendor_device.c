@@ -74,18 +74,10 @@ typedef struct {
 } vendord_interface_t;
 
   #if CFG_TUD_VENDOR_TXRX_BUFFERED
-    // reset region covers everything before the streams: last field varies with the endpoint gates
-    #if CFG_TUD_VENDOR_EP_ISO_IN
-      #define ITF_MEM_RESET_SIZE (offsetof(vendord_interface_t, ep_iso_in) + TU_FIELD_SIZE(vendord_interface_t, ep_iso_in))
-    #elif CFG_TUD_VENDOR_EP_ISO_OUT
-      #define ITF_MEM_RESET_SIZE (offsetof(vendord_interface_t, iso_rx_xfer_len) + TU_FIELD_SIZE(vendord_interface_t, iso_rx_xfer_len))
-    #elif CFG_TUD_VENDOR_EP_INT_IN
-      #define ITF_MEM_RESET_SIZE (offsetof(vendord_interface_t, ep_int_in) + TU_FIELD_SIZE(vendord_interface_t, ep_int_in))
-    #elif CFG_TUD_VENDOR_EP_INT_OUT
-      #define ITF_MEM_RESET_SIZE (offsetof(vendord_interface_t, int_rx_xfer_len) + TU_FIELD_SIZE(vendord_interface_t, int_rx_xfer_len))
-    #else
-      #define ITF_MEM_RESET_SIZE (offsetof(vendord_interface_t, itf_num) + TU_FIELD_SIZE(vendord_interface_t, itf_num))
-    #endif
+    // The reset region is everything before the streams; tx_stream is the first preserved field
+    // (see the struct comment), so its offset is exactly that boundary regardless of which endpoint
+    // gates are enabled.
+    #define ITF_MEM_RESET_SIZE offsetof(vendord_interface_t, tx_stream)
   #else
     #define ITF_MEM_RESET_SIZE sizeof(vendord_interface_t)
   #endif
@@ -429,7 +421,16 @@ static uint8_t find_vendor_itf(uint8_t ep_addr) {
         return idx;
       }
   #else
-      if (p_vendor->ep_out == 0 && p_vendor->ep_in == 0) {
+      // A slot is free only if none of its endpoints are assigned. Bulk may be absent (an
+      // interrupt-only vendor interface), so the interrupt endpoints must be checked too.
+      if (p_vendor->ep_out == 0 && p_vendor->ep_in == 0
+      #if CFG_TUD_VENDOR_EP_INT_OUT
+          && p_vendor->ep_int_out == 0
+      #endif
+      #if CFG_TUD_VENDOR_EP_INT_IN
+          && p_vendor->ep_int_in == 0
+      #endif
+      ) {
         return idx;
       }
   #endif

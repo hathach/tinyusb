@@ -34,19 +34,31 @@
 //   4: + isochronous source/sink
 #define USBTEST_TIER  4
 
-// Interrupt/isochronous endpoint max packet sizes, must match the configuration descriptor. The
-// CH32 USB IPs have tiny per-endpoint buffers so tier-4's six endpoints don't fit at the usual FS
-// sizes: usbfs gives 64 B/ep (iso must drop to 64), and the CH32V20X fsdev port shares one 512 B
-// PMA across every endpoint (needs iso 64 AND a small interrupt mps to fit alongside EP0+bulk+iso).
+// Interrupt/isochronous endpoint max packet sizes, must match the configuration descriptor.
+// TUD_OPT_HIGH_SPEED is a compile-time capability flag, NOT the live bus speed, so the full-speed
+// config descriptor (and the OTHER_SPEED descriptor served to a HS host) must use full-speed-legal
+// sizes regardless of it: interrupt <= 64 B, isochronous <= 1023 B (and both iso EPs must fit the
+// 1023 B/frame FS periodic budget). Hence separate _FS / _HS descriptor sizes; the plain macro
+// tracks the live operating speed and sizes the source buffers.
+//
+// The CH32 USB IPs have tiny per-endpoint buffers so tier-4's six endpoints don't fit at the usual
+// FS sizes: usbfs gives 64 B/ep (iso must drop to 64), and the CH32V20X fsdev port shares one 512 B
+// PMA across every endpoint (needs iso 32 AND a small interrupt mps to fit alongside EP0+bulk+iso).
 #if CFG_TUSB_MCU == OPT_MCU_CH32V20X && defined(CFG_TUD_WCH_USBIP_FSDEV) && CFG_TUD_WCH_USBIP_FSDEV
-  #define USBTEST_INT_EP_MPS  16
-  #define USBTEST_ISO_EP_MPS  32  // double-buffered on fsdev: 2x32=64/ep, same 512 B PMA budget
+  #define USBTEST_INT_EP_MPS_FS  16
+  #define USBTEST_ISO_EP_MPS_FS  32  // double-buffered on fsdev: 2x32=64/ep, same 512 B PMA budget
 #elif TU_CHECK_MCU(OPT_MCU_CH32V20X, OPT_MCU_CH32V103, OPT_MCU_CH32F20X, OPT_MCU_CH583)
-  #define USBTEST_INT_EP_MPS  (TUD_OPT_HIGH_SPEED ? 512 : 64)
-  #define USBTEST_ISO_EP_MPS  (TUD_OPT_HIGH_SPEED ? 512 : 64)
+  #define USBTEST_INT_EP_MPS_FS  64
+  #define USBTEST_ISO_EP_MPS_FS  64
 #else
-  #define USBTEST_INT_EP_MPS  (TUD_OPT_HIGH_SPEED ? 512 : 64)
-  #define USBTEST_ISO_EP_MPS  (TUD_OPT_HIGH_SPEED ? 512 : 128)
+  #define USBTEST_INT_EP_MPS_FS  64
+  #define USBTEST_ISO_EP_MPS_FS  128
 #endif
+#define USBTEST_INT_EP_MPS_HS  512
+#define USBTEST_ISO_EP_MPS_HS  512
+
+// Live-speed sizes for the source buffers / vendor epbufs (capability max == operating mps).
+#define USBTEST_INT_EP_MPS  (TUD_OPT_HIGH_SPEED ? USBTEST_INT_EP_MPS_HS : USBTEST_INT_EP_MPS_FS)
+#define USBTEST_ISO_EP_MPS  (TUD_OPT_HIGH_SPEED ? USBTEST_ISO_EP_MPS_HS : USBTEST_ISO_EP_MPS_FS)
 
 #endif /* USB_DESCRIPTORS_H_ */
