@@ -105,33 +105,35 @@ int main(void) {
 // Polling keeps all four endpoints armed and self-heals after endpoint halt
 // (set/clear feature tests): stall marks the endpoint busy so the calls fail
 // quietly until the host clears the halt, then the next tick re-arms.
-void usbtest_task(void* param) {
-  (void) param;
-
-  while (1) {
-    if (tud_vendor_mounted()) {
-      tud_vendor_read_xfer();     // bulk sink: arm/re-arm, quiet fail if armed or halted
-      if (tud_vendor_write_available()) { // 0 while bulk IN is busy or halted
-        tud_vendor_write(tx_chunk, sizeof(tx_chunk));
-      }
-
-      tud_vendor_int_read_xfer(); // interrupt sink
-      if (tud_vendor_int_write_available()) {
-        tud_vendor_int_write(int_tx_chunk, sizeof(int_tx_chunk));
-      }
-
-      tud_vendor_iso_read_xfer(); // isochronous sink
-      if (tud_vendor_iso_write_available()) {
-        tud_vendor_iso_write(iso_tx_chunk, sizeof(iso_tx_chunk));
-      }
+static void usbtest_pump(void) {
+  if (tud_vendor_mounted()) {
+    tud_vendor_read_xfer();     // bulk sink: arm/re-arm, quiet fail if armed or halted
+    if (tud_vendor_write_available()) { // 0 while bulk IN is busy or halted
+      tud_vendor_write(tx_chunk, sizeof(tx_chunk));
     }
 
-    #if CFG_TUSB_OS == OPT_OS_FREERTOS
-    vTaskDelay(1); // yield; tx/rx completion callbacks keep the pipes saturated between polls
-    #else
-    return;
-    #endif
+    tud_vendor_int_read_xfer(); // interrupt sink
+    if (tud_vendor_int_write_available()) {
+      tud_vendor_int_write(int_tx_chunk, sizeof(int_tx_chunk));
+    }
+
+    tud_vendor_iso_read_xfer(); // isochronous sink
+    if (tud_vendor_iso_write_available()) {
+      tud_vendor_iso_write(iso_tx_chunk, sizeof(iso_tx_chunk));
+    }
   }
+}
+
+void usbtest_task(void* param) {
+  (void) param;
+  #if CFG_TUSB_OS == OPT_OS_FREERTOS
+  while (1) {
+    usbtest_pump();
+    vTaskDelay(1); // yield; tx/rx completion callbacks keep the pipes saturated between polls
+  }
+  #else
+  usbtest_pump(); // called from the main loop, one tick per call
+  #endif
 }
 
 // Invoked when received data from host: discard and immediately re-arm
