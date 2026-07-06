@@ -205,6 +205,30 @@ void tud_vendor_n_read_flush(uint8_t idx) {
 }
   #endif
 
+// Shared non-buffered transfer helpers for the bulk / interrupt / isochronous endpoints, which are
+// identical apart from the endpoint, its epbuf and its buffer size. static inline so an unused one
+// (buffered mode, or a disabled endpoint gate) is dropped without an unused-function warning.
+static inline uint32_t vendord_ep_write(vendord_interface_t *p_itf, uint8_t ep, uint8_t *epbuf,
+                                        uint32_t bufsize, const void *buffer, uint32_t len) {
+  TU_VERIFY(ep > 0, 0); // must be opened
+  TU_VERIFY(usbd_edpt_claim(p_itf->rhport, ep), 0);
+  const uint32_t xact_len = tu_min32(len, bufsize);
+  memcpy(epbuf, buffer, xact_len);
+  TU_ASSERT(usbd_edpt_xfer(p_itf->rhport, ep, epbuf, (uint16_t) xact_len, false), 0);
+  return xact_len;
+}
+
+static inline uint32_t vendord_ep_write_available(vendord_interface_t *p_itf, uint8_t ep, uint32_t bufsize) {
+  TU_VERIFY(ep > 0, 0); // must be opened
+  return usbd_edpt_busy(p_itf->rhport, ep) ? 0 : bufsize;
+}
+
+static inline bool vendord_ep_read_xfer(vendord_interface_t *p_itf, uint8_t ep, uint8_t *epbuf, uint16_t xfer_len) {
+  TU_VERIFY(ep > 0); // must be opened
+  TU_VERIFY(usbd_edpt_claim(p_itf->rhport, ep));
+  return usbd_edpt_xfer(p_itf->rhport, ep, epbuf, xfer_len, false);
+}
+
   #if CFG_TUD_VENDOR_RX_MANUAL_XFER
 bool tud_vendor_n_read_xfer(uint8_t idx) {
   TU_VERIFY(idx < CFG_TUD_VENDOR);
@@ -214,10 +238,8 @@ bool tud_vendor_n_read_xfer(uint8_t idx) {
   return tu_edpt_stream_read_xfer(&p_itf->rx_stream);
 
     #else
-  // Non-FIFO mode
-  TU_VERIFY(p_itf->ep_out > 0); // must be opened (0 while an altsetting without a bulk OUT ep is active)
-  TU_VERIFY(usbd_edpt_claim(p_itf->rhport, p_itf->ep_out));
-  return usbd_edpt_xfer(p_itf->rhport, p_itf->ep_out, _vendord_epbuf[idx].epout, p_itf->rx_xfer_len, false);
+  // Non-FIFO mode (0 while an altsetting without a bulk OUT ep is active)
+  return vendord_ep_read_xfer(p_itf, p_itf->ep_out, _vendord_epbuf[idx].epout, p_itf->rx_xfer_len);
     #endif
 }
   #endif
@@ -234,13 +256,8 @@ uint32_t tud_vendor_n_write(uint8_t idx, const void *buffer, uint32_t bufsize) {
   return tu_edpt_stream_write(&p_itf->tx_stream, buffer, (uint16_t)bufsize);
 
   #else
-  // non-fifo mode: direct transfer
-  TU_VERIFY(p_itf->ep_in > 0, 0); // must be opened (0 while an altsetting without a bulk IN ep is active)
-  TU_VERIFY(usbd_edpt_claim(p_itf->rhport, p_itf->ep_in), 0);
-  const uint32_t xact_len = tu_min32(bufsize, CFG_TUD_VENDOR_TX_EPSIZE);
-  memcpy(_vendord_epbuf[idx].epin, buffer, xact_len);
-  TU_ASSERT(usbd_edpt_xfer(p_itf->rhport, p_itf->ep_in, _vendord_epbuf[idx].epin, (uint16_t)xact_len, false), 0);
-  return xact_len;
+  // non-fifo mode: direct transfer (ep_in is 0 while an altsetting without a bulk IN ep is active)
+  return vendord_ep_write(p_itf, p_itf->ep_in, _vendord_epbuf[idx].epin, CFG_TUD_VENDOR_TX_EPSIZE, buffer, bufsize);
   #endif
 }
 
@@ -252,9 +269,7 @@ uint32_t tud_vendor_n_write_available(uint8_t idx) {
   return tu_edpt_stream_write_available(&p_itf->tx_stream);
 
   #else
-  // Non-FIFO mode
-  TU_VERIFY(p_itf->ep_in > 0, 0); // must be opened
-  return usbd_edpt_busy(p_itf->rhport, p_itf->ep_in) ? 0 : CFG_TUD_VENDOR_TX_EPSIZE;
+  return vendord_ep_write_available(p_itf, p_itf->ep_in, CFG_TUD_VENDOR_TX_EPSIZE);
   #endif
 }
 
@@ -280,10 +295,7 @@ bool tud_vendor_n_write_clear(uint8_t idx) {
 bool tud_vendor_n_int_read_xfer(uint8_t idx) {
   TU_VERIFY(idx < CFG_TUD_VENDOR);
   vendord_interface_t *p_itf = &_vendord_itf[idx];
-  TU_VERIFY(p_itf->ep_int_out > 0); // must be opened
-  TU_VERIFY(usbd_edpt_claim(p_itf->rhport, p_itf->ep_int_out));
-  return usbd_edpt_xfer(p_itf->rhport, p_itf->ep_int_out, _vendord_int_epbuf[idx].int_out,
-                        p_itf->int_rx_xfer_len, false);
+  return vendord_ep_read_xfer(p_itf, p_itf->ep_int_out, _vendord_int_epbuf[idx].int_out, p_itf->int_rx_xfer_len);
 }
 #endif
 
@@ -291,20 +303,13 @@ bool tud_vendor_n_int_read_xfer(uint8_t idx) {
 uint32_t tud_vendor_n_int_write(uint8_t idx, const void *buffer, uint32_t bufsize) {
   TU_VERIFY(idx < CFG_TUD_VENDOR, 0);
   vendord_interface_t *p_itf = &_vendord_itf[idx];
-  TU_VERIFY(p_itf->ep_int_in > 0, 0); // must be opened
-  TU_VERIFY(usbd_edpt_claim(p_itf->rhport, p_itf->ep_int_in), 0);
-  const uint32_t xact_len = tu_min32(bufsize, CFG_TUD_VENDOR_EP_INT_IN_BUFSIZE);
-  memcpy(_vendord_int_epbuf[idx].int_in, buffer, xact_len);
-  TU_ASSERT(usbd_edpt_xfer(p_itf->rhport, p_itf->ep_int_in, _vendord_int_epbuf[idx].int_in,
-                           (uint16_t)xact_len, false), 0);
-  return xact_len;
+  return vendord_ep_write(p_itf, p_itf->ep_int_in, _vendord_int_epbuf[idx].int_in, CFG_TUD_VENDOR_EP_INT_IN_BUFSIZE, buffer, bufsize);
 }
 
 uint32_t tud_vendor_n_int_write_available(uint8_t idx) {
   TU_VERIFY(idx < CFG_TUD_VENDOR, 0);
   vendord_interface_t *p_itf = &_vendord_itf[idx];
-  TU_VERIFY(p_itf->ep_int_in > 0, 0); // must be opened
-  return usbd_edpt_busy(p_itf->rhport, p_itf->ep_int_in) ? 0 : CFG_TUD_VENDOR_EP_INT_IN_BUFSIZE;
+  return vendord_ep_write_available(p_itf, p_itf->ep_int_in, CFG_TUD_VENDOR_EP_INT_IN_BUFSIZE);
 }
 #endif
 
@@ -315,10 +320,7 @@ uint32_t tud_vendor_n_int_write_available(uint8_t idx) {
 bool tud_vendor_n_iso_read_xfer(uint8_t idx) {
   TU_VERIFY(idx < CFG_TUD_VENDOR);
   vendord_interface_t *p_itf = &_vendord_itf[idx];
-  TU_VERIFY(p_itf->ep_iso_out > 0); // must be opened (altsetting selected)
-  TU_VERIFY(usbd_edpt_claim(p_itf->rhport, p_itf->ep_iso_out));
-  return usbd_edpt_xfer(p_itf->rhport, p_itf->ep_iso_out, _vendord_iso_epbuf[idx].iso_out,
-                        p_itf->iso_rx_xfer_len, false);
+  return vendord_ep_read_xfer(p_itf, p_itf->ep_iso_out, _vendord_iso_epbuf[idx].iso_out, p_itf->iso_rx_xfer_len);
 }
 #endif
 
@@ -326,20 +328,13 @@ bool tud_vendor_n_iso_read_xfer(uint8_t idx) {
 uint32_t tud_vendor_n_iso_write(uint8_t idx, const void *buffer, uint32_t bufsize) {
   TU_VERIFY(idx < CFG_TUD_VENDOR, 0);
   vendord_interface_t *p_itf = &_vendord_itf[idx];
-  TU_VERIFY(p_itf->ep_iso_in > 0, 0); // must be opened (altsetting selected)
-  TU_VERIFY(usbd_edpt_claim(p_itf->rhport, p_itf->ep_iso_in), 0);
-  const uint32_t xact_len = tu_min32(bufsize, CFG_TUD_VENDOR_EP_ISO_IN_BUFSIZE);
-  memcpy(_vendord_iso_epbuf[idx].iso_in, buffer, xact_len);
-  TU_ASSERT(usbd_edpt_xfer(p_itf->rhport, p_itf->ep_iso_in, _vendord_iso_epbuf[idx].iso_in,
-                           (uint16_t)xact_len, false), 0);
-  return xact_len;
+  return vendord_ep_write(p_itf, p_itf->ep_iso_in, _vendord_iso_epbuf[idx].iso_in, CFG_TUD_VENDOR_EP_ISO_IN_BUFSIZE, buffer, bufsize);
 }
 
 uint32_t tud_vendor_n_iso_write_available(uint8_t idx) {
   TU_VERIFY(idx < CFG_TUD_VENDOR, 0);
   vendord_interface_t *p_itf = &_vendord_itf[idx];
-  TU_VERIFY(p_itf->ep_iso_in > 0, 0); // must be opened (altsetting selected)
-  return usbd_edpt_busy(p_itf->rhport, p_itf->ep_iso_in) ? 0 : CFG_TUD_VENDOR_EP_ISO_IN_BUFSIZE;
+  return vendord_ep_write_available(p_itf, p_itf->ep_iso_in, CFG_TUD_VENDOR_EP_ISO_IN_BUFSIZE);
 }
 #endif
 

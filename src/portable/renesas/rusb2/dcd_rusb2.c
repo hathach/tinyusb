@@ -46,6 +46,9 @@ typedef struct {
 
   uint8_t ep; /* an assigned endpoint address */
   uint8_t ff; /* `buf` is TU_FUFO or POD */
+  bool queued;      /* a transfer is submitted and not yet completed (independent of `buf`, which is
+                       NULL for a zero-length read) -- used to decide clear-stall re-arm */
+  bool zlp_pending; /* a zero-length IN packet couldn't be queued at submit (FIFO full); retry on BRDY */
 } pipe_state_t;
 
 typedef struct
@@ -412,6 +415,19 @@ static bool process_pipe0_xfer(rusb2_reg_t *rusb, int buffer_type, uint8_t ep_ad
   return true;
 }
 
+// Queue a zero-length IN packet. Returns false if the FIFO buffer wasn't free (double-buffered pipe
+// full, host not draining) so BVAL couldn't be written -- the caller retries on the next BRDY.
+static bool pipe_zlp_in(rusb2_reg_t *rusb, unsigned num) {
+  rusb->D0FIFOSEL = (uint16_t) num;
+  const bool ready = pipe_wait_for_ready(rusb, num);
+  if (ready) {
+    rusb->D0FIFOCTR = RUSB2_CFIFOCTR_BVAL_Msk;
+  }
+  rusb->D0FIFOSEL = 0;
+  while (rusb->D0FIFOSEL_b.CURPIPE) {} /* if CURPIPE bits changes, check written value */
+  return ready;
+}
+
 static bool process_pipe_xfer(rusb2_reg_t* rusb, int buffer_type, uint8_t ep_addr, void* buffer, uint16_t total_bytes)
 {
   const unsigned epn = tu_edpt_number(ep_addr);
@@ -421,24 +437,20 @@ static bool process_pipe_xfer(rusb2_reg_t* rusb, int buffer_type, uint8_t ep_add
   TU_ASSERT(num);
 
   pipe_state_t *pipe  = &_dcd.pipe[num];
-  pipe->ff        = buffer_type;
-  pipe->buf       = buffer;
-  pipe->length    = total_bytes;
-  pipe->remaining = total_bytes;
+  pipe->ff          = buffer_type;
+  pipe->buf         = buffer;
+  pipe->length      = total_bytes;
+  pipe->remaining   = total_bytes;
+  pipe->queued      = true;
+  pipe->zlp_pending = false;
 
   if (dir) {
     /* IN */
     if (total_bytes) {
       pipe_xfer_in(rusb, num);
     } else {
-      /* ZLP */
-      rusb->D0FIFOSEL = num;
-      if (pipe_wait_for_ready(rusb, num)) {
-        rusb->D0FIFOCTR = RUSB2_CFIFOCTR_BVAL_Msk;
-      }
-      rusb->D0FIFOSEL = 0;
-      /* if CURPIPE bits changes, check written value */
-      while (rusb->D0FIFOSEL_b.CURPIPE) {}
+      /* ZLP: if the FIFO buffer isn't free yet, defer the queue to the next BRDY (see process_pipe_brdy) */
+      pipe->zlp_pending = !pipe_zlp_in(rusb, num);
     }
   } else {
     // OUT
@@ -491,7 +503,15 @@ static void process_pipe_brdy(uint8_t rhport, unsigned num)
 
   if (dir) {
     /* IN */
-    completed = pipe_xfer_in(rusb, num);
+    if (pipe->zlp_pending) {
+      // The submit-time ZLP couldn't be queued (FIFO full); a freed buffer plane lets us queue it
+      // now. Don't report completion until the ZLP is actually queued (and then sent, next BRDY),
+      // otherwise a spurious BRDY would complete a zero-length IN the host never received.
+      pipe->zlp_pending = !pipe_zlp_in(rusb, num);
+      completed = false;
+    } else {
+      completed = pipe_xfer_in(rusb, num);
+    }
   } else {
     // OUT
     if (num) {
@@ -501,6 +521,7 @@ static void process_pipe_brdy(uint8_t rhport, unsigned num)
     }
   }
   if (completed) {
+    pipe->queued = false;
     dcd_event_xfer_complete(rhport, pipe->ep,
                             pipe->length - pipe->remaining,
                             XFER_RESULT_SUCCESS, true);
@@ -821,7 +842,9 @@ static void edpt_close(uint8_t rhport, uint8_t ep_addr)
   *ctr = 0;
   rusb->PIPESEL = (uint16_t)num;
   rusb->PIPECFG = 0;
-  _dcd.pipe[num].ep = 0;
+  _dcd.pipe[num].ep          = 0;
+  _dcd.pipe[num].queued      = false;
+  _dcd.pipe[num].zlp_pending = false;
   _dcd.ep[dir][epn] = 0;
 }
 
@@ -934,10 +957,11 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
     rusb->PIPESEL = (uint16_t)num;
     // Non-bulk OUT re-enables straight away. Bulk OUT is normally armed together with its transaction
     // counter (TRE) by process_pipe_xfer(), so we don't blindly re-enable it here — but if a receive
-    // was already armed (its TRE is still valid), SQCLR above just left it NAKing. Re-assert BUF so it
-    // keeps receiving; the class driver still considers that read submitted and never re-arms it, so
+    // was already armed (still queued), SQCLR above just left it NAKing. Re-assert BUF so it keeps
+    // receiving; the class driver still considers that read submitted and never re-arms it, so
     // otherwise the endpoint NAKs forever (usbtest toggle test 29 clears the halt on an armed pipe).
-    if (rusb->PIPECFG_b.TYPE != 1 || _dcd.pipe[num].buf) {
+    // `queued` (not `buf`) is the armed test: a zero-length OUT read has buf==NULL yet is armed.
+    if (rusb->PIPECFG_b.TYPE != 1 || _dcd.pipe[num].queued) {
       *ctr = RUSB2_PIPE_CTR_PID_BUF;
     }
   }
