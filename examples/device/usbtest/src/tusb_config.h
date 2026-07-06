@@ -112,8 +112,14 @@
 // (SET_FEATURE/CLEAR_FEATURE endpoint halt) where no completion ever fires.
 #define CFG_TUD_VENDOR_RX_MANUAL_XFER 1
 
-// Multi-packet IN transfers; must be a multiple of bulk MPS at both speeds (64/512)
+// Multi-packet IN transfers; must be a multiple of bulk MPS at both speeds (64/512).
+// LPC11/13 (ip3511 FS) keep endpoint buffers in a dedicated 2 KB USB RAM: a 2048 B bulk epbuf
+// overflows it once the int/iso buffers join, so those parts use 512 (= 8 FS packets).
+#if TU_CHECK_MCU(OPT_MCU_LPC11UXX, OPT_MCU_LPC13XX)
+#define CFG_TUD_VENDOR_TX_EPSIZE      512
+#else
 #define CFG_TUD_VENDOR_TX_EPSIZE      2048
+#endif
 
 // Interrupt IN/OUT source/sink pair (usbtest cases 25/26). Buffer sizes track the
 // per-speed endpoint max packet size (see usb_descriptors.c) so full-speed builds

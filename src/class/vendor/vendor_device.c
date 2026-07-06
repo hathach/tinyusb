@@ -187,10 +187,10 @@ void tud_vendor_n_read_flush(uint8_t idx) {
   #endif
 
 // Shared non-buffered transfer helpers for the bulk / interrupt / isochronous endpoints, which are
-// identical apart from the endpoint, its epbuf and its buffer size. static inline so an unused one
-// (buffered mode, or a disabled endpoint gate) is dropped without an unused-function warning.
-static inline uint32_t vendord_ep_write(vendord_interface_t *p_itf, uint8_t ep, uint8_t *epbuf,
-                                        uint32_t bufsize, const void *buffer, uint32_t len) {
+// identical apart from the endpoint, its epbuf and its buffer size. TU_ATTR_UNUSED: in buffered
+// mode with the int/iso gates off none is referenced, and clang/IAR error on an unused static.
+TU_ATTR_UNUSED static inline uint32_t vendord_ep_write(vendord_interface_t *p_itf, uint8_t ep, uint8_t *epbuf,
+                                                       uint32_t bufsize, const void *buffer, uint32_t len) {
   TU_VERIFY(ep > 0, 0); // must be opened
   TU_VERIFY(usbd_edpt_claim(p_itf->rhport, ep), 0);
   const uint32_t xact_len = tu_min32(len, bufsize);
@@ -199,12 +199,12 @@ static inline uint32_t vendord_ep_write(vendord_interface_t *p_itf, uint8_t ep, 
   return xact_len;
 }
 
-static inline uint32_t vendord_ep_write_available(vendord_interface_t *p_itf, uint8_t ep, uint32_t bufsize) {
+TU_ATTR_UNUSED static inline uint32_t vendord_ep_write_available(vendord_interface_t *p_itf, uint8_t ep, uint32_t bufsize) {
   TU_VERIFY(ep > 0, 0); // must be opened
   return usbd_edpt_busy(p_itf->rhport, ep) ? 0 : bufsize;
 }
 
-static inline bool vendord_ep_read_xfer(vendord_interface_t *p_itf, uint8_t ep, uint8_t *epbuf, uint16_t xfer_len) {
+TU_ATTR_UNUSED static inline bool vendord_ep_read_xfer(vendord_interface_t *p_itf, uint8_t ep, uint8_t *epbuf, uint16_t xfer_len) {
   TU_VERIFY(ep > 0); // must be opened
   TU_VERIFY(usbd_edpt_claim(p_itf->rhport, ep));
   return usbd_edpt_xfer(p_itf->rhport, ep, epbuf, xfer_len, false);

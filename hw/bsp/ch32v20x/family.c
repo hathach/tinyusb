@@ -33,6 +33,9 @@ manufacturer: WCH
 // hardware context stack and corrupts the return on nesting. Emit naked handlers that rely on
 // HWSTK for context save/restore (equivalent to WCH's "WCH-Interrupt-fast"), which nests safely.
 #if CFG_TUD_ENABLED && CFG_TUD_WCH_USBIP_FSDEV
+  // The `call dcd_int_handler` below lives inside naked asm where LTO cannot see it; without a
+  // compiler-visible reference, -flto builds (make) internalize/drop the symbol and the link fails.
+  TU_ATTR_USED static void (*const fsdev_isr_keep)(uint8_t) = dcd_int_handler;
   #define FSDEV_NAKED_ISR(name) \
     __attribute__((naked)) __attribute__((used)) void name(void) { \
       __asm volatile("li a0, 0\n\t call dcd_int_handler\n\t mret"); }
