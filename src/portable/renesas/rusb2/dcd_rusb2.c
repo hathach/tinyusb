@@ -406,7 +406,12 @@ static bool pipe_zlp_in(rusb2_reg_t *rusb, unsigned num) {
     rusb->D0FIFOCTR = RUSB2_CFIFOCTR_BVAL_Msk;
   }
   rusb->D0FIFOSEL = 0;
-  while (rusb->D0FIFOSEL_b.CURPIPE) {} /* if CURPIPE bits changes, check written value */
+  // deselect completes within a few bus cycles (not host-dependent), but bound it anyway: this
+  // runs with the USB IRQ masked, where any stuck spin freezes the whole stack
+  uint32_t spin = RUSB2_FIFO_READY_SPIN;
+  while (rusb->D0FIFOSEL_b.CURPIPE) {
+    if (!spin--) { break; }
+  }
   return ready;
 }
 

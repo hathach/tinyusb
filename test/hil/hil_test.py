@@ -1525,7 +1525,7 @@ def test_device_usbtest(board):
     # the host controller (bulk perf, iso streams, unlink storms), and several at once have
     # hard-frozen the CI rig (fatal PCIe error on its VFIO-passed xHCI).
     script = Path(__file__).resolve().parent / 'usbtest.py'
-    cmd = f'python3 "{script}" --serial {uid} --json --keep-binding --timeout 60'
+    cmd = f'python3 "{script}" --serial "{uid}" --json --keep-binding --timeout 60'
     if usbtest_lock is not None:
         with usbtest_lock:
             r = run_cmd(cmd, timeout=200)
