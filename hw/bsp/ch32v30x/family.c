@@ -166,6 +166,16 @@ uint32_t board_button_read(void) {
 #endif
 }
 
+size_t board_get_unique_id(uint8_t id[], size_t max_len) {
+  (void) max_len;
+  volatile uint32_t* ch32_uuid = ((volatile uint32_t*) 0x1FFFF7E8UL); // ESIG unique ID
+  uint32_t* serial_32 = (uint32_t*) (uintptr_t) id;
+  serial_32[0] = ch32_uuid[0];
+  serial_32[1] = ch32_uuid[1];
+  serial_32[2] = ch32_uuid[2];
+  return 12;
+}
+
 int board_uart_read(uint8_t* buf, int len) {
   (void) buf;
   (void) len;

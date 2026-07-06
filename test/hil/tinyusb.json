@@ -107,20 +107,6 @@
             }
         },
         {
-            "name": "nrf54lm20dk",
-            "uid": "899C3DE5B0F4D5CA",
-            "tests": {
-                "device": true,
-                "host": false,
-                "dual": false
-            },
-            "flasher": {
-                "name": "jlink",
-                "uid": "1051856258",
-                "args": "-device NRF54LM20A_M33"
-            }
-        },
-        {
             "name": "max32666fthr",
             "uid": "0C81464124010B20FF0A08CC2C",
             "tests": {
@@ -522,9 +508,42 @@
                 "uid": "7FD88F0604B5",
                 "args": ""
             }
+        },
+        {
+            "name": "ch32v307v_r1_1v0",
+            "uid": "DE6B3E263B3857CAFFFFFFFF",
+            "toolchain": "riscv-gcc",
+            "variant": [
+                {"name": "ch32v307v_r1_1v0-usbhs", "defines": ["SPEED=high"]},
+                {"name": "ch32v307v_r1_1v0-usbfs", "defines": ["SPEED=full"]}
+            ],
+            "tests": {
+                "device": true,
+                "host": false,
+                "dual": false
+            },
+            "flasher": {
+                "name": "openocd_wch",
+                "uid": "BC5DA47360D0",
+                "args": ""
+            }
         }
     ],
     "boards-skip": [
+        {
+            "name": "nrf54lm20dk",
+            "uid": "899C3DE5B0F4D5CA",
+            "tests": {
+                "device": true,
+                "host": false,
+                "dual": false
+            },
+            "flasher": {
+                "name": "jlink",
+                "uid": "1051856258",
+                "args": "-device NRF54LM20A_M33"
+            }
+        },
         {
             "name": "stm32f769disco",
             "uid": "21002F000F51363531383437",
