@@ -411,6 +411,13 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
   uint8_t const dir = tu_edpt_dir(ep_addr);
   TU_ASSERT(epnum == EP_ISO_NUM);
 
+  // A transfer armed before SET_INTERFACE survives to here (this port has no dcd close); usbd has
+  // just reset the endpoint's claim/busy state, so drop the stale descriptor too — otherwise the
+  // class's next arm trips TU_ASSERT(!xfer->started) in dcd_edpt_xfer().
+  _dcd.xfer[epnum][dir].started               = false;
+  _dcd.xfer[epnum][dir].data_received         = false;
+  _dcd.xfer[epnum][dir].iso_in_transfer_ready = false;
+
   _dcd.xfer[epnum][dir].mps = tu_edpt_packet_size(desc_ep);
 
   if (dir == TUSB_DIR_OUT) {

@@ -107,6 +107,13 @@ int main(void) {
 // quietly until the host clears the halt, then the next tick re-arms.
 static void usbtest_pump(void) {
   if (tud_vendor_mounted()) {
+    // Write lengths track the NEGOTIATED speed, not the compile-time capability: a high-speed
+    // build enumerated at full speed serves the FS descriptor (int/iso mps 64/128), so the
+    // buffers (sized for the largest case) must not be submitted at their HS length there.
+    const bool hs = tud_speed_get() == TUSB_SPEED_HIGH;
+    const uint16_t int_len = hs ? USBTEST_INT_EP_MPS_HS : USBTEST_INT_EP_MPS_FS;
+    const uint16_t iso_len = hs ? USBTEST_ISO_EP_MPS_HS : USBTEST_ISO_EP_MPS_FS;
+
     tud_vendor_read_xfer();     // bulk sink: arm/re-arm, quiet fail if armed or halted
     if (tud_vendor_write_available()) { // 0 while bulk IN is busy or halted
       tud_vendor_write(tx_chunk, sizeof(tx_chunk));
@@ -114,12 +121,12 @@ static void usbtest_pump(void) {
 
     tud_vendor_int_read_xfer(); // interrupt sink
     if (tud_vendor_int_write_available()) {
-      tud_vendor_int_write(int_tx_chunk, sizeof(int_tx_chunk));
+      tud_vendor_int_write(int_tx_chunk, int_len);
     }
 
     tud_vendor_iso_read_xfer(); // isochronous sink
     if (tud_vendor_iso_write_available()) {
-      tud_vendor_iso_write(iso_tx_chunk, sizeof(iso_tx_chunk));
+      tud_vendor_iso_write(iso_tx_chunk, iso_len);
     }
   }
 }

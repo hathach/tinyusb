@@ -1601,7 +1601,7 @@ def find_firmware(variant: str, example: str):
     return None
 
 
-def test_example(board: Board, variant: str, example: str) -> tuple[int, str]:
+def test_example(board: Board, variant: str, example: str) -> tuple[int, str, str | None]:
     """
     Test example firmware
     :param board: board dict

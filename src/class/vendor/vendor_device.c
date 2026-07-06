@@ -149,11 +149,19 @@ bool tud_vendor_n_mounted(uint8_t idx) {
   TU_VERIFY(idx < CFG_TUD_VENDOR);
   vendord_interface_t *p_itf = &_vendord_itf[idx];
 
+  // bulk may be absent (interrupt-only vendor interface): count the interrupt endpoints too
   #if CFG_TUD_VENDOR_TXRX_BUFFERED
-  return (p_itf->rx_stream.ep_addr != 0) || (p_itf->tx_stream.ep_addr != 0);
+  bool mounted = (p_itf->rx_stream.ep_addr != 0) || (p_itf->tx_stream.ep_addr != 0);
   #else
-  return (p_itf->ep_out != 0) || (p_itf->ep_in != 0);
+  bool mounted = (p_itf->ep_out != 0) || (p_itf->ep_in != 0);
   #endif
+  #if CFG_TUD_VENDOR_EP_INT_OUT
+  mounted = mounted || (p_itf->ep_int_out != 0);
+  #endif
+  #if CFG_TUD_VENDOR_EP_INT_IN
+  mounted = mounted || (p_itf->ep_int_in != 0);
+  #endif
+  return mounted;
 }
 
 //--------------------------------------------------------------------+
