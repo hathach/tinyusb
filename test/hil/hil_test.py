@@ -85,11 +85,13 @@ board_test = {}
 build_dir = 'cmake-build'
 skip_flash = False
 print_lock = None
+usbtest_lock = None  # serializes the usbtest batteries across the board worker pool
 
 
-def init_worker(lock):
-    global print_lock
+def init_worker(lock, ut_lock):
+    global print_lock, usbtest_lock
     print_lock = lock
+    usbtest_lock = ut_lock
 
 
 def log_line(msg: str) -> None:
@@ -155,7 +157,7 @@ class HilConfig(TypedDict):
     boards: list[Board]
 
 CMD_TIMEOUT = int(os.getenv('HIL_CMD_TIMEOUT', '180'))
-POOL_TIMEOUT = int(os.getenv('HIL_POOL_TIMEOUT', '3000'))
+POOL_TIMEOUT = int(os.getenv('HIL_POOL_TIMEOUT', '4200'))  # usbtest batteries are serialized fleet-wide, lengthening the tail
 SERIAL_READ_TIMEOUT = float(os.getenv('HIL_SERIAL_READ_TIMEOUT', '5'))
 SERIAL_WRITE_TIMEOUT = float(os.getenv('HIL_SERIAL_WRITE_TIMEOUT', '10'))
 
@@ -1518,9 +1520,17 @@ def test_device_usbtest(board):
     time.sleep(3)
 
     # --keep-binding leaves the usbtest dynamic id registered: the cleanup path unbinds every
-    # claimed interface, which has wedged the host xHCI (usb_hcd_alloc_bandwidth) on this rig
+    # claimed interface, which has wedged the host xHCI (usb_hcd_alloc_bandwidth) on this rig.
+    # Boards test in a worker pool, but the batteries must run one at a time: each one saturates
+    # the host controller (bulk perf, iso streams, unlink storms), and several at once have
+    # hard-frozen the CI rig (fatal PCIe error on its VFIO-passed xHCI).
     script = Path(__file__).resolve().parent / 'usbtest.py'
-    r = run_cmd(f'python3 "{script}" --serial {uid} --json --keep-binding --timeout 60', timeout=200)
+    cmd = f'python3 "{script}" --serial {uid} --json --keep-binding --timeout 60'
+    if usbtest_lock is not None:
+        with usbtest_lock:
+            r = run_cmd(cmd, timeout=200)
+    else:
+        r = run_cmd(cmd, timeout=200)
     out = cmd_stdout_text(r.stdout)
     brace = out.find('{')
     try:
@@ -1942,7 +1952,7 @@ def main() -> None:
         for f in (REPORT_JSON, REPORT_MD):
             (report_dir / f).unlink(missing_ok=True)
 
-    with Pool(processes=os.cpu_count() or 1, initializer=init_worker, initargs=(Lock(),)) as pool:
+    with Pool(processes=os.cpu_count() or 1, initializer=init_worker, initargs=(Lock(), Lock())) as pool:
         async_ret = pool.map_async(test_board, config_boards)
         try:
             mret = async_ret.get(timeout=POOL_TIMEOUT)
