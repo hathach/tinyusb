@@ -393,7 +393,16 @@ static uint8_t find_vendor_itf(uint8_t ep_addr) {
         return idx;
       }
   #elif CFG_TUD_VENDOR_TXRX_BUFFERED
-      if (p_vendor->rx_stream.ep_addr == 0 && p_vendor->tx_stream.ep_addr == 0) {
+      // A slot is free only if none of its endpoints are assigned; bulk may be absent
+      // (an interrupt-only vendor interface), so check the interrupt endpoints too.
+      if (p_vendor->rx_stream.ep_addr == 0 && p_vendor->tx_stream.ep_addr == 0
+      #if CFG_TUD_VENDOR_EP_INT_OUT
+          && p_vendor->ep_int_out == 0
+      #endif
+      #if CFG_TUD_VENDOR_EP_INT_IN
+          && p_vendor->ep_int_in == 0
+      #endif
+      ) {
         return idx;
       }
   #else

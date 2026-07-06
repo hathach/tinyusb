@@ -37,6 +37,8 @@
 #                              services and reboots immediately. Plain reboot kept for non-wedge use.
 #                              An @reboot one-shot resumes the working session afterwards.
 
+# NB: '#1000' below is a UID specifier (sudoers(5) User_List syntax), NOT a comment — these
+# lines are live grants for uid 1000.
 #1000 ALL=(ALL) NOPASSWD: /usr/bin/dmesg, /sbin/uhubctl, /sbin/debugfs
 #1000 ALL=(root) NOPASSWD: /usr/local/sbin/usb_recover.sh
 #1000 ALL=(root) NOPASSWD: /usr/local/sbin/usb_dyndbg.sh

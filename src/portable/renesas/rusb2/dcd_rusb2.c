@@ -750,8 +750,14 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
     }
   }
 
-  const unsigned num = find_pipe(xfer);
-  TU_ASSERT(num);
+  // Re-opening an endpoint must reuse its pipe: usbd_edpt_close() is a no-op on ISO_ALLOC ports,
+  // so a class's close/open across SET_INTERFACE (e.g. video's notification endpoint) would
+  // otherwise allocate a second pipe with the same EPNUM and leak pipes until exhaustion.
+  unsigned num = _dcd.ep[dir][epn];
+  if (num == 0) {
+    num = find_pipe(xfer);
+    TU_ASSERT(num);
+  }
 
   _dcd.pipe[num].ep = ep_addr;
   _dcd.ep[dir][epn] = num;

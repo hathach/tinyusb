@@ -132,7 +132,12 @@ def find_device(serial, first=False):
             continue
     if not matches:
         return None
-    if len(matches) > 1 and not serial and not first:
+    if len(matches) > 1 and not first:
+        if serial:
+            # Dual-port parts (nanoch32v203 fsdev/usbfs, ch32v307 usbhs/usbfs) briefly enumerate
+            # BOTH ports with the same serial around a variant reflash; picking one arbitrarily
+            # could bind the stale port. Report ambiguity so the caller retries until it drops.
+            return {'ambiguous': sorted(m['sysname'] for m in matches)}
         sys.exit(f'multiple {VID}:{PID} devices found, use --serial: '
                  + ', '.join(m["serial"] for m in matches))
     return matches[0]
@@ -146,10 +151,16 @@ def bind_usbtest(dev):
             sys.exit(f'cannot load usbtest module: {r.stderr.strip()}')
 
     # always re-register in case a stale dynamic id carries a different profile
+    intf = f'{dev["sysname"]}:1.0'
+    drv = SYS_USB / intf / 'driver'
+    stale_binding = drv.is_symlink() and drv.resolve().name == 'usbtest'
     sysfs_write(DRIVER / 'remove_id', f'{VID} {PID}', check=False)
     sysfs_write(DRIVER / 'new_id', f'{VID} {PID} 0 {GZ_REF}')
+    if stale_binding:
+        # bound before the re-registration: that probe captured the OLD dynamic id's capability
+        # profile; unbind once (device is idle here) so the loop below reprobes the fresh one
+        sysfs_write(drv / 'unbind', intf, check=False)
 
-    intf = f'{dev["sysname"]}:1.0'
     deadline = time.monotonic() + 3
     while time.monotonic() < deadline:
         drv = SYS_USB / intf / 'driver'
@@ -259,9 +270,19 @@ def main():
         sys.exit('testusb binary not found: build kernel tools/usb/testusb.c '
                  'and install it, or pass --testusb')
 
-    dev = find_device(args.serial)
-    if not dev:
-        sys.exit(f'no {VID}:{PID} device' + (f' with serial {args.serial}' if args.serial else ''))
+    # retry briefly: right after a flash the enumeration may still be settling, and on dual-port
+    # parts the other port's stale same-serial node takes a moment to drop off (see find_device)
+    deadline = time.monotonic() + 8
+    while True:
+        dev = find_device(args.serial)
+        if dev and 'ambiguous' not in dev:
+            break
+        if time.monotonic() > deadline:
+            if dev:
+                sys.exit(f"multiple devices with serial {args.serial}: {', '.join(dev['ambiguous'])} "
+                         '— stale enumeration from another port? replug or retry')
+            sys.exit(f'no {VID}:{PID} device' + (f' with serial {args.serial}' if args.serial else ''))
+        time.sleep(0.5)
 
     # tier drives which cases run; a stale/foreign device advertising an out-of-range tier
     # must not silently run an empty battery ('0/0 passed' would read as green in CI)
@@ -284,6 +305,7 @@ def main():
         print(info)
 
     results = []
+    unrecovered_hang = False
     try:
         bind_usbtest(dev)
         set_pattern(0)  # tier 1 firmware sources zeros; also required by perf cases 27/28
@@ -303,9 +325,11 @@ def main():
                           f'(see .claude/skills/usb-recover)', file=sys.stderr)
                     # FLR frees the D-state ioctl without the device lock; must run BEFORE
                     # any unbind/remove_id, which would deadlock the bus otherwise
-                    sudo(['/usr/local/sbin/usb_recover.sh', 'pci-reset', pci])
+                    if sudo(['/usr/local/sbin/usb_recover.sh', 'pci-reset', pci]).returncode != 0:
+                        unrecovered_hang = True
                     time.sleep(5)  # let the bus re-enumerate before cleanup touches sysfs
                 else:
+                    unrecovered_hang = True
                     print('aborting battery: kernel-side hang, and the controller has no PCI address '
                           'for FLR recovery — manual intervention (reboot) required', file=sys.stderr)
                 break
@@ -323,7 +347,12 @@ def main():
         # best-effort cleanup: a sudo/sysfs failure here (sudo() may sys.exit) must not replace
         # an exception propagating out of the try body with a less useful one
         try:
-            if not args.keep_binding:
+            if unrecovered_hang:
+                # testusb is still stuck in a usbfs ioctl holding the device lock; remove_id/unbind
+                # would join the convoy and deadlock the bus (see usb-recover skill) — leave it be
+                print('skipping cleanup after unrecovered hang: reboot required to release the bus',
+                      file=sys.stderr)
+            elif not args.keep_binding:
                 sysfs_write(DRIVER / 'remove_id', f'{VID} {PID}', check=False)
                 # release every claimed interface: other devices sharing the VID:PID (stale example
                 # firmware on a test rig) may have been grabbed on probe and would otherwise stay

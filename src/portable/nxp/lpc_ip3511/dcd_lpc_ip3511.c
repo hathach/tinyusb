@@ -431,6 +431,10 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
   // (re)armed by the class via dcd_edpt_xfer().
   uint8_t ep_id = ep_addr2id(desc_ep->bEndpointAddress);
   ep_cmd_sts_t* ep_cs = get_ep_cs(ep_id);
+  // Abort a transfer still armed from the previous altsetting: the hardware keeps servicing an
+  // Active buffer across SET_INTERFACE, which would fight the fresh transfer the class queues.
+  ep_cs[0].cmd_sts.active       = 0;
+  ep_cs[1].cmd_sts.active       = 0;
   ep_cs[0].cmd_sts.stall        = 0;
   ep_cs[0].cmd_sts.toggle_reset = 1;
   ep_cs[0].cmd_sts.rf_tv        = 0;

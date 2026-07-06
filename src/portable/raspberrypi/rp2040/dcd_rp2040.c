@@ -558,12 +558,27 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
       // reset to DATA0 so it still completes and releases the usbd claim, instead of silently
       // dropping it and starving the endpoint. Save the buffer/length before the abort clears them.
       uint8_t*       user_buf  = ep->user_buf;
-      const uint16_t remaining = ep->remaining_len;
+      uint16_t       remaining = ep->remaining_len;
       const uint16_t xferred   = ep->xferred_len; // bytes already moved on this submission
-      hw_endpoint_abort_xfer(ep); // safe abort (handles RP2040-E2), resets ep transfer state
-      ep->next_pid = 0;           // DATA0
       io_rw_32 *ep_reg  = get_ep_ctrl(epnum, dir);
       io_rw_32 *buf_reg = get_buf_ctrl(epnum, dir);
+      if (dir == TUSB_DIR_IN) {
+        // IN staging advances user_buf/remaining_len as packets are copied into DPRAM, before the
+        // host has consumed them; the abort below discards those staged packets, so rewind by the
+        // still-armed buffers' lengths or the re-issue would silently skip their bytes.
+        const uint32_t bc = *buf_reg;
+        uint16_t staged = 0;
+        if (bc & USB_BUF_CTRL_AVAIL) {
+          staged = (uint16_t)(bc & USB_BUF_CTRL_LEN_MASK);
+        }
+        if ((bc >> 16) & USB_BUF_CTRL_AVAIL) {
+          staged = (uint16_t)(staged + ((bc >> 16) & USB_BUF_CTRL_LEN_MASK));
+        }
+        user_buf  -= staged;
+        remaining  = (uint16_t)(remaining + staged);
+      }
+      hw_endpoint_abort_xfer(ep); // safe abort (handles RP2040-E2), resets ep transfer state
+      ep->next_pid = 0;           // DATA0
       rp2usb_xfer_start(ep, ep_reg, buf_reg, user_buf, NULL, remaining);
       // rp2usb_xfer_start() zeroes xferred_len; add back what the aborted transfer already moved so
       // the eventual completion reports the full length, not just the post-clear-halt remainder.
