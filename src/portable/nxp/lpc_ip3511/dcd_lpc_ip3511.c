@@ -158,6 +158,10 @@ typedef struct
 // - 55 usb0 (FS) has 5x2 endpoints, usb1 (HS) has 6x2 endpoints
 #define MAX_EP_PAIRS  6
 
+// Bounded spin waiting for hardware to clear an EPSKIP bit when retiring a still-armed endpoint on
+// reopen (dcd_edpt_open). Hardware clears it within a (micro)frame; the guard only avoids a hang.
+#define IP3511_EPSKIP_SPIN  100000u
+
 // NOTE data will be transferred as soon as dcd get request by dcd_pipe(_queue)_xfer using double buffering.
 // current_td is used to keep track of number of remaining & xferred bytes of the current request.
 typedef struct
@@ -366,9 +370,22 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   //------------- Prepare Queue Head -------------//
   uint8_t ep_id = ep_addr2id(p_endpoint_desc->bEndpointAddress);
   ep_cmd_sts_t* ep_cs = get_ep_cs(ep_id);
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
 
-  // Check if endpoint is available
-  TU_ASSERT( ep_cs[0].cmd_sts.disable && ep_cs[1].cmd_sts.disable );
+  // usbd_edpt_close() is a no-op on ISO_ALLOC ports, so an endpoint a class closed then reopened
+  // across SET_INTERFACE (e.g. the video notification or audio streaming endpoint) is still armed
+  // here rather than disabled. Retire it before reconfiguring instead of asserting it is disabled.
+  // UM11126 §41.7.6/§41.8.3: writing EPSKIP deactivates the armed buffer and hardware clears the bit
+  // once done, after which the command/status entry is safe to rewrite.
+  if ( !(ep_cs[0].cmd_sts.disable && ep_cs[1].cmd_sts.disable) ) {
+    if ( ep_cs[0].cmd_sts.active || ep_cs[1].cmd_sts.active ) {
+      dcd_reg->EPSKIP |= TU_BIT(ep_id);
+      uint32_t guard = IP3511_EPSKIP_SPIN;             // bounded: hardware clears EPSKIP within a frame
+      while ( (dcd_reg->EPSKIP & TU_BIT(ep_id)) && guard-- ) {}
+    }
+    ep_cs[0].cmd_sts.active  = ep_cs[1].cmd_sts.active  = 0;
+    ep_cs[0].cmd_sts.disable = ep_cs[1].cmd_sts.disable = 1;
+  }
 
   edpt_reset(rhport, ep_id);
 
@@ -393,7 +410,6 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   }
 
   // Enable EP interrupt
-  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
   dcd_reg->INTEN |= TU_BIT(ep_id);
 
   return true;

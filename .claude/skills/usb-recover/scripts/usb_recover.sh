@@ -31,6 +31,14 @@ DRIVER_RE='^[A-Za-z0-9_-]+$'
 die() { echo "usb_recover: $*" >&2; exit 1; }
 usage() { grep -E '^#   sudo usb_recover' "$0" >&2; exit 2; }
 
+# Refuse to touch a PCI function that is not a USB controller (class 0x0c03xx), so a stray or
+# mistyped BDF can't unbind/reset an unrelated device (storage, NIC) on a shared HIL host.
+require_usb_controller() {
+  local addr=$1 cls
+  cls=$(cat "/sys/bus/pci/devices/$addr/class" 2>/dev/null) || die "no such pci device: $addr"
+  [[ "$cls" =~ ^0x0c03 ]] || die "$addr is not a USB controller (class $cls); refusing"
+}
+
 # Resolve a /dev node (ttyACMx, ttyUSBx, sgN, ...) up to its USB device busport.
 resolve() {
   local node=$1 syspath dev
@@ -69,6 +77,7 @@ case "$action" in
     ;;
   pci-rebind)
     [[ "$target" =~ $PCI_RE ]] || die "bad pci addr: $target"
+    require_usb_controller "$target"
     [ -e "/sys/bus/pci/devices/$target/driver" ] || die "no driver bound to $target"
     drv=$(basename "$(readlink -f "/sys/bus/pci/devices/$target/driver")")
     echo "$target" > "/sys/bus/pci/drivers/$drv/unbind"; sleep 1
@@ -78,6 +87,7 @@ case "$action" in
   pci-bind)
     # Re-attach a driver to a controller left DRIVERLESS (e.g. a pci-rebind whose re-bind hung).
     [[ "$target" =~ $PCI_RE ]] || die "bad pci addr: $target"
+    require_usb_controller "$target"
     [ -e "/sys/bus/pci/devices/$target" ] || die "no such pci device: $target"
     [ -e "/sys/bus/pci/devices/$target/driver" ] && die "$target already has a driver bound"
     drv=${3:-}
@@ -99,6 +109,7 @@ case "$action" in
     ;;
   pci-reset)
     [[ "$target" =~ $PCI_RE ]] || die "bad pci addr: $target"
+    require_usb_controller "$target"
     [ -e "/sys/bus/pci/devices/$target/reset" ] || die "no reset support on $target"
     echo 1 > "/sys/bus/pci/devices/$target/reset"
     echo "flr-reset pci $target"

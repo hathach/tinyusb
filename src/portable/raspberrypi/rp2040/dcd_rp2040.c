@@ -562,20 +562,22 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
       const uint16_t xferred   = ep->xferred_len; // bytes already moved on this submission
       io_rw_32 *ep_reg  = get_ep_ctrl(epnum, dir);
       io_rw_32 *buf_reg = get_buf_ctrl(epnum, dir);
+      // bufctrl_prepare16() subtracts each armed buffer's length from remaining_len when arming,
+      // for BOTH directions, before the host has drained (IN) or filled (OUT) it. The abort below
+      // discards those still-armed buffers, so rewind remaining_len by their lengths or the re-issue
+      // is short by 1-2 packets. IN additionally advances user_buf as packets are copied into DPRAM,
+      // so its pointer must rewind too; OUT copies out only on completion, so its pointer is intact.
+      const uint32_t bc = *buf_reg;
+      uint16_t staged = 0;
+      if (bc & USB_BUF_CTRL_AVAIL) {
+        staged = (uint16_t)(bc & USB_BUF_CTRL_LEN_MASK);
+      }
+      if ((bc >> 16) & USB_BUF_CTRL_AVAIL) {
+        staged = (uint16_t)(staged + ((bc >> 16) & USB_BUF_CTRL_LEN_MASK));
+      }
+      remaining = (uint16_t)(remaining + staged);
       if (dir == TUSB_DIR_IN) {
-        // IN staging advances user_buf/remaining_len as packets are copied into DPRAM, before the
-        // host has consumed them; the abort below discards those staged packets, so rewind by the
-        // still-armed buffers' lengths or the re-issue would silently skip their bytes.
-        const uint32_t bc = *buf_reg;
-        uint16_t staged = 0;
-        if (bc & USB_BUF_CTRL_AVAIL) {
-          staged = (uint16_t)(bc & USB_BUF_CTRL_LEN_MASK);
-        }
-        if ((bc >> 16) & USB_BUF_CTRL_AVAIL) {
-          staged = (uint16_t)(staged + ((bc >> 16) & USB_BUF_CTRL_LEN_MASK));
-        }
-        user_buf  -= staged;
-        remaining  = (uint16_t)(remaining + staged);
+        user_buf -= staged;
       }
       hw_endpoint_abort_xfer(ep); // safe abort (handles RP2040-E2), resets ep transfer state
       ep->next_pid = 0;           // DATA0

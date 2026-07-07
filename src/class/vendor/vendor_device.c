@@ -161,6 +161,14 @@ bool tud_vendor_n_mounted(uint8_t idx) {
   #if CFG_TUD_VENDOR_EP_INT_IN
   mounted = mounted || (p_itf->ep_int_in != 0);
   #endif
+  // an altsetting may expose only isochronous endpoints; count them so apps that gate an iso
+  // pump on tud_vendor_mounted() still arm it
+  #if CFG_TUD_VENDOR_EP_ISO_OUT
+  mounted = mounted || (p_itf->ep_iso_out != 0);
+  #endif
+  #if CFG_TUD_VENDOR_EP_ISO_IN
+  mounted = mounted || (p_itf->ep_iso_in != 0);
+  #endif
   return mounted;
 }
 
@@ -487,6 +495,15 @@ static inline bool vendord_iso_ep_activate(uint8_t rhport, const tusb_desc_endpo
   #endif
 }
 
+// Abort any in-flight transfer on a tracked endpoint and release its usbd claim; no-op for an
+// unset (0) address. stall disables the endpoint in the dcd, clear-stall resets it to DATA0.
+static inline void vendord_abort_ep(uint8_t rhport, uint8_t ep_addr) {
+  if (ep_addr) {
+    usbd_edpt_stall(rhport, ep_addr);
+    usbd_edpt_clear_stall(rhport, ep_addr);
+  }
+}
+
 // Select an altsetting. Endpoints were hardware-opened once at vendord_open (dcds like
 // dwc2 allocate FIFO linearly and cannot close/re-open endpoints dynamically): switching
 // only re-targets the API to the selected altsetting's endpoints. Bulk/interrupt
@@ -508,7 +525,18 @@ static bool vendord_set_alt(uint8_t rhport, uint8_t idx, uint8_t alt) {
       in_target_alt = (((const tusb_desc_interface_t*)p_desc)->bAlternateSetting == alt);
       if (in_target_alt && !alt_found) {
         alt_found = true;
-        // target altsetting confirmed present: now drop the previous altsetting's endpoints
+        // target altsetting confirmed present: abort then drop the previous altsetting's endpoints,
+        // so a bulk/interrupt endpoint absent from the target altsetting can't stay armed and keep
+        // its usbd claim in the dcd. (Endpoints the target altsetting reuses are reset again below;
+        // a double reset is harmless. Iso endpoints are re-activated on reselection.)
+        vendord_abort_ep(rhport, p_vendor->ep_in);
+        vendord_abort_ep(rhport, p_vendor->ep_out);
+  #if CFG_TUD_VENDOR_EP_INT_OUT
+        vendord_abort_ep(rhport, p_vendor->ep_int_out);
+  #endif
+  #if CFG_TUD_VENDOR_EP_INT_IN
+        vendord_abort_ep(rhport, p_vendor->ep_int_in);
+  #endif
         p_vendor->ep_in = 0;
         p_vendor->ep_out = 0;
   #if CFG_TUD_VENDOR_EP_INT_OUT
