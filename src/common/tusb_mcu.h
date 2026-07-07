@@ -676,6 +676,12 @@
   #ifndef CFG_TUD_WCH_USB30_FALLBACK
     #define CFG_TUD_WCH_USB30_FALLBACK 0
   #endif
+  // Bulk burst size (packets per burst, 1..16). 4 matches the link layer's header-packet
+  // buffer count (NUM_HP_BUF) and is hardware-validated; 8 fails to configure. SuperSpeed
+  // descriptors should advertise bMaxBurst = CFG_TUD_WCH_USB30_MAX_BURST - 1.
+  #ifndef CFG_TUD_WCH_USB30_MAX_BURST
+    #define CFG_TUD_WCH_USB30_MAX_BURST 4
+  #endif
 
   #define TUP_RHPORT_HIGHSPEED  1
   #define TUP_RHPORT_SUPERSPEED CFG_TUD_WCH_USBIP_USB30

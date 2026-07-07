@@ -164,6 +164,16 @@ uint8_t const *tud_descriptor_other_speed_configuration_cb(uint8_t index) {
 #endif
 
 #if TUD_OPT_SUPER_SPEED
+// Bulk endpoint burst capability advertised in the endpoint companions (bMaxBurst = bursts-1).
+// Must not exceed what the dcd supports (WCH CH56x: CFG_TUD_WCH_USB30_MAX_BURST)
+#ifndef CFG_EXAMPLE_SS_BULK_MAXBURST
+  #ifdef CFG_TUD_WCH_USB30_MAX_BURST
+    #define CFG_EXAMPLE_SS_BULK_MAXBURST (CFG_TUD_WCH_USB30_MAX_BURST - 1)
+  #else
+    #define CFG_EXAMPLE_SS_BULK_MAXBURST 0
+  #endif
+#endif
+
 // Per USB specs: SuperSpeed devices must report a BOS descriptor and every endpoint
 // descriptor must be followed by an endpoint companion descriptor
 
@@ -171,8 +181,8 @@ uint8_t const *tud_descriptor_other_speed_configuration_cb(uint8_t index) {
 
 static uint8_t const desc_ss_configuration[] = {
     TUD_CONFIG_SS_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_SS_TOTAL_LEN, 0x00, 96),
-    TUD_CDC_SS_DESCRIPTOR(ITF_NUM_CDC, 4, EPNUM_CDC_NOTIF, 16, EPNUM_CDC_OUT, EPNUM_CDC_IN, 0),
-    TUD_MSC_SS_DESCRIPTOR(ITF_NUM_MSC, 5, EPNUM_MSC_OUT, EPNUM_MSC_IN, 0),
+    TUD_CDC_SS_DESCRIPTOR(ITF_NUM_CDC, 4, EPNUM_CDC_NOTIF, 16, EPNUM_CDC_OUT, EPNUM_CDC_IN, CFG_EXAMPLE_SS_BULK_MAXBURST),
+    TUD_MSC_SS_DESCRIPTOR(ITF_NUM_MSC, 5, EPNUM_MSC_OUT, EPNUM_MSC_IN, CFG_EXAMPLE_SS_BULK_MAXBURST),
 };
 
 #define BOS_TOTAL_LEN  (TUD_BOS_DESC_LEN + TUD_BOS_USB20_EXT_DESC_LEN + TUD_BOS_SUPERSPEED_DESC_LEN)

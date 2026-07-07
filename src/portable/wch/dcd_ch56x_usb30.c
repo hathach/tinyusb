@@ -35,9 +35,10 @@
 // - The LTSSM is driven by software from the LINK interrupt: link training, LMP port
 //   capability/configuration exchange and warm/hot reset are all serviced here.
 // - The "bus reset" event for the stack is the link reaching U0 (LINK_IF_RDY after TXEQ).
-// - Endpoints run with burst size 1 (NUMP=1): known silicon quirk corrupts the second packet
-//   of multi-packet bursts (16 zero bytes prepended, see TeenyUSB known issues). Raising
-//   CFG_TUD_WCH_USB30_MAX_BURST beyond 1 requires hardware validation.
+// - Bulk endpoints burst up to CFG_TUD_WCH_USB30_MAX_BURST packets per arm (default 4,
+//   hardware-validated with data-integrity tests; the TeenyUSB-reported burst corruption
+//   quirk did not reproduce with per-burst DMA re-arm). Burst 8 fails to configure - the
+//   link layer has 4 header-packet buffers (NUM_HP_BUF).
 // - Isochronous endpoints are not supported (the open register model has no proven ISO path).
 // - USB DMA reaches only RAMX (16-byte aligned); transfers from other memory are bounced
 //   through per-endpoint slots allocated from a small RAMX pool.
@@ -54,15 +55,18 @@
 #define EP_MAX        8
 #define EP0_MPS       512
 
-// NUMP per arm; keep 1 (see silicon quirk above)
+// NUMP per arm; default set in tusb_mcu.h (4, hardware-validated: 50x MSC write/read-back and
+// 256KB CDC echo integrity clean, ~2x throughput over single packets; 8 fails to configure,
+// matching the link layer's 4 header-packet buffers)
 #ifndef CFG_TUD_WCH_USB30_MAX_BURST
-  #define CFG_TUD_WCH_USB30_MAX_BURST 1
+  #define CFG_TUD_WCH_USB30_MAX_BURST 4
 #endif
 
-// RAMX pool for per-endpoint bounce slots (one slot = MAX_BURST * 1024 per opened EP direction
-// with a non-RAMX transfer buffer)
+// RAMX pool for per-endpoint bounce slots (one max packet per opened EP direction). Bounced
+// transfers are limited to single-packet bursts; zero-copy transfers use the full burst.
+#define BOUNCE_SLOT_SIZE 1024
 #ifndef CFG_TUD_WCH_USB30_RAMX_POOL_SIZE
-  #define CFG_TUD_WCH_USB30_RAMX_POOL_SIZE (6 * 1024 * CFG_TUD_WCH_USB30_MAX_BURST)
+  #define CFG_TUD_WCH_USB30_RAMX_POOL_SIZE (6 * BOUNCE_SLOT_SIZE)
 #endif
 
 // The hardware EP0 max packet size is fixed at 512 (SuperSpeed). Applications should set
@@ -189,7 +193,11 @@ static void ep_state_reset(void) {
 static void xfer_in_arm(uint8_t ep) {
   xfer_ctl_t *xfer = &xfer_status[ep][TUSB_DIR_IN];
   const uint16_t remaining = xfer->total_len - xfer->queued_len;
-  const uint16_t chunk = TU_MIN(remaining, (uint16_t)(xfer->mps * CFG_TUD_WCH_USB30_MAX_BURST));
+  uint16_t burst_max = (uint16_t)(xfer->mps * CFG_TUD_WCH_USB30_MAX_BURST);
+  if (xfer->bounce) {
+    burst_max = TU_MIN(burst_max, (uint16_t)BOUNCE_SLOT_SIZE);
+  }
+  const uint16_t chunk = TU_MIN(remaining, burst_max);
   const uint8_t nump = (chunk == 0) ? 1 : (uint8_t)TU_DIV_CEIL(chunk, xfer->mps);
   // length field holds the length of the last packet of the burst
   const uint16_t last_pkt = (chunk == 0) ? 0 : (uint16_t)(chunk - (nump - 1) * xfer->mps);
@@ -209,12 +217,15 @@ static void xfer_in_arm(uint8_t ep) {
 static void xfer_out_arm(uint8_t ep) {
   xfer_ctl_t *xfer = &xfer_status[ep][TUSB_DIR_OUT];
   const uint16_t remaining = xfer->total_len - xfer->queued_len;
-  const uint8_t nump = (uint8_t)TU_MAX(1u, TU_MIN((uint32_t)TU_DIV_CEIL(remaining, xfer->mps),
-                                                  (uint32_t)CFG_TUD_WCH_USB30_MAX_BURST));
+  uint8_t nump = (uint8_t)TU_MAX(1u, TU_MIN((uint32_t)TU_DIV_CEIL(remaining, xfer->mps),
+                                            (uint32_t)CFG_TUD_WCH_USB30_MAX_BURST));
   // The receiver has no byte limit: an armed packet may write up to mps bytes. Bounce whenever
-  // the remaining user buffer cannot hold a full burst.
+  // the remaining user buffer cannot hold the armed burst; bounced bursts fit one slot.
   xfer->bounce = ((uint32_t)remaining < (uint32_t)nump * xfer->mps) ||
                  !ch56x_is_dma_capable(xfer->buffer + xfer->queued_len);
+  if (xfer->bounce) {
+    nump = (uint8_t)TU_MAX(1u, TU_MIN((uint32_t)nump, (uint32_t)(BOUNCE_SLOT_SIZE / xfer->mps)));
+  }
   uint8_t *dst = xfer->bounce ? xfer->slot : (xfer->buffer + xfer->queued_len);
   *usbss_rx_dma(ep) = (uint32_t)(uintptr_t)dst;
   xfer->armed_len = (uint16_t)(nump * xfer->mps);
@@ -683,10 +694,9 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt) {
 
   // Allocate a RAMX bounce slot once per endpoint direction
   if (xfer->slot == NULL) {
-    const uint16_t slot_size = 1024 * CFG_TUD_WCH_USB30_MAX_BURST;
-    TU_ASSERT(_pool_brk + slot_size <= CFG_TUD_WCH_USB30_RAMX_POOL_SIZE);
+    TU_ASSERT(_pool_brk + BOUNCE_SLOT_SIZE <= CFG_TUD_WCH_USB30_RAMX_POOL_SIZE);
     xfer->slot = &_ramx_pool[_pool_brk];
-    _pool_brk += slot_size;
+    _pool_brk += BOUNCE_SLOT_SIZE;
   }
 
   if (dir == TUSB_DIR_IN) {
