@@ -58,6 +58,12 @@ __attribute__((interrupt)) void USBSS_IRQHandler(void) {
 void LINK_IRQHandler(void) __attribute__((alias("USBSS_IRQHandler")));
 void USBHS_IRQHandler(void) __attribute__((alias("USBSS_IRQHandler")));
 
+#if CFG_TUD_WCH_USB30_FALLBACK
+// the USB3 dcd uses TMR0 as the SuperSpeed-training timeout for the USB2 fallback
+void TMR0_IRQHandler(void);
+void TMR0_IRQHandler(void) __attribute__((alias("USBSS_IRQHandler")));
+#endif
+
 //--------------------------------------------------------------------+
 // SysTick
 //--------------------------------------------------------------------+
@@ -121,6 +127,15 @@ uint32_t board_button_read(void) {
 #else
   return 0;
 #endif
+}
+
+size_t board_get_unique_id(uint8_t id[], size_t max_len) {
+  // 64-bit factory unique ID (+ checksum) in the read-only info flash (CH569 datasheet 2.2.3)
+  TU_ATTR_ALIGNED(4) uint8_t uid[8];
+  FLASH_ROMA_READ(0x77FE4, (puint32_t)(uintptr_t)uid, 8);
+  const size_t len = TU_MIN(max_len, (size_t)8);
+  memcpy(id, uid, len);
+  return len;
 }
 
 int board_uart_read(uint8_t* buf, int len) {

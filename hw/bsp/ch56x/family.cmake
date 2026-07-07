@@ -35,6 +35,7 @@ set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 function(family_add_board BOARD_TARGET)
   add_library(${BOARD_TARGET} STATIC
     ${SDK_DIR}/drv/CH56x_clk.c
+    ${SDK_DIR}/drv/CH56x_flash.c
     ${SDK_DIR}/drv/CH56x_gpio.c
     ${SDK_DIR}/drv/CH56x_uart.c
     ${SDK_DIR}/drv/CH56x_sys.c
@@ -50,7 +51,11 @@ function(family_add_board BOARD_TARGET)
     )
 
   if (SPEED STREQUAL super)
-    target_compile_definitions(${BOARD_TARGET} PUBLIC CFG_TUD_WCH_USBIP_USB30=1)
+    # USB3 SuperSpeed with runtime USB2 high-speed fallback (uses TMR0 as training timeout)
+    target_compile_definitions(${BOARD_TARGET} PUBLIC
+      CFG_TUD_WCH_USBIP_USB30=1
+      CFG_TUD_WCH_USB30_FALLBACK=1
+      )
   else ()
     target_compile_definitions(${BOARD_TARGET} PUBLIC CFG_TUD_WCH_USBIP_USBHS=1)
   endif ()

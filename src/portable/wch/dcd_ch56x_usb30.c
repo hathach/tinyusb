@@ -92,12 +92,37 @@ static uint8_t _ep0_seq;                  // EP0 IN packet sequence within a dat
 static tusb_dir_t _ep0_status_dir;        // direction usbd queued for the status stage
 static volatile bool _lmp_pending;        // send LMP PORT_CAPABILITY at next link-ready
 
+#if CFG_TUD_WCH_USB30_FALLBACK
+// Runtime USB2 high-speed fallback (WCH reference pattern): a ~0.5 s timer (TMR0) counts down
+// while SuperSpeed link training runs. First expiry shuts USB3 down (host sees disconnect),
+// second expiry brings the USB2 controller up on the same rhport. SuperSpeed success kills the
+// timer. One way: returning to SuperSpeed after fallback requires a new dcd_init (or power cycle).
+enum { FB_USB3_TRAINING = 0, FB_USB3_OFF, FB_USB3_UP, FB_USB2_ACTIVE };
+static volatile uint8_t _fb_state;
+
+static void fallback_timer_stop(void) {
+  R8_TMR0_INTER_EN = 0;
+  PFIC_DisableIRQ(TMR0_IRQn);
+  R8_TMR0_CTRL_MOD = RB_TMR_ALL_CLEAR;
+}
+
+static void fallback_timer_start(void) {
+  R8_TMR0_CTRL_MOD = RB_TMR_ALL_CLEAR;
+  R32_TMR0_CNT_END = 60000000; // 0.5 s at 120 MHz
+  R8_TMR0_INT_FLAG = RB_TMR_IF_CYC_END;
+  R8_TMR0_INTER_EN = RB_TMR_IE_CYC_END;
+  R8_TMR0_CTRL_MOD = RB_TMR_COUNT_EN;
+}
+#endif
+
 //--------------------------------------------------------------------+
 // Link layer (software LTSSM assist)
 //--------------------------------------------------------------------+
 
 static void link_set_power_mode(uint32_t pm) {
-  while (USBSS->LINK_STATUS & USBSS_LINK_STATUS_BUSY) {}
+  // bounded: BUSY can stick when the link is dead (e.g. during fallback teardown)
+  uint32_t timeout = 100000;
+  while ((USBSS->LINK_STATUS & USBSS_LINK_STATUS_BUSY) && --timeout) {}
   USBSS->LINK_CTRL = (USBSS->LINK_CTRL & ~USBSS_LINK_CTRL_PM_MASK) | pm;
 }
 
@@ -361,6 +386,10 @@ static void handle_link_irq(uint8_t rhport) {
       USBSS->LMP_TX_DATA1 = USBSS_LMP_TX_PORT_CAP_DATA1;
       USBSS->LMP_TX_DATA2 = 0;
       _lmp_pending = false;
+#if CFG_TUD_WCH_USB30_FALLBACK
+      _fb_state = FB_USB3_UP;
+      fallback_timer_stop();
+#endif
       ep_state_reset();
       dcd_event_bus_reset(rhport, TUSB_SPEED_SUPER, true);
     }
@@ -371,10 +400,25 @@ static void handle_link_irq(uint8_t rhport) {
   }
   if (flag & USBSS_LINK_IF_DISABLE) {
     USBSS->LINK_INT_FLAG = USBSS_LINK_IF_DISABLE;
-    // No SuperSpeed host (or link lost): without runtime USB2 fallback, retry SS training
+#if CFG_TUD_WCH_USB30_FALLBACK
+    // SuperSpeed rejected by the link partner: switch to USB2 right away
+    PFIC_DisableIRQ(USBSS_IRQn);
+    PFIC_DisableIRQ(LINK_IRQn);
+    usb30_hw_deinit();
+    fallback_timer_stop();
+    _fb_state = FB_USB2_ACTIVE;
+    USBSS->LINK_INT_FLAG = 0xFFFFFFFFu;
+    PFIC_ClearPendingIRQ(USBSS_IRQn);
+    PFIC_ClearPendingIRQ(LINK_IRQn);
+    PFIC_ClearPendingIRQ(TMR0_IRQn);
+    ch56x_usb2_init(rhport);
+    ch56x_usb2_int_enable();
+#else
+    // No SuperSpeed host (or link lost): retry SS training
     dcd_event_t event = {.rhport = rhport, .event_id = DCD_EVENT_UNPLUGGED};
     dcd_event_handler(&event, true);
     usb30_bus_reset();
+#endif
   }
   if (flag & USBSS_LINK_IF_RX_DET) {
     USBSS->LINK_INT_FLAG = USBSS_LINK_IF_RX_DET;
@@ -405,7 +449,8 @@ static void handle_link_irq(uint8_t rhport) {
     usb30_bus_reset();
     USBSS->USB_CONTROL &= 0x00FFFFFFu; // address 0
     USBSS->LINK_CTRL |= USBSS_LINK_CTRL_TX_WARM_RST;
-    while (USBSS->LINK_STATUS & USBSS_LINK_STATUS_RX_WARM) {}
+    uint32_t timeout = 1000000;
+    while ((USBSS->LINK_STATUS & USBSS_LINK_STATUS_RX_WARM) && --timeout) {}
     USBSS->LINK_CTRL &= ~USBSS_LINK_CTRL_TX_WARM_RST;
     link_delay_us(2);
   }
@@ -478,6 +523,35 @@ static void handle_usb_irq(uint8_t rhport) {
 }
 
 void dcd_int_handler(uint8_t rhport) {
+#if CFG_TUD_WCH_USB30_FALLBACK
+  if (_fb_state == FB_USB2_ACTIVE) {
+    ch56x_usb2_int_handler(rhport);
+    return;
+  }
+  // Fallback timer tick: SuperSpeed training has not succeeded yet
+  if (R8_TMR0_INT_FLAG & RB_TMR_IF_CYC_END) {
+    R8_TMR0_INT_FLAG = RB_TMR_IF_CYC_END;
+    if (_fb_state == FB_USB3_TRAINING) {
+      // first expiry: shut USB3 down so the host sees a disconnect
+      PFIC_DisableIRQ(USBSS_IRQn);
+      PFIC_DisableIRQ(LINK_IRQn);
+      usb30_hw_deinit();
+      _fb_state = FB_USB3_OFF;
+    } else if (_fb_state == FB_USB3_OFF) {
+      // second expiry: switch to the USB2 high-speed controller on the same rhport
+      _fb_state = FB_USB2_ACTIVE;
+      fallback_timer_stop();
+      USBSS->LINK_INT_FLAG = 0xFFFFFFFFu;
+      PFIC_ClearPendingIRQ(USBSS_IRQn);
+      PFIC_ClearPendingIRQ(LINK_IRQn);
+      PFIC_ClearPendingIRQ(TMR0_IRQn);
+      ch56x_usb2_init(rhport);
+      ch56x_usb2_int_enable();
+    }
+    return;
+  }
+#endif
+
   // Both the USBSS and LINK vectors forward here; dispatch on the flag registers
   if (USBSS->LINK_INT_FLAG & USBSS->LINK_INT_CTRL) {
     handle_link_irq(rhport);
@@ -503,11 +577,24 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   xfer_status[0][TUSB_DIR_OUT].mps = EP0_MPS;
   xfer_status[0][TUSB_DIR_IN].mps = EP0_MPS;
 
+#if CFG_TUD_WCH_USB30_FALLBACK
+  _fb_state = FB_USB3_TRAINING;
+  ch56x_usb2_deinit(); // keep the USB2 controller quiescent while SS trains
+  fallback_timer_start();
+#endif
+
   return usb30_hw_init();
 }
 
 void dcd_int_enable(uint8_t rhport) {
   (void)rhport;
+#if CFG_TUD_WCH_USB30_FALLBACK
+  if (_fb_state == FB_USB2_ACTIVE) {
+    ch56x_usb2_int_enable();
+    return;
+  }
+  PFIC_EnableIRQ(TMR0_IRQn);
+#endif
   PFIC_EnableIRQ(USBSS_IRQn);
   PFIC_EnableIRQ(LINK_IRQn);
 }
@@ -516,9 +603,21 @@ void dcd_int_disable(uint8_t rhport) {
   (void)rhport;
   PFIC_DisableIRQ(USBSS_IRQn);
   PFIC_DisableIRQ(LINK_IRQn);
+#if CFG_TUD_WCH_USB30_FALLBACK
+  PFIC_DisableIRQ(TMR0_IRQn);
+  ch56x_usb2_int_disable();
+#endif
 }
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
+#if CFG_TUD_WCH_USB30_FALLBACK
+  if (_fb_state == FB_USB2_ACTIVE) {
+    // address is applied in ch56x_usb2_edpt0_status_complete(); reply with a status ZLP
+    (void)dev_addr;
+    ch56x_usb2_edpt_xfer(rhport, 0x80, NULL, 0);
+    return;
+  }
+#endif
   (void)rhport;
   // Applied at the status stage (handle_ep0_rx); respond with the status transaction
   _pending_addr = 0x80u | dev_addr;
@@ -527,21 +626,43 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
 }
 
 void dcd_edpt0_status_complete(uint8_t rhport, const tusb_control_request_t *request) {
+#if CFG_TUD_WCH_USB30_FALLBACK
+  if (_fb_state == FB_USB2_ACTIVE) {
+    ch56x_usb2_edpt0_status_complete(rhport, request);
+    return;
+  }
+#endif
   (void)rhport;
   (void)request; // address is applied in the status-stage event
 }
 
 void dcd_remote_wakeup(uint8_t rhport) {
+#if CFG_TUD_WCH_USB30_FALLBACK
+  if (_fb_state == FB_USB2_ACTIVE) {
+    return;
+  }
+#endif
   (void)rhport;
   USBSS->LINK_CTRL |= USBSS_LINK_CTRL_TX_UX_EXIT; // best effort U-state exit
 }
 
 void dcd_sof_enable(uint8_t rhport, bool en) {
+#if CFG_TUD_WCH_USB30_FALLBACK
+  if (_fb_state == FB_USB2_ACTIVE) {
+    ch56x_usb2_sof_enable(rhport, en);
+    return;
+  }
+#endif
   (void)rhport;
   (void)en; // no frame interrupt at SuperSpeed (ITP is ignored)
 }
 
 bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt) {
+#if CFG_TUD_WCH_USB30_FALLBACK
+  if (_fb_state == FB_USB2_ACTIVE) {
+    return ch56x_usb2_edpt_open(rhport, desc_edpt);
+  }
+#endif
   (void)rhport;
 
   const uint8_t ep_num = tu_edpt_number(desc_edpt->bEndpointAddress);
@@ -577,6 +698,12 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt) {
 }
 
 void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
+#if CFG_TUD_WCH_USB30_FALLBACK
+  if (_fb_state == FB_USB2_ACTIVE) {
+    ch56x_usb2_edpt_close(rhport, ep_addr);
+    return;
+  }
+#endif
   (void)rhport;
   const uint8_t ep_num = tu_edpt_number(ep_addr);
   const tusb_dir_t dir = tu_edpt_dir(ep_addr);
@@ -592,6 +719,12 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
 }
 
 void dcd_edpt_close_all(uint8_t rhport) {
+#if CFG_TUD_WCH_USB30_FALLBACK
+  if (_fb_state == FB_USB2_ACTIVE) {
+    ch56x_usb2_edpt_close_all(rhport);
+    return;
+  }
+#endif
   (void)rhport;
   for (uint8_t ep = 1; ep < EP_MAX; ep++) {
     USBSS_TX_CTRL(ep) = 0;
@@ -606,6 +739,11 @@ void dcd_edpt_close_all(uint8_t rhport) {
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes, bool is_isr) {
+#if CFG_TUD_WCH_USB30_FALLBACK
+  if (_fb_state == FB_USB2_ACTIVE) {
+    return ch56x_usb2_edpt_xfer(rhport, ep_addr, buffer, total_bytes);
+  }
+#endif
   (void)rhport;
   (void)is_isr;
   const uint8_t ep_num = tu_edpt_number(ep_addr);
@@ -643,6 +781,12 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
 }
 
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
+#if CFG_TUD_WCH_USB30_FALLBACK
+  if (_fb_state == FB_USB2_ACTIVE) {
+    ch56x_usb2_edpt_stall(rhport, ep_addr);
+    return;
+  }
+#endif
   (void)rhport;
   const uint8_t ep_num = tu_edpt_number(ep_addr);
   const tusb_dir_t dir = tu_edpt_dir(ep_addr);
@@ -667,6 +811,12 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
+#if CFG_TUD_WCH_USB30_FALLBACK
+  if (_fb_state == FB_USB2_ACTIVE) {
+    ch56x_usb2_edpt_clear_stall(rhport, ep_addr);
+    return;
+  }
+#endif
   (void)rhport;
   const uint8_t ep_num = tu_edpt_number(ep_addr);
   const tusb_dir_t dir = tu_edpt_dir(ep_addr);

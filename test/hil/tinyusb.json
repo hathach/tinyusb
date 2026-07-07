@@ -495,8 +495,8 @@
             }
         },
         {
-            "name": "ch582m_evt",
-            "uid": "D443627B5450",
+            "name": "hydrausb3_v1",
+            "uid": "40983B263B38B6F6",
             "toolchain": "riscv-gcc",
             "tests": {
                 "device": true,

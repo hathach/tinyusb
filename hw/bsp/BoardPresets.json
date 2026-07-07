@@ -275,6 +275,10 @@
       "inherits": "default"
     },
     {
+      "name": "hydrausb3_v1",
+      "inherits": "default"
+    },
+    {
       "name": "itsybitsy_m0",
       "inherits": "default"
     },
@@ -1341,6 +1345,11 @@
       "name": "hpm6750evk2",
       "description": "Build preset for the hpm6750evk2 board",
       "configurePreset": "hpm6750evk2"
+    },
+    {
+      "name": "hydrausb3_v1",
+      "description": "Build preset for the hydrausb3_v1 board",
+      "configurePreset": "hydrausb3_v1"
     },
     {
       "name": "itsybitsy_m0",
@@ -3125,6 +3134,19 @@
         {
           "type": "build",
           "name": "hpm6750evk2"
+        }
+      ]
+    },
+    {
+      "name": "hydrausb3_v1",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "hydrausb3_v1"
+        },
+        {
+          "type": "build",
+          "name": "hydrausb3_v1"
         }
       ]
     },
