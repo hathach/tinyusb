@@ -46,8 +46,11 @@ function(family_add_board BOARD_TARGET)
     ${SDK_DIR}/rvmsis
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     )
+  if (NOT DEFINED FREQ_SYS)
+    set(FREQ_SYS 120000000)
+  endif ()
   target_compile_definitions(${BOARD_TARGET} PUBLIC
-    FREQ_SYS=120000000
+    FREQ_SYS=${FREQ_SYS}
     )
 
   if (SPEED STREQUAL super)

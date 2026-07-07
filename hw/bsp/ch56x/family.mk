@@ -8,6 +8,7 @@ CPU_CORE ?= rv32imac-ilp32
 
 # Controller selection: super = USB3.0 SuperSpeed (USBSS), high = USB2.0 HighSpeed (USBHS)
 SPEED ?= super
+FREQ_SYS ?= 120000000
 
 CFLAGS += \
 	-flto \
@@ -16,7 +17,7 @@ CFLAGS += \
 	-fmessage-length=0 \
 	-fsigned-char \
 	-DCFG_TUSB_MCU=OPT_MCU_CH569 \
-	-DFREQ_SYS=120000000 \
+	-DFREQ_SYS=$(FREQ_SYS) \
 	-DCFG_TUSB_MEM_SECTION='__attribute__((section(".dmadata")))' \
 	-DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(16)))' \
 	-Wno-error=strict-prototypes \
