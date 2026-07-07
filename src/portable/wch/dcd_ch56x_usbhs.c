@@ -67,12 +67,12 @@ typedef struct {
 #define XFER_CTL_BASE(_ep, _dir) &xfer_status[_ep][_dir]
 static xfer_ctl_t xfer_status[EP_MAX][2];
 
-#define EP_TX_LEN(ep)      (*((vpuint16_t)(USB_BASE_ADDR + 0x70 + 4 * (ep))))
-#define EP_TX_CTRL(ep)     (*((vpuint8_t)(USB_BASE_ADDR + 0x72 + 4 * (ep))))
-#define EP_RX_CTRL(ep)     (*((vpuint8_t)(USB_BASE_ADDR + 0x73 + 4 * (ep))))
-#define EP_MAX_LEN(ep)     (*((vpuint16_t)(USB_BASE_ADDR + 0x50 + 4 * (ep))))
-#define EP_RX_DMA_ADDR(ep) (*((vpuint32_t)(USB_BASE_ADDR + 0x18 + 4 * ((ep) - 1))))
-#define EP_TX_DMA_ADDR(ep) (*((vpuint32_t)(USB_BASE_ADDR + 0x34 + 4 * ((ep) - 1))))
+#define EP_TX_LEN(ep)      (*((volatile uint16_t*)(USB_BASE_ADDR + 0x70 + 4 * (ep))))
+#define EP_TX_CTRL(ep)     (*((volatile uint8_t*)(USB_BASE_ADDR + 0x72 + 4 * (ep))))
+#define EP_RX_CTRL(ep)     (*((volatile uint8_t*)(USB_BASE_ADDR + 0x73 + 4 * (ep))))
+#define EP_MAX_LEN(ep)     (*((volatile uint16_t*)(USB_BASE_ADDR + 0x50 + 4 * (ep))))
+#define EP_RX_DMA_ADDR(ep) (*((volatile uint32_t*)(USB_BASE_ADDR + 0x18 + 4 * ((ep) - 1))))
+#define EP_TX_DMA_ADDR(ep) (*((volatile uint32_t*)(USB_BASE_ADDR + 0x34 + 4 * ((ep) - 1))))
 
 // R8_UEPn_MOD enable bits for EP1..EP7: mode register offset from USB_BASE_ADDR and whether the
 // endpoint uses the high nibble (TX 0x40 / RX 0x80) or the low nibble (TX 0x04 / RX 0x08)
@@ -91,7 +91,7 @@ static const struct {
 };
 
 static void ep_mode_set(uint8_t ep_num, tusb_dir_t dir, bool en) {
-  vpuint8_t reg = (vpuint8_t)(USB_BASE_ADDR + ep_mod[ep_num].reg_ofs);
+  volatile uint8_t* reg = (volatile uint8_t*)(USB_BASE_ADDR + ep_mod[ep_num].reg_ofs);
   uint8_t bit = (dir == TUSB_DIR_IN) ? (ep_mod[ep_num].hi_nibble ? 0x40 : 0x04)
                                      : (ep_mod[ep_num].hi_nibble ? 0x80 : 0x08);
   if (en) {

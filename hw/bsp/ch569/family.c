@@ -86,6 +86,12 @@ uint32_t tusb_time_millis_api(void) {
 //--------------------------------------------------------------------+
 
 void board_init(void) {
+  // Zero the NOLOAD .dmadata (RAMX) section: the EVT startup only clears .bss in RAMS
+  extern uint32_t _dmadata_start[], _dmadata_end[];
+  for (uint32_t* p = _dmadata_start; p < _dmadata_end; p++) {
+    *p = 0;
+  }
+
   // 120 MHz system clock: required for USB3 operation (160 MHz does not work with USB3).
   // SystemInit() takes the frequency in Hz (FREQ_SYS is set by the build)
   SystemInit(FREQ_SYS);
@@ -129,10 +135,45 @@ uint32_t board_button_read(void) {
 #endif
 }
 
+// SPI-ROM controller byte/word ports: the EVT SFR header only names the 16/32-bit views
+#define SPI_ROM_CR8    (*(volatile uint8_t*) 0x4000101A)
+#define SPI_ROM_CTRL8  (*(volatile uint8_t*) 0x40001018)
+#define SPI_ROM_DATA8  (*(volatile uint8_t*) 0x40001018)
+#define SPI_ROM_DATA32 (*(volatile uint32_t*) 0x40001014)
+
+// Read 32-bit words from the code flash / info region through the SPI-ROM command
+// interface (the memory-mapped path does not cover the info region); rom_addr = flash_addr
+// + 0x8000. Each SPI_ROM_DATA8 access strobes the next byte out of the SPI NOR: fast-read
+// needs 2 dummy strobes after the address, then 4 strobes per 32-bit word.
+static void flash_rom_read_words(uint32_t addr, uint32_t* buf, uint32_t nwords) {
+  const uint32_t rom_addr = addr + 0x8000u;
+  SPI_ROM_CR8 = 0;
+  SPI_ROM_CR8 = 0x07;
+  SPI_ROM_CTRL8 = 0x0B; // SPI NOR fast read
+  const uint8_t addr_bytes[3] = {(uint8_t)(rom_addr >> 16), (uint8_t)(rom_addr >> 8), (uint8_t)rom_addr};
+  for (uint32_t i = 0; i < 3; i++) {
+    while ((int8_t)SPI_ROM_CR8 < 0) {}
+    SPI_ROM_DATA8 = addr_bytes[i];
+  }
+  for (uint32_t i = 0; i < 2; i++) {
+    while ((int8_t)SPI_ROM_CR8 < 0) {}
+    (void)SPI_ROM_DATA8;
+  }
+  for (uint32_t w = 0; w < nwords; w++) {
+    for (uint32_t s = 0; s < 4; s++) {
+      while ((int8_t)SPI_ROM_CR8 < 0) {}
+      (void)SPI_ROM_DATA8;
+    }
+    buf[w] = SPI_ROM_DATA32;
+  }
+  while ((int8_t)SPI_ROM_CR8 < 0) {}
+  SPI_ROM_CR8 = 0;
+}
+
 size_t board_get_unique_id(uint8_t id[], size_t max_len) {
   // 64-bit factory unique ID (+ checksum) in the read-only info flash (CH569 datasheet 2.2.3)
-  TU_ATTR_ALIGNED(4) uint8_t uid[8];
-  FLASH_ROMA_READ(0x77FE4, (puint32_t)(uintptr_t)uid, 8);
+  uint32_t uid[2];
+  flash_rom_read_words(0x77FE4, uid, 2);
   const size_t len = TU_MIN(max_len, (size_t)8);
   memcpy(id, uid, len);
   return len;

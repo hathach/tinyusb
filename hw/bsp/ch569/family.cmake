@@ -1,6 +1,6 @@
 include_guard()
 
-set(SDK_DIR ${TOP}/hw/mcu/wch/ch56x)
+set(SDK_DIR ${TOP}/hw/mcu/wch/ch569/EVT/EXAM/SRC)
 
 # include board specific
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
@@ -25,7 +25,7 @@ if (NOT DEFINED LD_FILE_GNU)
 endif ()
 set(LD_FILE_Clang ${LD_FILE_GNU})
 if (NOT DEFINED STARTUP_FILE_GNU)
-  set(STARTUP_FILE_GNU ${SDK_DIR}/startup/startup_CH56x.S)
+  set(STARTUP_FILE_GNU ${SDK_DIR}/Startup/startup_CH56x.S)
 endif ()
 set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 
@@ -34,16 +34,15 @@ set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 #------------------------------------
 function(family_add_board BOARD_TARGET)
   add_library(${BOARD_TARGET} STATIC
-    ${SDK_DIR}/drv/CH56x_clk.c
-    ${SDK_DIR}/drv/CH56x_flash.c
-    ${SDK_DIR}/drv/CH56x_gpio.c
-    ${SDK_DIR}/drv/CH56x_uart.c
-    ${SDK_DIR}/drv/CH56x_sys.c
-    ${SDK_DIR}/rvmsis/core_riscv.c
+    ${SDK_DIR}/Peripheral/src/CH56x_clk.c
+    ${SDK_DIR}/Peripheral/src/CH56x_gpio.c
+    ${SDK_DIR}/Peripheral/src/CH56x_uart.c
+    ${SDK_DIR}/Peripheral/src/CH56x_sys.c
+    ${SDK_DIR}/RVMSIS/core_riscv.c
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
-    ${SDK_DIR}/drv
-    ${SDK_DIR}/rvmsis
+    ${SDK_DIR}/Peripheral/inc
+    ${SDK_DIR}/RVMSIS
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     )
   if (NOT DEFINED FREQ_SYS)
@@ -80,6 +79,7 @@ function(family_add_board BOARD_TARGET)
       -fmessage-length=0
       -fsigned-char
       -Wno-error=strict-prototypes
+      -Wno-comment
       )
   endif ()
 endfunction()

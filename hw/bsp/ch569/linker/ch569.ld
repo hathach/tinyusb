@@ -3,7 +3,7 @@
  * RAM (RAMS): 16K general SRAM @0x20000000
  * RAMX: 32K (default chip config) high-speed SRAM @0x20020000 - the only RAM reachable by
  *       high-speed peripheral DMA (USB2.0/USB3.0/ETH/HSPI/SerDes). USB buffers go to the
- *       16-byte aligned NOLOAD .dmadata section below; startup_CH56x.S zeroes
+ *       16-byte aligned NOLOAD .dmadata section below; board_init() zeroes
  *       _dmadata_start.._dmadata_end.
  */
 ENTRY( _start )

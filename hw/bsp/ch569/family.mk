@@ -1,7 +1,7 @@
 # Toolchain from https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack
 CROSS_COMPILE ?= riscv-none-elf-
 
-SDK_DIR = hw/mcu/wch/ch56x
+SDK_DIR = hw/mcu/wch/ch569/EVT/EXAM/SRC
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= rv32imac-ilp32
@@ -37,21 +37,20 @@ LDFLAGS += \
 SRC_C += \
 	src/portable/wch/dcd_ch56x_usb30.c \
 	src/portable/wch/dcd_ch56x_usbhs.c \
-	$(SDK_DIR)/drv/CH56x_clk.c \
-	$(SDK_DIR)/drv/CH56x_flash.c \
-	$(SDK_DIR)/drv/CH56x_gpio.c \
-	$(SDK_DIR)/drv/CH56x_uart.c \
-	$(SDK_DIR)/drv/CH56x_sys.c \
-	$(SDK_DIR)/rvmsis/core_riscv.c \
+	$(SDK_DIR)/Peripheral/src/CH56x_clk.c \
+	$(SDK_DIR)/Peripheral/src/CH56x_gpio.c \
+	$(SDK_DIR)/Peripheral/src/CH56x_uart.c \
+	$(SDK_DIR)/Peripheral/src/CH56x_sys.c \
+	$(SDK_DIR)/RVMSIS/core_riscv.c \
 	$(FAMILY_PATH)/debug_uart.c
 
 SRC_S += \
-	$(SDK_DIR)/startup/startup_CH56x.S
+	$(SDK_DIR)/Startup/startup_CH56x.S
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
-	$(TOP)/$(SDK_DIR)/drv \
-	$(TOP)/$(SDK_DIR)/rvmsis
+	$(TOP)/$(SDK_DIR)/Peripheral/inc \
+	$(TOP)/$(SDK_DIR)/RVMSIS
 
 LD_FILE ?= $(FAMILY_PATH)/linker/ch569.ld
 

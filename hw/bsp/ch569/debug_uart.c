@@ -75,6 +75,13 @@ void usart_printf_init(uint32_t baudrate) {
   tx_produce = 0;
   tx_consume = 0;
 
-  // UART1_init configures TXD1=PA8 / RXD1=PA7 pins, FIFO and baud rate
-  UART1_init(baudrate, GetSysClock());
+  // TXD1 = PA8 (output), RXD1 = PA7
+  R32_PA_SMT |= (1 << 8) | (1 << 7);
+  R32_PA_DIR |= (1 << 8);
+
+  UART1_BaudRateCfg(baudrate);
+  R8_UART1_FCR = RB_FCR_FIFO_TRIG | RB_FCR_TX_FIFO_CLR | RB_FCR_RX_FIFO_CLR | RB_FCR_FIFO_EN;
+  R8_UART1_LCR = RB_LCR_WORD_SZ;
+  R8_UART1_IER = RB_IER_TXD_EN;
+  R8_UART1_DIV = 1;
 }
