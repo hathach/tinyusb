@@ -12,10 +12,9 @@ set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/riscv_${TO
 set(FAMILY_MCUS CH569 CACHE INTERNAL "")
 set(OPENOCD_OPTION "-f ${CMAKE_CURRENT_LIST_DIR}/wch-riscv.cfg")
 
-# Controller selection: super = USB3.0 SuperSpeed (USBSS), high = USB2.0 HighSpeed (USBHS).
-# Default high until the USB3 dcd lands, then flip to super.
+# Controller selection: super = USB3.0 SuperSpeed (USBSS), high = USB2.0 HighSpeed (USBHS)
 if (NOT DEFINED SPEED)
-  set(SPEED high)
+  set(SPEED super)
 endif ()
 
 #------------------------------------
@@ -88,6 +87,7 @@ function(family_configure_example TARGET RTOS)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/debug_uart.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
+    ${TOP}/src/portable/wch/dcd_ch56x_usb30.c
     ${TOP}/src/portable/wch/dcd_ch56x_usbhs.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )

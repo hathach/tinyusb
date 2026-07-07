@@ -1,0 +1,682 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2026 Ha Thach (tinyusb.org)
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *
+ * This file is part of the TinyUSB stack.
+ */
+
+// CH565/CH569 USB3.0 SuperSpeed (Gen1, 5 Gbps) device controller (USBSS @0x40008000).
+//
+// WCH ships USB3 support for this chip only as an undocumented binary library; this driver is a
+// fresh implementation written against the register model reverse engineered by the hydrausb3
+// project (wch-ch56x-lib usb30.c, Apache-2.0) with the TeenyUSB CH56x port (MIT) as a secondary
+// reference, and the LINK-layer semantics confirmed by the CH32H417 reference manual (same IP).
+//
+// Notes:
+// - The LTSSM is driven by software from the LINK interrupt: link training, LMP port
+//   capability/configuration exchange and warm/hot reset are all serviced here.
+// - The "bus reset" event for the stack is the link reaching U0 (LINK_IF_RDY after TXEQ).
+// - Endpoints run with burst size 1 (NUMP=1): known silicon quirk corrupts the second packet
+//   of multi-packet bursts (16 zero bytes prepended, see TeenyUSB known issues). Raising
+//   CFG_TUD_WCH_USB30_MAX_BURST beyond 1 requires hardware validation.
+// - Isochronous endpoints are not supported (the open register model has no proven ISO path).
+// - USB DMA reaches only RAMX (16-byte aligned); transfers from other memory are bounced
+//   through per-endpoint slots allocated from a small RAMX pool.
+
+#include "tusb_option.h"
+
+#if CFG_TUD_ENABLED && defined(TUP_USBIP_WCH_USB30) && defined(CFG_TUD_WCH_USBIP_USB30) && \
+    (CFG_TUD_WCH_USBIP_USB30 == 1)
+
+#include "device/dcd.h"
+#include "dcd_ch56x.h"
+#include "ch56x_usb30_reg.h"
+
+#define EP_MAX        8
+#define EP0_MPS       512
+
+// NUMP per arm; keep 1 (see silicon quirk above)
+#ifndef CFG_TUD_WCH_USB30_MAX_BURST
+  #define CFG_TUD_WCH_USB30_MAX_BURST 1
+#endif
+
+// RAMX pool for per-endpoint bounce slots (one slot = MAX_BURST * 1024 per opened EP direction
+// with a non-RAMX transfer buffer)
+#ifndef CFG_TUD_WCH_USB30_RAMX_POOL_SIZE
+  #define CFG_TUD_WCH_USB30_RAMX_POOL_SIZE (6 * 1024 * CFG_TUD_WCH_USB30_MAX_BURST)
+#endif
+
+// The hardware EP0 max packet size is fixed at 512 (SuperSpeed). Applications should set
+// CFG_TUD_ENDPOINT0_SIZE to 512 (and provide SuperSpeed descriptors); ones that keep 64 still
+// compile but will not enumerate on a SuperSpeed host.
+
+typedef struct {
+  uint8_t *buffer;    // transfer buffer (may be outside RAMX)
+  uint8_t *slot;      // RAMX bounce slot for this endpoint direction (NULL until allocated)
+  uint16_t total_len;
+  uint16_t queued_len;
+  uint16_t armed_len; // bytes armed in the current burst
+  uint16_t mps;
+  bool     bounce;    // current transfer goes through the bounce slot
+  volatile bool active;
+} xfer_ctl_t;
+
+static xfer_ctl_t xfer_status[EP_MAX][2];
+
+/* EP0 buffer, shared by SETUP/IN/OUT (UEP0_DMA) */
+CFG_TUD_WCH_DMA_SECTION TU_ATTR_ALIGNED(16) static uint8_t _ep0_buf[EP0_MPS];
+CFG_TUD_WCH_DMA_SECTION TU_ATTR_ALIGNED(16) static uint8_t _ramx_pool[CFG_TUD_WCH_USB30_RAMX_POOL_SIZE];
+static uint16_t _pool_brk;
+
+static uint8_t _pending_addr;             // 0x80 | address while SET_ADDRESS status is pending
+static uint8_t _ep0_seq;                  // EP0 IN packet sequence within a data stage
+static tusb_dir_t _ep0_status_dir;        // direction usbd queued for the status stage
+static volatile bool _lmp_pending;        // send LMP PORT_CAPABILITY at next link-ready
+
+//--------------------------------------------------------------------+
+// Link layer (software LTSSM assist)
+//--------------------------------------------------------------------+
+
+static void link_set_power_mode(uint32_t pm) {
+  while (USBSS->LINK_STATUS & USBSS_LINK_STATUS_BUSY) {}
+  USBSS->LINK_CTRL = (USBSS->LINK_CTRL & ~USBSS_LINK_CTRL_PM_MASK) | pm;
+}
+
+// Bounded busy wait, only used in rare link (re)configuration paths
+static void link_delay_us(uint32_t us) {
+  // 120 MHz core, roughly 4 cycles per loop iteration
+  volatile uint32_t n = us * (120 / 4);
+  while (n--) {}
+}
+
+static bool usb30_hw_init(void) {
+  USBSS->LINK_CFG = USBSS_LINK_CFG_INIT;
+  USBSS->LINK_CTRL = 0x12; // power mode U2, per reference init
+  uint32_t timeout = 0x4c4b41;
+  while (USBSS->LINK_STATUS & USBSS_LINK_STATUS_BUSY) {
+    if (--timeout == 0) {
+      return false;
+    }
+  }
+  for (uint8_t ep = 0; ep < EP_MAX; ep++) {
+    USBSS_TX_CTRL(ep) = 0;
+    USBSS_RX_CTRL(ep) = 0;
+  }
+  USBSS->USB_STATUS = USBSS_USB_STATUS_CLEAR_INIT;
+  USBSS->USB_CONTROL = USBSS_USB_CTRL_INIT;
+  USBSS->UEP_CFG = USBSS_EP_R_EN(0) | USBSS_EP_T_EN(0);
+  USBSS->UEP0_DMA = (uint32_t)(uintptr_t)_ep0_buf;
+  USBSS->LINK_CFG |= USBSS_LINK_CFG_RX_TERM_EN;
+  USBSS->LINK_INT_CTRL = USBSS_LINK_INT_EN_INIT;
+  USBSS->LINK_CTRL = 2; // U2, wait for terminations (TERM_PRESENT irq starts polling)
+  return true;
+}
+
+static void usb30_hw_deinit(void) {
+  link_set_power_mode(3);
+  USBSS->LINK_CFG = USBSS_LINK_CFG_PIPE_RESET | USBSS_LINK_CFG_LFPS_RX_PD;
+  USBSS->LINK_CTRL = USBSS_LINK_CTRL_GO_DISABLED | 3;
+  USBSS->LINK_INT_CTRL = 0;
+  USBSS->USB_CONTROL = USBSS_USB_CTRL_FORCE_RST | USBSS_USB_CTRL_ALL_CLR;
+}
+
+static void usb30_bus_reset(void) {
+  usb30_hw_deinit();
+  link_delay_us(30000);
+  usb30_hw_init();
+}
+
+// Reset endpoint/transfer bookkeeping when the link (re)trains
+static void ep_state_reset(void) {
+  for (uint8_t ep = 0; ep < EP_MAX; ep++) {
+    xfer_status[ep][0].active = false;
+    xfer_status[ep][1].active = false;
+  }
+  _pending_addr = 0;
+  _ep0_seq = 0;
+}
+
+//--------------------------------------------------------------------+
+// Endpoint arming
+//--------------------------------------------------------------------+
+
+static void xfer_in_arm(uint8_t ep) {
+  xfer_ctl_t *xfer = &xfer_status[ep][TUSB_DIR_IN];
+  const uint16_t remaining = xfer->total_len - xfer->queued_len;
+  const uint16_t chunk = TU_MIN(remaining, (uint16_t)(xfer->mps * CFG_TUD_WCH_USB30_MAX_BURST));
+  const uint8_t nump = (chunk == 0) ? 1 : (uint8_t)TU_DIV_CEIL(chunk, xfer->mps);
+  // length field holds the length of the last packet of the burst
+  const uint16_t last_pkt = (chunk == 0) ? 0 : (uint16_t)(chunk - (nump - 1) * xfer->mps);
+
+  const uint8_t *src = xfer->buffer + xfer->queued_len;
+  if (xfer->bounce && chunk) {
+    memcpy(xfer->slot, src, chunk);
+    src = xfer->slot;
+  }
+  *usbss_tx_dma(ep) = (uint32_t)(uintptr_t)src; // DMA address auto-increments: rewrite every burst
+  xfer->armed_len = chunk;
+  USBSS_TX_CTRL(ep) = (USBSS_TX_CTRL(ep) & USBSS_EP_SEQ_MASK) | ((uint32_t)nump << USBSS_EP_NUMP_SHIFT) |
+                      USBSS_EP_RES_ACK | USBSS_EP_LPF | last_pkt;
+  usbss_send_erdy(ep, true, nump);
+}
+
+static void xfer_out_arm(uint8_t ep) {
+  xfer_ctl_t *xfer = &xfer_status[ep][TUSB_DIR_OUT];
+  const uint16_t remaining = xfer->total_len - xfer->queued_len;
+  const uint8_t nump = (uint8_t)TU_MAX(1u, TU_MIN((uint32_t)TU_DIV_CEIL(remaining, xfer->mps),
+                                                  (uint32_t)CFG_TUD_WCH_USB30_MAX_BURST));
+  // The receiver has no byte limit: an armed packet may write up to mps bytes. Bounce whenever
+  // the remaining user buffer cannot hold a full burst.
+  xfer->bounce = ((uint32_t)remaining < (uint32_t)nump * xfer->mps) ||
+                 !ch56x_is_dma_capable(xfer->buffer + xfer->queued_len);
+  uint8_t *dst = xfer->bounce ? xfer->slot : (xfer->buffer + xfer->queued_len);
+  *usbss_rx_dma(ep) = (uint32_t)(uintptr_t)dst;
+  xfer->armed_len = (uint16_t)(nump * xfer->mps);
+  USBSS_RX_CTRL(ep) = (USBSS_RX_CTRL(ep) & USBSS_EP_SEQ_MASK) | ((uint32_t)nump << USBSS_EP_NUMP_SHIFT) |
+                      USBSS_EP_RES_ACK;
+  usbss_send_erdy(ep, false, nump);
+}
+
+//--------------------------------------------------------------------+
+// EP0 control endpoint
+//--------------------------------------------------------------------+
+
+static void ep0_arm_status(void) {
+  // SuperSpeed status stage is a STATUS transaction packet from the host, reported as an EP0
+  // RX event with the status-stage flag - arm both directions like the reference does
+  USBSS->UEP0_RX_CTRL = USBSS_UEP0_RX_ARM;
+  USBSS->UEP0_TX_CTRL = USBSS_UEP0_TX_ARM;
+  usbss_send_erdy(0, false, 1);
+}
+
+static void ep0_in_arm(void) {
+  xfer_ctl_t *xfer = &xfer_status[0][TUSB_DIR_IN];
+  const uint16_t chunk = TU_MIN((uint16_t)(xfer->total_len - xfer->queued_len), (uint16_t)EP0_MPS);
+  memcpy(_ep0_buf, xfer->buffer + xfer->queued_len, chunk);
+  xfer->armed_len = chunk;
+  USBSS->UEP0_TX_CTRL = ((uint32_t)_ep0_seq << 21) | USBSS_UEP0_TX_ARM | chunk;
+  usbss_send_erdy(0, true, 1);
+}
+
+static void handle_ep0_in(uint8_t rhport) {
+  xfer_ctl_t *xfer = &xfer_status[0][TUSB_DIR_IN];
+  if (!xfer->active) {
+    USBSS->UEP0_TX_CTRL = 0;
+    return;
+  }
+  _ep0_seq = (_ep0_seq + 1) & 0x1F;
+  xfer->queued_len += xfer->armed_len;
+
+  if (xfer->queued_len < xfer->total_len) {
+    ep0_in_arm();
+  } else {
+    xfer->active = false;
+    USBSS->UEP0_TX_CTRL = 0;
+    dcd_event_xfer_complete(rhport, 0x80, xfer->queued_len, XFER_RESULT_SUCCESS, true);
+  }
+}
+
+static void handle_ep0_rx(uint8_t rhport) {
+  const uint32_t rx_ctrl = USBSS->UEP0_RX_CTRL;
+
+  if (rx_ctrl & USBSS_EP_RX_SETUP) {
+    // SETUP packet in _ep0_buf
+    USBSS->UEP0_RX_CTRL = 0;
+    USBSS->UEP0_TX_CTRL = 0;
+    _ep0_seq = 0;
+    dcd_event_setup_received(rhport, _ep0_buf, true);
+    return;
+  }
+
+  if (rx_ctrl & USBSS_EP_RX_STATUS_STAGE) {
+    // Status stage: apply a deferred SET_ADDRESS before completing
+    if (_pending_addr) {
+      USBSS->USB_CONTROL = (USBSS->USB_CONTROL & 0x00FFFFFFu) |
+                           ((uint32_t)(_pending_addr & 0x7Fu) << USBSS_DEV_ADDR_SHIFT);
+      _pending_addr = 0;
+    }
+    USBSS->UEP0_RX_CTRL = 0;
+    USBSS->UEP0_TX_CTRL = 0;
+    dcd_event_xfer_complete(rhport, tu_edpt_addr(0, _ep0_status_dir), 0, XFER_RESULT_SUCCESS, true);
+    return;
+  }
+
+  // OUT data stage
+  xfer_ctl_t *xfer = &xfer_status[0][TUSB_DIR_OUT];
+  if (!xfer->active) {
+    USBSS->UEP0_RX_CTRL = 0;
+    return;
+  }
+  uint16_t len = (uint16_t)(rx_ctrl & USBSS_EP_RX_LEN_MASK);
+  len = TU_MIN(len, (uint16_t)(xfer->total_len - xfer->queued_len));
+  memcpy(xfer->buffer + xfer->queued_len, _ep0_buf, len);
+  xfer->queued_len += len;
+
+  if ((xfer->queued_len == xfer->total_len) || (len < EP0_MPS)) {
+    xfer->active = false;
+    USBSS->UEP0_RX_CTRL = 0;
+    dcd_event_xfer_complete(rhport, 0x00, xfer->queued_len, XFER_RESULT_SUCCESS, true);
+  } else {
+    USBSS->UEP0_RX_CTRL = USBSS_UEP0_RX_ARM;
+    usbss_send_erdy(0, false, 1);
+  }
+}
+
+//--------------------------------------------------------------------+
+// Data endpoints
+//--------------------------------------------------------------------+
+
+static void handle_ep_in(uint8_t rhport, uint8_t ep) {
+  xfer_ctl_t *xfer = &xfer_status[ep][TUSB_DIR_IN];
+  const uint32_t ctrl = USBSS_TX_CTRL(ep);
+  USBSS_TX_CTRL(ep) &= USBSS_EP_SEQ_MASK; // clear event, NRDY, keep packet sequence
+  if (!xfer->active) {
+    return;
+  }
+
+  // The host may drain only part of the burst; account for what was actually sent
+  const uint8_t nump_left = (uint8_t)((ctrl & USBSS_EP_NUMP_MASK) >> USBSS_EP_NUMP_SHIFT);
+  uint16_t sent = xfer->armed_len;
+  if (nump_left) {
+    const uint8_t nump_armed = (uint8_t)TU_DIV_CEIL(xfer->armed_len, xfer->mps);
+    sent = (uint16_t)((nump_armed - nump_left) * xfer->mps);
+  }
+  xfer->queued_len += TU_MIN(sent, (uint16_t)(xfer->total_len - xfer->queued_len));
+
+  if (xfer->queued_len >= xfer->total_len) {
+    xfer->active = false;
+    dcd_event_xfer_complete(rhport, ep | TUSB_DIR_IN_MASK, xfer->queued_len, XFER_RESULT_SUCCESS, true);
+  } else {
+    xfer_in_arm(ep);
+  }
+}
+
+static void handle_ep_out(uint8_t rhport, uint8_t ep) {
+  xfer_ctl_t *xfer = &xfer_status[ep][TUSB_DIR_OUT];
+  const uint32_t ctrl = USBSS_RX_CTRL(ep);
+  USBSS_RX_CTRL(ep) &= USBSS_EP_SEQ_MASK; // clear event, NRDY while processing
+  if (!xfer->active) {
+    return;
+  }
+
+  const uint16_t last_len = (uint16_t)(ctrl & USBSS_EP_RX_LEN_MASK);
+  const uint8_t nump_left = (uint8_t)((ctrl & USBSS_EP_NUMP_MASK) >> USBSS_EP_NUMP_SHIFT);
+  const uint8_t nump_armed = (uint8_t)TU_DIV_CEIL(xfer->armed_len, xfer->mps);
+  const uint8_t got = (uint8_t)(nump_armed - nump_left);
+  uint16_t rx_bytes = (got == 0) ? 0 : (uint16_t)((got - 1) * xfer->mps + last_len);
+  rx_bytes = TU_MIN(rx_bytes, (uint16_t)(xfer->total_len - xfer->queued_len));
+
+  if (xfer->bounce && rx_bytes) {
+    memcpy(xfer->buffer + xfer->queued_len, xfer->slot, rx_bytes);
+  }
+  xfer->queued_len += rx_bytes;
+
+  const bool short_packet = (last_len < xfer->mps);
+  if (short_packet || (xfer->queued_len >= xfer->total_len)) {
+    xfer->active = false;
+    dcd_event_xfer_complete(rhport, ep, xfer->queued_len, XFER_RESULT_SUCCESS, true);
+  } else {
+    xfer_out_arm(ep);
+  }
+}
+
+//--------------------------------------------------------------------+
+// Interrupt handlers
+//--------------------------------------------------------------------+
+
+static void handle_link_irq(uint8_t rhport) {
+  const uint32_t flag = USBSS->LINK_INT_FLAG;
+
+  if (flag & USBSS_LINK_IF_UX_EXIT) {
+    USBSS->LINK_CFG = USBSS_LINK_CFG_RX_EQ_EN | USBSS_LINK_CFG_TX_DEEMPH | USBSS_LINK_CFG_RX_TERM_EN;
+    link_set_power_mode(0);
+    USBSS->LINK_INT_FLAG = USBSS_LINK_IF_UX_EXIT;
+    dcd_event_t event = {.rhport = rhport, .event_id = DCD_EVENT_RESUME};
+    dcd_event_handler(&event, true);
+  }
+  if (flag & USBSS_LINK_IF_RDY) {
+    USBSS->LINK_INT_FLAG = USBSS_LINK_IF_RDY;
+    if (_lmp_pending) {
+      // link trained to U0: exchange port capability, then the host enumerates
+      USBSS->LMP_TX_DATA0 = USBSS_LMP_TX_PORT_CAP_DATA0;
+      USBSS->LMP_TX_DATA1 = USBSS_LMP_TX_PORT_CAP_DATA1;
+      USBSS->LMP_TX_DATA2 = 0;
+      _lmp_pending = false;
+      ep_state_reset();
+      dcd_event_bus_reset(rhport, TUSB_SPEED_SUPER, true);
+    }
+  }
+  if (flag & USBSS_LINK_IF_INACT) {
+    USBSS->LINK_INT_FLAG = USBSS_LINK_IF_INACT;
+    link_set_power_mode(2);
+  }
+  if (flag & USBSS_LINK_IF_DISABLE) {
+    USBSS->LINK_INT_FLAG = USBSS_LINK_IF_DISABLE;
+    // No SuperSpeed host (or link lost): without runtime USB2 fallback, retry SS training
+    dcd_event_t event = {.rhport = rhport, .event_id = DCD_EVENT_UNPLUGGED};
+    dcd_event_handler(&event, true);
+    usb30_bus_reset();
+  }
+  if (flag & USBSS_LINK_IF_RX_DET) {
+    USBSS->LINK_INT_FLAG = USBSS_LINK_IF_RX_DET;
+    link_set_power_mode(2);
+  }
+  if (flag & USBSS_LINK_IF_TERM_PRESENT) {
+    USBSS->LINK_INT_FLAG = USBSS_LINK_IF_TERM_PRESENT;
+    if (USBSS->LINK_STATUS & USBSS_LINK_STATUS_PRESENT) {
+      link_set_power_mode(2);
+      USBSS->LINK_CTRL |= USBSS_LINK_CTRL_POLLING_EN;
+    } else {
+      // partner disappeared
+      USBSS->LINK_INT_CTRL = 0;
+      link_delay_us(2000);
+      usb30_bus_reset();
+      dcd_event_t event = {.rhport = rhport, .event_id = DCD_EVENT_UNPLUGGED};
+      dcd_event_handler(&event, true);
+    }
+  }
+  if (flag & USBSS_LINK_IF_TXEQ) {
+    _lmp_pending = true;
+    USBSS->LINK_INT_FLAG = USBSS_LINK_IF_TXEQ;
+    link_set_power_mode(0);
+  }
+  if (flag & USBSS_LINK_IF_WARM_RESET) {
+    USBSS->LINK_INT_FLAG = USBSS_LINK_IF_WARM_RESET;
+    link_set_power_mode(2);
+    usb30_bus_reset();
+    USBSS->USB_CONTROL &= 0x00FFFFFFu; // address 0
+    USBSS->LINK_CTRL |= USBSS_LINK_CTRL_TX_WARM_RST;
+    while (USBSS->LINK_STATUS & USBSS_LINK_STATUS_RX_WARM) {}
+    USBSS->LINK_CTRL &= ~USBSS_LINK_CTRL_TX_WARM_RST;
+    link_delay_us(2);
+  }
+  if (flag & USBSS_LINK_IF_HOT_RESET) {
+    // hot reset: link stays up, reset protocol state and re-enumerate
+    USBSS->USB_CONTROL |= USBSS_USB_CTRL_HOT_RST_ACK;
+    USBSS->LINK_INT_FLAG = USBSS_LINK_IF_HOT_RESET;
+    USBSS->UEP0_TX_CTRL = 0;
+    for (uint8_t ep = 1; ep < EP_MAX; ep++) {
+      USBSS_TX_CTRL(ep) = 0;
+      USBSS_RX_CTRL(ep) = 0;
+    }
+    USBSS->USB_CONTROL &= 0x00FFFFFFu; // address 0
+    USBSS->LINK_CTRL &= ~USBSS_LINK_CTRL_TX_HOT_RST;
+    ep_state_reset();
+    dcd_event_bus_reset(rhport, TUSB_SPEED_SUPER, true);
+  }
+  if (flag & USBSS_LINK_IF_GO_U1) {
+    link_set_power_mode(1);
+    USBSS->LINK_INT_FLAG = USBSS_LINK_IF_GO_U1;
+  }
+  if (flag & USBSS_LINK_IF_GO_U2) {
+    link_set_power_mode(2);
+    USBSS->LINK_INT_FLAG = USBSS_LINK_IF_GO_U2;
+  }
+  if (flag & USBSS_LINK_IF_GO_U3) {
+    link_set_power_mode(2);
+    USBSS->LINK_INT_FLAG = USBSS_LINK_IF_GO_U3;
+    dcd_event_t event = {.rhport = rhport, .event_id = DCD_EVENT_SUSPEND};
+    dcd_event_handler(&event, true);
+  }
+}
+
+static void handle_usb_irq(uint8_t rhport) {
+  const uint32_t status = USBSS->USB_STATUS;
+
+  if ((status & USBSS_USB_STATUS_EP_EVT) == 0) {
+    if (status & USBSS_USB_STATUS_LMP_EVT) {
+      // answer LMP port configuration in software (timing critical)
+      if ((USBSS->LMP_RX_DATA0 & USBSS_LMP_SUBTYPE_MASK) == USBSS_LMP_PORT_CFG) {
+        USBSS->LMP_TX_DATA0 = USBSS_LMP_PORT_CFG_RES;
+        USBSS->LMP_TX_DATA1 = 0;
+        USBSS->LMP_TX_DATA2 = 0;
+      }
+      USBSS->USB_STATUS = USBSS_USB_STATUS_LMP_EVT;
+      return;
+    }
+    if (status & USBSS_USB_STATUS_ITP_EVT) {
+      USBSS->USB_STATUS = USBSS_USB_STATUS_ITP_EVT;
+    }
+    return;
+  }
+
+  const uint8_t ep = (uint8_t)usbss_status_ep_num(status);
+  const bool is_in = usbss_status_ep_is_in(status);
+
+  if (ep == 0) {
+    if (is_in) {
+      handle_ep0_in(rhport);
+    } else {
+      handle_ep0_rx(rhport);
+    }
+  } else {
+    if (is_in) {
+      handle_ep_in(rhport, ep);
+    } else {
+      handle_ep_out(rhport, ep);
+    }
+  }
+}
+
+void dcd_int_handler(uint8_t rhport) {
+  // Both the USBSS and LINK vectors forward here; dispatch on the flag registers
+  if (USBSS->LINK_INT_FLAG & USBSS->LINK_INT_CTRL) {
+    handle_link_irq(rhport);
+  }
+  if (USBSS->USB_STATUS & (USBSS_USB_STATUS_EP_EVT | USBSS_USB_STATUS_LMP_EVT | USBSS_USB_STATUS_ITP_EVT)) {
+    handle_usb_irq(rhport);
+  }
+}
+
+//--------------------------------------------------------------------+
+// Device API
+//--------------------------------------------------------------------+
+
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
+  (void)rhport;
+  (void)rh_init;
+
+  memset(xfer_status, 0, sizeof(xfer_status));
+  _pool_brk = 0;
+  _pending_addr = 0;
+  _ep0_seq = 0;
+  _lmp_pending = false;
+  xfer_status[0][TUSB_DIR_OUT].mps = EP0_MPS;
+  xfer_status[0][TUSB_DIR_IN].mps = EP0_MPS;
+
+  return usb30_hw_init();
+}
+
+void dcd_int_enable(uint8_t rhport) {
+  (void)rhport;
+  PFIC_EnableIRQ(USBSS_IRQn);
+  PFIC_EnableIRQ(LINK_IRQn);
+}
+
+void dcd_int_disable(uint8_t rhport) {
+  (void)rhport;
+  PFIC_DisableIRQ(USBSS_IRQn);
+  PFIC_DisableIRQ(LINK_IRQn);
+}
+
+void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
+  (void)rhport;
+  // Applied at the status stage (handle_ep0_rx); respond with the status transaction
+  _pending_addr = 0x80u | dev_addr;
+  _ep0_status_dir = TUSB_DIR_IN;
+  ep0_arm_status();
+}
+
+void dcd_edpt0_status_complete(uint8_t rhport, const tusb_control_request_t *request) {
+  (void)rhport;
+  (void)request; // address is applied in the status-stage event
+}
+
+void dcd_remote_wakeup(uint8_t rhport) {
+  (void)rhport;
+  USBSS->LINK_CTRL |= USBSS_LINK_CTRL_TX_UX_EXIT; // best effort U-state exit
+}
+
+void dcd_sof_enable(uint8_t rhport, bool en) {
+  (void)rhport;
+  (void)en; // no frame interrupt at SuperSpeed (ITP is ignored)
+}
+
+bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt) {
+  (void)rhport;
+
+  const uint8_t ep_num = tu_edpt_number(desc_edpt->bEndpointAddress);
+  const tusb_dir_t dir = tu_edpt_dir(desc_edpt->bEndpointAddress);
+
+  TU_ASSERT(ep_num < EP_MAX);
+  TU_VERIFY(desc_edpt->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS); // not supported
+
+  if (ep_num == 0) {
+    return true;
+  }
+
+  xfer_ctl_t *xfer = &xfer_status[ep_num][dir];
+  xfer->mps = tu_edpt_packet_size(desc_edpt);
+  xfer->active = false;
+
+  // Allocate a RAMX bounce slot once per endpoint direction
+  if (xfer->slot == NULL) {
+    const uint16_t slot_size = 1024 * CFG_TUD_WCH_USB30_MAX_BURST;
+    TU_ASSERT(_pool_brk + slot_size <= CFG_TUD_WCH_USB30_RAMX_POOL_SIZE);
+    xfer->slot = &_ramx_pool[_pool_brk];
+    _pool_brk += slot_size;
+  }
+
+  if (dir == TUSB_DIR_IN) {
+    USBSS_TX_CTRL(ep_num) = 0;
+    USBSS->UEP_CFG |= USBSS_EP_T_EN(ep_num);
+  } else {
+    USBSS_RX_CTRL(ep_num) = 0;
+    USBSS->UEP_CFG |= USBSS_EP_R_EN(ep_num);
+  }
+  return true;
+}
+
+void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
+  (void)rhport;
+  const uint8_t ep_num = tu_edpt_number(ep_addr);
+  const tusb_dir_t dir = tu_edpt_dir(ep_addr);
+
+  xfer_status[ep_num][dir].active = false;
+  if (dir == TUSB_DIR_IN) {
+    USBSS_TX_CTRL(ep_num) = 0;
+    USBSS->UEP_CFG &= ~USBSS_EP_T_EN(ep_num);
+  } else {
+    USBSS_RX_CTRL(ep_num) = 0;
+    USBSS->UEP_CFG &= ~USBSS_EP_R_EN(ep_num);
+  }
+}
+
+void dcd_edpt_close_all(uint8_t rhport) {
+  (void)rhport;
+  for (uint8_t ep = 1; ep < EP_MAX; ep++) {
+    USBSS_TX_CTRL(ep) = 0;
+    USBSS_RX_CTRL(ep) = 0;
+    xfer_status[ep][0].active = false;
+    xfer_status[ep][1].active = false;
+    xfer_status[ep][0].slot = NULL;
+    xfer_status[ep][1].slot = NULL;
+  }
+  USBSS->UEP_CFG = USBSS_EP_R_EN(0) | USBSS_EP_T_EN(0);
+  _pool_brk = 0;
+}
+
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes, bool is_isr) {
+  (void)rhport;
+  (void)is_isr;
+  const uint8_t ep_num = tu_edpt_number(ep_addr);
+  const tusb_dir_t dir = tu_edpt_dir(ep_addr);
+
+  xfer_ctl_t *xfer = &xfer_status[ep_num][dir];
+  xfer->buffer = buffer;
+  xfer->total_len = total_bytes;
+  xfer->queued_len = 0;
+  xfer->armed_len = 0;
+  xfer->active = true;
+
+  if (ep_num == 0) {
+    if (total_bytes == 0) {
+      // status stage
+      xfer->active = false;
+      _ep0_status_dir = dir;
+      ep0_arm_status();
+    } else if (dir == TUSB_DIR_IN) {
+      ep0_in_arm();
+    } else {
+      USBSS->UEP0_RX_CTRL = USBSS_UEP0_RX_ARM;
+      usbss_send_erdy(0, false, 1);
+    }
+    return true;
+  }
+
+  if (dir == TUSB_DIR_IN) {
+    xfer->bounce = (total_bytes != 0) && !ch56x_is_dma_capable(buffer);
+    xfer_in_arm(ep_num);
+  } else {
+    xfer_out_arm(ep_num);
+  }
+  return true;
+}
+
+void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
+  (void)rhport;
+  const uint8_t ep_num = tu_edpt_number(ep_addr);
+  const tusb_dir_t dir = tu_edpt_dir(ep_addr);
+
+  if (ep_num == 0) {
+    // cleared automatically at the next SETUP
+    USBSS->UEP0_TX_CTRL = USBSS_UEP0_STALL;
+    USBSS->UEP0_RX_CTRL = USBSS_UEP0_STALL;
+    usbss_send_erdy(0, dir == TUSB_DIR_IN, 1);
+    return;
+  }
+
+  // the host must see the STALL: keep NUMP=1 armed and signal ERDY
+  if (dir == TUSB_DIR_IN) {
+    USBSS_TX_CTRL(ep_num) = (USBSS_TX_CTRL(ep_num) & USBSS_EP_SEQ_MASK) |
+                            (1u << USBSS_EP_NUMP_SHIFT) | USBSS_EP_RES_STALL;
+  } else {
+    USBSS_RX_CTRL(ep_num) = (USBSS_RX_CTRL(ep_num) & USBSS_EP_SEQ_MASK) |
+                            (1u << USBSS_EP_NUMP_SHIFT) | USBSS_EP_RES_STALL;
+  }
+  usbss_send_erdy(ep_num, dir == TUSB_DIR_IN, 1);
+}
+
+void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
+  (void)rhport;
+  const uint8_t ep_num = tu_edpt_number(ep_addr);
+  const tusb_dir_t dir = tu_edpt_dir(ep_addr);
+
+  // CLEAR_FEATURE(ENDPOINT_HALT) resets the packet sequence: clear everything including seq
+  if (dir == TUSB_DIR_IN) {
+    USBSS_TX_CTRL(ep_num) = 0;
+  } else {
+    USBSS_RX_CTRL(ep_num) = 0;
+  }
+}
+
+#endif

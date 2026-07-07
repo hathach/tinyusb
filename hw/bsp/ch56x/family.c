@@ -45,26 +45,18 @@ void USBHS_IRQHandler(void);
 void SysTick_Handler(void);
 
 // Single rhport 0: SPEED=super compiles the USB3 dcd (USBSS + LINK vectors); SPEED=high the
-// USB2 dcd (USBHS vector). With runtime fallback the USB3 dcd also owns the USB2 controller.
-// Use the standard riscv interrupt attribute - WCH's "WCH-Interrupt-fast" is only understood
-// by WCH's own gcc fork.
+// USB2 dcd (USBHS vector); the active dcd's dcd_int_handler dispatches on its own flag
+// registers, so all three vectors share ONE forwarder. Aliases (not three identical
+// functions) are required: gcc's identical-code-folding would otherwise rewrite one interrupt
+// handler as a plain call into another, whose mret then skips the caller's epilogue and leaks
+// its stack frame on every interrupt. Use the standard riscv interrupt attribute - WCH's
+// "WCH-Interrupt-fast" is only understood by WCH's own gcc fork.
 __attribute__((interrupt)) void USBSS_IRQHandler(void) {
-#if CFG_TUD_WCH_USBIP_USB30
   tusb_int_handler(0, true);
-#endif
 }
 
-__attribute__((interrupt)) void LINK_IRQHandler(void) {
-#if CFG_TUD_WCH_USBIP_USB30
-  tusb_int_handler(0, true);
-#endif
-}
-
-__attribute__((interrupt)) void USBHS_IRQHandler(void) {
-#if CFG_TUD_WCH_USBIP_USBHS || (CFG_TUD_WCH_USBIP_USB30 && CFG_TUD_WCH_USB30_FALLBACK)
-  tusb_int_handler(0, true);
-#endif
-}
+void LINK_IRQHandler(void) __attribute__((alias("USBSS_IRQHandler")));
+void USBHS_IRQHandler(void) __attribute__((alias("USBSS_IRQHandler")));
 
 //--------------------------------------------------------------------+
 // SysTick

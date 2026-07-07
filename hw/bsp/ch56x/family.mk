@@ -6,9 +6,8 @@ SDK_DIR = hw/mcu/wch/ch56x
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= rv32imac-ilp32
 
-# Controller selection: super = USB3.0 SuperSpeed (USBSS), high = USB2.0 HighSpeed (USBHS).
-# Default high until the USB3 dcd lands, then flip to super.
-SPEED ?= high
+# Controller selection: super = USB3.0 SuperSpeed (USBSS), high = USB2.0 HighSpeed (USBHS)
+SPEED ?= super
 
 CFLAGS += \
 	-flto \
@@ -34,6 +33,7 @@ LDFLAGS += \
 	--specs=nosys.specs --specs=nano.specs
 
 SRC_C += \
+	src/portable/wch/dcd_ch56x_usb30.c \
 	src/portable/wch/dcd_ch56x_usbhs.c \
 	$(SDK_DIR)/drv/CH56x_clk.c \
 	$(SDK_DIR)/drv/CH56x_gpio.c \

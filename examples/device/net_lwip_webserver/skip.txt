@@ -22,3 +22,4 @@ board:frdm_kl25z
 #family:lpc55
 family:nuc126
 family:nuc100_120
+mcu:CH569
