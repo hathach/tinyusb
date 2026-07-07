@@ -70,7 +70,7 @@ bool tusb_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
     // init device stack CFG_TUSB_RHPORTx_MODE must be defined
     const tusb_rhport_init_t dev_init = {
       .role = TUSB_ROLE_DEVICE,
-      .speed = TUD_OPT_HIGH_SPEED ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL
+      .speed = TUD_OPT_SUPER_SPEED ? TUSB_SPEED_SUPER : (TUD_OPT_HIGH_SPEED ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL)
     };
     TU_ASSERT ( tud_rhport_init(TUD_OPT_RHPORT, &dev_init) );
     _tusb_rhport_role[TUD_OPT_RHPORT] = TUSB_ROLE_DEVICE;
@@ -244,13 +244,16 @@ bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed) {
 
   switch (desc_ep->bmAttributes.xfer) {
     case TUSB_XFER_ISOCHRONOUS: {
-      const uint16_t spec_size = (speed == TUSB_SPEED_HIGH ? 1024 : 1023);
+      const uint16_t spec_size = (speed == TUSB_SPEED_HIGH || speed == TUSB_SPEED_SUPER) ? 1024 : 1023;
       TU_ASSERT(max_packet_size <= spec_size);
       break;
     }
 
     case TUSB_XFER_BULK:
-      if (speed == TUSB_SPEED_HIGH) {
+      if (speed == TUSB_SPEED_SUPER) {
+        // Bulk superspeed must be EXACTLY 1024
+        TU_ASSERT(max_packet_size == 1024);
+      } else if (speed == TUSB_SPEED_HIGH) {
         // Bulk highspeed must be EXACTLY 512
         TU_ASSERT(max_packet_size == 512);
       } else {
@@ -260,7 +263,7 @@ bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed) {
       break;
 
     case TUSB_XFER_INTERRUPT: {
-      const uint16_t spec_size = (speed == TUSB_SPEED_HIGH ? 1024 : 64);
+      const uint16_t spec_size = (speed == TUSB_SPEED_HIGH || speed == TUSB_SPEED_SUPER) ? 1024 : 64;
       TU_ASSERT(max_packet_size <= spec_size);
       break;
     }
@@ -460,7 +463,7 @@ uint32_t tu_edpt_stream_read(tu_edpt_stream_t *s, void *buffer, uint32_t bufsize
 #include <ctype.h>
 
 #if CFG_TUSB_DEBUG >= CFG_TUH_LOG_LEVEL || CFG_TUSB_DEBUG >= CFG_TUD_LOG_LEVEL
-char const* const tu_str_speed[] = {"Full", "Low", "High"};
+char const* const tu_str_speed[] = {"Full", "Low", "High", "Super"};
 char const* const tu_str_std_request[] = {
     "Get Status",
     "Clear Feature",

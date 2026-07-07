@@ -54,7 +54,7 @@ TU_ATTR_DEPRECATED("Please use tusb_init(rhport, rh_init) instead")
 TU_ATTR_ALWAYS_INLINE static inline bool tud_init (uint8_t rhport) {
   const tusb_rhport_init_t rh_init = {
     .role = TUSB_ROLE_DEVICE,
-    .speed = TUD_OPT_HIGH_SPEED ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL
+    .speed = TUD_OPT_SUPER_SPEED ? TUSB_SPEED_SUPER : (TUD_OPT_HIGH_SPEED ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL)
   };
   return tud_rhport_init(rhport, &rh_init);
 }
@@ -221,6 +221,22 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
     0xDF, 0x60, 0xDD, 0xD8, 0x89, 0x45, 0xC7, 0x4C, \
   0x9C, 0xD2, 0x65, 0x9D, 0x9E, 0x64, 0x8A, 0x9F
 
+//------------- USB 2.0 Extension & SuperSpeed Device Capability -------------//
+
+#define TUD_BOS_USB20_EXT_DESC_LEN   7
+
+// bmAttributes: bit 1 = LPM capable
+#define TUD_BOS_USB20_EXT_DESCRIPTOR(_bmattr) \
+  7, TUSB_DESC_DEVICE_CAPABILITY, DEVICE_CAPABILITY_USB20_EXTENSION, U32_TO_U8S_LE(_bmattr)
+
+#define TUD_BOS_SUPERSPEED_DESC_LEN  10
+
+// bmAttributes (bit 1: LTM), wSpeedsSupported bitmap (bit 0: LS, 1: FS, 2: HS, 3: Gen1 SS),
+// lowest fully-functional speed, U1/U2 device exit latency
+#define TUD_BOS_SUPERSPEED_DESCRIPTOR(_bmattr, _speeds_bm, _func_speed, _u1_exit_lat, _u2_exit_lat) \
+  10, TUSB_DESC_DEVICE_CAPABILITY, DEVICE_CAPABILITY_SUPERSPEED_USB, _bmattr, \
+  U16_TO_U8S_LE(_speeds_bm), _func_speed, _u1_exit_lat, U16_TO_U8S_LE(_u2_exit_lat)
+
 //--------------------------------------------------------------------+
 // Configuration Descriptor Templates
 //--------------------------------------------------------------------+
@@ -230,6 +246,21 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 // Config number, interface count, string index, total length, attribute, power in mA
 #define TUD_CONFIG_DESCRIPTOR(config_num, _itfcount, _stridx, _total_len, _attribute, _power_ma) \
   9, TUSB_DESC_CONFIGURATION, U16_TO_U8S_LE(_total_len), _itfcount, config_num, _stridx, TU_BIT(7) | _attribute, (_power_ma)/2
+
+// SuperSpeed configuration: identical layout, but bMaxPower unit is 8 mA
+#define TUD_CONFIG_SS_DESCRIPTOR(config_num, _itfcount, _stridx, _total_len, _attribute, _power_ma) \
+  9, TUSB_DESC_CONFIGURATION, U16_TO_U8S_LE(_total_len), _itfcount, config_num, _stridx, TU_BIT(7) | _attribute, (_power_ma)/8
+
+//--------------------------------------------------------------------+
+// SuperSpeed Endpoint Companion Descriptor Template
+//--------------------------------------------------------------------+
+
+#define TUD_SS_EP_COMP_DESC_LEN  6
+
+// Max burst (0..15 = 1..16 packets per burst), bmAttributes (bulk: MaxStreams, iso: Mult),
+// wBytesPerInterval (periodic endpoints only, 0 for bulk)
+#define TUD_SS_EP_COMP_DESCRIPTOR(_maxburst, _bmattr, _bytes_per_interval) \
+  6, TUSB_DESC_SUPERSPEED_ENDPOINT_COMPANION, _maxburst, _bmattr, U16_TO_U8S_LE(_bytes_per_interval)
 
 //--------------------------------------------------------------------+
 // CDC Descriptor Templates
@@ -262,6 +293,37 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   /* Endpoint In */\
   7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0
 
+// Length of SuperSpeed template descriptor: 66 + 3 companions = 84 bytes
+#define TUD_CDC_SS_DESC_LEN  (TUD_CDC_DESC_LEN + 3 * TUD_SS_EP_COMP_DESC_LEN)
+
+// CDC SuperSpeed Descriptor Template: same as TUD_CDC_DESCRIPTOR with bulk size fixed to 1024
+// and an endpoint companion after every endpoint.
+// Interface number, string index, EP notification address and size, EP data address (out, in), bulk max burst.
+#define TUD_CDC_SS_DESCRIPTOR(_itfnum, _stridx, _ep_notif, _ep_notif_size, _epout, _epin, _bulk_maxburst) \
+  /* Interface Associate */\
+  8, TUSB_DESC_INTERFACE_ASSOCIATION, _itfnum, 2, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL, CDC_COMM_PROTOCOL_NONE, 0,\
+  /* CDC Control Interface */\
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 1, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL, CDC_COMM_PROTOCOL_NONE, _stridx,\
+  /* CDC Header */\
+  5, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_HEADER, U16_TO_U8S_LE(0x0120),\
+  /* CDC Call */\
+  5, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_CALL_MANAGEMENT, 0, (uint8_t)((_itfnum) + 1),\
+  /* CDC ACM: support line request + send break */\
+  4, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT, 6,\
+  /* CDC Union */\
+  5, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_UNION, _itfnum, (uint8_t)((_itfnum) + 1),\
+  /* Endpoint Notification + companion */\
+  7, TUSB_DESC_ENDPOINT, _ep_notif, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_notif_size), 1,\
+  TUD_SS_EP_COMP_DESCRIPTOR(0, 0, _ep_notif_size),\
+  /* CDC Data Interface */\
+  9, TUSB_DESC_INTERFACE, (uint8_t)((_itfnum)+1), 0, 2, TUSB_CLASS_CDC_DATA, 0, 0, 0,\
+  /* Endpoint Out + companion */\
+  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0,\
+  TUD_SS_EP_COMP_DESCRIPTOR(_bulk_maxburst, 0, 0),\
+  /* Endpoint In + companion */\
+  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0,\
+  TUD_SS_EP_COMP_DESCRIPTOR(_bulk_maxburst, 0, 0)
+
 //--------------------------------------------------------------------+
 // MSC Descriptor Templates
 //--------------------------------------------------------------------+
@@ -277,6 +339,21 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0,\
   /* Endpoint In */\
   7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0
+
+// Length of SuperSpeed template descriptor: 23 + 2 companions = 35 bytes
+#define TUD_MSC_SS_DESC_LEN  (TUD_MSC_DESC_LEN + 2 * TUD_SS_EP_COMP_DESC_LEN)
+
+// MSC SuperSpeed: bulk size fixed to 1024, companion after each endpoint.
+// Interface number, string index, EP Out & EP In address, bulk max burst
+#define TUD_MSC_SS_DESCRIPTOR(_itfnum, _stridx, _epout, _epin, _maxburst) \
+  /* Interface */\
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 2, TUSB_CLASS_MSC, MSC_SUBCLASS_SCSI, MSC_PROTOCOL_BOT, _stridx,\
+  /* Endpoint Out + companion */\
+  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0,\
+  TUD_SS_EP_COMP_DESCRIPTOR(_maxburst, 0, 0),\
+  /* Endpoint In + companion */\
+  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0,\
+  TUD_SS_EP_COMP_DESCRIPTOR(_maxburst, 0, 0)
 
 //--------------------------------------------------------------------+
 // Printer Descriptor Templates
@@ -838,6 +915,21 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0,\
   /* Endpoint In */\
   7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0
+
+// Length of SuperSpeed template descriptor: 23 + 2 companions = 35 bytes
+#define TUD_VENDOR_SS_DESC_LEN  (TUD_VENDOR_DESC_LEN + 2 * TUD_SS_EP_COMP_DESC_LEN)
+
+// Vendor SuperSpeed: bulk size fixed to 1024, companion after each endpoint.
+// Interface number, string index, EP Out & IN address, bulk max burst
+#define TUD_VENDOR_SS_DESCRIPTOR(_itfnum, _stridx, _epout, _epin, _maxburst) \
+  /* Interface */\
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 2, TUSB_CLASS_VENDOR_SPECIFIC, 0x00, 0x00, _stridx,\
+  /* Endpoint Out + companion */\
+  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0,\
+  TUD_SS_EP_COMP_DESCRIPTOR(_maxburst, 0, 0),\
+  /* Endpoint In + companion */\
+  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0,\
+  TUD_SS_EP_COMP_DESCRIPTOR(_maxburst, 0, 0)
 
 //--------------------------------------------------------------------+
 // DFU Runtime Descriptor Templates

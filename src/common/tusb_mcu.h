@@ -736,6 +736,11 @@
   #define TUP_RHPORT_HIGHSPEED 0
 #endif
 
+// Default to no superspeed if not defined
+#ifndef TUP_RHPORT_SUPERSPEED
+  #define TUP_RHPORT_SUPERSPEED 0
+#endif
+
 // fast function, normally mean placing function in SRAM
 #ifndef TU_ATTR_FAST_FUNC
   #define TU_ATTR_FAST_FUNC

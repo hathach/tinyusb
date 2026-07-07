@@ -237,6 +237,7 @@
 #define OPT_MODE_LOW_SPEED      0x0100u ///< Low Speed
 #define OPT_MODE_FULL_SPEED     0x0200u ///< Full Speed
 #define OPT_MODE_HIGH_SPEED     0x0400u ///< High Speed
+#define OPT_MODE_SUPER_SPEED    0x0800u ///< Super Speed
 #define OPT_MODE_SPEED_MASK     0xff00u
 
 //--------------------------------------------------------------------+
@@ -431,6 +432,9 @@
 
 // highspeed support indicator
 #define TUD_OPT_HIGH_SPEED    (CFG_TUD_MAX_SPEED ? (CFG_TUD_MAX_SPEED & OPT_MODE_HIGH_SPEED) : TUP_RHPORT_HIGHSPEED)
+
+// superspeed support indicator
+#define TUD_OPT_SUPER_SPEED   (CFG_TUD_MAX_SPEED ? (CFG_TUD_MAX_SPEED & OPT_MODE_SUPER_SPEED) : TUP_RHPORT_SUPERSPEED)
 
 //------------- Root hub as Host -------------//
 
@@ -861,7 +865,11 @@
 // Configuration Validation
 //------------------------------------------------------------------
 #if CFG_TUD_ENDPOINT0_SIZE > 64
-  #error Control Endpoint Max Packet Size cannot be larger than 64
+  #if !TUD_OPT_SUPER_SPEED
+    #error Control Endpoint Max Packet Size cannot be larger than 64
+  #elif CFG_TUD_ENDPOINT0_SIZE != 512
+    #error SuperSpeed Control Endpoint Max Packet Size must be exactly 512
+  #endif
 #endif
 
 // To avoid GCC compiler warnings when -pedantic option is used (strict ISO C)

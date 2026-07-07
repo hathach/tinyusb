@@ -29,6 +29,8 @@
 #include "tusb_fifo.h"
 #include "tusb.h"
 #include "usbd.h"
+#include "common/tusb_private.h"
+#include "device/usbd_pvt.h"
 TEST_SOURCE_FILE("usbd.c")
 
 // Mock File
@@ -293,6 +295,115 @@ void test_usbd_control_out_overrun_clamp(void)
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
   dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
   dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_vendor_out, 1);
+
+  tud_task();
+}
+
+//--------------------------------------------------------------------+
+// SuperSpeed
+//--------------------------------------------------------------------+
+
+static void switch_to_superspeed(void) {
+  mscd_reset_Expect(0);
+  dcd_event_bus_reset(rhport, TUSB_SPEED_SUPER, false);
+  tud_task();
+}
+
+void test_usbd_edpt_validate_superspeed(void)
+{
+  tusb_desc_endpoint_t desc_ep = {
+    .bLength          = sizeof(tusb_desc_endpoint_t),
+    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = 0x81,
+    .bmAttributes     = { .xfer = TUSB_XFER_BULK },
+    .wMaxPacketSize   = 1024,
+    .bInterval        = 0
+  };
+
+  // SuperSpeed bulk must be exactly 1024
+  TEST_ASSERT_TRUE(tu_edpt_validate(&desc_ep, TUSB_SPEED_SUPER));
+  TEST_ASSERT_FALSE(tu_edpt_validate(&desc_ep, TUSB_SPEED_HIGH));
+
+  desc_ep.wMaxPacketSize = 512;
+  TEST_ASSERT_FALSE(tu_edpt_validate(&desc_ep, TUSB_SPEED_SUPER));
+  TEST_ASSERT_TRUE(tu_edpt_validate(&desc_ep, TUSB_SPEED_HIGH));
+
+  // SuperSpeed interrupt and isochronous can be up to 1024
+  desc_ep.bmAttributes.xfer = TUSB_XFER_INTERRUPT;
+  desc_ep.wMaxPacketSize = 1024;
+  TEST_ASSERT_TRUE(tu_edpt_validate(&desc_ep, TUSB_SPEED_SUPER));
+
+  desc_ep.bmAttributes.xfer = TUSB_XFER_ISOCHRONOUS;
+  TEST_ASSERT_TRUE(tu_edpt_validate(&desc_ep, TUSB_SPEED_SUPER));
+}
+
+// SuperSpeed configuration interleaves an endpoint companion descriptor after each
+// endpoint descriptor; usbd_open_edpt_pair must skip them
+void test_usbd_open_edpt_pair_ss_companion(void)
+{
+  switch_to_superspeed();
+
+  uint8_t const desc_ep_pair[] = {
+    // EP Out (bulk 1024) + companion
+    7, TUSB_DESC_ENDPOINT, 0x02, TUSB_XFER_BULK, U16_TO_U8S_LE(1024), 0,
+    TUD_SS_EP_COMP_DESCRIPTOR(0, 0, 0),
+    // EP In (bulk 1024) + companion
+    7, TUSB_DESC_ENDPOINT, 0x82, TUSB_XFER_BULK, U16_TO_U8S_LE(1024), 0,
+    TUD_SS_EP_COMP_DESCRIPTOR(0, 0, 0),
+  };
+
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const*) &desc_ep_pair[0], true);
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const*) &desc_ep_pair[13], true);
+
+  uint8_t ep_out = 0, ep_in = 0;
+  TEST_ASSERT_TRUE(usbd_open_edpt_pair(rhport, desc_ep_pair, 2, TUSB_XFER_BULK, &ep_out, &ep_in));
+  TEST_ASSERT_EQUAL_HEX8(0x02, ep_out);
+  TEST_ASSERT_EQUAL_HEX8(0x82, ep_in);
+}
+
+// SET_SEL (0x30): 6-byte OUT data stage, received and discarded
+void test_usbd_set_sel(void)
+{
+  tusb_control_request_t const req_set_sel = {
+    .bmRequestType = 0x00,
+    .bRequest = TUSB_REQ_SET_SEL,
+    .wValue = 0,
+    .wIndex = 0,
+    .wLength = 6
+  };
+
+  dcd_event_setup_received(rhport, (uint8_t*) &req_set_sel, false);
+
+  // data stage into usbd's internal control buffer
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 6, false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 6, XFER_RESULT_SUCCESS, false);
+
+  // status
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_set_sel, 1);
+
+  tud_task();
+}
+
+// SET_ISOCH_DELAY (0x31): no data stage, just ACK
+void test_usbd_set_isoch_delay(void)
+{
+  tusb_control_request_t const req_isoch_delay = {
+    .bmRequestType = 0x00,
+    .bRequest = TUSB_REQ_SET_ISOCH_DELAY,
+    .wValue = 1000,
+    .wIndex = 0,
+    .wLength = 0
+  };
+
+  dcd_event_setup_received(rhport, (uint8_t*) &req_isoch_delay, false);
+
+  // status only
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_isoch_delay, 1);
 
   tud_task();
 }

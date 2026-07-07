@@ -273,6 +273,15 @@ void cdcd_reset(uint8_t rhport) {
   }
 }
 
+// SuperSpeed: advance past an endpoint companion descriptor if present
+TU_ATTR_ALWAYS_INLINE static inline const uint8_t* skip_ss_ep_companion(const uint8_t* p_desc, const uint8_t* desc_end) {
+  if (TUD_OPT_SUPER_SPEED && tu_desc_in_bounds(p_desc, desc_end) &&
+      TUSB_DESC_SUPERSPEED_ENDPOINT_COMPANION == tu_desc_type(p_desc)) {
+    p_desc = tu_desc_next(p_desc);
+  }
+  return p_desc;
+}
+
 uint16_t cdcd_open(uint8_t rhport, const tusb_desc_interface_t* itf_desc, uint16_t max_len) {
   // Only support ACM subclass
   TU_VERIFY(TUSB_CLASS_CDC == itf_desc->bInterfaceClass &&
@@ -303,6 +312,7 @@ uint16_t cdcd_open(uint8_t rhport, const tusb_desc_interface_t* itf_desc, uint16
     p_cdc->ep_notify = desc_ep->bEndpointAddress;
 
     p_desc = tu_desc_next(p_desc);
+    p_desc = skip_ss_ep_companion(p_desc, desc_end);
   }
 
   //------------- Data Interface (optional) -------------//
@@ -314,6 +324,7 @@ uint16_t cdcd_open(uint8_t rhport, const tusb_desc_interface_t* itf_desc, uint16
           break;
         }
         p_desc = tu_desc_next(p_desc);
+        p_desc = skip_ss_ep_companion(p_desc, desc_end);
 
         const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
         TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_BULK == desc_ep->bmAttributes.xfer, 0);
@@ -347,6 +358,7 @@ uint16_t cdcd_open(uint8_t rhport, const tusb_desc_interface_t* itf_desc, uint16
       }
 
       p_desc = tu_desc_next(p_desc);
+      p_desc = skip_ss_ep_companion(p_desc, desc_end); // include last endpoint's companion in driver length
     }
   }
 

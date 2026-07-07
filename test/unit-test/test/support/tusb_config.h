@@ -73,6 +73,11 @@
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------
 
+// Enable SuperSpeed code paths for testing. High speed stays enabled (matching the
+// RHPORT0_MODE above, and real SS hardware is always HS-capable) and EP0 size stays 64,
+// so existing tests are unaffected
+#define CFG_TUD_MAX_SPEED        (OPT_MODE_HIGH_SPEED | OPT_MODE_SUPER_SPEED)
+
 #define CFG_TUD_TASK_QUEUE_SZ    100
 #define CFG_TUD_ENDPOINT0_SIZE    64
 

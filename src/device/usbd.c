@@ -532,6 +532,9 @@ bool tud_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
     case TUSB_SPEED_LOW:
       speed_str = "Low";
     break;
+    case TUSB_SPEED_SUPER:
+      speed_str = "Super";
+    break;
     case TUSB_SPEED_AUTO:
       speed_str = "Auto";
     break;
@@ -828,11 +831,21 @@ TU_ATTR_ALWAYS_INLINE static inline bool status_stage_xact(uint8_t rhport, uint8
   return usbd_edpt_xfer(rhport, ep_status, NULL, 0, false);
 }
 
+// EP0 transaction size: a SuperSpeed-capable build (EP0 = 512) can operate on a USB2 fallback
+// link where EP0 max packet size is 64
+TU_ATTR_ALWAYS_INLINE static inline uint16_t ep0_xact_limit(void) {
+#if CFG_TUD_ENDPOINT0_SIZE > 64
+  return (TUSB_SPEED_SUPER == (tusb_speed_t) _usbd_dev.speed) ? CFG_TUD_ENDPOINT0_BUFSIZE : 64;
+#else
+  return CFG_TUD_ENDPOINT0_BUFSIZE;
+#endif
+}
+
 // Queue a transaction in Data Stage. Each transaction has up to Endpoint0's max
 // packet size. This function can also transfer a zero-length packet.
 static bool data_stage_xact(uint8_t rhport) {
   usbd_control_xfer_t* const ctrl_xfer = &_usbd_dev.ctrl_xfer;
-  const uint16_t xact_len = tu_min16(ctrl_xfer->data_len - ctrl_xfer->total_xferred, CFG_TUD_ENDPOINT0_BUFSIZE);
+  const uint16_t xact_len = tu_min16(ctrl_xfer->data_len - ctrl_xfer->total_xferred, ep0_xact_limit());
   uint8_t ep_addr = TU_EP0_OUT;
 
   if (ctrl_xfer->request.bmRequestType_bit.direction == TUSB_DIR_IN) {
@@ -909,7 +922,7 @@ static bool usbd_control_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t 
 
   // Data Stage complete when wLength reached or short packet (incl. ZLP) seen
   if ((ctrl_xfer->request.wLength == ctrl_xfer->total_xferred) ||
-      (xferred_bytes < CFG_TUD_ENDPOINT0_BUFSIZE)) {
+      (xferred_bytes < ep0_xact_limit())) {
     bool is_ok = true;
 
     if (NULL != ctrl_xfer->complete_cb) {
@@ -1023,19 +1036,37 @@ static bool process_std_device_request(uint8_t rhport, tusb_control_request_t co
         }
         #endif
 
+        #if TUD_OPT_SUPER_SPEED
+        case TUSB_REQ_FEATURE_U1_ENABLE:
+        case TUSB_REQ_FEATURE_U2_ENABLE:
+          // Accept and ignore: U1/U2 entry is managed by the link layer/dcd
+          tud_control_status(rhport, p_request);
+          return true;
+        #endif
+
         // Stall unsupported feature selector
         default: return false;
       }
 
     case TUSB_REQ_CLEAR_FEATURE:
-      // Only support remote wakeup for device feature
-      TU_VERIFY(TUSB_REQ_FEATURE_REMOTE_WAKEUP == p_request->wValue);
-      TU_LOG_USBD("    Disable Remote Wakeup\r\n");
+      switch (p_request->wValue) { //-V2520
+        case TUSB_REQ_FEATURE_REMOTE_WAKEUP:
+          TU_LOG_USBD("    Disable Remote Wakeup\r\n");
+          // Host may disable remote wake up after resuming
+          _usbd_dev.remote_wakeup_en = 0;
+          tud_control_status(rhport, p_request);
+          return true;
 
-      // Host may disable remote wake up after resuming
-      _usbd_dev.remote_wakeup_en = 0;
-      tud_control_status(rhport, p_request);
-      return true;
+        #if TUD_OPT_SUPER_SPEED
+        case TUSB_REQ_FEATURE_U1_ENABLE:
+        case TUSB_REQ_FEATURE_U2_ENABLE:
+          tud_control_status(rhport, p_request);
+          return true;
+        #endif
+
+        // Stall unsupported feature selector
+        default: return false;
+      }
 
     case TUSB_REQ_GET_STATUS: {
       // Device status bit mask
@@ -1045,6 +1076,20 @@ static bool process_std_device_request(uint8_t rhport, tusb_control_request_t co
       tud_control_xfer(rhport, p_request, &status, 2);
       return true;
     }
+
+    #if TUD_OPT_SUPER_SPEED
+    case TUSB_REQ_SET_SEL:
+      // U1/U2 System Exit Latency values (6-byte data stage). Informational only:
+      // receive into the control buffer and discard. DCD may observe them via
+      // dcd_edpt0_status_complete()
+      TU_VERIFY(6u == p_request->wLength);
+      return tud_control_xfer(rhport, p_request, _ctrl_epbuf.buf, 6);
+
+    case TUSB_REQ_SET_ISOCH_DELAY:
+      // wValue = isochronous delay in ns, no data stage: just ACK
+      tud_control_status(rhport, p_request);
+      return true;
+    #endif
 
     default:
       TU_BREAKPOINT();
@@ -1486,6 +1531,12 @@ void usbd_spin_unlock(bool in_isr) {
 bool usbd_open_edpt_pair(uint8_t rhport, const uint8_t *p_desc, uint8_t ep_count, uint8_t xfer_type, uint8_t *ep_out,
                          uint8_t *ep_in) {
   for (int i = 0; i < ep_count; i++) {
+    // SuperSpeed: skip endpoint companion descriptor(s) between endpoint descriptors
+    while (TUD_OPT_SUPER_SPEED &&
+           (TUSB_DESC_SUPERSPEED_ENDPOINT_COMPANION == tu_desc_type(p_desc) ||
+            TUSB_DESC_SUPERSPEED_ISO_ENDPOINT_COMPANION == tu_desc_type(p_desc))) {
+      p_desc = tu_desc_next(p_desc);
+    }
     const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
 
     TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && xfer_type == desc_ep->bmAttributes.xfer);
