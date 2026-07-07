@@ -74,6 +74,10 @@ enum {
 //--------------------------------------------------------------------+
 // Device Descriptors
 //--------------------------------------------------------------------+
+// EP0 size as reported in the FS/HS device descriptor: a SuperSpeed-capable build sets
+// CFG_TUD_ENDPOINT0_SIZE to 512, which only applies to the SS device descriptor (encoded as 2^9)
+#define EP0_SIZE_FSHS (CFG_TUD_ENDPOINT0_SIZE > 64 ? 64 : CFG_TUD_ENDPOINT0_SIZE)
+
 static const tusb_desc_device_t desc_device = {
   .bLength         = sizeof(tusb_desc_device_t),
   .bDescriptorType = TUSB_DESC_DEVICE,
@@ -83,7 +87,7 @@ static const tusb_desc_device_t desc_device = {
   .bDeviceSubClass = MISC_SUBCLASS_COMMON,
   .bDeviceProtocol = MISC_PROTOCOL_IAD,
 
-  .bMaxPacketSize0 = CFG_TUD_ENDPOINT0_SIZE,
+  .bMaxPacketSize0 = EP0_SIZE_FSHS,
 
   .idVendor  = 0xCafe,
   .idProduct = USB_PID,
@@ -96,9 +100,38 @@ static const tusb_desc_device_t desc_device = {
   .bNumConfigurations = CONFIG_ID_COUNT // multiple configurations
 };
 
+#if TUD_OPT_SUPER_SPEED
+// SuperSpeed device descriptor: bcdUSB >= 3.0 and bMaxPacketSize0 is an exponent (2^9 = 512)
+static const tusb_desc_device_t desc_device_ss = {
+  .bLength         = sizeof(tusb_desc_device_t),
+  .bDescriptorType = TUSB_DESC_DEVICE,
+  .bcdUSB          = 0x0320,
+  .bDeviceClass    = TUSB_CLASS_MISC,
+  .bDeviceSubClass = MISC_SUBCLASS_COMMON,
+  .bDeviceProtocol = MISC_PROTOCOL_IAD,
+
+  .bMaxPacketSize0 = 9,
+
+  .idVendor  = 0xCafe,
+  .idProduct = USB_PID,
+  .bcdDevice = 0x0101,
+
+  .iManufacturer = STRID_MANUFACTURER,
+  .iProduct      = STRID_PRODUCT,
+  .iSerialNumber = STRID_SERIAL,
+
+  .bNumConfigurations = CONFIG_ID_COUNT // multiple configurations
+};
+#endif
+
 // Invoked when received GET DEVICE DESCRIPTOR
 // Application return pointer to descriptor
 const uint8_t *tud_descriptor_device_cb(void) {
+#if TUD_OPT_SUPER_SPEED
+  if (tud_speed_get() == TUSB_SPEED_SUPER) {
+    return (const uint8_t *)&desc_device_ss;
+  }
+#endif
   return (const uint8_t *)&desc_device;
 }
 
@@ -217,6 +250,31 @@ static uint8_t const ncm_hs_configuration[] = {
 };
 #endif // highspeed
 
+#if TUD_OPT_SUPER_SPEED
+// Bulk endpoint burst capability advertised in the endpoint companions (bMaxBurst = bursts-1).
+// Must not exceed what the dcd supports (WCH CH56x: CFG_TUD_WCH_USB30_MAX_BURST)
+#ifndef CFG_EXAMPLE_SS_BULK_MAXBURST
+  #ifdef CFG_TUD_WCH_USB30_MAX_BURST
+    #define CFG_EXAMPLE_SS_BULK_MAXBURST (CFG_TUD_WCH_USB30_MAX_BURST - 1)
+  #else
+    #define CFG_EXAMPLE_SS_BULK_MAXBURST 0
+  #endif
+#endif
+
+#define NCM_SS_CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_CDC_NCM_SS_DESC_LEN)
+
+// superspeed configuration: bulk endpoints are 1024 with companion descriptors
+static uint8_t const ncm_ss_configuration[] = {
+  // Config number (index+1), interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_SS_DESCRIPTOR(CONFIG_ID_NCM + 1, ITF_NUM_TOTAL, 0, NCM_SS_CONFIG_TOTAL_LEN, 0, 96),
+
+  // Interface number, description string index, MAC address string index, EP notification address and size, EP data address (out, in), max segment size, EP notification bInterval, NCM capabilities, bulk max burst.
+  TUD_CDC_NCM_SS_DESCRIPTOR(ITF_NUM_CDC, STRID_INTERFACE, STRID_MAC, EPNUM_NET_NOTIF, 64, EPNUM_NET_OUT, EPNUM_NET_IN,
+    CFG_TUD_NET_MTU, 9, (uint8_t)((uint8_t)NCM_NETWORK_CAPS_ETH_FILTER | (uint8_t)NCM_NETWORK_CAPS_NTB_INPUT_SIZE),
+    CFG_EXAMPLE_SS_BULK_MAXBURST),
+};
+#endif // superspeed
+
 #endif
 
 // NCM work with all latest OS i.e macos 10.10+, windows 10+, and Linux.
@@ -252,6 +310,12 @@ static const uint16_t configuration_sz_arr[CONFIG_ID_COUNT] = {
 static const uint8_t *const configuration_fs_arr[CONFIG_ID_COUNT] = {
   [CONFIG_ID_NCM] = ncm_fs_configuration
 };
+
+#if TUD_OPT_SUPER_SPEED
+static const uint8_t *const configuration_ss_arr[CONFIG_ID_COUNT] = {
+  [CONFIG_ID_NCM] = ncm_ss_configuration
+};
+#endif
 
 #if TUD_OPT_HIGH_SPEED
 static const uint8_t *const configuration_hs_arr[CONFIG_ID_COUNT] = {
@@ -318,6 +382,11 @@ uint8_t const *tud_descriptor_other_speed_configuration_cb(uint8_t index) {
 // Descriptor contents must exist long enough for transfer to complete
 const uint8_t *tud_descriptor_configuration_cb(uint8_t index) {
   if (index >= CONFIG_ID_COUNT) return NULL;
+#if TUD_OPT_SUPER_SPEED && CFG_TUD_NCM
+  if (tud_speed_get() == TUSB_SPEED_SUPER) {
+    return configuration_ss_arr[index];
+  }
+#endif
 #if TUD_OPT_HIGH_SPEED
   // Although we are highspeed, host may be fullspeed.
   return (tud_speed_get() == TUSB_SPEED_HIGH) ? configuration_hs_arr[index] : configuration_fs_arr[index];
@@ -348,14 +417,28 @@ https://developers.google.com/web/fundamentals/native-hardware/build-for-webusb/
 (Section Microsoft OS compatibility descriptors)
 */
 
+#if TUD_OPT_SUPER_SPEED
+// SuperSpeed devices must carry USB 2.0 extension + SuperSpeed device capabilities
+#define BOS_TOTAL_LEN     (TUD_BOS_DESC_LEN + TUD_BOS_USB20_EXT_DESC_LEN + TUD_BOS_SUPERSPEED_DESC_LEN + TUD_BOS_MICROSOFT_OS_DESC_LEN)
+#define BOS_CAP_COUNT     3
+#else
 #define BOS_TOTAL_LEN     (TUD_BOS_DESC_LEN + TUD_BOS_MICROSOFT_OS_DESC_LEN)
+#define BOS_CAP_COUNT     1
+#endif
 
 #define MS_OS_20_DESC_LEN 0xB2
 
 // BOS Descriptor is required for webUSB
 const uint8_t desc_bos[] = {
   // total length, number of device caps
-  TUD_BOS_DESCRIPTOR(BOS_TOTAL_LEN, 1),
+  TUD_BOS_DESCRIPTOR(BOS_TOTAL_LEN, BOS_CAP_COUNT),
+
+#if TUD_OPT_SUPER_SPEED
+  // LPM capable
+  TUD_BOS_USB20_EXT_DESCRIPTOR(0x00000002),
+  // no LTM, HS + Gen1 SS supported, fully functional from HS, U1/U2 exit latency
+  TUD_BOS_SUPERSPEED_DESCRIPTOR(0x00, 0x000C, 2, 0x0A, 0x07FF),
+#endif
 
   // Microsoft OS 2.0 descriptor
   TUD_BOS_MS_OS_20_DESCRIPTOR(MS_OS_20_DESC_LEN, 1)};

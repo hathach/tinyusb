@@ -905,6 +905,12 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16
   drv_len += tu_desc_len(p_desc);
   p_desc = tu_desc_next(p_desc);
 
+  // SuperSpeed: skip the endpoint companion descriptor
+  if (TUD_OPT_SUPER_SPEED && tu_desc_type(p_desc) == TUSB_DESC_SUPERSPEED_ENDPOINT_COMPANION) {
+    drv_len += tu_desc_len(p_desc);
+    p_desc = tu_desc_next(p_desc);
+  }
+
   // skip the following TUSB_DESC_INTERFACE entries (which must be TUSB_CLASS_CDC_DATA)
   while (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && drv_len <= max_len) {
     tusb_desc_interface_t const *data_itf_desc = (tusb_desc_interface_t const *) p_desc;
@@ -919,6 +925,10 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16
   TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, 2, TUSB_XFER_BULK, &ncm_interface.ep_out, &ncm_interface.ep_in));
   ncm_interface.ep_size = tu_edpt_packet_size((tusb_desc_endpoint_t const *) p_desc);
   drv_len += 2 * sizeof(tusb_desc_endpoint_t);
+  if (TUD_OPT_SUPER_SPEED && TUSB_DESC_SUPERSPEED_ENDPOINT_COMPANION == tu_desc_type(tu_desc_next(p_desc))) {
+    // SuperSpeed configuration: an endpoint companion follows each endpoint descriptor
+    drv_len += 2 * (uint16_t) sizeof(tusb_desc_ss_ep_companion_t);
+  }
 
   return drv_len;
 } // netd_open

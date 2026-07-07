@@ -112,9 +112,9 @@ static void fallback_timer_stop(void) {
 
 static void fallback_timer_start(void) {
   R8_TMR0_CTRL_MOD = RB_TMR_ALL_CLEAR;
-  // 1 s per expiry at 120 MHz (2 s total before USB2 comes up): SuperSpeed training can take
-  // over a second when the host port was previously settled on another connection state
-  R32_TMR0_CNT_END = 120000000;
+  // TMR0 counts 26 bits: CNT_END must stay below 2^26 (67108864). 0.55 s per expiry at
+  // 120 MHz, ~1.1 s total before USB2 comes up
+  R32_TMR0_CNT_END = 66000000;
   R8_TMR0_INT_FLAG = RB_TMR_IF_CYC_END;
   R8_TMR0_INTER_EN = RB_TMR_IE_CYC_END;
   R8_TMR0_CTRL_MOD = RB_TMR_COUNT_EN;
@@ -142,12 +142,10 @@ static void link_delay_us(uint32_t us) {
 static bool usb30_hw_init(void) {
   USBSS->LINK_CFG = USBSS_LINK_CFG_INIT;
   USBSS->LINK_CTRL = 0x12; // power mode U2, per reference init
+  // bounded, best effort: BUSY can stick after a teardown; carry on and let the link
+  // interrupts (or the USB2 fallback timer) recover
   uint32_t timeout = 0x4c4b41;
-  while (USBSS->LINK_STATUS & USBSS_LINK_STATUS_BUSY) {
-    if (--timeout == 0) {
-      return false;
-    }
-  }
+  while ((USBSS->LINK_STATUS & USBSS_LINK_STATUS_BUSY) && --timeout) {}
   for (uint8_t ep = 0; ep < EP_MAX; ep++) {
     USBSS_TX_CTRL(ep) = 0;
     USBSS_RX_CTRL(ep) = 0;

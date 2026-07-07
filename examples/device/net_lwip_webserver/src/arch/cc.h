@@ -72,4 +72,12 @@ typedef int sys_prot_t;
 
 #define LWIP_PLATFORM_ASSERT(x) do { if(!(x)) while(1); } while(0)
 
+/* WCH CH56x: only 16 KB general SRAM (RAMS); place the lwIP heap and memory pools in the
+   32 KB RAMX region (the .dmadata section of the ch56x linker script) to make room. The
+   defines below come from the ch56x board build. */
+#if defined(CFG_TUD_WCH_USBIP_USB30) || defined(CFG_TUD_WCH_USBIP_USBHS)
+#define LWIP_DECLARE_MEMORY_ALIGNED(variable_name, size) \
+  u8_t variable_name[LWIP_MEM_ALIGN_BUFFER(size)] __attribute__((aligned(4), section(".dmadata")))
+#endif
+
 #endif /* CC_H__ */

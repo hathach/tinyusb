@@ -1162,6 +1162,38 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   /* Endpoint Out */\
   7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0
 
+// Length of SuperSpeed template descriptor: 85 + 3 companions = 103 bytes
+#define TUD_CDC_NCM_SS_DESC_LEN  (TUD_CDC_NCM_DESC_LEN + 3 * TUD_SS_EP_COMP_DESC_LEN)
+
+// CDC-NCM SuperSpeed Descriptor Template: bulk size fixed to 1024, endpoint companion after
+// every endpoint. Same parameters as TUD_CDC_NCM_DESCRIPTOR with bulk max burst instead of _epsize.
+#define TUD_CDC_NCM_SS_DESCRIPTOR(_itfnum, _desc_stridx, _mac_stridx, _ep_notif, _ep_notif_size, _epout, _epin, _maxsegmentsize, _ep_notif_interval, _capability, _bulk_maxburst) \
+  /* Interface Association */\
+  8, TUSB_DESC_INTERFACE_ASSOCIATION, _itfnum, 2, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_NETWORK_CONTROL_MODEL, 0, 0,\
+  /* CDC Control Interface */\
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 1, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_NETWORK_CONTROL_MODEL, 0, _desc_stridx,\
+  /* CDC Header */\
+  5, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_HEADER, U16_TO_U8S_LE(0x0110),\
+  /* CDC Union */\
+  5, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_UNION, _itfnum, (uint8_t)((_itfnum) + 1),\
+  /* CDC Ethernet Networking Descriptor */\
+  13, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_ETHERNET_NETWORKING, _mac_stridx, 0, 0, 0, 0, U16_TO_U8S_LE(_maxsegmentsize), U16_TO_U8S_LE(0), 0, \
+  /* CDC-NCM Functional Descriptor */\
+  6, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_NCM, U16_TO_U8S_LE(0x0100), _capability, \
+  /* Endpoint Notification + companion */\
+  7, TUSB_DESC_ENDPOINT, _ep_notif, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_notif_size), _ep_notif_interval,\
+  TUD_SS_EP_COMP_DESCRIPTOR(0, 0, _ep_notif_size),\
+  /* CDC Data Interface (default inactive) */\
+  9, TUSB_DESC_INTERFACE, (uint8_t)((_itfnum)+1), 0, 0, TUSB_CLASS_CDC_DATA, 0, NCM_DATA_PROTOCOL_NETWORK_TRANSFER_BLOCK, 0,\
+  /* CDC Data Interface (alternative active) */\
+  9, TUSB_DESC_INTERFACE, (uint8_t)((_itfnum)+1), 1, 2, TUSB_CLASS_CDC_DATA, 0, NCM_DATA_PROTOCOL_NETWORK_TRANSFER_BLOCK, 0,\
+  /* Endpoint In + companion */\
+  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0,\
+  TUD_SS_EP_COMP_DESCRIPTOR(_bulk_maxburst, 0, 0),\
+  /* Endpoint Out + companion */\
+  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0,\
+  TUD_SS_EP_COMP_DESCRIPTOR(_bulk_maxburst, 0, 0)
+
 #ifdef __cplusplus
 }
 #endif

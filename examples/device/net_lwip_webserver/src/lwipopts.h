@@ -57,14 +57,29 @@
 
 #define TCP_MSS                         (1500 /*mtu*/ - 20 /*iphdr*/ - 20 /*tcphhr*/)
 #define TCP_SND_BUF                     (4 * TCP_MSS)
+// WCH CH56x: lwIP memory lives in the 32 KB RAMX (see arch/cc.h); 6 pbufs + a matching
+// window is the best fit next to the USB DMA buffers
+#if defined(CFG_TUD_WCH_USBIP_USB30) || defined(CFG_TUD_WCH_USBIP_USBHS)
+  #define PBUF_POOL_SIZE                6
+  #define TCP_WND                       (6 * TCP_MSS)
+#endif
+
 #if LWIP_HIGH_THROUGHPUT
-  #define TCP_WND                       (8 * TCP_MSS)
-  #define PBUF_POOL_SIZE                8
+  #ifndef TCP_WND
+    #define TCP_WND                     (8 * TCP_MSS)
+  #endif
+  #ifndef PBUF_POOL_SIZE
+    #define PBUF_POOL_SIZE              8
+  #endif
   // Must grow in step with TCP_SND_BUF (default MEMP_NUM_TCP_SEG=16 caps TCP_SND_BUF at 4*MSS).
   #define MEMP_NUM_TCP_SEG              16
 #else
-  #define TCP_WND                       (4 * TCP_MSS)
-  #define PBUF_POOL_SIZE                4
+  #ifndef TCP_WND
+    #define TCP_WND                     (4 * TCP_MSS)
+  #endif
+  #ifndef PBUF_POOL_SIZE
+    #define PBUF_POOL_SIZE              4
+  #endif
 #endif
 
 #define ETHARP_SUPPORT_STATIC_ENTRIES   1
