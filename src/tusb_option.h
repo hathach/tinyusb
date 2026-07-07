@@ -178,6 +178,8 @@
 #define OPT_MCU_CH32V103         2230 ///< WCH CH32V103
 #define OPT_MCU_CH583            2240 ///< WCH CH583
 #define OPT_MCU_CH582            OPT_MCU_CH583 ///< WCH CH582 (alias, same USB IP as CH583)
+#define OPT_MCU_CH569            2250 ///< WCH CH569
+#define OPT_MCU_CH565            OPT_MCU_CH569 ///< WCH CH565 (alias, same USB IPs as CH569)
 
 // NXP LPC MCX
 #define OPT_MCU_MCXN9            2300  ///< NXP MCX N9 Series

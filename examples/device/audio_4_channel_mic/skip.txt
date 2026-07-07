@@ -4,3 +4,4 @@ mcu:SAMG
 family:broadcom_64bit
 family:espressif
 mcu:CH583
+mcu:CH569

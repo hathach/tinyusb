@@ -657,6 +657,35 @@
 
   #define TUP_DCD_ENDPOINT_MAX 8
 
+#elif TU_CHECK_MCU(OPT_MCU_CH569)
+  // CH565/CH569: USB3.0 SuperSpeed device (USBSS @0x40008000, registers reverse-engineered
+  // by the hydrausb3 project; same LINK-layer IP as the documented CH32H417 USBSS) plus a
+  // USB2.0 high-speed device (USBHS @0x40009000, CH56x register layout - NOT compatible with
+  // the CH32V307 USBHS driver). One controller is selected at compile time (SPEED=super|high),
+  // both on rhport 0. With CFG_TUD_WCH_USB30_FALLBACK the USB30 dcd owns both controllers and
+  // falls back to USB2 at runtime when the SuperSpeed link does not train.
+  #define TUP_USBIP_WCH_USB30
+  #define TUP_USBIP_WCH_USBHS_CH56X
+
+  #ifndef CFG_TUD_WCH_USBIP_USBHS
+    #define CFG_TUD_WCH_USBIP_USBHS 0
+  #endif
+  #ifndef CFG_TUD_WCH_USBIP_USB30
+    #define CFG_TUD_WCH_USBIP_USB30 (CFG_TUD_WCH_USBIP_USBHS ? 0 : 1) // default SuperSpeed
+  #endif
+  #ifndef CFG_TUD_WCH_USB30_FALLBACK
+    #define CFG_TUD_WCH_USB30_FALLBACK 0
+  #endif
+
+  #define TUP_RHPORT_HIGHSPEED  1
+  #define TUP_RHPORT_SUPERSPEED CFG_TUD_WCH_USBIP_USB30
+  #define TUP_DCD_ENDPOINT_MAX  8 // EP0..EP7 IN + OUT on both controllers
+  #define TUP_DCD_EDPT_CLOSE_API
+
+  #if CFG_TUD_WCH_USBIP_USB30 && !defined(CFG_TUD_ENDPOINT0_SIZE)
+    #define CFG_TUD_ENDPOINT0_SIZE 512 // SuperSpeed EP0 is fixed at 512
+  #endif
+
 //--------------------------------------------------------------------+
 // Analog Devices
 //--------------------------------------------------------------------+
