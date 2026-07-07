@@ -30,6 +30,10 @@
 #define USB_VID           0xCafe
 #define USB_BCD           0x0200
 
+// EP0 size as reported in the FS/HS device descriptor: a SuperSpeed-capable build sets
+// CFG_TUD_ENDPOINT0_SIZE to 512, which only applies to the SS device descriptor (encoded as 2^9)
+#define EP0_SIZE_FSHS   (CFG_TUD_ENDPOINT0_SIZE > 64 ? 64 : CFG_TUD_ENDPOINT0_SIZE)
+
 static tusb_desc_device_t const desc_device = {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
@@ -39,7 +43,7 @@ static tusb_desc_device_t const desc_device = {
     .bDeviceClass       = TUSB_CLASS_MISC,
     .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
     .bDeviceProtocol    = MISC_PROTOCOL_IAD,
-    .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
+    .bMaxPacketSize0    = EP0_SIZE_FSHS,
 
     .idVendor           = USB_VID,
     .idProduct          = USB_PID,
@@ -52,7 +56,36 @@ static tusb_desc_device_t const desc_device = {
     .bNumConfigurations = 0x01,
 };
 
+#if TUD_OPT_SUPER_SPEED
+// SuperSpeed device descriptor: bcdUSB >= 3.0 and bMaxPacketSize0 is an exponent (2^9 = 512)
+static tusb_desc_device_t const desc_device_ss = {
+    .bLength            = sizeof(tusb_desc_device_t),
+    .bDescriptorType    = TUSB_DESC_DEVICE,
+    .bcdUSB             = 0x0320,
+
+    .bDeviceClass       = TUSB_CLASS_MISC,
+    .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
+    .bDeviceProtocol    = MISC_PROTOCOL_IAD,
+    .bMaxPacketSize0    = 9,
+
+    .idVendor           = USB_VID,
+    .idProduct          = USB_PID,
+    .bcdDevice          = 0x0100,
+
+    .iManufacturer      = 0x01,
+    .iProduct           = 0x02,
+    .iSerialNumber      = 0x03,
+
+    .bNumConfigurations = 0x01,
+};
+#endif
+
 uint8_t const *tud_descriptor_device_cb(void) {
+#if TUD_OPT_SUPER_SPEED
+  if (tud_speed_get() == TUSB_SPEED_SUPER) {
+    return (uint8_t const *) &desc_device_ss;
+  }
+#endif
   return (uint8_t const *) &desc_device;
 }
 
@@ -111,7 +144,7 @@ static tusb_desc_device_qualifier_t const desc_device_qualifier = {
     .bDeviceClass       = 0x00,
     .bDeviceSubClass    = 0x00,
     .bDeviceProtocol    = 0x00,
-    .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
+    .bMaxPacketSize0    = EP0_SIZE_FSHS,
     .bNumConfigurations = 0x01,
     .bReserved          = 0x00,
 };
@@ -130,8 +163,38 @@ uint8_t const *tud_descriptor_other_speed_configuration_cb(uint8_t index) {
 }
 #endif
 
+#if TUD_OPT_SUPER_SPEED
+// Per USB specs: SuperSpeed devices must report a BOS descriptor and every endpoint
+// descriptor must be followed by an endpoint companion descriptor
+
+#define CONFIG_SS_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_CDC_SS_DESC_LEN + TUD_MSC_SS_DESC_LEN)
+
+static uint8_t const desc_ss_configuration[] = {
+    TUD_CONFIG_SS_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_SS_TOTAL_LEN, 0x00, 96),
+    TUD_CDC_SS_DESCRIPTOR(ITF_NUM_CDC, 4, EPNUM_CDC_NOTIF, 16, EPNUM_CDC_OUT, EPNUM_CDC_IN, 0),
+    TUD_MSC_SS_DESCRIPTOR(ITF_NUM_MSC, 5, EPNUM_MSC_OUT, EPNUM_MSC_IN, 0),
+};
+
+#define BOS_TOTAL_LEN  (TUD_BOS_DESC_LEN + TUD_BOS_USB20_EXT_DESC_LEN + TUD_BOS_SUPERSPEED_DESC_LEN)
+
+static uint8_t const desc_bos[] = {
+    TUD_BOS_DESCRIPTOR(BOS_TOTAL_LEN, 2),
+    TUD_BOS_USB20_EXT_DESCRIPTOR(0x00000002),
+    TUD_BOS_SUPERSPEED_DESCRIPTOR(0x00, 0x000C, 2, 0x0A, 0x07FF),
+};
+
+uint8_t const *tud_descriptor_bos_cb(void) {
+  return desc_bos;
+}
+#endif // superspeed
+
 uint8_t const *tud_descriptor_configuration_cb(uint8_t index) {
   (void) index;
+#if TUD_OPT_SUPER_SPEED
+  if (tud_speed_get() == TUSB_SPEED_SUPER) {
+    return desc_ss_configuration;
+  }
+#endif
 #if TUD_OPT_HIGH_SPEED
   return (tud_speed_get() == TUSB_SPEED_HIGH) ? desc_hs_configuration : desc_fs_configuration;
 #else

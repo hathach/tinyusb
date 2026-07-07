@@ -108,7 +108,9 @@ static void fallback_timer_stop(void) {
 
 static void fallback_timer_start(void) {
   R8_TMR0_CTRL_MOD = RB_TMR_ALL_CLEAR;
-  R32_TMR0_CNT_END = 60000000; // 0.5 s at 120 MHz
+  // 1 s per expiry at 120 MHz (2 s total before USB2 comes up): SuperSpeed training can take
+  // over a second when the host port was previously settled on another connection state
+  R32_TMR0_CNT_END = 120000000;
   R8_TMR0_INT_FLAG = RB_TMR_IF_CYC_END;
   R8_TMR0_INTER_EN = RB_TMR_IE_CYC_END;
   R8_TMR0_CTRL_MOD = RB_TMR_COUNT_EN;
