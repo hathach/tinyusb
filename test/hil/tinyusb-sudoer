@@ -15,7 +15,6 @@
 # What each grant is for:
 #   dmesg                    - read kernel log (USB events, usbtest results)
 #   uhubctl                  - hub port power control (only works on buses with ppps)
-#   debugfs                  - ext4 debugger, read root-only files for diagnostics
 #   usb_recover.sh           - narrow sysfs USB reset helper (see .claude/skills/usb-recover)
 #   usb_dyndbg.sh            - kernel dynamic-debug toggle for USB modules (see .claude/skills/usb-debug)
 #   tee usbtest sysfs paths  - bind/unbind the usbtest host driver (test/hil/usbtest.py)
@@ -24,9 +23,12 @@
 #   testusb                  - run test cases when the device node is not user-writable (no udev
 #                              rule); with the shipped 99-tinyusb udev rule the node is 0666 and
 #                              this grant is unused
-#   actions-runner/svc.sh    - stop/start the CI GitHub Actions runner around manual hardware runs
-#                              so it doesn't reflash boards mid-test (see the hil skill). Must be
-#                              invoked from the runner root: cd ~/actions-runner && sudo ./svc.sh stop
+#   systemctl stop/start     - stop/start the CI GitHub Actions runner service around manual hardware
+#   actions.runner.*           runs so it doesn't reflash boards mid-test (see the hil skill). Granted
+#                              on the root-owned systemctl unit (actions.runner.<owner>-<repo>.<name>
+#                              .service), NOT on ~/actions-runner/svc.sh — that script lives in the
+#                              runner user's writable home, so sudo on it would equal passwordless root.
+#                              Find the unit: systemctl list-units 'actions.runner.*'
 #   (controller re-bind after a driverless pci-rebind is handled by usb_recover.sh pci-bind, which
 #    is already covered by the usb_recover.sh grant above — no extra sudoers rule needed.)
 #   systemctl reboot --force - last-resort USB recovery when a testusb D-state URB is unkillable and
@@ -39,10 +41,10 @@
 
 # NB: '#1000' below is a UID specifier (sudoers(5) User_List syntax), NOT a comment — these
 # lines are live grants for uid 1000.
-#1000 ALL=(ALL) NOPASSWD: /usr/bin/dmesg, /sbin/uhubctl, /sbin/debugfs
+#1000 ALL=(root) NOPASSWD: /usr/bin/dmesg, /sbin/uhubctl
 #1000 ALL=(root) NOPASSWD: /usr/local/sbin/usb_recover.sh
 #1000 ALL=(root) NOPASSWD: /usr/local/sbin/usb_dyndbg.sh
-#1000 ALL=(root) NOPASSWD: /home/*/actions-runner/svc.sh
+#1000 ALL=(root) NOPASSWD: /usr/bin/systemctl stop actions.runner.*, /usr/bin/systemctl start actions.runner.*
 #1000 ALL=(root) NOPASSWD: /usr/local/bin/testusb *
 #1000 ALL=(root) NOPASSWD: /usr/bin/systemctl reboot --force, /usr/bin/systemctl reboot
 #1000 ALL=(root) NOPASSWD: /usr/bin/tee /sys/bus/usb/drivers/usbtest/new_id, /usr/bin/tee /sys/bus/usb/drivers/usbtest/remove_id, /usr/bin/tee /sys/bus/usb/drivers/usbtest/bind, /usr/bin/tee /sys/bus/usb/drivers/usbtest/unbind, /usr/bin/tee /sys/bus/usb/devices/*/driver/unbind, /usr/bin/tee /sys/module/usbtest/parameters/pattern, /usr/sbin/modprobe usbtest

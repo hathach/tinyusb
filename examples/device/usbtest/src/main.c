@@ -65,6 +65,16 @@ static uint8_t const tx_chunk[CFG_TUD_VENDOR_TX_EPSIZE];
 static uint8_t const int_tx_chunk[USBTEST_INT_EP_MPS];
 static uint8_t const iso_tx_chunk[USBTEST_ISO_EP_MPS];
 
+// Interrupt/iso submit one packet per (micro)frame, sized to the NEGOTIATED speed's mps — a
+// high-speed build enumerated at full speed must submit the FS length, not the HS-capacity buffer
+// size (bulk is exempt: it streams multi-packet transfers). See usb_descriptors.h.
+static inline uint16_t usbtest_int_len(void) {
+  return (tud_speed_get() == TUSB_SPEED_HIGH) ? USBTEST_INT_EP_MPS_HS : USBTEST_INT_EP_MPS_FS;
+}
+static inline uint16_t usbtest_iso_len(void) {
+  return (tud_speed_get() == TUSB_SPEED_HIGH) ? USBTEST_ISO_EP_MPS_HS : USBTEST_ISO_EP_MPS_FS;
+}
+
 //------------- prototypes -------------//
 void led_blinking_task(void* param);
 void usbtest_task(void* param);
@@ -107,13 +117,6 @@ int main(void) {
 // quietly until the host clears the halt, then the next tick re-arms.
 static void usbtest_pump(void) {
   if (tud_vendor_mounted()) {
-    // Write lengths track the NEGOTIATED speed, not the compile-time capability: a high-speed
-    // build enumerated at full speed serves the FS descriptor (int/iso mps 64/128), so the
-    // buffers (sized for the largest case) must not be submitted at their HS length there.
-    const bool hs = tud_speed_get() == TUSB_SPEED_HIGH;
-    const uint16_t int_len = hs ? USBTEST_INT_EP_MPS_HS : USBTEST_INT_EP_MPS_FS;
-    const uint16_t iso_len = hs ? USBTEST_ISO_EP_MPS_HS : USBTEST_ISO_EP_MPS_FS;
-
     tud_vendor_read_xfer();     // bulk sink: arm/re-arm, quiet fail if armed or halted
     if (tud_vendor_write_available()) { // 0 while bulk IN is busy or halted
       tud_vendor_write(tx_chunk, sizeof(tx_chunk));
@@ -121,12 +124,12 @@ static void usbtest_pump(void) {
 
     tud_vendor_int_read_xfer(); // interrupt sink
     if (tud_vendor_int_write_available()) {
-      tud_vendor_int_write(int_tx_chunk, int_len);
+      tud_vendor_int_write(int_tx_chunk, usbtest_int_len());
     }
 
     tud_vendor_iso_read_xfer(); // isochronous sink
     if (tud_vendor_iso_write_available()) {
-      tud_vendor_iso_write(iso_tx_chunk, iso_len);
+      tud_vendor_iso_write(iso_tx_chunk, usbtest_iso_len());
     }
   }
 }
@@ -169,7 +172,7 @@ void tud_vendor_int_rx_cb(uint8_t idx, const uint8_t* buffer, uint32_t bufsize) 
 void tud_vendor_int_tx_cb(uint8_t idx, uint32_t sent_bytes) {
   (void) idx;
   (void) sent_bytes;
-  tud_vendor_int_write(int_tx_chunk, sizeof(int_tx_chunk));
+  tud_vendor_int_write(int_tx_chunk, usbtest_int_len());
 }
 
 // Isochronous pair: same discard/refill pumps; a completion may be a missed
@@ -184,7 +187,7 @@ void tud_vendor_iso_rx_cb(uint8_t idx, const uint8_t* buffer, uint32_t bufsize) 
 void tud_vendor_iso_tx_cb(uint8_t idx, uint32_t sent_bytes) {
   (void) idx;
   (void) sent_bytes;
-  tud_vendor_iso_write(iso_tx_chunk, sizeof(iso_tx_chunk));
+  tud_vendor_iso_write(iso_tx_chunk, usbtest_iso_len());
 }
 
 //--------------------------------------------------------------------+

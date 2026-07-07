@@ -39,7 +39,8 @@
 // config descriptor (and the OTHER_SPEED descriptor served to a HS host) must use full-speed-legal
 // sizes regardless of it: interrupt <= 64 B, isochronous <= 1023 B (and both iso EPs must fit the
 // 1023 B/frame FS periodic budget). Hence separate _FS / _HS descriptor sizes; the plain macro
-// tracks the live operating speed and sizes the source buffers.
+// below is the compile-time capability maximum that sizes the source buffers (runtime write
+// lengths follow the negotiated speed via tud_speed_get(), see main.c).
 //
 // The CH32 USB IPs have tiny per-endpoint buffers so tier-4's six endpoints don't fit at the usual
 // FS sizes: usbfs gives 64 B/ep (iso must drop to 64), and the CH32V20X fsdev port shares one 512 B
