@@ -722,7 +722,8 @@ uint16_t midi2d_open(uint8_t rhport, const tusb_desc_interface_t* desc_itf, uint
       // Continue only if this is an alternate setting of our own interface
       if (next_itf->bInterfaceNumber != desc_midi->bInterfaceNumber) break;
     } else if (dtype != TUSB_DESC_CS_INTERFACE && dtype != TUSB_DESC_CS_ENDPOINT &&
-               dtype != TUSB_DESC_ENDPOINT) {
+               dtype != TUSB_DESC_ENDPOINT &&
+               !(TUD_OPT_SUPER_SPEED && dtype == TUSB_DESC_SUPERSPEED_ENDPOINT_COMPANION)) {
       break;
     }
 

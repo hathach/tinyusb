@@ -145,6 +145,12 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
 
     drv_len += tu_desc_len(p_desc);
     p_desc = tu_desc_next(p_desc);
+
+    // SuperSpeed: skip the endpoint companion descriptor
+    if (TUD_OPT_SUPER_SPEED && TUSB_DESC_SUPERSPEED_ENDPOINT_COMPANION == tu_desc_type(p_desc)) {
+      drv_len += tu_desc_len(p_desc);
+      p_desc = tu_desc_next(p_desc);
+    }
   }
 
   //------------- Data Interface -------------//
@@ -184,6 +190,10 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   }
 
   drv_len += 2*sizeof(tusb_desc_endpoint_t);
+  if (TUD_OPT_SUPER_SPEED && TUSB_DESC_SUPERSPEED_ENDPOINT_COMPANION == tu_desc_type(tu_desc_next(p_desc))) {
+    // SuperSpeed configuration: each bulk endpoint is followed by a 6-byte companion
+    drv_len += 2u * (uint16_t) sizeof(tusb_desc_ss_ep_companion_t);
+  }
 
   return drv_len;
 }

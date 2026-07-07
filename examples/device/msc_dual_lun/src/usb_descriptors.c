@@ -36,6 +36,10 @@
 #define USB_PID           (0x4000 | PID_MAP(CDC, 0) | PID_MAP(MSC, 1) | PID_MAP(HID, 2) | \
                            PID_MAP(MIDI, 3) | PID_MAP(VENDOR, 4) )
 
+// EP0 size as reported in the FS/HS device descriptor: a SuperSpeed-capable build sets
+// CFG_TUD_ENDPOINT0_SIZE to 512, which only applies to the SS device descriptor (encoded as 2^9)
+#define EP0_SIZE_FSHS   (CFG_TUD_ENDPOINT0_SIZE > 64 ? 64 : CFG_TUD_ENDPOINT0_SIZE)
+
 //--------------------------------------------------------------------+
 // Device Descriptors
 //--------------------------------------------------------------------+
@@ -47,7 +51,7 @@ static tusb_desc_device_t const desc_device =
     .bDeviceClass       = 0x00,
     .bDeviceSubClass    = 0x00,
     .bDeviceProtocol    = 0x00,
-    .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
+    .bMaxPacketSize0    = EP0_SIZE_FSHS,
 
     .idVendor           = 0xCafe,
     .idProduct          = USB_PID,
@@ -60,10 +64,39 @@ static tusb_desc_device_t const desc_device =
     .bNumConfigurations = 0x01
 };
 
+#if TUD_OPT_SUPER_SPEED
+// SuperSpeed device descriptor: bcdUSB >= 3.0 and bMaxPacketSize0 is an exponent (2^9 = 512)
+static tusb_desc_device_t const desc_device_ss =
+{
+    .bLength            = sizeof(tusb_desc_device_t),
+    .bDescriptorType    = TUSB_DESC_DEVICE,
+    .bcdUSB             = 0x0320,
+    .bDeviceClass       = 0x00,
+    .bDeviceSubClass    = 0x00,
+    .bDeviceProtocol    = 0x00,
+    .bMaxPacketSize0    = 9,
+
+    .idVendor           = 0xCafe,
+    .idProduct          = USB_PID,
+    .bcdDevice          = 0x0100,
+
+    .iManufacturer      = 0x01,
+    .iProduct           = 0x02,
+    .iSerialNumber      = 0x03,
+
+    .bNumConfigurations = 0x01
+};
+#endif
+
 // Invoked when received GET DEVICE DESCRIPTOR
 // Application return pointer to descriptor
 uint8_t const * tud_descriptor_device_cb(void)
 {
+#if TUD_OPT_SUPER_SPEED
+  if (tud_speed_get() == TUSB_SPEED_SUPER) {
+    return (uint8_t const *) &desc_device_ss;
+  }
+#endif
   return (uint8_t const *) &desc_device;
 }
 
@@ -129,12 +162,61 @@ static uint8_t const desc_hs_configuration[] =
 };
 #endif
 
+#if TUD_OPT_SUPER_SPEED
+// Bulk endpoint burst capability advertised in the endpoint companions (bMaxBurst = bursts-1).
+// Must not exceed what the dcd supports (WCH CH56x: CFG_TUD_WCH_USB30_MAX_BURST)
+#ifndef CFG_EXAMPLE_SS_BULK_MAXBURST
+  #ifdef CFG_TUD_WCH_USB30_MAX_BURST
+    #define CFG_EXAMPLE_SS_BULK_MAXBURST (CFG_TUD_WCH_USB30_MAX_BURST - 1)
+  #else
+    #define CFG_EXAMPLE_SS_BULK_MAXBURST 0
+  #endif
+#endif
+
+// Per USB specs: SuperSpeed devices must report a BOS descriptor and every endpoint
+// descriptor must be followed by an endpoint companion descriptor
+
+#define CONFIG_SS_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_MSC_SS_DESC_LEN)
+
+// superspeed configuration
+static uint8_t const desc_ss_configuration[] =
+{
+  // Config number, interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_SS_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_SS_TOTAL_LEN, 0x00, 96),
+
+  // Interface number, string index, EP Out & EP In address, bulk max burst
+  TUD_MSC_SS_DESCRIPTOR(ITF_NUM_MSC, 0, EPNUM_MSC_OUT, EPNUM_MSC_IN, CFG_EXAMPLE_SS_BULK_MAXBURST),
+};
+
+// BOS descriptor: USB 2.0 extension (LPM) + SuperSpeed device capability
+#define BOS_TOTAL_LEN  (TUD_BOS_DESC_LEN + TUD_BOS_USB20_EXT_DESC_LEN + TUD_BOS_SUPERSPEED_DESC_LEN)
+
+static uint8_t const desc_bos[] = {
+    TUD_BOS_DESCRIPTOR(BOS_TOTAL_LEN, 2),
+    // LPM capable
+    TUD_BOS_USB20_EXT_DESCRIPTOR(0x00000002),
+    // no LTM, HS + Gen1 SS supported, fully functional from HS, U1/U2 exit latency
+    TUD_BOS_SUPERSPEED_DESCRIPTOR(0x00, 0x000C, 2, 0x0A, 0x07FF),
+};
+
+// Invoked when received GET BOS DESCRIPTOR request
+uint8_t const *tud_descriptor_bos_cb(void) {
+  return desc_bos;
+}
+#endif // superspeed
+
 // Invoked when received GET CONFIGURATION DESCRIPTOR
 // Application return pointer to descriptor
 // Descriptor contents must exist long enough for transfer to complete
 uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 {
   (void) index; // for multiple configurations
+
+#if TUD_OPT_SUPER_SPEED
+  if (tud_speed_get() == TUSB_SPEED_SUPER) {
+    return desc_ss_configuration;
+  }
+#endif
 
 #if TUD_OPT_HIGH_SPEED
   // Although we are highspeed, host may be fullspeed.

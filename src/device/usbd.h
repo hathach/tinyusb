@@ -369,6 +369,20 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   /* Endpoint In */\
   7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0
 
+// SuperSpeed
+#define TUD_PRINTER_SS_DESC_LEN (TUD_PRINTER_DESC_LEN + 2 * TUD_SS_EP_COMP_DESC_LEN)
+
+// Interface number, string index, EP Out & EP In address, max burst (0-15 = 1-16 packets per burst)
+#define TUD_PRINTER_SS_DESCRIPTOR(_itfnum, _stridx, _epout, _epin, _maxburst) \
+  /* Interface */\
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 2, TUSB_CLASS_PRINTER, 1, 2, _stridx,\
+  /* Endpoint Out */\
+  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0,\
+  TUD_SS_EP_COMP_DESCRIPTOR(_maxburst, 0, 0),\
+  /* Endpoint In */\
+  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0,\
+  TUD_SS_EP_COMP_DESCRIPTOR(_maxburst, 0, 0)
+
 //--------------------------------------------------------------------+
 // MTP Descriptor Templates
 //--------------------------------------------------------------------+
@@ -386,6 +400,23 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0,\
   /* Endpoint In */\
   7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0
+
+// SuperSpeed
+#define TUD_MTP_SS_DESC_LEN (TUD_MTP_DESC_LEN + 3 * TUD_SS_EP_COMP_DESC_LEN)
+
+// Interface number, string index, EP event, EP event size, EP event polling, EP Out & EP In address, bulk max burst
+#define TUD_MTP_SS_DESCRIPTOR(_itfnum, _stridx, _ep_evt, _ep_evt_size, _ep_evt_polling_interval, _epout, _epin, _bulk_maxburst) \
+  /* Interface */\
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 3, TUSB_CLASS_IMAGE, MTP_SUBCLASS_STILL_IMAGE, MTP_PROTOCOL_PIMA_15470, _stridx,\
+  /* Endpoint Interrupt */\
+  7, TUSB_DESC_ENDPOINT, _ep_evt, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_evt_size), _ep_evt_polling_interval,\
+  TUD_SS_EP_COMP_DESCRIPTOR(0, 0, _ep_evt_size),\
+  /* Endpoint Out */\
+  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0,\
+  TUD_SS_EP_COMP_DESCRIPTOR(_bulk_maxburst, 0, 0),\
+  /* Endpoint In */\
+  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0,\
+  TUD_SS_EP_COMP_DESCRIPTOR(_bulk_maxburst, 0, 0)
 
 
 //--------------------------------------------------------------------+
@@ -419,6 +450,36 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_epsize), _ep_interval, \
   /* Endpoint In */\
   7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_epsize), _ep_interval
+
+// SuperSpeed
+#define TUD_HID_SS_DESC_LEN (TUD_HID_DESC_LEN + TUD_SS_EP_COMP_DESC_LEN)
+
+// HID Input only descriptor (SuperSpeed)
+// Interface number, string index, protocol, report descriptor len, EP In address, size & polling interval
+#define TUD_HID_SS_DESCRIPTOR(_itfnum, _stridx, _boot_protocol, _report_desc_len, _epin, _epsize, _ep_interval) \
+  /* Interface */\
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 1, TUSB_CLASS_HID, (uint8_t)((_boot_protocol != HID_ITF_PROTOCOL_NONE) ? (uint8_t)HID_SUBCLASS_BOOT : 0u), _boot_protocol, _stridx,\
+  /* HID descriptor */\
+  9, HID_DESC_TYPE_HID, U16_TO_U8S_LE(0x0111), 0, 1, HID_DESC_TYPE_REPORT, U16_TO_U8S_LE(_report_desc_len),\
+  /* Endpoint In */\
+  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_epsize), _ep_interval,\
+  TUD_SS_EP_COMP_DESCRIPTOR(0, 0, _epsize)
+
+#define TUD_HID_INOUT_SS_DESC_LEN (TUD_HID_INOUT_DESC_LEN + 2 * TUD_SS_EP_COMP_DESC_LEN)
+
+// HID Input & Output descriptor (SuperSpeed)
+// Interface number, string index, protocol, report descriptor len, EP OUT & IN address, size & polling interval
+#define TUD_HID_INOUT_SS_DESCRIPTOR(_itfnum, _stridx, _boot_protocol, _report_desc_len, _epout, _epin, _epsize, _ep_interval) \
+  /* Interface */\
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 2, TUSB_CLASS_HID, (uint8_t)((_boot_protocol != HID_ITF_PROTOCOL_NONE) ? (uint8_t)HID_SUBCLASS_BOOT : 0u), _boot_protocol, _stridx,\
+  /* HID descriptor */\
+  9, HID_DESC_TYPE_HID, U16_TO_U8S_LE(0x0111), 0, 1, HID_DESC_TYPE_REPORT, U16_TO_U8S_LE(_report_desc_len),\
+  /* Endpoint Out */\
+  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_epsize), _ep_interval, \
+  TUD_SS_EP_COMP_DESCRIPTOR(0, 0, _epsize),\
+  /* Endpoint In */\
+  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_epsize), _ep_interval,\
+  TUD_SS_EP_COMP_DESCRIPTOR(0, 0, _epsize)
 
 //--------------------------------------------------------------------+
 // MIDI Descriptor Templates
@@ -482,6 +543,26 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   TUD_MIDI_DESC_EP(_epin, _epsize, 1),\
   TUD_MIDI_JACKID_OUT_EMB(1)
 
+// SuperSpeed: endpoint companion is inserted between the standard endpoint and the CS endpoint
+#define TUD_MIDI_DESC_EP_SS_LEN(_numcables) (TUD_MIDI_DESC_EP_LEN(_numcables) + TUD_SS_EP_COMP_DESC_LEN)
+#define TUD_MIDI_DESC_EP_SS(_epout, _epsize, _numcables, _maxburst) \
+  /* Endpoint: Note Audio v1.0's endpoint has 9 bytes instead of 7 */\
+  9, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0, 0, 0, \
+  TUD_SS_EP_COMP_DESCRIPTOR(_maxburst, 0, 0),\
+  /* MS Endpoint (connected to embedded jack) */\
+  (uint8_t)(4 + (_numcables)), TUSB_DESC_CS_ENDPOINT, MIDI_CS_ENDPOINT_GENERAL, _numcables
+
+#define TUD_MIDI_SS_DESC_LEN (TUD_MIDI_DESC_HEAD_LEN + TUD_MIDI_DESC_JACK_LEN + TUD_MIDI_DESC_EP_SS_LEN(1) * 2)
+
+// MIDI simple descriptor (SuperSpeed)
+#define TUD_MIDI_SS_DESCRIPTOR(_itfnum, _stridx, _epout, _epin, _maxburst) \
+  TUD_MIDI_DESC_HEAD(_itfnum, _stridx, 1),\
+  TUD_MIDI_DESC_JACK_DESC(1, 0),\
+  TUD_MIDI_DESC_EP_SS(_epout, TUSB_EPSIZE_BULK_SS, 1, _maxburst),\
+  TUD_MIDI_JACKID_IN_EMB(1),\
+  TUD_MIDI_DESC_EP_SS(_epin, TUSB_EPSIZE_BULK_SS, 1, _maxburst),\
+  TUD_MIDI_JACKID_OUT_EMB(1)
+
 //--------------------------------------------------------------------+
 // MIDI 2.0 Descriptor Templates (USB-MIDI 2.0)
 //--------------------------------------------------------------------+
@@ -500,6 +581,13 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 #define TUD_MIDI2_DESC_ALT1_EP_LEN(_numgtbs) (7 + 4 + (_numgtbs))
 #define TUD_MIDI2_DESC_ALT1_EP(_ep, _epsize, _numgtbs, ...) \
   7, TUSB_DESC_ENDPOINT, _ep, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0, \
+  (uint8_t)(4 + (_numgtbs)), TUSB_DESC_CS_ENDPOINT, MIDI_CS_ENDPOINT_GENERAL_2_0, _numgtbs, ## __VA_ARGS__
+
+// SuperSpeed: endpoint companion is inserted between the standard endpoint and the CS endpoint
+#define TUD_MIDI2_DESC_ALT1_EP_SS_LEN(_numgtbs) (TUD_MIDI2_DESC_ALT1_EP_LEN(_numgtbs) + TUD_SS_EP_COMP_DESC_LEN)
+#define TUD_MIDI2_DESC_ALT1_EP_SS(_ep, _maxburst, _numgtbs, ...) \
+  7, TUSB_DESC_ENDPOINT, _ep, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0, \
+  TUD_SS_EP_COMP_DESCRIPTOR(_maxburst, 0, 0), \
   (uint8_t)(4 + (_numgtbs)), TUSB_DESC_CS_ENDPOINT, MIDI_CS_ENDPOINT_GENERAL_2_0, _numgtbs, ## __VA_ARGS__
 
 // Total length: Alt 0 (MIDI 1.0) + Alt 1 (UMP)
@@ -894,12 +982,30 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 
 #define TUD_USBTMC_BULK_DESCRIPTORS_LEN (7u+7u)
 
+// SuperSpeed
+#define TUD_USBTMC_BULK_SS_DESCRIPTORS(_epout, _epin, _maxburst) \
+  /* Endpoint Out */ \
+  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0u, \
+  TUD_SS_EP_COMP_DESCRIPTOR(_maxburst, 0, 0), \
+  /* Endpoint In */ \
+  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0u, \
+  TUD_SS_EP_COMP_DESCRIPTOR(_maxburst, 0, 0)
+
+#define TUD_USBTMC_BULK_SS_DESCRIPTORS_LEN (TUD_USBTMC_BULK_DESCRIPTORS_LEN + 2u * TUD_SS_EP_COMP_DESC_LEN)
+
 /* optional interrupt endpoint */ \
 // _int_pollingInterval : for LS/FS, expressed in frames (1ms each). 16 may be a good number?
 #define TUD_USBTMC_INT_DESCRIPTOR(_ep_interrupt, _ep_interrupt_size, _int_pollingInterval ) \
   7, TUSB_DESC_ENDPOINT, _ep_interrupt, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_interrupt_size), _int_pollingInterval
 
 #define TUD_USBTMC_INT_DESCRIPTOR_LEN (7u)
+
+// SuperSpeed
+#define TUD_USBTMC_INT_SS_DESCRIPTOR(_ep_interrupt, _ep_interrupt_size, _int_pollingInterval) \
+  7, TUSB_DESC_ENDPOINT, _ep_interrupt, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_interrupt_size), _int_pollingInterval, \
+  TUD_SS_EP_COMP_DESCRIPTOR(0, 0, _ep_interrupt_size)
+
+#define TUD_USBTMC_INT_SS_DESCRIPTOR_LEN (TUD_USBTMC_INT_DESCRIPTOR_LEN + TUD_SS_EP_COMP_DESC_LEN)
 
 //--------------------------------------------------------------------+
 // Vendor Descriptor Templates
