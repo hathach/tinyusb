@@ -103,6 +103,7 @@ static volatile bool _lmp_pending;        // send LMP PORT_CAPABILITY at next li
 // timer. One way: returning to SuperSpeed after fallback requires a new dcd_init (or power cycle).
 enum { FB_USB3_TRAINING = 0, FB_USB3_OFF, FB_USB3_UP, FB_USB2_ACTIVE };
 static volatile uint8_t _fb_state;
+static uint8_t _fb_train_ticks; // training timer expiries; a fresh detect cycle every 2nd tick
 
 static void fallback_timer_stop(void) {
   R8_TMR0_INTER_EN = 0;
@@ -111,9 +112,10 @@ static void fallback_timer_stop(void) {
 }
 
 static void fallback_timer_start(void) {
+  _fb_train_ticks = 0;
   R8_TMR0_CTRL_MOD = RB_TMR_ALL_CLEAR;
   // TMR0 counts 26 bits: CNT_END must stay below 2^26 (67108864). 0.55 s per expiry at
-  // 120 MHz, ~1.1 s total before USB2 comes up
+  // 120 MHz; training gets several expiries (with re-attempts) before USB2 comes up
   R32_TMR0_CNT_END = 66000000;
   R8_TMR0_INT_FLAG = RB_TMR_IF_CYC_END;
   R8_TMR0_INTER_EN = RB_TMR_IE_CYC_END;
@@ -543,7 +545,17 @@ void dcd_int_handler(uint8_t rhport) {
   if (R8_TMR0_INT_FLAG & RB_TMR_IF_CYC_END) {
     R8_TMR0_INT_FLAG = RB_TMR_IF_CYC_END;
     if (_fb_state == FB_USB3_TRAINING) {
-      // first expiry: shut USB3 down so the host sees a disconnect
+      // Retry SuperSpeed training with a fresh detect cycle a few times before giving up:
+      // some hubs (e.g. Renesas uPD720201's) only complete training on a re-attempt
+      _fb_train_ticks++;
+      if (_fb_train_ticks < 4) {
+        if ((_fb_train_ticks & 1u) == 0) {
+          usb30_hw_deinit();
+          usb30_hw_init();
+        }
+        return;
+      }
+      // training window exhausted: shut USB3 down so the host sees a disconnect
       PFIC_DisableIRQ(USBSS_IRQn);
       PFIC_DisableIRQ(LINK_IRQn);
       usb30_hw_deinit();

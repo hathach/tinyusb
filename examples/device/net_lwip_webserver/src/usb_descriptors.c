@@ -346,7 +346,7 @@ static tusb_desc_device_qualifier_t const desc_device_qualifier = {
   .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
   .bDeviceProtocol    = MISC_PROTOCOL_IAD,
 
-  .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
+  .bMaxPacketSize0    = EP0_SIZE_FSHS,
   .bNumConfigurations = CONFIG_ID_COUNT,
   .bReserved          = 0x00
 };
