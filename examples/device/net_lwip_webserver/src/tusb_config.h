@@ -117,9 +117,13 @@ extern "C" {
 #endif
 
 // WCH CH56x: this example uses 3 endpoint directions; shrink the USB3 dcd bounce pool
-// so everything (lwIP memory included, see arch/cc.h) fits the 32 KB RAMX
+// and limit the USB2 (fallback) dcd to endpoints 1-3 so everything (lwIP memory included,
+// see arch/cc.h) fits the 32 KB RAMX
 #ifdef CFG_TUD_WCH_USBIP_USB30
   #define CFG_TUD_WCH_USB30_RAMX_POOL_SIZE (3 * 1024)
+#endif
+#if defined(CFG_TUD_WCH_USBIP_USB30) || defined(CFG_TUD_WCH_USBIP_USBHS)
+  #define CFG_TUD_WCH_USBHS_EP_MAX 4
 #endif
 
 //--------------------------------------------------------------------

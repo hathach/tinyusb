@@ -101,9 +101,17 @@ static void ep_mode_set(uint8_t ep_num, tusb_dir_t dir, bool en) {
   }
 }
 
+/* Usable endpoint numbers (0..CFG_TUD_WCH_USBHS_EP_MAX-1): the RAMX bounce buffers scale
+ * with this (1 KB per data endpoint); applications using few endpoints can reduce it to
+ * reclaim RAMX */
+#ifndef CFG_TUD_WCH_USBHS_EP_MAX
+  #define CFG_TUD_WCH_USBHS_EP_MAX EP_MAX
+#endif
+TU_VERIFY_STATIC(CFG_TUD_WCH_USBHS_EP_MAX >= 2 && CFG_TUD_WCH_USBHS_EP_MAX <= EP_MAX, "invalid CFG_TUD_WCH_USBHS_EP_MAX");
+
 /* Endpoint buffers: must be in RAMX and 16-byte aligned (USB DMA constraint) */
 CFG_TUD_WCH_DMA_SECTION TU_ATTR_ALIGNED(16) static uint8_t ep0_buffer[EP0_MAX_SIZE];
-CFG_TUD_WCH_DMA_SECTION TU_ATTR_ALIGNED(16) static uint8_t bounce_buffer[EP_MAX - 1][2][BOUNCE_BUF_SIZE];
+CFG_TUD_WCH_DMA_SECTION TU_ATTR_ALIGNED(16) static uint8_t bounce_buffer[CFG_TUD_WCH_USBHS_EP_MAX - 1][2][BOUNCE_BUF_SIZE];
 static bool ep0_tog;
 static bool ep_data_tog[EP_MAX][2];
 
@@ -316,7 +324,7 @@ bool ch56x_usb2_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt)
   const uint8_t    ep_num = tu_edpt_number(desc_edpt->bEndpointAddress);
   const tusb_dir_t dir    = tu_edpt_dir(desc_edpt->bEndpointAddress);
 
-  TU_ASSERT(ep_num < EP_MAX);
+  TU_ASSERT(ep_num < CFG_TUD_WCH_USBHS_EP_MAX);
 
   if (ep_num == 0) {
     return true;

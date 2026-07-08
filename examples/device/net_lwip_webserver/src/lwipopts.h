@@ -57,9 +57,13 @@
 
 #define TCP_MSS                         (1500 /*mtu*/ - 20 /*iphdr*/ - 20 /*tcphhr*/)
 #define TCP_SND_BUF                     (4 * TCP_MSS)
-// WCH CH56x: lwIP memory lives in the 32 KB RAMX (see arch/cc.h); 6 pbufs + a matching
-// window is the best fit next to the USB DMA buffers
-#if defined(CFG_TUD_WCH_USBIP_USB30) || defined(CFG_TUD_WCH_USBIP_USBHS)
+// WCH CH56x: lwIP memory lives in the 32 KB RAMX (see arch/cc.h). The SuperSpeed build
+// reclaims the USB2-fallback bounce RAM (CFG_TUD_WCH_USBHS_EP_MAX) for a larger receive
+// window - iperf is TCP-window-bound; the plain high-speed build keeps the smaller fit
+#if defined(CFG_TUD_WCH_USBIP_USB30)
+  #define PBUF_POOL_SIZE                9
+  #define TCP_WND                       (9 * TCP_MSS)
+#elif defined(CFG_TUD_WCH_USBIP_USBHS)
   #define PBUF_POOL_SIZE                6
   #define TCP_WND                       (6 * TCP_MSS)
 #endif
