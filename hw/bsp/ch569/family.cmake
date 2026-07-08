@@ -53,10 +53,14 @@ function(family_add_board BOARD_TARGET)
     )
 
   if (SPEED STREQUAL super)
-    # USB3 SuperSpeed with runtime USB2 high-speed fallback (uses TMR0 as training timeout)
+    # USB3 SuperSpeed with runtime USB2 high-speed fallback (uses TMR0 as training timeout).
+    # Pass -DCFG_TUD_WCH_USB30_FALLBACK=0 for SuperSpeed-only (trains indefinitely)
+    if (NOT DEFINED CFG_TUD_WCH_USB30_FALLBACK)
+      set(CFG_TUD_WCH_USB30_FALLBACK 1)
+    endif ()
     target_compile_definitions(${BOARD_TARGET} PUBLIC
       CFG_TUD_WCH_USBIP_USB30=1
-      CFG_TUD_WCH_USB30_FALLBACK=1
+      CFG_TUD_WCH_USB30_FALLBACK=${CFG_TUD_WCH_USB30_FALLBACK}
       )
   else ()
     target_compile_definitions(${BOARD_TARGET} PUBLIC CFG_TUD_WCH_USBIP_USBHS=1)

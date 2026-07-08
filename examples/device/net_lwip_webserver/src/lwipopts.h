@@ -63,6 +63,12 @@
 #if defined(CFG_TUD_WCH_USBIP_USB30)
   #define PBUF_POOL_SIZE                9
   #define TCP_WND                       (9 * TCP_MSS)
+  // USB already CRC32-protects every payload: skip software checksum VERIFICATION of
+  // inbound frames (generation for outbound stays on). The 120 MHz core is the RX
+  // bottleneck and this recovers the per-byte checksum cost
+  #define CHECKSUM_CHECK_IP             0
+  #define CHECKSUM_CHECK_UDP            0
+  #define CHECKSUM_CHECK_TCP            0
 #elif defined(CFG_TUD_WCH_USBIP_USBHS)
   #define PBUF_POOL_SIZE                6
   #define TCP_WND                       (6 * TCP_MSS)

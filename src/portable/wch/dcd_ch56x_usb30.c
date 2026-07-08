@@ -103,7 +103,8 @@ static volatile bool _lmp_pending;        // send LMP PORT_CAPABILITY at next li
 // timer. One way: returning to SuperSpeed after fallback requires a new dcd_init (or power cycle).
 enum { FB_USB3_TRAINING = 0, FB_USB3_OFF, FB_USB3_UP, FB_USB2_ACTIVE };
 static volatile uint8_t _fb_state;
-static uint8_t _fb_train_ticks; // training timer expiries; a fresh detect cycle every 2nd tick
+static uint8_t _fb_train_ticks;         // training timer expiries; a fresh detect cycle every 2nd tick
+static volatile bool _fb_saw_terms;     // far-end RX terminations seen: an SS-capable partner exists
 
 static void fallback_timer_stop(void) {
   R8_TMR0_INTER_EN = 0;
@@ -113,6 +114,7 @@ static void fallback_timer_stop(void) {
 
 static void fallback_timer_start(void) {
   _fb_train_ticks = 0;
+  _fb_saw_terms = false;
   R8_TMR0_CTRL_MOD = RB_TMR_ALL_CLEAR;
   // TMR0 counts 26 bits: CNT_END must stay below 2^26 (67108864). 0.55 s per expiry at
   // 120 MHz; training gets several expiries (with re-attempts) before USB2 comes up
@@ -438,6 +440,9 @@ static void handle_link_irq(uint8_t rhport) {
     link_set_power_mode(2);
   }
   if (flag & USBSS_LINK_IF_TERM_PRESENT) {
+#if CFG_TUD_WCH_USB30_FALLBACK
+    _fb_saw_terms = true;
+#endif
     USBSS->LINK_INT_FLAG = USBSS_LINK_IF_TERM_PRESENT;
     if (USBSS->LINK_STATUS & USBSS_LINK_STATUS_PRESENT) {
       link_set_power_mode(2);
@@ -452,6 +457,9 @@ static void handle_link_irq(uint8_t rhport) {
     }
   }
   if (flag & USBSS_LINK_IF_TXEQ) {
+#if CFG_TUD_WCH_USB30_FALLBACK
+    _fb_saw_terms = true;
+#endif
     _lmp_pending = true;
     USBSS->LINK_INT_FLAG = USBSS_LINK_IF_TXEQ;
     link_set_power_mode(0);
@@ -545,10 +553,12 @@ void dcd_int_handler(uint8_t rhport) {
   if (R8_TMR0_INT_FLAG & RB_TMR_IF_CYC_END) {
     R8_TMR0_INT_FLAG = RB_TMR_IF_CYC_END;
     if (_fb_state == FB_USB3_TRAINING) {
-      // Retry SuperSpeed training with a fresh detect cycle a few times before giving up:
-      // some hubs (e.g. Renesas uPD720201's) only complete training on a re-attempt
+      // Retry SuperSpeed training with a fresh detect cycle before giving up: some hubs
+      // (e.g. Renesas uPD720201's) only complete training on a re-attempt. When far-end
+      // terminations were seen the partner is SS-capable: retry longer before settling
+      // for USB2; with no terminations (USB2-only host) fall back quickly
       _fb_train_ticks++;
-      if (_fb_train_ticks < 4) {
+      if (_fb_train_ticks < (_fb_saw_terms ? 8 : 4)) {
         if ((_fb_train_ticks & 1u) == 0) {
           usb30_hw_deinit();
           usb30_hw_init();

@@ -24,8 +24,10 @@ CFLAGS += \
 	-Wno-comment
 
 ifeq ($(SPEED),super)
-  # USB3 SuperSpeed with runtime USB2 high-speed fallback (uses TMR0 as training timeout)
-  CFLAGS += -DCFG_TUD_WCH_USBIP_USB30=1 -DCFG_TUD_WCH_USB30_FALLBACK=1
+  # USB3 SuperSpeed with runtime USB2 high-speed fallback (uses TMR0 as training timeout).
+  # Set CFG_TUD_WCH_USB30_FALLBACK=0 for SuperSpeed-only (trains indefinitely)
+  CFG_TUD_WCH_USB30_FALLBACK ?= 1
+  CFLAGS += -DCFG_TUD_WCH_USBIP_USB30=1 -DCFG_TUD_WCH_USB30_FALLBACK=$(CFG_TUD_WCH_USB30_FALLBACK)
 else
   CFLAGS += -DCFG_TUD_WCH_USBIP_USBHS=1
 endif
