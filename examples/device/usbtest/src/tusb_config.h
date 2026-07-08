@@ -92,7 +92,7 @@
 //--------------------------------------------------------------------
 
 #ifndef CFG_TUD_ENDPOINT0_SIZE
-#define CFG_TUD_ENDPOINT0_SIZE    64
+#define CFG_TUD_ENDPOINT0_SIZE    (TUD_OPT_SUPER_SPEED ? 512 : 64) // SuperSpeed EP0 is fixed at 512
 #endif
 
 //------------- CLASS -------------//
@@ -112,7 +112,10 @@
 // (SET_FEATURE/CLEAR_FEATURE endpoint halt) where no completion ever fires.
 #define CFG_TUD_VENDOR_RX_MANUAL_XFER 1
 
-// Multi-packet IN transfers; must be a multiple of bulk MPS at both speeds (64/512).
+// Receive endpoint buffer must hold one bulk max packet (SuperSpeed: 1024)
+#define CFG_TUD_VENDOR_RX_EPSIZE      (TUD_OPT_SUPER_SPEED ? 1024 : (TUD_OPT_HIGH_SPEED ? 512 : 64))
+
+// Multi-packet IN transfers; must be a multiple of bulk MPS at every speed (64/512/1024).
 // LPC11/13 (ip3511 FS) keep endpoint buffers in a dedicated 2 KB USB RAM: a 2048 B bulk epbuf
 // overflows it once the int/iso buffers join, so those parts use 512 (= 8 FS packets).
 #if TU_CHECK_MCU(OPT_MCU_LPC11UXX, OPT_MCU_LPC13XX)

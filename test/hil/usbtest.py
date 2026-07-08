@@ -53,6 +53,8 @@ TIER_CASES = {
 # multiples of 512 so transfers stay packet-aligned at both speeds: the device
 # streams whole max-size packets and a non-aligned IN length would babble.
 # 14/21 must never run with defaults (vary >= length is -EINVAL in the kernel).
+# SuperSpeed (5000): bulk mps is 1024, so IN sizes and vary steps must be
+# 1024-multiples or the device's whole-packet source overruns the request.
 PARAMS = {
     0: ('-c 1', '-c 1'),
     9: ('-c 256', '-c 1000'),
@@ -69,6 +71,13 @@ PARAMS = {
     25: ('-c 32 -s 512', '-c 256 -s 1024'),
     26: ('-c 32 -s 512', '-c 256 -s 1024'),
     **{n: ('-c 16 -s 512 -g 8', '-c 64 -s 1024 -g 8') for n in (15, 16, 22, 23)},
+}
+
+# SuperSpeed overrides (bulk mps 1024); cases not listed keep the high-speed params
+PARAMS_SS = {
+    **{n: '-c 512 -s 2048 -v 1024' for n in (1, 2, 3, 4, 17, 18, 19, 20)},
+    13: '-c 64 -s 1024',
+    29: '-c 64 -s 1024',
 }
 
 CASE_NAMES = {
@@ -198,6 +207,8 @@ def pci_addr_of_bus(busnum):
 
 def run_case(num, dev, testusb, quick, timeout):
     fs_hs = PARAMS[num][0 if dev['speed'] == '12' else 1]
+    if dev['speed'] == '5000' and num in PARAMS_SS:
+        fs_hs = PARAMS_SS[num]
     if quick:
         fs_hs = re.sub(r'-c (\d+)', lambda m: f'-c {max(1, int(m.group(1)) // 8)}', fs_hs)
     cmd = [testusb, '-D', dev['node'], '-t', str(num)] + fs_hs.split()

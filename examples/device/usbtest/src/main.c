@@ -69,7 +69,7 @@ static uint8_t const iso_tx_chunk[USBTEST_ISO_EP_MPS];
 // high-speed build enumerated at full speed must submit the FS length, not the HS-capacity buffer
 // size (bulk is exempt: it streams multi-packet transfers). See usb_descriptors.h.
 static inline uint16_t usbtest_int_len(void) {
-  return (tud_speed_get() == TUSB_SPEED_HIGH) ? USBTEST_INT_EP_MPS_HS : USBTEST_INT_EP_MPS_FS;
+  return (tud_speed_get() >= TUSB_SPEED_HIGH) ? USBTEST_INT_EP_MPS_HS : USBTEST_INT_EP_MPS_FS;
 }
 static inline uint16_t usbtest_iso_len(void) {
   return (tud_speed_get() == TUSB_SPEED_HIGH) ? USBTEST_ISO_EP_MPS_HS : USBTEST_ISO_EP_MPS_FS;

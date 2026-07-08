@@ -82,6 +82,7 @@ typedef struct {
   uint16_t mps;
   bool     bounce;    // current transfer goes through the bounce slot
   volatile bool active;
+  volatile bool stalled; // endpoint halted: keep answering STALL until CLEAR_FEATURE
 } xfer_ctl_t;
 
 static xfer_ctl_t xfer_status[EP_MAX][2];
@@ -329,6 +330,12 @@ static void handle_ep_in(uint8_t rhport, uint8_t ep) {
   xfer_ctl_t *xfer = &xfer_status[ep][TUSB_DIR_IN];
   const uint32_t ctrl = USBSS_TX_CTRL(ep);
   USBSS_TX_CTRL(ep) &= USBSS_EP_SEQ_MASK; // clear event, NRDY, keep packet sequence
+  if (xfer->stalled) {
+    // halted while a burst was in flight: keep answering STALL, do not advance or re-arm
+    USBSS_TX_CTRL(ep) = (USBSS_TX_CTRL(ep) & USBSS_EP_SEQ_MASK) |
+                        (1u << USBSS_EP_NUMP_SHIFT) | USBSS_EP_RES_STALL;
+    return;
+  }
   if (!xfer->active) {
     return;
   }
@@ -354,6 +361,12 @@ static void handle_ep_out(uint8_t rhport, uint8_t ep) {
   xfer_ctl_t *xfer = &xfer_status[ep][TUSB_DIR_OUT];
   const uint32_t ctrl = USBSS_RX_CTRL(ep);
   USBSS_RX_CTRL(ep) &= USBSS_EP_SEQ_MASK; // clear event, NRDY while processing
+  if (xfer->stalled) {
+    // halted while a receive was armed: keep answering STALL, do not advance or re-arm
+    USBSS_RX_CTRL(ep) = (USBSS_RX_CTRL(ep) & USBSS_EP_SEQ_MASK) |
+                        (1u << USBSS_EP_NUMP_SHIFT) | USBSS_EP_RES_STALL;
+    return;
+  }
   if (!xfer->active) {
     return;
   }
@@ -831,7 +844,12 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
     return;
   }
 
-  // the host must see the STALL: keep NUMP=1 armed and signal ERDY
+  xfer_status[ep_num][dir].stalled = true;
+  // The host must see the STALL: keep NUMP=1 armed and signal ERDY. Known limitation
+  // (usbtest case 13): the controller answers the FIRST probe of a halted endpoint with a
+  // STALL TP but a second probe before CLEAR_FEATURE gets a malformed response (EPROTO on
+  // the host) regardless of NUMP/re-arming; no reference implementation handles data-EP
+  // halt and no event fires per stall TP, so the correct re-arm trigger is unknown.
   if (dir == TUSB_DIR_IN) {
     USBSS_TX_CTRL(ep_num) = (USBSS_TX_CTRL(ep_num) & USBSS_EP_SEQ_MASK) |
                             (1u << USBSS_EP_NUMP_SHIFT) | USBSS_EP_RES_STALL;
@@ -853,11 +871,22 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   const uint8_t ep_num = tu_edpt_number(ep_addr);
   const tusb_dir_t dir = tu_edpt_dir(ep_addr);
 
-  // CLEAR_FEATURE(ENDPOINT_HALT) resets the packet sequence: clear everything including seq
+  // CLEAR_FEATURE(ENDPOINT_HALT) resets the packet sequence: clear everything including seq.
+  // A transfer may still be armed (the class driver considers it submitted and won't resubmit):
+  // re-arm it with the fresh sequence instead of dropping it, or the endpoint never answers
+  // again after clear-halt (usbtest halt/toggle tests 13 and 29)
+  xfer_ctl_t *xfer = &xfer_status[ep_num][dir];
+  xfer->stalled = false;
   if (dir == TUSB_DIR_IN) {
     USBSS_TX_CTRL(ep_num) = 0;
+    if (xfer->active) {
+      xfer_in_arm(ep_num);
+    }
   } else {
     USBSS_RX_CTRL(ep_num) = 0;
+    if (xfer->active) {
+      xfer_out_arm(ep_num);
+    }
   }
 }
 

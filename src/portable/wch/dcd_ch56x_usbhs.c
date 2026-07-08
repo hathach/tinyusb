@@ -386,8 +386,16 @@ void ch56x_usb2_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   const tusb_dir_t dir    = tu_edpt_dir(ep_addr);
 
   if (dir == TUSB_DIR_OUT) {
-    EP_RX_CTRL(ep_num) = UEP_R_RES_NAK | RB_UEP_R_TOG_0;
-    ep_data_tog[ep_num][TUSB_DIR_OUT] = false;
+    ep_data_tog[ep_num][TUSB_DIR_OUT] = false; // clear-halt resets the toggle to DATA0
+    xfer_ctl_t *xfer = XFER_CTL_BASE(ep_num, TUSB_DIR_OUT);
+    if (xfer->valid) {
+      // A receive is still armed (the class driver considers it submitted and won't re-arm it);
+      // re-queue it instead of leaving it NAKing, or the endpoint NAKs forever after clear-halt
+      // (usbtest toggle test 29 clears the halt on an armed bulk-OUT pipe)
+      queue_out_packet(ep_num, xfer);
+    } else {
+      EP_RX_CTRL(ep_num) = UEP_R_RES_NAK | RB_UEP_R_TOG_0;
+    }
   } else {
     EP_TX_CTRL(ep_num) = UEP_T_RES_NAK | RB_UEP_T_TOG_0;
     ep_data_tog[ep_num][TUSB_DIR_IN] = false;
