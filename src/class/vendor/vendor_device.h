@@ -60,6 +60,68 @@ extern "C" {
   #define CFG_TUD_VENDOR_RX_NEED_ZLP 0
 #endif
 
+// Enable support for an optional interrupt OUT / interrupt IN endpoint in the vendor
+// interface, each direction gated separately. Interrupt endpoints are non-buffered:
+// OUT is armed manually one packet at a time with tud_vendor_n_int_read_xfer() (data
+// delivered via tud_vendor_int_rx_cb), IN is a direct transfer via tud_vendor_n_int_write().
+#ifndef CFG_TUD_VENDOR_EP_INT_OUT
+  #define CFG_TUD_VENDOR_EP_INT_OUT 0
+#endif
+
+#ifndef CFG_TUD_VENDOR_EP_INT_IN
+  #define CFG_TUD_VENDOR_EP_INT_IN 0
+#endif
+
+// Buffer sizes for interrupt endpoint transfers, must be >= the endpoint max packet size
+#ifndef CFG_TUD_VENDOR_EP_INT_OUT_BUFSIZE
+  #define CFG_TUD_VENDOR_EP_INT_OUT_BUFSIZE 64
+#endif
+
+#ifndef CFG_TUD_VENDOR_EP_INT_IN_BUFSIZE
+  #define CFG_TUD_VENDOR_EP_INT_IN_BUFSIZE 64
+#endif
+
+// Enable support for an optional isochronous OUT / IN endpoint, each direction gated
+// separately, with the same non-buffered API shape as the interrupt pair. Isochronous
+// endpoints must not claim bandwidth in the default altsetting (USB 2.0 5.6.3): place
+// them in a non-zero altsetting and enable CFG_TUD_VENDOR_ALT_SETTINGS.
+#ifndef CFG_TUD_VENDOR_EP_ISO_OUT
+  #define CFG_TUD_VENDOR_EP_ISO_OUT 0
+#endif
+
+#ifndef CFG_TUD_VENDOR_EP_ISO_IN
+  #define CFG_TUD_VENDOR_EP_ISO_IN 0
+#endif
+
+// Buffer sizes for isochronous endpoint transfers, must be >= the endpoint max packet size
+#ifndef CFG_TUD_VENDOR_EP_ISO_OUT_BUFSIZE
+  #define CFG_TUD_VENDOR_EP_ISO_OUT_BUFSIZE 64
+#endif
+
+#ifndef CFG_TUD_VENDOR_EP_ISO_IN_BUFSIZE
+  #define CFG_TUD_VENDOR_EP_ISO_IN_BUFSIZE 64
+#endif
+
+// Enable alternate-setting support: the vendor interface may carry multiple altsettings,
+// each with its own endpoint set. GET_INTERFACE is answered and SET_INTERFACE performed by
+// closing the current altsetting's endpoints and opening the requested one's (isochronous
+// endpoints are FIFO-allocated at open and activated on selection). The configuration
+// descriptor must stay valid while mounted (static, the usual TinyUSB pattern).
+// Non-buffered mode only.
+#ifndef CFG_TUD_VENDOR_ALT_SETTINGS
+  #define CFG_TUD_VENDOR_ALT_SETTINGS 0
+#endif
+
+#if CFG_TUD_VENDOR_ALT_SETTINGS && CFG_TUD_VENDOR_TXRX_BUFFERED
+  #error CFG_TUD_VENDOR_ALT_SETTINGS requires non-buffered mode (CFG_TUD_VENDOR_RX/TX_BUFSIZE = 0)
+#endif
+
+// An isochronous endpoint must not claim bandwidth in the default altsetting (USB 2.0 5.6.3),
+// so it can only live in a non-zero altsetting, which requires alternate-setting support.
+#if (CFG_TUD_VENDOR_EP_ISO_OUT || CFG_TUD_VENDOR_EP_ISO_IN) && !CFG_TUD_VENDOR_ALT_SETTINGS
+  #error CFG_TUD_VENDOR_EP_ISO_OUT/IN requires CFG_TUD_VENDOR_ALT_SETTINGS
+#endif
+
 //--------------------------------------------------------------------+
 // Application API (Multiple Interfaces) i.e CFG_TUD_VENDOR > 1
 //--------------------------------------------------------------------+
@@ -106,6 +168,43 @@ bool tud_vendor_n_write_clear(uint8_t idx);
 TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_n_write_str(uint8_t idx, const char *str) {
   return tud_vendor_n_write(idx, str, strlen(str));
 }
+
+//------------- Interrupt endpoints -------------//
+#if CFG_TUD_VENDOR_EP_INT_OUT
+// Arm the interrupt OUT endpoint for one packet, return false if a transfer is still ongoing.
+// Received data is delivered via tud_vendor_int_rx_cb(); re-arm from the callback or by polling.
+bool tud_vendor_n_int_read_xfer(uint8_t idx);
+#endif
+
+#if CFG_TUD_VENDOR_EP_INT_IN
+// Send on the interrupt IN endpoint (direct transfer, up to CFG_TUD_VENDOR_EP_INT_IN_BUFSIZE
+// bytes). Returns number of bytes queued, 0 if the endpoint is busy or not opened.
+uint32_t tud_vendor_n_int_write(uint8_t idx, const void *buffer, uint32_t bufsize);
+
+// Return available bytes for interrupt IN write: 0 while busy, else the buffer size
+uint32_t tud_vendor_n_int_write_available(uint8_t idx);
+#endif
+
+//------------- Isochronous endpoints -------------//
+#if CFG_TUD_VENDOR_EP_ISO_OUT
+// Arm the isochronous OUT endpoint for one packet, return false if a transfer is still ongoing.
+// Received data is delivered via tud_vendor_iso_rx_cb(); re-arm from the callback or by polling.
+bool tud_vendor_n_iso_read_xfer(uint8_t idx);
+#endif
+
+#if CFG_TUD_VENDOR_EP_ISO_IN
+// Send on the isochronous IN endpoint (direct transfer, up to CFG_TUD_VENDOR_EP_ISO_IN_BUFSIZE
+// bytes). Returns number of bytes queued, 0 if the endpoint is busy or not opened.
+uint32_t tud_vendor_n_iso_write(uint8_t idx, const void *buffer, uint32_t bufsize);
+
+// Return available bytes for isochronous IN write: 0 while busy, else the buffer size
+uint32_t tud_vendor_n_iso_write_available(uint8_t idx);
+#endif
+
+#if CFG_TUD_VENDOR_ALT_SETTINGS
+// Return the currently selected alternate setting
+uint8_t tud_vendor_n_alt(uint8_t idx);
+#endif
 
 // backward compatible
 #define tud_vendor_n_flush(idx) tud_vendor_n_write_flush(idx)
@@ -161,6 +260,44 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_write_available(void) {
   return tud_vendor_n_write_available(0);
 }
 
+#if CFG_TUD_VENDOR_EP_INT_OUT
+TU_ATTR_ALWAYS_INLINE static inline bool tud_vendor_int_read_xfer(void) {
+  return tud_vendor_n_int_read_xfer(0);
+}
+#endif
+
+#if CFG_TUD_VENDOR_EP_INT_IN
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_int_write(const void *buffer, uint32_t bufsize) {
+  return tud_vendor_n_int_write(0, buffer, bufsize);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_int_write_available(void) {
+  return tud_vendor_n_int_write_available(0);
+}
+#endif
+
+#if CFG_TUD_VENDOR_EP_ISO_OUT
+TU_ATTR_ALWAYS_INLINE static inline bool tud_vendor_iso_read_xfer(void) {
+  return tud_vendor_n_iso_read_xfer(0);
+}
+#endif
+
+#if CFG_TUD_VENDOR_EP_ISO_IN
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_iso_write(const void *buffer, uint32_t bufsize) {
+  return tud_vendor_n_iso_write(0, buffer, bufsize);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_iso_write_available(void) {
+  return tud_vendor_n_iso_write_available(0);
+}
+#endif
+
+#if CFG_TUD_VENDOR_ALT_SETTINGS
+TU_ATTR_ALWAYS_INLINE static inline uint8_t tud_vendor_alt(void) {
+  return tud_vendor_n_alt(0);
+}
+#endif
+
 // backward compatible
 #define tud_vendor_flush() tud_vendor_write_flush()
 
@@ -176,6 +313,29 @@ void tud_vendor_rx_cb(uint8_t idx, const uint8_t *buffer, uint32_t bufsize);
 // Invoked when tx transfer is finished
 void tud_vendor_tx_cb(uint8_t idx, uint32_t sent_bytes);
 
+#if CFG_TUD_VENDOR_EP_INT_OUT
+// Invoked when data is received on the interrupt OUT endpoint. The endpoint is not
+// re-armed automatically: call tud_vendor_n_int_read_xfer() to receive more.
+void tud_vendor_int_rx_cb(uint8_t idx, const uint8_t *buffer, uint32_t bufsize);
+#endif
+
+#if CFG_TUD_VENDOR_EP_INT_IN
+// Invoked when an interrupt IN transfer is finished
+void tud_vendor_int_tx_cb(uint8_t idx, uint32_t sent_bytes);
+#endif
+
+#if CFG_TUD_VENDOR_EP_ISO_OUT
+// Invoked when data is received on the isochronous OUT endpoint. The endpoint is not
+// re-armed automatically: call tud_vendor_n_iso_read_xfer() to receive more.
+void tud_vendor_iso_rx_cb(uint8_t idx, const uint8_t *buffer, uint32_t bufsize);
+#endif
+
+#if CFG_TUD_VENDOR_EP_ISO_IN
+// Invoked when an isochronous IN transfer is finished (result may be a missed frame:
+// the data was not necessarily taken by the host, re-arm regardless)
+void tud_vendor_iso_tx_cb(uint8_t idx, uint32_t sent_bytes);
+#endif
+
 //--------------------------------------------------------------------+
 // Internal Class Driver API
 //--------------------------------------------------------------------+
@@ -183,6 +343,7 @@ void     vendord_init(void);
 bool     vendord_deinit(void);
 void     vendord_reset(uint8_t rhport);
 uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t *idx_desc, uint16_t max_len);
+bool     vendord_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request);
 bool     vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
 
 #ifdef __cplusplus

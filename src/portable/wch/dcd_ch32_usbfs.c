@@ -16,6 +16,17 @@
   /* private defines */
   #define EP_MAX         (8)
 
+  // EP3 IN buffer size. CH32V20x/V30x/F20x USBFS support full-speed iso packets up to 1023 B on
+  // endpoint 3 (every other endpoint is 64 B); those parts set CH32_USBFS_EP3_1023_BUFSIZE in
+  // ch32_usbfs_reg.h. V103/X035/CH58x cap every endpoint at 64 B. Overridable per project.
+  #ifndef CFG_TUD_WCH_USBFS_EP3_BUFSIZE
+    #ifdef CH32_USBFS_EP3_1023_BUFSIZE
+      #define CFG_TUD_WCH_USBFS_EP3_BUFSIZE 1023
+    #else
+      #define CFG_TUD_WCH_USBFS_EP3_BUFSIZE 64
+    #endif
+  #endif
+
   // Struct-based EP register access (uniform layout). CH58X has a different register map and
   // defines EP_DMA/EP_TX_LEN/EP_CTRL itself in ch32_usbfs_reg.h.
   #if CFG_TUSB_MCU == OPT_MCU_CH583
@@ -107,7 +118,7 @@ struct usb_xfer {
 
 static struct {
   bool            ep0_tog;
-  bool            isochronous[EP_MAX];
+  bool            isochronous[EP_MAX][2]; // per [ep][dir]: an ep number may be iso in one direction
   struct usb_xfer xfer[EP_MAX][2];
 #ifdef CH32_USBFS_EP4_SHARES_EP0
   // CH58X buffers laid out by hand so EP0/EP4 don't burn two unused buffer[] slots. EP0 and EP4
@@ -123,21 +134,23 @@ static struct {
   TU_ATTR_ALIGNED(4) uint8_t ep6_buffer[2][64];
   TU_ATTR_ALIGNED(4) uint8_t ep7_buffer[2][64];
 #else
+  // Every endpoint gets a 64-byte OUT + 64-byte IN buffer.
   TU_ATTR_ALIGNED(4) uint8_t buffer[EP_MAX][2][64];
-  // EP3 IN gets an enlarged buffer for full-speed isochronous (packets up to 1023 B).
+  #if CFG_TUD_WCH_USBFS_EP3_BUFSIZE > 64
+  // ...except EP3, which supports full-speed iso packets up to 1023 B on CH32V20x/V30x/F20x, so its
+  // IN buffer is enlarged (OUT stays 64 B; an OUT transfer >64 B on EP3 would overwrite queued IN).
   TU_ATTR_ALIGNED(4) struct {
-    // OUT transfers >64 bytes will overwrite queued IN data!
     uint8_t out[64];
-    uint8_t in[1023];
+    uint8_t in[CFG_TUD_WCH_USBFS_EP3_BUFSIZE];
     uint8_t pad;
   } ep3_buffer;
+  #endif
 #endif
 } data;
 
 // DMA / copy buffer pointers per endpoint. The WCH USBFS buffer holds OUT (RX) at offset 0 and
-// IN (TX) at +64; EP0 is half-duplex and reuses its OUT chunk for IN; EP3 has an enlarged IN
-// buffer for throughput. On CH58X, EP0/EP4 share ep0_ep4_buffer and the regular endpoints use
-// their own named buffer (see the struct above).
+// IN (TX) at +64; EP0 is half-duplex and reuses its OUT chunk for IN. On CH58X, EP0/EP4 share
+// ep0_ep4_buffer and the regular endpoints use their own named buffer (see the struct above).
 #ifdef CH32_USBFS_EP4_SHARES_EP0
 // OUT base of the regular CH58X endpoints (EP1/2/3/5/6/7; EP0/EP4 share ep0_ep4_buffer).
 static inline uint8_t* ch58x_ep_buffer(uint8_t ep) {
@@ -157,7 +170,9 @@ static inline uint32_t ep_dma_addr(uint8_t ep) {
   if (ep == 0 || ep == 4) { return (uint32_t) &data.ep0_ep4_buffer[0]; } // EP4 shares EP0's DMA
   return (uint32_t) ch58x_ep_buffer(ep);
 #else
-  if (ep == 3) { return (uint32_t) &data.ep3_buffer.out[0]; }
+  #if CFG_TUD_WCH_USBFS_EP3_BUFSIZE > 64
+  if (ep == 3) { return (uint32_t) &data.ep3_buffer.out[0]; } // EP3 has an enlarged IN buffer
+  #endif
   return (uint32_t) &data.buffer[ep][0];
 #endif
 }
@@ -168,7 +183,9 @@ static inline uint8_t* ep_out_buf(uint8_t ep) {
   if (ep == 4) { return &data.ep0_ep4_buffer[64]; }
   return ch58x_ep_buffer(ep);
 #else
+  #if CFG_TUD_WCH_USBFS_EP3_BUFSIZE > 64
   if (ep == 3) { return data.ep3_buffer.out; }
+  #endif
   return data.buffer[ep][TUSB_DIR_OUT];
 #endif
 }
@@ -180,7 +197,9 @@ static inline uint8_t* ep_in_buf(uint8_t ep) {
   return ch58x_ep_buffer(ep) + 64; // IN at +64 within the endpoint's 128-byte buffer
 #else
   if (ep == 0) { return data.buffer[0][TUSB_DIR_OUT]; } // EP0 half-duplex: IN reuses OUT chunk
-  if (ep == 3) { return data.ep3_buffer.in; }
+  #if CFG_TUD_WCH_USBFS_EP3_BUFSIZE > 64
+  if (ep == 3) { return data.ep3_buffer.in; } // enlarged IN buffer for full-speed iso
+  #endif
   return data.buffer[ep][TUSB_DIR_IN];
 #endif
 }
@@ -202,9 +221,8 @@ static void update_in(uint8_t rhport, uint8_t ep, bool force) {
     if (force || xfer->len) {
       size_t len = TU_MIN(xfer->max_size, xfer->len);
 #if CFG_TUSB_MCU == OPT_MCU_CH583
-      // Every CH58x endpoint buffer is 64 bytes. Isochronous (which would push max_size up to 1023)
-      // is refused in dcd_edpt_iso_alloc(), but some classes (e.g. video) ignore that result, so cap
-      // the copy here to guarantee we never write past the buffer into a neighbouring endpoint's.
+      // Every CH58x endpoint buffer is 64 bytes; cap the copy so an iso mps a class mistakenly set
+      // larger can't write past the buffer into a neighbouring endpoint's.
       len = TU_MIN(len, 64u);
 #endif
       memcpy(ep_in_buf(ep), xfer->buffer, len);
@@ -216,7 +234,7 @@ static void update_in(uint8_t rhport, uint8_t ep, bool force) {
       if (ep == 0) {
         ep_tx_ctrl_set(0, USBFS_EP_T_RES_ACK | (data.ep0_tog ? USBFS_EP_T_TOG : 0));
         data.ep0_tog  = !data.ep0_tog;
-      } else if (data.isochronous[ep]) {
+      } else if (data.isochronous[ep][TUSB_DIR_IN]) {
         ep_tx_set_response(ep, USBFS_EP_T_RES_NYET);
       } else {
         ep_tx_set_response(ep, USBFS_EP_T_RES_ACK);
@@ -225,7 +243,7 @@ static void update_in(uint8_t rhport, uint8_t ep, bool force) {
       xfer->valid = false;
       if (ep == 0) {
         ep_tx_ctrl_set(0, USBFS_EP_T_RES_NAK | (data.ep0_tog ? USBFS_EP_T_TOG : 0));
-      } else if (!data.isochronous[ep]) {
+      } else if (!data.isochronous[ep][TUSB_DIR_IN]) {
         ep_tx_set_response(ep, USBFS_EP_T_RES_NAK);
       }
       dcd_event_xfer_complete(rhport, ep | TUSB_DIR_IN_MASK, xfer->processed_len, XFER_RESULT_SUCCESS, true);
@@ -254,7 +272,7 @@ static void update_out(uint8_t rhport, uint8_t ep, size_t rx_len) {
       ep_rx_set_response(0, USBFS_EP_R_RES_NAK);
     } else {
       uint8_t rx_res =
-        data.isochronous[ep] ? USBFS_EP_R_RES_NYET : (xfer->valid ? USBFS_EP_R_RES_ACK : USBFS_EP_R_RES_NAK);
+        data.isochronous[ep][TUSB_DIR_OUT] ? USBFS_EP_R_RES_NYET : (xfer->valid ? USBFS_EP_R_RES_ACK : USBFS_EP_R_RES_NAK);
       ep_rx_set_response(ep, rx_res);
     }
   }
@@ -319,12 +337,14 @@ void dcd_int_handler(uint8_t rhport) {
         // Drop an OUT packet whose data toggle doesn't match what we expect -- a host retransmit
         // after a lost ACK, or a host that doesn't alternate DATA0/DATA1. The hardware auto-toggle
         // does not reject these on its own, so the check is needed on every variant. EP0 keeps its
-        // own toggle via the SETUP/status flow and is exempt.
-        if (ep != 0 && !(int_st & USBFS_INT_ST_TOG_OK)) { break; }
+        // own toggle via the SETUP/status flow and is exempt; isochronous is DATA0-only (no toggle),
+        // so its packets must not be toggle-checked.
+        if (ep != 0 && !data.isochronous[ep][TUSB_DIR_OUT] && !(int_st & USBFS_INT_ST_TOG_OK)) { break; }
 #ifdef CH32_USBFS_EP_MANUAL_TOG
         // CH58x has no hardware auto-toggle: advance the expected RX toggle after each accepted packet
         // (EP0 included -- it also has no auto-toggle and a control-OUT data stage can span packets).
-        EP_CTRL(ep) ^= USBFS_EPC_R_TOG;
+        // Iso endpoints are DATA0-only, so leave them alone (matches the PID_IN path).
+        if (!data.isochronous[ep][TUSB_DIR_OUT]) { EP_CTRL(ep) ^= USBFS_EPC_R_TOG; }
 #endif
         update_out(rhport, ep, rx_len);
         break;
@@ -333,7 +353,8 @@ void dcd_int_handler(uint8_t rhport) {
       case PID_IN:
 #ifdef CH32_USBFS_EP_MANUAL_TOG
         // Manual toggle: flip the TX toggle after each ACK'd IN packet (EP0 manages its own).
-        if (ep != 0) { EP_CTRL(ep) ^= USBFS_EPC_T_TOG; }
+        // Isochronous transfers are DATA0-only (no toggle), so leave iso endpoints alone.
+        if (ep != 0 && !data.isochronous[ep][TUSB_DIR_IN]) { EP_CTRL(ep) ^= USBFS_EPC_T_TOG; }
 #endif
         update_in(rhport, ep, false);
         break;
@@ -443,6 +464,7 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
   uint8_t dir = tu_edpt_dir(desc_ep->bEndpointAddress);
   TU_ASSERT(ep < EP_MAX);
 
+  data.isochronous[ep][dir]   = false; // (re)opening as a non-iso endpoint clears any stale iso flag
   data.xfer[ep][dir].max_size = tu_edpt_packet_size(desc_ep);
 
   if (ep != 0) {
@@ -464,31 +486,28 @@ void dcd_edpt_close_all(uint8_t rhport) {
 
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
   (void)rhport;
-  (void)ep_addr;
-  (void)largest_packet_size;
-#if CFG_TUSB_MCU == OPT_MCU_CH583
-  // No isochronous support on CH58x: its 8-bit T_LEN caps a packet at 255B and the endpoints use
-  // plain 64-byte buffers, so accepting an iso max_size (up to 1023) would let update_in()/
-  // update_out() run off the end of the buffer into neighbouring ones. Refuse it outright.
-  return false;
-#else
   uint8_t ep  = tu_edpt_number(ep_addr);
   uint8_t dir = tu_edpt_dir(ep_addr);
+  TU_ASSERT(ep < EP_MAX);
 
-  data.isochronous[ep]        = true;
+  // Endpoint buffers are 64 B, except EP3 IN which is enlarged for full-speed iso on the parts that
+  // support 1023-byte EP3 packets (CH32V20x/V30x/F20x; CFG_TUD_WCH_USBFS_EP3_BUFSIZE). Reject a
+  // larger mps rather than running off the end into the neighbouring endpoint's memory.
+  uint16_t max_packet = 64;
+#if CFG_TUD_WCH_USBFS_EP3_BUFSIZE > 64
+  if (ep == 3 && dir == TUSB_DIR_IN) { max_packet = CFG_TUD_WCH_USBFS_EP3_BUFSIZE; }
+#endif
+  TU_VERIFY(largest_packet_size <= max_packet);
+
+  data.isochronous[ep][dir]   = true;
   data.xfer[ep][dir].max_size = largest_packet_size;
   return true;
-#endif
 }
 
 bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
   (void)rhport;
   (void)desc_ep;
-#if CFG_TUSB_MCU == OPT_MCU_CH583
-  return false; // CH58x has no isochronous support (see dcd_edpt_iso_alloc)
-#else
   return true;
-#endif
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes, bool is_isr) {
@@ -510,7 +529,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
   if (dir == TUSB_DIR_IN) {
     update_in(rhport, ep, true);
   } else {
-    uint8_t rx_res = data.isochronous[ep] ? USBFS_EP_R_RES_NYET : USBFS_EP_R_RES_ACK;
+    uint8_t rx_res = data.isochronous[ep][TUSB_DIR_OUT] ? USBFS_EP_R_RES_NYET : USBFS_EP_R_RES_ACK;
     ep_rx_set_response(ep, rx_res);
   }
   dcd_int_enable(rhport);
@@ -546,9 +565,15 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
       ep_rx_ctrl_set(0, USBFS_EP_R_RES_ACK);
     }
   } else {
-    // clear-stall resets the toggle to DATA0 (USB spec); manual-toggle parts then re-sync via ISR
+    // clear-stall resets the toggle to DATA0 (USB spec); manual-toggle parts then re-sync via ISR.
+    // Preserve an in-flight receive: if a read is still armed (the class driver considers it
+    // submitted and won't re-arm), fall back to ACK, not NAK, or the endpoint NAKs forever and the
+    // host times out (usbtest toggle test 29 clears the halt between bulk writes on an armed EP).
     if (dir == TUSB_DIR_OUT) {
-      ep_rx_ctrl_set(ep, EP_R_AUTO_TOG | USBFS_EP_R_RES_NAK);
+      uint8_t res = data.xfer[ep][TUSB_DIR_OUT].valid
+                    ? (data.isochronous[ep][TUSB_DIR_OUT] ? USBFS_EP_R_RES_NYET : USBFS_EP_R_RES_ACK)
+                    : USBFS_EP_R_RES_NAK;
+      ep_rx_ctrl_set(ep, EP_R_AUTO_TOG | res);
     } else {
       ep_tx_ctrl_set(ep, EP_T_AUTO_TOG | USBFS_EP_T_RES_NAK);
     }

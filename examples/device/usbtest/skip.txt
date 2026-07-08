@@ -1,0 +1,15 @@
+mcu:MSP430x5xx
+mcu:NUC121
+mcu:SAMD11
+# DCD has no isochronous support (dcd_edpt_iso_alloc refuses), tier-4 cannot enumerate:
+mcu:CXD56
+mcu:FT90X
+mcu:LPC175X_6X
+mcu:LPC40XX
+mcu:NUC100
+mcu:NUC120
+mcu:NUC505
+mcu:PIC32MZ
+mcu:SAMG
+mcu:SAMX7X
+mcu:VALENTYUSB_EPTRI

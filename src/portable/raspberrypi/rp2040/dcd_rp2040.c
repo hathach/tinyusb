@@ -550,9 +550,46 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
 
   if (epnum != 0) {
     struct hw_endpoint* ep = hw_endpoint_get(epnum, dir);
-    ep->next_pid = 0; // reset data toggle
-    io_rw_32 *buf_reg      = get_buf_ctrl(epnum, dir);
-    *buf_reg               = 0;
+
+    if (ep->state == EPSTATE_ACTIVE) {
+      // Clear-halt on an endpoint with an in-flight transfer is used as a data-toggle reset
+      // (e.g. usbtest case 29) rather than to recover from a real stall (a stall aborts the
+      // transfer, leaving the endpoint IDLE). Abort and re-issue the transfer with the toggle
+      // reset to DATA0 so it still completes and releases the usbd claim, instead of silently
+      // dropping it and starving the endpoint. Save the buffer/length before the abort clears them.
+      uint8_t*       user_buf  = ep->user_buf;
+      uint16_t       remaining = ep->remaining_len;
+      const uint16_t xferred   = ep->xferred_len; // bytes already moved on this submission
+      io_rw_32 *ep_reg  = get_ep_ctrl(epnum, dir);
+      io_rw_32 *buf_reg = get_buf_ctrl(epnum, dir);
+      // bufctrl_prepare16() subtracts each armed buffer's length from remaining_len when arming,
+      // for BOTH directions, before the host has drained (IN) or filled (OUT) it. The abort below
+      // discards those still-armed buffers, so rewind remaining_len by their lengths or the re-issue
+      // is short by 1-2 packets. IN additionally advances user_buf as packets are copied into DPRAM,
+      // so its pointer must rewind too; OUT copies out only on completion, so its pointer is intact.
+      const uint32_t bc = *buf_reg;
+      uint16_t staged = 0;
+      if (bc & USB_BUF_CTRL_AVAIL) {
+        staged = (uint16_t)(bc & USB_BUF_CTRL_LEN_MASK);
+      }
+      if ((bc >> 16) & USB_BUF_CTRL_AVAIL) {
+        staged = (uint16_t)(staged + ((bc >> 16) & USB_BUF_CTRL_LEN_MASK));
+      }
+      remaining = (uint16_t)(remaining + staged);
+      if (dir == TUSB_DIR_IN) {
+        user_buf -= staged;
+      }
+      hw_endpoint_abort_xfer(ep); // safe abort (handles RP2040-E2), resets ep transfer state
+      ep->next_pid = 0;           // DATA0
+      rp2usb_xfer_start(ep, ep_reg, buf_reg, user_buf, NULL, remaining);
+      // rp2usb_xfer_start() zeroes xferred_len; add back what the aborted transfer already moved so
+      // the eventual completion reports the full length, not just the post-clear-halt remainder.
+      ep->xferred_len += xferred;
+    } else {
+      ep->next_pid = 0; // reset data toggle
+      io_rw_32 *buf_reg = get_buf_ctrl(epnum, dir);
+      *buf_reg          = 0; // clear the stall response
+    }
   }
 }
 

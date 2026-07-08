@@ -28,6 +28,8 @@
 #       libmtp9    - pymtp ctypes load (device/mtp); Debian 13 uses libmtp9t64
 #       alsa-utils - arecord (device/audio_test_freertos)
 #       iperf      - throughput tests (device/net_lwip_*)
+#   - device/usbtest: usbtest kernel module + testusb binary (kernel tools/usb/testusb.c) on PATH,
+#     plus the sudoers allowlist in test/hil/tinyusb-sudoer (modprobe/sysfs writes via sudo -n)
 #   - Python packages: pip install -r requirements.txt
 #
 # udev rules :
@@ -68,17 +70,28 @@ STATUS_SKIPPED = "\033[33mSkipped\033[0m"
 # A missing binary is reported as skipped too.
 REPORT_CELL = {'pass': '✅', 'fail': '❌', 'skip': '⚪'}
 
+
+class TestFail(AssertionError):
+    """Fail a test but still surface a metric string in its report cell (e.g. usbtest's '❌ 29/30'
+    instead of a bare ❌). The cell metric is icon-prefixed so render/tally treat it as a failure."""
+    def __init__(self, msg: str, metric: str | None = None):
+        super().__init__(msg)
+        self.metric = metric
+
+
 verbose = False
 test_only = []
 board_test = {}
 build_dir = 'cmake-build'
 skip_flash = False
 print_lock = None
+usbtest_lock = None  # serializes the usbtest batteries across the board worker pool
 
 
-def init_worker(lock):
-    global print_lock
+def init_worker(lock, ut_lock):
+    global print_lock, usbtest_lock
     print_lock = lock
+    usbtest_lock = ut_lock
 
 
 def log_line(msg: str) -> None:
@@ -144,7 +157,7 @@ class HilConfig(TypedDict):
     boards: list[Board]
 
 CMD_TIMEOUT = int(os.getenv('HIL_CMD_TIMEOUT', '180'))
-POOL_TIMEOUT = int(os.getenv('HIL_POOL_TIMEOUT', '3000'))
+POOL_TIMEOUT = int(os.getenv('HIL_POOL_TIMEOUT', '4200'))  # usbtest batteries are serialized fleet-wide, lengthening the tail
 SERIAL_READ_TIMEOUT = float(os.getenv('HIL_SERIAL_READ_TIMEOUT', '5'))
 SERIAL_WRITE_TIMEOUT = float(os.getenv('HIL_SERIAL_WRITE_TIMEOUT', '10'))
 
@@ -1479,6 +1492,61 @@ def test_device_hid_generic_inout(board):
         h.close()
 
 
+def test_device_usbtest(board):
+    # Run the Linux testusb tier-4 battery (test/hil/usbtest.py) against the enumerated cafe:4010
+    # device; surface the pass count in the report cell ("✅ 30/30", or "❌ 29/30" on a partial).
+    uid = board['uid']
+
+    def usbtest_enumerated():
+        # match VID:PID too, not just the serial: right after flashing, the previous example's
+        # enumeration (same serial, different PID) can linger and would fail usbtest.py's lookup
+        for f in glob.glob('/sys/bus/usb/devices/*/serial'):
+            d = os.path.dirname(f)
+            try:
+                if (open(f).read().strip().lower() == uid.lower()
+                        and open(os.path.join(d, 'idVendor')).read().strip() == 'cafe'
+                        and open(os.path.join(d, 'idProduct')).read().strip() == '4010'):
+                    return True
+            except OSError:
+                pass
+        return False
+
+    end = time.time() + ENUM_TIMEOUT
+    while time.time() < end and not usbtest_enumerated():
+        time.sleep(0.2)
+    # settle: right after flashing the enumeration can bounce once (and on dual-port parts like
+    # CH32V307 the other port's stale usbtest node — same serial and PID — lingers a moment);
+    # running testusb into that gap sees the device drop mid-case
+    time.sleep(3)
+
+    # --keep-binding leaves the usbtest dynamic id registered: the cleanup path unbinds every
+    # claimed interface, which has wedged the host xHCI (usb_hcd_alloc_bandwidth) on this rig.
+    # Boards test in a worker pool, but the batteries must run one at a time: each one saturates
+    # the host controller (bulk perf, iso streams, unlink storms), and several at once have
+    # hard-frozen the CI rig (fatal PCIe error on its VFIO-passed xHCI).
+    script = Path(__file__).resolve().parent / 'usbtest.py'
+    cmd = f'python3 "{script}" --serial "{uid}" --json --keep-binding --timeout 60'
+    if usbtest_lock is not None:
+        with usbtest_lock:
+            r = run_cmd(cmd, timeout=200)
+    else:
+        r = run_cmd(cmd, timeout=200)
+    out = cmd_stdout_text(r.stdout)
+    brace = out.find('{')
+    try:
+        data = json.loads(out[brace:])
+        passed, failed = int(data['passed']), int(data['failed'])
+    except (ValueError, KeyError, json.JSONDecodeError):
+        raise AssertionError(f'usbtest did not run: {compact_output(out) or cmd_stdout_text(r.stderr)}')
+
+    total = passed + failed
+    if failed == 0 and total > 0:
+        return f'{REPORT_CELL["pass"]} {passed}/{total}'
+    bad = [c.get('num') for c in data.get('cases', []) if c.get('status') != 'PASS']
+    raise TestFail(f'usbtest {passed}/{total} (cases failed: {bad})',
+                   metric=f'{REPORT_CELL["fail"]} {passed}/{total}')
+
+
 # -------------------------------------------------------------
 # Main
 # -------------------------------------------------------------
@@ -1502,6 +1570,7 @@ device_tests = [
     'device/printer_to_cdc',
     'device/midi_test',
     'device/mtp',
+    'device/usbtest',  # cafe:4010, unique PID; runs the Linux testusb tier-4 battery via usbtest.py
     # 'device/net_lwip_webserver',  # disabled for PR #3605: USB net iface enum is flaky on the CI HIL host
 ]
 
@@ -1532,7 +1601,7 @@ def find_firmware(variant: str, example: str):
     return None
 
 
-def test_example(board: Board, variant: str, example: str) -> tuple[int, str]:
+def test_example(board: Board, variant: str, example: str) -> tuple[int, str, str | None]:
     """
     Test example firmware
     :param board: board dict
@@ -1592,6 +1661,8 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str]:
                     last_detail = compact_output(attempt_out.getvalue())
                     if i == max_retry - 1:
                         err_count += 1
+                        # a failing test may still carry a metric to show in its cell (e.g. "❌ 29/30")
+                        metric = getattr(e, 'metric', None)
                         msg = f'{test_name}  {STATUS_FAILED}: {e}'
                         if last_detail:
                             msg += f'  {last_detail}'
@@ -1756,10 +1827,19 @@ def render_matrix(rows_all: list) -> str:
     sep = '| ' + '-' * board_w + ' | ' + ' | '.join(':' + '-' * (w - 2) + ':' for w in col_w) + ' |'
     body = [line(lbl, [cell(cells, c) for c in columns]) for lbl, cells in rows_all]
 
-    # tally run cells (blank/not-run cells are absent from the dicts); a metric string counts as pass
-    failed = sum(v == 'fail' for _, cells in rows_all for v in cells.values())
-    skipped = sum(v == 'skip' for _, cells in rows_all for v in cells.values())
-    passed = sum(v not in ('fail', 'skip') for _, cells in rows_all for v in cells.values())
+    # tally run cells (blank/not-run cells are absent from the dicts). A cell is a bare status
+    # ('pass'/'fail'/'skip') or a metric string that carries its own icon (e.g. "❌ 29/30" is a
+    # fail, "✅ 30/30" / "✅ CDC …" a pass), so classify by the leading icon.
+    def cell_kind(v):
+        if v == 'fail' or (isinstance(v, str) and v.startswith(REPORT_CELL['fail'])):
+            return 'fail'
+        if v == 'skip' or (isinstance(v, str) and v.startswith(REPORT_CELL['skip'])):
+            return 'skip'
+        return 'pass'
+    kinds = [cell_kind(v) for _, cells in rows_all for v in cells.values()]
+    failed = kinds.count('fail')
+    skipped = kinds.count('skip')
+    passed = kinds.count('pass')
     summary = (f'**{REPORT_CELL["pass"]} {passed} passed · {REPORT_CELL["fail"]} {failed} failed · '
                f'{REPORT_CELL["skip"]} {skipped} skipped · blank not run**')
 
@@ -1872,7 +1952,7 @@ def main() -> None:
         for f in (REPORT_JSON, REPORT_MD):
             (report_dir / f).unlink(missing_ok=True)
 
-    with Pool(processes=os.cpu_count() or 1, initializer=init_worker, initargs=(Lock(),)) as pool:
+    with Pool(processes=os.cpu_count() or 1, initializer=init_worker, initargs=(Lock(), Lock())) as pool:
         async_ret = pool.map_async(test_board, config_boards)
         try:
             mret = async_ret.get(timeout=POOL_TIMEOUT)

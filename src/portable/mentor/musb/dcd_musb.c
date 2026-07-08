@@ -292,6 +292,12 @@ static void process_epin_isr(uint8_t rhport, musb_regs_t *musb_regs, uint8_t epn
   }
 
   pipe_state_t* pipe = pipe_get(epnum, TUSB_DIR_IN);
+  // No active transfer: a halt/abort disarmed the pipe (armed=false) but may leave remaining>0.
+  // Do not keep loading the aborted transfer — that would re-fill the just-flushed FIFO and the
+  // next (re-armed) transfer's data would stack on top (host sees an oversized packet -> babble).
+  if (!pipe->armed) {
+    return;
+  }
   if (pipe->remaining > 0) {
     pipe_write(musb_regs, pipe, epnum);
   } else {
@@ -910,6 +916,10 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   } else {
     const tusb_dir_t ep_dir = tu_edpt_dir(ep_addr);
     const uint8_t is_rx = (ep_dir == TUSB_DIR_OUT ? 1u : 0u);
+    // A halt aborts the transfer: flush staged FIFO packet(s) before stalling, else leftover TX data
+    // concatenates with the next transfer after un-halt -> host sees an oversized packet (babble).
+    // FLUSH must precede SEND_STALL, which clears the TXRDY that hwfifo_flush() gates on.
+    hwfifo_flush(musb_regs, epn, is_rx, false);
     ep_csr->maxp_csr[is_rx].csrl = MUSB_CSRL_SEND_STALL(is_rx);
     pipe_state_t* pipe = pipe_get(epn, ep_dir);
     pipe->armed = false;

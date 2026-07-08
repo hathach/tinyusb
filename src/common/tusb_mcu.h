@@ -141,7 +141,6 @@
 #elif TU_CHECK_MCU(OPT_MCU_NRF5X)
   // 8 CBI + 1 ISO
   #define TUP_DCD_ENDPOINT_MAX 9
-  #define TUP_DCD_EDPT_CLOSE_API
 
 #elif TU_CHECK_MCU(OPT_MCU_NRF54)
   #define TUP_USBIP_DWC2
@@ -781,11 +780,9 @@
   #define TU_ATTR_FAST_FUNC
 #endif
 
-#if defined(TUP_USBIP_IP3511) || defined(TUP_USBIP_RUSB2)
-  #define TUP_DCD_EDPT_CLOSE_API
-#endif
-
-// USBIP implement dcd_edpt_close() and does not support ISO alloc & activate API
+// TUP_DCD_EDPT_CLOSE_API is deprecated: these USBIPs implement dcd_edpt_close() and lack the
+// ISO alloc & activate API. IP3511, RUSB2 and NRF5X have been migrated to ISO_ALLOC; the remaining
+// CLOSE_API MCUs (mm32, pic, da1469x, f1c100s, ch32-usbhs) are pending per-board verification.
 #ifndef TUP_DCD_EDPT_CLOSE_API
   #define TUP_DCD_EDPT_ISO_ALLOC
 #endif

@@ -158,6 +158,10 @@ typedef struct
 // - 55 usb0 (FS) has 5x2 endpoints, usb1 (HS) has 6x2 endpoints
 #define MAX_EP_PAIRS  6
 
+// Bounded spin waiting for hardware to clear an EPSKIP bit when retiring a still-armed endpoint on
+// reopen (dcd_edpt_open). Hardware clears it within a (micro)frame; the guard only avoids a hang.
+#define IP3511_EPSKIP_SPIN  100000u
+
 // NOTE data will be transferred as soon as dcd get request by dcd_pipe(_queue)_xfer using double buffering.
 // current_td is used to keep track of number of remaining & xferred bytes of the current request.
 typedef struct
@@ -343,7 +347,11 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 
   // TODO cannot able to STALL Control OUT endpoint !!!!! FIXME try some walk-around
   uint8_t const ep_id = ep_addr2id(ep_addr);
-  _dcd.ep[ep_id][0].cmd_sts.stall = 1;
+  // Clear Active before setting Stall: the hardware services an armed (Active) buffer instead of
+  // returning STALL, so a halt requested while a transfer is queued would not actually stall the
+  // endpoint (usbtest case 13). Software must not leave both Active and Stall set.
+  _dcd.ep[ep_id][0].cmd_sts.active = 0;
+  _dcd.ep[ep_id][0].cmd_sts.stall  = 1;
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
@@ -362,9 +370,22 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   //------------- Prepare Queue Head -------------//
   uint8_t ep_id = ep_addr2id(p_endpoint_desc->bEndpointAddress);
   ep_cmd_sts_t* ep_cs = get_ep_cs(ep_id);
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
 
-  // Check if endpoint is available
-  TU_ASSERT( ep_cs[0].cmd_sts.disable && ep_cs[1].cmd_sts.disable );
+  // usbd_edpt_close() is a no-op on ISO_ALLOC ports, so an endpoint a class closed then reopened
+  // across SET_INTERFACE (e.g. the video notification or audio streaming endpoint) is still armed
+  // here rather than disabled. Retire it before reconfiguring instead of asserting it is disabled.
+  // UM11126 §41.7.6/§41.8.3: writing EPSKIP deactivates the armed buffer and hardware clears the bit
+  // once done, after which the command/status entry is safe to rewrite.
+  if ( !(ep_cs[0].cmd_sts.disable && ep_cs[1].cmd_sts.disable) ) {
+    if ( ep_cs[0].cmd_sts.active || ep_cs[1].cmd_sts.active ) {
+      dcd_reg->EPSKIP |= TU_BIT(ep_id);
+      uint32_t guard = IP3511_EPSKIP_SPIN;             // bounded: hardware clears EPSKIP within a frame
+      while ( (dcd_reg->EPSKIP & TU_BIT(ep_id)) && guard-- ) {}
+    }
+    ep_cs[0].cmd_sts.active  = ep_cs[1].cmd_sts.active  = 0;
+    ep_cs[0].cmd_sts.disable = ep_cs[1].cmd_sts.disable = 1;
+  }
 
   edpt_reset(rhport, ep_id);
 
@@ -389,7 +410,6 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   }
 
   // Enable EP interrupt
-  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
   dcd_reg->INTEN |= TU_BIT(ep_id);
 
   return true;
@@ -404,29 +424,38 @@ void dcd_edpt_close_all (uint8_t rhport)
   }
 }
 
-void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
-{
-  (void) rhport;
-
-  uint8_t ep_id = ep_addr2id(ep_addr);
-  _dcd.ep[ep_id][0].cmd_sts.active = _dcd.ep[ep_id][0].cmd_sts.active = 0; // TODO proper way is to EPSKIP then wait ep[][].active then write ep[][].disable (see table 778 in LPC55S69 Use Manual)
-  _dcd.ep[ep_id][0].cmd_sts.disable = _dcd.ep[ep_id][1].cmd_sts.disable = 1;
-}
-
-#if 0
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
-  (void)rhport;
-  (void)ep_addr;
-  (void)largest_packet_size;
-  return false;
+  (void) largest_packet_size;
+  // Reserve the endpoint command/status entry once (persists across altsetting changes); the
+  // buffer pointer is filled per-transfer, so nothing to pre-allocate. Mirrors the ISO branch of
+  // dcd_edpt_open().
+  uint8_t ep_id = ep_addr2id(ep_addr);
+  ep_cmd_sts_t* ep_cs = get_ep_cs(ep_id);
+  TU_ASSERT( ep_cs[0].cmd_sts.disable && ep_cs[1].cmd_sts.disable );
+
+  edpt_reset(rhport, ep_id);
+  ep_cs[0].cmd_sts.type = 1; // ISO
+
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  dcd_reg->INTEN |= TU_BIT(ep_id);
+  return true;
 }
 
 bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
-  (void)rhport;
-  (void)desc_ep;
-  return false;
+  (void) rhport;
+  // (Re)activate on altsetting selection: clear stall and reset the data toggle. The endpoint is
+  // (re)armed by the class via dcd_edpt_xfer().
+  uint8_t ep_id = ep_addr2id(desc_ep->bEndpointAddress);
+  ep_cmd_sts_t* ep_cs = get_ep_cs(ep_id);
+  // Abort a transfer still armed from the previous altsetting: the hardware keeps servicing an
+  // Active buffer across SET_INTERFACE, which would fight the fresh transfer the class queues.
+  ep_cs[0].cmd_sts.active       = 0;
+  ep_cs[1].cmd_sts.active       = 0;
+  ep_cs[0].cmd_sts.stall        = 0;
+  ep_cs[0].cmd_sts.toggle_reset = 1;
+  ep_cs[0].cmd_sts.rf_tv        = 0;
+  return true;
 }
-#endif
 
 static void prepare_ep_xfer(uint8_t rhport, uint8_t ep_id, uint16_t buf_offset, uint16_t total_bytes) {
   uint16_t nbytes;
