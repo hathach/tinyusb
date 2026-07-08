@@ -32,12 +32,7 @@
 //   2: + vendor control 0x5b/0x5c (ctrl_out)
 //   3: + interrupt source/sink
 //   4: + isochronous source/sink
-// SuperSpeed dcds without isochronous support (WCH CH56x USB3) run the tier-3 battery
-#if TUD_OPT_SUPER_SPEED
-  #define USBTEST_TIER  3
-#else
-  #define USBTEST_TIER  4
-#endif
+#define USBTEST_TIER  4
 
 // Interrupt/isochronous endpoint max packet sizes, must match the configuration descriptor.
 // TUD_OPT_HIGH_SPEED is a compile-time capability flag, NOT the live bus speed, so the full-speed

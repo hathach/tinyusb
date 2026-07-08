@@ -72,7 +72,7 @@ static inline uint16_t usbtest_int_len(void) {
   return (tud_speed_get() >= TUSB_SPEED_HIGH) ? USBTEST_INT_EP_MPS_HS : USBTEST_INT_EP_MPS_FS;
 }
 static inline uint16_t usbtest_iso_len(void) {
-  return (tud_speed_get() == TUSB_SPEED_HIGH) ? USBTEST_ISO_EP_MPS_HS : USBTEST_ISO_EP_MPS_FS;
+  return (tud_speed_get() >= TUSB_SPEED_HIGH) ? USBTEST_ISO_EP_MPS_HS : USBTEST_ISO_EP_MPS_FS;
 }
 
 //------------- prototypes -------------//

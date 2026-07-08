@@ -119,6 +119,9 @@ TU_VERIFY_STATIC(offsetof(USBSS_TypeDef, UEP7_TX_CTRL) == 0xEC, "usbss layout");
 // UEP_CFG endpoint enables
 #define USBSS_EP_R_EN(ep)           (1u << (ep))
 #define USBSS_EP_T_EN(ep)           (1u << (8 + (ep)))
+// Isochronous endpoint mode (per WCH's USB30 device blob, USB30_ISO_Setendp disassembly)
+#define USBSS_EP_ISO_RX(ep)         (1u << (16 + (ep)))
+#define USBSS_EP_ISO_TX(ep)         (1u << (24 + (ep)))
 
 //--------------------------------------------------------------------+
 // Endpoint TX/RX control word fields

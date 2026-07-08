@@ -118,14 +118,14 @@ enum {
 #define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + USBTEST_DESC_LEN)
 
 #if TUD_OPT_SUPER_SPEED
-// SuperSpeed variant, tier 3: no isochronous pair (the CH56x USB3 dcd has no iso support)
-// and an endpoint companion descriptor after every endpoint. Bulk mps fixed at 1024.
-#define USBTEST_SS_DESC_LEN  (9 + 9 + 4*(7 + TUD_SS_EP_COMP_DESC_LEN))
-#define USBTEST_SS_DESCRIPTOR(_itfnum, _stridx, _epout, _epin, _bulk_maxburst, _intout, _intin, _int_mps, _int_interval) \
+// SuperSpeed variant: gadget-zero altsettings with an endpoint companion after every
+// endpoint. Bulk mps fixed at 1024; interrupt/iso keep the high-speed sizes.
+#define USBTEST_SS_DESC_LEN  (9 + 9 + 6*(7 + TUD_SS_EP_COMP_DESC_LEN))
+#define USBTEST_SS_DESCRIPTOR(_itfnum, _stridx, _epout, _epin, _bulk_maxburst, _intout, _intin, _int_mps, _int_interval, _isoout, _isoin, _iso_mps, _iso_interval) \
   /* alt 0: zero bandwidth, no endpoints */\
   9, TUSB_DESC_INTERFACE, _itfnum, 0, 0, TUSB_CLASS_VENDOR_SPECIFIC, 0x00, 0x00, _stridx,\
-  /* alt 1: bulk + interrupt source/sink */\
-  9, TUSB_DESC_INTERFACE, _itfnum, 1, 4, TUSB_CLASS_VENDOR_SPECIFIC, 0x00, 0x00, _stridx,\
+  /* alt 1: full source/sink set */\
+  9, TUSB_DESC_INTERFACE, _itfnum, 1, 6, TUSB_CLASS_VENDOR_SPECIFIC, 0x00, 0x00, _stridx,\
   7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0,\
   TUD_SS_EP_COMP_DESCRIPTOR(_bulk_maxburst, 0, 0),\
   7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0,\
@@ -133,7 +133,11 @@ enum {
   7, TUSB_DESC_ENDPOINT, _intout, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_int_mps), _int_interval,\
   TUD_SS_EP_COMP_DESCRIPTOR(0, 0, _int_mps),\
   7, TUSB_DESC_ENDPOINT, _intin, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_int_mps), _int_interval,\
-  TUD_SS_EP_COMP_DESCRIPTOR(0, 0, _int_mps)
+  TUD_SS_EP_COMP_DESCRIPTOR(0, 0, _int_mps),\
+  7, TUSB_DESC_ENDPOINT, _isoout, (uint8_t)(TUSB_XFER_ISOCHRONOUS | (uint8_t)(TUSB_ISO_EP_ATT_ASYNCHRONOUS)), U16_TO_U8S_LE(_iso_mps), _iso_interval,\
+  TUD_SS_EP_COMP_DESCRIPTOR(0, 0, _iso_mps),\
+  7, TUSB_DESC_ENDPOINT, _isoin, (uint8_t)(TUSB_XFER_ISOCHRONOUS | (uint8_t)(TUSB_ISO_EP_ATT_ASYNCHRONOUS)), U16_TO_U8S_LE(_iso_mps), _iso_interval,\
+  TUD_SS_EP_COMP_DESCRIPTOR(0, 0, _iso_mps)
 
 #define CONFIG_SS_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + USBTEST_SS_DESC_LEN)
 #endif
@@ -265,9 +269,10 @@ static uint8_t const desc_ss_configuration[] = {
   // Config number, interface count, string index, total length, attribute, power in mA
   TUD_CONFIG_SS_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_SS_TOTAL_LEN, 0x00, 96),
 
-  // Interface number, string index, bulk out/in + max burst, int out/in + mps + interval
+  // Interface number, string index, bulk out/in + max burst, int out/in + mps + interval, iso out/in + mps + interval
   USBTEST_SS_DESCRIPTOR(ITF_NUM_VENDOR, 4, EPNUM_BULK_OUT, 0x80 | EPNUM_BULK_IN, CFG_EXAMPLE_SS_BULK_MAXBURST,
-                        EPNUM_INT_OUT, 0x80 | EPNUM_INT_IN, USBTEST_INT_EP_MPS_HS, 4)
+                        EPNUM_INT_OUT, 0x80 | EPNUM_INT_IN, USBTEST_INT_EP_MPS_HS, 4,
+                        EPNUM_ISO_OUT, 0x80 | EPNUM_ISO_IN, USBTEST_ISO_EP_MPS_HS, 4)
 };
 
 // BOS descriptor: USB 2.0 extension (LPM) + SuperSpeed device capability

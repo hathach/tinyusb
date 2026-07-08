@@ -184,6 +184,8 @@ static void ep_state_reset(void) {
   for (uint8_t ep = 0; ep < EP_MAX; ep++) {
     xfer_status[ep][0].active = false;
     xfer_status[ep][1].active = false;
+    xfer_status[ep][0].stalled = false;
+    xfer_status[ep][1].stalled = false;
   }
   _pending_addr = 0;
   _ep0_seq = 0;
@@ -715,7 +717,8 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt) {
   const tusb_dir_t dir = tu_edpt_dir(desc_edpt->bEndpointAddress);
 
   TU_ASSERT(ep_num < EP_MAX);
-  TU_VERIFY(desc_edpt->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS); // not supported
+  // Isochronous: supported via the per-endpoint iso mode bits in UEP_CFG (register model
+  // recovered from WCH's USB30 device blob, USB30_ISO_Setendp)
 
   if (ep_num == 0) {
     return true;
@@ -732,12 +735,15 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt) {
     _pool_brk += BOUNCE_SLOT_SIZE;
   }
 
+  const bool is_iso = (desc_edpt->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS);
   if (dir == TUSB_DIR_IN) {
     USBSS_TX_CTRL(ep_num) = 0;
-    USBSS->UEP_CFG |= USBSS_EP_T_EN(ep_num);
+    USBSS->UEP_CFG = (USBSS->UEP_CFG & ~USBSS_EP_ISO_TX(ep_num)) | USBSS_EP_T_EN(ep_num) |
+                     (is_iso ? USBSS_EP_ISO_TX(ep_num) : 0u);
   } else {
     USBSS_RX_CTRL(ep_num) = 0;
-    USBSS->UEP_CFG |= USBSS_EP_R_EN(ep_num);
+    USBSS->UEP_CFG = (USBSS->UEP_CFG & ~USBSS_EP_ISO_RX(ep_num)) | USBSS_EP_R_EN(ep_num) |
+                     (is_iso ? USBSS_EP_ISO_RX(ep_num) : 0u);
   }
   return true;
 }
@@ -756,10 +762,10 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
   xfer_status[ep_num][dir].active = false;
   if (dir == TUSB_DIR_IN) {
     USBSS_TX_CTRL(ep_num) = 0;
-    USBSS->UEP_CFG &= ~USBSS_EP_T_EN(ep_num);
+    USBSS->UEP_CFG &= ~(USBSS_EP_T_EN(ep_num) | USBSS_EP_ISO_TX(ep_num));
   } else {
     USBSS_RX_CTRL(ep_num) = 0;
-    USBSS->UEP_CFG &= ~USBSS_EP_R_EN(ep_num);
+    USBSS->UEP_CFG &= ~(USBSS_EP_R_EN(ep_num) | USBSS_EP_ISO_RX(ep_num));
   }
 }
 
@@ -845,11 +851,14 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   }
 
   xfer_status[ep_num][dir].stalled = true;
-  // The host must see the STALL: keep NUMP=1 armed and signal ERDY. Known limitation
-  // (usbtest case 13): the controller answers the FIRST probe of a halted endpoint with a
-  // STALL TP but a second probe before CLEAR_FEATURE gets a malformed response (EPROTO on
-  // the host) regardless of NUMP/re-arming; no reference implementation handles data-EP
-  // halt and no event fires per stall TP, so the correct re-arm trigger is unknown.
+  // The host must see the STALL: keep NUMP=1 armed and signal ERDY.
+  // Silicon limitation (usbtest case 13): a halted data endpoint answers exactly ONE probe
+  // with a STALL TP; further probes before CLEAR_FEATURE get no valid response (EPROTO on
+  // the host). Verified exhaustively on hardware: re-arming the response (any NUMP, with
+  // ERDY, at 30 us tick rate, with an endpoint enable bounce) never revives it, no endpoint
+  // or ITP event fires for a transmitted STALL TP, and WCH's own USB30 blob only writes
+  // one-shot responses. The CH32H417's reworked endpoint engine adds a persistent
+  // RB_EP_TX_HALT mode, evidently to fix exactly this.
   if (dir == TUSB_DIR_IN) {
     USBSS_TX_CTRL(ep_num) = (USBSS_TX_CTRL(ep_num) & USBSS_EP_SEQ_MASK) |
                             (1u << USBSS_EP_NUMP_SHIFT) | USBSS_EP_RES_STALL;
