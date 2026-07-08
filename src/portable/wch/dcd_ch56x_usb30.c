@@ -95,6 +95,8 @@ static uint16_t _pool_brk;
 static uint8_t _pending_addr;             // 0x80 | address while SET_ADDRESS status is pending
 static uint8_t _ep0_seq;                  // EP0 IN packet sequence within a data stage
 static tusb_dir_t _ep0_status_dir;        // direction usbd queued for the status stage
+static volatile bool _ep0_status_pending;  // status stage armed, completion not yet delivered
+static volatile uint16_t _ep0_early_len;   // OUT data stage received before usbd armed it (in _ep0_buf)
 static volatile bool _lmp_pending;        // send LMP PORT_CAPABILITY at next link-ready
 
 #if CFG_TUD_WCH_USB30_FALLBACK
@@ -245,10 +247,30 @@ static void xfer_out_arm(uint8_t ep) {
 
 static void ep0_arm_status(void) {
   // SuperSpeed status stage is a STATUS transaction packet from the host, reported as an EP0
-  // RX event with the status-stage flag - arm both directions like the reference does
+  // RX event with the status-stage flag. Both directions must be armed: the RX engine
+  // acknowledges the STATUS TP and TX supplies the zero-length response (verified on hardware:
+  // RX unarmed makes SET_ADDRESS time out)
+  _ep0_status_pending = true;
+  // Both sides must be armed: the RX engine acknowledges the host's STATUS TP and the TX
+  // side supplies the zero-length response (verified on hardware: RX unarmed -> the STATUS
+  // TP is ignored and SET_ADDRESS times out)
   USBSS->UEP0_RX_CTRL = USBSS_UEP0_RX_ARM;
   USBSS->UEP0_TX_CTRL = USBSS_UEP0_TX_ARM;
   usbss_send_erdy(0, false, 1);
+}
+
+// Deliver the status-stage completion: with direction-aware arming it surfaces as a TX event
+// for an IN status (zero-length IN answered) and as an RX status-flag event for an OUT status
+static void ep0_status_complete(uint8_t rhport) {
+  _ep0_status_pending = false;
+  if (_pending_addr) {
+    USBSS->USB_CONTROL = (USBSS->USB_CONTROL & 0x00FFFFFFu) |
+                         ((uint32_t)(_pending_addr & 0x7Fu) << USBSS_DEV_ADDR_SHIFT);
+    _pending_addr = 0;
+  }
+  USBSS->UEP0_RX_CTRL = USBSS_UEP0_RX_ARM;
+  USBSS->UEP0_TX_CTRL = 0;
+  dcd_event_xfer_complete(rhport, tu_edpt_addr(0, _ep0_status_dir), 0, XFER_RESULT_SUCCESS, true);
 }
 
 static void ep0_in_arm(void) {
@@ -281,32 +303,46 @@ static void handle_ep0_in(uint8_t rhport) {
 static void handle_ep0_rx(uint8_t rhport) {
   const uint32_t rx_ctrl = USBSS->UEP0_RX_CTRL;
 
-  if (rx_ctrl & USBSS_EP_RX_SETUP) {
-    // SETUP packet in _ep0_buf
-    USBSS->UEP0_RX_CTRL = 0;
-    USBSS->UEP0_TX_CTRL = 0;
-    _ep0_seq = 0;
-    dcd_event_setup_received(rhport, _ep0_buf, true);
-    return;
+  // Handle a latched status-stage completion BEFORE a simultaneously latched SETUP: with
+  // back-to-back control transfers both flags can be set in one ISR pass, and taking the
+  // SETUP first would drop the previous transfer's completion inside usbd
+  if (rx_ctrl & USBSS_EP_RX_STATUS_STAGE) {
+    if (_ep0_status_pending) {
+      ep0_status_complete(rhport);
+    } else {
+      USBSS->UEP0_RX_CTRL = 0;
+    }
+    if (0 == (rx_ctrl & USBSS_EP_RX_SETUP)) {
+      return;
+    }
   }
 
-  if (rx_ctrl & USBSS_EP_RX_STATUS_STAGE) {
-    // Status stage: apply a deferred SET_ADDRESS before completing
-    if (_pending_addr) {
-      USBSS->USB_CONTROL = (USBSS->USB_CONTROL & 0x00FFFFFFu) |
-                           ((uint32_t)(_pending_addr & 0x7Fu) << USBSS_DEV_ADDR_SHIFT);
-      _pending_addr = 0;
-    }
-    USBSS->UEP0_RX_CTRL = 0;
+  if (rx_ctrl & USBSS_EP_RX_SETUP) {
+    // SETUP packet in _ep0_buf
+    _ep0_early_len = 0;
+    USBSS->UEP0_RX_CTRL = USBSS_UEP0_RX_ARM;
     USBSS->UEP0_TX_CTRL = 0;
-    dcd_event_xfer_complete(rhport, tu_edpt_addr(0, _ep0_status_dir), 0, XFER_RESULT_SUCCESS, true);
+    _ep0_seq = 0;
+    // Host-to-device data stage: arm and signal ERDY here in the ISR, like the reference flow.
+    // Sending the ERDY only when usbd arms the stage from task context (~100 us later) made
+    // the host's data DP vanish intermittently (usbtest ctrl_out); the packet lands in
+    // _ep0_buf and is held (_ep0_early_len) until usbd asks for it
+    if (((_ep0_buf[0] & 0x80u) == 0) && (_ep0_buf[6] || _ep0_buf[7])) {
+      usbss_send_erdy(0, false, 1);
+    }
+    dcd_event_setup_received(rhport, _ep0_buf, true);
     return;
   }
 
   // OUT data stage
   xfer_ctl_t *xfer = &xfer_status[0][TUSB_DIR_OUT];
   if (!xfer->active) {
-    USBSS->UEP0_RX_CTRL = 0;
+    // Data stage arrived before usbd armed it (see the pre-arm in the SETUP branch): hold it
+    const uint16_t early = (uint16_t)(rx_ctrl & USBSS_EP_RX_LEN_MASK);
+    if (early) {
+      _ep0_early_len = early;
+    }
+    USBSS->UEP0_RX_CTRL = USBSS_UEP0_RX_ARM;
     return;
   }
   uint16_t len = (uint16_t)(rx_ctrl & USBSS_EP_RX_LEN_MASK);
@@ -316,10 +352,10 @@ static void handle_ep0_rx(uint8_t rhport) {
 
   if ((xfer->queued_len == xfer->total_len) || (len < EP0_MPS)) {
     xfer->active = false;
-    USBSS->UEP0_RX_CTRL = 0;
+    USBSS->UEP0_RX_CTRL = USBSS_UEP0_RX_NRDY;
     dcd_event_xfer_complete(rhport, 0x00, xfer->queued_len, XFER_RESULT_SUCCESS, true);
   } else {
-    USBSS->UEP0_RX_CTRL = USBSS_UEP0_RX_ARM;
+    USBSS->UEP0_RX_CTRL |= USBSS_UEP0_RX_ARM; // OR: preserve the live packet-sequence bits
     usbss_send_erdy(0, false, 1);
   }
 }
@@ -816,8 +852,17 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
     } else if (dir == TUSB_DIR_IN) {
       ep0_in_arm();
     } else {
-      USBSS->UEP0_RX_CTRL = USBSS_UEP0_RX_ARM;
-      usbss_send_erdy(0, false, 1);
+      if (_ep0_early_len) {
+        // the host already delivered the (single-packet) data stage into _ep0_buf
+        uint16_t len = TU_MIN(_ep0_early_len, total_bytes);
+        _ep0_early_len = 0;
+        memcpy(buffer, _ep0_buf, len);
+        xfer->active = false;
+        dcd_event_xfer_complete(rhport, 0x00, len, XFER_RESULT_SUCCESS, true);
+      } else {
+        USBSS->UEP0_RX_CTRL |= USBSS_UEP0_RX_ARM; // OR: preserve the live packet-sequence bits
+        usbss_send_erdy(0, false, 1);
+      }
     }
     return true;
   }

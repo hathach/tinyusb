@@ -147,6 +147,13 @@ TU_VERIFY_STATIC(offsetof(USBSS_TypeDef, UEP7_TX_CTRL) == 0xEC, "usbss layout");
 #define USBSS_UEP0_TX_ARM           0x14010000u // LPF | ACK | NUMP=1 (+ length)
 #define USBSS_UEP0_RX_ARM           0x04010000u // ACK | NUMP=1
 #define USBSS_UEP0_STALL            0x08010000u // STALL | NUMP=1
+// Idle hold for EP0 RX: answer NRDY (RES=00) with NUMP=1. An idle endpoint at NUMP=0 gives NO
+// response, but SuperSpeed hosts may transmit the OUT data stage speculatively right after the
+// SETUP - microseconds before any ISR can arm it - and silence burns the host's retry budget
+// (intermittent EPROTO). NRDY makes the window flow-controlled: the host re-sends after the
+// ERDY that accompanies the real arm. Never use this for the status stage arm - the STATUS TP
+// exchange needs ACK (a status stage held at NRDY retries forever and SET_ADDRESS times out).
+#define USBSS_UEP0_RX_NRDY          0x00010000u
 
 // EP0..7 control word accessors (0x10 byte stride)
 #define USBSS_RX_CTRL(ep)           ((&USBSS->UEP0_RX_CTRL)[(ep) * 4])
