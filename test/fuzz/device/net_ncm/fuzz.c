@@ -47,6 +47,9 @@ bool usbd_open_edpt_pair(uint8_t rhport, uint8_t const *p_desc, uint8_t ep_count
   (void) rhport; (void) p_desc; (void) ep_count; (void) xfer_type; (void) ep_out; (void) ep_in;
   return true;
 }
+void usbd_defer_func(osal_task_func_t func, void *param, bool in_isr) {
+  (void) func; (void) param; (void) in_isr;
+}
 bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const *request, void *buffer, uint16_t len) {
   (void) rhport; (void) request; (void) buffer; (void) len;
   return true;
