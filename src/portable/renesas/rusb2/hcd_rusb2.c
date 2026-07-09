@@ -52,8 +52,8 @@ TU_ATTR_BIT_FIELD_ORDER_END
 
 typedef struct {
   pipe_state_t pipe[PIPE_COUNT];
-  uint8_t      ep[4][2][15]; /* a lookup table for a pipe index from an endpoint address */
-  uint8_t      ctl_mps[5];   /* EP0 max packet size for each device */
+  uint8_t      ep[5][2][15]; /* a lookup table for a pipe index from an endpoint address, indexed by dev_addr - 1 (dev_addr 1 to 5) */
+  uint8_t      ctl_mps[6];   /* EP0 max packet size for each device, indexed by dev_addr (0 to 5) */
 } hcd_data_t;
 
 //--------------------------------------------------------------------+
@@ -114,7 +114,7 @@ static volatile uint16_t* addr_to_pipectr(uint8_t rhport, uint8_t dev_addr, unsi
 
   if (epn) {
     const unsigned dir_in = tu_edpt_dir(ep_addr);
-    const unsigned num = _hcd.ep[dev_addr][dir_in][epn - 1];
+    const unsigned num = _hcd.ep[dev_addr - 1][dir_in][epn - 1];
     return get_pipectr(rusb, num);
   } else {
     return get_pipectr(rusb, 0);
