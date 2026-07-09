@@ -45,7 +45,7 @@ static tusb_desc_device_t const desc_device = {
 
     .idVendor           = 0xCafe,
     .idProduct          = 0x4010,
-    .bcdDevice          = 0x0100 | USBTEST_TIER,
+    .bcdDevice          = 0x0100 | USBTEST_QUIRKS | USBTEST_TIER,
 
     .iManufacturer      = 0x01,
     .iProduct           = 0x02,
@@ -67,7 +67,7 @@ static tusb_desc_device_t const desc_device_ss = {
 
     .idVendor           = 0xCafe,
     .idProduct          = 0x4010,
-    .bcdDevice          = 0x0100 | USBTEST_TIER,
+    .bcdDevice          = 0x0100 | USBTEST_QUIRKS | USBTEST_TIER,
 
     .iManufacturer      = 0x01,
     .iProduct           = 0x02,
@@ -282,7 +282,7 @@ static uint8_t const desc_bos[] = {
     TUD_BOS_DESCRIPTOR(BOS_TOTAL_LEN, 2),
     // LPM capable
     TUD_BOS_USB20_EXT_DESCRIPTOR(0x00000002),
-    // no LTM, HS + Gen1 SS supported, fully functional from HS, U1/U2 exit latency
+    // no LTM, HS + Gen1 SS supported, fully functional from HS, U1/U2 exit latency 10us/2047us
     TUD_BOS_SUPERSPEED_DESCRIPTOR(0x00, 0x000C, 2, 0x0A, 0x07FF),
 };
 

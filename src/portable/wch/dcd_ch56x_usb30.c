@@ -42,6 +42,13 @@
 // - Isochronous endpoints are not supported (the open register model has no proven ISO path).
 // - USB DMA reaches only RAMX (16-byte aligned); transfers from other memory are bounced
 //   through per-endpoint slots allocated from a small RAMX pool.
+// - Silicon erratum: EP0 OUT data stages whose wLength % 4 == 1 are intermittently dropped
+//   (host sees -EPROTO; rate varies ~0.1-25% per transfer, worst near 245-257 and 509 bytes;
+//   other lengths and bulk OUT are unaffected). Not fixable in software: WCH's own binary USB3
+//   stack (SimulateCDC demo) fails identically on the same board, independent of host LPM
+//   (failures persist with U1/U2 disabled) and of sysclk (80 vs 120 MHz). Standard classes are
+//   unaffected in practice (control-OUT payloads are fixed-size structs); usbtest's ctrl_out
+//   cases hit it, so the usbtest example advertises a skip quirk in bcdDevice.
 
 #include "tusb_option.h"
 
@@ -763,6 +770,7 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt) {
   xfer_ctl_t *xfer = &xfer_status[ep_num][dir];
   xfer->mps = tu_edpt_packet_size(desc_edpt);
   xfer->active = false;
+  xfer->stalled = false; // (re)configuring the endpoint clears any prior halt (USB 2.0 §9.4.5)
 
   // Allocate a RAMX bounce slot once per endpoint direction
   if (xfer->slot == NULL) {
@@ -796,6 +804,7 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
   const tusb_dir_t dir = tu_edpt_dir(ep_addr);
 
   xfer_status[ep_num][dir].active = false;
+  xfer_status[ep_num][dir].stalled = false;
   if (dir == TUSB_DIR_IN) {
     USBSS_TX_CTRL(ep_num) = 0;
     USBSS->UEP_CFG &= ~(USBSS_EP_T_EN(ep_num) | USBSS_EP_ISO_TX(ep_num));
@@ -818,6 +827,8 @@ void dcd_edpt_close_all(uint8_t rhport) {
     USBSS_RX_CTRL(ep) = 0;
     xfer_status[ep][0].active = false;
     xfer_status[ep][1].active = false;
+    xfer_status[ep][0].stalled = false;
+    xfer_status[ep][1].stalled = false;
     xfer_status[ep][0].slot = NULL;
     xfer_status[ep][1].slot = NULL;
   }

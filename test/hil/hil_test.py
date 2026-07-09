@@ -1542,7 +1542,7 @@ def test_device_usbtest(board):
     total = passed + failed
     if failed == 0 and total > 0:
         return f'{REPORT_CELL["pass"]} {passed}/{total}'
-    bad = [c.get('num') for c in data.get('cases', []) if c.get('status') != 'PASS']
+    bad = [c.get('num') for c in data.get('cases', []) if c.get('status') not in ('PASS', 'SKIP')]
     raise TestFail(f'usbtest {passed}/{total} (cases failed: {bad})',
                    metric=f'{REPORT_CELL["fail"]} {passed}/{total}')
 

@@ -36,6 +36,13 @@ from pathlib import Path
 VID = 'cafe'
 PID = '4010'
 GZ_REF = '0525 a4a0'  # copy Gadget Zero's capability profile (ctrl_out+iso+intr)
+
+# Quirk flags advertised in bcdDevice bits 4-7 (tier is bits 0-3), see usb_descriptors.h.
+# Each flag maps to the cases the silicon cannot pass at SuperSpeed (5 Gbps).
+QUIRK_SKIPS = {
+    0x10: ((14, 21), 'EP0 OUT data lost at 5 Gbps (silicon erratum)'),
+    0x20: ((13,), 'halted EP answers a single STALL at 5 Gbps (silicon limitation)'),
+}
 SYS_USB = Path('/sys/bus/usb/devices')
 DRIVER = Path('/sys/bus/usb/drivers/usbtest')
 PATTERN_PARAM = Path('/sys/module/usbtest/parameters/pattern')
@@ -135,7 +142,8 @@ def find_device(serial, first=False):
                 'node': '/dev/bus/usb/%03d/%03d' % (int((dev / 'busnum').read_text()),
                                                     int((dev / 'devnum').read_text())),
                 'speed': (dev / 'speed').read_text().strip(),
-                'tier': int((dev / 'bcdDevice').read_text().strip()[-2:], 16),
+                'tier': int((dev / 'bcdDevice').read_text().strip()[-2:], 16) & 0x0f,
+                'quirks': int((dev / 'bcdDevice').read_text().strip()[-2:], 16) & 0xf0,
             })
         except (OSError, ValueError):
             continue
@@ -316,6 +324,18 @@ def main():
         print(info)
 
     results = []
+    # quirk-gated skips apply to the tier battery only; explicit --tests still runs the cases
+    if not args.tests and dev['speed'] == '5000':
+        for flag, (skip_cases, why) in QUIRK_SKIPS.items():
+            if not dev['quirks'] & flag:
+                continue
+            for num in [n for n in cases if n in skip_cases]:
+                results.append({'num': num, 'name': CASE_NAMES[num], 'status': 'SKIP',
+                                'detail': f'{why} (bcdDevice quirk 0x{flag:02x})'})
+                if not args.json:
+                    r = results[-1]
+                    print(f"test {num:2d} {r['name']:22s} {r['status']:6s} {r['detail']}")
+            cases = [n for n in cases if n not in skip_cases]
     unrecovered_hang = False
     try:
         bind_usbtest(dev)
@@ -373,13 +393,15 @@ def main():
         except SystemExit:
             pass
 
-    failed = [r for r in results if r['status'] != 'PASS']
+    failed = [r for r in results if r['status'] not in ('PASS', 'SKIP')]
+    skipped = sum(1 for r in results if r['status'] == 'SKIP')
     if args.json:
         print(json.dumps({'serial': dev['serial'], 'speed': dev['speed'], 'tier': tier,
-                          'passed': len(results) - len(failed), 'failed': len(failed),
-                          'cases': results}, indent=2))
+                          'passed': len(results) - len(failed) - skipped, 'failed': len(failed),
+                          'skipped': skipped, 'cases': results}, indent=2))
     else:
-        print(f"{len(results) - len(failed)}/{len(results)} passed")
+        print(f"{len(results) - len(failed) - skipped}/{len(results) - skipped} passed"
+              + (f", {skipped} skipped" if skipped else ""))
         for r in failed:
             print(f"  FAILED test {r['num']}: {r.get('detail', '')}")
             if r.get('dmesg'):

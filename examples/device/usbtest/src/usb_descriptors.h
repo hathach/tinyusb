@@ -34,6 +34,18 @@
 //   4: + isochronous source/sink
 #define USBTEST_TIER  4
 
+// Known-erratum quirk flags advertised in bcdDevice bits 4-7, read by the host script to
+// skip cases the silicon cannot pass at SuperSpeed:
+//   0x10: EP0 OUT data stages whose wLength % 4 == 1 are intermittently dropped at 5 Gbps
+//         (CH569 USBSS erratum; WCH's own USB3 stack fails identically) — skip ctrl_out cases
+//   0x20: a halted endpoint answers exactly one STALL TP and cannot be re-armed to repeat it
+//         (CH569; the CH32H417 added RB_EP_TX_HALT to fix this) — skip the ep-halt case
+#if CFG_TUSB_MCU == OPT_MCU_CH569 && defined(CFG_TUD_WCH_USBIP_USB30) && CFG_TUD_WCH_USBIP_USB30
+  #define USBTEST_QUIRKS  0x30
+#else
+  #define USBTEST_QUIRKS  0
+#endif
+
 // Interrupt/isochronous endpoint max packet sizes, must match the configuration descriptor.
 // TUD_OPT_HIGH_SPEED is a compile-time capability flag, NOT the live bus speed, so the full-speed
 // config descriptor (and the OTHER_SPEED descriptor served to a HS host) must use full-speed-legal
