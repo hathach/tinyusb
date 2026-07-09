@@ -974,9 +974,12 @@ static bool process_std_device_request(uint8_t rhport, tusb_control_request_t co
 
           // close all drivers and current configured state except bus speed
           const uint8_t speed = _usbd_dev.speed;
+          const uint8_t sof_consumer = _usbd_dev.sof_consumer;
           configuration_reset(rhport);
 
           _usbd_dev.speed = speed; // restore speed
+          _usbd_dev.sof_consumer = sof_consumer; // restore SOF consumer state
+          dcd_sof_enable(rhport, sof_consumer != 0); // restore SOF interrupt state
         }
 
         _usbd_dev.cfg_num = cfg_num;
