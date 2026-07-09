@@ -505,7 +505,7 @@
             },
             "flasher": {
                 "name": "openocd_wch",
-                "uid": "7FD88F0604B5",
+                "uid": "D3008F0657DB",
                 "args": ""
             }
         },
