@@ -113,7 +113,7 @@ static void send_hid_report(uint8_t report_id, uint32_t btn) {
 
       if (btn != 0u) {
         uint8_t keycode[6] = {0};
-        keycode[0]         = HID_KEY_A;
+        keycode[0] = HID_KEY_A;
 
         tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, keycode);
         has_keyboard_key = true;
@@ -162,13 +162,13 @@ static void send_hid_report(uint8_t report_id, uint32_t btn) {
       hid_gamepad_report_t report = {.x = 0, .y = 0, .z = 0, .rz = 0, .rx = 0, .ry = 0, .hat = 0, .buttons = 0};
 
       if (btn != 0u) {
-        report.hat     = GAMEPAD_HAT_UP;
+        report.hat = GAMEPAD_HAT_UP;
         report.buttons = GAMEPAD_BUTTON_A;
         tud_hid_report(REPORT_ID_GAMEPAD, &report, sizeof(report));
 
         has_gamepad_key = true;
       } else {
-        report.hat     = GAMEPAD_HAT_CENTERED;
+        report.hat = GAMEPAD_HAT_CENTERED;
         report.buttons = 0;
         if (has_gamepad_key) {
           tud_hid_report(REPORT_ID_GAMEPAD, &report, sizeof(report));
@@ -179,8 +179,8 @@ static void send_hid_report(uint8_t report_id, uint32_t btn) {
     }
 
     case REPORT_ID_STYLUS_PEN: {
-      static bool         touch_state = false;
-      hid_stylus_report_t report      = {.attr = 0, .x = 0, .y = 0};
+      static bool touch_state = false;
+      hid_stylus_report_t report = {.attr = 0, .x = 0, .y = 0};
 
       if (btn != 0u) {
         report.attr = STYLUS_ATTR_TIP_SWITCH | STYLUS_ATTR_IN_RANGE;
