@@ -5,3 +5,4 @@ mcu:MSP430x5xx
 mcu:NUC121
 mcu:SAMD11
 mcu:CH569
+mcu:CH32H417

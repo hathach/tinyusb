@@ -17,3 +17,4 @@ family:broadcom_32bit
 family:broadcom_64bit
 family:hpmicro
 mcu:CH569
+mcu:CH32H417

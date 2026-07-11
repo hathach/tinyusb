@@ -4,3 +4,4 @@ mcu:SAMG
 family:espressif
 mcu:CH583
 mcu:CH569
+mcu:CH32H417

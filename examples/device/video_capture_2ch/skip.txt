@@ -18,3 +18,4 @@ board:ek_tm4c123gxl
 board:uno_r4
 board:ra4m1_ek
 mcu:CH569
+mcu:CH32H417
