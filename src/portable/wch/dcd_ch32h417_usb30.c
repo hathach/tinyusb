@@ -82,6 +82,20 @@ enum { FB_USB3_TRAINING, FB_USB3_UP, FB_USB2_ACTIVE };
 static uint8_t fb_state;
 static uint8_t fb_fail_count;
 #define FB_FAIL_LIMIT 3
+
+static void usbss_device_init(bool enable);
+static void fallback_timer_start(bool enable);
+
+// Shut the SuperSpeed controller down and bring the USB2 high-speed controller up on rhport 0.
+// Must stop TIM12 first: once fb_state==FB_USB2_ACTIVE, dcd_int_handler routes every IRQ to the
+// USB2 handler and never clears the TIM12 flag, so a still-running timer would storm the CPU.
+static void fallback_to_usb2(uint8_t rhport) {
+  fallback_timer_start(false);
+  usbss_device_init(false);
+  fb_state = FB_USB2_ACTIVE;
+  ch32h417_usb2_init(rhport);
+  ch32h417_usb2_int_enable();
+}
 #endif
 
 //--------------------------------------------------------------------+
@@ -129,9 +143,10 @@ static void usbss_device_init(bool enable) {
   if (enable) {
     usbss_rcc_init(true);
 
-    USBSSD->LINK_CFG = LINK_RX_EQ_EN | LINK_TX_DEEMPH_3_5DB | LINK_PHY_RESET;
+    // TX de-emphasis: match the WCH EVT init literal exactly (it programs both DEEMPH bits)
+    USBSSD->LINK_CFG = LINK_RX_EQ_EN | LINK_TX_DEEMPH_MASK | LINK_PHY_RESET;
     USBSSD->LINK_CTRL = LINK_P2_MODE | LINK_GO_DISABLED;
-    USBSSD->LINK_CFG = LINK_RX_EQ_EN | LINK_TX_DEEMPH_3_5DB | LINK_LTSSM_MODE | LINK_TOUT_MODE;
+    USBSSD->LINK_CFG = LINK_RX_EQ_EN | LINK_TX_DEEMPH_MASK | LINK_LTSSM_MODE | LINK_TOUT_MODE;
     USBSSD->LINK_LPM_CR |= LINK_LPM_EN;
     USBSSD->LINK_CFG |= LINK_RX_TERM_EN;
     USBSSD->LINK_INT_CTRL = LINK_IE_TX_LMP | LINK_IE_RX_LMP | LINK_IE_RX_LMP_TOUT | LINK_IE_STATE_CHG |
@@ -188,13 +203,12 @@ static void handle_link_irq(uint8_t rhport) {
     switch (link_state) {
       case LINK_STATE_DISABLE:
         USBSSD->LINK_CTRL &= ~LINK_GO_DISABLED;
+        // DISABLE and INACTIVE both count as a failed SuperSpeed training attempt
+        TU_ATTR_FALLTHROUGH;
+      case LINK_STATE_INACTIVE:
 #if CFG_TUD_WCH_USB30_FALLBACK
         if (fb_state == FB_USB3_TRAINING && ++fb_fail_count >= FB_FAIL_LIMIT) {
-          // host has no SuperSpeed port: bring up USB2 on the same rhport
-          usbss_device_init(false);
-          fb_state = FB_USB2_ACTIVE;
-          ch32h417_usb2_init(rhport);
-          ch32h417_usb2_int_enable();
+          fallback_to_usb2(rhport); // host has no SuperSpeed port: bring up USB2 on rhport 0
         }
 #endif
         break;
@@ -280,8 +294,8 @@ static void handle_setup(uint8_t rhport) {
 
 static void handle_ep0_in(uint8_t rhport) {
   xfer_ctl_t *xfer = XFER_CTL_BASE(0, TUSB_DIR_IN);
-  if (!xfer->valid) {
-    return;
+  if (!xfer->valid || xfer->total_len == 0) {
+    return; // a zero-length status IN is completed by the UDIF_STATUS interrupt, not here
   }
   uint16_t remaining = xfer->total_len - xfer->queued_len;
   if (remaining == 0) {
@@ -385,6 +399,7 @@ static void handle_usb_irq(uint8_t rhport) {
     USBSSD->USB_STATUS = USBSS_UDIF_SETUP;
     handle_setup(rhport);
   } else if (status & USBSS_UDIF_STATUS) {
+    // Control status stage: on the H417 this is its own interrupt (SET_ADDRESS is applied here).
     USBSSD->USB_STATUS = USBSS_UDIF_STATUS;
     if (pending_addr_valid) {
       USBSSD->USB_CONTROL = (USBSSD->USB_CONTROL & 0x00FFFFFF) | ((uint32_t)pending_addr << 24);
@@ -392,6 +407,15 @@ static void handle_usb_irq(uint8_t rhport) {
     }
     USBSSD->UEP0_TX_CTRL = 0;
     USBSSD->UEP0_RX_CTRL = 0;
+    // Complete the queued zero-length status transfer so usbd runs its status-stage callback
+    // (the status ZLP does not raise a UIF_TRANSFER on this controller).
+    for (uint8_t dir = 0; dir < 2; dir++) {
+      xfer_ctl_t *x = &xfer_status[0][dir];
+      if (x->valid && x->total_len == 0) {
+        x->valid = false;
+        dcd_event_xfer_complete(rhport, (dir == TUSB_DIR_IN) ? 0x80 : 0x00, 0, XFER_RESULT_SUCCESS, true);
+      }
+    }
   } else if (status & USBSS_UIF_TRANSFER) {
     uint8_t ep_num = USBSS_STATUS_EP_NUM(status);
     bool is_in = USBSS_STATUS_EP_IN(status);
@@ -434,11 +458,7 @@ static void handle_timer_irq(uint8_t rhport) {
   }
   TIM12->INTFR = (uint16_t)~TIM_IT_Update;
   if (fb_state == FB_USB3_TRAINING && ++fb_fail_count >= FB_FAIL_LIMIT) {
-    fallback_timer_start(false);
-    usbss_device_init(false);
-    fb_state = FB_USB2_ACTIVE;
-    ch32h417_usb2_init(rhport);
-    ch32h417_usb2_int_enable();
+    fallback_to_usb2(rhport);
   }
 }
 #endif
@@ -505,10 +525,16 @@ void dcd_int_disable(uint8_t rhport) {
 }
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
+  (void)dev_addr;
 #if CFG_TUD_WCH_USB30_FALLBACK
-  if (fb_state == FB_USB2_ACTIVE) { ch32h417_usb2_edpt0_status_complete(rhport, NULL); }
+  if (fb_state == FB_USB2_ACTIVE) {
+    // USB2 applies the address in ch32h417_usb2_edpt0_status_complete (called by usbd with the
+    // real request); here just arm the status ZLP on the USB2 controller.
+    ch32h417_usb2_edpt_xfer(rhport, 0x80, NULL, 0);
+    return;
+  }
 #endif
-  // apply the address at the status stage (USBSS_UDIF_STATUS), per the SIE
+  // SuperSpeed: apply the address at the status stage (USBSS_UDIF_STATUS), per the SIE
   pending_addr = dev_addr;
   pending_addr_valid = true;
   dcd_edpt_xfer(rhport, 0x80, NULL, 0, false); // ZLP status
@@ -623,11 +649,8 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
         handle_ep0_in(rhport);
       }
     } else {
-      if (total_bytes == 0) {
-        ep0_arm_out();
-      } else {
-        ep0_arm_out();
-      }
+      // control-OUT: data stage or status OUT, arm the receive
+      ep0_arm_out();
     }
   } else if (dir == TUSB_DIR_IN) {
     queue_in_packet(ep_num, xfer);
