@@ -336,10 +336,12 @@ bool ch32h417_usb2_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, u
   xfer->valid = true;
 
   if (ep_num == 0 && dir == TUSB_DIR_OUT) {
-    // status/data-out stage always DATA1 for a zero-length status, else toggles per packet
-    if (total_bytes == 0) {
-      EP_RX_CTRL(0) = (uint8_t)((EP_RX_CTRL(0) & ~USBHS_UEP_R_TOG_MASK) | USBHS_UEP_R_TOG_DATA1);
-    }
+    // The EP0 data/status OUT stage after a SETUP is DATA1. Write the full control byte (not a
+    // read-modify-write) so RB_UEP_R_SETUP_IS is cleared - otherwise the next OUT would be
+    // re-detected as a SETUP in the ISR. Applies to both the zero-length status and a
+    // (single-packet, EP0-sized) control-write data stage.
+    EP_RX_CTRL(0) = USBHS_UEP_R_TOG_DATA1 | USBHS_UEP_R_RES_ACK;
+    return true;
   }
 
   if (dir == TUSB_DIR_IN) {
@@ -407,18 +409,24 @@ void ch32h417_usb2_int_handler(uint8_t rhport) {
     } else {
       // SETUP or OUT transaction
       if (ep_num == 0 && (EP_RX_CTRL(0) & USBHS_UEP_R_SETUP_IS)) {
-        EP_RX_CTRL(0) &= (uint8_t)~USBHS_UEP_R_DONE;
         tusb_control_request_t const *setup = (tusb_control_request_t const *)ep0_buffer;
         ep0_tog = true;
+        // Full-byte writes (DATA1) clear RB_UEP_R_SETUP_IS + DONE and set the post-SETUP toggle
         EP_TX_CTRL(0) = USBHS_UEP_T_RES_NAK | USBHS_UEP_T_TOG_DATA1;
-        set_rx_res(0, (setup->wLength == 0) ? USBHS_UEP_R_RES_ACK : USBHS_UEP_R_RES_NAK);
+        EP_RX_CTRL(0) = (uint8_t)(((setup->wLength == 0) ? USBHS_UEP_R_RES_ACK : USBHS_UEP_R_RES_NAK) |
+                                  USBHS_UEP_R_TOG_DATA1);
         dcd_event_setup_received(rhport, ep0_buffer, true);
       } else {
         EP_RX_CTRL(ep_num) &= (uint8_t)~USBHS_UEP_R_DONE;
         update_out(rhport, ep_num, EP_RX_LEN(ep_num));
       }
     }
-    USBHSD->INT_FG = USBHS_UDIF_TRANSFER;
+    // The transfer interrupt is acknowledged by clearing the per-endpoint DONE bit above (matching
+    // the vendor driver); do NOT also write INT_FG, which would clear the aggregate flag and could
+    // drop a second endpoint's pending completion (only one is serviced per IRQ).
+  } else if (intflag & USBHS_UDIF_RX_SOF) {
+    dcd_event_sof(rhport, USBHSD->FRAME_NO & USBHS_UD_FRAME_NO, true);
+    USBHSD->INT_FG = USBHS_UDIF_RX_SOF;
   } else if (intflag & USBHS_UDIF_BUS_RST) {
     dcd_event_bus_reset(rhport, TUSB_SPEED_HIGH, true);
     USBHSD->DEV_AD = 0;
