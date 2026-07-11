@@ -117,10 +117,10 @@ static void usbss_rcc_init(bool enable) {
   }
 }
 
-static uint32_t usbss_phy_cfg(uint8_t addr, uint16_t data) {
+static void usbss_phy_cfg(uint8_t addr, uint16_t data) {
   USBSS_PHY_CFG_CR = (1u << 23) | ((uint32_t)addr << 16) | data;
   USBSS_PHY_CFG_DAT = 0x01;
-  return USBSS_PHY_CFG_DAT;
+  (void)USBSS_PHY_CFG_DAT; // read-back strobe; the returned value is not used
 }
 
 static void usbss_cfg_mod(void) {
