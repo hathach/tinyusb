@@ -691,6 +691,41 @@
     #define CFG_TUD_ENDPOINT0_SIZE 512 // SuperSpeed EP0 is fixed at 512
   #endif
 
+#elif TU_CHECK_MCU(OPT_MCU_CH32H417)
+  // CH32H416/CH32H417: USB3.0 SuperSpeed device (USBSS @0x40034000, officially documented in the
+  // reference manual; same LINK-layer IP as the CH569 but a reworked chain-DMA endpoint engine)
+  // plus a USB2.0 high-speed device (USBHS @0x40030000, newer WCH USBHS IP - NOT compatible with
+  // the CH32V307 or CH56x USBHS drivers) and a full-speed USBFS/OTG (not supported). One
+  // controller is selected at compile time (SPEED=super|high), both on rhport 0. With
+  // CFG_TUD_WCH_USB30_FALLBACK the USB30 dcd owns both controllers and falls back to USB2 at
+  // runtime when the SuperSpeed link does not train.
+  #define TUP_USBIP_WCH_USB30_H417
+  #define TUP_USBIP_WCH_USBHS_H417
+
+  #ifndef CFG_TUD_WCH_USBIP_USBHS
+    #define CFG_TUD_WCH_USBIP_USBHS 0
+  #endif
+  #ifndef CFG_TUD_WCH_USBIP_USB30
+    #define CFG_TUD_WCH_USBIP_USB30 (CFG_TUD_WCH_USBIP_USBHS ? 0 : 1) // default SuperSpeed
+  #endif
+  #ifndef CFG_TUD_WCH_USB30_FALLBACK
+    #define CFG_TUD_WCH_USB30_FALLBACK 0
+  #endif
+  // Bulk burst size (packets per burst, 1..16). The chain engine advertises ERDY_NUMP up to 16;
+  // SuperSpeed descriptors should advertise bMaxBurst = CFG_TUD_WCH_USB30_MAX_BURST - 1.
+  #ifndef CFG_TUD_WCH_USB30_MAX_BURST
+    #define CFG_TUD_WCH_USB30_MAX_BURST 4
+  #endif
+
+  #define TUP_RHPORT_HIGHSPEED  1
+  #define TUP_RHPORT_SUPERSPEED CFG_TUD_WCH_USBIP_USB30
+  #define TUP_DCD_ENDPOINT_MAX  8 // EP0..EP7 IN + OUT on both controllers
+  #define TUP_DCD_EDPT_CLOSE_API
+
+  #if CFG_TUD_WCH_USBIP_USB30 && !defined(CFG_TUD_ENDPOINT0_SIZE)
+    #define CFG_TUD_ENDPOINT0_SIZE 512 // SuperSpeed EP0 is fixed at 512
+  #endif
+
 //--------------------------------------------------------------------+
 // Analog Devices
 //--------------------------------------------------------------------+
