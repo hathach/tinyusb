@@ -455,6 +455,10 @@
       "inherits": "default"
     },
     {
+      "name": "nanoch32h417",
+      "inherits": "default"
+    },
+    {
       "name": "nanoch32v203",
       "inherits": "default"
     },
@@ -1570,6 +1574,11 @@
       "name": "msp_exp432e401y",
       "description": "Build preset for the msp_exp432e401y board",
       "configurePreset": "msp_exp432e401y"
+    },
+    {
+      "name": "nanoch32h417",
+      "description": "Build preset for the nanoch32h417 board",
+      "configurePreset": "nanoch32h417"
     },
     {
       "name": "nanoch32v203",
@@ -3719,6 +3728,19 @@
         {
           "type": "build",
           "name": "msp_exp432e401y"
+        }
+      ]
+    },
+    {
+      "name": "nanoch32h417",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "nanoch32h417"
+        },
+        {
+          "type": "build",
+          "name": "nanoch32h417"
         }
       ]
     },

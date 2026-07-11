@@ -87,6 +87,7 @@ hw/mcu/st/stm32wbaxx_hal_driver           https://github.com/STMicroelectronics/
 hw/mcu/st/stm32wbxx_hal_driver            https://github.com/STMicroelectronics/stm32wbxx_hal_driver.git    d60dd46996876506f1d2e9abd6b1cc110c8004cd  stm32wb
 hw/mcu/ti                                 https://github.com/hathach/ti_driver.git                          083944907e7d08fcb1f614b47598ce45935b8da1  msp430 msp432e4 tm4c
 hw/mcu/wch/ch32f20x                       https://github.com/openwch/ch32f20x.git                           77c4095087e5ed2c548ec9058e655d0b8757663b  ch32f20x
+hw/mcu/wch/ch32h417                       https://github.com/openwch/ch32h417.git                           a0a56fa830b860297a64a72315a731b71c841329  ch32h417
 hw/mcu/wch/ch32v103                       https://github.com/openwch/ch32v103.git                           7578cae0b21f86dd053a1f781b2fc6ab99d0ec17  ch32v10x
 hw/mcu/wch/ch32v20x                       https://github.com/openwch/ch32v20x.git                           c4c38f507e258a4e69b059ccc2dc27dde33cea1b  ch32v20x
 hw/mcu/wch/ch32v307                       https://github.com/openwch/ch32v307.git                           184f21b852cb95eed58e86e901837bc9fff68775  ch32v30x

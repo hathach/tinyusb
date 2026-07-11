@@ -30,6 +30,7 @@ family_list = {
     "ch32v10x": ["riscv-gcc"],
     "ch32v20x": ["riscv-gcc"],
     "ch32v30x": ["riscv-gcc"],
+    "ch32h417": ["riscv-gcc"],
     "ch569": ["riscv-gcc"],
     "ch583": ["riscv-gcc"],
     "da1469x": ["arm-gcc"],
