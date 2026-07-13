@@ -43,6 +43,7 @@ static xfer_ctl_t xfer_status[DWC2_EP_MAX][2];
 typedef struct {
   // EP0 transfers are limited to 1 packet - larger sizes has to be split
   uint16_t ep0_pending[2];  // Index determines direction as tusb_dir_t type
+  uint16_t ep0_xact_bytes[2]; // Bytes scheduled for the current EP0 packet (DMA cache ops)
   uint16_t dfifo_top;      // top free location in DFIFO in words
 
   // Number of IN endpoints active
@@ -356,6 +357,7 @@ static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uin
   if (epnum == 0) {
     total_bytes = tu_min16(_dcd_data.ep0_pending[dir], CFG_TUD_ENDPOINT0_SIZE);
     _dcd_data.ep0_pending[dir] -= total_bytes;
+    _dcd_data.ep0_xact_bytes[dir] = total_bytes;
     num_packets = 1;
   } else {
     total_bytes = xfer->total_len;
@@ -393,10 +395,6 @@ static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uin
     }
     dep->diepdma = (uintptr_t) xfer->buffer;
     dep->diepctl = depctl.value; // enable endpoint
-    // Advance buffer pointer for EP0
-    if (epnum == 0) {
-      xfer->buffer += total_bytes;
-    }
   } else
   #endif
   {
@@ -1029,16 +1027,22 @@ static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepi
     // only handle data skip if it is setup or status related
     // Normal OUT transfer complete
     if (!doepint_bm.status_phase_rx && !doepint_bm.setup_packet_rx) {
+      dwc2_dep_t* epout = &dwc2->epout[epnum];
+      xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
+
+      // determine actual received bytes in this packet
+      const dwc2_ep_tsize_t tsiz = {.value = epout->tsiz};
+      const uint16_t remain = tsiz.xfer_size;
+      const uint16_t received = (epnum == 0)
+        ? (uint16_t)(_dcd_data.ep0_xact_bytes[TUSB_DIR_OUT] - remain)
+        : (uint16_t)(xfer->total_len - remain);
+
       if ((epnum == 0) && _dcd_data.ep0_pending[TUSB_DIR_OUT]) {
-        // EP0 can only handle one packet Schedule another packet to be received.
+        // EP0 can only handle one packet. Invalidate this chunk, advance buffer, schedule next.
+        dcd_dcache_invalidate(xfer->buffer, received);
+        xfer->buffer += received;
         edpt_schedule_packets(rhport, epnum, TUSB_DIR_OUT);
       } else {
-        dwc2_dep_t* epout = &dwc2->epout[epnum];
-        xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
-
-        // determine actual received bytes
-        const dwc2_ep_tsize_t tsiz = {.value = epout->tsiz};
-        const uint16_t remain = tsiz.xfer_size;
         xfer->total_len -= remain;
 
         // prepare EP0 for next setup
@@ -1046,7 +1050,7 @@ static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepi
           dma_setup_prepare(rhport);
         }
 
-        dcd_dcache_invalidate(xfer->buffer, xfer->total_len);
+        dcd_dcache_invalidate(xfer->buffer, received);
         dcd_event_xfer_complete(rhport, epnum, xfer->total_len, XFER_RESULT_SUCCESS, true);
       }
     }
@@ -1058,7 +1062,8 @@ static void handle_epin_dma(uint8_t rhport, uint8_t epnum, dwc2_diepint_t diepin
 
   if (diepint_bm.xfer_complete) {
     if ((epnum == 0) && _dcd_data.ep0_pending[TUSB_DIR_IN]) {
-      // EP0 can only handle one packet. Schedule another packet to be transmitted.
+      // EP0 can only handle one packet. Advance buffer, then schedule next chunk.
+      xfer->buffer += _dcd_data.ep0_xact_bytes[TUSB_DIR_IN];
       edpt_schedule_packets(rhport, epnum, TUSB_DIR_IN);
     } else {
       dcd_event_xfer_complete(rhport, epnum | TUSB_DIR_IN_MASK, xfer->total_len, XFER_RESULT_SUCCESS, true);
