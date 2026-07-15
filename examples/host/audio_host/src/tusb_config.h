@@ -42,7 +42,7 @@ extern "C" {
 #endif
 
 #ifndef CFG_TUSB_DEBUG
-  #define CFG_TUSB_DEBUG 0
+  #define CFG_TUSB_DEBUG 1
 #endif
 
 #ifndef CFG_TUH_MEM_SECTION
@@ -79,7 +79,7 @@ extern "C" {
 // Driver Configuration
 //--------------------------------------------------------------------
 
-#define CFG_TUH_ENUMERATION_BUFSIZE 256
+#define CFG_TUH_ENUMERATION_BUFSIZE 512
 
 #define CFG_TUH_HUB                 0
 #define CFG_TUH_CDC                 0

@@ -28,10 +28,11 @@ static uint8_t       audio_dev_addr = 0;
 static uint8_t       audio_idx      = 0;
 static volatile bool audio_rx_busy  = false; // Track IN endpoint transfer state
 static volatile bool audio_tx_busy  = false; // Track OUT endpoint transfer state
+static volatile bool audio_ready    = false; // Wait for sampling freq set before starting isochronous transfer
 
 static uint8_t audio_rx_buffer[CFG_TUH_AUDIO_EPIN_BUFSIZE];
-void           audio_app_task(void) {
-  if (!audio_mounted) {
+void audio_app_task(void) {
+  if (!audio_mounted || !audio_ready) {
     return;
   }
 
@@ -62,6 +63,16 @@ static void print_format_info(const tuh_audio_mount_cb_t *data) {
       printf("      Freq[%u]: %lu Hz\r\n", i, (unsigned long)data->sam_freq[i]);
     }
   }
+}
+
+// Callback after sampling frequency is set
+static void sampling_freq_set_cb(tuh_xfer_t *xfer) {
+  if (xfer->result != XFER_RESULT_SUCCESS) {
+    printf("  Sampling frequency set FAILED: result=%u\r\n", xfer->result);
+    return;
+  }
+  audio_ready = true;
+  printf("  Sampling frequency set OK, ready for isochronous transfer\r\n");
 }
 
 // Invoked when device with Audio interface is mounted
@@ -100,10 +111,14 @@ void tuh_audio_mount_cb(uint8_t idx, const tuh_audio_mount_cb_t *mount_cb_data) 
   audio_idx      = idx;
   audio_mounted  = true;
 
-  // Set sampling frequency to 48kHz
+  // Set sampling frequency before starting isochronous transfer
   if (mount_cb_data->ep_in != 0) {
-    tuh_audio_set_sampling_freq(mount_cb_data->daddr, mount_cb_data->ep_in, 48000, NULL, 0);
-    printf("  Set sampling frequency to 48000 Hz\r\n");
+    printf("  Setting IN sampling frequency to 48000 Hz\r\n");
+    tuh_audio_set_sampling_freq(mount_cb_data->daddr, mount_cb_data->ep_in, 48000, sampling_freq_set_cb, 0);
+  } 
+  if (mount_cb_data->ep_out != 0) {
+    printf("  Setting OUT sampling frequency to 48000 Hz\r\n");
+    tuh_audio_set_sampling_freq(mount_cb_data->daddr, mount_cb_data->ep_out, 48000, sampling_freq_set_cb, 0);
   }
 }
 
@@ -112,6 +127,9 @@ void tuh_audio_umount_cb(uint8_t idx) {
   printf("Audio device unmounted: idx=%u\r\n", idx);
   if (audio_mounted && audio_idx == idx) {
     audio_mounted  = false;
+    audio_ready    = false;
+    audio_rx_busy  = false;
+    audio_tx_busy  = false;
     audio_dev_addr = 0;
     audio_idx      = 0;
   }

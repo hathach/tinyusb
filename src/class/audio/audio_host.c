@@ -492,7 +492,7 @@ bool tuh_audio_set_sampling_freq(uint8_t daddr, uint8_t ep_addr, uint32_t sampli
       .direction = TUSB_DIR_OUT
     },
     .bRequest = AUDIO10_CS_REQ_SET_CUR,
-    .wValue = 0,
+    .wValue = tu_u16(AUDIO10_EP_CTRL_SAMPLING_FREQ, 0),  // Control Selector = Sampling Freq, Channel = 0
     .wIndex = tu_u16_low(ep_addr),
     .wLength = 3
   };
