@@ -258,6 +258,18 @@ static usbh_class_driver_t const usbh_class_drivers[] = {
   },
   #endif
 
+  #if CFG_TUH_AUDIO
+  {
+      .name       = DRIVER_NAME("AUDIO"),
+      .init       = audioh_init,
+      .deinit     = audioh_deinit,
+      .open       = audioh_open,
+      .set_config = audioh_set_config,
+      .xfer_cb    = audioh_xfer_cb,
+      .close      = audioh_close
+  },
+  #endif
+
   #if CFG_TUH_HID
   {
       .name       = DRIVER_NAME("HID"),
