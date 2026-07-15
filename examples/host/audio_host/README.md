@@ -64,13 +64,24 @@ make BOARD=<your_board> flash
 TinyUSB Host USB Audio Example
 Connect a USB Audio Device (UAC 1.0) to test
 Audio device mounted: idx=0, daddr=1
-  IN EP: 0x81 (max size: 192)
-  OUT EP: 0x02 (max size: 192)
-  Channels: 1, Format: 1, SubFrameSize: 2, BitResolution: 16
-  Set sampling frequency to 48000 Hz
-RX: 192 bytes from EP 0x81 | 00 00 ff ff 00 00 ff ff ...
-RX: 192 bytes from EP 0x81 | 01 00 fe ff 01 00 fe ff ...
-...
+  --- Microphone ---
+    IN EP: 0x81 (max size: 192)
+    Input Terminal: ID=1, Type=0x0201, Channels=1
+    Format Type: 1, Channels: 1, SubFrameSize: 2, BitResolution: 16
+    Sampling Freq: Discrete, count=4
+      Freq[0]: 44100 Hz
+      Freq[1]: 48000 Hz
+      Freq[2]: 96000 Hz
+      Freq[3]: 192000 Hz
+  --- Speaker ---
+    OUT EP: 0x02 (max size: 192)
+    Output Terminal: ID=2, Type=0x0301
+    Format Type: 1, Channels: 2, SubFrameSize: 2, BitResolution: 16
+    Sampling Freq: Continuous range 8000 Hz - 48000 Hz
+  Feature Unit: ID=3, SourceID=1
+  Setting IN sampling frequency to 48000 Hz
+  Setting OUT sampling frequency to 48000 Hz
+  Sampling frequency set OK, ready for isochronous transfer
 ```
 
 ## Configuration
