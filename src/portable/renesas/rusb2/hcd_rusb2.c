@@ -11,7 +11,7 @@
 
 #if CFG_TUH_ENABLED && defined(TUP_USBIP_RUSB2)
 
-#ifdef RUSB RUSB2_RA_USBFS_DEVICE_ONLY
+#ifdef RUSB2_RA_USBFS_DEVICE_ONLY
 #error "Host mode not supported for this device"
 #endif
 
