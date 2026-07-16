@@ -204,15 +204,20 @@ void tuh_audio_rx_cb(uint8_t idx, uint8_t ep_addr, uint16_t xferred_bytes) {
   (void)ep_addr;
   audio_rx_busy = false;
 
-  if (xferred_bytes > 0) {
+  if (xferred_bytes > 0 && audio_ep_out != 0 && !audio_tx_busy) {
+    bool ok;
     if (audio_mic_channels == 1) {
       // Mono microphone, convert to stereo and send to OUT endpoint
       uint16_t samples = xferred_bytes / 2;
       mono_to_stereo(audio_rx_buffer, audio_tx_buffer, samples);
-      tuh_audio_send(audio_dev_addr, audio_idx, audio_tx_buffer, xferred_bytes * 2);
+      ok = tuh_audio_send(audio_dev_addr, audio_idx, audio_tx_buffer, xferred_bytes * 2);
     } else {
       // Stereo microphone, send directly to OUT endpoint
-      tuh_audio_send(audio_dev_addr, audio_idx, audio_rx_buffer, xferred_bytes);
+      ok = tuh_audio_send(audio_dev_addr, audio_idx, audio_rx_buffer, xferred_bytes);
+    }
+
+    if (ok) {
+      audio_tx_busy = true;
     }
   }
 }
