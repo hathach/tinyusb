@@ -614,7 +614,9 @@ bool tuh_audio_itf_get_info(uint8_t idx, tuh_itf_info_t *info) {
 //--------------------------------------------------------------------+
 bool tuh_audio_set_sampling_freq(uint8_t daddr, uint8_t ep_addr, uint32_t sampling_freq,
                                   tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  static uint8_t freq_buf[3] = {0};
+  uint8_t const idx = get_idx_by_ep_addr(daddr, ep_addr);
+  TU_VERIFY(idx < CFG_TUH_AUDIO_MAX, false);
+  uint8_t* freq_buf = _audioh_epbuf[idx].ctrl;
   tusb_control_request_t const request = {
     .bmRequestType_bit = {
       .recipient = TUSB_REQ_RCPT_ENDPOINT,
@@ -622,8 +624,8 @@ bool tuh_audio_set_sampling_freq(uint8_t daddr, uint8_t ep_addr, uint32_t sampli
       .direction = TUSB_DIR_OUT
     },
     .bRequest = AUDIO10_CS_REQ_SET_CUR,
-    .wValue = tu_u16(AUDIO10_EP_CTRL_SAMPLING_FREQ, 0),  // Control Selector = Sampling Freq, Channel = 0
-    .wIndex = tu_u16_low(ep_addr),
+    .wValue = tu_htole16(tu_u16(AUDIO10_EP_CTRL_SAMPLING_FREQ, 0)),  // Control Selector = Sampling Freq, Channel = 0
+    .wIndex = tu_htole16((uint16_t) ep_addr),
     .wLength = 3
   };
 
@@ -660,8 +662,8 @@ bool tuh_audio_get_sampling_freq(uint8_t daddr, uint8_t ep_addr, uint32_t *sampl
       .direction = TUSB_DIR_IN
     },
     .bRequest = AUDIO10_CS_REQ_GET_CUR,
-    .wValue = tu_u16(AUDIO10_EP_CTRL_SAMPLING_FREQ, 0),  // Control Selector = Sampling Freq, Channel = 0
-    .wIndex = tu_u16_low(ep_addr),
+    .wValue = tu_htole16(tu_u16(AUDIO10_EP_CTRL_SAMPLING_FREQ, 0)),  // Control Selector = Sampling Freq, Channel = 0
+    .wIndex = tu_htole16((uint16_t) ep_addr),
     .wLength = 3
   };
 
@@ -688,8 +690,8 @@ bool tuh_audio_feature_unit_set(uint8_t daddr, uint8_t itf_num, uint8_t unit_id,
       .direction = TUSB_DIR_OUT
     },
     .bRequest = AUDIO10_CS_REQ_SET_CUR,
-    .wValue = tu_u16(control_selector, channel),
-    .wIndex = tu_u16(itf_num, unit_id),
+    .wValue = tu_htole16(tu_u16(control_selector, channel)),
+    .wIndex = tu_htole16(tu_u16(unit_id, itf_num)),
     .wLength = 2
   };
 
@@ -723,8 +725,8 @@ bool tuh_audio_feature_unit_get(uint8_t daddr, uint8_t itf_num, uint8_t unit_id,
       .direction = TUSB_DIR_IN
     },
     .bRequest = AUDIO10_CS_REQ_GET_CUR,
-    .wValue = tu_u16(control_selector, channel),
-    .wIndex = tu_u16(itf_num, unit_id),
+    .wValue = tu_htole16(tu_u16(control_selector, channel)),
+    .wIndex = tu_htole16(tu_u16(unit_id, itf_num)),
     .wLength = len
   };
 

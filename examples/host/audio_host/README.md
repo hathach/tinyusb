@@ -54,9 +54,9 @@ make BOARD=<your_board> flash
 3. Open a serial terminal to view output
 4. The example will:
    - Print device information when mounted
-   - Set sampling frequency to 48kHz
+   - Set sampling frequency based on the device's advertised capabilities
    - Receive audio samples from the device (IN endpoint)
-   - Send test sine wave audio to the device (OUT endpoint)
+   - Loop back received audio to the device (OUT endpoint) for testing
 
 ## Serial Output Example
 
