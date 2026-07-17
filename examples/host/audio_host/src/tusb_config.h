@@ -68,7 +68,7 @@ extern "C" {
 #define CFG_TUH_MAX_SPEED BOARD_TUH_MAX_SPEED
 
 #ifndef BOARD_TUH_RHPORT
-  #define BOARD_TUH_RHPORT 1
+  #define BOARD_TUH_RHPORT 0
 #endif
 
 #ifndef BOARD_TUH_MAX_SPEED

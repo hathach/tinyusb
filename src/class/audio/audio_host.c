@@ -136,10 +136,11 @@ typedef struct {
 typedef struct {
   TUH_EPBUF_DEF(epin, CFG_TUH_AUDIO_EPIN_BUFSIZE);
   TUH_EPBUF_DEF(epout, CFG_TUH_AUDIO_EPOUT_BUFSIZE);
+  TUH_EPBUF_DEF(ctrl, 8);  
 } audioh_epbuf_t;
 
 static audioh_interface_t _audioh_itf[CFG_TUH_AUDIO_MAX];
-
+ static audioh_epbuf_t _audioh_epbuf[CFG_TUH_AUDIO_MAX];
 //--------------------------------------------------------------------+
 // Helper
 //--------------------------------------------------------------------+
@@ -281,7 +282,9 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
   while (tu_desc_in_bounds(p_desc, desc_end)) {
     if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE) {
       const tusb_desc_interface_t *itf = (const tusb_desc_interface_t *)p_desc;
-      if (itf->bInterfaceClass == TUSB_CLASS_AUDIO && itf->bInterfaceSubClass == AUDIO_SUBCLASS_STREAMING) {
+       // Stop at the first non-Audio interface so we don't claim the rest of the configuration
+       if (itf->bInterfaceClass != TUSB_CLASS_AUDIO) break;
+       if (itf->bInterfaceSubClass == AUDIO_SUBCLASS_STREAMING) {
         // Found Audio Streaming Interface
         TU_LOG_DRV("  Found AS Interface %u (alt = %u)\r\n", itf->bInterfaceNumber, itf->bAlternateSetting);
 
@@ -537,11 +540,14 @@ bool audioh_set_config(uint8_t dev_addr, uint8_t itf_num) {
   if (idx >= CFG_TUH_AUDIO_MAX) {
     for (uint8_t i = 0; i < CFG_TUH_AUDIO_MAX; i++) {
       if (_audioh_itf[i].daddr == dev_addr && _audioh_itf[i].as_interface_num == itf_num) {
-        // AS interface, already handled by AC interface's set_config
+         // AS interface: configuration is driven by the AC interface, so just pass through
+         usbh_driver_set_config_complete(dev_addr, itf_num);		
         return true;
       }
     }
-    return false;
+     // Not an Audio interface we own; pass through so enumeration can continue
+     usbh_driver_set_config_complete(dev_addr, itf_num);
+     return true;
   }
 
   audioh_interface_t *p_audio = &_audioh_itf[idx];
@@ -644,6 +650,9 @@ bool tuh_audio_set_sampling_freq(uint8_t daddr, uint8_t ep_addr, uint32_t sampli
 
 bool tuh_audio_get_sampling_freq(uint8_t daddr, uint8_t ep_addr, uint32_t *sampling_freq,
                                   tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  TU_VERIFY(sampling_freq, false);
+  *sampling_freq = 0;
+
   tusb_control_request_t const request = {
     .bmRequestType_bit = {
       .recipient = TUSB_REQ_RCPT_ENDPOINT,
@@ -684,7 +693,12 @@ bool tuh_audio_feature_unit_set(uint8_t daddr, uint8_t itf_num, uint8_t unit_id,
     .wLength = 2
   };
 
-  uint8_t val_buf[2] = { (uint8_t)(value & 0xFF), (uint8_t)((value >> 8) & 0xFF) };
+  uint8_t const idx = tuh_audio_itf_get_index(daddr, itf_num);
+  TU_VERIFY(idx < CFG_TUH_AUDIO_MAX, false);
+
+  uint8_t* val_buf = _audioh_epbuf[idx].ctrl;
+  val_buf[0] = (uint8_t)(value & 0xFF);
+  val_buf[1] = (uint8_t)((value >> 8) & 0xFF);
 
   tuh_xfer_t xfer = {
     .daddr = daddr,
