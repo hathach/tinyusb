@@ -1,28 +1,28 @@
 /*
- * The MIT License (MIT)
- *
- * Copyright (c) 2025 TinyUSB contributors
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * SPDX-FileCopyrightText: Copyright (c) 2026 Zhenjiang Zhang
+ * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
  */
+ 
+/*
+ * This driver implements a USB Audio Host (UAC 1.0) class driver.
+ * It supports multiple Audio Streaming (AS) interfaces with independent format storage.
+ * Each AS interface can have its own sample rate, channel count, bit resolution,
+ * and endpoint configuration.
+ *
+ * The driver handles:
+ * 1. Audio Control (AC) interface parsing — Input Terminal, Output Terminal,
+ *    and Feature Unit descriptors.
+ * 2. Audio Streaming (AS) interface enumeration — multiple AS interfaces with
+ *    alternate settings, each storing its own format information.
+ * 3. Isochronous IN/OUT endpoint management for audio data transfer.
+ * 4. Asynchronous control transfers for sample frequency get/set.
+ *
+ * In case you need to adjust the number of supported AS interfaces, change
+ * CFG_TUH_AUDIO_MAX_AS in your tusb_config.h.
+ *
+ * */
 
 #include "tusb_option.h"
 
@@ -248,27 +248,27 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
     if (tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE) {
       switch (tu_desc_subtype(p_desc)) {
         case AUDIO10_CS_AC_INTERFACE_INPUT_TERMINAL: {
-          const audio10_desc_input_terminal_t *it = (const audio10_desc_input_terminal_t *)p_desc;
-          p_audio->input_terminal_type = tu_le16toh(it->wTerminalType);
-          p_audio->input_terminal_id = it->bTerminalID;
-          p_audio->input_terminal_channels = it->bNrChannels;
+          audio10_desc_input_terminal_t const *desc_input_terminal = (audio10_desc_input_terminal_t const *)p_desc;
+          p_audio->input_terminal_type = tu_le16toh(desc_input_terminal->wTerminalType);
+          p_audio->input_terminal_id = desc_input_terminal->bTerminalID;
+          p_audio->input_terminal_channels = desc_input_terminal->bNrChannels;
           TU_LOG_DRV("    Input Terminal: ID=%u, Type=0x%04x, Channels=%u\r\n",
-                     it->bTerminalID, tu_le16toh(it->wTerminalType), it->bNrChannels);
+                     desc_input_terminal->bTerminalID, tu_le16toh(desc_input_terminal->wTerminalType), desc_input_terminal->bNrChannels);
           break;
         }
         case AUDIO10_CS_AC_INTERFACE_OUTPUT_TERMINAL: {
-          const audio10_desc_output_terminal_t *ot = (const audio10_desc_output_terminal_t *)p_desc;
-          p_audio->output_terminal_type = tu_le16toh(ot->wTerminalType);
-          p_audio->output_terminal_id = ot->bTerminalID;
+          audio10_desc_output_terminal_t const *desc_output_terminal = (audio10_desc_output_terminal_t const *)p_desc;
+          p_audio->output_terminal_type = tu_le16toh(desc_output_terminal->wTerminalType);
+          p_audio->output_terminal_id = desc_output_terminal->bTerminalID;
           TU_LOG_DRV("    Output Terminal: ID=%u, Type=0x%04x\r\n",
-                     ot->bTerminalID, tu_le16toh(ot->wTerminalType));
+                     desc_output_terminal->bTerminalID, tu_le16toh(desc_output_terminal->wTerminalType));
           break;
         }
         case AUDIO10_CS_AC_INTERFACE_FEATURE_UNIT: {
-          const uint8_t *fu = p_desc;
-          p_audio->feature_unit_id = fu[3];  // bUnitID
-          p_audio->feature_unit_source_id = fu[4];  // bSourceID
-          TU_LOG_DRV("    Feature Unit: ID=%u, SourceID=%u\r\n", fu[3], fu[4]);
+          uint8_t const *desc_feature_unit = p_desc;
+          p_audio->feature_unit_id = desc_feature_unit[3];  // bUnitID
+          p_audio->feature_unit_source_id = desc_feature_unit[4];  // bSourceID
+          TU_LOG_DRV("    Feature Unit: ID=%u, SourceID=%u\r\n", desc_feature_unit[3], desc_feature_unit[4]);
           break;
         }
         default:
@@ -281,53 +281,53 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
   // Parse all remaining descriptors in this configuration looking for Audio Streaming interfaces
   while (tu_desc_in_bounds(p_desc, desc_end)) {
     if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE) {
-      const tusb_desc_interface_t *itf = (const tusb_desc_interface_t *)p_desc;
+      tusb_desc_interface_t const *desc_interface = (tusb_desc_interface_t const *)p_desc;
        // Stop at the first non-Audio interface so we don't claim the rest of the configuration
-       if (itf->bInterfaceClass != TUSB_CLASS_AUDIO) break;
-       if (itf->bInterfaceSubClass == AUDIO_SUBCLASS_STREAMING) {
+       if (desc_interface->bInterfaceClass != TUSB_CLASS_AUDIO) break;
+       if (desc_interface->bInterfaceSubClass == AUDIO_SUBCLASS_STREAMING) {
         // Found Audio Streaming Interface
-        TU_LOG_DRV("  Found AS Interface %u (alt = %u)\r\n", itf->bInterfaceNumber, itf->bAlternateSetting);
+        TU_LOG_DRV("  Found AS Interface %u (alt = %u)\r\n", desc_interface->bInterfaceNumber, desc_interface->bAlternateSetting);
 
-        if (itf->bAlternateSetting == 0) {
+        if (desc_interface->bAlternateSetting == 0) {
           // Interface descriptor with alt setting 0 (no endpoints)
           // Add to AS interfaces array
           if (p_audio->as_count < CFG_TUH_AUDIO_MAX_AS) {
-            p_audio->as_interface_num = itf->bInterfaceNumber;
-            p_audio->as_interfaces[p_audio->as_count] = itf->bInterfaceNumber;
-            desc_cb.desc_as_interface = itf;
-            desc_cb.as_interface_num = itf->bInterfaceNumber;
+            p_audio->as_interface_num = desc_interface->bInterfaceNumber;
+            p_audio->as_interfaces[p_audio->as_count] = desc_interface->bInterfaceNumber;
+            desc_cb.desc_as_interface = desc_interface;
+            desc_cb.as_interface_num = desc_interface->bInterfaceNumber;
             // Create new AS entry for per-interface storage
-            p_audio->as[p_audio->as_count].interface_num = itf->bInterfaceNumber;
+            p_audio->as[p_audio->as_count].interface_num = desc_interface->bInterfaceNumber;
             p_audio->as[p_audio->as_count].alt_setting = 0;
             p_audio->as_count++;
           }
-        } else if (itf->bNumEndpoints > 0) {
+        } else if (desc_interface->bNumEndpoints > 0) {
           // Interface descriptor with alt setting > 0 (has endpoints)
           // Find matching AS interface and set alt_setting
           uint8_t as_entry_idx = CFG_TUH_AUDIO_MAX_AS;
           for (uint8_t as_idx = 0; as_idx < p_audio->as_count; as_idx++) {
-            if (p_audio->as_interfaces[as_idx] == itf->bInterfaceNumber) {
-              p_audio->alt_setting = itf->bAlternateSetting;
-              p_audio->as_alt_settings[as_idx] = itf->bAlternateSetting;
-              desc_cb.alt_setting = itf->bAlternateSetting;
-              desc_cb.desc_as_interface_alt = itf;
+            if (p_audio->as_interfaces[as_idx] == desc_interface->bInterfaceNumber) {
+              p_audio->alt_setting = desc_interface->bAlternateSetting;
+              p_audio->as_alt_settings[as_idx] = desc_interface->bAlternateSetting;
+              desc_cb.alt_setting = desc_interface->bAlternateSetting;
+              desc_cb.desc_as_interface_alt = desc_interface;
               break;
             }
           }
           // Find or create AS entry for per-interface storage
           for (uint8_t i = 0; i < p_audio->as_count; i++) {
-            if (p_audio->as[i].interface_num == itf->bInterfaceNumber) {
+            if (p_audio->as[i].interface_num == desc_interface->bInterfaceNumber) {
               as_entry_idx = i;
               break;
             }
           }
           if (as_entry_idx >= CFG_TUH_AUDIO_MAX_AS && p_audio->as_count < CFG_TUH_AUDIO_MAX_AS) {
             as_entry_idx = p_audio->as_count;
-            p_audio->as[as_entry_idx].interface_num = itf->bInterfaceNumber;
+            p_audio->as[as_entry_idx].interface_num = desc_interface->bInterfaceNumber;
             p_audio->as_count++;
           }
           if (as_entry_idx < CFG_TUH_AUDIO_MAX_AS) {
-            p_audio->as[as_entry_idx].alt_setting = itf->bAlternateSetting;
+            p_audio->as[as_entry_idx].alt_setting = desc_interface->bAlternateSetting;
           }
 
           // Parse the interface's descriptors
@@ -387,19 +387,19 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
                 break;
               }
               case TUSB_DESC_ENDPOINT: {
-                const tusb_desc_endpoint_t *p_ep = (const tusb_desc_endpoint_t *)p_desc;
-                if (p_ep->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) {
-                  TU_LOG_DRV("    Isochronous EP %02x\r\n", p_ep->bEndpointAddress);
-                  if (tu_edpt_dir(p_ep->bEndpointAddress) == TUSB_DIR_IN) {
-                    p_audio->ep_in = p_ep->bEndpointAddress;
-                    p_audio->ep_in_size = tu_edpt_packet_size(p_ep);
-                    p_audio->ep_in_interval = p_ep->bInterval;
-                    desc_cb.desc_ep_in = p_ep;
+                const tusb_desc_endpoint_t *desc_endpoint = (const tusb_desc_endpoint_t *)p_desc;
+                if (desc_endpoint->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) {
+                  TU_LOG_DRV("    Isochronous EP %02x\r\n", desc_endpoint->bEndpointAddress);
+                  if (tu_edpt_dir(desc_endpoint->bEndpointAddress) == TUSB_DIR_IN) {
+                    p_audio->ep_in = desc_endpoint->bEndpointAddress;
+                    p_audio->ep_in_size = tu_edpt_packet_size(desc_endpoint);
+                    p_audio->ep_in_interval = desc_endpoint->bInterval;
+                    desc_cb.desc_ep_in = desc_endpoint;
                     // Save to per-AS storage
                     if (as_entry_idx < CFG_TUH_AUDIO_MAX_AS) {
                       audioh_as_t *as = &p_audio->as[as_entry_idx];
-                      as->ep_addr = p_ep->bEndpointAddress;
-                      as->ep_size = tu_edpt_packet_size(p_ep);
+                      as->ep_addr = desc_endpoint->bEndpointAddress;
+                      as->ep_size = tu_edpt_packet_size(desc_endpoint);
                       as->ep_dir = TUSB_DIR_IN;
                       as->format_type = tmp_format_type;
                       as->num_channels = tmp_num_channels;
@@ -413,15 +413,15 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
                       }
                     }
                   } else {
-                    p_audio->ep_out = p_ep->bEndpointAddress;
-                    p_audio->ep_out_size = tu_edpt_packet_size(p_ep);
-                    p_audio->ep_out_interval = p_ep->bInterval;
-                    desc_cb.desc_ep_out = p_ep;
+                    p_audio->ep_out = desc_endpoint->bEndpointAddress;
+                    p_audio->ep_out_size = tu_edpt_packet_size(desc_endpoint);
+                    p_audio->ep_out_interval = desc_endpoint->bInterval;
+                    desc_cb.desc_ep_out = desc_endpoint;
                     // Save to per-AS storage
                     if (as_entry_idx < CFG_TUH_AUDIO_MAX_AS) {
                       audioh_as_t *as = &p_audio->as[as_entry_idx];
-                      as->ep_addr = p_ep->bEndpointAddress;
-                      as->ep_size = tu_edpt_packet_size(p_ep);
+                      as->ep_addr = desc_endpoint->bEndpointAddress;
+                      as->ep_size = tu_edpt_packet_size(desc_endpoint);
                       as->ep_dir = TUSB_DIR_OUT;
                       as->format_type = tmp_format_type;
                       as->num_channels = tmp_num_channels;
@@ -435,7 +435,7 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
                       }
                     }
                   }
-                  TU_ASSERT(tuh_edpt_open(dev_addr, p_ep), 0);
+                  TU_ASSERT(tuh_edpt_open(dev_addr, desc_endpoint), 0);
                 }
                 break;
               }
@@ -449,7 +449,7 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
           continue;
         }
         p_audio->itf_count++;
-      } else if (itf->bInterfaceClass == TUSB_CLASS_AUDIO && itf->bInterfaceSubClass == AUDIO_SUBCLASS_CONTROL) {
+      } else if (desc_interface->bInterfaceClass == TUSB_CLASS_AUDIO && desc_interface->bInterfaceSubClass == AUDIO_SUBCLASS_CONTROL) {
         // Another Audio Control interface (shouldn't happen in normal UAC 1.0)
         p_audio->itf_count++;
       }
@@ -594,17 +594,17 @@ bool tuh_audio_itf_get_info(uint8_t idx, tuh_itf_info_t *info) {
   info->daddr = p_audio->daddr;
 
   // re-construct descriptor
-  tusb_desc_interface_t *desc = &info->desc;
-  desc->bLength = sizeof(tusb_desc_interface_t);
-  desc->bDescriptorType = TUSB_DESC_INTERFACE;
+  tusb_desc_interface_t *desc_interface = &info->desc;
+  desc_interface->bLength = sizeof(tusb_desc_interface_t);
+  desc_interface->bDescriptorType = TUSB_DESC_INTERFACE;
 
-  desc->bInterfaceNumber = p_audio->bInterfaceNumber;
-  desc->bAlternateSetting = 0;
-  desc->bNumEndpoints = (uint8_t)((p_audio->ep_in ? 1u : 0u) + (p_audio->ep_out ? 1u : 0u));
-  desc->bInterfaceClass = TUSB_CLASS_AUDIO;
-  desc->bInterfaceSubClass = AUDIO_SUBCLASS_CONTROL;
-  desc->bInterfaceProtocol = 0;
-  desc->iInterface = p_audio->iInterface;
+  desc_interface->bInterfaceNumber = p_audio->bInterfaceNumber;
+  desc_interface->bAlternateSetting = 0;
+  desc_interface->bNumEndpoints = (uint8_t)((p_audio->ep_in ? 1u : 0u) + (p_audio->ep_out ? 1u : 0u));
+  desc_interface->bInterfaceClass = TUSB_CLASS_AUDIO;
+  desc_interface->bInterfaceSubClass = AUDIO_SUBCLASS_CONTROL;
+  desc_interface->bInterfaceProtocol = 0;
+  desc_interface->iInterface = p_audio->iInterface;
 
   return true;
 }
