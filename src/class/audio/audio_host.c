@@ -136,7 +136,7 @@ typedef struct {
 typedef struct {
   TUH_EPBUF_DEF(epin, CFG_TUH_AUDIO_EPIN_BUFSIZE);
   TUH_EPBUF_DEF(epout, CFG_TUH_AUDIO_EPOUT_BUFSIZE);
-  TUH_EPBUF_DEF(ctrl, 8);  
+  TUH_EPBUF_DEF(ctrl, 8);
 } audioh_epbuf_t;
 
 static audioh_interface_t _audioh_itf[CFG_TUH_AUDIO_MAX];
@@ -541,7 +541,7 @@ bool audioh_set_config(uint8_t dev_addr, uint8_t itf_num) {
     for (uint8_t i = 0; i < CFG_TUH_AUDIO_MAX; i++) {
       if (_audioh_itf[i].daddr == dev_addr && _audioh_itf[i].as_interface_num == itf_num) {
          // AS interface: configuration is driven by the AC interface, so just pass through
-         usbh_driver_set_config_complete(dev_addr, itf_num);		
+        usbh_driver_set_config_complete(dev_addr, itf_num);
         return true;
       }
     }
