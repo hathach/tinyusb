@@ -35,9 +35,34 @@ static volatile bool audio_tx_busy         = false; // Track OUT endpoint transf
 static volatile bool audio_ready           = false; // Wait for sampling freq set before starting isochronous transfer
 static uint8_t       audio_ac_itf          = 0;     // Audio Control interface number
 static uint8_t       audio_feature_unit_id = 0;     // Feature Unit ID
+static uint32_t      audio_receive_total_bytes = 0; // Total bytes received
+
 
 static uint8_t audio_rx_buffer[CFG_TUH_AUDIO_EPIN_BUFSIZE] __attribute__((aligned(4)));
 static uint8_t audio_tx_buffer[CFG_TUH_AUDIO_EPOUT_BUFSIZE] __attribute__((aligned(4)));
+
+
+//--------------------------------------------------------------------+
+// Blinking Task
+//--------------------------------------------------------------------+
+void led_blinking_task(void) {
+  const uint32_t  interval_ms = 1000;
+  static uint32_t start_ms    = 0;
+
+  static bool led_state = false;
+
+  // Blink every interval ms
+  if (tusb_time_millis_api() - start_ms < interval_ms) {
+    return; // not enough time
+  }
+  start_ms += interval_ms;
+
+  board_led_write(led_state);
+  led_state = 1 - led_state;     // toggle
+  printf("Microphone total bytes received: %lu bps\r\n", audio_receive_total_bytes*8 );
+  audio_receive_total_bytes = 0; // Reset total bytes received after printing
+}
+
 
 //--------------------------------------------------------------------+
 // Helper Functions
@@ -99,7 +124,7 @@ static uint32_t find_audio_endpoints(const tuh_audio_mount_cb_t *mount_cb_data) 
     if (as->ep_dir == TUSB_DIR_IN) {
       audio_ep_in = as->ep_addr;
       if (as->sam_freq_type > 0) {
-        in_sam_freq = as->sam_freq[0];
+        in_sam_freq = as->sam_freq[as->sam_freq_type - 1];
       }
     } else {
       audio_ep_out = as->ep_addr;
@@ -156,7 +181,7 @@ void tuh_audio_mount_cb(uint8_t idx, const tuh_audio_mount_cb_t *mount_cb_data) 
   if (!mount_cb_data) {
     return;
   }
-
+  audio_receive_total_bytes = 0; // Reset total bytes received on new mount
   printf("Audio device mounted: idx=%u, daddr=%u, AS count=%u\r\n", idx, mount_cb_data->daddr, mount_cb_data->as_count);
 
   print_as_interfaces(mount_cb_data);
@@ -203,7 +228,7 @@ void tuh_audio_rx_cb(uint8_t idx, uint8_t ep_addr, uint16_t xferred_bytes) {
   (void)idx;
   (void)ep_addr;
   audio_rx_busy = false;
-
+  audio_receive_total_bytes += xferred_bytes; // Update total bytes received
   if (xferred_bytes > 0 && audio_ep_out != 0 && !audio_tx_busy) {
     bool ok;
     if (audio_mic_channels == 1) {

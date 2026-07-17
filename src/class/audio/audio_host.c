@@ -684,7 +684,9 @@ bool tuh_audio_feature_unit_set(uint8_t daddr, uint8_t itf_num, uint8_t unit_id,
     .wLength = 2
   };
 
-  uint8_t val_buf[2] = { (uint8_t)(value & 0xFF), (uint8_t)((value >> 8) & 0xFF) };
+  static uint8_t val_buf[2];
+  val_buf[0] = (uint8_t)(value & 0xFF);
+  val_buf[1] = (uint8_t)((value >> 8) & 0xFF);
 
   tuh_xfer_t xfer = {
     .daddr = daddr,

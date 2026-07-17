@@ -22,5 +22,6 @@
 #include <stdint.h>
 
 void audio_app_task(void);
+void led_blinking_task(void);
 
 #endif
