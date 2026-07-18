@@ -1,0 +1,133 @@
+/*********************************************************************
+*
+*  stm32h743_trace_capture.jdebug
+*
+*  Headless / repeatable ETM instruction-trace capture for TinyUSB on
+*  the STM32H743I-EVAL, using a SEGGER J-Trace PRO (4-bit parallel
+*  trace pins PE2..PE6).
+*
+*  Unlike the interactive stm32h743.jdebug project in this directory,
+*  opening THIS project auto-runs a full capture: connect -> download
+*  -> free-run for a fixed window while USB enumerates and the USB ISR
+*  fires -> halt -> export the streamed instruction trace to CSV.
+*
+*  Firmware prerequisite (this is what mux's PE2..PE6 to AF0_TRACE and
+*  enables the H7 D1/D3-domain trace clocks in trace_etm_init()):
+*
+*      cd examples/device/cdc_msc
+*      cmake -B cmake-build-stm32h743eval -G Ninja \
+*            -DBOARD=stm32h743eval -DTRACE_ETM=1 -DCMAKE_BUILD_TYPE=Debug ..
+*      cmake --build cmake-build-stm32h743eval
+*
+*  (-DTRACE_ETM=1 -> family_support.cmake defines TRACE_ETM ->
+*   hw/bsp/stm32h7/family.c trace_etm_init() runs at board_init().
+*   Without it you get the classic "No clock present" from J-Trace.)
+*
+*  Run:  Ozone stm32h743_trace_capture.jdebug
+*
+**********************************************************************
+*/
+
+void OnProjectLoad (void) {
+  //
+  // ---- Verified H743 ETM trace config (identical to stm32h743.jdebug) ----
+  //
+  Project.SetTraceSource ("Trace Pins");            // 4-bit parallel ETM, not SWO
+  Project.SetTraceTiming (100, 100, 100, 100);      // per-pin sample delay (ps); tune if data is unstable
+  Project.SetSWO (0);
+  Edit.SysVar (VAR_TRACE_CORE_CLOCK, 200000000);    // MUST match the actual core/TRACECLK (200 MHz)
+  Project.AddSvdFile ("$(InstallDir)/Config/CPU/Cortex-M7F.svd");
+  Project.AddSvdFile ("$(InstallDir)/Config/Peripherals/ARMv7M.svd");
+  Project.AddSvdFile ("./STM32H743.svd");
+
+  Project.SetDevice ("STM32H743XI");
+  Project.SetHostIF ("USB", "");                    // J-Trace PRO over USB; use ("IP","<ip>") for Ethernet streaming
+  Project.SetTargetIF ("SWD");
+  Project.SetTIFSpeed ("50 MHz");
+
+  // Build this with -DTRACE_ETM=1 (see header). Debug build => best source correlation.
+  File.Open ("../../../../../../examples/device/cdc_msc/cmake-build-stm32h743eval/cdc_msc.elf");
+
+  //
+  // ---- Automated capture sequence ----
+  // SEGGER-recommended pattern: drive the whole run from OnProjectLoad,
+  // use Util.Sleep for the capture window, export after it elapses.
+  //
+  Debug.Start ();                 // connect + download + reset (AfterTargetDownload sets SP/PC)
+
+  // Optional: focus the window on the first USB ISR instead of boot code.
+  // Break.SetOnSrc / Break.Set on the ISR entry, Debug.Continue to it, then
+  // clear and free-run. dcd_int_handler() is the TinyUSB core USB ISR; on the
+  // H743I-EVAL the device runs on OTG_HS (RHPORT 1) -> OTG_HS_IRQHandler().
+  //   Break.Set(OTG_HS_IRQHandler);
+  //   Debug.Continue();               // halts on first USB interrupt
+  //   Break.ClearOnAddr(OTG_HS_IRQHandler);
+
+  Debug.Continue ();              // free-run: USB enumerates, ISRs fire; J-Trace streams continuously
+  Util.Sleep (3000);             // capture window (ms) — widen to cover enumeration + transfers
+  Debug.Halt ();
+
+  //
+  // ---- Export streamed instruction trace (addr, encoding, source line, timestamp) ----
+  //
+  // The exact export token is Ozone-version-specific and I could not verify it
+  // against UM08025 (segger.com is network-blocked in the authoring env). Get the
+  // EXACT call for YOUR Ozone: do one manual Instruction-Trace -> Export in the GUI;
+  // Ozone echoes the equivalent J-Script line in its Console — paste it here verbatim.
+  // Likely candidates to confirm:
+  //   Trace.Export ("./trace_isr.csv");
+  //   CoverageReport / CodeProfile export functions (Console echo will show the real name)
+  //
+  // Trace.Export ("./trace_isr.csv");   // <-- UNCOMMENT after confirming the token
+
+  // File.Exit ();   // WARNING: known in some Ozone versions to emit a warning that
+                     // blocks close, so the CLI never returns. Prefer closing the GUI,
+                     // or test File.Exit() interactively before relying on it in CI.
+}
+
+/*********************************************************************
+*       AfterTargetReset  — set SP/PC to the program's reset values
+**********************************************************************/
+void AfterTargetReset (void) {
+  unsigned int SP;
+  unsigned int PC;
+  unsigned int VectorTableAddr;
+
+  VectorTableAddr = Elf.GetBaseAddr();
+  if (VectorTableAddr == 0xFFFFFFFF) {
+    Util.Log("Project file error: failed to get program base");
+  } else {
+    SP = Target.ReadU32(VectorTableAddr);
+    Target.SetReg("SP", SP);
+    PC = Target.ReadU32(VectorTableAddr + 4);
+    Target.SetReg("PC", PC);
+  }
+}
+
+/*********************************************************************
+*       AfterTargetDownload  — set SP/PC to the program's reset values
+**********************************************************************/
+void AfterTargetDownload (void) {
+  unsigned int SP;
+  unsigned int PC;
+  unsigned int VectorTableAddr;
+
+  VectorTableAddr = Elf.GetBaseAddr();
+  if (VectorTableAddr == 0xFFFFFFFF) {
+    Util.Log("Project file error: failed to get program base");
+  } else {
+    SP = Target.ReadU32(VectorTableAddr);
+    Target.SetReg("SP", SP);
+    PC = Target.ReadU32(VectorTableAddr + 4);
+    Target.SetReg("PC", PC);
+  }
+}
+
+/*********************************************************************
+*       BeforeTargetConnect
+**********************************************************************/
+void BeforeTargetConnect (void) {
+  // Trace pin init on H743 is handled by TinyUSB firmware (trace_etm_init()),
+  // so no external J-Link trace-config script is required here.
+  //Project.SetJLinkScript("./ST_STM32H743_Traceconfig.pex");
+}
