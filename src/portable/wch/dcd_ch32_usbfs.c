@@ -205,30 +205,22 @@ static inline bool ep_shares_ep0_dma(uint8_t ep) {
 #else
 static inline uint8_t* ep_buffer(uint8_t ep, uint8_t dir) {
   #if CFG_TUD_WCH_USBFS_EP3_BUFSIZE > 64
+  if (ep == 3) { return dir == TUSB_DIR_IN ? data.ep3_buffer.in : data.ep3_buffer.out; }
   if (ep > 3) { return data.buffer[ep - 1][dir]; }
   #endif
   return data.buffer[ep][dir];
 }
 
 static inline uint32_t ep_dma_addr(uint8_t ep) {
-  #if CFG_TUD_WCH_USBFS_EP3_BUFSIZE > 64
-  if (ep == 3) { return (uint32_t) &data.ep3_buffer.out[0]; }
-  #endif
   return (uint32_t) ep_buffer(ep, TUSB_DIR_OUT);
 }
 
 static inline uint8_t* ep_out_buf(uint8_t ep) {
-  #if CFG_TUD_WCH_USBFS_EP3_BUFSIZE > 64
-  if (ep == 3) { return data.ep3_buffer.out; }
-  #endif
   return ep_buffer(ep, TUSB_DIR_OUT);
 }
 
 static inline uint8_t* ep_in_buf(uint8_t ep) {
   if (ep == 0) { return ep_buffer(0, TUSB_DIR_OUT); } // EP0 half-duplex: IN reuses OUT chunk
-  #if CFG_TUD_WCH_USBFS_EP3_BUFSIZE > 64
-  if (ep == 3) { return data.ep3_buffer.in; }
-  #endif
   return ep_buffer(ep, TUSB_DIR_IN);
 }
 
