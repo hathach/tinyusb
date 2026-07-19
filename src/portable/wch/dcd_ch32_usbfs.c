@@ -113,15 +113,10 @@
 #endif
 
 // Hardware auto data-toggle flag. Parts whose AUTO_TOG is reliable OR it into the EP setup so the
-// controller flips DATA0/DATA1 itself; CH58x (CH32_USBFS_EP_MANUAL_TOG) leaves it clear and the
+// controller flips DATA0/DATA1 itself; CH58x (CH32_USBFS_EP4_MANUAL_TOG) leaves it clear and the
 // ISR flips the toggle bit after each packet instead.
-#ifdef CH32_USBFS_EP_MANUAL_TOG
-  #define EP_T_AUTO_TOG 0
-  #define EP_R_AUTO_TOG 0
-#else
-  #define EP_T_AUTO_TOG USBFS_EP_T_AUTO_TOG
-  #define EP_R_AUTO_TOG USBFS_EP_R_AUTO_TOG
-#endif
+#define EP_T_AUTO_TOG USBFS_EP_T_AUTO_TOG
+#define EP_R_AUTO_TOG USBFS_EP_R_AUTO_TOG
 
 /* private data */
 struct usb_xfer {
@@ -353,10 +348,9 @@ void dcd_int_handler(uint8_t rhport) {
         // toggle in ep0_tog on every variant; isochronous endpoints are DATA0-only (no toggle).
         if (!data.isochronous[ep][TUSB_DIR_OUT] && !(int_st & USBFS_INT_ST_TOG_OK)) { break; }
         if (ep == 0) { data.ep0_tog = !data.ep0_tog; }
-#ifdef CH32_USBFS_EP_MANUAL_TOG
-        // Advance the expected RX toggle after each accepted packet. Iso endpoints are DATA0-only,
-        // and EP0 is handled explicitly from ep0_tog, so leave both alone.
-        if (ep != 0 && !data.isochronous[ep][TUSB_DIR_OUT]) { EP_CTRL(ep) ^= USBFS_EPC_R_TOG; }
+#ifdef CH32_USBFS_EP4_MANUAL_TOG
+        // Advance the expected EP4 RX toggle after each accepted packet. Iso endpoints are DATA0-only,
+        if (ep == 4 && !data.isochronous[ep][TUSB_DIR_OUT]) { EP_CTRL(ep) ^= USBFS_EPC_R_TOG; }
 #endif
         update_out(rhport, ep, rx_len);
         break;
@@ -364,10 +358,10 @@ void dcd_int_handler(uint8_t rhport) {
 
       case PID_IN:
         if (ep == 0) { data.ep0_tog = !data.ep0_tog; }
-#ifdef CH32_USBFS_EP_MANUAL_TOG
-        // Manual toggle: flip the TX toggle after each ACK'd IN packet (EP0 manages its own).
+#ifdef CH32_USBFS_EP4_MANUAL_TOG
+        // Manual toggle: flip the TX toggle after each ACK'd IN packet for EP4.
         // Isochronous transfers are DATA0-only (no toggle), so leave iso endpoints alone.
-        if (ep != 0 && !data.isochronous[ep][TUSB_DIR_IN]) { EP_CTRL(ep) ^= USBFS_EPC_T_TOG; }
+        if (ep == 4 && !data.isochronous[ep][TUSB_DIR_IN]) { EP_CTRL(ep) ^= USBFS_EPC_T_TOG; }
 #endif
         update_in(rhport, ep, false);
         break;
@@ -603,11 +597,17 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
     // submitted and won't re-arm), fall back to ACK, not NAK, or the endpoint NAKs forever and the
     // host times out (usbtest toggle test 29 clears the halt between bulk writes on an armed EP).
     if (dir == TUSB_DIR_OUT) {
+#ifdef CH32_USBFS_EP4_MANUAL_TOG
+      ep_rx_ctrl_set(ep, USBFS_EP_R_RES_NAK);
+#endif
       uint8_t res = data.xfer[ep][TUSB_DIR_OUT].valid
                     ? (data.isochronous[ep][TUSB_DIR_OUT] ? USBFS_EP_R_RES_NYET : USBFS_EP_R_RES_ACK)
                     : USBFS_EP_R_RES_NAK;
       ep_rx_ctrl_set(ep, EP_R_AUTO_TOG | res);
     } else {
+#ifdef CH32_USBFS_EP4_MANUAL_TOG
+      ep_tx_ctrl_set(ep, USBFS_EP_T_RES_NAK);
+#endif
       ep_tx_ctrl_set(ep, EP_T_AUTO_TOG | USBFS_EP_T_RES_NAK);
     }
   }
