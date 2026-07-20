@@ -193,6 +193,10 @@
     # every level, so each test also checks that every SystemView CALL is closed by its RET
     :test_msc_device:
       - CFG_TUSB_SYSVIEW=4
+    # test_usbd_fshs is test_usbd built a second time in the default full/high-speed shape
+    # (EP0 = 64), so the non-SuperSpeed branches of usbd.c keep compile + test coverage.
+    :test_usbd_fshs:
+      - TUD_TEST_NO_SUPER_SPEED
   :release: []
 
   # Enable to inject name of a test as a unique compilation symbol into its respective executable build.
