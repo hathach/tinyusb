@@ -31,6 +31,14 @@ family_list = {
     "ch32v10x": ["riscv-gcc"],
     "ch32v20x": ["riscv-gcc"],
     "ch32v30x": ["riscv-gcc"],
+    "ch32h417": ["riscv-gcc"],
+    "ch569": ["riscv-gcc"],
+    # The WCH SuperSpeed families default to SPEED=super, which compiles their USB2 dcd out
+    # entirely (dcd_ch32h417_usbhs.c) or all but its dcd_* entry points (dcd_ch56x_usbhs.c).
+    # One SPEED=high build per family type-checks that half; --build-name keeps its metrics.json
+    # out of the default build's artifact path.
+    "-bnanoch32h417 -DSPEED=high --build-name nanoch32h417-hs": ["riscv-gcc"],
+    "-bhydrausb3_v1 -DSPEED=high --build-name hydrausb3_v1-hs": ["riscv-gcc"],
     "ch583": ["riscv-gcc"],
     "da1469x": ["arm-gcc"],
     "fomu": ["riscv-gcc"],
