@@ -179,6 +179,10 @@
 #define OPT_MCU_CH583            2240 ///< WCH CH583
 #define OPT_MCU_CH582            OPT_MCU_CH583 ///< WCH CH582 (alias, same USB IP as CH583)
 #define OPT_MCU_CH32X035         2250 ///< WCH CH32X035
+#define OPT_MCU_CH569            2260 ///< WCH CH569
+#define OPT_MCU_CH565            OPT_MCU_CH569 ///< WCH CH565 (alias, same USB IPs as CH569)
+#define OPT_MCU_CH32H417         2270 ///< WCH CH32H417
+#define OPT_MCU_CH32H416         OPT_MCU_CH32H417 ///< WCH CH32H416 (alias, same USB IPs as CH32H417)
 
 // NXP LPC MCX
 #define OPT_MCU_MCXN9            2300  ///< NXP MCX N9 Series
@@ -245,6 +249,7 @@
 #define OPT_MODE_LOW_SPEED      0x0100u ///< Low Speed
 #define OPT_MODE_FULL_SPEED     0x0200u ///< Full Speed
 #define OPT_MODE_HIGH_SPEED     0x0400u ///< High Speed
+#define OPT_MODE_SUPER_SPEED    0x0800u ///< Super Speed
 #define OPT_MODE_SPEED_MASK     0xff00u
 
 //--------------------------------------------------------------------+
@@ -501,7 +506,12 @@
 #define TUSB_OPT_DEVICE_ENABLED CFG_TUD_ENABLED
 
 // highspeed support indicator
-#define TUD_OPT_HIGH_SPEED    (CFG_TUD_MAX_SPEED ? (CFG_TUD_MAX_SPEED & OPT_MODE_HIGH_SPEED) : TUP_RHPORT_HIGHSPEED)
+// A SuperSpeed-capable build is implicitly HighSpeed-capable: the HS descriptors/logic must
+// remain compiled in for the USB2 fallback link (SS bit alone must still make this true).
+#define TUD_OPT_HIGH_SPEED    (CFG_TUD_MAX_SPEED ? (CFG_TUD_MAX_SPEED & (OPT_MODE_HIGH_SPEED | OPT_MODE_SUPER_SPEED)) : TUP_RHPORT_HIGHSPEED)
+
+// superspeed support indicator
+#define TUD_OPT_SUPER_SPEED   (CFG_TUD_MAX_SPEED ? (CFG_TUD_MAX_SPEED & OPT_MODE_SUPER_SPEED) : TUP_RHPORT_SUPERSPEED)
 
 //------------- Root hub as Host -------------//
 
@@ -949,7 +959,16 @@
 // Configuration Validation
 //------------------------------------------------------------------
 #if CFG_TUD_ENDPOINT0_SIZE > 64
-  #error Control Endpoint Max Packet Size cannot be larger than 64
+  #if !TUD_OPT_SUPER_SPEED
+    #error Control Endpoint Max Packet Size cannot be larger than 64
+  #elif CFG_TUD_ENDPOINT0_SIZE != 512
+    #error SuperSpeed Control Endpoint Max Packet Size must be exactly 512
+  #endif
+#elif CFG_TUD_ENABLED && TUD_OPT_SUPER_SPEED
+  // USB 3.2 9.6.1: a SuperSpeed device's EP0 max packet size is fixed at 512.
+  // Only for an actual device build: TUD_OPT_SUPER_SPEED falls back to TUP_RHPORT_SUPERSPEED,
+  // which is set on SuperSpeed-capable MCUs even in a host-only configuration.
+  #error SuperSpeed build requires CFG_TUD_ENDPOINT0_SIZE == 512
 #endif
 
 // To avoid GCC compiler warnings when -pedantic option is used (strict ISO C)
