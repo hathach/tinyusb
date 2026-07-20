@@ -1,0 +1,73 @@
+# Sudoers grants for the TinyUSB HIL rig agent user. Generic-by-UID: grants target "#1000", the
+# first regular account on Debian/Ubuntu (the rig agent user) — no username hardcoded, no edit
+# needed. If your agent user is a different UID, change #1000 accordingly (e.g. #1001), or swap
+# to a group with "%groupname". The actions-runner path is wildcarded (/home/*/) since a UID
+# doesn't name a home directory.
+#
+# Deploy (from the repo root, needs your password once):
+#   sudo install -m0440 -oroot -groot test/hil/tinyusb-sudoer /etc/sudoers.d/tinyusb-sudoer
+#   sudo visudo -c
+#
+# The referenced helper scripts are versioned under .claude/skills/ and installed with:
+#   sudo install -o root -g root -m 0755 .claude/skills/usb-kernel-recover/scripts/usb_recover.sh /usr/local/sbin/
+#   sudo install -o root -g root -m 0755 .claude/skills/usb-kernel-debug/scripts/usb_dyndbg.sh   /usr/local/sbin/
+#
+# Those ownership/mode flags are load-bearing, not decoration: on Debian /usr/local/sbin is
+# group `staff` and group-writable (drwxrwsr-x root:staff), so a copy left owned by an
+# unprivileged user or group-writable can be rewritten by anyone in `staff` — and this file
+# then runs their content as root. Verify after every deploy/upgrade:
+#   ls -l /usr/local/sbin/usb_recover.sh /usr/local/sbin/usb_dyndbg.sh   # want root root, -rwxr-xr-x
+#
+# Grants are argument-restricted on purpose. A command listed with no argument list permits ANY
+# argv, which turns a read-only-looking tool into a root primitive: `sudo dmesg -F /etc/shadow`
+# prints an arbitrary file (verified on this host). Every entry below therefore pins the exact
+# invocations the rig makes; adding an option to a call site means adding it here too.
+#
+# What each grant is for:
+#   dmesg (no args, -T, -w) - read kernel log (USB events, usbtest results). test/hil/usbtest.py
+#                             runs it bare; the skills document -w/-T for live watching. -F/--file
+#                             is deliberately NOT granted (arbitrary file read as root).
+#   uhubctl "" / -l <loc>   - hub port status and power control (only works on buses with ppps).
+#                             Bare = status listing of every hub. Requiring -l bounds an action to
+#                             one hub: an unrestricted `uhubctl -a off` would cut power to every
+#                             switchable port on the host, probes included. Wildcards in sudoers
+#                             args span arguments, so `-l *` also permits `-a` on that hub; that is
+#                             port power, not a file primitive (uhubctl takes no file argument).
+#                             Routine power cycling goes through usb_recover.sh, below.
+#   usb_recover.sh <subcmd>  - narrow sysfs USB reset helper (see .claude/skills/usb-kernel-recover).
+#                              Granted per subcommand so an unknown one is refused by sudo, not by
+#                              the script; the script itself regex-validates busport/PCI arguments.
+#   usb_dyndbg.sh on|off|status - kernel dynamic-debug toggle for USB modules (see
+#                              .claude/skills/usb-kernel-debug). The script allowlists the modules.
+#   tee usbtest sysfs paths  - bind/unbind the usbtest host driver (test/hil/usbtest.py)
+#   tee .../driver/unbind    - steal the interface from a foreign driver before binding usbtest
+#   modprobe usbtest         - load the usbtest module on demand
+#   testusb                  - run test cases when the device node is not user-writable (no udev
+#                              rule); with the shipped 99-tinyusb udev rule the node is 0666 and
+#                              this grant is unused
+#   systemctl stop/start     - stop/start the CI GitHub Actions runner service around manual hardware
+#   actions.runner.*           runs so it doesn't reflash boards mid-test (see the hil skill). Granted
+#                              on the root-owned systemctl unit (actions.runner.<owner>-<repo>.<name>
+#                              .service), NOT on ~/actions-runner/svc.sh — that script lives in the
+#                              runner user's writable home, so sudo on it would equal passwordless root.
+#                              Find the unit: systemctl list-units 'actions.runner.*'
+#   (controller re-bind after a driverless pci-rebind is handled by usb_recover.sh pci-bind, which
+#    is already covered by the usb_recover.sh grant above — no extra sudoers rule needed.)
+#   systemctl reboot --force - last-resort USB recovery when a testusb D-state URB is unkillable and
+#                              neither pci-reset (ENOTTY on Renesas) nor pci-bind can revive the
+#                              controller (see the usb-recover skill). --force is required: a graceful
+#                              reboot blocks in shutdown waiting for the wedged D-state process to
+#                              terminate (it never does), so plain reboot stalls; --force terminates
+#                              services and reboots immediately. Plain reboot kept for non-wedge use.
+#                              An @reboot one-shot resumes the working session afterwards.
+
+# NB: '#1000' below is a UID specifier (sudoers(5) User_List syntax), NOT a comment — these
+# lines are live grants for uid 1000.
+#1000 ALL=(root) NOPASSWD: /usr/bin/dmesg "", /usr/bin/dmesg -T, /usr/bin/dmesg -w, /usr/bin/dmesg -T -w
+#1000 ALL=(root) NOPASSWD: /sbin/uhubctl "", /sbin/uhubctl -l *
+#1000 ALL=(root) NOPASSWD: /usr/local/sbin/usb_recover.sh resolve *, /usr/local/sbin/usb_recover.sh authorized *, /usr/local/sbin/usb_recover.sh rebind *, /usr/local/sbin/usb_recover.sh hub-cycle *, /usr/local/sbin/usb_recover.sh root-cycle *, /usr/local/sbin/usb_recover.sh pci-rebind *, /usr/local/sbin/usb_recover.sh pci-bind *
+#1000 ALL=(root) NOPASSWD: /usr/local/sbin/usb_dyndbg.sh on *, /usr/local/sbin/usb_dyndbg.sh off *, /usr/local/sbin/usb_dyndbg.sh status, /usr/local/sbin/usb_dyndbg.sh status *
+#1000 ALL=(root) NOPASSWD: /usr/bin/systemctl stop actions.runner.*, /usr/bin/systemctl start actions.runner.*
+#1000 ALL=(root) NOPASSWD: /usr/local/bin/testusb *
+#1000 ALL=(root) NOPASSWD: /usr/bin/systemctl reboot --force, /usr/bin/systemctl reboot
+#1000 ALL=(root) NOPASSWD: /usr/bin/tee /sys/bus/usb/drivers/usbtest/new_id, /usr/bin/tee /sys/bus/usb/drivers/usbtest/remove_id, /usr/bin/tee /sys/bus/usb/drivers/usbtest/bind, /usr/bin/tee /sys/bus/usb/drivers/usbtest/unbind, /usr/bin/tee /sys/bus/usb/devices/*/driver/unbind, /usr/bin/tee /sys/module/usbtest/parameters/pattern, /usr/sbin/modprobe usbtest
