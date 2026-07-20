@@ -87,7 +87,7 @@ extern "C" {
 //--------------------------------------------------------------------
 
 #ifndef CFG_TUD_ENDPOINT0_SIZE
-  #define CFG_TUD_ENDPOINT0_SIZE 64
+  #define CFG_TUD_ENDPOINT0_SIZE (TUD_OPT_SUPER_SPEED ? 512 : 64) // SuperSpeed EP0 is fixed at 512
 #endif
 
 //------------- CLASS -------------//
@@ -99,19 +99,19 @@ extern "C" {
 #define CFG_TUD_PRINTER 1
 
 // CDC FIFO size of TX and RX
-#define CFG_TUD_CDC_RX_BUFSIZE   (TUD_OPT_HIGH_SPEED ? 512 : 64)
-#define CFG_TUD_CDC_TX_BUFSIZE   (TUD_OPT_HIGH_SPEED ? 512 : 64)
+#define CFG_TUD_CDC_RX_BUFSIZE   (TUD_OPT_SUPER_SPEED ? 1024 : (TUD_OPT_HIGH_SPEED ? 512 : 64))
+#define CFG_TUD_CDC_TX_BUFSIZE   (TUD_OPT_SUPER_SPEED ? 1024 : (TUD_OPT_HIGH_SPEED ? 512 : 64))
 
-// CDC Endpoint transfer buffer size, default to max bulk packet size (HS 512, FS 64). Larger is faster.
+// CDC Endpoint transfer buffer size, default to max bulk packet size (SS 1024, HS 512, FS 64). Larger is faster.
 // Larger RX_EPSIZE requires CFG_TUD_CDC_RX_NEED_ZLP = 1 and host ZLP support
-#define CFG_TUD_CDC_RX_EPSIZE  (TUD_OPT_HIGH_SPEED ? 512 : 64)
-#define CFG_TUD_CDC_TX_EPSIZE  (TUD_OPT_HIGH_SPEED ? 512 : 64)
+#define CFG_TUD_CDC_RX_EPSIZE  (TUD_OPT_SUPER_SPEED ? 1024 : (TUD_OPT_HIGH_SPEED ? 512 : 64))
+#define CFG_TUD_CDC_TX_EPSIZE  (TUD_OPT_SUPER_SPEED ? 1024 : (TUD_OPT_HIGH_SPEED ? 512 : 64))
 
 // Printer buffer sizes
-#define CFG_TUD_PRINTER_RX_BUFSIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
-#define CFG_TUD_PRINTER_TX_BUFSIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
-#define CFG_TUD_PRINTER_RX_EPSIZE  (TUD_OPT_HIGH_SPEED ? 512 : 64)
-#define CFG_TUD_PRINTER_TX_EPSIZE  (TUD_OPT_HIGH_SPEED ? 512 : 64)
+#define CFG_TUD_PRINTER_RX_BUFSIZE (TUD_OPT_SUPER_SPEED ? 1024 : (TUD_OPT_HIGH_SPEED ? 512 : 64))
+#define CFG_TUD_PRINTER_TX_BUFSIZE (TUD_OPT_SUPER_SPEED ? 1024 : (TUD_OPT_HIGH_SPEED ? 512 : 64))
+#define CFG_TUD_PRINTER_RX_EPSIZE  (TUD_OPT_SUPER_SPEED ? 1024 : (TUD_OPT_HIGH_SPEED ? 512 : 64))
+#define CFG_TUD_PRINTER_TX_EPSIZE  (TUD_OPT_SUPER_SPEED ? 1024 : (TUD_OPT_HIGH_SPEED ? 512 : 64))
 
 #ifdef __cplusplus
 }
