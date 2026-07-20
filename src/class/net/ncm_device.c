@@ -211,7 +211,10 @@ static void notification_xmit(uint8_t rhport, bool force_next) {
         .wLength = 8
       }
     };
-    const uint32_t bus_bitrate = (tud_speed_get() == TUSB_SPEED_HIGH) ? 480000000U : 12000000U;
+    const tusb_speed_t speed = tud_speed_get();
+    // the notification field is 32-bit bits/s: 5 Gbps exceeds UINT32_MAX, report the cap
+    const uint32_t bus_bitrate = (speed == TUSB_SPEED_SUPER) ? UINT32_MAX :
+                                 (speed == TUSB_SPEED_HIGH)  ? 480000000U : 12000000U;
     const uint32_t link_bitrate = (CFG_TUD_NET_LINK_BITRATE) ? (CFG_TUD_NET_LINK_BITRATE) : bus_bitrate;
     notify_speed_change.downlink = link_bitrate;
     notify_speed_change.uplink   = link_bitrate;
@@ -921,6 +924,7 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16
 
   uint16_t drv_len = sizeof(tusb_desc_interface_t);
   uint8_t const *p_desc = tu_desc_next(itf_desc);
+  uint8_t const * const desc_end = (uint8_t const *) itf_desc + max_len;
   while (tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE && drv_len <= max_len) {
     if (tu_desc_subtype(p_desc) == CDC_FUNC_DESC_NCM) {
       TU_ASSERT(tu_desc_len(p_desc) >= sizeof(tusb_desc_cdc_ncm_func_t), 0);
@@ -935,8 +939,11 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16
   TU_ASSERT(tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT, 0);
   TU_ASSERT(usbd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc), 0);
   ncm_interface.ep_notif = ((tusb_desc_endpoint_t const *) p_desc)->bEndpointAddress;
-  drv_len += tu_desc_len(p_desc);
-  p_desc = tu_desc_next(p_desc);
+
+  // SuperSpeed: the endpoint's companion descriptor(s) follow it
+  const uint16_t notif_comp_len = usbd_ss_ep_companion_len(p_desc, desc_end, 1);
+  drv_len += (uint16_t) (tu_desc_len(p_desc) + notif_comp_len);
+  p_desc = tu_desc_next(p_desc) + notif_comp_len;
 
   // skip the following TUSB_DESC_INTERFACE entries (which must be TUSB_CLASS_CDC_DATA)
   while (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && drv_len <= max_len) {
@@ -949,9 +956,10 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16
 
   // a TUSB_DESC_ENDPOINT (actually two) must follow, open these endpoints
   TU_ASSERT(tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT, 0);
-  TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, 2, TUSB_XFER_BULK, &ncm_interface.ep_out, &ncm_interface.ep_in));
+  TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, desc_end, 2, TUSB_XFER_BULK, &ncm_interface.ep_out, &ncm_interface.ep_in));
   ncm_interface.ep_size = tu_edpt_packet_size((tusb_desc_endpoint_t const *) p_desc);
-  drv_len += 2 * sizeof(tusb_desc_endpoint_t);
+  // SuperSpeed: each bulk endpoint is followed by its companion descriptor(s)
+  drv_len += 2 * sizeof(tusb_desc_endpoint_t) + usbd_ss_ep_companion_len(p_desc, desc_end, 2);
 
   return drv_len;
 } // netd_open

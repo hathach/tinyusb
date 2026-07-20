@@ -501,6 +501,7 @@ uint16_t midid_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uint1
       }
 
       p_desc = tu_desc_next(p_desc);                                   // skip CS Endpoint descriptor
+      p_desc = usbd_skip_ss_ep_companion(p_desc, desc_end);
       found_ep++;
     }
 
