@@ -9,3 +9,5 @@ mcu:CH583
 mcu:CH32X035
 mcu:CH32V103
 mcu:CH32V20X
+mcu:CH569
+mcu:CH32H417

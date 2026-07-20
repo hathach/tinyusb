@@ -7,3 +7,5 @@ board:stm32l052dap52
 family:espressif
 mcu:CH583
 mcu:APM32F107
+mcu:CH569
+mcu:CH32H417
