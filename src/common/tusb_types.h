@@ -68,6 +68,7 @@ typedef enum {
   TUSB_SPEED_FULL = 0,
   TUSB_SPEED_LOW  = 1,
   TUSB_SPEED_HIGH = 2,
+  TUSB_SPEED_SUPER = 3,
   TUSB_SPEED_AUTO = 0xaa,
   TUSB_SPEED_INVALID = 0xff,
 } tusb_speed_t;
@@ -93,13 +94,17 @@ enum {
 enum {
   TUSB_EPSIZE_BULK_FS = 64,
   TUSB_EPSIZE_BULK_HS = 512,
+  TUSB_EPSIZE_BULK_SS = 1024,
 
   TUSB_EPSIZE_ISO_FS_MAX = 1023,
   TUSB_EPSIZE_ISO_HS_MAX = 1024,
+  TUSB_EPSIZE_ISO_SS_MAX = 1024,
 };
 
 // Endpoint Bulk size depending on host/device max speed
-#define TUD_EPSIZE_BULK_MAX   (TUD_OPT_HIGH_SPEED ? 512 : 64)
+// Note: integer literals, not the enum constants above: these are expanded inside #if by
+// config headers (e.g. CFG_TUD_VENDOR_TXRX_BUFFERED) where an enum name evaluates to 0.
+#define TUD_EPSIZE_BULK_MAX   (TUD_OPT_SUPER_SPEED ? 1024 : (TUD_OPT_HIGH_SPEED ? 512 : 64))
 #define TUH_EPSIZE_BULK_MAX   (TUH_OPT_HIGH_SPEED ? 512 : 64)
 
 /// Isochronous Endpoint Attributes
@@ -156,13 +161,22 @@ typedef enum {
   TUSB_REQ_SET_CONFIGURATION = 9  ,
   TUSB_REQ_GET_INTERFACE     = 10 ,
   TUSB_REQ_SET_INTERFACE     = 11 ,
-  TUSB_REQ_SYNCH_FRAME       = 12
+  TUSB_REQ_SYNCH_FRAME       = 12 ,
+
+  // SuperSpeed only
+  TUSB_REQ_SET_SEL           = 48 , // 0x30
+  TUSB_REQ_SET_ISOCH_DELAY   = 49   // 0x31
 } tusb_request_code_t;
 
 typedef enum {
   TUSB_REQ_FEATURE_EDPT_HALT     = 0,
   TUSB_REQ_FEATURE_REMOTE_WAKEUP = 1,
-  TUSB_REQ_FEATURE_TEST_MODE     = 2
+  TUSB_REQ_FEATURE_TEST_MODE     = 2,
+
+  // SuperSpeed only
+  TUSB_REQ_FEATURE_U1_ENABLE     = 48,
+  TUSB_REQ_FEATURE_U2_ENABLE     = 49,
+  TUSB_REQ_FEATURE_LTM_ENABLE    = 50
 } tusb_request_feature_selector_t;
 
 typedef enum {
@@ -420,6 +434,27 @@ typedef struct TU_ATTR_PACKED {
 
 TU_VERIFY_STATIC( sizeof(tusb_desc_endpoint_t) == 7u, "size is not correct");
 
+/// SuperSpeed Endpoint Companion Descriptor (USB 3.2 spec 9.6.7)
+typedef struct TU_ATTR_PACKED {
+  uint8_t  bLength           ; ///< Size of this descriptor in bytes: 6
+  uint8_t  bDescriptorType   ; ///< SUPERSPEED_ENDPOINT_COMPANION Descriptor Type
+  uint8_t  bMaxBurst         ; ///< Max number of packets per burst - 1 (0..15)
+  uint8_t  bmAttributes      ; ///< Bulk: bit 4..0 MaxStreams. Isochronous: bit 1..0 Mult
+  uint16_t wBytesPerInterval ; ///< Total bytes per service interval (periodic endpoints only)
+} tusb_desc_ss_ep_companion_t;
+
+TU_VERIFY_STATIC( sizeof(tusb_desc_ss_ep_companion_t) == 6u, "size is not correct");
+
+/// SuperSpeedPlus Isochronous Endpoint Companion Descriptor (USB 3.2 spec 9.6.8)
+typedef struct TU_ATTR_PACKED {
+  uint8_t  bLength            ; ///< Size of this descriptor in bytes: 8
+  uint8_t  bDescriptorType    ; ///< SUPERSPEED_ISO_ENDPOINT_COMPANION Descriptor Type
+  uint16_t wReserved          ; ///< Reserved, must be zero
+  uint32_t dwBytesPerInterval ; ///< Total bytes per service interval
+} tusb_desc_ss_iso_ep_companion_t;
+
+TU_VERIFY_STATIC( sizeof(tusb_desc_ss_iso_ep_companion_t) == 8u, "size is not correct");
+
 /// USB Other Speed Configuration Descriptor
 typedef struct TU_ATTR_PACKED {
   uint8_t  bLength             ; ///< Size of descriptor
@@ -483,6 +518,30 @@ typedef struct TU_ATTR_PACKED {
   uint8_t PlatformCapabilityUUID[16];
   uint8_t CapabilityData[];
 } tusb_desc_bos_platform_t;
+
+// USB 2.0 Extension Device Capability (BOS, USB 3.2 spec 9.6.2.1)
+typedef struct TU_ATTR_PACKED {
+  uint8_t  bLength            ; ///< Size of this descriptor in bytes: 7
+  uint8_t  bDescriptorType    ; ///< DEVICE_CAPABILITY Descriptor Type
+  uint8_t  bDevCapabilityType ; ///< USB20_EXTENSION
+  uint32_t bmAttributes       ; ///< Bit 1: LPM capable
+} tusb_desc_bos_usb20_ext_t;
+
+TU_VERIFY_STATIC( sizeof(tusb_desc_bos_usb20_ext_t) == 7u, "size is not correct");
+
+// SuperSpeed USB Device Capability (BOS, USB 3.2 spec 9.6.2.2)
+typedef struct TU_ATTR_PACKED {
+  uint8_t  bLength               ; ///< Size of this descriptor in bytes: 10
+  uint8_t  bDescriptorType       ; ///< DEVICE_CAPABILITY Descriptor Type
+  uint8_t  bDevCapabilityType    ; ///< SUPERSPEED_USB
+  uint8_t  bmAttributes          ; ///< Bit 1: LTM capable
+  uint16_t wSpeedsSupported      ; ///< Bit 0: LS, bit 1: FS, bit 2: HS, bit 3: Gen1 SS
+  uint8_t  bFunctionalitySupport ; ///< Lowest speed with full functionality (value as wSpeedsSupported bit position)
+  uint8_t  bU1DevExitLat         ; ///< U1 device exit latency, in us
+  uint16_t wU2DevExitLat         ; ///< U2 device exit latency, in us
+} tusb_desc_bos_superspeed_usb_t;
+
+TU_VERIFY_STATIC( sizeof(tusb_desc_bos_superspeed_usb_t) == 10u, "size is not correct");
 
 // USB WebUSB URL Descriptor
 typedef struct TU_ATTR_PACKED {
