@@ -597,12 +597,12 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
     // submitted and won't re-arm), fall back to ACK, not NAK, or the endpoint NAKs forever and the
     // host times out (usbtest toggle test 29 clears the halt between bulk writes on an armed EP).
     if (dir == TUSB_DIR_OUT) {
-#ifdef CH32_USBFS_EP4_MANUAL_TOG
-      ep_rx_ctrl_set(ep, USBFS_EP_R_RES_NAK);
-#endif
       uint8_t res = data.xfer[ep][TUSB_DIR_OUT].valid
                     ? (data.isochronous[ep][TUSB_DIR_OUT] ? USBFS_EP_R_RES_NYET : USBFS_EP_R_RES_ACK)
                     : USBFS_EP_R_RES_NAK;
+#ifdef CH32_USBFS_EP4_MANUAL_TOG
+      ep_rx_ctrl_set(ep, res);
+#endif
       ep_rx_ctrl_set(ep, EP_R_AUTO_TOG | res);
     } else {
 #ifdef CH32_USBFS_EP4_MANUAL_TOG
