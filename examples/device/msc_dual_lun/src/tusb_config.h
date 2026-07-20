@@ -87,7 +87,7 @@
 //--------------------------------------------------------------------
 
 #ifndef CFG_TUD_ENDPOINT0_SIZE
-#define CFG_TUD_ENDPOINT0_SIZE    64
+#define CFG_TUD_ENDPOINT0_SIZE   (TUD_OPT_SUPER_SPEED ? 512 : 64) // SuperSpeed EP0 is fixed at 512
 #endif
 
 //------------- CLASS -------------//
@@ -97,8 +97,8 @@
 #define CFG_TUD_MIDI              0
 #define CFG_TUD_VENDOR            0
 
-// MSC Buffer size of Device Mass storage
-#define CFG_TUD_MSC_EP_BUFSIZE    512
+// MSC Buffer size of Device Mass storage, must be >= bulk max packet size (SS 1024)
+#define CFG_TUD_MSC_EP_BUFSIZE   (TUD_OPT_SUPER_SPEED ? 1024 : 512)
 
 #ifdef __cplusplus
  }
