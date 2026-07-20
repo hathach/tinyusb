@@ -75,7 +75,7 @@ extern "C" {
 //--------------------------------------------------------------------
 
 #ifndef CFG_TUD_ENDPOINT0_SIZE
-  #define CFG_TUD_ENDPOINT0_SIZE 64
+  #define CFG_TUD_ENDPOINT0_SIZE (TUD_OPT_SUPER_SPEED ? 512 : 64) // SuperSpeed EP0 is fixed at 512
 #endif
 
 //------------- CLASS -------------//
@@ -85,15 +85,15 @@ extern "C" {
 // Large MSC bulk buffer: host transfers big CBW payloads (e.g. dd bs=1M does 64KiB
 // chunks). A 4K per-bulk-IO buffer lets the class driver amortise the per-CBW
 // overhead across many USB packets, approximating the maximum USB bulk throughput.
-#define CFG_TUD_MSC_EP_BUFSIZE   (TUD_OPT_HIGH_SPEED  ? 4096 : 1024)
+#define CFG_TUD_MSC_EP_BUFSIZE   (TUD_OPT_SUPER_SPEED ? 8192 : (TUD_OPT_HIGH_SPEED ? 4096 : 1024))
 
 // #define CFG_TUD_CDC_TX_PERSISTENT 1
 
 // CDC throughput: size for HS; tinyusb will auto-scale for FS via TUD_OPT_HIGH_SPEED.
-#define CFG_TUD_CDC_RX_EPSIZE    (TUD_OPT_HIGH_SPEED ? 2*512 : 2*64)
+#define CFG_TUD_CDC_RX_EPSIZE    (TUD_OPT_SUPER_SPEED ? 2*1024 : (TUD_OPT_HIGH_SPEED ? 2*512 : 2*64))
 #define CFG_TUD_CDC_TX_EPSIZE    CFG_TUD_CDC_RX_EPSIZE
 
-#define CFG_TUD_CDC_RX_BUFSIZE   (TUD_OPT_HIGH_SPEED ? 2*512 : 2*64)
+#define CFG_TUD_CDC_RX_BUFSIZE   (TUD_OPT_SUPER_SPEED ? 2*1024 : (TUD_OPT_HIGH_SPEED ? 2*512 : 2*64))
 #define CFG_TUD_CDC_TX_BUFSIZE   CFG_TUD_CDC_RX_BUFSIZE
 
 #ifdef __cplusplus

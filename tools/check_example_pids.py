@@ -30,12 +30,15 @@ def main() -> int:
         if m:
             base = int(m.group(1), 16)
         for m in RE_LITERAL.finditer(text):
-            pids.setdefault(int(m.group(1), 16), []).append(str(rel))
+            if str(rel) not in pids.get(int(m.group(1), 16), []):  # SS twin repeats its file's PID
+                pids.setdefault(int(m.group(1), 16), []).append(str(rel))
         for m in RE_DERIVED.finditer(text):
             if base is None:
                 print(f'{rel}: derived idProduct but no USB_PID define', file=sys.stderr)
                 return 1
-            pids.setdefault(base + int(m.group(1), 0), []).append(f'{rel} (USB_PID + {m.group(1)})')
+            entry = f'{rel} (USB_PID + {m.group(1)})'
+            if entry not in pids.get(base + int(m.group(1), 0), []):
+                pids.setdefault(base + int(m.group(1), 0), []).append(entry)
         # examples whose descriptor uses .idProduct = USB_PID pick up the define itself
         if base is not None and re.search(r'\.idProduct\s*=\s*USB_PID\s*[,;]', text):
             pids.setdefault(base, []).append(str(rel))
