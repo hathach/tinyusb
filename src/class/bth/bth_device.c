@@ -113,12 +113,19 @@ uint16_t btd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_
   // Size of single alternative of ISO interface
   const uint16_t iso_alt_itf_size = sizeof(tusb_desc_interface_t) + 2 * sizeof(tusb_desc_endpoint_t);
   // Size of hci interface
-  const uint16_t hci_itf_size = sizeof(tusb_desc_interface_t) + 3 * sizeof(tusb_desc_endpoint_t);
-  // Ensure this is BT Primary Controller
+  uint16_t hci_itf_size = sizeof(tusb_desc_interface_t) + 3 * sizeof(tusb_desc_endpoint_t);
+  const uint8_t *desc_end = (const uint8_t *) itf_desc + max_len;
+
+  // Ensure this is BT Primary Controller (before walking descriptors this driver may not own)
   TU_VERIFY(TUSB_CLASS_WIRELESS_CONTROLLER == itf_desc->bInterfaceClass &&
                 TUD_BT_APP_SUBCLASS == itf_desc->bInterfaceSubClass &&
                 TUD_BT_PROTOCOL_PRIMARY_CONTROLLER == itf_desc->bInterfaceProtocol,
             0);
+
+#if TUD_OPT_SUPER_SPEED
+  // SuperSpeed configuration: every endpoint descriptor is followed by a companion descriptor
+  hci_itf_size += usbd_ss_ep_companion_len(tu_desc_next(itf_desc), desc_end, 3);
+#endif
 
   TU_ASSERT(itf_desc->bNumEndpoints == 3 && max_len >= hci_itf_size);
 
@@ -130,10 +137,10 @@ uint16_t btd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_
   TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
   _btd_itf.ep_ev = desc_ep->bEndpointAddress;
 
-  desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep);
+  desc_ep = (tusb_desc_endpoint_t const *) usbd_skip_ss_ep_companion(tu_desc_next(desc_ep), desc_end);
 
   // Open endpoint pair
-  TU_ASSERT(usbd_open_edpt_pair(rhport, (uint8_t const *) desc_ep, 2,
+  TU_ASSERT(usbd_open_edpt_pair(rhport, (uint8_t const *) desc_ep, desc_end, 2,
                                 TUSB_XFER_BULK, &_btd_itf.ep_acl_out,
                                 &_btd_itf.ep_acl_in),
             0);
@@ -145,10 +152,17 @@ uint16_t btd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_
       _btd_itf.ep_acl_in_pkt_sz = tu_edpt_packet_size(desc_ep_acl_in);
       break;
     }
-    desc_ep_acl_in = (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep_acl_in);
+    desc_ep_acl_in = (tusb_desc_endpoint_t const *) usbd_skip_ss_ep_companion(tu_desc_next(desc_ep_acl_in), desc_end);
   }
 
-  itf_desc = (tusb_desc_interface_t const *) tu_desc_next(tu_desc_next(desc_ep));
+  // Advance past the bulk pair (and their SuperSpeed companions) to the next interface
+  {
+    const uint8_t *p_next = (const uint8_t *) desc_ep;
+    for (size_t p = 0; p < 2; p++) {
+      p_next = usbd_skip_ss_ep_companion(tu_desc_next(p_next), desc_end);
+    }
+    itf_desc = (tusb_desc_interface_t const *) p_next;
+  }
 
   // Prepare for incoming data from host
   TU_ASSERT(usbd_edpt_xfer(rhport, _btd_itf.ep_acl_out, _btd_epbuf.epout_buf, CFG_TUD_BTH_DATA_EPSIZE, false), 0);
@@ -164,6 +178,9 @@ uint16_t btd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_
 
   uint8_t dir;
 
+  // NOTE: this ISO alternate-setting walk is not SuperSpeed-companion aware (no SS BTH
+  // template exists and no DCD supports SS isochronous yet); extend with
+  // usbd_skip_ss_ep_companion when SS ISO lands.
   desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next(itf_desc);
   TU_ASSERT(itf_desc->bAlternateSetting < CFG_TUD_BTH_ISO_ALT_COUNT, 0);
   TU_ASSERT(desc_ep->bDescriptorType == TUSB_DESC_ENDPOINT, 0);

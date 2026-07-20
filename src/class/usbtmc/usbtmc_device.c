@@ -59,9 +59,9 @@
 #include "usbtmc_device.h"
 
 // Buffer size must be an exact multiple of the max packet size for both
-// bulk  (up to 64 bytes for FS, 512 bytes for HS). In addation, this driver
+// bulk  (up to 64 bytes for FS, 512 bytes for HS, 1024 bytes for SS). In addition, this driver
 // imposes a minimum buffer size of 32 bytes.
-#define USBTMCD_BUFFER_SIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
+#define USBTMCD_BUFFER_SIZE (TUD_OPT_SUPER_SPEED ? 1024 : (TUD_OPT_HIGH_SPEED ? 512 : 64))
 
 // Interrupt endpoint buffer size, default to 2 bytes as USB488 specification.
 #ifndef CFG_TUD_USBTMC_INT_EP_SIZE
@@ -306,7 +306,9 @@ uint16_t usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const *itf_desc, 
   usbtmc_state.itf_id = itf_desc->bInterfaceNumber;
   usbtmc_state.rhport = rhport;
 
+  const uint8_t *desc_end = (const uint8_t *) itf_desc + max_len;
   while (found_endpoints < itf_desc->bNumEndpoints && drv_len <= max_len) {
+    uint16_t desc_total = tu_desc_len(p_desc);
     if (TUSB_DESC_ENDPOINT == p_desc[DESC_OFFSET_TYPE]) {
       tusb_desc_endpoint_t const *ep_desc = (tusb_desc_endpoint_t const *) p_desc;
       switch (ep_desc->bmAttributes.xfer) {
@@ -334,10 +336,13 @@ uint16_t usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const *itf_desc, 
       }
       TU_ASSERT(usbd_edpt_open(rhport, ep_desc), 0);
       found_endpoints++;
+
+      // SuperSpeed: the endpoint's companion descriptor(s) follow it
+      desc_total = (uint16_t) (desc_total + usbd_ss_ep_companion_len(p_desc, desc_end, 1));
     }
 
-    drv_len += tu_desc_len(p_desc);
-    p_desc = tu_desc_next(p_desc);
+    drv_len += desc_total;
+    p_desc += desc_total;
   }
 
 // bulk endpoints are required, but interrupt IN is optional
