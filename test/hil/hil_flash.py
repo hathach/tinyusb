@@ -14,10 +14,13 @@ from __future__ import annotations
 
 import copy
 import functools
+import glob
 import json
+import shlex
 import shutil
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 import os
@@ -34,6 +37,11 @@ JLINK_CRASH_RETRIES = 2
 # pyocd's project dir: relative roster args (--pack...) resolve from here, and it holds no
 # pyocd config, which discovery would load (the provider's pyocd launcher refuses one)
 PYOCD_PROJECT_DIR = hil_util.TINYUSB_ROOT / 'test/hil/pyocd'
+
+# ch32h417 BSP park window (hw/bsp/ch32h417/family.c board_init): ~10 s of no USB at all,
+# entered on a park request or after an IWDG reset. Wait it out (plus slack) before telling a
+# caller the board was reset, otherwise the park itself reads as a failure to re-enumerate.
+WCH_PARK_WINDOW = 12  # s
 
 
 def _bound(timeout):
@@ -89,16 +97,80 @@ def _openocd_cmd_base(flasher):
     return hil_util.provider().openocd_cmd_base(flasher)
 
 
+# args_program: openocd commands run after the program or reset, in the SAME session. The CH569
+# quiesces its SDI debug module this way: an active DM corrupts core registers during USB
+# operation, and a second attach re-activates it on the running firmware (hw-measured
+# 2026-08-11: 10/12 suite failures).
+def _openocd_quiesced(flasher, command, timeout, run):
+    return _runner(run)([*_openocd_cmd_base(flasher), '-c', command,
+                         *shlex.split(flasher['args_program']), '-c', 'shutdown'],
+                        timeout=_bound(timeout))
+
+
 # `verify` is on by default, opted out per board with "verify": false (the provider's
 # flash_openocd holds which boards and why)
 def flash_openocd(board, firmware, timeout=None, *, run=None):
-    return hil_util.provider().flash_openocd(board['flasher'], firmware, timeout=_bound(timeout),
+    flasher = board['flasher']
+    if flasher.get('args_program'):
+        verify = ' verify' if flasher.get('verify', True) else ''
+        return _openocd_quiesced(flasher, f'program {firmware}{verify} reset', timeout, run)
+    return hil_util.provider().flash_openocd(flasher, firmware, timeout=_bound(timeout),
                                              run=_runner(run))
 
 
 def reset_openocd(board, timeout=None, *, run=None):
     # timeout: usbtest's post-hang recovery bounds this (RECOVER_RESET_TIMEOUT)
-    return hil_util.provider().reset_openocd(board['flasher'], timeout=_bound(timeout), run=_runner(run))
+    flasher = board['flasher']
+    if flasher.get('args_program'):
+        return _openocd_quiesced(flasher, 'init; reset run', timeout, run)
+    return hil_util.provider().reset_openocd(flasher, timeout=_bound(timeout), run=_runner(run))
+
+
+def _wch_uart_park(flasher, run=None):
+    # Reboot the running firmware by writing the park magic to the WCH-LinkE VCP; the ch32h417
+    # BSP catches {0x55,0xAA,'F','P'} on USART1 and reboots (~10 s park window). Harmless on
+    # firmware without the hook. Not a wlink operation -- a raw VCP write. Returns True iff the
+    # magic was written, so callers can report a genuine failure instead of a silent no-op.
+    uid = flasher.get('uid', '')
+    if not uid:
+        return False
+    # if01 is the WCH-LinkE VCP; if00 is the debug interface -- write only to the VCP
+    for tty in glob.glob('/dev/serial/by-id/*'):
+        if uid in tty and tty.endswith('if01'):
+            try:
+                # a failing stty (VCP gone/busy) means the write below cannot be trusted either
+                if _runner(run)(['stty', '-F', tty, '115200', 'raw', '-echo'], timeout=5).returncode != 0:
+                    return False
+                with open(tty, 'wb', buffering=0) as f:
+                    f.write(b'\x55\xaaFP')
+                time.sleep(1.5)  # reboot + park entry
+                return True
+            except (OSError, subprocess.SubprocessError):
+                return False
+    return False
+
+
+def flash_wch_uart_loader(board, firmware, timeout=None, *, run=None):
+    # BSP UART loader over the WCH-LinkE VCP (hw/bsp/ch32h417/family.c): flashes via USART1 when
+    # the chip's SWD/SDI pins (= USB2 D+/D-) are unusable because a host is plugged into the
+    # untaped USB3 cable and its PHY termination corrupts SDI. See test/hil/wch_uart_flash.py.
+    flasher = board['flasher']
+    script = Path(__file__).resolve().parent / 'wch_uart_flash.py'
+    return _runner(run)(f'python3 "{script}" --uid {flasher["uid"]} "{firmware}"',
+                        timeout=timeout or 120)
+
+
+def reset_wch_uart_loader(board, timeout=None, *, run=None):
+    # A park request reboots the firmware (~10 s park window, then a normal boot). The WCH-LinkE
+    # VCP is always present (it is the probe, not the board), so a failure here means the probe is
+    # gone/busy -- report it (returncode 1) rather than masking a board that was never reset.
+    # Sit out the park window before returning: callers start waiting for the board to
+    # re-enumerate the moment reset_* returns, on a budget shorter than the window
+    # (hil_pool_check.ENUM_WAIT_RETRY = 8 s), and would always call the board dead.
+    ok = _wch_uart_park(board['flasher'], run)
+    if ok:
+        time.sleep(WCH_PARK_WINDOW)
+    return subprocess.CompletedProcess(args='park', returncode=0 if ok else 1)
 
 
 def rescue_openocd(board, flash_out: str = '', timeout=None) -> bool:
@@ -361,6 +433,7 @@ def reset_primitive(flasher_name: str):
 # TestRosterFlashersDispatch fails if a roster names one.
 FLASHER_SUFFIX = {
     'esptool': '.bin',
+    'wch_uart_loader': '.bin',  # the BSP UART loader consumes raw binary images
     'jlink': '.elf',
     'lm4flash': '.bin',
     'openocd': '.elf',
