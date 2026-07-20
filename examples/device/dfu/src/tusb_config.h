@@ -69,14 +69,14 @@
 //--------------------------------------------------------------------
 
 #ifndef CFG_TUD_ENDPOINT0_SIZE
-#define CFG_TUD_ENDPOINT0_SIZE    64
+#define CFG_TUD_ENDPOINT0_SIZE    (TUD_OPT_SUPER_SPEED ? 512 : 64) // SuperSpeed EP0 is fixed at 512
 #endif
 
 //------------- CLASS -------------//
 #define CFG_TUD_DFU               1
 
 // DFU buffer size, it has to be set to the buffer size used in TUD_DFU_DESCRIPTOR
-#define CFG_TUD_DFU_XFER_BUFSIZE  (TUD_OPT_HIGH_SPEED ? 512 : 64)
+#define CFG_TUD_DFU_XFER_BUFSIZE  (TUD_OPT_SUPER_SPEED ? 1024 : (TUD_OPT_HIGH_SPEED ? 512 : 64))
 
 #ifdef __cplusplus
  }
