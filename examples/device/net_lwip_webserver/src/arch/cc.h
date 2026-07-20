@@ -72,4 +72,17 @@ typedef int sys_prot_t;
 
 #define LWIP_PLATFORM_ASSERT(x) do { if(!(x)) while(1); } while(0)
 
+/* WCH CH569 (CH56x): only 16 KB general SRAM (RAMS); place the lwIP heap and memory pools in
+   the 32 KB RAMX region (the .dmadata section of the ch56x linker script) to make room. The
+   .dmadata section only exists in the ch56x linker script, so this must be gated on that MCU
+   alone — CFG_TUD_WCH_USBIP_* is defined (0 or 1) for every WCH chip, so defined() would leak
+   this to CH32V307/CH32H417 etc. whose linker scripts have no .dmadata section. cc.h is pulled
+   in by some lwIP sources without tusb_option.h in the include chain, so guard OPT_MCU_CH569
+   with defined() to stay clean under -Werror=undef (the lwIP mem pools that need this section
+   do see tusb_option.h). */
+#if defined(OPT_MCU_CH569) && (CFG_TUSB_MCU == OPT_MCU_CH569)
+#define LWIP_DECLARE_MEMORY_ALIGNED(variable_name, size) \
+  u8_t variable_name[LWIP_MEM_ALIGN_BUFFER(size)] __attribute__((aligned(4), section(".dmadata")))
+#endif
+
 #endif /* CC_H__ */

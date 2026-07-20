@@ -57,14 +57,43 @@
 
 #define TCP_MSS                         (1500 /*mtu*/ - 20 /*iphdr*/ - 20 /*tcphhr*/)
 #define TCP_SND_BUF                     (4 * TCP_MSS)
+// WCH CH569 (CH56x): lwIP memory lives in the 32 KB RAMX (see arch/cc.h). The SuperSpeed build
+// reclaims the USB2-fallback bounce RAM (CFG_TUD_WCH_USBHS_EP_MAX) for a larger receive
+// window - iperf is TCP-window-bound; the plain high-speed build keeps the smaller fit.
+// Gated on the MCU (this RAMX layout is ch56x-specific) and keyed off the USBIP *value*
+// (CFG_TUD_WCH_USBIP_* is defined 0/1 for every WCH chip, so defined() would always be true).
+#if CFG_TUSB_MCU == OPT_MCU_CH569
+  #if CFG_TUD_WCH_USBIP_USB30
+    #define PBUF_POOL_SIZE                9
+    #define TCP_WND                       (9 * TCP_MSS)
+    // USB already CRC32-protects every payload: skip software checksum VERIFICATION of
+    // inbound frames (generation for outbound stays on). The 120 MHz core is the RX
+    // bottleneck and this recovers the per-byte checksum cost
+    #define CHECKSUM_CHECK_IP             0
+    #define CHECKSUM_CHECK_UDP            0
+    #define CHECKSUM_CHECK_TCP            0
+  #elif CFG_TUD_WCH_USBIP_USBHS
+    #define PBUF_POOL_SIZE                6
+    #define TCP_WND                       (6 * TCP_MSS)
+  #endif
+#endif
+
 #if LWIP_HIGH_THROUGHPUT
-  #define TCP_WND                       (8 * TCP_MSS)
-  #define PBUF_POOL_SIZE                8
+  #ifndef TCP_WND
+    #define TCP_WND                     (8 * TCP_MSS)
+  #endif
+  #ifndef PBUF_POOL_SIZE
+    #define PBUF_POOL_SIZE              8
+  #endif
   // Must grow in step with TCP_SND_BUF (default MEMP_NUM_TCP_SEG=16 caps TCP_SND_BUF at 4*MSS).
   #define MEMP_NUM_TCP_SEG              16
 #else
-  #define TCP_WND                       (4 * TCP_MSS)
-  #define PBUF_POOL_SIZE                4
+  #ifndef TCP_WND
+    #define TCP_WND                     (4 * TCP_MSS)
+  #endif
+  #ifndef PBUF_POOL_SIZE
+    #define PBUF_POOL_SIZE              4
+  #endif
 #endif
 
 #define ETHARP_SUPPORT_STATIC_ENTRIES   1
