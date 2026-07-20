@@ -287,6 +287,10 @@
       "inherits": "default"
     },
     {
+      "name": "hydrausb3_v1",
+      "inherits": "default"
+    },
+    {
       "name": "itsybitsy_m0",
       "inherits": "default"
     },
@@ -460,6 +464,10 @@
     },
     {
       "name": "msp_exp432e401y",
+      "inherits": "default"
+    },
+    {
+      "name": "nanoch32h417",
       "inherits": "default"
     },
     {
@@ -1378,6 +1386,11 @@
       "configurePreset": "hpm6750evk2"
     },
     {
+      "name": "hydrausb3_v1",
+      "description": "Build preset for the hydrausb3_v1 board",
+      "configurePreset": "hydrausb3_v1"
+    },
+    {
       "name": "itsybitsy_m0",
       "description": "Build preset for the itsybitsy_m0 board",
       "configurePreset": "itsybitsy_m0"
@@ -1596,6 +1609,11 @@
       "name": "msp_exp432e401y",
       "description": "Build preset for the msp_exp432e401y board",
       "configurePreset": "msp_exp432e401y"
+    },
+    {
+      "name": "nanoch32h417",
+      "description": "Build preset for the nanoch32h417 board",
+      "configurePreset": "nanoch32h417"
     },
     {
       "name": "nanoch32v203",
@@ -3213,6 +3231,19 @@
       ]
     },
     {
+      "name": "hydrausb3_v1",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "hydrausb3_v1"
+        },
+        {
+          "type": "build",
+          "name": "hydrausb3_v1"
+        }
+      ]
+    },
+    {
       "name": "itsybitsy_m0",
       "steps": [
         {
@@ -3781,6 +3812,19 @@
         {
           "type": "build",
           "name": "msp_exp432e401y"
+        }
+      ]
+    },
+    {
+      "name": "nanoch32h417",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "nanoch32h417"
+        },
+        {
+          "type": "build",
+          "name": "nanoch32h417"
         }
       ]
     },
