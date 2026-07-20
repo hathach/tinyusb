@@ -127,10 +127,15 @@
 #  - Specifying symbols used during test preprocessing
 :defines:
   :test:
-    - _UNITY_TEST_
-    - CFG_TUD_EDPT_DEDICATED_HWFIFO=1
-    - CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE=6
-    - CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE=0
+    :*:
+      - _UNITY_TEST_
+      - CFG_TUD_EDPT_DEDICATED_HWFIFO=1
+      - CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE=6
+      - CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE=0
+    # test_usbd_fshs is test_usbd built a second time in the default full/high-speed shape
+    # (EP0 = 64), so the non-SuperSpeed branches of usbd.c keep compile + test coverage.
+    :test_usbd_fshs:
+      - TUD_TEST_NO_SUPER_SPEED
   :release: []
 
   # Enable to inject name of a test as a unique compilation symbol into its respective executable build.
