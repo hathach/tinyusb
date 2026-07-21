@@ -40,7 +40,6 @@
 
 #define EP_MAX                8u
 #define EP0_STATUS_IDLE       0xffu
-#define EP_CHAIN_PACKET_LIMIT 1u
 
 #define USBSS_PHY_CFG_CR      (*((__IO uint32_t *)0x400341f8))
 #define USBSS_PHY_CFG_DAT     (*((__IO uint32_t *)0x400341fc))
@@ -199,20 +198,20 @@ static void ep0_prepare(void) {
   _dcd.ep0_status_ep                  = EP0_STATUS_IDLE;
 }
 
-static void edpt_clear(uint8_t ep_num, tusb_dir_t dir) {
+static void edpt_clear(uint8_t ep_num, tusb_dir_t dir, uint8_t burst_packets) {
   if (ep_num == 0) {
     USBSSD->UEP0_TX_CTRL = 0;
     ep0_rx_ready();
   } else if (dir == TUSB_DIR_IN) {
     volatile USBSS_EP_TX_TypeDef *ep = ep_tx_reg(ep_num);
     ep->UEP_TX_CR                    = USBSS_EP_TX_CLR | USBSS_EP_TX_CHAIN_CLR;
-    ep->UEP_TX_CR                    = EP_CHAIN_PACKET_LIMIT;
+    ep->UEP_TX_CR                    = burst_packets;
     ep->UEP_TX_ST                    = USBSS_EP_TX_INT_FLAG;
     ep->UEP_TX_CHAIN_ST              = USBSS_EP_TX_CHAIN_IF;
   } else {
     volatile USBSS_EP_RX_TypeDef *ep = ep_rx_reg(ep_num);
     ep->UEP_RX_CR                    = USBSS_EP_RX_CLR | USBSS_EP_RX_CHAIN_CLR;
-    ep->UEP_RX_CR                    = EP_CHAIN_PACKET_LIMIT;
+    ep->UEP_RX_CR                    = burst_packets;
     ep->UEP_RX_ST                    = USBSS_EP_RX_INT_FLAG;
     ep->UEP_RX_CHAIN_ST              = USBSS_EP_RX_CHAIN_IF;
   }
@@ -225,8 +224,8 @@ static void endpoints_reset(void) {
   USBSSD->UEP_RX_EN = 0;
 
   for (uint8_t ep = 1; ep < EP_MAX; ep++) {
-    edpt_clear(ep, TUSB_DIR_IN);
-    edpt_clear(ep, TUSB_DIR_OUT);
+    edpt_clear(ep, TUSB_DIR_IN, 1);
+    edpt_clear(ep, TUSB_DIR_OUT, 1);
   }
 
   ep0_prepare();
@@ -304,14 +303,14 @@ static void queue_ep0_xfer(uint8_t ep_addr, uint8_t *buffer, uint16_t total_byte
   }
 }
 
-static uint8_t chain_packet_count(uint16_t bytes, uint16_t max_size) {
-  uint16_t packets = (bytes == 0) ? 1 : (uint16_t)((bytes + max_size - 1u) / max_size);
-  return (uint8_t)tu_min16(packets, EP_CHAIN_PACKET_LIMIT);
+static uint8_t chain_packet_count(uint16_t bytes, xfer_ctl_t const *xfer) {
+  uint16_t packets = (bytes == 0) ? 1 : (uint16_t)((bytes + xfer->max_size - 1u) / xfer->max_size);
+  return (uint8_t)tu_min16(packets, (uint16_t)(xfer->max_burst + 1u));
 }
 
 static void queue_data_xfer(uint8_t ep_num, tusb_dir_t dir, xfer_ctl_t *xfer) {
   const uint16_t remaining   = (uint16_t)(xfer->total_len - xfer->queued_len);
-  const uint8_t  nump        = chain_packet_count(remaining, xfer->max_size);
+  const uint8_t  nump        = chain_packet_count(remaining, xfer);
   const uint16_t chain_bytes = (remaining == 0) ? 0 : tu_min16(remaining, (uint16_t)(nump * xfer->max_size));
   const uint16_t last_len =
     (chain_bytes == 0) ? 0 : ((chain_bytes % xfer->max_size) ? (chain_bytes % xfer->max_size) : xfer->max_size);
@@ -661,8 +660,8 @@ void dcd_edpt_close_all(uint8_t rhport) {
   USBSSD->UEP_TX_EN = 0;
   USBSSD->UEP_RX_EN = 0;
   for (uint8_t ep = 1; ep < EP_MAX; ep++) {
-    edpt_clear(ep, TUSB_DIR_IN);
-    edpt_clear(ep, TUSB_DIR_OUT);
+    edpt_clear(ep, TUSB_DIR_IN, 1);
+    edpt_clear(ep, TUSB_DIR_OUT, 1);
     memset(&_dcd.xfer[ep], 0, sizeof(_dcd.xfer[ep]));
   }
 }
@@ -686,6 +685,7 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt, uint8_
   if (tu_desc_in_bounds(desc_next, desc_end) && TUSB_DESC_SUPERSPEED_ENDPOINT_COMPANION == tu_desc_type(desc_next)) {
     xfer->max_burst = desc_next[2];
   }
+  const uint8_t burst_packets = (uint8_t)(xfer->max_burst + 1u);
 
   const bool is_iso = desc_edpt->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS;
 
@@ -694,14 +694,14 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt, uint8_
     ep->UEP_TX_CFG =
       USBSS_EP_TX_CHAIN_AUTO | USBSS_EP_TX_ERDY_AUTO | USBSS_EP_TX_SEQ_AUTO | (is_iso ? USBSS_EP_TX_ISO_MODE : 0);
     ep->UEP_TX_CR = USBSS_EP_TX_CLR | USBSS_EP_TX_CHAIN_CLR;
-    ep->UEP_TX_CR = EP_CHAIN_PACKET_LIMIT;
+    ep->UEP_TX_CR = burst_packets;
     USBSSD->UEP_TX_EN |= (uint16_t)(1u << ep_num);
   } else {
     volatile USBSS_EP_RX_TypeDef *ep = ep_rx_reg(ep_num);
     ep->UEP_RX_CFG =
       USBSS_EP_RX_CHAIN_AUTO | USBSS_EP_RX_ERDY_AUTO | USBSS_EP_RX_SEQ_AUTO | (is_iso ? USBSS_EP_RX_ISO_MODE : 0);
     ep->UEP_RX_CR = USBSS_EP_RX_CLR | USBSS_EP_RX_CHAIN_CLR;
-    ep->UEP_RX_CR = EP_CHAIN_PACKET_LIMIT;
+    ep->UEP_RX_CR = burst_packets;
     USBSSD->UEP_RX_EN |= (uint16_t)(1u << ep_num);
   }
 
@@ -723,7 +723,7 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
   } else {
     USBSSD->UEP_RX_EN &= (uint16_t)~(1u << ep_num);
   }
-  edpt_clear(ep_num, dir);
+  edpt_clear(ep_num, dir, 1);
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes, bool is_isr) {
@@ -761,16 +761,18 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
       USBSSD->UEP0_RX_CTRL = USBSS_EP0_RX_ERDY | USBSS_EP0_RX_STALL;
     }
   } else if (dir == TUSB_DIR_IN) {
+    const uint8_t burst_packets = (uint8_t)(xfer_ctl(ep_num, dir)->max_burst + 1u);
     volatile USBSS_EP_TX_TypeDef *ep = ep_tx_reg(ep_num);
     uint8_t cr = (uint8_t)((ep->UEP_TX_CR & (uint8_t)~USBSS_EP_TX_ERDY_NUMP_MASK) |
-                           USBSS_EP_TX_HALT | EP_CHAIN_PACKET_LIMIT);
+                           USBSS_EP_TX_HALT | burst_packets);
     ep->UEP_TX_CR = cr;
     // Wake a flow-controlled endpoint so the next host service attempt sees STALL.
     ep->UEP_TX_ST = USBSS_EP_TX_ERDY_REQ;
   } else {
+    const uint8_t burst_packets = (uint8_t)(xfer_ctl(ep_num, dir)->max_burst + 1u);
     volatile USBSS_EP_RX_TypeDef *ep = ep_rx_reg(ep_num);
     uint8_t cr = (uint8_t)((ep->UEP_RX_CR & (uint8_t)~USBSS_EP_RX_ERDY_NUMP_MASK) |
-                           USBSS_EP_RX_HALT | EP_CHAIN_PACKET_LIMIT);
+                           USBSS_EP_RX_HALT | burst_packets);
     ep->UEP_RX_CR = cr;
     // Wake a flow-controlled endpoint so the next host service attempt sees STALL.
     ep->UEP_RX_ST = USBSS_EP_RX_ERDY_REQ;
@@ -786,9 +788,9 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   if (ep_num == 0) {
     ep0_prepare();
   } else if (dir == TUSB_DIR_IN) {
-    edpt_clear(ep_num, TUSB_DIR_IN);
+    edpt_clear(ep_num, TUSB_DIR_IN, (uint8_t)(xfer_ctl(ep_num, dir)->max_burst + 1u));
   } else {
-    edpt_clear(ep_num, TUSB_DIR_OUT);
+    edpt_clear(ep_num, TUSB_DIR_OUT, (uint8_t)(xfer_ctl(ep_num, dir)->max_burst + 1u));
   }
 }
 
