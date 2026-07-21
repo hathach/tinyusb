@@ -724,6 +724,12 @@
   #define TUP_USBIP_FSDEV_APM32
   #define CFG_TUSB_FSDEV_PMA_SIZE 1024u
 
+//--------------------------------------------------------------------+
+// Linux
+//--------------------------------------------------------------------+
+#elif TU_CHECK_MCU(OPT_MCU_LINUX_RAW_GADGET)
+  #define TUP_DCD_ENDPOINT_MAX 16
+  #define TUP_RHPORT_HIGHSPEED 1
 #endif
 
 // External USB controller
