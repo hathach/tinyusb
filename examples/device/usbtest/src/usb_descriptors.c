@@ -33,11 +33,11 @@
 static tusb_desc_device_t const desc_device = {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
-    .bcdUSB             = 0x0200,
+    .bcdUSB             = (TUD_OPT_SUPER_SPEED ? 0x0300 : 0x0200),
     .bDeviceClass       = 0x00, // per-interface class
     .bDeviceSubClass    = 0x00,
     .bDeviceProtocol    = 0x00,
-    .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
+    .bMaxPacketSize0    = TUD_OPT_SUPER_SPEED ? 9 : CFG_TUD_ENDPOINT0_SIZE,
 
     .idVendor           = 0xCafe,
     .idProduct          = 0x4010,
@@ -75,11 +75,18 @@ enum {
   #define USBTEST_ISO_EPS(_isoout, _isoin, _iso_mps, _iso_interval) \
     ,7, TUSB_DESC_ENDPOINT, _isoout, (uint8_t)(TUSB_XFER_ISOCHRONOUS | (uint8_t)(TUSB_ISO_EP_ATT_ASYNCHRONOUS)), U16_TO_U8S_LE(_iso_mps), _iso_interval,\
     7, TUSB_DESC_ENDPOINT, _isoin, (uint8_t)(TUSB_XFER_ISOCHRONOUS | (uint8_t)(TUSB_ISO_EP_ATT_ASYNCHRONOUS)), U16_TO_U8S_LE(_iso_mps), _iso_interval
+  #define USBTEST_SS_ISO_EPS(_isoout, _isoin, _iso_mps, _iso_interval) \
+    ,7, TUSB_DESC_ENDPOINT, _isoout, (uint8_t)(TUSB_XFER_ISOCHRONOUS | (uint8_t)(TUSB_ISO_EP_ATT_ASYNCHRONOUS)), U16_TO_U8S_LE(_iso_mps), _iso_interval,\
+    TUD_SUPERSPEED_DESC_EP_COMPANION(0, 0, _iso_mps),\
+    7, TUSB_DESC_ENDPOINT, _isoin, (uint8_t)(TUSB_XFER_ISOCHRONOUS | (uint8_t)(TUSB_ISO_EP_ATT_ASYNCHRONOUS)), U16_TO_U8S_LE(_iso_mps), _iso_interval,\
+    TUD_SUPERSPEED_DESC_EP_COMPANION(0, 0, _iso_mps)
 #else
   #define USBTEST_EP_COUNT  4
   #define USBTEST_ISO_EPS(_isoout, _isoin, _iso_mps, _iso_interval)
+  #define USBTEST_SS_ISO_EPS(_isoout, _isoin, _iso_mps, _iso_interval)
 #endif
 #define USBTEST_DESC_LEN  (9 + 9 + USBTEST_EP_COUNT*7)
+#define USBTEST_DESC_LEN_SS  (9 + 9 + USBTEST_EP_COUNT * (7 + TUD_SUPERSPEED_DESC_EP_COMPANION_LEN))
 #define USBTEST_DESCRIPTOR(_itfnum, _stridx, _epout, _epin, _bulk_mps, _intout, _intin, _int_mps, _int_interval, _isoout, _isoin, _iso_mps, _iso_interval) \
   /* alt 0: zero bandwidth, no endpoints */\
   9, TUSB_DESC_INTERFACE, _itfnum, 0, 0, TUSB_CLASS_VENDOR_SPECIFIC, 0x00, 0x00, _stridx,\
@@ -91,7 +98,23 @@ enum {
   7, TUSB_DESC_ENDPOINT, _intin, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_int_mps), _int_interval\
   USBTEST_ISO_EPS(_isoout, _isoin, _iso_mps, _iso_interval)
 
-#define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + USBTEST_DESC_LEN)
+#define USBTEST_SS_DESCRIPTOR(_itfnum, _stridx, _epout, _epin, _bulk_mps, _intout, _intin, _int_mps, _int_interval, _isoout, _isoin, _iso_mps, _iso_interval) \
+  /* alt 0: zero bandwidth, no endpoints */\
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 0, TUSB_CLASS_VENDOR_SPECIFIC, 0x00, 0x00, _stridx,\
+  /* alt 1: full source/sink set */\
+  9, TUSB_DESC_INTERFACE, _itfnum, 1, USBTEST_EP_COUNT, TUSB_CLASS_VENDOR_SPECIFIC, 0x00, 0x00, _stridx,\
+  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_bulk_mps), 0,\
+  TUD_SUPERSPEED_DESC_EP_COMPANION(15, 0, 0),\
+  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_bulk_mps), 0,\
+  TUD_SUPERSPEED_DESC_EP_COMPANION(15, 0, 0),\
+  7, TUSB_DESC_ENDPOINT, _intout, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_int_mps), _int_interval,\
+  TUD_SUPERSPEED_DESC_EP_COMPANION(0, 0, _int_mps),\
+  7, TUSB_DESC_ENDPOINT, _intin, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_int_mps), _int_interval,\
+  TUD_SUPERSPEED_DESC_EP_COMPANION(0, 0, _int_mps)\
+  USBTEST_SS_ISO_EPS(_isoout, _isoin, _iso_mps, _iso_interval)
+
+#define CONFIG_TOTAL_LEN     (TUD_CONFIG_DESC_LEN + USBTEST_DESC_LEN)
+#define CONFIG_TOTAL_LEN_SS  (TUD_CONFIG_DESC_LEN + USBTEST_DESC_LEN_SS)
 
 #if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
   // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
@@ -193,7 +216,7 @@ static tusb_desc_device_qualifier_t const desc_device_qualifier = {
     .bDeviceSubClass    = 0x00,
     .bDeviceProtocol    = 0x00,
 
-    .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
+    .bMaxPacketSize0    = TUD_OPT_SUPER_SPEED ? 64 : CFG_TUD_ENDPOINT0_SIZE,
     .bNumConfigurations = 0x01,
     .bReserved          = 0x00
 };
@@ -220,11 +243,41 @@ uint8_t const* tud_descriptor_other_speed_configuration_cb(uint8_t index) {
 }
 #endif // highspeed
 
+#if TUD_OPT_SUPER_SPEED
+static uint8_t const desc_ss_configuration[] = {
+  // Config number, interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN_SS, 0x00, 100),
+
+  // Interface number, string index, bulk out/in + mps, int out/in + mps + interval, iso out/in + mps + interval
+  USBTEST_SS_DESCRIPTOR(ITF_NUM_VENDOR, 4, EPNUM_BULK_OUT, 0x80 | EPNUM_BULK_IN, 1024,
+                        EPNUM_INT_OUT, 0x80 | EPNUM_INT_IN, USBTEST_INT_EP_MPS_HS, 4,
+                        EPNUM_ISO_OUT, 0x80 | EPNUM_ISO_IN, USBTEST_ISO_EP_MPS_HS, 4)
+};
+
+#define BOS_TOTAL_LEN  (TUD_BOS_DESC_LEN + TUD_BOS_USB20_EXT_DESC_LEN + TUD_BOS_SUPERSPEED_USB_DESC_LEN)
+
+static uint8_t const desc_bos[] = {
+  TUD_BOS_DESCRIPTOR(BOS_TOTAL_LEN, 2),
+  TUD_BOS_USB20_EXT_DESCRIPTOR(0x00000002),
+  TUD_BOS_SUPERSPEED_USB_DESCRIPTOR(0, 0x000e, 1, 0x0a, 0x07ff),
+};
+
+uint8_t const* tud_descriptor_bos_cb(void) {
+  return desc_bos;
+}
+#endif
+
 // Invoked when received GET CONFIGURATION DESCRIPTOR
 uint8_t const* tud_descriptor_configuration_cb(uint8_t index) {
   (void) index; // for multiple configurations
 
 #if TUD_OPT_HIGH_SPEED
+  #if TUD_OPT_SUPER_SPEED
+  if (tud_speed_get() == TUSB_SPEED_SUPER) {
+    return desc_ss_configuration;
+  }
+  #endif
+
   // Although we are highspeed, host may be fullspeed.
   return (tud_speed_get() == TUSB_SPEED_HIGH) ? desc_hs_configuration : desc_fs_configuration;
 #else
