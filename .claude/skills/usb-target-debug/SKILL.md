@@ -58,7 +58,7 @@ Build with `LOG=2` (`LOG=3` adds per-transfer noise and much more timing skew).
 `LOGGER=rtt` routes it over the debug probe (J-Link only) — no UART wiring:
 
 ```bash
-# RTT: JLinkGDBServer from AGENTS.md "GDB Debugging" + -RTTTelnetPort, then:
+# RTT: JLinkGDBServer from CLAUDE.md "GDB Debugging" + -RTTTelnetPort, then:
 timeout 20s JLinkRTTClient > /tmp/rtt.log        # non-interactive capture
 # UART (board's debug serial, if wired):
 stty -F /dev/ttyACM<N> 115200 raw && timeout 20s cat /dev/ttyACM<N> | tee /tmp/uart.log
@@ -80,10 +80,10 @@ reads don't halt the target.
 ## GDB — state autopsy and watchpoints
 
 Connect/load recipes per probe family (J-Link, OpenOCD for ST-Link /
-CMSIS-DAP / WCH-Link) are in AGENTS.md "GDB Debugging". Release builds keep
+CMSIS-DAP / WCH-Link) are in CLAUDE.md "GDB Debugging". Release builds keep
 DWARF (`MinSizeRel`), so `p`/struct access works on HIL firmware.
 
-**Autopsy of a wedged board: attach and halt ONLY** — skip AGENTS.md's
+**Autopsy of a wedged board: attach and halt ONLY** — skip CLAUDE.md's
 `monitor reset halt` + `load` (those are for fresh starts; a reset destroys
 the evidence). Symbolize with the ELF that is actually flashed —
 `<build root>/cmake-build-<board>/<example>/<example>.elf` from the run that

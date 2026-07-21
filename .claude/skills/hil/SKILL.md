@@ -15,17 +15,14 @@ Run TinyUSB HIL tests on real boards. **Run `hostname` first** — it tells you 
 
 Default to **local**. Use **remote** only when on `htpc` and the user says `remote`/`ci.lan`. Never attempt remote on `ci`.
 
-The `hifiphile` rig is externally hosted by TinyUSB maintainer hifiphile; its board pool is
-`test/hil/hfp.json` and its HIL runs are triggered by GitHub CI (the `hil-tinyusb (hfp.json)`
-matrix job). **Never run HIL against this rig during development unless the user explicitly
-asks for it.**
+`hifiphile` is an external rig (hosted by maintainer hifiphile), exercised by the GitHub CI
+`hil-tinyusb (hfp.json)` matrix job — **never run HIL against it unless the user explicitly asks.**
 
 ## Board locks — the CI runner keeps running
 
 The `ci` rig also hosts a GitHub Actions runner that flashes boards and runs HIL as part of CI. Hardware access is arbitrated **per board** with kernel flocks in `/tmp/tinyusb-hil-locks/` — do NOT stop the runner service.
 
-- `hil_test.py` self-locks each board for the duration of its flash+test (holder reason `hil_test.py`). A locked board fails immediately (`<board>  Failed: board locked: {holder info}`) without flashing — in CI, re-run the failed job once the lock is released.
-- If your `hold` fails and the holder's reason is `hil_test.py`, a CI job is mid-test on that board — wait a few minutes and retry rather than forcing.
+- `hil_test.py` self-locks each board for its flash+test (holder reason `hil_test.py`). A locked board fails immediately (`<board>  Failed: board locked: {holder info}`) without flashing — in CI, re-run the failed job later; if your `hold` is refused with reason `hil_test.py`, a CI job is mid-test — wait a few minutes and retry rather than forcing.
 - For hardware work outside `hil_test.py` (JLink/GDB, manual flashing, `usbtest.py`, serial poking), hold the lock first:
 
 ```bash
@@ -41,7 +38,7 @@ python3 test/hil/board_lock.py release BOARD [BOARD...]
 
 ## Prerequisites
 
-Examples must be built for the target board(s) — see AGENTS.md "Build" → "All examples for a board" (produces `examples/cmake-build-<board>/`). `-B examples` points `hil_test.py` at that parent folder.
+Examples must be built for the target board(s) — see CLAUDE.md "Build" → "All examples for a board" (produces `examples/cmake-build-<board>/`). `-B examples` points `hil_test.py` at that parent folder.
 
 ## Arguments
 
@@ -63,8 +60,6 @@ python3 test/hil/hil_test.py -B examples "$CONFIG"
 # A single board (replace stm32f723disco):
 python3 test/hil/hil_test.py -b stm32f723disco -B examples "$CONFIG"
 ```
-
-Append pass-through flags (`-v`, `-r 1`, …) to either command as needed.
 
 ## Remote execution (htpc → ci.lan only)
 

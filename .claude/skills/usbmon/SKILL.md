@@ -7,9 +7,7 @@ description: Use when capturing, analyzing, or debugging USB bus traffic for Tin
 
 `usbmon` records host-side **URBs** — control / bulk / interrupt / isochronous transfers, descriptors, class requests, STALLs, short packets — i.e. exactly what the host exchanged with a device. Use it to debug a TinyUSB device on real hardware. (It's host/URB-level, not wire-level; for SOF/ACK/electrical use a hardware analyzer.)
 
-**Setup (assumed in place):** `usbmon` loaded and a udev rule `SUBSYSTEM=="usbmon", GROUP="wireshark", MODE="0640"` with your user in the `wireshark` group — so `tshark` captures with no `sudo`.
-
-If you were just added to `wireshark` (e.g. `usermod -aG`), the running shell/agent still has the old group set (group adds only apply to a fresh login). Don't restart — wrap each capture in `sg wireshark -c '…'`, which re-reads `/etc/group` immediately: `sg wireshark -c 'tshark -i usbmon3 -s 128 -a duration:30 -w /tmp/cap.pcapng'`. (Reading a finished `.pcapng` with `tshark -r` needs no special group.) For long/high-throughput captures add `-s 128` (snaplen) to keep only URB headers/status, not payloads.
+**Setup (assumed in place):** `usbmon` loaded and a udev rule `SUBSYSTEM=="usbmon", GROUP="wireshark", MODE="0640"` with your user in the `wireshark` group — so `tshark` captures with no `sudo`. Freshly added to the group? The running shell doesn't have it yet (group adds need a new login) — wrap captures in `sg wireshark -c 'tshark -i usbmon3 -s 128 -a duration:30 -w /tmp/cap.pcapng'`; reading a finished `.pcapng` (`tshark -r`) needs no group. `-s 128` (snaplen) keeps only URB headers/status, not payloads — use it for long/high-throughput captures.
 
 ## Capture
 

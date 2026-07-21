@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run PVS-Studio static analysis on TinyUSB for a given BOARD.
 #
-# Mirrors the "Static Analysis (PVS-Studio)" section in AGENTS.md / CLAUDE.md:
+# Implements the build + analyze flow behind CLAUDE.md "Static Analysis (PVS-Studio)":
 #   - build all examples for BOARD with compile_commands.json exported
 #   - run pvs-studio-analyzer against that compile DB using .PVS-Studio/.pvsconfig
 #   - convert the log to human-readable (errorfile) and SARIF output
@@ -64,9 +64,9 @@ fi
 
 # --- Analyze ---------------------------------------------------------------
 echo ">>> Running PVS-Studio analyzer (-j${JOBS})"
-# Note: AGENTS.md shows --dump-files, but that scatters .PVS-Studio.i/.cfg dump
-# files across the source tree (only useful for debugging false positives). It is
-# omitted here to keep the working tree clean; add it back via "$@" if needed.
+# Note: --dump-files scatters .PVS-Studio.i/.cfg dump files across the source
+# tree (only useful for debugging false positives). It is omitted here to keep
+# the working tree clean; add it back via "$@" if needed.
 pvs-studio-analyzer analyze \
   -f "${COMPILE_DB}" \
   -R .PVS-Studio/.pvsconfig \
