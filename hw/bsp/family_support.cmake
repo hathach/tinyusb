@@ -517,7 +517,7 @@ function(family_configure_common TARGET RTOS)
     endif ()
   endif ()
 
-  if (NOT RTOS STREQUAL zephyr)
+  if (NOT RTOS STREQUAL zephyr AND NOT FAMILY STREQUAL "linux")
     # Analyze size with bloaty and linkermap
     family_add_bloaty(${TARGET})
     family_add_linkermap(${TARGET})
