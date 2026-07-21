@@ -24,9 +24,7 @@ function(family_configure_example TARGET RTOS)
   endif()
 
   if (NOT RTOS STREQUAL "noos")
-    message(FATAL_ERROR
-      "The Linux Raw Gadget port currently supports only RTOS=noos"
-    )
+    return()
   endif()
 
   find_package(Threads REQUIRED)

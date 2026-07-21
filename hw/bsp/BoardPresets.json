@@ -575,6 +575,10 @@
       "inherits": "default"
     },
     {
+      "name": "raw_gadget",
+      "inherits": "default"
+    },
+    {
       "name": "rx65n_target",
       "inherits": "default"
     },
@@ -1716,6 +1720,11 @@
       "name": "raspberrypi_zero2",
       "description": "Build preset for the raspberrypi_zero2 board",
       "configurePreset": "raspberrypi_zero2"
+    },
+    {
+      "name": "raw_gadget",
+      "description": "Build preset for the raw_gadget board",
+      "configurePreset": "raw_gadget"
     },
     {
       "name": "rx65n_target",
