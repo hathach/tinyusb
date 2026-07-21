@@ -7,6 +7,8 @@
 
 #pragma once
 
+#include "tusb_option.h"
+
 #include "raw_gadget_hal.h"
 #include "common/tusb_debug.h"
 
