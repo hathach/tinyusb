@@ -36,6 +36,8 @@ typedef struct
   bool force_ep0_read;
   bool complete_control_request;
   uint32_t generation;
+
+  _Alignas(struct usb_raw_ep_io) uint8_t io_storage[];
 } raw_gadget_transfer_job_t;
 
 //--------------------------------------------------------------------+
@@ -143,7 +145,6 @@ static void raw_gadget_transfer_job_cleanup(void *argument)
     raw_gadget_control_request_complete_internal(job->context);
   }
 
-  free(job->io);
   free(job);
 }
 
@@ -160,14 +161,14 @@ static int raw_gadget_transfer_ioctl(raw_gadget_transfer_job_t *job)
 
   if (endpoint_zero)
   {
-     request = job->force_ep0_read
-                  ? USB_RAW_IOCTL_EP0_READ
-                  : (direction_in ? USB_RAW_IOCTL_EP0_WRITE
-                                  : USB_RAW_IOCTL_EP0_READ);
+    request = job->force_ep0_read
+                ? USB_RAW_IOCTL_EP0_READ
+                : (direction_in ? USB_RAW_IOCTL_EP0_WRITE
+                                : USB_RAW_IOCTL_EP0_READ);
   }
   else
   {
-     request = direction_in ? USB_RAW_IOCTL_EP_WRITE : USB_RAW_IOCTL_EP_READ;
+    request = direction_in ? USB_RAW_IOCTL_EP_WRITE : USB_RAW_IOCTL_EP_READ;
   }
 
   result = ioctl(job->context->file_descriptor, request, job->io);
@@ -415,22 +416,15 @@ raw_gadget_result_t raw_gadget_endpoint_transfer(raw_gadget_handle_t handle,
     ioctl_length = ep0_in_complete ? required_length : 0u;
   }
 
-  allocation_size = sizeof(struct usb_raw_ep_io) + ioctl_length;
-  job = calloc(1, sizeof(*job));
+  allocation_size = sizeof(*job) + sizeof(struct usb_raw_ep_io) + ioctl_length;
+  job = calloc(1, allocation_size);
   if (job == NULL)
   {
     (void) pthread_mutex_unlock(&context->mutex);
     return RAW_GADGET_RESULT_NO_MEMORY;
   }
 
-  job->io = malloc(allocation_size);
-  if (job->io == NULL)
-  {
-    (void) pthread_mutex_unlock(&context->mutex);
-    free(job);
-    return RAW_GADGET_RESULT_NO_MEMORY;
-  }
-
+  job->io = (struct usb_raw_ep_io *) job->io_storage;
   job->context = context;
   job->endpoint = endpoint;
   job->endpoint_address = endpoint_address;
@@ -468,7 +462,6 @@ raw_gadget_result_t raw_gadget_endpoint_transfer(raw_gadget_handle_t handle,
     endpoint->transfer_active = false;
     memset(&endpoint->transfer_thread, 0, sizeof(endpoint->transfer_thread));
     (void) pthread_mutex_unlock(&context->mutex);
-    free(job->io);
     free(job);
     return RAW_GADGET_RESULT_INTERNAL_ERROR;
   }

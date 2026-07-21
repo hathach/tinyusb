@@ -322,7 +322,7 @@ void raw_gadget_event_dispatch_transfer(raw_gadget_context_t *context,
   {
     callback(context->handle, event);
   }
-  
+
   (void) pthread_mutex_unlock(&context->callback_mutex);
 }
 
