@@ -23,18 +23,16 @@
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 
-static bool          audio_mounted         = false;
-static uint8_t       audio_dev_addr        = 0;
-static uint8_t       audio_idx             = 0;
-static uint8_t       audio_ep_in           = 0;
-static uint8_t       audio_ep_out          = 0;
-static uint32_t      sampling_freq         = 48000; // Default sampling frequency (Hz)
-static uint8_t       audio_mic_channels    = 1;
-static volatile bool audio_rx_busy         = false; // Track IN endpoint transfer state
-static volatile bool audio_tx_busy         = false; // Track OUT endpoint transfer state
-static volatile bool audio_ready           = false; // Wait for sampling freq set before starting isochronous transfer
-static uint8_t       audio_ac_itf          = 0;     // Audio Control interface number
-static uint8_t       audio_feature_unit_id = 0;     // Feature Unit ID
+static bool          audio_mounted       = false;
+static uint8_t       audio_dev_addr      = 0xFF;
+static volatile bool audio_ready         = false; // Wait for sampling freq set before starting isochronous transfer
+static volatile bool audio_rx_busy       = false; // Track IN endpoint transfer state
+static volatile bool audio_tx_busy       = false; // Track OUT endpoint transfer state
+static uint8_t       audio_idx           = 0xFF;
+static uint8_t       audiostream_in_idx  = 0xFF;
+static uint8_t       audiostream_out_idx = 0xFF;
+static uint32_t      sampling_freq       = 48000; // Default sampling frequency (Hz)
+static uint8_t       audio_mic_channels  = 1;
 
 static uint8_t audio_rx_buffer[CFG_TUH_AUDIO_EPIN_BUFSIZE] __attribute__((aligned(4)));
 static uint8_t audio_tx_buffer[CFG_TUH_AUDIO_EPOUT_BUFSIZE] __attribute__((aligned(4)));
@@ -69,53 +67,25 @@ static void print_sampling_freq(const tuh_audio_as_info_t *as) {
 }
 
 // Print all AS interface info
-static void print_as_interfaces(const tuh_audio_mount_cb_t *mount_cb_data) {
-  for (uint8_t i = 0; i < mount_cb_data->as_count; i++) {
-    const tuh_audio_as_info_t *as = &mount_cb_data->as_info[i];
-    if (as->ep_dir == TUSB_DIR_IN) {
+static void print_as_interfaces(uint8_t idx) {
+  tuh_audio_as_info_t as       = {};
+  uint8_t             as_count = tuh_audio_as_get_count(idx);
+  for (uint8_t i = 0; i < as_count; i++) {
+    tuh_audio_as_get_info(idx, i, &as);
+    if (as.ep_dir == TUSB_DIR_IN) {
       // Save microphone channel count for mono-to-stereo conversion
-      audio_mic_channels = as->num_channels;
+      audio_mic_channels = as.num_channels;
       printf("  --- Microphone (AS %u) ---\r\n", i);
-      printf("    IN EP: 0x%02x (max size: %u)\r\n", as->ep_addr, as->ep_size);
+      printf("    IN EP: 0x%02x (max size: %u)\r\n", as.ep_addr, as.ep_size);
     } else {
       printf("  --- Speaker (AS %u) ---\r\n", i);
-      printf("    OUT EP: 0x%02x (max size: %u)\r\n", as->ep_addr, as->ep_size);
+      printf("    OUT EP: 0x%02x (max size: %u)\r\n", as.ep_addr, as.ep_size);
     }
-    printf("    Interface: %u, Alt: %u\r\n", as->interface_num, as->alt_setting);
-    printf("    Format Type: %u, Channels: %u, SubFrameSize: %u, BitResolution: %u\r\n", as->format_type,
-           as->num_channels, as->sub_frame_size, as->bit_resolution);
-    print_sampling_freq(as);
+    printf("    Interface: %u, Alt: %u\r\n", as.interface_num, as.alt_setting);
+    printf("    Format Type: %u, Channels: %u, SubFrameSize: %u, BitResolution: %u\r\n", as.format_type,
+           as.num_channels, as.sub_frame_size, as.bit_resolution);
+    print_sampling_freq(&as);
   }
-}
-
-// Find IN and OUT endpoints from AS interfaces, return IN sampling freq
-static uint32_t find_audio_endpoints(const tuh_audio_mount_cb_t *mount_cb_data) {
-  uint32_t in_sam_freq = 0;
-  audio_ep_in          = 0;
-  audio_ep_out         = 0;
-
-  for (uint8_t i = 0; i < mount_cb_data->as_count; i++) {
-    const tuh_audio_as_info_t *as = &mount_cb_data->as_info[i];
-    if (as->ep_dir == TUSB_DIR_IN) {
-      audio_ep_in = as->ep_addr;
-      if (as->sam_freq_type > 0) {
-        in_sam_freq = as->sam_freq[0];
-      }
-    } else {
-      audio_ep_out = as->ep_addr;
-    }
-  }
-  return in_sam_freq;
-}
-
-// Set Feature Unit volume to un-mute
-static void set_feature_unit_volume(void) {
-  if (audio_feature_unit_id == 0) {
-    return;
-  }
-  printf("  Setting Feature Unit %u volume to 0x0600\r\n", audio_feature_unit_id);
-  tuh_audio_feature_unit_set(audio_dev_addr, audio_ac_itf, audio_feature_unit_id, AUDIO10_FU_CTRL_VOLUME, 0, 0x0600,
-                             NULL, 0);
 }
 
 //--------------------------------------------------------------------+
@@ -127,7 +97,7 @@ void audio_app_task(void) {
   }
 
   if (!audio_rx_busy) {
-    if (tuh_audio_receive(audio_dev_addr, audio_idx, audio_rx_buffer, CFG_TUH_AUDIO_EPIN_BUFSIZE)) {
+    if (tuh_audio_receive(audio_idx, audiostream_in_idx, audio_rx_buffer, CFG_TUH_AUDIO_EPIN_BUFSIZE)) {
       audio_rx_busy = true;
     }
   }
@@ -138,82 +108,102 @@ void audio_app_task(void) {
 //--------------------------------------------------------------------+
 
 
-// Callback after IN sampling frequency is set
-static void in_sampling_freq_set_cb(tuh_xfer_t *xfer) {
-  if (xfer->result != XFER_RESULT_SUCCESS) {
-    printf("  Sampling frequency set FAILED: result=%u\r\n", xfer->result);
-    return;
-  }
-  printf("  Sampling frequency set OK, ready for isochronous transfer\r\n");
-  // Set Feature Unit volume to un-mute
-  set_feature_unit_volume();
-  // Set OUT sampling frequency then send empty packet to kick-start device
-  tuh_audio_set_sampling_freq(audio_dev_addr, audio_ep_out, sampling_freq, NULL, 0);
-  audio_ready = true;
-}
-
-void tuh_audio_mount_cb(uint8_t idx, const tuh_audio_mount_cb_t *mount_cb_data) {
-  if (!mount_cb_data) {
+void tuh_audio_mount_cb(uint8_t idx) {
+  if (idx >= CFG_TUH_AUDIO_MAX) {
+    printf("Audio device mount failed: idx=%u exceeds max=%u\r\n", idx, CFG_TUH_AUDIO_MAX);
     return;
   }
 
-  printf("Audio device mounted: idx=%u, daddr=%u, AS count=%u\r\n", idx, mount_cb_data->daddr, mount_cb_data->as_count);
-
-  print_as_interfaces(mount_cb_data);
-
-  // Feature Unit
-  if (mount_cb_data->feature_unit_id != 0) {
-    printf("  Feature Unit: ID=%u, SourceID=%u\r\n", mount_cb_data->feature_unit_id,
-           mount_cb_data->feature_unit_source_id);
-  }
+  print_as_interfaces(idx);
 
   // Save device info
-  audio_dev_addr        = mount_cb_data->daddr;
-  audio_idx             = idx;
-  audio_mounted         = true;
-  audio_ac_itf          = mount_cb_data->bInterfaceNumber;
-  audio_feature_unit_id = mount_cb_data->feature_unit_id;
+  audio_dev_addr = tuh_audio_get_dev_addr(idx);
+  audio_idx      = idx;
+  audio_mounted  = true;
 
   // Find endpoints and IN sampling frequency
-  uint32_t in_sam_freq = find_audio_endpoints(mount_cb_data);
+  tuh_audio_as_info_t as;
+  for (uint8_t i = 0; i < tuh_audio_as_get_count(idx); i++) {
+
+    tuh_audio_as_get_info(idx, i, &as);
+    if (as.ep_dir == TUSB_DIR_IN) {
+      audiostream_in_idx = i;
+      if (as.sam_freq_type > 0) {
+        sampling_freq = as.sam_freq[0];
+      }
+    } else {
+      audiostream_out_idx = i;
+    }
+  }
 
   // Set IN sampling frequency before starting isochronous transfer
-  if (audio_ep_in != 0 && in_sam_freq != 0) {
-    sampling_freq = in_sam_freq;
+  if (audiostream_in_idx != 0xFF && sampling_freq != 0) {
     printf("  Setting IN sampling frequency to %lu Hz\r\n", (unsigned long)sampling_freq);
-    tuh_audio_set_sampling_freq(mount_cb_data->daddr, audio_ep_in, sampling_freq, in_sampling_freq_set_cb, 0);
+    // tuh_audio_set_sampling_freq(audio_idx, audiostream_in_idx, sampling_freq, in_sampling_freq_set_cb, 0);
+
+    tusb_xfer_result_t result;
+    result = tuh_audio_set_sampling_freq_sync(audio_idx, audiostream_in_idx, sampling_freq);
+    if (result == XFER_RESULT_SUCCESS) {
+      tuh_audio_get_sampling_freq_sync(audio_idx, audiostream_in_idx, &sampling_freq);
+      printf("  IN sampling frequency set to %lu Hz\r\n", (unsigned long)sampling_freq);
+      if (audiostream_out_idx != 0xFF) {
+        printf("  Setting OUT sampling frequency to %lu Hz\r\n", (unsigned long)sampling_freq);
+        result = tuh_audio_set_sampling_freq_sync(audio_idx, audiostream_out_idx, sampling_freq);
+        if (result == XFER_RESULT_SUCCESS) {
+          tuh_audio_get_sampling_freq_sync(audio_idx, audiostream_out_idx, &sampling_freq);
+          printf("  OUT sampling frequency set to %lu Hz\r\n", (unsigned long)sampling_freq);
+        } else {
+          printf("  Setting OUT sampling frequency FAILED: result=%u\r\n", result);
+        }
+      }
+    } else {
+      printf("  Setting IN sampling frequency FAILED: result=%u\r\n", result);
+    }
+    uint16_t volume = 0x0600;
+
+    result = tuh_audio_feature_unit_set_sync(audio_idx, AUDIO10_FU_CTRL_VOLUME, 0, volume);
+    if (result == XFER_RESULT_SUCCESS) {
+      printf("  Feature Unit volume set:volume 0x%04x\r\n", (unsigned int)volume);
+      tuh_audio_feature_unit_get_sync(audio_idx, AUDIO10_FU_CTRL_VOLUME, 0, &volume);
+      printf("  Feature Unit volume get: 0x%04x\r\n", (unsigned int)volume);
+    } else {
+      printf("  Setting Feature Unit volume FAILED: result=%u\r\n", result);
+    }
   }
+  audio_ready = true;
 }
 
 // Invoked when device with Audio interface is un-mounted
 void tuh_audio_umount_cb(uint8_t idx) {
   printf("Audio device unmounted: idx=%u\r\n", idx);
   if (audio_mounted && audio_idx == idx) {
-    audio_mounted  = false;
-    audio_ready    = false;
-    audio_rx_busy  = false;
-    audio_tx_busy  = false;
-    audio_dev_addr = 0;
-    audio_idx      = 0;
+    audio_mounted       = false;
+    audio_ready         = false;
+    audio_rx_busy       = false;
+    audio_tx_busy       = false;
+    audio_dev_addr      = 0;
+    audio_idx           = 0;
+    audiostream_in_idx  = 0xFF;
+    audiostream_out_idx = 0xFF;
   }
 }
 
 // Invoked when an isochronous IN transfer is complete
-void tuh_audio_rx_cb(uint8_t idx, uint8_t ep_addr, uint16_t xferred_bytes) {
-  (void)idx;
+void tuh_audio_rx_cb(uint8_t dev_addr, uint8_t ep_addr, uint16_t xferred_bytes) {
+  (void)dev_addr;
   (void)ep_addr;
   audio_rx_busy = false;
 
-  if (xferred_bytes > 0 && audio_ep_out != 0 && !audio_tx_busy) {
+  if (xferred_bytes > 0 && audiostream_out_idx != 0xFF && !audio_tx_busy) {
     bool ok;
     if (audio_mic_channels == 1) {
       // Mono microphone, convert to stereo and send to OUT endpoint
       uint16_t samples = xferred_bytes / 2;
       mono_to_stereo(audio_rx_buffer, audio_tx_buffer, samples);
-      ok = tuh_audio_send(audio_dev_addr, audio_idx, audio_tx_buffer, xferred_bytes * 2);
+      ok = tuh_audio_send(audio_idx, audiostream_out_idx, audio_tx_buffer, xferred_bytes * 2);
     } else {
       // Stereo microphone, send directly to OUT endpoint
-      ok = tuh_audio_send(audio_dev_addr, audio_idx, audio_rx_buffer, xferred_bytes);
+      ok = tuh_audio_send(audio_idx, audiostream_out_idx, audio_rx_buffer, xferred_bytes);
     }
 
     if (ok) {
@@ -223,8 +213,8 @@ void tuh_audio_rx_cb(uint8_t idx, uint8_t ep_addr, uint16_t xferred_bytes) {
 }
 
 // Invoked when an isochronous OUT transfer is complete
-void tuh_audio_tx_cb(uint8_t idx, uint8_t ep_addr, uint16_t xferred_bytes) {
-  (void)idx;
+void tuh_audio_tx_cb(uint8_t dev_addr, uint8_t ep_addr, uint16_t xferred_bytes) {
+  (void)dev_addr;
   (void)ep_addr;
   (void)xferred_bytes;
   audio_tx_busy = false;
