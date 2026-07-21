@@ -120,6 +120,7 @@ raw_gadget_result_t raw_gadget_context_table_create(size_t context_count)
     context->ep0_accumulated_length = 0;
     context->ep0_buffer = NULL;
     context->ep0_buffer_capacity = 0;
+    context->configured = false;
     context->transfer_generation = 0;
     context->event_callback = NULL;
     raw_gadget_endpoints_reset(context);
