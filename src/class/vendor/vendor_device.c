@@ -477,11 +477,13 @@ static uint8_t find_vendor_itf(uint8_t ep_addr) {
 // Reserve an isochronous endpoint at open time. Ports with a dedicated iso allocator
 // (TUP_DCD_EDPT_ISO_ALLOC) reserve the FIFO here and (re)activate on altsetting selection;
 // ports with dcd_edpt_close instead open it once here (open == allocate + activate).
-static inline bool vendord_iso_ep_alloc(uint8_t rhport, const tusb_desc_endpoint_t* desc_ep) {
+static inline bool vendord_iso_ep_alloc(uint8_t rhport, const tusb_desc_endpoint_t* desc_ep,
+                                        const uint8_t* desc_end) {
   #ifdef TUP_DCD_EDPT_ISO_ALLOC
+  (void) desc_end;
   return usbd_edpt_iso_alloc(rhport, desc_ep->bEndpointAddress, tu_edpt_packet_size(desc_ep));
   #else
-  return usbd_edpt_open(rhport, desc_ep);
+  return usbd_edpt_open(rhport, desc_ep, desc_end);
   #endif
 }
 
@@ -501,14 +503,16 @@ static inline void vendord_iso_ep_deactivate(uint8_t rhport, const tusb_desc_end
 }
 
 // (Re)activate an isochronous endpoint on altsetting selection.
-static inline bool vendord_iso_ep_activate(uint8_t rhport, const tusb_desc_endpoint_t* desc_ep) {
+static inline bool vendord_iso_ep_activate(uint8_t rhport, const tusb_desc_endpoint_t* desc_ep,
+                                           const uint8_t* desc_end) {
   #ifdef TUP_DCD_EDPT_ISO_ALLOC
+  (void) desc_end;
   return usbd_edpt_iso_activate(rhport, desc_ep); // resets ep_status, aborting any stale transfer
   #else
   // No iso alloc/activate API: close (which zeros ep_status and frees a stale claim left by a
   // prior selection) then re-open, so a re-selected altsetting starts from a clean state.
   usbd_edpt_close(rhport, desc_ep->bEndpointAddress);
-  return usbd_edpt_open(rhport, desc_ep);
+  return usbd_edpt_open(rhport, desc_ep, desc_end);
   #endif
 }
 
@@ -623,14 +627,14 @@ static bool vendord_set_alt(uint8_t rhport, uint8_t idx, uint8_t alt) {
         case TUSB_XFER_ISOCHRONOUS:
     #if CFG_TUD_VENDOR_EP_ISO_IN
           if (is_in) {
-            TU_ASSERT(vendord_iso_ep_activate(rhport, desc_ep));
+            TU_ASSERT(vendord_iso_ep_activate(rhport, desc_ep, desc_end));
             p_vendor->ep_iso_in = ep_addr;
             p_vendor->iso_in_desc = desc_ep; // points into p_itf_desc (static app descriptor)
           }
     #endif
     #if CFG_TUD_VENDOR_EP_ISO_OUT
           if (!is_in) {
-            TU_ASSERT(vendord_iso_ep_activate(rhport, desc_ep));
+            TU_ASSERT(vendord_iso_ep_activate(rhport, desc_ep, desc_end));
             p_vendor->ep_iso_out = ep_addr;
             p_vendor->iso_out_desc = desc_ep; // points into p_itf_desc (static app descriptor)
             p_vendor->iso_rx_xfer_len = tu_edpt_packet_size(desc_ep);
@@ -696,7 +700,7 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uin
       } else {
         switch (xfer) {
           case TUSB_XFER_BULK:
-            TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
+            TU_ASSERT(usbd_edpt_open(rhport, desc_ep, desc_end), 0);
             break;
 
   #if CFG_TUD_VENDOR_EP_INT_IN || CFG_TUD_VENDOR_EP_INT_OUT
@@ -704,13 +708,13 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uin
     #if CFG_TUD_VENDOR_EP_INT_IN
             if (dir == TUSB_DIR_IN) {
               TU_ASSERT(mps <= CFG_TUD_VENDOR_EP_INT_IN_BUFSIZE, 0);
-              TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
+              TU_ASSERT(usbd_edpt_open(rhport, desc_ep, desc_end), 0);
             }
     #endif
     #if CFG_TUD_VENDOR_EP_INT_OUT
             if (dir == TUSB_DIR_OUT) {
               TU_ASSERT(mps <= CFG_TUD_VENDOR_EP_INT_OUT_BUFSIZE, 0);
-              TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
+              TU_ASSERT(usbd_edpt_open(rhport, desc_ep, desc_end), 0);
             }
     #endif
             break;
@@ -721,13 +725,13 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uin
     #if CFG_TUD_VENDOR_EP_ISO_IN
             if (dir == TUSB_DIR_IN) {
               TU_ASSERT(mps <= CFG_TUD_VENDOR_EP_ISO_IN_BUFSIZE, 0);
-              TU_ASSERT(vendord_iso_ep_alloc(rhport, desc_ep), 0);
+              TU_ASSERT(vendord_iso_ep_alloc(rhport, desc_ep, desc_end), 0);
             }
     #endif
     #if CFG_TUD_VENDOR_EP_ISO_OUT
             if (dir == TUSB_DIR_OUT) {
               TU_ASSERT(mps <= CFG_TUD_VENDOR_EP_ISO_OUT_BUFSIZE, 0);
-              TU_ASSERT(vendord_iso_ep_alloc(rhport, desc_ep), 0);
+              TU_ASSERT(vendord_iso_ep_alloc(rhport, desc_ep, desc_end), 0);
             }
     #endif
             break;
@@ -779,14 +783,14 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uin
     #if CFG_TUD_VENDOR_EP_INT_IN
         if (is_int_in) {
           TU_ASSERT(tu_edpt_packet_size(desc_ep) <= CFG_TUD_VENDOR_EP_INT_IN_BUFSIZE, 0);
-          TU_ASSERT(usbd_edpt_open(rhport, desc_ep));
+          TU_ASSERT(usbd_edpt_open(rhport, desc_ep, desc_end));
           p_vendor->ep_int_in = desc_ep->bEndpointAddress;
         }
     #endif
     #if CFG_TUD_VENDOR_EP_INT_OUT
         if (!is_int_in) {
           TU_ASSERT(tu_edpt_packet_size(desc_ep) <= CFG_TUD_VENDOR_EP_INT_OUT_BUFSIZE, 0);
-          TU_ASSERT(usbd_edpt_open(rhport, desc_ep));
+          TU_ASSERT(usbd_edpt_open(rhport, desc_ep, desc_end));
           p_vendor->ep_int_out = desc_ep->bEndpointAddress;
           p_vendor->int_rx_xfer_len = tu_edpt_packet_size(desc_ep);
         }
