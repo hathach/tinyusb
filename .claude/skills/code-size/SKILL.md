@@ -31,7 +31,7 @@ Infer from the user's request:
 # Single example, one board (linkermap, fastest; add --bloaty for section/symbol breakdown):
 python3 tools/metrics_compare_base.py -b raspberry_pi_pico -e device/cdc_msc
 
-# All examples for one board (repeat -b + add --combined for one aggregated report):
+# All examples for one board (repeat -b for several boards):
 python3 tools/metrics_compare_base.py -b raspberry_pi_pico
 
 # Full CI sweep (first board per arm-gcc family, combined):

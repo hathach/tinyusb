@@ -45,7 +45,7 @@ cmake -B cmake-build-raspberry_pi_pico -DBOARD=raspberry_pi_pico -G Ninja -DCMAK
 ```
 
 - **Make:** `cd examples/device/cdc_msc && make BOARD=raspberry_pi_pico all`
-- **Espressif** (ESP-IDF examples only, e.g. `cdc_msc_freertos`): after `export.sh`, `idf.py -DBOARD=espressif_s3_devkitc build`
+- **Espressif** (ESP-IDF examples only, e.g. `cdc_msc_freertos`): after `export.sh`, `cd examples/device/cdc_msc_freertos && idf.py -DBOARD=espressif_s3_devkitc build`
 - **Options** (CMake `-D…` / Make `…=…`): `CMAKE_BUILD_TYPE=Debug`/`DEBUG=1`; `LOG=2` (`LOGGER=rtt` for RTT); `RHPORT_DEVICE=1`; `RHPORT_DEVICE_SPEED=OPT_MODE_FULL_SPEED`
 
 ## Flash
@@ -70,7 +70,7 @@ openocd -f interface/cmsis-dap.cfg -f target/rp2040.cfg -c "adapter speed 5000" 
 ```
 Terminal 2 — connect (`<port>`: 2331 JLink, 3333 OpenOCD):
 ```bash
-arm-none-eabi-gdb firmware.elf
+arm-none-eabi-gdb build/your_app.elf
 (gdb) target remote :<port>    # then: monitor reset halt → load → continue
 ```
 **RTT:** build `LOG=2 LOGGER=rtt`, run JLinkGDBServer with `-RTTTelnetPort 19021`, then `JLinkRTTClient` (`timeout 20s JLinkRTTClient > rtt.log` for non-interactive capture).
