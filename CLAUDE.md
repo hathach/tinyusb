@@ -19,8 +19,8 @@ Bias toward caution over speed. For trivial tasks, use judgment.
 - **Language/style:** C99, 2-space indent (no tabs), snake_case helpers, `UPPER_CASE` macros. Public APIs use `tud_`/`tuh_`; macros use `TU_`. Headers self-contained with `#if CFG_TUSB_MCU` guards.
 - **Safety:** no dynamic allocation; defer ISR work to task context; use `TU_ASSERT()` for error checks; always check return values; include order: C stdlib → tusb common → drivers → classes.
 - **Layout:** `src/` core, `hw/{mcu,bsp}/` MCU+BSP, `examples/{device,host,dual}/`, `test/{unit-test,fuzz,hil}/`, `docs/`, `tools/`.
-- **Commits/PRs:** imperative mood, scoped changes, link issues, include test/build evidence. After opening a PR, monitor it and drive it to green: address automated review comments (Copilot/Codex/Claude) and fix any failing CI builds, pushing follow-up commits until checks pass and review threads are resolved. Useful: `gh pr checks <num> --watch`, `gh pr view <num> --comments`.
-- **Formatting/lint:** `clang-format` (`.clang-format`), `codespell` (`.codespellrc`), run `pre-commit run --all-files` before submitting.
+- **Commits/PRs:** imperative mood, scoped changes, link issues, include test/build evidence. After opening a PR, drive it to green: address automated review comments (Copilot/Codex/Claude) and fix failing CI, pushing follow-ups until checks pass and threads resolve. Useful: `gh pr checks <num> --watch`, `gh pr view <num> --comments`.
+- **Formatting/lint:** `clang-format` (`.clang-format`), `codespell` (`.codespellrc`); run `pre-commit run --all-files` before submitting.
 
 ## Bootstrap
 
@@ -35,86 +35,45 @@ python3 tools/get_deps.py [FAMILY|-b BOARD]        # fetch deps into lib/, hw/mc
 Single example (CMake+Ninja, recommended, 1-3 s):
 ```bash
 cd examples/device/cdc_msc && mkdir -p build && cd build
-cmake -DBOARD=raspberry_pi_pico -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel ..
-cmake --build .
+cmake -DBOARD=raspberry_pi_pico -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel .. && cmake --build .
 ```
 
-All examples for a board (15-20 s; some objcopy failures are non-critical). Use `cmake-build-<board>` as the build dir — HIL tests expect that exact name:
+All examples for a board (15-20 s; some objcopy failures are non-critical). The build dir **must** be `cmake-build-<board>` — HIL tests expect that exact name:
 ```bash
 cd examples
-cmake -B cmake-build-raspberry_pi_pico -DBOARD=raspberry_pi_pico -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel .
-cmake --build cmake-build-raspberry_pi_pico
+cmake -B cmake-build-raspberry_pi_pico -DBOARD=raspberry_pi_pico -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel . && cmake --build cmake-build-raspberry_pi_pico
 ```
 
-Single example with Make:
-```bash
-cd examples/device/cdc_msc && make BOARD=raspberry_pi_pico all
-```
-
-Espressif (only ESP-IDF examples like `cdc_msc_freertos`):
-```bash
-. $HOME/code/esp-idf/export.sh
-cd examples/device/cdc_msc_freertos
-idf.py -DBOARD=espressif_s3_devkitc build
-```
-
-**Build options** (CMake `-D…` / Make `…=…`):
-- Debug: `CMAKE_BUILD_TYPE=Debug` / `DEBUG=1`
-- Logging: `LOG=2` (add `LOGGER=rtt` for RTT)
-- Root hub port: `RHPORT_DEVICE=1`
-- Speed: `RHPORT_DEVICE_SPEED=OPT_MODE_FULL_SPEED`
+- **Make:** `cd examples/device/cdc_msc && make BOARD=raspberry_pi_pico all`
+- **Espressif** (ESP-IDF examples only, e.g. `cdc_msc_freertos`): after `export.sh`, `idf.py -DBOARD=espressif_s3_devkitc build`
+- **Options** (CMake `-D…` / Make `…=…`): `CMAKE_BUILD_TYPE=Debug`/`DEBUG=1`; `LOG=2` (`LOGGER=rtt` for RTT); `RHPORT_DEVICE=1`; `RHPORT_DEVICE_SPEED=OPT_MODE_FULL_SPEED`
 
 ## Flash
 
 ```bash
-# JLink
-ninja cdc_msc-jlink                                       # CMake
-make BOARD=<board> flash-jlink                            # Make
-
-# OpenOCD
-ninja cdc_msc-openocd                                     # CMake
-make BOARD=<board> flash-openocd                          # Make
-
-# UF2
-ninja cdc_msc-uf2                                         # CMake
-make BOARD=<board> all uf2                                # Make
-
-ninja -t targets                                          # list CMake targets
-
-# Espressif (after . $HOME/code/esp-idf/export.sh)
-idf.py -DBOARD=<board> flash
-idf.py -DBOARD=<board> monitor
+ninja cdc_msc-jlink       # CMake; Make: make BOARD=<board> flash-jlink
+ninja cdc_msc-openocd     # CMake; Make: make BOARD=<board> flash-openocd
+ninja cdc_msc-uf2         # CMake; Make: make BOARD=<board> all uf2
+ninja -t targets          # list CMake targets
 ```
+Espressif (after `export.sh`): `idf.py -DBOARD=<board> flash` / `… monitor`.
 
 ## GDB Debugging
 
-Look up `JLINK_DEVICE` / `OPENOCD_OPTION` in `hw/bsp/*/boards/*/board.cmake` (CMake builds) or `board.mk` (Make builds).
+Look up `JLINK_DEVICE` / `OPENOCD_OPTION` in `hw/bsp/*/boards/*/board.cmake` (CMake) or `board.mk` (Make).
 
-**JLink — Terminal 1:**
+Terminal 1 — start a gdbserver:
 ```bash
-JLinkGDBServer -device stm32h743xi -if SWD -speed 4000 -port 2331 -swoport 2332 -telnetport 2333 -nogui
+JLinkGDBServer -device stm32h743xi -if SWD -speed 4000 -port 2331 -nogui   # JLink → :2331
+openocd -f interface/stlink.cfg -f target/stm32h7x.cfg                     # OpenOCD → :3333
+openocd -f interface/cmsis-dap.cfg -f target/rp2040.cfg -c "adapter speed 5000"   # rp2040/rp2350
 ```
-
-**OpenOCD — Terminal 1:**
+Terminal 2 — connect (`<port>`: 2331 JLink, 3333 OpenOCD):
 ```bash
-openocd -f interface/stlink.cfg -f target/stm32h7x.cfg
-# or with a J-Link interface:
-openocd -f interface/jlink.cfg -f target/stm32h7x.cfg
-# rp2040/rp2350 via CMSIS-DAP:
-openocd -f interface/cmsis-dap.cfg -f target/rp2040.cfg -c "adapter speed 5000"
+arm-none-eabi-gdb firmware.elf
+(gdb) target remote :<port>    # then: monitor reset halt → load → continue
 ```
-
-**Terminal 2 — connect GDB** (replace `<port>` with `2331` for JLinkGDBServer or `3333` for OpenOCD):
-```bash
-arm-none-eabi-gdb /tmp/build/firmware.elf
-(gdb) target remote :<port>
-(gdb) monitor reset halt
-(gdb) load
-(gdb) break main         # optional, to stop at entry
-(gdb) continue
-```
-
-**RTT logging:** build with `LOG=2 LOGGER=rtt`, flash, then run JLinkGDBServer with `-RTTTelnetPort 19021`, and in another terminal `JLinkRTTClient` (pipe to `tee rtt.log` or use `timeout 20s JLinkRTTClient > rtt.log` for non-interactive capture).
+**RTT:** build `LOG=2 LOGGER=rtt`, run JLinkGDBServer with `-RTTTelnetPort 19021`, then `JLinkRTTClient` (`timeout 20s JLinkRTTClient > rtt.log` for non-interactive capture).
 
 ## Testing
 
@@ -124,62 +83,19 @@ sudo gem install ceedling
 cd test/unit-test && ceedling test:all        # or ceedling test:test_fifo
 ```
 
-**HIL (2-5 min):** invoke the `hil` skill (`.claude/skills/hil/SKILL.md`) for the full procedure (local vs remote mode, config selection, SSH copy steps, debugging tips). Requires pre-built examples — see Build → "All examples for a board".
+**HIL (2-5 min):** invoke the `hil` skill (`.claude/skills/hil/SKILL.md`) — local vs remote mode, config selection, SSH copy steps, debugging. Requires pre-built examples (Build → "All examples for a board").
 
 ## Documentation
 
-Sphinx docs in `docs/` (reStructuredText `.rst` or Markdown `.md` via MyST). Use the `build-doc` skill (`.claude/skills/build-doc/SKILL.md`) to build/preview locally (`sphinx-build`) and to regenerate auto-generated files (`tools/gen_doc.py` + `tools/gen_presets.py`) after adding a board or dependency.
+Sphinx docs in `docs/` (`.rst`, or `.md` via MyST). Use the `build-doc` skill (`.claude/skills/build-doc/SKILL.md`) to build/preview locally and regenerate auto-generated files (`tools/gen_doc.py` + `tools/gen_presets.py`) after adding a board or dependency.
 
 ## Code Size Metrics
 
-Verify size impact before committing. Invoke the `code-size` skill (`.claude/skills/code-size/SKILL.md`) — it wraps `tools/metrics_compare_base.py` to handle the base-vs-branch worktree + build + compare flow.
-
-Quick reference:
-```bash
-# Single example, one board:
-python3 tools/metrics_compare_base.py -b raspberry_pi_pico -e device/cdc_msc
-# Add --bloaty for section/symbol breakdown.
-
-# All examples, one board:
-python3 tools/metrics_compare_base.py -b raspberry_pi_pico
-
-# All arm-gcc CI families combined (pre-merge sweep, 4-8 min):
-python3 tools/metrics_compare_base.py --ci
-```
-
-Reports land in `cmake-metrics/<board>/metrics_compare.md` (per-board) and `cmake-metrics/_combined/metrics_compare.md` (with `--combined`/`--ci`).
+Verify size impact before committing with the `code-size` skill (`.claude/skills/code-size/SKILL.md`) — it wraps `tools/metrics_compare_base.py` for the base-vs-branch worktree + build + compare. Scopes: single example (`-e device/cdc_msc -b <board>`, add `--bloaty`), all examples on a board (`-b <board>`), or all arm-gcc CI families (`--ci`). Reports land in `cmake-metrics/<board>/metrics_compare.md` (and `_combined/` for `--ci`).
 
 ## Static Analysis (PVS-Studio)
 
-Requires `compile_commands.json`, which the examples build exports by default
-(`hw/bsp/family_support.cmake` sets `CMAKE_EXPORT_COMPILE_COMMANDS ON`). The
-`pvs` skill (`.claude/skills/pvs/SKILL.md`) wraps the build + analyze flow for a
-board; the commands below are the underlying steps.
-
-```bash
-# Whole project:
-pvs-studio-analyzer analyze \
-  -f examples/cmake-build-raspberry_pi_pico/compile_commands.json \
-  -R .PVS-Studio/.pvsconfig \
-  -o pvs-report.log -j12 \
-  --security-related-issues \
-  --misra-c-version 2023 --misra-cpp-version 2008 --use-old-parser
-
-# Specific files: -S takes a plaintext list (one path per line), not paths directly:
-printf 'src/foo.c\nsrc/bar.c\n' > files.txt
-pvs-studio-analyzer analyze \
-  -f examples/cmake-build-raspberry_pi_pico/compile_commands.json \
-  -R .PVS-Studio/.pvsconfig \
-  -S files.txt \
-  -o pvs-report.log -j12 \
-  --security-related-issues \
-  --misra-c-version 2023 --misra-cpp-version 2008 --use-old-parser
-
-plog-converter -a GA:1,2 -t errorfile pvs-report.log     # view results
-```
-
-Takes ~10-30 s. (`--dump-files` adds preprocessed `.PVS-Studio.i/.cfg` dumps next
-to every source for false-positive debugging — omit it for normal runs.)
+Use the `pvs` skill (`.claude/skills/pvs/SKILL.md`) — it builds the examples with an exported `compile_commands.json` and runs SAST + MISRA C:2023/C++:2008 for a board, emitting readable + SARIF output (~10-30 s). The examples build exports `compile_commands.json` by default.
 
 ## Validation After Changes
 
@@ -200,7 +116,7 @@ Cutting a release — version bump, regenerated files, the per-release changelog
 
 ## References
 
-- MCU reference manuals, datasheets, schematics: `$HOME/Documents/calibre-library`.
+- MCU reference manuals, datasheets, schematics: before answering register/bitfield/pinout/errata/timing questions from memory or the web, use the `read-doc` skill (`.claude/skills/read-doc/SKILL.md`) to search and read them from `$HOME/Documents/calibre-library` (skill no-ops if the library is absent).
 - Supported MCUs/boards: `hw/bsp/` and `docs/reference/boards.rst`.
 - USB classes: `src/class/{cdc,hid,msc,audio,…}/` — each has `*_device.c` and `*_host.c`.
 - Key files: `src/tusb.h`, `src/tusb_config.h`, `tools/get_deps.py`, `tools/build.py`, `test/unit-test/project.yml`.
