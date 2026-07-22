@@ -330,10 +330,11 @@ void test_usbd_xfer_complete_dropped_by_full_queue_recovers(void)
     .wMaxPacketSize   = 64,
     .bInterval        = 0
   };
+  uint8_t const* desc_end = (uint8_t const*) &desc_ep + sizeof(desc_ep);
   static uint8_t xfer_buf[64];
 
-  dcd_edpt_open_ExpectAndReturn(rhport, &desc_ep, true);
-  TEST_ASSERT_TRUE(usbd_edpt_open(rhport, &desc_ep));
+  dcd_edpt_open_ExpectAndReturn(rhport, &desc_ep, desc_end, true);
+  TEST_ASSERT_TRUE(usbd_edpt_open(rhport, &desc_ep, desc_end));
   TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, 0x01));
   dcd_edpt_xfer_ExpectAndReturn(rhport, 0x01, xfer_buf, 64, false, true);
   TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport, 0x01, xfer_buf, 64, false));

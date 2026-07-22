@@ -267,7 +267,7 @@ deps_optional = {
                             'ch32x035'],
     'hw/mcu/wch/ch32h417': ['https://github.com/openwch/ch32h417.git',
                             'a0a56fa830b860297a64a72315a731b71c841329',
-                            'ch32h417'],
+                            'ch32h41x'],
     'hw/mcu/artery/at32f403a_407': ['https://github.com/ArteryTek/AT32F403A_407_Firmware_Library.git',
                                     'f2cb360c3d28fada76b374308b8c4c61d37a090b',
                                     'at32f403a_407'],

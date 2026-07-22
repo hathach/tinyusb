@@ -372,6 +372,26 @@
       }
     }
   },
+  "ch32h41x": {
+    "ch32h417qeu6_r0_1v1": {
+      "cmake": {
+        "defines": {
+          "CFG_TUD_WCH_USBIP_USBSS": "1"
+        },
+        "family_mcus": [
+          "CH32H417"
+        ],
+        "mcu": "OPT_MCU_CH32H41X",
+        "options": {},
+        "portable": [
+          "wch/dcd_ch32_usbss.c"
+        ],
+        "roles": [
+          "device"
+        ]
+      }
+    }
+  },
   "ch32v10x": {
     "ch32v103c_bluepill": {
       "cmake": {

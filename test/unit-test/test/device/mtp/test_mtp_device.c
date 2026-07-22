@@ -132,8 +132,8 @@ static void isr_fill_queue(void) {
 static void run_task_until_idle(void) {
   for (unsigned i = 0; i < CFG_TUD_TASK_QUEUE_SZ / CFG_TUD_TASK_EVENTS_PER_RUN + 2; i++) tud_task();
 }
-static bool stub_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t* desc, int n) {
-  (void) rhport; (void) desc; (void) n;
+static bool stub_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t* desc, const uint8_t* desc_end, int n) {
+  (void) rhport; (void) desc; (void) desc_end; (void) n;
   return true;
 }
 

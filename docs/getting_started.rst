@@ -64,6 +64,10 @@ The `cdc_msc <https://github.com/hathach/tinyusb/tree/master/examples/device/cdc
 .. tip::
    Flashed/Debugger can be selected with --target ``-jlink``, ``-stlink`` or ``-openocd`` depending on your board. Use ``--target help`` to list all supported targets.
 
+   CH32H41X uses ``cdc_msc-openocd`` with the ``openocd`` executable from PATH. Use the
+   `TinyUSB OpenOCD fork <https://github.com/hathach/openocd/tree/tinyusb>`_ for WCH support,
+   or set ``-DOPENOCD=/path/to/openocd`` when configuring CMake to select another executable.
+
 **Build and run with Make:**
 
 .. code-block:: bash

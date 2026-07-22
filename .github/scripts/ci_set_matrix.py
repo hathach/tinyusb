@@ -34,6 +34,7 @@ family_list = {
     "broadcom_32bit": ["arm-gcc"],
     "broadcom_64bit": ["aarch64-gcc"],
     "ch32f20x": ["arm-gcc"],
+    "ch32h41x": ["riscv-gcc"],
     "ch32v10x": ["riscv-gcc"],
     "ch32v20x": ["riscv-gcc"],
     "ch32v30x": ["riscv-gcc"],
