@@ -1,7 +1,7 @@
 include_guard()
 
 set(APM32_FAMILY apm32f0xx)
-set(APM32_SDK ${TOP}/hw/mcu/geehy/APM32F0xx_SDK_V1.8.6/Libraries)
+set(APM32_SDK ${TOP}/hw/mcu/geehy/APM32F0xx_SDK/Libraries)
 
 # include board specific
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)

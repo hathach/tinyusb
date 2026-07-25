@@ -36,6 +36,15 @@
 #include "bsp/board_api.h"
 #include "board.h"
 
+void USBD_IRQHandler(void);
+#if CFG_TUSB_OS == OPT_OS_NONE
+void SysTick_Handler(void);
+void SVC_Handler(void);
+void PendSV_Handler(void);
+#endif
+void HardFault_Handler(void);
+void _init(void);
+
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+

@@ -78,6 +78,7 @@ hw/mcu/artery/
 hw/mcu/broadcom/
 hw/mcu/bridgetek/ft9xx/ft90x-sdk/
 hw/mcu/gd/
+hw/mcu/geehy/
 hw/mcu/hpmicro/
 hw/mcu/infineon/
 hw/mcu/microchip/

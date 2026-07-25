@@ -1,5 +1,5 @@
 APM32_FAMILY = apm32f0xx
-APM32_SDK = hw/mcu/geehy/APM32F0xx_SDK_V1.8.6/Libraries
+APM32_SDK = hw/mcu/geehy/APM32F0xx_SDK/Libraries
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
