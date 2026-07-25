@@ -32,7 +32,6 @@
 #include "apm32f0xx_rcm.h"
 #include "apm32f0xx_gpio.h"
 #include "apm32f0xx_misc.h"
-#include "apm32f0xx_crs.h"
 #include "bsp/board_api.h"
 #include "board.h"
 
@@ -56,18 +55,11 @@ void USBD_IRQHandler(void) {
 // Board Init
 //--------------------------------------------------------------------+
 void board_init(void) {
-  // Enable HSI48 for USB clock
-  RCM_EnableHSI48();
-  while (RCM_ReadStatusFlag(RCM_FLAG_HSI48RDY) == RESET) {}
+  // Configure HSE and PLL for a 48 MHz system clock
+  SystemClockConfig();
 
-  // Select HSI48 as USB clock source
-  RCM_ConfigUSBCLK(RCM_USBCLK_HSI48);
-
-  // Enable CRS for automatic HSI48 calibration from USB SOF
-  RCM_EnableAPB1PeriphClock(RCM_APB1_PERIPH_CRS);
-  CRS_ConfigSynchronizationSource(CRS_SYNC_SOURCE_USB);
-  CRS_EnableAutomaticCalibration();
-  CRS_EnableFrequencyErrorCounter();
+  // Route the 48 MHz PLL clock to USB
+  RCM_ConfigUSBCLK(RCM_USBCLK_PLLCLK);
 
   // Enable USB peripheral clock
   RCM_EnableAPB1PeriphClock(RCM_APB1_PERIPH_USB);
