@@ -34,4 +34,18 @@ static const ci_hs_controller_t _ci_controller[] =
 #define CI_HCD_INT_ENABLE(_p)   NVIC_EnableIRQ ((IRQn_Type)_ci_controller[_p].irqnum)
 #define CI_HCD_INT_DISABLE(_p)  NVIC_DisableIRQ((IRQn_Type)_ci_controller[_p].irqnum)
 
+enum {
+  CI_HS_LPC18_43_SBUSCFG_OFFSET        = 0x90u,
+  CI_HS_LPC18_43_AHBBRST_INCR16_UNSPEC = 0x07u,
+};
+
+TU_ATTR_ALWAYS_INLINE static inline void ci_hs_lpc18_43_set_ahb_burst(uint8_t rhport) {
+  // USB0 SBUSCFG is at offset 0x90. NXP recommends AHBBRST=0x7:
+  // INCR16 with non-multiple transfers decomposed into smaller unspecified bursts.
+  if (rhport == 0) {
+    volatile uint32_t *sbuscfg = (volatile uint32_t *)(_ci_controller[rhport].reg_base + CI_HS_LPC18_43_SBUSCFG_OFFSET);
+    *sbuscfg = CI_HS_LPC18_43_AHBBRST_INCR16_UNSPEC;
+  }
+}
+
 #endif
