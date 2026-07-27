@@ -59,7 +59,7 @@ static raw_gadget_result_t raw_gadget_endpoint_disable_locked(
 
   if (ioctl(context->file_descriptor,
             USB_RAW_IOCTL_EP_DISABLE,
-            &kernel_handle) < 0)
+            (unsigned long)kernel_handle) < 0)
   {
     return RAW_GADGET_RESULT_IO_ERROR;
   }
@@ -287,7 +287,7 @@ raw_gadget_result_t raw_gadget_endpoint_stall(raw_gadget_handle_t handle,
 
   if (ioctl(context->file_descriptor,
             USB_RAW_IOCTL_EP_SET_HALT,
-            &kernel_handle) < 0)
+            (unsigned long)kernel_handle) < 0)
   {
     result = RAW_GADGET_RESULT_IO_ERROR;
   }
@@ -339,7 +339,7 @@ raw_gadget_result_t raw_gadget_endpoint_clear_stall(
 
   if (ioctl(context->file_descriptor,
             USB_RAW_IOCTL_EP_CLEAR_HALT,
-            &kernel_handle) < 0)
+            (unsigned long)kernel_handle) < 0)
   {
     result = RAW_GADGET_RESULT_IO_ERROR;
   }

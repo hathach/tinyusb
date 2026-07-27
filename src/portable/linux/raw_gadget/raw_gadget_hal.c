@@ -335,7 +335,7 @@ raw_gadget_result_t raw_gadget_set_vbus_draw(raw_gadget_handle_t handle,
 
   if (ioctl(context->file_descriptor,
             USB_RAW_IOCTL_VBUS_DRAW,
-            &current_units) < 0)
+            (unsigned long)current_units) < 0)
   {
     return RAW_GADGET_RESULT_IO_ERROR;
   }
