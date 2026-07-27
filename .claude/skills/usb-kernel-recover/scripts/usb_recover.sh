@@ -139,9 +139,13 @@ case "$action" in
     bus=${target%%-*}; rest=${target#*-}; rootport=${rest%%.*}
     before=$(cat "/sys/bus/usb/devices/$target/devnum" 2>/dev/null || echo none)
     echo "root-cycle: cutting VBUS on bus $bus root port $rootport (feeds $target, bounces its siblings)"
-    # No -e: without it uhubctl also cycles the paired USB3 root port, which is the same physical
-    # connector, so the whole port really loses VBUS. -e would cut only the USB2 half.
-    "$UHUBCTL" -l "$bus" -p "$rootport" -a cycle -d 5
+    # -S is load-bearing. By default uhubctl writes /sys/.../usb<bus>-port<n>/disable (verified:
+    # two O_WRONLY opens per cycle), and the kernel's disable_store() takes the ROOT HUB's lock and
+    # synchronously usb_disconnect()s the child BEFORE cutting power -- against a wedged device that
+    # blocks on the lock we are trying to free, so power would never drop and uhubctl would D-state
+    # holding the root hub's lock, poisoning the whole bus. -S forces the libusb path, which sends
+    # the power-off control transfer straight to the root hub with no child-disconnect in front.
+    "$UHUBCTL" -S -l "$bus" -p "$rootport" -a cycle -d 5
     # Require a NEW enumeration (devnum changes), not merely that the sysfs node exists. If the
     # disconnect is itself blocked on the device lock, the old node and its idVendor stay put, so
     # an existence check would report success in exactly the case we need to catch.
