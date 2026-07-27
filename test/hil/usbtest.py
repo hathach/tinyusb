@@ -427,18 +427,30 @@ def main():
                 # block into the finally cleanup with the flag still False -- running the exact
                 # remove_id/unbind the comments there forbid while a device lock is held.
                 unrecovered_hang = True
+                # Pass the serial so the helper refuses a stale busport rather than cutting power
+                # to whatever else now occupies that path. Popen rather than sudo()/subprocess.run:
+                # run() would kill() then wait() unbounded on timeout, which never returns if
+                # uhubctl is itself in D state -- the case the timeout exists for. Merge stderr
+                # into stdout so the helper's target-identity and action lines are not lost.
+                cmd = [str(USB_RECOVER), 'root-cycle', dev['sysname'], dev['serial']]
+                if os.geteuid() != 0:
+                    cmd = ['sudo', '-n'] + cmd
+                p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                rc = None
                 try:
-                    # Normal run is ~8s (5s VBUS off + re-enumeration poll); 60s is 3x headroom.
-                    # Only helps if uhubctl is still killable -- a genuinely D-state uhubctl cannot
-                    # be reaped, but -S keeps it off the sysfs disable_store path that would cause
-                    # that. See the skill.
-                    rc = sudo([str(USB_RECOVER), 'root-cycle', dev['sysname']], timeout=60)
+                    out, _ = p.communicate(timeout=60)   # normal run is ~8s
+                    rc = p.returncode
                 except subprocess.TimeoutExpired:
-                    print('root-cycle did not return within 60s: uhubctl is itself wedged, the '
-                          'convoy has spread', file=sys.stderr)
-                else:
-                    if rc.returncode != 0:
-                        print(rc.stderr or '(no output from usb_recover.sh)', file=sys.stderr)
+                    p.kill()
+                    try:
+                        out, _ = p.communicate(timeout=5)
+                        rc = p.returncode
+                    except subprocess.TimeoutExpired:
+                        out = ('root-cycle abandoned after 60s: uhubctl did not die to SIGKILL, so '
+                               'it is wedged too and the convoy has spread beyond this device')
+                if out:
+                    print(out.strip(), file=sys.stderr)
+                if rc is not None:
                     time.sleep(5)  # let the bus settle and the freed ioctl unwind
                     # Authoritative either way. A non-zero exit only means the device did not come
                     # back within the poll (a slow bootloader will do that) -- if nothing still
