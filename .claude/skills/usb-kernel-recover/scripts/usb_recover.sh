@@ -108,11 +108,12 @@ case "$action" in
     [[ "$target" =~ $USBPATH_RE ]] || die "bad usb path: $target"
     UHUBCTL=$(command -v uhubctl || echo /sbin/uhubctl)
     [ -x "$UHUBCTL" ] || die "uhubctl not installed"
-    # devnum, not node existence: a disconnect blocked on the device lock leaves the old node
-    # (and its idVendor) in place, so an existence check reports success without anything having
-    # happened -- and the walk to the root port, which is the part that actually cuts power on
-    # these fake-ganged leaf hubs, would never run.
+    # devnum plus an observed disappearance, not node existence: a disconnect blocked on the
+    # device lock leaves the old node (and its idVendor) in place, so an existence check reports
+    # success without anything having happened -- and the walk to the root port, which is the
+    # part that actually cuts power on these fake-ganged leaf hubs, would never run.
     before=$(cat "/sys/bus/usb/devices/$target/devnum" 2>/dev/null || echo none)
+    saw_gone=0
     dev="$target"
     while :; do
       if [[ "$dev" =~ ^([0-9]+)-([0-9]+)$ ]]; then    # parent is the root hub
@@ -125,7 +126,8 @@ case "$action" in
       for _ in $(seq 1 10); do
         sleep 1
         now=$(cat "/sys/bus/usb/devices/$target/devnum" 2>/dev/null || echo none)
-        if [ "$now" != none ] && [ "$now" != "$before" ]; then
+        if [ "$now" = none ]; then saw_gone=1; continue; fi
+        if [ "$saw_gone" = 1 ] || [ "$now" != "$before" ]; then
           echo "recovered: $target re-enumerated (devnum $before -> $now)"; exit 0
         fi
       done
@@ -143,9 +145,14 @@ case "$action" in
     [[ "$target" =~ $USBPATH_RE ]] || die "bad usb path: $target"
     UHUBCTL=$(command -v uhubctl || echo /sbin/uhubctl)
     [ -x "$UHUBCTL" ] || die "uhubctl not installed"
-    # Same existence guard as authorized/rebind: bus numbers renumber every boot, and a stale
-    # busport would otherwise cut power to whatever now occupies that root port.
+    # Same existence guard as authorized/rebind. NB this only proves *something* occupies that
+    # path -- bus numbers renumber every boot, so a stale busport can name a different device
+    # entirely and we would cut power to its whole subtree. Print the identity we are about to
+    # bounce so a wrong target is visible; pass a freshly resolved busport (see `resolve`).
     [ -e "/sys/bus/usb/devices/$target" ] || die "no such usb device: $target"
+    idf="/sys/bus/usb/devices/$target"
+    echo "root-cycle: target $target is $(cat "$idf/idVendor" 2>/dev/null):$(cat "$idf/idProduct" 2>/dev/null)" \
+         "serial=$(cat "$idf/serial" 2>/dev/null || echo -) product=$(cat "$idf/product" 2>/dev/null || echo -)"
     bus=${target%%-*}; rest=${target#*-}; rootport=${rest%%.*}
     before=$(cat "/sys/bus/usb/devices/$target/devnum" 2>/dev/null || echo none)
     echo "root-cycle: cutting VBUS on bus $bus root port $rootport (feeds $target, bounces its siblings)"
@@ -156,13 +163,18 @@ case "$action" in
     # holding the root hub's lock, poisoning the whole bus. -S forces the libusb path, which sends
     # the power-off control transfer straight to the root hub with no child-disconnect in front.
     "$UHUBCTL" -S -l "$bus" -p "$rootport" -a cycle -d 5
-    # Require a NEW enumeration (devnum changes), not merely that the sysfs node exists. If the
-    # disconnect is itself blocked on the device lock, the old node and its idVendor stay put, so
-    # an existence check would report success in exactly the case we need to catch.
+    # Require evidence of a NEW enumeration, not merely that the sysfs node exists: if the
+    # disconnect is itself blocked on the device lock the old node stays put, so an existence
+    # check would report success in exactly the case we need to catch. Either an observed
+    # disappearance or a changed devnum proves it. devnum alone is not enough -- Linux reuses
+    # addresses once the per-bus map wraps, and this rig churns ~20 devnums a minute, so a
+    # same-address reassignment is not hypothetical.
+    saw_gone=0
     for _ in $(seq 1 10); do
       sleep 1
       now=$(cat "/sys/bus/usb/devices/$target/devnum" 2>/dev/null || echo none)
-      if [ "$now" != none ] && [ "$now" != "$before" ]; then
+      if [ "$now" = none ]; then saw_gone=1; continue; fi
+      if [ "$saw_gone" = 1 ] || [ "$now" != "$before" ]; then
         echo "root-cycled $bus port $rootport: $target re-enumerated (devnum $before -> $now)"; exit 0
       fi
     done

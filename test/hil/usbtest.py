@@ -255,24 +255,38 @@ def dmesg_tail():
 
 
 def wedged_pids(devnode):
-    """PIDs in uninterruptible sleep whose cmdline names devnode, i.e. still holding its usbfs
-    device lock. Matched by device node rather than by our child's pid because run_case() may wrap
-    testusb in sudo, in which case the Popen pid is the wrapper and the blocked process is its
-    child -- killing the wrapper would then make a pid-based check look clean while the real
-    holder is still stuck."""
-    stuck = []
+    """Return (pids, complete): PIDs in uninterruptible sleep whose cmdline names devnode, i.e.
+    still holding its usbfs device lock, and whether every /proc entry could actually be read.
+
+    Matched by device node rather than by our child's pid because run_case() may wrap testusb in
+    sudo, in which case the Popen pid is the wrapper and the blocked process is its child --
+    killing the wrapper would make a pid-based check look clean while the real holder is stuck.
+
+    complete is False when a PermissionError hid an entry (a hidepid/ProtectProc mount, or the
+    root-owned child of that same sudo). An entry we could not read might be the holder, so the
+    caller must treat that as unrecovered rather than as an all-clear."""
+    stuck, complete = [], True
     for entry in Path('/proc').iterdir():
         if not entry.name.isdigit():
             continue
         try:
-            if devnode.encode() not in (entry / 'cmdline').read_bytes():
-                continue
+            cmdline = (entry / 'cmdline').read_bytes()
+        except PermissionError:
+            complete = False        # cannot rule this pid out
+            continue
+        except OSError:
+            continue                # raced with process exit: genuinely gone, not hidden
+        if devnode.encode() not in cmdline:
+            continue
+        try:
             stat = (entry / 'stat').read_text()
             if stat[stat.rindex(')') + 2] == 'D':   # comm may contain ')', so scan from the right
                 stuck.append(int(entry.name))
+        except PermissionError:
+            complete = False
         except (OSError, ValueError, IndexError):
             continue
-    return stuck
+    return stuck, complete
 
 
 def run_case(num, dev, testusb, quick, timeout):
@@ -430,10 +444,13 @@ def main():
                     # back within the poll (a slow bootloader will do that) -- if nothing still
                     # holds the lock, the bus is usable and cleanup is safe. Conversely a zero exit
                     # only proves re-enumeration, not that the D-state holder let go.
-                    stuck = wedged_pids(dev['node'])
+                    stuck, complete = wedged_pids(dev['node'])
                     if stuck:
                         print(f'{dev["sysname"]}: pid(s) {stuck} still in D state on '
                               f'{dev["node"]} — the device lock was never released', file=sys.stderr)
+                    elif not complete:
+                        print('cannot confirm recovery: /proc is only partly readable, so a '
+                              'hidden D-state holder cannot be ruled out', file=sys.stderr)
                     else:
                         unrecovered_hang = False
                 break
