@@ -147,7 +147,7 @@
                 "dual": false
             },
             "flasher": {
-                "name": "openocd_adi",
+                "name": "openocd",
                 "uid": "E6614C311B597D32",
                 "args": "-f interface/cmsis-dap.cfg -f target/max32665.cfg"
             }
@@ -465,7 +465,7 @@
             "flasher": {
                 "name": "openocd_wch",
                 "uid": "EBCA8F0670AF",
-                "args": ""
+                "args": "-f target/wch-riscv.cfg"
             }
         },
         {
@@ -480,7 +480,7 @@
             "flasher": {
                 "name": "openocd_wch",
                 "uid": "BC4954081051",
-                "args": ""
+                "args": "-f target/wch-riscv.cfg"
             }
         },
         {
@@ -499,7 +499,7 @@
             "flasher": {
                 "name": "openocd_wch",
                 "uid": "BC5DA47360D0",
-                "args": ""
+                "args": "-f target/wch-riscv.cfg"
             }
         },
         {
@@ -514,7 +514,7 @@
             "flasher": {
                 "name": "openocd_wch",
                 "uid": "7FD88F0604B5",
-                "args": ""
+                "args": "-f target/wch-riscv.cfg"
             }
         },
         {

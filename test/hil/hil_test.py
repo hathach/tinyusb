@@ -24,10 +24,11 @@
 
 # Host setup (required: a missing tool fails its test rather than skipping it):
 #   - System packages: sudo apt install mtools libmtp9 alsa-utils iperf
-#       mtools     - read_disk_file (device/cdc_msc, device/msc_dual_lun)
-#       libmtp9    - pymtp ctypes load (device/mtp); Debian 13 uses libmtp9t64
-#       alsa-utils - arecord (device/audio_test_freertos)
-#       iperf      - throughput tests (device/net_lwip_*)
+#       mtools      read_disk_file (device/cdc_msc, device/msc_dual_lun)
+#       libmtp9     pymtp ctypes load (device/mtp); Debian 13 uses libmtp9t64
+#       alsa-utils  arecord (device/audio_test_freertos)
+#       iperf       throughput tests (device/net_lwip_*)
+#       openocd     unified openocd from https://github.com/hathach/openocd (branch tinyusb) for wch, rp2040/rp2350, analog max32
 #   - device/usbtest: usbtest kernel module + testusb binary (kernel tools/usb/testusb.c) on PATH,
 #     plus sudo for modprobe / sysfs writes
 #   - Python packages: pip install -r requirements.txt
@@ -377,25 +378,6 @@ def cmd_stdout_text(out: Any) -> str:
         return out.decode('utf-8', errors='ignore')
     return str(out)
 
-WCH_RISCV_CONTENT = """
-adapter driver wlinke
-adapter speed 6000
-transport select sdi
-
-wlink_set_address 0x00000000
-set _CHIPNAME wch_riscv
-sdi newtap $_CHIPNAME cpu -irlen 5 -expected-id 0x00001
-
-set _TARGETNAME $_CHIPNAME.cpu
-
-target create $_TARGETNAME.0 wch_riscv -chain-position $_TARGETNAME
-$_TARGETNAME.0 configure  -work-area-phys 0x20000000 -work-area-size 10000 -work-area-backup 1
-set _FLASHNAME $_CHIPNAME.flash
-
-flash bank $_FLASHNAME wch_riscv 0x00000000 0 0 0 $_TARGETNAME.0
-
-echo "Ready for Remote Connections"
-"""
 
 MSC_README_TXT = \
 b"This is tinyusb's MassStorage Class demo.\r\n\r\n\
@@ -662,24 +644,15 @@ def reset_openocd(board):
 
 def flash_openocd_wch(board, firmware):
     flasher = board['flasher']
-    f_wch = f"wch-riscv_{board['uid']}.cfg"
-    if not os.path.exists(f_wch):
-        with open(f_wch, 'w') as file:
-            file.write(WCH_RISCV_CONTENT)
-
-    ret = run_cmd(f'openocd_wch -c "adapter serial {flasher["uid"]}" -f {f_wch} '
-                  f'-c "program {firmware}.elf reset exit"')
+    ret = run_cmd(f'openocd -c "tcl_port disabled" -c "gdb_port disabled" -c "telnet_port disabled" '
+                  f'-c "adapter serial {flasher["uid"]}" {flasher.get("args", "")} -c "program {firmware}.elf reset exit"')
     return ret
 
 
 def reset_openocd_wch(board):
     flasher = board['flasher']
-    f_wch = f"wch-riscv_{board['uid']}.cfg"
-    if not os.path.exists(f_wch):
-        with open(f_wch, 'w') as file:
-            file.write(WCH_RISCV_CONTENT)
-
-    ret = run_cmd(f'openocd_wch -c "adapter serial {flasher["uid"]}" -f {f_wch} -c "program reset exit"')
+    ret = run_cmd(f'openocd -c "tcl_port disabled" -c "gdb_port disabled" -c "telnet_port disabled" '
+                  f'-c "adapter serial {flasher["uid"]}" {flasher.get("args", "")} -c "init; reset run; exit"')
     return ret
 
 

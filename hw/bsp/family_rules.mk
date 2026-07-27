@@ -130,20 +130,18 @@ flash-pyocd: $(BUILD)/$(PROJECT).hex
 	#pyocd reset -t $(PYOCD_TARGET)
 
 # --------------- openocd -----------------
+# OPENOCD can name another build, e.g. one of the vendor forks, though
+# https://github.com/hathach/openocd branch tinyusb covers every board here
+OPENOCD ?= openocd
 OPENOCD_OPTION ?=
 flash-openocd: $(BUILD)/$(PROJECT).elf
-	openocd $(OPENOCD_OPTION) -c "program $< verify reset exit"
+	$(OPENOCD) $(OPENOCD_OPTION) -c "program $< verify reset exit"
 
 # --------------- openocd-wch -----------------
-# wch-linke is not supported yet in official openOCD yet. We need to either use
-# 1. download openocd as part of mounriver studio http://www.mounriver.com/download or
-# 2. compiled from https://github.com/hathach/riscv-openocd-wch or
-#    https://github.com/dragonlock2/miscboards/blob/main/wch/SDK/riscv-openocd.tar.xz
-#    with  ./configure --disable-werror --enable-wlinke --enable-ch347=no
-OPENOCD_WCH ?= /home/${USER}/app/riscv-openocd-wch/src/openocd
-OPENOCD_WCH_OPTION ?=
+# WCH parts need an openocd built with the wlinke adapter. The image is written
+# without verify: WCH code flash is not readable back over the debug bus.
 flash-openocd-wch: $(BUILD)/$(PROJECT).elf
-	$(OPENOCD_WCH) $(OPENOCD_WCH_OPTION) -c init -c halt -c "flash write_image $<" -c reset -c exit
+	$(OPENOCD) $(OPENOCD_OPTION) -c init -c halt -c "flash write_image $<" -c reset -c exit
 
 # --------------- wlink-rs -----------------
 # flash with https://github.com/ch32-rs/wlink

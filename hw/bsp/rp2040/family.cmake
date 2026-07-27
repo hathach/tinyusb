@@ -28,6 +28,8 @@ elseif (PICO_PLATFORM STREQUAL "rp2350-arm-s" OR PICO_PLATFORM STREQUAL "rp2350"
 	set(OPENOCD_TARGET rp2350)
 elseif (PICO_PLATFORM STREQUAL "rp2350-riscv")
 	set(JLINK_DEVICE rp2350_riscv_0)
+	# rp2350-riscv.cfg needs the raspberrypi/openocd fork: mainline's riscv
+	# target does not take the -dap/-ap-num the config uses
 	set(OPENOCD_TARGET rp2350-riscv)
 endif()
 
