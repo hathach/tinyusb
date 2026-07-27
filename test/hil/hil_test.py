@@ -1579,26 +1579,37 @@ def test_device_midi_test(board):
 
     # Read MIDI messages and verify note on/off
     import select
-    with open(midi_port, 'rb') as f:
-        notes = []
+    midi_fd = os.open(midi_port, os.O_RDONLY | os.O_NONBLOCK)
+    try:
+        data = bytearray()
         # Read for up to 3 seconds to capture a few notes (286ms interval)
         end_time = time.monotonic() + 3
-        while time.monotonic() < end_time:
-            ready, _, _ = select.select([f], [], [], 0.5)
-            if ready:
-                data = f.read(64)
-                if data:
-                    # Parse MIDI bytes: note_on = 0x90, note_off = 0x80
-                    i = 0
-                    while i + 2 < len(data):
-                        status = data[i]
-                        if (status & 0xF0) == 0x90:  # Note On
-                            notes.append(data[i + 1])
-                            i += 3
-                        elif (status & 0xF0) == 0x80:  # Note Off
-                            i += 3
-                        else:
-                            i += 1
+        while (remaining := end_time - time.monotonic()) > 0:
+            ready, _, _ = select.select([midi_fd], [], [], min(0.5, remaining))
+            if not ready:
+                continue
+            try:
+                chunk = os.read(midi_fd, 64)
+            except BlockingIOError:
+                continue
+            if not chunk:
+                break
+            data.extend(chunk)
+    finally:
+        os.close(midi_fd)
+
+    notes = []
+    # Parse MIDI bytes: note_on = 0x90, note_off = 0x80
+    i = 0
+    while i + 2 < len(data):
+        status = data[i]
+        if (status & 0xF0) == 0x90:  # Note On
+            notes.append(data[i + 1])
+            i += 3
+        elif (status & 0xF0) == 0x80:  # Note Off
+            i += 3
+        else:
+            i += 1
 
     assert len(notes) >= 2, f'Expected at least 2 MIDI notes, got {len(notes)}'
     # Verify notes are from the expected sequence
