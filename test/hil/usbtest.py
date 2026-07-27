@@ -254,11 +254,14 @@ def dmesg_tail():
     return '\n'.join(lines[-8:])
 
 
-def pci_addr_of_bus(busnum):
-    """Return the PCI B:D.F backing a USB bus, or None for a non-PCI (SoC/platform) controller."""
-    m = re.search(r'([0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-9])/usb\d+$',
-                  os.path.realpath(f'/sys/bus/usb/devices/usb{int(busnum)}'))
-    return m.group(1) if m else None
+def still_wedged(pid):
+    """True if pid is still in uninterruptible sleep, i.e. its usbfs ioctl never returned.
+    A killed-but-freed child shows up as Z (or is gone) once the URB completes."""
+    try:
+        stat = Path(f'/proc/{pid}/stat').read_text()
+        return stat[stat.rindex(')') + 2] == 'D'   # comm may contain ')', so scan from the right
+    except (OSError, ValueError, IndexError):
+        return False
 
 
 def run_case(num, dev, testusb, quick, timeout):
@@ -283,7 +286,7 @@ def run_case(num, dev, testusb, quick, timeout):
             # in-kernel usbfs ioctl (device stopped responding mid-transfer).
             # Abandon it — waiting or re-signalling can never succeed.
             result.update(status='HUNG', detail=f'testusb stuck in D state after {timeout}s',
-                          dmesg=dmesg_tail())
+                          pid=p.pid, dmesg=dmesg_tail())
             return result
         result.update(status='FAIL', detail=f'timeout after {timeout}s', dmesg=dmesg_tail())
         return result
@@ -387,20 +390,25 @@ def main():
                 extra += f" {r['mbps']} MB/s" if 'mbps' in r else ''
                 print(f"test {num:2d} {r['name']:22s} {r['status']:6s}{extra}")
             if r['status'] == 'HUNG':
-                pci = pci_addr_of_bus(dev['node'].split('/')[-2])
-                if pci:
-                    print(f'aborting battery: kernel-side hang, device wedged mid-transfer.\n'
-                          f'auto-recovering: sudo {USB_RECOVER} pci-reset {pci} '
-                          f'(see .claude/skills/usb-kernel-recover)', file=sys.stderr)
-                    # FLR frees the D-state ioctl without the device lock; must run BEFORE
-                    # any unbind/remove_id, which would deadlock the bus otherwise
-                    if sudo([str(USB_RECOVER), 'pci-reset', pci]).returncode != 0:
-                        unrecovered_hang = True
-                    time.sleep(5)  # let the bus re-enumerate before cleanup touches sysfs
-                else:
+                print(f'aborting battery: kernel-side hang, device wedged mid-transfer.\n'
+                      f'auto-recovering: {USB_RECOVER.name} root-cycle {dev["sysname"]} '
+                      f'(see .claude/skills/usb-kernel-recover)', file=sys.stderr)
+                # Cutting VBUS at the root port should fail the in-flight URB so the usbfs ioctl
+                # returns (reasoned, not yet confirmed against a live wedge — see the skill).
+                # Must run BEFORE any unbind/remove_id, which would take the device lock the
+                # stuck ioctl holds and deadlock the bus.
+                # Exit 0 means the device re-enumerated, not that the D-state holder let go.
+                rc = sudo([str(USB_RECOVER), 'root-cycle', dev['sysname']])
+                time.sleep(5)  # let the bus settle and the freed ioctl unwind
+                if rc.returncode != 0:
                     unrecovered_hang = True
-                    print('aborting battery: kernel-side hang, and the controller has no PCI address '
-                          'for FLR recovery — manual intervention (reboot) required', file=sys.stderr)
+                    print(rc.stderr or '(no output from usb_recover.sh)', file=sys.stderr)
+                elif still_wedged(r['pid']):
+                    # Device came back but the ioctl never returned, so the device lock is still
+                    # held: the remove_id/unbind cleanup below would join the convoy and deadlock.
+                    unrecovered_hang = True
+                    print(f'root-cycle re-enumerated {dev["sysname"]} but pid {r["pid"]} is still '
+                          'in D state — the device lock was never released', file=sys.stderr)
                 break
             # re-resolve: after a mid-battery re-enumeration the devnum (and thus the node
             # path) changes; keep testing the live node instead of the stale one. Match on the
@@ -419,7 +427,8 @@ def main():
             if unrecovered_hang:
                 # testusb is still stuck in a usbfs ioctl holding the device lock; remove_id/unbind
                 # would join the convoy and deadlock the bus (see usb-kernel-recover skill) — leave it be
-                print('skipping cleanup after unrecovered hang: reboot required to release the bus',
+                print('skipping cleanup after unrecovered hang: ask the operator for a full PVE host '
+                      'power cycle (a VM reboot is not reliable — hubs latch up across the PCIe reset)',
                       file=sys.stderr)
             elif not args.keep_binding:
                 sysfs_write(DRIVER / 'remove_id', f'{VID} {PID}', check=False)

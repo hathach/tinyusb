@@ -6,9 +6,6 @@
 #   sudo usb_recover.sh authorized <busport>   # e.g. 3-2  -> deauthorize+reauthorize (re-enumerate, NO VBUS cut)
 #   sudo usb_recover.sh rebind     <busport>   # e.g. 3-2  -> usb driver unbind+bind (re-probe)
 #   sudo usb_recover.sh pci-rebind <pciaddr>   # e.g. 0000:01:00.0 -> HCD unbind+bind (WHOLE controller)
-#   sudo usb_recover.sh pci-reset  <pciaddr>   # e.g. 0000:01:00.0 -> PCI function-level reset: kills URBs at
-#                                              # HW level WITHOUT the device lock; the only cure when a process
-#                                              # is stuck in D state (usbfs ioctl) and unbind paths would convoy
 #   sudo usb_recover.sh pci-bind   <pciaddr> [driver]  # bind a DRIVERLESS controller (e.g. after a pci-rebind
 #                                              # whose re-bind hung and left it unbound). Auto-tries the xHCI
 #                                              # drivers (xhci-pci-renesas, xhci_hcd) unless one is named.
@@ -17,6 +14,10 @@
 #                                              # re-enumerates. Ganged/fake-switching hubs may bounce ALL
 #                                              # siblings; self-powered hubs only reset their uplink, which
 #                                              # is why the walk ends at the root port (real xHCI ppps).
+#   sudo usb_recover.sh root-cycle <busport>   # e.g. 13-1.6 -> uhubctl VBUS cut at the ROOT port feeding it,
+#                                              # skipping the leaf hubs (which fake ganged switching and do not
+#                                              # actually cut power). Bounces every sibling under that root port.
+#                                              # The D-state escape: no device lock, so it cannot convoy.
 #   sudo usb_recover.sh resolve    <devnode>   # e.g. /dev/ttyACM3 -> print its <busport> (no privilege needed)
 set -euo pipefail
 
@@ -127,12 +128,26 @@ case "$action" in
     done
     die "hub-cycle: $target still not enumerated after cycling up to the root port"
     ;;
-  pci-reset)
-    [[ "$target" =~ $PCI_RE ]] || die "bad pci addr: $target"
-    require_usb_controller "$target"
-    [ -e "/sys/bus/pci/devices/$target/reset" ] || die "no reset support on $target"
-    echo 1 > "/sys/bus/pci/devices/$target/reset"
-    echo "flr-reset pci $target"
+  root-cycle)
+    # VBUS cut at the ROOT port, where xHCI ppps is real. Unlike hub-cycle this does not walk
+    # up from the leaf (the 1a40:0201 hubs claim ganged switching but never cut power) and does
+    # not touch the wedged device's sysfs, so it does not join a D-state convoy. No -f: uhubctl
+    # should fail loudly on a controller whose root ports have no per-port power.
+    [[ "$target" =~ $USBPATH_RE ]] || die "bad usb path: $target"
+    UHUBCTL=$(command -v uhubctl || echo /sbin/uhubctl)
+    [ -x "$UHUBCTL" ] || die "uhubctl not installed"
+    bus=${target%%-*}; rest=${target#*-}; rootport=${rest%%.*}
+    echo "root-cycle: cutting VBUS on bus $bus root port $rootport (feeds $target, bounces its siblings)"
+    "$UHUBCTL" -l "$bus" -p "$rootport" -a cycle -d 5
+    # Verify like hub-cycle does, so the exit status means something to an automated caller.
+    # NB: this proves the device came back, NOT that a D-state holder let go — check that too.
+    for _ in $(seq 1 10); do
+      sleep 1
+      if [ -e "/sys/bus/usb/devices/$target/idVendor" ]; then
+        echo "root-cycled $bus port $rootport: $target re-enumerated"; exit 0
+      fi
+    done
+    die "root-cycle: $target did not re-enumerate after cycling bus $bus port $rootport"
     ;;
   *)
     usage
