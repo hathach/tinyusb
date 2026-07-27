@@ -12,11 +12,11 @@ sits in the link — the rig PC when it is the host, or a Linux gadget peer
 (dwc2/UDC + gadget modules) when TinyUSB is the host. It cannot see inside
 the TinyUSB MCU — that is the `target-debug` skill.
 
-Run this skill's `scripts/usb_dyndbg.sh` with `sudo` (abbreviated to
-`usb_dyndbg.sh` in the examples below). It flips the dynamic-debug print flag
-for an allowlisted set of USB modules only:
+Run this skill's `scripts/usb_dyndbg.sh` with `sudo`. It flips the dynamic-debug
+print flag for an allowlisted set of USB modules only:
 
 ```bash
+# all examples below abbreviate:  sudo .claude/skills/usb-kernel-debug/scripts/usb_dyndbg.sh
 sudo usb_dyndbg.sh on  usbcore xhci_hcd   # enable +p; pick modules from `lsusb -t` Driver=
 sudo usb_dyndbg.sh status [module]        # list enabled print sites
 sudo usb_dyndbg.sh off usbcore xhci_hcd   # ALWAYS turn off when done — very noisy
