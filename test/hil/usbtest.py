@@ -266,6 +266,13 @@ def wedged_pids(devnode):
     root-owned child of that same sudo). An entry we could not read might be the holder, so the
     caller must treat that as unrecovered rather than as an all-clear."""
     stuck, complete = [], True
+    # hidepid=2 and systemd's ProtectProc=invisible omit other users' processes from iterdir()
+    # entirely -- no entry at all, so no PermissionError to catch -- and testusb runs under sudo
+    # whenever the device node is not writable. The scan would then look clean while hiding the
+    # very holder it exists to find. pid 1 is always root-owned, so being unable to read it means
+    # enumeration is restricted and no result from this scan can be trusted as complete.
+    if os.geteuid() != 0 and not os.access('/proc/1/cmdline', os.R_OK):
+        complete = False
     for entry in Path('/proc').iterdir():
         if not entry.name.isdigit():
             continue
@@ -432,7 +439,11 @@ def main():
                 # run() would kill() then wait() unbounded on timeout, which never returns if
                 # uhubctl is itself in D state -- the case the timeout exists for. Merge stderr
                 # into stdout so the helper's target-identity and action lines are not lost.
-                cmd = [str(USB_RECOVER), 'root-cycle', dev['sysname'], dev['serial']]
+                # Only pass the serial when we actually have one: an empty third argument reads as
+                # "no expectation" and would silently disable the helper's stale-busport guard.
+                cmd = [str(USB_RECOVER), 'root-cycle', dev['sysname']]
+                if dev['serial']:
+                    cmd.append(dev['serial'])
                 if os.geteuid() != 0:
                     cmd = ['sudo', '-n'] + cmd
                 p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)

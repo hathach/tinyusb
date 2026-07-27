@@ -44,9 +44,11 @@ sudo usb_recover.sh root-cycle <busport>     # e.g. 11-3.7 -> cycles bus 11 root
 
 This drops power to the wedged device, so its in-flight URB fails and the ioctl
 returns. It targets the *root hub* — a different USB device from the wedged one —
-and only ever *reads* the wedged device's sysfs (its directory inode, which takes
-no lock), so it does not join the convoy the way `authorized`/`rebind`/`pci-rebind`
-do. Recovery is proven by that inode changing — a real disconnect destroys the
+and never *writes* the wedged device's sysfs. It reads a few attributes from it —
+`idVendor`/`idProduct`/`serial`/`product` to report and check the target, and the
+directory inode plus `devnum` afterwards — none of which take the device lock, so
+it does not join the convoy the way `authorized`/`rebind`/`pci-rebind` do.
+Recovery is proven by that inode changing — a real disconnect destroys the
 kobject and reconnecting creates a new one, whereas a disconnect blocked on the
 device lock leaves it untouched. It exits non-zero if the device does not come
 back; a **zero exit only means it re-enumerated**, so still confirm the D-state
