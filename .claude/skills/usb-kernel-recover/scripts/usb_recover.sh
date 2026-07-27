@@ -108,6 +108,11 @@ case "$action" in
     [[ "$target" =~ $USBPATH_RE ]] || die "bad usb path: $target"
     UHUBCTL=$(command -v uhubctl || echo /sbin/uhubctl)
     [ -x "$UHUBCTL" ] || die "uhubctl not installed"
+    # devnum, not node existence: a disconnect blocked on the device lock leaves the old node
+    # (and its idVendor) in place, so an existence check reports success without anything having
+    # happened -- and the walk to the root port, which is the part that actually cuts power on
+    # these fake-ganged leaf hubs, would never run.
+    before=$(cat "/sys/bus/usb/devices/$target/devnum" 2>/dev/null || echo none)
     dev="$target"
     while :; do
       if [[ "$dev" =~ ^([0-9]+)-([0-9]+)$ ]]; then    # parent is the root hub
@@ -119,8 +124,9 @@ case "$action" in
       "$UHUBCTL" -l "$loc" -p "$port" -a cycle -d 5 -f || echo "  (uhubctl failed at $loc; walking up)"
       for _ in $(seq 1 10); do
         sleep 1
-        if [ -e "/sys/bus/usb/devices/$target/idVendor" ]; then
-          echo "recovered: $target re-enumerated"; exit 0
+        now=$(cat "/sys/bus/usb/devices/$target/devnum" 2>/dev/null || echo none)
+        if [ "$now" != none ] && [ "$now" != "$before" ]; then
+          echo "recovered: $target re-enumerated (devnum $before -> $now)"; exit 0
         fi
       done
       [ -n "$up" ] || break
@@ -129,13 +135,17 @@ case "$action" in
     die "hub-cycle: $target still not enumerated after cycling up to the root port"
     ;;
   root-cycle)
-    # VBUS cut at the ROOT port, where xHCI ppps is real. Unlike hub-cycle this does not walk
-    # up from the leaf (the 1a40:0201 hubs claim ganged switching but never cut power) and does
-    # not touch the wedged device's sysfs, so it does not join a D-state convoy. No -f: uhubctl
-    # should fail loudly on a controller whose root ports have no per-port power.
+    # VBUS cut at the ROOT port, where xHCI ppps is real. Unlike hub-cycle this does not walk up
+    # from the leaf (the 1a40:0201 hubs claim ganged switching but never cut power) and never
+    # writes the wedged device's sysfs or takes its lock, so it cannot join a D-state convoy.
+    # uhubctl exits 0 even when it does nothing ("No compatible devices detected" still returns
+    # 0), so its status proves nothing -- the devnum check below is the only real verdict.
     [[ "$target" =~ $USBPATH_RE ]] || die "bad usb path: $target"
     UHUBCTL=$(command -v uhubctl || echo /sbin/uhubctl)
     [ -x "$UHUBCTL" ] || die "uhubctl not installed"
+    # Same existence guard as authorized/rebind: bus numbers renumber every boot, and a stale
+    # busport would otherwise cut power to whatever now occupies that root port.
+    [ -e "/sys/bus/usb/devices/$target" ] || die "no such usb device: $target"
     bus=${target%%-*}; rest=${target#*-}; rootport=${rest%%.*}
     before=$(cat "/sys/bus/usb/devices/$target/devnum" 2>/dev/null || echo none)
     echo "root-cycle: cutting VBUS on bus $bus root port $rootport (feeds $target, bounces its siblings)"

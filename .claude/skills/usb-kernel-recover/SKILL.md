@@ -43,12 +43,24 @@ sudo usb_recover.sh root-cycle <busport>     # e.g. 11-3.7 -> cycles bus 11 root
 
 This drops power to the wedged device, so its in-flight URB fails and the ioctl
 returns. It targets the *root hub* — a different USB device from the wedged one —
-and never touches the wedged device's sysfs, so it does not join the convoy the
-way `authorized`/`rebind`/`pci-rebind` do. It bounces every fixture under that
-root port, so hold their board locks first. It exits non-zero if the device does
-not come back; a **zero exit only means it re-enumerated**, so still confirm the
-D-state process actually let go. (Reasoned from the lock structure and the rigs'
-verified root-port ppps; not yet confirmed against a live D-state wedge. If
+and only ever *reads* an attribute of the wedged device (`devnum`, which takes no
+lock), so it does not join the convoy the way `authorized`/`rebind`/`pci-rebind`
+do. It exits non-zero if the device does not come back; a **zero exit only means
+it re-enumerated**, so still confirm the D-state process actually let go.
+
+It bounces **every fixture under that root port** — on ci that is up to 25
+devices. Hold the affected boards' locks first if you can, but note
+`board_lock.py` uses `LOCK_EX | LOCK_NB` and so fails immediately when CI already
+holds them; there is no wait-for-lock. When CI is mid-run you are choosing
+between bouncing its fixtures and leaving the bus wedged for everything. The
+automated path in `usbtest.py` takes no locks at all and accepts that collateral
+deliberately: by the time a D-state wedge exists the convoy will take the bus
+down anyway.
+
+(The VBUS mechanism is verified on the ci rig — the leaf hubs report
+`bmAttributes=e0`, "self-powered", but are physically bus-powered with no adapter,
+so a root-port cut really does kill downstream power. Do not re-derive this from
+the descriptor; it lies. Not yet confirmed against a live D-state wedge. If
 `uhubctl` itself hangs, the convoy has already spread — escalate.)
 
 If `root-cycle` does not free the D-state process, there is no software cure

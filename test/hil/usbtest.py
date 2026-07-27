@@ -404,25 +404,38 @@ def main():
                 print(f'aborting battery: kernel-side hang, device wedged mid-transfer.\n'
                       f'auto-recovering: {USB_RECOVER.name} root-cycle {dev["sysname"]} '
                       f'(see .claude/skills/usb-kernel-recover)', file=sys.stderr)
-                # Cutting VBUS at the root port should fail the in-flight URB so the usbfs ioctl
-                # returns (reasoned, not yet confirmed against a live wedge — see the skill).
-                # Must run BEFORE any unbind/remove_id, which would take the device lock the
-                # stuck ioctl holds and deadlock the bus.
-                # Exit 0 means the device re-enumerated, not that the D-state holder let go.
-                rc = sudo([str(USB_RECOVER), 'root-cycle', dev['sysname']])
-                time.sleep(5)  # let the bus settle and the freed ioctl unwind
-                if rc.returncode != 0:
-                    unrecovered_hang = True
-                    print(rc.stderr or '(no output from usb_recover.sh)', file=sys.stderr)
+                # Cutting VBUS at the root port fails the in-flight URB so the usbfs ioctl returns.
+                # Must run BEFORE any unbind/remove_id, which would take the device lock the stuck
+                # ioctl holds and deadlock the bus.
+                #
+                # Assume unrecovered until proven otherwise: sudo() calls sys.exit() when `sudo -n`
+                # needs a password, and that SystemExit would otherwise unwind straight past this
+                # block into the finally cleanup with the flag still False -- running the exact
+                # remove_id/unbind the comments there forbid while a device lock is held.
+                unrecovered_hang = True
+                try:
+                    # Normal run is ~8s (5s VBUS off + re-enumeration poll); 60s is 3x headroom.
+                    # Only helps if uhubctl is still killable -- a genuinely D-state uhubctl cannot
+                    # be reaped, but -S keeps it off the sysfs disable_store path that would cause
+                    # that. See the skill.
+                    rc = sudo([str(USB_RECOVER), 'root-cycle', dev['sysname']], timeout=60)
+                except subprocess.TimeoutExpired:
+                    print('root-cycle did not return within 60s: uhubctl is itself wedged, the '
+                          'convoy has spread', file=sys.stderr)
                 else:
+                    if rc.returncode != 0:
+                        print(rc.stderr or '(no output from usb_recover.sh)', file=sys.stderr)
+                    time.sleep(5)  # let the bus settle and the freed ioctl unwind
+                    # Authoritative either way. A non-zero exit only means the device did not come
+                    # back within the poll (a slow bootloader will do that) -- if nothing still
+                    # holds the lock, the bus is usable and cleanup is safe. Conversely a zero exit
+                    # only proves re-enumeration, not that the D-state holder let go.
                     stuck = wedged_pids(dev['node'])
                     if stuck:
-                        # Device came back but the ioctl never returned, so the device lock is still
-                        # held: the remove_id/unbind cleanup below would join the convoy and deadlock.
-                        unrecovered_hang = True
-                        print(f'root-cycle re-enumerated {dev["sysname"]} but pid(s) {stuck} are '
-                              f'still in D state on {dev["node"]} — the device lock was never '
-                              'released', file=sys.stderr)
+                        print(f'{dev["sysname"]}: pid(s) {stuck} still in D state on '
+                              f'{dev["node"]} — the device lock was never released', file=sys.stderr)
+                    else:
+                        unrecovered_hang = False
                 break
             # re-resolve: after a mid-battery re-enumeration the devnum (and thus the node
             # path) changes; keep testing the live node instead of the stale one. Match on the
