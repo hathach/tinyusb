@@ -137,17 +137,22 @@ case "$action" in
     UHUBCTL=$(command -v uhubctl || echo /sbin/uhubctl)
     [ -x "$UHUBCTL" ] || die "uhubctl not installed"
     bus=${target%%-*}; rest=${target#*-}; rootport=${rest%%.*}
+    before=$(cat "/sys/bus/usb/devices/$target/devnum" 2>/dev/null || echo none)
     echo "root-cycle: cutting VBUS on bus $bus root port $rootport (feeds $target, bounces its siblings)"
+    # No -e: without it uhubctl also cycles the paired USB3 root port, which is the same physical
+    # connector, so the whole port really loses VBUS. -e would cut only the USB2 half.
     "$UHUBCTL" -l "$bus" -p "$rootport" -a cycle -d 5
-    # Verify like hub-cycle does, so the exit status means something to an automated caller.
-    # NB: this proves the device came back, NOT that a D-state holder let go — check that too.
+    # Require a NEW enumeration (devnum changes), not merely that the sysfs node exists. If the
+    # disconnect is itself blocked on the device lock, the old node and its idVendor stay put, so
+    # an existence check would report success in exactly the case we need to catch.
     for _ in $(seq 1 10); do
       sleep 1
-      if [ -e "/sys/bus/usb/devices/$target/idVendor" ]; then
-        echo "root-cycled $bus port $rootport: $target re-enumerated"; exit 0
+      now=$(cat "/sys/bus/usb/devices/$target/devnum" 2>/dev/null || echo none)
+      if [ "$now" != none ] && [ "$now" != "$before" ]; then
+        echo "root-cycled $bus port $rootport: $target re-enumerated (devnum $before -> $now)"; exit 0
       fi
     done
-    die "root-cycle: $target did not re-enumerate after cycling bus $bus port $rootport"
+    die "root-cycle: $target did not re-enumerate after cycling bus $bus port $rootport (devnum still $before)"
     ;;
   *)
     usage

@@ -254,14 +254,25 @@ def dmesg_tail():
     return '\n'.join(lines[-8:])
 
 
-def still_wedged(pid):
-    """True if pid is still in uninterruptible sleep, i.e. its usbfs ioctl never returned.
-    A killed-but-freed child shows up as Z (or is gone) once the URB completes."""
-    try:
-        stat = Path(f'/proc/{pid}/stat').read_text()
-        return stat[stat.rindex(')') + 2] == 'D'   # comm may contain ')', so scan from the right
-    except (OSError, ValueError, IndexError):
-        return False
+def wedged_pids(devnode):
+    """PIDs in uninterruptible sleep whose cmdline names devnode, i.e. still holding its usbfs
+    device lock. Matched by device node rather than by our child's pid because run_case() may wrap
+    testusb in sudo, in which case the Popen pid is the wrapper and the blocked process is its
+    child -- killing the wrapper would then make a pid-based check look clean while the real
+    holder is still stuck."""
+    stuck = []
+    for entry in Path('/proc').iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            if devnode.encode() not in (entry / 'cmdline').read_bytes():
+                continue
+            stat = (entry / 'stat').read_text()
+            if stat[stat.rindex(')') + 2] == 'D':   # comm may contain ')', so scan from the right
+                stuck.append(int(entry.name))
+        except (OSError, ValueError, IndexError):
+            continue
+    return stuck
 
 
 def run_case(num, dev, testusb, quick, timeout):
@@ -286,7 +297,7 @@ def run_case(num, dev, testusb, quick, timeout):
             # in-kernel usbfs ioctl (device stopped responding mid-transfer).
             # Abandon it — waiting or re-signalling can never succeed.
             result.update(status='HUNG', detail=f'testusb stuck in D state after {timeout}s',
-                          pid=p.pid, dmesg=dmesg_tail())
+                          dmesg=dmesg_tail())
             return result
         result.update(status='FAIL', detail=f'timeout after {timeout}s', dmesg=dmesg_tail())
         return result
@@ -403,12 +414,15 @@ def main():
                 if rc.returncode != 0:
                     unrecovered_hang = True
                     print(rc.stderr or '(no output from usb_recover.sh)', file=sys.stderr)
-                elif still_wedged(r['pid']):
-                    # Device came back but the ioctl never returned, so the device lock is still
-                    # held: the remove_id/unbind cleanup below would join the convoy and deadlock.
-                    unrecovered_hang = True
-                    print(f'root-cycle re-enumerated {dev["sysname"]} but pid {r["pid"]} is still '
-                          'in D state — the device lock was never released', file=sys.stderr)
+                else:
+                    stuck = wedged_pids(dev['node'])
+                    if stuck:
+                        # Device came back but the ioctl never returned, so the device lock is still
+                        # held: the remove_id/unbind cleanup below would join the convoy and deadlock.
+                        unrecovered_hang = True
+                        print(f'root-cycle re-enumerated {dev["sysname"]} but pid(s) {stuck} are '
+                              f'still in D state on {dev["node"]} — the device lock was never '
+                              'released', file=sys.stderr)
                 break
             # re-resolve: after a mid-battery re-enumeration the devnum (and thus the node
             # path) changes; keep testing the live node instead of the stale one. Match on the
