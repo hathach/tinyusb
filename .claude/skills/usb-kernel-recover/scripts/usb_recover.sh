@@ -178,7 +178,7 @@ case "$action" in
     expect=${3:-}
     [ -z "$expect" ] || [ "$expect" = "$serial" ] || \
       die "root-cycle: $target has serial '$serial', expected '$expect' — stale busport, refusing"
-    echo "root-cycle: target $target is $(cat "$idf/idVendor" 2>/dev/null):$(cat "$idf/idProduct" 2>/dev/null)" \
+    echo "root-cycle: target $target is $(cat "$idf/idVendor" 2>/dev/null || echo -):$(cat "$idf/idProduct" 2>/dev/null || echo -)" \
          "serial=$serial product=$(cat "$idf/product" 2>/dev/null || echo -)"
     bus=${target%%-*}; rest=${target#*-}; rootport=${rest%%.*}
     gen=$(sysfs_gen "$target")

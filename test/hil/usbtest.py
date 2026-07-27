@@ -446,7 +446,15 @@ def main():
                     cmd.append(dev['serial'])
                 if os.geteuid() != 0:
                     cmd = ['sudo', '-n'] + cmd
-                p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                try:
+                    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                         text=True)
+                except OSError as e:
+                    # helper missing or not executable, or sudo unavailable. unrecovered_hang is
+                    # already True so the finally block still skips the unsafe cleanup -- this only
+                    # replaces a traceback with a message that says what to fix.
+                    print(f'cannot run {USB_RECOVER}: {e}', file=sys.stderr)
+                    break
                 rc = None
                 try:
                     out, _ = p.communicate(timeout=60)   # normal run is ~8s
