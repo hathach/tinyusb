@@ -22,6 +22,7 @@ one BEFORE acting:
 | esp-target-debug   | PRIMARY playbook for Espressif boards — built-in USB-Serial-JTAG attach, the PHY map that decides whether JTAG exists, FreeRTOS threads via ESP_RTOS; target-debug still supplies the methodology     |
 | usbmon             | Linux-host URB capture; only when a Linux PC is the link's host (default posture: dual-side, both ends simultaneously)                                                                                |
 | usb-sniffer        | wire-level capture (hardware tap): host can't see the bus, usbmon vs target logs disagree, or TinyUSB is the host (no usbmon anywhere)                                                                |
+| etm-trace          | instruction-level ETM trace via SEGGER J-Trace (exact execution history, profile, coverage) when sampled PCs and logs cannot resolve the mechanism. Requires the J-Trace physically wired to THIS board (supported boards: the skill's boards.md) — use only when your prompt states the board is trace-wired or the user asked for it; otherwise name it in `notes` as the next technique |
 | usb-kernel-debug   | why the Linux kernel acted (dmesg/dynamic debug); PC host or a Linux gadget peer's device side                                                                                                        |
 | usb-kernel-recover | only when the DUT or fixture wedges the rig PC's Linux host stack                                                                                                                                     |
 

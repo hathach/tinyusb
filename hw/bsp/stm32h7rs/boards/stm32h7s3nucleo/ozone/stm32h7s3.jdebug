@@ -1,0 +1,94 @@
+/*********************************************************************
+*
+*       OnProjectLoad
+*
+* Function description
+*   Project load routine. Required.
+*
+* Notes
+*   Nucleo-H7S3L8 wires 4-bit trace to the CN1 MIPI20 natively (no rework):
+*   TRACE_CLK/D0 = PE2/PE3, TRACE_D1/D2/D3 = PG14/PD2/PC12 (MB1737 Table 7).
+*   Firmware must be built with TRACE_ETM=1 (trace pin mux + DBGMCU
+*   DBGCKEN/TRACECLKEN in board_init).
+*
+*   TRACE_ETM builds run a 300 MHz core (board.h) -> 50 MHz trace clock
+*   (cpu/3/2). Width 2 on the stub-free D0/D1 lines: SB11/SB12 (default ON)
+*   stub D2/D3 onto Zio CN8 and the 4-bit stream dies under IRQ-heavy USB
+*   traffic (idle is clean) - remove SB11/SB12 to try width 4 / 600 MHz.
+*
+**********************************************************************
+*/
+void OnProjectLoad (void) {
+  // declares the off-ROM-table CSTF/TMC/TPIU (see the script header)
+  Project.SetJLinkScript ("./stm32h7s3_trace.JLinkScript");
+  Project.SetTraceSource ("Trace Pins");
+  Project.SetTracePortWidth (2);
+  Project.SetSWO (0);
+  Edit.SysVar (VAR_TRACE_CORE_CLOCK, 300000000);
+  Project.AddSvdFile ("$(InstallDir)/Config/CPU/Cortex-M7F.svd");
+
+  Project.SetDevice ("STM32H7S3L8");
+  Project.SetHostIF ("USB", "");
+  Project.SetTargetIF ("SWD");
+  Project.SetTIFSpeed ("4 MHz");
+
+  File.Open ("../../../../../../examples/cmake-build-stm32h7s3nucleo/device/cdc_msc/cdc_msc.elf");
+}
+
+/*********************************************************************
+*
+*       AfterTargetReset
+*
+* Function description
+*   Event handler routine.
+*    - Sets the PC register to program reset value.
+*    - Sets the SP register to program reset value on Cortex-M.
+*
+**********************************************************************
+*/
+void AfterTargetReset (void) {
+  unsigned int SP;
+  unsigned int PC;
+  unsigned int VectorTableAddr;
+
+  VectorTableAddr = Elf.GetBaseAddr();
+
+  if (VectorTableAddr == 0xFFFFFFFF) {
+    Util.Log("Project file error: failed to get program base");
+  } else {
+    SP = Target.ReadU32(VectorTableAddr);
+    Target.SetReg("SP", SP);
+
+    PC = Target.ReadU32(VectorTableAddr + 4);
+    Target.SetReg("PC", PC);
+  }
+}
+
+/*********************************************************************
+*
+*       AfterTargetDownload
+*
+* Function description
+*   Event handler routine.
+*    - Sets the PC register to program reset value.
+*    - Sets the SP register to program reset value on Cortex-M.
+*
+**********************************************************************
+*/
+void AfterTargetDownload (void) {
+  unsigned int SP;
+  unsigned int PC;
+  unsigned int VectorTableAddr;
+
+  VectorTableAddr = Elf.GetBaseAddr();
+
+  if (VectorTableAddr == 0xFFFFFFFF) {
+    Util.Log("Project file error: failed to get program base");
+  } else {
+    SP = Target.ReadU32(VectorTableAddr);
+    Target.SetReg("SP", SP);
+
+    PC = Target.ReadU32(VectorTableAddr + 4);
+    Target.SetReg("PC", PC);
+  }
+}

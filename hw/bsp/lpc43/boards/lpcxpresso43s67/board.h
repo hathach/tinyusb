@@ -71,6 +71,12 @@ static const PINMUX_GRP_T pinmuxing[] = {
     {0x2, 5, SCU_MODE_INBUFF_EN | SCU_MODE_PULLUP | SCU_MODE_FUNC4 },
 };
 
+
+// TRACE_ETM builds: no trace header is wired out on the LPCXpresso43S67 -
+// provide the no-op the family init expects (see mcb1800/ea4357 for a
+// board that routes the trace pins)
+static inline void board_trace_pinmux(void) {}
+
 #ifdef __cplusplus
  }
 #endif

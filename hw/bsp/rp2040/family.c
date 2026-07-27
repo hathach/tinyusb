@@ -161,11 +161,28 @@ static void stdio_rtt_init(void) {
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
+#if defined(TRACE_ETM) && defined(PICO_RP2350) && PICO_RP2350 == 1
+// J-Link's built-in RP2350 device script re-arms the whole chip-side trace
+// path (ETM/funnel/TPIU/pins) via OnTraceStart at every resume, so firmware
+// must NOT touch it - it only keeps the us-timer running while cores sit
+// debug-halted (default TIMER DBGPAUSE freezes it, and sleep_ms() then spins
+// forever after any debugger session).
+static void trace_etm_init(void) {
+  *(volatile uint32_t*) 0x400B002Cu = 0; // TIMER0 DBGPAUSE
+  *(volatile uint32_t*) 0x400B802Cu = 0; // TIMER1 DBGPAUSE
+}
+#else
+  #define trace_etm_init()
+#endif
+
 void board_init(void)
 {
 #if (CFG_TUH_ENABLED && CFG_TUH_RPI_PIO_USB) || (CFG_TUD_ENABLED && CFG_TUD_RPI_PIO_USB)
   // Set the system clock to a multiple of 12mhz for bit-banging USB with pico-usb
   #if defined(PICO_RP2350) && PICO_RP2350 == 1
+  #ifdef TRACE_ETM
+  #error "TRACE_ETM pins clk_sys to 48 MHz (board.cmake) - too slow for PIO-USB, and a runtime clock switch desyncs the trace stream"
+  #endif
   set_sys_clock_khz(156000, true); // rp2350 default is 150Mhz
   #else
   set_sys_clock_khz(120000, true); // rp2040 default is 125Mhz
@@ -199,10 +216,18 @@ void board_init(void)
 #endif
 
 #ifdef UART_DEV
-  bi_decl(bi_2pins_with_func(UART_TX_PIN, UART_RX_PIN, GPIO_FUNC_UART));
   uart_inst = uart_get_instance(UART_DEV);
+#if defined(TRACE_ETM) && defined(PICO_RP2350) && PICO_RP2350 == 1
+  // GPIO1 (default UART RX) is TRACECLK: TX-only console, and never touch
+  // GPIO1 - even a brief re-mux gaps the trace clock and desyncs the probe
+  bi_decl(bi_1pin_with_name(UART_TX_PIN, "UART TX"));
+  stdio_uart_init_full(uart_inst, CFG_BOARD_UART_BAUDRATE, UART_TX_PIN, -1);
+#else
+  bi_decl(bi_2pins_with_func(UART_TX_PIN, UART_RX_PIN, GPIO_FUNC_UART));
   stdio_uart_init_full(uart_inst, CFG_BOARD_UART_BAUDRATE, UART_TX_PIN, UART_RX_PIN);
 #endif
+#endif
+  trace_etm_init();
 
 #if defined(LOGGER_RTT)
   stdio_rtt_init();

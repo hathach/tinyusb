@@ -1,0 +1,69 @@
+/*********************************************************************
+*
+*       OnProjectLoad
+*
+* Function description
+*   Project load routine. Required.
+*
+* Notes
+*   MIMXRT1170-EVKB trace requires board rework: the TRACE pads
+*   (GPIO_DISP_B2_02..06) are factory-wired to the ENET_1G PHY - populate
+*   0-ohm R1881-R1886 to route them to the Cortex Debug+ETM connector J58
+*   (EVKB Hardware User Guide 3.2).
+*   Firmware must be built with TRACE_ETM=1 (trace pad mux + CSTRACE clock
+*   + JTAG_nTRST/DMIC_DATA1 pad fix in board_init).
+*
+*   Validated: port width 1, 0 ns sample timing, 50 MHz CSTRACE root
+*   (25 MHz TRACE_CLK pin, set by trace_etm_init - the rework path corrupts
+*   at the stock 132 MHz root) while the CM7 runs 996 MHz. A startup-burst
+*   trace overflow is expected and benign; width 4 fails at any timing.
+*
+**********************************************************************
+*/
+void OnProjectLoad (void) {
+  // declares the CSSYS TPIU/funnel (system APB-AP, not in the CM7 ROM table)
+  Project.SetJLinkScript ("./mimxrt1176_trace.JLinkScript");
+  Project.SetTraceSource ("Trace Pins");
+  Project.SetTracePortWidth (1);
+  Project.SetTraceTiming (0, 0, 0, 0);
+  Project.SetSWO (0);
+  Edit.SysVar (VAR_TRACE_CORE_CLOCK, 996000000);
+  Project.AddSvdFile ("$(InstallDir)/Config/CPU/Cortex-M7F.svd");
+
+  Project.SetDevice ("MIMXRT1176xxxA_M7");
+  Project.SetHostIF ("USB", "");
+  Project.SetTargetIF ("SWD");
+  Project.SetTIFSpeed ("4 MHz");
+
+  File.Open ("../../../../../../examples/cmake-build-mimxrt1170_evkb/device/cdc_msc/cdc_msc.elf");
+}
+
+/*********************************************************************
+*
+*       AfterTargetReset
+*
+* Function description
+*   JTAG_nTRST shares its pad with DMIC_DATA1, which drives it low by
+*   default and kills ETM trace - mux the pad to GPIO before the app runs
+*   (EVKB Hardware User Guide 3.2). No SP/PC init here: the app boots from
+*   FlexSPI NOR, so the ROM bootloader must perform it (SEGGER wiki
+*   "i.MXRT1176" / NXP community solution for ERR050708 boards).
+*
+**********************************************************************
+*/
+void AfterTargetReset (void) {
+  Target.WriteU32 (0x40C08028, 0xA);   // IOMUXC GPIO_LPSR_10 -> GPIO12_IO10
+}
+
+/*********************************************************************
+*
+*       AfterTargetDownload
+*
+* Function description
+*   Intentionally empty: SP/PC init from the vector table would bypass the
+*   ROM bootloader's FlexSPI setup (see AfterTargetReset note).
+*
+**********************************************************************
+*/
+void AfterTargetDownload (void) {
+}

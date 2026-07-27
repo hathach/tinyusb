@@ -1,0 +1,70 @@
+/*********************************************************************
+*
+*       OnProjectLoad
+*
+* Function description
+*   Project load routine. Required.
+*
+* Notes
+*   Pico 2 has no trace connector - fly-wire GPIO1-5 to the MIPI20:
+*   TRACECLK=GPIO1->12, D0=GPIO2->14, D1=GPIO3->16, D2=GPIO4->18,
+*   D3=GPIO5->20 (SEGGER validates this board the same way). Firmware must
+*   be built with TRACE_ETM=1: it pins clk_sys to 48 MHz (board.cmake) so
+*   the 4-bit port never saturates and the clock never steps mid-stream,
+*   and keeps the us-timer free of TIMER DBGPAUSE (family.c). The whole
+*   chip-side trace path (ETM/funnel/TPIU/pin mux) is armed by J-Link's
+*   built-in RP2350 script at every resume - do NOT set a custom
+*   JLinkScript here: it would replace that script and J-Link then fails
+*   with "Required trace components for pin trace not found".
+*   GPIO1 is the default UART0 RX: console TX still works, RX is lost.
+*
+**********************************************************************
+*/
+void OnProjectLoad (void) {
+  Project.SetTraceSource ("Trace Pins");
+  Project.SetTracePortWidth (4);
+  Project.SetSWO (0);
+  Edit.SysVar (VAR_TRACE_CORE_CLOCK, 48000000);
+  Project.AddSvdFile ("$(InstallDir)/Config/CPU/Cortex-M33F.svd");
+
+  Project.SetDevice ("RP2350_M33_0");
+  Project.SetHostIF ("USB", "");
+  Project.SetTargetIF ("SWD");
+  Project.SetTIFSpeed ("25 MHz");
+
+  File.Open ("../../../../../../examples/cmake-build-raspberry_pi_pico2/device/cdc_msc/cdc_msc.elf");
+}
+
+/*********************************************************************
+*
+*       AfterTargetReset
+*
+* Function description
+*   Event handler routine.
+*    - Sets the PC register to program reset value.
+*    - Sets the SP register to program reset value on Cortex-M.
+*
+**********************************************************************
+*/
+void AfterTargetReset (void) {
+  // intentionally empty: the RP2350 bootrom must run to validate the
+  // IMAGE_DEF and hand over to the app - setting SP/PC from the vector
+  // table bypasses it and the pico-sdk runtime never comes up
+}
+
+/*********************************************************************
+*
+*       AfterTargetDownload
+*
+* Function description
+*   Event handler routine.
+*    - Sets the PC register to program reset value.
+*    - Sets the SP register to program reset value on Cortex-M.
+*
+**********************************************************************
+*/
+void AfterTargetDownload (void) {
+  // intentionally empty: the RP2350 bootrom must run to validate the
+  // IMAGE_DEF and hand over to the app - setting SP/PC from the vector
+  // table bypasses it and the pico-sdk runtime never comes up
+}

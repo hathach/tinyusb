@@ -16,6 +16,7 @@ Raspberry Pi). Pick capture channels by which end runs Linux, not by habit:
 | `usb-kernel-debug` | why the Linux kernel acted (dmesg / dynamic debug) | Linux on either end: PC host or Linux gadget peer |
 | **`target-debug`** | **what the target did** (logs, driver state, PC)   | always — either role, needs a debug probe         |
 | `usb-sniffer`      | what crossed the wire (PIDs, handshakes, resets)   | hardware tap cabled in — role-agnostic            |
+| `etm-trace`        | exactly which instructions executed (profile, coverage, history) | SEGGER J-Trace wired to this board's trace header — confirm with the user first |
 
 For enumeration/transfer bugs the default posture is **dual-side capture** —
 both ends simultaneously: usbmon + a target

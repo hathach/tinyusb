@@ -89,7 +89,13 @@ void SystemInit(void)
 //    Chip_SCU_ClockPinMuxSet(pinclockmuxing[i].pinnum, pinclockmuxing[i].modefunc);
 //  }
 
+#ifdef TRACE_ETM
+  // Trace clock is limited to 60MHz, limit CPU clock to 120MHz
+  Chip_SetupCoreClock(CLKIN_CRYSTAL, 120000000UL, true);
+  board_trace_pinmux(); // after clock setup so TRACECLK starts at its final frequency
+#else
   Chip_SetupXtalClocking();
+#endif
 }
 
 void board_init(void)

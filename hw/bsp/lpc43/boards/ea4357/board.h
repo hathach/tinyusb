@@ -83,6 +83,22 @@ static const PINMUX_GRP_T pinmuxing[] = {
 //    { 0, 3, SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_HIGHSPEEDSLEW_EN | SCU_MODE_FUNC0 },
 //};
 
+#ifdef TRACE_ETM
+// Must run AFTER Chip_SetupCoreClock: muxing the trace pins earlier starts
+// TRACECLK at the boot clock and the mid-init frequency switch desyncs the
+// trace decoder. SCU_MODE_INACT keeps pull-ups off the 60 MHz lines.
+static inline void board_trace_pinmux(void) {
+  const PINMUX_GRP_T trace_pinmux[] = {
+    { 0xF, 4, SCU_MODE_INACT | SCU_MODE_FUNC2 | SCU_MODE_HIGHSPEEDSLEW_EN },
+    { 0xF, 5, SCU_MODE_INACT | SCU_MODE_FUNC3 | SCU_MODE_HIGHSPEEDSLEW_EN },
+    { 0xF, 6, SCU_MODE_INACT | SCU_MODE_FUNC3 | SCU_MODE_HIGHSPEEDSLEW_EN },
+    { 0xF, 7, SCU_MODE_INACT | SCU_MODE_FUNC3 | SCU_MODE_HIGHSPEEDSLEW_EN },
+    { 0xF, 8, SCU_MODE_INACT | SCU_MODE_FUNC3 | SCU_MODE_HIGHSPEEDSLEW_EN },
+  };
+  Chip_SCU_SetPinMuxing(trace_pinmux, sizeof(trace_pinmux) / sizeof(PINMUX_GRP_T));
+}
+#endif
+
 #ifdef __cplusplus
 }
 #endif
