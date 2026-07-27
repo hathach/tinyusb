@@ -59,6 +59,19 @@ void SystemInit(void);
 // Invoked by startup code
 void SystemInit(void)
 {
+#if defined(__ICCARM__) && !defined(DONT_RESET_ON_RESTART)
+  // A debugger restart resets the M4 core, but can leave LPC43 peripherals and
+  // pending interrupts active. Match the GCC startup sequence, which the IAR
+  // startup lacks, before the C runtime can reuse peripheral DMA memory.
+  __disable_irq();
+  LPC_RGU->RESET_CTRL[0] = 0x10DF1000u;
+  LPC_RGU->RESET_CTRL[1] = 0x01DFF7FFu;
+  for (uint32_t i = 0; i < 8; i++) {
+    NVIC->ICPR[i] = UINT32_MAX;
+  }
+  __enable_irq();
+#endif
+
 #ifdef __USE_LPCOPEN
   unsigned int *pSCB_VTOR = (unsigned int *) 0xE000ED08;
 
