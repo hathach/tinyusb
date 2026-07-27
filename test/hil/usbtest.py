@@ -422,10 +422,10 @@ def main():
                 # Must run BEFORE any unbind/remove_id, which would take the device lock the stuck
                 # ioctl holds and deadlock the bus.
                 #
-                # Assume unrecovered until proven otherwise: sudo() calls sys.exit() when `sudo -n`
-                # needs a password, and that SystemExit would otherwise unwind straight past this
-                # block into the finally cleanup with the flag still False -- running the exact
-                # remove_id/unbind the comments there forbid while a device lock is held.
+                # Assume unrecovered until proven otherwise, so that any early exit from this block
+                # -- an OSError spawning the helper, a KeyboardInterrupt, a sudo prompt killing the
+                # run -- still reaches the finally cleanup with the flag set, instead of running
+                # the remove_id/unbind the comments there forbid while a device lock is held.
                 unrecovered_hang = True
                 # Pass the serial so the helper refuses a stale busport rather than cutting power
                 # to whatever else now occupies that path. Popen rather than sudo()/subprocess.run:

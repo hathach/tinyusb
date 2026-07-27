@@ -40,7 +40,15 @@ die() { echo "usb_recover: $*" >&2; exit 1; }
 # never witness the gap. The inode survives the gap, so no observation window is needed.
 #
 # Crucially, if the disconnect is blocked on the wedged device's lock the kobject is never
-# recreated -- same inode -- which is exactly the case that must be reported as a failure.
+# recreated -- same inode -- which is exactly the case that must be reported as a failure. Verified
+# against kernfs: __kernfs_new_node() allocates via idr_alloc_cyclic() but kernfs_id_ino() exposes
+# the full 64-bit (id_highbits<<32 | lowbits) as st_ino on 64-bit ino_t, so a repeat needs ~2^64
+# node creations. authorized-toggle, set_configuration and suspend/resume all leave the parent
+# device kobject alone, so none of them can move the marker and fake a success.
+#
+# The trailing slash is load-bearing: /sys/bus/usb/devices/<busport> is a SYMLINK with its own
+# separate inode, so without it stat reports the link rather than the device it points at, and the
+# value would never change. Do not "tidy" it away.
 sysfs_gen() { stat -c %i "/sys/bus/usb/devices/$1/" 2>/dev/null || echo none; }
 usage() { grep -E '^#   sudo usb_recover' "$0" >&2; exit 2; }
 
@@ -155,7 +163,7 @@ case "$action" in
     # from the leaf (the 1a40:0201 hubs claim ganged switching but never cut power) and never
     # writes the wedged device's sysfs or takes its lock, so it cannot join a D-state convoy.
     # uhubctl exits 0 even when it does nothing ("No compatible devices detected" still returns
-    # 0), so its status proves nothing -- the devnum check below is the only real verdict.
+    # 0), so its status proves nothing -- the sysfs_gen check below is the only real verdict.
     [[ "$target" =~ $USBPATH_RE ]] || die "bad usb path: $target"
     UHUBCTL=$(command -v uhubctl || echo /sbin/uhubctl)
     [ -x "$UHUBCTL" ] || die "uhubctl not installed"

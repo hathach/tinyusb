@@ -15,8 +15,9 @@ sudo usb_recover.sh authorized <busport>       # deauthorize+reauthorize: re-enu
 sudo usb_recover.sh rebind     <busport>       # usb driver unbind+bind: re-probe
 sudo usb_recover.sh hub-cycle  <busport>       # uhubctl VBUS cycle of the feeding port, walking parent hub
                                                # -> root port until the device re-enumerates
-sudo usb_recover.sh root-cycle <busport>       # uhubctl VBUS cut straight at the ROOT port (real ppps), no
-                                               # leaf walk, no device-lock touch: the D-state cure
+sudo usb_recover.sh root-cycle <busport> [serial]  # uhubctl VBUS cut straight at the ROOT port (real ppps), no
+                                               # leaf walk, no device-lock touch: the D-state cure.
+                                               # [serial] is checked and a mismatch refused.
 sudo usb_recover.sh pci-rebind <pciaddr>       # whole HCD controller unbind+bind, e.g. 0000:02:00.0
 sudo usb_recover.sh pci-bind   <pciaddr> [drv] # re-bind a DRIVERLESS controller (auto-tries xHCI drivers)
 ```
@@ -43,10 +44,14 @@ sudo usb_recover.sh root-cycle <busport>     # e.g. 11-3.7 -> cycles bus 11 root
 
 This drops power to the wedged device, so its in-flight URB fails and the ioctl
 returns. It targets the *root hub* — a different USB device from the wedged one —
-and only ever *reads* an attribute of the wedged device (`devnum`, which takes no
-lock), so it does not join the convoy the way `authorized`/`rebind`/`pci-rebind`
-do. It exits non-zero if the device does not come back; a **zero exit only means
-it re-enumerated**, so still confirm the D-state process actually let go.
+and only ever *reads* the wedged device's sysfs (its directory inode, which takes
+no lock), so it does not join the convoy the way `authorized`/`rebind`/`pci-rebind`
+do. Recovery is proven by that inode changing — a real disconnect destroys the
+kobject and reconnecting creates a new one, whereas a disconnect blocked on the
+device lock leaves it untouched. It exits non-zero if the device does not come
+back; a **zero exit only means it re-enumerated**, so still confirm the D-state
+process actually let go. Pass the expected serial as a third argument and it
+refuses a busport that now names a different device.
 
 It bounces **every fixture under that root port** — on ci that is up to 25
 devices. Hold the affected boards' locks first if you can, but note
