@@ -5,11 +5,11 @@ description: Use when a USB device or fixture attached to the ci HIL rig's Linux
 
 # USB Recovery on the HIL Rig (Linux kernel side)
 
-Run this skill's `scripts/usb_recover.sh` with `sudo` (abbreviated to
-`usb_recover.sh` in the examples below). It wraps the sysfs reset actions, a
-uhubctl power-cycle escalator, and a resolver:
+Run this skill's `scripts/usb_recover.sh` with `sudo`. It wraps the sysfs reset
+actions, a uhubctl power-cycle escalator, and a resolver:
 
 ```bash
+# all examples below abbreviate:  sudo .claude/skills/usb-kernel-recover/scripts/usb_recover.sh
 sudo usb_recover.sh resolve    /dev/ttyACM3    # /dev node -> busport (e.g. 3-4.7); also ttyUSB*, sg*
 sudo usb_recover.sh authorized <busport>       # deauthorize+reauthorize: re-enumerate, no VBUS cut
 sudo usb_recover.sh rebind     <busport>       # usb driver unbind+bind: re-probe
