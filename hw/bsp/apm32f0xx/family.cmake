@@ -1,7 +1,7 @@
 include_guard()
 
 set(APM32_FAMILY apm32f0xx)
-set(APM32_SDK ${TOP}/hw/mcu/geehy/APM32F0xx_SDK_V1.8.6/Libraries)
+set(APM32_SDK ${TOP}/hw/mcu/geehy/APM32F0xx_SDK/Libraries)
 
 # include board specific
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
@@ -31,7 +31,6 @@ function(family_add_board BOARD_TARGET)
     ${APM32_SDK}/APM32F0xx_StdPeriphDriver/src/apm32f0xx_gpio.c
     ${APM32_SDK}/APM32F0xx_StdPeriphDriver/src/apm32f0xx_misc.c
     ${APM32_SDK}/APM32F0xx_StdPeriphDriver/src/apm32f0xx_rcm.c
-    ${APM32_SDK}/APM32F0xx_StdPeriphDriver/src/apm32f0xx_crs.c
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}

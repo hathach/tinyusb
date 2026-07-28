@@ -49,5 +49,5 @@ INC += \
 
 FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/RISC-V
 
-OPENOCD_WCH_OPTION=-f $(TOP)/$(FAMILY_PATH)/wch-riscv.cfg
+OPENOCD_OPTION=-f $(TOP)/$(FAMILY_PATH)/wch-riscv.cfg
 flash: flash-openocd-wch

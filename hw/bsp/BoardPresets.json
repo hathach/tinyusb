@@ -43,6 +43,10 @@
       "inherits": "default"
     },
     {
+      "name": "apm32f072_dev_board",
+      "inherits": "default"
+    },
+    {
       "name": "arduino_nano33_ble",
       "inherits": "default"
     },
@@ -508,6 +512,10 @@
     },
     {
       "name": "portenta_c33",
+      "inherits": "default"
+    },
+    {
+      "name": "py32f071_dev_board",
       "inherits": "default"
     },
     {
@@ -1006,6 +1014,11 @@
       "name": "apard32690",
       "description": "Build preset for the apard32690 board",
       "configurePreset": "apard32690"
+    },
+    {
+      "name": "apm32f072_dev_board",
+      "description": "Build preset for the apm32f072_dev_board board",
+      "configurePreset": "apm32f072_dev_board"
     },
     {
       "name": "arduino_nano33_ble",
@@ -1638,6 +1651,11 @@
       "configurePreset": "portenta_c33"
     },
     {
+      "name": "py32f071_dev_board",
+      "description": "Build preset for the py32f071_dev_board board",
+      "configurePreset": "py32f071_dev_board"
+    },
+    {
       "name": "pybadge",
       "description": "Build preset for the pybadge board",
       "configurePreset": "pybadge"
@@ -2254,6 +2272,19 @@
         {
           "type": "build",
           "name": "apard32690"
+        }
+      ]
+    },
+    {
+      "name": "apm32f072_dev_board",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "apm32f072_dev_board"
+        },
+        {
+          "type": "build",
+          "name": "apm32f072_dev_board"
         }
       ]
     },
@@ -3892,6 +3923,19 @@
         {
           "type": "build",
           "name": "portenta_c33"
+        }
+      ]
+    },
+    {
+      "name": "py32f071_dev_board",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "py32f071_dev_board"
+        },
+        {
+          "type": "build",
+          "name": "py32f071_dev_board"
         }
       ]
     },

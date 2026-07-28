@@ -688,7 +688,9 @@ function(family_flash_stflash TARGET)
 endfunction()
 
 
-# Add flash openocd target
+# Add flash openocd target.
+# The default 'openocd' should be https://github.com/hathach/openocd (branch tinyusb): which is mainline plus
+# every config the rig needs (RP2350, MAX32/MAX78, WCH) and a drop-in superset of the vendor (downstream) forks
 function(family_flash_openocd TARGET)
   if (NOT DEFINED OPENOCD)
     set(OPENOCD openocd)
@@ -715,38 +717,20 @@ function(family_flash_openocd TARGET)
   #set_property(TARGET ${TARGET}-openocd PROPERTY FOLDER ${TARGET}-group)
 endfunction()
 
-
-# Add flash openocd-wch target
-# compiled from https://github.com/hathach/riscv-openocd-wch or https://github.com/dragonlock2/miscboards/blob/main/wch/SDK/riscv-openocd.tar.xz
-function(family_flash_openocd_wch TARGET)
-  if (NOT DEFINED OPENOCD)
-    set(OPENOCD $ENV{HOME}/app/riscv-openocd-wch/src/openocd)
+# Add flash openocd adi (Analog Devices) target using the openocd included
+# with msdk (MAXIM_PATH), otherwise the default openocd
+function(family_flash_openocd_adi TARGET)
+  # use openocd from msdk if MAXIM_PATH is set, as cmake variable or in the
+  # environment. Normalize the latter since msdk can be Windows (MinGW) or Linux
+  if (NOT DEFINED MAXIM_PATH AND DEFINED ENV{MAXIM_PATH})
+    file(TO_CMAKE_PATH "$ENV{MAXIM_PATH}" MAXIM_PATH)
   endif ()
 
-  family_flash_openocd(${TARGET})
-endfunction()
-
-
-# Add flash openocd adi (Analog Devices) target
-# included with msdk or compiled from release branch of https://github.com/analogdevicesinc/openocd
-function(family_flash_openocd_adi TARGET)
-  if (DEFINED MAXIM_PATH)
-    # use openocd from msdk with MAXIM_PATH cmake variable first if the user specified it
-    set(OPENOCD ${MAXIM_PATH}/Tools/OpenOCD/openocd)
-    set(OPENOCD_OPTION2 "-s ${MAXIM_PATH}/Tools/OpenOCD/scripts")
-  elseif (DEFINED ENV{MAXIM_PATH})
-    # use openocd from msdk with MAXIM_PATH environment variable. Normalize
-    # since msdk can be Windows (MinGW) or Linux
-    file(TO_CMAKE_PATH "$ENV{MAXIM_PATH}" MAXIM_PATH_NORM)
-    set(OPENOCD ${MAXIM_PATH_NORM}/Tools/OpenOCD/openocd)
-    set(OPENOCD_OPTION2 "-s ${MAXIM_PATH_NORM}/Tools/OpenOCD/scripts")
-  else()
-    # compiled from source
-    if (NOT DEFINED OPENOCD_ADI_PATH)
-      set(OPENOCD_ADI_PATH $ENV{HOME}/app/openocd_adi)
+  if (MAXIM_PATH)
+    if (NOT DEFINED OPENOCD)
+      set(OPENOCD ${MAXIM_PATH}/Tools/OpenOCD/openocd)
     endif ()
-    set(OPENOCD ${OPENOCD_ADI_PATH}/src/openocd)
-    set(OPENOCD_OPTION2 "-s ${OPENOCD_ADI_PATH}/tcl")
+    set(OPENOCD_OPTION2 "-s ${MAXIM_PATH}/Tools/OpenOCD/scripts")
   endif ()
 
   family_flash_openocd(${TARGET})

@@ -5,18 +5,20 @@ description: Use when a USB device or fixture attached to the ci HIL rig's Linux
 
 # USB Recovery on the HIL Rig (Linux kernel side)
 
-Run this skill's `scripts/usb_recover.sh` with `sudo` (abbreviated to
-`usb_recover.sh` in the examples below). It wraps the sysfs reset actions, a
-uhubctl power-cycle escalator, and a resolver:
+Run this skill's `scripts/usb_recover.sh` with `sudo`. It wraps the sysfs reset
+actions, a uhubctl power-cycle escalator, and a resolver:
 
 ```bash
+# all examples below abbreviate:  sudo .claude/skills/usb-kernel-recover/scripts/usb_recover.sh
 sudo usb_recover.sh resolve    /dev/ttyACM3    # /dev node -> busport (e.g. 3-4.7); also ttyUSB*, sg*
 sudo usb_recover.sh authorized <busport>       # deauthorize+reauthorize: re-enumerate, no VBUS cut
 sudo usb_recover.sh rebind     <busport>       # usb driver unbind+bind: re-probe
 sudo usb_recover.sh hub-cycle  <busport>       # uhubctl VBUS cycle of the feeding port, walking parent hub
                                                # -> root port until the device re-enumerates
+sudo usb_recover.sh root-cycle <busport> [serial]  # uhubctl VBUS cut straight at the ROOT port (real ppps), no
+                                               # leaf walk, no device-lock touch: the D-state cure.
+                                               # [serial] is checked and a mismatch refused.
 sudo usb_recover.sh pci-rebind <pciaddr>       # whole HCD controller unbind+bind, e.g. 0000:02:00.0
-sudo usb_recover.sh pci-reset  <pciaddr>       # PCI function-level reset: kills URBs at HW level, no device lock
 sudo usb_recover.sh pci-bind   <pciaddr> [drv] # re-bind a DRIVERLESS controller (auto-tries xHCI drivers)
 ```
 
@@ -34,21 +36,45 @@ ps -eo pid,stat,wchan:30,cmd | awk '$2 ~ /D/'
 ```
 
 **If yes** (uninterruptible sleep, typically a usbfs ioctl — e.g. testusb inside
-`usb_sg_wait`): run `pci-reset` and NOTHING ELSE first:
+`usb_sg_wait`): cut VBUS at the root port, and nothing else.
 
 ```bash
-sudo usb_recover.sh pci-reset <pciaddr>
+sudo usb_recover.sh root-cycle <busport>     # e.g. 11-3.7 -> cycles bus 11 root port 3
 ```
 
-FLR kills the URBs at the hardware level without taking the per-device lock;
-the ioctl then returns and the convoy unwinds on its own.
+This drops power to the wedged device, so its in-flight URB fails and the ioctl
+returns. It targets the *root hub* — a different USB device from the wedged one —
+and never *writes* the wedged device's sysfs. It reads a few attributes from it —
+`idVendor`/`idProduct`/`serial`/`product` to report and check the target, and the
+directory inode plus `devnum` afterwards — none of which take the device lock, so
+it does not join the convoy the way `authorized`/`rebind`/`pci-rebind` do.
+Recovery is proven by that inode changing — a real disconnect destroys the
+kobject and reconnecting creates a new one, whereas a disconnect blocked on the
+device lock leaves it untouched. It exits non-zero if the device does not come
+back; a **zero exit only means it re-enumerated**, so still confirm the D-state
+process actually let go. Pass the expected serial as a third argument and it
+refuses a busport that now names a different device.
 
-**Not every controller supports FLR.** The Renesas uPD720201 (`0000:01:00.0`)
-has no reset method — `pci-reset` fails with `Inappropriate ioctl for device`
-(ENOTTY). On those, there is no clean software D-state cure — a VM reboot is NOT
+It bounces **every fixture under that root port** — on ci that is up to 25
+devices. Hold the affected boards' locks first if you can, but note
+`board_lock.py` uses `LOCK_EX | LOCK_NB` and so fails immediately when CI already
+holds them; there is no wait-for-lock. When CI is mid-run you are choosing
+between bouncing its fixtures and leaving the bus wedged for everything. The
+automated path in `usbtest.py` takes no locks at all and accepts that collateral
+deliberately: by the time a D-state wedge exists the convoy will take the bus
+down anyway.
+
+(The VBUS mechanism is verified on the ci rig — the leaf hubs report
+`bmAttributes=e0`, "self-powered", but are physically bus-powered with no adapter,
+so a root-port cut really does kill downstream power. Do not re-derive this from
+the descriptor; it lies. Not yet confirmed against a live D-state wedge. If
+`uhubctl` itself hangs, the convoy has already spread — escalate.)
+
+If `root-cycle` does not free the D-state process, there is no software cure
+left: ask the operator for a full PVE **host** power cycle. A VM reboot is NOT
 reliable (downstream hubs can latch up across the PCIe reset and need a physical
-replug); ask the operator for a full PVE host power cycle instead. Do NOT
-fall through to `pci-rebind` (see next).
+replug), and a graceful reboot stalls on the D-state process anyway. Do NOT fall
+through to `pci-rebind` (see next).
 
 **`pci-rebind` can strand the controller driverless.** Its unbind succeeds but,
 with a D-state process still holding a URB, the *re-bind* hangs — leaving the
@@ -62,10 +88,9 @@ power cycle (operator action) recovers. The Renesas binds via `xhci-pci-renesas`
 **Ordering is critical.** `authorized`/`rebind`/`pci-rebind` all take the
 per-device lock the stuck ioctl holds — they block and join the convoy, and
 soon every libusb tool (uhubctl, JLinkExe) hangs too. Worse, a blocked
-`pci-rebind` grabs the PCI device lock on its way in, which `pci-reset` also
-needs: once a rebind has been attempted and is stuck, even FLR deadlocks and
-**only a full PVE host power cycle recovers**. pci-reset first (if supported), and never
-`pci-rebind` a D-state wedge.
+`pci-rebind` grabs the PCI device lock on its way in and can wedge the whole
+function, after which **only a full PVE host power cycle recovers**. `root-cycle`
+first, and never `pci-rebind` a D-state wedge.
 
 **If no** (device merely dead or silent), escalate gently:
 
@@ -93,15 +118,19 @@ hubs themselves claim "ganged" switching but do not actually cut power.
 ## Common mistakes
 
 - `resolve` takes a **/dev node**, not a busport or serial ("no such device node").
-- `authorized`/`rebind` take a **busport** (`3-4.7`); `pci-rebind`/`pci-reset`
-  take a **PCI addr**.
+- `authorized`/`rebind`/`hub-cycle`/`root-cycle` take a **busport** (`3-4.7`);
+  `pci-rebind`/`pci-bind` take a **PCI addr**.
 - Command produces no output and doesn't return → it is blocked on the device
   lock: a D-state holder exists; see above.
 - Trying `pci-rebind` on a D-state hang — its re-bind hangs and strands the
   controller **driverless**; recover with `pci-bind <addr>`, or a PVE host power
-  cycle if the D-state URB is unkillable. Use `pci-reset` (if supported) for D-state, never
+  cycle if the D-state URB is unkillable. Use `root-cycle` for D-state, never
   `pci-rebind`.
-- Running `pci-reset` on a controller without FLR support (Renesas) → ENOTTY;
-  no software recovery — needs a PVE host power cycle.
+- Writing `/sys/bus/pci/devices/<addr>/reset` because the attribute is there. No
+  rig controller has FLR, so it becomes a PCIe bus reset that resets the xHCI
+  behind its live driver — the write succeeds, the card is halted for good, and
+  only a PVE host power cycle brings it back. Use `root-cycle`.
+- `root-cycle` bounces **every** fixture under that root port, not just the target
+  — hold the sibling boards' locks first.
 - A J-Link reset (`r; go`) does not disconnect a wedged DUT from the host: the
   DWC2 soft-connect pullup stays up through a core halt, so stuck URBs stay stuck.

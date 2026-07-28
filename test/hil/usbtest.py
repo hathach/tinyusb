@@ -254,11 +254,46 @@ def dmesg_tail():
     return '\n'.join(lines[-8:])
 
 
-def pci_addr_of_bus(busnum):
-    """Return the PCI B:D.F backing a USB bus, or None for a non-PCI (SoC/platform) controller."""
-    m = re.search(r'([0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-9])/usb\d+$',
-                  os.path.realpath(f'/sys/bus/usb/devices/usb{int(busnum)}'))
-    return m.group(1) if m else None
+def wedged_pids(devnode):
+    """Return (pids, complete): PIDs in uninterruptible sleep whose cmdline names devnode, i.e.
+    still holding its usbfs device lock, and whether every /proc entry could actually be read.
+
+    Matched by device node rather than by our child's pid because run_case() may wrap testusb in
+    sudo, in which case the Popen pid is the wrapper and the blocked process is its child --
+    killing the wrapper would make a pid-based check look clean while the real holder is stuck.
+
+    complete is False when a PermissionError hid an entry (a hidepid/ProtectProc mount, or the
+    root-owned child of that same sudo). An entry we could not read might be the holder, so the
+    caller must treat that as unrecovered rather than as an all-clear."""
+    stuck, complete = [], True
+    # hidepid=2 and systemd's ProtectProc=invisible omit other users' processes from iterdir()
+    # entirely -- no entry at all, so no PermissionError to catch -- and testusb runs under sudo
+    # whenever the device node is not writable. The scan would then look clean while hiding the
+    # very holder it exists to find. pid 1 is always root-owned, so being unable to read it means
+    # enumeration is restricted and no result from this scan can be trusted as complete.
+    if os.geteuid() != 0 and not os.access('/proc/1/cmdline', os.R_OK):
+        complete = False
+    for entry in Path('/proc').iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            cmdline = (entry / 'cmdline').read_bytes()
+        except PermissionError:
+            complete = False        # cannot rule this pid out
+            continue
+        except OSError:
+            continue                # raced with process exit: genuinely gone, not hidden
+        if devnode.encode() not in cmdline:
+            continue
+        try:
+            stat = (entry / 'stat').read_text()
+            if stat[stat.rindex(')') + 2] == 'D':   # comm may contain ')', so scan from the right
+                stuck.append(int(entry.name))
+        except PermissionError:
+            complete = False
+        except (OSError, ValueError, IndexError):
+            continue
+    return stuck, complete
 
 
 def run_case(num, dev, testusb, quick, timeout):
@@ -387,20 +422,68 @@ def main():
                 extra += f" {r['mbps']} MB/s" if 'mbps' in r else ''
                 print(f"test {num:2d} {r['name']:22s} {r['status']:6s}{extra}")
             if r['status'] == 'HUNG':
-                pci = pci_addr_of_bus(dev['node'].split('/')[-2])
-                if pci:
-                    print(f'aborting battery: kernel-side hang, device wedged mid-transfer.\n'
-                          f'auto-recovering: sudo {USB_RECOVER} pci-reset {pci} '
-                          f'(see .claude/skills/usb-kernel-recover)', file=sys.stderr)
-                    # FLR frees the D-state ioctl without the device lock; must run BEFORE
-                    # any unbind/remove_id, which would deadlock the bus otherwise
-                    if sudo([str(USB_RECOVER), 'pci-reset', pci]).returncode != 0:
-                        unrecovered_hang = True
-                    time.sleep(5)  # let the bus re-enumerate before cleanup touches sysfs
-                else:
-                    unrecovered_hang = True
-                    print('aborting battery: kernel-side hang, and the controller has no PCI address '
-                          'for FLR recovery — manual intervention (reboot) required', file=sys.stderr)
+                print(f'aborting battery: kernel-side hang, device wedged mid-transfer.\n'
+                      f'auto-recovering: {USB_RECOVER.name} root-cycle {dev["sysname"]} '
+                      f'(see .claude/skills/usb-kernel-recover)', file=sys.stderr)
+                # Cutting VBUS at the root port fails the in-flight URB so the usbfs ioctl returns.
+                # Must run BEFORE any unbind/remove_id, which would take the device lock the stuck
+                # ioctl holds and deadlock the bus.
+                #
+                # Assume unrecovered until proven otherwise, so that any early exit from this block
+                # -- an OSError spawning the helper, a KeyboardInterrupt, a sudo prompt killing the
+                # run -- still reaches the finally cleanup with the flag set, instead of running
+                # the remove_id/unbind the comments there forbid while a device lock is held.
+                unrecovered_hang = True
+                # Pass the serial so the helper refuses a stale busport rather than cutting power
+                # to whatever else now occupies that path. Popen rather than sudo()/subprocess.run:
+                # run() would kill() then wait() unbounded on timeout, which never returns if
+                # uhubctl is itself in D state -- the case the timeout exists for. Merge stderr
+                # into stdout so the helper's target-identity and action lines are not lost.
+                # Only pass the serial when we actually have one: an empty third argument reads as
+                # "no expectation" and would silently disable the helper's stale-busport guard.
+                cmd = [str(USB_RECOVER), 'root-cycle', dev['sysname']]
+                if dev['serial']:
+                    cmd.append(dev['serial'])
+                if os.geteuid() != 0:
+                    cmd = ['sudo', '-n'] + cmd
+                try:
+                    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                         text=True)
+                except OSError as e:
+                    # helper missing or not executable, or sudo unavailable. unrecovered_hang is
+                    # already True so the finally block still skips the unsafe cleanup -- this only
+                    # replaces a traceback with a message that says what to fix.
+                    print(f'cannot run {USB_RECOVER}: {e}', file=sys.stderr)
+                    break
+                rc = None
+                try:
+                    out, _ = p.communicate(timeout=60)   # normal run is ~8s
+                    rc = p.returncode
+                except subprocess.TimeoutExpired:
+                    p.kill()
+                    try:
+                        out, _ = p.communicate(timeout=5)
+                        rc = p.returncode
+                    except subprocess.TimeoutExpired:
+                        out = ('root-cycle abandoned after 60s: uhubctl did not die to SIGKILL, so '
+                               'it is wedged too and the convoy has spread beyond this device')
+                if out:
+                    print(out.strip(), file=sys.stderr)
+                if rc is not None:
+                    time.sleep(5)  # let the bus settle and the freed ioctl unwind
+                    # Authoritative either way. A non-zero exit only means the device did not come
+                    # back within the poll (a slow bootloader will do that) -- if nothing still
+                    # holds the lock, the bus is usable and cleanup is safe. Conversely a zero exit
+                    # only proves re-enumeration, not that the D-state holder let go.
+                    stuck, complete = wedged_pids(dev['node'])
+                    if stuck:
+                        print(f'{dev["sysname"]}: pid(s) {stuck} still in D state on '
+                              f'{dev["node"]} — the device lock was never released', file=sys.stderr)
+                    elif not complete:
+                        print('cannot confirm recovery: /proc is only partly readable, so a '
+                              'hidden D-state holder cannot be ruled out', file=sys.stderr)
+                    else:
+                        unrecovered_hang = False
                 break
             # re-resolve: after a mid-battery re-enumeration the devnum (and thus the node
             # path) changes; keep testing the live node instead of the stale one. Match on the
@@ -419,7 +502,8 @@ def main():
             if unrecovered_hang:
                 # testusb is still stuck in a usbfs ioctl holding the device lock; remove_id/unbind
                 # would join the convoy and deadlock the bus (see usb-kernel-recover skill) — leave it be
-                print('skipping cleanup after unrecovered hang: reboot required to release the bus',
+                print('skipping cleanup after unrecovered hang: ask the operator for a full PVE host '
+                      'power cycle (a VM reboot is not reliable — hubs latch up across the PCIe reset)',
                       file=sys.stderr)
             elif not args.keep_binding:
                 sysfs_write(DRIVER / 'remove_id', f'{VID} {PID}', check=False)
