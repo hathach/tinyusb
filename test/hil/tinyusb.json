@@ -464,7 +464,7 @@
             },
             "flasher": {
                 "name": "openocd_wch",
-                "uid": "EBCA8F0670AF",
+                "uid": "A76D8F062C2A",
                 "args": "-f target/wch-riscv.cfg"
             }
         },
@@ -513,32 +513,13 @@
             },
             "flasher": {
                 "name": "openocd_wch",
-                "uid": "7FD88F0604B5",
+                "uid": "57468F06DC03",
                 "args": "-f target/wch-riscv.cfg"
             }
         },
         {
-            "name": "nrf5340dk",
-            "uid": "78E60E166B5F88BE",
-            "tests": {
-                "device": true,
-                "host": false,
-                "dual": false,
-                "skip": ["device/cdc_msc_freertos", "device/audio_test_freertos"],
-                "comment": "board new to HIL: FreeRTOS examples hardfault (UFSR=INVPC) at first task launch on the CM33_NTZ port - pre-existing upstream issue, non-FreeRTOS examples and usbtest pass; fix separately"
-            },
-            "flasher": {
-                "name": "jlink",
-                "uid": "001050076405",
-                "args": "-device NRF5340_XXAA_APP"
-            }
-        }
-    ],
-    "boards-skip": [
-        {
             "name": "mimxrt1064_evk",
             "uid": "BAE96FB95AFA6DBB8F00005002001200",
-            "comment-skip": "device-port cable degraded from enum drops to killing the uPD720201 mid-battery (2026-07-17); replace the cable, verify enum, then move back",
             "tests": {
                 "device": true,
                 "host": true,
@@ -568,7 +549,6 @@
         {
             "name": "nrf54lm20dk",
             "uid": "899C3DE5B0F4D5CA",
-            "comment-skip": "J-Link probe fails most flashes (2026-07-16); replug/repair the probe, then move back",
             "tests": {
                 "device": true,
                 "host": false,
@@ -597,7 +577,9 @@
                 "uid": "000831915224",
                 "args": "-device R7FA6M5BH"
             }
-        },
+        }
+    ],
+    "boards-skip": [
         {
             "name": "ra8m1_ek",
             "uid": "797D142D36345030364E1737922E4B4E",
