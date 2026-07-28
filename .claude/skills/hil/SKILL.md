@@ -26,14 +26,14 @@ The `ci` rig also hosts a GitHub Actions runner that flashes boards and runs HIL
 - For hardware work outside `hil_test.py` (JLink/GDB, manual flashing, `usbtest.py`, serial poking), hold the lock first:
 
 ```bash
-python3 test/hil/board_lock.py hold BOARD [BOARD...] --reason "why"
+python3 test/hil/hil_lock.py hold BOARD [BOARD...] --reason "why"
 # ... hardware work ...
-python3 test/hil/board_lock.py release BOARD [BOARD...]
+python3 test/hil/hil_lock.py release BOARD [BOARD...]
 ```
 
 - Never pre-hold boards you are about to run `hil_test.py` on — it self-locks and would treat your own hold as a conflict.
-- Rig-wide operations (uhubctl power cycling, pci-rebind — bus renumbering) affect every board: `board_lock.py hold --all --reason "..."` first.
-- `board_lock.py status` lists holders. Locks auto-release when the holder process dies (kernel flock); `/tmp` clears on reboot.
+- Rig-wide operations (uhubctl power cycling, pci-rebind — bus renumbering) affect every board: `hil_lock.py hold --all --reason "..."` first.
+- `hil_lock.py status` lists holders. Locks auto-release when the holder process dies (kernel flock); `/tmp` clears on reboot.
 - Forcing past a lock: `HIL_NO_BOARD_LOCK=1 python3 test/hil/hil_test.py ...` bypasses the guard without killing the holder. Only with the user's explicit go-ahead — they accept the risk of colliding with whatever holds the board.
 
 ## Pool check (quick health scan)
@@ -45,7 +45,7 @@ preferred; host-only boards get `host/device_info` and are checked for serial ou
 device enumeration), waits for the board's uid to (re-)enumerate, applies safe per-device recovery
 (probe authorized-toggle after repeated flash failure, board reset when the uid stays down), then
 prints a markdown summary table plus a USB topology report (controller PCI address/vendor → bus →
-root-port subtree device counts — spots dead or thinned hub legs at a glance). Each board is flock'd (board_lock.py protocol) — safe alongside CI; locked boards are
+root-port subtree device counts — spots dead or thinned hub legs at a glance). Each board is flock'd (hil_lock.py protocol) — safe alongside CI; locked boards are
 reported 🔒 locked and skipped immediately — never waited on, never bypassed.
 
 ```bash

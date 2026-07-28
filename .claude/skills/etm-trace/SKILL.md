@@ -43,7 +43,7 @@ this skill for exact counts, coverage, or instruction-by-instruction history.
   capture script uses automation port **19201**, never an interactive Ozone's
   19200.
 - Hold the board lock (see the `hil` skill):
-  `python3 test/hil/board_lock.py hold <board> --reason "etm capture"`.
+  `python3 test/hil/hil_lock.py hold <board> --reason "etm capture"`.
 - Committed `hw/bsp/**/ozone/*.jdebug` are the maintainer's interactive
   projects — automation never opens them (Ozone rewrites project files); the
   script generates a throwaway project.
