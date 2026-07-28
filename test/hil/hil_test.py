@@ -23,9 +23,10 @@
 # THE SOFTWARE.
 
 # Host setup (required: a missing tool fails its test rather than skipping it):
-#   - System packages: sudo apt install mtools libmtp9 alsa-utils iperf
+#   - System packages: sudo apt install mtools libmtp9 libmtp-runtime alsa-utils iperf
 #       mtools     - read_disk_file (device/cdc_msc, device/msc_dual_lun)
 #       libmtp9    - pymtp ctypes load (device/mtp); Debian 13 uses libmtp9t64
+#       libmtp-runtime - mtp-probe and the completed-device /dev/libmtp-* marker
 #       alsa-utils - arecord (device/audio_test_freertos)
 #       iperf      - throughput tests (device/net_lwip_*)
 #   - device/usbtest: usbtest kernel module + testusb binary (kernel tools/usb/testusb.c) on PATH,
@@ -39,7 +40,6 @@
 import argparse
 import io
 import itertools
-import math
 import os
 import random
 import re
@@ -506,89 +506,48 @@ def read_disk_file(uid: str, lun: int, fname: str) -> bytes:
 
 def open_mtp_dev(uid: str):
     mtp = MTP()
-    last_usb = None
+    last_detail = None
     deadline = time.monotonic() + 2 * enum_timeout()
 
-    def find_usb():
-        nonlocal last_usb
-        for serial_fname in glob.glob('/sys/bus/usb/devices/*/serial'):
-            dev_path = Path(serial_fname).parent
+    def find_ready_mtp():
+        nonlocal last_detail
+        for marker_name in glob.glob('/dev/libmtp-*'):
+            marker = Path(marker_name)
+            serial = ''
             try:
-                if (Path(serial_fname).read_text().strip().lower() != uid.lower()
+                # libmtp-runtime publishes libmtp-%k only after its synchronous
+                # mtp-probe has accepted the device. Starting from that small, ready-only
+                # set avoids a broad sysfs scan racing unrelated parallel re-enumerations.
+                sysname = marker.name[len('libmtp-'):]
+                dev_path = Path('/sys/bus/usb/devices') / sysname
+                serial = (dev_path / 'serial').read_text().strip()
+                if (serial.lower() != uid.lower()
                         or (dev_path / 'idVendor').read_text().strip() != 'cafe'
                         or (dev_path / 'idProduct').read_text().strip() != '4017'):
                     continue
+
                 busnum = int((dev_path / 'busnum').read_text())
                 devnum = int((dev_path / 'devnum').read_text())
-                last_usb = (dev_path.name, busnum, devnum)
                 usb_node = Path('/dev/bus/usb') / f'{busnum:03d}' / f'{devnum:03d}'
-                if usb_node.exists():
-                    return dev_path, busnum, devnum
-            except (OSError, ValueError):
-                pass
+                if marker.resolve(strict=True) != usb_node or not os.access(
+                        usb_node, os.R_OK | os.W_OK):
+                    last_detail = f'{marker} did not resolve to an accessible {usb_node}'
+                    continue
+                return busnum, devnum
+            except (OSError, ValueError) as e:
+                # A marker can disappear while another board flashes. Only retain
+                # diagnostics for this board's marker, not unrelated MTP devices.
+                if serial.lower() == uid.lower():
+                    last_detail = f'{marker}: {e}'
         return None
 
     def remaining() -> float:
         return max(0.0, deadline - time.monotonic())
 
-    target = wait_until(find_usb, step=0.05, timeout=remaining())
+    target = wait_until(find_ready_mtp, step=0.05, timeout=remaining())
     if target is None:
-        if last_usb:
-            name, busnum, devnum = last_usb
-            raise AssertionError(
-                f'MTP USB node not ready for {uid} at {name} ({busnum:03d}/{devnum:03d})')
-        raise AssertionError(f'MTP USB device not enumerated for {uid}')
-
-    dev_path, busnum, devnum = target
-    wait_seconds = max(1, math.ceil(remaining()))
-    try:
-        udev_wait = subprocess.run(
-            ['udevadm', 'wait', '--initialized=yes', f'--timeout={wait_seconds}', str(dev_path)],
-            capture_output=True, text=True, timeout=wait_seconds + 2)
-    except FileNotFoundError:
-        udev_wait = None
-    except subprocess.TimeoutExpired as e:
-        raise AssertionError(
-            f'udev initialization timed out for MTP {uid} at {busnum:03d}/{devnum:03d}') from e
-
-    if udev_wait is not None and udev_wait.returncode != 0:
-        try:
-            wait_help = subprocess.run(
-                ['udevadm', 'wait', '--help'], stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL, timeout=2)
-            wait_supported = wait_help.returncode == 0
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            wait_supported = False
-
-        if wait_supported:
-            detail = (udev_wait.stderr or udev_wait.stdout).strip().replace('\n', ' ')
-            detail = detail[-300:] or 'no diagnostic'
-            raise AssertionError(
-                f'udevadm wait failed for MTP {uid} at {busnum:03d}/{devnum:03d}: {detail}')
-        udev_wait = None
-
-    if udev_wait is None:
-        # systemd < 251 has no target-specific udev wait. Its libmtp rule creates
-        # this link only after synchronous mtp-probe has released the interface.
-        def find_libmtp_marker():
-            found = find_usb()
-            if found is None:
-                return None
-            found_path, found_busnum, found_devnum = found
-            marker = Path('/dev') / f'libmtp-{found_path.name}'
-            usb_node = Path('/dev/bus/usb') / f'{found_busnum:03d}' / f'{found_devnum:03d}'
-            if marker.exists() and marker.resolve() == usb_node:
-                return found
-            return None
-
-        target = wait_until(find_libmtp_marker, step=0.05, timeout=remaining())
-        if target is None:
-            raise AssertionError(
-                f'udevadm wait unsupported and libmtp marker absent for MTP {uid}; '
-                'install libmtp-runtime')
-        dev_path, busnum, devnum = target
-    elif find_usb() != target:
-        raise AssertionError(f'MTP USB device {uid} changed while waiting for udev initialization')
+        detail = f': {last_detail}' if last_detail else '; install libmtp-runtime'
+        raise AssertionError(f'MTP udev device not ready for {uid}{detail}')
 
     # A desktop GVFS session may claim MTP after udev probing. This is a no-op on
     # headless runners, but preserves support for rigs where the mount exists.
@@ -597,6 +556,13 @@ def open_mtp_dev(uid: str):
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
+
+    # GIO can race a disconnect/re-enumeration. Resolve the completed marker again
+    # rather than opening a stale bus/device tuple.
+    target = wait_until(find_ready_mtp, step=0.05, timeout=remaining())
+    if target is None:
+        raise AssertionError(f'MTP udev device disappeared for {uid}')
+    busnum, devnum = target
 
     # TinyUSB needs no libmtp device quirks. Construct its raw entry directly so
     # this test never probes another MTP board that is still being initialized.
@@ -1562,7 +1528,9 @@ def test_device_mtp(board):
             assert f2_md5_expect == hashlib.md5(f2_data).hexdigest(), 'MTP file2 wrong data'
         # test send file
         with open(f3, "wb") as file:
-            f3_data = os.urandom(random.randint(1024, 3*1024))
+            # 1524-byte payload + 12-byte MTP header = 3 full 512-byte buffers.
+            # This exercises delivery of the final OUT payload before its ZLP.
+            f3_data = bytes((i % 251) + 1 for i in range(1524))
             file.write(f3_data)
             file.close()
             fid = mtp.send_file_from_file(f3, b'file3')

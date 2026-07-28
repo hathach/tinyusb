@@ -420,6 +420,8 @@ _libmtp.LIBMTP_Get_Playlist.restype = ctypes.POINTER(LIBMTP_Playlist)
 _libmtp.LIBMTP_Get_Folder_List.restype = ctypes.POINTER(LIBMTP_Folder)
 _libmtp.LIBMTP_Find_Folder.restype = ctypes.POINTER(LIBMTP_Folder)
 _libmtp.LIBMTP_Get_Errorstack.restype = ctypes.POINTER(LIBMTP_Error)
+_libmtp.LIBMTP_Dump_Errorstack.argtypes = [ctypes.POINTER(LIBMTP_MTPDevice)]
+_libmtp.LIBMTP_Dump_Errorstack.restype = None
 
 _libmtp.LIBMTP_Open_Raw_Device.restype = ctypes.POINTER(LIBMTP_MTPDevice)
 _libmtp.LIBMTP_Open_Raw_Device.argtypes = [ctypes.POINTER(LIBMTP_RawDevice)]
@@ -451,16 +453,14 @@ class MTP:
 
 	def debug_stack(self):
 		"""
-			Checks if __DEBUG__ is set, if so, prints and clears the
-			errorstack.
+			Checks if __DEBUG__ is set, and if so prints the error stack.
 
 			@rtype: None
 			@return: None
 		"""
 
-		if __DEBUG__:
-			self.mtp.LIBMTP_Dump_Errorstack()
-			#self.mtp.LIBMTP_Clear_Errorstack()
+		if __DEBUG__ and self.device:
+			self.mtp.LIBMTP_Dump_Errorstack(self.device)
 
 	def detect_devices(self):
 		"""
