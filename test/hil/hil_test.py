@@ -1671,9 +1671,11 @@ def test_device_audio_test_freertos(board):
     samples = [int.from_bytes(raw[i:i + 2], 'little', signed=False) for i in range(0, len(raw), 2)]
     assert sample_count > 1024, f'Not enough samples captured: {sample_count}'
 
-    # The firmware sends a continuous uint16 ramp. Using ALSA hw: capture bypasses
-    # PulseAudio processing, so every adjacent sample must differ by exactly 1.
-    for i in range(sample_count - 1):
+    # The producer is already running while ALSA activates streaming, so the
+    # initial overwritable software FIFO (at most 224 samples) can transition
+    # between ramp generations. After that startup window, require an exact ramp.
+    startup_samples = 256
+    for i in range(startup_samples, sample_count - 1):
         expected = (samples[i] + 1) & 0xFFFF
         assert samples[i + 1] == expected, (
             f'Audio mismatch at sample {i + 1}: expected {expected}, got {samples[i + 1]}')
