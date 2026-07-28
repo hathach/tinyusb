@@ -40,6 +40,7 @@ except Exception:
     import types
     sys.modules['pymtp'] = types.SimpleNamespace(MTP=None)
 import hil_test
+import hil_flash
 
 USB_RECOVER = REPO_ROOT / '.claude' / 'skills' / 'usb-kernel-recover' / 'scripts' / 'usb_recover.sh'
 SEEN_CACHE = Path.home() / '.cache' / 'tinyusb-hil' / 'pool_seen.json'
@@ -191,7 +192,7 @@ def pick_example(board: dict) -> tuple[str | None, str | None]:
         kind = 'host'
     variant = (board.get('variant') or [{'name': board['name']}])[0]['name']
     for ex in dict.fromkeys(cand):
-        if hil_test.find_firmware(variant, ex):
+        if hil_flash.find_firmware(variant, ex):
             return ex, kind
     return None, kind
 
@@ -200,8 +201,8 @@ def flash(board: dict, example: str, allow_recovery: bool, probe_port: str, note
     """Flash with one retry; on repeated failure soft-replug the probe and try once
     more. Returns True on success."""
     variant = (board.get('variant') or [{'name': board['name']}])[0]['name']
-    fw = hil_test.find_firmware(variant, example)
-    fn = getattr(hil_test, f'flash_{board["flasher"]["name"].lower()}')
+    fw = hil_flash.find_firmware(variant, example)
+    fn = getattr(hil_flash, f'flash_{board["flasher"]["name"].lower()}')
     for attempt in range(3):
         if attempt == 2:
             if not (allow_recovery and probe_port):
@@ -214,7 +215,7 @@ def flash(board: dict, example: str, allow_recovery: bool, probe_port: str, note
         ret = fn(board, str(fw))
         if ret.returncode == 0:
             return True
-        err = flash_error_line(hil_test.cmd_stdout_text(ret.stdout)) or f'rc={ret.returncode}'
+        err = flash_error_line(hil_flash.cmd_stdout_text(ret.stdout)) or f'rc={ret.returncode}'
         if attempt == 0:
             say(f'{board["name"]:26} flash retry: {err}')
         else:
@@ -239,13 +240,13 @@ def check_host_serial(board: dict) -> bool:
     is written each poll so an echo-only firmware (board_test) also counts."""
     import serial
     try:
-        port = hil_test.get_serial_dev(board['flasher']['uid'], None, None, 0)
+        port = hil_flash.get_serial_dev(board['flasher']['uid'], None, None, 0)
         ser = serial.Serial(port, baudrate=115200, timeout=0.3, write_timeout=1)
     except Exception as e:
         say(f'{board["name"]:26} no flasher serial port: {e}')
         return False
     try:
-        getattr(hil_test, f'reset_{board["flasher"]["name"].lower()}')(board)
+        getattr(hil_flash, f'reset_{board["flasher"]["name"].lower()}')(board)
         deadline = time.monotonic() + SERIAL_WAIT
         while time.monotonic() < deadline:
             try:
@@ -262,11 +263,11 @@ def check_host_serial(board: dict) -> bool:
 def ensure_board_test(board: dict):
     """board_test firmware path for this board, building it if absent."""
     variant = (board.get('variant') or [{'name': board['name']}])[0]['name']
-    fw = hil_test.find_firmware(variant, 'device/board_test')
+    fw = hil_flash.find_firmware(variant, 'device/board_test')
     if fw:
         return fw
-    bdir = hil_test.TINYUSB_ROOT / hil_test.build_dir / f'cmake-build-{variant}'
-    src = hil_test.TINYUSB_ROOT / 'examples'
+    bdir = hil_flash.TINYUSB_ROOT / hil_flash.build_dir / f'cmake-build-{variant}'
+    src = hil_flash.TINYUSB_ROOT / 'examples'
     if not (bdir / 'CMakeCache.txt').exists():
         r = subprocess.run(['cmake', '-B', str(bdir), f'-DBOARD={board["name"]}', '-G', 'Ninja',
                             '-DCMAKE_BUILD_TYPE=MinSizeRel', str(src)], capture_output=True, text=True)
@@ -274,7 +275,7 @@ def ensure_board_test(board: dict):
             return None
     subprocess.run(['cmake', '--build', str(bdir), '--target', 'board_test'],
                    capture_output=True, text=True)
-    return hil_test.find_firmware(variant, 'device/board_test')
+    return hil_flash.find_firmware(variant, 'device/board_test')
 
 
 def host_alive(board: dict, note: list) -> bool:
@@ -288,7 +289,7 @@ def host_alive(board: dict, note: list) -> bool:
         note.append('serial silent; board_test build failed')
         return False
     say(f'{board["name"]:26} recovery: serial silent, flashing board_test')
-    ret = getattr(hil_test, f'flash_{board["flasher"]["name"].lower()}')(board, str(fw))
+    ret = getattr(hil_flash, f'flash_{board["flasher"]["name"].lower()}')(board, str(fw))
     if ret.returncode != 0:
         note.append('serial silent; board_test flash failed')
         return False
@@ -363,7 +364,7 @@ def check_board(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
             if not hit:
                 # board recovery: re-reset via the probe, then wait again
                 say(f'{name:26} recovery: uid not up, resetting board')
-                getattr(hil_test, f'reset_{board["flasher"]["name"].lower()}')(board)
+                getattr(hil_flash, f'reset_{board["flasher"]["name"].lower()}')(board)
                 hit = wait_device(board['uid'], None, old_ino, ENUM_WAIT_RETRY)
                 note.append('reset recovered' if hit else 'reset did not help')
             if hit:
@@ -380,9 +381,9 @@ def check_board(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
 
         if not args.no_park and ok:
             variant = (board.get('variant') or [{'name': name}])[0]['name']
-            if hil_test.find_firmware(variant, 'device/board_test'):
-                ret = getattr(hil_test, f'flash_{board["flasher"]["name"].lower()}')(
-                    board, str(hil_test.find_firmware(variant, 'device/board_test')))
+            if hil_flash.find_firmware(variant, 'device/board_test'):
+                ret = getattr(hil_flash, f'flash_{board["flasher"]["name"].lower()}')(
+                    board, str(hil_flash.find_firmware(variant, 'device/board_test')))
                 if ret.returncode != 0:
                     note.append('park flash failed')
         return row
@@ -462,8 +463,8 @@ def main() -> None:
             sys.exit(f'board(s) not in {cfg_path.name}: {", ".join(sorted(unknown))}')
         boards = [b for b in boards if b['name'] in args.board]
 
-    hil_test.build_dir = args.build_dir
-    hil_test.verbose = args.verbose
+    hil_flash.build_dir = args.build_dir
+    hil_flash.verbose = args.verbose
     allow_recovery = not args.scan_only and can_recover()
     seen = {}
     try:
