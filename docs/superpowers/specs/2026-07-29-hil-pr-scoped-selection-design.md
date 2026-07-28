@@ -29,7 +29,11 @@ confident; every uncertainty widens to the full matrix.
 ## Component: `test/hil/hil_select.py`
 
 Stdlib-only, importable and CLI. Lives beside the harness so `hil_ci.sh` copies are unaffected
-(it runs on the GitHub runner / dev PC, not on the rig).
+(it runs on the GitHub runner / dev PC, not on the rig). It must NOT import `hil_test.py`
+(which drags pyserial/pymtp onto the bare GitHub runner): the three test lists
+(`device_tests`, `dual_tests`, `host_test`) move verbatim into a tiny stdlib-only
+`test/hil/hil_examples.py` that both `hil_test.py` and `hil_select.py` import (behavior
+preserving; `hil_ci.sh` scp list gains the new file).
 
 ```
 python3 test/hil/hil_select.py --base <ref> [--diff-file <path>] CONFIG.json [CONFIG.json...]
@@ -120,10 +124,12 @@ is skipped, not widened (running unrelated boards would test nothing relevant).
   generator. Non-PR events: skip the selector, outputs default to full/empty-args-means-all.
 - `hil_ci_set_matrix.py` gains `--select '<json>'`: when given and `full` is false, it emits
   build entries only for selected boards (per config). Untouched otherwise.
-- `hil-tinyusb` job: append `${{ needs.set-matrix.outputs.hil_args_tinyusb }}` to the existing
-  `hil_test.py` invocation; skip the job when the selection says this rig has nothing to run
-  (`args` empty AND `full` false). Same for the hfp job with `hil_args_hfp`
-  (build.yml:487's direct `hil_test.py hfp.json` call).
+- `hil-tinyusb` job (one matrixed job covering both rigs, selected by `matrix.hil_json`): a
+  step picks the rig's selector args in shell (`case "$HIL_JSON" in ...`) from the set-matrix
+  outputs and either appends them to the `hil_test.py` invocation or exits the step early with
+  a "HIL skipped by selection" log line when that rig has nothing to run (`run` flag output
+  false). The separate `hil-tinyusb-esp` job (esptool split) gets the same treatment with the
+  tinyusb args. Non-PR events: outputs default to run=true with empty args (today's behavior).
 - The `--flasher`/`--exclude-flasher` split in the existing matrix `test_args` composes fine
   with `-b` (hil_test.py applies both filters).
 
