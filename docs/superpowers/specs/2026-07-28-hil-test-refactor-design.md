@@ -109,7 +109,7 @@ greppable; no `from … import *`-style mirroring.
 ## Consumer updates (same commit)
 
 - **`.claude/skills/hil/pool_check.py`** — drop its private `lock_board`/`unlock_board` in favor of
-  `hil_lock.acquire_board_lock(name, reason='pool_check')` (+ `clear_record` on release); import
+  `hil_lock.flock_nb` + `write_record(fh, 'pool_check')` (+ `clear_record` on release; deliberately NOT `acquire_board_lock`, whose HIL_NO_BOARD_LOCK bypass and fail-open behavior pool_check must not inherit); import
   flashers/`find_firmware`/`get_serial_dev`/`cmd_stdout_text`/`TINYUSB_ROOT`/`build_dir` from
   `hil_flash`; `BOARD_LOCK_DIR` references move to `hil_lock`. pool_check then imports **only**
   `hil_lock` + `hil_flash` (no `hil_test`), so its `pymtp` stub shim is deleted — that shim existed

@@ -456,7 +456,7 @@ def main() -> None:
         rows = [check_board(b, args, allow_recovery, seen) for b in boards]
     else:
         with io.StringIO() as spool, ThreadPoolExecutor(max_workers=args.jobs) as pool:
-            sys.stdout = spool  # silence hil_test's COMMAND FAILED dumps; say() uses __stdout__
+            sys.stdout = spool  # silence hil_flash's COMMAND FAILED dumps; say() uses __stdout__
             try:
                 rows = list(pool.map(lambda b: check_board(b, args, allow_recovery, seen), boards))
             finally:
