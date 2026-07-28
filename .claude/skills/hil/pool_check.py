@@ -4,7 +4,7 @@
 For every board in the rig's HIL config: is the flash probe on the USB bus, does a
 light example flash, and does the board's USB device (uid) come back up? Applies
 only per-device-safe recovery (probe authorized-toggle, board reset/re-flash) and
-prints a markdown summary table. Boards are flock'd (board_lock.py protocol) so a
+prints a markdown summary table. Boards are flock'd (hil_lock.py protocol) so a
 concurrent CI hil_test run is never disturbed; locked boards are reported and
 skipped.
 

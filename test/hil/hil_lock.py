@@ -351,10 +351,16 @@ def cmd_release(boards):
     victims = set()
     for b in boards:
         try:
-            fh = flock_nb(b)
+            fd = os.open(lock_path(b), os.O_RDWR)
+        except OSError:
+            continue  # no lock file (or another user's): nothing we can release
+        fh = os.fdopen(fd, 'r+')
+        try:
+            fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError:
             # flock genuinely held — never SIGTERM on a mere pid record: the
             # pid may be recycled, or a live worker that already moved on.
+            fh.close()
             info = read_record(b) or {}
             pid = info.get('pid')
             if info.get('reason') == CI_REASON:

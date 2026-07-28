@@ -1615,7 +1615,7 @@ def test_board(board: Board) -> tuple[str, int, list[str], list, float]:
             try:
                 # clear our pid record before dropping the flock: this worker
                 # process lives on (pool reuse), so a stale record would make
-                # board_lock.py's pid-liveness checks report a freed board as
+                # hil_lock.py's pid-liveness checks report a freed board as
                 # still locked for the rest of the run
                 _lock_fh.truncate(0)
             except OSError:
