@@ -1672,23 +1672,13 @@ def test_device_audio_test_freertos(board):
     assert sample_count > 1024, f'Not enough samples captured: {sample_count}'
 
     # The firmware sends a continuous uint16 ramp. Using ALSA hw: capture bypasses
-    # PulseAudio processing, so most adjacent samples should differ by exactly 1.
-    total_diffs = sample_count - 1
-    one_step = 0
-    near_step = 0
-    for i in range(total_diffs):
-        d = (samples[i + 1] - samples[i]) & 0xFFFF
-        if d == 1:
-            one_step += 1
-        if d in (0, 1, 2, 47, 48, 49):
-            near_step += 1
+    # PulseAudio processing, so every adjacent sample must differ by exactly 1.
+    for i in range(sample_count - 1):
+        expected = (samples[i] + 1) & 0xFFFF
+        assert samples[i + 1] == expected, (
+            f'Audio mismatch at sample {i + 1}: expected {expected}, got {samples[i + 1]}')
 
-    one_ratio = one_step / total_diffs
-    near_ratio = near_step / total_diffs
-    assert one_ratio >= 0.85, f'Unexpected audio pattern (strict ratio={one_ratio:.3f})'
-    assert near_ratio >= 0.98, f'Unexpected audio pattern (relaxed ratio={near_ratio:.3f})'
-
-    print(f'  ALSA {pcm} strict={one_ratio:.3f} relaxed={near_ratio:.3f}', end='')
+    print(f'  ALSA {pcm}', end='')
 
 
 def test_device_hid_generic_inout(board):
