@@ -321,7 +321,6 @@ class FlasherCfg(TypedDict):
     name: str
     uid: str
     args: str
-    pre_flash: NotRequired[dict[str, str]]  # target example -> USB-off separator example
 
 
 class AttachedDevCfg(TypedDict, total=False):
@@ -1842,19 +1841,6 @@ def find_firmware(variant: str, example: str):
     return None
 
 
-def usb_uid_paths(uid: str) -> set[str]:
-    """Return sysfs device paths currently exposing the requested USB serial."""
-    paths = set()
-    for f in glob.glob('/sys/bus/usb/devices/*/serial'):
-        try:
-            with open(f) as serial_file:
-                if serial_file.read().strip().lower() == uid.lower():
-                    paths.add(os.path.dirname(f))
-        except OSError:
-            pass
-    return paths
-
-
 def test_example(board: Board, variant: str, example: str) -> tuple[int, str, str | None]:
     """
     Test example firmware
@@ -1877,16 +1863,7 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
         log_line(f'{test_name} Skip (no binary)')
         return 0, 'skip', None
 
-    pre_flash_example = None if skip_flash else board['flasher'].get('pre_flash', {}).get(example)
-    pre_flash_name = find_firmware(variant, pre_flash_example) if pre_flash_example else None
-    if pre_flash_example and pre_flash_name is None:
-        log_line(f'{test_name}  {STATUS_FAILED}: '
-                 f'pre-flash firmware {pre_flash_example} not found')
-        return 1, 'fail', None
-
     if verbose:
-        if pre_flash_name is not None:
-            log_line(f'Pre-flashing {pre_flash_name}.elf')
         log_line(f'Flashing {fw_name}.elf')
 
     # flash firmware (unless --skip-flash), then run the test. Both may fail randomly,
@@ -1901,36 +1878,13 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
         attempt_out = io.StringIO()
         with redirect_stdout(attempt_out):
             if not skip_flash:
-                flash_ok = True
-                flash_error = ''
                 with flash_permit(board['uid']):
-                    if pre_flash_name is not None:
-                        previous_usb_paths = usb_uid_paths(board['uid'])
-                        ret = globals()[f'flash_{board["flasher"]["name"].lower()}'](
-                            board, str(pre_flash_name))
-                        flash_ok = (ret.returncode == 0)
-                        if not flash_ok:
-                            flash_error = f'Pre-flash {pre_flash_example} failed'
-                        elif previous_usb_paths:
-                            disconnected = wait_until(
-                                lambda: all(not os.path.exists(p) for p in previous_usb_paths), step=0.1)
-                            if not disconnected:
-                                flash_ok = False
-                                flash_error = (f'Pre-flash {pre_flash_example} did not disconnect '
-                                               f'USB device {board["uid"]}')
-                        else:
-                            time.sleep(0.1)
-
-                    if flash_ok:
-                        t_flash = time.monotonic()
-                        ret = globals()[f'flash_{board["flasher"]["name"].lower()}'](
-                            board, str(fw_name))
-                        if PROFILE:
-                            log_line(f'[prof] {variant} {example} flash attempt {i + 1}: '
-                                     f'{time.monotonic() - t_flash:.1f}s rc={ret.returncode}')
-                        flash_ok = (ret.returncode == 0)
-                        if not flash_ok:
-                            flash_error = 'Flash failed'
+                    t_flash = time.monotonic()
+                    ret = globals()[f'flash_{board["flasher"]["name"].lower()}'](board, str(fw_name))
+                    if PROFILE:
+                        log_line(f'[prof] {variant} {example} flash attempt {i + 1}: '
+                                 f'{time.monotonic() - t_flash:.1f}s rc={ret.returncode}')
+                flash_ok = (ret.returncode == 0)
             if flash_ok:
                 try:
                     tret = globals()[f'test_{example.replace("/", "_")}'](board)
@@ -1968,10 +1922,10 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
                         log_line(msg)
                         time.sleep(0.5)
             else:
-                last_err = flash_error
+                last_err = 'Flash failed'
                 last_detail = compact_output(attempt_out.getvalue())
                 if i < max_retry - 1:
-                    msg = f'{test_name}  retry {i+2}/{max_retry}: {flash_error}'
+                    msg = f'{test_name}  retry {i+2}/{max_retry}: flash failed'
                     if last_detail:
                         msg += f'  {last_detail}'
                     log_line(msg)

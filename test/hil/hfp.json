@@ -35,11 +35,7 @@
             "flasher": {
                 "name": "jlink",
                 "uid": "728973776",
-                "args": "-device LPC43S67_M4",
-                "pre_flash": {
-                    "device/usbtest": "device/board_test",
-                    "device/cdc_msc_throughput": "device/board_test"
-                }
+                "args": "-device LPC43S67_M4"
             }
         }
     ]
