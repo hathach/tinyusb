@@ -58,6 +58,7 @@ import multiprocessing
 from multiprocessing import TimeoutError as MpTimeoutError
 
 import hil_flash
+import hil_lock
 
 # Raw Lock/Semaphore objects passed via Pool initargs are inheritable only under the fork
 # start method (spawn/forkserver pickle them and fail at Pool creation) — pin it so a
@@ -68,51 +69,6 @@ import hashlib
 import ctypes
 from pymtp import MTP
 import string
-
-# --- per-board dev-session locks (see test/hil/board_lock.py) ------------
-BOARD_LOCK_DIR = '/tmp/tinyusb-hil-locks'
-
-def acquire_board_lock(board_name):
-    """Take this board's flock for the duration of its flash+test.
-    Returns an open file handle (keep it referenced; closing releases it),
-    or None when HIL_NO_BOARD_LOCK=1 or the lock dir is unusable (fail-open:
-    locking must never break a test run by itself).
-    Raises RuntimeError only when another session holds the board."""
-    import fcntl
-    if os.environ.get('HIL_NO_BOARD_LOCK') == '1':
-        return None  # user-authorized bypass — see board_lock.py / hil skill
-    try:
-        os.makedirs(BOARD_LOCK_DIR, exist_ok=True)
-        fd = os.open(os.path.join(BOARD_LOCK_DIR, f'{board_name}.lock'),
-                     os.O_RDWR | os.O_CREAT, 0o666)
-        fh = os.fdopen(fd, 'r+')
-    except OSError as e:
-        # odd lock dir (perms, path collision): proceed unlocked, but say so —
-        # a silent fail-open is indistinguishable from the intentional bypass
-        print(f'warning: board lock unavailable for {board_name} ({e}); proceeding unlocked',
-              flush=True)
-        return None
-    try:
-        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError:
-        try:
-            info = fh.read(500).strip()
-        except (OSError, UnicodeDecodeError):
-            info = ''
-        fh.close()
-        raise RuntimeError(f'board locked: {info or "unknown holder"}')
-    # announce ourselves so the other side's conflict message is truthful;
-    # best-effort — the flock itself is already held
-    try:
-        fh.truncate(0)
-        fh.seek(0)
-        json.dump({'pid': os.getpid(), 'reason': 'hil_test.py',
-                   'since': time.strftime('%Y-%m-%dT%H:%M:%S%z')}, fh)
-        fh.flush()
-    except OSError:
-        pass
-    return fh
-
 
 # Enumeration wait budget. The first attempt gets ENUM_TIMEOUT; retry attempts get the
 # shorter ENUM_TIMEOUT_RETRY - the board was just re-flashed again, and a device that is
@@ -167,36 +123,12 @@ skip_flash = False
 print_lock = None
 shuffle_seed = None  # per-run seed for the per-board test-order shuffle (HIL_SHUFFLE_SEED to replay)
 
-# Per-host-controller concurrency (see controller_of/controller_slot below): a usbtest battery
-# saturates its DUT's host controller, so batteries and flashes are budgeted per controller.
-# - uPD720201 cards need their latest firmware (>= 2.0.2.6; RAM-uploaded, reloads every
-#   power cycle): ROM firmware dies under battery + re-enumeration churn, and usbtest.py
-#   refuses the unlink-stress cases on it.
-# - widths (profiled 2026-07-13/14): wall time 22.2/14.3/12.5/10.8 min at usbtest width
-#   1/2/3/4, plateau after; flash width beyond 8 only adds flasher-hub contention;
-#   battery case failures start at 12/8 (bandwidth stretch on shared leaf-hub uplinks).
-# - a marginal DUT port bouncing during concurrent batteries can wedge/kill a uPD720201
-#   ("xHCI host not responding to stop endpoint command"): fix the port/cable or pull
-#   the board, don't lower the widths (2026-07-16: every death traced to one board's port).
-FLASH_PARALLEL = int(os.getenv('HIL_FLASH_PARALLEL', '8'))
-USBTEST_PARALLEL = int(os.getenv('HIL_USBTEST_PARALLEL', '4'))
-CONTROLLER_SLOTS = 12  # lock slots; controllers are assigned to slots on first sight
-usbtest_sems = None  # CONTROLLER_SLOTS semaphores: per-slot usbtest-battery permits
-flash_sems = None       # CONTROLLER_SLOTS semaphores: per-slot flash permits
-controller_map = None         # shared dict: 'pci:<addr>' -> slot, 'uid:<uid>' -> pci addr cache
-controller_meta = None        # guards slot assignment in controller_map
-controller_hints = {}         # static uid -> pci from the last run's cache (read-only per worker)
-
 
 def init_worker(lock, seed, b_mutexes, f_sems, cmap, cmeta, hints_by_uid):
-    global print_lock, shuffle_seed, usbtest_sems, flash_sems, controller_map, controller_meta, controller_hints
+    global print_lock, shuffle_seed
     print_lock = lock
     shuffle_seed = seed
-    usbtest_sems = b_mutexes
-    flash_sems = f_sems
-    controller_map = cmap
-    controller_meta = cmeta
-    controller_hints = hints_by_uid
+    hil_lock.init_scheduling(b_mutexes, f_sems, cmap, cmeta, hints_by_uid, log_fn=log_line)
 
 
 def log_line(msg: str) -> None:
@@ -208,108 +140,6 @@ def log_line(msg: str) -> None:
             print(msg, file=out, flush=True)
     else:
         print(msg, file=out, flush=True)
-
-
-# -------------------------------------------------------------
-# Per-controller scheduling
-# -------------------------------------------------------------
-def controller_of(uid: str):
-    """Resolve a DUT uid to its root host controller's PCI address, or None if the device
-    is not enumerated (e.g. parked in board_test firmware with USB off). Successful
-    resolutions are cached — cabling does not change mid-run. Dual-port parts (e.g.
-    CH32V307 usbhs/usbfs variants) share one uid and one cache entry: budgeting is only
-    exact when both ports sit on the same controller (true on this rig)."""
-    if controller_map is None:
-        return None
-    cached = controller_map.get(f'uid:{uid}')
-    if cached:
-        return cached
-    for f in glob.glob('/sys/bus/usb/devices/*/serial'):
-        d = os.path.dirname(f)
-        try:
-            if open(f).read().strip().lower() != uid.lower():
-                continue
-            bus = int(open(os.path.join(d, 'busnum')).read())
-            root = os.path.realpath(f'/sys/bus/usb/devices/usb{bus}')
-            m = re.findall(r'[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-9a-f]', root)
-            if m:
-                controller_map[f'uid:{uid}'] = m[-1]
-                return m[-1]
-        except (OSError, ValueError):
-            continue
-    return None
-
-
-def controller_slot(pci: str) -> int:
-    """Map a controller PCI address to a lock slot (assigned on first sight)."""
-    key = f'pci:{pci}'
-    with controller_meta:
-        slot = controller_map.get(key)
-        if slot is None:
-            slot = controller_map.get('nslots', 0)
-            if slot >= CONTROLLER_SLOTS:
-                slot = 0  # more controllers than slots: overflow shares slot 0 (safe, over-serialized)
-            else:
-                controller_map['nslots'] = slot + 1
-            controller_map[key] = slot
-        return slot
-
-
-class controller_permit:
-    """Context manager: one permit from `sems` on the board's controller slot. If the
-    controller is unknown, fail closed: take one permit from EVERY slot, in order, so the
-    operation respects the budget wherever it might land. `warn_unknown` logs that fallback
-    (used by usbtest, where the device is expected to be enumerated by the caller)."""
-    def __init__(self, sems, uid: str, warn_unknown: bool = False):
-        self.sems = sems
-        self.slots = None
-        self.uid = uid
-        if sems is None:
-            return
-        pci = controller_of(uid)
-        if pci is None and not warn_unknown:
-            # last-run cabling hint, flash budgeting only: a mis-budgeted flash is harmless,
-            # but a battery must never trust a stale hint (it could stack two batteries on
-            # one controller). In practice only a board's first flash lands here - batteries
-            # assert enumeration before taking their permit.
-            pci = controller_hints.get(uid)
-        if pci is None and warn_unknown:
-            log_line(f'warning: cannot resolve {uid} to a host controller; '
-                     'taking a permit on every slot (over-serialized)')
-        self.slots = [controller_slot(pci)] if pci else list(range(CONTROLLER_SLOTS))
-
-    def __enter__(self):
-        if self.slots:
-            t0 = time.monotonic()
-            taken = []
-            try:
-                for s in self.slots:
-                    self.sems[s].acquire()
-                    taken.append(s)
-                # stays inside the try: if this raises (e.g. broken stdout), the permits
-                # must be released - a failed __enter__ never gets its __exit__
-                if PROFILE and time.monotonic() - t0 > 1.0:
-                    log_line(f'[prof] permit wait {time.monotonic() - t0:.1f}s '
-                             f'(uid {self.uid}, slots {self.slots})')
-            except BaseException:
-                for s in reversed(taken):
-                    self.sems[s].release()
-                raise
-        return self
-
-    def __exit__(self, *exc):
-        if self.slots:
-            for s in reversed(self.slots):
-                self.sems[s].release()
-        return False
-
-
-def flash_permit(uid: str) -> controller_permit:
-    return controller_permit(flash_sems, uid)
-
-
-def usbtest_permit(uid: str) -> controller_permit:
-    return controller_permit(usbtest_sems, uid, warn_unknown=True)
 
 
 def compact_output(raw: str) -> str:
@@ -1498,7 +1328,7 @@ def test_device_usbtest(board):
     # its normal driver. usbtest_permit budgets USBTEST_PARALLEL batteries per controller.
     script = Path(__file__).resolve().parent / 'usbtest.py'
     cmd = f'python3 "{script}" --serial "{uid}" --json --keep-binding --timeout 60'
-    with usbtest_permit(uid):
+    with hil_lock.usbtest_permit(uid):
         r = hil_flash.run_cmd(cmd, timeout=200)
     out = hil_flash.cmd_stdout_text(r.stdout)
     brace = out.find('{')
@@ -1592,7 +1422,7 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
         attempt_out = io.StringIO()
         with redirect_stdout(attempt_out):
             if not skip_flash:
-                with flash_permit(board['uid']):
+                with hil_lock.flash_permit(board['uid']):
                     t_flash = time.monotonic()
                     ret = getattr(hil_flash, f'flash_{board["flasher"]["name"].lower()}')(board, str(fw_name))
                     if PROFILE:
@@ -1692,7 +1522,7 @@ def test_board(board: Board) -> tuple[str, int, list[str], list, float]:
     flasher = board['flasher']
 
     try:
-        _lock_fh = acquire_board_lock(name)
+        _lock_fh = hil_lock.acquire_board_lock(name)
     except RuntimeError as e:
         log_line(f'{name:25} {STATUS_FAILED}: {e}')
         # visible report row so the ❌ matches the exit code; failed-tests stays
@@ -2016,7 +1846,7 @@ def main() -> None:
 
     seed = os.getenv('HIL_SHUFFLE_SEED') or str(int(time.time()))
     log_line(f'test-order shuffle seed: {seed} (HIL_SHUFFLE_SEED={seed} to replay); '
-             f'flash/usbtest parallel per controller: {FLASH_PARALLEL}/{USBTEST_PARALLEL}; '
+             f'flash/usbtest parallel per controller: {hil_lock.FLASH_PARALLEL}/{hil_lock.USBTEST_PARALLEL}; '
              f'enum timeout first/retry: {ENUM_TIMEOUT}/{ENUM_TIMEOUT_RETRY}s')
 
     hints = {}
@@ -2035,8 +1865,8 @@ def main() -> None:
     mgr = Manager()
     cmap = mgr.dict()
     initargs = (Lock(), seed,
-                [Semaphore(USBTEST_PARALLEL) for _ in range(CONTROLLER_SLOTS)],
-                [Semaphore(FLASH_PARALLEL) for _ in range(CONTROLLER_SLOTS)],
+                [Semaphore(hil_lock.USBTEST_PARALLEL) for _ in range(hil_lock.CONTROLLER_SLOTS)],
+                [Semaphore(hil_lock.FLASH_PARALLEL) for _ in range(hil_lock.CONTROLLER_SLOTS)],
                 cmap, Lock(), hints_by_uid)
     with Pool(processes=os.cpu_count() or 1, initializer=init_worker, initargs=initargs) as pool:
         async_ret = pool.map_async(test_board, config_boards)

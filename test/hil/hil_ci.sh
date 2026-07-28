@@ -51,6 +51,7 @@ REMOTE
 echo "==> Copying test scripts"
 scp -q "$ROOT_DIR/test/hil/hil_test.py" \
        "$ROOT_DIR/test/hil/hil_flash.py" \
+       "$ROOT_DIR/test/hil/hil_lock.py" \
        "$ROOT_DIR/test/hil/pymtp.py" \
        "$CONFIG" \
        "$REMOTE:$REMOTE_DIR/test/hil/"

@@ -11,12 +11,11 @@ skipped.
 Config is picked by hostname unless given: ci -> tinyusb.json, tusb (hifiphile
 rig) -> hfp.json, anything else is a dev PC -> local.json.
 
-Must live in <repo>/.claude/skills/hil/ (imports test/hil/hil_test.py, uses the
-repo's usb_recover.sh).
+Must live in <repo>/.claude/skills/hil/ (imports test/hil/hil_lock.py and
+test/hil/hil_flash.py, uses the repo's usb_recover.sh).
 """
 
 import argparse
-import fcntl
 import io
 import json
 import glob
@@ -33,13 +32,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / 'test' / 'hil'))
 
-# hil_test imports pymtp (libmtp) which a dev PC may not have; MTP is not needed here
-try:
-    import pymtp  # noqa: F401
-except Exception:
-    import types
-    sys.modules['pymtp'] = types.SimpleNamespace(MTP=None)
-import hil_test
+import hil_lock
 import hil_flash
 
 USB_RECOVER = REPO_ROOT / '.claude' / 'skills' / 'usb-kernel-recover' / 'scripts' / 'usb_recover.sh'
@@ -118,39 +111,22 @@ def wait_device(uid: str, pid: str | None, old_ino, budget: float):
 
 
 def lock_board(name: str):
-    """Nonblocking flock per board_lock.py protocol. Returns handle, or a str with
+    """Nonblocking flock per hil_lock.py protocol. Returns handle, or a str with
     the holder's info when the board is locked elsewhere. Board locks are ALWAYS
     respected: a held board is reported as locked and skipped — never waited on,
     and there is deliberately no bypass here."""
-    os.makedirs(hil_test.BOARD_LOCK_DIR, exist_ok=True)
-    fd = os.open(os.path.join(hil_test.BOARD_LOCK_DIR, f'{name}.lock'), os.O_RDWR | os.O_CREAT, 0o666)
-    fh = os.fdopen(fd, 'r+')
+    os.makedirs(hil_lock.BOARD_LOCK_DIR, exist_ok=True)
     try:
-        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fh = hil_lock.flock_nb(name)
     except OSError:
-        info = ''
-        try:
-            info = fh.read(500).strip()
-        except OSError:
-            pass
-        fh.close()
-        return info or 'unknown holder'
-    try:
-        fh.truncate(0)
-        fh.seek(0)
-        json.dump({'pid': os.getpid(), 'reason': 'pool_check',
-                   'since': time.strftime('%Y-%m-%dT%H:%M:%S%z')}, fh)
-        fh.flush()
-    except OSError:
-        pass
+        info = hil_lock.read_record(name)
+        return json.dumps(info) if info else 'unknown holder'
+    hil_lock.write_record(fh, 'pool_check')
     return fh
 
 
 def unlock_board(fh) -> None:
-    try:
-        fh.truncate(0)  # clear our record before dropping the flock (see hil_test)
-    except OSError:
-        pass
+    hil_lock.clear_record(fh)
     fh.close()
 
 
