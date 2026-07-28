@@ -1,22 +1,22 @@
 ---
 name: hil
-description: Use when running TinyUSB Hardware-in-the-Loop (HIL) tests on physical boards, debugging HIL failures, or copying firmware to the ci.lan test rig. Covers per-host config selection (htpc uses local.json, ci uses tinyusb.json), local execution on either htpc or ci, remote execution over SSH from htpc, and debugging tips.
+description: Use when running TinyUSB Hardware-in-the-Loop (HIL) tests on physical boards, checking pool health (which probes/boards are online), debugging HIL failures, or copying firmware to the ci.lan test rig. Covers per-host config selection (infra rigs ci/tusb use tinyusb.json/hfp.json, any dev PC uses local.json), local and remote execution, the pool_check.py health scan, and debugging tips.
 ---
 
 # Hardware-in-the-Loop (HIL) Testing
 
-Run TinyUSB HIL tests on real boards. **Run `hostname` first** — it tells you which host you are on, which determines the default config and whether remote mode is possible.
+Run TinyUSB HIL tests on real boards. **Run `hostname` first** — it tells you which host you are on, which determines the default config and whether remote mode is possible. Rule of thumb: only `ci` and `tusb` are infra rigs; **any other hostname is a dev PC** and uses `local.json`.
 
-| Host                       | Local config                         | Remote (SSH → ci.lan)?                               |
-|----------------------------|--------------------------------------|------------------------------------------------------|
-| `htpc` (dev PC)            | `test/hil/local.json`                | yes (large pool, `test/hil/tinyusb.json`)            |
-| `ci` (the rig)             | `test/hil/tinyusb.json` (large pool) | no — can't SSH to htpc, and boards are already local |
-| `hifiphile` (external rig) | `test/hil/hfp.json`                  | no outbound SSH to htpc/ci; SSH-reachable FROM both  |
+| Host                              | Local config                         | Remote (SSH → ci.lan)?                                 |
+|-----------------------------------|--------------------------------------|--------------------------------------------------------|
+| `ci` (the rig)                    | `test/hil/tinyusb.json` (large pool) | no — boards are already local                          |
+| `tusb` (hifiphile's external rig) | `test/hil/hfp.json`                  | no outbound SSH to dev PCs/ci; SSH-reachable FROM both |
+| anything else (a dev PC)          | `test/hil/local.json`                | yes (large pool, `test/hil/tinyusb.json`)              |
 
-Default to **local**. Use **remote** only when on `htpc` and the user says `remote`/`ci.lan`. Never attempt remote on `ci`.
+Default to **local**. Use **remote** only when on a dev PC and the user says `remote`/`ci.lan`. Never attempt remote on `ci`.
 
-`hifiphile` is an external rig (hosted by maintainer hifiphile), exercised by the GitHub CI
-`hil-tinyusb (hfp.json)` matrix job — **never run HIL against it unless the user explicitly asks.**
+`tusb` (ssh alias `hifiphile`) is an external rig (hosted by maintainer hifiphile), exercised by the
+GitHub CI `hil-tinyusb (hfp.json)` matrix job — **never run HIL against it unless the user explicitly asks.**
 
 ## Board locks — the CI runner keeps running
 
@@ -36,6 +36,34 @@ python3 test/hil/board_lock.py release BOARD [BOARD...]
 - `board_lock.py status` lists holders. Locks auto-release when the holder process dies (kernel flock); `/tmp` clears on reboot.
 - Forcing past a lock: `HIL_NO_BOARD_LOCK=1 python3 test/hil/hil_test.py ...` bypasses the guard without killing the holder. Only with the user's explicit go-ahead — they accept the risk of colliding with whatever holds the board.
 
+## Pool check (quick health scan)
+
+Before a HIL campaign, after rig maintenance/reboot, or when boards fail to flash, run
+`pool_check.py` (in this skill folder). It picks the config by hostname (table above), and per
+board: verifies the flash probe is on the USB bus, flashes a light example (`device/dfu_runtime`
+preferred; host-only boards get `host/device_info` and are checked for serial output instead of
+device enumeration), waits for the board's uid to (re-)enumerate, applies safe per-device recovery
+(probe authorized-toggle after repeated flash failure, board reset when the uid stays down), then
+prints a markdown summary table plus a USB topology report (controller PCI address/vendor → bus →
+root-port subtree device counts — spots dead or thinned hub legs at a glance). Each board is flock'd (board_lock.py protocol) — safe alongside CI; locked boards are
+reported 🔒 locked and skipped immediately — never waited on, never bypassed.
+
+```bash
+python3 .claude/skills/hil/pool_check.py                  # full check, ~10 s + ~1-2 s/board with firmware
+python3 .claude/skills/hil/pool_check.py --scan-only      # USB presence only, <1 s, no locks/flashing
+python3 .claude/skills/hil/pool_check.py -b BOARD [-b …]  # subset; may name boards-skip (parked) entries
+
+# from a dev PC, against the ci rig (bash -lc: flashers like STM32_Programmer_CLI live in ~/bin):
+ssh ci.lan 'bash -lc "cd ~/code/tinyusb && python3 .claude/skills/hil/pool_check.py"'
+```
+
+Notes: needs built firmware (`examples/cmake-build-<board>`, `-B` to override); boards without it
+get a probe-only check. Boards are re-parked with `board_test` afterwards (`--no-park` to skip). A
+`⚠ pid … source says …` note means stale firmware on disk or a silent flash no-op (probe reset the
+MCU without writing — see J-Link silent-no-op lore). A missing probe is reported with its last-seen
+bus location (cached in `~/.cache/tinyusb-hil/pool_seen.json`); recovering a device that is off the
+bus entirely needs the usb-kernel-recover skill or a physical replug. Exit code = unhealthy count.
+
 ## Prerequisites
 
 Examples must be built for the target board(s) — see CLAUDE.md "Build" → "All examples for a board" (produces `examples/cmake-build-<board>/`). `-B examples` points `hil_test.py` at that parent folder.
@@ -45,7 +73,7 @@ Examples must be built for the target board(s) — see CLAUDE.md "Build" → "Al
 - **Board:** `-b BOARD_NAME` for one board; omit to run all boards in the config.
 - **Pass-through:** `-v`, `-r N`, etc. forwarded unchanged.
 
-If `local.json` is missing on `htpc`, ask the user to supply one (only fall back to `tinyusb.json` if told to).
+If `local.json` is missing on a dev PC, ask the user to supply one (only fall back to `tinyusb.json` if told to).
 
 ## Local execution
 
