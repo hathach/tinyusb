@@ -48,9 +48,33 @@ jobs:
     outputs:
       json: ${{ steps.set-matrix-json.outputs.matrix }}
       hil_json: ${{ steps.set-matrix-json.outputs.hil_matrix }}
+      hil_args_tinyusb: ${{ steps.hil-select.outputs.args_tinyusb }}
+      hil_args_hfp: ${{ steps.hil-select.outputs.args_hfp }}
+      hil_run_tinyusb: ${{ steps.hil-select.outputs.run_tinyusb }}
+      hil_run_hfp: ${{ steps.hil-select.outputs.run_hfp }}
     steps:
       - name: Checkout TinyUSB
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: HIL selection (PR only)
+        id: hil-select
+        if: github.event_name == 'pull_request'
+        run: |
+          python3 test/hil/test_hil_select.py
+          SELECT_JSON=$(python3 test/hil/hil_select.py --base "origin/${{ github.base_ref }}" test/hil/tinyusb.json test/hil/hfp.json)
+          echo "select=$SELECT_JSON" >> $GITHUB_OUTPUT
+          python3 - "$SELECT_JSON" >> $GITHUB_OUTPUT <<'EOF'
+          import json, sys
+          s = json.loads(sys.argv[1])
+          args = s.get('args', {})
+          for cfg, key in (('tinyusb.json', 'tinyusb'), ('hfp.json', 'hfp')):
+              a = args.get(cfg, '')
+              run = 'true' if (s['full'] or a) else 'false'
+              print(f'args_{key}={a}')
+              print(f'run_{key}={run}')
+          EOF
 
       - name: Generate matrix json
         id: set-matrix-json
@@ -60,8 +84,9 @@ jobs:
           echo "matrix=$MATRIX_JSON"
           echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
 
-          # HIL matrix (merged from tinyusb + hifiphile configs)
-          HIL_MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py test/hil/tinyusb.json test/hil/hfp.json)
+          # HIL matrix (merged from tinyusb + hifiphile configs), scoped on PRs
+          SELECT='${{ steps.hil-select.outputs.select }}'
+          HIL_MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py ${SELECT:+--select "$SELECT"} test/hil/tinyusb.json test/hil/hfp.json)
           echo "hil_matrix=$HIL_MATRIX_JSON"
           echo "hil_matrix=$HIL_MATRIX_JSON" >> $GITHUB_OUTPUT
 
@@ -298,7 +323,7 @@ jobs:
   # self-hosted on local VM, for attached hardware checkout HIL_JSON
   # ---------------------------------------
   hil-tinyusb:
-    needs: hil-build
+    needs: [ hil-build, set-matrix ]
     name: hil-tinyusb (${{ matrix.display }})
     strategy:
       fail-fast: false
@@ -357,7 +382,13 @@ jobs:
       - name: Test on actual hardware
         # Single attempt per test (--retry 1), no in-run second pass: a broken fixture
         # fails fast instead of holding the runner (and other PRs' HIL jobs) for hours.
-        run: python3 test/hil/hil_test.py --retry 1 ${{ matrix.test_args }} ${{ env.HIL_JSON }} $RERUN_ARGS
+        run: |
+          case "$HIL_JSON" in
+            *tinyusb.json) SEL_ARGS='${{ needs.set-matrix.outputs.hil_args_tinyusb }}'; SEL_RUN='${{ needs.set-matrix.outputs.hil_run_tinyusb }}' ;;
+            *hfp.json)     SEL_ARGS='${{ needs.set-matrix.outputs.hil_args_hfp }}';     SEL_RUN='${{ needs.set-matrix.outputs.hil_run_hfp }}' ;;
+          esac
+          if [ "$SEL_RUN" = "false" ]; then echo "HIL skipped by PR selection (no affected boards on this rig)"; exit 0; fi
+          python3 test/hil/hil_test.py --retry 1 ${{ matrix.test_args }} $SEL_ARGS ${{ env.HIL_JSON }} $RERUN_ARGS
 
       - name: Upload HIL report
         if: always() && github.event_name == 'pull_request'
@@ -376,7 +407,7 @@ jobs:
   # second slot would double the per-controller flash/usbtest budgets.
   # ---------------------------------------
   hil-tinyusb-esp:
-    needs: hil-build-esp
+    needs: [ hil-build-esp, set-matrix ]
     name: hil-tinyusb (tinyusb-esp.json)
     runs-on: [ self-hosted, X64, hathach, hardware-in-the-loop ]
     env:
@@ -420,7 +451,11 @@ jobs:
           merge-multiple: true
 
       - name: Test on actual hardware
-        run: python3 test/hil/hil_test.py --retry 1 $TEST_ARGS ${{ env.HIL_JSON }} $RERUN_ARGS
+        run: |
+          SEL_ARGS='${{ needs.set-matrix.outputs.hil_args_tinyusb }}'
+          SEL_RUN='${{ needs.set-matrix.outputs.hil_run_tinyusb }}'
+          if [ "$SEL_RUN" = "false" ]; then echo "HIL skipped by PR selection (no affected boards on this rig)"; exit 0; fi
+          python3 test/hil/hil_test.py --retry 1 $TEST_ARGS $SEL_ARGS ${{ env.HIL_JSON }} $RERUN_ARGS
 
       - name: Upload HIL report
         if: always() && github.event_name == 'pull_request'
@@ -437,7 +472,7 @@ jobs:
   # Since IAR Token secret is not passed to forked PR, only build non-forked PR
   # ---------------------------------------
   hil-hfp-iar:
-    needs: [ check-paths ]
+    needs: [ check-paths, set-matrix ]
     if: |
       needs.check-paths.outputs.code_changed == 'true' &&
       github.repository_owner == 'hathach' &&
@@ -484,7 +519,10 @@ jobs:
 
       - name: Test on actual hardware (hardware in the loop)
         run: |
-          python3 test/hil/hil_test.py hfp.json
+          SEL_ARGS='${{ needs.set-matrix.outputs.hil_args_hfp }}'
+          SEL_RUN='${{ needs.set-matrix.outputs.hil_run_hfp }}'
+          if [ "$SEL_RUN" = "false" ]; then echo "HIL skipped by PR selection (no affected boards on this rig)"; exit 0; fi
+          python3 test/hil/hil_test.py $SEL_ARGS hfp.json
 
       - name: Upload HIL report
         if: always() && github.event_name == 'pull_request'

@@ -17,7 +17,13 @@ def _resolve_config_path(config_file):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('config_files', nargs='+', help='Configuration JSON file(s)')
+    parser.add_argument('--select', help='hil_select.py JSON; scopes boards when full=false')
     args = parser.parse_args()
+
+    selected = None
+    sel = json.loads(args.select) if args.select else None
+    if sel and not sel.get('full'):
+        selected = set(sel.get('boards', {}))
 
     # Toolchain buckets must match the toolchains instantiated by the hil-build
     # job in .github/workflows/build.yml. Keep all keys present (even if empty)
@@ -40,6 +46,8 @@ def main():
             config = json.load(f)
 
         for board in config['boards']:
+            if selected is not None and board['name'] not in selected:
+                continue
             name = board['name']
             flasher = board['flasher']
             # esptool boards must build under esp-idf; others default to arm-gcc
