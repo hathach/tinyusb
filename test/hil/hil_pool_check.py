@@ -164,7 +164,10 @@ def unlock_board(fh) -> None:
 def can_recover() -> bool:
     if not USB_RECOVER.is_file():
         return False
-    r = subprocess.run(['sudo', '-n', 'true'], capture_output=True)
+    try:
+        r = subprocess.run(['sudo', '-n', 'true'], capture_output=True)
+    except OSError:  # sudo not installed (bare dev PC/container): recovery off, not fatal
+        return False
     return r.returncode == 0
 
 
@@ -587,30 +590,38 @@ def host_alive(board: dict, note: list, row: dict, flashed_example: bool = False
     return True
 
 
-def device_recover_and_check(board: dict, example: str, old_ino, note: list, row: dict, seen: dict) -> bool:
+def device_recover_and_check(board: dict, example: str, variant: str, old_ino, note: list, row: dict, seen: dict) -> bool:
     """Wait for the flashed board's uid to re-enumerate; on timeout, try one board
     reset (skipped for flashers with no hardware reset — see hil_flash.RESET_NOOP,
     it would just burn the wait) and wait again.
 
     The PID policy is deliberately asymmetric. Pre-reset, the re-enumeration was
     caused by the flash itself, so a PID mismatch most likely means the build dir
-    is stale (the flash DID write what find_firmware found) — warn, don't fail.
-    Post-reset, the re-enumeration proves nothing about the flash (the reset alone
-    explains it), so a mismatch is treated as a silent flash no-op and fails; an
-    unknown expected PID scores ok with a 'pid unverified' note in both paths."""
+    is stale (the flash DID write what find_firmware found) — warn, don't fail —
+    UNLESS the firmware was built this very run: then 'stale build' is impossible
+    and the mismatch can only be a silent flash no-op, which fails. Post-reset,
+    the re-enumeration proves nothing about the flash (the reset alone explains
+    it), so a mismatch is treated as a silent flash no-op and fails; an unknown
+    expected PID scores ok with a 'pid unverified' note in both paths."""
     name = board['name']
     expected_pid = get_expected_pid(example)
+    built_this_run = _builds.get((variant, example), (None, ''))[1] == 'ok'
 
     def seen_hit(hit):
         seen[board['uid']] = {'name': name, 'busport': hit[0], 'when': time.strftime('%Y-%m-%d %H:%M')}
 
     hit = wait_device(board['uid'], None, old_ino, ENUM_WAIT)
     if hit:
-        row['device'] = f'✅ {hit[1]}'
-        if expected_pid is None:
-            note.append('pid unverified')
-        elif not hit[1].endswith(expected_pid):
+        if expected_pid is not None and not hit[1].endswith(expected_pid):
+            if built_this_run:
+                row['device'] = f'❌ {hit[1]}'
+                note.append(f'pid {hit[1]}, this run built {expected_pid}: silent flash no-op')
+                row['status'] = 'flash-failed'
+                return False
             note.append(f'⚠ pid {hit[1]}, source says {expected_pid}: stale build or silent flash no-op')
+        elif expected_pid is None:
+            note.append('pid unverified')
+        row['device'] = f'✅ {hit[1]}'
         seen_hit(hit)
         return True
 
@@ -765,7 +776,7 @@ def check_board(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
                 ok = host_alive(board, note, row, flashed_example=True)
                 row['device'] = '✅ serial out' if ok else '❌ no serial out'
             else:
-                ok = device_recover_and_check(board, example, old_ino, note, row, seen)
+                ok = device_recover_and_check(board, example, variant, old_ino, note, row, seen)
             row['status'] = verdict(row, ok)
             say(f'{name:26} {row["flash"]}  {row["device"]}')
             return row
@@ -796,10 +807,12 @@ def park_board(board: dict, kind: str, row: dict, note: list) -> None:
     if fw is None:
         if any(n.startswith('cannot build board_test') for n in note):
             note.append('park skipped (no ESP-IDF env)')
-        elif any(n.startswith('build skipped (--no-build): board_test') for n in note):
-            note.append('park skipped (--no-build, board_test not built)')
         else:
-            note.append('unparked: board_test unavailable (build failed/timed out)')
+            # --no-build disables builds, not parking (--no-park is that opt-out):
+            # a board left running a USB-active image is unparked either way
+            note.append('unparked: board_test not built (--no-build)'
+                        if any(n.startswith('build skipped (--no-build): board_test') for n in note)
+                        else 'unparked: board_test unavailable (build failed/timed out)')
             if row['status'] == 'ok':
                 row['status'] = 'flash-failed'
         return
