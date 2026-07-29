@@ -46,10 +46,9 @@ import re
 import select
 import sys
 import time
-import signal
 from contextlib import redirect_stdout
 from pathlib import Path
-from typing import Any, TypedDict, NotRequired, cast
+from typing import TypedDict, NotRequired, cast
 
 import serial
 import subprocess
@@ -57,6 +56,9 @@ import json
 import glob
 import multiprocessing
 from multiprocessing import TimeoutError as MpTimeoutError
+
+import hil_flash
+import hil_lock
 
 # Raw Lock/Semaphore objects passed via Pool initargs are inheritable only under the fork
 # start method (spawn/forkserver pickle them and fail at Pool creation) — pin it so a
@@ -67,51 +69,6 @@ import hashlib
 import ctypes
 from pymtp import MTP
 import string
-
-# --- per-board dev-session locks (see test/hil/board_lock.py) ------------
-BOARD_LOCK_DIR = '/tmp/tinyusb-hil-locks'
-
-def acquire_board_lock(board_name):
-    """Take this board's flock for the duration of its flash+test.
-    Returns an open file handle (keep it referenced; closing releases it),
-    or None when HIL_NO_BOARD_LOCK=1 or the lock dir is unusable (fail-open:
-    locking must never break a test run by itself).
-    Raises RuntimeError only when another session holds the board."""
-    import fcntl
-    if os.environ.get('HIL_NO_BOARD_LOCK') == '1':
-        return None  # user-authorized bypass — see board_lock.py / hil skill
-    try:
-        os.makedirs(BOARD_LOCK_DIR, exist_ok=True)
-        fd = os.open(os.path.join(BOARD_LOCK_DIR, f'{board_name}.lock'),
-                     os.O_RDWR | os.O_CREAT, 0o666)
-        fh = os.fdopen(fd, 'r+')
-    except OSError as e:
-        # odd lock dir (perms, path collision): proceed unlocked, but say so —
-        # a silent fail-open is indistinguishable from the intentional bypass
-        print(f'warning: board lock unavailable for {board_name} ({e}); proceeding unlocked',
-              flush=True)
-        return None
-    try:
-        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError:
-        try:
-            info = fh.read(500).strip()
-        except (OSError, UnicodeDecodeError):
-            info = ''
-        fh.close()
-        raise RuntimeError(f'board locked: {info or "unknown holder"}')
-    # announce ourselves so the other side's conflict message is truthful;
-    # best-effort — the flock itself is already held
-    try:
-        fh.truncate(0)
-        fh.seek(0)
-        json.dump({'pid': os.getpid(), 'reason': 'hil_test.py',
-                   'since': time.strftime('%Y-%m-%dT%H:%M:%S%z')}, fh)
-        fh.flush()
-    except OSError:
-        pass
-    return fh
-
 
 # Enumeration wait budget. The first attempt gets ENUM_TIMEOUT; retry attempts get the
 # shorter ENUM_TIMEOUT_RETRY - the board was just re-flashed again, and a device that is
@@ -162,41 +119,16 @@ verbose = False
 PROFILE = os.environ.get('HIL_PROFILE') == '1'  # timestamped logs + permit/flash timing + ctrl-map dump
 test_only = []
 board_test = {}
-build_dir = 'cmake-build'
 skip_flash = False
 print_lock = None
 shuffle_seed = None  # per-run seed for the per-board test-order shuffle (HIL_SHUFFLE_SEED to replay)
 
-# Per-host-controller concurrency (see controller_of/controller_slot below): a usbtest battery
-# saturates its DUT's host controller, so batteries and flashes are budgeted per controller.
-# - uPD720201 cards need their latest firmware (>= 2.0.2.6; RAM-uploaded, reloads every
-#   power cycle): ROM firmware dies under battery + re-enumeration churn, and usbtest.py
-#   refuses the unlink-stress cases on it.
-# - widths (profiled 2026-07-13/14): wall time 22.2/14.3/12.5/10.8 min at usbtest width
-#   1/2/3/4, plateau after; flash width beyond 8 only adds flasher-hub contention;
-#   battery case failures start at 12/8 (bandwidth stretch on shared leaf-hub uplinks).
-# - a marginal DUT port bouncing during concurrent batteries can wedge/kill a uPD720201
-#   ("xHCI host not responding to stop endpoint command"): fix the port/cable or pull
-#   the board, don't lower the widths (2026-07-16: every death traced to one board's port).
-FLASH_PARALLEL = int(os.getenv('HIL_FLASH_PARALLEL', '8'))
-USBTEST_PARALLEL = int(os.getenv('HIL_USBTEST_PARALLEL', '4'))
-CONTROLLER_SLOTS = 12  # lock slots; controllers are assigned to slots on first sight
-usbtest_sems = None  # CONTROLLER_SLOTS semaphores: per-slot usbtest-battery permits
-flash_sems = None       # CONTROLLER_SLOTS semaphores: per-slot flash permits
-controller_map = None         # shared dict: 'pci:<addr>' -> slot, 'uid:<uid>' -> pci addr cache
-controller_meta = None        # guards slot assignment in controller_map
-controller_hints = {}         # static uid -> pci from the last run's cache (read-only per worker)
-
 
 def init_worker(lock, seed, b_mutexes, f_sems, cmap, cmeta, hints_by_uid):
-    global print_lock, shuffle_seed, usbtest_sems, flash_sems, controller_map, controller_meta, controller_hints
+    global print_lock, shuffle_seed
     print_lock = lock
     shuffle_seed = seed
-    usbtest_sems = b_mutexes
-    flash_sems = f_sems
-    controller_map = cmap
-    controller_meta = cmeta
-    controller_hints = hints_by_uid
+    hil_lock.init_scheduling(b_mutexes, f_sems, cmap, cmeta, hints_by_uid, log_fn=log_line)
 
 
 def log_line(msg: str) -> None:
@@ -208,108 +140,6 @@ def log_line(msg: str) -> None:
             print(msg, file=out, flush=True)
     else:
         print(msg, file=out, flush=True)
-
-
-# -------------------------------------------------------------
-# Per-controller scheduling
-# -------------------------------------------------------------
-def controller_of(uid: str):
-    """Resolve a DUT uid to its root host controller's PCI address, or None if the device
-    is not enumerated (e.g. parked in board_test firmware with USB off). Successful
-    resolutions are cached — cabling does not change mid-run. Dual-port parts (e.g.
-    CH32V307 usbhs/usbfs variants) share one uid and one cache entry: budgeting is only
-    exact when both ports sit on the same controller (true on this rig)."""
-    if controller_map is None:
-        return None
-    cached = controller_map.get(f'uid:{uid}')
-    if cached:
-        return cached
-    for f in glob.glob('/sys/bus/usb/devices/*/serial'):
-        d = os.path.dirname(f)
-        try:
-            if open(f).read().strip().lower() != uid.lower():
-                continue
-            bus = int(open(os.path.join(d, 'busnum')).read())
-            root = os.path.realpath(f'/sys/bus/usb/devices/usb{bus}')
-            m = re.findall(r'[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-9a-f]', root)
-            if m:
-                controller_map[f'uid:{uid}'] = m[-1]
-                return m[-1]
-        except (OSError, ValueError):
-            continue
-    return None
-
-
-def controller_slot(pci: str) -> int:
-    """Map a controller PCI address to a lock slot (assigned on first sight)."""
-    key = f'pci:{pci}'
-    with controller_meta:
-        slot = controller_map.get(key)
-        if slot is None:
-            slot = controller_map.get('nslots', 0)
-            if slot >= CONTROLLER_SLOTS:
-                slot = 0  # more controllers than slots: overflow shares slot 0 (safe, over-serialized)
-            else:
-                controller_map['nslots'] = slot + 1
-            controller_map[key] = slot
-        return slot
-
-
-class controller_permit:
-    """Context manager: one permit from `sems` on the board's controller slot. If the
-    controller is unknown, fail closed: take one permit from EVERY slot, in order, so the
-    operation respects the budget wherever it might land. `warn_unknown` logs that fallback
-    (used by usbtest, where the device is expected to be enumerated by the caller)."""
-    def __init__(self, sems, uid: str, warn_unknown: bool = False):
-        self.sems = sems
-        self.slots = None
-        self.uid = uid
-        if sems is None:
-            return
-        pci = controller_of(uid)
-        if pci is None and not warn_unknown:
-            # last-run cabling hint, flash budgeting only: a mis-budgeted flash is harmless,
-            # but a battery must never trust a stale hint (it could stack two batteries on
-            # one controller). In practice only a board's first flash lands here - batteries
-            # assert enumeration before taking their permit.
-            pci = controller_hints.get(uid)
-        if pci is None and warn_unknown:
-            log_line(f'warning: cannot resolve {uid} to a host controller; '
-                     'taking a permit on every slot (over-serialized)')
-        self.slots = [controller_slot(pci)] if pci else list(range(CONTROLLER_SLOTS))
-
-    def __enter__(self):
-        if self.slots:
-            t0 = time.monotonic()
-            taken = []
-            try:
-                for s in self.slots:
-                    self.sems[s].acquire()
-                    taken.append(s)
-                # stays inside the try: if this raises (e.g. broken stdout), the permits
-                # must be released - a failed __enter__ never gets its __exit__
-                if PROFILE and time.monotonic() - t0 > 1.0:
-                    log_line(f'[prof] permit wait {time.monotonic() - t0:.1f}s '
-                             f'(uid {self.uid}, slots {self.slots})')
-            except BaseException:
-                for s in reversed(taken):
-                    self.sems[s].release()
-                raise
-        return self
-
-    def __exit__(self, *exc):
-        if self.slots:
-            for s in reversed(self.slots):
-                self.sems[s].release()
-        return False
-
-
-def flash_permit(uid: str) -> controller_permit:
-    return controller_permit(flash_sems, uid)
-
-
-def usbtest_permit(uid: str) -> controller_permit:
-    return controller_permit(usbtest_sems, uid, warn_unknown=True)
 
 
 def compact_output(raw: str) -> str:
@@ -365,46 +195,15 @@ class Board(TypedDict):
 class HilConfig(TypedDict):
     boards: list[Board]
 
-CMD_TIMEOUT = int(os.getenv('HIL_CMD_TIMEOUT', '180'))
 POOL_TIMEOUT = int(os.getenv('HIL_POOL_TIMEOUT', '4200'))  # usbtest batteries are serialized fleet-wide, lengthening the tail
 SERIAL_READ_TIMEOUT = float(os.getenv('HIL_SERIAL_READ_TIMEOUT', '5'))
 SERIAL_WRITE_TIMEOUT = float(os.getenv('HIL_SERIAL_WRITE_TIMEOUT', '10'))
-
-
-def cmd_stdout_text(out: Any) -> str:
-    if out is None:
-        return ''
-    if isinstance(out, bytes):
-        return out.decode('utf-8', errors='ignore')
-    return str(out)
 
 
 MSC_README_TXT = \
 b"This is tinyusb's MassStorage Class demo.\r\n\r\n\
 If you find any bugs or get any questions, feel free to file an\r\n\
 issue at github.com/hathach/tinyusb"
-
-# -------------------------------------------------------------
-# Path
-# -------------------------------------------------------------
-OPENCOD_ADI_PATH = Path.home() / 'app' / 'openocd_adi'
-TINYUSB_ROOT = Path(__file__).resolve().parents[2]
-
-# get usb serial by id
-def get_serial_dev(id, vendor_str, product_str, ifnum):
-    if vendor_str and product_str:
-        # known vendor and product
-        vendor_str = vendor_str.replace(' ', '_')
-        product_str = product_str.replace(' ', '_')
-        return f'/dev/serial/by-id/usb-{vendor_str}_{product_str}_{id}-if{ifnum:02d}'
-    else:
-        # just use id: mostly for cp210x/ftdi flasher
-        pattern = f'/dev/serial/by-id/usb-*_{id}-if*'
-        port_list = glob.glob(pattern)
-        if len(port_list) == 0:
-            raise RuntimeError(f'No serial device found for {pattern}')
-        return port_list[0]
-
 
 # get usb disk by id
 def get_disk_dev(id, vendor_str, lun):
@@ -530,214 +329,12 @@ def open_printer_dev(id: str, vendor_str, product_str, ifnum: int) -> str:
 
 
 # -------------------------------------------------------------
-# Flashing firmware
-# -------------------------------------------------------------
-def run_cmd(cmd: str, cwd: str | None = None, timeout: int = CMD_TIMEOUT) -> subprocess.CompletedProcess:
-    popen_kwargs = {
-        'cwd': cwd,
-        'shell': True,
-        'stdout': subprocess.PIPE,
-        'stderr': subprocess.STDOUT,
-        'text': True,
-        'encoding': 'utf-8',
-        'errors': 'replace',
-    }
-    if os.name != 'nt':
-        popen_kwargs['preexec_fn'] = os.setsid
-
-    p = subprocess.Popen(cmd, **popen_kwargs)
-    try:
-        out, _ = p.communicate(timeout=timeout)
-        r = subprocess.CompletedProcess(args=cmd, returncode=p.returncode, stdout=out)
-    except subprocess.TimeoutExpired as ex:
-        if os.name != 'nt':
-            try:
-                os.killpg(p.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-        else:
-            p.kill()
-        out, _ = p.communicate()
-        timeout_out = ex.stdout or out or b''
-        title = f'COMMAND TIMEOUT ({timeout}s): {cmd}'
-        print()
-        if os.getenv('CI'):
-            print(f"::group::{title}")
-            print(cmd_stdout_text(timeout_out))
-            print(f"::endgroup::")
-        else:
-            print(title)
-            print(cmd_stdout_text(timeout_out))
-        return subprocess.CompletedProcess(args=cmd, returncode=124, stdout=timeout_out)
-
-    if r.returncode != 0:
-        title = f'COMMAND FAILED: {cmd}'
-        print()
-        if os.getenv('CI'):
-            print(f"::group::{title}")
-            print(cmd_stdout_text(r.stdout))
-            print(f"::endgroup::")
-        else:
-            print(title)
-            print(cmd_stdout_text(r.stdout))
-    elif verbose:
-        print(cmd)
-        print(cmd_stdout_text(r.stdout))
-    return r
-
-
-def flash_jlink(board: Board, firmware: str) -> subprocess.CompletedProcess:
-    flasher = board['flasher']
-    script = ['halt', 'r', f'loadfile {firmware}.elf', 'r', 'go', 'exit']
-    f_jlink = Path(f'{board["name"]}_{Path(firmware).name}.jlink')
-    with f_jlink.open('w') as f:
-        f.writelines(f'{s}\n' for s in script)
-    ret = run_cmd(f'JLinkExe -USB {flasher["uid"]} {flasher["args"]} -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile {f_jlink}')
-    f_jlink.unlink(missing_ok=True)
-    return ret
-
-
-def reset_jlink(board: Board) -> subprocess.CompletedProcess:
-    flasher = board['flasher']
-    script = ['halt', 'r', 'go', 'exit']
-    f_jlink = Path(f'{board["name"]}_reset.jlink')
-    if not f_jlink.exists():
-        with f_jlink.open('w') as f:
-            f.writelines(f'{s}\n' for s in script)
-    ret = run_cmd(f'JLinkExe -USB {flasher["uid"]} {flasher["args"]} -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile {f_jlink}')
-    return ret
-
-
-def flash_stlink(board, firmware):
-    flasher = board['flasher']
-    return run_cmd(f'STM32_Programmer_CLI --connect port=swd sn={flasher["uid"]} --write {firmware}.elf --go')
-
-
-def reset_stlink(board):
-    flasher = board['flasher']
-    return run_cmd(f'STM32_Programmer_CLI --connect port=swd sn={flasher["uid"]} --rst --go')
-
-def flash_stflash(board, firmware):
-    flasher = board['flasher']
-    ret = run_cmd(f'st-flash --serial {flasher["uid"]} write {firmware}.bin 0x8000000')
-    return ret
-
-
-def reset_stflash(board):
-    flasher = board['flasher']
-    return subprocess.CompletedProcess(args=['dummy'], returncode=0)
-
-
-def flash_openocd(board, firmware):
-    flasher = board['flasher']
-    ret = run_cmd(f'openocd -c "tcl_port disabled" -c "gdb_port disabled" -c "adapter serial {flasher["uid"]}" '
-                  f'{flasher["args"]} -c "init; halt; program {firmware}.elf verify; reset; exit"')
-    return ret
-
-
-def reset_openocd(board):
-    flasher = board['flasher']
-    ret = run_cmd(f'openocd -c "tcl_port disabled" -c "gdb_port disabled" -c "adapter serial {flasher["uid"]}" '
-                  f'{flasher["args"]} -c "init; reset run; exit"')
-    return ret
-
-
-def flash_openocd_wch(board, firmware):
-    flasher = board['flasher']
-    ret = run_cmd(f'openocd -c "tcl_port disabled" -c "gdb_port disabled" -c "telnet_port disabled" '
-                  f'-c "adapter serial {flasher["uid"]}" {flasher.get("args", "")} -c "program {firmware}.elf reset exit"')
-    return ret
-
-
-def reset_openocd_wch(board):
-    flasher = board['flasher']
-    ret = run_cmd(f'openocd -c "tcl_port disabled" -c "gdb_port disabled" -c "telnet_port disabled" '
-                  f'-c "adapter serial {flasher["uid"]}" {flasher.get("args", "")} -c "init; reset run; exit"')
-    return ret
-
-
-def flash_openocd_adi(board: Board, firmware: str) -> subprocess.CompletedProcess:
-    flasher = board['flasher']
-    openocd = OPENCOD_ADI_PATH / 'src' / 'openocd'
-    tcl_dir = OPENCOD_ADI_PATH / 'tcl'
-    ret = run_cmd(f'{openocd} -c "adapter serial {flasher["uid"]}" -s {tcl_dir} '
-                  f'{flasher["args"]} -c "program {firmware}.elf reset exit"')
-    return ret
-
-
-def reset_openocd_adi(board: Board) -> subprocess.CompletedProcess:
-    flasher = board['flasher']
-    openocd = OPENCOD_ADI_PATH / 'src' / 'openocd'
-    tcl_dir = OPENCOD_ADI_PATH / 'tcl'
-    ret = run_cmd(f'{openocd} -c "adapter serial {flasher["uid"]}" -s {tcl_dir} '
-                  f'{flasher["args"]} -c "program reset exit"')
-    return ret
-
-
-def flash_wlink_rs(board, firmware):
-    flasher = board['flasher']
-    # wlink use index for probe selection and lacking usb serial support
-    ret = run_cmd(f'wlink flash {firmware}.elf')
-    return ret
-
-
-def reset_wlink_rs(board):
-    flasher = board['flasher']
-    # wlink use index for probe selection and lacking usb serial support
-    ret = run_cmd(f'wlink reset')
-    return ret
-
-
-def flash_esptool(board: Board, firmware: str) -> subprocess.CompletedProcess:
-    flasher = board['flasher']
-    port = get_serial_dev(flasher["uid"], None, None, 0)
-    fw_dir = Path(f'{firmware}.bin').parent
-    with (fw_dir / 'config.env').open() as f:
-        idf_target = json.load(f)['IDF_TARGET']
-    with (fw_dir / 'flash_args').open() as f:
-        flash_args = f.read().strip().replace('\n', ' ')
-    command = (f'esptool --chip {idf_target} -p {port} {flasher["args"]} '
-               f'--before=default_reset --after=hard_reset write_flash {flash_args}')
-    ret = run_cmd(command, cwd=str(fw_dir))
-    return ret
-
-
-def reset_esptool(board):
-    flasher = board['flasher']
-    return subprocess.CompletedProcess(args=['dummy'], returncode=0)
-
-
-def flash_uniflash(board, firmware):
-    flasher = board['flasher']
-    ret = run_cmd(f'dslite.sh {flasher["args"]} -f {firmware}.hex')
-    return ret
-
-
-def reset_uniflash(board):
-    flasher = board['flasher']
-    return subprocess.CompletedProcess(args=['dummy'], returncode=0)
-
-
-def flash_lm4flash(board, firmware):
-    # TI Tiva-C / Stellaris ICDI: lightweight lm4flash, resets and runs after write
-    flasher = board['flasher']
-    ret = run_cmd(f'lm4flash -s {flasher["uid"]} {flasher["args"]} {firmware}.bin')
-    return ret
-
-
-def reset_lm4flash(board):
-    # lm4flash has no reset-only mode; it resets+runs on flash, so reset is a no-op
-    flasher = board['flasher']
-    return subprocess.CompletedProcess(args=['dummy'], returncode=0)
-
-
-# -------------------------------------------------------------
 # Tests: dual
 # -------------------------------------------------------------
 def test_dual_host_info_to_device_cdc(board):
     uid = board['uid']
     declared_devs = [f'{d["vid_pid"]}_{d["serial"]}' for d in board['tests']['dev_attached']]
-    port = get_serial_dev(uid, 'TinyUSB', "TinyUSB_Device", 0)
+    port = hil_flash.get_serial_dev(uid, 'TinyUSB', "TinyUSB_Device", 0)
     ser = open_serial_dev(port)
     ser.timeout = 0.1
 
@@ -785,12 +382,12 @@ def test_host_device_info(board):
     flasher = board['flasher']
     declared_devs = [f'{d["vid_pid"]}_{d["serial"]}' for d in board['tests']['dev_attached']]
 
-    port = get_serial_dev(flasher["uid"], None, None, 0)
+    port = hil_flash.get_serial_dev(flasher["uid"], None, None, 0)
     ser = open_serial_dev(port)
     ser.timeout = 0.1
 
     # reset device since we can miss the first line
-    ret = globals()[f'reset_{flasher["name"].lower()}'](board)
+    ret = getattr(hil_flash, f'reset_{flasher["name"].lower()}')(board)
     assert ret.returncode == 0, 'Failed to reset device'
 
     # read until all expected devices are enumerated
@@ -864,12 +461,12 @@ def test_host_cdc_msc_hid(board):
     if not cdc_devs and not msc_devs:
         return 'skipped'
 
-    port = get_serial_dev(flasher["uid"], None, None, 0)
+    port = hil_flash.get_serial_dev(flasher["uid"], None, None, 0)
     ser = open_serial_dev(port)
     ser.timeout = 0.1
 
     # reset device to catch mount messages
-    ret = globals()[f'reset_{flasher["name"].lower()}'](board)
+    ret = getattr(hil_flash, f'reset_{flasher["name"].lower()}')(board)
     assert ret.returncode == 0, 'Failed to reset device'
 
     # Wait for all expected mount messages
@@ -957,12 +554,12 @@ def test_host_msc_file_explorer(board):
     if not msc_devs:
         return 'skipped'
 
-    port = get_serial_dev(flasher["uid"], None, None, 0)
+    port = hil_flash.get_serial_dev(flasher["uid"], None, None, 0)
     ser = open_serial_dev(port)
     ser.timeout = 0.1
 
     # reset device to catch mount messages
-    ret = globals()[f'reset_{flasher["name"].lower()}'](board)
+    ret = getattr(hil_flash, f'reset_{flasher["name"].lower()}')(board)
     assert ret.returncode == 0, 'Failed to reset device'
 
     # Wait for MSC mount (Disk Size message)
@@ -1051,8 +648,8 @@ def test_device_board_test(board):
 def test_device_cdc_dual_ports(board):
     uid = board['uid']
     port = [
-        get_serial_dev(uid, 'TinyUSB', "TinyUSB_Device", 0),
-        get_serial_dev(uid, 'TinyUSB', "TinyUSB_Device", 2)
+        hil_flash.get_serial_dev(uid, 'TinyUSB', "TinyUSB_Device", 0),
+        hil_flash.get_serial_dev(uid, 'TinyUSB', "TinyUSB_Device", 2)
     ]
     ser = [open_serial_dev(p) for p in port]
 
@@ -1091,7 +688,7 @@ def test_device_cdc_dual_ports(board):
 def test_device_cdc_msc(board):
     uid = board['uid']
     # CDC Echo test
-    port = get_serial_dev(uid, 'TinyUSB', "TinyUSB_Device", 0)
+    port = hil_flash.get_serial_dev(uid, 'TinyUSB', "TinyUSB_Device", 0)
     ser = open_serial_dev(port)
 
     def rand_ascii(length):
@@ -1140,7 +737,7 @@ def test_device_cdc_msc_throughput(board):
     assert timeout > 0, f'Disk {dev} not found'
 
     # Wait for CDC tty enumeration
-    tty = get_serial_dev(uid, 'TinyUSB', 'Throughput', 0)
+    tty = hil_flash.get_serial_dev(uid, 'TinyUSB', 'Throughput', 0)
     timeout = enum_timeout()
     while timeout > 0:
         if os.path.exists(tty):
@@ -1159,8 +756,8 @@ def test_device_cdc_msc_throughput(board):
             pass
 
     # Put tty in raw mode so dd sees pure binary throughput.
-    rs = run_cmd(f'timeout 30 stty -F {tty} raw -echo')
-    assert rs.returncode == 0, f'stty failed: {cmd_stdout_text(rs.stdout)}'
+    rs = hil_flash.run_cmd(f'timeout 30 stty -F {tty} raw -echo')
+    assert rs.returncode == 0, f'stty failed: {hil_flash.cmd_stdout_text(rs.stdout)}'
 
     # Payload aim: ~5 s per direction at FS (~830 kB/s), much less at HS.
     msc_count = 2 if is_fs else 16    # bs=1M
@@ -1168,21 +765,21 @@ def test_device_cdc_msc_throughput(board):
 
     tmp_file = f'/tmp/cdc_msc_tp_{uid}.bin'
 
-    rw = run_cmd(f'timeout 30 dd if=/dev/zero of={tty} bs=64K count={cdc_count} 2>&1')
-    assert rw.returncode == 0, f'CDC dd write failed: {cmd_stdout_text(rw.stdout)}'
-    cdc_w = parse_speed(cmd_stdout_text(rw.stdout))
+    rw = hil_flash.run_cmd(f'timeout 30 dd if=/dev/zero of={tty} bs=64K count={cdc_count} 2>&1')
+    assert rw.returncode == 0, f'CDC dd write failed: {hil_flash.cmd_stdout_text(rw.stdout)}'
+    cdc_w = parse_speed(hil_flash.cmd_stdout_text(rw.stdout))
 
-    rr = run_cmd(f'timeout 30 dd if={tty} of=/dev/null bs=64K count={cdc_count} iflag=fullblock 2>&1')
-    assert rr.returncode == 0, f'CDC dd read failed: {cmd_stdout_text(rr.stdout)}'
-    cdc_r = parse_speed(cmd_stdout_text(rr.stdout))
+    rr = hil_flash.run_cmd(f'timeout 30 dd if={tty} of=/dev/null bs=64K count={cdc_count} iflag=fullblock 2>&1')
+    assert rr.returncode == 0, f'CDC dd read failed: {hil_flash.cmd_stdout_text(rr.stdout)}'
+    cdc_r = parse_speed(hil_flash.cmd_stdout_text(rr.stdout))
 
-    rmr = run_cmd(f'dd if={dev} of={tmp_file} bs=1M count={msc_count} iflag=direct 2>&1')
-    assert rmr.returncode == 0, f'MSC dd read failed: {cmd_stdout_text(rmr.stdout)}'
-    msc_r = parse_speed(cmd_stdout_text(rmr.stdout))
+    rmr = hil_flash.run_cmd(f'dd if={dev} of={tmp_file} bs=1M count={msc_count} iflag=direct 2>&1')
+    assert rmr.returncode == 0, f'MSC dd read failed: {hil_flash.cmd_stdout_text(rmr.stdout)}'
+    msc_r = parse_speed(hil_flash.cmd_stdout_text(rmr.stdout))
 
-    rmw = run_cmd(f'dd if={tmp_file} of={dev} bs=1M count={msc_count} oflag=direct 2>&1')
-    assert rmw.returncode == 0, f'MSC dd write failed: {cmd_stdout_text(rmw.stdout)}'
-    msc_w = parse_speed(cmd_stdout_text(rmw.stdout))
+    rmw = hil_flash.run_cmd(f'dd if={tmp_file} of={dev} bs=1M count={msc_count} oflag=direct 2>&1')
+    assert rmw.returncode == 0, f'MSC dd write failed: {hil_flash.cmd_stdout_text(rmw.stdout)}'
+    msc_w = parse_speed(hil_flash.cmd_stdout_text(rmw.stdout))
 
     try:
         os.remove(tmp_file)
@@ -1213,8 +810,8 @@ def test_device_dfu(board):
     deadline = time.monotonic() + enum_timeout()
     found = False
     while time.monotonic() < deadline:
-        ret = run_cmd(f'dfu-util -l')
-        stdout = cmd_stdout_text(ret.stdout)
+        ret = hil_flash.run_cmd(f'dfu-util -l')
+        stdout = hil_flash.cmd_stdout_text(ret.stdout)
         if f'serial="{uid}"' in stdout and 'Found DFU: [cafe:400b]' in stdout:
             found = True
             break
@@ -1232,10 +829,10 @@ def test_device_dfu(board):
     except OSError:
         pass
 
-    ret = run_cmd(f'dfu-util -S {uid} -a 0 -U {f_dfu0}')
+    ret = hil_flash.run_cmd(f'dfu-util -S {uid} -a 0 -U {f_dfu0}')
     assert ret.returncode == 0, 'Upload failed'
 
-    ret = run_cmd(f'dfu-util -S {uid} -a 1 -U {f_dfu1}')
+    ret = hil_flash.run_cmd(f'dfu-util -S {uid} -a 1 -U {f_dfu1}')
     assert ret.returncode == 0, 'Upload failed'
 
     with open(f_dfu0) as f:
@@ -1254,8 +851,8 @@ def test_device_dfu_runtime(board):
     deadline = time.monotonic() + enum_timeout()
     found = False
     while time.monotonic() < deadline:
-        ret = run_cmd(f'dfu-util -l')
-        stdout = cmd_stdout_text(ret.stdout)
+        ret = hil_flash.run_cmd(f'dfu-util -l')
+        stdout = hil_flash.cmd_stdout_text(ret.stdout)
         if f'serial="{uid}"' in stdout and 'Found Runtime: [cafe:400c]' in stdout:
             found = True
             break
@@ -1291,7 +888,7 @@ def test_device_printer_to_cdc(board):
     uid = board['uid']
 
     # Wait for CDC port and printer device
-    cdc_port = get_serial_dev(uid, 'TinyUSB', "TinyUSB_Device", 0)
+    cdc_port = hil_flash.get_serial_dev(uid, 'TinyUSB', "TinyUSB_Device", 0)
     ser = open_serial_dev(cdc_port)
     lp_dev = open_printer_dev(uid, 'TinyUSB', 'TinyUSB_Device', 2)
 
@@ -1731,15 +1328,15 @@ def test_device_usbtest(board):
     # its normal driver. usbtest_permit budgets USBTEST_PARALLEL batteries per controller.
     script = Path(__file__).resolve().parent / 'usbtest.py'
     cmd = f'python3 "{script}" --serial "{uid}" --json --keep-binding --timeout 60'
-    with usbtest_permit(uid):
-        r = run_cmd(cmd, timeout=200)
-    out = cmd_stdout_text(r.stdout)
+    with hil_lock.usbtest_permit(uid):
+        r = hil_flash.run_cmd(cmd, timeout=200)
+    out = hil_flash.cmd_stdout_text(r.stdout)
     brace = out.find('{')
     try:
         data = json.loads(out[brace:])
         passed, failed = int(data['passed']), int(data['failed'])
     except (ValueError, KeyError, json.JSONDecodeError):
-        raise TestFail(f'usbtest did not run: {compact_output(out) or cmd_stdout_text(r.stderr)}',
+        raise TestFail(f'usbtest did not run: {compact_output(out) or hil_flash.cmd_stdout_text(r.stderr)}',
                        metric=f'{REPORT_CELL["fail"]} 0/30')
 
     total = passed + failed
@@ -1788,21 +1385,6 @@ host_test = [
 ]
 
 
-def find_firmware(variant: str, example: str):
-    """Locate a built example's firmware base path (no extension) under
-    cmake-build-<variant>/<example>/. Accepts the single-config layout (firmware
-    directly in the example dir) or Ninja Multi-Config (a per-config subdir like
-    RelWithDebInfo/). Returns the base Path, or None if not built."""
-    fw_dir = TINYUSB_ROOT / build_dir / f'cmake-build-{variant}' / example
-    base = Path(example).name
-    if fw_dir.is_dir():
-        for cand in [fw_dir / base, fw_dir / 'RelWithDebInfo' / base,
-                     *(p.with_suffix('') for p in sorted(fw_dir.glob(f'*/{base}.elf')))]:
-            if cand.with_suffix('.elf').exists() or cand.with_suffix('.bin').exists():
-                return cand
-    return None
-
-
 def test_example(board: Board, variant: str, example: str) -> tuple[int, str, str | None]:
     """
     Test example firmware
@@ -1820,7 +1402,7 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
 
     test_name = f'{variant:40} {example:30} ...'
 
-    fw_name = find_firmware(variant, example)
+    fw_name = hil_flash.find_firmware(variant, example)
     if fw_name is None:
         log_line(f'{test_name} Skip (no binary)')
         return 0, 'skip', None
@@ -1840,9 +1422,9 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
         attempt_out = io.StringIO()
         with redirect_stdout(attempt_out):
             if not skip_flash:
-                with flash_permit(board['uid']):
+                with hil_lock.flash_permit(board['uid']):
                     t_flash = time.monotonic()
-                    ret = globals()[f'flash_{board["flasher"]["name"].lower()}'](board, str(fw_name))
+                    ret = getattr(hil_flash, f'flash_{board["flasher"]["name"].lower()}')(board, str(fw_name))
                     if PROFILE:
                         log_line(f'[prof] {variant} {example} flash attempt {i + 1}: '
                                  f'{time.monotonic() - t_flash:.1f}s rc={ret.returncode}')
@@ -1917,7 +1499,7 @@ def build_board(board: Board) -> tuple[str, int]:
 
     failed = 0
     for v in variants:
-        cmd = [sys.executable, str(TINYUSB_ROOT / 'tools' / 'build.py'), '-b', name]
+        cmd = [sys.executable, str(hil_flash.TINYUSB_ROOT / 'tools' / 'build.py'), '-b', name]
         for d in extra_defs:
             cmd += ['-D', d]
         if v['name'] != name:
@@ -1929,7 +1511,7 @@ def build_board(board: Board) -> tuple[str, int]:
         if verbose:
             cmd.append('-v')
             print(f'  + {" ".join(cmd)}')
-        r = subprocess.run(cmd, cwd=TINYUSB_ROOT)
+        r = subprocess.run(cmd, cwd=hil_flash.TINYUSB_ROOT)
         if r.returncode != 0:
             failed += 1
     return name, failed
@@ -1940,7 +1522,7 @@ def test_board(board: Board) -> tuple[str, int, list[str], list, float]:
     flasher = board['flasher']
 
     try:
-        _lock_fh = acquire_board_lock(name)
+        _lock_fh = hil_lock.acquire_board_lock(name)
     except RuntimeError as e:
         log_line(f'{name:25} {STATUS_FAILED}: {e}')
         # visible report row so the ❌ matches the exit code; failed-tests stays
@@ -2033,7 +1615,7 @@ def test_board(board: Board) -> tuple[str, int, list[str], list, float]:
             try:
                 # clear our pid record before dropping the flock: this worker
                 # process lives on (pool reuse), so a stale record would make
-                # board_lock.py's pid-liveness checks report a freed board as
+                # hil_lock.py's pid-liveness checks report a freed board as
                 # still locked for the rest of the run
                 _lock_fh.truncate(0)
             except OSError:
@@ -2174,7 +1756,6 @@ def main() -> None:
     global verbose
     global test_only
     global board_test
-    global build_dir
     global max_retry
     global skip_flash
 
@@ -2204,13 +1785,14 @@ def main() -> None:
     config_file = Path(args.config_file)
     boards = args.board
     verbose = args.verbose
+    hil_flash.verbose = args.verbose
     test_only = args.test_only
     for entry in args.board_test:
         bname, _, tnames = entry.partition(':')
         if not bname or not tnames:
             parser.error(f'invalid --board-test value: {entry!r} (expected BOARD:test1,test2)')
         board_test[bname] = [t for t in tnames.split(',') if t]
-    build_dir = args.build_dir
+    hil_flash.build_dir = args.build_dir
     max_retry = args.retry
     skip_flash = args.skip_flash
 
@@ -2234,8 +1816,8 @@ def main() -> None:
 
     build_err = 0
     if args.build:
-        if build_dir != 'cmake-build':
-            print(f'warning: --build writes into cmake-build/, but -B is {build_dir!r}; '
+        if hil_flash.build_dir != 'cmake-build':
+            print(f'warning: --build writes into cmake-build/, but -B is {hil_flash.build_dir!r}; '
                   f'tests will not find the freshly built firmware')
         print('-' * 30)
         print(f'Build phase: {len(config_boards)} board(s)')
@@ -2264,7 +1846,7 @@ def main() -> None:
 
     seed = os.getenv('HIL_SHUFFLE_SEED') or str(int(time.time()))
     log_line(f'test-order shuffle seed: {seed} (HIL_SHUFFLE_SEED={seed} to replay); '
-             f'flash/usbtest parallel per controller: {FLASH_PARALLEL}/{USBTEST_PARALLEL}; '
+             f'flash/usbtest parallel per controller: {hil_lock.FLASH_PARALLEL}/{hil_lock.USBTEST_PARALLEL}; '
              f'enum timeout first/retry: {ENUM_TIMEOUT}/{ENUM_TIMEOUT_RETRY}s')
 
     hints = {}
@@ -2283,8 +1865,8 @@ def main() -> None:
     mgr = Manager()
     cmap = mgr.dict()
     initargs = (Lock(), seed,
-                [Semaphore(USBTEST_PARALLEL) for _ in range(CONTROLLER_SLOTS)],
-                [Semaphore(FLASH_PARALLEL) for _ in range(CONTROLLER_SLOTS)],
+                [Semaphore(hil_lock.USBTEST_PARALLEL) for _ in range(hil_lock.CONTROLLER_SLOTS)],
+                [Semaphore(hil_lock.FLASH_PARALLEL) for _ in range(hil_lock.CONTROLLER_SLOTS)],
                 cmap, Lock(), hints_by_uid)
     with Pool(processes=os.cpu_count() or 1, initializer=init_worker, initargs=initargs) as pool:
         async_ret = pool.map_async(test_board, config_boards)

@@ -44,15 +44,22 @@ echo "==> Setting up remote $REMOTE:$REMOTE_DIR"
 ssh "$REMOTE" bash -s -- "$REMOTE_DIR" <<'REMOTE'
 set -e
 rm -rf -- "$1"
-mkdir -p -- "$1/test/hil" "$1/examples"
+# .claude path: usbtest.py's HUNG recovery resolves usb_recover.sh relative to the
+# staged repo root — without it, recovery ENOENTs and the wedge is left in place
+mkdir -p -- "$1/test/hil" "$1/examples" "$1/.claude/skills/usb-kernel-recover/scripts"
 REMOTE
 
 # Copy HIL test script and config
 echo "==> Copying test scripts"
 scp -q "$ROOT_DIR/test/hil/hil_test.py" \
+       "$ROOT_DIR/test/hil/hil_flash.py" \
+       "$ROOT_DIR/test/hil/hil_lock.py" \
+       "$ROOT_DIR/test/hil/usbtest.py" \
        "$ROOT_DIR/test/hil/pymtp.py" \
        "$CONFIG" \
        "$REMOTE:$REMOTE_DIR/test/hil/"
+scp -q "$ROOT_DIR/.claude/skills/usb-kernel-recover/scripts/usb_recover.sh" \
+       "$REMOTE:$REMOTE_DIR/.claude/skills/usb-kernel-recover/scripts/"
 
 # Copy only firmware binaries (elf/bin/hex) plus esptool metadata
 # (config.env + flash_args needed by the esptool flasher), preserving structure

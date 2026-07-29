@@ -24,7 +24,7 @@ Run the software + hardware gate for the current branch. The user invoking this 
 
 ## 3. HIL boards
 
-- `hilBoards` = chosen boards that are on the rig roster. This host must be able to reach the rig (per `.claude/skills/hil/SKILL.md`: host `ci` = local, `htpc` = remote). If none qualify, run software-only.
+- `hilBoards` = chosen boards that are on the rig roster. This host must be able to reach the rig (per `.claude/skills/hil/SKILL.md`: host `ci`/`tusb` = local, any other host (dev PC) = remote). If none qualify, run software-only.
 
 ## 4. Launch
 
