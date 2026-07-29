@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: MIT
 # Unit tests for hil_select.py — pure logic, no hardware, no git. Run directly:
 #   python3 test/hil/test_hil_select.py
+import glob
+import json
 import os
 import sys
 import unittest
@@ -11,6 +13,18 @@ import hil_select
 from hil_examples import device_tests, dual_tests, host_test
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def real_rosters():
+    """The actual rig rosters, for regression tests that need real-world data
+    (a specific board/family/only-list) rather than the synthetic ROSTER above."""
+    rosters = []
+    for name in ('tinyusb.json', 'hfp.json'):
+        path = os.path.join(REPO, 'test/hil', name)
+        with open(path) as f:
+            rosters.append((f'test/hil/{name}', json.load(f)['boards']))
+    return rosters
+
 
 ROSTER = [
     # device-only, rp2040 family
@@ -177,6 +191,72 @@ class TestArgsEmission(unittest.TestCase):
         self.assertIn('tinyusb.json', out['args'])
         self.assertTrue(any('cdc_device' in line for line in out['reasons']))
         os.unlink(path)
+
+
+class TestRealRosterPortFamilies(unittest.TestCase):
+    """Regression for port_families() missing espressif's dwc2 reference, which
+    lives in a component CMakeLists.txt rather than family.cmake/family.mk."""
+    def test_dwc2_change_selects_espressif_boards(self):
+        s = hil_select.classify(['src/portable/synopsys/dwc2/dcd_dwc2.c'], REPO, real_rosters())
+        self.assertFalse(s['full'])
+        self.assertIn('espressif_s3_devkitm', s['boards'])
+        self.assertIn('espressif_p4_function_ev', s['boards'])
+
+
+class TestPortFamiliesCoverage(unittest.TestCase):
+    """Systematic guard: every real dcd_*/hcd_* port directory should map to at
+    least one board family, so a future family.cmake/CMakeLists.txt layout that
+    port_families() doesn't scan fails loudly instead of silently dropping boards
+    (as espressif's dwc2 reference did - see TestRealRosterPortFamilies)."""
+    # Ports with no board family: not a bug, just not wired into any rig board.
+    # Add here (with a reason) only if port_families() legitimately can't find one.
+    NO_FAMILY = {
+        'template',  # reference/example port, not built by any board
+    }
+
+    @staticmethod
+    def _dcd_hcd_ports():
+        portable_root = os.path.join(REPO, 'src/portable')
+        ports = []
+        for entry in sorted(os.listdir(portable_root)):
+            d = os.path.join(portable_root, entry)
+            if not os.path.isdir(d):
+                continue
+            if glob.glob(os.path.join(d, 'dcd_*.c')) or glob.glob(os.path.join(d, 'hcd_*.c')):
+                ports.append(entry)
+                continue
+            for sub in sorted(os.listdir(d)):
+                sd = os.path.join(d, sub)
+                if os.path.isdir(sd) and (glob.glob(os.path.join(sd, 'dcd_*.c')) or
+                                           glob.glob(os.path.join(sd, 'hcd_*.c'))):
+                    ports.append(f'{entry}/{sub}')
+        return ports
+
+    def test_every_port_maps_to_a_family(self):
+        ports = self._dcd_hcd_ports()
+        self.assertTrue(ports)  # sanity: the scan itself found something
+        for port in ports:
+            if port in self.NO_FAMILY:
+                continue
+            fams = hil_select.port_families(port, REPO)
+            self.assertTrue(fams, f'{port}: no family references this port '
+                                   f'(port_families() scan gap, or add to NO_FAMILY)')
+
+
+class TestRealRosterOnlyListTests(unittest.TestCase):
+    """Regression for roster-only-list tests (e.g. espressif's hid_composite_freertos)
+    being invisible to the selector because it only knew the shared hil_examples lists."""
+    def test_only_list_example_change_selects_it(self):
+        s = hil_select.classify(['examples/device/hid_composite_freertos/src/main.c'], REPO, real_rosters())
+        self.assertFalse(s['full'])
+        self.assertEqual(s['boards']['espressif_s3_devkitm'], ['device/hid_composite_freertos'])
+        self.assertEqual(s['boards']['espressif_p4_function_ev'], ['device/hid_composite_freertos'])
+
+    def test_class_change_includes_only_list_boards(self):
+        s = hil_select.classify(['src/class/hid/hid_device.c'], REPO, real_rosters())
+        self.assertFalse(s['full'])
+        self.assertIn('espressif_s3_devkitm', s['boards'])
+        self.assertIn('espressif_p4_function_ev', s['boards'])
 
 
 if __name__ == '__main__':

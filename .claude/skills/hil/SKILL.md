@@ -51,6 +51,9 @@ ARGS=$(python3 test/hil/hil_select.py --base master test/hil/tinyusb.json | pyth
 python3 test/hil/hil_test.py -B examples $ARGS test/hil/tinyusb.json
 ```
 
+An empty `ARGS` means the diff affects nothing on this rig — don't run `hil_test.py` in that case; it would
+otherwise run the full matrix, the opposite of CI's empty-selection behavior.
+
 Unit suite: `python3 test/hil/test_hil_select.py` (no hardware).
 
 ## Prerequisites

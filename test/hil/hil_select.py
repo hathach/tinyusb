@@ -73,11 +73,17 @@ def board_family(board_name: str, repo_root: str):
 
 def port_families(port_dir: str, repo_root: str) -> set:
     fams = set()
-    for f in glob.glob(os.path.join(repo_root, 'hw/bsp/*/family.cmake')) + \
-             glob.glob(os.path.join(repo_root, 'hw/bsp/*/family.mk')):
+    bsp_root = os.path.join(repo_root, 'hw/bsp')
+    # family.cmake/family.mk list portable sources directly for most families;
+    # espressif instead references them from a nested component CMakeLists.txt
+    # (hw/bsp/espressif/components/tinyusb_src/CMakeLists.txt) - scan both.
+    for f in glob.glob(os.path.join(bsp_root, '*/family.cmake')) + \
+             glob.glob(os.path.join(bsp_root, '*/family.mk')) + \
+             glob.glob(os.path.join(bsp_root, '*/components/*/CMakeLists.txt')):
         try:
             if port_dir in open(f).read():
-                fams.add(os.path.basename(os.path.dirname(f)))
+                fam = os.path.relpath(f, bsp_root).split(os.sep, 1)[0]
+                fams.add(fam)
         except OSError:
             pass
     return fams
@@ -91,11 +97,22 @@ def _config_enables(cfg_path: str, macros) -> bool:
     return any(re.search(rf'#define\s+{m}\s+\(?\s*0*[1-9]', text) for m in macros)
 
 
-def class_examples(macros, role: str, repo_root: str) -> set:
-    """Tests (from role's + dual lists) whose example config enables any macro."""
-    pools = {'device': device_tests + dual_tests, 'host': host_test + dual_tests}
+def roster_only_tests(all_boards) -> set:
+    """Test paths that only appear in a roster board's tests.only list (e.g.
+    espressif boards), not in the shared device/dual/host_test lists."""
     out = set()
-    for test in pools[role]:
+    for b in all_boards:
+        out.update(b.get('tests', {}).get('only', []))
+    return out
+
+
+def class_examples(macros, role: str, repo_root: str, extra_tests: set) -> set:
+    """Tests (from role's + dual lists, plus roster-only-list tests of that role)
+    whose example config enables any macro."""
+    pools = {'device': device_tests + dual_tests, 'host': host_test + dual_tests}
+    pool = set(pools[role]) | {t for t in extra_tests if test_role(t) in (role, 'dual')}
+    out = set()
+    for test in pool:
         cfg = os.path.join(repo_root, 'examples', test, 'src', 'tusb_config.h')
         if _config_enables(cfg, macros):
             out.add(test)
@@ -125,7 +142,7 @@ class _Sel:
         self.reasons.append(reason)
 
 
-def _classify_one(path, repo_root, roster_boards, s: _Sel):
+def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel):
     base = os.path.basename(path)
     if _NONCODE_RE.match(path):
         s.reasons.append(f'{path}: non-code, no contribution')
@@ -173,9 +190,9 @@ def _classify_one(path, repo_root, roster_boards, s: _Sel):
             return [f'CFG_{prefix}_{cls.upper()}']
         tests = set()
         if 'device' in roles:
-            tests |= class_examples(macros('TUD'), 'device', repo_root)
+            tests |= class_examples(macros('TUD'), 'device', repo_root, extras)
         if 'host' in roles:
-            tests |= class_examples(macros('TUH'), 'host', repo_root)
+            tests |= class_examples(macros('TUH'), 'host', repo_root, extras)
         boards = [b['name'] for b in roster_boards if board_roles(b) & roles]
         s.roles.update(roles)
         s.add(boards, tests, f'{path}: class {cls} -> {sorted(tests)} ({"/".join(sorted(roles))})')
@@ -206,7 +223,7 @@ def _classify_one(path, repo_root, roster_boards, s: _Sel):
     m = re.match(r'examples/(device|host|dual)/([^/]+)/', path)
     if m:
         test = f'{m.group(1)}/{m.group(2)}'
-        known = any(test in pool for pool in ALL_TESTS.values())
+        known = any(test in pool for pool in ALL_TESTS.values()) or test in extras
         if known:
             boards = [b['name'] for b in roster_boards]
             role = test_role(test)
@@ -228,9 +245,10 @@ def classify(changed_files, repo_root, rosters):
                 seen.add(b['name'])
                 all_boards.append(b)
 
+    extras = roster_only_tests(all_boards)
     s = _Sel()
     for path in changed_files:
-        _classify_one(path, repo_root, all_boards, s)
+        _classify_one(path, repo_root, all_boards, extras, s)
         if s.full:
             break
 

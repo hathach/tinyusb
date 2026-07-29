@@ -39,6 +39,12 @@ on:
 
 jobs:
   family:
+    # PR-scoped HIL selection can produce an empty build-args list for a toolchain
+    # (e.g. a dwc2-only change with no riscv boards affected); an empty matrix
+    # vector fails the job outright ("Matrix vector 'arg' does not contain any
+    # values"), so skip cleanly instead. Callers that `needs:` this job still
+    # proceed - a skipped job satisfies the default success() check.
+    if: inputs.build-args != '[]'
     runs-on: ${{ inputs.os }}
     strategy:
       fail-fast: false
