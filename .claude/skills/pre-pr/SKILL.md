@@ -18,16 +18,23 @@ Run the software + hardware gate for the current branch. The user invoking this 
 - `python3 test/hil/hil_select.py --base $BASE test/hil/tinyusb.json` → JSON with the affected
   bsp `families`, the affected rig `boards`, and per-file `reasons`. `full: true` means a
   broad/infra change.
-- Sample ONE board per entry in `families`: prefer a rig-roster board of that family, else the
-  first entry in `hw/bsp/<family>/boards/`. Build boards come from `families`, never from
-  `boards` alone — most families have no rig board, so an off-rig driver change
-  (`dcd_samx7x.c` → `same7x`, `boards: {}`) would otherwise never be compiled.
-  - Rig roster: `python3 -c "import json;print([b['name'] for b in json.load(open('test/hil/tinyusb.json'))['boards']])"`
+- Affected families = `families` ∪ the family of every name in `boards`. Neither half is
+  enough alone: only the port and bsp rules fill `families` (a class/core/example change
+  reports boards but no families), and `boards` only ever names rig boards (an off-rig driver
+  change — `dcd_samx7x.c` → `same7x`, `boards: {}` — would never be compiled).
   - A board's family is the `hw/bsp/<family>/boards/<board>/` directory holding it.
+  - When `full: true`, `boards` names every rig board and carries no signal — use `families`
+    alone there, plus the representative set below.
+- Sample ONE board per affected family: prefer a rig-roster board of that family, else the
+  first entry in `hw/bsp/<family>/boards/`.
+  - Rig roster: `python3 -c "import json;print([b['name'] for b in json.load(open('test/hil/tinyusb.json'))['boards']])"`
 - Add the representative set `stm32f407disco` + `raspberry_pi_pico` when `full: true` (broad
-  change — class/core/common/infra); `families` alone doesn't say which board exercises it.
-- Cap at 4 boards and tell the user which families the cap dropped. The list must NEVER end up
-  empty — final fallback is `[stm32f407disco]` (full-check throws on an empty list).
+  change — class/core/common/infra).
+- Cap at 4 boards and tell the user which families the cap dropped. A broad change affects ~20
+  families, so the order matters: keep `stm32f407disco` and `raspberry_pi_pico` first whenever
+  their families are affected, then fill from the remaining families (spread across vendors —
+  don't let one vendor's family names take every slot). The list must NEVER end up empty —
+  final fallback is `[stm32f407disco]` (full-check throws on an empty list).
 - Docs-only (`full: false`, no families, no boards) keeps §1's minimal software-only gate.
 
 ## 3. HIL boards

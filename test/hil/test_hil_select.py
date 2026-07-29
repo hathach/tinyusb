@@ -28,8 +28,9 @@ def real_rosters():
 
 def on_roster(tc, *names):
     """The subset of `names` currently in the live rig rosters, skipping the test
-    when none are. Parking/unparking a board is routine rig maintenance; it must
-    never fail this suite (CI runs it as a gate on the whole Build workflow)."""
+    when none are. Parking/unparking a board is routine rig maintenance and must not
+    fail this suite: CI runs it right before the selector and treats a failure as
+    'selector unusable', dropping PR scoping and annotating the run."""
     have = {b['name'] for _, boards in real_rosters() for b in boards}
     got = [n for n in names if n in have]
     if not got:

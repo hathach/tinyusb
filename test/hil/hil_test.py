@@ -1560,7 +1560,9 @@ def test_board(board: Board) -> tuple[str, int, list[str], list, float]:
                 # list (the common case for a -bt scoped run) leaves nothing to swap
                 # with. Park on board_test first - it disables the board's USB, so the
                 # PID goes away and the next flash must re-enumerate to be seen.
+                t_park = time.monotonic()
                 test_example(board, vname, 'device/board_test')
+                t_board += time.monotonic() - t_park  # park is teardown, not board cost
             if run_list:
                 prev_last = run_list[-1]
             t_variant = time.monotonic()
