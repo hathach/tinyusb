@@ -109,14 +109,23 @@ def roster_only_tests(all_boards) -> set:
 def class_examples(macros, role: str, repo_root: str, extra_tests: set) -> set:
     """Tests (from role's + dual lists, plus roster-only-list tests of that role)
     whose example config enables any macro."""
-    pools = {'device': device_tests + dual_tests, 'host': host_test + dual_tests}
-    pool = set(pools[role]) | {t for t in extra_tests if test_role(t) in (role, 'dual')}
+    pool = role_tests({role}, extra_tests)
     out = set()
     for test in pool:
         cfg = os.path.join(repo_root, 'examples', test, 'src', 'tusb_config.h')
         if _config_enables(cfg, macros):
             out.add(test)
     return out
+
+
+def role_tests(roles: set, extras: set) -> set:
+    """Every test for the given role(s): each role's own list + dual tests,
+    plus roster-only-list tests (extras) matching those roles or 'dual'."""
+    pool = set(dual_tests)
+    for r in roles:
+        pool |= set(ALL_TESTS[r])
+    pool |= {t for t in extras if test_role(t) in roles or test_role(t) == 'dual'}
+    return pool
 
 
 class _Sel:
@@ -163,7 +172,7 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel):
         fams = port_families(port, repo_root)
         boards = [b['name'] for b in roster_boards
                   if board_family(b['name'], repo_root) in fams and (board_roles(b) & roles)]
-        tests = [t for r in roles for t in ALL_TESTS[r]] + dual_tests
+        tests = role_tests(roles, extras)
         s.roles.update(roles)
         s.add(boards, tests, f'{path}: port {port} -> families {sorted(fams)} -> boards {boards} ({"/".join(sorted(roles))})')
         return
@@ -203,7 +212,7 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel):
         role = m.group(1)
         boards = [b['name'] for b in roster_boards if role in board_roles(b)]
         s.roles.add(role)
-        s.add(boards, ALL_TESTS[role] + dual_tests, f'{path}: core {role} stack -> all {role} tests')
+        s.add(boards, role_tests({role}, extras), f'{path}: core {role} stack -> all {role} tests')
         return
 
     m = re.match(r'hw/bsp/([^/]+)/(?:boards/([^/]+)/)?', path)

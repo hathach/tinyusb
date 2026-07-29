@@ -259,5 +259,39 @@ class TestRealRosterOnlyListTests(unittest.TestCase):
         self.assertIn('espressif_p4_function_ev', s['boards'])
 
 
+class TestPortAndCoreRoleUseExtras(unittest.TestCase):
+    """Regression: the port rule and core-role rule must thread the roster-only
+    test universe (extras) the same way the class rule already does, so a DCD
+    or device-stack change doesn't silently drop espressif's only-list tests
+    (e.g. hid_composite_freertos) that aren't in the shared device_tests list."""
+    def test_dcd_change_includes_only_list_test(self):
+        s = hil_select.classify(['src/portable/synopsys/dwc2/dcd_dwc2.c'], REPO, real_rosters())
+        self.assertFalse(s['full'])
+        for board in ('espressif_s3_devkitm', 'espressif_p4_function_ev'):
+            tests = s['boards'][board]
+            self.assertIn('device/hid_composite_freertos', tests)
+            self.assertIn('device/cdc_msc_freertos', tests)
+            self.assertIn('device/audio_test_freertos', tests)
+            self.assertIn('device/usbtest', tests)
+
+    def test_core_device_change_includes_only_list_test(self):
+        s = hil_select.classify(['src/device/usbd.c'], REPO, real_rosters())
+        self.assertFalse(s['full'])
+        for board in ('espressif_s3_devkitm', 'espressif_p4_function_ev'):
+            tests = s['boards'][board]
+            self.assertIn('device/hid_composite_freertos', tests)
+            self.assertIn('device/cdc_msc_freertos', tests)
+            self.assertIn('device/audio_test_freertos', tests)
+            self.assertIn('device/usbtest', tests)
+
+    def test_host_change_does_not_leak_device_only_list_test(self):
+        s = hil_select.classify(['src/host/usbh.c'], REPO, real_rosters())
+        self.assertFalse(s['full'])
+        for board, tests in s['boards'].items():
+            if tests == 'all':
+                continue
+            self.assertNotIn('device/hid_composite_freertos', tests, board)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=1)
