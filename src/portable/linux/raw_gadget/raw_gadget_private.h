@@ -73,6 +73,7 @@ typedef struct
   bool available;
   bool initialized;
   bool shutting_down;
+  bool resetting;
   bool event_thread_created;
 
   raw_gadget_handle_t handle;

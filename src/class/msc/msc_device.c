@@ -96,7 +96,15 @@ TU_ATTR_ALWAYS_INLINE static inline bool send_csw(mscd_interface_t* p_msc) {
   p_msc->csw.data_residue = p_msc->cbw.total_bytes - p_msc->xferred_len;
   p_msc->stage = MSC_STAGE_STATUS_SENT;
   memcpy(_mscd_epbuf.buf, &p_msc->csw, sizeof(msc_csw_t)); //-V1086
+  #if CFG_TUD_ENDPOINT_XFER_BEHIND_HALT
+  bool const queued = usbd_edpt_xfer(rhport, p_msc->ep_in , _mscd_epbuf.buf, sizeof(msc_csw_t), false);
+  if (!queued) {
+    p_msc->stage = MSC_STAGE_STATUS;
+  }
+  return queued;
+  #else
   return usbd_edpt_xfer(rhport, p_msc->ep_in , _mscd_epbuf.buf, sizeof(msc_csw_t), false);
+  #endif
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool prepare_cbw(mscd_interface_t* p_msc) {
@@ -185,6 +193,16 @@ static bool proc_stage_status(mscd_interface_t *p_msc) {
   uint8_t rhport = p_msc->rhport;
   msc_cbw_t const *p_cbw = &p_msc->cbw;
 
+  #if CFG_TUD_ENDPOINT_XFER_BEHIND_HALT
+  // Failed and phase-error commands already stalled the remaining data endpoint in fail_scsi_op().
+  if ((p_msc->csw.status == MSC_CSW_STATUS_PASSED) &&
+      (p_cbw->total_bytes > p_msc->xferred_len) && is_data_in(p_cbw->dir)) {
+    // 6.7 The 13 Cases: case 5 (Hi > Di): STALL before status
+    // TU_LOG_DRV("  SCSI case 5 (Hi > Di): %lu > %lu\r\n", p_cbw->total_bytes, p_msc->xferred_len);
+    usbd_edpt_stall(rhport, p_msc->ep_in);
+  }
+  TU_ASSERT(send_csw(p_msc));
+  #else
   // skip status if epin is currently stalled, will do it when received Clear Stall request
   if (!usbd_edpt_stalled(rhport, p_msc->ep_in)) {
     if ((p_cbw->total_bytes > p_msc->xferred_len) && is_data_in(p_cbw->dir)) {
@@ -195,6 +213,7 @@ static bool proc_stage_status(mscd_interface_t *p_msc) {
       TU_ASSERT(send_csw(p_msc));
     }
   }
+  #endif
 
   #if TU_CHECK_MCU(OPT_MCU_CXD56)
   // WORKAROUND: cxd56 has its own nuttx usb stack which does not forward Set/ClearFeature(Endpoint) to DCD.
@@ -429,7 +448,15 @@ bool mscd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
     case MSC_REQ_RESET:
       TU_LOG_DRV("  MSC BOT Reset\r\n");
       TU_VERIFY(request->wValue == 0 && request->wLength == 0);
+      #if CFG_TUD_ENDPOINT_XFER_BEHIND_HALT
+      bool const reset_recovery = p_msc->stage == MSC_STAGE_NEED_RESET;
+      #endif
       proc_bot_reset(p_msc); // driver state reset
+      #if CFG_TUD_ENDPOINT_XFER_BEHIND_HALT
+      if (reset_recovery) {
+        TU_ASSERT(prepare_cbw(p_msc));
+      }
+      #endif
       tud_control_status(rhport, request);
     break;
 
@@ -628,11 +655,15 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
             break;
         }
 
+        #if CFG_TUD_ENDPOINT_XFER_BEHIND_HALT
+        TU_ASSERT(prepare_cbw(p_msc));
+        #else
         if (!usbd_edpt_stalled(rhport, p_msc->ep_out)) {
           TU_ASSERT(prepare_cbw(p_msc));
         } else {
           p_msc->stage = MSC_STAGE_CMD;
         }
+        #endif
       } else {
         // Any xfer ended here is considered unknown error, ignore it
         TU_LOG1("  Warning expect SCSI Status but received unknown data\r\n");

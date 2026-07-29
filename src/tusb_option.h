@@ -652,6 +652,16 @@
   #error "CFG_TUD_ENDPPOINT_MAX must be less than or equal to TUP_DCD_ENDPOINT_MAX"
 #endif
 
+// Allow transfers to be queued while an endpoint is halted. The DCD must preserve each transfer
+// for delivery after the halt is cleared, though it may report completion after taking ownership.
+// If ClearFeature is handled below USBD, the software stalled state remains the last observed state.
+#ifndef CFG_TUD_ENDPOINT_XFER_BEHIND_HALT
+  #ifndef CFG_TUD_ENDPOINT_XFER_BEHIND_HALT_DEFAULT
+    #define CFG_TUD_ENDPOINT_XFER_BEHIND_HALT_DEFAULT 0
+  #endif
+  #define CFG_TUD_ENDPOINT_XFER_BEHIND_HALT CFG_TUD_ENDPOINT_XFER_BEHIND_HALT_DEFAULT
+#endif
+
 // USB 2.0 7.1.20: compliance test mode support
 #ifndef CFG_TUD_TEST_MODE
   #define CFG_TUD_TEST_MODE       0

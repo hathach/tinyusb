@@ -106,6 +106,7 @@ raw_gadget_result_t raw_gadget_context_table_create(size_t context_count)
     context->available = false;
     context->initialized = false;
     context->shutting_down = false;
+    context->resetting = false;
     context->event_thread_created = false;
     context->handle = (raw_gadget_handle_t) index;
     context->speed = RAW_GADGET_SPEED_INVALID;
@@ -210,6 +211,7 @@ void raw_gadget_context_reset(raw_gadget_context_t *context)
   context->initialized = false;
   context->configured = false;
   context->shutting_down = false;
+  context->resetting = false;
   context->event_thread_created = false;
   context->speed = RAW_GADGET_SPEED_INVALID;
   context->file_descriptor = RAW_GADGET_INVALID_FILE_DESCRIPTOR;

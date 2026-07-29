@@ -292,6 +292,12 @@ raw_gadget_result_t raw_gadget_configure(raw_gadget_handle_t handle)
     return RAW_GADGET_RESULT_INTERNAL_ERROR;
   }
 
+  if (context->resetting || context->shutting_down)
+  {
+    (void) pthread_mutex_unlock(&context->mutex);
+    return RAW_GADGET_RESULT_NOT_AVAILABLE;
+  }
+
   if (context->configured)
   {
     (void) pthread_mutex_unlock(&context->mutex);

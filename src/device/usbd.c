@@ -1654,7 +1654,12 @@ void usbd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   // only stalled if currently cleared
   TU_LOG_USBD("    Stall EP %02X\r\n", ep_addr);
   dcd_edpt_stall(rhport, ep_addr);
+  #if CFG_TUD_ENDPOINT_XFER_BEHIND_HALT
+  _usbd_dev.ep_status[epnum][dir] &= (uint8_t) ~(TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED);
+  _usbd_dev.ep_status[epnum][dir] |= TU_EDPT_STATE_STALLED;
+  #else
   _usbd_dev.ep_status[epnum][dir] |= (TU_EDPT_STATE_STALLED | TU_EDPT_STATE_BUSY);
+  #endif
 }
 
 void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
@@ -1664,6 +1669,10 @@ void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   uint8_t const dir = tu_edpt_dir(ep_addr);
 
   TU_LOG_USBD("    Clear Stall EP %02X\r\n", ep_addr);
+  #if CFG_TUD_ENDPOINT_XFER_BEHIND_HALT
+  dcd_edpt_clear_stall(rhport, ep_addr);
+  _usbd_dev.ep_status[epnum][dir] &= (uint8_t) ~TU_EDPT_STATE_STALLED;
+  #else
   const bool was_stalled = (_usbd_dev.ep_status[epnum][dir] & TU_EDPT_STATE_STALLED) != 0;
   dcd_edpt_clear_stall(rhport, ep_addr);
   // Clear STALLED|BUSY unconditionally (long-standing behavior; some classes, e.g. audio's
@@ -1678,6 +1687,7 @@ void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
     clear_mask |= TU_EDPT_STATE_CLAIMED;
   }
   _usbd_dev.ep_status[epnum][dir] &= (uint8_t) ~clear_mask;
+  #endif
 }
 
 bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr) {

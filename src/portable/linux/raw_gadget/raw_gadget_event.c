@@ -357,6 +357,7 @@ void raw_gadget_bus_reset_prepare(raw_gadget_context_t *context)
     return;
   }
 
+  context->resetting = true;
   context->configured = false;
   context->transfer_generation++;
   context->ep0_request_active = false;
@@ -367,5 +368,17 @@ void raw_gadget_bus_reset_prepare(raw_gadget_context_t *context)
 
   (void) pthread_mutex_unlock(&context->mutex);
 
-  raw_gadget_transfer_cancel_all(context);
+  raw_gadget_result_t const result =
+      raw_gadget_endpoint_close_all(context->handle);
+
+  if (pthread_mutex_lock(&context->mutex) == 0)
+  {
+    context->resetting = false;
+    (void) pthread_mutex_unlock(&context->mutex);
+  }
+
+  if (result != RAW_GADGET_RESULT_SUCCESS)
+  {
+    TU_LOG1("Raw Gadget: endpoint reset failed: result=%d\r\n", result);
+  }
 }

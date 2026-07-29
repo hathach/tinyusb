@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <time.h>
 
 #include <linux/usb/ch9.h>
 
@@ -61,6 +62,11 @@ static raw_gadget_result_t raw_gadget_endpoint_disable_locked(
             USB_RAW_IOCTL_EP_DISABLE,
             (unsigned long)kernel_handle) < 0)
   {
+    TU_LOG1("Raw Gadget: EP_DISABLE failed: ep=%02x handle=%u errno=%d (%s)\r\n",
+            endpoint->address,
+            kernel_handle,
+            errno,
+            strerror(errno));
     return RAW_GADGET_RESULT_IO_ERROR;
   }
 
@@ -118,6 +124,12 @@ raw_gadget_result_t raw_gadget_endpoint_open(raw_gadget_handle_t handle,
   if (pthread_mutex_lock(&context->mutex) != 0)
   {
     return RAW_GADGET_RESULT_INTERNAL_ERROR;
+  }
+
+  if (context->resetting || context->shutting_down)
+  {
+    (void) pthread_mutex_unlock(&context->mutex);
+    return RAW_GADGET_RESULT_NOT_AVAILABLE;
   }
 
   endpoint = raw_gadget_endpoint_get(context, endpoint_address);
@@ -231,7 +243,9 @@ raw_gadget_result_t raw_gadget_endpoint_stall(raw_gadget_handle_t handle,
   raw_gadget_context_t *context;
   raw_gadget_endpoint_t *endpoint;
   raw_gadget_result_t result;
+  uint32_t generation;
   uint32_t kernel_handle;
+  int file_descriptor;
 
   context = raw_gadget_context_get(handle);
   result = raw_gadget_endpoint_context_validate(context);
@@ -243,6 +257,12 @@ raw_gadget_result_t raw_gadget_endpoint_stall(raw_gadget_handle_t handle,
   if (pthread_mutex_lock(&context->mutex) != 0)
   {
     return RAW_GADGET_RESULT_INTERNAL_ERROR;
+  }
+
+  if (context->resetting || context->shutting_down)
+  {
+    (void) pthread_mutex_unlock(&context->mutex);
+    return RAW_GADGET_RESULT_NOT_AVAILABLE;
   }
 
   if ((endpoint_address & USB_ENDPOINT_NUMBER_MASK) == 0u)
@@ -284,21 +304,59 @@ raw_gadget_result_t raw_gadget_endpoint_stall(raw_gadget_handle_t handle,
   }
 
   kernel_handle = endpoint->kernel_handle;
+  generation = context->transfer_generation;
+  file_descriptor = context->file_descriptor;
 
-  if (ioctl(context->file_descriptor,
-            USB_RAW_IOCTL_EP_SET_HALT,
-            (unsigned long)kernel_handle) < 0)
+  while (true)
   {
-    result = RAW_GADGET_RESULT_IO_ERROR;
-  }
-  else
-  {
-    result = RAW_GADGET_RESULT_SUCCESS;
-  }
+    int const ioctl_result =
+        ioctl(file_descriptor,
+              USB_RAW_IOCTL_EP_SET_HALT,
+              (unsigned long) kernel_handle);
+    int const error_number = errno;
 
-  (void) pthread_mutex_unlock(&context->mutex);
+    (void) pthread_mutex_unlock(&context->mutex);
 
-  return result;
+    if (ioctl_result == 0)
+    {
+      return RAW_GADGET_RESULT_SUCCESS;
+    }
+
+    if (error_number != EAGAIN)
+    {
+      TU_LOG1("Raw Gadget: EP_SET_HALT failed: ep=%02x errno=%d (%s)\r\n",
+              endpoint_address,
+              error_number,
+              strerror(error_number));
+      return RAW_GADGET_RESULT_IO_ERROR;
+    }
+
+    // dummy_hcd can retain its small-IN FIFO request briefly after reporting completion.
+    struct timespec retry_delay = {
+      .tv_sec = 0,
+      .tv_nsec = 10000000L
+    };
+    while ((nanosleep(&retry_delay, &retry_delay) < 0) && (errno == EINTR))
+    {
+    }
+
+    if (pthread_mutex_lock(&context->mutex) != 0)
+    {
+      return RAW_GADGET_RESULT_INTERNAL_ERROR;
+    }
+
+    if (!context->initialized ||
+        context->resetting ||
+        context->shutting_down ||
+        (context->file_descriptor != file_descriptor) ||
+        (context->transfer_generation != generation) ||
+        !endpoint->enabled ||
+        (endpoint->kernel_handle != kernel_handle))
+    {
+      (void) pthread_mutex_unlock(&context->mutex);
+      return RAW_GADGET_RESULT_NOT_AVAILABLE;
+    }
+  }
 }
 
 raw_gadget_result_t raw_gadget_endpoint_clear_stall(
@@ -326,6 +384,12 @@ raw_gadget_result_t raw_gadget_endpoint_clear_stall(
   if (pthread_mutex_lock(&context->mutex) != 0)
   {
     return RAW_GADGET_RESULT_INTERNAL_ERROR;
+  }
+
+  if (context->resetting || context->shutting_down)
+  {
+    (void) pthread_mutex_unlock(&context->mutex);
+    return RAW_GADGET_RESULT_NOT_AVAILABLE;
   }
 
   endpoint = raw_gadget_endpoint_get(context, endpoint_address);
