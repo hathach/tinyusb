@@ -43,16 +43,20 @@ def flock_nb(board: str):
     return fh
 
 
-def write_record(fh, reason: str) -> None:
-    """Best-effort holder record; the flock itself is already held."""
+def write_record(fh, reason: str) -> bool:
+    """Holder record; the flock itself is already held. Returns False on a write
+    failure — acquire_board_lock stays best-effort (the flock is the authority),
+    but cmd_hold aborts on it like board_lock.py did (a hold whose record is
+    missing is invisible to status/release)."""
     try:
         fh.truncate(0)
         fh.seek(0)
         json.dump({'pid': os.getpid(), 'reason': reason,
                    'since': time.strftime('%Y-%m-%dT%H:%M:%S%z')}, fh)
         fh.flush()
+        return True
     except OSError:
-        pass
+        return False
 
 
 def clear_record(fh) -> None:
@@ -324,7 +328,8 @@ def cmd_hold(boards, reason):
         handles = []
         for b in boards:
             fh = flock_nb(b)
-            write_record(fh, reason)
+            if not write_record(fh, reason):
+                raise OSError(f'cannot write holder record for {b}')
             handles.append(fh)
     except OSError:
         try:

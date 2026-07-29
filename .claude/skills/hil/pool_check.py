@@ -135,6 +135,9 @@ def lock_board(name: str):
     try:
         fh = hil_lock.flock_nb(name)
     except OSError:
+        # NB: conflates a held flock with open() failures (EACCES/EROFS/ENOSPC) —
+        # benign while everything on the rig runs as one uid; a cross-uid setup
+        # would need flock_nb to distinguish the two
         info = hil_lock.read_record(name)
         return json.dumps(info) if info else 'unknown holder'
     hil_lock.write_record(fh, 'pool_check')
@@ -159,8 +162,13 @@ def recover_probe(uid: str, busport: str) -> bool:
     inode), not the helper's exit code (observed to flake while the toggle worked).
     J-Links respond with a full disconnect and can stay off the bus for >8 s."""
     pre = find_usb(uid)
-    subprocess.run(['sudo', '-n', str(USB_RECOVER), 'authorized', busport],
-                   capture_output=True, text=True)
+    try:
+        # bounded: the sysfs authorized store can block in D state on a wedged
+        # device, and this runs while the board's (release-protected) flock is held
+        subprocess.run(['sudo', '-n', str(USB_RECOVER), 'authorized', busport],
+                       capture_output=True, text=True, timeout=30)
+    except subprocess.TimeoutExpired:
+        return False
     deadline = time.monotonic() + 20
     while time.monotonic() < deadline:
         post = find_usb(uid)
@@ -191,6 +199,7 @@ def pick_example(board: dict, note: list) -> tuple[str | None, str | None, str |
     build-dir variant that has it (see resolve_variant)."""
     tests = board.get('tests', {})
     only = tests.get('only', [])
+    skip = set(tests.get('skip', []))  # config's known-broken examples: never pick one
     is_device = tests.get('device') or any(t.startswith('device/') for t in only)
     if is_device:
         cand = DEVICE_CANDIDATES + [t for t in only if t.startswith('device/') and t != 'device/usbtest']
@@ -199,6 +208,8 @@ def pick_example(board: dict, note: list) -> tuple[str | None, str | None, str |
         cand = HOST_CANDIDATES + [t for t in only if t.startswith('host/')]
         kind = 'host'
     for ex in dict.fromkeys(cand):
+        if ex in skip:
+            continue
         variant = resolve_variant(board, ex, note)
         if hil_flash.find_firmware(variant, ex):
             return ex, kind, variant
@@ -218,13 +229,30 @@ def get_expected_pid(example: str) -> str | None:
         pid = None
         try:
             text = (REPO_ROOT / 'examples' / example / 'src' / 'usb_descriptors.c').read_text()
-            m = re.search(r'#define\s+USB_PID\s+(0x[0-9a-fA-F]+)', text)
+            # optional parens as in tools/check_example_pids.py's parser
+            m = re.search(r'#define\s+USB_PID\s+\(?\s*(0x[0-9a-fA-F]+)', text)
             if m:
                 pid = m.group(1)[2:].lower()
         except OSError:
             pass
         _pid_cache[example] = pid
     return _pid_cache[example]
+
+
+def call_flasher(fn, *fn_args) -> tuple[int, str]:
+    """Run a hil_flash flash_*/reset_* backend, normalizing raises to a failure:
+    several backends raise instead of returning nonzero (get_serial_dev
+    RuntimeError when a bridge's /dev/serial/by-id node vanishes, config.env
+    FileNotFoundError, .jlink script OSError) and an exception must not skip the
+    caller's retry/recovery ladder. Returns (returncode, error line)."""
+    try:
+        ret = fn(*fn_args)
+        if ret.returncode == 0:
+            return 0, ''
+        err = flash_error_line(hil_flash.cmd_stdout_text(ret.stdout))
+        return ret.returncode, err or f'rc={ret.returncode}'
+    except Exception as e:
+        return -1, repr(e)[:90]
 
 
 def flash(board: dict, example: str, variant: str, allow_recovery: bool, probe_port: str, note: list) -> bool:
@@ -247,10 +275,9 @@ def flash(board: dict, example: str, variant: str, allow_recovery: bool, probe_p
                 time.sleep(2)  # udev recreates /dev/serial/by-id symlinks after re-enumeration
             else:
                 note.append('probe toggle unconfirmed')
-        ret = fn(board, str(fw))
-        if ret.returncode == 0:
+        rc, err = call_flasher(fn, board, str(fw))
+        if rc == 0:
             return True
-        err = flash_error_line(hil_flash.cmd_stdout_text(ret.stdout)) or f'rc={ret.returncode}'
         if attempt == 0:
             say(f'{board["name"]:26} flash retry: {err}')
         else:
@@ -281,18 +308,22 @@ def check_host_serial(board: dict) -> bool:
         say(f'{board["name"]:26} no flasher serial port: {e}')
         return False
     try:
-        getattr(hil_flash, f'reset_{board["flasher"]["name"].lower()}')(board)
-        # pyserial's open-time flush precedes the reset above, so pre-reset CDC
-        # backlog would otherwise satisfy the read loop below on a halted board
+        # flush BEFORE issuing the reset: pyserial's open-time flush is long past,
+        # so this drops the pre-reset CDC backlog (which must not count as life)
+        # while keeping the board's post-reset boot banner, which prints while the
+        # reset tool is still tearing down and would be eaten by a post-reset flush
         ser.reset_input_buffer()
+        getattr(hil_flash, f'reset_{board["flasher"]["name"].lower()}')(board)
         deadline = time.monotonic() + SERIAL_WAIT
         while time.monotonic() < deadline:
             try:
                 ser.write(b'U')
+                if ser.read(64):
+                    return True
             except serial.SerialTimeoutException:
                 pass
-            if ser.read(64):
-                return True
+            except serial.SerialException:
+                return False  # port dropped mid-poll (bridge re-enumerating): silent
         return False
     finally:
         ser.close()
@@ -306,7 +337,14 @@ def ensure_board_test(board: dict, variant: str):
     if fw:
         return fw
     name = board['name']
-    vcfg = next((v for v in (board.get('variant') or [{'name': name}]) if v['name'] == variant), {})
+    variants = board.get('variant') or [{'name': name}]
+    vcfg = next((v for v in variants if v['name'] == variant), None)
+    if vcfg is None:
+        # resolve_variant fell back to the bare board name; for a variants-only
+        # board that build config doesn't exist — build the first real variant
+        # (with its defines) rather than an rhport/speed setup the rig never uses
+        vcfg = variants[0]
+        variant = vcfg['name']
     cmd = [sys.executable, str(hil_flash.TINYUSB_ROOT / 'tools' / 'build.py'),
            '-b', name, '-T', 'board_test']
     for d in board.get('build', {}).get('args', []):
@@ -317,7 +355,12 @@ def ensure_board_test(board: dict, variant: str):
         cmd += ['-D', d]
     for tok in vcfg.get('flags', '').split():
         cmd += [f'--cflag={tok}']
-    r = subprocess.run(cmd, cwd=hil_flash.TINYUSB_ROOT, capture_output=True, text=True)
+    try:
+        # bounded: runs while the board's flock is held
+        r = subprocess.run(cmd, cwd=hil_flash.TINYUSB_ROOT, capture_output=True, text=True,
+                           timeout=300)
+    except subprocess.TimeoutExpired:
+        return None
     if r.returncode != 0:
         return None
     return hil_flash.find_firmware(variant, 'device/board_test')
@@ -335,9 +378,9 @@ def host_alive(board: dict, note: list) -> bool:
         note.append('serial silent; board_test build failed')
         return False
     say(f'{board["name"]:26} recovery: serial silent, flashing board_test')
-    ret = getattr(hil_flash, f'flash_{board["flasher"]["name"].lower()}')(board, str(fw))
-    if ret.returncode != 0:
-        note.append('serial silent; board_test flash failed')
+    rc, err = call_flasher(getattr(hil_flash, f'flash_{board["flasher"]["name"].lower()}'), board, str(fw))
+    if rc != 0:
+        note.append(f'serial silent; board_test flash failed: {err}')
         return False
     ok = check_host_serial(board)
     if ok:
@@ -348,10 +391,14 @@ def host_alive(board: dict, note: list) -> bool:
 def device_recover_and_check(board: dict, example: str, old_ino, note: list, row: dict, seen: dict) -> bool:
     """Wait for the flashed board's uid to re-enumerate; on timeout, try one board
     reset (skipped for flashers with no hardware reset — see hil_flash.RESET_NOOP,
-    it would just burn the wait) and wait again. A post-reset sighting must match
-    the example's expected PID (get_expected_pid) to count as recovered: a bare
-    reset can re-enumerate the OLD firmware with a fresh inode, which must not be
-    mistaken for a working flash."""
+    it would just burn the wait) and wait again.
+
+    The PID policy is deliberately asymmetric. Pre-reset, the re-enumeration was
+    caused by the flash itself, so a PID mismatch most likely means the build dir
+    is stale (the flash DID write what find_firmware found) — warn, don't fail.
+    Post-reset, the re-enumeration proves nothing about the flash (the reset alone
+    explains it), so a mismatch is treated as a silent flash no-op and fails; an
+    unknown expected PID scores ok with a 'pid unverified' note in both paths."""
     name = board['name']
     expected_pid = get_expected_pid(example)
 
@@ -361,7 +408,9 @@ def device_recover_and_check(board: dict, example: str, old_ino, note: list, row
     hit = wait_device(board['uid'], None, old_ino, ENUM_WAIT)
     if hit:
         row['device'] = f'✅ {hit[1]}'
-        if expected_pid and not hit[1].endswith(expected_pid):
+        if expected_pid is None:
+            note.append('pid unverified')
+        elif not hit[1].endswith(expected_pid):
             note.append(f'⚠ pid {hit[1]}, source says {expected_pid}: stale build or silent flash no-op')
         seen_hit(hit)
         return True
@@ -373,22 +422,26 @@ def device_recover_and_check(board: dict, example: str, old_ino, note: list, row
         return False
 
     say(f'{name:26} recovery: uid not up, resetting board')
-    ret = getattr(hil_flash, f'reset_{flasher_name}')(board)
-    if ret.returncode != 0:
-        note.append(f'reset failed: rc={ret.returncode}')
+    rc, err = call_flasher(getattr(hil_flash, f'reset_{flasher_name}'), board)
+    if rc != 0:
+        note.append(f'reset failed: {err}')
     hit = wait_device(board['uid'], None, old_ino, ENUM_WAIT_RETRY)
     if not hit:
         row['device'] = '❌ not enumerated'
         note.append('reset did not help')
         return False
-    if expected_pid and hit[1].endswith(expected_pid):
+    if expected_pid is None:
+        row['device'] = f'✅ {hit[1]}'
+        note.append('reset recovered (pid unverified)')
+        seen_hit(hit)
+        return True
+    if hit[1].endswith(expected_pid):
         row['device'] = f'✅ {hit[1]}'
         note.append('reset recovered')
         seen_hit(hit)
         return True
-    row['device'] = f'❌ {hit[1]}' if expected_pid else f'⚠ {hit[1]}'
-    note.append(f'reset recovered wrong pid, expected {expected_pid}: silent flash no-op' if expected_pid
-                else 'reset recovered but firmware identity unverified')
+    row['device'] = f'❌ {hit[1]}'
+    note.append(f'reset recovered wrong pid, expected {expected_pid}: silent flash no-op')
     return False
 
 
@@ -469,9 +522,10 @@ def check_board(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
             bt_variant = resolve_variant(board, 'device/board_test', note)
             fw = hil_flash.find_firmware(bt_variant, 'device/board_test')
             if fw:
-                ret = getattr(hil_flash, f'flash_{board["flasher"]["name"].lower()}')(board, str(fw))
-                if ret.returncode != 0:
-                    note.append('park flash failed')
+                rc, err = call_flasher(getattr(hil_flash, f'flash_{board["flasher"]["name"].lower()}'),
+                                       board, str(fw))
+                if rc != 0:
+                    note.append(f'park flash failed: {err}')
                     row['status'] = 'bad'
             else:
                 note.append('park skipped: board_test not built')
@@ -563,10 +617,15 @@ def main() -> None:
 
     hil_flash.build_dir = args.build_dir
     hil_flash.verbose = args.verbose
+    # opt in to searching both standard layouts (cmake-build/ from tools/build.py +
+    # ESP-IDF, examples/ from manual builds); hil_test's -B stays authoritative there
+    hil_flash.EXTRA_BUILD_DIRS = ['cmake-build', 'examples']
     allow_recovery = not args.scan_only and can_recover()
     seen = {}
     try:
-        seen = json.loads(SEEN_CACHE.read_text())
+        loaded = json.loads(SEEN_CACHE.read_text())
+        if isinstance(loaded, dict):  # tolerate a torn/hand-edited cache
+            seen = {k: v for k, v in loaded.items() if isinstance(v, dict)}
     except (OSError, ValueError):
         pass
 
@@ -586,7 +645,9 @@ def main() -> None:
 
     try:
         SEEN_CACHE.parent.mkdir(parents=True, exist_ok=True)
-        SEEN_CACHE.write_text(json.dumps(seen, indent=1, sort_keys=True) + '\n')
+        tmp = SEEN_CACHE.with_suffix('.json.tmp')
+        tmp.write_text(json.dumps(seen, indent=1, sort_keys=True) + '\n')
+        tmp.replace(SEEN_CACHE)  # atomic: a killed run can't tear the cache
     except OSError:
         pass
 

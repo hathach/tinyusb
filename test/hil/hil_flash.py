@@ -28,6 +28,12 @@ CMD_TIMEOUT = int(os.getenv('HIL_CMD_TIMEOUT', '180'))
 # flasher names (dispatch key, board['flasher']['name'].lower()) whose reset_* is a no-op
 RESET_NOOP = {'esptool', 'lm4flash', 'stflash', 'uniflash'}
 
+# extra parents find_firmware ALSO searches after build_dir. Empty by default so
+# hil_test's -B stays authoritative (a board missing there must report "Skip (no
+# binary)", never silently flash a stale binary from another tree); pool_check
+# opts in to cover both standard layouts.
+EXTRA_BUILD_DIRS: list = []
+
 
 def cmd_stdout_text(out: Any) -> str:
     if out is None:
@@ -73,7 +79,9 @@ def run_cmd(cmd: str, cwd: str | None = None, timeout: int = CMD_TIMEOUT) -> sub
         'errors': 'replace',
     }
     if os.name != 'nt':
-        popen_kwargs['preexec_fn'] = os.setsid
+        # C-level setsid, same process-group semantics as preexec_fn=os.setsid but
+        # safe when called from threads (pool_check runs flashes from a thread pool)
+        popen_kwargs['start_new_session'] = True
 
     p = subprocess.Popen(cmd, **popen_kwargs)
     try:
@@ -87,7 +95,10 @@ def run_cmd(cmd: str, cwd: str | None = None, timeout: int = CMD_TIMEOUT) -> sub
                 pass
         else:
             p.kill()
-        out, _ = p.communicate()
+        try:
+            out, _ = p.communicate(timeout=10)
+        except subprocess.TimeoutExpired:  # unkillable (e.g. D-state on wedged USB)
+            out = None
         timeout_out = ex.stdout or out or b''
         title = f'COMMAND TIMEOUT ({timeout}s): {cmd}'
         print()
@@ -263,14 +274,13 @@ def reset_lm4flash(board):
 
 def find_firmware(variant: str, example: str):
     """Locate a built example's firmware base path (no extension) under
-    <build_dir>/cmake-build-<variant>/<example>/. Tries the caller-set build_dir
-    first, then the two standard layouts ('cmake-build', the tools/build.py and
-    ESP-IDF default; 'examples', the manually-built HIL layout), skipping
-    duplicates. Accepts the single-config layout (firmware directly in the example
-    dir) or Ninja Multi-Config (a per-config subdir like RelWithDebInfo/). Returns
-    the base Path, or None if not built in any of them."""
+    <build_dir>/cmake-build-<variant>/<example>/, then under EXTRA_BUILD_DIRS
+    (empty unless the caller opts in — see its comment). Accepts the single-config
+    layout (firmware directly in the example dir) or Ninja Multi-Config (a
+    per-config subdir like RelWithDebInfo/). Returns the base Path, or None if
+    not built."""
     base = Path(example).name
-    for bd in dict.fromkeys([build_dir, 'cmake-build', 'examples']):
+    for bd in dict.fromkeys([build_dir, *EXTRA_BUILD_DIRS]):
         fw_dir = TINYUSB_ROOT / bd / f'cmake-build-{variant}' / example
         if not fw_dir.is_dir():
             continue

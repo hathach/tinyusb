@@ -45,8 +45,12 @@ preferred; host-only boards get `host/device_info` and are checked for serial ou
 device enumeration), waits for the board's uid to (re-)enumerate, applies safe per-device recovery
 (probe authorized-toggle after repeated flash failure, board reset when the uid stays down), then
 prints a markdown summary table plus a USB topology report (controller PCI address/vendor → bus →
-root-port subtree device counts — spots dead or thinned hub legs at a glance). Each board is flock'd (hil_lock.py protocol) — safe alongside CI; locked boards are
-reported 🔒 locked and skipped immediately — never waited on, never bypassed.
+root-port subtree device counts — spots dead or thinned hub legs at a glance). Each board is
+flock'd (hil_lock.py protocol): locked boards are reported 🔒 locked and skipped immediately —
+never waited on, never bypassed. The locks prevent per-board *collisions* with a concurrent CI
+run, but note the converse: a CI worker reaching a board pool_check holds fails it as
+"board locked" (a red cell in that CI run), and pool_check's flashes take no cross-process
+per-controller budget (default `-j 4` keeps the load modest) — prefer running between CI runs.
 
 ```bash
 python3 .claude/skills/hil/pool_check.py                  # full check, ~10 s + ~1-2 s/board with firmware
@@ -62,7 +66,9 @@ get a probe-only check. Boards are re-parked with `board_test` afterwards (`--no
 `⚠ pid … source says …` note means stale firmware on disk or a silent flash no-op (probe reset the
 MCU without writing — see J-Link silent-no-op lore). A missing probe is reported with its last-seen
 bus location (cached in `~/.cache/tinyusb-hil/pool_seen.json`); recovering a device that is off the
-bus entirely needs the usb-kernel-recover skill or a physical replug. Exit code = unhealthy count.
+bus entirely needs the usb-kernel-recover skill or a physical replug. Exit code = count of `bad`
+boards only — `locked` and `skipped` rows are *unverified*, not healthy, so an all-locked or
+no-firmware run exits 0 while having proven nothing; read the footer, not just `$?`.
 
 ## Prerequisites
 
