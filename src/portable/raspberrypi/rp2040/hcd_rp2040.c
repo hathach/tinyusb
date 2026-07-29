@@ -427,6 +427,10 @@ bool hcd_deinit(uint8_t rhport) {
   irq_remove_handler(USBCTRL_IRQ, hcd_rp2040_irq);
   reset_block(RESETS_RESET_USBCTRL_BITS);
   unreset_block_wait(RESETS_RESET_USBCTRL_BITS);
+
+  // Release allocated resources
+  rp2usb_deinit();
+
   return true;
 }
 
