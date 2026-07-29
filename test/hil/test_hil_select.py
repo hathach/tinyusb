@@ -240,6 +240,47 @@ class TestRealRosterPortFamilies(unittest.TestCase):
             self.assertIn(board, s['boards'])
 
 
+class TestOptionGatedPort(unittest.TestCase):
+    """Regression: family_support.cmake compiles some ports from a build option
+    (MAX3421_HOST=1 -> hcd_max3421.c), so a board's family file never names them."""
+    # host-side option board (max3421 as host controller), off any max3421 family
+    OPT_ROSTER = [('test/hil/opt.json', [
+        {'name': 'fake_dual_board', 'uid': 'o1', 'flasher': {'name': 'jlink'},
+         'build': {'args': ['MAX3421_HOST=1']},
+         'tests': {'device': True, 'host': False, 'dual': True}},
+        {'name': 'fake_host_board', 'uid': 'o2', 'flasher': {'name': 'jlink'},
+         'variant': [{'name': 'fake_host_board', 'flags': '-DMAX3421_HOST=1'}],
+         'tests': {'device': False, 'host': True, 'dual': False}},
+        {'name': 'fake_off_board', 'uid': 'o3', 'flasher': {'name': 'jlink'},
+         'variant': [{'name': 'fake_off_board', 'defines': ['MAX3421_HOST=0']}],
+         'tests': {'device': True, 'host': True, 'dual': True}},
+    ])]
+
+    def test_real_roster_max3421_selects_option_board(self):
+        boards = on_roster(self, 'metro_m4_express')
+        s = hil_select.classify(['src/portable/analog/max3421/hcd_max3421.c'], REPO, real_rosters())
+        self.assertFalse(s['full'])
+        for board in boards:
+            self.assertIn(board, s['boards'])
+
+    def test_option_selects_via_args_defines_and_flags(self):
+        s = hil_select.classify(['src/portable/analog/max3421/hcd_max3421.c'], REPO, self.OPT_ROSTER)
+        self.assertFalse(s['full'])
+        self.assertIn('fake_dual_board', s['boards'])    # build.args
+        self.assertIn('fake_host_board', s['boards'])    # variant flags
+        self.assertNotIn('fake_off_board', s['boards'])  # variant defines, but =0
+
+    def test_device_role_port_does_not_pull_host_only_option_board(self):
+        s = hil_select.classify(['src/portable/analog/max3421/dcd_max3421.c'], REPO, self.OPT_ROSTER)
+        self.assertFalse(s['full'])
+        self.assertNotIn('fake_host_board', s['boards'])  # host-only board, device change
+        self.assertIn('fake_dual_board', s['boards'])     # device-capable option board
+
+    def test_gates_parsed_from_family_support(self):
+        self.assertEqual(hil_select.port_option_gates(REPO).get('analog/max3421'),
+                         {'MAX3421_HOST'})
+
+
 class TestPortFamiliesCoverage(unittest.TestCase):
     """Systematic guard: every real dcd_*/hcd_* port directory should map to at
     least one board family, so a future family.cmake/CMakeLists.txt layout that

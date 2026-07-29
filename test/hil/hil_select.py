@@ -86,6 +86,59 @@ def board_family(board_name: str, repo_root: str):
     return os.path.basename(os.path.dirname(os.path.dirname(hits[0]))) if hits else None
 
 
+# `if (OPTION STREQUAL "1")` guards in family_support.cmake, and the option tokens
+# a roster entry passes to the build (NAME=VALUE / -DNAME=VALUE)
+_CM_IF_RE = re.compile(r'if\s*\(')
+_CM_ELSE_RE = re.compile(r'else(if)?\s*\(')
+_CM_ENDIF_RE = re.compile(r'endif\s*\(')
+_CM_OPT_RE = re.compile(r'if\s*\(\s*\$?\{?([A-Za-z_]\w*)\}?\s+STREQUAL\s+"?1"?\s*\)')
+_CM_PORT_RE = re.compile(r'src/portable/((?:[^/\s]+/)?[^/\s]+)/')
+_FALSY = ('', '0', 'off', 'false', 'no')
+
+
+@functools.lru_cache(maxsize=None)
+def port_option_gates(repo_root: str) -> dict:
+    """port dir -> build options that compile it regardless of the board's family
+    file, e.g. {'analog/max3421': {'MAX3421_HOST'}} from family_support.cmake."""
+    gates = {}
+    try:
+        text = open(os.path.join(repo_root, 'hw/bsp/family_support.cmake')).read()
+    except OSError:
+        return gates
+    stack = []                                  # one entry per open if(): its option, or None
+    for line in text.splitlines():
+        line = line.strip()
+        if _CM_IF_RE.match(line):
+            m = _CM_OPT_RE.match(line)
+            stack.append(m.group(1) if m else None)
+        elif _CM_ELSE_RE.match(line):
+            if stack:
+                stack[-1] = None                # the guard doesn't hold in this branch
+        elif _CM_ENDIF_RE.match(line):
+            if stack:
+                stack.pop()
+        opts = {o for o in stack if o}
+        m = _CM_PORT_RE.search(line)
+        if opts and m:
+            gates.setdefault(m.group(1), set()).update(opts)
+    return gates
+
+
+def board_options(board: dict) -> set:
+    """Build options a roster entry sets truthy: build.args plus each variant's
+    defines (NAME=VALUE) and raw CFLAGS (-DNAME=VALUE)."""
+    toks = list(board.get('build', {}).get('args', []))
+    for v in board.get('variant', []):
+        toks += list(v.get('defines', []))
+        toks += v.get('flags', '').split()
+    out = set()
+    for t in toks:
+        name, _, val = (t[2:] if t.startswith('-D') else t).partition('=')
+        if name and val.strip().strip('"').lower() not in _FALSY:
+            out.add(name.strip())
+    return out
+
+
 @functools.lru_cache(maxsize=None)
 def port_families(port_dir: str, repo_root: str) -> set:
     fams = set()
@@ -193,11 +246,18 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel):
             s.force_full(f'{path}: port {port} maps to no board family -> full matrix')
             return
         s.families.update(fams)
+        # a board can also pull the port in through a build option (e.g. MAX3421_HOST=1
+        # on metro_m4_express), which its family file never names
+        gates = port_option_gates(repo_root).get(port, set())
         boards = [b['name'] for b in roster_boards
-                  if board_family(b['name'], repo_root) in fams and (board_roles(b) & roles)]
+                  if (board_family(b['name'], repo_root) in fams or
+                      (gates and board_options(b) & gates)) and (board_roles(b) & roles)]
         tests = role_tests(roles, extras)
         s.roles.update(roles)
-        s.add(boards, tests, f'{path}: port {port} -> families {sorted(fams)} -> boards {boards} ({"/".join(sorted(roles))})')
+        why = f'{path}: port {port} -> families {sorted(fams)}'
+        if gates:
+            why += f' + option {sorted(gates)}'
+        s.add(boards, tests, f'{why} -> boards {boards} ({"/".join(sorted(roles))})')
         return
 
     m = re.match(r'src/class/([^/]+)/', path)
