@@ -30,9 +30,9 @@ Hold the board lock for the WHOLE manual session; never stop the
 actions-runner (see the `hil` skill for the full lock protocol):
 
 ```bash
-python3 test/hil/board_lock.py hold <board> --reason "target debug: <bug>"
+python3 test/hil/hil_lock.py hold <board> --reason "target debug: <bug>"
 # ... instrument / build / flash / capture / GDB ...
-python3 test/hil/board_lock.py release <board>
+python3 test/hil/hil_lock.py release <board>
 ```
 
 Board → probe mapping: `test/hil/tinyusb.json` — `flasher.name` is the probe
@@ -44,7 +44,7 @@ family, `flasher.uid` the **probe serial** (many identical probes on the rig):
   `hw/bsp/<family>/boards/<board>/board.cmake` (or `board.mk`); family via
   `ls -d hw/bsp/*/boards/<board>`.
 - Run on the host that owns the probe — config `test/hil/tinyusb.json` on ci,
-  `local.json` on htpc (`hil` skill).
+  `test/hil/hfp.json` on tusb, `local.json` on any other host (dev PC) (`hil` skill).
 - Espressif boards (S3/P4): different toolchain, probe model, and PHY
   constraints entirely — read `esp-target-debug` first.
 

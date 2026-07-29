@@ -57,7 +57,7 @@ refuses a busport that now names a different device.
 
 It bounces **every fixture under that root port** — on ci that is up to 25
 devices. Hold the affected boards' locks first if you can, but note
-`board_lock.py` uses `LOCK_EX | LOCK_NB` and so fails immediately when CI already
+`hil_lock.py` uses `LOCK_EX | LOCK_NB` and so fails immediately when CI already
 holds them; there is no wait-for-lock. When CI is mid-run you are choosing
 between bouncing its fixtures and leaving the bus wedged for everything. The
 automated path in `usbtest.py` takes no locks at all and accepts that collateral
