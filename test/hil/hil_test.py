@@ -1561,7 +1561,14 @@ def test_board(board: Board) -> tuple[str, int, list[str], list, float]:
                 # with. Park on board_test first - it disables the board's USB, so the
                 # PID goes away and the next flash must re-enumerate to be seen.
                 t_park = time.monotonic()
-                test_example(board, vname, 'device/board_test')
+                park_ec, park_status, _ = test_example(board, vname, 'device/board_test')
+                if park_ec or park_status == 'skip':
+                    # boundary not cleared: the previous variant's device is still enumerated
+                    # under the same PID, so the next test may pass against its firmware
+                    why = 'no board_test binary' if park_status == 'skip' else 'park flash failed'
+                    log_line(f'{vname:40} {"same-PID boundary":30} {STATUS_FAILED}: not cleared ({why})')
+                    err_count += 1
+                    failed_tests.append(run_list[0])
                 t_board += time.monotonic() - t_park  # park is teardown, not board cost
             if run_list:
                 prev_last = run_list[-1]
