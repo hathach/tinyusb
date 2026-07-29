@@ -387,6 +387,9 @@ bool dcd_deinit(uint8_t rhport) {
   reset_block(RESETS_RESET_USBCTRL_BITS);
   unreset_block_wait(RESETS_RESET_USBCTRL_BITS);
 
+  // Release allocated resources
+  rp2usb_deinit();
+
   return true;
 }
 
