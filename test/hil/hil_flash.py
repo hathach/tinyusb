@@ -272,15 +272,17 @@ def reset_lm4flash(board):
     return subprocess.CompletedProcess(args=['dummy'], returncode=0)
 
 
-def find_firmware(variant: str, example: str):
+def find_firmware(variant: str, example: str, roots: list | None = None):
     """Locate a built example's firmware base path (no extension) under
     <build_dir>/cmake-build-<variant>/<example>/, then under EXTRA_BUILD_DIRS
-    (empty unless the caller opts in — see its comment). Accepts the single-config
-    layout (firmware directly in the example dir) or Ninja Multi-Config (a
-    per-config subdir like RelWithDebInfo/). Returns the base Path, or None if
-    not built."""
+    (empty unless the caller opts in — see its comment). `roots` overrides that
+    search list entirely for one call (e.g. to find a build just produced by
+    tools/build.py in its fixed cmake-build/ layout without widening the global
+    policy). Accepts the single-config layout (firmware directly in the example
+    dir) or Ninja Multi-Config (a per-config subdir like RelWithDebInfo/).
+    Returns the base Path, or None if not built."""
     base = Path(example).name
-    for bd in dict.fromkeys([build_dir, *EXTRA_BUILD_DIRS]):
+    for bd in dict.fromkeys(roots if roots is not None else [build_dir, *EXTRA_BUILD_DIRS]):
         fw_dir = TINYUSB_ROOT / bd / f'cmake-build-{variant}' / example
         if not fw_dir.is_dir():
             continue

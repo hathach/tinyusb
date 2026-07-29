@@ -141,7 +141,12 @@ def lock_board(name: str):
         # would need flock_nb to distinguish the two
         info = hil_lock.read_record(name)
         return json.dumps(info) if info else 'unknown holder'
-    hil_lock.write_record(fh, 'pool_check')
+    if not hil_lock.write_record(fh, 'pool_check'):
+        # an invisible lock (flock held, no record) is worse than no lock: status
+        # can't show us and release can't recognize the protected holder — bail out
+        hil_lock.clear_record(fh)
+        fh.close()
+        return 'ERROR: holder record write failed (lock dir unwritable?)'
     return fh
 
 
@@ -302,17 +307,19 @@ def flash_error_line(out: str) -> str:
     return lines[-1][:90] if lines else ''
 
 
-def check_host_serial(board: dict) -> bool:
+def check_host_serial(board: dict) -> bytes | None:
     """Host-only boards never enumerate their uid (their USB port is the host side);
-    aliveness = any output on the flasher's UART bridge after a reset. A probe byte
-    is written each poll so an echo-only firmware (board_test) also counts."""
+    aliveness = output on the flasher's UART bridge after a reset. A probe byte is
+    written each poll so an echo-only firmware (board_test) also answers. Returns
+    the first output chunk (b'' when silent, None when the port is absent/drops) so
+    the caller can also judge WHAT answered — see boardtest_output()."""
     import serial
     try:
         port = hil_flash.get_serial_dev(board['flasher']['uid'], None, None, 0)
         ser = serial.Serial(port, baudrate=115200, timeout=0.3, write_timeout=1)
     except Exception as e:
         say(f'{board["name"]:26} no flasher serial port: {e}')
-        return False
+        return None
     try:
         # flush BEFORE issuing the reset: pyserial's open-time flush is long past,
         # so this drops the pre-reset CDC backlog (which must not count as life)
@@ -324,15 +331,25 @@ def check_host_serial(board: dict) -> bool:
         while time.monotonic() < deadline:
             try:
                 ser.write(b'U')
-                if ser.read(64):
-                    return True
+                data = ser.read(64)
+                if data:
+                    return data
             except serial.SerialTimeoutException:
                 pass
             except serial.SerialException:
-                return False  # port dropped mid-poll (bridge re-enumerating): silent
-        return False
+                return None  # port dropped mid-poll (bridge re-enumerating)
+        return b''
     finally:
         ser.close()
+
+
+def boardtest_output(data: bytes) -> bool:
+    """True when serial output is recognizably board_test's, not a host example's:
+    its periodic HELLO_STR, or nothing but echoes of our b'U' pokes (no host
+    example echoes). Used as a negative identity marker — after flashing a host
+    example, board_test chatter means the flash silently didn't take (the host
+    analog of the device path's PID check)."""
+    return b'Hello from TinyUSB' in data or set(data) <= set(b'U\r\n')
 
 
 def ensure_board_test(board: dict, variant: str):
@@ -367,14 +384,26 @@ def ensure_board_test(board: dict, variant: str):
     r = hil_flash.run_cmd(shlex.join(cmd), cwd=str(hil_flash.TINYUSB_ROOT), timeout=300)
     if r.returncode != 0:
         return None
-    return hil_flash.find_firmware(variant, 'device/board_test')
+    # tools/build.py always writes to cmake-build/: look there too even when an
+    # explicit -B narrowed the global search — this is OUR fresh build, not a
+    # stale-candidate fallback
+    return hil_flash.find_firmware(variant, 'device/board_test',
+                                   roots=[hil_flash.build_dir, 'cmake-build'])
 
 
-def host_alive(board: dict, note: list) -> bool:
+def host_alive(board: dict, note: list, flashed_example: bool = False) -> bool:
     """Serial aliveness with recovery: silent -> (build and) flash board_test (it
     hellos every second and echoes) -> recheck. Also cures a silent flash no-op
-    that left the board crashed."""
-    if check_host_serial(board):
+    that left the board crashed.
+
+    With flashed_example=True (a host example was just flashed), board_test-shaped
+    output FAILS the check: the parked image still talking means the example flash
+    silently didn't take — the host analog of the device path's PID check."""
+    data = check_host_serial(board)
+    if data:
+        if flashed_example and boardtest_output(data):
+            note.append('board_test output after example flash: silent flash no-op')
+            return False
         return True
     variant = resolve_variant(board, 'device/board_test', note)
     fw = ensure_board_test(board, variant)
@@ -386,7 +415,7 @@ def host_alive(board: dict, note: list) -> bool:
     if rc != 0:
         note.append(f'serial silent; board_test flash failed: {err}')
         return False
-    ok = check_host_serial(board)
+    ok = bool(check_host_serial(board))
     if ok:
         note.append('recovered via board_test reflash')
     return ok
@@ -491,9 +520,13 @@ def check_board(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
 
     lk = lock_board(name)
     if isinstance(lk, str):
-        row['flash'] = '🔒 locked'
+        if lk.startswith('ERROR:'):  # environment failure, not a held lock
+            row['flash'] = '❌ lock'
+            row['status'] = 'bad'
+        else:
+            row['flash'] = '🔒 locked'
+            row['status'] = 'locked'
         note.append(lk)
-        row['status'] = 'locked'
         say(f'{name:26} locked: {lk}')
         return row
     try:
@@ -516,7 +549,7 @@ def check_board(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
             row['flash'] = f'✅ {Path(example).name}'
 
             if kind == 'host':
-                ok = host_alive(board, note)
+                ok = host_alive(board, note, flashed_example=True)
                 row['device'] = '✅ serial out' if ok else '❌ no serial out'
             else:
                 ok = device_recover_and_check(board, example, old_ino, note, row, seen)
