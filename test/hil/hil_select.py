@@ -12,6 +12,7 @@ sample from these), args (hil_test.py args per config) and args_flasher (the sam
 args split by each board's flasher, for CI legs that split one rig by flasher).
 """
 import argparse
+import functools
 import glob
 import json
 import os
@@ -33,7 +34,14 @@ _FULL_RE = re.compile(
     r'test/hil/|\.github/workflows/build.*\.yml$|\.github/actions/|'
     r'tools/build\.py$|tools/get_deps\.py$|tools/cmake/|hw/mcu/|lib/|'
     r'hw/bsp/(family_support\.cmake|board_api\.h|board\.c|ansi_escape\.h)$|'
-    r'examples/build_system/|examples/CMakeLists\.txt$)')
+    r'examples/build_system/|examples/CMakeLists\.txt$|'
+    # board_test is HIL infrastructure, not a test: hil_test.py flashes it to park
+    # every board (variant boundary + end-of-board teardown), so every board depends on it
+    r'examples/device/board_test/)')
+
+# --no-renames: with rename detection git reports only a rename's destination, so code
+# moved out of an HIL-relevant path would be classified by its new path alone
+GIT_DIFF_ARGV = ['git', 'diff', '--no-renames', '--name-only']
 
 
 def test_role(test: str) -> str:
@@ -71,11 +79,14 @@ def board_tests(board: dict) -> list:
     return [x for x in run if x not in t.get('skip', [])]
 
 
+# cached: called per changed file x roster board, and the tree doesn't change mid-run
+@functools.lru_cache(maxsize=None)
 def board_family(board_name: str, repo_root: str):
     hits = glob.glob(os.path.join(repo_root, 'hw/bsp/*/boards', board_name))
     return os.path.basename(os.path.dirname(os.path.dirname(hits[0]))) if hits else None
 
 
+@functools.lru_cache(maxsize=None)
 def port_families(port_dir: str, repo_root: str) -> set:
     fams = set()
     bsp_root = os.path.join(repo_root, 'hw/bsp')
@@ -269,10 +280,11 @@ def classify(changed_files, repo_root, rosters):
 
     extras = roster_only_tests(all_boards)
     s = _Sel()
+    # no early exit once full: keep classifying so `families` still reports every
+    # family the diff touches (build-only consumers need it). Nothing after the first
+    # force_full can change full/boards/args - the full branch below ignores by_board.
     for path in changed_files:
         _classify_one(path, repo_root, all_boards, extras, s)
-        if s.full:
-            break
 
     if s.full:
         return {'full': True, 'boards': {b['name']: 'all' for b in all_boards},
@@ -339,7 +351,7 @@ def selection_args_by_flasher(sel, rosters):
 def changed_files_from_git(base, repo_root):
     mb = subprocess.run(['git', 'merge-base', 'HEAD', base], cwd=repo_root,
                         capture_output=True, text=True, check=True).stdout.strip()
-    diff = subprocess.run(['git', 'diff', '--name-only', f'{mb}..HEAD'], cwd=repo_root,
+    diff = subprocess.run(GIT_DIFF_ARGV + [f'{mb}..HEAD'], cwd=repo_root,
                           capture_output=True, text=True, check=True).stdout
     return [l for l in diff.splitlines() if l.strip()]
 

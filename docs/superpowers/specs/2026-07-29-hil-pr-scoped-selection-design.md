@@ -95,7 +95,8 @@ sets `full: true` (fail-open). Rules, first match wins:
    Family-agnostic BSP files (`hw/bsp/board_api.h`, `hw/bsp/board.c`, ansi_escape.h) → full.
 7. **Example:** `examples/<role>/<ex>/**` → all roster boards, tests = that example if present
    in hil_test.py's lists, else contributes nothing. `examples/build_system/**`, top-level
-   `examples/CMakeLists.txt` → full.
+   `examples/CMakeLists.txt` → full. `examples/device/board_test/**` → full: it is the park
+   firmware hil_test.py flashes on every board (variant boundary + teardown), not a test.
 8. **Harness/infra:** `test/hil/**`, `.github/workflows/build*.yml`,
    `.github/actions/**`, `tools/build.py`, `tools/get_deps.py`, `tools/cmake/**`,
    `hw/mcu/**`, `lib/**` → full.

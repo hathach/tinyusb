@@ -149,6 +149,13 @@ class TestFallbackRules(unittest.TestCase):
         for f in ['src/tusb.c', 'src/common/tusb_fifo.c', 'src/osal/osal_freertos.h']:
             self.assertTrue(sel([f])['full'], f)
 
+    def test_board_test_example_is_full(self):
+        # board_test is the park/teardown firmware hil_test.py flashes on every board,
+        # not an unlisted example: a regression there must not skip the whole rig
+        for f in ['examples/device/board_test/src/main.c',
+                  'examples/device/board_test/CMakeLists.txt']:
+            self.assertTrue(sel([f])['full'], f)
+
     def test_harness_is_full(self):
         for f in ['test/hil/hil_test.py', '.github/workflows/build.yml', 'hw/mcu/nxp/x.c', 'lib/foo/x.c']:
             self.assertTrue(sel([f])['full'], f)
@@ -347,6 +354,31 @@ class TestFamilies(unittest.TestCase):
 
     def test_docs_only_has_no_families(self):
         self.assertEqual(sel(['docs/info/contributing.rst'])['families'], [])
+
+    def test_full_selection_still_reports_families(self):
+        """A full-matrix file must not hide the families of the other changed files:
+        consumers that build from `families` (e.g. /pre-pr) ignore `boards` when full."""
+        s = sel(['src/common/tusb_fifo.c', 'src/portable/microchip/samx7x/dcd_samx7x.c'])
+        self.assertTrue(s['full'])
+        self.assertIn('same7x', s['families'])
+        # full stays full: every roster board, and no args to narrow the run
+        self.assertEqual(set(s['boards']), {b['name'] for b in ROSTER})
+        self.assertTrue(all(v == 'all' for v in s['boards'].values()))
+        self.assertEqual(hil_select.selection_args(s, ROSTERS), {'tinyusb.json': ''})
+        self.assertEqual(hil_select.selection_args_by_flasher(s, ROSTERS), {'tinyusb.json': {}})
+
+    def test_family_order_does_not_matter(self):
+        # same as above with the full-matrix file last (was the only order that worked)
+        s = sel(['src/portable/microchip/samx7x/dcd_samx7x.c', 'src/common/tusb_fifo.c'])
+        self.assertTrue(s['full'])
+        self.assertIn('same7x', s['families'])
+
+
+class TestGitDiffArgv(unittest.TestCase):
+    def test_diff_disables_rename_detection(self):
+        """Without --no-renames git reports only a rename's destination, so moving an
+        HIL-relevant file to a non-code path would be classified as non-code only."""
+        self.assertIn('--no-renames', hil_select.GIT_DIFF_ARGV)
 
 
 class TestPortWithoutFamilyIsFull(unittest.TestCase):
