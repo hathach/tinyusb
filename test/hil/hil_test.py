@@ -1555,6 +1555,12 @@ def test_board(board: Board) -> tuple[str, int, list[str], list, float]:
                 random.Random(f'{shuffle_seed}:{name}:{vname}').shuffle(run_list)
                 if run_list[0] == prev_last:
                     run_list[0], run_list[-1] = run_list[-1], run_list[0]
+            if run_list and run_list[0] == prev_last and not skip_flash:
+                # Same example (same PID) still repeats across the boundary: a one-test
+                # list (the common case for a -bt scoped run) leaves nothing to swap
+                # with. Park on board_test first - it disables the board's USB, so the
+                # PID goes away and the next flash must re-enumerate to be seen.
+                test_example(board, vname, 'device/board_test')
             if run_list:
                 prev_last = run_list[-1]
             t_variant = time.monotonic()
@@ -1674,7 +1680,7 @@ def render_matrix(rows_all: list) -> str:
 
 def accumulate_report(mret: list, report_dir: Path, fresh: bool) -> str:
     """Merge this run's results into hil_report.json in report_dir, then (re)write
-    the markdown matrix to hil_report.md. `fresh` (a full run, no --accumulate/-bt)
+    the markdown matrix to hil_report.md. `fresh` (a first run, no --accumulate)
     starts a new report; otherwise a re-run accumulates so boards/tests that
     already passed are preserved while re-run cells are updated. Returns the md."""
     acc = {}  # ordered {row_label: [cells dict, duration str|None]}
@@ -1799,13 +1805,14 @@ def main() -> None:
 
     # HIL report sidecar (hil_report.json/.md) and the .failed re-run spec live in
     # report_dir (CI keys it by run id, so it persists across run attempts but is
-    # private to one run). A full run starts fresh; a re-run (--accumulate / -bt,
-    # i.e. the .failed file) merges so already-passed boards/tests are preserved.
-    # Clear prior state up front on a fresh run so a crash mid-run can't leave a
-    # stale report or re-run spec to be consumed by a retry.
+    # private to one run). A full run starts fresh; a re-run (--accumulate, which
+    # the generated .failed spec always starts with) merges so already-passed
+    # boards/tests are preserved. Clear prior state up front on a fresh run so a
+    # crash mid-run can't leave a stale report or re-run spec for a retry.
+    # -bt alone is not a re-run marker: PR-scoped first attempts pass -bt too.
     report_dir = Path(os.environ.get('HIL_REPORT_DIR', '.'))
     failed_fname = report_dir / (config_file.name + '.failed')
-    fresh = not (args.accumulate or args.board_test)
+    fresh = not args.accumulate
     if fresh:
         report_dir.mkdir(parents=True, exist_ok=True)
         for f in (REPORT_JSON, REPORT_MD):
