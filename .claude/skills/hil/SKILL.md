@@ -61,8 +61,9 @@ python3 .claude/skills/hil/pool_check.py -b BOARD [-b …]  # subset; may name b
 ssh ci.lan 'bash -lc "cd ~/code/tinyusb && python3 .claude/skills/hil/pool_check.py"'
 ```
 
-Notes: needs built firmware (`examples/cmake-build-<board>`, `-B` to override); boards without it
-get a probe-only check. Boards are re-parked with `board_test` afterwards (`--no-park` to skip). A
+Notes: needs built firmware (`examples/cmake-build-<board>` or `cmake-build/cmake-build-<board>`
+by default; an explicit `-B` names ONE tree and is searched exclusively); boards without it get a
+probe-only check. Boards are re-parked with `board_test` afterwards (`--no-park` to skip). A
 `⚠ pid … source says …` note means stale firmware on disk or a silent flash no-op (probe reset the
 MCU without writing — see J-Link silent-no-op lore). A missing probe is reported with its last-seen
 bus location (cached in `~/.cache/tinyusb-hil/pool_seen.json`); recovering a device that is off the

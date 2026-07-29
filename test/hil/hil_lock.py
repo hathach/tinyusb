@@ -255,9 +255,13 @@ def usbtest_permit(uid: str) -> controller_permit:
 
 # --- operator CLI (hold/release/status) ------------------------------------
 def boards_from_config(config: str) -> list:
+    """All board names, INCLUDING boards-skip: `hold --all` guards rig-wide
+    operations, and parked boards can still be touched (pool_check -b names them
+    explicitly), so a rig-wide hold that skipped them would leave a gap."""
     try:
         with open(config) as f:
-            return [b['name'] for b in json.load(f)['boards']]
+            cfg = json.load(f)
+            return [b['name'] for b in cfg['boards'] + cfg.get('boards-skip', [])]
     except (OSError, ValueError, KeyError) as e:
         print(f'ERROR: cannot read board roster {config}: {e}', file=sys.stderr)
         sys.exit(1)

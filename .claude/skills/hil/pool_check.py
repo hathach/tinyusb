@@ -21,6 +21,7 @@ import json
 import glob
 import os
 import re
+import shlex
 import socket
 import subprocess
 import sys
@@ -268,13 +269,18 @@ def flash(board: dict, example: str, variant: str, allow_recovery: bool, probe_p
             if not (allow_recovery and probe_port):
                 return False
             cur = find_usb(board['flasher']['uid'])
-            port = cur[0] if cur else probe_port  # re-resolve: probe may have moved busport
-            say(f'{board["name"]:26} recovery: replugging probe {port} (authorized toggle)')
-            if recover_probe(board['flasher']['uid'], port):
-                note.append('probe replugged')
-                time.sleep(2)  # udev recreates /dev/serial/by-id symlinks after re-enumeration
+            if cur is None:
+                # probe gone from the bus: its old busport may now hold an UNRELATED
+                # device (bus renumbering) and the helper only checks occupancy, so
+                # toggling would deauthorize an innocent fixture — skip the toggle
+                note.append('probe vanished before toggle')
             else:
-                note.append('probe toggle unconfirmed')
+                say(f'{board["name"]:26} recovery: replugging probe {cur[0]} (authorized toggle)')
+                if recover_probe(board['flasher']['uid'], cur[0]):
+                    note.append('probe replugged')
+                    time.sleep(2)  # udev recreates /dev/serial/by-id symlinks after re-enumeration
+                else:
+                    note.append('probe toggle unconfirmed')
         rc, err = call_flasher(fn, board, str(fw))
         if rc == 0:
             return True
@@ -355,12 +361,10 @@ def ensure_board_test(board: dict, variant: str):
         cmd += ['-D', d]
     for tok in vcfg.get('flags', '').split():
         cmd += [f'--cflag={tok}']
-    try:
-        # bounded: runs while the board's flock is held
-        r = subprocess.run(cmd, cwd=hil_flash.TINYUSB_ROOT, capture_output=True, text=True,
-                           timeout=300)
-    except subprocess.TimeoutExpired:
-        return None
+    # via run_cmd: bounded (runs while the board's flock is held) AND process-group
+    # killed on timeout — a bare subprocess.run timeout reaps only the build.py
+    # wrapper, leaving cmake/ninja orphans mutating the build tree after we return
+    r = hil_flash.run_cmd(shlex.join(cmd), cwd=str(hil_flash.TINYUSB_ROOT), timeout=300)
     if r.returncode != 0:
         return None
     return hil_flash.find_firmware(variant, 'device/board_test')
@@ -503,35 +507,47 @@ def check_board(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
         pre = find_device(board['uid'], None)
         old_ino = pre[2] if pre else None
 
-        if not flash(board, example, variant, allow_recovery, probe[0], note):
-            row['flash'] = f'❌ {Path(example).name}'
-            row['status'] = 'bad'
-            say(f'{name:26} flash FAILED ({example})')
-            return row
-        row['flash'] = f'✅ {Path(example).name}'
+        try:
+            if not flash(board, example, variant, allow_recovery, probe[0], note):
+                row['flash'] = f'❌ {Path(example).name}'
+                row['status'] = 'bad'
+                say(f'{name:26} flash FAILED ({example})')
+                return row
+            row['flash'] = f'✅ {Path(example).name}'
 
-        if kind == 'host':
-            ok = host_alive(board, note)
-            row['device'] = '✅ serial out' if ok else '❌ no serial out'
-        else:
-            ok = device_recover_and_check(board, example, old_ino, note, row, seen)
-        row['status'] = 'ok' if ok else 'bad'
-        say(f'{name:26} {row["flash"]}  {row["device"]}')
-
-        if not args.no_park:
-            bt_variant = resolve_variant(board, 'device/board_test', note)
-            fw = hil_flash.find_firmware(bt_variant, 'device/board_test')
-            if fw:
-                rc, err = call_flasher(getattr(hil_flash, f'flash_{board["flasher"]["name"].lower()}'),
-                                       board, str(fw))
-                if rc != 0:
-                    note.append(f'park flash failed: {err}')
-                    row['status'] = 'bad'
+            if kind == 'host':
+                ok = host_alive(board, note)
+                row['device'] = '✅ serial out' if ok else '❌ no serial out'
             else:
-                note.append('park skipped: board_test not built')
-        return row
+                ok = device_recover_and_check(board, example, old_ino, note, row, seen)
+            row['status'] = 'ok' if ok else 'bad'
+            say(f'{name:26} {row["flash"]}  {row["device"]}')
+            return row
+        finally:
+            # teardown for EVERY path that attempted a flash (a failed programmer op
+            # can still have erased/half-written the target): re-park while the
+            # board lock is still held
+            if not args.no_park:
+                park_board(board, row, note)
     finally:
         unlock_board(lk)
+
+
+def park_board(board: dict, row: dict, note: list) -> None:
+    """Re-park with board_test, building it if absent (ensure_board_test); a board
+    left unparked — no image obtainable or the park flash failed — makes the row
+    bad: releasing the lock with unknown/active USB firmware perturbs the rig."""
+    variant = resolve_variant(board, 'device/board_test', note)
+    fw = ensure_board_test(board, variant)
+    if fw is None:
+        note.append('unparked: board_test unavailable (build failed/timed out)')
+        row['status'] = 'bad'
+        return
+    rc, err = call_flasher(getattr(hil_flash, f'flash_{board["flasher"]["name"].lower()}'),
+                           board, str(fw))
+    if rc != 0:
+        note.append(f'park flash failed: {err}')
+        row['status'] = 'bad'
 
 
 def check_board_safe(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
@@ -585,8 +601,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('config', nargs='?', help='HIL config json (default: by hostname)')
     parser.add_argument('-b', '--board', action='append', default=[], help='only these boards')
-    parser.add_argument('-B', '--build-dir', default='examples',
-                        help='firmware parent dir, as hil_test -B (default: examples)')
+    parser.add_argument('-B', '--build-dir', default=None,
+                        help='firmware parent dir, searched EXCLUSIVELY when given '
+                             '(default: examples, plus cmake-build as fallback)')
     parser.add_argument('--scan-only', action='store_true',
                         help='USB presence scan only: no locks, no flashing')
     parser.add_argument('--no-park', action='store_true',
@@ -615,11 +632,14 @@ def main() -> None:
             sys.exit(f'board(s) not in {cfg_path.name}: {", ".join(sorted(unknown))}')
         boards = [b for b in boards if b['name'] in args.board]
 
-    hil_flash.build_dir = args.build_dir
+    hil_flash.build_dir = args.build_dir or 'examples'
     hil_flash.verbose = args.verbose
-    # opt in to searching both standard layouts (cmake-build/ from tools/build.py +
-    # ESP-IDF, examples/ from manual builds); hil_test's -B stays authoritative there
-    hil_flash.EXTRA_BUILD_DIRS = ['cmake-build', 'examples']
+    if args.build_dir is None:
+        # default mode: search both standard layouts (cmake-build/ from tools/build.py
+        # + ESP-IDF, examples/ from manual builds). An EXPLICIT -B is exclusive — the
+        # caller named an artifact tree, so a miss must report, not silently flash an
+        # older build from elsewhere. hil_test's -B is likewise untouched by this.
+        hil_flash.EXTRA_BUILD_DIRS = ['cmake-build', 'examples']
     allow_recovery = not args.scan_only and can_recover()
     seen = {}
     try:
