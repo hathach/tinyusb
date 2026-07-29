@@ -65,17 +65,25 @@ python3 .claude/skills/hil/pool_check.py -b BOARD [-b …]  # subset; may name b
 ssh ci.lan 'bash -lc "cd ~/code/tinyusb && python3 .claude/skills/hil/pool_check.py"'
 ```
 
-Notes: needs built firmware (`examples/cmake-build-<board>` or `cmake-build/cmake-build-<board>`
-by default; an explicit `-B` names ONE tree and is searched exclusively); boards without it get a
-probe-only check. Espressif boards additionally need `esptool` on PATH — on the rig it is pip's
-`~/.local/bin/esptool` (a non-login shell may lack that dir: run via `bash -lc` or prefix
-`PATH="$HOME/.local/bin:$PATH"`); building their firmware needs the ESP-IDF env (`get-idf`). Boards are re-parked with `board_test` afterwards (`--no-park` to skip). A
-`⚠ pid … source says …` note means stale firmware on disk or a silent flash no-op (probe reset the
-MCU without writing — see J-Link silent-no-op lore). A missing probe is reported with its last-seen
-bus location (cached in `~/.cache/tinyusb-hil/pool_seen.json`); recovering a device that is off the
-bus entirely needs the usb-kernel-recover skill or a physical replug. Exit code = count of `bad`
-boards only — `locked` and `skipped` rows are *unverified*, not healthy, so an all-locked or
-no-firmware run exits 0 while having proven nothing; read the footer, not just `$?`.
+Notes: firmware is searched in `examples/cmake-build-<board>` and
+`cmake-build/cmake-build-<board>` by default (an explicit `-B` names ONE tree and is searched
+exclusively); a board with nothing built gets its light example **built on the spot**
+(tools/build.py with a one-shot `get_deps -b` retry; espressif via `idf.py`, which needs the
+ESP-IDF env `get-idf`) — never skipped; `--no-build` opts out. Family SDK env vars must be set for
+those builds (rig exports them in `~/.profile`/`~/.bashrc`): `PICO_SDK_PATH` for rp2040/rp2350
+boards (on the rig: `~/code/pico/pico-sdk`). Espressif boards additionally need
+`esptool` on PATH — on the rig it is pip's `~/.local/bin/esptool` (a non-login shell may lack that
+dir: run via `bash -lc` or prefix `PATH="$HOME/.local/bin:$PATH"`). Boards are re-parked with
+`board_test` afterwards (`--no-park` to skip). A `⚠ pid … source says …` note means stale firmware
+on disk or a silent flash no-op (probe reset the MCU without writing — see J-Link silent-no-op
+lore). A missing probe is reported with its last-seen bus location (cached in
+`~/.cache/tinyusb-hil/pool_seen.json`); recovering a device that is off the bus entirely needs the
+usb-kernel-recover skill or a physical replug. Row statuses: `ok` (flashed and verified),
+`flash-failed` (firmware never got onto the board — probe missing, build failed, flasher error,
+silent no-op, park failure), `failed` (flashed but did not verify — no enumeration / no serial),
+`locked` (board flock held; untouched). Exit code = `flash-failed` + `failed` count — `locked` rows
+are *unverified*, not healthy, so an all-locked run exits 0 while having proven nothing; read the
+footer, not just `$?`.
 
 ## Prerequisites
 

@@ -2,11 +2,14 @@
 """Quick HIL pool health check.
 
 For every board in the rig's HIL config: is the flash probe on the USB bus, does a
-light example flash, and does the board's USB device (uid) come back up? Applies
-only per-device-safe recovery (probe authorized-toggle, board reset/re-flash) and
-prints a markdown summary table. Boards are flock'd (hil_lock.py protocol) so a
-concurrent CI hil_test run is never disturbed; locked boards are reported and
-skipped.
+light example flash, and does the board's USB device (uid) come back up? Missing
+firmware is BUILT on the spot (tools/build.py, idf.py for espressif; one get_deps
+retry) — never skipped; --no-build opts out. Applies only per-device-safe recovery
+(probe authorized-toggle, board reset/re-flash) and prints a markdown summary
+table. Row statuses: ok (flashed and verified), flash-failed (firmware never got
+onto the board: probe missing, build failed, flasher error, silent flash no-op,
+park failure), failed (flashed but did not verify: no enumeration/serial), locked
+(board flock held by another process — reported, never waited on or bypassed).
 
 Config is picked by hostname unless given: ci -> tinyusb.json, tusb (hifiphile
 rig) -> hfp.json, anything else is a dev PC -> local.json.
@@ -22,6 +25,7 @@ import glob
 import os
 import re
 import shlex
+import shutil
 import socket
 import subprocess
 import sys
@@ -193,16 +197,18 @@ def resolve_variant(board: dict, example: str, note: list | None = None) -> str:
     for v in board.get('variant') or [{'name': name}]:
         vn = v['name']
         if hil_flash.find_firmware(vn, example):
-            if vn != name and note is not None:
+            if vn != name and note is not None and f'variant: {vn}' not in note:
                 note.append(f'variant: {vn}')
             return vn
     return name
 
 
-def pick_example(board: dict, note: list) -> tuple[str | None, str | None, str | None]:
+def pick_example(board: dict, note: list, build_missing: bool = True) -> tuple[str | None, str | None, str | None]:
     """(example, kind, variant) with built firmware for this board; kind is
     'device' (uid check) or 'host' (serial-output check); variant is the resolved
-    build-dir variant that has it (see resolve_variant)."""
+    build-dir variant that has it (see resolve_variant). When nothing is built and
+    build_missing is set (the default — never skip a board for lack of a build),
+    the preferred candidate is built on the spot via ensure_fw."""
     tests = board.get('tests', {})
     only = tests.get('only', [])
     skip = set(tests.get('skip', []))  # config's known-broken examples: never pick one
@@ -219,6 +225,16 @@ def pick_example(board: dict, note: list) -> tuple[str | None, str | None, str |
         variant = resolve_variant(board, ex, note)
         if hil_flash.find_firmware(variant, ex):
             return ex, kind, variant
+    if not build_missing:
+        return None, kind, None
+    # nothing built anywhere: build the preferred candidate (an only-list board
+    # must get one of its own examples — dfu_runtime etc. may not even configure)
+    pref = [c for c in dict.fromkeys(cand) if c not in skip and (not only or c in only)]
+    if not pref:
+        return None, kind, None
+    variant = (board.get('variant') or [{'name': board['name']}])[0]['name']
+    if ensure_fw(board, variant, pref[0], note):
+        return pref[0], kind, variant
     return None, kind, None
 
 
@@ -378,50 +394,95 @@ def boardtest_output(data: bytes) -> bool:
     return len(residue) == 0
 
 
-def ensure_board_test(board: dict, variant: str):
-    """board_test firmware path for this board's variant, building it via
-    tools/build.py — the same invocation shape hil_test.build_board uses (board
-    name, -D per build.args, variant defines/--build-name) — if absent."""
-    fw = hil_flash.find_firmware(variant, 'device/board_test')
-    if fw:
-        return fw
-    if board['flasher']['name'].lower() == 'esptool':
-        # tools/build.py's espressif branch ignores -T and idf-builds EVERY example
-        # (needing the ESP-IDF env we don't have) — never attempt it here
-        return None
+def build_example(board: dict, variant: str, example: str) -> int:
+    """Build one example for this board: tools/build.py (same invocation shape as
+    hil_test.build_board: -T target, -D per build.args, variant defines/
+    --build-name), or idf.py directly for espressif (tools/build.py's esp branch
+    ignores -T and builds everything). Bounded and process-group-killed via
+    run_cmd. Returns the build's returncode (127 when the esp env is missing)."""
     name = board['name']
+    if board['flasher']['name'].lower() == 'esptool':
+        if not shutil.which('idf.py'):
+            return 127  # ESP-IDF env not sourced in this shell
+        cmd = ['idf.py', '-C', f'examples/{example}',
+               '-B', f'cmake-build/cmake-build-{name}/{example}',
+               '-G', 'Ninja', f'-DBOARD={name}', 'build']
+        return hil_flash.run_cmd(shlex.join(cmd), cwd=str(hil_flash.TINYUSB_ROOT),
+                                 timeout=600).returncode
     variants = board.get('variant') or [{'name': name}]
-    vcfg = next((v for v in variants if v['name'] == variant), None)
-    if vcfg is None:
-        # resolve_variant fell back to the bare board name; for a variants-only
-        # board that build config doesn't exist — build the first real variant
-        # (with its defines) rather than an rhport/speed setup the rig never uses
-        vcfg = variants[0]
-        variant = vcfg['name']
+    vcfg = next((v for v in variants if v['name'] == variant), variants[0])
     cmd = [sys.executable, str(hil_flash.TINYUSB_ROOT / 'tools' / 'build.py'),
-           '-b', name, '-T', 'board_test']
+           '-b', name, '-T', Path(example).name]
     for d in board.get('build', {}).get('args', []):
         cmd += ['-D', d]
-    if variant != name:
-        cmd += ['--build-name', variant]
+    if vcfg['name'] != name:
+        cmd += ['--build-name', vcfg['name']]
     for d in vcfg.get('defines', []):
         cmd += ['-D', d]
     for tok in vcfg.get('flags', '').split():
         cmd += [f'--cflag={tok}']
-    # via run_cmd: bounded (runs while the board's flock is held) AND process-group
-    # killed on timeout — a bare subprocess.run timeout reaps only the build.py
-    # wrapper, leaving cmake/ninja orphans mutating the build tree after we return
-    r = hil_flash.run_cmd(shlex.join(cmd), cwd=str(hil_flash.TINYUSB_ROOT), timeout=300)
-    if r.returncode != 0:
+    return hil_flash.run_cmd(shlex.join(cmd), cwd=str(hil_flash.TINYUSB_ROOT),
+                             timeout=600).returncode
+
+
+def ensure_fw(board: dict, variant: str, example: str, note: list):
+    """Firmware for `example`, building it when absent — never skip a board for
+    lack of a build. One `tools/get_deps.py -b` retry when the first build fails
+    (fresh checkouts lack the family deps). Returns the firmware path, or None
+    with the failure noted. Call BEFORE taking the board lock: builds are long."""
+    fw = hil_flash.find_firmware(variant, example)
+    if fw:
+        return fw
+    rc = build_example(board, variant, example)
+    if rc == 127:
+        note.append(f'cannot build {Path(example).name}: ESP-IDF env missing (get-idf)')
         return None
-    # tools/build.py always writes to cmake-build/: look there too even when an
-    # explicit -B narrowed the global search — this is OUR fresh build, not a
-    # stale-candidate fallback
+    if rc != 0:
+        # retry once with deps fetched AND the variant's build tree wiped: a CMake
+        # cache configured in a broken env (e.g. no toolchain on PATH) poisons
+        # every later attempt no matter what else is fixed
+        hil_flash.run_cmd(shlex.join([sys.executable, str(hil_flash.TINYUSB_ROOT / 'tools' / 'get_deps.py'),
+                                      '-b', board['name']]),
+                          cwd=str(hil_flash.TINYUSB_ROOT), timeout=600)
+        shutil.rmtree(hil_flash.TINYUSB_ROOT / 'cmake-build' / f'cmake-build-{variant}',
+                      ignore_errors=True)
+        rc = build_example(board, variant, example)
+    if rc != 0:
+        note.append(f'build failed: {Path(example).name}')
+        return None
+    note.append(f'built {Path(example).name}')
+    # tools/build.py and the idf.py invocation above always write to cmake-build/:
+    # look there too even when an explicit -B narrowed the global search — this is
+    # OUR fresh build, not a stale-candidate fallback
+    return hil_flash.find_firmware(variant, example,
+                                   roots=[hil_flash.build_dir, 'cmake-build'])
+
+
+def ensure_board_test(board: dict, variant: str):
+    """board_test firmware for parking, building it if absent. esptool boards
+    never build it (their example set has no board_test)."""
+    fw = hil_flash.find_firmware(variant, 'device/board_test')
+    if fw:
+        return fw
+    if board['flasher']['name'].lower() == 'esptool':
+        return None
+    name = board['name']
+    variants = board.get('variant') or [{'name': name}]
+    if not any(v['name'] == variant for v in variants):
+        variant = variants[0]['name']
+    if build_example(board, variant, 'device/board_test') != 0:
+        return None
     return hil_flash.find_firmware(variant, 'device/board_test',
                                    roots=[hil_flash.build_dir, 'cmake-build'])
 
 
-def host_alive(board: dict, note: list, flashed_example: bool = False) -> bool:
+def verdict(row: dict, ok: bool) -> str:
+    """Row status for a verification result, preserving a 'flash-failed' a deeper
+    layer already recorded (silent flash no-op, board_test delivery failure)."""
+    return 'ok' if ok else ('flash-failed' if row['status'] == 'flash-failed' else 'failed')
+
+
+def host_alive(board: dict, note: list, flashed_example: bool = False, row: dict | None = None) -> bool:
     """Serial aliveness with recovery: silent -> (build and) flash board_test (it
     hellos every second and echoes) -> recheck. Also cures a silent flash no-op
     that left the board crashed.
@@ -433,17 +494,23 @@ def host_alive(board: dict, note: list, flashed_example: bool = False) -> bool:
     if data:
         if flashed_example and boardtest_output(data):
             note.append('board_test output after example flash: silent flash no-op')
+            if row is not None:
+                row['status'] = 'flash-failed'
             return False
         return True
     variant = resolve_variant(board, 'device/board_test', note)
     fw = ensure_board_test(board, variant)
     if fw is None:
         note.append('serial silent; board_test build failed')
+        if row is not None:
+            row['status'] = 'flash-failed'
         return False
     say(f'{board["name"]:26} recovery: serial silent, flashing board_test')
     rc, err = call_flasher(getattr(hil_flash, f'flash_{board["flasher"]["name"].lower()}'), board, str(fw))
     if rc != 0:
         note.append(f'serial silent; board_test flash failed: {err}')
+        if row is not None:
+            row['status'] = 'flash-failed'
         return False
     ok = bool(check_host_serial(board))
     if ok:
@@ -505,12 +572,13 @@ def device_recover_and_check(board: dict, example: str, old_ino, note: list, row
         return True
     row['device'] = f'❌ {hit[1]}'
     note.append(f'reset recovered wrong pid, expected {expected_pid}: silent flash no-op')
+    row['status'] = 'flash-failed'
     return False
 
 
 def check_board(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
     name = board['name']
-    row = {'name': name, 'probe': '❌ missing', 'flash': '–', 'device': '–', 'note': [], 'status': 'bad'}
+    row = {'name': name, 'probe': '❌ missing', 'flash': '–', 'device': '–', 'note': [], 'status': 'failed'}
     note = row['note']
 
     probe = find_usb(board['flasher']['uid'])
@@ -524,7 +592,10 @@ def check_board(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
                     else 'probe never seen by pool_check')
         say(f'{name:26} probe MISSING ({board["flasher"]["name"]} {board["flasher"]["uid"]})')
 
-    example, kind, variant = pick_example(board, note)
+    # scan/no-build must not build; otherwise a missing build is built on the spot
+    example, kind, variant = pick_example(board, note,
+                                          build_missing=probe is not None
+                                          and not (args.scan_only or args.no_build))
     if kind == 'host':
         note.append('host-only board')
 
@@ -539,18 +610,21 @@ def check_board(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
             row['device'] = '– n/a (host-only)'
         else:
             row['device'] = '⚫ off bus (parked?)'
-        # the probe check DID run: a missing probe is a real failure even in scan mode
-        row['status'] = 'skipped' if probe else 'bad'
+        # scan verifies probe presence only: that check DID run, so probe present
+        # is ok; a missing probe means no firmware could be delivered → flash-failed
+        row['status'] = 'ok' if probe else 'flash-failed'
         if probe:
             say(f'{name:26} probe ✅ {probe[0]}' + (f'  device {hit[1]}' if hit else ''))
         return row
     if not probe:
-        return row  # status stays 'bad'
+        row['status'] = 'flash-failed'
+        return row
     if example is None:
-        note.append('no firmware built')
+        if not any(n.startswith(('build failed', 'cannot build')) for n in note):
+            note.append('no firmware built')
         if kind != 'host':
-            row['status'] = 'skipped'
-            say(f'{name:26} probe ✅ {probe[0]}  (no firmware built, flash skipped)')
+            row['status'] = 'flash-failed'
+            say(f'{name:26} probe ✅ {probe[0]}  (no firmware to flash)')
             return row
         # host-only board: aliveness is still checkable without flashing — reset and
         # listen to whatever firmware is on it (the parked board_test echoes and
@@ -560,7 +634,7 @@ def check_board(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
     if isinstance(lk, str):
         if lk.startswith('ERROR:'):  # environment failure, not a held lock
             row['flash'] = '❌ lock'
-            row['status'] = 'bad'
+            row['status'] = 'failed'
         else:
             row['flash'] = '🔒 locked'
             row['status'] = 'locked'
@@ -569,9 +643,9 @@ def check_board(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
         return row
     try:
         if example is None:  # host-only without firmware: UART-only aliveness check
-            ok = host_alive(board, note)
+            ok = host_alive(board, note, row=row)
             row['device'] = '✅ serial out' if ok else '❌ no serial out'
-            row['status'] = 'ok' if ok else 'bad'
+            row['status'] = verdict(row, ok)
             say(f'{name:26} –  {row["device"]}  (existing firmware)')
             return row
 
@@ -581,17 +655,17 @@ def check_board(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
         try:
             if not flash(board, example, variant, allow_recovery, probe[0], note):
                 row['flash'] = f'❌ {Path(example).name}'
-                row['status'] = 'bad'
+                row['status'] = 'flash-failed'
                 say(f'{name:26} flash FAILED ({example})')
                 return row
             row['flash'] = f'✅ {Path(example).name}'
 
             if kind == 'host':
-                ok = host_alive(board, note, flashed_example=True)
+                ok = host_alive(board, note, flashed_example=True, row=row)
                 row['device'] = '✅ serial out' if ok else '❌ no serial out'
             else:
                 ok = device_recover_and_check(board, example, old_ino, note, row, seen)
-            row['status'] = 'ok' if ok else 'bad'
+            row['status'] = verdict(row, ok)
             say(f'{name:26} {row["flash"]}  {row["device"]}')
             return row
         finally:
@@ -609,7 +683,7 @@ def park_board(board: dict, kind: str, row: dict, note: list) -> None:
     VERIFY it took: board_test never enumerates USB, so a device board's cafe
     device must drop off the bus, and a host board must answer with board_test's
     own output — a rc=0 park that changed nothing (silent no-op) must not pass.
-    A board left unparked makes the row bad, with one documented exception:
+    A board left unparked marks the row flash-failed, with one documented exception:
     esptool boards whose ESP-IDF builds have never included board_test (absence
     is the family norm, noted but not a board fault)."""
     variant = resolve_variant(board, 'device/board_test', note)
@@ -619,13 +693,13 @@ def park_board(board: dict, kind: str, row: dict, note: list) -> None:
             note.append('park unavailable (ESP-IDF builds carry no board_test)')
         else:
             note.append('unparked: board_test unavailable (build failed/timed out)')
-            row['status'] = 'bad'
+            row['status'] = 'flash-failed'
         return
     rc, err = call_flasher(getattr(hil_flash, f'flash_{board["flasher"]["name"].lower()}'),
                            board, str(fw))
     if rc != 0:
         note.append(f'park flash failed: {err}')
-        row['status'] = 'bad'
+        row['status'] = 'flash-failed'
         return
     if kind == 'host':
         # no second reset (the park flash's own reset already started board_test);
@@ -634,7 +708,7 @@ def park_board(board: dict, kind: str, row: dict, note: list) -> None:
         data = check_host_serial(board, do_reset=False, want_hello=True)
         if not (data and b'Hello from TinyUSB' in data):
             note.append('park unverified: no board_test output')
-            row['status'] = 'bad'
+            row['status'] = 'flash-failed'
         return
     deadline = time.monotonic() + 6
     while time.monotonic() < deadline:
@@ -642,7 +716,7 @@ def park_board(board: dict, kind: str, row: dict, note: list) -> None:
             return
         time.sleep(0.5)
     note.append('park unverified: device still enumerated')
-    row['status'] = 'bad'
+    row['status'] = 'flash-failed'
 
 
 def check_board_safe(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
@@ -654,7 +728,7 @@ def check_board_safe(board: dict, args, allow_recovery: bool, seen: dict) -> dic
         name = board.get('name', '?')
         say(f'{name:26} INTERNAL ERROR: {e!r}')
         return {'name': name, 'probe': '–', 'flash': '–', 'device': '❌ error',
-                'note': [repr(e)[:120]], 'status': 'bad'}
+                'note': [repr(e)[:120]], 'status': 'failed'}
 
 
 def controller_summary() -> list[str]:
@@ -693,6 +767,13 @@ def controller_summary() -> list[str]:
 
 
 def main() -> None:
+    # toolchain/flasher CLIs live in the user bin dirs (arm-none-eabi-gcc + esptool
+    # in ~/.local/bin, STM32_Programmer_CLI in ~/bin) which non-login shells may
+    # lack — same PATH shim hil_ci.sh applies on the remote side
+    for d in (Path.home() / 'bin', Path.home() / '.local' / 'bin'):
+        if d.is_dir() and str(d) not in os.environ.get('PATH', '').split(os.pathsep):
+            os.environ['PATH'] = f'{d}{os.pathsep}{os.environ.get("PATH", "")}'
+
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('config', nargs='?', help='HIL config json (default: by hostname)')
     parser.add_argument('-b', '--board', action='append', default=[], help='only these boards')
@@ -701,6 +782,8 @@ def main() -> None:
                              '(default: examples, plus cmake-build as fallback)')
     parser.add_argument('--scan-only', action='store_true',
                         help='USB presence scan only: no locks, no flashing')
+    parser.add_argument('--no-build', action='store_true',
+                        help='do not build missing firmware (default: build the light example on the spot)')
     parser.add_argument('--no-park', action='store_true',
                         help='leave the light example running (default: park with board_test)')
     # no cross-process flash budget with a concurrent hil_test.py run yet (would need
@@ -767,8 +850,11 @@ def main() -> None:
     except OSError:
         pass
 
-    headers = ['Board', 'Probe', 'Flash', 'Device', 'Note']
-    cells = [[r['name'], r['probe'], r['flash'], r['device'], '; '.join(r['note'])] for r in rows]
+    status_mark = {'ok': '✅ ok', 'flash-failed': '❌ flash-failed', 'failed': '❌ failed',
+                   'locked': '🔒 locked'}
+    headers = ['Board', 'Probe', 'Flash', 'Device', 'Status', 'Note']
+    cells = [[r['name'], r['probe'], r['flash'], r['device'],
+              status_mark.get(r['status'], r['status']), '; '.join(r['note'])] for r in rows]
     widths = [max(len(h), *(len(c[i]) for c in cells)) if cells else len(h)
               for i, h in enumerate(headers)]
     line = lambda vals: '| ' + ' | '.join(v.ljust(w) for v, w in zip(vals, widths)) + ' |'
@@ -782,12 +868,12 @@ def main() -> None:
     for line in controller_summary():
         print(f'  {line}')
 
-    counts = {'ok': 0, 'bad': 0, 'skipped': 0, 'locked': 0}
+    counts = {'ok': 0, 'flash-failed': 0, 'failed': 0, 'locked': 0}
     for r in rows:
-        counts[r.get('status', 'bad')] += 1
-    print(f'\n{counts["ok"]} ok · {counts["bad"]} bad · {counts["skipped"]} skipped · {counts["locked"]} locked '
-          f'· in {time.monotonic() - t0:.0f}s')
-    sys.exit(min(counts['bad'], 125))
+        counts[r.get('status', 'failed')] += 1
+    print(f'\n{counts["ok"]} ok · {counts["flash-failed"]} flash-failed · {counts["failed"]} failed '
+          f'· {counts["locked"]} locked · in {time.monotonic() - t0:.0f}s')
+    sys.exit(min(counts['flash-failed'] + counts['failed'], 125))
 
 
 if __name__ == '__main__':
