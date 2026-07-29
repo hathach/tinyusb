@@ -28,7 +28,7 @@
   #endif
 
   // Struct-based EP register access (uniform layout). CH58X has a different register map and
-  // defines EP_DMA/EP_TX_LEN/EP_CTRL itself in ch32_usbfs_reg.h.
+  // defines EP_DMA/EP_TX_LEN/EP_CTRL itself in ch32_usbfs_reg.h (see ch32_usbfs_reg.h).
   #if CFG_TUSB_MCU == OPT_MCU_CH583
     // CH58X EP registers split into a low block (EP0-4) and a high block (EP5-7). Walk from each
     // block's first slot by the 4-byte slot stride (pointer arithmetic off slot 0, so the unused
