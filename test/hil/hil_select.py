@@ -124,14 +124,44 @@ def port_option_gates(repo_root: str) -> dict:
     return gates
 
 
-def board_options(board: dict) -> set:
-    """Build options a roster entry sets truthy: build.args plus each variant's
-    defines (NAME=VALUE) and raw CFLAGS (-DNAME=VALUE)."""
+_CM_SET_RE = re.compile(r'set\s*\(\s*([A-Za-z_]\w*)\s+([^)\s]+)\s*\)')
+
+
+# cached: called per changed portable file x roster board
+@functools.lru_cache(maxsize=None)
+def bsp_board_options(board_name: str, repo_root: str) -> frozenset:
+    """Build options a board turns on in its own BSP: `set(<OPT> <value>)` in
+    hw/bsp/<family>/boards/<board>/board.cmake, e.g. MAX3421_HOST on the espressif
+    and rp2040 max3421 boards. CMake only - HIL CI builds nothing with Make, so a
+    board.mk-only option (e.g. nrf5340dk's MAX3421_HOST) compiles no port here."""
+    fam = board_family(board_name, repo_root)
+    if not fam:
+        return frozenset()
+    path = os.path.join(repo_root, 'hw/bsp', fam, 'boards', board_name, 'board.cmake')
+    try:
+        text = open(path).read()
+    except OSError:
+        return frozenset()
+    out = set()
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith('#'):
+            continue
+        m = _CM_SET_RE.match(line)
+        if m and m.group(2).strip('"').lower() not in _FALSY:
+            out.add(m.group(1))
+    return frozenset(out)
+
+
+def board_options(board: dict, repo_root: str) -> set:
+    """Build options a board has truthy: the roster entry's build.args plus each
+    variant's defines (NAME=VALUE) and raw CFLAGS (-DNAME=VALUE), plus whatever its
+    own board.cmake sets (a board can enable a gated port without the roster saying so)."""
     toks = list(board.get('build', {}).get('args', []))
     for v in board.get('variant', []):
         toks += list(v.get('defines', []))
         toks += v.get('flags', '').split()
-    out = set()
+    out = set(bsp_board_options(board['name'], repo_root))
     for t in toks:
         name, _, val = (t[2:] if t.startswith('-D') else t).partition('=')
         if name and val.strip().strip('"').lower() not in _FALSY:
@@ -141,16 +171,20 @@ def board_options(board: dict) -> set:
 
 @functools.lru_cache(maxsize=None)
 def port_families(port_dir: str, repo_root: str) -> set:
+    """Board families that compile this src/portable dir. CMake only: HIL CI builds
+    every board with CMake, so a port wired up in family.mk alone is compiled for no
+    HIL board and must not select one. family.cmake lists portable sources directly
+    for most families; espressif instead references them from a nested component
+    CMakeLists.txt (hw/bsp/espressif/components/tinyusb_src/CMakeLists.txt)."""
     fams = set()
     bsp_root = os.path.join(repo_root, 'hw/bsp')
-    # family.cmake/family.mk list portable sources directly for most families;
-    # espressif instead references them from a nested component CMakeLists.txt
-    # (hw/bsp/espressif/components/tinyusb_src/CMakeLists.txt) - scan both.
+    # trailing '/' so a port dir is not a prefix of a sibling: bare 'microchip/pic'
+    # would otherwise match '.../microchip/pic32mz/...' and inherit its families
+    needle = port_dir + '/'
     for f in glob.glob(os.path.join(bsp_root, '*/family.cmake')) + \
-             glob.glob(os.path.join(bsp_root, '*/family.mk')) + \
              glob.glob(os.path.join(bsp_root, '*/components/*/CMakeLists.txt')):
         try:
-            if port_dir in open(f).read():
+            if needle in open(f).read():
                 fam = os.path.relpath(f, bsp_root).split(os.sep, 1)[0]
                 fams.add(fam)
         except OSError:
@@ -247,11 +281,12 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel):
             return
         s.families.update(fams)
         # a board can also pull the port in through a build option (e.g. MAX3421_HOST=1
-        # on metro_m4_express), which its family file never names
+        # from the roster on metro_m4_express, or from its own board.cmake), which its
+        # family file never names
         gates = port_option_gates(repo_root).get(port, set())
         boards = [b['name'] for b in roster_boards
                   if (board_family(b['name'], repo_root) in fams or
-                      (gates and board_options(b) & gates)) and (board_roles(b) & roles)]
+                      (gates and board_options(b, repo_root) & gates)) and (board_roles(b) & roles)]
         tests = role_tests(roles, extras)
         s.roles.update(roles)
         why = f'{path}: port {port} -> families {sorted(fams)}'

@@ -280,6 +280,59 @@ class TestOptionGatedPort(unittest.TestCase):
         self.assertEqual(hil_select.port_option_gates(REPO).get('analog/max3421'),
                          {'MAX3421_HOST'})
 
+    def test_board_cmake_option_counts(self):
+        """A board can enable a gated port in its own BSP rather than via the roster
+        (hw/bsp/espressif/boards/*/board.cmake -> set(MAX3421_HOST 1)); board_options()
+        must see those too, or such a board joining the roster is silently dropped."""
+        self.assertIn('MAX3421_HOST',
+                      hil_select.bsp_board_options('adafruit_feather_esp32s3', REPO))
+        self.assertIn('CFG_TUH_RPI_PIO_USB',
+                      hil_select.bsp_board_options('adafruit_fruit_jam', REPO))
+        # commented-out `# set(MAX3421_HOST 1)` must not count
+        self.assertNotIn('MAX3421_HOST',
+                         hil_select.bsp_board_options('feather_nrf52840_express', REPO))
+
+    def test_board_cmake_option_selects_off_family_board(self):
+        # adafruit_feather_esp32s3 is not on any rig roster; stand it in as one to
+        # prove the BSP-sourced option alone pulls a max3421 change onto the board
+        roster = [('test/hil/opt.json', [
+            {'name': 'adafruit_feather_esp32s3', 'uid': 'o1', 'flasher': {'name': 'esptool'},
+             'tests': {'device': False, 'host': True, 'dual': False}}])]
+        s = hil_select.classify(['src/portable/analog/max3421/hcd_max3421.c'], REPO, roster)
+        self.assertFalse(s['full'])
+        self.assertIn('adafruit_feather_esp32s3', s['boards'])
+
+    def test_board_mk_option_is_ignored(self):
+        """Make-only options must not select: HIL CI builds with CMake exclusively, so
+        hw/bsp/nrf/boards/nrf5340dk/board.mk's MAX3421_HOST compiles nothing here."""
+        roster = [('test/hil/opt.json', [
+            {'name': 'nrf5340dk', 'uid': 'o1', 'flasher': {'name': 'jlink'},
+             'tests': {'device': False, 'host': True, 'dual': False}}])]
+        s = hil_select.classify(['src/portable/analog/max3421/hcd_max3421.c'], REPO, roster)
+        self.assertFalse(s['full'])
+        self.assertEqual(s['boards'], {})
+
+
+class TestPortFamiliesCmakeOnly(unittest.TestCase):
+    """port_families() is CMake-only (HIL CI never builds with Make) and matches on
+    'port_dir/' so a port dir is not a prefix of a sibling."""
+    def test_make_only_family_is_not_a_family(self):
+        # hw/bsp/pic32mz has family.mk but no family.cmake
+        self.assertEqual(hil_select.port_families('microchip/pic32mz', REPO), set())
+
+    def test_prefix_port_does_not_inherit_sibling_families(self):
+        # bare-substring matching let 'microchip/pic' match '.../microchip/pic32mz/...'
+        self.assertEqual(hil_select.port_families('microchip/pic', REPO), set())
+
+    def test_make_only_port_forces_full(self):
+        s = sel(['src/portable/microchip/pic32mz/dcd_pic32mz.c'])
+        self.assertTrue(s['full'])
+        self.assertTrue(any('no board family' in r for r in s['reasons']), s['reasons'])
+
+    def test_cmake_families_still_found(self):
+        self.assertEqual(hil_select.port_families('raspberrypi/rp2040', REPO), {'rp2040'})
+        self.assertIn('stm32f4', hil_select.port_families('synopsys/dwc2', REPO))
+
 
 class TestPortFamiliesCoverage(unittest.TestCase):
     """Systematic guard: every real dcd_*/hcd_* port directory should map to at
@@ -288,8 +341,14 @@ class TestPortFamiliesCoverage(unittest.TestCase):
     (as espressif's dwc2 reference did - see TestRealRosterPortFamilies)."""
     # Ports with no board family: not a bug, just not wired into any rig board.
     # Add here (with a reason) only if port_families() legitimately can't find one.
+    # A port listed here force-fulls (fail-open), so it is never under-selected.
     NO_FAMILY = {
-        'template',  # reference/example port, not built by any board
+        'template',           # reference/example port, not built by any board
+        # hw/bsp/pic32mz has family.mk only (no family.cmake), and port_families()
+        # is CMake-only because HIL CI builds every board with CMake - so this port
+        # is compiled for no HIL board.
+        'microchip/pic32mz',
+        'microchip/pic',      # same: only ever referenced from pic32mz's family.mk
     }
 
     @staticmethod
