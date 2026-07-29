@@ -192,6 +192,49 @@ def port_families(port_dir: str, repo_root: str) -> set:
     return fams
 
 
+_CLS_INC_RE = re.compile(r'#\s*include\s*[<"]class/([^/"<>]+)/([^"<>]+)[">]')
+
+
+@functools.lru_cache(maxsize=None)
+def class_include_edges(repo_root: str) -> dict:
+    """'<class>/<header>' -> the other class dirs that include it. A class header
+    pulled in by a second class ships in every firmware enabling that second class:
+    src/class/midi/midi{,2}_{device,host}.h include class/audio/audio.h, and
+    net_device.h includes class/cdc/cdc.h. The class rule derives macros from the
+    directory name alone, so without this edge a change to the included header
+    selects only its own class's examples - and on a board that skips those (e.g.
+    metro_m4_express skips audio_test_freertos), nothing at all.
+
+    Derived from the actual #include lines rather than a hand-written table so it
+    cannot rot when a class picks up or drops a cross-class include."""
+    edges = {}
+    for f in sorted(glob.glob(os.path.join(repo_root, 'src/class/*/*.[ch]'))):
+        cls = os.path.basename(os.path.dirname(f))
+        try:
+            text = open(f).read()
+        except OSError:
+            continue
+        for inc_cls, inc_hdr in _CLS_INC_RE.findall(text):
+            if inc_cls != cls:
+                edges.setdefault(f'{inc_cls}/{inc_hdr}', set()).add(cls)
+    return edges
+
+
+def class_macros(cls: str, base: str, prefix: str) -> list:
+    """Config macros that compile a class dir's code, for role prefix TUD/TUH.
+    `base` refines dfu only (it splits DFU from DFU_RUNTIME per file); pass '' for
+    a class reached through an include edge, where the widest set is correct."""
+    if cls == 'net':
+        return [f'CFG_{prefix}_{m}' for m in NET_MACROS]
+    if cls == 'dfu':
+        if base.startswith('dfu_rt'):
+            return [f'CFG_{prefix}_DFU_RUNTIME']
+        if base.startswith('dfu_device') or base.startswith('dfu_host'):
+            return [f'CFG_{prefix}_DFU']
+        return [f'CFG_{prefix}_DFU', f'CFG_{prefix}_DFU_RUNTIME']
+    return [f'CFG_{prefix}_{cls.upper()}']
+
+
 def _config_enables(cfg_path: str, macros) -> bool:
     try:
         text = open(cfg_path).read()
@@ -304,17 +347,12 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel):
             roles = {'host'}
         else:
             roles = {'device', 'host'}
-        # macro names per role
+        # this file's own class, plus any class whose headers include it
+        via = sorted(class_include_edges(repo_root).get(f'{cls}/{base}', ()))
+
         def macros(prefix):
-            if cls == 'net':
-                return [f'CFG_{prefix}_{m2}' for m2 in NET_MACROS]
-            if cls == 'dfu':
-                if base.startswith('dfu_rt'):
-                    return [f'CFG_{prefix}_DFU_RUNTIME']
-                if base.startswith('dfu_device') or base.startswith('dfu_host'):
-                    return [f'CFG_{prefix}_DFU']
-                return [f'CFG_{prefix}_DFU', f'CFG_{prefix}_DFU_RUNTIME']
-            return [f'CFG_{prefix}_{cls.upper()}']
+            return (class_macros(cls, base, prefix) +
+                    [m2 for c in via for m2 in class_macros(c, '', prefix)])
         tests = set()
         if 'device' in roles:
             tests |= class_examples(macros('TUD'), 'device', repo_root, extras)
@@ -322,7 +360,8 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel):
             tests |= class_examples(macros('TUH'), 'host', repo_root, extras)
         boards = [b['name'] for b in roster_boards if board_roles(b) & roles]
         s.roles.update(roles)
-        s.add(boards, tests, f'{path}: class {cls} -> {sorted(tests)} ({"/".join(sorted(roles))})')
+        why = f'{path}: class {cls}' + (f' (+ included by {via})' if via else '')
+        s.add(boards, tests, f'{why} -> {sorted(tests)} ({"/".join(sorted(roles))})')
         return
 
     m = re.match(r'src/(device|host)/', path)

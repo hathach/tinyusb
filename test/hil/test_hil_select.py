@@ -118,6 +118,49 @@ class TestClassRule(unittest.TestCase):
         self.assertTrue(all(not t.startswith('device/') for t in pico2))
 
 
+class TestClassIncludeEdges(unittest.TestCase):
+    """A class header another class includes reaches that class's examples too.
+    src/class/midi/midi{,2}_{device,host}.h include class/audio/audio.h, so
+    midi_test's firmware contains audio.h - but the class rule derives macros from
+    the directory name alone, so an audio.h change used to select only
+    device/audio_test_freertos. On boards that skip that example the per-board
+    intersection emptied and an audio.h-only PR ran ZERO HIL on them."""
+    def test_edges_derived_from_includes(self):
+        edges = hil_select.class_include_edges(REPO)
+        self.assertEqual(edges.get('audio/audio.h'), {'midi'})
+        self.assertEqual(edges.get('cdc/cdc.h'), {'net'})
+
+    def test_audio_header_selects_midi_example(self):
+        s = hil_select.classify(['src/class/audio/audio.h'], REPO, real_rosters())
+        self.assertFalse(s['full'])
+        # every board that runs device/midi_test at all must run it here (boards with
+        # a tests.only list, e.g. espressif, run the freertos examples instead)
+        by_name = {b['name']: b for _, bs in real_rosters() for b in bs}
+        checked = 0
+        for name, tests in s['boards'].items():
+            if 'device/midi_test' in hil_select.board_tests(by_name[name]):
+                self.assertIn('device/midi_test', tests, name)
+                checked += 1
+        self.assertTrue(checked)
+
+    def test_audio_header_reaches_boards_that_skip_audio(self):
+        # both skip device/audio_test_freertos: without the midi edge their
+        # intersection is empty and they drop out of the selection entirely
+        boards = on_roster(self, 'metro_m4_express', 'nrf54lm20dk')
+        s = hil_select.classify(['src/class/audio/audio.h'], REPO, real_rosters())
+        for board in boards:
+            self.assertEqual(s['boards'].get(board), ['device/midi_test'], board)
+
+    def test_edge_is_per_header_not_per_class(self):
+        # midi includes audio.h, not audio_device.h: an audio_device change must
+        # not drag midi's examples in
+        s = hil_select.classify(['src/class/audio/audio_device.c'], REPO, real_rosters())
+        self.assertFalse(s['full'])
+        for tests in s['boards'].values():
+            if tests != 'all':
+                self.assertNotIn('device/midi_test', tests)
+
+
 class TestFallbackRules(unittest.TestCase):
     def test_unknown_tool_is_full(self):
         s = sel(['tools/random_new_script.py'])
