@@ -1485,6 +1485,10 @@ def build_board(board: Board) -> tuple[str, int]:
     return name, failed
 
 
+# pseudo-test column for a variant boundary the park-flash could not clear (see below)
+BOUNDARY_CELL = 'same-PID boundary'
+
+
 def test_board(board: Board) -> tuple[str, int, list[str], list, float]:
     name = board['name']
     flasher = board['flasher']
@@ -1536,6 +1540,7 @@ def test_board(board: Board) -> tuple[str, int, list[str], list, float]:
 
         err_count = 0
         failed_tests = []
+        board_wide_fail = False  # re-run the whole board, not a subset of its tests
         rows = []  # list of (row_label, {example: status}, duration) — one row per build variant
         # a -t/-bt filtered run times only a subset; report no duration so an accumulate
         # re-run keeps the previous full-run value
@@ -1555,6 +1560,7 @@ def test_board(board: Board) -> tuple[str, int, list[str], list, float]:
                 random.Random(f'{shuffle_seed}:{name}:{vname}').shuffle(run_list)
                 if run_list[0] == prev_last:
                     run_list[0], run_list[-1] = run_list[-1], run_list[0]
+            cells = {}
             if run_list and run_list[0] == prev_last and not skip_flash:
                 # Same example (same PID) still repeats across the boundary: a one-test
                 # list (the common case for a -bt scoped run) leaves nothing to swap
@@ -1563,17 +1569,27 @@ def test_board(board: Board) -> tuple[str, int, list[str], list, float]:
                 t_park = time.monotonic()
                 park_ec, park_status, _ = test_example(board, vname, 'device/board_test')
                 if park_ec or park_status == 'skip':
-                    # boundary not cleared: the previous variant's device is still enumerated
-                    # under the same PID, so the next test may pass against its firmware
+                    # Boundary not cleared: the previous variant's device may still be
+                    # enumerated under the same PID, so this variant's tests could pass
+                    # against its firmware. Skip them - a false green proves nothing and
+                    # is worse than a gap - and record the boundary itself as the failure
+                    # (a visible ❌ cell, mirroring the board-lock row above) so the report
+                    # matches the exit code instead of rendering all-green.
                     why = 'no board_test binary' if park_status == 'skip' else 'park flash failed'
-                    log_line(f'{vname:40} {"same-PID boundary":30} {STATUS_FAILED}: not cleared ({why})')
+                    log_line(f'{vname:40} {"same-PID boundary":30} {STATUS_FAILED}: not cleared ({why}); '
+                             f'skipping {len(run_list)} test(s) on this variant')
                     err_count += 1
-                    failed_tests.append(run_list[0])
+                    cells[BOUNDARY_CELL] = 'fail'
+                    # blaming run_list[0] would re-run an innocent test that then passes,
+                    # leaving the boundary unretested; re-run the whole board instead
+                    board_wide_fail = True
+                    # leave prev_last alone: the board still holds the previous variant's
+                    # firmware, so the next variant must attempt the park again
+                    run_list = []
                 t_board += time.monotonic() - t_park  # park is teardown, not board cost
             if run_list:
                 prev_last = run_list[-1]
             t_variant = time.monotonic()
-            cells = {}
             for test in run_list:
                 ec, status, metric = test_example(board, vname, test)
                 err_count += ec
@@ -1592,7 +1608,7 @@ def test_board(board: Board) -> tuple[str, int, list[str], list, float]:
         if not skip_flash:
             test_example(board, variants[0]['name'], 'device/board_test')
 
-        return name, err_count, sorted(set(failed_tests)), rows, t_total
+        return name, err_count, [] if board_wide_fail else sorted(set(failed_tests)), rows, t_total
     finally:
         if _lock_fh:
             try:
@@ -1719,6 +1735,10 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool) -> str:
                     del acc[name]
         for row_label, cells, dur in rows:
             row = acc.setdefault(row_label, [{}, None])
+            # the boundary cell is only ever written on failure, so a re-run of this
+            # variant that cleared the boundary must drop the previous attempt's ❌
+            if BOUNDARY_CELL not in cells:
+                row[0].pop(BOUNDARY_CELL, None)
             row[0].update(cells)
             if dur is not None:
                 row[1] = dur
