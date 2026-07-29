@@ -52,6 +52,10 @@ run, but note the converse: a CI worker reaching a board pool_check holds fails 
 "board locked" (a red cell in that CI run), and pool_check's flashes take no cross-process
 per-controller budget (default `-j 4` keeps the load modest) — prefer running between CI runs.
 
+A request for a "pool check" means the DEFAULT full check below. Use `--scan-only` only when the
+user explicitly asks for a quick look, or when a CI sweep is mid-run — and in either case say
+which mode ran and why; never silently substitute the scan for the full check.
+
 ```bash
 python3 .claude/skills/hil/pool_check.py                  # full check, ~10 s + ~1-2 s/board with firmware
 python3 .claude/skills/hil/pool_check.py --scan-only      # USB presence only, <1 s, no locks/flashing
