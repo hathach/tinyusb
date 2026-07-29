@@ -97,6 +97,13 @@ function(family_configure_example TARGET RTOS)
   target_sources(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
+    # TODO the generator expression below hides this family's port directory from
+    # plain-text scanners. test/hil/hil_select.py maps a portable-driver change to the
+    # families whose family.cmake spells that directory out, so an mcx board would not be
+    # selected for a chipidea driver change. Harmless while no mcx board is on a HIL
+    # roster; spell both variants out (if(PORT)/else()) before adding one.
+    # (Deliberately no literal path here: a scanner-matching comment would paper over the
+    # gap and break again the moment someone reworded it.)
     ${TOP}/src/portable/chipidea/$<IF:${PORT},ci_hs/dcd_ci_hs.c,ci_fs/dcd_ci_fs.c>
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
