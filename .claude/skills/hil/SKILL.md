@@ -41,6 +41,18 @@ python3 test/hil/hil_lock.py release BOARD [BOARD...]
 Board/probe health scanning (`test/hil/hil_pool_check.py`) has its own skill: **hil-pool-check**.
 Use it before a HIL campaign, after rig maintenance/reboot, or when boards fail to flash.
 
+## PR-scoped selection
+
+`test/hil/hil_select.py` maps a diff to affected boards/tests (used by CI on PRs; fail-open
+to the full matrix). Manual use:
+
+```bash
+ARGS=$(python3 test/hil/hil_select.py --base master test/hil/tinyusb.json | python3 -c "import json,sys; print(json.load(sys.stdin)['args']['tinyusb.json'])")
+python3 test/hil/hil_test.py -B examples $ARGS test/hil/tinyusb.json
+```
+
+Unit suite: `python3 test/hil/test_hil_select.py` (no hardware).
+
 ## Prerequisites
 
 Examples must be built for the target board(s) — see CLAUDE.md "Build" → "All examples for a board" (produces `examples/cmake-build-<board>/`). `-B examples` points `hil_test.py` at that parent folder. (This applies to `hil_test.py`; `hil_pool_check.py` builds its own missing firmware.)

@@ -61,9 +61,11 @@ jobs:
       - name: HIL selection (PR only)
         id: hil-select
         if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
           python3 test/hil/test_hil_select.py
-          SELECT_JSON=$(python3 test/hil/hil_select.py --base "origin/${{ github.base_ref }}" test/hil/tinyusb.json test/hil/hfp.json)
+          SELECT_JSON=$(python3 test/hil/hil_select.py --base "origin/$BASE_REF" test/hil/tinyusb.json test/hil/hfp.json)
           echo "select=$SELECT_JSON" >> $GITHUB_OUTPUT
           python3 - "$SELECT_JSON" >> $GITHUB_OUTPUT <<'EOF'
           import json, sys

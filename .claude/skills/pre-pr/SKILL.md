@@ -15,12 +15,14 @@ Run the software + hardware gate for the current branch. The user invoking this 
 
 ## 2. Map changes to boards
 
-- For each changed `src/portable/<vendor>/<ip>/` (or `src/portable/<name>/` for single-level ports): families = the `hw/bsp/<family>` directories whose build files reference it — `grep -rl "<vendor>/<ip>" hw/bsp/*/family.cmake hw/bsp/*/family.mk`, then take each matching file's directory name.
-- For `src/class/*`, `src/common/*`, `src/device/*`, `src/host/*`, or `src/tusb.c`: broad change — use `stm32f407disco` + `raspberry_pi_pico` PLUS any families from portable changes.
-- For `hw/bsp/<family>/...` changes: that family directly.
-- Catch-all: any other C/CMake source change (`examples/*`, `test/*`, anything unmatched above) → the representative set `stm32f407disco` + `raspberry_pi_pico`. The boards list must NEVER end up empty — final fallback is `[stm32f407disco]` (full-check throws on an empty list).
-- Rig roster: `python3 -c "import json;print([b['name'] for b in json.load(open('test/hil/tinyusb.json'))['boards']])"`
-- Pick ONE board per affected family, preferring boards on the rig roster; otherwise the first entry in `hw/bsp/<family>/boards/`. Cap at 4 boards and tell the user which families the cap dropped.
+- `python3 test/hil/hil_select.py --base $BASE test/hil/tinyusb.json` → JSON with the affected
+  rig boards (`boards`) and per-file `reasons`. `full: true` means a broad/infra change.
+- Build-board sampling: from the selection's boards (or, when `full`, the representative set
+  `stm32f407disco` + `raspberry_pi_pico`), pick ONE board per family, preferring rig-roster
+  boards; cap at 4 and tell the user which families the cap dropped. The boards list must
+  NEVER end up empty — final fallback is `[stm32f407disco]`.
+- A `full: true` selection or an empty one (docs-only) keeps today's behavior: minimal
+  software-only gate for docs-only, representative set otherwise.
 
 ## 3. HIL boards
 
