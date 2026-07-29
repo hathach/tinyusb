@@ -17,7 +17,13 @@ def _resolve_config_path(config_file):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('config_files', nargs='+', help='Configuration JSON file(s)')
+    parser.add_argument('--select', help='hil_select.py JSON; scopes boards when full=false')
     args = parser.parse_args()
+
+    selected = None
+    sel = json.loads(args.select) if args.select else None
+    if sel and not sel.get('full'):
+        selected = set(sel.get('boards', {}))
 
     # Toolchain buckets must match the toolchains instantiated by the hil-build
     # job in .github/workflows/build.yml. Keep all keys present (even if empty)
@@ -40,6 +46,8 @@ def main():
             config = json.load(f)
 
         for board in config['boards']:
+            if selected is not None and board['name'] not in selected:
+                continue
             name = board['name']
             flasher = board['flasher']
             # esptool boards must build under esp-idf; others default to arm-gcc
@@ -49,6 +57,13 @@ def main():
                 toolchain = 'esp-idf'
             else:
                 toolchain = board.get('toolchain', 'arm-gcc')
+            if toolchain not in matrix:
+                # a board in no bucket would never be built, and the bare KeyError
+                # below would only say so as a traceback from the set-matrix job
+                raise SystemExit(
+                    f'{name}: toolchain {toolchain!r} is not a build bucket '
+                    f'({", ".join(matrix)}); add it here and to the hil-build / '
+                    f'hil-build-esp jobs in .github/workflows/build.yml')
 
             build_board = f'-b {name}'
             if 'build' in board and 'args' in board['build']:

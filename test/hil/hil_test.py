@@ -59,6 +59,7 @@ from multiprocessing import TimeoutError as MpTimeoutError
 
 import hil_flash
 import hil_lock
+from hil_examples import device_tests, dual_tests, host_test
 
 # Raw Lock/Semaphore objects passed via Pool initargs are inheritable only under the fork
 # start method (spawn/forkserver pickle them and fail at Pool creation) — pin it so a
@@ -1351,39 +1352,6 @@ def test_device_usbtest(board):
 # Main
 # -------------------------------------------------------------
 
-# The per-board run order is shuffled (see test_board).
-# Every example carries a unique hardcoded idProduct (see its usb_descriptors.c)
-
-# device tests
-device_tests = [
-    'device/cdc_dual_ports',
-    'device/cdc_msc',
-    'device/dfu',
-    'device/cdc_msc_throughput',
-    'device/audio_test_freertos',
-    'device/dfu_runtime',
-    'device/cdc_msc_freertos',
-    'device/hid_boot_interface',
-    'device/msc_dual_lun',
-    'device/hid_generic_inout',
-    'device/printer_to_cdc',
-    'device/midi_test',
-    'device/mtp',
-    'device/usbtest',  # cafe:4010, unique PID; runs the Linux testusb tier-4 battery via usbtest.py
-    # 'device/net_lwip_webserver',  # disabled for PR #3605: USB net iface enum is flaky on the CI HIL host
-]
-
-dual_tests = [
-    'dual/host_info_to_device_cdc',
-]
-
-host_test = [
-    'host/cdc_msc_hid',
-    'host/msc_file_explorer',
-    'host/msc_file_explorer_freertos',
-    'host/device_info',
-]
-
 
 def test_example(board: Board, variant: str, example: str) -> tuple[int, str, str | None]:
     """
@@ -1517,6 +1485,10 @@ def build_board(board: Board) -> tuple[str, int]:
     return name, failed
 
 
+# pseudo-test column for a variant boundary the park-flash could not clear (see below)
+BOUNDARY_CELL = 'same-PID boundary'
+
+
 def test_board(board: Board) -> tuple[str, int, list[str], list, float]:
     name = board['name']
     flasher = board['flasher']
@@ -1568,6 +1540,7 @@ def test_board(board: Board) -> tuple[str, int, list[str], list, float]:
 
         err_count = 0
         failed_tests = []
+        board_wide_fail = False  # re-run the whole board, not a subset of its tests
         rows = []  # list of (row_label, {example: status}, duration) — one row per build variant
         # a -t/-bt filtered run times only a subset; report no duration so an accumulate
         # re-run keeps the previous full-run value
@@ -1587,10 +1560,36 @@ def test_board(board: Board) -> tuple[str, int, list[str], list, float]:
                 random.Random(f'{shuffle_seed}:{name}:{vname}').shuffle(run_list)
                 if run_list[0] == prev_last:
                     run_list[0], run_list[-1] = run_list[-1], run_list[0]
+            cells = {}
+            if run_list and run_list[0] == prev_last and not skip_flash:
+                # Same example (same PID) still repeats across the boundary: a one-test
+                # list (the common case for a -bt scoped run) leaves nothing to swap
+                # with. Park on board_test first - it disables the board's USB, so the
+                # PID goes away and the next flash must re-enumerate to be seen.
+                t_park = time.monotonic()
+                park_ec, park_status, _ = test_example(board, vname, 'device/board_test')
+                if park_ec or park_status == 'skip':
+                    # Boundary not cleared: the previous variant's device may still be
+                    # enumerated under the same PID, so this variant's tests could pass
+                    # against its firmware. Skip them - a false green proves nothing and
+                    # is worse than a gap - and record the boundary itself as the failure
+                    # (a visible ❌ cell, mirroring the board-lock row above) so the report
+                    # matches the exit code instead of rendering all-green.
+                    why = 'no board_test binary' if park_status == 'skip' else 'park flash failed'
+                    log_line(f'{vname:40} {"same-PID boundary":30} {STATUS_FAILED}: not cleared ({why}); '
+                             f'skipping {len(run_list)} test(s) on this variant')
+                    err_count += 1
+                    cells[BOUNDARY_CELL] = 'fail'
+                    # blaming run_list[0] would re-run an innocent test that then passes,
+                    # leaving the boundary unretested; re-run the whole board instead
+                    board_wide_fail = True
+                    # leave prev_last alone: the board still holds the previous variant's
+                    # firmware, so the next variant must attempt the park again
+                    run_list = []
+                t_board += time.monotonic() - t_park  # park is teardown, not board cost
             if run_list:
                 prev_last = run_list[-1]
             t_variant = time.monotonic()
-            cells = {}
             for test in run_list:
                 ec, status, metric = test_example(board, vname, test)
                 err_count += ec
@@ -1609,7 +1608,7 @@ def test_board(board: Board) -> tuple[str, int, list[str], list, float]:
         if not skip_flash:
             test_example(board, variants[0]['name'], 'device/board_test')
 
-        return name, err_count, sorted(set(failed_tests)), rows, t_total
+        return name, err_count, [] if board_wide_fail else sorted(set(failed_tests)), rows, t_total
     finally:
         if _lock_fh:
             try:
@@ -1704,11 +1703,13 @@ def render_matrix(rows_all: list) -> str:
     return summary + '\n\n' + '\n'.join([header, sep] + body)
 
 
-def accumulate_report(mret: list, report_dir: Path, fresh: bool) -> str:
+def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = '') -> str:
     """Merge this run's results into hil_report.json in report_dir, then (re)write
-    the markdown matrix to hil_report.md. `fresh` (a full run, no --accumulate/-bt)
+    the markdown matrix to hil_report.md. `fresh` (a first run, no --accumulate)
     starts a new report; otherwise a re-run accumulates so boards/tests that
-    already passed are preserved while re-run cells are updated. Returns the md."""
+    already passed are preserved while re-run cells are updated. `scope` names the
+    board filter, if any, so a scoped table is not mistaken for a full one.
+    Returns the md."""
     acc = {}  # ordered {row_label: [cells dict, duration str|None]}
     jpath = report_dir / REPORT_JSON
     if not fresh and jpath.is_file():
@@ -1736,6 +1737,10 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool) -> str:
                     del acc[name]
         for row_label, cells, dur in rows:
             row = acc.setdefault(row_label, [{}, None])
+            # the boundary cell is only ever written on failure, so a re-run of this
+            # variant that cleared the boundary must drop the previous attempt's ❌
+            if BOUNDARY_CELL not in cells:
+                row[0].pop(BOUNDARY_CELL, None)
             row[0].update(cells)
             if dur is not None:
                 row[1] = dur
@@ -1745,6 +1750,10 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool) -> str:
                                           for k, (c, d) in acc.items()]}, indent=2) + '\n')
 
     md = render_matrix([(k, c, d) for k, (c, d) in acc.items()])
+    if scope:
+        # a scoped run's small table is otherwise indistinguishable from a full one,
+        # and it replaces the previous full table in the sticky PR comment
+        md = f'_Scoped run: {scope}. Boards/tests not listed were not run._\n\n' + md
     (report_dir / REPORT_MD).write_text(md + '\n', encoding='utf-8')
     return md
 
@@ -1831,13 +1840,14 @@ def main() -> None:
 
     # HIL report sidecar (hil_report.json/.md) and the .failed re-run spec live in
     # report_dir (CI keys it by run id, so it persists across run attempts but is
-    # private to one run). A full run starts fresh; a re-run (--accumulate / -bt,
-    # i.e. the .failed file) merges so already-passed boards/tests are preserved.
-    # Clear prior state up front on a fresh run so a crash mid-run can't leave a
-    # stale report or re-run spec to be consumed by a retry.
+    # private to one run). A full run starts fresh; a re-run (--accumulate, which
+    # the generated .failed spec always starts with) merges so already-passed
+    # boards/tests are preserved. Clear prior state up front on a fresh run so a
+    # crash mid-run can't leave a stale report or re-run spec for a retry.
+    # -bt alone is not a re-run marker: PR-scoped first attempts pass -bt too.
     report_dir = Path(os.environ.get('HIL_REPORT_DIR', '.'))
     failed_fname = report_dir / (config_file.name + '.failed')
-    fresh = not (args.accumulate or args.board_test)
+    fresh = not args.accumulate
     if fresh:
         report_dir.mkdir(parents=True, exist_ok=True)
         for f in (REPORT_JSON, REPORT_MD):
@@ -1935,7 +1945,11 @@ def main() -> None:
         print(f'warning: cannot persist controller hints to {CONTROLLER_CACHE}: {e}')
 
     # board x test result matrix -> hil_report.md (accumulates across re-runs) + stdout
-    report = accumulate_report(mret, report_dir, fresh)
+    # -b/-bt in play means a filtered run (PR selection or a re-run spec): say so in the
+    # report, which otherwise looks exactly like a full run that happened to be small
+    scoped = sorted(set(args.board) | set(board_test))
+    scope = f'{len(scoped)} board(s) — {", ".join(scoped)}' if scoped else ''
+    report = accumulate_report(mret, report_dir, fresh, scope)
     print()
     print(report)
     print(f'\nReport written to {(report_dir / REPORT_MD).resolve()}')

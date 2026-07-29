@@ -39,6 +39,21 @@ on:
 
 jobs:
   family:
+    # PR-scoped HIL selection can produce an empty build-args list for a toolchain
+    # (e.g. a dwc2-only change with no riscv boards affected); an empty matrix
+    # vector fails the job outright ("Matrix vector 'arg' does not contain any
+    # values"), so skip cleanly instead.
+    #
+    # Why that is safe for callers: GitHub SKIPS the dependents of a skipped
+    # `needs:` job, so this only works because the caller (hil-build) is itself a
+    # *matrix* job - a matrix with one skipped leg and one successful leg
+    # aggregates to success, and its dependents run.
+    #
+    # NOT covered: if every leg is empty the whole caller job skips, and so does
+    # everything that needs it. That is fine only because an all-empty selection
+    # means no board was selected for those rigs, so the rig jobs would have had
+    # nothing to run anyway (see the invariant on hil-build in build.yml).
+    if: inputs.build-args != '[]'
     runs-on: ${{ inputs.os }}
     strategy:
       fail-fast: false
