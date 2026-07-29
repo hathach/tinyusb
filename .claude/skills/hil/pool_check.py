@@ -307,12 +307,16 @@ def flash_error_line(out: str) -> str:
     return lines[-1][:90] if lines else ''
 
 
-def check_host_serial(board: dict) -> bytes | None:
+def check_host_serial(board: dict, do_reset: bool = True, want_hello: bool = False) -> bytes | None:
     """Host-only boards never enumerate their uid (their USB port is the host side);
     aliveness = output on the flasher's UART bridge after a reset. A probe byte is
     written each poll so an echo-only firmware (board_test) also answers. Returns
     the first output chunk (b'' when silent, None when the port is absent/drops) so
-    the caller can also judge WHAT answered — see boardtest_output()."""
+    the caller can also judge WHAT answered — see boardtest_output().
+
+    do_reset=False listens to the firmware as-is: used right after a flash whose
+    own reset already started it — a second openocd/JLink session back-to-back on
+    the same probe can fail transiently and leave the target halted."""
     import serial
     try:
         port = hil_flash.get_serial_dev(board['flasher']['uid'], None, None, 0)
@@ -326,30 +330,47 @@ def check_host_serial(board: dict) -> bytes | None:
         # while keeping the board's post-reset boot banner, which prints while the
         # reset tool is still tearing down and would be eaten by a post-reset flush
         ser.reset_input_buffer()
-        getattr(hil_flash, f'reset_{board["flasher"]["name"].lower()}')(board)
+        if do_reset:
+            getattr(hil_flash, f'reset_{board["flasher"]["name"].lower()}')(board)
+        # collect the WHOLE window and judge content, not the first chunk: the
+        # probe's CDC bridge has its own FIFO, so stale pre-flash output (e.g.
+        # board_test hellos) can arrive after our host-side flush and must not
+        # decide the verdict alone. Early-exit once non-board_test output proves
+        # a real example is talking.
+        data = b''
         deadline = time.monotonic() + SERIAL_WAIT
         while time.monotonic() < deadline:
             try:
                 ser.write(b'U')
-                data = ser.read(64)
-                if data:
-                    return data
+                data += ser.read(256)
             except serial.SerialTimeoutException:
                 pass
             except serial.SerialException:
                 return None  # port dropped mid-poll (bridge re-enumerating)
-        return b''
+            # early-exit on the caller's positive signal: fresh board_test hello
+            # (park verification) vs any non-board_test output (example liveness);
+            # stale bridge-FIFO backlog of the OTHER kind must not end the window
+            if want_hello:
+                if b'Hello from TinyUSB' in data:
+                    return data
+            elif data and not boardtest_output(data):
+                return data
+        return data
     finally:
         ser.close()
 
 
 def boardtest_output(data: bytes) -> bool:
-    """True when serial output is recognizably board_test's, not a host example's:
-    its periodic HELLO_STR, or nothing but echoes of our b'U' pokes (no host
-    example echoes). Used as a negative identity marker — after flashing a host
-    example, board_test chatter means the flash silently didn't take (the host
-    analog of the device path's PID check)."""
-    return b'Hello from TinyUSB' in data or set(data) <= set(b'U\r\n')
+    """True when (non-empty) serial output is recognizably ONLY board_test's: its
+    periodic HELLO_STR and echoes of our b'U' pokes, nothing else. Any residue
+    beyond that (an example banner, log lines) proves other firmware is talking,
+    however much stale board_test backlog surrounds it. Used as a negative
+    identity marker — after flashing a host example, board_test-only chatter
+    means the flash silently didn't take (the host analog of the PID check)."""
+    residue = data.replace(b'Hello from TinyUSB', b'')
+    for junk in (b'U', b'\r', b'\n'):
+        residue = residue.replace(junk, b'')
+    return len(residue) == 0
 
 
 def ensure_board_test(board: dict, variant: str):
@@ -359,6 +380,10 @@ def ensure_board_test(board: dict, variant: str):
     fw = hil_flash.find_firmware(variant, 'device/board_test')
     if fw:
         return fw
+    if board['flasher']['name'].lower() == 'esptool':
+        # tools/build.py's espressif branch ignores -T and idf-builds EVERY example
+        # (needing the ESP-IDF env we don't have) — never attempt it here
+        return None
     name = board['name']
     variants = board.get('variant') or [{'name': name}]
     vcfg = next((v for v in variants if v['name'] == variant), None)
@@ -561,26 +586,50 @@ def check_board(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
             # can still have erased/half-written the target): re-park while the
             # board lock is still held
             if not args.no_park:
-                park_board(board, row, note)
+                park_board(board, kind, row, note)
     finally:
         unlock_board(lk)
 
 
-def park_board(board: dict, row: dict, note: list) -> None:
-    """Re-park with board_test, building it if absent (ensure_board_test); a board
-    left unparked — no image obtainable or the park flash failed — makes the row
-    bad: releasing the lock with unknown/active USB firmware perturbs the rig."""
+def park_board(board: dict, kind: str, row: dict, note: list) -> None:
+    """Re-park with board_test, building it if absent (ensure_board_test), and
+    VERIFY it took: board_test never enumerates USB, so a device board's cafe
+    device must drop off the bus, and a host board must answer with board_test's
+    own output — a rc=0 park that changed nothing (silent no-op) must not pass.
+    A board left unparked makes the row bad, with one documented exception:
+    esptool boards whose ESP-IDF builds have never included board_test (absence
+    is the family norm, noted but not a board fault)."""
     variant = resolve_variant(board, 'device/board_test', note)
     fw = ensure_board_test(board, variant)
     if fw is None:
-        note.append('unparked: board_test unavailable (build failed/timed out)')
-        row['status'] = 'bad'
+        if board['flasher']['name'].lower() == 'esptool':
+            note.append('park unavailable (ESP-IDF builds carry no board_test)')
+        else:
+            note.append('unparked: board_test unavailable (build failed/timed out)')
+            row['status'] = 'bad'
         return
     rc, err = call_flasher(getattr(hil_flash, f'flash_{board["flasher"]["name"].lower()}'),
                            board, str(fw))
     if rc != 0:
         note.append(f'park flash failed: {err}')
         row['status'] = 'bad'
+        return
+    if kind == 'host':
+        # no second reset (the park flash's own reset already started board_test);
+        # POSITIVE marker: its hello must appear — stale example output may still
+        # drain from the probe bridge's FIFO alongside it and is not disqualifying
+        data = check_host_serial(board, do_reset=False, want_hello=True)
+        if not (data and b'Hello from TinyUSB' in data):
+            note.append('park unverified: no board_test output')
+            row['status'] = 'bad'
+        return
+    deadline = time.monotonic() + 6
+    while time.monotonic() < deadline:
+        if find_device(board['uid'], None) is None:
+            return
+        time.sleep(0.5)
+    note.append('park unverified: device still enumerated')
+    row['status'] = 'bad'
 
 
 def check_board_safe(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
