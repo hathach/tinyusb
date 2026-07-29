@@ -39,16 +39,16 @@ def on_roster(tc, *names):
 
 ROSTER = [
     # device-only, rp2040 family
-    {'name': 'raspberry_pi_pico', 'uid': 'u1',
+    {'name': 'raspberry_pi_pico', 'uid': 'u1', 'flasher': {'name': 'openocd'},
      'tests': {'device': True, 'host': True, 'dual': True}},
     # device-only, stm32f4 family
-    {'name': 'stm32f407disco', 'uid': 'u2',
+    {'name': 'stm32f407disco', 'uid': 'u2', 'flasher': {'name': 'jlink'},
      'tests': {'device': True, 'host': False, 'dual': False}},
     # host-only board
-    {'name': 'raspberry_pi_pico2', 'uid': 'u3',
+    {'name': 'raspberry_pi_pico2', 'uid': 'u3', 'flasher': {'name': 'openocd'},
      'tests': {'device': False, 'host': True, 'dual': False}},
-    # only-list board (espressif-style)
-    {'name': 'espressif_s3_devkitm', 'uid': 'u4',
+    # only-list board (espressif-style), flashed by the CI leg that splits on esptool
+    {'name': 'espressif_s3_devkitm', 'uid': 'u4', 'flasher': {'name': 'esptool'},
      'tests': {'only': ['device/cdc_msc_freertos', 'host/device_info']}},
 ]
 ROSTERS = [('test/hil/tinyusb.json', ROSTER)]
@@ -187,6 +187,23 @@ class TestArgsEmission(unittest.TestCase):
         a = hil_select.selection_args(s, ROSTERS)['tinyusb.json']
         self.assertIn('-b raspberry_pi_pico', a)
         self.assertNotIn('-bt', a)
+
+    def test_args_by_flasher_splits_esp_from_the_rest(self):
+        s = sel(['src/device/usbd.c'])
+        per = hil_select.selection_args_by_flasher(s, ROSTERS)['tinyusb.json']
+        self.assertIn('espressif_s3_devkitm', per['esptool'])
+        self.assertIn('raspberry_pi_pico', per['openocd'])
+        self.assertNotIn('espressif_s3_devkitm', per.get('openocd', '') + per.get('jlink', ''))
+
+    def test_args_by_flasher_omits_a_flasher_with_no_selected_board(self):
+        # the esp CI leg must see no args at all here, not a filter matching zero boards
+        s = sel(['hw/bsp/rp2040/boards/raspberry_pi_pico/board.h'])
+        per = hil_select.selection_args_by_flasher(s, ROSTERS)['tinyusb.json']
+        self.assertEqual(per, {'openocd': '-b raspberry_pi_pico'})
+
+    def test_args_by_flasher_full_is_empty(self):
+        s = sel(['tools/random_new_script.py'])
+        self.assertEqual(hil_select.selection_args_by_flasher(s, ROSTERS), {'tinyusb.json': {}})
 
     def test_cli_diff_file(self):
         import subprocess, tempfile, json as j

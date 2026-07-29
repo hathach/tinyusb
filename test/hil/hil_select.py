@@ -296,23 +296,44 @@ def classify(changed_files, repo_root, rosters):
             'reasons': s.reasons}
 
 
+def _board_args(name, chosen) -> list:
+    parts = [f'-b {name}']
+    if chosen != 'all':
+        parts.append(f'-bt {name}:{",".join(chosen)}')
+    return parts
+
+
 def selection_args(sel, rosters):
+    """hil_test.py args per config. Empty means either 'full matrix' or 'nothing
+    selected' - callers must read sel['full'] to tell them apart."""
     args = {}
     for cfg_path, boards in rosters:
-        key = os.path.basename(cfg_path)
-        if sel['full']:
-            args[key] = ''
-            continue
         parts = []
-        for b in boards:
-            chosen = sel['boards'].get(b['name'])
-            if chosen is None:
-                continue
-            parts.append(f'-b {b["name"]}')
-            if chosen != 'all':
-                parts.append(f'-bt {b["name"]}:{",".join(chosen)}')
-        args[key] = ' '.join(parts)
+        if not sel['full']:
+            for b in boards:
+                chosen = sel['boards'].get(b['name'])
+                if chosen is not None:
+                    parts += _board_args(b['name'], chosen)
+        args[os.path.basename(cfg_path)] = ' '.join(parts)
     return args
+
+
+def selection_args_by_flasher(sel, rosters):
+    """{config: {flasher name: args}}. CI runs one rig as several jobs split by
+    flasher (esptool vs the rest); each must gate on its own subset, otherwise the
+    other leg runs a filter matching zero boards and reports a vacuous green."""
+    out = {}
+    for cfg_path, boards in rosters:
+        per = {}
+        if not sel['full']:
+            for b in boards:
+                chosen = sel['boards'].get(b['name'])
+                if chosen is None:
+                    continue
+                per.setdefault(b.get('flasher', {}).get('name', ''), []).extend(
+                    _board_args(b['name'], chosen))
+        out[os.path.basename(cfg_path)] = {f: ' '.join(p) for f, p in per.items()}
+    return out
 
 
 def changed_files_from_git(base, repo_root):
@@ -343,6 +364,7 @@ def main():
 
     s = classify(files, repo_root, rosters)
     s['args'] = selection_args(s, rosters)
+    s['args_flasher'] = selection_args_by_flasher(s, rosters)
     for r in s['reasons']:
         print(f'hil_select: {r}', file=sys.stderr)
     print(json.dumps(s))
