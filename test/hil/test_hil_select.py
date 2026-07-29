@@ -133,6 +133,16 @@ class TestFallbackRules(unittest.TestCase):
         self.assertIn('raspberry_pi_pico2', s['boards'])
         self.assertIn('stm32f407disco', s['boards'])
 
+    def test_cmakelists_and_requirements_are_full(self):
+        for f in ['src/CMakeLists.txt', 'examples/CMakeLists.txt',
+                  'examples/device/CMakeLists.txt', 'test/hil/requirements.txt']:
+            self.assertTrue(sel([f])['full'], f)
+
+    def test_docs_txt_is_noncode(self):
+        s = sel(['docs/info/changelog.txt'])
+        self.assertFalse(s['full'])
+        self.assertEqual(s['boards'], {})
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=1)

@@ -22,7 +22,7 @@ ALL_TESTS = {'device': device_tests, 'dual': dual_tests, 'host': host_test}
 NET_MACROS = ('ECM_RNDIS', 'NCM')
 
 _NONCODE_RE = re.compile(
-    r'^(docs/|\.claude/|.*\.(md|rst|txt)$|LICENSE)')
+    r'^(docs/|\.claude/|.*\.(md|rst)$|LICENSE)')
 _FULL_RE = re.compile(
     r'^(src/common/|src/osal/|src/tusb\.c$|src/tusb\.h$|src/tusb_option\.h$|'
     r'test/hil/|\.github/workflows/build.*\.yml$|\.github/actions/|'
