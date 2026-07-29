@@ -530,7 +530,15 @@ def check_board(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
 
     if args.scan_only:
         hit = find_device(board['uid'], None)
-        row['device'] = f'✅ {hit[1]}' if hit else '– (scan)'
+        # report the BOARD's usb state, not just the probe's: the enumerated device
+        # (with busport), off-bus (normal when parked in board_test), or n/a for
+        # host-only boards whose uid never enumerates
+        if hit:
+            row['device'] = f'✅ {hit[1]} @{hit[0]}'
+        elif kind == 'host':
+            row['device'] = '– n/a (host-only)'
+        else:
+            row['device'] = '⚫ off bus (parked?)'
         # the probe check DID run: a missing probe is a real failure even in scan mode
         row['status'] = 'skipped' if probe else 'bad'
         if probe:
