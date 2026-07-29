@@ -289,6 +289,11 @@ def flash(board: dict, example: str, variant: str, allow_recovery: bool, probe_p
         rc, err = call_flasher(fn, board, str(fw))
         if rc == 0:
             return True
+        if rc == 127:  # flasher binary missing: retries/probe recovery can't fix env
+            note.append(f'flasher tool missing ({err}) — esptool needs the ESP-IDF env (get-idf)'
+                        if board['flasher']['name'].lower() == 'esptool' else
+                        f'flasher tool missing: {err}')
+            return False
         if attempt == 0:
             say(f'{board["name"]:26} flash retry: {err}')
         else:
@@ -731,8 +736,9 @@ def main() -> None:
     except (OSError, ValueError):
         pass
 
+    roots = ' + '.join(dict.fromkeys([hil_flash.build_dir, *hil_flash.EXTRA_BUILD_DIRS]))
     say(f'pool check: host {host}, config {cfg_path.name}, {len(boards)} boards, '
-        f'{"scan-only" if args.scan_only else f"flash via {args.build_dir}/cmake-build-<board>"}'
+        f'{"scan-only" if args.scan_only else f"flash via {{{roots}}}/cmake-build-<board>"}'
         f'{"" if allow_recovery or args.scan_only else ", recovery unavailable (no sudo -n / usb_recover.sh)"}')
 
     if args.verbose:
