@@ -1703,11 +1703,13 @@ def render_matrix(rows_all: list) -> str:
     return summary + '\n\n' + '\n'.join([header, sep] + body)
 
 
-def accumulate_report(mret: list, report_dir: Path, fresh: bool) -> str:
+def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = '') -> str:
     """Merge this run's results into hil_report.json in report_dir, then (re)write
     the markdown matrix to hil_report.md. `fresh` (a first run, no --accumulate)
     starts a new report; otherwise a re-run accumulates so boards/tests that
-    already passed are preserved while re-run cells are updated. Returns the md."""
+    already passed are preserved while re-run cells are updated. `scope` names the
+    board filter, if any, so a scoped table is not mistaken for a full one.
+    Returns the md."""
     acc = {}  # ordered {row_label: [cells dict, duration str|None]}
     jpath = report_dir / REPORT_JSON
     if not fresh and jpath.is_file():
@@ -1748,6 +1750,10 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool) -> str:
                                           for k, (c, d) in acc.items()]}, indent=2) + '\n')
 
     md = render_matrix([(k, c, d) for k, (c, d) in acc.items()])
+    if scope:
+        # a scoped run's small table is otherwise indistinguishable from a full one,
+        # and it replaces the previous full table in the sticky PR comment
+        md = f'_Scoped run: {scope}. Boards/tests not listed were not run._\n\n' + md
     (report_dir / REPORT_MD).write_text(md + '\n', encoding='utf-8')
     return md
 
@@ -1939,7 +1945,11 @@ def main() -> None:
         print(f'warning: cannot persist controller hints to {CONTROLLER_CACHE}: {e}')
 
     # board x test result matrix -> hil_report.md (accumulates across re-runs) + stdout
-    report = accumulate_report(mret, report_dir, fresh)
+    # -b/-bt in play means a filtered run (PR selection or a re-run spec): say so in the
+    # report, which otherwise looks exactly like a full run that happened to be small
+    scoped = sorted(set(args.board) | set(board_test))
+    scope = f'{len(scoped)} board(s) — {", ".join(scoped)}' if scoped else ''
+    report = accumulate_report(mret, report_dir, fresh, scope)
     print()
     print(report)
     print(f'\nReport written to {(report_dir / REPORT_MD).resolve()}')

@@ -448,7 +448,14 @@ jobs:
             *tinyusb.json) SEL_ARGS="$SEL_ARGS_TINYUSB"; SEL_RUN="$SEL_RUN_TINYUSB" ;;
             *hfp.json)     SEL_ARGS="$SEL_ARGS_HFP";     SEL_RUN="$SEL_RUN_HFP" ;;
           esac
-          if [ "$SEL_RUN" = "false" ]; then echo "HIL skipped by PR selection (no affected boards on this rig)"; exit 0; fi
+          if [ "$SEL_RUN" = "false" ]; then
+            echo "HIL skipped by PR selection (no affected boards on this rig)"
+            # leave a marker so the combined PR comment says so instead of dropping the
+            # section (and leaving a stale table from an earlier push in its place)
+            mkdir -p "$HIL_REPORT_DIR"
+            echo "_Skipped by PR selection: no affected boards on this rig._" > "$HIL_REPORT_DIR/hil_report.md"
+            exit 0
+          fi
           # a re-run spec is already a subset of the selection (only the boards/tests
           # that failed); -b/-bt accumulate, so keeping SEL_ARGS here would re-run the
           # entire original selection instead of just what failed
@@ -522,7 +529,14 @@ jobs:
           SEL_ARGS: ${{ needs.set-matrix.outputs.hil_args_tinyusb_esp }}
           SEL_RUN: ${{ needs.set-matrix.outputs.hil_run_tinyusb_esp }}
         run: |
-          if [ "$SEL_RUN" = "false" ]; then echo "HIL skipped by PR selection (no affected esptool boards)"; exit 0; fi
+          if [ "$SEL_RUN" = "false" ]; then
+            echo "HIL skipped by PR selection (no affected esptool boards)"
+            # leave a marker so the combined PR comment says so instead of dropping the
+            # section (and leaving a stale table from an earlier push in its place)
+            mkdir -p "$HIL_REPORT_DIR"
+            echo "_Skipped by PR selection: no affected esptool boards._" > "$HIL_REPORT_DIR/hil_report.md"
+            exit 0
+          fi
           # a re-run spec is already a subset of the selection (only the boards/tests
           # that failed); -b/-bt accumulate, so keeping SEL_ARGS here would re-run the
           # entire original selection instead of just what failed
