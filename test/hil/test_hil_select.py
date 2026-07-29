@@ -26,6 +26,17 @@ def real_rosters():
     return rosters
 
 
+def on_roster(tc, *names):
+    """The subset of `names` currently in the live rig rosters, skipping the test
+    when none are. Parking/unparking a board is routine rig maintenance; it must
+    never fail this suite (CI runs it as a gate on the whole Build workflow)."""
+    have = {b['name'] for _, boards in real_rosters() for b in boards}
+    got = [n for n in names if n in have]
+    if not got:
+        tc.skipTest(f'not in the rig roster: {", ".join(names)}')
+    return got
+
+
 ROSTER = [
     # device-only, rp2040 family
     {'name': 'raspberry_pi_pico', 'uid': 'u1',
@@ -197,10 +208,11 @@ class TestRealRosterPortFamilies(unittest.TestCase):
     """Regression for port_families() missing espressif's dwc2 reference, which
     lives in a component CMakeLists.txt rather than family.cmake/family.mk."""
     def test_dwc2_change_selects_espressif_boards(self):
+        boards = on_roster(self, 'espressif_s3_devkitm', 'espressif_p4_function_ev')
         s = hil_select.classify(['src/portable/synopsys/dwc2/dcd_dwc2.c'], REPO, real_rosters())
         self.assertFalse(s['full'])
-        self.assertIn('espressif_s3_devkitm', s['boards'])
-        self.assertIn('espressif_p4_function_ev', s['boards'])
+        for board in boards:
+            self.assertIn(board, s['boards'])
 
 
 class TestPortFamiliesCoverage(unittest.TestCase):
@@ -247,16 +259,18 @@ class TestRealRosterOnlyListTests(unittest.TestCase):
     """Regression for roster-only-list tests (e.g. espressif's hid_composite_freertos)
     being invisible to the selector because it only knew the shared hil_examples lists."""
     def test_only_list_example_change_selects_it(self):
+        boards = on_roster(self, 'espressif_s3_devkitm', 'espressif_p4_function_ev')
         s = hil_select.classify(['examples/device/hid_composite_freertos/src/main.c'], REPO, real_rosters())
         self.assertFalse(s['full'])
-        self.assertEqual(s['boards']['espressif_s3_devkitm'], ['device/hid_composite_freertos'])
-        self.assertEqual(s['boards']['espressif_p4_function_ev'], ['device/hid_composite_freertos'])
+        for board in boards:
+            self.assertEqual(s['boards'][board], ['device/hid_composite_freertos'])
 
     def test_class_change_includes_only_list_boards(self):
+        boards = on_roster(self, 'espressif_s3_devkitm', 'espressif_p4_function_ev')
         s = hil_select.classify(['src/class/hid/hid_device.c'], REPO, real_rosters())
         self.assertFalse(s['full'])
-        self.assertIn('espressif_s3_devkitm', s['boards'])
-        self.assertIn('espressif_p4_function_ev', s['boards'])
+        for board in boards:
+            self.assertIn(board, s['boards'])
 
 
 class TestPortAndCoreRoleUseExtras(unittest.TestCase):
@@ -265,9 +279,10 @@ class TestPortAndCoreRoleUseExtras(unittest.TestCase):
     or device-stack change doesn't silently drop espressif's only-list tests
     (e.g. hid_composite_freertos) that aren't in the shared device_tests list."""
     def test_dcd_change_includes_only_list_test(self):
+        boards = on_roster(self, 'espressif_s3_devkitm', 'espressif_p4_function_ev')
         s = hil_select.classify(['src/portable/synopsys/dwc2/dcd_dwc2.c'], REPO, real_rosters())
         self.assertFalse(s['full'])
-        for board in ('espressif_s3_devkitm', 'espressif_p4_function_ev'):
+        for board in boards:
             tests = s['boards'][board]
             self.assertIn('device/hid_composite_freertos', tests)
             self.assertIn('device/cdc_msc_freertos', tests)
@@ -275,9 +290,10 @@ class TestPortAndCoreRoleUseExtras(unittest.TestCase):
             self.assertIn('device/usbtest', tests)
 
     def test_core_device_change_includes_only_list_test(self):
+        boards = on_roster(self, 'espressif_s3_devkitm', 'espressif_p4_function_ev')
         s = hil_select.classify(['src/device/usbd.c'], REPO, real_rosters())
         self.assertFalse(s['full'])
-        for board in ('espressif_s3_devkitm', 'espressif_p4_function_ev'):
+        for board in boards:
             tests = s['boards'][board]
             self.assertIn('device/hid_composite_freertos', tests)
             self.assertIn('device/cdc_msc_freertos', tests)
@@ -291,6 +307,42 @@ class TestPortAndCoreRoleUseExtras(unittest.TestCase):
             if tests == 'all':
                 continue
             self.assertNotIn('device/hid_composite_freertos', tests, board)
+
+
+class TestFamilies(unittest.TestCase):
+    """`families` exists for consumers that build (not just test) the diff: most
+    families have no rig board, so `boards` alone would compile nothing for them."""
+    def test_off_rig_port_still_reports_family(self):
+        s = sel(['src/portable/microchip/samx7x/dcd_samx7x.c'])
+        self.assertFalse(s['full'])
+        self.assertEqual(s['boards'], {})        # no same7x board on the rig
+        self.assertEqual(s['families'], ['same7x'])
+
+    def test_port_families_are_reported(self):
+        s = sel(['src/portable/raspberrypi/rp2040/dcd_rp2040.c'])
+        self.assertIn('rp2040', s['families'])
+
+    def test_bsp_family_and_board_report_family(self):
+        self.assertEqual(sel(['hw/bsp/rp2040/family.cmake'])['families'], ['rp2040'])
+        self.assertEqual(sel(['hw/bsp/rp2040/boards/raspberry_pi_pico/board.h'])['families'],
+                         ['rp2040'])
+
+    def test_docs_only_has_no_families(self):
+        self.assertEqual(sel(['docs/info/contributing.rst'])['families'], [])
+
+
+class TestPortWithoutFamilyIsFull(unittest.TestCase):
+    """A port dir no family file references must widen (full matrix), not silently
+    contribute zero boards — the fail-open contract."""
+    def test_unreferenced_port_forces_full(self):
+        orig = hil_select.port_families
+        hil_select.port_families = lambda port_dir, repo_root: set()
+        try:
+            s = sel(['src/portable/vendor/newip/dcd_newip.c'])
+        finally:
+            hil_select.port_families = orig
+        self.assertTrue(s['full'])
+        self.assertTrue(any('no board family' in r for r in s['reasons']), s['reasons'])
 
 
 if __name__ == '__main__':

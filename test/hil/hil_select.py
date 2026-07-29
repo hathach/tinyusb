@@ -5,6 +5,11 @@
 Stdlib-only (runs on bare CI runners; never imports hil_test/hil_flash/hil_lock).
 Fail-open: any file no rule classifies forces the full matrix. See
 docs/superpowers/specs/2026-07-29-hil-pr-scoped-selection-design.md.
+
+JSON: full, boards (name -> 'all' | [tests]), families (bsp families the diff
+touches, including ones with no rig board - build-only consumers such as /pre-pr
+sample from these), args (hil_test.py args per config) and args_flasher (the same
+args split by each board's flasher, for CI legs that split one rig by flasher).
 """
 import argparse
 import glob
@@ -134,6 +139,7 @@ class _Sel:
         self.full = False
         self.by_board = {}      # name -> set of tests, or 'all'
         self.roles = set()      # roles touched by any contribution
+        self.families = set()   # bsp families touched (incl. off-rig ones: build-only consumers)
         self.reasons = []
 
     def add(self, boards, tests, reason):
@@ -170,6 +176,12 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel):
         else:
             roles = {'device', 'host'}
         fams = port_families(port, repo_root)
+        if not fams:
+            # no family references this port: either a new/renamed port dir or a
+            # family.cmake layout the scan misses - widen instead of contributing nothing
+            s.force_full(f'{path}: port {port} maps to no board family -> full matrix')
+            return
+        s.families.update(fams)
         boards = [b['name'] for b in roster_boards
                   if board_family(b['name'], repo_root) in fams and (board_roles(b) & roles)]
         tests = role_tests(roles, extras)
@@ -218,6 +230,7 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel):
     m = re.match(r'hw/bsp/([^/]+)/(?:boards/([^/]+)/)?', path)
     if m:
         fam, brd = m.group(1), m.group(2)
+        s.families.add(fam)
         if brd:
             boards = [b['name'] for b in roster_boards if b['name'] == brd]
             why = f'{path}: bsp board {brd}'
@@ -263,7 +276,7 @@ def classify(changed_files, repo_root, rosters):
 
     if s.full:
         return {'full': True, 'boards': {b['name']: 'all' for b in all_boards},
-                'reasons': s.reasons}
+                'families': sorted(s.families), 'reasons': s.reasons}
 
     # role pruning: single-role selections drop the other role's tests and boards
     by_name = {b['name']: b for b in all_boards}
@@ -279,7 +292,8 @@ def classify(changed_files, repo_root, rosters):
             kept = [t for t in kept if test_role(t) in (role, 'dual')]
         if kept:
             out[name] = 'all' if set(kept) == set(allowed) else sorted(kept)
-    return {'full': False, 'boards': out, 'reasons': s.reasons}
+    return {'full': False, 'boards': out, 'families': sorted(s.families),
+            'reasons': s.reasons}
 
 
 def selection_args(sel, rosters):
