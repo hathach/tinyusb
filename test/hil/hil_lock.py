@@ -21,6 +21,7 @@ import time
 
 BOARD_LOCK_DIR = '/tmp/tinyusb-hil-locks'
 CI_REASON = 'hil_test.py'   # release-protected holder tag (release refuses to kill it)
+PROTECTED_REASONS = {CI_REASON, 'pool_check'}  # cmd_release refuses to SIGTERM these holders
 PROFILE = os.environ.get('HIL_PROFILE') == '1'
 
 
@@ -363,9 +364,10 @@ def cmd_release(boards):
             fh.close()
             info = read_record(b) or {}
             pid = info.get('pid')
-            if info.get('reason') == CI_REASON:
-                print(f'ERROR: {b} is mid-test by hil_test.py (pid {pid}) — not killing a '
-                      'CI run; wait for it to finish', file=sys.stderr)
+            reason = info.get('reason')
+            if reason in PROTECTED_REASONS:
+                print(f'ERROR: {b} is mid-test by {reason} (pid {pid}) — not killing it; '
+                      'wait for it to finish', file=sys.stderr)
                 rc = 1
             elif isinstance(pid, int) and pid > 0:
                 victims.add(pid)

@@ -77,7 +77,7 @@ If `local.json` is missing on a dev PC, ask the user to supply one (only fall ba
 
 ## Local execution
 
-Set `CONFIG` from `hostname` first (`test/hil/local.json` on htpc, `test/hil/tinyusb.json` on ci):
+Set `CONFIG` from `hostname` first (`test/hil/local.json` on a dev PC, `test/hil/tinyusb.json` on ci, `test/hil/hfp.json` on tusb):
 
 ```bash
 CONFIG=test/hil/local.json      # on ci use: CONFIG=test/hil/tinyusb.json
@@ -89,7 +89,7 @@ python3 test/hil/hil_test.py -B examples "$CONFIG"
 python3 test/hil/hil_test.py -b stm32f723disco -B examples "$CONFIG"
 ```
 
-## Remote execution (htpc → ci.lan only)
+## Remote execution (dev PC → ci.lan only)
 
 `test/hil/hil_ci.sh` handles dir setup, scp of test scripts, rsync of firmware (`.elf`/`.bin`/`.hex`), and runs `hil_test.py` on `ci.lan` with `tinyusb.json`:
 

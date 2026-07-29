@@ -25,6 +25,9 @@ build_dir = 'cmake-build'
 
 CMD_TIMEOUT = int(os.getenv('HIL_CMD_TIMEOUT', '180'))
 
+# flasher names (dispatch key, board['flasher']['name'].lower()) whose reset_* is a no-op
+RESET_NOOP = {'esptool', 'lm4flash', 'stflash', 'uniflash'}
+
 
 def cmd_stdout_text(out: Any) -> str:
     if out is None:
@@ -260,12 +263,17 @@ def reset_lm4flash(board):
 
 def find_firmware(variant: str, example: str):
     """Locate a built example's firmware base path (no extension) under
-    cmake-build-<variant>/<example>/. Accepts the single-config layout (firmware
-    directly in the example dir) or Ninja Multi-Config (a per-config subdir like
-    RelWithDebInfo/). Returns the base Path, or None if not built."""
-    fw_dir = TINYUSB_ROOT / build_dir / f'cmake-build-{variant}' / example
+    <build_dir>/cmake-build-<variant>/<example>/. Tries the caller-set build_dir
+    first, then the two standard layouts ('cmake-build', the tools/build.py and
+    ESP-IDF default; 'examples', the manually-built HIL layout), skipping
+    duplicates. Accepts the single-config layout (firmware directly in the example
+    dir) or Ninja Multi-Config (a per-config subdir like RelWithDebInfo/). Returns
+    the base Path, or None if not built in any of them."""
     base = Path(example).name
-    if fw_dir.is_dir():
+    for bd in dict.fromkeys([build_dir, 'cmake-build', 'examples']):
+        fw_dir = TINYUSB_ROOT / bd / f'cmake-build-{variant}' / example
+        if not fw_dir.is_dir():
+            continue
         for cand in [fw_dir / base, fw_dir / 'RelWithDebInfo' / base,
                      *(p.with_suffix('') for p in sorted(fw_dir.glob(f'*/{base}.elf')))]:
             if cand.with_suffix('.elf').exists() or cand.with_suffix('.bin').exists():
