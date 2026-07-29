@@ -118,4 +118,7 @@ Runs take 2-5 min. Use a timeout ≥ 20 min (1200000 ms). NEVER cancel early.
 
 ## Reporting
 
-Show the output, summarize pass/fail per board. On failure, retry with `-v`; if that's not enough, add temporary debug prints to `hil_test.py`.
+The user-facing answer to a pool check or HIL run IS the tool's summary table: paste the
+complete per-board table (and footer counts) verbatim — never truncate rows or reduce it to a
+prose digest like "27/27 healthy"; at most one line of commentary below it. On failure, retry
+with `-v`; if that's not enough, add temporary debug prints to `hil_test.py`.
