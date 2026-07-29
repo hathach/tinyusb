@@ -47,12 +47,18 @@ Use it before a HIL campaign, after rig maintenance/reboot, or when boards fail 
 to the full matrix). Manual use:
 
 ```bash
-ARGS=$(python3 test/hil/hil_select.py --base master test/hil/tinyusb.json | python3 -c "import json,sys; print(json.load(sys.stdin)['args']['tinyusb.json'])")
-python3 test/hil/hil_test.py -B examples $ARGS test/hil/tinyusb.json
+SEL=$(python3 test/hil/hil_select.py --base master test/hil/tinyusb.json)
+FULL=$(printf '%s' "$SEL" | python3 -c "import json,sys; print(json.load(sys.stdin)['full'])")
+ARGS=$(printf '%s' "$SEL" | python3 -c "import json,sys; print(json.load(sys.stdin)['args']['tinyusb.json'])")
+if [ "$FULL" = "True" ] || [ -n "$ARGS" ]; then
+  python3 test/hil/hil_test.py -B examples $ARGS test/hil/tinyusb.json   # $ARGS empty when full: run everything
+else
+  echo "diff affects nothing on this rig - skip HIL"
+fi
 ```
 
-An empty `ARGS` means the diff affects nothing on this rig — don't run `hil_test.py` in that case; it would
-otherwise run the full matrix, the opposite of CI's empty-selection behavior.
+Read `full`, never `args` alone: `args` is empty for BOTH `full: true` (run the whole matrix — a broad or
+unclassified change) and "nothing selected" (skip). Skip only when `full` is false AND `args` is empty.
 
 Unit suite: `python3 test/hil/test_hil_select.py` (no hardware).
 

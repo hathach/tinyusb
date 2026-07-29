@@ -16,13 +16,19 @@ Run the software + hardware gate for the current branch. The user invoking this 
 ## 2. Map changes to boards
 
 - `python3 test/hil/hil_select.py --base $BASE test/hil/tinyusb.json` → JSON with the affected
-  rig boards (`boards`) and per-file `reasons`. `full: true` means a broad/infra change.
-- Build-board sampling: from the selection's boards (or, when `full`, the representative set
-  `stm32f407disco` + `raspberry_pi_pico`), pick ONE board per family, preferring rig-roster
-  boards; cap at 4 and tell the user which families the cap dropped. The boards list must
-  NEVER end up empty — final fallback is `[stm32f407disco]`.
-- A `full: true` selection or an empty one (docs-only) keeps today's behavior: minimal
-  software-only gate for docs-only, representative set otherwise.
+  bsp `families`, the affected rig `boards`, and per-file `reasons`. `full: true` means a
+  broad/infra change.
+- Sample ONE board per entry in `families`: prefer a rig-roster board of that family, else the
+  first entry in `hw/bsp/<family>/boards/`. Build boards come from `families`, never from
+  `boards` alone — most families have no rig board, so an off-rig driver change
+  (`dcd_samx7x.c` → `same7x`, `boards: {}`) would otherwise never be compiled.
+  - Rig roster: `python3 -c "import json;print([b['name'] for b in json.load(open('test/hil/tinyusb.json'))['boards']])"`
+  - A board's family is the `hw/bsp/<family>/boards/<board>/` directory holding it.
+- Add the representative set `stm32f407disco` + `raspberry_pi_pico` when `full: true` (broad
+  change — class/core/common/infra); `families` alone doesn't say which board exercises it.
+- Cap at 4 boards and tell the user which families the cap dropped. The list must NEVER end up
+  empty — final fallback is `[stm32f407disco]` (full-check throws on an empty list).
+- Docs-only (`full: false`, no families, no boards) keeps §1's minimal software-only gate.
 
 ## 3. HIL boards
 
