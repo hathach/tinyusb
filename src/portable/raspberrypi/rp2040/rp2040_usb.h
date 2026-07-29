@@ -147,6 +147,7 @@ extern volatile uint32_t e15_last_sof;
 #endif
 
 void rp2usb_init(void);
+void rp2usb_deinit(void);
 
 // if usb hardware is in host mode
 TU_ATTR_ALWAYS_INLINE static inline bool rp2usb_is_host_mode(void) {

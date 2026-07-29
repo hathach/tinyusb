@@ -101,7 +101,16 @@ jobs:
           shopt -s nullglob
           dirs=(hil-reports/hil-report-*)
           if [ ${#dirs[@]} -eq 0 ]; then
+            # No rig produced a report: PR selection matched no board anywhere, or the
+            # HIL jobs did not run at all. Post it rather than exiting, so a table from
+            # an earlier push is replaced instead of being left to look current.
             echo "No HIL reports found"
+            {
+              echo "## Hardware-in-the-loop (HIL) Test Report"
+              echo
+              echo "_No HIL run for this push (no affected boards, or hardware testing did not run)._"
+            } > hil_combined.md
+            echo "found=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           {

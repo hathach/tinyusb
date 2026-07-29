@@ -85,6 +85,10 @@ void rp2usb_init(void) {
   critical_section_init(&rp2usb_lock);
 }
 
+void rp2usb_deinit(void) {
+  critical_section_deinit(&rp2usb_lock);
+}
+
 void __tusb_irq_path_func(rp2usb_reset_transfer)(hw_endpoint_t *ep) {
   ep->state         = EPSTATE_IDLE;
   ep->remaining_len = 0;

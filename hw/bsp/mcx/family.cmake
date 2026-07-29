@@ -94,10 +94,19 @@ function(family_configure_example TARGET RTOS)
     family_add_tinyusb(${TARGET} OPT_MCU_MCXA15)
   endif()
 
+  # PORT is set per board (board.cmake), so pick the driver at configure time. Spelled out
+  # rather than $<IF:${PORT},...> so the port path stays greppable: test/hil/hil_select.py
+  # maps a portable-driver change to the families whose build file names that directory.
+  if (PORT)
+    set(PORT_SRC ${TOP}/src/portable/chipidea/ci_hs/dcd_ci_hs.c)
+  else ()
+    set(PORT_SRC ${TOP}/src/portable/chipidea/ci_fs/dcd_ci_fs.c)
+  endif ()
+
   target_sources(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
-    ${TOP}/src/portable/chipidea/$<IF:${PORT},ci_hs/dcd_ci_hs.c,ci_fs/dcd_ci_fs.c>
+    ${PORT_SRC}
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
   target_include_directories(${TARGET} PUBLIC

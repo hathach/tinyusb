@@ -48,20 +48,87 @@ jobs:
     outputs:
       json: ${{ steps.set-matrix-json.outputs.matrix }}
       hil_json: ${{ steps.set-matrix-json.outputs.hil_matrix }}
+      # one pair per rig job: hil-tinyusb (tinyusb.json minus esptool boards),
+      # hil-tinyusb-esp (esptool boards only), hil-tinyusb (hfp.json)
+      hil_args_tinyusb: ${{ steps.hil-select.outputs.args_tinyusb }}
+      hil_run_tinyusb: ${{ steps.hil-select.outputs.run_tinyusb }}
+      hil_args_tinyusb_esp: ${{ steps.hil-select.outputs.args_tinyusb_esp }}
+      hil_run_tinyusb_esp: ${{ steps.hil-select.outputs.run_tinyusb_esp }}
+      hil_args_hfp: ${{ steps.hil-select.outputs.args_hfp }}
+      hil_run_hfp: ${{ steps.hil-select.outputs.run_hfp }}
     steps:
       - name: Checkout TinyUSB
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: HIL selection (PR only)
+        id: hil-select
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          # Best-effort by design: set-matrix gates cmake, hil-build and every rig job,
+          # so a missing origin/<base>, a shallow-clone hiccup or a selector traceback
+          # must fall back to the FULL matrix (no --select, run=true, no args) instead
+          # of failing the job. Same fail-open shape as pr_comment.yml's `|| true`.
+          SELECT_JSON=''
+          if ! python3 test/hil/test_hil_select.py; then
+            echo "::error::hil_select unit tests failed - falling back to the full HIL matrix"
+          elif ! SELECT_JSON=$(python3 test/hil/hil_select.py --base "origin/$BASE_REF" test/hil/tinyusb.json test/hil/hfp.json); then
+            echo "::warning::hil_select failed - falling back to the full HIL matrix"
+            SELECT_JSON=''
+          fi
+
+          # One args/run pair per rig job, split by flasher: a job whose own subset is
+          # empty skips explicitly instead of running a board filter that matches zero
+          # boards ("No tests were run." exits 0 and would read as a green HIL run).
+          OUT=''
+          if [ -n "$SELECT_JSON" ]; then
+            OUT=$(SELECT_JSON="$SELECT_JSON" python3 -c '
+          import json, os
+          s = json.loads(os.environ["SELECT_JSON"])
+          tin = s.get("args_flasher", {}).get("tinyusb.json", {})
+          legs = (("tinyusb", " ".join(a for f, a in sorted(tin.items()) if f != "esptool" and a)),
+                  ("tinyusb_esp", tin.get("esptool", "")),
+                  ("hfp", s.get("args", {}).get("hfp.json", "")))
+          for key, a in legs:
+              print("args_" + key + "=" + a)
+              print("run_" + key + "=" + ("true" if (s.get("full") or a) else "false"))
+          ') || OUT=''
+            if [ -z "$OUT" ]; then
+              echo "::warning::hil_select output unusable - falling back to the full HIL matrix"
+              SELECT_JSON=''
+            fi
+          fi
+          if [ -z "$OUT" ]; then
+            OUT=$(for k in tinyusb tinyusb_esp hfp; do printf 'args_%s=\nrun_%s=true\n' "$k" "$k"; done)
+          fi
+          echo "$OUT"
+          { echo "select=$SELECT_JSON"; echo "$OUT"; } >> $GITHUB_OUTPUT
 
       - name: Generate matrix json
         id: set-matrix-json
+        env:
+          SELECT: ${{ steps.hil-select.outputs.select }}
         run: |
           # build matrix
           MATRIX_JSON=$(python .github/workflows/ci_set_matrix.py)
           echo "matrix=$MATRIX_JSON"
           echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
 
-          # HIL matrix (merged from tinyusb + hifiphile configs)
-          HIL_MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py test/hil/tinyusb.json test/hil/hfp.json)
+          # HIL matrix (merged from tinyusb + hifiphile configs), scoped on PRs.
+          # Scoping is best-effort too: fall back to the unscoped (full) matrix.
+          HIL_MATRIX_JSON=''
+          if [ -n "$SELECT" ]; then
+            HIL_MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py --select "$SELECT" test/hil/tinyusb.json test/hil/hfp.json) || HIL_MATRIX_JSON=''
+            if [ -z "$HIL_MATRIX_JSON" ]; then
+              echo "::warning::scoped HIL matrix failed - falling back to the full HIL matrix"
+            fi
+          fi
+          if [ -z "$HIL_MATRIX_JSON" ]; then
+            HIL_MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py test/hil/tinyusb.json test/hil/hfp.json)
+          fi
           echo "hil_matrix=$HIL_MATRIX_JSON"
           echo "hil_matrix=$HIL_MATRIX_JSON" >> $GITHUB_OUTPUT
 
@@ -271,6 +338,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # These names are the bucket keys of test/hil/hil_ci_set_matrix.py: every
+        # non-esptool roster board must land in one of them (esptool boards go to
+        # 'esp-idf', built by hil-build-esp below). hil_ci_set_matrix.py rejects a
+        # board whose "toolchain" is not a bucket, so a new bucket must be added in
+        # both places.
+        #
+        # INVARIANT the PR-scoped skip cascade rests on: hil_run_tinyusb / hil_run_hfp
+        # true => hil-build has at least one non-empty leg. It holds because those
+        # flags count only non-esptool boards and every such board builds here. It
+        # would break if an esptool board were added to hfp.json, because
+        # hil_args_hfp is NOT flasher-split: the hfp leg of hil-tinyusb would want to
+        # run while hil-build (and therefore that leg) skipped.
         toolchain:
           - 'arm-gcc'
           - 'riscv-gcc'
@@ -298,7 +377,7 @@ jobs:
   # self-hosted on local VM, for attached hardware checkout HIL_JSON
   # ---------------------------------------
   hil-tinyusb:
-    needs: hil-build
+    needs: [ hil-build, set-matrix ]
     name: hil-tinyusb (${{ matrix.display }})
     strategy:
       fail-fast: false
@@ -357,7 +436,31 @@ jobs:
       - name: Test on actual hardware
         # Single attempt per test (--retry 1), no in-run second pass: a broken fixture
         # fails fast instead of holding the runner (and other PRs' HIL jobs) for hours.
-        run: python3 test/hil/hil_test.py --retry 1 ${{ matrix.test_args }} ${{ env.HIL_JSON }} $RERUN_ARGS
+        env:
+          # tinyusb.json minus the esptool boards (they run in hil-tinyusb-esp): each
+          # job gates on its own flasher subset, never on a rig-wide flag
+          SEL_ARGS_TINYUSB: ${{ needs.set-matrix.outputs.hil_args_tinyusb }}
+          SEL_RUN_TINYUSB: ${{ needs.set-matrix.outputs.hil_run_tinyusb }}
+          SEL_ARGS_HFP: ${{ needs.set-matrix.outputs.hil_args_hfp }}
+          SEL_RUN_HFP: ${{ needs.set-matrix.outputs.hil_run_hfp }}
+        run: |
+          case "$HIL_JSON" in
+            *tinyusb.json) SEL_ARGS="$SEL_ARGS_TINYUSB"; SEL_RUN="$SEL_RUN_TINYUSB" ;;
+            *hfp.json)     SEL_ARGS="$SEL_ARGS_HFP";     SEL_RUN="$SEL_RUN_HFP" ;;
+          esac
+          if [ "$SEL_RUN" = "false" ]; then
+            echo "HIL skipped by PR selection (no affected boards on this rig)"
+            # leave a marker so the combined PR comment says so instead of dropping the
+            # section (and leaving a stale table from an earlier push in its place)
+            mkdir -p "$HIL_REPORT_DIR"
+            echo "_Skipped by PR selection: no affected boards on this rig._" > "$HIL_REPORT_DIR/hil_report.md"
+            exit 0
+          fi
+          # a re-run spec is already a subset of the selection (only the boards/tests
+          # that failed); -b/-bt accumulate, so keeping SEL_ARGS here would re-run the
+          # entire original selection instead of just what failed
+          if [ -n "$RERUN_ARGS" ]; then SEL_ARGS=''; fi
+          python3 test/hil/hil_test.py --retry 1 ${{ matrix.test_args }} $SEL_ARGS ${{ env.HIL_JSON }} $RERUN_ARGS
 
       - name: Upload HIL report
         if: always() && github.event_name == 'pull_request'
@@ -376,7 +479,7 @@ jobs:
   # second slot would double the per-controller flash/usbtest budgets.
   # ---------------------------------------
   hil-tinyusb-esp:
-    needs: hil-build-esp
+    needs: [ hil-build-esp, set-matrix ]
     name: hil-tinyusb (tinyusb-esp.json)
     runs-on: [ self-hosted, X64, hathach, hardware-in-the-loop ]
     env:
@@ -420,7 +523,25 @@ jobs:
           merge-multiple: true
 
       - name: Test on actual hardware
-        run: python3 test/hil/hil_test.py --retry 1 $TEST_ARGS ${{ env.HIL_JSON }} $RERUN_ARGS
+        env:
+          # esptool subset of tinyusb.json: this job must gate on its own boards, not
+          # on the rig-wide flag (which would run a filter matching zero boards)
+          SEL_ARGS: ${{ needs.set-matrix.outputs.hil_args_tinyusb_esp }}
+          SEL_RUN: ${{ needs.set-matrix.outputs.hil_run_tinyusb_esp }}
+        run: |
+          if [ "$SEL_RUN" = "false" ]; then
+            echo "HIL skipped by PR selection (no affected esptool boards)"
+            # leave a marker so the combined PR comment says so instead of dropping the
+            # section (and leaving a stale table from an earlier push in its place)
+            mkdir -p "$HIL_REPORT_DIR"
+            echo "_Skipped by PR selection: no affected esptool boards._" > "$HIL_REPORT_DIR/hil_report.md"
+            exit 0
+          fi
+          # a re-run spec is already a subset of the selection (only the boards/tests
+          # that failed); -b/-bt accumulate, so keeping SEL_ARGS here would re-run the
+          # entire original selection instead of just what failed
+          if [ -n "$RERUN_ARGS" ]; then SEL_ARGS=''; fi
+          python3 test/hil/hil_test.py --retry 1 $TEST_ARGS $SEL_ARGS ${{ env.HIL_JSON }} $RERUN_ARGS
 
       - name: Upload HIL report
         if: always() && github.event_name == 'pull_request'
@@ -460,23 +581,75 @@ jobs:
 
       - name: Checkout TinyUSB
         uses: actions/checkout@v6
+        with:
+          # full history: the "HIL selection" step below needs
+          # merge-base(HEAD, origin/<base_ref>) for PR-scoped selection
+          fetch-depth: 0
+
+      # Computed BEFORE the build: the IAR build is four boards and up to 30 minutes on
+      # a runner that hil-tinyusb (hfp.json) also needs, so an unaffected PR must release
+      # it immediately instead of building everything and then skipping. The selection
+      # also narrows what gets built.
+      # This job has no needs: on set-matrix (it must run even if that unrelated job
+      # fails), so it computes its own selection instead of reading set-matrix's outputs.
+      - name: HIL selection (PR only)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          # Best-effort: this job is deliberately decoupled from set-matrix so unrelated
+          # failures cannot kill hfp coverage - a selector failure here must likewise
+          # fall back to the full hfp matrix (no hil_select.json, no SEL_* vars), never
+          # fail the job.
+          if ! python3 test/hil/hil_select.py --base "origin/$BASE_REF" test/hil/hfp.json > hil_select.json; then
+            echo "::warning::hil_select failed - running the full hfp matrix"
+            rm -f hil_select.json
+            exit 0
+          fi
+          # hil_select.json is passed to hil_ci_set_matrix.py --select below to scope the
+          # build; it already honours full=true by ignoring the board list.
+          # The hil_test.py args go to a file, never to $GITHUB_ENV: they are derived
+          # from roster board names, which a PR can edit. Only SEL_RUN (a literal
+          # true/false computed here, needed by the step-level `if:`) goes to the env.
+          if ! SEL_RUN=$(python3 -c '
+          import json
+          s = json.load(open("hil_select.json"))
+          a = s["args"]["hfp.json"]
+          open("hil_sel_args.txt", "w").write(a)
+          print("true" if (s["full"] or a) else "false")
+          '); then
+            echo "::warning::hil_select output unusable - running the full hfp matrix"
+            rm -f hil_select.json hil_sel_args.txt
+            exit 0
+          fi
+          echo "SEL_RUN=$SEL_RUN"
+          echo "SEL_RUN=$SEL_RUN" >> $GITHUB_ENV
 
       - name: Get build boards
+        if: env.SEL_RUN != 'false'
         run: |
-          MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py test/hil/hfp.json)
-          BUILD_ARGS=$(echo $MATRIX_JSON | jq -r '.["arm-gcc"] | join(" ")')
+          if [ -f hil_select.json ]; then
+            MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py --select "$(cat hil_select.json)" test/hil/hfp.json)
+          else
+            MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py test/hil/hfp.json)
+          fi
+          # Each variant carries its own --build-name/--cflag, which are global to a
+          # single build.py invocation — so keep one matrix entry per line and build
+          # them one at a time (joining would leak a variant's flags onto every board).
+          echo "$MATRIX_JSON" | jq -r '.["arm-gcc"][]' > hil_build_entries.txt
+          cat hil_build_entries.txt
+          BUILD_ARGS=$(echo "$MATRIX_JSON" | jq -r '.["arm-gcc"] | join(" ")')
           echo "BUILD_ARGS=$BUILD_ARGS"
           echo "BUILD_ARGS=$BUILD_ARGS" >> $GITHUB_ENV
 
       - name: Get Dependencies
+        if: env.SEL_RUN != 'false'
         run: python3 tools/get_deps.py $BUILD_ARGS
 
       - name: Build
+        if: env.SEL_RUN != 'false'
         run: |
-          # Each variant carries its own --build-name/--cflag, which are global to a
-          # single build.py invocation — so build one matrix entry at a time rather
-          # than joining them (joining would leak a variant's flags onto every board).
-          readarray -t ENTRIES < <(python test/hil/hil_ci_set_matrix.py test/hil/hfp.json | jq -r '.["arm-gcc"][]')
+          readarray -t ENTRIES < hil_build_entries.txt
           for entry in "${ENTRIES[@]}"; do
             echo "+ tools/build.py --toolchain iar $entry"
             python3 tools/build.py --toolchain iar $entry
@@ -484,7 +657,16 @@ jobs:
 
       - name: Test on actual hardware (hardware in the loop)
         run: |
-          python3 test/hil/hil_test.py hfp.json
+          if [ "$SEL_RUN" = "false" ]; then
+            echo "HIL skipped by PR selection (no affected boards on this rig)"
+            # leave a marker so the combined PR comment says so instead of dropping
+            # the section (and leaving a stale table from an earlier push)
+            echo "_Skipped by PR selection: no affected boards on this rig._" > hil_report.md
+            exit 0
+          fi
+          # empty/absent on a non-PR event or a selector fallback -> full hfp matrix
+          SEL_ARGS=$(cat hil_sel_args.txt 2>/dev/null || true)
+          python3 test/hil/hil_test.py $SEL_ARGS hfp.json
 
       - name: Upload HIL report
         if: always() && github.event_name == 'pull_request'
