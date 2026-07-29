@@ -253,3 +253,59 @@ def classify(changed_files, repo_root, rosters):
         if kept:
             out[name] = 'all' if set(kept) == set(allowed) else sorted(kept)
     return {'full': False, 'boards': out, 'reasons': s.reasons}
+
+
+def selection_args(sel, rosters):
+    args = {}
+    for cfg_path, boards in rosters:
+        key = os.path.basename(cfg_path)
+        if sel['full']:
+            args[key] = ''
+            continue
+        parts = []
+        for b in boards:
+            chosen = sel['boards'].get(b['name'])
+            if chosen is None:
+                continue
+            parts.append(f'-b {b["name"]}')
+            if chosen != 'all':
+                parts.append(f'-bt {b["name"]}:{",".join(chosen)}')
+        args[key] = ' '.join(parts)
+    return args
+
+
+def changed_files_from_git(base, repo_root):
+    mb = subprocess.run(['git', 'merge-base', 'HEAD', base], cwd=repo_root,
+                        capture_output=True, text=True, check=True).stdout.strip()
+    diff = subprocess.run(['git', 'diff', '--name-only', f'{mb}..HEAD'], cwd=repo_root,
+                          capture_output=True, text=True, check=True).stdout
+    return [l for l in diff.splitlines() if l.strip()]
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    g = ap.add_mutually_exclusive_group(required=True)
+    g.add_argument('--base', help='git ref to diff against (merge-base..HEAD)')
+    g.add_argument('--diff-file', help='newline-separated changed-file list')
+    ap.add_argument('configs', nargs='+', help='rig roster JSON file(s)')
+    a = ap.parse_args()
+
+    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    rosters = []
+    for c in a.configs:
+        with open(c) as f:
+            rosters.append((c, json.load(f)['boards']))
+
+    files = (open(a.diff_file).read().splitlines() if a.diff_file
+             else changed_files_from_git(a.base, repo_root))
+    files = [f for f in files if f.strip()]
+
+    s = classify(files, repo_root, rosters)
+    s['args'] = selection_args(s, rosters)
+    for r in s['reasons']:
+        print(f'hil_select: {r}', file=sys.stderr)
+    print(json.dumps(s))
+
+
+if __name__ == '__main__':
+    main()

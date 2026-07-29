@@ -144,5 +144,40 @@ class TestFallbackRules(unittest.TestCase):
         self.assertEqual(s['boards'], {})
 
 
+class TestArgsEmission(unittest.TestCase):
+    def test_args_for_scoped_selection(self):
+        s = sel(['src/portable/raspberrypi/rp2040/dcd_rp2040.c'])
+        args = hil_select.selection_args(s, ROSTERS)
+        a = args['tinyusb.json']
+        self.assertIn('-b raspberry_pi_pico', a)
+        self.assertNotIn('stm32f407disco', a)
+        self.assertIn('-bt raspberry_pi_pico:', a)   # device-only subset of a device+host board
+
+    def test_args_full_is_empty(self):
+        s = sel(['tools/random_new_script.py'])
+        self.assertEqual(hil_select.selection_args(s, ROSTERS), {'tinyusb.json': ''})
+
+    def test_args_all_board_gets_bare_b(self):
+        s = sel(['hw/bsp/rp2040/boards/raspberry_pi_pico/board.h'])
+        a = hil_select.selection_args(s, ROSTERS)['tinyusb.json']
+        self.assertIn('-b raspberry_pi_pico', a)
+        self.assertNotIn('-bt', a)
+
+    def test_cli_diff_file(self):
+        import subprocess, tempfile, json as j
+        with tempfile.NamedTemporaryFile('w', suffix='.txt', delete=False) as f:
+            f.write('src/class/cdc/cdc_device.c\n')
+            path = f.name
+        r = subprocess.run([sys.executable, os.path.join(REPO, 'test/hil/hil_select.py'),
+                            '--diff-file', path, os.path.join(REPO, 'test/hil/tinyusb.json')],
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        out = j.loads(r.stdout)
+        self.assertFalse(out['full'])
+        self.assertIn('tinyusb.json', out['args'])
+        self.assertTrue(any('cdc_device' in line for line in out['reasons']))
+        os.unlink(path)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=1)
