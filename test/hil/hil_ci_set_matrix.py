@@ -57,6 +57,13 @@ def main():
                 toolchain = 'esp-idf'
             else:
                 toolchain = board.get('toolchain', 'arm-gcc')
+            if toolchain not in matrix:
+                # a board in no bucket would never be built, and the bare KeyError
+                # below would only say so as a traceback from the set-matrix job
+                raise SystemExit(
+                    f'{name}: toolchain {toolchain!r} is not a build bucket '
+                    f'({", ".join(matrix)}); add it here and to the hil-build / '
+                    f'hil-build-esp jobs in .github/workflows/build.yml')
 
             build_board = f'-b {name}'
             if 'build' in board and 'args' in board['build']:
