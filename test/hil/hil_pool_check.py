@@ -237,9 +237,10 @@ def pick_example(board: dict, note: list, build_missing: bool = True):
     if not pref:
         return None, kind, None, None
     variant = (board.get('variant') or [{'name': board['name']}])[0]['name']
-    fw = ensure_fw(board, variant, pref[0], note)
-    if fw:
-        return pref[0], kind, variant, fw
+    for ex in pref[:2]:  # the second candidate covers a preferred example that fails to build
+        fw = ensure_fw(board, variant, ex, note)
+        if fw:
+            return ex, kind, variant, fw
     return None, kind, None, None
 
 
@@ -404,14 +405,16 @@ def boardtest_output(data: bytes) -> bool:
 
 def build_example(board: dict, variant: str, example: str) -> int:
     """Build one example for this board: tools/build.py (same invocation shape as
-    hil_test.build_board: -T target, -D per build.args, variant defines/
+    hil_test.build_board: -T target, -D per build.args, variant defines/flags,
     --build-name), or idf.py directly for espressif (tools/build.py's esp branch
-    ignores -T and builds everything; variant compile `flags` are NOT forwarded
-    there — idf.py has no --cflag). Bounded and process-group-killed via run_cmd;
-    600 s: a first configure+build of an SDK-heavy family (pico, nrf, esp)
-    exceeds the old 300. Builds normally run pre-lock (pick_example / the
+    ignores -T and builds everything; variant flags travel as -DCFLAGS_CLI, the
+    same channel tools/build.py uses). Bounded and process-group-killed via
+    run_cmd; 600 s: a first configure+build of an SDK-heavy family (pico, nrf,
+    esp) exceeds the old 300. Builds normally run pre-lock (pick_example / the
     pre-park ensure), so a board flock is not held here except on rare recovery
-    paths. Returns the build's returncode (127 = ESP-IDF env missing)."""
+    paths. Per-build compile parallelism is capped at cpu/-j so -j concurrent
+    builds cannot swamp sibling workers' verification windows. Returns the
+    build's returncode (127 = ESP-IDF env missing)."""
     name = board['name']
     variants = board.get('variant') or [{'name': name}]
     vcfg = next((v for v in variants if v['name'] == variant), variants[0])
@@ -424,10 +427,17 @@ def build_example(board: dict, variant: str, example: str) -> int:
                '-G', 'Ninja', f'-DBOARD={name}', 'build']
         for d in board.get('build', {}).get('args', []) + vcfg.get('defines', []):
             cmd.insert(-1, f'-D{d}')
-        return hil_flash.run_cmd(shlex.join(cmd), cwd=str(hil_flash.TINYUSB_ROOT),
-                                 timeout=600).returncode
+        if vcfg.get('flags'):
+            cmd.insert(-1, f'-DCFLAGS_CLI={vcfg["flags"]}')
+        # the IDF component manager writes examples/<ex>/dependencies.lock in the
+        # SOURCE tree (idf.py -B relocates only the build dir), so concurrent esp
+        # builds of one example for different targets corrupt each other's solve
+        with _esp_lock, _build_sem:
+            return hil_flash.run_cmd(shlex.join(cmd), cwd=str(hil_flash.TINYUSB_ROOT),
+                                     timeout=600).returncode
     cmd = [sys.executable, str(hil_flash.TINYUSB_ROOT / 'tools' / 'build.py'),
-           '-b', name, '-T', Path(example).name]
+           '-b', name, '-T', Path(example).name,
+           '-j', str(max(1, (os.cpu_count() or _jobs) // _jobs))]
     for d in board.get('build', {}).get('args', []):
         cmd += ['-D', d]
     if vcfg['name'] != name:
@@ -436,53 +446,74 @@ def build_example(board: dict, variant: str, example: str) -> int:
         cmd += ['-D', d]
     for tok in vcfg.get('flags', '').split():
         cmd += [f'--cflag={tok}']
-    return hil_flash.run_cmd(shlex.join(cmd), cwd=str(hil_flash.TINYUSB_ROOT),
-                             timeout=600).returncode
+    with _build_sem:
+        return hil_flash.run_cmd(shlex.join(cmd), cwd=str(hil_flash.TINYUSB_ROOT),
+                                 timeout=600).returncode
 
 
-_deps_lock = threading.Lock()
+_deps_lock = threading.Lock()  # one get_deps at a time (it also drains _build_sem)
+_esp_lock = threading.Lock()   # idf.py mutates source-tree dependencies.lock per example
+_no_build = False              # --no-build: ensure_fw never invokes a build
+_jobs = 4                      # mirrors -j; set in main before the pool starts
+_build_sem = threading.BoundedSemaphore(4)  # build slots; get_deps drains ALL (exclusive)
+_builds: dict = {}             # (variant, example) -> (fw|None, reason): one attempt per run
 
 
 def ensure_fw(board: dict, variant: str, example: str, note: list):
     """Firmware for `example`, building it when absent — never skip a board for
-    lack of a build. One retry with deps fetched and the variant tree's CMake
-    cache dropped when the first build fails (fresh checkouts lack the family
-    deps; a cache configured in a broken env poisons every later attempt).
+    lack of a build (--no-build opts out). One retry with deps fetched and the
+    CMake caches dropped when the first build fails (fresh checkouts lack the
+    family deps; a cache configured in a broken env poisons every later attempt).
     Returns the firmware path, or None with the failure noted. Call BEFORE
-    taking the board lock: builds are long. At most one build attempt per
-    example per run — a repeat call after a noted failure returns None fast
-    (park must not re-run a 600 s build under the board flock)."""
+    taking the board lock: builds are long. One build attempt per
+    (variant, example) per run, success or failure — memoized in _builds, so a
+    repeat call (park, under the held flock) resolves instantly even when an
+    exclusive -B hides the fresh cmake-build/ artifact from the global search."""
     fw = hil_flash.find_firmware(variant, example)
     if fw:
         return fw
-    base = Path(example).name
-    if any(n.startswith((f'build failed: {base}', f'build timeout: {base}',
-                         f'build produced no firmware: {base}', f'cannot build {base}'))
-           for n in note):
+    key, base = (variant, example), Path(example).name
+    if key in _builds:
+        return _builds[key][0]
+    if _no_build:
+        _builds[key] = (None, 'disabled')
+        note.append(f'build skipped (--no-build): {base}')
         return None
     rc = build_example(board, variant, example)
     if rc == 127 and board['flasher']['name'].lower() == 'esptool':
+        _builds[key] = (None, 'no-env')
         note.append(f'cannot build {base}: ESP-IDF env missing (get-idf)')
         return None
     if rc == 124:  # hung build: a deps/cache retry cannot cure it, don't double the stall
+        _builds[key] = (None, 'timeout')
         note.append(f'build timeout: {base}')
         return None
     if rc != 0:
-        # cache only — a tree wipe would destroy every other example's firmware.
-        # get_deps mutates the shared lib/ + hw/mcu/ checkouts: serialize it
-        # across the worker threads.
-        r = None
+        # retry once with deps fetched and the CMake caches dropped (cache only —
+        # a tree wipe would destroy every other example's firmware). get_deps
+        # git-resets already-present shared deps (lib/fatfs's ffconf.h dance), so
+        # it must exclude every in-flight build, not just other get_deps calls:
+        # it drains ALL build slots before running.
         with _deps_lock:
-            r = hil_flash.run_cmd(shlex.join([sys.executable, str(hil_flash.TINYUSB_ROOT / 'tools' / 'get_deps.py'),
-                                              '-b', board['name']]),
-                                  cwd=str(hil_flash.TINYUSB_ROOT), timeout=600)
+            for _ in range(_jobs):
+                _build_sem.acquire()
+            try:
+                r = hil_flash.run_cmd(shlex.join([sys.executable, str(hil_flash.TINYUSB_ROOT / 'tools' / 'get_deps.py'),
+                                                  '-b', board['name']]),
+                                      cwd=str(hil_flash.TINYUSB_ROOT), timeout=600)
+            finally:
+                for _ in range(_jobs):
+                    _build_sem.release()
         if r.returncode != 0:
             note.append('get_deps failed')
         bd = hil_flash.TINYUSB_ROOT / 'cmake-build' / f'cmake-build-{variant}'
-        shutil.rmtree(bd / 'CMakeFiles', ignore_errors=True)
-        (bd / 'CMakeCache.txt').unlink(missing_ok=True)
+        # esp configures one level deeper (<variant>/<example>/): wipe both layouts
+        for d in (bd, bd / example):
+            shutil.rmtree(d / 'CMakeFiles', ignore_errors=True)
+            (d / 'CMakeCache.txt').unlink(missing_ok=True)
         rc = build_example(board, variant, example)
     if rc != 0:
+        _builds[key] = (None, 'fail')
         note.append(f'build failed: {base}')
         return None
     # tools/build.py and the idf.py invocation above always write to cmake-build/:
@@ -490,6 +521,7 @@ def ensure_fw(board: dict, variant: str, example: str, note: list):
     # OUR fresh build, not a stale-candidate fallback
     fw = hil_flash.find_firmware(variant, example,
                                  roots=[hil_flash.build_dir, 'cmake-build'])
+    _builds[key] = (fw, 'ok' if fw else 'no-fw')
     note.append(f'built {base}' if fw else f'build produced no firmware: {base}')
     return fw
 
@@ -535,7 +567,7 @@ def host_alive(board: dict, note: list, row: dict, flashed_example: bool = False
     variant = resolve_variant(board, 'device/board_test', note)
     fw = ensure_board_test(board, variant, note)
     if fw is None:
-        note.append('serial silent; board_test build failed')
+        note.append('serial silent; board_test unavailable')
         row['status'] = 'flash-failed'
         return False
     say(f'{board["name"]:26} recovery: serial silent, flashing board_test')
@@ -544,10 +576,15 @@ def host_alive(board: dict, note: list, row: dict, flashed_example: bool = False
         note.append(f'serial silent; board_test flash failed: {err}')
         row['status'] = 'flash-failed'
         return False
-    ok = bool(check_host_serial(board))
-    if ok:
-        note.append('recovered via board_test reflash')
-    return ok
+    if not check_host_serial(board):
+        return False
+    if flashed_example:
+        # board_test talking proves the BOARD is alive, but the just-flashed
+        # example never produced serial — that verification still fails
+        note.append('example silent; board alive via board_test reflash')
+        return False
+    note.append('recovered via board_test reflash')
+    return True
 
 
 def device_recover_and_check(board: dict, example: str, old_ino, note: list, row: dict, seen: dict) -> bool:
@@ -654,7 +691,10 @@ def check_board(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
 
     bt_variant = resolve_variant(board, 'device/board_test', note)
     need_example = example is None and not args.no_build
-    need_bt = (not args.no_park
+    # board_test is also host_alive's recovery image, so host boards pre-build it
+    # even under --no-park; --no-build gates EVERY build, board_test included
+    need_bt = (not args.no_build
+               and (not args.no_park or kind == 'host')
                and hil_flash.find_firmware(bt_variant, 'device/board_test') is None)
     if need_example or need_bt:
         # builds are long and run BEFORE locking (park must never hold the flock
@@ -674,12 +714,14 @@ def check_board(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
         unlock_board(peek)
         if need_example:
             example, kind, variant, fw = pick_example(board, note, build_missing=True)
-        if need_bt:
+        if need_bt and (example is not None or kind == 'host'):
+            # skip the park-image build when the example build already failed on a
+            # device board: the row returns before any flash/park could use it
             ensure_board_test(board, bt_variant, note)
 
     if example is None:
         if not any(n.startswith(('build failed', 'build timeout', 'build produced',
-                                 'cannot build')) for n in note):
+                                 'build skipped', 'cannot build')) for n in note):
             note.append('no firmware built')
         if kind != 'host':
             row['status'] = 'flash-failed'
@@ -746,11 +788,16 @@ def park_board(board: dict, kind: str, row: dict, note: list) -> None:
     'failed' verify verdict — that is the more diagnostic signal), with one
     exception: an espressif board without the ESP-IDF env cannot build
     board_test — noted, not a board fault."""
+    # capture BEFORE the park flash: uid-disappearance only verifies the park if
+    # the device was on the bus to begin with (a fast park drops it immediately)
+    on_bus_before = kind != 'host' and find_device(board['uid'], None) is not None
     variant = resolve_variant(board, 'device/board_test', note)
     fw = ensure_board_test(board, variant, note)
     if fw is None:
         if any(n.startswith('cannot build board_test') for n in note):
             note.append('park skipped (no ESP-IDF env)')
+        elif any(n.startswith('build skipped (--no-build): board_test') for n in note):
+            note.append('park skipped (--no-build, board_test not built)')
         else:
             note.append('unparked: board_test unavailable (build failed/timed out)')
             if row['status'] == 'ok':
@@ -772,6 +819,11 @@ def park_board(board: dict, kind: str, row: dict, note: list) -> None:
             note.append('park unverified: no board_test output')
             if row['status'] == 'ok':
                 row['status'] = 'flash-failed'
+        return
+    if not on_bus_before:
+        # board never enumerated this run: uid-disappearance can't distinguish a
+        # verified park from a silent no-op — say so instead of passing vacuously
+        note.append('park unverified (device already off bus)')
         return
     deadline = time.monotonic() + 6
     while time.monotonic() < deadline:
@@ -855,6 +907,10 @@ def main() -> None:
     parser.add_argument('-j', '--jobs', type=int, default=4)
     parser.add_argument('-v', '--verbose', action='store_true')
     args = parser.parse_args()
+    global _no_build, _jobs, _build_sem
+    _no_build = args.no_build
+    _jobs = max(1, args.jobs)
+    _build_sem = threading.BoundedSemaphore(_jobs)
 
     host = socket.gethostname()
     cfg_name = args.config or CONFIG_BY_HOST.get(host, 'local.json')

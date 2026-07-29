@@ -44,7 +44,9 @@ then report `flash-failed`). Builds need the family env, exported on the rig in
 ESP-IDF env (`get-idf`) for espressif — which also needs `esptool` on PATH (pip's
 `~/.local/bin/esptool`; a non-login shell may lack it — run via `bash -lc`). An explicit `-B` is
 searched exclusively for *existing* firmware; builds still land in `cmake-build/` and are noted
-`built <example>`. Espressif boards park too when the IDF env is present.
+`built <example>`. Espressif boards park too when the IDF env is present. A first run on an
+unbuilt tree builds for many minutes: use a command timeout ≥ 30 min and NEVER cancel early — a
+killed run leaves detached cmake/ninja children still writing to `cmake-build/`.
 
 Statuses: `ok` (flashed and verified; in `--scan-only` it only means the probe is present),
 `flash-failed` (firmware delivery failed: probe missing, build failed, flasher error, silent
