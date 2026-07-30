@@ -1145,6 +1145,12 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
             TU_VERIFY(_update_streaming_parameters(stm, param), VIDEO_ERROR_INVALID_VALUE_WITHIN_RANGE);
             /* Set the negotiated value */
             stm->max_payload_transfer_size = param->dwMaxPayloadTransferSize;
+            /* A host may commit before the parameters are fully negotiated, in which case
+             * _update_streaming_parameters returns early without capping the payload size.
+             * Clamp here so a bulk stream cannot overrun the endpoint buffer. */
+            if (CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE < stm->max_payload_transfer_size) {
+              stm->max_payload_transfer_size = CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE;
+            }
             int ret = tud_video_commit_cb(stm->index_vc, stm->index_vs, param);
             if (VIDEO_ERROR_NONE == ret) {
               stm->state   = VS_STATE_COMMITTED;
