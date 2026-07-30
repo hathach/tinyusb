@@ -46,7 +46,6 @@ def cmd_stdout_text(out: Any) -> str:
 # -------------------------------------------------------------
 # Path
 # -------------------------------------------------------------
-OPENCOD_ADI_PATH = Path.home() / 'app' / 'openocd_adi'
 TINYUSB_ROOT = Path(__file__).resolve().parents[2]
 
 # get usb serial by id
@@ -169,49 +168,23 @@ def reset_stflash(board):
     return subprocess.CompletedProcess(args=['dummy'], returncode=0)
 
 
+# Do NOT add `verify` to the program command: WCH targets do not support it. Flash
+# read-back over the WCH-Link sdi transport returns a repeated word instead of memory
+# contents, so verification always reports a mismatch and fails the flash (measured on
+# ch32v103r and ch32v307v, 2026-07-30). One command form is used for every openocd
+# board so WCH needs no separate flasher.
 def flash_openocd(board, firmware):
     flasher = board['flasher']
-    ret = run_cmd(f'openocd -c "tcl_port disabled" -c "gdb_port disabled" -c "adapter serial {flasher["uid"]}" '
-                  f'{flasher["args"]} -c "init; halt; program {firmware}.elf verify; reset; exit"')
+    ret = run_cmd(f'openocd -c "tcl_port disabled" -c "gdb_port disabled" -c "telnet_port disabled" '
+                  f'-c "adapter serial {flasher["uid"]}" {flasher.get("args", "")} '
+                  f'-c "program {firmware}.elf reset exit"')
     return ret
 
 
 def reset_openocd(board):
     flasher = board['flasher']
-    ret = run_cmd(f'openocd -c "tcl_port disabled" -c "gdb_port disabled" -c "adapter serial {flasher["uid"]}" '
-                  f'{flasher["args"]} -c "init; reset run; exit"')
-    return ret
-
-
-def flash_openocd_wch(board, firmware):
-    flasher = board['flasher']
-    ret = run_cmd(f'openocd -c "tcl_port disabled" -c "gdb_port disabled" -c "telnet_port disabled" '
-                  f'-c "adapter serial {flasher["uid"]}" {flasher.get("args", "")} -c "program {firmware}.elf reset exit"')
-    return ret
-
-
-def reset_openocd_wch(board):
-    flasher = board['flasher']
     ret = run_cmd(f'openocd -c "tcl_port disabled" -c "gdb_port disabled" -c "telnet_port disabled" '
                   f'-c "adapter serial {flasher["uid"]}" {flasher.get("args", "")} -c "init; reset run; exit"')
-    return ret
-
-
-def flash_openocd_adi(board: Board, firmware: str) -> subprocess.CompletedProcess:
-    flasher = board['flasher']
-    openocd = OPENCOD_ADI_PATH / 'src' / 'openocd'
-    tcl_dir = OPENCOD_ADI_PATH / 'tcl'
-    ret = run_cmd(f'{openocd} -c "adapter serial {flasher["uid"]}" -s {tcl_dir} '
-                  f'{flasher["args"]} -c "program {firmware}.elf reset exit"')
-    return ret
-
-
-def reset_openocd_adi(board: Board) -> subprocess.CompletedProcess:
-    flasher = board['flasher']
-    openocd = OPENCOD_ADI_PATH / 'src' / 'openocd'
-    tcl_dir = OPENCOD_ADI_PATH / 'tcl'
-    ret = run_cmd(f'{openocd} -c "adapter serial {flasher["uid"]}" -s {tcl_dir} '
-                  f'{flasher["args"]} -c "program reset exit"')
     return ret
 
 
