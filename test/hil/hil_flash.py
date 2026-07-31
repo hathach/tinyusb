@@ -26,7 +26,7 @@ build_dir = 'cmake-build'
 CMD_TIMEOUT = int(os.getenv('HIL_CMD_TIMEOUT', '180'))
 
 # flasher names (dispatch key, board['flasher']['name'].lower()) whose reset_* is a no-op
-RESET_NOOP = {'esptool', 'lm4flash', 'uniflash'}
+RESET_NOOP = {'esptool', 'lm4flash'}
 
 # extra parents find_firmware ALSO searches after build_dir. Empty by default so
 # hil_test's -B stays authoritative (a board missing there must report "Skip (no
@@ -201,17 +201,6 @@ def reset_esptool(board):
     return subprocess.CompletedProcess(args=['dummy'], returncode=0)
 
 
-def flash_uniflash(board, firmware):
-    flasher = board['flasher']
-    ret = run_cmd(f'dslite.sh {flasher["args"]} -f {firmware}')
-    return ret
-
-
-def reset_uniflash(board):
-    flasher = board['flasher']
-    return subprocess.CompletedProcess(args=['dummy'], returncode=0)
-
-
 def flash_lm4flash(board, firmware):
     # TI Tiva-C / Stellaris ICDI: lightweight lm4flash, resets and runs after write
     flasher = board['flasher']
@@ -235,7 +224,6 @@ FLASHER_SUFFIX = {
     'lm4flash': '.bin',
     'openocd': '.elf',
     'stlink': '.elf',
-    'uniflash': '.hex',
 }
 
 
