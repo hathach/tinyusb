@@ -26,7 +26,7 @@ build_dir = 'cmake-build'
 CMD_TIMEOUT = int(os.getenv('HIL_CMD_TIMEOUT', '180'))
 
 # flasher names (dispatch key, board['flasher']['name'].lower()) whose reset_* is a no-op
-RESET_NOOP = {'esptool', 'lm4flash', 'stflash', 'uniflash'}
+RESET_NOOP = {'esptool', 'lm4flash', 'uniflash'}
 
 # extra parents find_firmware ALSO searches after build_dir. Empty by default so
 # hil_test's -B stays authoritative (a board missing there must report "Skip (no
@@ -128,8 +128,8 @@ def run_cmd(cmd: str, cwd: str | None = None, timeout: int = CMD_TIMEOUT) -> sub
 
 def flash_jlink(board: Board, firmware: str) -> subprocess.CompletedProcess:
     flasher = board['flasher']
-    script = ['halt', 'r', f'loadfile {firmware}.elf', 'r', 'go', 'exit']
-    f_jlink = Path(f'{board["name"]}_{Path(firmware).name}.jlink')
+    script = ['halt', 'r', f'loadfile {firmware}', 'r', 'go', 'exit']
+    f_jlink = Path(f'{board["name"]}_{Path(firmware).stem}.jlink')
     with f_jlink.open('w') as f:
         f.writelines(f'{s}\n' for s in script)
     ret = run_cmd(f'JLinkExe -USB {flasher["uid"]} {flasher["args"]} -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile {f_jlink}')
@@ -150,22 +150,17 @@ def reset_jlink(board: Board) -> subprocess.CompletedProcess:
 
 def flash_stlink(board, firmware):
     flasher = board['flasher']
-    return run_cmd(f'STM32_Programmer_CLI --connect port=swd sn={flasher["uid"]} --write {firmware}.elf --go')
+    return run_cmd(f'STM32_Programmer_CLI --connect port=swd sn={flasher["uid"]} --write {firmware} --go')
 
 
 def reset_stlink(board):
     flasher = board['flasher']
     return run_cmd(f'STM32_Programmer_CLI --connect port=swd sn={flasher["uid"]} --rst --go')
 
-def flash_stflash(board, firmware):
-    flasher = board['flasher']
-    ret = run_cmd(f'st-flash --serial {flasher["uid"]} write {firmware}.bin 0x8000000')
-    return ret
 
-
-def reset_stflash(board):
-    flasher = board['flasher']
-    return subprocess.CompletedProcess(args=['dummy'], returncode=0)
+def _openocd_cmd_base(flasher):
+    return (f'openocd -c "tcl_port disabled" -c "gdb_port disabled" -c "telnet_port disabled" '
+            f'-c "adapter serial {flasher["uid"]}" {flasher["args"]}')
 
 
 # `verify` is on by default and opted out per board with "verify": false in the roster.
@@ -177,37 +172,20 @@ def reset_stflash(board):
 def flash_openocd(board, firmware):
     flasher = board['flasher']
     verify = ' verify' if flasher.get('verify', True) else ''
-    ret = run_cmd(f'openocd -c "tcl_port disabled" -c "gdb_port disabled" -c "telnet_port disabled" '
-                  f'-c "adapter serial {flasher["uid"]}" {flasher["args"]} '
-                  f'-c "program {firmware}.elf{verify} reset exit"')
+    ret = run_cmd(f'{_openocd_cmd_base(flasher)} -c "program {firmware}{verify} reset exit"')
     return ret
 
 
 def reset_openocd(board):
     flasher = board['flasher']
-    ret = run_cmd(f'openocd -c "tcl_port disabled" -c "gdb_port disabled" -c "telnet_port disabled" '
-                  f'-c "adapter serial {flasher["uid"]}" {flasher["args"]} -c "init; reset run; exit"')
-    return ret
-
-
-def flash_wlink_rs(board, firmware):
-    flasher = board['flasher']
-    # wlink use index for probe selection and lacking usb serial support
-    ret = run_cmd(f'wlink flash {firmware}.elf')
-    return ret
-
-
-def reset_wlink_rs(board):
-    flasher = board['flasher']
-    # wlink use index for probe selection and lacking usb serial support
-    ret = run_cmd(f'wlink reset')
+    ret = run_cmd(f'{_openocd_cmd_base(flasher)} -c "init; reset run; exit"')
     return ret
 
 
 def flash_esptool(board: Board, firmware: str) -> subprocess.CompletedProcess:
     flasher = board['flasher']
     port = get_serial_dev(flasher["uid"], None, None, 0)
-    fw_dir = Path(f'{firmware}.bin').parent
+    fw_dir = Path(firmware).parent
     with (fw_dir / 'config.env').open() as f:
         idf_target = json.load(f)['IDF_TARGET']
     with (fw_dir / 'flash_args').open() as f:
@@ -225,7 +203,7 @@ def reset_esptool(board):
 
 def flash_uniflash(board, firmware):
     flasher = board['flasher']
-    ret = run_cmd(f'dslite.sh {flasher["args"]} -f {firmware}.hex')
+    ret = run_cmd(f'dslite.sh {flasher["args"]} -f {firmware}')
     return ret
 
 
@@ -237,7 +215,7 @@ def reset_uniflash(board):
 def flash_lm4flash(board, firmware):
     # TI Tiva-C / Stellaris ICDI: lightweight lm4flash, resets and runs after write
     flasher = board['flasher']
-    ret = run_cmd(f'lm4flash -s {flasher["uid"]} {flasher["args"]} {firmware}.bin')
+    ret = run_cmd(f'lm4flash -s {flasher["uid"]} {flasher["args"]} {firmware}')
     return ret
 
 
@@ -247,22 +225,43 @@ def reset_lm4flash(board):
     return subprocess.CompletedProcess(args=['dummy'], returncode=0)
 
 
-def find_firmware(variant: str, example: str, roots: list | None = None):
-    """Locate a built example's firmware base path (no extension) under
-    <build_dir>/cmake-build-<variant>/<example>/, then under EXTRA_BUILD_DIRS
-    (empty unless the caller opts in — see its comment). `roots` overrides that
-    search list entirely for one call (e.g. to find a build just produced by
-    tools/build.py in its fixed cmake-build/ layout without widening the global
-    policy). Accepts the single-config layout (firmware directly in the example
-    dir) or Ninja Multi-Config (a per-config subdir like RelWithDebInfo/).
-    Returns the base Path, or None if not built."""
+# The one place a flasher's firmware extension is decided: find_firmware resolves the
+# path with it and the flash_* functions pass that path through untouched. A flasher
+# added here without an entry falls back to .elf-or-.bin and can be handed the wrong
+# file — test_hil_select's TestRosterFlashersDispatch fails if a roster names one.
+FLASHER_SUFFIX = {
+    'esptool': '.bin',
+    'jlink': '.elf',
+    'lm4flash': '.bin',
+    'openocd': '.elf',
+    'stlink': '.elf',
+    'uniflash': '.hex',
+}
+
+
+def find_firmware(variant: str, example: str, roots: list | None = None, flasher: str | None = None):
+    """Locate a built example's firmware under <build_dir>/cmake-build-<variant>/<example>/,
+    then under EXTRA_BUILD_DIRS (empty unless the caller opts in — see its comment).
+    `roots` overrides that search list entirely for one call (e.g. to find a build just
+    produced by tools/build.py in its fixed cmake-build/ layout without widening the
+    global policy). `flasher` is the roster flasher name: it selects which extension
+    counts (see FLASHER_SUFFIX), so a build that produced only the other one is reported
+    missing — a clean "Skip (no binary)" — instead of being handed to the flasher, which
+    would fail opaquely on the absent file and burn every retry plus the board lock.
+    Accepts the single-config layout (firmware directly in the example dir) or Ninja
+    Multi-Config (a per-config subdir like RelWithDebInfo/).
+    Returns the full Path INCLUDING extension, or None if not built."""
     base = Path(example).name
+    suffixes = [FLASHER_SUFFIX.get(flasher.lower())] if flasher else []
+    if not suffixes or suffixes == [None]:
+        suffixes = ['.elf', '.bin']
     for bd in dict.fromkeys(roots if roots is not None else [build_dir, *EXTRA_BUILD_DIRS]):
         fw_dir = TINYUSB_ROOT / bd / f'cmake-build-{variant}' / example
         if not fw_dir.is_dir():
             continue
         for cand in [fw_dir / base, fw_dir / 'RelWithDebInfo' / base,
-                     *(p.with_suffix('') for p in sorted(fw_dir.glob(f'*/{base}.elf')))]:
-            if cand.with_suffix('.elf').exists() or cand.with_suffix('.bin').exists():
-                return cand
+                     *(p.with_suffix('') for s in suffixes for p in sorted(fw_dir.glob(f'*/{base}{s}')))]:
+            for s in suffixes:
+                if cand.with_suffix(s).exists():
+                    return cand.with_suffix(s)
     return None

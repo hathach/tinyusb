@@ -1370,13 +1370,13 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
 
     test_name = f'{variant:40} {example:30} ...'
 
-    fw_name = hil_flash.find_firmware(variant, example)
+    fw_name = hil_flash.find_firmware(variant, example, flasher=board['flasher']['name'])
     if fw_name is None:
         log_line(f'{test_name} Skip (no binary)')
         return 0, 'skip', None
 
     if verbose:
-        log_line(f'Flashing {fw_name}.elf')
+        log_line(f'Flashing {fw_name}')
 
     # flash firmware (unless --skip-flash), then run the test. Both may fail randomly,
     # retry a few times.

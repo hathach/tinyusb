@@ -9,6 +9,7 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import hil_flash
 import hil_select
 from hil_examples import device_tests, dual_tests, host_test
 
@@ -24,6 +25,19 @@ def real_rosters():
         with open(path) as f:
             rosters.append((f'test/hil/{name}', json.load(f)['boards']))
     return rosters
+
+
+def roster_flashers():
+    """(roster path, board) for every board in the live rosters, `boards-skip`
+    included: a parked board's flasher name must still dispatch, so that unparking it
+    is not what discovers the name went stale."""
+    for name in ('tinyusb.json', 'hfp.json'):
+        path = os.path.join(REPO, 'test/hil', name)
+        with open(path) as f:
+            cfg = json.load(f)
+        for key in ('boards', 'boards-skip'):
+            for b in cfg.get(key, []):
+                yield f'test/hil/{name}', b
 
 
 def on_roster(tc, *names):
@@ -536,6 +550,31 @@ class TestPortWithoutFamilyIsFull(unittest.TestCase):
             hil_select.port_families = orig
         self.assertTrue(s['full'])
         self.assertTrue(any('no board family' in r for r in s['reasons']), s['reasons'])
+
+
+class TestRosterFlashersDispatch(unittest.TestCase):
+    """hil_test and hil_pool_check resolve a board's flasher with a bare
+    getattr(hil_flash, f'flash_{name}'), and hil_test does it inside a redirect_stdout —
+    so a renamed or typo'd roster name raises an AttributeError whose output is swallowed,
+    with nothing pointing at the roster as the thing to edit. Renaming a flash_*/reset_*
+    pair without updating every roster must fail here instead."""
+
+    def test_flash_and_reset_exist_for_every_roster_flasher(self):
+        for path, board in roster_flashers():
+            name = board['flasher']['name'].lower()
+            for fn in (f'flash_{name}', f'reset_{name}'):
+                self.assertTrue(callable(getattr(hil_flash, fn, None)),
+                                f'{path}: {board["name"]} uses flasher "{name}" '
+                                f'but hil_flash.{fn} does not exist')
+
+    def test_firmware_suffix_known_for_every_roster_flasher(self):
+        """find_firmware falls back to accepting .elf-or-.bin when a flasher is missing
+        from FLASHER_SUFFIX, silently restoring the mismatch that map exists to catch."""
+        for path, board in roster_flashers():
+            name = board['flasher']['name'].lower()
+            self.assertIn(name, hil_flash.FLASHER_SUFFIX,
+                          f'{path}: {board["name"]} uses flasher "{name}" '
+                          f'with no hil_flash.FLASHER_SUFFIX entry')
 
 
 if __name__ == '__main__':
