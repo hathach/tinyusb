@@ -182,11 +182,16 @@ def reset_openocd(board):
     return ret
 
 
-# OpenOCD's message when an RP2040/RP2350 core DAP stops answering TARGETSEL. The probe is
-# fine when this appears (the log still shows "CMSIS-DAP: Interface ready"); it is the
-# target's debug clock that is gone, which no reset the probe can drive would fix -- the
-# CMSIS-DAP Debug Probe has no nRESET line at all.
-DAP_WEDGED = 'Failed to connect multidrop'
+# OpenOCD's messages for "the target's debug port did not answer". The probe is fine when
+# these appear (the log still shows "CMSIS-DAP: Interface ready"); the chip's debug clock
+# is gone, which no reset the probe can drive would fix -- the CMSIS-DAP Debug Probe has no
+# nRESET line at all. Which message you get depends on the DAP topology, NOT on the board:
+# rp2040.cfg creates three multidrop DAPs (cores 0/1 and the Rescue DP at instance 0xf) so
+# it fails in swd_multidrop_select, while rp2350.cfg creates a single plain ADIv6 DAP that
+# fails earlier in swd_connect. A dead RP2040 can also produce the second one if the very
+# first DP read never gets through, so both are accepted for both chips -- it is the target
+# cfg in the roster args, below, that picks how to rescue.
+DAP_WEDGED = ('Failed to connect multidrop', 'Error connecting DP: cannot read IDR')
 
 # How each RP target reaches its Rescue DP, keyed by the target cfg named in flasher args.
 # (cfg substitution, extra args): rp2040.cfg drives the Rescue DP itself behind a RESCUE
@@ -210,7 +215,7 @@ def rescue_openocd(board, flash_out: str = '') -> bool:
     wedge, so a flash that failed for any other reason still just retries. Returns True
     when a rescue was attempted; the caller should retry the flash afterwards."""
     flasher = board['flasher']
-    if flasher['name'].lower() != 'openocd' or DAP_WEDGED not in flash_out:
+    if flasher['name'].lower() != 'openocd' or not any(m in flash_out for m in DAP_WEDGED):
         return False
     for cfg, (rescue_cfg, pre, post) in RESCUE_CFG.items():
         if cfg in flasher['args']:
