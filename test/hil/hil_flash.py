@@ -129,7 +129,7 @@ def run_cmd(cmd: str, cwd: str | None = None, timeout: int = CMD_TIMEOUT) -> sub
 def flash_jlink(board: Board, firmware: str) -> subprocess.CompletedProcess:
     flasher = board['flasher']
     script = ['halt', 'r', f'loadfile {firmware}', 'r', 'go', 'exit']
-    f_jlink = Path(f'{board["name"]}_{Path(firmware).stem}.jlink')
+    f_jlink = Path(f'{board["name"]}_{Path(firmware).name}.jlink')
     with f_jlink.open('w') as f:
         f.writelines(f'{s}\n' for s in script)
     ret = run_cmd(f'JLinkExe -USB {flasher["uid"]} {flasher["args"]} -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile {f_jlink}')
