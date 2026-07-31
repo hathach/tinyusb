@@ -1370,13 +1370,17 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
 
     test_name = f'{variant:40} {example:30} ...'
 
-    fw_name = hil_flash.find_firmware(variant, example, flasher=board['flasher']['name'])
+    # --skip-flash runs whatever is already on the board, so any build counts as present:
+    # only the flashing path needs the artifact this board's flasher actually consumes.
+    # Filtering there too would skip the test as "no binary" over an extension it never uses.
+    fw_name = hil_flash.find_firmware(variant, example,
+                                      flasher=None if skip_flash else board['flasher']['name'])
     if fw_name is None:
         log_line(f'{test_name} Skip (no binary)')
         return 0, 'skip', None
 
     if verbose:
-        log_line(f'Flashing {fw_name}')
+        log_line(f'Firmware {fw_name}')
 
     # flash firmware (unless --skip-flash), then run the test. Both may fail randomly,
     # retry a few times.
