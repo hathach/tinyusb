@@ -1400,7 +1400,13 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
                     if PROFILE:
                         log_line(f'[prof] {variant} {example} flash attempt {i + 1}: '
                                  f'{time.monotonic() - t_flash:.1f}s rc={ret.returncode}')
-                flash_ok = (ret.returncode == 0)
+                    flash_ok = (ret.returncode == 0)
+                    # A wedged RP2040/RP2350 DAP answers nothing and the probe has no reset
+                    # line, so the retry would fail identically; POR it via the Rescue DP
+                    # first. No-op for every other board and every other flash failure.
+                    if not flash_ok and i + 1 < max_retry and \
+                            hil_flash.rescue_openocd(board, hil_flash.cmd_stdout_text(ret.stdout)):
+                        log_line(f'{variant} {example}: DAP wedged, rescued via Rescue DP')
             if flash_ok:
                 try:
                     tret = globals()[f'test_{example.replace("/", "_")}'](board)

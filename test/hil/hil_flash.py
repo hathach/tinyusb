@@ -182,6 +182,43 @@ def reset_openocd(board):
     return ret
 
 
+# OpenOCD's message when an RP2040/RP2350 core DAP stops answering TARGETSEL. The probe is
+# fine when this appears (the log still shows "CMSIS-DAP: Interface ready"); it is the
+# target's debug clock that is gone, which no reset the probe can drive would fix -- the
+# CMSIS-DAP Debug Probe has no nRESET line at all.
+DAP_WEDGED = 'Failed to connect multidrop'
+
+# How each RP target reaches its Rescue DP, keyed by the target cfg named in flasher args.
+# (cfg substitution, extra args): rp2040.cfg drives the Rescue DP itself behind a RESCUE
+# flag and calls init/shutdown on its own; rp2350 has a separate cfg that pokes the rescue
+# bit via an AP register but never shuts down, so it would sit in the server loop until
+# CMD_TIMEOUT without an explicit one.
+RESCUE_CFG = {
+    'target/rp2040.cfg': ('target/rp2040.cfg', '-c "set RESCUE 1" ', ''),
+    'target/rp2350.cfg': ('target/rp2350-rescue.cfg', '', ' -c "shutdown"'),
+}
+
+
+def rescue_openocd(board, flash_out: str = '') -> bool:
+    """Power-on-reset a wedged RP2040/RP2350 through its Rescue DP, the one debug port not
+    gated by the system clock (RP2040 datasheet 2.3.4.2): setting CDBGPWRUPREQ hard-resets
+    the chip, and the bootrom halts it in a safe state ready to be flashed. This is the
+    only way back for a target whose cores have stopped answering -- otherwise the board
+    needs a physical replug, since the probe carries no reset line.
+
+    No-op (returns False) unless this is an openocd RP board AND the flash output shows the
+    wedge, so a flash that failed for any other reason still just retries. Returns True
+    when a rescue was attempted; the caller should retry the flash afterwards."""
+    flasher = board['flasher']
+    if flasher['name'].lower() != 'openocd' or DAP_WEDGED not in flash_out:
+        return False
+    for cfg, (rescue_cfg, pre, post) in RESCUE_CFG.items():
+        if cfg in flasher['args']:
+            args = flasher['args'].replace(cfg, rescue_cfg)
+            return run_cmd(f'{_openocd_cmd_base({**flasher, "args": pre + args})}{post}').returncode == 0
+    return False
+
+
 def flash_esptool(board: Board, firmware: str) -> subprocess.CompletedProcess:
     flasher = board['flasher']
     port = get_serial_dev(flasher["uid"], None, None, 0)
