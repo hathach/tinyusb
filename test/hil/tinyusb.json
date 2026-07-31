@@ -465,7 +465,8 @@
             "flasher": {
                 "name": "openocd",
                 "uid": "A76D8F062C2A",
-                "args": "-f target/wch-riscv.cfg"
+                "args": "-f target/wch-riscv.cfg",
+                "verify": false
             }
         },
         {
@@ -480,7 +481,8 @@
             "flasher": {
                 "name": "openocd",
                 "uid": "BC4954081051",
-                "args": "-f target/wch-riscv.cfg"
+                "args": "-f target/wch-riscv.cfg",
+                "verify": false
             }
         },
         {
@@ -499,7 +501,8 @@
             "flasher": {
                 "name": "openocd",
                 "uid": "BC5DA47360D0",
-                "args": "-f target/wch-riscv.cfg"
+                "args": "-f target/wch-riscv.cfg",
+                "verify": false
             }
         },
         {
@@ -514,7 +517,8 @@
             "flasher": {
                 "name": "openocd",
                 "uid": "57468F06DC03",
-                "args": "-f target/wch-riscv.cfg"
+                "args": "-f target/wch-riscv.cfg",
+                "verify": false
             }
         },
         {

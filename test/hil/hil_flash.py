@@ -168,23 +168,25 @@ def reset_stflash(board):
     return subprocess.CompletedProcess(args=['dummy'], returncode=0)
 
 
-# Do NOT add `verify` to the program command: WCH targets do not support it. Flash
-# read-back over the WCH-Link sdi transport returns a repeated word instead of memory
-# contents, so verification always reports a mismatch and fails the flash (measured on
-# ch32v103r and ch32v307v, 2026-07-30). One command form is used for every openocd
-# board so WCH needs no separate flasher.
+# `verify` is on by default and opted out per board with "verify": false in the roster.
+# WCH targets must opt out: flash read-back over the WCH-Link sdi transport returns a
+# repeated word instead of memory contents, so verification always reports a mismatch and
+# fails the flash (measured on ch32v103r and ch32v307v, 2026-07-30). Do NOT drop verify
+# fleet-wide to accommodate them — every other openocd board can read back, and without it
+# a partial or corrupt write exits 0 and the test phase runs bad firmware.
 def flash_openocd(board, firmware):
     flasher = board['flasher']
+    verify = ' verify' if flasher.get('verify', True) else ''
     ret = run_cmd(f'openocd -c "tcl_port disabled" -c "gdb_port disabled" -c "telnet_port disabled" '
-                  f'-c "adapter serial {flasher["uid"]}" {flasher.get("args", "")} '
-                  f'-c "program {firmware}.elf reset exit"')
+                  f'-c "adapter serial {flasher["uid"]}" {flasher["args"]} '
+                  f'-c "program {firmware}.elf{verify} reset exit"')
     return ret
 
 
 def reset_openocd(board):
     flasher = board['flasher']
     ret = run_cmd(f'openocd -c "tcl_port disabled" -c "gdb_port disabled" -c "telnet_port disabled" '
-                  f'-c "adapter serial {flasher["uid"]}" {flasher.get("args", "")} -c "init; reset run; exit"')
+                  f'-c "adapter serial {flasher["uid"]}" {flasher["args"]} -c "init; reset run; exit"')
     return ret
 
 
