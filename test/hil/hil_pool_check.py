@@ -201,7 +201,7 @@ def resolve_variant(board: dict, example: str, note: list | None = None) -> str:
     name = board['name']
     for v in board.get('variant') or [{'name': name}]:
         vn = v['name']
-        if hil_flash.find_firmware(vn, example):
+        if hil_flash.find_firmware(vn, example, flasher=board['flasher']['name']):
             if vn != name and note is not None and f'variant: {vn}' not in note:
                 note.append(f'variant: {vn}')
             return vn
@@ -211,8 +211,8 @@ def resolve_variant(board: dict, example: str, note: list | None = None) -> str:
 def pick_example(board: dict, note: list, build_missing: bool = True):
     """(example, kind, variant, fw) with built firmware for this board; kind is
     'device' (uid check) or 'host' (serial-output check); variant is the resolved
-    build-dir variant that has it (see resolve_variant); fw is the firmware base
-    path to flash. When nothing is built and build_missing is set (the default —
+    build-dir variant that has it (see resolve_variant); fw is the firmware path to
+    flash, extension included. When nothing is built and build_missing is set (the default —
     never skip a board for lack of a build), the preferred candidate is built on
     the spot via ensure_fw."""
     tests = board.get('tests', {})
@@ -229,7 +229,7 @@ def pick_example(board: dict, note: list, build_missing: bool = True):
         if ex in skip:
             continue
         variant = resolve_variant(board, ex, note)
-        fw = hil_flash.find_firmware(variant, ex)
+        fw = hil_flash.find_firmware(variant, ex, flasher=board['flasher']['name'])
         if fw:
             return ex, kind, variant, fw
     if not build_missing:
@@ -472,7 +472,7 @@ def ensure_fw(board: dict, variant: str, example: str, note: list):
     (variant, example) per run, success or failure — memoized in _builds, so a
     repeat call (park, under the held flock) resolves instantly even when an
     exclusive -B hides the fresh cmake-build/ artifact from the global search."""
-    fw = hil_flash.find_firmware(variant, example)
+    fw = hil_flash.find_firmware(variant, example, flasher=board['flasher']['name'])
     if fw:
         return fw
     key, base = (variant, example), Path(example).name
@@ -523,7 +523,8 @@ def ensure_fw(board: dict, variant: str, example: str, note: list):
     # look there too even when an explicit -B narrowed the global search — this is
     # OUR fresh build, not a stale-candidate fallback
     fw = hil_flash.find_firmware(variant, example,
-                                 roots=[hil_flash.build_dir, 'cmake-build'])
+                                 roots=[hil_flash.build_dir, 'cmake-build'],
+                                 flasher=board['flasher']['name'])
     _builds[key] = (fw, 'ok' if fw else 'no-fw')
     note.append(f'built {base}' if fw else f'build produced no firmware: {base}')
     return fw
@@ -533,7 +534,7 @@ def ensure_board_test(board: dict, variant: str, note: list):
     """board_test firmware for parking, building it if absent (via ensure_fw).
     Espressif included — tools/build.py builds board_test for that family too;
     the build just needs the ESP-IDF env (127 → noted, park is then skipped)."""
-    fw = hil_flash.find_firmware(variant, 'device/board_test')
+    fw = hil_flash.find_firmware(variant, 'device/board_test', flasher=board['flasher']['name'])
     if fw:
         return fw
     variants = board.get('variant') or [{'name': board['name']}]
@@ -706,7 +707,8 @@ def check_board(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
     # even under --no-park; --no-build gates EVERY build, board_test included
     need_bt = (not args.no_build
                and (not args.no_park or kind == 'host')
-               and hil_flash.find_firmware(bt_variant, 'device/board_test') is None)
+               and hil_flash.find_firmware(bt_variant, 'device/board_test',
+                                           flasher=board['flasher']['name']) is None)
     if need_example or need_bt:
         # builds are long and run BEFORE locking (park must never hold the flock
         # through a build); peek the lock first so minutes of building are not
