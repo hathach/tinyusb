@@ -9,7 +9,7 @@ Complete reference documentation for TinyUSB APIs, configuration, and supported 
 
    architecture
    usb_concepts
-   class_drivers
+   class/index
    boards
    dependencies
    concurrency
