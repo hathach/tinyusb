@@ -1841,7 +1841,7 @@ static bool audiod_calc_tx_packet_sz(audiod_function_t *audio) {
 
 static uint16_t audiod_tx_packet_size(const uint16_t *nominal_size, uint16_t data_count, uint16_t fifo_depth, uint16_t fifo_threshold, uint16_t max_depth) {
   // Flow control need a FIFO size of at least 4*Navg
-  if (nominal_size[1] && nominal_size[1] <= fifo_depth * 4) {
+  if (nominal_size[1] && nominal_size[1] * 4 <= fifo_depth) {
     // Use blackout to prioritize normal size packet
     static int ctrl_blackout = 0;
     uint16_t packet_size;
