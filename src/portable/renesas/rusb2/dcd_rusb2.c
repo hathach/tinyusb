@@ -17,6 +17,26 @@
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
+
+// For small mcus such as RA2A1/S124 there are only 5 pipes and no D0/D1 FIFOs
+#if defined(BSP_MCU_GROUP_RA2A1) || defined(BSP_MCU_GROUP_S124) || defined(BSP_MCU_GROUP_S128) || defined(BSP_MCU_GROUP_S1JA)
+  #define HAS_5PIPE_FIFO
+#endif
+
+#if defined(HAS_5PIPE_FIFO)
+  #define DATA_FIFO       CFIFO
+  #define DATA_FIFOSEL    CFIFOSEL
+  #define DATA_FIFOCTR    CFIFOCTR
+  #define DATA_FIFOSEL_b  CFIFOSEL_b
+  #define DATA_FIFOCTR_b  CFIFOCTR_b
+#else
+  #define DATA_FIFO       D0FIFO
+  #define DATA_FIFOSEL    D0FIFOSEL
+  #define DATA_FIFOCTR    D0FIFOCTR
+  #define DATA_FIFOSEL_b  D0FIFOSEL_b
+  #define DATA_FIFOCTR_b  D0FIFOCTR_b
+#endif
+
 enum {
   PIPE_COUNT = 10,
 };
@@ -55,10 +75,9 @@ static dcd_data_t _dcd;
 // - Pipes 3 to 5: Bulk
 // - Pipes 6 to 9: Interrupt
 //
-// Note: for small mcu such as
-// - RA2A1: only pipe 4-7 are available, and no support for ISO
+// Note: for small mcu with 5 pipes, only pipe 0 and 4-7 are available, and no support for ISO
 static unsigned find_pipe(unsigned xfer_type) {
-  #if defined(BSP_MCU_GROUP_RA2A1)
+  #if defined(HAS_5PIPE_FIFO)
   const uint8_t pipe_idx_arr[4][2] = {
       { 0, 0 }, // Control
       { 0, 0 }, // Isochronous not supported
@@ -125,7 +144,7 @@ static uint16_t edpt_max_packet_size(rusb2_reg_t *rusb, unsigned num) {
   return rusb->PIPEMAXP;
 }
 
-// Select the D0FIFO for `num` and wait until its buffer is ready for CPU access. Both flags
+// Select the FIFO for `num` and wait until its buffer is ready for CPU access. Both flags
 // normally settle within a few cycles (the pipe was just armed, or a BRDY freed a plane). But an
 // IN pipe whose double buffer is already full stalls FRDY until the host drains it, and a
 // no-handshake iso IN endpoint the host has stopped polling never drains at all — so FRDY would
@@ -134,9 +153,9 @@ static uint16_t edpt_max_packet_size(rusb2_reg_t *rusb, unsigned num) {
 #define RUSB2_FIFO_READY_SPIN 100000u
 static inline bool pipe_wait_for_ready(rusb2_reg_t *rusb, unsigned num) {
   uint32_t spin = RUSB2_FIFO_READY_SPIN;
-  while ( rusb->D0FIFOSEL_b.CURPIPE != num ) { if (!spin--) return false; }
+  while ( rusb->DATA_FIFOSEL_b.CURPIPE != num ) { if (!spin--) return false; }
   spin = RUSB2_FIFO_READY_SPIN;
-  while ( !rusb->D0FIFOCTR_b.FRDY ) { if (!spin--) return false; }
+  while ( !rusb->DATA_FIFOCTR_b.FRDY ) { if (!spin--) return false; }
   return true;
 }
 
@@ -249,16 +268,16 @@ static bool pipe_xfer_in(rusb2_reg_t* rusb, unsigned num)
   const uint16_t fifo_sel     = num | FIFOSEL_BIGEND;
   const bool     is_highspeed = rusb2_is_highspeed_reg(rusb);
   if (is_highspeed) {
-    rusb->D0FIFOSEL = fifo_sel | RUSB2_FIFOSEL_MBW_32BIT;
+    rusb->DATA_FIFOSEL = fifo_sel | RUSB2_FIFOSEL_MBW_32BIT;
   } else {
-    rusb->D0FIFOSEL = fifo_sel | RUSB2_FIFOSEL_MBW_16BIT;
+    rusb->DATA_FIFOSEL = fifo_sel | RUSB2_FIFOSEL_MBW_16BIT;
   }
 
   const uint16_t mps = edpt_max_packet_size(rusb, num);
   if (!pipe_wait_for_ready(rusb, num)) {
     // Buffer never came ready (double-buffered IN pipe full, host not draining). Drop this load;
     // the transfer stays pending and is retried when a BRDY frees a plane or the pipe is re-armed.
-    rusb->D0FIFOSEL = 0;
+    rusb->DATA_FIFOSEL = 0;
     return false;
   }
   uint16_t len = tu_min16(rem, mps);
@@ -268,19 +287,19 @@ static bool pipe_xfer_in(rusb2_reg_t* rusb, unsigned num)
     tu_hwfifo_access_t access_mode = {.data_stride = (rusb2_is_highspeed_reg(rusb) ? 4u : 2u),
                                       .param       = (uintptr_t)rusb};
     if (pipe->ff) {
-      tu_hwfifo_write_from_fifo(&rusb->D0FIFO, (tu_fifo_t *)buf, len, &access_mode);
+      tu_hwfifo_write_from_fifo(&rusb->DATA_FIFO, (tu_fifo_t *)buf, len, &access_mode);
     } else {
-      tu_hwfifo_write(&rusb->D0FIFO, buf, len, &access_mode);
+      tu_hwfifo_write(&rusb->DATA_FIFO, buf, len, &access_mode);
       pipe->buf = (uint8_t *)buf + len;
     }
   }
 
   if (len < mps) {
-    rusb->D0FIFOCTR = RUSB2_CFIFOCTR_BVAL_Msk;
+    rusb->DATA_FIFOCTR = RUSB2_CFIFOCTR_BVAL_Msk;
   }
 
-  rusb->D0FIFOSEL = 0;
-  while (rusb->D0FIFOSEL_b.CURPIPE) {} /* if CURPIPE bits changes, check written value */
+  rusb->DATA_FIFOSEL = 0;
+  while (rusb->DATA_FIFOSEL_b.CURPIPE) {} /* if CURPIPE bits changes, check written value */
 
   pipe->remaining = rem - len;
 
@@ -298,15 +317,15 @@ static bool pipe_xfer_out(rusb2_reg_t* rusb, unsigned num)
   } else {
     fifo_sel |= RUSB2_FIFOSEL_MBW_16BIT;
   }
-  rusb->D0FIFOSEL = fifo_sel;
 
+      rusb->DATA_FIFOSEL = fifo_sel;
   const uint16_t mps = edpt_max_packet_size(rusb, num);
   if (!pipe_wait_for_ready(rusb, num)) {
-    rusb->D0FIFOSEL = 0;
+    rusb->DATA_FIFOSEL = 0;
     return false; // FIFO not ready; leave the receive pending (BRDY re-enters when data arrives)
   }
 
-  const uint16_t vld  = (uint16_t)rusb->D0FIFOCTR_b.DTLN;
+  const uint16_t vld  = (uint16_t)rusb->DATA_FIFOCTR_b.DTLN;
   const uint16_t len  = tu_min16(tu_min16(rem, mps), vld);
   void          *buf  = pipe->buf;
 
@@ -314,19 +333,19 @@ static bool pipe_xfer_out(rusb2_reg_t* rusb, unsigned num)
     tu_hwfifo_access_t access_mode = {.data_stride = (rusb2_is_highspeed_reg(rusb) ? 4u : 2u),
                                       .param       = (uintptr_t)rusb};
     if (pipe->ff) {
-      tu_hwfifo_read_to_fifo(&rusb->D0FIFO, (tu_fifo_t *)buf, len, &access_mode);
+      tu_hwfifo_read_to_fifo(&rusb->DATA_FIFO, (tu_fifo_t *)buf, len, &access_mode);
     } else {
-      tu_hwfifo_read(&rusb->D0FIFO, buf, len, &access_mode);
+      tu_hwfifo_read(&rusb->DATA_FIFO, buf, len, &access_mode);
       pipe->buf = (uint8_t *)buf + len;
     }
   }
 
   if (len < mps) {
-    rusb->D0FIFOCTR = RUSB2_CFIFOCTR_BCLR_Msk;
+    rusb->DATA_FIFOCTR = RUSB2_CFIFOCTR_BCLR_Msk;
   }
 
-  rusb->D0FIFOSEL = 0;
-  while (rusb->D0FIFOSEL_b.CURPIPE) {} /* if CURPIPE bits changes, check written value */
+  rusb->DATA_FIFOSEL = 0;
+  while (rusb->DATA_FIFOSEL_b.CURPIPE) {} /* if CURPIPE bits changes, check written value */
 
   pipe->remaining = rem - len;
   if ((len < mps) || (rem == len)) {
@@ -428,16 +447,16 @@ static bool process_pipe0_xfer(uint8_t rhport, rusb2_reg_t *rusb, int buffer_typ
 // Queue a zero-length IN packet. Returns false if the FIFO buffer wasn't free (double-buffered pipe
 // full, host not draining) so BVAL couldn't be written -- the caller retries on the next BRDY.
 static bool pipe_zlp_in(rusb2_reg_t *rusb, unsigned num) {
-  rusb->D0FIFOSEL = (uint16_t) num;
+  rusb->DATA_FIFOSEL = (uint16_t) num;
   const bool ready = pipe_wait_for_ready(rusb, num);
   if (ready) {
-    rusb->D0FIFOCTR = RUSB2_CFIFOCTR_BVAL_Msk;
+    rusb->DATA_FIFOCTR = RUSB2_CFIFOCTR_BVAL_Msk;
   }
-  rusb->D0FIFOSEL = 0;
+  rusb->DATA_FIFOSEL = 0;
   // deselect completes within a few bus cycles (not host-dependent), but bound it anyway: this
   // runs with the USB IRQ masked, where any stuck spin freezes the whole stack
   uint32_t spin = RUSB2_FIFO_READY_SPIN;
-  while (rusb->D0FIFOSEL_b.CURPIPE) {
+  while (rusb->DATA_FIFOSEL_b.CURPIPE) {
     if (!spin--) { break; }
   }
   return ready;
@@ -449,6 +468,8 @@ static bool process_pipe_xfer(rusb2_reg_t* rusb, int buffer_type, uint8_t ep_add
   const unsigned dir = tu_edpt_dir(ep_addr);
   const unsigned num = _dcd.ep[dir][epn];
 
+  TU_LOG1("_dcd.ep[out][2]=%u\n", _dcd.ep[0][2]);
+  TU_LOG1("_dcd.ep[in ][2]=%u\n", _dcd.ep[1][2]);
   TU_ASSERT(num);
 
   pipe_state_t *pipe  = &_dcd.pipe[num];
@@ -549,11 +570,13 @@ static void process_bus_reset(uint8_t rhport)
   rusb->BRDYENB = 1;
   rusb->CFIFOCTR = RUSB2_CFIFOCTR_BCLR_Msk;
 
+#if !defined(HAS_5PIPE_FIFO)
   rusb->D0FIFOSEL = 0;
   while (rusb->D0FIFOSEL_b.CURPIPE) {} /* if CURPIPE bits changes, check written value */
 
   rusb->D1FIFOSEL = 0;
   while (rusb->D1FIFOSEL_b.CURPIPE) {} /* if CURPIPE bits changes, check written value */
+#endif
 
   volatile uint16_t *ctr = (volatile uint16_t*)((uintptr_t) (&rusb->PIPE_CTR[0]));
   volatile uint16_t *tre = (volatile uint16_t*)((uintptr_t) (&rusb->PIPE_TR[0].E));
