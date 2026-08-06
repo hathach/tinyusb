@@ -1337,6 +1337,19 @@ bool tuh_edpt_open(uint8_t dev_addr, tusb_desc_endpoint_t const* desc_ep) {
     tusb_desc_endpoint_t *hacked_ep = (tusb_desc_endpoint_t *)(uintptr_t)desc_ep;
     hacked_ep->wMaxPacketSize       = tu_htole16(64);
   }
+  // HACK: some device reports an implausibly small bulk max packet size -- seen with a
+  // USB-MIDI device reporting 4, which is the size of a single USB-MIDI 1.0 event packet
+  // (cable number + code index + 3 data bytes), not a valid endpoint wMaxPacketSize (full
+  // speed bulk must be 8/16/32/64 per spec). Round up to the smallest legal size; actual
+  // transfers can still be shorter than this (a short packet is how bulk transfers normally
+  // terminate), so this doesn't change on-the-wire behavior, just what tu_edpt_validate()
+  // below is willing to accept
+  if (desc_ep->bmAttributes.xfer == TUSB_XFER_BULK && tu_edpt_packet_size(desc_ep) > 0 &&
+      tu_edpt_packet_size(desc_ep) < 8 && tuh_speed_get(dev_addr) == TUSB_SPEED_FULL) {
+    TU_LOG1("  WARN: EP max packet size is %u in fullspeed, force to 8\r\n", tu_edpt_packet_size(desc_ep));
+    tusb_desc_endpoint_t *hacked_ep = (tusb_desc_endpoint_t *)(uintptr_t)desc_ep;
+    hacked_ep->wMaxPacketSize       = tu_htole16(8);
+  }
   TU_ASSERT(tu_edpt_validate(desc_ep, tuh_speed_get(dev_addr)));
   return hcd_edpt_open(usbh_get_rhport(dev_addr), dev_addr, desc_ep);
 }
