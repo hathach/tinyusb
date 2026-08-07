@@ -800,29 +800,54 @@ static void tud_network_recv_renew_r(uint8_t rhport) {
 } // tud_network_recv_renew
 
 /**
- * Set the link state and send notification to host
+ * usbd-task trampoline for tud_network_link_state(), packing rhport and is_up
+ * into a single pointer-sized argument.
+ *
+ * Runs entirely in the usbd task context, so it cannot race the notify
+ * xfer-completion callback over the notification state machine. Re-arming
+ * notification_xmit_state and kicking notification_xmit() (rather than
+ * sending NETWORK_CONNECTION directly) means a state change that collides
+ * with an in-flight notification is picked up by the existing completion
+ * callback instead of being silently dropped - which would otherwise leave
+ * the host stuck at NO-CARRIER after a link-state change.
  */
-void tud_network_link_state(uint8_t rhport, bool is_up) {
-  TU_LOG_DRV("tud_network_link_state(%d, %d)\n", rhport, is_up);
+static void ncm_link_state_task(void *param) {
+  uintptr_t const arg = (uintptr_t) param;
+  uint8_t const rhport = (uint8_t) (arg >> 1);
+  bool const is_up = (arg & 1u) != 0;
 
   if (ncm_interface.link_is_up == is_up) {
-    // No change in link state
-    return;
+    return; // no change in link state
   }
 
   ncm_interface.link_is_up = is_up;
 
-  // Only send notification if we have an active data interface
   if (ncm_interface.itf_data_alt != 1) {
-    TU_LOG_DRV("  link state notification skipped (interface not active)\n");
-    return;
+    TU_LOG_DRV("  link state notification deferred (interface not active)\n");
+    return; // data interface not active yet; SET_INTERFACE(alt=1) will notify
   }
 
-  // Reset notification state to send speed change notification first, then link state notification
+  // A link toggle does not change the link speed, so strictly only the
+  // NETWORK_CONNECTION notification would need (re)sending. Re-running the
+  // speed-then-connection sequence keeps this on the same state machine the
+  // completion callback already drives, at the cost of a redundant speed
+  // notification on every toggle.
   ncm_interface.notification_xmit_state = NOTIFICATION_SPEED;
-
-  // Trigger notification transmission
   notification_xmit(rhport, false);
+}
+
+/**
+ * Set the link state and notify the host.
+ *
+ * Defers onto the usbd task so a caller running in a different task than
+ * tud_task() cannot race the notification state machine against the notify
+ * xfer-completion callback.
+ */
+void tud_network_link_state(uint8_t rhport, bool is_up) {
+  TU_LOG_DRV("tud_network_link_state(%d, %d)\n", rhport, is_up);
+
+  uintptr_t const arg = ((uintptr_t) rhport << 1) | (is_up ? 1u : 0u);
+  usbd_defer_func(ncm_link_state_task, (void *) arg, false);
 }
 
 //-----------------------------------------------------------------------------
