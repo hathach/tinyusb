@@ -1194,10 +1194,31 @@ bool tuh_edpt_abort_xfer(uint8_t daddr, uint8_t ep_addr) {
     TU_VERIFY(dev);
 
     TU_VERIFY(dev->ep_status[epnum][dir] & TU_EDPT_STATE_BUSY); // non-control skip if not busy
+#if CFG_TUH_API_EDPT_XFER
+    tuh_xfer_cb_t const complete_cb = dev->ep_callback[epnum][dir].complete_cb;
+    uintptr_t const user_data = dev->ep_callback[epnum][dir].user_data;
+#endif
+
     // abort then mark as ready and release endpoint
     hcd_edpt_abort_xfer(dev->bus_info.rhport, daddr, ep_addr);
     dev->ep_status[epnum][dir] &= (uint8_t) ~TU_EDPT_STATE_BUSY; // clear busy
     tu_edpt_release(&dev->ep_status[epnum][dir], _usbh_mutex);
+
+#if CFG_TUH_API_EDPT_XFER
+    if (complete_cb) {
+      tuh_xfer_t xfer = {
+        .daddr       = daddr,
+        .ep_addr     = ep_addr,
+        .result      = XFER_RESULT_ABORTED,
+        .actual_len  = 0,
+        .buflen      = 0,
+        .buffer      = NULL,
+        .complete_cb = complete_cb,
+        .user_data   = user_data,
+      };
+      complete_cb(&xfer);
+    }
+#endif
   }
 
   return true;
