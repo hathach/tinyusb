@@ -1060,6 +1060,37 @@ static bool process_get_status(uint8_t rhport, tusb_control_request_t const * re
   return tud_control_xfer(rhport, request, &status, 2);
 }
 
+static bool process_reset_interface_endpoints(uint8_t rhport, uint8_t itf) {
+  TU_VERIFY(_usbd_dev.cfg_num > 0);
+
+  const tusb_desc_configuration_t *desc_cfg =
+    (const tusb_desc_configuration_t *)tud_descriptor_configuration_cb(_usbd_dev.cfg_num - 1);
+  TU_ASSERT(desc_cfg != NULL && desc_cfg->bDescriptorType == TUSB_DESC_CONFIGURATION);
+
+  const uint8_t *p_desc = ((const uint8_t *)desc_cfg) + sizeof(tusb_desc_configuration_t);
+  const uint8_t *desc_end = ((const uint8_t *)desc_cfg) + tu_le16toh(desc_cfg->wTotalLength);
+  bool in_interface = false;
+
+  while (tu_desc_in_bounds(p_desc, desc_end)) {
+    const uint8_t desc_type = tu_desc_type(p_desc);
+
+    if (desc_type == TUSB_DESC_INTERFACE) {
+      const tusb_desc_interface_t *desc_itf = (const tusb_desc_interface_t *)p_desc;
+      in_interface = (desc_itf->bInterfaceNumber == itf && desc_itf->bAlternateSetting == 0);
+    } else if (in_interface && desc_type == TUSB_DESC_ENDPOINT) {
+      const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
+      if (desc_ep->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS) {
+        usbd_edpt_stall(rhport, desc_ep->bEndpointAddress);
+        usbd_edpt_clear_stall(rhport, desc_ep->bEndpointAddress);
+      }
+    }
+
+    p_desc = tu_desc_next(p_desc);
+  }
+
+  return true;
+}
+
 // This handles the actual request and its response.
 // Returns false if unable to complete the request, causing caller to stall control endpoints.
 static bool process_setup_received(uint8_t rhport, tusb_control_request_t const * p_request) {
@@ -1161,6 +1192,7 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
             // so reaching here means the class does not — where only alt 0 is valid. Any non-zero
             // alt (unimplemented, or rejected as invalid by the class) is a Request Error (stall).
             TU_VERIFY(tu_u16_low(p_request->wValue) == 0);
+            TU_VERIFY(process_reset_interface_endpoints(rhport, itf));
             tud_control_status(rhport, p_request);
             break;
 
