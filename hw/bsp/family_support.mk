@@ -111,6 +111,13 @@ ifneq ($(LOG),)
   CFLAGS += -DCFG_TUSB_DEBUG=$(LOG)
 endif
 
+# W10: SYSVIEW is a CMake-only feature (family_support.cmake); the Make build has no SystemView
+# instrumentation at all, so SYSVIEW=n here used to be silently ignored, producing a plain
+# uninstrumented ELF that looked like a completed sysview build. Fail fast instead.
+ifneq ($(SYSVIEW),)
+$(error SYSVIEW is CMake-only; the Make build has no SystemView support -- see .claude/skills/sysview/SKILL.md)
+endif
+
 # Logger: default is uart, can be set to rtt or swo
 ifeq ($(LOGGER),rtt)
   CFLAGS += -DLOGGER_RTT
@@ -160,6 +167,7 @@ ifeq ($(RTOS),freertos)
 	SRC_S += $(subst $(TOP)/,,$(wildcard $(TOP)/$(FREERTOS_PORTABLE_SRC)/*.s))
 	INC += \
 		$(TOP)/hw/bsp/$(FAMILY)/FreeRTOSConfig \
+		$(TOP)/hw/bsp \
 		$(TOP)/$(FREERTOS_SRC)/include \
 		$(TOP)/$(FREERTOS_PORTABLE_SRC)
 
