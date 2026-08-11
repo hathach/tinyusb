@@ -284,8 +284,8 @@ void tusb_sysview_stack_report(void) {
    * examples/device/cdc_msc_freertos/src/main.c, which is the change that
    * actually restores enumeration). Moving it to .bss costs the same RAM but
    * none of the caller's stack, which is still worth doing on its own merits.
-   * Single writer (only called from usbd's periodic report, never reentered),
-   * so no locking is needed. */
+   * Single writer (usbd's periodic report, or usbh's in a host-only build --
+   * never both, never reentered), so no locking is needed. */
   static TaskStatus_t status[SYSVIEW_FREERTOS_MAX_NOF_TASKS];
   /* Report one task per call instead of looping over all of them: even with
    * the array off the stack, up to SYSVIEW_FREERTOS_MAX_NOF_TASKS back-to-back
