@@ -164,7 +164,7 @@ void led_blinking_task(RTOS_PARAM param) {
 #ifdef ESP_PLATFORM
 #define USBD_STACK_SIZE   4096
 #else
-#define USBD_STACK_SIZE   (3*configMINIMAL_STACK_SIZE/2 * (CFG_TUSB_DEBUG ? 2 : 1))
+#define USBD_STACK_SIZE   (3*configMINIMAL_STACK_SIZE/2 * ((CFG_TUSB_DEBUG || CFG_TUD_SYSVIEW) ? 2 : 1))
 #endif
 #define BLINKY_STACK_SIZE   configMINIMAL_STACK_SIZE
 
