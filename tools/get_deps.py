@@ -17,6 +17,12 @@ deps_mandatory = {
     'lib/lwip': ['https://github.com/lwip-tcpip/lwip.git',
                  '159e31b689577dbf69cf0683bbaffbd71fa5ee10',
                  'all'],
+    # generic (not MCU-specific) like the other mandatory libs above; needed by
+    # any family building with -DSYSVIEW, so it doesn't fit the per-family
+    # gating deps_optional uses
+    'lib/SystemView': ['https://github.com/SEGGERMicro/SystemView.git',
+                           '92ca7a810c5765ba64911919acd511c61b6b083f',
+                           'all'],
     'lib/threadx': ['https://github.com/eclipse-threadx/threadx.git',
                     '4b6e8100d932a3a67b34c6eb17f84f3bffb9e2ae',
                     'all'],
