@@ -522,6 +522,7 @@ bool tud_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
     return true; // skip if already initialized
   }
   TU_ASSERT(rh_init);
+  tusb_sysview_init(); // no-op unless a SYSVIEW level is set; here so tud_init() alone starts recording
  #if CFG_TUSB_DEBUG >= CFG_TUD_LOG_LEVEL
   char const* speed_str = 0;
   switch (rh_init->speed) {
