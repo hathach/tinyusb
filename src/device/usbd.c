@@ -12,6 +12,7 @@
 #include "device/dcd.h"
 #include "tusb.h"
 #include "common/tusb_private.h"
+#include "common/tusb_sysview.h"
 
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
@@ -556,6 +557,9 @@ bool tud_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 #if OSAL_MUTEX_REQUIRED
   // Init device mutex
   _usbd_mutex = osal_mutex_create(&_ubsd_mutexdef);
+#if CFG_TUD_SYSVIEW
+  tusb_sysview_name_resource(_usbd_mutex, "usbd_mutex");
+#endif
   TU_ASSERT(_usbd_mutex);
 #endif
 
@@ -670,6 +674,12 @@ bool tud_task_event_ready(void) {
       }
     }
  */
+// TU_ASSERT hand-expansion for a void-returning early exit that also closes the CALL/RET pair
+// (matches TU_ASSERT's own expansion, tusb_verify.h, with a RET inserted before the return) --
+// used once below, where the driver lookup must not skip TUD_SYSVIEW_RET on its exit path.
+#define TU_ASSERT_SV(_cond) \
+  TUD_SYSVIEW_ASSERT(_cond, CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUD_TASK, )
+
 void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
   (void) in_isr; // not implemented yet
 
@@ -698,6 +708,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
     TU_LOG_USBD("USBD %s ", event.event_id < DCD_EVENT_COUNT ? _usbd_event_str[event.event_id] : "CORRUPTED");
 #endif
 
+    TUD_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUD_TASK);
     switch (event.event_id) {
       case DCD_EVENT_BUS_RESET_START:
         TU_LOG_USBD("\r\n");
@@ -768,7 +779,10 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
           }
         } else {
           usbd_class_driver_t const* driver = get_driver(_usbd_dev.ep2drv[epnum][ep_dir]);
-          TU_ASSERT(driver,);
+          // TU_ASSERT(driver,) would return here directly, skipping the RET below -- TU_ASSERT_SV
+          // (defined above) keeps the CALL/RET pair balanced on this exit path, same treatment as
+          // mscd_xfer_cb.
+          TU_ASSERT_SV(driver);
 
           TU_LOG_USBD("  %s xfer callback\r\n", driver->name);
           driver->xfer_cb(event.rhport, ep_addr, (xfer_result_t) event.xfer_complete.result, event.xfer_complete.len);
@@ -815,11 +829,18 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
         TU_BREAKPOINT();
         break;
     }
+    TUD_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUD_TASK);
+
+#if CFG_TUD_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_USB && CFG_TUSB_OS == OPT_OS_FREERTOS
+    { static uint16_t sv_cnt = 0;
+      if (0 == (++sv_cnt & 0x3FFu)) { tusb_sysview_stack_report(); } }
+#endif
 
     // allow to exit tud_task() if there is no event in the next run
     timeout_ms = 0;
   }
 }
+#undef TU_ASSERT_SV // file-local to tud_task_ext above -- don't let it bind the wrong level/id later
 
 //--------------------------------------------------------------------+
 // Control Endpoint
@@ -1609,21 +1630,27 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
   // Attempt to transfer on a busy endpoint, sound like an race condition !
   TU_ASSERT((_usbd_dev.ep_status[epnum][dir] & TU_EDPT_STATE_BUSY) == 0);
 
+  TUD_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_USBD_XFER);
+
   // Set busy first since the actual transfer can be complete before dcd_edpt_xfer()
   // could return and USBD task can preempt and clear the busy
   _usbd_dev.ep_status[epnum][dir] |= TU_EDPT_STATE_BUSY;
 
-  if (dcd_edpt_xfer(rhport, ep_addr, buffer, total_bytes, is_isr)) {
-    return true;
-  } else {
+  TUD_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_PORT, TU_SV_ID_DCD_XFER);
+  bool const ok = dcd_edpt_xfer(rhport, ep_addr, buffer, total_bytes, is_isr);
+  TUD_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_PORT, TU_SV_ID_DCD_XFER);
+
+  if (!ok) {
     // Driver refused the transfer, mark endpoint as ready to allow next transfer. This is a
     // recoverable condition (e.g. a new setup superseding a control response), not a bug, so
     // do not break into the debugger - TU_BREAKPOINT() halts the CPU whenever a probe is
     // attached, which on a test rig is always.
     _usbd_dev.ep_status[epnum][dir] &= (uint8_t) ~(TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED);
     TU_LOG_USBD("FAILED\r\n");
-    return false;
   }
+
+  TUD_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_USBD_XFER);
+  return ok;
 }
 
 // The number of bytes has to be given explicitly to allow more flexible control of how many

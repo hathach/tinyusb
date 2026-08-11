@@ -11,6 +11,7 @@
 
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
+#include "common/tusb_sysview.h"
 
 #include "cdc_device.h"
 
@@ -174,8 +175,11 @@ uint32_t tud_cdc_n_available(uint8_t itf) {
 
 uint32_t tud_cdc_n_read(uint8_t itf, void* buffer, uint32_t bufsize) {
   TU_VERIFY(itf < CFG_TUD_CDC, 0);
+  TUD_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_CLASS, TU_SV_ID_CDC_READ);
   cdcd_interface_t *p_cdc = &_cdcd_itf[itf];
-  return tu_edpt_stream_read(&p_cdc->rx_stream, buffer, bufsize);
+  uint32_t const ret = tu_edpt_stream_read(&p_cdc->rx_stream, buffer, bufsize);
+  TUD_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_CLASS, TU_SV_ID_CDC_READ);
+  return ret;
 }
 
 bool tud_cdc_n_peek(uint8_t itf, uint8_t *chr) {
@@ -201,8 +205,11 @@ uint32_t tud_cdc_n_write(uint8_t itf, const void* buffer, uint32_t bufsize) {
 
 uint32_t tud_cdc_n_write_flush(uint8_t itf) {
   TU_VERIFY(itf < CFG_TUD_CDC, 0);
+  TUD_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_CLASS, TU_SV_ID_CDC_FLUSH);
   cdcd_interface_t *p_cdc = &_cdcd_itf[itf];
-  return tu_edpt_stream_write_xfer(&p_cdc->tx_stream);
+  uint32_t const ret = tu_edpt_stream_write_xfer(&p_cdc->tx_stream);
+  TUD_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_CLASS, TU_SV_ID_CDC_FLUSH);
+  return ret;
 }
 
 uint32_t tud_cdc_n_write_available(uint8_t itf) {
