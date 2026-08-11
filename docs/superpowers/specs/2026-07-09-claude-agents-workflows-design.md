@@ -14,7 +14,8 @@ workers do the volume.
 ## Context
 
 - Existing process skills: `hil`, `code-size`, `pvs`, `build-doc`, `usbmon`,
-  `usb-debug`, `usb-recover`, `make-release` (`.claude/skills/`).
+  `usb-debug`, `usb-recover` (since renamed `usb-kernel-debug`,
+  `usb-kernel-recover`), `make-release` (`.claude/skills/`).
 - One prototype workflow exists in the master working tree (untracked):
   `.claude/workflows/port-audit.js`. This design supersedes it.
 - No custom agent definitions exist yet (`.claude/agents/` absent).
@@ -42,7 +43,7 @@ the agent.
 | `port-dev` | xhigh | Implement one well-scoped change in one port / file set. Follows repo rules: C99, 2-space indent, snake_case, `TU_ASSERT`, no dynamic allocation, ISR work deferred to task context. Runs `clang-format` (repo `.clang-format`) on touched files before finishing. Cross-checks the MCU datasheet in `$HOME/Documents/calibre-library` when changing dcd/hcd register logic. Verifies with a targeted build of one board using the port. Returns `{item, diffstat, buildOk, notes}`. |
 | `driver-reviewer` | xhigh | Review one dcd/hcd directory against dimensions: correctness, ISR safety, register use vs. datasheet AND MCU errata (calibre library; missing erratum workarounds are findings), style. Returns structured findings `{file, line, snippet, why, severity, confidence}` — coverage-first (report everything; filtering happens downstream). |
 | `hil-operator` | default | All rig interaction — the actions-runner service is NEVER stopped; per-board flock locks arbitrate with concurrent CI. `hil_test.py` runs rely on its per-board self-locking; manual hardware work (JLink/GDB, usbtest, serial) is wrapped in `test/hil/board_lock.py hold/release`; rig-wide ops (uhubctl, pci-rebind) require `hold --all`; on wedge `usb_recover.sh` + dmesg. Used strictly serially — never two instances concurrently. |
-| `target-debugger` | xhigh | Root-cause one USB misbehavior on one board by instrumenting the device side (TU_LOG/RTT, RAM ring-buffer trace, GDB autopsy, J-Link PC-sampling) with dual-side host+target capture, per `.claude/skills/usb-target-debug/SKILL.md`, plus wire-level capture via the ataradov hardware tap (`.claude/skills/usb-sniffer/SKILL.md`) when the host side can't see or is disputed. Deliberately serial loop under one held board lock (released around `hil_test.py` runs, which self-lock); strictly one instance. Diagnosis standard: evidence shows the mechanism, or a fix flips the ORIGINAL failing case on hardware; stops after two evidence-free cycles with a partial report. Hard rule "fix stays, probe goes, re-verify clean": instrumentation reverted, candidate fix left uncommitted and re-verified on a clean build, pristine firmware reflashed before lock release. Returns `{board, bug, diagnosis, confirmed, ruledOut[], evidence[], fixDiffstat, fixVerified, instrumentationReverted, lockReleased, notes}`. |
+| `target-debugger` | xhigh | Root-cause one USB misbehavior on one board — device or host stack — by instrumenting the target with correlated dual-side capture; strictly serial, one instance, one held board lock. The charter (skill routing table: `target-debug`, `usbmon`, `usb-sniffer`, `etm-trace`, `sysview`, ..., diagnosis standard, lock discipline, "fix stays, probe goes" rule, output contract) lives in `.claude/agents/target-debugger.md` — the single source of truth; this row is deliberately a pointer so the two cannot drift. |
 | `pr-monitor` | default | Triage one GitHub PR via `gh`: check CI status (`gh pr checks`), read failing run logs and classify each failure infra/flake vs real; re-run infra failures (`gh run rerun --failed`); harvest automated review comments (Codex/Copilot/Claude bots — knows their signals: Codex posts a "Didn't find any major issues" issue comment when clean; Copilot drops out of `requested_reviewers` when done; bot logins differ across APIs); adversarially validate each finding against the actual code. Returns structured triage `{ci: {status, infraRerun[], realFailures[]}, findings: [{source, file, line, claim, verdict, fixHint}]}`. Read/triage/re-run/reply only — never edits code. |
 | `static-analyzer` | low | Run PVS-Studio (SAST + MISRA C:2023/C++:2008) for one board: build with exported `compile_commands.json` (via `run_pvs.sh` solo, or a dedicated `cmake-build-pvs` dir when parallel builders run), analyze against `.PVS-Studio/.pvsconfig`, gate on diagnostics in files changed vs a base ref. Returns `{pass, ga1, ga2, changedFindings[], detail}`; `pass=false` only on GA:1 in changed files or tool failure. Read-only. |
 
@@ -120,6 +121,37 @@ stay truthful (`/tmp` clears on reboot):
 test boards from `hw/bsp` (fallback: `stm32f407disco`, `raspberry_pi_pico`),
 launch `full-check` with that board list, and summarize the verdict. Markdown
 carries the judgment; JS carries the orchestration.
+
+### Skill vs technique — promotion criteria
+
+The debugging playbook (`target-debug`) bundles techniques inline; some
+capabilities are standalone skills (`usbmon`, `usb-sniffer`, `etm-trace`,
+`sysview`, ...). A capability becomes a standalone skill when it meets **two
+or more** of:
+
+1. **Ships tooling** — scripts/config that need versioning and maintenance
+   (etm-trace's capture/profile pair, sysview's recorder/reporter, usbmon's
+   `usbcap.sh`). Recipes over already-installed tools don't count.
+2. **Answers its own routed question** — it earns a distinct row in the
+   capture-channel tables ("what it answers"), with its own trigger
+   vocabulary for discovery. A technique is a *how* within an existing
+   question; a skill is a new *question*.
+3. **Carries validation state or host setup** — per-board bring-up notes /
+   validated-hardware matrix, host installs, physical-wiring preconditions.
+4. **Long but conditionally relevant** — would add a page+ to target-debug
+   (always loaded by target-debugger) that most sessions never need; skills
+   are lazy-loaded via the routing tables.
+
+Criterion 2 is not necessary: a capability can promote on 1+3+4 while still
+answering an existing question — the existing question's row then points at
+it as an alternative channel instead of gaining a new row.
+
+It stays an inline technique in target-debug when it's a sub-screen recipe
+over standard rig tools (JLinkExe/GDB/OpenOCD) sharing the
+lock→instrument→flash→capture loop.
+
+Current borderline: **SWO** (exception/data trace) — promote only if/when
+capture+decode scripts get built; until then it stays inline.
 
 ## Model & effort policy
 
