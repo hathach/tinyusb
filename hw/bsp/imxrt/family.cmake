@@ -1,3 +1,7 @@
+# RAM-rich family: SystemView RTT buffer defaults to the dogfood's measured-safe size
+# (-DSYSVIEW_BUFFER_SIZE overrides; see hw/bsp/family_support.cmake and boards.md)
+set(SYSVIEW_BUFFER_SIZE_DEFAULT 65536)
+
 include_guard()
 
 set(MCUX_CORE ${TOP}/hw/mcu/nxp/mcuxsdk-core)

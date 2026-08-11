@@ -505,7 +505,16 @@ function(family_configure_common TARGET RTOS)
         "(it's a mandatory dependency, fetched regardless of family)")
     endif ()
     if (NOT DEFINED SYSVIEW_BUFFER_SIZE)
-      set(SYSVIEW_BUFFER_SIZE 4096)   # overflows under bulk USB load -- raise per board
+      # -DSYSVIEW_BUFFER_SIZE always wins. Otherwise a family may declare its own default
+      # (SYSVIEW_BUFFER_SIZE_DEFAULT in family.cmake, the SYSVIEW_RAM_BASE_DEFAULT pattern):
+      # RAM-rich families set 65536, the dual-role dogfood's measured-safe value -- at the
+      # global 4096 fallback mimxrt1064_evk lost 96.7% of ISR exit contexts at only ~109 Hz.
+      # Small-RAM parts keep the 4096 fallback and override per board (see boards.md).
+      if (DEFINED SYSVIEW_BUFFER_SIZE_DEFAULT)
+        set(SYSVIEW_BUFFER_SIZE ${SYSVIEW_BUFFER_SIZE_DEFAULT})
+      else ()
+        set(SYSVIEW_BUFFER_SIZE 4096)
+      endif ()
     endif ()
     if (NOT DEFINED SYSVIEW_RAM_BASE)
       # A family whose SRAM does not start at the Cortex-M-canonical 0x20000000 (SEGGER's
