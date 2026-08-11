@@ -9,6 +9,7 @@
 #define TUSB_USBD_H_
 
 #include "common/tusb_common.h"
+#include "common/tusb_sysview.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -84,8 +85,16 @@ bool tud_task_event_ready(void);
 extern void dcd_int_handler(uint8_t rhport);
 #endif
 
-// Interrupt handler, name alias to DCD
-#define tud_int_handler   dcd_int_handler
+// Interrupt handler, name alias to DCD. Most BSPs call this macro directly
+// from their vector ISR rather than tusb_int_handler() (src/tusb.c) — wrap it
+// here so CFG_TUD_SYSVIEW's ISR level (Ruling A) actually
+// sees real interrupt entry/exit instead of being dead code on those boards.
+#if CFG_TUD_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_ISR
+  #define tud_int_handler(_rhport) \
+    do { TU_SYSVIEW_ISR_ENTER(); dcd_int_handler(_rhport); TU_SYSVIEW_ISR_EXIT(); } while(0)
+#else
+  #define tud_int_handler   dcd_int_handler
+#endif
 
 // Get current bus speed
 tusb_speed_t tud_speed_get(void);
