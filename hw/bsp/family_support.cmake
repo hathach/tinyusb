@@ -389,7 +389,12 @@ function(family_add_rtos TARGET RTOS)
       if (NOT TARGET freertos_config)
         add_library(freertos_config INTERFACE)
         target_include_directories(freertos_config INTERFACE
-          ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${FAMILY}/FreeRTOSConfig)
+          ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${FAMILY}/FreeRTOSConfig
+          # hw/bsp itself: FreeRTOSConfig.h's shared SYSVIEW hook block lives at
+          # hw/bsp/sysview_freertos_hooks.h, one level up from the family-specific dir above.
+          # Unconditional (not gated on SYSVIEW): the #include line in FreeRTOSConfig.h always
+          # runs, only its effect is SYSVIEW-guarded, so this must always resolve too.
+          ${CMAKE_CURRENT_FUNCTION_LIST_DIR})
         target_link_libraries(freertos_config INTERFACE board_${BOARD})
       endif()
 
@@ -484,6 +489,129 @@ function(family_configure_common TARGET RTOS)
     endif ()
   else ()
     target_compile_definitions(${TARGET} PUBLIC LOGGER_UART)
+  endif ()
+
+  # SEGGER SystemView instrumentation option
+  if (SYSVIEW)
+    if (SYSVIEW STREQUAL "ON")
+      set(SYSVIEW 4)               # bare -DSYSVIEW=ON = full instrumentation
+    endif ()
+    if (NOT SYSVIEW MATCHES "^[1-4]$")
+      message(FATAL_ERROR "SYSVIEW must be 1..4 (1=ISR 2=+usbd/usbh 3=+dcd/hcd 4=+class)")
+    endif ()
+    set(SYSVIEW_SRC ${TOP}/lib/SystemView)
+    if (NOT EXISTS ${SYSVIEW_SRC}/SYSVIEW/SEGGER_SYSVIEW.c)
+      message(FATAL_ERROR "SYSVIEW needs lib/SystemView: run python3 tools/get_deps.py <family> "
+        "(it's a mandatory dependency, fetched regardless of family)")
+    endif ()
+    if (NOT DEFINED SYSVIEW_BUFFER_SIZE)
+      set(SYSVIEW_BUFFER_SIZE 4096)   # overflows under bulk USB load -- raise per board
+    endif ()
+    if (NOT DEFINED SYSVIEW_RAM_BASE)
+      # A family whose SRAM does not start at the Cortex-M-canonical 0x20000000 (SEGGER's
+      # RAM-pointer ID shrink underflows and every named mutex/task id comes out garbage
+      # otherwise, see .claude/skills/sysview/boards.md) sets SYSVIEW_RAM_BASE_DEFAULT in its own
+      # family.cmake, before this function runs (e.g. hw/bsp/lpc11/family.cmake). A
+      # -DSYSVIEW_RAM_BASE=... on the command line still wins over both (DEFINED first, above).
+      if (DEFINED SYSVIEW_RAM_BASE_DEFAULT)
+        set(SYSVIEW_RAM_BASE ${SYSVIEW_RAM_BASE_DEFAULT})
+      else ()
+        set(SYSVIEW_RAM_BASE 0x20000000)
+      endif ()
+    endif ()
+    # vendored lib/SEGGER_RTT predates SEGGER_RTT_ConfDefaults.h; bridge it. file(CONFIGURE), not
+    # file(WRITE): this runs once per target inside a per-target function (30+ times in an
+    # examples/-level build), and file(WRITE) touches the file's mtime unconditionally on every
+    # call, forcing every TU that includes it to rebuild every configure. file(CONFIGURE) only
+    # writes when the content actually changes -- and it never does, here.
+    file(CONFIGURE OUTPUT ${CMAKE_BINARY_DIR}/sysview_shim/SEGGER_RTT_ConfDefaults.h
+         CONTENT "#include \"SEGGER_RTT_Conf.h\"\n" @ONLY)
+    target_sources(${TARGET} PUBLIC
+      ${SYSVIEW_SRC}/SYSVIEW/SEGGER_SYSVIEW.c
+      ${TOP}/src/common/tusb_sysview.c)
+    # Use SEGGER_RTT.c's portable C writer instead of SEGGER_RTT_ASM_ARMv7M.S. The .S is ARM
+    # assembly (fails to assemble on RISC-V: "unknown pseudo-op: .syntax") and RTT selects it via
+    # RTT_USE_ASM, which it derives from the core -- a source-list condition cannot track that
+    # reliably, since not every family even sets CMAKE_SYSTEM_CPU (rp2040 does not, so an
+    # arch-matching guard silently dropped the file on rp2350 while RTT still called into it).
+    # Forcing the C path costs a little RTT write throughput and works on every architecture.
+    target_compile_definitions(${TARGET} PUBLIC RTT_USE_ASM=0)
+    if (NOT LOGGER STREQUAL "RTT")
+      target_sources(${TARGET} PUBLIC ${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c)
+    endif ()
+    target_include_directories(${TARGET} PUBLIC
+      ${SYSVIEW_SRC}/SEGGER ${SYSVIEW_SRC}/SYSVIEW ${SYSVIEW_SRC}/Config
+      ${CMAKE_BINARY_DIR}/sysview_shim
+      ${TOP}/lib/SEGGER_RTT/RTT ${TOP}/lib/SEGGER_RTT/Config)
+    # vendor sources are not expected to pass TinyUSB's -Werror set
+    set_source_files_properties(
+      ${SYSVIEW_SRC}/SYSVIEW/SEGGER_SYSVIEW.c
+      ${SYSVIEW_SRC}/Sample/FreeRTOSV11/SEGGER_SYSVIEW_FreeRTOS.c
+      ${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c
+      TARGET_DIRECTORY ${TARGET} PROPERTIES COMPILE_OPTIONS "-w")
+    target_compile_definitions(${TARGET} PUBLIC
+      CFG_TUD_SYSVIEW=${SYSVIEW}
+      CFG_TUH_SYSVIEW=${SYSVIEW}
+      SYSVIEW_APP_NAME="${TARGET}"
+      SYSVIEW_DEVICE_NAME="${BOARD}"
+      SYSVIEW_RAM_BASE=${SYSVIEW_RAM_BASE}
+      SEGGER_SYSVIEW_RTT_BUFFER_SIZE=${SYSVIEW_BUFFER_SIZE}
+      SYSVIEW_FREERTOS_MAX_NOF_TASKS=16)
+    # Gate on this example's own RTOS argument, not "TARGET freertos_kernel":
+    # that is a global, configure-time query. In an examples/-level build, the
+    # alphabetically-first FreeRTOS example creates the freertos_kernel target,
+    # and every LATER non-RTOS example configured in the same run would then
+    # wrongly see it as existing and get SEGGER_SYSVIEW_FreeRTOS.c added with no
+    # FreeRTOS include dirs. rp2040's FreeRTOS path never creates freertos_kernel
+    # at all (it links FreeRTOS-Kernel-Static, see family_add_rtos above), so
+    # this also fixes rp2040 silently getting no task instrumentation.
+    if (RTOS STREQUAL "freertos")
+      target_sources(${TARGET} PUBLIC ${SYSVIEW_SRC}/Sample/FreeRTOSV11/SEGGER_SYSVIEW_FreeRTOS.c)
+      # freertos_config is the INTERFACE target the kernel and app both see:
+      # defines + include dirs there make the FreeRTOSConfig.h guarded block
+      # work. rp2040 never creates this target (its FreeRTOS-Kernel-Core is an
+      # INTERFACE library whose sources - tasks.c etc - become literal sources
+      # of ${TARGET} itself, so the defines/include dirs already set on
+      # ${TARGET} above reach them without this block).
+      if (TARGET freertos_config)
+        target_compile_definitions(freertos_config INTERFACE CFG_TUD_SYSVIEW=${SYSVIEW} CFG_TUH_SYSVIEW=${SYSVIEW} SYSVIEW_FREERTOS_MAX_NOF_TASKS=16)
+        target_include_directories(freertos_config INTERFACE
+          ${SYSVIEW_SRC}/SEGGER ${SYSVIEW_SRC}/SYSVIEW ${SYSVIEW_SRC}/Config
+          ${SYSVIEW_SRC}/Sample/FreeRTOSV11
+          ${CMAKE_BINARY_DIR}/sysview_shim
+          ${TOP}/lib/SEGGER_RTT/RTT ${TOP}/lib/SEGGER_RTT/Config)
+      endif ()
+      # The FreeRTOSConfig.h hook block (traceTASK_SWITCHED_IN/OUT +
+      # SEGGER_SYSVIEW_FreeRTOS.h) is what actually feeds the per-task CPU-load
+      # table. Without it SYSVIEW still builds/links/records ISR + function +
+      # marker data, but that table is silently empty - warn loudly instead.
+      set(SYSVIEW_FREERTOS_CONFIG_H ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${FAMILY}/FreeRTOSConfig/FreeRTOSConfig.h)
+      set(SYSVIEW_FREERTOS_HOOKED FALSE)
+      if (EXISTS ${SYSVIEW_FREERTOS_CONFIG_H})
+        file(READ ${SYSVIEW_FREERTOS_CONFIG_H} SYSVIEW_FREERTOS_CONFIG_CONTENTS)
+        # The hook block itself lives in the shared hw/bsp/sysview_freertos_hooks.h now (one
+        # #include line per family instead of 5 pasted copies) -- grep for that include, not the
+        # SEGGER_SYSVIEW_FreeRTOS.h name it used to paste directly (that name now only appears
+        # inside the shared header, never in a per-family FreeRTOSConfig.h).
+        string(FIND "${SYSVIEW_FREERTOS_CONFIG_CONTENTS}" "sysview_freertos_hooks.h" SYSVIEW_FREERTOS_HOOK_IDX)
+        if (NOT SYSVIEW_FREERTOS_HOOK_IDX EQUAL -1)
+          set(SYSVIEW_FREERTOS_HOOKED TRUE)
+        endif ()
+      endif ()
+      if (NOT SYSVIEW_FREERTOS_HOOKED)
+        message(WARNING
+          "SYSVIEW: ${SYSVIEW_FREERTOS_CONFIG_H} has no sysview_freertos_hooks.h include - "
+          "the per-task CPU-load table will be EMPTY for ${TARGET}/${BOARD}. Only "
+          "hw/bsp/{nrf,samd5x_e5x,stm32f4,stm32f7,stm32h7} are wired today; add "
+          "'#include \"sysview_freertos_hooks.h\"' (see any of theirs) to "
+          "hw/bsp/${FAMILY}/FreeRTOSConfig/FreeRTOSConfig.h to add ${FAMILY}.")
+      endif ()
+    endif ()
+    if (SYSVIEW_POST_MORTEM)
+      target_compile_definitions(${TARGET} PUBLIC SEGGER_SYSVIEW_POST_MORTEM_MODE=1)
+      # SEGGER_SYSVIEW_SYNC_PERIOD_SHIFT stays at its source default (8)
+    endif ()
+    message(STATUS "SYSVIEW instrumentation enabled (buffer=${SYSVIEW_BUFFER_SIZE})")
   endif ()
 
   if (FAMILY STREQUAL "rp2040")

@@ -13,6 +13,9 @@ set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOL
 
 set(FAMILY_MCUS LPC15XX CACHE INTERNAL "")
 
+# This family's SRAM starts at 0x02000000 (NXP UM10736), not the Cortex-M-canonical 0x20000000 --
+# see hw/bsp/family_support.cmake's SYSVIEW_RAM_BASE_DEFAULT handling.
+set(SYSVIEW_RAM_BASE_DEFAULT 0x02000000)
 
 #------------------------------------
 # BOARD_TARGET
