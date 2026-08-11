@@ -109,6 +109,10 @@
     - ../../src/**
   :include:
     - ../../src/**
+    # Fake vendor headers for tests that need one but shouldn't drag the real vendored lib/
+    # onto the host build (see test/support/fake_vendor/SEGGER_SYSVIEW.h) -- only reached by a
+    # test that opts in via a :defines per-test matcher below, e.g. CFG_TUD_SYSVIEW.
+    - test/support/fake_vendor
   :support:
     - test/support
   :libraries: []
@@ -127,10 +131,16 @@
 #  - Specifying symbols used during test preprocessing
 :defines:
   :test:
-    - _UNITY_TEST_
-    - CFG_TUD_EDPT_DEDICATED_HWFIFO=1
-    - CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE=6
-    - CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE=0
+    :*:
+      - _UNITY_TEST_
+      - CFG_TUD_EDPT_DEDICATED_HWFIFO=1
+      - CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE=6
+      - CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE=0
+    # tusb_sysview.c's body (and the TU_SYSVIEW_ISR_ENTER/EXIT declarations it needs) only
+    # compile in when CFG_TUD_SYSVIEW is nonzero; every other test leaves it at the
+    # tusb_option.h default of 0 (undefined here) so this test is fully isolated.
+    :test_tusb_sysview:
+      - CFG_TUD_SYSVIEW=1
   :release: []
 
   # Enable to inject name of a test as a unique compilation symbol into its respective executable build.
