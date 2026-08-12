@@ -642,6 +642,8 @@ static void configuration_reset(uint8_t rhport) {
 
 static void usbd_reset(uint8_t rhport) {
   configuration_reset(rhport);
+  // discard any pre-reset SETUP still counted: a stale count skips post-reset SETUPs
+  _usbd_queued_setup = 0;
 }
 
 bool tud_task_event_ready(void) {
