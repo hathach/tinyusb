@@ -400,6 +400,7 @@ static void ed_list_remove_by_addr(ohci_ed_t * p_head, uint8_t dev_addr) {
 static ohci_gtd_t* gtd_find_free(void) {
   for (uint8_t i = 0; i < GTD_MAX; i++) {
     if (!ohci_data.gtd_pool[i].used) {
+      ohci_data.gtd_pool[i].used = 1;
       return &ohci_data.gtd_pool[i];
     }
   }
