@@ -271,6 +271,44 @@ void test_usbd_control_in_zlp(void)
 }
 
 //--------------------------------------------------------------------+
+// SETUP dropped by full event queue
+//--------------------------------------------------------------------+
+
+// When the event queue is full, queue_event() drops the SETUP event. The queued-setup
+// counter must not keep the dropped SETUP's increment: a leaked count makes the handler
+// skip every later SETUP ("other SETUP in queue") forever, leaving EP0 permanently deaf.
+void test_usbd_setup_dropped_by_full_queue_recovers(void)
+{
+  // fillers drain through usbd_reset -> class reset
+  mscd_reset_Ignore();
+
+  // fill the queue to the brim, then post one more SETUP: queue_event() drops it
+  for (unsigned i = 0; i < CFG_TUD_TASK_QUEUE_SZ; i++) {
+    dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, false);
+  }
+  dcd_event_setup_received(rhport, (uint8_t*) &req_get_desc_device, false);
+
+  // drain all fillers (each tud_task pass handles at most CFG_TUD_TASK_EVENTS_PER_RUN
+  // events); the dropped SETUP never arrives
+  for (unsigned i = 0; i < (CFG_TUD_TASK_QUEUE_SZ / CFG_TUD_TASK_EVENTS_PER_RUN) + 1; i++) {
+    tud_task();
+  }
+
+  // the next SETUP must still be answered
+  desc_device = (uint8_t const*) &data_desc_device;
+  dcd_event_setup_received(rhport, (uint8_t*) &req_get_desc_device, false);
+
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*) &data_desc_device, sizeof(tusb_desc_device_t), sizeof(tusb_desc_device_t), false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, sizeof(tusb_desc_device_t), 0, false);
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_desc_device, 1);
+
+  tud_task();
+}
+
+//--------------------------------------------------------------------+
 // Control OUT data stage host overrun
 //--------------------------------------------------------------------+
 

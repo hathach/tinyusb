@@ -1473,8 +1473,10 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) 
       break;
   }
 
-  if (send) {
-    queue_event(event, in_isr);
+  if (send && !queue_event(event, in_isr) && event->event_id == DCD_EVENT_SETUP_RECEIVED) {
+    // dropped by a full queue: undo the increment, else every later SETUP is skipped as
+    // "other SETUP in queue" and EP0 is deaf until re-init
+    _usbd_queued_setup--;
   }
 }
 
