@@ -107,7 +107,8 @@ typedef union {
     // HCD: make use of 5 reserved bits
     uint32_t used              : 1;
     uint32_t is_interrupt_xfer : 1;
-    uint32_t                   : 3;
+    uint32_t is_reclaiming     : 1;
+    uint32_t                   : 2;
   };
   uint32_t value;
 } ohci_ed_word0_t;
