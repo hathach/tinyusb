@@ -29,6 +29,7 @@
 #include "tusb_fifo.h"
 #include "tusb.h"
 #include "usbd.h"
+#include "device/usbd_pvt.h"
 TEST_SOURCE_FILE("usbd.c")
 
 // Mock File
@@ -306,6 +307,52 @@ void test_usbd_setup_dropped_by_full_queue_recovers(void)
   dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_desc_device, 1);
 
   tud_task();
+}
+
+//--------------------------------------------------------------------+
+// Transfer completion dropped by full event queue
+//--------------------------------------------------------------------+
+
+// When the event queue is full, queue_event() drops the XFER_COMPLETE event. The endpoint's
+// busy/claimed state must not survive the dropped completion: a leaked BUSY makes every later
+// usbd_edpt_claim()/usbd_edpt_xfer() on that endpoint fail, so the class never re-arms it.
+void test_usbd_xfer_complete_dropped_by_full_queue_recovers(void)
+{
+  // fillers drain through usbd_reset -> class reset
+  mscd_reset_Ignore();
+
+  // open + claim + arm a bulk OUT endpoint the way a class driver would
+  tusb_desc_endpoint_t desc_ep = {
+    .bLength          = sizeof(tusb_desc_endpoint_t),
+    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = 0x01,
+    .bmAttributes     = { .xfer = TUSB_XFER_BULK },
+    .wMaxPacketSize   = 64,
+    .bInterval        = 0
+  };
+  static uint8_t xfer_buf[64];
+
+  dcd_edpt_open_ExpectAndReturn(rhport, &desc_ep, true);
+  TEST_ASSERT_TRUE(usbd_edpt_open(rhport, &desc_ep));
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, 0x01));
+  dcd_edpt_xfer_ExpectAndReturn(rhport, 0x01, xfer_buf, 64, false, true);
+  TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport, 0x01, xfer_buf, 64, false));
+
+  // fill the queue to the brim, then complete the transfer: queue_event() drops it
+  for (unsigned i = 0; i < CFG_TUD_TASK_QUEUE_SZ; i++) {
+    dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, false);
+  }
+  dcd_event_xfer_complete(rhport, 0x01, 64, XFER_RESULT_SUCCESS, false);
+
+  // the endpoint must be re-armable: the dropped completion must not leak busy/claimed
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, 0x01));
+  dcd_edpt_xfer_ExpectAndReturn(rhport, 0x01, xfer_buf, 64, false, true);
+  TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport, 0x01, xfer_buf, 64, false));
+
+  // drain the fillers so later tests start from an empty queue
+  for (unsigned i = 0; i < (CFG_TUD_TASK_QUEUE_SZ / CFG_TUD_TASK_EVENTS_PER_RUN) + 1; i++) {
+    tud_task();
+  }
 }
 
 //--------------------------------------------------------------------+
