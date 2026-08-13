@@ -41,6 +41,15 @@ enum {
   PIPE_COUNT = 10,
 };
 
+typedef enum e_usb_control_stage
+{
+  USB_CONTROL_STAGE_IDLE   = 0,
+  USB_CONTROL_STAGE_SETUP  = 0,
+  USB_CONTROL_STAGE_DATA   = 1,
+  USB_CONTROL_STAGE_STATUS = 2,
+  USB_CONTROL_STAGE_ERROR  = 3,
+} usb_control_stage_t;
+
 typedef struct {
   void      *buf;      /* the start address of a transfer data buffer */
   uint16_t  length;    /* the number of bytes in the buffer */
@@ -133,6 +142,44 @@ static volatile uint16_t* ep_addr_to_pipectr(uint8_t rhport, unsigned ep_addr) {
   } else {
     return get_pipectr(rusb, 0);
   }
+}
+
+static usb_control_stage_t dcp_get_current_stage (rusb2_reg_t *rusb)
+{
+  uint16_t            is0 = rusb->INTSTS0;
+  usb_control_stage_t stage;
+
+  switch (is0 & RUSB2_INTSTS0_CTSQ_Msk)
+  {
+    case RUSB2_INTSTS0_CTSQ_CTRL_IDLE:
+    {
+      stage = USB_CONTROL_STAGE_IDLE;
+      break;
+    }
+
+    case RUSB2_INTSTS0_CTSQ_CTRL_RDATA:
+    case RUSB2_INTSTS0_CTSQ_CTRL_WDATA:
+    {
+      stage = USB_CONTROL_STAGE_DATA;
+      break;
+    }
+
+    case RUSB2_INTSTS0_CTSQ_CTRL_RSTATUS:
+    case RUSB2_INTSTS0_CTSQ_CTRL_WSTATUS:
+    case RUSB2_INTSTS0_CTSQ_CTRL_WSTATUS_NODATA:
+    {
+      stage = USB_CONTROL_STAGE_STATUS;
+      break;
+    }
+
+    default:
+    {
+      stage = USB_CONTROL_STAGE_ERROR;
+      break;
+    }
+  }
+
+  return stage;
 }
 
 static uint16_t edpt0_max_packet_size(rusb2_reg_t* rusb) {
@@ -438,7 +485,17 @@ static bool process_pipe0_xfer(uint8_t rhport, rusb2_reg_t *rusb, int buffer_typ
   } else {
     /* ZLP */
     pipe->buf = NULL;
-    rusb->DCPCTR = RUSB2_DCPCTR_CCPL_Msk | RUSB2_PIPE_CTR_PID_BUF;
+
+    if (USB_CONTROL_STAGE_STATUS == dcp_get_current_stage(rusb))
+    {
+      /* perform status stage */
+      rusb->DCPCTR = RUSB2_DCPCTR_CCPL_Msk | RUSB2_PIPE_CTR_PID_BUF;
+    }
+    else
+    {
+      /* notice that this is the end of data stage */
+      rusb->CFIFOCTR |= RUSB2_CFIFOCTR_BVAL_Msk;
+    }
   }
 
   return true;
@@ -1098,12 +1155,27 @@ void dcd_int_handler(uint8_t rhport)
 
   // Control transfer stage changes
   if ( is0 & RUSB2_INTSTS0_CTRT_Msk ) {
-    if ( is0 & RUSB2_INTSTS0_CTSQ_CTRL_RDATA ) {
-      /* A setup packet has been received. */
-      process_setup_packet(rhport);
-    } else if ( 0 == (is0 & RUSB2_INTSTS0_CTSQ_Msk) ) {
-      /* A ZLP has been sent/received. */
-      process_status_completion(rhport);
+    switch ( is0 & RUSB2_INTSTS0_CTSQ_Msk )
+    {
+      case RUSB2_INTSTS0_CTSQ_CTRL_RDATA:
+      case RUSB2_INTSTS0_CTSQ_CTRL_WDATA:
+      case RUSB2_INTSTS0_CTSQ_CTRL_WSTATUS_NODATA:
+      {
+        process_setup_packet(rhport);
+        break;
+      }
+
+      case RUSB2_INTSTS0_CTSQ_CTRL_IDLE:
+      {
+        /* A ZLP has been sent/received. */
+        process_status_completion(rhport);
+        break;
+      }
+
+      default:
+      {
+        break;
+      }
     }
   }
 
