@@ -99,7 +99,8 @@ Use the `pvs` skill (`.claude/skills/pvs/SKILL.md`) — it builds the examples w
 
 ## Validation After Changes
 
-1. `pre-commit run --all-files` — format, spell, unit tests (10-15 s).
+1. `pre-commit run --all-files` — format, spell, unit tests, HIL suites (~55 s; the
+   HIL hooks deliberately exercise real timeouts and hangs).
 2. Build at least one board's full example set (Build → "All examples for a board") for modules you touched.
 3. Run relevant unit tests; add fuzz/HIL coverage for parsers or protocol state machines.
 

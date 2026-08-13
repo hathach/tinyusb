@@ -149,6 +149,7 @@
             "flasher": {
                 "name": "openocd",
                 "uid": "E6614C311B597D32",
+                "vid_pid": "0x2e8a 0x000c",
                 "args": "-f interface/cmsis-dap.cfg -f target/max32665.cfg",
                 "verify": true
             }
@@ -240,6 +241,7 @@
             "flasher": {
                 "name": "openocd",
                 "uid": "E6614103E72C1D2F",
+                "vid_pid": "0x2e8a 0x000c",
                 "args": "-f interface/cmsis-dap.cfg -f target/rp2040.cfg -c \"adapter speed 5000\"",
                 "verify": true
             }
@@ -270,6 +272,7 @@
             "flasher": {
                 "name": "openocd",
                 "uid": "E6633861A3819D38",
+                "vid_pid": "0x2e8a 0x000c",
                 "args": "-f interface/cmsis-dap.cfg -f target/rp2040.cfg -c \"adapter speed 5000\"",
                 "verify": true
             },
@@ -296,6 +299,7 @@
             "flasher": {
                 "name": "openocd",
                 "uid": "E6633861A3978538",
+                "vid_pid": "0x2e8a 0x000c",
                 "args": "-f interface/cmsis-dap.cfg -f target/rp2350.cfg -c \"adapter speed 5000\"",
                 "verify": true
             }
@@ -326,6 +330,7 @@
             "flasher": {
                 "name": "openocd",
                 "uid": "E663AC91D3359B38",
+                "vid_pid": "0x2e8a 0x000c",
                 "args": "-f interface/cmsis-dap.cfg -f target/rp2350.cfg -c \"adapter speed 5000\"",
                 "verify": true
             }
@@ -407,9 +412,8 @@
                 "dual": false
             },
             "flasher": {
-                "name": "openocd",
+                "name": "stlink",
                 "uid": "004C00343137510F39383538",
-                "args": "-f interface/stlink.cfg -f target/stm32h7x.cfg",
                 "verify": true
             }
         },
@@ -422,9 +426,8 @@
                 "dual": false
             },
             "flasher": {
-                "name": "openocd",
+                "name": "stlink",
                 "uid": "066FFF495087534867063844",
-                "args": "-f interface/stlink.cfg -f target/stm32g0x.cfg",
                 "verify": true
             },
             "comment": "32-bit scheme, 2KB USB SRAM"
@@ -472,6 +475,7 @@
             "flasher": {
                 "name": "openocd",
                 "uid": "A76D8F062C2A",
+                "vid_pid": "0x1a86 0x8010",
                 "args": "-f target/wch-riscv.cfg",
                 "verify": false
             }
@@ -488,6 +492,7 @@
             "flasher": {
                 "name": "openocd",
                 "uid": "BC4954081051",
+                "vid_pid": "0x1a86 0x8010",
                 "args": "-f target/wch-riscv.cfg",
                 "verify": false
             }
@@ -508,6 +513,7 @@
             "flasher": {
                 "name": "openocd",
                 "uid": "BC5DA47360D0",
+                "vid_pid": "0x1a86 0x8010",
                 "args": "-f target/wch-riscv.cfg",
                 "verify": false
             }
@@ -524,6 +530,7 @@
             "flasher": {
                 "name": "openocd",
                 "uid": "57468F06DC03",
+                "vid_pid": "0x1a86 0x8010",
                 "args": "-f target/wch-riscv.cfg",
                 "verify": false
             }

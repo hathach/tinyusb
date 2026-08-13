@@ -81,7 +81,7 @@ def symlink_deps(main_root, worktree_dir):
 
 def ci_first_boards():
     """Return the first board (alphabetical) of each arm-gcc CI family."""
-    matrix_py = os.path.join(TINYUSB_ROOT, '.github', 'workflows', 'ci_set_matrix.py')
+    matrix_py = os.path.join(TINYUSB_ROOT, '.github', 'scripts', 'ci_set_matrix.py')
     if not os.path.isfile(matrix_py):
         return []
     ret = run([sys.executable, matrix_py])
@@ -188,7 +188,7 @@ def main():
         args.combined = True
         ci_boards = ci_first_boards()
         if not ci_boards:
-            parser.error('--ci: failed to derive boards from .github/workflows/ci_set_matrix.py')
+            parser.error('--ci: failed to derive boards from .github/scripts/ci_set_matrix.py')
         # Append, dedup, preserve order
         seen = set(args.board)
         for b in ci_boards:
