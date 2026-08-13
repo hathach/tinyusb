@@ -36,15 +36,8 @@ static const ci_hs_controller_t _ci_controller[] =
 
 #define CI_HS_REG(_port)        ((ci_hs_regs_t*) _ci_controller[_port].reg_base)
 
-enum {
-  // INCR16/8/4 followed by an unspecified-length burst for the remainder.
-  CI_HS_IMXRT_AHBBRST_INCR16_UNSPEC = 0x07u,
-};
-
-TU_ATTR_ALWAYS_INLINE static inline void ci_hs_imxrt_set_ahb_burst(uint8_t rhport) {
-  USB_Type *usb = (USB_Type *)_ci_controller[rhport].reg_base;
-  usb->SBUSCFG = USB_SBUSCFG_AHBBRST(CI_HS_IMXRT_AHBBRST_INCR16_UNSPEC);
-}
+// NXP recommends AHBBRST = INCR16 (remainder as unspecified-length bursts)
+#define CI_HS_SET_AHB_BURST(_p)  (CI_HS_REG(_p)->SBUSCFG = SBUSCFG_AHBBRST_INCR16_UNSPEC)
 
 //------------- DCD -------------//
 #define CI_DCD_INT_ENABLE(_p)   NVIC_EnableIRQ ((IRQn_Type)_ci_controller[_p].irqnum)
