@@ -239,6 +239,7 @@ bool tud_mtp_request_cancel_cb(tud_mtp_request_cb_data_t* cb_data) {
 // return false to stall the request
 bool tud_mtp_request_device_reset_cb(tud_mtp_request_cb_data_t* cb_data) {
   (void) cb_data;
+  is_session_opened = false; // Device Reset closes all open sessions (Still Image CDD B.9)
   return true;
 }
 
@@ -306,17 +307,21 @@ int32_t tud_mtp_data_xfer_cb(tud_mtp_cb_data_t* cb_data) {
     resp_code = handler(cb_data);
   }
   if (resp_code > MTP_RESP_UNDEFINED) {
-    // send response if needed
+    // End the transaction early. fs_send_object_info() reaches this: its storage/parent/
+    // size checks can only run once the ObjectInfo dataset has arrived, i.e. during the
+    // data phase. The container still describes the received data, so reset it to a bare
+    // response header; the driver absorbs the terminating ZLP the host still owes.
+    io_container->header->len = sizeof(mtp_container_header_t);
     io_container->header->code = (uint16_t)resp_code;
     tud_mtp_response_send(io_container);
   }
-
   return 0;
 }
 
 int32_t tud_mtp_data_complete_cb(tud_mtp_cb_data_t* cb_data) {
   const mtp_container_command_t* command = cb_data->command_container;
   mtp_container_info_t* resp = &cb_data->io_container;
+
   switch (command->header.code) {
     case MTP_OP_SEND_OBJECT_INFO: {
       fs_file_t* f = fs_get_file(send_obj_handle);

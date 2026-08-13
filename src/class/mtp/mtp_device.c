@@ -53,13 +53,15 @@ TU_ATTR_WEAK int32_t tud_mtp_command_received_cb(tud_mtp_cb_data_t * cb_data) {
   (void) cb_data;
   return -1;
 }
+// Data callbacks default to 0: their return is honored (negative stalls), so an
+// application that does not implement them keeps the previous no-op behaviour.
 TU_ATTR_WEAK int32_t tud_mtp_data_xfer_cb(tud_mtp_cb_data_t* cb_data) {
   (void) cb_data;
-  return -1;
+  return 0;
 }
 TU_ATTR_WEAK int32_t tud_mtp_data_complete_cb(tud_mtp_cb_data_t* cb_data) {
   (void) cb_data;
-  return -1;
+  return 0;
 }
 TU_ATTR_WEAK int32_t tud_mtp_response_complete_cb(tud_mtp_cb_data_t* cb_data) {
   (void) cb_data;
@@ -162,6 +164,7 @@ TU_ATTR_UNUSED static tu_lookup_table_t const _mtp_op_table = {
 TU_ATTR_UNUSED static const char* _mtp_phase_str[] = {
   "Command",
   "Data",
+  "Data Complete",
   "Response",
   "Error"
 };
@@ -174,11 +177,35 @@ TU_ATTR_UNUSED static const char* _mtp_phase_str[] = {
 //--------------------------------------------------------------------+
 static bool prepare_new_command(mtpd_interface_t* p_mtp) {
   p_mtp->phase = MTP_PHASE_COMMAND;
+  if (usbd_edpt_busy(p_mtp->rhport, p_mtp->ep_out)) {
+    return true; // a read is already outstanding and will receive the command block
+  }
   return usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_out, _mtpd_epbuf.buf, CFG_TUD_MTP_EP_BUFSIZE, false);
+}
+
+// Data IN: transmit the zero-length packet that terminates the data phase.
+static bool queue_zlp_in(mtpd_interface_t* p_mtp, uint8_t ep_addr) {
+  TU_LOG_DRV("  queue ZLP IN\r\n");
+  TU_VERIFY(usbd_edpt_claim(p_mtp->rhport, ep_addr));
+  TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, ep_addr, NULL, 0, false));
+  return true;
+}
+
+// Data OUT: arm the read for the host's terminating zero-length packet. Sized full rather
+// than zero: a read completes on any short packet and a ZLP is the shortest, so this still
+// completes with xferred_bytes == 0, but a read left over from a transaction the host
+// abandoned (cancel/reset) can then still receive the next command block instead of
+// swallowing it. That keeps recovery to a phase reset, as MSC's Bulk-Only Reset does.
+static bool queue_zlp_out(mtpd_interface_t* p_mtp, uint8_t ep_addr) {
+  TU_LOG_DRV("  queue ZLP OUT\r\n");
+  TU_VERIFY(usbd_edpt_claim(p_mtp->rhport, ep_addr));
+  TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, ep_addr, _mtpd_epbuf.buf, CFG_TUD_MTP_EP_BUFSIZE, false));
+  return true;
 }
 
 bool tud_mtp_data_send(mtp_container_info_t *p_container) {
   mtpd_interface_t *p_mtp = &_mtpd_itf;
+  const uint8_t prev_phase = p_mtp->phase;
   if (p_mtp->phase == MTP_PHASE_COMMAND) {
     // 1st data block: header + payload
     p_mtp->phase = MTP_PHASE_DATA;
@@ -195,7 +222,10 @@ bool tud_mtp_data_send(mtp_container_info_t *p_container) {
   TU_LOG_DRV("  MTP Data IN: xferred_len/total_len=%lu/%lu, xact_len=%u\r\n", p_mtp->xferred_len, p_mtp->total_len,
              xact_len);
   if (xact_len) {
-    TU_VERIFY(usbd_edpt_claim(p_mtp->rhport, p_mtp->ep_in));
+    if (!usbd_edpt_claim(p_mtp->rhport, p_mtp->ep_in)) {
+      p_mtp->phase = prev_phase; // no data phase started: the app can retry later
+      return false;
+    }
     TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_in, _mtpd_epbuf.buf, xact_len, false));
   }
   return true;
@@ -203,6 +233,7 @@ bool tud_mtp_data_send(mtp_container_info_t *p_container) {
 
 bool tud_mtp_data_receive(mtp_container_info_t *p_container) {
   mtpd_interface_t *p_mtp = &_mtpd_itf;
+  const uint8_t prev_phase = p_mtp->phase;
   if (p_mtp->phase == MTP_PHASE_COMMAND) {
     // 1st data block: header + payload
     p_mtp->phase       = MTP_PHASE_DATA;
@@ -215,18 +246,38 @@ bool tud_mtp_data_receive(mtp_container_info_t *p_container) {
 
   TU_LOG_DRV("  MTP Data OUT: xferred_len/total_len=%lu/%lu, xact_len=%u\r\n", p_mtp->xferred_len, p_mtp->total_len,
              xact_len);
-  TU_VERIFY(usbd_edpt_claim(p_mtp->rhport, p_mtp->ep_out));
+  if (!usbd_edpt_claim(p_mtp->rhport, p_mtp->ep_out)) {
+    p_mtp->phase = prev_phase; // no data phase started: the app can retry later
+    return false;
+  }
   TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_out, _mtpd_epbuf.buf, xact_len, false));
   return true;
 }
 
 bool tud_mtp_response_send(mtp_container_info_t* p_container) {
   mtpd_interface_t* p_mtp = &_mtpd_itf;
-  p_mtp->phase = MTP_PHASE_RESPONSE;
+  mtp_generic_container_t* epbuf = (mtp_generic_container_t*) _mtpd_epbuf.buf;
+  const uint8_t prev_phase = p_mtp->phase;
+
   p_container->header->type = MTP_CONTAINER_TYPE_RESPONSE_BLOCK;
   p_container->header->transaction_id = p_mtp->command.header.transaction_id;
-  TU_VERIFY(usbd_edpt_claim(p_mtp->rhport, p_mtp->ep_in));
-  return usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_in, _mtpd_epbuf.buf, (uint16_t) p_container->header->len, false);
+  // The response is always transmitted from the endpoint buffer. On 2nd+ data packets the
+  // wire carries payload only, so the application is handed the headerless view whose
+  // header is p_mtp->io_header, outside that buffer; responding from there would otherwise
+  // put payload bytes on the wire under an unrelated length. Copy the header in.
+  if (p_container->header != &epbuf->header) {
+    epbuf->header = *p_container->header;
+  }
+  TU_VERIFY(epbuf->header.len >= sizeof(mtp_container_header_t) && epbuf->header.len <= CFG_TUD_MTP_EP_BUFSIZE);
+
+  // May be called from a data callback to end the transaction early (e.g. the application
+  // rejects the data): the terminating ZLP the host still owes is absorbed below.
+  p_mtp->phase = MTP_PHASE_RESPONSE;
+  if (!usbd_edpt_claim(p_mtp->rhport, p_mtp->ep_in)) {
+    p_mtp->phase = prev_phase; // nothing queued: do not strand the transaction
+    return false;
+  }
+  return usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_in, (uint8_t*) epbuf, (uint16_t) epbuf->header.len, false);
 }
 
 bool tud_mtp_mounted(void) {
@@ -312,6 +363,12 @@ bool mtpd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
       if (stage == CONTROL_STAGE_SETUP) {
         return tud_control_xfer(rhport, request, p_mtp->control_buf, CFG_TUD_MTP_EP_CONTROL_BUFSIZE);
       } else if (stage == CONTROL_STAGE_ACK) {
+        if (p_mtp->phase == MTP_PHASE_DATA) {
+          // Only a data phase is abandoned: leave it so the application can respond, and
+          // re-arm ep_out (deferred if its read is still outstanding). Resetting from any
+          // other phase would discard the next command or an in-flight response.
+          prepare_new_command(p_mtp);
+        }
         return tud_mtp_request_cancel_cb(&cb_data);
       }
       break;
@@ -336,6 +393,9 @@ bool mtpd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
         if (usbd_edpt_stalled(rhport, p_mtp->ep_in)) {
           usbd_edpt_clear_stall(rhport, p_mtp->ep_in);
         }
+        // no data stage: the status stage must be armed explicitly, otherwise the request
+        // never completes and CONTROL_STAGE_ACK below is never reached
+        tud_control_status(rhport, request);
       } else if (stage == CONTROL_STAGE_ACK) {
         prepare_new_command(p_mtp);
         return tud_mtp_request_device_reset_cb(&cb_data);
@@ -398,8 +458,21 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
 
   switch (p_mtp->phase) {
     case MTP_PHASE_COMMAND: {
-      // received new command
-      TU_VERIFY(ep_addr == p_mtp->ep_out && p_container->header.type == MTP_CONTAINER_TYPE_COMMAND_BLOCK);
+      if (ep_addr == p_mtp->ep_in) {
+        break; // leftover IN completion of an abandoned transaction: nothing to do
+      }
+      if (xferred_bytes == 0) {
+        // Terminating ZLP of a transaction the host abandoned: absorb it and listen again.
+        prepare_new_command(p_mtp);
+        break;
+      }
+      // received new command. A runt container cannot be parsed and must not be matched
+      // against stale buffer contents -> error phase, stall for the host to reset us.
+      if (xferred_bytes < sizeof(mtp_container_header_t) || ep_addr != p_mtp->ep_out ||
+          p_container->header.type != MTP_CONTAINER_TYPE_COMMAND_BLOCK) {
+        p_mtp->phase = MTP_PHASE_ERROR;
+        break;
+      }
       memcpy(&p_mtp->command, p_container, sizeof(mtp_container_command_t)); // save new command
       p_container->header.len = sizeof(mtp_container_header_t); // default container to header only
       preprocess_cmd(p_mtp, &cb_data);
@@ -437,31 +510,45 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       TU_LOG_DRV("  MTP Data %s CB: xferred_bytes=%lu, xferred_len/total_len=%lu/%lu, is_complete=%d\r\n",
                  is_data_in ? "IN" : "OUT", xferred_bytes, p_mtp->xferred_len, p_mtp->total_len, is_complete ? 1 : 0);
 
-      // Send/queue ZLP if packet is full-sized but transfer is complete.
-      // OUT must deliver this final payload to the application before receiving
-      // its terminating ZLP below.
+      // Send/queue ZLP if packet is full-sized but transfer is complete. Both directions
+      // claim the endpoint before yielding to the application; OUT then still delivers this
+      // final payload from the same buffer the ZLP read is armed on, which a host that
+      // honours its own declared container length will only ever complete with 0 bytes.
       const bool need_zlp = is_complete && xferred_bytes > 0 && !(xferred_bytes & (threshold - 1));
       if (is_data_in && need_zlp) {
-        TU_LOG_DRV("  queue ZLP\r\n");
-        TU_VERIFY(usbd_edpt_claim(p_mtp->rhport, ep_addr));
-        TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, ep_addr, NULL, 0, false));
-        return true;
+        if (queue_zlp_in(p_mtp, ep_addr)) {
+          return true;
+        }
+        p_mtp->phase = MTP_PHASE_ERROR; // endpoint unavailable: stall instead of wedging
+        break;
       }
 
       if (is_data_in) {
         // Data In
         if (is_complete) {
+          p_mtp->phase = MTP_PHASE_DATA_COMPLETE;
+          cb_data.phase = MTP_PHASE_DATA_COMPLETE;
           cb_data.io_container.header->len = sizeof(mtp_container_header_t);
-          tud_mtp_data_complete_cb(&cb_data);
+          if (tud_mtp_data_complete_cb(&cb_data) < 0) {
+            p_mtp->phase = MTP_PHASE_ERROR;
+          }
         } else {
           // 2nd+ packet: payload only
           cb_data.io_container = headerless_packet;
-          tud_mtp_data_xfer_cb(&cb_data);
+          if (tud_mtp_data_xfer_cb(&cb_data) < 0) {
+            p_mtp->phase = MTP_PHASE_ERROR;
+          }
         }
       } else {
         // Data Out
         if (p_mtp->xferred_len == xferred_bytes) {
-          // 1st OUT packet: header + payload
+          // 1st OUT packet: header + payload. A transaction shorter than a container
+          // header (including a bare ZLP, which would otherwise leave no read armed and
+          // no app callback) violates the protocol -> error phase, stall both endpoints.
+          if (xferred_bytes < sizeof(mtp_container_header_t)) {
+            p_mtp->phase = MTP_PHASE_ERROR;
+            break;
+          }
           p_mtp->io_header = p_container->header; // save header for subsequent transaction
           cb_data.io_container.payload_bytes = xferred_bytes - sizeof(mtp_container_header_t);
         } else {
@@ -469,26 +556,46 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
           cb_data.io_container = headerless_packet;
           cb_data.io_container.payload_bytes = xferred_bytes;
         }
-        if (xferred_bytes > 0) {
-          tud_mtp_data_xfer_cb(&cb_data);
+        if (need_zlp && !queue_zlp_out(p_mtp, ep_addr)) {
+          p_mtp->phase = MTP_PHASE_ERROR; // endpoint unavailable: stall instead of wedging
+          break;
         }
-
-        if (need_zlp) {
-          TU_LOG_DRV("  queue ZLP\r\n");
-          TU_VERIFY(usbd_edpt_claim(p_mtp->rhport, ep_addr));
-          TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, ep_addr, NULL, 0, false));
+        if (xferred_bytes > 0 && tud_mtp_data_xfer_cb(&cb_data) < 0) {
+          // application aborts the transfer: stall rather than arm another read. This is
+          // its only way out of a data phase, since tud_mtp_response_send() is refused
+          // until the phase completes.
+          p_mtp->phase = MTP_PHASE_ERROR;
+        } else if (need_zlp) {
+          // The data phase is not over until the host's terminating ZLP, whose read was
+          // armed above; tud_mtp_data_complete_cb() is delivered when it completes.
           return true;
-        } else if (is_complete) {
-          // back to header + payload for response
+        } else if (is_complete && p_mtp->phase == MTP_PHASE_DATA) {
+          // back to header + payload for response. Skipped when the callback above already
+          // answered, otherwise the application would be asked to respond a second time.
+          p_mtp->phase = MTP_PHASE_DATA_COMPLETE;
+          cb_data.phase = MTP_PHASE_DATA_COMPLETE;
           cb_data.io_container = headered_packet;
           cb_data.io_container.header->len = sizeof(mtp_container_header_t);
-          tud_mtp_data_complete_cb(&cb_data);
+          if (tud_mtp_data_complete_cb(&cb_data) < 0) {
+            p_mtp->phase = MTP_PHASE_ERROR;
+          }
         }
       }
       break;
     }
 
+    case MTP_PHASE_DATA_COMPLETE:
+      // nothing is armed while waiting for the application's response: any completion
+      // here means it queued a transfer instead -> stall so the host can reset us
+      p_mtp->phase = MTP_PHASE_ERROR;
+      break;
+
     case MTP_PHASE_RESPONSE:
+      if (ep_addr == p_mtp->ep_out) {
+        // terminating ZLP of a data phase the application answered early: absorb it
+        TU_VERIFY(xferred_bytes == 0);
+        break;
+      }
       // response phase is complete -> prepare for new command
       TU_ASSERT(ep_addr == p_mtp->ep_in);
       tud_mtp_response_complete_cb(&cb_data);
