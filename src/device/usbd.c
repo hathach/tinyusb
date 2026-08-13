@@ -642,6 +642,8 @@ static void configuration_reset(uint8_t rhport) {
 
 static void usbd_reset(uint8_t rhport) {
   configuration_reset(rhport);
+  // discard any pre-reset SETUP still counted: a stale count skips post-reset SETUPs
+  _usbd_queued_setup = 0;
 }
 
 bool tud_task_event_ready(void) {
@@ -1473,8 +1475,18 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) 
       break;
   }
 
-  if (send) {
-    queue_event(event, in_isr);
+  if (send && !queue_event(event, in_isr)) {
+    // event dropped by a full queue: undo state that would otherwise wedge permanently
+    if (event->event_id == DCD_EVENT_SETUP_RECEIVED) {
+      // undo the increment, else every later SETUP is skipped as "other SETUP in queue"
+      // and EP0 is deaf until re-init
+      _usbd_queued_setup--;
+    } else if (event->event_id == DCD_EVENT_XFER_COMPLETE) {
+      // clear busy + claimed, else the endpoint can never be claimed or re-armed again
+      uint8_t const epnum = tu_edpt_number(event->xfer_complete.ep_addr);
+      uint8_t const ep_dir = tu_edpt_dir(event->xfer_complete.ep_addr);
+      _usbd_dev.ep_status[epnum][ep_dir] &= (uint8_t) ~(TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED);
+    }
   }
 }
 
