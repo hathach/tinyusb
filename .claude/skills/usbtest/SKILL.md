@@ -29,6 +29,11 @@ python3 test/hil/usbtest.py --serial <uid> --keep-binding --tests 29 # one case
 ```
 
 - **Always `--keep-binding`**: the cleanup unbind path has wedged host xHCIs (`usb_hcd_alloc_bandwidth`).
+- CI (`hil_test.py`) additionally passes `--budget`, `--outer-timeout` and
+  `--recover-board`/`--recover-fw`: on a HUNG case the battery aborts, RESETS the DUT
+  through its roster probe (non-destructive, ~130 ms) and reflashes only if that does not
+  clear the wedge (see usb-kernel-recover). Manual runs without those flags leave a HUNG
+  device wedged and skip cleanup — expected; reset or reflash it yourself.
 - Always settle a few seconds after flashing — enumeration can bounce once; testusb into the gap sees
   the device drop mid-case.
 - On a CI rig: stop the actions runner before touching hardware; restart after. Never run two
@@ -87,6 +92,28 @@ python3 test/hil/usbtest.py --serial <uid> --keep-binding --tests 29 # one case
 | 5     | EIO — iso packet errors (check `dmesg`: "N errors out of M") |
 | 71    | EPROTO — device answered wrong / too slow (after HC retries) |
 
+**Step 0 — read what the case actually does.** The kernel module is ground truth;
+the table above is a summary. Do this before theorising, and always before deciding
+whether a hung case is recoverable. Fetch the rig's exact version (`uname -r`):
+
+```bash
+curl -sO "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/drivers/usb/misc/usbtest.c?h=v6.12.96"
+# case N lives under `case N:` in usbtest_do_ioctl(); tools/usb/testusb.c maps the flags:
+# -c = param.iterations, -s = param.length, -g = param.sglen  (NOT what they read like)
+```
+
+- **Real traffic and pass criteria.** Case 24 at `-c 256 -s 1024 -g 8` is 256 rounds
+  of 8 bulk-OUT URBs, unlinking `urbs[num-4]`/`urbs[num-2]` and requiring
+  `-ECONNRESET` on those two plus normal completion on the other 6 — not the
+  "256 URBs" the flags suggest.
+- **Whether the wait is bounded** — decisive for recovery. `simple_io` uses
+  `wait_for_completion_timeout` (:481); the unlink paths use a bare
+  `wait_for_completion` (:1502, :1615). A device stalling there wedges the ioctl in
+  **D state permanently** — it holds the device lock, so nothing recovers it
+  (usb-kernel-recover, "The terminal case"). Knowing this first stops you burning
+  the rig on attempts that cannot work.
+- **Which DCD path is implicated**, precisely rather than by category.
+
 1. `usbtest.py` per-case output + its captured `dmesg` (`TEST n` markers bracket each case).
 2. **usbmon** (`usbmon` skill): URB-level ground truth. **It cannot show data toggles or NAKs** —
    a toggle desync and a dead endpoint look identical (Submits without Completes); distinguish
@@ -121,3 +148,6 @@ python3 test/hil/usbtest.py --serial <uid> --keep-binding --tests 29 # one case
 - "It works on gcc" → clang/IAR/LTO/make still pending.
 - "Fixed iso IN" → apply the same exemption to iso OUT (toggle logic is symmetric).
 - A clean single-board run does not validate concurrent/fleet behavior — batteries serialize.
+- Reasoning about a case from its name or table row → open `usbtest.c` (step 0). The
+  flags don't mean what they look like, and recoverability is a property of that
+  case's wait, not of the rig.

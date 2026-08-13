@@ -118,6 +118,14 @@ Cutting a release — version bump, regenerated files, the per-release changelog
 ## References
 
 - MCU reference manuals, datasheets, schematics: before answering register/bitfield/pinout/errata/timing questions from memory or the web — or changing a specific dcd/hcd driver — use the `read-doc` skill (`.claude/skills/read-doc/SKILL.md`) to cross-check against docs in `$HOME/Documents/calibre-library`; tell the user if the needed document is missing (skill no-ops if the library is absent).
+- Linux kernel behaviour (usbfs, usbtest, sysfs attributes, device locks, D state): never
+  infer it from symptoms — read the source for the *running* version. It refutes as often
+  as it confirms: it has killed two plausible dcd theories and corrected a recovery skill's
+  own attribute list.
+  ```bash
+  V=$(uname -r | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+')   # on the rig: ssh ci.lan uname -r
+  curl -fsSL "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/drivers/usb/core/sysfs.c?h=v$V"
+  ```
 - Supported MCUs/boards: `hw/bsp/` and `docs/reference/boards.rst`.
 - USB classes: `src/class/{cdc,hid,msc,audio,…}/` — each has `*_device.c` and `*_host.c`.
 - Key files: `src/tusb.h`, `src/tusb_config.h`, `tools/get_deps.py`, `tools/build.py`, `test/unit-test/project.yml`.
