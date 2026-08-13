@@ -1176,6 +1176,15 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const *p
             // If flow control is enabled, parse for the corresponding parameters - doing this here means only AS interfaces with EPs get scanned for parameters
   #if  CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
             audiod_parse_flow_control_params(audio, p_desc_parse_for_params);
+            // The host sends the clock source SAM_FREQ request before selecting
+            // this alternate setting, so ep_in_sz was still 0 when
+            // audiod_calc_tx_packet_sz() ran there and it bailed on its
+            // TU_ASSERT(packet_sz_tx_max <= audio->ep_in_sz), leaving
+            // packet_sz_tx[] zeroed and flow control disengaged. The endpoint size
+            // and the format parameters are both known now, so recompute.
+            if (audio->sample_rate_tx) {
+              audiod_calc_tx_packet_sz(audio);
+            }
   #endif
             // Schedule first transmit if alternate interface is not zero, as sample data is available a ZLP is loaded
   #if !CFG_TUD_EDPT_DEDICATED_HWFIFO
