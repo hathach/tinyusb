@@ -722,7 +722,8 @@ class TestFlasherPathsSynthetic(unittest.TestCase):
         for board in self.ROSTER:
             name = board['flasher']['name'].lower()
             self.assertIn(name, hil_flash.FLASHER_SUFFIX, f'{name}: no FLASHER_SUFFIX entry')
-            for fn, nargs in ((f'flash_{name}', 2), (f'reset_{name}', 1)):
+            # flash_*(board, firmware, timeout=None) / reset_*(board, timeout=None)
+            for fn, nargs in ((f'flash_{name}', 3), (f'reset_{name}', 2)):
                 f = getattr(hil_flash, fn, None)
                 self.assertTrue(callable(f), f'hil_flash.{fn} does not exist')
                 self.assertEqual(nargs, len(inspect.signature(f).parameters), f'{fn} arity')
@@ -781,7 +782,7 @@ class TestFlasherPathsSynthetic(unittest.TestCase):
             os.makedirs(fw_dir)
             for ext in ('.elf', '.bin'):
                 open(os.path.join(fw_dir, f'cdc_msc{ext}'), 'w').close()
-            root = os.path.relpath(tmp, hil_flash.TINYUSB_ROOT)
+            root = os.path.relpath(tmp, hil_flash.hil_util.TINYUSB_ROOT)
             for flasher, ext in (('wch_uart_loader', '.bin'), ('openocd', '.elf')):
                 fw = hil_flash.find_firmware('synth_wch_uart', 'device/cdc_msc', roots=[root],
                                              flasher=flasher)

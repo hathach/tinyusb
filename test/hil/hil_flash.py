@@ -177,16 +177,17 @@ def _wch_uart_park(flasher):
     return False
 
 
-def flash_wch_uart_loader(board, firmware):
+def flash_wch_uart_loader(board, firmware, timeout=None):
     # BSP UART loader over the WCH-LinkE VCP (hw/bsp/ch32h417/family.c): flashes via USART1 when
     # the chip's SWD/SDI pins (= USB2 D+/D-) are unusable because a host is plugged into the
     # untaped USB3 cable and its PHY termination corrupts SDI. See test/hil/wch_uart_flash.py.
     flasher = board['flasher']
     script = Path(__file__).resolve().parent / 'wch_uart_flash.py'
-    return run_cmd(f'python3 "{script}" --uid {flasher["uid"]} "{firmware}"', timeout=120)
+    return hil_util.run_cmd(f'python3 "{script}" --uid {flasher["uid"]} "{firmware}"',
+                            timeout=timeout or 120)
 
 
-def reset_wch_uart_loader(board):
+def reset_wch_uart_loader(board, timeout=None):
     # A park request reboots the firmware (~10 s park window, then a normal boot). The WCH-LinkE
     # VCP is always present (it is the probe, not the board), so a failure here means the probe is
     # gone/busy -- report it (returncode 1) rather than masking a board that was never reset.
