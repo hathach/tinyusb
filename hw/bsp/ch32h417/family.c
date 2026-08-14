@@ -164,13 +164,21 @@ __attribute__((noreturn)) static void uart_flash_loader(void) {
   static uint8_t chunk[1024] __attribute__((aligned(4)));
 
   for (;;) { // one iteration = one flash session attempt
-    // Banner until the host opens a session
+    // Banner until the host opens a session. Bounded: an interrupted flash (Ctrl-C, a harness
+    // timeout, a VCP hiccup) must not strand the board here with USB down and the RXNE vector
+    // disabled -- the park bytes the rig uses to reset a board only take effect in the
+    // application's boot window, so nothing external can recover it. After ~30 s with no
+    // session, reset back into the application.
     int c;
     uint32_t blink = 0;
+    uint32_t idle = 0;
     do {
       loader_putc('L');
       board_led_write((++blink) & 1);
       c = loader_getc(5000000u); // ~0.5 s
+      if (c == -1 && ++idle >= 60u) {
+        NVIC_SystemReset();
+      }
     } while (c != 'H');
 
     uint32_t len, crc;
