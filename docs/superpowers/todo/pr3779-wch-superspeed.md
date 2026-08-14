@@ -27,6 +27,7 @@ currently be trusted in either direction.
 | `dcd_nrf5x.c:155` and `:190` drop the `usbd_defer_func` result                                  | Same defect as F11; the dropped defer is the only thing that would write the EasyDMA START task |
 | CH569 and CH32H417 fallback ladders have drifted apart                                          | Six `_fb_state` writes vs four; the H417 cannot self-recover once `FB_USB2_ACTIVE`. A shared table-driven FSM was considered and rejected as YAGNI |
 | ~250 lines of rig-only UART-bootloader / IWDG machinery in `hw/bsp/ch32h417/family.c`           | Defaults ON for every user of that BSP; should be opt-in          |
+| `LINK_IF_WARM_RESET` still runs its ~30 ms settle and re-init inside the ISR                    | F14 half-fixed. The missing `ep_state_reset()` / `dcd_event_bus_reset()` pair landed, but the work cannot simply be deferred: `usb30_bus_reset_from_isr()` deinits synchronously and only defers settle+init, so moving it would leave the address-0 write and the `TX_WARM_RST` handshake driving a torn-down controller, with the deferred re-init then wiping them. Doing this properly means reordering the handshake ahead of the teardown, which needs a host that actually issues a warm reset to validate |
 
 ## Review runners-up
 
