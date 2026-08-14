@@ -1664,9 +1664,11 @@ def _usbtest_verdict(board: Board, data: dict, out: str, passed: int, failed: in
         board_wedged = f'{board["name"]}: usbtest reports the device wedged {cause}'
 
     # notrun counts toward the denominator but is NOT a failure: listing cases that never
-    # ran as failures sends a maintainer bisecting one of them.
+    # ran as failures sends a maintainer bisecting one of them. Quirk-skipped cases likewise:
+    # 25/30, never 25/25, so a partial battery cannot read as a full pass.
     notrun = int(data.get('notrun', 0))
-    total = passed + failed + notrun
+    skipped = int(data.get('skipped', 0))
+    total = passed + failed + notrun + skipped
     if board_wedged and failed == 0 and notrun == 0:
         # Every case passed and the device STILL wedged -- usbtest's ambiguous
         # abort fires after the last case, so nothing back-fills a BUDGET entry. Reporting
@@ -1676,7 +1678,8 @@ def _usbtest_verdict(board: Board, data: dict, out: str, passed: int, failed: in
         raise TestFail(f'usbtest {passed}/{total} but the device wedged ({board_wedged})',
                        metric=f'{hil_report.REPORT_CELL["fail"]} {passed}/{total}', parsed=True)
     if failed == 0 and notrun == 0 and total > 0:
-        return f'{hil_report.REPORT_CELL["pass"]} {passed}/{total}'
+        return (f'{hil_report.REPORT_CELL["pass"]} {passed}/{total}'
+                + (f' ({skipped} skipped)' if skipped else ''))
     # per status, so a gated-off NOTRUN (a wrong binding profile) is not read as a FAIL
     groups = [(st, [c.get('num') for c in data.get('cases', []) if c.get('status') == st])
               for st in ('FAIL', 'HUNG', 'NOTRUN', 'BUDGET')]
