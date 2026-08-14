@@ -85,21 +85,24 @@ def one_run(args, tmp):
         ['usb_sniffer', '--capture', '--fifo', str(pcap), '--speed', 'hs',
          '--fold', '--limit', '4000000'],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    time.sleep(1)
-    flash = Path(__file__).resolve().parent / 'wch_uart_flash.py'
-    subprocess.run(['python3', str(flash), '--uid', args.flasher_uid, str(fw)],
-                   check=True, timeout=120)
-    time.sleep(8)  # re-enumeration, captured
-    dev = find_device(args.serial)
-    if not dev:
+    # try/finally: a failed flash (CalledProcessError, TimeoutExpired) or a missed re-enumeration
+    # must not leave an orphaned capture process holding the pcap open. usb_sniffer writes at
+    # ~20 MB/s on a busy HS bus, so a leaked one fills the disk while the harness moves on.
+    try:
+        time.sleep(1)
+        flash = Path(__file__).resolve().parent / 'wch_uart_flash.py'
+        subprocess.run(['python3', str(flash), '--uid', args.flasher_uid, str(fw)],
+                       check=True, timeout=120)
+        time.sleep(8)  # re-enumeration, captured
+        dev = find_device(args.serial)
+        if not dev:
+            sys.exit(f'device with serial {args.serial} did not re-enumerate after flashing')
+        for _ in range(args.hammer):
+            subprocess.run(['sudo', 'lsusb', '-v', '-s', dev],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    finally:
         sniffer.terminate()
         sniffer.wait(timeout=15)
-        sys.exit(f'device with serial {args.serial} did not re-enumerate after flashing')
-    for _ in range(args.hammer):
-        subprocess.run(['sudo', 'lsusb', '-v', '-s', dev],
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    sniffer.terminate()
-    sniffer.wait(timeout=15)
     return parse_setup_outcomes(tshark_rows(pcap))
 
 
