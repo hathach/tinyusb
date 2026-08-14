@@ -213,4 +213,4 @@ Two fixes cannot be measured in this round and must not be described as validate
 - **F16**'s runtime quirk only fires on the fallback link, which needs the same tap.
 
 Both ship built-and-reasoned. Re-measuring them, and re-taking the H417 drop-rate numbers with
-the corrected parser, are recorded in `docs/superpowers/todo/2026-08-14-deferred-followups.md`.
+the corrected parser, are recorded in `docs/superpowers/todo/pr3779-wch-superspeed.md`.
