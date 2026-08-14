@@ -1076,21 +1076,28 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   if (ep_num == 0) {
     return;
   }
-  // Do NOT re-queue the in-flight transfer here. usbd clears BUSY *and* CLAIMED on a was-stalled
-  // clear (see clear_mask in usbd_edpt_clear_stall), so the transfer is retired and the class
-  // owns resubmission - and vendord_abort_ep() is literally stall()+clear_stall() used to abort
-  // on every SET_INTERFACE. Re-queueing resurrected that chain: it sent stale data, and its
-  // completion was accounted against whatever the class armed next.
   if (dir == TUSB_DIR_IN) {
     volatile USBSS_EP_TX_TypeDef *tx = usbss_ep_tx(ep_num);
     tx->UEP_TX_CR = (uint8_t)(USBSS_EP_TX_CLR | USBSS_EP_TX_CHAIN_CLR);
     tx->UEP_TX_CR = TX_CHAIN_MAX_PKTS;
-    XFER_CTL_BASE(ep_num, TUSB_DIR_IN)->valid = false;
+    xfer_ctl_t *xfer = XFER_CTL_BASE(ep_num, TUSB_DIR_IN);
+    if (xfer->valid) {
+      // Rewind to the CHAIN boundary: queued_len counts ARMED bytes (queue_in_packet advances it at
+      // arm time, not completion) and TX_CLR above discarded exactly the one chain still in flight.
+      // Resuming from queued_len skips those bytes (hardware-proven: every usbtest bulk/int read
+      // failed EREMOTEIO), while restarting from 0 replays chains the host already ACKed - up to
+      // TX_CHAIN_MAX_PKTS * 1024 = 16 KB of duplicated payload on a long bulk IN.
+      xfer->queued_len -= TU_MIN(xfer->armed_len, xfer->queued_len);
+      queue_in_packet(ep_num, xfer);
+    }
   } else {
     volatile USBSS_EP_RX_TypeDef *rx = usbss_ep_rx(ep_num);
     rx->UEP_RX_CR = (uint8_t)(USBSS_EP_RX_CLR | USBSS_EP_RX_CHAIN_CLR);
     rx->UEP_RX_CR = CFG_TUD_WCH_USB30_MAX_BURST;
-    XFER_CTL_BASE(ep_num, TUSB_DIR_OUT)->valid = false;
+    xfer_ctl_t *xfer = XFER_CTL_BASE(ep_num, TUSB_DIR_OUT);
+    if (xfer->valid) {
+      queue_out_packet(ep_num, xfer);
+    }
   }
 }
 
