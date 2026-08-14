@@ -132,6 +132,23 @@ static void fallback_timer_start(void) {
   R8_TMR0_INT_FLAG = RB_TMR_IF_CYC_END;
   R8_TMR0_INTER_EN = RB_TMR_IE_CYC_END;
   R8_TMR0_CTRL_MOD = RB_TMR_COUNT_EN;
+  // fallback_timer_stop() masked the vector: a timer counting behind a masked vector never
+  // advances the ladder, and its latched expiry is then consumed by the shared ISR in place of
+  // the next USBSS/LINK interrupt
+  PFIC_EnableIRQ(TMR0_IRQn);
+}
+
+// Single owner of the fallback state, the training timer and the timer's interrupt mask. The
+// three are one logical state; mutating them independently is what allowed a terminal
+// FB_USB3_UP after disconnect and a timer armed behind a masked vector.
+static void fallback_enter(uint8_t next) {
+  _fb_state = next;
+  if (next == FB_USB3_TRAINING) {
+    fallback_timer_start();
+  } else if (next != FB_USB3_OFF) {
+    fallback_timer_stop(); // UP and USB2_ACTIVE: the ladder is finished
+  }
+  // FB_USB3_OFF deliberately leaves the timer running: its second expiry brings USB2 up
 }
 #endif
 
@@ -204,6 +221,15 @@ static void usb30_hw_reinit_task(void *param) {
   }
 #endif
   link_delay_us(30000);
+#if CFG_TUD_WCH_USB30_FALLBACK
+  // Re-check after the settle, not only before it: the training-exhausted branch runs from the
+  // TMR0 ISR without consulting _hw_reinit_deferred, so it can land anywhere in this window and
+  // would otherwise have USB3 re-initialised on top of a ladder that already took the port.
+  if (_fb_state == FB_USB3_OFF || _fb_state == FB_USB2_ACTIVE) {
+    _hw_reinit_deferred = false;
+    return;
+  }
+#endif
   USBSS->LINK_INT_FLAG = 0xFFFFFFFFu;
   usb30_hw_init();
   // Stay marked as deferred across the settle AND the init: the fallback tick skips its own
@@ -550,8 +576,7 @@ static void handle_link_irq(uint8_t rhport) {
       USBSS->LMP_TX_DATA2 = 0;
       _lmp_pending = false;
 #if CFG_TUD_WCH_USB30_FALLBACK
-      _fb_state = FB_USB3_UP;
-      fallback_timer_stop();
+      fallback_enter(FB_USB3_UP);
 #endif
       ep_state_reset();
       _link_suspended = false; // a (re)trained link starts un-suspended
@@ -576,8 +601,7 @@ static void handle_link_irq(uint8_t rhport) {
     PFIC_DisableIRQ(USBSS_IRQn);
     PFIC_DisableIRQ(LINK_IRQn);
     usb30_hw_deinit();
-    fallback_timer_stop();
-    _fb_state = FB_USB2_ACTIVE;
+    fallback_enter(FB_USB2_ACTIVE);
     USBSS->LINK_INT_FLAG = 0xFFFFFFFFu;
     PFIC_ClearPendingIRQ(USBSS_IRQn);
     PFIC_ClearPendingIRQ(LINK_IRQn);
@@ -608,6 +632,12 @@ static void handle_link_irq(uint8_t rhport) {
     } else {
       // partner disappeared: teardown now, settle + re-init deferred to task context
       USBSS->LINK_INT_CTRL = 0;
+#if CFG_TUD_WCH_USB30_FALLBACK
+      // Re-arm the ladder. FB_USB3_UP is otherwise terminal: usbd calls neither dcd_init nor
+      // dcd_connect on link loss, so a replug into a USB2-only host would find no ladder
+      // running and no USB2 controller (dcd_init deinit'd it) -- dead until a power cycle.
+      fallback_enter(FB_USB3_TRAINING);
+#endif
       dcd_event_t event = {.rhport = rhport, .event_id = DCD_EVENT_UNPLUGGED};
       dcd_event_handler(&event, true);
       usb30_bus_reset_from_isr();
@@ -626,7 +656,9 @@ static void handle_link_irq(uint8_t rhport) {
     USBSS->LINK_INT_FLAG = USBSS_LINK_IF_WARM_RESET;
     link_set_power_mode(2);
     // deliberately inline (not deferred): a warm reset is host-driven with a spec'd ~100 ms
-    // window - deferring the re-init would make the response depend on application loop timing
+    // window - deferring the re-init would make the response depend on application loop timing.
+    // The re-init must also precede the handshake below, which drives TX_WARM_RST on the
+    // freshly initialised controller.
     usb30_bus_reset();
     USBSS->USB_CONTROL &= 0x00FFFFFFu; // address 0
     USBSS->LINK_CTRL |= USBSS_LINK_CTRL_TX_WARM_RST;
@@ -634,6 +666,11 @@ static void handle_link_irq(uint8_t rhport) {
     while ((USBSS->LINK_STATUS & USBSS_LINK_STATUS_RX_WARM) && --timeout) {}
     USBSS->LINK_CTRL &= ~USBSS_LINK_CTRL_TX_WARM_RST;
     link_delay_us(2);
+    // A warm reset returns the device to Default state exactly as a hot reset does, so usbd must
+    // be told: without this the stack keeps its configured state and stale endpoint bookkeeping
+    // across the reset. The HOT_RESET branch below has always done both.
+    ep_state_reset();
+    dcd_event_bus_reset(rhport, TUSB_SPEED_SUPER, true);
   }
   if (flag & USBSS_LINK_IF_HOT_RESET) {
     // hot reset: link stays up, reset protocol state and re-enumerate
@@ -739,11 +776,10 @@ void dcd_int_handler(uint8_t rhport) {
       PFIC_DisableIRQ(USBSS_IRQn);
       PFIC_DisableIRQ(LINK_IRQn);
       usb30_hw_deinit();
-      _fb_state = FB_USB3_OFF;
+      fallback_enter(FB_USB3_OFF);
     } else if (_fb_state == FB_USB3_OFF) {
       // second expiry: switch to the USB2 high-speed controller on the same rhport
-      _fb_state = FB_USB2_ACTIVE;
-      fallback_timer_stop();
+      fallback_enter(FB_USB2_ACTIVE);
       USBSS->LINK_INT_FLAG = 0xFFFFFFFFu;
       PFIC_ClearPendingIRQ(USBSS_IRQn);
       PFIC_ClearPendingIRQ(LINK_IRQn);
@@ -794,9 +830,8 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
 
 _hw_reinit_deferred = false; // cancel any reinit queued before this re-init
 #if CFG_TUD_WCH_USB30_FALLBACK
-  _fb_state = FB_USB3_TRAINING;
   ch56x_usb2_deinit(); // keep the USB2 controller quiescent while SS trains
-  fallback_timer_start();
+  fallback_enter(FB_USB3_TRAINING);
 #endif
 
   return usb30_hw_init();
@@ -915,8 +950,7 @@ void dcd_connect(uint8_t rhport) {
   (void)rhport;
   _hw_reinit_deferred = false; // cancel a stale deferred re-init: this init supersedes it
 #if CFG_TUD_WCH_USB30_FALLBACK
-  _fb_state = FB_USB3_TRAINING; // restart the training/fallback ladder alongside the link
-  fallback_timer_start();
+  fallback_enter(FB_USB3_TRAINING); // restart the training/fallback ladder alongside the link
 #endif
   usb30_hw_init(); // restore terminations and restart link detection
 }
