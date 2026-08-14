@@ -105,7 +105,7 @@ def one_run(args, tmp):
         if not dev:
             sys.exit(f'device with serial {args.serial} did not re-enumerate after flashing')
         for _ in range(args.hammer):
-            subprocess.run(['sudo', 'lsusb', '-v', '-s', dev],
+            subprocess.run(['sudo', '-n', 'lsusb', '-v', '-s', dev],
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     finally:
         sniffer.terminate()
