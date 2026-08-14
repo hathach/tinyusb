@@ -511,6 +511,9 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
               usbd_edpt_stall(rhport, usbtmc_state.ep_bulk_out);
               return false;
             }
+            // Result deliberately ignored: false here means the endpoint is already armed - either the
+            // application re-armed it from its callback, or a transfer is still queued - not that arming
+            // failed. Stalling on it would halt a healthy endpoint.
             tud_usbtmc_start_bus_read();
 
             break;
