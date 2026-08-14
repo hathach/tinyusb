@@ -21,6 +21,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-void audio_app_task(void);
-
+void audio_app_task_read(void);
+void audio_app_task_write(void);
+void defer_queue_task(void);
 #endif

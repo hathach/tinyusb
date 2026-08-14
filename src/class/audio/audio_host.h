@@ -17,11 +17,11 @@ extern "C" {
 //--------------------------------------------------------------------+
 // Class Driver Configuration
 //--------------------------------------------------------------------+
-// Maximum number of Audio interfaces per Audio device
+// Maximum number of Audio devices
 #ifndef CFG_TUH_AUDIO_MAX
   #define CFG_TUH_AUDIO_MAX 1
 #endif
-// Maximum number of Audio Streaming interfaces per Audio device
+// Maximum number of discrete sampling frequencies per Audio Streaming interface
 #ifndef CFG_TUH_AUDIO_MAX_SAM_FREQ
   #define CFG_TUH_AUDIO_MAX_SAM_FREQ 5
 #endif
@@ -30,84 +30,177 @@ extern "C" {
   #define CFG_TUH_AUDIO_MAX_AS 4
 #endif
 
-//--------------------------------------------------------------------+
-// AS Interface Info (per-interface independent storage)
-//--------------------------------------------------------------------+
-typedef struct {
-  uint8_t  interface_num; // AS interface number
-  uint8_t  alt_setting;   // Current alt setting
-  uint8_t  ep_addr;       // Endpoint address
-  uint16_t ep_size;       // Max packet size
-  uint8_t  ep_dir;        // TUSB_DIR_IN or TUSB_DIR_OUT
-
-  // Format info
-  uint8_t  format_type;
-  uint8_t  num_channels;
-  uint8_t  sub_frame_size;
-  uint8_t  bit_resolution;
-  uint8_t  sam_freq_type;
-  uint32_t sam_freq[CFG_TUH_AUDIO_MAX_SAM_FREQ];
-  uint32_t sam_freq_lower;
-  uint32_t sam_freq_upper;
-} tuh_audio_as_info_t;
-
+// Maximum size of one capture (IN) isochronous transfer the driver submits.
+// Configurations needing a larger per-poll-interval packet are rejected.
+// 256 covers 2-ch 48 kHz S16_LE (192 B) and common endpoint padding (208 B).
 #ifndef CFG_TUH_AUDIO_EPIN_BUFSIZE
-  #define CFG_TUH_AUDIO_EPIN_BUFSIZE 192
+  #define CFG_TUH_AUDIO_EPIN_BUFSIZE 256
 #endif
 
+// Maximum size of one playback (OUT) isochronous transfer the driver submits.
+// Configurations needing a larger per-poll-interval packet are rejected.
 #ifndef CFG_TUH_AUDIO_EPOUT_BUFSIZE
-  #define CFG_TUH_AUDIO_EPOUT_BUFSIZE 192
+  #define CFG_TUH_AUDIO_EPOUT_BUFSIZE 256
+#endif
+
+// Depth in bytes of the per-stream data FIFO. The FIFO decouples the
+// application's read/write calls from the 1 ms isochronous transfer cadence
+// and absorbs rate differences. 1024 bytes hold 4 default (256 B) packets.
+#ifndef CFG_TUH_AUDIO_STREAM_BUFSIZE
+  #define CFG_TUH_AUDIO_STREAM_BUFSIZE 1024
 #endif
 
 //--------------------------------------------------------------------+
-// Application API
+// Types
 //--------------------------------------------------------------------+
 
-// Check if Audio interface is mounted
+// Fixed transfer direction of a logical stream.
+typedef enum {
+  TUH_AUDIO_STREAM_PLAYBACK = 0, // Host -> Device (OUT)
+  TUH_AUDIO_STREAM_CAPTURE  = 1, // Device -> Host (IN)
+  TUH_AUDIO_STREAM_DIRECTION_COUNT
+} tuh_audio_direction_t;
+
+// Discrete sample format. Only discrete configurations are supported
+// initially; continuous sample-rate ranges are ignored by the driver.
+typedef enum {
+  TUH_AUDIO_FORMAT_S8 = 0,  // signed 8-bit
+  TUH_AUDIO_FORMAT_S16_LE,  // signed 16-bit little-endian
+  TUH_AUDIO_FORMAT_S24_3LE, // signed 24-bit packed in 3 bytes, LE
+  TUH_AUDIO_FORMAT_S24_LE,  // signed 24-bit in 32-bit container, LE
+  TUH_AUDIO_FORMAT_S32_LE,  // signed 32-bit little-endian
+  TUH_AUDIO_FORMAT_COUNT
+} tuh_audio_format_t;
+
+// One complete supported discrete configuration tuple.
+// Each entry is a full (format, sample_rate, channels) combination,
+// avoiding invalid mixes between independent format/rate/channel lists.
+// dir is constant for all configs of a given (dev_idx, stream_idx) and
+// equals the result of tuh_audio_stream_direction().
+typedef struct {
+  tuh_audio_direction_t dir;
+  tuh_audio_format_t    format;
+  uint32_t              sample_rate;
+  uint8_t               channels;
+} tuh_audio_stream_config_t;
+
+// Asynchronous completion callback of tuh_audio_configure().
+typedef void (*tuh_audio_configure_cb_t)(uint8_t dev_idx, uint8_t stream_idx, tusb_xfer_result_t result,
+                                         uintptr_t user_data);
+
+//--------------------------------------------------------------------+
+// Stream Enumeration
+//--------------------------------------------------------------------+
+
+// Number of logical audio streams exposed by one mounted device. The
+// application iterates stream indices [0, tuh_audio_stream_count()) and
+// inspects each with tuh_audio_stream_exists()/tuh_audio_stream_direction().
+uint8_t tuh_audio_stream_count(uint8_t dev_idx);
+
+// True if (dev_idx, stream_idx) identifies an existing stream.
+bool tuh_audio_stream_exists(uint8_t dev_idx, uint8_t stream_idx);
+
+// Fixed transfer direction of the stream.
+tuh_audio_direction_t tuh_audio_stream_direction(uint8_t dev_idx, uint8_t stream_idx);
+
+//--------------------------------------------------------------------+
+// Configuration Enumeration
+//--------------------------------------------------------------------+
+
+// Number of supported discrete configurations of the stream.
+uint8_t tuh_audio_config_count(uint8_t dev_idx, uint8_t stream_idx);
+
+// Active configuration index of the stream, or TUSB_INDEX_INVALID_8 if none.
+uint8_t tuh_audio_active_config(uint8_t dev_idx, uint8_t stream_idx);
+
+// Retrieve one discrete configuration tuple into *config.
+bool tuh_audio_config_get(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx, tuh_audio_stream_config_t *config);
+
+//--------------------------------------------------------------------+
+// Configuration (ALSA hw_params analogue, asynchronous)
+//--------------------------------------------------------------------+
+
+// Configure the stream with the discrete configuration identified by
+// config_idx. The driver asynchronously:
+//   1. resolves the AS interface and alternate setting,
+//   2. issues SET_INTERFACE (checking submission and transfer result),
+//   3. opens / reconfigures only the selected endpoint,
+//   4. sets the endpoint sampling frequency when supported,
+//   5. initializes the FIFO and packet scheduler.
+// complete_cb is invoked with the final XFER_RESULT_* status.
+bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx, tuh_audio_configure_cb_t complete_cb,
+                         uintptr_t user_data);
+
+//--------------------------------------------------------------------+
+// Stream Control / Frame-based Data
+//--------------------------------------------------------------------+
+
+// Start/stop transferring data on a configured stream.
+bool tuh_audio_start(uint8_t dev_idx, uint8_t stream_idx);
+bool tuh_audio_stop(uint8_t dev_idx, uint8_t stream_idx);
+
+// Frame-based transfer. One frame = channels * bytes per sample.
+// tuh_audio_write() is valid only for TUH_AUDIO_STREAM_PLAYBACK streams,
+// tuh_audio_read() only for TUH_AUDIO_STREAM_CAPTURE streams.
+// Returns the number of frames actually written/read (0 on any error,
+// including wrong direction, unconfigured/stopped stream, or full/empty FIFO).
+uint32_t tuh_audio_write(uint8_t dev_idx, uint8_t stream_idx, const void *buffer, uint32_t frame_count);
+uint32_t tuh_audio_read(uint8_t dev_idx, uint8_t stream_idx, void *buffer, uint32_t frame_count);
+
+// FIFO occupancy in frames available for a non-blocking write/read.
+uint32_t tuh_audio_write_available(uint8_t dev_idx, uint8_t stream_idx);
+uint32_t tuh_audio_read_available(uint8_t dev_idx, uint8_t stream_idx);
+
+//--------------------------------------------------------------------+
+// Helpers
+//--------------------------------------------------------------------+
+
+// Container size in bytes of one sample for a given format.
+static inline uint8_t tuh_audio_format_bytes(tuh_audio_format_t format) {
+  switch (format) {
+    case TUH_AUDIO_FORMAT_S8:
+      return 1;
+    case TUH_AUDIO_FORMAT_S16_LE:
+      return 2;
+    case TUH_AUDIO_FORMAT_S24_3LE:
+      return 3;
+    case TUH_AUDIO_FORMAT_S24_LE:
+    case TUH_AUDIO_FORMAT_S32_LE:
+      return 4;
+    default:
+      return 0;
+  }
+}
+
+// Size in bytes of one frame (all channels) for a configuration.
+static inline uint32_t tuh_audio_config_frame_size(const tuh_audio_stream_config_t *config) {
+  TU_ASSERT(config != NULL);
+  return (uint32_t)tuh_audio_format_bytes(config->format) * config->channels;
+}
+
+//--------------------------------------------------------------------+
+// Device Info
+//--------------------------------------------------------------------+
+
+// Check if Audio device is mounted
 bool tuh_audio_mounted(uint8_t idx);
-// Get device address of Audio interface
+// Get device address of Audio device
 uint8_t tuh_audio_get_dev_addr(uint8_t idx);
 // Get Feature Unit ID
 uint8_t tuh_audio_get_feature_unit_id(uint8_t idx);
-// Get Interface index from device address + interface number
-// return TUSB_INDEX_INVALID_8 (0xFF) if not found
-uint8_t tuh_audio_itf_get_index(uint8_t daddr, uint8_t itf_num);
-
-// Get Interface information
-// return true if index is correct and interface is currently mounted
-bool tuh_audio_itf_get_info(uint8_t idx, tuh_itf_info_t *info);
-
-// Get number of AS interfaces for an audio device
-uint8_t tuh_audio_as_get_count(uint8_t idx);
-
-// Get AS interface info by index
-// as_idx: 0 to (as_count - 1)
-bool tuh_audio_as_get_info(uint8_t idx, uint8_t as_idx, tuh_audio_as_info_t *info);
-
-// Set Audio Streaming interface alternate setting (to enable/disable endpoints)
-bool tuh_audio_set_interface(uint8_t daddr, uint8_t itf_num, uint8_t alt_setting, tuh_xfer_cb_t complete_cb,
-                             uintptr_t user_data);
 
 //--------------------------------------------------------------------+
-// Control Endpoint API
+// Control Request API
 //--------------------------------------------------------------------+
 
-// Set current sampling frequency on an isochronous endpoint (UAC 1.0)
-// Sampling frequency is 3 bytes little-endian
-// In multi-AS scenarios, pass the endpoint address from tuh_audio_as_get_info().
-bool tuh_audio_set_sampling_freq(uint8_t idx, uint8_t as_idx, uint32_t sampling_freq, tuh_xfer_cb_t complete_cb,
-                                 uintptr_t user_data);
-
-// Get current sampling frequency from an isochronous endpoint (UAC 1.0)
-// In multi-AS scenarios, pass the endpoint address from tuh_audio_as_get_info().
-bool tuh_audio_get_sampling_freq(uint8_t idx, uint8_t as_idx, uint32_t *sampling_freq, tuh_xfer_cb_t complete_cb,
-                                 uintptr_t user_data);
-
-// Set current/mute/volume etc. for a feature unit (UAC 1.0)
+// Set a Feature Unit control (mute, volume, ...) of the Audio device (UAC 1.0)
+// The request length follows the control selector: mute/AGC/loudness are 1 byte, the rest are 2 bytes
 bool tuh_audio_feature_unit_set(uint8_t idx, uint8_t control_selector, uint8_t channel, uint16_t value,
                                 tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
-// Get current/mute/volume etc. from a feature unit (UAC 1.0)
+// Get a Feature Unit control (mute, volume, ...) of the Audio device (UAC 1.0)
+// The value is converted to host byte order before complete_cb is invoked.
+// Only one feature unit GET may be in flight per device.
 bool tuh_audio_feature_unit_get(uint8_t idx, uint8_t control_selector, uint8_t channel, uint16_t *value,
                                 tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
@@ -116,16 +209,6 @@ bool tuh_audio_feature_unit_get(uint8_t idx, uint8_t control_selector, uint8_t c
 // Each Function will make a USB control transfer request to/from device the function will block until request is
 // complete. The function will return the transfer request result
 //--------------------------------------------------------------------+
-TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_audio_get_sampling_freq_sync(uint8_t idx, uint8_t as_idx,
-                                                                                        uint32_t *sampling_freq) {
-  TU_API_SYNC(tuh_audio_get_sampling_freq, idx, as_idx, sampling_freq);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_audio_set_sampling_freq_sync(uint8_t idx, uint8_t as_idx,
-                                                                                        uint32_t sampling_freq) {
-  TU_API_SYNC(tuh_audio_set_sampling_freq, idx, as_idx, sampling_freq);
-}
-
 TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t
 tuh_audio_feature_unit_set_sync(uint8_t idx, uint8_t control_selector, uint8_t channel, uint16_t value) {
   TU_API_SYNC(tuh_audio_feature_unit_set, idx, control_selector, channel, value);
@@ -137,20 +220,6 @@ tuh_audio_feature_unit_get_sync(uint8_t idx, uint8_t control_selector, uint8_t c
 }
 
 //--------------------------------------------------------------------+
-// Interrupt/Isochronous Endpoint API
-//--------------------------------------------------------------------+
-
-// Submit an isochronous transfer to receive audio data from a default IN endpoint.
-// In multi-AS scenarios, endpoint selection is implementation-defined default behavior.
-// Use tuh_audio_as_get_info() when application needs explicit per-AS endpoint control.
-bool tuh_audio_receive(uint8_t idx, uint8_t as_idx, uint8_t *buffer, uint16_t len);
-
-// Submit an isochronous transfer to send audio data to a default OUT endpoint.
-// In multi-AS scenarios, endpoint selection is implementation-defined default behavior.
-// Use tuh_audio_as_get_info() when application needs explicit per-AS endpoint control.
-bool tuh_audio_send(uint8_t idx, uint8_t as_idx, uint8_t *buffer, uint16_t len);
-
-//--------------------------------------------------------------------+
 // Callbacks (Weak is optional)
 //--------------------------------------------------------------------+
 
@@ -160,11 +229,17 @@ void tuh_audio_mount_cb(uint8_t idx);
 // Invoked when device with Audio interface is un-mounted
 void tuh_audio_umount_cb(uint8_t idx);
 
-// Invoked when an isochronous IN transfer is complete
-void tuh_audio_rx_cb(uint8_t dev_addr, uint8_t ep_addr, uint16_t xferred_bytes);
+// Invoked when an isochronous IN transfer completes successfully: the
+// received data is already queued into the stream's capture FIFO.
+void tuh_audio_capture_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_bytes);
 
-// Invoked when an isochronous OUT transfer is complete
-void tuh_audio_tx_cb(uint8_t dev_addr, uint8_t ep_addr, uint16_t xferred_bytes);
+// Invoked when an isochronous OUT transfer completes successfully: the
+// next queued packet is submitted from the stream's playback FIFO.
+void tuh_audio_playback_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_bytes);
+
+// Invoked when an isochronous transfer fails. The stream is stopped
+// (tuh_audio_start() must be called again to resume).
+void tuh_audio_err_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_bytes);
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API

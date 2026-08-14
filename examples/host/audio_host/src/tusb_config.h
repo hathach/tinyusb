@@ -81,9 +81,9 @@ extern "C" {
 
 #define CFG_TUH_ENUMERATION_BUFSIZE 512
 
-#define CFG_TUH_HUB                 1
+#define CFG_TUH_HUB                 0
 #define CFG_TUH_CDC                 0
-#define CFG_TUH_HID                 1
+#define CFG_TUH_HID                 0
 #define CFG_TUH_MSC                 0
 #define CFG_TUH_VENDOR              0
 #define CFG_TUH_AUDIO               1
@@ -93,8 +93,8 @@ extern "C" {
 
 //------------- Audio Host Config -------------//
 #define CFG_TUH_AUDIO_MAX           2
-#define CFG_TUH_AUDIO_EPIN_BUFSIZE  192
-#define CFG_TUH_AUDIO_EPOUT_BUFSIZE 192
+#define CFG_TUH_AUDIO_EPIN_BUFSIZE  256 // max capture transfer the application submits
+#define CFG_TUH_AUDIO_EPOUT_BUFSIZE 256 // max playback transfer the application submits
 
 #ifdef __cplusplus
 }
