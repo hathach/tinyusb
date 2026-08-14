@@ -20,6 +20,34 @@ Re-taking the drop rate is the one that matters most: the Phase A campaign compa
 changes against a 34.5 % baseline produced by the miscounting parser, so those comparisons cannot
 currently be trusted in either direction.
 
+## F3 — clear-stall re-arm: attempted, refuted by hardware, still open
+
+The review found that both WCH USB3 drivers re-arm the in-flight transfer in
+`dcd_edpt_clear_stall()`, while `usbd_edpt_clear_stall()` clears `BUSY` **and** `CLAIMED` on a
+was-stalled clear, and `vendord_abort_ep()` is `stall(); clear_stall();` used to abort on every
+`SET_INTERFACE`. The reasoning is correct as far as it goes; the fix built on it is not.
+
+Removing the re-arm was implemented and reverted (`2d7fe1bc9`, reverted in `25962b5e7`).
+Measured on the CH569 hydra, case 29 run alone on a freshly flashed board so it is not
+contaminated by case 13:
+
+| Build                     | usbtest case 29 (clear toggle between bulk writes) |
+| ------------------------- | --------------------------------------------------- |
+| re-arm present (baseline) | **PASS** 0.26 s                                      |
+| re-arm removed            | **FAIL** errno 22, "toggle sync failed, iterations left 63" |
+
+The conclusion that the class always resubmits does not hold for the halt/clear-halt path case 29
+exercises: the host clears the halt mid-transfer and expects the endpoint to resume, and the
+re-arm is what makes that work.
+
+The conflict the review identified is real and unresolved: a DCD cannot distinguish "clear-halt,
+resume the transfer" from "clear-halt as an abort" through the current interface, so whichever it
+picks is wrong for the other caller. Fixing it properly means changing that contract — for example
+having `usbd_edpt_clear_stall()` tell the DCD which it means, or giving the vendor class a real
+abort entry point instead of stall+clear — not patching either driver. Note also that case 13 is
+quirk-skipped on this silicon (0x20: a halted endpoint answers exactly one STALL), and forcing it
+to run wrecks the endpoint for whatever runs next, so it cannot be used to adjudicate this.
+
 ## Deferred fixes with a written plan
 
 Both were confirmed by the 2026-08-14 review and are **not regressions from this branch**, so they
