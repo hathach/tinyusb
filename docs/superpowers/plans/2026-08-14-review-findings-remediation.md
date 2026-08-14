@@ -288,7 +288,7 @@ module records that figures taken before this fix are invalid."
 `usbtest.py:228` runs `setpci` to read the Renesas uPD720201/2 firmware version and hard-exits at `:235` if it is not permitted. The new sudoers drop-in grants eight binaries, none of them `setpci`.
 
 **Files:**
-- Modify: `test/hil/tinyusb-sudoer:66-73`, `test/hil/hs_drop_rate.py:99`
+- Modify: `test/hil/tinyusb-sudoer:66-73`, `test/hil/hs_drop_rate.py` (the `sudo lsusb` call in `one_run()`)
 
 - [ ] **Step 1: Add the grants**
 
@@ -303,7 +303,8 @@ Append after the existing `modprobe` line in `test/hil/tinyusb-sudoer`:
 
 - [ ] **Step 2: Make the one un-flagged sudo consistent**
 
-In `test/hil/hs_drop_rate.py`, line 99, add `-n` so a missing grant fails instead of prompting:
+In `test/hil/hs_drop_rate.py`, find the only `sudo` call — the `lsusb` hammer inside `one_run()`'s
+`try` block — and add `-n` so a missing grant fails instead of prompting:
 
 ```python
         subprocess.run(['sudo', '-n', 'lsusb', '-v', '-s', dev],
