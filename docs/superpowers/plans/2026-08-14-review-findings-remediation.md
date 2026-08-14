@@ -154,10 +154,12 @@ Then replace lines 1336-1349 so the caller delegates. The `try` block keeps only
 
 ```bash
 python3 -m pytest test/hil/test_hil_usbtest_cell.py -v
-python3 -m pytest test/hil/ -v
+python3 -m pytest test/hil/test_*.py -q
 ```
 
-Expected: all PASS.
+Expected: all PASS. Scope pytest to `test_*.py` — collecting the whole directory also picks up
+`hil_test.py`'s 24 HIL case handlers, which are named `test_*` but are not pytest tests and error
+with `fixture 'board' not found`. That noise is pre-existing and identical on `master`.
 
 - [ ] **Step 5: Commit**
 
@@ -1317,10 +1319,12 @@ Expected: all hooks pass.
 - [ ] **Step 2: Python harness tests**
 
 ```bash
-python3 -m pytest test/hil/ -v
+python3 -m pytest test/hil/test_*.py -q
 ```
 
-Expected: all pass, including the new parser and cell tests.
+Expected: all pass, including the new parser and cell tests. Scope to `test_*.py`: collecting the
+whole directory also picks up `hil_test.py`'s HIL case handlers, which are pre-existing pytest
+collection noise (`fixture 'board' not found`), not failures.
 
 - [ ] **Step 3: Build both WCH boards at both speeds**
 
