@@ -805,7 +805,10 @@ void dcd_int_handler(uint8_t rhport) {
       if (tu_bit_test(data_status, 16 + epnum) || (epnum == 0 && is_control_out)) {
         xfer_td_t* xfer = get_td(epnum, TUSB_DIR_OUT);
 
-        if (xfer->started && xfer->actual_len < xfer->total_len) {
+        // total_len == 0: an armed zero-length read (e.g. MTP's terminating ZLP) still
+        // needs the 0-byte DMA to drain the endpoint and complete the transfer;
+        // actual_len < total_len can never be true for it.
+        if (xfer->started && (xfer->total_len == 0 || xfer->actual_len < xfer->total_len)) {
           xact_out_dma(epnum);
         } else {
           // Data overflow !!! Nah, nRF will auto accept next Bulk/Interrupt OUT packet
