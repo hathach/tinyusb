@@ -654,7 +654,9 @@ static int32_t fs_send_object(tud_mtp_cb_data_t* cb_data) {
   } else {
     // file contents offset is total xferred minus header size minus last received chunk
     const uint32_t offset = cb_data->total_xferred_bytes - sizeof(mtp_container_header_t) - io_container->payload_bytes;
-    memcpy(f->data + offset, io_container->payload, io_container->payload_bytes);
+    // a host may send more than SendObjectInfo declared: never write past the object
+    const uint32_t xact_len = (offset < f->size) ? tu_min32(io_container->payload_bytes, f->size - offset) : 0;
+    memcpy(f->data + offset, io_container->payload, xact_len);
     if (cb_data->total_xferred_bytes - sizeof(mtp_container_header_t) < f->size) {
       tud_mtp_data_receive(io_container);
     }
