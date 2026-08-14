@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Unit tests for hs_drop_rate's wire parser. No hardware required."""
 import unittest
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from hs_drop_rate import parse_setup_outcomes
 
 SETUP, ACK, DATA0, SOF, IN = '0x2d', '0xd2', '0xc3', '0xa5', '0x69'
