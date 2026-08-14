@@ -220,6 +220,45 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index) {
 #endif
 }
 
+#if TUD_OPT_HIGH_SPEED
+// A device reporting bcdUSB 0x0200 must answer GET_DESCRIPTOR(DEVICE_QUALIFIER) and
+// OTHER_SPEED_CONFIGURATION (USB 2.0 section 9.6.2): without these callbacks usbd's weak stubs
+// return NULL and stall EP0, which a high-speed-capable device may not do.
+static uint8_t desc_other_speed_config[CONFIG_TOTAL_LEN];
+
+static tusb_desc_device_qualifier_t const desc_device_qualifier = {
+  .bLength = sizeof(tusb_desc_device_qualifier_t),
+  .bDescriptorType = TUSB_DESC_DEVICE_QUALIFIER,
+  .bcdUSB = 0x0200,
+
+  .bDeviceClass = 0x00,
+  .bDeviceSubClass = 0x00,
+  .bDeviceProtocol = 0x00,
+
+  .bMaxPacketSize0 = EP0_SIZE_FSHS,
+  .bNumConfigurations = 0x01,
+  .bReserved = 0x00
+};
+
+// Invoked when received GET DEVICE QUALIFIER DESCRIPTOR request
+uint8_t const *tud_descriptor_device_qualifier_cb(void) {
+  return (uint8_t const *) &desc_device_qualifier;
+}
+
+// Invoked when received GET OTHER SPEED CONFIGURATION DESCRIPTOR request
+uint8_t const *tud_descriptor_other_speed_configuration_cb(uint8_t index) {
+  (void) index; // for multiple configurations
+
+  // if link speed is high return fullspeed config, and vice versa
+  // Note: the descriptor type is OTHER_SPEED_CONFIG instead of CONFIG
+  memcpy(desc_other_speed_config,
+         (tud_speed_get() == TUSB_SPEED_HIGH) ? desc_fs_configuration : desc_hs_configuration,
+         CONFIG_TOTAL_LEN);
+  desc_other_speed_config[1] = TUSB_DESC_OTHER_SPEED_CONFIG;
+  return desc_other_speed_config;
+}
+#endif // TUD_OPT_HIGH_SPEED
+
 //--------------------------------------------------------------------+
 // String Descriptors
 //--------------------------------------------------------------------+
