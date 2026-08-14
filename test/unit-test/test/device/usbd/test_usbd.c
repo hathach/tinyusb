@@ -672,3 +672,128 @@ void test_usbd_get_status_u1_enable(void)
 
   tud_task();
 }
+
+//--------------------------------------------------------------------+
+// Per-function remote wake (USB 3.2 §9.4.9 / §9.4.5 / Table 9-10)
+//--------------------------------------------------------------------+
+
+// data_desc_configuration declares zero interfaces, but every interface-recipient request needs
+// itf2drv[itf] bound to a driver, so use a config carrying one MSC interface for these.
+uint8_t const data_desc_config_one_itf[] =
+{
+  TUD_CONFIG_DESCRIPTOR(1, 1, 0, TUD_CONFIG_DESC_LEN + 9, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+  9, TUSB_DESC_INTERFACE, 0, 0, 0, TUSB_CLASS_MSC, MSC_SUBCLASS_SCSI, MSC_PROTOCOL_BOT, 0
+};
+
+static void switch_to_configured_one_itf(void) {
+  desc_configuration = data_desc_config_one_itf;
+  tusb_control_request_t const req_set_config = {
+    .bmRequestType = 0x00,
+    .bRequest = TUSB_REQ_SET_CONFIGURATION,
+    .wValue = 1,
+    .wIndex = 0,
+    .wLength = 0
+  };
+  dcd_event_setup_received(rhport, (uint8_t*) &req_set_config, false);
+  mscd_open_IgnoreAndReturn(9);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_set_config, 1);
+  tud_task();
+}
+
+// SET_FEATURE(FUNCTION_SUSPEND) with the remote-wake bit set in the wIndex high byte
+static tusb_control_request_t const req_func_suspend_wake = {
+  .bmRequestType = 0x01, // host-to-device, standard, interface
+  .bRequest = TUSB_REQ_SET_FEATURE,
+  .wValue = 0,           // FUNCTION_SUSPEND selector
+  .wIndex = 0x0200,      // low byte = interface 0, high byte bit 1 = remote wake enable
+  .wLength = 0
+};
+
+static void enable_function_remote_wake(void) {
+  dcd_event_setup_received(rhport, (uint8_t*) &req_func_suspend_wake, false);
+  mscd_control_xfer_cb_IgnoreAndReturn(false);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_func_suspend_wake, 1);
+  tud_task();
+}
+
+// USB 3.2 9.4.5 Figure 9-5: interface GET_STATUS reports D0 Function Remote Wake Capable and
+// D1 Function Remote Wakeup. 9.2.5.4 makes this the host's discovery mechanism, so returning a
+// hardcoded zero told the host a wake-capable function was not capable.
+void test_usbd_get_status_interface_reports_function_wakeup(void)
+{
+  switch_to_superspeed();
+  switch_to_configured_one_itf();
+  enable_function_remote_wake();
+
+  tusb_control_request_t const req_get_status_itf = {
+    .bmRequestType = 0x81, // device-to-host, standard, interface
+    .bRequest = TUSB_REQ_GET_STATUS,
+    .wValue = 0,
+    .wIndex = 0,
+    .wLength = 2
+  };
+  uint8_t const expected[2] = { 0x03, 0x00 }; // D0 capable | D1 enabled
+
+  dcd_event_setup_received(rhport, (uint8_t*) &req_get_status_itf, false);
+  mscd_control_xfer_cb_IgnoreAndReturn(false);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*)expected, 2, 2, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 2, 0, false);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_status_itf, 1);
+
+  tud_task();
+}
+
+// USB 3.2 Table 9-10: SetAddress(0) resets FUNCTION REMOTE WAKEUP. The aggregate authorization
+// tud_remote_wakeup() gates on must drop with it.
+void test_usbd_set_address_zero_clears_function_wakeup(void)
+{
+  switch_to_superspeed();
+  switch_to_configured_one_itf();
+  enable_function_remote_wake();
+
+  // _usbd_dev is file-static, so probe through interface GET_STATUS: D1 is the per-function
+  // bit this resets, D0 (capable) stays set because the configuration still advertises it.
+  tusb_control_request_t const req_get_status_itf = {
+    .bmRequestType = 0x81,
+    .bRequest = TUSB_REQ_GET_STATUS,
+    .wValue = 0,
+    .wIndex = 0,
+    .wLength = 2
+  };
+  uint8_t const armed[2]   = { 0x03, 0x00 }; // capable | enabled
+  uint8_t const cleared[2] = { 0x01, 0x00 }; // capable, no longer enabled
+
+  mscd_control_xfer_cb_IgnoreAndReturn(false);
+  dcd_event_setup_received(rhport, (uint8_t*) &req_get_status_itf, false);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*)armed, 2, 2, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 2, 0, false);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_status_itf, 1);
+  tud_task();
+
+  tusb_control_request_t const req_set_addr0 = {
+    .bmRequestType = 0x00,
+    .bRequest = TUSB_REQ_SET_ADDRESS,
+    .wValue = 0,
+    .wIndex = 0,
+    .wLength = 0
+  };
+  dcd_event_setup_received(rhport, (uint8_t*) &req_set_addr0, false);
+  dcd_set_address_Expect(rhport, 0);
+  tud_task();
+
+  dcd_event_setup_received(rhport, (uint8_t*) &req_get_status_itf, false);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*)cleared, 2, 2, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 2, 0, false);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_status_itf, 1);
+  tud_task();
+}

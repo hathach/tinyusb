@@ -127,6 +127,13 @@ typedef struct {
     uint8_t dev_state_bm; // cleared (with the bits above) by tu_varclr() in configuration_reset() on bus reset
   };
 
+  #if TUD_OPT_SUPER_SPEED
+  // Configuration descriptor's REMOTE_WAKEUP attribute, reported as D0 Function Remote Wake
+  // Capable (USB 3.2 §9.4.5). Deliberately NOT in dev_state_bm above: GET_STATUS(Device)
+  // returns that byte wholesale, so any bit added there leaks into the device status.
+  uint8_t remote_wakeup_support;
+  #endif
+
   uint8_t          cfg_num; // current active configuration (0x00 is not configured)
   uint8_t          speed;
   volatile uint8_t sof_consumer;
@@ -431,6 +438,16 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
 static bool process_get_status(uint8_t rhport, tusb_control_request_t const * request, uint16_t status);
 static bool process_set_config(uint8_t rhport, uint8_t cfg_num);
 static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const * p_request);
+
+#if TUD_OPT_SUPER_SPEED
+// USB 3.2 Table 9-10 resets FUNCTION REMOTE WAKEUP on SetAddress(0), SetConfiguration and
+// SetInterface. Dropping the per-function bits must also drop the device-level authorization
+// they aggregate into, or tud_remote_wakeup() stays armed after the host revoked it.
+static inline void func_wakeup_clear_all(void) {
+  tu_memclr(_usbd_dev.func_wakeup_bm, sizeof(_usbd_dev.func_wakeup_bm));
+  _usbd_dev.remote_wakeup_en = 0;
+}
+#endif
 
 #if CFG_TUD_TEST_MODE
 static bool process_test_mode_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request) {
@@ -1004,6 +1021,7 @@ static bool process_std_device_request(uint8_t rhport, tusb_control_request_t co
       if (0 == p_request->wValue) {
         _usbd_dev.u1_enable = 0; // USB 3.2 Table 9-10: SetAddress(0) resets U1/U2 Enable
         _usbd_dev.u2_enable = 0;
+        func_wakeup_clear_all(); // ... and FUNCTION REMOTE WAKEUP
       }
       #endif
       dcd_set_address(rhport, (uint8_t) p_request->wValue);
@@ -1018,6 +1036,14 @@ static bool process_std_device_request(uint8_t rhport, tusb_control_request_t co
 
     case TUSB_REQ_SET_CONFIGURATION: {
       uint8_t const cfg_num = (uint8_t) p_request->wValue;
+
+      #if TUD_OPT_SUPER_SPEED
+      // USB 3.2 Table 9-10: SetConfiguration resets FUNCTION REMOTE WAKEUP, including when the
+      // value is unchanged -- Linux's usb_reset_configuration() sends exactly that, and the
+      // "only process if different" guard below would otherwise leave the authorization armed
+      // after the host revoked it.
+      func_wakeup_clear_all();
+      #endif
 
       // Only process if new configure is different
       if (_usbd_dev.cfg_num != cfg_num) {
@@ -1297,13 +1323,32 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
             // so reaching here means the class does not — where only alt 0 is valid. Any non-zero
             // alt (unimplemented, or rejected as invalid by the class) is a Request Error (stall).
             TU_VERIFY(tu_u16_low(p_request->wValue) == 0);
+            #if TUD_OPT_SUPER_SPEED
+            func_wakeup_clear_all(); // USB 3.2 Table 9-10
+            #endif
             tud_control_status(rhport, p_request);
             break;
 
-          case TUSB_REQ_GET_STATUS:
-            // USB 2.0 9.4.5: interface GET_STATUS returns 2 reserved (zero) bytes
-            TU_VERIFY(process_get_status(rhport, p_request, 0x0000));
+          case TUSB_REQ_GET_STATUS: {
+            // USB 2.0 9.4.5: interface GET_STATUS returns 2 reserved (zero) bytes.
+            uint16_t status = 0x0000;
+            #if TUD_OPT_SUPER_SPEED
+            // USB 3.2 9.4.5 Figure 9-5: D0 Function Remote Wake Capable, D1 Function Remote
+            // Wakeup. 9.2.5.4 makes this the host's discovery mechanism, so a device whose
+            // configuration advertises remote wakeup must not report itself incapable.
+            if (link_is_superspeed()) {
+              const uint8_t itf_mask = (uint8_t) (1u << (itf % 8));
+              if (_usbd_dev.remote_wakeup_support) {
+                status |= 0x0001;
+              }
+              if (_usbd_dev.func_wakeup_bm[itf / 8] & itf_mask) {
+                status |= 0x0002;
+              }
+            }
+            #endif
+            TU_VERIFY(process_get_status(rhport, p_request, status));
             break;
+          }
 
           #if TUD_OPT_SUPER_SPEED
           case TUSB_REQ_SET_FEATURE: {
@@ -1417,6 +1462,9 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num) {
 
   // Parse configuration descriptor
   _usbd_dev.self_powered = (desc_cfg->bmAttributes & TUSB_DESC_CONFIG_ATT_SELF_POWERED) ? 1u : 0u;
+  #if TUD_OPT_SUPER_SPEED
+  _usbd_dev.remote_wakeup_support = (desc_cfg->bmAttributes & TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP) ? 1u : 0u;
+  #endif
 
   // Parse interface descriptor
   const uint8_t *p_desc   = ((const uint8_t *)desc_cfg) + sizeof(tusb_desc_configuration_t);
