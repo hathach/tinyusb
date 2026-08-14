@@ -112,6 +112,7 @@ typedef struct {
   uint8_t nego_pending_fb_filter;
   uint8_t nego_pending_fb_num;    // block requested by the pending discovery, 0xFF = all
   uint8_t nego_pending_fb_next;   // next block index to reply for
+  uint16_t nego_text_offset;      // progress into the text reply being sent
 
   /*------------- From this point, data is not cleared by bus reset -------------*/
   struct {
@@ -337,16 +338,20 @@ static void _nego_send_endpoint_info(midi2d_interface_t* p_midi) {
 // index byte (the Function Block number for FB Name) and 13 chars fit per
 // packet; otherwise the text starts there and 14 chars fit (Endpoint Name,
 // Product Instance Id).
-static void _nego_send_stream_text(midi2d_interface_t* p_midi, uint16_t status,
-                                   bool has_index, uint8_t index, const char* str) {
-  if (!str || str[0] == '\0') return;
+// Sends a stream text from `offset` and returns how far it got. Resuming keeps
+// the End packet, which dropping the tail would lose.
+static uint16_t _nego_send_stream_text(midi2d_interface_t* p_midi, uint16_t status,
+                                       bool has_index, uint8_t index, const char* str,
+                                       uint16_t offset) {
+  if (!str || str[0] == '\0') return 0;
 
-  uint16_t total_len = (uint16_t) strlen(str);
-  uint16_t offset = 0;
+  const uint16_t total_len = (uint16_t) strlen(str);
   const uint8_t per_pkt = has_index ? 13 : 14;
   const uint8_t head_chars = has_index ? 1 : 2;  // chars carried in word0
+  if (offset >= total_len) return total_len;
 
   while (offset < total_len) {
+    if (tu_fifo_remaining(&p_midi->ep_stream.tx.ff) < 16) break;
     uint16_t remaining = total_len - offset;
     uint8_t n = (uint8_t)((remaining > per_pkt) ? per_pkt : remaining);
     bool is_first = (offset == 0);
@@ -380,6 +385,7 @@ static void _nego_send_stream_text(midi2d_interface_t* p_midi, uint16_t status,
     _nego_send_ump(p_midi, msg, 4);
     offset += n;
   }
+  return offset;
 }
 
 static void _nego_send_config_notify(midi2d_interface_t* p_midi, uint8_t protocol) {
@@ -438,41 +444,37 @@ static void _nego_send_fb_info(midi2d_interface_t* p_midi, uint8_t fb_idx) {
   _nego_send_ump(p_midi, msg, 4);
 }
 
-// Byte cost of one stream text reply (name or product id), all packets included.
-static uint16_t _nego_stream_text_bytes(bool has_index, const char* str) {
-  if (!str || str[0] == '\0') return 0;
-  const uint8_t per_pkt = has_index ? 13 : 14;
-  const uint16_t len = (uint16_t) strlen(str);
-  return (uint16_t)(((len + per_pkt - 1) / per_pkt) * 16);
-}
-
 // Send pending discovery replies, one whole reply at a time and only when the
 // TX FIFO can take it. A full-filter Endpoint Discovery asks for more bytes
 // than the default FIFO holds; replies that do not fit stay pending and are
 // retried from the TX complete path, paced by the transfer flow.
 static void _nego_send_pending(midi2d_interface_t* p_midi) {
   tu_fifo_t* tx_ff = &p_midi->ep_stream.tx.ff;
-  const uint16_t depth = tu_fifo_depth(tx_ff);
   const uint8_t itf = _itf_idx(p_midi);
 
   while (p_midi->nego_pending_ep_filter) {
     const uint8_t bit = (uint8_t)(p_midi->nego_pending_ep_filter & (uint8_t)(-p_midi->nego_pending_ep_filter));
-    uint16_t needed;
+    const char* text = NULL;
+    uint16_t status = 0;
     switch (bit) {
-      case 0x04: needed = _nego_stream_text_bytes(false, tud_midi2_ep_name_cb(itf)); break;
-      case 0x08: needed = _nego_stream_text_bytes(false, tud_midi2_product_id_cb(itf)); break;
-      default:   needed = 16; break;  // endpoint info, device identity, config notify
-    }
-    if (needed > depth) needed = depth;  // oversized reply: send best effort, never stall
-    if (tu_fifo_remaining(tx_ff) < needed) return;
-
-    switch (bit) {
-      case 0x01: _nego_send_endpoint_info(p_midi); break;
-      case 0x02: _nego_send_device_identity(p_midi); break;
-      case 0x04: _nego_send_stream_text(p_midi, STREAM_EP_NAME, false, 0, tud_midi2_ep_name_cb(itf)); break;
-      case 0x08: _nego_send_stream_text(p_midi, STREAM_PROD_INSTANCE_ID, false, 0, tud_midi2_product_id_cb(itf)); break;
-      case 0x10: _nego_send_config_notify(p_midi, p_midi->protocol); break;
+      case 0x04: text = tud_midi2_ep_name_cb(itf);    status = STREAM_EP_NAME; break;
+      case 0x08: text = tud_midi2_product_id_cb(itf); status = STREAM_PROD_INSTANCE_ID; break;
       default: break;
+    }
+
+    if (text != NULL) {
+      p_midi->nego_text_offset = _nego_send_stream_text(p_midi, status, false, 0, text,
+                                                        p_midi->nego_text_offset);
+      if (p_midi->nego_text_offset < (uint16_t) strlen(text)) return;  // resume on TX complete
+      p_midi->nego_text_offset = 0;
+    } else {
+      if (tu_fifo_remaining(tx_ff) < 16) return;
+      switch (bit) {
+        case 0x01: _nego_send_endpoint_info(p_midi); break;
+        case 0x02: _nego_send_device_identity(p_midi); break;
+        case 0x10: _nego_send_config_notify(p_midi, p_midi->protocol); break;
+        default: break;
+      }
     }
     p_midi->nego_pending_ep_filter &= (uint8_t) ~bit;
   }
@@ -484,17 +486,16 @@ static void _nego_send_pending(midi2d_interface_t* p_midi) {
       p_midi->nego_pending_fb_next++;
       continue;
     }
-    // Info and name for one block go out together to keep per-block ordering.
-    uint16_t needed = (p_midi->nego_pending_fb_filter & 0x01) ? 16 : 0;
-    if (p_midi->nego_pending_fb_filter & 0x02) {
-      needed = (uint16_t)(needed + _nego_stream_text_bytes(true, tud_midi2_fb_name_cb(itf, f)));
+    if ((p_midi->nego_pending_fb_filter & 0x01) && p_midi->nego_text_offset == 0) {
+      if (tu_fifo_remaining(tx_ff) < 16) return;
+      _nego_send_fb_info(p_midi, f);
     }
-    if (needed > depth) needed = depth;
-    if (tu_fifo_remaining(tx_ff) < needed) return;
-
-    if (p_midi->nego_pending_fb_filter & 0x01) _nego_send_fb_info(p_midi, f);
     if (p_midi->nego_pending_fb_filter & 0x02) {
-      _nego_send_stream_text(p_midi, STREAM_FB_NAME, true, f, tud_midi2_fb_name_cb(itf, f));
+      const char* name = tud_midi2_fb_name_cb(itf, f);
+      p_midi->nego_text_offset = _nego_send_stream_text(p_midi, STREAM_FB_NAME, true, f, name,
+                                                         p_midi->nego_text_offset);
+      if (name != NULL && p_midi->nego_text_offset < (uint16_t) strlen(name)) return;
+      p_midi->nego_text_offset = 0;
     }
     p_midi->nego_pending_fb_next++;
   }
@@ -538,12 +539,21 @@ static void _nego_handle_stream_msg(midi2d_interface_t* p_midi, const uint32_t* 
       break;
     }
 
-    case STREAM_FB_DISCOVERY:
-      p_midi->nego_pending_fb_num = (uint8_t)((words[0] >> 8) & 0xFF);
-      p_midi->nego_pending_fb_filter = (uint8_t)(words[0] & 0x03);  // bit 0: FB Info, bit 1: FB Name
-      p_midi->nego_pending_fb_next = 0;
+    case STREAM_FB_DISCOVERY: {
+      const uint8_t req_num = (uint8_t)((words[0] >> 8) & 0xFF);
+      // Merge with a pending request: repeating a Function Block Info is allowed
+      // at any time, losing a requested one is not.
+      if (p_midi->nego_pending_fb_filter && p_midi->nego_pending_fb_num != req_num) {
+        p_midi->nego_pending_fb_num = 0xFF;
+        p_midi->nego_pending_fb_next = 0;
+      } else if (!p_midi->nego_pending_fb_filter) {
+        p_midi->nego_pending_fb_num = req_num;
+        p_midi->nego_pending_fb_next = 0;
+      }
+      p_midi->nego_pending_fb_filter |= (uint8_t)(words[0] & 0x03);  // bit 0: FB Info, bit 1: FB Name
       _nego_send_pending(p_midi);
       break;
+    }
 
     default:
       break;
