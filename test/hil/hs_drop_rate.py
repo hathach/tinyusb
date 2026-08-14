@@ -10,6 +10,11 @@ Every run starts from a fresh flash: the drop rate drifts upward with uptime (44
 71% after ~3 min of hammering), so a measurement taken on a warm board is not comparable to
 one taken on a cold board. Results are pooled across runs because a single ~90-SETUP capture
 spans 44-71% on one unchanged build -- wide enough to invent differences that are not there.
+
+Any drop rate recorded before 2026-08-14 is invalid: the parser matched a literal wire
+address 1, so enumeration-phase SETUPs (the device answers at address 0 until SET_ADDRESS)
+and any device on another address were all scored as drops. The figures quoted in
+docs/superpowers/notes/h417-ep0-diff.md predate that fix and need re-taking.
 """
 import argparse
 import subprocess
@@ -25,8 +30,10 @@ def parse_setup_outcomes(rows):
     """Count (acked, dropped) SETUP transactions.
 
     rows: iterable of (time, pid, src, dst) as emitted by tshark -T fields.
-    A SETUP is acked when an ACK sourced BY THE DEVICE (src "1.x") appears within the
-    next two frames -- the DATA0 payload sits between the token and the handshake.
+    A SETUP is acked when an ACK sourced BY THE DEVICE appears within the next two frames --
+    the DATA0 payload sits between the token and the handshake. Device-sourced means simply
+    "not the host": the device answers at address 0 until SET_ADDRESS, and an xHCI host may
+    assign any address afterwards, so matching a literal address scores correct ACKs as drops.
     """
     rows = list(rows)
     acked = dropped = 0
@@ -34,7 +41,7 @@ def parse_setup_outcomes(rows):
         if row[1] != SETUP_PID:
             continue
         window = rows[i + 1:i + 3]
-        if any(r[1] == ACK_PID and r[2].startswith('1.') for r in window):
+        if any(r[1] == ACK_PID and r[2] != 'host' for r in window):
             acked += 1
         else:
             dropped += 1

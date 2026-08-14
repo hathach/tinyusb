@@ -44,6 +44,30 @@ class TestParseSetupOutcomes(unittest.TestCase):
         ]
         self.assertEqual(parse_setup_outcomes(rows), (1, 1))
 
+    def test_ack_counted_at_enumeration_address_zero(self):
+        """Before SET_ADDRESS the device answers at address 0; that ACK is still an ACK.
+
+        one_run() deliberately captures across enumeration, so this is not a corner case: it is
+        the coldest and densest part of the sample the metric exists to measure.
+        """
+        rows = [
+            ('1.000000', SETUP, 'host', '0.0'),
+            ('1.000001', DATA0, 'host', '0.0'),
+            ('1.000002', ACK, '0.0', 'host'),
+        ]
+        self.assertEqual(parse_setup_outcomes(rows), (1, 0))
+
+    def test_ack_counted_at_any_assigned_address(self):
+        """xHCI hosts routinely assign a wire address other than 1."""
+        for addr in ('5', '12'):
+            rows = [
+                ('1.000000', SETUP, 'host', f'{addr}.0'),
+                ('1.000001', DATA0, 'host', f'{addr}.0'),
+                ('1.000002', ACK, f'{addr}.0', 'host'),
+            ]
+            with self.subTest(address=addr):
+                self.assertEqual(parse_setup_outcomes(rows), (1, 0))
+
     def test_unrelated_traffic_is_ignored(self):
         rows = [
             ('1.000000', SOF, 'host', 'broadcast'),
