@@ -1176,18 +1176,21 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   }
 
   // CLEAR_FEATURE(ENDPOINT_HALT) resets the packet sequence: clear everything including seq.
-  // Do NOT re-arm the in-flight transfer here. usbd clears BUSY *and* CLAIMED on a was-stalled
-  // clear (see clear_mask in usbd_edpt_clear_stall), so the transfer is retired and the class
-  // owns resubmission - and vendord_abort_ep() is literally stall()+clear_stall() used to abort
-  // on every SET_INTERFACE. Re-arming resurrected that chain: it sent stale data with an ERDY,
-  // and its completion was accounted against whatever the class armed next.
+  // A transfer may still be armed (the class driver considers it submitted and won't resubmit):
+  // re-arm it with the fresh sequence instead of dropping it, or the endpoint never answers
+  // again after clear-halt (usbtest halt/toggle tests 13 and 29)
   xfer_ctl_t *xfer = &xfer_status[ep_num][dir];
   xfer->stalled = false;
-  xfer->active = false;
   if (dir == TUSB_DIR_IN) {
     USBSS_TX_CTRL(ep_num) = 0;
+    if (xfer->active) {
+      xfer_in_arm(ep_num);
+    }
   } else {
     USBSS_RX_CTRL(ep_num) = 0;
+    if (xfer->active) {
+      xfer_out_arm(ep_num);
+    }
   }
 }
 
