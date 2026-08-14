@@ -1379,12 +1379,12 @@ python3 test/hil/hil_lock.py release hydrausb3_v1
 
 - [ ] **Step 9: Update the deferred list with anything that did not get measured**
 
-Edit `docs/superpowers/todo/2026-08-14-deferred-followups.md` and record the outcome of Steps 6 and 7, plus confirmation that F4 (Task 9) and F16 (Task 5) shipped unmeasured.
+Edit `docs/superpowers/todo/pr3779-wch-superspeed.md` and record the outcome of Steps 6 and 7, plus confirmation that F4 (Task 9) and F16 (Task 5) shipped unmeasured.
 
 - [ ] **Step 10: Commit and push**
 
 ```bash
-git add docs/superpowers/todo/2026-08-14-deferred-followups.md
+git add docs/superpowers/todo/pr3779-wch-superspeed.md
 git commit -m "docs: record the remediation verification results"
 git push origin claude/wch-ch569-ch32h417-usb3
 ```

@@ -1,8 +1,8 @@
-# Deferred follow-ups — WCH SuperSpeed branch
+# Deferred follow-ups — PR #3779 (WCH SuperSpeed, CH569 + CH32H417)
 
-Work knowingly left out of the remediation described in
+Everything deferred from PR #3779 and no other PR. Its remediation is described in
 `docs/superpowers/specs/2026-08-14-review-findings-remediation-design.md`. Nothing here is a
-won't-fix; each item is deferred for a stated reason.
+won't-fix; each item is deferred for a stated reason. Delete entries as they land.
 
 ## Blocked on the USB2 sniffer tap
 
@@ -40,7 +40,6 @@ Full text in `review_findings_max_2026-08-14.json`.
 | Both USBHS drivers                            | Iso-OUT endpoints left ACK-armed with a stale DMA address after completion             |
 | `dcd_ch32h417_usb30.c`                       | `fb_state`, `pending_addr`, `tim12_clocked` are non-volatile; the CH569 twin marks all three volatile |
 | CH32H417 USBHS                                | `ep0_tx_seq` read-modify-write raced by `handle_setup()`                                |
-| `hs_drop_rate.py`                            | Leaks the `usb_sniffer` process if the flash step raises                                 |
 | `hfp.json`                                   | The `lpcxpresso43s67` usbtest skip, whose own comment admits it may be masking a regression rather than a silicon quirk |
 | `lwipopts.h`                                 | Disables inbound IP/TCP/UDP checksum verification — the only such place in the repo, and the fallback default runs that same binary at USB2 HS |
 | `can_recover()`                              | Decides sudo policy by matching a stderr prefix                                          |
