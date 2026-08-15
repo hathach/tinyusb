@@ -630,14 +630,16 @@ static void handle_link_irq(uint8_t rhport) {
       link_set_power_mode(2);
       USBSS->LINK_CTRL |= USBSS_LINK_CTRL_POLLING_EN;
     } else {
-      // partner disappeared: teardown now, settle + re-init deferred to task context
+      // partner disappeared: teardown now, settle + re-init deferred to task context.
+      //
+      // Deliberately does NOT re-arm the fallback ladder here. Doing so looks right - FB_USB3_UP
+      // is otherwise terminal, so a replug into a USB2-only host stays dead - but the ladder
+      // advances on a timer with no partner attached: unplugged, _fb_saw_terms is false, the
+      // 4-tick budget expires 2.2 s later and the 5th tick hands the port to USB2 for good
+      // (FB_USB2_ACTIVE is itself terminal). That demotes the ordinary case - unplug, replug into
+      // the same SuperSpeed host - to 480 Mbps permanently, which is worse than the case it
+      // fixes. Re-arming safely needs the ladder gated on an attached partner, not on a timer.
       USBSS->LINK_INT_CTRL = 0;
-#if CFG_TUD_WCH_USB30_FALLBACK
-      // Re-arm the ladder. FB_USB3_UP is otherwise terminal: usbd calls neither dcd_init nor
-      // dcd_connect on link loss, so a replug into a USB2-only host would find no ladder
-      // running and no USB2 controller (dcd_init deinit'd it) -- dead until a power cycle.
-      fallback_enter(FB_USB3_TRAINING);
-#endif
       dcd_event_t event = {.rhport = rhport, .event_id = DCD_EVENT_UNPLUGGED};
       dcd_event_handler(&event, true);
       usb30_bus_reset_from_isr();
