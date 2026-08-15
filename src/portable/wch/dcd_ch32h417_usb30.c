@@ -72,8 +72,10 @@ TU_ATTR_ALIGNED(16) static uint8_t rx_bounce[EP_MAX - 1][1024];
 // (arm on the usbd xfer that starts the next chunk of the same data stage).
 static volatile uint8_t ep0_tx_seq; // EP0 IN sequence number [4:0]
 static volatile uint8_t ep0_rx_seq; // EP0 OUT next expected sequence number [4:0]
-static uint8_t pending_addr;
-static bool    pending_addr_valid;
+// volatile: written by dcd_set_address() in task context, read by the ISR at the SET_ADDRESS
+// status completion (mirrors the CH569's _pending_addr)
+static volatile uint8_t pending_addr;
+static volatile bool    pending_addr_valid;
 
 // SuperSpeed retrain rate-limiting (see link_backoff_arm)
 static uint8_t retrain_fail;
@@ -108,8 +110,13 @@ static volatile bool ep0_status_done;
 //--------------------------------------------------------------------+
 #if CFG_TUD_WCH_USB30_FALLBACK
 enum { FB_USB3_TRAINING, FB_USB3_UP, FB_USB2_ACTIVE };
-static uint8_t fb_state;
-static uint8_t fb_fail_count;
+// volatile: fb_state selects which controller every dcd_* entry point delegates to. It is
+// written from the LINK/TIM12 ISR and read from task context by dcd_edpt_xfer/open/stall/
+// clear_stall/close_all, dcd_set_address and dcd_connect - and both WCH families build with
+// -flto, so the compiler may inline those bodies into tud_task()'s loop and hoist the load.
+// The CH569 twin marks its _fb_state volatile for the same reason.
+static volatile uint8_t fb_state;
+static volatile uint8_t fb_fail_count;
 #define FB_FAIL_LIMIT 3
 
 static void usbss_device_init(bool enable);
@@ -627,7 +634,7 @@ static void handle_usb_irq(uint8_t rhport) {
 // below - which the default build (FALLBACK=0) reaches only after 3 failed trainings. Every read
 // or write of TIM12 elsewhere must be gated on this, or the shared IRQ forwarder touches an
 // unclocked APB peripheral on every USBSS/LINK interrupt.
-static bool tim12_clocked;
+static volatile bool tim12_clocked; // set in task context, read by handle_timer_irq()
 
 static void tim12_program(uint16_t ticks_100us) {
   RCC_HB2PeriphClockCmd(RCC_HB2Periph_TIM12, ENABLE);
