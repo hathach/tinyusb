@@ -150,6 +150,14 @@ SECTIONS
 	PROVIDE( _end = _ebss);
 	PROVIDE( end = . );
 
+	/* UNINITIALISED ONLY. This is a NOLOAD (bss-like) region: startup_CH56x.S zeroes it between
+	   _dmadata_start and _dmadata_end, and nothing copies an LMA into it. An object placed here
+	   WITH an initialiser silently loses it - the bytes are dropped from the .bin and the startup
+	   zero-fill runs over them, with no diagnostic from the compiler, linker or objcopy.
+	   That matters because CFG_TUSB_MEM_SECTION is defined to .dmadata for this family
+	   (hw/bsp/ch569/family.cmake, family.mk), so any driver or application object can land here.
+	   Keep DMA buffers uninitialised and assign at runtime. No AT> region: a load address is
+	   meaningless for a section that is never loaded. */
 	.DMADATA (NOLOAD) :
 	{
 		. = ALIGN(16);
@@ -159,7 +167,7 @@ SECTIONS
 		*(.DMADATA*)
 		. = ALIGN(16);
 		PROVIDE( _dmadata_end = .);
-	} >RAMX AT>FLASH
+	} >RAMX
 
 	.stack ORIGIN(RAM) + LENGTH(RAM) - __stack_size :
 	{
