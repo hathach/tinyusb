@@ -440,10 +440,19 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num);
 static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const * p_request);
 
 #if TUD_OPT_SUPER_SPEED
+TU_ATTR_ALWAYS_INLINE static inline bool link_is_superspeed(void);
+
 // USB 3.2 Table 9-10 resets FUNCTION REMOTE WAKEUP on SetAddress(0), SetConfiguration and
 // SetInterface. Dropping the per-function bits must also drop the device-level authorization
 // they aggregate into, or tud_remote_wakeup() stays armed after the host revoked it.
+// Gated on the LIVE link, not just the compile-time option: remote_wakeup_en is the shared USB 2.0
+// bit that SET_FEATURE(DEVICE_REMOTE_WAKEUP) sets, and USB 2.0 §9.4.5 clears it only on a device
+// reset. On a runtime USB2 fallback link (CFG_TUD_WCH_USB30_FALLBACK) an ungated clear would let
+// SET_CONFIGURATION revoke a host-granted wakeup the host never revoked.
 static inline void func_wakeup_clear_all(void) {
+  if (!link_is_superspeed()) {
+    return;
+  }
   tu_memclr(_usbd_dev.func_wakeup_bm, sizeof(_usbd_dev.func_wakeup_bm));
   _usbd_dev.remote_wakeup_en = 0;
 }
@@ -1301,6 +1310,18 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
       usbd_class_driver_t const * driver = get_driver(_usbd_dev.itf2drv[itf]);
       TU_VERIFY(driver);
 
+      #if TUD_OPT_SUPER_SPEED
+      // USB 3.2 Table 9-10: SetInterface resets FUNCTION REMOTE WAKEUP. This must run BEFORE the
+      // class driver is offered the request: every class that implements alternate settings
+      // (audio, video, ncm, ecm_rndis, vendor, bth, midi2, dfu) handles SET_INTERFACE itself and
+      // returns true, so a reset placed in the fallback branch below would never fire for exactly
+      // the devices hosts send SET_INTERFACE to.
+      if (TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type &&
+          TUSB_REQ_SET_INTERFACE == p_request->bRequest) {
+        func_wakeup_clear_all();
+      }
+      #endif
+
       // all requests to Interface (STD or Class) is forwarded to class driver.
       // notable requests are: GET HID REPORT DESCRIPTOR, SET_INTERFACE, GET_INTERFACE
       if (!invoke_class_control(rhport, driver, p_request)) {
@@ -1323,9 +1344,7 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
             // so reaching here means the class does not — where only alt 0 is valid. Any non-zero
             // alt (unimplemented, or rejected as invalid by the class) is a Request Error (stall).
             TU_VERIFY(tu_u16_low(p_request->wValue) == 0);
-            #if TUD_OPT_SUPER_SPEED
-            func_wakeup_clear_all(); // USB 3.2 Table 9-10
-            #endif
+            // FUNCTION REMOTE WAKEUP was already reset above, before the class dispatch
             tud_control_status(rhport, p_request);
             break;
 
