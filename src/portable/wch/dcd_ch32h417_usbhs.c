@@ -549,20 +549,11 @@ void ch32h417_usb2_int_handler(uint8_t rhport) {
           // Only data endpoints are gated: their expected toggle is programmed on every arm, while
           // EP0 derives it from the control stages and iso endpoints run without handshake or toggle
           // (mirrors dcd_ch56x_usbhs.c).
-          //
-          // RB_UEP_R_DONE is cleared only AFTER update_out() has sampled the length and re-armed
-          // DMA: it is the sole interlock on this part. RM 25.2.1.1 lists no equivalent of the
-          // CH569's RB_USB_INT_BUSY, so between clearing DONE and queue_out_packet() reprogramming
-          // the address the endpoint would sit ACK-armed at the finished packet's address, and a
-          // back-to-back OUT would DMA over the packet being accounted for. This mirrors where
-          // dcd_ch56x_usbhs.c clears R8_USB_INT_FG. EP_RX_CTRL is re-read because update_out()
-          // re-arms the endpoint and rewrites it - clearing from the stale snapshot would undo
-          // that arm.
           const uint8_t rx_ctrl = EP_RX_CTRL(ep_num);
+          EP_RX_CTRL(ep_num) = (uint8_t)(rx_ctrl & ~USBHS_UEP_R_DONE);
           if ((ep_num == 0) || xfer_status[ep_num][TUSB_DIR_OUT].is_iso || (rx_ctrl & USBHS_UEP_R_TOG_MATCH)) {
             update_out(rhport, ep_num, EP_RX_LEN(ep_num));
           }
-          EP_RX_CTRL(ep_num) = (uint8_t)(EP_RX_CTRL(ep_num) & ~USBHS_UEP_R_DONE);
         }
       }
 
