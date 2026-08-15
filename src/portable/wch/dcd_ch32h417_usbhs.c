@@ -281,6 +281,13 @@ bool ch32h417_usb2_init(uint8_t rhport) {
 }
 
 void ch32h417_usb2_deinit(void) {
+  // Mask and acknowledge before resetting the SIE. Resetting the SIE does not touch INT_EN or
+  // INT_FG, so a flag latched by a prior fallback survives - and the USB3 dcd_init() path calls
+  // this without first disabling USBHS_IRQn. That vector aliases to the USB3 handler
+  // (hw/bsp/ch32h417/family.c), which takes the USB3 branch and never writes INT_FG, so the
+  // still-asserted line re-enters the ISR forever. Mirrors ch56x_usb2_deinit().
+  USBHSD->INT_EN = 0;
+  USBHSD->INT_FG = 0xFF;
   USBHSD->CONTROL = USBHS_UD_RST_SIE | USBHS_UD_RST_LINK;
 }
 
