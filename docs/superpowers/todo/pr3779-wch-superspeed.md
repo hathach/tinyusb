@@ -20,6 +20,36 @@ Re-taking the drop rate is the one that matters most: the Phase A campaign compa
 changes against a 34.5 % baseline produced by the miscounting parser, so those comparisons cannot
 currently be trusted in either direction.
 
+## F1 — fallback re-arm on disconnect: attempted, reverted, still open
+
+`FB_USB3_UP` is terminal, so a CH569 that trained SuperSpeed once stays dead after a replug into a
+USB2-only host. Re-arming the ladder from the partner-gone branch (in `781e58000`, removed in
+`519f8ceb8`) fixes that but introduces a worse regression, because the ladder advances on a timer
+whether or not anything is attached: unplugged, nothing sets `_fb_saw_terms`, so the 4-tick budget
+expires ~2.2 s later, and the 5th tick at ~2.75 s runs `ch56x_usb2_init()` and latches
+`FB_USB2_ACTIVE` — itself terminal. Any unplug longer than about three seconds then demotes the
+board to 480 Mbps permanently, including the ordinary replug into the same SuperSpeed host, and
+this is the shipping default for `hydrausb3_v1`.
+
+Fixing it properly means gating the ladder on an attached partner rather than on a timer — for
+example only counting ticks while the far end shows terminations — so the board can distinguish
+"training against a host that has no SuperSpeed" from "nothing plugged in at all".
+
+The rest of that work stands: `fallback_enter()` is the only writer of `_fb_state`,
+`fallback_timer_start()` re-enables `TMR0_IRQn` (F10), and the deferred re-init re-checks the state
+after its settle (F7).
+
+## F4 — OUT completion ordering: attempted, reverted, refuted
+
+Clearing `RB_UEP_R_DONE` after `update_out()` (in `a24cf8569`, reverted in `dcdc457b6`) is wrong,
+and the premise behind it was wrong too. `update_out()` → `queue_out_packet()` calls
+`set_rx_res(ep_num, USBHS_UEP_R_RES_ACK)`, which deliberately writes `DONE` back as **1**: the bit
+is RW0, so writing 1 cannot set it while writing 0 acknowledges a completion. Clearing `DONE`
+afterwards performs exactly that write-0 on an endpoint just armed to ACK, so a packet arriving in
+the window is swallowed and its transfer hangs — the failure mode the helper's own comment exists
+to prevent. The original order clears `DONE` while the endpoint is still in its completed state,
+which is not the same hazard, and the endpoint is not ACK-armed at the stale address as F4 assumed.
+
 ## F3 — clear-stall re-arm: attempted, refuted by hardware, still open
 
 The review found that both WCH USB3 drivers re-arm the in-flight transfer in
