@@ -13,7 +13,7 @@ inline for any HS measurement. Details in `docs/superpowers/notes/h417-ep0-diff.
 | Item                                                                                       | Why it is blocked                                        |
 | ------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
 | Re-measure the H417 SETUP drop rate with the corrected parser                                | Every figure recorded before the F5 fix is invalid        |
-| Confirm F4 (OUT `DONE` now cleared after `update_out()`) on hardware                          | Implemented and built; never executed                     |
+| Re-examine F4 (OUT `DONE` acknowledge ordering)                                               | Attempted and reverted, see below; a real fix needs the tap |
 | Confirm the F16 runtime quirk fires on the SS-with-fallback build at 480 Mbps                 | Implemented and built; only observable on the fallback link |
 
 Re-taking the drop rate is the one that matters most: the Phase A campaign compared six candidate
