@@ -20,6 +20,23 @@ Re-taking the drop rate is the one that matters most: the Phase A campaign compa
 changes against a 34.5 % baseline produced by the miscounting parser, so those comparisons cannot
 currently be trusted in either direction.
 
+## F9 — sudoers grants: dropped by decision, not a defect
+
+The review flagged that `test/hil/tinyusb-sudoer` grants no `setpci`, which `usbtest.py` needs on
+the Renesas uPD720201/2 controllers, and later that a wildcarded `tee` grant in the same file was
+an arbitrary root file-write primitive.
+
+Both were dropped from this PR at the maintainer's direction: the rig account is expected to have
+passwordless sudo (`NOPASSWD: ALL`), so no grant in this file gates anything there, and the
+"escalation" conferred nothing the account did not already hold. The file remains as the base
+commit added it.
+
+That leaves the argument-restriction the file's own header advertises weaker than it claims, which
+matters only for a rig provisioned *without* blanket sudo. If this template is ever pointed at such
+a host, two things need doing: add a `setpci` grant, and replace
+`tee /sys/bus/usb/devices/*/driver/unbind` with exact paths — sudoers fnmatch's the joined argv
+without `FNM_PATHNAME`, so `*` spans spaces and `tee` writes stdin to every operand it receives.
+
 ## F1 — fallback re-arm on disconnect: attempted, reverted, still open
 
 `FB_USB3_UP` is terminal, so a CH569 that trained SuperSpeed once stays dead after a replug into a
