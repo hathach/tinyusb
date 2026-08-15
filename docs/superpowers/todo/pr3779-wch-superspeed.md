@@ -20,6 +20,31 @@ Re-taking the drop rate is the one that matters most: the Phase A campaign compa
 changes against a 34.5 % baseline produced by the miscounting parser, so those comparisons cannot
 currently be trusted in either direction.
 
+## Fallback demotion is one-way — two findings deliberately left alone
+
+Both are real and both were validated; neither is fixed, because the obvious fix is the one that
+already backfired once (see F1 below).
+
+**The CH32H417 twin has the same terminal `FB_USB3_UP`.** `dcd_ch32h417_usb30.c:360` sets it on
+successful training and stops the TIM12 backstop; the disconnect path tests
+`fb_state == FB_USB3_TRAINING`, which is then false, and the only writes back to `FB_USB3_TRAINING`
+are `dcd_init` and `dcd_connect`, neither of which usbd calls on link loss. So a replug into a
+USB2-only host is dead until a power cycle, exactly as on the CH569. Mitigating: the H417 defaults
+`CFG_TUD_WCH_USB30_FALLBACK` to 0, so this bites only builds that opt in. Not fixed here because
+mirroring the CH569 patch would mirror its regression too.
+
+**The CH569's first `LINK_IF_DISABLE` hands the port to USB2 unconditionally**
+(`dcd_ch56x_usb30.c:601`), with no test of `_fb_state` or the tick budget, so one LTSSM excursion to
+Disabled during training skips the 4/8-tick ladder entirely and demotes the board for good. The
+H417 twin requires `FB_FAIL_LIMIT` = 3 failures for the same transition, so the two families
+disagree. Left alone deliberately: this is the path the working cold-boot fallback actually takes
+(verified on the hydra — USB2-only host, 480 Mbps, CDC and MSC both bound), and adding a retry
+budget without a way to reproduce a transient link-disable on the bench risks breaking the one
+fallback behaviour that is known good.
+
+Both wait on the same piece of work as F1: a fallback ladder that can tell an attached
+non-SuperSpeed host from a transient link event or an empty port.
+
 ## F9 — sudoers grants: dropped by decision, not a defect
 
 The review flagged that `test/hil/tinyusb-sudoer` grants no `setpci`, which `usbtest.py` needs on
@@ -139,8 +164,10 @@ Full text in `review_findings_max_2026-08-14.json`.
 | `dcd_ch32h417_usb30.c:27`                    | Stale "compile-verified; full hardware bring-up pending" note, contradicted by ten hardware-derived findings in the same file |
 | `test_usbd_set_sel`, `test_usbd_set_isoch_delay` | Pass only because an earlier test leaves the speed at SUPER; proven to fail in isolation |
 | Both USBHS drivers                            | Iso-OUT endpoints left ACK-armed with a stale DMA address after completion             |
-| `dcd_ch32h417_usb30.c`                       | `fb_state`, `pending_addr`, `tim12_clocked` are non-volatile; the CH569 twin marks all three volatile |
 | CH32H417 USBHS                                | `ep0_tx_seq` read-modify-write raced by `handle_setup()`                                |
 | `hfp.json`                                   | The `lpcxpresso43s67` usbtest skip, whose own comment admits it may be masking a regression rather than a silicon quirk |
 | `lwipopts.h`                                 | Disables inbound IP/TCP/UDP checksum verification — the only such place in the repo, and the fallback default runs that same binary at USB2 HS |
-| `can_recover()`                              | Decides sudo policy by matching a stderr prefix                                          |
+
+Fixed since this list was written: the non-volatile CH32H417 driver state, `can_recover()`'s stderr
+matching, `ch32h417_usb2_deinit()` leaving `INT_EN`/`INT_FG` set, the stale `LINK_INT_FLAG` on the
+inline CH569 re-inits, `.DMADATA`'s silent initialiser loss, and audio's `TUSB_SPEED_HIGH` tests.
