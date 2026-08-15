@@ -202,6 +202,11 @@ static void usb30_hw_deinit(void) {
 static void usb30_bus_reset(void) {
   usb30_hw_deinit();
   link_delay_us(30000);
+  // Discard the link flags latched before the re-init - usb30_hw_deinit()'s own GO_DISABLED write
+  // latches LINK_IF_DISABLE, which usb30_hw_init() then re-enables in LINK_INT_CTRL. Left set, the
+  // next LINK interrupt enters handle_link_irq() with a stale DISABLE and hands the port to USB2.
+  // usb30_hw_reinit_task() already does this; the paths that re-init inline did not.
+  USBSS->LINK_INT_FLAG = 0xFFFFFFFFu;
   usb30_hw_init();
 }
 
@@ -770,6 +775,7 @@ void dcd_int_handler(uint8_t rhport) {
           // fresh detect cycle, unless a deferred re-init is genuinely queued (it settles in
           // ~30 ms and runs one itself); re-initing here would race that task's settle window
           usb30_hw_deinit();
+          USBSS->LINK_INT_FLAG = 0xFFFFFFFFu; // drop the DISABLE deinit just latched, as above
           usb30_hw_init();
         }
         return;
