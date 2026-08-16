@@ -124,35 +124,51 @@ uint32_t board_button_read(void) {
 // interface (the memory-mapped path does not cover the info region); rom_addr = flash_addr
 // + 0x8000. Each SPI_ROM_DATA8 access strobes the next byte out of the SPI NOR: fast-read
 // needs 2 dummy strobes after the address, then 4 strobes per 32-bit word.
-static void flash_rom_read_words(uint32_t addr, uint32_t* buf, uint32_t nwords) {
+// Bounded wait for the SPI-ROM controller to accept/produce a byte. Every wait here is bounded:
+// this runs inside GET_DESCRIPTOR(STRING) (board_usb_get_serial), not once at boot, and this BSP
+// arms no watchdog - so a stuck status bit would hang the core mid-control-transfer until someone
+// power-cycles the board. The iteration budget is far above any real transfer.
+static bool flash_rom_wait_ready(void) {
+  uint32_t timeout = 100000;
+  while (((int8_t)SPI_ROM_CR8 < 0) && --timeout) {}
+  return timeout != 0;
+}
+
+static bool flash_rom_read_words(uint32_t addr, uint32_t* buf, uint32_t nwords) {
   const uint32_t rom_addr = addr + 0x8000u;
   SPI_ROM_CR8 = 0;
   SPI_ROM_CR8 = 0x07;
+  if (!flash_rom_wait_ready()) { // guard the first command byte too, not only the ones after it
+    return false;
+  }
   SPI_ROM_CTRL8 = 0x0B; // SPI NOR fast read
   const uint8_t addr_bytes[3] = {(uint8_t)(rom_addr >> 16), (uint8_t)(rom_addr >> 8), (uint8_t)rom_addr};
   for (uint32_t i = 0; i < 3; i++) {
-    while ((int8_t)SPI_ROM_CR8 < 0) {}
+    if (!flash_rom_wait_ready()) { return false; }
     SPI_ROM_DATA8 = addr_bytes[i];
   }
   for (uint32_t i = 0; i < 2; i++) {
-    while ((int8_t)SPI_ROM_CR8 < 0) {}
+    if (!flash_rom_wait_ready()) { return false; }
     (void)SPI_ROM_DATA8;
   }
   for (uint32_t w = 0; w < nwords; w++) {
     for (uint32_t s = 0; s < 4; s++) {
-      while ((int8_t)SPI_ROM_CR8 < 0) {}
+      if (!flash_rom_wait_ready()) { return false; }
       (void)SPI_ROM_DATA8;
     }
     buf[w] = SPI_ROM_DATA32;
   }
-  while ((int8_t)SPI_ROM_CR8 < 0) {}
+  if (!flash_rom_wait_ready()) { return false; }
   SPI_ROM_CR8 = 0;
+  return true;
 }
 
 size_t board_get_unique_id(uint8_t id[], size_t max_len) {
   // 64-bit factory unique ID (+ checksum) in the read-only info flash (CH569 datasheet 2.2.3)
   uint32_t uid[2];
-  flash_rom_read_words(0x77FE4, uid, 2);
+  if (!flash_rom_read_words(0x77FE4, uid, 2)) {
+    return 0; // controller did not respond: no serial rather than a hung control transfer
+  }
   const size_t len = TU_MIN(max_len, (size_t)8);
   memcpy(id, uid, len);
   return len;
