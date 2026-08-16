@@ -104,9 +104,15 @@ def one_run(args, tmp):
         dev = find_device(args.serial)
         if not dev:
             sys.exit(f'device with serial {args.serial} did not re-enumerate after flashing')
-        for _ in range(args.hammer):
-            subprocess.run(['sudo', '-n', 'lsusb', '-v', '-s', dev],
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        for n in range(args.hammer):
+            # Checked, not fire-and-forget: with stderr discarded and no return code, a refused
+            # or missing sudo made every hammer iteration a no-op while main() still printed a
+            # rate - an enumeration-only figure presented as a hammered one.
+            r = subprocess.run(['sudo', '-n', 'lsusb', '-v', '-s', dev],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+            if r.returncode != 0:
+                sys.exit(f'hammer iteration {n + 1} failed: sudo lsusb -v -s {dev} returned '
+                         f'{r.returncode}: {r.stderr.strip() or "(no stderr)"}')
     finally:
         sniffer.terminate()
         sniffer.wait(timeout=15)
