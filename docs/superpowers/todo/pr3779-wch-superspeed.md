@@ -154,6 +154,20 @@ board libraries their `-w` a way that does not leak, validated by building `broa
 | ~250 lines of rig-only UART-bootloader / IWDG machinery in `hw/bsp/ch32h417/family.c`           | Defaults ON for every user of that BSP; should be opt-in          |
 | `LINK_IF_WARM_RESET` still runs its ~30 ms settle and re-init inside the ISR                    | F14 half-fixed. The missing `ep_state_reset()` / `dcd_event_bus_reset()` pair landed, but the work cannot simply be deferred: `usb30_bus_reset_from_isr()` deinits synchronously and only defers settle+init, so moving it would leave the address-0 write and the `TX_WARM_RST` handshake driving a torn-down controller, with the deferred re-init then wiping them. Doing this properly means reordering the handshake ahead of the teardown, which needs a host that actually issues a warm reset to validate |
 
+## Open from the 2026-08-17 review
+
+Validated, not fixed, with the reason:
+
+| Finding | Why it is still open |
+| ------- | --------------------- |
+| `test/unit-test/test/support/tusb_config.h:86` — the suite default is now a SuperSpeed build (EP0=512), leaving only `test_usbd_fshs.c` (2 tests) on the FS/HS shape | Real coverage regression, demonstrated live: mutating the FS/HS stub `usbd_ss_ep_companion_len()` to return 999 still leaves `ceedling test:all` at 76/76, even though printer, usbtmc, ecm_rndis and ncm call it ungated. Fixing means running the usbd suite twice under both shapes, which is a project.yml restructure rather than a patch |
+| `dcd_ch56x_usbhs.c:457` — EP0 `RX_CTRL` read-modify-written from task context while the ISR writes the same register from four places | Confirmed that `usbd_edpt_xfer()` calls the dcd with interrupts enabled, so the race is real. The CH32H417 twin avoids it by keeping the toggle in software and doing one full-byte store; porting that shape to the CH56x driver is the right fix and wants hardware to sign off |
+| `bth_device.c:192, :220` — the isochronous alternate-setting walk is not SuperSpeed-companion aware | The file already documents this as deferred. Fixing it properly also means correcting `iso_alt_itf_size`, and no SS BTH template or SS-isochronous DCD exists to test against |
+| `examples/device/net_lwip_webserver/src/lwipopts.h:72` — inbound IP/UDP/TCP checksum verification disabled for the CH569 SuperSpeed build | The stated reasoning (USB CRC32 covers the payload) does not cover NCM/NTB reassembly or the RAMX bounce copies between the wire and lwIP, and the compile-time gate keeps verification off after the runtime USB2 fallback, where the link CRC is CRC-16. A judgement call for the maintainer, not a defect to patch silently |
+| `usbd_pvt.h:113` — `usbd_open_edpt_pair()` gained a `desc_end` parameter, a source-breaking change for out-of-tree class drivers | Deliberate (the bound is what makes the descriptor walk safe), but it needs a changelog entry the way the `usbd_edpt_xfer` `is_isr` change got one in 0.21.0 |
+| `hfp.json:35` — `device/usbtest` newly skipped on lpcxpresso43s67, the fleet's only ip3511-HS board | The skip's own comment concedes it may mask a regression in the shared EP0/control code this branch changes. Needs a master baseline from that rig to settle, which is external hardware |
+| Three copies of the WCH USBHS transfer engine (`dcd_ch32_usbhs.c`, and the two new ones) | Already cost a fix: the clear-halt bulk-IN re-arm exists in both new copies and never reached the original, so CH32V307/CH32F20x still NAK after a clear-halt. Sharing them is a refactor of a shipping driver, not part of this PR |
+
 ## Review runners-up
 
 Non-refuted findings from the 2026-08-14 maximum-effort review that fell outside the top 15.
