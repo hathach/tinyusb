@@ -197,6 +197,20 @@
             }
         },
         {
+            "name": "lpcxpresso55s28",
+            "uid": "2BF1839A7D51F553A15AB03FD08F70AB",
+            "tests": {
+                "device": true,
+                "host": false,
+                "dual": false
+            },
+            "flasher": {
+                "name": "jlink",
+                "uid": "000727031389",
+                "args": "-device LPC55S28"
+            }
+        },
+        {
             "name": "ra4m1_ek",
             "uid": "152E163038303131393346E46F26574B",
             "tests": {
