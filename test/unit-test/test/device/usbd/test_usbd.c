@@ -866,6 +866,7 @@ void test_usbd_open_edpt_pair_ss_companion(void)
 // SET_SEL (0x30): 6-byte OUT data stage, received and discarded
 void test_usbd_set_sel(void)
 {
+  switch_to_superspeed(); // these requests are SuperSpeed-only: do not inherit a leaked speed
   tusb_control_request_t const req_set_sel = {
     .bmRequestType = 0x00,
     .bRequest = TUSB_REQ_SET_SEL,
@@ -892,6 +893,7 @@ void test_usbd_set_sel(void)
 // SET_ISOCH_DELAY (0x31): no data stage, just ACK
 void test_usbd_set_isoch_delay(void)
 {
+  switch_to_superspeed(); // these requests are SuperSpeed-only: do not inherit a leaked speed
   tusb_control_request_t const req_isoch_delay = {
     .bmRequestType = 0x00,
     .bRequest = TUSB_REQ_SET_ISOCH_DELAY,
@@ -914,6 +916,7 @@ void test_usbd_set_isoch_delay(void)
 // stale _ctrl_epbuf bytes to the host instead of receiving the 6-byte SEL payload.
 void test_usbd_set_sel_malformed(void)
 {
+  switch_to_superspeed(); // these requests are SuperSpeed-only: do not inherit a leaked speed
   tusb_control_request_t const req_set_sel_in = {
     .bmRequestType = 0x80, // IN (spoofed) - must be OUT
     .bRequest = TUSB_REQ_SET_SEL,
@@ -933,6 +936,7 @@ void test_usbd_set_sel_malformed(void)
 // SET_ISOCH_DELAY carries no data stage; a non-zero wLength is malformed and must stall.
 void test_usbd_set_isoch_delay_malformed(void)
 {
+  switch_to_superspeed(); // these requests are SuperSpeed-only: do not inherit a leaked speed
   tusb_control_request_t const req_isoch_bad = {
     .bmRequestType = 0x00,
     .bRequest = TUSB_REQ_SET_ISOCH_DELAY,
