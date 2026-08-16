@@ -1344,9 +1344,10 @@ bool tuh_edpt_open(uint8_t dev_addr, tusb_desc_endpoint_t const* desc_ep) {
   // transfers can still be shorter than this (a short packet is how bulk transfers normally
   // terminate), so this doesn't change on-the-wire behavior, just what tu_edpt_validate()
   // below is willing to accept
-  if (desc_ep->bmAttributes.xfer == TUSB_XFER_BULK && tu_edpt_packet_size(desc_ep) > 0 &&
-      tu_edpt_packet_size(desc_ep) < 8 && tuh_speed_get(dev_addr) == TUSB_SPEED_FULL) {
-    TU_LOG1("  WARN: EP max packet size is %u in fullspeed, force to 8\r\n", tu_edpt_packet_size(desc_ep));
+  const uint16_t ep_mps = tu_edpt_packet_size(desc_ep);
+  if (desc_ep->bmAttributes.xfer == TUSB_XFER_BULK && ep_mps > 0 && ep_mps < 8 &&
+      tuh_speed_get(dev_addr) == TUSB_SPEED_FULL) {
+    TU_LOG1("  WARN: EP max packet size is %u in fullspeed, force to 8\r\n", (unsigned) ep_mps);
     tusb_desc_endpoint_t *hacked_ep = (tusb_desc_endpoint_t *)(uintptr_t)desc_ep;
     hacked_ep->wMaxPacketSize       = tu_htole16(8);
   }
