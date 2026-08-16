@@ -250,6 +250,17 @@ static void usb30_bus_reset_from_isr(void) {
   // queue is full, and a latch set for a call that was dropped would block every later re-init
   // (and make the fallback tick skip its own recovery) for good.
   _hw_reinit_deferred = usbd_defer_func(usb30_hw_reinit_task, NULL, true);
+  if (!_hw_reinit_deferred) {
+    // The deferral was dropped, and nothing else will ever run it: usb30_hw_deinit() above
+    // zeroed LINK_INT_CTRL, so the dispatch test in dcd_int_handler can never be true again and
+    // no LINK interrupt can arrive to retry. Without the fallback ladder (the default) there is
+    // no timer either, and with it FB_USB3_UP has already stopped TMR0 - so the port would stay
+    // off the bus until the next dcd_init. Pay the settle inline instead: ~30 ms in the ISR is
+    // far cheaper than losing the device, and this only happens when the event queue is full.
+    link_delay_us(30000);
+    USBSS->LINK_INT_FLAG = 0xFFFFFFFFu;
+    usb30_hw_init();
+  }
 }
 
 // Reset endpoint/transfer bookkeeping when the link (re)trains
