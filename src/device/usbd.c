@@ -456,7 +456,8 @@ TU_ATTR_WEAK bool dcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg
 #if CFG_TUSB_DEBUG >= CFG_TUD_LOG_LEVEL
 static char const *const _usbd_event_str[DCD_EVENT_COUNT] = {
     "Invalid",
-    "Bus Reset",
+    "Bus Reset Start",
+    "Bus Reset End",
     "Unplugged",
     "SOF",
     "Suspend",
@@ -697,8 +698,15 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
 #endif
 
     switch (event.event_id) {
-      case DCD_EVENT_BUS_RESET:
+      case DCD_EVENT_BUS_RESET_START:
+        TU_LOG_USBD("\r\n");
+        usbd_reset(event.rhport);
+        break;
+
+      case DCD_EVENT_BUS_RESET_END:
         TU_LOG_USBD(": %s Speed\r\n", tu_str_speed[event.bus_reset.speed]);
+        // TODO a DCD that reports both edges pays for two teardowns: track a per-rhport
+        // "start seen" flag and skip this reset, keeping it for the single-event DCDs.
         usbd_reset(event.rhport);
         _usbd_dev.speed = event.bus_reset.speed;
         break;
