@@ -23,9 +23,10 @@
 # THE SOFTWARE.
 
 # Host setup (required: a missing tool fails its test rather than skipping it):
-#   - System packages: sudo apt install mtools libmtp9 alsa-utils iperf
+#   - System packages: sudo apt install mtools libmtp9 libmtp-runtime alsa-utils iperf
 #       mtools      read_disk_file (device/cdc_msc, device/msc_dual_lun)
 #       libmtp9     pymtp ctypes load (device/mtp); Debian 13 uses libmtp9t64
+#       libmtp-runtime  mtp-probe and the completed-device /dev/libmtp-* marker
 #       alsa-utils  arecord (device/audio_test_freertos)
 #       iperf       throughput tests (device/net_lwip_*)
 #       openocd     unified openocd from https://github.com/hathach/openocd (branch tinyusb) for wch, rp2040/rp2350, analog max32
@@ -68,7 +69,7 @@ _mp = multiprocessing.get_context('fork')
 Pool, Lock, Semaphore, Manager = _mp.Pool, _mp.Lock, _mp.Semaphore, _mp.Manager
 import hashlib
 import ctypes
-from pymtp import MTP
+from pymtp import LIBMTP_DeviceEntry, LIBMTP_RawDevice, MTP
 import string
 
 # Enumeration wait budget. The first attempt gets ENUM_TIMEOUT; retry attempts get the
@@ -86,11 +87,11 @@ def enum_timeout() -> int:
     return _enum_timeout
 
 
-def wait_until(predicate, step: float = 1.0):
+def wait_until(predicate, step: float = 1.0, timeout: float | None = None):
     """Poll predicate under the per-attempt enum budget. Deadline-based so a slow predicate
-    body (subprocess, libmtp scan) counts against the budget. Returns the first truthy
-    predicate value, or None on timeout."""
-    deadline = time.monotonic() + enum_timeout()
+    body (subprocess, libmtp scan) counts against the budget. An explicit timeout overrides
+    that budget. Returns the first truthy predicate value, or None on timeout."""
+    deadline = time.monotonic() + (enum_timeout() if timeout is None else timeout)
     while True:
         r = predicate()
         if r:
@@ -285,23 +286,86 @@ def read_disk_file(uid: str, lun: int, fname: str) -> bytes:
     return data
 
 
-def open_mtp_dev(uid):
+def open_mtp_dev(uid: str):
     mtp = MTP()
+    last_detail = None
+    deadline = time.monotonic() + 2 * enum_timeout()
 
-    def try_open():
-        # unmount gio/gvfs MTP mount which blocks libmtp from accessing the device
-        subprocess.run(f"gio mount -u mtp://TinyUsb_TinyUsb_Device_{uid}/",
-                       shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        for raw in mtp.detect_devices():
-            mtp.device = mtp.mtp.LIBMTP_Open_Raw_Device(ctypes.byref(raw))
-            if mtp.device:
-                sn = mtp.get_serialnumber().decode('utf-8')
-                if sn == uid:
-                    return mtp
-                mtp.disconnect()
+    def find_ready_mtp():
+        nonlocal last_detail
+        for marker_name in glob.glob('/dev/libmtp-*'):
+            marker = Path(marker_name)
+            serial = ''
+            try:
+                # libmtp-runtime publishes libmtp-%k only after its synchronous
+                # mtp-probe has accepted the device. Starting from that small, ready-only
+                # set avoids a broad sysfs scan racing unrelated parallel re-enumerations.
+                sysname = marker.name[len('libmtp-'):]
+                dev_path = Path('/sys/bus/usb/devices') / sysname
+                serial = (dev_path / 'serial').read_text().strip()
+                if (serial.lower() != uid.lower()
+                        or (dev_path / 'idVendor').read_text().strip() != 'cafe'
+                        or (dev_path / 'idProduct').read_text().strip() != '4017'):
+                    continue
+
+                busnum = int((dev_path / 'busnum').read_text())
+                devnum = int((dev_path / 'devnum').read_text())
+                usb_node = Path('/dev/bus/usb') / f'{busnum:03d}' / f'{devnum:03d}'
+                if marker.resolve(strict=True) != usb_node or not os.access(
+                        usb_node, os.R_OK | os.W_OK):
+                    last_detail = f'{marker} did not resolve to an accessible {usb_node}'
+                    continue
+                return busnum, devnum
+            except (OSError, ValueError) as e:
+                # A marker can disappear while another board flashes. Only retain
+                # diagnostics for this board's marker, not unrelated MTP devices.
+                if serial.lower() == uid.lower():
+                    last_detail = f'{marker}: {e}'
         return None
 
-    return wait_until(try_open)
+    def remaining() -> float:
+        return max(0.0, deadline - time.monotonic())
+
+    target = wait_until(find_ready_mtp, step=0.05, timeout=remaining())
+    if target is None:
+        detail = f': {last_detail}' if last_detail else '; install libmtp-runtime'
+        raise AssertionError(f'MTP udev device not ready for {uid}{detail}')
+
+    # A desktop GVFS session may claim MTP after udev probing. This is a no-op on
+    # headless runners, but preserves support for rigs where the mount exists.
+    try:
+        subprocess.run(['gio', 'mount', '-u', f'mtp://TinyUsb_TinyUsb_Device_{uid}/'],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+
+    # GIO can race a disconnect/re-enumeration. Resolve the completed marker again
+    # rather than opening a stale bus/device tuple.
+    target = wait_until(find_ready_mtp, step=0.05, timeout=remaining())
+    if target is None:
+        raise AssertionError(f'MTP udev device disappeared for {uid}')
+    busnum, devnum = target
+
+    # TinyUSB needs no libmtp device quirks. Construct its raw entry directly so
+    # this test never probes another MTP board that is still being initialized.
+    entry = LIBMTP_DeviceEntry(None, 0xcafe, None, 0x4017, 0)
+    raw = LIBMTP_RawDevice(entry, busnum, devnum)
+    mtp.device = mtp.mtp.LIBMTP_Open_Raw_Device(ctypes.byref(raw))
+    if not mtp.device:
+        raise AssertionError(f'libmtp could not open MTP {uid} at {busnum:03d}/{devnum:03d}')
+
+    try:
+        serial_raw = mtp.get_serialnumber()
+        serial = serial_raw.decode('utf-8') if serial_raw else ''
+        if serial.lower() != uid.lower():
+            raise AssertionError(f'MTP serial mismatch at {busnum:03d}/{devnum:03d}: {serial}')
+    except Exception:
+        try:
+            mtp.disconnect()
+        except Exception:
+            pass
+        raise
+    return mtp
 
 
 def get_printer_dev(id: str, vendor_str, product_str, ifnum: int):
@@ -1003,15 +1067,13 @@ def test_device_mtp(board):
     _null = os.open(os.devnull, os.O_WRONLY)
     os.dup2(_null, fd)
 
-    mtp = open_mtp_dev(uid)
-
-    # --- AFTER: restore stderr ---
-    os.dup2(_saved, fd)
-    os.close(_null)
-    os.close(_saved)
-
-    if mtp is None or mtp.device is None:
-        assert False, 'MTP device not found'
+    try:
+        mtp = open_mtp_dev(uid)
+    finally:
+        # --- AFTER: restore stderr ---
+        os.dup2(_saved, fd)
+        os.close(_null)
+        os.close(_saved)
 
     try:
         assert b"TinyUSB" == mtp.get_manufacturer(), 'MTP wrong manufacturer'
@@ -1037,7 +1099,9 @@ def test_device_mtp(board):
             assert f2_md5_expect == hashlib.md5(f2_data).hexdigest(), 'MTP file2 wrong data'
         # test send file
         with open(f3, "wb") as file:
-            f3_data = os.urandom(random.randint(1024, 3*1024))
+            # 1524-byte payload + 12-byte MTP header = 3 full 512-byte buffers.
+            # This exercises delivery of the final OUT payload before its ZLP.
+            f3_data = bytes((i % 251) + 1 for i in range(1524))
             file.write(f3_data)
             file.close()
             fid = mtp.send_file_from_file(f3, b'file3')
@@ -1149,26 +1213,37 @@ def test_device_midi_test(board):
 
     # Read MIDI messages and verify note on/off
     import select
-    with open(midi_port, 'rb') as f:
-        notes = []
+    midi_fd = os.open(midi_port, os.O_RDONLY | os.O_NONBLOCK)
+    try:
+        data = bytearray()
         # Read for up to 3 seconds to capture a few notes (286ms interval)
         end_time = time.monotonic() + 3
-        while time.monotonic() < end_time:
-            ready, _, _ = select.select([f], [], [], 0.5)
-            if ready:
-                data = f.read(64)
-                if data:
-                    # Parse MIDI bytes: note_on = 0x90, note_off = 0x80
-                    i = 0
-                    while i + 2 < len(data):
-                        status = data[i]
-                        if (status & 0xF0) == 0x90:  # Note On
-                            notes.append(data[i + 1])
-                            i += 3
-                        elif (status & 0xF0) == 0x80:  # Note Off
-                            i += 3
-                        else:
-                            i += 1
+        while (remaining := end_time - time.monotonic()) > 0:
+            ready, _, _ = select.select([midi_fd], [], [], min(0.5, remaining))
+            if not ready:
+                continue
+            try:
+                chunk = os.read(midi_fd, 64)
+            except BlockingIOError:
+                continue
+            if not chunk:
+                break
+            data.extend(chunk)
+    finally:
+        os.close(midi_fd)
+
+    notes = []
+    # Parse MIDI bytes: note_on = 0x90, note_off = 0x80
+    i = 0
+    while i + 2 < len(data):
+        status = data[i]
+        if (status & 0xF0) == 0x90:  # Note On
+            notes.append(data[i + 1])
+            i += 3
+        elif (status & 0xF0) == 0x80:  # Note Off
+            i += 3
+        else:
+            i += 1
 
     assert len(notes) >= 2, f'Expected at least 2 MIDI notes, got {len(notes)}'
     # Verify notes are from the expected sequence
@@ -1231,24 +1306,16 @@ def test_device_audio_test_freertos(board):
     samples = [int.from_bytes(raw[i:i + 2], 'little', signed=False) for i in range(0, len(raw), 2)]
     assert sample_count > 1024, f'Not enough samples captured: {sample_count}'
 
-    # The firmware sends a continuous uint16 ramp. Using ALSA hw: capture bypasses
-    # PulseAudio processing, so most adjacent samples should differ by exactly 1.
-    total_diffs = sample_count - 1
-    one_step = 0
-    near_step = 0
-    for i in range(total_diffs):
-        d = (samples[i + 1] - samples[i]) & 0xFFFF
-        if d == 1:
-            one_step += 1
-        if d in (0, 1, 2, 47, 48, 49):
-            near_step += 1
+    # The producer is already running while ALSA activates streaming, so the
+    # initial overwritable software FIFO (at most 224 samples) can transition
+    # between ramp generations. After that startup window, require an exact ramp.
+    startup_samples = 256
+    for i in range(startup_samples, sample_count - 1):
+        expected = (samples[i] + 1) & 0xFFFF
+        assert samples[i + 1] == expected, (
+            f'Audio mismatch at sample {i + 1}: expected {expected}, got {samples[i + 1]}')
 
-    one_ratio = one_step / total_diffs
-    near_ratio = near_step / total_diffs
-    assert one_ratio >= 0.85, f'Unexpected audio pattern (strict ratio={one_ratio:.3f})'
-    assert near_ratio >= 0.98, f'Unexpected audio pattern (relaxed ratio={near_ratio:.3f})'
-
-    print(f'  ALSA {pcm} strict={one_ratio:.3f} relaxed={near_ratio:.3f}', end='')
+    print(f'  ALSA {pcm}', end='')
 
 
 def test_device_hid_generic_inout(board):

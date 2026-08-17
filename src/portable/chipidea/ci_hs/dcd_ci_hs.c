@@ -237,6 +237,10 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   usbmode |= USBMODE_CM_DEVICE;
   dcd_reg->USBMODE = usbmode;
 
+  #ifdef CI_HS_SET_AHB_BURST
+  CI_HS_SET_AHB_BURST(rhport);
+  #endif
+
   #ifdef CFG_TUD_CI_HS_VBUS_CHARGE
   dcd_reg->OTGSC = OTGSC_VBUS_CHARGE | OTGSC_OTG_TERMINATION;
   #else

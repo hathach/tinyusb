@@ -71,11 +71,18 @@ enum {
   USBMODE_VBUS_POWER_SELECT = TU_BIT(5), // Need to be enabled for LPC18XX/43XX in host mode
 };
 
+// SBUSCFG
+enum {
+  SBUSCFG_AHBBRST_INCR16_UNSPEC = 7, // INCR16 burst, remainder as unspecified-length bursts
+};
+
 // Device Registers
 typedef struct
 {
   //------------- ID + HW Parameter Registers-------------//
-  volatile uint32_t TU_RESERVED[64]; ///< For iMX RT10xx, but not used by LPC18XX/LPC43XX
+  volatile uint32_t TU_RESERVED[36]; ///< ID/HW parameter registers, not used by this driver
+  volatile uint32_t SBUSCFG;         ///< System Bus Interface Configuration (not present on every MCU)
+  volatile uint32_t TU_RESERVED[27];
 
   //------------- Capability Registers-------------//
   volatile uint8_t  CAPLENGTH;       ///< Capability Registers Length
