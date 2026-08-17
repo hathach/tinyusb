@@ -20,6 +20,7 @@ Bias toward caution over speed. For trivial tasks, use judgment.
 - **Safety:** no dynamic allocation; defer ISR work to task context; use `TU_ASSERT()` for error checks; always check return values; include order: C stdlib → tusb common → drivers → classes.
 - **Layout:** `src/` core, `hw/{mcu,bsp}/` MCU+BSP, `examples/{device,host,dual}/`, `test/{unit-test,fuzz,hil}/`, `docs/`, `tools/`.
 - **Commits/PRs:** imperative mood, scoped changes, link issues, include test/build evidence. After opening a PR, drive it to green: address automated review comments (Copilot/Codex/Claude) and fix failing CI, pushing follow-ups until checks pass and threads resolve. Useful: `gh pr checks <num> --watch`, `gh pr view <num> --comments`.
+- **Deferred work:** work that is worth doing but is a *separate scope* from the current PR — it deserves its own PR, written by a different session. Write it as a **handoff** with the `superpowers:writing-plans` skill, one doc per follow-up, in `docs/superpowers/followup/pr<NNN>-<topic>.md` (the PR it was split out of, so the origin stays traceable). Say what is already established (with citations/measurements), what remains, and why it was split out. Delete the doc when its PR lands. Never bundle unrelated follow-ups into one file.
 - **Formatting/lint:** `clang-format` (`.clang-format`), `codespell` (`.codespellrc`); run `pre-commit run --all-files` before submitting.
 
 ## Bootstrap
