@@ -63,7 +63,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool tu_edpt_validate(const tusb_desc_endpoi
 
 // Bind drivers to all interfaces and endpoints in the provided configuration descriptor
 bool tu_bind_driver_to_ep_itf(uint8_t driver_id, uint8_t ep2drv[][2], uint8_t itf2drv[], uint8_t itf_max,
-                              const uint8_t *p_desc, uint16_t desc_len);
+                              uint8_t ep_max, const uint8_t *p_desc, uint16_t desc_len);
 
 // Claim an endpoint with provided mutex
 bool tu_edpt_claim(volatile uint8_t* ep_state, osal_mutex_t mutex);
