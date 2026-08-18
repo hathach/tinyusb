@@ -1127,17 +1127,20 @@ static bool process_std_device_request(uint8_t rhport, tusb_control_request_t co
       switch (p_request->wValue) { //-V2520
         case TUSB_REQ_FEATURE_REMOTE_WAKEUP:
           TU_LOG_USBD("    Enable Remote Wakeup\r\n");
-          // USB 3.2 §9.2.5.4: the DEVICE_REMOTE_WAKEUP selector is not used by Enhanced
-          // SuperSpeed devices, which arm wake per function via FUNCTION_SUSPEND instead (Linux
-          // picks the recipient by speed for exactly this reason). Accepting it on a SuperSpeed
-          // link would set the aggregate with func_wakeup_bm still empty, so tud_remote_wakeup()
-          // would drive a U-state exit no function was authorised for while GET_STATUS(Device)
-          // masks the bit out and the host cannot even observe it.
+          // USB 3.2 §9.2.5.4: this selector is "ignored and not used by Enhanced SuperSpeed
+          // devices", which arm wake per function via FUNCTION_SUSPEND instead. IGNORED, not
+          // rejected: acknowledge the request but leave the state alone, because setting the
+          // aggregate while func_wakeup_bm is empty would let tud_remote_wakeup() drive a
+          // U-state exit no function authorised. Stalling it instead is what the spec does NOT
+          // say, and it breaks real hosts - hardware-measured on a CH32H417 at 5 Gbps, a STALL
+          // here made usbtest ctrl_out (14, 21) and iso read (16, 23) fail.
           #if TUD_OPT_SUPER_SPEED
-          TU_VERIFY(!link_is_superspeed());
+          if (!link_is_superspeed())
           #endif
-          // Host may enable remote wake up before suspending especially HID device
-          _usbd_dev.remote_wakeup_en = 1;
+          {
+            // Host may enable remote wake up before suspending especially HID device
+            _usbd_dev.remote_wakeup_en = 1;
+          }
           tud_control_status(rhport, p_request);
           return true;
 
@@ -1184,14 +1187,16 @@ static bool process_std_device_request(uint8_t rhport, tusb_control_request_t co
       switch (p_request->wValue) { //-V2520
         case TUSB_REQ_FEATURE_REMOTE_WAKEUP:
           TU_LOG_USBD("    Disable Remote Wakeup\r\n");
-          // Not used at SuperSpeed, same as the SET_FEATURE side above: clearing the aggregate
+          // Ignored at SuperSpeed, same as the SET_FEATURE side above: clearing the aggregate
           // there would leave func_wakeup_bm holding bits, so GET_STATUS(Interface) would report
           // D1=1 while tud_remote_wakeup() refuses.
           #if TUD_OPT_SUPER_SPEED
-          TU_VERIFY(!link_is_superspeed());
+          if (!link_is_superspeed())
           #endif
-          // Host may disable remote wake up after resuming
-          _usbd_dev.remote_wakeup_en = 0;
+          {
+            // Host may disable remote wake up after resuming
+            _usbd_dev.remote_wakeup_en = 0;
+          }
           tud_control_status(rhport, p_request);
           return true;
 
