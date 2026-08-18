@@ -36,8 +36,16 @@ enum {
   PORTSC1_CURRENT_CONNECT_STATUS = TU_BIT(0),
   PORTSC1_FORCE_PORT_RESUME      = TU_BIT(6),
   PORTSC1_SUSPEND                = TU_BIT(7),
+  PORTSC1_PORT_RESET             = TU_BIT(8), // read-only in device mode: a reset is being driven
   PORTSC1_FORCE_FULL_SPEED       = TU_BIT(24),
   PORTSC1_PORT_SPEED             = TU_BIT(26) | TU_BIT(27)
+};
+
+// PORTSC1 PSPD field values, once shifted down by PORTSC1_PORT_SPEED_POS. 3 is undefined.
+enum {
+  PORTSC1_PORT_SPEED_FULL = 0,
+  PORTSC1_PORT_SPEED_LOW  = 1,
+  PORTSC1_PORT_SPEED_HIGH = 2,
 };
 
 // OTGSC

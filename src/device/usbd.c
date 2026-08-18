@@ -456,7 +456,8 @@ TU_ATTR_WEAK bool dcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg
 #if CFG_TUSB_DEBUG >= CFG_TUD_LOG_LEVEL
 static char const *const _usbd_event_str[DCD_EVENT_COUNT] = {
     "Invalid",
-    "Bus Reset",
+    "Bus Reset Start",
+    "Bus Reset End",
     "Unplugged",
     "SOF",
     "Suspend",
@@ -697,8 +698,15 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
 #endif
 
     switch (event.event_id) {
-      case DCD_EVENT_BUS_RESET:
+      case DCD_EVENT_BUS_RESET_START:
+        TU_LOG_USBD("\r\n");
+        usbd_reset(event.rhport);
+        break;
+
+      case DCD_EVENT_BUS_RESET_END:
         TU_LOG_USBD(": %s Speed\r\n", tu_str_speed[event.bus_reset.speed]);
+        // TODO a DCD that reports both edges pays for two teardowns: track a per-rhport
+        // "start seen" flag and skip this reset, keeping it for the single-event DCDs.
         usbd_reset(event.rhport);
         _usbd_dev.speed = event.bus_reset.speed;
         break;
@@ -749,7 +757,14 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
         _usbd_dev.ep_status[epnum][ep_dir] &= (uint8_t) ~(TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED);
 
         if (0 == epnum) {
-          usbd_control_xfer_cb(event.rhport, ep_addr, (xfer_result_t) event.xfer_complete.result, event.xfer_complete.len);
+          // Not stalled on failure: a DCD refuses an EP0 prime when a newer setup is already
+          // latched, and EP0 stalls are cleared by hardware when that setup arrives - so a stall
+          // issued here lands after the auto-clear and would stall the transfer that superseded
+          // this one. The pending setup re-drives EP0 by itself.
+          if (!usbd_control_xfer_cb(event.rhport, ep_addr, (xfer_result_t) event.xfer_complete.result,
+                                    event.xfer_complete.len)) {
+            TU_LOG_USBD("  Control stage not continued\r\n");
+          }
         } else {
           usbd_class_driver_t const* driver = get_driver(_usbd_dev.ep2drv[epnum][ep_dir]);
           TU_ASSERT(driver,);
@@ -867,10 +882,10 @@ bool tud_control_xfer(uint8_t rhport, const tusb_control_request_t* request, voi
     if (ctrl_xfer->data_len > 0U) {
       TU_ASSERT(buffer);
     }
-    TU_ASSERT(data_stage_xact(rhport));
+    TU_VERIFY(data_stage_xact(rhport));
   } else {
     // wLength == 0: Status stage is always IN per USB 2.0 §9.3.1
-    TU_ASSERT(status_stage_xact(rhport, TU_EP0_IN));
+    TU_VERIFY(status_stage_xact(rhport, TU_EP0_IN));
   }
 
   return true;
@@ -921,7 +936,7 @@ static bool usbd_control_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t 
     }
 
     if (is_ok) {
-      TU_ASSERT(status_stage_xact(rhport, ep_status));
+      TU_VERIFY(status_stage_xact(rhport, ep_status));
     } else {
       // Stall both IN and OUT control endpoint
       dcd_edpt_stall(rhport, TU_EP0_OUT);
@@ -929,7 +944,7 @@ static bool usbd_control_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t 
     }
   } else {
     // More data to transfer
-    TU_ASSERT(data_stage_xact(rhport));
+    TU_VERIFY(data_stage_xact(rhport));
   }
 
   return true;
@@ -1600,10 +1615,12 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
   if (dcd_edpt_xfer(rhport, ep_addr, buffer, total_bytes, is_isr)) {
     return true;
   } else {
-    // DCD error, mark endpoint as ready to allow next transfer
+    // Driver refused the transfer, mark endpoint as ready to allow next transfer. This is a
+    // recoverable condition (e.g. a new setup superseding a control response), not a bug, so
+    // do not break into the debugger - TU_BREAKPOINT() halts the CPU whenever a probe is
+    // attached, which on a test rig is always.
     _usbd_dev.ep_status[epnum][dir] &= (uint8_t) ~(TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED);
     TU_LOG_USBD("FAILED\r\n");
-    TU_BREAKPOINT();
     return false;
   }
 }
