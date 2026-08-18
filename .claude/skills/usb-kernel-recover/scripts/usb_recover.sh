@@ -4,21 +4,15 @@
 #
 # Usage:
 #   sudo usb_recover.sh authorized <busport>   # e.g. 3-2  -> deauthorize+reauthorize (re-enumerate, NO VBUS cut)
-#   sudo usb_recover.sh rebind     <busport>   # e.g. 3-2  -> usb driver unbind+bind (re-probe)
-#   sudo usb_recover.sh pci-rebind <pciaddr>   # e.g. 0000:01:00.0 -> HCD unbind+bind (WHOLE controller)
-#   sudo usb_recover.sh pci-bind   <pciaddr> [driver]  # bind a DRIVERLESS controller (e.g. after a pci-rebind
-#                                              # whose re-bind hung and left it unbound). Auto-tries the xHCI
-#                                              # drivers (xhci-pci-renesas, xhci_hcd) unless one is named.
-#   sudo usb_recover.sh hub-cycle  <busport>   # e.g. 13-1.6 -> uhubctl power-cycle of the port feeding it,
-#                                              # walking upstream (parent hub -> root port) until the device
-#                                              # re-enumerates. Ganged/fake-switching hubs may bounce ALL
-#                                              # siblings; self-powered hubs only reset their uplink, which
-#                                              # is why the walk ends at the root port (real xHCI ppps).
-#   sudo usb_recover.sh root-cycle <busport> [serial]  # e.g. 13-1.6 -> uhubctl VBUS cut at the ROOT port feeding
+#   sudo usb_recover.sh root-cycle <busport> [serial]  # e.g. 13-1.6 -> uhubctl port-off/on at the ROOT port feeding
 #                                              # it; [serial] is verified against the device and refused on mismatch,
 #                                              # skipping the leaf hubs (which fake ganged switching and do not
 #                                              # actually cut power). Bounces every sibling under that root port.
 #                                              # The D-state escape: no device lock, so it cannot convoy.
+#   sudo usb_recover.sh pci-rebind <pciaddr>   # e.g. 0000:05:00.0 -> unbind+bind the whole xHCI
+#                                              # controller. For a DEAD CONTROLLER, not a wedged
+#                                              # device: it renumbers every bus it owns.
+#   sudo usb_recover.sh pci-bind   <pciaddr> [drv]  # re-attach a driver to a DRIVERLESS controller
 #   sudo usb_recover.sh resolve    <devnode>   # e.g. /dev/ttyACM3 -> print its <busport> (no privilege needed)
 set -euo pipefail
 
@@ -27,6 +21,34 @@ PCI_RE='^[0-9a-fA-F]{4}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-9]$'
 DRIVER_RE='^[A-Za-z0-9_-]+$'
 
 die() { echo "usb_recover: $*" >&2; exit 1; }
+
+lock_read() {
+  # Read an attribute served under the device lock (serial, product) with a 2s bound.
+  # Prints the value, '' when the attribute is absent, or '?' when it did not answer.
+  #
+  # Bounding these is load-bearing, not defensive: they are the FIRST thing root-cycle
+  # does, so on a real wedge an unbounded read blocks before reaching uhubctl at all
+  # (observed live: one attempt sat 3h; three concurrent invocations all frozen there).
+  # The operator then reads that as "recovery didn't work" and escalates to a bare
+  # `uhubctl -a cycle`, which tears the subtree down and blocks holding the ROOT HUB
+  # lock -- taking the whole bus with it. That is how one wedge becomes an incident.
+  #
+  # `timeout` is enough, though this said for a while that it was not (claiming the read
+  # sits in D state, where SIGKILL is not delivered, so timeout waitpid()s forever). It
+  # does not: v6.12.101 drivers/usb/core/sysfs.c takes the lock for every READ through
+  # usb_lock_device_interruptible -> device_lock_interruptible -> mutex_lock_interruptible,
+  # so the waiter sleeps INTERRUPTIBLY and SIGTERM ends it. Uninterruptible is the usbfs
+  # ioctl HOLDER, not us. The abandon-a-background-reader dance that claim justified is
+  # gone, and with it a fail-open where an absent attribute answered '?' -- the wedge
+  # signature, which root-cycle reads as "cannot confirm serial, proceed".
+  local v rc=0
+  # `|| rc=$?`, never a bare assignment: under this script's `set -e` a command
+  # substitution that FAILS (an absent attribute -- most hubs and probes have no
+  # iSerialNumber, and `product` is often missing) exits the whole recovery script.
+  v=$(timeout 2 cat "$1" 2>/dev/null) || rc=$?
+  [ "$rc" -eq 124 ] && { echo '?'; return; }      # timed out: nobody answered
+  printf '%s\n' "$v"
+}
 
 # Generation marker for "did this device actually re-enumerate". A real disconnect destroys the
 # usb_device and its sysfs kobject; reconnecting creates a new one, and kernfs hands out inode
@@ -49,9 +71,6 @@ die() { echo "usb_recover: $*" >&2; exit 1; }
 # The trailing slash is load-bearing: /sys/bus/usb/devices/<busport> is a SYMLINK with its own
 # separate inode, so without it stat reports the link rather than the device it points at, and the
 # value would never change. Do not "tidy" it away.
-sysfs_gen() { stat -c %i "/sys/bus/usb/devices/$1/" 2>/dev/null || echo none; }
-usage() { grep -E '^#   sudo usb_recover' "$0" >&2; exit 2; }
-
 # Refuse to touch a PCI function that is not a USB controller (class 0x0c03xx), so a stray or
 # mistyped BDF can't unbind/reset an unrelated device (storage, NIC) on a shared HIL host.
 require_usb_controller() {
@@ -59,6 +78,9 @@ require_usb_controller() {
   cls=$(cat "/sys/bus/pci/devices/$addr/class" 2>/dev/null) || die "no such pci device: $addr"
   [[ "$cls" =~ ^0x0c03 ]] || die "$addr is not a USB controller (class $cls); refusing"
 }
+
+sysfs_gen() { stat -c %i "/sys/bus/usb/devices/$1/" 2>/dev/null || echo none; }
+usage() { grep -E '^#   sudo usb_recover' "$0" >&2; exit 2; }
 
 # Resolve a /dev node (ttyACMx, ttyUSBx, sgN, ...) up to its USB device busport.
 resolve() {
@@ -88,13 +110,6 @@ case "$action" in
     [ -e "$d/authorized" ] || die "no such usb device: $target"
     echo 0 > "$d/authorized"; sleep 1; echo 1 > "$d/authorized"
     echo "re-authorized $target"
-    ;;
-  rebind)
-    [[ "$target" =~ $USBPATH_RE ]] || die "bad usb path: $target"
-    [ -e "/sys/bus/usb/devices/$target" ] || die "no such usb device: $target"
-    echo "$target" > /sys/bus/usb/drivers/usb/unbind; sleep 1
-    echo "$target" > /sys/bus/usb/drivers/usb/bind
-    echo "rebound $target"
     ;;
   pci-rebind)
     [[ "$target" =~ $PCI_RE ]] || die "bad pci addr: $target"
@@ -128,39 +143,10 @@ case "$action" in
       die "could not bind $target with a known xHCI driver; pass the driver explicitly"
     fi
     ;;
-  hub-cycle)
-    [[ "$target" =~ $USBPATH_RE ]] || die "bad usb path: $target"
-    UHUBCTL=$(command -v uhubctl || echo /sbin/uhubctl)
-    [ -x "$UHUBCTL" ] || die "uhubctl not installed"
-    # sysfs generation, not node existence: a disconnect blocked on the device lock leaves the
-    # old node (and its idVendor) in place, so an existence check reports success without anything
-    # having happened -- and the walk to the root port, which is the part that actually cuts power
-    # on these fake-ganged leaf hubs, would never run.
-    gen=$(sysfs_gen "$target")
-    dev="$target"
-    while :; do
-      if [[ "$dev" =~ ^([0-9]+)-([0-9]+)$ ]]; then    # parent is the root hub
-        loc="${BASH_REMATCH[1]}"; port="${BASH_REMATCH[2]}"; up=""
-      else                                            # parent is a downstream hub
-        loc="${dev%.*}"; port="${dev##*.}"; up="$loc"
-      fi
-      echo "hub-cycle: power-cycling hub $loc port $port (feeds $dev)"
-      "$UHUBCTL" -l "$loc" -p "$port" -a cycle -d 5 -f || echo "  (uhubctl failed at $loc; walking up)"
-      for _ in $(seq 1 10); do
-        sleep 1
-        now=$(sysfs_gen "$target")
-        if [ "$now" != none ] && [ "$now" != "$gen" ]; then
-          echo "recovered: $target re-enumerated (gen $gen -> $now)"; exit 0
-        fi
-      done
-      [ -n "$up" ] || break
-      dev="$up"
-    done
-    die "hub-cycle: $target still not enumerated after cycling up to the root port"
-    ;;
   root-cycle)
-    # VBUS cut at the ROOT port, where xHCI ppps is real. Unlike hub-cycle this does not walk up
-    # from the leaf (the 1a40:0201 hubs claim ganged switching but never cut power) and never
+    # Port-off/on at the ROOT port. NOTE: the Renesas ppps only disables D+/D- (VBUS stays up),
+    # so this is a forced re-enumeration, not a power cycle. It goes straight at the root port --
+    # no leaf walk (the 1a40:0201 hubs claim ganged switching but never cut power) -- and never
     # writes the wedged device's sysfs or takes its lock, so it cannot join a D-state convoy.
     # uhubctl exits 0 even when it does nothing ("No compatible devices detected" still returns
     # 0), so its status proves nothing -- the sysfs_gen check below is the only real verdict.
@@ -174,21 +160,33 @@ case "$action" in
     # wrong target is at least visible.
     [ -e "/sys/bus/usb/devices/$target" ] || die "no such usb device: $target"
     idf="/sys/bus/usb/devices/$target"
-    serial=$(cat "$idf/serial" 2>/dev/null || echo -)
+    serial=$(lock_read "$idf/serial")
     expect=${3:-}
-    [ -z "$expect" ] || [ "$expect" = "$serial" ] || \
+    if [ -n "$expect" ] && [ "$serial" = '?' ]; then
+      # Warn and PROCEED: an unreadable serial is the wedge signature itself, so refusing
+      # here would block the cure on exactly the condition it exists for. The identity
+      # guard is lost for this call -- say so, because the cost of a wrong target is the
+      # whole subtree.
+      echo "root-cycle: WARNING $target's serial did not answer (it is wedged), so '$expect'" \
+           "could NOT be confirmed; proceeding, but verify the busport if siblings drop" >&2
+    elif [ -n "$expect" ] && [ "$expect" != "$serial" ]; then
       die "root-cycle: $target has serial '$serial', expected '$expect' — stale busport, refusing"
+    fi
+    # idVendor/idProduct are usb_descriptor_attr_le16: served WITHOUT the device lock, so
+    # a plain cat is safe on a wedged device. serial/product are usb_string_attr and are not.
     echo "root-cycle: target $target is $(cat "$idf/idVendor" 2>/dev/null || echo -):$(cat "$idf/idProduct" 2>/dev/null || echo -)" \
-         "serial=$serial product=$(cat "$idf/product" 2>/dev/null || echo -)"
+         "serial=$serial product=$(lock_read "$idf/product")"
     bus=${target%%-*}; rest=${target#*-}; rootport=${rest%%.*}
     gen=$(sysfs_gen "$target")
-    echo "root-cycle: cutting VBUS on bus $bus root port $rootport (feeds $target, bounces its siblings)"
-    # -S is load-bearing. By default uhubctl writes /sys/.../usb<bus>-port<n>/disable (verified:
+    echo "root-cycle: disabling D+/D- on bus $bus root port $rootport (no VBUS cut; feeds $target, bounces its siblings)"
+    # -S is load-bearing. By default uhubctl writes /sys/.../usb<bus>-port<n>/disable (observed:
     # two O_WRONLY opens per cycle), and the kernel's disable_store() takes the ROOT HUB's lock and
-    # synchronously usb_disconnect()s the child BEFORE cutting power -- against a wedged device that
-    # blocks on the lock we are trying to free, so power would never drop and uhubctl would D-state
-    # holding the root hub's lock, poisoning the whole bus. -S forces the libusb path, which sends
-    # the power-off control transfer straight to the root hub with no child-disconnect in front.
+    # synchronously usb_disconnect()s the child BEFORE cutting power -- confirmed in v6.12.96
+    # drivers/usb/core/port.c: usb_lock_device(hdev), the UNINTERRUPTIBLE variant, then
+    # usb_disconnect(&port_dev->child) inside it. Against a wedged device that disconnect blocks on
+    # the very lock we are trying to free, so power never drops and uhubctl D-states holding the
+    # root hub's lock, poisoning the whole bus. -S forces the libusb path, which sends the
+    # power-off control transfer straight to the root hub with no child-disconnect in front.
     "$UHUBCTL" -S -l "$bus" -p "$rootport" -a cycle -d 5 \
       || die "uhubctl failed to cycle bus $bus port $rootport"
     for _ in $(seq 1 10); do

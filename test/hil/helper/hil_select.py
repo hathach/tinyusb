@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: MIT
 """PR-diff -> HIL selection: which rig boards and which tests a change can affect.
 
-Stdlib-only (runs on bare CI runners; never imports hil_test/hil_flash/hil_lock).
+Stdlib-only (runs on bare CI runners; imports hil_util for the example rosters,
+never hil_test/pyserial — test_hil_util.BottomLayer enforces the stdlib closure).
 Fail-open: any file no rule classifies forces the full matrix. See
 docs/superpowers/specs/2026-07-29-hil-pr-scoped-selection-design.md.
 
@@ -20,7 +21,8 @@ import re
 import subprocess
 import sys
 
-from hil_examples import device_tests, dual_tests, host_test
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # helper/ scripts import via the test/hil root
+from helper.hil_util import device_tests, dual_tests, host_test
 
 ALL_TESTS = {'device': device_tests, 'dual': dual_tests, 'host': host_test}
 
@@ -31,7 +33,7 @@ _NONCODE_RE = re.compile(
     r'^(docs/|\.claude/|.*\.(md|rst)$|LICENSE)')
 _FULL_RE = re.compile(
     r'^(src/common/|src/osal/|src/tusb\.c$|src/tusb\.h$|src/tusb_option\.h$|'
-    r'test/hil/|\.github/workflows/build.*\.yml$|\.github/actions/|'
+    r'test/hil/|\.github/workflows/build.*\.yml$|\.github/actions/|\.github/scripts/|'
     r'tools/build\.py$|tools/get_deps\.py$|tools/cmake/|hw/mcu/|lib/|'
     r'hw/bsp/(family_support\.cmake|board_api\.h|board\.c|ansi_escape\.h)$|'
     r'examples/build_system/|examples/CMakeLists\.txt$|'
@@ -498,7 +500,9 @@ def main():
     ap.add_argument('configs', nargs='+', help='rig roster JSON file(s)')
     a = ap.parse_args()
 
-    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    # test/hil/helper/ -> repo root is FOUR levels up; three left this at <repo>/test
+    # after the helper/ move and every repo-relative glob silently matched nothing
+    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
     rosters = []
     for c in a.configs:
         with open(c) as f:

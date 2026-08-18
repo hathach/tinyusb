@@ -30,9 +30,9 @@ Hold the board lock for the WHOLE manual session; never stop the
 actions-runner (see the `hil` skill for the full lock protocol):
 
 ```bash
-python3 test/hil/hil_lock.py hold <board> --reason "target debug: <bug>"
+python3 test/hil/helper/hil_lock.py hold <board> --reason "target debug: <bug>"
 # ... instrument / build / flash / capture / GDB ...
-python3 test/hil/hil_lock.py release <board>
+python3 test/hil/helper/hil_lock.py release <board>
 ```
 
 Board → probe mapping: `test/hil/tinyusb.json` — `flasher.name` is the probe

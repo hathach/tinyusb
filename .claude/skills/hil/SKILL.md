@@ -1,6 +1,6 @@
 ---
 name: hil
-description: Use when running TinyUSB Hardware-in-the-Loop (HIL) tests on physical boards, debugging HIL failures, or copying firmware to the ci.lan test rig. Covers per-host config selection (infra rigs ci/tusb use tinyusb.json/hfp.json, any dev PC uses local.json), local and remote execution, the board-lock protocol, and debugging tips. For board/probe health scans ("pool check") use the hil-pool-check skill.
+description: Use when running TinyUSB Hardware-in-the-Loop (HIL) tests on physical boards, when a HIL run fails, hangs, reports a board locked, or produces a report you need to interpret, or when copying firmware to a test rig (ci.lan, hifiphile/tusb, or a dev PC). For board/probe health scans ("pool check") use the hil-pool-check skill instead.
 ---
 
 # Hardware-in-the-Loop (HIL) Testing
@@ -26,28 +26,28 @@ The `ci` rig also hosts a GitHub Actions runner that flashes boards and runs HIL
 - For hardware work outside `hil_test.py` (JLink/GDB, manual flashing, `usbtest.py`, serial poking), hold the lock first:
 
 ```bash
-python3 test/hil/hil_lock.py hold BOARD [BOARD...] --reason "why"
+python3 test/hil/helper/hil_lock.py hold BOARD [BOARD...] --reason "why"
 # ... hardware work ...
-python3 test/hil/hil_lock.py release BOARD [BOARD...]
+python3 test/hil/helper/hil_lock.py release BOARD [BOARD...]
 ```
 
 - Never pre-hold boards you are about to run `hil_test.py` on — it self-locks and would treat your own hold as a conflict.
-- Rig-wide operations (uhubctl power cycling, pci-rebind — bus renumbering) affect every board: `hil_lock.py hold --all --reason "..."` first.
+- Rig-wide operations (uhubctl power cycling, controller resets — bus renumbering) affect every board: `hil_lock.py hold --all --reason "..."` first.
 - `hil_lock.py status` lists holders. Locks auto-release when the holder process dies (kernel flock); `/tmp` clears on reboot.
 - Forcing past a lock: `HIL_NO_BOARD_LOCK=1 python3 test/hil/hil_test.py ...` bypasses the guard without killing the holder. Only with the user's explicit go-ahead — they accept the risk of colliding with whatever holds the board.
 
 ## Pool check (board/probe health)
 
-Board/probe health scanning (`test/hil/hil_pool_check.py`) has its own skill: **hil-pool-check**.
+Board/probe health scanning (`test/hil/helper/hil_pool_check.py`) has its own skill: **hil-pool-check**.
 Use it before a HIL campaign, after rig maintenance/reboot, or when boards fail to flash.
 
 ## PR-scoped selection
 
-`test/hil/hil_select.py` maps a diff to affected boards/tests (used by CI on PRs; fail-open
+`test/hil/helper/hil_select.py` maps a diff to affected boards/tests (used by CI on PRs; fail-open
 to the full matrix). Manual use:
 
 ```bash
-SEL=$(python3 test/hil/hil_select.py --base master test/hil/tinyusb.json)
+SEL=$(python3 test/hil/helper/hil_select.py --base master test/hil/tinyusb.json)
 FULL=$(printf '%s' "$SEL" | python3 -c "import json,sys; print(json.load(sys.stdin)['full'])")
 ARGS=$(printf '%s' "$SEL" | python3 -c "import json,sys; print(json.load(sys.stdin)['args']['tinyusb.json'])")
 if [ "$FULL" = "True" ] || [ -n "$ARGS" ]; then
@@ -60,7 +60,20 @@ fi
 Read `full`, never `args` alone: `args` is empty for BOTH `full: true` (run the whole matrix — a broad or
 unclassified change) and "nothing selected" (skip). Skip only when `full` is false AND `args` is empty.
 
-Unit suite: `python3 test/hil/test_hil_select.py` (no hardware).
+Unit suites (no hardware), all four run by the `hil-test`/`hil-select-test` pre-commit
+hooks: `test_hil_select.py` covers only board selection. The containment work --- bounded
+reads, the kill ladders, the build and pool guards --- lives in `test_hil_bounded.py`,
+`test_hil_health.py` and `test_hil_util.py`, so run all four when changing `test/hil`:
+`for f in test/hil/test/test_*.py; do python3 "$f"; done` (~55s).
+
+## Pre-flight rig health check
+
+`hil_test.py` notes any process already in D state when the run starts, as one line above
+the table. It never aborts, and it is a hint rather than a diagnosis. What bounds a stuck
+run is `HIL_POOL_TIMEOUT` plus the job's `timeout-minutes`; what diagnoses a wedged rig is
+the `hil-pool-check` skill.
+
+See the `usb-kernel-recover` skill for what a real wedge looks like and how to clear it.
 
 ## Prerequisites
 
@@ -103,11 +116,44 @@ Env overrides: `REMOTE`, `REMOTE_DIR`, `CONFIG`. Fails fast if the build dir/rep
 
 ## Timing
 
-Runs take 2-5 min. Use a timeout ≥ 20 min (1200000 ms). NEVER cancel early.
+Runs take 2-5 min per board, but a stuck fleet runs to `HIL_POOL_TIMEOUT` — 60 min
+unless the env pins it. The run logs its guard in the startup line; never declare a run
+stuck before THAT value has elapsed.
+The Bash tool caps a foreground timeout at 10 min, so **run it in the background** and
+wait for the completion notification -- never a foreground timeout, which would kill
+the run before its own guard can write a report. NEVER cancel early.
 
 ## Reporting
 
 The user-facing answer to a HIL run IS the tool's summary table: paste the complete per-board
 table (and footer counts) verbatim — never truncate rows or reduce it to a prose digest; at most
-one line of commentary below it. On failure, retry with `-v`; if that's not enough, add temporary
-debug prints to `hil_test.py`.
+one line of commentary below it.
+
+**First check what sits above the table.** Seven banners can appear there; match on a
+PREFIX, since each carries trailing detail and one is a blockquote:
+
+- `**HIL run abandoned: worker pool timed out after …s.**` — no results were collected this
+  attempt, so any table below is a PREVIOUS attempt's. Report the abandonment, never those
+  rows, and never `"pass": true`.
+- `**HIL run aborted: a worker raised …**` — same rule: a worker crashed before results
+  were collected; any table below is stale. Report the abort, never the rows.
+- `**HIL run abandoned: the worker pool would not shut down.**` — DIFFERENT: the table
+  below IS this run's, but the pool could not be shut down afterwards (the job exits
+  non-zero even if every board passed). Report the results AND the abandonment; never
+  `"pass": true`.
+- `**HIL run selected no boards.**` — the filters intersected to nothing, so there is no
+  table at all. Report that (and the filter shown), never `"pass": true`.
+- `> **Rig note.**` — a process was in D state when the run started. This is NOT a wedge:
+  a healthy in-flight testusb is uninterruptible for most of every case, and the rig
+  supports a dev run alongside CI. On its own it is never `wedged: true` and never turns a
+  green table into `"pass": false`. Mention it only when a board below failed, as the first
+  thing to check.
+- `> **Rig dirty.**` — a process survived SIGKILL and still holds a probe or usbfs node
+  into the NEXT job. The table below is this run's and can be reported, but say the rig is
+  dirty: the next job starts degraded and nothing in the harness can clear it.
+- `> **Not all verdicts are evidence.**` — one or more workers went blind on sysfs, so
+  "device not found" from the named boards means "could not tell". Do NOT report their red
+  cells as broken boards.
+
+On failure, retry with `-v`; if that's not enough, add temporary debug prints to
+`hil_test.py`.
