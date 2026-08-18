@@ -449,35 +449,12 @@ TU_ATTR_ALWAYS_INLINE static inline bool link_is_superspeed(void);
 // bit that SET_FEATURE(DEVICE_REMOTE_WAKEUP) sets, and USB 2.0 §9.4.5 clears it only on a device
 // reset. On a runtime USB2 fallback link (CFG_TUD_WCH_USB30_FALLBACK) an ungated clear would let
 // SET_CONFIGURATION revoke a host-granted wakeup the host never revoked.
-static inline void func_wakeup_recompute(void) {
-  // remote_wakeup_en is the aggregate: keep it set while ANY function is wake-enabled, so one
-  // function's reset cannot revoke the authorization the host gave another.
-  uint8_t any = 0;
-  for (uint8_t i = 0; i < TU_ARRAY_SIZE(_usbd_dev.func_wakeup_bm); i++) {
-    any |= _usbd_dev.func_wakeup_bm[i];
-  }
-  _usbd_dev.remote_wakeup_en = any ? 1u : 0u;
-}
-
 static inline void func_wakeup_clear_all(void) {
   if (!link_is_superspeed()) {
     return;
   }
   tu_memclr(_usbd_dev.func_wakeup_bm, sizeof(_usbd_dev.func_wakeup_bm));
   _usbd_dev.remote_wakeup_en = 0;
-}
-
-// SetInterface resets FUNCTION REMOTE WAKEUP for the function being reconfigured (USB 3.2
-// Table 9-10) - not for every other function on the device. Clearing them all would let a
-// routine SET_INTERFACE(audio, alt=1) silently revoke the wake authorization the host armed on,
-// say, a HID function, leaving tud_remote_wakeup() a no-op while the host still believes D1=1.
-static inline void func_wakeup_clear_itf(uint8_t itf) {
-  if (!link_is_superspeed() || itf >= CFG_TUD_INTERFACE_MAX) {
-    return;
-  }
-  const uint8_t itf_mask = (uint8_t) (1u << (itf % 8));
-  _usbd_dev.func_wakeup_bm[itf / 8] = (uint8_t) (_usbd_dev.func_wakeup_bm[itf / 8] & ~itf_mask);
-  func_wakeup_recompute();
 }
 #endif
 
@@ -1127,20 +1104,8 @@ static bool process_std_device_request(uint8_t rhport, tusb_control_request_t co
       switch (p_request->wValue) { //-V2520
         case TUSB_REQ_FEATURE_REMOTE_WAKEUP:
           TU_LOG_USBD("    Enable Remote Wakeup\r\n");
-          // USB 3.2 §9.2.5.4: this selector is "ignored and not used by Enhanced SuperSpeed
-          // devices", which arm wake per function via FUNCTION_SUSPEND instead. IGNORED, not
-          // rejected: acknowledge the request but leave the state alone, because setting the
-          // aggregate while func_wakeup_bm is empty would let tud_remote_wakeup() drive a
-          // U-state exit no function authorised. Stalling it instead is what the spec does NOT
-          // say, and it breaks real hosts - hardware-measured on a CH32H417 at 5 Gbps, a STALL
-          // here made usbtest ctrl_out (14, 21) and iso read (16, 23) fail.
-          #if TUD_OPT_SUPER_SPEED
-          if (!link_is_superspeed())
-          #endif
-          {
-            // Host may enable remote wake up before suspending especially HID device
-            _usbd_dev.remote_wakeup_en = 1;
-          }
+          // Host may enable remote wake up before suspending especially HID device
+          _usbd_dev.remote_wakeup_en = 1;
           tud_control_status(rhport, p_request);
           return true;
 
@@ -1187,16 +1152,8 @@ static bool process_std_device_request(uint8_t rhport, tusb_control_request_t co
       switch (p_request->wValue) { //-V2520
         case TUSB_REQ_FEATURE_REMOTE_WAKEUP:
           TU_LOG_USBD("    Disable Remote Wakeup\r\n");
-          // Ignored at SuperSpeed, same as the SET_FEATURE side above: clearing the aggregate
-          // there would leave func_wakeup_bm holding bits, so GET_STATUS(Interface) would report
-          // D1=1 while tud_remote_wakeup() refuses.
-          #if TUD_OPT_SUPER_SPEED
-          if (!link_is_superspeed())
-          #endif
-          {
-            // Host may disable remote wake up after resuming
-            _usbd_dev.remote_wakeup_en = 0;
-          }
+          // Host may disable remote wake up after resuming
+          _usbd_dev.remote_wakeup_en = 0;
           tud_control_status(rhport, p_request);
           return true;
 
@@ -1361,7 +1318,7 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
       // the devices hosts send SET_INTERFACE to.
       if (TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type &&
           TUSB_REQ_SET_INTERFACE == p_request->bRequest) {
-        func_wakeup_clear_itf(itf);
+        func_wakeup_clear_all();
       }
       #endif
 
@@ -1432,7 +1389,11 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
             }
             // Aggregate: keep remote wakeup allowed while ANY function is wake-enabled, so one
             // function cannot revoke the host's authorization given to another one.
-            func_wakeup_recompute();
+            uint8_t wakeup_any = 0;
+            for (uint8_t i = 0; i < TU_ARRAY_SIZE(_usbd_dev.func_wakeup_bm); i++) {
+              wakeup_any |= _usbd_dev.func_wakeup_bm[i];
+            }
+            _usbd_dev.remote_wakeup_en = wakeup_any ? 1u : 0u;
             tud_control_status(rhport, p_request);
             break;
           }
