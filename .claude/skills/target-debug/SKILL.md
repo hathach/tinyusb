@@ -347,7 +347,7 @@ the wire itself: `usb-sniffer` skill (hardware tap, PID-level).
 - J-Link (UM08001): <https://kb.segger.com/UM08001_J-Link_/_J-Trace_User_Guide> — flash breakpoints, RTT, SWO, monitor mode, Commander.
 - OpenOCD: <https://openocd.org/doc/html/index.html> — `rtt`, `bp`/`wp`, `cortex_m vector_catch`/`maskisr`, `itm`/`tpiu`.
 - "Debugging with GDB" (§5.1 = break/watch/dprintf): Tenth Edition (GDB 18)
-  via calibre/`read-doc`, or
+  via the `read-doc` skill, or
   `curl -sL -o /tmp/gdb.pdf https://sourceware.org/gdb/current/onlinedocs/gdb.pdf`
   (the HTML mirror blocks fetchers). Installed `arm-none-eabi-gdb`
   `help <cmd>` is authoritative here.
