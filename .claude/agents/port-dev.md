@@ -16,7 +16,7 @@ You implement exactly one specified change in one assigned scope (a directory un
 
 ## Datasheets
 
-When changing dcd/hcd register logic, cross-check the MCU reference manual / datasheet / programming guide in `$HOME/Documents/calibre-library` (search by MCU or USB-IP name). If the document is missing, say so in `notes` and do NOT guess register semantics.
+When changing dcd/hcd register logic, cross-check the MCU reference manual / datasheet / programming guide with the `read-doc` skill — `python3 .claude/skills/read-doc/search.py <MCU or USB-IP name>`, never `find`/`grep` over the library tree. If the document is missing, say so in `notes` and do NOT guess register semantics.
 
 ## Finish checklist (in order)
 

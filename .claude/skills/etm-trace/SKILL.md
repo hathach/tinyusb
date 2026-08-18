@@ -147,7 +147,7 @@ request `itrace.csv`, `profile_lines.csv`, `profile_insts.csv`, `samples.csv`,
 
 Bring-up ladder — each step gates the next:
 
-1. **Docs before hardware** (calibre library first, then vendor site): board
+1. **Docs before hardware** (`read-doc` skill first, then vendor site): board
    manual, schematics, MCU reference manual. Establish the trace clock
    source and max — chip side and probe side (J-Trace PRO Cortex-M tops out
    at a 150 MHz trace clock) — the pins carrying TRACE_CLK/D0-D3 (read the board's

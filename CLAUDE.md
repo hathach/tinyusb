@@ -118,7 +118,7 @@ Cutting a release — version bump, regenerated files, the per-release changelog
 
 ## References
 
-- MCU reference manuals, datasheets, schematics: before answering register/bitfield/pinout/errata/timing questions from memory or the web — or changing a specific dcd/hcd driver — use the `read-doc` skill (`.claude/skills/read-doc/SKILL.md`) to cross-check against docs in `$HOME/Documents/calibre-library`; tell the user if the needed document is missing (skill no-ops if the library is absent).
+- MCU reference manuals, datasheets, schematics: before answering register/bitfield/pinout/errata/timing questions from memory or the web — or changing a specific dcd/hcd driver — use the `read-doc` skill (`.claude/skills/read-doc/SKILL.md`) to cross-check against the maintainer's document library; tell the user if the needed document is missing (skill no-ops if the library is absent). Never search the library tree directly — the skill owns its location and search.
 - Linux kernel behaviour (usbfs, usbtest, sysfs attributes, device locks, D state): never
   infer it from symptoms — read the source for the *running* version. It refutes as often
   as it confirms: it has killed two plausible dcd theories and corrected a recovery skill's

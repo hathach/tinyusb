@@ -52,7 +52,7 @@ Board caveats (beyond the table):
   `AfterTargetConnect` hook; un-attachable after a killed session →
   power-cycle.
 - **metro_m7_1011** (RT1011): a custom Adafruit rev with a hand-added 2x10
-  ETM header (KiCad schematic in the calibre library). No SEGGER RT1011
+  ETM header (KiCad schematic via the `read-doc` skill). No SEGGER RT1011
   example exists — the committed .jdebug (tuned +50 ps) is the known-good
   reference. BOARD_BootClockRUN sets the 132 MHz trace root but leaves it
   gated; `trace_etm_init` ungates it. The first Ozone run after a fresh
