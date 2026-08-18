@@ -394,7 +394,8 @@ def find_firmware(variant: str, example: str, roots: list | None = None, flasher
     suffixes = [FLASHER_SUFFIX.get(flasher.lower())] if flasher else []
     if not suffixes or suffixes == [None]:
         suffixes = ['.elf', '.bin']
-    for bd in dict.fromkeys(roots if roots is not None else [build_dir, *EXTRA_BUILD_DIRS]):
+    search = list(dict.fromkeys(roots if roots is not None else [build_dir, *EXTRA_BUILD_DIRS]))
+    for bd in search:
         fw_dir = hil_util.TINYUSB_ROOT / bd / f'cmake-build-{variant}' / example
         if not fw_dir.is_dir():
             continue
@@ -402,5 +403,39 @@ def find_firmware(variant: str, example: str, roots: list | None = None, flasher
                      *(p.with_suffix('') for s in suffixes for p in sorted(fw_dir.glob(f'*/{base}{s}')))]:
             for s in suffixes:
                 if cand.with_suffix(s).exists():
+                    _warn_if_stale(cand.with_suffix(s), variant, example, search, suffixes)
                     return cand.with_suffix(s)
     return None
+
+
+_STALE_WARNED: set = set()
+
+
+def _warn_if_stale(chosen: Path, variant: str, example: str, search: list, suffixes: list):
+    """Warn when a LATER build of the same example exists in a root we did not pick.
+
+    The search order is fixed, so a stale tree in the first root silently wins over a fresh
+    build in a later one - and the run then reports results for firmware nobody meant to test.
+    That is expensive to spot: the symptom is failing test cases, not an error, and it survives
+    reflashes. Cheap to detect here, so say so loudly and name both paths.
+    """
+    key = (variant, example)
+    if key in _STALE_WARNED:
+        return
+    try:
+        chosen_mtime = chosen.stat().st_mtime
+    except OSError:
+        return
+    for bd in search:
+        other_dir = hil_util.TINYUSB_ROOT / bd / f'cmake-build-{variant}' / example
+        if not other_dir.is_dir() or other_dir == chosen.parent:
+            continue
+        for s in suffixes:
+            other = other_dir / f'{Path(example).name}{s}'
+            if other.exists() and other.stat().st_mtime > chosen_mtime + 60:
+                _STALE_WARNED.add(key)
+                age_h = (other.stat().st_mtime - chosen_mtime) / 3600
+                print(f'WARNING: {variant}/{example}: flashing {chosen}, but a build '
+                      f'{age_h:.1f} h newer exists at {other}. Pass -B/--build-dir to pick it.',
+                      file=sys.stderr, flush=True)
+                return
