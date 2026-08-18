@@ -841,9 +841,14 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
 
   memset(xfer_status, 0, sizeof(xfer_status));
   _pool_brk = 0;
-  _pending_addr = 0;
-  _ep0_seq = 0;
   _lmp_pending = false;
+  // ep_state_reset() rather than clearing a hand-picked subset: a re-init after dcd_deinit()
+  // otherwise inherits the previous session's EP0 bookkeeping, and _ep0_status_pending or
+  // _ep0_early_len surviving means the first control transfer of the NEW session completes a
+  // phantom status stage or replays stale OUT data.
+  ep_state_reset();
+  _ep0_status_dir = TUSB_DIR_OUT;
+  _link_suspended = false;
   xfer_status[0][TUSB_DIR_OUT].mps = EP0_MPS;
   xfer_status[0][TUSB_DIR_IN].mps = EP0_MPS;
 
