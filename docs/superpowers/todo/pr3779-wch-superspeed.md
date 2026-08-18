@@ -154,6 +154,33 @@ board libraries their `-w` a way that does not leak, validated by building `broa
 | ~250 lines of rig-only UART-bootloader / IWDG machinery in `hw/bsp/ch32h417/family.c`           | Defaults ON for every user of that BSP; should be opt-in          |
 | `LINK_IF_WARM_RESET` still runs its ~30 ms settle and re-init inside the ISR                    | F14 half-fixed. The missing `ep_state_reset()` / `dcd_event_bus_reset()` pair landed, but the work cannot simply be deferred: `usb30_bus_reset_from_isr()` deinits synchronously and only defers settle+init, so moving it would leave the address-0 write and the `TX_WARM_RST` handshake driving a torn-down controller, with the deferred re-init then wiping them. Doing this properly means reordering the handshake ahead of the teardown, which needs a host that actually issues a warm reset to validate |
 
+## nanoch32h417 usbtest: 25/30 through hil_test, 29/30 run directly
+
+Pre-existing, not caused by this branch, and unexplained.
+
+| Firmware                       | `usbtest.py` directly | via `hil_test.py` |
+| ------------------------------ | --------------------- | ----------------- |
+| pre-remediation (`775849bd9`)  | **29/30**             | **25/30**         |
+| current tip                    | **29/30**             | **25/30**         |
+
+The same four cases fail through the harness on both firmwares - 14 and 21
+(ctrl_out, errno 71) and 16 and 23 (iso read, "512 errors out of 1024") - and all four
+pass when `usbtest.py` is invoked directly on the very same binary, including with hil_test's
+own flags (`--keep-binding --timeout 60 --budget 260 --outer-timeout 380`) and with its shorter
+post-flash settle. Ruled out: parallel contention (fails with `-b nanoch32h417` alone, and only
+one cafe device is on the bus), the flags, the settle, and the firmware itself. `msc_dual_lun`
+fails on the nano in the same harness runs and is probably the same underlying thing.
+
+The one concrete clue is in dmesg during the harness run: `iso period 8 microframes,
+wMaxPacket 512` on a link usbtest reports as `"speed": "5000"`, where a SuperSpeed iso endpoint
+should be 1024 - so the failing runs may be using the wrong descriptor set. Worth confirming
+whether the same line appears in a passing direct run before reading anything into it.
+
+**Method note for whoever picks this up:** two bisects in this session went wrong by comparing a
+harness run against a direct run. Fix the invocation first, then vary the firmware - the cheapest
+way is to swap the prebuilt `usbtest.bin` under `examples/cmake-build-nanoch32h417/device/usbtest/`
+and keep using the current `hil_test`.
+
 ## Open from the 2026-08-17 review
 
 Validated, not fixed, with the reason:
