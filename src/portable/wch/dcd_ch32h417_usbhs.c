@@ -429,6 +429,10 @@ void ch32h417_usb2_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   (void)rhport;
   const uint8_t ep_num = tu_edpt_number(ep_addr);
   const tusb_dir_t dir = tu_edpt_dir(ep_addr);
+  // Same bound edpt_open()/edpt_close() apply: tu_edpt_number() yields 0..15, while the
+  // endpoint register window and xfer_status hold EP_MAX. usbd already rejects a larger id
+  // before it reaches here, so this is defence in depth, not a reachable hole.
+  TU_ASSERT(ep_num < EP_MAX, );
 
   if (dir == TUSB_DIR_OUT) {
     set_rx_res(ep_num, USBHS_UEP_R_RES_STALL);
@@ -442,6 +446,10 @@ void ch32h417_usb2_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   (void)rhport;
   const uint8_t ep_num = tu_edpt_number(ep_addr);
   const tusb_dir_t dir = tu_edpt_dir(ep_addr);
+  // Same bound edpt_open()/edpt_close() apply: tu_edpt_number() yields 0..15, while the
+  // endpoint register window and xfer_status hold EP_MAX. usbd already rejects a larger id
+  // before it reaches here, so this is defence in depth, not a reachable hole.
+  TU_ASSERT(ep_num < EP_MAX, );
 
   if (dir == TUSB_DIR_OUT) {
     ep_data_tog[ep_num][TUSB_DIR_OUT] = false; // clear-halt resets the toggle to DATA0

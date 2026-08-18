@@ -114,8 +114,14 @@ def one_run(args, tmp):
                 sys.exit(f'hammer iteration {n + 1} failed: sudo lsusb -v -s {dev} returned '
                          f'{r.returncode}: {r.stderr.strip() or "(no stderr)"}')
     finally:
+        # kill after terminate: wait() raising TimeoutExpired out of a finally would leave the
+        # capture running and still writing, which is the leak this block exists to prevent.
         sniffer.terminate()
-        sniffer.wait(timeout=15)
+        try:
+            sniffer.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            sniffer.kill()
+            sniffer.wait(timeout=15)
     return parse_setup_outcomes(tshark_rows(pcap))
 
 
