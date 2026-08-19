@@ -183,6 +183,7 @@ typedef struct TU_ATTR_ALIGNED(256) {
   gtd_extra_data_t gtd_extra[GTD_MAX];
 
   volatile uint16_t frame_number_hi;
+  volatile uint16_t reclaim_frame;
 } ohci_data_t;
 
 //--------------------------------------------------------------------+
