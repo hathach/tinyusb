@@ -32,8 +32,12 @@ disconnect and rebuilds the link. Verified: the same move now returns 5000 direc
 closes a disagreement with the CH32H417 twin, which always gated the transition on
 `fb_state == FB_USB3_TRAINING && ++fb_fail_count >= FB_FAIL_LIMIT`.
 
-**STILL OPEN: F1, replug into a genuinely USB2-only host.** `FB_USB3_UP` remains terminal for that
-case, so the board stays dead until a power cycle. The blocker is unchanged and is a real design
+**STILL OPEN: F1, replug into a genuinely USB2-only host — now with a hardware reproducer.**
+Hydra powered from its WCH-Link so the cable move cannot reset it: unplug from SuperSpeed, plug
+into a USB2-only port, and **nothing enumerates** (0 enumerations on any 480 root hub across a
+~30 s excursion); plug back into SuperSpeed and it returns at 5000 with CDC and MSC bound. So
+`FB_USB3_UP` is terminal for the USB2-only case, but a failed excursion does NOT poison the state
+— recovery is intact, which is the half the demotion fix bought. The blocker is unchanged and is a real design
 question: the ladder cannot distinguish "USB2-only host attached" from "nothing attached" without a
 VBUS signal, and re-arming training on disconnect — tried and reverted — makes the ladder advance
 on its timer while unplugged, landing in `FB_USB2_ACTIVE` within ~2.75 s and demoting the board on
