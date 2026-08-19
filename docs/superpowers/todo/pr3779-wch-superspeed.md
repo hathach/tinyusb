@@ -20,30 +20,27 @@ Re-taking the drop rate is the one that matters most: the Phase A campaign compa
 changes against a 34.5 % baseline produced by the miscounting parser, so those comparisons cannot
 currently be trusted in either direction.
 
-## Fallback demotion is one-way — two findings deliberately left alone
+## Fallback demotion — one half fixed on hardware, one half still open
 
-Both are real and both were validated; neither is fixed, because the obvious fix is the one that
-already backfired once (see F1 below).
+**FIXED: the CH569's unconditional demotion on `LINK_IF_DISABLE`.** Reproduced with the hydra
+powered from its WCH-Link so the cable move could not reset it: unplug a board that had trained
+SuperSpeed, replug into the *same* SuperSpeed port, and it came back at 480 Mbps — `5-3 speed=480`
+— returning to `6-3 speed=5000` only after a reflash, i.e. `dcd_init`. The branch demoted with no
+`_fb_state` or tick-budget test, and `FB_USB2_ACTIVE` has no exit. It now only demotes while still
+`FB_USB3_TRAINING`; reaching Disabled from `FB_USB3_UP` is a pulled cable, so it reports the
+disconnect and rebuilds the link. Verified: the same move now returns 5000 directly. This also
+closes a disagreement with the CH32H417 twin, which always gated the transition on
+`fb_state == FB_USB3_TRAINING && ++fb_fail_count >= FB_FAIL_LIMIT`.
 
-**The CH32H417 twin has the same terminal `FB_USB3_UP`.** `dcd_ch32h417_usb30.c:360` sets it on
-successful training and stops the TIM12 backstop; the disconnect path tests
-`fb_state == FB_USB3_TRAINING`, which is then false, and the only writes back to `FB_USB3_TRAINING`
-are `dcd_init` and `dcd_connect`, neither of which usbd calls on link loss. So a replug into a
-USB2-only host is dead until a power cycle, exactly as on the CH569. Mitigating: the H417 defaults
-`CFG_TUD_WCH_USB30_FALLBACK` to 0, so this bites only builds that opt in. Not fixed here because
-mirroring the CH569 patch would mirror its regression too.
+**STILL OPEN: F1, replug into a genuinely USB2-only host.** `FB_USB3_UP` remains terminal for that
+case, so the board stays dead until a power cycle. The blocker is unchanged and is a real design
+question: the ladder cannot distinguish "USB2-only host attached" from "nothing attached" without a
+VBUS signal, and re-arming training on disconnect — tried and reverted — makes the ladder advance
+on its timer while unplugged, landing in `FB_USB2_ACTIVE` within ~2.75 s and demoting the board on
+*any* unplug. A correct fix needs an attach signal, not a timer.
 
-**The CH569's first `LINK_IF_DISABLE` hands the port to USB2 unconditionally**
-(`dcd_ch56x_usb30.c:601`), with no test of `_fb_state` or the tick budget, so one LTSSM excursion to
-Disabled during training skips the 4/8-tick ladder entirely and demotes the board for good. The
-H417 twin requires `FB_FAIL_LIMIT` = 3 failures for the same transition, so the two families
-disagree. Left alone deliberately: this is the path the working cold-boot fallback actually takes
-(verified on the hydra — USB2-only host, 480 Mbps, CDC and MSC both bound), and adding a retry
-budget without a way to reproduce a transient link-disable on the bench risks breaking the one
-fallback behaviour that is known good.
-
-Both wait on the same piece of work as F1: a fallback ladder that can tell an attached
-non-SuperSpeed host from a transient link event or an empty port.
+**STILL OPEN: the CH32H417 twin's terminal `FB_USB3_UP`** (`dcd_ch32h417_usb30.c:360`), same shape
+as F1. Mitigated by `CFG_TUD_WCH_USB30_FALLBACK` defaulting to 0 there.
 
 ## F9 — sudoers grants: dropped by decision, not a defect
 
