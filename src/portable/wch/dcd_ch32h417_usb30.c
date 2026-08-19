@@ -24,7 +24,8 @@
 // training attempts (LINK DISABLE/INACTIVE) with a TIM12 backstop and hands rhport 0 to the USB2
 // driver (ch32h417_usb2_* in dcd_ch32h417_usbhs.c) when the host has no SuperSpeed port.
 //
-// NOTE: compile-verified; full hardware bring-up (usbtest at 5 Gbps) is pending.
+// Hardware-verified on nanoch32h417 at 5 Gbps: 12/12 HIL examples and usbtest 29/30
+// (case 13 quirk-skipped, bcdDevice 0x20 - a halted endpoint answers exactly one STALL).
 
 #include "tusb_option.h"
 
