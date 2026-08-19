@@ -135,6 +135,26 @@ def reset_openocd(board, timeout=None):
     return ret
 
 
+def flash_openocd_seq(board, firmware, timeout=None):
+    # Explicit commands, NOT `program`: over the jlink transport `program` fails at the
+    # flash bank probe ("Examination failed" -> "auto_probe failed"), measured on
+    # stm32f4x and stm32f0x, with or without a preceding reset halt. This sequence
+    # succeeded on all seven candidate boards.
+    flasher = board['flasher']
+    verify = f' -c "verify_image {firmware}"' if flasher.get('verify', True) else ''
+    return hil_util.run_cmd(
+        f'{_openocd_cmd_base(flasher)} -c "init" -c "reset halt" '
+        f'-c "flash write_image erase {firmware}"{verify} -c "reset run" -c "shutdown"',
+        timeout=timeout)
+
+
+def reset_openocd_seq(board, timeout=None):
+    flasher = board['flasher']
+    return hil_util.run_cmd(
+        f'{_openocd_cmd_base(flasher)} -c "init" -c "reset run" -c "shutdown"',
+        timeout=timeout)
+
+
 # OpenOCD's messages for "the target's debug port did not answer". The probe is fine when
 # these appear ("CMSIS-DAP: Interface ready" is still logged); the chip's debug clock is
 # gone, which no probe-driven reset fixes -- the CMSIS-DAP probe has no nRESET line. Which
@@ -240,7 +260,7 @@ def convoy_safe(flasher: dict) -> bool:
     # 'openocd_wch'-style entry would pass this gate, reserve USBTEST_RECOVERY_BUDGET,
     # and then find no recovery path at all -- paying for a path that cannot fire, which
     # is the precise cost this gate exists to avoid.
-    if name != 'openocd':
+    if name not in ('openocd', 'openocd_seq'):
         return False
     if valid_vid_pid(flasher.get('vid_pid')):
         return True
@@ -301,6 +321,7 @@ FLASHER_SUFFIX = {
     'jlink': '.elf',
     'lm4flash': '.bin',
     'openocd': '.elf',
+    'openocd_seq': '.elf',
     'stlink': '.elf',
 }
 

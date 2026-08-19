@@ -684,6 +684,28 @@ class FlasherRecoverEntry(unittest.TestCase):
         self.assertFalse(hil_flash.convoy_safe({'name': 'jlink', 'uid': 'X'}))
         self.assertTrue(hil_flash.convoy_safe({'name': 'esptool'}))
 
+    def test_openocd_seq_is_convoy_safe_over_jlink(self):
+        self.assertTrue(hil_flash.convoy_safe(
+            {'name': 'openocd_seq', 'args': '-f interface/jlink.cfg -f target/stm32f4x.cfg'}))
+
+    def test_openocd_seq_uses_explicit_flash_commands_not_program(self):
+        """`program` fails over the jlink transport: Examination failed -> auto_probe
+        failed, measured on stm32f4x and stm32f0x."""
+        from helper import hil_util
+        seen = {}
+        real = hil_util.run_cmd
+        hil_util.run_cmd = lambda cmd, **k: seen.setdefault('cmd', cmd) or real('true')
+        try:
+            hil_flash.flash_openocd_seq(
+                {'flasher': {'name': 'openocd_seq', 'uid': 'X', 'vid_pid': '0x1366 0x0101',
+                             'args': '-f interface/jlink.cfg'}},
+                '/tmp/fw.elf', timeout=5)
+        finally:
+            hil_util.run_cmd = real
+        self.assertIn('flash write_image erase /tmp/fw.elf', seen['cmd'])
+        self.assertIn('verify_image /tmp/fw.elf', seen['cmd'])
+        self.assertNotIn('program ', seen['cmd'])
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=1)
