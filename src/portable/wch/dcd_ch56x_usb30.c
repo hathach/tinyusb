@@ -606,14 +606,20 @@ static void handle_link_irq(uint8_t rhport) {
   if (flag & USBSS_LINK_IF_DISABLE) {
     USBSS->LINK_INT_FLAG = USBSS_LINK_IF_DISABLE;
 #if CFG_TUD_WCH_USB30_FALLBACK
-    // A link that had already trained (and enumerated) is a real disconnect for the class stack:
-    // report it before the port changes hands, or usbd stays mounted on the dead SuperSpeed
-    // controller until the USB2 bus reset. The #else branch below does the same.
     if (_fb_state == FB_USB3_UP) {
+      // A link that had already TRAINED and enumerated reaching Disabled is a cable being pulled,
+      // not a partner rejecting SuperSpeed - so report the disconnect and rebuild the SuperSpeed
+      // link, exactly as the TERM_PRESENT-lost path does. Handing the port to USB2 here instead
+      // was hardware-visible: unplug a trained board and replug it into the SAME SuperSpeed port
+      // and it came back at 480 Mbps, because FB_USB2_ACTIVE has no exit short of dcd_init.
+      // The CH32H417 twin already gates this transition on FB_USB3_TRAINING plus FB_FAIL_LIMIT.
       dcd_event_t event = {.rhport = rhport, .event_id = DCD_EVENT_UNPLUGGED};
       dcd_event_handler(&event, true);
+      USBSS->LINK_INT_CTRL = 0;
+      usb30_bus_reset_from_isr();
+      return; // the link is torn down: the remaining flags are stale
     }
-    // SuperSpeed rejected by the link partner: switch to USB2 right away
+    // Still training: SuperSpeed rejected by the link partner, switch to USB2 right away
     PFIC_DisableIRQ(USBSS_IRQn);
     PFIC_DisableIRQ(LINK_IRQn);
     usb30_hw_deinit();
