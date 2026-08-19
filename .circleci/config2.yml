@@ -8,18 +8,14 @@ commands:
 
     steps:
       - run:
-          name: Set toolchain url and key
+          name: Set toolchain url
           command: |
             toolchain_url=$(jq -r '."<< parameters.toolchain >>"' .github/actions/setup_toolchain/toolchain.json)
-            # only cache if not a github link
-            if [[ $toolchain_url != "https://github.com"* ]]; then
-              echo "<< parameters.toolchain >>-$toolchain_url" > toolchain_key
-            fi
             echo "export toolchain_url=$toolchain_url" >> $BASH_ENV
 
       - restore_cache:
           name: Restore Toolchain Cache
-          key: deps-{{ checksum "toolchain_key" }}
+          key: deps-<< parameters.toolchain >>-{{ checksum ".github/actions/setup_toolchain/toolchain.json" }}
           paths:
             - ~/cache/<< parameters.toolchain >>
 
@@ -59,7 +55,7 @@ commands:
 
       - save_cache:
           name: Save Toolchain Cache
-          key: deps-{{ checksum "toolchain_key" }}
+          key: deps-<< parameters.toolchain >>-{{ checksum ".github/actions/setup_toolchain/toolchain.json" }}
           paths:
             - ~/cache/<< parameters.toolchain >>
 
