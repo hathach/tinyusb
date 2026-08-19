@@ -46,8 +46,8 @@ the next technique you would try.
 
 ## Lock discipline
 
-- Hold the board lock for the WHOLE session (`hil_lock.py hold <board>
-  --reason "target debug: <bug>"`). Multi-hour holds are fine; never stop the
+- Hold the board lock for the WHOLE session (`python3 test/hil/helper/hil_lock.py
+  hold <board> --reason "target debug: <bug>"`). Multi-hour holds are fine; never stop the
   actions-runner. Locks held by others: report holder/reason, never force
   unless your prompt states the user authorized it.
 - `hil_test.py` self-locks: release your hold before any `hil_test.py` run,

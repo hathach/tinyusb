@@ -20,6 +20,30 @@ CONFIG=${CONFIG:-$ROOT_DIR/test/hil/tinyusb.json}
   exit 1
 }
 
+# REMOTE_DIR reaches the rig as `rm -rf` input, an scp remote path and an rsync remote
+# path -- the remote shell re-splits and expands all three, so no amount of LOCAL quoting
+# protects them (and %q would escape the ~ that REMOTE_DIR=~/dir needs). Screen it once.
+# The tilde is the whole hazard: the REMOTE shell expands it, so `~/` alone -- one typo
+# away from the documented ~/dir override -- means `rm -rf` on that account's HOME. Hence
+# `/` or `~/` followed by at least one named component, ending in a name character.
+[[ $REMOTE_DIR =~ ^(/|~/)[A-Za-z0-9_.~/-]*[A-Za-z0-9_-]$ && $REMOTE_DIR != *..*
+   && $REMOTE_DIR != *//* ]] || {
+  echo "error: REMOTE_DIR must be /path or ~/path of [A-Za-z0-9_.~/-], no '..', no" \
+       "trailing slash -- it is an rm -rf target on $REMOTE: $REMOTE_DIR" >&2
+  exit 1
+}
+
+# --build would run tools/build.py ON THE RIG, and this script stages binaries, not the
+# build tree -- it is not copied, so the run dies there with a confusing missing-file
+# error. Building is the local half of this workflow by design.
+for a in "$@"; do
+  [ "$a" = "--build" ] || continue
+  echo "error: --build builds on the REMOTE, but this script copies prebuilt binaries" >&2
+  echo "       (tools/build.py is not staged). Build locally first, then re-run:" >&2
+  echo "       cd examples && cmake --preset <board> && cmake --build --preset <board>" >&2
+  exit 1
+done
+
 # Parse -b BOARD from arguments to know which build to copy
 BOARD=""
 ARGS=()
@@ -38,29 +62,35 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Setup remote directory. Use `bash -s` + heredoc so REMOTE_DIR (user-overridable)
-# is passed as a positional parameter and never reinterpreted by the remote shell.
+# Setup remote directory. `bash -s` + heredoc so REMOTE_DIR arrives as a positional
+# parameter, keeping the `rm -rf` target out of the command string the heredoc runs.
 echo "==> Setting up remote $REMOTE:$REMOTE_DIR"
 ssh "$REMOTE" bash -s -- "$REMOTE_DIR" <<'REMOTE'
 set -e
+# Second gate, on the side that knows what ~ expanded to: only here is $HOME a value
+# rather than a guess, and this is the line that actually runs rm -rf.
+case "$1" in
+  ''|/|"$HOME"|"$HOME"/) echo "refusing to rm -rf '$1'" >&2; exit 1 ;;
+esac
 rm -rf -- "$1"
-# .claude path: usbtest.py's HUNG recovery resolves usb_recover.sh relative to the
-# staged repo root — without it, recovery ENOENTs and the wedge is left in place
-mkdir -p -- "$1/test/hil" "$1/examples" "$1/.claude/skills/usb-kernel-recover/scripts"
+mkdir -p -- "$1/test/hil/helper" "$1/examples"
 REMOTE
 
 # Copy HIL test script and config
 echo "==> Copying test scripts"
 scp -q "$ROOT_DIR/test/hil/hil_test.py" \
        "$ROOT_DIR/test/hil/hil_flash.py" \
-       "$ROOT_DIR/test/hil/hil_lock.py" \
        "$ROOT_DIR/test/hil/usbtest.py" \
-       "$ROOT_DIR/test/hil/hil_examples.py" \
        "$ROOT_DIR/test/hil/pymtp.py" \
+       "$ROOT_DIR/test/hil/mtp_test.py" \
        "$CONFIG" \
        "$REMOTE:$REMOTE_DIR/test/hil/"
-scp -q "$ROOT_DIR/.claude/skills/usb-kernel-recover/scripts/usb_recover.sh" \
-       "$REMOTE:$REMOTE_DIR/.claude/skills/usb-kernel-recover/scripts/"
+scp -q "$ROOT_DIR/test/hil/helper/__init__.py" \
+       "$ROOT_DIR/test/hil/helper/hil_util.py" \
+       "$ROOT_DIR/test/hil/helper/hil_health.py" \
+       "$ROOT_DIR/test/hil/helper/hil_lock.py" \
+       "$ROOT_DIR/test/hil/helper/hil_select.py" \
+       "$REMOTE:$REMOTE_DIR/test/hil/helper/"
 
 # Copy only firmware binaries (elf/bin/hex) plus esptool metadata
 # (config.env + flash_args needed by the esptool flasher), preserving structure
@@ -90,16 +120,25 @@ if [ -n "$BOARD" ]; then
     add_build_dir "$d"
   done
   shopt -u nullglob
-  while IFS= read -r v; do
-    add_build_dir "$ROOT_DIR/examples/cmake-build-$v"
-  done < <(python3 -c '
+  # to a file, not a process substitution: `set -e`/pipefail cannot see the exit
+  # status of the latter, so a malformed roster silently yielded zero variant dirs
+  VARIANTS_FILE=$(mktemp)
+  python3 -c '
 import json, sys
 cfg = json.load(open(sys.argv[1]))
 for b in cfg.get("boards", []):
     if b["name"] == sys.argv[2]:
         for v in b.get("variant") or []:
             print(v["name"])
-' "$CONFIG" "$BOARD")
+' "$CONFIG" "$BOARD" > "$VARIANTS_FILE" || {
+    echo "Error: could not read variants for $BOARD from $CONFIG"
+    rm -f "$VARIANTS_FILE"
+    exit 1
+  }
+  while IFS= read -r v; do
+    add_build_dir "$ROOT_DIR/examples/cmake-build-$v"
+  done < "$VARIANTS_FILE"
+  rm -f "$VARIANTS_FILE"
   if [ ${#BUILD_DIRS[@]} -eq 0 ]; then
     echo "Error: no build directory found for $BOARD under $ROOT_DIR/examples/"
     echo "Build first with: cd examples && cmake --preset $BOARD && cmake --build --preset $BOARD"
@@ -119,12 +158,24 @@ else
   done
 fi
 
-# Run test. Use `bash -s` so REMOTE_DIR + ARGS reach the remote shell as positional
-# parameters; quoting and metacharacters in args are preserved.
-CONFIG_BASENAME="$(basename "$CONFIG")"
+# Run test via `bash -s`, so REMOTE_DIR and the args arrive as positional parameters.
+# %q the ARGS -- ssh joins its argv into ONE string that the remote shell re-splits, so
+# `-t 'host/cdc msc'` would arrive as two arguments and hil_test.py would see a stray
+# word where it expects the config path. REMOTE_DIR is deliberately NOT quoted here: it
+# is screened above precisely so it can keep its ~ expansion.
+ARGS_Q=()
+for a in ${ARGS[@]+"${ARGS[@]}"}; do ARGS_Q+=("$(printf '%q' "$a")"); done
+# same re-split, same fix: CONFIG is a user-supplied path and its basename lands in the
+# command string too
+CONFIG_Q="$(printf '%q' "test/hil/$(basename "$CONFIG")")"
 echo "==> Running HIL test on $REMOTE"
 rc=0
-ssh "$REMOTE" bash -s -- "$REMOTE_DIR" "${ARGS[@]}" "test/hil/$CONFIG_BASENAME" <<'REMOTE' || rc=$?
+# --retry 1 FIRST, before the user's args: this targets the same shared rig CI uses, and
+# the pool guard is a flat constant that does not scale with max_retry -- argparse's
+# default of 3 lets a few flaky boards re-pay 510s each until the 3600s guard fires,
+# abandoning the pool and holding board flocks against concurrent CI. Placed first, not
+# appended, so argparse's last-wins means `hil_ci.sh -r 3` still gets 3.
+ssh "$REMOTE" bash -s -- "$REMOTE_DIR" --retry 1 ${ARGS_Q[@]+"${ARGS_Q[@]}"} "$CONFIG_Q" <<'REMOTE' || rc=$?
 cd -- "$1"
 shift
 # Flasher CLIs live in the user bin dirs on ci.lan (esptool/idf in ~/.local/bin,

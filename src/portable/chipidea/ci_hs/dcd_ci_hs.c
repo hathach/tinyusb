@@ -154,6 +154,14 @@ TU_VERIFY_STATIC(sizeof(dcd_qhd_t) == 64, "size is not correct");
 
 #define QTD_NEXT_INVALID 0x01
 
+// Bounded spin for register waits. The longest legitimate wait is a flush held off by a packet
+// already in progress: ~50 us for a full-speed 64-byte packet, a low thousands of dependent
+// register reads, so healthy hardware never approaches this bound. Exceeding it means the
+// controller has stopped responding, and the spin then only serves to keep an ISR (or an
+// IRQ-masked caller) from hanging outright - the 3 ms reset-cleanup window of IMXRT1060RM 42.5.6.2.1 (p.2394)
+// is already unreachable in that state, and the manual's remedy there is a controller reset.
+#define CI_HS_BUSY_SPIN 10000u
+
 typedef struct {
   // Must be at 2K alignment
   // Each endpoint with direction (IN/OUT) occupies a queue head
@@ -164,6 +172,17 @@ typedef struct {
 
 CFG_TUD_MEM_SECTION TU_ATTR_ALIGNED(2048) static dcd_data_t _dcd_data;
 
+// What the next Port Change Detect will be. Each one is preceded by the interrupt that causes it:
+// a reset interrupt for the end of a bus reset - where the speed first becomes final - or a
+// suspend interrupt for the resume that ends the suspend. A suspend itself raises no port change,
+// which is why there is no such value here. Indexed by rhport, which is 0 or 1 on every ci_hs
+// variant (NOT the controller count: mcx/rw61x map rhport 1 to controller 0).
+enum {
+  PORT_CHANGE_REASON_RESET  = 0,
+  PORT_CHANGE_REASON_RESUME = 1,
+};
+static volatile uint8_t _port_change_reason[2];
+
 //--------------------------------------------------------------------+
 // Prototypes and Helper Functions
 //--------------------------------------------------------------------+
@@ -172,12 +191,37 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t ci_ep_count(const ci_hs_regs_t *dcd_
   return dcd_reg->DCCPARAMS & DCCPARAMS_DEN_MASK;
 }
 
+static bool controller_reset(uint8_t rhport);
+
 //--------------------------------------------------------------------+
 // Controller API
 //--------------------------------------------------------------------+
 
-/// follows LPC43xx User Manual 23.10.3
-static void bus_reset(uint8_t rhport) {
+// Flush endpoint buffers, following IMXRT1060RM 42.5.6.6.5 Flushing/De-priming an Endpoint
+// (p.2413): write ENDPTFLUSH, wait for the controller
+// to acknowledge, then confirm ENDPTSTAT went to zero. The controller refuses the flush when a
+// packet is in progress, and the manual requires the procedure be repeated until it takes.
+// Callers proceed regardless of the result; the bound only prevents an ISR-context hang on dead
+// hardware.
+static bool flush_endpoints(ci_hs_regs_t *dcd_reg, uint32_t mask) {
+  uint32_t guard = CI_HS_BUSY_SPIN;
+  do {
+    dcd_reg->ENDPTFLUSH = mask;
+    while (dcd_reg->ENDPTFLUSH & mask) {
+      if (!guard--) {
+        return false;
+      }
+    }
+  } while ((dcd_reg->ENDPTSTAT & mask) && guard--);
+
+  return !(dcd_reg->ENDPTSTAT & mask);
+}
+
+/// Everything the manual asks of the DCD when a reset is detected, in its order: clear the setup
+/// and completion semaphores, cancel every prime, check the reset is still being driven, and free
+/// the dTDs. All of it belongs inside the reset window (IMXRT1060RM 42.5.6.2.1, p.2394); nothing
+/// is left for the port change that ends the reset, which only reports the negotiated speed.
+static void bus_reset_begin(uint8_t rhport) {
   ci_hs_regs_t *dcd_reg = CI_HS_REG(rhport);
 
   // The reset value for all endpoint types is the control endpoint. If one endpoint
@@ -193,17 +237,24 @@ static void bus_reset(uint8_t rhport) {
   //------------- Clear All Registers -------------//
   dcd_reg->ENDPTNAK       = dcd_reg->ENDPTNAK;
   dcd_reg->ENDPTNAKEN     = 0;
-  dcd_reg->USBSTS         = dcd_reg->USBSTS;
   dcd_reg->ENDPTSETUPSTAT = dcd_reg->ENDPTSETUPSTAT;
   dcd_reg->ENDPTCOMPLETE  = dcd_reg->ENDPTCOMPLETE;
 
-  while (dcd_reg->ENDPTPRIME) {}
-  dcd_reg->ENDPTFLUSH = 0xFFFFFFFF;
-  while (dcd_reg->ENDPTFLUSH) {}
+  uint32_t guard = CI_HS_BUSY_SPIN;
+  while (dcd_reg->ENDPTPRIME && guard--) {}
+  dcd_reg->ENDPTFLUSH = 0xFFFFFFFFUL;
 
-  // read reset bit in portsc
+  // All of the above must land while the reset is still being driven - it lasts at least 3 ms.
+  // Arriving late leaves the controller in an undefined state, and the manual's remedy is to
+  // hardware-reset it. That clears Run/Stop, so the device detaches and the host will drive a
+  // fresh reset and enumeration - which is why nothing below this point is worth doing here.
+  if (!(dcd_reg->PORTSC1 & PORTSC1_PORT_RESET)) {
+    TU_LOG1("ci_hs: reset cleanup ran past the end of the reset, resetting controller\r\n");
+    controller_reset(rhport);
+    return; // the controller detached; the host's next reset redoes everything below
+  }
 
-  //------------- Queue Head & Queue TD -------------//
+  //------------- Free all allocated dTDs: the controller will not execute them again -------------//
   tu_memclr(&_dcd_data, sizeof(dcd_data_t));
 
   //------------- Set up Control Endpoints (0 OUT, 1 IN) -------------//
@@ -216,21 +267,19 @@ static void bus_reset(uint8_t rhport) {
   dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
 }
 
-bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
-  (void)rh_init;
-  tu_memclr(&_dcd_data, sizeof(dcd_data_t));
-
+/// Reset the controller and bring it back up in device mode. Also the manual's remedy when the
+/// reset cleanup misses its window: the controller reset clears Run/Stop and detaches the device,
+/// so it must be re-initialised completely afterwards (IMXRT1060RM 42.5.6.2.1, p.2394).
+static bool controller_reset(uint8_t rhport) {
   ci_hs_regs_t *dcd_reg = CI_HS_REG(rhport);
 
-  TU_ASSERT(ci_ep_count(dcd_reg) <= TUP_DCD_ENDPOINT_MAX);
-
-  #if TU_CHECK_MCU(OPT_MCU_HPM)
-  usb_phy_init((USB_Type *)dcd_reg, false);
-  #endif
+  tu_memclr(&_dcd_data, sizeof(dcd_data_t));
 
   // Reset controller
   dcd_reg->USBCMD |= USBCMD_RESET;
-  while (dcd_reg->USBCMD & USBCMD_RESET) {}
+  uint32_t guard = CI_HS_BUSY_SPIN;
+  while ((dcd_reg->USBCMD & USBCMD_RESET) && guard--) {}
+  TU_VERIFY(!(dcd_reg->USBCMD & USBCMD_RESET)); // reached from the ISR too, so never halt here
 
   // Set mode to device, must be set immediately after reset
   uint32_t usbmode = dcd_reg->USBMODE & ~USBMOD_CM_MASK;
@@ -257,9 +306,11 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
 
   dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
 
+  _port_change_reason[rhport] = PORT_CHANGE_REASON_RESET;
+
   dcd_reg->ENDPTLISTADDR = (uint32_t)_dcd_data.qhd; // Endpoint List Address has to be 2K alignment
   dcd_reg->USBSTS        = dcd_reg->USBSTS;
-  dcd_reg->USBINTR       = INTR_USB | INTR_ERROR | INTR_PORT_CHANGE | INTR_SUSPEND;
+  dcd_reg->USBINTR       = INTR_USB | INTR_ERROR | INTR_PORT_CHANGE | INTR_RESET | INTR_SUSPEND;
 
   uint32_t usbcmd = dcd_reg->USBCMD;
   usbcmd &= ~USBCMD_INTR_THRESHOLD_MASK; // Interrupt Threshold Interval = 0
@@ -270,8 +321,22 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   return true;
 }
 
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
+  (void)rh_init;
+  ci_hs_regs_t *dcd_reg = CI_HS_REG(rhport);
+
+  TU_ASSERT(ci_ep_count(dcd_reg) <= TUP_DCD_ENDPOINT_MAX);
+
+  #if TU_CHECK_MCU(OPT_MCU_HPM)
+  usb_phy_init((USB_Type *)dcd_reg, false);
+  #endif
+
+  return controller_reset(rhport);
+}
+
 bool dcd_deinit(uint8_t rhport) {
   ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
+  _port_change_reason[rhport] = PORT_CHANGE_REASON_RESET;
 
   // disable all interrupt
   dcd_reg->USBINTR = 0;
@@ -280,9 +345,9 @@ bool dcd_deinit(uint8_t rhport) {
   dcd_reg->USBCMD &= ~USBCMD_RUN_STOP;
 
   // flush all endpoints
-  while (dcd_reg->ENDPTPRIME) {}
-  dcd_reg->ENDPTFLUSH = 0xFFFFFFFF;
-  while (dcd_reg->ENDPTFLUSH) {}
+  uint32_t guard = CI_HS_BUSY_SPIN;
+  while (dcd_reg->ENDPTPRIME && guard--) {}
+  flush_endpoints(dcd_reg, 0xFFFFFFFF);
 
   return true;
 }
@@ -296,11 +361,13 @@ void dcd_int_disable(uint8_t rhport) {
 }
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
-  // Response with status first before changing device address
-  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0, false);
-
-  ci_hs_regs_t *dcd_reg = CI_HS_REG(rhport);
-  dcd_reg->DEVICEADDR   = (dev_addr << 25) | TU_BIT(24);
+  // Response with status first before changing device address. A refused prime means a new
+  // setup superseded this transfer; staging an address whose ACK will never arrive would
+  // leave the device answering on it, so only arm the address when the status went out.
+  if (dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0, false)) {
+    ci_hs_regs_t *dcd_reg = CI_HS_REG(rhport);
+    dcd_reg->DEVICEADDR   = (dev_addr << 25) | TU_BIT(24);
+  }
 }
 
 void dcd_remote_wakeup(uint8_t rhport) {
@@ -468,9 +535,7 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
   // dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
 
   // Flush EP
-  const uint32_t flush_mask = TU_BIT(epnum + (dir ? 16 : 0));
-  dcd_reg->ENDPTFLUSH       = flush_mask;
-  while (dcd_reg->ENDPTFLUSH & flush_mask) {}
+  flush_endpoints(dcd_reg, TU_BIT(epnum + (dir ? 16 : 0)));
 
   // disable to change max packet size
   ep_ctrl_clear(endptctrl, dir, ENDPTCTRL_ENABLE);
@@ -496,7 +561,7 @@ void dcd_edpt_close_all(uint8_t rhport) {
   }
 }
 
-static void qhd_start_xfer(uint8_t rhport, uint8_t epnum, uint8_t dir) {
+static bool qhd_start_xfer(uint8_t rhport, uint8_t epnum, uint8_t dir) {
   ci_hs_regs_t *dcd_reg = CI_HS_REG(rhport);
   dcd_qhd_t    *p_qhd   = &_dcd_data.qhd[epnum][dir];
   dcd_qtd_t    *p_qtd   = &_dcd_data.qtd[epnum][dir];
@@ -509,13 +574,22 @@ static void qhd_start_xfer(uint8_t rhport, uint8_t epnum, uint8_t dir) {
   dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
 
   if (epnum == 0) {
-    // follows UM 24.10.8.1.1 Setup packet handling using setup lockout mechanism
-    // wait until ENDPTSETUPSTAT before priming data/status in response TODO add time out
-    while (dcd_reg->ENDPTSETUPSTAT & TU_BIT(0)) {}
+    // Setup lockout (IMXRT1060RM 42.5.6.4.2.1 Setup Phase, p.2403): never prime EP0 while a new
+    // SETUP is pending. The ISR
+    // normally consumes ENDPTSETUPSTAT quickly; if the guard trips, fail the transfer so usbd
+    // releases the endpoint (a pending SETUP supersedes this response anyway; without one, usbd
+    // stalls EP0 and the host recovers with a fresh control transfer).
+    uint32_t guard = CI_HS_BUSY_SPIN;
+    while (dcd_reg->ENDPTSETUPSTAT & TU_BIT(0)) {
+      if (!guard--) {
+        return false;
+      }
+    }
   }
 
   // start transfer
   dcd_reg->ENDPTPRIME = TU_BIT(epnum + (dir ? 16 : 0));
+  return true;
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes, bool is_isr) {
@@ -531,9 +605,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
 
   // Start qhd transfer
   p_qhd->ff = NULL;
-  qhd_start_xfer(rhport, epnum, dir);
-
-  return true;
+  return qhd_start_xfer(rhport, epnum, dir);
 }
 
   #if !CFG_TUD_MEM_DCACHE_ENABLE
@@ -584,9 +656,7 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t *ff, uint16_t
 
   // Start qhd transfer
   p_qhd->ff = ff;
-  qhd_start_xfer(rhport, epnum, dir);
-
-  return true;
+  return qhd_start_xfer(rhport, epnum, dir);
 }
   #endif
 
@@ -634,42 +704,42 @@ void dcd_int_handler(uint8_t rhport) {
     return;
   }
 
-  // Set if the port controller enters the full or high-speed operational state.
-  // either from Bus Reset or Suspended state
-  if (int_status & INTR_PORT_CHANGE) {
-    // TU_LOG2("PortChange %08lx\r\n", dcd_reg->PORTSC1);
-
-    // Reset interrupt is not enabled, we manually check if Port Change is due
-    // to connection / disconnection
-    if (dcd_reg->USBSTS & INTR_RESET) {
-      dcd_reg->USBSTS = INTR_RESET;
-
-      if (dcd_reg->PORTSC1 & PORTSC1_CURRENT_CONNECT_STATUS) {
-        const uint32_t speed = (dcd_reg->PORTSC1 & PORTSC1_PORT_SPEED) >> PORTSC1_PORT_SPEED_POS;
-        bus_reset(rhport);
-        dcd_event_bus_reset(rhport, (tusb_speed_t)speed, true);
-      } else {
-        dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, true);
-      }
-    } else {
-      // Triggered by resuming from suspended state
-      if (!(dcd_reg->PORTSC1 & PORTSC1_SUSPEND)) {
-        dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
-      }
-    }
-  }
+  const uint8_t pci_reason = _port_change_reason[rhport]; // save current pci_reason
 
   if (int_status & INTR_SUSPEND) {
-    // TU_LOG2("Suspend %08lx\r\n", dcd_reg->PORTSC1);
+    _port_change_reason[rhport] = PORT_CHANGE_REASON_RESUME; // next PCI is resume
+    dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
+  }
 
-    if (dcd_reg->PORTSC1 & PORTSC1_SUSPEND) {
-      // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
-      // Skip suspend event if we are not addressed
-      if ((dcd_reg->DEVICEADDR >> 25) & 0x0f) {
-        dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
-      }
+  // USB Reset Received: register cleanup runs here within the reset window (IMXRT1060RM 42.5.6.2.1, p.2394)
+  // and BUS_RESET_START fires now; BUS_RESET_END, with the final speed, is triggered later by PCI.
+  if (int_status & INTR_RESET) {
+    _port_change_reason[rhport] = PORT_CHANGE_REASON_RESET;
+    bus_reset_begin(rhport);
+    dcd_event_bus_signal(rhport, DCD_EVENT_BUS_RESET_START, true);
+  }
+
+  // Port entered the full/high-speed operational state: the end of a bus reset, or a resume.
+  if (int_status & INTR_PORT_CHANGE) {
+    if (pci_reason == PORT_CHANGE_REASON_RESUME) {
+      dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
+    } else {
+      // the undefined encoding falls back to full speed
+      const uint32_t pspd = (dcd_reg->PORTSC1 & PORTSC1_PORT_SPEED) >> PORTSC1_PORT_SPEED_POS;
+      const tusb_speed_t speed = (pspd == PORTSC1_PORT_SPEED_LOW)    ? TUSB_SPEED_LOW :
+                                 (pspd == PORTSC1_PORT_SPEED_HIGH)   ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL;
+      dcd_event_bus_reset(rhport, speed, true);
+      // This reset is over, so the next port change is a resume. Leaving it at RESET instead would
+      // dispatch every later resume as another end-of-reset, clearing the queue heads mid-session.
+      _port_change_reason[rhport] = PORT_CHANGE_REASON_RESUME;
     }
   }
+
+  // No unplug detection yet, by the manual rather than by omission: IMXRT1060RM 42.7.31 (p.2470) says a zero
+  // Current Connect Status means the device "did not attach successfully or was forcibly
+  // disconnected by the software writing a zero to the Run bit ... It does not state the device
+  // being disconnected or suspended", so a cable pull raises no port change at all. VBUS via
+  // OTGSC BSV is the manual's disconnect indicator, and it is board dependent.
 
   if (int_status & INTR_USB) {
     // Make sure we read the latest version of _dcd_data.
@@ -678,7 +748,7 @@ void dcd_int_handler(uint8_t rhport) {
     const uint32_t edpt_complete = dcd_reg->ENDPTCOMPLETE;
     dcd_reg->ENDPTCOMPLETE       = edpt_complete; // acknowledge
 
-    // 23.10.12.3 Failed QTD also get ENDPTCOMPLETE set
+    // 42.5.6.6.4 Transfer Completion (p.2413): a failed dTD also sets ENDPTCOMPLETE
     // nothing to do, we will submit xfer as error to usbd
     // if (int_status & INTR_ERROR) { }
 
@@ -694,12 +764,39 @@ void dcd_int_handler(uint8_t rhport) {
     }
 
     // Set up Received
-    // 23.10.10.2 Operational model for setup transfers
+    // 42.5.6.4.2 Control Endpoint Operation Model (p.2403)
     // Must be after normal transfer complete since it is possible to have both previous control status + new setup
     // in the same frame and we should handle previous status first.
     if (dcd_reg->ENDPTSETUPSTAT) {
+      // 42.5.6.4.2.1 Setup Phase (p.2403) steps 1-2: duplicate the setup payload BEFORE clearing
+      // ENDPTSETUPSTAT -
+      // the clear releases the setup lockout and a back-to-back SETUP (usbtest case 10) can
+      // overwrite the queue-head buffer immediately after. The copy is read through the volatile
+      // qualifier rather than memcpy'd because C orders volatile accesses only against each
+      // other: a plain copy may legally be sunk past the lockout-releasing store below.
+      union {
+        tusb_control_request_t request;
+        uint8_t byte[8];
+      } setup;
+      const volatile uint8_t *setup_src = (const volatile uint8_t *)&_dcd_data.qhd[0][0].setup_request;
+      for (uint8_t i = 0; i < sizeof(setup.request); i++) {
+        setup.byte[i] = setup_src[i];
+      }
       dcd_reg->ENDPTSETUPSTAT = dcd_reg->ENDPTSETUPSTAT;
-      dcd_event_setup_received(rhport, (uint8_t *)(uintptr_t)&_dcd_data.qhd[0][0].setup_request, true);
+
+      // Retire a status/handshake phase left primed by the previous control sequence
+      // (IMXRT1060RM 42.5.6.4.2.1, p.2403), which would otherwise retire the response the task is about to
+      // prime for this setup. Skipped when EP0 has nothing primed or priming, since the manual
+      // does not want the flush wait in an interrupt handler when it has nothing to do.
+      // One volatile read per statement: C leaves their order unspecified within a single
+      // expression, which IAR rejects outright (Pa082).
+      const uint32_t ep0_mask  = TU_BIT(0) | TU_BIT(16);
+      const uint32_t ep0_stat  = dcd_reg->ENDPTSTAT;
+      const uint32_t ep0_prime = dcd_reg->ENDPTPRIME;
+      if ((ep0_stat | ep0_prime) & ep0_mask) {
+        flush_endpoints(dcd_reg, ep0_mask);
+      }
+      dcd_event_setup_received(rhport, setup.byte, true);
     }
   }
 

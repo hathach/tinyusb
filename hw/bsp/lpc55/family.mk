@@ -36,6 +36,8 @@ ifeq ($(RHPORT_HOST), 1)
 	SRC_C += $(TOP)/src/portable/nxp/lpc_ip3516/hcd_lpc_ip3516.c
 else
   CFLAGS += -DBOARD_TUH_MAX_SPEED=OPT_MODE_FULL_SPEED
+  # host on port 0 uses the OHCI controller (mirrors family.cmake)
+  SRC_C += $(TOP)/src/portable/ohci/ohci.c
 endif
 
 # mcu driver cause following warnings

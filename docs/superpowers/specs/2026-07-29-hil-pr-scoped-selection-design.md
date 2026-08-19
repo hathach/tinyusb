@@ -1,4 +1,4 @@
-# PR-scoped HIL selection: hil_select.py
+# PR-scoped HIL selection: helper/hil_select.py
 
 **Date:** 2026-07-29
 **Branch:** `claude/hil-select` (based on `claude/hil-pool-check`, which carries the
@@ -26,17 +26,17 @@ confident; every uncertainty widens to the full matrix.
 - Scoping push/master/scheduled runs (always full).
 - Changing hil_test.py behavior (the selector only *composes* existing `-b`/`-bt` args).
 
-## Component: `test/hil/hil_select.py`
+## Component: `test/hil/helper/hil_select.py`
 
 Stdlib-only, importable and CLI. Lives beside the harness so `hil_ci.sh` copies are unaffected
 (it runs on the GitHub runner / dev PC, not on the rig). It must NOT import `hil_test.py`
 (which drags pyserial/pymtp onto the bare GitHub runner): the three test lists
-(`device_tests`, `dual_tests`, `host_test`) move verbatim into a tiny stdlib-only
-`test/hil/hil_examples.py` that both `hil_test.py` and `hil_select.py` import (behavior
-preserving; `hil_ci.sh` scp list gains the new file).
+(`device_tests`, `dual_tests`, `host_test`) move verbatim into the stdlib-only
+`test/hil/helper/hil_util.py` that both `hil_test.py` and `hil_select.py` import (behavior
+preserving; `hil_ci.sh` copies the whole `helper/` directory).
 
 ```
-python3 test/hil/hil_select.py --base <ref> [--diff-file <path>] CONFIG.json [CONFIG.json...]
+python3 test/hil/helper/hil_select.py --base <ref> [--diff-file <path>] CONFIG.json [CONFIG.json...]
 ```
 
 - `--base REF`: changed files = `git diff --name-only $(git merge-base HEAD REF)..HEAD`
@@ -118,7 +118,7 @@ is skipped, not widened (running unrelated boards would test nothing relevant).
 ## CI wiring (`.github/workflows/build.yml`)
 
 - `set-matrix` (PR events only): after generating today's matrices, run
-  `hil_select.py --base origin/${{ github.base_ref }} test/hil/tinyusb.json test/hil/hfp.json`
+  `helper/hil_select.py --base origin/${{ github.base_ref }} test/hil/tinyusb.json test/hil/hfp.json`
   (checkout with enough history to reach the merge base: `fetch-depth: 0` on this one job, or
   an explicit `git fetch origin $BASE_REF`). New job outputs: `hil_select_full`,
   `hil_args_tinyusb`, `hil_args_hfp`, plus the selected-board list consumed by the matrix
@@ -137,15 +137,15 @@ is skipped, not widened (running unrelated boards would test nothing relevant).
 ## Local use
 
 - pre-pr's "Map changes to boards" step delegates to
-  `python3 test/hil/hil_select.py --base $BASE test/hil/tinyusb.json` and derives its
+  `python3 test/hil/helper/hil_select.py --base $BASE test/hil/tinyusb.json` and derives its
   one-board-per-family sample from the selector's board set (its capping/sampling policy is
   unchanged — the selector provides the affected set, pre-pr samples it).
-- Manual: `python3 test/hil/hil_test.py -B examples $(python3 test/hil/hil_select.py --base master test/hil/tinyusb.json | jq -r '.args["tinyusb.json"]') test/hil/tinyusb.json`
+- Manual: `python3 test/hil/hil_test.py -B examples $(python3 test/hil/helper/hil_select.py --base master test/hil/tinyusb.json | jq -r '.args["tinyusb.json"]') test/hil/tinyusb.json`
   — documented in the hil skill.
 
 ## Testing
 
-`test/hil/test_hil_select.py` — stdlib `unittest`, no hardware, injected diffs via
+`test/hil/test/test_hil_select.py` — stdlib `unittest`, no hardware, injected diffs via
 `--diff-file`/API. Cases (the acceptance examples):
 1. `src/portable/raspberrypi/rp2040/dcd_rp2040.c` → only rp2040-family roster boards, device
    tests only, host-only boards absent, `full` false.
@@ -161,7 +161,7 @@ is skipped, not widened (running unrelated boards would test nothing relevant).
 7. `hw/bsp/rp2040/family.cmake` → rp2040-family boards, all their tests.
 8. Mixed device+host diff → no pruning (both roles present).
 The suite runs in `set-matrix` before the selector is used, and locally via
-`python3 test/hil/test_hil_select.py`.
+`python3 test/hil/test/test_hil_select.py`.
 
 ## Safety properties
 

@@ -110,8 +110,15 @@ enum {
   ITF_NUM_TOTAL
 };
 
-#define EPNUM_VIDEO_IN_1    0x81
-#define EPNUM_VIDEO_IN_2    0x82
+#if CFG_TUSB_MIMXRT1XXX_ERRATA_ERR050101 && !CFG_TUD_VIDEO_STREAMING_BULK
+  // ERR050101 (see CFG_TUSB_MIMXRT1XXX_ERRATA_ERR050101): an isochronous IN endpoint needs a number
+  // no other device on the bus uses
+  #define EPNUM_VIDEO_IN_1    0x86
+  #define EPNUM_VIDEO_IN_2    0x87
+#else
+  #define EPNUM_VIDEO_IN_1    0x81
+  #define EPNUM_VIDEO_IN_2    0x82
+#endif
 
 #if defined(CFG_EXAMPLE_VIDEO_READONLY) && !defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
   #define USE_MJPEG 1

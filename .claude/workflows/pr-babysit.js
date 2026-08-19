@@ -109,7 +109,7 @@ const history = []
 const repliedIds = new Set() // issue comments can't be thread-resolved, so they re-harvest every cycle — never reply twice
 for (let cycle = 1; cycle <= maxCycles; cycle++) {
   const t = await agent(
-    `Triage PR #${args.pr}. If checks are still running, wait for them first (gh pr checks ${args.pr} --watch, Bash timeout >= 30 min). ` +
+    `Triage PR #${args.pr}. If checks are still running, wait for them first (gh pr checks ${args.pr} --watch as a BACKGROUND Bash task; the foreground timeout is capped at 10 min). ` +
     'Then follow your triage procedure: classify CI failures, re-run infra ones, harvest and adversarially validate bot review findings, draft replies for invalid/stale ones.',
     { label: `triage#${cycle}`, phase: 'Triage', agentType: 'pr-monitor', schema: TRIAGE },
   )

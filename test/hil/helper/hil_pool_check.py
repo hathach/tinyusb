@@ -16,7 +16,7 @@ reported, never waited on or bypassed).
 Config is picked by hostname unless given: ci -> tinyusb.json, tusb (hifiphile
 rig) -> hfp.json, anything else is a dev PC -> local.json.
 
-Lives in test/hil/ beside hil_lock.py and hil_flash.py, which it imports; board
+Lives in test/hil/helper/ beside hil_lock.py; imports it and hil_flash; board
 recovery uses the repo's .claude/skills/usb-kernel-recover/scripts/usb_recover.sh.
 """
 
@@ -29,19 +29,17 @@ import re
 import shlex
 import shutil
 import socket
-import subprocess
 import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(Path(__file__).resolve().parent))  # for import-as-module callers
-
-import hil_lock
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # hil_flash + the helper package
 import hil_flash
+from helper import hil_lock, hil_util
 
+REPO_ROOT = hil_util.TINYUSB_ROOT
 USB_RECOVER = REPO_ROOT / '.claude' / 'skills' / 'usb-kernel-recover' / 'scripts' / 'usb_recover.sh'
 SEEN_CACHE = Path.home() / '.cache' / 'tinyusb-hil' / 'pool_seen.json'
 CONFIG_BY_HOST = {'ci': 'tinyusb.json', 'tusb': 'hfp.json'}  # anything else: dev PC -> local.json
@@ -56,6 +54,7 @@ ENUM_WAIT_RETRY = 8  # s, uid wait after a recovery reset/re-flash
 SERIAL_WAIT = 6      # s, host-board serial-output wait
 
 print_mutex = threading.Lock()
+_UNKNOWN_WARNED = False   # scan_usb's caveat: once per process, not once per poll
 t0 = time.monotonic()
 
 
@@ -66,20 +65,33 @@ def say(msg: str) -> None:
 
 def scan_usb() -> dict:
     """busport -> {'serial', 'vidpid', 'ino'} for every enumerated USB device. Only
-    <bus>-<port>[.<port>...] dirs match (root hubs, named 'usbN' with no dash, are
-    excluded: their fabricated PCI-address 'serial' and slow autosuspend-wake read
-    cost 6-7s/scan on this rig). Keyed by busport, not serial: a serial can be
-    shared by two different devices (e.g. an Espressif USB-Serial-JTAG bridge and
-    the cafe TinyUSB device it flashes derive both from the same MAC) — collapsing
-    them into one dict slot would silently drop whichever lost the race."""
+    <bus>-<port>[.<port>...] dirs match; root hubs ('usbN', no dash) are excluded because
+    their 'serial' is a fabricated PCI address, and including them measured 6-7s/scan slower
+    (an observation; NOT an autosuspend wake -- that read is cached and does no I/O).
+    Keyed by busport, not serial: two devices can share a serial (an Espressif
+    USB-Serial-JTAG bridge and the cafe device it flashes both derive it from the same
+    MAC), and one dict slot would silently drop whichever lost the race."""
     found = {}
-    for f in glob.glob('/sys/bus/usb/devices/*-*/serial'):
-        d = os.path.dirname(f)
-        busport = os.path.basename(d)
+    # `unknown` matters BEFORE the blindness latch trips: one wedged device is the normal
+    # reason this tool is run, and its serial read stranding makes it absent from `devs`.
+    # Reported as fact, that is "probe MISSING" for hardware that is physically present.
+    devs, unknown = hil_util.usb_scan()
+    # ONCE per process: this is called from 0.5s poll loops across 4 worker threads and
+    # ~26 boards, so warning per call buried the table it exists to qualify under 600+
+    # identical lines. The memo in read_sysfs makes the condition sticky, so one line is
+    # as true as six hundred.
+    global _UNKNOWN_WARNED
+    if unknown and not _UNKNOWN_WARNED:
+        _UNKNOWN_WARNED = True
+        say('WARNING: at least one device did not answer a bounded read; rows below that '
+            'say a probe or board is missing may be this scan losing sight of healthy '
+            'hardware. Find the wedged device (usb-kernel-recover) and re-run.')
+    for dev in devs:
         try:
-            sn = open(f).read().strip().lower()
-            vidpid = f'{open(d + "/idVendor").read().strip()}:{open(d + "/idProduct").read().strip()}'
-            found[busport] = {'serial': sn, 'vidpid': vidpid, 'ino': os.stat(d + '/').st_ino}
+            found[dev['busport']] = {
+                'serial': dev['serial'].lower(),
+                'vidpid': f"{dev['vid']}:{dev['pid']}",
+                'ino': os.stat(dev['dir'] + '/').st_ino}
         except OSError:
             continue
     return found
@@ -112,7 +124,7 @@ def find_usb(uid: str, devs: dict | None = None):
 
 def find_device(uid: str, pid: str | None):
     """Board-online check: TinyUSB device (idVendor cafe) with this uid, optionally
-    PID-pinned. VID cafe keeps an Espressif USB-Serial-JTAG (303a) sharing the MAC
+    PID-pinned. VID cafe keeps an Espressif USB-Serial-JTAG (303a) that shares the MAC
     serial from false-passing."""
     for busport, dev in scan_usb().items():
         if (dev['serial'] == uid.lower() and dev['vidpid'].startswith('cafe:')
@@ -134,22 +146,20 @@ def wait_device(uid: str, pid: str | None, old_ino, budget: float):
 
 
 def lock_board(name: str):
-    """Nonblocking flock per hil_lock.py protocol. Returns handle, or a str with
-    the holder's info when the board is locked elsewhere. Board locks are ALWAYS
-    respected: a held board is reported as locked and skipped — never waited on,
-    and there is deliberately no bypass here."""
+    """Nonblocking flock per hil_lock.py protocol. Returns the handle, or a str with the
+    holder's info when the board is locked elsewhere. Board locks are ALWAYS respected: a
+    held board is reported and skipped, never waited on, and there is no bypass here."""
     os.makedirs(hil_lock.BOARD_LOCK_DIR, exist_ok=True)
     try:
         fh = hil_lock.flock_nb(name)
     except OSError:
-        # NB: conflates a held flock with open() failures (EACCES/EROFS/ENOSPC) —
-        # benign while everything on the rig runs as one uid; a cross-uid setup
-        # would need flock_nb to distinguish the two
+        # NB: conflates a held flock with open() failures (EACCES/EROFS/ENOSPC) — benign
+        # while everything on the rig runs as one uid
         info = hil_lock.read_record(name)
         return json.dumps(info) if info else 'unknown holder'
     if not hil_lock.write_record(fh, 'pool_check'):
-        # an invisible lock (flock held, no record) is worse than no lock: status
-        # can't show us and release can't recognize the protected holder — bail out
+        # an invisible lock (flock held, no record) is worse than no lock: status cannot
+        # show us and release cannot recognize the protected holder
         hil_lock.clear_record(fh)
         fh.close()
         return 'ERROR: holder record write failed (lock dir unwritable?)'
@@ -165,24 +175,27 @@ def can_recover() -> bool:
     if not USB_RECOVER.is_file():
         return False
     try:
-        r = subprocess.run(['sudo', '-n', 'true'], capture_output=True)
-    except OSError:  # sudo not installed (bare dev PC/container): recovery off, not fatal
+        # run_cmd, not subprocess.run: run's post-timeout reap is an UNBOUNDED wait(), and
+        # our kill bounces off a setuid-root sudo with EPERM, leaving communicate() on a
+        # pipe that never closes. run_cmd killpgs, escalates through sudo, reaps bounded.
+        r = hil_util.run_cmd('sudo -n true', timeout=10, quiet=True)
+    except OSError:  # sudo not installed
         return False
     return r.returncode == 0
 
 
 def recover_probe(uid: str, busport: str) -> bool:
-    """Soft-replug an enumerated-but-wedged probe: deauthorize+reauthorize (no VBUS
-    cut, touches only this device). Success = the probe re-enumerated (new sysfs
-    inode), not the helper's exit code (observed to flake while the toggle worked).
-    J-Links respond with a full disconnect and can stay off the bus for >8 s."""
+    """Soft-replug an enumerated-but-wedged probe: deauthorize+reauthorize (no VBUS cut,
+    touches only this device). Success = the probe re-enumerated (new sysfs inode), not the
+    helper's exit code, which flakes while the toggle works. J-Links respond with a full
+    disconnect and can stay off the bus for >8 s."""
     pre = find_usb(uid)
-    try:
-        # bounded: the sysfs authorized store can block in D state on a wedged
-        # device, and this runs while the board's (release-protected) flock is held
-        subprocess.run(['sudo', '-n', str(USB_RECOVER), 'authorized', busport],
-                       capture_output=True, text=True, timeout=30)
-    except subprocess.TimeoutExpired:
+    # Bounded through run_cmd (same reason as can_recover): the sysfs authorized store can
+    # block in D state on a wedged device, and this runs while the board's release-
+    # PROTECTED flock is held -- a hang here would lock the board until the host reboots.
+    cmd = ' '.join(shlex.quote(a) for a in
+                   ['sudo', '-n', str(USB_RECOVER), 'authorized', busport])
+    if hil_util.run_cmd(cmd, timeout=30, quiet=True).returncode == 124:
         return False
     deadline = time.monotonic() + 20
     while time.monotonic() < deadline:
@@ -271,31 +284,28 @@ def get_expected_pid(example: str) -> str | None:
 
 
 def call_flasher(fn, *fn_args) -> tuple[int, str]:
-    """Run a hil_flash flash_*/reset_* backend, normalizing raises to a failure:
-    several backends raise instead of returning nonzero (get_serial_dev
-    RuntimeError when a bridge's /dev/serial/by-id node vanishes, config.env
-    FileNotFoundError, .jlink script OSError) and an exception must not skip the
-    caller's retry/recovery ladder. Returns (returncode, error line)."""
+    """Run a hil_flash flash_*/reset_* backend, normalizing raises to a failure: several
+    backends raise instead of returning nonzero (get_serial_dev when a bridge's
+    /dev/serial/by-id node vanishes, a missing config.env, a .jlink script OSError), and an
+    exception must not skip the caller's retry/recovery ladder. Returns (rc, error line)."""
     try:
         ret = fn(*fn_args)
         if ret.returncode == 0:
             return 0, ''
-        err = flash_error_line(hil_flash.cmd_stdout_text(ret.stdout))
+        err = flash_error_line(hil_util.cmd_stdout_text(ret.stdout))
         return ret.returncode, err or f'rc={ret.returncode}'
     except Exception as e:
         return -1, repr(e)[:90]
 
 
 def flash(board: dict, fw, allow_recovery: bool, probe_port: str, note: list) -> bool:
-    """Flash the resolved firmware with one retry; on repeated failure soft-replug
-    the probe and always make one final flash attempt afterward, regardless of
-    whether the replug is confirmed — some probes (WCH-Link, ST-Link, CP210x,
-    picoprobe) leave their sysfs kobject intact across an authorized toggle
-    instead of dropping off the bus. Returns True on success.
+    """Flash the resolved firmware with one retry; on repeated failure soft-replug the
+    probe and always make one final attempt afterward, confirmed replug or not — some
+    probes (WCH-Link, ST-Link, CP210x, picoprobe) keep their sysfs kobject across an
+    authorized toggle instead of dropping off the bus. Returns True on success.
 
-    `fw` comes from pick_example: a re-resolve here would use the global search
-    policy and miss a firmware ensure_fw just built into cmake-build/ under an
-    exclusive -B."""
+    `fw` comes from pick_example: a re-resolve here would use the global search policy and
+    miss a firmware ensure_fw just built into cmake-build/ under an exclusive -B."""
     fn = getattr(hil_flash, f'flash_{board["flasher"]["name"].lower()}')
     for attempt in range(3):
         if attempt == 2:
@@ -303,9 +313,9 @@ def flash(board: dict, fw, allow_recovery: bool, probe_port: str, note: list) ->
                 return False
             cur = find_usb(board['flasher']['uid'])
             if cur is None:
-                # probe gone from the bus: its old busport may now hold an UNRELATED
-                # device (bus renumbering) and the helper only checks occupancy, so
-                # toggling would deauthorize an innocent fixture — skip the toggle
+                # probe gone from the bus: its old busport may now hold an UNRELATED device
+                # (bus renumbering) and the helper only checks occupancy, so toggling would
+                # deauthorize an innocent fixture
                 note.append('probe vanished before toggle')
             else:
                 say(f'{board["name"]:26} recovery: replugging probe {cur[0]} (authorized toggle)')
@@ -352,24 +362,21 @@ def check_host_serial(board: dict, do_reset: bool = True, want_hello: bool = Fal
     the same probe can fail transiently and leave the target halted."""
     import serial
     try:
-        port = hil_flash.get_serial_dev(board['flasher']['uid'], None, None, 0)
+        port = hil_util.get_serial_dev(board['flasher']['uid'], None, None, 0)
         ser = serial.Serial(port, baudrate=115200, timeout=0.3, write_timeout=1)
     except Exception as e:
         say(f'{board["name"]:26} no flasher serial port: {e}')
         return None
     try:
-        # flush BEFORE issuing the reset: pyserial's open-time flush is long past,
-        # so this drops the pre-reset CDC backlog (which must not count as life)
-        # while keeping the board's post-reset boot banner, which prints while the
-        # reset tool is still tearing down and would be eaten by a post-reset flush
+        # flush BEFORE the reset: this drops the pre-reset CDC backlog (which must not
+        # count as life) while keeping the post-reset boot banner, which prints while the
+        # reset tool is still tearing down and a post-reset flush would eat
         ser.reset_input_buffer()
         if do_reset:
             getattr(hil_flash, f'reset_{board["flasher"]["name"].lower()}')(board)
-        # collect the WHOLE window and judge content, not the first chunk: the
-        # probe's CDC bridge has its own FIFO, so stale pre-flash output (e.g.
-        # board_test hellos) can arrive after our host-side flush and must not
-        # decide the verdict alone. Early-exit once non-board_test output proves
-        # a real example is talking.
+        # judge the WHOLE window, not the first chunk: the probe's CDC bridge has its own
+        # FIFO, so stale pre-flash output (e.g. board_test hellos) can arrive after our
+        # host-side flush and must not decide the verdict alone.
         data = b''
         deadline = time.monotonic() + SERIAL_WAIT
         while time.monotonic() < deadline:
@@ -380,9 +387,9 @@ def check_host_serial(board: dict, do_reset: bool = True, want_hello: bool = Fal
                 pass
             except serial.SerialException:
                 return None  # port dropped mid-poll (bridge re-enumerating)
-            # early-exit on the caller's positive signal: fresh board_test hello
-            # (park verification) vs any non-board_test output (example liveness);
-            # stale bridge-FIFO backlog of the OTHER kind must not end the window
+            # early-exit on the caller's positive signal (board_test hello for park
+            # verification, any non-board_test output for example liveness): stale
+            # bridge-FIFO backlog of the OTHER kind must not end the window
             if want_hello:
                 if b'Hello from TinyUSB' in data:
                     return data
@@ -408,16 +415,13 @@ def boardtest_output(data: bytes) -> bool:
 
 def build_example(board: dict, variant: str, example: str) -> int:
     """Build one example for this board: tools/build.py (same invocation shape as
-    hil_test.build_board: -T target, -D per build.args, variant defines/flags,
-    --build-name), or idf.py directly for espressif (tools/build.py's esp branch
-    ignores -T and builds everything; variant flags travel as -DCFLAGS_CLI, the
-    same channel tools/build.py uses). Bounded and process-group-killed via
-    run_cmd; 600 s: a first configure+build of an SDK-heavy family (pico, nrf,
-    esp) exceeds the old 300. Builds normally run pre-lock (pick_example / the
-    pre-park ensure), so a board flock is not held here except on rare recovery
-    paths. Per-build compile parallelism is capped at cpu/-j so -j concurrent
-    builds cannot swamp sibling workers' verification windows. Returns the
-    build's returncode (127 = ESP-IDF env missing)."""
+    hil_test.build_board), or idf.py directly for espressif (tools/build.py's esp branch
+    ignores -T and builds everything; variant flags travel as -DCFLAGS_CLI, the channel
+    tools/build.py uses). Bounded and process-group-killed via run_cmd; 600 s covers a
+    first configure+build of an SDK-heavy family (pico, nrf, esp). Builds normally run
+    pre-lock, so a board flock is not held here except on rare recovery paths. Per-build
+    compile parallelism is capped at cpu/-j so -j concurrent builds cannot swamp sibling
+    workers' verification windows. Returns the returncode (127 = ESP-IDF env missing)."""
     name = board['name']
     variants = board.get('variant') or [{'name': name}]
     vcfg = next((v for v in variants if v['name'] == variant), variants[0])
@@ -436,9 +440,9 @@ def build_example(board: dict, variant: str, example: str) -> int:
         # SOURCE tree (idf.py -B relocates only the build dir), so concurrent esp
         # builds of one example for different targets corrupt each other's solve
         with _esp_lock, _build_sem:
-            return hil_flash.run_cmd(shlex.join(cmd), cwd=str(hil_flash.TINYUSB_ROOT),
-                                     timeout=600).returncode
-    cmd = [sys.executable, str(hil_flash.TINYUSB_ROOT / 'tools' / 'build.py'),
+            return hil_util.run_cmd(shlex.join(cmd), cwd=str(hil_util.TINYUSB_ROOT),
+                                    timeout=600).returncode
+    cmd = [sys.executable, str(hil_util.TINYUSB_ROOT / 'tools' / 'build.py'),
            '-b', name, '-T', Path(example).name,
            '-j', str(max(1, (os.cpu_count() or _jobs) // _jobs))]
     for d in board.get('build', {}).get('args', []):
@@ -450,8 +454,8 @@ def build_example(board: dict, variant: str, example: str) -> int:
     for tok in vcfg.get('flags', '').split():
         cmd += [f'--cflag={tok}']
     with _build_sem:
-        return hil_flash.run_cmd(shlex.join(cmd), cwd=str(hil_flash.TINYUSB_ROOT),
-                                 timeout=600).returncode
+        return hil_util.run_cmd(shlex.join(cmd), cwd=str(hil_util.TINYUSB_ROOT),
+                                timeout=600).returncode
 
 
 _deps_lock = threading.Lock()  # one get_deps at a time (it also drains _build_sem)
@@ -463,15 +467,13 @@ _builds: dict = {}             # (variant, example) -> (fw|None, reason): one at
 
 
 def ensure_fw(board: dict, variant: str, example: str, note: list):
-    """Firmware for `example`, building it when absent — never skip a board for
-    lack of a build (--no-build opts out). One retry with deps fetched and the
-    CMake caches dropped when the first build fails (fresh checkouts lack the
-    family deps; a cache configured in a broken env poisons every later attempt).
-    Returns the firmware path, or None with the failure noted. Call BEFORE
-    taking the board lock: builds are long. One build attempt per
-    (variant, example) per run, success or failure — memoized in _builds, so a
-    repeat call (park, under the held flock) resolves instantly even when an
-    exclusive -B hides the fresh cmake-build/ artifact from the global search."""
+    """Firmware for `example`, building it when absent — never skip a board for lack of a
+    build (--no-build opts out). One retry with deps fetched and the CMake caches dropped
+    when the first build fails (fresh checkouts lack the family deps; a cache configured
+    in a broken env poisons every later attempt). Returns the firmware path, or None with
+    the failure noted. Call BEFORE taking the board lock: builds are long. One attempt per
+    (variant, example) per run, memoized in _builds, so a repeat call (park, under the
+    held flock) resolves instantly even when an exclusive -B hides the fresh artifact."""
     fw = hil_flash.find_firmware(variant, example, flasher=board['flasher']['name'])
     if fw:
         return fw
@@ -492,24 +494,22 @@ def ensure_fw(board: dict, variant: str, example: str, note: list):
         note.append(f'build timeout: {base}')
         return None
     if rc != 0:
-        # retry once with deps fetched and the CMake caches dropped (cache only —
-        # a tree wipe would destroy every other example's firmware). get_deps
-        # git-resets already-present shared deps (lib/fatfs's ffconf.h dance), so
-        # it must exclude every in-flight build, not just other get_deps calls:
-        # it drains ALL build slots before running.
+        # retry once with deps fetched and the CMake caches dropped (cache only — a tree
+        # wipe would destroy every other example's firmware). get_deps git-resets shared
+        # deps that are already present, so it drains ALL build slots first.
         with _deps_lock:
             for _ in range(_jobs):
                 _build_sem.acquire()
             try:
-                r = hil_flash.run_cmd(shlex.join([sys.executable, str(hil_flash.TINYUSB_ROOT / 'tools' / 'get_deps.py'),
-                                                  '-b', board['name']]),
-                                      cwd=str(hil_flash.TINYUSB_ROOT), timeout=600)
+                r = hil_util.run_cmd(shlex.join([sys.executable, str(hil_util.TINYUSB_ROOT / 'tools' / 'get_deps.py'),
+                                                 '-b', board['name']]),
+                                     cwd=str(hil_util.TINYUSB_ROOT), timeout=600)
             finally:
                 for _ in range(_jobs):
                     _build_sem.release()
         if r.returncode != 0:
             note.append('get_deps failed')
-        bd = hil_flash.TINYUSB_ROOT / 'cmake-build' / f'cmake-build-{variant}'
+        bd = hil_util.TINYUSB_ROOT / 'cmake-build' / f'cmake-build-{variant}'
         # esp configures one level deeper (<variant>/<example>/): wipe both layouts
         for d in (bd, bd / example):
             shutil.rmtree(d / 'CMakeFiles', ignore_errors=True)
@@ -519,9 +519,8 @@ def ensure_fw(board: dict, variant: str, example: str, note: list):
         _builds[key] = (None, 'fail')
         note.append(f'build failed: {base}')
         return None
-    # tools/build.py and the idf.py invocation above always write to cmake-build/:
-    # look there too even when an explicit -B narrowed the global search — this is
-    # OUR fresh build, not a stale-candidate fallback
+    # both build paths write to cmake-build/, so look there even when an explicit -B
+    # narrowed the global search — this is OUR fresh build, not a stale fallback
     fw = hil_flash.find_firmware(variant, example,
                                  roots=[hil_flash.build_dir, 'cmake-build'],
                                  flasher=board['flasher']['name'])
@@ -673,26 +672,24 @@ def check_board(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
                     else 'probe never seen by pool_check')
         say(f'{name:26} probe MISSING ({board["flasher"]["name"]} {board["flasher"]["uid"]})')
 
-    # existing firmware only here; a missing build is built on the spot further
-    # down (after a lock peek), except in scan/no-build modes — and never for a
-    # missing probe (nothing could be flashed anyway)
+    # existing firmware only; a missing build is built further down (after a lock peek),
+    # except in scan/no-build modes and never for a missing probe
     example, kind, variant, fw = pick_example(board, note, build_missing=False)
     if kind == 'host':
         note.append('host-only board')
 
     if args.scan_only:
         hit = find_device(board['uid'], None)
-        # report the BOARD's usb state, not just the probe's: the enumerated device
-        # (with busport), off-bus (normal when parked in board_test), or n/a for
-        # host-only boards whose uid never enumerates
+        # report the BOARD's usb state too: enumerated (with busport), off-bus (normal
+        # when parked in board_test), or n/a for host-only boards
         if hit:
             row['device'] = f'✅ {hit[1]} @{hit[0]}'
         elif kind == 'host':
             row['device'] = '– n/a (host-only)'
         else:
             row['device'] = '⚫ off bus (parked?)'
-        # scan verifies probe presence only: that check DID run, so probe present
-        # is ok; a missing probe means no firmware could be delivered → flash-failed
+        # scan verifies probe presence only, so probe present is ok; a missing probe means
+        # no firmware could be delivered → flash-failed
         row['status'] = 'ok' if probe else 'flash-failed'
         if probe:
             say(f'{name:26} probe ✅ {probe[0]}' + (f'  device {hit[1]}' if hit else ''))
@@ -710,9 +707,9 @@ def check_board(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
                and hil_flash.find_firmware(bt_variant, 'device/board_test',
                                            flasher=board['flasher']['name']) is None)
     if need_example or need_bt:
-        # builds are long and run BEFORE locking (park must never hold the flock
-        # through a build); peek the lock first so minutes of building are not
-        # wasted on — or a rebuilt tree swapped under — a board CI holds right now
+        # builds are long and run BEFORE locking (park must never hold the flock through
+        # one); peek first so minutes of building are not wasted on — or a rebuilt tree
+        # swapped under — a board CI holds right now
         peek = lock_board(name)
         if isinstance(peek, str):
             if peek.startswith('ERROR:'):  # environment failure, not a held lock
@@ -728,8 +725,8 @@ def check_board(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
         if need_example:
             example, kind, variant, fw = pick_example(board, note, build_missing=True)
         if need_bt and (example is not None or kind == 'host'):
-            # skip the park-image build when the example build already failed on a
-            # device board: the row returns before any flash/park could use it
+            # skip the park build when the example build already failed on a device board:
+            # the row returns before any flash/park could use it
             ensure_board_test(board, bt_variant, note)
 
     if example is None:
@@ -740,9 +737,8 @@ def check_board(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
             row['status'] = 'flash-failed'
             say(f'{name:26} probe ✅ {probe[0]}  (no firmware to flash)')
             return row
-        # host-only board: aliveness is still checkable without flashing — reset and
-        # listen to whatever firmware is on it (the parked board_test echoes and
-        # prints a periodic hello on the flasher UART)
+        # host-only board: aliveness is still checkable without flashing — reset and listen
+        # to whatever is on it (parked board_test echoes and hellos on the flasher UART)
 
     lk = lock_board(name)
     if isinstance(lk, str):
@@ -783,9 +779,8 @@ def check_board(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
             say(f'{name:26} {row["flash"]}  {row["device"]}')
             return row
         finally:
-            # teardown for EVERY path that attempted a flash (a failed programmer op
-            # can still have erased/half-written the target): re-park while the
-            # board lock is still held
+            # teardown for EVERY path that attempted a flash (a failed programmer op can
+            # still have erased/half-written the target), while the lock is still held
             if not args.no_park:
                 park_board(board, kind, row, note)
     finally:
@@ -801,8 +796,8 @@ def park_board(board: dict, kind: str, row: dict, note: list) -> None:
     'failed' verify verdict — that is the more diagnostic signal), with one
     exception: an espressif board without the ESP-IDF env cannot build
     board_test — noted, not a board fault."""
-    # capture BEFORE the park flash: uid-disappearance only verifies the park if
-    # the device was on the bus to begin with (a fast park drops it immediately)
+    # capture BEFORE the park flash: uid-disappearance only verifies the park if the
+    # device was on the bus to begin with
     on_bus_before = kind != 'host' and find_device(board['uid'], None) is not None
     variant = resolve_variant(board, 'device/board_test', note)
     fw = ensure_board_test(board, variant, note)
@@ -826,9 +821,9 @@ def park_board(board: dict, kind: str, row: dict, note: list) -> None:
             row['status'] = 'flash-failed'
         return
     if kind == 'host':
-        # no second reset (the park flash's own reset already started board_test);
-        # POSITIVE marker: its hello must appear — stale example output may still
-        # drain from the probe bridge's FIFO alongside it and is not disqualifying
+        # no second reset (the park flash's own reset started board_test); POSITIVE
+        # marker: its hello must appear, and stale bridge-FIFO output alongside it is not
+        # disqualifying
         data = check_host_serial(board, do_reset=False, want_hello=True)
         if not (data and b'Hello from TinyUSB' in data):
             note.append('park unverified: no board_test output')
@@ -836,8 +831,8 @@ def park_board(board: dict, kind: str, row: dict, note: list) -> None:
                 row['status'] = 'flash-failed'
         return
     if not on_bus_before:
-        # board never enumerated this run: uid-disappearance can't distinguish a
-        # verified park from a silent no-op — say so instead of passing vacuously
+        # never enumerated this run: uid-disappearance cannot tell a verified park from a
+        # silent no-op — say so instead of passing vacuously
         note.append('park unverified (device already off bus)')
         return
     deadline = time.monotonic() + 6
@@ -898,9 +893,8 @@ def controller_summary() -> list[str]:
 
 
 def main() -> None:
-    # toolchain/flasher CLIs live in the user bin dirs (arm-none-eabi-gcc + esptool
-    # in ~/.local/bin, STM32_Programmer_CLI in ~/bin) which non-login shells may
-    # lack — same PATH shim hil_ci.sh applies on the remote side
+    # toolchain/flasher CLIs live in the user bin dirs, which non-login shells may lack --
+    # the same PATH shim hil_ci.sh applies on the remote side
     for d in (Path.home() / 'bin', Path.home() / '.local' / 'bin'):
         if d.is_dir() and str(d) not in os.environ.get('PATH', '').split(os.pathsep):
             os.environ['PATH'] = f'{d}{os.pathsep}{os.environ.get("PATH", "")}'
@@ -917,8 +911,8 @@ def main() -> None:
                         help='do not build missing firmware (default: build the light example on the spot)')
     parser.add_argument('--no-park', action='store_true',
                         help='leave the light example running (default: park with board_test)')
-    # no cross-process flash budget with a concurrent hil_test.py run yet (would need
-    # a file-lock budget in hil_lock; hil_test uses in-process semaphores) — keep modest
+    # no cross-process flash budget against a concurrent hil_test.py run (its semaphores
+    # are in-process), so keep this modest
     parser.add_argument('-j', '--jobs', type=int, default=4)
     parser.add_argument('-v', '--verbose', action='store_true')
     args = parser.parse_args()
@@ -946,12 +940,11 @@ def main() -> None:
         boards = [b for b in boards if b['name'] in args.board]
 
     hil_flash.build_dir = args.build_dir or 'examples'
-    hil_flash.verbose = args.verbose
+    hil_util.verbose = args.verbose
     if args.build_dir is None:
-        # default mode: search both standard layouts (cmake-build/ from tools/build.py
-        # + ESP-IDF, examples/ from manual builds). An EXPLICIT -B is exclusive — the
-        # caller named an artifact tree, so a miss must report, not silently flash an
-        # older build from elsewhere. hil_test's -B is likewise untouched by this.
+        # default mode: search both standard layouts (cmake-build/ from tools/build.py and
+        # ESP-IDF, examples/ from manual builds). An EXPLICIT -B stays exclusive: the caller
+        # named an artifact tree, so a miss must report rather than flash an older build.
         hil_flash.EXTRA_BUILD_DIRS = ['cmake-build', 'examples']
     allow_recovery = not args.scan_only and can_recover()
     seen = {}
@@ -971,7 +964,7 @@ def main() -> None:
         rows = [check_board_safe(b, args, allow_recovery, seen) for b in boards]
     else:
         with io.StringIO() as spool, ThreadPoolExecutor(max_workers=args.jobs) as pool:
-            sys.stdout = spool  # silence hil_flash's COMMAND FAILED dumps; say() uses __stdout__
+            sys.stdout = spool  # silence hil_util.run_cmd's COMMAND FAILED dumps; say() uses __stdout__
             try:
                 rows = list(pool.map(lambda b: check_board_safe(b, args, allow_recovery, seen), boards))
             finally:
@@ -1008,6 +1001,17 @@ def main() -> None:
         counts[r.get('status', 'failed')] += 1
     print(f'\n{counts["ok"]} ok · {counts["flash-failed"]} flash-failed · {counts["failed"]} failed '
           f'· {counts["locked"]} locked · in {time.monotonic() - t0:.0f}s')
+    if hil_util.sysfs_blind():
+        # Without this the table is the worst kind of wrong: once the process latches
+        # blind, every read answers SYSFS_UNKNOWN, scan_usb() returns {}, and EVERY board
+        # prints "probe MISSING"/"off bus" -- a clean-looking report declaring the whole
+        # fleet dead, produced during exactly the incident this tool is run to diagnose,
+        # and it sends the operator to power-cycle a rig where one device is wedged.
+        print('WARNING: this scan lost sight of the bus'
+              f'{hil_util.sysfs_blind_note()}. Rows above that say a probe or board is '
+              f'missing may be this tool losing sight of healthy hardware, not absent '
+              f'hardware. Find the wedged device (see the usb-kernel-recover skill) and '
+              f're-run before acting on the table.')
     sys.exit(min(counts['flash-failed'] + counts['failed'], 125))
 
 

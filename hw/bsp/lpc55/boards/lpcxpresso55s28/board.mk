@@ -2,9 +2,9 @@ MCU_VARIANT = LPC55S28
 MCU_CORE = LPC55S28
 MCU_DRIVER_VARIANT = LPC55S69
 
-# device fullspeed, host highspeed
-RHPORT_DEVICE ?= 0
-RHPORT_HOST ?= 1
+# device highspeed, host fullspeed
+RHPORT_DEVICE ?= 1
+RHPORT_HOST ?= 0
 
 CFLAGS += -DCPU_LPC55S28JBD100
 
