@@ -28,6 +28,11 @@
                 "name": "jlink",
                 "uid": "000621000000",
                 "args": "-device MK64FN1M0xxx12"
+            },
+            "flasher_recover": {
+                "name": "openocd_seq",
+                "uid": "000621000000",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -c \"adapter speed 4000\" -f target/k60.cfg"
             }
         },
         {
@@ -136,6 +141,11 @@
                 "name": "jlink",
                 "uid": "681295394",
                 "args": "-device nrf52840_xxaa"
+            },
+            "flasher_recover": {
+                "name": "openocd_seq",
+                "uid": "681295394",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -c \"adapter speed 4000\" -f target/nrf52.cfg"
             }
         },
         {
@@ -183,6 +193,11 @@
                 "name": "jlink",
                 "uid": "123456",
                 "args": "-device ATSAMD51J19"
+            },
+            "flasher_recover": {
+                "name": "openocd_seq",
+                "uid": "123456",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -c \"adapter speed 4000\" -f target/atsame5x.cfg"
             }
         },
         {
@@ -365,6 +380,11 @@
                 "uid": "779541626",
                 "args": "-device stm32f072rb"
             },
+            "flasher_recover": {
+                "name": "openocd_seq",
+                "uid": "779541626",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -c \"adapter speed 4000\" -f target/stm32f0x.cfg"
+            },
             "comment": "2x16 access scheme with 1KB USB SRAM"
         },
         {
@@ -379,6 +399,11 @@
                 "name": "jlink",
                 "uid": "000773661813",
                 "args": "-device stm32f407vg"
+            },
+            "flasher_recover": {
+                "name": "openocd_seq",
+                "uid": "000773661813",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -c \"adapter speed 4000\" -f target/stm32f4x.cfg"
             }
         },
         {
@@ -413,6 +438,11 @@
                 "name": "jlink",
                 "uid": "000776606156",
                 "args": "-device stm32f723ie"
+            },
+            "flasher_recover": {
+                "name": "openocd_seq",
+                "uid": "000776606156",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -c \"adapter speed 4000\" -f target/stm32f7x.cfg"
             },
             "comment": "Device port0 FS (slave only), Host port1 HS with DMA"
         },
@@ -461,6 +491,11 @@
                 "name": "jlink",
                 "uid": "777632258",
                 "args": "-device STM32L476VG"
+            },
+            "flasher_recover": {
+                "name": "openocd_seq",
+                "uid": "777632258",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -c \"adapter speed 4000\" -f target/stm32l4x.cfg"
             }
         },
         {

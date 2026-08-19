@@ -729,6 +729,17 @@ class FlasherRecoverEntry(unittest.TestCase):
         self.assertIn('verify_image /tmp/fw.elf', seen['cmd'])
         self.assertNotIn('program ', seen['cmd'])
 
+    def test_roster_recover_entries_are_convoy_safe_and_named_openocd_seq(self):
+        recover = [b for path, b in roster_flashers()
+                   if path == 'test/hil/tinyusb.json' and 'flasher_recover' in b]
+        self.assertGreaterEqual(len(recover), 7)
+        for b in recover:
+            f = b['flasher_recover']
+            self.assertEqual(f['name'], 'openocd_seq', b['name'])
+            self.assertIn('interface/jlink.cfg', f['args'], b['name'])
+            self.assertIn('adapter speed', f['args'], b['name'])   # required; see below
+            self.assertTrue(hil_flash.convoy_safe(f), b['name'])
+
 
 class TestModuleMove(unittest.TestCase):
     def test_repo_root_guard(self):
