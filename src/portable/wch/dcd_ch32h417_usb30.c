@@ -187,10 +187,17 @@ static void ep_chain_init(void) {
   USBSSD->UEP0_RX_DMA = (uint32_t)(uintptr_t)ep0_buffer;
 }
 
+// Set while the USBSS clocks are gated (dcd_disconnect / dcd_deinit). dcd_int_enable() must honour
+// it: usbd re-enables the DCD interrupt on every tud_task() iteration (the OS-NONE queue mutex
+// wraps osal_queue_receive in dcd_int_disable/enable), which would undo the mask installed below
+// and let the aliased TIM12 vector re-enter dcd_int_handler to read clock-gated USBSSD registers.
+static volatile bool usbss_clocks_off;
+
 static void usbss_device_init(bool enable) {
   if (enable) {
     TU_LOG2("usbss: rcc/pll init\r\n");
     usbss_rcc_init(true);
+    usbss_clocks_off = false;
     TU_LOG2("usbss: pll locked\r\n");
 
     // TX de-emphasis: match the WCH EVT init literal exactly (it programs both DEEMPH bits)
@@ -222,6 +229,7 @@ static void usbss_device_init(bool enable) {
     TU_LOG2("usbss: init done LINK_STATUS=%08lx LINK_CFG=%08lx\r\n",
             (unsigned long)USBSSD->LINK_STATUS, (unsigned long)USBSSD->LINK_CFG);
   } else {
+    usbss_clocks_off = true; // before the teardown starts, not after: see the flag's comment
     NVIC_DisableIRQ(USBSS_LINK_IRQn);
     NVIC_DisableIRQ(USBSS_IRQn);
     USBSSD->USB_CONTROL = USBSS_FORCE_RST;
@@ -435,7 +443,12 @@ static void handle_setup(uint8_t rhport) {
 static void handle_ep0_in(uint8_t rhport) {
   xfer_ctl_t *xfer = XFER_CTL_BASE(0, TUSB_DIR_IN);
   if (!xfer->valid || xfer->total_len == 0) {
-    return; // a zero-length status IN is completed by the UDIF_STATUS interrupt, not here
+    // A zero-length EP0 IN is completed by the UDIF_STATUS interrupt, not here - but the DP still
+    // sets RB_UIF_EP0_TX_ACT, and UIF_TRANSFER is the OR of the endpoint flags, so leaving it set
+    // re-enters this ISR until the host closes the transfer. Park the endpoint (the same write
+    // UDIF_STATUS makes, minus the completion); the CH569 twin does this in its !active branch.
+    USBSSD->UEP0_TX_CTRL = 0;
+    return;
   }
   uint16_t remaining = xfer->total_len - xfer->queued_len;
   if (remaining == 0) {
@@ -786,6 +799,9 @@ void dcd_int_enable(uint8_t rhport) {
   if (fb_state == FB_USB2_ACTIVE) { ch32h417_usb2_int_enable(); return; }
 #endif
   (void)rhport;
+  if (usbss_clocks_off) {
+    return; // disconnected/deinitialised: dcd_connect() re-arms these (usbss_device_init)
+  }
   NVIC_EnableIRQ(USBSS_IRQn);
   NVIC_EnableIRQ(USBSS_LINK_IRQn);
   NVIC_EnableIRQ(TIM12_IRQn); // retrain-backoff / fallback backstop timer (symmetric with disable)
