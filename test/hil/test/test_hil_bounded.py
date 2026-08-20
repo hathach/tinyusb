@@ -1364,7 +1364,14 @@ class RemoteDirIsScreened(unittest.TestCase):
             rc = 0 if keep_going else 77
             for tool in ('ssh', 'scp', 'rsync'):
                 write_script(Path(td) / tool, f'echo "stub-{tool} $*" >&2; exit {rc}')
+            # hil_ci.sh now refuses an all-boards run with nothing built, so this arg-quoting
+            # test needs a checkout stub with one build dir to reach the run invocation
+            root = Path(td) / 'root'
+            (root / 'test' / 'hil').mkdir(parents=True)
+            (root / 'test' / 'hil' / 'hil_test.py').touch()
+            (root / 'examples' / 'cmake-build-alpha').mkdir(parents=True)
             env = {**os.environ, 'REMOTE_DIR': remote_dir, 'REMOTE': 'stub',
+                   'ROOT_DIR': str(root),
                    'PATH': td + os.pathsep + os.environ['PATH']}
             return subprocess.run(
                 ['bash', str(Path(TEST_DIR).parents[0] / 'hil_ci.sh'), *args],
@@ -1412,6 +1419,316 @@ class RemoteDirIsScreened(unittest.TestCase):
         r = self._run('/tmp/tinyusb-hil', '-t', 'host/cdc msc', keep_going=True)
         run_line = [l for l in r.stderr.splitlines() if 'bash -s --' in l][-1]
         self.assertIn(r'host/cdc\ msc', run_line)
+
+
+class EveryBoardIsStaged(unittest.TestCase):
+    """One hil_test.py run takes several `-b` flags, and hil-operator hands it the whole board
+    set that way. The `-b` parse loop kept a single BOARD, so only the LAST board's binaries
+    were rsynced and every other board died on the rig with a missing firmware path -- after
+    its flash slot and lock were already spent.
+
+    Three of these five fail against the pre-fix script (the discriminating unbuilt case
+    puts the board FIRST, because the old single-BOARD parse happened to handle a trailing
+    one correctly); the run-line and variant-dir tests are characterization -- the old script
+    already forwarded ARGS whole and read variants from the config for its one board."""
+
+    def _run(self, boards, cfg_boards=None, variants=None):
+        import json
+        import subprocess
+        td = TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        root = Path(td.name) / 'root'
+        (root / 'test' / 'hil').mkdir(parents=True)
+        (root / 'test' / 'hil' / 'hil_test.py').touch()
+        built = cfg_boards if cfg_boards is not None else boards
+        (root / 'examples').mkdir(parents=True, exist_ok=True)
+        for b in built:
+            (root / 'examples' / f'cmake-build-{b}').mkdir(parents=True)
+        roster = [{'name': b} for b in boards]
+        for entry in roster:
+            for v in (variants or {}).get(entry['name'], []):
+                entry.setdefault('variant', []).append({'name': v})
+        cfg = root / 'test' / 'hil' / 'cfg.json'
+        cfg.write_text(json.dumps({'boards': roster}))
+        stubs = Path(td.name) / 'bin'
+        stubs.mkdir()
+        # real ssh/scp/rsync would reach the rig; these just record the argv
+        for tool in ('ssh', 'scp', 'rsync'):
+            write_script(stubs / tool, f'echo "stub-{tool} $*" >&2; exit 0')
+        env = {**os.environ, 'REMOTE': 'stub', 'ROOT_DIR': str(root), 'CONFIG': str(cfg),
+               'PATH': str(stubs) + os.pathsep + os.environ['PATH']}
+        args = [a for b in boards for a in ('-b', b)]
+        r = subprocess.run(['bash', str(Path(TEST_DIR).parents[0] / 'hil_ci.sh'), *args],
+                           capture_output=True, text=True, timeout=60, env=env)
+        r.rsyncs = [l for l in r.stderr.splitlines() if l.startswith('stub-rsync')]
+        # the RUN ssh is the one carrying hil_test.py's args; the setup ssh is not
+        r.run_lines = [l for l in r.stderr.splitlines() if '--retry 1' in l]
+        return r
+
+    def test_binaries_for_every_requested_board_are_copied(self):
+        r = self._run(['alpha', 'beta', 'gamma'])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        for b in ('alpha', 'beta', 'gamma'):
+            self.assertTrue(any(f'cmake-build-{b} ' in l for l in r.rsyncs),
+                            f'{b} binaries never staged: {r.rsyncs}')
+
+    def test_every_board_reaches_hil_test(self):
+        r = self._run(['alpha', 'beta'])
+        self.assertEqual(len(r.run_lines), 1, r.stderr)
+        self.assertIn('-b alpha', r.run_lines[0])
+        self.assertIn('-b beta', r.run_lines[0])
+
+    def test_an_unbuilt_board_aborts_before_anything_is_staged(self):
+        """The discriminating case: the unbuilt board is FIRST. The pre-fix script kept only
+        the last -b, found it built, and ran happily while silently testing one board. It also
+        has to fail BEFORE staging -- the old in-loop check fired after the remote tree was
+        wiped and earlier boards were rsynced, costing a run and leaving a half-staged rig."""
+        r = self._run(['alpha', 'beta'], cfg_boards=['beta'])
+        self.assertNotEqual(r.returncode, 0, 'unbuilt first board was accepted')
+        self.assertIn('alpha', r.stdout + r.stderr)
+        self.assertEqual(r.rsyncs, [], f'staged despite an unbuilt board: {r.rsyncs}')
+        self.assertEqual(r.run_lines, [], 'reached the run despite an unbuilt board')
+
+    def test_a_board_whose_firmware_is_only_a_variant_dir_is_accepted(self):
+        """Variant names are not required to be prefixed with the board name, so a board can
+        own no `cmake-build-<board>` dir at all. A pre-flight that only globs the board name
+        rejects it and tells the user to build firmware that is already there."""
+        r = self._run(['alpha', 'beta'], cfg_boards=['alpha', 'odd-name-v'],
+                      variants={'beta': ['odd-name-v']})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertTrue(any('cmake-build-odd-name-v ' in l for l in r.rsyncs),
+                        f"beta's variant dir never staged: {r.rsyncs}")
+
+    def test_all_unbuilt_boards_are_named_at_once(self):
+        """One build round should fix every complaint, so the guard reports the whole set."""
+        r = self._run(['alpha', 'beta', 'gamma'], cfg_boards=['beta'])
+        self.assertNotEqual(r.returncode, 0)
+        out = r.stdout + r.stderr
+        self.assertIn('alpha', out)
+        self.assertIn('gamma', out)
+
+
+class StagingCoversEveryBoardForm(unittest.TestCase):
+    """hil_test.py declares `-b, --board` with action='append', so argparse accepts --board X,
+    --board=X and -bX too. Staging only the bare form sent boards to the rig with no firmware,
+    where every test logs `Skip (no binary)` and counts zero errors -- a green row for a board
+    that was never flashed. Also covers the roster check, which has to fire BEFORE the remote
+    tree is wiped, since hil_test.py rejects an unknown -b for the whole run."""
+
+    def _run(self, argv, built, roster=None, variants=None, env_extra=None, stale=None):
+        import json
+        import subprocess
+        td = TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        root = Path(td.name) / 'root'
+        (root / 'test' / 'hil').mkdir(parents=True)
+        (root / 'test' / 'hil' / 'hil_test.py').touch()
+        (root / 'examples').mkdir(parents=True, exist_ok=True)
+        for b in built:
+            (root / 'examples' / f'cmake-build-{b}').mkdir(parents=True)
+        entries = [{'name': b} for b in (roster if roster is not None else built)]
+        for e in entries:
+            for v in (variants or {}).get(e['name'], []):
+                e.setdefault('variant', []).append({'name': v})
+        cfg = root / 'test' / 'hil' / 'cfg.json'
+        cfg.write_text(json.dumps({'boards': entries}))
+        stubs = Path(td.name) / 'bin'
+        stubs.mkdir()
+        # ssh joins its argv into ONE string that the REMOTE shell re-splits, and feeds the
+        # heredoc on stdin. A stub that echoes "$*" hides exactly that, which is how a
+        # completely broken env-forwarding change once passed its own test -- so this stub
+        # re-splits like the real thing and reports the script body separately.
+        write_script(stubs / 'ssh', 'shift; printf "REMOTE-ARGV: %s\\n" "$*" >&2; '
+                                    'body=$(cat); printf "REMOTE-BODY: %s\\n" "$body" >&2; exit 0')
+        for tool in ('scp', 'rsync'):
+            write_script(stubs / tool, f'echo "stub-{tool} $*" >&2; exit 0')
+        for name, content in (stale or {}).items():
+            (root / name).write_text(content)
+        env = {**os.environ, 'REMOTE': 'stub', 'ROOT_DIR': str(root), 'CONFIG': str(cfg),
+               'PATH': str(stubs) + os.pathsep + os.environ['PATH'], **(env_extra or {})}
+        r = subprocess.run(['bash', str(Path(TEST_DIR).parents[0] / 'hil_ci.sh'), *argv],
+                           capture_output=True, text=True, timeout=60, env=env)
+        r.rsyncs = [l for l in r.stderr.splitlines() if l.startswith('stub-rsync')]
+        r.run_lines = [l for l in r.stderr.splitlines() if '--retry 1' in l]
+        r.body = '\n'.join(l for l in r.stderr.splitlines() if l.startswith('REMOTE-BODY'))
+        r.stale_left = {name: (root / name).exists() for name in (stale or {})}
+        return r
+
+    def test_long_board_forms_are_staged_and_only_that_board(self):
+        """Two boards are built so the pre-fix 'copy all built binaries' else-branch cannot
+        stage the right one by accident -- that is what made the first version of this test
+        pass against master while the feature was broken. -balpha is the glued short form
+        argparse resolves to --board alpha; unparsed it fell through to the all-boards branch
+        and silently staged everything built with no roster check."""
+        for argv in (['--board', 'alpha'], ['--board=alpha'], ['-balpha']):
+            with self.subTest(argv=argv):
+                r = self._run(argv, built=['alpha', 'beta'], roster=['alpha', 'beta'])
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertTrue(any('cmake-build-alpha ' in l for l in r.rsyncs),
+                                f'{argv} never staged: {r.rsyncs}')
+                self.assertFalse(any('cmake-build-beta ' in l for l in r.rsyncs),
+                                 f'{argv} staged an unrequested board: {r.rsyncs}')
+
+    def test_board_test_flag_is_not_mistaken_for_a_board(self):
+        """-bt is hil_test.py's --board-test and is exactly what <config>.failed contains, so
+        a glued -b?* pattern turns the documented retry into 'not in the roster: t'."""
+        for argv in (['-b', 'alpha', '-bt', 'alpha:device/cdc_msc'],
+                     ['-b', 'alpha', '-btalpha:device/cdc_msc']):
+            with self.subTest(argv=argv):
+                r = self._run(argv, built=['alpha'])
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertNotIn('not in', r.stderr)
+                self.assertTrue(any('alpha:device/cdc_msc' in l for l in r.run_lines),
+                                f'-bt never reached the rig: {r.run_lines}')
+
+    def test_a_board_outside_the_roster_is_refused_before_staging(self):
+        r = self._run(['-b', 'alpha', '-b', 'ghost'], built=['alpha', 'ghost'], roster=['alpha'])
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn('ghost', r.stdout + r.stderr)
+        self.assertEqual(r.rsyncs, [], 'staged despite an unknown board')
+        self.assertEqual(r.run_lines, [], 'reached the run despite an unknown board')
+
+    def test_a_variant_with_no_build_dir_warns_instead_of_passing_silently(self):
+        r = self._run(['-b', 'alpha'], built=['alpha'], variants={'alpha': ['alpha-DMA']})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn('alpha-DMA', r.stderr)
+        self.assertIn('skipped, not tested', r.stderr)
+
+    def test_no_build_dirs_at_all_aborts_the_all_boards_form(self):
+        """`hil_ci.sh` with no -b stages everything built. With nothing built it used to wipe
+        the rig, stage nothing, and return a green all-skip table."""
+        r = self._run([], built=[], roster=['alpha'])
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn('nothing to test', r.stdout + r.stderr)
+        self.assertEqual(r.run_lines, [], 'reached the run with nothing staged')
+        self.assertNotIn('Setting up remote', r.stdout + r.stderr,
+                         'the guard fired only after the remote tree was already wiped')
+
+    def test_hil_env_reaches_the_rig_as_environment_not_argv(self):
+        """An authorized force is HIL_NO_BOARD_LOCK=1. Passed through ssh's argv it arrives as a
+        positional argument and argparse exits 2, so it has to travel in the script body."""
+        r = self._run(['-b', 'alpha'], built=['alpha'], env_extra={'HIL_NO_BOARD_LOCK': '1'})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        # one %q-quoted word of `export NAME=value; ` fragments, evaluated by the remote —
+        # NOT a bare NAME=value element, which hil_test.py's argparse takes as a positional.
+        # %q backslash-escapes the spaces, so match the pieces rather than the plain phrase.
+        run = '\n'.join(r.run_lines)
+        self.assertIn('HIL_NO_BOARD_LOCK=1', run)
+        self.assertIn('export', run)
+        self.assertFalse(any(' HIL_NO_BOARD_LOCK=1 ' in l for l in r.run_lines),
+                         'env reached argv unquoted, where hil_test.py sees a positional')
+
+    def test_a_value_with_spaces_survives_forwarding(self):
+        r = self._run(['-b', 'alpha'], built=['alpha'],
+                      env_extra={'HIL_SCRATCH': '/tmp/my scratch'})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        run = '\n'.join(r.run_lines)
+        self.assertIn('HIL_SCRATCH', run)
+        self.assertIn('scratch', run)
+
+    def test_hil_report_dir_is_never_forwarded(self):
+        """Where the report lands on the rig is this script's contract (REMOTE_DIR, where all
+        three copy-backs look); forwarding a local HIL_REPORT_DIR relocates it there and every
+        copy-back comes home empty -- two of the three silently."""
+        r = self._run(['-b', 'alpha'], built=['alpha'],
+                      env_extra={'HIL_REPORT_DIR': '/tmp/elsewhere'})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertFalse(any('HIL_REPORT_DIR' in l for l in r.run_lines),
+                         f'HIL_REPORT_DIR reached the rig: {r.run_lines}')
+
+    def test_a_stale_local_failed_spec_does_not_survive_a_green_run(self):
+        """A green run writes no .failed on the rig, so the copy-back scp no-ops; the local
+        spec from a previous FAILED run must not survive it looking current -- a later
+        "retry from the spec" would re-flash boards that already passed."""
+        r = self._run(['-b', 'alpha'], built=['alpha'],
+                      stale={'cfg.json.failed': '--accumulate -b alpha'})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertFalse(r.stale_left['cfg.json.failed'],
+                         "last run's re-run spec survived a green run")
+
+
+class SummaryFoldsReportToBoards(unittest.TestCase):
+    """hil_summary.py replaces the agent retyping the markdown table. Report rows are named per
+    VARIANT and a variant need not start with the board name, so the config is what maps them
+    back -- the previous string-matching design produced a defect in each of four review rounds."""
+
+    def _sum(self, boards, rows, cfg_boards=None, banner=''):
+        import json
+        import subprocess
+        td = TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        d = Path(td.name)
+        (d / 'hil_report.json').write_text(json.dumps(
+            {'rows': [{'board': b, 'cells': c, 'duration': '1s'} for b, c in rows],
+             'banner': banner}))
+        cfg = d / 'cfg.json'
+        cfg.write_text(json.dumps({'boards': cfg_boards or [{'name': b} for b in boards]}))
+        args = [a for b in boards for a in ('-b', b)]
+        r = subprocess.run(['python3', str(Path(TEST_DIR).parents[0] / 'helper' / 'hil_summary.py'),
+                            str(cfg), *args, '--report-dir', str(d)],
+                           capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return json.loads(r.stdout)['results']
+
+    def test_variant_rows_fold_onto_their_board(self):
+        """nanoch32v203 never produces a row named after the board."""
+        got = self._sum(['nanoch32v203'],
+                        [('nanoch32v203-fsdev', {'usbtest': 'pass'}),
+                         ('nanoch32v203-usbfs', {'usbtest': 'pass'})],
+                        cfg_boards=[{'name': 'nanoch32v203',
+                                     'variant': [{'name': 'nanoch32v203-fsdev'},
+                                                 {'name': 'nanoch32v203-usbfs'}]}])
+        self.assertEqual([r['board'] for r in got], ['nanoch32v203'])
+        self.assertTrue(got[0]['pass'])
+        self.assertTrue(got[0]['ran'])
+
+    def test_one_failing_variant_fails_the_board(self):
+        got = self._sum(['nano'],
+                        [('nano-a', {'usbtest': 'pass'}), ('nano-b', {'usbtest': '❌ 29/30'})],
+                        cfg_boards=[{'name': 'nano', 'variant': [{'name': 'nano-a'},
+                                                                 {'name': 'nano-b'}]}])
+        self.assertFalse(got[0]['pass'])
+        self.assertIn('29/30', got[0]['detail'])
+
+    def test_lock_contention_is_a_field_not_a_prefix(self):
+        got = self._sum(['alpha'], [('alpha', {'board-locked': 'fail'})])
+        self.assertTrue(got[0]['locked'])
+        self.assertFalse(got[0]['pass'])
+
+    def test_a_board_with_no_row_is_marked_not_run(self):
+        got = self._sum(['alpha', 'beta'], [('alpha', {'usbtest': 'pass'})])
+        self.assertTrue(got[0]['ran'])
+        self.assertFalse(got[1]['ran'])
+        self.assertFalse(got[1]['pass'])
+
+    def test_a_metric_cell_counts_by_its_icon(self):
+        got = self._sum(['a', 'b'], [('a', {'cdc_msc_throughput': '✅ C 1.2 M 3.4'}),
+                                     ('b', {'cdc_msc_throughput': '❌ C 0.0 M 0.0'})])
+        self.assertTrue(got[0]['pass'])
+        self.assertFalse(got[1]['pass'])
+
+    def test_skipped_cells_do_not_fail_a_board(self):
+        got = self._sum(['a'], [('a', {'usbtest': 'skip', 'cdc_msc': 'pass'})])
+        self.assertTrue(got[0]['pass'])
+
+    def test_a_plain_metric_cell_is_a_pass(self):
+        """Mirrors hil_test.py's own tally (cell_kind): failures are ALWAYS marked -- 'fail'
+        or a ❌ prefix, per TestFail's docstring -- while a passing test may return a plain
+        metric string that lands in the cell unprefixed. Treating unknown shapes as fail
+        would publish a green table as a red verdict."""
+        got = self._sum(['a'], [('a', {'device_speed': '480.0 MBps'})])
+        self.assertTrue(got[0]['pass'])
+
+    def test_a_declared_variant_of_another_board_is_not_stolen(self):
+        """A declared variant need not start with its own board's name, so it may start with
+        a DIFFERENT board's name plus '-'. The prefix fallback must not attribute it twice."""
+        got = self._sum(['alpha', 'beta'],
+                        [('beta-x', {'usbtest': 'fail'})],
+                        cfg_boards=[{'name': 'alpha', 'variant': [{'name': 'beta-x'}]},
+                                    {'name': 'beta'}])
+        self.assertTrue(got[0]['ran'])
+        self.assertFalse(got[0]['pass'])
+        self.assertFalse(got[1]['ran'], "beta must not inherit alpha's row")
 
 
 class CaveatSurvivesAccumulate(unittest.TestCase):

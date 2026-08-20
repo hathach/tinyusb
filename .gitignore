@@ -2,6 +2,7 @@ html
 latex
 hil_report.md
 hil_report.json
+*.json.failed
 *.a
 *.d
 *.o
