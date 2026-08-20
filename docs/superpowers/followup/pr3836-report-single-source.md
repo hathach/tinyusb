@@ -10,7 +10,7 @@
 
 **Spec:** none — this is a follow-up split out of the `claude/hil-doc-audit` branch. The evidence it argues from is inline below.
 
-**Origin:** split out of branch `claude/hil-doc-audit` (the HIL one-run rework + `.claude` instruction audit). That branch has no PR number yet, so this file is named for the branch rather than `pr<NNN>-`; rename it to `pr<NNN>-report-single-source.md` when the PR opens, per the repo's deferred-work rule. Delete it when this work lands.
+**Origin:** split out of PR #3836 (the HIL one-run rework + `.claude` instruction audit). Delete this file when its own PR lands.
 
 ## Global Constraints
 
