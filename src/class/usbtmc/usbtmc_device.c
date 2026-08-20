@@ -307,7 +307,9 @@ uint16_t usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const *itf_desc, 
   usbtmc_state.rhport = rhport;
 
   const uint8_t *desc_end = (const uint8_t *) itf_desc + max_len;
-  while (found_endpoints < itf_desc->bNumEndpoints && drv_len <= max_len) {
+  // tu_desc_in_bounds, not drv_len <= max_len: the latter still admits p_desc == desc_end, where
+  // reading bLength/bDescriptorType is already past the descriptor
+  while (found_endpoints < itf_desc->bNumEndpoints && tu_desc_in_bounds(p_desc, desc_end)) {
     uint16_t desc_total = tu_desc_len(p_desc);
     if (TUSB_DESC_ENDPOINT == p_desc[DESC_OFFSET_TYPE]) {
       tusb_desc_endpoint_t const *ep_desc = (tusb_desc_endpoint_t const *) p_desc;
