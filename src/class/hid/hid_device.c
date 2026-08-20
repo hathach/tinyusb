@@ -205,8 +205,17 @@ uint16_t hidd_open(uint8_t rhport, tusb_desc_interface_t const *desc_itf, uint16
   TU_VERIFY(TUSB_CLASS_HID == desc_itf->bInterfaceClass, 0);
 
   // len = interface + hid + n*endpoints
-  uint16_t const drv_len = (uint16_t) (sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) +
-                                       desc_itf->bNumEndpoints * sizeof(tusb_desc_endpoint_t));
+  uint16_t drv_len = (uint16_t) (sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) +
+                                 desc_itf->bNumEndpoints * sizeof(tusb_desc_endpoint_t));
+#if TUD_OPT_SUPER_SPEED
+  {
+    // SuperSpeed configuration: every endpoint descriptor is followed by a companion descriptor
+    const uint8_t* desc_end = (const uint8_t*)desc_itf + max_len;
+    const uint8_t* p_hid = tu_desc_next(desc_itf);
+    const uint8_t* p_ep = tu_desc_in_bounds(p_hid, desc_end) ? tu_desc_next(p_hid) : desc_end; // 1st endpoint
+    drv_len += usbd_ss_ep_companion_len(p_ep, desc_end, desc_itf->bNumEndpoints);
+  }
+#endif
   TU_ASSERT(max_len >= drv_len, 0);
 
   // Find available interface
@@ -230,7 +239,7 @@ uint16_t hidd_open(uint8_t rhport, tusb_desc_interface_t const *desc_itf, uint16
 
   //------------- Endpoint Descriptor -------------//
   p_desc = tu_desc_next(p_desc);
-  TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, desc_itf->bNumEndpoints, TUSB_XFER_INTERRUPT, &p_hid->ep_out, &p_hid->ep_in), 0);
+  TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, (const uint8_t*)desc_itf + max_len, desc_itf->bNumEndpoints, TUSB_XFER_INTERRUPT, &p_hid->ep_out, &p_hid->ep_in), 0);
 
   if (desc_itf->bInterfaceSubClass == HID_SUBCLASS_BOOT) {
     p_hid->itf_protocol = desc_itf->bInterfaceProtocol;

@@ -108,8 +108,46 @@ bool usbd_edpt_ready(uint8_t rhport, uint8_t ep_addr) {
 // Enable SOF interrupt
 void usbd_sof_enable(uint8_t rhport, sof_consumer_t consumer, bool en);
 
-bool usbd_open_edpt_pair(uint8_t rhport, uint8_t const* p_desc, uint8_t ep_count, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in);
-void usbd_defer_func(osal_task_func_t func, void *param, bool in_isr);
+// Open a pair of IN & OUT endpoints from consecutive endpoint descriptors (companion-aware at
+// SuperSpeed). desc_end bounds the walk (typically the interface descriptor + max_len).
+bool usbd_open_edpt_pair(uint8_t rhport, uint8_t const* p_desc, const uint8_t* desc_end, uint8_t ep_count, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in);
+
+// SuperSpeed: advance past endpoint companion descriptor(s) if present
+TU_ATTR_ALWAYS_INLINE static inline
+const uint8_t* usbd_skip_ss_ep_companion(const uint8_t* p_desc, const uint8_t* desc_end) {
+#if TUD_OPT_SUPER_SPEED
+  while (tu_desc_in_bounds(p_desc, desc_end) && tu_desc_len(p_desc) != 0 &&
+         (TUSB_DESC_SUPERSPEED_ENDPOINT_COMPANION == tu_desc_type(p_desc) ||
+          TUSB_DESC_SUPERSPEED_ISO_ENDPOINT_COMPANION == tu_desc_type(p_desc))) {
+    p_desc = tu_desc_next(p_desc);
+  }
+#else
+  (void) desc_end;
+#endif
+  return p_desc;
+}
+
+// SuperSpeed: total length of the endpoint companion descriptor(s) belonging to the next ep_count
+// endpoint descriptors starting at p_desc, for class drivers to add to their driver length.
+// Always 0 in a non-SuperSpeed build (no companion exists). Both companion types are accounted
+// (6-byte bulk/interrupt, 8-byte isochronous), and the walk is bounds-checked against desc_end.
+TU_ATTR_ALWAYS_INLINE static inline
+uint16_t usbd_ss_ep_companion_len(const uint8_t* p_desc, const uint8_t* desc_end, uint8_t ep_count) {
+#if TUD_OPT_SUPER_SPEED
+  uint16_t total = 0;
+  while (ep_count-- > 0 && tu_desc_in_bounds(p_desc, desc_end) && TUSB_DESC_ENDPOINT == tu_desc_type(p_desc)) {
+    const uint8_t* p_comp = tu_desc_next(p_desc);
+    p_desc = usbd_skip_ss_ep_companion(p_comp, desc_end);
+    total = (uint16_t) (total + (p_desc - p_comp));
+  }
+  return total;
+#else
+  (void) p_desc; (void) desc_end; (void) ep_count;
+  return 0;
+#endif
+}
+
+bool usbd_defer_func(osal_task_func_t func, void *param, bool in_isr); // false: queue full, not deferred
 
 #ifdef __cplusplus
  }

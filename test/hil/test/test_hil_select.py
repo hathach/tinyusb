@@ -10,10 +10,14 @@
 # both) and the roster-dispatch tests need its flash_* table; never import hil_test,
 # which pulls pyserial.
 import glob
+import inspect
 import json
 import os
+import subprocess
 import sys
+import tempfile
 import unittest
+import unittest.mock
 
 # the modules under test live in the parent dir (test/hil), not here
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -683,6 +687,107 @@ class FlasherRecoverEntry(unittest.TestCase):
             {'name': 'openocd', 'vid_pid': '0x2e8a 0x000c', 'args': '-f interface/cmsis-dap.cfg'}))
         self.assertFalse(hil_flash.convoy_safe({'name': 'jlink', 'uid': 'X'}))
         self.assertTrue(hil_flash.convoy_safe({'name': 'esptool'}))
+class TestFlasherPathsSynthetic(unittest.TestCase):
+    """The dev-PC flashers (openocd with args_program, the WCH BSP UART loader) are on no rig
+    roster, so TestRosterFlashersDispatch above never reaches them — their boards sit on a
+    maintainer's desk, and a fake roster entry would break the rigs' pool checks. Drive them
+    from a synthetic roster instead, with run_cmd stubbed: no hardware, no subprocess."""
+
+    ROSTER = [
+        {'name': 'synth_openocd_wch', 'uid': 'x1',
+         'flasher': {'name': 'openocd', 'uid': 'D3008F0657DB', 'args': '-f target/wch-riscv.cfg',
+                     'verify': False, 'args_program': '-c "halt" -c "riscv dmi_write 0x10 0"'}},
+        {'name': 'synth_wch_uart', 'uid': 'x2',
+         'flasher': {'name': 'wch_uart_loader', 'uid': 'E8E68F066EEE', 'args': ''}},
+    ]
+
+    def setUp(self):
+        self.cmds = []
+        # run_cmd lives in helper.hil_util; hil_flash calls it as hil_util.run_cmd, so patch it
+        # there rather than on hil_flash (where the name no longer exists).
+        patcher = unittest.mock.patch.object(
+            hil_flash.hil_util, 'run_cmd',
+            side_effect=lambda cmd, **kw: self.cmds.append(cmd) or
+            subprocess.CompletedProcess(args=cmd, returncode=0, stdout=''))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def board(self, name):
+        return next(b for b in self.ROSTER if b['flasher']['name'] == name)
+
+    def test_dispatch_and_signatures(self):
+        """hil_test/hil_pool_check dispatch with getattr(hil_flash, f'flash_{name}') and call
+        flash_*(board, firmware) / reset_*(board): a rename or an extra parameter must fail
+        here, not at 2am on the rig."""
+        for board in self.ROSTER:
+            name = board['flasher']['name'].lower()
+            self.assertIn(name, hil_flash.FLASHER_SUFFIX, f'{name}: no FLASHER_SUFFIX entry')
+            # flash_*(board, firmware, timeout=None) / reset_*(board, timeout=None)
+            for fn, nargs in ((f'flash_{name}', 3), (f'reset_{name}', 2)):
+                f = getattr(hil_flash, fn, None)
+                self.assertTrue(callable(f), f'hil_flash.{fn} does not exist')
+                self.assertEqual(nargs, len(inspect.signature(f).parameters), f'{fn} arity')
+
+    def test_openocd_flash_and_reset_carry_args_program(self):
+        """The CH569 SDI debug-module quiesce must run in the SAME openocd session as the
+        program/reset it follows: a second attach re-activates the DM on running firmware and
+        kills the board until the next flash. So: one invocation, args_program before shutdown,
+        and `shutdown` rather than the deprecated `exit`."""
+        board = self.board('openocd')
+        quiesce = board['flasher']['args_program']
+        for call in (lambda: hil_flash.flash_openocd(board, 'fw.elf'),
+                     lambda: hil_flash.reset_openocd(board)):
+            self.cmds.clear()
+            call()
+            self.assertEqual(1, len(self.cmds), 'openocd must be attached exactly once')
+            cmd = self.cmds[0]
+            self.assertIn(quiesce, cmd)
+            self.assertLess(cmd.index(quiesce), cmd.index('shutdown'))
+            self.assertNotIn('-c "exit"', cmd)
+
+    def test_openocd_without_args_program(self):
+        """Absent from the roster -> no-op, not a crash or a stray empty -c."""
+        board = {'name': 'synth_openocd', 'flasher': {'name': 'openocd', 'uid': 'u', 'args': ''}}
+        hil_flash.flash_openocd(board, 'fw.elf')
+        hil_flash.reset_openocd(board)
+        for cmd in self.cmds:
+            self.assertNotIn('-c ""', cmd)
+            self.assertIn('shutdown', cmd)
+
+    def test_wch_uart_loader_flash_runs_helper(self):
+        board = self.board('wch_uart_loader')
+        hil_flash.flash_wch_uart_loader(board, '/tmp/fw.bin')
+        self.assertEqual(1, len(self.cmds))
+        self.assertIn('wch_uart_flash.py', self.cmds[0])
+        self.assertIn(f'--uid {board["flasher"]["uid"]}', self.cmds[0])
+        self.assertIn('/tmp/fw.bin', self.cmds[0])
+
+    def test_wch_uart_loader_reset_reports_park_result(self):
+        """A park that could not be written is a board that was never reset: report it (1)
+        rather than masking it. A successful park sits out the BSP's park window first."""
+        board = self.board('wch_uart_loader')
+        with unittest.mock.patch.object(hil_flash, '_wch_uart_park', return_value=False):
+            self.assertEqual(1, hil_flash.reset_wch_uart_loader(board).returncode)
+        with unittest.mock.patch.object(hil_flash, '_wch_uart_park', return_value=True), \
+             unittest.mock.patch.object(hil_flash.time, 'sleep') as slept:
+            self.assertEqual(0, hil_flash.reset_wch_uart_loader(board).returncode)
+        slept.assert_called_once_with(hil_flash.WCH_PARK_WINDOW)
+        self.assertEqual([], self.cmds, 'park is a VCP write, never a shell command')
+
+    def test_find_firmware_uses_flasher_suffix(self):
+        """FLASHER_SUFFIX decides which extension a flasher is handed: the UART loader takes
+        the raw .bin even when an .elf of the same name sits next to it."""
+        with tempfile.TemporaryDirectory() as tmp:
+            fw_dir = os.path.join(tmp, 'cmake-build-synth_wch_uart', 'device/cdc_msc')
+            os.makedirs(fw_dir)
+            for ext in ('.elf', '.bin'):
+                open(os.path.join(fw_dir, f'cdc_msc{ext}'), 'w').close()
+            root = os.path.relpath(tmp, hil_flash.hil_util.TINYUSB_ROOT)
+            for flasher, ext in (('wch_uart_loader', '.bin'), ('openocd', '.elf')):
+                fw = hil_flash.find_firmware('synth_wch_uart', 'device/cdc_msc', roots=[root],
+                                             flasher=flasher)
+                self.assertIsNotNone(fw, f'{flasher}: firmware not found')
+                self.assertEqual(ext, fw.suffix)
 
 
 if __name__ == '__main__':

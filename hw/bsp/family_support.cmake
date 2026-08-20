@@ -439,7 +439,16 @@ function(family_configure_common TARGET RTOS)
         SKIP_LINTING ON # need cmake 4.2
         )
       if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
-        set_target_properties(${BOARD_TARGET} PROPERTIES COMPILE_OPTIONS -w)
+        # append: setting the property outright would drop the flags family_add_board() gave the
+        # board library's own sources (e.g. -flto -fsigned-char -msmall-data-limit on WCH), which
+        # only survive on the INTERFACE_ half and would then differ from the Make build.
+        # Blast radius, deliberately accepted: every family that gives BOARD_TARGET PUBLIC (or
+        # PRIVATE) compile options now applies them to the board library's own sources as well,
+        # not just to the example - the BSP codegen of ~19 families changes with it (e.g.
+        # broadcom_32bit/64bit's -O0 -ffreestanding now beats MinSizeRel's -Os, ch583 gains
+        # -flto -fsigned-char). That matches what those families already get from Make, and -w
+        # stays appended last so the vendor SDK sources remain warning-silenced either way.
+        set_property(TARGET ${BOARD_TARGET} APPEND PROPERTY COMPILE_OPTIONS -w)
       endif ()
     endif ()
     target_link_libraries(${TARGET} PUBLIC ${BOARD_TARGET})

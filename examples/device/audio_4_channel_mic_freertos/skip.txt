@@ -20,3 +20,5 @@ family:broadcom_32bit
 family:broadcom_64bit
 family:nuc121_125
 family:hpmicro
+mcu:CH569
+mcu:CH32H417

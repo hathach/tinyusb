@@ -11,7 +11,8 @@ description: Use when running, debugging, or porting the Linux usbtest/testusb b
 (gadget-zero source/sink protocol): 30 cases over bulk, EP0, interrupt, and isochronous, including
 halt, data-toggle, and unlink storms. It is the most adversarial exerciser a DCD gets — every port
 so far surfaced at least one real driver bug. Host runner: `test/hil/usbtest.py`; HIL integration
-runs it per board and reports `✅ 30/30` cells.
+runs it per board and reports `✅ 30/30` cells (quirk-skipped cases leave the denominator, e.g.
+`✅ 27/27`).
 
 **Core principle: the battery is a DCD test, not a firmware test.** When a case fails, suspect the
 DCD path it exercises (table below), reproduce that one case, and root-cause on hardware before
@@ -35,6 +36,10 @@ python3 test/hil/usbtest.py --serial <uid> --keep-binding --tests 29 # one case
   through its roster probe (non-destructive, ~130 ms) and reflashes only if that does not
   clear the wedge (see usb-kernel-recover). Manual runs without those flags leave a HUNG
   device wedged and skip cleanup — expected; reset or reflash it yourself.
+- **Never hand-write a bare `echo "vid pid" > usbtest/new_id`**: a dynamic id without the 4-field
+  ref form (`vid pid 0 0525 a4a0`, copying Gadget Zero's driver_info) probes with driver_info=NULL
+  → kernel NULL-deref Oops → D-state testusb → forced reboot. Binding a foreign device (e.g. a
+  vendor demo for an A/B) uses the same 4-field form.
 - Always settle a few seconds after flashing — enumeration can bounce once; testusb into the gap sees
   the device drop mid-case.
 - On a CI rig: hold the board lock before touching hardware and release it after — never stop the
@@ -61,6 +66,14 @@ python3 test/hil/usbtest.py --serial <uid> --keep-binding --tests 29 # one case
    nothing on a flaky bring-up; deterministic partial counts (e.g. exactly 1-in-8 lost) are a
    signature, not noise — chase them.
 5. Register the board in `test/hil/tinyusb.json` so the HIL suite runs it.
+6. **Silicon-impossible cases** get a quirk flag, not a dodge: once proven a silicon erratum
+   (vendor-stack A/B, debug ladder step 7), advertise it in bcdDevice bits 4–7 (`USBTEST_QUIRKS`
+   in `src/usb_descriptors.h`; skip table `QUIRK_SKIPS` in `usbtest.py`) so the battery skips the
+   cases *visibly* ("27/27 passed, 3 skipped") instead of flaking. Never mask an erratum by tuning
+   params or skipping the whole board. Precedent — CH569 at SuperSpeed advertises 0x30 (0x10|0x20,
+   skipping 13/14/21) and CH32H417 advertises 0x20 (skipping 13); the CH569 does 30/30 at HS.
+   Prove an erratum on more than one host before *removing* a quirk: quirk 0x10's strike rate is
+   host-dependent (see the case 14/21 row below).
 
 ## Case → DCD subsystem map
 
@@ -69,9 +82,9 @@ python3 test/hil/usbtest.py --serial <uid> --keep-binding --tests 29 # one case
 | 9, 10 | EP0 control storms | EP0 state machine, ZLP/status stage, control starvation under load |
 | 1–8, 17–20, 27, 28 | bulk source/sink, sg, perf | FIFO handling, multi-packet, ZLP tolerance |
 | 11, 12, 24 | URB unlink mid-transfer | abort/close paths leaving state half-armed |
-| 13 | set/clear halt | stall must kill the transfer; halt on armed IN must flush the TX FIFO |
+| 13 | set/clear halt | stall must kill the transfer; halt on armed IN must flush the TX FIFO. CH569 SS silicon: a halted EP answers exactly ONE STALL TP, unfixable (quirk 0x20; the CH32H417 has RB_EP_TX/RX_HALT and is affected all the same, so it advertises 0x20 too) |
 | **29** | clear-halt on an **armed, un-halted** ep | **the classic**: `dcd_edpt_clear_stall` resets toggle but disarms the queued receive → NAKs forever, errno 110. Fix: reset toggle to DATA0 *and* re-arm/preserve the pending transfer. Found independently on rp2040, fsdev, ch32_usbhs, rusb2 |
-| 14, 21 | vendor EP0 write/readback | multi-packet control-OUT chunking, DCP flow control |
+| 14, 21 | vendor EP0 write/readback | multi-packet control-OUT chunking, DCP flow control. CH569 SS silicon: EP0 OUT data stages with `wLength % 4 == 1` are intermittently dropped (quirk 0x10, re-added 2026-08-11 with wire evidence — transaction error, full 489-byte residual). The strike rate is host-dependent: a Renesas uPD720201 fails most ctrl_out runs while an onboard AMD xHCI ran 15/15 clean, which is what briefly retired the quirk |
 | 25, 26 | interrupt src/sink | usually free once bulk works |
 | 15, 16, 22, 23 | isochronous | see iso rules below |
 
@@ -133,6 +146,15 @@ curl -sO "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain
    per CLAUDE.md, and because comments/assumptions in DCDs have been wrong about hardware caps.
 6. Check the vendor's **silicon errata** early for timing/DMA hangs (an unimplemented erratum
    workaround caused a case-10 hang on one port).
+7. **Prove (or refute) "it's the silicon" with a vendor-stack A/B**: build the vendor's own
+   reference firmware, patch in the gadget-zero 0x5b/0x5c ctrl store (mirror its existing
+   control-OUT request, ~10 lines), flash to the same board/port, bind usbtest to the foreign
+   VID:PID and run the failing case. Identical failure = erratum (document + quirk-skip); clean =
+   the difference is in our DCD, keep digging. This is the only argument that closes the debate.
+8. **Flakes may be value-gated, not random**: hammer one parameter at a time.
+   `testusb -D <node> -t 14 -c 4000 -s L -v $((L-1))` alternates lengths 1,L — sweeping L exposed
+   a wLength-mod-4 gate that stock params (`-s 512 -v 61`, only one hot length in its 9-cycle)
+   diluted into "0.3% random".
 
 ## Traps that pass gcc/desk review but fail elsewhere
 

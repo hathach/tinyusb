@@ -214,8 +214,10 @@ uint16_t printerd_open(uint8_t rhport, const tusb_desc_interface_t *itf_desc, ui
       TU_ASSERT(tu_edpt_stream_read_xfer(stream_rx) > 0, 0);
     }
 
-    drv_len += sizeof(tusb_desc_endpoint_t);
-    p_desc = tu_desc_next(p_desc);
+    // SuperSpeed: the endpoint's companion descriptor(s) follow it
+    const uint16_t comp_len = usbd_ss_ep_companion_len(p_desc, desc_end, 1);
+    drv_len += (uint16_t) (sizeof(tusb_desc_endpoint_t) + comp_len);
+    p_desc = tu_desc_next(p_desc) + comp_len;
   }
 
   return drv_len;

@@ -68,12 +68,17 @@ static uint8_t const iso_tx_chunk[USBTEST_ISO_EP_MPS];
 // Interrupt/iso submit one packet per (micro)frame, sized to the NEGOTIATED speed's mps — a
 // high-speed build enumerated at full speed must submit the FS length, not the HS-capacity buffer
 // size (bulk is exempt: it streams multi-packet transfers). See usb_descriptors.h.
+// tusb_speed_t is not ordered by bandwidth beyond SUPER (AUTO = 0xaa, INVALID = 0xff): test
+// membership explicitly, or an unset speed would pick the HS length on a full-speed link (babble).
 static inline uint16_t usbtest_int_len(void) {
-  return (tud_speed_get() == TUSB_SPEED_HIGH) ? USBTEST_INT_EP_MPS_HS : USBTEST_INT_EP_MPS_FS;
+  const tusb_speed_t speed = tud_speed_get();
+  return (speed == TUSB_SPEED_HIGH || speed == TUSB_SPEED_SUPER) ? USBTEST_INT_EP_MPS_HS : USBTEST_INT_EP_MPS_FS;
 }
 #if USBTEST_TIER >= 4
 static inline uint16_t usbtest_iso_len(void) {
-  return (tud_speed_get() == TUSB_SPEED_HIGH) ? USBTEST_ISO_EP_MPS_HS : USBTEST_ISO_EP_MPS_FS;
+  const tusb_speed_t speed = tud_speed_get();
+  if (speed == TUSB_SPEED_SUPER) { return USBTEST_ISO_EP_MPS_SS; }
+  return (speed == TUSB_SPEED_HIGH) ? USBTEST_ISO_EP_MPS_HS : USBTEST_ISO_EP_MPS_FS;
 }
 #endif
 

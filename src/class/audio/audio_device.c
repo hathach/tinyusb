@@ -1576,8 +1576,10 @@ static bool audiod_fb_params_prepare(uint8_t func_id, uint8_t alt) {
         audio->feedback.compute.fifo_count.nom_value = nominal;
         audio->feedback.compute.fifo_count.rate_const[0] = (uint16_t) ((audio->feedback.max_value - nominal) / fifo_threshold);
         audio->feedback.compute.fifo_count.rate_const[1] = (uint16_t) ((nominal - audio->feedback.min_value) / fifo_threshold);
-        // On HS feedback is more sensitive since packet size can vary every MSOF, could cause instability
-        if (tud_speed_get() == TUSB_SPEED_HIGH) {
+        // On HS feedback is more sensitive since packet size can vary every MSOF, could cause
+        // instability. SuperSpeed is microframed too, so test "not full speed" rather than
+        // "== high speed" - matching frame_div/k above, which already resolve SUPER that way.
+        if (tud_speed_get() != TUSB_SPEED_FULL) {
           audio->feedback.compute.fifo_count.rate_const[0] /= 8;
           audio->feedback.compute.fifo_count.rate_const[1] /= 8;
         }
@@ -1637,8 +1639,9 @@ TU_ATTR_FAST_FUNC void audiod_sof_isr(uint8_t rhport, uint32_t frame_count) {
     audiod_function_t *audio = &_audiod_fct[i];
 
     if (audio->ep_fb != 0) {
-      // HS shift need to be adjusted since SOF event is generated for frame only
-      uint8_t const hs_adjust = (TUSB_SPEED_HIGH == tud_speed_get()) ? 3 : 0;
+      // HS shift need to be adjusted since SOF event is generated for frame only. SuperSpeed is
+      // microframed as well, so the adjustment applies to any speed above full.
+      uint8_t const hs_adjust = (TUSB_SPEED_FULL == tud_speed_get()) ? 0 : 3;
       uint32_t const interval = 1UL << (audio->feedback.frame_shift - hs_adjust);
       if (0 == (frame_count & (interval - 1))) {
         tud_audio_feedback_interval_isr(i, frame_count, audio->feedback.frame_shift);

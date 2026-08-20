@@ -1335,6 +1335,46 @@ def test_device_hid_generic_inout(board):
         h.close()
 
 
+def usbtest_cell(data):
+    """Render the usbtest report cell from usbtest.py's --json output.
+
+    Skipped cases stay in the denominator: a device that quirk-skips 5 of 30 cases reports
+    25/30, never 25/25, so a partial battery can never be read as a full pass. The '✅' prefix
+    is kept rather than a new icon because render/tally classify cells by that prefix.
+    """
+    passed, failed = int(data['passed']), int(data['failed'])
+    skipped = int(data.get('skipped', 0))
+    total = passed + failed + skipped
+    if failed == 0 and total > 0:
+        if skipped:
+            return f'{REPORT_CELL["pass"]} {passed}/{total} ({skipped} skipped)'
+        return f'{REPORT_CELL["pass"]} {passed}/{total}'
+    # SKIP is not a failure: including it here reported the quirked cases as failures
+    # alongside the real one
+    bad = [c.get('num') for c in data.get('cases', []) if c.get('status') not in ('PASS', 'SKIP')]
+    raise TestFail(f'usbtest {passed}/{total} (cases failed: {bad})',
+                   metric=f'{REPORT_CELL["fail"]} {passed}/{total}')
+
+
+def usbtest_totals(data):
+    """(passed, failed, notrun, skipped, total) from usbtest.py's --json output.
+
+    Neither notrun (the battery stopped early) nor skipped (the device advertises the case as
+    unsupported via its bcdDevice quirk bits) is a failure, but both belong in the denominator:
+    dropping them shrinks the total and a partial battery reads as a clean sweep.
+    """
+    passed, failed = int(data['passed']), int(data['failed'])
+    notrun = int(data.get('notrun', 0))
+    skipped = int(data.get('skipped', 0))
+    return passed, failed, notrun, skipped, passed + failed + notrun + skipped
+
+
+def usbtest_bad_cases(data):
+    """Case numbers that actually failed - never the ones that did not run."""
+    return [c.get('num') for c in data.get('cases', [])
+            if c.get('status') not in ('PASS', 'BUDGET', 'SKIP')]
+
+
 def test_device_usbtest(board):
     global board_wedged
     # Runs test/hil/usbtest.py against the cafe:4010 device; the pass count goes in the
@@ -1478,8 +1518,7 @@ def test_device_usbtest(board):
 
     # notrun counts toward the denominator but is NOT a failure: listing cases that never
     # ran as failures sends a maintainer bisecting one of them.
-    notrun = int(data.get('notrun', 0))
-    total = passed + failed + notrun
+    passed, failed, notrun, skipped, total = usbtest_totals(data)
     if board_wedged and failed == 0 and notrun == 0:
         # Every case passed and the device STILL wedged -- usbtest's inconclusive/ambiguous
         # abort fires after the last case, so nothing back-fills a BUDGET entry. Reporting
@@ -1489,9 +1528,9 @@ def test_device_usbtest(board):
         raise TestFail(f'usbtest {passed}/{total} but the device wedged ({board_wedged})',
                        metric=f'{REPORT_CELL["fail"]} {passed}/{total}', parsed=True)
     if failed == 0 and notrun == 0 and total > 0:
-        return f'{REPORT_CELL["pass"]} {passed}/{total}'
-    bad = [c.get('num') for c in data.get('cases', [])
-           if c.get('status') not in ('PASS', 'BUDGET')]
+        return (f'{REPORT_CELL["pass"]} {passed}/{total}'
+                + (f' ({skipped} skipped)' if skipped else ''))
+    bad = usbtest_bad_cases(data)
     why = f'usbtest {passed}/{total}'
     if bad:
         why += f' (cases failed: {bad})'

@@ -29,6 +29,7 @@
 #include "tusb_fifo.h"
 #include "tusb.h"
 #include "usbd.h"
+#include "common/tusb_private.h"
 #include "device/usbd_pvt.h"
 TEST_SOURCE_FILE("usbd.c")
 
@@ -52,6 +53,12 @@ enum
 
 uint8_t const rhport = 0;
 
+// bMaxPacketSize0 is a single byte holding the full/high-speed EP0 size (64 max); SuperSpeed
+// encodes it as the exponent (9 == 512) in a separate descriptor. CFG_TUD_ENDPOINT0_SIZE is 512
+// on a SuperSpeed-capable build and would truncate to 0 in this field, so clamp it the way the
+// examples' descriptors do (EP0_SIZE_FSHS).
+#define EP0_SIZE_FSHS   ((uint8_t)(CFG_TUD_ENDPOINT0_SIZE > 64 ? 64 : CFG_TUD_ENDPOINT0_SIZE))
+
 tusb_desc_device_t const data_desc_device =
 {
     .bLength            = sizeof(tusb_desc_device_t),
@@ -64,7 +71,7 @@ tusb_desc_device_t const data_desc_device =
     .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
     .bDeviceProtocol    = MISC_PROTOCOL_IAD,
 
-    .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
+    .bMaxPacketSize0    = EP0_SIZE_FSHS,
 
     .idVendor           = 0xCafe,
     .idProduct          = 0xCafe,
@@ -91,6 +98,9 @@ tusb_control_request_t const req_get_desc_device =
   .wIndex = 0x0000,
   .wLength = 64
 };
+
+static void switch_to_superspeed(void);
+static void switch_to_highspeed(void);
 
 tusb_control_request_t const req_get_desc_configuration =
 {
@@ -171,6 +181,11 @@ void tearDown(void) {
 //------------- Device -------------//
 void test_usbd_get_device_descriptor(void)
 {
+  // The expectation below is the fixture itself, so pin the one field a SuperSpeed-capable
+  // build gets wrong: a USB 2.0 device descriptor must carry the full/high-speed EP0 size,
+  // not a CFG_TUD_ENDPOINT0_SIZE of 512 truncated to 0 by this uint8_t field.
+  TEST_ASSERT_EQUAL_UINT8(64, data_desc_device.bMaxPacketSize0);
+
   desc_device = (uint8_t const *) &data_desc_device;
   dcd_event_setup_received(rhport, (uint8_t*) &req_get_desc_device, false);
 
@@ -236,8 +251,11 @@ void test_usbd_get_configuration_descriptor_null(void)
 
 void test_usbd_control_in_zlp(void)
 {
-  // 128 byte total len, with EP0 size = 64, and request length = 256
-  // ZLP must be return
+  // Total length = 2 * EP0 size with request length larger still: exactly two full transactions,
+  // then a ZLP must be returned. Runs at SuperSpeed so the EP0 transaction size equals
+  // CFG_TUD_ENDPOINT0_SIZE (at high/full speed usbd correctly chunks EP0 at 64, covered by
+  // test_usbd_control_in_zlp in the FS/HS suite test_usbd_fshs.c).
+  switch_to_superspeed();
   uint8_t zlp_desc_configuration[CFG_TUD_ENDPOINT0_SIZE*2] =
   {
     // Config number, interface count, string index, total length, attribute, power in mA
@@ -246,8 +264,11 @@ void test_usbd_control_in_zlp(void)
 
   desc_configuration = zlp_desc_configuration;
 
+  tusb_control_request_t req = req_get_desc_configuration;
+  req.wLength = CFG_TUD_ENDPOINT0_SIZE * 4; // larger than the data: the ZLP signals the end
+
   // request, then 1st, 2nd xact + ZLP + status
-  dcd_event_setup_received(rhport, (uint8_t*) &req_get_desc_configuration, false);
+  dcd_event_setup_received(rhport, (uint8_t*) &req, false);
 
   // 1st transaction
   dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_CTRL_IN,
@@ -264,6 +285,43 @@ void test_usbd_control_in_zlp(void)
   dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
 
   // Status
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req, 1);
+
+  tud_task();
+}
+
+static void switch_to_highspeed(void) {
+  mscd_reset_Expect(0);
+  dcd_event_bus_reset(rhport, TUSB_SPEED_HIGH, false);
+  tud_task();
+}
+
+// A SuperSpeed-capable build (EP0 size 512) enumerated on a USB2 link must chunk EP0 at 64
+// bytes (ep0_xact_limit's non-SUPER branch) - the USB2-fallback enumeration path.
+void test_usbd_control_in_zlp_highspeed(void)
+{
+  switch_to_highspeed();
+  uint8_t zlp_desc_configuration[128] =
+  {
+    // Config number, interface count, string index, total length, attribute, power in mA
+    TUD_CONFIG_DESCRIPTOR(1, 0, 0, 128, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+  };
+  desc_configuration = zlp_desc_configuration;
+
+  // wLength 256 > 128 total: exactly two full 64-byte transactions, then a ZLP
+  dcd_event_setup_received(rhport, (uint8_t*) &req_get_desc_configuration, false);
+
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_CTRL_IN, zlp_desc_configuration, 64, 64, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 64, 0, false);
+
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_CTRL_IN, zlp_desc_configuration + 64, 64, 64, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 64, 0, false);
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
+
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, false, true);
   dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
   dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_desc_configuration, 1);
@@ -379,5 +437,367 @@ void test_usbd_control_out_overrun_clamp(void)
   dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
   dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_vendor_out, 1);
 
+  tud_task();
+}
+
+//--------------------------------------------------------------------+
+// SuperSpeed
+//--------------------------------------------------------------------+
+
+static void switch_to_superspeed(void) {
+  mscd_reset_Expect(0);
+  dcd_event_bus_reset(rhport, TUSB_SPEED_SUPER, false);
+  tud_task();
+}
+
+void test_usbd_edpt_validate_superspeed(void)
+{
+  tusb_desc_endpoint_t desc_ep = {
+    .bLength          = sizeof(tusb_desc_endpoint_t),
+    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = 0x81,
+    .bmAttributes     = { .xfer = TUSB_XFER_BULK },
+    .wMaxPacketSize   = 1024,
+    .bInterval        = 0
+  };
+
+  // SuperSpeed bulk must be exactly 1024
+  TEST_ASSERT_TRUE(tu_edpt_validate(&desc_ep, TUSB_SPEED_SUPER));
+  TEST_ASSERT_FALSE(tu_edpt_validate(&desc_ep, TUSB_SPEED_HIGH));
+
+  desc_ep.wMaxPacketSize = 512;
+  TEST_ASSERT_FALSE(tu_edpt_validate(&desc_ep, TUSB_SPEED_SUPER));
+  TEST_ASSERT_TRUE(tu_edpt_validate(&desc_ep, TUSB_SPEED_HIGH));
+
+  // SuperSpeed interrupt and isochronous can be up to 1024, and no more: assert the rejecting
+  // side too, otherwise dropping the size check entirely still passes this test
+  desc_ep.bmAttributes.xfer = TUSB_XFER_INTERRUPT;
+  desc_ep.wMaxPacketSize = 1024;
+  TEST_ASSERT_TRUE(tu_edpt_validate(&desc_ep, TUSB_SPEED_SUPER));
+  desc_ep.wMaxPacketSize = 1025;
+  TEST_ASSERT_FALSE(tu_edpt_validate(&desc_ep, TUSB_SPEED_SUPER));
+
+  desc_ep.bmAttributes.xfer = TUSB_XFER_ISOCHRONOUS;
+  desc_ep.wMaxPacketSize = 1024;
+  TEST_ASSERT_TRUE(tu_edpt_validate(&desc_ep, TUSB_SPEED_SUPER));
+  desc_ep.wMaxPacketSize = 1025;
+  TEST_ASSERT_FALSE(tu_edpt_validate(&desc_ep, TUSB_SPEED_SUPER));
+}
+
+// SuperSpeed configuration interleaves an endpoint companion descriptor after each
+// endpoint descriptor; usbd_open_edpt_pair must skip them
+void test_usbd_open_edpt_pair_ss_companion(void)
+{
+  switch_to_superspeed();
+
+  uint8_t const desc_ep_pair[] = {
+    // EP Out (bulk 1024) + companion
+    7, TUSB_DESC_ENDPOINT, 0x02, TUSB_XFER_BULK, U16_TO_U8S_LE(1024), 0,
+    TUD_SS_EP_COMP_DESCRIPTOR(0, 0, 0),
+    // EP In (bulk 1024) + companion
+    7, TUSB_DESC_ENDPOINT, 0x82, TUSB_XFER_BULK, U16_TO_U8S_LE(1024), 0,
+    TUD_SS_EP_COMP_DESCRIPTOR(0, 0, 0),
+  };
+
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const*) &desc_ep_pair[0], true);
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const*) &desc_ep_pair[13], true);
+
+  uint8_t ep_out = 0, ep_in = 0;
+  TEST_ASSERT_TRUE(usbd_open_edpt_pair(rhport, desc_ep_pair, desc_ep_pair + sizeof(desc_ep_pair), 2, TUSB_XFER_BULK, &ep_out, &ep_in));
+  TEST_ASSERT_EQUAL_HEX8(0x02, ep_out);
+  TEST_ASSERT_EQUAL_HEX8(0x82, ep_in);
+}
+
+// SET_SEL (0x30): 6-byte OUT data stage, received and discarded
+void test_usbd_set_sel(void)
+{
+  switch_to_superspeed(); // these requests are SuperSpeed-only: do not inherit a leaked speed
+  tusb_control_request_t const req_set_sel = {
+    .bmRequestType = 0x00,
+    .bRequest = TUSB_REQ_SET_SEL,
+    .wValue = 0,
+    .wIndex = 0,
+    .wLength = 6
+  };
+
+  dcd_event_setup_received(rhport, (uint8_t*) &req_set_sel, false);
+
+  // data stage into usbd's internal control buffer
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 6, false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 6, XFER_RESULT_SUCCESS, false);
+
+  // status
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_set_sel, 1);
+
+  tud_task();
+}
+
+// SET_ISOCH_DELAY (0x31): no data stage, just ACK
+void test_usbd_set_isoch_delay(void)
+{
+  switch_to_superspeed(); // these requests are SuperSpeed-only: do not inherit a leaked speed
+  tusb_control_request_t const req_isoch_delay = {
+    .bmRequestType = 0x00,
+    .bRequest = TUSB_REQ_SET_ISOCH_DELAY,
+    .wValue = 1000,
+    .wIndex = 0,
+    .wLength = 0
+  };
+
+  dcd_event_setup_received(rhport, (uint8_t*) &req_isoch_delay, false);
+
+  // status only
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_isoch_delay, 1);
+
+  tud_task();
+}
+
+// SET_SEL with a spoofed IN direction must stall: an IN request would otherwise transmit
+// stale _ctrl_epbuf bytes to the host instead of receiving the 6-byte SEL payload.
+void test_usbd_set_sel_malformed(void)
+{
+  switch_to_superspeed(); // these requests are SuperSpeed-only: do not inherit a leaked speed
+  tusb_control_request_t const req_set_sel_in = {
+    .bmRequestType = 0x80, // IN (spoofed) - must be OUT
+    .bRequest = TUSB_REQ_SET_SEL,
+    .wValue = 0,
+    .wIndex = 0,
+    .wLength = 6
+  };
+
+  dcd_event_setup_received(rhport, (uint8_t*) &req_set_sel_in, false);
+
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_OUT);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_IN);
+
+  tud_task();
+}
+
+// SET_ISOCH_DELAY carries no data stage; a non-zero wLength is malformed and must stall.
+void test_usbd_set_isoch_delay_malformed(void)
+{
+  switch_to_superspeed(); // these requests are SuperSpeed-only: do not inherit a leaked speed
+  tusb_control_request_t const req_isoch_bad = {
+    .bmRequestType = 0x00,
+    .bRequest = TUSB_REQ_SET_ISOCH_DELAY,
+    .wValue = 1000,
+    .wIndex = 0,
+    .wLength = 4 // must be 0
+  };
+
+  dcd_event_setup_received(rhport, (uint8_t*) &req_isoch_bad, false);
+
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_OUT);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_IN);
+
+  tud_task();
+}
+
+// SET_CONFIGURATION(1): U1/U2_ENABLE is a Configured-state-only feature (USB 3.2 §9.4.9)
+static void switch_to_configured(void) {
+  desc_configuration = data_desc_configuration;
+  tusb_control_request_t const req_set_config = {
+    .bmRequestType = 0x00,
+    .bRequest = TUSB_REQ_SET_CONFIGURATION,
+    .wValue = 1,
+    .wIndex = 0,
+    .wLength = 0
+  };
+  dcd_event_setup_received(rhport, (uint8_t*) &req_set_config, false);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_set_config, 1);
+  tud_task();
+}
+
+// SET_FEATURE(U1_ENABLE) outside the Configured state is a Request Error (USB 3.2 §9.4.9)
+void test_usbd_set_feature_u1_not_configured(void)
+{
+  switch_to_superspeed();
+
+  tusb_control_request_t const req_set_feat_u1 = {
+    .bmRequestType = 0x00,
+    .bRequest = TUSB_REQ_SET_FEATURE,
+    .wValue = TUSB_REQ_FEATURE_U1_ENABLE,
+    .wIndex = 0,
+    .wLength = 0
+  };
+  dcd_event_setup_received(rhport, (uint8_t*) &req_set_feat_u1, false);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_OUT);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_IN);
+
+  tud_task();
+}
+
+// GET_STATUS(Device) must reflect U1 Enable (USB 3.2 bit 2) after SET_FEATURE(U1_ENABLE).
+void test_usbd_get_status_u1_enable(void)
+{
+  // Bus reset to a known clean device state (clears dev_state_bm) and SuperSpeed operation
+  switch_to_superspeed();
+  switch_to_configured();
+
+  // SET_FEATURE(U1_ENABLE): OUT, no data stage -> ACK with IN ZLP status
+  tusb_control_request_t const req_set_feat_u1 = {
+    .bmRequestType = 0x00,
+    .bRequest = TUSB_REQ_SET_FEATURE,
+    .wValue = TUSB_REQ_FEATURE_U1_ENABLE,
+    .wIndex = 0,
+    .wLength = 0
+  };
+  dcd_event_setup_received(rhport, (uint8_t*) &req_set_feat_u1, false);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_set_feat_u1, 1);
+  tud_task();
+
+  // GET_STATUS(Device): 2-byte IN data stage with bit 2 (U1 Enable) set
+  tusb_control_request_t const req_get_status = {
+    .bmRequestType = 0x80,
+    .bRequest = TUSB_REQ_GET_STATUS,
+    .wValue = 0,
+    .wIndex = 0,
+    .wLength = 2
+  };
+  uint8_t const expected_status[2] = { 0x04, 0x00 }; // little-endian: bit 2 = U1 Enable
+
+  dcd_event_setup_received(rhport, (uint8_t*) &req_get_status, false);
+
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_CTRL_IN, (uint8_t*) expected_status, 2, 2, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 2, 0, false);
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_status, 1);
+
+  tud_task();
+}
+
+//--------------------------------------------------------------------+
+// Per-function remote wake (USB 3.2 §9.4.9 / §9.4.5 / Table 9-10)
+//--------------------------------------------------------------------+
+
+// data_desc_configuration declares zero interfaces, but every interface-recipient request needs
+// itf2drv[itf] bound to a driver, so use a config carrying one MSC interface for these.
+uint8_t const data_desc_config_one_itf[] =
+{
+  TUD_CONFIG_DESCRIPTOR(1, 1, 0, TUD_CONFIG_DESC_LEN + 9, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+  9, TUSB_DESC_INTERFACE, 0, 0, 0, TUSB_CLASS_MSC, MSC_SUBCLASS_SCSI, MSC_PROTOCOL_BOT, 0
+};
+
+static void switch_to_configured_one_itf(void) {
+  desc_configuration = data_desc_config_one_itf;
+  tusb_control_request_t const req_set_config = {
+    .bmRequestType = 0x00,
+    .bRequest = TUSB_REQ_SET_CONFIGURATION,
+    .wValue = 1,
+    .wIndex = 0,
+    .wLength = 0
+  };
+  dcd_event_setup_received(rhport, (uint8_t*) &req_set_config, false);
+  mscd_open_IgnoreAndReturn(9);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_set_config, 1);
+  tud_task();
+}
+
+// SET_FEATURE(FUNCTION_SUSPEND) with the remote-wake bit set in the wIndex high byte
+static tusb_control_request_t const req_func_suspend_wake = {
+  .bmRequestType = 0x01, // host-to-device, standard, interface
+  .bRequest = TUSB_REQ_SET_FEATURE,
+  .wValue = 0,           // FUNCTION_SUSPEND selector
+  .wIndex = 0x0200,      // low byte = interface 0, high byte bit 1 = remote wake enable
+  .wLength = 0
+};
+
+static void enable_function_remote_wake(void) {
+  dcd_event_setup_received(rhport, (uint8_t*) &req_func_suspend_wake, false);
+  mscd_control_xfer_cb_IgnoreAndReturn(false);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_func_suspend_wake, 1);
+  tud_task();
+}
+
+// USB 3.2 9.4.5 Figure 9-5: interface GET_STATUS reports D0 Function Remote Wake Capable and
+// D1 Function Remote Wakeup. 9.2.5.4 makes this the host's discovery mechanism, so returning a
+// hardcoded zero told the host a wake-capable function was not capable.
+void test_usbd_get_status_interface_reports_function_wakeup(void)
+{
+  switch_to_superspeed();
+  switch_to_configured_one_itf();
+  enable_function_remote_wake();
+
+  tusb_control_request_t const req_get_status_itf = {
+    .bmRequestType = 0x81, // device-to-host, standard, interface
+    .bRequest = TUSB_REQ_GET_STATUS,
+    .wValue = 0,
+    .wIndex = 0,
+    .wLength = 2
+  };
+  uint8_t const expected[2] = { 0x03, 0x00 }; // D0 capable | D1 enabled
+
+  dcd_event_setup_received(rhport, (uint8_t*) &req_get_status_itf, false);
+  mscd_control_xfer_cb_IgnoreAndReturn(false);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*)expected, 2, 2, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 2, 0, false);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_status_itf, 1);
+
+  tud_task();
+}
+
+// USB 3.2 Table 9-10: SetAddress(0) resets FUNCTION REMOTE WAKEUP. The aggregate authorization
+// tud_remote_wakeup() gates on must drop with it.
+void test_usbd_set_address_zero_clears_function_wakeup(void)
+{
+  switch_to_superspeed();
+  switch_to_configured_one_itf();
+  enable_function_remote_wake();
+
+  // _usbd_dev is file-static, so probe through interface GET_STATUS: D1 is the per-function
+  // bit this resets, D0 (capable) stays set because the configuration still advertises it.
+  tusb_control_request_t const req_get_status_itf = {
+    .bmRequestType = 0x81,
+    .bRequest = TUSB_REQ_GET_STATUS,
+    .wValue = 0,
+    .wIndex = 0,
+    .wLength = 2
+  };
+  uint8_t const armed[2]   = { 0x03, 0x00 }; // capable | enabled
+  uint8_t const cleared[2] = { 0x01, 0x00 }; // capable, no longer enabled
+
+  mscd_control_xfer_cb_IgnoreAndReturn(false);
+  dcd_event_setup_received(rhport, (uint8_t*) &req_get_status_itf, false);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*)armed, 2, 2, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 2, 0, false);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_status_itf, 1);
+  tud_task();
+
+  tusb_control_request_t const req_set_addr0 = {
+    .bmRequestType = 0x00,
+    .bRequest = TUSB_REQ_SET_ADDRESS,
+    .wValue = 0,
+    .wIndex = 0,
+    .wLength = 0
+  };
+  dcd_event_setup_received(rhport, (uint8_t*) &req_set_addr0, false);
+  dcd_set_address_Expect(rhport, 0);
+  tud_task();
+
+  dcd_event_setup_received(rhport, (uint8_t*) &req_get_status_itf, false);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*)cleared, 2, 2, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 2, 0, false);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_status_itf, 1);
   tud_task();
 }

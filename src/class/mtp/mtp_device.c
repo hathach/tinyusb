@@ -76,7 +76,7 @@ typedef struct {
   uint8_t ep_out;
 
   uint8_t ep_event;
-  uint8_t ep_sz_fs;
+  uint16_t ep_sz_bulk; // bulk max packet size of the live link: 64 FS / 512 HS / 1024 SS
   // Bulk Only Transfer (BOT) Protocol
   uint8_t  phase;
 
@@ -265,7 +265,11 @@ uint16_t mtpd_open(uint8_t rhport, tusb_desc_interface_t const* itf_desc, uint16
             MTP_PROTOCOL_PIMA_15470 == itf_desc->bInterfaceProtocol, 0);
 
   // mtp driver length is fixed
-  const uint16_t mtpd_itf_size = sizeof(tusb_desc_interface_t) + 3 * sizeof(tusb_desc_endpoint_t);
+  uint16_t mtpd_itf_size = sizeof(tusb_desc_interface_t) + 3 * sizeof(tusb_desc_endpoint_t);
+#if TUD_OPT_SUPER_SPEED
+  // SuperSpeed configuration: every endpoint descriptor is followed by a companion descriptor
+  mtpd_itf_size += usbd_ss_ep_companion_len(tu_desc_next(itf_desc), (const uint8_t*)itf_desc + max_len, 3);
+#endif
 
   // Max length must be at least 1 interface + 3 endpoints
   TU_ASSERT(itf_desc->bNumEndpoints == 3 && max_len >= mtpd_itf_size);
@@ -281,13 +285,12 @@ uint16_t mtpd_open(uint8_t rhport, tusb_desc_interface_t const* itf_desc, uint16
   p_mtp->ep_event = ep_desc_int->bEndpointAddress;
 
   // Open endpoint pair
-  const tusb_desc_endpoint_t* ep_desc_bulk = (const tusb_desc_endpoint_t*) tu_desc_next(ep_desc_int);
-  TU_ASSERT(usbd_open_edpt_pair(rhport, (const uint8_t*)ep_desc_bulk, 2, TUSB_XFER_BULK, &p_mtp->ep_out, &p_mtp->ep_in), 0);
+  const uint8_t* p_bulk = usbd_skip_ss_ep_companion(tu_desc_next(ep_desc_int), (const uint8_t*)itf_desc + max_len);
+  const tusb_desc_endpoint_t* ep_desc_bulk = (const tusb_desc_endpoint_t*) p_bulk;
+  TU_ASSERT(usbd_open_edpt_pair(rhport, (const uint8_t*)ep_desc_bulk, (const uint8_t*)itf_desc + max_len, 2, TUSB_XFER_BULK, &p_mtp->ep_out, &p_mtp->ep_in), 0);
   TU_ASSERT(prepare_new_command(p_mtp), 0);
 
-  if (tud_speed_get() == TUSB_SPEED_FULL) {
-    p_mtp->ep_sz_fs = (uint8_t)tu_edpt_packet_size(ep_desc_bulk);
-  }
+  p_mtp->ep_sz_bulk = tu_edpt_packet_size(ep_desc_bulk);
 
   return mtpd_itf_size;
 }
@@ -418,7 +421,7 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       // For OUT endpoint, threshold is endpoint buffer size, since we always queue fixed size
       uint16_t threshold;
       if (is_data_in) {
-        threshold = (p_mtp->ep_sz_fs > 0) ? p_mtp->ep_sz_fs : 512; // full speed bulk if set
+        threshold = p_mtp->ep_sz_bulk; // the live link's bulk MPS, not a 512-byte assumption
       } else {
         threshold = CFG_TUD_MTP_EP_BUFSIZE;
       }

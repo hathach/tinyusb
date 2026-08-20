@@ -40,6 +40,21 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))  # PYTHONSAFEPATH dr
 VID = 'cafe'
 PID = '4010'
 GZ_REF = '0525 a4a0'  # copy Gadget Zero's capability profile (ctrl_out+iso+intr)
+
+# Quirk flags advertised in bcdDevice bits 4-7 (tier is bits 0-3), see usb_descriptors.h.
+# Each flag maps to the cases the silicon cannot pass at SuperSpeed (5 Gbps).
+QUIRK_SKIPS = {
+    0x10: ('5000', (14, 21), 'EP0 OUT data stages with wLength % 4 == 1 intermittently dropped at 5 Gbps (silicon erratum)'),
+    0x20: ('5000', (13,), 'halted EP answers a single STALL at 5 Gbps (silicon limitation)'),
+    0x40: ('480', (9, 10, 13, 14, 21),
+           'SETUP dropped while a transfer completion is unserviced: the CH32H417 USBHS control '
+           'register has no auto-busy bit (the CH569 USBHS RB_USB_INT_BUSY, "automatic responding '
+           'busy for device mode during interrupt flag UIF_TRANSFER valid"), so a token arriving '
+           'in that window gets no handshake at all. A SETUP may not be NAKed or STALLed, so the '
+           'host retries three times and fails with -EPROTO. Wire-measured ~34% of SETUPs dropped '
+           '(63% under back-to-back control traffic); ordinary class traffic survives on host '
+           'retries, only control-stress cases fail'),
+}
 SYS_USB = Path('/sys/bus/usb/devices')
 DRIVER = Path('/sys/bus/usb/drivers/usbtest')
 PATTERN_PARAM = Path('/sys/module/usbtest/parameters/pattern')
@@ -86,7 +101,8 @@ TIER_CASES = {
 # Per-case testusb parameters (full speed / high speed). All -s/-v values are multiples
 # of 512 so transfers stay packet-aligned at both speeds: the device streams whole max-size
 # packets and a non-aligned IN length would babble. 14/21 must never run with defaults
-# (vary >= length is -EINVAL in the kernel).
+# (vary >= length is -EINVAL in the kernel). SuperSpeed (5000): bulk mps is 1024, so IN sizes
+# and vary steps must be 1024-multiples or the device's whole-packet source overruns the request.
 PARAMS = {
     0: ('-c 1', '-c 1'),
     9: ('-c 256', '-c 1000'),
@@ -103,6 +119,19 @@ PARAMS = {
     25: ('-c 32 -s 512', '-c 256 -s 1024'),
     26: ('-c 32 -s 512', '-c 256 -s 1024'),
     **{n: ('-c 16 -s 512 -g 8', '-c 64 -s 1024 -g 8') for n in (15, 16, 22, 23)},
+}
+
+# SuperSpeed overrides (bulk mps 1024); cases not listed keep the high-speed params
+PARAMS_SS = {
+    **{n: '-c 512 -s 2048 -v 1024' for n in (1, 2, 3, 4, 17, 18, 19, 20)},
+    13: '-c 64 -s 1024',
+    29: '-c 64 -s 1024',
+    # ctrl_out: -s must exceed EP0's 512-byte max packet, otherwise every control data stage is a
+    # single packet and the EP0 packet-sequence handling is never exercised. Both WCH SuperSpeed
+    # drivers shipped with a >1-packet control-OUT that always failed, and the 512-byte default
+    # could not see it.
+    14: '-c 256 -s 1024 -v 61',
+    21: '-c 256 -s 1024 -v 61',
 }
 
 CASE_NAMES = {
@@ -276,7 +305,8 @@ def find_device(serial, first=False):
                 'node': '/dev/bus/usb/%03d/%03d' % (int((dev / 'busnum').read_text()),
                                                     int((dev / 'devnum').read_text())),
                 'speed': (dev / 'speed').read_text().strip(),
-                'tier': int((dev / 'bcdDevice').read_text().strip()[-2:], 16),
+                'tier': int((dev / 'bcdDevice').read_text().strip()[-2:], 16) & 0x0f,
+                'quirks': int((dev / 'bcdDevice').read_text().strip()[-2:], 16) & 0xf0,
             })
         except (OSError, ValueError):
             continue
@@ -454,6 +484,8 @@ def wedged_pids(devnode):
 
 def run_case(num, dev, testusb, quick, timeout):
     fs_hs = PARAMS[num][0 if dev['speed'] == '12' else 1]
+    if dev['speed'] == '5000' and num in PARAMS_SS:
+        fs_hs = PARAMS_SS[num]
     if quick:
         fs_hs = re.sub(r'-c (\d+)', lambda m: f'-c {max(1, int(m.group(1)) // 8)}', fs_hs)
     cmd = [testusb, '-D', dev['node'], '-t', str(num)] + fs_hs.split()
@@ -597,6 +629,20 @@ def main():
     check_host_compat(dev)
 
     results = []
+    # quirk-gated skips apply to the tier battery only; explicit --tests still runs the cases.
+    # Each erratum names the link speed it applies to, since a quirk bit advertised by a part that
+    # supports both speeds is not necessarily a limitation at both.
+    if not args.tests:
+        for flag, (speed, skip_cases, why) in QUIRK_SKIPS.items():
+            if not dev['quirks'] & flag or dev['speed'] != speed:
+                continue
+            for num in [n for n in cases if n in skip_cases]:
+                results.append({'num': num, 'name': CASE_NAMES[num], 'status': 'SKIP',
+                                'detail': f'{why} (bcdDevice quirk 0x{flag:02x})'})
+                if not args.json:
+                    r = results[-1]
+                    print(f"test {num:2d} {r['name']:22s} {r['status']:6s} {r['detail']}")
+            cases = [n for n in cases if n not in skip_cases]
     unrecovered_hang = False
     try:
         bind_usbtest(dev)
@@ -844,7 +890,11 @@ def main():
     # BUDGET keeps the denominator honest without lying about the numerator: naming cases
     # that never executed as failures sends a maintainer bisecting one of them.
     notrun = [r for r in results if r['status'] == 'BUDGET']
-    failed = [r for r in results if r['status'] not in ('PASS', 'BUDGET')]
+    # SKIP is the same idea from the other side: cases the DEVICE documents as unsupported via
+    # its bcdDevice quirk bits. Never executed either, so they stay out of `failed` and are
+    # reported separately rather than silently shrinking the denominator.
+    skipped = sum(1 for r in results if r['status'] == 'SKIP')
+    failed = [r for r in results if r['status'] not in ('PASS', 'BUDGET', 'SKIP')]
     ran = len(results)
     if args.json:
         # `wedged` is the verdict this process ALREADY computed; without it the caller had
@@ -852,13 +902,14 @@ def main():
         # failed, the inconclusive abort (no case reaches status HUNG), and any battery
         # killed before it printed.
         print(json.dumps({'serial': dev['serial'], 'speed': dev['speed'], 'tier': tier,
-                          'passed': ran - len(failed) - len(notrun),
-                          'failed': len(failed), 'notrun': len(notrun),
+                          'passed': ran - len(failed) - len(notrun) - skipped,
+                          'failed': len(failed), 'notrun': len(notrun), 'skipped': skipped,
                           'wedged': bool(unrecovered_hang),
                           'cases': results}, indent=2))
     else:
-        print(f"{ran - len(failed) - len(notrun)}/{ran} passed"
-              + (f", {len(notrun)} not run" if notrun else ""))
+        print(f"{ran - len(failed) - len(notrun) - skipped}/{ran} passed"
+              + (f", {len(notrun)} not run" if notrun else "")
+              + (f", {skipped} skipped" if skipped else ""))
         for r in failed:
             print(f"  FAILED test {r['num']}: {r.get('detail', '')}")
             if r.get('dmesg'):

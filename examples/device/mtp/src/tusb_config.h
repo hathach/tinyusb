@@ -87,12 +87,12 @@
 //--------------------------------------------------------------------
 
 #ifndef CFG_TUD_ENDPOINT0_SIZE
-#define CFG_TUD_ENDPOINT0_SIZE    64
+#define CFG_TUD_ENDPOINT0_SIZE    (TUD_OPT_SUPER_SPEED ? 512 : 64) // SuperSpeed EP0 is fixed at 512
 #endif
 
 //------------- CLASS -------------//
 #define CFG_TUD_MTP               1
-#define CFG_TUD_MTP_EP_BUFSIZE    512
+#define CFG_TUD_MTP_EP_BUFSIZE    (TUD_OPT_SUPER_SPEED ? 1024 : 512) // must be >= bulk max packet size (SS 1024)
 #define CFG_TUD_MTP_EP_CONTROL_BUFSIZE  16 // should be enough to hold data in MTP control request
 
 //------------- MTP device info -------------//
