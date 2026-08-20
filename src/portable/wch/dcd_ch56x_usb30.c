@@ -186,6 +186,13 @@ static bool usb30_hw_init(void) {
   USBSS->UEP_CFG = USBSS_EP_R_EN(0) | USBSS_EP_T_EN(0);
   USBSS->UEP0_DMA = (uint32_t)(uintptr_t)_ep0_buf;
   USBSS->LINK_CFG |= USBSS_LINK_CFG_RX_TERM_EN;
+  // Drop whatever the previous teardown latched BEFORE unmasking: usb30_hw_deinit() writes
+  // LINK_CTRL = GO_DISABLED, which latches LINK_IF_DISABLE, and re-arming LINK_INT_CTRL on top of
+  // it replays that disable as a fresh event on the link being brought up - handle_link_irq()
+  // would read it as "SuperSpeed rejected by the link partner" and hand the port to USB2 (or, with
+  // no fallback, report a bogus unplug). The deferred/tick re-init paths clear it themselves; this
+  // covers dcd_init() and dcd_connect(), which did not.
+  USBSS->LINK_INT_FLAG = 0xFFFFFFFFu;
   USBSS->LINK_INT_CTRL = USBSS_LINK_INT_EN_INIT;
   USBSS->LINK_CTRL = 2; // U2, wait for terminations (TERM_PRESENT irq starts polling)
   return true;
@@ -202,12 +209,7 @@ static void usb30_hw_deinit(void) {
 static void usb30_bus_reset(void) {
   usb30_hw_deinit();
   link_delay_us(30000);
-  // Discard the link flags latched before the re-init - usb30_hw_deinit()'s own GO_DISABLED write
-  // latches LINK_IF_DISABLE, which usb30_hw_init() then re-enables in LINK_INT_CTRL. Left set, the
-  // next LINK interrupt enters handle_link_irq() with a stale DISABLE and hands the port to USB2.
-  // usb30_hw_reinit_task() already does this; the paths that re-init inline did not.
-  USBSS->LINK_INT_FLAG = 0xFFFFFFFFu;
-  usb30_hw_init();
+  usb30_hw_init(); // discards the link flags this teardown latched (see usb30_hw_init)
 }
 
 // Deferred half of a link teardown/re-init: the ~30 ms settle must not run inside the LINK ISR
@@ -235,11 +237,20 @@ static void usb30_hw_reinit_task(void *param) {
     return;
   }
 #endif
-  USBSS->LINK_INT_FLAG = 0xFFFFFFFFu;
   usb30_hw_init();
+#if CFG_TUD_WCH_USB30_FALLBACK
+  // Once more after the init, not only after the settle: usb30_hw_init() busy-polls LINK_STATUS
+  // BUSY for up to ~0.3 s, so the training-exhausted tick can land inside it too and would leave
+  // the ladder in FB_USB3_OFF with the SuperSpeed terminations this call just re-asserted still on
+  // the wire (its own deinit ran before them). Undo the init in that case; dcd_int_enable() keeps
+  // the USBSS/LINK vectors masked while the ladder holds FB_USB3_OFF.
+  if (_fb_state == FB_USB3_OFF || _fb_state == FB_USB2_ACTIVE) {
+    usb30_hw_deinit();
+  }
+#endif
   // Stay marked as deferred across the settle AND the init: the fallback tick skips its own
   // deinit/init while this flag is set, and a tick landing inside the window would re-init the
-  // link underneath us - the blanket flag clear above would then discard the TERM_PRESENT it
+  // link underneath us - the flag clear in usb30_hw_init() would then discard the TERM_PRESENT it
   // just latched.
   _hw_reinit_deferred = false;
 }
@@ -258,7 +269,6 @@ static void usb30_bus_reset_from_isr(void) {
     // off the bus until the next dcd_init. Pay the settle inline instead: ~30 ms in the ISR is
     // far cheaper than losing the device, and this only happens when the event queue is full.
     link_delay_us(30000);
-    USBSS->LINK_INT_FLAG = 0xFFFFFFFFu;
     usb30_hw_init();
   }
 }
@@ -399,7 +409,11 @@ static void handle_ep0_rx(uint8_t rhport) {
     if (_ep0_status_pending) {
       ep0_status_complete(rhport);
     } else {
-      USBSS->UEP0_RX_CTRL = 0;
+      // Unsolicited status (a retransmitted STATUS TP, or one for a transfer already completed or
+      // aborted): acknowledge it but leave EP0 armed. Parking it at NUMP=0 answers nothing at all
+      // (ch56x_usb30_reg.h), and nothing re-arms EP0 short of a new SETUP - which the host can no
+      // longer get a response to, so the device goes silent until a port reset.
+      USBSS->UEP0_RX_CTRL = USBSS_UEP0_RX_ARM; // same re-arm ep0_status_complete() ends with
     }
     if (0 == (rx_ctrl & USBSS_EP_RX_SETUP)) {
       return;
@@ -792,7 +806,6 @@ void dcd_int_handler(uint8_t rhport) {
           // fresh detect cycle, unless a deferred re-init is genuinely queued (it settles in
           // ~30 ms and runs one itself); re-initing here would race that task's settle window
           usb30_hw_deinit();
-          USBSS->LINK_INT_FLAG = 0xFFFFFFFFu; // drop the DISABLE deinit just latched, as above
           usb30_hw_init();
         }
         return;
@@ -828,9 +841,12 @@ void dcd_int_handler(uint8_t rhport) {
       return;
     }
 #endif
-    if (_hw_reinit_deferred) {
-      return; // link torn down, re-init pending in task context
-    }
+  }
+  // Outside the dispatch test above, not inside it: the teardown that arms the deferred re-init
+  // also zeroes LINK_INT_CTRL, so that test is false on every later entry and a guard nested in it
+  // would be skipped for the whole deferral window - exactly when it is needed.
+  if (_hw_reinit_deferred) {
+    return; // link torn down, re-init pending in task context
   }
   if (USBSS->USB_STATUS & (USBSS_USB_STATUS_EP_EVT | USBSS_USB_STATUS_LMP_EVT | USBSS_USB_STATUS_ITP_EVT)) {
     handle_usb_irq(rhport);
@@ -981,6 +997,12 @@ void dcd_connect(uint8_t rhport) {
   _hw_reinit_deferred = false; // cancel a stale deferred re-init: this init supersedes it
 #if CFG_TUD_WCH_USB30_FALLBACK
   fallback_enter(FB_USB3_TRAINING); // restart the training/fallback ladder alongside the link
+  // The ladder masks both vectors when it gives up on SuperSpeed (FB_USB3_OFF, FB_USB2_ACTIVE),
+  // and usb30_hw_init() touches no PFIC register. dcd_int_enable() would re-arm them, but usbd
+  // does not call it after tud_connect() - only the OS-NONE queue mutex does, and the FreeRTOS
+  // osal ignores its int_set argument - so without this the link trains with its interrupts off.
+  PFIC_EnableIRQ(USBSS_IRQn);
+  PFIC_EnableIRQ(LINK_IRQn);
 #endif
   usb30_hw_init(); // restore terminations and restart link detection
 }
