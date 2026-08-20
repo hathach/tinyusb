@@ -62,6 +62,15 @@ repos:
     entry: python3 -m unittest discover -s test/hil/test
     pass_filenames: false
     language: system
+  # hil-validate.js decides which boards ship. Its result join has been wrong three times --
+  # dropping variant-named rows, letting a PASS erase a FAIL, breaking the `board locked`
+  # anchor it had just fixed -- each time because the logic was reasoned about instead of run.
+  - id: hil-validate-logic
+    name: hil-validate-logic
+    files: ^\.claude/workflows/
+    entry: node .claude/workflows/test-hil-validate.mjs
+    pass_filenames: false
+    language: system
   - id: hil-select-test
     name: hil-select-test
     files: ^(hw/bsp/|src/|examples/)

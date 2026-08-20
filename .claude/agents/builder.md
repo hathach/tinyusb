@@ -25,7 +25,7 @@ cmake -S examples/<group>/<example> -B "$BUILD" -DBOARD=<BOARD> -G Ninja -DCMAKE
 cmake --build "$BUILD"
 ```
 
-Espressif boards (listed under `hw/bsp/espressif/boards/`): run `. $HOME/code/esp-idf/export.sh` first; only ESP-IDF examples build for them (e.g. `cdc_msc_freertos`): `idf.py -DBOARD=<BOARD> build` from the example dir.
+Espressif boards (listed under `hw/bsp/espressif/boards/`): run `. "$IDF_PATH/export.sh"` first (`IDF_PATH` is the official ESP-IDF variable, exported per host); only ESP-IDF examples build for them (e.g. `cdc_msc_freertos`): `idf.py -DBOARD=<BOARD> build` from the example dir.
 
 ## Recovery rules
 
