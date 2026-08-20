@@ -11,8 +11,18 @@
 import { readFileSync } from 'node:fs'
 
 const src = readFileSync(new URL('./hil-validate.js', import.meta.url), 'utf8')
-const body = src.slice(src.indexOf('const byBoard ='), src.indexOf('const first = await runBoards'))
-  + src.slice(src.indexOf('const summarize ='), src.indexOf('const { pass, wedged, locked } ='))
+// slice by marker, but never silently: a renamed marker must fail with its name, not with a
+// confusing ReferenceError from a garbage slice
+const cut = (start, end) => {
+  const a = src.indexOf(start), b = src.indexOf(end)
+  if (a < 0 || b < 0 || b <= a) {
+    console.error(`FAIL: extraction marker moved — cannot find ${a < 0 ? `'${start}'` : `'${end}'`} in hil-validate.js`)
+    process.exit(1)
+  }
+  return src.slice(a, b)
+}
+const body = cut('const byBoard =', 'const first = await runBoards')
+  + cut('const summarize =', 'const { pass, wedged, locked } =')
 const { byBoard, summarize, wedgedFor } = new Function(`${body}; return { byBoard, summarize, wedgedFor }`)()
 
 let failed = 0

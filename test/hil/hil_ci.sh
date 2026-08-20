@@ -163,12 +163,15 @@ for b in ${BOARDS[@]+"${BOARDS[@]}"}; do
     # variant-suffixed, so this is the normal state for e.g. the -DMA variants. It is worth
     # saying out loud: hil_test.py logs `Skip (no binary)` and counts zero errors for it, so
     # the run exits 0 and the operator reads a green table for cells that never ran.
+    # plain assignment, not process substitution: set -e sees a variant_names failure here,
+    # the same trap the comment in resolve_build_dirs warns about
+    vnames=$(variant_names "$b")
     while IFS= read -r v; do
       [ -z "$v" ] && continue
       # whole lines: a substring match lets cmake-build-<v>-DMA silence the warning for <v>
       grep -qxF -- "$ROOT_DIR/examples/cmake-build-$v" <<< "$dirs" \
         || echo "warning: $b variant '$v' has no build dir -- its cells will be skipped, not tested" >&2
-    done < <(variant_names "$b")
+    done <<< "$vnames"
   fi
 done
 if [ ${#missing[@]} -gt 0 ]; then
