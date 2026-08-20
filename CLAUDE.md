@@ -129,7 +129,7 @@ Cutting a release — version bump, regenerated files, the per-release changelog
   ```
 - Supported MCUs/boards: `hw/bsp/` and `docs/reference/boards.rst`.
 - USB classes: `src/class/{cdc,hid,msc,audio,…}/` — each has `*_device.c` and `*_host.c`.
-- Key files: `src/tusb.h`, `src/tusb_config.h`, `tools/get_deps.py`, `tools/build.py`, `test/unit-test/project.yml`.
+- Key files: `src/tusb.h`, `src/tusb_option.h`, `tools/get_deps.py`, `tools/build.py`, `test/unit-test/project.yml` (each example carries its own `src/tusb_config.h`).
 
 ## Common Build Issues
 
