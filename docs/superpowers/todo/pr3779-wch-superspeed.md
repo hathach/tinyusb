@@ -211,3 +211,25 @@ Full text in `review_findings_max_2026-08-14.json`.
 Fixed since this list was written: the non-volatile CH32H417 driver state, `can_recover()`'s stderr
 matching, `ch32h417_usb2_deinit()` leaving `INT_EN`/`INT_FG` set, the stale `LINK_INT_FLAG` on the
 inline CH569 re-inits, `.DMADATA`'s silent initialiser loss, and audio's `TUSB_SPEED_HIGH` tests.
+
+## From the 2026-08-21 review
+
+Eleven of the fifteen findings were fixed in the branch (three CH569 link-teardown bugs, the CH569
+EP0 park, the H417 interrupt re-arm and EP0 flag, the usbd function-wakeup mapping and its two
+request-error orderings, the usbtmc walk bound, and the `hs_drop_rate.py` sysfs read). Both boards
+re-ran at their exact baselines afterwards: nano 29/30, hydra 27/30, 0 failed, 24/24 examples.
+
+**Refuted — do not re-raise.** `dcd_ch32h417_usb30.c:525` was reported as crediting bytes the host
+never drained, because the H417 completes an IN chain from `queued_len` while the CH569 twin reads
+NUMP back. The reference manual settles it: §27.2.3.6 `RB_TX_CHAIN_IF` fires on `RB_TX_NUMP_EMPTY`,
+i.e. only once the chain's NUMP has counted down to zero, so a chain completion *is* proof every
+armed packet went out. A partly-drained chain raises no interrupt at all — the transfer stalls
+rather than over-reporting. (`R8_UEPn_TX_CHAIN_NUMP` at §27.2.3.9 does exist and counts packets
+transmitted, but reading it back at completion would only re-derive `EXP_NUMP`.)
+
+Deferred, with the reason:
+
+| Finding | Why it is still open |
+| ------- | --------------------- |
+| `dcd_ch56x_usbhs.c:95` + `dcd_ch56x_usb30.c:1030` — 13,312 B of RAMX (41% of the CH569's 32 KB, its only DMA-reachable RAM) held for bounce storage: a worst-case 7,168 B `bounce_buffer` that stock builds never touch, plus a flat 1,024 B slot per opened endpoint direction regardless of wMaxPacketSize | Real waste, not a defect — nothing misbehaves today. Sizing slots by `TU_ALIGN_UP(mps, 16)` needs per-slot size tracking, because a slot is reused on re-open and an alternate setting can re-open the same direction with a larger mps; that is a change to a hardware-verified allocator and wants its own PR with a HIL run behind it |
+| Neither `hydrausb3_v1` nor `nanoch32h417` appears in `tinyusb.json` or `hfp.json`, so ~3,800 lines of new WCH driver code get no CI hardware coverage | Known and not fixable from here: both boards are on the dev PC, not on ci.lan or the hifiphile rig. Registering them means physically moving hardware onto a rig, which is a rig-side decision |
