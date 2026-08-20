@@ -142,6 +142,12 @@ typedef struct {
   // FUNCTION_SUSPEND remote wake enable, 1 bit per interface (USB 3.2 §9.4.9): at SuperSpeed the
   // host enables remote wake per function, so it must not be tracked device-globally.
   uint8_t func_wakeup_bm[(CFG_TUD_INTERFACE_MAX + 7) / 8];
+  // Map an interface to the FIRST interface of the function it belongs to (0xff is invalid). The
+  // host addresses SET_FEATURE(FUNCTION_SUSPEND) to that first interface (§9.4.9), while
+  // SetInterface (Table 9-10) and GetStatus(Interface) may name any interface of the function -
+  // without this they would arm, reset and report three different bits for one multi-interface
+  // function (CDC, UAC2, UVC, BTH ...).
+  uint8_t itf2func[CFG_TUD_INTERFACE_MAX];
   #endif
 
   uint8_t itf2drv[CFG_TUD_INTERFACE_MAX];   // map interface number to driver (0xff is invalid)
@@ -451,6 +457,14 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
 #if TUD_OPT_SUPER_SPEED
 TU_ATTR_ALWAYS_INLINE static inline bool link_is_superspeed(void);
 
+// The function's wake bit lives at the function's FIRST interface (see itf2func). Requests may
+// name any interface of the function; resolve before touching func_wakeup_bm. Falls back to the
+// interface itself while no configuration is set, where the bitmap is empty anyway.
+TU_ATTR_ALWAYS_INLINE static inline uint8_t func_wakeup_itf(uint8_t itf) {
+  const uint8_t first = (itf < CFG_TUD_INTERFACE_MAX) ? _usbd_dev.itf2func[itf] : TUSB_INDEX_INVALID_8;
+  return (first < CFG_TUD_INTERFACE_MAX) ? first : itf;
+}
+
 // USB 3.2 Table 9-10 resets FUNCTION REMOTE WAKEUP on SetAddress(0), SetConfiguration and
 // SetInterface. Dropping the per-function bits must also drop the device-level authorization
 // they aggregate into, or tud_remote_wakeup() stays armed after the host revoked it.
@@ -484,6 +498,7 @@ static inline void func_wakeup_clear_itf(uint8_t itf) {
   if (!link_is_superspeed() || itf >= CFG_TUD_INTERFACE_MAX) {
     return;
   }
+  itf = func_wakeup_itf(itf); // SetInterface may name any interface of the function
   const uint8_t itf_mask = (uint8_t) (1u << (itf % 8));
   _usbd_dev.func_wakeup_bm[itf / 8] = (uint8_t) (_usbd_dev.func_wakeup_bm[itf / 8] & ~itf_mask);
   func_wakeup_recompute();
@@ -714,6 +729,9 @@ static void configuration_reset(uint8_t rhport) {
   tu_varclr(&_usbd_dev);
   (void)memset(_usbd_dev.itf2drv, TUSB_INDEX_INVALID_8, sizeof(_usbd_dev.itf2drv)); // invalid mapping
   (void)memset(_usbd_dev.ep2drv, TUSB_INDEX_INVALID_8, sizeof(_usbd_dev.ep2drv));   // invalid mapping
+  #if TUD_OPT_SUPER_SPEED
+  (void)memset(_usbd_dev.itf2func, TUSB_INDEX_INVALID_8, sizeof(_usbd_dev.itf2func)); // invalid mapping
+  #endif
 }
 
 static void usbd_reset(uint8_t rhport) {
@@ -1159,14 +1177,6 @@ static bool process_std_device_request(uint8_t rhport, tusb_control_request_t co
     case TUSB_REQ_SET_CONFIGURATION: {
       uint8_t const cfg_num = (uint8_t) p_request->wValue;
 
-      #if TUD_OPT_SUPER_SPEED
-      // USB 3.2 Table 9-10: SetConfiguration resets FUNCTION REMOTE WAKEUP, including when the
-      // value is unchanged -- Linux's usb_reset_configuration() sends exactly that, and the
-      // "only process if different" guard below would otherwise leave the authorization armed
-      // after the host revoked it.
-      func_wakeup_clear_all();
-      #endif
-
       // Only process if new configure is different
       if (_usbd_dev.cfg_num != cfg_num) {
         if (_usbd_dev.cfg_num != 0) {
@@ -1205,6 +1215,15 @@ static bool process_std_device_request(uint8_t rhport, tusb_control_request_t co
           tud_mount_cb();
         }
       }
+
+      #if TUD_OPT_SUPER_SPEED
+      // USB 3.2 Table 9-10: SetConfiguration resets FUNCTION REMOTE WAKEUP, including when the
+      // value is unchanged -- Linux's usb_reset_configuration() sends exactly that, and the
+      // "only process if different" guard above would otherwise leave the authorization armed
+      // after the host revoked it. After the configuration is applied, not before: §9.2.6 requires
+      // a Request Error (an unsupported cfg_num aborts above) to leave device state unchanged.
+      func_wakeup_clear_all();
+      #endif
 
       tud_control_status(rhport, p_request);
       return true;
@@ -1443,21 +1462,21 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
       usbd_class_driver_t const * driver = get_driver(_usbd_dev.itf2drv[itf]);
       TU_VERIFY(driver);
 
-      #if TUD_OPT_SUPER_SPEED
-      // USB 3.2 Table 9-10: SetInterface resets FUNCTION REMOTE WAKEUP. This must run BEFORE the
-      // class driver is offered the request: every class that implements alternate settings
-      // (audio, video, ncm, ecm_rndis, vendor, bth, midi2, dfu) handles SET_INTERFACE itself and
-      // returns true, so a reset placed in the fallback branch below would never fire for exactly
-      // the devices hosts send SET_INTERFACE to.
-      if (TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type &&
-          TUSB_REQ_SET_INTERFACE == p_request->bRequest) {
-        func_wakeup_clear_itf(itf);
-      }
-      #endif
-
       // all requests to Interface (STD or Class) is forwarded to class driver.
       // notable requests are: GET HID REPORT DESCRIPTOR, SET_INTERFACE, GET_INTERFACE
-      if (!invoke_class_control(rhport, driver, p_request)) {
+      if (invoke_class_control(rhport, driver, p_request)) {
+        #if TUD_OPT_SUPER_SPEED
+        // USB 3.2 Table 9-10: SetInterface resets FUNCTION REMOTE WAKEUP. It has to be reset here
+        // as well as in the fallback below, because every class that implements alternate settings
+        // (audio, video, ncm, ecm_rndis, vendor, bth, midi2, dfu) handles SET_INTERFACE itself and
+        // returns true - exactly the devices hosts send SET_INTERFACE to. Only once the request is
+        // accepted: §9.2.6 requires a Request Error to leave device state unchanged.
+        if (TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type &&
+            TUSB_REQ_SET_INTERFACE == p_request->bRequest) {
+          func_wakeup_clear_itf(itf);
+        }
+        #endif
+      } else {
         // For GET_INTERFACE and SET_INTERFACE, it is mandatory to respond even if the class
         // driver doesn't use alternate settings or implement this
         TU_VERIFY(TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type);
@@ -1477,7 +1496,9 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
             // so reaching here means the class does not — where only alt 0 is valid. Any non-zero
             // alt (unimplemented, or rejected as invalid by the class) is a Request Error (stall).
             TU_VERIFY(tu_u16_low(p_request->wValue) == 0);
-            // FUNCTION REMOTE WAKEUP was already reset above, before the class dispatch
+            #if TUD_OPT_SUPER_SPEED
+            func_wakeup_clear_itf(itf); // Table 9-10, after the request is known to be accepted
+            #endif
             tud_control_status(rhport, p_request);
             break;
 
@@ -1489,11 +1510,13 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
             // Wakeup. 9.2.5.4 makes this the host's discovery mechanism, so a device whose
             // configuration advertises remote wakeup must not report itself incapable.
             if (link_is_superspeed()) {
-              const uint8_t itf_mask = (uint8_t) (1u << (itf % 8));
+              // D1 is the FUNCTION's state: report it for any interface of that function
+              const uint8_t func_itf = func_wakeup_itf(itf);
+              const uint8_t itf_mask = (uint8_t) (1u << (func_itf % 8));
               if (_usbd_dev.remote_wakeup_support) {
                 status |= 0x0001;
               }
-              if (_usbd_dev.func_wakeup_bm[itf / 8] & itf_mask) {
+              if (_usbd_dev.func_wakeup_bm[func_itf / 8] & itf_mask) {
                 status |= 0x0002;
               }
             }
@@ -1514,11 +1537,14 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
             // EP0 direction.
             TU_VERIFY(link_is_superspeed() && p_request->bmRequestType_bit.direction == TUSB_DIR_OUT &&
                       0 == p_request->wValue && 0 == p_request->wLength);
-            const uint8_t itf_mask = (uint8_t) (1u << (itf % 8));
+            // §9.4.9 addresses this to the function's first interface; resolve anyway so a host
+            // that names another interface of the same function arms the bit SetInterface resets
+            const uint8_t func_itf = func_wakeup_itf(itf);
+            const uint8_t itf_mask = (uint8_t) (1u << (func_itf % 8));
             if (tu_u16_high(p_request->wIndex) & 0x02u) {
-              _usbd_dev.func_wakeup_bm[itf / 8] |= itf_mask;
+              _usbd_dev.func_wakeup_bm[func_itf / 8] |= itf_mask;
             } else {
-              _usbd_dev.func_wakeup_bm[itf / 8] = (uint8_t) (_usbd_dev.func_wakeup_bm[itf / 8] & ~itf_mask);
+              _usbd_dev.func_wakeup_bm[func_itf / 8] = (uint8_t) (_usbd_dev.func_wakeup_bm[func_itf / 8] & ~itf_mask);
             }
             // Aggregate: keep remote wakeup allowed while ANY function is wake-enabled, so one
             // function cannot revoke the host's authorization given to another one.
@@ -1643,6 +1669,20 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num) {
         // bind found driver to all interfaces and endpoint within drv_len
         TU_ASSERT(tu_bind_driver_to_ep_itf(drv_id, _usbd_dev.ep2drv, _usbd_dev.itf2drv, CFG_TUD_INTERFACE_MAX,
                                            CFG_TUD_ENDPPOINT_MAX, p_desc, drv_len));
+
+        #if TUD_OPT_SUPER_SPEED
+        // One driver->open() claim is exactly one function: map every interface it covers back to
+        // the first one, where the host puts that function's FUNCTION REMOTE WAKEUP bit.
+        for (const uint8_t *p = p_desc; tu_desc_in_bounds(p, p_desc + drv_len) && tu_desc_len(p);
+             p = tu_desc_next(p)) {
+          if (TUSB_DESC_INTERFACE == tu_desc_type(p)) {
+            const uint8_t itf_num = ((const tusb_desc_interface_t *)p)->bInterfaceNumber;
+            if (itf_num < CFG_TUD_INTERFACE_MAX) {
+              _usbd_dev.itf2func[itf_num] = desc_itf->bInterfaceNumber;
+            }
+          }
+        }
+        #endif
 
         p_desc += drv_len; // next Interface
         break; // exit driver find loop

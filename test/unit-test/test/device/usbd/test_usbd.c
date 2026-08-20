@@ -1192,3 +1192,118 @@ void test_usbd_set_address_zero_clears_function_wakeup(void)
   dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_status_itf, 1);
   tud_task();
 }
+
+// A function spanning two interfaces - CDC, UAC2, UVC, BTH and every other IAD-grouped class.
+// USB 3.2 §9.4.9 addresses SET_FEATURE(FUNCTION_SUSPEND) to the function's FIRST interface,
+// while SetInterface (Table 9-10) and GetStatus(Interface) may name any interface of it.
+uint8_t const data_desc_config_two_itf[] =
+{
+  TUD_CONFIG_DESCRIPTOR(1, 2, 0, TUD_CONFIG_DESC_LEN + 18, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+  9, TUSB_DESC_INTERFACE, 0, 0, 0, TUSB_CLASS_MSC, MSC_SUBCLASS_SCSI, MSC_PROTOCOL_BOT, 0,
+  9, TUSB_DESC_INTERFACE, 1, 0, 0, TUSB_CLASS_MSC, MSC_SUBCLASS_SCSI, MSC_PROTOCOL_BOT, 0
+};
+
+// One driver->open() claim covering both interfaces is exactly one function
+static void switch_to_configured_two_itf(void) {
+  desc_configuration = data_desc_config_two_itf;
+  tusb_control_request_t const req_set_config = {
+    .bmRequestType = 0x00,
+    .bRequest = TUSB_REQ_SET_CONFIGURATION,
+    .wValue = 1,
+    .wIndex = 0,
+    .wLength = 0
+  };
+  dcd_event_setup_received(rhport, (uint8_t*) &req_set_config, false);
+  mscd_open_IgnoreAndReturn(18);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_set_config, 1);
+  tud_task();
+}
+
+// Probe the function's wake bit through interface GET_STATUS (_usbd_dev is file-static): D1 is
+// the per-function bit, D0 stays set because the configuration advertises remote wakeup.
+static void expect_itf_status(uint8_t itf, uint8_t d1_set) {
+  tusb_control_request_t const req_get_status_itf = {
+    .bmRequestType = 0x81,
+    .bRequest = TUSB_REQ_GET_STATUS,
+    .wValue = 0,
+    .wIndex = itf,
+    .wLength = 2
+  };
+  uint8_t const expected[2] = { (uint8_t) (0x01 | (d1_set ? 0x02 : 0x00)), 0x00 };
+
+  dcd_event_setup_received(rhport, (uint8_t*) &req_get_status_itf, false);
+  mscd_control_xfer_cb_IgnoreAndReturn(false);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*)expected, 2, 2, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 2, 0, false);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_status_itf, 1);
+  tud_task();
+}
+
+// GetStatus of the SECOND interface must report the wake state armed on the first: they are one
+// function, so reporting them separately tells the host D1=0 for a function it just armed.
+void test_usbd_function_wakeup_reported_for_every_interface_of_function(void)
+{
+  switch_to_superspeed();
+  switch_to_configured_two_itf();
+  enable_function_remote_wake(); // FUNCTION_SUSPEND(wake) on interface 0
+
+  expect_itf_status(0, 1);
+  expect_itf_status(1, 1);
+}
+
+// USB 3.2 Table 9-10: SetInterface resets FUNCTION REMOTE WAKEUP for that FUNCTION. Addressed to
+// the second interface it must still clear the bit the host armed on the first - keyed per
+// interface it would clear an unset bit and leave the function armed after the host revoked it.
+void test_usbd_set_interface_clears_wakeup_of_whole_function(void)
+{
+  switch_to_superspeed();
+  switch_to_configured_two_itf();
+  enable_function_remote_wake(); // FUNCTION_SUSPEND(wake) on interface 0
+  expect_itf_status(1, 1);
+
+  tusb_control_request_t const req_set_itf = {
+    .bmRequestType = 0x01, // host-to-device, standard, interface
+    .bRequest = TUSB_REQ_SET_INTERFACE,
+    .wValue = 0,           // alt 0: the class does not implement altsettings
+    .wIndex = 1,           // the function's SECOND interface
+    .wLength = 0
+  };
+  dcd_event_setup_received(rhport, (uint8_t*) &req_set_itf, false);
+  mscd_control_xfer_cb_IgnoreAndReturn(false);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_set_itf, 1);
+  tud_task();
+
+  expect_itf_status(0, 0);
+  expect_itf_status(1, 0);
+}
+
+// §9.2.6: a Request Error must leave device state unchanged. A SetInterface naming an alternate
+// setting the class does not implement stalls, so it must not drop the wake authorization on
+// its way out - the host would still believe D1=1 while tud_remote_wakeup() is a no-op.
+void test_usbd_rejected_set_interface_keeps_function_wakeup(void)
+{
+  switch_to_superspeed();
+  switch_to_configured_two_itf();
+  enable_function_remote_wake();
+
+  tusb_control_request_t const req_set_itf_bad_alt = {
+    .bmRequestType = 0x01,
+    .bRequest = TUSB_REQ_SET_INTERFACE,
+    .wValue = 1,           // alt 1: unimplemented -> Request Error
+    .wIndex = 0,
+    .wLength = 0
+  };
+  dcd_event_setup_received(rhport, (uint8_t*) &req_set_itf_bad_alt, false);
+  mscd_control_xfer_cb_IgnoreAndReturn(false);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_OUT);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_IN);
+  tud_task();
+
+  expect_itf_status(0, 1); // still armed
+}
