@@ -62,15 +62,23 @@ def tshark_rows(pcap):
 
 
 def find_device(serial):
-    """Return 'BBB:DDD' for lsusb -s, located by USB serial string."""
+    """Return 'BBB:DDD' for lsusb -s, located by USB serial string.
+
+    `serial` is served under the kernel's device_lock(), so a plain read blocks in D state on
+    exactly the population this script scans: a just-reflashed, possibly wedged DUT. Every
+    sysfs consumer in test/hil goes through hil_util.read_sysfs for that reason; this one is
+    called right after the post-flash settle, so it is the last place to make an exception.
+    """
+    from helper import hil_util
     for dev in Path('/sys/bus/usb/devices').glob('*-*'):
+        dev_serial = hil_util.read_sysfs(str(dev / 'serial'))
+        if not isinstance(dev_serial, str) or dev_serial != serial:
+            continue  # gone, mismatched, or unconfirmable (SYSFS_UNKNOWN)
         try:
-            if (dev / 'serial').read_text().strip() != serial:
-                continue
             return f"{(dev / 'busnum').read_text().strip().zfill(3)}:" \
                    f"{(dev / 'devnum').read_text().strip().zfill(3)}"
         except OSError:
-            continue
+            continue  # busnum/devnum are cached, not lock-served: absence means it vanished
     return None
 
 
