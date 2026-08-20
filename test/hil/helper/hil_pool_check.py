@@ -329,7 +329,7 @@ def flash(board: dict, fw, allow_recovery: bool, probe_port: str, note: list) ->
             return True
         if rc == 127:  # flasher binary missing: retries/probe recovery can't fix env
             note.append(f'flasher tool missing ({err}) — esptool needs the ESP-IDF env '
-                        f'(. $HOME/code/esp-idf/export.sh)'
+                        f'(. "$IDF_PATH/export.sh")'
                         if board['flasher']['name'].lower() == 'esptool' else
                         f'flasher tool missing: {err}')
             return False
@@ -489,7 +489,7 @@ def ensure_fw(board: dict, variant: str, example: str, note: list):
     if rc == 127 and board['flasher']['name'].lower() == 'esptool':
         _builds[key] = (None, 'no-env')
         note.append(f'cannot build {base}: ESP-IDF env missing '
-                    f'(source $HOME/code/esp-idf/export.sh)')
+                    f'(. "$IDF_PATH/export.sh")')
         return None
     if rc == 124:  # hung build: a deps/cache retry cannot cure it, don't double the stall
         _builds[key] = (None, 'timeout')

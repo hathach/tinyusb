@@ -39,11 +39,13 @@ ssh ci.lan 'bash -lc "cd ~/code/tinyusb && python3 test/hil/helper/hil_pool_chec
 ## Notes
 
 Missing firmware is **built on the spot** — never skipped (`--no-build` opts out; those boards
-then report `flash-failed`). Builds need the family env, exported on the rig in
-`~/.profile`/`~/.bashrc`: `PICO_SDK_PATH` for rp2040/rp2350 (`~/code/pico/pico-sdk`), the
-ESP-IDF env for espressif — source it as `. $HOME/code/esp-idf/export.sh`, NOT as `get-idf`:
-that is an interactive shell alias (`~/.bashrc`), and aliases are not expanded in non-interactive
-shells, so scripts and agents get `get-idf: command not found` even under `bash -lc`. It also
+then report `flash-failed`). Builds need the family env, referenced by its OFFICIAL variable so the docs hold on any
+rig: `PICO_SDK_PATH` for rp2040/rp2350, `IDF_PATH` for espressif — activated explicitly as
+`. "$IDF_PATH/export.sh"`, never as `get-idf` (an interactive alias; aliases are not expanded
+in non-interactive shells, so scripts get `get-idf: command not found` even under `bash -lc`).
+Each host exports both vars in `~/.bashrc` ABOVE the interactive early-return, which is what
+makes a plain non-interactive `ssh <rig> 'cmd'` see them (verified on ci; where the checkouts
+live is that host's business, not this file's). It also
 needs `esptool` on PATH (pip's
 `~/.local/bin/esptool`; a non-login shell may lack it — run via `bash -lc`). An explicit `-B` is
 searched exclusively for *existing* firmware; builds still land in `cmake-build/` and are noted

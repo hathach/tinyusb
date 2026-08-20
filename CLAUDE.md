@@ -28,7 +28,7 @@ Bias toward caution over speed. For trivial tasks, use judgment.
 ```bash
 sudo apt-get install -y gcc-arm-none-eabi          # ARM toolchain (2-5 min, one-time)
 python3 tools/get_deps.py [FAMILY|-b BOARD]        # fetch deps into lib/, hw/mcu/ (<1 s)
-. $HOME/code/esp-idf/export.sh                     # Espressif only: before any build/flash/monitor
+. "$IDF_PATH/export.sh"                            # Espressif only: before any build/flash/monitor (IDF_PATH set per host)
 ```
 
 ## Build
