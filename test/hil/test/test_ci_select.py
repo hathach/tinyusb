@@ -840,6 +840,45 @@ class TestRostersDoNotOverlap(unittest.TestCase):
                 seen[b['name']] = b.get('tests')
 
 
+class TestNoTrackedFileIsUnclassified(unittest.TestCase):
+    """Rule 17 (unclassified -> full on both axes) is the fail-open net for paths nobody
+    anticipated. It must stay that way - a wrong `full` costs runner minutes and is
+    visible in the run, a wrong `empty` costs a merged regression and is invisible - but
+    nothing in the tree should REACH it. Every tracked file is classified by a rule, so
+    17 fires only for genuinely new shapes, and this test is what tells the author to
+    write the row instead of letting the fall-through pick an answer for them.
+
+    Before this guard, 254 tracked files reached 17: .gitignore took a docs-only PR to
+    74 cmake legs and the whole rig, while examples/<role>/CMakeLists.txt got the RIGHT
+    answer from the wrong rule - row 15 names it, the regex never matched it."""
+
+    def _unclassified(self, axis):
+        import subprocess as sp
+        r = sp.run(['git', 'ls-files'], cwd=REPO, capture_output=True, text=True)
+        if r.returncode != 0:
+            self.skipTest('not a git checkout')
+        files = r.stdout.split()
+        self.assertGreater(len(files), 1000, 'suspiciously few tracked files')
+        out = []
+        for f in files:
+            s = (ci_select.classify_build([f], REPO) if axis == 'build'
+                 else ci_select.classify([f], REPO, real_rosters()))
+            if any('unclassified' in why for why in s['reasons']):
+                out.append(f)
+        return out
+
+    def test_build_axis(self):
+        left = self._unclassified('build')
+        self.assertEqual(left, [], f'{len(left)} tracked files fall through to rule 17 on '
+                                   f'the build axis, e.g. {left[:5]} - classify them, or '
+                                   f'add the pattern to _META_RE if no build reads them')
+
+    def test_hil_axis(self):
+        left = self._unclassified('hil')
+        self.assertEqual(left, [], f'{len(left)} tracked files fall through to rule 17 on '
+                                   f'the HIL axis, e.g. {left[:5]}')
+
+
 class TestLibRule(unittest.TestCase):
     """lib/** is not a full-matrix path: only the examples that build the lib need it."""
 
@@ -1241,7 +1280,28 @@ class TestBuildClassifier(unittest.TestCase):
                   'tools/build.py', 'tools/cmake/cpu/cortex-m4.cmake',
                   'examples/CMakeLists.txt', 'examples/device/CMakeLists.txt',
                   'examples/build_system/cmake/cpu.cmake', '.github/workflows/build.yml',
-                  'sonar-project.properties', 'some/unknown/path.c'):
+                  '.circleci/config.yml', 'src/CMakeLists.txt', 'src/tinyusb.mk',
+                  'hw/bsp/family_support.mk', 'tools/build_utils.py',
+                  'some/unknown/path.c'):
+            self.assertTrue(self.b([p])['full'], p)
+
+    def test_repo_metadata_is_not_a_build_input(self):
+        # these used to reach `full` through rule 17: a PR touching only .gitignore and a
+        # README created 74 cmake legs and booked the whole rig. No Build step reads them.
+        for p in ('sonar-project.properties', '.gitignore', '.gitattributes',
+                  '.clang-format', '.idea/misc.xml', 'version.yml', 'library.json',
+                  'examples/CMakePresets.json', 'test/fuzz/fuzz.cc',
+                  'test/unit-test/project.yml', '.github/workflows/pr_comment.yml',
+                  'tools/gen_doc.py'):
+            s = self.b([p])
+            self.assertFalse(s['full'], p)
+            self.assertEqual(s['families'], [], p)
+
+    def test_the_build_machinery_is_still_full(self):
+        # the other side of the same line: these DECIDE what gets built
+        for p in ('.circleci/config.yml', '.github/workflows/build.yml',
+                  '.github/scripts/ci_set_matrix.py', 'tools/ci_select.py',
+                  'tools/build_utils.py', 'tools/metrics.py'):
             self.assertTrue(self.b([p])['full'], p)
 
     def test_mixed_diff_unions_per_family(self):
