@@ -148,6 +148,7 @@ extern "C" {
 #define CFG_TUH_CDC 0
 #define CFG_TUH_HID 0
 #define CFG_TUH_MSC 0
+#define CFG_TUH_VENDOR 0
 
 // max endpoint pair supported by each device
 #define CFG_TUH_ENDPOINT_MAX 16
