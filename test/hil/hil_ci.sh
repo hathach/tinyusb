@@ -224,7 +224,6 @@ scp -q "$ROOT_DIR/test/hil/helper/__init__.py" \
        "$ROOT_DIR/test/hil/helper/hil_health.py" \
        "$ROOT_DIR/test/hil/helper/hil_lock.py" \
        "$ROOT_DIR/test/hil/helper/hil_summary.py" \
-       "$ROOT_DIR/test/hil/helper/hil_select.py" \
        "$REMOTE:$REMOTE_DIR/test/hil/helper/"
 
 # Copy only firmware binaries (elf/bin/hex) plus esptool metadata

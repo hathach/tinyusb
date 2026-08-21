@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import sys
 
 
 def _resolve_config_path(config_file):
@@ -19,13 +20,47 @@ def _resolve_config_path(config_file):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('config_files', nargs='+', help='Configuration JSON file(s)')
-    parser.add_argument('--select', help='hil_select.py JSON; scopes boards when full=false')
+    g = parser.add_mutually_exclusive_group()
+    g.add_argument('--select', help='ci_select.py JSON; scopes boards when full=false')
+    # a whole selection as one argv can exceed MAX_ARG_STRLEN on a big diff, which
+    # would fail the step instead of falling open; callers that already have the
+    # selection on disk pass the path instead
+    g.add_argument('--select-file', help='file holding the same JSON as --select')
     args = parser.parse_args()
 
+    raw = args.select
+    sel = None
+    try:
+        if args.select_file:
+            with open(args.select_file) as f:
+                raw = f.read()
+        if raw:
+            sel = json.loads(raw)
+        if sel is not None and not isinstance(sel, dict):
+            raise ValueError(f'selection is {type(sel).__name__}, not an object')
+    except Exception as e:  # fail-open: an unusable selection must never red the job
+        print(f'hil_ci_set_matrix: selection unusable ({e}) - full roster',
+              file=sys.stderr)
+        sel = None
+
     selected = None
-    sel = json.loads(args.select) if args.select else None
     if sel and not sel.get('full'):
-        selected = set(sel.get('boards', {}))
+        # key ABSENT is an unusable selection, not "nothing selected" - same reading as
+        # ci_set_matrix.py. Filtering every board out would skip every hil-build leg and,
+        # through needs:, both rig jobs: an all-green PR with zero hardware coverage.
+        # An explicit boards: {} stays a legitimate nothing-selected.
+        if not isinstance(sel.get('boards'), dict):
+            print('hil_ci_set_matrix: selection has full false but no usable boards '
+                  'map - full roster', file=sys.stderr)
+            sel = None          # ALL of it is unusable, hil_examples included: keeping
+                                # the -e lists would build a few examples per board
+                                # while the rig, unfiltered, runs that board's whole
+                                # test list - flash failures on the fail-open path
+        else:
+            selected = set(sel['boards'])
+    ex_map = (sel or {}).get('hil_examples') or {}
+    if not isinstance(ex_map, dict):
+        ex_map = {}
 
     # Toolchain buckets must match the toolchains instantiated by the hil-build
     # job in .github/workflows/build.yml. Keep all keys present (even if empty)
@@ -68,8 +103,12 @@ def main():
                     f'hil-build-esp jobs in .github/workflows/build.yml')
 
             build_board = f'-b {name}'
-            if 'build' in board and 'args' in board['build']:
-                build_board += ' ' + ' '.join(f'-D{a}' for a in board['build']['args'])
+
+            # PR selection: build only the examples this board will run (its test
+            # list plus device/board_test, the parking firmware) - tools/build.py -e.
+            # Absent key (hand runs, full non-PR builds) keeps --target all.
+            for ex in ex_map.get(name, []):
+                build_board += f' -e {ex}'
 
             # Each variant builds into cmake-build-<variant.name> with its own cmake
             # -D defines and raw CFLAGS. No 'variant' -> a single build named after
