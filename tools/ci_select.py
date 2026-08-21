@@ -188,10 +188,12 @@ def bsp_board_options(board_name: str, repo_root: str) -> frozenset:
 
 
 def board_options(board: dict, repo_root: str) -> set:
-    """Build options a board has truthy: the roster entry's build.args plus each
-    variant's defines (NAME=VALUE) and raw CFLAGS (-DNAME=VALUE), plus whatever its
-    own board.cmake sets (a board can enable a gated port without the roster saying so)."""
-    toks = list(board.get('build', {}).get('args', []))
+    """Build options a board has truthy: each variant's defines (NAME=VALUE) and raw
+    CFLAGS (-DNAME=VALUE), plus whatever its own board.cmake sets (a board can enable a
+    gated port without the roster saying so). A board whose option is always on carries
+    a single variant named after itself - metro_m4_express and MAX3421_HOST=1, which is
+    what makes it the one rig board that compiles hcd_max3421.c."""
+    toks = []
     for v in board.get('variant', []):
         toks += list(v.get('defines', []))
         toks += v.get('flags', '').split()

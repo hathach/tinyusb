@@ -194,10 +194,6 @@ class TestsCfg(TypedDict, total=False):
     dev_attached: list[AttachedDevCfg]
 
 
-class BuildCfg(TypedDict, total=False):
-    args: list[str]
-
-
 class VariantCfg(TypedDict, total=False):
     name: str           # build dir (cmake-build-<name>) and HIL report row
     flags: str          # raw CFLAGS, e.g. "-DCFG_TUD_DWC2_DMA_ENABLE=1"
@@ -209,7 +205,9 @@ class Board(TypedDict):
     uid: str
     tests: TestsCfg
     flasher: FlasherCfg
-    build: NotRequired[BuildCfg]
+    # every build knob lives here, including a board's always-on defines: a board that
+    # needs one carries a single variant named after itself (metro_m4_express /
+    # MAX3421_HOST=1), which is exactly what the `or [...]` default below synthesises
     variant: NotRequired[list[VariantCfg]]
     toolchain: NotRequired[str]  # CI build bucket override, e.g. "riscv-gcc" (consumed by hil_ci_set_matrix.py)
 
@@ -1670,21 +1668,17 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
 
 def build_board(board: Board) -> tuple[str, int]:
     """Build firmware for this board via tools/build.py.
-    Honors board config's variant list and build.args defines.
+    Honors board config's variant list (name, defines, flags).
     Output goes to cmake-build/cmake-build-<variant>/ (tools/build.py layout).
 
     Unbounded on purpose: --build is a local convenience (no CI workflow passes it), so
     the developer watching the build is the timeout."""
     name = board['name']
-    bcfg = cast(BuildCfg, board.get('build', {}))
-    extra_defs = bcfg.get('args', [])
     variants = board.get('variant') or [{'name': name, 'flags': ''}]
 
     failed = 0
     for v in variants:
         cmd = [sys.executable, str(hil_util.TINYUSB_ROOT / 'tools' / 'build.py'), '-b', name]
-        for d in extra_defs:
-            cmd += ['-D', d]
         if v['name'] != name:
             cmd += ['--build-name', v['name']]
         for d in v.get('defines', []):

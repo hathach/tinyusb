@@ -329,7 +329,7 @@ class TestOptionGatedPort(unittest.TestCase):
     # host-side option board (max3421 as host controller), off any max3421 family
     OPT_ROSTER = [('test/hil/opt.json', [
         {'name': 'fake_dual_board', 'uid': 'o1', 'flasher': {'name': 'jlink'},
-         'build': {'args': ['MAX3421_HOST=1']},
+         'variant': [{'name': 'fake_dual_board', 'defines': ['MAX3421_HOST=1']}],
          'tests': {'device': True, 'host': False, 'dual': True}},
         {'name': 'fake_host_board', 'uid': 'o2', 'flasher': {'name': 'jlink'},
          'variant': [{'name': 'fake_host_board', 'flags': '-DMAX3421_HOST=1'}],
@@ -346,10 +346,10 @@ class TestOptionGatedPort(unittest.TestCase):
         for board in boards:
             self.assertIn(board, s['boards'])
 
-    def test_option_selects_via_args_defines_and_flags(self):
+    def test_option_selects_via_defines_and_flags(self):
         s = ci_select.classify(['src/portable/analog/max3421/hcd_max3421.c'], REPO, self.OPT_ROSTER)
         self.assertFalse(s['full'])
-        self.assertIn('fake_dual_board', s['boards'])    # build.args
+        self.assertIn('fake_dual_board', s['boards'])    # variant defines
         self.assertIn('fake_host_board', s['boards'])    # variant flags
         self.assertNotIn('fake_off_board', s['boards'])  # variant defines, but =0
 
@@ -1762,7 +1762,7 @@ class TestBuildPyExampleFilter(unittest.TestCase):
                          {'tinyusb_metrics', 'cdc_msc', 'cdc_msc-membrowse-upload'})
 
     def test_build_defines_reach_the_example_filter(self):
-        # metro_m4_express gets MAX3421_HOST=1 from the roster build args, never
+        # metro_m4_express gets MAX3421_HOST=1 from its roster variant, never
         # from its BSP: without threading them through, -e drops the rig's only
         # MAX3421 dual firmware that --target all used to build
         self.assertIsNone(self.build.resolve_example_target_groups(
@@ -1934,7 +1934,7 @@ class TestSkipExampleMirrorsFamilyFilter(unittest.TestCase):
     def test_build_define_enables_max3421_only_list(self):
         # family_support.cmake:940 appends MAX3421 to FAMILY_MCUS when
         # MAX3421_HOST=1; on metro_m4_express that define comes from the roster
-        # build args, so skip_example has to be told about it
+        # variant defines, so skip_example has to be told about it
         ex = 'dual/host_info_to_device_cdc'
         self.assertTrue(self.build_utils.skip_example(ex, 'metro_m4_express'))
         self.assertFalse(self.build_utils.skip_example(ex, 'metro_m4_express',

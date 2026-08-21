@@ -103,8 +103,6 @@ def main():
                     f'hil-build-esp jobs in .github/workflows/build.yml')
 
             build_board = f'-b {name}'
-            if 'build' in board and 'args' in board['build']:
-                build_board += ' ' + ' '.join(f'-D{a}' for a in board['build']['args'])
 
             # PR selection: build only the examples this board will run (its test
             # list plus device/board_test, the parking firmware) - tools/build.py -e.

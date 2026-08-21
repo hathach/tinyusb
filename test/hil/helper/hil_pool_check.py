@@ -433,7 +433,7 @@ def build_example(board: dict, variant: str, example: str) -> int:
         cmd = ['idf.py', '-C', f'examples/{example}',
                '-B', f'cmake-build/cmake-build-{vcfg["name"]}/{example}',
                '-G', 'Ninja', f'-DBOARD={name}', 'build']
-        for d in board.get('build', {}).get('args', []) + vcfg.get('defines', []):
+        for d in vcfg.get('defines', []):
             cmd.insert(-1, f'-D{d}')
         if vcfg.get('flags'):
             cmd.insert(-1, f'-DCFLAGS_CLI={vcfg["flags"]}')
@@ -446,8 +446,6 @@ def build_example(board: dict, variant: str, example: str) -> int:
     cmd = [sys.executable, str(hil_util.TINYUSB_ROOT / 'tools' / 'build.py'),
            '-b', name, '-T', Path(example).name,
            '-j', str(max(1, (os.cpu_count() or _jobs) // _jobs))]
-    for d in board.get('build', {}).get('args', []):
-        cmd += ['-D', d]
     if vcfg['name'] != name:
         cmd += ['--build-name', vcfg['name']]
     for d in vcfg.get('defines', []):
