@@ -210,6 +210,69 @@ rm -rf -- "$1"
 mkdir -p -- "$1/test/hil/helper" "$1/examples"
 REMOTE
 
+# The --accumulate merge base. The wipe above just cleared REMOTE_DIR, and
+# accumulate_report merges onto the sidecar in the RUN's cwd (hil_test.py:2193 sets
+# `fresh = not args.accumulate`, and only a non-fresh run reads it) -- so without this a
+# remote retry starts from nothing and its one-row table REPLACES the full-fleet one it was
+# meant to extend. The copy-back at the end of this script has always existed; this is the
+# other half of it.
+#
+# Gated, not unconditional: a fresh run unlinks the sidecar anyway (hil_test.py:2244), so
+# uploading there is wasted work that also obscures what the wipe means.
+#
+# <config>.failed is deliberately NOT uploaded: hil_test.py only ever writes it, never
+# reads it -- the retry spec reaches the rig as the -b/-bt arguments the caller expanded
+# from it (`hil_ci.sh $(cat <config>.failed)`).
+# argparse decides, not a case arm: hil_test.py declares `-a, --accumulate`, so argparse
+# also accepts `-av`, `-va`, `--accum` and `--acc` -- and hil-validate.js tells the
+# operator to retry "adding -v", which makes `-av` the natural spelling. A hand-rolled
+# match missed all four: no upload, and the else-branch warning never fired either, so the
+# one-row table replaced the full-fleet one in silence.
+ACCUMULATE=$(python3 - ${ARGS[@]+"${ARGS[@]}"} <<'PY'
+import argparse, sys
+p = argparse.ArgumentParser(add_help=False)
+p.add_argument('-a', '--accumulate', action='store_true')
+p.add_argument('-v', '--verbose', action='store_true')   # so -av/-va bundle as they do there
+print(1 if p.parse_known_args(sys.argv[1:])[0].accumulate else 0)
+PY
+) || ACCUMULATE=0
+if [ "$ACCUMULATE" = 1 ]; then
+  if [ -f "$ROOT_DIR/hil_report.json" ]; then
+    # Provenance: hil_report.json is not namespaced by CONFIG or REMOTE (build.yml and
+    # pr_comment.yml read that exact name), so a `REMOTE=hifiphile CONFIG=.../hfp.json`
+    # run leaves an hfp sidecar behind that a later ci.lan retry would merge, publishing
+    # boards that never ran here. Require at least one row to belong to THIS roster.
+    if python3 - "$ROOT_DIR/hil_report.json" "$CONFIG" <<'PY'
+import json, sys
+try:
+    rows = json.load(open(sys.argv[1])).get('rows') or []
+    cfg = json.load(open(sys.argv[2])).get('boards') or []
+except Exception:
+    sys.exit(1)
+known = set()
+for b in cfg:
+    known.add(b.get('name'))
+    known.update(v.get('name') for v in (b.get('variant') or []))
+sys.exit(0 if not rows or any(r.get('board') in known for r in rows if isinstance(r, dict))
+         else 1)
+PY
+    then
+      echo "==> Uploading hil_report.json as the --accumulate merge base"
+      scp -q "$ROOT_DIR/hil_report.json" "$REMOTE:$REMOTE_DIR/"
+    else
+      echo "==> warning: $ROOT_DIR/hil_report.json holds no board from $(basename "$CONFIG")" \
+           "-- it is from another rig or config, so it is NOT being uploaded; this run's" \
+           "table will REPLACE rather than extend" >&2
+    fi
+  else
+    # Loud, because this is the failure mode: the run still succeeds, and quietly
+    # publishes a small table where a full one used to be.
+    echo "==> warning: --accumulate was requested but $ROOT_DIR/hil_report.json does not" \
+         "exist, so there is nothing to merge onto -- this run's table will REPLACE the" \
+         "previous one rather than extend it" >&2
+  fi
+fi
+
 # Copy HIL test script and config
 echo "==> Copying test scripts"
 scp -q "$ROOT_DIR/test/hil/hil_test.py" \
@@ -316,19 +379,41 @@ REMOTE
 
 # Copy the generated report back to the local checkout (best-effort; the run's
 # exit code is preserved regardless of whether a report was produced).
-scp -q "$REMOTE:$REMOTE_DIR/hil_report.md" "$ROOT_DIR/hil_report.md" \
-  && echo "==> Report copied to $ROOT_DIR/hil_report.md" \
-  || echo "==> warning: no hil_report.md copied back" >&2
+# rm -f FIRST, exactly as the sidecar loop below does: the markdown and the JSON are two
+# halves of ONE document now, so leaving a stale table behind when the copy fails -- beside
+# a sidecar that was correctly removed -- publishes last run's green results under this
+# run's red job, and the operator's hil_report.py call exits 1 against the missing sidecar.
+# Fetch BOTH halves to temps and commit them as a pair. Separate fetch/rename meant a
+# markdown that arrived beside a sidecar that did not left the local pair failing the
+# rendering invariant, and the next --accumulate retry merging the wrong base. Deleting
+# first and then scp'ing was worse still: an ssh drop at the end of a 60-minute run
+# destroyed the report outright.
+md_ok=0; json_ok=0
+scp -q "$REMOTE:$REMOTE_DIR/hil_report.md" "$ROOT_DIR/hil_report.md.tmp" 2>/dev/null \
+  && [ -f "$ROOT_DIR/hil_report.md.tmp" ] && md_ok=1
+scp -q "$REMOTE:$REMOTE_DIR/hil_report.json" "$ROOT_DIR/hil_report.json.tmp" 2>/dev/null \
+  && [ -f "$ROOT_DIR/hil_report.json.tmp" ] && json_ok=1
+if [ "$md_ok" = 1 ] && [ "$json_ok" = 1 ]; then
+  mv -f "$ROOT_DIR/hil_report.md.tmp" "$ROOT_DIR/hil_report.md"
+  mv -f "$ROOT_DIR/hil_report.json.tmp" "$ROOT_DIR/hil_report.json"
+  echo "==> Report copied to $ROOT_DIR/hil_report.md (+ sidecar)"
+else
+  rm -f "$ROOT_DIR/hil_report.md.tmp" "$ROOT_DIR/hil_report.json.tmp"
+  # All or nothing: a half-copied pair is worse than none. The stale local markdown goes
+  # because that is what gets pasted into a PR as this run's results; the stale sidecar
+  # goes with it so the two cannot disagree.
+  rm -f "$ROOT_DIR/hil_report.md" "$ROOT_DIR/hil_report.json"
+  echo "==> warning: report copy-back incomplete (md=$md_ok json=$json_ok); removed the" \
+       "stale local pair -- an --accumulate retry has no merge base until a run succeeds" >&2
+fi
 
-# The re-run spec and the JSON sidecar live in the run's cwd on the rig (REMOTE_DIR), and the
-# next invocation rm -rf's it. Without copying them back, the `--accumulate` retry every doc on
-# this branch prescribes has nothing to read and nothing to merge onto. Delete the local copies
-# FIRST: a green run writes no .failed, so a silent no-op scp would leave last run's spec in
-# the checkout looking current, and "retry from the spec" would re-flash boards that passed.
-for extra in "$(basename "$CONFIG").failed" hil_report.json; do
-  rm -f "$ROOT_DIR/$extra"
-  scp -q "$REMOTE:$REMOTE_DIR/$extra" "$ROOT_DIR/$extra" 2>/dev/null \
-    && echo "==> $extra copied to $ROOT_DIR/$extra" || true
-done
+# The re-run spec lives in the run's cwd on the rig and the next invocation rm -rf's it.
+# Delete the local copy first: a green run writes no .failed, so a silent no-op scp would
+# leave last run's spec looking current and "retry from the spec" would re-flash boards
+# that passed.
+spec="$(basename "$CONFIG").failed"
+rm -f "$ROOT_DIR/$spec"
+scp -q "$REMOTE:$REMOTE_DIR/$spec" "$ROOT_DIR/$spec" 2>/dev/null \
+  && echo "==> $spec copied to $ROOT_DIR/$spec" || true
 
 exit $rc

@@ -804,6 +804,51 @@ class TheFooterCountsAreNotSwapped(unittest.TestCase):
         self.assertIn(f'{hil_report.REPORT_CELL["skip"]} 1 skipped', md)
 
 
+class HilCiUploadsTheAccumulateMergeBase(unittest.TestCase):
+    """hil_ci.sh rm -rf's REMOTE_DIR at the start of every run, and accumulate_report
+    merges onto the sidecar in the run's cwd -- so without an upload a remote
+    `--accumulate` retry silently starts from nothing and its one-row table REPLACES the
+    full-fleet one. The copy-back at the end has always existed; the upload did not."""
+
+    def _gate(self, *args):
+        """Run the real gate block out of hil_ci.sh and return its ACCUMULATE verdict.
+
+        Executed, not grepped: the previous pair of tests searched the source text and
+        stayed green when `if [ "$ACCUMULATE" = 1 ]` was mutated to `if true`, because the
+        comment block above it mentions --accumulate five times."""
+        sh = (Path(HIL_DIR) / 'hil_ci.sh').read_text(encoding='utf-8')
+        a = sh.index('ACCUMULATE=$(python3 -')
+        b = sh.index(') || ACCUMULATE=0', a) + len(') || ACCUMULATE=0')
+        script = 'ARGS=("$@")\n' + sh[a:b] + '\necho "$ACCUMULATE"'
+        r = subprocess.run(['bash', '-c', script, '_', *args],
+                           capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return r.stdout.strip()
+
+    def test_every_spelling_argparse_accepts_is_detected(self):
+        """hil_test.py declares `-a, --accumulate`, so argparse also takes -av, -va,
+        --accum and --acc; hil-validate.js tells the operator to retry 'adding -v'."""
+        for spelling in ('--accumulate', '-a', '-av', '-va', '--accum', '--acc'):
+            self.assertEqual(self._gate(spelling), '1', f'{spelling} was not detected')
+
+    def test_a_run_without_it_is_not_treated_as_accumulate(self):
+        for spelling in ('-b', '-v', '--retry'):
+            self.assertEqual(self._gate(spelling), '0', f'{spelling} falsely detected')
+
+    def test_the_sidecar_is_uploaded_and_gated(self):
+        sh = (Path(HIL_DIR) / 'hil_ci.sh').read_text(encoding='utf-8')
+        up = [ln for ln in sh.splitlines()
+              if 'scp' in ln and 'hil_report.json' in ln and '$REMOTE:' in ln]
+        self.assertTrue(up, 'nothing uploads hil_report.json; --accumulate has no merge base')
+        self.assertIn('if [ "$ACCUMULATE" = 1 ]', sh, 'the upload is not gated')
+
+    def test_a_missing_merge_base_is_loud(self):
+        """The damage: --accumulate with nothing to merge onto succeeds and quietly
+        publishes a small table where a full one used to be."""
+        warn = [ln for ln in (Path(HIL_DIR) / 'hil_ci.sh').read_text().splitlines()
+                if 'warning' in ln.lower() and 'accumulate' in ln.lower()]
+        self.assertTrue(warn, 'no warning when --accumulate has no local sidecar')
+
 
 class RunOutcomeAndRigHealthAreSeparate(unittest.TestCase):
     """`banner` describes the CONDITIONS cells were collected under, so it carries across a
