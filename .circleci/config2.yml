@@ -125,6 +125,15 @@ commands:
             # shell-text interpolation (unsafe characters); family is a job
             # parameter with charset [a-z0-9_], safe to interpolate directly.
             EX_ARGS=$(printf '%s' "$EXAMPLE_MAP" | jq -r --arg fam "<< parameters.family >>" '(.[$fam] // []) | map("-e " + .) | join(" ")' 2>/dev/null) || EX_ARGS=''
+            # same screen as build_util.yml's: the values are example dir names from the
+            # PR checkout and $EX_ARGS is used unquoted below, so a glob metacharacter
+            # would pathname-expand against the build cwd. Dropping the filter builds
+            # everything - the safe direction, and what GHA does for the same input.
+            case "$EX_ARGS" in
+              *[!-A-Za-z0-9_/\ ]*)
+                echo "warning: unexpected characters in the example filter - building all examples"
+                EX_ARGS='' ;;
+            esac
 
             if [ << parameters.toolchain >> == esp-idf ]; then
               docker run --rm -v $PWD:/project -w /project espressif/idf:v5.5.3 python tools/build.py << parameters.build-args >> --target all $EX_ARGS << parameters.family >>
@@ -253,8 +262,13 @@ jobs:
             if ls /tmp/metrics/*/*.json 1> /dev/null 2>&1; then
               python tools/metrics.py combine -j -m -f tinyusb/src /tmp/metrics/*/*.json
             else
-              echo "No metrics files found"
-              exit 1
+              # A scoped PR can legitimately build no metrics leg at all (every selected
+              # family empty, or none of them on a metrics toolchain), so this is not an
+              # error any more - it was, when the matrix was always the full 64 families.
+              # An empty file keeps store_artifacts and the compare step below honest:
+              # both would otherwise act on a missing path.
+              echo "No metrics files found - PR selection built no metrics leg"
+              echo '{"files": []}' > metrics.json
             fi
 
       - store_artifacts:

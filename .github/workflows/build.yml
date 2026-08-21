@@ -68,9 +68,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      # The `ci-full` PR label turns the scoping off for one PR: no selection file is
+      # written, so both matrices and every rig job fall back to the unscoped behaviour.
+      # An escape hatch is the point - a selector bug under-selects SILENTLY, and without
+      # a label the only routes back to a full matrix are accidental (touch an
+      # unclassified path, or break the selector badly enough that it falls open).
       - name: CI selection (PR only)
         id: hil-select
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'ci-full')
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
@@ -166,8 +171,6 @@ jobs:
             fi
           fi
           [ -z "$MATRIX_JSON" ] && MATRIX_JSON=$(python .github/scripts/ci_set_matrix.py)
-          echo "matrix=$MATRIX_JSON"
-          echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
 
           # Build-axis extras: the per-family example map rides as a side channel
           # (a value inside matrix entries would break CircleCI's family parameter
@@ -188,12 +191,23 @@ jobs:
               # silently match another family's baseline
               case "$FAM_REGEX" in
                 *[!-A-Za-z0-9_\|]*)
-                  echo "::warning::unexpected characters in the family list - unscoped metrics"
+                  echo "::warning::unexpected characters in the family list - dropping the scoping"
                   FAM_REGEX='' ;;
               esac
-              [ -z "$FAM_REGEX" ] && BUILD_FILTERED='false'
+              if [ -z "$FAM_REGEX" ]; then
+                # all three drop together, as CircleCI's fall-open does. Resetting only
+                # build_filtered leaves the build scoped while code-metrics takes the
+                # UNSCOPED branch, diffing a 1-family run against the full averaged
+                # baseline and publishing that as the PR's code-size impact.
+                BUILD_FILTERED='false'
+                EXAMPLE_MAP='{}'
+                MATRIX_JSON=$(python .github/scripts/ci_set_matrix.py)
+              fi
             fi
           fi
+          # emitted once, after every path that can still change it
+          echo "matrix=$MATRIX_JSON"
+          echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
           echo "example_map=$EXAMPLE_MAP" >> $GITHUB_OUTPUT
           echo "build_filtered=$BUILD_FILTERED" >> $GITHUB_OUTPUT
           echo "build_families_regex=$FAM_REGEX" >> $GITHUB_OUTPUT

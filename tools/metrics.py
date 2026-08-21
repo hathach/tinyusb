@@ -83,7 +83,7 @@ def parse_bloaty_csv(csv_text, filters=None):
     return {"files": files, "TOTAL": total_all}
 
 
-def combine_files(input_files, filters=None, only_examples=None):
+def combine_files(input_files, filters=None):
     """Combine multiple metrics inputs (bloaty CSV or metrics JSON) into a single data set."""
 
     filters = filters or []
@@ -105,9 +105,11 @@ def combine_files(input_files, filters=None, only_examples=None):
                     # rule and metrics_pair_compare all spell that suffix) - a shape
                     # sniff would silently reroute any coincidentally-shaped JSON.
                     for ex in sorted(json_data):
-                        if only_examples and ex not in only_examples:
-                            continue
-                        sub = {'files': list(json_data[ex]['files'])}
+                        # same TOTAL scrub the shared path below applies: this branch
+                        # `continue`s past it, so do it here or a by-example input keeps
+                        # the fake TOTAL rows an ordinary input has stripped
+                        sub = {'files': [f for f in json_data[ex]['files']
+                                         if str(f.get('file', '')).upper() != 'TOTAL']}
                         if filters:
                             sub['files'] = [f for f in sub['files']
                                             if f.get('path') and any(x in f['path'] for x in filters)]
@@ -614,8 +616,7 @@ def render_compare_table(rows, include_sum):
 def cmd_combine(args):
     """Handle combine subcommand."""
     input_files = expand_files(args.files)
-    only_examples = set(args.only_examples.split(',')) if args.only_examples else None
-    all_json_data = combine_files(input_files, args.filters, only_examples=only_examples)
+    all_json_data = combine_files(input_files, args.filters)
     json_average = compute_avg(all_json_data)
 
     if json_average is None:
@@ -673,8 +674,6 @@ def main(argv=None):
                                 help='Sort order: size/size- (descending), size+ (ascending), name/name+ (ascending), name- (descending). Default: size-')
     combine_parser.add_argument('--by-example', dest='by_example', action='store_true',
                                 help='Also write <out>_by_example.json: per-example file lists keyed by role/example')
-    combine_parser.add_argument('--only-examples', dest='only_examples', default='',
-                                help='Comma-separated role/example ids to keep when reading by-example JSON inputs')
 
     # Compare subcommand
     compare_parser = subparsers.add_parser('compare', help='Compare two metrics inputs (bloaty CSV or metrics JSON)')

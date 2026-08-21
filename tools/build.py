@@ -299,7 +299,8 @@ def build_boards_list(boards, build_defines, build_system, build_name, build_cfl
     return ret
 
 
-def get_family_boards(family, one_random, one_first, examples=None, build_system='cmake'):
+def get_family_boards(family, one_random, one_first, examples=None, build_system='cmake',
+                      extra_defines=(), ci=None):
     """Get list of boards for a family.
 
     Args:
@@ -314,13 +315,23 @@ def get_family_boards(family, one_random, one_first, examples=None, build_system
             which every one of those examples skips - and the leg runs to green having
             compiled nothing and uploaded no metrics.
         build_system: which skip answer to ask for; the two differ (build_utils)
+        extra_defines: this build's -D tokens, so a board whose only.txt match comes
+            from -DMAX3421_HOST=1 is not judged unbuildable here and buildable in
+            cmake_board
+        ci: force the ci_skip_boards / ci_preferred_boards lists on or off. Default
+            None reads the environment, which is right for a build but NOT for a caller
+            asking what CI would do: ci_select must answer the same on a laptop as on a
+            runner, or /pre-pr and the code-size skill report a family list CI will not
+            reproduce.
 
     Returns:
         List of board names
     """
+    if ci is None:
+        ci = bool(os.getenv('GITHUB_ACTIONS') or os.getenv('CIRCLECI'))
     skip_list = []
     preferred_list = []
-    if os.getenv('GITHUB_ACTIONS') or os.getenv('CIRCLECI'):
+    if ci:
         skip_list = ci_skip_boards.get(family, [])
         preferred_list = ci_preferred_boards.get(family, [])
 
@@ -339,9 +350,16 @@ def get_family_boards(family, one_random, one_first, examples=None, build_system
             # no filter, or nothing in the filter is buildable anywhere: keep today's
             # answer rather than inventing a different board
             return examples is None or any(
-                not build_utils.skip_example(e, board, (), build_system) for e in examples)
+                not build_utils.skip_example(e, board, extra_defines, build_system)
+                for e in examples)
 
-        if preferred_list and buildable(preferred_list[0]):
+        # the WHOLE preferred list, in order - stopping at entry one would abandon a
+        # curated list for the raw alphabetical order the moment its first board cannot
+        # build the filter, which also moves the board the metrics baseline is keyed on
+        for b in preferred_list:
+            if buildable(b):
+                return [b]
+        if preferred_list and examples is None:
             return [preferred_list[0]]
         candidates = [b for b in all_boards if buildable(b)] or all_boards
         if one_first:
@@ -434,7 +452,8 @@ def main():
     # get boards from families and append to boards list
     all_boards = list(boards)
     for f in all_families:
-        all_boards.extend(get_family_boards(f, one_random, one_first, examples, build_system))
+        all_boards.extend(get_family_boards(f, one_random, one_first, examples,
+                                            build_system, tuple(build_defines)))
 
     # build all boards
     result = build_boards_list(all_boards, build_defines, build_system, build_name, build_cflags, build_targets,

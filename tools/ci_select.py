@@ -42,6 +42,7 @@ ALL_TESTS = {'device': device_tests, 'dual': dual_tests, 'host': host_test}
 # class dir -> config macro suffix exceptions (rule 3); dfu is per-file, handled inline
 NET_MACROS = ('ECM_RNDIS', 'NCM')
 
+
 def _read(path: str) -> str:
     """Read a source file with a fixed encoding. The locale's is not it: several tracked
     sources carry non-ASCII bytes, and under LC_ALL=C the decode raises UnicodeDecodeError
@@ -211,17 +212,25 @@ def path_families(rel_dir: str, repo_root: str) -> set:
     CI job and resolves to nothing. Boundary = '/', whitespace, quote, paren,
     brace or end: `${TOP}/hw/mcu/nordic/nrfx` has no trailing slash, while bare
     'microchip/pic' must not match '.../microchip/pic32mz/...'."""
-    fams = set()
-    bsp_root = os.path.join(repo_root, 'hw/bsp')
     pat = re.compile(re.escape(rel_dir) + r'(?=[/\s"\')}]|$)', re.M)
-    for f in glob.glob(os.path.join(bsp_root, '*/family.cmake')) + \
-             glob.glob(os.path.join(bsp_root, '*/components/*/CMakeLists.txt')):
+    return {fam for fam, text in _family_file_texts(repo_root) if pat.search(text)}
+
+
+@functools.lru_cache(maxsize=None)
+def _family_file_texts(repo_root: str) -> tuple:
+    """((family, text), ...) for every family.cmake and espressif component
+    CMakeLists.txt, read once. path_families is called per distinct directory in the
+    diff and its own cache only helps repeats: a 6,000-file hw/mcu dep bump re-read
+    these 84 files 99,892 times (2.2 s) before this."""
+    bsp_root = os.path.join(repo_root, 'hw/bsp')
+    out = []
+    for f in sorted(glob.glob(os.path.join(bsp_root, '*/family.cmake')) +
+                    glob.glob(os.path.join(bsp_root, '*/components/*/CMakeLists.txt'))):
         try:
-            if pat.search(_read(f)):
-                fams.add(os.path.relpath(f, bsp_root).split(os.sep, 1)[0])
+            out.append((os.path.relpath(f, bsp_root).split(os.sep, 1)[0], _read(f)))
         except OSError:
             pass
-    return fams
+    return tuple(out)
 
 
 def port_families(port_dir: str, repo_root: str) -> set:
@@ -348,10 +357,14 @@ def class_include_edges(repo_root: str) -> dict:
     return edges
 
 
+_CLS_STEM_RE = re.compile(r'(.*?)(?:_(?:device|host))?\.[ch]$')
+
+
 def class_macros(cls: str, base: str, prefix: str) -> list:
     """Config macros that compile a class dir's code, for role prefix TUD/TUH.
-    `base` refines dfu only (it splits DFU from DFU_RUNTIME per file); pass '' for
-    a class reached through an include edge, where the widest set is correct."""
+    `base` refines dfu (it splits DFU from DFU_RUNTIME per file) and adds the file's
+    own macro where that differs from the directory's; pass '' for a class reached
+    through an include edge, where the widest set is correct."""
     if cls == 'net':
         return [f'CFG_{prefix}_{m}' for m in NET_MACROS]
     if cls == 'dfu':
@@ -360,7 +373,18 @@ def class_macros(cls: str, base: str, prefix: str) -> list:
         if base.startswith('dfu_device') or base.startswith('dfu_host'):
             return [f'CFG_{prefix}_DFU']
         return [f'CFG_{prefix}_DFU', f'CFG_{prefix}_DFU_RUNTIME']
-    return [f'CFG_{prefix}_{cls.upper()}']
+    out = [f'CFG_{prefix}_{cls.upper()}']
+    # A class directory can hold more than one class. src/class/midi ships MIDI 1.0
+    # AND MIDI 2.0: midi2_device.c is `#if CFG_TUD_ENABLED && CFG_TUD_MIDI2`, and
+    # examples/device/midi2_device is the only example that enables it - so the
+    # directory macro alone selected the midi_test examples, which do not compile the
+    # changed file, and none of the ones that do. Union, never replace: the file may
+    # still be pulled in by the directory's own macro, and over-selecting costs a build
+    # while under-selecting merges a break.
+    m = _CLS_STEM_RE.match(base)
+    if m and m.group(1) and m.group(1) != cls:
+        out.append(f'CFG_{prefix}_{m.group(1).upper()}')
+    return out
 
 
 # A define is OFF only when its value is a literal zero (0, 00, (0)), optionally
@@ -407,7 +431,7 @@ def _class_roles(base: str) -> set:
 
 def _config_enables(cfg_path: str, macros) -> bool:
     try:
-        with open(cfg_path) as f:
+        with open(cfg_path, encoding='utf-8', errors='replace') as f:
             text = f.read()
     except OSError:
         return False
@@ -435,15 +459,23 @@ def lib_examples(lib_name: str, repo_root: str) -> set:
     'lib/net' cannot inherit lib/networking's example).
 
     Per-example on purpose: lib/SEGGER_RTT is named by family_support.cmake's
-    LOGGER=rtt plumbing, which no CI example build turns on, so a family-file scan
-    would wrongly narrow it to three families instead of answering 'nobody'."""
+    LOGGER=rtt plumbing, which no CI example build turns on (all three references -
+    family_support.cmake, family_support.mk, rp2040/family.cmake - sit inside a
+    LOGGER=rtt guard), so a family-file scan would wrongly narrow it to three families
+    instead of answering 'nobody'.
+
+    The whole example TREE is scanned, not just its top-level files: examples/host/
+    msc_file_explorer_freertos/src/CMakeLists.txt names lib/embedded-cli, and that
+    example survived only because its top-level file happens to name it too."""
     pat = re.compile(re.escape('lib/' + lib_name) + r'(?=[/\s"\')}]|$)', re.M)
     out = set()
     for ex in all_examples(repo_root):
-        for f in ('CMakeLists.txt', 'Makefile'):
+        for f in sorted(glob.glob(os.path.join(repo_root, 'examples', ex, '**', '*'),
+                                  recursive=True)):
+            if os.path.basename(f) not in ('CMakeLists.txt', 'Makefile'):
+                continue
             try:
-                with open(os.path.join(repo_root, 'examples', ex, f)) as fh:
-                    text = fh.read()
+                text = _read(f)
             except OSError:
                 continue
             if pat.search(text):
@@ -804,7 +836,7 @@ def main():
     repo_root = _REPO_ROOT
     rosters = []
     for c in a.configs:
-        with open(c) as f:
+        with open(c, encoding='utf-8', errors='replace') as f:
             rosters.append((c, json.load(f)['boards']))
 
     files = (_read(a.diff_file).splitlines() if a.diff_file
@@ -1029,7 +1061,12 @@ def _prune_buildable(fams, fam_ex, repo_root):
                 reasons.append(f'{fam}: family dir gone from tree, dropped')
                 continue
             try:
-                boards = build_py.get_family_boards(fam, False, False)
+                # ci=True unconditionally: this answers "what will CI build", so it must
+                # not change with GITHUB_ACTIONS/CIRCLECI being set. Locally the lists
+                # are off by default, and rp2040 would keep feather_rp2040_max3421 -
+                # the only board satisfying the max3421 only.txt files - giving a
+                # developer a family list the runner will not reproduce.
+                boards = build_py.get_family_boards(fam, False, False, ci=True)
             except OSError as e:                 # belt and braces: never traceback here
                 reasons.append(f'{fam}: boards unreadable ({e}), dropped')
                 continue

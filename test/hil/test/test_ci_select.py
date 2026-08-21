@@ -777,6 +777,24 @@ class TestOrphanInvariant(unittest.TestCase):
         for v in vendors:
             self.assertTrue(ci_select.mcu_families(v + '/x.c', REPO), f'{v}: resolves to no family')
 
+    # hw/bsp families ci_set_matrix's family_list does not map to any toolchain. Before
+    # scoping these were harmless - the matrix was always every family in family_list,
+    # so a PR touching one of them still compiled the other 64. Now the selection
+    # intersects to nothing and every leg skips, so a family landing here by accident is
+    # a silent hole. espressif is deliberate: its boards are built by hil-build-esp,
+    # keyed on board name rather than family.
+    UNBUILT_FAMILIES = {'cxd56', 'efm32', 'espressif', 'f1c100s', 'pic32mz', 'py32f0',
+                        'same7x'}
+
+    def test_every_bsp_family_is_in_the_ci_matrix(self):
+        sys.path.insert(0, os.path.join(REPO, '.github/scripts'))
+        import ci_set_matrix
+        fams = set(ci_select.all_bsp_families(REPO))
+        self.assertEqual(fams - set(ci_set_matrix.family_list), self.UNBUILT_FAMILIES,
+                         'a hw/bsp family that no toolchain in ci_set_matrix.family_list '
+                         'builds: a PR touching only it now selects zero build legs. Wire '
+                         'it into family_list, or add it here with a reason.')
+
     def test_every_get_deps_family_token_resolves_or_is_a_known_alias(self):
         """Same drift guard, dep side. A token naming no hw/bsp dir makes the entry
         unreachable for its family in get_deps.py itself (`f in entry[2].split()`), and
@@ -1132,8 +1150,14 @@ class TestBuildClassifier(unittest.TestCase):
         # real feather_rp2040_max3421 board) and espressif's component CMakeLists also
         # references it — so the raw (unpruned) scan legitimately finds both; Task 4's
         # buildability post-filter is what may later prune either away
+        # non-empty FIRST: a subset assertion is satisfied by set(), and since ports are
+        # now empty-means-empty (fail-closed) an unnoticed regression to zero families
+        # would select no build leg at all and merge an uncompiled HCD
+        self.assertTrue(s['families'], 'a host-port change must select some family')
         self.assertLessEqual(set(s['families']), {'espressif', 'rp2040'})
+        self.assertTrue(s['family_examples'], 'and must name the examples for them')
         for exs in s['family_examples'].values():
+            self.assertTrue(exs)
             self.assertFalse(any(e.startswith(('device/', 'typec/')) for e in exs))
 
     def test_port_shared_file_selects_all_examples(self):          # rule 5

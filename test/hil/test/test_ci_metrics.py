@@ -58,13 +58,16 @@ class TestByExample(unittest.TestCase):
                             '-o', out, os.path.join(td, '*', '*', '*.map.json')], check=True)
             out2 = os.path.join(td, 'sub')
             r = subprocess.run([sys.executable, METRICS, 'combine', '-q', '-j',
-                                '--only-examples', 'device/cdc_msc',
                                 '-o', out2, out + '_by_example.json'],
                                capture_output=True, text=True)
             self.assertEqual(r.returncode, 0, r.stderr)
             sub = json.load(open(out2 + '.json'))
             names = {f['file'] for f in sub['files']}
-            self.assertEqual(names, {'usbd.c', 'cdc_device.c'})   # bare_api filtered out
+            # one data entry per example, not one blob: reading it as an ordinary
+            # metrics.json would double-count every file
+            self.assertIn('usbd.c', names)
+            self.assertIn('cdc_device.c', names)
+            self.assertNotIn('TOTAL', {n.upper() for n in names})
 
     def test_by_example_expansion_is_keyed_on_the_filename(self):
         # the '_by_example.json' suffix IS the contract (write_by_example, the CMake
@@ -339,9 +342,15 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         # with secrets - and for run_*, flips which rig jobs execute
         for name in ('EX_ARGS', 'ARTIFACT_TAG'):
             self.assertIn(f'echo "{name}=', self.util)
-        self.assertEqual(self.util.count('case "$EX_ARGS" in') +
-                         self.util.count('case "$TAG" in'), 2,
-                         'both GITHUB_ENV writes must screen their value first')
+        # per guard, not a sum: `count(a) + count(b) == 2` stays green when one guard is
+        # deleted and the other duplicated
+        for guard in ('case "$EX_ARGS" in', 'case "$TAG" in'):
+            self.assertEqual(self.util.count(guard), 1,
+                             f'{guard}: each GITHUB_ENV write screens its value exactly once')
+        # CircleCI builds from the same PR-derived map and uses $EX_ARGS unquoted
+        cci = open(os.path.join(CIRCLECI, 'config2.yml')).read()
+        self.assertIn('case "$EX_ARGS" in', cci,
+                      'the CircleCI copy of the example filter needs the same screen')
         self.assertIn('case "$BUILD_ARGS" in', self.build)
         self.assertIn('unexpected characters in the " + key', self.build,
                       'the args_*/run_* emitter must screen each board filter')
@@ -429,12 +438,16 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         self.assertEqual(matrix.count('ci_set_matrix: UNSCOPED'), 2,
                          'every fall-open path must print the marker build.yml greps for')
 
-    def test_membrowse_upload_is_not_scoped(self):
-        # <TARGET>-membrowse-upload has no DEPENDS, so the aggregate rebuilds nothing -
-        # it records every example, --identical for the ones without an elf. Scoping it
-        # drops the excluded examples from the dataset instead of marking them unchanged.
-        upload = self.util[self.util.index('--target examples-membrowse-upload'):]
-        self.assertNotIn('$EX_ARGS', upload.split('\n')[0])
+    def test_membrowse_upload_sees_the_same_board_as_the_build(self):
+        # $EX_ARGS is passed for the BOARD it selects: --one-first picks a board that can
+        # build the -e set, so without it membrowse configures a different, empty build
+        # dir and uploads --identical for a board that was never compiled. It does NOT
+        # scope the targets - `examples-membrowse-upload` is not `all`, so it passes
+        # through as the aggregate, which has no DEPENDS and still records every example.
+        line = [l for l in self.util.splitlines()
+                if '--target examples-membrowse-upload' in l][0]
+        self.assertIn('$EX_ARGS', line)
+        self.assertNotIn('-e ', line.replace('$EX_ARGS', ''))
 
 
 if __name__ == '__main__':

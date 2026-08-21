@@ -141,9 +141,12 @@ def _family_mcus(family_dir, board_dir):
     board_cmake = pathlib.Path(board_dir) / "board.cmake"
     out = set()
     depth = 0
+    any_set = False
     for line in text.splitlines():
         line = line.strip()
         m = _FAMILY_MCUS_RE.match(line)
+        if m:
+            any_set = True
         if m and depth == 0:
             files = (str(board_cmake), str(fam_cmake))
             for tok in m.group(1).split():
@@ -156,16 +159,23 @@ def _family_mcus(family_dir, board_dir):
             depth += 1
         elif re.match(r'endif\s*\(', line):
             depth = max(0, depth - 1)
-    if not out:
+    if not out and not any_set:
         # FAMILY_MCUS can also be produced rather than set: hw/bsp/espressif derives it
         # with `string(TOUPPER ${IDF_TARGET} FAMILY_MCUS)`, which _FAMILY_MCUS_RE cannot
-        # see, leaving espressif's whole cmake answer resting on the IDF_TARGET scrape
+        # see, leaving espressif's whole cmake answer resting on the IDF_TARGET scrape.
+        #
+        # `not any_set` is load-bearing: _cmake_sets is if()-blind and keeps the FIRST
+        # definition, so on a family that sets FAMILY_MCUS only inside conditionals
+        # (mcx, nrf) this would leak branch one's value onto every board - mcx/frdm_mcxn947
+        # answered MCXA15, which six examples' skip.txt names, dropping 12 firmware
+        # images CMake actually builds. Those families keep the CFG_TUSB_MCU scrape.
         val = _cmake_expand('${FAMILY_MCUS}', (str(board_cmake), str(fam_cmake)))
         if val:
             out.add(val)
     return frozenset(out)
 
 
+@functools.lru_cache(maxsize=None)
 def _scrape_mcu(family_dir, board_dir, family):
     """(CFG_TUSB_MCU token of this board, the text it was read from), master's
     algorithm verbatim: family.mk (family.cmake when there is none) first, falling

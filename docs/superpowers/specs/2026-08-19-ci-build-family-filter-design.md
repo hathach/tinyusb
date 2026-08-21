@@ -211,16 +211,16 @@ It falls open to the full matrix whenever the entries are not the whole answer:
 * the file will not parse;
 * there is no base content: `--diff-file` mode has no git, so no merge-base blob;
 * a changed entry carries a family token that names no `hw/bsp/<dir>` and is not one of the
-  eight known aliases. "Changed but unmappable" is not "nothing changed": reading it as the
+  known aliases. "Changed but unmappable" is not "nothing changed": reading it as the
   latter empties the whole build matrix for a dep bump.
 
-The eight known aliases (`sam3x`, `samd21`, `samd51`, `same5x`, `fc100s`, `spresense`,
-`stm32l1`, `stm32l5`) are pinned in `_DEPS_ALIAS_TOKENS` and select nothing. `get_deps` matches
-a token against a requested family name verbatim (`f in entry[2].split()`), so these tokens
-match nothing there either — four are pre-rename spellings listed beside the current name in
-the same entry, two point at a differently-named family dir (`fc100s`→`f1c100s`,
-`spresense`→`cxd56`, both unreachable in `get_deps` itself), and two name no family in the tree.
-A ninth appearing fails `TestOrphanInvariant`.
+The six known aliases (`sam3x`, `samd21`, `samd51`, `same5x`, `stm32l1`, `stm32l5`) are
+pinned in `_DEPS_ALIAS_TOKENS` and select nothing. `get_deps` matches a token against a
+requested family name verbatim (`f in entry[2].split()`), so these tokens match nothing
+there either — four are pre-rename spellings listed beside the current name in the same
+entry, and two name no family in the tree. (`fc100s` and `spresense` were on this list
+until they were corrected in `get_deps.py`; those two were the only ones that left a
+real dep unreachable for its own family.) A seventh appearing fails `TestOrphanInvariant`.
 
 ## Component: `tools/ci_select.py`
 
