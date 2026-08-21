@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Shutting a wedged HIL run down: kill what the workers spawned, then report.
+"""Shutting a wedged HIL run down: kill what the workers spawned.
 
 A device whose usbfs node is held by a D-state process cannot be freed -- SIGKILL is not
 delivered in uninterruptible sleep -- so the goal is never to fix the rig from here. It is
@@ -341,40 +341,3 @@ def kill_pool_children(pool, *extra) -> int:
     # SIGKILL is asynchronous and a D-state task ignores it: only a confirmed survivor
     # justifies the caller's power-cycle wording
     return len(_kill_and_confirm(killed_pids)) if killed_pids else 0
-
-
-def write_timeout_report(report_dir: Path, boards, secs: int, md_name: str,
-                         banner: str = '', prefix: str = '') -> None:
-    """Leave a report behind when the worker pool has to be abandoned.
-
-    map_async is all-or-nothing, so a timeout loses every per-board result and the report
-    dir would stay empty with no reason for the failure. Any prior attempt's markdown is
-    kept below the banner."""
-    # `prefix` carries the preflight rig-health verdict: the timeout aborts before
-    # accumulate_report, so without it the report loses the one line saying WHY the pool
-    # never finished. The '\n' stops Markdown lazy continuation pulling the banner into
-    # the blockquote.
-    try:
-        # Built INSIDE the try: a roster entry without a 'name' key raises KeyError while
-        # assembling the board list, and outside the try that escaped and stranded the
-        # runner -- which is exactly what the broad handler below exists to prevent.
-        head = (prefix + '\n' if prefix else '') + (banner or (
-            f'**HIL run abandoned: worker pool timed out after {secs}s.**\n\n'
-            f'No per-board results could be collected for this attempt, so the '
-            f'table below (if any) is from an earlier one. Boards dispatched:\n\n'
-            + '\n'.join(f'- {b.get("name", "?")}' for b in boards) + '\n'))
-        report_dir.mkdir(parents=True, exist_ok=True)
-        md_path = report_dir / md_name
-        # Its own handler so it cannot take the write down with it: a report torn by an
-        # attempt killed mid-write raises UnicodeDecodeError (a ValueError, and prior
-        # reports always contain status emoji), which under a shared try skipped the write
-        # entirely. Losing the old table is a nicety; losing the banner is the failure.
-        try:
-            prior = md_path.read_text(encoding='utf-8') if md_path.is_file() else ''
-        except (OSError, ValueError):
-            prior = ''
-        md_path.write_text(head + (f'\n{prior}' if prior else ''), encoding='utf-8')
-    except Exception as e:  # noqa: BLE001
-        # Deliberately broad: this is the first statement of the pool-abandon path, so ANY
-        # escape skips kill_pool_children and os._exit and strands the runner.
-        _p(f'warning: cannot write {md_name} to {report_dir}: {e}', flush=True)

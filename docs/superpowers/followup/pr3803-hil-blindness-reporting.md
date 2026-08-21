@@ -158,7 +158,8 @@ def _board_result_on_error(name, exc):
     """A row for a board that died by exception. err_count 1, no per-test detail, but the
     blindness and stray fields are still accurate -- they explain the failure more often
     than the exception text does."""
-    rows = [(name, {BOUNDARY_CELL: f'{REPORT_CELL["fail"]} {type(exc).__name__}'}, None)]
+    rows = [(name, {hil_report.BOUNDARY_CELL:
+                    f'{hil_report.REPORT_CELL["fail"]} {type(exc).__name__}'}, None)]
     return _board_result(name, 1, [], rows, 0.0, True)
 ```
 
