@@ -62,6 +62,7 @@ README_processed.rst
 docs/examples/
 .worktrees
 .claude/worktrees/
+.claude/skills/update-sponsor/state.json
 cmake-metrics/
 # Directories fetched by tools/get_deps.py - not to be committed
 lib/CMSIS_5/
