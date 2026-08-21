@@ -33,7 +33,7 @@ deps_mandatory = {
 deps_optional = {
     'hw/mcu/allwinner': ['https://github.com/hathach/allwinner_driver.git',
                          '8e5e89e8e132c0fd90e72d5422e5d3d68232b756',
-                         'fc100s'],
+                         'f1c100s'],
     'hw/mcu/analog/msdk' : ['https://github.com/analogdevicesinc/msdk.git',
                              'b20b398d3e5e2007594e54a74ba3d2a2e50ddd75',
                              'maxim'],
@@ -108,7 +108,7 @@ deps_optional = {
                                            'efm32'],
     'hw/mcu/sony/cxd56/spresense-exported-sdk': ['https://github.com/sonydevworld/spresense-exported-sdk.git',
                                                  '2ec2a1538362696118dc3fdf56f33dacaf8f4067',
-                                                 'spresense'],
+                                                 'cxd56'],
     'hw/mcu/st/cmsis_device_c0': ['https://github.com/STMicroelectronics/cmsis_device_c0.git',
                                   '517611273f835ffe95318947647bc1408f69120d',
                                   'stm32c0'],
