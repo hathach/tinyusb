@@ -777,12 +777,15 @@ class TestOrphanInvariant(unittest.TestCase):
         for v in vendors:
             self.assertTrue(ci_select.mcu_families(v + '/x.c', REPO), f'{v}: resolves to no family')
 
-    # hw/bsp families ci_set_matrix's family_list does not map to any toolchain. Before
-    # scoping these were harmless - the matrix was always every family in family_list,
-    # so a PR touching one of them still compiled the other 64. Now the selection
-    # intersects to nothing and every leg skips, so a family landing here by accident is
-    # a silent hole. espressif is deliberate: its boards are built by hil-build-esp,
-    # keyed on board name rather than family.
+    # hw/bsp families ci_set_matrix's family_list does not map to any toolchain. Master
+    # gave a PR touching one of these no compile coverage either - none of the other 64
+    # families compiles same7x's board.h - so this is not new. What IS new is that the
+    # gap used to be masked by a full matrix and is now the whole answer, which is why
+    # ci_set_matrix treats a selection that intersects family_list to NOTHING as
+    # unusable (UNSCOPED -> full matrix) rather than emitting an all-empty one.
+    # espressif is here because hil-build-esp builds its boards by name rather than by
+    # family - though only on hathach/tinyusb: that job is gated on repository_owner,
+    # so on a fork an espressif-only PR builds nowhere.
     UNBUILT_FAMILIES = {'cxd56', 'efm32', 'espressif', 'f1c100s', 'pic32mz', 'py32f0',
                         'same7x'}
 
@@ -1504,6 +1507,27 @@ class TestCiSetMatrix(unittest.TestCase):
         self.assertEqual(r.returncode, 0)
         self.assertEqual(json.loads(r.stdout), base)
         self.assertIn('ci_set_matrix: UNSCOPED', r.stderr)   # build.yml greps this
+
+    def test_families_no_toolchain_builds_falls_open(self):
+        # hw/bsp/same7x is real but in no toolchain's list, so scoping to it emits an
+        # all-empty matrix: every leg skips and the PR goes green from a build job that
+        # ran no compiler. Unusable, not "nothing selected" - and the marker matters,
+        # because that is what build.yml and CircleCI grep to drop the build extras too.
+        base = json.loads(self.run_matrix().stdout)
+        r = self.run_matrix('--select',
+                            json.dumps({'build': {'full': False, 'families': ['same7x']}}))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout), base)
+        self.assertIn('ci_set_matrix: UNSCOPED', r.stderr)
+
+    def test_a_partial_toolchain_miss_still_scopes(self):
+        # one buildable family is real coverage: scope to it and just note the other
+        r = self.run_matrix('--select', json.dumps(
+            {'build': {'full': False, 'families': ['stm32f4', 'same7x']}}))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)['arm-gcc'], ['stm32f4'])
+        self.assertNotIn('UNSCOPED', r.stderr)
+        self.assertIn('same7x', r.stderr)
 
     def test_explicit_empty_families_selects_nothing(self):
         # an explicit [] IS a legitimate answer (a diff that builds nothing)

@@ -435,8 +435,17 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         self.assertIn('BUILD_SELECT_FILE', self.build)
         scripts = os.path.join(os.path.dirname(CIRCLECI), '.github', 'scripts')
         matrix = open(os.path.join(scripts, 'ci_set_matrix.py')).read()
-        self.assertEqual(matrix.count('ci_set_matrix: UNSCOPED'), 2,
-                         'every fall-open path must print the marker build.yml greps for')
+        # count-independent: pin the INVARIANT, not the number of fall-open paths -
+        # every message that emits the full matrix must carry the marker, and a purely
+        # informational note (a partial family miss) must not claim to have done so.
+        # Adjacent string literals are joined first, since these messages wrap.
+        import re as _re
+        flat = _re.sub(r"['\"]\s*\n\s*f?['\"]", '', matrix)
+        hits = [m.start() for m in _re.finditer('emitting the full ', flat)]
+        self.assertGreaterEqual(len(hits), 2, 'fall-open messages not found')
+        for i in hits:
+            self.assertIn('UNSCOPED', flat[max(0, i - 200):i],
+                          'a fall-open path without the marker build.yml greps for')
 
     def test_membrowse_upload_sees_the_same_board_as_the_build(self):
         # $EX_ARGS is passed for the BOARD it selects: --one-first picks a board that can

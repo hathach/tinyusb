@@ -127,12 +127,22 @@ def set_matrix_json(select=None):
         if sel_fams is not None:
             fams = [f for f in fams if f in sel_fams]
         matrix[toolchain] = fams
-    if sel_fams is not None:
-        # a family this file does not list builds on no toolchain, so the selection maps
-        # to an empty matrix and every leg skips - which looks exactly like a working
-        # scoped run. Say so: hw/bsp holds several families CI has never built
-        # (efm32, py32f0, ...) and espressif, whose boards are built by hil-build-esp
+    if sel_fams:
+        # a family this file does not list builds on no toolchain, so it contributes no
+        # leg. hw/bsp holds several CI has never built (efm32, py32f0, same7x, ...) plus
+        # espressif, whose boards hil-build-esp builds by name.
         unbuilt = sorted(f for f in sel_fams if f not in family_list)
+        if unbuilt and not any(matrix.values()):
+            # NONE of the selected families is buildable here, so every leg would skip
+            # and the PR would go green from a build job that ran no compiler. That is
+            # an unusable selection, not "nothing selected": say UNSCOPED - which
+            # build.yml and .circleci/config.yml both grep for - and emit the full
+            # matrix. An explicit families: [] is still a legitimate nothing-selected,
+            # and a PARTIAL miss still scopes to the families that do build.
+            print(f'ci_set_matrix: UNSCOPED - no selected family is built by any '
+                  f'toolchain here ({", ".join(unbuilt)}), emitting the full matrix',
+                  file=sys.stderr)
+            return set_matrix_json(None)
         if unbuilt:
             print(f'ci_set_matrix: selected families built by no toolchain here: '
                   f'{", ".join(unbuilt)}', file=sys.stderr)
