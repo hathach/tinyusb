@@ -1,5 +1,5 @@
 family:espressif
-family:samd21
+family:samd2x_l2x
 family:samd5x_e5x
 mcu:LPC175X_6X
 mcu:LPC177X_8X

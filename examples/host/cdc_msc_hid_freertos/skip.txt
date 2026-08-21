@@ -1,3 +1,6 @@
 mcu:CH32F20X
 board:lpcxpresso54114
 mcu:FT90X
+board:atsaml21_xpro
+board:saml22_feather
+board:sensorwatch_m0
