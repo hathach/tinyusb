@@ -840,6 +840,62 @@ class TestRostersDoNotOverlap(unittest.TestCase):
                 seen[b['name']] = b.get('tests')
 
 
+class TestCachesAreKeyedOnTheTree(unittest.TestCase):
+    """build_utils caches on repo-RELATIVE paths while ci_select._in_repo() chdirs
+    between trees, so the cwd has to be part of every cache key. Without it a second
+    tree gets the first tree's skip.txt/only.txt and FAMILY_MCUS - which is exactly the
+    base-vs-branch comparison the code-size skill does in one process."""
+
+    def test_a_second_tree_is_not_answered_from_the_first(self):
+        import build_utils, tempfile
+        old = os.getcwd()
+        try:
+            os.chdir(REPO)
+            self.assertFalse(build_utils.skip_example('host/bare_api', 'metro_m0_express'))
+            with tempfile.TemporaryDirectory() as d:
+                os.makedirs(os.path.join(d, 'hw/bsp'), exist_ok=True)
+                os.chdir(d)
+                # the board does not exist in this tree at all -> unknown board -> skip
+                self.assertTrue(build_utils.skip_example('host/bare_api', 'metro_m0_express'),
+                                'the empty tree was answered from the repo tree cache')
+            os.chdir(REPO)
+            self.assertFalse(build_utils.skip_example('host/bare_api', 'metro_m0_express'),
+                             'and the repo answer must survive the excursion')
+        finally:
+            os.chdir(old)
+
+
+class TestClassesWithNoEnablingExample(unittest.TestCase):
+    """The class rule is the one rule with no drift guard: ports, hw/mcu, get_deps
+    tokens and bsp families all have one. A class dir that no example config enables
+    selects NOTHING on both axes (the maintainer's empty-means-empty ruling), which is
+    right - but it must be a listed state, not a surprise, or a class added before its
+    first example silently stops being built."""
+
+    # class dirs no example's tusb_config.h turns on, for either role. Must only shrink:
+    # a new entry means a class nothing compiles, so a break in it reaches master.
+    NO_EXAMPLE = {'bth'}
+
+    def test_only_the_known_classes_select_nothing(self):
+        import glob as _glob
+        dead = set()
+        for d in sorted(_glob.glob(os.path.join(REPO, 'src/class/*'))):
+            if not os.path.isdir(d):
+                continue
+            cls = os.path.basename(d)
+            hit = False
+            for base in sorted(os.path.basename(f) for f in _glob.glob(os.path.join(d, '*.[ch]'))):
+                roles = ci_select._class_roles(base)
+                if ci_select._build_class_examples(cls, base, roles, REPO):
+                    hit = True
+                    break
+            if not hit:
+                dead.add(cls)
+        self.assertEqual(dead, self.NO_EXAMPLE,
+                         'a class dir enabled by no example config: it selects nothing on '
+                         'both axes, so nothing compiles it until the next master push')
+
+
 class TestNoTrackedFileIsUnclassified(unittest.TestCase):
     """Rule 17 (unclassified -> full on both axes) is the fail-open net for paths nobody
     anticipated. It must stay that way - a wrong `full` costs runner minutes and is
@@ -1373,11 +1429,12 @@ class TestBuildPostFilter(unittest.TestCase):
         self.assertTrue(any('gone from tree' in r for r in s['reasons']), s['reasons'])
 
     def test_class_source_selecting_nothing_selects_nothing(self):
-        # synthetic class-with-no-enabling-config case (vendor_host.c was the live
-        # instance until its removal): no config enables CFG_TUH_VENDOR, so
+        # a class-with-no-enabling-config case: no config enables CFG_TUH_VENDOR, so
         # nothing exercises it and nothing builds - empty means empty (maintainer
         # decision; the file is still parsed by every full master-push build, which is
-        # the accepted net for a break outside its #if guard)
+        # the accepted net for a break outside its #if guard). src/class/bth is the
+        # live instance of this state today; TestClassesWithNoEnablingExample pins the
+        # whole set, so a new one cannot appear unnoticed.
         s = ci_select.classify_build(['src/class/vendor/vendor_host.c'], REPO)
         self.assertFalse(s['full'])
         self.assertEqual(s['families'], [])
