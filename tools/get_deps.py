@@ -386,6 +386,10 @@ def main():
     parser.add_argument('-f1', '--build-flags-on', action='append', default=[], help='Have no effect')
     parser.add_argument('--build-name', default=None, help='Have no effect')
     parser.add_argument('--cflag', action='append', default=[], help='Have no effect')
+    # build-matrix entries carry -e for tools/build.py; they reach get_deps.py
+    # verbatim (.github/actions/get_deps, build.yml's hil-hfp-iar) and an
+    # argparse error here reds the Get Dependencies step of every scoped PR
+    parser.add_argument('-e', '--example', action='append', default=[], help='Have no effect')
     args = parser.parse_args()
 
     families = args.families

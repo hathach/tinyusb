@@ -43,11 +43,11 @@ Use it before a HIL campaign, after rig maintenance/reboot, or when boards fail 
 
 ## PR-scoped selection
 
-`test/hil/helper/hil_select.py` maps a diff to affected boards/tests (used by CI on PRs; fail-open
+`tools/ci_select.py` maps a diff to affected boards/tests (used by CI on PRs; fail-open
 to the full matrix). Manual use:
 
 ```bash
-SEL=$(python3 test/hil/helper/hil_select.py --base master test/hil/tinyusb.json)
+SEL=$(python3 tools/ci_select.py --base master test/hil/tinyusb.json)
 FULL=$(printf '%s' "$SEL" | python3 -c "import json,sys; print(json.load(sys.stdin)['full'])")
 ARGS=$(printf '%s' "$SEL" | python3 -c "import json,sys; print(json.load(sys.stdin)['args']['tinyusb.json'])")
 if [ "$FULL" = "True" ] || [ -n "$ARGS" ]; then
@@ -60,11 +60,14 @@ fi
 Read `full`, never `args` alone: `args` is empty for BOTH `full: true` (run the whole matrix — a broad or
 unclassified change) and "nothing selected" (skip). Skip only when `full` is false AND `args` is empty.
 
-Unit suites (no hardware), all four run by the `hil-test`/`hil-select-test` pre-commit
-hooks: `test_hil_select.py` covers only board selection. The containment work --- bounded
-reads, the kill ladders, the build and pool guards --- lives in `test_hil_bounded.py`,
-`test_hil_health.py` and `test_hil_util.py`, so run all four when changing `test/hil`:
-`for f in test/hil/test/test_*.py; do python3 "$f"; done` (~55s).
+Unit suites (no hardware), all five run by the `hil-test`/`ci-select-test` pre-commit
+hooks: `test_ci_select.py` covers only selection, `test_ci_metrics.py` only the code-size
+plumbing. The containment work --- bounded reads, the kill ladders, the build and pool
+guards --- lives in `test_hil_bounded.py`, `test_hil_health.py` and `test_hil_util.py`, so
+run all five when changing `test/hil`:
+`for f in test/hil/test/test_*.py; do python3 "$f"; done` (~84s, of which
+`test_hil_bounded.py` is ~76s of deliberate hang/timeout simulation; the two `test_ci_*`
+suites are ~4s together).
 
 ## Pre-flight rig health check
 

@@ -1,5 +1,13 @@
 version: 2.1
 
+parameters:
+  example-map:
+    type: string
+    default: "{}"  # example-map-default: rewritten in-place by config.yml set-matrix
+  build-filtered:
+    type: string
+    default: "false"  # build-filtered-default: rewritten in-place by config.yml set-matrix
+
 commands:
   setup-toolchain:
     parameters:
@@ -109,9 +117,17 @@ commands:
       - run:
           name: Build
           no_output_timeout: 20m
+          environment:
+            EXAMPLE_MAP: << pipeline.parameters.example-map >>
           command: |
+            # PR example filter for this family ('{}' or a missing key = build all).
+            # The map is the PR-derived value, so it must ride via env rather than
+            # shell-text interpolation (unsafe characters); family is a job
+            # parameter with charset [a-z0-9_], safe to interpolate directly.
+            EX_ARGS=$(printf '%s' "$EXAMPLE_MAP" | jq -r --arg fam "<< parameters.family >>" '(.[$fam] // []) | map("-e " + .) | join(" ")' 2>/dev/null) || EX_ARGS=''
+
             if [ << parameters.toolchain >> == esp-idf ]; then
-              docker run --rm -v $PWD:/project -w /project espressif/idf:v5.5.3 python tools/build.py << parameters.build-args >> --target all << parameters.family >>
+              docker run --rm -v $PWD:/project -w /project espressif/idf:v5.5.3 python tools/build.py << parameters.build-args >> --target all $EX_ARGS << parameters.family >>
             else
               # Toolchain option default is gcc
               if [ << parameters.toolchain >> == arm-clang ]; then
@@ -129,7 +145,7 @@ commands:
               if [ << parameters.build-system >> == "cmake" ]; then
                 BUILD_PY_ARGS="$BUILD_PY_ARGS --target tinyusb_metrics"
               fi
-              python tools/build.py $BUILD_PY_ARGS << parameters.family >>
+              python tools/build.py $BUILD_PY_ARGS $EX_ARGS << parameters.family >>
             fi
 
       # Only collect and persist metrics for cmake builds (excluding esp-idf and --one-random)
@@ -248,8 +264,10 @@ jobs:
       # Compare with base master metrics on PR branches
       - when:
           condition:
-            not:
-              equal: [ master, << pipeline.git.branch >> ]
+            and:
+              - not:
+                  equal: [ master, << pipeline.git.branch >> ]
+              - equal: [ "false", << pipeline.parameters.build-filtered >> ]
           steps:
             - run:
                 name: Download Base Branch Metrics
@@ -276,6 +294,32 @@ jobs:
             - store_artifacts:
                 path: metrics_compare.md
                 destination: metrics_compare.md
+      - when:
+          condition:
+            and:
+              - not:
+                  equal: [ master, << pipeline.git.branch >> ]
+              - equal: [ "true", << pipeline.parameters.build-filtered >> ]
+          steps:
+            - run:
+                name: Scoped build - comparison unavailable
+                command: |
+                  # CircleCI stores only the averaged metrics.json; the per-example
+                  # baseline lives on GHA. See the GHA code-metrics PR comment.
+                  echo "_Code-size comparison skipped on CircleCI: this PR built a scoped example set._" > metrics_compare.md
+
+            - store_artifacts:
+                path: metrics_compare.md
+                destination: metrics_compare.md
+
+  no-op:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - run:
+          name: No families selected
+          command: echo "PR selection - no families to build on CircleCI"
 
 workflows:
   build:

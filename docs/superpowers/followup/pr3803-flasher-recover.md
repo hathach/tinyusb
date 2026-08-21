@@ -19,18 +19,18 @@ libjaylink, J-Link probes.
 - Roster JSON: `test/hil/tinyusb.json`. `flasher_recover` is OPTIONAL; absent means today's
   behaviour (`recover_flasher` returns the primary).
 - Never change the shape of `board['flasher']` — it is read as a dict in `hil_flash`,
-  `hil_test`, `usbtest`, `hil_pool_check`, `hil_select` and the roster lint, and is shipped
+  `hil_test`, `usbtest`, `hil_pool_check`, `ci_select` and the roster lint, and is shipped
   as JSON to a subprocess.
 - Flasher dispatch is by name: `getattr(hil_flash, f'flash_{name}')` / `reset_{name}`.
 - `RECOVER_FLASH_TIMEOUT = 90`, `RECOVER_RESET_TIMEOUT = 30` (`usbtest.py`). Any board whose
   flash cannot finish inside 90 s is not a candidate.
-- Tests run offline: `cd test/hil && python3 test/test_hil_select.py`.
+- Tests run offline: `cd test/hil && python3 test/test_ci_select.py`.
 
 ## What is already established
 
 **Landed on PR #3803 and inert without roster entries:** `hil_flash.recover_flasher()`,
 `convoy_safe()` accepting openocd-over-jlink, `hil_test` substituting the recovery flasher
-into `--recover-board`, and `test_hil_select.FlasherRecoverEntry` (4 tests).
+into `--recover-board`, and `test_ci_select.FlasherRecoverEntry` (4 tests).
 
 **Verified in source:**
 - openocd's jlink driver ignores `adapter usb vid_pid` — `jlink.c` never reads
@@ -77,7 +77,7 @@ is a different scope from containing a wedge; and it needs bench time on seven b
 - `test/hil/hil_flash.py` — add `flash_openocd_seq` / `reset_openocd_seq`; extend
   `convoy_safe` to accept the new name. This is the only file that learns the command form.
 - `test/hil/tinyusb.json` — seven `flasher_recover` entries.
-- `test/hil/test/test_hil_select.py` — extend `FlasherRecoverEntry`; add a roster lint.
+- `test/hil/test/test_ci_select.py` — extend `FlasherRecoverEntry`; add a roster lint.
 
 ---
 
@@ -85,7 +85,7 @@ is a different scope from containing a wedge; and it needs bench time on seven b
 
 **Files:**
 - Modify: `test/hil/hil_flash.py` (beside `flash_openocd`, ~line 100)
-- Test: `test/hil/test/test_hil_select.py`
+- Test: `test/hil/test/test_ci_select.py`
 
 **Interfaces:**
 - Consumes: `_openocd_cmd_base(flasher)`, `hil_util.run_cmd`.
@@ -120,7 +120,7 @@ is a different scope from containing a wedge; and it needs bench time on seven b
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd test/hil && python3 test/test_hil_select.py FlasherRecoverEntry -v`
+Run: `cd test/hil && python3 test/test_ci_select.py FlasherRecoverEntry -v`
 Expected: FAIL — `module 'hil_flash' has no attribute 'flash_openocd_seq'`
 
 - [ ] **Step 3: Write minimal implementation**
@@ -155,13 +155,13 @@ In `convoy_safe`, replace `if name != 'openocd':` with:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd test/hil && python3 test/test_hil_select.py FlasherRecoverEntry -v`
+Run: `cd test/hil && python3 test/test_ci_select.py FlasherRecoverEntry -v`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add test/hil/hil_flash.py test/hil/test/test_hil_select.py
+git add test/hil/hil_flash.py test/hil/test/test_ci_select.py
 git commit -m "hil: add openocd_seq flasher for convoy-safe recovery delivery"
 ```
 
@@ -171,7 +171,7 @@ git commit -m "hil: add openocd_seq flasher for convoy-safe recovery delivery"
 
 **Files:**
 - Modify: `test/hil/tinyusb.json`
-- Test: `test/hil/test/test_hil_select.py`
+- Test: `test/hil/test/test_ci_select.py`
 
 **Interfaces:**
 - Consumes: `flash_openocd_seq` / `reset_openocd_seq` from Task 1.
@@ -196,7 +196,7 @@ git commit -m "hil: add openocd_seq flasher for convoy-safe recovery delivery"
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd test/hil && python3 test/test_hil_select.py FlasherRecoverEntry -v`
+Run: `cd test/hil && python3 test/test_ci_select.py FlasherRecoverEntry -v`
 Expected: FAIL — `0 >= 7`
 
 - [ ] **Step 3: Add the entries**
@@ -224,13 +224,13 @@ Add to each board below, using the SAME `uid` as its primary jlink entry:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd test/hil && python3 test/test_hil_select.py -v`
+Run: `cd test/hil && python3 test/test_ci_select.py -v`
 Expected: PASS, and no other selector test regresses.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add test/hil/tinyusb.json test/hil/test/test_hil_select.py
+git add test/hil/tinyusb.json test/hil/test/test_ci_select.py
 git commit -m "hil: give seven J-Link boards a convoy-safe recovery flasher"
 ```
 
