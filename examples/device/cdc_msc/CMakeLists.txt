@@ -2,6 +2,11 @@ cmake_minimum_required(VERSION 3.20)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/../../../hw/bsp/family_support.cmake)
 
+# Need to set Espressif defaults before project() is called
+if(FAMILY STREQUAL "espressif")
+  list(APPEND SDKCONFIG_DEFAULTS "${CMAKE_CURRENT_LIST_DIR}/sdkconfig.defaults")
+endif()
+
 project(cdc_msc C CXX ASM)
 
 # Checks this example is valid for the family and initializes the project
@@ -31,6 +36,6 @@ target_include_directories(${EXE_NAME} PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src
   )
 
-# Configure compilation flags and libraries for the example without RTOS.
+# Configure compilation flags and libraries for the selected RTOS.
 # See the corresponding function in hw/bsp/FAMILY/family.cmake for details.
 family_configure_device_example(${EXE_NAME} ${RTOS})

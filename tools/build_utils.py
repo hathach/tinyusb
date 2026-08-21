@@ -10,7 +10,7 @@ FAILED = "\033[31mfailed\033[0m"
 SKIPPED = "\033[33mskipped\033[0m"
 
 
-def skip_example(example, board):
+def skip_example(example, board, rtos='noos'):
     ex_dir = pathlib.Path('examples/') / example
     bsp = pathlib.Path("hw/bsp")
 
@@ -68,11 +68,22 @@ def skip_example(example, board):
     only_file = ex_dir / "only.txt"
 
     if skip_file.exists():
-        skips = skip_file.read_text().split()
-        if ("mcu:" + mcu in skips or
-            "board:" + board in skips or
-            "family:" + family in skips):
-            return True
+        for line in skip_file.read_text().splitlines():
+            tokens = line.split()
+            if not tokens or tokens[0].startswith("#"):
+                continue
+
+            rtos_matches = True
+            for token in tokens:
+                if token.startswith("rtos:") and token != "rtos:" + rtos:
+                    rtos_matches = False
+                    break
+
+            if (rtos_matches and
+                ("mcu:" + mcu in tokens or
+                 "board:" + board in tokens or
+                 "family:" + family in tokens)):
+                return True
 
     if only_file.exists():
         onlys = only_file.read_text().split()

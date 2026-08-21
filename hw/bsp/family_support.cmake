@@ -149,7 +149,11 @@ endif()
 # RTOS
 #----------------------------------
 if (NOT DEFINED RTOS)
-  set(RTOS noos CACHE STRING "RTOS")
+  if (FAMILY STREQUAL "espressif")
+    set(RTOS freertos CACHE STRING "RTOS")
+  else()
+    set(RTOS noos CACHE STRING "RTOS")
+  endif()
 endif ()
 
 if (RTOS STREQUAL zephyr)
@@ -173,15 +177,38 @@ function(family_filter RESULT DIR)
 
   if (EXISTS "${DIR}/skip.txt")
     file(STRINGS "${DIR}/skip.txt" SKIPS_LINES)
-    foreach(MCU IN LISTS FAMILY_MCUS)
-      # For each line in only.txt
-      foreach(_line ${SKIPS_LINES})
-        # If mcu:xxx exists for this mcu then skip
-        if (${_line} STREQUAL "mcu:${MCU}" OR ${_line} STREQUAL "board:${BOARD}" OR ${_line} STREQUAL "family:${FAMILY}")
-          set(${RESULT} 0 PARENT_SCOPE)
-          return()
+    foreach(_line IN LISTS SKIPS_LINES)
+      string(STRIP "${_line}" _line)
+      if (_line STREQUAL "" OR _line MATCHES "^#")
+        continue()
+      endif()
+
+      separate_arguments(_tokens UNIX_COMMAND "${_line}")
+      set(_rtos_match 1)
+      set(_skip_match 0)
+
+      foreach(_token IN LISTS _tokens)
+        if (_token MATCHES "^rtos:")
+          string(REGEX REPLACE "^rtos:" "" _skip_rtos "${_token}")
+          if (NOT "${_skip_rtos}" STREQUAL "${RTOS}")
+            set(_rtos_match 0)
+          endif()
         endif()
       endforeach()
+
+      foreach(MCU IN LISTS FAMILY_MCUS)
+        foreach(_token IN LISTS _tokens)
+          # If mcu:xxx exists for this mcu then skip
+          if (_token STREQUAL "mcu:${MCU}" OR _token STREQUAL "board:${BOARD}" OR _token STREQUAL "family:${FAMILY}")
+            set(_skip_match 1)
+          endif()
+        endforeach()
+      endforeach()
+
+      if (_rtos_match AND _skip_match)
+          set(${RESULT} 0 PARENT_SCOPE)
+          return()
+      endif()
     endforeach()
   endif ()
 

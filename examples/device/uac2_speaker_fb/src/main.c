@@ -74,8 +74,13 @@ uint32_t current_sample_rate = 44100;
 // Buffer for speaker data
 uint16_t i2s_dummy_buffer[CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ / 2];
 
-void led_blinking_task(void);
-void audio_task(void);
+void led_blinking_task(void *param);
+void audio_task(void *param);
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+static void usb_device_task(void *param);
+static void freertos_init(void);
+#endif
 
 #if CFG_AUDIO_DEBUG
 void audio_debug_task(void);
@@ -88,6 +93,10 @@ volatile uint32_t fifo_count_avg;
 int main(void) {
   board_init();
 
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  freertos_init();
+  return 0;
+#else
   // init device stack on configured roothub port
   tusb_rhport_init_t dev_init = {
       .role = TUSB_ROLE_DEVICE,
@@ -100,12 +109,13 @@ int main(void) {
 
   while (1) {
     tud_task();// TinyUSB device task
-    led_blinking_task();
+    led_blinking_task(NULL);
 #if CFG_AUDIO_DEBUG
     audio_debug_task();
 #endif
-    audio_task();
+    audio_task(NULL);
   }
+#endif
 }
 
 //--------------------------------------------------------------------+
@@ -587,40 +597,61 @@ bool tud_audio_rx_done_isr(uint8_t rhport, uint16_t n_bytes_received, uint8_t fu
 
 // This task simulates an audio transmit callback, one frame is sent every 1ms.
 // In a real application, this would be replaced with actual I2S transmit callback.
-void audio_task(void) {
+void audio_task(void *param) {
+  (void) param;
   static uint32_t start_ms = 0;
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  while (1) {
+#endif
   uint32_t curr_ms = tusb_time_millis_api();
-  if (start_ms == curr_ms) return;// not enough time
-  start_ms = curr_ms;
+  if (start_ms != curr_ms) {
+    start_ms = curr_ms;
 
-  uint16_t length = (uint16_t) (current_sample_rate / 1000 * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX);
+    uint16_t length = (uint16_t) (current_sample_rate / 1000 * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX);
 
-  if (current_sample_rate == 44100 && (curr_ms % 10 == 0)) {
-    // Take one more sample every 10 cycles, to have a average reading speed of 44.1
-    // This correction is not needed in real world cases
-    length += CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX;
-  } else if (current_sample_rate == 88200 && (curr_ms % 5 == 0)) {
-    // Take one more sample every 5 cycles, to have a average reading speed of 88.2
-    // This correction is not needed in real world cases
-    length += CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX;
+    if (current_sample_rate == 44100 && (curr_ms % 10 == 0)) {
+      // Take one more sample every 10 cycles, to have a average reading speed of 44.1
+      // This correction is not needed in real world cases
+      length += CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX;
+    } else if (current_sample_rate == 88200 && (curr_ms % 5 == 0)) {
+      // Take one more sample every 5 cycles, to have a average reading speed of 88.2
+      // This correction is not needed in real world cases
+      length += CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX;
+    }
+
+    tud_audio_read(i2s_dummy_buffer, length);
   }
 
-  tud_audio_read(i2s_dummy_buffer, length);
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  vTaskDelay(1);
+  }
+#endif
 }
 
 //--------------------------------------------------------------------+
 // BLINKING TASK
 //--------------------------------------------------------------------+
-void led_blinking_task(void) {
-  static uint32_t start_ms = 0;
+void led_blinking_task(void *param) {
+  (void) param;
   static bool led_state = false;
 
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  while (1) {
+    vTaskDelay(blink_interval_ms / portTICK_PERIOD_MS);
+#else
+  static uint32_t start_ms = 0;
   // Blink every interval ms
   if (tusb_time_millis_api() - start_ms < blink_interval_ms) return;
   start_ms += blink_interval_ms;
+#endif
 
   board_led_write(led_state);
   led_state = 1 - led_state;
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  }
+#endif
 }
 
 #if CFG_AUDIO_DEBUG
@@ -671,6 +702,79 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
   (void) report_type;
   (void) buffer;
   (void) bufsize;
+}
+
+#endif
+
+//--------------------------------------------------------------------+
+// FreeRTOS
+//--------------------------------------------------------------------+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+
+#define BLINKY_STACK_SIZE   configMINIMAL_STACK_SIZE
+#define AUDIO_STACK_SIZE    (configMINIMAL_STACK_SIZE * (CFG_TUSB_DEBUG ? 3 : 2))
+
+#ifdef ESP_PLATFORM
+  #define USBD_STACK_SIZE     4096
+
+void app_main(void) {
+  main();
+}
+#else
+  #define USBD_STACK_SIZE     (configMINIMAL_STACK_SIZE * (CFG_TUSB_DEBUG ? 4 : 2))
+#endif
+
+#if configSUPPORT_STATIC_ALLOCATION
+StackType_t blinky_stack[BLINKY_STACK_SIZE];
+StaticTask_t blinky_taskdef;
+
+StackType_t usb_device_stack[USBD_STACK_SIZE];
+StaticTask_t usb_device_taskdef;
+
+StackType_t audio_stack[AUDIO_STACK_SIZE];
+StaticTask_t audio_taskdef;
+#endif
+
+// USB Device Driver task
+// This top level thread processes all USB events and invokes callbacks.
+static void usb_device_task(void *param) {
+  (void) param;
+
+  // init device stack on configured roothub port.
+  // This should be called after scheduler/kernel is started.
+  // Otherwise, it could cause kernel issue since USB IRQ handler uses RTOS queue API.
+  tusb_rhport_init_t dev_init = {
+    .role = TUSB_ROLE_DEVICE,
+    .speed = TUSB_SPEED_AUTO
+  };
+  tusb_init(BOARD_TUD_RHPORT, &dev_init);
+
+  board_init_after_tusb();
+
+  TU_LOG1("Speaker running\r\n");
+
+  while (1) {
+    tud_task();// TinyUSB device task
+#if CFG_AUDIO_DEBUG
+    audio_debug_task();
+#endif
+  }
+}
+
+static void freertos_init(void) {
+#if configSUPPORT_STATIC_ALLOCATION
+  xTaskCreateStatic(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, blinky_stack, &blinky_taskdef);
+  xTaskCreateStatic(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, usb_device_stack, &usb_device_taskdef);
+  xTaskCreateStatic(audio_task, "audio", AUDIO_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, audio_stack, &audio_taskdef);
+#else
+  xTaskCreate(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, NULL);
+  xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, NULL);
+  xTaskCreate(audio_task, "audio", AUDIO_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, NULL);
+#endif
+
+#ifndef ESP_PLATFORM
+  vTaskStartScheduler();
+#endif
 }
 
 #endif

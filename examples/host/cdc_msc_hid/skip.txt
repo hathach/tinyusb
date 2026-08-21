@@ -1,1 +1,11 @@
-board:lpcxpresso54114
+rtos:noos family:espressif
+rtos:noos board:lpcxpresso54114
+
+rtos:freertos mcu:CH32F20X
+rtos:freertos mcu:CH32V20X
+rtos:freertos mcu:FT90X
+rtos:freertos mcu:KINETIS_KL
+rtos:freertos mcu:RAXXX
+rtos:freertos mcu:RP2040
+rtos:freertos board:lpcxpresso54114
+rtos:freertos family:hpmicro

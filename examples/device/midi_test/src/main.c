@@ -54,13 +54,22 @@ enum  {
 
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
-void led_blinking_task(void);
-void midi_task(void);
+void led_blinking_task(void *param);
+void midi_task(void *param);
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+static void usb_device_task(void *param);
+static void freertos_init(void);
+#endif
 
 /*------------- MAIN -------------*/
 int main(void) {
   board_init();
 
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  freertos_init();
+  return 0;
+#else
   // init device stack on configured roothub port
   tusb_rhport_init_t dev_init = {
     .role = TUSB_ROLE_DEVICE,
@@ -72,9 +81,10 @@ int main(void) {
 
   while (1) {
     tud_task(); // tinyusb device task
-    led_blinking_task();
-    midi_task();
+    led_blinking_task(NULL);
+    midi_task(NULL);
   }
+#endif
 }
 
 //--------------------------------------------------------------------+
@@ -118,13 +128,14 @@ const uint8_t note_sequence[] = {
   56,61,64,68,74,78,81,86,90,93,98,102
 };
 
-void midi_task(void)
-{
-  static uint32_t start_ms = 0;
-
+void midi_task(void *param) {
+  (void) param;
   uint8_t const cable_num = 0; // MIDI jack associated with USB endpoint
   uint8_t const channel   = 0; // 0 for channel 1
 
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  while (1) {
+#endif
   // The MIDI interface always creates input and output port/jack descriptors
   // regardless of these being used or not. Therefore incoming traffic should be read
   // (possibly just discarded) to avoid the sender blocking in IO
@@ -133,11 +144,16 @@ void midi_task(void)
     tud_midi_packet_read(packet);
   }
 
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  vTaskDelay(286 / portTICK_PERIOD_MS);
+#else
+  static uint32_t start_ms = 0;
   // send note periodically
   if (tusb_time_millis_api() - start_ms < 286) {
     return; // not enough time
   }
   start_ms += 286;
+#endif
 
   // Previous positions in the note sequence.
   int previous = (int) (note_pos - 1);
@@ -163,20 +179,106 @@ void midi_task(void)
   if (note_pos >= sizeof(note_sequence)) {
     note_pos = 0;
   }
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  }
+#endif
 }
 
 //--------------------------------------------------------------------+
 // BLINKING TASK
 //--------------------------------------------------------------------+
-void led_blinking_task(void)
-{
-  static uint32_t start_ms = 0;
+void led_blinking_task(void *param) {
+  (void) param;
   static bool led_state = false;
+#if CFG_TUSB_OS != OPT_OS_FREERTOS
+  static uint32_t start_ms = 0;
+#endif
 
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  while (1) {
+    vTaskDelay(blink_interval_ms / portTICK_PERIOD_MS);
+#else
   // Blink every interval ms
-  if ( tusb_time_millis_api() - start_ms < blink_interval_ms) return; // not enough time
+  if (tusb_time_millis_api() - start_ms < blink_interval_ms) {
+    return; // not enough time
+  }
   start_ms += blink_interval_ms;
+#endif
 
   board_led_write(led_state);
   led_state = 1 - led_state; // toggle
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  }
+#endif
 }
+
+//--------------------------------------------------------------------+
+// FreeRTOS
+//--------------------------------------------------------------------+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+
+#ifdef ESP_PLATFORM
+  #define USBD_STACK_SIZE     4096
+
+void app_main(void) {
+  main();
+}
+#else
+  // Increase stack size when debug log is enabled
+  #define USBD_STACK_SIZE     ((3 * configMINIMAL_STACK_SIZE / 2) * (CFG_TUSB_DEBUG ? 2 : 1))
+#endif
+
+#define BLINKY_STACK_SIZE   configMINIMAL_STACK_SIZE
+#define MIDI_STACK_SIZE     (configMINIMAL_STACK_SIZE * (CFG_TUSB_DEBUG ? 2 : 1))
+
+#if configSUPPORT_STATIC_ALLOCATION
+StackType_t blinky_stack[BLINKY_STACK_SIZE];
+StaticTask_t blinky_taskdef;
+
+StackType_t  usb_device_stack[USBD_STACK_SIZE];
+StaticTask_t usb_device_taskdef;
+
+StackType_t  midi_stack[MIDI_STACK_SIZE];
+StaticTask_t midi_taskdef;
+#endif
+
+// USB Device Driver task
+// This top level thread processes all USB events and invokes callbacks.
+static void usb_device_task(void *param) {
+  (void) param;
+
+  // init device stack on configured roothub port.
+  // This should be called after scheduler/kernel is started.
+  // Otherwise, it could cause kernel issue since USB IRQ handler uses RTOS queue API.
+  tusb_rhport_init_t dev_init = {
+    .role = TUSB_ROLE_DEVICE,
+    .speed = TUSB_SPEED_AUTO
+  };
+  tusb_init(BOARD_TUD_RHPORT, &dev_init);
+
+  board_init_after_tusb();
+
+  while (1) {
+    tud_task();// tinyusb device task
+  }
+}
+
+static void freertos_init(void) {
+#if configSUPPORT_STATIC_ALLOCATION
+  xTaskCreateStatic(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, blinky_stack, &blinky_taskdef);
+  xTaskCreateStatic(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, usb_device_stack, &usb_device_taskdef);
+  xTaskCreateStatic(midi_task, "midi", MIDI_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, midi_stack, &midi_taskdef);
+#else
+  xTaskCreate(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, NULL);
+  xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, NULL);
+  xTaskCreate(midi_task, "midi", MIDI_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, NULL);
+#endif
+
+#ifndef ESP_PLATFORM
+  vTaskStartScheduler();
+#endif
+}
+
+#endif
