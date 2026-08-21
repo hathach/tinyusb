@@ -31,6 +31,9 @@ typedef struct {
   // uint16_t wHubCharacteristics;
   bool mtt;
   hub_port_status_response_t port_status;
+
+  uint8_t int_fail_count; // consecutive failed status-change interrupt polls
+  uint8_t recover_port;   // next port to poll when recovering from a stuck interrupt
 } hub_interface_t;
 
 typedef struct {
@@ -359,14 +362,19 @@ enum {
 static void process_new_status(tuh_xfer_t* xfer);
 
 // callback as response of interrupt endpoint polling
+// Recover the status-change interrupt poll if it keeps failing after this many
+// consecutive failures.
+#define HUB_INT_FAIL_RECOVER 8
+
 bool hub_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
   (void) xferred_bytes;
   (void) ep_addr;
 
   bool processed = false; // true if new status is processed
+  hub_interface_t* p_hub = get_hub_itf(daddr);
 
   if (result == XFER_RESULT_SUCCESS) {
-    hub_interface_t* p_hub = get_hub_itf(daddr);
+    p_hub->int_fail_count = 0;
     hub_epbuf_t *p_epbuf = get_hub_epbuf(daddr);
     const uint8_t status_change = p_epbuf->status_change[0];
     TU_LOG_DRV("  Hub Status Change = 0x%02X\r\n", status_change);
@@ -387,6 +395,18 @@ bool hub_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t 
         }
       }
     }
+  } else if (p_hub->bNbrPorts && ++p_hub->int_fail_count >= HUB_INT_FAIL_RECOVER) {
+    // The status-change interrupt poll keeps failing (seen on some hubs after a
+    // downstream device is unplugged). The interrupt endpoint only signals that
+    // something changed; if it will not deliver, poll a port status directly so a
+    // latched change (e.g. the disconnect) is still found and handled through the
+    // normal path. Advance one port per recovery so every port is eventually swept.
+    p_hub->int_fail_count = 0;
+    if (p_hub->recover_port < 1 || p_hub->recover_port > p_hub->bNbrPorts) {
+      p_hub->recover_port = 1;
+    }
+    uint8_t const port = p_hub->recover_port++;
+    processed = hub_port_get_status(daddr, port, NULL, process_new_status, STATE_CLEAR_CHANGE);
   }
 
   // If new status event is processed: next status pool is queued by usbh.c after handled this request
