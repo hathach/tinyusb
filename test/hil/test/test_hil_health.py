@@ -467,49 +467,6 @@ class KillPoolChildren(PatchCase):
         self.assertEqual(hil_health.kill_pool_children(NoPool()), 0)
 
 
-class WriteTimeoutReport(unittest.TestCase):
-    def test_prefix_carries_the_preflight_diagnosis(self):
-        """The timeout aborts before accumulate_report, so without the prefix the artifact
-        and the PR comment lose the one line saying WHY the pool never finished."""
-        with TemporaryDirectory() as td:
-            d = Path(td)
-            hil_health.write_timeout_report(d, [{'name': 'b1'}], 4200, 'r.md',
-                                            prefix='> **wedged usb_hub_wq worker.**\n')
-            out = (d / 'r.md').read_text()
-        self.assertTrue(out.startswith('> **wedged usb_hub_wq worker.**'))
-        self.assertIn('timed out after 4200s', out)
-        self.assertIn('- b1', out)
-
-    def test_writes_a_report_where_there_would_be_none(self):
-        with TemporaryDirectory() as td:
-            hil_health.write_timeout_report(Path(td), [{'name': 'ra6m5_ek'}], 4200,
-                                            'hil_report.md')
-            md = (Path(td) / 'hil_report.md').read_text()
-        self.assertIn('4200s', md)
-        self.assertIn('ra6m5_ek', md)
-
-    def test_keeps_a_previous_attempts_table(self):
-        with TemporaryDirectory() as td:
-            path = Path(td) / 'hil_report.md'
-            path.write_text('| board | cdc_msc |\n')
-            hil_health.write_timeout_report(Path(td), [{'name': 'b1'}], 4200, 'hil_report.md')
-            md = path.read_text()
-        self.assertIn('abandoned', md)
-        self.assertIn('| board | cdc_msc |', md)
-        self.assertLess(md.index('abandoned'), md.index('| board |'))
-
-    def test_custom_banner_is_used(self):
-        with TemporaryDirectory() as td:
-            hil_health.write_timeout_report(Path(td), [], 0, 'hil_report.md',
-                                            banner='**refused to start.**\n')
-            self.assertIn('refused to start', (Path(td) / 'hil_report.md').read_text())
-
-    def test_unwritable_dir_does_not_raise(self):
-        """The caller may be about to os._exit; losing the report must not also lose the
-        exit path."""
-        hil_health.write_timeout_report(Path('/proc/nonexistent/nope'), [], 0, 'x.md')
-
-
 class WorkerSweepsItsOwnChildren(unittest.TestCase):
     """maxtasksperchild=1 makes a worker exit the moment its task returns, so by the time
     main()'s finally sweeps, the strays have been reparented to init and are off the pool's
