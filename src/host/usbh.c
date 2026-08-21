@@ -488,6 +488,9 @@ bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 #if CFG_TUSB_DEBUG >= CFG_TUH_LOG_LEVEL
   char const* speed_str = 0;
   switch (rh_init->speed) {
+    case TUSB_SPEED_SUPER:
+      speed_str = "Super";
+    break;
     case TUSB_SPEED_HIGH:
       speed_str = "High";
     break;

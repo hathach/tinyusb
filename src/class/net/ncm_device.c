@@ -911,41 +911,40 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16
 
   ncm_interface.itf_num = itf_desc->bInterfaceNumber;// management interface
 
-  uint16_t drv_len = sizeof(tusb_desc_interface_t);
+  uint8_t const *desc_start = (uint8_t const *) itf_desc;
+  uint8_t const *desc_end = desc_start + max_len;
   uint8_t const *p_desc = tu_desc_next(itf_desc);
-  while (tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE && drv_len <= max_len) {
+  while (tu_desc_in_bounds(p_desc, desc_end) && tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE) {
     if (tu_desc_subtype(p_desc) == CDC_FUNC_DESC_NCM) {
       TU_ASSERT(tu_desc_len(p_desc) >= sizeof(tusb_desc_cdc_ncm_func_t), 0);
       tusb_desc_cdc_ncm_func_t const *ncm_func = (tusb_desc_cdc_ncm_func_t const *) p_desc;
       ncm_interface.bm_capabilities = ncm_func->bmCapabilities;
     }
-    drv_len += tu_desc_len(p_desc);
     p_desc = tu_desc_next(p_desc);
   }
 
   // get notification endpoint
-  TU_ASSERT(tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT, 0);
-  TU_ASSERT(usbd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc), 0);
+  TU_ASSERT(tu_desc_in_bounds(p_desc, desc_end) && tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT, 0);
+  TU_ASSERT(usbd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc, desc_end), 0);
   ncm_interface.ep_notif = ((tusb_desc_endpoint_t const *) p_desc)->bEndpointAddress;
-  drv_len += tu_desc_len(p_desc);
   p_desc = tu_desc_next(p_desc);
+  p_desc = tu_desc_skip_ss_ep_companion(p_desc, desc_end);
 
   // skip the following TUSB_DESC_INTERFACE entries (which must be TUSB_CLASS_CDC_DATA)
-  while (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && drv_len <= max_len) {
+  while (tu_desc_in_bounds(p_desc, desc_end) && tu_desc_type(p_desc) == TUSB_DESC_INTERFACE) {
     tusb_desc_interface_t const *data_itf_desc = (tusb_desc_interface_t const *) p_desc;
     TU_ASSERT(data_itf_desc->bInterfaceClass == TUSB_CLASS_CDC_DATA, 0);
 
-    drv_len += tu_desc_len(p_desc);
     p_desc = tu_desc_next(p_desc);
   }
 
   // a TUSB_DESC_ENDPOINT (actually two) must follow, open these endpoints
-  TU_ASSERT(tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT, 0);
-  TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, 2, TUSB_XFER_BULK, &ncm_interface.ep_out, &ncm_interface.ep_in));
+  TU_ASSERT(tu_desc_in_bounds(p_desc, desc_end) && tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT, 0);
   ncm_interface.ep_size = tu_edpt_packet_size((tusb_desc_endpoint_t const *) p_desc);
-  drv_len += 2 * sizeof(tusb_desc_endpoint_t);
+  TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, desc_end, 2, TUSB_XFER_BULK, &ncm_interface.ep_out,
+                                &ncm_interface.ep_in, &p_desc), 0);
 
-  return drv_len;
+  return (uint16_t)(p_desc - desc_start);
 } // netd_open
 
 /**

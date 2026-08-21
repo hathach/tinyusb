@@ -314,7 +314,7 @@ void dcd_int_handler(uint8_t rhport) {
       USB_REG->DEVEPT |= 1 << (DEVEPT_EPRST0_Pos + ep_ix);
       USB_REG->DEVEPT &= ~(1 << (DEVEPT_EPRST0_Pos + ep_ix));
     }
-    dcd_edpt_open(0, &ep0_desc);
+    dcd_edpt_open(0, &ep0_desc, NULL);
     USB_REG->DEVICR = DEVICR_EORSTC;
     USB_REG->DEVICR = DEVICR_WAKEUPC;
     USB_REG->DEVICR = DEVICR_SUSPC;
@@ -384,7 +384,7 @@ void dcd_edpt0_status_complete(uint8_t rhport, const tusb_control_request_t *req
 }
 
 // Configure endpoint's registers according to descriptor
-bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *ep_desc) {
+bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *ep_desc, uint8_t const * desc_end TU_ATTR_UNUSED) {
   (void)rhport;
   const uint8_t          epnum               = tu_edpt_number(ep_desc->bEndpointAddress);
   const uint8_t          dir                 = tu_edpt_dir(ep_desc->bEndpointAddress);

@@ -458,7 +458,7 @@ void dcd_edpt0_status_complete(uint8_t rhport, const tusb_control_request_t *req
   }
 }
 
-bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
+bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep, uint8_t const * desc_end TU_ATTR_UNUSED) {
   (void)rhport;
   uint8_t ep  = tu_edpt_number(desc_ep->bEndpointAddress);
   uint8_t dir = tu_edpt_dir(desc_ep->bEndpointAddress);
