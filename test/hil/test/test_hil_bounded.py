@@ -39,6 +39,7 @@ serial_stub.SerialTimeoutException = type('SerialTimeoutException', (Exception,)
 sys.modules.setdefault('serial', serial_stub)
 import hil_flash
 import hil_test
+from helper import hil_report
 
 
 def write_script(path: Path, body: str) -> None:
@@ -1152,10 +1153,16 @@ class AbandonExitSurvivesAFailedFork(unittest.TestCase):
     def test_none_pool_and_manager_still_write_the_banner(self):
         # a subprocess, because _abandon_exit ends in os._exit: in-process it would take
         # the test runner with it, before any assertion could run
+        import json
         import subprocess
         with TemporaryDirectory() as td:
-            report = Path(td) / 'hil_report.md'
-            report.write_text('| board | test |\n|---|---|\n', encoding='utf-8')
+            rd = Path(td)
+            # it takes the report DIRECTORY now and re-renders both artifacts from the
+            # sidecar, so seed the sidecar -- the markdown is output, not input
+            (rd / 'hil_report.json').write_text(json.dumps(
+                {'rows': [{'board': 'boardA', 'cells': {'cdc_msc': 'pass'},
+                           'duration': '1s'}],
+                 'banner': '', 'scope': '', 'caveat': ''}))
             src = (
                 'import sys, types\n'
                 f'sys.path.insert(0, {str(Path(TEST_DIR).parents[0])!r})\n'
@@ -1166,12 +1173,14 @@ class AbandonExitSurvivesAFailedFork(unittest.TestCase):
                 'sys.modules.setdefault("serial", st)\n'
                 'import hil_test\n'
                 f'hil_test._abandon_exit(None, None, True, 1, __import__("pathlib")'
-                f'.Path({str(report)!r}))\n')
+                f'.Path({str(rd)!r}))\n')
             r = subprocess.run([sys.executable, '-c', src], capture_output=True,
                                text=True, timeout=120)
             self.assertEqual(r.returncode, 1, r.stderr)
-            self.assertTrue(report.read_text().startswith('**HIL run abandoned'),
-                            'the abandon banner never reached the report')
+            self.assertTrue((rd / 'hil_report.md').read_text().startswith(
+                '**HIL run abandoned'), 'the abandon banner never reached the report')
+            self.assertIn('abandoned',
+                          json.loads((rd / 'hil_report.json').read_text())['caveat'])
 
     def test_kill_pool_children_tolerates_a_pool_that_never_existed(self):
         from helper import hil_health
@@ -1653,124 +1662,6 @@ class StagingCoversEveryBoardForm(unittest.TestCase):
                          "last run's re-run spec survived a green run")
 
 
-class SummaryFoldsReportToBoards(unittest.TestCase):
-    """hil_summary.py replaces the agent retyping the markdown table. Report rows are named per
-    VARIANT and a variant need not start with the board name, so the config is what maps them
-    back -- the previous string-matching design produced a defect in each of four review rounds."""
-
-    def _sum(self, boards, rows, cfg_boards=None, banner=''):
-        import json
-        import subprocess
-        td = TemporaryDirectory()
-        self.addCleanup(td.cleanup)
-        d = Path(td.name)
-        (d / 'hil_report.json').write_text(json.dumps(
-            {'rows': [{'board': b, 'cells': c, 'duration': '1s'} for b, c in rows],
-             'banner': banner}))
-        cfg = d / 'cfg.json'
-        cfg.write_text(json.dumps({'boards': cfg_boards or [{'name': b} for b in boards]}))
-        args = [a for b in boards for a in ('-b', b)]
-        r = subprocess.run(['python3', str(Path(TEST_DIR).parents[0] / 'helper' / 'hil_summary.py'),
-                            str(cfg), *args, '--report-dir', str(d)],
-                           capture_output=True, text=True, timeout=60)
-        self.assertEqual(r.returncode, 0, r.stderr)
-        return json.loads(r.stdout)['results']
-
-    def test_variant_rows_fold_onto_their_board(self):
-        """nanoch32v203 never produces a row named after the board."""
-        got = self._sum(['nanoch32v203'],
-                        [('nanoch32v203-fsdev', {'usbtest': 'pass'}),
-                         ('nanoch32v203-usbfs', {'usbtest': 'pass'})],
-                        cfg_boards=[{'name': 'nanoch32v203',
-                                     'variant': [{'name': 'nanoch32v203-fsdev'},
-                                                 {'name': 'nanoch32v203-usbfs'}]}])
-        self.assertEqual([r['board'] for r in got], ['nanoch32v203'])
-        self.assertTrue(got[0]['pass'])
-        self.assertTrue(got[0]['ran'])
-
-    def test_one_failing_variant_fails_the_board(self):
-        got = self._sum(['nano'],
-                        [('nano-a', {'usbtest': 'pass'}), ('nano-b', {'usbtest': '❌ 29/30'})],
-                        cfg_boards=[{'name': 'nano', 'variant': [{'name': 'nano-a'},
-                                                                 {'name': 'nano-b'}]}])
-        self.assertFalse(got[0]['pass'])
-        self.assertIn('29/30', got[0]['detail'])
-
-    def test_lock_contention_is_a_field_not_a_prefix(self):
-        got = self._sum(['alpha'], [('alpha', {'board-locked': 'fail'})])
-        self.assertTrue(got[0]['locked'])
-        self.assertFalse(got[0]['pass'])
-
-    def test_a_board_with_no_row_is_marked_not_run(self):
-        got = self._sum(['alpha', 'beta'], [('alpha', {'usbtest': 'pass'})])
-        self.assertTrue(got[0]['ran'])
-        self.assertFalse(got[1]['ran'])
-        self.assertFalse(got[1]['pass'])
-
-    def test_a_metric_cell_counts_by_its_icon(self):
-        got = self._sum(['a', 'b'], [('a', {'cdc_msc_throughput': '✅ C 1.2 M 3.4'}),
-                                     ('b', {'cdc_msc_throughput': '❌ C 0.0 M 0.0'})])
-        self.assertTrue(got[0]['pass'])
-        self.assertFalse(got[1]['pass'])
-
-    def test_skipped_cells_do_not_fail_a_board(self):
-        got = self._sum(['a'], [('a', {'usbtest': 'skip', 'cdc_msc': 'pass'})])
-        self.assertTrue(got[0]['pass'])
-
-    def test_a_plain_metric_cell_is_a_pass(self):
-        """Mirrors hil_test.py's own tally (cell_kind): failures are ALWAYS marked -- 'fail'
-        or a ❌ prefix, per TestFail's docstring -- while a passing test may return a plain
-        metric string that lands in the cell unprefixed. Treating unknown shapes as fail
-        would publish a green table as a red verdict."""
-        got = self._sum(['a'], [('a', {'device_speed': '480.0 MBps'})])
-        self.assertTrue(got[0]['pass'])
-
-    def test_a_declared_variant_of_another_board_is_not_stolen(self):
-        """A declared variant need not start with its own board's name, so it may start with
-        a DIFFERENT board's name plus '-'. The prefix fallback must not attribute it twice."""
-        got = self._sum(['alpha', 'beta'],
-                        [('beta-x', {'usbtest': 'fail'})],
-                        cfg_boards=[{'name': 'alpha', 'variant': [{'name': 'beta-x'}]},
-                                    {'name': 'beta'}])
-        self.assertTrue(got[0]['ran'])
-        self.assertFalse(got[0]['pass'])
-        self.assertFalse(got[1]['ran'], "beta must not inherit alpha's row")
-
-
-class CaveatSurvivesAccumulate(unittest.TestCase):
-    """CI reruns with --accumulate: the sidecar keeps every earlier attempt's cells, but the
-    banner was recomputed per attempt. A first attempt on a degraded rig and a clean rerun
-    therefore published the degraded attempt's PASSES with no caveat on them -- and the
-    generated .failed spec reruns only failures, so those cells are never re-earned."""
-
-    def _rows(self, board, cell):
-        return [(board, 0, 0, [(board, {cell: 'OK'}, '1s')], 0)]
-
-    def test_an_earlier_attempts_caveat_is_still_on_the_report(self):
-        td = TemporaryDirectory()
-        self.addCleanup(td.cleanup)
-        rd = Path(td.name)
-        banner = '> **Rig note.** 2 process(es) in D state at start.\n'
-
-        hil_test.accumulate_report(self._rows('boardA', 'cdc_msc'), rd, True, '', banner)
-        self.assertIn('Rig note', (rd / hil_test.REPORT_MD).read_text())
-
-        # the rerun: clean rig, so this attempt contributes no banner of its own
-        md = hil_test.accumulate_report(self._rows('boardB', 'cdc_msc'), rd, False, '', '')
-        self.assertIn('boardA', md)                  # the earlier cells are kept ...
-        self.assertIn('Rig note', md,
-                      'the caveat the earlier cells were collected under was dropped')
-
-    def test_the_same_caveat_twice_is_not_stacked(self):
-        td = TemporaryDirectory()
-        self.addCleanup(td.cleanup)
-        rd = Path(td.name)
-        banner = '> **Rig note.** 2 process(es) in D state at start.\n'
-        hil_test.accumulate_report(self._rows('boardA', 'cdc_msc'), rd, True, '', banner)
-        md = hil_test.accumulate_report(self._rows('boardB', 'cdc_msc'), rd, False, '', banner)
-        self.assertEqual(md.count('Rig note'), 1)
-
-
 class BlindWorkerReachesTheReport(unittest.TestCase):
     """A worker that exhausts its bounded-read budget answers SYSFS_UNKNOWN for every
     attribute, so its "device not found" means "could not tell". That reached the log and
@@ -1802,7 +1693,7 @@ class BlindWorkerReachesTheReport(unittest.TestCase):
         wide = ('boardA', 1, ['device/cdc_msc'], [('boardA', {'cdc_msc': '❌'}, '2s')], 2.0, True)
         narrow = ('stuck', 1, [], None, 0)                      # what the timeout path builds
         hil_test._write_failed_spec(rd / 'x.failed', rd, [wide, narrow])
-        md = hil_test.accumulate_report([wide], rd, True, '', hil_test._blind_note([wide]))
+        md = hil_report.accumulate_report([wide], rd, True, '', hil_test._blind_note([wide]))
         self.assertIn('boardA', md)
         self.assertIn('not all verdicts are evidence', md.lower())
 

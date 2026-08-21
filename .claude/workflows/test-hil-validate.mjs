@@ -4,7 +4,7 @@
 // `board locked` out of a prose detail, folding rows, keeping a wedged flag alive -- produced
 // a defect in each of four review rounds, including a test that asserted an invariant using
 // the one input shape that could not break it. That logic now lives in
-// test/hil/helper/hil_summary.py, where the roster is, and arrives here as fields. What is
+// test/hil/helper/hil_report.py, where the roster is, and arrives here as fields. What is
 // left is a lookup and a verdict, and this pins both.
 //
 // Run: node .claude/workflows/test-hil-validate.mjs
@@ -23,6 +23,11 @@ const cut = (start, end) => {
 }
 const body = cut('const byBoard =', 'const first = await runBoards')
   + cut('const summarize =', 'const { pass, wedged, locked } =')
+// more than one schema declares `required:`; pick the HIL one by its contents
+const HIL_REQUIRED = (src.match(/required: \[[^\]]*\]/g) || [])
+  .map((m) => m.replace('required: ', '').replace(/'/g, '"'))
+  .map((m) => JSON.parse(m))
+  .find((a) => a.includes('wedged')) || []
 const { byBoard, summarize, wedgedFor } = new Function(`${body}; return { byBoard, summarize, wedgedFor }`)()
 
 let failed = 0
@@ -64,6 +69,28 @@ check('force zeroes locked', summarize([R('a', false, true)], true).locked, [])
 check('wedged surfaces', summarize([R('a', false, false, true)], false).wedged, ['a'])
 check('a wedged board that passed still surfaces',
   summarize([R('a', true, false, true)], false).wedged, ['a'])
+
+// A run-level caveat outranks per-row agreement: on the abandon and no-boards paths every
+// row can legitimately pass while hil_test.py exits non-zero. Row agreement alone published
+// those runs green.
+check('all rows pass and no caveat is a pass',
+  summarize([R('a', true), R('b', true)], false, '').pass, true)
+check('an abandoned run is not a pass',
+  summarize([R('a', true)], false,
+    '**HIL run abandoned: the worker pool would not shut down.** x').pass, false)
+check('an aborted run is not a pass',
+  summarize([R('a', true)], false, '**HIL run aborted: a worker raised RuntimeError**').pass,
+  false)
+check('a no-boards run is not a pass',
+  summarize([R('a', true)], false, '**HIL run selected no boards.** filters emptied').pass,
+  false)
+check('a rig-health note is NOT a caveat and does not fail the run',
+  summarize([R('a', true)], false, '> **Rig note.** 2 process(es) in D state').pass, true)
+check('a retry that abandoned sinks the run even with all rows passing',
+  summarize([R('a', true)], false,
+    '**HIL run abandoned: the worker pool would not shut down.** retry').pass, false)
+check('an omitted caveat cannot silently disable the gate (schema requires it)',
+  HIL_REQUIRED.includes('caveat'), true)
 
 console.log(failed ? `\n${failed} FAILED` : '\nall checks passed')
 process.exit(failed ? 1 : 0)
