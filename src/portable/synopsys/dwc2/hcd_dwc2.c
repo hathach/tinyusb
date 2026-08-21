@@ -336,13 +336,13 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t cal_next_pid(uint8_t pid, uint8_t pa
 static void dfifo_host_init(uint8_t rhport, bool is_hs_phy) {
   const dwc2_controller_t* dwc2_controller = &_dwc2_controller[rhport];
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  const dwc2_ghwcfg2_t ghwcfg2 = {.value = dwc2->ghwcfg2};
+  const uint8_t channel_count = dwc2_channel_count(dwc2);
 
   // Scatter/Gather DMA mode is not yet supported. Buffer DMA only need 1 words per channel
   const bool is_dma = dma_host_enabled(dwc2);
   uint16_t dfifo_top = dwc2_controller->otg_dfifo_depth;
   if (is_dma) {
-    dfifo_top -= ghwcfg2.num_host_ch;
+    dfifo_top -= channel_count;
   }
 
   // fixed allocation for now, improve later:
@@ -358,13 +358,12 @@ static void dfifo_host_init(uint8_t rhport, bool is_hs_phy) {
   }
 
   uint16_t nptxfsiz = 2 * nptx_largest;
-  uint16_t rxfsiz = 2 * (ptx_largest + 2) + ghwcfg2.num_host_ch;
+  uint16_t rxfsiz = 2 * (ptx_largest + 2) + channel_count;
   TU_ASSERT(dfifo_top >= (nptxfsiz + rxfsiz),);
   uint16_t ptxfsiz = dfifo_top - (nptxfsiz + rxfsiz);
 
   dwc2->gdfifocfg = (dfifo_top << GDFIFOCFG_EPINFOBASE_SHIFT) | dfifo_top;
 
-  dfifo_top -= rxfsiz;
   dwc2->grxfsiz = rxfsiz;
 
   dfifo_top -= nptxfsiz;
