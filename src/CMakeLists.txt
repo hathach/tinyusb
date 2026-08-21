@@ -27,6 +27,7 @@ function(tinyusb_sources_get OUTPUT_VAR)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/host/usbh.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/host/hub.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/cdc/cdc_host.c
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/audio/audio_host.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/hid/hid_host.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/midi/midi_host.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/midi/midi2_host.c

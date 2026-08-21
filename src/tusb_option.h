@@ -866,6 +866,10 @@
   { 0x067b, 0x23f3 }  /* GS */
 #endif
 
+#ifndef CFG_TUH_AUDIO
+  #define CFG_TUH_AUDIO  0
+#endif
+
 #ifndef CFG_TUH_HID
   #define CFG_TUH_HID    0
 #endif
