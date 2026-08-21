@@ -936,11 +936,17 @@ class RunWhileContract(unittest.TestCase):
 
         def boom():
             raise AssertionError('x')
+        # a duration no other process would plausibly pick: `pgrep -f` searches the WHOLE
+        # machine, so a bare `sleep 20` matched an unrelated background job -- another
+        # agent session's retry loop, in the case that exposed this -- and failed a test
+        # about our own child. Observed failing 3/3 in isolation while that loop ran.
+        sentinel = '20.0451'
         with self.assertRaises(AssertionError):
-            self.hil_util.run_alongside(['sleep', '20'], boom, 1)
+            self.hil_util.run_alongside(['sleep', sentinel], boom, 1)
         # nothing of ours is left running: the reap ran on the error path too
         import subprocess
-        out = subprocess.run(['pgrep', '-f', '^sleep 20'], capture_output=True, text=True)
+        out = subprocess.run(['pgrep', '-f', f'^sleep {sentinel}'],
+                             capture_output=True, text=True)
         seen['strays'] = [p for p in out.stdout.split() if p]
         self.assertEqual(seen['strays'], [], 'work() raising leaked the child')
 
