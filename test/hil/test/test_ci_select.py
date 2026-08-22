@@ -840,6 +840,48 @@ class TestRostersDoNotOverlap(unittest.TestCase):
                 seen[b['name']] = b.get('tests')
 
 
+class TestTypecRule(unittest.TestCase):
+    """Rule 12b. src/typec/usbc.c is listed unconditionally by src/CMakeLists.txt and
+    src/tinyusb.mk, but its whole body is `#if CFG_TUC_ENABLED`, which only
+    examples/typec/power_delivery sets - so it is parsed by every build and compiled by
+    one. Same shape as the class rule, same answer. Before this rule it matched nothing
+    and force-fulled 82 families and all 30 rig boards."""
+
+    def test_build_axis_selects_only_the_typec_examples(self):
+        s = ci_select.classify_build(['src/typec/usbc.c'], REPO)
+        self.assertFalse(s['full'])
+        self.assertTrue(s['families'], 'typec must be compiled somewhere')
+        self.assertTrue(s['family_examples'], 'and the examples must be named')
+        for fam, exs in s['family_examples'].items():
+            self.assertTrue(exs, fam)
+            for e in exs:
+                self.assertTrue(e.startswith('typec/'), f'{fam}: {e} is not a typec example')
+
+    def test_every_typec_file_answers_the_same(self):
+        for f in ('src/typec/usbc.c', 'src/typec/usbc.h', 'src/typec/tcd.h',
+                  'src/typec/pd_types.h'):
+            s = ci_select.classify_build([f], REPO)
+            self.assertFalse(s['full'], f)
+            self.assertTrue(s['families'], f)
+
+    def test_no_rig_board_runs_typec(self):
+        # typec is not a HIL role, so the rig cannot exercise it whatever it selects
+        s = sel(['src/typec/usbc.c'])
+        self.assertFalse(s['full'])
+        self.assertEqual(s['boards'], {})
+
+    def test_it_tracks_the_enabling_config_rather_than_a_hardcoded_list(self):
+        # the answer must come from CFG_TUC_ENABLED in the example configs, so it
+        # follows a new typec example (or an old one switched off) on its own
+        want = ci_select.examples_enabling(
+            ci_select.role_examples(REPO, ('typec',)), ('CFG_TUC_ENABLED',), REPO)
+        self.assertTrue(want, 'no example enables CFG_TUC_ENABLED - rule 12b is dead')
+        got = set()
+        for exs in ci_select.classify_build(['src/typec/usbc.c'], REPO)['family_examples'].values():
+            got |= set(exs)
+        self.assertEqual(got, want)
+
+
 class TestCachesAreKeyedOnTheTree(unittest.TestCase):
     """build_utils caches on repo-RELATIVE paths while ci_select._in_repo() chdirs
     between trees, so the cwd has to be part of every cache key. Without it a second

@@ -75,7 +75,7 @@ _META_RE = re.compile(
     r'.*/[0-9]+-tinyusb[^/]*\.rules$|tools/usb_drivers/|tools/codespell/|'
     r'test/(fuzz|unit-test)/|'
     # .github, minus the build machinery named in _FULL_RE
-    r'\.github/(FUNDING\.yml|labeler\.yml|membrowse_pr_message\.j2|ISSUE_TEMPLATE/|'
+    r'\.github/(FUNDING\.yml$|labeler\.yml$|membrowse_pr_message\.j2$|ISSUE_TEMPLATE/|'
     r'workflows/(cifuzz|claude|claude-code-review|labeler|membrowse-comment|'
     r'membrowse-onboard|pr_comment|pre-commit|static_analysis|trigger)\.yml$)|'
     # tools/ scripts no build invokes (tools/build*.py and metrics are handled above)
