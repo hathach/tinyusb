@@ -840,6 +840,143 @@ class TestRostersDoNotOverlap(unittest.TestCase):
                 seen[b['name']] = b.get('tests')
 
 
+class TestTypecRule(unittest.TestCase):
+    """Rule 12b. src/typec/usbc.c is listed unconditionally by src/CMakeLists.txt and
+    src/tinyusb.mk, but its whole body is `#if CFG_TUC_ENABLED`, which only
+    examples/typec/power_delivery sets - so it is parsed by every build and compiled by
+    one. Same shape as the class rule, same answer. Before this rule it matched nothing
+    and force-fulled 82 families and all 30 rig boards."""
+
+    def test_build_axis_selects_only_the_typec_examples(self):
+        s = ci_select.classify_build(['src/typec/usbc.c'], REPO)
+        self.assertFalse(s['full'])
+        self.assertTrue(s['families'], 'typec must be compiled somewhere')
+        self.assertTrue(s['family_examples'], 'and the examples must be named')
+        for fam, exs in s['family_examples'].items():
+            self.assertTrue(exs, fam)
+            for e in exs:
+                self.assertTrue(e.startswith('typec/'), f'{fam}: {e} is not a typec example')
+
+    def test_every_typec_file_answers_the_same(self):
+        for f in ('src/typec/usbc.c', 'src/typec/usbc.h', 'src/typec/tcd.h',
+                  'src/typec/pd_types.h'):
+            s = ci_select.classify_build([f], REPO)
+            self.assertFalse(s['full'], f)
+            self.assertTrue(s['families'], f)
+
+    def test_no_rig_board_runs_typec(self):
+        # typec is not a HIL role, so the rig cannot exercise it whatever it selects
+        s = sel(['src/typec/usbc.c'])
+        self.assertFalse(s['full'])
+        self.assertEqual(s['boards'], {})
+
+    def test_it_tracks_the_enabling_config_rather_than_a_hardcoded_list(self):
+        # the answer must come from CFG_TUC_ENABLED in the example configs, so it
+        # follows a new typec example (or an old one switched off) on its own
+        want = ci_select.examples_enabling(
+            ci_select.role_examples(REPO, ('typec',)), ('CFG_TUC_ENABLED',), REPO)
+        self.assertTrue(want, 'no example enables CFG_TUC_ENABLED - rule 12b is dead')
+        got = set()
+        for exs in ci_select.classify_build(['src/typec/usbc.c'], REPO)['family_examples'].values():
+            got |= set(exs)
+        self.assertEqual(got, want)
+
+
+class TestCachesAreKeyedOnTheTree(unittest.TestCase):
+    """build_utils caches on repo-RELATIVE paths while ci_select._in_repo() chdirs
+    between trees, so the cwd has to be part of every cache key. Without it a second
+    tree gets the first tree's skip.txt/only.txt and FAMILY_MCUS - which is exactly the
+    base-vs-branch comparison the code-size skill does in one process."""
+
+    def test_a_second_tree_is_not_answered_from_the_first(self):
+        import build_utils, tempfile
+        old = os.getcwd()
+        try:
+            os.chdir(REPO)
+            self.assertFalse(build_utils.skip_example('host/bare_api', 'metro_m0_express'))
+            with tempfile.TemporaryDirectory() as d:
+                os.makedirs(os.path.join(d, 'hw/bsp'), exist_ok=True)
+                os.chdir(d)
+                # the board does not exist in this tree at all -> unknown board -> skip
+                self.assertTrue(build_utils.skip_example('host/bare_api', 'metro_m0_express'),
+                                'the empty tree was answered from the repo tree cache')
+            os.chdir(REPO)
+            self.assertFalse(build_utils.skip_example('host/bare_api', 'metro_m0_express'),
+                             'and the repo answer must survive the excursion')
+        finally:
+            os.chdir(old)
+
+
+class TestClassesWithNoEnablingExample(unittest.TestCase):
+    """The class rule is the one rule with no drift guard: ports, hw/mcu, get_deps
+    tokens and bsp families all have one. A class dir that no example config enables
+    selects NOTHING on both axes (the maintainer's empty-means-empty ruling), which is
+    right - but it must be a listed state, not a surprise, or a class added before its
+    first example silently stops being built."""
+
+    # class dirs no example's tusb_config.h turns on, for either role. Must only shrink:
+    # a new entry means a class nothing compiles, so a break in it reaches master.
+    NO_EXAMPLE = {'bth'}
+
+    def test_only_the_known_classes_select_nothing(self):
+        import glob as _glob
+        dead = set()
+        for d in sorted(_glob.glob(os.path.join(REPO, 'src/class/*'))):
+            if not os.path.isdir(d):
+                continue
+            cls = os.path.basename(d)
+            hit = False
+            for base in sorted(os.path.basename(f) for f in _glob.glob(os.path.join(d, '*.[ch]'))):
+                roles = ci_select._class_roles(base)
+                if ci_select._build_class_examples(cls, base, roles, REPO):
+                    hit = True
+                    break
+            if not hit:
+                dead.add(cls)
+        self.assertEqual(dead, self.NO_EXAMPLE,
+                         'a class dir enabled by no example config: it selects nothing on '
+                         'both axes, so nothing compiles it until the next master push')
+
+
+class TestNoTrackedFileIsUnclassified(unittest.TestCase):
+    """Rule 17 (unclassified -> full on both axes) is the fail-open net for paths nobody
+    anticipated. It must stay that way - a wrong `full` costs runner minutes and is
+    visible in the run, a wrong `empty` costs a merged regression and is invisible - but
+    nothing in the tree should REACH it. Every tracked file is classified by a rule, so
+    17 fires only for genuinely new shapes, and this test is what tells the author to
+    write the row instead of letting the fall-through pick an answer for them.
+
+    Before this guard, 254 tracked files reached 17: .gitignore took a docs-only PR to
+    74 cmake legs and the whole rig, while examples/<role>/CMakeLists.txt got the RIGHT
+    answer from the wrong rule - row 15 names it, the regex never matched it."""
+
+    def _unclassified(self, axis):
+        import subprocess as sp
+        r = sp.run(['git', 'ls-files'], cwd=REPO, capture_output=True, text=True)
+        if r.returncode != 0:
+            self.skipTest('not a git checkout')
+        files = r.stdout.split()
+        self.assertGreater(len(files), 1000, 'suspiciously few tracked files')
+        out = []
+        for f in files:
+            s = (ci_select.classify_build([f], REPO) if axis == 'build'
+                 else ci_select.classify([f], REPO, real_rosters()))
+            if any('unclassified' in why for why in s['reasons']):
+                out.append(f)
+        return out
+
+    def test_build_axis(self):
+        left = self._unclassified('build')
+        self.assertEqual(left, [], f'{len(left)} tracked files fall through to rule 17 on '
+                                   f'the build axis, e.g. {left[:5]} - classify them, or '
+                                   f'add the pattern to _META_RE if no build reads them')
+
+    def test_hil_axis(self):
+        left = self._unclassified('hil')
+        self.assertEqual(left, [], f'{len(left)} tracked files fall through to rule 17 on '
+                                   f'the HIL axis, e.g. {left[:5]}')
+
+
 class TestLibRule(unittest.TestCase):
     """lib/** is not a full-matrix path: only the examples that build the lib need it."""
 
@@ -1241,7 +1378,28 @@ class TestBuildClassifier(unittest.TestCase):
                   'tools/build.py', 'tools/cmake/cpu/cortex-m4.cmake',
                   'examples/CMakeLists.txt', 'examples/device/CMakeLists.txt',
                   'examples/build_system/cmake/cpu.cmake', '.github/workflows/build.yml',
-                  'sonar-project.properties', 'some/unknown/path.c'):
+                  '.circleci/config.yml', 'src/CMakeLists.txt', 'src/tinyusb.mk',
+                  'hw/bsp/family_support.mk', 'tools/build_utils.py',
+                  'some/unknown/path.c'):
+            self.assertTrue(self.b([p])['full'], p)
+
+    def test_repo_metadata_is_not_a_build_input(self):
+        # these used to reach `full` through rule 17: a PR touching only .gitignore and a
+        # README created 74 cmake legs and booked the whole rig. No Build step reads them.
+        for p in ('sonar-project.properties', '.gitignore', '.gitattributes',
+                  '.clang-format', '.idea/misc.xml', 'version.yml', 'library.json',
+                  'examples/CMakePresets.json', 'test/fuzz/fuzz.cc',
+                  'test/unit-test/project.yml', '.github/workflows/pr_comment.yml',
+                  'tools/gen_doc.py'):
+            s = self.b([p])
+            self.assertFalse(s['full'], p)
+            self.assertEqual(s['families'], [], p)
+
+    def test_the_build_machinery_is_still_full(self):
+        # the other side of the same line: these DECIDE what gets built
+        for p in ('.circleci/config.yml', '.github/workflows/build.yml',
+                  '.github/scripts/ci_set_matrix.py', 'tools/ci_select.py',
+                  'tools/build_utils.py', 'tools/metrics.py'):
             self.assertTrue(self.b([p])['full'], p)
 
     def test_mixed_diff_unions_per_family(self):
@@ -1313,11 +1471,12 @@ class TestBuildPostFilter(unittest.TestCase):
         self.assertTrue(any('gone from tree' in r for r in s['reasons']), s['reasons'])
 
     def test_class_source_selecting_nothing_selects_nothing(self):
-        # synthetic class-with-no-enabling-config case (vendor_host.c was the live
-        # instance until its removal): no config enables CFG_TUH_VENDOR, so
+        # a class-with-no-enabling-config case: no config enables CFG_TUH_VENDOR, so
         # nothing exercises it and nothing builds - empty means empty (maintainer
         # decision; the file is still parsed by every full master-push build, which is
-        # the accepted net for a break outside its #if guard)
+        # the accepted net for a break outside its #if guard). src/class/bth is the
+        # live instance of this state today; TestClassesWithNoEnablingExample pins the
+        # whole set, so a new one cannot appear unnoticed.
         s = ci_select.classify_build(['src/class/vendor/vendor_host.c'], REPO)
         self.assertFalse(s['full'])
         self.assertEqual(s['families'], [])

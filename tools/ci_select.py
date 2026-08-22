@@ -54,6 +54,34 @@ def _read(path: str) -> str:
 
 _NONCODE_RE = re.compile(
     r'^(docs/|\.claude/|.*\.(md|rst)$|LICENSE)')
+# Repo metadata and tooling that no CI build reads. Enumerated rather than left to
+# rule 17, which widens BOTH axes: a PR touching only .gitignore and a README was
+# creating 74 cmake legs (each a runner doing checkout + toolchain + get_deps before
+# skipping the build) and booking the whole 30-board rig.
+#
+# Deliberately NOT here, and still full: .circleci/**, .github/workflows/build*.yml,
+# .github/actions/**, .github/scripts/** - those decide what gets built. The line is
+# "does any Build step read this file", not "is it source".
+#
+# test/{fuzz,unit-test} have their own jobs (cifuzz.yml, the unit-test pre-commit hook
+# and workflow); the Build matrix never compiles them, and test/hil is rule 2.
+_META_RE = re.compile(
+    r'^('
+    r'\.(gitignore|gitattributes|clang-format|codespellrc|readthedocs\.yaml)$|'
+    r'\.pre-commit-config\.yaml$|\.PVS-Studio/|\.idea/|\.vscode/|'
+    r'sonar-project\.properties$|library\.json$|pkg\.yml$|repository\.yml$|'
+    r'version\.yml$|SConscript$|'
+    r'.*CMakePresets\.json$|hw/bsp/BoardPresets\.json$|examples/west\.yml$|'
+    r'.*/[0-9]+-tinyusb[^/]*\.rules$|tools/usb_drivers/|tools/codespell/|'
+    r'test/(fuzz|unit-test)/|'
+    # .github, minus the build machinery named in _FULL_RE
+    r'\.github/(FUNDING\.yml$|labeler\.yml$|membrowse_pr_message\.j2$|ISSUE_TEMPLATE/|'
+    r'workflows/(cifuzz|claude|claude-code-review|labeler|membrowse-comment|'
+    r'membrowse-onboard|pr_comment|pre-commit|static_analysis|trigger)\.yml$)|'
+    # tools/ scripts no build invokes (tools/build*.py and metrics are handled above)
+    r'tools/(build_doc|check_example_pids|file2carray|gen_doc|gen_presets|iar_gen|'
+    r'make_release|mksunxi|pcapng_to_corpus)\.py$|tools/iar_template\.ipcf$'
+    r')')
 # Build-size metrics tooling. HIL axis ONLY: nothing on the rig runs any of it, and
 # without this rule these paths are unclassified, so a metrics-only PR booked an
 # exclusive full 30-board sweep to validate a script no board executes.
@@ -66,9 +94,20 @@ _METRICS_RE = re.compile(
 _FULL_RE = re.compile(
     r'^(src/common/|src/osal/|src/tusb\.c$|src/tusb\.h$|src/tusb_option\.h$|'
     r'test/hil/|\.github/workflows/build.*\.yml$|\.github/actions/|\.github/scripts/|'
-    r'tools/build\.py$|tools/cmake/|'
-    r'hw/bsp/(family_support\.cmake|board_api\.h|board\.c|ansi_escape\.h)$|'
+    # generates the whole CircleCI matrix, same authority as .github/**
+    r'\.circleci/|'
+    # rule 16 says `tools/build*.py`; name the two siblings the glob implies. Both
+    # decide what gets built, so neither can be trusted to narrow its own change.
+    r'tools/(build|build_utils|ci_select)\.py$|tools/cmake/|'
+    # the make twins of family_support.cmake are the same authority for the make legs
+    r'hw/bsp/(family_support\.(cmake|mk)|family_rules\.mk|zephyr_board_aliases\.cmake|'
+    r'board_api\.h|board\.c|ansi_escape\.h)$|'
+    # rule 15 lists examples/<role>/CMakeLists.txt - it registers every target in that
+    # role, so it was only ever reaching `full` through rule 17's fall-through
     r'examples/build_system/|examples/CMakeLists\.txt$|'
+    r'examples/[^/]+/CMakeLists\.txt$|'
+    # every firmware compiles these unconditionally (src/CMakeLists.txt, src/tinyusb.mk)
+    r'src/CMakeLists\.txt$|src/tinyusb\.mk$|'
     # board_test is HIL infrastructure, not a test: hil_test.py flashes it to park
     # every board (variant boundary + end-of-board teardown), so every board depends on it
     r'examples/device/board_test/)')
@@ -538,7 +577,7 @@ class _Sel:
 def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
                   get_deps_families=None):
     base = os.path.basename(path)
-    if _NONCODE_RE.match(path):
+    if _NONCODE_RE.match(path) or _META_RE.match(path):
         s.reasons.append(f'{path}: non-code, no contribution')
         return
     if _METRICS_RE.match(path):
@@ -673,6 +712,11 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
         s.add(boards, sorted(tests), f'{path}: lib {lib} -> {sorted(tests)} on all boards')
         return
 
+    if re.match(r'src/typec/', path):
+        # only examples/typec enables CFG_TUC_ENABLED, and no rig board runs a typec
+        # test (see _HIL_EX_ROLES) - so the build axis covers it and the rig cannot
+        s.reasons.append(f'{path}: typec, no HIL contribution')
+        return
     m = _BUILD_EX_RE.match(path)
     if m:
         if m.group(1) not in _HIL_EX_ROLES:
@@ -935,7 +979,8 @@ class _BSel:
 
 def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
     base = os.path.basename(path)
-    if _NONCODE_RE.match(path):                                   # rule 1
+    if _NONCODE_RE.match(path) or _META_RE.match(path):           # rule 1
+        s.reasons.append(f'{path}: non-code, no build contribution')
         return
     if re.match(r'test/hil/', path):                              # rule 2
         s.reasons.append(f'{path}: HIL harness, no build contribution')
@@ -1006,6 +1051,18 @@ def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
             # CMakeLists (rule 15) is what forces the full matrix
             s.reasons.append(f'{path}: not an example dir, no build contribution')
         return
+    if re.match(r'src/typec/', path):                             # rule 12b
+        # listed unconditionally by src/CMakeLists.txt and src/tinyusb.mk, but the whole
+        # body is `#if CFG_TUC_ENABLED` - so it is PARSED by every build and COMPILED
+        # only for examples that enable it. Same shape as the class rule, same answer:
+        # the examples whose tusb_config.h turns it on, and empty means empty.
+        exs = examples_enabling(role_examples(repo_root, ('typec',)),
+                                ('CFG_TUC_ENABLED',), repo_root)
+        if not exs:
+            s.reasons.append(f'{path}: typec enabled by no example config, no contribution')
+            return
+        s.add(all_bsp_families(repo_root), exs, f'{path}: typec -> {sorted(exs)}')
+        return
     m = re.match(r'lib/([^/]+)/', path)
     if m:                                                         # lib rule
         lib = m.group(1)
@@ -1018,7 +1075,19 @@ def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
             return
         s.add(all_bsp_families(repo_root), exs, f'{path}: lib {lib} -> {sorted(exs)}')
         return
-    s.force_full(f'{path}: unclassified -> full build matrix')    # rules 15-17
+    if _METRICS_RE.match(path):
+        # HIL-suppressed above; on this axis they stay full - tools/metrics.py runs as
+        # the `tinyusb_metrics` build target, so a break in it fails the build
+        s.force_full(f'{path}: metrics tooling runs in the build -> full build matrix')
+        return
+    if _FULL_RE.match(path):                                      # rules 15-16
+        # attribution, not behaviour: these already reached `full` through the
+        # fall-through below. Naming them means a future narrowing of rule 17 cannot
+        # silently change what they do. Deliberately last, so every earlier rule keeps
+        # priority - examples/device/board_test is rule 14 (just board_test), not ALL.
+        s.force_full(f'{path}: core/infra -> full build matrix')
+        return
+    s.force_full(f'{path}: unclassified -> full build matrix')    # rule 17
 
 
 @contextlib.contextmanager
