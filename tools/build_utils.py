@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import functools
+import os
 import subprocess
 import pathlib
 import re
@@ -24,7 +25,30 @@ _CMAKE_VAR_RE = re.compile(r'\$\{([A-Za-z_]\w*)\}')
 _CMAKE_CASE_RE = re.compile(r'string\s*\(\s*(TOUPPER|TOLOWER)\s+(\S+)\s+([A-Za-z_]\w*)\s*\)')
 
 
-@functools.lru_cache(maxsize=None)
+
+def _cwd_cache(fn):
+    """lru_cache, keyed on the working directory as well as the arguments.
+
+    Every cached helper below takes repo-RELATIVE paths ('hw/bsp/<fam>',
+    'examples/<ex>/skip.txt', or the literal 'hw/bsp' glob), while ci_select._in_repo()
+    chdirs around each call so one process can classify more than one tree - the
+    code-size skill's base-vs-branch worktrees, /pre-pr, a test pointing at a fixture.
+    Without the cwd in the key the second tree silently gets the first tree's
+    skip.txt/only.txt and FAMILY_MCUS answers. Master had no caching here, so this
+    hazard arrived with it."""
+    cache = {}
+
+    @functools.wraps(fn)
+    def wrapper(*args):
+        key = (os.getcwd(), args)
+        if key not in cache:
+            cache[key] = fn(*args)
+        return cache[key]
+
+    wrapper.cache_clear = cache.clear
+    return wrapper
+
+@_cwd_cache
 def _cmake_sets(path):
     """One cmake file's variable assignments as NAME -> first definition seen, as
     either a literal value or an ('TOUPPER'|'TOLOWER', source) pair. Only used to
@@ -87,7 +111,7 @@ def _cmake_expand(value, files, depth=0):
     return None if '${' in out else out
 
 
-@functools.lru_cache(maxsize=None)
+@_cwd_cache
 def _board_dirs(board):
     """(board_dir, family_dir) for a board name, or (None, None). Cached: skip_example
     is asked (board x example) times - 566k lstat calls per selector run without this,
@@ -98,7 +122,7 @@ def _board_dirs(board):
     return hits[0], hits[0].parent.parent
 
 
-@functools.lru_cache(maxsize=None)
+@_cwd_cache
 def _family_mcus(family_dir, board_dir):
     """The MCU names CMake's family_filter iterates. family_support.cmake:176/190
     loop `foreach(MCU IN LISTS FAMILY_MCUS)`, so a family-wide list (broadcom_64bit
@@ -175,7 +199,7 @@ def _family_mcus(family_dir, board_dir):
     return frozenset(out)
 
 
-@functools.lru_cache(maxsize=None)
+@_cwd_cache
 def _scrape_mcu(family_dir, board_dir, family):
     """(CFG_TUSB_MCU token of this board, the text it was read from), master's
     algorithm verbatim: family.mk (family.cmake when there is none) first, falling
@@ -215,7 +239,7 @@ def _scrape_mcu(family_dir, board_dir, family):
     return mcu, mk_contents
 
 
-@functools.lru_cache(maxsize=None)
+@_cwd_cache
 def _board_mcu(board_dir, family_dir, family):
     """(CFG_TUSB_MCU of this board, MAX3421_HOST enabled by its cmake BSP).
 
@@ -254,7 +278,7 @@ def _board_mcu(board_dir, family_dir, family):
     return mcu, max3421_enabled
 
 
-@functools.lru_cache(maxsize=None)
+@_cwd_cache
 def _filter_tokens(path):
     """skip.txt / only.txt as a token set, or None when the file does not exist."""
     f = pathlib.Path(path)
@@ -285,7 +309,7 @@ def skip_example(example, board, extra_defines=(), build_system='cmake'):
     return _skip_example(example, board, tuple(extra_defines), build_system)
 
 
-@functools.lru_cache(maxsize=None)
+@_cwd_cache
 def _skip_example_make(example, board):
     """master's skip_example, verbatim (tools/build_utils.py @ 9c202e8c6): the
     make build's own answer, derived from family.mk/board.mk with the single
@@ -333,7 +357,7 @@ def _skip_example_make(example, board):
     return False
 
 
-@functools.lru_cache(maxsize=None)
+@_cwd_cache
 def _skip_example(example, board, extra_defines, build_system):
     if build_system == 'make':
         return _skip_example_make(example, board)
