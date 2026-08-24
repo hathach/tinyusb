@@ -938,6 +938,54 @@ class TestClassesWithNoEnablingExample(unittest.TestCase):
                          'both axes, so nothing compiles it until the next master push')
 
 
+class TestRuleTableIsCarbonOfTheSpec(unittest.TestCase):
+    """ci_select's module docstring carries the rule table so a reader landing in the
+    code does not have to open the spec to learn what rule 6 is. Both are maintained by
+    hand, so this pins them cell-for-cell: edit one without the other and this fails.
+
+    It also pins the table against the CODE - every rule id the docstring claims must
+    appear as a `# rule N` marker on a branch of _classify_build_one, so a row cannot be
+    documented without a branch, or a branch renumbered without the table."""
+
+    @staticmethod
+    def _rows(text):
+        import re as _re
+        out = []
+        for l in text.splitlines():
+            if not l.startswith('| '):
+                continue
+            c = [x.strip() for x in l.strip().strip('|').split('|')]
+            if len(c) == 5 and _re.fullmatch(r'\d+[a-z]?', c[0]):
+                out.append(c)
+        return out
+
+    def test_docstring_table_matches_the_spec(self):
+        spec = open(os.path.join(
+            REPO, 'docs/superpowers/specs/2026-08-19-ci-build-family-filter-design.md')).read()
+        doc, spec_rows = self._rows(ci_select.__doc__), self._rows(spec)
+        self.assertTrue(spec_rows, 'no rule table found in the spec')
+        self.assertEqual([r[0] for r in doc], [r[0] for r in spec_rows],
+                         'rule ids differ between ci_select.__doc__ and the spec')
+        for d, s in zip(doc, spec_rows):
+            self.assertEqual(d, s, f'rule {d[0]} differs between the docstring and the spec')
+
+    def test_every_documented_rule_has_a_branch(self):
+        import re as _re
+        src = open(os.path.join(REPO, 'tools/ci_select.py')).read()
+        marked = set()
+        # handles `# rule 6`, `# rules 1, 1b` and `# rules 8-10`
+        for m in _re.finditer(r'#\s*rules?\s+([0-9a-z, -]+)', src):
+            for tok in _re.split(r',\s*', m.group(1).strip()):
+                rng = _re.fullmatch(r'(\d+)\s*-\s*(\d+)', tok.strip())
+                if rng:
+                    marked.update(str(n) for n in range(int(rng.group(1)), int(rng.group(2)) + 1))
+                elif _re.fullmatch(r'\d+[a-z]?', tok.strip()):
+                    marked.add(tok.strip())
+        documented = {r[0] for r in self._rows(ci_select.__doc__)}
+        missing = sorted(documented - marked, key=lambda s: (int(_re.match(r'\d+', s).group()), s))
+        self.assertEqual(missing, [], f'documented rules with no `# rule N` branch marker: {missing}')
+
+
 class TestNoTrackedFileIsUnclassified(unittest.TestCase):
     """Rule 17 (unclassified -> full on both axes) is the fail-open net for paths nobody
     anticipated. It must stay that way - a wrong `full` costs runner minutes and is

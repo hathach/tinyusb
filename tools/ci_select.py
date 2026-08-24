@@ -13,6 +13,38 @@ JSON: full, boards (name -> 'all' | [tests]), families (bsp families the diff
 touches, including ones with no rig board - build-only consumers such as /pre-pr
 sample from these), args (hil_test.py args per config) and args_flasher (the same
 args split by each board's flasher, for CI legs that split one rig by flasher).
+
+THE RULE TABLE. First match wins; answers union per family (build) and per board
+(HIL). A CARBON COPY of the table in the design spec above - edit both, or
+TestRuleTableIsCarbonOfTheSpec fails. `FAM` = the families whose family.cmake
+references the changed path (CMake only; make follows it). `DEV`/`HOST`/`DUAL`/
+`TYPEC`/`ALL` are the example role sets. The Build families column is PRE-PRUNE:
+_prune_buildable then intersects each family with what it can actually build.
+
+| # | Changed path | Build families | Build examples | HIL boards → tests |
+| 1 | `docs/`, `.claude/`, `*.md`, `*.rst`, `LICENSE` | — | — | — |
+| 1b | `.gitignore`, `.clang-format`, `.idea/**`, `test/{fuzz,unit-test}/**`, non-build `.github/**`, packaging manifests | — | — | — |
+| 2 | `test/hil/**` | — | — | all boards → all tests |
+| 2b | `tools/metrics.py`, `.github/scripts/metrics_*.py` | `ALL` (unchanged — `tinyusb_metrics` runs `metrics.py` as a build target) | `ALL` | — (nothing on the rig runs it) |
+| 3 | `src/portable/<port>/dcd_*`, `*_device.[ch]` | `FAM` | `DEV`+`DUAL` | `FAM`'s device-role boards → device+dual tests |
+| 4 | `src/portable/<port>/hcd_*`, `*_host.[ch]` | `FAM` | `HOST`+`DUAL` | `FAM`'s host-role boards → host+dual tests |
+| 5 | `src/portable/<port>/**` (anything else) | `FAM` | `ALL` | `FAM`'s boards → all their tests |
+| 5b | `src/portable/<port>/**` where `FAM` is empty | — | — | — (empty resolves to nothing on BOTH axes) |
+| 6 | `hw/bsp/<family>/**` | that family | `ALL` | that family's boards → all tests (a `boards/<board>/` path narrows to that board) |
+| 7 | `hw/mcu/<vendor>/**` | `FAM` — empty resolves to nothing (maintainer ruling) | `ALL` | `FAM`'s boards → all tests; empty resolves to nothing (maintainer ruling)  ⚠ *see below* |
+| 8 | `src/class/<cls>/*_device.[ch]` | `ALL` | examples enabling `CFG_TUD_<CLS>` | device-role boards → HIL tests enabling `CFG_TUD_<CLS>` |
+| 9 | `src/class/<cls>/*_host.[ch]` | `ALL` | examples enabling `CFG_TUH_<CLS>` | host-role boards → HIL tests enabling `CFG_TUH_<CLS>` |
+| 10 | `src/class/<cls>/**` (shared header) | `ALL` | either, **plus include-edge classes** | both roles → same, plus include-edge classes |
+| 11 | `src/device/**` | `ALL` | `DEV`+`DUAL` | device-role boards → device+dual tests |
+| 12 | `src/host/**` | `ALL` | `HOST`+`DUAL` | host-role boards → host+dual tests |
+| 12b | `src/typec/**` | `ALL` | examples enabling `CFG_TUC_ENABLED` | — (no rig board runs a typec test) |
+| 13 | `examples/<role>/<name>/**` | `ALL` | just `<name>` | if `<name>` is a HIL test: all boards → that test; else nothing |
+| 14 | `examples/device/board_test/**` | `ALL` | just `board_test` | all boards → all tests (HIL parking firmware) |
+| 15 | `examples/build_system/**`, `examples/CMakeLists.txt`, `examples/<role>/CMakeLists.txt` | `ALL` | `ALL` | all boards → all tests |
+| 16 | `src/common/`, `src/osal/`, `src/tusb.[ch]`, `src/tusb_option.h`, `tools/{build,build_utils,ci_select}.py`, `tools/cmake/**`, `src/CMakeLists.txt`, `src/tinyusb.mk`, `hw/bsp/{family_support.{cmake,mk},family_rules.mk,zephyr_board_aliases.cmake,board.c,board_api.h,ansi_escape.h}`, `.github/**`, `.circleci/**` | `ALL` | `ALL` | all boards → all tests |
+| 16a | `lib/<name>/**` | `ALL` | examples whose own `CMakeLists.txt`/`Makefile` names `lib/<name>` | those examples that are HIL tests, on all boards; empty resolves to nothing |
+| 16b | `tools/get_deps.py` | families whose `deps_mandatory`/`deps_optional` entries changed | `ALL` | those families' boards → all tests; a logic change, an `'all'` entry, no base content or a changed token naming no family → full |
+| 17 | anything unclassified (no tracked file reaches this — TestNoTrackedFileIsUnclassified) | `ALL` | `ALL` | all boards → all tests (fail-open) |
 """
 import argparse
 import ast
@@ -593,7 +625,7 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
     if _NONCODE_RE.match(path) or _META_RE.match(path):
         s.reasons.append(f'{path}: non-code, no contribution')
         return
-    if _METRICS_RE.match(path):
+    if _METRICS_RE.match(path):                                   # rule 2b
         s.reasons.append(f'{path}: build-size metrics tooling, no HIL contribution')
         return
     if _FULL_RE.match(path):
@@ -992,13 +1024,13 @@ class _BSel:
 
 def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
     base = os.path.basename(path)
-    if _NONCODE_RE.match(path) or _META_RE.match(path):           # rule 1
+    if _NONCODE_RE.match(path) or _META_RE.match(path):           # rules 1, 1b
         s.reasons.append(f'{path}: non-code, no build contribution')
         return
     if re.match(r'test/hil/', path):                              # rule 2
         s.reasons.append(f'{path}: HIL harness, no build contribution')
         return
-    if path == GET_DEPS_PATH:                                     # get_deps rule
+    if path == GET_DEPS_PATH:                                     # rule 16b
         if get_deps_families is None:
             s.force_full(f'{path}: dep changes not resolvable -> full build matrix')
             return
@@ -1015,6 +1047,7 @@ def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
         roles = _port_roles(base)
         exs = 'all' if roles == {'device', 'host'} else \
             role_examples(repo_root, tuple(roles) + ('dual',))
+        # rule 5b: fams empty -> s.add iterates nothing -> no contribution
         s.add(fams, exs, f'{path}: port {port} -> families {sorted(fams)}')
         return
     if re.match(r'hw/bsp/[^/]+/', path):                          # rule 6
@@ -1077,7 +1110,7 @@ def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
         s.add(all_bsp_families(repo_root), exs, f'{path}: typec -> {sorted(exs)}')
         return
     m = re.match(r'lib/([^/]+)/', path)
-    if m:                                                         # lib rule
+    if m:                                                         # rule 16a
         lib = m.group(1)
         exs = lib_examples(lib, repo_root)
         if not exs:
