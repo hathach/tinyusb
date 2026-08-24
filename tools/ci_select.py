@@ -515,11 +515,23 @@ def _class_roles(base: str) -> set:
     return {'device', 'host'}
 
 
-def _config_enables(cfg_path: str, macros) -> bool:
+@functools.lru_cache(maxsize=None)
+def _config_text(cfg_path: str) -> str:
+    """An example's tusb_config.h, read once. Every class path re-asks the same 46
+    configs on both axes, so the reads go up with the diff: 4,240 of the same 46 files
+    for a diff touching all of src/class (0.48s -> 0.13s), and they cannot change
+    mid-run. Cached here rather than on _config_enables so the macros argument stays an
+    ordinary list at every call site."""
     try:
         with open(cfg_path, encoding='utf-8', errors='replace') as f:
-            text = f.read()
+            return f.read()
     except OSError:
+        return ''
+
+
+def _config_enables(cfg_path: str, macros) -> bool:
+    text = _config_text(cfg_path)
+    if not text:
         return False
     for m in macros:
         for value in re.findall(_DEF_VALUE.format(m), text, re.M):
@@ -556,10 +568,13 @@ def lib_examples(lib_name: str, repo_root: str) -> set:
     pat = re.compile(re.escape('lib/' + lib_name) + r'(?=[/\s"\')}]|$)', re.M)
     out = set()
     for ex in all_examples(repo_root):
-        for f in sorted(glob.glob(_rg(repo_root, 'examples', ex, '**', '*'),
+        # the two filenames directly: '**/*' enumerated 489 entries per lib against a
+        # clean tree to use 107, and grows without bound once `make BOARD=... all` has
+        # written examples/<role>/<name>/_build/ - which is where /pre-pr runs
+        for f in sorted(glob.glob(_rg(repo_root, 'examples', ex, '**', 'CMakeLists.txt'),
+                                  recursive=True) +
+                        glob.glob(_rg(repo_root, 'examples', ex, '**', 'Makefile'),
                                   recursive=True)):
-            if os.path.basename(f) not in ('CMakeLists.txt', 'Makefile'):
-                continue
             try:
                 text = _read(f)
             except OSError:
@@ -948,7 +963,13 @@ def main():
         print(f'ci_select[build]: {r}', file=sys.stderr)
     for r in s['reasons']:
         print(f'ci_select: {r}', file=sys.stderr)
-    print(json.dumps(s))
+    # reasons go to stderr ONLY - they are a human diagnostic and no consumer reads them
+    # back. They are also ~97% of the payload (a whole-tree diff: 453 KB -> 12 KB), which
+    # build.yml re-parses with ci_set_matrix, hil_ci_set_matrix, an inline python and
+    # three jq calls. The in-process dicts still carry them, for the log and the tests.
+    out = {k: v for k, v in s.items() if k != 'reasons'}
+    out['build'] = {k: v for k, v in s['build'].items() if k != 'reasons'}
+    print(json.dumps(out))
 
 
 # -------------------------------------------------------------
@@ -1196,11 +1217,25 @@ def _prune_buildable(fams, fam_ex, repo_root):
             # for anything else spins up CI's most expensive leg to skip every example
             # it was given. Identical to the unfiltered list on all 81 other families.
             pool = set(build_py.get_examples(fam))
+
+            # asked per example instead of materialising the family's whole buildable
+            # list: skip_example is by far the hottest call in the selector, and every
+            # question below short-circuits (one cdc_device.c diff: 6,883 calls -> 1,889)
+            def can_build(ex):
+                # EITHER build system: this one list gates CircleCI's make legs too, and
+                # the two answer differently (build_utils.skip_example)
+                return ex in pool and any(
+                    not build_utils.skip_example(ex, b) or
+                    not build_utils.skip_example(ex, b, (), 'make') for b in boards)
+
+            want = fam_ex.get(fam)
             try:
-                buildable = [e for e in allex if e in pool and
-                             any(not build_utils.skip_example(e, b) or
-                                 not build_utils.skip_example(e, b, (), 'make')
-                                 for b in boards)]
+                if want is None:
+                    kept = None if any(can_build(e) for e in allex) else []
+                else:
+                    kept = [e for e in want if can_build(e)]
+                    if kept and not any(can_build(e) for e in allex if e not in want):
+                        kept = None          # already everything the family can build
             except OSError as e:
                 # a family mid-bring-up (boards/ but no family.cmake/family.mk yet)
                 # reads as unbuildable to the scrape; keep it rather than tracebacking
@@ -1208,13 +1243,10 @@ def _prune_buildable(fams, fam_ex, repo_root):
                 reasons.append(f'{fam}: mcu scrape unreadable ({e}), kept unfiltered')
                 out_fams.append(fam)
                 continue
-            want = fam_ex.get(fam)
-            have = set(buildable)
-            kept = buildable if want is None else [e for e in want if e in have]
-            if not kept:
+            if kept == []:
                 continue                     # this diff builds nothing for this family
             out_fams.append(fam)
-            if set(kept) != set(buildable):
+            if kept is not None:
                 out_ex[fam] = kept
     return out_fams, out_ex, reasons
 

@@ -302,7 +302,11 @@ class TestArgsEmission(unittest.TestCase):
         out = j.loads(r.stdout)
         self.assertFalse(out['full'])
         self.assertIn('tinyusb.json', out['args'])
-        self.assertTrue(any('cdc_device' in line for line in out['reasons']))
+        # reasons are a stderr diagnostic, deliberately NOT in the payload: they were
+        # 97% of a 9.8 MB JSON on a dep bump, and every consumer re-parses that file
+        self.assertNotIn('reasons', out, 'reasons must not ride in the machine-read JSON')
+        self.assertNotIn('reasons', out['build'])
+        self.assertIn('cdc_device', r.stderr)
         # A core-class diff must select boards THROUGH THE CLI: the in-process tests
         # inject their own repo root, so only this subprocess path catches a broken
         # repo_root derivation -- which once made every repo-relative glob match
@@ -936,6 +940,37 @@ class TestClassesWithNoEnablingExample(unittest.TestCase):
         self.assertEqual(dead, self.NO_EXAMPLE,
                          'a class dir enabled by no example config: it selects nothing on '
                          'both axes, so nothing compiles it until the next master push')
+
+
+class TestExampleMapOmitsFullFamilies(unittest.TestCase):
+    """A family whose selection is ALREADY everything it can build carries no -e list.
+
+    Sixth of the same shape as the class below, found the same way: a perf rewrite of
+    _prune_buildable dropped the `set(kept) != set(buildable)` test and all 216 tests
+    stayed green. The build outcome is identical either way -- build.py applies the same
+    skip_example the pruner just did -- so nothing compiled differently and only the
+    payload grew (22 families x 33 examples on one dcd_dwc2.c diff). That is exactly the
+    kind of drift no build failure ever reports."""
+
+    def test_a_device_only_port_diff_still_omits_families_it_cannot_narrow(self):
+        # dcd_dwc2.c selects device+dual examples only, but a family whose host examples
+        # are all unbuildable anyway ends up wanting its entire buildable set
+        b = ci_select.classify_build(['src/portable/synopsys/dwc2/dcd_dwc2.c'], REPO)
+        self.assertFalse(b['full'])
+        self.assertTrue(b['families'])
+        omitted = [f for f in b['families'] if f not in b['family_examples']]
+        self.assertTrue(omitted, 'no family omitted its -e list; the "already everything '
+                                 'this family builds" case stopped being detected')
+        for fam in omitted:
+            self.assertNotIn(fam, b['family_examples'])
+
+    def test_a_family_that_can_build_more_than_the_diff_wants_keeps_its_list(self):
+        # the other direction: one example selects itself and nothing else, so every
+        # family it lands on must carry an explicit -e or CI builds all 46
+        b = ci_select.classify_build(['examples/device/cdc_msc/src/main.c'], REPO)
+        self.assertFalse(b['full'])
+        for fam in b['families']:
+            self.assertEqual(b['family_examples'].get(fam), ['device/cdc_msc'], fam)
 
 
 class TestSelectionBehavioursThatHadNoTest(unittest.TestCase):
