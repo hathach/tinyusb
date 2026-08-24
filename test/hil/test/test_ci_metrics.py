@@ -511,16 +511,62 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         self.assertEqual(filtered, 'false')
         self.assertEqual(regex, '')
 
-    def test_membrowse_upload_sees_the_same_board_as_the_build(self):
-        # $EX_ARGS is passed for the BOARD it selects: --one-first picks a board that can
-        # build the -e set, so without it membrowse configures a different, empty build
-        # dir and uploads --identical for a board that was never compiled. It does NOT
-        # scope the targets - `examples-membrowse-upload` is not `all`, so it passes
-        # through as the aggregate, which has no DEPENDS and still records every example.
+    def test_membrowse_upload_is_not_scoped_by_the_pr_filter(self):
+        # by decision, the upload runs unfiltered so the size history stays keyed on the
+        # family's preferred board whatever the PR touched. $EX_ARGS would not have
+        # scoped the targets either way - `examples-membrowse-upload` is not `all`, so
+        # resolve_example_target_groups passes it through as the aggregate - but it DID
+        # move the board, because --one-first picks one that can build the -e set.
+        #
+        # The accepted cost: on a family whose preferred board cannot build that set,
+        # the upload lands on a board the Build step never compiled and every example
+        # goes up --identical. test_the_upload_board_can_diverge_from_the_built_board
+        # keeps that consequence measured rather than assumed.
         line = [l for l in self.util.splitlines()
                 if '--target examples-membrowse-upload' in l][0]
-        self.assertIn('$EX_ARGS', line)
-        self.assertNotIn('-e ', line.replace('$EX_ARGS', ''))
+        self.assertNotIn('$EX_ARGS', line)
+        self.assertNotIn('-e ', line)
+
+    def test_the_upload_board_can_diverge_from_the_built_board(self):
+        """Pins the SIZE of what the removal gave up, so it cannot grow unnoticed.
+
+        --one-first with no -e returns preferred_list[0]; with one it returns the first
+        preferred board that can build it. Where those differ, the Membrowse Upload step
+        configures a build dir the Build step never wrote."""
+        sys.path.insert(0, os.path.join(REPO, 'tools'))
+        import build as build_py
+        roles = ('device', 'host', 'dual')
+        exs = sorted(f'{r}/{n}' for r in roles
+                     for n in os.listdir(os.path.join(REPO, 'examples', r))
+                     if os.path.isdir(os.path.join(REPO, 'examples', r, n)))
+        fams = sorted(d for d in os.listdir(os.path.join(REPO, 'hw/bsp'))
+                      if os.path.isdir(os.path.join(REPO, 'hw/bsp', d, 'boards')))
+        cwd = os.getcwd()
+        os.chdir(REPO)
+        try:
+            diverging = set()
+            for fam in fams:
+                try:
+                    base = build_py.get_family_boards(fam, False, True, None, 'cmake', ())
+                except Exception:
+                    continue
+                if not base:
+                    continue
+                for e in exs:
+                    try:
+                        one = build_py.get_family_boards(fam, False, True, [e], 'cmake', ())
+                    except Exception:
+                        continue
+                    if one and one[0] != base[0]:
+                        diverging.add(fam)
+                        break
+        finally:
+            os.chdir(cwd)
+        self.assertEqual(diverging, {'imxrt', 'lpc11', 'lpc18', 'lpc54', 'mcx', 'rp2040',
+                                     'rx', 'samd11', 'stm32l0', 'stm32l4', 'tm4c'},
+                         'the set of families whose membrowse upload can land on an '
+                         'uncompiled board changed; re-check whether dropping $EX_ARGS '
+                         'from the upload step is still the right trade')
 
 
 if __name__ == '__main__':

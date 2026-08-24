@@ -126,16 +126,11 @@ jobs:
           MEMBROWSE_API_KEY: ${{ secrets.MEMBROWSE_API_KEY }}
         run: |
           # if code-changed is false --> there is no elf -> membrowse target upload with --identical flag
-          # $EX_ARGS is passed for the BOARD it picks, not to scope the targets:
-          # --one-first now chooses a board that can build the -e set (tools/build.py),
-          # so omitting it here would configure a DIFFERENT, empty build dir and upload
-          # --identical for a board that was never compiled. The target list is not
-          # scoped by it - `examples-membrowse-upload` is not `all`, so it passes
-          # through as the aggregate, which has no DEPENDS (hw/bsp/family_support.cmake):
-          # it rebuilds nothing and still records every example, --identical for the
-          # ones without an elf.
+          # deliberately unscoped by $EX_ARGS: keeps the size history on a stable board
+          # per family, at the cost of an --identical-only upload where that board is not
+          # the one the Build step picked (test_ci_metrics pins which families those are)
           BUILD_PY_ARGS="-s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }}"
-          python tools/build.py $BUILD_PY_ARGS --target examples-membrowse-upload -j 1 ${{ matrix.arg }} $EX_ARGS
+          python tools/build.py $BUILD_PY_ARGS --target examples-membrowse-upload -j 1 ${{ matrix.arg }}
         shell: bash
 
       - name: Upload Artifacts for Metrics
