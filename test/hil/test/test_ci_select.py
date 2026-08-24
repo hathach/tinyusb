@@ -2040,14 +2040,14 @@ class TestMcuTokensResolve(unittest.TestCase):
     # produce, or a rename nobody followed through. `family:samd21` was one of these
     # until the nine examples/host/*/only.txt files were corrected to samd2x_l2x.
     #
-    # The `mcu:` entries are NOT all harmless. MIMXRT10XX/MIMXRT11XX and LPC177X_8X sit
-    # beside a live token in the same file, so they gate nothing either way. MKL25ZXX
-    # (device/msc_dual_lun) and SAME5X (device/audio_test) do not: those skips are dead,
-    # and both examples are built today on the boards their skip file meant to exclude -
-    # successfully, which is why nobody noticed. Correcting them REMOVES working build
-    # coverage, so it is a maintainer call, not a drive-by fix.
+    # The remaining `mcu:` entries sit beside a live token in the same file, so they gate
+    # nothing either way. MKL25ZXX (7 files) and SAME5X (1) were dead too, but unlike
+    # these they were the ONLY token for their board - the examples were already being
+    # built on the very boards those lines meant to exclude. Dropping them is a no-op for
+    # the build (verified per example) and was chosen over re-pointing, which would have
+    # removed working coverage.
     UNREACHABLE_TOKENS = {
-        'mcu': {'LPC177X_8X', 'MIMXRT10XX', 'MIMXRT11XX', 'MKL25ZXX', 'SAME5X', 'STM32U3'},
+        'mcu': {'LPC177X_8X', 'MIMXRT10XX', 'MIMXRT11XX', 'STM32U3'},
         'family': set(),
         'board': set(),
     }
