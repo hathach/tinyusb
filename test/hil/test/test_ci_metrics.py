@@ -447,6 +447,70 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
             self.assertIn('UNSCOPED', flat[max(0, i - 200):i],
                           'a fall-open path without the marker build.yml greps for')
 
+    def _run_extras_block(self, sel):
+        """Extract the build-extras shell block from build.yml and run it for real.
+        Nothing else exercises it, which is why the empty/rejected conflation shipped."""
+        import re as _re, shlex, subprocess, tempfile, json as _json
+        repo = os.path.dirname(CIRCLECI)
+        i = self.build.index("EXAMPLE_MAP='{}'\n          BUILD_FILTERED='false'")
+        i = self.build.rindex('\n', 0, i) + 1
+        j = self.build.index('          echo "matrix=$MATRIX_JSON"', i)
+        block = _re.sub(r'^ {10}', '', self.build[i:j], flags=_re.M)
+        with tempfile.TemporaryDirectory() as d:
+            selp = os.path.join(d, 'sel.json')
+            with open(selp, 'w') as fh:
+                _json.dump(sel, fh)
+            matrix = subprocess.run(
+                [sys.executable, os.path.join(repo, '.github/scripts/ci_set_matrix.py'),
+                 '--select-file', selp], capture_output=True, text=True, cwd=repo).stdout.strip()
+            self.assertTrue(matrix, 'ci_set_matrix produced nothing')
+            sh = os.path.join(d, 'probe.sh')
+            with open(sh, 'w') as fh:
+                # shlex.quote, not hand-rolled quoting: a TMPDIR with a space in it
+                # made this fail for a reason that had nothing to do with the block
+                fh.write('BUILD_SELECT_FILE=' + shlex.quote(selp) + '\n')
+                fh.write('MATRIX_JSON=' + shlex.quote(matrix) + '\n')
+                fh.write(block)
+                # sentinel + newline separated: the block itself writes ::warning:: to
+                # stdout, and '|' would collide with the regex's own separator
+                fh.write('\nprintf "@@R@@\\n%s\\n%s\\n%s" "$MATRIX_JSON" "$BUILD_FILTERED" "$FAMILY_REGEX"\n')
+            r = subprocess.run(['bash', sh], capture_output=True, text=True, cwd=repo)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            mj, filtered, regex = r.stdout.split('@@R@@\n', 1)[1].split('\n', 2)
+            return sum(len(v) for v in _json.loads(mj).values()), filtered, regex
+
+    def test_an_empty_family_list_is_not_treated_as_unusable(self):
+        """.build.families is read twice - as a count and as a `|`-joined regex. An EMPTY
+        list and one REJECTED by the charset guard both leave the regex empty and mean
+        opposite things, so the block has to branch on which happened.
+
+        Testing `-z "$FAMILY_REGEX"` alone sent every nothing-selected PR down the
+        fall-open path and discarded the correct all-empty matrix: #3842 (docs +
+        .gitignore) and #3840 (test/hil only) each rebuilt all 74 cmake legs after the
+        selector had correctly chosen none."""
+        legs, filtered, regex = self._run_extras_block(
+            {'build': {'full': False, 'families': [], 'family_examples': {}}})
+        self.assertEqual(legs, 0, 'an empty families list must keep the all-empty matrix')
+        self.assertEqual(filtered, 'false', 'nothing was built, so nothing to compare')
+        self.assertEqual(regex, '')
+
+    def test_a_real_family_list_stays_scoped(self):
+        legs, filtered, regex = self._run_extras_block(
+            {'build': {'full': False, 'families': ['stm32f4', 'rp2040'],
+                       'family_examples': {}}})
+        self.assertGreater(legs, 0)
+        self.assertEqual(filtered, 'true')
+        self.assertEqual(regex, 'stm32f4|rp2040')
+
+    def test_a_regex_metacharacter_in_a_family_name_falls_open(self):
+        # the name is interpolated raw into a name_is_regexp artifact pattern, so a
+        # metacharacter would match another family's baseline - reject and widen
+        legs, filtered, regex = self._run_extras_block(
+            {'build': {'full': False, 'families': ['stm32f4.*'], 'family_examples': {}}})
+        self.assertGreater(legs, 100, 'a rejected family list must fall open to full')
+        self.assertEqual(filtered, 'false')
+        self.assertEqual(regex, '')
+
     def test_membrowse_upload_sees_the_same_board_as_the_build(self):
         # $EX_ARGS is passed for the BOARD it selects: --one-first picks a board that can
         # build the -e set, so without it membrowse configures a different, empty build
