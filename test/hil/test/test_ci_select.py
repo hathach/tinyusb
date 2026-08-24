@@ -938,6 +938,102 @@ class TestClassesWithNoEnablingExample(unittest.TestCase):
                          'both axes, so nothing compiles it until the next master push')
 
 
+class TestSelectionBehavioursThatHadNoTest(unittest.TestCase):
+    """Five behaviours a reviewer's mutation pass proved were unpinned: break each one
+    and the whole suite stayed green. Each test here fails against its mutant.
+
+    They are grouped because they share a shape - every one is a small expression whose
+    removal silently NARROWS the selection, which is the failure direction that merges a
+    regression rather than wasting a runner."""
+
+    def test_build_defines_reach_the_prefilter(self):
+        # mutant: `defines = ()` in build.py's build_boards_list. metro_m4_express gets
+        # MAX3421_HOST=1 from its roster variant, never from its BSP, so without the
+        # defines the -e prefilter drops the rig's only MAX3421 firmware and hil-tinyusb
+        # has nothing to flash.
+        import build as build_py, build_utils, inspect
+        src = inspect.getsource(build_py.build_boards_list)
+        self.assertIn('defines = tuple(sorted(build_defines))', src,
+                      'the -D tokens must reach cmake_board/skip_example')
+        old = os.getcwd()
+        os.chdir(REPO)
+        try:
+            ex, board = 'dual/host_info_to_device_cdc', 'metro_m4_express'
+            self.assertTrue(build_utils.skip_example(ex, board),
+                            'without the define this example is correctly skipped')
+            self.assertFalse(build_utils.skip_example(ex, board, ('MAX3421_HOST=1',)),
+                             'with it, it must build - that is what the roster passes')
+        finally:
+            os.chdir(old)
+
+    def test_one_first_prefers_a_board_that_can_build_the_filter(self):
+        # mutant: buildable() -> True, i.e. back to all_boards[0]. lpc54's first board
+        # skips every msc_file_explorer example, so the leg would compile nothing.
+        import build as build_py
+        old_env, old = os.environ.get('GITHUB_ACTIONS'), os.getcwd()
+        os.environ['GITHUB_ACTIONS'] = 'true'
+        os.chdir(REPO)
+        try:
+            unfiltered = build_py.get_family_boards('lpc54', False, True)
+            filtered = build_py.get_family_boards('lpc54', False, True,
+                                                  ['host/msc_file_explorer'])
+            self.assertEqual(unfiltered, ['lpcxpresso54114'], 'unfiltered pick must not move')
+            self.assertNotEqual(filtered, unfiltered,
+                                'the -e pick must avoid a board that skips the whole filter')
+            import build_utils
+            self.assertFalse(build_utils.skip_example('host/msc_file_explorer', filtered[0]),
+                             f'{filtered[0]} must actually build the filtered example')
+        finally:
+            os.chdir(old)
+            if old_env is None:
+                os.environ.pop('GITHUB_ACTIONS', None)
+            else:
+                os.environ['GITHUB_ACTIONS'] = old_env
+
+    def test_a_class_file_selects_its_own_macro_not_just_the_directory(self):
+        # mutant: delete the _CLS_STEM_RE block. src/class/midi holds MIDI 1.0 AND 2.0;
+        # examples/device/midi2_device is the only example enabling CFG_TUD_MIDI2 and the
+        # only one that compiles midi2_device.c, but the directory macro alone misses it.
+        got = ci_select._build_class_examples('midi', 'midi2_device.c', {'device'}, REPO)
+        self.assertIn('device/midi2_device', got,
+                      'a midi2 change must select the example that compiles it')
+        host = ci_select._build_class_examples('midi', 'midi2_host.c', {'host'}, REPO)
+        self.assertIn('host/midi2_host', host)
+        # and the plain midi files must NOT drag midi2 in
+        plain = ci_select._build_class_examples('midi', 'midi_device.c', {'device'}, REPO)
+        self.assertNotIn('device/midi2_device', plain)
+
+    def test_a_port_change_selects_the_dual_examples(self):
+        # mutant: drop `+ ('dual',)`. A dcd/hcd change must build the dual examples -
+        # they exercise both stacks on one board, so a dwc2 break lands there first.
+        s = ci_select.classify_build(['src/portable/synopsys/dwc2/dcd_dwc2.c'], REPO)
+        duals = {e for exs in s['family_examples'].values() for e in exs
+                 if e.startswith('dual/')}
+        self.assertTrue(duals, 'a dcd change selected no dual example')
+
+    def test_the_selector_answers_the_same_with_and_without_ci_env(self):
+        # mutant: drop ci=True from _prune_buildable. ci_skip_boards/ci_preferred_boards
+        # only apply when GITHUB_ACTIONS/CIRCLECI is set, so without the pin a laptop and
+        # a runner disagree - and /pre-pr would report a family list CI will not build.
+        files = ['examples/host/cdc_msc_hid_freertos/src/main.c']
+        old = os.environ.get('GITHUB_ACTIONS')
+        os.environ.pop('GITHUB_ACTIONS', None)
+        try:
+            local = ci_select.classify_build(files, REPO)['families']
+            os.environ['GITHUB_ACTIONS'] = 'true'
+            import importlib
+            importlib.reload(ci_select)
+            runner = ci_select.classify_build(files, REPO)['families']
+        finally:
+            if old is None:
+                os.environ.pop('GITHUB_ACTIONS', None)
+            else:
+                os.environ['GITHUB_ACTIONS'] = old
+            import importlib
+            importlib.reload(ci_select)
+        self.assertEqual(local, runner, 'the selector must not depend on the CI env vars')
+
+
 class TestRuleTableIsCarbonOfTheSpec(unittest.TestCase):
     """ci_select's module docstring carries the rule table so a reader landing in the
     code does not have to open the spec to learn what rule 6 is. Both are maintained by
@@ -1525,10 +1621,17 @@ class TestBuildPostFilter(unittest.TestCase):
         # the accepted net for a break outside its #if guard). src/class/bth is the
         # live instance of this state today; TestClassesWithNoEnablingExample pins the
         # whole set, so a new one cannot appear unnoticed.
-        s = ci_select.classify_build(['src/class/vendor/vendor_host.c'], REPO)
+        # src/class/bth/bth_device.c, a file that EXISTS: the old assertion named
+        # src/class/vendor/vendor_host.c, deleted by the same branch, so any made-up
+        # path reached the same branch and the test passed vacuously.
+        real = os.path.join(REPO, 'src/class/bth/bth_device.c')
+        self.assertTrue(os.path.isfile(real), 'the case needs a file that exists')
+        s = ci_select.classify_build(['src/class/bth/bth_device.c'], REPO)
         self.assertFalse(s['full'])
         self.assertEqual(s['families'], [])
         self.assertTrue(any('no contribution' in r for r in s['reasons']), s['reasons'])
+        # and the reason must name the class, not just any empty answer
+        self.assertTrue(any('bth' in r for r in s['reasons']), s['reasons'])
 
     def test_class_source_with_examples_still_scopes(self):
         s = ci_select.classify_build(['src/class/cdc/cdc_device.c'], REPO)
