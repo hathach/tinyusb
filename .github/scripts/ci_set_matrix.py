@@ -131,7 +131,13 @@ def set_matrix_json(select=None):
         # a family this file does not list builds on no toolchain, so it contributes no
         # leg. hw/bsp holds several CI has never built (efm32, py32f0, same7x, ...) plus
         # espressif, whose boards hil-build-esp builds by name.
-        unbuilt = sorted(f for f in sel_fams if f not in family_list)
+        # espressif is not a gap: its examples need the ESP-IDF environment
+        # (CLAUDE.md: `. "$IDF_PATH/export.sh"` before any build), which the cmake legs
+        # do not have - that is why it is commented out of family_list above. Its
+        # coverage comes from hil-build-esp, which builds those boards BY NAME in an IDF
+        # container, so an espressif-only PR is already validated and falling open to the
+        # full matrix would add 74 legs, none of which can compile espressif.
+        unbuilt = sorted(f for f in sel_fams if f not in family_list and f != 'espressif')
         if unbuilt and not any(matrix.values()):
             # NONE of the selected families is buildable here, so every leg would skip
             # and the PR would go green from a build job that ran no compiler. That is

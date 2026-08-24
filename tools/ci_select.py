@@ -53,7 +53,10 @@ def _read(path: str) -> str:
 
 
 _NONCODE_RE = re.compile(
-    r'^(docs/|\.claude/|.*\.(md|rst)$|LICENSE)')
+    # LICENSE is anchored and LICENSES/ named separately: a bare `LICENSE` alternative
+    # also swallowed anything merely STARTING with it (a future LICENSE_extra.c),
+    # which is the silent-under-selection direction
+    r'^(docs/|\.claude/|.*\.(md|rst)$|LICENSE$|LICENSES/)')
 # Repo metadata and tooling that no CI build reads. Enumerated rather than left to
 # rule 17, which widens BOTH axes: a PR touching only .gitignore and a README was
 # creating 74 cmake legs (each a runner doing checkout + toolchain + get_deps before
@@ -152,10 +155,20 @@ def board_tests(board: dict) -> list:
     return [x for x in run if x not in t.get('skip', [])]
 
 
+
+def _rg(repo_root: str, *parts: str) -> str:
+    """A glob pattern rooted at repo_root, with the ROOT escaped and the parts left as
+    patterns. The root is a filesystem path, not a pattern: a checkout at
+    /w/pr[1]/tinyusb (a worktree named after a PR, a CI workspace with brackets) makes
+    an unescaped '[1]' a character class that matches nothing, and every lookup below
+    then resolves to zero - families=0 instead of 30, i.e. the selector fails CLOSED
+    and the whole matrix compiles nothing while reporting green."""
+    return os.path.join(glob.escape(repo_root), *parts)
+
 # cached: called per changed file x roster board, and the tree doesn't change mid-run
 @functools.lru_cache(maxsize=None)
 def board_family(board_name: str, repo_root: str):
-    hits = glob.glob(os.path.join(repo_root, 'hw/bsp/*/boards', board_name))
+    hits = glob.glob(_rg(repo_root, 'hw/bsp/*/boards', board_name))
     return os.path.basename(os.path.dirname(os.path.dirname(hits[0]))) if hits else None
 
 
@@ -263,10 +276,10 @@ def _family_file_texts(repo_root: str) -> tuple:
     CMakeLists.txt, read once. path_families is called per distinct directory in the
     diff and its own cache only helps repeats: a 6,000-file hw/mcu dep bump re-read
     these 84 files 99,892 times (2.2 s) before this."""
-    bsp_root = os.path.join(repo_root, 'hw/bsp')
+    bsp_root = os.path.join(repo_root, 'hw/bsp')   # escaped by _rg below
     out = []
-    for f in sorted(glob.glob(os.path.join(bsp_root, '*/family.cmake')) +
-                    glob.glob(os.path.join(bsp_root, '*/components/*/CMakeLists.txt'))):
+    for f in sorted(glob.glob(_rg(bsp_root, '*/family.cmake')) +
+                    glob.glob(_rg(bsp_root, '*/components/*/CMakeLists.txt'))):
         try:
             out.append((os.path.relpath(f, bsp_root).split(os.sep, 1)[0], _read(f)))
         except OSError:
@@ -386,7 +399,7 @@ def class_include_edges(repo_root: str) -> dict:
     Derived from the actual #include lines rather than a hand-written table so it
     cannot rot when a class picks up or drops a cross-class include."""
     edges = {}
-    for f in sorted(glob.glob(os.path.join(repo_root, 'src/class/*/*.[ch]'))):
+    for f in sorted(glob.glob(_rg(repo_root, 'src/class/*/*.[ch]'))):
         cls = os.path.basename(os.path.dirname(f))
         try:
             text = _read(f)
@@ -511,7 +524,7 @@ def lib_examples(lib_name: str, repo_root: str) -> set:
     pat = re.compile(re.escape('lib/' + lib_name) + r'(?=[/\s"\')}]|$)', re.M)
     out = set()
     for ex in all_examples(repo_root):
-        for f in sorted(glob.glob(os.path.join(repo_root, 'examples', ex, '**', '*'),
+        for f in sorted(glob.glob(_rg(repo_root, 'examples', ex, '**', '*'),
                                   recursive=True)):
             if os.path.basename(f) not in ('CMakeLists.txt', 'Makefile'):
                 continue
@@ -925,7 +938,7 @@ def all_examples(repo_root: str) -> tuple:
     """Every examples/<role>/<name> with a CMakeLists.txt, as 'role/name'."""
     out = []
     for role in _EX_ROLES:
-        for d in sorted(glob.glob(os.path.join(repo_root, 'examples', role, '*/'))):
+        for d in sorted(glob.glob(_rg(repo_root, 'examples', role, '*/'))):
             if os.path.isfile(os.path.join(d, 'CMakeLists.txt')):
                 out.append(f'{role}/{os.path.basename(d.rstrip(os.sep))}')
     return tuple(out)
