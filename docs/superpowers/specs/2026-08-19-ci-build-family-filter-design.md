@@ -146,6 +146,19 @@ the existing `test_hil_util.BottomLayer` structural tests.
 Fail-open survives where it belongs: an *unclassified* path or any exception widens to `ALL` on
 every axis.
 
+### A class no example enables selects nothing
+
+`src/class/bth` is the live instance: no example's `tusb_config.h` sets `CFG_TUD_BTH`, so
+rules 8-10 resolve to no examples and a bth-only PR builds nothing and runs nothing. That is
+the empty-means-empty ruling applied to classes, and it is deliberate — nothing compiles the
+file, so nothing can validate it, and the master-push build is the net.
+
+Worth stating plainly because the exposure changed: GHA used to rebuild everything for such
+a PR by accident, through the empty-`families` bug in `build.yml`. With that fixed, both
+providers now correctly build nothing, so `tud_bt_*` can be broken by a green PR.
+`TestClassesWithNoEnablingExample` pins the set to `{bth}` so a second class cannot enter
+this state unnoticed.
+
 ### Why `hw/mcu/**` is rule 7 and not "full"
 
 `hw/mcu` is overwhelmingly dependency territory — `tools/get_deps.py` has 87 entries under it,
