@@ -68,14 +68,9 @@ jobs:
         with:
           fetch-depth: 0
 
-      # The `ci-full` PR label turns the scoping off for one PR: no selection file is
-      # written, so both matrices and every rig job fall back to the unscoped behaviour.
-      # An escape hatch is the point - a selector bug under-selects SILENTLY, and without
-      # a label the only routes back to a full matrix are accidental (touch an
-      # unclassified path, or break the selector badly enough that it falls open).
       - name: CI selection (PR only)
         id: hil-select
-        if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'ci-full')
+        if: github.event_name == 'pull_request'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
