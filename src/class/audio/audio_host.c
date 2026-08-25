@@ -237,14 +237,11 @@ static bool audioh_format_from_uac1(uint8_t subframe_size, uint8_t bit_resolutio
   return true;
 }
 
-// Endpoint poll interval in microseconds: full-speed bInterval is in 1 ms
-// frames, high-speed isochronous bInterval is a power-of-2 exponent of
-// 125 us microframes
+// Isochronous bInterval is a power-of-2 exponent in 1 ms full-speed frames
+// or 125 us high-speed microframes.
 static uint32_t audioh_interval_us(uint8_t ep_interval, uint8_t daddr) {
-  if (tuh_speed_get(daddr) == TUSB_SPEED_HIGH) {
-    return ((uint32_t)1u << (ep_interval - 1)) * 125u;
-  }
-  return (uint32_t)ep_interval * 1000u;
+  const uint32_t unit_us = (tuh_speed_get(daddr) == TUSB_SPEED_HIGH) ? 125u : 1000u;
+  return ((uint32_t)1u << (ep_interval - 1)) * unit_us;
 }
 
 // UAC 1.0 feature-unit control value width (0 = unsupported variable/unknown width)
