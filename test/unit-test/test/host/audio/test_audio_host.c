@@ -226,6 +226,19 @@ static const uint8_t playback_with_explicit_feedback[] = {
   TEST_UAC1_DATA_EP(0x81, TUSB_ISO_EP_ATT_EXPLICIT_FB, 3, 1),
 };
 
+static const uint8_t midi_only_collection[] = {
+  TEST_UAC1_AC_HEADER,
+  9,
+  TUSB_DESC_INTERFACE,
+  AUDIO_AS_ITF,
+  0,
+  0,
+  TUSB_CLASS_AUDIO,
+  AUDIO_SUBCLASS_MIDI_STREAMING,
+  AUDIO_INT_PROTOCOL_CODE_V1,
+  0,
+};
+
 static const uint8_t playback_with_implicit_feedback[] = {
   TEST_UAC1_AC_HEADER,
   TEST_UAC1_INPUT_TERM(PLAYBACK_INPUT_TERM, AUDIO_TERM_TYPE_USB_STREAMING, 2),
@@ -417,6 +430,11 @@ static void mount_descriptors(const uint8_t *desc, uint16_t desc_len) {
 }
 
 void test_audio_host_ignores_explicit_feedback_endpoint(void) {
+  // A MIDI-only AC collection must not consume an Audio Host instance.
+  TEST_ASSERT_EQUAL_UINT16(0, audioh_open(0, AUDIO_DEV_ADDR, (const tusb_desc_interface_t *)midi_only_collection,
+                                          sizeof(midi_only_collection)));
+  TEST_ASSERT_EQUAL_UINT8(0, tuh_audio_get_dev_addr(0));
+
   open_descriptors(playback_with_explicit_feedback, sizeof(playback_with_explicit_feedback));
 
   TEST_ASSERT_EQUAL_UINT8(1, tuh_audio_stream_count(0));

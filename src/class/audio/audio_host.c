@@ -47,16 +47,24 @@
 
 #if (CFG_TUH_ENABLED && CFG_TUH_AUDIO)
 
-  #include "host/usbh.h"
-  #include "host/usbh_pvt.h"
-  #include "audio_host.h"
+#include "host/usbh.h"
+#include "host/usbh_pvt.h"
+#include "audio_host.h"
 
-  // Level where CFG_TUSB_DEBUG must be at least for this driver is logged
-  #ifndef CFG_TUH_AUDIO_LOG_LEVEL
-    #define CFG_TUH_AUDIO_LOG_LEVEL CFG_TUH_LOG_LEVEL
-  #endif
+// Level where CFG_TUSB_DEBUG must be at least for this driver is logged
+#ifndef CFG_TUH_AUDIO_LOG_LEVEL
+  #define CFG_TUH_AUDIO_LOG_LEVEL CFG_TUH_LOG_LEVEL
+#endif
 
-  #define TU_LOG_DRV(...) TU_LOG(CFG_TUH_AUDIO_LOG_LEVEL, __VA_ARGS__)
+#define TU_LOG_DRV(...) TU_LOG(CFG_TUH_AUDIO_LOG_LEVEL, __VA_ARGS__)
+
+
+//--------------------------------------------------------------------+
+// MACRO CONSTANT TYPEDEF
+//--------------------------------------------------------------------+
+
+// Maximum number of supported configurations per stream (per direction)
+#define AUDIOH_MAX_CONFIGS (CFG_TUH_AUDIO_MAX_AS * CFG_TUH_AUDIO_MAX_SAM_FREQ)
 
 //--------------------------------------------------------------------+
 // Weak stubs: invoked if no strong implementation is available
@@ -87,16 +95,6 @@ TU_ATTR_WEAK void tuh_audio_err_cb(uint8_t idx, uint8_t stream_idx, uint16_t xfe
   (void)stream_idx;
   (void)xferred_bytes;
 }
-
-  //--------------------------------------------------------------------+
-  // MACRO CONSTANT TYPEDEF
-  //--------------------------------------------------------------------+
-
-  // Maximum number of supported configurations per stream (per direction)
-  #define AUDIOH_MAX_CONFIGS (CFG_TUH_AUDIO_MAX_AS * CFG_TUH_AUDIO_MAX_SAM_FREQ)
-
-  // Maximum number of interfaces in the AC header's interface collection
-  #define AUDIOH_MAX_COLLECTION 16
 
 // Stream state machine
 enum {
@@ -530,26 +528,6 @@ bool audioh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uin
 // Enumeration
 //--------------------------------------------------------------------+
 
-// AC header interface collection (baInterfaceNr) bounds-checked
-typedef struct TU_ATTR_PACKED {
-  uint8_t  bLength;
-  uint8_t  bDescriptorType;
-  uint8_t  bDescriptorSubType;
-  uint16_t bcdADC;
-  uint16_t wTotalLength;
-  uint8_t  bInCollection;
-  uint8_t  baInterfaceNr[AUDIOH_MAX_COLLECTION];
-} audioh_ac_header_t;
-
-static bool audioh_itf_in_collection(const audioh_ac_header_t *header, uint8_t itf_num) {
-  for (uint8_t i = 0; i < header->bInCollection; i++) {
-    if (header->baInterfaceNr[i] == itf_num) {
-      return true;
-    }
-  }
-  return false;
-}
-
 // Parse one Audio Streaming interface alternate setting and register its
 // supported configurations into the matching stream. Returns the descriptor
 // pointer of the next interface.
@@ -812,37 +790,17 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
 
   TU_LOG_DRV("AUDIO opening AC Interface %u (addr = %u)\r\n", desc_itf->bInterfaceNumber, dev_addr);
 
-  // Parse the Audio Control interface descriptors and the interface collection
-  audioh_ac_header_t header                = {0};
-  uint8_t            usb_input_terminal_id = 0;
-  uint8_t            usb_output_source_id  = 0;
+  uint8_t usb_input_terminal_id = 0;
+  uint8_t usb_output_source_id  = 0;
+  bool    found_as_interface    = false;
   // A Feature Unit may precede the USB terminal that identifies its stream.
-  uint8_t            pending_fu_id         = 0;
-  uint8_t            pending_fu_source_id  = 0;
-  bool               have_header           = false;
+  uint8_t pending_fu_id        = 0;
+  uint8_t pending_fu_source_id = 0;
 
   p_desc = tu_desc_next(p_desc);
   while (tu_desc_in_bounds(p_desc, desc_end) && tu_desc_type(p_desc) != TUSB_DESC_INTERFACE) {
     if (tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE) {
       switch (tu_desc_subtype(p_desc)) {
-        case AUDIO10_CS_AC_INTERFACE_HEADER: {
-          const audioh_ac_header_t *desc_header = (const audioh_ac_header_t *)p_desc;
-          if (desc_header->bLength >= 8) {
-            header.bInCollection = desc_header->bInCollection;
-            // The collection array must not extend past the descriptor itself
-            const uint8_t max_collection = TU_MIN((uint8_t)(desc_header->bLength - 8), (uint8_t)AUDIOH_MAX_COLLECTION);
-            if (header.bInCollection > max_collection) {
-              TU_LOG_DRV("  AUDIO AC header collection truncated to %u interfaces\r\n", max_collection);
-              header.bInCollection = max_collection;
-            }
-            if (header.bInCollection > 0) {
-              memcpy(header.baInterfaceNr, desc_header->baInterfaceNr, header.bInCollection);
-              // An empty collection falls back to the interface-class heuristic
-              have_header = true;
-            }
-          }
-          break;
-        }
         case AUDIO10_CS_AC_INTERFACE_INPUT_TERMINAL: {
           const audio10_desc_input_terminal_t *terminal = (const audio10_desc_input_terminal_t *)p_desc;
           if (terminal->bLength >= sizeof(audio10_desc_input_terminal_t) &&
@@ -896,9 +854,7 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
     p_desc = tu_desc_next(p_desc);
   }
 
-  // Parse the Audio Streaming interfaces of this audio function. Interfaces
-  // outside the AC header's collection (e.g. MIDI Streaming interfaces) are
-  // left for other class drivers.
+  // Parse the contiguous Audio Streaming interfaces of this audio function.
   while (tu_desc_in_bounds(p_desc, desc_end)) {
     if (tu_desc_type(p_desc) != TUSB_DESC_INTERFACE) {
       p_desc = tu_desc_next(p_desc);
@@ -906,20 +862,27 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
     }
 
     const tusb_desc_interface_t *desc_interface = (const tusb_desc_interface_t *)p_desc;
-    const bool in_collection = have_header ? audioh_itf_in_collection(&header, desc_interface->bInterfaceNumber)
-                                           : desc_interface->bInterfaceClass == TUSB_CLASS_AUDIO;
-    if (!in_collection) {
+    if (desc_interface->bInterfaceClass != TUSB_CLASS_AUDIO ||
+        desc_interface->bInterfaceSubClass != AUDIO_SUBCLASS_STREAMING) {
       break;
     }
 
-    if (desc_interface->bInterfaceSubClass == AUDIO_SUBCLASS_STREAMING) {
-      TU_LOG_DRV("  Found AS Interface %u (alt = %u)\r\n", desc_interface->bInterfaceNumber,
-                 desc_interface->bAlternateSetting);
-      p_desc = audioh_parse_as(p_audio, desc_interface, p_desc, desc_end);
-    } else {
-      // MIDI Streaming or another subclass: not our interface
-      break;
-    }
+    found_as_interface = true;
+    TU_LOG_DRV("  Found AS Interface %u (alt = %u)\r\n", desc_interface->bInterfaceNumber,
+               desc_interface->bAlternateSetting);
+    p_desc = audioh_parse_as(p_audio, desc_interface, p_desc, desc_end);
+  }
+
+  // This AC interface belongs to MIDI or another Audio subclass. Release the
+  // tentative instance and let the next class driver claim the interface.
+  if (!found_as_interface) {
+    audioh_stream_reset(&p_audio->in_stream);
+    audioh_stream_reset(&p_audio->out_stream);
+    p_audio->daddr        = 0;
+    p_audio->ac_itf_num   = 0;
+    p_audio->stream_count = 0;
+    p_audio->mounted      = false;
+    return 0;
   }
 
   // Assign stream indices: playback first, then capture, so the application
