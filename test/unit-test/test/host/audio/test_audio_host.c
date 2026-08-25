@@ -10,9 +10,10 @@ TEST_SOURCE_FILE("audio_host.c")
 TEST_SOURCE_FILE("tusb_fifo.c")
 
 enum {
-  AUDIO_DEV_ADDR = 1,
-  AUDIO_AC_ITF   = 0,
-  AUDIO_AS_ITF   = 1,
+  AUDIO_DEV_ADDR  = 1,
+  AUDIO_AC_ITF    = 0,
+  AUDIO_AS_ITF    = 1,
+  AUDIO_AS_IN_ITF = 2,
 
   PLAYBACK_INPUT_TERM  = 1,
   PLAYBACK_FU          = 2,
@@ -177,6 +178,11 @@ uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s) {
   9, TUSB_DESC_INTERFACE, AUDIO_AC_ITF, 0, 0, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_CONTROL, AUDIO_INT_PROTOCOL_CODE_V1, 0, \
     9, TUSB_DESC_CS_INTERFACE, AUDIO10_CS_AC_INTERFACE_HEADER, 0x00, 0x01, 0x09, 0x00, 1, AUDIO_AS_ITF
 
+#define TEST_UAC1_AC_HEADER_2                                                                                          \
+  9, TUSB_DESC_INTERFACE, AUDIO_AC_ITF, 0, 0, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_CONTROL, AUDIO_INT_PROTOCOL_CODE_V1, 0, \
+    10, TUSB_DESC_CS_INTERFACE, AUDIO10_CS_AC_INTERFACE_HEADER, 0x00, 0x01, 0x34, 0x00, 2, AUDIO_AS_ITF,               \
+    AUDIO_AS_IN_ITF
+
 #define TEST_UAC1_INPUT_TERM(_id, _type, _channels)                                                            \
   12, TUSB_DESC_CS_INTERFACE, AUDIO10_CS_AC_INTERFACE_INPUT_TERMINAL, _id, U16_TO_U8S_LE(_type), 0, _channels, \
     U16_TO_U8S_LE(AUDIO10_CHANNEL_CONFIG_NON_PREDEFINED), 0, 0
@@ -188,11 +194,13 @@ uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s) {
 #define TEST_UAC1_OUTPUT_TERM(_id, _type, _source_id)                                                             \
   9, TUSB_DESC_CS_INTERFACE, AUDIO10_CS_AC_INTERFACE_OUTPUT_TERMINAL, _id, U16_TO_U8S_LE(_type), 0, _source_id, 0
 
-#define TEST_UAC1_AS_INTERFACE(_alt, _ep_count)                                                      \
-  9, TUSB_DESC_INTERFACE, AUDIO_AS_ITF, _alt, _ep_count, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_STREAMING, \
+#define TEST_UAC1_AS_INTERFACE_NUM(_itf, _alt, _ep_count)                                    \
+  9, TUSB_DESC_INTERFACE, _itf, _alt, _ep_count, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_STREAMING, \
     AUDIO_INT_PROTOCOL_CODE_V1, 0
 
-#define TEST_UAC1_AS_ALT0 TEST_UAC1_AS_INTERFACE(0, 0)
+#define TEST_UAC1_AS_INTERFACE(_alt, _ep_count) TEST_UAC1_AS_INTERFACE_NUM(AUDIO_AS_ITF, _alt, _ep_count)
+
+#define TEST_UAC1_AS_ALT0                       TEST_UAC1_AS_INTERFACE(0, 0)
 
 #define TEST_UAC1_AS_GENERAL(_term_id)                                        \
   7, TUSB_DESC_CS_INTERFACE, AUDIO10_CS_AS_INTERFACE_AS_GENERAL, _term_id, 1, \
@@ -203,8 +211,10 @@ uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s) {
     AUDIO10_FORMAT_TYPE_I, _channels, _bytes, _bits, TU_ARGS_NUM(__VA_ARGS__),                     \
     TU_ARGS_APPLY_EXPAND(U24_TO_U8S_LE, __VA_ARGS__)
 
-#define TEST_UAC1_DATA_EP(_ep, _attr, _size, _interval)                                                \
-  9, TUSB_DESC_ENDPOINT, _ep, (TUSB_XFER_ISOCHRONOUS | (_attr)), U16_TO_U8S_LE(_size), _interval, 0, 0
+#define TEST_UAC1_DATA_EP_SYNC(_ep, _attr, _size, _interval, _sync_ep)                                        \
+  9, TUSB_DESC_ENDPOINT, _ep, (TUSB_XFER_ISOCHRONOUS | (_attr)), U16_TO_U8S_LE(_size), _interval, 0, _sync_ep
+
+#define TEST_UAC1_DATA_EP(_ep, _attr, _size, _interval) TEST_UAC1_DATA_EP_SYNC(_ep, _attr, _size, _interval, 0)
 
 #define TEST_UAC1_CS_DATA_EP_ATTR(_attr)                                                                               \
   7, TUSB_DESC_CS_ENDPOINT, AUDIO10_CS_EP_SUBTYPE_GENERAL, _attr, AUDIO10_CS_AS_ISO_DATA_EP_LOCK_DELAY_UNIT_UNDEFINED, \
@@ -240,6 +250,26 @@ static const uint8_t midi_only_collection[] = {
 };
 
 static const uint8_t playback_with_implicit_feedback[] = {
+  TEST_UAC1_AC_HEADER_2,
+  TEST_UAC1_INPUT_TERM(PLAYBACK_INPUT_TERM, AUDIO_TERM_TYPE_USB_STREAMING, 2),
+  TEST_UAC1_OUTPUT_TERM(PLAYBACK_OUTPUT_TERM, AUDIO_TERM_TYPE_OUT_HEADPHONES, PLAYBACK_INPUT_TERM),
+  TEST_UAC1_INPUT_TERM(CAPTURE_INPUT_TERM, AUDIO_TERM_TYPE_IN_GENERIC_MIC, 1),
+  TEST_UAC1_OUTPUT_TERM(CAPTURE_OUTPUT_TERM, AUDIO_TERM_TYPE_USB_STREAMING, CAPTURE_INPUT_TERM),
+  TEST_UAC1_AS_ALT0,
+  TEST_UAC1_AS_INTERFACE(1, 1),
+  TEST_UAC1_AS_GENERAL(PLAYBACK_INPUT_TERM),
+  TEST_UAC1_FORMAT(2, 2, 16, 48000),
+  TEST_UAC1_DATA_EP_SYNC(0x01, TUSB_ISO_EP_ATT_ADAPTIVE, 192, 1, 0x81),
+  TEST_UAC1_CS_DATA_EP,
+  TEST_UAC1_AS_INTERFACE_NUM(AUDIO_AS_IN_ITF, 0, 0),
+  TEST_UAC1_AS_INTERFACE_NUM(AUDIO_AS_IN_ITF, 1, 1),
+  TEST_UAC1_AS_GENERAL(CAPTURE_OUTPUT_TERM),
+  TEST_UAC1_FORMAT(1, 2, 16, 48000),
+  TEST_UAC1_DATA_EP(0x81, TUSB_ISO_EP_ATT_IMPLICIT_FB, 96, 1),
+  TEST_UAC1_CS_DATA_EP,
+};
+
+static const uint8_t playback_with_extra_data_endpoint[] = {
   TEST_UAC1_AC_HEADER,
   TEST_UAC1_INPUT_TERM(PLAYBACK_INPUT_TERM, AUDIO_TERM_TYPE_USB_STREAMING, 2),
   TEST_UAC1_OUTPUT_TERM(PLAYBACK_OUTPUT_TERM, AUDIO_TERM_TYPE_OUT_HEADPHONES, PLAYBACK_INPUT_TERM),
@@ -448,6 +478,13 @@ void test_audio_host_treats_implicit_feedback_as_audio_in_endpoint(void) {
   TEST_ASSERT_EQUAL_UINT8(2, tuh_audio_stream_count(0));
   TEST_ASSERT_EQUAL(TUH_AUDIO_STREAM_PLAYBACK, tuh_audio_stream_direction(0, 0));
   TEST_ASSERT_EQUAL(TUH_AUDIO_STREAM_CAPTURE, tuh_audio_stream_direction(0, 1));
+}
+
+void test_audio_host_ignores_second_data_endpoint_in_same_as_interface(void) {
+  open_descriptors(playback_with_extra_data_endpoint, sizeof(playback_with_extra_data_endpoint));
+
+  TEST_ASSERT_EQUAL_UINT8(1, tuh_audio_stream_count(0));
+  TEST_ASSERT_EQUAL(TUH_AUDIO_STREAM_PLAYBACK, tuh_audio_stream_direction(0, 0));
 }
 
 void test_audio_host_maps_playback_fu_declared_before_usb_input_terminal(void) {

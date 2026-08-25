@@ -554,9 +554,9 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const tusb_de
   uint8_t  sam_freq_count                       = 0;
   uint32_t sam_freq[CFG_TUH_AUDIO_MAX_SAM_FREQ] = {0};
 
-  // An alternate setting can expose an endpoint in each direction. Explicit
-  // feedback endpoints are skipped; implicit-feedback data endpoints remain
-  // normal audio endpoints.
+  // An AS alternate setting has one audio data endpoint and may have one
+  // explicit feedback endpoint. Implicit-feedback endpoints are data endpoints
+  // and are handled normally when they are the AS interface's data endpoint.
   typedef struct {
     uint8_t  ep_addr;
     uint16_t ep_size;
@@ -565,8 +565,8 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const tusb_de
     uint8_t  ep_usage;
     bool     sam_freq_ctrl;
   } audioh_ep_info_t;
-  audioh_ep_info_t ep_info[2] = {0};
-  uint8_t          ep_count   = 0;
+  audioh_ep_info_t ep_info     = {0};
+  bool             has_data_ep = false;
   // The CS_ENDPOINT descriptor carries the sampling-frequency control bit of
   // its endpoint. Devices differ in whether it precedes or follows the
   // standard endpoint descriptor, so attribute it in either order.
@@ -612,8 +612,8 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const tusb_de
           const bool                              sam_freq_ctrl = (desc_ep->bmAttributes & 0x01) != 0;
           if (unassigned_ep) {
             // Standard order: the CS_ENDPOINT follows its endpoint descriptor
-            ep_info[ep_count - 1].sam_freq_ctrl = sam_freq_ctrl;
-            unassigned_ep                       = false;
+            ep_info.sam_freq_ctrl = sam_freq_ctrl;
+            unassigned_ep         = false;
           } else {
             // Non-standard order: the CS_ENDPOINT precedes its endpoint descriptor
             pending_sam_freq_ctrl = sam_freq_ctrl;
@@ -640,21 +640,26 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const tusb_de
           break;
         }
 
-        if ((usage == (TUSB_ISO_EP_ATT_DATA >> 4) || implicit_feedback) && ep_count < 2) {
-          audioh_ep_info_t *ep = &ep_info[ep_count];
-          ep->ep_addr          = desc_endpoint->bEndpointAddress;
-          ep->ep_size          = tu_edpt_packet_size(desc_endpoint);
-          ep->ep_interval      = desc_endpoint->bInterval;
-          // bInterval must be in [1, 16] for isochronous endpoints
-          if (ep->ep_interval == 0 || ep->ep_interval > 16) {
-            ep->ep_interval = 1;
+        if (usage == (TUSB_ISO_EP_ATT_DATA >> 4) || implicit_feedback) {
+          if (has_data_ep) {
+            TU_LOG_DRV("  AUDIO AS itf %u alt %u: extra data ep %02x ignored\r\n", itf_num, alt,
+                       desc_endpoint->bEndpointAddress);
+            break;
           }
-          ep->ep_sync           = desc_endpoint->bmAttributes.sync;
-          ep->ep_usage          = desc_endpoint->bmAttributes.usage;
-          ep->sam_freq_ctrl     = pending_sam_freq_ctrl;
+
+          ep_info.ep_addr     = desc_endpoint->bEndpointAddress;
+          ep_info.ep_size     = tu_edpt_packet_size(desc_endpoint);
+          ep_info.ep_interval = desc_endpoint->bInterval;
+          // bInterval must be in [1, 16] for isochronous endpoints
+          if (ep_info.ep_interval == 0 || ep_info.ep_interval > 16) {
+            ep_info.ep_interval = 1;
+          }
+          ep_info.ep_sync       = desc_endpoint->bmAttributes.sync;
+          ep_info.ep_usage      = desc_endpoint->bmAttributes.usage;
+          ep_info.sam_freq_ctrl = pending_sam_freq_ctrl;
           pending_sam_freq_ctrl = false;
-          unassigned_ep         = !ep->sam_freq_ctrl;
-          ep_count++;
+          unassigned_ep         = !ep_info.sam_freq_ctrl;
+          has_data_ep           = true;
         }
         break;
       }
@@ -664,7 +669,7 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const tusb_de
     p_desc = tu_desc_next(p_desc);
   }
 
-  if (ep_count == 0) {
+  if (!has_data_ep) {
     return p_desc;
   }
 
@@ -692,77 +697,73 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const tusb_de
   }
   const uint16_t frame_bytes = (uint16_t)frame_bytes_32;
 
-  // Register one configuration per (endpoint, discrete sampling frequency)
-  for (uint8_t e = 0; e < ep_count; e++) {
-    const audioh_ep_info_t *ep     = &ep_info[e];
-    tuh_audio_stream_t     *stream = audioh_get_stream(p_audio, tu_edpt_dir(ep->ep_addr));
-    if (stream == NULL) {
+  // Register one configuration per discrete sampling frequency
+  const audioh_ep_info_t *ep     = &ep_info;
+  tuh_audio_stream_t     *stream = audioh_get_stream(p_audio, tu_edpt_dir(ep->ep_addr));
+  TU_ASSERT(stream != NULL, p_desc);
+
+  const uint16_t epbuf_size = (stream->dir == TUSB_DIR_IN) ? CFG_TUH_AUDIO_EPIN_BUFSIZE : CFG_TUH_AUDIO_EPOUT_BUFSIZE;
+
+  if (ep->ep_size == 0 || ep->ep_size > iso_xfer_size) {
+    TU_LOG_DRV("  AUDIO AS itf %u alt %u: invalid isochronous ep size %u\r\n", itf_num, alt, ep->ep_size);
+    return p_desc;
+  }
+
+  // Capture: the device can deliver up to its max packet size per poll
+  // interval, the transfer buffer must fit it
+  if (stream->dir == TUSB_DIR_IN && (ep->ep_size > epbuf_size || ep->ep_size > CFG_TUH_AUDIO_STREAM_BUFSIZE)) {
+    TU_LOG_DRV("  AUDIO AS itf %u alt %u: capture ep size %u exceeds buffer capacity\r\n", itf_num, alt, ep->ep_size);
+    return p_desc;
+  }
+
+  for (uint8_t i = 0; i < sam_freq_count; i++) {
+    if (sam_freq[i] == 0) {
       continue;
     }
 
-    const uint16_t epbuf_size = (stream->dir == TUSB_DIR_IN) ? CFG_TUH_AUDIO_EPIN_BUFSIZE : CFG_TUH_AUDIO_EPOUT_BUFSIZE;
-
-    if (ep->ep_size == 0 || ep->ep_size > iso_xfer_size) {
-      TU_LOG_DRV("  AUDIO AS itf %u alt %u: invalid isochronous ep size %u\r\n", itf_num, alt, ep->ep_size);
+    // The largest whole-frame packet for one poll interval must fit the
+    // endpoint. Playback must also stage it in the transfer buffer and FIFO.
+    const uint64_t frames_numerator = (uint64_t)sam_freq[i] * audioh_interval_us(ep->ep_interval, p_audio->daddr);
+    const uint64_t max_frames       = (frames_numerator + 999999u) / 1000000u;
+    const uint64_t packet_bytes     = max_frames * frame_bytes;
+    if (packet_bytes == 0 || packet_bytes > ep->ep_size ||
+        (stream->dir == TUSB_DIR_OUT && (packet_bytes > epbuf_size || packet_bytes > CFG_TUH_AUDIO_STREAM_BUFSIZE))) {
+      TU_LOG_DRV("  AUDIO AS itf %u alt %u: packet per interval does not fit endpoint/buffers (ep size %u)\r\n",
+                 itf_num, alt, ep->ep_size);
+      continue;
+    }
+    // Skip duplicate configurations
+    bool duplicate = false;
+    for (uint8_t j = 0; j < stream->config_count; j++) {
+      if (stream->config[j].format == format && stream->config[j].sample_rate == sam_freq[i] &&
+          stream->config[j].channels == num_channels) {
+        duplicate = true;
+        break;
+      }
+    }
+    if (duplicate) {
       continue;
     }
 
-    // Capture: the device can deliver up to its max packet size per poll
-    // interval, the transfer buffer must fit it
-    if (stream->dir == TUSB_DIR_IN && (ep->ep_size > epbuf_size || ep->ep_size > CFG_TUH_AUDIO_STREAM_BUFSIZE)) {
-      TU_LOG_DRV("  AUDIO AS itf %u alt %u: capture ep size %u exceeds buffer capacity\r\n", itf_num, alt, ep->ep_size);
-      continue;
+    if (stream->config_count >= AUDIOH_MAX_CONFIGS) {
+      TU_LOG_DRV("  AUDIO AS itf %u alt %u: reach max configurations %u\r\n", itf_num, alt, AUDIOH_MAX_CONFIGS);
+      return p_desc;
     }
 
-    for (uint8_t i = 0; i < sam_freq_count; i++) {
-      if (sam_freq[i] == 0) {
-        continue;
-      }
-
-      // The largest whole-frame packet for one poll interval must fit the
-      // endpoint. Playback must also stage it in the transfer buffer and FIFO.
-      const uint64_t frames_numerator = (uint64_t)sam_freq[i] * audioh_interval_us(ep->ep_interval, p_audio->daddr);
-      const uint64_t max_frames       = (frames_numerator + 999999u) / 1000000u;
-      const uint64_t packet_bytes     = max_frames * frame_bytes;
-      if (packet_bytes == 0 || packet_bytes > ep->ep_size ||
-          (stream->dir == TUSB_DIR_OUT && (packet_bytes > epbuf_size || packet_bytes > CFG_TUH_AUDIO_STREAM_BUFSIZE))) {
-        TU_LOG_DRV("  AUDIO AS itf %u alt %u: packet per interval does not fit endpoint/buffers (ep size %u)\r\n",
-                   itf_num, alt, ep->ep_size);
-        continue;
-      }
-      // Skip duplicate configurations
-      bool duplicate = false;
-      for (uint8_t j = 0; j < stream->config_count; j++) {
-        if (stream->config[j].format == format && stream->config[j].sample_rate == sam_freq[i] &&
-            stream->config[j].channels == num_channels) {
-          duplicate = true;
-          break;
-        }
-      }
-      if (duplicate) {
-        continue;
-      }
-
-      if (stream->config_count >= AUDIOH_MAX_CONFIGS) {
-        TU_LOG_DRV("  AUDIO AS itf %u alt %u: reach max configurations %u\r\n", itf_num, alt, AUDIOH_MAX_CONFIGS);
-        return p_desc;
-      }
-
-      stream->config[stream->config_count].dir =
-        (stream->dir == TUSB_DIR_IN) ? TUH_AUDIO_STREAM_CAPTURE : TUH_AUDIO_STREAM_PLAYBACK;
-      stream->config[stream->config_count].format      = format;
-      stream->config[stream->config_count].sample_rate = sam_freq[i];
-      stream->config[stream->config_count].channels    = num_channels;
-      stream->map[stream->config_count].itf_num        = itf_num;
-      stream->map[stream->config_count].alt_setting    = alt;
-      stream->map[stream->config_count].ep_addr        = ep->ep_addr;
-      stream->map[stream->config_count].ep_size        = ep->ep_size;
-      stream->map[stream->config_count].ep_interval    = ep->ep_interval;
-      stream->map[stream->config_count].ep_sync        = ep->ep_sync;
-      stream->map[stream->config_count].ep_usage       = ep->ep_usage;
-      stream->map[stream->config_count].sam_freq_ctrl  = ep->sam_freq_ctrl;
-      stream->config_count++;
-    }
+    stream->config[stream->config_count].dir =
+      (stream->dir == TUSB_DIR_IN) ? TUH_AUDIO_STREAM_CAPTURE : TUH_AUDIO_STREAM_PLAYBACK;
+    stream->config[stream->config_count].format      = format;
+    stream->config[stream->config_count].sample_rate = sam_freq[i];
+    stream->config[stream->config_count].channels    = num_channels;
+    stream->map[stream->config_count].itf_num        = itf_num;
+    stream->map[stream->config_count].alt_setting    = alt;
+    stream->map[stream->config_count].ep_addr        = ep->ep_addr;
+    stream->map[stream->config_count].ep_size        = ep->ep_size;
+    stream->map[stream->config_count].ep_interval    = ep->ep_interval;
+    stream->map[stream->config_count].ep_sync        = ep->ep_sync;
+    stream->map[stream->config_count].ep_usage       = ep->ep_usage;
+    stream->map[stream->config_count].sam_freq_ctrl  = ep->sam_freq_ctrl;
+    stream->config_count++;
   }
 
   return p_desc;
@@ -1022,20 +1023,12 @@ bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx
     TU_VERIFY(!usbh_edpt_busy(s->daddr, s->edpt.ep_addr), false);
   }
 
-  // A shared AS interface must not be left in two different alternate settings
   tuh_audio_stream_t *other = (s == &p_audio->out_stream) ? &p_audio->in_stream : &p_audio->out_stream;
   if (other->active_config != TUSB_INDEX_INVALID_8) {
     const tuh_audio_stream_config_t *other_cfg = &other->config[other->active_config];
     if (cfg->sample_rate != other_cfg->sample_rate) {
       TU_LOG_DRV("  AUDIO configure failed: capture/playback sample rates must match (%lu != %lu)\r\n",
                  (unsigned long)cfg->sample_rate, (unsigned long)other_cfg->sample_rate);
-      return false;
-    }
-
-    const audioh_stream_map_t *m1 = &s->map[config_idx];
-    const audioh_stream_map_t *m2 = &other->map[other->active_config];
-    if (m1->itf_num == m2->itf_num && m1->alt_setting != m2->alt_setting) {
-      TU_LOG_DRV("  AUDIO configure failed: shared AS itf %u in conflicting alt settings\r\n", m1->itf_num);
       return false;
     }
   }
