@@ -48,7 +48,7 @@ UART side is also the remote reset: `esptool.py --after hard_reset read_mac`.
 ## Attach
 
 ```bash
-. $HOME/code/esp-idf/export.sh          # openocd-esp32, riscv32-/xtensa-esp32s3-elf-gdb, esptool
+. "$IDF_PATH/export.sh"                 # openocd-esp32, riscv32-/xtensa-esp32s3-elf-gdb, esptool
 openocd -c 'set ESP_RTOS FreeRTOS' -f board/esp32p4-builtin.cfg \
         -c 'adapter serial <MAC-with-colons>' &        # S3: board/esp32s3-builtin.cfg
 riscv32-esp-elf-gdb -batch -ex 'target extended-remote :3333' \

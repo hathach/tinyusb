@@ -7,7 +7,6 @@ mcu:CXD56
 mcu:F1C100S
 mcu:GD32VF103
 mcu:MCXA15
-mcu:MKL25ZXX
 mcu:MSP430x5xx
 mcu:FT90X
 mcu:SAMD11

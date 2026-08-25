@@ -328,7 +328,8 @@ def flash(board: dict, fw, allow_recovery: bool, probe_port: str, note: list) ->
         if rc == 0:
             return True
         if rc == 127:  # flasher binary missing: retries/probe recovery can't fix env
-            note.append(f'flasher tool missing ({err}) — esptool needs the ESP-IDF env (get-idf)'
+            note.append(f'flasher tool missing ({err}) — esptool needs the ESP-IDF env '
+                        f'(. "$IDF_PATH/export.sh")'
                         if board['flasher']['name'].lower() == 'esptool' else
                         f'flasher tool missing: {err}')
             return False
@@ -432,7 +433,7 @@ def build_example(board: dict, variant: str, example: str) -> int:
         cmd = ['idf.py', '-C', f'examples/{example}',
                '-B', f'cmake-build/cmake-build-{vcfg["name"]}/{example}',
                '-G', 'Ninja', f'-DBOARD={name}', 'build']
-        for d in board.get('build', {}).get('args', []) + vcfg.get('defines', []):
+        for d in vcfg.get('defines', []):
             cmd.insert(-1, f'-D{d}')
         if vcfg.get('flags'):
             cmd.insert(-1, f'-DCFLAGS_CLI={vcfg["flags"]}')
@@ -445,8 +446,6 @@ def build_example(board: dict, variant: str, example: str) -> int:
     cmd = [sys.executable, str(hil_util.TINYUSB_ROOT / 'tools' / 'build.py'),
            '-b', name, '-T', Path(example).name,
            '-j', str(max(1, (os.cpu_count() or _jobs) // _jobs))]
-    for d in board.get('build', {}).get('args', []):
-        cmd += ['-D', d]
     if vcfg['name'] != name:
         cmd += ['--build-name', vcfg['name']]
     for d in vcfg.get('defines', []):
@@ -487,7 +486,8 @@ def ensure_fw(board: dict, variant: str, example: str, note: list):
     rc = build_example(board, variant, example)
     if rc == 127 and board['flasher']['name'].lower() == 'esptool':
         _builds[key] = (None, 'no-env')
-        note.append(f'cannot build {base}: ESP-IDF env missing (get-idf)')
+        note.append(f'cannot build {base}: ESP-IDF env missing '
+                    f'(. "$IDF_PATH/export.sh")')
         return None
     if rc == 124:  # hung build: a deps/cache retry cannot cure it, don't double the stall
         _builds[key] = (None, 'timeout')

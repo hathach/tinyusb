@@ -98,6 +98,24 @@ def combine_files(input_files, filters=None):
             if fin.endswith(".json"):
                 with open(fin, "r", encoding="utf-8") as f:
                     json_data = json.load(f)
+                if fin.endswith('_by_example.json') and isinstance(json_data, dict) and \
+                        all(isinstance(v, dict) and 'files' in v for v in json_data.values()):
+                    # a metrics_by_example.json: one data entry per example. Keyed on
+                    # the filename, which IS the contract (write_by_example, the CMake
+                    # rule and metrics_pair_compare all spell that suffix) - a shape
+                    # sniff would silently reroute any coincidentally-shaped JSON.
+                    for ex in sorted(json_data):
+                        # same TOTAL scrub the shared path below applies: this branch
+                        # `continue`s past it, so do it here or a by-example input keeps
+                        # the fake TOTAL rows an ordinary input has stripped
+                        sub = {'files': [f for f in json_data[ex]['files']
+                                         if str(f.get('file', '')).upper() != 'TOTAL']}
+                        if filters:
+                            sub['files'] = [f for f in sub['files']
+                                            if f.get('path') and any(x in f['path'] for x in filters)]
+                        all_json_data['file_list'].append(f'{fin}:{ex}')
+                        all_json_data['data'].append(sub)
+                    continue
                 if filters:
                     json_data["files"] = [
                         f
@@ -314,6 +332,25 @@ def write_json_output(json_data, path):
 
     with open(path, "w", encoding="utf-8") as outf:
         json.dump(json_data, outf, indent=2)
+
+
+def write_by_example(all_json_data, path):
+    """{<role>/<example>: {files: [...]}} from the data combine_files already parsed
+    - re-reading and re-parsing every input a second time bought nothing.
+
+    Inputs are map.json files laid out as <build>/<role>/<example>/<name>.map.json
+    (examples/CMakeLists.txt's pattern), so the example name is the last two path
+    components; a metrics_by_example.json input already carries its own name in the
+    file_list entry ('<file>.json:<role>/<name>')."""
+    out = {}
+    for fin, data in zip(all_json_data["file_list"], all_json_data["data"]):
+        _, sep, ex = fin.partition('.json:')
+        if not sep:
+            d = os.path.dirname(os.path.abspath(fin))
+            ex = f'{os.path.basename(os.path.dirname(d))}/{os.path.basename(d)}'
+        out.setdefault(ex, {'files': []})['files'] += data.get('files', [])
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(out, f)
 
 
 def render_combine_table(json_data, sort_order='name+'):
@@ -594,6 +631,8 @@ def cmd_combine(args):
     if args.markdown_out:
         write_combine_markdown(json_average, args.out + '.md', sort_order=args.sort,
                                title="TinyUSB Average Code Size Metrics")
+    if args.by_example:
+        write_by_example(all_json_data, args.out + '_by_example.json')
 
 
 def cmd_compare(args):
@@ -633,6 +672,8 @@ def main(argv=None):
     combine_parser.add_argument('-S', '--sort', dest='sort', default='size-',
                                 choices=['size', 'size-', 'size+', 'name', 'name-', 'name+'],
                                 help='Sort order: size/size- (descending), size+ (ascending), name/name+ (ascending), name- (descending). Default: size-')
+    combine_parser.add_argument('--by-example', dest='by_example', action='store_true',
+                                help='Also write <out>_by_example.json: per-example file lists keyed by role/example')
 
     # Compare subcommand
     compare_parser = subparsers.add_parser('compare', help='Compare two metrics inputs (bloaty CSV or metrics JSON)')

@@ -294,7 +294,7 @@ reset_lm4flash.no_op = True
 
 
 # The one place a flasher's firmware extension is decided. A flasher with no entry falls
-# back to .elf-or-.bin and can be handed the wrong file — test_hil_select's
+# back to .elf-or-.bin and can be handed the wrong file — test_ci_select's
 # TestRosterFlashersDispatch fails if a roster names one.
 FLASHER_SUFFIX = {
     'esptool': '.bin',

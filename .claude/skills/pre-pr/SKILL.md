@@ -15,7 +15,7 @@ Run the software + hardware gate for the current branch. The user invoking this 
 
 ## 2. Map changes to boards
 
-- `python3 test/hil/helper/hil_select.py --base $BASE test/hil/tinyusb.json` → JSON with the affected
+- `python3 tools/ci_select.py --base $BASE test/hil/tinyusb.json` → JSON with the affected
   bsp `families`, the affected rig `boards`, and per-file `reasons`. `full: true` means a
   broad/infra change.
 - Affected families = `families` ∪ the family of every name in `boards`. Neither half is

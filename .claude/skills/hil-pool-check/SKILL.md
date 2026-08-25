@@ -39,9 +39,14 @@ ssh ci.lan 'bash -lc "cd ~/code/tinyusb && python3 test/hil/helper/hil_pool_chec
 ## Notes
 
 Missing firmware is **built on the spot** — never skipped (`--no-build` opts out; those boards
-then report `flash-failed`). Builds need the family env, exported on the rig in
-`~/.profile`/`~/.bashrc`: `PICO_SDK_PATH` for rp2040/rp2350 (`~/code/pico/pico-sdk`), the
-ESP-IDF env (`get-idf`) for espressif — which also needs `esptool` on PATH (pip's
+then report `flash-failed`). Builds need the family env, referenced by its OFFICIAL variable so the docs hold on any
+rig: `PICO_SDK_PATH` for rp2040/rp2350, `IDF_PATH` for espressif — activated explicitly as
+`. "$IDF_PATH/export.sh"`, never as `get-idf` (an interactive alias; aliases are not expanded
+in non-interactive shells, so scripts get `get-idf: command not found` even under `bash -lc`).
+Each host exports both vars in `~/.bashrc` ABOVE the interactive early-return, which is what
+makes a plain non-interactive `ssh <rig> 'cmd'` see them (verified on ci; where the checkouts
+live is that host's business, not this file's). It also
+needs `esptool` on PATH (pip's
 `~/.local/bin/esptool`; a non-login shell may lack it — run via `bash -lc`). An explicit `-B` is
 searched exclusively for *existing* firmware; builds still land in `cmake-build/` and are noted
 `built <example>`. Espressif boards park too when the IDF env is present. A first run on an
@@ -57,8 +62,78 @@ are *unverified*, not healthy — read the footer, not just `$?`. A `⚠ pid …
 means stale firmware or a silent flash no-op (J-Link lore); a device off the bus entirely needs
 the usb-kernel-recover skill or a physical replug.
 
+## When the tool's probe recovery fails
+
+`flash-failed` with the probe ✅ present and a `probe toggle unconfirmed` note means the probe's
+own firmware is wedged, not the board. The tool's recovery is an `authorized` toggle, which is a
+USB re-enumeration and never removes power, so probes that keep their sysfs kobject across it
+(ST-Link, WCH-Link, CP210x, picoprobe) survive the toggle still wedged. Confirm with the flasher's
+own list — `STM32_Programmer_CLI -l st-link`, or `JLinkExe -CommandFile <script>` with
+`ShowEmuList` in it: a probe that enumerates but reports a blank serial/firmware is answering the
+kernel and not the tool, which is a host-to-probe fault. A dead target reports the opposite: the
+probe identifies itself normally and then fails to connect.
+
+The next rung is a root-port bounce, and what it buys depends on which card the probe hangs off
+(`readlink -f /sys/bus/usb/devices/usb<bus>` gives the PCI address):
+
+- **Renesas** (five cards here): `uhubctl` lists their root hubs as `ppps`-capable, but the cards
+  do not implement it — VBUS never drops, only D+/D− (see usb-kernel-recover). A cycle is therefore
+  a harder forced re-enumeration, **not** a power cycle: worth one attempt, but a probe that rode
+  out the `authorized` toggle can ride this out too. Do not read `ppps` here as power control.
+- **AMD `0000:02:00.0`** (where the WCH-Links live): no port-power switching at all — `uhubctl`
+  does not list it. There is nothing to cycle; go straight to a physical replug.
+
+The leaf hubs are ganged, so a bounce hits every device under that root port. Escalate by hand, in
+this order:
+
+1. **Let the full run finish first.** Never cycle mid-run: the bounce re-enumerates siblings and
+   would corrupt the checks still in flight for other boards.
+2. Identify the subtree and its blast radius, so the report can name what was disturbed:
+   ```bash
+   ls -d /sys/bus/usb/devices/<bus>-<rootport>.*        # siblings that will be bounced
+   ```
+3. **Hold `--all` for the cycle, and release before the re-check.** `hil_lock.py status` only
+   observes; CI can take a board a second later and flash straight into the bounce. The bounce
+   hits every board under the root port and nothing maps a sysfs busport to a board name, so
+   `--all` is the only reservation that actually covers them:
+   ```bash
+   python3 test/hil/helper/hil_lock.py hold --all --config test/hil/tinyusb.json --reason "probe power cycle"
+   ```
+   It is all-or-nothing: a refusal naming `hil_test.py` means a CI job is mid-test — wait, do
+   not force, and do not substitute a partial hold. Release before step 5: `hil_pool_check.py`
+   self-locks every board it checks and reports 🔒 locked for any it cannot take, so a hold
+   still in place makes the whole verification pass report locked against you and verify nothing.
+4. Cycle the ROOT port through the recovery script — rung 2 of usb-kernel-recover, which owns this
+   invocation:
+   ```bash
+   sudo .claude/skills/usb-kernel-recover/scripts/usb_recover.sh \
+        root-cycle <the wedged probe's own busport> [expected-serial]
+   #   e.g. 13-1.6, NOT the 13-1 hub path from step 2 — the script derives the root port
+   #   itself. Give the full path: the script ships inside the checkout, is on no PATH, and
+   #   sudo's secure_path excludes the repo, so a bare `usb_recover.sh` is command-not-found
+   ```
+   Give it the device, not the hub: the expected-serial guard and the success check both read the
+   path you pass, so handing it the hub compares the hub's serial and watches the hub's inode,
+   which always changes when its own root port is cycled — it prints success while the probe is
+   still dead. **Never a bare `uhubctl -a cycle` here.** Without `-S` it writes sysfs `disable`,
+   whose `disable_store` takes the root hub's lock uninterruptibly and then calls
+   `usb_disconnect()` on the child — against the wedged probe you are trying to clear, that blocks
+   while holding the root hub's lock and poisons the whole bus. The script passes `-S`.
+5. Release the locks, then re-check the affected boards:
+   `python3 test/hil/helper/hil_pool_check.py -b BOARD [-b …]`. Include the bounced siblings — a
+   cycle that fixes one probe can leave another unenumerated.
+
+If the second pass still fails, the probe needs a physical replug: no software rung on this rig
+removes VBUS, so there is nothing further to try.
+
 ## Reporting
 
 The user-facing answer to a pool check IS the tool's summary table: paste the complete per-board
 table (and footer counts) verbatim — never truncate rows or reduce it to a prose digest like
 "27/27 healthy"; at most one line of commentary below it.
+
+When an escalation above was needed, add a short note under the table naming: which boards needed
+it, which root port was cycled (or that a replug was needed instead), which siblings bounced, and
+the second-pass result for each.
+Report BOTH passes — a final table showing every board ok hides the fact that a probe had to be
+power-cycled to get there, which is exactly the signal that predicts it recurring.
