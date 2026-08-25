@@ -186,39 +186,43 @@ static inline uint32_t tuh_audio_config_frame_size(const tuh_audio_stream_config
 bool tuh_audio_mounted(uint8_t idx);
 // Get device address of Audio device
 uint8_t tuh_audio_get_dev_addr(uint8_t idx);
-// Get Feature Unit ID
-uint8_t tuh_audio_get_feature_unit_id(uint8_t idx);
+// Get the Feature Unit ID associated with a stream (0 = none)
+uint8_t tuh_audio_get_feature_unit_id(uint8_t idx, uint8_t stream_idx);
 
 //--------------------------------------------------------------------+
 // Control Request API
 //--------------------------------------------------------------------+
 
-// Set a Feature Unit control (mute, volume, ...) of the Audio device (UAC 1.0)
+// Set a Feature Unit control (mute, volume, ...) associated with an Audio stream (UAC 1.0)
 // Mute/bass/mid/treble/AGC/bass boost/loudness use one byte; volume/delay use two.
 // Graphic EQ and unknown selectors are unsupported.
-bool tuh_audio_feature_unit_set(uint8_t idx, uint8_t control_selector, uint8_t channel, uint16_t value,
-                                tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+bool tuh_audio_feature_unit_set(uint8_t idx, uint8_t stream_idx, uint8_t control_selector, uint8_t channel,
+                                uint16_t value, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
-// Get a Feature Unit control (mute, volume, ...) of the Audio device (UAC 1.0)
+// Get a Feature Unit control (mute, volume, ...) associated with an Audio stream (UAC 1.0)
 // The value is converted to host byte order before complete_cb is invoked.
 // Graphic EQ and unknown selectors are unsupported.
 // Only one Feature Unit GET or SET request may be in flight per device.
-bool tuh_audio_feature_unit_get(uint8_t idx, uint8_t control_selector, uint8_t channel, uint16_t *value,
-                                tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+bool tuh_audio_feature_unit_get(uint8_t idx, uint8_t stream_idx, uint8_t control_selector, uint8_t channel,
+                                uint16_t *value, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
 //--------------------------------------------------------------------+
 // Control Request Sync API
 // Each Function will make a USB control transfer request to/from device the function will block until request is
 // complete. The function will return the transfer request result
 //--------------------------------------------------------------------+
-TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t
-tuh_audio_feature_unit_set_sync(uint8_t idx, uint8_t control_selector, uint8_t channel, uint16_t value) {
-  TU_API_SYNC(tuh_audio_feature_unit_set, idx, control_selector, channel, value);
+TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_audio_feature_unit_set_sync(uint8_t idx, uint8_t stream_idx,
+                                                                                       uint8_t  control_selector,
+                                                                                       uint8_t  channel,
+                                                                                       uint16_t value) {
+  TU_API_SYNC(tuh_audio_feature_unit_set, idx, stream_idx, control_selector, channel, value);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t
-tuh_audio_feature_unit_get_sync(uint8_t idx, uint8_t control_selector, uint8_t channel, uint16_t *value) {
-  TU_API_SYNC(tuh_audio_feature_unit_get, idx, control_selector, channel, value);
+TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_audio_feature_unit_get_sync(uint8_t idx, uint8_t stream_idx,
+                                                                                       uint8_t   control_selector,
+                                                                                       uint8_t   channel,
+                                                                                       uint16_t *value) {
+  TU_API_SYNC(tuh_audio_feature_unit_get, idx, stream_idx, control_selector, channel, value);
 }
 
 //--------------------------------------------------------------------+

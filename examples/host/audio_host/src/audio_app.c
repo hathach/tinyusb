@@ -243,12 +243,12 @@ void led_blinking_task(void) {
 #if 0
   // Print the current Feature Unit volume, which is set to 0x0600 in mic_configured() and can be changed by the device.
   uint16_t volume = 0x0001;
-  tuh_audio_feature_unit_get_sync(audio_idx, AUDIO10_FU_CTRL_VOLUME, 0, &volume);
+  tuh_audio_feature_unit_get_sync(audio_idx, cap_stream_idx, AUDIO10_FU_CTRL_VOLUME, 0, &volume);
   printf("  Feature Unit volume get: 0x%04x\r\n", (unsigned int)volume);
   uint16_t mute = 0x0000;
-  tuh_audio_feature_unit_get_sync(audio_idx, AUDIO10_FU_CTRL_MUTE, 0, &mute);
+  tuh_audio_feature_unit_get_sync(audio_idx, cap_stream_idx, AUDIO10_FU_CTRL_MUTE, 0, &mute);
   mute=!mute; // toggle mute for demonstration
-  tuh_audio_feature_unit_set_sync(audio_idx, AUDIO10_FU_CTRL_MUTE, 0, mute);
+  tuh_audio_feature_unit_set_sync(audio_idx, cap_stream_idx, AUDIO10_FU_CTRL_MUTE, 0, mute);
   printf("  Feature Unit mute set: 0x%04x\r\n", (unsigned int)mute);
 #endif
 }
@@ -368,10 +368,10 @@ static void mic_configured(uint8_t idx, uint8_t stream_idx, tusb_xfer_result_t r
     mic_ready = tuh_audio_start(idx, stream_idx);
 
     uint16_t volume = 0x0600;
-    result          = tuh_audio_feature_unit_set_sync(idx, AUDIO10_FU_CTRL_VOLUME, 0, volume);
+    result          = tuh_audio_feature_unit_set_sync(idx, stream_idx, AUDIO10_FU_CTRL_VOLUME, 0, volume);
     if (result == XFER_RESULT_SUCCESS) {
       printf("  Feature Unit volume set:volume 0x%04x\r\n", (unsigned int)volume);
-      tuh_audio_feature_unit_get_sync(idx, AUDIO10_FU_CTRL_VOLUME, 0, &volume);
+      tuh_audio_feature_unit_get_sync(idx, stream_idx, AUDIO10_FU_CTRL_VOLUME, 0, &volume);
       printf("  Feature Unit volume get: 0x%04x\r\n", (unsigned int)volume);
     } else {
       printf("  Setting Feature Unit volume FAILED: result=%u\r\n", result);

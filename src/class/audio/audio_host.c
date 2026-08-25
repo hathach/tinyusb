@@ -138,6 +138,9 @@ typedef struct {
   uint8_t state;         // STREAM_STATE_*
   bool    running;       // tuh_audio_start() called, transfers may be submitted
 
+  // One Feature Unit associated with this logical stream (0 = none)
+  uint8_t feature_unit_id;
+
   // Size in bytes of one frame (all channels) of the active configuration
   uint8_t frame_bytes;
 
@@ -170,9 +173,6 @@ typedef struct {
   tuh_audio_stream_t out_stream;
   tuh_audio_stream_t in_stream;
   uint8_t            stream_count; // number of streams with supported configurations
-
-  // Feature Unit info
-  uint8_t feature_unit_id; // bUnitID of Feature Unit (0 = none)
 
   bool mounted;
 } audioh_interface_t;
@@ -277,17 +277,18 @@ static uint8_t audioh_fu_control_width(uint8_t control_selector) {
 
 // Reset a stream to its unconfigured state (keeps idx, dir, and FIFO configuration)
 static void audioh_stream_reset(tuh_audio_stream_t *s) {
-  s->daddr         = 0;
-  s->stream_idx    = TUSB_INDEX_INVALID_8;
-  s->config_count  = 0;
-  s->active_config = TUSB_INDEX_INVALID_8;
-  s->state         = STREAM_STATE_IDLE;
-  s->running       = false;
-  s->frame_bytes   = 0;
-  s->frames_per_ms = 0;
-  s->frames_rem    = 0;
-  s->rem_acc       = 0;
-  s->complete_cb   = NULL;
+  s->daddr           = 0;
+  s->stream_idx      = TUSB_INDEX_INVALID_8;
+  s->config_count    = 0;
+  s->active_config   = TUSB_INDEX_INVALID_8;
+  s->state           = STREAM_STATE_IDLE;
+  s->running         = false;
+  s->feature_unit_id = 0;
+  s->frame_bytes     = 0;
+  s->frames_per_ms   = 0;
+  s->frames_rem      = 0;
+  s->rem_acc         = 0;
+  s->complete_cb     = NULL;
   tu_edpt_stream_close(&s->edpt);
   tu_edpt_stream_clear(&s->edpt);
 }
@@ -551,10 +552,9 @@ void audioh_close(uint8_t daddr) {
     _audioh_epbuf[idx].complete_cb = NULL; // drop a pending feature-unit request
     _audioh_epbuf[idx].fu_busy     = false;
 
-    p_audio->feature_unit_id = 0;
-    p_audio->stream_count    = 0;
-    p_audio->daddr           = 0;
-    p_audio->mounted         = false;
+    p_audio->stream_count = 0;
+    p_audio->daddr        = 0;
+    p_audio->mounted      = false;
   }
 }
 
@@ -671,7 +671,7 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const tusb_de
         switch (tu_desc_subtype(p_desc)) {
           case AUDIO10_CS_AS_INTERFACE_AS_GENERAL: {
             const audio10_desc_cs_as_interface_t *desc_as_general = (const audio10_desc_cs_as_interface_t *)p_desc;
-            if (desc_as_general->bLength >= 5) {
+            if (desc_as_general->bLength >= sizeof(audio10_desc_cs_as_interface_t)) {
               format_tag = tu_le16toh(desc_as_general->wFormatTag);
             }
             break;
@@ -825,7 +825,6 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const tusb_de
           continue;
         }
       }
-
       // Skip duplicate configurations
       bool duplicate = false;
       for (uint8_t j = 0; j < stream->config_count; j++) {
@@ -859,6 +858,7 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const tusb_de
       stream->map[stream->config_count].sam_freq_ctrl  = ep->sam_freq_ctrl;
       stream->config_count++;
     }
+
   }
 
   return p_desc;
@@ -879,7 +879,6 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
   audioh_interface_t *p_audio = &_audioh_itf[idx];
   p_audio->daddr              = dev_addr;
   p_audio->ac_itf_num         = desc_itf->bInterfaceNumber;
-  p_audio->feature_unit_id    = 0;
   audioh_stream_reset(&p_audio->in_stream);
   audioh_stream_reset(&p_audio->out_stream);
   p_audio->in_stream.daddr  = dev_addr;
@@ -888,8 +887,10 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
   TU_LOG_DRV("AUDIO opening AC Interface %u (addr = %u)\r\n", desc_itf->bInterfaceNumber, dev_addr);
 
   // Parse the Audio Control interface descriptors and the interface collection
-  audioh_ac_header_t header      = {0};
-  bool               have_header = false;
+  audioh_ac_header_t header                = {0};
+  uint8_t            usb_input_terminal_id = 0;
+  uint8_t            usb_output_source_id  = 0;
+  bool               have_header           = false;
 
   p_desc = tu_desc_next(p_desc);
   while (tu_desc_in_bounds(p_desc, desc_end) && tu_desc_type(p_desc) != TUSB_DESC_INTERFACE) {
@@ -913,9 +914,33 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
           }
           break;
         }
+        case AUDIO10_CS_AC_INTERFACE_INPUT_TERMINAL: {
+          const audio10_desc_input_terminal_t *terminal = (const audio10_desc_input_terminal_t *)p_desc;
+          if (terminal->bLength >= sizeof(audio10_desc_input_terminal_t) &&
+              tu_le16toh(terminal->wTerminalType) == AUDIO_TERM_TYPE_USB_STREAMING && usb_input_terminal_id == 0) {
+            usb_input_terminal_id = terminal->bTerminalID;
+          }
+          break;
+        }
+        case AUDIO10_CS_AC_INTERFACE_OUTPUT_TERMINAL: {
+          const audio10_desc_output_terminal_t *terminal = (const audio10_desc_output_terminal_t *)p_desc;
+          if (terminal->bLength >= sizeof(audio10_desc_output_terminal_t) &&
+              tu_le16toh(terminal->wTerminalType) == AUDIO_TERM_TYPE_USB_STREAMING && usb_output_source_id == 0) {
+            usb_output_source_id = terminal->bSourceID;
+          }
+          break;
+        }
         case AUDIO10_CS_AC_INTERFACE_FEATURE_UNIT: {
-          p_audio->feature_unit_id = p_desc[3]; // bUnitID
-          TU_LOG_DRV("    Feature Unit: ID=%u\r\n", p_audio->feature_unit_id);
+          if (p_desc[0] >= 5) {
+            if (usb_input_terminal_id != 0 && p_audio->out_stream.feature_unit_id == 0 &&
+                p_desc[4] == usb_input_terminal_id) {
+              p_audio->out_stream.feature_unit_id = p_desc[3];
+            }
+            if (usb_output_source_id != 0 && p_audio->in_stream.feature_unit_id == 0 &&
+                p_desc[3] == usb_output_source_id) {
+              p_audio->in_stream.feature_unit_id = p_desc[3];
+            }
+          }
           break;
         }
         default:
@@ -1007,9 +1032,14 @@ uint8_t tuh_audio_get_dev_addr(uint8_t idx) {
   return _audioh_itf[idx].daddr;
 }
 
-uint8_t tuh_audio_get_feature_unit_id(uint8_t idx) {
+uint8_t tuh_audio_get_feature_unit_id(uint8_t idx, uint8_t stream_idx) {
   TU_VERIFY(idx < CFG_TUH_AUDIO_MAX, 0);
-  return _audioh_itf[idx].feature_unit_id;
+  audioh_interface_t *p_audio = &_audioh_itf[idx];
+  TU_VERIFY(p_audio->daddr != 0, 0);
+
+  tuh_audio_stream_t *s = audioh_get_stream_by_idx(p_audio, stream_idx);
+  TU_VERIFY(s, 0);
+  return s->feature_unit_id;
 }
 
 uint8_t tuh_audio_stream_count(uint8_t dev_idx) {
@@ -1309,11 +1339,13 @@ static void audioh_fu_get_complete(tuh_xfer_t *xfer) {
   }
 }
 
-bool tuh_audio_feature_unit_set(uint8_t idx, uint8_t control_selector, uint8_t channel, uint16_t value,
-                                tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+bool tuh_audio_feature_unit_set(uint8_t idx, uint8_t stream_idx, uint8_t control_selector, uint8_t channel,
+                                uint16_t value, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   TU_VERIFY(idx < CFG_TUH_AUDIO_MAX, false);
   audioh_interface_t *p_audio = &_audioh_itf[idx];
-  TU_VERIFY(p_audio->mounted && p_audio->feature_unit_id != 0, false);
+  TU_VERIFY(p_audio->mounted, false);
+  tuh_audio_stream_t *s = audioh_get_stream_by_idx(p_audio, stream_idx);
+  TU_VERIFY(s && s->feature_unit_id != 0, false);
 
   const uint8_t width = audioh_fu_control_width(control_selector);
   TU_VERIFY(width != 0, false);
@@ -1327,7 +1359,7 @@ bool tuh_audio_feature_unit_set(uint8_t idx, uint8_t control_selector, uint8_t c
                                                                 .direction = TUSB_DIR_OUT},
                                           .bRequest          = AUDIO10_CS_REQ_SET_CUR,
                                           .wValue            = tu_htole16(tu_u16(control_selector, channel)),
-                                          .wIndex  = tu_htole16(tu_u16(p_audio->feature_unit_id, p_audio->ac_itf_num)),
+                                          .wIndex  = tu_htole16(tu_u16(s->feature_unit_id, p_audio->ac_itf_num)),
                                           .wLength = width};
 
   uint8_t *val_buf = epbuf->fu_ctrl;
@@ -1362,11 +1394,13 @@ bool tuh_audio_feature_unit_set(uint8_t idx, uint8_t control_selector, uint8_t c
   return true;
 }
 
-bool tuh_audio_feature_unit_get(uint8_t idx, uint8_t control_selector, uint8_t channel, uint16_t *value,
-                                tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+bool tuh_audio_feature_unit_get(uint8_t idx, uint8_t stream_idx, uint8_t control_selector, uint8_t channel,
+                                uint16_t *value, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   TU_VERIFY(idx < CFG_TUH_AUDIO_MAX, false);
   audioh_interface_t *p_audio = &_audioh_itf[idx];
-  TU_VERIFY(p_audio->mounted && p_audio->feature_unit_id != 0 && value, false);
+  TU_VERIFY(p_audio->mounted && value, false);
+  tuh_audio_stream_t *s = audioh_get_stream_by_idx(p_audio, stream_idx);
+  TU_VERIFY(s && s->feature_unit_id != 0, false);
 
   const uint8_t width = audioh_fu_control_width(control_selector);
   TU_VERIFY(width != 0, false);
@@ -1380,7 +1414,7 @@ bool tuh_audio_feature_unit_get(uint8_t idx, uint8_t control_selector, uint8_t c
                                                                 .direction = TUSB_DIR_IN},
                                           .bRequest          = AUDIO10_CS_REQ_GET_CUR,
                                           .wValue            = tu_htole16(tu_u16(control_selector, channel)),
-                                          .wIndex  = tu_htole16(tu_u16(p_audio->feature_unit_id, p_audio->ac_itf_num)),
+                                          .wIndex  = tu_htole16(tu_u16(s->feature_unit_id, p_audio->ac_itf_num)),
                                           .wLength = width};
 
   if (complete_cb == NULL) {

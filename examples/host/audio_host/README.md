@@ -20,6 +20,11 @@ This example supports any UAC 1.0 compliant USB audio device with a discrete sam
 
 The echo needs a matching S16_LE playback stream at the capture sample rate; devices without one run capture-only. The sample rate and channel preferences are configured by the `SAMPLE_RATES` / `AUDIO_MAX_CHANNELS` macros in `src/audio_app.c` (48 kHz stereo by default). Continuous sampling-frequency ranges are exposed as a single configuration at the range's highest frequency (e.g. a 8000–48000 Hz speaker appears as 48000 Hz); non-PCM formats are rejected by the driver.
 
+## Limitations and trade-offs
+
+- The Feature Unit API exposes one directly connected Feature Unit per logical capture/playback stream. If several Feature Units map to the same logical stream, the first mapping is retained.
+- The UAC1 `MaxPacketsOnly` endpoint attribute is not supported. OUT transfers are not padded to `wMaxPacketSize`, and padding in IN transfers is not removed from the reported audio data.
+
 ## Building
 
 ### Using CMake (recommended)
