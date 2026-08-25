@@ -38,8 +38,8 @@
  * supported configurations during enumeration.
  *
  * The driver owns:
- * 1. Endpoint selection and opening (only the alternate setting selected by
- *    tuh_audio_configure() is ever activated).
+ * 1. Endpoint selection and opening; only the alternate setting selected by
+ *    tuh_audio_configure() is activated by tuh_audio_start().
  * 2. Endpoint sampling-frequency control (SET_CUR, 3 bytes little-endian).
  */
 
@@ -100,8 +100,7 @@ TU_ATTR_WEAK void tuh_audio_err_cb(uint8_t idx, uint8_t stream_idx, uint16_t xfe
 
 // Stream state machine
 enum {
-  STREAM_STATE_IDLE = 0, // not configured, no configuration in progress
-  STREAM_STATE_CONFIG,   // tuh_audio_configure() sequence in progress
+  STREAM_STATE_IDLE = 0, // not configured
   STREAM_STATE_READY     // configured, ready to start/stop
 };
 
@@ -148,10 +147,6 @@ typedef struct {
   uint16_t frames_per_interval;
   uint32_t frames_rem;
   uint32_t rem_acc;
-
-  // Configure state machine
-  tuh_audio_configure_cb_t complete_cb;
-  uintptr_t                user_data;
 
   // FIFO + endpoint transfer helper (see tu_edpt_stream, used by the MIDI
   // host driver): the FIFO decouples the application's frame-based read/write
@@ -286,7 +281,6 @@ static void audioh_stream_reset(tuh_audio_stream_t *s) {
   s->frames_per_interval = 0;
   s->frames_rem          = 0;
   s->rem_acc             = 0;
-  s->complete_cb         = NULL;
   tu_edpt_stream_close(&s->edpt);
   tu_edpt_stream_clear(&s->edpt);
 }
@@ -374,47 +368,15 @@ static bool audioh_stream_close_ep(tuh_audio_stream_t *s) {
   return true;
 }
 
-static void audioh_stream_fail(tuh_audio_stream_t *s, tusb_xfer_result_t result) {
+static void audioh_stream_fail(tuh_audio_stream_t *s) {
   (void)audioh_stream_close_ep(s);
   s->state         = STREAM_STATE_IDLE;
   s->active_config = TUSB_INDEX_INVALID_8;
   s->running       = false;
-
-  tuh_audio_configure_cb_t cb        = s->complete_cb;
-  uintptr_t                user_data = s->user_data;
-  s->complete_cb                     = NULL;
-  if (cb != NULL) {
-    cb(s->idx, s->stream_idx, result, user_data);
-  }
 }
 
-static void audioh_stream_ready(tuh_audio_stream_t *s) {
-  s->state = STREAM_STATE_READY;
-
-  tuh_audio_configure_cb_t cb        = s->complete_cb;
-  uintptr_t                user_data = s->user_data;
-  s->complete_cb                     = NULL;
-  if (cb != NULL) {
-    cb(s->idx, s->stream_idx, XFER_RESULT_SUCCESS, user_data);
-  }
-}
-
-static void audioh_stream_set_freq_complete(tuh_xfer_t *xfer) {
-  tuh_audio_stream_t *s = (tuh_audio_stream_t *)xfer->user_data;
-  if (s->daddr != xfer->daddr || s->state != STREAM_STATE_CONFIG) {
-    return; // device is gone or configuration was aborted
-  }
-
-  if (xfer->result != XFER_RESULT_SUCCESS) {
-    TU_LOG_DRV("  AUDIO set sampling frequency failed: result=%u\r\n", xfer->result);
-    audioh_stream_fail(s, xfer->result);
-    return;
-  }
-  audioh_stream_ready(s);
-}
-
-// Set the endpoint sampling frequency (3 bytes little-endian) when supported
-static void audioh_stream_set_freq(tuh_audio_stream_t *s) {
+// Set the endpoint sampling frequency (3 bytes little-endian)
+static bool audioh_stream_set_freq(tuh_audio_stream_t *s, tuh_xfer_cb_t complete_cb) {
   const audioh_stream_map_t       *map  = &s->map[s->active_config];
   const tuh_audio_stream_config_t *cfg  = &s->config[s->active_config];
   uint8_t                         *ctrl = _audioh_epbuf[s->idx].sam_freq;
@@ -434,15 +396,13 @@ static void audioh_stream_set_freq(tuh_audio_stream_t *s) {
                      .ep_addr     = 0,
                      .setup       = &request,
                      .buffer      = ctrl,
-                     .complete_cb = audioh_stream_set_freq_complete,
+                     .complete_cb = complete_cb,
                      .user_data   = (uintptr_t)s};
-  if (!tuh_control_xfer(&xfer)) {
-    audioh_stream_fail(s, XFER_RESULT_FAILED);
-  }
+  return tuh_control_xfer(&xfer);
 }
 
 // Reconstruct the endpoint descriptor of the selected configuration and open it
-static void audioh_stream_open_ep(tuh_audio_stream_t *s) {
+static bool audioh_stream_open_ep(tuh_audio_stream_t *s) {
   const audioh_stream_map_t *map = &s->map[s->active_config];
 
   const tusb_desc_endpoint_t desc_ep = {.bLength          = sizeof(tusb_desc_endpoint_t),
@@ -456,35 +416,16 @@ static void audioh_stream_open_ep(tuh_audio_stream_t *s) {
 
   if (!tuh_edpt_open(s->daddr, &desc_ep)) {
     TU_LOG_DRV("  AUDIO open endpoint failed: addr=%u ep=%02x\r\n", s->daddr, map->ep_addr);
-    audioh_stream_fail(s, XFER_RESULT_FAILED);
-    return;
+    audioh_stream_fail(s);
+    return false;
   }
 
   // Bind the transfer helper to the endpoint and start with an empty FIFO
   const uint16_t xfer_len = (s->dir == TUSB_DIR_IN) ? CFG_TUH_AUDIO_EPIN_BUFSIZE : CFG_TUH_AUDIO_EPOUT_BUFSIZE;
   tu_edpt_stream_open(&s->edpt, s->daddr, &desc_ep, xfer_len);
   tu_edpt_stream_clear(&s->edpt);
-
-  if (map->sam_freq_ctrl) {
-    audioh_stream_set_freq(s);
-  } else {
-    audioh_stream_ready(s);
-  }
-}
-
-static void audioh_stream_set_interface_complete(tuh_xfer_t *xfer) {
-  tuh_audio_stream_t *s = (tuh_audio_stream_t *)xfer->user_data;
-  if (s->daddr != xfer->daddr || s->state != STREAM_STATE_CONFIG) {
-    return; // device is gone or configuration was aborted
-  }
-
-  if (xfer->result != XFER_RESULT_SUCCESS) {
-    TU_LOG_DRV("  AUDIO SET_INTERFACE failed: itf=%u alt=%u result=%u\r\n", s->map[s->active_config].itf_num,
-               s->map[s->active_config].alt_setting, xfer->result);
-    audioh_stream_fail(s, xfer->result);
-    return;
-  }
-  audioh_stream_open_ep(s);
+  s->state = STREAM_STATE_READY;
+  return true;
 }
 
 //--------------------------------------------------------------------+
@@ -534,12 +475,8 @@ void audioh_close(uint8_t daddr) {
       tuh_audio_umount_cb(idx);
     }
 
-    // Abort a configuration in progress so the application callback still fires
     for (uint8_t s = 0; s < 2; s++) {
       tuh_audio_stream_t *stream = (s == 0) ? &p_audio->in_stream : &p_audio->out_stream;
-      if (stream->state == STREAM_STATE_CONFIG && stream->complete_cb != NULL) {
-        audioh_stream_fail(stream, XFER_RESULT_ABORTED);
-      }
       audioh_stream_reset(stream);
     }
 
@@ -1013,7 +950,7 @@ bool audioh_set_config(uint8_t dev_addr, uint8_t itf_num) {
 
   if (idx == TUSB_INDEX_INVALID_8) {
     // Audio Streaming interface (or another driver's interface): nothing to do at mount.
-    // Alternate settings are activated by tuh_audio_configure().
+    // Alternate settings are activated by tuh_audio_start().
     usbh_driver_set_config_complete(dev_addr, itf_num);
     return true;
   }
@@ -1106,19 +1043,17 @@ bool tuh_audio_config_get(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_id
   return true;
 }
 
-bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx, tuh_audio_configure_cb_t complete_cb,
-                         uintptr_t user_data) {
+bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx) {
   TU_VERIFY(dev_idx < CFG_TUH_AUDIO_MAX, false);
   audioh_interface_t *p_audio = &_audioh_itf[dev_idx];
   TU_VERIFY(p_audio->mounted, false);
 
   tuh_audio_stream_t *s = audioh_get_stream_by_idx(p_audio, stream_idx);
-  TU_VERIFY(s && complete_cb, false);
+  TU_VERIFY(s, false);
   TU_VERIFY(config_idx < s->config_count, false);
   const tuh_audio_stream_config_t *cfg = &s->config[config_idx];
-  // Reconfiguration is allowed from a stopped stream; only one configuration
-  // may be in progress
-  TU_VERIFY(s->state != STREAM_STATE_CONFIG && !s->running, false);
+  // Reconfiguration is allowed from a stopped stream.
+  TU_VERIFY(!s->running, false);
   if (s->state == STREAM_STATE_READY) {
     // Wait for any in-flight transfer to complete and be discarded
     TU_VERIFY(!usbh_edpt_busy(s->daddr, s->edpt.ep_addr), false);
@@ -1153,33 +1088,64 @@ bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx
   s->frames_per_interval          = (uint16_t)(frames_numerator / 1000000u);
   s->frames_rem                   = (uint32_t)(frames_numerator % 1000000u);
   s->rem_acc                      = 0;
-  s->complete_cb                  = complete_cb;
-  s->user_data                    = user_data;
-  s->state                        = STREAM_STATE_CONFIG;
+  s->state                        = STREAM_STATE_IDLE;
   if (s->dir == TUSB_DIR_IN) {
     // A byte FIFO can overwrite only complete audio frames when its depth is
     // an exact multiple of the configured frame size.
     const uint16_t fifo_depth = CFG_TUH_AUDIO_STREAM_BUFSIZE - (CFG_TUH_AUDIO_STREAM_BUFSIZE % s->frame_bytes);
-    TU_VERIFY(tu_fifo_config(&s->edpt.ff, s->ff_buf, fifo_depth, true), false);
+    if (!tu_fifo_config(&s->edpt.ff, s->ff_buf, fifo_depth, true)) {
+      audioh_stream_fail(s);
+      return false;
+    }
   }
 
   TU_LOG_DRV("  AUDIO configure %s stream %u: itf %u alt %u ep %02x\r\n",
              (s->dir == TUSB_DIR_IN) ? "capture" : "playback", s->stream_idx, map->itf_num, map->alt_setting,
              map->ep_addr);
 
-  if (!tuh_interface_set(s->daddr, map->itf_num, map->alt_setting, audioh_stream_set_interface_complete,
-                         (uintptr_t)s)) {
-    audioh_stream_fail(s, XFER_RESULT_FAILED);
-    return false;
+  return audioh_stream_open_ep(s);
+}
+
+// Invoked when the SET_INTERFACE activating the stream's interface completes:
+// the interface is active, set its sampling frequency before submitting
+// transfers
+static void audioh_stream_start_xfer(tuh_audio_stream_t *s) {
+  if (s->dir == TUSB_DIR_IN) {
+    audioh_stream_capture_xfer(s);  // feed the capture endpoint
+  } else {
+    audioh_stream_playback_xfer(s); // start the continuous playback transfer chain
+  }
+}
+
+static void audioh_stream_start_set_freq_complete(tuh_xfer_t *xfer) {
+  tuh_audio_stream_t *s = (tuh_audio_stream_t *)xfer->user_data;
+  if (s->daddr != xfer->daddr || s->state != STREAM_STATE_READY || !s->running) {
+    return; // device is gone or the stream was stopped meanwhile
+  }
+  if (xfer->result != XFER_RESULT_SUCCESS) {
+    TU_LOG_DRV("  AUDIO set sampling frequency failed: result=%u\r\n", xfer->result);
+    s->running = false;
+    return;
+  }
+  audioh_stream_start_xfer(s);
+}
+
+static bool audioh_stream_start_active(tuh_audio_stream_t *s) {
+  const audioh_stream_map_t *map = &s->map[s->active_config];
+  if (map->sam_freq_ctrl) {
+    if (!audioh_stream_set_freq(s, audioh_stream_start_set_freq_complete)) {
+      s->running = false;
+      return false;
+    }
+  } else {
+    audioh_stream_start_xfer(s);
   }
   return true;
 }
 
-// Invoked when the SET_INTERFACE activating the stream's interface completes:
-// the interface is active, start submitting transfers
 static void audioh_stream_start_complete(tuh_xfer_t *xfer) {
   tuh_audio_stream_t *s = (tuh_audio_stream_t *)xfer->user_data;
-  if (s->daddr != xfer->daddr || !s->running) {
+  if (s->daddr != xfer->daddr || s->state != STREAM_STATE_READY || !s->running) {
     return; // device is gone or the stream was stopped meanwhile
   }
   if (xfer->result != XFER_RESULT_SUCCESS) {
@@ -1187,11 +1153,7 @@ static void audioh_stream_start_complete(tuh_xfer_t *xfer) {
     s->running = false;
     return;
   }
-  if (s->dir == TUSB_DIR_IN) {
-    audioh_stream_capture_xfer(s);  // feed the capture endpoint
-  } else {
-    audioh_stream_playback_xfer(s); // start the continuous playback transfer chain
-  }
+  (void)audioh_stream_start_active(s);
 }
 
 bool tuh_audio_start(uint8_t dev_idx, uint8_t stream_idx) {
@@ -1205,9 +1167,9 @@ bool tuh_audio_start(uint8_t dev_idx, uint8_t stream_idx) {
   // Wait for any in-flight transfer to complete and be discarded
   TU_VERIFY(!usbh_edpt_busy(s->daddr, s->map[s->active_config].ep_addr), false);
 
+  s->running = true;
   // Activate the interface's alternate setting asynchronously: transfers
-  // begin once SET_INTERFACE completes (audioh_stream_start_complete)
-  s->running                     = true;
+  // begin once SET_INTERFACE and sampling-frequency control complete.
   const audioh_stream_map_t *map = &s->map[s->active_config];
   if (!tuh_interface_set(s->daddr, map->itf_num, map->alt_setting, audioh_stream_start_complete, (uintptr_t)s)) {
     s->running = false;

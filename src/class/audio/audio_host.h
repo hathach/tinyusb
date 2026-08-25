@@ -85,10 +85,6 @@ typedef struct {
   uint8_t               channels;
 } tuh_audio_stream_config_t;
 
-// Asynchronous completion callback of tuh_audio_configure().
-typedef void (*tuh_audio_configure_cb_t)(uint8_t dev_idx, uint8_t stream_idx, tusb_xfer_result_t result,
-                                         uintptr_t user_data);
-
 //--------------------------------------------------------------------+
 // Stream Enumeration
 //--------------------------------------------------------------------+
@@ -118,26 +114,24 @@ uint8_t tuh_audio_active_config(uint8_t dev_idx, uint8_t stream_idx);
 bool tuh_audio_config_get(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx, tuh_audio_stream_config_t *config);
 
 //--------------------------------------------------------------------+
-// Configuration (ALSA hw_params analogue, asynchronous)
+// Configuration (ALSA hw_params analogue)
 //--------------------------------------------------------------------+
 
-// Configure the stream with the discrete configuration identified by
-// config_idx. The driver asynchronously:
+// Synchronously configure the stream with the discrete configuration identified by
+// config_idx. The driver:
 //   1. resolves the AS interface and alternate setting,
-//   2. issues SET_INTERFACE (checking submission and transfer result),
-//   3. opens / reconfigures only the selected endpoint,
-//   4. sets the endpoint sampling frequency when supported,
-//   5. initializes the FIFO and packet scheduler.
-// complete_cb is invoked with the final XFER_RESULT_* status.
-bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx, tuh_audio_configure_cb_t complete_cb,
-                         uintptr_t user_data);
+//   2. initializes the FIFO and packet scheduler,
+//   3. opens / reconfigures only the selected endpoint.
+bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx);
 
 //--------------------------------------------------------------------+
 // Stream Control / Frame-based Data
 //--------------------------------------------------------------------+
 
-// Start/stop transferring data on a configured stream.
+// Start transferring data by activating the alternate setting selected by
+// configure, then set the endpoint sampling frequency when supported.
 bool tuh_audio_start(uint8_t dev_idx, uint8_t stream_idx);
+// Stop transferring and deactivate the Audio Streaming interface (alt 0).
 bool tuh_audio_stop(uint8_t dev_idx, uint8_t stream_idx);
 
 // Frame-based transfer. One frame = channels * bytes per sample.

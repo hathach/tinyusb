@@ -26,6 +26,7 @@ enum {
 static bool       interface_set_result;
 static tuh_xfer_t interface_xfer;
 static uint8_t    interface_alt;
+static uint8_t    interface_set_count;
 
 static bool                   control_xfer_result;
 static tuh_xfer_t             control_xfer;
@@ -93,6 +94,7 @@ bool tuh_interface_set(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt, tuh_xfer
   interface_xfer.ep_addr     = 0;
   interface_xfer.complete_cb = complete_cb;
   interface_xfer.user_data   = user_data;
+  interface_set_count++;
   return interface_set_result;
 }
 
@@ -343,19 +345,8 @@ static const uint8_t playback_44100_max_packets_only[] = {
   TEST_UAC1_CS_DATA_EP_ATTR(AUDIO10_CS_AS_ISO_DATA_EP_ATT_MAX_PACKETS_ONLY),
 };
 
-static uint8_t            configure_cb_count;
-static tusb_xfer_result_t configure_cb_result;
-
 static uint8_t   fu_cb_count;
 static uintptr_t fu_cb_user_data;
-
-static void configure_complete(uint8_t dev_idx, uint8_t stream_idx, tusb_xfer_result_t result, uintptr_t user_data) {
-  (void)dev_idx;
-  (void)stream_idx;
-  (void)user_data;
-  configure_cb_count++;
-  configure_cb_result = result;
-}
 
 static void feature_unit_complete(tuh_xfer_t *xfer) {
   fu_cb_count++;
@@ -381,7 +372,8 @@ static void complete_control_xfer(tusb_xfer_result_t result) {
 void setUp(void) {
   interface_set_result = true;
   memset(&interface_xfer, 0, sizeof(interface_xfer));
-  interface_alt = 0;
+  interface_alt       = 0;
+  interface_set_count = 0;
 
   control_xfer_result = true;
   memset(&control_xfer, 0, sizeof(control_xfer));
@@ -404,10 +396,8 @@ void setUp(void) {
   memset(edpt_xfer_buffer, 0, sizeof(edpt_xfer_buffer));
   edpt_xfer_count = 0;
 
-  configure_cb_count  = 0;
-  configure_cb_result = XFER_RESULT_INVALID;
-  fu_cb_count         = 0;
-  fu_cb_user_data     = 0;
+  fu_cb_count     = 0;
+  fu_cb_user_data = 0;
 
   TEST_ASSERT_TRUE(audioh_init());
 }
@@ -456,11 +446,10 @@ void test_audio_host_maps_capture_fu_declared_before_usb_output_terminal(void) {
   TEST_ASSERT_EQUAL(TUH_AUDIO_STREAM_CAPTURE, tuh_audio_stream_direction(0, 0));
   TEST_ASSERT_EQUAL_UINT8(CAPTURE_FU, tuh_audio_get_feature_unit_id(0, 0));
 
-  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0, configure_complete, 0));
-  complete_interface_set(XFER_RESULT_SUCCESS);
-  complete_control_xfer(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0));
   TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
   complete_interface_set(XFER_RESULT_SUCCESS);
+  complete_control_xfer(XFER_RESULT_SUCCESS);
   TEST_ASSERT_EQUAL_UINT8(1, edpt_xfer_count);
 
   // Keep polling without application reads. Once full, the capture FIFO must
@@ -478,6 +467,40 @@ void test_audio_host_maps_capture_fu_declared_before_usb_output_terminal(void) {
   TEST_ASSERT_EACH_EQUAL_UINT8(1, captured, 63);
   TEST_ASSERT_EACH_EQUAL_UINT8(2, captured + 63, 96);
   TEST_ASSERT_EACH_EQUAL_UINT8(11, captured + fifo_depth - 96, 96);
+}
+
+void test_audio_host_sets_sampling_frequency_after_each_stream_activation(void) {
+  mount_descriptors(capture_fu_before_usb_output, sizeof(capture_fu_before_usb_output));
+
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0));
+  TEST_ASSERT_EQUAL_UINT8(0, control_xfer_count);
+  TEST_ASSERT_EQUAL_UINT8(0, interface_set_count);
+
+  TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
+  TEST_ASSERT_EQUAL_UINT8(1, interface_set_count);
+  complete_interface_set(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL_UINT8(1, control_xfer_count);
+  TEST_ASSERT_EQUAL_UINT8(0, edpt_xfer_count);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(((uint8_t[]){U24_TO_U8S_LE(32000)}), control_buffer, 3);
+  complete_control_xfer(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL_UINT8(1, edpt_xfer_count);
+
+  TEST_ASSERT_TRUE(tuh_audio_stop(0, 0));
+  TEST_ASSERT_EQUAL_UINT8(0, interface_alt);
+  TEST_ASSERT_EQUAL_UINT8(2, interface_set_count);
+  complete_interface_set(XFER_RESULT_SUCCESS);
+  edpt_busy = false;
+  TEST_ASSERT_TRUE(audioh_xfer_cb(AUDIO_DEV_ADDR, 0x81, XFER_RESULT_SUCCESS, 96));
+
+  TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
+  TEST_ASSERT_EQUAL_UINT8(1, interface_alt);
+  TEST_ASSERT_EQUAL_UINT8(3, interface_set_count);
+  complete_interface_set(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL_UINT8(2, control_xfer_count);
+  TEST_ASSERT_EQUAL_UINT8(1, edpt_xfer_count);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(((uint8_t[]){U24_TO_U8S_LE(32000)}), control_buffer, 3);
+  complete_control_xfer(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL_UINT8(2, edpt_xfer_count);
 }
 
 void test_audio_host_parses_discrete_frequencies_with_interval_greater_than_one(void) {
@@ -503,50 +526,42 @@ void test_audio_host_rejects_overflowed_frame_size_for_large_channel_count(void)
   TEST_ASSERT_EQUAL_UINT8(0, tuh_audio_stream_count(0));
 }
 
-void test_audio_host_associates_cs_endpoint_declared_before_data_endpoint(void) {
+void test_audio_host_uses_cs_endpoint_declared_before_data_endpoint_on_start(void) {
   mount_descriptors(playback_with_cs_ep_before_data_ep, sizeof(playback_with_cs_ep_before_data_ep));
 
-  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0, configure_complete, 0));
-  complete_interface_set(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0));
+  TEST_ASSERT_EQUAL_UINT8(0, control_xfer_count);
 
+  TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
+  TEST_ASSERT_EQUAL_UINT8(1, interface_set_count);
+  complete_interface_set(XFER_RESULT_SUCCESS);
   TEST_ASSERT_EQUAL_UINT8(1, control_xfer_count);
   TEST_ASSERT_EQUAL_UINT16(3, tu_le16toh(control_request.wLength));
   TEST_ASSERT_EQUAL_UINT16(0x01, tu_le16toh(control_request.wIndex));
   complete_control_xfer(XFER_RESULT_SUCCESS);
-  TEST_ASSERT_EQUAL_UINT8(1, configure_cb_count);
-  TEST_ASSERT_EQUAL(XFER_RESULT_SUCCESS, configure_cb_result);
 }
 
 void test_audio_host_closes_old_endpoint_and_cleans_up_failed_reconfiguration(void) {
   mount_descriptors(playback_with_two_alternates, sizeof(playback_with_two_alternates));
 
-  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0, configure_complete, 0));
-  complete_interface_set(XFER_RESULT_SUCCESS);
-  complete_control_xfer(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0));
   TEST_ASSERT_EQUAL_UINT8(1, edpt_open_count);
   TEST_ASSERT_EQUAL_HEX8(0x01, opened_ep[0].bEndpointAddress);
   TEST_ASSERT_EQUAL_UINT16(192, tu_edpt_packet_size(&opened_ep[0]));
 
-  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 1, configure_complete, 0));
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 1));
   TEST_ASSERT_EQUAL_UINT8(1, edpt_close_count);
   TEST_ASSERT_EQUAL_HEX8(0x01, closed_ep[0]);
-  complete_interface_set(XFER_RESULT_SUCCESS);
-  complete_control_xfer(XFER_RESULT_SUCCESS);
   TEST_ASSERT_EQUAL_UINT8(2, edpt_open_count);
   TEST_ASSERT_EQUAL_HEX8(0x02, opened_ep[1].bEndpointAddress);
   TEST_ASSERT_EQUAL_UINT16(384, tu_edpt_packet_size(&opened_ep[1]));
 
-  control_xfer_result = false;
-  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0, configure_complete, 0));
+  edpt_open_result = false;
+  TEST_ASSERT_FALSE(tuh_audio_configure(0, 0, 0));
   TEST_ASSERT_EQUAL_UINT8(2, edpt_close_count);
   TEST_ASSERT_EQUAL_HEX8(0x02, closed_ep[1]);
-  complete_interface_set(XFER_RESULT_SUCCESS);
 
   TEST_ASSERT_EQUAL_UINT8(3, edpt_open_count);
-  TEST_ASSERT_EQUAL_UINT8(3, edpt_close_count);
-  TEST_ASSERT_EQUAL_HEX8(0x01, closed_ep[2]);
-  TEST_ASSERT_EQUAL_UINT8(3, configure_cb_count);
-  TEST_ASSERT_EQUAL(XFER_RESULT_FAILED, configure_cb_result);
   TEST_ASSERT_EQUAL_UINT8(TUSB_INDEX_INVALID_8, tuh_audio_active_config(0, 0));
 }
 
@@ -590,13 +605,12 @@ void test_audio_host_schedules_44100_hz_fractional_packets_with_max_packets_only
   uint8_t samples[441 * 4] = {0};
   mount_descriptors(playback_44100_max_packets_only, sizeof(playback_44100_max_packets_only));
 
-  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0, configure_complete, 0));
-  complete_interface_set(XFER_RESULT_SUCCESS);
-  TEST_ASSERT_EQUAL_UINT8(1, configure_cb_count);
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0));
   TEST_ASSERT_EQUAL_UINT8(0, control_xfer_count);
 
   TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
   TEST_ASSERT_EQUAL_UINT8(1, interface_alt);
+  TEST_ASSERT_EQUAL_UINT8(1, interface_set_count);
   TEST_ASSERT_EQUAL_UINT32(256, tuh_audio_write(0, 0, samples, 256));
   TEST_ASSERT_EQUAL_UINT8(0, edpt_xfer_count);
   complete_interface_set(XFER_RESULT_SUCCESS);
@@ -624,8 +638,7 @@ void test_audio_host_sends_silence_when_playback_fifo_has_too_few_frames(void) {
   memset(more_samples, 0x55, sizeof(more_samples));
   mount_descriptors(playback_44100_max_packets_only, sizeof(playback_44100_max_packets_only));
 
-  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0, configure_complete, 0));
-  complete_interface_set(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0));
   TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
   complete_interface_set(XFER_RESULT_SUCCESS);
 

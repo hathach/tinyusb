@@ -379,38 +379,6 @@ static void set_stream_volume(uint8_t idx, uint8_t stream_idx, const char *strea
   }
 }
 
-// Invoked when the configuration selected by tuh_audio_configure() completes
-static void mic_configured(uint8_t idx, uint8_t stream_idx, tusb_xfer_result_t result, uintptr_t user_data) {
-  (void)user_data;
-
-  if (idx == audio_idx && stream_idx == cap_stream_idx && result == XFER_RESULT_SUCCESS) {
-    printf("  Microphone configured\r\n");
-    set_stream_volume(idx, stream_idx, "Microphone");
-    mic_ready = tuh_audio_start(idx, stream_idx);
-  } else {
-    printf("  Microphone configuration failed: result=%u\r\n", result);
-  }
-}
-
-// Invoked when the playback configuration selected by tuh_audio_configure() completes
-static void spk_configured(uint8_t idx, uint8_t stream_idx, tusb_xfer_result_t result, uintptr_t user_data) {
-  (void)user_data;
-  if (idx == audio_idx && stream_idx == spk_stream_idx && result == XFER_RESULT_SUCCESS) {
-    printf("  Speaker configured\r\n");
-    // playback-only device: set the frame cadence from the selected rate
-    audio_frame_count = spk_config.sample_rate / 1000;
-    spk_init_sine(); // fallback test tone while no capture stream is echoing
-    set_stream_volume(idx, stream_idx, "Speaker");
-    spk_ready = tuh_audio_start(idx, stream_idx);
-
-    // both streams running: start the periodic phase switching demo
-    if (mic_ready && spk_ready) {
-      app_audio_phase_enter(APP_PHASE_MIC_ONLY);
-    }
-  } else {
-    printf("  Speaker configuration failed: result=%u\r\n", result);
-  }
-}
 // Invoked when device with Audio interface is un-mounted
 void tuh_audio_umount_cb(uint8_t idx) {
   printf("Audio device unmounted: idx=%u\r\n", idx);
@@ -460,14 +428,19 @@ static void tuh_audio_mount_async(uintptr_t param) {
           // Check for a matching sample rate S16_LE configuration with the desired channel count
           if (tuh_audio_config_get(idx, stream_idx, i, &config) && config.format == TUH_AUDIO_FORMAT_S16_LE &&
               config.sample_rate == sample_rate && config.channels == ch) {
+            printf("  Configuring %u S16_LE capture (%u channels)\r\n", (unsigned)sample_rate, config.channels);
+            if (!tuh_audio_configure(idx, stream_idx, i)) {
+              printf("  Microphone configuration failed\r\n");
+              continue;
+            }
             audio_idx      = idx;
             cap_stream_idx = stream_idx;
             mic_config     = config;
             // one ms of audio at the selected rate, rounded down to whole frames
             audio_frame_count = sample_rate / 1000;
-            printf("  Configuring %u S16_LE capture (%u channels)\r\n", (unsigned)sample_rate, config.channels);
-            // Configure the selected capture stream and start it through the callback.
-            (void)tuh_audio_configure(idx, stream_idx, i, mic_configured, 0);
+            printf("  Microphone configured\r\n");
+            set_stream_volume(idx, stream_idx, "Microphone");
+            mic_ready     = tuh_audio_start(idx, stream_idx);
             capture_found = true;
             break;
           }
@@ -514,8 +487,22 @@ static void tuh_audio_mount_async(uintptr_t param) {
     return;
   }
   printf("  Configuring %u S16_LE playback (%u channels)\r\n", (unsigned)spk_config.sample_rate, spk_config.channels);
-  // Configure the selected playback stream and start it through the callback.
-  (void)tuh_audio_configure(idx, spk_stream_idx, playback_config_idx, spk_configured, 0);
+  if (!tuh_audio_configure(idx, spk_stream_idx, playback_config_idx)) {
+    printf("  Speaker configuration failed\r\n");
+    return;
+  }
+  audio_idx = idx;
+  printf("  Speaker configured\r\n");
+  // playback-only device: set the frame cadence from the selected rate
+  audio_frame_count = spk_config.sample_rate / 1000;
+  spk_init_sine(); // fallback test tone while no capture stream is echoing
+  set_stream_volume(idx, spk_stream_idx, "Speaker");
+  spk_ready = tuh_audio_start(idx, spk_stream_idx);
+
+  // both streams running: start the periodic phase switching demo
+  if (mic_ready && spk_ready) {
+    app_audio_phase_enter(APP_PHASE_MIC_ONLY);
+  }
 }
 
 // Invoked when device with Audio interface is mounted
