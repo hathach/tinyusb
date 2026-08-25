@@ -324,6 +324,28 @@ static const uint8_t capture_fu_before_usb_output[] = {
   TEST_UAC1_DATA_EP(0x81, TUSB_ISO_EP_ATT_ASYNCHRONOUS, 96, 1),
 };
 
+static const uint8_t duplex_fus_before_usb_terminals[] = {
+  TEST_UAC1_AC_HEADER_2,
+  TEST_UAC1_FEATURE_UNIT(PLAYBACK_FU, PLAYBACK_INPUT_TERM),
+  TEST_UAC1_FEATURE_UNIT(CAPTURE_FU, CAPTURE_INPUT_TERM),
+  TEST_UAC1_INPUT_TERM(PLAYBACK_INPUT_TERM, AUDIO_TERM_TYPE_USB_STREAMING, 2),
+  TEST_UAC1_OUTPUT_TERM(CAPTURE_OUTPUT_TERM, AUDIO_TERM_TYPE_USB_STREAMING, CAPTURE_FU),
+  TEST_UAC1_OUTPUT_TERM(PLAYBACK_OUTPUT_TERM, AUDIO_TERM_TYPE_OUT_HEADPHONES, PLAYBACK_FU),
+  TEST_UAC1_INPUT_TERM(CAPTURE_INPUT_TERM, AUDIO_TERM_TYPE_IN_GENERIC_MIC, 1),
+  TEST_UAC1_AS_ALT0,
+  TEST_UAC1_AS_INTERFACE(1, 1),
+  TEST_UAC1_AS_GENERAL(PLAYBACK_INPUT_TERM),
+  TEST_UAC1_FORMAT(2, 2, 16, 48000),
+  TEST_UAC1_DATA_EP(0x01, TUSB_ISO_EP_ATT_ADAPTIVE, 192, 1),
+  TEST_UAC1_CS_DATA_EP,
+  TEST_UAC1_AS_INTERFACE_NUM(AUDIO_AS_IN_ITF, 0, 0),
+  TEST_UAC1_AS_INTERFACE_NUM(AUDIO_AS_IN_ITF, 1, 1),
+  TEST_UAC1_AS_GENERAL(CAPTURE_OUTPUT_TERM),
+  TEST_UAC1_FORMAT(1, 2, 16, 48000),
+  TEST_UAC1_DATA_EP(0x81, TUSB_ISO_EP_ATT_ASYNCHRONOUS, 96, 1),
+  TEST_UAC1_CS_DATA_EP,
+};
+
 static const uint8_t playback_with_two_frequencies[] = {
   TEST_UAC1_AC_HEADER,
   TEST_UAC1_INPUT_TERM(PLAYBACK_INPUT_TERM, AUDIO_TERM_TYPE_USB_STREAMING, 2),
@@ -552,6 +574,14 @@ void test_audio_host_maps_capture_fu_declared_before_usb_output_terminal(void) {
   TEST_ASSERT_EACH_EQUAL_UINT8(1, captured, 63);
   TEST_ASSERT_EACH_EQUAL_UINT8(2, captured + 63, 96);
   TEST_ASSERT_EACH_EQUAL_UINT8(11, captured + fifo_depth - 96, 96);
+}
+
+void test_audio_host_maps_duplex_fus_declared_before_usb_terminals(void) {
+  open_descriptors(duplex_fus_before_usb_terminals, sizeof(duplex_fus_before_usb_terminals));
+
+  TEST_ASSERT_EQUAL_UINT8(2, tuh_audio_stream_count(0));
+  TEST_ASSERT_EQUAL_UINT8(PLAYBACK_FU, tuh_audio_get_feature_unit_id(0, 0));
+  TEST_ASSERT_EQUAL_UINT8(CAPTURE_FU, tuh_audio_get_feature_unit_id(0, 1));
 }
 
 void test_audio_host_sets_sampling_frequency_after_each_stream_activation(void) {

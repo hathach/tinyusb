@@ -800,8 +800,11 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
   uint8_t usb_output_source_id  = 0;
   bool    found_as_interface    = false;
   // A Feature Unit may precede the USB terminal that identifies its stream.
-  uint8_t pending_fu_id        = 0;
-  uint8_t pending_fu_source_id = 0;
+  typedef struct {
+    uint8_t id;
+    uint8_t source_id;
+  } audioh_fu_info_t;
+  audioh_fu_info_t pending_fu[TUH_AUDIO_STREAM_DIRECTION_COUNT] = {0};
 
   p_desc = tu_desc_next(p_desc);
   while (tu_desc_in_bounds(p_desc, desc_end) && tu_desc_type(p_desc) != TUSB_DESC_INTERFACE) {
@@ -812,10 +815,13 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
           if (terminal->bLength >= sizeof(audio10_desc_input_terminal_t) &&
               tu_le16toh(terminal->wTerminalType) == AUDIO_TERM_TYPE_USB_STREAMING && usb_input_terminal_id == 0) {
             usb_input_terminal_id = terminal->bTerminalID;
-            if (pending_fu_source_id == usb_input_terminal_id) {
-              p_audio->out_stream.feature_unit_id = pending_fu_id;
-              pending_fu_id                       = 0;
-              pending_fu_source_id                = 0;
+            for (uint8_t i = 0; i < TU_ARRAY_SIZE(pending_fu); i++) {
+              if (pending_fu[i].source_id == usb_input_terminal_id) {
+                p_audio->out_stream.feature_unit_id = pending_fu[i].id;
+                pending_fu[i].id                    = 0;
+                pending_fu[i].source_id             = 0;
+                break;
+              }
             }
           }
           break;
@@ -825,10 +831,13 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
           if (terminal->bLength >= sizeof(audio10_desc_output_terminal_t) &&
               tu_le16toh(terminal->wTerminalType) == AUDIO_TERM_TYPE_USB_STREAMING && usb_output_source_id == 0) {
             usb_output_source_id = terminal->bSourceID;
-            if (pending_fu_id == usb_output_source_id) {
-              p_audio->in_stream.feature_unit_id = pending_fu_id;
-              pending_fu_id                      = 0;
-              pending_fu_source_id               = 0;
+            for (uint8_t i = 0; i < TU_ARRAY_SIZE(pending_fu); i++) {
+              if (pending_fu[i].id == usb_output_source_id) {
+                p_audio->in_stream.feature_unit_id = pending_fu[i].id;
+                pending_fu[i].id                   = 0;
+                pending_fu[i].source_id            = 0;
+                break;
+              }
             }
           }
           break;
@@ -847,8 +856,13 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
               mapped = true;
             }
             if (!mapped) {
-              pending_fu_id        = p_desc[3];
-              pending_fu_source_id = p_desc[4];
+              for (uint8_t i = 0; i < TU_ARRAY_SIZE(pending_fu); i++) {
+                if (pending_fu[i].id == 0) {
+                  pending_fu[i].id        = p_desc[3];
+                  pending_fu[i].source_id = p_desc[4];
+                  break;
+                }
+              }
             }
           }
           break;
