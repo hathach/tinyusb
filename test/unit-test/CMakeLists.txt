@@ -128,4 +128,18 @@ add_ceedling_test(
   "${CEEDLING_BUILD_DIR}/test/mocks/test_msc_device/mock_dcd.c"
   )
 
+add_ceedling_test(
+  test_audio_host
+  ${CEEDLING_WORKDIR}/test/host/audio/test_audio_host.c
+  "${CEEDLING_WORKDIR}/../../src/class/audio/audio_host.c;${CEEDLING_WORKDIR}/../../src/common/tusb_fifo.c"
+  ""
+  )
+target_compile_definitions(test_audio_host PRIVATE
+  CFG_TUH_ENABLED=1
+  CFG_TUH_AUDIO=1
+  CFG_TUSB_DEBUG=0
+  CFG_TUH_AUDIO_EPIN_BUFSIZE=1024
+  CFG_TUH_AUDIO_EPOUT_BUFSIZE=1024
+  )
+
 enable_testing()
