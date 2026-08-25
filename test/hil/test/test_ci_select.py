@@ -302,7 +302,11 @@ class TestArgsEmission(unittest.TestCase):
         out = j.loads(r.stdout)
         self.assertFalse(out['full'])
         self.assertIn('tinyusb.json', out['args'])
-        self.assertTrue(any('cdc_device' in line for line in out['reasons']))
+        # reasons are a stderr diagnostic, deliberately NOT in the payload: they were
+        # 97% of a 9.8 MB JSON on a dep bump, and every consumer re-parses that file
+        self.assertNotIn('reasons', out, 'reasons must not ride in the machine-read JSON')
+        self.assertNotIn('reasons', out['build'])
+        self.assertIn('cdc_device', r.stderr)
         # A core-class diff must select boards THROUGH THE CLI: the in-process tests
         # inject their own repo root, so only this subprocess path catches a broken
         # repo_root derivation -- which once made every repo-relative glob match
@@ -938,6 +942,181 @@ class TestClassesWithNoEnablingExample(unittest.TestCase):
                          'both axes, so nothing compiles it until the next master push')
 
 
+class TestExampleMapOmitsFullFamilies(unittest.TestCase):
+    """A family whose selection is ALREADY everything it can build carries no -e list.
+
+    Sixth of the same shape as the class below, found the same way: a perf rewrite of
+    _prune_buildable dropped the `set(kept) != set(buildable)` test and all 216 tests
+    stayed green. The build outcome is identical either way -- build.py applies the same
+    skip_example the pruner just did -- so nothing compiled differently and only the
+    payload grew (22 families x 33 examples on one dcd_dwc2.c diff). That is exactly the
+    kind of drift no build failure ever reports."""
+
+    def test_a_device_only_port_diff_still_omits_families_it_cannot_narrow(self):
+        # dcd_dwc2.c selects device+dual examples only, but a family whose host examples
+        # are all unbuildable anyway ends up wanting its entire buildable set
+        b = ci_select.classify_build(['src/portable/synopsys/dwc2/dcd_dwc2.c'], REPO)
+        self.assertFalse(b['full'])
+        self.assertTrue(b['families'])
+        omitted = [f for f in b['families'] if f not in b['family_examples']]
+        self.assertTrue(omitted, 'no family omitted its -e list; the "already everything '
+                                 'this family builds" case stopped being detected')
+        for fam in omitted:
+            self.assertNotIn(fam, b['family_examples'])
+
+    def test_a_family_that_can_build_more_than_the_diff_wants_keeps_its_list(self):
+        # the other direction: one example selects itself and nothing else, so every
+        # family it lands on must carry an explicit -e or CI builds all 46
+        b = ci_select.classify_build(['examples/device/cdc_msc/src/main.c'], REPO)
+        self.assertFalse(b['full'])
+        for fam in b['families']:
+            self.assertEqual(b['family_examples'].get(fam), ['device/cdc_msc'], fam)
+
+
+class TestSelectionBehavioursThatHadNoTest(unittest.TestCase):
+    """Five behaviours a reviewer's mutation pass proved were unpinned: break each one
+    and the whole suite stayed green. Each test here fails against its mutant.
+
+    They are grouped because they share a shape - every one is a small expression whose
+    removal silently NARROWS the selection, which is the failure direction that merges a
+    regression rather than wasting a runner."""
+
+    def test_build_defines_reach_the_prefilter(self):
+        # mutant: `defines = ()` in build.py's build_boards_list. metro_m4_express gets
+        # MAX3421_HOST=1 from its roster variant, never from its BSP, so without the
+        # defines the -e prefilter drops the rig's only MAX3421 firmware and hil-tinyusb
+        # has nothing to flash.
+        import build as build_py, build_utils, inspect
+        src = inspect.getsource(build_py.build_boards_list)
+        self.assertIn('defines = tuple(sorted(build_defines))', src,
+                      'the -D tokens must reach cmake_board/skip_example')
+        old = os.getcwd()
+        os.chdir(REPO)
+        try:
+            ex, board = 'dual/host_info_to_device_cdc', 'metro_m4_express'
+            self.assertTrue(build_utils.skip_example(ex, board),
+                            'without the define this example is correctly skipped')
+            self.assertFalse(build_utils.skip_example(ex, board, ('MAX3421_HOST=1',)),
+                             'with it, it must build - that is what the roster passes')
+        finally:
+            os.chdir(old)
+
+    def test_one_first_prefers_a_board_that_can_build_the_filter(self):
+        # mutant: buildable() -> True, i.e. back to all_boards[0]. lpc54's first board
+        # skips every msc_file_explorer example, so the leg would compile nothing.
+        import build as build_py
+        old_env, old = os.environ.get('GITHUB_ACTIONS'), os.getcwd()
+        os.environ['GITHUB_ACTIONS'] = 'true'
+        os.chdir(REPO)
+        try:
+            unfiltered = build_py.get_family_boards('lpc54', False, True)
+            filtered = build_py.get_family_boards('lpc54', False, True,
+                                                  ['host/msc_file_explorer'])
+            self.assertEqual(unfiltered, ['lpcxpresso54114'], 'unfiltered pick must not move')
+            self.assertNotEqual(filtered, unfiltered,
+                                'the -e pick must avoid a board that skips the whole filter')
+            import build_utils
+            self.assertFalse(build_utils.skip_example('host/msc_file_explorer', filtered[0]),
+                             f'{filtered[0]} must actually build the filtered example')
+        finally:
+            os.chdir(old)
+            if old_env is None:
+                os.environ.pop('GITHUB_ACTIONS', None)
+            else:
+                os.environ['GITHUB_ACTIONS'] = old_env
+
+    def test_a_class_file_selects_its_own_macro_not_just_the_directory(self):
+        # mutant: delete the _CLS_STEM_RE block. src/class/midi holds MIDI 1.0 AND 2.0;
+        # examples/device/midi2_device is the only example enabling CFG_TUD_MIDI2 and the
+        # only one that compiles midi2_device.c, but the directory macro alone misses it.
+        got = ci_select._build_class_examples('midi', 'midi2_device.c', {'device'}, REPO)
+        self.assertIn('device/midi2_device', got,
+                      'a midi2 change must select the example that compiles it')
+        host = ci_select._build_class_examples('midi', 'midi2_host.c', {'host'}, REPO)
+        self.assertIn('host/midi2_host', host)
+        # and the plain midi files must NOT drag midi2 in
+        plain = ci_select._build_class_examples('midi', 'midi_device.c', {'device'}, REPO)
+        self.assertNotIn('device/midi2_device', plain)
+
+    def test_a_port_change_selects_the_dual_examples(self):
+        # mutant: drop `+ ('dual',)`. A dcd/hcd change must build the dual examples -
+        # they exercise both stacks on one board, so a dwc2 break lands there first.
+        s = ci_select.classify_build(['src/portable/synopsys/dwc2/dcd_dwc2.c'], REPO)
+        duals = {e for exs in s['family_examples'].values() for e in exs
+                 if e.startswith('dual/')}
+        self.assertTrue(duals, 'a dcd change selected no dual example')
+
+    def test_the_selector_answers_the_same_with_and_without_ci_env(self):
+        # mutant: drop ci=True from _prune_buildable. ci_skip_boards/ci_preferred_boards
+        # only apply when GITHUB_ACTIONS/CIRCLECI is set, so without the pin a laptop and
+        # a runner disagree - and /pre-pr would report a family list CI will not build.
+        files = ['examples/host/cdc_msc_hid_freertos/src/main.c']
+        old = os.environ.get('GITHUB_ACTIONS')
+        os.environ.pop('GITHUB_ACTIONS', None)
+        try:
+            local = ci_select.classify_build(files, REPO)['families']
+            os.environ['GITHUB_ACTIONS'] = 'true'
+            import importlib
+            importlib.reload(ci_select)
+            runner = ci_select.classify_build(files, REPO)['families']
+        finally:
+            if old is None:
+                os.environ.pop('GITHUB_ACTIONS', None)
+            else:
+                os.environ['GITHUB_ACTIONS'] = old
+            import importlib
+            importlib.reload(ci_select)
+        self.assertEqual(local, runner, 'the selector must not depend on the CI env vars')
+
+
+class TestRuleTableIsCarbonOfTheSpec(unittest.TestCase):
+    """ci_select's module docstring carries the rule table so a reader landing in the
+    code does not have to open the spec to learn what rule 6 is. Both are maintained by
+    hand, so this pins them cell-for-cell: edit one without the other and this fails.
+
+    It also pins the table against the CODE - every rule id the docstring claims must
+    appear as a `# rule N` marker on a branch of _classify_build_one, so a row cannot be
+    documented without a branch, or a branch renumbered without the table."""
+
+    @staticmethod
+    def _rows(text):
+        import re as _re
+        out = []
+        for l in text.splitlines():
+            if not l.startswith('| '):
+                continue
+            c = [x.strip() for x in l.strip().strip('|').split('|')]
+            if len(c) == 5 and _re.fullmatch(r'\d+[a-z]?', c[0]):
+                out.append(c)
+        return out
+
+    def test_docstring_table_matches_the_spec(self):
+        spec = open(os.path.join(
+            REPO, 'docs/superpowers/specs/2026-08-19-ci-build-family-filter-design.md')).read()
+        doc, spec_rows = self._rows(ci_select.__doc__), self._rows(spec)
+        self.assertTrue(spec_rows, 'no rule table found in the spec')
+        self.assertEqual([r[0] for r in doc], [r[0] for r in spec_rows],
+                         'rule ids differ between ci_select.__doc__ and the spec')
+        for d, s in zip(doc, spec_rows):
+            self.assertEqual(d, s, f'rule {d[0]} differs between the docstring and the spec')
+
+    def test_every_documented_rule_has_a_branch(self):
+        import re as _re
+        src = open(os.path.join(REPO, 'tools/ci_select.py')).read()
+        marked = set()
+        # handles `# rule 6`, `# rules 1, 1b` and `# rules 8-10`
+        for m in _re.finditer(r'#\s*rules?\s+([0-9a-z, -]+)', src):
+            for tok in _re.split(r',\s*', m.group(1).strip()):
+                rng = _re.fullmatch(r'(\d+)\s*-\s*(\d+)', tok.strip())
+                if rng:
+                    marked.update(str(n) for n in range(int(rng.group(1)), int(rng.group(2)) + 1))
+                elif _re.fullmatch(r'\d+[a-z]?', tok.strip()):
+                    marked.add(tok.strip())
+        documented = {r[0] for r in self._rows(ci_select.__doc__)}
+        missing = sorted(documented - marked, key=lambda s: (int(_re.match(r'\d+', s).group()), s))
+        self.assertEqual(missing, [], f'documented rules with no `# rule N` branch marker: {missing}')
+
+
 class TestNoTrackedFileIsUnclassified(unittest.TestCase):
     """Rule 17 (unclassified -> full on both axes) is the fail-open net for paths nobody
     anticipated. It must stay that way - a wrong `full` costs runner minutes and is
@@ -1477,10 +1656,17 @@ class TestBuildPostFilter(unittest.TestCase):
         # the accepted net for a break outside its #if guard). src/class/bth is the
         # live instance of this state today; TestClassesWithNoEnablingExample pins the
         # whole set, so a new one cannot appear unnoticed.
-        s = ci_select.classify_build(['src/class/vendor/vendor_host.c'], REPO)
+        # src/class/bth/bth_device.c, a file that EXISTS: the old assertion named
+        # src/class/vendor/vendor_host.c, deleted by the same branch, so any made-up
+        # path reached the same branch and the test passed vacuously.
+        real = os.path.join(REPO, 'src/class/bth/bth_device.c')
+        self.assertTrue(os.path.isfile(real), 'the case needs a file that exists')
+        s = ci_select.classify_build(['src/class/bth/bth_device.c'], REPO)
         self.assertFalse(s['full'])
         self.assertEqual(s['families'], [])
         self.assertTrue(any('no contribution' in r for r in s['reasons']), s['reasons'])
+        # and the reason must name the class, not just any empty answer
+        self.assertTrue(any('bth' in r for r in s['reasons']), s['reasons'])
 
     def test_class_source_with_examples_still_scopes(self):
         s = ci_select.classify_build(['src/class/cdc/cdc_device.c'], REPO)
@@ -2040,14 +2226,14 @@ class TestMcuTokensResolve(unittest.TestCase):
     # produce, or a rename nobody followed through. `family:samd21` was one of these
     # until the nine examples/host/*/only.txt files were corrected to samd2x_l2x.
     #
-    # The `mcu:` entries are NOT all harmless. MIMXRT10XX/MIMXRT11XX and LPC177X_8X sit
-    # beside a live token in the same file, so they gate nothing either way. MKL25ZXX
-    # (device/msc_dual_lun) and SAME5X (device/audio_test) do not: those skips are dead,
-    # and both examples are built today on the boards their skip file meant to exclude -
-    # successfully, which is why nobody noticed. Correcting them REMOVES working build
-    # coverage, so it is a maintainer call, not a drive-by fix.
+    # The remaining `mcu:` entries sit beside a live token in the same file, so they gate
+    # nothing either way. MKL25ZXX (7 files) and SAME5X (1) were dead too, but unlike
+    # these they were the ONLY token for their board - the examples were already being
+    # built on the very boards those lines meant to exclude. Dropping them is a no-op for
+    # the build (verified per example) and was chosen over re-pointing, which would have
+    # removed working coverage.
     UNREACHABLE_TOKENS = {
-        'mcu': {'LPC177X_8X', 'MIMXRT10XX', 'MIMXRT11XX', 'MKL25ZXX', 'SAME5X', 'STM32U3'},
+        'mcu': {'LPC177X_8X', 'MIMXRT10XX', 'MIMXRT11XX', 'STM32U3'},
         'family': set(),
         'board': set(),
     }

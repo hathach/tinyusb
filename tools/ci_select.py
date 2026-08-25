@@ -13,6 +13,38 @@ JSON: full, boards (name -> 'all' | [tests]), families (bsp families the diff
 touches, including ones with no rig board - build-only consumers such as /pre-pr
 sample from these), args (hil_test.py args per config) and args_flasher (the same
 args split by each board's flasher, for CI legs that split one rig by flasher).
+
+THE RULE TABLE. First match wins; answers union per family (build) and per board
+(HIL). A CARBON COPY of the table in the design spec above - edit both, or
+TestRuleTableIsCarbonOfTheSpec fails. `FAM` = the families whose family.cmake
+references the changed path (CMake only; make follows it). `DEV`/`HOST`/`DUAL`/
+`TYPEC`/`ALL` are the example role sets. The Build families column is PRE-PRUNE:
+_prune_buildable then intersects each family with what it can actually build.
+
+| # | Changed path | Build families | Build examples | HIL boards → tests |
+| 1 | `docs/`, `.claude/`, `*.md`, `*.rst`, `LICENSE` | — | — | — |
+| 1b | `.gitignore`, `.clang-format`, `.idea/**`, `test/{fuzz,unit-test}/**`, non-build `.github/**`, packaging manifests | — | — | — |
+| 2 | `test/hil/**` | — | — | all boards → all tests |
+| 2b | `tools/metrics.py`, `.github/scripts/metrics_*.py` | `ALL` (unchanged — `tinyusb_metrics` runs `metrics.py` as a build target) | `ALL` | — (nothing on the rig runs it) |
+| 3 | `src/portable/<port>/dcd_*`, `*_device.[ch]` | `FAM` | `DEV`+`DUAL` | `FAM`'s device-role boards → device+dual tests |
+| 4 | `src/portable/<port>/hcd_*`, `*_host.[ch]` | `FAM` | `HOST`+`DUAL` | `FAM`'s host-role boards → host+dual tests |
+| 5 | `src/portable/<port>/**` (anything else) | `FAM` | `ALL` | `FAM`'s boards → all their tests |
+| 5b | `src/portable/<port>/**` where `FAM` is empty | — | — | — (empty resolves to nothing on BOTH axes) |
+| 6 | `hw/bsp/<family>/**` | that family | `ALL` | that family's boards → all tests (a `boards/<board>/` path narrows to that board) |
+| 7 | `hw/mcu/<vendor>/**` | `FAM` — empty resolves to nothing (maintainer ruling) | `ALL` | `FAM`'s boards → all tests; empty resolves to nothing (maintainer ruling)  ⚠ *see below* |
+| 8 | `src/class/<cls>/*_device.[ch]` | `ALL` | examples enabling `CFG_TUD_<CLS>` | device-role boards → HIL tests enabling `CFG_TUD_<CLS>` |
+| 9 | `src/class/<cls>/*_host.[ch]` | `ALL` | examples enabling `CFG_TUH_<CLS>` | host-role boards → HIL tests enabling `CFG_TUH_<CLS>` |
+| 10 | `src/class/<cls>/**` (shared header) | `ALL` | either, **plus include-edge classes** | both roles → same, plus include-edge classes |
+| 11 | `src/device/**` | `ALL` | `DEV`+`DUAL` | device-role boards → device+dual tests |
+| 12 | `src/host/**` | `ALL` | `HOST`+`DUAL` | host-role boards → host+dual tests |
+| 12b | `src/typec/**` | `ALL` | examples enabling `CFG_TUC_ENABLED` | — (no rig board runs a typec test) |
+| 13 | `examples/<role>/<name>/**` | `ALL` | just `<name>` | if `<name>` is a HIL test: all boards → that test; else nothing |
+| 14 | `examples/device/board_test/**` | `ALL` | just `board_test` | all boards → all tests (HIL parking firmware) |
+| 15 | `examples/build_system/**`, `examples/CMakeLists.txt`, `examples/<role>/CMakeLists.txt` | `ALL` | `ALL` | all boards → all tests |
+| 16 | `src/common/`, `src/osal/`, `src/tusb.[ch]`, `src/tusb_option.h`, `tools/{build,build_utils,ci_select}.py`, `tools/cmake/**`, `src/CMakeLists.txt`, `src/tinyusb.mk`, `hw/bsp/{family_support.{cmake,mk},family_rules.mk,zephyr_board_aliases.cmake,board.c,board_api.h,ansi_escape.h}`, `.github/**`, `.circleci/**` | `ALL` | `ALL` | all boards → all tests |
+| 16a | `lib/<name>/**` | `ALL` | examples whose own `CMakeLists.txt`/`Makefile` names `lib/<name>` | those examples that are HIL tests, on all boards; empty resolves to nothing |
+| 16b | `tools/get_deps.py` | families whose `deps_mandatory`/`deps_optional` entries changed | `ALL` | those families' boards → all tests; a logic change, an `'all'` entry, no base content or a changed token naming no family → full |
+| 17 | anything unclassified (no tracked file reaches this — TestNoTrackedFileIsUnclassified) | `ALL` | `ALL` | all boards → all tests (fail-open) |
 """
 import argparse
 import ast
@@ -53,7 +85,10 @@ def _read(path: str) -> str:
 
 
 _NONCODE_RE = re.compile(
-    r'^(docs/|\.claude/|.*\.(md|rst)$|LICENSE)')
+    # LICENSE is anchored and LICENSES/ named separately: a bare `LICENSE` alternative
+    # also swallowed anything merely STARTING with it (a future LICENSE_extra.c),
+    # which is the silent-under-selection direction
+    r'^(docs/|\.claude/|.*\.(md|rst)$|LICENSE$|LICENSES/)')
 # Repo metadata and tooling that no CI build reads. Enumerated rather than left to
 # rule 17, which widens BOTH axes: a PR touching only .gitignore and a README was
 # creating 74 cmake legs (each a runner doing checkout + toolchain + get_deps before
@@ -152,10 +187,20 @@ def board_tests(board: dict) -> list:
     return [x for x in run if x not in t.get('skip', [])]
 
 
+
+def _rg(repo_root: str, *parts: str) -> str:
+    """A glob pattern rooted at repo_root, with the ROOT escaped and the parts left as
+    patterns. The root is a filesystem path, not a pattern: a checkout at
+    /w/pr[1]/tinyusb (a worktree named after a PR, a CI workspace with brackets) makes
+    an unescaped '[1]' a character class that matches nothing, and every lookup below
+    then resolves to zero - families=0 instead of 30, i.e. the selector fails CLOSED
+    and the whole matrix compiles nothing while reporting green."""
+    return os.path.join(glob.escape(repo_root), *parts)
+
 # cached: called per changed file x roster board, and the tree doesn't change mid-run
 @functools.lru_cache(maxsize=None)
 def board_family(board_name: str, repo_root: str):
-    hits = glob.glob(os.path.join(repo_root, 'hw/bsp/*/boards', board_name))
+    hits = glob.glob(_rg(repo_root, 'hw/bsp/*/boards', board_name))
     return os.path.basename(os.path.dirname(os.path.dirname(hits[0]))) if hits else None
 
 
@@ -263,10 +308,10 @@ def _family_file_texts(repo_root: str) -> tuple:
     CMakeLists.txt, read once. path_families is called per distinct directory in the
     diff and its own cache only helps repeats: a 6,000-file hw/mcu dep bump re-read
     these 84 files 99,892 times (2.2 s) before this."""
-    bsp_root = os.path.join(repo_root, 'hw/bsp')
+    bsp_root = os.path.join(repo_root, 'hw/bsp')   # escaped by _rg below
     out = []
-    for f in sorted(glob.glob(os.path.join(bsp_root, '*/family.cmake')) +
-                    glob.glob(os.path.join(bsp_root, '*/components/*/CMakeLists.txt'))):
+    for f in sorted(glob.glob(_rg(bsp_root, '*/family.cmake')) +
+                    glob.glob(_rg(bsp_root, '*/components/*/CMakeLists.txt'))):
         try:
             out.append((os.path.relpath(f, bsp_root).split(os.sep, 1)[0], _read(f)))
         except OSError:
@@ -386,7 +431,7 @@ def class_include_edges(repo_root: str) -> dict:
     Derived from the actual #include lines rather than a hand-written table so it
     cannot rot when a class picks up or drops a cross-class include."""
     edges = {}
-    for f in sorted(glob.glob(os.path.join(repo_root, 'src/class/*/*.[ch]'))):
+    for f in sorted(glob.glob(_rg(repo_root, 'src/class/*/*.[ch]'))):
         cls = os.path.basename(os.path.dirname(f))
         try:
             text = _read(f)
@@ -470,11 +515,23 @@ def _class_roles(base: str) -> set:
     return {'device', 'host'}
 
 
-def _config_enables(cfg_path: str, macros) -> bool:
+@functools.lru_cache(maxsize=None)
+def _config_text(cfg_path: str) -> str:
+    """An example's tusb_config.h, read once. Every class path re-asks the same 46
+    configs on both axes, so the reads go up with the diff: 4,240 of the same 46 files
+    for a diff touching all of src/class (0.48s -> 0.13s), and they cannot change
+    mid-run. Cached here rather than on _config_enables so the macros argument stays an
+    ordinary list at every call site."""
     try:
         with open(cfg_path, encoding='utf-8', errors='replace') as f:
-            text = f.read()
+            return f.read()
     except OSError:
+        return ''
+
+
+def _config_enables(cfg_path: str, macros) -> bool:
+    text = _config_text(cfg_path)
+    if not text:
         return False
     for m in macros:
         for value in re.findall(_DEF_VALUE.format(m), text, re.M):
@@ -511,10 +568,13 @@ def lib_examples(lib_name: str, repo_root: str) -> set:
     pat = re.compile(re.escape('lib/' + lib_name) + r'(?=[/\s"\')}]|$)', re.M)
     out = set()
     for ex in all_examples(repo_root):
-        for f in sorted(glob.glob(os.path.join(repo_root, 'examples', ex, '**', '*'),
+        # the two filenames directly: '**/*' enumerated 489 entries per lib against a
+        # clean tree to use 107, and grows without bound once `make BOARD=... all` has
+        # written examples/<role>/<name>/_build/ - which is where /pre-pr runs
+        for f in sorted(glob.glob(_rg(repo_root, 'examples', ex, '**', 'CMakeLists.txt'),
+                                  recursive=True) +
+                        glob.glob(_rg(repo_root, 'examples', ex, '**', 'Makefile'),
                                   recursive=True)):
-            if os.path.basename(f) not in ('CMakeLists.txt', 'Makefile'):
-                continue
             try:
                 text = _read(f)
             except OSError:
@@ -580,7 +640,7 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
     if _NONCODE_RE.match(path) or _META_RE.match(path):
         s.reasons.append(f'{path}: non-code, no contribution')
         return
-    if _METRICS_RE.match(path):
+    if _METRICS_RE.match(path):                                   # rule 2b
         s.reasons.append(f'{path}: build-size metrics tooling, no HIL contribution')
         return
     if _FULL_RE.match(path):
@@ -903,7 +963,13 @@ def main():
         print(f'ci_select[build]: {r}', file=sys.stderr)
     for r in s['reasons']:
         print(f'ci_select: {r}', file=sys.stderr)
-    print(json.dumps(s))
+    # reasons go to stderr ONLY - they are a human diagnostic and no consumer reads them
+    # back. They are also ~97% of the payload (a whole-tree diff: 453 KB -> 12 KB), which
+    # build.yml re-parses with ci_set_matrix, hil_ci_set_matrix, an inline python and
+    # three jq calls. The in-process dicts still carry them, for the log and the tests.
+    out = {k: v for k, v in s.items() if k != 'reasons'}
+    out['build'] = {k: v for k, v in s['build'].items() if k != 'reasons'}
+    print(json.dumps(out))
 
 
 # -------------------------------------------------------------
@@ -925,7 +991,7 @@ def all_examples(repo_root: str) -> tuple:
     """Every examples/<role>/<name> with a CMakeLists.txt, as 'role/name'."""
     out = []
     for role in _EX_ROLES:
-        for d in sorted(glob.glob(os.path.join(repo_root, 'examples', role, '*/'))):
+        for d in sorted(glob.glob(_rg(repo_root, 'examples', role, '*/'))):
             if os.path.isfile(os.path.join(d, 'CMakeLists.txt')):
                 out.append(f'{role}/{os.path.basename(d.rstrip(os.sep))}')
     return tuple(out)
@@ -979,13 +1045,13 @@ class _BSel:
 
 def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
     base = os.path.basename(path)
-    if _NONCODE_RE.match(path) or _META_RE.match(path):           # rule 1
+    if _NONCODE_RE.match(path) or _META_RE.match(path):           # rules 1, 1b
         s.reasons.append(f'{path}: non-code, no build contribution')
         return
     if re.match(r'test/hil/', path):                              # rule 2
         s.reasons.append(f'{path}: HIL harness, no build contribution')
         return
-    if path == GET_DEPS_PATH:                                     # get_deps rule
+    if path == GET_DEPS_PATH:                                     # rule 16b
         if get_deps_families is None:
             s.force_full(f'{path}: dep changes not resolvable -> full build matrix')
             return
@@ -1002,6 +1068,7 @@ def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
         roles = _port_roles(base)
         exs = 'all' if roles == {'device', 'host'} else \
             role_examples(repo_root, tuple(roles) + ('dual',))
+        # rule 5b: fams empty -> s.add iterates nothing -> no contribution
         s.add(fams, exs, f'{path}: port {port} -> families {sorted(fams)}')
         return
     if re.match(r'hw/bsp/[^/]+/', path):                          # rule 6
@@ -1064,7 +1131,7 @@ def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
         s.add(all_bsp_families(repo_root), exs, f'{path}: typec -> {sorted(exs)}')
         return
     m = re.match(r'lib/([^/]+)/', path)
-    if m:                                                         # lib rule
+    if m:                                                         # rule 16a
         lib = m.group(1)
         exs = lib_examples(lib, repo_root)
         if not exs:
@@ -1150,11 +1217,25 @@ def _prune_buildable(fams, fam_ex, repo_root):
             # for anything else spins up CI's most expensive leg to skip every example
             # it was given. Identical to the unfiltered list on all 81 other families.
             pool = set(build_py.get_examples(fam))
+
+            # asked per example instead of materialising the family's whole buildable
+            # list: skip_example is by far the hottest call in the selector, and every
+            # question below short-circuits (one cdc_device.c diff: 6,883 calls -> 1,889)
+            def can_build(ex):
+                # EITHER build system: this one list gates CircleCI's make legs too, and
+                # the two answer differently (build_utils.skip_example)
+                return ex in pool and any(
+                    not build_utils.skip_example(ex, b) or
+                    not build_utils.skip_example(ex, b, (), 'make') for b in boards)
+
+            want = fam_ex.get(fam)
             try:
-                buildable = [e for e in allex if e in pool and
-                             any(not build_utils.skip_example(e, b) or
-                                 not build_utils.skip_example(e, b, (), 'make')
-                                 for b in boards)]
+                if want is None:
+                    kept = None if any(can_build(e) for e in allex) else []
+                else:
+                    kept = [e for e in want if can_build(e)]
+                    if kept and not any(can_build(e) for e in allex if e not in want):
+                        kept = None          # already everything the family can build
             except OSError as e:
                 # a family mid-bring-up (boards/ but no family.cmake/family.mk yet)
                 # reads as unbuildable to the scrape; keep it rather than tracebacking
@@ -1162,13 +1243,10 @@ def _prune_buildable(fams, fam_ex, repo_root):
                 reasons.append(f'{fam}: mcu scrape unreadable ({e}), kept unfiltered')
                 out_fams.append(fam)
                 continue
-            want = fam_ex.get(fam)
-            have = set(buildable)
-            kept = buildable if want is None else [e for e in want if e in have]
-            if not kept:
+            if kept == []:
                 continue                     # this diff builds nothing for this family
             out_fams.append(fam)
-            if set(kept) != set(buildable):
+            if kept is not None:
                 out_ex[fam] = kept
     return out_fams, out_ex, reasons
 

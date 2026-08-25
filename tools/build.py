@@ -356,11 +356,11 @@ def get_family_boards(family, one_random, one_first, examples=None, build_system
         # the WHOLE preferred list, in order - stopping at entry one would abandon a
         # curated list for the raw alphabetical order the moment its first board cannot
         # build the filter, which also moves the board the metrics baseline is keyed on
+        # the whole preferred list, in order. Unreachable-when-unfiltered: with
+        # examples is None, buildable() is True and the loop returns on entry one.
         for b in preferred_list:
             if buildable(b):
                 return [b]
-        if preferred_list and examples is None:
-            return [preferred_list[0]]
         candidates = [b for b in all_boards if buildable(b)] or all_boards
         if one_first:
             return [candidates[0]]
