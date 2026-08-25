@@ -569,7 +569,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
                         break
         finally:
             os.chdir(cwd)
-        self.assertEqual(diverging, {'imxrt', 'lpc11', 'lpc18', 'lpc54', 'mcx', 'rx',
+        self.assertEqual(diverging, {'imxrt', 'lpc11', 'lpc18', 'lpc54', 'mcx', 'nrf', 'rx',
                                      'samd11', 'samd2x_l2x', 'samd5x_e5x', 'stm32l0',
                                      'stm32l4', 'tm4c'},
                          'the set of families whose membrowse upload can land on an '
