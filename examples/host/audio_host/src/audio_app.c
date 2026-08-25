@@ -480,8 +480,9 @@ static void tuh_audio_mount_async(uintptr_t param) {
       if (tuh_audio_stream_direction(idx, stream_idx) != TUH_AUDIO_STREAM_PLAYBACK) {
         continue;
       }
+      const uint8_t preferred_channels = capture_found ? mic_config.channels : 2;
       for (uint8_t n = 0; n < 2 && playback_config_idx == TUSB_INDEX_INVALID_8; n++) {
-        const uint8_t ch = (n == 0) ? mic_config.channels : (uint8_t)(mic_config.channels == 1 ? 2 : 1);
+        const uint8_t ch = (n == 0) ? preferred_channels : (uint8_t)(preferred_channels == 1 ? 2 : 1);
         for (uint8_t i = 0; i < tuh_audio_config_count(idx, stream_idx); i++) {
           tuh_audio_stream_config_t config;
           if (tuh_audio_config_get(idx, stream_idx, i, &config) && config.format == TUH_AUDIO_FORMAT_S16_LE &&
