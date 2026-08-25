@@ -417,6 +417,31 @@ static const uint8_t playback_with_cs_ep_before_data_ep[] = {
   TEST_UAC1_DATA_EP(0x01, TUSB_ISO_EP_ATT_ADAPTIVE, 192, 1),
 };
 
+static const uint8_t malformed_zero_length_ac_descriptor[] = {
+  TEST_UAC1_AC_HEADER,
+  0, TUSB_DESC_CS_INTERFACE,
+};
+
+static const uint8_t malformed_sampling_frequency_list[] = {
+  TEST_UAC1_AC_HEADER,
+  TEST_UAC1_INPUT_TERM(PLAYBACK_INPUT_TERM, AUDIO_TERM_TYPE_USB_STREAMING, 2),
+  TEST_UAC1_AS_ALT0,
+  TEST_UAC1_AS_INTERFACE(1, 1),
+  TEST_UAC1_AS_GENERAL(PLAYBACK_INPUT_TERM),
+  11, TUSB_DESC_CS_INTERFACE, AUDIO10_CS_AS_INTERFACE_FORMAT_TYPE, AUDIO10_FORMAT_TYPE_I, 2, 2, 16, 2,
+  U24_TO_U8S_LE(48000),
+};
+
+static const uint8_t malformed_short_endpoint[] = {
+  TEST_UAC1_AC_HEADER,
+  TEST_UAC1_INPUT_TERM(PLAYBACK_INPUT_TERM, AUDIO_TERM_TYPE_USB_STREAMING, 2),
+  TEST_UAC1_AS_ALT0,
+  TEST_UAC1_AS_INTERFACE(1, 1),
+  TEST_UAC1_AS_GENERAL(PLAYBACK_INPUT_TERM),
+  TEST_UAC1_FORMAT(2, 2, 16, 48000),
+  6, TUSB_DESC_ENDPOINT, 0x01, (TUSB_XFER_ISOCHRONOUS | TUSB_ISO_EP_ATT_ADAPTIVE), U16_TO_U8S_LE(192),
+};
+
 static const uint8_t playback_with_two_alternates[] = {
   TEST_UAC1_AC_HEADER,
   TEST_UAC1_INPUT_TERM(PLAYBACK_INPUT_TERM, AUDIO_TERM_TYPE_USB_STREAMING, 2),
@@ -717,6 +742,23 @@ void test_audio_host_rejects_overflowed_frame_size_for_large_channel_count(void)
                                           (const tusb_desc_interface_t *)capture_with_large_channel_count,
                                           sizeof(capture_with_large_channel_count)));
   TEST_ASSERT_EQUAL_UINT8(0, tuh_audio_get_dev_addr(0));
+}
+
+void test_audio_host_rejects_malformed_descriptors_and_releases_instance(void) {
+  const struct {
+    const uint8_t *desc;
+    uint16_t       len;
+  } malformed[] = {
+    {malformed_zero_length_ac_descriptor, sizeof(malformed_zero_length_ac_descriptor)},
+    {malformed_sampling_frequency_list, sizeof(malformed_sampling_frequency_list)},
+    {malformed_short_endpoint, sizeof(malformed_short_endpoint)},
+  };
+
+  for (uint8_t i = 0; i < TU_ARRAY_SIZE(malformed); i++) {
+    TEST_ASSERT_EQUAL_UINT16(
+      0, audioh_open(0, AUDIO_DEV_ADDR, (const tusb_desc_interface_t *)malformed[i].desc, malformed[i].len));
+    TEST_ASSERT_EQUAL_UINT8(0, tuh_audio_get_dev_addr(0));
+  }
 }
 
 void test_audio_host_uses_cs_endpoint_declared_before_data_endpoint_on_start(void) {
