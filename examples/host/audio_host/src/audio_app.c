@@ -287,6 +287,9 @@ void audio_app_task_read(void) {
   if (frames == 0) {
     return;
   }
+  if (!spk_ready) {
+    return; // capture-only device or playback intentionally stopped
+  }
 
   if (spk_config.channels == mic_config.channels) {
     memcpy(spk_samples, mic_samples, frames * mic_config.channels * sizeof(int16_t));
