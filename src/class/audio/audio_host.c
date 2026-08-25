@@ -356,7 +356,23 @@ static void audioh_stream_playback_xfer(tuh_audio_stream_t *s) {
 // Configure state machine
 //--------------------------------------------------------------------+
 
+static bool audioh_stream_close_ep(tuh_audio_stream_t *s) {
+  if (!tu_edpt_stream_is_opened(&s->edpt)) {
+    return true;
+  }
+
+  const uint8_t ep_addr = s->edpt.ep_addr;
+  if (!tuh_edpt_close(s->daddr, ep_addr)) {
+    TU_LOG_DRV("  AUDIO close endpoint failed: addr=%u ep=%02x\r\n", s->daddr, ep_addr);
+    return false;
+  }
+
+  tu_edpt_stream_close(&s->edpt);
+  return true;
+}
+
 static void audioh_stream_fail(tuh_audio_stream_t *s, tusb_xfer_result_t result) {
+  (void)audioh_stream_close_ep(s);
   s->state         = STREAM_STATE_IDLE;
   s->active_config = TUSB_INDEX_INVALID_8;
   s->running       = false;
@@ -1055,7 +1071,7 @@ bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx
   TU_VERIFY(s->state != STREAM_STATE_CONFIG && !s->running, false);
   if (s->state == STREAM_STATE_READY) {
     // Wait for any in-flight transfer to complete and be discarded
-    TU_VERIFY(!usbh_edpt_busy(s->daddr, s->map[s->active_config].ep_addr), false);
+    TU_VERIFY(!usbh_edpt_busy(s->daddr, s->edpt.ep_addr), false);
   }
 
   // A shared AS interface must not be left in two different alternate settings
@@ -1075,6 +1091,10 @@ bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx
       return false;
     }
   }
+
+  // The HCD endpoint must be reopened even when the new configuration uses
+  // the same address, since its packet size and interval may have changed.
+  TU_VERIFY(audioh_stream_close_ep(s), false);
 
   s->active_config = config_idx;
   s->frame_bytes   = (uint8_t)tuh_audio_config_frame_size(cfg);
