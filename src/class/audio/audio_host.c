@@ -551,9 +551,10 @@ void audioh_close(uint8_t daddr) {
     _audioh_epbuf[idx].complete_cb = NULL; // drop a pending feature-unit request
     _audioh_epbuf[idx].fu_busy     = false;
 
-    p_audio->stream_count = 0;
-    p_audio->daddr        = 0;
-    p_audio->mounted      = false;
+    p_audio->feature_unit_id = 0;
+    p_audio->stream_count    = 0;
+    p_audio->daddr           = 0;
+    p_audio->mounted         = false;
   }
 }
 
@@ -878,6 +879,7 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
   audioh_interface_t *p_audio = &_audioh_itf[idx];
   p_audio->daddr              = dev_addr;
   p_audio->ac_itf_num         = desc_itf->bInterfaceNumber;
+  p_audio->feature_unit_id    = 0;
   audioh_stream_reset(&p_audio->in_stream);
   audioh_stream_reset(&p_audio->out_stream);
   p_audio->in_stream.daddr  = dev_addr;
