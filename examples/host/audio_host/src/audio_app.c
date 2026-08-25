@@ -497,11 +497,13 @@ static void tuh_audio_mount_async(uintptr_t param) {
   audio_frame_count = spk_config.sample_rate / 1000;
   spk_init_sine(); // fallback test tone while no capture stream is echoing
   set_stream_volume(idx, spk_stream_idx, "Speaker");
-  spk_ready = tuh_audio_start(idx, spk_stream_idx);
 
-  // both streams running: start the periodic phase switching demo
-  if (mic_ready && spk_ready) {
+  if (capture_found) {
+    // Start in the mic-only phase without briefly activating playback first.
     app_audio_phase_enter(APP_PHASE_MIC_ONLY);
+  } else {
+    // Playback-only device: start the sine test tone immediately.
+    spk_ready = tuh_audio_start(idx, spk_stream_idx);
   }
 }
 
