@@ -26,8 +26,8 @@ const runBoard = (b) => agent(
     ? 'THE USER HAS EXPLICITLY AUTHORIZED FORCING: run hil_test.py with HIL_NO_BOARD_LOCK=1 in the environment (bypasses the board lock check; do NOT release or kill the existing holder). '
     : 'If the run fails because the board lock is held (a dev session or concurrent CI job), report pass=false and set detail to start EXACTLY with "board locked:" followed by the holder JSON verbatim — never force the lock. ') +
   'Reserve the phrase "board locked" strictly for lock contention; describe a frozen or non-enumerating board as "unresponsive" instead. ' +
-  `Firmware is in examples/cmake-build-${b}. Use the config for this host (hostname first), single-board flag -b ${b}, Bash timeout >= 20 min, never cancel early. ` +
-  'On non-lock failures retry once with -v -r 1 (one verbose attempt for diagnosis — the first run already did the flake-retries). wedged=true if the board/fixture is unresponsive after the run (capture dmesg | tail -50 into detail).',
+  `Firmware is in examples/cmake-build-${b}. Use the config for this host (hostname first), single-board flag -b ${b}. Run hil_test.py as a BACKGROUND Bash task and wait for it (a stuck fleet runs to its pool guard, 60 min by default — beyond any foreground timeout); never cancel it early. ` +
+  'On non-lock failures retry once with -v -r 1 (one verbose attempt for diagnosis; note a usbtest battery that produced per-case verdicts is NOT auto-retried, so its result already stands). wedged=true if the board/fixture is unresponsive after the run (capture dmesg | tail -50 into detail).',
   { label: `hil:${b}`, phase: 'HIL', agentType: 'hil-operator', schema: HIL },
 )
 
@@ -52,7 +52,7 @@ if (!args.force) {
 }
 
 const wedged = results.filter(r => r.wedged).map(r => r.board)
-if (wedged.length) log(`WEDGED boards needing usb-recover: ${wedged.join(', ')}`)
+if (wedged.length) log(`WEDGED boards needing usb-kernel-recover: ${wedged.join(', ')}`)
 // Workers cannot prompt the user — surface still-locked boards for the main
 // session to ask: force (re-invoke with force: true), wait, or accept.
 const locked = args.force ? [] : results.filter(r => !r.pass && r.detail.startsWith('board locked')).map(r => r.board)

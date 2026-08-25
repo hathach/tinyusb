@@ -15,7 +15,7 @@ void OnProjectLoad (void) {
   Project.SetDevice ("R7FA6M5BH");
   Project.SetHostIF ("USB", "");
   Project.SetTargetIF ("SWD");
-  Project.SetTIFSpeed ("50 MHz");
+  Project.SetTIFSpeed ("4 MHz");   // 50 MHz SWD gave intermittent "Failed to initialize DAP"
 
   Project.SetTraceSource ("Trace Pins");
   Project.SetTracePortWidth (4);

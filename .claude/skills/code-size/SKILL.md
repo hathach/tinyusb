@@ -13,14 +13,7 @@ Compare TinyUSB code size between a base ref (default `master`) and the current 
 | **all examples, one board** | Per-board regression sweep | `-b BOARD` |
 | **all examples, all CI families (combined)** | Pre-merge full check | `--ci` |
 
-The script handles the full base-vs-branch dance:
-1. Creates a temporary git worktree of the base ref under `cmake-metrics/_worktree/`.
-2. Builds the base in `cmake-metrics/<board>/base/`.
-3. Builds the current tree in `cmake-metrics/<board>/build/`.
-4. Runs `tools/metrics.py compare` and writes `cmake-metrics/<board>/metrics_compare.md`.
-5. Removes the worktree on exit.
-
-`--combined` (auto-set by `--ci`) also produces `cmake-metrics/_combined/metrics_compare.md` aggregating across all boards.
+The script does the whole base-vs-branch dance itself: a temporary git worktree of the base ref under `cmake-metrics/_worktree/` (removed on exit), base + branch builds under `cmake-metrics/<board>/{base,build}/`, then `tools/metrics.py compare` (report paths under Outputs).
 
 ## Choosing arguments
 
@@ -35,29 +28,20 @@ Infer from the user's request:
 ## Common invocations
 
 ```bash
-# Single example, one board (linkermap, fastest):
+# Single example, one board (linkermap, fastest; add --bloaty for section/symbol breakdown):
 python3 tools/metrics_compare_base.py -b raspberry_pi_pico -e device/cdc_msc
 
-# Same with bloaty for section/symbol breakdown:
-python3 tools/metrics_compare_base.py -b raspberry_pi_pico -e device/cdc_msc --bloaty
-
-# All examples for one board:
+# All examples for one board (repeat -b for several boards):
 python3 tools/metrics_compare_base.py -b raspberry_pi_pico
-
-# Multiple boards, one combined report:
-python3 tools/metrics_compare_base.py -b raspberry_pi_pico -b raspberry_pi_pico2 --combined
 
 # Full CI sweep (first board per arm-gcc family, combined):
 python3 tools/metrics_compare_base.py --ci
-
-# Compare against a tag/commit instead of master:
-python3 tools/metrics_compare_base.py -b raspberry_pi_pico --base-branch v0.18.0
 ```
 
 ## Outputs
 
 - **Per-board:** `cmake-metrics/<board>/metrics_compare.md` (and `_<example>.md` when `-e` is set)
-- **Combined (with `--combined`/`--ci`):** `cmake-metrics/_combined/metrics_compare.md`
+- **Combined (`--combined`, auto-set by `--ci`):** `cmake-metrics/_combined/metrics_compare.md`, aggregating all boards
 - **Bloaty:** printed to stdout as section + symbol diffs
 
 ## Timing

@@ -1,15 +1,13 @@
 ---
 name: usbmon
-description: Use when capturing, analyzing, or debugging USB bus traffic for TinyUSB device development on Linux — enumeration failures, STALLed control transfers, missing/short bulk or interrupt transfers, isochronous/audio dropouts, or descriptor problems. Captures host-side URBs with usbmon + tshark into a Wireshark pcapng and decodes them. Use whenever you need to see what the host actually exchanged with a device on real hardware, even if the user just says "sniff USB", "capture the enumeration", or "why won't my device enumerate".
+description: Use when capturing, analyzing, or debugging USB bus traffic on a link where a Linux PC is the host (TinyUSB in device role) — enumeration failures, STALLed control transfers, missing/short bulk or interrupt transfers, isochronous/audio dropouts, or descriptor problems. Captures host-side URBs with usbmon + tshark into a Wireshark pcapng and decodes them. Not applicable when TinyUSB is the host — no URBs traverse the PC (use usb-sniffer / target-debug). Use whenever you need to see what the Linux host actually exchanged with a device on real hardware, even if the user just says "sniff USB", "capture the enumeration", or "why won't my device enumerate".
 ---
 
 # usbmon — capture & debug USB traffic
 
-`usbmon` records host-side **URBs** — control / bulk / interrupt / isochronous transfers, descriptors, class requests, STALLs, short packets — i.e. exactly what the host exchanged with a device. Use it to debug a TinyUSB device on real hardware. (It's host/URB-level, not wire-level; for SOF/ACK/electrical use a hardware analyzer.)
+`usbmon` records host-side **URBs** — control / bulk / interrupt / isochronous transfers, descriptors, class requests, STALLs, short packets — i.e. exactly what the host exchanged with a device. Use it to debug a TinyUSB device on real hardware. (It's host/URB-level, not wire-level; for SOF/ACK/electrical use a hardware analyzer.) It exists only on the Linux host side of a link: when TinyUSB runs the *host* stack (peer = another TinyUSB board or a Linux gadget, e.g. a Raspberry Pi), neither end has usbmon — capture the wire (`usb-sniffer` skill) or instrument the target (`target-debug` skill).
 
-**Setup (assumed in place):** `usbmon` loaded and a udev rule `SUBSYSTEM=="usbmon", GROUP="wireshark", MODE="0640"` with your user in the `wireshark` group — so `tshark` captures with no `sudo`.
-
-If you were just added to `wireshark` (e.g. `usermod -aG`), the running shell/agent still has the old group set (group adds only apply to a fresh login). Don't restart — wrap each capture in `sg wireshark -c '…'`, which re-reads `/etc/group` immediately: `sg wireshark -c 'tshark -i usbmon3 -s 128 -a duration:30 -w /tmp/cap.pcapng'`. (Reading a finished `.pcapng` with `tshark -r` needs no special group.) For long/high-throughput captures add `-s 128` (snaplen) to keep only URB headers/status, not payloads.
+**Setup (assumed in place):** `usbmon` loaded and a udev rule `SUBSYSTEM=="usbmon", GROUP="wireshark", MODE="0640"` with your user in the `wireshark` group — so `tshark` captures with no `sudo`. Freshly added to the group? The running shell doesn't have it yet (group adds need a new login) — wrap captures in `sg wireshark -c 'tshark -i usbmon3 -s 128 -a duration:30 -w /tmp/cap.pcapng'`; reading a finished `.pcapng` (`tshark -r`) needs no group. `-s 128` (snaplen) keeps only URB headers/status, not payloads — use it for long/high-throughput captures.
 
 ## Capture
 
@@ -31,18 +29,18 @@ tshark -r cap.pcapng -Y 'usb.device_address==26'   # filter to one device
 
 ## Filter (`-Y '<expr>'`)
 
-| Goal | Expression |
-|---|---|
-| One device / endpoint | `usb.device_address==26` / `usb.endpoint_address==0x81` |
-| IN (to host) / OUT (from host) | `usb.endpoint_address.direction==1` / `==0` |
-| Submit / Complete event | `usb.urb_type=='S'` / `=='C'` (char literal: single quotes) |
-| Control / bulk / interrupt / iso | `usb.transfer_type==2` / `3` / `1` / `0` |
-| Only transfers carrying data | `usb.data_len>0` |
-| GET_DESCRIPTOR / SET_ADDRESS / SET_CONFIGURATION | `usb.setup.bRequest==6` / `5` / `9` |
-| SET_INTERFACE / CLEAR_FEATURE (clear-halt) | `usb.setup.bRequest==11` / `1` |
-| Descriptor type DEVICE/CONFIG/STRING/HID-report | `usb.bDescriptorType==1` / `2` / `3` / `0x22` |
-| Class / vendor requests | `usb.bmRequestType.type!=0` |
-| STALLs / errors | `usb.urb_status!=0 && usb.urb_status!=-115` |
+| Goal                                             | Expression                                                  |
+|--------------------------------------------------|-------------------------------------------------------------|
+| One device / endpoint                            | `usb.device_address==26` / `usb.endpoint_address==0x81`     |
+| IN (to host) / OUT (from host)                   | `usb.endpoint_address.direction==1` / `==0`                 |
+| Submit / Complete event                          | `usb.urb_type=='S'` / `=='C'` (char literal: single quotes) |
+| Control / bulk / interrupt / iso                 | `usb.transfer_type==2` / `3` / `1` / `0`                    |
+| Only transfers carrying data                     | `usb.data_len>0`                                            |
+| GET_DESCRIPTOR / SET_ADDRESS / SET_CONFIGURATION | `usb.setup.bRequest==6` / `5` / `9`                         |
+| SET_INTERFACE / CLEAR_FEATURE (clear-halt)       | `usb.setup.bRequest==11` / `1`                              |
+| Descriptor type DEVICE/CONFIG/STRING/HID-report  | `usb.bDescriptorType==1` / `2` / `3` / `0x22`               |
+| Class / vendor requests                          | `usb.bmRequestType.type!=0`                                 |
+| STALLs / errors                                  | `usb.urb_status!=0 && usb.urb_status!=-115`                 |
 
 Combine with `&&` — e.g. one endpoint's data: `usb.endpoint_address==0x02 && usb.data_len>0`.
 

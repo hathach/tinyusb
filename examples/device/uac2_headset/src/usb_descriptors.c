@@ -28,15 +28,8 @@
 #include "tusb.h"
 #include "usb_descriptors.h"
 
-/* A combination of interfaces must have a unique product id, since PC will save device driver after the first plug.
- * Same VID/PID with different interface e.g MSC (first), then CDC (later) will possibly cause system error on PC.
- *
- * Auto ProductID layout's Bitmap:
- *   [MSB]     AUDIO | MIDI | HID | MSC | CDC          [LSB]
- */
-#define PID_MAP(itf, n)  ((CFG_TUD_##itf) ? (1 << (n)) : 0)
-#define USB_PID           (0x4000 | PID_MAP(CDC, 0) | PID_MAP(MSC, 1) | PID_MAP(HID, 2) | \
-    PID_MAP(MIDI, 3) | PID_MAP(AUDIO, 4) | PID_MAP(VENDOR, 5) )
+// Unique PID per example: guarantees re-enumeration on re-flash and a fresh host driver match.
+#define USB_PID           0x401a
 
 //--------------------------------------------------------------------+
 // Device Descriptors
@@ -105,11 +98,23 @@ uint8_t const * tud_descriptor_device_cb(void)
     #define EPNUM_AUDIO_OUT   0x0A
     #define EPNUM_AUDIO_IN    0x0B
     #define EPNUM_AUDIO_INT   0x01
+  #elif TU_CHECK_MCU(OPT_MCU_PY32F0)
+    // Speaker OUT (196 B) only fits EP1 (512 B FIFO); mic IN (98 B) fits EP2 (128 B)
+    #define EPNUM_AUDIO_OUT   0x01
+    #define EPNUM_AUDIO_IN    0x02
+    #define EPNUM_AUDIO_INT   0x03
   #else
     #define EPNUM_AUDIO_IN    0x01
     #define EPNUM_AUDIO_OUT   0x02
     #define EPNUM_AUDIO_INT   0x03
   #endif
+
+#elif CFG_TUSB_MIMXRT1XXX_ERRATA_ERR050101
+  // ERR050101 (see CFG_TUSB_MIMXRT1XXX_ERRATA_ERR050101): an isochronous IN endpoint needs a number
+  // no other device on the bus uses
+  #define EPNUM_AUDIO_IN    0x07
+  #define EPNUM_AUDIO_OUT   0x01
+  #define EPNUM_AUDIO_INT   0x02
 
 #else
   #define EPNUM_AUDIO_IN    0x01

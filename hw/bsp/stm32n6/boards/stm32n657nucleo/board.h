@@ -152,7 +152,13 @@ static void SystemClock_Config(void) {
                                  RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2 | RCC_CLOCKTYPE_PCLK4 | RCC_CLOCKTYPE_PCLK5);
   RCC_ClkInitStruct.CPUCLKSource = RCC_CPUCLKSOURCE_IC1;
   RCC_ClkInitStruct.IC1Selection.ClockSelection = RCC_ICCLKSOURCE_PLL1;
+#ifdef TRACE_ETM
+  // 300 MHz CPU -> 37.5 MHz TPIU clock (fixed cpu/8): at 600 MHz the trace
+  // stream dies with unknown-packet decode errors in the startup burst
+  RCC_ClkInitStruct.IC1Selection.ClockDivider = 4;
+#else
   RCC_ClkInitStruct.IC1Selection.ClockDivider = 2;
+#endif
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_IC2_IC6_IC11;
   RCC_ClkInitStruct.IC2Selection.ClockSelection = RCC_ICCLKSOURCE_PLL1;
   RCC_ClkInitStruct.IC2Selection.ClockDivider = 3;

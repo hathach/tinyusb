@@ -179,6 +179,14 @@
   #endif
 #endif
 
+// CH32V20x/V30x/F20x USBFS gives endpoint 3 a 1023-byte isochronous packet (CH32FV2x_V3xRM ch23:
+// every endpoint is 64 B except EP3 = 1023 B, from EP3's 10-bit R16_UEP3_T_LEN field plus a single
+// contiguous >=1023 B DMA buffer — NOT double-buffering, which only yields 2x64 B).
+// CH32V103/X035/CH58x cap every endpoint at 64 B. dcd_ch32_usbfs.c reads this to size EP3's buffer.
+#if CFG_TUSB_MCU == OPT_MCU_CH32V20X || CFG_TUSB_MCU == OPT_MCU_CH32V307 || CFG_TUSB_MCU == OPT_MCU_CH32F20X
+  #define CH32_USBFS_EP3_1023_BUFSIZE 1
+#endif
+
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif

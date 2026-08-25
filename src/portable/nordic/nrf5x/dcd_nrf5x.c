@@ -122,8 +122,22 @@ TU_ATTR_ALWAYS_INLINE static inline bool is_in_isr(void) {
   return (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) ? true : false;
 }
 
+// Errata 199 "USBD cannot receive tasks during DMA": while an EasyDMA transfer is in progress the
+// controller may drop an incoming SETUP/IN/OUT token (lost event -> stuck EP0, esp. under rapid
+// back-to-back control transfers). The workaround latches an undocumented "DMA in progress" test
+// register (0x40027C1C) so tokens are held instead. Gated on the anomaly being present (all
+// nRF52840 revisions; absent on other nRF52 parts). Mirrors nrfx usbd_dma_pending_set/clear().
+#define NRF_USBD_ERRATA_199_REG (*((volatile uint32_t*) 0x40027C1CUL))
+
 // helper to start DMA
 static void start_dma(volatile uint32_t* reg_startep) {
+  // EP0STATUS / EP0RCVOUT take the EasyDMA slot but do not transfer data, so no ERRATA-199 latch.
+  const bool no_dma = (reg_startep == &NRF_USBD->TASKS_EP0STATUS) || (reg_startep == &NRF_USBD->TASKS_EP0RCVOUT);
+
+  if (!no_dma && nrf52_errata_199()) {
+    NRF_USBD_ERRATA_199_REG = 0x00000082UL;
+  }
+
   (*reg_startep) = 1;
   __ISB();
   __DSB();
@@ -131,7 +145,7 @@ static void start_dma(volatile uint32_t* reg_startep) {
   // TASKS_EP0STATUS, TASKS_EP0RCVOUT seem to need EasyDMA to be available
   // However these don't trigger any DMA transfer and got ENDED event subsequently
   // Therefore dma_pending is corrected right away
-  if ((reg_startep == &NRF_USBD->TASKS_EP0STATUS) || (reg_startep == &NRF_USBD->TASKS_EP0RCVOUT)) {
+  if (no_dma) {
     atomic_flag_clear(&_dcd.dma_running);
   }
 }
@@ -146,6 +160,10 @@ static void edpt_dma_start(volatile uint32_t* reg_startep) {
 
 // DMA is complete
 static void edpt_dma_end(void) {
+  // Clear the ERRATA-199 "DMA in progress" latch set in start_dma().
+  if (nrf52_errata_199()) {
+    NRF_USBD_ERRATA_199_REG = 0x00000000UL;
+  }
   atomic_flag_clear(&_dcd.dma_running);
 }
 
@@ -377,57 +395,51 @@ void dcd_edpt_close_all(uint8_t rhport) {
   dcd_int_enable(rhport);
 }
 
-void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
-  (void) rhport;
-
-  uint8_t const epnum = tu_edpt_number(ep_addr);
-  uint8_t const dir = tu_edpt_dir(ep_addr);
-
-  if (epnum != EP_ISO_NUM) {
-    // CBI
-    if (dir == TUSB_DIR_OUT) {
-      NRF_USBD->INTENCLR = TU_BIT(USBD_INTEN_ENDEPOUT0_Pos + epnum);
-      NRF_USBD->EPOUTEN &= ~TU_BIT(epnum);
-    } else {
-      NRF_USBD->INTENCLR = TU_BIT(USBD_INTEN_ENDEPIN0_Pos + epnum);
-      NRF_USBD->EPINEN &= ~TU_BIT(epnum);
-    }
-  } else {
-    _dcd.xfer[EP_ISO_NUM][dir].mps = 0;
-    // ISO
-    if (dir == TUSB_DIR_OUT) {
-      NRF_USBD->INTENCLR = USBD_INTENCLR_ENDISOOUT_Msk;
-      NRF_USBD->EPOUTEN &= ~USBD_EPOUTEN_ISOOUT_Msk;
-      NRF_USBD->EVENTS_ENDISOOUT = 0;
-    } else {
-      NRF_USBD->INTENCLR = USBD_INTENCLR_ENDISOIN_Msk;
-      NRF_USBD->EPINEN &= ~USBD_EPINEN_ISOIN_Msk;
-    }
-    // One of the ISO endpoints closed, no need to split buffers any more.
-    NRF_USBD->ISOSPLIT = USBD_ISOSPLIT_SPLIT_OneDir;
-    // When both ISO endpoint are close there is no need for SOF any more.
-    if (_dcd.xfer[EP_ISO_NUM][TUSB_DIR_IN].mps + _dcd.xfer[EP_ISO_NUM][TUSB_DIR_OUT].mps == 0)
-      NRF_USBD->INTENCLR = USBD_INTENCLR_SOF_Msk;
-  }
-  _dcd.xfer[epnum][dir].started = false;
-  __ISB();
-  __DSB();
-}
-
-#if 0
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
   (void)rhport;
-  (void)ep_addr;
   (void)largest_packet_size;
-  return false;
+  // nRF ISO endpoints are hardware-fixed to EP8 and use EasyDMA, so there is no packet buffer to
+  // pre-allocate here; the endpoint is enabled on dcd_edpt_iso_activate().
+  TU_ASSERT(tu_edpt_number(ep_addr) == EP_ISO_NUM);
+  return true;
 }
 
 bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
   (void)rhport;
-  (void)desc_ep;
-  return false;
+  uint8_t const ep_addr = desc_ep->bEndpointAddress;
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir = tu_edpt_dir(ep_addr);
+  TU_ASSERT(epnum == EP_ISO_NUM);
+
+  // A transfer armed before SET_INTERFACE survives to here (this port has no dcd close); usbd has
+  // just reset the endpoint's claim/busy state, so drop the stale descriptor too — otherwise the
+  // class's next arm trips TU_ASSERT(!xfer->started) in dcd_edpt_xfer().
+  _dcd.xfer[epnum][dir].started               = false;
+  _dcd.xfer[epnum][dir].data_received         = false;
+  _dcd.xfer[epnum][dir].iso_in_transfer_ready = false;
+
+  _dcd.xfer[epnum][dir].mps = tu_edpt_packet_size(desc_ep);
+
+  if (dir == TUSB_DIR_OUT) {
+    // SPLIT ISO buffer when the ISO IN endpoint is already active.
+    if (_dcd.xfer[EP_ISO_NUM][TUSB_DIR_IN].mps) NRF_USBD->ISOSPLIT = USBD_ISOSPLIT_SPLIT_HalfIN;
+    NRF_USBD->EVENTS_ENDISOOUT = 0;
+    if ((NRF_USBD->INTEN & USBD_INTEN_SOF_Msk) == 0) NRF_USBD->EVENTS_SOF = 0;
+    NRF_USBD->INTENSET = USBD_INTENSET_ENDISOOUT_Msk | USBD_INTENSET_SOF_Msk;
+    NRF_USBD->EPOUTEN |= USBD_EPOUTEN_ISOOUT_Msk;
+  } else {
+    NRF_USBD->EVENTS_ENDISOIN = 0;
+    // SPLIT ISO buffer when the ISO OUT endpoint is already active.
+    if (_dcd.xfer[EP_ISO_NUM][TUSB_DIR_OUT].mps) NRF_USBD->ISOSPLIT = USBD_ISOSPLIT_SPLIT_HalfIN;
+    if ((NRF_USBD->INTEN & USBD_INTEN_SOF_Msk) == 0) NRF_USBD->EVENTS_SOF = 0;
+    NRF_USBD->INTENSET = USBD_INTENSET_ENDISOIN_Msk | USBD_INTENSET_SOF_Msk;
+    NRF_USBD->EPINEN |= USBD_EPINEN_ISOIN_Msk;
+  }
+
+  __ISB();
+  __DSB();
+  return true;
 }
-#endif
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes, bool is_isr) {
   (void) rhport;

@@ -26,15 +26,8 @@
 #include "bsp/board_api.h"
 #include "tusb.h"
 
-/* A combination of interfaces must have a unique product id, since PC will save device driver after the first plug.
- * Same VID/PID with different interface e.g MSC (first), then CDC (later) will possibly cause system error on PC.
- *
- * Auto ProductID layout's Bitmap:
- *   [MSB]         HID | MSC | CDC          [LSB]
- */
-#define PID_MAP(itf, n)  ((CFG_TUD_##itf) ? (1 << (n)) : 0)
-#define USB_PID           (0x4000 | PID_MAP(CDC, 0) | PID_MAP(MSC, 1) | PID_MAP(HID, 2) | \
-                           PID_MAP(MIDI, 3) | PID_MAP(VENDOR, 4) )
+// Unique PID per example: guarantees re-enumeration on re-flash and a fresh host driver match.
+#define USB_PID           0x400d
 
 // Configuration mode
 // 0 : enumerated as CDC/MIDI. Board button is not pressed when enumerating
@@ -79,7 +72,7 @@ tusb_desc_device_t const desc_device_1 =
 
     .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
     .idVendor           = 0xCafe,
-    .idProduct          = USB_PID + 11, // should be different PID than desc0
+    .idProduct          = USB_PID + 0x0100, // must differ from desc0's PID and stay outside the 0x40xx per-example space
     .bcdDevice          = 0x0100,
 
     .iManufacturer      = 0x01,

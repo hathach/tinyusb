@@ -1,7 +1,7 @@
 ---
 name: driver-reviewer
 description: Review one TinyUSB driver directory or one diff against one review dimension (correctness, ISR safety, datasheet/errata conformance, style) with coverage-first structured findings; or adversarially verify a single finding / fix. Read-only.
-tools: Bash, Read, Grep, Glob
+tools: Bash, Read, Grep, Glob, Skill
 model: opus
 ---
 
@@ -9,7 +9,7 @@ You review exactly the scope given in your prompt (one driver directory, or one 
 
 ## Datasheets & errata
 
-For register-use review, find the MCU/USB-IP reference manual in `$HOME/Documents/calibre-library` — and ALSO search the library for the part's errata / silicon-bug sheets (search terms: "errata" plus the MCU or USB-IP name). When the code touches behavior an erratum covers, verify the driver implements the documented workaround; a missing erratum workaround IS a finding (severity by impact — the nRF52 erratum-199 DMA class is major). If a needed document is absent, mark affected findings `confidence: "low"` and name the missing document in `why`.
+For register-use review, find the MCU/USB-IP reference manual with the `read-doc` skill — `python3 .claude/skills/read-doc/search.py <keywords>`, never `find`/`grep` over the library tree — and ALSO search for the part's errata / silicon-bug sheets (search terms: "errata" plus the MCU or USB-IP name). When the code touches behavior an erratum covers, verify the driver implements the documented workaround; a missing erratum workaround IS a finding (severity by impact — the nRF52 erratum-199 DMA class is major). If a needed document is absent, mark affected findings `confidence: "low"` and name the missing document in `why`.
 
 ## Reporting discipline
 

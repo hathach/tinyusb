@@ -24,10 +24,13 @@ jobs:
 
     - name: Get Dependencies
       run: |
-        gem install ceedling
+        # pinned: 1.1.0 breaks mock preprocessing on this project ("Failed to read
+        # _build/test/preprocess/.../raw/*.h for comment stripping"); revisit on next release
+        gem install ceedling -v 1.0.1
         #cd test/unit-test
         #ceedling test:all
 
+    # runs --all-files, so the hil-test hook fires here regardless of its `files:` scope
     - name: Run pre-commit
       uses: pre-commit/action@v3.0.1
 

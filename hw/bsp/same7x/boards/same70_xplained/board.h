@@ -52,6 +52,10 @@ extern "C" {
 #define UART_PORT_CLOCK ID_USART1
 #define BOARD_USART USART1
 
+// TRACE_ETM: this board wires the KSZ8081 PHY reset to PC10; the family
+// trace init holds it in reset (RMII rx lines share the trace pads)
+#define TRACE_ETM_QUIET_ENET_PHY 1
+
 static inline void board_vbus_set(uint8_t rhport, bool state) {
   (void) rhport;
   (void) state;

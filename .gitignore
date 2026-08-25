@@ -60,6 +60,7 @@ BrowseInfo
 README_processed.rst
 docs/examples/
 .worktrees
+.claude/worktrees/
 cmake-metrics/
 # Directories fetched by tools/get_deps.py - not to be committed
 lib/CMSIS_5/
@@ -77,9 +78,11 @@ hw/mcu/artery/
 hw/mcu/broadcom/
 hw/mcu/bridgetek/ft9xx/ft90x-sdk/
 hw/mcu/gd/
+hw/mcu/geehy/
 hw/mcu/hpmicro/
 hw/mcu/infineon/
 hw/mcu/microchip/
+hw/mcu/puya/
 hw/mcu/mindmotion/
 hw/mcu/nordic/nrfx/
 hw/mcu/nuvoton/

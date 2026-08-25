@@ -109,8 +109,10 @@ extern "C" {
 #define CFG_TUD_AUDIO_FUNC_1_N_FORMATS                               2
 
 // Audio format type I specifications
-#if defined(__RX__)
-#define CFG_TUD_AUDIO_FUNC_1_MAX_SAMPLE_RATE                         48000     // 16bit/48kHz is the best quality for Renesas RX
+#if defined(__RX__) || (CFG_TUSB_MCU == OPT_MCU_PY32F0)
+// RX     : 16bit/48kHz is the best quality for Renesas RX
+// PY32F0 : 48kHz/16bit keeps ISO packets <= 98 B so both directions fit the fixed EP FIFOs (EP1 512 B, EP2 128 B)
+#define CFG_TUD_AUDIO_FUNC_1_MAX_SAMPLE_RATE                         48000
 #else
 #define CFG_TUD_AUDIO_FUNC_1_MAX_SAMPLE_RATE                         96000     // 24bit/96kHz is the best quality for full-speed, high-speed is needed beyond this
 #endif
@@ -123,7 +125,7 @@ extern "C" {
 #define CFG_TUD_AUDIO_FUNC_1_FORMAT_1_N_BYTES_PER_SAMPLE_RX          2
 #define CFG_TUD_AUDIO_FUNC_1_FORMAT_1_RESOLUTION_RX                  16
 
-#if defined(__RX__)
+#if defined(__RX__) || (CFG_TUSB_MCU == OPT_MCU_PY32F0)
 // 8bit in 8bit slots
 #define CFG_TUD_AUDIO_FUNC_1_FORMAT_2_N_BYTES_PER_SAMPLE_TX          1
 #define CFG_TUD_AUDIO_FUNC_1_FORMAT_2_RESOLUTION_TX                  8

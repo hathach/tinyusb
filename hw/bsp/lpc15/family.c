@@ -122,6 +122,19 @@ uint32_t board_button_read(void)
   return Chip_GPIO_GetPinState(LPC_GPIO, BUTTON_PORT, BUTTON_PIN) ? 0 : 1;
 }
 
+size_t board_get_unique_id(uint8_t id[], size_t max_len)
+{
+  // IAP ReadUID (cmd 58) returns status + 4 words = full 128-bit UID
+  unsigned int command[5] = { IAP_READ_UID_CMD, 0, 0, 0, 0 };
+  unsigned int result[5];
+  iap_entry(command, result);
+  TU_ASSERT(result[0] == IAP_CMD_SUCCESS, 0);
+
+  size_t const len = tu_min32(max_len, 16);
+  memcpy(id, &result[1], len);
+  return len;
+}
+
 int board_uart_read(uint8_t* buf, int len)
 {
   (void) buf; (void) len;

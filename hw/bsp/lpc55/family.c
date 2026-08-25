@@ -170,6 +170,14 @@ uint32_t board_button_read(void) {
   return BUTTON_STATE_ACTIVE == GPIO_PinRead(GPIO, BUTTON_PORT, BUTTON_PIN);
 }
 
+size_t board_get_unique_id(uint8_t id[], size_t max_len) {
+  // 128-bit UUID in the flash PFR region at 0x0009FC70 (UM11126 rev 2.1 section 48.8)
+  const uint8_t* uuid = (const uint8_t*) 0x0009FC70;
+  size_t const len = tu_min32(max_len, 16);
+  memcpy(id, uuid, len);
+  return len;
+}
+
 int board_uart_read(uint8_t* buf, int len) {
   (void) buf;
   (void) len;

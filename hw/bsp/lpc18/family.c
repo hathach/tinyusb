@@ -69,6 +69,7 @@ void SystemInit(void) {
 #ifdef TRACE_ETM
   // Trace clock is limited to 60MHz, limit CPU clock to 120MHz
   Chip_SetupCoreClock(CLKIN_CRYSTAL, 120000000UL, true);
+  board_trace_pinmux(); // after clock setup so TRACECLK starts at its final frequency
 #else
   // CPU clock max to 180 Mhz
   Chip_SetupCoreClock(CLKIN_CRYSTAL, MAX_CLOCK_FREQ, true);

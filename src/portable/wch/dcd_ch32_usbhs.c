@@ -348,8 +348,16 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   const tusb_dir_t dir    = tu_edpt_dir(ep_addr);
 
   if (dir == TUSB_DIR_OUT) {
-    EP_RX_CTRL(ep_num) = USBHS_EP_R_RES_NAK | USBHS_EP_R_TOG_0;
-    ep_data_tog[ep_num][TUSB_DIR_OUT] = false;
+    ep_data_tog[ep_num][TUSB_DIR_OUT] = false; // clear-halt resets the toggle to DATA0
+    xfer_ctl_t *xfer = XFER_CTL_BASE(ep_num, TUSB_DIR_OUT);
+    if (xfer->valid) {
+      // A receive is still armed (the class driver considers it submitted and won't re-arm it);
+      // re-queue it (ACK/NYET) instead of leaving it NAKing, or the endpoint NAKs forever after
+      // clear-halt (usbtest toggle test 29 clears the halt on an armed bulk-OUT pipe).
+      queue_out_packet(ep_num, xfer);
+    } else {
+      EP_RX_CTRL(ep_num) = USBHS_EP_R_RES_NAK | USBHS_EP_R_TOG_0;
+    }
   } else {
     EP_TX_CTRL(ep_num) = USBHS_EP_T_RES_NAK | USBHS_EP_T_TOG_0;
     ep_data_tog[ep_num][TUSB_DIR_IN] = false;

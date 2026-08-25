@@ -35,9 +35,24 @@
 #include "fsl_clock.h"
 #include "fsl_uart.h"
 #include "fsl_sysmpu.h"
+#include "common/tusb_fifo.h"
 
 #include "board/clock_config.h"
 #include "board/pin_mux.h"
+
+#ifdef UART_DEV
+// RX ring buffer filled by the RDRF interrupt so board_uart_read() is non-blocking
+// and does not drop bytes to UART overrun (see stm32 family for reference).
+static uint8_t   uart_rx_ff_buf[32];
+static tu_fifo_t uart_rx_ff;
+
+void UART0_RX_TX_IRQHandler(void) {
+  if (UART_DEV->S1 & UART_S1_RDRF_MASK) {
+    uint8_t byte = UART_DEV->D; // reading S1 then D clears RDRF (and any overrun)
+    tu_fifo_write(&uart_rx_ff, &byte);
+  }
+}
+#endif
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
@@ -89,6 +104,9 @@ void board_init(void) {
       .enableRx = true
   };
   UART_Init(UART_DEV, &uart_config, UART_CLOCK);
+  tu_fifo_config(&uart_rx_ff, uart_rx_ff_buf, sizeof(uart_rx_ff_buf), false);
+  UART_DEV->C2 |= UART_C2_RIE_MASK; // enable RX data register full interrupt
+  NVIC_EnableIRQ(UART0_RX_TX_IRQn);
 #endif
 
   // USB
@@ -112,14 +130,11 @@ uint32_t board_button_read(void) {
 }
 
 int board_uart_read(uint8_t *buf, int len) {
+#ifdef UART_DEV
+  return (int) tu_fifo_read_n(&uart_rx_ff, buf, (uint16_t) len);
+#else
   (void) buf;
   (void) len;
-#ifdef UART_DEV
-  // Read blocking will block until there is data
-//  UART_ReadBlocking(UART_DEV, buf, len);
-//  return len;
-  return 0;
-#else
   return 0;
 #endif
 }
@@ -142,6 +157,19 @@ int board_uart_write(void const *buf, int len) {
   (void) len;
   return -1;
 #endif
+}
+
+size_t board_get_unique_id(uint8_t id[], size_t max_len) {
+  (void) max_len;
+  // Kinetis 128-bit Unique Identification Register (SIM->UIDH/UIDMH/UIDML/UIDL)
+  uint32_t* id32 = (uint32_t*) (uintptr_t) id;
+
+  id32[0] = SIM->UIDH;
+  id32[1] = SIM->UIDMH;
+  id32[2] = SIM->UIDML;
+  id32[3] = SIM->UIDL;
+
+  return 16;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE

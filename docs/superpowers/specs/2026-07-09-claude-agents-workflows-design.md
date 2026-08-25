@@ -29,10 +29,12 @@ Layered: **agents** (who does the work, with baked-in domain knowledge) ×
 
 ### Worker agents — `.claude/agents/*.md`
 
-Tiered models (owner revision 2026-07-09; originally all-opus): `port-dev`
-and `driver-reviewer` on **opus** at **xhigh**; `hil-operator`, `pr-monitor`
-and `static-analyzer` on **sonnet**; `builder` on **haiku** (mechanical,
-log-heavy).
+Tiered models (owner revision 2026-07-09; originally all-opus): `port-dev`,
+`driver-reviewer` and `target-debugger` on **opus** at **xhigh**;
+`hil-operator`, `pr-monitor` and `static-analyzer` on **sonnet**; `builder`
+on **haiku** (mechanical, log-heavy). The registry has no effort field —
+xhigh is requested per `agent()` call by whichever workflow or session spawns
+the agent.
 
 | Agent | Effort | Role |
 |---|---|---|
@@ -40,6 +42,7 @@ log-heavy).
 | `port-dev` | xhigh | Implement one well-scoped change in one port / file set. Follows repo rules: C99, 2-space indent, snake_case, `TU_ASSERT`, no dynamic allocation, ISR work deferred to task context. Runs `clang-format` (repo `.clang-format`) on touched files before finishing. Cross-checks the MCU datasheet in `$HOME/Documents/calibre-library` when changing dcd/hcd register logic. Verifies with a targeted build of one board using the port. Returns `{item, diffstat, buildOk, notes}`. |
 | `driver-reviewer` | xhigh | Review one dcd/hcd directory against dimensions: correctness, ISR safety, register use vs. datasheet AND MCU errata (calibre library; missing erratum workarounds are findings), style. Returns structured findings `{file, line, snippet, why, severity, confidence}` — coverage-first (report everything; filtering happens downstream). |
 | `hil-operator` | default | All rig interaction — the actions-runner service is NEVER stopped; per-board flock locks arbitrate with concurrent CI. `hil_test.py` runs rely on its per-board self-locking; manual hardware work (JLink/GDB, usbtest, serial) is wrapped in `test/hil/board_lock.py hold/release`; rig-wide ops (uhubctl, pci-rebind) require `hold --all`; on wedge `usb_recover.sh` + dmesg. Used strictly serially — never two instances concurrently. |
+| `target-debugger` | xhigh | Root-cause one USB misbehavior on one board by instrumenting the device side (TU_LOG/RTT, RAM ring-buffer trace, GDB autopsy, J-Link PC-sampling) with dual-side host+target capture, per `.claude/skills/usb-target-debug/SKILL.md`, plus wire-level capture via the ataradov hardware tap (`.claude/skills/usb-sniffer/SKILL.md`) when the host side can't see or is disputed. Deliberately serial loop under one held board lock (released around `hil_test.py` runs, which self-lock); strictly one instance. Diagnosis standard: evidence shows the mechanism, or a fix flips the ORIGINAL failing case on hardware; stops after two evidence-free cycles with a partial report. Hard rule "fix stays, probe goes, re-verify clean": instrumentation reverted, candidate fix left uncommitted and re-verified on a clean build, pristine firmware reflashed before lock release. Returns `{board, bug, diagnosis, confirmed, ruledOut[], evidence[], fixDiffstat, fixVerified, instrumentationReverted, lockReleased, notes}`. |
 | `pr-monitor` | default | Triage one GitHub PR via `gh`: check CI status (`gh pr checks`), read failing run logs and classify each failure infra/flake vs real; re-run infra failures (`gh run rerun --failed`); harvest automated review comments (Codex/Copilot/Claude bots — knows their signals: Codex posts a "Didn't find any major issues" issue comment when clean; Copilot drops out of `requested_reviewers` when done; bot logins differ across APIs); adversarially validate each finding against the actual code. Returns structured triage `{ci: {status, infraRerun[], realFailures[]}, findings: [{source, file, line, claim, verdict, fixHint}]}`. Read/triage/re-run/reply only — never edits code. |
 | `static-analyzer` | low | Run PVS-Studio (SAST + MISRA C:2023/C++:2008) for one board: build with exported `compile_commands.json` (via `run_pvs.sh` solo, or a dedicated `cmake-build-pvs` dir when parallel builders run), analyze against `.PVS-Studio/.pvsconfig`, gate on diagnostics in files changed vs a base ref. Returns `{pass, ga1, ga2, changedFindings[], detail}`; `pass=false` only on GA:1 in changed files or tool failure. Read-only. |
 
@@ -120,8 +123,8 @@ carries the judgment; JS carries the orchestration.
 
 ## Model & effort policy
 
-- Tiered worker models: `port-dev`/`driver-reviewer` **opus** `xhigh`;
-  `hil-operator`/`pr-monitor` **sonnet**; `builder` **haiku**.
+- Tiered worker models: `port-dev`/`driver-reviewer`/`target-debugger` **opus**
+  `xhigh`; `hil-operator`/`pr-monitor` **sonnet**; `builder` **haiku**.
 - Inline workflow stages: unit/size **haiku**; pvs **sonnet** (low effort);
   pr-babysit push/replies **sonnet**.
 - Agent frontmatter `model:` is canonical for `agentType` calls; it is read

@@ -51,6 +51,9 @@
 #define BSP_CFG_CANFDCLK_DIV (BSP_CLOCKS_CANFD_CLOCK_DIV_8) /* CANFDCLK Div /8 */
 #define BSP_CFG_I3CCLK_DIV (BSP_CLOCKS_I3C_CLOCK_DIV_3) /* I3CCLK Div /3 */
 #define BSP_CFG_UCK_DIV (BSP_CLOCKS_USB_CLOCK_DIV_5) /* UCK Div /5 */
-#define BSP_CFG_U60CK_DIV (BSP_CLOCKS_USB_CLOCK_DIV_8) /* U60CK Div /8 */
+/* U60CK Div /8: PLL1P 480 MHz -> 60 MHz. Hand-fixed: Smart Configurator emitted the USB_ macro
+ * namespace (BSP_CLOCKS_USB_CLOCK_DIV_8 = 7, rejected by USB60CKDIVCR -> link clock ran at
+ * 480 MHz); configuration.xml already says u60ck.div.8, so keep the USB60_ macro if regenerating. */
+#define BSP_CFG_U60CK_DIV (BSP_CLOCKS_USB60_CLOCK_DIV_8)
 #define BSP_CFG_OCTA_DIV (BSP_CLOCKS_OCTA_CLOCK_DIV_4) /* OCTASPICLK Div /4 */
 #endif /* BSP_CLOCK_CFG_H_ */

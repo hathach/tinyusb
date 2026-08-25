@@ -35,6 +35,11 @@
 // required since iMXRT MCUX-SDK include this file for board size
 #define BOARD_FLASH_SIZE (0x1000000U)
 
+// TRACE_ETM: this board wires the 100M PHY reset (ENET_RST_B) to
+// GPIO_LPSR_04; the family trace init holds it in reset (RMII lines share
+// the trace pads)
+#define TRACE_ETM_QUIET_ENET_PHY 1
+
 // LED: IOMUXC_GPIO_AD_04_GPIO9_IO03
 #define LED_PORT              BOARD_INITPINS_USER_LED_PERIPHERAL
 #define LED_PIN               BOARD_INITPINS_USER_LED_CHANNEL

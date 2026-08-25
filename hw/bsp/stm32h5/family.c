@@ -99,6 +99,24 @@ static UART_HandleTypeDef UartHandle = {
 };
 #endif
 
+#ifdef TRACE_ETM
+static void trace_etm_init(void) {
+  // H5 trace pins are PE2 to PE6 (Nucleo-144: requires trace solder-bridge config, see board docs)
+  GPIO_InitTypeDef gpio_init;
+  gpio_init.Pin       = GPIO_PIN_2 | GPIO_PIN_3 | GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6;
+  gpio_init.Mode      = GPIO_MODE_AF_PP;
+  gpio_init.Pull      = GPIO_PULLUP;
+  gpio_init.Speed     = GPIO_SPEED_FREQ_VERY_HIGH;
+  gpio_init.Alternate = GPIO_AF0_TRACE;
+  HAL_GPIO_Init(GPIOE, &gpio_init);
+
+  // Enable trace port + clock, synchronous 4-bit mode
+  DBGMCU->CR |= DBGMCU_CR_TRACE_IOEN | DBGMCU_CR_TRACE_CLKEN | DBGMCU_CR_TRACE_MODE;
+}
+#else
+#define trace_etm_init()
+#endif
+
 void board_init(void) {
   // Cache UID before ICACHE is enabled (STM32H5 errata: reading UID_BASE with ICACHE causes hard fault)
   volatile uint32_t* stm32_uuid = (volatile uint32_t*) UID_BASE;
@@ -126,6 +144,8 @@ void board_init(void) {
   #ifdef __HAL_RCC_GPIOI_CLK_ENABLE
   __HAL_RCC_GPIOI_CLK_ENABLE();
   #endif
+
+  trace_etm_init();
 
   #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer

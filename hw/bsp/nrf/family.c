@@ -165,6 +165,12 @@ static nrfx_gpiote_t _gpiote = NRFX_GPIOTE_INSTANCE(0);
 //
 //--------------------------------------------------------------------+
 void board_init(void) {
+#if defined(TRACE_ETM) && defined(NRF5340_XXAA)
+  // SystemInit (ENABLE_TRACE) sets the TAD trace port to 64 MHz, which is
+  // marginal through the DK's switch stubs - 16 MHz streams reliably (matches the validated nrf52840dk) and is
+  // ample bandwidth for the 64 MHz core
+  NRF_TAD_S->TRACEPORTSPEED = TAD_TRACEPORTSPEED_TRACEPORTSPEED_16MHz;
+#endif
 #if !defined(NRF54H20_XXAA) && !defined(NRF54LM20A_ENGA_XXAA)
   // stop LF clock just in case we jump from application without reset
   NRF_CLOCK->TASKS_LFCLKSTOP = 1UL;

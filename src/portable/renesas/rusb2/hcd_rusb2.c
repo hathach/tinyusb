@@ -454,11 +454,9 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   if (rusb2_is_highspeed_rhport(rhport) ) {
     rusb->SYSCFG_b.HSE = 1;
     rusb->PHYSET_b.HSEB = 0;
-    rusb->PHYSET_b.DIRPD = 0;
-    R_BSP_SoftwareDelay((uint32_t) 1, BSP_DELAY_UNITS_MILLISECONDS);
-    rusb->PHYSET_b.PLLRESET = 0;
-    rusb->LPSTS_b.SUSPENDM = 1;
-    while ( !rusb->PLLSTA_b.PLLLOCK );
+    // same PHY reference-clock + power-up requirements as dcd_init: without CLKSEL matching the
+    // board XTAL the PLL never locks and the wait below would spin forever (e.g. EK-RA8M1, 20 MHz)
+    rusb2_utmi_phy_powerup(rusb);
     rusb->SYSCFG_b.DRPD = 1;
     rusb->SYSCFG_b.DCFM = 1;
     rusb->SYSCFG_b.DPRPU = 0;

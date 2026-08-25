@@ -229,15 +229,49 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
   (void) rhport;
-  (void) ep_addr;
-  (void)largest_packet_size;
-  return false;
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  // Reserve the endpoint bank with the largest packet size (persists across altsettings). The
+  // buffer address/count are filled per-transfer in dcd_edpt_xfer; only the SIZE bucket is fixed.
+  UsbDeviceDescBank* bank = &sram_registers[epnum][dir];
+  uint32_t size_value = 0;
+  while (size_value < 7) {
+    if (1 << (size_value + 3) >= largest_packet_size) {
+      break;
+    }
+    size_value++;
+  }
+  if ( size_value == 7 && largest_packet_size > 1023 ) return false;
+
+  bank->PCKSIZE.bit.SIZE = size_value;
+  return true;
 }
 
 bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
   (void)rhport;
-  (void)desc_ep;
-  return false;
+  uint8_t const epnum = tu_edpt_number(desc_ep->bEndpointAddress);
+  uint8_t const dir   = tu_edpt_dir(desc_ep->bEndpointAddress);
+
+  // Configure and enable the ISO endpoint on altsetting selection (bank SIZE already reserved by
+  // dcd_edpt_iso_alloc). Mirrors the per-direction setup in dcd_edpt_open(), plus a bank scrub:
+  // under ISO_ALLOC the EP is never disabled on alt0 (usbd_edpt_close is a no-op), so the bank-ready
+  // state from the previous streaming session survives into re-activation. Leave the EP un-armed so
+  // a stale bank can't move a packet before dcd_edpt_xfer re-arms it (a leftover BK1RDY with a stale
+  // BYTE_COUNT would otherwise babble on the first IN token after re-selecting alt1).
+  UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];
+  if ( dir == TUSB_DIR_OUT ) {
+    ep->EPCFG.bit.EPTYPE0 = desc_ep->bmAttributes.xfer + 1;
+    ep->EPSTATUSCLR.reg = USB_DEVICE_EPSTATUSCLR_STALLRQ0 | USB_DEVICE_EPSTATUSCLR_DTGLOUT;
+    ep->EPSTATUSSET.reg = USB_DEVICE_EPSTATUSSET_BK0RDY; // OUT: not ready to receive until armed
+    ep->EPINTENSET.bit.TRCPT0 = true;
+  } else {
+    ep->EPCFG.bit.EPTYPE1 = desc_ep->bmAttributes.xfer + 1;
+    ep->EPSTATUSCLR.reg = USB_DEVICE_EPSTATUSCLR_STALLRQ1 | USB_DEVICE_EPSTATUSCLR_DTGLIN |
+                          USB_DEVICE_EPSTATUSCLR_BK1RDY; // IN: clear stale "loaded" bank
+    ep->EPINTENSET.bit.TRCPT1 = true;
+  }
+  return true;
 }
 
 void dcd_edpt_close_all (uint8_t rhport)

@@ -1,3 +1,4 @@
+mcu:APM32F0XX
 mcu:CH32V103
 mcu:CH32V20X
 mcu:LPC11UXX
@@ -10,6 +11,7 @@ mcu:SAMD11
 mcu:STM32L0
 mcu:STM32F0
 mcu:KINETIS_KL
+mcu:PY32F0
 mcu:STM32H7RS
 mcu:STM32N6
 family:broadcom_64bit

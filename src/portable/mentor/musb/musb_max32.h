@@ -28,6 +28,7 @@ extern "C" {
 
 #define MUSB_CFG_SHARED_FIFO   1 // shared FIFO for TX and RX endpoints
 #define MUSB_CFG_DYNAMIC_FIFO  0 // dynamic EP FIFO sizing
+#define MUSB_INTR_EP_TX_RX_SWAP 0
 
 static const uintptr_t MUSB_BASES[] = { MXC_BASE_USBHS };
 

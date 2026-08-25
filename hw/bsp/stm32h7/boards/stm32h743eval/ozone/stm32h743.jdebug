@@ -10,6 +10,7 @@
 */
 void OnProjectLoad (void) {
    Project.SetTraceSource ("Trace Pins");
+   Project.SetTracePortWidth (4);
   Project.SetTraceTiming (100, 100, 100, 100);
   Project.SetSWO (0);
   Edit.SysVar (VAR_TRACE_CORE_CLOCK, 200000000);
@@ -22,7 +23,7 @@ void OnProjectLoad (void) {
   Project.SetTargetIF ("SWD");
   Project.SetTIFSpeed ("50 MHz");
 
-  File.Open ("../../../../../../examples/device/cdc_msc/cmake-build-stm32h743eval/cdc_msc.elf");
+  File.Open ("../../../../../../examples/cmake-build-stm32h743eval/device/cdc_msc/cdc_msc.elf");
   // File.Open ("../../../../../../examples/cmake-build-stm32h743eval_host1/host/cdc_msc_hid/cdc_msc_hid.elf");
 }
 

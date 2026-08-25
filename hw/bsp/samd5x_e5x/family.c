@@ -87,6 +87,31 @@ void USB_3_Handler(void) { USB_Any_Handler(); }
 static void max3421_init(void);
 #endif
 
+#if defined(TRACE_ETM)
+// same54_xplained routes 4-bit trace to its 20-pin Cortex Debug+ETM header:
+// TRACECLK=PC27, D0=PC28, D1=PC26, D2=PC25, D3=PC24 - all peripheral
+// function H (CM4 trace). TPIU/ETM are ROM-table-discoverable; the debugger
+// arms them, firmware only muxes the pins.
+static void trace_etm_init(void) {
+  // the CM4 trace unit runs from its own GCLK channel (47): feed it GCLK0
+  // (CPU clock) - without this the pins mux fine but the port stays silent
+  GCLK->PCHCTRL[47].reg = GCLK_PCHCTRL_GEN_GCLK0 | GCLK_PCHCTRL_CHEN;
+  while (!(GCLK->PCHCTRL[47].reg & GCLK_PCHCTRL_CHEN)) {}
+
+  const uint8_t pin[] = {24, 25, 26, 27, 28};
+  for (unsigned i = 0; i < 5; i++) {
+    PORT->Group[2].PINCFG[pin[i]].reg = PORT_PINCFG_PMUXEN | PORT_PINCFG_DRVSTR;
+    if (pin[i] & 1) {
+      PORT->Group[2].PMUX[pin[i] >> 1].bit.PMUXO = 7; // function H
+    } else {
+      PORT->Group[2].PMUX[pin[i] >> 1].bit.PMUXE = 7;
+    }
+  }
+}
+#else
+  #define trace_etm_init()
+#endif
+
 void board_init(void) {
   // Clock init ( follow hpl_init.c )
   hri_nvmctrl_set_CTRLA_RWS_bf(NVMCTRL, 0);
@@ -103,6 +128,8 @@ void board_init(void) {
   // Update SystemCoreClock since it is hard coded with asf4 and not correct
   // Init 1ms tick timer (samd SystemCoreClock may not correct)
   SystemCoreClock = CONF_CPU_FREQUENCY;
+
+  trace_etm_init();
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   SysTick_Config(CONF_CPU_FREQUENCY / 1000);

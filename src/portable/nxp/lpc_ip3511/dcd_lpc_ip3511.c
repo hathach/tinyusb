@@ -87,6 +87,10 @@ enum {
   DEVCMDSTAT_SUSPEND_CHANGE_MASK = TU_BIT(25),
   DEVCMDSTAT_RESET_CHANGE_MASK   = TU_BIT(26),
   DEVCMDSTAT_VBUS_DEBOUNCED_MASK = TU_BIT(28),
+
+  // write-1-to-clear latches
+  DEVCMDSTAT_W1C_MASK            = DEVCMDSTAT_SETUP_RECEIVED_MASK | DEVCMDSTAT_CONNECT_CHANGE_MASK |
+                                   DEVCMDSTAT_SUSPEND_CHANGE_MASK | DEVCMDSTAT_RESET_CHANGE_MASK,
 };
 
 enum {
@@ -158,6 +162,10 @@ typedef struct
 // - 55 usb0 (FS) has 5x2 endpoints, usb1 (HS) has 6x2 endpoints
 #define MAX_EP_PAIRS  6
 
+// Bounded spin waiting for hardware to clear an EPSKIP bit when retiring a still-armed endpoint on
+// reopen (dcd_edpt_open). Hardware clears it within a (micro)frame; the guard only avoids a hang.
+#define IP3511_EPSKIP_SPIN  100000u
+
 // NOTE data will be transferred as soon as dcd get request by dcd_pipe(_queue)_xfer using double buffering.
 // current_td is used to keep track of number of remaining & xferred bytes of the current request.
 typedef struct
@@ -167,7 +175,9 @@ typedef struct
   ep_cmd_sts_t ep[2*MAX_EP_PAIRS][2];
   xfer_dma_t dma[2*MAX_EP_PAIRS];
 
-  TU_ATTR_ALIGNED(64) uint8_t setup_packet[8];
+  // volatile: the controller DMAs a new setup packet into this buffer as soon as the SETUP
+  // latch is cleared, so reads of it must stay ordered against the register accesses around them
+  TU_ATTR_ALIGNED(64) volatile uint8_t setup_packet[8];
 }dcd_data_t;
 
 // EP list must be 256-byte aligned
@@ -176,8 +186,12 @@ typedef struct
 //    Use CFG_TUD_MEM_SECTION to place it accordingly.
 CFG_TUD_MEM_SECTION TU_ATTR_ALIGNED(256) static dcd_data_t _dcd;
 
-// Dummy buffer to fix ZLPs overwriting the buffer (probably an USB/DMA controller bug)
-// TODO find way to save memory
+// Dummy buffer to fix ZLPs overwriting the buffer: Errata LPC55S6x USB.5 / LPC55S2x USB.4 - the
+// HS device controller always DMA-writes OUT data in 8-byte units, so up to 7 bytes land past the
+// received length. This redirects the ZLP case; the general short-OUT case is unhandled here
+// (TinyUSB's own endpoint buffers are sized/aligned so the spill stays inside them, but a tight
+// caller buffer can be overrun by up to 7 bytes - the SDK's documented workaround is a bounce
+// buffer). TODO find way to save memory
 CFG_TUD_MEM_SECTION TU_ATTR_ALIGNED(64) static uint8_t dummy[8];
 
 //--------------------------------------------------------------------+
@@ -217,7 +231,7 @@ static const dcd_controller_t _dcd_controller[] = {
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 
-TU_ATTR_ALWAYS_INLINE static inline uint16_t get_buf_offset(void const * buffer) {
+TU_ATTR_ALWAYS_INLINE static inline uint16_t get_buf_offset(void const volatile * buffer) {
   uint32_t addr = (uint32_t) buffer;
   TU_ASSERT( (addr & 0x3f) == 0, 0 );
   return ( (addr >> 6) & 0xFFFFUL ) ;
@@ -241,6 +255,16 @@ TU_ATTR_ALWAYS_INLINE static inline ep_cmd_sts_t* get_ep_cs(uint8_t ep_id) {
 
 TU_ATTR_ALWAYS_INLINE static inline bool rhport_is_highspeed(uint8_t rhport) {
   return _dcd_controller[rhport].is_highspeed;
+}
+
+
+// DEVCMDSTAT mixes RW fields with write-1-to-clear latches (SETUP + the 3 change bits): a blind
+// RMW writes a pending latch back as 1 and silently clears it (a SETUP eaten this way strands
+// EP0). Mask the latches on every update; pass one in set_mask only to clear it.
+TU_ATTR_ALWAYS_INLINE static inline void devcmdstat_update(dcd_registers_t* dcd_reg,
+                                                           uint32_t clear_mask, uint32_t set_mask) {
+  const uint32_t v = dcd_reg->DEVCMDSTAT & ~(DEVCMDSTAT_W1C_MASK | clear_mask);
+  dcd_reg->DEVCMDSTAT = v | set_mask;
 }
 
 //--------------------------------------------------------------------+
@@ -280,8 +304,10 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   dcd_reg->DATABUFSTART = tu_align((uint32_t) &_dcd, TU_BIT(22)); // 22-bit alignment
   dcd_reg->INTSTAT      = dcd_reg->INTSTAT; // clear all pending interrupt
   dcd_reg->INTEN        = INT_DEVICE_STATUS_MASK;
-  dcd_reg->DEVCMDSTAT  |= DEVCMDSTAT_DEVICE_ENABLE_MASK | DEVCMDSTAT_DEVICE_CONNECT_MASK |
-                           DEVCMDSTAT_RESET_CHANGE_MASK | DEVCMDSTAT_CONNECT_CHANGE_MASK | DEVCMDSTAT_SUSPEND_CHANGE_MASK;
+  // deliberately clear every latch (incl. a SETUP left by a bootloader/warm start) for a
+  // deterministic init state
+  devcmdstat_update(dcd_reg, 0, DEVCMDSTAT_DEVICE_ENABLE_MASK | DEVCMDSTAT_DEVICE_CONNECT_MASK |
+                    DEVCMDSTAT_W1C_MASK);
 
   NVIC_ClearPendingIRQ(_dcd_controller[rhport].irqnum);
 
@@ -305,8 +331,7 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   // Response with status first before changing device address
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0, false);
 
-  dcd_reg->DEVCMDSTAT &= ~DEVCMDSTAT_DEVICE_ADDR_MASK;
-  dcd_reg->DEVCMDSTAT |= dev_addr;
+  devcmdstat_update(dcd_reg, DEVCMDSTAT_DEVICE_ADDR_MASK, dev_addr);
 }
 
 void dcd_remote_wakeup(uint8_t rhport)
@@ -317,13 +342,13 @@ void dcd_remote_wakeup(uint8_t rhport)
 void dcd_connect(uint8_t rhport)
 {
   dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
-  dcd_reg->DEVCMDSTAT |= DEVCMDSTAT_DEVICE_CONNECT_MASK;
+  devcmdstat_update(dcd_reg, 0, DEVCMDSTAT_DEVICE_CONNECT_MASK);
 }
 
 void dcd_disconnect(uint8_t rhport)
 {
   dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
-  dcd_reg->DEVCMDSTAT &= ~DEVCMDSTAT_DEVICE_CONNECT_MASK;
+  devcmdstat_update(dcd_reg, DEVCMDSTAT_DEVICE_CONNECT_MASK, 0);
 }
 
 void dcd_sof_enable(uint8_t rhport, bool en)
@@ -337,13 +362,37 @@ void dcd_sof_enable(uint8_t rhport, bool en)
 //--------------------------------------------------------------------+
 // DCD Endpoint Port
 //--------------------------------------------------------------------+
+// Retire a still-armed (Active) endpoint before reconfiguring it (reopen across SET_INTERFACE).
+// UM11126 §41.7.6/§41.8.3: write EPSKIP and wait for hardware to clear the bit, then Active is
+// safe to clear. EPSKIP raises the endpoint interrupt as it clears Active, delivered as a
+// (partial) transfer completion. Here that is sanctioned — usbd_edpt_close() documents "in
+// progress transfers may be delivered after this call", and that completion is what clears the
+// stale usbd busy flag (ISO_ALLOC close is a no-op) so the class can re-arm the reopened
+// endpoint. NOT for the stall/iso-activate paths: there the class re-arms from the completion
+// callback and the endpoint ends up Active+Stall, which never sends a STALL handshake (usbtest
+// case 13 regression on LPC11u37) — those paths must clear Active directly instead.
+// Bounded: hardware clears EPSKIP within a (micro)frame.
+static void edpt_skip_active(uint8_t rhport, uint8_t ep_id) {
+  ep_cmd_sts_t* ep_cs = get_ep_cs(ep_id);
+  if ( ep_cs[0].cmd_sts.active || ep_cs[1].cmd_sts.active ) {
+    dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+    dcd_reg->EPSKIP |= TU_BIT(ep_id);
+    uint32_t guard = IP3511_EPSKIP_SPIN;
+    while ( (dcd_reg->EPSKIP & TU_BIT(ep_id)) && guard-- ) {}
+  }
+  ep_cs[0].cmd_sts.active = ep_cs[1].cmd_sts.active = 0;
+}
+
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
-
   // TODO cannot able to STALL Control OUT endpoint !!!!! FIXME try some walk-around
   uint8_t const ep_id = ep_addr2id(ep_addr);
-  _dcd.ep[ep_id][0].cmd_sts.stall = 1;
+  // Clear Active directly before setting Stall (no EPSKIP — see edpt_skip_active): the hardware
+  // services an armed buffer instead of returning STALL, so a halt requested while a transfer is
+  // queued would not actually stall the endpoint (usbtest case 13).
+  _dcd.ep[ep_id][0].cmd_sts.active = 0;
+  _dcd.ep[ep_id][0].cmd_sts.stall  = 1;
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
@@ -352,9 +401,17 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 
   uint8_t const ep_id = ep_addr2id(ep_addr);
 
+  // Preserve rf_tv: for non-control endpoints it is a TYPE bit, not the toggle value (UM11126:
+  // T=1 + RF 1/0 = interrupt/iso). Zeroing it here turned HS periodic interrupt endpoints into
+  // isochronous - no handshake on OUT, dead IN (usbtest cases 25/26 on lpc55 HS port).
+  // TODO implement the Errata LPC546xx USB.13 work-around (same semantics in UM11126): with RF/TV preserved at 1, TR
+  // loads the toggle from TV, so an HS interrupt endpoint restarts on DATA1 after clear-halt and
+  // the host discards one packet as a retransmission. The documented workaround needs an
+  // interrupt-on-NAK state machine (park as generic TR=1/TV=0, wait for a NAKed token to latch
+  // toggle 0 via EPTOGGLE, restore the type) - deferred; one lost packet beats the fully broken
+  // endpoint the old rf_tv clear caused.
   _dcd.ep[ep_id][0].cmd_sts.stall        = 0;
   _dcd.ep[ep_id][0].cmd_sts.toggle_reset = 1;
-  _dcd.ep[ep_id][0].cmd_sts.rf_tv        = 0;
 }
 
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
@@ -362,9 +419,15 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   //------------- Prepare Queue Head -------------//
   uint8_t ep_id = ep_addr2id(p_endpoint_desc->bEndpointAddress);
   ep_cmd_sts_t* ep_cs = get_ep_cs(ep_id);
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
 
-  // Check if endpoint is available
-  TU_ASSERT( ep_cs[0].cmd_sts.disable && ep_cs[1].cmd_sts.disable );
+  // usbd_edpt_close() is a no-op on ISO_ALLOC ports, so an endpoint a class closed then reopened
+  // across SET_INTERFACE (e.g. the video notification or audio streaming endpoint) is still armed
+  // here rather than disabled. Retire it (edpt_skip_active) before reconfiguring.
+  if ( !(ep_cs[0].cmd_sts.disable && ep_cs[1].cmd_sts.disable) ) {
+    edpt_skip_active(rhport, ep_id);
+    ep_cs[0].cmd_sts.disable = ep_cs[1].cmd_sts.disable = 1;
+  }
 
   edpt_reset(rhport, ep_id);
 
@@ -389,7 +452,6 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   }
 
   // Enable EP interrupt
-  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
   dcd_reg->INTEN |= TU_BIT(ep_id);
 
   return true;
@@ -399,34 +461,40 @@ void dcd_edpt_close_all (uint8_t rhport)
 {
   for (uint8_t ep_id = 0; ep_id < 2*_dcd_controller[rhport].ep_pairs; ++ep_id)
   {
-    _dcd.ep[ep_id][0].cmd_sts.active = _dcd.ep[ep_id][0].cmd_sts.active = 0; // TODO proper way is to EPSKIP then wait ep[][].active then write ep[][].disable (see table 778 in LPC55S69 Use Manual)
+    _dcd.ep[ep_id][0].cmd_sts.active = _dcd.ep[ep_id][1].cmd_sts.active = 0; // TODO proper way is to EPSKIP then wait ep[][].active then write ep[][].disable (see table 778 in LPC55S69 Use Manual)
     _dcd.ep[ep_id][0].cmd_sts.disable = _dcd.ep[ep_id][1].cmd_sts.disable = 1;
   }
 }
 
-void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
-{
-  (void) rhport;
-
-  uint8_t ep_id = ep_addr2id(ep_addr);
-  _dcd.ep[ep_id][0].cmd_sts.active = _dcd.ep[ep_id][0].cmd_sts.active = 0; // TODO proper way is to EPSKIP then wait ep[][].active then write ep[][].disable (see table 778 in LPC55S69 Use Manual)
-  _dcd.ep[ep_id][0].cmd_sts.disable = _dcd.ep[ep_id][1].cmd_sts.disable = 1;
-}
-
-#if 0
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
-  (void)rhport;
-  (void)ep_addr;
-  (void)largest_packet_size;
-  return false;
+  (void) largest_packet_size;
+  // Reserve the endpoint command/status entry once (persists across altsetting changes); the
+  // buffer pointer is filled per-transfer, so nothing to pre-allocate. Mirrors the ISO branch of
+  // dcd_edpt_open().
+  uint8_t ep_id = ep_addr2id(ep_addr);
+  ep_cmd_sts_t* ep_cs = get_ep_cs(ep_id);
+  TU_ASSERT( ep_cs[0].cmd_sts.disable && ep_cs[1].cmd_sts.disable );
+
+  edpt_reset(rhport, ep_id);
+  ep_cs[0].cmd_sts.type = 1; // ISO
+
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  dcd_reg->INTEN |= TU_BIT(ep_id);
+  return true;
 }
 
 bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
-  (void)rhport;
-  (void)desc_ep;
-  return false;
+  // (Re)activate on altsetting selection: abort a transfer still armed from the previous
+  // altsetting (the hardware keeps servicing an Active buffer across SET_INTERFACE, fighting the
+  // fresh transfer the class queues), clear stall and reset the data toggle. Direct Active=0, not
+  // EPSKIP (see edpt_skip_active). The class re-arms via dcd_edpt_xfer().
+  uint8_t ep_id = ep_addr2id(desc_ep->bEndpointAddress);
+  ep_cmd_sts_t* ep_cs = get_ep_cs(ep_id);
+  ep_cs[0].cmd_sts.active = 0;
+  ep_cs[1].cmd_sts.active = 0;
+  dcd_edpt_clear_stall(rhport, desc_ep->bEndpointAddress);
+  return true;
 }
-#endif
 
 static void prepare_ep_xfer(uint8_t rhport, uint8_t ep_id, uint16_t buf_offset, uint16_t total_bytes) {
   uint16_t nbytes;
@@ -499,7 +567,7 @@ static void bus_reset(uint8_t rhport)
   dcd_reg->EPSKIP       = 0xFFFFFFFF;
 
   dcd_reg->INTSTAT      = dcd_reg->INTSTAT;                               // clear all pending interrupt
-  dcd_reg->DEVCMDSTAT  |= DEVCMDSTAT_SETUP_RECEIVED_MASK;                    // clear setup received interrupt
+  devcmdstat_update(dcd_reg, 0, DEVCMDSTAT_SETUP_RECEIVED_MASK);          // clear setup received interrupt
   dcd_reg->INTEN        = INT_DEVICE_STATUS_MASK | TU_BIT(0) | TU_BIT(1); // enable device status & control endpoints
 }
 
@@ -558,18 +626,25 @@ void dcd_int_handler(uint8_t rhport)
 {
   dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
 
-  uint32_t const cmd_stat = dcd_reg->DEVCMDSTAT;
-
   uint32_t int_status = dcd_reg->INTSTAT;
-	int_status &= dcd_reg->INTEN;
+  int_status &= dcd_reg->INTEN;
   dcd_reg->INTSTAT = int_status; // Acknowledge handled interrupt
 
   if (int_status == 0) return;
 
+  // Snapshot after the INTSTAT ack: latch bits persist (RWC) so nothing is lost, while the reverse
+  // order could consume INTSTAT bit0 for a SETUP not yet visible in the snapshot - stranding the
+  // SETUP (INTSTAT is edge-latched) and feeding bit0 to process_xfer_isr as a bogus completion.
+  uint32_t const cmd_stat = dcd_reg->DEVCMDSTAT;
+
   //------------- Device Status -------------//
   if ( int_status & INT_DEVICE_STATUS_MASK )
   {
-    dcd_reg->DEVCMDSTAT |= DEVCMDSTAT_RESET_CHANGE_MASK | DEVCMDSTAT_CONNECT_CHANGE_MASK | DEVCMDSTAT_SUSPEND_CHANGE_MASK;
+    // clear only the change latches observed in the snapshot: one latched by hardware between the
+    // snapshot and this write would be acknowledged unseen (its DEV_INT re-latches and dispatches
+    // next pass instead)
+    devcmdstat_update(dcd_reg, 0, cmd_stat &
+                      (DEVCMDSTAT_RESET_CHANGE_MASK | DEVCMDSTAT_CONNECT_CHANGE_MASK | DEVCMDSTAT_SUSPEND_CHANGE_MASK));
 
     if ( cmd_stat & DEVCMDSTAT_RESET_CHANGE_MASK) // bus reset
     {
@@ -614,15 +689,43 @@ void dcd_int_handler(uint8_t rhport)
     _dcd.ep[0][0].cmd_sts.active = _dcd.ep[1][0].cmd_sts.active = 0;
     _dcd.ep[0][0].cmd_sts.stall = _dcd.ep[1][0].cmd_sts.stall = 0;
 
-    dcd_reg->DEVCMDSTAT |= DEVCMDSTAT_SETUP_RECEIVED_MASK;
+    // UM flow: ack the latch FIRST, then read the payload. This IP has no setup lockout, so a
+    // back-to-back SETUP can overwrite _dcd.setup_packet at any time - but with the latch already
+    // released, any such overwrite re-latches SETUP_RECEIVED and is redelivered (worst case a
+    // superseded duplicate, absorbed by usbd's queued-setup counter). The reverse order can
+    // consume the newer SETUP's latch unseen and lose it.
+    devcmdstat_update(dcd_reg, 0, DEVCMDSTAT_SETUP_RECEIVED_MASK);
 
-    dcd_event_setup_received(rhport, _dcd.setup_packet, true);
+    // UM11126 Fig 163 (control EP0 flowchart) requires clearing the EP0IN interrupt here: a
+    // control IN completion latched before this SETUP must not reach usbd after it, where it
+    // would be applied to the new request and arm its status stage early. EP0OUT goes with it -
+    // bit0 is set by SETUP reception too, and left set it would replay next pass as a phantom
+    // completion. Neither can discard live work: the SETUP latch NAKs all EP0 traffic until the
+    // update above, and both EP0 Active bits were cleared a few lines up.
+    dcd_reg->INTSTAT = TU_BIT(0) | TU_BIT(1);
+
+    // Copied a byte at a time rather than with memcpy: C orders volatile accesses only against
+    // each other, so a non-volatile copy of this buffer may be sunk below the guard read that
+    // follows - gcc does exactly that at -O2 and -O3, leaving only -Os correct.
+    uint8_t setup_copy[8];
+    for (uint8_t i = 0; i < sizeof(setup_copy); i++) {
+      setup_copy[i] = _dcd.setup_packet[i];
+    }
+
+    // a SETUP that raced in after the acks (its bit0 consumed above) makes this copy suspect:
+    // its latch is visible again, so re-raise the endpoint interrupt and let the next pass
+    // deliver the newer payload rather than passing up bytes that may be torn between the two
+    if (dcd_reg->DEVCMDSTAT & DEVCMDSTAT_SETUP_RECEIVED_MASK) {
+      dcd_reg->INTSETSTAT = TU_BIT(0);
+    } else {
+      dcd_event_setup_received(rhport, setup_copy, true);
+    }
 
     // keep waiting for next setup
     prepare_setup_packet(rhport);
 
-    // clear bit0
-    int_status = tu_bit_clear(int_status, 0);
+    // drop both EP0 bits: acked above, and neither belongs to the request this SETUP starts
+    int_status &= ~(TU_BIT(0) | TU_BIT(1));
   }
 
   // Endpoint transfer complete interrupt

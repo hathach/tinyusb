@@ -1161,9 +1161,6 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const *p
             is_feedback_ep = (desc_ep->bmAttributes.usage == 1);
           }
 
-          //TODO: We need to set EP non busy since this is not taken care of right now in ep_close() - THIS IS A WORKAROUND!
-          usbd_edpt_clear_stall(rhport, ep_addr);
-
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
           // For data or data with implicit feedback IN EP
           if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN && is_data_ep)
@@ -1844,7 +1841,7 @@ static bool audiod_calc_tx_packet_sz(audiod_function_t *audio) {
 
 static uint16_t audiod_tx_packet_size(const uint16_t *nominal_size, uint16_t data_count, uint16_t fifo_depth, uint16_t fifo_threshold, uint16_t max_depth) {
   // Flow control need a FIFO size of at least 4*Navg
-  if (nominal_size[1] && nominal_size[1] <= fifo_depth * 4) {
+  if (nominal_size[1] && nominal_size[1] * 4 <= fifo_depth) {
     // Use blackout to prioritize normal size packet
     static int ctrl_blackout = 0;
     uint16_t packet_size;

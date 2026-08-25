@@ -393,10 +393,6 @@ static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uin
     }
     dep->diepdma = (uintptr_t) xfer->buffer;
     dep->diepctl = depctl.value; // enable endpoint
-    // Advance buffer pointer for EP0
-    if (epnum == 0) {
-      xfer->buffer += total_bytes;
-    }
   } else
   #endif
   {
@@ -732,6 +728,8 @@ static void handle_bus_reset(uint8_t rhport) {
 
   tu_memclr(xfer_status, sizeof(xfer_status));
 
+  _dcd_data.ep0_pending[TUSB_DIR_OUT] = 0;
+  _dcd_data.ep0_pending[TUSB_DIR_IN] = 0;
   _dcd_data.sof_en = false;
   _dcd_data.allocated_epin_count = 0;
 
@@ -1009,6 +1007,10 @@ static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepi
     if (edpt_is_enabled(epin0)) {
       edpt_disable(rhport, 0x80, false);
     }
+    // a new SETUP aborts any in-progress control transfer: drop leftover EP0 chunking state so a
+    // stale latched completion cannot re-arm from it
+    _dcd_data.ep0_pending[TUSB_DIR_OUT] = 0;
+    _dcd_data.ep0_pending[TUSB_DIR_IN] = 0;
 
     dcd_dcache_invalidate(_dcd_usbbuf.setup_buffer, sizeof(_dcd_usbbuf.setup_buffer));
 
@@ -1029,24 +1031,37 @@ static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepi
     // only handle data skip if it is setup or status related
     // Normal OUT transfer complete
     if (!doepint_bm.status_phase_rx && !doepint_bm.setup_packet_rx) {
+      xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
       if ((epnum == 0) && _dcd_data.ep0_pending[TUSB_DIR_OUT]) {
-        // EP0 can only handle one packet Schedule another packet to be received.
+        // EP0 can only handle one packet: invalidate and advance past the received bytes, then
+        // schedule the next.
+        if (xfer->buffer != NULL) {
+          dcd_dcache_invalidate(xfer->buffer, CFG_TUD_ENDPOINT0_SIZE);
+          xfer->buffer += CFG_TUD_ENDPOINT0_SIZE;
+        }
         edpt_schedule_packets(rhport, epnum, TUSB_DIR_OUT);
       } else {
         dwc2_dep_t* epout = &dwc2->epout[epnum];
-        xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
 
         // determine actual received bytes
         const dwc2_ep_tsize_t tsiz = {.value = epout->tsiz};
         const uint16_t remain = tsiz.xfer_size;
         xfer->total_len -= remain;
 
+        // EP0 invalidates only this (final) chunk's DMA-written bytes: DOEPDMA "is incremented on
+        // every AHB transaction" (databook 7.1.83), i.e. it points past the last word written.
+        // Read it before dma_setup_prepare() re-targets it at the setup buffer
+        uint16_t inval_len = xfer->total_len;
+        if (epnum == 0) {
+          inval_len = (uint16_t)(epout->doepdma - (uintptr_t)xfer->buffer);
+        }
+
         // prepare EP0 for next setup
         if(epnum == 0) {
           dma_setup_prepare(rhport);
         }
 
-        dcd_dcache_invalidate(xfer->buffer, xfer->total_len);
+        dcd_dcache_invalidate(xfer->buffer, inval_len);
         dcd_event_xfer_complete(rhport, epnum, xfer->total_len, XFER_RESULT_SUCCESS, true);
       }
     }
@@ -1058,7 +1073,10 @@ static void handle_epin_dma(uint8_t rhport, uint8_t epnum, dwc2_diepint_t diepin
 
   if (diepint_bm.xfer_complete) {
     if ((epnum == 0) && _dcd_data.ep0_pending[TUSB_DIR_IN]) {
-      // EP0 can only handle one packet. Schedule another packet to be transmitted.
+      // EP0 can only handle one packet: advance past the sent bytes, then schedule the next.
+      if (xfer->buffer != NULL) {
+        xfer->buffer += CFG_TUD_ENDPOINT0_SIZE;
+      }
       edpt_schedule_packets(rhport, epnum, TUSB_DIR_IN);
     } else {
       dcd_event_xfer_complete(rhport, epnum | TUSB_DIR_IN_MASK, xfer->total_len, XFER_RESULT_SUCCESS, true);
@@ -1125,7 +1143,12 @@ static void handle_incomplete_iso_in(uint8_t rhport) {
       xfer_ctl_t *xfer = XFER_CTL_BASE(epnum, TUSB_DIR_IN);
       if (xfer->iso_retry > 0) {
         xfer->iso_retry--;
-        // Restart ISO transfe: re-write TSIZ and CTL
+        // Restart ISO transfer: re-write DMA address, TSIZ, and CTL
+        #if CFG_TUD_DWC2_DMA_ENABLE
+        if (dma_device_enabled(dwc2)) {
+          epin->diepdma = (uintptr_t) xfer->buffer;
+        }
+        #endif
         dwc2_ep_tsize_t deptsiz = {.value = 0};
         deptsiz.xfer_size       = xfer->total_len;
         deptsiz.packet_count    = tu_div_ceil(xfer->total_len, xfer->max_size);

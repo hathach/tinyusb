@@ -1,0 +1,115 @@
+/*********************************************************************
+*
+*       OnProjectLoad
+*
+* Function description
+*   Project load routine. Required.
+*
+* Notes
+*   SAM E70 Xplained: solder a 20-pin 50-mil header on the J403 ETM footprint
+*   (bottom side). TRACECLK=PD8 (peripheral D), TRACED0-3=PD4-7 (peripheral C),
+*   shared with the Ethernet PHY - no Ethernet while tracing. TRACE_ETM=1
+*   builds mux the pins and clock the TPIU from PCK3=MCK; TPIU/ETM are
+*   ROM-table-discoverable so no J-Link script is required.
+*   Trace clock pin is PCK3/2 = 75 MHz at the stock 300 MHz core (MCK 150).
+*
+**********************************************************************
+*/
+void OnProjectLoad (void) {
+  Project.SetTraceSource ("Trace Pins");
+  Project.SetTracePortWidth (4);
+  Project.SetSWO (0);
+  Edit.SysVar (VAR_TRACE_CORE_CLOCK, 300000000);
+  Project.AddSvdFile ("$(InstallDir)/Config/CPU/Cortex-M7F.svd");
+
+  Project.SetDevice ("ATSAME70Q21B");
+  Project.SetHostIF ("USB", "");
+  Project.SetTargetIF ("SWD");
+  Project.SetTIFSpeed ("4 MHz");
+
+  File.Open ("../../../../../../examples/cmake-build-same70_xplained/device/cdc_msc/cdc_msc.elf");
+}
+
+/*********************************************************************
+*
+*       AfterTargetReset
+*
+* Function description
+*   Event handler routine.
+*    - Sets the PC register to program reset value.
+*    - Sets the SP register to program reset value on Cortex-M.
+*
+**********************************************************************
+*/
+void AfterTargetReset (void) {
+  unsigned int SP;
+  unsigned int PC;
+  unsigned int VectorTableAddr;
+
+  VectorTableAddr = Elf.GetBaseAddr();
+
+  if (VectorTableAddr == 0xFFFFFFFF) {
+    Util.Log("Project file error: failed to get program base");
+  } else {
+    SP = Target.ReadU32(VectorTableAddr);
+    Target.SetReg("SP", SP);
+
+    PC = Target.ReadU32(VectorTableAddr + 4);
+    Target.SetReg("PC", PC);
+  }
+
+  // TPIU trace clock = PCK3; it must run BEFORE Ozone arms the trace
+  // components (TPIU programming while PCK3 is stopped is lost and the port
+  // emits unformatted garbage). A target reset wipes the PMC, so this runs
+  // in the post-reset/post-download hooks, not AfterTargetConnect.
+  Target.WriteU32 (0x400E064C, 0x00000014);  // PMC_PCK3: CSS=MCK, PRESS=/2
+  Target.WriteU32 (0x400E0600, 0x00000800);  // PMC_SCER: PCK3 on
+  // wait for PCKRDY3 (bounded) before Ozone arms the trace components
+  int i;
+  i = 0;
+  while (((Target.ReadU32 (0x400E0668) & 0x00000800) == 0) && (i < 100)) {
+    i = i + 1;
+  }
+}
+
+/*********************************************************************
+*
+*       AfterTargetDownload
+*
+* Function description
+*   Event handler routine.
+*    - Sets the PC register to program reset value.
+*    - Sets the SP register to program reset value on Cortex-M.
+*
+**********************************************************************
+*/
+void AfterTargetDownload (void) {
+  unsigned int SP;
+  unsigned int PC;
+  unsigned int VectorTableAddr;
+
+  VectorTableAddr = Elf.GetBaseAddr();
+
+  if (VectorTableAddr == 0xFFFFFFFF) {
+    Util.Log("Project file error: failed to get program base");
+  } else {
+    SP = Target.ReadU32(VectorTableAddr);
+    Target.SetReg("SP", SP);
+
+    PC = Target.ReadU32(VectorTableAddr + 4);
+    Target.SetReg("PC", PC);
+  }
+
+  // TPIU trace clock = PCK3; it must run BEFORE Ozone arms the trace
+  // components (TPIU programming while PCK3 is stopped is lost and the port
+  // emits unformatted garbage). A target reset wipes the PMC, so this runs
+  // in the post-reset/post-download hooks, not AfterTargetConnect.
+  Target.WriteU32 (0x400E064C, 0x00000014);  // PMC_PCK3: CSS=MCK, PRESS=/2
+  Target.WriteU32 (0x400E0600, 0x00000800);  // PMC_SCER: PCK3 on
+  // wait for PCKRDY3 (bounded) before Ozone arms the trace components
+  int i;
+  i = 0;
+  while (((Target.ReadU32 (0x400E0668) & 0x00000800) == 0) && (i < 100)) {
+    i = i + 1;
+  }
+}

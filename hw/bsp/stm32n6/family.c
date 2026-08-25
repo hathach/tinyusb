@@ -110,6 +110,27 @@ void USB1_OTG_HS_IRQHandler(void) {
   tusb_int_handler(0, true);
 }
 
+#ifdef TRACE_ETM
+static void trace_etm_init(void) {
+  // Nucleo-N657X0-Q routes 4-bit trace to the CN1 MIPI20 natively:
+  // TRACE_CLK = PB3, D0 = PE3, D1 = PB0, D2 = PB6, D3 = PB7 (MB1940 Table 5)
+  GPIO_InitTypeDef gpio_init;
+  gpio_init.Mode      = GPIO_MODE_AF_PP;
+  gpio_init.Pull      = GPIO_NOPULL;
+  gpio_init.Speed     = GPIO_SPEED_FREQ_VERY_HIGH;
+  gpio_init.Alternate = GPIO_AF0_TRACE;
+  gpio_init.Pin = GPIO_PIN_0 | GPIO_PIN_3 | GPIO_PIN_6 | GPIO_PIN_7;
+  HAL_GPIO_Init(GPIOB, &gpio_init);
+  gpio_init.Pin = GPIO_PIN_3;
+  HAL_GPIO_Init(GPIOE, &gpio_init);
+
+  // trace clock (ck_cpu_tpiu) is a fixed cpu/8 - just enable it
+  DBGMCU->CR |= DBGMCU_CR_DBGCLKEN | DBGMCU_CR_TRACECLKEN;
+}
+#else
+  #define trace_etm_init()
+#endif
+
 void board_init(void) {
   /* Enable BusFault and SecureFault handlers (HardFault is default) */
   SCB->SHCSR |= (SCB_SHCSR_BUSFAULTENA_Msk | SCB_SHCSR_SECUREFAULTENA_Msk);
@@ -148,6 +169,7 @@ void board_init(void) {
   for (uint8_t i = 0; i < TU_ARRAY_SIZE(board_pindef); i++) {
     HAL_GPIO_Init(board_pindef[i].port, &board_pindef[i].pin_init);
   }
+  trace_etm_init();
 
   NVIC_SetPriority(UCPD1_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(),5, 0));
   NVIC_EnableIRQ(UCPD1_IRQn);

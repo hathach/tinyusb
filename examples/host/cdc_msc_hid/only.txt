@@ -3,6 +3,7 @@ family:samd21
 family:samd5x_e5x
 mcu:CH32V20X
 mcu:KINETIS_KL
+mcu:KINETIS_K
 mcu:LPC175X_6X
 mcu:LPC177X_8X
 mcu:LPC18XX
