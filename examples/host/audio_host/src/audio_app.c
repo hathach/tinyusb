@@ -28,11 +28,10 @@
 // - AUDIO_MAX_FRAME_COUNT: buffer holds up to 48 frames (1 ms of 48 kHz)
 // - AUDIO_MAX_CHANNELS: maximum channels of the capture/playback stream
 // - SAMPLE_RATES: sample rates tried in order, first match wins (44.1 kHz stereo by default)
-#define AUDIO_MAX_FRAME_COUNT 48
-#define AUDIO_MAX_CHANNELS    2
-#define SAMPLE_RATES          {48000, 44100}
-// UAC1 volume values are signed 1/256 dB; 0x0600 selects +6 dB.
-#define FEATURE_UNIT_VOLUME 0x0600
+#define AUDIO_MAX_FRAME_COUNT  48
+#define AUDIO_MAX_CHANNELS     2
+#define SAMPLE_RATES           {48000, 44100}
+#define FEATURE_UNIT_VOLUME_DB (-6 * 256)
 static uint8_t                   audio_idx      = TUSB_INDEX_INVALID_8; // index of the selected audio device
 static uint8_t                   cap_stream_idx = TUSB_INDEX_INVALID_8; // capture stream index
 static uint8_t                   spk_stream_idx = TUSB_INDEX_INVALID_8; // playback stream index
@@ -255,17 +254,6 @@ void led_blinking_task(void) {
   err_cb_count = 0;
 
 #endif
-#if 0
-  // Print the current Feature Unit volume, which is set to 0x0600 in mic_configured() and can be changed by the device.
-  uint16_t volume = 0x0001;
-  tuh_audio_feature_unit_get_sync(audio_idx, cap_stream_idx, AUDIO10_FU_CTRL_VOLUME, 0, &volume);
-  printf("  Feature Unit volume get: 0x%04x\r\n", (unsigned int)volume);
-  uint16_t mute = 0x0000;
-  tuh_audio_feature_unit_get_sync(audio_idx, cap_stream_idx, AUDIO10_FU_CTRL_MUTE, 0, &mute);
-  mute=!mute; // toggle mute for demonstration
-  tuh_audio_feature_unit_set_sync(audio_idx, cap_stream_idx, AUDIO10_FU_CTRL_MUTE, 0, mute);
-  printf("  Feature Unit mute set: 0x%04x\r\n", (unsigned int)mute);
-#endif
 }
 
 //--------------------------------------------------------------------+
@@ -377,6 +365,14 @@ static void print_stream_configs(uint8_t idx, uint8_t stream_idx) {
   const uint8_t               feature_unit_id = tuh_audio_get_feature_unit_id(idx, stream_idx);
   printf("  %s stream %u Feature Unit ID: %u, configurations: %u\r\n", dir_name, stream_idx, feature_unit_id,
          tuh_audio_config_count(idx, stream_idx));
+  tuh_audio_volume_range_t range;
+  if (tuh_audio_mute_supported(idx, stream_idx)) {
+    printf("    master mute supported\r\n");
+  }
+  if (tuh_audio_volume_range_get(idx, stream_idx, &range)) {
+    printf("    master volume range: min=%d max=%d res=%u (1/256 dB)\r\n", (int)range.min, (int)range.max,
+           (unsigned)range.res);
+  }
   for (uint8_t i = 0; i < tuh_audio_config_count(idx, stream_idx); i++) {
     tuh_audio_stream_config_t config;
     if (tuh_audio_config_get(idx, stream_idx, i, &config)) {
@@ -386,19 +382,44 @@ static void print_stream_configs(uint8_t idx, uint8_t stream_idx) {
   }
 }
 
-static void set_stream_volume(uint8_t idx, uint8_t stream_idx, const char *stream_name) {
+static void configure_stream_controls(uint8_t idx, uint8_t stream_idx, const char *stream_name) {
   const uint8_t feature_unit_id = tuh_audio_get_feature_unit_id(idx, stream_idx);
   if (feature_unit_id == 0) {
-    printf("  %s stream has no Feature Unit\r\n", stream_name);
+    printf("  %s stream has no master mute/volume Feature Unit\r\n", stream_name);
     return;
   }
 
-  uint16_t           volume = FEATURE_UNIT_VOLUME;
-  tusb_xfer_result_t result = tuh_audio_feature_unit_set_sync(idx, stream_idx, AUDIO10_FU_CTRL_VOLUME, 0, volume);
-  if (result == XFER_RESULT_SUCCESS) {
-    printf("  %s Feature Unit %u master volume set: 0x%04x\r\n", stream_name, feature_unit_id, (unsigned int)volume);
-  } else {
-    printf("  Setting %s Feature Unit %u volume failed: result=%u\r\n", stream_name, feature_unit_id, result);
+  if (tuh_audio_mute_supported(idx, stream_idx)) {
+    bool               mute;
+    tusb_xfer_result_t result = tuh_audio_mute_get_sync(idx, stream_idx, &mute);
+    if (result == XFER_RESULT_SUCCESS) {
+      printf("  %s Feature Unit %u master mute: %s\r\n", stream_name, feature_unit_id, mute ? "on" : "off");
+      result = tuh_audio_mute_set_sync(idx, stream_idx, false);
+    }
+    if (result != XFER_RESULT_SUCCESS) {
+      printf("  Accessing %s master mute failed: result=%u\r\n", stream_name, result);
+    }
+  }
+
+  tuh_audio_volume_range_t range;
+  if (tuh_audio_volume_range_get(idx, stream_idx, &range)) {
+    int16_t            volume;
+    tusb_xfer_result_t result = tuh_audio_volume_get_sync(idx, stream_idx, &volume);
+    if (result == XFER_RESULT_SUCCESS) {
+      printf("  %s Feature Unit %u master volume: %d (1/256 dB)\r\n", stream_name, feature_unit_id, volume);
+      int32_t target = FEATURE_UNIT_VOLUME_DB;
+      target         = TU_MAX(target, range.min);
+      target         = TU_MIN(target, range.max);
+      target         = range.min + ((target - range.min + range.res / 2) / range.res) * range.res;
+      target         = TU_MIN(target, range.max);
+      result         = tuh_audio_volume_set_sync(idx, stream_idx, (int16_t)target);
+      if (result == XFER_RESULT_SUCCESS) {
+        printf("  %s master volume set: %d (1/256 dB)\r\n", stream_name, (int)target);
+      }
+    }
+    if (result != XFER_RESULT_SUCCESS) {
+      printf("  Accessing %s master volume failed: result=%u\r\n", stream_name, result);
+    }
   }
 }
 
@@ -462,7 +483,7 @@ static void tuh_audio_mount_async(uintptr_t param) {
             // one ms of audio at the selected rate, rounded down to whole frames
             audio_frame_count = sample_rate / 1000;
             printf("  Microphone configured\r\n");
-            set_stream_volume(idx, stream_idx, "Microphone");
+            configure_stream_controls(idx, stream_idx, "Microphone");
             mic_ready     = tuh_audio_start(idx, stream_idx);
             capture_found = true;
             break;
@@ -519,7 +540,7 @@ static void tuh_audio_mount_async(uintptr_t param) {
   // playback-only device: set the frame cadence from the selected rate
   audio_frame_count = spk_config.sample_rate / 1000;
   sine_phase        = 0;
-  set_stream_volume(idx, spk_stream_idx, "Speaker");
+  configure_stream_controls(idx, spk_stream_idx, "Speaker");
 
   if (capture_found) {
     // Start in the mic-only phase without briefly activating playback first.

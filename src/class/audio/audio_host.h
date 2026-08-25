@@ -85,6 +85,17 @@ typedef struct {
   uint8_t               channels;
 } tuh_audio_stream_config_t;
 
+// Volume values are signed 1/256 dB. INT16_MIN represents silence.
+#define TUH_AUDIO_VOLUME_SILENCE INT16_MIN
+
+// One continuous volume range. This matches UAC1 MIN/MAX/RES and the common
+// UAC2 RANGE response containing one subrange.
+typedef struct {
+  int16_t  min;
+  int16_t  max;
+  uint16_t res;
+} tuh_audio_volume_range_t;
+
 //--------------------------------------------------------------------+
 // Stream Enumeration
 //--------------------------------------------------------------------+
@@ -183,6 +194,10 @@ bool tuh_audio_mounted(uint8_t idx);
 uint8_t tuh_audio_get_dev_addr(uint8_t idx);
 // Get the Feature Unit ID associated with a stream (0 = none)
 uint8_t tuh_audio_get_feature_unit_id(uint8_t idx, uint8_t stream_idx);
+// True when the stream's Feature Unit supports master mute control.
+bool tuh_audio_mute_supported(uint8_t idx, uint8_t stream_idx);
+// Get the cached master volume range. Returns false when volume is unsupported.
+bool tuh_audio_volume_range_get(uint8_t idx, uint8_t stream_idx, tuh_audio_volume_range_t *range);
 
 //--------------------------------------------------------------------+
 // Control Request API
@@ -197,9 +212,18 @@ bool tuh_audio_feature_unit_set(uint8_t idx, uint8_t stream_idx, uint8_t control
 // Get a Feature Unit control (mute, volume, ...) associated with an Audio stream (UAC 1.0)
 // The value is converted to host byte order before complete_cb is invoked.
 // Graphic EQ and unknown selectors are unsupported.
-// Only one Feature Unit GET or SET request may be in flight per device.
+// Only one Feature Unit operation may be in flight per device.
 bool tuh_audio_feature_unit_get(uint8_t idx, uint8_t stream_idx, uint8_t control_selector, uint8_t channel,
                                 uint16_t *value, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+
+// Master mute and volume controls. Capability and range information is cached
+// before tuh_audio_mount_cb() is invoked.
+bool tuh_audio_mute_set(uint8_t idx, uint8_t stream_idx, bool mute, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+bool tuh_audio_mute_get(uint8_t idx, uint8_t stream_idx, bool *mute, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+bool tuh_audio_volume_set(uint8_t idx, uint8_t stream_idx, int16_t volume, tuh_xfer_cb_t complete_cb,
+                          uintptr_t user_data);
+bool tuh_audio_volume_get(uint8_t idx, uint8_t stream_idx, int16_t *volume, tuh_xfer_cb_t complete_cb,
+                          uintptr_t user_data);
 
 //--------------------------------------------------------------------+
 // Control Request Sync API
@@ -218,6 +242,26 @@ TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_audio_feature_unit_ge
                                                                                        uint8_t   channel,
                                                                                        uint16_t *value) {
   TU_API_SYNC(tuh_audio_feature_unit_get, idx, stream_idx, control_selector, channel, value);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_audio_mute_set_sync(uint8_t idx, uint8_t stream_idx,
+                                                                               bool mute) {
+  TU_API_SYNC(tuh_audio_mute_set, idx, stream_idx, mute);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_audio_mute_get_sync(uint8_t idx, uint8_t stream_idx,
+                                                                               bool *mute) {
+  TU_API_SYNC(tuh_audio_mute_get, idx, stream_idx, mute);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_audio_volume_set_sync(uint8_t idx, uint8_t stream_idx,
+                                                                                 int16_t volume) {
+  TU_API_SYNC(tuh_audio_volume_set, idx, stream_idx, volume);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_audio_volume_get_sync(uint8_t idx, uint8_t stream_idx,
+                                                                                 int16_t *volume) {
+  TU_API_SYNC(tuh_audio_volume_get, idx, stream_idx, volume);
 }
 
 //--------------------------------------------------------------------+

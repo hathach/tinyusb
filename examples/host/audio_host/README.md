@@ -6,7 +6,7 @@ This example demonstrates how to use TinyUSB's USB Audio Host driver (TUH_AUDIO)
 
 - Enumerates and mounts USB Audio Class 1.0 devices
 - Discovers the device's logical streams (capture/playback) and their supported configurations (discrete tuples only)
-- Reports the Feature Unit ID associated with each stream and sets the master volume when one is available
+- Reports each stream's master mute/volume capabilities and cached volume range
 - Configures and starts an S16_LE capture stream (48 kHz preferred, 44.1 kHz fallback; stereo preferred, mono accepted)
 - Echoes captured audio to an S16_LE playback stream at the same sample rate (same channel count preferred, mono/stereo conversion otherwise)
 - Frame-based FIFO API: `tuh_audio_read()` / `tuh_audio_write()` queue frames; the driver schedules transfers at the endpoint's polling interval
@@ -26,7 +26,7 @@ The echo needs a matching S16_LE playback stream at the capture sample rate; dev
 
 - Explicit feedback endpoint data is ignored. Asynchronous playback still uses the nominal sample rate, but device/host clock drift is not corrected and may cause underruns, overruns, or audible pops and clicks. An implicit-feedback IN endpoint is treated as an ordinary audio-data endpoint and is not used to pace playback.
 - UAC1 Type I Format descriptors with `bSamFreqType == 0` are unsupported; the driver requires a list of discrete sampling frequencies.
-- Feature Unit mute, bass, mid, treble, volume, delay, AGC, bass boost, and loudness controls are supported. Graphic EQ and unknown control widths are rejected, and only one Feature Unit request may be in flight per device.
+- Master mute and volume controls are discovered before the mount callback, including the volume MIN/MAX/RES range. Feature Units without master mute or volume are ignored. The typed API controls the master channel; the lower-level Feature Unit API remains available for fixed-width UAC1 controls on the associated unit.
 - The UAC1 `MaxPacketsOnly` endpoint attribute is not supported. OUT transfers are not padded to `wMaxPacketSize`, and padding in IN transfers is not removed from the reported audio data.
 
 ## Building
@@ -65,10 +65,10 @@ make BOARD=<your_board> flash
 2. Connect a USB Audio device (UAC 1.0) to the USB host port
 3. Open a serial terminal to view output
 4. The example will:
-   - Print each stream's Feature Unit ID and supported configurations when mounted
+   - Print each stream's Feature Unit ID, master mute/volume capabilities, cached volume range, and supported configurations when mounted
    - Look for an S16_LE capture configuration at a preferred sample rate (48 kHz first, 44.1 kHz fallback; stereo preferred, mono accepted) and configure it
    - Echo captured audio to an S16_LE playback configuration at the same sample rate (same channel count preferred, converted otherwise)
-   - Set the microphone and speaker master volume to `0x0600` when their streams have a Feature Unit
+   - Read/unmute the microphone and speaker Feature Units and set supported master volumes near -6 dB
    - Drain the capture FIFO in `audio_app_task_read()` and queue the frames into the playback FIFO; a sine test tone plays on the playback stream when no capture stream is echoing
    - Cycle through the three phases (mic-only / spk-only / echo, 5 s each) with `tuh_audio_start()` / `tuh_audio_stop()`; a failed stream is restarted automatically 100 ms after the error callback
 
@@ -79,17 +79,25 @@ TinyUSB Host USB Audio Example
 Connect a USB Audio Device (UAC 1.0) to test
 Audio device mounted: idx=0 addr=1
   capture stream 1 Feature Unit ID: 5, configurations: 2
+    master mute supported
+    master volume range: min=-23040 max=1536 res=256 (1/256 dB)
     [0] format=1 rate=44100 channels=2
     [1] format=1 rate=48000 channels=2
   playback stream 0 Feature Unit ID: 2, configurations: 2
+    master mute supported
+    master volume range: min=-23040 max=1536 res=256 (1/256 dB)
     [0] format=1 rate=44100 channels=2
     [1] format=1 rate=48000 channels=2
   Configuring 48 kHz S16_LE capture (2 channels)
   Microphone configured
-  Microphone Feature Unit 5 master volume set: 0x0600
+  Microphone Feature Unit 5 master mute: off
+  Microphone Feature Unit 5 master volume: 0 (1/256 dB)
+  Microphone master volume set: -1536 (1/256 dB)
   Configuring 48 kHz S16_LE playback (2 channels)
   Speaker configured
-  Speaker Feature Unit 2 master volume set: 0x0600
+  Speaker Feature Unit 2 master mute: off
+  Speaker Feature Unit 2 master volume: 0 (1/256 dB)
+  Speaker master volume set: -1536 (1/256 dB)
 ```
 
 ## Configuration
