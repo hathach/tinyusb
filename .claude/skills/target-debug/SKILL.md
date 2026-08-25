@@ -30,9 +30,9 @@ Hold the board lock for the WHOLE manual session; never stop the
 actions-runner (see the `hil` skill for the full lock protocol):
 
 ```bash
-python3 test/hil/hil_lock.py hold <board> --reason "target debug: <bug>"
+python3 test/hil/helper/hil_lock.py hold <board> --reason "target debug: <bug>"
 # ... instrument / build / flash / capture / GDB ...
-python3 test/hil/hil_lock.py release <board>
+python3 test/hil/helper/hil_lock.py release <board>
 ```
 
 Board → probe mapping: `test/hil/tinyusb.json` — `flasher.name` is the probe
@@ -347,7 +347,7 @@ the wire itself: `usb-sniffer` skill (hardware tap, PID-level).
 - J-Link (UM08001): <https://kb.segger.com/UM08001_J-Link_/_J-Trace_User_Guide> — flash breakpoints, RTT, SWO, monitor mode, Commander.
 - OpenOCD: <https://openocd.org/doc/html/index.html> — `rtt`, `bp`/`wp`, `cortex_m vector_catch`/`maskisr`, `itm`/`tpiu`.
 - "Debugging with GDB" (§5.1 = break/watch/dprintf): Tenth Edition (GDB 18)
-  via calibre/`read-doc`, or
+  via the `read-doc` skill, or
   `curl -sL -o /tmp/gdb.pdf https://sourceware.org/gdb/current/onlinedocs/gdb.pdf`
   (the HTML mirror blocks fetchers). Installed `arm-none-eabi-gdb`
   `help <cmd>` is authoritative here.

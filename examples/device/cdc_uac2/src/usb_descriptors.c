@@ -110,6 +110,16 @@ uint8_t const * tud_descriptor_device_cb(void)
     #define EPNUM_CDC_IN      0x85
   #endif
 
+#elif CFG_TUSB_MIMXRT1XXX_ERRATA_ERR050101
+  // ERR050101 (see CFG_TUSB_MIMXRT1XXX_ERRATA_ERR050101): an isochronous IN endpoint needs a number
+  // no other device on the bus uses
+  #define EPNUM_AUDIO_IN    0x07
+  #define EPNUM_AUDIO_OUT   0x01
+
+  #define EPNUM_CDC_NOTIF   0x83
+  #define EPNUM_CDC_OUT     0x04
+  #define EPNUM_CDC_IN      0x84
+
 #else
   #define EPNUM_AUDIO_IN    0x01
   #define EPNUM_AUDIO_OUT   0x01

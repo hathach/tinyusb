@@ -7,9 +7,11 @@ def _resolve_config_path(config_file):
     if os.path.exists(config_file):
         return config_file
 
-    script_relative = os.path.join(os.path.dirname(__file__), config_file)
-    if os.path.exists(script_relative):
-        return script_relative
+    # bare roster names resolve against the repo's test/hil (this script lives in
+    # .github/scripts); build.yml passes explicit paths, this is for hand-runs
+    repo_relative = os.path.join(os.path.dirname(__file__), '..', '..', 'test', 'hil', config_file)
+    if os.path.exists(repo_relative):
+        return repo_relative
 
     raise FileNotFoundError(f'Config file not found: {config_file}')
 

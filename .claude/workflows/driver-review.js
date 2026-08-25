@@ -16,7 +16,7 @@ if (!args || !Array.isArray(args.dirs) || args.dirs.length === 0) {
 const DIMS = args.question ? [args.question] : (args.dimensions || [
   'correctness: transfer state machines, endpoint bookkeeping, completion and error paths',
   'ISR safety: work deferred to task context, shared-state races, register access ordering',
-  'register use vs datasheet and MCU errata: cross-check the reference manual AND errata sheets in $HOME/Documents/calibre-library; a missing erratum workaround is a finding',
+  'register use vs datasheet and MCU errata: cross-check the reference manual AND errata sheets via the read-doc skill (python3 .claude/skills/read-doc/search.py <keywords>); a missing erratum workaround is a finding',
   'style: repo conventions (TU_ASSERT, no dynamic allocation, include order, naming)',
 ])
 if (!DIMS.length) {

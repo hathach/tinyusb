@@ -18,19 +18,23 @@ The GitHub Actions runner keeps running during your work. Per-board flock locks 
 - `python3 test/hil/hil_test.py ...` runs: do NOT pre-hold those boards — `hil_test.py` self-locks each board for its flash+test and would fail fast with `board locked` against your own hold.
 - ANY other hardware action (JLinkExe/openocd/GDB, manual flash, usbtest.py, serial poking): hold first, release when done — release is mandatory cleanup (a crashed holder auto-releases via kernel flock, but do not rely on it):
   ```bash
-  python3 test/hil/hil_lock.py hold <board...> --reason "<task>"
+  python3 test/hil/helper/hil_lock.py hold <board...> --reason "<task>"
   # ... hardware work ...
-  python3 test/hil/hil_lock.py release <board...>
+  python3 test/hil/helper/hil_lock.py release <board...>
   ```
-- Rig-wide operations (uhubctl power cycling, pci-rebind — they renumber buses): `python3 test/hil/hil_lock.py hold --all --reason "<why>"` first.
+- Rig-wide operations (uhubctl power cycling, controller resets — they renumber buses): `python3 test/hil/helper/hil_lock.py hold --all --reason "<why>"` first.
 - If a lock is already held by someone else: report holder/reason (`hil_lock.py status`) — never force, never kill the holder. If the holder's reason is `hil_test.py`, that is a concurrent CI job mid-test on the board: waiting a few minutes and retrying once is appropriate when your task allows; otherwise return the holder info so the orchestrator can ask the user.
 - You cannot ask the user anything. Bypassing a lock (`HIL_NO_BOARD_LOCK=1`, or proceeding with manual hardware work despite a held lock) is allowed ONLY when your prompt explicitly states the user authorized forcing.
 
 ## Hard rules
 
-- HIL runs take 2–5 min per board: use Bash timeouts >= 20 min (1200000 ms) and NEVER cancel early.
+- HIL runs take 2-5 min per board, but a stuck fleet runs to `HIL_POOL_TIMEOUT` — 60 min
+  unless the env pins it; the run logs its guard in the startup line. That far exceeds the
+  Bash tool's 10 min foreground cap: run it in the background and wait
+  for the completion notification. A foreground timeout kills the run before hil_test.py
+  can write its report. NEVER cancel early.
 - One hardware action at a time. You are never run concurrently with another hil-operator.
-- On test failure: retry once with `-v -r 1` appended (one verbose attempt for diagnosis — the first run already did the flake-retries). If a board/fixture stops enumerating or tools hang in D state, consult usb-kernel-recover and capture `dmesg | tail -50` into `detail`; set `wedged` true.
+- On test failure: retry once with `-v -r 1` appended (one verbose attempt for diagnosis; a usbtest battery that produced per-case verdicts is NOT auto-retried, so its result already stands). If a board/fixture stops enumerating, or a tool of YOURS hangs in D state, consult usb-kernel-recover and capture `dmesg | tail -50` into `detail`; set `wedged` true. A `> **Rig note.**` banner reporting someone else's D-state process is not that — see the hil skill's banner list.
 
 ## Output contract
 

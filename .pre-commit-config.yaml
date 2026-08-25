@@ -48,6 +48,27 @@ repos:
     types_or: [c, header]
     language: system
 
+  # Two hooks, split by what each suite actually reads. The full discovery run costs
+  # ~55s (deliberate hang/timeout simulations); only test_hil_select (~0.1s) reads
+  # hw/bsp (board.cmake), src (portable dirs + class include graph) and examples
+  # (tusb_config.h per test) -- renaming a board, port dir or example breaks it without
+  # touching test/hil, and catching that here beats waiting for pre-commit CI.
+  # No types_or: the rig rosters (*.json) are inputs too.
+  # examples/device/mtp/src is in scope: test_hil_bounded parses README_TXT_CONTENT
+  # and md5-checks the logo header from there as its MTP fixtures.
+  - id: hil-test
+    name: hil-test
+    files: ^(test/hil/|examples/device/mtp/src/)
+    entry: python3 -m unittest discover -s test/hil/test
+    pass_filenames: false
+    language: system
+  - id: hil-select-test
+    name: hil-select-test
+    files: ^(hw/bsp/|src/|examples/)
+    entry: python3 test/hil/test/test_hil_select.py
+    pass_filenames: false
+    language: system
+
 #  - id: build-fuzzer
 #    name: build-fuzzer
 #    files: ^(src/|test/fuzz/)

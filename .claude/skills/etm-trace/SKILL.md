@@ -43,7 +43,7 @@ this skill for exact counts, coverage, or instruction-by-instruction history.
   capture script uses automation port **19201**, never an interactive Ozone's
   19200.
 - Hold the board lock (see the `hil` skill):
-  `python3 test/hil/hil_lock.py hold <board> --reason "etm capture"`.
+  `python3 test/hil/helper/hil_lock.py hold <board> --reason "etm capture"`.
 - Committed `hw/bsp/**/ozone/*.jdebug` are the maintainer's interactive
   projects — automation never opens them (Ozone rewrites project files); the
   script generates a throwaway project.
@@ -147,7 +147,7 @@ request `itrace.csv`, `profile_lines.csv`, `profile_insts.csv`, `samples.csv`,
 
 Bring-up ladder — each step gates the next:
 
-1. **Docs before hardware** (calibre library first, then vendor site): board
+1. **Docs before hardware** (`read-doc` skill first, then vendor site): board
    manual, schematics, MCU reference manual. Establish the trace clock
    source and max — chip side and probe side (J-Trace PRO Cortex-M tops out
    at a 150 MHz trace clock) — the pins carrying TRACE_CLK/D0-D3 (read the board's

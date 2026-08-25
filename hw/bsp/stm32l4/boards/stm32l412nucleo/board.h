@@ -64,9 +64,10 @@
   *            AHB Prescaler                  = 1
   *            APB1 Prescaler                 = 1
   *            APB2 Prescaler                 = 1
-  *            MSI Frequency(Hz)              = 8000000
-  *            PLL_M                          = 1
-  *            PLL_N                          = 10
+  *            MSI Frequency(Hz)              = 48000000
+  *            LSE Frequency(Hz)              = 32768
+  *            PLL_M                          = 6
+  *            PLL_N                          = 20
   *            PLL_Q                          = 2
   *            PLL_R                          = 2
   *            VDD(V)                         = 3.3
@@ -78,28 +79,34 @@ static inline void board_clock_init(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-  RCC_CRSInitTypeDef RCC_CRSInitStruct = {0};
   RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
 
   /** Configure the main internal regulator output voltage
   */
   HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1);
 
+  /* HAL clock setup reconfigures its tick while MSI is the reset SYSCLK. */
+  HAL_InitTick((1UL << __NVIC_PRIO_BITS) - 1UL);
+
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48|RCC_OSCILLATORTYPE_HSI;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSE | RCC_OSCILLATORTYPE_MSI;
+  RCC_OscInitStruct.LSEState = RCC_LSE_ON;
+  RCC_OscInitStruct.MSIState = RCC_MSI_ON;
+  RCC_OscInitStruct.MSICalibrationValue = RCC_MSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_11;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLM = 1;
-  RCC_OscInitStruct.PLL.PLLN = 10;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_MSI;
+  RCC_OscInitStruct.PLL.PLLM = 6;
+  RCC_OscInitStruct.PLL.PLLN = 20;
   RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
   RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
 
   HAL_RCC_OscConfig(&RCC_OscInitStruct);
+
+  /* Stabilize MSI against the on-board 32.768 kHz LSE crystal. */
+  HAL_RCCEx_EnableMSIPLLMode();
 
   /** Initializes the CPU, AHB and APB buses clocks
   */
@@ -112,24 +119,9 @@ static inline void board_clock_init(void)
 
   HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4);
 
-  /** Enable the SYSCFG APB clock
-  */
-  __HAL_RCC_CRS_CLK_ENABLE();
-
-  /** Configures CRS
-  */
-  RCC_CRSInitStruct.Prescaler = RCC_CRS_SYNC_DIV1;
-  RCC_CRSInitStruct.Source = RCC_CRS_SYNC_SOURCE_USB;
-  RCC_CRSInitStruct.Polarity = RCC_CRS_SYNC_POLARITY_RISING;
-  RCC_CRSInitStruct.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(48000000,1000);
-  RCC_CRSInitStruct.ErrorLimitValue = 34;
-  RCC_CRSInitStruct.HSI48CalibrationValue = 32;
-
-  HAL_RCCEx_CRSConfig(&RCC_CRSInitStruct);
-
-  /* Select HSI48 output as USB clock source */
+  /* Use the same LSE-trimmed MSI source for USB and the CPU PLL. */
   PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USB;
-  PeriphClkInitStruct.UsbClockSelection = RCC_USBCLKSOURCE_HSI48;
+  PeriphClkInitStruct.UsbClockSelection = RCC_USBCLKSOURCE_MSI;
   HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct);
 
   /* Select PLL output as UART clock source */

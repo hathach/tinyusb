@@ -34,4 +34,9 @@ static const ci_hs_controller_t _ci_controller[] =
 #define CI_HCD_INT_ENABLE(_p)   NVIC_EnableIRQ ((IRQn_Type)_ci_controller[_p].irqnum)
 #define CI_HCD_INT_DISABLE(_p)  NVIC_DisableIRQ((IRQn_Type)_ci_controller[_p].irqnum)
 
+// USB0 (high-speed) only: NXP recommends AHBBRST = INCR16 (remainder as
+// unspecified-length bursts)
+#define CI_HS_SET_AHB_BURST(_p) \
+  do { if ((_p) == 0) { CI_HS_REG(_p)->SBUSCFG = SBUSCFG_AHBBRST_INCR16_UNSPEC; } } while (0)
+
 #endif

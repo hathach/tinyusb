@@ -15,7 +15,7 @@ jobs:
       - run:
           name: Set matrix
           command: |
-            MATRIX_JSON=$(python .github/workflows/ci_set_matrix.py)
+            MATRIX_JSON=$(python .github/scripts/ci_set_matrix.py)
             echo "MATRIX_JSON=$MATRIX_JSON"
 
             BUILDSYSTEM_LIST=(

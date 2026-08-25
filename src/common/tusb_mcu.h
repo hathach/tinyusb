@@ -126,6 +126,14 @@
     #define CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT 32
   #endif
 
+  // Errata ERR050101, listed for RT1015/RT1020/RT1024/RT1050 (no fix scheduled) and for
+  // RT1060/RT1064 rev A (fixed in rev B); not listed for RT1010 or the RT11xx family.
+  #if defined(MIMXRT1015_SERIES) || defined(MIMXRT1021_SERIES) || defined(MIMXRT1024_SERIES) || \
+      defined(MIMXRT1051_SERIES) || defined(MIMXRT1052_SERIES) || defined(MIMXRT1061_SERIES) || \
+      defined(MIMXRT1062_SERIES) || defined(MIMXRT1064_SERIES)
+    #define CFG_TUSB_MIMXRT1XXX_ERRATA_ERR050101 1
+  #endif
+
 #elif TU_CHECK_MCU(OPT_MCU_KINETIS_KL, OPT_MCU_KINETIS_K32L, OPT_MCU_KINETIS_K)
   #define TUP_USBIP_CHIPIDEA_FS
   #define TUP_USBIP_CHIPIDEA_FS_KINETIS
@@ -766,6 +774,17 @@
 // CLOSE_API MCUs (mm32, pic, da1469x, f1c100s, ch32-usbhs) are pending per-board verification.
 #ifndef TUP_DCD_EDPT_CLOSE_API
   #define TUP_DCD_EDPT_ISO_ALLOC
+#endif
+
+// Set by silicon whose isochronous IN endpoint can be unprimed by an IN token sent to that same
+// endpoint number on ANOTHER device sharing the host, taking one of this device's OUT endpoints
+// down with it - undetectable in software. Descriptors must then give an isochronous IN endpoint
+// a number no other device on the bus uses; a number is only safe while it stays unique, so two
+// affected boards on one hub must not pick the same one. Default 0 (no such conflict). Set it to
+// 0 by hand on RT1060/RT1064 rev B, which carry the fix - the revision cannot be told apart at
+// compile time, so the affected parts are assumed to be rev A.
+#ifndef CFG_TUSB_MIMXRT1XXX_ERRATA_ERR050101
+  #define CFG_TUSB_MIMXRT1XXX_ERRATA_ERR050101 0
 #endif
 
 // Some USBIPs (SAMG, SAMX7X, PIC32, MAX3266x/MAX78002) cannot assign the same endpoint

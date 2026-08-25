@@ -20,18 +20,26 @@
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
 
+// Bus reset is reported as two edges. BUS_RESET_START is optional: a controller that
+// cannot tell the edges apart emits only BUS_RESET_END, which stays self-sufficient (it
+// performs the full teardown with or without a preceding START). Emit START when reset
+// signaling is detected - the link is unusable and the speed is not negotiated yet - so
+// the stack stops using endpoints immediately instead of at the end of the reset.
 typedef enum {
-  DCD_EVENT_INVALID = 0,    // 0
-  DCD_EVENT_BUS_RESET,      // 1
-  DCD_EVENT_UNPLUGGED,      // 2
-  DCD_EVENT_SOF,            // 3
-  DCD_EVENT_SUSPEND,        // 4 TODO LPM Sleep L1 support
-  DCD_EVENT_RESUME,         // 5
-  DCD_EVENT_SETUP_RECEIVED, // 6
-  DCD_EVENT_XFER_COMPLETE,  // 7
-  USBD_EVENT_FUNC_CALL,     // 8 Not an DCD event, just a convenient way to defer ISR function
+  DCD_EVENT_INVALID = 0,     // 0
+  DCD_EVENT_BUS_RESET_START, // 1
+  DCD_EVENT_BUS_RESET_END,   // 2 with negotiated speed
+  DCD_EVENT_UNPLUGGED,       // 3
+  DCD_EVENT_SOF,             // 4
+  DCD_EVENT_SUSPEND,         // 5 TODO LPM Sleep L1 support
+  DCD_EVENT_RESUME,          // 6
+  DCD_EVENT_SETUP_RECEIVED,  // 7
+  DCD_EVENT_XFER_COMPLETE,   // 8
+  USBD_EVENT_FUNC_CALL,      // 9 Not an DCD event, just a convenient way to defer ISR function
   DCD_EVENT_COUNT
 } dcd_eventid_t;
+
+#define DCD_EVENT_BUS_RESET DCD_EVENT_BUS_RESET_END // backward compatibility
 
 typedef struct TU_ATTR_ALIGNED(4) {
   uint8_t rhport;
