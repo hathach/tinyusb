@@ -37,7 +37,8 @@ enum {
 };
 
 enum {
-  HCD_XFER_PERIOD_SPLIT_NYET_MAX = 3
+  HCD_XFER_PERIOD_SPLIT_NYET_MAX = 3,
+  HCD_FRAME_NUMBER_MASK = 0x3fff
 };
 
 //--------------------------------------------------------------------
@@ -56,18 +57,21 @@ typedef struct {
   };
 
   struct TU_ATTR_PACKED {
-    uint32_t uframe_interval : 18; // micro-frame interval
+    uint32_t uframe_interval : 19; // micro-frame interval
     uint32_t speed           : 2;
     uint32_t next_pid        : 2; // PID for next transfer
     uint32_t next_do_ping    : 1; // Do PING for next transfer if possible (highspeed OUT)
     uint32_t closing         : 1; // endpoint is closing
-    // uint32_t : 8;
+    uint32_t periodic_phase  : 1; // periodic transfer phase is established
+    uint32_t xfer_pending    : 1; // periodic transfer waiting for its service interval
+    // uint32_t : 5;
   };
 
-  uint32_t uframe_countdown; // micro-frame count down to transfer for periodic, only need 18-bit
+  uint32_t uframe_countdown; // micro-frame count down to transfer for periodic, only need 19-bit
 
   uint8_t* buffer;
   uint16_t buflen;
+  uint16_t periodic_frame; // frame/microframe number of the last scheduled periodic transaction
 } hcd_endpoint_t;
 
 // Additional info for each channel when it is active
@@ -547,7 +551,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t*
   edpt->next_pid = HCTSIZ_PID_DATA0;
   switch (desc_ep->bmAttributes.xfer) {
     case TUSB_XFER_ISOCHRONOUS:
-      edpt->uframe_interval = 1 << (desc_ep->bInterval - 1);
+      edpt->uframe_interval = 1u << (desc_ep->bInterval - 1);
       if (bus_info.speed == TUSB_SPEED_FULL) {
         edpt->uframe_interval <<= 3;
       }
@@ -555,7 +559,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t*
 
     case TUSB_XFER_INTERRUPT:
       if (bus_info.speed == TUSB_SPEED_HIGH) {
-        edpt->uframe_interval = 1 << (desc_ep->bInterval - 1);
+        edpt->uframe_interval = 1u << (desc_ep->bInterval - 1);
       } else {
         edpt->uframe_interval = desc_ep->bInterval << 3;
       }
@@ -701,7 +705,39 @@ static bool edpt_xfer_kickoff(dwc2_regs_t* dwc2, uint8_t ep_id) {
   xfer->ep_id = ep_id;
   xfer->result = XFER_RESULT_INVALID;
 
-  return channel_xfer_start(dwc2, ch_id);
+  const bool result = channel_xfer_start(dwc2, ch_id);
+  if (result && channel_is_periodic(_hcd_data.edpt[ep_id].hcchar)) {
+    hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
+    edpt->periodic_frame = (uint16_t) ((dwc2->hfnum + 1u) & HCD_FRAME_NUMBER_MASK);
+    edpt->periodic_phase = 1;
+    edpt->xfer_pending = 0;
+  }
+  return result;
+}
+
+static uint32_t periodic_xfer_countdown(dwc2_regs_t* dwc2, hcd_endpoint_t const* edpt) {
+  const uint32_t ucount = (hprt_speed_get(dwc2) == TUSB_SPEED_HIGH) ? 1u : 8u;
+  const uint16_t frame = (uint16_t) (dwc2->hfnum & HCD_FRAME_NUMBER_MASK);
+  const uint16_t elapsed_frames = (uint16_t) (frame - edpt->periodic_frame) & HCD_FRAME_NUMBER_MASK;
+  const uint32_t elapsed_uframes = (uint32_t) elapsed_frames * ucount;
+
+  if (elapsed_uframes < edpt->uframe_interval) {
+    return edpt->uframe_interval - elapsed_uframes - ucount;
+  }
+
+  // The service opportunity was missed. Keep the established phase and use
+  // the next interval rather than starting a new interval from this request.
+  return edpt->uframe_interval - (elapsed_uframes % edpt->uframe_interval) - ucount;
+}
+
+static void periodic_xfer_defer(dwc2_regs_t* dwc2, hcd_endpoint_t* edpt, uint32_t uframe_countdown) {
+  edpt->uframe_countdown = uframe_countdown;
+  edpt->xfer_pending = 1;
+
+  if (0 == (dwc2->gintmsk & GINTMSK_SOFM)) {
+    dwc2->gintsts = GINTSTS_SOF;
+    dwc2->gintmsk |= GINTMSK_SOFM;
+  }
 }
 
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen) {
@@ -722,6 +758,17 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     edpt->hcchar_bm.ep_dir = ep_dir;
   }
 
+  if (channel_is_periodic(edpt->hcchar) && edpt->periodic_phase) {
+    const uint32_t ucount = (hprt_speed_get(dwc2) == TUSB_SPEED_HIGH) ? 1u : 8u;
+    if (edpt->uframe_interval > ucount) {
+      const uint32_t countdown = periodic_xfer_countdown(dwc2, edpt);
+      if (countdown > 0) {
+        periodic_xfer_defer(dwc2, edpt, countdown);
+        return true;
+      }
+    }
+  }
+
   return edpt_xfer_kickoff(dwc2, ep_id);
 }
 
@@ -733,6 +780,13 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   const uint8_t ep_dir = tu_edpt_dir(ep_addr);
   const uint8_t ep_id = edpt_find_opened(dev_addr, ep_num, ep_dir);
   TU_VERIFY(ep_id < CFG_TUH_DWC2_ENDPOINT_MAX);
+  hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
+
+  if (edpt->xfer_pending) {
+    edpt->xfer_pending = 0;
+    edpt->uframe_countdown = 0;
+    return true;
+  }
 
   // hcd_int_disable(rhport);
 
@@ -812,12 +866,7 @@ static void channel_xfer_in_retry(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
       if (hcchar.ep_type != HCCHAR_EPTYPE_ISOCHRONOUS) {
         edpt->next_pid = hctsiz.pid; // save PID
       }
-      edpt->uframe_countdown = edpt->uframe_interval - ucount;
-      // enable SOF interrupt if not already enabled
-      if (0 == (dwc2->gintmsk & GINTMSK_SOFM)) {
-        dwc2->gintsts = GINTSTS_SOF;
-        dwc2->gintmsk |= GINTMSK_SOFM;
-      }
+      periodic_xfer_defer(dwc2, edpt, periodic_xfer_countdown(dwc2, edpt));
       // already halted, de-allocate channel (called from DMA isr)
       channel_dealloc(dwc2, ch_id);
     }
@@ -1384,15 +1433,17 @@ static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
   for(uint8_t ep_id = 0; ep_id < CFG_TUH_DWC2_ENDPOINT_MAX; ep_id++) {
     hcd_endpoint_t *edpt = &_hcd_data.edpt[ep_id];
     if (edpt->closing == 0) {
-      if (edpt->hcchar_bm.enable && channel_is_periodic(edpt->hcchar) && edpt->uframe_countdown > 0) {
-        edpt->uframe_countdown -= tu_min32(ucount, edpt->uframe_countdown);
+      if (edpt->hcchar_bm.enable && channel_is_periodic(edpt->hcchar) && edpt->xfer_pending) {
+        if (edpt->uframe_countdown > 0) {
+          edpt->uframe_countdown -= tu_min32(ucount, edpt->uframe_countdown);
+        }
         if (edpt->uframe_countdown == 0) {
           if (!edpt_xfer_kickoff(dwc2, ep_id)) {
             edpt->uframe_countdown = ucount; // failed to start, try again next frame
           }
         }
 
-        more_isr = true;
+        more_isr = more_isr || edpt->xfer_pending;
       }
     }
   }
