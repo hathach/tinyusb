@@ -619,7 +619,9 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const tusb_de
   uint8_t  sam_freq_count                       = 0; // 1 for a continuous range
   uint32_t sam_freq[CFG_TUH_AUDIO_MAX_SAM_FREQ] = {0};
 
-  // An alternate setting can expose an endpoint in each direction
+  // An alternate setting can expose an endpoint in each direction. Explicit
+  // feedback endpoints are skipped; implicit-feedback data endpoints remain
+  // normal audio endpoints.
   typedef struct {
     uint8_t  ep_addr;
     uint16_t ep_size;
@@ -699,7 +701,24 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const tusb_de
       }
       case TUSB_DESC_ENDPOINT: {
         const tusb_desc_endpoint_t *desc_endpoint = (const tusb_desc_endpoint_t *)p_desc;
-        if (desc_endpoint->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS && ep_count < 2) {
+        if (desc_endpoint->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS) {
+          break;
+        }
+
+        const uint8_t usage = desc_endpoint->bmAttributes.usage;
+        const bool    implicit_feedback =
+          usage == (TUSB_ISO_EP_ATT_IMPLICIT_FB >> 4) && tu_edpt_dir(desc_endpoint->bEndpointAddress) == TUSB_DIR_IN;
+        const bool explicit_feedback =
+          usage == (TUSB_ISO_EP_ATT_EXPLICIT_FB >> 4) ||
+          (usage == (TUSB_ISO_EP_ATT_DATA >> 4) && desc_endpoint->bmAttributes.sync == TUSB_ISO_EP_ATT_NO_SYNC);
+
+        if (explicit_feedback) {
+          TU_LOG_DRV("  AUDIO AS itf %u alt %u: explicit feedback ep %02x ignored\r\n", itf_num, alt,
+                     desc_endpoint->bEndpointAddress);
+          break;
+        }
+
+        if ((usage == (TUSB_ISO_EP_ATT_DATA >> 4) || implicit_feedback) && ep_count < 2) {
           audioh_ep_info_t *ep = &ep_info[ep_count];
           ep->ep_addr          = desc_endpoint->bEndpointAddress;
           ep->ep_size          = tu_edpt_packet_size(desc_endpoint);
