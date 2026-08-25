@@ -261,6 +261,10 @@ static const uint8_t midi_only_collection[] = {
   0,
 };
 
+static const uint8_t uac2_control_interface[] = {
+  9, TUSB_DESC_INTERFACE, AUDIO_AC_ITF, 0, 0, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_CONTROL, AUDIO_INT_PROTOCOL_CODE_V2, 0,
+};
+
 static const uint8_t playback_with_implicit_feedback[] = {
   TEST_UAC1_AC_HEADER_2,
   TEST_UAC1_INPUT_TERM(PLAYBACK_INPUT_TERM, AUDIO_TERM_TYPE_USB_STREAMING, 2),
@@ -487,6 +491,15 @@ void test_audio_host_ignores_explicit_feedback_endpoint(void) {
   TEST_ASSERT_EQUAL_UINT8(1, tuh_audio_stream_count(0));
   TEST_ASSERT_EQUAL(TUH_AUDIO_STREAM_PLAYBACK, tuh_audio_stream_direction(0, 0));
   TEST_ASSERT_EQUAL_UINT8(1, tuh_audio_config_count(0, 0));
+}
+
+void test_audio_host_rejects_uac2_interface_without_consuming_instance(void) {
+  TEST_ASSERT_EQUAL_UINT16(0, audioh_open(0, AUDIO_DEV_ADDR, (const tusb_desc_interface_t *)uac2_control_interface,
+                                          sizeof(uac2_control_interface)));
+  TEST_ASSERT_EQUAL_UINT8(0, tuh_audio_get_dev_addr(0));
+
+  open_descriptors(playback_with_explicit_feedback, sizeof(playback_with_explicit_feedback));
+  TEST_ASSERT_EQUAL_UINT8(1, tuh_audio_stream_count(0));
 }
 
 void test_audio_host_treats_implicit_feedback_as_audio_in_endpoint(void) {

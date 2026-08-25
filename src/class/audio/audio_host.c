@@ -778,6 +778,7 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
 
   TU_VERIFY(TUSB_CLASS_AUDIO == desc_itf->bInterfaceClass, 0);
   TU_VERIFY(AUDIO_SUBCLASS_CONTROL == desc_itf->bInterfaceSubClass, 0);
+  TU_VERIFY(AUDIO_INT_PROTOCOL_CODE_V1 == desc_itf->bInterfaceProtocol, 0);
 
   const uint8_t *desc_start = (const uint8_t *)desc_itf;
   const uint8_t *p_desc     = desc_start;
