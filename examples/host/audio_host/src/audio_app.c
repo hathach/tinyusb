@@ -31,6 +31,8 @@
 #define AUDIO_MAX_FRAME_COUNT 48
 #define AUDIO_MAX_CHANNELS    2
 #define SAMPLE_RATES          {48000, 44100}
+// UAC1 volume values are signed 1/256 dB; 0x0600 selects +6 dB.
+#define FEATURE_UNIT_VOLUME 0x0600
 static uint8_t                   audio_idx      = TUSB_INDEX_INVALID_8; // index of the selected audio device
 static uint8_t                   cap_stream_idx = TUSB_INDEX_INVALID_8; // capture stream index
 static uint8_t                   spk_stream_idx = TUSB_INDEX_INVALID_8; // playback stream index
@@ -347,9 +349,11 @@ void tuh_audio_err_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_bytes) {
 
 // Print all supported stream configurations
 static void print_stream_configs(uint8_t idx, uint8_t stream_idx) {
-  const tuh_audio_direction_t dir      = tuh_audio_stream_direction(idx, stream_idx);
-  const char                 *dir_name = (dir == TUH_AUDIO_STREAM_CAPTURE) ? "capture" : "playback";
-  printf("  %s stream %u configurations: %u\r\n", dir_name, stream_idx, tuh_audio_config_count(idx, stream_idx));
+  const tuh_audio_direction_t dir             = tuh_audio_stream_direction(idx, stream_idx);
+  const char                 *dir_name        = (dir == TUH_AUDIO_STREAM_CAPTURE) ? "capture" : "playback";
+  const uint8_t               feature_unit_id = tuh_audio_get_feature_unit_id(idx, stream_idx);
+  printf("  %s stream %u Feature Unit ID: %u, configurations: %u\r\n", dir_name, stream_idx, feature_unit_id,
+         tuh_audio_config_count(idx, stream_idx));
   for (uint8_t i = 0; i < tuh_audio_config_count(idx, stream_idx); i++) {
     tuh_audio_stream_config_t config;
     if (tuh_audio_config_get(idx, stream_idx, i, &config)) {
@@ -359,23 +363,30 @@ static void print_stream_configs(uint8_t idx, uint8_t stream_idx) {
   }
 }
 
+static void set_stream_volume(uint8_t idx, uint8_t stream_idx, const char *stream_name) {
+  const uint8_t feature_unit_id = tuh_audio_get_feature_unit_id(idx, stream_idx);
+  if (feature_unit_id == 0) {
+    printf("  %s stream has no Feature Unit\r\n", stream_name);
+    return;
+  }
+
+  uint16_t           volume = FEATURE_UNIT_VOLUME;
+  tusb_xfer_result_t result = tuh_audio_feature_unit_set_sync(idx, stream_idx, AUDIO10_FU_CTRL_VOLUME, 0, volume);
+  if (result == XFER_RESULT_SUCCESS) {
+    printf("  %s Feature Unit %u master volume set: 0x%04x\r\n", stream_name, feature_unit_id, (unsigned int)volume);
+  } else {
+    printf("  Setting %s Feature Unit %u volume failed: result=%u\r\n", stream_name, feature_unit_id, result);
+  }
+}
+
 // Invoked when the configuration selected by tuh_audio_configure() completes
 static void mic_configured(uint8_t idx, uint8_t stream_idx, tusb_xfer_result_t result, uintptr_t user_data) {
   (void)user_data;
 
   if (idx == audio_idx && stream_idx == cap_stream_idx && result == XFER_RESULT_SUCCESS) {
-    printf("  Microphone configured, starting capture\r\n");
+    printf("  Microphone configured\r\n");
+    set_stream_volume(idx, stream_idx, "Microphone");
     mic_ready = tuh_audio_start(idx, stream_idx);
-
-    uint16_t volume = 0x0600;
-    result          = tuh_audio_feature_unit_set_sync(idx, stream_idx, AUDIO10_FU_CTRL_VOLUME, 0, volume);
-    if (result == XFER_RESULT_SUCCESS) {
-      printf("  Feature Unit volume set:volume 0x%04x\r\n", (unsigned int)volume);
-      tuh_audio_feature_unit_get_sync(idx, stream_idx, AUDIO10_FU_CTRL_VOLUME, 0, &volume);
-      printf("  Feature Unit volume get: 0x%04x\r\n", (unsigned int)volume);
-    } else {
-      printf("  Setting Feature Unit volume FAILED: result=%u\r\n", result);
-    }
   } else {
     printf("  Microphone configuration failed: result=%u\r\n", result);
   }
@@ -385,11 +396,12 @@ static void mic_configured(uint8_t idx, uint8_t stream_idx, tusb_xfer_result_t r
 static void spk_configured(uint8_t idx, uint8_t stream_idx, tusb_xfer_result_t result, uintptr_t user_data) {
   (void)user_data;
   if (idx == audio_idx && stream_idx == spk_stream_idx && result == XFER_RESULT_SUCCESS) {
-    printf("  Speaker configured, starting playback\r\n");
-    spk_ready = tuh_audio_start(idx, stream_idx);
+    printf("  Speaker configured\r\n");
     // playback-only device: set the frame cadence from the selected rate
     audio_frame_count = spk_config.sample_rate / 1000;
     spk_init_sine(); // fallback test tone while no capture stream is echoing
+    set_stream_volume(idx, stream_idx, "Speaker");
+    spk_ready = tuh_audio_start(idx, stream_idx);
 
     // both streams running: start the periodic phase switching demo
     if (mic_ready && spk_ready) {

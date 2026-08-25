@@ -6,6 +6,7 @@ This example demonstrates how to use TinyUSB's USB Audio Host driver (TUH_AUDIO)
 
 - Enumerates and mounts USB Audio Class 1.0 devices
 - Discovers the device's logical streams (capture/playback) and their supported configurations (discrete tuples only)
+- Reports the Feature Unit ID associated with each stream and sets the master volume when one is available
 - Configures and starts an S16_LE capture stream (48 kHz preferred, 44.1 kHz fallback; stereo preferred, mono accepted)
 - Echoes captured audio to an S16_LE playback stream at the same sample rate (same channel count preferred, mono/stereo conversion otherwise)
 - Frame-based FIFO API: `tuh_audio_read()` / `tuh_audio_write()` queue frames; the driver schedules transfers at the endpoint's polling interval
@@ -64,9 +65,10 @@ make BOARD=<your_board> flash
 2. Connect a USB Audio device (UAC 1.0) to the USB host port
 3. Open a serial terminal to view output
 4. The example will:
-   - Print each stream's supported configurations when mounted
+   - Print each stream's Feature Unit ID and supported configurations when mounted
    - Look for an S16_LE capture configuration at a preferred sample rate (48 kHz first, 44.1 kHz fallback; stereo preferred, mono accepted) and configure it
    - Echo captured audio to an S16_LE playback configuration at the same sample rate (same channel count preferred, converted otherwise)
+   - Set the microphone and speaker master volume to `0x0600` when their streams have a Feature Unit
    - Drain the capture FIFO in `audio_app_task_read()` and queue the frames into the playback FIFO; a sine test tone plays on the playback stream when no capture stream is echoing
    - Cycle through the three phases (mic-only / spk-only / echo, 5 s each) with `tuh_audio_start()` / `tuh_audio_stop()`; a failed stream is restarted automatically 100 ms after the error callback
 
@@ -76,16 +78,18 @@ make BOARD=<your_board> flash
 TinyUSB Host USB Audio Example
 Connect a USB Audio Device (UAC 1.0) to test
 Audio device mounted: idx=0 addr=1
-  capture stream 1 configurations: 2
+  capture stream 1 Feature Unit ID: 5, configurations: 2
     [0] format=1 rate=44100 channels=2
     [1] format=1 rate=48000 channels=2
-  playback stream 0 configurations: 2
+  playback stream 0 Feature Unit ID: 2, configurations: 2
     [0] format=1 rate=44100 channels=2
     [1] format=1 rate=48000 channels=2
   Configuring 48 kHz S16_LE capture (2 channels)
-  Microphone configured, starting capture
+  Microphone configured
+  Microphone Feature Unit 5 master volume set: 0x0600
   Configuring 48 kHz S16_LE playback (2 channels)
-  Speaker configured, starting playback
+  Speaker configured
+  Speaker Feature Unit 2 master volume set: 0x0600
 ```
 
 ## Configuration
