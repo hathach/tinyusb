@@ -950,7 +950,13 @@ static bool handle_channel_in_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t h
       xfer->result = XFER_RESULT_SUCCESS;
     }
 
-    channel_disable(dwc2, channel);
+    if (channel_is_periodic(channel->hcchar) && remain_packets == 0) {
+      // The core has already halted a completed periodic IN channel. Complete
+      // it now so the next interval can be submitted without another halt IRQ.
+      is_done = true;
+    } else {
+      channel_disable(dwc2, channel);
+    }
   } else if (hcint & (HCINT_XACT_ERR | HCINT_BABBLE_ERR | HCINT_STALL)) {
     if (hcint & HCINT_STALL) {
       xfer->result = XFER_RESULT_STALLED;
