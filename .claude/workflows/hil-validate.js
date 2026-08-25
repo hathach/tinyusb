@@ -11,10 +11,10 @@ if (!args || !Array.isArray(args.boards) || args.boards.length === 0) {
   throw new Error('args must be { boards: string[], force? } with the boards already built')
 }
 
-// The operator returns hil_summary.py's JSON verbatim plus its own observations. It does NOT
+// The operator returns hil_report.py's JSON verbatim plus its own observations. It does NOT
 // retype the report table: rows are named per variant, a variant need not start with the board
 // name, and lock contention is a cell rather than a phrase — rebuilding board identity from
-// prose produced a defect in each of four review rounds. hil_summary.py does that join against
+// prose produced a defect in each of four review rounds. hil_report.py does that join against
 // the roster, so `locked` and `ran` arrive as fields and nothing here parses a detail string.
 const BOARD = {
   type: 'object', additionalProperties: false,
@@ -26,12 +26,16 @@ const BOARD = {
 }
 const HIL = {
   type: 'object', additionalProperties: false,
-  required: ['results', 'wedged'],
+  required: ['results', 'wedged', 'caveat'],
   properties: {
     results: { type: 'array', items: BOARD },
     // the operator's own observation — not derivable from the report
     wedged: { type: 'array', items: { type: 'string' } },
     banner: { type: 'string' },
+    // the run-level caveat: abandoned / aborted / selected-no-boards. `banner` carries rig
+    // HEALTH across an --accumulate retry; `caveat` carries how THIS run ended, and every
+    // row can still say pass while it failed — so it gates `pass` in summarize() below.
+    caveat: { type: 'string' },
   },
 }
 
@@ -51,12 +55,12 @@ const runBoards = (boards, isRetry = false) => agent(
   (args.force
     ? 'THE USER HAS EXPLICITLY AUTHORIZED FORCING: run hil_test.py with HIL_NO_BOARD_LOCK=1 in the environment (bypasses the board lock check; do NOT release or kill the existing holder). '
     : 'A board whose lock is held (a dev session or concurrent CI job) fails fast inside the run without blocking the others — never force the lock. ') +
-  'If hil_test.py refuses the run with "board(s) not in <config>", re-run it WITHOUT the unknown names but keep the FULL board list on the hil_summary call below — it emits a ran:false entry for every board you name, so the unknown ones surface as "no report row" instead of costing the whole batch. ' +
+  'If hil_test.py refuses the run with "board(s) not in <config>", re-run it WITHOUT the unknown names but keep the FULL board list on the hil_report call below — it emits a ran:false entry for every board you name, so the unknown ones surface as "no report row" instead of costing the whole batch. ' +
   'Use the config for this host (hostname first). Run hil_test.py as a BACKGROUND Bash task and wait for it (a stuck fleet runs to its pool guard, 60 min by default — beyond any foreground timeout); never cancel it early. ' +
   'On non-lock failures retry ONCE from the re-run spec hil_test.py just wrote — `<config>.failed`, which already begins with --accumulate — adding -v. A usbtest battery that produced per-case verdicts is NOT auto-retried, so its result already stands. ' +
   'THEN, from the directory the run wrote its report to, produce the results with:\n' +
-  `  python3 test/hil/helper/hil_summary.py <the config you used> ${boards.map((b) => `-b ${b}`).join(' ')}\n` +
-  'Return its `results` array and `banner` EXACTLY as printed — do not retype, reword, re-order or "correct" them, and never transcribe the markdown table instead. ' +
+  `  python3 test/hil/helper/hil_report.py <the config you used> ${boards.map((b) => `-b ${b}`).join(' ')}\n` +
+  'Return its `results` array, `banner` and `caveat` EXACTLY as printed — do not retype, reword, re-order or "correct" them, and never transcribe the markdown table instead. ' +
   'Add `wedged`: the board names whose board or fixture your run left unresponsive (usually none). That is your own observation and the one field you author; put `dmesg | tail -50` in your reply text for any board you list.',
   {
     label: boards.length === 1 ? `hil:${boards[0]}` : `hil:${boards.length} boards`,
@@ -64,7 +68,7 @@ const runBoards = (boards, isRetry = false) => agent(
   },
 )
 
-// A lookup, not a reconciliation: hil_summary.py emits exactly one entry per requested board,
+// A lookup, not a reconciliation: hil_report.py emits exactly one entry per requested board,
 // so a missing entry means the operator dropped it rather than that the names disagree.
 const byBoard = (out) => new Map((out?.results || [])
   .filter((r) => r && typeof r.board === 'string')
@@ -91,7 +95,9 @@ const results = args.boards.map((b) => {
 })
 for (const r of results) log(`${r.board}: ${r.pass ? 'PASS' : r.locked ? 'LOCKED' : 'FAIL'}`)
 if (first?.banner) log(`report banner: ${first.banner.trim().split('\n')[0]}`)
+if (first?.caveat) log(`report caveat: ${first.caveat.trim().split('\n')[0]}`)
 
+let runCaveat = first?.caveat || ''
 // A concurrent CI job may have held some boards (its hil_test.py flock).
 // CI finishes a board in minutes — retry locked boards once, at the end.
 if (!args.force) {
@@ -116,19 +122,26 @@ if (!args.force) {
       }
       log(`${b}: retry ${results[i].pass ? 'PASS' : 'FAIL'}`)
     }
+    // the retry's own run-level verdict, not the first attempt's: a retry that abandoned
+    // or aborted must sink the run even though its rows may all say pass.
+    if (again?.caveat) runCaveat = again.caveat
   }
 }
 
-// pass/wedged/locked in one place so it can be exercised without running an agent
-const summarize = (rs, force) => ({
-  pass: rs.every((r) => r.pass),
+// pass/wedged/locked in one place so it can be exercised without running an agent.
+// `caveat` is a RUN-level verdict and must gate `pass`: on the abandon and no-boards
+// paths every row can legitimately say pass while the run itself failed (hil_test.py
+// os._exit(1) -- a red job), so per-row agreement alone published those runs as green.
+const summarize = (rs, force, caveat) => ({
+  pass: rs.every((r) => r.pass) && !/^\*\*HIL run (abandoned|aborted|selected no boards)/m
+    .test(caveat || ''),
   wedged: rs.filter((r) => r.wedged).map((r) => r.board),
   locked: force ? [] : rs.filter((r) => !r.pass && r.locked).map((r) => r.board),
 })
 
-const { pass, wedged, locked } = summarize(results, args.force)
+const { pass, wedged, locked } = summarize(results, args.force, runCaveat)
 if (wedged.length) log(`WEDGED boards needing usb-kernel-recover: ${wedged.join(', ')}`)
 // Workers cannot prompt the user — surface still-locked boards for the main
 // session to ask: force (re-invoke with force: true), wait, or accept.
 if (locked.length) log(`still locked after retry: ${locked.join(', ')} — ask the user: force / keep waiting / accept`)
-return { pass, results, wedged, locked }
+return { pass, results, wedged, locked, caveat: runCaveat }
