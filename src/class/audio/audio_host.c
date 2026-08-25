@@ -568,11 +568,6 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const tusb_de
   } audioh_ep_info_t;
   audioh_ep_info_t ep_info     = {0};
   bool             has_data_ep = false;
-  // The CS_ENDPOINT descriptor carries the sampling-frequency control bit of
-  // its endpoint. Devices differ in whether it precedes or follows the
-  // standard endpoint descriptor, so attribute it in either order.
-  bool pending_sam_freq_ctrl = false; // CS_ENDPOINT seen, applies to the next endpoint
-  bool unassigned_ep         = false; // endpoint seen, applies to the next CS_ENDPOINT
 
   while (tu_desc_in_bounds(p_desc, desc_end) && tu_desc_type(p_desc) != TUSB_DESC_INTERFACE) {
     switch (tu_desc_type(p_desc)) {
@@ -609,16 +604,8 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const tusb_de
       }
       case TUSB_DESC_CS_ENDPOINT: {
         if (tu_desc_subtype(p_desc) == AUDIO10_CS_EP_SUBTYPE_GENERAL && p_desc[0] >= 4) {
-          const audio10_desc_cs_as_iso_data_ep_t *desc_ep       = (const audio10_desc_cs_as_iso_data_ep_t *)p_desc;
-          const bool                              sam_freq_ctrl = (desc_ep->bmAttributes & 0x01) != 0;
-          if (unassigned_ep) {
-            // Standard order: the CS_ENDPOINT follows its endpoint descriptor
-            ep_info.sam_freq_ctrl = sam_freq_ctrl;
-            unassigned_ep         = false;
-          } else {
-            // Non-standard order: the CS_ENDPOINT precedes its endpoint descriptor
-            pending_sam_freq_ctrl = sam_freq_ctrl;
-          }
+          const audio10_desc_cs_as_iso_data_ep_t *desc_ep = (const audio10_desc_cs_as_iso_data_ep_t *)p_desc;
+          ep_info.sam_freq_ctrl = (desc_ep->bmAttributes & AUDIO10_CS_AS_ISO_DATA_EP_ATT_SAMPLING_FRQ) != 0;
         }
         break;
       }
@@ -657,9 +644,6 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const tusb_de
           }
           ep_info.ep_sync       = desc_endpoint->bmAttributes.sync;
           ep_info.ep_usage      = desc_endpoint->bmAttributes.usage;
-          ep_info.sam_freq_ctrl = pending_sam_freq_ctrl;
-          pending_sam_freq_ctrl = false;
-          unassigned_ep         = !ep_info.sam_freq_ctrl;
           has_data_ep           = true;
         }
         break;
