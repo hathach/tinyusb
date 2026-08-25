@@ -882,6 +882,9 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
   audioh_ac_header_t header                = {0};
   uint8_t            usb_input_terminal_id = 0;
   uint8_t            usb_output_source_id  = 0;
+  // A Feature Unit may precede the USB terminal that identifies its stream.
+  uint8_t            pending_fu_id        = 0;
+  uint8_t            pending_fu_source_id = 0;
   bool               have_header           = false;
 
   p_desc = tu_desc_next(p_desc);
@@ -911,6 +914,11 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
           if (terminal->bLength >= sizeof(audio10_desc_input_terminal_t) &&
               tu_le16toh(terminal->wTerminalType) == AUDIO_TERM_TYPE_USB_STREAMING && usb_input_terminal_id == 0) {
             usb_input_terminal_id = terminal->bTerminalID;
+            if (pending_fu_source_id == usb_input_terminal_id) {
+              p_audio->out_stream.feature_unit_id = pending_fu_id;
+              pending_fu_id                       = 0;
+              pending_fu_source_id                = 0;
+            }
           }
           break;
         }
@@ -919,18 +927,30 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
           if (terminal->bLength >= sizeof(audio10_desc_output_terminal_t) &&
               tu_le16toh(terminal->wTerminalType) == AUDIO_TERM_TYPE_USB_STREAMING && usb_output_source_id == 0) {
             usb_output_source_id = terminal->bSourceID;
+            if (pending_fu_id == usb_output_source_id) {
+              p_audio->in_stream.feature_unit_id = pending_fu_id;
+              pending_fu_id                      = 0;
+              pending_fu_source_id               = 0;
+            }
           }
           break;
         }
         case AUDIO10_CS_AC_INTERFACE_FEATURE_UNIT: {
           if (p_desc[0] >= 5) {
+            bool mapped = false;
             if (usb_input_terminal_id != 0 && p_audio->out_stream.feature_unit_id == 0 &&
                 p_desc[4] == usb_input_terminal_id) {
               p_audio->out_stream.feature_unit_id = p_desc[3];
+              mapped = true;
             }
             if (usb_output_source_id != 0 && p_audio->in_stream.feature_unit_id == 0 &&
                 p_desc[3] == usb_output_source_id) {
               p_audio->in_stream.feature_unit_id = p_desc[3];
+              mapped = true;
+            }
+            if (!mapped) {
+              pending_fu_id        = p_desc[3];
+              pending_fu_source_id = p_desc[4];
             }
           }
           break;

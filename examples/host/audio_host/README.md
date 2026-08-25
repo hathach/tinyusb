@@ -19,11 +19,13 @@ This example supports UAC 1.0 devices whose Type I Format descriptor lists discr
 - USB headsets (mono microphone + speaker)
 - USB audio interfaces
 
-The echo needs a matching S16_LE playback stream at the capture sample rate; devices without one run capture-only. The sample rate and channel preferences are configured by the `SAMPLE_RATES` / `AUDIO_MAX_CHANNELS` macros in `src/audio_app.c` (48 kHz stereo by default). Continuous sampling-frequency ranges are exposed as a single configuration at the range's highest frequency (e.g. a 8000–48000 Hz speaker appears as 48000 Hz); non-PCM formats are rejected by the driver.
+The echo needs a matching S16_LE playback stream at the capture sample rate; devices without one run capture-only. The sample rate and channel preferences are configured by the `SAMPLE_RATES` / `AUDIO_MAX_CHANNELS` macros in `src/audio_app.c` (48 kHz stereo by default). Non-PCM formats are rejected by the driver.
 
 ## Limitations and trade-offs
 
-- The Feature Unit API exposes one directly connected Feature Unit per logical capture/playback stream. If several Feature Units map to the same logical stream, the first mapping is retained.
+- Explicit feedback endpoint data is ignored. Asynchronous playback still uses the nominal sample rate, but device/host clock drift is not corrected and may cause underruns, overruns, or audible pops and clicks. An implicit-feedback IN endpoint is treated as an ordinary audio-data endpoint and is not used to pace playback.
+- UAC1 Type I Format descriptors with `bSamFreqType == 0` are unsupported; the driver requires a list of discrete sampling frequencies.
+- Feature Unit mute, bass, mid, treble, volume, delay, AGC, bass boost, and loudness controls are supported. Graphic EQ and unknown control widths are rejected, and only one Feature Unit request may be in flight per device.
 - The UAC1 `MaxPacketsOnly` endpoint attribute is not supported. OUT transfers are not padded to `wMaxPacketSize`, and padding in IN transfers is not removed from the reported audio data.
 
 ## Building
