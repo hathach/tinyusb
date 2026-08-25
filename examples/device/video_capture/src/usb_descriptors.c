@@ -113,6 +113,10 @@ enum {
   #define EPNUM_VIDEO_IN    (CFG_TUD_VIDEO_STREAMING_BULK ? 0x81 : 0x88)
 #elif TU_CHECK_MCU(OPT_MCU_MAX32650, OPT_MCU_MAX32666, OPT_MCU_MAX32690, OPT_MCU_MAX78002)
   #define EPNUM_VIDEO_IN    0x81
+#elif CFG_TUSB_MIMXRT1XXX_ERRATA_ERR050101
+  // ERR050101 (see CFG_TUSB_MIMXRT1XXX_ERRATA_ERR050101): an isochronous IN endpoint needs a number
+  // no other device on the bus uses
+  #define EPNUM_VIDEO_IN    (CFG_TUD_VIDEO_STREAMING_BULK ? 0x81 : 0x87)
 #else
   #define EPNUM_VIDEO_IN    0x81
 #endif

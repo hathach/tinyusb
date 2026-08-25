@@ -1,19 +1,28 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # Unit tests for hil_select.py — pure logic, no hardware, no git. Run directly:
-#   python3 test/hil/test_hil_select.py
+#   python3 test/hil/test/test_hil_select.py
+#
+# Imports stay stdlib + hil_select/hil_util/hil_flash ONLY: the pre-commit hil-test
+# hook runs this suite, on GitHub's bare runner in the pre-commit workflow as well as
+# locally, and that runner has no pyserial/pymtp. hil_flash is admissible because it
+# is stdlib + hil_util only (test_hil_util.BottomLayer enforces the stdlib closure of
+# both) and the roster-dispatch tests need its flash_* table; never import hil_test,
+# which pulls pyserial.
 import glob
 import json
 import os
 import sys
 import unittest
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# the modules under test live in the parent dir (test/hil), not here
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import hil_flash
-import hil_select
-from hil_examples import device_tests, dual_tests, host_test
+from helper import hil_select
+from helper.hil_util import device_tests, dual_tests
 
-REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))))
 
 
 def real_rosters():
@@ -42,9 +51,14 @@ def roster_flashers():
 
 def on_roster(tc, *names):
     """The subset of `names` currently in the live rig rosters, skipping the test
-    when none are. Parking/unparking a board is routine rig maintenance and must not
-    fail this suite: CI runs it right before the selector and treats a failure as
-    'selector unusable', dropping PR scoping and annotating the run."""
+    when none are, because parking/unparking a board is routine rig maintenance.
+
+    That skip now matters MORE than it used to, not less: this suite is a blocking
+    pre-commit hook AND build.yml's selector steps gate on it (a failing suite falls
+    open to the full matrix), so an assertion that depends on a specific board being
+    present goes red on every PR -- including src/-only ones that never touched the
+    rig -- until someone fixes the roster. Keep roster-dependent assertions behind
+    on_roster."""
     have = {b['name'] for _, boards in real_rosters() for b in boards}
     got = [n for n in names if n in have]
     if not got:
@@ -275,7 +289,7 @@ class TestArgsEmission(unittest.TestCase):
         with tempfile.NamedTemporaryFile('w', suffix='.txt', delete=False) as f:
             f.write('src/class/cdc/cdc_device.c\n')
             path = f.name
-        r = subprocess.run([sys.executable, os.path.join(REPO, 'test/hil/hil_select.py'),
+        r = subprocess.run([sys.executable, os.path.join(REPO, 'test/hil/helper/hil_select.py'),
                             '--diff-file', path, os.path.join(REPO, 'test/hil/tinyusb.json')],
                            capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -283,6 +297,12 @@ class TestArgsEmission(unittest.TestCase):
         self.assertFalse(out['full'])
         self.assertIn('tinyusb.json', out['args'])
         self.assertTrue(any('cdc_device' in line for line in out['reasons']))
+        # A core-class diff must select boards THROUGH THE CLI: the in-process tests
+        # inject their own repo root, so only this subprocess path catches a broken
+        # repo_root derivation -- which once made every repo-relative glob match
+        # nothing and turned this exact diff into a silent full-HIL skip.
+        self.assertTrue(out['boards'],
+                        'CLI selected zero boards for a src/class change: repo_root broken?')
         os.unlink(path)
 
 
@@ -439,7 +459,7 @@ class TestPortFamiliesCoverage(unittest.TestCase):
 
 class TestRealRosterOnlyListTests(unittest.TestCase):
     """Regression for roster-only-list tests (e.g. espressif's hid_composite_freertos)
-    being invisible to the selector because it only knew the shared hil_examples lists."""
+    being invisible to the selector because it only knew the shared hil_util lists."""
     def test_only_list_example_change_selects_it(self):
         boards = on_roster(self, 'espressif_s3_devkitm', 'espressif_p4_function_ev')
         s = hil_select.classify(['examples/device/hid_composite_freertos/src/main.c'], REPO, real_rosters())
@@ -552,6 +572,63 @@ class TestPortWithoutFamilyIsFull(unittest.TestCase):
         self.assertTrue(any('no board family' in r for r in s['reasons']), s['reasons'])
 
 
+class TestOpenocdVidPid(unittest.TestCase):
+    """The roster's optional flasher `vid_pid` field (openocd-verbatim, e.g.
+    "0x1a86 0x8010", more pairs appended) pins openocd's probe discovery so it
+    never opens foreign usbfs nodes. It must be emitted BEFORE the args: the
+    rescue cfgs run `init` internally (rp2350-rescue.cfg errors on any
+    config-stage command after its init; rp2040.cfg under RESCUE scans before a
+    trailing flag is even parsed), and no rig cfg sets a competing list
+    (the 2026-08-10 convoy mechanism)."""
+
+    def test_vid_pid_flag_precedes_args(self):
+        cmd = hil_flash._openocd_cmd_base(
+            {'uid': 'S1', 'args': '-f target/wch-riscv.cfg', 'vid_pid': '0x1a86 0x8010'})
+        self.assertIn('-c "adapter usb vid_pid 0x1a86 0x8010" -f target/wch-riscv.cfg', cmd)
+        self.assertTrue(cmd.endswith('-f target/wch-riscv.cfg'), cmd)
+
+    def test_rescue_cfg_command_keeps_vid_pid_before_init(self):
+        """rescue_openocd swaps the target cfg for one that runs `init` internally;
+        a vid_pid flag after the args would error there (rp2350) or be skipped
+        (rp2040) -- in exactly the wedged-rig scenario the pin exists for."""
+        flasher = {'name': 'openocd', 'uid': 'S1', 'vid_pid': '0x2e8a 0x000c',
+                   'args': '-c "set RESCUE 1" -f target/rp2040.cfg'}
+        cmd = hil_flash._openocd_cmd_base(flasher)
+        self.assertLess(cmd.index('adapter usb vid_pid'), cmd.index('-f target/'), cmd)
+
+    def test_vid_pid_multiple_pairs(self):
+        cmd = hil_flash._openocd_cmd_base(
+            {'uid': 'S1', 'args': '-f i.cfg', 'vid_pid': '0x2e8a 0x000c 0x2e8a 0x000d'})
+        self.assertIn('-c "adapter usb vid_pid 0x2e8a 0x000c 0x2e8a 0x000d"', cmd)
+
+    def test_no_field_no_flag_but_warns(self):
+        # the roster lint only covers the committed rosters; a dev PC's local.json entry
+        # without the field must at least say what it is giving up -- on STDERR, since
+        # hil_test captures stdout per test and would swallow it on a passing run
+        import io
+        from contextlib import redirect_stderr
+        hil_flash._VID_PID_WARNED.discard('S-warn')
+        cap = io.StringIO()
+        with redirect_stderr(cap):
+            cmd = hil_flash._openocd_cmd_base({'uid': 'S-warn', 'args': '-f i.cfg'})
+        self.assertNotIn('vid_pid', cmd)
+        self.assertIn('vid_pid', cap.getvalue())
+
+    def test_roster_openocd_entries_all_pin_vid_pid(self):
+        # every openocd probe on the rig has a known VID/PID; a new entry without the
+        # pin silently reintroduces open-everything discovery
+        for path, board in roster_flashers():
+            f = board['flasher']
+            # tinyusb.json only: hfp.json is the hifiphile rig owner's file, and a
+            # blocking repo-wide lint over someone else's roster would red every PR the
+            # moment they add an openocd board (hil_flash treats the field as optional)
+            if f['name'] == 'openocd' and path.endswith('tinyusb.json'):
+                self.assertIn('vid_pid', f,
+                              f"{path}: {board['name']} openocd flasher lacks vid_pid")
+                self.assertNotIn('vid_pid', f.get('args', ''),
+                                 f"{path}: {board['name']} packs vid_pid into args; use the field")
+
+
 class TestRosterFlashersDispatch(unittest.TestCase):
     """hil_test and hil_pool_check resolve a board's flasher with a bare
     getattr(hil_flash, f'flash_{name}'), and hil_test does it inside a redirect_stdout —
@@ -575,6 +652,37 @@ class TestRosterFlashersDispatch(unittest.TestCase):
             self.assertIn(name, hil_flash.FLASHER_SUFFIX,
                           f'{path}: {board["name"]} uses flasher "{name}" '
                           f'with no hil_flash.FLASHER_SUFFIX entry')
+
+
+class FlasherRecoverEntry(unittest.TestCase):
+    """Optional roster key: a SECOND flasher used only to deliver recovery while a usbfs
+    node is poisoned. Boards whose primary flasher cannot get past a convoy (jlink,
+    stlink, lm4flash) name an openocd entry here instead of changing how they are
+    normally flashed."""
+
+    def test_recover_flasher_prefers_the_optional_entry(self):
+        prim = {'name': 'jlink', 'uid': 'X', 'args': '-device MIMXRT1064xxx6A'}
+        rec = {'name': 'openocd', 'uid': 'X', 'args': '-f interface/jlink.cfg -f target/foo.cfg'}
+        self.assertEqual(hil_flash.recover_flasher({'flasher': prim, 'flasher_recover': rec}), rec)
+        self.assertEqual(hil_flash.recover_flasher({'flasher': prim}), prim)
+
+    def test_openocd_over_jlink_is_convoy_safe_without_a_pin(self):
+        """libjaylink discovery returns early unless idVendor == 0x1366 (SEGGER) and the PID
+        is in its table, and only THEN calls libusb_open (discovery_usb.c) -- it never opens
+        a foreign node. `adapter usb vid_pid` is a no-op for this driver: jlink.c reads
+        adapter_serial / usb address / usb location, never the vid/pid."""
+        self.assertTrue(hil_flash.convoy_safe(
+            {'name': 'openocd', 'args': '-f interface/jlink.cfg -f target/stm32f4x.cfg'}))
+
+    def test_openocd_with_neither_a_pin_nor_jlink_is_not_safe(self):
+        self.assertFalse(hil_flash.convoy_safe(
+            {'name': 'openocd', 'args': '-f interface/stlink.cfg -f target/stm32h7x.cfg'}))
+
+    def test_the_existing_rules_are_unchanged(self):
+        self.assertTrue(hil_flash.convoy_safe(
+            {'name': 'openocd', 'vid_pid': '0x2e8a 0x000c', 'args': '-f interface/cmsis-dap.cfg'}))
+        self.assertFalse(hil_flash.convoy_safe({'name': 'jlink', 'uid': 'X'}))
+        self.assertTrue(hil_flash.convoy_safe({'name': 'esptool'}))
 
 
 if __name__ == '__main__':

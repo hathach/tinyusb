@@ -9,7 +9,7 @@ You triage exactly one PR (number given in your prompt) using `gh`. You never mo
 
 ## CI triage
 
-1. `gh pr checks <N>`. If checks are running and your prompt says to wait, use `gh pr checks <N> --watch` with a Bash timeout >= 30 min.
+1. `gh pr checks <N>`. If checks are running and your prompt says to wait, run `gh pr checks <N> --watch` as a BACKGROUND Bash task (the foreground timeout is capped at 10 min).
 2. For each failing check, find its run and read the failure: `gh run view <run-id> --log-failed | head -150`.
 3. Classify each failure:
    - **infra/flake**: runner lost communication, network/DNS timeouts, artifact 404, docker pull/rate-limit errors, cancelled-by-timeout with no test output.

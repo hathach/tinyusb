@@ -132,6 +132,22 @@ enum {
   #define EPNUM_ISO_OUT  0x08
   #define EPNUM_ISO_IN   0x88
 
+#elif CFG_TUSB_MCU == OPT_MCU_MIMXRT1XXX
+  #define EPNUM_BULK_OUT 0x01
+  #define EPNUM_BULK_IN  0x81
+  #define EPNUM_INT_OUT  0x02
+  #define EPNUM_INT_IN   0x82
+  #define EPNUM_ISO_OUT  0x03
+  // ERR050101 (see CFG_TUSB_MIMXRT1XXX_ERRATA_ERR050101): park the iso IN endpoint clear of the numbers
+  // other devices use. Override per board when several affected boards share a hub.
+  #ifndef EPNUM_ISO_IN
+    #if CFG_TUSB_MIMXRT1XXX_ERRATA_ERR050101
+      #define EPNUM_ISO_IN 0x87
+    #else
+      #define EPNUM_ISO_IN 0x83
+    #endif
+  #endif
+
 #else
   #define EPNUM_BULK_OUT 0x01
   #define EPNUM_BULK_IN  0x81

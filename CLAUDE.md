@@ -20,6 +20,7 @@ Bias toward caution over speed. For trivial tasks, use judgment.
 - **Safety:** no dynamic allocation; defer ISR work to task context; use `TU_ASSERT()` for error checks; always check return values; include order: C stdlib → tusb common → drivers → classes.
 - **Layout:** `src/` core, `hw/{mcu,bsp}/` MCU+BSP, `examples/{device,host,dual}/`, `test/{unit-test,fuzz,hil}/`, `docs/`, `tools/`.
 - **Commits/PRs:** imperative mood, scoped changes, link issues, include test/build evidence. After opening a PR, drive it to green: address automated review comments (Copilot/Codex/Claude) and fix failing CI, pushing follow-ups until checks pass and threads resolve. Useful: `gh pr checks <num> --watch`, `gh pr view <num> --comments`.
+- **Deferred work:** work that is worth doing but is a *separate scope* from the current PR — it deserves its own PR, written by a different session. Write it as a **handoff** with the `superpowers:writing-plans` skill, one doc per follow-up, in `docs/superpowers/followup/pr<NNN>-<topic>.md` (the PR it was split out of, so the origin stays traceable). Say what is already established (with citations/measurements), what remains, and why it was split out. Delete the doc when its PR lands. Never bundle unrelated follow-ups into one file.
 - **Formatting/lint:** `clang-format` (`.clang-format`), `codespell` (`.codespellrc`); run `pre-commit run --all-files` before submitting.
 
 ## Bootstrap
@@ -99,7 +100,8 @@ Use the `pvs` skill (`.claude/skills/pvs/SKILL.md`) — it builds the examples w
 
 ## Validation After Changes
 
-1. `pre-commit run --all-files` — format, spell, unit tests (10-15 s).
+1. `pre-commit run --all-files` — format, spell, unit tests, HIL suites (~55 s; the
+   HIL hooks deliberately exercise real timeouts and hangs).
 2. Build at least one board's full example set (Build → "All examples for a board") for modules you touched.
 3. Run relevant unit tests; add fuzz/HIL coverage for parsers or protocol state machines.
 
@@ -116,7 +118,15 @@ Cutting a release — version bump, regenerated files, the per-release changelog
 
 ## References
 
-- MCU reference manuals, datasheets, schematics: before answering register/bitfield/pinout/errata/timing questions from memory or the web — or changing a specific dcd/hcd driver — use the `read-doc` skill (`.claude/skills/read-doc/SKILL.md`) to cross-check against docs in `$HOME/Documents/calibre-library`; tell the user if the needed document is missing (skill no-ops if the library is absent).
+- MCU reference manuals, datasheets, schematics: before answering register/bitfield/pinout/errata/timing questions from memory or the web — or changing a specific dcd/hcd driver — use the `read-doc` skill (`.claude/skills/read-doc/SKILL.md`) to cross-check against the maintainer's document library; tell the user if the needed document is missing (skill no-ops if the library is absent). Never search the library tree directly — the skill owns its location and search.
+- Linux kernel behaviour (usbfs, usbtest, sysfs attributes, device locks, D state): never
+  infer it from symptoms — read the source for the *running* version. It refutes as often
+  as it confirms: it has killed two plausible dcd theories and corrected a recovery skill's
+  own attribute list.
+  ```bash
+  V=$(uname -r | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+')   # on the rig: ssh ci.lan uname -r
+  curl -fsSL "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/drivers/usb/core/sysfs.c?h=v$V"
+  ```
 - Supported MCUs/boards: `hw/bsp/` and `docs/reference/boards.rst`.
 - USB classes: `src/class/{cdc,hid,msc,audio,…}/` — each has `*_device.c` and `*_host.c`.
 - Key files: `src/tusb.h`, `src/tusb_config.h`, `tools/get_deps.py`, `tools/build.py`, `test/unit-test/project.yml`.

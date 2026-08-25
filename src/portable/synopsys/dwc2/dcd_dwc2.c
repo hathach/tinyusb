@@ -1143,7 +1143,12 @@ static void handle_incomplete_iso_in(uint8_t rhport) {
       xfer_ctl_t *xfer = XFER_CTL_BASE(epnum, TUSB_DIR_IN);
       if (xfer->iso_retry > 0) {
         xfer->iso_retry--;
-        // Restart ISO transfe: re-write TSIZ and CTL
+        // Restart ISO transfer: re-write DMA address, TSIZ, and CTL
+        #if CFG_TUD_DWC2_DMA_ENABLE
+        if (dma_device_enabled(dwc2)) {
+          epin->diepdma = (uintptr_t) xfer->buffer;
+        }
+        #endif
         dwc2_ep_tsize_t deptsiz = {.value = 0};
         deptsiz.xfer_size       = xfer->total_len;
         deptsiz.packet_count    = tu_div_ceil(xfer->total_len, xfer->max_size);

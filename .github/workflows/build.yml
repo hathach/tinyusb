@@ -41,7 +41,7 @@ jobs:
               - '.github/actions/**'
               - '.github/workflows/build.yml'
               - '.github/workflows/build_util.yml'
-              - '.github/workflows/ci_set_matrix.py'
+              - '.github/scripts/**'
 
   set-matrix:
     runs-on: ubuntu-latest
@@ -72,10 +72,16 @@ jobs:
           # so a missing origin/<base>, a shallow-clone hiccup or a selector traceback
           # must fall back to the FULL matrix (no --select, run=true, no args) instead
           # of failing the job. Same fail-open shape as pr_comment.yml's `|| true`.
+          #
+          # The selector's own unit suite gates it (stdlib-only, seconds): a selector
+          # whose tests fail can still exit 0 with valid-but-WRONG JSON -- fail-open alone
+          # never catches that class, and the pre-commit hil-test hook is a separate,
+          # advisory workflow that nothing here can `needs:`. Test-failing selector =>
+          # full matrix, same as a crashing one.
           SELECT_JSON=''
-          if ! python3 test/hil/test_hil_select.py; then
-            echo "::error::hil_select unit tests failed - falling back to the full HIL matrix"
-          elif ! SELECT_JSON=$(python3 test/hil/hil_select.py --base "origin/$BASE_REF" test/hil/tinyusb.json test/hil/hfp.json); then
+          if ! python3 test/hil/test/test_hil_select.py; then
+            echo "::warning::hil_select unit suite failed - falling back to the full HIL matrix"
+          elif ! SELECT_JSON=$(python3 test/hil/helper/hil_select.py --base "origin/$BASE_REF" test/hil/tinyusb.json test/hil/hfp.json); then
             echo "::warning::hil_select failed - falling back to the full HIL matrix"
             SELECT_JSON=''
           fi
@@ -113,7 +119,7 @@ jobs:
           SELECT: ${{ steps.hil-select.outputs.select }}
         run: |
           # build matrix
-          MATRIX_JSON=$(python .github/workflows/ci_set_matrix.py)
+          MATRIX_JSON=$(python .github/scripts/ci_set_matrix.py)
           echo "matrix=$MATRIX_JSON"
           echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
 
@@ -121,13 +127,13 @@ jobs:
           # Scoping is best-effort too: fall back to the unscoped (full) matrix.
           HIL_MATRIX_JSON=''
           if [ -n "$SELECT" ]; then
-            HIL_MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py --select "$SELECT" test/hil/tinyusb.json test/hil/hfp.json) || HIL_MATRIX_JSON=''
+            HIL_MATRIX_JSON=$(python .github/scripts/hil_ci_set_matrix.py --select "$SELECT" test/hil/tinyusb.json test/hil/hfp.json) || HIL_MATRIX_JSON=''
             if [ -z "$HIL_MATRIX_JSON" ]; then
               echo "::warning::scoped HIL matrix failed - falling back to the full HIL matrix"
             fi
           fi
           if [ -z "$HIL_MATRIX_JSON" ]; then
-            HIL_MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py test/hil/tinyusb.json test/hil/hfp.json)
+            HIL_MATRIX_JSON=$(python .github/scripts/hil_ci_set_matrix.py test/hil/tinyusb.json test/hil/hfp.json)
           fi
           echo "hil_matrix=$HIL_MATRIX_JSON"
           echo "hil_matrix=$HIL_MATRIX_JSON" >> $GITHUB_OUTPUT
@@ -338,7 +344,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # These names are the bucket keys of test/hil/hil_ci_set_matrix.py: every
+        # These names are the bucket keys of .github/scripts/hil_ci_set_matrix.py: every
         # non-esptool roster board must land in one of them (esptool boards go to
         # 'esp-idf', built by hil-build-esp below). hil_ci_set_matrix.py rejects a
         # board whose "toolchain" is not a bucket, so a new bucket must be added in
@@ -379,6 +385,14 @@ jobs:
   hil-tinyusb:
     needs: [ hil-build, set-matrix ]
     name: hil-tinyusb (${{ matrix.display }})
+    # Above hil_test.py's pool guard (HIL_POOL_TIMEOUT, 60 min) so the guard fires first
+    # and still gets to write its report. The 30 min on top is what the job pays OUTSIDE
+    # the guard clock: workspace cleanup, checkout, the multi-board artifact merge and
+    # the D-state note before it; kill_worker_children, shutdown_pool's 30 s grace, the
+    # report write and the upload after it. On a multi-stray convoy that tail alone is
+    # minutes, and a ceiling below guard+tail cancels the job before hil_report.md exists
+    # -- the inversion this branch removes. Both legs share the script and the guard.
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -395,6 +409,9 @@ jobs:
             test_args: ''
     runs-on: ${{ matrix.runner }}
     env:
+      # HIL_POOL_TIMEOUT deliberately unset: hil_test.py's 60 min default is below every
+      # ceiling here, so ceiling > guard holds by construction. Pin it to SHORTEN a run
+      # only -- pinning it above a ceiling re-inverts the two.
       HIL_JSON: ${{ matrix.hil_json }}
     steps:
       - name: Set HIL report dir (per run+job; persists across run attempts)
@@ -482,6 +499,11 @@ jobs:
     needs: [ hil-build-esp, set-matrix ]
     name: hil-tinyusb (tinyusb-esp.json)
     runs-on: [ self-hosted, X64, hathach, hardware-in-the-loop ]
+    # above hil_test.py's pool guard (60 min) with room for the pre-pool checkout
+    # and the post-guard sweep + report upload, so its own guard still writes a report;
+    # only a job wedged past that (unkillable D-state worker) hits this ceiling, which
+    # must exist because the runner has one job slot and holds every queued job hostage
+    timeout-minutes: 90
     env:
       HIL_JSON: test/hil/tinyusb.json
       TEST_ARGS: '--flasher esptool'
@@ -564,7 +586,13 @@ jobs:
       github.repository_owner == 'hathach' &&
       !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true)
     runs-on: [ self-hosted, Linux, X64, hifiphile ]
-    timeout-minutes: 30
+    # Unlike the hil-tinyusb jobs, this one BUILDS with IAR in the same job before running
+    # hil_test.py -- hfp.json's 3 boards, 4 variant entries, "up to 30 minutes" (see the
+    # comment above the selection step). The ceiling has to cover build + the 60 min pool
+    # guard + overhead, or GitHub cancels before the guard can write its report -- the
+    # inversion this branch removes. 30 + 60 = 90; the remaining 30 is the full-history
+    # checkout, get_deps, the post-guard sweep and the report upload.
+    timeout-minutes: 120
     env:
       IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
       PYTHONUNBUFFERED: '1'
@@ -601,7 +629,12 @@ jobs:
           # failures cannot kill hfp coverage - a selector failure here must likewise
           # fall back to the full hfp matrix (no hil_select.json, no SEL_* vars), never
           # fail the job.
-          if ! python3 test/hil/hil_select.py --base "origin/$BASE_REF" test/hil/hfp.json > hil_select.json; then
+          if ! python3 test/hil/test/test_hil_select.py; then
+            echo "::warning::hil_select unit suite failed - running the full hfp matrix"
+            rm -f hil_select.json
+            exit 0
+          fi
+          if ! python3 test/hil/helper/hil_select.py --base "origin/$BASE_REF" test/hil/hfp.json > hil_select.json; then
             echo "::warning::hil_select failed - running the full hfp matrix"
             rm -f hil_select.json
             exit 0
@@ -629,9 +662,9 @@ jobs:
         if: env.SEL_RUN != 'false'
         run: |
           if [ -f hil_select.json ]; then
-            MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py --select "$(cat hil_select.json)" test/hil/hfp.json)
+            MATRIX_JSON=$(python .github/scripts/hil_ci_set_matrix.py --select "$(cat hil_select.json)" test/hil/hfp.json)
           else
-            MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py test/hil/hfp.json)
+            MATRIX_JSON=$(python .github/scripts/hil_ci_set_matrix.py test/hil/hfp.json)
           fi
           # Each variant carries its own --build-name/--cflag, which are global to a
           # single build.py invocation — so keep one matrix entry per line and build
@@ -648,6 +681,13 @@ jobs:
 
       - name: Build
         if: env.SEL_RUN != 'false'
+        # Bounded SEPARATELY from the job. This is the only HIL job that builds inline
+        # (hil-tinyusb downloads artifacts), and the job ceiling went 30 -> 120 to give the
+        # HIL step room -- which would hand a stalled IAR build the whole two hours on the
+        # shared self-hosted runner, never reaching hil_test.py or the report upload. That
+        # is the stranded-runner-with-no-report failure this branch exists to prevent.
+        # Typical full build here is a few minutes; 30 leaves generous headroom.
+        timeout-minutes: 30
         run: |
           readarray -t ENTRIES < hil_build_entries.txt
           for entry in "${ENTRIES[@]}"; do
@@ -666,7 +706,12 @@ jobs:
           fi
           # empty/absent on a non-PR event or a selector fallback -> full hfp matrix
           SEL_ARGS=$(cat hil_sel_args.txt 2>/dev/null || true)
-          python3 test/hil/hil_test.py $SEL_ARGS hfp.json
+          # --retry 1, like the other two HIL legs. The pool guard is a FLAT 3600s and
+          # does NOT scale with max_retry, so argparse's default of 3 would multiply the
+          # serialized usbtest tail (hfp.json runs four batteries) by three against an
+          # unchanged guard -- on a runner with a single job slot that queues every other
+          # job behind it.
+          python3 test/hil/hil_test.py --retry 1 $SEL_ARGS hfp.json
 
       - name: Upload HIL report
         if: always() && github.event_name == 'pull_request'

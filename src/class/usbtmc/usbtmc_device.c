@@ -497,9 +497,24 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
 
 #if (CFG_TUD_USBTMC_ENABLE_488)
           case USBTMC_MSGID_USB488_TRIGGER:
-            // Spec says we halt the EP if we didn't declare we support it.
-            TU_VERIFY(usbtmc_state.capabilities->bmIntfcCapabilities488.supportsTrigger);
-            TU_VERIFY(tud_usbtmc_msg_trigger_cb(msg));
+            // Unlike the messages above, TRIGGER is complete on arrival and has no response, so nothing else
+            // will move us out of STATE_IDLE. Do it here, otherwise the tud_usbtmc_start_bus_read() below (and
+            // any call the application makes from its callback) is a no-op and the bulk-OUT endpoint is left
+            // un-armed, silently timing out every subsequent host transfer.
+            TU_VERIFY(atomicChangeState(STATE_IDLE, STATE_NAK));
+
+            // Spec says we halt the EP if we didn't declare we support it; do the same when the application
+            // rejects the trigger. The callback result must not be wrapped in TU_VERIFY() here: returning
+            // early would skip both the stall and the re-arm below.
+            if (!usbtmc_state.capabilities->bmIntfcCapabilities488.supportsTrigger ||
+                !tud_usbtmc_msg_trigger_cb(msg)) {
+              usbd_edpt_stall(rhport, usbtmc_state.ep_bulk_out);
+              return false;
+            }
+            // Result deliberately ignored: false here means the endpoint is already armed - either the
+            // application re-armed it from its callback, or a transfer is still queued - not that arming
+            // failed. Stalling on it would halt a healthy endpoint.
+            tud_usbtmc_start_bus_read();
 
             break;
 #endif
