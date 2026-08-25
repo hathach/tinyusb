@@ -311,15 +311,12 @@ static tuh_audio_stream_t *audioh_find_stream(uint8_t dev_addr, uint8_t ep_addr)
 //--------------------------------------------------------------------+
 
 // Re-arm the capture endpoint: request one full packet (the device sends at
-// most its max packet size per poll interval). Only submit while the whole
-// packet fits into the FIFO — otherwise the frame is lost anyway and the
-// transfer would be wasted; the stream resumes when tuh_audio_read() frees
-// FIFO space.
+// most its max packet size per poll interval). The overwritable FIFO retains
+// the newest capture frames when the application cannot drain it in time.
 static void audioh_stream_capture_xfer(tuh_audio_stream_t *s) {
   TU_VERIFY(s->state == STREAM_STATE_READY && s->running, );
 
   const audioh_stream_map_t *map = &s->map[s->active_config];
-  TU_VERIFY(tu_fifo_remaining(&s->edpt.ff) >= map->ep_size, );
   TU_VERIFY(usbh_edpt_claim(s->daddr, map->ep_addr), ); // one transfer in flight
 
   // ep_size is guaranteed <= CFG_TUH_AUDIO_EPIN_BUFSIZE by enumeration
@@ -347,13 +344,13 @@ static void audioh_stream_playback_xfer(tuh_audio_stream_t *s) {
               bytes_64 <= CFG_TUH_AUDIO_STREAM_BUFSIZE, );
   const uint16_t bytes = (uint16_t)bytes_64;
   if (tu_fifo_count(&s->edpt.ff) < bytes) {
-    // Wait until one complete poll interval is queued. This is required when
-    // bInterval is greater than one frame and also avoids short audio packets.
-    usbh_edpt_release(s->daddr, map->ep_addr);
-    return;
+    // Keep the isochronous stream active without consuming a partial frame.
+    // The queued audio is sent once a complete poll interval is available.
+    tu_memclr(s->edpt.ep_buf, bytes);
+  } else {
+    tu_fifo_read_n(&s->edpt.ff, s->edpt.ep_buf, bytes);
   }
 
-  tu_fifo_read_n(&s->edpt.ff, s->edpt.ep_buf, bytes);
   TU_ASSERT(usbh_edpt_xfer(s->daddr, map->ep_addr, s->edpt.ep_buf, bytes), );
   s->rem_acc = next_rem_acc;
 }
@@ -506,7 +503,7 @@ bool audioh_init(void) {
     out->dir = TUSB_DIR_OUT;
 
     // Bind FIFO buffer and transfer buffer (see tu_edpt_stream_init)
-    TU_VERIFY(tu_edpt_stream_init(&in->edpt, true, false, false, in->ff_buf, CFG_TUH_AUDIO_STREAM_BUFSIZE,
+    TU_VERIFY(tu_edpt_stream_init(&in->edpt, true, false, true, in->ff_buf, CFG_TUH_AUDIO_STREAM_BUFSIZE,
                                   _audioh_epbuf[idx].epin));
     TU_VERIFY(tu_edpt_stream_init(&out->edpt, true, true, false, out->ff_buf, CFG_TUH_AUDIO_STREAM_BUFSIZE,
                                   _audioh_epbuf[idx].epout));
@@ -883,8 +880,8 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
   uint8_t            usb_input_terminal_id = 0;
   uint8_t            usb_output_source_id  = 0;
   // A Feature Unit may precede the USB terminal that identifies its stream.
-  uint8_t            pending_fu_id        = 0;
-  uint8_t            pending_fu_source_id = 0;
+  uint8_t            pending_fu_id         = 0;
+  uint8_t            pending_fu_source_id  = 0;
   bool               have_header           = false;
 
   p_desc = tu_desc_next(p_desc);
@@ -1159,6 +1156,12 @@ bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx
   s->complete_cb                  = complete_cb;
   s->user_data                    = user_data;
   s->state                        = STREAM_STATE_CONFIG;
+  if (s->dir == TUSB_DIR_IN) {
+    // A byte FIFO can overwrite only complete audio frames when its depth is
+    // an exact multiple of the configured frame size.
+    const uint16_t fifo_depth = CFG_TUH_AUDIO_STREAM_BUFSIZE - (CFG_TUH_AUDIO_STREAM_BUFSIZE % s->frame_bytes);
+    TU_VERIFY(tu_fifo_config(&s->edpt.ff, s->ff_buf, fifo_depth, true), false);
+  }
 
   TU_LOG_DRV("  AUDIO configure %s stream %u: itf %u alt %u ep %02x\r\n",
              (s->dir == TUSB_DIR_IN) ? "capture" : "playback", s->stream_idx, map->itf_num, map->alt_setting,
@@ -1187,7 +1190,7 @@ static void audioh_stream_start_complete(tuh_xfer_t *xfer) {
   if (s->dir == TUSB_DIR_IN) {
     audioh_stream_capture_xfer(s);  // feed the capture endpoint
   } else {
-    audioh_stream_playback_xfer(s); // flush queued frames, if any
+    audioh_stream_playback_xfer(s); // start the continuous playback transfer chain
   }
 }
 
@@ -1261,10 +1264,6 @@ uint32_t tuh_audio_write(uint8_t dev_idx, uint8_t stream_idx, const void *buffer
   }
   tu_fifo_write_n(&s->edpt.ff, buffer, (uint16_t)(frames * s->frame_bytes));
 
-  // Flush a packet when the FIFO holds at least one; the scheduler drains
-  // the rest on completion
-  audioh_stream_playback_xfer(s);
-
   return frames;
 }
 
@@ -1283,7 +1282,6 @@ uint32_t tuh_audio_read(uint8_t dev_idx, uint8_t stream_idx, void *buffer, uint3
   const uint32_t frames = TU_MIN(frame_count, tu_fifo_count(&s->edpt.ff) / s->frame_bytes);
   if (frames > 0) {
     tu_fifo_read_n(&s->edpt.ff, buffer, (uint16_t)(frames * s->frame_bytes));
-    audioh_stream_capture_xfer(s); // re-arm: the FIFO has room again
   }
   return frames;
 }

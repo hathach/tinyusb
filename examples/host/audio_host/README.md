@@ -98,10 +98,10 @@ Edit `src/tusb_config.h` to modify:
 - `CFG_TUH_AUDIO_MAX`: Maximum number of audio devices supported
 - `CFG_TUH_AUDIO_EPIN_BUFSIZE`: Maximum size of one capture transfer the driver submits (configurations needing a larger per-poll-interval packet are rejected)
 - `CFG_TUH_AUDIO_EPOUT_BUFSIZE`: Maximum size of one playback transfer the driver submits
-- `CFG_TUH_AUDIO_STREAM_BUFSIZE`: Per-stream FIFO depth in bytes (default 1024, i.e. four 256 B packets)
+- `CFG_TUH_AUDIO_STREAM_BUFSIZE`: Per-stream FIFO depth in bytes (default 1024, i.e. four 256 B packets); capture overwrites the oldest frames when full
 
 ## Notes
 
 - While a stream is running, the driver keeps one isochronous transfer in flight and re-submits on completion, so transfers follow the endpoint's `bInterval`. `tuh_audio_capture_cb()` / `tuh_audio_playback_cb()` report each completed transfer; `tuh_audio_err_cb()` reports failures. The example restarts the failed stream automatically 100 ms after the error callback.
-- `tuh_audio_read()` / `tuh_audio_write()` are non-blocking FIFO operations: they return the number of whole frames actually queued/read (0 when the FIFO is empty/full or the stream is not running), and `tuh_audio_read_available()` / `tuh_audio_write_available()` report the FIFO occupancy in frames.
-- Isochronous transfers require the host to poll `tuh_task()` continuously; the capture FIFO absorbs short scheduling gaps, but frames are dropped when it overflows.
+- `tuh_audio_read()` / `tuh_audio_write()` are non-blocking FIFO operations: they return the number of whole frames actually queued/read (0 when the FIFO is empty/full or the stream is not running), and `tuh_audio_read_available()` / `tuh_audio_write_available()` report the FIFO occupancy in frames. `tuh_audio_write()` only queues data; the playback transfer-completion chain sends it, or sends silence when the FIFO does not contain a complete polling interval without consuming the partial data.
+- Isochronous transfers require the host to poll `tuh_task()` continuously; the capture FIFO absorbs short scheduling gaps and overwrites the oldest frames when full.

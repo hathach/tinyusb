@@ -44,6 +44,8 @@ static uint8_t edpt_close_count;
 static bool     edpt_busy;
 static bool     edpt_xfer_result;
 static uint16_t edpt_xfer_bytes[16];
+static uint8_t  edpt_xfer_data[16][8];
+static uint8_t *edpt_xfer_buffer[16];
 static uint8_t  edpt_xfer_count;
 
 tusb_speed_t tuh_speed_get(uint8_t daddr) {
@@ -98,11 +100,13 @@ bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t *bu
                                   tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   (void)dev_addr;
   (void)ep_addr;
-  (void)buffer;
   (void)complete_cb;
   (void)user_data;
   if (edpt_xfer_count < TU_ARRAY_SIZE(edpt_xfer_bytes)) {
-    edpt_xfer_bytes[edpt_xfer_count++] = total_bytes;
+    edpt_xfer_bytes[edpt_xfer_count]  = total_bytes;
+    edpt_xfer_buffer[edpt_xfer_count] = buffer;
+    memcpy(edpt_xfer_data[edpt_xfer_count], buffer, TU_MIN(sizeof(edpt_xfer_data[0]), total_bytes));
+    edpt_xfer_count++;
   }
   return edpt_xfer_result;
 }
@@ -254,7 +258,7 @@ static const uint8_t capture_fu_before_usb_output[] = {
   TEST_UAC1_AS_ALT0,
   TEST_UAC1_AS_INTERFACE(1, 1),
   TEST_UAC1_AS_GENERAL(CAPTURE_OUTPUT_TERM),
-  TEST_UAC1_FORMAT(1, 2, 16, 48000),
+  TEST_UAC1_FORMAT(1, 3, 24, 32000),
   TEST_UAC1_CS_DATA_EP,
   TEST_UAC1_DATA_EP(0x81, TUSB_ISO_EP_ATT_ASYNCHRONOUS, 96, 1),
 };
@@ -396,6 +400,8 @@ void setUp(void) {
   edpt_busy        = false;
   edpt_xfer_result = true;
   memset(edpt_xfer_bytes, 0, sizeof(edpt_xfer_bytes));
+  memset(edpt_xfer_data, 0, sizeof(edpt_xfer_data));
+  memset(edpt_xfer_buffer, 0, sizeof(edpt_xfer_buffer));
   edpt_xfer_count = 0;
 
   configure_cb_count  = 0;
@@ -443,10 +449,35 @@ void test_audio_host_maps_playback_fu_declared_before_usb_input_terminal(void) {
 }
 
 void test_audio_host_maps_capture_fu_declared_before_usb_output_terminal(void) {
-  open_descriptors(capture_fu_before_usb_output, sizeof(capture_fu_before_usb_output));
+  uint8_t        captured[CFG_TUH_AUDIO_STREAM_BUFSIZE];
+  const uint16_t fifo_depth = CFG_TUH_AUDIO_STREAM_BUFSIZE - (CFG_TUH_AUDIO_STREAM_BUFSIZE % 3);
+  mount_descriptors(capture_fu_before_usb_output, sizeof(capture_fu_before_usb_output));
 
   TEST_ASSERT_EQUAL(TUH_AUDIO_STREAM_CAPTURE, tuh_audio_stream_direction(0, 0));
   TEST_ASSERT_EQUAL_UINT8(CAPTURE_FU, tuh_audio_get_feature_unit_id(0, 0));
+
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0, configure_complete, 0));
+  complete_interface_set(XFER_RESULT_SUCCESS);
+  complete_control_xfer(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
+  complete_interface_set(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL_UINT8(1, edpt_xfer_count);
+
+  // Keep polling without application reads. Once full, the capture FIFO must
+  // overwrite its oldest frames while retaining the newest complete packets.
+  for (uint8_t packet = 0; packet < 11; packet++) {
+    TEST_ASSERT_NOT_NULL(edpt_xfer_buffer[packet]);
+    memset(edpt_xfer_buffer[packet], packet + 1, 96);
+    edpt_busy = false;
+    TEST_ASSERT_TRUE(audioh_xfer_cb(AUDIO_DEV_ADDR, 0x81, XFER_RESULT_SUCCESS, 96));
+    TEST_ASSERT_EQUAL_UINT8(packet + 2, edpt_xfer_count);
+  }
+
+  TEST_ASSERT_EQUAL_UINT32(fifo_depth / 3, tuh_audio_read_available(0, 0));
+  TEST_ASSERT_EQUAL_UINT32(fifo_depth / 3, tuh_audio_read(0, 0, captured, fifo_depth / 3));
+  TEST_ASSERT_EACH_EQUAL_UINT8(1, captured, 63);
+  TEST_ASSERT_EACH_EQUAL_UINT8(2, captured + 63, 96);
+  TEST_ASSERT_EACH_EQUAL_UINT8(11, captured + fifo_depth - 96, 96);
 }
 
 void test_audio_host_parses_discrete_frequencies_with_interval_greater_than_one(void) {
@@ -566,10 +597,11 @@ void test_audio_host_schedules_44100_hz_fractional_packets_with_max_packets_only
 
   TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
   TEST_ASSERT_EQUAL_UINT8(1, interface_alt);
-  complete_interface_set(XFER_RESULT_SUCCESS);
-  TEST_ASSERT_EQUAL_UINT8(0, edpt_xfer_count);
-
   TEST_ASSERT_EQUAL_UINT32(256, tuh_audio_write(0, 0, samples, 256));
+  TEST_ASSERT_EQUAL_UINT8(0, edpt_xfer_count);
+  complete_interface_set(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL_UINT8(1, edpt_xfer_count);
+
   while (edpt_xfer_count < 5) {
     edpt_busy = false;
     TEST_ASSERT_TRUE(audioh_xfer_cb(AUDIO_DEV_ADDR, 0x01, XFER_RESULT_SUCCESS, edpt_xfer_bytes[edpt_xfer_count - 1]));
@@ -584,4 +616,36 @@ void test_audio_host_schedules_44100_hz_fractional_packets_with_max_packets_only
     TEST_ASSERT_EQUAL_UINT16(176, edpt_xfer_bytes[i]);
   }
   TEST_ASSERT_EQUAL_UINT16(180, edpt_xfer_bytes[9]);
+}
+
+void test_audio_host_sends_silence_when_playback_fifo_has_too_few_frames(void) {
+  uint8_t sample[4] = {1, 2, 3, 4};
+  uint8_t more_samples[43 * 4];
+  memset(more_samples, 0x55, sizeof(more_samples));
+  mount_descriptors(playback_44100_max_packets_only, sizeof(playback_44100_max_packets_only));
+
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0, configure_complete, 0));
+  complete_interface_set(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
+  complete_interface_set(XFER_RESULT_SUCCESS);
+
+  TEST_ASSERT_EQUAL_UINT8(1, edpt_xfer_count);
+  TEST_ASSERT_EQUAL_UINT16(176, edpt_xfer_bytes[0]);
+  TEST_ASSERT_EACH_EQUAL_HEX8(0, edpt_xfer_data[0], sizeof(edpt_xfer_data[0]));
+
+  TEST_ASSERT_EQUAL_UINT32(1, tuh_audio_write(0, 0, sample, 1));
+  edpt_busy = false;
+  TEST_ASSERT_TRUE(audioh_xfer_cb(AUDIO_DEV_ADDR, 0x01, XFER_RESULT_SUCCESS, edpt_xfer_bytes[0]));
+
+  TEST_ASSERT_EQUAL_UINT8(2, edpt_xfer_count);
+  TEST_ASSERT_EQUAL_UINT16(176, edpt_xfer_bytes[1]);
+  TEST_ASSERT_EACH_EQUAL_HEX8(0, edpt_xfer_data[1], sizeof(edpt_xfer_data[1]));
+
+  TEST_ASSERT_EQUAL_UINT32(43, tuh_audio_write(0, 0, more_samples, 43));
+  edpt_busy = false;
+  TEST_ASSERT_TRUE(audioh_xfer_cb(AUDIO_DEV_ADDR, 0x01, XFER_RESULT_SUCCESS, edpt_xfer_bytes[1]));
+
+  TEST_ASSERT_EQUAL_UINT8(3, edpt_xfer_count);
+  TEST_ASSERT_EQUAL_UINT16(176, edpt_xfer_bytes[2]);
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(sample, edpt_xfer_data[2], sizeof(sample));
 }
