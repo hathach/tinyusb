@@ -346,6 +346,24 @@ static const uint8_t duplex_fus_before_usb_terminals[] = {
   TEST_UAC1_CS_DATA_EP,
 };
 
+static const uint8_t playback_with_unsupported_capture[] = {
+  TEST_UAC1_AC_HEADER_2,
+  TEST_UAC1_INPUT_TERM(PLAYBACK_INPUT_TERM, AUDIO_TERM_TYPE_USB_STREAMING, 2),
+  TEST_UAC1_OUTPUT_TERM(CAPTURE_OUTPUT_TERM, AUDIO_TERM_TYPE_USB_STREAMING, CAPTURE_INPUT_TERM),
+  TEST_UAC1_AS_ALT0,
+  TEST_UAC1_AS_INTERFACE(1, 1),
+  TEST_UAC1_AS_GENERAL(PLAYBACK_INPUT_TERM),
+  TEST_UAC1_FORMAT(2, 2, 16, 48000),
+  TEST_UAC1_DATA_EP(0x01, TUSB_ISO_EP_ATT_ADAPTIVE, 192, 1),
+  TEST_UAC1_CS_DATA_EP,
+  TEST_UAC1_AS_INTERFACE_NUM(AUDIO_AS_IN_ITF, 0, 0),
+  TEST_UAC1_AS_INTERFACE_NUM(AUDIO_AS_IN_ITF, 1, 1),
+  TEST_UAC1_AS_GENERAL(CAPTURE_OUTPUT_TERM),
+  TEST_UAC1_FORMAT(1, 2, 12, 48000),
+  TEST_UAC1_DATA_EP(0x81, TUSB_ISO_EP_ATT_ASYNCHRONOUS, 96, 1),
+  TEST_UAC1_CS_DATA_EP,
+};
+
 static const uint8_t playback_with_two_frequencies[] = {
   TEST_UAC1_AC_HEADER,
   TEST_UAC1_INPUT_TERM(PLAYBACK_INPUT_TERM, AUDIO_TERM_TYPE_USB_STREAMING, 2),
@@ -667,16 +685,27 @@ void test_audio_host_parses_discrete_frequencies_with_interval_greater_than_one(
   TEST_ASSERT_EQUAL_UINT32(48000, config.sample_rate);
 }
 
-void test_audio_host_rejects_sampling_frequency_range(void) {
-  open_descriptors(playback_with_frequency_range, sizeof(playback_with_frequency_range));
+void test_audio_host_keeps_supported_stream_when_other_as_format_is_unsupported(void) {
+  open_descriptors(playback_with_unsupported_capture, sizeof(playback_with_unsupported_capture));
 
-  TEST_ASSERT_EQUAL_UINT8(0, tuh_audio_stream_count(0));
+  TEST_ASSERT_EQUAL_UINT8(1, tuh_audio_stream_count(0));
+  TEST_ASSERT_EQUAL(TUH_AUDIO_STREAM_PLAYBACK, tuh_audio_stream_direction(0, 0));
+}
+
+void test_audio_host_rejects_sampling_frequency_range_and_releases_instance(void) {
+  TEST_ASSERT_EQUAL_UINT16(0, audioh_open(0, AUDIO_DEV_ADDR, (const tusb_desc_interface_t *)playback_with_frequency_range,
+                                          sizeof(playback_with_frequency_range)));
+  TEST_ASSERT_EQUAL_UINT8(0, tuh_audio_get_dev_addr(0));
+
+  open_descriptors(playback_with_explicit_feedback, sizeof(playback_with_explicit_feedback));
+  TEST_ASSERT_EQUAL_UINT8(1, tuh_audio_stream_count(0));
 }
 
 void test_audio_host_rejects_overflowed_frame_size_for_large_channel_count(void) {
-  open_descriptors(capture_with_large_channel_count, sizeof(capture_with_large_channel_count));
-
-  TEST_ASSERT_EQUAL_UINT8(0, tuh_audio_stream_count(0));
+  TEST_ASSERT_EQUAL_UINT16(0, audioh_open(0, AUDIO_DEV_ADDR,
+                                          (const tusb_desc_interface_t *)capture_with_large_channel_count,
+                                          sizeof(capture_with_large_channel_count)));
+  TEST_ASSERT_EQUAL_UINT8(0, tuh_audio_get_dev_addr(0));
 }
 
 void test_audio_host_uses_cs_endpoint_declared_before_data_endpoint_on_start(void) {

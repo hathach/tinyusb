@@ -798,7 +798,6 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
 
   uint8_t usb_input_terminal_id = 0;
   uint8_t usb_output_source_id  = 0;
-  bool    found_as_interface    = false;
   // A Feature Unit may precede the USB terminal that identifies its stream.
   typedef struct {
     uint8_t id;
@@ -887,15 +886,14 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
       break;
     }
 
-    found_as_interface = true;
     TU_LOG_DRV("  Found AS Interface %u (alt = %u)\r\n", desc_interface->bInterfaceNumber,
                desc_interface->bAlternateSetting);
     p_desc = audioh_parse_as(p_audio, desc_interface, p_desc, desc_end);
   }
 
-  // This AC interface belongs to MIDI or another Audio subclass. Release the
-  // tentative instance and let the next class driver claim the interface.
-  if (!found_as_interface) {
+  // Release the tentative instance when no supported stream configuration was
+  // collected, including MIDI-only and unsupported Audio functions.
+  if (p_audio->in_stream.config_count == 0 && p_audio->out_stream.config_count == 0) {
     audioh_stream_reset(&p_audio->in_stream);
     audioh_stream_reset(&p_audio->out_stream);
     p_audio->daddr        = 0;
