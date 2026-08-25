@@ -23,8 +23,8 @@ _prune_buildable then intersects each family with what it can actually build.
 
 | # | Changed path | Build families | Build examples | HIL boards → tests |
 | 1 | `docs/`, `.claude/`, `*.md`, `*.rst`, `LICENSE` | — | — | — |
-| 1b | `.gitignore`, `.clang-format`, `.idea/**`, `test/{fuzz,unit-test}/**`, non-build `.github/**`, packaging manifests | — | — | — |
-| 2 | `test/hil/**` | — | — | all boards → all tests |
+| 1b | `.gitignore`, `.clang-format`, `.idea/**`, `test/{fuzz,unit-test}/**`, `test/hil/test/**`, non-build `.github/**`, packaging manifests | — | — | — |
+| 2 | `test/hil/**` (not `test/hil/test/**`) | — | — | all boards → all tests |
 | 2b | `tools/metrics.py`, `.github/scripts/metrics_*.py` | `ALL` (unchanged — `tinyusb_metrics` runs `metrics.py` as a build target) | `ALL` | — (nothing on the rig runs it) |
 | 3 | `src/portable/<port>/dcd_*`, `*_device.[ch]` | `FAM` | `DEV`+`DUAL` | `FAM`'s device-role boards → device+dual tests |
 | 4 | `src/portable/<port>/hcd_*`, `*_host.[ch]` | `FAM` | `HOST`+`DUAL` | `FAM`'s host-role boards → host+dual tests |
@@ -108,7 +108,11 @@ _META_RE = re.compile(
     r'version\.yml$|SConscript$|'
     r'.*CMakePresets\.json$|hw/bsp/BoardPresets\.json$|examples/west\.yml$|'
     r'.*/[0-9]+-tinyusb[^/]*\.rules$|tools/usb_drivers/|tools/codespell/|'
-    r'test/(fuzz|unit-test)/|'
+    # test/hil/test/ holds the harness's own unit tests, not the harness: nothing on
+    # the rig runs them (pre-commit does, and build.yml runs test_ci_select.py as the
+    # gate before trusting a selection), so they cannot change what the rig does.
+    # The harness itself stays under _FULL_RE's test/hil/ prefix.
+    r'test/(fuzz|unit-test)/|test/hil/test/|'
     # .github, minus the build machinery named in _FULL_RE
     r'\.github/(FUNDING\.yml$|labeler\.yml$|membrowse_pr_message\.j2$|ISSUE_TEMPLATE/|'
     r'workflows/(cifuzz|claude|claude-code-review|labeler|membrowse-comment|'
