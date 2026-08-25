@@ -587,7 +587,10 @@ static void channel_xfer_out_wrapup(dwc2_regs_t* dwc2, uint8_t ch_id) {
   hcd_endpoint_t* edpt = &_hcd_data.edpt[xfer->ep_id];
 
   const dwc2_channel_tsize_t hctsiz = {.value = channel->hctsiz};
-  edpt->next_pid = hctsiz.pid; // save PID
+  const dwc2_channel_char_t hcchar = {.value = channel->hcchar};
+  if (hcchar.ep_type != HCCHAR_EPTYPE_ISOCHRONOUS) {
+    edpt->next_pid = hctsiz.pid; // save PID
+  }
 
   /* Since hctsiz.xfersize field reflects the number of bytes transferred via the AHB, not the USB)
    * For IN: we can use hctsiz.xfersize as remaining bytes.
@@ -596,7 +599,6 @@ static void channel_xfer_out_wrapup(dwc2_regs_t* dwc2, uint8_t ch_id) {
    * transfer was halted before its normal completion.
    */
   const uint16_t remain_packets = hctsiz.packet_count;
-  const dwc2_channel_char_t hcchar = {.value = channel->hcchar};
   const uint16_t total_packets = cal_packet_count(edpt->buflen, hcchar.ep_size);
   const uint16_t actual_bytes = (total_packets - remain_packets) * hcchar.ep_size;
 
@@ -635,10 +637,11 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id) {
   channel->hctsiz = hctsiz.value;
   edpt->next_do_ping = 0;
 
-  // pre-calculate next PID based on packet count, adjusted in transfer complete interrupt if short packet
+  // Single-transaction isochronous endpoints always use DATA0. Pre-calculate the next PID for other endpoints,
+  // adjusted in the transfer-complete interrupt if a short packet is received.
   if (hcchar_bm->ep_num == 0) {
     edpt->next_pid = HCTSIZ_PID_DATA1; // control data and status stage always start with DATA1
-  } else {
+  } else if (hcchar_bm->ep_type != HCCHAR_EPTYPE_ISOCHRONOUS) {
     edpt->next_pid = cal_next_pid(edpt->next_pid, packet_count);
   }
 
@@ -806,7 +809,9 @@ static void channel_xfer_in_retry(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
     } else {
       // otherwise, de-allocate channel, enable SOF set frame counter for later transfer
       const dwc2_channel_tsize_t hctsiz = {.value = channel->hctsiz};
-      edpt->next_pid = hctsiz.pid; // save PID
+      if (hcchar.ep_type != HCCHAR_EPTYPE_ISOCHRONOUS) {
+        edpt->next_pid = hctsiz.pid; // save PID
+      }
       edpt->uframe_countdown = edpt->uframe_interval - ucount;
       // enable SOF interrupt if not already enabled
       if (0 == (dwc2->gintmsk & GINTMSK_SOFM)) {
@@ -931,7 +936,8 @@ static bool handle_channel_in_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t h
   // }
 
   if (hcint & HCINT_XFER_COMPLETE) {
-    if (edpt->hcchar_bm.ep_num != 0) {
+    if (edpt->hcchar_bm.ep_num != 0 &&
+        edpt->hcchar_bm.ep_type != HCCHAR_EPTYPE_ISOCHRONOUS) {
       edpt->next_pid = hctsiz.pid; // save pid (already toggled)
     }
 
