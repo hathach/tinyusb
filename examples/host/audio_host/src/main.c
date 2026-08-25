@@ -25,7 +25,6 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
-void led_blinking_task(void);
 
 /*------------- MAIN -------------*/
 int main(void) {
@@ -39,7 +38,6 @@ int main(void) {
   tusb_init(BOARD_TUH_RHPORT, &host_init);
 
   board_init_after_tusb();
-  uint32_t last_ms = tusb_time_millis_api();
   while (1) {
     // tinyusb host task
     tuh_task();

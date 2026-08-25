@@ -240,7 +240,7 @@ void led_blinking_task(void) {
   err_cb_count = 0;
 
 #endif
-#if 0  
+#if 0
   // Print the current Feature Unit volume, which is set to 0x0600 in mic_configured() and can be changed by the device.
   uint16_t volume = 0x0001;
   tuh_audio_feature_unit_get_sync(audio_idx, AUDIO10_FU_CTRL_VOLUME, 0, &volume);
@@ -412,7 +412,7 @@ void tuh_audio_umount_cb(uint8_t idx) {
   }
 }
 
-void tuh_audio_mount_async(uintptr_t param) {
+static void tuh_audio_mount_async(uintptr_t param) {
   uint8_t idx = (uint8_t)param;
   if (idx >= CFG_TUH_AUDIO_MAX) {
     printf("Audio device mount failed: idx=%u exceeds max=%u\r\n", idx, CFG_TUH_AUDIO_MAX);
