@@ -1175,7 +1175,7 @@ bool tuh_audio_stop(uint8_t dev_idx, uint8_t stream_idx) {
   TU_VERIFY(p_audio->mounted, false);
 
   tuh_audio_stream_t *s = audioh_get_stream_by_idx(p_audio, stream_idx);
-  TU_VERIFY(s && s->running, false);
+  TU_VERIFY(s && s->state == STREAM_STATE_READY, false);
 
   // The in-flight transfer (if any) completes and its data is discarded;
   // queued frames are dropped as well. The interface is deactivated (alt 0)
@@ -1184,6 +1184,7 @@ bool tuh_audio_stop(uint8_t dev_idx, uint8_t stream_idx) {
   tu_edpt_stream_clear(&s->edpt);
   s->rem_acc = 0; // restart the pacing accumulator on the next tuh_audio_start()
 
+  // Keep stop retryable if EP0 is busy and SET_INTERFACE cannot be submitted.
   const audioh_stream_map_t *map = &s->map[s->active_config];
   return tuh_interface_set(s->daddr, map->itf_num, 0, audioh_stream_stop_complete, (uintptr_t)s);
 }
