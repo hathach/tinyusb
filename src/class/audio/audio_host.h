@@ -194,13 +194,15 @@ uint8_t tuh_audio_get_feature_unit_id(uint8_t idx);
 //--------------------------------------------------------------------+
 
 // Set a Feature Unit control (mute, volume, ...) of the Audio device (UAC 1.0)
-// The request length follows the control selector: mute/AGC/loudness are 1 byte, the rest are 2 bytes
+// Mute/bass/mid/treble/AGC/bass boost/loudness use one byte; volume/delay use two.
+// Graphic EQ and unknown selectors are unsupported.
 bool tuh_audio_feature_unit_set(uint8_t idx, uint8_t control_selector, uint8_t channel, uint16_t value,
                                 tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
 // Get a Feature Unit control (mute, volume, ...) of the Audio device (UAC 1.0)
 // The value is converted to host byte order before complete_cb is invoked.
-// Only one feature unit GET may be in flight per device.
+// Graphic EQ and unknown selectors are unsupported.
+// Only one Feature Unit GET or SET request may be in flight per device.
 bool tuh_audio_feature_unit_get(uint8_t idx, uint8_t control_selector, uint8_t channel, uint16_t *value,
                                 tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 

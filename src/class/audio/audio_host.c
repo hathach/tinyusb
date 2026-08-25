@@ -182,11 +182,12 @@ typedef struct {
   TUH_EPBUF_DEF(fu_ctrl, 8);                         // feature-unit SET data
   TUH_EPBUF_DEF(epin, CFG_TUH_AUDIO_EPIN_BUFSIZE);   // capture transfer buffer
   TUH_EPBUF_DEF(epout, CFG_TUH_AUDIO_EPOUT_BUFSIZE); // playback transfer buffer
-  // Feature-unit GET chain state: only one GET in flight per device
+  // Feature-unit request state: only one GET or SET in flight per device
   tuh_xfer_cb_t complete_cb;
   uintptr_t     user_data;
   uint16_t     *value;
   uint8_t       width;
+  bool          fu_busy;
 } audioh_epbuf_t;
 
 static audioh_interface_t _audioh_itf[CFG_TUH_AUDIO_MAX];
@@ -255,15 +256,22 @@ static uint32_t audioh_interval_us(uint8_t ep_interval, uint8_t daddr) {
   return (uint32_t)ep_interval * 1000u;
 }
 
-// UAC 1.0 feature-unit control value width: mute/AGC/loudness are 1 byte, the rest 2 bytes
+// UAC 1.0 feature-unit control value width (0 = unsupported variable/unknown width)
 static uint8_t audioh_fu_control_width(uint8_t control_selector) {
   switch (control_selector) {
     case AUDIO10_FU_CTRL_MUTE:
+    case AUDIO10_FU_CTRL_BASS:
+    case AUDIO10_FU_CTRL_MID:
+    case AUDIO10_FU_CTRL_TREBLE:
     case AUDIO10_FU_CTRL_AGC:
+    case AUDIO10_FU_CTRL_BASS_BOOST:
     case AUDIO10_FU_CTRL_LOUDNESS:
       return 1;
-    default:
+    case AUDIO10_FU_CTRL_VOLUME:
+    case AUDIO10_FU_CTRL_DELAY:
       return 2;
+    default:
+      return 0;
   }
 }
 
@@ -540,7 +548,8 @@ void audioh_close(uint8_t daddr) {
       audioh_stream_reset(stream);
     }
 
-    _audioh_epbuf[idx].complete_cb = NULL; // drop a pending feature-unit GET
+    _audioh_epbuf[idx].complete_cb = NULL; // drop a pending feature-unit request
+    _audioh_epbuf[idx].fu_busy     = false;
 
     p_audio->stream_count = 0;
     p_audio->daddr        = 0;
@@ -1260,6 +1269,21 @@ uint32_t tuh_audio_read_available(uint8_t dev_idx, uint8_t stream_idx) {
 // Feature Unit Control API
 //--------------------------------------------------------------------+
 
+// Release the stable SET buffer and chain to the application callback
+static void audioh_fu_set_complete(tuh_xfer_t *xfer) {
+  const uint8_t   idx       = (uint8_t)xfer->user_data;
+  audioh_epbuf_t *epbuf     = &_audioh_epbuf[idx];
+  tuh_xfer_cb_t   app_cb    = epbuf->complete_cb;
+  uintptr_t       user_data = epbuf->user_data;
+  epbuf->complete_cb        = NULL;
+  epbuf->fu_busy            = false;
+
+  xfer->user_data = user_data;
+  if (app_cb != NULL) {
+    app_cb(xfer);
+  }
+}
+
 // Convert the raw control value to host order and chain to the application callback
 static void audioh_fu_get_complete(tuh_xfer_t *xfer) {
   const uint8_t   idx       = (uint8_t)xfer->user_data;
@@ -1269,6 +1293,7 @@ static void audioh_fu_get_complete(tuh_xfer_t *xfer) {
   uint16_t       *value     = epbuf->value;
   const uint8_t   width     = epbuf->width;
   epbuf->complete_cb        = NULL;
+  epbuf->fu_busy            = false;
 
   if (app_cb != NULL && value != NULL && xfer->result == XFER_RESULT_SUCCESS) {
     const uint8_t *raw = (const uint8_t *)value;
@@ -1289,6 +1314,11 @@ bool tuh_audio_feature_unit_set(uint8_t idx, uint8_t control_selector, uint8_t c
   TU_VERIFY(p_audio->mounted && p_audio->feature_unit_id != 0, false);
 
   const uint8_t width = audioh_fu_control_width(control_selector);
+  TU_VERIFY(width != 0, false);
+
+  audioh_epbuf_t *epbuf = &_audioh_epbuf[idx];
+  TU_VERIFY(!epbuf->fu_busy, false);
+  epbuf->fu_busy = true; // reserve the request state and fu_ctrl before writing
 
   const tusb_control_request_t request = {.bmRequestType_bit = {.recipient = TUSB_REQ_RCPT_INTERFACE,
                                                                 .type      = TUSB_REQ_TYPE_CLASS,
@@ -1298,9 +1328,11 @@ bool tuh_audio_feature_unit_set(uint8_t idx, uint8_t control_selector, uint8_t c
                                           .wIndex  = tu_htole16(tu_u16(p_audio->feature_unit_id, p_audio->ac_itf_num)),
                                           .wLength = width};
 
-  uint8_t *val_buf = _audioh_epbuf[idx].fu_ctrl;
+  uint8_t *val_buf = epbuf->fu_ctrl;
   val_buf[0]       = (uint8_t)(value & 0xFF);
-  val_buf[1]       = (uint8_t)((value >> 8) & 0xFF);
+  if (width == 2) {
+    val_buf[1] = (uint8_t)((value >> 8) & 0xFF);
+  }
 
   tuh_xfer_t xfer = {.daddr       = p_audio->daddr,
                      .ep_addr     = 0,
@@ -1309,7 +1341,23 @@ bool tuh_audio_feature_unit_set(uint8_t idx, uint8_t control_selector, uint8_t c
                      .complete_cb = complete_cb,
                      .user_data   = user_data};
 
-  return tuh_control_xfer(&xfer);
+  if (complete_cb == NULL) {
+    const bool result = tuh_control_xfer(&xfer);
+    epbuf->fu_busy    = false;
+    return result;
+  }
+
+  epbuf->complete_cb = complete_cb;
+  epbuf->user_data   = user_data;
+  xfer.complete_cb   = audioh_fu_set_complete;
+  xfer.user_data     = (uintptr_t)idx;
+
+  if (!tuh_control_xfer(&xfer)) {
+    epbuf->complete_cb = NULL;
+    epbuf->fu_busy     = false;
+    return false;
+  }
+  return true;
 }
 
 bool tuh_audio_feature_unit_get(uint8_t idx, uint8_t control_selector, uint8_t channel, uint16_t *value,
@@ -1319,6 +1367,11 @@ bool tuh_audio_feature_unit_get(uint8_t idx, uint8_t control_selector, uint8_t c
   TU_VERIFY(p_audio->mounted && p_audio->feature_unit_id != 0 && value, false);
 
   const uint8_t width = audioh_fu_control_width(control_selector);
+  TU_VERIFY(width != 0, false);
+
+  audioh_epbuf_t *epbuf = &_audioh_epbuf[idx];
+  TU_VERIFY(!epbuf->fu_busy, false);
+  epbuf->fu_busy = true;
 
   const tusb_control_request_t request = {.bmRequestType_bit = {.recipient = TUSB_REQ_RCPT_INTERFACE,
                                                                 .type      = TUSB_REQ_TYPE_CLASS,
@@ -1338,19 +1391,18 @@ bool tuh_audio_feature_unit_get(uint8_t idx, uint8_t control_selector, uint8_t c
                        .complete_cb = NULL,
                        .user_data   = user_data};
     if (!tuh_control_xfer(&xfer)) {
+      epbuf->fu_busy = false;
       return false;
     }
     if (xfer.result == XFER_RESULT_SUCCESS) {
       const uint8_t *raw = (const uint8_t *)value;
       *value             = (width == 1) ? (uint16_t)raw[0] : (uint16_t)((uint16_t)raw[0] | ((uint16_t)raw[1] << 8));
     }
+    epbuf->fu_busy = false;
     return true;
   }
 
   // Async path: chain the host-order conversion to the application callback
-  audioh_epbuf_t *epbuf = &_audioh_epbuf[idx];
-  TU_VERIFY(epbuf->complete_cb == NULL, false); // one feature-unit GET in flight per device
-
   epbuf->complete_cb = complete_cb;
   epbuf->user_data   = user_data;
   epbuf->value       = value;
@@ -1365,6 +1417,7 @@ bool tuh_audio_feature_unit_get(uint8_t idx, uint8_t control_selector, uint8_t c
 
   if (!tuh_control_xfer(&xfer)) {
     epbuf->complete_cb = NULL;
+    epbuf->fu_busy     = false;
     return false;
   }
   return true;
