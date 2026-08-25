@@ -159,8 +159,6 @@ typedef struct {
   // stream is configured.
   tu_edpt_stream_t edpt;
   uint8_t          ff_buf[CFG_TUH_AUDIO_STREAM_BUFSIZE];
-
-  TUH_EPBUF_DEF(ctrl, 4); // sampling-frequency SET data
 } tuh_audio_stream_t;
 
 // Per-instance (Audio device) storage
@@ -180,7 +178,8 @@ typedef struct {
 } audioh_interface_t;
 
 typedef struct {
-  TUH_EPBUF_DEF(ctrl, 8);                            // feature-unit SET data
+  TUH_EPBUF_DEF(sam_freq, 4);                        // shared sampling-frequency SET data
+  TUH_EPBUF_DEF(fu_ctrl, 8);                         // feature-unit SET data
   TUH_EPBUF_DEF(epin, CFG_TUH_AUDIO_EPIN_BUFSIZE);   // capture transfer buffer
   TUH_EPBUF_DEF(epout, CFG_TUH_AUDIO_EPOUT_BUFSIZE); // playback transfer buffer
   // Feature-unit GET chain state: only one GET in flight per device
@@ -191,7 +190,8 @@ typedef struct {
 } audioh_epbuf_t;
 
 static audioh_interface_t _audioh_itf[CFG_TUH_AUDIO_MAX];
-static audioh_epbuf_t     _audioh_epbuf[CFG_TUH_AUDIO_MAX];
+
+CFG_TUH_MEM_SECTION static audioh_epbuf_t _audioh_epbuf[CFG_TUH_AUDIO_MAX];
 
 //--------------------------------------------------------------------+
 // Helper
@@ -396,12 +396,13 @@ static void audioh_stream_set_freq_complete(tuh_xfer_t *xfer) {
 
 // Set the endpoint sampling frequency (3 bytes little-endian) when supported
 static void audioh_stream_set_freq(tuh_audio_stream_t *s) {
-  const audioh_stream_map_t       *map = &s->map[s->active_config];
-  const tuh_audio_stream_config_t *cfg = &s->config[s->active_config];
+  const audioh_stream_map_t       *map  = &s->map[s->active_config];
+  const tuh_audio_stream_config_t *cfg  = &s->config[s->active_config];
+  uint8_t                         *ctrl = _audioh_epbuf[s->idx].sam_freq;
 
-  s->ctrl[0] = (uint8_t)(cfg->sample_rate & 0xFF);
-  s->ctrl[1] = (uint8_t)((cfg->sample_rate >> 8) & 0xFF);
-  s->ctrl[2] = (uint8_t)((cfg->sample_rate >> 16) & 0xFF);
+  ctrl[0] = (uint8_t)(cfg->sample_rate & 0xFF);
+  ctrl[1] = (uint8_t)((cfg->sample_rate >> 8) & 0xFF);
+  ctrl[2] = (uint8_t)((cfg->sample_rate >> 16) & 0xFF);
 
   const tusb_control_request_t request =
     {.bmRequestType_bit = {.recipient = TUSB_REQ_RCPT_ENDPOINT, .type = TUSB_REQ_TYPE_CLASS, .direction = TUSB_DIR_OUT},
@@ -413,7 +414,7 @@ static void audioh_stream_set_freq(tuh_audio_stream_t *s) {
   tuh_xfer_t xfer = {.daddr       = s->daddr,
                      .ep_addr     = 0,
                      .setup       = &request,
-                     .buffer      = s->ctrl,
+                     .buffer      = ctrl,
                      .complete_cb = audioh_stream_set_freq_complete,
                      .user_data   = (uintptr_t)s};
   if (!tuh_control_xfer(&xfer)) {
@@ -1048,6 +1049,7 @@ bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx
   tuh_audio_stream_t *s = audioh_get_stream_by_idx(p_audio, stream_idx);
   TU_VERIFY(s && complete_cb, false);
   TU_VERIFY(config_idx < s->config_count, false);
+  const tuh_audio_stream_config_t *cfg = &s->config[config_idx];
   // Reconfiguration is allowed from a stopped stream; only one configuration
   // may be in progress
   TU_VERIFY(s->state != STREAM_STATE_CONFIG && !s->running, false);
@@ -1059,6 +1061,13 @@ bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx
   // A shared AS interface must not be left in two different alternate settings
   tuh_audio_stream_t *other = (s == &p_audio->out_stream) ? &p_audio->in_stream : &p_audio->out_stream;
   if (other->active_config != TUSB_INDEX_INVALID_8) {
+    const tuh_audio_stream_config_t *other_cfg = &other->config[other->active_config];
+    if (cfg->sample_rate != other_cfg->sample_rate) {
+      TU_LOG_DRV("  AUDIO configure failed: capture/playback sample rates must match (%lu != %lu)\r\n",
+                 (unsigned long)cfg->sample_rate, (unsigned long)other_cfg->sample_rate);
+      return false;
+    }
+
     const audioh_stream_map_t *m1 = &s->map[config_idx];
     const audioh_stream_map_t *m2 = &other->map[other->active_config];
     if (m1->itf_num == m2->itf_num && m1->alt_setting != m2->alt_setting) {
@@ -1068,9 +1077,9 @@ bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx
   }
 
   s->active_config = config_idx;
-  s->frame_bytes   = (uint8_t)tuh_audio_config_frame_size(&s->config[config_idx]);
-  s->frames_per_ms = (uint16_t)(s->config[config_idx].sample_rate / 1000);
-  s->frames_rem    = (uint16_t)(s->config[config_idx].sample_rate % 1000);
+  s->frame_bytes   = (uint8_t)tuh_audio_config_frame_size(cfg);
+  s->frames_per_ms = (uint16_t)(cfg->sample_rate / 1000);
+  s->frames_rem    = (uint16_t)(cfg->sample_rate % 1000);
   s->rem_acc       = 0;
   s->complete_cb   = complete_cb;
   s->user_data     = user_data;
@@ -1268,7 +1277,7 @@ bool tuh_audio_feature_unit_set(uint8_t idx, uint8_t control_selector, uint8_t c
                                           .wIndex  = tu_htole16(tu_u16(p_audio->feature_unit_id, p_audio->ac_itf_num)),
                                           .wLength = width};
 
-  uint8_t *val_buf = _audioh_epbuf[idx].ctrl;
+  uint8_t *val_buf = _audioh_epbuf[idx].fu_ctrl;
   val_buf[0]       = (uint8_t)(value & 0xFF);
   val_buf[1]       = (uint8_t)((value >> 8) & 0xFF);
 
