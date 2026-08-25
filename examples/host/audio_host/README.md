@@ -13,7 +13,8 @@ This example demonstrates how to use TinyUSB's USB Audio Host driver (TUH_AUDIO)
 
 ## Supported Devices
 
-This example supports any UAC 1.0 compliant USB audio device with a discrete sampling-frequency capture stream, such as:
+This example supports UAC 1.0 devices whose Type I Format descriptor lists discrete sampling frequencies (`bSamFreqType > 0`), such as:
+
 - USB microphones
 - USB headsets (mono microphone + speaker)
 - USB audio interfaces

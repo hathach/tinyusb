@@ -61,8 +61,8 @@ typedef enum {
   TUH_AUDIO_STREAM_DIRECTION_COUNT
 } tuh_audio_direction_t;
 
-// Discrete sample format. Only discrete configurations are supported
-// initially; continuous sample-rate ranges are ignored by the driver.
+// Discrete sample format. Only UAC1 configurations with bSamFreqType > 0 are
+// supported; sampling-frequency ranges are ignored by the driver.
 typedef enum {
   TUH_AUDIO_FORMAT_S8 = 0,  // signed 8-bit
   TUH_AUDIO_FORMAT_S16_LE,  // signed 16-bit little-endian

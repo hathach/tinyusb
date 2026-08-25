@@ -34,9 +34,8 @@
  * each configuration to its interface, alternate setting, and endpoint, and
  * applies it when the application calls tuh_audio_configure().
  *
- * Non-PCM formats are rejected explicitly during enumeration. A continuous
- * sampling-frequency range is exposed as a single configuration at the
- * range's highest sampling frequency.
+ * Non-PCM formats and sampling-frequency ranges are not registered as
+ * supported configurations during enumeration.
  *
  * The driver owns:
  * 1. Endpoint selection and opening (only the alternate setting selected by
@@ -640,8 +639,7 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const tusb_de
   uint8_t  num_channels                         = 0;
   uint8_t  subframe_size                        = 0;
   uint8_t  bit_res                              = 0;
-  uint8_t  sam_freq_type                        = 0;
-  uint8_t  sam_freq_count                       = 0; // 1 for a continuous range
+  uint8_t  sam_freq_count                       = 0;
   uint32_t sam_freq[CFG_TUH_AUDIO_MAX_SAM_FREQ] = {0};
 
   // An alternate setting can expose an endpoint in each direction. Explicit
@@ -682,21 +680,8 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const tusb_de
             num_channels  = p_desc[4];
             subframe_size = p_desc[5];
             bit_res       = p_desc[6];
-            sam_freq_type = p_desc[7];
-            if (sam_freq_type == 0) {
-              // Continuous range: expose a single configuration at the
-              // highest supported sampling frequency (tSamFreq[0] is the
-              // lower bound, tSamFreq[1] the upper bound)
-              if (p_desc[0] >= 14) {
-                sam_freq_count = 1;
-                sam_freq[0]    = ((uint32_t)p_desc[11] | ((uint32_t)p_desc[12] << 8) | ((uint32_t)p_desc[13] << 16));
-                TU_LOG_DRV("  AUDIO AS itf %u: continuous range %lu-%lu Hz, using %lu Hz\r\n", itf_num,
-                           (unsigned long)((uint32_t)p_desc[8] | ((uint32_t)p_desc[9] << 8) |
-                                           ((uint32_t)p_desc[10] << 16)),
-                           (unsigned long)sam_freq[0], (unsigned long)sam_freq[0]);
-              }
-            } else {
-              sam_freq_count = TU_MIN(sam_freq_type, CFG_TUH_AUDIO_MAX_SAM_FREQ);
+            if (p_desc[7] > 0) {
+              sam_freq_count = TU_MIN(p_desc[7], CFG_TUH_AUDIO_MAX_SAM_FREQ);
               for (uint8_t i = 0; i < sam_freq_count && (8 + i * 3 + 2) < p_desc[0]; i++) {
                 sam_freq[i] = ((uint32_t)p_desc[8 + i * 3] | ((uint32_t)p_desc[9 + i * 3] << 8) |
                                ((uint32_t)p_desc[10 + i * 3] << 16));
