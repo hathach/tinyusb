@@ -532,7 +532,12 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
 
         --one-first with no -e returns preferred_list[0]; with one it returns the first
         preferred board that can build it. Where those differ, the Membrowse Upload step
-        configures a build dir the Build step never wrote."""
+        configures a build dir the Build step never wrote.
+
+        ci=True unconditionally, as _prune_buildable does and for the same reason: the
+        answer must be the runner's, not the developer's. The CI skip lists are off by
+        default locally, which moves the pick on three families - this test asserted the
+        local set and went red on its first CI run."""
         sys.path.insert(0, os.path.join(REPO, 'tools'))
         import build as build_py
         roles = ('device', 'host', 'dual')
@@ -547,14 +552,16 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
             diverging = set()
             for fam in fams:
                 try:
-                    base = build_py.get_family_boards(fam, False, True, None, 'cmake', ())
+                    base = build_py.get_family_boards(fam, False, True, None, 'cmake',
+                                                      (), ci=True)
                 except Exception:
                     continue
                 if not base:
                     continue
                 for e in exs:
                     try:
-                        one = build_py.get_family_boards(fam, False, True, [e], 'cmake', ())
+                        one = build_py.get_family_boards(fam, False, True, [e], 'cmake',
+                                                         (), ci=True)
                     except Exception:
                         continue
                     if one and one[0] != base[0]:
@@ -562,8 +569,9 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
                         break
         finally:
             os.chdir(cwd)
-        self.assertEqual(diverging, {'imxrt', 'lpc11', 'lpc18', 'lpc54', 'mcx', 'rp2040',
-                                     'rx', 'samd11', 'stm32l0', 'stm32l4', 'tm4c'},
+        self.assertEqual(diverging, {'imxrt', 'lpc11', 'lpc18', 'lpc54', 'mcx', 'rx',
+                                     'samd11', 'samd2x_l2x', 'samd5x_e5x', 'stm32l0',
+                                     'stm32l4', 'tm4c'},
                          'the set of families whose membrowse upload can land on an '
                          'uncompiled board changed; re-check whether dropping $EX_ARGS '
                          'from the upload step is still the right trade')

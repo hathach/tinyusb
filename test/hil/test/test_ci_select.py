@@ -942,6 +942,53 @@ class TestClassesWithNoEnablingExample(unittest.TestCase):
                          'both axes, so nothing compiles it until the next master push')
 
 
+class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
+    """test/hil/test/ selects nothing; test/hil/ itself still selects everything.
+
+    Rule 2 is a bare `test/hil/` prefix, so the harness's own unit tests were booking
+    the full 27-board rig - ~11 minutes of exclusive hardware for a diff that cannot
+    reach it. Nothing on the rig runs them: pre-commit does, and build.yml runs
+    test_ci_select.py as the gate before trusting a selection at all.
+
+    The carve-out is only safe while that directory holds nothing rig-affecting, which
+    is what the second test pins."""
+
+    def test_the_harness_own_tests_select_nothing_on_either_axis(self):
+        for p in ('test/hil/test/test_ci_select.py', 'test/hil/test/test_ci_metrics.py',
+                  'test/hil/test/test_hil_bounded.py', 'test/hil/test/stubs/pymtp.py'):
+            s = ci_select.classify([p], REPO, ROSTERS)
+            self.assertFalse(s['full'], p)
+            self.assertFalse(s['boards'], p)
+            b = ci_select.classify_build([p], REPO)
+            self.assertFalse(b['full'], p)
+            self.assertFalse(b['families'], p)
+
+    def test_the_harness_itself_still_takes_the_whole_rig(self):
+        # the thing rule 2 exists for: these decide what the rig does, so they cannot be
+        # trusted to narrow their own blast radius
+        for p in ('test/hil/hil_test.py', 'test/hil/tinyusb.json',
+                  'test/hil/helper/hil_ci_set_matrix.py'):
+            s = ci_select.classify([p], REPO, ROSTERS)
+            self.assertTrue(s['full'], f'{p} must still force the full rig')
+
+    def test_nothing_rig_affecting_has_moved_into_the_carve_out(self):
+        """The carve-out is a claim about that directory's contents; pin them.
+
+        A new file there that the rig DOES read would silently stop selecting the rig.
+        Listing them costs one line per file and makes that a failing test instead."""
+        out = subprocess.run(['git', 'ls-files', 'test/hil/test'], cwd=REPO,
+                             capture_output=True, text=True, check=True)
+        self.assertEqual(sorted(out.stdout.split()), [
+            'test/hil/test/stubs/pymtp.py',
+            'test/hil/test/test_ci_metrics.py',
+            'test/hil/test/test_ci_select.py',
+            'test/hil/test/test_hil_bounded.py',
+            'test/hil/test/test_hil_health.py',
+            'test/hil/test/test_hil_util.py',
+        ], 'test/hil/test/ gained or lost a file; it is carved out of rule 2, so confirm '
+           'the rig still does not read anything in there before updating this list')
+
+
 class TestExampleMapOmitsFullFamilies(unittest.TestCase):
     """A family whose selection is ALREADY everything it can build carries no -e list.
 
