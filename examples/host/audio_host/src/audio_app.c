@@ -117,16 +117,29 @@ static void stereo_to_mono(const int16_t *stereo, int16_t *mono, uint32_t frames
   }
 }
 
-// One period of an 8 kHz sine (6 samples at 48 kHz), scaled to ~8-bit
-// amplitude. The test tone plays only when no capture stream is echoing.
-static const int16_t sine_period[6] = {0, 221, 221, 0, -221, -221};
+#define SINE_TONE_HZ  1000u
+#define SINE_LUT_BITS 6u
+#define SINE_LUT_SIZE (1u << SINE_LUT_BITS)
 
-// Precompute a sine wave into the playback buffer
-static void spk_init_sine(void) {
-  for (uint32_t i = 0; i < AUDIO_MAX_FRAME_COUNT; i++) {
-    const int16_t sample = sine_period[i % 6];
+// One sine period with a peak amplitude of 4096 (-18 dBFS).
+static const int16_t sine_lut[SINE_LUT_SIZE] = {
+  0,     401,   799,   1189,  1567,  1931,  2276,  2598,  2896,  3166,  3406,  3612,  3784,  3920,  4017,  4076,
+  4096,  4076,  4017,  3920,  3784,  3612,  3406,  3166,  2896,  2598,  2276,  1931,  1567,  1189,  799,   401,
+  0,     -401,  -799,  -1189, -1567, -1931, -2276, -2598, -2896, -3166, -3406, -3612, -3784, -3920, -4017, -4076,
+  -4096, -4076, -4017, -3920, -3784, -3612, -3406, -3166, -2896, -2598, -2276, -1931, -1567, -1189, -799,  -401,
+};
+
+static uint32_t sine_phase;
+
+// Generate a continuous tone at the selected sample rate and pack each frame
+// according to the actual playback channel count.
+static void spk_fill_sine(uint32_t frames) {
+  const uint32_t phase_step = (uint32_t)(((uint64_t)SINE_TONE_HZ << 32) / spk_config.sample_rate);
+  for (uint32_t i = 0; i < frames; i++) {
+    const int16_t sample = sine_lut[sine_phase >> (32u - SINE_LUT_BITS)];
+    sine_phase += phase_step;
     for (uint8_t ch = 0; ch < spk_config.channels; ch++) {
-      spk_samples[i * AUDIO_MAX_CHANNELS + ch] = sample;
+      spk_samples[i * spk_config.channels + ch] = sample;
     }
   }
 }
@@ -294,6 +307,7 @@ void audio_app_task_write(void) {
 
   const uint32_t frames = audio_frames_this_ms(spk_config.sample_rate);
   if (tuh_audio_write_available(audio_idx, spk_stream_idx) >= frames) {
+    spk_fill_sine(frames);
     (void)tuh_audio_write(audio_idx, spk_stream_idx, spk_samples, frames);
   }
 }
@@ -495,7 +509,7 @@ static void tuh_audio_mount_async(uintptr_t param) {
   printf("  Speaker configured\r\n");
   // playback-only device: set the frame cadence from the selected rate
   audio_frame_count = spk_config.sample_rate / 1000;
-  spk_init_sine(); // fallback test tone while no capture stream is echoing
+  sine_phase        = 0;
   set_stream_volume(idx, spk_stream_idx, "Speaker");
 
   if (capture_found) {
