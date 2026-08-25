@@ -52,8 +52,9 @@ make BOARD=<your_board> all
 ## Flashing
 
 ```bash
-# Using CMake
-ninja flash
+# Using CMake: list the board-specific flash targets, then select one
+ninja -t targets
+ninja audio_host-jlink # example for a board with J-Link support
 
 # Using Make
 make BOARD=<your_board> flash
@@ -111,5 +112,6 @@ Edit `src/tusb_config.h` to modify:
 ## Notes
 
 - While a stream is running, the driver keeps one isochronous transfer in flight and re-submits on completion, so transfers follow the endpoint's `bInterval`. `tuh_audio_capture_cb()` / `tuh_audio_playback_cb()` report each completed transfer; `tuh_audio_err_cb()` reports failures. The example restarts the failed stream automatically 100 ms after the error callback.
+- Capture and playback streams in the same Audio Control instance must use the same sample rate.
 - `tuh_audio_read()` / `tuh_audio_write()` are non-blocking FIFO operations: they return the number of whole frames actually queued/read (0 when the FIFO is empty/full or the stream is not running), and `tuh_audio_read_available()` / `tuh_audio_write_available()` report the FIFO occupancy in frames. `tuh_audio_write()` only queues data; the playback transfer-completion chain sends it, or sends silence when the FIFO does not contain a complete polling interval without consuming the partial data.
 - Isochronous transfers require the host to poll `tuh_task()` continuously; the capture FIFO absorbs short scheduling gaps and overwrites the oldest frames when full.

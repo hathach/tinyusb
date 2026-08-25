@@ -325,6 +325,8 @@ static tuh_audio_stream_t *audioh_find_stream(uint8_t dev_addr, uint8_t ep_addr)
 // Packet scheduler
 //--------------------------------------------------------------------+
 
+static void audioh_stream_error(tuh_audio_stream_t *s, uint16_t xferred_bytes);
+
 // Re-arm the capture endpoint: request one full packet (the device sends at
 // most its max packet size per poll interval). The overwritable FIFO retains
 // the newest capture frames when the application cannot drain it in time.
@@ -335,7 +337,9 @@ static void audioh_stream_capture_xfer(tuh_audio_stream_t *s) {
   TU_VERIFY(usbh_edpt_claim(s->daddr, map->ep_addr), ); // one transfer in flight
 
   // ep_size is guaranteed <= CFG_TUH_AUDIO_EPIN_BUFSIZE by enumeration
-  TU_ASSERT(usbh_edpt_xfer(s->daddr, map->ep_addr, s->edpt.ep_buf, map->ep_size), );
+  if (!usbh_edpt_xfer(s->daddr, map->ep_addr, s->edpt.ep_buf, map->ep_size)) {
+    audioh_stream_error(s, 0);
+  }
 }
 
 // Submit the next queued playback packet. Fractional frames per endpoint poll
@@ -366,7 +370,10 @@ static void audioh_stream_playback_xfer(tuh_audio_stream_t *s) {
     tu_fifo_read_n(&s->edpt.ff, s->edpt.ep_buf, bytes);
   }
 
-  TU_ASSERT(usbh_edpt_xfer(s->daddr, map->ep_addr, s->edpt.ep_buf, bytes), );
+  if (!usbh_edpt_xfer(s->daddr, map->ep_addr, s->edpt.ep_buf, bytes)) {
+    audioh_stream_error(s, 0);
+    return;
+  }
   s->rem_acc = next_rem_acc;
 }
 

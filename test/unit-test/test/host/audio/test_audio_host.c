@@ -123,6 +123,9 @@ bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t *bu
     memcpy(edpt_xfer_data[edpt_xfer_count], buffer, TU_MIN(sizeof(edpt_xfer_data[0]), total_bytes));
     edpt_xfer_count++;
   }
+  if (!edpt_xfer_result) {
+    edpt_busy = false; // match usbh_edpt_xfer() cleanup after HCD rejection
+  }
   return edpt_xfer_result;
 }
 
@@ -747,6 +750,41 @@ void test_audio_host_reports_asynchronous_start_failures(void) {
   TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
   complete_interface_set(XFER_RESULT_SUCCESS);
   TEST_ASSERT_EQUAL_UINT8(3, err_cb_count);
+}
+
+void test_audio_host_reports_capture_submission_failure(void) {
+  mount_descriptors(capture_fu_before_usb_output, sizeof(capture_fu_before_usb_output));
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0));
+
+  edpt_xfer_result = false;
+  TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
+  complete_interface_set(XFER_RESULT_SUCCESS);
+  complete_control_xfer(XFER_RESULT_SUCCESS);
+
+  TEST_ASSERT_EQUAL_UINT8(1, err_cb_count);
+  TEST_ASSERT_EQUAL_UINT8(0, err_cb_idx);
+  TEST_ASSERT_EQUAL_UINT8(0, err_cb_stream_idx);
+  TEST_ASSERT_EQUAL_UINT16(0, err_cb_xferred_bytes);
+
+  edpt_xfer_result = true;
+  TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
+}
+
+void test_audio_host_reports_playback_submission_failure(void) {
+  mount_descriptors(playback_44100_max_packets_only, sizeof(playback_44100_max_packets_only));
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0));
+
+  edpt_xfer_result = false;
+  TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
+  complete_interface_set(XFER_RESULT_SUCCESS);
+
+  TEST_ASSERT_EQUAL_UINT8(1, err_cb_count);
+  TEST_ASSERT_EQUAL_UINT8(0, err_cb_idx);
+  TEST_ASSERT_EQUAL_UINT8(0, err_cb_stream_idx);
+  TEST_ASSERT_EQUAL_UINT16(0, err_cb_xferred_bytes);
+
+  edpt_xfer_result = true;
+  TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
 }
 
 void test_audio_host_keeps_running_when_stop_cannot_be_submitted(void) {
