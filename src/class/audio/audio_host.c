@@ -20,7 +20,7 @@
  *   OUT transfers from a FIFO filled by the application with tuh_audio_write()
  *
  * While a stream is running, the driver keeps one isochronous transfer in
- * flight (a natural 1 ms frame cadence) and re-submits on completion. The
+ * flight at the endpoint's polling cadence and re-submits on completion. The
  * FIFO + endpoint-claim pattern is modeled after the tu_edpt_stream helper
  * used by the MIDI host driver: the application's frame-based read/write is
  * decoupled from the USB transfer cadence, and only whole frames are ever
@@ -142,14 +142,13 @@ typedef struct {
   uint8_t feature_unit_id;
 
   // Size in bytes of one frame (all channels) of the active configuration
-  uint8_t frame_bytes;
+  uint16_t frame_bytes;
 
-  // Playback pacing: frames the device consumes per USB frame
-  // (sample_rate / 1000), with the fractional remainder (0.1 frame per ms at
-  // 44.1 kHz) accumulated on each submission and paid back as one extra frame
-  uint16_t frames_per_ms;
-  uint16_t frames_rem;
-  uint16_t rem_acc;
+  // Playback pacing per endpoint poll interval. Fractional frames are
+  // accumulated in millionths because the interval is expressed in us.
+  uint16_t frames_per_interval;
+  uint32_t frames_rem;
+  uint32_t rem_acc;
 
   // Configure state machine
   tuh_audio_configure_cb_t complete_cb;
@@ -157,7 +156,7 @@ typedef struct {
 
   // FIFO + endpoint transfer helper (see tu_edpt_stream, used by the MIDI
   // host driver): the FIFO decouples the application's frame-based read/write
-  // from the 1 ms isochronous transfer cadence. ep_buf is bound at init from
+  // from the endpoint's isochronous transfer cadence. ep_buf is bound at init from
   // _audioh_epbuf[], the endpoint is bound by tu_edpt_stream_open() when the
   // stream is configured.
   tu_edpt_stream_t edpt;
@@ -277,18 +276,18 @@ static uint8_t audioh_fu_control_width(uint8_t control_selector) {
 
 // Reset a stream to its unconfigured state (keeps idx, dir, and FIFO configuration)
 static void audioh_stream_reset(tuh_audio_stream_t *s) {
-  s->daddr           = 0;
-  s->stream_idx      = TUSB_INDEX_INVALID_8;
-  s->config_count    = 0;
-  s->active_config   = TUSB_INDEX_INVALID_8;
-  s->state           = STREAM_STATE_IDLE;
-  s->running         = false;
-  s->feature_unit_id = 0;
-  s->frame_bytes     = 0;
-  s->frames_per_ms   = 0;
-  s->frames_rem      = 0;
-  s->rem_acc         = 0;
-  s->complete_cb     = NULL;
+  s->daddr               = 0;
+  s->stream_idx          = TUSB_INDEX_INVALID_8;
+  s->config_count        = 0;
+  s->active_config       = TUSB_INDEX_INVALID_8;
+  s->state               = STREAM_STATE_IDLE;
+  s->running             = false;
+  s->feature_unit_id     = 0;
+  s->frame_bytes         = 0;
+  s->frames_per_interval = 0;
+  s->frames_rem          = 0;
+  s->rem_acc             = 0;
+  s->complete_cb         = NULL;
   tu_edpt_stream_close(&s->edpt);
   tu_edpt_stream_clear(&s->edpt);
 }
@@ -328,37 +327,36 @@ static void audioh_stream_capture_xfer(tuh_audio_stream_t *s) {
   TU_ASSERT(usbh_edpt_xfer(s->daddr, map->ep_addr, s->edpt.ep_buf, map->ep_size), );
 }
 
-// Submit the next queued playback packet. The device consumes
-// sample_rate / 1000 frames per USB frame; the fractional remainder
-// (0.1 frame per ms at 44.1 kHz) is accumulated on each successful
-// submission and paid back as one extra frame, keeping the average data
-// rate exactly at the sample rate. Whole frames only, limited by the
-// queued data, one endpoint packet, and the transfer buffer.
+// Submit the next queued playback packet. Fractional frames per endpoint poll
+// interval are accumulated on each successful submission, keeping the average
+// data rate exactly at the sample rate.
 static void audioh_stream_playback_xfer(tuh_audio_stream_t *s) {
   TU_VERIFY(s->state == STREAM_STATE_READY && s->running, );
 
   const audioh_stream_map_t *map = &s->map[s->active_config];
   TU_VERIFY(usbh_edpt_claim(s->daddr, map->ep_addr), ); // one transfer in flight
 
-  uint16_t frames = s->frames_per_ms;
-  s->rem_acc += s->frames_rem;
-  if (s->rem_acc >= 1000) {
-    s->rem_acc -= 1000;
+  uint32_t frames       = s->frames_per_interval;
+  uint32_t next_rem_acc = s->rem_acc + s->frames_rem;
+  if (next_rem_acc >= 1000000) {
+    next_rem_acc -= 1000000;
     frames++;
   }
 
-  frames = TU_MIN(frames, (uint16_t)(tu_fifo_count(&s->edpt.ff) / s->frame_bytes));
-  frames = TU_MIN(frames, (uint16_t)(map->ep_size / s->frame_bytes));
-  frames = TU_MIN(frames, (uint16_t)(CFG_TUH_AUDIO_EPOUT_BUFSIZE / s->frame_bytes));
-  if (frames == 0) {
-    // nothing queued: the stream stays idle until the application writes again
+  const uint64_t bytes_64 = (uint64_t)frames * s->frame_bytes;
+  TU_ASSERT(bytes_64 <= map->ep_size && bytes_64 <= CFG_TUH_AUDIO_EPOUT_BUFSIZE &&
+              bytes_64 <= CFG_TUH_AUDIO_STREAM_BUFSIZE, );
+  const uint16_t bytes = (uint16_t)bytes_64;
+  if (tu_fifo_count(&s->edpt.ff) < bytes) {
+    // Wait until one complete poll interval is queued. This is required when
+    // bInterval is greater than one frame and also avoids short audio packets.
     usbh_edpt_release(s->daddr, map->ep_addr);
     return;
   }
 
-  const uint16_t bytes = frames * s->frame_bytes;
   tu_fifo_read_n(&s->edpt.ff, s->edpt.ep_buf, bytes);
   TU_ASSERT(usbh_edpt_xfer(s->daddr, map->ep_addr, s->edpt.ep_buf, bytes), );
+  s->rem_acc = next_rem_acc;
 }
 
 //--------------------------------------------------------------------+
@@ -788,8 +786,16 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const tusb_de
     return p_desc;
   }
 
+  const uint16_t iso_xfer_size =
+    (tuh_speed_get(p_audio->daddr) == TUSB_SPEED_HIGH) ? TUSB_EPSIZE_ISO_HS_MAX : TUSB_EPSIZE_ISO_FS_MAX;
+  const uint32_t frame_bytes_32 = (uint32_t)num_channels * tuh_audio_format_bytes(format);
+  if (frame_bytes_32 == 0 || frame_bytes_32 > iso_xfer_size) {
+    TU_LOG_DRV("  AUDIO AS itf %u: frame size %lu not supported\r\n", itf_num, (unsigned long)frame_bytes_32);
+    return p_desc;
+  }
+  const uint16_t frame_bytes = (uint16_t)frame_bytes_32;
+
   // Register one configuration per (endpoint, discrete sampling frequency)
-  const uint8_t frame_bytes = num_channels * tuh_audio_format_bytes(format);
   for (uint8_t e = 0; e < ep_count; e++) {
     const audioh_ep_info_t *ep     = &ep_info[e];
     tuh_audio_stream_t     *stream = audioh_get_stream(p_audio, tu_edpt_dir(ep->ep_addr));
@@ -799,11 +805,15 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const tusb_de
 
     const uint16_t epbuf_size = (stream->dir == TUSB_DIR_IN) ? CFG_TUH_AUDIO_EPIN_BUFSIZE : CFG_TUH_AUDIO_EPOUT_BUFSIZE;
 
+    if (ep->ep_size == 0 || ep->ep_size > iso_xfer_size) {
+      TU_LOG_DRV("  AUDIO AS itf %u alt %u: invalid isochronous ep size %u\r\n", itf_num, alt, ep->ep_size);
+      continue;
+    }
+
     // Capture: the device can deliver up to its max packet size per poll
     // interval, the transfer buffer must fit it
-    if (stream->dir == TUSB_DIR_IN && ep->ep_size > epbuf_size) {
-      TU_LOG_DRV("  AUDIO AS itf %u alt %u: capture ep size %u exceeds transfer buffer %u\r\n", itf_num, alt,
-                 ep->ep_size, epbuf_size);
+    if (stream->dir == TUSB_DIR_IN && (ep->ep_size > epbuf_size || ep->ep_size > CFG_TUH_AUDIO_STREAM_BUFSIZE)) {
+      TU_LOG_DRV("  AUDIO AS itf %u alt %u: capture ep size %u exceeds buffer capacity\r\n", itf_num, alt, ep->ep_size);
       continue;
     }
 
@@ -812,18 +822,16 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const tusb_de
         continue;
       }
 
-      // Playback: the device accepts any packet up to its max packet size
-      // (often advertised larger than the audio rate needs), but the largest
-      // scheduled packet must still fit the transfer buffer
-      if (stream->dir == TUSB_DIR_OUT) {
-        const uint64_t per_interval =
-          (uint64_t)sam_freq[i] * frame_bytes * audioh_interval_us(ep->ep_interval, p_audio->daddr);
-        const uint32_t need = (uint32_t)((per_interval + 999999u) / 1000000u);
-        if (need > epbuf_size) {
-          TU_LOG_DRV("  AUDIO AS itf %u alt %u: playback needs %u B per interval, transfer buffer is %u\r\n", itf_num,
-                     alt, (unsigned)need, epbuf_size);
-          continue;
-        }
+      // The largest whole-frame packet for one poll interval must fit the
+      // endpoint. Playback must also stage it in the transfer buffer and FIFO.
+      const uint64_t frames_numerator = (uint64_t)sam_freq[i] * audioh_interval_us(ep->ep_interval, p_audio->daddr);
+      const uint64_t max_frames       = (frames_numerator + 999999u) / 1000000u;
+      const uint64_t packet_bytes     = max_frames * frame_bytes;
+      if (packet_bytes == 0 || packet_bytes > ep->ep_size ||
+          (stream->dir == TUSB_DIR_OUT && (packet_bytes > epbuf_size || packet_bytes > CFG_TUH_AUDIO_STREAM_BUFSIZE))) {
+        TU_LOG_DRV("  AUDIO AS itf %u alt %u: packet per interval does not fit endpoint/buffers (ep size %u)\r\n",
+                   itf_num, alt, ep->ep_size);
+        continue;
       }
       // Skip duplicate configurations
       bool duplicate = false;
@@ -858,7 +866,6 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const tusb_de
       stream->map[stream->config_count].sam_freq_ctrl  = ep->sam_freq_ctrl;
       stream->config_count++;
     }
-
   }
 
   return p_desc;
@@ -1137,16 +1144,17 @@ bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx
   // the same address, since its packet size and interval may have changed.
   TU_VERIFY(audioh_stream_close_ep(s), false);
 
-  s->active_config = config_idx;
-  s->frame_bytes   = (uint8_t)tuh_audio_config_frame_size(cfg);
-  s->frames_per_ms = (uint16_t)(cfg->sample_rate / 1000);
-  s->frames_rem    = (uint16_t)(cfg->sample_rate % 1000);
-  s->rem_acc       = 0;
-  s->complete_cb   = complete_cb;
-  s->user_data     = user_data;
-  s->state         = STREAM_STATE_CONFIG;
+  const audioh_stream_map_t *map  = &s->map[config_idx];
+  const uint64_t frames_numerator = (uint64_t)cfg->sample_rate * audioh_interval_us(map->ep_interval, s->daddr);
+  s->active_config                = config_idx;
+  s->frame_bytes                  = (uint16_t)tuh_audio_config_frame_size(cfg);
+  s->frames_per_interval          = (uint16_t)(frames_numerator / 1000000u);
+  s->frames_rem                   = (uint32_t)(frames_numerator % 1000000u);
+  s->rem_acc                      = 0;
+  s->complete_cb                  = complete_cb;
+  s->user_data                    = user_data;
+  s->state                        = STREAM_STATE_CONFIG;
 
-  const audioh_stream_map_t *map = &s->map[config_idx];
   TU_LOG_DRV("  AUDIO configure %s stream %u: itf %u alt %u ep %02x\r\n",
              (s->dir == TUSB_DIR_IN) ? "capture" : "playback", s->stream_idx, map->itf_num, map->alt_setting,
              map->ep_addr);

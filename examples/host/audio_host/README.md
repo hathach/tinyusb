@@ -8,7 +8,7 @@ This example demonstrates how to use TinyUSB's USB Audio Host driver (TUH_AUDIO)
 - Discovers the device's logical streams (capture/playback) and their supported configurations (discrete tuples only)
 - Configures and starts an S16_LE capture stream (48 kHz preferred, 44.1 kHz fallback; stereo preferred, mono accepted)
 - Echoes captured audio to an S16_LE playback stream at the same sample rate (same channel count preferred, mono/stereo conversion otherwise)
-- Frame-based FIFO API: `tuh_audio_read()` / `tuh_audio_write()` queue frames; the driver schedules the 1 ms isochronous transfers
+- Frame-based FIFO API: `tuh_audio_read()` / `tuh_audio_write()` queue frames; the driver schedules transfers at the endpoint's polling interval
 - Cycles the streams through three phases (5 s each): mic-only (capture, data dropped), spk-only (sine test tone), and echo (capture looped back to playback)
 
 ## Supported Devices
@@ -95,6 +95,6 @@ Edit `src/tusb_config.h` to modify:
 
 ## Notes
 
-- While a stream is running, the driver keeps one isochronous transfer in flight and re-submits on completion, so transfers are naturally paced at the 1 ms USB frame rate. `tuh_audio_capture_cb()` / `tuh_audio_playback_cb()` report each completed transfer; `tuh_audio_err_cb()` reports failures. The example restarts the failed stream automatically 100 ms after the error callback.
+- While a stream is running, the driver keeps one isochronous transfer in flight and re-submits on completion, so transfers follow the endpoint's `bInterval`. `tuh_audio_capture_cb()` / `tuh_audio_playback_cb()` report each completed transfer; `tuh_audio_err_cb()` reports failures. The example restarts the failed stream automatically 100 ms after the error callback.
 - `tuh_audio_read()` / `tuh_audio_write()` are non-blocking FIFO operations: they return the number of whole frames actually queued/read (0 when the FIFO is empty/full or the stream is not running), and `tuh_audio_read_available()` / `tuh_audio_write_available()` report the FIFO occupancy in frames.
 - Isochronous transfers require the host to poll `tuh_task()` continuously; the capture FIFO absorbs short scheduling gaps, but frames are dropped when it overflows.

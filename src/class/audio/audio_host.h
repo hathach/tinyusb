@@ -44,7 +44,7 @@ extern "C" {
 #endif
 
 // Depth in bytes of the per-stream data FIFO. The FIFO decouples the
-// application's read/write calls from the 1 ms isochronous transfer cadence
+// application's read/write calls from the endpoint's isochronous polling cadence
 // and absorbs rate differences. 1024 bytes hold 4 default (256 B) packets.
 #ifndef CFG_TUH_AUDIO_STREAM_BUFSIZE
   #define CFG_TUH_AUDIO_STREAM_BUFSIZE 1024
