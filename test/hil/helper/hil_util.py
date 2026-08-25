@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # Bottom layer of the HIL harness: the bounded command runner plus the shared helpers and
-# data every other module needs. Stays stdlib-only and imports nothing local -- everything
+# data every other module needs. Stays stdlib-only; its one local dependency is
+# tools/rtt.py (the RTT console, loaded by path below) -- everything
 # else imports this, including the unit tests on GitHub's bare runner; never import them
 # from here. Callers set the module global `verbose`.
 
@@ -497,6 +498,29 @@ def run_alongside(argv: list, work, timeout: int) -> subprocess.CompletedProcess
         _reap()
         raise
     return _reap()
+
+
+# The RTT console implementation lives in tools/rtt.py (importable classes + CLI,
+# stdlib-only, harness-critical — see its module docstring). Loaded by file path so
+# no sys.path entry for tools/ can shadow other imports; re-exported here so the
+# harness keeps addressing hil_util.JlinkRtt.
+import importlib.util as _ilu
+
+_rtt_path = TINYUSB_ROOT / 'tools' / 'rtt.py'
+if not _rtt_path.exists():
+    # name the real cause: a bare FileNotFoundError out of an exec_module here reads
+    # as a harness bug, when the actual problem is an incompletely staged tree
+    raise ImportError(f'{_rtt_path} is missing — the RTT console lives there and the '
+                      f'harness depends on it; stage it alongside test/hil (hil_ci.sh does)')
+_rtt_spec = _ilu.spec_from_file_location('tinyusb_tools_rtt', _rtt_path)
+_rtt = _ilu.module_from_spec(_rtt_spec)
+sys.modules[_rtt_spec.name] = _rtt   # registered: RttError must be picklable across the fork Pool
+_rtt_spec.loader.exec_module(_rtt)
+JlinkRtt = _rtt.JlinkRtt
+OpenocdRtt = _rtt.OpenocdRtt
+RttError = _rtt.RttError
+RTT_BANNER_RE = _rtt.RTT_BANNER_RE
+strip_banner = _rtt.strip_banner
 
 
 def _cmd_label(cmd) -> str:

@@ -360,7 +360,42 @@ def check_host_serial(board: dict, do_reset: bool = True, want_hello: bool = Fal
 
     do_reset=False listens to the firmware as-is: used right after a flash whose
     own reset already started it — a second openocd/JLink session back-to-back on
-    the same probe can fail transiently and leave the target halted."""
+    the same probe can fail transiently and leave the target halted.
+
+    "logger": "rtt" boards have no VCOM: the same check runs over the probe's RTT
+    console instead. The reset happens BEFORE the console opens (it owns the probe),
+    which also zeroes the .bss ring — so pre-reset backlog cannot count as life, and
+    without a reset Commander delivers the boot burst the preceding flash left."""
+    if board.get('logger') == 'rtt':
+        if do_reset:
+            getattr(hil_flash, f'reset_{board["flasher"]["name"].lower()}')(board)
+        try:
+            ser = hil_util.JlinkRtt(board, timeout=0.3)
+        except hil_util.RttError as e:
+            say(f'{board["name"]:26} no RTT console: {e}')
+            return None
+        try:
+            data = b''
+            deadline = time.monotonic() + SERIAL_WAIT
+            while time.monotonic() < deadline:
+                ser.write(b'U')
+                data += ser.read(256)
+                # JLinkExe's banner arrives whether or not the target is alive --
+                # judged unfiltered it scores a dead board 'alive'. Same shared filter
+                # as test_host_device_info; complete_only drops a trailing partial
+                # line, so a banner FRAGMENT split by this read boundary cannot count
+                # as target output either.
+                td = hil_util.strip_banner(data, complete_only=True)
+                if want_hello:
+                    if b'Hello from TinyUSB' in td:
+                        return td
+                elif td and not boardtest_output(td):
+                    return td
+            return hil_util.strip_banner(data)
+        except hil_util.RttError:
+            return None  # console died mid-poll (server exited, probe dropped)
+        finally:
+            ser.close()
     import serial
     try:
         port = hil_util.get_serial_dev(board['flasher']['uid'], None, None, 0)
@@ -448,6 +483,10 @@ def build_example(board: dict, variant: str, example: str) -> int:
            '-j', str(max(1, (os.cpu_count() or _jobs) // _jobs))]
     if vcfg['name'] != name:
         cmd += ['--build-name', vcfg['name']]
+    # board-level build.args, like hil_test.build_board and the CI matrix: without it a
+    # "logger": "rtt" board gets a no-control-block image and is scored dead on the spot
+    for d in (board.get('build') or {}).get('args', []):
+        cmd += ['-D', d]
     for d in vcfg.get('defines', []):
         cmd += ['-D', d]
     for tok in vcfg.get('flags', '').split():

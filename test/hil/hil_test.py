@@ -191,6 +191,10 @@ class TestsCfg(TypedDict, total=False):
     dev_attached: list[AttachedDevCfg]
 
 
+class BuildCfg(TypedDict, total=False):
+    args: list[str]     # cmake -D defines applied to every variant, e.g. ["LOGGER=rtt"]
+
+
 class VariantCfg(TypedDict, total=False):
     name: str           # build dir (cmake-build-<name>) and HIL report row
     flags: str          # raw CFLAGS, e.g. "-DCFG_TUD_DWC2_DMA_ENABLE=1"
@@ -206,6 +210,8 @@ class Board(TypedDict):
     # needs one carries a single variant named after itself (metro_m4_express /
     # MAX3421_HOST=1), which is exactly what the `or [...]` default below synthesises
     variant: NotRequired[list[VariantCfg]]
+    build: NotRequired[BuildCfg]  # defines shared by ALL variants (variant defines are per-row)
+    logger: NotRequired[str]  # "rtt": console = the debug probe's RTT channel 0, not a VCOM (rtt skill)
     toolchain: NotRequired[str]  # CI build bucket override, e.g. "riscv-gcc" (consumed by hil_ci_set_matrix.py)
 
 
@@ -292,6 +298,25 @@ def open_serial_dev(port: str):
     return ser
 
 
+def open_board_console(board: Board):
+    """The board's log console: its probe's VCOM, or RTT when the probe has none.
+
+    Both ends expose the same read/in_waiting/write/close surface, so the tests read one
+    the same way they read the other."""
+    if board.get('logger') == 'rtt':
+        # JlinkRtt speaks JLinkExe only; an openocd/stlink flasher would yield
+        # `-device ''` and fail 15 s later with a misleading port error. The OpenOCD
+        # RTT route is validated manually on native probes but has no harness backend
+        # yet (rtt skill; followup doc) — and never point it at ea4088's LPC-Link2
+        # (measured: knocks that probe off USB; other J-Link-OB probes untested)
+        assert board['flasher']['name'].lower() == 'jlink', \
+            f'{board["name"]}: "logger": "rtt" needs a jlink flasher, not {board["flasher"]["name"]}'
+        return hil_util.JlinkRtt(board)
+    ser = open_serial_dev(hil_util.get_serial_dev(board['flasher']["uid"], None, None, 0))
+    ser.timeout = 0.1
+    return ser
+
+
 def serial_write_all(ser: serial.Serial, data: bytes):
     # write_timeout is a deadline for the whole call. A timeout means the device stopped
     # draining, and it is fatal: pyserial loses the partial-write count on raise, so
@@ -300,7 +325,18 @@ def serial_write_all(ser: serial.Serial, data: bytes):
         ser.write(data)
     except serial.SerialTimeoutException:
         raise AssertionError(f'Serial write timeout after {SERIAL_WRITE_TIMEOUT:.1f}s')
+    except hil_util.RttError as e:
+        # the RTT console's failure contract (stall/closed/peer death): same
+        # drain-stopped meaning as the serial timeout -- a test failure, not a harness
+        # crash. Deliberately NOT bare RuntimeError: NotImplementedError and CPython's
+        # own 'dictionary changed size during iteration' are RuntimeErrors too, and a
+        # harness bug must not be reported as this board misbehaving.
+        raise AssertionError(f'Console write failed: {e}')
 
+
+# J-Link Commander's telnet greeting: never target output (defined with the console
+# in tools/rtt.py; hil_pool_check strips it through the same object)
+RTT_BANNER_RE = hil_util.RTT_BANNER_RE
 
 LP_OPEN_TIMEOUT = 5   # bound on opening the printer lp node; see test_device_printer_to_cdc
 # Runs under hil_util.run_alongside as `python3 -c`. Inline rather than a file so hil_ci.sh's
@@ -508,34 +544,53 @@ def test_host_device_info(board):
     flasher = board['flasher']
     declared_devs = [f'{d["vid_pid"]}_{d["serial"]}' for d in board['tests']['dev_attached']]
 
-    port = hil_util.get_serial_dev(flasher["uid"], None, None, 0)
-    ser = open_serial_dev(port)
-    ser.timeout = 0.1
+    if board.get('logger') == 'rtt':
+        # The RTT console owns the probe, so reset BEFORE opening it (Commander then
+        # delivers the buffered boot burst). Unconditional, not only under --skip-flash:
+        # a previous run's console drained the ring, and the enumeration lines print
+        # only once — without this a re-run on unchanged firmware reads an empty ring.
+        ret = getattr(hil_flash, f'reset_{flasher["name"].lower()}')(board)
+        assert ret.returncode == 0, 'Failed to reset device'
+    ser = open_board_console(board)
+    try:
+        if board.get('logger') != 'rtt':
+            # reset device since we can miss the first line; on the VCOM the console
+            # survives the reset, so resetting after open catches the boot banner.
+            ret = getattr(hil_flash, f'reset_{flasher["name"].lower()}')(board)
+            assert ret.returncode == 0, 'Failed to reset device'
 
-    # reset device since we can miss the first line
-    ret = getattr(hil_flash, f'reset_{flasher["name"].lower()}')(board)
-    assert ret.returncode == 0, 'Failed to reset device'
+        data = b''
+        timeout = enum_timeout()
+        while timeout > 0:
+            # infra death is not a board failure: without this a dead JLinkExe/probe
+            # would burn the whole timeout and report as 'No data from device'
+            assert not getattr(ser, 'eof', False), \
+                'RTT console died (its server exited or the probe dropped off USB)'
+            new_data = ser.read(ser.in_waiting or 1)
+            if new_data:
+                data += new_data
+            enum_dev_sn = []
+            for l in data.decode('utf-8', errors='ignore').splitlines():
+                vid_pid_sn = re.search(r'ID ([0-9a-fA-F]+):([0-9a-fA-F]+) SN (\w+)', l)
+                if vid_pid_sn:
+                    enum_dev_sn.append(f'{vid_pid_sn.group(1)}_{vid_pid_sn.group(2)}_{vid_pid_sn.group(3)}')
+            if set(declared_devs).issubset(set(enum_dev_sn)):
+                break
+            time.sleep(0.1)
+            timeout -= 0.1
+    finally:
+        ser.close()
 
-    data = b''
-    timeout = enum_timeout()
-    while timeout > 0:
-        new_data = ser.read(ser.in_waiting or 1)
-        if new_data:
-            data += new_data
-        enum_dev_sn = []
-        for l in data.decode('utf-8', errors='ignore').splitlines():
-            vid_pid_sn = re.search(r'ID ([0-9a-fA-F]+):([0-9a-fA-F]+) SN (\w+)', l)
-            if vid_pid_sn:
-                enum_dev_sn.append(f'{vid_pid_sn.group(1)}_{vid_pid_sn.group(2)}_{vid_pid_sn.group(3)}')
-        if set(declared_devs).issubset(set(enum_dev_sn)):
-            break
-        time.sleep(0.1)
-        timeout -= 0.1
-    ser.close()
-
-    if len(data) == 0:
-        assert False, 'No data from device'
     lines = data.decode('utf-8', errors='ignore').splitlines()
+    if board.get('logger') == 'rtt':
+        # JLinkExe's telnet banner is delivered at connect, whether or not it ever
+        # finds the control block, so len(data) alone cannot tell "board said nothing"
+        # from "console never attached to the ring" -- drop the banner first
+        target_lines = hil_util.strip_banner(data).splitlines()
+        assert target_lines, ('No data from device: the RTT console attached but the target '
+                              'produced nothing -- firmware built without LOGGER=rtt, or SWD lost')
+    elif len(data) == 0:
+        assert False, 'No data from device'
 
     enum_dev_sn = []
     for l in lines:
@@ -1729,19 +1784,23 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
 
 def build_board(board: Board) -> tuple[str, int]:
     """Build firmware for this board via tools/build.py.
-    Honors board config's variant list (name, defines, flags).
+    Honors board config's variant list and build.args defines.
     Output goes to cmake-build/cmake-build-<variant>/ (tools/build.py layout).
 
     Unbounded on purpose: --build is a local convenience (no CI workflow passes it), so
     the developer watching the build is the timeout."""
     name = board['name']
     variants = board.get('variant') or [{'name': name, 'flags': ''}]
+    bcfg = cast(BuildCfg, board.get('build') or {})   # tolerate "build": null in hand-edited rosters
+    extra_defs = bcfg.get('args', [])
 
     failed = 0
     for v in variants:
         cmd = [sys.executable, str(hil_util.TINYUSB_ROOT / 'tools' / 'build.py'), '-b', name]
         if v['name'] != name:
             cmd += ['--build-name', v['name']]
+        for d in extra_defs:
+            cmd += ['-D', d]
         for d in v.get('defines', []):
             cmd += ['-D', d]
         for tok in v.get('flags', '').split():
@@ -2337,6 +2396,49 @@ def main() -> None:
         config_boards = [e for e in config['boards'] if e['name'] in boards]
     config_boards = [e for e in config_boards if e['flasher']['name'] not in args.exclude_flasher
                      and (not args.flasher or e['flasher']['name'] in args.flasher)]
+
+    # fail rtt misconfigurations before the first flash cycle -- but only for boards
+    # this run actually touches: one bad roster entry must not abort other runs' subsets
+    def _rtt_config_abort(msg: str):
+        # loud AND leaving evidence, like the no-boards branch below: exiting with no
+        # report at all lets the PR comment keep the previous push's stale table
+        print(f'ERROR: {msg}', flush=True)
+        rd = Path(os.environ.get('HIL_REPORT_DIR', '.'))
+        hil_report.mark_report_no_boards(rd, f'config error: {msg}', fresh=not args.accumulate)
+        sys.exit(1)
+
+    bad_logger = [e['name'] for e in config_boards if e.get('logger') not in (None, 'rtt')]
+    if bad_logger:
+        # only the exact string activates RTT handling; anything else would silently
+        # mean VCOM and reproduce the misleading 'No serial device found' failure
+        _rtt_config_abort(f'unknown "logger" value (only "rtt" is supported): {", ".join(bad_logger)}')
+    bad_rtt = [e['name'] for e in config_boards
+               if e.get('logger') == 'rtt' and e['flasher']['name'].lower() != 'jlink']
+    if bad_rtt:
+        # JlinkRtt speaks JLinkExe only (the OpenOCD RTT route is manual — rtt skill)
+        _rtt_config_abort(f'"logger": "rtt" needs a jlink flasher: {", ".join(bad_rtt)}')
+    rtt_no_logger_arg = [e['name'] for e in config_boards
+                         if e.get('logger') == 'rtt'
+                         and 'LOGGER=rtt' not in ((e.get('build') or {}).get('args', []))]
+    if rtt_no_logger_arg:
+        # warning, not an abort: a prebuilt cmake-build-<board> configured with
+        # -DLOGGER=rtt is a legitimate build path that carries no build.args -- but a
+        # --build/CI-matrix build of these boards would produce UART firmware and
+        # every test would time out as 'the target produced nothing'
+        print(f'warning: "logger": "rtt" without LOGGER=rtt in build.args '
+              f'({", ".join(rtt_no_logger_arg)}) -- fine for prebuilt example sets, '
+              f'wrong for --build/CI builds', flush=True)
+    rtt_fixture = [e['name'] for e in config_boards
+                   if e.get('logger') == 'rtt'
+                   and any(d.get('is_cdc') or d.get('is_msc')
+                           for d in e.get('tests', {}).get('dev_attached', []))]
+    if rtt_fixture:
+        # interim guard, removed when the followup lands: cdc_msc_hid/msc_file_explorer
+        # still open the flasher VCOM directly and would die mid-run on an rtt board
+        _rtt_config_abort(f'"logger": "rtt" boards cannot carry is_cdc/is_msc fixtures yet '
+                          f'(host cdc/msc tests bypass the RTT console — see '
+                          f'the rtt harness-adoption doc in docs/superpowers/followup/): {", ".join(rtt_fixture)}')
+
     if not config_boards:
         # same reason the unknown -b board exits 1: 'No tests were run.' with rc 0 reads as
         # a green HIL leg, so a roster edit emptying a leg's filter stops testing silently

@@ -987,6 +987,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_hil_bounded.py',
             'test/hil/test/test_hil_health.py',
             'test/hil/test/test_hil_report.py',
+            'test/hil/test/test_hil_rtt.py',
             'test/hil/test/test_hil_util.py',
         ], 'test/hil/test/ gained or lost a file; it is carved out of rule 2, so confirm '
            'the rig still does not read anything in there before updating this list')
