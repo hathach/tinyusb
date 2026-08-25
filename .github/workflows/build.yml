@@ -41,6 +41,7 @@ jobs:
               - 'tools/ci_select.py'
               - 'tools/get_deps.py'
               - 'tools/metrics.py'
+              - 'tools/rtt.py'
               - '.github/actions/**'
               - '.github/workflows/build.yml'
               - '.github/workflows/build_util.yml'

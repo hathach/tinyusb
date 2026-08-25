@@ -69,7 +69,7 @@ repos:
   # and md5-checks the logo header from there as its MTP fixtures.
   - id: hil-test
     name: hil-test
-    files: ^(test/hil/|examples/device/mtp/src/)
+    files: ^(test/hil/|examples/device/mtp/src/|tools/rtt\.py$)
     entry: python3 -m unittest discover -s test/hil/test -p 'test_hil*.py'
     pass_filenames: false
     language: system
@@ -84,7 +84,7 @@ repos:
     language: system
   - id: ci-select-test
     name: ci-select-test
-    files: ^(hw/bsp/|hw/mcu/|src/|examples/|test/hil/|tools/(ci_select|build|build_utils|get_deps|metrics)\.py$|\.github/(scripts|workflows)/|\.circleci/)
+    files: ^(hw/bsp/|hw/mcu/|src/|examples/|test/hil/|tools/(ci_select|build|build_utils|get_deps|metrics|rtt)\.py$|\.github/(scripts|workflows)/|\.circleci/)
     entry: sh -c "python3 test/hil/test/test_ci_select.py && python3 test/hil/test/test_ci_metrics.py && cd test/hil/test && python3 -m unittest -q test_hil_util.BottomLayer"
     pass_filenames: false
     language: system
