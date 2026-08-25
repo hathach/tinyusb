@@ -348,12 +348,18 @@ static void audio_app_restart_stream(uintptr_t param) {
   }
 }
 
-// Invoked when an isochronous transfer fails: the stream was stopped by the
-// driver, re-open it after a short delay so the device can recover.
+// Invoked when stream activation or an isochronous transfer fails: the stream
+// was stopped by the driver, re-open it after a short delay so the device can
+// recover.
 void tuh_audio_err_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_bytes) {
   (void)xferred_bytes;
   err_cb_count++;
-  printf("  AUDIO transfer error: addr=%u stream=%u xferred_bytes=%u\r\n", idx, stream_idx, (unsigned)xferred_bytes);
+  if (stream_idx == cap_stream_idx) {
+    mic_ready = false;
+  } else if (stream_idx == spk_stream_idx) {
+    spk_ready = false;
+  }
+  printf("  AUDIO stream error: idx=%u stream=%u xferred_bytes=%u\r\n", idx, stream_idx, (unsigned)xferred_bytes);
   app_defer_ms_async(100, (app_defer_func_t)audio_app_restart_stream, ((uintptr_t)idx << 8) | stream_idx);
 }
 

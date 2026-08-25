@@ -373,6 +373,12 @@ static void audioh_stream_fail(tuh_audio_stream_t *s) {
   s->running       = false;
 }
 
+static void audioh_stream_error(tuh_audio_stream_t *s, uint16_t xferred_bytes) {
+  s->running = false;
+  tu_edpt_stream_clear(&s->edpt);
+  tuh_audio_err_cb(s->idx, s->stream_idx, xferred_bytes);
+}
+
 // Set the endpoint sampling frequency (3 bytes little-endian)
 static bool audioh_stream_set_freq(tuh_audio_stream_t *s, tuh_xfer_cb_t complete_cb) {
   const audioh_stream_map_t       *map  = &s->map[s->active_config];
@@ -496,9 +502,7 @@ bool audioh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uin
   // Failed, stalled, or aborted transfers never carry valid audio data
   if (result != XFER_RESULT_SUCCESS) {
     TU_LOG_DRV("  AUDIO transfer failed: addr=%u ep=%02x result=%u\r\n", dev_addr, ep_addr, result);
-    s->running = false;
-    tu_edpt_stream_clear(&s->edpt); // discard queued data
-    tuh_audio_err_cb(s->idx, s->stream_idx, (uint16_t)xferred_bytes);
+    audioh_stream_error(s, (uint16_t)xferred_bytes);
     return true;
   }
 
@@ -1080,7 +1084,7 @@ static void audioh_stream_start_set_freq_complete(tuh_xfer_t *xfer) {
   }
   if (xfer->result != XFER_RESULT_SUCCESS) {
     TU_LOG_DRV("  AUDIO set sampling frequency failed: result=%u\r\n", xfer->result);
-    s->running = false;
+    audioh_stream_error(s, 0);
     return;
   }
   audioh_stream_start_xfer(s);
@@ -1090,7 +1094,7 @@ static bool audioh_stream_start_active(tuh_audio_stream_t *s) {
   const audioh_stream_map_t *map = &s->map[s->active_config];
   if (map->sam_freq_ctrl) {
     if (!audioh_stream_set_freq(s, audioh_stream_start_set_freq_complete)) {
-      s->running = false;
+      audioh_stream_error(s, 0);
       return false;
     }
   } else {
@@ -1106,7 +1110,7 @@ static void audioh_stream_start_complete(tuh_xfer_t *xfer) {
   }
   if (xfer->result != XFER_RESULT_SUCCESS) {
     TU_LOG_DRV("  AUDIO SET_INTERFACE activate failed: result=%u\r\n", xfer->result);
-    s->running = false;
+    audioh_stream_error(s, 0);
     return;
   }
   (void)audioh_stream_start_active(s);
@@ -1152,16 +1156,18 @@ bool tuh_audio_stop(uint8_t dev_idx, uint8_t stream_idx) {
   tuh_audio_stream_t *s = audioh_get_stream_by_idx(p_audio, stream_idx);
   TU_VERIFY(s && s->state == STREAM_STATE_READY, false);
 
+  const audioh_stream_map_t *map = &s->map[s->active_config];
+  // Leave the stream running if SET_INTERFACE cannot be submitted, so the
+  // caller can retry without the host and device states diverging.
+  TU_VERIFY(tuh_interface_set(s->daddr, map->itf_num, 0, audioh_stream_stop_complete, (uintptr_t)s), false);
+
   // The in-flight transfer (if any) completes and its data is discarded;
-  // queued frames are dropped as well. The interface is deactivated (alt 0)
-  // so the device stops transferring.
+  // queued frames are dropped as well. The interface is being deactivated so
+  // the device stops transferring.
   s->running = false;
   tu_edpt_stream_clear(&s->edpt);
   s->rem_acc = 0; // restart the pacing accumulator on the next tuh_audio_start()
-
-  // Keep stop retryable if EP0 is busy and SET_INTERFACE cannot be submitted.
-  const audioh_stream_map_t *map = &s->map[s->active_config];
-  return tuh_interface_set(s->daddr, map->itf_num, 0, audioh_stream_stop_complete, (uintptr_t)s);
+  return true;
 }
 
 uint32_t tuh_audio_write(uint8_t dev_idx, uint8_t stream_idx, const void *buffer, uint32_t frame_count) {

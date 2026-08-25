@@ -239,8 +239,9 @@ void tuh_audio_capture_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_byte
 // a complete packet is not queued.
 void tuh_audio_playback_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_bytes);
 
-// Invoked when an isochronous transfer fails. The stream is stopped
-// (tuh_audio_start() must be called again to resume).
+// Invoked when asynchronous stream activation or an isochronous transfer
+// fails. The stream is stopped (tuh_audio_start() must be called again to
+// resume). xferred_bytes is zero for an activation failure.
 void tuh_audio_err_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_bytes);
 
 //--------------------------------------------------------------------+
