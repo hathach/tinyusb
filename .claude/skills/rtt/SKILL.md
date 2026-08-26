@@ -38,8 +38,10 @@ probes, and the `ninja <example>-jlink` flash target grabs whichever J-Link
 enumerates first: pin it (`-DJLINK_OPTION="-USB <serial>"`) or flash with
 `JLinkExe -SelectEmuBySN`. The HIL harness uses the same implementation
 (`hil_util.JlinkRtt`) via a board's `"logger": "rtt"` (jlink flashers
-only) + `"build": {"args": ["LOGGER=rtt"]}` config entry — `build.args`
-feeds `hil_test.py --build`; a prebuilt `cmake-build-<board>` set must be
+only) plus a single self-named variant carrying the define —
+`"variant": [{"name": "<board>", "defines": ["LOGGER=rtt"]}]`, the roster's
+one shape for always-on defines — variant defines feed `hil_test.py
+--build` and the CI matrix; a prebuilt `cmake-build-<board>` set must be
 configured with the same `-DLOGGER=rtt` itself. Keep harness console builds
 quiet (`LOGGER=rtt` WITHOUT `LOG=2`): reset-then-attach only preserves what
 fits the up-buffer (stock 1 KB, NO_BLOCK_SKIP), and a chatty boot burst

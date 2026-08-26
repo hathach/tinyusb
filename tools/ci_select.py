@@ -770,7 +770,7 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
                  if any(e in pool for pool in ALL_TESTS.values()) or e in extras}
         if lib == 'SEGGER_RTT':
             # no example names this lib, but a board whose roster entry says
-            # "logger": "rtt" (build.args LOGGER=rtt) reads EVERY test's console
+            # "logger": "rtt" (variant defines LOGGER=rtt) reads EVERY test's console
             # through it -- a break here silently breaks all of that board's rows
             rtt_boards = [b['name'] for b in roster_boards if b.get('logger') == 'rtt']
             if rtt_boards:
@@ -1156,7 +1156,7 @@ def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
             # empty means empty: no example's build pulls this lib in, so no MAIN-
             # matrix build compiles it. (lib/SEGGER_RTT is reached through LOGGER=rtt,
             # which the main matrix never sets; the hil-build legs set it only for
-            # roster boards carrying build.args, via the HIL axis's SEGGER_RTT rule.
+            # roster boards whose variant defines carry it, via the HIL SEGGER_RTT rule.
             # No committed CI roster has such a board yet, so a SEGGER_RTT edit is
             # currently neither built nor HIL-tested by CI -- verify vendor bumps
             # manually until a rig board adopts "logger": "rtt".)

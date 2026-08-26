@@ -191,10 +191,6 @@ class TestsCfg(TypedDict, total=False):
     dev_attached: list[AttachedDevCfg]
 
 
-class BuildCfg(TypedDict, total=False):
-    args: list[str]     # cmake -D defines applied to every variant, e.g. ["LOGGER=rtt"]
-
-
 class VariantCfg(TypedDict, total=False):
     name: str           # build dir (cmake-build-<name>) and HIL report row
     flags: str          # raw CFLAGS, e.g. "-DCFG_TUD_DWC2_DMA_ENABLE=1"
@@ -210,7 +206,6 @@ class Board(TypedDict):
     # needs one carries a single variant named after itself (metro_m4_express /
     # MAX3421_HOST=1), which is exactly what the `or [...]` default below synthesises
     variant: NotRequired[list[VariantCfg]]
-    build: NotRequired[BuildCfg]  # defines shared by ALL variants (variant defines are per-row)
     logger: NotRequired[str]  # "rtt": console = the debug probe's RTT channel 0, not a VCOM (rtt skill)
     toolchain: NotRequired[str]  # CI build bucket override, e.g. "riscv-gcc" (consumed by hil_ci_set_matrix.py)
 
@@ -1784,23 +1779,19 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
 
 def build_board(board: Board) -> tuple[str, int]:
     """Build firmware for this board via tools/build.py.
-    Honors board config's variant list and build.args defines.
+    Honors board config's variant list.
     Output goes to cmake-build/cmake-build-<variant>/ (tools/build.py layout).
 
     Unbounded on purpose: --build is a local convenience (no CI workflow passes it), so
     the developer watching the build is the timeout."""
     name = board['name']
     variants = board.get('variant') or [{'name': name, 'flags': ''}]
-    bcfg = cast(BuildCfg, board.get('build') or {})   # tolerate "build": null in hand-edited rosters
-    extra_defs = bcfg.get('args') or []   # "args": null is as legal as a missing key
 
     failed = 0
     for v in variants:
         cmd = [sys.executable, str(hil_util.TINYUSB_ROOT / 'tools' / 'build.py'), '-b', name]
         if v['name'] != name:
             cmd += ['--build-name', v['name']]
-        for d in extra_defs:
-            cmd += ['-D', d]
         for d in v.get('defines', []):
             cmd += ['-D', d]
         for tok in v.get('flags', '').split():
@@ -2417,17 +2408,19 @@ def main() -> None:
     if bad_rtt:
         # JlinkRtt speaks JLinkExe only (the OpenOCD RTT route is manual — rtt skill)
         _rtt_config_abort(f'"logger": "rtt" needs a jlink flasher: {", ".join(bad_rtt)}')
-    rtt_no_logger_arg = [e['name'] for e in config_boards
+    rtt_no_logger_def = [e['name'] for e in config_boards
                          if e.get('logger') == 'rtt'
-                         and 'LOGGER=rtt' not in ((e.get('build') or {}).get('args') or [])]
-    if rtt_no_logger_arg:
+                         and any('LOGGER=rtt' not in (v.get('defines') or [])
+                                 for v in (e.get('variant') or [{}]))]
+    if rtt_no_logger_def:
         # warning, not an abort: a prebuilt cmake-build-<board> configured with
-        # -DLOGGER=rtt is a legitimate build path that carries no build.args -- but a
+        # -DLOGGER=rtt is a legitimate build path the roster need not describe -- but a
         # --build/CI-matrix build of these boards would produce UART firmware and
-        # every test would time out as 'the target produced nothing'
-        print(f'warning: "logger": "rtt" without LOGGER=rtt in build.args '
-              f'({", ".join(rtt_no_logger_arg)}) -- fine for prebuilt example sets, '
-              f'wrong for --build/CI builds', flush=True)
+        # every test would time out as 'the target produced nothing'. An always-on
+        # define is expressed as a single self-named variant (see the Board comment).
+        print(f'warning: "logger": "rtt" board has a variant without LOGGER=rtt in its '
+              f'defines ({", ".join(rtt_no_logger_def)}) -- fine for prebuilt example '
+              f'sets, wrong for --build/CI builds', flush=True)
     rtt_fixture = [e['name'] for e in config_boards
                    if e.get('logger') == 'rtt'
                    and any(d.get('is_cdc') or d.get('is_msc')

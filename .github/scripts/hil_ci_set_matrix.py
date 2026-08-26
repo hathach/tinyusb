@@ -113,10 +113,9 @@ def main():
 
             # Each variant builds into cmake-build-<variant.name> with its own cmake
             # -D defines and raw CFLAGS. No 'variant' -> a single build named after
-            # the board. build.args defines apply to every variant (same contract as
-            # hil_test.py's build_board — e.g. LOGGER=rtt console boards).
+            # the board; an always-on define (MAX3421_HOST=1, LOGGER=rtt) is a single
+            # self-named variant carrying it.
             variants = board.get('variant') or [{'name': name, 'flags': ''}]
-            extra_defs = (board.get('build') or {}).get('args') or []
             for v in variants:
                 arg = build_board
                 if v['name'] != name:
@@ -126,8 +125,6 @@ def main():
                 # build_board's argv path. The SAME string also reaches the get_deps
                 # env expansion and the artifact-name charset, where spaced/quoted
                 # values still fail (loudly) -- keep defines space-free
-                for d in extra_defs:
-                    arg += f' -D{shlex.quote(d)}'
                 for d in v.get('defines', []):
                     arg += f' -D{shlex.quote(d)}'
                 for tok in v.get('flags', '').split():
