@@ -1069,8 +1069,13 @@ def test_device_printer_to_cdc(board):
             ready.unlink(missing_ok=True)
         # stderr, not stdout: run_alongside keeps the payload stream clean, so a traceback
         # from the reader now arrives on its own pipe
-        assert r.returncode == 0, (f'CDC->Printer reader failed ({size} bytes, rc '
-                                   f'{r.returncode}): {hil_util.cmd_stdout_text(r.stderr)[:200]}')
+        # rc 124 is run_alongside's kill -- a blocked usblp_open leaves stderr EMPTY, so
+        # without the fallback this renders as 'failed (32 bytes, rc 124):' and nothing
+        rdetail = hil_util.cmd_stdout_text(r.stderr).strip()[:200]
+        assert r.returncode == 0, (
+            f'CDC->Printer reader failed ({size} bytes): {rdetail}' if rdetail else
+            f'printer: reading {lp_dev} blocked (device wedged): the reader was killed on '
+            f'its bound (rc {r.returncode})')
         assert r.stdout == test_data, (f'CDC->Printer wrong data ({size} bytes):\n'
                                        f'  expected: {test_data[:64]}\n  received: {r.stdout[:64]}')
         time.sleep(0.2)
@@ -1757,7 +1762,11 @@ def _tests_for(board: Board) -> list:
     return test_list
 
 
-def test_board(board: Board) -> tuple[str, int, list[str], list, float]:
+def test_board(board: Board) -> tuple:
+    # (name, err_count, failed_tests, rows, duration[, blind, strays]) -- the board-LOCKED
+    # early return is 5 wide, the normal one 7. _blind_note and _stray_note index 5 and 6
+    # behind a len() guard, so a field inserted before them reads a WRONG SLOT rather than
+    # raising: a duration would report as a stray count.
     swept = False
     name = board['name']
     flasher = board['flasher']
@@ -2333,9 +2342,6 @@ def main() -> None:
     report_dir = Path(os.environ.get('HIL_REPORT_DIR', '.'))
     failed_fname = report_dir / (config_file.name + '.failed')
     fresh = not args.accumulate
-    # The unlink is DEFERRED to inside the pool try/except below: wiping here leaves
-    # Manager() and Pool() running with the old report gone and no report-writing path
-    # armed, so an EAGAIN/ENOMEM on fork gives CI an EMPTY report dir with no reason.
 
     seed = os.getenv('HIL_SHUFFLE_SEED') or str(int(time.time()))
     log_line(f'test-order shuffle seed: {seed} (HIL_SHUFFLE_SEED={seed} to replay); '

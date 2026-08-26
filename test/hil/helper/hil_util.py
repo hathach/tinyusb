@@ -11,6 +11,7 @@ import glob
 import os
 import signal
 import subprocess
+import unicodedata
 import threading
 import sys
 from pathlib import Path
@@ -90,6 +91,25 @@ def pos_float_env(name: str, default: float) -> float:
 CMD_TIMEOUT = pos_int_env('HIL_CMD_TIMEOUT', 180)
 
 TINYUSB_ROOT = Path(__file__).resolve().parents[3]  # test/hil/helper/ -> repo root
+
+
+def display_width(s: str) -> int:
+    """Terminal COLUMNS, not characters.
+
+    The status marks the reports use -- ✅ ❌ ⚪ ⚠ 🔒 -- are one Python character and TWO
+    columns wide. Measuring with len() pads every cell containing one a column short, so
+    the pipes drift out of line against the header rule for the whole table.
+    """
+    return sum(2 if unicodedata.east_asian_width(c) in 'WF' else 1 for c in s)
+
+
+def pad(s: str, width: int, center: bool = False) -> str:
+    """str.ljust/center, measured in display columns. See display_width."""
+    room = max(0, width - display_width(s))
+    if not center:
+        return s + ' ' * room
+    left = room // 2
+    return ' ' * left + s + ' ' * (room - left)
 
 
 def cmd_stdout_text(out: Any) -> str:
