@@ -161,6 +161,30 @@ typedef struct {
   bool     feedback_opened;
 } audioh_playback_t;
 
+// Control-transfer state does not require USB-accessible memory.
+typedef struct {
+  tuh_xfer_cb_t complete_cb;
+  uintptr_t     user_data;
+  void         *value;
+  union {
+    struct {
+      uint8_t width;
+      uint8_t value_type;
+    } control;
+    struct {
+      uint8_t stream_idx;
+      uint8_t range_step;
+    } mount;
+  } fu;
+  #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC2
+  struct {
+    uint8_t rate_source_idx;
+    bool    read_cur;
+  } clock;
+  #endif
+  bool fu_busy;
+} audioh_ctrl_state_t;
+
 // One logical stream (capture or playback)
 typedef struct {
   // instance info (set at init, preserved across close/open)
@@ -213,9 +237,10 @@ typedef struct {
   audioh_rate_source_t rate_source[AUDIOH_MAX_RATE_SOURCES];
 
   // Logical streams: playback first, then capture (stream index order)
-  tuh_audio_stream_t out_stream;
-  tuh_audio_stream_t in_stream;
-  audioh_playback_t  playback;
+  tuh_audio_stream_t  out_stream;
+  tuh_audio_stream_t  in_stream;
+  audioh_playback_t   playback;
+  audioh_ctrl_state_t ctrl;
 } audioh_interface_t;
 
   #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC2
@@ -223,41 +248,34 @@ typedef struct {
   #endif
 
 typedef struct {
-  // Sampling-frequency SET completes before feedback starts, so both
-  // transfers can use one stable DMA buffer.
-  TUH_EPBUF_DEF(rate_feedback, 4);
+  // Clock discovery completes before mount. Afterwards its storage is reused
+  // by independently cache-aligned sampling-frequency and Feature Unit buffers.
+  union {
   #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC2
-  TUH_EPBUF_DEF(clock_range, AUDIOH_CLOCK_RANGE_BUFSIZE);
+    TUH_EPBUF_DEF(clock_range, AUDIOH_CLOCK_RANGE_BUFSIZE);
   #endif
-  TUH_EPBUF_DEF(fu_ctrl, 8);                         // feature-unit SET data
+    struct {
+      TUH_EPBUF_DEF(rate_ctrl, 4);
+      TUH_EPBUF_DEF(fu_ctrl, 8);
+    } runtime;
+  } control;
+  // Explicit feedback can overlap both runtime control transfers.
+  TUH_EPBUF_DEF(feedback, 4);
   TUH_EPBUF_DEF(epin, CFG_TUH_AUDIO_EPIN_BUFSIZE);   // capture transfer buffer
   TUH_EPBUF_DEF(epout, CFG_TUH_AUDIO_EPOUT_BUFSIZE); // playback transfer buffer
-  // Feature-unit request state: only one operation in flight per device
-  tuh_xfer_cb_t complete_cb;
-  uintptr_t     user_data;
-  void         *value;
-  union {
-    struct {
-      uint8_t width;
-      uint8_t value_type;
-    } control;
-    struct {
-      uint8_t stream_idx;
-      uint8_t range_step;
-    } mount;
-  } fu;
-  #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC2
-  struct {
-    uint8_t rate_source_idx;
-    bool    read_cur;
-  } clock;
-  #endif
-  bool fu_busy;
 } audioh_epbuf_t;
 
 static audioh_interface_t _audioh_itf[CFG_TUH_AUDIO_MAX];
 
 CFG_TUH_MEM_SECTION static audioh_epbuf_t _audioh_epbuf[CFG_TUH_AUDIO_MAX];
+
+TU_ATTR_ALWAYS_INLINE static inline uint8_t *audioh_rate_ctrl(audioh_epbuf_t *epbuf) {
+  return epbuf->control.runtime.rate_ctrl;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint8_t *audioh_fu_ctrl(audioh_epbuf_t *epbuf) {
+  return epbuf->control.runtime.fu_ctrl;
+}
 
 //--------------------------------------------------------------------+
 // Helper
@@ -491,7 +509,7 @@ static void audioh_stream_feedback_xfer(tuh_audio_stream_t *s) {
   const audioh_feedback_ep_t *feedback = &audioh_get_playback(s)->feedback[s->active_as];
   TU_VERIFY(feedback->ep_addr != 0, );
   TU_VERIFY(usbh_edpt_claim(s->daddr, feedback->ep_addr), );
-  if (!usbh_edpt_xfer(s->daddr, feedback->ep_addr, _audioh_epbuf[s->idx].rate_feedback, feedback->ep_size)) {
+  if (!usbh_edpt_xfer(s->daddr, feedback->ep_addr, _audioh_epbuf[s->idx].feedback, feedback->ep_size)) {
     audioh_stream_error(s, 0);
   }
 }
@@ -611,7 +629,7 @@ static bool audioh_stream_set_freq(tuh_audio_stream_t *s, tuh_xfer_cb_t complete
   const audioh_as_config_t   *as          = audioh_stream_active_as(s);
   const audioh_rate_source_t *rate_source = audioh_as_rate_source(s, as);
   const uint32_t              sample_rate = rate_source->sample_rate[s->active_rate];
-  uint8_t                    *ctrl        = _audioh_epbuf[s->idx].rate_feedback;
+  uint8_t                    *ctrl        = audioh_rate_ctrl(&_audioh_epbuf[s->idx]);
   tusb_control_request_t      request     = {0};
 
   ctrl[0] = (uint8_t)(sample_rate & 0xFF);
@@ -757,8 +775,7 @@ void audioh_close(uint8_t daddr) {
     }
     audioh_playback_reset(&p_audio->playback);
 
-    _audioh_epbuf[idx].complete_cb = NULL; // drop a pending feature-unit request
-    _audioh_epbuf[idx].fu_busy     = false;
+    tu_memclr(&p_audio->ctrl, sizeof(p_audio->ctrl)); // drop pending control state
 
     p_audio->stream_count      = 0;
     p_audio->daddr             = 0;
@@ -769,7 +786,7 @@ void audioh_close(uint8_t daddr) {
 }
 
 static void audioh_feedback_received(tuh_audio_stream_t *s, uint32_t xferred_bytes) {
-  const uint8_t     *fb       = _audioh_epbuf[s->idx].rate_feedback;
+  const uint8_t     *fb       = _audioh_epbuf[s->idx].feedback;
   audioh_playback_t *playback = audioh_get_playback(s);
   uint32_t           feedback_q16;
   if (xferred_bytes == 3) {
@@ -1488,6 +1505,7 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
   p_audio->protocol           = desc_itf->bInterfaceProtocol;
   p_audio->rate_source_count  = 0;
   tu_memclr(p_audio->rate_source, sizeof(p_audio->rate_source));
+  tu_memclr(&p_audio->ctrl, sizeof(p_audio->ctrl));
   audioh_stream_reset(&p_audio->in_stream);
   audioh_stream_reset(&p_audio->out_stream);
   audioh_playback_reset(&p_audio->playback);
@@ -1654,12 +1672,13 @@ static bool audioh_uac2_clock_range_store(audioh_rate_source_t *rate_source, con
 static bool audioh_mount_clock_submit(uint8_t idx) {
   audioh_interface_t   *p_audio     = &_audioh_itf[idx];
   audioh_epbuf_t       *epbuf       = &_audioh_epbuf[idx];
-  audioh_rate_source_t *rate_source = &p_audio->rate_source[epbuf->clock.rate_source_idx];
-  const uint16_t        length      = epbuf->clock.read_cur ? 4u : (uint16_t)sizeof(epbuf->clock_range);
+  audioh_ctrl_state_t  *ctrl        = &p_audio->ctrl;
+  audioh_rate_source_t *rate_source = &p_audio->rate_source[ctrl->clock.rate_source_idx];
+  const uint16_t        length      = ctrl->clock.read_cur ? 4u : (uint16_t)sizeof(epbuf->control.clock_range);
 
   const tusb_control_request_t request = {
     .bmRequestType_bit = {.recipient = TUSB_REQ_RCPT_INTERFACE, .type = TUSB_REQ_TYPE_CLASS, .direction = TUSB_DIR_IN},
-    .bRequest          = epbuf->clock.read_cur ? AUDIO20_CS_REQ_CUR : AUDIO20_CS_REQ_RANGE,
+    .bRequest          = ctrl->clock.read_cur ? AUDIO20_CS_REQ_CUR : AUDIO20_CS_REQ_RANGE,
     .wValue            = tu_htole16(tu_u16(AUDIO20_CS_CTRL_SAM_FREQ, 0)),
     .wIndex            = tu_htole16(tu_u16(rate_source->control_id, p_audio->ac_itf_num)),
     .wLength           = tu_htole16(length),
@@ -1667,16 +1686,16 @@ static bool audioh_mount_clock_submit(uint8_t idx) {
   tuh_xfer_t xfer = {.daddr       = p_audio->daddr,
                      .ep_addr     = 0,
                      .setup       = &request,
-                     .buffer      = epbuf->clock_range,
+                     .buffer      = epbuf->control.clock_range,
                      .complete_cb = audioh_mount_clock_complete,
                      .user_data   = (uintptr_t)idx};
   return tuh_control_xfer(&xfer);
 }
 
 static void audioh_mount_clock_finish(uint8_t idx) {
-  audioh_interface_t *p_audio = &_audioh_itf[idx];
-  audioh_epbuf_t     *epbuf   = &_audioh_epbuf[idx];
-  epbuf->fu_busy              = false;
+  audioh_interface_t  *p_audio = &_audioh_itf[idx];
+  audioh_ctrl_state_t *ctrl    = &p_audio->ctrl;
+  ctrl->fu_busy                = false;
   audioh_uac2_configs_rebuild(p_audio);
 
   if (p_audio->stream_count == 0) {
@@ -1693,40 +1712,41 @@ static void audioh_mount_clock_finish(uint8_t idx) {
     return;
   }
 
-  epbuf->fu.mount.stream_idx = 0;
+  ctrl->fu.mount.stream_idx = 0;
   audioh_mount_feature_unit_next(idx);
 }
 
 static void audioh_mount_clock_next(uint8_t idx) {
-  audioh_interface_t *p_audio = &_audioh_itf[idx];
-  audioh_epbuf_t     *epbuf   = &_audioh_epbuf[idx];
+  audioh_interface_t  *p_audio = &_audioh_itf[idx];
+  audioh_ctrl_state_t *ctrl    = &p_audio->ctrl;
 
-  while (epbuf->clock.rate_source_idx < p_audio->rate_source_count) {
-    epbuf->clock.read_cur = false;
-    epbuf->fu_busy        = true;
+  while (ctrl->clock.rate_source_idx < p_audio->rate_source_count) {
+    ctrl->clock.read_cur = false;
+    ctrl->fu_busy        = true;
     if (audioh_mount_clock_submit(idx)) {
       return;
     }
-    p_audio->rate_source[epbuf->clock.rate_source_idx].sample_rate_count = 0;
-    epbuf->clock.rate_source_idx++;
+    p_audio->rate_source[ctrl->clock.rate_source_idx].sample_rate_count = 0;
+    ctrl->clock.rate_source_idx++;
   }
   audioh_mount_clock_finish(idx);
 }
 
 static void audioh_mount_clock_complete(tuh_xfer_t *xfer) {
-  const uint8_t   idx   = (uint8_t)xfer->user_data;
-  audioh_epbuf_t *epbuf = &_audioh_epbuf[idx];
-  if (!epbuf->fu_busy) {
+  const uint8_t        idx     = (uint8_t)xfer->user_data;
+  audioh_interface_t  *p_audio = &_audioh_itf[idx];
+  audioh_ctrl_state_t *ctrl    = &p_audio->ctrl;
+  audioh_epbuf_t      *epbuf   = &_audioh_epbuf[idx];
+  if (!ctrl->fu_busy) {
     return;
   }
-  audioh_interface_t   *p_audio     = &_audioh_itf[idx];
-  audioh_rate_source_t *rate_source = &p_audio->rate_source[epbuf->clock.rate_source_idx];
+  audioh_rate_source_t *rate_source = &p_audio->rate_source[ctrl->clock.rate_source_idx];
 
   bool success = xfer->result == XFER_RESULT_SUCCESS;
-  if (success && epbuf->clock.read_cur) {
+  if (success && ctrl->clock.read_cur) {
     success = xfer->actual_len == 4;
     if (success) {
-      const uint32_t current = tu_le32toh(tu_unaligned_read32(epbuf->clock_range));
+      const uint32_t current = tu_le32toh(tu_unaligned_read32(epbuf->control.clock_range));
       success                = current > 0;
       if (success) {
         rate_source->sample_rate[0]    = current;
@@ -1734,9 +1754,9 @@ static void audioh_mount_clock_complete(tuh_xfer_t *xfer) {
       }
     }
   } else if (success) {
-    success = audioh_uac2_clock_range_store(rate_source, epbuf->clock_range, (uint16_t)xfer->actual_len);
+    success = audioh_uac2_clock_range_store(rate_source, epbuf->control.clock_range, (uint16_t)xfer->actual_len);
     if (success && rate_source->frequency_access == AUDIOH_CTRL_READ) {
-      epbuf->clock.read_cur = true;
+      ctrl->clock.read_cur = true;
       if (audioh_mount_clock_submit(idx)) {
         return;
       }
@@ -1747,8 +1767,8 @@ static void audioh_mount_clock_complete(tuh_xfer_t *xfer) {
   if (!success) {
     rate_source->sample_rate_count = 0;
   }
-  epbuf->fu_busy = false;
-  epbuf->clock.rate_source_idx++;
+  ctrl->fu_busy = false;
+  ctrl->clock.rate_source_idx++;
   audioh_mount_clock_next(idx);
 }
   #endif
@@ -1769,15 +1789,15 @@ bool audioh_set_config(uint8_t dev_addr, uint8_t itf_num) {
     return true;
   }
 
-  audioh_epbuf_t *epbuf = &_audioh_epbuf[idx];
+  audioh_ctrl_state_t *ctrl = &_audioh_itf[idx].ctrl;
   #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC2
   if (_audioh_itf[idx].protocol == AUDIO_INT_PROTOCOL_CODE_V2) {
-    epbuf->clock.rate_source_idx = 0;
+    ctrl->clock.rate_source_idx = 0;
     audioh_mount_clock_next(idx);
   } else
   #endif
   {
-    epbuf->fu.mount.stream_idx = 0;
+    ctrl->fu.mount.stream_idx = 0;
     audioh_mount_feature_unit_next(idx);
   }
   return true;
@@ -2171,12 +2191,12 @@ uint32_t tuh_audio_read_available(uint8_t dev_idx, uint8_t stream_idx) {
 
 // Release the stable SET buffer and chain to the application callback
 static void audioh_fu_set_complete(tuh_xfer_t *xfer) {
-  const uint8_t   idx       = (uint8_t)xfer->user_data;
-  audioh_epbuf_t *epbuf     = &_audioh_epbuf[idx];
-  tuh_xfer_cb_t   app_cb    = epbuf->complete_cb;
-  uintptr_t       user_data = epbuf->user_data;
-  epbuf->complete_cb        = NULL;
-  epbuf->fu_busy            = false;
+  const uint8_t        idx       = (uint8_t)xfer->user_data;
+  audioh_ctrl_state_t *ctrl      = &_audioh_itf[idx].ctrl;
+  tuh_xfer_cb_t        app_cb    = ctrl->complete_cb;
+  uintptr_t            user_data = ctrl->user_data;
+  ctrl->complete_cb              = NULL;
+  ctrl->fu_busy                  = false;
 
   xfer->user_data = user_data;
   if (app_cb != NULL) {
@@ -2220,33 +2240,34 @@ static bool audioh_fu_selector_supported(uint8_t protocol, uint8_t control_selec
   return true;
 }
 
-static void audioh_fu_value_store(audioh_epbuf_t *epbuf) {
-  if (epbuf->fu.control.value_type == AUDIOH_FU_VALUE_BOOL) {
-    *((bool *)epbuf->value) = epbuf->fu_ctrl[0] != 0;
-  } else if (epbuf->fu.control.width == 1) {
-    *((uint16_t *)epbuf->value) = epbuf->fu_ctrl[0];
+static void audioh_fu_value_store(audioh_ctrl_state_t *ctrl, audioh_epbuf_t *epbuf) {
+  if (ctrl->fu.control.value_type == AUDIOH_FU_VALUE_BOOL) {
+    *((bool *)ctrl->value) = audioh_fu_ctrl(epbuf)[0] != 0;
+  } else if (ctrl->fu.control.width == 1) {
+    *((uint16_t *)ctrl->value) = audioh_fu_ctrl(epbuf)[0];
   } else {
-    const uint16_t value = tu_le16toh(tu_unaligned_read16(epbuf->fu_ctrl));
-    if (epbuf->fu.control.value_type == AUDIOH_FU_VALUE_I16) {
-      *((int16_t *)epbuf->value) = (int16_t)value;
+    const uint16_t value = tu_le16toh(tu_unaligned_read16(audioh_fu_ctrl(epbuf)));
+    if (ctrl->fu.control.value_type == AUDIOH_FU_VALUE_I16) {
+      *((int16_t *)ctrl->value) = (int16_t)value;
     } else {
-      *((uint16_t *)epbuf->value) = value;
+      *((uint16_t *)ctrl->value) = value;
     }
   }
 }
 
 // Convert the raw control value to host order and chain to the application callback
 static void audioh_fu_get_complete(tuh_xfer_t *xfer) {
-  const uint8_t   idx       = (uint8_t)xfer->user_data;
-  audioh_epbuf_t *epbuf     = &_audioh_epbuf[idx];
-  tuh_xfer_cb_t   app_cb    = epbuf->complete_cb;
-  uintptr_t       user_data = epbuf->user_data;
-  epbuf->complete_cb        = NULL;
-  epbuf->fu_busy            = false;
+  const uint8_t        idx       = (uint8_t)xfer->user_data;
+  audioh_ctrl_state_t *ctrl      = &_audioh_itf[idx].ctrl;
+  audioh_epbuf_t      *epbuf     = &_audioh_epbuf[idx];
+  tuh_xfer_cb_t        app_cb    = ctrl->complete_cb;
+  uintptr_t            user_data = ctrl->user_data;
+  ctrl->complete_cb              = NULL;
+  ctrl->fu_busy                  = false;
 
-  if (epbuf->value != NULL && xfer->result == XFER_RESULT_SUCCESS) {
-    if (xfer->actual_len == epbuf->fu.control.width) {
-      audioh_fu_value_store(epbuf);
+  if (ctrl->value != NULL && xfer->result == XFER_RESULT_SUCCESS) {
+    if (xfer->actual_len == ctrl->fu.control.width) {
+      audioh_fu_value_store(ctrl, epbuf);
     } else {
       xfer->result = XFER_RESULT_FAILED;
     }
@@ -2278,9 +2299,9 @@ static uint8_t audioh_fu_volume_range_request(uint8_t step) {
   }
 }
 
-static void audioh_fu_volume_range_store(tuh_audio_stream_t *s, audioh_epbuf_t *epbuf) {
-  const uint16_t value = tu_le16toh(tu_unaligned_read16(epbuf->fu_ctrl));
-  switch (epbuf->fu.mount.range_step) {
+static void audioh_fu_volume_range_store(tuh_audio_stream_t *s, audioh_ctrl_state_t *ctrl, audioh_epbuf_t *epbuf) {
+  const uint16_t value = tu_le16toh(tu_unaligned_read16(audioh_fu_ctrl(epbuf)));
+  switch (ctrl->fu.mount.range_step) {
     case AUDIOH_VOLUME_RANGE_MIN:
       s->volume_range.min = (int16_t)value;
       break;
@@ -2298,15 +2319,16 @@ static void audioh_fu_volume_range_store(tuh_audio_stream_t *s, audioh_epbuf_t *
 static void audioh_mount_feature_unit_complete(tuh_xfer_t *xfer);
 
 static bool audioh_mount_feature_unit_submit(uint8_t idx) {
-  audioh_interface_t *p_audio = &_audioh_itf[idx];
-  audioh_epbuf_t     *epbuf   = &_audioh_epbuf[idx];
-  tuh_audio_stream_t *s       = audioh_get_stream_by_idx(p_audio, epbuf->fu.mount.stream_idx);
+  audioh_interface_t  *p_audio = &_audioh_itf[idx];
+  audioh_ctrl_state_t *ctrl    = &p_audio->ctrl;
+  audioh_epbuf_t      *epbuf   = &_audioh_epbuf[idx];
+  tuh_audio_stream_t  *s       = audioh_get_stream_by_idx(p_audio, ctrl->fu.mount.stream_idx);
   TU_ASSERT(s != NULL);
 
   const bool                   uac2    = p_audio->protocol == AUDIO_INT_PROTOCOL_CODE_V2;
   const tusb_control_request_t request = {
     .bmRequestType_bit = {.recipient = TUSB_REQ_RCPT_INTERFACE, .type = TUSB_REQ_TYPE_CLASS, .direction = TUSB_DIR_IN},
-    .bRequest          = uac2 ? AUDIO20_CS_REQ_RANGE : audioh_fu_volume_range_request(epbuf->fu.mount.range_step),
+    .bRequest          = uac2 ? AUDIO20_CS_REQ_RANGE : audioh_fu_volume_range_request(ctrl->fu.mount.range_step),
     .wValue            = tu_htole16(tu_u16(AUDIO10_FU_CTRL_VOLUME, 0)),
     .wIndex            = tu_htole16(tu_u16(s->feature_unit_id, p_audio->ac_itf_num)),
     .wLength           = tu_htole16(uac2 ? 8u : 2u),
@@ -2314,23 +2336,23 @@ static bool audioh_mount_feature_unit_submit(uint8_t idx) {
   tuh_xfer_t xfer = {.daddr       = p_audio->daddr,
                      .ep_addr     = 0,
                      .setup       = &request,
-                     .buffer      = epbuf->fu_ctrl,
+                     .buffer      = audioh_fu_ctrl(epbuf),
                      .complete_cb = audioh_mount_feature_unit_complete,
                      .user_data   = (uintptr_t)idx};
   return tuh_control_xfer(&xfer);
 }
 
 static void audioh_mount_feature_unit_next(uint8_t idx) {
-  audioh_interface_t *p_audio = &_audioh_itf[idx];
-  audioh_epbuf_t     *epbuf   = &_audioh_epbuf[idx];
+  audioh_interface_t  *p_audio = &_audioh_itf[idx];
+  audioh_ctrl_state_t *ctrl    = &p_audio->ctrl;
 
-  while (epbuf->fu.mount.stream_idx < p_audio->stream_count) {
-    tuh_audio_stream_t *s = audioh_get_stream_by_idx(p_audio, epbuf->fu.mount.stream_idx);
+  while (ctrl->fu.mount.stream_idx < p_audio->stream_count) {
+    tuh_audio_stream_t *s = audioh_get_stream_by_idx(p_audio, ctrl->fu.mount.stream_idx);
     TU_ASSERT(s != NULL, );
     if (s->volume_access != AUDIOH_CTRL_NONE) {
-      s->volume_range            = (tuh_audio_volume_range_t){0};
-      epbuf->fu.mount.range_step = AUDIOH_VOLUME_RANGE_MIN;
-      epbuf->fu_busy             = true;
+      s->volume_range           = (tuh_audio_volume_range_t){0};
+      ctrl->fu.mount.range_step = AUDIOH_VOLUME_RANGE_MIN;
+      ctrl->fu_busy             = true;
       if (audioh_mount_feature_unit_submit(idx)) {
         return;
       }
@@ -2338,9 +2360,9 @@ static void audioh_mount_feature_unit_next(uint8_t idx) {
       if (s->mute_access == AUDIOH_CTRL_NONE) {
         s->feature_unit_id = 0;
       }
-      epbuf->fu_busy = false;
+      ctrl->fu_busy = false;
     }
-    epbuf->fu.mount.stream_idx++;
+    ctrl->fu.mount.stream_idx++;
   }
 
   p_audio->mounted = true;
@@ -2350,29 +2372,31 @@ static void audioh_mount_feature_unit_next(uint8_t idx) {
 }
 
 static void audioh_mount_feature_unit_complete(tuh_xfer_t *xfer) {
-  const uint8_t   idx   = (uint8_t)xfer->user_data;
-  audioh_epbuf_t *epbuf = &_audioh_epbuf[idx];
-  if (!epbuf->fu_busy) {
+  const uint8_t        idx     = (uint8_t)xfer->user_data;
+  audioh_interface_t  *p_audio = &_audioh_itf[idx];
+  audioh_ctrl_state_t *ctrl    = &p_audio->ctrl;
+  audioh_epbuf_t      *epbuf   = &_audioh_epbuf[idx];
+  if (!ctrl->fu_busy) {
     return;
   }
-  audioh_interface_t *p_audio = &_audioh_itf[idx];
-  tuh_audio_stream_t *s       = audioh_get_stream_by_idx(p_audio, epbuf->fu.mount.stream_idx);
+  tuh_audio_stream_t *s = audioh_get_stream_by_idx(p_audio, ctrl->fu.mount.stream_idx);
   TU_ASSERT(s != NULL, );
 
   const bool uac2 = p_audio->protocol == AUDIO_INT_PROTOCOL_CODE_V2;
   if (uac2 && xfer->result == XFER_RESULT_SUCCESS && xfer->actual_len == 8 &&
-      tu_le16toh(tu_unaligned_read16(epbuf->fu_ctrl)) == 1) {
-    s->volume_range.min = (int16_t)tu_le16toh(tu_unaligned_read16(&epbuf->fu_ctrl[2]));
-    s->volume_range.max = (int16_t)tu_le16toh(tu_unaligned_read16(&epbuf->fu_ctrl[4]));
-    s->volume_range.res = tu_le16toh(tu_unaligned_read16(&epbuf->fu_ctrl[6]));
+      tu_le16toh(tu_unaligned_read16(audioh_fu_ctrl(epbuf))) == 1) {
+    uint8_t *fu_ctrl    = audioh_fu_ctrl(epbuf);
+    s->volume_range.min = (int16_t)tu_le16toh(tu_unaligned_read16(&fu_ctrl[2]));
+    s->volume_range.max = (int16_t)tu_le16toh(tu_unaligned_read16(&fu_ctrl[4]));
+    s->volume_range.res = tu_le16toh(tu_unaligned_read16(&fu_ctrl[6]));
     if (s->volume_range.min > s->volume_range.max || s->volume_range.res == 0) {
       xfer->result = XFER_RESULT_FAILED;
     }
   } else if (!uac2 && xfer->result == XFER_RESULT_SUCCESS && xfer->actual_len == 2) {
-    audioh_fu_volume_range_store(s, epbuf);
-    epbuf->fu.mount.range_step++;
+    audioh_fu_volume_range_store(s, ctrl, epbuf);
+    ctrl->fu.mount.range_step++;
 
-    if (epbuf->fu.mount.range_step < AUDIOH_VOLUME_RANGE_COUNT) {
+    if (ctrl->fu.mount.range_step < AUDIOH_VOLUME_RANGE_COUNT) {
       if (audioh_mount_feature_unit_submit(idx)) {
         return;
       }
@@ -2390,8 +2414,8 @@ static void audioh_mount_feature_unit_complete(tuh_xfer_t *xfer) {
       s->feature_unit_id = 0;
     }
   }
-  epbuf->fu_busy = false;
-  epbuf->fu.mount.stream_idx++;
+  ctrl->fu_busy = false;
+  ctrl->fu.mount.stream_idx++;
   audioh_mount_feature_unit_next(idx);
 }
 
@@ -2414,9 +2438,10 @@ bool tuh_audio_feature_unit_set(uint8_t idx, uint8_t stream_idx, uint8_t control
 
   const uint8_t request_code = audioh_fu_cur_request(p_audio->protocol, TUSB_DIR_OUT);
   TU_VERIFY(request_code != 0, false);
-  audioh_epbuf_t *epbuf = &_audioh_epbuf[idx];
-  TU_VERIFY(!epbuf->fu_busy, false);
-  epbuf->fu_busy = true; // reserve the request state and fu_ctrl before writing
+  audioh_ctrl_state_t *ctrl  = &p_audio->ctrl;
+  audioh_epbuf_t      *epbuf = &_audioh_epbuf[idx];
+  TU_VERIFY(!ctrl->fu_busy, false);
+  ctrl->fu_busy = true; // reserve the request state and fu_ctrl before writing
 
   const tusb_control_request_t request = {.bmRequestType_bit = {.recipient = TUSB_REQ_RCPT_INTERFACE,
                                                                 .type      = TUSB_REQ_TYPE_CLASS,
@@ -2426,7 +2451,7 @@ bool tuh_audio_feature_unit_set(uint8_t idx, uint8_t stream_idx, uint8_t control
                                           .wIndex  = tu_htole16(tu_u16(s->feature_unit_id, p_audio->ac_itf_num)),
                                           .wLength = width};
 
-  uint8_t *val_buf = epbuf->fu_ctrl;
+  uint8_t *val_buf = audioh_fu_ctrl(epbuf);
   val_buf[0]       = (uint8_t)(value & 0xFF);
   if (width == 2) {
     val_buf[1] = (uint8_t)((value >> 8) & 0xFF);
@@ -2441,18 +2466,18 @@ bool tuh_audio_feature_unit_set(uint8_t idx, uint8_t stream_idx, uint8_t control
 
   if (complete_cb == NULL) {
     const bool result = tuh_control_xfer(&xfer);
-    epbuf->fu_busy    = false;
+    ctrl->fu_busy     = false;
     return result;
   }
 
-  epbuf->complete_cb = complete_cb;
-  epbuf->user_data   = user_data;
-  xfer.complete_cb   = audioh_fu_set_complete;
-  xfer.user_data     = (uintptr_t)idx;
+  ctrl->complete_cb = complete_cb;
+  ctrl->user_data   = user_data;
+  xfer.complete_cb  = audioh_fu_set_complete;
+  xfer.user_data    = (uintptr_t)idx;
 
   if (!tuh_control_xfer(&xfer)) {
-    epbuf->complete_cb = NULL;
-    epbuf->fu_busy     = false;
+    ctrl->complete_cb = NULL;
+    ctrl->fu_busy     = false;
     return false;
   }
   return true;
@@ -2477,12 +2502,13 @@ static bool audioh_feature_unit_get(uint8_t idx, uint8_t stream_idx, uint8_t con
 
   const uint8_t request_code = audioh_fu_cur_request(p_audio->protocol, TUSB_DIR_IN);
   TU_VERIFY(request_code != 0, false);
-  audioh_epbuf_t *epbuf = &_audioh_epbuf[idx];
-  TU_VERIFY(!epbuf->fu_busy, false);
-  epbuf->fu_busy               = true;
-  epbuf->value                 = value;
-  epbuf->fu.control.width      = width;
-  epbuf->fu.control.value_type = value_type;
+  audioh_ctrl_state_t *ctrl  = &p_audio->ctrl;
+  audioh_epbuf_t      *epbuf = &_audioh_epbuf[idx];
+  TU_VERIFY(!ctrl->fu_busy, false);
+  ctrl->fu_busy               = true;
+  ctrl->value                 = value;
+  ctrl->fu.control.width      = width;
+  ctrl->fu.control.value_type = value_type;
 
   const tusb_control_request_t request = {.bmRequestType_bit = {.recipient = TUSB_REQ_RCPT_INTERFACE,
                                                                 .type      = TUSB_REQ_TYPE_CLASS,
@@ -2498,35 +2524,35 @@ static bool audioh_feature_unit_get(uint8_t idx, uint8_t stream_idx, uint8_t con
     tuh_xfer_t xfer = {.daddr       = p_audio->daddr,
                        .ep_addr     = 0,
                        .setup       = &request,
-                       .buffer      = epbuf->fu_ctrl,
+                       .buffer      = audioh_fu_ctrl(epbuf),
                        .complete_cb = NULL,
                        .user_data   = user_data};
     if (!tuh_control_xfer(&xfer)) {
-      epbuf->fu_busy = false;
+      ctrl->fu_busy = false;
       return false;
     }
     if (xfer.result == XFER_RESULT_SUCCESS && xfer.actual_len == width) {
-      audioh_fu_value_store(epbuf);
+      audioh_fu_value_store(ctrl, epbuf);
     } else if (xfer.result == XFER_RESULT_SUCCESS && user_data != 0) {
       *((tusb_xfer_result_t *)user_data) = XFER_RESULT_FAILED;
     }
-    epbuf->fu_busy = false;
+    ctrl->fu_busy = false;
     return true;
   }
 
   // Async path: chain the host-order conversion to the application callback
-  epbuf->complete_cb = complete_cb;
-  epbuf->user_data   = user_data;
-  tuh_xfer_t xfer    = {.daddr       = p_audio->daddr,
-                        .ep_addr     = 0,
-                        .setup       = &request,
-                        .buffer      = epbuf->fu_ctrl,
-                        .complete_cb = audioh_fu_get_complete,
-                        .user_data   = (uintptr_t)idx};
+  ctrl->complete_cb = complete_cb;
+  ctrl->user_data   = user_data;
+  tuh_xfer_t xfer   = {.daddr       = p_audio->daddr,
+                       .ep_addr     = 0,
+                       .setup       = &request,
+                       .buffer      = audioh_fu_ctrl(epbuf),
+                       .complete_cb = audioh_fu_get_complete,
+                       .user_data   = (uintptr_t)idx};
 
   if (!tuh_control_xfer(&xfer)) {
-    epbuf->complete_cb = NULL;
-    epbuf->fu_busy     = false;
+    ctrl->complete_cb = NULL;
+    ctrl->fu_busy     = false;
     return false;
   }
   return true;
