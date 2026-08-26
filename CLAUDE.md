@@ -102,7 +102,7 @@ Sphinx docs in `docs/` (`.rst`, or `.md` via MyST). Use the `build-doc` skill (`
 
 ## Code Size Metrics
 
-Verify size impact before committing with the `code-size` skill (`.claude/skills/code-size/SKILL.md`) — it wraps `tools/metrics_compare_base.py` for the base-vs-branch worktree + build + compare. Scopes: single example (`-e device/cdc_msc -b <board>`, add `--bloaty`), all examples on a board (`-b <board>`), or all arm-gcc CI families (`--ci`). Reports land in `cmake-metrics/<board>/metrics_compare.md` (and `_combined/` for `--ci`).
+Verify size impact before committing with the `code-size` skill (`.claude/skills/code-size/SKILL.md`) — it wraps `tools/metrics_compare_base.py` for the base-vs-branch worktree + build + compare. Scopes: single example (`-e device/cdc_msc -b <board>`, add `--bloaty`), all examples on a board (`-b <board>`), or all arm-gcc CI families (`--ci --engine linkermap`). Reports land in `cmake-metrics/<board>/metrics_compare.md` (and `_combined/` for `--ci --engine linkermap`).
 
 ## Static Analysis (PVS-Studio)
 

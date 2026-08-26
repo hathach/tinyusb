@@ -4,7 +4,6 @@
     { "family": "ch32v30x",   "board": "ch32v307v_r1_1v0",         "drivers": ["dcd_ch32_usbhs"] },
     { "family": "cxd56",      "board": "spresense",                "drivers": ["dcd_cxd56"],                        "note": "family newly added to CI" },
     { "family": "da1469x",    "board": "da1469x_dk_pro",           "drivers": ["dcd_da146xx"] },
-    { "family": "espressif",  "board": "espressif_s3_devkitm",     "drivers": ["dcd_dwc2"],                         "note": "dwc2 ESP32 variant" },
     { "family": "fomu",       "board": "fomu",                     "drivers": ["dcd_eptri"] },
     { "family": "ft9xx",      "board": "mm900evxb",                "drivers": ["dcd_ft9xx"] },
     { "family": "imxrt",      "board": "mimxrt1064_evk",           "drivers": ["dcd_ci_hs", "ehci", "hcd_ci_hs"],   "note": "HIL" },

@@ -50,6 +50,18 @@ class GenerateMembrowseSizes(unittest.TestCase):
         self.assertIn('no symbols matched filters', out)
         self.assertIn('--engine linkermap', out)
 
+    def test_membrowse_cli_missing_errors_and_returns_none(self):
+        # subprocess.run(['membrowse', ...]) raises FileNotFoundError when the
+        # CLI isn't installed - must not surface as a bare traceback after the
+        # base+branch builds already ran (minutes of work).
+        with mock.patch('glob.glob', return_value=['/fake/build/ex/ex.elf']), \
+             mock.patch.object(membrowse_compare, 'report_for_elf',
+                                side_effect=FileNotFoundError('membrowse')):
+            result, out = _run_capturing_stdout('/fake/build', ['/fake/src/'])
+        self.assertIsNone(result)
+        self.assertIn('pip install membrowse', out)
+        self.assertIn('--engine linkermap', out)
+
     def test_elfs_found_and_filters_match_returns_sizes(self):
         fake_report = {'symbols': [
             {'name': 'x', 'size': 4, 'section': '.text',

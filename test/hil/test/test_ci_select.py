@@ -18,6 +18,7 @@ import pathlib
 import re
 import subprocess
 import sys
+import types
 import unittest
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(
@@ -798,10 +799,15 @@ class TestOrphanInvariant(unittest.TestCase):
     # unusable (UNSCOPED -> full matrix) rather than emitting an all-empty one.
     # cxd56, f1c100s and same7x moved OUT of this set: they are CI boards in
     # .github/ci-boards.json (Task 4/5) and now build via family_list.
-    # espressif also moved out: it has its own family_list entry ("esp-idf") again,
-    # feeding the dedicated esp-idf jobs (hil-build-esp etc.) rather than this file's
-    # plain-cmake toolchains.
-    UNBUILT_FAMILIES = {'efm32', 'pic32mz', 'py32f0'}
+    # espressif is back in this set: it briefly had its own family_list entry
+    # ("esp-idf"), but that fed the same espressif_s3_devkitm build hil-build-esp
+    # already does, TWICE per code-changed run, on the slowest toolchain in the
+    # workflow - and on CircleCI (no --ci-boards/--one-random) would have built
+    # every espressif board across every example with no pin at all. hil-build-esp
+    # builds espressif's boards by name instead - though only on hathach/tinyusb:
+    # that job is gated on repository_owner, so on a fork an espressif-only PR
+    # builds nowhere.
+    UNBUILT_FAMILIES = {'efm32', 'espressif', 'pic32mz', 'py32f0'}
 
     def test_every_bsp_family_is_in_the_ci_matrix(self):
         sys.path.insert(0, os.path.join(REPO, '.github/scripts'))
@@ -2079,6 +2085,35 @@ class TestBuildPyExampleFilter(unittest.TestCase):
             self.build.run_cmd = real_run_cmd
         self.assertEqual(r, [0, 0, 1])
         self.assertEqual(calls, [])
+
+    def test_espressif_no_build_dir_uploads_identical_instead_of_skipping(self):
+        # regression: any target other than 'all' with no build dir (a no-code-change
+        # CI run, since idf.py never ran 'all' here) used to print "no build dir" and
+        # skip - silently uploading nothing, unlike every other CI board, which still
+        # gets an --identical upload via its cheap `cmake` configure. This target must
+        # instead invoke membrowse_report.py directly (its --identical path needs
+        # neither idf.py nor a build dir) rather than going through idf.py/cmake.
+        calls = []
+        real_run_cmd = self.build.run_cmd
+        self.build.run_cmd = lambda cmd: (calls.append(cmd),
+                                          types.SimpleNamespace(returncode=0))[1]
+        try:
+            r = self.build.cmake_board('espressif_s3_devkitc', [], None, [],
+                                       ['examples-membrowse-upload'],
+                                       examples=['device/cdc_msc_freertos'])
+        finally:
+            self.build.run_cmd = real_run_cmd
+        self.assertEqual(r, [1, 0, 0])
+        self.assertEqual(len(calls), 1)
+        cmd = calls[0]
+        self.assertIn('membrowse_report.py', cmd[1])
+        self.assertNotIn('idf.py', cmd[0])
+        self.assertIn('--upload', cmd)
+        self.assertEqual(cmd[cmd.index('--target-name') + 1],
+                         'espressif_s3_devkitc/cdc_msc_freertos')
+        # the whole point: the --elf path must NOT exist, so membrowse_report.py's
+        # own elf-missing check takes the --identical branch
+        self.assertFalse(os.path.isfile(cmd[cmd.index('--elf') + 1]))
 
     def test_make_one_example_uses_make_semantics(self):
         # F1 end to end: the make path must ask skip_example with build_system='make',

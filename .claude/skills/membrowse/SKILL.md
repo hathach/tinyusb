@@ -15,6 +15,9 @@ size comment. Target names are `<board>/<cmake-target>` — the example
 BASENAME (`stm32f407disco/cdc_msc`, never `.../device/cdc_msc`) — and must
 never change: history is keyed on them.
 
+Local use requires the `membrowse` CLI (`pip install membrowse`) — CI gets it
+from `.github/actions/get_deps/action.yml`, which never runs locally.
+
 ## Local report (no API key)
 
     cmake --build <dir> --target <example>-membrowse     # Ninja only

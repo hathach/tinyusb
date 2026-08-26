@@ -226,7 +226,7 @@ jobs:
           - 'aarch64-gcc'
           #- 'arm-clang'
           - 'arm-gcc'
-          - 'esp-idf'
+          #- 'esp-idf'
           - 'ft9xx-gcc'
           - 'msp430-gcc'
           - 'riscv-gcc'
@@ -327,7 +327,58 @@ jobs:
       build-system: 'cmake'
       toolchain: 'esp-idf'
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.hil_json)['esp-idf']) }}
+      # build-args are explicit `-b <board>` flags (no bare family name), which
+      # bypass --ci-boards family resolution entirely (tools/build.py main()) - this
+      # is only here to satisfy --ci-boards-only's argparse requirement on --ci-boards
+      build-options: '--ci-boards .github/ci-boards.json'
       upload-artifacts: true
+      upload-membrowse: true
+
+  # espressif has no leg in the `cmake` job above (it would double-build the same
+  # board on the slowest toolchain - see that job's comment), so unlike every other
+  # CI board its --identical upload has nowhere to run on a no-code-change push:
+  # hil-build-esp is gated on code_changed, and loosening that gate would let
+  # hil-tinyusb-esp's hardware run start on a docs-only push too (its own SEL_RUN
+  # gate is PR-only - see build.yml's "CI selection (PR only)" step - so on a push
+  # event it defaults to "run everything", not "skip"). This job takes the opposite
+  # gate instead, with no downstream dependents, so it can never reach the rig.
+  # --identical needs neither a compiled elf nor a configured build dir
+  # (tools/membrowse_report.py's --elf-missing path; tools/build.py's espressif
+  # branch routes straight to it when there is no build dir), so plain python on
+  # ubuntu-latest is enough - no ESP-IDF docker image, no idf.py, no compiler.
+  hil-build-esp-identical:
+    needs: [ check-paths, set-matrix ]
+    if: needs.check-paths.outputs.code_changed != 'true' && github.repository_owner == 'hathach'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v6
+
+      - name: Install membrowse
+        run: pip install membrowse
+
+      - name: Membrowse identical upload (espressif, no code change)
+        continue-on-error: true
+        env:
+          MEMBROWSE_API_KEY: ${{ secrets.MEMBROWSE_API_KEY }}
+          ESP_ARGS: ${{ toJSON(fromJSON(needs.set-matrix.outputs.hil_json)['esp-idf']) }}
+        run: |
+          # one tools/build.py call per board, not one call for all of them: the
+          # default shell here is `bash -eo pipefail`, and a later board must still
+          # get its upload attempt even if an earlier one fails
+          echo "$ESP_ARGS" | python3 -c 'import json, sys; [print(a) for a in json.load(sys.stdin)]' |
+          while IFS= read -r arg; do
+            # same variant guard as build_util.yml's Membrowse Upload step: a
+            # -DMA variant leg configures with the same -DBOARD=<name> as the
+            # plain leg, and membrowse's target-name ({board}/{example}) is
+            # derived from the board alone - uploading both would write two
+            # --identical rows under the same target every no-code-change push
+            case " $arg " in
+              *' --build-name '*|*' -D'*|*' --cflag='*)
+                echo "skip membrowse upload: variant build ($arg)"; continue ;;
+            esac
+            python3 tools/build.py -s cmake --target examples-membrowse-upload -j 1 $arg || true
+          done
 
   # ---------------------------------------
   # Hardware in the loop (HIL)

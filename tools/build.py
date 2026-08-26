@@ -165,6 +165,23 @@ def cmake_board(board, build_args, build_name, build_cflags, build_targets, exam
                     f'-DBOARD={board}', *build_flags, 'build'
                 ])
                 ret[0 if rcmd.returncode == 0 else 1] += 1
+            elif not os.path.isdir(example_build_dir) and build_targets == ['examples-membrowse-upload']:
+                # No build dir means 'all' never ran here (no-code-change CI run, PR
+                # filter, or family skip). Every other family still gets an --identical
+                # upload in this situation because its 'cmake' configure step (cheap,
+                # no compiler invoked) runs regardless - espressif has no such cheap
+                # step, only a real `idf.py build`, which this must NOT trigger. Route
+                # straight through membrowse_report.py's --identical path instead: it
+                # needs neither the ELF nor a configured ninja build dir once the ELF
+                # is missing (see its own fix), so pass one that does not exist.
+                name = example.split('/', 1)[1]
+                rcmd = run_cmd([
+                    sys.executable, os.path.join(os.path.dirname(__file__), 'membrowse_report.py'),
+                    '--build-dir', example_build_dir, '--ninja', 'ninja', '--target', name,
+                    '--elf', f'{example_build_dir}/{name}.elf',
+                    '--target-name', f'{board}/{name}', '--upload',
+                ])
+                ret[0 if rcmd.returncode == 0 else 1] += 1
             elif not os.path.isdir(example_build_dir):
                 # a non-'all' target (e.g. examples-membrowse-upload) runs against an
                 # already-configured IDF build dir; without one - PR filter, family

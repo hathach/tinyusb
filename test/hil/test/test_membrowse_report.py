@@ -62,6 +62,31 @@ class ResolveIncludes(unittest.TestCase):
             self.assertEqual(mr.resolve_includes([a]), [a])
 
 
+class NinjaCommands(unittest.TestCase):
+    def test_success_returns_stdout(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fake_ninja = os.path.join(tmp, 'fake_ninja.sh')
+            with open(fake_ninja, 'w') as f:
+                f.write('#!/bin/sh\necho "cc -Wl,--script=a.ld -o out.elf"\n')
+            os.chmod(fake_ninja, 0o755)
+            self.assertEqual(mr.ninja_commands(fake_ninja, tmp, 'x'),
+                              'cc -Wl,--script=a.ld -o out.elf\n')
+
+    def test_failure_exits_naming_invocation_and_stderr(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fake_ninja = os.path.join(tmp, 'fake_ninja.sh')
+            with open(fake_ninja, 'w') as f:
+                f.write('#!/bin/sh\necho "ninja: error: unknown target" >&2\nexit 1\n')
+            os.chmod(fake_ninja, 0o755)
+            with self.assertRaises(SystemExit) as cm:
+                mr.ninja_commands(fake_ninja, tmp, 'mytarget')
+            msg = str(cm.exception)
+            self.assertIn(fake_ninja, msg)
+            self.assertIn(tmp, msg)
+            self.assertIn('mytarget', msg)
+            self.assertIn('ninja: error: unknown target', msg)
+
+
 class Regexes(unittest.TestCase):
     def test_ld_script_extraction_both_forms(self):
         text = 'cc -Wl,--script=a.ld -o out.elf\ncc -T b.ld -o out2.elf\ncc -Tb.ld -o out3.elf\n'
@@ -102,7 +127,7 @@ class BuildMembrowseCmd(unittest.TestCase):
             elf = os.path.join(tmp, 'x.elf')
             open(elf, 'w').close()
             open(elf + '.map', 'w').close()
-            cmd, _key = mr.build_membrowse_cmd(self._args(elf), '')
+            cmd, _key = mr.build_membrowse_cmd(self._args(elf, ld=['/fake.ld']), '')
             self.assertIn('--map-file', cmd)
             self.assertEqual(cmd[cmd.index('--map-file') + 1], elf + '.map')
 
@@ -111,9 +136,22 @@ class BuildMembrowseCmd(unittest.TestCase):
             elf = os.path.join(tmp, 'x.elf')
             open(elf, 'w').close()
             commands = 'cc -Wl,--defsym=FOO=0x10 -Wl,--defsym,BAR=1 -o x.elf\n'
-            cmd, _key = mr.build_membrowse_cmd(self._args(elf), commands)
+            cmd, _key = mr.build_membrowse_cmd(self._args(elf, ld=['/fake.ld']), commands)
             self.assertEqual(cmd[cmd.index('--def') + 1], 'FOO=0x10')
             self.assertIn('BAR=1', cmd)
+
+    def test_no_ld_scripts_without_override_exits(self):
+        # empty commands_text (or one with no LD_SCRIPT_RE match) + no --ld override
+        # is exactly the silent-wrong-region-sizes case: must fail loudly, not fall
+        # through to `membrowse report <elf> ''`.
+        with tempfile.TemporaryDirectory() as tmp:
+            elf = os.path.join(tmp, 'x.elf')
+            open(elf, 'w').close()
+            with self.assertRaises(SystemExit) as cm:
+                mr.build_membrowse_cmd(self._args(elf), '')
+            msg = str(cm.exception)
+            self.assertIn('linker script', msg)
+            self.assertIn('--ld', msg)
 
     def test_ld_override_skips_ninja_extraction(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -130,7 +168,7 @@ class BuildMembrowseCmd(unittest.TestCase):
             elf = os.path.join(tmp, 'x.elf')
             open(elf, 'w').close()
             cmd, _key = mr.build_membrowse_cmd(
-                self._args(elf, option='--json --all-symbols'), '')
+                self._args(elf, ld=['/fake.ld'], option='--json --all-symbols'), '')
             self.assertEqual(cmd[:4], ['membrowse', 'report', '--json', '--all-symbols'])
 
     def test_upload_requires_key_env(self):
@@ -141,7 +179,7 @@ class BuildMembrowseCmd(unittest.TestCase):
             env.pop('MEMBROWSE_API_KEY', None)
             with mock.patch.dict(os.environ, env, clear=True):
                 with self.assertRaises(SystemExit):
-                    mr.build_membrowse_cmd(self._args(elf, upload=True), '')
+                    mr.build_membrowse_cmd(self._args(elf, ld=['/fake.ld'], upload=True), '')
 
     def test_upload_appends_key_and_target_name(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -149,7 +187,7 @@ class BuildMembrowseCmd(unittest.TestCase):
             open(elf, 'w').close()
             with mock.patch.dict(os.environ, {'MEMBROWSE_API_KEY': 'dummysecret'}):
                 cmd, key = mr.build_membrowse_cmd(
-                    self._args(elf, upload=True, target_name='board/ex'), '')
+                    self._args(elf, ld=['/fake.ld'], upload=True, target_name='board/ex'), '')
             self.assertEqual(key, 'dummysecret')
             self.assertEqual(cmd[cmd.index('--api-key') + 1], 'dummysecret')
             self.assertEqual(cmd[cmd.index('--target-name') + 1], 'board/ex')
@@ -178,8 +216,11 @@ class CliKeyHandling(unittest.TestCase):
         env['PATH'] = stub_dir + os.pathsep + env.get('PATH', '')
         env.pop('MEMBROWSE_API_KEY', None)
         env.update(env_extra)
+        # --ld bypasses ninja-graph extraction: these tests cover upload/key
+        # handling, not extraction (see NinjaCommands / BuildMembrowseCmd for that).
         args = [sys.executable, SCRIPT, '--build-dir', tmp, '--ninja', 'true',
-                '--target', 'x', '--elf', elf, '--target-name', 'board/example'] + extra_args
+                '--target', 'x', '--elf', elf, '--target-name', 'board/example',
+                '--ld', '/fake.ld'] + extra_args
         return subprocess.run(args, capture_output=True, text=True, env=env)
 
     def test_missing_api_key_errors_cleanly_no_traceback(self):
@@ -210,6 +251,56 @@ class CliKeyHandling(unittest.TestCase):
             r = self._run(tmp, [], {})
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertIn('STUB_ARGV:', r.stdout)
+
+    def test_no_ld_scripts_without_override_errors_cleanly_no_traceback(self):
+        # same scenario as test_no_ld_scripts_without_override_exits, but through
+        # the real CLI: `--ninja true` never emits any ninja commands output.
+        with tempfile.TemporaryDirectory() as tmp:
+            elf = os.path.join(tmp, 'fake.elf')
+            open(elf, 'w').close()
+            stub_dir = self._stub_path_dir(tmp)
+            env = dict(os.environ)
+            env['PATH'] = stub_dir + os.pathsep + env.get('PATH', '')
+            args = [sys.executable, SCRIPT, '--build-dir', tmp, '--ninja', 'true',
+                    '--target', 'x', '--elf', elf, '--target-name', 'board/example']
+            r = subprocess.run(args, capture_output=True, text=True, env=env)
+            self.assertNotEqual(r.returncode, 0)
+            self.assertNotIn('Traceback', r.stderr)
+            self.assertIn('linker script', r.stderr)
+
+    def test_identical_via_cli_needs_no_build_dir_or_ninja(self):
+        # main()'s reason for skipping ninja_commands() when the elf is missing: a
+        # build dir that was never configured (no build.ninja at all) and a ninja
+        # binary that does not even exist must not stop an --identical report - a
+        # no-code-change CI run has neither (see tools/build.py's espressif branch).
+        with tempfile.TemporaryDirectory() as tmp:
+            stub_dir = self._stub_path_dir(tmp)
+            env = dict(os.environ)
+            env['PATH'] = stub_dir + os.pathsep + env.get('PATH', '')
+            env.pop('MEMBROWSE_API_KEY', None)
+            missing_elf = os.path.join(tmp, 'never-built.elf')
+            missing_build_dir = os.path.join(tmp, 'no-such-build-dir')
+            args = [sys.executable, SCRIPT, '--build-dir', missing_build_dir,
+                    '--ninja', '/no/such/ninja', '--target', 'x',
+                    '--elf', missing_elf, '--target-name', 'board/example']
+            r = subprocess.run(args, capture_output=True, text=True, env=env)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn('STUB_ARGV:report --identical', r.stdout)
+
+    def test_failed_ninja_query_errors_cleanly_no_traceback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            elf = os.path.join(tmp, 'fake.elf')
+            open(elf, 'w').close()
+            fake_ninja = os.path.join(tmp, 'fake_ninja.sh')
+            with open(fake_ninja, 'w') as f:
+                f.write('#!/bin/sh\necho "boom" >&2\nexit 3\n')
+            os.chmod(fake_ninja, 0o755)
+            args = [sys.executable, SCRIPT, '--build-dir', tmp, '--ninja', fake_ninja,
+                    '--target', 'x', '--elf', elf, '--target-name', 'board/example']
+            r = subprocess.run(args, capture_output=True, text=True)
+            self.assertNotEqual(r.returncode, 0)
+            self.assertNotIn('Traceback', r.stderr)
+            self.assertIn('boom', r.stderr)
 
 
 if __name__ == '__main__':

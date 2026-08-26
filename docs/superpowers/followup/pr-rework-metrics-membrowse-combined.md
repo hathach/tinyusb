@@ -49,88 +49,39 @@ file when its own PR lands.
   engines to reuse), but the end product — one `cmake-metrics/_combined/metrics_compare.md` —
   should read the same way.
 
-## A related, independently-reproducible correctness bug in the same module
-
-Found during this branch's review and not yet fixed (documenting per the reviewer's note so
-it doesn't get lost, and because fixing it is naturally part of "get the membrowse engine
-production-ready for a combined sweep"):
-
-**`_bucket()` mis-buckets any RAM section whose name isn't in its hardcoded list.**
-`tools/membrowse_compare.py:26-28,43-51`:
-```python
-FLASH_SECTIONS = ('.text', '.rodata', '.isr_vector', '.vector', '.init', '.fini')
-RAM_SECTIONS = ('.bss', '.noinit', '.stack', '.heap')
-BOTH_SECTIONS = ('.data', '.ramfunc', '.fastrun', '.itcm', '.dtcm')
-
-def _bucket(section):
-    s = section or ''
-    if any(s.startswith(p) for p in BOTH_SECTIONS):
-        return ('flash', 'ram')
-    if any(s.startswith(p) for p in RAM_SECTIONS):
-        return ('ram',)
-    if any(s.startswith(p) for p in FLASH_SECTIONS):
-        return ('flash',)
-    return ('flash',)  # unknown allocated section: count as flash, never drop
-```
-A symbol whose section name is not a prefix match for any of the three lists falls through to
-the final `return ('flash',)` — silently counted as **flash**, even when it is actually RAM.
-Real MCU linker scripts use RAM section names this list does not cover, e.g. `NonCacheable`
-(STM32H7/RT cache-disabled RAM), `m_usb_global` (NXP MCX/RT USB-controller SRAM), and
-`.ccmram` (STM32F4 core-coupled RAM). Each of those is genuine RAM budget, misreported as
-flash budget in every table `compare_reports()` produces today.
-
-**Suggested fix — bucket by address against `memory_layout`, not by section-name prefix.**
-`membrowse report --json` (verified against the installed `membrowse` 1.2.9 package,
-`membrowse/core/models.py`'s `MemoryReport`/`MemoryRegionDict`) returns, alongside `symbols`,
-a top-level `memory_layout: {region_name: {address, limit_size, used_size, sections, ...}}`
-describing every linker-script memory region by its real address range. Each symbol dict
-carries its own `address` (`SymbolDict.address`). So the ground truth for "is this symbol in
-RAM or flash" is: find the `memory_layout` region whose `[address, address + limit_size)`
-range contains the symbol's address, and use that region's identity — **not** its `type`
-field, which the installed membrowse version always reports as `"UNKNOWN"`
-(`MemoryRegion.type` defaults to `"UNKNOWN"` and no parser in `membrowse/linker/*.py` or
-`membrowse/core/generator.py` overrides it — confirmed by reading every `MemoryRegion(...)`
-construction site in the installed package). In practice this means classifying by the
-region's **name** (`FLASH`, `RAM`, `CCMRAM`, `NonCacheable`, `m_usb_global`, ...) after
-resolving the containing region by address, which is far more robust than guessing from an
-open-ended set of section names: a chip's linker script typically names only 2-5 regions, vs.
-however many section names toolchains and vendor SDKs invent.
-
 ## What remains (not started)
 
 1. **Design the per-board intermediate.** Likely: `per_file_sizes()`'s output dict, plus
    region-classified totals, written to `cmake-metrics/<board>/membrowse_metrics.json` per
    side (base/current) — the membrowse-engine analog of what `generate_metrics()` writes for
    linkermap today.
-2. **Implement the address-based `_bucket()` fix** (see above) — needed regardless of
-   `--combined`, but do it here since it changes the per-board numbers the combine step will
-   aggregate; fixing it after combined ships would mean re-validating combined output twice.
-3. **Implement the combine step**: sum the per-file dicts across all boards' JSON, render with
+2. **Implement the combine step**: sum the per-file dicts across all boards' JSON, render with
    the same `compare_reports()` markdown shape, write to
    `cmake-metrics/_combined/metrics_compare.md`.
-4. **Drop the `parser.error`** at `metrics_compare_base.py:254-257`; make `--ci`/`--combined`
+3. **Drop the `parser.error`** at `metrics_compare_base.py:254-257`; make `--ci`/`--combined`
    work with the (now default) membrowse engine.
-5. **Tests**: extend `test/hil/test/test_membrowse_compare.py` for the new `_bucket()`
-   behavior (a case per un-covered RAM section name above) and for the combine aggregation;
+4. **Tests**: extend `test/hil/test/test_membrowse_compare.py` for the combine aggregation;
    extend `test/hil/test/test_metrics_compare_base.py` for the `--combined`+membrowse path
    no longer erroring.
-6. **Docs**: `.claude/skills/code-size/SKILL.md` and `.claude/skills/membrowse/SKILL.md` both
+5. **Docs**: `.claude/skills/code-size/SKILL.md` and `.claude/skills/membrowse/SKILL.md` both
    currently tell the user `--ci`/`--combined` needs `--engine linkermap` — update once this
    lands (this is also part of what unblocks `pr-rework-metrics-drop-linkermap.md`).
-7. Validate with a real `--ci` run and compare the combined report's totals against the
+6. Validate with a real `--ci` run and compare the combined report's totals against the
    equivalent `--engine linkermap --ci` run for the same branch, board-for-board, before
    trusting the new path in CI.
+
+`_bucket()`'s section-name-prefix guessing (the "related, independently-reproducible
+correctness bug" this doc used to document here) is fixed — it now buckets by address against
+`memory_layout` when a report has one, falling back to the old name-prefix table otherwise
+(`tools/membrowse_compare.py`, tested in `test/hil/test/test_membrowse_compare.py`). That
+landed as its own commit outside this follow-up's scope; nothing here depends on it further.
 
 ## Why this is a separate PR
 
 - It is genuinely unimplemented, not a bug fix on top of working code — `--combined` and
-  `--engine membrowse` have never coexisted, so this is new aggregation logic plus a
-  correctness fix in the bucketing that touches every membrowse report, not a small patch.
+  `--engine membrowse` have never coexisted, so this is new aggregation logic, not a small
+  patch.
 - It is the direct blocker for `pr-rework-metrics-drop-linkermap.md`; keeping it as its own
   PR means that removal PR can cite "membrowse combined has shipped and been used for N CI
   runs" as its own established fact rather than bundling an untested new code path with a
   deletion of the fallback for it.
-- The `_bucket()` fix changes reported numbers for any board with an unusual RAM region name
-  (STM32H7/RT `NonCacheable`, MCX/RT `m_usb_global`, F4 `.ccmram` at minimum) — that is a
-  correctness-sensitive change worth its own review and its own before/after evidence, not a
-  drive-by inside an unrelated final-review fix wave.

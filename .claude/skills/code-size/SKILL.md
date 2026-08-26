@@ -15,7 +15,7 @@ Compare TinyUSB code size between a base ref (default `master`) and the current 
 
 The script does the whole base-vs-branch dance itself: a temporary git worktree of the base ref under `cmake-metrics/_worktree/` (removed on exit), base + branch builds under `cmake-metrics/<board>/{base,build}/`, then a per-file compare — `tools/membrowse_compare.py` for the default engine, or `tools/metrics.py compare` for `--engine linkermap` (report paths under Outputs).
 
-Default size-diff engine is membrowse (local `membrowse report --json --all-symbols` per elf); pass `--engine linkermap` for the legacy map.json-based engine, which needs `python3 tools/get_deps.py` for `tools/linkermap` and is required today for `--combined`/`--ci` (the membrowse engine doesn't support `--combined` yet). The linkermap engine now gets its map.json files via the explicit `examples-linkermap` (or `<example>-linkermap`) cmake target, which the script builds itself — no user action needed. See the `membrowse` skill for engine details.
+Default size-diff engine is membrowse (local `membrowse report --json --all-symbols` per elf), which requires the `membrowse` CLI (`pip install membrowse`) — CI gets it from `.github/actions/get_deps/action.yml`, which never runs locally; pass `--engine linkermap` for the legacy map.json-based engine, which needs `python3 tools/get_deps.py` for `tools/linkermap` and is required today for `--combined`/`--ci` (the membrowse engine doesn't support `--combined` yet). The linkermap engine now gets its map.json files via the explicit `examples-linkermap` (or `<example>-linkermap`) cmake target, which the script builds itself — no user action needed. See the `membrowse` skill for engine details.
 
 ## Choosing arguments
 

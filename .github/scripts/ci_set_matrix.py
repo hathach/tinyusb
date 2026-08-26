@@ -38,7 +38,6 @@ family_list = {
     "ch583": ["riscv-gcc"],
     "cxd56": ["arm-gcc"],
     "da1469x": ["arm-gcc"],
-    "espressif": ["esp-idf"],
     "f1c100s": ["arm-gcc"],
     "fomu": ["riscv-gcc"],
     "ft9xx": ["ft9xx-gcc"],
@@ -132,12 +131,17 @@ def set_matrix_json(select=None):
         # a family this file does not list builds on no toolchain, so it contributes no
         # leg. hw/bsp holds a few CI has never built (efm32, pic32mz, py32f0, ...) - a
         # missing family.cmake or no CI toolchain support, not a gap in this file.
-        # espressif IS listed ("esp-idf" toolchain) and build.yml's `cmake` job matrix
-        # includes esp-idf too - its Build/Membrowse Upload steps run tools/build.py
-        # inside the espressif/idf:tinyusb docker image (build_util.yml) rather than a
-        # local `. "$IDF_PATH/export.sh"`, so no separate esp-idf-only job is needed
-        # for this entry to take effect.
-        unbuilt = sorted(f for f in sel_fams if f not in family_list)
+        # espressif is not a gap either: it briefly had its own family_list entry
+        # here, but that meant tools/build.py compiled espressif_s3_devkitm TWICE per
+        # code-changed run (once for hil-build-esp's roster, once for this file's
+        # esp-idf leg, on the slowest toolchain in the workflow) and, on CircleCI -
+        # which passes neither --ci-boards nor --one-random - would have started a
+        # never-before-run esp-idf leg building EVERY espressif board across every
+        # example with no pin at all. hil-build-esp builds espressif's boards BY NAME
+        # instead (see .github/workflows/build.yml), so falling open to the full
+        # matrix for an espressif-only selection would add 74 legs, none of which can
+        # compile espressif.
+        unbuilt = sorted(f for f in sel_fams if f not in family_list and f != 'espressif')
         if unbuilt and not any(matrix.values()):
             # NONE of the selected families is buildable here, so every leg would skip
             # and the PR would go green from a build job that ran no compiler. That is

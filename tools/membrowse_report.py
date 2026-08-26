@@ -65,12 +65,34 @@ def resolve_includes(seed_scripts):
 def ninja_commands(ninja, build_dir, target):
     """stdout of `<ninja> -C <build_dir> -t commands <target>`.
 
-    Returns '' on failure instead of raising: the bash this replaces piped the same
-    command into grep and never checked its exit status.
+    Exits (non-zero) on failure instead of returning ''. The bash this replaces
+    piped the same command into grep and never checked its exit status, but a
+    silent '' here is worse than a crash: it starves LD_SCRIPT_RE/DEFSYM_RE of
+    input, so the caller emits `membrowse report <elf> ''` (no linker scripts, no
+    --def) and membrowse falls back to its DEFAULT Code/Data regions and exits 0
+    - a stale/renamed target, a moved build dir, or a missing CMAKE_MAKE_PROGRAM
+    would silently record wrong region sizes instead of failing. This applies
+    even when --ld overrides linker-script extraction: --defsym extraction still
+    reads this same output, so a failed query is fatal under --ld too.
     """
     r = subprocess.run([ninja, '-C', build_dir, '-t', 'commands', target],
                         capture_output=True, text=True)
+    if r.returncode != 0:
+        sys.exit(f"error: '{ninja} -C {build_dir} -t commands {target}' failed "
+                  f'(exit {r.returncode}):\n{r.stderr}')
     return r.stdout
+
+
+def extract_ld_scripts(commands_text):
+    """Linker scripts referenced in `commands_text` (`ninja -t commands` stdout),
+    with nested INCLUDE directives resolved (see resolve_includes())."""
+    return resolve_includes(LD_SCRIPT_RE.findall(commands_text))
+
+
+def extract_defsyms(commands_text):
+    """`VAR=VALUE` --defsym values referenced in `commands_text`
+    (`ninja -t commands` stdout), in the order first encountered."""
+    return DEFSYM_RE.findall(commands_text)
 
 
 def build_membrowse_cmd(args, commands_text):
@@ -78,10 +100,10 @@ def build_membrowse_cmd(args, commands_text):
     if args.ld is not None:
         ld_scripts = list(args.ld)
     else:
-        ld_scripts = resolve_includes(LD_SCRIPT_RE.findall(commands_text))
+        ld_scripts = extract_ld_scripts(commands_text)
 
     def_args = []
-    for sym in DEFSYM_RE.findall(commands_text):
+    for sym in extract_defsyms(commands_text):
         def_args += ['--def', sym]
 
     map_args = []
@@ -94,6 +116,12 @@ def build_membrowse_cmd(args, commands_text):
 
     cmd = [membrowse_exe, 'report'] + option_args
     if os.path.isfile(args.elf):
+        if args.ld is None and not ld_scripts:
+            # a successful ninja query that found no linker script is equally
+            # wrong-by-silence as a failed one (see ninja_commands()): report
+            # against membrowse's DEFAULT regions instead of the real ones.
+            sys.exit(f'error: no linker script found in the ninja build graph for '
+                      f'{args.elf!r}; pass --ld to supply linker scripts explicitly')
         cmd += [args.elf, ' '.join(ld_scripts)] + def_args + map_args
     else:
         cmd += ['--identical']
@@ -124,7 +152,13 @@ def main(argv=None):
     parser.add_argument('--option', default='', help='extra membrowse report options, space-separated')
     args = parser.parse_args(argv)
 
-    commands_text = ninja_commands(args.ninja, args.build_dir, args.target)
+    # An --identical report (elf missing - build_membrowse_cmd() never reads
+    # commands_text on that path) needs neither the ELF nor a configured ninja
+    # build graph: skip the query so a report can run against a build dir that
+    # was never configured (e.g. a no-code-change CI run that skipped `cmake`
+    # entirely, not just the compile).
+    commands_text = ninja_commands(args.ninja, args.build_dir, args.target) \
+        if os.path.isfile(args.elf) else ''
     cmd, key = build_membrowse_cmd(args, commands_text)
 
     logged = cmd if key is None else ['***' if part == key else part for part in cmd]

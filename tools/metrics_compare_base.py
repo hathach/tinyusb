@@ -11,8 +11,8 @@ Usage:
   python tools/metrics_compare_base.py -b raspberry_pi_pico -f portable/raspberrypi
   python tools/metrics_compare_base.py -b raspberry_pi_pico -e device/cdc_msc
   python tools/metrics_compare_base.py -b raspberry_pi_pico -e device/cdc_msc --bloaty
-  python tools/metrics_compare_base.py --ci                          # first board of each arm-gcc family, combined
-  python tools/metrics_compare_base.py -b pico -b pico2 --combined   # aggregate listed boards
+  python tools/metrics_compare_base.py --ci --engine linkermap                        # first board of each arm-gcc family, combined
+  python tools/metrics_compare_base.py -b pico -b pico2 --combined --engine linkermap # aggregate listed boards
 """
 import argparse
 import glob
@@ -182,7 +182,16 @@ def generate_membrowse_sizes(build_dir, filters, example=None):
         return None
     combined = {}
     for elf in sorted(elfs):
-        report = membrowse_compare.report_for_elf(elf, elf + '.map')
+        try:
+            report = membrowse_compare.report_for_elf(elf, elf + '.map')
+        except FileNotFoundError:
+            # subprocess.run(['membrowse', ...]) raises this when the CLI isn't
+            # installed - the default size-diff engine, so this would otherwise
+            # surface as a bare traceback after both boards' builds already ran.
+            print('  Error: `membrowse` CLI not found - install it with '
+                  '`pip install membrowse`, or pass --engine linkermap to use '
+                  'the legacy map.json path instead')
+            return None
         for path, sizes in membrowse_compare.per_file_sizes(report, filters).items():
             entry = combined.setdefault(path, {'flash': 0, 'ram': 0})
             entry['flash'] += sizes['flash']
@@ -224,7 +233,9 @@ def main():
                         help='Size-diff engine (default: membrowse local reports; '
                              'linkermap is the legacy map.json path)')
     parser.add_argument('--ci', action='store_true',
-                        help='Add the first board of every arm-gcc CI family. Implies --combined.')
+                        help='Add the first board of every arm-gcc CI family. Implies --combined, '
+                             'which needs --engine linkermap (the membrowse engine doesn\'t '
+                             'support --combined yet).')
     parser.add_argument('--combined', action='store_true',
                         help='Aggregate map.json files across all boards into one comparison '
                              '(in cmake-metrics/_combined/), instead of (or in addition to) per-board.')
