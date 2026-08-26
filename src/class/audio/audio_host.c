@@ -551,7 +551,8 @@ static void audioh_stream_playback_xfer(tuh_audio_stream_t *s) {
   if (loop_done && playback->feedback_pending) {
     playback->target_frames_q16 = playback->pending_frames_q16;
     playback->feedback_pending  = false;
-    playback->rem_acc           = 0;
+    // Keep the remainder from the completed cycle. Clearing it for every
+    // feedback update biases the average toward the integer packet sizes.
   }
 }
 

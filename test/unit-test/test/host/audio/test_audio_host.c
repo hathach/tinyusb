@@ -47,11 +47,13 @@ static uint8_t edpt_close_count;
 
 static uint32_t edpt_busy_mask;
 static bool     edpt_xfer_result;
-static uint8_t  edpt_xfer_ep[16];
-static uint16_t edpt_xfer_bytes[16];
-static uint8_t  edpt_xfer_data[16][8];
-static uint8_t *edpt_xfer_buffer[16];
-static uint8_t  edpt_xfer_count;
+#define AUDIO_TEST_MAX_XFERS 128
+static uint8_t      edpt_xfer_ep[AUDIO_TEST_MAX_XFERS];
+static uint16_t     edpt_xfer_bytes[AUDIO_TEST_MAX_XFERS];
+static uint8_t      edpt_xfer_data[AUDIO_TEST_MAX_XFERS][8];
+static uint8_t     *edpt_xfer_buffer[AUDIO_TEST_MAX_XFERS];
+static uint8_t      edpt_xfer_count;
+static tusb_speed_t test_speed;
 
 static uint8_t  err_cb_count;
 static uint8_t  err_cb_idx;
@@ -76,7 +78,7 @@ void tuh_audio_err_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_bytes) {
 
 tusb_speed_t tuh_speed_get(uint8_t daddr) {
   (void)daddr;
-  return TUSB_SPEED_FULL;
+  return test_speed;
 }
 
 bool tuh_control_xfer(tuh_xfer_t *xfer) {
@@ -758,6 +760,8 @@ static void complete_feedback_xfer(uint32_t feedback_q16, uint8_t length) {
 }
 
 void setUp(void) {
+  test_speed = TUSB_SPEED_FULL;
+
   interface_set_result = true;
   memset(&interface_xfer, 0, sizeof(interface_xfer));
   interface_alt       = 0;
@@ -1488,6 +1492,33 @@ void test_audio_host_accepts_16_16_feedback(void) {
 
   TEST_ASSERT_EQUAL_UINT16(180, edpt_xfer_bytes_at(0x01, 9));
   TEST_ASSERT_EQUAL_UINT16(180, edpt_xfer_bytes_at(0x01, 10));
+}
+
+void test_audio_host_preserves_high_speed_feedback_fraction_across_updates(void) {
+  test_speed = TUSB_SPEED_HIGH;
+  mount_descriptors(playback_44100_with_feedback_16_16, sizeof(playback_44100_with_feedback_16_16));
+
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0));
+  TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
+  complete_interface_set(XFER_RESULT_SUCCESS);
+
+  // The captured feedback is 5.557 frames per microframe. Repeating the
+  // update every millisecond must not discard the scheduler's remainder.
+  const uint32_t feedback_q16 = 0x00058eafu;
+  for (uint8_t packet = 0; packet < 80; packet++) {
+    if ((packet % 8u) == 0) {
+      complete_feedback_xfer(feedback_q16, 4);
+    }
+    if (packet < 79) {
+      complete_playback_xfer();
+    }
+  }
+
+  uint16_t total_frames = 0;
+  for (uint8_t packet = 0; packet < 80; packet++) {
+    total_frames += edpt_xfer_bytes_at(0x01, packet) / 4u;
+  }
+  TEST_ASSERT_EQUAL_UINT16(444, total_frames);
 }
 
 void test_audio_host_ignores_out_of_range_feedback(void) {
