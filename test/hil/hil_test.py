@@ -303,6 +303,9 @@ def serial_write_all(ser: serial.Serial, data: bytes):
 
 
 LP_OPEN_TIMEOUT = 5   # bound on opening the printer lp node; see test_device_printer_to_cdc
+# bound on one hidapi call; it walks every HID device on the bus, so it is sized for a busy
+# rig rather than for one device
+HID_ENUM_TIMEOUT = 10
 # Runs under hil_util.run_alongside as `python3 -c`. Inline rather than a file so hil_ci.sh's
 # staging list does not need another entry to keep the rig working.
 LP_READER = (
@@ -1307,21 +1310,42 @@ def test_device_hid_generic_inout(board):
     uid = board['uid']
     import hid  # cython-hidapi (pip: hidapi, apt: python3-hid)
 
+    # BOUNDED: hidapi's hidraw backend reads `manufacturer` and `product` for every HID
+    # device it lists, and both are usb_string_attr -- served under the device lock a
+    # wedged usbfs ioctl holds. One wedged HID device that need not even be ours would
+    # otherwise stall this walk forever, on the worker, with nothing to abandon it.
     timeout = enum_timeout()
     dev = None
+    unknown = False
     while timeout > 0:
-        for d in hid.enumerate(0xCafe):
-            if d['serial_number'] == uid:
-                dev = d
-                break
+        listed = hil_util.bounded_call(lambda: list(hid.enumerate(0xCafe)),
+                                       HID_ENUM_TIMEOUT, key='hid.enumerate')
+        if listed is hil_util.SYSFS_UNKNOWN:
+            unknown = True          # NOT proof the device is absent
+        else:
+            for d in listed:
+                if d['serial_number'] == uid:
+                    dev = d
+                    break
         if dev:
             break
         time.sleep(1)
         timeout -= 1
-    assert dev is not None, f'HID device not found for {uid}'
+    # "could not tell" is not "not there": reporting an unreadable bus as a missing board
+    # sends the operator after hardware that is fine
+    assert dev is not None, (
+        f'cannot tell whether HID device {uid} is present: the bounded enumerate did not '
+        f'answer{hil_util.sysfs_blind_note()}' if unknown else
+        f'HID device not found for {uid}')
 
     h = hid.device()
-    h.open(dev['vendor_id'], dev['product_id'], uid)
+    # same exposure: hid_open walks the same descriptors to match vid/pid/serial
+    opened = hil_util.bounded_call(
+        lambda: h.open(dev['vendor_id'], dev['product_id'], uid), HID_ENUM_TIMEOUT,
+        key='hid.open')
+    assert opened is not hil_util.SYSFS_UNKNOWN, (
+        f'HID open of {uid} blocked (device wedged)'
+        f'{hil_util.sysfs_blind_note()}')
     try:
         for size in [8, 32, 63]:
             # Report ID (0) + payload, padded to 64 bytes

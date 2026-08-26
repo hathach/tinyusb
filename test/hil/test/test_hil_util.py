@@ -227,5 +227,59 @@ class RunAlongsideKeepsStderrOffThePayload(unittest.TestCase):
                          'child stderr leaked into the payload stream')
 
 
+class BoundedCallGivesUp(unittest.TestCase):
+    """The generic form of bounded_open, for a library call that hands back no fd we could
+    close. hid.enumerate() is the case: it reads `manufacturer` and `product` for every HID
+    device on the bus, both served under the device lock a wedged usbfs ioctl holds, so one
+    wedged device stalls the walk with nothing to abandon it."""
+
+    def setUp(self):
+        from helper import hil_util
+        self.hil_util = hil_util
+        saved = (dict(hil_util._sysfs_stranded), hil_util._sysfs_stuck)
+        self.addCleanup(self._restore, saved)
+        hil_util._sysfs_stranded.clear()
+        hil_util._sysfs_stuck = 0
+
+    def _restore(self, saved):
+        self.hil_util._sysfs_stranded.clear()
+        self.hil_util._sysfs_stranded.update(saved[0])
+        self.hil_util._sysfs_stuck = saved[1]
+
+    def test_a_value_comes_straight_back(self):
+        self.assertEqual(self.hil_util.bounded_call(lambda: [1, 2], 1, key='k1'), [1, 2])
+
+    def test_a_call_that_never_returns_gives_up(self):
+        t0 = time.monotonic()
+        got = self.hil_util.bounded_call(lambda: time.sleep(30), 0.3, key='k2')
+        self.assertIs(got, self.hil_util.SYSFS_UNKNOWN)
+        self.assertLess(time.monotonic() - t0, 5, 'bounded_call did not bound')
+
+    def test_a_give_up_is_not_an_empty_result(self):
+        """SYSFS_UNKNOWN, never None or []: the caller must not read 'did not answer' as
+        'no such device', which is what turns a wedged bus into a missing board."""
+        got = self.hil_util.bounded_call(lambda: time.sleep(30), 0.2, key='k3')
+        self.assertIsNot(got, None)
+        self.assertNotEqual(got, [])
+        self.assertFalse(got, 'the sentinel must stay falsy for `if not listed:` callers')
+
+    def test_a_known_stuck_call_is_not_paid_for_twice(self):
+        self.hil_util.bounded_call(lambda: time.sleep(30), 0.3, key='k4')
+        t0 = time.monotonic()
+        for _ in range(4):
+            self.assertIs(self.hil_util.bounded_call(lambda: time.sleep(30), 0.3, key='k4'),
+                          self.hil_util.SYSFS_UNKNOWN)
+        self.assertLess(time.monotonic() - t0, 0.3,
+                        'a poll loop re-paid the bound on a call already known stuck')
+
+    def test_the_callee_s_own_exception_still_reaches_the_caller(self):
+        """A raise is a FACT about the device, not a timeout -- swallowing it would report
+        a real hidapi error as an unreadable bus."""
+        def boom():
+            raise OSError('no such device')
+        with self.assertRaises(OSError):
+            self.hil_util.bounded_call(boom, 1, key='k5')
+
+
 if __name__ == '__main__':
     unittest.main()

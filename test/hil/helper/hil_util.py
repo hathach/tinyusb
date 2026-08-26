@@ -253,19 +253,38 @@ def read_sysfs(path: str, grace: float = SYSFS_READ_GRACE) -> str | None | _Sysf
         # of them recorded it -- spending the whole blindness budget on a single device,
         # which is what this memo exists to prevent. note_sysfs_strand takes the lock
         # itself, so call it after releasing.
-        with _sysfs_stuck_lock:
-            first = path not in _sysfs_stranded
-            if first:
-                try:
-                    # stat, never the thread's own open(): stat does not call ->show(), so
-                    # it cannot block on the device lock the reader is stuck behind
-                    _sysfs_stranded[path] = os.stat(path).st_ino
-                except OSError:
-                    _sysfs_stranded[path] = None   # unstattable, but still known-stranded
-        if first:
-            note_sysfs_strand()
+        _record_strand(path, stat_path=path)
         return SYSFS_UNKNOWN
     return out.get('v')
+
+
+def _record_strand(key: str, stat_path: str | None = None) -> None:
+    """Memoise `key` as stranded and spend ONE blindness credit for it.
+
+    The credit is per KEY, not per caller: hil_pool_check runs a ThreadPoolExecutor of
+    SYSFS_STUCK_MAX workers over one bus, so counting each reader let four threads on ONE
+    wedged device spend the whole budget between them -- latching blind on the single
+    wedge the tool was run to find.
+
+    `stat_path` memoises by kernfs INODE, which a re-enumeration changes: that is the
+    all-clear for a device that came back on the same busport, and without it a recovered
+    board would stay invisible for the life of the process. os.stat is safe on a wedged
+    device -- it does not call ->show(), so it cannot block on the lock the reader is
+    stuck behind. Omit it when there is no node to key on (see bounded_call); the entry is
+    then permanent, which is correct for something with no way to signal recovery.
+    """
+    with _sysfs_stuck_lock:
+        first = key not in _sysfs_stranded
+        if first:
+            ino = None
+            if stat_path is not None:
+                try:
+                    ino = os.stat(stat_path).st_ino
+                except OSError:
+                    pass          # unstattable, but still known-stranded
+            _sysfs_stranded[key] = ino
+    if first:
+        note_sysfs_strand()
 
 
 def note_sysfs_strand() -> None:
@@ -348,6 +367,49 @@ def usb_scan(vid_pid=None, serial=None, vid=None) -> tuple[list, bool]:
     return out, unknown
 
 
+def bounded_call(fn, timeout: float = SYSFS_READ_GRACE, key: str = ''):
+    """Call `fn()` with a WALL-CLOCK bound. Its return value, or SYSFS_UNKNOWN.
+
+    The generic form of bounded_open, for a library call that reads the same locked sysfs
+    attributes but hands back no fd we could close. hidapi's hidraw backend is the case
+    this exists for: hid.enumerate() reads `manufacturer` and `product` for EVERY HID
+    device on the bus (linux/hid.c), and both are usb_string_attr -- served under the
+    device lock a wedged usbfs ioctl holds (v6.12.96 sysfs.c:141-143). So one wedged HID
+    device, which need not even be the board under test, stalls the walk forever.
+
+    SYSFS_UNKNOWN, never None, on a give-up: the caller must not read "did not answer" as
+    "no such device" -- the absence/unknown conflation read_sysfs exists to prevent.
+
+    `key` names the thing being called for the strand memo, so a poll loop does not pay
+    the bound again once it is known stuck. The abandoned thread and whatever it holds are
+    gone for the life of the process; the blindness cap is what stops those accumulating.
+    """
+    if sysfs_blind():
+        return SYSFS_UNKNOWN
+    memo = f'call:{key or getattr(fn, "__name__", "?")}'
+    if memo in _sysfs_stranded:
+        return SYSFS_UNKNOWN
+    box: dict = {}
+    done = threading.Event()
+
+    def _run():
+        try:
+            box['v'] = fn()
+        except Exception:  # noqa: BLE001 - the caller's own asserts decide what a raise means
+            box['exc'] = sys.exc_info()[1]
+        done.set()
+
+    threading.Thread(target=_run, daemon=True).start()
+    if not done.wait(timeout):
+        # a value cannot be handed back safely here the way bounded_open closes a late fd:
+        # we do not know what fn() allocated, so the thread keeps whatever it has
+        _record_strand(memo)        # no node to key on: the entry is permanent
+        return SYSFS_UNKNOWN
+    if 'exc' in box:
+        raise box['exc']
+    return box['v']
+
+
 def bounded_open(path: str, flags: int, timeout: float = SYSFS_READ_GRACE):
     """os.open() with a wall-clock bound.
 
@@ -424,15 +486,7 @@ def bounded_open(path: str, flags: int, timeout: float = SYSFS_READ_GRACE):
         # thread/fd ceiling -- an exception there escapes the worker and loses every board.
         # Memoised by inode so a retry of the same node does not pay again.
         # same lock as read_sysfs, same reason
-        with _sysfs_stuck_lock:
-            first = path not in _sysfs_stranded
-            if first:
-                try:
-                    _sysfs_stranded[path] = os.stat(path).st_ino
-                except OSError:
-                    _sysfs_stranded[path] = None
-        if first:
-            note_sysfs_strand()
+        _record_strand(path, stat_path=path)
         return SYSFS_UNKNOWN
     return box.get('fd')
 
