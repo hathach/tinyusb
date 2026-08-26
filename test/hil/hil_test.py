@@ -44,7 +44,6 @@ import itertools
 import os
 import random
 import re
-import select
 import signal
 import shlex
 import sys
@@ -319,6 +318,67 @@ LP_READER = (
     '        break\n'
     '    buf += chunk\n'
     'sys.stdout.buffer.write(buf)\n'
+)
+# The write half, same shape and same reason: usblp_open() ignores O_NONBLOCK and stalls in
+# usb_autopm_get_interface() on a wedged device, holding the driver-global usblp_mutex. A
+# blocked THREAD cannot be abandoned without keeping the fd, and usblp allows a single opener
+# (v6.12.96 usblp.c), so the next open of this node returns -EBUSY for the life of the worker.
+# A killed process takes its fd with it. O_NONBLOCK is kept because usblp DOES honour it on
+# write, which is what the select()/partial-write loop below relies on.
+LP_WRITER = (
+    'import os, random, select, sys\n'
+    'lp, payload_path, ready = sys.argv[1], sys.argv[2], sys.argv[3]\n'
+    'data = open(payload_path, "rb").read()\n'
+    'fd = os.open(lp, os.O_WRONLY | os.O_NONBLOCK)\n'
+    # readiness marker, as in LP_READER: the parent must not read CDC before the node is open
+    'open(ready, "w").close()\n'
+    'off = 0\n'
+    'while off < len(data):\n'
+    '    n = min(random.randint(1, 64), len(data) - off)\n'
+    '    buf, w = data[off:off + n], 0\n'
+    '    while w < len(buf):\n'
+    '        _, wr, _ = select.select([], [fd], [], 5.0)\n'
+    '        if not wr:\n'
+    '            sys.exit("printer write timeout (firmware not draining OUT endpoint)")\n'
+    '        w += os.write(fd, buf[w:])\n'
+    '    off += n\n'
+)
+# hidapi's hidraw backend reads `manufacturer` and `product` for EVERY HID device it
+# lists (linux/hid.c), and both are usb_string_attr -- served under the device lock a
+# wedged usbfs ioctl holds (v6.12.96 sysfs.c:141-143). So hid.enumerate() can stall on a
+# device that is not even ours, in-process, with no timeout and no way to abandon it.
+# In a child it is bounded by run_alongside and a killed child takes its handle with it.
+# The enumeration retry lives here, not in the parent: re-spawning to poll would re-pay
+# interpreter start-up on every attempt.
+HID_ECHO = (
+    'import hid, random, sys, time\n'
+    'uid, deadline = sys.argv[1], time.monotonic() + float(sys.argv[2])\n'
+    'dev = None\n'
+    'while dev is None:\n'
+    '    for d in hid.enumerate(0xCafe):\n'
+    '        if d["serial_number"] == uid:\n'
+    '            dev = d\n'
+    '            break\n'
+    '    if dev is not None or time.monotonic() >= deadline:\n'
+    '        break\n'
+    '    time.sleep(1)\n'
+    'if dev is None:\n'
+    '    sys.exit(f"HID device not found for {uid}")\n'
+    'h = hid.device()\n'
+    'h.open(dev["vendor_id"], dev["product_id"], uid)\n'
+    'try:\n'
+    '    for size in (8, 32, 63):\n'
+    # Report ID (0) + payload, padded to 64 bytes
+    '        payload = bytes(random.randint(1, 255) for _ in range(size))\n'
+    '        h.write(bytes([0]) + payload + bytes(64 - size))\n'
+    '        echo = h.read(64, 2000)\n'
+    '        if not echo or len(echo) < size:\n'
+    '            sys.exit(f"HID echo timeout or short read ({size} bytes)")\n'
+    '        if bytes(echo[:size]) != payload:\n'
+    '            sys.exit(f"HID echo wrong data ({size} bytes): sent {payload.hex()} "\n'
+    '                     f"received {bytes(echo[:size]).hex()}")\n'
+    'finally:\n'
+    '    h.close()\n'
 )
 MTYPE_TIMEOUT = 30  # a README-sized read is <1 s; bounds a D-state hang on a wedged device
 
@@ -991,45 +1051,75 @@ def test_device_printer_to_cdc(board):
     ser.reset_input_buffer()
 
     # Test 1: Printer -> CDC with multiple sizes, write in random 1-64 byte chunks
-    LP_WRITE_TIMEOUT = 5.0  # seconds; firmware may stall draining the printer OUT endpoint
+    # The write runs in a PROCESS for the same reason the read below does: see LP_WRITER.
     for size in sizes:
         test_data = rand_ascii(size)
         ser.reset_input_buffer()
-        rd = b''
-        offset = 0
-        # bounded: O_NONBLOCK does NOT save us -- usblp_open() takes the device mutex
-        # first -- and this open runs on the worker itself, with no thread to abandon
-        lp_fd = hil_util.bounded_open(lp_dev, os.O_WRONLY | os.O_NONBLOCK, 5)
-        # Three-valued on purpose: an OSError here is a FACT about the node (EBUSY from
-        # usblp's single-opener rule, ENOENT from a re-enumeration race, EACCES from a
-        # udev gap) and must not be reported as a wedge -- that sends the operator to
-        # usb-kernel-recover for hardware that is fine.
-        assert lp_fd is not hil_util.SYSFS_UNKNOWN, (
-            f'printer: opening {lp_dev} for write blocked (device wedged)'
-            f'{hil_util.sysfs_blind_note()}')
-        assert lp_fd is not None, f'printer: {lp_dev} could not be opened for write'
+        rd = bytearray()
+
+        payload = Path(tempfile.gettempdir()) / f'hil-lp-tx-{os.getpid()}-{size}'
+        ready = Path(tempfile.gettempdir()) / f'hil-lp-ready-{os.getpid()}-{size}'
+        payload.write_bytes(test_data)
+        ready.unlink(missing_ok=True)
+        # +5 like write_cdc's sibling wait below: the bound is on the OPEN, and the child
+        # must first fork, exec and boot CPython, which on a loaded rig routinely exceeds
+        # LP_OPEN_TIMEOUT on its own. A tighter wait here reports a slow interpreter start
+        # as a wedged node.
+        open_deadline = time.monotonic() + LP_OPEN_TIMEOUT + 5
+        saw_ready = False
+
+        def read_cdc():
+            # WAIT for the writer to have the node open, as Test 2's write_cdc does: the
+            # child has to fork, exec and boot CPython, and reading before it starts just
+            # burns the serial timeout.
+            # ONE deadline, shared with the child's bound below. Two different ones let
+            # the writer open after the parent gave up: it writes the whole payload with
+            # nobody reading, exits 0, and the byte-compare reports FIRMWARE DATA
+            # CORRUPTION for a board whose only problem was a slow open.
+            nonlocal saw_ready
+            while not ready.exists():
+                if time.monotonic() > open_deadline:
+                    return       # never opened; the assert below reports THAT, not data
+                time.sleep(0.02)
+            saw_ready = True
+            # fullspeed devices may need extra time; ser.read is bounded by
+            # SERIAL_READ_TIMEOUT, so an empty return means the stream went quiet
+            while len(rd) < size:
+                chunk = ser.read(size - len(rd))
+                if not chunk:
+                    break
+                rd.extend(chunk)   # in place: `rd +=` would rebind it as a local
+
         try:
-            while offset < size:
-                chunk_size = min(random.randint(1, 64), size - offset)
-                buf = test_data[offset:offset + chunk_size]
-                written = 0
-                while written < len(buf):
-                    _, wr, _ = select.select([], [lp_fd], [], LP_WRITE_TIMEOUT)
-                    assert wr, f'Printer write timeout after {LP_WRITE_TIMEOUT}s (firmware not draining OUT endpoint)'
-                    n = os.write(lp_fd, buf[written:])
-                    written += n
-                rd += ser.read(chunk_size)
-                offset += chunk_size
+            r = hil_util.run_alongside(
+                [sys.executable, '-c', LP_WRITER, lp_dev, str(payload), str(ready)],
+                read_cdc, LP_OPEN_TIMEOUT + 12)
         finally:
-            os.close(lp_fd)
-        # read any remaining bytes (fullspeed devices may need extra time)
-        while len(rd) < size:
-            remaining = ser.read(size - len(rd))
-            if not remaining:
-                break
-            rd += remaining
-        assert rd == test_data, (f'Printer->CDC wrong data ({size} bytes):\n'
-                                 f'  expected: {test_data[:64]}\n  received: {rd[:64]}')
+            ready.unlink(missing_ok=True)
+            payload.unlink(missing_ok=True)
+        # rc 124 is run_alongside's kill, i.e. the open blocked -- and stderr is EMPTY
+        # there, so without the fallback the cell reads 'failed (32 bytes, rc 124):' and
+        # nothing, for the one failure this conversion exists to contain. An OSError is a
+        # FACT about the node (EBUSY from usblp's single-opener rule, ENOENT from a
+        # re-enumeration race) and must not send the operator to usb-kernel-recover.
+        # The bound covers the open AND the whole write, so rc 124 alone does not mean a
+        # wedged node. `ready` is written on the line after os.open() returns, so its
+        # ABSENCE is what says the open never completed -- the case that sends an operator
+        # to usb-kernel-recover. Anything else killed on the bound was a slow drain.
+        detail = hil_util.cmd_stdout_text(r.stderr).strip()[:200]
+        # saw_ready, not ready.exists(): a marker that appeared AFTER read_cdc gave up
+        # means the child wrote with nobody reading, and the byte-compare below would call
+        # that firmware data corruption. Report the slow open instead.
+        assert saw_ready, (f'printer: {lp_dev} was not opened for write within '
+                           f'{LP_OPEN_TIMEOUT + 5}s (device wedged, or the writer never '
+                           f'started); rc {r.returncode}')
+        assert r.returncode == 0, (
+            f'Printer->CDC writer failed ({size} bytes): {detail}' if detail else
+            f'Printer->CDC writer killed on its bound after opening {lp_dev} '
+            f'(rc {r.returncode}): the firmware stopped draining the OUT endpoint')
+        assert bytes(rd) == test_data, (f'Printer->CDC wrong data ({size} bytes):\n'
+                                        f'  expected: {test_data[:64]}\n'
+                                        f'  received: {bytes(rd)[:64]}')
 
     # Test 2: CDC -> Printer with multiple sizes, write in random 1-64 byte chunks.
     # The lp read runs in a PROCESS, not a thread: /dev/usb/lp* blocks on read, usblp
@@ -1069,8 +1159,6 @@ def test_device_printer_to_cdc(board):
             ready.unlink(missing_ok=True)
         # stderr, not stdout: run_alongside keeps the payload stream clean, so a traceback
         # from the reader now arrives on its own pipe
-        # rc 124 is run_alongside's kill -- a blocked usblp_open leaves stderr EMPTY, so
-        # without the fallback this renders as 'failed (32 bytes, rc 124):' and nothing
         rdetail = hil_util.cmd_stdout_text(r.stderr).strip()[:200]
         assert r.returncode == 0, (
             f'CDC->Printer reader failed ({size} bytes): {rdetail}' if rdetail else
@@ -1304,38 +1392,20 @@ def test_device_audio_test_freertos(board):
 
 
 def test_device_hid_generic_inout(board):
+    # The whole exchange runs in a child (see HID_ECHO): cython-hidapi is unbounded
+    # in-process. No parent-side work to interleave, so `work` is a no-op -- what is
+    # wanted from run_alongside is its own-session/killpg/bounded-reap contract and an
+    # argv list that needs no shell quoting.
     uid = board['uid']
-    import hid  # cython-hidapi (pip: hidapi, apt: python3-hid)
-
-    timeout = enum_timeout()
-    dev = None
-    while timeout > 0:
-        for d in hid.enumerate(0xCafe):
-            if d['serial_number'] == uid:
-                dev = d
-                break
-        if dev:
-            break
-        time.sleep(1)
-        timeout -= 1
-    assert dev is not None, f'HID device not found for {uid}'
-
-    h = hid.device()
-    h.open(dev['vendor_id'], dev['product_id'], uid)
-    try:
-        for size in [8, 32, 63]:
-            # Report ID (0) + payload, padded to 64 bytes
-            payload = bytes([random.randint(1, 255) for _ in range(size)])
-            report = bytes([0]) + payload + bytes(64 - size)
-            h.write(report)
-            echo = h.read(64, 2000)
-            assert echo and len(echo) >= size, (
-                f'HID echo timeout or short read ({size} bytes)')
-            assert bytes(echo[:size]) == payload, (
-                f'HID echo wrong data ({size} bytes):\n'
-                f'  expected: {payload.hex()}\n  received: {bytes(echo[:size]).hex()}')
-    finally:
-        h.close()
+    r = hil_util.run_alongside(
+        [sys.executable, '-c', HID_ECHO, uid, str(enum_timeout())],
+        lambda: None, enum_timeout() + 30)
+    # rc 124 is run_alongside's kill -- a wedged device, and stderr is empty there, so the
+    # fallback is what the report shows for the case this conversion exists to contain
+    detail = hil_util.cmd_stdout_text(r.stderr).strip()[:300]
+    assert r.returncode == 0, (f'hid_generic_inout: {detail}' if detail else
+                               f'hid_generic_inout: child exited {r.returncode} '
+                               f'with no message (124 = killed on the bound)')
 
 
 def test_device_usbtest(board):

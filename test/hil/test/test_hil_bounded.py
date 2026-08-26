@@ -8,8 +8,10 @@
 # Scope: mtype, the gio unmount, the libmtp session, the arecord/iperf reaps, and the
 # printer read (a process now, via run_alongside, so a killed reader takes its fd with
 # it -- usblp allows ONE opener, and a blocked thread kept the node for the worker's life).
-# Known residue (unbounded, backstopped only by the pool guard): hid open/write and
-# midi's read(64).
+# The HID echo is a child too now (hid.enumerate reads manufacturer/product for every
+# device it lists, both under the device lock). midi's read(64) is NOT residue: rawmidi
+# honours O_NONBLOCK on open (v6.12.96 rawmidi.c:489, -EBUSY rather than queueing on
+# open_wait), unlike usblp, which ignores it.
 #
 # hil_test imports pyserial, which GitHub's bare pre-commit runner does not have — so
 # an inert serial module is stubbed into sys.modules BEFORE the import (nothing here
@@ -1928,6 +1930,199 @@ class WedgedBoardCannotReportAPass(unittest.TestCase):
                                 '"failed":0,"notrun":0,"wedged":false,"cases":[]}')
         self.assertEqual(kind, 'pass', f'a healthy board was failed: {cell}')
         self.assertIn('30/30', cell)
+
+
+class PrinterWriteRunsInAChild(unittest.TestCase):
+    """test_device_printer_to_cdc's WRITE half used to open /dev/usb/lp* on the worker
+    itself and abandon a thread when the open blocked. usblp allows one opener (v6.12.96
+    usblp.c returns -EBUSY while usblp->used), so that abandoned thread's fd poisoned the
+    node for every later test the worker ran -- the exact failure the READ half already
+    avoided by forking. Both halves are children now; these pin the writer's contract."""
+
+    def _stderr(self, r):
+        from helper import hil_util
+        return hil_util.cmd_stdout_text(r.stderr)
+
+    def _run(self, target, payload, ready, data=None):
+        from helper import hil_util
+        if data is not None:
+            payload.write_bytes(data)
+        return hil_util.run_alongside(
+            [sys.executable, '-c', hil_test.LP_WRITER,
+             str(target), str(payload), str(ready)], lambda: None, 20)
+
+    def test_the_payload_arrives_byte_exact_through_a_pipe(self):
+        """A FIFO, not a regular file: /dev/usb/lp* is a character device, and against a
+        regular file select() is always writable and os.write() never returns short -- so
+        the select-bound and the partial-write resume, the only non-trivial code in
+        LP_WRITER, would never execute."""
+        with TemporaryDirectory() as td:
+            td = Path(td)
+            target, payload, ready = td / 'lp', td / 'tx', td / 'ready'
+            os.mkfifo(target)
+            # bigger than the 64 KiB pipe buffer and spanning every byte value, so the
+            # writer MUST block mid-payload and resume a short write
+            data = bytes(range(256)) * 512
+            got = bytearray()
+
+            def drain():
+                with open(target, 'rb') as f:
+                    while len(got) < len(data):
+                        chunk = f.read(4096)
+                        if not chunk:
+                            break
+                        got.extend(chunk)
+
+            payload.write_bytes(data)
+            t = threading.Thread(target=drain, daemon=True)
+            t.start()
+            r = self._run(target, payload, ready)
+            t.join(20)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertEqual(bytes(got), data,
+                             'writer did not deliver the payload byte-exact')
+            self.assertGreater(len(data), 65536, 'payload must exceed the pipe buffer')
+
+    def test_a_reader_that_stops_draining_reports_instead_of_hanging(self):
+        """The firmware-not-draining case: LP_WRITER's select() bound must turn a stalled
+        OUT endpoint into a message. `grep 'printer write timeout'` used to find only the
+        string's own definition -- nothing exercised it."""
+        with TemporaryDirectory() as td:
+            td = Path(td)
+            target, payload, ready = td / 'lp', td / 'tx', td / 'ready'
+            os.mkfifo(target)
+            payload.write_bytes(bytes(range(256)) * 512)
+            holder = []
+
+            def open_and_stall():          # opens, never reads: the pipe fills and stays full
+                holder.append(open(target, 'rb'))
+                time.sleep(30)
+
+            t = threading.Thread(target=open_and_stall, daemon=True)
+            t.start()
+            r = self._run(target, payload, ready)
+            self.assertNotEqual(r.returncode, 0)
+            self.assertIn('printer write timeout',
+                          self._stderr(r), 'the select() bound produced no message')
+
+    def test_readiness_is_signalled_so_the_parent_does_not_read_early(self):
+        with TemporaryDirectory() as td:
+            td = Path(td)
+            target, payload, ready = td / 'lp', td / 'tx', td / 'ready'
+            target.touch()
+            r = self._run(target, payload, ready, b'x' * 32)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertTrue(ready.exists(),
+                            'no readiness marker: the parent would read CDC before the '
+                            'node is open and lose the leading bytes')
+
+    def test_a_blocked_open_leaves_no_readiness_marker(self):
+        """The signal test_device_printer_to_cdc keys on to tell a WEDGED NODE from a slow
+        drain. usblp_open ignores O_NONBLOCK and can stall in usb_autopm_get_interface, so
+        the child gets no further -- and the marker is written on the line AFTER os.open
+        returns. Without this distinction the parent reads "no data" as firmware data
+        corruption instead of a device that never opened.
+        """
+        with TemporaryDirectory() as td:
+            td = Path(td)
+            target, payload, ready = td / 'lp', td / 'tx', td / 'ready'
+            os.mkfifo(target)          # O_WRONLY on a reader-less FIFO blocks in open()
+            payload.write_bytes(b'x' * 64)
+            r = self._run(target, payload, ready)
+            self.assertNotEqual(r.returncode, 0, 'a blocked open must not report success')
+            self.assertFalse(ready.exists(),
+                             'the marker appeared without the open completing, so the '
+                             'parent cannot tell a wedged node from a slow drain')
+
+    def test_an_unopenable_node_fails_the_case_instead_of_going_quiet(self):
+        with TemporaryDirectory() as td:
+            td = Path(td)
+            target, payload, ready = td / 'nope' / 'lp', td / 'tx', td / 'ready'
+            r = self._run(target, payload, ready, b'x' * 8)
+            self.assertNotEqual(r.returncode, 0,
+                                'a failed open must reach the caller as a non-zero rc')
+            self.assertFalse(ready.exists())
+
+
+class HidEchoRunsInAChild(unittest.TestCase):
+    """hid.enumerate() reads `manufacturer` and `product` for EVERY HID device it lists
+    (hidapi's hidraw backend), and both are usb_string_attr -- served under the device lock
+    a wedged usbfs ioctl holds. In-process that stalled the worker with no timeout and no
+    way to abandon it, on a device that need not even be ours. It is a child now; these
+    prove the bound and that failures still reach the caller as a message."""
+
+    def _run(self, mode, uid='CAFE01', budget='3', timeout=20):
+        from helper import hil_util
+        saved = {k: os.environ.get(k) for k in ('FAKE_HID_MODE', 'FAKE_HID_UID',
+                                                'PYTHONPATH', 'PYTHONSAFEPATH')}
+
+        def restore():
+            for k, v in saved.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+        self.addCleanup(restore)
+        os.environ['FAKE_HID_MODE'] = mode
+        os.environ['FAKE_HID_UID'] = uid
+        stubs = os.path.join(TEST_DIR, 'stubs')
+        pp = saved['PYTHONPATH']
+        os.environ['PYTHONPATH'] = stubs if not pp else f'{stubs}:{pp}'
+        # `python3 -c` puts the cwd at sys.path[0], AHEAD of PYTHONPATH, so any hid.py
+        # reachable from the suite's cwd would silently displace the stub and every
+        # mode-driven test below would pass or fail for the wrong reason. Safe-path mode
+        # (3.11+) drops that entry -- same practice as _MtpFakeRig.
+        os.environ['PYTHONSAFEPATH'] = '1'
+        return hil_util.run_alongside(
+            [sys.executable, '-c', hil_test.HID_ECHO, uid, budget], lambda: None, timeout)
+
+    def _stderr(self, r):
+        from helper import hil_util
+        return hil_util.cmd_stdout_text(r.stderr)
+
+    def test_a_healthy_device_passes(self):
+        r = self._run('ok')
+        self.assertEqual(r.returncode, 0, self._stderr(r))
+
+    def test_a_wedged_enumerate_is_killed_on_the_bound(self):
+        t0 = time.monotonic()
+        # a real child and a real bound -- deliberately not faked, this is the
+        # behaviour under test. 1s clears CPython start-up with room to spare.
+        r = self._run('wedged_enumerate', timeout=1)
+        self.assertEqual(r.returncode, 124,
+                         'a stalled hid.enumerate() must be killed, not waited on')
+        self.assertLess(time.monotonic() - t0, 20,
+                        'run_alongside did not bound the wedged child')
+
+    def test_a_wedged_read_is_killed_on_the_bound(self):
+        r = self._run('wedged_read', timeout=1)
+        self.assertEqual(r.returncode, 124)
+
+    def test_a_wedged_open_is_killed_on_the_bound(self):
+        """h.open() is a call HID_ECHO actually makes, and hidraw can block in it -- the
+        stub carried this mode with no test selecting it."""
+        r = self._run('wedged_open', timeout=1)
+        self.assertEqual(r.returncode, 124)
+
+    def test_an_absent_device_reports_why(self):
+        # budget 0: the retry loop checks the deadline after the first enumerate, so this
+        # exercises the give-up path without waiting out a real enumeration timeout
+        r = self._run('absent', budget='0')
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn('HID device not found', self._stderr(r))
+
+    def test_a_bad_echo_reports_both_payloads(self):
+        r = self._run('wrong_data')
+        self.assertNotEqual(r.returncode, 0)
+        msg = self._stderr(r)
+        self.assertIn('wrong data', msg)
+        self.assertIn('sent', msg)
+        self.assertIn('received', msg)
+
+    def test_a_short_echo_is_not_read_as_a_pass(self):
+        r = self._run('short_read')
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn('short read', self._stderr(r))
 
 
 if __name__ == '__main__':
