@@ -238,6 +238,9 @@ USBTEST_BATTERY_BUDGET = hil_util.pos_int_env('HIL_USBTEST_BATTERY_BUDGET', 260)
 # timeout paths = 95s. 120 leaves a margin; 75 (my first estimate, taken before checking
 # dmesg_tail) was 20s SHORT and would have killed the battery mid-print.
 USBTEST_OVERSHOOT = 120
+# Named, not a literal, so the unit tests can zero it: every test that drives
+# test_device_usbtest against a fake rig otherwise pays a real 3s (ten of them, 30s a run).
+USBTEST_SETTLE = 3
 SERIAL_READ_TIMEOUT = hil_util.pos_float_env('HIL_SERIAL_READ_TIMEOUT', 5)
 SERIAL_WRITE_TIMEOUT = hil_util.pos_float_env('HIL_SERIAL_WRITE_TIMEOUT', 10)
 
@@ -1365,7 +1368,7 @@ def test_device_usbtest(board):
     # settle: right after flashing the enumeration can bounce once (and on dual-port parts
     # the other port's stale node — same serial and PID — lingers), and testusb run into
     # that gap sees the device drop mid-case
-    time.sleep(3)
+    time.sleep(USBTEST_SETTLE)
 
     # --keep-binding is required for concurrent batteries: usbtest.py's cleanup unbinds
     # EVERY usbtest-bound interface, killing a peer battery under USBTEST_PARALLEL > 1, and

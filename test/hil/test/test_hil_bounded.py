@@ -47,6 +47,17 @@ def write_script(path: Path, body: str) -> None:
     path.chmod(path.stat().st_mode | stat.S_IEXEC)
 
 
+def no_settle(case):
+    """Zero test_device_usbtest's post-flash settle for one test.
+
+    Real hardware needs it -- the enumeration can bounce once after a flash, and on
+    dual-port parts the stale same-serial node lingers. A fake rig has neither, and ten
+    tests drive that path, so leaving it real cost 30s of every suite run.
+    """
+    case.addCleanup(setattr, hil_test, 'USBTEST_SETTLE', hil_test.USBTEST_SETTLE)
+    hil_test.USBTEST_SETTLE = 0
+
+
 def run_bounded(fn, timeout: float):
     """Run fn in a daemon thread; return (finished, exception). A still-running thread is
     the hang under test — leave it to die with the interpreter."""
@@ -78,7 +89,7 @@ class ReadDiskFile(unittest.TestCase):
         for name in ('get_disk_dev', '_enum_timeout', 'MTYPE_TIMEOUT'):
             self.addCleanup(setattr, hil_test, name, getattr(hil_test, name))
         hil_test.get_disk_dev = lambda uid, vendor, lun: str(self.dev)
-        hil_test._enum_timeout = 2
+        hil_test._enum_timeout = 1   # the wait these tests must outlast; keep it small
         self.bin = tmp / 'bin'
         self.bin.mkdir()
         self.addCleanup(os.environ.__setitem__, 'PATH', os.environ['PATH'])
@@ -113,7 +124,11 @@ class ReadDiskFile(unittest.TestCase):
         t0 = time.monotonic()
         with self.assertRaises(AssertionError) as cm:
             hil_test.read_disk_file('uid0', 0, 'README.TXT')
-        self.assertLess(time.monotonic() - t0, 1.5)
+        # BELOW one full _enum_timeout wait, not above it: "fails immediately" is the
+        # claim, and a bound of 1.5 against a 1s budget passes for code that spun the
+        # whole budget -- which is the regression this test exists to catch.
+        self.assertLess(time.monotonic() - t0, hil_test._enum_timeout,
+                        'read_disk_file spun the enumeration budget on a real answer')
         self.assertIn('README.TXT', str(cm.exception))
 
     def test_hung_mtype_cannot_hang_the_worker(self):
@@ -314,7 +329,7 @@ class _MtpFakeRig:
         os.environ['PYTHONSAFEPATH'] = '1'
         for name in ('_enum_timeout', 'MTP_SESSION_MARGIN'):
             self.addCleanup(setattr, hil_test, name, getattr(hil_test, name))
-        hil_test._enum_timeout = 2
+        hil_test._enum_timeout = 1   # the wait these tests must outlast; keep it small
         # the session scratch files land in cwd
         self.addCleanup(os.chdir, os.getcwd())
         os.chdir(tmp)
@@ -900,16 +915,16 @@ class MtpGioFallthrough(unittest.TestCase):
             t0 = time.monotonic()
             r = subprocess.run([sys.executable,
                                 str(Path(TEST_DIR).parents[0] / 'mtp_test.py'),
-                                '--uid', 'CAFE01', '--timeout', '3'],
+                                '--uid', 'CAFE01', '--timeout', '1'],
                                capture_output=True, text=True, timeout=60, env=env)
             elapsed = time.monotonic() - t0
-        self.assertLess(elapsed, 30, f'did not honour --timeout 3 ({elapsed:.1f}s)')
+        self.assertLess(elapsed, 30, f'did not honour --timeout 1 ({elapsed:.1f}s)')
         self.assertNotEqual(r.returncode, 0)
         # The assertions above are satisfied by an immediate CRASH, which is exactly what
         # shipped through this test once: `pass` left gio unbound and the next line
         # dereferenced it. Assert the behaviour the docstring names -- it POLLED for the
         # device (so it spent its budget) and did not die on a traceback.
-        self.assertGreater(elapsed, 2.0,
+        self.assertGreater(elapsed, 0.8,
                            f'exited without polling ({elapsed:.1f}s) -- it crashed')
         self.assertNotIn('Traceback', r.stderr)
         self.assertIn('MTP device not found', r.stdout + r.stderr)
@@ -1226,6 +1241,7 @@ class UsbtestOuterBoundIsOneValue(unittest.TestCase):
         # wedged-FIFO test would otherwise make every read here answer SYSFS_UNKNOWN
         patch(_hu, '_sysfs_stuck', 0)
         patch(_hu, '_sysfs_stranded', {})
+        patch(hil_test, 'USBTEST_SETTLE', 0)   # see no_settle
         patch(hil_lock, 'usbtest_permit', contextmanager(_permit))
         patch(hil_test, 'skip_flash', skip_flash)
         patch(hil_test, '_current_fw', '/tmp/fw.elf')
@@ -1333,6 +1349,7 @@ class UsbtestOuterKillStaysRetryable(unittest.TestCase):
 
         from helper import hil_util as _hu
         patch(_hu, 'glob', types.SimpleNamespace(glob=lambda p: [str(dev)]))
+        patch(hil_test, 'USBTEST_SETTLE', 0)   # see no_settle
         def _permit(uid):        # a real generator: a lambda returning an iterator has
             yield                # no .throw(), so any raise inside the `with` would
                                  # surface as an AttributeError from contextlib instead
@@ -1827,6 +1844,7 @@ class WedgeVerdictReachesTheLatch(unittest.TestCase):
     def setUp(self):
         self.addCleanup(setattr, hil_test, 'board_wedged', hil_test.board_wedged)
         hil_test.board_wedged = ''
+        no_settle(self)
 
     def _run(self, stdout, rc=0):
         from helper import hil_lock, hil_util
@@ -1875,6 +1893,7 @@ class WedgedBoardCannotReportAPass(unittest.TestCase):
     def setUp(self):
         self.addCleanup(setattr, hil_test, 'board_wedged', hil_test.board_wedged)
         hil_test.board_wedged = ''
+        no_settle(self)
 
     def _cell(self, js):
         """Returns ('pass', cell) or ('fail', message)."""
