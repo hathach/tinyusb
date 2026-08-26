@@ -30,7 +30,7 @@
 // - SAMPLE_RATES: sample rates tried in order, first match wins (44.1 kHz stereo by default)
 #define AUDIO_MAX_FRAME_COUNT  48
 #define AUDIO_MAX_CHANNELS     2
-#define SAMPLE_RATES           {48000, 44100}
+#define SAMPLE_RATES           {44100, 48000}
 #define FEATURE_UNIT_VOLUME_DB (-6 * 256)
 static uint8_t                   audio_idx      = TUSB_INDEX_INVALID_8; // index of the selected audio device
 static uint8_t                   cap_stream_idx = TUSB_INDEX_INVALID_8; // capture stream index

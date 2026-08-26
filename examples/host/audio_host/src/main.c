@@ -31,7 +31,7 @@ int main(void) {
   board_init();
 
   printf("TinyUSB Host USB Audio Example\r\n");
-  printf("Connect a USB Audio Device (UAC 1.0) to test\r\n");
+  printf("Connect a USB Audio Device (UAC 1.0 or 2.0) to test\r\n");
 
   // init host stack on configured roothub port
   tusb_rhport_init_t host_init = {.role = TUSB_ROLE_HOST, .speed = TUSB_SPEED_AUTO};

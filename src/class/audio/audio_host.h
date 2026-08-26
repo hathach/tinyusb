@@ -1,5 +1,6 @@
 /*
  * SPDX-FileCopyrightText: Copyright (c) 2026 Zhenjiang Zhang
+ * SPDX-FileCopyrightText: Copyright (c) 2026 HiFiPhile (Zixun LI)
  * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
@@ -17,6 +18,24 @@ extern "C" {
 //--------------------------------------------------------------------+
 // Class Driver Configuration
 //--------------------------------------------------------------------+
+
+// Audio Class protocol versions compiled into the host driver. Multiple
+// versions can be enabled so UAC1 and UAC2 devices can be mounted together.
+#define TUH_AUDIO_PROTOCOL_UAC1 TU_BIT(0)
+#define TUH_AUDIO_PROTOCOL_UAC2 TU_BIT(1)
+
+#ifndef CFG_TUH_AUDIO_PROTOCOLS
+  #define CFG_TUH_AUDIO_PROTOCOLS TUH_AUDIO_PROTOCOL_UAC1
+#endif
+
+#if !(CFG_TUH_AUDIO_PROTOCOLS & (TUH_AUDIO_PROTOCOL_UAC1 | TUH_AUDIO_PROTOCOL_UAC2))
+  #error CFG_TUH_AUDIO_PROTOCOLS must enable UAC1 and/or UAC2
+#endif
+
+#if CFG_TUH_AUDIO_PROTOCOLS & ~(TUH_AUDIO_PROTOCOL_UAC1 | TUH_AUDIO_PROTOCOL_UAC2)
+  #error CFG_TUH_AUDIO_PROTOCOLS contains an unsupported protocol bit
+#endif
+
 // Maximum number of Audio devices
 #ifndef CFG_TUH_AUDIO_MAX
   #define CFG_TUH_AUDIO_MAX 1
@@ -62,8 +81,8 @@ typedef enum {
   TUH_AUDIO_STREAM_DIRECTION_COUNT
 } tuh_audio_direction_t;
 
-// Discrete sample format. Only UAC1 configurations with bSamFreqType > 0 are
-// supported; sampling-frequency ranges are ignored by the driver.
+// Discrete Type-I PCM sample format. UAC1 requires bSamFreqType > 0; UAC2
+// configurations are built from the directly connected Clock Source RANGE.
 typedef enum {
   TUH_AUDIO_FORMAT_S8 = 0,  // signed 8-bit
   TUH_AUDIO_FORMAT_S16_LE,  // signed 16-bit little-endian
@@ -139,8 +158,9 @@ bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx
 // Stream Control / Frame-based Data
 //--------------------------------------------------------------------+
 
-// Start transferring data by activating the alternate setting selected by
-// configure, then set the endpoint sampling frequency when supported.
+// Start transferring data with the configuration selected by configure().
+// UAC1 activates the alternate setting before setting an endpoint frequency;
+// UAC2 sets a writable Clock Source before activating the alternate setting.
 bool tuh_audio_start(uint8_t dev_idx, uint8_t stream_idx);
 // Stop transferring and deactivate the Audio Streaming interface (alt 0).
 bool tuh_audio_stop(uint8_t dev_idx, uint8_t stream_idx);
@@ -203,13 +223,17 @@ bool tuh_audio_volume_range_get(uint8_t idx, uint8_t stream_idx, tuh_audio_volum
 // Control Request API
 //--------------------------------------------------------------------+
 
-// Set a Feature Unit control (mute, volume, ...) associated with an Audio stream (UAC 1.0)
+// Set a Feature Unit control associated with an Audio stream. UAC2 supports
+// mute and volume through this low-level API; the other fixed-width selectors
+// below are UAC1-only.
 // Mute/bass/mid/treble/AGC/bass boost/loudness use one byte; volume/delay use two.
 // Graphic EQ and unknown selectors are unsupported.
 bool tuh_audio_feature_unit_set(uint8_t idx, uint8_t stream_idx, uint8_t control_selector, uint8_t channel,
                                 uint16_t value, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
-// Get a Feature Unit control (mute, volume, ...) associated with an Audio stream (UAC 1.0)
+// Get a Feature Unit control associated with an Audio stream. UAC2 supports
+// mute and volume through this low-level API; the other fixed-width selectors
+// below are UAC1-only.
 // The value is converted to host byte order before complete_cb is invoked.
 // Graphic EQ and unknown selectors are unsupported.
 // Only one Feature Unit operation may be in flight per device.

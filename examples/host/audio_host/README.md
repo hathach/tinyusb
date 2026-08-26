@@ -1,10 +1,10 @@
 # USB Audio Host Example
 
-This example demonstrates how to use TinyUSB's USB Audio Host driver (TUH_AUDIO) to capture audio from a UAC 1.0 compatible USB microphone and echo it back to the speaker, using a WASAPI/ALSA-like high-level API. The application never touches USB interfaces, alternate settings, or endpoint addresses — it only selects supported `{format, sample_rate, channels}` configurations by stream index.
+This example demonstrates how to use TinyUSB's USB Audio Host driver (TUH_AUDIO) to capture audio from a UAC 1.0 or UAC 2.0 USB microphone and echo it back to the speaker, using a WASAPI/ALSA-like high-level API. The application never touches USB interfaces, alternate settings, or endpoint addresses — it only selects supported `{format, sample_rate, channels}` configurations by stream index.
 
 ## Features
 
-- Enumerates and mounts USB Audio Class 1.0 devices
+- Enumerates and mounts USB Audio Class 1.0 and 2.0 devices
 - Discovers the device's logical streams (capture/playback) and their supported configurations (discrete tuples only)
 - Reports each stream's master mute/volume capabilities and cached volume range
 - Configures and starts an S16_LE capture stream (48 kHz preferred, 44.1 kHz fallback; stereo preferred, mono accepted)
@@ -14,7 +14,7 @@ This example demonstrates how to use TinyUSB's USB Audio Host driver (TUH_AUDIO)
 
 ## Supported Devices
 
-This example supports UAC 1.0 devices whose Type I Format descriptor lists discrete sampling frequencies (`bSamFreqType > 0`), such as:
+This example supports UAC1 devices whose Type I Format descriptor lists discrete sampling frequencies (`bSamFreqType > 0`) and UAC2 devices using a directly connected Clock Source, such as:
 
 - USB microphones
 - USB headsets (mono microphone + speaker)
@@ -26,8 +26,10 @@ The echo needs a matching S16_LE playback stream at the capture sample rate; dev
 
 - Explicit feedback endpoints are supported with both 10.14 and 16.16 feedback values. An implicit-feedback IN endpoint is treated as an ordinary audio-data endpoint and is not used to pace playback.
 - UAC1 Type I Format descriptors with `bSamFreqType == 0` are unsupported; the driver requires a list of discrete sampling frequencies.
-- Master mute and volume controls are discovered before the mount callback, including the volume MIN/MAX/RES range. Feature Units without master mute or volume are ignored. The typed API controls the master channel; the lower-level Feature Unit API remains available for fixed-width UAC1 controls on the associated unit.
-- The UAC1 `MaxPacketsOnly` endpoint attribute is not supported. OUT transfers are not padded to `wMaxPacketSize`, and padding in IN transfers is not removed from the reported audio data.
+- UAC2 supports direct Clock Sources. Clock Selectors, Clock Multipliers, Sampling Rate Converters, Clock Validity, and Valid Alternate Settings controls are not handled.
+- UAC2 sampling-frequency RANGE responses are expanded into at most `CFG_TUH_AUDIO_MAX_SAM_FREQ` discrete configurations. A read-only Clock Source exposes only its current frequency.
+- Master mute and volume controls are discovered before the mount callback, including the volume range. Feature Units without master mute or volume are ignored. UAC2 volume discovery supports the common RANGE response containing one subrange.
+- The `MaxPacketsOnly` endpoint attribute is not supported. OUT transfers are not padded to `wMaxPacketSize`, and padding in IN transfers is not removed from the reported audio data.
 
 ## Building
 
@@ -63,7 +65,7 @@ make BOARD=<your_board> flash
 ## Usage
 
 1. Build and flash the example to your board
-2. Connect a USB Audio device (UAC 1.0) to the USB host port
+2. Connect a USB Audio device (UAC 1.0 or 2.0) to the USB host port
 3. Open a serial terminal to view output
 4. The example will:
    - Print each stream's Feature Unit ID, master mute/volume capabilities, cached volume range, and supported configurations when mounted
@@ -77,7 +79,7 @@ make BOARD=<your_board> flash
 
 ```
 TinyUSB Host USB Audio Example
-Connect a USB Audio Device (UAC 1.0) to test
+Connect a USB Audio Device (UAC 1.0 or 2.0) to test
 Audio device mounted: idx=0 addr=1
   capture stream 1 Feature Unit ID: 5, configurations: 2
     master mute supported
@@ -105,6 +107,8 @@ Audio device mounted: idx=0 addr=1
 
 Edit `src/tusb_config.h` to modify:
 - `CFG_TUH_AUDIO_MAX`: Maximum number of audio devices supported
+- `CFG_TUH_AUDIO_PROTOCOLS`: Bitmask selecting UAC1 and/or UAC2 support; the example enables both
+- `CFG_TUH_AUDIO_MAX_SAM_FREQ`: Maximum number of discrete frequencies retained per alternate setting or UAC2 Clock Source
 - `CFG_TUH_AUDIO_EPIN_BUFSIZE`: Maximum size of one capture transfer the driver submits (configurations needing a larger per-poll-interval packet are rejected)
 - `CFG_TUH_AUDIO_EPOUT_BUFSIZE`: Maximum size of one playback transfer the driver submits
 - `CFG_TUH_AUDIO_STREAM_BUFSIZE`: Per-stream FIFO depth in bytes (default 1024, i.e. four 256 B packets); capture overwrites the oldest frames when full
