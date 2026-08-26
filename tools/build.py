@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import json
 import random
 import os
 import re
@@ -175,13 +176,28 @@ def cmake_board(board, build_args, build_name, build_cflags, build_targets, exam
                 print_build_result(board, 'examples (PR filter)', 2, '-')
                 return [0, 0, 1]
         for example in all_examples:
+            example_build_dir = f'{build_dir}/{example}'
             if build_utils.skip_example(example, board, defines):
                 ret[2] += 1
-            else:
+            elif build_targets == ['all']:
                 rcmd = run_cmd([
-                    'idf.py', '-C', f'examples/{example}', '-B', f'{build_dir}/{example}', '-GNinja',
+                    'idf.py', '-C', f'examples/{example}', '-B', example_build_dir, '-GNinja',
                     f'-DBOARD={board}', *build_flags, 'build'
                 ])
+                ret[0 if rcmd.returncode == 0 else 1] += 1
+            elif not os.path.isdir(example_build_dir):
+                # a non-'all' target (e.g. examples-membrowse-upload) runs against an
+                # already-configured IDF build dir; without one - PR filter, family
+                # skip, or a standalone --target invocation never ran 'all' here - there
+                # is nothing to run the target against, so skip rather than fail
+                print_build_result(board, f'{example} ({build_targets[0]}, no build dir)', 2, '-')
+                ret[2] += 1
+            else:
+                rcmd = None
+                for target in build_targets:
+                    rcmd = run_cmd(['cmake', '--build', example_build_dir, '--target', target])
+                    if rcmd.returncode != 0:
+                        break
                 ret[0 if rcmd.returncode == 0 else 1] += 1
     else:
         # the skip.txt/only.txt prefilter reads no configure output: answer it first,
@@ -193,7 +209,7 @@ def cmake_board(board, build_args, build_name, build_cflags, build_targets, exam
                 print_build_result(board, 'examples (PR filter)', 2, '-')
                 return [0, 0, 1]
         rcmd = run_cmd(['cmake', 'examples', '-B', build_dir, '-GNinja',
-                        f'-DBOARD={board}', '-DCMAKE_BUILD_TYPE=MinSizeRel', '-DLINKERMAP_OPTION=-q -f tinyusb/src',
+                        f'-DBOARD={board}', '-DCMAKE_BUILD_TYPE=MinSizeRel',
                         *build_args, *build_flags])
         if rcmd.returncode == 0:
             target_groups = [[t] for t in build_targets]
@@ -371,6 +387,27 @@ def get_family_boards(family, one_random, one_first, examples=None, build_system
     return all_boards
 
 
+def resolve_pinned_boards(pins_path, family, pins_only, examples=None,
+                          build_system='cmake', extra_defines=(), ci=None):
+    """Resolve a family to its membrowse-pinned boards.
+
+    Pinned boards are returned as-is (an explicit pin outrules ci_skip_boards -
+    that is how feather_rp2040_max3421 gets built for hcd_max3421). A family
+    with no pins falls back to the one-first pick, or to nothing under
+    pins_only (the upload step must not touch build dirs of boards that were
+    built only as compile smoke-checks)."""
+    with open(pins_path) as f:
+        data = json.load(f)
+    pinned = [t['board'] for t in data['targets'] if t['family'] == family]
+    if pinned:
+        return pinned
+    if pins_only:
+        return []
+    return get_family_boards(family, one_random=False, one_first=True,
+                             examples=examples, build_system=build_system,
+                             extra_defines=extra_defines, ci=ci)
+
+
 # -----------------------------
 # Main
 # -----------------------------
@@ -392,6 +429,11 @@ def main():
                         help='Build only one random board of each specified family')
     parser.add_argument('--one-first', action='store_true', default=False,
                         help='Build only the first board (alphabetical) of each specified family')
+    parser.add_argument('--board-pins', default=None, metavar='JSON',
+                        help='Path to membrowse-targets.json: build the pinned boards '
+                             'of each family (fallback: first board alphabetically)')
+    parser.add_argument('--pins-only', action='store_true', default=False,
+                        help='With --board-pins: skip families that have no pinned board')
     parser.add_argument('-j', '--jobs', type=int, default=os.cpu_count(), help='Number of jobs to run in parallel')
     parser.add_argument('-T', '--target', action='append', default=[],
                         help='Build target to use, may be specified multiple times (default: all)')
@@ -409,6 +451,12 @@ def main():
     build_cflags = args.cflag
     one_random = args.one_random
     one_first = args.one_first
+    board_pins = args.board_pins
+    pins_only = args.pins_only
+    if pins_only and not board_pins:
+        parser.error('--pins-only requires --board-pins')
+    if board_pins and (one_first or one_random):
+        parser.error('--board-pins replaces --one-first/--one-random')
     build_targets = args.target if args.target else ['all']
     examples = args.example or None
     verbose = args.verbose
@@ -453,8 +501,12 @@ def main():
     # get boards from families and append to boards list
     all_boards = list(boards)
     for f in all_families:
-        all_boards.extend(get_family_boards(f, one_random, one_first, examples,
-                                            build_system, tuple(build_defines)))
+        if board_pins:
+            all_boards.extend(resolve_pinned_boards(board_pins, f, pins_only, examples,
+                                                    build_system, tuple(build_defines)))
+        else:
+            all_boards.extend(get_family_boards(f, one_random, one_first, examples,
+                                                build_system, tuple(build_defines)))
 
     # build all boards
     result = build_boards_list(all_boards, build_defines, build_system, build_name, build_cflags, build_targets,

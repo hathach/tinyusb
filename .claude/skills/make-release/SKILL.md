@@ -65,7 +65,3 @@ git tag -a X.Y.Z -m "Release X.Y.Z"      # tags are unprefixed (0.20.0, not v0.2
 git push origin <branch> X.Y.Z
 ```
 Then create the GitHub release from the tag.
-
-## 5. Code size (automatic)
-
-On the release event, CI's `code-metrics` job diffs against the previous tag's `metrics.json` and uploads `metrics.json` + a compare to the release — **only if the previous release has a `metrics.json` asset**. Confirm both appeared.

@@ -36,7 +36,10 @@ family_list = {
     "ch32v20x": ["riscv-gcc"],
     "ch32v30x": ["riscv-gcc"],
     "ch583": ["riscv-gcc"],
+    "cxd56": ["arm-gcc"],
     "da1469x": ["arm-gcc"],
+    "espressif": ["esp-idf"],
+    "f1c100s": ["arm-gcc"],
     "fomu": ["riscv-gcc"],
     "ft9xx": ["ft9xx-gcc"],
     "gd32vf103": ["riscv-gcc"],
@@ -72,6 +75,7 @@ family_list = {
     "samd11": ["arm-gcc", "arm-clang"],
     "samd2x_l2x": ["arm-gcc", "arm-clang"],
     "samd5x_e5x": ["arm-gcc", "arm-clang"],
+    "same7x": ["arm-gcc"],
     "samg": ["arm-gcc", "arm-clang"],
     "stm32c0": ["arm-gcc", "arm-clang", "arm-iar"],
     "stm32c5": ["arm-gcc", "arm-clang", "arm-iar"],
@@ -95,9 +99,6 @@ family_list = {
     "stm32wba": ["arm-gcc", "arm-clang", "arm-iar"],
     "tm4c": ["arm-gcc"],
     "xmc4000": ["arm-gcc"],
-    # S3, P4 will be built by hil test
-    # "-bespressif_s3_devkitm": ["esp-idf"],
-    # "-bespressif_p4_function_ev": ["esp-idf"],
 }
 
 
@@ -129,15 +130,14 @@ def set_matrix_json(select=None):
         matrix[toolchain] = fams
     if sel_fams:
         # a family this file does not list builds on no toolchain, so it contributes no
-        # leg. hw/bsp holds several CI has never built (efm32, py32f0, same7x, ...) plus
-        # espressif, whose boards hil-build-esp builds by name.
-        # espressif is not a gap: its examples need the ESP-IDF environment
-        # (CLAUDE.md: `. "$IDF_PATH/export.sh"` before any build), which the cmake legs
-        # do not have - that is why it is commented out of family_list above. Its
-        # coverage comes from hil-build-esp, which builds those boards BY NAME in an IDF
-        # container, so an espressif-only PR is already validated and falling open to the
-        # full matrix would add 74 legs, none of which can compile espressif.
-        unbuilt = sorted(f for f in sel_fams if f not in family_list and f != 'espressif')
+        # leg. hw/bsp holds a few CI has never built (efm32, pic32mz, py32f0, ...) - a
+        # missing family.cmake or no CI toolchain support, not a gap in this file.
+        # espressif IS listed ("esp-idf" toolchain) and build.yml's `cmake` job matrix
+        # includes esp-idf too - its Build/Membrowse Upload steps run tools/build.py
+        # inside the espressif/idf:tinyusb docker image (build_util.yml) rather than a
+        # local `. "$IDF_PATH/export.sh"`, so no separate esp-idf-only job is needed
+        # for this entry to take effect.
+        unbuilt = sorted(f for f in sel_fams if f not in family_list)
         if unbuilt and not any(matrix.values()):
             # NONE of the selected families is buildable here, so every leg would skip
             # and the PR would go green from a build job that ran no compiler. That is

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# Unit tests for the by-example half of tools/metrics.py and the (family, example)
-# pair-compare script. Stdlib only; synthetic map.json fixtures, no builds.
+# Unit tests for the by-example half of tools/metrics.py and the CircleCI/GitHub
+# Actions selection hand-off contracts. Stdlib only; synthetic map.json fixtures, no
+# builds.
 #   python3 test/hil/test/test_ci_metrics.py
 import json
 import os
@@ -70,9 +71,9 @@ class TestByExample(unittest.TestCase):
             self.assertNotIn('TOTAL', {n.upper() for n in names})
 
     def test_by_example_expansion_is_keyed_on_the_filename(self):
-        # the '_by_example.json' suffix IS the contract (write_by_example, the CMake
-        # rule and metrics_pair_compare all spell it). A shape-sniff would reroute
-        # any coincidentally-shaped JSON into the per-example branch instead.
+        # the '_by_example.json' suffix IS the contract (write_by_example spells it).
+        # A shape-sniff would reroute any coincidentally-shaped JSON into the
+        # per-example branch instead.
         with tempfile.TemporaryDirectory() as td:
             look_alike = os.path.join(td, 'metrics.json')
             with open(look_alike, 'w') as f:
@@ -84,173 +85,6 @@ class TestByExample(unittest.TestCase):
             self.assertEqual(r.returncode, 0, r.stderr)
             combined = json.load(open(out + '.json'))
             self.assertNotIn('usbd.c', {f['file'] for f in combined.get('files', [])})
-
-
-PAIR_COMPARE = os.path.join(REPO, '.github/scripts/metrics_pair_compare.py')
-
-
-def fake_by_example(root, board, data):
-    d = os.path.join(root, f'cmake-build-{board}')
-    os.makedirs(d, exist_ok=True)
-    with open(os.path.join(d, 'metrics_by_example.json'), 'w') as f:
-        json.dump(data, f)
-
-
-class TestPairCompare(unittest.TestCase):
-    def test_intersection_compare(self):
-        with tempfile.TemporaryDirectory() as td:
-            base, new = os.path.join(td, 'base'), os.path.join(td, 'new')
-            # real board names so board->family resolution works against hw/bsp
-            fake_by_example(base, 'raspberry_pi_pico',
-                            {'device/cdc_msc': {'files': [entry('usbd.c', 100)]},
-                             'device/dfu': {'files': [entry('dfu_device.c', 10)]}})
-            fake_by_example(new, 'raspberry_pi_pico',
-                            {'device/cdc_msc': {'files': [entry('usbd.c', 120)]}})
-            out = os.path.join(td, 'cmp')
-            r = subprocess.run([sys.executable, PAIR_COMPARE, '--base-dir', base,
-                                '--new-dir', new, '--out', out],
-                               capture_output=True, text=True)
-            self.assertEqual(r.returncode, 0, r.stderr)
-            md = open(out + '.md').read()
-            self.assertIn('usbd.c', md)
-            self.assertNotIn('dfu_device.c', md)          # not on both sides
-            self.assertIn('raspberry_pi_pico', md)         # scope footer names the board
-            self.assertIn('device/dfu', md)                # named as dropped
-
-    def test_a_different_board_of_the_same_family_is_not_compared(self):
-        """--one-first returns all_boards[0], so adding a board can shift which one a
-        family builds. Keyed on the family, the base run's sizes and the PR run's sizes
-        would land under one key and the difference between two unrelated MCUs would be
-        published as this PR's code-size impact."""
-        with tempfile.TemporaryDirectory() as td:
-            base, new = os.path.join(td, 'base'), os.path.join(td, 'new')
-            # both rp2040, both device/cdc_msc - only the board differs
-            fake_by_example(base, 'raspberry_pi_pico',
-                            {'device/cdc_msc': {'files': [entry('usbd.c', 100)]}})
-            fake_by_example(new, 'adafruit_fruit_jam',
-                            {'device/cdc_msc': {'files': [entry('usbd.c', 900)]}})
-            out = os.path.join(td, 'cmp')
-            r = subprocess.run([sys.executable, PAIR_COMPARE, '--base-dir', base,
-                                '--new-dir', new, '--out', out],
-                               capture_output=True, text=True)
-            self.assertEqual(r.returncode, 0, r.stderr)
-            md = open(out + '.md').read()
-            self.assertIn('skipped', md)
-            self.assertNotIn('+800', md)
-
-    def test_empty_intersection_writes_note(self):
-        with tempfile.TemporaryDirectory() as td:
-            base, new = os.path.join(td, 'base'), os.path.join(td, 'new')
-            fake_by_example(base, 'raspberry_pi_pico', {'device/dfu': {'files': [entry('a.c', 1)]}})
-            fake_by_example(new, 'stm32f407disco', {'device/cdc_msc': {'files': [entry('b.c', 1)]}})
-            out = os.path.join(td, 'cmp')
-            r = subprocess.run([sys.executable, PAIR_COMPARE, '--base-dir', base,
-                                '--new-dir', new, '--out', out],
-                               capture_output=True, text=True)
-            self.assertEqual(r.returncode, 0, r.stderr)
-            self.assertIn('skipped', open(out + '.md').read())
-
-    def test_malformed_files_are_skipped_with_stderr_note(self):
-        with tempfile.TemporaryDirectory() as td:
-            base, new = os.path.join(td, 'base'), os.path.join(td, 'new')
-            # good pair on both sides -- must survive the malformed siblings below
-            fake_by_example(base, 'raspberry_pi_pico',
-                            {'device/cdc_msc': {'files': [entry('usbd.c', 100)]}})
-            fake_by_example(new, 'raspberry_pi_pico',
-                            {'device/cdc_msc': {'files': [entry('usbd.c', 120)]}})
-            # well-formed JSON, wrong shape (a list, not a {example: {files: [...]}} dict)
-            wrong_shape = os.path.join(base, 'cmake-build-stm32f407disco', 'metrics_by_example.json')
-            os.makedirs(os.path.dirname(wrong_shape), exist_ok=True)
-            with open(wrong_shape, 'w') as f:
-                json.dump(['not', 'a', 'dict'], f)
-            # metrics_by_example.json not under a cmake-build-<board> dir
-            misplaced = os.path.join(base, 'not_a_board_dir', 'metrics_by_example.json')
-            os.makedirs(os.path.dirname(misplaced), exist_ok=True)
-            with open(misplaced, 'w') as f:
-                json.dump({'device/dfu': {'files': [entry('dfu_device.c', 10)]}}, f)
-
-            out = os.path.join(td, 'cmp')
-            r = subprocess.run([sys.executable, PAIR_COMPARE, '--base-dir', base,
-                                '--new-dir', new, '--out', out],
-                               capture_output=True, text=True)
-            self.assertEqual(r.returncode, 0, r.stderr)   # fail-open: never crash the job
-            md = open(out + '.md').read()
-            self.assertIn('usbd.c', md)                    # good pair still compared
-            self.assertIn(wrong_shape, r.stderr)
-            self.assertIn(misplaced, r.stderr)
-            self.assertIn('skipping', r.stderr)
-
-
-    def test_missing_base_baseline_gets_its_own_note(self):
-        # interim state right after this feature merges: master has not uploaded a
-        # per-example baseline yet, so the BASE side collects nothing. The generic
-        # "no pair on both sides" note misattributes that to the PR's own scoping.
-        with tempfile.TemporaryDirectory() as td:
-            base, new = os.path.join(td, 'base'), os.path.join(td, 'new')
-            os.makedirs(base)
-            fake_by_example(new, 'raspberry_pi_pico',
-                            {'device/cdc_msc': {'files': [entry('usbd.c', 100)]}})
-            out = os.path.join(td, 'cmp')
-            r = subprocess.run([sys.executable, PAIR_COMPARE, '--base-dir', base,
-                                '--new-dir', new, '--out', out],
-                               capture_output=True, text=True)
-            self.assertEqual(r.returncode, 0, r.stderr)
-            md = open(out + '.md').read()
-            self.assertIn('No per-example baseline from the base branch yet', md)
-            self.assertIn('next push', md)
-            self.assertNotIn('comparison skipped', md)
-
-    def test_a_partially_malformed_file_contributes_nothing(self):
-        """A file that blows up half way through must drop WHOLE. Entries parsed
-        before the malformation used to stay in the comparison while stderr claimed
-        the file had been skipped - a silently truncated table published as the
-        code-size verdict. A non-list 'files' (TypeError) also has to be caught."""
-        with tempfile.TemporaryDirectory() as td:
-            base, new = os.path.join(td, 'base'), os.path.join(td, 'new')
-            # good entry FIRST, malformed second: the leak is order-dependent
-            fake_by_example(base, 'raspberry_pi_pico',
-                            {'device/cdc_msc': {'files': [entry('leaked.c', 100)]},
-                             'device/dfu': {'files': 42}})
-            fake_by_example(new, 'raspberry_pi_pico',
-                            {'device/cdc_msc': {'files': [entry('leaked.c', 120)]}})
-            # a sibling file that is fine on both sides must still be compared
-            fake_by_example(base, 'stm32f407disco',
-                            {'device/cdc_msc': {'files': [entry('good.c', 10)]}})
-            fake_by_example(new, 'stm32f407disco',
-                            {'device/cdc_msc': {'files': [entry('good.c', 12)]}})
-            out = os.path.join(td, 'cmp')
-            r = subprocess.run([sys.executable, PAIR_COMPARE, '--base-dir', base,
-                                '--new-dir', new, '--out', out],
-                               capture_output=True, text=True)
-            self.assertEqual(r.returncode, 0, r.stderr)
-            md = open(out + '.md').read()
-            self.assertIn('good.c', md)
-            self.assertNotIn('leaked.c', md)
-            self.assertIn('skipping', r.stderr)
-            self.assertIn(os.path.join(base, 'cmake-build-raspberry_pi_pico'), r.stderr)
-
-    def test_dropped_footer_is_summarised_not_dumped(self):
-        """The sticky PR comment is capped at 65,536 chars by GitHub; a broad scoped
-        PR drops hundreds of (family, example) pairs and the full list alone ran to
-        tens of KB, pushing the comment past the cap and reddening code-metrics."""
-        with tempfile.TemporaryDirectory() as td:
-            base, new = os.path.join(td, 'base'), os.path.join(td, 'new')
-            common = {'device/cdc_msc': {'files': [entry('usbd.c', 100)]}}
-            extra = {f'device/example_{i:03d}': {'files': [entry(f'f{i}.c', i + 1)]}
-                     for i in range(30)}
-            fake_by_example(base, 'raspberry_pi_pico', dict(common, **extra))
-            fake_by_example(new, 'raspberry_pi_pico', common)
-            out = os.path.join(td, 'cmp')
-            r = subprocess.run([sys.executable, PAIR_COMPARE, '--base-dir', base,
-                                '--new-dir', new, '--out', out],
-                               capture_output=True, text=True)
-            self.assertEqual(r.returncode, 0, r.stderr)
-            md = open(out + '.md').read()
-            footer = md[md.index('_Scoped compare:'):]
-            self.assertLess(len(footer), 2048, footer)
-            self.assertIn('30', footer)                 # the count is still reported
-            self.assertIn('more', footer)               # truncation marker
-            self.assertIn('device/example_029', r.stderr)   # full list on stderr
 
 
 CIRCLECI = os.path.join(REPO, '.circleci')
@@ -292,7 +126,7 @@ class TestCircleCiSentinelContract(unittest.TestCase):
     def test_the_rewrite_precedes_the_scoped_entries(self):
         # the scoping is all-or-nothing: config2's checked-in defaults are {} / false =
         # unfiltered, so a rewrite that fails AFTER the family entries were generated
-        # leaves a subset of families built and code-metrics told it was a full build.
+        # leaves a subset of families built while the build is labeled full.
         # Rewrite first, and on failure drop the scoping (back to the full matrix).
         rewrite = self.config.index("p = '.circleci/config2.yml'")
         entries = self.config.index('gen_build_entry() {')
@@ -472,109 +306,42 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
                 fh.write('MATRIX_JSON=' + shlex.quote(matrix) + '\n')
                 fh.write(block)
                 # sentinel + newline separated: the block itself writes ::warning:: to
-                # stdout, and '|' would collide with the regex's own separator
-                fh.write('\nprintf "@@R@@\\n%s\\n%s\\n%s" "$MATRIX_JSON" "$BUILD_FILTERED" "$FAMILY_REGEX"\n')
+                # stdout
+                fh.write('\nprintf "@@R@@\\n%s\\n%s" "$MATRIX_JSON" "$BUILD_FILTERED"\n')
             r = subprocess.run(['bash', sh], capture_output=True, text=True, cwd=repo)
             self.assertEqual(r.returncode, 0, r.stderr)
-            mj, filtered, regex = r.stdout.split('@@R@@\n', 1)[1].split('\n', 2)
-            return sum(len(v) for v in _json.loads(mj).values()), filtered, regex
+            mj, filtered = r.stdout.split('@@R@@\n', 1)[1].split('\n', 1)
+            return sum(len(v) for v in _json.loads(mj).values()), filtered
 
     def test_an_empty_family_list_is_not_treated_as_unusable(self):
-        """.build.families is read twice - as a count and as a `|`-joined regex. An EMPTY
-        list and one REJECTED by the charset guard both leave the regex empty and mean
-        opposite things, so the block has to branch on which happened.
+        """A legitimate nothing-selected PR (every family filtered out) must keep the
+        all-empty matrix ci_set_matrix produced, not fall open to a full build.
 
-        Testing `-z "$FAMILY_REGEX"` alone sent every nothing-selected PR down the
-        fall-open path and discarded the correct all-empty matrix: #3842 (docs +
-        .gitignore) and #3840 (test/hil only) each rebuilt all 74 cmake legs after the
-        selector had correctly chosen none."""
-        legs, filtered, regex = self._run_extras_block(
+        #3842 (docs + .gitignore) and #3840 (test/hil only) each rebuilt all 74 cmake
+        legs after the selector had correctly chosen none, because an earlier version
+        of this block conflated an empty families list with an unusable one."""
+        legs, filtered = self._run_extras_block(
             {'build': {'full': False, 'families': [], 'family_examples': {}}})
         self.assertEqual(legs, 0, 'an empty families list must keep the all-empty matrix')
         self.assertEqual(filtered, 'false', 'nothing was built, so nothing to compare')
-        self.assertEqual(regex, '')
 
     def test_a_real_family_list_stays_scoped(self):
-        legs, filtered, regex = self._run_extras_block(
+        legs, filtered = self._run_extras_block(
             {'build': {'full': False, 'families': ['stm32f4', 'rp2040'],
                        'family_examples': {}}})
         self.assertGreater(legs, 0)
         self.assertEqual(filtered, 'true')
-        self.assertEqual(regex, 'stm32f4|rp2040')
 
-    def test_a_regex_metacharacter_in_a_family_name_falls_open(self):
-        # the name is interpolated raw into a name_is_regexp artifact pattern, so a
-        # metacharacter would match another family's baseline - reject and widen
-        legs, filtered, regex = self._run_extras_block(
-            {'build': {'full': False, 'families': ['stm32f4.*'], 'family_examples': {}}})
-        self.assertGreater(legs, 100, 'a rejected family list must fall open to full')
-        self.assertEqual(filtered, 'false')
-        self.assertEqual(regex, '')
-
-    def test_membrowse_upload_is_not_scoped_by_the_pr_filter(self):
-        # by decision, the upload runs unfiltered so the size history stays keyed on the
-        # family's preferred board whatever the PR touched. $EX_ARGS would not have
-        # scoped the targets either way - `examples-membrowse-upload` is not `all`, so
-        # resolve_example_target_groups passes it through as the aggregate - but it DID
-        # move the board, because --one-first picks one that can build the -e set.
-        #
-        # The accepted cost: on a family whose preferred board cannot build that set,
-        # the upload lands on a board the Build step never compiled and every example
-        # goes up --identical. test_the_upload_board_can_diverge_from_the_built_board
-        # keeps that consequence measured rather than assumed.
+    def test_membrowse_upload_is_scoped_by_the_pr_filter(self):
+        # Unlike the pre-board-pins design, the upload now runs $EX_ARGS-filtered:
+        # --board-pins/--pins-only fixes each pinned family to its explicit board list
+        # (returned as-is, never --one-first's "first board that can build this -e
+        # set"), so there is no more board-selection divergence for $EX_ARGS to cause -
+        # scoping the upload by the PR's example filter is safe again.
         line = [l for l in self.util.splitlines()
                 if '--target examples-membrowse-upload' in l][0]
-        self.assertNotIn('$EX_ARGS', line)
-        self.assertNotIn('-e ', line)
-
-    def test_the_upload_board_can_diverge_from_the_built_board(self):
-        """Pins the SIZE of what the removal gave up, so it cannot grow unnoticed.
-
-        --one-first with no -e returns preferred_list[0]; with one it returns the first
-        preferred board that can build it. Where those differ, the Membrowse Upload step
-        configures a build dir the Build step never wrote.
-
-        ci=True unconditionally, as _prune_buildable does and for the same reason: the
-        answer must be the runner's, not the developer's. The CI skip lists are off by
-        default locally, which moves the pick on three families - this test asserted the
-        local set and went red on its first CI run."""
-        sys.path.insert(0, os.path.join(REPO, 'tools'))
-        import build as build_py
-        roles = ('device', 'host', 'dual')
-        exs = sorted(f'{r}/{n}' for r in roles
-                     for n in os.listdir(os.path.join(REPO, 'examples', r))
-                     if os.path.isdir(os.path.join(REPO, 'examples', r, n)))
-        fams = sorted(d for d in os.listdir(os.path.join(REPO, 'hw/bsp'))
-                      if os.path.isdir(os.path.join(REPO, 'hw/bsp', d, 'boards')))
-        cwd = os.getcwd()
-        os.chdir(REPO)
-        try:
-            diverging = set()
-            for fam in fams:
-                try:
-                    base = build_py.get_family_boards(fam, False, True, None, 'cmake',
-                                                      (), ci=True)
-                except Exception:
-                    continue
-                if not base:
-                    continue
-                for e in exs:
-                    try:
-                        one = build_py.get_family_boards(fam, False, True, [e], 'cmake',
-                                                         (), ci=True)
-                    except Exception:
-                        continue
-                    if one and one[0] != base[0]:
-                        diverging.add(fam)
-                        break
-        finally:
-            os.chdir(cwd)
-        self.assertEqual(diverging, {'imxrt', 'lpc11', 'lpc18', 'lpc54', 'mcx', 'nrf', 'rx',
-                                     'samd11', 'samd2x_l2x', 'samd5x_e5x', 'stm32l0',
-                                     'stm32l4', 'tm4c'},
-                         'the set of families whose membrowse upload can land on an '
-                         'uncompiled board changed; re-check whether dropping $EX_ARGS '
-                         'from the upload step is still the right trade')
+        self.assertIn('$EX_ARGS', line)
+        self.assertIn('--pins-only', line)
 
 
 if __name__ == '__main__':

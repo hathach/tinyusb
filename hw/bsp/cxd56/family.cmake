@@ -57,6 +57,10 @@ function(family_add_board BOARD_TARGET)
     -Wno-error=unused-parameter
     -Wno-error=shadow
     -Wno-error=redundant-decls
+    # the -Dmain=spresense_main rename above and board.h's board_late_initialize()
+    # (declared in nuttx/include/nuttx/board.h, not pulled in by family.c's includes)
+    # both trip -Wmissing-prototypes; the SDK, not TinyUSB code, owns the mismatch
+    -Wno-error=missing-prototypes
   )
 
   update_board(${BOARD_TARGET})

@@ -104,11 +104,18 @@ def ci_first_boards():
     return boards
 
 
-def build_board(src_dir, build_dir, board, example=None):
+def build_board(src_dir, build_dir, board, example=None, linkermap=False):
     """Configure and build examples for a board. Returns True on success.
 
     When `example` is given, only that target is built (`cmake --build --target NAME`),
     keeping single-example workflows fast.
+
+    When `linkermap` is set, also build the linkermap target (`<ex>-linkermap`, or
+    the `examples-linkermap` aggregate when no example is given) so map.json files
+    exist for the linkermap engine. Older trees (e.g. a base worktree checked out
+    before the examples-linkermap aggregate target was added) don't have that
+    target but still produce map.json via a legacy POST_BUILD hook on the plain
+    build above — so a missing target is only fatal if no map.json resulted.
     """
     os.makedirs(build_dir, exist_ok=True)
     ret = run(['cmake', '-B', build_dir, '-G', 'Ninja',
@@ -124,6 +131,17 @@ def build_board(src_dir, build_dir, board, example=None):
     if ret.returncode != 0:
         print(f'  Error building {board}: {ret.stderr}')
         return False
+
+    if linkermap:
+        target = f'{os.path.basename(example)}-linkermap' if example else 'examples-linkermap'
+        ret = run(['cmake', '--build', build_dir, '--target', target], timeout=600)
+        if ret.returncode != 0:
+            pattern = f'{build_dir}/{example}/*.map.json' if example \
+                else f'{build_dir}/**/*.map.json'
+            if not glob.glob(pattern, recursive=True):
+                print(f'  Error: linkermap target failed for {board} - '
+                      f'run `python3 tools/get_deps.py` to fetch tools/linkermap')
+                return False
     return True
 
 
@@ -153,6 +171,36 @@ def generate_metrics(build_dir, out_basename, filters, example=None):
     return f'{out_basename}.json'
 
 
+def generate_membrowse_sizes(build_dir, filters, example=None):
+    """Per-file sizes from membrowse local reports over every elf in build_dir."""
+    import membrowse_compare
+    pattern = f'{build_dir}/{example}/*.elf' if example \
+        else f'{build_dir}/**/*.elf'
+    elfs = glob.glob(pattern, recursive=True)
+    if not elfs:
+        print(f'  Error: no .elf files in {build_dir}')
+        return None
+    combined = {}
+    for elf in sorted(elfs):
+        report = membrowse_compare.report_for_elf(elf, elf + '.map')
+        for path, sizes in membrowse_compare.per_file_sizes(report, filters).items():
+            entry = combined.setdefault(path, {'flash': 0, 'ram': 0})
+            entry['flash'] += sizes['flash']
+            entry['ram'] += sizes['ram']
+    if not combined:
+        # elfs exist but none of their symbols matched `filters` - either the
+        # filters are wrong for this checkout, or membrowse's report shape
+        # changed again (this is exactly the failure mode fix round 1 diagnosed:
+        # per_file_sizes()'s object_file/source_file matching silently returning
+        # nothing). Surface it instead of writing a degenerate TOTAL 0/0/0/0 table.
+        print(f'  Error: {len(elfs)} .elf file(s) in {build_dir} but no symbols '
+              f'matched filters {filters} - check the filters, or a membrowse '
+              f'report format change broke per_file_sizes() matching '
+              f'(try --engine linkermap to isolate)')
+        return None
+    return combined
+
+
 def main():
     global verbose
 
@@ -171,6 +219,10 @@ def main():
                         help='Compare specific example (repeatable, e.g. -e device/cdc_msc -e host/cdc_msc_hid)')
     parser.add_argument('--bloaty', action='store_true',
                         help='Use bloaty for detailed section/symbol diff (requires -e)')
+    parser.add_argument('--engine', choices=['membrowse', 'linkermap'],
+                        default='membrowse',
+                        help='Size-diff engine (default: membrowse local reports; '
+                             'linkermap is the legacy map.json path)')
     parser.add_argument('--ci', action='store_true',
                         help='Add the first board of every arm-gcc CI family. Implies --combined.')
     parser.add_argument('--combined', action='store_true',
@@ -198,6 +250,11 @@ def main():
 
     if not args.board:
         parser.error('at least one -b BOARD is required (or pass --ci)')
+
+    if args.combined and args.engine == 'membrowse':
+        parser.error('--combined is not yet supported with --engine membrowse '
+                      '(it aggregates the linkermap engine\'s per-board metrics '
+                      'JSONs); pass --engine linkermap')
 
     metrics_py = os.path.join(TINYUSB_ROOT, 'tools', 'metrics.py')
     worktree_dir = os.path.join(METRICS_DIR, '_worktree')
@@ -241,14 +298,15 @@ def main():
             # Build only the requested examples (or all if -e not given). Single-example
             # mode used to build everything and filter at metric time — that was wasted work.
             board_failed = False
+            want_linkermap = args.engine == 'linkermap'
             for example in examples:
                 build_label = f' --target {os.path.basename(example)}' if example else ''
                 print(f'[2/5] Building {args.base_branch} for {board}{build_label}...')
-                if not build_board(worktree_dir, base_build, board, example):
+                if not build_board(worktree_dir, base_build, board, example, linkermap=want_linkermap):
                     board_failed = True
                     break
                 print(f'[3/5] Building current for {board}{build_label}...')
-                if not build_board(TINYUSB_ROOT, cur_build, board, example):
+                if not build_board(TINYUSB_ROOT, cur_build, board, example, linkermap=want_linkermap):
                     board_failed = True
                     break
             if board_failed:
@@ -260,20 +318,33 @@ def main():
                 suffix = f'_{example.replace("/", "_")}' if example else ''
                 label = f' ({example})' if example else ''
 
-                # Step 4: Generate metrics
-                print(f'[4/5] Generating metrics for {board}{label}...')
-                base_json = generate_metrics(base_build, os.path.join(board_dir, f'base_metrics{suffix}'),
-                                             base_filters, example)
-                cur_json = generate_metrics(cur_build, os.path.join(board_dir, f'build_metrics{suffix}'),
-                                            cur_filters, example)
-                if not base_json or not cur_json:
-                    continue
-
-                # Step 5: Compare
+                # Step 4/5: Generate metrics and compare
                 out_base = os.path.join(board_dir, f'metrics_compare{suffix}')
-                print(f'[5/5] Comparing {board}{label}...')
-                ret = run([sys.executable, metrics_py, 'compare', '-m', '-o', out_base, base_json, cur_json])
-                print(ret.stdout)
+                if args.engine == 'membrowse':
+                    import membrowse_compare
+                    print(f'[4/5] Generating membrowse reports for {board}{label}...')
+                    base_sizes = generate_membrowse_sizes(base_build, base_filters, example)
+                    cur_sizes = generate_membrowse_sizes(cur_build, cur_filters, example)
+                    if base_sizes is None or cur_sizes is None:
+                        continue
+
+                    print(f'[5/5] Comparing {board}{label}...')
+                    md = membrowse_compare.compare_reports(base_sizes, cur_sizes)
+                    with open(f'{out_base}.md', 'w') as f:
+                        f.write(md)
+                    print(md)
+                else:
+                    print(f'[4/5] Generating metrics for {board}{label}...')
+                    base_json = generate_metrics(base_build, os.path.join(board_dir, f'base_metrics{suffix}'),
+                                                 base_filters, example)
+                    cur_json = generate_metrics(cur_build, os.path.join(board_dir, f'build_metrics{suffix}'),
+                                                cur_filters, example)
+                    if not base_json or not cur_json:
+                        continue
+
+                    print(f'[5/5] Comparing {board}{label}...')
+                    ret = run([sys.executable, metrics_py, 'compare', '-m', '-o', out_base, base_json, cur_json])
+                    print(ret.stdout)
 
                 # Optional: bloaty diff
                 if args.bloaty and example:

@@ -791,16 +791,17 @@ class TestOrphanInvariant(unittest.TestCase):
             self.assertTrue(ci_select.mcu_families(v + '/x.c', REPO), f'{v}: resolves to no family')
 
     # hw/bsp families ci_set_matrix's family_list does not map to any toolchain. Master
-    # gave a PR touching one of these no compile coverage either - none of the other 64
-    # families compiles same7x's board.h - so this is not new. What IS new is that the
+    # gave a PR touching one of these no compile coverage either - none of the other
+    # families compiles efm32's board.h - so this is not new. What IS new is that the
     # gap used to be masked by a full matrix and is now the whole answer, which is why
     # ci_set_matrix treats a selection that intersects family_list to NOTHING as
     # unusable (UNSCOPED -> full matrix) rather than emitting an all-empty one.
-    # espressif is here because hil-build-esp builds its boards by name rather than by
-    # family - though only on hathach/tinyusb: that job is gated on repository_owner,
-    # so on a fork an espressif-only PR builds nowhere.
-    UNBUILT_FAMILIES = {'cxd56', 'efm32', 'espressif', 'f1c100s', 'pic32mz', 'py32f0',
-                        'same7x'}
+    # cxd56, f1c100s and same7x moved OUT of this set: they are pinned by
+    # .github/membrowse-targets.json (Task 4/5) and now build via family_list.
+    # espressif also moved out: it has its own family_list entry ("esp-idf") again,
+    # feeding the dedicated esp-idf jobs (hil-build-esp etc.) rather than this file's
+    # plain-cmake toolchains.
+    UNBUILT_FAMILIES = {'efm32', 'pic32mz', 'py32f0'}
 
     def test_every_bsp_family_is_in_the_ci_matrix(self):
         sys.path.insert(0, os.path.join(REPO, '.github/scripts'))
@@ -991,6 +992,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
         self.assertEqual(sorted(out.stdout.split()), [
             'test/hil/test/stubs/hid.py',
             'test/hil/test/stubs/pymtp.py',
+            'test/hil/test/test_board_pins.py',
             'test/hil/test/test_ci_metrics.py',
             'test/hil/test/test_ci_select.py',
             'test/hil/test/test_hil_bounded.py',
@@ -998,6 +1000,11 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_hil_report.py',
             'test/hil/test/test_hil_rtt.py',
             'test/hil/test/test_hil_util.py',
+            'test/hil/test/test_membrowse_compare.py',
+            'test/hil/test/test_membrowse_onboard.py',
+            'test/hil/test/test_membrowse_report.py',
+            'test/hil/test/test_membrowse_targets.py',
+            'test/hil/test/test_metrics_compare_base.py',
         ], 'test/hil/test/ gained or lost a file; it is carved out of rule 2, so confirm '
            'the rig still does not read anything in there before updating this list')
 
@@ -1635,10 +1642,14 @@ class TestBuildClassifier(unittest.TestCase):
             self.assertEqual(s['families'], [], p)
 
     def test_the_build_machinery_is_still_full(self):
-        # the other side of the same line: these DECIDE what gets built
+        # the other side of the same line: these DECIDE what gets built.
+        # tools/metrics.py moved out of this list: it no longer runs in any build (Task
+        # 3 removed the `tinyusb_metrics` cmake target), so it is no-contribution now -
+        # see TestNoContributionPaths. membrowse-targets.json took its place here: it
+        # decides which boards a pinned family's build legs compile (rule 2c).
         for p in ('.circleci/config.yml', '.github/workflows/build.yml',
                   '.github/scripts/ci_set_matrix.py', 'tools/ci_select.py',
-                  'tools/build_utils.py', 'tools/metrics.py'):
+                  'tools/build_utils.py', '.github/membrowse-targets.json'):
             self.assertTrue(self.b([p])['full'], p)
 
     def test_mixed_diff_unions_per_family(self):
@@ -1746,16 +1757,29 @@ class TestNoContributionPaths(unittest.TestCase):
     Unclassified means FULL on both axes, so a metrics-only PR would otherwise cost the
     whole build matrix plus an exclusive full-rig sweep - where master ran nothing."""
 
-    def test_metrics_scripts_run_on_no_board_but_still_build(self):
-        # HIL axis only. tools/metrics.py IS executed by a build - examples/CMakeLists.txt
-        # makes it the `tinyusb_metrics` target and build_util.yml adds
-        # `--target tinyusb_metrics` - so the build axis must keep exercising it, or a
-        # break merges green and reds the next master push. Nothing on the rig runs it.
-        for p in ('tools/metrics.py', '.github/scripts/metrics_pair_compare.py'):
+    def test_metrics_scripts_contribute_nothing_on_either_axis(self):
+        # Task 3 removed the `tinyusb_metrics` cmake target and its POST_BUILD hook, so
+        # tools/metrics.py (and its siblings) no longer run in ANY CI build - nothing on
+        # the rig runs them either, so both axes are no-contribution now.
+        for p in ('tools/metrics.py', '.github/scripts/metrics_pair_compare.py',
+                  'tools/membrowse_compare.py'):
             h = sel([p])
             self.assertFalse(h['full'], p)
             self.assertEqual(h['boards'], {}, p)
-            self.assertTrue(ci_select.classify_build([p], REPO)['full'], p)
+            b = ci_select.classify_build([p], REPO)
+            self.assertFalse(b['full'], p)
+            self.assertEqual(b['families'], [], p)
+
+    def test_membrowse_targets_json_is_full_build_no_hil(self):
+        # the opposite asymmetry from metrics: this data decides which boards a pinned
+        # family's build legs actually compile (tools/build.py --board-pins, Task 2), so
+        # the build axis must go full - but no rig board's behaviour depends on it, so
+        # the HIL axis stays empty rather than booking the whole rig.
+        p = '.github/membrowse-targets.json'
+        h = sel([p])
+        self.assertFalse(h['full'], p)
+        self.assertEqual(h['boards'], {}, p)
+        self.assertTrue(ci_select.classify_build([p], REPO)['full'], p)
 
     def test_typec_example_builds_but_runs_nothing(self):
         # examples/typec is compiled by the build matrix and run by no rig board; the
@@ -1914,13 +1938,13 @@ class TestCiSetMatrix(unittest.TestCase):
         self.assertIn('ci_set_matrix: UNSCOPED', r.stderr)   # build.yml greps this
 
     def test_families_no_toolchain_builds_falls_open(self):
-        # hw/bsp/same7x is real but in no toolchain's list, so scoping to it emits an
+        # hw/bsp/efm32 is real but in no toolchain's list, so scoping to it emits an
         # all-empty matrix: every leg skips and the PR goes green from a build job that
         # ran no compiler. Unusable, not "nothing selected" - and the marker matters,
         # because that is what build.yml and CircleCI grep to drop the build extras too.
         base = json.loads(self.run_matrix().stdout)
         r = self.run_matrix('--select',
-                            json.dumps({'build': {'full': False, 'families': ['same7x']}}))
+                            json.dumps({'build': {'full': False, 'families': ['efm32']}}))
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(json.loads(r.stdout), base)
         self.assertIn('ci_set_matrix: UNSCOPED', r.stderr)
@@ -1928,11 +1952,11 @@ class TestCiSetMatrix(unittest.TestCase):
     def test_a_partial_toolchain_miss_still_scopes(self):
         # one buildable family is real coverage: scope to it and just note the other
         r = self.run_matrix('--select', json.dumps(
-            {'build': {'full': False, 'families': ['stm32f4', 'same7x']}}))
+            {'build': {'full': False, 'families': ['stm32f4', 'efm32']}}))
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(json.loads(r.stdout)['arm-gcc'], ['stm32f4'])
         self.assertNotIn('UNSCOPED', r.stderr)
-        self.assertIn('same7x', r.stderr)
+        self.assertIn('efm32', r.stderr)
 
     def test_explicit_empty_families_selects_nothing(self):
         # an explicit [] IS a legitimate answer (a diff that builds nothing)

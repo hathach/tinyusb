@@ -11,15 +11,17 @@ Compare TinyUSB code size between a base ref (default `master`) and the current 
 |---|---|---|
 | **single example, one board** | Focused change touching one feature | `-b BOARD -e device/cdc_msc` |
 | **all examples, one board** | Per-board regression sweep | `-b BOARD` |
-| **all examples, all CI families (combined)** | Pre-merge full check | `--ci` |
+| **all examples, all CI families (combined)** | Pre-merge full check | `--ci --engine linkermap` |
 
-The script does the whole base-vs-branch dance itself: a temporary git worktree of the base ref under `cmake-metrics/_worktree/` (removed on exit), base + branch builds under `cmake-metrics/<board>/{base,build}/`, then `tools/metrics.py compare` (report paths under Outputs).
+The script does the whole base-vs-branch dance itself: a temporary git worktree of the base ref under `cmake-metrics/_worktree/` (removed on exit), base + branch builds under `cmake-metrics/<board>/{base,build}/`, then a per-file compare — `tools/membrowse_compare.py` for the default engine, or `tools/metrics.py compare` for `--engine linkermap` (report paths under Outputs).
+
+Default size-diff engine is membrowse (local `membrowse report --json --all-symbols` per elf); pass `--engine linkermap` for the legacy map.json-based engine, which needs `python3 tools/get_deps.py` for `tools/linkermap` and is required today for `--combined`/`--ci` (the membrowse engine doesn't support `--combined` yet). The linkermap engine now gets its map.json files via the explicit `examples-linkermap` (or `<example>-linkermap`) cmake target, which the script builds itself — no user action needed. See the `membrowse` skill for engine details.
 
 ## Choosing arguments
 
 Infer from the user's request:
 
-- **Board(s):** named board → `-b BOARD` (repeatable). "All boards" / "CI" / "full sweep" → `--ci` (first board of each arm-gcc family). Default to a fast board (`raspberry_pi_pico`) if unspecified for an iterative check.
+- **Board(s):** named board → `-b BOARD` (repeatable). "All boards" / "CI" / "full sweep" → `--ci --engine linkermap` (first board of each arm-gcc family; `--ci` implies `--combined`, which the membrowse engine doesn't support yet). Default to a fast board (`raspberry_pi_pico`) if unspecified for an iterative check.
 - **Example:** named example → `-e <group>/<name>` (e.g. `-e device/cdc_msc`). "All examples" → omit `-e`.
 - **Bloaty:** only with `-e`. Use when the user wants a section/symbol-level breakdown for a single binary.
 - **Base ref:** default `master`. Override with `--base-branch <ref>` (tag or commit also works).
@@ -28,14 +30,14 @@ Infer from the user's request:
 ## Common invocations
 
 ```bash
-# Single example, one board (linkermap, fastest; add --bloaty for section/symbol breakdown):
+# Single example, one board (add --bloaty for section/symbol breakdown):
 python3 tools/metrics_compare_base.py -b raspberry_pi_pico -e device/cdc_msc
 
 # All examples for one board (repeat -b for several boards):
 python3 tools/metrics_compare_base.py -b raspberry_pi_pico
 
-# Full CI sweep (first board per arm-gcc family, combined):
-python3 tools/metrics_compare_base.py --ci
+# Full CI sweep (first board per arm-gcc family, combined; needs --engine linkermap):
+python3 tools/metrics_compare_base.py --ci --engine linkermap
 ```
 
 ## Outputs
@@ -56,5 +58,5 @@ Use timeouts ≥ 10 minutes (600000 ms) for `--ci`.
 
 After running:
 - Show the markdown report's summary table to the user.
-- Highlight any rows with non-zero `% diff` — under the default filter every row is a TinyUSB stack source file (e.g. `usbd.c`, `cdc_device.c`, `dcd_<port>.c`), so any non-zero delta is a real stack-size impact.
+- Highlight any row with a non-zero delta (`Flash Δ`/`RAM Δ` for the membrowse engine, `% diff` for `--engine linkermap`) — under the default filter every row is a TinyUSB stack source file (e.g. `usbd.c`, `cdc_device.c`, `dcd_<port>.c`), so any non-zero delta is a real stack-size impact.
 - If the diff is unexpected, follow up with a single-example `--bloaty` run to localize.

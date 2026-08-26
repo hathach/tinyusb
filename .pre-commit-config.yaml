@@ -89,6 +89,13 @@ repos:
     pass_filenames: false
     language: system
 
+  - id: membrowse-targets
+    name: membrowse-targets
+    files: ^(\.github/membrowse-targets\.json$|\.github/scripts/membrowse_targets_check\.py$|src/portable/|test/hil/test/test_membrowse_targets\.py$|tools/build\.py$|test/hil/test/test_board_pins\.py$|tools/membrowse_compare\.py$|tools/metrics_compare_base\.py$|test/hil/test/test_membrowse_compare\.py$|test/hil/test/test_metrics_compare_base\.py$|tools/membrowse_report\.py$|test/hil/test/test_membrowse_report\.py$|tools/membrowse_onboard\.py$|test/hil/test/test_membrowse_onboard\.py$)
+    entry: sh -c "python3 .github/scripts/membrowse_targets_check.py && python3 test/hil/test/test_membrowse_targets.py && python3 test/hil/test/test_board_pins.py && python3 test/hil/test/test_membrowse_compare.py && python3 test/hil/test/test_metrics_compare_base.py && python3 test/hil/test/test_membrowse_report.py && python3 test/hil/test/test_membrowse_onboard.py"
+    pass_filenames: false
+    language: system
+
 #  - id: build-fuzzer
 #    name: build-fuzzer
 #    files: ^(src/|test/fuzz/)
