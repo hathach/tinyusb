@@ -19,7 +19,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from helper import hil_util
 
 
-@unittest.skipIf(os.name == 'nt', 'POSIX shell commands')
 class RunCmdModes(unittest.TestCase):
     def test_default_mode_unchanged(self):
         r = hil_util.run_cmd('printf out; printf err >&2')
@@ -225,6 +224,59 @@ class RunAlongsideKeepsStderrOffThePayload(unittest.TestCase):
         self.assertEqual(r.returncode, 0)
         self.assertEqual(r.stdout, b'PAYLOAD',
                          'child stderr leaked into the payload stream')
+
+
+class RunCmdCleanupShape(unittest.TestCase):
+    """run_cmd's two cleanup paths, asserted structurally.
+
+    Both must kill the process GROUP: start_new_session puts the child in its own group, so
+    a flasher run through a shell keeps children a p.kill() cannot reach, and on the
+    BaseException path the child never receives the terminal's SIGINT either.
+
+    Structural rather than behavioural on purpose. Driving a real SIGINT into a blocked
+    communicate() from a unit test is timing-dependent, and a flaky guard on this block is
+    worse than none -- while what actually breaks it is an edit that rebinds a branch. Both
+    times this block has been mis-edited, an `else:` ended up attached to the `try` instead
+    of the `if` it belonged to, so `p.kill()` ran when killpg had SUCCEEDED and its
+    ProcessLookupError masked the caller's exception. That is a shape, and shapes are
+    exactly what an AST can pin.
+    """
+
+    def _run_cmd_ast(self):
+        import ast
+        src = Path(hil_util.__file__).read_text()
+        return next(n for n in ast.walk(ast.parse(src))
+                    if isinstance(n, ast.FunctionDef) and n.name == 'run_cmd')
+
+    def test_no_cleanup_try_has_an_else(self):
+        import ast
+        for n in ast.walk(self._run_cmd_ast()):
+            if isinstance(n, ast.Try) and n.orelse:
+                self.fail(f'try/else at line {n.lineno}: an else here runs when the kill '
+                          f'SUCCEEDED, and its ProcessLookupError masks the caller\'s '
+                          f'exception -- this block has been mis-edited that way twice')
+
+    def test_both_cleanup_paths_kill_the_group(self):
+        import ast
+        fn = self._run_cmd_ast()
+        killers = [getattr(c.func, 'attr', '') for c in ast.walk(fn)
+                   if isinstance(c, ast.Call) and getattr(c.func, 'attr', '') in
+                   ('killpg', 'kill')]
+        self.assertEqual(killers.count('killpg'), 2,
+                         'both the timeout and the BaseException path must killpg')
+        self.assertEqual(killers.count('kill'), 0,
+                         'p.kill() reaches only the direct child; a flasher run through a '
+                         'shell keeps grandchildren it cannot touch')
+
+    def test_the_interrupt_path_reraises(self):
+        import ast
+        fn = self._run_cmd_ast()
+        base = [h for n in ast.walk(fn) if isinstance(n, ast.Try) for h in n.handlers
+                if isinstance(h.type, ast.Name) and h.type.id == 'BaseException']
+        self.assertTrue(base, 'the BaseException cleanup path is gone')
+        for h in base:
+            self.assertTrue(any(isinstance(x, ast.Raise) for x in ast.walk(h)),
+                            'the interrupt path must re-raise, or Ctrl-C is swallowed')
 
 
 if __name__ == '__main__':

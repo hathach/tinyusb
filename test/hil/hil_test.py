@@ -69,9 +69,9 @@ from helper.hil_util import device_tests, dual_tests, host_test
 
 # Raw Lock/Semaphore objects in Pool initargs are inheritable only under fork
 # (spawn/forkserver pickle them and fail at Pool creation), so pin it against an
-# interpreter default change. Windows has no fork: fall back so it still IMPORTS there.
+# interpreter default change.
 
-_mp = multiprocessing.get_context('fork') if os.name != 'nt' else multiprocessing.get_context()
+_mp = multiprocessing.get_context('fork')
 Pool, Lock, Semaphore, Manager = _mp.Pool, _mp.Lock, _mp.Semaphore, _mp.Manager
 import string
 
@@ -1305,9 +1305,6 @@ def test_device_midi_test(board):
 
 def test_device_audio_test_freertos(board):
     uid = board['uid']
-
-    if os.name == 'nt':
-        return 'skipped'
 
     pcm = None
     timeout = enum_timeout()
