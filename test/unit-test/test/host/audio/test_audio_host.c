@@ -396,7 +396,7 @@ static const uint8_t playback_with_two_frequencies[] = {
   TEST_UAC1_AS_ALT0,
   TEST_UAC1_AS_INTERFACE(1, 1),
   TEST_UAC1_AS_GENERAL(PLAYBACK_INPUT_TERM),
-  TEST_UAC1_FORMAT(2, 2, 16, 44100, 48000),
+  TEST_UAC1_FORMAT(2, 2, 16, 44100, 44100, 48000),
   TEST_UAC1_DATA_EP(0x01, TUSB_ISO_EP_ATT_ADAPTIVE, 384, 2),
   TEST_UAC1_CS_DATA_EP,
 };
@@ -479,7 +479,7 @@ static const uint8_t playback_with_two_alternates[] = {
   TEST_UAC1_CS_DATA_EP,
   TEST_UAC1_AS_INTERFACE(2, 1),
   TEST_UAC1_AS_GENERAL(PLAYBACK_INPUT_TERM),
-  TEST_UAC1_FORMAT(2, 2, 16, 96000),
+  TEST_UAC1_FORMAT(2, 2, 16, 48000, 96000),
   TEST_UAC1_DATA_EP(0x02, TUSB_ISO_EP_ATT_ADAPTIVE, 384, 1),
   TEST_UAC1_CS_DATA_EP,
 };
@@ -889,17 +889,32 @@ void test_audio_host_parses_discrete_frequencies_with_interval_greater_than_one(
   tuh_audio_stream_config_t config;
   mount_descriptors(playback_with_two_frequencies, sizeof(playback_with_two_frequencies));
 
-  TEST_ASSERT_EQUAL_UINT8(2, tuh_audio_config_count(0, 0));
+  TEST_ASSERT_EQUAL_UINT8(3, tuh_audio_config_count(0, 0));
   TEST_ASSERT_TRUE(tuh_audio_config_get(0, 0, 0, &config));
   TEST_ASSERT_EQUAL_UINT32(44100, config.sample_rate);
   TEST_ASSERT_TRUE(tuh_audio_config_get(0, 0, 1, &config));
+  TEST_ASSERT_EQUAL_UINT32(44100, config.sample_rate);
+  TEST_ASSERT_TRUE(tuh_audio_config_get(0, 0, 2, &config));
   TEST_ASSERT_EQUAL_UINT32(48000, config.sample_rate);
 
-  // Both public configurations share one AS mapping but retain their own rate.
-  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 1));
+  // All public configurations share one AS mapping and preserve descriptor order.
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 2));
   TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
   complete_interface_set(XFER_RESULT_SUCCESS);
   TEST_ASSERT_EQUAL_HEX8_ARRAY(((uint8_t[]){U24_TO_U8S_LE(48000)}), control_buffer, 3);
+}
+
+void test_audio_host_retains_same_rate_in_different_alternate_settings(void) {
+  tuh_audio_stream_config_t config;
+  mount_descriptors(playback_with_two_alternates, sizeof(playback_with_two_alternates));
+
+  TEST_ASSERT_EQUAL_UINT8(3, tuh_audio_config_count(0, 0));
+  TEST_ASSERT_TRUE(tuh_audio_config_get(0, 0, 0, &config));
+  TEST_ASSERT_EQUAL_UINT32(48000, config.sample_rate);
+  TEST_ASSERT_TRUE(tuh_audio_config_get(0, 0, 1, &config));
+  TEST_ASSERT_EQUAL_UINT32(48000, config.sample_rate);
+  TEST_ASSERT_TRUE(tuh_audio_config_get(0, 0, 2, &config));
+  TEST_ASSERT_EQUAL_UINT32(96000, config.sample_rate);
 }
 
 void test_audio_host_keeps_supported_stream_when_other_as_format_is_unsupported(void) {

@@ -994,29 +994,6 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const tusb_de
                  itf_num, alt, ep->ep_size);
       continue;
     }
-    // Skip duplicate configurations already retained from another AS or from
-    // an earlier frequency entry in this descriptor.
-    bool duplicate = false;
-    for (uint8_t as_idx = 0; as_idx < stream->as_count && !duplicate; as_idx++) {
-      const audioh_as_config_t *existing = &stream->as[as_idx];
-      if (existing->format == (uint8_t)format && existing->channels == num_channels) {
-        for (uint8_t rate_idx = 0; rate_idx < existing->sample_rate_count; rate_idx++) {
-          if (existing->sample_rate[rate_idx] == sample_rate) {
-            duplicate = true;
-            break;
-          }
-        }
-      }
-    }
-    for (uint8_t rate_idx = 0; rate_idx < as_config.sample_rate_count && !duplicate; rate_idx++) {
-      if (as_config.sample_rate[rate_idx] == sample_rate) {
-        duplicate = true;
-      }
-    }
-    if (duplicate) {
-      continue;
-    }
-
     as_config.sample_rate[as_config.sample_rate_count++] = sample_rate;
   }
 
