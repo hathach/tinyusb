@@ -9,13 +9,35 @@ writers, and the fold to one machine-readable verdict per board.
 
 Dual-mode by design: imported as `helper.hil_report` by hil_test.py, and run as a script by
 the operator (see .claude/agents/hil-operator.md). A script run puts test/hil/helper on
-sys.path rather than test/hil, hence the guarded hil_health import below.
+sys.path rather than test/hil, so this module imports no sibling helper at all --
+_p and the width helpers below are defined locally for that reason.
 """
 import argparse
 import json
 import sys
+import unicodedata
 from pathlib import Path
 
+
+def _w(s: str) -> int:
+    """Terminal COLUMNS, not characters. Every status mark in REPORT_CELL is one Python
+    character and TWO columns wide, so len() pads a cell holding one a column short and
+    the pipes drift out of line with the header rule for the whole table.
+
+    Local, like _p above and for the same reason: this module is also run as a script, and
+    under PYTHONSAFEPATH=1 a sibling import dies before argparse runs. hil_util carries the
+    same pair for callers that can import it.
+    """
+    return sum(2 if unicodedata.east_asian_width(c) in 'WF' else 1 for c in s)
+
+
+def _pad(s: str, width: int, center: bool = False) -> str:
+    """str.ljust/center, measured in display columns. See _w."""
+    room = max(0, width - _w(s))
+    if not center:
+        return s + ' ' * room
+    left = room // 2
+    return ' ' * left + s + ' ' * (room - left)
 
 
 def _p(*args, **kwargs) -> None:
@@ -136,12 +158,14 @@ def render_matrix(rows_all: list) -> str:
     rows_vals = [(lbl, [cell(cells, c) for c in columns] + [dur or ''])
                  for lbl, cells, dur in rows_all]
     board_hdr = 'Board'
-    board_w = max([len(board_hdr)] + [len(lbl) for lbl, _ in rows_vals])
-    col_w = [max([len(h)] + [len(vals[i]) for _, vals in rows_vals])
+    # display_width, not len(): the ✅/❌/⚪ marks are one character and two columns
+    board_w = max([_w(board_hdr)] + [_w(lbl) for lbl, _ in rows_vals])
+    col_w = [max([_w(h)] + [_w(vals[i]) for _, vals in rows_vals])
              for i, h in enumerate(headers)]
 
     def line(label, values):
-        padded = [label.ljust(board_w)] + [v.center(w) for v, w in zip(values, col_w)]
+        padded = [_pad(label, board_w)] + [_pad(v, w, center=True)
+                                           for v, w in zip(values, col_w)]
         return '| ' + ' | '.join(padded) + ' |'
 
     header = line(board_hdr, headers)

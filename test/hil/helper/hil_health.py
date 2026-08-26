@@ -214,9 +214,6 @@ def _kill_kids(kids: dict, seen: set) -> int:
         own = os.getpgid(0)
     except OSError:
         own = None        # cannot tell our own group apart: never killpg, signal pids only
-    # One list: every pid here is a DESCENDANT of one of our own workers, so it is ours by
-    # construction -- no argv identity check needed, because we never signal anything we
-    # did not discover through our own ppid tree.
     touched: list = []
     for children in kids.values():
         for cpid, cpgid in children:
