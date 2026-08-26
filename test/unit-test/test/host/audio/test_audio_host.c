@@ -887,13 +887,19 @@ void test_audio_host_keeps_running_when_stop_cannot_be_submitted(void) {
 
 void test_audio_host_parses_discrete_frequencies_with_interval_greater_than_one(void) {
   tuh_audio_stream_config_t config;
-  open_descriptors(playback_with_two_frequencies, sizeof(playback_with_two_frequencies));
+  mount_descriptors(playback_with_two_frequencies, sizeof(playback_with_two_frequencies));
 
   TEST_ASSERT_EQUAL_UINT8(2, tuh_audio_config_count(0, 0));
   TEST_ASSERT_TRUE(tuh_audio_config_get(0, 0, 0, &config));
   TEST_ASSERT_EQUAL_UINT32(44100, config.sample_rate);
   TEST_ASSERT_TRUE(tuh_audio_config_get(0, 0, 1, &config));
   TEST_ASSERT_EQUAL_UINT32(48000, config.sample_rate);
+
+  // Both public configurations share one AS mapping but retain their own rate.
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 1));
+  TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
+  complete_interface_set(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(((uint8_t[]){U24_TO_U8S_LE(48000)}), control_buffer, 3);
 }
 
 void test_audio_host_keeps_supported_stream_when_other_as_format_is_unsupported(void) {

@@ -79,9 +79,9 @@ typedef enum {
 // dir is constant for all configs of a given (dev_idx, stream_idx) and
 // equals the result of tuh_audio_stream_direction().
 typedef struct {
+  uint32_t              sample_rate;
   tuh_audio_direction_t dir;
   tuh_audio_format_t    format;
-  uint32_t              sample_rate;
   uint8_t               channels;
 } tuh_audio_stream_config_t;
 
