@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Backfill membrowse history for one pinned board/example.
+"""Backfill membrowse history for one CI board/example.
 
 Thin wrapper over `membrowse onboard` that derives every convention-bound
 argument from the board and example name, so a backfill cannot land under a
@@ -42,7 +42,7 @@ def compose(board, example, num_commits, upload, api_key, extra):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Backfill membrowse history for one pinned board/example '
+        description='Backfill membrowse history for one CI board/example '
                     '(dry-run unless --upload). Extra args after -- go to '
                     '`membrowse onboard` verbatim (see its --help).')
     parser.add_argument('board', help='Board name, e.g. stm32f407disco')

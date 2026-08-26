@@ -333,15 +333,16 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         self.assertEqual(filtered, 'true')
 
     def test_membrowse_upload_is_scoped_by_the_pr_filter(self):
-        # Unlike the pre-board-pins design, the upload now runs $EX_ARGS-filtered:
-        # --board-pins/--pins-only fixes each pinned family to its explicit board list
-        # (returned as-is, never --one-first's "first board that can build this -e
-        # set"), so there is no more board-selection divergence for $EX_ARGS to cause -
-        # scoping the upload by the PR's example filter is safe again.
+        # Unlike the pre-ci-boards design, the upload now runs $EX_ARGS-filtered:
+        # --ci-boards/--ci-boards-only fixes each CI-board family to its explicit
+        # board list (returned as-is, never --one-first's "first board that can
+        # build this -e set"), so there is no more board-selection divergence for
+        # $EX_ARGS to cause - scoping the upload by the PR's example filter is safe
+        # again.
         line = [l for l in self.util.splitlines()
                 if '--target examples-membrowse-upload' in l][0]
         self.assertIn('$EX_ARGS', line)
-        self.assertIn('--pins-only', line)
+        self.assertIn('--ci-boards-only', line)
 
 
 if __name__ == '__main__':

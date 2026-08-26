@@ -89,10 +89,10 @@ repos:
     pass_filenames: false
     language: system
 
-  - id: membrowse-targets
-    name: membrowse-targets
-    files: ^(\.github/membrowse-targets\.json$|\.github/scripts/membrowse_targets_check\.py$|src/portable/|test/hil/test/test_membrowse_targets\.py$|tools/build\.py$|test/hil/test/test_board_pins\.py$|tools/membrowse_compare\.py$|tools/metrics_compare_base\.py$|test/hil/test/test_membrowse_compare\.py$|test/hil/test/test_metrics_compare_base\.py$|tools/membrowse_report\.py$|test/hil/test/test_membrowse_report\.py$|tools/membrowse_onboard\.py$|test/hil/test/test_membrowse_onboard\.py$)
-    entry: sh -c "python3 .github/scripts/membrowse_targets_check.py && python3 test/hil/test/test_membrowse_targets.py && python3 test/hil/test/test_board_pins.py && python3 test/hil/test/test_membrowse_compare.py && python3 test/hil/test/test_metrics_compare_base.py && python3 test/hil/test/test_membrowse_report.py && python3 test/hil/test/test_membrowse_onboard.py"
+  - id: drivers-coverage
+    name: drivers-coverage
+    files: ^(\.github/ci-boards\.json$|tools/drivers_coverage_check\.py$|tools/ci_select\.py$|tools/build_utils\.py$|hw/bsp/|src/portable/|test/hil/test/test_drivers_coverage\.py$|tools/build\.py$|test/hil/test/test_ci_boards\.py$|tools/membrowse_compare\.py$|tools/metrics_compare_base\.py$|test/hil/test/test_membrowse_compare\.py$|test/hil/test/test_metrics_compare_base\.py$|tools/membrowse_report\.py$|test/hil/test/test_membrowse_report\.py$|tools/membrowse_onboard\.py$|test/hil/test/test_membrowse_onboard\.py$|test/hil/tinyusb\.json$|test/hil/hfp\.json$)
+    entry: sh -c "python3 tools/drivers_coverage_check.py && python3 test/hil/test/test_drivers_coverage.py && python3 test/hil/test/test_ci_boards.py && python3 test/hil/test/test_membrowse_compare.py && python3 test/hil/test/test_metrics_compare_base.py && python3 test/hil/test/test_membrowse_report.py && python3 test/hil/test/test_membrowse_onboard.py"
     pass_filenames: false
     language: system
 

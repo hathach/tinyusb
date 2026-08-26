@@ -28,26 +28,6 @@ build_status = [STATUS_OK, STATUS_FAILED, STATUS_SKIPPED]
 verbose = False
 parallel_jobs = os.cpu_count()
 
-# CI board control lists (used when running under CI)
-ci_skip_boards = {
-    'rp2040': [
-        'adafruit_feather_rp2040_usb_host',
-        'adafruit_fruit_jam',
-        'adafruit_metro_rp2350',
-        'feather_rp2040_max3421',
-        'pico2_etm_trace',
-        'pico_sdk',
-        'raspberry_pi_pico_w',
-    ],
-}
-
-ci_preferred_boards = {
-    'rp2040': ['raspberry_pi_pico'],
-    'samd2x_l2x': ['metro_m0_express'],
-    'samd5x_e5x': ['metro_m4_express'],
-    'stm32h7': ['stm32h743eval']
-}
-
 
 # -----------------------------
 # Helper
@@ -317,7 +297,7 @@ def build_boards_list(boards, build_defines, build_system, build_name, build_cfl
 
 
 def get_family_boards(family, one_random, one_first, examples=None, build_system='cmake',
-                      extra_defines=(), ci=None):
+                      extra_defines=()):
     """Get list of boards for a family.
 
     Args:
@@ -335,33 +315,20 @@ def get_family_boards(family, one_random, one_first, examples=None, build_system
         extra_defines: this build's -D tokens, so a board whose only.txt match comes
             from -DMAX3421_HOST=1 is not judged unbuildable here and buildable in
             cmake_board
-        ci: force the ci_skip_boards / ci_preferred_boards lists on or off. Default
-            None reads the environment, which is right for a build but NOT for a caller
-            asking what CI would do: ci_select must answer the same on a laptop as on a
-            runner, or /pre-pr and the code-size skill report a family list CI will not
-            reproduce.
 
     Returns:
         List of board names
     """
-    if ci is None:
-        ci = bool(os.getenv('GITHUB_ACTIONS') or os.getenv('CIRCLECI'))
-    skip_list = []
-    preferred_list = []
-    if ci:
-        skip_list = ci_skip_boards.get(family, [])
-        preferred_list = ci_preferred_boards.get(family, [])
-
     all_boards = []
     for entry in os.scandir(f"hw/bsp/{family}/boards"):
-        if entry.is_dir() and entry.name not in skip_list:
+        if entry.is_dir():
             all_boards.append(entry.name)
     if not all_boards:
         print(f"No boards found for family '{family}'")
         return []
     all_boards.sort()
 
-    # If only-one flags are set, honor select list first, then pick first or random
+    # If only-one flags are set, pick a board buildable under the filter (else first/random)
     if one_first or one_random:
         def buildable(board):
             # no filter, or nothing in the filter is buildable anywhere: keep today's
@@ -370,14 +337,6 @@ def get_family_boards(family, one_random, one_first, examples=None, build_system
                 not build_utils.skip_example(e, board, extra_defines, build_system)
                 for e in examples)
 
-        # the WHOLE preferred list, in order - stopping at entry one would abandon a
-        # curated list for the raw alphabetical order the moment its first board cannot
-        # build the filter, which also moves the board the metrics baseline is keyed on
-        # the whole preferred list, in order. Unreachable-when-unfiltered: with
-        # examples is None, buildable() is True and the loop returns on entry one.
-        for b in preferred_list:
-            if buildable(b):
-                return [b]
         candidates = [b for b in all_boards if buildable(b)] or all_boards
         if one_first:
             return [candidates[0]]
@@ -387,25 +346,40 @@ def get_family_boards(family, one_random, one_first, examples=None, build_system
     return all_boards
 
 
-def resolve_pinned_boards(pins_path, family, pins_only, examples=None,
-                          build_system='cmake', extra_defines=(), ci=None):
-    """Resolve a family to its membrowse-pinned boards.
+def resolve_ci_boards(boards_path, family, boards_only, examples=None,
+                      build_system='cmake', extra_defines=()):
+    """Resolve a family to its CI boards (.github/ci-boards.json) - the only
+    board-curation mechanism now that ci_skip_boards/ci_preferred_boards are gone.
 
-    Pinned boards are returned as-is (an explicit pin outrules ci_skip_boards -
-    that is how feather_rp2040_max3421 gets built for hcd_max3421). A family
-    with no pins falls back to the one-first pick, or to nothing under
-    pins_only (the upload step must not touch build dirs of boards that were
-    built only as compile smoke-checks)."""
-    with open(pins_path) as f:
+    An explicit CI board is not automatically buildable: when `examples` narrows the
+    request (-e), a CI board is kept only if it can build at least one of them
+    (build_utils.skip_example - the same skip.txt/only.txt answer
+    get_family_boards()'s one-first pick filters by). Otherwise a scoped PR could
+    pick a CI board that builds NONE of the selected examples, so the leg
+    compiles nothing, uploads nothing, and reports green (concrete case: stm32f4's
+    CI board is stm32f407disco, and examples/device/cdc_dual_ports/skip.txt skips
+    that board, so a PR touching only that example needs a different stm32f4 board).
+
+    A family with no CI boards - or whose CI boards all fail the filter, which is
+    the same situation as none for the purpose at hand - falls back to the
+    one-first pick, or to nothing under boards_only (the upload step must not touch
+    build dirs of boards that were built only as compile smoke-checks; a CI board
+    that cannot build the filter is exactly that: a smoke-check substitute, not the
+    tracked board)."""
+    with open(boards_path) as f:
         data = json.load(f)
-    pinned = [t['board'] for t in data['targets'] if t['family'] == family]
-    if pinned:
-        return pinned
-    if pins_only:
+    ci_boards = [t['board'] for t in data['boards'] if t['family'] == family]
+    if examples is not None:
+        ci_boards = [b for b in ci_boards if any(
+            not build_utils.skip_example(e, b, extra_defines, build_system)
+            for e in examples)]
+    if ci_boards:
+        return ci_boards
+    if boards_only:
         return []
     return get_family_boards(family, one_random=False, one_first=True,
                              examples=examples, build_system=build_system,
-                             extra_defines=extra_defines, ci=ci)
+                             extra_defines=extra_defines)
 
 
 # -----------------------------
@@ -429,11 +403,11 @@ def main():
                         help='Build only one random board of each specified family')
     parser.add_argument('--one-first', action='store_true', default=False,
                         help='Build only the first board (alphabetical) of each specified family')
-    parser.add_argument('--board-pins', default=None, metavar='JSON',
-                        help='Path to membrowse-targets.json: build the pinned boards '
+    parser.add_argument('--ci-boards', default=None, metavar='JSON',
+                        help='Path to ci-boards.json: build the CI boards '
                              'of each family (fallback: first board alphabetically)')
-    parser.add_argument('--pins-only', action='store_true', default=False,
-                        help='With --board-pins: skip families that have no pinned board')
+    parser.add_argument('--ci-boards-only', action='store_true', default=False,
+                        help='With --ci-boards: skip families that have no CI board')
     parser.add_argument('-j', '--jobs', type=int, default=os.cpu_count(), help='Number of jobs to run in parallel')
     parser.add_argument('-T', '--target', action='append', default=[],
                         help='Build target to use, may be specified multiple times (default: all)')
@@ -451,12 +425,12 @@ def main():
     build_cflags = args.cflag
     one_random = args.one_random
     one_first = args.one_first
-    board_pins = args.board_pins
-    pins_only = args.pins_only
-    if pins_only and not board_pins:
-        parser.error('--pins-only requires --board-pins')
-    if board_pins and (one_first or one_random):
-        parser.error('--board-pins replaces --one-first/--one-random')
+    ci_boards_path = args.ci_boards
+    ci_boards_only = args.ci_boards_only
+    if ci_boards_only and not ci_boards_path:
+        parser.error('--ci-boards-only requires --ci-boards')
+    if ci_boards_path and (one_first or one_random):
+        parser.error('--ci-boards replaces --one-first/--one-random')
     build_targets = args.target if args.target else ['all']
     examples = args.example or None
     verbose = args.verbose
@@ -501,9 +475,9 @@ def main():
     # get boards from families and append to boards list
     all_boards = list(boards)
     for f in all_families:
-        if board_pins:
-            all_boards.extend(resolve_pinned_boards(board_pins, f, pins_only, examples,
-                                                    build_system, tuple(build_defines)))
+        if ci_boards_path:
+            all_boards.extend(resolve_ci_boards(ci_boards_path, f, ci_boards_only, examples,
+                                                build_system, tuple(build_defines)))
         else:
             all_boards.extend(get_family_boards(f, one_random, one_first, examples,
                                                 build_system, tuple(build_defines)))

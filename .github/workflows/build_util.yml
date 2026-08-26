@@ -119,10 +119,10 @@ jobs:
           MEMBROWSE_API_KEY: ${{ secrets.MEMBROWSE_API_KEY }}
         run: |
           # code-changed false -> no elf -> membrowse uploads with --identical.
-          # --pins-only: families without a pinned board were built as compile
+          # --ci-boards-only: families without a CI board were built as compile
           # smoke-checks only and must not upload.
           BUILD_PY_ARGS="-s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }}"
-          CMD="python tools/build.py $BUILD_PY_ARGS --pins-only --target examples-membrowse-upload -j 1 ${{ matrix.arg }} $EX_ARGS"
+          CMD="python tools/build.py $BUILD_PY_ARGS --ci-boards-only --target examples-membrowse-upload -j 1 ${{ matrix.arg }} $EX_ARGS"
           if [ "${{ inputs.toolchain }}" == "esp-idf" ]; then
             docker run --rm -e MEMBROWSE_API_KEY="$MEMBROWSE_API_KEY" -e CI="$CI" -v $PWD:/project -w /project espressif/idf:tinyusb bash -c "pip install membrowse >/dev/null && $CMD"
           else

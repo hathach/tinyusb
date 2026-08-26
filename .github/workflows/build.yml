@@ -41,7 +41,7 @@ jobs:
               - 'tools/ci_select.py'
               - 'tools/get_deps.py'
               - 'tools/rtt.py'
-              - '.github/membrowse-targets.json'
+              - '.github/ci-boards.json'
               - '.github/actions/**'
               - '.github/workflows/build.yml'
               - '.github/workflows/build_util.yml'
@@ -211,8 +211,8 @@ jobs:
           echo "hil_matrix=$HIL_MATRIX_JSON" >> $GITHUB_OUTPUT
 
   # ------------------------------------------------------------------------------
-  # CMake build: membrowse-pinned board(s) per family, falling back to one board (first
-  # alphabetically) for families with no pin. Full build is done by CircleCI in PR
+  # CMake build: membrowse's CI board(s) per family, falling back to one board (first
+  # alphabetically) for families with no CI board. Full build is done by CircleCI in PR
   # Note:
   # For Make and IAR build: will be done on CircleCI only (one random per family as well)
   # ------------------------------------------------------------------------------
@@ -234,7 +234,7 @@ jobs:
       build-system: 'cmake'
       toolchain: ${{ matrix.toolchain }}
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
-      build-options: '--board-pins .github/membrowse-targets.json'
+      build-options: '--ci-boards .github/ci-boards.json'
       example-map: ${{ needs.set-matrix.outputs.example_map }}
       upload-artifacts: false
       upload-membrowse: true

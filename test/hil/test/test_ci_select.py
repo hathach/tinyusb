@@ -796,8 +796,8 @@ class TestOrphanInvariant(unittest.TestCase):
     # gap used to be masked by a full matrix and is now the whole answer, which is why
     # ci_set_matrix treats a selection that intersects family_list to NOTHING as
     # unusable (UNSCOPED -> full matrix) rather than emitting an all-empty one.
-    # cxd56, f1c100s and same7x moved OUT of this set: they are pinned by
-    # .github/membrowse-targets.json (Task 4/5) and now build via family_list.
+    # cxd56, f1c100s and same7x moved OUT of this set: they are CI boards in
+    # .github/ci-boards.json (Task 4/5) and now build via family_list.
     # espressif also moved out: it has its own family_list entry ("esp-idf") again,
     # feeding the dedicated esp-idf jobs (hil-build-esp etc.) rather than this file's
     # plain-cmake toolchains.
@@ -992,9 +992,10 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
         self.assertEqual(sorted(out.stdout.split()), [
             'test/hil/test/stubs/hid.py',
             'test/hil/test/stubs/pymtp.py',
-            'test/hil/test/test_board_pins.py',
+            'test/hil/test/test_ci_boards.py',
             'test/hil/test/test_ci_metrics.py',
             'test/hil/test/test_ci_select.py',
+            'test/hil/test/test_drivers_coverage.py',
             'test/hil/test/test_hil_bounded.py',
             'test/hil/test/test_hil_health.py',
             'test/hil/test/test_hil_report.py',
@@ -1003,7 +1004,6 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_membrowse_compare.py',
             'test/hil/test/test_membrowse_onboard.py',
             'test/hil/test/test_membrowse_report.py',
-            'test/hil/test/test_membrowse_targets.py',
             'test/hil/test/test_metrics_compare_base.py',
         ], 'test/hil/test/ gained or lost a file; it is carved out of rule 2, so confirm '
            'the rig still does not read anything in there before updating this list')
@@ -1113,27 +1113,13 @@ class TestSelectionBehavioursThatHadNoTest(unittest.TestCase):
                  if e.startswith('dual/')}
         self.assertTrue(duals, 'a dcd change selected no dual example')
 
-    def test_the_selector_answers_the_same_with_and_without_ci_env(self):
-        # mutant: drop ci=True from _prune_buildable. ci_skip_boards/ci_preferred_boards
-        # only apply when GITHUB_ACTIONS/CIRCLECI is set, so without the pin a laptop and
-        # a runner disagree - and /pre-pr would report a family list CI will not build.
-        files = ['examples/host/cdc_msc_hid_freertos/src/main.c']
-        old = os.environ.get('GITHUB_ACTIONS')
-        os.environ.pop('GITHUB_ACTIONS', None)
-        try:
-            local = ci_select.classify_build(files, REPO)['families']
-            os.environ['GITHUB_ACTIONS'] = 'true'
-            import importlib
-            importlib.reload(ci_select)
-            runner = ci_select.classify_build(files, REPO)['families']
-        finally:
-            if old is None:
-                os.environ.pop('GITHUB_ACTIONS', None)
-            else:
-                os.environ['GITHUB_ACTIONS'] = old
-            import importlib
-            importlib.reload(ci_select)
-        self.assertEqual(local, runner, 'the selector must not depend on the CI env vars')
+    # test_the_selector_answers_the_same_with_and_without_ci_env retired: it pinned
+    # _prune_buildable's `ci=True` argument to get_family_boards(), guarding against
+    # a laptop/runner disagreement caused by ci_skip_boards/ci_preferred_boards being
+    # read only when GITHUB_ACTIONS/CIRCLECI was set. Both dicts and the `ci` parameter
+    # are gone (the CI board list in .github/ci-boards.json is the only
+    # curation mechanism now), so get_family_boards() no longer reads either env var
+    # at all - there is no env-conditional behaviour left for this test to guard.
 
 
 class TestRuleTableIsCarbonOfTheSpec(unittest.TestCase):
@@ -1645,11 +1631,11 @@ class TestBuildClassifier(unittest.TestCase):
         # the other side of the same line: these DECIDE what gets built.
         # tools/metrics.py moved out of this list: it no longer runs in any build (Task
         # 3 removed the `tinyusb_metrics` cmake target), so it is no-contribution now -
-        # see TestNoContributionPaths. membrowse-targets.json took its place here: it
-        # decides which boards a pinned family's build legs compile (rule 2c).
+        # see TestNoContributionPaths. ci-boards.json took its place here: it
+        # decides which boards a CI-board family's build legs compile (rule 2c).
         for p in ('.circleci/config.yml', '.github/workflows/build.yml',
                   '.github/scripts/ci_set_matrix.py', 'tools/ci_select.py',
-                  'tools/build_utils.py', '.github/membrowse-targets.json'):
+                  'tools/build_utils.py', '.github/ci-boards.json'):
             self.assertTrue(self.b([p])['full'], p)
 
     def test_mixed_diff_unions_per_family(self):
@@ -1761,8 +1747,12 @@ class TestNoContributionPaths(unittest.TestCase):
         # Task 3 removed the `tinyusb_metrics` cmake target and its POST_BUILD hook, so
         # tools/metrics.py (and its siblings) no longer run in ANY CI build - nothing on
         # the rig runs them either, so both axes are no-contribution now.
+        # tools/drivers_coverage_check.py (moved from .github/scripts/, which the generic
+        # .github/scripts/ rule used to cover) joined this bucket for the same reason: a
+        # pre-commit-only checker that no build target or rig board ever runs, even though
+        # it now reads the HIL rosters too.
         for p in ('tools/metrics.py', '.github/scripts/metrics_pair_compare.py',
-                  'tools/membrowse_compare.py'):
+                  'tools/membrowse_compare.py', 'tools/drivers_coverage_check.py'):
             h = sel([p])
             self.assertFalse(h['full'], p)
             self.assertEqual(h['boards'], {}, p)
@@ -1770,12 +1760,12 @@ class TestNoContributionPaths(unittest.TestCase):
             self.assertFalse(b['full'], p)
             self.assertEqual(b['families'], [], p)
 
-    def test_membrowse_targets_json_is_full_build_no_hil(self):
-        # the opposite asymmetry from metrics: this data decides which boards a pinned
-        # family's build legs actually compile (tools/build.py --board-pins, Task 2), so
+    def test_ci_boards_json_is_full_build_no_hil(self):
+        # the opposite asymmetry from metrics: this data decides which boards a
+        # family's build legs actually compile (tools/build.py --ci-boards, Task 2), so
         # the build axis must go full - but no rig board's behaviour depends on it, so
         # the HIL axis stays empty rather than booking the whole rig.
-        p = '.github/membrowse-targets.json'
+        p = '.github/ci-boards.json'
         h = sel([p])
         self.assertFalse(h['full'], p)
         self.assertEqual(h['boards'], {}, p)
