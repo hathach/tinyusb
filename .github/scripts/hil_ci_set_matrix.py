@@ -116,7 +116,7 @@ def main():
             # the board. build.args defines apply to every variant (same contract as
             # hil_test.py's build_board — e.g. LOGGER=rtt console boards).
             variants = board.get('variant') or [{'name': name, 'flags': ''}]
-            extra_defs = board.get('build', {}).get('args', [])
+            extra_defs = (board.get('build') or {}).get('args') or []
             for v in variants:
                 arg = build_board
                 if v['name'] != name:

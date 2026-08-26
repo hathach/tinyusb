@@ -1792,7 +1792,7 @@ def build_board(board: Board) -> tuple[str, int]:
     name = board['name']
     variants = board.get('variant') or [{'name': name, 'flags': ''}]
     bcfg = cast(BuildCfg, board.get('build') or {})   # tolerate "build": null in hand-edited rosters
-    extra_defs = bcfg.get('args', [])
+    extra_defs = bcfg.get('args') or []   # "args": null is as legal as a missing key
 
     failed = 0
     for v in variants:
@@ -2419,7 +2419,7 @@ def main() -> None:
         _rtt_config_abort(f'"logger": "rtt" needs a jlink flasher: {", ".join(bad_rtt)}')
     rtt_no_logger_arg = [e['name'] for e in config_boards
                          if e.get('logger') == 'rtt'
-                         and 'LOGGER=rtt' not in ((e.get('build') or {}).get('args', []))]
+                         and 'LOGGER=rtt' not in ((e.get('build') or {}).get('args') or [])]
     if rtt_no_logger_arg:
         # warning, not an abort: a prebuilt cmake-build-<board> configured with
         # -DLOGGER=rtt is a legitimate build path that carries no build.args -- but a

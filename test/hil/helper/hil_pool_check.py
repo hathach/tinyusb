@@ -485,7 +485,7 @@ def build_example(board: dict, variant: str, example: str) -> int:
         cmd += ['--build-name', vcfg['name']]
     # board-level build.args, like hil_test.build_board and the CI matrix: without it a
     # "logger": "rtt" board gets a no-control-block image and is scored dead on the spot
-    for d in (board.get('build') or {}).get('args', []):
+    for d in (board.get('build') or {}).get('args') or []:
         cmd += ['-D', d]
     for d in vcfg.get('defines', []):
         cmd += ['-D', d]

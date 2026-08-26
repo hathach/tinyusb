@@ -2,7 +2,9 @@
 
 Split out of the `rtt` skill-promotion PR #3853. That PR deliberately ships the skill + CLI and leaves the harness's remaining
 VCOM assumptions in place — converting them is separate test-infra scope that
-deserves its own review and HIL runs.
+deserves its own review and HIL runs. Scope here is `test/hil/*.py` only; the
+src-level `board_putchar` asymmetry this work surfaced has its own handoff
+(`pr3853-board-putchar-logger.md`).
 
 ## Established (with evidence)
 
@@ -39,15 +41,7 @@ deserves its own review and HIL runs.
    `hil_util.py` with the `reset=` parameter from item 1 and collapse
    pool_check's branch onto it; keep the `do_reset` flush semantics for the
    VCOM path intact.
-3. **`board_putchar` is not LOGGER-aware** (`hw/bsp/board.c:173`): it writes
-   via `board_uart_write` while `board_getchar` reads via `sys_read` — so
-   with `LOGGER=rtt` console input arrives over RTT but `board_putchar`
-   output goes to the UART (a `-1` stub on lpc40: measured on ea4088, the
-   board_test echo vanishes while a printf echo comes back byte-for-byte).
-   Candidate upstream fix: route `board_putchar` through `sys_write` for
-   symmetry. Src-level, affects every board/logger combination — needs its
-   own build sweep, not a drive-by.
-4. **OpenOCD console backend in the harness**: the skill's CLI
+3. **OpenOCD console backend in the harness**: the skill's CLI
    (`tools/rtt.py --backend openocd`, class
    `OpenocdRtt` in the same module) is built, deduplicated behind a shared
    base class next to `JlinkRtt` in `tools/rtt.py`, re-exported by
@@ -58,10 +52,6 @@ deserves its own review and HIL runs.
    flashed-ELF path (for the control-block address) and, for stlink
    flashers, an openocd target-cfg mapping the roster doesn't carry — until
    then the config-load gate keeps rejecting non-jlink rtt boards.
-5. **Deferred `sysview` pointer**: when branch `claude/add-systemview-debug`
-   merges, propose (to the user, before editing — curated-skills rule)
-   replacing sysview SKILL.md's duplicated "stand up an RTT server" recipe
-   with a pointer to the `rtt` skill. No edits to `sysview_ci.py`.
 
 ## Validation for this follow-up
 
