@@ -1921,17 +1921,6 @@ bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx
     }
   }
 
-  tuh_audio_stream_t *other = (s == &p_audio->out_stream) ? &p_audio->in_stream : &p_audio->out_stream;
-  if (other->active_config != TUSB_INDEX_INVALID_8) {
-    tuh_audio_stream_config_t other_cfg;
-    audioh_stream_config_fill(other, other->active_as, other->active_rate, &other_cfg);
-    if (cfg.sample_rate != other_cfg.sample_rate) {
-      TU_LOG_DRV("  AUDIO configure failed: capture/playback sample rates must match (%lu != %lu)\r\n",
-                 (unsigned long)cfg.sample_rate, (unsigned long)other_cfg.sample_rate);
-      return false;
-    }
-  }
-
   // The HCD endpoint must be reopened even when the new configuration uses
   // the same address, since its packet size and interval may have changed.
   TU_VERIFY(audioh_stream_close_ep(s), false);
@@ -2056,10 +2045,26 @@ bool tuh_audio_start(uint8_t dev_idx, uint8_t stream_idx) {
   TU_VERIFY(s, false);
   TU_VERIFY(s->state == STREAM_STATE_READY && !s->running, false);
   // Wait for any in-flight transfer to complete and be discarded
-  const audioh_as_config_t *as = audioh_stream_active_as(s);
+  const audioh_as_config_t   *as          = audioh_stream_active_as(s);
+  const audioh_rate_source_t *rate_source = audioh_as_rate_source(s, as);
   TU_VERIFY(!usbh_edpt_busy(s->daddr, as->ep_addr), false);
   if (s->dir == TUSB_DIR_OUT && p_audio->playback.feedback_opened) {
     TU_VERIFY(!usbh_edpt_busy(s->daddr, p_audio->playback.feedback[s->active_as].ep_addr), false);
+  }
+
+  // Do not change a device-wide/shared clock while the other direction is
+  // running. Stopped streams may be reconfigured independently in either order.
+  tuh_audio_stream_t *other = (s == &p_audio->out_stream) ? &p_audio->in_stream : &p_audio->out_stream;
+  if (other->running) {
+    const audioh_as_config_t   *other_as          = audioh_stream_active_as(other);
+    const audioh_rate_source_t *other_rate_source = audioh_as_rate_source(other, other_as);
+    const uint32_t              sample_rate       = rate_source->sample_rate[s->active_rate];
+    const uint32_t              other_sample_rate = other_rate_source->sample_rate[other->active_rate];
+    if (sample_rate != other_sample_rate) {
+      TU_LOG_DRV("  AUDIO start failed: capture/playback sample rates must match (%lu != %lu)\r\n",
+                 (unsigned long)sample_rate, (unsigned long)other_sample_rate);
+      return false;
+    }
   }
 
   if (s->dir == TUSB_DIR_OUT) {
@@ -2072,7 +2077,6 @@ bool tuh_audio_start(uint8_t dev_idx, uint8_t stream_idx) {
   // UAC1 selects the alternate first because its control targets the endpoint.
   bool submitted = false;
   #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC2
-  const audioh_rate_source_t *rate_source = audioh_as_rate_source(s, as);
   if (p_audio->protocol == AUDIO_INT_PROTOCOL_CODE_V2 && rate_source->frequency_access == AUDIOH_CTRL_READ_WRITE) {
     submitted = audioh_stream_set_freq(s, audioh_stream_start_set_freq_complete);
   } else

@@ -976,6 +976,36 @@ void test_audio_host_uac2_shared_clock_is_discovered_once_for_both_streams(void)
   TEST_ASSERT_EQUAL_UINT8(2, tuh_audio_config_count(0, 1));
 }
 
+void test_audio_host_reconfigures_stopped_duplex_streams_to_a_new_common_rate(void) {
+  open_descriptors(uac2_duplex_shared_clock, sizeof(uac2_duplex_shared_clock));
+  TEST_ASSERT_TRUE(audioh_set_config(AUDIO_DEV_ADDR, AUDIO_AC_ITF));
+  complete_uac2_clock_range(44100, 48000);
+
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 1));
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 1, 1));
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0));
+  TEST_ASSERT_EQUAL_UINT8(0, tuh_audio_active_config(0, 0));
+  TEST_ASSERT_EQUAL_UINT8(1, tuh_audio_active_config(0, 1));
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 1, 0));
+  TEST_ASSERT_EQUAL_UINT8(0, tuh_audio_active_config(0, 1));
+}
+
+void test_audio_host_rejects_start_at_different_rate_from_running_peer(void) {
+  open_descriptors(uac2_duplex_shared_clock, sizeof(uac2_duplex_shared_clock));
+  TEST_ASSERT_TRUE(audioh_set_config(AUDIO_DEV_ADDR, AUDIO_AC_ITF));
+  complete_uac2_clock_range(44100, 48000);
+
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0));
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 1, 1));
+  TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
+  complete_control_xfer(XFER_RESULT_SUCCESS);
+  complete_interface_set(XFER_RESULT_SUCCESS);
+
+  TEST_ASSERT_FALSE(tuh_audio_start(0, 1));
+  TEST_ASSERT_EQUAL_UINT8(2, control_xfer_count);
+  TEST_ASSERT_EQUAL_UINT8(1, interface_set_count);
+}
+
 void test_audio_host_rejects_malformed_uac2_clock_range_and_releases_instance(void) {
   open_descriptors(uac2_playback, sizeof(uac2_playback));
   TEST_ASSERT_TRUE(audioh_set_config(AUDIO_DEV_ADDR, AUDIO_AC_ITF));
