@@ -112,6 +112,10 @@ typedef struct {
   uint8_t  ep_sync;       // bmAttributes sync type
   uint8_t  ep_usage;      // bmAttributes usage type
   bool     sam_freq_ctrl; // endpoint supports sampling-frequency control
+  uint8_t  fb_ep_addr;    // explicit feedback endpoint address (0 = none)
+  uint8_t  fb_ep_size;    // feedback endpoint max packet size (3 or 4)
+  uint8_t  fb_ep_interval;
+  uint8_t  fb_ep_attr;
 } audioh_stream_map_t;
 
 // One logical stream (capture or playback)
@@ -143,11 +147,17 @@ typedef struct {
   // Size in bytes of one frame (all channels) of the active configuration
   uint16_t frame_bytes;
 
-  // Playback pacing per endpoint poll interval. Fractional frames are
-  // accumulated in millionths because the interval is expressed in us.
-  uint16_t frames_per_interval;
-  uint32_t frames_rem;
-  uint32_t rem_acc;
+  // Playback pacing in Q16.16 frames per data-endpoint poll interval.
+  // Feedback is latched only when the current fractional scheduling cycle
+  // wraps, so one cycle is never generated from two different rates.
+  uint32_t nominal_frames_q16;
+  uint32_t target_frames_q16;
+  uint32_t pending_frames_q16;
+  uint32_t feedback_min_q16;
+  uint32_t feedback_max_q16;
+  uint16_t rem_acc;
+  bool     feedback_pending;
+  bool     feedback_opened;
 
   // FIFO + endpoint transfer helper (see tu_edpt_stream, used by the MIDI
   // host driver): the FIFO decouples the application's frame-based read/write
@@ -174,6 +184,7 @@ typedef struct {
 typedef struct {
   TUH_EPBUF_DEF(sam_freq, 4);                        // shared sampling-frequency SET data
   TUH_EPBUF_DEF(fu_ctrl, 8);                         // feature-unit SET data
+  TUH_EPBUF_DEF(feedback, 4);                        // explicit-feedback transfer buffer
   TUH_EPBUF_DEF(epin, CFG_TUH_AUDIO_EPIN_BUFSIZE);   // capture transfer buffer
   TUH_EPBUF_DEF(epout, CFG_TUH_AUDIO_EPOUT_BUFSIZE); // playback transfer buffer
   // Feature-unit request state: only one operation in flight per device
@@ -267,6 +278,14 @@ static uint32_t audioh_interval_us(uint8_t ep_interval, uint8_t daddr) {
   return ((uint32_t)1u << (ep_interval - 1)) * unit_us;
 }
 
+// Convert a nominal sample rate to Q16.16 frames per data endpoint poll
+// interval. Round to the nearest representable value to preserve common
+// fractional rates such as 44.1 frames/ms.
+static uint32_t audioh_nominal_frames_q16(uint32_t sample_rate, uint8_t ep_interval, uint8_t daddr) {
+  const uint64_t numerator = (uint64_t)sample_rate * audioh_interval_us(ep_interval, daddr) * 65536u;
+  return (uint32_t)((numerator + 500000u) / 1000000u);
+}
+
 // UAC 1.0 feature-unit control value width (0 = unsupported variable/unknown width)
 static uint8_t audioh_fu_control_width(uint8_t control_selector) {
   switch (control_selector) {
@@ -288,20 +307,25 @@ static uint8_t audioh_fu_control_width(uint8_t control_selector) {
 
 // Reset a stream to its unconfigured state (keeps idx, dir, and FIFO configuration)
 static void audioh_stream_reset(tuh_audio_stream_t *s) {
-  s->daddr               = 0;
-  s->stream_idx          = TUSB_INDEX_INVALID_8;
-  s->config_count        = 0;
-  s->active_config       = TUSB_INDEX_INVALID_8;
-  s->state               = STREAM_STATE_IDLE;
-  s->running             = false;
-  s->feature_unit_id     = 0;
-  s->mute_supported      = false;
-  s->volume_supported    = false;
-  s->volume_range        = (tuh_audio_volume_range_t){0};
-  s->frame_bytes         = 0;
-  s->frames_per_interval = 0;
-  s->frames_rem          = 0;
-  s->rem_acc             = 0;
+  s->daddr              = 0;
+  s->stream_idx         = TUSB_INDEX_INVALID_8;
+  s->config_count       = 0;
+  s->active_config      = TUSB_INDEX_INVALID_8;
+  s->state              = STREAM_STATE_IDLE;
+  s->running            = false;
+  s->feature_unit_id    = 0;
+  s->mute_supported     = false;
+  s->volume_supported   = false;
+  s->volume_range       = (tuh_audio_volume_range_t){0};
+  s->frame_bytes        = 0;
+  s->nominal_frames_q16 = 0;
+  s->target_frames_q16  = 0;
+  s->pending_frames_q16 = 0;
+  s->feedback_min_q16   = 0;
+  s->feedback_max_q16   = 0;
+  s->rem_acc            = 0;
+  s->feedback_pending   = false;
+  s->feedback_opened    = false;
   tu_edpt_stream_close(&s->edpt);
   tu_edpt_stream_clear(&s->edpt);
 }
@@ -312,9 +336,11 @@ static tuh_audio_stream_t *audioh_find_stream(uint8_t dev_addr, uint8_t ep_addr)
     audioh_interface_t *p_audio = &_audioh_itf[idx];
     for (uint8_t s = 0; s < 2; s++) {
       tuh_audio_stream_t *stream = (s == 0) ? &p_audio->in_stream : &p_audio->out_stream;
-      if (stream->daddr == dev_addr && stream->active_config != TUSB_INDEX_INVALID_8 &&
-          stream->map[stream->active_config].ep_addr == ep_addr) {
-        return stream;
+      if (stream->daddr == dev_addr && stream->active_config != TUSB_INDEX_INVALID_8) {
+        const audioh_stream_map_t *map = &stream->map[stream->active_config];
+        if (map->ep_addr == ep_addr || (map->fb_ep_addr != 0 && map->fb_ep_addr == ep_addr)) {
+          return stream;
+        }
       }
     }
   }
@@ -326,6 +352,17 @@ static tuh_audio_stream_t *audioh_find_stream(uint8_t dev_addr, uint8_t ep_addr)
 //--------------------------------------------------------------------+
 
 static void audioh_stream_error(tuh_audio_stream_t *s, uint16_t xferred_bytes);
+
+static void audioh_stream_feedback_xfer(tuh_audio_stream_t *s) {
+  TU_VERIFY(s->state == STREAM_STATE_READY && s->running, );
+
+  const audioh_stream_map_t *map = &s->map[s->active_config];
+  TU_VERIFY(map->fb_ep_addr != 0, );
+  TU_VERIFY(usbh_edpt_claim(s->daddr, map->fb_ep_addr), );
+  if (!usbh_edpt_xfer(s->daddr, map->fb_ep_addr, _audioh_epbuf[s->idx].feedback, map->fb_ep_size)) {
+    audioh_stream_error(s, 0);
+  }
+}
 
 // Re-arm the capture endpoint: request one full packet (the device sends at
 // most its max packet size per poll interval). The overwritable FIFO retains
@@ -344,18 +381,21 @@ static void audioh_stream_capture_xfer(tuh_audio_stream_t *s) {
 
 // Submit the next queued playback packet. Fractional frames per endpoint poll
 // interval are accumulated on each successful submission, keeping the average
-// data rate exactly at the sample rate.
+// data rate at the active nominal or feedback target.
 static void audioh_stream_playback_xfer(tuh_audio_stream_t *s) {
   TU_VERIFY(s->state == STREAM_STATE_READY && s->running, );
 
   const audioh_stream_map_t *map = &s->map[s->active_config];
   TU_VERIFY(usbh_edpt_claim(s->daddr, map->ep_addr), ); // one transfer in flight
 
-  uint32_t frames       = s->frames_per_interval;
-  uint32_t next_rem_acc = s->rem_acc + s->frames_rem;
-  if (next_rem_acc >= 1000000) {
-    next_rem_acc -= 1000000;
+  uint32_t       frames       = s->target_frames_q16 >> 16;
+  const uint32_t fraction     = s->target_frames_q16 & 0xFFFFu;
+  uint32_t       next_rem_acc = s->rem_acc + fraction;
+  bool           loop_done    = (fraction == 0);
+  if (next_rem_acc >= 65536u) {
+    next_rem_acc -= 65536u;
     frames++;
+    loop_done = true;
   }
 
   const uint64_t bytes_64 = (uint64_t)frames * s->frame_bytes;
@@ -374,7 +414,12 @@ static void audioh_stream_playback_xfer(tuh_audio_stream_t *s) {
     audioh_stream_error(s, 0);
     return;
   }
-  s->rem_acc = next_rem_acc;
+  s->rem_acc = (uint16_t)next_rem_acc;
+  if (loop_done && s->feedback_pending) {
+    s->target_frames_q16 = s->pending_frames_q16;
+    s->feedback_pending  = false;
+    s->rem_acc           = 0;
+  }
 }
 
 //--------------------------------------------------------------------+
@@ -382,6 +427,15 @@ static void audioh_stream_playback_xfer(tuh_audio_stream_t *s) {
 //--------------------------------------------------------------------+
 
 static bool audioh_stream_close_ep(tuh_audio_stream_t *s) {
+  if (s->feedback_opened) {
+    const uint8_t fb_ep_addr = s->map[s->active_config].fb_ep_addr;
+    if (!tuh_edpt_close(s->daddr, fb_ep_addr)) {
+      TU_LOG_DRV("  AUDIO close feedback endpoint failed: addr=%u ep=%02x\r\n", s->daddr, fb_ep_addr);
+      return false;
+    }
+    s->feedback_opened = false;
+  }
+
   if (!tu_edpt_stream_is_opened(&s->edpt)) {
     return true;
   }
@@ -404,7 +458,10 @@ static void audioh_stream_fail(tuh_audio_stream_t *s) {
 }
 
 static void audioh_stream_error(tuh_audio_stream_t *s, uint16_t xferred_bytes) {
-  s->running = false;
+  s->running           = false;
+  s->target_frames_q16 = s->nominal_frames_q16;
+  s->feedback_pending  = false;
+  s->rem_acc           = 0;
   tu_edpt_stream_clear(&s->edpt);
   tuh_audio_err_cb(s->idx, s->stream_idx, xferred_bytes);
 }
@@ -458,6 +515,24 @@ static bool audioh_stream_open_ep(tuh_audio_stream_t *s) {
   const uint16_t xfer_len = (s->dir == TUSB_DIR_IN) ? CFG_TUH_AUDIO_EPIN_BUFSIZE : CFG_TUH_AUDIO_EPOUT_BUFSIZE;
   tu_edpt_stream_open(&s->edpt, s->daddr, &desc_ep, xfer_len);
   tu_edpt_stream_clear(&s->edpt);
+
+  if (map->fb_ep_addr != 0) {
+    const tusb_desc_endpoint_t desc_fb = {.bLength          = sizeof(tusb_desc_endpoint_t),
+                                          .bDescriptorType  = TUSB_DESC_ENDPOINT,
+                                          .bEndpointAddress = map->fb_ep_addr,
+                                          .bmAttributes     = {.xfer  = TUSB_XFER_ISOCHRONOUS,
+                                                               .sync  = (map->fb_ep_attr >> 2) & 0x03u,
+                                                               .usage = (map->fb_ep_attr >> 4) & 0x03u},
+                                          .wMaxPacketSize   = tu_htole16(map->fb_ep_size),
+                                          .bInterval        = map->fb_ep_interval};
+    if (!tuh_edpt_open(s->daddr, &desc_fb)) {
+      TU_LOG_DRV("  AUDIO open feedback endpoint failed: addr=%u ep=%02x\r\n", s->daddr, map->fb_ep_addr);
+      audioh_stream_fail(s);
+      return false;
+    }
+    s->feedback_opened = true;
+  }
+
   s->state = STREAM_STATE_READY;
   return true;
 }
@@ -523,6 +598,46 @@ void audioh_close(uint8_t daddr) {
   }
 }
 
+static void audioh_feedback_received(tuh_audio_stream_t *s, uint32_t xferred_bytes) {
+  const uint8_t *fb = _audioh_epbuf[s->idx].feedback;
+  uint32_t       feedback_q16;
+  if (xferred_bytes == 3) {
+    // Full-speed feedback is normally Q10.14. Keep the scheduler in Q16.16.
+    feedback_q16 = ((uint32_t)fb[0] | ((uint32_t)fb[1] << 8) | ((uint32_t)fb[2] << 16)) << 2;
+  } else if (xferred_bytes == 4) {
+    feedback_q16 = (uint32_t)fb[0] | ((uint32_t)fb[1] << 8) | ((uint32_t)fb[2] << 16) | ((uint32_t)fb[3] << 24);
+  } else {
+    TU_LOG_DRV("  AUDIO invalid feedback length: %lu\r\n", (unsigned long)xferred_bytes);
+    return;
+  }
+
+  const audioh_stream_map_t *map = &s->map[s->active_config];
+  if (feedback_q16 < s->feedback_min_q16 || feedback_q16 > s->feedback_max_q16) {
+    TU_LOG_DRV("  AUDIO feedback out of range: 0x%08lx\r\n", (unsigned long)feedback_q16);
+    return;
+  }
+
+  // Feedback is expressed per USB frame/microframe. Scale it to the data
+  // endpoint's polling interval before handing it to the packet scheduler.
+  const uint64_t target_q16_64 = (uint64_t)feedback_q16 << (map->ep_interval - 1u);
+  if (target_q16_64 > UINT32_MAX) {
+    return;
+  }
+
+  const uint32_t target_q16 = (uint32_t)target_q16_64;
+  const uint64_t max_bytes  = (((uint64_t)target_q16 + 0xFFFFu) >> 16) * s->frame_bytes;
+  if (max_bytes == 0 || max_bytes > map->ep_size || max_bytes > CFG_TUH_AUDIO_EPOUT_BUFSIZE ||
+      max_bytes > CFG_TUH_AUDIO_STREAM_BUFSIZE) {
+    TU_LOG_DRV("  AUDIO feedback exceeds playback packet capacity: 0x%08lx\r\n", (unsigned long)feedback_q16);
+    return;
+  }
+
+  // Keep only the newest feedback sample. The packet scheduler promotes it at
+  // the end of its current fractional cycle.
+  s->pending_frames_q16 = target_q16;
+  s->feedback_pending   = true;
+}
+
 bool audioh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
   tuh_audio_stream_t *s = audioh_find_stream(dev_addr, ep_addr);
   if (s == NULL) {
@@ -538,6 +653,13 @@ bool audioh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uin
 
   // Stopped stream: the in-flight transfer completes and its data is discarded
   if (!s->running) {
+    return true;
+  }
+
+  const audioh_stream_map_t *map = &s->map[s->active_config];
+  if (ep_addr == map->fb_ep_addr) {
+    audioh_feedback_received(s, xferred_bytes);
+    audioh_stream_feedback_xfer(s);
     return true;
   }
 
@@ -605,8 +727,10 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const tusb_de
     uint8_t  ep_usage;
     bool     sam_freq_ctrl;
   } audioh_ep_info_t;
-  audioh_ep_info_t ep_info     = {0};
-  bool             has_data_ep = false;
+  audioh_ep_info_t ep_info         = {0};
+  audioh_ep_info_t fb_info         = {0};
+  bool             has_data_ep     = false;
+  bool             has_feedback_ep = false;
 
   while (p_desc < desc_end) {
     TU_VERIFY(audioh_desc_valid(p_desc, desc_end, 2), NULL);
@@ -667,12 +791,27 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const tusb_de
         const bool    implicit_feedback =
           usage == (TUSB_ISO_EP_ATT_IMPLICIT_FB >> 4) && tu_edpt_dir(desc_endpoint->bEndpointAddress) == TUSB_DIR_IN;
         const bool explicit_feedback =
-          usage == (TUSB_ISO_EP_ATT_EXPLICIT_FB >> 4) ||
-          (usage == (TUSB_ISO_EP_ATT_DATA >> 4) && desc_endpoint->bmAttributes.sync == TUSB_ISO_EP_ATT_NO_SYNC);
+          tu_edpt_dir(desc_endpoint->bEndpointAddress) == TUSB_DIR_IN &&
+          (usage == (TUSB_ISO_EP_ATT_EXPLICIT_FB >> 4) ||
+           (usage == (TUSB_ISO_EP_ATT_DATA >> 4) && desc_endpoint->bmAttributes.sync == TUSB_ISO_EP_ATT_NO_SYNC));
 
         if (explicit_feedback) {
-          TU_LOG_DRV("  AUDIO AS itf %u alt %u: explicit feedback ep %02x ignored\r\n", itf_num, alt,
-                     desc_endpoint->bEndpointAddress);
+          const uint16_t fb_ep_size = tu_edpt_packet_size(desc_endpoint);
+          if (has_feedback_ep || (fb_ep_size != 3 && fb_ep_size != 4)) {
+            TU_LOG_DRV("  AUDIO AS itf %u alt %u: invalid/extra feedback ep %02x ignored\r\n", itf_num, alt,
+                       desc_endpoint->bEndpointAddress);
+            break;
+          }
+
+          fb_info.ep_addr     = desc_endpoint->bEndpointAddress;
+          fb_info.ep_size     = fb_ep_size;
+          fb_info.ep_interval = desc_endpoint->bInterval;
+          if (fb_info.ep_interval == 0 || fb_info.ep_interval > 16) {
+            fb_info.ep_interval = 1;
+          }
+          fb_info.ep_sync  = desc_endpoint->bmAttributes.sync;
+          fb_info.ep_usage = desc_endpoint->bmAttributes.usage;
+          has_feedback_ep  = true;
           break;
         }
 
@@ -796,6 +935,16 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const tusb_de
     stream->map[stream->config_count].ep_sync        = ep->ep_sync;
     stream->map[stream->config_count].ep_usage       = ep->ep_usage;
     stream->map[stream->config_count].sam_freq_ctrl  = ep->sam_freq_ctrl;
+    stream->map[stream->config_count].fb_ep_addr     = 0;
+    stream->map[stream->config_count].fb_ep_size     = 0;
+    stream->map[stream->config_count].fb_ep_interval = 0;
+    stream->map[stream->config_count].fb_ep_attr     = 0;
+    if (stream->dir == TUSB_DIR_OUT && has_feedback_ep) {
+      stream->map[stream->config_count].fb_ep_addr     = fb_info.ep_addr;
+      stream->map[stream->config_count].fb_ep_size     = (uint8_t)fb_info.ep_size;
+      stream->map[stream->config_count].fb_ep_interval = fb_info.ep_interval;
+      stream->map[stream->config_count].fb_ep_attr     = (uint8_t)((fb_info.ep_sync << 2) | (fb_info.ep_usage << 4));
+    }
     stream->config_count++;
   }
 
@@ -1123,6 +1272,9 @@ bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx
   if (s->state == STREAM_STATE_READY) {
     // Wait for any in-flight transfer to complete and be discarded
     TU_VERIFY(!usbh_edpt_busy(s->daddr, s->edpt.ep_addr), false);
+    if (s->feedback_opened) {
+      TU_VERIFY(!usbh_edpt_busy(s->daddr, s->map[s->active_config].fb_ep_addr), false);
+    }
   }
 
   tuh_audio_stream_t *other = (s == &p_audio->out_stream) ? &p_audio->in_stream : &p_audio->out_stream;
@@ -1139,14 +1291,18 @@ bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx
   // the same address, since its packet size and interval may have changed.
   TU_VERIFY(audioh_stream_close_ep(s), false);
 
-  const audioh_stream_map_t *map  = &s->map[config_idx];
-  const uint64_t frames_numerator = (uint64_t)cfg->sample_rate * audioh_interval_us(map->ep_interval, s->daddr);
-  s->active_config                = config_idx;
-  s->frame_bytes                  = (uint16_t)tuh_audio_config_frame_size(cfg);
-  s->frames_per_interval          = (uint16_t)(frames_numerator / 1000000u);
-  s->frames_rem                   = (uint32_t)(frames_numerator % 1000000u);
-  s->rem_acc                      = 0;
-  s->state                        = STREAM_STATE_IDLE;
+  const audioh_stream_map_t *map       = &s->map[config_idx];
+  const uint32_t             frame_div = (tuh_speed_get(s->daddr) == TUSB_SPEED_HIGH) ? 8000u : 1000u;
+  s->active_config               = config_idx;
+  s->frame_bytes                 = (uint16_t)tuh_audio_config_frame_size(cfg);
+  s->nominal_frames_q16          = audioh_nominal_frames_q16(cfg->sample_rate, map->ep_interval, s->daddr);
+  s->target_frames_q16           = s->nominal_frames_q16;
+  s->pending_frames_q16          = 0;
+  s->feedback_min_q16            = ((cfg->sample_rate - 1u) / frame_div) << 16;
+  s->feedback_max_q16            = (cfg->sample_rate / frame_div + 1u) << 16;
+  s->feedback_pending            = false;
+  s->rem_acc                     = 0;
+  s->state                       = STREAM_STATE_IDLE;
   if (s->dir == TUSB_DIR_IN) {
     // A byte FIFO can overwrite only complete audio frames when its depth is
     // an exact multiple of the configured frame size.
@@ -1171,6 +1327,12 @@ static void audioh_stream_start_xfer(tuh_audio_stream_t *s) {
   if (s->dir == TUSB_DIR_IN) {
     audioh_stream_capture_xfer(s);  // feed the capture endpoint
   } else {
+    if (s->map[s->active_config].fb_ep_addr != 0) {
+      audioh_stream_feedback_xfer(s);
+    }
+    if (!s->running) {
+      return;
+    }
     audioh_stream_playback_xfer(s); // start the continuous playback transfer chain
   }
 }
@@ -1224,8 +1386,14 @@ bool tuh_audio_start(uint8_t dev_idx, uint8_t stream_idx) {
   TU_VERIFY(s->state == STREAM_STATE_READY && !s->running, false);
   // Wait for any in-flight transfer to complete and be discarded
   TU_VERIFY(!usbh_edpt_busy(s->daddr, s->map[s->active_config].ep_addr), false);
+  if (s->feedback_opened) {
+    TU_VERIFY(!usbh_edpt_busy(s->daddr, s->map[s->active_config].fb_ep_addr), false);
+  }
 
-  s->running = true;
+  s->target_frames_q16 = s->nominal_frames_q16;
+  s->feedback_pending  = false;
+  s->rem_acc           = 0;
+  s->running           = true;
   // Activate the interface's alternate setting asynchronously: transfers
   // begin once SET_INTERFACE and sampling-frequency control complete.
   const audioh_stream_map_t *map = &s->map[s->active_config];
@@ -1262,7 +1430,9 @@ bool tuh_audio_stop(uint8_t dev_idx, uint8_t stream_idx) {
   // The in-flight transfer (if any) completes and its data is discarded;
   // queued frames are dropped as well. The interface is being deactivated so
   // the device stops transferring.
-  s->running = false;
+  s->running           = false;
+  s->target_frames_q16 = s->nominal_frames_q16;
+  s->feedback_pending  = false;
   tu_edpt_stream_clear(&s->edpt);
   s->rem_acc = 0; // restart the pacing accumulator on the next tuh_audio_start()
   return true;

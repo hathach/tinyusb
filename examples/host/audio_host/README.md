@@ -24,7 +24,7 @@ The echo needs a matching S16_LE playback stream at the capture sample rate; dev
 
 ## Limitations and trade-offs
 
-- Explicit feedback endpoint data is ignored. Asynchronous playback still uses the nominal sample rate, but device/host clock drift is not corrected and may cause underruns, overruns, or audible pops and clicks. An implicit-feedback IN endpoint is treated as an ordinary audio-data endpoint and is not used to pace playback.
+- Explicit feedback endpoints are supported with both 10.14 and 16.16 feedback values. An implicit-feedback IN endpoint is treated as an ordinary audio-data endpoint and is not used to pace playback.
 - UAC1 Type I Format descriptors with `bSamFreqType == 0` are unsupported; the driver requires a list of discrete sampling frequencies.
 - Master mute and volume controls are discovered before the mount callback, including the volume MIN/MAX/RES range. Feature Units without master mute or volume are ignored. The typed API controls the master channel; the lower-level Feature Unit API remains available for fixed-width UAC1 controls on the associated unit.
 - The UAC1 `MaxPacketsOnly` endpoint attribute is not supported. OUT transfers are not padded to `wMaxPacketSize`, and padding in IN transfers is not removed from the reported audio data.
