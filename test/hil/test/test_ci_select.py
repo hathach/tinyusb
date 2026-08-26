@@ -499,6 +499,8 @@ class TestPortAndCoreRoleUseExtras(unittest.TestCase):
         self.assertFalse(s['full'])
         for board in boards:
             tests = s['boards'][board]
+            if tests == 'all':
+                continue  # a board whose whole allowed set is selected collapses to 'all'
             self.assertIn('device/hid_composite_freertos', tests)
             self.assertIn('device/cdc_msc_freertos', tests)
             self.assertIn('device/audio_test_freertos', tests)
@@ -510,6 +512,8 @@ class TestPortAndCoreRoleUseExtras(unittest.TestCase):
         self.assertFalse(s['full'])
         for board in boards:
             tests = s['boards'][board]
+            if tests == 'all':
+                continue  # a board whose whole allowed set is selected collapses to 'all'
             self.assertIn('device/hid_composite_freertos', tests)
             self.assertIn('device/cdc_msc_freertos', tests)
             self.assertIn('device/audio_test_freertos', tests)

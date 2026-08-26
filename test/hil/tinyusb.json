@@ -100,6 +100,7 @@
                     "host/device_info",
                     "host/msc_file_explorer_freertos"
                 ],
+                "skip": ["host/device_info", "host/msc_file_explorer_freertos"],
                 "dev_attached": [
                     {
                         "vid_pid": "1a86_55d4",
@@ -115,7 +116,8 @@
                         "msc_inquiry": "General  UDisk            5.00",
                         "comment": "General UDisk reports iSerialNumber=U+0409"
                     }
-                ]
+                ],
+                "comment": "host tests skipped: this fixture's UDisk survives only ONE host session per run - after the first host example it stops re-enumerating (the CH9102 always comes back), so whichever host test runs second fails. Measured 6/6 on the rig, and it follows position, not the variant: swapping the variant order moves the failure to the other row. Restore both once the drive is replaced (the p4's Lexar takes session after session)"
             },
             "flasher": {
                 "name": "esptool",
