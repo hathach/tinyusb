@@ -1930,5 +1930,121 @@ class WedgedBoardCannotReportAPass(unittest.TestCase):
         self.assertIn('30/30', cell)
 
 
+def _gil_stall_available() -> bool:
+    """Whether the hid stub can simulate a GIL-HOLDING stall on this host.
+
+    It needs a libc with sleep(3) loaded through ctypes.PyDLL. Everywhere the HIL harness
+    actually runs that is present; where it is not, the two tests that depend on it skip
+    rather than fail, because their subject is the bound, not ctypes.
+    """
+    import ctypes
+    import ctypes.util
+    try:
+        ctypes.PyDLL(ctypes.util.find_library('c') or 'libc.so.6')
+        return True
+    except OSError:
+        return False
+
+
+class HidEchoRunsInAChild(unittest.TestCase):
+    """hidapi's blocking calls hold the GIL -- cython-hidapi wraps hid_enumerate in
+    `with nogil` but calls hid_open and hid_close bare -- so a daemon thread cannot bound
+    them: the waiter parks off-GIL but must reacquire the GIL to return, which the stuck
+    thread never yields. Only a child process can be killed regardless, which is what
+    run_cmd's killpg does."""
+
+    def _run(self, mode, uid='CAFE01', budget='0', timeout=20, pid=None):
+        saved = {k: os.environ.get(k) for k in ('FAKE_HID_MODE', 'FAKE_HID_UID',
+                                                'FAKE_HID_PID', 'PYTHONPATH',
+                                                'PYTHONSAFEPATH')}
+
+        def restore():
+            for k, v in saved.items():
+                os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
+        self.addCleanup(restore)
+        os.environ['FAKE_HID_MODE'] = mode
+        os.environ['FAKE_HID_UID'] = uid
+        stubs = os.path.join(TEST_DIR, 'stubs')
+        pp = saved['PYTHONPATH']
+        os.environ['PYTHONPATH'] = stubs if not pp else f'{stubs}:{pp}'
+        # `python3 -c` puts the cwd at sys.path[0], AHEAD of PYTHONPATH, so any hid.py
+        # reachable from the suite's cwd would displace the stub and every mode-driven
+        # test below would pass or fail for the wrong reason. Safe-path mode drops it --
+        # the same practice _MtpFakeRig documents.
+        os.environ['PYTHONSAFEPATH'] = '1'
+        from helper import hil_util
+        want = pid or f'{hil_test.HID_INOUT_PID:#06x}'
+        return hil_util.run_cmd(
+            [sys.executable, '-c', hil_test.HID_ECHO, uid, budget, want],
+            timeout=timeout, split_stderr=True, quiet=True)
+
+    def _stderr(self, r):
+        from helper import hil_util
+        return hil_util.cmd_stdout_text(r.stderr)
+
+    def test_a_healthy_device_passes(self):
+        r = self._run('ok')
+        self.assertEqual(r.returncode, 0, self._stderr(r))
+
+    def test_the_pid_matches_the_example(self):
+        """The walk filters on BOTH ids, and hidapi applies them before the locked
+        manufacturer/product reads. Six examples in this tree expose a HID interface under
+        VID cafe, so a stale PID here silently widens the walk back to all of them -- and
+        nothing else would fail. Pinned against the descriptor rather than restated."""
+        import re
+        src = (Path(TEST_DIR).parents[2]
+               / 'examples/device/hid_generic_inout/src/usb_descriptors.c').read_text()
+        m = re.search(r'#define\s+USB_PID\s+(0x[0-9a-fA-F]+)', src)
+        self.assertIsNotNone(m, 'hid_generic_inout no longer defines USB_PID')
+        self.assertEqual(hil_test.HID_INOUT_PID, int(m.group(1), 16),
+                         'HID_INOUT_PID drifted from the example descriptor')
+
+    def test_a_peer_running_another_example_is_filtered_out(self):
+        """The point of the PID filter: a wedged sibling on a different example never
+        reaches the locked reads at all."""
+        r = self._run('ok', pid='0x400f')      # hid_composite, not ours
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn('HID device not found', self._stderr(r))
+
+    @unittest.skipUnless(_gil_stall_available(), 'no libc for a GIL-holding stall')
+    def test_a_gil_holding_stall_is_still_killed(self):
+        """THE case an in-process bound cannot cover. hid_open is not `with nogil`, so a
+        thread-based guard is inert there; the child is killed anyway."""
+        t0 = time.monotonic()
+        r = self._run('wedged_open_gil', timeout=2)
+        self.assertEqual(r.returncode, 124,
+                         'a GIL-holding hidapi stall must still be killed on the bound')
+        self.assertLess(time.monotonic() - t0, 20, 'run_cmd did not bound the child')
+
+    def test_a_wedged_enumerate_is_killed_on_the_bound(self):
+        r = self._run('wedged_enumerate', timeout=2)
+        self.assertEqual(r.returncode, 124)
+
+    @unittest.skipUnless(_gil_stall_available(), 'no libc for a GIL-holding stall')
+    def test_a_wedged_close_is_killed_on_the_bound(self):
+        """close() runs in the child's finally on EVERY failure path and is also
+        GIL-holding; hidraw_release takes the same rwsem hidraw_open needs."""
+        r = self._run('wedged_close', timeout=3)
+        self.assertEqual(r.returncode, 124)
+
+    def test_an_absent_device_reports_why(self):
+        r = self._run('absent')
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn('HID device not found', self._stderr(r))
+
+    def test_a_bad_echo_reports_both_payloads(self):
+        r = self._run('wrong_data')
+        self.assertNotEqual(r.returncode, 0)
+        msg = self._stderr(r)
+        self.assertIn('wrong data', msg)
+        self.assertIn('sent', msg)
+        self.assertIn('received', msg)
+
+    def test_a_short_echo_is_not_read_as_a_pass(self):
+        r = self._run('short_read')
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn('short read', self._stderr(r))
+
+
 if __name__ == '__main__':
     unittest.main()
