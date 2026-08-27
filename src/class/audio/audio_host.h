@@ -40,11 +40,14 @@ extern "C" {
 #ifndef CFG_TUH_AUDIO_MAX
   #define CFG_TUH_AUDIO_MAX 1
 #endif
-// Maximum number of discrete sampling frequencies per Audio Streaming interface
+// Maximum discrete sampling frequencies retained per rate source. UAC1 uses
+// one rate source per alternate setting; UAC2 alternate settings may share a
+// Clock Source.
 #ifndef CFG_TUH_AUDIO_MAX_SAM_FREQ
   #define CFG_TUH_AUDIO_MAX_SAM_FREQ 5
 #endif
-// Maximum number of Audio Streaming interfaces per Audio device
+// Maximum supported nonzero-bandwidth Audio Streaming alternate settings per
+// logical stream.
 #ifndef CFG_TUH_AUDIO_MAX_AS
   #define CFG_TUH_AUDIO_MAX_AS 4
 #endif
@@ -169,20 +172,25 @@ bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx
 // Start transferring data with the configuration selected by configure().
 // UAC1 activates the alternate setting before setting an endpoint frequency;
 // UAC2 sets a writable Clock Source before activating the alternate setting.
+// Startup is asynchronous: true means that the first request was submitted.
+// Later startup failures are reported through tuh_audio_err_cb().
 bool tuh_audio_start(uint8_t dev_idx, uint8_t stream_idx);
-// Stop transferring and deactivate the Audio Streaming interface (alt 0).
+// Stop transferring and asynchronously deactivate the Audio Streaming
+// interface (alt 0). true means that the deactivation request was submitted.
 bool tuh_audio_stop(uint8_t dev_idx, uint8_t stream_idx);
 
 // Frame-based transfer. One frame = channels * bytes per sample.
 // tuh_audio_write() is valid only for TUH_AUDIO_STREAM_PLAYBACK streams,
 // tuh_audio_read() only for TUH_AUDIO_STREAM_CAPTURE streams.
+// Both functions are non-blocking and return immediately.
 // Returns the number of frames actually written/read (0 on any error,
 // including wrong direction, unconfigured/stopped stream, or full/empty FIFO).
 uint32_t tuh_audio_write(uint8_t dev_idx, uint8_t stream_idx, const void *buffer, uint32_t frame_count);
 uint32_t tuh_audio_read(uint8_t dev_idx, uint8_t stream_idx, void *buffer, uint32_t frame_count);
 
-// FIFO occupancy in frames available for a non-blocking write/read.
+// Number of frames that can be queued immediately for playback.
 uint32_t tuh_audio_write_available(uint8_t dev_idx, uint8_t stream_idx);
+// Number of captured frames that can be read immediately.
 uint32_t tuh_audio_read_available(uint8_t dev_idx, uint8_t stream_idx);
 
 //--------------------------------------------------------------------+
@@ -297,9 +305,9 @@ void tuh_audio_umount_cb(uint8_t idx);
 // received data is already queued into the stream's capture FIFO.
 void tuh_audio_capture_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_bytes);
 
-// Invoked when an isochronous OUT transfer completes successfully: the
-// next playback packet is submitted from the stream FIFO, or as silence when
-// a complete packet is not queued.
+// Invoked after a successful isochronous OUT transfer, before the next packet
+// is prepared. After this callback returns, the driver submits queued audio
+// from the stream FIFO, or silence when a complete packet is unavailable.
 void tuh_audio_playback_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_bytes);
 
 // Invoked when asynchronous stream activation or an isochronous transfer
