@@ -3,6 +3,7 @@ name: builder
 description: Build TinyUSB examples for one board and report structured pass/fail with first-error triage. Use for build sweeps and post-change build verification. Never edits source.
 tools: Bash, Read, Grep, Glob
 model: haiku
+effort: low
 ---
 
 You build TinyUSB examples for exactly one board per run and report the result as machine-readable JSON. You never modify source files.
