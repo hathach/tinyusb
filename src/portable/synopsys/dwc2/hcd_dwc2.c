@@ -1574,21 +1574,6 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     handle_hprt_irq(rhport, in_isr);
   }
 
-  if (gintsts & GINTSTS_HCINT) {
-    // Host Channel interrupt: source is cleared in HCINT register
-    // must be handled after TX FIFO empty
-    handle_channel_irq(rhport, in_isr);
-  }
-
-  if (gintsts & GINTSTS_DISCINT) {
-    // Device disconnected
-    dwc2->gintsts = GINTSTS_DISCINT;
-
-    if (0 == (dwc2->hprt & HPRT_CONN_STATUS)) {
-      hcd_event_device_remove(rhport, in_isr);
-    }
-  }
-
 #if CFG_TUH_DWC2_SLAVE_ENABLE
   // RxFIFO non-empty interrupt handling
   if (gintsts & GINTSTS_RXFLVL) {
@@ -1620,6 +1605,21 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     }
   }
 #endif
+
+  // Draining the RxFIFO completion status can assert HCINT.XferCompl. Read
+  // the live status here so the completion is handled in this ISR invocation.
+  if ((dwc2->gintsts & dwc2->gintmsk) & GINTSTS_HCINT) {
+    handle_channel_irq(rhport, in_isr);
+  }
+
+  if (gintsts & GINTSTS_DISCINT) {
+    // Device disconnected
+    dwc2->gintsts = GINTSTS_DISCINT;
+
+    if (0 == (dwc2->hprt & HPRT_CONN_STATUS)) {
+      hcd_event_device_remove(rhport, in_isr);
+    }
+  }
 }
 
 #endif
