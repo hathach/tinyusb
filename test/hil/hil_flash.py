@@ -237,7 +237,7 @@ def convoy_safe(flasher: dict) -> bool:
         return True
     # EXACT, not startswith: rescue_openocd and usbtest's
     # getattr(hil_flash, f'flash_{name}') both require the exact name, so an
-    # 'openocd_wch'-style entry would pass this gate, reserve USBTEST_RECOVERY_BUDGET,
+    # 'openocd_wch'-style entry would pass this gate, reserve the Rescue-DP legs,
     # and then find no recovery path at all -- paying for a path that cannot fire, which
     # is the precise cost this gate exists to avoid.
     if name != 'openocd':
@@ -270,7 +270,7 @@ def flash_esptool(board: Board, firmware: str, timeout=None) -> subprocess.Compl
 def reset_esptool(board):
     # NO-OP, and marked as one: esptool's reset would be `--after hard_reset`, which is not
     # wired here. Returning rc 0 without resetting is why callers must never read the exit
-    # code as proof -- recovery_steps skips a primitive carrying `no_op`.
+    # code as proof -- usbtest's recovery skips a primitive carrying `no_op`.
     return subprocess.CompletedProcess(args=['dummy'], returncode=0)
 
 

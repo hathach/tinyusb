@@ -3,6 +3,15 @@
 **Origin:** split out of PR #3840 (making `hil_report.md` a rendering of `hil_report.json`).
 Delete this file when its own PR lands.
 
+> **SUPERSEDED IN PART (2026-08-26).** Written against a 7-field tuple whose index 5 was
+> `blind`. The sysfs blindness subsystem is gone: `test_board` now returns **6** fields with
+> `stray` at index 5, and its board-locked early return is 5 wide. The problem described
+> below is unchanged and still worth fixing — three producers, three widths, and
+> `len(r) > 5 and r[5]` reads a WRONG SLOT rather than raising. But drop the `blind` field
+> from the proposed NamedTuple and re-derive every index from `hil_test.test_board` before
+> executing, or `_stray_note` starts reading a duration as a stray count.
+> `StrayNoteSurvivesTheTupleWidth` pins the current shape.
+
 ## What is established
 
 `test_board()` returns a bare tuple that three producers build and fourteen call sites read

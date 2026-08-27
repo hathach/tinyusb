@@ -54,7 +54,7 @@ ENUM_WAIT_RETRY = 8  # s, uid wait after a recovery reset/re-flash
 SERIAL_WAIT = 6      # s, host-board serial-output wait
 
 print_mutex = threading.Lock()
-_UNKNOWN_WARNED = False   # scan_usb's caveat: once per process, not once per poll
+_STRANDED_WARNED = False   # scan_usb's caveat: once per process, not once per poll
 t0 = time.monotonic()
 
 
@@ -72,20 +72,20 @@ def scan_usb() -> dict:
     USB-Serial-JTAG bridge and the cafe device it flashes both derive it from the same
     MAC), and one dict slot would silently drop whichever lost the race."""
     found = {}
-    # `unknown` matters BEFORE the blindness latch trips: one wedged device is the normal
-    # reason this tool is run, and its serial read stranding makes it absent from `devs`.
-    # Reported as fact, that is "probe MISSING" for hardware that is physically present.
-    devs, unknown = hil_util.usb_scan()
-    # ONCE per process: this is called from 0.5s poll loops across 4 worker threads and
-    # ~26 boards, so warning per call buried the table it exists to qualify under 600+
-    # identical lines. The memo in read_sysfs makes the condition sticky, so one line is
-    # as true as six hundred.
-    global _UNKNOWN_WARNED
-    if unknown and not _UNKNOWN_WARNED:
-        _UNKNOWN_WARNED = True
-        say('WARNING: at least one device did not answer a bounded read; rows below that '
-            'say a probe or board is missing may be this scan losing sight of healthy '
-            'hardware. Find the wedged device (usb-kernel-recover) and re-run.')
+    # usb_scan's `serial` read is bounded by default (see hil_util.read_sysfs) -- this tool
+    # has no pool guard behind it and is run exactly when a device is suspected wedged. A
+    # device that will not answer is simply absent from the table; the footer says so.
+    devs = hil_util.usb_scan()
+    # ONCE per process, at SCAN time, not only in the footer: this tool prints rows as it
+    # goes over minutes, so a board dropped from the scan says "probe MISSING" within
+    # seconds while the only qualification would arrive after the final counts -- and an
+    # operator acting on the streaming output, or a run cut short by ^C, never sees it.
+    global _STRANDED_WARNED
+    if hil_util.sysfs_stranded() and not _STRANDED_WARNED:
+        _STRANDED_WARNED = True
+        say('WARNING: a bounded sysfs read gave up; rows below that say a probe or board '
+            'is missing may be this scan losing sight of healthy hardware. Find the '
+            'wedged device (usb-kernel-recover) and re-run.')
     for dev in devs:
         try:
             found[dev['busport']] = {
@@ -1045,17 +1045,16 @@ def main() -> None:
         counts[r.get('status', 'failed')] += 1
     print(f'\n{counts["ok"]} ok · {counts["flash-failed"]} flash-failed · {counts["failed"]} failed '
           f'· {counts["locked"]} locked · in {time.monotonic() - t0:.0f}s')
-    if hil_util.sysfs_blind():
-        # Without this the table is the worst kind of wrong: once the process latches
-        # blind, every read answers SYSFS_UNKNOWN, scan_usb() returns {}, and EVERY board
-        # prints "probe MISSING"/"off bus" -- a clean-looking report declaring the whole
-        # fleet dead, produced during exactly the incident this tool is run to diagnose,
-        # and it sends the operator to power-cycle a rig where one device is wedged.
-        print('WARNING: this scan lost sight of the bus'
-              f'{hil_util.sysfs_blind_note()}. Rows above that say a probe or board is '
-              f'missing may be this tool losing sight of healthy hardware, not absent '
-              f'hardware. Find the wedged device (see the usb-kernel-recover skill) and '
-              f're-run before acting on the table.')
+    if hil_util.sysfs_stranded():
+        # Without this the table is the worst kind of wrong: a device whose `serial` never
+        # answered is absent from the scan, which prints as "probe MISSING"/"off bus" for
+        # hardware that is physically present -- during exactly the incident this tool is
+        # run to diagnose, and it sends the operator to power-cycle a healthy rig.
+        print('WARNING: at least one sysfs read did not answer within '
+              f'{hil_util.SYSFS_READ_GRACE:.0f}s, so rows above that say a probe or board '
+              f'is missing may be this tool losing sight of healthy hardware rather than '
+              f'absent hardware. Find the wedged device (see the usb-kernel-recover '
+              f'skill) and re-run before acting on the table.')
     sys.exit(min(counts['flash-failed'] + counts['failed'], 125))
 
 

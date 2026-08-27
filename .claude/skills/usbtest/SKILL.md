@@ -30,7 +30,7 @@ python3 test/hil/usbtest.py --serial <uid> --keep-binding --tests 29 # one case
 ```
 
 - **Always `--keep-binding`**: the cleanup unbind path has wedged host xHCIs (`usb_hcd_alloc_bandwidth`).
-- CI (`hil_test.py`) additionally passes `--budget`, `--outer-timeout` and
+- CI (`hil_test.py`) additionally passes `--budget` and
   `--recover-board`/`--recover-fw`: on a HUNG case the battery aborts, RESETS the DUT
   through its roster probe (non-destructive, ~130 ms) and reflashes only if that does not
   clear the wedge (see usb-kernel-recover). Manual runs without those flags leave a HUNG
