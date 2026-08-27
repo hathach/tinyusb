@@ -343,9 +343,9 @@ def usb_scan(vid_pid=None, serial=None, vid=None, timeout=SYSFS_READ_GRACE) -> l
     """
     out = []
     for d in glob.glob('/sys/bus/usb/devices/*-*'):
-        # Interfaces are '<busport>:<cfg>.<ifnum>' (e.g. 2-4:1.0) -- they CONTAIN the
-        # colon, they do not end with it, so the original endswith() never fired and every
-        # scan opened idVendor/idProduct on all of them (measured: 31 of 44 matches).
+        # `in`, not endswith: an interface is '<busport>:<cfg>.<ifnum>' (2-4:1.0), which
+        # CONTAINS the colon rather than ending with it. Screening them out here is worth
+        # real time -- they were 31 of 44 matches on this rig.
         if ':' in os.path.basename(d):
             continue
         try:

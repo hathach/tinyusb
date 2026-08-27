@@ -239,9 +239,9 @@ USBTEST_BATTERY_BUDGET = hil_util.pos_int_env('HIL_USBTEST_BATTERY_BUDGET', 260)
 # as it goes to print its JSON, turning ~29 real per-case verdicts into "usbtest did not
 # run" and re-paying the whole battery on retry.
 # Worst case, from usbtest.py: --timeout 60 (the case) + 5s post-SIGKILL reap +
-# dmesg_tail(), which is bounded by HELPER_TIMEOUT=30 and runs on BOTH the FAIL and HUNG
-# timeout paths = 95s. 120 leaves a margin; 75 (my first estimate, taken before checking
-# dmesg_tail) was 20s SHORT and would have killed the battery mid-print.
+# dmesg_tail(), bounded by HELPER_TIMEOUT=30 and run on BOTH the FAIL and HUNG timeout
+# paths = 95s. 120 leaves a margin. Re-derive it if any of those three moves -- dmesg_tail
+# is the one easily missed, and without it the estimate lands 20s short.
 USBTEST_OVERSHOOT = 120
 # Named, not a literal, so the unit tests can zero it: every test that drives
 # test_device_usbtest against a fake rig otherwise pays a real 3s (ten of them, 30s a run).
@@ -1563,9 +1563,9 @@ def test_device_usbtest(board):
               f'usbfs node, so usbtest hang recovery is disabled for {board["name"]}; a '
               f'HUNG case will leave it wedged for the rest of the run', flush=True)
     if recovery:
-        # ship the RECOVERY flasher as `flasher`: usbtest.py, recovery_steps and
-        # convoy_safe all read board['flasher'], so substituting here keeps the entire
-        # child side unaware that a second roster entry exists
+        # ship the RECOVERY flasher as `flasher`: usbtest.py and convoy_safe both read
+        # board['flasher'], so substituting here keeps the entire child side unaware that
+        # a second roster entry exists
         rb = json.dumps({'name': board['name'], 'flasher': _rec_flasher})
         cmd += f' --recover-board {shlex.quote(rb)} --recover-fw {shlex.quote(_current_fw)}'
     # The reserve above USBTEST_BATTERY_BUDGET exists because the battery can overrun by
@@ -2604,20 +2604,16 @@ def main() -> None:
             err_count = build_err + sum(e[1] for e in mret)
             _write_failed_spec(failed_fname, report_dir, mret)
         finally:
-            # Not `with Pool(...)`: its __exit__ joins the workers unbounded, hanging on
+            # Not `with Pool(...)`: its __exit__ joins the workers unbounded and hangs on
             # any worker in uninterruptible sleep. shutdown_pool bounds the same terminate()
-            # by a grace period, so the pool is NOT cleanly closed/joined when it returns
-            # False. Record the outcome but never exit here: the report below is the only
-            # record of a run that otherwise passed.
+            # and returns False when the pool is NOT cleanly closed.
             #
-            # Same ordering as the timeout path: what the workers spawned must be
-            # snapshotted and killed while its parent is alive, or terminate() reparents it
-            # out of reach.
+            # Sweep BEFORE shutdown: what the workers spawned must be snapshotted and
+            # killed while its parent is alive, or terminate() reparents it out of reach.
             #
-            # Both calls must stay guarded: a raise here skips accumulate_report(), so a run
-            # whose boards ALL passed publishes an empty report dir -- and both can raise
-            # for reasons unrelated to the results. pool_abandoned stays fail-CLOSED, so
-            # _abandon_exit still arms.
+            # Both calls stay guarded and neither exits: a raise here would skip
+            # accumulate_report and publish an empty report dir for a run whose boards all
+            # passed. pool_abandoned is fail-CLOSED, so _abandon_exit still arms.
             try:
                 # Still worth running for the TIMEOUT path, where the workers are
                 # genuinely stuck mid-task and their children are still reachable through

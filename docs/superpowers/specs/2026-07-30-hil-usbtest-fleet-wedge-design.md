@@ -1,9 +1,9 @@
 # HIL fleet-wedge containment
 
 Date: 2026-07-30
-Status: implemented, then superseded in part — addendum last checked 2026-08-12
-against the shipped code; where they disagree the CODE and the usb-kernel-recover
-skill win, never this document.
+Status: implemented, then superseded in part, then TRIMMED (2026-08-25 — see the
+addendum at the end). Last checked against the shipped code 2026-08-25; where they
+disagree the CODE and the usb-kernel-recover skill win, never this document.
 
 - **Pool guard.** A single constant, not the flat 4200s below and not a derivation:
   `POOL_TIMEOUT = pos_int_env('HIL_POOL_TIMEOUT', 3600)`. A per-controller model briefly
@@ -18,8 +18,8 @@ skill win, never this document.
   They must clear the 3600s guard plus the pre-pool checkout/artifact merge and the
   post-guard sweep and report upload. No job pins `HIL_POOL_TIMEOUT`.
 - **Battery budgets.** `USBTEST_BATTERY_BUDGET` 260s. The recovery reserve is no longer a
-  constant: `usbtest.recovery_reserve(flasher)` derives it per flasher (RP-target openocd 350s,
-  other openocd/jlink/stlink 150s, esptool 110s) — see the trim addendum.
+  constant: `usbtest.recovery_reserve(flasher)` derives it per flasher (RP-target openocd 390s,
+  other openocd/jlink/stlink 190s, esptool/lm4flash 150s) — see the trim addendum.
   The 200s-with-a-197s-floor derivation recorded here was never shipped; the floor
   assertion was removed with it.
 - **HUNG recovery.** Reflash of the DUT through its roster flasher
