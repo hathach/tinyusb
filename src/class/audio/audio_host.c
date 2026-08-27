@@ -1297,15 +1297,28 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const audioh_
           break;
         }
 
-        const uint8_t usage = desc_endpoint->bmAttributes.usage;
-        const bool    implicit_feedback =
-          usage == (TUSB_ISO_EP_ATT_IMPLICIT_FB >> 4) && tu_edpt_dir(desc_endpoint->bEndpointAddress) == TUSB_DIR_IN;
-        const bool explicit_feedback =
-          tu_edpt_dir(desc_endpoint->bEndpointAddress) == TUSB_DIR_IN &&
-          (usage == (TUSB_ISO_EP_ATT_EXPLICIT_FB >> 4) ||
-           (usage == (TUSB_ISO_EP_ATT_DATA >> 4) && desc_endpoint->bmAttributes.sync == TUSB_ISO_EP_ATT_NO_SYNC));
+        bool is_data_ep           = false;
+        bool is_explicit_feedback = false;
+        switch (p_audio->protocol) {
+  #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC1
+          case AUDIO_INT_PROTOCOL_CODE_V1:
+            is_data_ep           = desc_endpoint->bmAttributes.sync != TUSB_ISO_EP_ATT_NO_SYNC;
+            is_explicit_feedback = tu_edpt_dir(desc_endpoint->bEndpointAddress) == TUSB_DIR_IN && !is_data_ep;
+            break;
+  #endif
+  #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC2
+          case AUDIO_INT_PROTOCOL_CODE_V2:
+            is_data_ep           = desc_endpoint->bmAttributes.usage == (TUSB_ISO_EP_ATT_DATA >> 4) ||
+                                   desc_endpoint->bmAttributes.usage == (TUSB_ISO_EP_ATT_IMPLICIT_FB >> 4);
+            is_explicit_feedback = tu_edpt_dir(desc_endpoint->bEndpointAddress) == TUSB_DIR_IN &&
+                                   desc_endpoint->bmAttributes.usage == (TUSB_ISO_EP_ATT_EXPLICIT_FB >> 4);
+            break;
+  #endif
+          default:
+            break;
+        }
 
-        if (explicit_feedback) {
+        if (is_explicit_feedback) {
           const uint16_t fb_ep_size = tu_edpt_packet_size(desc_endpoint);
           if (has_feedback_ep || (fb_ep_size != 3 && fb_ep_size != 4)) {
             TU_LOG_DRV("  AUDIO AS itf %u alt %u: invalid/extra feedback ep %02x ignored\r\n", itf_num, alt,
@@ -1325,7 +1338,7 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const audioh_
           break;
         }
 
-        if (usage == (TUSB_ISO_EP_ATT_DATA >> 4) || implicit_feedback) {
+        if (is_data_ep) {
           if (has_data_ep) {
             TU_LOG_DRV("  AUDIO AS itf %u alt %u: extra data ep %02x ignored\r\n", itf_num, alt,
                        desc_endpoint->bEndpointAddress);
