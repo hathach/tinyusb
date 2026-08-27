@@ -500,8 +500,19 @@ def dump_ring(probe: str, device: str, addr: int, out_path: str, channel: int = 
     # reading whatever RAM follows the array.
     jlink = ['JLinkExe', '-USB', probe, '-device', device, '-if', 'swd',
              '-speed', '4000', '-NoGui', '1', '-AutoConnect', '1']
+
+    def _jlink_run(script: str):
+        # same clean-exit contract as nm_rtt_addr/_spawn: a missing binary or a wedged
+        # probe must not reach the CLI as a traceback
+        try:
+            return subprocess.run(jlink, input=script, capture_output=True, text=True, timeout=60)
+        except FileNotFoundError:
+            raise SystemExit('JLinkExe not on PATH — the --dump route needs J-Link Commander')
+        except subprocess.TimeoutExpired:
+            raise SystemExit('JLinkExe did not finish in 60 s — probe wedged or target unreachable?')
+
     script = f'mem32 {addr + 0x10:#x}, 2\nmem32 {addr + 0x18 + channel * 24:#x}, 6\nexit\n'
-    r = subprocess.run(jlink, input=script, capture_output=True, text=True, timeout=60)
+    r = _jlink_run(script)
     words = []
     for line in r.stdout.splitlines():
         # UNANCHORED: when the script arrives on stdin, some JLinkExe versions glue
@@ -524,7 +535,7 @@ def dump_ring(probe: str, device: str, addr: int, out_path: str, channel: int = 
         raise SystemExit(f'up-buffer {channel} is not initialized (pBuffer={pbuf:#x} size={size}) — '
                          f'the target has not written to it yet')
     script = f'savebin {out_path}, {pbuf:#x}, {size:#x}\nexit\n'
-    subprocess.run(jlink, input=script, capture_output=True, text=True, timeout=60)
+    _jlink_run(script)
     # JLinkExe exits 0 even when a command inside its script fails, so the only proof
     # savebin worked is the file itself
     if not os.path.exists(out_path) or os.path.getsize(out_path) == 0:
