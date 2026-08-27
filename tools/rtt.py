@@ -461,13 +461,18 @@ class OpenocdRtt(_SocketRtt):
             cmd += ['-c', f'adapter serial {serial_no}']
         cmd += shlex.split(cfg)
         cmd += ['-c', 'init']
-        # opt-in: reset the target INSIDE this session, between init and rtt setup, so
-        # the server is already draining when the target boots. Needed by any consumer
-        # whose stream only makes sense from byte 0 -- SystemView emits its Init record
-        # (which carries the timestamp frequency) once at boot, and a mid-flight attach
-        # yields a stream no decoder can lock onto. Costs the tool's usual no-reset
-        # invariant, and is unsafe on parts where an in-session reset leaves the core
-        # held (SAMD5x DSU) or perturbs the target (WCH SDI).
+        # opt-in: reset the target INSIDE this session, give it 2 s to boot, THEN
+        # attach and drain. The order is forced: `rtt start` needs the control block
+        # to already exist in RAM (the firmware creates it at init), and attaching
+        # ahead of the reset would latch the PREVIOUS run's stale block. Byte 0 still
+        # reaches the consumer because NO_BLOCK_SKIP retains the ring's HEAD: a boot
+        # burst bigger than the ring loses its tail until the drain catches up, never
+        # its first bytes -- which is the part a boot-anchored decoder needs
+        # (SystemView's Init record, carrying the timestamp frequency, is emitted once
+        # at boot; a mid-flight attach yields a stream no decoder can lock onto; size
+        # BUFFER_SIZE_UP to the boot burst if the tail matters too). Costs the tool's
+        # usual no-reset invariant, and is unsafe on parts where an in-session reset
+        # leaves the core held (SAMD5x DSU) or perturbs the target (WCH SDI).
         if reset_before_attach:
             cmd += ['-c', 'reset run', '-c', 'sleep 2000']
         cmd += ['-c', f'rtt setup 0x{addr:x} 0x800 "SEGGER RTT"',

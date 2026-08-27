@@ -106,8 +106,10 @@ python3 tools/rtt.py --backend openocd --probe <serial> \
 #   --vid-pid "0x2e8a 0x000c": pin the probe by USB IDs (with or instead of --probe;
 #   also keeps openocd discovery off foreign usbfs nodes)
 #   --addr 0x2000xxxx: explicit control-block address when the flashed elf is not at hand
-#   --reset-before-attach: reset the target INSIDE the session so the server is already
-#   draining when it boots — required for streams that only decode from byte 0
+#   --reset-before-attach: reset the target INSIDE the session (2 s settle, then
+#   attach — the control block must exist before `rtt start` can find it; the ring's
+#   NO_BLOCK_SKIP head-retention is what preserves byte 0 across the settle) —
+#   required for streams that only decode from byte 0
 #   (SystemView emits its Init record, carrying the timestamp frequency, once at boot;
 #   a mid-flight attach yields a stream no decoder can lock onto). Verified on
 #   stm32h743nucleo: after the ring is drained, a plain attach misses the boot preamble
