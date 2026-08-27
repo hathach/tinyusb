@@ -787,22 +787,26 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   TU_VERIFY(ep_id < CFG_TUH_DWC2_ENDPOINT_MAX);
   hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
 
-  if (edpt->xfer_pending) {
+  hcd_int_disable(rhport);
+
+  const bool xfer_pending = edpt->xfer_pending;
+  if (xfer_pending) {
     edpt->xfer_pending = 0;
     edpt->uframe_countdown = 0;
+  }
+  hcd_int_enable(rhport);
+
+  if (xfer_pending) {
     return true;
   }
 
-  // hcd_int_disable(rhport);
-
+  // Channel disable may wait for request-queue space in slave mode.
   // Find enabled channeled and disable it, channel will be de-allocated in the interrupt handler
   const uint8_t ch_id = channel_find_enabled(dwc2, dev_addr, ep_num, ep_dir);
   if (ch_id < 16) {
     dwc2_channel_t* channel = &dwc2->channel[ch_id];
     channel_disable(dwc2, channel);
   }
-
-  // hcd_int_enable(rhport);
 
   return true;
 }
