@@ -360,11 +360,9 @@ void tuh_audio_err_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_bytes) {
 
 // Print all supported stream configurations
 static void print_stream_configs(uint8_t idx, uint8_t stream_idx) {
-  const tuh_audio_direction_t dir             = tuh_audio_stream_direction(idx, stream_idx);
-  const char                 *dir_name        = (dir == TUH_AUDIO_STREAM_CAPTURE) ? "capture" : "playback";
-  const uint8_t               feature_unit_id = tuh_audio_get_feature_unit_id(idx, stream_idx);
-  printf("  %s stream %u Feature Unit ID: %u, configurations: %u\r\n", dir_name, stream_idx, feature_unit_id,
-         tuh_audio_config_count(idx, stream_idx));
+  const tuh_audio_direction_t dir      = tuh_audio_stream_direction(idx, stream_idx);
+  const char                 *dir_name = (dir == TUH_AUDIO_STREAM_CAPTURE) ? "capture" : "playback";
+  printf("  %s stream %u, configurations: %u\r\n", dir_name, stream_idx, tuh_audio_config_count(idx, stream_idx));
   tuh_audio_volume_range_t range;
   if (tuh_audio_mute_supported(idx, stream_idx)) {
     printf("    master mute supported\r\n");
@@ -383,17 +381,14 @@ static void print_stream_configs(uint8_t idx, uint8_t stream_idx) {
 }
 
 static void configure_stream_controls(uint8_t idx, uint8_t stream_idx, const char *stream_name) {
-  const uint8_t feature_unit_id = tuh_audio_get_feature_unit_id(idx, stream_idx);
-  if (feature_unit_id == 0) {
-    printf("  %s stream has no master mute/volume Feature Unit\r\n", stream_name);
-    return;
-  }
+  bool has_control = false;
 
   if (tuh_audio_mute_supported(idx, stream_idx)) {
+    has_control = true;
     bool               mute;
     tusb_xfer_result_t result = tuh_audio_mute_get_sync(idx, stream_idx, &mute);
     if (result == XFER_RESULT_SUCCESS) {
-      printf("  %s Feature Unit %u master mute: %s\r\n", stream_name, feature_unit_id, mute ? "on" : "off");
+      printf("  %s master mute: %s\r\n", stream_name, mute ? "on" : "off");
       result = tuh_audio_mute_set_sync(idx, stream_idx, false);
     }
     if (result != XFER_RESULT_SUCCESS) {
@@ -403,10 +398,11 @@ static void configure_stream_controls(uint8_t idx, uint8_t stream_idx, const cha
 
   tuh_audio_volume_range_t range;
   if (tuh_audio_volume_range_get(idx, stream_idx, &range)) {
+    has_control = true;
     int16_t            volume;
     tusb_xfer_result_t result = tuh_audio_volume_get_sync(idx, stream_idx, &volume);
     if (result == XFER_RESULT_SUCCESS) {
-      printf("  %s Feature Unit %u master volume: %d (1/256 dB)\r\n", stream_name, feature_unit_id, volume);
+      printf("  %s master volume: %d (1/256 dB)\r\n", stream_name, volume);
       int32_t target = FEATURE_UNIT_VOLUME_DB;
       target         = TU_MAX(target, range.min);
       target         = TU_MIN(target, range.max);
@@ -420,6 +416,10 @@ static void configure_stream_controls(uint8_t idx, uint8_t stream_idx, const cha
     if (result != XFER_RESULT_SUCCESS) {
       printf("  Accessing %s master volume failed: result=%u\r\n", stream_name, result);
     }
+  }
+
+  if (!has_control) {
+    printf("  %s stream has no master mute/volume control\r\n", stream_name);
   }
 }
 

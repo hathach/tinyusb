@@ -68,7 +68,7 @@ make BOARD=<your_board> flash
 2. Connect a USB Audio device (UAC 1.0 or 2.0) to the USB host port
 3. Open a serial terminal to view output
 4. The example will:
-   - Print each stream's Feature Unit ID, master mute/volume capabilities, cached volume range, and supported configurations when mounted
+   - Print each stream's master mute/volume capabilities, cached volume range, and supported configurations when mounted
    - Look for an S16_LE capture configuration at a preferred sample rate (48 kHz first, 44.1 kHz fallback; stereo preferred, mono accepted) and configure it
    - Echo captured audio to an S16_LE playback configuration at the same sample rate (same channel count preferred, converted otherwise)
    - Read/unmute the microphone and speaker Feature Units and set supported master volumes near -6 dB
@@ -81,25 +81,25 @@ make BOARD=<your_board> flash
 TinyUSB Host USB Audio Example
 Connect a USB Audio Device (UAC 1.0 or 2.0) to test
 Audio device mounted: idx=0 addr=1
-  capture stream 1 Feature Unit ID: 5, configurations: 2
+  capture stream 1, configurations: 2
     master mute supported
     master volume range: min=-23040 max=1536 res=256 (1/256 dB)
     [0] format=1 rate=44100 channels=2
     [1] format=1 rate=48000 channels=2
-  playback stream 0 Feature Unit ID: 2, configurations: 2
+  playback stream 0, configurations: 2
     master mute supported
     master volume range: min=-23040 max=1536 res=256 (1/256 dB)
     [0] format=1 rate=44100 channels=2
     [1] format=1 rate=48000 channels=2
   Configuring 48 kHz S16_LE capture (2 channels)
   Microphone configured
-  Microphone Feature Unit 5 master mute: off
-  Microphone Feature Unit 5 master volume: 0 (1/256 dB)
+  Microphone master mute: off
+  Microphone master volume: 0 (1/256 dB)
   Microphone master volume set: -1536 (1/256 dB)
   Configuring 48 kHz S16_LE playback (2 channels)
   Speaker configured
-  Speaker Feature Unit 2 master mute: off
-  Speaker Feature Unit 2 master volume: 0 (1/256 dB)
+  Speaker master mute: off
+  Speaker master volume: 0 (1/256 dB)
   Speaker master volume set: -1536 (1/256 dB)
 ```
 
@@ -115,6 +115,7 @@ Edit `src/tusb_config.h` to modify:
 
 ## Notes
 
+- `tuh_audio_descriptor_cb()` exposes the validated Audio Control descriptor block during enumeration. Applications that need raw entity controls must copy the required entity IDs or descriptor fields before the callback returns, then use `tuh_audio_control_xfer()` after the device mounts.
 - While a stream is running, the driver keeps one isochronous transfer in flight and re-submits on completion, so transfers follow the endpoint's `bInterval`. `tuh_audio_capture_cb()` / `tuh_audio_playback_cb()` report each completed transfer; `tuh_audio_err_cb()` reports failures. The example restarts the failed stream automatically 100 ms after the error callback.
 - Capture and playback streams running concurrently in the same Audio Control instance must use the same sample rate.
 - `tuh_audio_read()` / `tuh_audio_write()` are non-blocking FIFO operations: they return the number of whole frames actually queued/read (0 when the FIFO is empty/full or the stream is not running), and `tuh_audio_read_available()` / `tuh_audio_write_available()` report the FIFO occupancy in frames. `tuh_audio_write()` only queues data; the playback transfer-completion chain sends it, or sends silence when the FIFO does not contain a complete polling interval without consuming the partial data.

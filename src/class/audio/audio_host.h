@@ -115,6 +115,14 @@ typedef struct {
   uint16_t res;
 } tuh_audio_volume_range_t;
 
+// Audio Control descriptors reported during enumeration. Descriptor pointers
+// are valid only for the duration of tuh_audio_descriptor_cb().
+typedef struct {
+  const tusb_desc_interface_t *desc_audio_control;
+  const uint8_t               *desc_cs_audio_control;
+  uint16_t                     desc_cs_audio_control_len;
+} tuh_audio_descriptor_cb_t;
+
 //--------------------------------------------------------------------+
 // Stream Enumeration
 //--------------------------------------------------------------------+
@@ -212,8 +220,6 @@ static inline uint32_t tuh_audio_config_frame_size(const tuh_audio_stream_config
 bool tuh_audio_mounted(uint8_t idx);
 // Get device address of Audio device
 uint8_t tuh_audio_get_dev_addr(uint8_t idx);
-// Get the Feature Unit ID associated with a stream (0 = none)
-uint8_t tuh_audio_get_feature_unit_id(uint8_t idx, uint8_t stream_idx);
 // True when the stream's Feature Unit supports master mute control.
 bool tuh_audio_mute_supported(uint8_t idx, uint8_t stream_idx);
 // Get the cached master volume range. Returns false when volume is unsupported.
@@ -223,22 +229,13 @@ bool tuh_audio_volume_range_get(uint8_t idx, uint8_t stream_idx, tuh_audio_volum
 // Control Request API
 //--------------------------------------------------------------------+
 
-// Set a Feature Unit control associated with an Audio stream. UAC2 supports
-// mute and volume through this low-level API; the other fixed-width selectors
-// below are UAC1-only.
-// Mute/bass/mid/treble/AGC/bass boost/loudness use one byte; volume/delay use two.
-// Graphic EQ and unknown selectors are unsupported.
-bool tuh_audio_feature_unit_set(uint8_t idx, uint8_t stream_idx, uint8_t control_selector, uint8_t channel,
-                                uint16_t value, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
-
-// Get a Feature Unit control associated with an Audio stream. UAC2 supports
-// mute and volume through this low-level API; the other fixed-width selectors
-// below are UAC1-only.
-// The value is converted to host byte order before complete_cb is invoked.
-// Graphic EQ and unknown selectors are unsupported.
-// Only one Feature Unit operation may be in flight per device.
-bool tuh_audio_feature_unit_get(uint8_t idx, uint8_t stream_idx, uint8_t control_selector, uint8_t channel,
-                                uint16_t *value, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+// Submit a class-specific request to an entity on the Audio Control interface.
+// request is the protocol-specific UAC request code. buffer contains the raw
+// little-endian control payload. For an asynchronous transfer, buffer must
+// remain valid until complete_cb is invoked.
+bool tuh_audio_control_xfer(uint8_t idx, uint8_t entity_id, tusb_dir_t direction, uint8_t request,
+                            uint8_t control_selector, uint8_t channel, void *buffer, uint16_t length,
+                            tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
 // Master mute and volume controls. Capability and range information is cached
 // before tuh_audio_mount_cb() is invoked. Volume SET accepts
@@ -252,23 +249,12 @@ bool tuh_audio_volume_get(uint8_t idx, uint8_t stream_idx, int16_t *volume, tuh_
                           uintptr_t user_data);
 
 //--------------------------------------------------------------------+
-// Control Request Sync API
-// Each Function will make a USB control transfer request to/from device the function will block until request is
-// complete. The function will return the transfer request result
+// Synchronous control requests block until the transfer completes and return
+// its result. actual_len may be NULL when the received length is not needed.
 //--------------------------------------------------------------------+
-TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_audio_feature_unit_set_sync(uint8_t idx, uint8_t stream_idx,
-                                                                                       uint8_t  control_selector,
-                                                                                       uint8_t  channel,
-                                                                                       uint16_t value) {
-  TU_API_SYNC(tuh_audio_feature_unit_set, idx, stream_idx, control_selector, channel, value);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_audio_feature_unit_get_sync(uint8_t idx, uint8_t stream_idx,
-                                                                                       uint8_t   control_selector,
-                                                                                       uint8_t   channel,
-                                                                                       uint16_t *value) {
-  TU_API_SYNC(tuh_audio_feature_unit_get, idx, stream_idx, control_selector, channel, value);
-}
+tusb_xfer_result_t tuh_audio_control_xfer_sync(uint8_t idx, uint8_t entity_id, tusb_dir_t direction, uint8_t request,
+                                               uint8_t control_selector, uint8_t channel, void *buffer, uint16_t length,
+                                               uint32_t *actual_len);
 
 TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_audio_mute_set_sync(uint8_t idx, uint8_t stream_idx,
                                                                                bool mute) {
@@ -293,6 +279,13 @@ TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_audio_volume_get_sync
 //--------------------------------------------------------------------+
 // Callbacks (Weak is optional)
 //--------------------------------------------------------------------+
+
+// Invoked after the Audio Control and Streaming descriptors have been
+// validated during enumeration, before tuh_audio_mount_cb(). The interface is
+// not mounted yet and control requests must not be submitted from this
+// callback. Applications may inspect or copy descriptors needed for later raw
+// entity control requests.
+void tuh_audio_descriptor_cb(uint8_t idx, const tuh_audio_descriptor_cb_t *desc_cb_data);
 
 // Invoked when device with Audio interface is mounted
 void tuh_audio_mount_cb(uint8_t idx);
