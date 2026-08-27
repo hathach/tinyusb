@@ -205,6 +205,7 @@ TU_FIFO_DEF(_usbh_pending_ctrl_q, CFG_TUH_CONTROL_PENDING_QUEUE_SZ * sizeof(usbh
 
 typedef struct {
   uint8_t enumerating_daddr;  // device address of the device being enumerated
+  uint8_t enum_attempt;       // enumeration attempts used for the current attach
   uint8_t attach_debouncing_bm;  // bitmask for roothub port attach debouncing
   tuh_bus_info_t dev0_bus;    // bus info for dev0 in enumeration
   usbh_ctrl_xfer_info_t ctrl_xfer_info; // control transfer
@@ -1871,6 +1872,7 @@ static void enum_new_device(hcd_event_t *event) {
   dev0_bus->rhport         = event->rhport;
   dev0_bus->hub_addr       = event->connection.hub_addr;
   dev0_bus->hub_port       = event->connection.hub_port;
+  _usbh_data.enum_attempt  = 0;
   usbh_defer_func_ms_async(ENUM_DEBOUNCING_DELAY_MS, enum_delay_async, ENUM_AFTER_DEBOUNCING_DELAY);
 }
 
@@ -2297,9 +2299,23 @@ static void control_xfer_timeout_expired(void) {
 }
 #endif
 
-static void enum_full_complete(bool success) {
-  TU_LOG_USBH("Enumeration complete: success = %u\r\n", success);
+#if CFG_TUH_ENUM_ATTEMPT_MAX > 1
+// Retry only while the device is still attached: a confirmed unplug would just repeat the same ladder
+static bool enum_attach_present(void) {
+  const tuh_bus_info_t* dev0_bus = &_usbh_data.dev0_bus;
+  #if CFG_TUH_HUB
+  if (dev0_bus->hub_addr != 0) {
+    hub_port_status_response_t port_status;
+    return tuh_connected(dev0_bus->hub_addr) &&
+           hub_port_get_status_local(dev0_bus->hub_addr, dev0_bus->hub_port, &port_status) &&
+           port_status.status.connection;
+  }
+  #endif
+  return hcd_port_connect_status(dev0_bus->rhport);
+}
+#endif
 
+static void enum_full_complete(bool success) {
   const uint8_t daddr = _usbh_data.enumerating_daddr;
   _usbh_data.enumerating_daddr = TUSB_INDEX_INVALID_8; // mark enumeration as complete
   _usbh_data.call_after.func = NULL;
@@ -2310,6 +2326,23 @@ static void enum_full_complete(bool success) {
       clear_device(get_device(daddr));
     }
   }
+
+#if CFG_TUH_ENUM_ATTEMPT_MAX > 1
+  // daddr already invalid: torn down by an unplug that reached here via the in-flight transfer's
+  // FAILED completion - nothing to retry
+  if (!success && daddr != TUSB_INDEX_INVALID_8 && enum_attach_present() &&
+      _usbh_data.enum_attempt + 1 < CFG_TUH_ENUM_ATTEMPT_MAX) {
+    _usbh_data.enum_attempt++;
+    TU_LOG_USBH("Enumeration failed, retry attempt %u/%u\r\n",
+                _usbh_data.enum_attempt + 1, CFG_TUH_ENUM_ATTEMPT_MAX);
+    // restart as dev0 from debouncing + port reset; the ladder bails out if the device is unplugged
+    _usbh_data.enumerating_daddr = 0;
+    usbh_defer_func_ms_async(ENUM_DEBOUNCING_DELAY_MS, enum_delay_async, ENUM_AFTER_DEBOUNCING_DELAY);
+    return;
+  }
+#endif
+
+  TU_LOG_USBH("Enumeration complete: success = %u\r\n", success);
 
   #if CFG_TUH_HUB
   // Hub status is already requested in case of successful enumeration

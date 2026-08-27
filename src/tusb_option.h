@@ -773,6 +773,13 @@
     #define CFG_TUH_CONTROL_TIMEOUT_MS 5000
   #endif
 
+  // Total enumeration attempts per attach: on failure the port is reset and enumeration
+  // restarted, like other USB hosts. Some devices wedge EP0 when a bus reset arrives in their
+  // enumerated state but recover on the next reset; without a retry they never mount. 1 = no retry.
+  #ifndef CFG_TUH_ENUM_ATTEMPT_MAX
+    #define CFG_TUH_ENUM_ATTEMPT_MAX 3
+  #endif
+
 #endif // CFG_TUH_ENABLED
 
 // Attribute to place data in accessible RAM for host controller (default: CFG_TUSB_MEM_SECTION)
