@@ -25,26 +25,23 @@
 //--------------------------------------------------------------------+
 
 // Default configuration of this example, adjust to the target device:
-// - AUDIO_MAX_FRAME_COUNT: buffer holds up to 48 frames (1 ms of 48 kHz)
 // - AUDIO_MAX_CHANNELS: maximum channels of the capture/playback stream
 // - SAMPLE_RATES: sample rates tried in order, first match wins (44.1 kHz stereo by default)
-#define AUDIO_MAX_FRAME_COUNT  48
-#define AUDIO_MAX_CHANNELS     2
-#define SAMPLE_RATES           {44100, 48000}
-#define FEATURE_UNIT_VOLUME_DB (-6 * 256)
-static uint8_t                   audio_idx      = TUSB_INDEX_INVALID_8; // index of the selected audio device
-static uint8_t                   cap_stream_idx = TUSB_INDEX_INVALID_8; // capture stream index
-static uint8_t                   spk_stream_idx = TUSB_INDEX_INVALID_8; // playback stream index
-static bool                      mic_ready      = false;                // capture stream is running
-static bool                      spk_ready      = false;                // playback stream is running
-static int16_t                   mic_samples[AUDIO_MAX_FRAME_COUNT * AUDIO_MAX_CHANNELS]; // capture FIFO read buffer
-static int16_t                   spk_samples[AUDIO_MAX_FRAME_COUNT * AUDIO_MAX_CHANNELS]; // playback FIFO write buffer
-static tuh_audio_stream_config_t mic_config;                                // selected capture configuration
-static tuh_audio_stream_config_t spk_config;                                // selected playback configuration
-static uint32_t                  audio_frame_count = AUDIO_MAX_FRAME_COUNT; // frames per ms of the selected rate
-static uint32_t                  spk_cb_count      = 0;                     // count of playback callbacks (for debug)
-static uint32_t                  mic_cb_count      = 0;                     // count of capture callbacks (for debug)
-static uint32_t                  err_cb_count      = 0;                     // count of error callbacks (for debug)
+#define AUDIO_MAX_CHANNELS        2
+#define SAMPLE_RATES              {44100, 48000}
+#define FEATURE_UNIT_VOLUME_DB    (-6 * 256)
+#define AUDIO_BUFFER_SAMPLE_COUNT (CFG_TUH_AUDIO_STREAM_BUFSIZE / 2 / sizeof(int16_t))
+static uint8_t                   audio_idx      = TUSB_INDEX_INVALID_8;    // index of the selected audio device
+static uint8_t                   cap_stream_idx = TUSB_INDEX_INVALID_8;    // capture stream index
+static uint8_t                   spk_stream_idx = TUSB_INDEX_INVALID_8;    // playback stream index
+static bool                      mic_ready      = false;                   // capture stream is running
+static bool                      spk_ready      = false;                   // playback stream is running
+static int16_t                   audio_samples[AUDIO_BUFFER_SAMPLE_COUNT]; // shared capture/playback buffer
+static tuh_audio_stream_config_t mic_config;                               // selected capture configuration
+static tuh_audio_stream_config_t spk_config;                               // selected playback configuration
+static uint32_t                  spk_cb_count = 0;                         // playback callbacks (for debug)
+static uint32_t                  mic_cb_count = 0;                         // capture callbacks (for debug)
+static uint32_t                  err_cb_count = 0;                         // error callbacks (for debug)
 
 
 //--------------------------------------------------------------------+
@@ -101,18 +98,19 @@ void defer_queue_task(void) {
   }
 }
 
-// Duplicate each mono sample to both channels (mono mic -> stereo speaker)
-static void mono_to_stereo(const int16_t *mono, int16_t *stereo, uint32_t frames) {
-  for (uint32_t i = 0; i < frames; i++) {
-    stereo[i * 2]     = mono[i];
-    stereo[i * 2 + 1] = mono[i];
+// Expand backward so mono capture can be converted to stereo in place.
+static void mono_to_stereo(int16_t *samples, uint32_t frames) {
+  for (uint32_t i = frames; i-- > 0;) {
+    const int16_t sample = samples[i];
+    samples[i * 2]       = sample;
+    samples[i * 2 + 1]   = sample;
   }
 }
 
-// Average both channels into one sample (stereo mic -> mono speaker)
-static void stereo_to_mono(const int16_t *stereo, int16_t *mono, uint32_t frames) {
+// Contract forward so stereo capture can be converted to mono in place.
+static void stereo_to_mono(int16_t *samples, uint32_t frames) {
   for (uint32_t i = 0; i < frames; i++) {
-    mono[i] = (int16_t)(((int32_t)stereo[i * 2] + stereo[i * 2 + 1]) / 2);
+    samples[i] = (int16_t)(((int32_t)samples[i * 2] + samples[i * 2 + 1]) / 2);
   }
 }
 
@@ -138,23 +136,16 @@ static void spk_fill_sine(uint32_t frames) {
     const int16_t sample = sine_lut[sine_phase >> (32u - SINE_LUT_BITS)];
     sine_phase += phase_step;
     for (uint8_t ch = 0; ch < spk_config.channels; ch++) {
-      spk_samples[i * spk_config.channels + ch] = sample;
+      audio_samples[i * spk_config.channels + ch] = sample;
     }
   }
 }
 
-// Frames to queue this millisecond at the given sample rate: rate / 1000,
-// with the fractional remainder (0.1 frame per ms at 44.1 kHz) accumulated
-// and paid back as one extra frame, matching the driver's playback pacing.
-static uint32_t frame_rem_acc = 0;
-static uint32_t audio_frames_this_ms(uint32_t sample_rate) {
-  uint32_t frames = sample_rate / 1000;
-  frame_rem_acc += sample_rate % 1000;
-  if (frame_rem_acc >= 1000) {
-    frame_rem_acc -= 1000;
-    frames++;
-  }
-  return frames;
+// One application buffer is half of the driver's stream FIFO. Servicing the
+// FIFO at this watermark leaves the other half available to absorb scheduling
+// jitter between main-loop iterations.
+static uint32_t audio_half_fifo_frames(const tuh_audio_stream_config_t *config) {
+  return TU_ARRAY_SIZE(audio_samples) / config->channels;
 }
 
 //--------------------------------------------------------------------+
@@ -163,7 +154,7 @@ static uint32_t audio_frames_this_ms(uint32_t sample_rate) {
 // Cycles through three phases with tuh_audio_start()/stop(). The driver
 // activates/deactivates the stream's interface (SET_INTERFACE alt setting)
 // on each switch.
-//   1. mic only  (3 s): capture runs, captured data is dropped
+//   1. mic only  (5 s): capture runs, captured data is dropped
 //   2. spk only  (5 s): playback plays the sine test tone
 //   3. echo      (5 s): both streams run, captured audio is echoed back
 #define APP_PHASE_MIC_ONLY_MS 5000
@@ -181,8 +172,8 @@ static uint8_t        app_audio_phase               = APP_PHASE_MIC_ONLY;
 static const uint32_t app_phase_ms[APP_PHASE_COUNT] = {APP_PHASE_MIC_ONLY_MS, APP_PHASE_SPK_ONLY_MS, APP_PHASE_ECHO_MS};
 
 // Start or stop the capture/playback streams according to the current phase.
-// The app tasks already behave per phase: with mic_ready false the sine tone
-// plays, with the playback stream stopped the echo write returns 0 (dropped).
+// The app task discards capture in mic-only mode, generates sine in speaker-only
+// mode, and echoes capture when both streams run.
 static void app_audio_phase_apply(void) {
   switch (app_audio_phase) {
     case APP_PHASE_MIC_ONLY:
@@ -261,50 +252,47 @@ void led_blinking_task(void) {
 //--------------------------------------------------------------------+
 
 
-// Echo the captured audio back to the playback stream: drain the capture
-// FIFO into mic_samples, convert, and queue the frames into the playback
-// FIFO. The driver schedules the actual isochronous transfers.
-
-void audio_app_task_read(void) {
-  if (!mic_ready) {
+// Echo one chunk after capture is at least half full and playback is at least
+// half drained. This runs from the main loop, independently of USB callbacks.
+static void audio_echo_task(void) {
+  const uint32_t mic_frames = audio_half_fifo_frames(&mic_config);
+  const uint32_t spk_frames = audio_half_fifo_frames(&spk_config);
+  if (tuh_audio_read_available(audio_idx, cap_stream_idx) < mic_frames ||
+      tuh_audio_write_available(audio_idx, spk_stream_idx) < spk_frames) {
     return;
   }
 
-  const uint32_t frames =
-    tuh_audio_read(audio_idx, cap_stream_idx, mic_samples, audio_frames_this_ms(mic_config.sample_rate));
-  if (frames == 0) {
-    return;
-  }
-  if (!spk_ready) {
-    return; // capture-only device or playback intentionally stopped
-  }
-
-  if (spk_config.channels == mic_config.channels) {
-    memcpy(spk_samples, mic_samples, frames * mic_config.channels * sizeof(int16_t));
-  } else if (mic_config.channels == 1 && spk_config.channels == 2) {
-    mono_to_stereo(mic_samples, spk_samples, frames);
-  } else {
-    stereo_to_mono(mic_samples, spk_samples, frames);
+  const uint32_t frames = TU_MIN(mic_frames, spk_frames);
+  (void)tuh_audio_read(audio_idx, cap_stream_idx, audio_samples, frames);
+  if (mic_config.channels == 1 && spk_config.channels == 2) {
+    mono_to_stereo(audio_samples, frames);
+  } else if (mic_config.channels == 2 && spk_config.channels == 1) {
+    stereo_to_mono(audio_samples, frames);
   }
 
-  (void)tuh_audio_write(audio_idx, spk_stream_idx, spk_samples, frames);
+  (void)tuh_audio_write(audio_idx, spk_stream_idx, audio_samples, frames);
 }
 
-void audio_app_task_write(void) {
-  // Fallback: the sine test tone when no capture stream is echoing
-  if (mic_ready || !spk_ready) {
-    return;
-  }
-
-  const uint32_t frames = audio_frames_this_ms(spk_config.sample_rate);
-  if (tuh_audio_write_available(audio_idx, spk_stream_idx) >= frames) {
-    spk_fill_sine(frames);
-    (void)tuh_audio_write(audio_idx, spk_stream_idx, spk_samples, frames);
+void audio_app_task(void) {
+  if (mic_ready && spk_ready) {
+    audio_echo_task();
+  } else if (mic_ready) {
+    const uint32_t frames = audio_half_fifo_frames(&mic_config);
+    if (tuh_audio_read_available(audio_idx, cap_stream_idx) >= frames) {
+      (void)tuh_audio_read(audio_idx, cap_stream_idx, audio_samples, frames);
+    }
+  } else if (spk_ready) {
+    const uint32_t frames = audio_half_fifo_frames(&spk_config);
+    if (tuh_audio_write_available(audio_idx, spk_stream_idx) >= frames) {
+      spk_fill_sine(frames);
+      (void)tuh_audio_write(audio_idx, spk_stream_idx, audio_samples, frames);
+    }
   }
 }
 
-// Invoked when an isochronous IN transfer completes: the captured data is
-// already queued into the capture FIFO and drained by audio_app_task_read().
+// Transfer callbacks are intentionally not used to service the FIFOs. The
+// main-loop audio_app_task() reads and writes independently at half-FIFO
+// watermarks; these callbacks only collect diagnostic counts.
 void tuh_audio_capture_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_bytes) {
   (void)idx;
   (void)stream_idx;
@@ -312,8 +300,6 @@ void tuh_audio_capture_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_byte
   mic_cb_count++;
 }
 
-// Invoked when an isochronous OUT transfer completes: the next queued packet
-// is submitted from the playback FIFO by the driver.
 void tuh_audio_playback_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_bytes) {
   (void)idx;
   (void)stream_idx;
@@ -453,7 +439,7 @@ static void tuh_audio_mount_async(uintptr_t param) {
     print_stream_configs(idx, stream_idx);
   }
 
-  // Select a supported 48 kHz S16_LE capture configuration without
+  // Select a preferred S16_LE capture configuration without
   // accessing USB interfaces, alternate settings, or endpoint addresses.
   // Sample rates are tried in SAMPLE_RATES order (44.1 kHz first), stereo is
   // preferred, mono is accepted.
@@ -480,8 +466,6 @@ static void tuh_audio_mount_async(uintptr_t param) {
             audio_idx      = idx;
             cap_stream_idx = stream_idx;
             mic_config     = config;
-            // one ms of audio at the selected rate, rounded down to whole frames
-            audio_frame_count = sample_rate / 1000;
             printf("  Microphone configured\r\n");
             configure_stream_controls(idx, stream_idx, "Microphone");
             mic_ready     = tuh_audio_start(idx, stream_idx);
@@ -493,7 +477,7 @@ static void tuh_audio_mount_async(uintptr_t param) {
     }
   }
   if (!capture_found) {
-    printf("  No supported 48/44.1 kHz S16_LE capture configuration found\r\n");
+    printf("  No supported 44.1/48 kHz S16_LE capture configuration found\r\n");
   }
 
   // The echo needs a playback stream at the capture sample rate (or at any
@@ -537,9 +521,7 @@ static void tuh_audio_mount_async(uintptr_t param) {
   }
   audio_idx = idx;
   printf("  Speaker configured\r\n");
-  // playback-only device: set the frame cadence from the selected rate
-  audio_frame_count = spk_config.sample_rate / 1000;
-  sine_phase        = 0;
+  sine_phase = 0;
   configure_stream_controls(idx, spk_stream_idx, "Speaker");
 
   if (capture_found) {

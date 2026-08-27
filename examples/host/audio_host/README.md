@@ -7,9 +7,9 @@ This example demonstrates how to use TinyUSB's USB Audio Host driver (TUH_AUDIO)
 - Enumerates and mounts USB Audio Class 1.0 and 2.0 devices
 - Discovers the device's logical streams (capture/playback) and their supported configurations (discrete tuples only)
 - Reports each stream's master mute/volume capabilities and cached volume range
-- Configures and starts an S16_LE capture stream (48 kHz preferred, 44.1 kHz fallback; stereo preferred, mono accepted)
+- Configures and starts an S16_LE capture stream (44.1 kHz preferred, 48 kHz fallback; stereo preferred, mono accepted)
 - Echoes captured audio to an S16_LE playback stream at the same sample rate (same channel count preferred, mono/stereo conversion otherwise)
-- Frame-based FIFO API: `tuh_audio_read()` / `tuh_audio_write()` queue frames; the driver schedules transfers at the endpoint's polling interval
+- Frame-based FIFO API: the main loop reads capture when its FIFO is half full and fills playback when its FIFO is half drained; USB transfer callbacks are not used for FIFO servicing
 - Cycles the streams through three phases (5 s each): mic-only (capture, data dropped), spk-only (sine test tone), and echo (capture looped back to playback)
 
 ## Supported Devices
@@ -20,7 +20,7 @@ This example supports UAC1 devices whose Type I Format descriptor lists discrete
 - USB headsets (mono microphone + speaker)
 - USB audio interfaces
 
-The echo needs a matching S16_LE playback stream at the capture sample rate; devices without one run capture-only. The sample rate and channel preferences are configured by the `SAMPLE_RATES` / `AUDIO_MAX_CHANNELS` macros in `src/audio_app.c` (48 kHz stereo by default). Non-PCM formats are rejected by the driver.
+The echo needs a matching S16_LE playback stream at the capture sample rate; devices without one run capture-only. The sample rate and channel preferences are configured by the `SAMPLE_RATES` / `AUDIO_MAX_CHANNELS` macros in `src/audio_app.c` (44.1 kHz stereo by default). Non-PCM formats are rejected by the driver.
 
 ## Limitations and trade-offs
 
@@ -69,10 +69,10 @@ make BOARD=<your_board> flash
 3. Open a serial terminal to view output
 4. The example will:
    - Print each stream's master mute/volume capabilities, cached volume range, and supported configurations when mounted
-   - Look for an S16_LE capture configuration at a preferred sample rate (48 kHz first, 44.1 kHz fallback; stereo preferred, mono accepted) and configure it
+   - Look for an S16_LE capture configuration at a preferred sample rate (44.1 kHz first, 48 kHz fallback; stereo preferred, mono accepted) and configure it
    - Echo captured audio to an S16_LE playback configuration at the same sample rate (same channel count preferred, converted otherwise)
    - Read/unmute the microphone and speaker Feature Units and set supported master volumes near -6 dB
-   - Drain the capture FIFO in `audio_app_task_read()` and queue the frames into the playback FIFO; a sine test tone plays on the playback stream when no capture stream is echoing
+   - Service both FIFOs from `audio_app_task()` at their half-full/half-drained watermarks; a sine test tone plays on the playback stream when no capture stream is echoing
    - Cycle through the three phases (mic-only / spk-only / echo, 5 s each) with `tuh_audio_start()` / `tuh_audio_stop()`; a failed stream is restarted automatically 100 ms after the error callback
 
 ## Serial Output Example
@@ -91,12 +91,12 @@ Audio device mounted: idx=0 addr=1
     master volume range: min=-23040 max=1536 res=256 (1/256 dB)
     [0] format=1 rate=44100 channels=2
     [1] format=1 rate=48000 channels=2
-  Configuring 48 kHz S16_LE capture (2 channels)
+  Configuring 44100 S16_LE capture (2 channels)
   Microphone configured
   Microphone master mute: off
   Microphone master volume: 0 (1/256 dB)
   Microphone master volume set: -1536 (1/256 dB)
-  Configuring 48 kHz S16_LE playback (2 channels)
+  Configuring 44100 S16_LE playback (2 channels)
   Speaker configured
   Speaker master mute: off
   Speaker master volume: 0 (1/256 dB)
@@ -116,7 +116,7 @@ Edit `src/tusb_config.h` to modify:
 ## Notes
 
 - `tuh_audio_descriptor_cb()` exposes the validated Audio Control descriptor block during enumeration. Applications that need raw entity controls must copy the required entity IDs or descriptor fields before the callback returns, then use `tuh_audio_control_xfer()` after the device mounts.
-- While a stream is running, the driver keeps one isochronous transfer in flight and re-submits on completion, so transfers follow the endpoint's `bInterval`. `tuh_audio_capture_cb()` / `tuh_audio_playback_cb()` report each completed transfer; `tuh_audio_err_cb()` reports failures. The example restarts the failed stream automatically 100 ms after the error callback.
+- While a stream is running, the driver keeps one isochronous transfer in flight and re-submits on completion, so transfers follow the endpoint's `bInterval`. `tuh_audio_capture_cb()` / `tuh_audio_playback_cb()` only count completed transfers; `audio_app_task()` services the FIFOs independently from the main loop. `tuh_audio_err_cb()` reports failures, and the example restarts the failed stream automatically 100 ms later.
 - Capture and playback streams running concurrently in the same Audio Control instance must use the same sample rate.
-- `tuh_audio_read()` / `tuh_audio_write()` are non-blocking FIFO operations: they return the number of whole frames actually queued/read (0 when the FIFO is empty/full or the stream is not running), and `tuh_audio_read_available()` / `tuh_audio_write_available()` report the FIFO occupancy in frames. `tuh_audio_write()` only queues data; the playback transfer-completion chain sends it, or sends silence when the FIFO does not contain a complete polling interval without consuming the partial data.
+- `tuh_audio_read()` / `tuh_audio_write()` are non-blocking FIFO operations: they return the number of whole frames actually read/queued. `tuh_audio_read_available()` reports captured frames ready to read; `tuh_audio_write_available()` reports free playback capacity. `tuh_audio_write()` only queues data; the playback transfer-completion chain sends it, or sends silence when the FIFO does not contain a complete polling interval without consuming the partial data.
 - Isochronous transfers require the host to poll `tuh_task()` continuously; the capture FIFO absorbs short scheduling gaps and overwrites the oldest frames when full.

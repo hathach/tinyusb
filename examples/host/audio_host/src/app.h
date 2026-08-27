@@ -22,7 +22,6 @@
 #include <stdint.h>
 
 void led_blinking_task(void);
-void audio_app_task_read(void);
-void audio_app_task_write(void);
+void audio_app_task(void);
 void defer_queue_task(void);
 #endif

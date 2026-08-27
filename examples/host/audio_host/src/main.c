@@ -42,8 +42,7 @@ int main(void) {
     // tinyusb host task
     tuh_task();
     led_blinking_task();
-    audio_app_task_read();
-    audio_app_task_write();
+    audio_app_task();
     defer_queue_task();
   }
 }
