@@ -1,9 +1,9 @@
 export const meta = {
   name: 'driver-review',
-  description: 'Review driver directories across dimensions with driver-reviewer scanners, then adversarially verify every finding; returns only confirmed findings',
+  description: 'Review driver directories across dimensions with code-verifier scanners, then adversarially verify every finding; returns only confirmed findings',
   whenToUse: 'Auditing dcd/hcd drivers for a bug class (pass question) or a full-dimension review (default dimensions)',
   phases: [
-    { title: 'Scan', detail: 'driver-reviewer per (dir x dimension)' },
+    { title: 'Scan', detail: 'code-verifier per (dir x dimension)' },
     { title: 'Verify', detail: 'adversarial refutation per finding' },
   ],
 }
@@ -58,7 +58,7 @@ const results = await pipeline(
 
   p => agent(
     `Review ${p.dir} for exactly one dimension: ${p.dim}. Read the sources yourself. Coverage-first — report everything, a verifier filters.`,
-    { label: `scan:${short(p.dir)}`, phase: 'Scan', agentType: 'driver-reviewer', effort: 'xhigh', schema: FINDINGS },
+    { label: `scan:${short(p.dir)}`, phase: 'Scan', agentType: 'code-verifier', schema: FINDINGS },
   ),
 
   (scan, p) => {
@@ -69,7 +69,8 @@ const results = await pipeline(
         `Adversarially verify ONE review finding about ${p.dir}.\nDimension: ${p.dim}\nFinding: ${JSON.stringify(f)}\n` +
         'Read the cited code plus enough context (callers, ISR paths, macros, and the datasheet if register-related) to judge. ' +
         'Try to REFUTE it; real=true only if it survives your best attempt. Return {"real": bool, "reason": string}.',
-        { label: `verify:${short(p.dir)}:${f.line}`, phase: 'Verify', agentType: 'driver-reviewer', effort: 'xhigh', schema: VERDICT },
+        // max: one judgment-dense call per finding decides what survives - worth the top tier
+        { label: `verify:${short(p.dir)}:${f.line}`, phase: 'Verify', agentType: 'code-verifier', effort: 'max', schema: VERDICT },
       ).then(v => v && { ...f, verdict: v })
     )).then(vs => {
       const alive = vs.filter(Boolean)
