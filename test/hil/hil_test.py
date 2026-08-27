@@ -44,7 +44,6 @@ import itertools
 import os
 import random
 import re
-import select
 import signal
 import shlex
 import sys
@@ -408,6 +407,30 @@ try:
 finally:
     h.close()
 """
+# The write half, same shape and same reason: usblp_open() ignores O_NONBLOCK and stalls in
+# usb_autopm_get_interface() on a wedged device, holding the driver-global usblp_mutex. A
+# blocked THREAD cannot be abandoned without keeping the fd, and usblp allows a single opener
+# (v6.12.96 usblp.c), so the next open of this node returns -EBUSY for the life of the worker.
+# A killed process takes its fd with it. O_NONBLOCK is kept because usblp DOES honour it on
+# write, which is what the select()/partial-write loop below relies on.
+LP_WRITER = (
+    'import os, random, select, sys\n'
+    'lp, payload_path, ready = sys.argv[1], sys.argv[2], sys.argv[3]\n'
+    'data = open(payload_path, "rb").read()\n'
+    'fd = os.open(lp, os.O_WRONLY | os.O_NONBLOCK)\n'
+    # readiness marker, as in LP_READER: the parent must not read CDC before the node is open
+    'open(ready, "w").close()\n'
+    'off = 0\n'
+    'while off < len(data):\n'
+    '    n = min(random.randint(1, 64), len(data) - off)\n'
+    '    buf, w = data[off:off + n], 0\n'
+    '    while w < len(buf):\n'
+    '        _, wr, _ = select.select([], [fd], [], 5.0)\n'
+    '        if not wr:\n'
+    '            sys.exit("printer write timeout (firmware not draining OUT endpoint)")\n'
+    '        w += os.write(fd, buf[w:])\n'
+    '    off += n\n'
+)
 MTYPE_TIMEOUT = 30  # a README-sized read is <1 s; bounds a D-state hang on a wedged device
 
 
@@ -1105,45 +1128,47 @@ def test_device_printer_to_cdc(board):
     ser.reset_input_buffer()
 
     # Test 1: Printer -> CDC with multiple sizes, write in random 1-64 byte chunks
-    LP_WRITE_TIMEOUT = 5.0  # seconds; firmware may stall draining the printer OUT endpoint
+    # The write runs in a PROCESS for the same reason the read below does: see LP_WRITER.
     for size in sizes:
         test_data = rand_ascii(size)
         ser.reset_input_buffer()
-        rd = b''
-        offset = 0
-        # bounded: O_NONBLOCK does NOT save us -- usblp_open() takes the device mutex
-        # first -- and this open runs on the worker itself, with no thread to abandon
-        lp_fd = hil_util.bounded_open(lp_dev, os.O_WRONLY | os.O_NONBLOCK, 5)
-        # Three-valued on purpose: an OSError here is a FACT about the node (EBUSY from
-        # usblp's single-opener rule, ENOENT from a re-enumeration race, EACCES from a
-        # udev gap) and must not be reported as a wedge -- that sends the operator to
-        # usb-kernel-recover for hardware that is fine.
-        assert lp_fd is not hil_util.SYSFS_UNKNOWN, (
-            f'printer: opening {lp_dev} for write blocked (device wedged)'
-            f'{hil_util.sysfs_blind_note()}')
-        assert lp_fd is not None, f'printer: {lp_dev} could not be opened for write'
+        rd = bytearray()
+
+        payload = Path(tempfile.gettempdir()) / f'hil-lp-tx-{os.getpid()}-{size}'
+        ready = Path(tempfile.gettempdir()) / f'hil-lp-ready-{os.getpid()}-{size}'
+        payload.write_bytes(test_data)
+        ready.unlink(missing_ok=True)
+
+        def read_cdc():
+            # WAIT for the writer to have the node open, as Test 2's write_cdc does: the
+            # child has to fork, exec and boot CPython, and reading before it starts just
+            # burns the serial timeout.
+            deadline = time.monotonic() + LP_OPEN_TIMEOUT + 5
+            while not ready.exists():
+                if time.monotonic() > deadline:
+                    return       # writer never opened; the rc/compare below reports it
+                time.sleep(0.02)
+            # fullspeed devices may need extra time; ser.read is bounded by
+            # SERIAL_READ_TIMEOUT, so an empty return means the stream went quiet
+            while len(rd) < size:
+                chunk = ser.read(size - len(rd))
+                if not chunk:
+                    break
+                rd.extend(chunk)   # in place: `rd +=` would rebind it as a local
+
         try:
-            while offset < size:
-                chunk_size = min(random.randint(1, 64), size - offset)
-                buf = test_data[offset:offset + chunk_size]
-                written = 0
-                while written < len(buf):
-                    _, wr, _ = select.select([], [lp_fd], [], LP_WRITE_TIMEOUT)
-                    assert wr, f'Printer write timeout after {LP_WRITE_TIMEOUT}s (firmware not draining OUT endpoint)'
-                    n = os.write(lp_fd, buf[written:])
-                    written += n
-                rd += ser.read(chunk_size)
-                offset += chunk_size
+            r = hil_util.run_alongside(
+                [sys.executable, '-c', LP_WRITER, lp_dev, str(payload), str(ready)],
+                read_cdc, LP_OPEN_TIMEOUT + 12)
         finally:
-            os.close(lp_fd)
-        # read any remaining bytes (fullspeed devices may need extra time)
-        while len(rd) < size:
-            remaining = ser.read(size - len(rd))
-            if not remaining:
-                break
-            rd += remaining
-        assert rd == test_data, (f'Printer->CDC wrong data ({size} bytes):\n'
-                                 f'  expected: {test_data[:64]}\n  received: {rd[:64]}')
+            ready.unlink(missing_ok=True)
+            payload.unlink(missing_ok=True)
+        assert r.returncode == 0, (f'Printer->CDC writer failed ({size} bytes, rc '
+                                   f'{r.returncode}): '
+                                   f'{hil_util.cmd_stdout_text(r.stderr)[:200]}')
+        assert bytes(rd) == test_data, (f'Printer->CDC wrong data ({size} bytes):\n'
+                                        f'  expected: {test_data[:64]}\n'
+                                        f'  received: {bytes(rd)[:64]}')
 
     # Test 2: CDC -> Printer with multiple sizes, write in random 1-64 byte chunks.
     # The lp read runs in a PROCESS, not a thread: /dev/usb/lp* blocks on read, usblp

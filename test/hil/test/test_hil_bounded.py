@@ -2038,6 +2038,53 @@ class HidEchoRunsInAChild(unittest.TestCase):
         r = self._run('short_read')
         self.assertNotEqual(r.returncode, 0)
         self.assertIn('short read', self._stderr(r))
+class PrinterWriteRunsInAChild(unittest.TestCase):
+    """test_device_printer_to_cdc's WRITE half used to open /dev/usb/lp* on the worker
+    itself and abandon a thread when the open blocked. usblp allows one opener (v6.12.96
+    usblp.c returns -EBUSY while usblp->used), so that abandoned thread's fd poisoned the
+    node for every later test the worker ran -- the exact failure the READ half already
+    avoided by forking. Both halves are children now; these pin the writer's contract."""
+
+    def _run(self, target, payload, ready, data=None):
+        from helper import hil_util
+        if data is not None:
+            payload.write_bytes(data)
+        return hil_util.run_alongside(
+            [sys.executable, '-c', hil_test.LP_WRITER,
+             str(target), str(payload), str(ready)], lambda: None, 20)
+
+    def test_the_payload_arrives_byte_exact(self):
+        with TemporaryDirectory() as td:
+            td = Path(td)
+            target, payload, ready = td / 'lp', td / 'tx', td / 'ready'
+            # spans every byte value and several 64-byte chunks, so a lost or reordered
+            # partial write shows up rather than hiding inside ASCII
+            data = bytes(range(256)) * 4
+            target.touch()
+            r = self._run(target, payload, ready, data)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertEqual(target.read_bytes(), data,
+                             'writer did not deliver the payload byte-exact')
+
+    def test_readiness_is_signalled_so_the_parent_does_not_read_early(self):
+        with TemporaryDirectory() as td:
+            td = Path(td)
+            target, payload, ready = td / 'lp', td / 'tx', td / 'ready'
+            target.touch()
+            r = self._run(target, payload, ready, b'x' * 32)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertTrue(ready.exists(),
+                            'no readiness marker: the parent would read CDC before the '
+                            'node is open and lose the leading bytes')
+
+    def test_an_unopenable_node_fails_the_case_instead_of_going_quiet(self):
+        with TemporaryDirectory() as td:
+            td = Path(td)
+            target, payload, ready = td / 'nope' / 'lp', td / 'tx', td / 'ready'
+            r = self._run(target, payload, ready, b'x' * 8)
+            self.assertNotEqual(r.returncode, 0,
+                                'a failed open must reach the caller as a non-zero rc')
+            self.assertFalse(ready.exists())
 
 
 if __name__ == '__main__':
