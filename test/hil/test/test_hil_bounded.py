@@ -75,7 +75,6 @@ def run_bounded(fn, timeout: float):
     return not t.is_alive(), exc[0] if exc else None
 
 
-@unittest.skipIf(os.name == 'nt', 'POSIX shell fakes')
 class ReadDiskFile(unittest.TestCase):
     def setUp(self):
         self.tmp = TemporaryDirectory()
@@ -342,7 +341,6 @@ class _MtpFakeRig:
                 os.environ[k] = v
 
 
-@unittest.skipIf(os.name == 'nt', 'POSIX shell fakes')
 @unittest.skipIf(sys.version_info < (3, 11), 'fake-pymtp steering needs PYTHONSAFEPATH')
 class DeviceMtp(_MtpFakeRig, unittest.TestCase):
     """test_device_mtp end to end: the real mtp_test.py subprocess under run_cmd,
@@ -442,7 +440,6 @@ class BoundedOpen(unittest.TestCase):
         self.assertIsNone(self.hil_util.bounded_open(
             str(Path(self.tmp.name) / 'nope'), os.O_RDONLY, 5))
 
-    @unittest.skipIf(os.name == 'nt', 'POSIX fifo')
     def test_blocking_open_gives_up_and_does_not_leak_fds(self):
         """A reader-less FIFO blocks open(O_WRONLY) forever -- the closest portable
         stand-in for a wedged usblp node."""
@@ -457,7 +454,6 @@ class BoundedOpen(unittest.TestCase):
         self.assertLessEqual(len(os.listdir('/proc/self/fd')) - before, 1,
                              'bounded_open leaked fds on the blocking path')
 
-    @unittest.skipIf(os.name == 'nt', 'POSIX fifo')
     def test_open_completing_during_the_abandon_does_not_leak(self):
         """The window the handoff lock exists for: the worker is at its store-or-close
         decision when the caller gives up and drains the box.
@@ -528,7 +524,6 @@ class SysfsUnknownIsNotAbsent(unittest.TestCase):
     def test_missing_attribute_is_none(self):
         self.assertIsNone(self.hil_util.read_sysfs(str(Path(self.tmp.name) / 'nope')))
 
-    @unittest.skipIf(os.name == 'nt', 'POSIX fifo')
     def test_blocking_read_is_unknown_not_absent(self):
         """A reader-less FIFO stands in for the wedged device whose sysfs read never
         returns; None here would read as "the board is gone"."""
@@ -822,7 +817,6 @@ class WedgedPidsFailsClosed(unittest.TestCase):
         self.assertFalse(complete, 'a hidden holder was reported as absent')
 
 
-@unittest.skipIf(os.name == 'nt', 'POSIX shell fakes')
 @unittest.skipIf(sys.version_info < (3, 11), 'fake-pymtp steering needs PYTHONSAFEPATH')
 class StrandMemoRemembersUnstattablePaths(unittest.TestCase):
     """A stranded path whose inode could not be read is stored as None -- which dict.get()

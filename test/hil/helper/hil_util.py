@@ -534,26 +534,22 @@ def run_cmd(cmd: str | list, cwd: str | None = None, timeout: int | None = None,
     }
     if not binary:
         popen_kwargs.update({'text': True, 'encoding': 'utf-8', 'errors': 'replace'})
-    if os.name != 'nt':
-        # C-level setsid, same process-group semantics as preexec_fn=os.setsid but
-        # safe when called from threads (pool_check runs flashes from a thread pool)
-        popen_kwargs['start_new_session'] = True
+    # C-level setsid, same process-group semantics as preexec_fn=os.setsid but safe when
+    # called from threads (pool_check runs flashes from a thread pool)
+    popen_kwargs['start_new_session'] = True
 
     p = subprocess.Popen(cmd, **popen_kwargs)
     try:
         out, err = p.communicate(timeout=timeout)
         r = subprocess.CompletedProcess(args=cmd, returncode=p.returncode, stdout=out, stderr=err)
     except subprocess.TimeoutExpired as ex:
-        if os.name != 'nt':
-            try:
-                os.killpg(p.pid, signal.SIGKILL)
-            except OSError:
-                # ProcessLookupError: already gone. PermissionError: an all-root group
-                # refuses the group kill -- letting either escape would skip the bounded
-                # reap, the pipe close and the rc-124 return this handler exists for.
-                pass
-        else:
-            p.kill()
+        try:
+            os.killpg(p.pid, signal.SIGKILL)
+        except OSError:
+            # ProcessLookupError: already gone. PermissionError: an all-root group refuses
+            # the group kill -- letting either escape would skip the bounded reap, the pipe
+            # close and the rc-124 return this handler exists for.
+            pass
         try:
             out, err = p.communicate(timeout=10)
         except subprocess.TimeoutExpired:
@@ -589,13 +585,10 @@ def run_cmd(cmd: str | list, cwd: str | None = None, timeout: int | None = None,
         # its OWN group, so it never got the terminal's SIGINT -- without this, Ctrl-C
         # leaves the flasher or testusb holding the probe and its usbfs node. Kill and
         # close, never wait: this path must not add a hang of its own.
-        if os.name != 'nt':
-            try:
-                os.killpg(p.pid, signal.SIGKILL)
-            except OSError:
-                pass
-        else:
-            p.kill()
+        try:
+            os.killpg(p.pid, signal.SIGKILL)
+        except OSError:
+            pass
         _close_pipes(p)
         raise
 
