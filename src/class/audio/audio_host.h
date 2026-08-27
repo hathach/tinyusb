@@ -84,6 +84,13 @@ typedef enum {
   TUH_AUDIO_STREAM_DIRECTION_COUNT
 } tuh_audio_direction_t;
 
+// Asynchronous stream operation and transport events.
+typedef enum {
+  TUH_AUDIO_EVENT_START_COMPLETE = 0,
+  TUH_AUDIO_EVENT_STOP_COMPLETE,
+  TUH_AUDIO_EVENT_XFER_FAILED
+} tuh_audio_event_t;
+
 // Discrete Type-I PCM sample format. UAC1 requires bSamFreqType > 0; UAC2
 // configurations are built from the directly connected Clock Source RANGE.
 typedef enum {
@@ -173,10 +180,13 @@ bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx
 // UAC1 activates the alternate setting before setting an endpoint frequency;
 // UAC2 sets a writable Clock Source before activating the alternate setting.
 // Startup is asynchronous: true means that the first request was submitted.
-// Later startup failures are reported through tuh_audio_err_cb().
+// Completion is reported through tuh_audio_event_cb(); no event is emitted
+// when this function returns false.
 bool tuh_audio_start(uint8_t dev_idx, uint8_t stream_idx);
 // Stop transferring and asynchronously deactivate the Audio Streaming
 // interface (alt 0). true means that the deactivation request was submitted.
+// Completion is reported through tuh_audio_event_cb(); no event is emitted
+// when this function returns false.
 bool tuh_audio_stop(uint8_t dev_idx, uint8_t stream_idx);
 
 // Frame-based transfer. One frame = channels * bytes per sample.
@@ -310,10 +320,13 @@ void tuh_audio_capture_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_byte
 // from the stream FIFO, or silence when a complete packet is unavailable.
 void tuh_audio_playback_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_bytes);
 
-// Invoked when asynchronous stream activation or an isochronous transfer
-// fails. The stream is stopped (tuh_audio_start() must be called again to
-// resume). xferred_bytes is zero for an activation failure.
-void tuh_audio_err_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_bytes);
+// Reports completion of asynchronous start/stop operations and unrecoverable
+// transfer failures. START_COMPLETE is emitted after the complete activation
+// sequence and initial endpoint transfers are submitted. XFER_FAILED means the
+// HCD could not submit a transfer or completed it unsuccessfully; it is not a
+// notification for an individual dropped isochronous packet. The driver stops
+// the stream before reporting START_COMPLETE failure or XFER_FAILED.
+void tuh_audio_event_cb(uint8_t idx, uint8_t stream_idx, tuh_audio_event_t event, tusb_xfer_result_t result);
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API

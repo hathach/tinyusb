@@ -63,10 +63,11 @@ static uint8_t     *edpt_xfer_buffer[AUDIO_TEST_MAX_XFERS];
 static uint8_t      edpt_xfer_count;
 static tusb_speed_t test_speed;
 
-static uint8_t  err_cb_count;
-static uint8_t  err_cb_idx;
-static uint8_t  err_cb_stream_idx;
-static uint16_t err_cb_xferred_bytes;
+static uint8_t                  event_cb_count;
+static uint8_t                  event_cb_idx;
+static uint8_t                  event_cb_stream_idx;
+static tuh_audio_event_t        event_cb_event;
+static tusb_xfer_result_t       event_cb_result;
 
 static uint8_t  descriptor_cb_count;
 static uint8_t  descriptor_cb_idx;
@@ -84,11 +85,12 @@ static void complete_edpt(uint8_t ep_addr) {
   edpt_busy_mask &= ~edpt_mask(ep_addr);
 }
 
-void tuh_audio_err_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_bytes) {
-  err_cb_count++;
-  err_cb_idx           = idx;
-  err_cb_stream_idx    = stream_idx;
-  err_cb_xferred_bytes = xferred_bytes;
+void tuh_audio_event_cb(uint8_t idx, uint8_t stream_idx, tuh_audio_event_t event, tusb_xfer_result_t result) {
+  event_cb_count++;
+  event_cb_idx        = idx;
+  event_cb_stream_idx = stream_idx;
+  event_cb_event      = event;
+  event_cb_result     = result;
 }
 
 void tuh_audio_descriptor_cb(uint8_t idx, const tuh_audio_descriptor_cb_t *desc_cb) {
@@ -893,10 +895,11 @@ void setUp(void) {
   memset(edpt_xfer_buffer, 0, sizeof(edpt_xfer_buffer));
   edpt_xfer_count = 0;
 
-  err_cb_count         = 0;
-  err_cb_idx           = TUSB_INDEX_INVALID_8;
-  err_cb_stream_idx    = TUSB_INDEX_INVALID_8;
-  err_cb_xferred_bytes = 0;
+  event_cb_count      = 0;
+  event_cb_idx        = TUSB_INDEX_INVALID_8;
+  event_cb_stream_idx = TUSB_INDEX_INVALID_8;
+  event_cb_event      = TUH_AUDIO_EVENT_START_COMPLETE;
+  event_cb_result     = XFER_RESULT_INVALID;
 
   descriptor_cb_count           = 0;
   descriptor_cb_idx             = TUSB_INDEX_INVALID_8;
@@ -1332,20 +1335,45 @@ void test_audio_host_reports_asynchronous_start_failures(void) {
 
   TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
   complete_interface_set(XFER_RESULT_FAILED);
-  TEST_ASSERT_EQUAL_UINT8(1, err_cb_count);
-  TEST_ASSERT_EQUAL_UINT8(0, err_cb_idx);
-  TEST_ASSERT_EQUAL_UINT8(0, err_cb_stream_idx);
-  TEST_ASSERT_EQUAL_UINT16(0, err_cb_xferred_bytes);
+  TEST_ASSERT_EQUAL_UINT8(1, event_cb_count);
+  TEST_ASSERT_EQUAL_UINT8(0, event_cb_idx);
+  TEST_ASSERT_EQUAL_UINT8(0, event_cb_stream_idx);
+  TEST_ASSERT_EQUAL(TUH_AUDIO_EVENT_START_COMPLETE, event_cb_event);
+  TEST_ASSERT_EQUAL(XFER_RESULT_FAILED, event_cb_result);
 
   TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
   complete_interface_set(XFER_RESULT_SUCCESS);
   complete_control_xfer(XFER_RESULT_STALLED);
-  TEST_ASSERT_EQUAL_UINT8(2, err_cb_count);
+  TEST_ASSERT_EQUAL_UINT8(2, event_cb_count);
+  TEST_ASSERT_EQUAL(TUH_AUDIO_EVENT_START_COMPLETE, event_cb_event);
+  TEST_ASSERT_EQUAL(XFER_RESULT_STALLED, event_cb_result);
 
   control_xfer_result = false;
   TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
   complete_interface_set(XFER_RESULT_SUCCESS);
-  TEST_ASSERT_EQUAL_UINT8(3, err_cb_count);
+  TEST_ASSERT_EQUAL_UINT8(3, event_cb_count);
+  TEST_ASSERT_EQUAL(TUH_AUDIO_EVENT_START_COMPLETE, event_cb_event);
+  TEST_ASSERT_EQUAL(XFER_RESULT_FAILED, event_cb_result);
+}
+
+void test_audio_host_reports_asynchronous_start_and_stop_completion(void) {
+  mount_descriptors(capture_fu_before_usb_output, sizeof(capture_fu_before_usb_output));
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0));
+
+  TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
+  TEST_ASSERT_EQUAL_UINT8(0, event_cb_count);
+  complete_interface_set(XFER_RESULT_SUCCESS);
+  complete_control_xfer(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL_UINT8(1, event_cb_count);
+  TEST_ASSERT_EQUAL(TUH_AUDIO_EVENT_START_COMPLETE, event_cb_event);
+  TEST_ASSERT_EQUAL(XFER_RESULT_SUCCESS, event_cb_result);
+
+  TEST_ASSERT_TRUE(tuh_audio_stop(0, 0));
+  TEST_ASSERT_EQUAL_UINT8(1, event_cb_count);
+  complete_interface_set(XFER_RESULT_STALLED);
+  TEST_ASSERT_EQUAL_UINT8(2, event_cb_count);
+  TEST_ASSERT_EQUAL(TUH_AUDIO_EVENT_STOP_COMPLETE, event_cb_event);
+  TEST_ASSERT_EQUAL(XFER_RESULT_STALLED, event_cb_result);
 }
 
 void test_audio_host_reports_capture_submission_failure(void) {
@@ -1357,10 +1385,11 @@ void test_audio_host_reports_capture_submission_failure(void) {
   complete_interface_set(XFER_RESULT_SUCCESS);
   complete_control_xfer(XFER_RESULT_SUCCESS);
 
-  TEST_ASSERT_EQUAL_UINT8(1, err_cb_count);
-  TEST_ASSERT_EQUAL_UINT8(0, err_cb_idx);
-  TEST_ASSERT_EQUAL_UINT8(0, err_cb_stream_idx);
-  TEST_ASSERT_EQUAL_UINT16(0, err_cb_xferred_bytes);
+  TEST_ASSERT_EQUAL_UINT8(1, event_cb_count);
+  TEST_ASSERT_EQUAL_UINT8(0, event_cb_idx);
+  TEST_ASSERT_EQUAL_UINT8(0, event_cb_stream_idx);
+  TEST_ASSERT_EQUAL(TUH_AUDIO_EVENT_START_COMPLETE, event_cb_event);
+  TEST_ASSERT_EQUAL(XFER_RESULT_FAILED, event_cb_result);
 
   edpt_xfer_result = true;
   TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
@@ -1374,13 +1403,31 @@ void test_audio_host_reports_playback_submission_failure(void) {
   TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
   complete_interface_set(XFER_RESULT_SUCCESS);
 
-  TEST_ASSERT_EQUAL_UINT8(1, err_cb_count);
-  TEST_ASSERT_EQUAL_UINT8(0, err_cb_idx);
-  TEST_ASSERT_EQUAL_UINT8(0, err_cb_stream_idx);
-  TEST_ASSERT_EQUAL_UINT16(0, err_cb_xferred_bytes);
+  TEST_ASSERT_EQUAL_UINT8(1, event_cb_count);
+  TEST_ASSERT_EQUAL_UINT8(0, event_cb_idx);
+  TEST_ASSERT_EQUAL_UINT8(0, event_cb_stream_idx);
+  TEST_ASSERT_EQUAL(TUH_AUDIO_EVENT_START_COMPLETE, event_cb_event);
+  TEST_ASSERT_EQUAL(XFER_RESULT_FAILED, event_cb_result);
 
   edpt_xfer_result = true;
   TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
+}
+
+void test_audio_host_reports_runtime_transfer_failure_without_byte_count(void) {
+  mount_descriptors(capture_fu_before_usb_output, sizeof(capture_fu_before_usb_output));
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0));
+  TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
+  complete_interface_set(XFER_RESULT_SUCCESS);
+  complete_control_xfer(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL_UINT8(1, event_cb_count);
+
+  complete_edpt(0x81);
+  TEST_ASSERT_TRUE(audioh_xfer_cb(AUDIO_DEV_ADDR, 0x81, XFER_RESULT_TIMEOUT, 37));
+  TEST_ASSERT_EQUAL_UINT8(2, event_cb_count);
+  TEST_ASSERT_EQUAL_UINT8(0, event_cb_idx);
+  TEST_ASSERT_EQUAL_UINT8(0, event_cb_stream_idx);
+  TEST_ASSERT_EQUAL(TUH_AUDIO_EVENT_XFER_FAILED, event_cb_event);
+  TEST_ASSERT_EQUAL(XFER_RESULT_TIMEOUT, event_cb_result);
 }
 
 void test_audio_host_keeps_running_when_stop_cannot_be_submitted(void) {

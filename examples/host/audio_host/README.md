@@ -73,7 +73,7 @@ make BOARD=<your_board> flash
    - Echo captured audio to an S16_LE playback configuration at the same sample rate (same channel count preferred, converted otherwise)
    - Read/unmute the microphone and speaker Feature Units and set supported master volumes near -6 dB
    - Service both FIFOs from `audio_app_task()` at their half-full/half-drained watermarks; a sine test tone plays on the playback stream when no capture stream is echoing
-   - Cycle through the three phases (mic-only / spk-only / echo, 5 s each) with `tuh_audio_start()` / `tuh_audio_stop()`; a failed stream is restarted automatically 100 ms after the error callback
+   - Cycle through the three phases (mic-only / spk-only / echo, 5 s each) with `tuh_audio_start()` / `tuh_audio_stop()`; their asynchronous results are printed from `tuh_audio_event_cb()`, and a failed stream is restarted automatically after 100 ms
 
 ## Serial Output Example
 
@@ -116,7 +116,7 @@ Edit `src/tusb_config.h` to modify:
 ## Notes
 
 - `tuh_audio_descriptor_cb()` exposes the validated Audio Control descriptor block during enumeration. Applications that need raw entity controls must copy the required entity IDs or descriptor fields before the callback returns, then use `tuh_audio_control_xfer()` after the device mounts.
-- While a stream is running, the driver keeps one isochronous transfer in flight and re-submits on completion, so transfers follow the endpoint's `bInterval`. `tuh_audio_capture_cb()` / `tuh_audio_playback_cb()` only count completed transfers; `audio_app_task()` services the FIFOs independently from the main loop. `tuh_audio_err_cb()` reports failures, and the example restarts the failed stream automatically 100 ms later.
+- While a stream is running, the driver keeps one isochronous transfer in flight and re-submits on completion, so transfers follow the endpoint's `bInterval`. `tuh_audio_capture_cb()` / `tuh_audio_playback_cb()` only count completed transfers; `audio_app_task()` services the FIFOs independently from the main loop. `tuh_audio_event_cb()` reports asynchronous start/stop results and unrecoverable transfer failures. The example restarts a failed stream automatically 100 ms later.
 - Capture and playback streams running concurrently in the same Audio Control instance must use the same sample rate.
 - `tuh_audio_read()` / `tuh_audio_write()` are non-blocking FIFO operations: they return the number of whole frames actually read/queued. `tuh_audio_read_available()` reports captured frames ready to read; `tuh_audio_write_available()` reports free playback capacity. `tuh_audio_write()` only queues data; the playback transfer-completion chain sends it, or sends silence when the FIFO does not contain a complete polling interval without consuming the partial data.
 - Isochronous transfers require the host to poll `tuh_task()` continuously; the capture FIFO absorbs short scheduling gaps and overwrites the oldest frames when full.

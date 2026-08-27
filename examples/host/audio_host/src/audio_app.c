@@ -41,7 +41,7 @@ static tuh_audio_stream_config_t mic_config;                               // se
 static tuh_audio_stream_config_t spk_config;                               // selected playback configuration
 static uint32_t                  spk_cb_count = 0;                         // playback callbacks (for debug)
 static uint32_t                  mic_cb_count = 0;                         // capture callbacks (for debug)
-static uint32_t                  err_cb_count = 0;                         // error callbacks (for debug)
+static uint32_t                  fail_event_count = 0;                    // transfer/start failures (for debug)
 
 
 //--------------------------------------------------------------------+
@@ -238,11 +238,11 @@ void led_blinking_task(void) {
   board_led_write(led_state);
   led_state = 1 - led_state; // toggle
 #if 1
-  printf(" MIC CB=%lu SPK CB=%lu ERR CB=%lu\r\n", (unsigned long)mic_cb_count, (unsigned long)spk_cb_count,
-         (unsigned long)err_cb_count);
+  printf(" MIC CB=%lu SPK CB=%lu FAIL EVENT=%lu\r\n", (unsigned long)mic_cb_count, (unsigned long)spk_cb_count,
+         (unsigned long)fail_event_count);
   mic_cb_count = 0;
   spk_cb_count = 0;
-  err_cb_count = 0;
+  fail_event_count = 0;
 
 #endif
 }
@@ -325,18 +325,29 @@ static void audio_app_restart_stream(uintptr_t param) {
   }
 }
 
-// Invoked when stream activation or an isochronous transfer fails: the stream
-// was stopped by the driver, re-open it after a short delay so the device can
-// recover.
-void tuh_audio_err_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_bytes) {
-  (void)xferred_bytes;
-  err_cb_count++;
+void tuh_audio_event_cb(uint8_t idx, uint8_t stream_idx, tuh_audio_event_t event, tusb_xfer_result_t result) {
+  const char *stream_name = (stream_idx == cap_stream_idx) ? "capture" : "playback";
+
+  if (event == TUH_AUDIO_EVENT_START_COMPLETE) {
+    printf("  %s start %s: result=%u\r\n", stream_name, result == XFER_RESULT_SUCCESS ? "complete" : "failed",
+           result);
+    if (result == XFER_RESULT_SUCCESS) {
+      return;
+    }
+  } else if (event == TUH_AUDIO_EVENT_STOP_COMPLETE) {
+    printf("  %s stop %s: result=%u\r\n", stream_name, result == XFER_RESULT_SUCCESS ? "complete" : "failed",
+           result);
+    return;
+  } else {
+    printf("  %s transfer failed: result=%u\r\n", stream_name, result);
+  }
+
+  fail_event_count++;
   if (stream_idx == cap_stream_idx) {
     mic_ready = false;
   } else if (stream_idx == spk_stream_idx) {
     spk_ready = false;
   }
-  printf("  AUDIO stream error: idx=%u stream=%u xferred_bytes=%u\r\n", idx, stream_idx, (unsigned)xferred_bytes);
   app_defer_ms_async(100, (app_defer_func_t)audio_app_restart_stream, ((uintptr_t)idx << 8) | stream_idx);
 }
 
