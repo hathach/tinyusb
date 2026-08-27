@@ -874,8 +874,6 @@ bool audioh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uin
 // Enumeration
 //--------------------------------------------------------------------+
 
-  #define AUDIOH_MAX_AC_ENTITIES TUH_AUDIO_STREAM_DIRECTION_COUNT
-
 typedef struct {
   uint8_t id;
   uint8_t source_id;
@@ -896,13 +894,9 @@ typedef struct {
 } audioh_clock_info_t;
 
 typedef struct {
-  audioh_terminal_info_t terminal[AUDIOH_MAX_AC_ENTITIES];
-  audioh_fu_info_t       feature_unit[AUDIOH_MAX_AC_ENTITIES];
-  audioh_clock_info_t    clock[AUDIOH_MAX_AC_ENTITIES];
-  uint8_t                terminal_count;
-  uint8_t                feature_unit_count;
-  uint8_t                clock_count;
-} audioh_ac_map_t;
+  const uint8_t *desc_start;
+  const uint8_t *desc_end;
+} audioh_ac_desc_range_t;
 
   #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC2
 static uint8_t audioh_uac2_control_access(uint32_t controls, uint8_t position) {
@@ -923,156 +917,173 @@ static bool audioh_as_rate_fits(const audioh_interface_t *p_audio, const tuh_aud
          (stream->dir != TUSB_DIR_OUT || (packet_bytes <= epbuf_size && packet_bytes <= CFG_TUH_AUDIO_STREAM_BUFSIZE));
 }
 
-static void audioh_ac_terminal_add(audioh_ac_map_t *map, uint8_t id, uint8_t source_id, uint8_t clock_id,
-                                   tusb_dir_t stream_dir) {
-  if (map->terminal_count < TU_ARRAY_SIZE(map->terminal)) {
-    map->terminal[map->terminal_count++] =
-      (audioh_terminal_info_t){.id = id, .source_id = source_id, .clock_id = clock_id, .stream_dir = stream_dir};
-  }
-}
-
-static void audioh_ac_feature_unit_add(audioh_ac_map_t *map, uint8_t id, uint8_t source_id, uint8_t mute_access,
-                                       uint8_t volume_access) {
-  if ((mute_access != AUDIOH_CTRL_NONE || volume_access != AUDIOH_CTRL_NONE) &&
-      map->feature_unit_count < TU_ARRAY_SIZE(map->feature_unit)) {
-    map->feature_unit[map->feature_unit_count++] =
-      (audioh_fu_info_t){.id = id, .source_id = source_id, .mute_access = mute_access, .volume_access = volume_access};
-  }
-}
-
-static const audioh_terminal_info_t *audioh_ac_terminal_find(const audioh_ac_map_t *map, uint8_t id) {
-  for (uint8_t i = 0; i < map->terminal_count; i++) {
-    if (map->terminal[i].id == id) {
-      return &map->terminal[i];
-    }
-  }
-  return NULL;
-}
-
-  #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC2
-static const audioh_clock_info_t *audioh_ac_clock_find(const audioh_ac_map_t *map, uint8_t id) {
-  for (uint8_t i = 0; i < map->clock_count; i++) {
-    if (map->clock[i].id == id) {
-      return &map->clock[i];
-    }
-  }
-  return NULL;
-}
-  #endif
-
-  #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC1
-static bool audioh_uac1_parse_ac_entity(audioh_ac_map_t *map, const uint8_t *p_desc) {
-  switch (tu_desc_subtype(p_desc)) {
-    case AUDIO10_CS_AC_INTERFACE_INPUT_TERMINAL: {
-      TU_VERIFY(TUH_VALIDATE_BASIC(tu_desc_len(p_desc) >= sizeof(audio10_desc_input_terminal_t)), false);
-      const audio10_desc_input_terminal_t *terminal = (const audio10_desc_input_terminal_t *)p_desc;
-      if (tu_le16toh(terminal->wTerminalType) == AUDIO_TERM_TYPE_USB_STREAMING) {
-        audioh_ac_terminal_add(map, terminal->bTerminalID, 0, 0, TUSB_DIR_OUT);
-      }
-      break;
-    }
-    case AUDIO10_CS_AC_INTERFACE_OUTPUT_TERMINAL: {
-      TU_VERIFY(TUH_VALIDATE_BASIC(tu_desc_len(p_desc) >= sizeof(audio10_desc_output_terminal_t)), false);
-      const audio10_desc_output_terminal_t *terminal = (const audio10_desc_output_terminal_t *)p_desc;
-      if (tu_le16toh(terminal->wTerminalType) == AUDIO_TERM_TYPE_USB_STREAMING) {
-        audioh_ac_terminal_add(map, terminal->bTerminalID, terminal->bSourceID, 0, TUSB_DIR_IN);
-      }
-      break;
-    }
-    case AUDIO10_CS_AC_INTERFACE_FEATURE_UNIT: {
-      TU_VERIFY(TUH_VALIDATE_BASIC(tu_desc_len(p_desc) >= 7), false);
-      const uint8_t control_size = p_desc[5];
-      TU_VERIFY(TUH_VALIDATE_BASIC(control_size > 0), false);
-      TU_VERIFY(TUH_VALIDATE_BASIC(control_size <= (uint8_t)(tu_desc_len(p_desc) - 7)), false);
-      const uint8_t controls = p_desc[6];
-      audioh_ac_feature_unit_add(map, p_desc[3], p_desc[4],
-                                 (controls & AUDIO10_FU_CONTROL_BM_MUTE) ? AUDIOH_CTRL_READ_WRITE : AUDIOH_CTRL_NONE,
-                                 (controls & AUDIO10_FU_CONTROL_BM_VOLUME) ? AUDIOH_CTRL_READ_WRITE : AUDIOH_CTRL_NONE);
-      break;
-    }
-    default:
-      break;
-  }
-  return true;
-}
-  #endif
-
-  #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC2
-static bool audioh_uac2_parse_ac_entity(audioh_ac_map_t *map, const uint8_t *p_desc) {
-  switch (tu_desc_subtype(p_desc)) {
-    case AUDIO20_CS_AC_INTERFACE_INPUT_TERMINAL: {
-      TU_VERIFY(TUH_VALIDATE_BASIC(tu_desc_len(p_desc) >= sizeof(audio20_desc_input_terminal_t)), false);
-      const audio20_desc_input_terminal_t *terminal = (const audio20_desc_input_terminal_t *)p_desc;
-      if (tu_le16toh(terminal->wTerminalType) == AUDIO_TERM_TYPE_USB_STREAMING) {
-        audioh_ac_terminal_add(map, terminal->bTerminalID, 0, terminal->bCSourceID, TUSB_DIR_OUT);
-      }
-      break;
-    }
-    case AUDIO20_CS_AC_INTERFACE_OUTPUT_TERMINAL: {
-      TU_VERIFY(TUH_VALIDATE_BASIC(tu_desc_len(p_desc) >= sizeof(audio20_desc_output_terminal_t)), false);
-      const audio20_desc_output_terminal_t *terminal = (const audio20_desc_output_terminal_t *)p_desc;
-      if (tu_le16toh(terminal->wTerminalType) == AUDIO_TERM_TYPE_USB_STREAMING) {
-        audioh_ac_terminal_add(map, terminal->bTerminalID, terminal->bSourceID, terminal->bCSourceID, TUSB_DIR_IN);
-      }
-      break;
-    }
-    case AUDIO20_CS_AC_INTERFACE_FEATURE_UNIT: {
-      TU_VERIFY(TUH_VALIDATE_BASIC(tu_desc_len(p_desc) >= 10), false);
-      const uint32_t controls = tu_le32toh(tu_unaligned_read32(&p_desc[5]));
-      audioh_ac_feature_unit_add(map, p_desc[3], p_desc[4],
-                                 audioh_uac2_control_access(controls, AUDIO20_FEATURE_UNIT_CTRL_MUTE_POS),
-                                 audioh_uac2_control_access(controls, AUDIO20_FEATURE_UNIT_CTRL_VOLUME_POS));
-      break;
-    }
-    case AUDIO20_CS_AC_INTERFACE_CLOCK_SOURCE: {
-      TU_VERIFY(TUH_VALIDATE_BASIC(tu_desc_len(p_desc) >= sizeof(audio20_desc_clock_source_t)), false);
-      const audio20_desc_clock_source_t *clock = (const audio20_desc_clock_source_t *)p_desc;
-      if (map->clock_count < TU_ARRAY_SIZE(map->clock)) {
-        map->clock[map->clock_count++] =
-          (audioh_clock_info_t){.id = clock->bClockID,
-                                .frequency_access =
-                                  audioh_uac2_control_access(clock->bmControls, AUDIO20_CLOCK_SOURCE_CTRL_CLK_FRQ_POS)};
-      }
-      break;
-    }
-    default:
-      break;
-  }
-  return true;
-}
-  #endif
-
-static bool audioh_parse_ac_entity(audioh_interface_t *p_audio, audioh_ac_map_t *map, const uint8_t *p_desc) {
+static bool audioh_ac_entity_valid(const audioh_interface_t *p_audio, const uint8_t *p_desc) {
   switch (p_audio->protocol) {
   #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC1
-    case AUDIO_INT_PROTOCOL_CODE_V1:
-      return audioh_uac1_parse_ac_entity(map, p_desc);
+    case AUDIO_INT_PROTOCOL_CODE_V1: {
+      switch (tu_desc_subtype(p_desc)) {
+        case AUDIO10_CS_AC_INTERFACE_INPUT_TERMINAL:
+          return TUH_VALIDATE_BASIC(tu_desc_len(p_desc) >= sizeof(audio10_desc_input_terminal_t));
+        case AUDIO10_CS_AC_INTERFACE_OUTPUT_TERMINAL:
+          return TUH_VALIDATE_BASIC(tu_desc_len(p_desc) >= sizeof(audio10_desc_output_terminal_t));
+        case AUDIO10_CS_AC_INTERFACE_FEATURE_UNIT: {
+          TU_VERIFY(TUH_VALIDATE_BASIC(tu_desc_len(p_desc) >= 7), false);
+          const uint8_t control_size = p_desc[5];
+          return TUH_VALIDATE_BASIC(control_size > 0) &&
+                 TUH_VALIDATE_BASIC(control_size <= (uint8_t)(tu_desc_len(p_desc) - 7));
+        }
+        default:
+          return true;
+      }
+    }
   #endif
   #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC2
     case AUDIO_INT_PROTOCOL_CODE_V2:
-      return audioh_uac2_parse_ac_entity(map, p_desc);
+      switch (tu_desc_subtype(p_desc)) {
+        case AUDIO20_CS_AC_INTERFACE_INPUT_TERMINAL:
+          return TUH_VALIDATE_BASIC(tu_desc_len(p_desc) >= sizeof(audio20_desc_input_terminal_t));
+        case AUDIO20_CS_AC_INTERFACE_OUTPUT_TERMINAL:
+          return TUH_VALIDATE_BASIC(tu_desc_len(p_desc) >= sizeof(audio20_desc_output_terminal_t));
+        case AUDIO20_CS_AC_INTERFACE_FEATURE_UNIT:
+          return TUH_VALIDATE_BASIC(tu_desc_len(p_desc) >= 10);
+        case AUDIO20_CS_AC_INTERFACE_CLOCK_SOURCE:
+          return TUH_VALIDATE_BASIC(tu_desc_len(p_desc) >= sizeof(audio20_desc_clock_source_t));
+        default:
+          return true;
+      }
   #endif
     default:
       return false;
   }
 }
 
-static void audioh_link_feature_units(audioh_interface_t *p_audio, const audioh_ac_map_t *map) {
+static bool audioh_ac_terminal_find(const audioh_interface_t *p_audio, const audioh_ac_desc_range_t *range, uint8_t id,
+                                    audioh_terminal_info_t *info) {
+  for (const uint8_t *p_desc = range->desc_start; p_desc < range->desc_end; p_desc = tu_desc_next(p_desc)) {
+    if (tu_desc_type(p_desc) != TUSB_DESC_CS_INTERFACE || tu_desc_len(p_desc) < 4 || p_desc[3] != id) {
+      continue;
+    }
+    switch (p_audio->protocol) {
+  #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC1
+      case AUDIO_INT_PROTOCOL_CODE_V1:
+        if (tu_desc_subtype(p_desc) == AUDIO10_CS_AC_INTERFACE_INPUT_TERMINAL) {
+          const audio10_desc_input_terminal_t *terminal = (const audio10_desc_input_terminal_t *)p_desc;
+          if (tu_le16toh(terminal->wTerminalType) == AUDIO_TERM_TYPE_USB_STREAMING) {
+            *info = (audioh_terminal_info_t){.id = id, .stream_dir = TUSB_DIR_OUT};
+            return true;
+          }
+        } else if (tu_desc_subtype(p_desc) == AUDIO10_CS_AC_INTERFACE_OUTPUT_TERMINAL) {
+          const audio10_desc_output_terminal_t *terminal = (const audio10_desc_output_terminal_t *)p_desc;
+          if (tu_le16toh(terminal->wTerminalType) == AUDIO_TERM_TYPE_USB_STREAMING) {
+            *info = (audioh_terminal_info_t){.id = id, .source_id = terminal->bSourceID, .stream_dir = TUSB_DIR_IN};
+            return true;
+          }
+        }
+        break;
+  #endif
+  #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC2
+      case AUDIO_INT_PROTOCOL_CODE_V2:
+        if (tu_desc_subtype(p_desc) == AUDIO20_CS_AC_INTERFACE_INPUT_TERMINAL) {
+          const audio20_desc_input_terminal_t *terminal = (const audio20_desc_input_terminal_t *)p_desc;
+          if (tu_le16toh(terminal->wTerminalType) == AUDIO_TERM_TYPE_USB_STREAMING) {
+            *info = (audioh_terminal_info_t){.id = id, .clock_id = terminal->bCSourceID, .stream_dir = TUSB_DIR_OUT};
+            return true;
+          }
+        } else if (tu_desc_subtype(p_desc) == AUDIO20_CS_AC_INTERFACE_OUTPUT_TERMINAL) {
+          const audio20_desc_output_terminal_t *terminal = (const audio20_desc_output_terminal_t *)p_desc;
+          if (tu_le16toh(terminal->wTerminalType) == AUDIO_TERM_TYPE_USB_STREAMING) {
+            *info = (audioh_terminal_info_t){.id         = id,
+                                             .source_id  = terminal->bSourceID,
+                                             .clock_id   = terminal->bCSourceID,
+                                             .stream_dir = TUSB_DIR_IN};
+            return true;
+          }
+        }
+        break;
+  #endif
+      default:
+        return false;
+    }
+  }
+  return false;
+}
+
+static bool audioh_ac_feature_unit_parse(const audioh_interface_t *p_audio, const uint8_t *p_desc,
+                                         audioh_fu_info_t *info) {
+  if (tu_desc_type(p_desc) != TUSB_DESC_CS_INTERFACE) {
+    return false;
+  }
+  switch (p_audio->protocol) {
+  #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC1
+    case AUDIO_INT_PROTOCOL_CODE_V1:
+      if (tu_desc_subtype(p_desc) == AUDIO10_CS_AC_INTERFACE_FEATURE_UNIT) {
+        const uint8_t controls = p_desc[6];
+        *info = (audioh_fu_info_t){.id            = p_desc[3],
+                                   .source_id     = p_desc[4],
+                                   .mute_access   = (controls & AUDIO10_FU_CONTROL_BM_MUTE) ? AUDIOH_CTRL_READ_WRITE
+                                                                                            : AUDIOH_CTRL_NONE,
+                                   .volume_access = (controls & AUDIO10_FU_CONTROL_BM_VOLUME) ? AUDIOH_CTRL_READ_WRITE
+                                                                                              : AUDIOH_CTRL_NONE};
+        return info->mute_access != AUDIOH_CTRL_NONE || info->volume_access != AUDIOH_CTRL_NONE;
+      }
+      break;
+  #endif
+  #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC2
+    case AUDIO_INT_PROTOCOL_CODE_V2:
+      if (tu_desc_subtype(p_desc) == AUDIO20_CS_AC_INTERFACE_FEATURE_UNIT) {
+        const uint32_t controls = tu_le32toh(tu_unaligned_read32(&p_desc[5]));
+        *info =
+          (audioh_fu_info_t){.id          = p_desc[3],
+                             .source_id   = p_desc[4],
+                             .mute_access = audioh_uac2_control_access(controls, AUDIO20_FEATURE_UNIT_CTRL_MUTE_POS),
+                             .volume_access =
+                               audioh_uac2_control_access(controls, AUDIO20_FEATURE_UNIT_CTRL_VOLUME_POS)};
+        return info->mute_access != AUDIOH_CTRL_NONE || info->volume_access != AUDIOH_CTRL_NONE;
+      }
+      break;
+  #endif
+    default:
+      break;
+  }
+  return false;
+}
+
+  #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC2
+static bool audioh_ac_clock_find(const audioh_ac_desc_range_t *range, uint8_t id, audioh_clock_info_t *info) {
+  for (const uint8_t *p_desc = range->desc_start; p_desc < range->desc_end; p_desc = tu_desc_next(p_desc)) {
+    if (tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE &&
+        tu_desc_subtype(p_desc) == AUDIO20_CS_AC_INTERFACE_CLOCK_SOURCE && p_desc[3] == id) {
+      const audio20_desc_clock_source_t *clock = (const audio20_desc_clock_source_t *)p_desc;
+      *info =
+        (audioh_clock_info_t){.id = id,
+                              .frequency_access =
+                                audioh_uac2_control_access(clock->bmControls, AUDIO20_CLOCK_SOURCE_CTRL_CLK_FRQ_POS)};
+      return true;
+    }
+  }
+  return false;
+}
+  #endif
+
+static void audioh_link_feature_units(audioh_interface_t *p_audio, const audioh_ac_desc_range_t *range) {
   for (uint8_t direction = TUSB_DIR_OUT; direction <= TUSB_DIR_IN; direction++) {
     tuh_audio_stream_t *stream = audioh_get_stream(p_audio, (tusb_dir_t)direction);
     if (stream == NULL || stream->as_count == 0) {
       continue;
     }
-    const audioh_terminal_info_t *terminal = audioh_ac_terminal_find(map, stream->as[0].terminal_id);
-    if (terminal == NULL || terminal->stream_dir != direction) {
+    audioh_terminal_info_t terminal;
+    if (!audioh_ac_terminal_find(p_audio, range, stream->as[0].terminal_id, &terminal) ||
+        terminal.stream_dir != direction) {
       continue;
     }
-    for (uint8_t i = 0; i < map->feature_unit_count; i++) {
-      const audioh_fu_info_t *fu = &map->feature_unit[i];
-      const bool              linked =
-        (direction == TUSB_DIR_OUT) ? (fu->source_id == terminal->id) : (fu->id == terminal->source_id);
+    for (const uint8_t *p_desc = range->desc_start; p_desc < range->desc_end; p_desc = tu_desc_next(p_desc)) {
+      audioh_fu_info_t fu;
+      if (!audioh_ac_feature_unit_parse(p_audio, p_desc, &fu)) {
+        continue;
+      }
+      const bool linked = (direction == TUSB_DIR_OUT) ? (fu.source_id == terminal.id) : (fu.id == terminal.source_id);
       if (linked) {
-        audioh_stream_set_feature_unit(stream, fu->id, fu->mute_access, fu->volume_access);
+        audioh_stream_set_feature_unit(stream, fu.id, fu.mute_access, fu.volume_access);
         break;
       }
     }
@@ -1170,17 +1181,17 @@ static bool audioh_parse_as_interface(audioh_interface_t *p_audio, const uint8_t
 }
 
   #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC2
-static int8_t audioh_uac2_rate_source_get(audioh_interface_t *p_audio, const audioh_ac_map_t *map,
+static int8_t audioh_uac2_rate_source_get(audioh_interface_t *p_audio, const audioh_ac_desc_range_t *range,
                                           const audioh_terminal_info_t *terminal) {
   if (terminal->clock_id == 0) {
     return -1;
   }
-  const audioh_clock_info_t *clock = audioh_ac_clock_find(map, terminal->clock_id);
-  if (clock == NULL || clock->frequency_access == AUDIOH_CTRL_NONE) {
+  audioh_clock_info_t clock;
+  if (!audioh_ac_clock_find(range, terminal->clock_id, &clock) || clock.frequency_access == AUDIOH_CTRL_NONE) {
     return -1;
   }
   for (uint8_t i = 0; i < p_audio->rate_source_count; i++) {
-    if (p_audio->rate_source[i].control_id == clock->id) {
+    if (p_audio->rate_source[i].control_id == clock.id) {
       return (int8_t)i;
     }
   }
@@ -1189,7 +1200,7 @@ static int8_t audioh_uac2_rate_source_get(audioh_interface_t *p_audio, const aud
   }
   const uint8_t idx = p_audio->rate_source_count++;
   p_audio->rate_source[idx] =
-    (audioh_rate_source_t){.control_id = clock->id, .frequency_access = clock->frequency_access};
+    (audioh_rate_source_t){.control_id = clock.id, .frequency_access = clock.frequency_access};
   return (int8_t)idx;
 }
   #endif
@@ -1217,12 +1228,9 @@ static bool audioh_uac1_rates_store(const audioh_interface_t *p_audio, const tuh
 // Parse one Audio Streaming interface alternate setting and register its
 // supported configurations into the matching stream. Returns the descriptor
 // pointer of the next interface.
-static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const audioh_ac_map_t *ac_map,
+static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const audioh_ac_desc_range_t *ac_desc,
                                       const tusb_desc_interface_t *desc_itf, const uint8_t *p_desc,
                                       const uint8_t *desc_end) {
-  #if !(CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC2)
-  (void)ac_map;
-  #endif
   TU_VERIFY(audioh_desc_valid(p_desc, desc_end, sizeof(tusb_desc_interface_t)), NULL);
 
   const uint8_t itf_num = desc_itf->bInterfaceNumber;
@@ -1392,8 +1400,9 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const audioh_
   const audioh_ep_info_t *ep     = &ep_info;
   tuh_audio_stream_t     *stream = audioh_get_stream(p_audio, tu_edpt_dir(ep->ep_addr));
   TU_ASSERT(stream != NULL, p_desc);
-  const audioh_terminal_info_t *terminal = audioh_ac_terminal_find(ac_map, class_info.terminal_id);
-  if (terminal == NULL || terminal->stream_dir != stream->dir) {
+  audioh_terminal_info_t terminal;
+  if (!audioh_ac_terminal_find(p_audio, ac_desc, class_info.terminal_id, &terminal) ||
+      terminal.stream_dir != stream->dir) {
     TU_LOG_DRV("  AUDIO AS itf %u alt %u: terminal %u does not match endpoint direction\r\n", itf_num, alt,
                class_info.terminal_id);
     return p_desc;
@@ -1439,7 +1448,7 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const audioh_
   #endif
   #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC2
     case AUDIO_INT_PROTOCOL_CODE_V2: {
-      const int8_t rate_source_idx = audioh_uac2_rate_source_get(p_audio, ac_map, terminal);
+      const int8_t rate_source_idx = audioh_uac2_rate_source_get(p_audio, ac_desc, &terminal);
       if (rate_source_idx < 0) {
         TU_LOG_DRV("  AUDIO AS itf %u alt %u: direct Clock Source not found\r\n", itf_num, alt);
         return p_desc;
@@ -1514,9 +1523,8 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
 
   TU_LOG_DRV("AUDIO opening AC Interface %u (addr = %u)\r\n", desc_itf->bInterfaceNumber, dev_addr);
 
-  audioh_ac_map_t ac_map = {0};
-
-  p_desc = tu_desc_next(p_desc);
+  p_desc                         = tu_desc_next(p_desc);
+  audioh_ac_desc_range_t ac_desc = {.desc_start = p_desc};
   while (p_desc < desc_end) {
     if (!audioh_desc_valid(p_desc, desc_end, 2)) {
       goto open_failed;
@@ -1529,12 +1537,13 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
       if (!audioh_desc_valid(p_desc, desc_end, 3)) {
         goto open_failed;
       }
-      if (!audioh_parse_ac_entity(p_audio, &ac_map, p_desc)) {
+      if (!audioh_ac_entity_valid(p_audio, p_desc)) {
         goto open_failed;
       }
     }
     p_desc = tu_desc_next(p_desc);
   }
+  ac_desc.desc_end = p_desc;
 
   // Parse the contiguous Audio Streaming interfaces of this audio function.
   while (p_desc < desc_end) {
@@ -1558,13 +1567,13 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
 
     TU_LOG_DRV("  Found AS Interface %u (alt = %u)\r\n", desc_interface->bInterfaceNumber,
                desc_interface->bAlternateSetting);
-    p_desc = audioh_parse_as(p_audio, &ac_map, desc_interface, p_desc, desc_end);
+    p_desc = audioh_parse_as(p_audio, &ac_desc, desc_interface, p_desc, desc_end);
     if (p_desc == NULL) {
       goto open_failed;
     }
   }
 
-  audioh_link_feature_units(p_audio, &ac_map);
+  audioh_link_feature_units(p_audio, &ac_desc);
 
   // UAC2 configurations receive their rates asynchronously during mount.
   // Release the tentative instance when no supported AS alternate was found.
