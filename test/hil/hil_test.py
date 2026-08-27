@@ -320,6 +320,63 @@ LP_READER = (
     '    buf += chunk\n'
     'sys.stdout.buffer.write(buf)\n'
 )
+# Runs under hil_util.run_cmd as `python3 -c`, argv so the body needs no shell quoting.
+# A PROCESS, not a thread, and not optional: cython-hidapi wraps hid_enumerate in
+# `with nogil` but calls hid_open and hid_close BARE (hidapi 0.15.0 hid.pyx), so those hold
+# the GIL for their whole blocking call. A daemon thread cannot bound that -- the waiter
+# parks off-GIL but must reacquire the GIL to return, which the stuck thread never yields
+# -- so an in-process bound is inert exactly where it is needed, and the whole worker
+# freezes rather than just the call. killpg reaches a child regardless.
+#
+# What blocks: hidapi's hidraw backend reads `manufacturer` and `product` via udev for each
+# device that reaches create_device_info_for_device, via copy_udev_string(usb_dev,
+# "manufacturer"/"product") -- both usb_string_attr, served under the device lock a wedged
+# usbfs ioctl holds (v6.12.96 sysfs.c:141-143).
+#
+# Passing BOTH ids is what keeps a wedged peer out of that path, and it does more than skip
+# non-matches: hidapi only runs the cheap pre-check `if (vendor_id != 0 || product_id != 0)`
+# (0.15.0 linux/hid.c:962), so an unfiltered walk sends EVERY device straight to the locked
+# reads. The pre-check itself is free -- parse_hid_vid_pid_from_sysfs parses
+# <sysfs_path>/device/uevent (:532) -- and both `continue`s precede
+# create_device_info_for_device (:966-970 before :976). Six examples in this tree expose a
+# HID interface under VID cafe, so a VID-only walk would stall on any of them wedged on a
+# peer. hid_open passes the same ids through to hid_enumerate internally (:1030), so the
+# filter narrows that walk too -- but a peer running THIS example still matches both ids,
+# which is why the child process, not the filter, is what bounds this.
+HID_ECHO = r"""
+import hid, random, sys, time
+
+uid, budget, want_pid = sys.argv[1], float(sys.argv[2]), int(sys.argv[3], 16)
+deadline = time.monotonic() + budget
+
+dev = None
+while dev is None:
+    for d in hid.enumerate(0xCafe, want_pid):
+        if d["serial_number"] == uid:
+            dev = d
+            break
+    if dev is not None or time.monotonic() >= deadline:
+        break
+    time.sleep(1)
+if dev is None:
+    sys.exit(f"HID device not found for {uid}")
+
+h = hid.device()
+h.open(dev["vendor_id"], dev["product_id"], uid)
+try:
+    for size in (8, 32, 63):
+        # Report ID (0) + payload, padded to 64 bytes
+        payload = bytes(random.randint(1, 255) for _ in range(size))
+        h.write(bytes([0]) + payload + bytes(64 - size))
+        echo = h.read(64, 2000)
+        if not echo or len(echo) < size:
+            sys.exit(f"HID echo timeout or short read ({size} bytes)")
+        if bytes(echo[:size]) != payload:
+            sys.exit(f"HID echo wrong data ({size} bytes): "
+                     f"sent {payload.hex()} received {bytes(echo[:size]).hex()}")
+finally:
+    h.close()
+"""
 MTYPE_TIMEOUT = 30  # a README-sized read is <1 s; bounds a D-state hang on a wedged device
 
 
@@ -358,6 +415,13 @@ def read_disk_file(uid: str, lun: int, fname: str) -> bytes:
 # ~5 KB of transfers plus libmtp setup takes seconds, not minutes; a larger value makes a
 # wedged MTP board cost that much on every retry, all charged to the pool guard.
 MTP_SESSION_MARGIN = 30  # transfer budget after enumeration; past it the session is killed
+# room past the child's OWN enumeration budget for the echo exchange (3 x write + a 2000ms
+# hidapi read) and interpreter start-up, so the outer kill only fires on a real stall
+HID_ECHO_MARGIN = 30
+# hid_generic_inout's own idProduct. Pinned against the example's descriptor by
+# HidEchoRunsInAChild.test_the_pid_matches_the_example, because a silent drift here would
+# widen the walk back to every cafe: HID device without failing anything.
+HID_INOUT_PID = 0x4012
 
 
 def get_printer_dev(id: str, vendor_str, product_str, ifnum: int):
@@ -1304,38 +1368,19 @@ def test_device_audio_test_freertos(board):
 
 
 def test_device_hid_generic_inout(board):
+    # The whole exchange runs in a child (see HID_ECHO): hidapi's blocking calls hold the
+    # GIL, so nothing in-process can bound them. run_cmd's killpg can.
     uid = board['uid']
-    import hid  # cython-hidapi (pip: hidapi, apt: python3-hid)
-
-    timeout = enum_timeout()
-    dev = None
-    while timeout > 0:
-        for d in hid.enumerate(0xCafe):
-            if d['serial_number'] == uid:
-                dev = d
-                break
-        if dev:
-            break
-        time.sleep(1)
-        timeout -= 1
-    assert dev is not None, f'HID device not found for {uid}'
-
-    h = hid.device()
-    h.open(dev['vendor_id'], dev['product_id'], uid)
-    try:
-        for size in [8, 32, 63]:
-            # Report ID (0) + payload, padded to 64 bytes
-            payload = bytes([random.randint(1, 255) for _ in range(size)])
-            report = bytes([0]) + payload + bytes(64 - size)
-            h.write(report)
-            echo = h.read(64, 2000)
-            assert echo and len(echo) >= size, (
-                f'HID echo timeout or short read ({size} bytes)')
-            assert bytes(echo[:size]) == payload, (
-                f'HID echo wrong data ({size} bytes):\n'
-                f'  expected: {payload.hex()}\n  received: {bytes(echo[:size]).hex()}')
-    finally:
-        h.close()
+    r = hil_util.run_cmd(
+        [sys.executable, '-c', HID_ECHO, uid, str(enum_timeout()), f'{HID_INOUT_PID:#06x}'],
+        timeout=enum_timeout() + HID_ECHO_MARGIN, split_stderr=True)
+    # rc 124 is run_cmd's kill: the child was still inside a hidapi call, which is the
+    # wedge this runs in a child FOR -- and stderr is empty there, so say so rather than
+    # render a bare trailing colon
+    detail = hil_util.cmd_stdout_text(r.stderr).strip()[:300]
+    assert r.returncode == 0, (f'hid_generic_inout: {detail}' if detail else
+                               f'hid_generic_inout: the child was killed on its bound '
+                               f'(rc {r.returncode}) -- a hidapi call did not return')
 
 
 def test_device_usbtest(board):

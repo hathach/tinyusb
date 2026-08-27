@@ -499,9 +499,26 @@ def run_alongside(argv: list, work, timeout: int) -> subprocess.CompletedProcess
     return _reap()
 
 
-def run_cmd(cmd: str, cwd: str | None = None, timeout: int | None = None,
+def _cmd_label(cmd) -> str:
+    """A one-line name for a banner. An argv whose payload is a `python3 -c` program would
+    otherwise dump the whole body into the CI log, where run_cmd's banners are already the
+    noisiest thing in a failing row."""
+    if isinstance(cmd, str):
+        return cmd
+    parts = [a if len(a) <= 60 else f'<{len(a)}-char program>' for a in cmd]
+    return ' '.join(parts)
+
+
+def run_cmd(cmd: str | list, cwd: str | None = None, timeout: int | None = None,
             binary: bool = False, split_stderr: bool = False,
             quiet: bool = False) -> subprocess.CompletedProcess:
+    """Bounded subprocess: own session, killpg on expiry, rc 124 when it had to be killed.
+
+    `cmd` is a shell STRING or an argv LIST. argv exists for a program that cannot survive
+    a trip through the shell -- a multi-line `python3 -c` body -- which is how the harness
+    runs a library call that no in-process bound can contain. A daemon thread cannot bound
+    a C call that holds the GIL, so for those the child process IS the bound.
+    """
     if timeout is None:
         timeout = CMD_TIMEOUT
     # binary: raw bytes (text mode's errors='replace' mangles non-UTF-8 file content).
@@ -510,7 +527,8 @@ def run_cmd(cmd: str, cwd: str | None = None, timeout: int | None = None,
     # still print: a killed child is always noteworthy).
     popen_kwargs = {
         'cwd': cwd,
-        'shell': True,
+        # a list goes straight to execve; only a string needs a shell to parse it
+        'shell': isinstance(cmd, str),
         'stdout': subprocess.PIPE,
         'stderr': subprocess.PIPE if split_stderr else subprocess.STDOUT,
     }
@@ -563,7 +581,7 @@ def run_cmd(cmd: str, cwd: str | None = None, timeout: int | None = None,
         timeout_err = _typed(err if err is not None else ex.stderr)
         if split_stderr and timeout_err is None:
             timeout_err = b'' if binary else ''
-        _print_banner(f'COMMAND TIMEOUT ({timeout}s): {cmd}', timeout_out, timeout_err)
+        _print_banner(f'COMMAND TIMEOUT ({timeout}s): {_cmd_label(cmd)}', timeout_out, timeout_err)
         return subprocess.CompletedProcess(args=cmd, returncode=124, stdout=timeout_out, stderr=timeout_err)
     except BaseException:
         # BaseException, not Exception (as in CPython's own subprocess.run):
@@ -582,7 +600,7 @@ def run_cmd(cmd: str, cwd: str | None = None, timeout: int | None = None,
         raise
 
     if r.returncode != 0 and not quiet:
-        _print_banner(f'COMMAND FAILED: {cmd}', r.stdout, r.stderr)
+        _print_banner(f'COMMAND FAILED: {_cmd_label(cmd)}', r.stdout, r.stderr)
     elif verbose:
         print(cmd)
         print(cmd_stdout_text(r.stdout))
