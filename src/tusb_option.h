@@ -765,6 +765,14 @@
     #define CFG_TUH_ENUMERATION_BUFSIZE 256
   #endif
 
+  // Timeout in ms for each control transfer, 0 to wait forever.
+  // A broken device that ACKs SETUP but never completes a later stage (e.g NAK forever) would
+  // otherwise stall the control pipe - and during enumeration also hub polling - forever.
+  // 5s matches Linux's USB_CTRL_GET/SET_TIMEOUT.
+  #ifndef CFG_TUH_CONTROL_TIMEOUT_MS
+    #define CFG_TUH_CONTROL_TIMEOUT_MS 5000
+  #endif
+
 #endif // CFG_TUH_ENABLED
 
 // Attribute to place data in accessible RAM for host controller (default: CFG_TUSB_MEM_SECTION)
