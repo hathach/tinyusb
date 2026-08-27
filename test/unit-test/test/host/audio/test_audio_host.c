@@ -1536,6 +1536,22 @@ void test_audio_host_typed_mute_and_volume_controls(void) {
   TEST_ASSERT_EQUAL_HEX32(0x4567, fu_cb_user_data);
 }
 
+void test_audio_host_volume_set_accepts_silence_and_rounds_unaligned_values(void) {
+  tuh_audio_volume_range_t range;
+  mount_descriptors(playback_fu_before_terminal, sizeof(playback_fu_before_terminal));
+  TEST_ASSERT_TRUE(tuh_audio_volume_range_get(0, 0, &range));
+
+  TEST_ASSERT_TRUE(tuh_audio_volume_set(0, 0, (int16_t)(-6 * 256 + 100), feature_unit_complete, 0));
+  TEST_ASSERT_EQUAL_UINT8(1, control_xfer_count);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(((uint8_t[]){0x00, 0xFA}), control_buffer, 2);
+  complete_control_xfer(XFER_RESULT_SUCCESS);
+
+  TEST_ASSERT_TRUE(tuh_audio_volume_set(0, 0, TUH_AUDIO_VOLUME_SILENCE, feature_unit_complete, 0));
+  TEST_ASSERT_EQUAL_UINT8(2, control_xfer_count);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(((uint8_t[]){0x00, 0x80}), control_buffer, 2);
+  complete_control_xfer(XFER_RESULT_SUCCESS);
+}
+
 void test_audio_host_schedules_44100_hz_fractional_packets_with_max_packets_only(void) {
   uint8_t samples[441 * 4] = {0};
   mount_descriptors(playback_44100_max_packets_only, sizeof(playback_44100_max_packets_only));

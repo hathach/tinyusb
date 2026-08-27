@@ -2592,7 +2592,16 @@ bool tuh_audio_volume_set(uint8_t idx, uint8_t stream_idx, int16_t volume, tuh_x
                           uintptr_t user_data) {
   tuh_audio_volume_range_t range;
   TU_VERIFY(tuh_audio_volume_range_get(idx, stream_idx, &range), false);
-  TU_VERIFY(volume >= range.min && volume <= range.max, false);
+  if (volume != TUH_AUDIO_VOLUME_SILENCE) {
+    TU_VERIFY(volume >= range.min && volume <= range.max && range.res != 0, false);
+    const uint32_t offset  = (uint32_t)((int32_t)volume - range.min);
+    const uint32_t steps   = (offset + range.res / 2u) / range.res;
+    int32_t        rounded = (int32_t)range.min + (int32_t)(steps * range.res);
+    if (rounded > range.max) {
+      rounded -= range.res;
+    }
+    volume = (int16_t)rounded;
+  }
   return tuh_audio_feature_unit_set(idx, stream_idx, AUDIO10_FU_CTRL_VOLUME, 0, (uint16_t)volume, complete_cb,
                                     user_data);
 }

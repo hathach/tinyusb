@@ -241,7 +241,9 @@ bool tuh_audio_feature_unit_get(uint8_t idx, uint8_t stream_idx, uint8_t control
                                 uint16_t *value, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
 // Master mute and volume controls. Capability and range information is cached
-// before tuh_audio_mount_cb() is invoked.
+// before tuh_audio_mount_cb() is invoked. Volume SET accepts
+// TUH_AUDIO_VOLUME_SILENCE or a value within the cached range; finite values
+// are rounded to the nearest resolution step measured from the range minimum.
 bool tuh_audio_mute_set(uint8_t idx, uint8_t stream_idx, bool mute, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 bool tuh_audio_mute_get(uint8_t idx, uint8_t stream_idx, bool *mute, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 bool tuh_audio_volume_set(uint8_t idx, uint8_t stream_idx, int16_t volume, tuh_xfer_cb_t complete_cb,
