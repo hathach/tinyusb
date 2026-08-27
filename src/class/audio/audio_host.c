@@ -7,13 +7,11 @@
  */
 
 /*
- * This driver implements a USB Audio Host (UAC1/UAC2) class driver with a
- * WASAPI/ALSA-like high-level streaming API.
- * The USB Audio topology (Audio Control interface, Audio Streaming interfaces, alternate settings, and endpoints) is
- * kept private to the driver.
+ * USB Audio Host driver for UAC1 and UAC2 devices. The public API exposes
+ * logical capture and playback streams while keeping the USB Audio topology
+ * private.
  *
- * Each instance (Audio Control interface) provides at most one logical stream
- * per direction:
+ * Each Audio Control interface provides at most one stream per direction:
  * - capture stream (TUSB_DIR_IN): device -> host, filled by isochronous IN
  *   transfers scheduled by the driver into a FIFO, drained by the application
  *   with tuh_audio_read()
@@ -21,51 +19,214 @@
  *   OUT transfers from a FIFO filled by the application with tuh_audio_write()
  *
  * While a stream is running, the driver keeps one isochronous transfer in
- * flight at the endpoint's polling cadence and re-submits on completion. The
- * FIFO + endpoint-claim pattern is modeled after the tu_edpt_stream helper
- * used by the MIDI host driver: the application's frame-based read/write is
- * decoupled from the USB transfer cadence, and only whole frames are ever
- * queued or transferred. Completion of each transfer is reported through
- * tuh_audio_capture_cb()/tuh_audio_playback_cb(), failures through
+ * flight and submits the next transfer from its completion callback. A FIFO
+ * decouples application I/O from the endpoint's polling cadence; only whole
+ * audio frames are queued or transferred. Completion is reported through
+ * tuh_audio_capture_cb()/tuh_audio_playback_cb(); failures are reported through
  * tuh_audio_err_cb().
  *
- * The supported configurations of all Audio Streaming interfaces and alternate
- * settings in one direction are presented as a flat list of discrete
- * {format, sample_rate, channels} tuples. Internally, configurations are
- * grouped by alternate setting so their format and endpoint properties are
- * stored only once. The selected mapping is applied by tuh_audio_configure().
+ * Configurations are exposed as a flat list of discrete format, sample-rate,
+ * and channel-count tuples. Internally, configurations are grouped by
+ * alternate setting so shared endpoint properties are stored only once.
  *
- * Non-PCM formats are not registered as supported configurations during
- * enumeration. UAC1 continuous
- * sampling-frequency ranges are unsupported.
- * The driver owns:
- * 1. Endpoint selection and opening; only the alternate setting selected by
- *    tuh_audio_configure() is activated by tuh_audio_start().
- * 2. Protocol-specific sampling-frequency control.
+ * Only Type-I PCM formats and discrete UAC1 sampling frequencies are
+ * registered. tuh_audio_configure() selects and opens endpoints;
+ * tuh_audio_start() activates the alternate setting and performs the
+ * protocol-specific sampling-frequency control.
  */
 
 #include "tusb_option.h"
 
 #if (CFG_TUH_ENABLED && CFG_TUH_AUDIO)
 
-#include "host/usbh.h"
-#include "host/usbh_pvt.h"
-#include "audio_host.h"
+  #include "host/usbh.h"
+  #include "host/usbh_pvt.h"
+  #include "audio_host.h"
 
-// Level where CFG_TUSB_DEBUG must be at least for this driver is logged
-#ifndef CFG_TUH_AUDIO_LOG_LEVEL
-  #define CFG_TUH_AUDIO_LOG_LEVEL CFG_TUH_LOG_LEVEL
-#endif
+  // Driver-specific log level; defaults to the host-stack log level.
+  #ifndef CFG_TUH_AUDIO_LOG_LEVEL
+    #define CFG_TUH_AUDIO_LOG_LEVEL CFG_TUH_LOG_LEVEL
+  #endif
 
-#define TU_LOG_DRV(...) TU_LOG(CFG_TUH_AUDIO_LOG_LEVEL, __VA_ARGS__)
+  #define TU_LOG_DRV(...) TU_LOG(CFG_TUH_AUDIO_LOG_LEVEL, __VA_ARGS__)
 
-
-//--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF
-//--------------------------------------------------------------------+
 
 //--------------------------------------------------------------------+
-// Weak stubs: invoked if no strong implementation is available
+// MACROS, CONSTANTS, AND TYPES
+//--------------------------------------------------------------------+
+
+enum {
+  STREAM_STATE_IDLE = 0, // No active configuration.
+  STREAM_STATE_READY     // Configured and ready to start.
+};
+
+enum {
+  AUDIOH_CTRL_NONE       = 0,
+  AUDIOH_CTRL_READ       = 1,
+  AUDIOH_CTRL_READ_WRITE = 3
+};
+
+  #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC1
+    #define AUDIOH_MAX_RATE_SOURCES (2 * CFG_TUH_AUDIO_MAX_AS)
+  #else
+    #define AUDIOH_MAX_RATE_SOURCES TUH_AUDIO_STREAM_DIRECTION_COUNT
+  #endif
+
+// UAC1 stores one rate source per alternate setting. UAC2 alternate settings
+// that reference the same Clock Source share one rate source.
+typedef struct {
+  uint32_t sample_rate[CFG_TUH_AUDIO_MAX_SAM_FREQ];
+  uint8_t  control_id; // UAC1 endpoint address or UAC2 Clock Source ID.
+  uint8_t  sample_rate_count;
+  uint8_t  frequency_access;
+} audioh_rate_source_t;
+
+// Properties shared by every sampling frequency of one AS alternate setting.
+typedef struct {
+  uint16_t ep_size;
+  uint8_t  itf_num;
+  uint8_t  alt_setting;
+  uint8_t  ep_addr;
+  uint8_t  ep_interval;
+  uint8_t  ep_attr; // Synchronization and usage fields from bmAttributes.
+  uint8_t  format;
+  uint8_t  channels;
+  uint8_t  terminal_id;
+  uint8_t  rate_source_idx;
+  uint8_t  rate_count;
+} audioh_as_config_t;
+
+// Explicit-feedback endpoint associated with a playback alternate setting.
+typedef struct {
+  uint8_t ep_addr;
+  uint8_t ep_size;
+  uint8_t ep_interval;
+  uint8_t ep_attr;
+} audioh_feedback_ep_t;
+
+typedef struct {
+  audioh_feedback_ep_t feedback[CFG_TUH_AUDIO_MAX_AS];
+
+  // Packet rates use Q16.16 audio frames per data-endpoint poll interval.
+  // A new feedback rate is staged in pending_frames_q16 and adopted when
+  // rem_acc wraps.
+  uint32_t nominal_frames_q16;
+  uint32_t target_frames_q16;
+  uint32_t pending_frames_q16;
+  uint16_t feedback_min_frames;
+  uint16_t feedback_max_frames;
+  uint16_t rem_acc;
+  bool     feedback_pending;
+  bool     feedback_opened;
+} audioh_playback_t;
+
+// Control-transfer bookkeeping; transfer payloads are stored in audioh_epbuf_t.
+typedef struct {
+  tuh_xfer_cb_t complete_cb;
+  uintptr_t     user_data;
+  void         *value;
+  union {
+    struct {
+      uint8_t width;
+      uint8_t value_type;
+    } control;
+    struct {
+      uint8_t stream_idx;
+      uint8_t range_step;
+    } mount;
+  } fu;
+  #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC2
+  struct {
+    uint8_t rate_source_idx;
+    bool    read_cur;
+  } clock;
+  #endif
+  bool fu_busy;
+} audioh_ctrl_state_t;
+
+// One logical capture or playback stream.
+typedef struct {
+  // Identity is initialized once and preserved when the stream is reset.
+  uint8_t    idx;
+  uint8_t    stream_idx;
+  tusb_dir_t dir; // TUSB_DIR_IN is capture; TUSB_DIR_OUT is playback.
+
+  // Device address, or zero while this stream slot is unused.
+  uint8_t daddr;
+
+  // Configurations discovered during enumeration.
+  uint8_t            as_count;
+  uint8_t            config_count;
+  audioh_as_config_t as[CFG_TUH_AUDIO_MAX_AS];
+
+  // Selected configuration and runtime state.
+  uint8_t active_config; // Index in the flattened public configuration list.
+  uint8_t active_as;
+  uint8_t active_rate;
+  uint8_t state;
+  bool    running;
+
+  // Directly associated Feature Unit, or zero when none is usable.
+  uint8_t                  feature_unit_id;
+  uint8_t                  mute_access;
+  uint8_t                  volume_access;
+  tuh_audio_volume_range_t volume_range;
+
+  // Bytes in one interleaved audio frame across all channels.
+  uint16_t frame_bytes;
+
+  // The FIFO decouples application I/O from isochronous transfers. ep_buf is
+  // assigned during driver initialization and the endpoint during configure.
+  tu_edpt_stream_t edpt;
+  uint8_t          ff_buf[CFG_TUH_AUDIO_STREAM_BUFSIZE];
+} tuh_audio_stream_t;
+
+// State owned by one Audio Control interface.
+typedef struct {
+  uint8_t daddr; // Device address, or zero for a free instance.
+  uint8_t ac_itf_num;
+  uint8_t protocol;
+  uint8_t stream_count;
+  uint8_t rate_source_count;
+  bool    mounted;
+
+  audioh_rate_source_t rate_source[AUDIOH_MAX_RATE_SOURCES];
+
+  // Public stream indices are assigned in playback-then-capture order.
+  tuh_audio_stream_t  out_stream;
+  tuh_audio_stream_t  in_stream;
+  audioh_playback_t   playback;
+  audioh_ctrl_state_t ctrl;
+} audioh_interface_t;
+
+  #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC2
+    #define AUDIOH_CLOCK_RANGE_BUFSIZE (2 + 12 * CFG_TUH_AUDIO_MAX_SAM_FREQ)
+  #endif
+
+typedef struct {
+  // Clock discovery finishes before mount, so its buffer can be reused by
+  // runtime sampling-frequency and Feature Unit requests.
+  union {
+  #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC2
+    TUH_EPBUF_DEF(clock_range, AUDIOH_CLOCK_RANGE_BUFSIZE);
+  #endif
+    struct {
+      TUH_EPBUF_DEF(rate_ctrl, 4);
+      TUH_EPBUF_DEF(fu_ctrl, 8);
+    } runtime;
+  } control;
+  // Feedback transfers may overlap runtime control transfers, so the feedback buffer is separate.
+  TUH_EPBUF_DEF(feedback, 4);
+  TUH_EPBUF_DEF(epin, CFG_TUH_AUDIO_EPIN_BUFSIZE);
+  TUH_EPBUF_DEF(epout, CFG_TUH_AUDIO_EPOUT_BUFSIZE);
+} audioh_epbuf_t;
+
+static audioh_interface_t _audioh_itf[CFG_TUH_AUDIO_MAX];
+
+CFG_TUH_MEM_SECTION static audioh_epbuf_t _audioh_epbuf[CFG_TUH_AUDIO_MAX];
+
+//--------------------------------------------------------------------+
+// WEAK APPLICATION CALLBACKS
 //--------------------------------------------------------------------+
 
 TU_ATTR_WEAK void tuh_audio_mount_cb(uint8_t idx) {
@@ -94,180 +255,9 @@ TU_ATTR_WEAK void tuh_audio_err_cb(uint8_t idx, uint8_t stream_idx, uint16_t xfe
   (void)xferred_bytes;
 }
 
-// Stream state machine
-enum {
-  STREAM_STATE_IDLE = 0, // not configured
-  STREAM_STATE_READY     // configured, ready to start/stop
-};
-
-enum {
-  AUDIOH_CTRL_NONE       = 0,
-  AUDIOH_CTRL_READ       = 1,
-  AUDIOH_CTRL_READ_WRITE = 3
-};
-
-#if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC1
-  #define AUDIOH_MAX_RATE_SOURCES (2 * CFG_TUH_AUDIO_MAX_AS)
-#else
-  #define AUDIOH_MAX_RATE_SOURCES TUH_AUDIO_STREAM_DIRECTION_COUNT
-#endif
-
-// A UAC1 alternate setting owns one descriptor-provided rate source. UAC2
-// alternate settings attached to the same Clock Source share one rate source.
-typedef struct {
-  uint32_t sample_rate[CFG_TUH_AUDIO_MAX_SAM_FREQ];
-  uint8_t  control_id; // UAC1 endpoint address or UAC2 Clock Source ID
-  uint8_t  sample_rate_count;
-  uint8_t  frequency_access;
-} audioh_rate_source_t;
-
-// One Audio Streaming alternate setting. Format, channels, and endpoint
-// properties are shared by all of its discrete sampling frequencies.
-typedef struct {
-  uint16_t ep_size; // endpoint max packet size
-  uint8_t  itf_num;
-  uint8_t  alt_setting;
-  uint8_t  ep_addr;
-  uint8_t  ep_interval;
-  uint8_t  ep_attr; // bmAttributes synchronization and usage bits
-  uint8_t  format;
-  uint8_t  channels;
-  uint8_t  terminal_id;
-  uint8_t  rate_source_idx;
-  uint8_t  rate_count;
-} audioh_as_config_t;
-
-// Explicit feedback exists only for playback alternate settings.
-typedef struct {
-  uint8_t ep_addr;
-  uint8_t ep_size; // feedback endpoint max packet size (3 or 4)
-  uint8_t ep_interval;
-  uint8_t ep_attr;
-} audioh_feedback_ep_t;
-
-typedef struct {
-  audioh_feedback_ep_t feedback[CFG_TUH_AUDIO_MAX_AS];
-
-  // Playback pacing in Q16.16 frames per data-endpoint poll interval.
-  // Feedback is latched only when the current fractional scheduling cycle
-  // wraps, so one cycle is never generated from two different rates.
-  uint32_t nominal_frames_q16;
-  uint32_t target_frames_q16;
-  uint32_t pending_frames_q16;
-  uint16_t feedback_min_frames;
-  uint16_t feedback_max_frames;
-  uint16_t rem_acc;
-  bool     feedback_pending;
-  bool     feedback_opened;
-} audioh_playback_t;
-
-// Control-transfer state does not require USB-accessible memory.
-typedef struct {
-  tuh_xfer_cb_t complete_cb;
-  uintptr_t     user_data;
-  void         *value;
-  union {
-    struct {
-      uint8_t width;
-      uint8_t value_type;
-    } control;
-    struct {
-      uint8_t stream_idx;
-      uint8_t range_step;
-    } mount;
-  } fu;
-  #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC2
-  struct {
-    uint8_t rate_source_idx;
-    bool    read_cur;
-  } clock;
-  #endif
-  bool fu_busy;
-} audioh_ctrl_state_t;
-
-// One logical stream (capture or playback)
-typedef struct {
-  // instance info (set at init, preserved across close/open)
-  uint8_t    idx;        // instance index
-  uint8_t    stream_idx; // logical stream index within the instance
-  tusb_dir_t dir;        // TUSB_DIR_IN = capture, TUSB_DIR_OUT = playback
-
-  // device owning this stream (0 = no device)
-  uint8_t daddr;
-
-  // Supported configurations (parsed during enumeration)
-  uint8_t            as_count;
-  uint8_t            config_count;
-  audioh_as_config_t as[CFG_TUH_AUDIO_MAX_AS];
-
-  // Active stream state
-  uint8_t active_config; // flattened public configuration index
-  uint8_t active_as;
-  uint8_t active_rate;
-  uint8_t state;         // STREAM_STATE_*
-  bool    running;       // tuh_audio_start() called, transfers may be submitted
-
-  // One Feature Unit associated with this logical stream (0 = none)
-  uint8_t                  feature_unit_id;
-  uint8_t                  mute_access;
-  uint8_t                  volume_access;
-  tuh_audio_volume_range_t volume_range;
-
-  // Size in bytes of one frame (all channels) of the active configuration
-  uint16_t frame_bytes;
-
-  // FIFO + endpoint transfer helper (see tu_edpt_stream, used by the MIDI
-  // host driver): the FIFO decouples the application's frame-based read/write
-  // from the endpoint's isochronous transfer cadence. ep_buf is bound at init from
-  // _audioh_epbuf[], the endpoint is bound by tu_edpt_stream_open() when the
-  // stream is configured.
-  tu_edpt_stream_t edpt;
-  uint8_t          ff_buf[CFG_TUH_AUDIO_STREAM_BUFSIZE];
-} tuh_audio_stream_t;
-
-// Per-instance (Audio device) storage
-typedef struct {
-  uint8_t daddr;      // device address (0 = free slot)
-  uint8_t ac_itf_num; // Audio Control interface number
-  uint8_t protocol;   // AUDIO_INT_PROTOCOL_CODE_V1/V2
-  uint8_t stream_count;
-  uint8_t rate_source_count;
-  bool    mounted;
-
-  audioh_rate_source_t rate_source[AUDIOH_MAX_RATE_SOURCES];
-
-  // Logical streams: playback first, then capture (stream index order)
-  tuh_audio_stream_t  out_stream;
-  tuh_audio_stream_t  in_stream;
-  audioh_playback_t   playback;
-  audioh_ctrl_state_t ctrl;
-} audioh_interface_t;
-
-  #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC2
-    #define AUDIOH_CLOCK_RANGE_BUFSIZE (2 + 12 * CFG_TUH_AUDIO_MAX_SAM_FREQ)
-  #endif
-
-typedef struct {
-  // Clock discovery completes before mount. Afterwards its storage is reused
-  // by independently cache-aligned sampling-frequency and Feature Unit buffers.
-  union {
-  #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC2
-    TUH_EPBUF_DEF(clock_range, AUDIOH_CLOCK_RANGE_BUFSIZE);
-  #endif
-    struct {
-      TUH_EPBUF_DEF(rate_ctrl, 4);
-      TUH_EPBUF_DEF(fu_ctrl, 8);
-    } runtime;
-  } control;
-  // Explicit feedback can overlap both runtime control transfers.
-  TUH_EPBUF_DEF(feedback, 4);
-  TUH_EPBUF_DEF(epin, CFG_TUH_AUDIO_EPIN_BUFSIZE);   // capture transfer buffer
-  TUH_EPBUF_DEF(epout, CFG_TUH_AUDIO_EPOUT_BUFSIZE); // playback transfer buffer
-} audioh_epbuf_t;
-
-static audioh_interface_t _audioh_itf[CFG_TUH_AUDIO_MAX];
-
-CFG_TUH_MEM_SECTION static audioh_epbuf_t _audioh_epbuf[CFG_TUH_AUDIO_MAX];
+//--------------------------------------------------------------------+
+// HELPERS
+//--------------------------------------------------------------------+
 
 TU_ATTR_ALWAYS_INLINE static inline uint8_t *audioh_rate_ctrl(audioh_epbuf_t *epbuf) {
   return epbuf->control.runtime.rate_ctrl;
@@ -277,9 +267,6 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t *audioh_fu_ctrl(audioh_epbuf_t *epbu
   return epbuf->control.runtime.fu_ctrl;
 }
 
-//--------------------------------------------------------------------+
-// Helper
-//--------------------------------------------------------------------+
 TU_ATTR_ALWAYS_INLINE static inline uint8_t find_new_audio_index(void) {
   for (uint8_t idx = 0; idx < CFG_TUH_AUDIO_MAX; idx++) {
     if (_audioh_itf[idx].daddr == 0) {
@@ -321,7 +308,6 @@ static tuh_audio_stream_t *audioh_get_stream(audioh_interface_t *p_audio, tusb_d
   }
 }
 
-// Look up a stream by its logical index within the instance
 static tuh_audio_stream_t *audioh_get_stream_by_idx(audioh_interface_t *p_audio, uint8_t stream_idx) {
   for (uint8_t i = 0; i < 2; i++) {
     tuh_audio_stream_t *s = (i == 0) ? &p_audio->out_stream : &p_audio->in_stream;
@@ -400,7 +386,6 @@ static void audioh_stream_set_feature_unit(tuh_audio_stream_t *s, uint8_t unit_i
   s->volume_access   = volume_access;
 }
 
-// Map a Type-I PCM (subslot size, bit resolution) pair to a supported format.
 static bool audioh_format_from_pcm(uint8_t subslot_size, uint8_t bit_resolution, tuh_audio_format_t *format) {
   if (subslot_size == 1 && bit_resolution == 8) {
     *format = TUH_AUDIO_FORMAT_S8;
@@ -418,8 +403,7 @@ static bool audioh_format_from_pcm(uint8_t subslot_size, uint8_t bit_resolution,
   return true;
 }
 
-// Isochronous bInterval is a power-of-2 exponent in 1 ms full-speed frames
-// or 125 us high-speed microframes.
+// bInterval encodes 2^(bInterval-1) full-speed frames or high-speed microframes.
 static uint32_t audioh_interval_us(uint8_t ep_interval, uint8_t daddr) {
   const uint32_t unit_us = (tuh_speed_get(daddr) == TUSB_SPEED_HIGH) ? 125u : 1000u;
   return ((uint32_t)1u << (ep_interval - 1)) * unit_us;
@@ -433,7 +417,7 @@ static uint32_t audioh_nominal_frames_q16(uint32_t sample_rate, uint8_t ep_inter
   return (uint32_t)((numerator + 500000u) / 1000000u);
 }
 
-// Supported Feature Unit control widths (0 = unsupported variable/unknown width).
+// Feature Unit controls with variable or unknown width return zero.
 static uint8_t audioh_fu_control_width(uint8_t control_selector) {
   switch (control_selector) {
     case AUDIO10_FU_CTRL_MUTE:
@@ -452,7 +436,7 @@ static uint8_t audioh_fu_control_width(uint8_t control_selector) {
   }
 }
 
-// Reset a stream to its unconfigured state (keeps idx, dir, and FIFO configuration)
+// Preserve the stream identity and FIFO allocation while clearing device state.
 static void audioh_stream_reset(tuh_audio_stream_t *s) {
   s->daddr           = 0;
   s->stream_idx      = TUSB_INDEX_INVALID_8;
@@ -476,7 +460,6 @@ static void audioh_playback_reset(audioh_playback_t *playback) {
   tu_memclr(playback, sizeof(*playback));
 }
 
-// Find the stream owning an endpoint (used to dispatch transfer completion)
 static tuh_audio_stream_t *audioh_find_stream(uint8_t dev_addr, uint8_t ep_addr) {
   for (uint8_t idx = 0; idx < CFG_TUH_AUDIO_MAX; idx++) {
     audioh_interface_t *p_audio = &_audioh_itf[idx];
@@ -498,7 +481,7 @@ static tuh_audio_stream_t *audioh_find_stream(uint8_t dev_addr, uint8_t ep_addr)
 }
 
 //--------------------------------------------------------------------+
-// Packet scheduler
+// PACKET SCHEDULER
 //--------------------------------------------------------------------+
 
 static void audioh_stream_error(tuh_audio_stream_t *s, uint16_t xferred_bytes);
@@ -514,31 +497,26 @@ static void audioh_stream_feedback_xfer(tuh_audio_stream_t *s) {
   }
 }
 
-// Re-arm the capture endpoint: request one full packet (the device sends at
-// most its max packet size per poll interval). The overwritable FIFO retains
-// the newest capture frames when the application cannot drain it in time.
 static void audioh_stream_capture_xfer(tuh_audio_stream_t *s) {
   TU_VERIFY(s->state == STREAM_STATE_READY && s->running, );
 
   const audioh_as_config_t *as = audioh_stream_active_as(s);
-  TU_VERIFY(usbh_edpt_claim(s->daddr, as->ep_addr), ); // one transfer in flight
+  TU_VERIFY(usbh_edpt_claim(s->daddr, as->ep_addr), );
 
-  // ep_size is guaranteed <= CFG_TUH_AUDIO_EPIN_BUFSIZE by enumeration
   if (!usbh_edpt_xfer(s->daddr, as->ep_addr, s->edpt.ep_buf, as->ep_size)) {
     audioh_stream_error(s, 0);
   }
 }
 
-// Submit the next queued playback packet. Fractional frames per endpoint poll
-// interval are accumulated on each successful submission, keeping the average
-// data rate at the active nominal or feedback target.
 static void audioh_stream_playback_xfer(tuh_audio_stream_t *s) {
   TU_VERIFY(s->state == STREAM_STATE_READY && s->running, );
 
   const audioh_as_config_t *as       = audioh_stream_active_as(s);
   audioh_playback_t        *playback = audioh_get_playback(s);
-  TU_VERIFY(usbh_edpt_claim(s->daddr, as->ep_addr), ); // one transfer in flight
+  TU_VERIFY(usbh_edpt_claim(s->daddr, as->ep_addr), );
 
+  // Accumulate fractional frames across endpoint intervals so packet lengths
+  // average to the active nominal or feedback rate.
   uint32_t       frames       = playback->target_frames_q16 >> 16;
   const uint32_t fraction     = playback->target_frames_q16 & 0xFFFFu;
   uint32_t       next_rem_acc = playback->rem_acc + fraction;
@@ -554,8 +532,8 @@ static void audioh_stream_playback_xfer(tuh_audio_stream_t *s) {
               bytes_64 <= CFG_TUH_AUDIO_STREAM_BUFSIZE, );
   const uint16_t bytes = (uint16_t)bytes_64;
   if (tu_fifo_count(&s->edpt.ff) < bytes) {
-    // Keep the isochronous stream active without consuming a partial frame.
-    // The queued audio is sent once a complete poll interval is available.
+    // Isochronous OUT must continue at every interval. Send silence until a
+    // complete packet is queued, leaving any partial packet in the FIFO.
     tu_memclr(s->edpt.ep_buf, bytes);
   } else {
     tu_fifo_read_n(&s->edpt.ff, s->edpt.ep_buf, bytes);
@@ -569,13 +547,13 @@ static void audioh_stream_playback_xfer(tuh_audio_stream_t *s) {
   if (loop_done && playback->feedback_pending) {
     playback->target_frames_q16 = playback->pending_frames_q16;
     playback->feedback_pending  = false;
-    // Keep the remainder from the completed cycle. Clearing it for every
-    // feedback update biases the average toward the integer packet sizes.
+    // Preserve the accumulator at the wrap boundary. Resetting it for each
+    // feedback update would bias the average toward integer packet lengths.
   }
 }
 
 //--------------------------------------------------------------------+
-// Configure state machine
+// STREAM CONFIGURATION
 //--------------------------------------------------------------------+
 
 static bool audioh_stream_close_ep(tuh_audio_stream_t *s) {
@@ -624,7 +602,6 @@ static void audioh_stream_error(tuh_audio_stream_t *s, uint16_t xferred_bytes) {
   tuh_audio_err_cb(s->idx, s->stream_idx, xferred_bytes);
 }
 
-// Submit the protocol-specific sampling-frequency control request.
 static bool audioh_stream_set_freq(tuh_audio_stream_t *s, tuh_xfer_cb_t complete_cb) {
   const audioh_as_config_t   *as          = audioh_stream_active_as(s);
   const audioh_rate_source_t *rate_source = audioh_as_rate_source(s, as);
@@ -672,7 +649,6 @@ static bool audioh_stream_set_freq(tuh_audio_stream_t *s, tuh_xfer_cb_t complete
   return tuh_control_xfer(&xfer);
 }
 
-// Reconstruct the endpoint descriptor of the selected configuration and open it
 static bool audioh_stream_open_ep(tuh_audio_stream_t *s) {
   const audioh_as_config_t *as = audioh_stream_active_as(s);
 
@@ -691,7 +667,7 @@ static bool audioh_stream_open_ep(tuh_audio_stream_t *s) {
     return false;
   }
 
-  // Bind the transfer helper to the endpoint and start with an empty FIFO
+  // Bind the transfer helper to the selected endpoint and empty its FIFO.
   const uint16_t xfer_len = (s->dir == TUSB_DIR_IN) ? CFG_TUH_AUDIO_EPIN_BUFSIZE : CFG_TUH_AUDIO_EPOUT_BUFSIZE;
   tu_edpt_stream_open(&s->edpt, s->daddr, &desc_ep, xfer_len);
   tu_edpt_stream_clear(&s->edpt);
@@ -722,7 +698,7 @@ static bool audioh_stream_open_ep(tuh_audio_stream_t *s) {
 }
 
 //--------------------------------------------------------------------+
-// USBH API
+// USB HOST CLASS DRIVER
 //--------------------------------------------------------------------+
 bool audioh_init(void) {
   tu_memclr(&_audioh_itf, sizeof(_audioh_itf));
@@ -736,7 +712,6 @@ bool audioh_init(void) {
     out->idx = idx;
     out->dir = TUSB_DIR_OUT;
 
-    // Bind FIFO buffer and transfer buffer (see tu_edpt_stream_init)
     TU_VERIFY(tu_edpt_stream_init(&in->edpt, true, false, true, in->ff_buf, CFG_TUH_AUDIO_STREAM_BUFSIZE,
                                   _audioh_epbuf[idx].epin));
     TU_VERIFY(tu_edpt_stream_init(&out->edpt, true, true, false, out->ff_buf, CFG_TUH_AUDIO_STREAM_BUFSIZE,
@@ -775,7 +750,8 @@ void audioh_close(uint8_t daddr) {
     }
     audioh_playback_reset(&p_audio->playback);
 
-    tu_memclr(&p_audio->ctrl, sizeof(p_audio->ctrl)); // drop pending control state
+    // A disconnected device cannot complete its pending control request.
+    tu_memclr(&p_audio->ctrl, sizeof(p_audio->ctrl));
 
     p_audio->stream_count      = 0;
     p_audio->daddr             = 0;
@@ -790,7 +766,7 @@ static void audioh_feedback_received(tuh_audio_stream_t *s, uint32_t xferred_byt
   audioh_playback_t *playback = audioh_get_playback(s);
   uint32_t           feedback_q16;
   if (xferred_bytes == 3) {
-    // Full-speed feedback is normally Q10.14. Keep the scheduler in Q16.16.
+    // Three-byte feedback is Q10.14; the scheduler uses Q16.16 throughout.
     feedback_q16 = ((uint32_t)fb[0] | ((uint32_t)fb[1] << 8) | ((uint32_t)fb[2] << 16)) << 2;
   } else if (xferred_bytes == 4) {
     feedback_q16 = (uint32_t)fb[0] | ((uint32_t)fb[1] << 8) | ((uint32_t)fb[2] << 16) | ((uint32_t)fb[3] << 24);
@@ -806,8 +782,8 @@ static void audioh_feedback_received(tuh_audio_stream_t *s, uint32_t xferred_byt
     return;
   }
 
-  // Feedback is expressed per USB frame/microframe. Scale it to the data
-  // endpoint's polling interval before handing it to the packet scheduler.
+  // Feedback is measured per USB frame or microframe. Scale it to the data
+  // endpoint's polling interval.
   const audioh_as_config_t *as            = audioh_stream_active_as(s);
   const uint64_t            target_q16_64 = (uint64_t)feedback_q16 << (as->ep_interval - 1u);
   if (target_q16_64 > UINT32_MAX) {
@@ -822,8 +798,8 @@ static void audioh_feedback_received(tuh_audio_stream_t *s, uint32_t xferred_byt
     return;
   }
 
-  // Keep only the newest feedback sample. The packet scheduler promotes it at
-  // the end of its current fractional cycle.
+  // Replace any unconsumed sample; only the newest rate matters. The scheduler
+  // adopts it when the current fractional packet pattern wraps.
   playback->pending_frames_q16 = target_q16;
   playback->feedback_pending   = true;
 }
@@ -834,14 +810,14 @@ bool audioh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uin
     return false;
   }
 
-  // Failed, stalled, or aborted transfers never carry valid audio data
+  // Failed, stalled, and aborted transfers do not carry valid audio data.
   if (result != XFER_RESULT_SUCCESS) {
     TU_LOG_DRV("  AUDIO transfer failed: addr=%u ep=%02x result=%u\r\n", dev_addr, ep_addr, result);
     audioh_stream_error(s, (uint16_t)xferred_bytes);
     return true;
   }
 
-  // Stopped stream: the in-flight transfer completes and its data is discarded
+  // A stop does not cancel the transfer that was already in flight.
   if (!s->running) {
     return true;
   }
@@ -854,8 +830,7 @@ bool audioh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uin
   }
 
   if (s->dir == TUSB_DIR_IN) {
-    // Capture: move the received bytes into the FIFO (whole frames only),
-    // notify, then re-arm for the next packet
+    // Queue whole capture frames, notify the application, then re-arm.
     const uint16_t bytes = (uint16_t)(xferred_bytes - (xferred_bytes % s->frame_bytes));
     if (bytes > 0) {
       tu_fifo_write_n(&s->edpt.ff, s->edpt.ep_buf, bytes);
@@ -863,7 +838,7 @@ bool audioh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uin
     tuh_audio_capture_cb(s->idx, s->stream_idx, (uint16_t)xferred_bytes);
     audioh_stream_capture_xfer(s);
   } else {
-    // Playback: notify, then submit the next queued packet
+    // Notify the application before requesting the next playback packet.
     tuh_audio_playback_cb(s->idx, s->stream_idx, (uint16_t)xferred_bytes);
     audioh_stream_playback_xfer(s);
   }
@@ -871,7 +846,7 @@ bool audioh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uin
 }
 
 //--------------------------------------------------------------------+
-// Enumeration
+// ENUMERATION
 //--------------------------------------------------------------------+
 
 typedef struct {
@@ -1225,9 +1200,8 @@ static bool audioh_uac1_rates_store(const audioh_interface_t *p_audio, const tuh
 }
   #endif
 
-// Parse one Audio Streaming interface alternate setting and register its
-// supported configurations into the matching stream. Returns the descriptor
-// pointer of the next interface.
+// Parse one AS alternate setting and return the next interface descriptor.
+// Supported configurations are appended to the stream matching its endpoint.
 static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const audioh_ac_desc_range_t *ac_desc,
                                       const tusb_desc_interface_t *desc_itf, const uint8_t *p_desc,
                                       const uint8_t *desc_end) {
@@ -1238,7 +1212,7 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const audioh_
 
   p_desc = tu_desc_next(p_desc);
 
-  // Alternate setting 0 has no endpoints: nothing to stream
+  // Alternate setting zero is the zero-bandwidth setting, not a configuration.
   if (alt == 0 || desc_itf->bNumEndpoints == 0) {
     while (p_desc < desc_end) {
       TU_VERIFY(audioh_desc_valid(p_desc, desc_end, 2), NULL);
@@ -1250,12 +1224,11 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const audioh_
     return p_desc;
   }
 
-  // Parse the class-specific and endpoint descriptors of this alternate setting
   audioh_as_class_info_t class_info = {0};
 
-  // An AS alternate setting has one audio data endpoint and may have one
-  // explicit feedback endpoint. Implicit-feedback endpoints are data endpoints
-  // and are handled normally when they are the AS interface's data endpoint.
+  // Retain one data endpoint and, for playback, one explicit-feedback endpoint.
+  // An implicit-feedback IN endpoint remains the data endpoint of its own AS
+  // interface and is therefore exposed as a capture stream.
   typedef struct {
     uint8_t  ep_addr;
     uint16_t ep_size;
@@ -1299,6 +1272,8 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const audioh_
 
         bool is_data_ep           = false;
         bool is_explicit_feedback = false;
+        // UAC1 distinguishes feedback by synchronization type; UAC2 uses the
+        // endpoint usage field.
         switch (p_audio->protocol) {
   #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC1
           case AUDIO_INT_PROTOCOL_CODE_V1:
@@ -1348,7 +1323,7 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const audioh_
           ep_info.ep_addr     = desc_endpoint->bEndpointAddress;
           ep_info.ep_size     = tu_edpt_packet_size(desc_endpoint);
           ep_info.ep_interval = desc_endpoint->bInterval;
-          // bInterval must be in [1, 16] for isochronous endpoints
+          // Isochronous bInterval is an exponent in the inclusive range 1..16.
           if (ep_info.ep_interval == 0 || ep_info.ep_interval > 16) {
             ep_info.ep_interval = 1;
           }
@@ -1368,7 +1343,6 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const audioh_
     return p_desc;
   }
 
-  // Reject unsupported formats explicitly.
   bool pcm_supported = false;
   switch (p_audio->protocol) {
   #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC1
@@ -1408,8 +1382,8 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const audioh_
     TU_LOG_DRV("  AUDIO AS itf %u: frame size %lu not supported\r\n", itf_num, (unsigned long)frame_bytes_32);
     return p_desc;
   }
-  // Register one AS alternate setting containing its discrete sampling
-  // frequencies. The public API flattens these entries when requested.
+  // Store the alternate setting once; the public API expands its sampling
+  // frequencies into separate configurations.
   const audioh_ep_info_t *ep     = &ep_info;
   tuh_audio_stream_t     *stream = audioh_get_stream(p_audio, tu_edpt_dir(ep->ep_addr));
   TU_ASSERT(stream != NULL, p_desc);
@@ -1428,8 +1402,8 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const audioh_
     return p_desc;
   }
 
-  // Capture: the device can deliver up to its max packet size per poll
-  // interval, the transfer buffer must fit it
+  // Capture always requests the endpoint's maximum packet size, so both the
+  // transfer buffer and FIFO must hold it.
   if (stream->dir == TUSB_DIR_IN && (ep->ep_size > epbuf_size || ep->ep_size > CFG_TUH_AUDIO_STREAM_BUFSIZE)) {
     TU_LOG_DRV("  AUDIO AS itf %u alt %u: capture ep size %u exceeds buffer capacity\r\n", itf_num, alt, ep->ep_size);
     return p_desc;
@@ -1558,7 +1532,8 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
   }
   ac_desc.desc_end = p_desc;
 
-  // Parse the contiguous Audio Streaming interfaces of this audio function.
+  // Audio Streaming interfaces belonging to this function immediately follow
+  // its Audio Control descriptor block.
   while (p_desc < desc_end) {
     if (!audioh_desc_valid(p_desc, desc_end, 2)) {
       goto open_failed;
@@ -1588,14 +1563,11 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
 
   audioh_link_feature_units(p_audio, &ac_desc);
 
-  // UAC2 configurations receive their rates asynchronously during mount.
-  // Release the tentative instance when no supported AS alternate was found.
   if (p_audio->in_stream.as_count == 0 && p_audio->out_stream.as_count == 0) {
     goto open_failed;
   }
 
-  // Assign stream indices: playback first, then capture, so the application
-  // can iterate [0, stream_count) without gaps
+  // Assign contiguous public indices in playback-then-capture order.
   uint8_t stream_idx = 0;
   if (p_audio->out_stream.as_count > 0) {
     p_audio->out_stream.stream_idx = stream_idx++;
@@ -1621,7 +1593,7 @@ open_failed:
 }
 
 //--------------------------------------------------------------------+
-// Set Configuration
+// SET CONFIGURATION
 //--------------------------------------------------------------------+
 static void audioh_mount_feature_unit_next(uint8_t idx);
 
@@ -1805,8 +1777,8 @@ bool audioh_set_config(uint8_t dev_addr, uint8_t itf_num) {
   }
 
   if (idx == TUSB_INDEX_INVALID_8) {
-    // Audio Streaming interface (or another driver's interface): nothing to do at mount.
-    // Alternate settings are activated by tuh_audio_start().
+    // Only the Audio Control interface drives mounting. Streaming alternate
+    // settings are selected later by tuh_audio_start().
     usbh_driver_set_config_complete(dev_addr, itf_num);
     return true;
   }
@@ -1826,7 +1798,7 @@ bool audioh_set_config(uint8_t dev_addr, uint8_t itf_num) {
 }
 
 //--------------------------------------------------------------------+
-// Application API
+// APPLICATION API
 //--------------------------------------------------------------------+
 bool tuh_audio_mounted(uint8_t idx) {
   TU_VERIFY(idx < CFG_TUH_AUDIO_MAX);
@@ -1933,18 +1905,17 @@ bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx
   uint8_t                   rate_idx;
   TU_VERIFY(audioh_stream_resolve_config(s, config_idx, &as_idx, &rate_idx), false);
   audioh_stream_config_fill(s, as_idx, rate_idx, &cfg);
-  // Reconfiguration is allowed from a stopped stream.
   TU_VERIFY(!s->running, false);
   if (s->state == STREAM_STATE_READY) {
-    // Wait for any in-flight transfer to complete and be discarded
+    // Configuration cannot close an endpoint while its final transfer drains.
     TU_VERIFY(!usbh_edpt_busy(s->daddr, s->edpt.ep_addr), false);
     if (s->dir == TUSB_DIR_OUT && p_audio->playback.feedback_opened) {
       TU_VERIFY(!usbh_edpt_busy(s->daddr, p_audio->playback.feedback[s->active_as].ep_addr), false);
     }
   }
 
-  // The HCD endpoint must be reopened even when the new configuration uses
-  // the same address, since its packet size and interval may have changed.
+  // Reopen even when the address is unchanged: packet size and interval belong
+  // to the alternate setting and may differ.
   TU_VERIFY(audioh_stream_close_ep(s), false);
 
   const audioh_as_config_t *as = &s->as[as_idx];
@@ -1965,8 +1936,7 @@ bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx
     playback->rem_acc             = 0;
   }
   if (s->dir == TUSB_DIR_IN) {
-    // A byte FIFO can overwrite only complete audio frames when its depth is
-    // an exact multiple of the configured frame size.
+    // Overwrite mode is frame-safe only when FIFO depth is a whole-frame multiple.
     const uint16_t fifo_depth = CFG_TUH_AUDIO_STREAM_BUFSIZE - (CFG_TUH_AUDIO_STREAM_BUFSIZE % s->frame_bytes);
     if (!tu_fifo_config(&s->edpt.ff, s->ff_buf, fifo_depth, true)) {
       audioh_stream_fail(s);
@@ -1981,12 +1951,11 @@ bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx
   return audioh_stream_open_ep(s);
 }
 
-// Invoked when the SET_INTERFACE activating the stream's interface completes:
-// the interface is active, set its sampling frequency before submitting
-// transfers
+// Start endpoint transfers after the alternate setting and sampling frequency
+// are both active.
 static void audioh_stream_start_xfer(tuh_audio_stream_t *s) {
   if (s->dir == TUSB_DIR_IN) {
-    audioh_stream_capture_xfer(s); // feed the capture endpoint
+    audioh_stream_capture_xfer(s);
   } else {
     if (audioh_get_playback(s)->feedback[s->active_as].ep_addr != 0) {
       audioh_stream_feedback_xfer(s);
@@ -1994,7 +1963,7 @@ static void audioh_stream_start_xfer(tuh_audio_stream_t *s) {
     if (!s->running) {
       return;
     }
-    audioh_stream_playback_xfer(s); // start the continuous playback transfer chain
+    audioh_stream_playback_xfer(s);
   }
 }
 
@@ -2008,7 +1977,8 @@ static bool audioh_stream_activate(tuh_audio_stream_t *s) {
 static void audioh_stream_start_set_freq_complete(tuh_xfer_t *xfer) {
   tuh_audio_stream_t *s = (tuh_audio_stream_t *)xfer->user_data;
   if (s->daddr != xfer->daddr || s->state != STREAM_STATE_READY || !s->running) {
-    return; // device is gone or the stream was stopped meanwhile
+    // Ignore a completion delivered after disconnect or stop.
+    return;
   }
   if (xfer->result != XFER_RESULT_SUCCESS) {
     TU_LOG_DRV("  AUDIO set sampling frequency failed: result=%u\r\n", xfer->result);
@@ -2048,7 +2018,8 @@ static bool audioh_stream_start_active(tuh_audio_stream_t *s) {
 static void audioh_stream_start_complete(tuh_xfer_t *xfer) {
   tuh_audio_stream_t *s = (tuh_audio_stream_t *)xfer->user_data;
   if (s->daddr != xfer->daddr || s->state != STREAM_STATE_READY || !s->running) {
-    return; // device is gone or the stream was stopped meanwhile
+    // Ignore a completion delivered after disconnect or stop.
+    return;
   }
   if (xfer->result != XFER_RESULT_SUCCESS) {
     TU_LOG_DRV("  AUDIO SET_INTERFACE activate failed: result=%u\r\n", xfer->result);
@@ -2066,7 +2037,7 @@ bool tuh_audio_start(uint8_t dev_idx, uint8_t stream_idx) {
   tuh_audio_stream_t *s = audioh_get_stream_by_idx(p_audio, stream_idx);
   TU_VERIFY(s, false);
   TU_VERIFY(s->state == STREAM_STATE_READY && !s->running, false);
-  // Wait for any in-flight transfer to complete and be discarded
+  // A stopped transfer must drain before the endpoint can be restarted.
   const audioh_as_config_t   *as          = audioh_stream_active_as(s);
   const audioh_rate_source_t *rate_source = audioh_as_rate_source(s, as);
   TU_VERIFY(!usbh_edpt_busy(s->daddr, as->ep_addr), false);
@@ -2074,8 +2045,7 @@ bool tuh_audio_start(uint8_t dev_idx, uint8_t stream_idx) {
     TU_VERIFY(!usbh_edpt_busy(s->daddr, p_audio->playback.feedback[s->active_as].ep_addr), false);
   }
 
-  // Do not change a device-wide/shared clock while the other direction is
-  // running. Stopped streams may be reconfigured independently in either order.
+  // Capture and playback must use the same rate while both are running.
   tuh_audio_stream_t *other = (s == &p_audio->out_stream) ? &p_audio->in_stream : &p_audio->out_stream;
   if (other->running) {
     const audioh_as_config_t   *other_as          = audioh_stream_active_as(other);
@@ -2095,8 +2065,8 @@ bool tuh_audio_start(uint8_t dev_idx, uint8_t stream_idx) {
     p_audio->playback.rem_acc           = 0;
   }
   s->running = true;
-  // UAC2 changes the Clock Source before selecting the alternate setting;
-  // UAC1 selects the alternate first because its control targets the endpoint.
+  // UAC2 controls a Clock Source that exists before endpoint activation. UAC1
+  // controls the endpoint itself, so its alternate setting must be active first.
   bool submitted = false;
   #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC2
   if (p_audio->protocol == AUDIO_INT_PROTOCOL_CODE_V2 && rate_source->frequency_access == AUDIOH_CTRL_READ_WRITE) {
@@ -2113,8 +2083,6 @@ bool tuh_audio_start(uint8_t dev_idx, uint8_t stream_idx) {
   return true;
 }
 
-// Invoked when the SET_INTERFACE deactivating the stream's interface (alt 0)
-// completes
 static void audioh_stream_stop_complete(tuh_xfer_t *xfer) {
   tuh_audio_stream_t *s = (tuh_audio_stream_t *)xfer->user_data;
   if (s->daddr != xfer->daddr) {
@@ -2132,13 +2100,11 @@ bool tuh_audio_stop(uint8_t dev_idx, uint8_t stream_idx) {
   TU_VERIFY(s && s->state == STREAM_STATE_READY, false);
 
   const audioh_as_config_t *as = audioh_stream_active_as(s);
-  // Leave the stream running if SET_INTERFACE cannot be submitted, so the
-  // caller can retry without the host and device states diverging.
+  // Preserve running state when submission fails so the caller can retry.
   TU_VERIFY(tuh_interface_set(s->daddr, as->itf_num, 0, audioh_stream_stop_complete, (uintptr_t)s), false);
 
-  // The in-flight transfer (if any) completes and its data is discarded;
-  // queued frames are dropped as well. The interface is being deactivated so
-  // the device stops transferring.
+  // SET_INTERFACE stops future traffic. The current transfer drains, while its
+  // data and all queued frames are discarded.
   s->running = false;
   if (s->dir == TUSB_DIR_OUT) {
     p_audio->playback.target_frames_q16 = p_audio->playback.nominal_frames_q16;
@@ -2155,12 +2121,11 @@ uint32_t tuh_audio_write(uint8_t dev_idx, uint8_t stream_idx, const void *buffer
   TU_VERIFY(p_audio->mounted && buffer, 0);
 
   tuh_audio_stream_t *s = audioh_get_stream_by_idx(p_audio, stream_idx);
-  // Writes are only accepted by the playback stream
   TU_VERIFY(s && s->dir == TUSB_DIR_OUT, 0);
   TU_VERIFY(s->state == STREAM_STATE_READY && s->running, 0);
   TU_VERIFY(frame_count > 0, 0);
 
-  // Queue as many whole frames as the FIFO can hold
+  // Never split an audio frame at the FIFO boundary.
   const uint32_t frames = TU_MIN(frame_count, tu_fifo_remaining(&s->edpt.ff) / s->frame_bytes);
   if (frames == 0) {
     return 0;
@@ -2176,12 +2141,11 @@ uint32_t tuh_audio_read(uint8_t dev_idx, uint8_t stream_idx, void *buffer, uint3
   TU_VERIFY(p_audio->mounted && buffer, 0);
 
   tuh_audio_stream_t *s = audioh_get_stream_by_idx(p_audio, stream_idx);
-  // Reads are only accepted by the capture stream
   TU_VERIFY(s && s->dir == TUSB_DIR_IN, 0);
   TU_VERIFY(s->state == STREAM_STATE_READY && s->running, 0);
   TU_VERIFY(frame_count > 0, 0);
 
-  // Drain as many whole frames as are queued
+  // Never return a partial audio frame.
   const uint32_t frames = TU_MIN(frame_count, tu_fifo_count(&s->edpt.ff) / s->frame_bytes);
   if (frames > 0) {
     tu_fifo_read_n(&s->edpt.ff, buffer, (uint16_t)(frames * s->frame_bytes));
@@ -2212,10 +2176,11 @@ uint32_t tuh_audio_read_available(uint8_t dev_idx, uint8_t stream_idx) {
 }
 
 //--------------------------------------------------------------------+
-// Feature Unit Control API
+// FEATURE UNIT CONTROLS
 //--------------------------------------------------------------------+
 
-// Release the stable SET buffer and chain to the application callback
+// Release driver-owned request state before invoking the application callback,
+// allowing the callback to submit another Feature Unit request immediately.
 static void audioh_fu_set_complete(tuh_xfer_t *xfer) {
   const uint8_t        idx       = (uint8_t)xfer->user_data;
   audioh_ctrl_state_t *ctrl      = &_audioh_itf[idx].ctrl;
@@ -2281,7 +2246,8 @@ static void audioh_fu_value_store(audioh_ctrl_state_t *ctrl, audioh_epbuf_t *epb
   }
 }
 
-// Convert the raw control value to host order and chain to the application callback
+// Convert the driver-owned response before releasing the request state and
+// invoking the application callback.
 static void audioh_fu_get_complete(tuh_xfer_t *xfer) {
   const uint8_t        idx       = (uint8_t)xfer->user_data;
   audioh_ctrl_state_t *ctrl      = &_audioh_itf[idx].ctrl;
@@ -2467,7 +2433,8 @@ bool tuh_audio_feature_unit_set(uint8_t idx, uint8_t stream_idx, uint8_t control
   audioh_ctrl_state_t *ctrl  = &p_audio->ctrl;
   audioh_epbuf_t      *epbuf = &_audioh_epbuf[idx];
   TU_VERIFY(!ctrl->fu_busy, false);
-  ctrl->fu_busy = true; // reserve the request state and fu_ctrl before writing
+  // Reserve both bookkeeping and payload storage before populating the request.
+  ctrl->fu_busy = true;
 
   const tusb_control_request_t request = {.bmRequestType_bit = {.recipient = TUSB_REQ_RCPT_INTERFACE,
                                                                 .type      = TUSB_REQ_TYPE_CLASS,
@@ -2545,8 +2512,8 @@ static bool audioh_feature_unit_get(uint8_t idx, uint8_t stream_idx, uint8_t con
                                           .wLength = width};
 
   if (complete_cb == NULL) {
-    // Sync (blocking) path: user_data points to a tusb_xfer_result_t, the raw
-    // bytes are converted to host order after the transfer completes
+    // The synchronous transfer completes before its driver-owned response is
+    // converted to host order.
     tuh_xfer_t xfer = {.daddr       = p_audio->daddr,
                        .ep_addr     = 0,
                        .setup       = &request,
@@ -2566,7 +2533,7 @@ static bool audioh_feature_unit_get(uint8_t idx, uint8_t stream_idx, uint8_t con
     return true;
   }
 
-  // Async path: chain the host-order conversion to the application callback
+  // The asynchronous wrapper converts the response before calling the application.
   ctrl->complete_cb = complete_cb;
   ctrl->user_data   = user_data;
   tuh_xfer_t xfer   = {.daddr       = p_audio->daddr,
