@@ -200,11 +200,28 @@ const fixAndVerify = async (workIn) => {
     }
     work.push(g)
   }
+  // HIL rig rosters (test/hil/*.json) describe physical hardware the user owns:
+  // never edit them autonomously — skipping/reshaping tests there papers over a
+  // failing fixture. A failure that needs hardware swapped or re-cabled stays RED
+  // for the user; roster edits happen only with the user's explicit approval.
+  const withheld = []
+  for (const w of work) {
+    for (const f of [...w.files]) if (/^test\/hil\/[^/]+\.json$/.test(f)) {
+      w.files.delete(f)
+      log(`fix for ${w.key}: ${f} is a HIL rig config — edits need user approval, dropped from scope`)
+    }
+    if (w.files.size === 0) {
+      withheld.push(w)
+      log(`fix for ${w.key}: only a HIL rig config edit would address it — leaving red for the user`)
+    }
+  }
+  for (const w of withheld) work.splice(work.indexOf(w), 1)
   const scopeOf = (w) => [...w.files].join(', ')
   const fixes = await pipeline(
     work,
     w => agent(
       `Fix the following issues on the PR branch. ${IN_CHECKOUT}\n` +
+      'Constraint: never modify test/hil/*.json (HIL rig hardware config) — a failure that needs hardware swapped/changed stays red for the user.\n' +
       `Scope: ${scopeOf(w)}\nIssues:\n- ${w.notes.join('\n- ')}`,
       { label: `fix:${w.key}`, phase: 'Fix', agentType: 'code-writer', schema: DEV },
     ),
@@ -218,7 +235,7 @@ const fixAndVerify = async (workIn) => {
   if (alive.length < work.length) log(`${work.length - alive.length} fix group(s) lost to dead workers`)
   const unverified = alive.filter(f => f.addresses !== true)
   for (const f of unverified) log(`fix for ${f.item}: failed verification — ${f.checkReason}`)
-  return { ok: unscoped.length === 0 && alive.length === work.length && unverified.length === 0, fixes: alive }
+  return { ok: unscoped.length === 0 && withheld.length === 0 && alive.length === work.length && unverified.length === 0, fixes: alive }
 }
 
 // Verification gates every push: never push unverified or partial edits.
