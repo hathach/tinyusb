@@ -129,6 +129,10 @@ const postReplyRecipe = (noun) =>
 const history = []
 const repliedIds = new Set() // issue comments can't be thread-resolved, so they re-harvest every cycle — never reply twice
 
+// Backoff between cycles that have nothing to do but wait. Degrades to a no-op
+// rather than throwing if the workflow host has no timer.
+const nap = (ms) => new Promise(res => { if (typeof setTimeout === 'function') setTimeout(res, ms); else res() })
+
 // Canonicalize a repo-relative path for set/collision comparison: resolve ./..
 // segments, unify separators; '' for anything that escapes the repo or uses
 // characters no repo path does (also makes the path shell-safe to interpolate).
@@ -368,6 +372,18 @@ for (let cycle = 1; cycle <= maxCycles; cycle++) {
   }
   if (c.status === 'running' || c.infraRerun.length > 0) {
     log(`cycle ${cycle}: CI still settling (${c.infraRerun.length} infra re-run(s)) — re-arming`)
+    continue
+  }
+  if (!r.done) {
+    // A bot has not reported for this head SHA yet. With CI already green there is
+    // nothing else to wait on, so back off before re-arming or the cycle budget
+    // burns on back-to-back re-harvests of the same unchanged PR.
+    if (cycle < maxCycles) {
+      log(`cycle ${cycle}: auto-review still pending — re-arming after a wait`)
+      await nap(60000 * cycle) // no wait on the last cycle: nothing would re-check after it
+    } else {
+      log(`cycle ${cycle}: auto-review still pending — cycle budget exhausted`)
+    }
     continue
   }
   log(`cycle ${cycle}: nothing actionable`)
