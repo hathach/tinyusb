@@ -360,7 +360,47 @@ def check_host_serial(board: dict, do_reset: bool = True, want_hello: bool = Fal
 
     do_reset=False listens to the firmware as-is: used right after a flash whose
     own reset already started it — a second openocd/JLink session back-to-back on
-    the same probe can fail transiently and leave the target halted."""
+    the same probe can fail transiently and leave the target halted.
+
+    "logger": "rtt" boards have no VCOM: the same check runs over the probe's RTT
+    console instead. The reset happens BEFORE the console opens (it owns the probe),
+    which also zeroes the .bss ring — so pre-reset backlog cannot count as life, and
+    without a reset Commander delivers the boot burst the preceding flash left."""
+    if board.get('logger') == 'rtt':
+        if do_reset:
+            # a failed reset leaves the previous run's ring intact: attaching anyway would
+            # score stale output as life, so bail to host_alive's board_test reflash ladder
+            rc, err = call_flasher(getattr(hil_flash, f'reset_{board["flasher"]["name"].lower()}'), board)
+            if rc:
+                say(f'{board["name"]:26} reset failed: {err}')
+                return None
+        try:
+            ser = hil_util.JlinkRtt(board, timeout=0.3)
+        except hil_util.RttError as e:
+            say(f'{board["name"]:26} no RTT console: {e}')
+            return None
+        try:
+            data = b''
+            deadline = time.monotonic() + SERIAL_WAIT
+            while time.monotonic() < deadline:
+                ser.write(b'U')
+                data += ser.read(256)
+                # JLinkExe's banner arrives whether or not the target is alive --
+                # judged unfiltered it scores a dead board 'alive'. Same shared filter
+                # as test_host_device_info; complete_only drops a trailing partial
+                # line, so a banner FRAGMENT split by this read boundary cannot count
+                # as target output either.
+                td = hil_util.strip_banner(data, complete_only=True)
+                if want_hello:
+                    if b'Hello from TinyUSB' in td:
+                        return td
+                elif td and not boardtest_output(td):
+                    return td
+            return hil_util.strip_banner(data)
+        except hil_util.RttError:
+            return None  # console died mid-poll (server exited, probe dropped)
+        finally:
+            ser.close()
     import serial
     try:
         port = hil_util.get_serial_dev(board['flasher']['uid'], None, None, 0)

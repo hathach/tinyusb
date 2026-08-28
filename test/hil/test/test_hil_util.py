@@ -145,9 +145,13 @@ class BottomLayer(unittest.TestCase):
         # hil_pool_check included: test_hil_util_is_a_single_module_instance imports it
         # on the bare runner, and its `import serial` is function-local for exactly
         # this reason -- hoisting it must fail HERE, not on every PR's pre-commit CI
+        # ../../tools/rtt: hil_util exec_module's it at import (helper/hil_util.py's
+        # loader block), so a non-stdlib import THERE kills ci_select on the bare
+        # runner just as surely -- and the spec_from_file_location call is invisible to
+        # the ast.Import walk below, which is why it must be listed explicitly
         for mod in ('helper/hil_util', 'hil_flash', '../../tools/ci_select',
                     'helper/hil_health', 'helper/hil_lock', 'helper/hil_pool_check',
-                    '../../tools/build', '../../tools/build_utils'):
+                    '../../tools/build', '../../tools/build_utils', '../../tools/rtt'):
             tree = ast.parse((hil_dir / f'{mod}.py').read_text())
             # module level only: a deferred import inside a function cannot break
             # importability (hil_pool_check keeps `import serial` function-local

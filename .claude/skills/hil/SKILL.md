@@ -82,6 +82,8 @@ See the `usb-kernel-recover` skill for what a real wedge looks like and how to c
 
 Examples must be built for the target board(s) — see CLAUDE.md "Build" → "All examples for a board" (produces `examples/cmake-build-<board>/`). `-B examples` points `hil_test.py` at that parent folder. (This applies to `hil_test.py`; `hil_pool_check.py` builds its own missing firmware.)
 
+A board whose flasher probe has no VCOM (or whose BSP has no UART) uses RTT as its console — "No serial device found for /dev/serial/by-id/…" on every host test is the symptom. Config: `"logger": "rtt"` (jlink flashers only) plus a self-named variant carrying the define — `"variant": [{"name": "<board>", "defines": ["LOGGER=rtt"]}]` — and prebuilt example sets must carry the same `-DLOGGER=rtt`. Caveat: the cdc/msc-fixture host tests don't speak RTT yet, so such a board cannot carry `is_cdc`/`is_msc` fixtures (the config loader rejects it; see the rtt follow-up doc). Details: the `rtt` skill.
+
 ## Arguments
 
 - **Board:** `-b BOARD_NAME`, repeatable for a subset (`-b a -b b`); omit to run all boards in the config. Give a whole set to ONE run rather than one run per board: it schedules the boards across host controllers and budgets concurrent flashes and usbtest batteries per controller (`hil_lock.py` `FLASH_PARALLEL`/`USBTEST_PARALLEL`). Those permits are in-process semaphores — a second `hil_test.py` running alongside does not share them, it multiplies the load on the same xHCI cards.
