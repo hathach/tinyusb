@@ -77,8 +77,13 @@ import string
 # ENUM_TIMEOUT_RETRY -- a device that will enumerate shows up within seconds, so a failing
 # test costs ~3-5x a passing one instead of 10-30x. Set per attempt by test_example(); a
 # module global is safe because each pool worker is its own process.
-ENUM_TIMEOUT = 8
-ENUM_TIMEOUT_RETRY = 4
+# 12 covers one full usbh watchdog recovery: CFG_TUH_CONTROL_TIMEOUT_MS (5 s) on a wedged
+# first attempt + port re-reset + re-enumeration + example boot, with margin.
+# ENUM_TIMEOUT_RETRY must still exceed CFG_TUH_CONTROL_TIMEOUT_MS (5 s), or a retry that is
+# flaky precisely because it needs that same watchdog recovery can never budget enough time
+# for it and always fails again.
+ENUM_TIMEOUT = 12
+ENUM_TIMEOUT_RETRY = 8
 _enum_timeout = ENUM_TIMEOUT
 
 
@@ -206,6 +211,7 @@ class Board(TypedDict):
     variant: NotRequired[list[VariantCfg]]
     logger: NotRequired[str]  # "rtt": console = the debug probe's RTT channel 0, not a VCOM (rtt skill)
     toolchain: NotRequired[str]  # CI build bucket override, e.g. "riscv-gcc" (consumed by hil_ci_set_matrix.py)
+    uart_uid: NotRequired[str]   # console bridge serial when the flasher probe has no CDC (e.g. J-Trace)
 
 
 class HilConfig(TypedDict):
@@ -306,7 +312,8 @@ def open_board_console(board: Board):
         assert board['flasher']['name'].lower() == 'jlink', \
             f'{board["name"]}: "logger": "rtt" needs a jlink flasher, not {board["flasher"]["name"]}'
         return hil_util.JlinkRtt(board)
-    ser = open_serial_dev(hil_util.get_serial_dev(board['flasher']["uid"], None, None, 0))
+    # uart_uid: console bridge serial when the probe has no CDC (e.g. J-Trace + CP2102N)
+    ser = open_serial_dev(hil_util.get_serial_dev(board.get('uart_uid') or board['flasher']["uid"], None, None, 0))
     ser.timeout = 0.1
     return ser
 
