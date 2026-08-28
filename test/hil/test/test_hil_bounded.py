@@ -39,7 +39,6 @@ serial_stub.SerialTimeoutException = type('SerialTimeoutException', (Exception,)
 sys.modules.setdefault('serial', serial_stub)
 import hil_flash
 import hil_test
-from helper import hil_report
 
 
 def write_script(path: Path, body: str) -> None:
@@ -151,37 +150,60 @@ class CompactOutput(unittest.TestCase):
 class UsbtestRecovery(unittest.TestCase):
     def test_recovery_flags_and_flash_bound_fit_the_reserve(self):
         """The post-hang reflash plumbing: the CLI flags exist, and the bounded reflash
-        plus the fixed recovery costs (60s case timeout + 5s kill wait + 5s settle)
-        fits inside USBTEST_RECOVERY_BUDGET -- otherwise the outer run_cmd kill lands
-        mid-flash and orphans the flasher (own session) on the probe."""
+        and the reserve that pays for them is derived per flasher (see the two tests
+        below), not pinned."""
         import subprocess
         hil_dir = Path(TEST_DIR).parents[0]
         r = subprocess.run([sys.executable, str(hil_dir / 'usbtest.py'), '--help'],
                            capture_output=True, text=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
-        for flag in ('--recover-board', '--recover-fw', '--outer-timeout'):
+        for flag in ('--recover-board', '--recover-fw'):
             self.assertIn(flag, r.stdout)
 
-    def test_the_bounded_reflash_actually_fits_the_reserve(self):
-        """The arithmetic the docstring above claims but never checked -- the two
-        constants never met in any test, so bumping either silently broke the promise.
-        Overrun means run_cmd's outer kill lands MID-FLASH and orphans the flasher
-        (start_new_session, so killpg misses it) holding the probe."""
-        import re
+    def test_the_reserve_covers_every_step_of_its_own_ladder(self):
+        """Enumerated from the SIDE EFFECTS usbtest performs, so dropping a step from
+        recovery_reserve() fails here. Overrun means run_cmd's outer kill lands MID-FLASH
+        and orphans the flasher (start_new_session, so killpg misses it) on the probe.
+        """
         import usbtest
-        hil_dir = Path(TEST_DIR).parents[0]
-        # read the case timeout hil_test actually passes, so this cannot drift silently
-        src = (hil_dir / 'hil_test.py').read_text()
-        m = re.search(r'--timeout (\d+) --budget', src)
-        self.assertIsNotNone(m, 'usbtest invocation changed shape; re-derive this bound')
-        case_timeout = int(m.group(1))
-        kill_wait, settle, time_left_reserve = 5, 5, 35   # usbtest.py's fixed costs
-        worst = (case_timeout + kill_wait + usbtest.RECOVER_FLASH_TIMEOUT
-                 + settle + time_left_reserve)
-        self.assertLessEqual(
-            worst, hil_test.USBTEST_RECOVERY_BUDGET,
-            f'a HUNG case needs {worst}s to recover but only '
-            f'{hil_test.USBTEST_RECOVERY_BUDGET}s is reserved')
+        from helper import hil_util as _hu
+        # each bounded step costs its timeout PLUS run_cmd's post-SIGKILL reap
+        flash = usbtest.RECOVER_FLASH_TIMEOUT + _hu.REAP_GRACE
+        reset = usbtest.RECOVER_RESET_TIMEOUT + _hu.REAP_GRACE
+        fixed = 2 * usbtest.RECOVER_SETTLE + usbtest.RECOVER_OVERHEAD
+        rp = {'name': 'openocd', 'args': '-f target/rp2040.cfg'}
+        for flasher, steps in (
+                # an RP openocd board: reset, reflash, then Rescue-DP POR + one retry
+                (rp, reset + flash + 2 * flash + fixed),
+                # openocd on a NON-RP target: rescue_openocd has no RESCUE_CFG entry for
+                # it, so its two legs are time the board can never spend
+                ({'name': 'openocd', 'args': '-f target/wch-riscv.cfg'},
+                 reset + flash + fixed),
+                # esptool: reset_esptool is a stub (no_op) and rescue refuses a
+                # non-openocd flasher, so ONE reflash is all it can ever spend
+                ({'name': 'esptool', 'args': ''}, flash + fixed)):
+            self.assertEqual(usbtest.recovery_reserve(flasher), steps,
+                             f'{flasher} reserves time it cannot spend, or too little')
+
+    def test_the_reserve_leaves_room_for_the_work_no_step_bounds(self):
+        """The ladder's step timeouts do not cover the two /proc walks, the roster
+        json.loads, the child's first import, or the JSON print. With zero margin any
+        env-overridable bound moving up puts the outer killpg inside the reflash."""
+        import usbtest
+        self.assertGreater(usbtest.RECOVER_OVERHEAD, 0)
+        rp = {'name': 'openocd', 'args': '-f target/rp2350.cfg'}
+        bounded = (usbtest.RECOVER_RESET_TIMEOUT + 3 * usbtest.RECOVER_FLASH_TIMEOUT)
+        self.assertGreaterEqual(usbtest.recovery_reserve(rp) - bounded,
+                                usbtest.RECOVER_OVERHEAD,
+                                'the reserve equals its own worst case with no margin')
+
+    def test_a_flasher_reserves_nothing_for_a_rescue_it_cannot_run(self):
+        """rescue_openocd returns False for anything but openocd, so reserving its two
+        legs elsewhere holds a pool worker AND a usbtest permit for 200s of dead time."""
+        import usbtest
+        self.assertLess(usbtest.recovery_reserve({'name': 'esptool', 'args': ''}),
+                        usbtest.recovery_reserve({'name': 'openocd',
+                                                  'args': '-f target/rp2040.cfg'}))
 
 
 class UsbtestRunHelper(unittest.TestCase):
@@ -414,185 +436,9 @@ class ConvoySafeFlasher(unittest.TestCase):
             self.assertFalse(self.f(flasher))
 
 
-class BoundedOpen(unittest.TestCase):
-    """hil_util.bounded_open must return rather than block, and must not leak the fd if
-    the open completes after we gave up (usblp_open takes the device mutex before it
-    consults O_NONBLOCK, so a wedged node blocks the open uninterruptibly)."""
-
-    def setUp(self):
-        from helper import hil_util
-        self.hil_util = hil_util
-        self.tmp = TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        # bounded_open counts its stranded threads now, and the counter is process-global
-        # with no decrement: three wedged-FIFO tests here reach SYSFS_STUCK_MAX and every
-        # later test in this file reads SYSFS_UNKNOWN for perfectly good attributes
-        self.addCleanup(setattr, hil_util, '_sysfs_stuck', hil_util._sysfs_stuck)
-
-    def test_opens_a_normal_file(self):
-        f = Path(self.tmp.name) / 'plain'
-        f.write_text('x')
-        fd = self.hil_util.bounded_open(str(f), os.O_RDONLY, 5)
-        self.assertIsNotNone(fd)
-        os.close(fd)
-
-    def test_missing_path_returns_none_without_raising(self):
-        self.assertIsNone(self.hil_util.bounded_open(
-            str(Path(self.tmp.name) / 'nope'), os.O_RDONLY, 5))
-
-    def test_blocking_open_gives_up_and_does_not_leak_fds(self):
-        """A reader-less FIFO blocks open(O_WRONLY) forever -- the closest portable
-        stand-in for a wedged usblp node."""
-        fifo = Path(self.tmp.name) / 'fifo'
-        os.mkfifo(fifo)
-        before = len(os.listdir('/proc/self/fd'))
-        t0 = time.monotonic()
-        for _ in range(5):
-            self.assertIs(self.hil_util.bounded_open(str(fifo), os.O_WRONLY, 0.2),
-                          self.hil_util.SYSFS_UNKNOWN)
-        self.assertLess(time.monotonic() - t0, 10, 'bounded_open did not bound')
-        self.assertLessEqual(len(os.listdir('/proc/self/fd')) - before, 1,
-                             'bounded_open leaked fds on the blocking path')
-
-    def test_open_completing_during_the_abandon_does_not_leak(self):
-        """The window the handoff lock exists for: the worker is at its store-or-close
-        decision when the caller gives up and drains the box.
-
-        The `abandoned` Event is instrumented to park the worker there, because timing
-        alone never reaches that window -- 1500 tries against the unlocked version leaked
-        nothing, so a test that merely completes the open late proves nothing. An empty
-        `hit` means the instrumentation no longer bites and the window is untested."""
-        hil_util = self.hil_util
-        fifo = Path(self.tmp.name) / 'fifo'
-        os.mkfifo(fifo)
-        caller = threading.current_thread()
-        drained, hit = threading.Event(), []
-
-        class RacingEvent(threading.Event):
-            def is_set(self):
-                v = super().is_set()
-                if not v and not hit and threading.current_thread() is not caller:
-                    hit.append(True)
-                    # bounded: the fixed bounded_open holds the lock across this call, so
-                    # the caller cannot reach its abandon (and set drained) until we return
-                    drained.wait(0.3)
-                return v
-
-        shim = types.ModuleType('threading_shim')
-        shim.__dict__.update(threading.__dict__)
-        shim.Event = RacingEvent
-        hil_util.threading = shim
-        self.addCleanup(setattr, hil_util, 'threading', threading)
-
-        before = len(os.listdir('/proc/self/fd'))
-        rd = os.open(fifo, os.O_RDONLY | os.O_NONBLOCK)   # the O_WRONLY open completes at once
-        try:
-            self.assertIs(hil_util.bounded_open(str(fifo), os.O_WRONLY, 0.05),
-                          hil_util.SYSFS_UNKNOWN)
-            drained.set()
-            time.sleep(0.1)      # let an abandoned worker act on what it saw
-            self.assertTrue(hit, 'the abandon window was never entered')
-            self.assertLessEqual(len(os.listdir('/proc/self/fd')) - before, 1,
-                                 'bounded_open stored the fd after the caller drained the box')
-        finally:
-            drained.set()
-            os.close(rd)
-
-
-class SysfsUnknownIsNotAbsent(unittest.TestCase):
-    """read_sysfs must tell "no such attribute" (a fact) from "the read did not answer"
-    (not a fact). Every caller that concluded absence from the latter reported a healthy
-    board as a firmware regression."""
-
-    def setUp(self):
-        from helper import hil_util
-        self.hil_util = hil_util
-        self.saved = (hil_util._sysfs_stuck, hil_util._sysfs_blind_logged)
-        self.tmp = TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-
-    def tearDown(self):
-        # a blocked read strands a counted daemon thread; leaving the count raised would
-        # blind every later test in this process
-        self.hil_util._sysfs_stuck, self.hil_util._sysfs_blind_logged = self.saved
-
-    def test_readable_attribute_returns_its_value(self):
-        p = Path(self.tmp.name) / 'serial'
-        p.write_text('CAFE01\n')
-        self.assertEqual(self.hil_util.read_sysfs(str(p)), 'CAFE01')
-
-    def test_missing_attribute_is_none(self):
-        self.assertIsNone(self.hil_util.read_sysfs(str(Path(self.tmp.name) / 'nope')))
-
-    def test_blocking_read_is_unknown_not_absent(self):
-        """A reader-less FIFO stands in for the wedged device whose sysfs read never
-        returns; None here would read as "the board is gone"."""
-        fifo = Path(self.tmp.name) / 'fifo'
-        os.mkfifo(fifo)
-        t0 = time.monotonic()
-        v = self.hil_util.read_sysfs(str(fifo), grace=0.3)
-        self.assertLess(time.monotonic() - t0, 10, 'read_sysfs did not bound')
-        self.assertIs(v, self.hil_util.SYSFS_UNKNOWN)
-        self.assertIsNotNone(v)
-
-    def test_blind_process_answers_unknown_for_a_readable_attribute(self):
-        p = Path(self.tmp.name) / 'serial'
-        p.write_text('CAFE01')
-        self.hil_util._sysfs_stuck = self.hil_util.SYSFS_STUCK_MAX
-        self.assertTrue(self.hil_util.sysfs_blind())
-        self.assertIs(self.hil_util.read_sysfs(str(p)), self.hil_util.SYSFS_UNKNOWN)
-        self.assertIn('blind', self.hil_util.sysfs_blind_note())
-
-    def test_unknown_is_falsy_but_not_none(self):
-        # call sites use `(v or '')` idioms; the sentinel must keep working there while
-        # still being distinguishable from a real absence
-        self.assertFalse(self.hil_util.SYSFS_UNKNOWN)
-        self.assertIsNotNone(self.hil_util.SYSFS_UNKNOWN)
-
-
-class UsbtestEnumerationVerdict(unittest.TestCase):
-    """test_device_usbtest must not report a healthy board as "no cafe:4010 device" just
-    because its own sysfs reads stopped answering."""
-
-    def setUp(self):
-        from helper import hil_util
-        self.hil_util = hil_util
-        self.td = TemporaryDirectory()
-        self.addCleanup(self.td.cleanup)
-        # a real device dir: usb_scan reads idVendor/idProduct with a plain open (they are
-        # lock-free descriptor fields), and only `serial` through the bounded reader
-        dev = Path(self.td.name) / '1-2'
-        dev.mkdir()
-        (dev / 'idVendor').write_text('cafe\n')
-        (dev / 'idProduct').write_text('4010\n')
-        (dev / 'serial').write_text('CAFE01\n')
-        for obj, name, val in ((hil_util, 'read_sysfs', hil_util.read_sysfs),
-                               (hil_util, 'glob', hil_util.glob),
-                               (hil_util, '_sysfs_stranded', {}),
-                               (hil_test, '_enum_timeout', 1)):
-            self.addCleanup(setattr, obj, name, getattr(obj, name))
-            setattr(obj, name, val)
-        hil_util.glob = types.SimpleNamespace(glob=lambda pat: [str(dev)])
-
-    def _fail(self, reader):
-        self.hil_util.read_sysfs = reader
-        with self.assertRaises(hil_test.TestFail) as cm:
-            hil_test.test_device_usbtest({'uid': 'CAFE01', 'name': 'fake', 'flasher': {}})
-        return str(cm.exception)
-
-    def test_unknown_reads_do_not_claim_the_device_is_absent(self):
-        msg = self._fail(lambda p, *a, **kw: self.hil_util.SYSFS_UNKNOWN)
-        self.assertNotIn('no cafe:4010 device', msg)
-        self.assertIn('did not answer', msg)
-
-    def test_a_readable_bus_without_the_device_still_says_absent(self):
-        msg = self._fail(lambda p, *a, **kw: 'OTHERUID')
-        self.assertIn('no cafe:4010 device', msg)
-
-
 class UnresolvedControllerBucket(unittest.TestCase):
     """An unresolved controller must budget in ONE bucket. Taking a permit on every slot
-    serialized the whole fleet the moment a worker went blind."""
+    serialized the whole fleet the moment a single board could not be resolved."""
 
     def setUp(self):
         import threading
@@ -652,8 +498,7 @@ class ThroughputPayloadBound(unittest.TestCase):
     payload actually requested."""
 
     def test_only_a_read_high_speed_gets_the_big_payload(self):
-        from helper import hil_util
-        for speed in (None, hil_util.SYSFS_UNKNOWN, '12', '1.5'):
+        for speed in (None, '12', '1.5'):
             self.assertTrue(hil_test.link_is_fs(speed), f'{speed!r} must scale as FS')
         for speed in ('480', '5000', '10000'):
             self.assertFalse(hil_test.link_is_fs(speed))
@@ -710,61 +555,6 @@ class FindDeviceCache(unittest.TestCase):
         self.assertEqual(self.usbtest.find_device('BBBB')['sysname'], '1-3')
 
 
-class EnumPollDoesNotReReadAWedgedPath(unittest.TestCase):
-    """usbtest_enumerated re-globs every device each 0.2 s pass. One wedged peer therefore
-    strands a fresh bounded reader thread per pass, and SYSFS_STUCK_MAX=4 of those blind
-    the WHOLE worker for the rest of the run -- measured at 8 s of polling. A path that
-    already stranded is known-unknown; reading it again buys nothing and costs the
-    blindness budget."""
-
-    def test_a_stranded_path_is_read_at_most_once(self):
-        from contextlib import contextmanager
-        from helper import hil_lock, hil_util
-
-        td = TemporaryDirectory()
-        self.addCleanup(td.cleanup)
-        # A REAL device dir: usb_scan reads idVendor/idProduct with a plain open and
-        # `continue`s on OSError, so a bare FIFO is skipped before the bounded read is ever
-        # reached -- this test passed identically with the memo deleted until the ids were
-        # added. The FIFO must be the `serial` of a device that survives the cheap filter.
-        devdir = Path(td.name) / '1-2'
-        devdir.mkdir()
-        (devdir / 'idVendor').write_text('cafe\n')
-        (devdir / 'idProduct').write_text('4010\n')
-        wedged = devdir / 'serial'
-        os.mkfifo(wedged)                 # open() blocks forever: no writer, ever
-
-        def patch(obj, name, value):
-            self.addCleanup(setattr, obj, name, getattr(obj, name))
-            setattr(obj, name, value)
-
-        def _permit(uid):
-            yield
-
-        from helper import hil_util as _hu2
-        patch(_hu2, 'glob', types.SimpleNamespace(glob=lambda p: [str(devdir)]))
-        patch(_hu2, '_sysfs_stranded', {})
-        patch(hil_lock, 'usbtest_permit', contextmanager(_permit))
-        # Long enough for several 2 s reads, but under the blindness cap -- past the cap
-        # sysfs_blind() short-circuits reads on its own and would mask the memo entirely.
-        patch(hil_test, '_enum_timeout', 8)
-        # the blindness counter is process-global and never decrements: restore it or this
-        # test blinds every test that runs after it
-        patch(hil_util, '_sysfs_stuck', hil_util._sysfs_stuck)
-
-        # Count LEAKED THREADS, not _sysfs_stuck: a strand is booked only the first time a
-        # path is seen, so the counter is deduped by the memo's own bookkeeping and stays 1
-        # even when the memo is broken. Each re-read blocks a fresh thread on the FIFO
-        # forever and leaks its fd -- which is the cost the memo exists to avoid, and the
-        # only thing here that actually moves when it regresses.
-        before = threading.active_count()
-        with self.assertRaises(hil_test.TestFail):      # never enumerates, by construction
-            hil_test.test_device_usbtest({'name': 'b', 'uid': 'UID1',
-                                          'flasher': {'name': 'openocd'}})
-        self.assertLessEqual(threading.active_count() - before, 1,
-                             'the poll re-read a path it already knew was stranded')
-
-
 class ReRunSpecNamesOnlyWhatFailed(unittest.TestCase):
     """The pool-guard path used to leave this unwritten -- and a fresh run has already
     unlinked it -- so build.yml's re-run step found nothing and GitHub re-tested all ~26
@@ -815,44 +605,6 @@ class WedgedPidsFailsClosed(unittest.TestCase):
         usbtest.os.access = lambda p, m: False     # /proc/1/cmdline unreadable
         _, complete = usbtest.wedged_pids('/dev/bus/usb/999/999')
         self.assertFalse(complete, 'a hidden holder was reported as absent')
-
-
-@unittest.skipIf(sys.version_info < (3, 11), 'fake-pymtp steering needs PYTHONSAFEPATH')
-class StrandMemoRemembersUnstattablePaths(unittest.TestCase):
-    """A stranded path whose inode could not be read is stored as None -- which dict.get()
-    also returns for a MISS. Testing `is not None` therefore treats 'known stranded' as
-    'never seen', and every later call strands ANOTHER permanent thread and fd on a path we
-    already know is wedged. That is the exact unbounded growth SYSFS_STUCK_MAX exists to
-    stop, and it is invisible: `first = path not in _sysfs_stranded` is False, so the
-    blindness counter does not advance either."""
-
-    def setUp(self):
-        from helper import hil_util
-        self.hil_util = hil_util
-        self.addCleanup(hil_util._sysfs_stranded.clear)
-        hil_util._sysfs_stranded.clear()
-        self.addCleanup(setattr, hil_util, '_sysfs_stuck', hil_util._sysfs_stuck)
-        hil_util._sysfs_stuck = 0
-        self.td = TemporaryDirectory(); self.addCleanup(self.td.cleanup)
-        self.fifo = os.path.join(self.td.name, 'serial')
-        os.mkfifo(self.fifo)          # open() succeeds, read() never returns
-
-    def test_an_unstattable_strand_is_not_re_read(self):
-        self.hil_util._sysfs_stranded[self.fifo] = None   # as the record path stores it
-        before = threading.active_count()
-        self.assertIs(self.hil_util.read_sysfs(self.fifo, grace=0.5),
-                      self.hil_util.SYSFS_UNKNOWN)
-        self.assertEqual(threading.active_count(), before,
-                         'a known-stranded path was re-read, stranding another thread')
-
-    def test_a_live_strand_is_still_re_read_when_the_node_is_replaced(self):
-        """The memo must not become permanent blindness: a NEW inode at the same path is a
-        different device and has to be read."""
-        self.hil_util._sysfs_stranded[self.fifo] = 999999999  # inode that is not this one
-        with open(os.path.join(self.td.name, 'other'), 'w') as f:
-            f.write('ok\n')
-        os.replace(os.path.join(self.td.name, 'other'), self.fifo)
-        self.assertEqual(self.hil_util.read_sysfs(self.fifo, grace=0.5), 'ok')
 
 
 class MtpGioOrdering(_MtpFakeRig, unittest.TestCase):
@@ -982,55 +734,6 @@ class RunWhileContract(unittest.TestCase):
         self.assertNotEqual(pgids['child'], os.getpgid(0))
 
 
-class StrandedPathMemoInvalidates(unittest.TestCase):
-    """The memo lives in read_sysfs, so every bounded reader gets it -- call-site memos
-    meant each new scanner had to remember (get_printer_dev and the throughput probe did
-    not). And it MUST expire on re-enumeration: the key is a bus path, which does not
-    change when a device comes back on the same port, so a memo that never invalidates
-    makes a board the branch's own HUNG reflash just recovered permanently invisible."""
-
-    def setUp(self):
-        from helper import hil_util
-        self.hil_util = hil_util
-        self.td = TemporaryDirectory()
-        self.addCleanup(self.td.cleanup)
-        for name in ('_sysfs_stranded', '_sysfs_stuck'):
-            self.addCleanup(setattr, hil_util, name, getattr(hil_util, name))
-        hil_util._sysfs_stranded = {}
-        hil_util._sysfs_stuck = 0
-
-    def test_a_stranded_path_is_not_re_read(self):
-        f = Path(self.td.name) / 'serial'
-        os.mkfifo(f)                       # never answers
-        self.assertIs(self.hil_util.read_sysfs(str(f), 0.3), self.hil_util.SYSFS_UNKNOWN)
-        after_first = self.hil_util._sysfs_stuck
-        t0 = time.monotonic()
-        for _ in range(3):
-            self.assertIs(self.hil_util.read_sysfs(str(f), 0.3),
-                          self.hil_util.SYSFS_UNKNOWN)
-        self.assertLess(time.monotonic() - t0, 0.3, 'the memo did not short-circuit')
-        self.assertEqual(self.hil_util._sysfs_stuck, after_first,
-                         'repeat reads spent more of the blindness budget')
-
-    def test_re_enumeration_clears_it(self):
-        """A new device on the same busport gets a fresh sysfs node, hence a fresh inode.
-        Without this the memo outlives the wedge it recorded."""
-        f = Path(self.td.name) / 'serial'
-        os.mkfifo(f)
-        self.assertIs(self.hil_util.read_sysfs(str(f), 0.3), self.hil_util.SYSFS_UNKNOWN)
-        f.unlink()
-        f.write_text('CAFE01\n')           # same path, new inode = re-enumerated
-        self.assertEqual(self.hil_util.read_sysfs(str(f), 0.3), 'CAFE01',
-                         'a recovered device stayed invisible')
-
-    def test_a_vanished_path_is_not_remembered_as_stranded(self):
-        f = Path(self.td.name) / 'serial'
-        os.mkfifo(f)
-        self.assertIs(self.hil_util.read_sysfs(str(f), 0.3), self.hil_util.SYSFS_UNKNOWN)
-        f.unlink()
-        self.assertIsNone(self.hil_util.read_sysfs(str(f), 0.3))
-
-
 class UsbScanIsTheOneWalk(unittest.TestCase):
     """Three call sites each had a different subset of the three things this must get
     right; none had all three. The expensive read is `serial` -- served under the device
@@ -1051,19 +754,13 @@ class UsbScanIsTheOneWalk(unittest.TestCase):
             return real(path, *a, **k)
         self.addCleanup(setattr, hil_util, 'read_sysfs', real)
         hil_util.read_sysfs = counting
-        self.addCleanup(setattr, hil_util, '_sysfs_stranded',
-                        dict(hil_util._sysfs_stranded))
-        self.addCleanup(setattr, hil_util, '_sysfs_stuck', hil_util._sysfs_stuck)
 
-    def _dev(self, name, vid, pid, serial='S1', fifo=False):
+    def _dev(self, name, vid, pid, serial='S1'):
         d = self.root / name
         d.mkdir()
         (d / 'idVendor').write_text(vid + '\n')
         (d / 'idProduct').write_text(pid + '\n')
-        if fifo:
-            os.mkfifo(d / 'serial')          # a read that never answers
-        else:
-            (d / 'serial').write_text(serial + '\n')
+        (d / 'serial').write_text(serial + '\n')
         return d
 
     def _scan(self, **kw):
@@ -1074,84 +771,15 @@ class UsbScanIsTheOneWalk(unittest.TestCase):
         return self.hil_util.usb_scan(**kw)
 
     def test_a_mismatched_vid_pid_costs_no_serial_read(self):
+        """`serial` is the ONE attribute here served under the device lock, so it is the
+        one that can block on a wedged device. Filtering on the lock-free descriptor pair
+        first is what keeps a scan for our board off every other board's locked read."""
         self._dev('1-1', '1234', '5678')
         self._dev('1-2', 'cafe', '4010', serial='UID1')
-        devs, unknown = self._scan(vid_pid=('cafe', '4010'))
+        devs = self._scan(vid_pid=('cafe', '4010'))
         self.assertEqual([d['serial'] for d in devs], ['UID1'])
-        self.assertFalse(unknown)
         # the ruled-out device's locked attribute was never touched
         self.assertNotIn(str(self.root / '1-1' / 'serial'), self.reads)
-
-    def test_a_wedged_device_stays_unproven_on_every_scan(self):
-        """The memo lives in read_sysfs now, so usb_scan still CALLS it each pass -- what
-        must not repeat is the cost. StrandedPathMemoInvalidates covers the short-circuit;
-        here the invariant is that the device stays out of the results and absence stays
-        unproven, however many times we look."""
-        from helper import hil_util
-        self._dev('1-1', 'cafe', '4010', fifo=True)
-        first = None
-        t0 = time.monotonic()
-        for _ in range(3):
-            devs, unknown = self._scan()
-            self.assertTrue(unknown, 'a stranded read must leave absence unproven')
-            self.assertEqual(devs, [])
-            if first is None:
-                first = hil_util._sysfs_stuck
-        self.assertEqual(hil_util._sysfs_stuck, first,
-                         'repeat scans spent more of the blindness budget')
-        self.assertLess(time.monotonic() - t0, 3.0, 'repeat scans re-paid the grace')
-
-
-class BoundedOpenTellsAbsentFromUnknown(unittest.TestCase):
-    """Same contract as read_sysfs, in the sibling function of the same file: a real
-    OSError is a FACT (EBUSY, ENOENT, EACCES), a blocked open is UNKNOWN. Folding both
-    into None made an ordinary EBUSY report as a USB wedge, sending the operator to
-    usb-kernel-recover for healthy hardware -- and left the stranded thread uncounted,
-    so the cap that exists to stop the fd/thread ceiling never saw it."""
-
-    def setUp(self):
-        from helper import hil_util
-        self.hil_util = hil_util
-        self.td = TemporaryDirectory()
-        self.addCleanup(self.td.cleanup)
-
-    def test_a_real_oserror_is_a_fact(self):
-        missing = str(Path(self.td.name) / 'nope')
-        self.assertIsNone(self.hil_util.bounded_open(missing, os.O_RDONLY, 1))
-
-    def test_a_blocked_open_is_unknown_and_counted(self):
-        fifo = Path(self.td.name) / 'fifo'
-        os.mkfifo(fifo)                     # no reader: O_WRONLY blocks forever
-        self.addCleanup(setattr, self.hil_util, '_sysfs_stuck',
-                        self.hil_util._sysfs_stuck)
-        before = self.hil_util._sysfs_stuck
-        got = self.hil_util.bounded_open(str(fifo), os.O_WRONLY, 0.3)
-        self.assertIs(got, self.hil_util.SYSFS_UNKNOWN)
-        self.assertEqual(self.hil_util._sysfs_stuck, before + 1,
-                         'a stranded open is invisible to the blindness budget')
-
-
-class UsbtestSysfsReadIsCapped(unittest.TestCase):
-    """find_device re-scans every cafe:4010 peer after EVERY case, so the local twin --
-    which had no SYSFS_STUCK_MAX -- stranded a thread and an fd per wedged peer per case.
-    Delegating to hil_util gets the cap, and the deferred import keeps usbtest.py
-    importable standalone."""
-
-    def test_a_stranded_read_counts_against_the_shared_cap(self):
-        import usbtest
-        from helper import hil_util
-        td = TemporaryDirectory()
-        self.addCleanup(td.cleanup)
-        wedged = Path(td.name) / 'serial'
-        os.mkfifo(wedged)                      # no writer: open() never returns
-        self.addCleanup(setattr, hil_util, '_sysfs_stuck', hil_util._sysfs_stuck)
-        before = hil_util._sysfs_stuck
-        # UNKNOWN, not None: folding them made a blinded scan read as "device dropped
-        # off the bus", which aborts past the HUNG reflash
-        self.assertIs(usbtest._read_sysfs_bounded(wedged, grace=0.5),
-                      hil_util.SYSFS_UNKNOWN)
-        self.assertEqual(hil_util._sysfs_stuck, before + 1,
-                         'usbtest reads are invisible to the blindness budget')
 
 
 class AbandonExitSurvivesAFailedFork(unittest.TestCase):
@@ -1198,11 +826,9 @@ class AbandonExitSurvivesAFailedFork(unittest.TestCase):
 
 
 class UsbtestOuterBoundIsOneValue(unittest.TestCase):
-    """The bound usbtest is TOLD and the bound run_cmd ENFORCES must be the same number.
-    Three separate expressions disagreed: --skip-flash appended no --outer-timeout at all
-    (usbtest reads 0 as no limit), and the no-recovery branch narrowed only the CHILD's
-    view while run_cmd still waited for a recovery reserve nothing on that path can
-    spend -- a pool worker and its battery permit idle for the difference."""
+    """run_cmd's kill is the ONE bound, and it must carry a recovery reserve only when a
+    recovery can actually run. Otherwise a board on a path that cannot recover holds a pool
+    worker and its battery permit idle for the difference, under a usbtest width of 2."""
 
     def _invoke(self, flasher, skip_flash=False):
         from contextlib import contextmanager
@@ -1231,10 +857,6 @@ class UsbtestOuterBoundIsOneValue(unittest.TestCase):
 
         from helper import hil_util as _hu
         patch(_hu, 'glob', types.SimpleNamespace(glob=lambda p: [str(dev)]))
-        # the blindness latch and the stranded memo are process-global: another class's
-        # wedged-FIFO test would otherwise make every read here answer SYSFS_UNKNOWN
-        patch(_hu, '_sysfs_stuck', 0)
-        patch(_hu, '_sysfs_stranded', {})
         patch(hil_test, 'USBTEST_SETTLE', 0)   # see no_settle
         patch(hil_lock, 'usbtest_permit', contextmanager(_permit))
         patch(hil_test, 'skip_flash', skip_flash)
@@ -1244,24 +866,30 @@ class UsbtestOuterBoundIsOneValue(unittest.TestCase):
             hil_test.test_device_usbtest({'name': 'b', 'uid': 'UID1', 'flasher': flasher})
         return seen
 
-    def _outer_flag(self, cmd):
-        toks = cmd.split()
-        self.assertIn('--outer-timeout', toks, 'usbtest reads a missing bound as UNLIMITED')
-        return int(toks[toks.index('--outer-timeout') + 1])
-
     def test_a_recoverable_board_reserves_the_recovery_budget(self):
-        seen = self._invoke({'name': 'openocd', 'vid_pid': '0x1366 0x1024'})
-        want = hil_test.USBTEST_BATTERY_BUDGET + hil_test.USBTEST_RECOVERY_BUDGET
-        self.assertEqual(self._outer_flag(seen['cmd']), want)
+        import usbtest
+        flasher = {'name': 'openocd', 'vid_pid': '0x1366 0x1024',
+                   'args': '-f target/rp2040.cfg'}
+        seen = self._invoke(flasher)
+        want = (hil_test.USBTEST_BATTERY_BUDGET + hil_test.USBTEST_OVERSHOOT
+                + usbtest.recovery_reserve(flasher))
         self.assertEqual(seen['timeout'], want)
+
+    def test_the_reserve_follows_the_board_not_a_fleet_constant(self):
+        """Two convoy-safe openocd boards, one RP and one not: the non-RP board cannot
+        run rescue_openocd, so reserving its two legs holds a pool worker and a usbtest
+        permit for 200s of dead time."""
+        rp = self._invoke({'name': 'openocd', 'vid_pid': '0x1366 0x1024',
+                           'args': '-f target/rp2040.cfg'})
+        wch = self._invoke({'name': 'openocd', 'vid_pid': '0x1366 0x1024',
+                            'args': '-f target/wch-riscv.cfg'})
+        self.assertLess(wch['timeout'], rp['timeout'])
 
     def test_a_board_with_no_recovery_does_not_pay_for_one(self):
         seen = self._invoke({'name': 'stlink', 'uid': 'X'})   # never convoy_safe
-        outer = self._outer_flag(seen['cmd'])
-        self.assertEqual(seen['timeout'], outer, 'the two bounds disagree')
-        # It does not carry the RECOVERY reserve it cannot spend...
-        self.assertLess(outer, hil_test.USBTEST_BATTERY_BUDGET
-                        + hil_test.USBTEST_RECOVERY_BUDGET)
+        # It does not carry the RECOVERY reserve it cannot spend
+        self.assertEqual(seen['timeout'],
+                         hil_test.USBTEST_BATTERY_BUDGET + hil_test.USBTEST_OVERSHOOT)
         # ...but it MUST still exceed the child's own --budget. The battery checks the
         # budget before dispatching, so it can overshoot by one already-started case; an
         # equal bound SIGKILLs it just as it goes to print, turning ~29 real per-case
@@ -1269,12 +897,15 @@ class UsbtestOuterBoundIsOneValue(unittest.TestCase):
         toks = seen['cmd'].split()
         budget = int(toks[toks.index('--budget') + 1])
         case_timeout = int(toks[toks.index('--timeout') + 1])
-        self.assertGreaterEqual(outer - budget, case_timeout,
+        self.assertGreaterEqual(seen['timeout'] - budget, case_timeout,
                                 'the outer kill can land mid-case, before the JSON')
 
     def test_skip_flash_still_bounds_the_child(self):
+        """--skip-flash disables recovery, so the child must not be given a reserve it
+        cannot spend -- but it MUST still be bounded."""
         seen = self._invoke({'name': 'openocd', 'vid_pid': '0x1366 0x1024'}, skip_flash=True)
-        self.assertEqual(self._outer_flag(seen['cmd']), seen['timeout'])
+        self.assertEqual(seen['timeout'],
+                         hil_test.USBTEST_BATTERY_BUDGET + hil_test.USBTEST_OVERSHOOT)
 
 
 class UsbtestRetryPolicy(unittest.TestCase):
@@ -1673,60 +1304,6 @@ class StagingCoversEveryBoardForm(unittest.TestCase):
                          "last run's re-run spec survived a green run")
 
 
-class BlindWorkerReachesTheReport(unittest.TestCase):
-    """A worker that exhausts its bounded-read budget answers SYSFS_UNKNOWN for every
-    attribute, so its "device not found" means "could not tell". That reached the log and
-    the per-cell failure text but NOT the table -- and the table is what gets pasted into
-    the PR. Seen live: run 31794359407 went blind in 4 workers and published 26 red cells
-    with no mention of it, several of them caused by the blindness rather than the board."""
-
-    def test_no_note_when_every_worker_could_see(self):
-        mret = [('boardA', 0, [], [], 1.0, False), ('boardB', 0, [], [], 1.0, False)]
-        self.assertEqual(hil_test._blind_note(mret), '')
-
-    def test_the_note_names_the_boards_whose_verdicts_are_not_evidence(self):
-        mret = [('boardA', 0, [], [], 1.0, True), ('boardB', 0, [], [], 1.0, False),
-                ('boardC', 1, [], [], 1.0, True)]
-        note = hil_test._blind_note(mret)
-        self.assertIn('boardA', note)
-        self.assertIn('boardC', note)
-        self.assertNotIn('boardB', note)      # it could see; do not smear its result
-        self.assertTrue(note.endswith('\n'), 'banners are line-oriented')
-
-    def test_both_row_widths_survive_the_report_writers(self):
-        """The blindness flag widened the worker's result tuple to 6, but the pool-timeout
-        path still synthesises 5-field rows for boards that never reported and feeds them
-        to the same two writers. A fixed-width unpack in either one raises INSIDE the
-        containment path, which is where a raise costs every board's results."""
-        td = TemporaryDirectory()
-        self.addCleanup(td.cleanup)
-        rd = Path(td.name)
-        wide = ('boardA', 1, ['device/cdc_msc'], [('boardA', {'cdc_msc': '❌'}, '2s')], 2.0, True)
-        narrow = ('stuck', 1, [], None, 0)                      # what the timeout path builds
-        hil_test._write_failed_spec(rd / 'x.failed', rd, [wide, narrow])
-        md = hil_report.accumulate_report([wide], rd, True, '', hil_test._blind_note([wide]))
-        self.assertIn('boardA', md)
-        self.assertIn('not all verdicts are evidence', md.lower())
-
-    def test_the_stray_note_names_the_board_and_survives_narrow_rows(self):
-        """Survivors ride back on the result tuple because main()'s own sweep runs after
-        the report is written on both abort paths -- the banner appended there was
-        computed and discarded."""
-        wide = ('boardA', 0, [], [], 1.0, False, 2)
-        clean = ('boardB', 0, [], [], 1.0, False, 0)
-        note = hil_test._stray_note([wide, clean])
-        self.assertIn('boardA', note)
-        self.assertNotIn('boardB', note)
-        self.assertIn('2', note)
-        self.assertEqual(hil_test._stray_note([clean]), '')
-        self.assertEqual(hil_test._stray_note([('stuck', 1, [], None, 0)]), '')
-
-    def test_the_timeout_paths_synthetic_rows_do_not_crash_it(self):
-        """The pool-timeout path builds (name, 1, [], None, 0) for boards that never
-        reported -- five fields, no blindness to report -- and hands those around."""
-        self.assertEqual(hil_test._blind_note([('stuck', 1, [], None, 0)]), '')
-
-
 class PoolGuardKeepsWhatFinished(unittest.TestCase):
     """The guard's 30-minute predecessor fired on 5 of the last 8 HIL jobs, so this is the
     common failure, not an edge case: map_async discarded every board that had finished and
@@ -1831,7 +1408,7 @@ class WedgedBoardCosts(unittest.TestCase):
 class WedgeVerdictReachesTheLatch(unittest.TestCase):
     """usbtest computes `unrecovered_hang` but never reported it, so hil_test inferred the
     latch from `not recovery and 'HUNG' in out` and missed three cases: recovery ran and
-    FAILED (convoy-safe boards -- max32666fthr HUNG in the 08-14 run), the `inconclusive`
+    FAILED (convoy-safe boards -- max32666fthr HUNG in the 08-14 run), the `ambiguous`
     abort (which sets the flag but leaves no case at status HUNG), and an unparsable JSON,
     which is the outer-timeout kill and the case where a wedge is most likely."""
 
@@ -1881,7 +1458,7 @@ class WedgedBoardCannotReportAPass(unittest.TestCase):
     battery that still wedged returned `PASS 30/30`. That board then contributes 0 to
     err_count, is omitted from the .failed re-run spec (which keys on err > 0), and the job
     exits 0 with a D-state holder on the rig -- the exact silence this branch exists to end.
-    usbtest's `inconclusive` and `ambiguous` aborts fire AFTER the last case, so nothing
+    usbtest's `ambiguous` abort fires AFTER the last case, so nothing
     back-fills a BUDGET entry to make failed/notrun non-zero."""
 
     def setUp(self):
@@ -2038,6 +1615,206 @@ class HidEchoRunsInAChild(unittest.TestCase):
         r = self._run('short_read')
         self.assertNotEqual(r.returncode, 0)
         self.assertIn('short read', self._stderr(r))
+
+
+class StrayNoteSurvivesTheTupleWidth(unittest.TestCase):
+    """_stray_note reads r[5] -- and three producers build this tuple at three widths, so
+    `len(r) > 5 and r[5]` reads a WRONG SLOT rather than raising if a field is ever
+    inserted. The live handoff pr3840-mret-board-result.md proposes exactly that, and the
+    report would then say "no strays" while probes and usbfs nodes stay held into the next
+    job. The index changed once already in this branch (r[6] -> r[5])."""
+
+    def test_it_names_the_board_and_the_count(self):
+        wide = ('dirty', 1, [], [], 9.0, 2)
+        clean = ('fine', 0, [], [], 8.0, 0)
+        note = hil_test._stray_note([wide, clean])
+        self.assertIn('dirty (2)', note)
+        self.assertIn('2 process(es)', note)
+        self.assertNotIn('fine', note, 'a clean board must not appear in the note')
+
+    def test_a_narrow_row_from_the_timeout_path_is_not_misread(self):
+        """The abort paths synthesise 5-field rows for boards that never reported."""
+        self.assertEqual(hil_test._stray_note([('stuck', 1, [], None, 0)]), '')
+        self.assertEqual(hil_test._stray_note([('fine', 0, [], [], 8.0, 0)]), '')
+
+    def test_the_slot_it_reads_is_the_slot_test_board_writes(self):
+        """Pins the index against the producer, so inserting a field fails HERE rather
+        than silently reporting a duration as a stray count."""
+        import ast
+        src = (Path(TEST_DIR).parents[0] / 'hil_test.py').read_text()
+        fn = next(n for n in ast.walk(ast.parse(src))
+                  if isinstance(n, ast.FunctionDef) and n.name == 'test_board')
+        widths = sorted({len(n.value.elts) for n in ast.walk(fn)
+                         if isinstance(n, ast.Return) and isinstance(n.value, ast.Tuple)})
+        # the board-LOCKED early return is 5 wide and carries no stray count; the normal
+        # one is 6, with strays last
+        self.assertEqual(widths, [5, 6],
+                         'the result tuple changed width; _stray_note reads index 5')
+
+
+class MixedWidthRowsSurviveTheReportWriters(unittest.TestCase):
+    """_abort_report hands `[(n, 1, [], None, 0) for n in stuck] + [r for r in mret ...]`
+    to both writers -- 5-field synthetic rows mixed with 6-field worker rows. Every other
+    test uses uniform widths, so replacing either `*_` unpack with a fixed-width one keeps
+    the suite green and raises only INSIDE the containment path, where a raise costs every
+    board's results."""
+
+    def _mixed(self):
+        return [('stuck', 1, [], None, 0),                       # synthetic, 5 wide
+                ('ran', 1, ['device/dfu'],
+                 [('ran', {'device/dfu': '❌ boom'}, '8s')], 8.0, 2)]   # worker, 6 wide
+
+    def test_the_rerun_spec_accepts_both_widths(self):
+        with TemporaryDirectory() as td:
+            rd = Path(td)
+            hil_test._write_failed_spec(rd / 'c.json.failed', rd, self._mixed())
+            spec = (rd / 'c.json.failed').read_text()
+        self.assertIn('stuck', spec)
+        self.assertIn('ran', spec)
+
+    def test_the_cell_names_the_cause_of_the_abort(self):
+        """A board the pool guard never reached did not "pool-timeout". Marking it so
+        sends whoever reads the table after a guard that never fired."""
+        from helper import hil_report
+        real = hil_report.accumulate_report
+
+        def render(reason, secs):
+            hil_report.accumulate_report = lambda *a, **k: (_ for _ in ()).throw(
+                OSError('report dir unwritable'))
+            try:
+                with TemporaryDirectory() as td:
+                    rd = Path(td)
+                    hil_test._abort_report(reason, [], [{'name': 'boardA'}],
+                                           rd / 'c.failed', rd, True, '',
+                                           timeout_secs=secs)
+                    return (rd / hil_report.REPORT_MD).read_text()
+            finally:
+                hil_report.accumulate_report = real
+
+        guard = render('abandoned: worker pool timed out after 3600s', 3600)
+        self.assertIn(hil_report.POOL_TIMEOUT_CELL, guard)
+        raised = render('aborted: a worker raised ValueError: x', None)
+        self.assertIn(hil_report.RUN_ABORTED_CELL, raised)
+        self.assertNotIn(hil_report.POOL_TIMEOUT_CELL, raised,
+                         'a run that aborted on a raise is not a pool timeout')
+        # and the fallback must still fire on BOTH paths -- that is what it is for
+        for md in (guard, raised):
+            self.assertIn('boardA', md)
+
+    def test_only_the_rerun_spec_sees_the_synthetic_rows(self):
+        """accumulate_report gets `mret` alone -- worker rows, always 4th field a real
+        list. Widening _abort_report to hand it the synthetic list too would crash the
+        containment path: those rows carry rows=None and render_matrix iterates it."""
+        import ast
+        src = (Path(TEST_DIR).parents[0] / 'hil_test.py').read_text()
+        fn = next(n for n in ast.walk(ast.parse(src))
+                  if isinstance(n, ast.FunctionDef) and n.name == '_abort_report')
+        calls = {ast.unparse(n.func): ast.unparse(n)
+                 for n in ast.walk(fn) if isinstance(n, ast.Call)
+                 and ast.unparse(n.func).endswith(('_write_failed_spec',
+                                                   'accumulate_report'))}
+        self.assertEqual(
+            ast.unparse(ast.parse(calls['hil_report.accumulate_report']).body[0]
+                        ).split('(', 1)[1].split(',')[0], 'mret',
+            'accumulate_report must receive worker rows only -- the synthetic rows carry '
+            'rows=None and render_matrix iterates that field')
+        self.assertIn('stuck', calls['_write_failed_spec'],
+                      'the re-run spec must still name the boards that never reported')
+
+
+class UsbtestAbsentDeviceVerdict(unittest.TestCase):
+    """The arm that fails BEFORE usbtest_permit: an absent device must not queue on the
+    battery mutex for minutes just to have usbtest.py report "no device", and the cell
+    needs the 0/30 denominator or the row reads as a bare failure."""
+
+    def setUp(self):
+        self.addCleanup(setattr, hil_test, 'board_wedged', hil_test.board_wedged)
+        hil_test.board_wedged = ''
+        no_settle(self)
+        from helper import hil_lock, hil_util
+        self.addCleanup(setattr, hil_util, 'usb_scan', hil_util.usb_scan)
+        hil_util.usb_scan = lambda **k: []          # a readable bus, no such device
+        self.addCleanup(setattr, hil_test, '_enum_timeout', hil_test._enum_timeout)
+        hil_test._enum_timeout = 0
+        self.addCleanup(setattr, hil_lock, 'usbtest_permit', hil_lock.usbtest_permit)
+        from contextlib import contextmanager
+
+        def boom(uid):
+            raise AssertionError('took the battery permit for an absent device')
+            yield
+        hil_lock.usbtest_permit = contextmanager(boom)
+
+    def test_a_readable_bus_without_the_device_says_absent_with_a_denominator(self):
+        with self.assertRaises(hil_test.TestFail) as cm:
+            hil_test.test_device_usbtest({'name': 'b', 'uid': 'NOPE',
+                                          'flasher': {'name': 'stlink', 'uid': 'X'}})
+        self.assertIn('no cafe:4010 device', str(cm.exception))
+        self.assertIn('0/30', cm.exception.metric)
+
+    def test_a_scan_that_gave_up_says_could_not_tell_instead(self):
+        """The conflation this whole path exists to avoid: an unreadable DUT is not an
+        absent one, and the bare string sends a maintainer after a firmware regression on
+        hardware that is merely wedged."""
+        from helper import hil_util
+        self.addCleanup(setattr, hil_util, '_ever_stranded', hil_util._ever_stranded)
+        hil_util._ever_stranded = True
+        with self.assertRaises(hil_test.TestFail) as cm:
+            hil_test.test_device_usbtest({'name': 'b', 'uid': 'NOPE',
+                                          'flasher': {'name': 'stlink', 'uid': 'X'}})
+        self.assertIn('could not tell', str(cm.exception))
+
+
+class UsbtestStartupDoesNotClaimAbsenceBlind(unittest.TestCase):
+    """usbtest.py's own startup lookup, the sibling of the arm above. hil_test relays its
+    stderr verbatim into the report cell, so a positive 'no cafe:4010 device' from a scan
+    that gave up is the same conflation one process further out. Structural because the
+    exit sits mid-main(), behind argparse and the testusb probe."""
+
+    def test_the_sysfs_backed_absence_claims_carry_the_note(self):
+        """Both claims that a bounded read can turn into a false absence. The printer one
+        was missed: read_sysfs folds a timed-out `serial` into None, so a wedged-but-
+        enumerated printer read as 'Printer device not found' -- an enumeration verdict for
+        hardware that is merely unreadable. The MIDI lookup is deliberately NOT here: it
+        globs /dev/snd/by-id and readlinks it, so no bounded read can blind it."""
+        import ast
+        tree = ast.parse(Path(hil_test.__file__).read_text())
+        claims = [ast.unparse(n) for n in ast.walk(tree)
+                  if isinstance(n, (ast.Assert, ast.Raise))
+                  and ('Printer device not found' in ast.unparse(n)
+                       or 'no cafe:4010 device' in ast.unparse(n))]
+        self.assertEqual(len(claims), 2, 'a sysfs-backed absence claim moved or was added')
+        for c in claims:
+            self.assertIn('strand_note', c, f'absence claimed without the note: {c[:70]}')
+
+    def test_the_absence_exit_carries_the_stranded_caveat(self):
+        import ast
+        import usbtest
+        tree = ast.parse(Path(usbtest.__file__).read_text())
+        exits = [n for n in ast.walk(tree)
+                 if isinstance(n, ast.Call) and ast.unparse(n.func) == 'sys.exit'
+                 and 'no {VID}:{PID} device' in ast.unparse(n)]
+        self.assertEqual(len(exits), 1, 'the absence exit moved; retarget this test')
+        self.assertIn('strand_note', ast.unparse(exits[0]),
+                      'usbtest claims absence without consulting sysfs_stranded()')
+
+
+class UsbtestGlobalCleanupStaysProcessWide(unittest.TestCase):
+    """The strand flag has TWO consumers at different scopes. The per-case verdict is
+    per-DUT -- a peer that stranded must not make OUR board report wedged. But the finally
+    block's cleanup is GLOBAL: remove_id plus an unbind of every interface under the
+    usbtest driver, including that peer's. Those writes take the uninterruptible
+    device_lock, so the global path has to stay gated on the process-wide question."""
+
+    def test_the_global_unbind_consults_the_process_wide_flag(self):
+        import ast
+        import usbtest
+        tree = ast.parse(Path(usbtest.__file__).read_text())
+        fins = [n for n in ast.walk(tree) if isinstance(n, ast.Try) and n.finalbody
+                and 'remove_id' in ast.unparse(ast.Module(body=n.finalbody, type_ignores=[]))]
+        self.assertEqual(len(fins), 1, 'the cleanup finally moved; retarget this test')
+        body = ast.unparse(ast.Module(body=fins[0].finalbody, type_ignores=[]))
+        self.assertIn('sysfs_stranded', body,
+                      'global remove_id/unbind runs without the process-wide strand gate')
 
 
 if __name__ == '__main__':

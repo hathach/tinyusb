@@ -65,8 +65,8 @@ hooks: `test_ci_select.py` covers only selection, `test_ci_metrics.py` only the 
 plumbing. The containment work --- bounded reads, the kill ladders, the build and pool
 guards --- lives in `test_hil_bounded.py`, `test_hil_health.py` and `test_hil_util.py`, so
 run all five when changing `test/hil`:
-`for f in test/hil/test/test_*.py; do python3 "$f"; done` (~84s, of which
-`test_hil_bounded.py` is ~76s of deliberate hang/timeout simulation; the two `test_ci_*`
+`for f in test/hil/test/test_*.py; do python3 "$f"; done` (~48s, of which
+`test_hil_bounded.py` is ~30s of deliberate hang/timeout simulation; the two `test_ci_*`
 suites are ~4s together).
 
 ## Pre-flight rig health check
@@ -137,8 +137,8 @@ The user-facing answer to a HIL run IS the tool's summary table: paste the compl
 table (and footer counts) verbatim — never truncate rows or reduce it to a prose digest; at most
 one line of commentary below it.
 
-**First check what sits above the table.** Seven banners can appear there; match on a
-PREFIX, since each carries trailing detail and one is a blockquote:
+**First check what sits above the table.** Six banners can appear there; match on a
+PREFIX, since each carries trailing detail and two are blockquotes:
 
 - `**HIL run abandoned: worker pool timed out after …s.**` — no results were collected this
   attempt, so any table below is a PREVIOUS attempt's. Report the abandonment, never those
@@ -159,9 +159,6 @@ PREFIX, since each carries trailing detail and one is a blockquote:
 - `> **Rig dirty.**` — a process survived SIGKILL and still holds a probe or usbfs node
   into the NEXT job. The table below is this run's and can be reported, but say the rig is
   dirty: the next job starts degraded and nothing in the harness can clear it.
-- `> **Not all verdicts are evidence.**` — one or more workers went blind on sysfs, so
-  "device not found" from the named boards means "could not tell". Do NOT report their red
-  cells as broken boards.
 
 On failure, retry once with `-v` — from the `<config>.failed` spec the run just wrote, which
 already begins with `--accumulate` and restricts each board to its failed tests. A hand-scoped

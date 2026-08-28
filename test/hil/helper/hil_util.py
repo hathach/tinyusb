@@ -90,6 +90,10 @@ def pos_float_env(name: str, default: float) -> float:
 
 
 CMD_TIMEOUT = pos_int_env('HIL_CMD_TIMEOUT', 180)
+# Post-SIGKILL reap, spent ON TOP of a run_cmd timeout whenever the child has to be killed.
+# A caller budgeting several bounded steps must add one of these PER STEP, or its own outer
+# bound fires mid-step -- for a flasher, orphaning it on the probe.
+REAP_GRACE = 10
 
 TINYUSB_ROOT = Path(__file__).resolve().parents[3]  # test/hil/helper/ -> repo root
 
@@ -158,74 +162,119 @@ def _print_banner(title: str, out: Any, err: Any) -> None:
         print(_banner_body(out, err))
 
 
-SYSFS_READ_GRACE = 2.0   # bound on one attribute read of a possibly-wedged device
-SYSFS_STUCK_MAX = 4      # stranded readers tolerated before read_sysfs goes blind
-_sysfs_stuck = 0         # each costs a thread + an fd for the life of the process
-_sysfs_stuck_lock = threading.Lock()
-_sysfs_blind_logged = False
+SYSFS_READ_GRACE = 2.0        # default bound on one attribute read; see read_sysfs
+
+# path -> the kernfs inode the node had when its bounded read gave up. Keyed by INODE, not
+# by path alone: a busport does not change when a board returns to the same physical port,
+# so a path-only blacklist outlives the wedge -- hil_pool_check resets or reflashes the
+# board, wait_device polls that busport for the new inode, and the scan it polls through
+# would never look at the device again. A re-enumeration destroys the kernfs node and makes
+# a new one, so a CHANGED inode is the all-clear. os.stat is safe on a wedged device: it
+# does not call ->show(), so it cannot block on the lock the reader is stuck behind.
+_stranded: dict = {}
+_strand_hits: dict = {}       # path -> how many times it has stranded, ever
+_refused: set = set()         # paths answered None WITHOUT reading, once past _STRAND_MAX
+_strand_lock = threading.Lock()
+_ever_stranded = False
+
+# Each strand costs a thread AND an fd for the life of the process -- on sysfs the open()
+# SUCCEEDS and only the read blocks. Two ceilings, because they bound different things:
+#
+# _PATH_STRAND_MAX -- a device that FLAPS while still wedged re-enumerates, clears the
+#   inode memo, and strands again. Per path, so one sick board cannot leak without bound.
+#   After this many it stays memoised whatever its inode says.
+# _STRAND_MAX -- a whole-process backstop against RLIMIT_NOFILE or the thread ceiling,
+#   which would raise inside a worker and lose every board's result. Counted PER PATH, not
+#   per reader: hil_pool_check runs four poll threads over one bus, and counting each
+#   reader let four threads on ONE wedged device spend four credits between them. With
+#   per-path counting a 27-board rig cannot approach this.
+_PATH_STRAND_MAX = 4
+_STRAND_MAX = 64
 
 
-class _SysfsUnknown:
-    """Sentinel: the read did not answer. NOT "the attribute is absent" -- reading it as
-    absence turns a healthy board into a firmware regression in the report."""
-    __slots__ = ()
+def sysfs_stranded() -> bool:
+    """True once any bounded read has given up, and it STAYS true.
 
-    def __bool__(self) -> bool:
-        return False
-
-    def __repr__(self) -> str:
-        return 'SYSFS_UNKNOWN'
-
-
-SYSFS_UNKNOWN = _SysfsUnknown()
-
-
-def sysfs_blind() -> bool:
-    """True once this process has stranded SYSFS_STUCK_MAX readers: every later read
-    answers SYSFS_UNKNOWN, so nothing it reports about a device is a fact any more."""
-    return _sysfs_stuck >= SYSFS_STUCK_MAX
-
-
-def sysfs_blind_note() -> str:
-    """Suffix for a failure message, so a blind worker's verdict never reads as hardware."""
-    return (f' (this worker is blind: {SYSFS_STUCK_MAX} sysfs reads stranded on a wedged '
-            f'device, so the check could not see the bus)') if sysfs_blind() else ''
-
-
-def read_sysfs(path: str, grace: float = SYSFS_READ_GRACE) -> str | None | _SysfsUnknown:
-    """Read a sysfs attribute with a WALL-CLOCK bound.
-
-    The value, None when the attribute is genuinely unreadable (OSError), or SYSFS_UNKNOWN
-    when the read did not answer -- it timed out, or this process is already blind. Callers
-    MUST keep those apart: absence is a fact, unknown is not.
-
-    usb_string_attr (serial/product/manufacturer) is served under the device lock a wedged
-    usbfs ioctl holds, so a plain open().read() blocks for as long as the wedge lasts, on
-    exactly the board an incident is about. The reader sleeps INTERRUPTIBLY (every read
-    takes usb_lock_device_interruptible, v6.12.96 sysfs.c:124-139 -- uninterruptible is the
-    ioctl holder, not us), so it dies with a SIGKILLed worker; what it costs meanwhile is a
-    thread and an fd for this process's life, because on sysfs the open() SUCCEEDS and only
-    the read blocks. Measured: 20 blocking reads leave 20 live threads.
-
-    Hence the cap: callers rescan (hil_lock's controller_of re-reads every unresolved
-    device on EVERY permit), and hitting RLIMIT_NOFILE or the thread ceiling raises inside
-    the worker and loses every board's result -- worse than the hang this prevents.
+    A sticky, process-wide fact, so it answers exactly one question: "could anything in
+    this process's output be the tool losing sight of healthy hardware?" -- which is what
+    hil_pool_check's footer needs. It canNOT answer "is THIS device unreadable" for a
+    caller deciding what a single missing device means; use path_stranded() for that.
     """
-    if sysfs_blind():
-        return SYSFS_UNKNOWN
-    # Known-stranded? Re-reading costs another permanent thread+fd and a blindness credit
-    # to learn what we already know. Lives HERE, not at the call sites: a call-site memo
-    # has to be remembered by every new scanner, and twice it was not.
-    was = _sysfs_stranded.get(path, _STRAND_MISS)
-    if was is not _STRAND_MISS:
-        if was is None:
-            return SYSFS_UNKNOWN          # stranded, inode unknown: never re-read it
+    return _ever_stranded
+
+
+def strand_note() -> str:
+    """Suffix for an absence claim, so "not found" never reads as proven absence.
+
+    Lives here because every caller that can say "not found" needs the same sentence, and
+    the one that had to re-invent it got missed: a wedged-but-enumerated printer was
+    reported as an enumeration failure, sending a maintainer after firmware.
+    """
+    return (' (a bounded sysfs read gave up, so "not found" here means "could not tell"'
+            ' -- see the usb-kernel-recover skill)') if sysfs_stranded() else ''
+
+
+def path_stranded(path: str) -> bool:
+    """Whether THIS attribute is currently memoised as unreadable.
+
+    The per-device question sysfs_stranded() cannot answer. usbtest uses it to tell a DUT
+    whose `serial` is held under device_lock from one that genuinely left the bus, because
+    the difference decides whether it performs driver-registry writes that take the
+    UNINTERRUPTIBLE device_lock.
+    """
+    with _strand_lock:
+        return path in _stranded or path in _refused
+
+
+def read_sysfs(path: str, timeout: float = SYSFS_READ_GRACE) -> str | None:
+    """A sysfs attribute's value, or None when it did not answer.
+
+    BOUNDED BY DEFAULT, and it has to be. `serial` is served by usb_string_attr, which
+    takes usb_lock_device_interruptible (v6.12.96 sysfs.c:141-143) -- the same lock a
+    wedged usbfs ioctl holds. Every OTHER attribute the harness reads (idVendor, idProduct,
+    bcdDevice, busnum, devnum, speed) is a lock-free sysfs_emit from a cached field and
+    cannot block.
+
+    "Only the wedged board's own worker pays" is FALSE, which is why the bound is not
+    opt-in: usb_scan reads `serial` on every device matching the VID to find the one it
+    wants, so resolving MY board touches every peer's locked attribute. hil_lock's
+    controller_of does that from controller_permit, on essentially every board -- one
+    wedged DUT would stall every worker, not one. hil_pool_check has no guard at all.
+
+    A give-up reads as None, the same as unreadable: there is no third value and no
+    per-attribute blindness. The memo is keyed by inode so the cost stays on the device
+    that is actually wedged; path_stranded() tells a caller which device that was.
+    """
+    with _strand_lock:
+        was = _stranded.get(path)
+        stuck_for_good = _strand_hits.get(path, 0) >= _PATH_STRAND_MAX
+        budget_spent = len(_stranded) >= _STRAND_MAX
+    if was is not None:
         try:
             if os.stat(path).st_ino == was:
-                return SYSFS_UNKNOWN          # same node, still wedged
+                return None                   # same kernfs node, still wedged
         except OSError:
-            pass                              # gone: fall through, the read reports it
-        _sysfs_stranded.pop(path, None)       # replaced or gone -> re-read it
+            pass                              # gone: let the read below report it
+        if stuck_for_good:
+            return None       # flapped too many times; see _PATH_STRAND_MAX
+        with _strand_lock:
+            _stranded.pop(path, None)         # a different inode is the all-clear
+    elif budget_spent:
+        # see _STRAND_MAX. Recorded, not just returned: usbtest fails CLOSED on
+        # path_stranded() before the lock-taking cleanup, and a path we declined to read
+        # is exactly the case it must not be told is readable-and-absent.
+        with _strand_lock:
+            _refused.add(path)
+        return None
+
+    # BEFORE the read, not after: a node that re-enumerates DURING the grace would
+    # otherwise have its brand-new HEALTHY inode recorded as the wedged one, and only a
+    # second re-enumeration could ever clear it. If it cannot be stat'd there is no key to
+    # memoise against, so the path is simply re-read next time -- the open fails fast.
+    try:
+        ino = os.stat(path).st_ino
+    except OSError:
+        ino = None
     out: dict = {}
 
     def _read():
@@ -233,96 +282,70 @@ def read_sysfs(path: str, grace: float = SYSFS_READ_GRACE) -> str | None | _Sysf
             with open(path) as f:
                 out['v'] = f.read().strip()
         except (OSError, ValueError):
-            pass      # no such attribute, or not text: unreadable, and that IS a fact
+            pass
 
     t = threading.Thread(target=_read, daemon=True)
     t.start()
-    t.join(grace)
-    # `out` FIRST, not is_alive() alone: a reader can deposit its value and still be alive
-    # for a moment afterwards, and counting that as a strand memoises a healthy attribute as
-    # unreadable and spends one of four blindness credits. bounded_open has always checked
-    # its box for the same reason.
+    t.join(timeout)
+    # `out` FIRST: a reader can deposit its value and still be alive for a moment
+    # afterwards, and counting that as a strand blacklists a healthy attribute forever
+    if 'v' in out:
+        # a path that answered is not refused any more: _refused feeds path_stranded(),
+        # and a stale entry makes usbtest read a LATER genuine disconnect as "cannot tell"
+        with _strand_lock:
+            _refused.discard(path)
     if t.is_alive() and 'v' not in out:
-        # Count the PATH once, not once per reader. hil_pool_check runs -j4 by default,
-        # which equals SYSFS_STUCK_MAX, so four threads hitting ONE wedged device used to
-        # spend the entire blindness budget between them -- latching blind on the single
-        # wedge the tool was run to find. The strand is real for each thread, but the
-        # DEVICE is what the cap is about.
-        # Under the SAME lock as the counter: check-then-act here is a race, and
-        # hil_pool_check runs a ThreadPoolExecutor of exactly SYSFS_STUCK_MAX workers in
-        # ONE process, so four threads on one wedged path could each see `first` before any
-        # of them recorded it -- spending the whole blindness budget on a single device,
-        # which is what this memo exists to prevent. note_sysfs_strand takes the lock
-        # itself, so call it after releasing.
-        with _sysfs_stuck_lock:
-            first = path not in _sysfs_stranded
-            if first:
-                try:
-                    # stat, never the thread's own open(): stat does not call ->show(), so
-                    # it cannot block on the device lock the reader is stuck behind
-                    _sysfs_stranded[path] = os.stat(path).st_ino
-                except OSError:
-                    _sysfs_stranded[path] = None   # unstattable, but still known-stranded
-        if first:
-            note_sysfs_strand()
-        return SYSFS_UNKNOWN
+        global _ever_stranded
+        announce = False
+        if ino is None:
+            # the pre-read stat lost a race the open then won -- the node was replaced
+            # between them. Re-stat now: the reader is blocked on whatever node exists,
+            # so this is the key it is stuck on. Without a key nothing is memoised and
+            # every later poll starts another permanent thread and fd for this path.
+            try:
+                ino = os.stat(path).st_ino
+            except OSError:
+                pass
+        with _strand_lock:
+            _ever_stranded = True
+            if ino is not None:
+                first = path not in _stranded     # count the PATH once, not each reader
+                _stranded[path] = ino
+                if first:
+                    _strand_hits[path] = _strand_hits.get(path, 0) + 1
+                    announce = len(_stranded) == _STRAND_MAX
+            else:
+                _refused.add(path)    # unkeyable: at least do not vouch for it
+        if announce:
+            print(f'warning: {_STRAND_MAX} devices have unreadable sysfs attributes; '
+                  f'refusing to start more bounded readers, so later reads answer None '
+                  f'without looking. Find the wedged device (usb-kernel-recover skill).',
+                  file=sys.stderr, flush=True)
+        return None
     return out.get('v')
 
 
-def note_sysfs_strand() -> None:
-    """Record ONE stranded sysfs reader. Shared by read_sysfs and bounded_open so both
-    account against a single counter -- the report caveat keys off it."""
-    global _sysfs_stuck, _sysfs_blind_logged
-    with _sysfs_stuck_lock:
-        _sysfs_stuck += 1
-        announce = sysfs_blind() and not _sysfs_blind_logged
-        _sysfs_blind_logged = _sysfs_blind_logged or announce
-    if announce:
-        # once per process, on stderr: a worker's stdout is compacted into one report
-        # row, where this would be lost among the test output
-        print(f'warning: {SYSFS_STUCK_MAX} sysfs reads stranded on a wedged device; '
-              f'this process is now blind and answers SYSFS_UNKNOWN for every '
-              f'attribute -- its verdicts about device presence are not evidence',
-              file=sys.stderr, flush=True)
-
-
-# path -> the inode it had when its read stranded. A stranded attribute stays
-# stranded until the DEVICE is replaced, and a re-enumeration destroys the kernfs
-# node and makes a new one -- so a changed inode is the all-clear. Keyed by path
-# alone it would outlive the wedge: a busport does not change when a board comes
-# back on the same port, so the HUNG reflash this branch performs would recover a
-# board the harness could then never see again.
-_sysfs_stranded: dict = {}
-# A stranded path whose inode could not be read is stored as None, so a plain .get() cannot
-# tell 'known stranded, inode unknown' from 'never seen' -- and treating the first as the
-# second re-reads it, stranding another permanent thread and fd every call. Distinct miss
-# sentinel, so None keeps its own meaning.
-_STRAND_MISS = object()
-
-
-def usb_scan(vid_pid=None, serial=None, vid=None) -> tuple[list, bool]:
-    """Enumerated USB devices matching the filters, and whether anything is unknown.
-
-    Returns ([{busport, dir, vid, pid, serial}], unknown). `unknown` True means a bounded
-    read did not answer, so absence is NOT proven -- the same contract as read_sysfs.
+def usb_scan(vid_pid=None, serial=None, vid=None, timeout=SYSFS_READ_GRACE) -> list:
+    """Enumerated USB devices matching the filters: [{busport, dir, vid, pid, serial}].
 
     Three rules, one implementation for every caller:
 
     * Root hubs excluded (glob `*-*`): no DUT is one, and scans including them measured
       seconds slower (observation, no mechanism -- the "autosuspend wake" explanation was
-      wrong; usb_string_attr reads a cached string, sysfs.c:124-139).
+      wrong; usb_string_attr reads a cached string, sysfs.c:141-143).
     * idVendor/idProduct first: lock-free `sysfs_emit` from udev->descriptor
       (sysfs.c:688-705), so they rule out nearly every device for free.
-    * `serial` last and bounded: it is served under the lock a wedged ioctl holds, and a
-      path that already stranded is never re-read (each strand costs a thread and an fd
-      for this process's life).
+    * `serial` LAST and BOUNDED: it is the only attribute here served under the device
+      lock, so it is the only one that can block. Filtering on the lock-free pair first
+      keeps most devices out of it, but a scan for ONE board still reads the serial of
+      every peer that shares its VID -- so the bound is what stops one wedged DUT from
+      stalling every caller (see read_sysfs).
     """
     out = []
-    unknown = False
     for d in glob.glob('/sys/bus/usb/devices/*-*'):
-        # Interfaces are '<busport>:<cfg>.<ifnum>' (e.g. 2-4:1.0) -- they CONTAIN the
-        # colon, they do not end with it, so the original endswith() never fired and every
-        # scan opened idVendor/idProduct on all of them (measured: 31 of 44 matches).
+        # `in`, not endswith: an interface is '<busport>:<cfg>.<ifnum>' (2-4:1.0), which
+        # CONTAINS the colon rather than ending with it. Screening them out here is worth
+        # real time -- they were 31 of 44 matches on this rig.
         if ':' in os.path.basename(d):
             continue
         try:
@@ -336,106 +359,14 @@ def usb_scan(vid_pid=None, serial=None, vid=None) -> tuple[list, bool]:
             continue          # ruled out for free, without touching the locked attribute
         if vid is not None and dev_vid != vid:
             continue          # same, for callers that know the VID but not the PID
-        sn = read_sysfs(os.path.join(d, 'serial'))
-        if sn is SYSFS_UNKNOWN:
-            unknown = True    # read_sysfs memoises it; a repeat scan costs nothing
-            continue
+        sn = read_sysfs(os.path.join(d, 'serial'), timeout)
         if sn is None:
-            continue          # no serial attribute: a fact
+            continue          # no serial attribute
         if serial is not None and sn.lower() != serial.lower():
             continue
         out.append({'busport': os.path.basename(d), 'dir': d,
                     'vid': dev_vid, 'pid': dev_pid, 'serial': sn})
-    return out, unknown
-
-
-def bounded_open(path: str, flags: int, timeout: float = SYSFS_READ_GRACE):
-    """os.open() with a wall-clock bound.
-
-    The fd, None when the open genuinely FAILED (OSError: EBUSY, ENOENT, EACCES), or
-    SYSFS_UNKNOWN when it did not answer -- the same three-valued contract as read_sysfs,
-    and for the same reason: folding a fact into an unknown made an ordinary EBUSY read as
-    a wedged device and sent the operator hunting hardware that is healthy.
-
-    An open CAN block on a wedged device -- not on O_NONBLOCK, which usblp_open never
-    consults, but on usb_autopm_get_interface(), a runtime-PM resume that does I/O
-    (v6.12.96 drivers/usb/class/usblp.c). It holds usblp_mutex while it waits, and that
-    mutex is driver-GLOBAL, so one wedged printer blocks opens of every usblp node.
-
-    Unlike read_sysfs the stranded thread cleans up after itself: if we have given up it
-    closes the fd it eventually got, so only the thread leaks. Both sides take `handoff`
-    -- "store or close" and "abandon and drain" are a check-then-act pair that can
-    interleave into an fd stored after the box was drained, which would leak it into a
-    node that allows a SINGLE opener (usblp_open returns -EBUSY when usblp->used).
-    """
-    # Same short-circuit as read_sysfs: once blind, another stranded thread buys nothing
-    # and the cap exists precisely to stop them accumulating.
-    if sysfs_blind():
-        return SYSFS_UNKNOWN
-    # Known-stranded? Re-opening costs another thread, another fd and another blindness
-    # credit to learn what we already know -- and the printer test re-opens ONE lp node on
-    # every retry. Same memo and same inode check as read_sysfs.
-    was = _sysfs_stranded.get(path, _STRAND_MISS)
-    if was is not _STRAND_MISS:
-        if was is None:
-            return SYSFS_UNKNOWN          # stranded, inode unknown: never re-read it
-        try:
-            if os.stat(path).st_ino == was:
-                return SYSFS_UNKNOWN
-        except OSError:
-            pass
-        _sysfs_stranded.pop(path, None)
-    box: dict = {}
-    done, abandoned = threading.Event(), threading.Event()
-    handoff = threading.Lock()
-
-    def _open():
-        try:
-            fd = os.open(path, flags)
-        except OSError:
-            done.set()
-            return
-        with handoff:
-            stored = not abandoned.is_set()
-            if stored:
-                box['fd'] = fd
-        if not stored:
-            try:
-                os.close(fd)
-            except OSError:
-                pass
-        done.set()
-
-    threading.Thread(target=_open, daemon=True).start()
-    if not done.wait(timeout):
-        with handoff:
-            abandoned.set()
-            fd = box.pop('fd', None)  # completed in the gap between timeout and flag
-        if fd is not None:
-            # It DID open, just after our deadline -- the thread finished, so nothing is
-            # stranded. Report unknown (we already gave up on it) but do not spend a
-            # blindness credit, and do not call a merely-slow node wedged.
-            try:
-                os.close(fd)
-            except OSError:
-                pass
-            return SYSFS_UNKNOWN
-        # counted like a stranded read_sysfs: the thread and (eventually) its fd are gone
-        # for the life of the process, and the cap exists to stop that reaching the
-        # thread/fd ceiling -- an exception there escapes the worker and loses every board.
-        # Memoised by inode so a retry of the same node does not pay again.
-        # same lock as read_sysfs, same reason
-        with _sysfs_stuck_lock:
-            first = path not in _sysfs_stranded
-            if first:
-                try:
-                    _sysfs_stranded[path] = os.stat(path).st_ino
-                except OSError:
-                    _sysfs_stranded[path] = None
-        if first:
-            note_sysfs_strand()
-        return SYSFS_UNKNOWN
-    return box.get('fd')
+    return out
 
 
 def _close_pipes(p: subprocess.Popen) -> None:
@@ -478,7 +409,7 @@ def run_alongside(argv: list, work, timeout: int) -> subprocess.CompletedProcess
             except OSError:
                 p.kill()
             try:
-                out, err = p.communicate(timeout=5)
+                out, err = p.communicate(timeout=REAP_GRACE)
             except subprocess.TimeoutExpired:
                 # Outlasted SIGKILL: uninterruptible, still holding whatever it opened.
                 # Abandoned like any other stray -- but as a real child in its own
@@ -575,7 +506,7 @@ def run_cmd(cmd: str | list, cwd: str | None = None, timeout: int | None = None,
             # close and the rc-124 return this handler exists for.
             pass
         try:
-            out, err = p.communicate(timeout=10)
+            out, err = p.communicate(timeout=REAP_GRACE)
         except subprocess.TimeoutExpired:
             # Something in the group outlived SIGKILL: D state (truly unkillable), or
             # root-owned because sudo FORKS rather than execs, so the wrapper dies and its

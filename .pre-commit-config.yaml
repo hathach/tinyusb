@@ -51,7 +51,7 @@ repos:
   # Two hooks, split by what each suite RUNS, not by what it reads: discovery is
   # disjoint (test_hil*.py vs the two named suites) so nothing runs twice, but the
   # file patterns overlap where both suites care. hil-test runs test_hil*.py only
-  # (~80s: deliberate hang and timeout simulations) and is scoped to the rig harness
+  # (~45s: deliberate hang and timeout simulations) and is scoped to the rig harness
   # that owns them. The one part of it the selector depends on - the BottomLayer
   # stdlib-closure AST guard over tools/ci_select.py and its imports - is named
   # explicitly by ci-select-test instead, so a tools/ or workflow edit costs 4s
