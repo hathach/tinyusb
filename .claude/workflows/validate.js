@@ -1,6 +1,6 @@
 export const meta = {
   name: 'validate',
-  description: 'Pre-PR software validation loop: unit tests + per-board build sweeps + code-size compare + PVS + diff reviews (claude + codex) in parallel; a red verdict dispatches a fix agent for the confirmed findings, then the affected stages re-run — up to maxCycles (default 5) validation passes',
+  description: 'Pre-PR software validation loop: unit tests + per-board build sweeps + code-size compare + PVS + diff reviews (claude + codex) in parallel; a red verdict dispatches a fix agent for the confirmed findings, then the affected stages re-run — up to maxCycles (default 5) validation passes; a fix that edits a workflow file stops with restartRequired so the caller re-invokes it',
   whenToUse: 'Before opening or updating a PR, after any non-trivial change',
   phases: [
     { title: 'Validate', detail: 'unit + builds + size + pvs + reviews in parallel' },
@@ -21,6 +21,13 @@ const maxCycles = args.maxCycles ?? 5
 const skip = args.skip || []
 for (const s of skip) log(`stage skipped by request: ${s}`)
 const base = args.base || 'master'
+// Every stage agent re-resolves `base` in every cycle, and the fixer commits
+// between cycles: a moving expression (HEAD~1, @{u}, a ^/~ walk) would advance
+// with each fix commit, so cycle 2 would review only the fix and silently drop
+// the original branch changes. Accept stationary refs only.
+if (/(^|[^\w/-])HEAD/.test(base) || /[~^]/.test(base) || base.includes('@{')) {
+  throw new Error(`base must be a fixed ref (sha or branch name), not the moving expression "${base}" — resolve it with git rev-parse first`)
+}
 const clip = (s, n = 800) =>
   s.length > n ? s.slice(0, n) + ` …[truncated ${s.length - n} chars]` : s
 
@@ -91,6 +98,16 @@ const FIX = {
     changed: { type: 'boolean' }, commit: { type: 'string' },
     files: { type: 'array', items: { type: 'string' } },
     summary: { type: 'string' },
+  },
+}
+
+// read back out of git what the fix commit actually touched
+const PATHS = {
+  type: 'object', additionalProperties: false,
+  required: ['paths', 'isHead'],
+  properties: {
+    paths: { type: 'array', items: { type: 'string' } },
+    isHead: { type: 'boolean' },
   },
 }
 
@@ -210,12 +227,15 @@ function fixThunkPrompt(cycle, failures) {
     'For each item: verify it against the actual code first; fix the real ones with the smallest correct change, matching surrounding style. ' +
     'Skip anything that is an infrastructure failure rather than a code defect (missing CLI, tool crash, dead stage agent) and anything you can refute with evidence — say which and why in summary. ' +
     'Run the tests/suites covering what you changed. ' +
-    'Commit as ONE commit, staging ONLY the files you changed (git add <paths> — never git add -A or git commit -a; ' +
-    'if git status shows pre-existing staged changes, do not commit at all: return changed=false and say so in summary). ' +
+    'BEFORE editing anything, run git status --porcelain and record every path already dirty in either column ' +
+    '(staged or unstaged — those are someone else\'s in-flight edits, and git add <path> would sweep them into your commit). ' +
+    'If any file you need to modify is in that set, edit nothing at all: return changed=false, naming the file in summary. ' +
+    'Commit as ONE commit, staging ONLY the files you changed (git add <paths> — never git add -A or git commit -a). ' +
     'Message: imperative mood, subject like "validate: fix cycle ' + cycle + ' findings", ' +
     'NO trailers of any kind (no Co-Authored-By, no Claude-Session). Do NOT push. Never spawn subagents. ' +
     'Return: changed=true only if you committed; commit = the new sha (empty string if none); ' +
-    'files = repo-relative paths you changed; summary = one paragraph of what was fixed/skipped and why.'
+    'files = the commit\'s own paths, verbatim from git show --name-only --format= HEAD (empty if you did not commit); ' +
+    'summary = one paragraph of what was fixed/skipped and why.'
 }
 
 // ---------------------------------------------------------------------------
@@ -266,13 +286,46 @@ for (let cycle = 1; cycle <= maxCycles; cycle++) {
     break
   }
 
+  // What re-runs is gated on what the commit actually contains, never on the
+  // fixer's self-report (the FIX schema lets `files` be empty or wrong, and a
+  // code fix reported as a doc path would keep stale-green results). Read the
+  // paths back out of git; if that read fails, fall back to the self-report and
+  // grant no exemption below.
+  const verified = await (async () => {
+    if (!fix.commit) return null
+    try {
+      return await agent(
+        `In this repo run: git show --name-only --format= ${fix.commit} and git rev-parse HEAD. ` +
+        'paths = the repo-relative paths that commit touched, verbatim, one per array entry; ' +
+        `isHead = true only if git rev-parse HEAD is exactly ${fix.commit}. ` +
+        'Read-only: edit nothing, commit nothing, never spawn subagents.',
+        { label: `c${cycle}:fix-paths`, phase: 'Fix', model: 'haiku', schema: PATHS })
+    } catch { return null }
+  })()
+  const trusted = !!(verified && verified.isHead && verified.paths.length > 0)
+  const files = trusted ? verified.paths : (fix.files || [])
+  entry.fix.files = files
+  entry.fix.verified = trusted
+  if (!trusted) log(`cycle ${cycle}: could not confirm the fix commit's paths — treating the fix as touching everything`)
+
+  // The fixer rewrote this workflow, but the stage thunks, the gates and this
+  // loop are the old file — already loaded in memory. Re-running here would
+  // validate the corrected workflow with superseded orchestration and could
+  // report green off it, so hand the restart back to the caller instead.
+  const workflowFiles = files.filter(f => /^\.claude\/workflows\//.test(f))
+  if (workflowFiles.length > 0) {
+    log(`cycle ${cycle}: the fix commit edits ${workflowFiles.join(', ')} — stopping. ` +
+      'Re-invoke validate so the committed workflow is loaded fresh; this run\'s verdict is not final.')
+    return { pass: false, restartRequired: true, cycles: history, stages: [...latest.values()], failures }
+  }
+
   // A fix can invalidate any stage: builds/unit consume src|hw|examples|test,
   // and size/pvs run tools the fixer may have edited. Only a pure-docs fix
   // is safe to exempt — everything else re-runs the full stage set. Agent and
   // skill instructions are Markdown but drive the stage agents themselves, so
   // they are operational, not documentation: editing them must re-run
   // everything, or the loop reports green on results the old instructions produced.
-  const docsOnly = fix.files.every(f =>
+  const docsOnly = trusted && files.length > 0 && files.every(f =>
     !f.startsWith('.claude/') && f !== 'CLAUDE.md' && f !== 'AGENTS.md' &&
     (/^docs\//.test(f) || f.endsWith('.md') || f.endsWith('.rst')))
   toRun = new Set(failures.map(f => f.stage))
