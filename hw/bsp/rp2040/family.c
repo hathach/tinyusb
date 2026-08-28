@@ -199,19 +199,12 @@ void board_init(void)
   trace_etm_init();
 
 #if (CFG_TUH_ENABLED && CFG_TUH_RPI_PIO_USB) || (CFG_TUD_ENABLED && CFG_TUD_RPI_PIO_USB)
-  // Set the system clock to a multiple of 12mhz for bit-banging USB with pico-usb
-  #if defined(PICO_RP2350) && PICO_RP2350 == 1
-  #ifdef TRACE_ETM
-  #error "TRACE_ETM pins clk_sys to 48 MHz (board.cmake) - too slow for PIO-USB, and a runtime clock switch desyncs the trace stream"
-  #endif
-  set_sys_clock_khz(156000, true); // rp2350 default is 150Mhz
-  #else
+  // rp2350 runs the pico-sdk stock 150 MHz (a runtime switch also truncates ETM
+  // capture). rp2040 keeps 120 MHz: soak-tested — the stock 125 MHz collapses
+  // PIO-USB bulk-OUT (device NAKs ~600:1, wire-measured, zero CRC errors).
+  #if !(defined(PICO_RP2350) && PICO_RP2350 == 1)
   set_sys_clock_khz(120000, true); // rp2040 default is 125Mhz
   #endif
-  // set_sys_clock_khz(180000, true);
-  // set_sys_clock_khz(192000, true);
-  // set_sys_clock_khz(240000, true);
-  // set_sys_clock_khz(264000, true);
 
 #ifdef PICO_DEFAULT_PIO_USB_VBUSEN_PIN
   gpio_init(PICO_DEFAULT_PIO_USB_VBUSEN_PIN);
