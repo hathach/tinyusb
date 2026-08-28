@@ -542,9 +542,18 @@ def dump_ring(probe: str, device: str, addr: int, out_path: str, channel: int = 
     script = f'savebin {out_path}, {pbuf:#x}, {size:#x}\nexit\n'
     _jlink_run(script)
     # JLinkExe exits 0 even when a command inside its script fails, so the only proof
-    # savebin worked is the file itself
-    if not os.path.exists(out_path) or os.path.getsize(out_path) == 0:
-        raise SystemExit(f'savebin produced no data at {out_path} — probe or address problem')
+    # savebin worked is the file itself: it must hold the WHOLE ring, since a read that
+    # dies partway (probe disconnect, unreadable address) still leaves a short file that
+    # would otherwise be reported as a complete dump. Removing it also keeps the
+    # invariant above -- no stale file can satisfy a later run's check.
+    got = os.path.getsize(out_path) if os.path.exists(out_path) else 0
+    if got < size:
+        with contextlib.suppress(OSError):
+            os.remove(out_path)
+        if got == 0:
+            raise SystemExit(f'savebin produced no data at {out_path} — probe or address problem')
+        raise SystemExit(f'savebin wrote {got}/{size} B to {out_path} (truncated dump removed) '
+                         f'— probe or address problem')
     print(f'ring: {size} B at {pbuf:#x}, WrOff={wroff:#x} RdOff={rdoff:#x} -> {out_path}\n'
           f'valid bytes wrap at WrOff; default NO_BLOCK_SKIP holds the FIRST data after '
           f'boot, not the tail', file=sys.stderr)
