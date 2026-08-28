@@ -206,7 +206,7 @@ function fixThunkPrompt(cycle, failures) {
   return 'You are the fix agent of the validate loop, cycle ' + cycle + ', in this TinyUSB repo (work from the repo root). ' +
     'Failed stages: ' + failures.map(f => f.stage).join(', ') + '. ' +
     'The JSON below carries their evidence (review findings are pre-verified CONFIRMED, codex ones are P0/P1):\n' +
-    clip(JSON.stringify(fixerEvidence(failures), null, 1), 12000) + '\n\n' +
+    JSON.stringify(fixerEvidence(failures), null, 1) + '\n\n' +
     'For each item: verify it against the actual code first; fix the real ones with the smallest correct change, matching surrounding style. ' +
     'Skip anything that is an infrastructure failure rather than a code defect (missing CLI, tool crash, dead stage agent) and anything you can refute with evidence — say which and why in summary. ' +
     'Run the tests/suites covering what you changed. ' +
@@ -268,8 +268,13 @@ for (let cycle = 1; cycle <= maxCycles; cycle++) {
 
   // A fix can invalidate any stage: builds/unit consume src|hw|examples|test,
   // and size/pvs run tools the fixer may have edited. Only a pure-docs fix
-  // is safe to exempt — everything else re-runs the full stage set.
-  const docsOnly = fix.files.every(f => /^docs\//.test(f) || f.endsWith('.md') || f.endsWith('.rst'))
+  // is safe to exempt — everything else re-runs the full stage set. Agent and
+  // skill instructions are Markdown but drive the stage agents themselves, so
+  // they are operational, not documentation: editing them must re-run
+  // everything, or the loop reports green on results the old instructions produced.
+  const docsOnly = fix.files.every(f =>
+    !f.startsWith('.claude/') && f !== 'CLAUDE.md' && f !== 'AGENTS.md' &&
+    (/^docs\//.test(f) || f.endsWith('.md') || f.endsWith('.rst')))
   toRun = new Set(failures.map(f => f.stage))
   if (!skip.includes('review')) toRun.add('review')
   if (!skip.includes('codex')) toRun.add('codex')
