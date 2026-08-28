@@ -12,8 +12,8 @@ audio_test_freertos: "Audio mismatch at sample 8702: expected 8702, got 8696").
   previous packet's data — the host hears a replayed fragment, offset by exactly
   one packet (6 samples at HS 48 kHz mono 16-bit: "expected 8702, got 8696").
 - Reproduced whenever the producer lets the FIFO underrun; the example was fixed
-  to hold the FIFO at threshold (PR #3851, `20ff2b498`), but any application
-  with >~2 ms producer starvation can still hit the driver bug.
+  to hold the FIFO at threshold (this PR, #3866), but any application with
+  >~2 ms producer starvation can still hit the driver bug.
 - A naive short-write is not a fix: sending fewer bytes than the flow-control
   size is legal ISO behavior, but a 1-byte pad would byte-misalign the stream —
   the packet must shrink to the bytes actually read (sample-aligned).
