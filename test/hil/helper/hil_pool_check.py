@@ -368,7 +368,12 @@ def check_host_serial(board: dict, do_reset: bool = True, want_hello: bool = Fal
     without a reset Commander delivers the boot burst the preceding flash left."""
     if board.get('logger') == 'rtt':
         if do_reset:
-            getattr(hil_flash, f'reset_{board["flasher"]["name"].lower()}')(board)
+            # a failed reset leaves the previous run's ring intact: attaching anyway would
+            # score stale output as life, so bail to host_alive's board_test reflash ladder
+            rc, err = call_flasher(getattr(hil_flash, f'reset_{board["flasher"]["name"].lower()}'), board)
+            if rc:
+                say(f'{board["name"]:26} reset failed: {err}')
+                return None
         try:
             ser = hil_util.JlinkRtt(board, timeout=0.3)
         except hil_util.RttError as e:

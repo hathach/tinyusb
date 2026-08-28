@@ -2413,14 +2413,19 @@ def main() -> None:
                          and any('LOGGER=rtt' not in (v.get('defines') or [])
                                  for v in (e.get('variant') or [{}]))]
     if rtt_no_logger_def:
-        # warning, not an abort: a prebuilt cmake-build-<board> configured with
-        # -DLOGGER=rtt is a legitimate build path the roster need not describe -- but a
-        # --build/CI-matrix build of these boards would produce UART firmware and
-        # every test would time out as 'the target produced nothing'. An always-on
-        # define is expressed as a single self-named variant (see the Board comment).
-        print(f'warning: "logger": "rtt" board has a variant without LOGGER=rtt in its '
-              f'defines ({", ".join(rtt_no_logger_def)}) -- fine for prebuilt example '
-              f'sets, wrong for --build/CI builds', flush=True)
+        # a prebuilt cmake-build-<board> configured with -DLOGGER=rtt is a legitimate
+        # build path the roster need not describe, so warn there -- but when this run is
+        # responsible for the firmware (--build, or CI where the hil-build job compiled
+        # the artifact from these same defines) the flashed image is UART-logger and every
+        # test times out as 'the target produced nothing'. An always-on define is
+        # expressed as a single self-named variant (see the Board comment).
+        msg = (f'"logger": "rtt" board has a variant without LOGGER=rtt in its defines '
+               f'({", ".join(rtt_no_logger_def)})')
+        if args.build or os.environ.get('GITHUB_ACTIONS'):
+            _rtt_config_abort(f'{msg} -- the firmware built for this run cannot serve the '
+                              f'configured RTT console')
+        print(f'warning: {msg} -- fine for prebuilt example sets, wrong for --build/CI '
+              f'builds', flush=True)
     rtt_fixture = [e['name'] for e in config_boards
                    if e.get('logger') == 'rtt'
                    and any(d.get('is_cdc') or d.get('is_msc')
