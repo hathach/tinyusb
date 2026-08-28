@@ -113,7 +113,9 @@ if (!skip.includes('codex')) stageNames.push('codex')
 
 function stageThunk(name, cycle) {
   const label = (cycle > 1 ? `c${cycle}:` : '') + name
-  const died = { stage: name, pass: false, detail: 'stage agent died' }
+  // findings: [] so a dead review/codex stage flows through fixerEvidence()
+  // instead of throwing on f.findings inside the fix dispatch's catch
+  const died = { stage: name, pass: false, findings: [], detail: 'stage agent died' }
 
   if (name === 'unit') return () => agent(
     'Run the TinyUSB unit tests: cd test/unit-test && ceedling test:all. ' +
@@ -184,23 +186,33 @@ function stageThunk(name, cycle) {
 // Only the material that FAILED the gate reaches the fixer: confirmed review
 // findings, codex P0/P1, and failed unit/build/size/pvs stage evidence.
 // PLAUSIBLE and quality findings stay report-only — fixing them here would
-// churn style on an otherwise green branch.
+// churn style on an otherwise green branch. Bounded at the leaves (per-stage
+// finding cap, clipped summaries/details) so the serialized JSON stays valid
+// and every failed stage is represented — a document-level clip could cut
+// mid-JSON and silently drop trailing stages.
 function fixerEvidence(failures) {
   return failures.map(f => {
-    if (f.stage === 'review') return { stage: f.stage, findings: f.findings.filter(confirmedReview) }
-    if (f.stage === 'codex') return { stage: f.stage, findings: f.findings.filter(codexBlocking) }
-    return { stage: f.stage, detail: f.detail }
+    const findings = (f.findings || [])
+      .filter(f.stage === 'review' ? confirmedReview : codexBlocking)
+      .slice(0, 10)
+      .map(x => ({ ...x, summary: clip(x.summary, 300) }))
+    if (f.stage === 'review' || f.stage === 'codex')
+      return { stage: f.stage, detail: clip(f.detail, 300), findings }
+    return { stage: f.stage, detail: clip(f.detail) }
   })
 }
 
 function fixThunkPrompt(cycle, failures) {
   return 'You are the fix agent of the validate loop, cycle ' + cycle + ', in this TinyUSB repo (work from the repo root). ' +
-    'These validation stages failed; the JSON below carries their evidence (review findings are pre-verified CONFIRMED, codex ones are P0/P1):\n' +
-    clip(JSON.stringify(fixerEvidence(failures), null, 1), 6000) + '\n\n' +
+    'Failed stages: ' + failures.map(f => f.stage).join(', ') + '. ' +
+    'The JSON below carries their evidence (review findings are pre-verified CONFIRMED, codex ones are P0/P1):\n' +
+    clip(JSON.stringify(fixerEvidence(failures), null, 1), 12000) + '\n\n' +
     'For each item: verify it against the actual code first; fix the real ones with the smallest correct change, matching surrounding style. ' +
     'Skip anything that is an infrastructure failure rather than a code defect (missing CLI, tool crash, dead stage agent) and anything you can refute with evidence — say which and why in summary. ' +
     'Run the tests/suites covering what you changed. ' +
-    'Commit everything as ONE commit: imperative mood, subject like "validate: fix cycle ' + cycle + ' findings", ' +
+    'Commit as ONE commit, staging ONLY the files you changed (git add <paths> — never git add -A or git commit -a; ' +
+    'if git status shows pre-existing staged changes, do not commit at all: return changed=false and say so in summary). ' +
+    'Message: imperative mood, subject like "validate: fix cycle ' + cycle + ' findings", ' +
     'NO trailers of any kind (no Co-Authored-By, no Claude-Session). Do NOT push. Never spawn subagents. ' +
     'Return: changed=true only if you committed; commit = the new sha (empty string if none); ' +
     'files = repo-relative paths you changed; summary = one paragraph of what was fixed/skipped and why.'
@@ -240,17 +252,28 @@ for (let cycle = 1; cycle <= maxCycles; cycle++) {
   if (!fix) { entry.fix = 'fix agent died'; break }
   entry.fix = { changed: fix.changed, commit: fix.commit, files: fix.files, summary: clip(fix.summary) }
   if (!fix.changed) {
-    // nothing fixable (infra-only failures, or every finding refuted) —
-    // re-running the same stages would spin, so stop here with the report
+    // Nothing fixable in code. A dead stage agent is still worth retrying —
+    // that failure is transient infrastructure, and a retry is the only
+    // useful action for it. Everything else (refuted findings, missing CLI)
+    // would just spin, so stop with the report.
+    const deadStages = failures.filter(f => f.detail === 'stage agent died').map(f => f.stage)
+    if (deadStages.length > 0) {
+      log(`cycle ${cycle}: fix agent changed nothing — retrying dead stage(s): ${deadStages.join(', ')}`)
+      toRun = new Set(deadStages)
+      continue
+    }
     log(`cycle ${cycle}: fix agent changed nothing — stopping`)
     break
   }
 
-  const touchesCode = fix.files.some(f => /^(src|hw|examples|test\/unit-test)\//.test(f))
+  // A fix can invalidate any stage: builds/unit consume src|hw|examples|test,
+  // and size/pvs run tools the fixer may have edited. Only a pure-docs fix
+  // is safe to exempt — everything else re-runs the full stage set.
+  const docsOnly = fix.files.every(f => /^docs\//.test(f) || f.endsWith('.md') || f.endsWith('.rst'))
   toRun = new Set(failures.map(f => f.stage))
   if (!skip.includes('review')) toRun.add('review')
   if (!skip.includes('codex')) toRun.add('codex')
-  if (touchesCode) for (const n of stageNames) toRun.add(n)
+  if (!docsOnly) for (const n of stageNames) toRun.add(n)
 }
 
 const failures = [...latest.values()].filter(r => !r.pass)
