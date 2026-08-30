@@ -31,6 +31,7 @@ static bool _usbc_inited = false;
 
 // if port is initialized
 static bool _port_inited[TUP_TYPEC_RHPORTS_NUM];
+static bool _port_attached[TUP_TYPEC_RHPORTS_NUM];
 
 // Max possible PD size is 262 bytes
 static uint8_t _rx_buf[64] TU_ATTR_ALIGNED(4);
@@ -95,6 +96,7 @@ bool tuc_init(uint8_t rhport, uint32_t port_type) {
   // Initialize stack
   if (!_usbc_inited) {
     tu_memclr(_port_inited, sizeof(_port_inited));
+    tu_memclr(_port_attached, sizeof(_port_attached));
 
     _usbc_q = osal_queue_create(&_usbc_qdef);
     TU_ASSERT(_usbc_q != NULL);
@@ -131,7 +133,10 @@ void tuc_task_ext(uint32_t timeout_ms, bool in_isr) {
     switch (event.event_id) {
       case TCD_EVENT_CC_CHANGED: {
         bool const attached = event.cc_changed.cc_state[0] != 0 || event.cc_changed.cc_state[1] != 0;
-        tuc_attach_changed_cb(event.rhport, attached);
+        if (_port_attached[event.rhport] != attached) {
+          _port_attached[event.rhport] = attached;
+          tuc_attach_changed_cb(event.rhport, attached);
+        }
         break;
       }
 
