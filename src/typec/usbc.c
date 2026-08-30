@@ -57,6 +57,11 @@ TU_ATTR_WEAK bool tuc_pd_control_received_cb(uint8_t rhport, pd_header_t const* 
   return false;
 }
 
+TU_ATTR_WEAK void tuc_attach_changed_cb(uint8_t rhport, bool attached) {
+  (void) rhport;
+  (void) attached;
+}
+
 TU_ATTR_WEAK void tcd_connect(uint8_t rhport) {
   (void) rhport;
 }
@@ -124,8 +129,11 @@ void tuc_task_ext(uint32_t timeout_ms, bool in_isr) {
     if (!osal_queue_receive(_usbc_q, &event, timeout_ms)) return;
 
     switch (event.event_id) {
-      case TCD_EVENT_CC_CHANGED:
+      case TCD_EVENT_CC_CHANGED: {
+        bool const attached = event.cc_changed.cc_state[0] != 0 || event.cc_changed.cc_state[1] != 0;
+        tuc_attach_changed_cb(event.rhport, attached);
         break;
+      }
 
       case TCD_EVENT_RX_COMPLETE:
         // TODO process message here in ISR, move to thread later
