@@ -306,17 +306,6 @@ static usbh_class_driver_t const usbh_class_drivers[] = {
   },
   #endif
 
-  #if CFG_TUH_VENDOR
-  {
-    .name       = DRIVER_NAME("VENDOR"),
-    .init       = cush_init,
-    .deinit     = cush_deinit,
-    .open       = cush_open,
-    .set_config = cush_set_config,
-    .xfer_cb    = cush_isr,
-    .close      = cush_close
-  }
-  #endif
 };
 
 // Additional class drivers implemented by application

@@ -361,12 +361,17 @@ void dcd_int_disable(uint8_t rhport) {
 }
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
-  // Response with status first before changing device address. A refused prime means a new
-  // setup superseded this transfer; staging an address whose ACK will never arrive would
-  // leave the device answering on it, so only arm the address when the status went out.
-  if (dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0, false)) {
-    ci_hs_regs_t *dcd_reg = CI_HS_REG(rhport);
-    dcd_reg->DEVICEADDR   = (dev_addr << 25) | TU_BIT(24);
+  ci_hs_regs_t  *dcd_reg = CI_HS_REG(rhport);
+  const uint32_t prev    = dcd_reg->DEVICEADDR & DEVICEADDR_USBADR_MASK;
+
+  // IMXRT1060RM 42.7.23 / UM10503 Table 478: stage the address before priming the status stage so
+  // hardware loads USBADR at the status ACK. Priming first races that ACK against this write.
+  dcd_reg->DEVICEADDR = ((uint32_t)dev_addr << DEVICEADDR_USBADR_POS) | DEVICEADDR_USBADRA;
+
+  if (!dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0, false)) {
+    // USB 2.0 9.4.6: the address changes only after the status stage completes successfully. The
+    // status never went out, so drop the stage - USBADRA=0 takes effect instantly.
+    dcd_reg->DEVICEADDR = prev;
   }
 }
 

@@ -29,6 +29,14 @@ enum {
   USBCMD_INTR_THRESHOLD_MASK = 0x00FF0000u, // Interrupt Threshold bit 23:16
 };
 
+// DEVICEADDR
+#define DEVICEADDR_USBADR_POS 25
+
+enum {
+  DEVICEADDR_USBADRA     = TU_BIT(24),  ///< Device Address Advance: stage USBADR until the next EP0 IN is ACKed
+  DEVICEADDR_USBADR_MASK = 0xFE000000u, ///< Device Address bit 31:25
+};
+
 // PORTSC1
 #define PORTSC1_PORT_SPEED_POS    26
 

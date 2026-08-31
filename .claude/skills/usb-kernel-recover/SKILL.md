@@ -105,16 +105,32 @@ convoy-safe: **openocd pinned with `vid_pid`**, or esptool (`-p <ttyACM>`).
 JLinkExe selects by serial, which needs `libusb_open`, so it needs the shield.
 
 **Rung 2 — wedged PROBE: `root-cycle`.** A probe has no probe to reset it, so the
-port-side drop is the only lock-free lever left. It commands the ROOT hub and
-never touches the wedged device's lock.
+port-side drop is the only lever left that avoids the KERNEL device lock. It
+commands the ROOT hub and never touches the wedged device's `device_lock` — which
+is exactly why rungs 1 and 3 are dangerous and this one is not.
+
+That is a different lock from the rig's **board flocks**, and this rung still needs
+those: it bounces every fixture under the root port, including boards another job is
+mid-flash on. Take them first, and release after:
 
 ```bash
-sudo usb_recover.sh root-cycle <busport> [expected-serial]
+python3 test/hil/helper/hil_lock.py hold --all --config <this host's config> --reason "root-cycle <busport>"
+sudo .claude/skills/usb-kernel-recover/scripts/usb_recover.sh root-cycle <busport> [expected-serial]
+python3 test/hil/helper/hil_lock.py release --all      # no --config: it walks the lock dir
 ```
 
-Bounces **every fixture under that root port** (up to 25 here). Renesas `ppps`
-disables D+/D− only — VBUS stays up, so it is a forced re-enumeration, not a
-power cycle. Success is the sysfs inode changing, not uhubctl's exit code.
+`--all` is coarse for one root port, but nothing maps a sysfs busport to a board name,
+so it is the only reservation that actually covers the blast radius; `hold` accepts any
+string, so a hand-listed "just the siblings" hold reserves nothing while reporting
+success. A refusal naming `hil_test.py` means CI is mid-test — wait, do not force. Give
+the script the wedged probe's own busport (e.g. `13-1.6`), not the `13-1` hub path: it
+derives the root port itself, and the expected-serial guard and the success check both
+read the path you pass.
+
+Bounces **every fixture under that root port** (up to 25 here). The Renesas cards
+advertise `ppps` but do not implement it: VBUS stays up and only D+/D− drop, so
+this is a forced re-enumeration, never a power cycle — a device whose firmware is
+wedged can ride it out. Success is the sysfs inode changing, not uhubctl's exit code.
 
 **Rung 3 — terminal case: a driver ioctl that OWNS the lock.** No software cure:
 the task is uninterruptible and SIGKILL is queued, not delivered. Reboot with
@@ -201,6 +217,13 @@ Observed: 5 boards missing with a completely clean D-state list, because
 
 ## Rig layout (ci.lan, bus numbers renumber every boot)
 
-`readlink -f /sys/bus/usb/devices/usb<N>` → its PCI address. AMD `0000:02:00.0`
-has no port-power switching; Renesas `0000:01:00.0` (probe tree) and
-`0000:03:00.0`/`0000:05:00.0` (DUT hubs) have real per-port `ppps`.
+`readlink -f /sys/bus/usb/devices/usb<N>` → its PCI address; `sudo uhubctl` lists
+the root hubs it can drive, against their PCI address. Five Renesas uPD720201 cards
+— `0000:01:00.0`, `03`, `04`, `05`, `06:00.0` — advertise per-port `ppps` on both
+their USB2 and USB3 root hubs, **but do not implement it**: the silicon never drops
+VBUS, so a cycle re-enumerates the port and nothing more (above). Do not read
+`uhubctl`'s `ppps` as power control on this rig. AMD `0000:02:00.0` does not appear
+in `uhubctl` at all — no switching of any kind. Which tree holds which probes moves
+with re-cabling, so derive it (`lsusb -s <bus>:`) rather than trusting a stored map.
+Verified 2026-08-18; `sudo` is passwordless for `hathach` here, so every rung above
+runs without a prompt.

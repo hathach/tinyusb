@@ -31,7 +31,6 @@ function(tinyusb_sources_get OUTPUT_VAR)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/midi/midi_host.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/midi/midi2_host.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/msc/msc_host.c
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/vendor/vendor_host.c
     # typec
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/typec/usbc.c
     PARENT_SCOPE

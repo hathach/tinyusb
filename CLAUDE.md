@@ -28,7 +28,7 @@ Bias toward caution over speed. For trivial tasks, use judgment.
 ```bash
 sudo apt-get install -y gcc-arm-none-eabi          # ARM toolchain (2-5 min, one-time)
 python3 tools/get_deps.py [FAMILY|-b BOARD]        # fetch deps into lib/, hw/mcu/ (<1 s)
-. $HOME/code/esp-idf/export.sh                     # Espressif only: before any build/flash/monitor
+. "$IDF_PATH/export.sh"                            # Espressif only: before any build/flash/monitor (IDF_PATH set per host)
 ```
 
 ## Build
@@ -129,7 +129,7 @@ Cutting a release — version bump, regenerated files, the per-release changelog
   ```
 - Supported MCUs/boards: `hw/bsp/` and `docs/reference/boards.rst`.
 - USB classes: `src/class/{cdc,hid,msc,audio,…}/` — each has `*_device.c` and `*_host.c`.
-- Key files: `src/tusb.h`, `src/tusb_config.h`, `tools/get_deps.py`, `tools/build.py`, `test/unit-test/project.yml`.
+- Key files: `src/tusb.h`, `src/tusb_option.h`, `tools/get_deps.py`, `tools/build.py`, `test/unit-test/project.yml` (each example carries its own `src/tusb_config.h`).
 
 ## Common Build Issues
 

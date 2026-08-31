@@ -13,7 +13,7 @@ description: Use when cutting a new TinyUSB release — version bump, regenerate
 # set version = 'X.Y.Z' in tools/make_release.py, then FROM REPO ROOT:
 python3 tools/make_release.py
 ```
-Refreshes `tusb_option.h`, `repository.yml`, `library.json`, `sonar-project.properties`, and (via gen_doc/gen_presets) `docs/reference/{boards,dependencies}.rst` + preset JSONs (presets/docs change only if boards/deps changed).
+Refreshes `tusb_option.h`, `repository.yml`, `library.json`, `sonar-project.properties`, and (via gen_doc/gen_presets) `docs/reference/{boards,dependencies}.rst`, `docs/reference/hil_boards.md` + preset JSONs (they change only if boards, deps or the HIL rosters did).
 
 Gotchas: `gen_doc` needs `pandas`+`tabulate` (not in requirements) → `pip install pandas tabulate`; `boards.rst` lands with no trailing newline → let pre-commit fix it (step 3).
 

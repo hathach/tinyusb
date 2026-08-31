@@ -1,5 +1,5 @@
 family:hpmicro
-family:samd21
+family:samd2x_l2x
 family:samd5x_e5x
 mcu:CH32V20X
 mcu:KINETIS_KL
