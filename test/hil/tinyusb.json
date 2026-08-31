@@ -157,11 +157,14 @@
         {
             "name": "metro_m4_express",
             "uid": "9995AD485337433231202020FF100A34",
-            "build": {
-                "args": [
-                    "MAX3421_HOST=1"
-                ]
-            },
+            "variant": [
+                {
+                    "name": "metro_m4_express",
+                    "defines": [
+                        "MAX3421_HOST=1"
+                    ]
+                }
+            ],
             "tests": {
                 "device": true,
                 "host": false,

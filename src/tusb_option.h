@@ -894,9 +894,6 @@
   #define CFG_TUH_MSC    0
 #endif
 
-#ifndef CFG_TUH_VENDOR
-  #define CFG_TUH_VENDOR 0
-#endif
 
 #ifndef CFG_TUH_API_EDPT_XFER
   #define CFG_TUH_API_EDPT_XFER 0

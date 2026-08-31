@@ -48,9 +48,6 @@
     #include "class/midi/midi2_host.h"
   #endif
 
-  #if CFG_TUH_VENDOR
-    #include "class/vendor/vendor_host.h"
-  #endif
 #else
   #ifndef tuh_int_handler
   #define tuh_int_handler(...)

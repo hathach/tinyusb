@@ -21,7 +21,8 @@ the failing case passing *and* the full battery still at 30/30 across reflash cy
 ## Run
 
 ```bash
-# build (cmake); descriptor sizes auto-adapt per MCU via src/usb_descriptors.h + src/tusb_config.h
+# build (cmake); descriptor sizes auto-adapt per MCU via the example's own
+# src/usb_descriptors.h + src/tusb_config.h (paths below are relative to it)
 cd examples/device/usbtest && cmake -B build -DBOARD=<board> -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel && cmake --build build
 # flash, wait ~3-5 s for enumeration to settle, then:
 python3 test/hil/usbtest.py --serial <uid> --keep-binding            # full battery for the advertised tier
@@ -36,9 +37,15 @@ python3 test/hil/usbtest.py --serial <uid> --keep-binding --tests 29 # one case
   device wedged and skip cleanup — expected; reset or reflash it yourself.
 - Always settle a few seconds after flashing — enumeration can bounce once; testusb into the gap sees
   the device drop mid-case.
-- On a CI rig: stop the actions runner before touching hardware; restart after. Never run two
-  batteries concurrently (hil_test.py serializes them; concurrent batteries have hard-frozen a rig
-  via a fatal PCIe error on a VFIO-passed xHCI).
+- On a CI rig: hold the board lock before touching hardware and release it after — never stop the
+  actions runner. It keeps running; the per-board flock is what arbitrates (see the `hil` skill).
+  Never start a battery by hand next to a running one: `hil_test.py` budgets 2 concurrent batteries
+  per host controller (`HIL_USBTEST_PARALLEL`). The width itself is a profiled throughput/bandwidth
+  trade, not a safety ceiling (hil_lock.py:122-127) — but a battery outside the budget is a real
+  hazard, and the hazard is recorded: unbudgeted concurrent batteries have hard-frozen the rig with
+  a fatal PCIe error on a VFIO-passed xHCI, and a marginal DUT port bouncing under concurrent
+  batteries has killed a uPD720201 outright, which lowering the widths does not fix
+  (hil_lock.py:130-132).
 
 ## Porting ladder — new MCU/DCD to 30/30
 
@@ -47,9 +54,9 @@ python3 test/hil/usbtest.py --serial <uid> --keep-binding --tests 29 # one case
 2. **Tier 2 (ctrl_out 14/21)**, **tier 3 (interrupt 25/26)**, **tier 4 (iso 15/16/22/23)** — raise
    the tier only when the layer below is clean; run the *full* battery after each layer.
 3. **Fit the endpoints**: tier 4 needs 6 endpoints + EP0. Small parts need per-MCU mps/epbuf
-   overrides in `src/usb_descriptors.h` (`USBTEST_INT/ISO_EP_MPS_FS`) and `src/tusb_config.h`
-   (`CFG_TUD_VENDOR_TX_EPSIZE`) — follow the existing CH32/LPC11 patterns. Parts that can't fit go
-   in `skip.txt`.
+   overrides in the example's own `src/usb_descriptors.h` (`USBTEST_INT/ISO_EP_MPS_FS`) and
+   `src/tusb_config.h` (`CFG_TUD_VENDOR_TX_EPSIZE`) — follow the existing CH32/LPC11 patterns.
+   Parts that can't fit go in `skip.txt`.
 4. **Sign-off = reliability, not one pass**: 3–10 full flash→battery cycles. One 30/30 proves
    nothing on a flaky bring-up; deterministic partial counts (e.g. exactly 1-in-8 lost) are a
    signature, not noise — chase them.
@@ -98,7 +105,8 @@ whether a hung case is recoverable. Fetch the rig's exact version (`uname -r`):
 
 ```bash
 curl -sO "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/drivers/usb/misc/usbtest.c?h=v6.12.96"
-# case N lives under `case N:` in usbtest_do_ioctl(); tools/usb/testusb.c maps the flags:
+# case N lives under `case N:` in the kernel's usbtest_do_ioctl()
+# (drivers/usb/misc/usbtest.c); kernel tools/usb/testusb.c maps the flags:
 # -c = param.iterations, -s = param.length, -g = param.sglen  (NOT what they read like)
 ```
 
@@ -147,7 +155,9 @@ curl -sO "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain
 - "usbmon shows no toggle problem" → usbmon can't see toggles.
 - "It works on gcc" → clang/IAR/LTO/make still pending.
 - "Fixed iso IN" → apply the same exemption to iso OUT (toggle logic is symmetric).
-- A clean single-board run does not validate concurrent/fleet behavior — batteries serialize.
+- A clean single-board run does not validate concurrent/fleet behavior — a fleet run puts up to 2
+  batteries per host controller (`HIL_USBTEST_PARALLEL`) plus concurrent flashes on the same hub
+  uplinks, which one board never exercises.
 - Reasoning about a case from its name or table row → open `usbtest.c` (step 0). The
   flags don't mean what they look like, and recoverability is a property of that
   case's wait, not of the rig.

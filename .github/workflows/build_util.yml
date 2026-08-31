@@ -20,6 +20,10 @@ on:
         required: false
         default: ''
         type: string
+      example-map:
+        required: false
+        default: ''
+        type: string
       upload-artifacts:
         required: false
         default: false
@@ -76,19 +80,42 @@ jobs:
         with:
           arg: ${{ matrix.arg }}
 
+      - name: Resolve PR example filter
+        if: inputs.example-map != '' && inputs.example-map != '{}'
+        env:
+          # values are PR-derived - keep them out of ${{ }} script interpolation
+          # (env expansion word-splits but never re-parses shell metacharacters)
+          EXAMPLE_MAP: ${{ inputs.example-map }}
+          FAMILY: ${{ matrix.arg }}
+        run: |
+          # -e flags for this family; a family absent from the map builds everything
+          EX_ARGS=$(printf '%s' "$EXAMPLE_MAP" | jq -r --arg fam "$FAMILY" '(.[$fam] // []) | map("-e " + .) | join(" ")') || EX_ARGS=''
+          # the map's values are example dir names from the PR checkout, and `jq -r`
+          # un-escapes them: a path with a newline (git allows it) would otherwise write
+          # extra NAME=VALUE lines into GITHUB_ENV for every later step of this job.
+          # Anything outside the example-name alphabet drops the filter (= build all),
+          # which is the safe direction.
+          case "$EX_ARGS" in
+            *[!-A-Za-z0-9_/\ ]*)
+              echo "::warning::unexpected characters in the example filter - building all examples"
+              EX_ARGS='' ;;
+          esac
+          echo "EX_ARGS=$EX_ARGS"
+          echo "EX_ARGS=$EX_ARGS" >> $GITHUB_ENV
+
       - name: Build
         if: ${{ inputs.code-changed }}
         env:
           IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
         run: |
           if [ "${{ inputs.toolchain }}" == "esp-idf" ]; then
-            docker run --rm -e MEMBROWSE_API_KEY="$MEMBROWSE_API_KEY" -e CI="$CI" -v $PWD:/project -w /project espressif/idf:tinyusb python tools/build.py --target all ${{ matrix.arg }}
+            docker run --rm -e MEMBROWSE_API_KEY="$MEMBROWSE_API_KEY" -e CI="$CI" -v $PWD:/project -w /project espressif/idf:tinyusb python tools/build.py --target all ${{ matrix.arg }} $EX_ARGS
           else
             BUILD_PY_ARGS="-s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }} --target all"
             if [ "${{ inputs.upload-metrics }}" = "true" ]; then
               BUILD_PY_ARGS="$BUILD_PY_ARGS --target tinyusb_metrics"
             fi
-            python tools/build.py $BUILD_PY_ARGS ${{ matrix.arg }}
+            python tools/build.py $BUILD_PY_ARGS ${{ matrix.arg }} $EX_ARGS
           fi
         shell: bash
 
@@ -99,6 +126,9 @@ jobs:
           MEMBROWSE_API_KEY: ${{ secrets.MEMBROWSE_API_KEY }}
         run: |
           # if code-changed is false --> there is no elf -> membrowse target upload with --identical flag
+          # deliberately unscoped by $EX_ARGS: keeps the size history on a stable board
+          # per family, at the cost of an --identical-only upload where that board is not
+          # the one the Build step picked (test_ci_metrics pins which families those are)
           BUILD_PY_ARGS="-s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }}"
           python tools/build.py $BUILD_PY_ARGS --target examples-membrowse-upload -j 1 ${{ matrix.arg }}
         shell: bash
@@ -108,13 +138,37 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: metrics-${{ matrix.arg }}
-          path: cmake-build/cmake-build-*/metrics.json
+          path: |
+            cmake-build/cmake-build-*/metrics.json
+            cmake-build/cmake-build-*/metrics_by_example.json
+
+      - name: Artifact name
+        if: inputs.upload-artifacts == true
+        env:
+          ARG: ${{ matrix.arg }}
+        run: |
+          # -e example filters carry '/', which upload-artifact forbids in artifact
+          # names; strip them from the NAME only (the build already consumed them).
+          # Names without -e stay byte-identical to before. Two entries differing
+          # only in their -e list cannot exist - the -e list is a function of
+          # (board), and variant suffixes (--build-name/-D/--cflag) survive the
+          # strip - so the stripped name is still unique per matrix entry.
+          TAG=$(printf '%s' "$ARG" | sed -E 's/ -e [^ ]+//g')
+          # board and example names come from the roster, which a PR can edit; a newline
+          # in one would write extra NAME=VALUE lines into GITHUB_ENV for every later
+          # step. There is no safe fallback name here - a wrong one mislabels the
+          # firmware the rig then flashes - so refuse instead.
+          case "$TAG" in
+            *[!-A-Za-z0-9_/\ .=+]*)
+              echo "::error::refusing to build an artifact name from '$ARG'"; exit 1 ;;
+          esac
+          echo "ARTIFACT_TAG=$TAG" >> $GITHUB_ENV
 
       - name: Upload Artifacts for Hardware Testing
         if: inputs.upload-artifacts == true && inputs.code-changed == true
         uses: actions/upload-artifact@v7
         with:
-          name: binaries-${{ inputs.toolchain }}-${{ matrix.arg }}
+          name: binaries-${{ inputs.toolchain }}-${{ env.ARTIFACT_TAG }}
           path: |
             cmake-build/cmake-build-*/*/*/*.elf
             cmake-build/cmake-build-*/*/*/*.bin

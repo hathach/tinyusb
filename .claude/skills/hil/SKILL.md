@@ -32,7 +32,7 @@ python3 test/hil/helper/hil_lock.py release BOARD [BOARD...]
 ```
 
 - Never pre-hold boards you are about to run `hil_test.py` on — it self-locks and would treat your own hold as a conflict.
-- Rig-wide operations (uhubctl power cycling, controller resets — bus renumbering) affect every board: `hil_lock.py hold --all --reason "..."` first.
+- Rig-wide operations (uhubctl power cycling, `usb_recover.sh root-cycle`, pci-rebind, controller resets — bus renumbering) affect every board: `hil_lock.py hold --all --config <this host's config> --reason "..."` first — `--all` defaults to `tinyusb.json`, so on `tusb` it would reserve 27 boards that do not exist there and none of the three that do. Even a single root-port bounce needs `--all`: nothing maps a sysfs busport to a board name, and `hil_lock.py hold` accepts any string, so a "just the siblings" hold reserves nothing while reporting success.
 - `hil_lock.py status` lists holders. Locks auto-release when the holder process dies (kernel flock); `/tmp` clears on reboot.
 - Forcing past a lock: `HIL_NO_BOARD_LOCK=1 python3 test/hil/hil_test.py ...` bypasses the guard without killing the holder. Only with the user's explicit go-ahead — they accept the risk of colliding with whatever holds the board.
 
@@ -43,11 +43,11 @@ Use it before a HIL campaign, after rig maintenance/reboot, or when boards fail 
 
 ## PR-scoped selection
 
-`test/hil/helper/hil_select.py` maps a diff to affected boards/tests (used by CI on PRs; fail-open
+`tools/ci_select.py` maps a diff to affected boards/tests (used by CI on PRs; fail-open
 to the full matrix). Manual use:
 
 ```bash
-SEL=$(python3 test/hil/helper/hil_select.py --base master test/hil/tinyusb.json)
+SEL=$(python3 tools/ci_select.py --base master test/hil/tinyusb.json)
 FULL=$(printf '%s' "$SEL" | python3 -c "import json,sys; print(json.load(sys.stdin)['full'])")
 ARGS=$(printf '%s' "$SEL" | python3 -c "import json,sys; print(json.load(sys.stdin)['args']['tinyusb.json'])")
 if [ "$FULL" = "True" ] || [ -n "$ARGS" ]; then
@@ -60,11 +60,14 @@ fi
 Read `full`, never `args` alone: `args` is empty for BOTH `full: true` (run the whole matrix — a broad or
 unclassified change) and "nothing selected" (skip). Skip only when `full` is false AND `args` is empty.
 
-Unit suites (no hardware), all four run by the `hil-test`/`hil-select-test` pre-commit
-hooks: `test_hil_select.py` covers only board selection. The containment work --- bounded
-reads, the kill ladders, the build and pool guards --- lives in `test_hil_bounded.py`,
-`test_hil_health.py` and `test_hil_util.py`, so run all four when changing `test/hil`:
-`for f in test/hil/test/test_*.py; do python3 "$f"; done` (~55s).
+Unit suites (no hardware), all five run by the `hil-test`/`ci-select-test` pre-commit
+hooks: `test_ci_select.py` covers only selection, `test_ci_metrics.py` only the code-size
+plumbing. The containment work --- bounded reads, the kill ladders, the build and pool
+guards --- lives in `test_hil_bounded.py`, `test_hil_health.py` and `test_hil_util.py`, so
+run all five when changing `test/hil`:
+`for f in test/hil/test/test_*.py; do python3 "$f"; done` (~84s, of which
+`test_hil_bounded.py` is ~76s of deliberate hang/timeout simulation; the two `test_ci_*`
+suites are ~4s together).
 
 ## Pre-flight rig health check
 
@@ -81,7 +84,7 @@ Examples must be built for the target board(s) — see CLAUDE.md "Build" → "Al
 
 ## Arguments
 
-- **Board:** `-b BOARD_NAME` for one board; omit to run all boards in the config.
+- **Board:** `-b BOARD_NAME`, repeatable for a subset (`-b a -b b`); omit to run all boards in the config. Give a whole set to ONE run rather than one run per board: it schedules the boards across host controllers and budgets concurrent flashes and usbtest batteries per controller (`hil_lock.py` `FLASH_PARALLEL`/`USBTEST_PARALLEL`). Those permits are in-process semaphores — a second `hil_test.py` running alongside does not share them, it multiplies the load on the same xHCI cards.
 - **Pass-through:** `-v`, `-r N`, etc. forwarded unchanged.
 
 If `local.json` is missing on a dev PC, ask the user to supply one (only fall back to `tinyusb.json` if told to).
@@ -108,9 +111,12 @@ python3 test/hil/hil_test.py -b stm32f723disco -B examples "$CONFIG"
 # All boards:
 bash test/hil/hil_ci.sh
 
-# A single board, with pass-through flags:
-bash test/hil/hil_ci.sh -b raspberry_pi_pico2 -t host/cdc_msc_hid -r 1
+# A subset — repeat -b, ONE invocation for the whole set:
+bash test/hil/hil_ci.sh -b raspberry_pi_pico2 -b stm32f723disco -t host/cdc_msc_hid -r 1
 ```
+
+One invocation per board is wrong here, not merely slow: each run `rm -rf`s `REMOTE_DIR`
+and rewrites the report, so only the last board's rows survive.
 
 Env overrides: `REMOTE`, `REMOTE_DIR`, `CONFIG`. Fails fast if the build dir/repo layout is missing.
 
@@ -155,5 +161,8 @@ PREFIX, since each carries trailing detail and one is a blockquote:
   "device not found" from the named boards means "could not tell". Do NOT report their red
   cells as broken boards.
 
-On failure, retry with `-v`; if that's not enough, add temporary debug prints to
-`hil_test.py`.
+On failure, retry once with `-v` — from the `<config>.failed` spec the run just wrote, which
+already begins with `--accumulate` and restricts each board to its failed tests. A hand-scoped
+`-b <board>` retry MUST pass `--accumulate` too: a fresh run unlinks the report, replacing the
+whole-fleet table with a one-row table. If that is still not enough, add temporary debug prints
+to `hil_test.py`.

@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
+import argparse
 import json
+import os
+import subprocess
+import sys
 
 # toolchain, url
 toolchain_list = [
@@ -97,15 +101,93 @@ family_list = {
 }
 
 
-def set_matrix_json():
+def set_matrix_json(select=None):
+    sel_fams = None
+    if select:
+        # every shape check is explicit: this runs AFTER main()'s fail-open handler, so
+        # an AttributeError on e.g. {"build": ["stm32f4"]} would red the step instead
+        # of falling back to the full matrix - the outcome that handler exists to prevent
+        b = select.get('build') if isinstance(select, dict) else None
+        if not isinstance(b, dict):
+            b = {}
+        if b.get('full') is False:
+            fams = b.get('families')
+            if not (isinstance(fams, list) and all(isinstance(f, str) for f in fams)):
+                # key ABSENT (or not a list of names) is an unusable selection, not
+                # "nothing selected": scoping every toolchain to [] would build zero
+                # families and report a vacuous green. An explicit families: [] stays a
+                # legitimate nothing-selected.
+                print('ci_set_matrix: UNSCOPED - build.full is false but the families '
+                      'list is unusable, emitting the full matrix', file=sys.stderr)
+            else:
+                sel_fams = set(fams)
     matrix = {}
     for toolchain in toolchain_list:
-        filtered_families = [family for family, supported_toolchain in family_list.items() if
-                             toolchain in supported_toolchain]
-        matrix[toolchain] = filtered_families
-
+        fams = [family for family, tc in family_list.items() if toolchain in tc]
+        if sel_fams is not None:
+            fams = [f for f in fams if f in sel_fams]
+        matrix[toolchain] = fams
+    if sel_fams:
+        # a family this file does not list builds on no toolchain, so it contributes no
+        # leg. hw/bsp holds several CI has never built (efm32, py32f0, same7x, ...) plus
+        # espressif, whose boards hil-build-esp builds by name.
+        # espressif is not a gap: its examples need the ESP-IDF environment
+        # (CLAUDE.md: `. "$IDF_PATH/export.sh"` before any build), which the cmake legs
+        # do not have - that is why it is commented out of family_list above. Its
+        # coverage comes from hil-build-esp, which builds those boards BY NAME in an IDF
+        # container, so an espressif-only PR is already validated and falling open to the
+        # full matrix would add 74 legs, none of which can compile espressif.
+        unbuilt = sorted(f for f in sel_fams if f not in family_list and f != 'espressif')
+        if unbuilt and not any(matrix.values()):
+            # NONE of the selected families is buildable here, so every leg would skip
+            # and the PR would go green from a build job that ran no compiler. That is
+            # an unusable selection, not "nothing selected": say UNSCOPED - which
+            # build.yml and .circleci/config.yml both grep for - and emit the full
+            # matrix. An explicit families: [] is still a legitimate nothing-selected,
+            # and a PARTIAL miss still scopes to the families that do build.
+            print(f'ci_set_matrix: UNSCOPED - no selected family is built by any '
+                  f'toolchain here ({", ".join(unbuilt)}), emitting the full matrix',
+                  file=sys.stderr)
+            return set_matrix_json(None)
+        if unbuilt:
+            print(f'ci_set_matrix: selected families built by no toolchain here: '
+                  f'{", ".join(unbuilt)}', file=sys.stderr)
     print(json.dumps(matrix))
 
 
+def main():
+    parser = argparse.ArgumentParser()
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--select', help='tools/ci_select.py JSON; scopes families when build.full is false')
+    # a whole selection as one argv/env value can exceed the exec limits on a big
+    # diff, which fails the calling step BEFORE it can fall open; callers that
+    # already have the selection on disk pass the path instead
+    group.add_argument('--select-file', help='file holding the same JSON as --select')
+    group.add_argument('--base', help='git ref: run tools/ci_select.py --base REF and scope from it')
+    args = parser.parse_args()
+
+    select = None
+    try:
+        if args.select:
+            select = json.loads(args.select)
+        elif args.select_file:
+            with open(args.select_file) as f:
+                select = json.load(f)
+        elif args.base:
+            root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            r = subprocess.run([sys.executable, os.path.join(root, 'tools', 'ci_select.py'),
+                                '--base', args.base],
+                               capture_output=True, text=True, cwd=root, check=True)
+            select = json.loads(r.stdout)
+    except Exception as e:  # fail-open: an unusable selection must never turn into a red job
+        # UNSCOPED is the marker build.yml greps for: it must then drop the build extras
+        # (example map, family regex) too, or a full build gets labelled and filtered as
+        # a scoped one. Keep the token on every fall-open path.
+        print(f'ci_set_matrix: UNSCOPED - selection unusable ({e}), emitting the full '
+              f'matrix', file=sys.stderr)
+        select = None
+    set_matrix_json(select)
+
+
 if __name__ == '__main__':
-    set_matrix_json()
+    main()

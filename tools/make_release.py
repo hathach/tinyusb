@@ -59,6 +59,7 @@ with open(f_sonar_properties, 'w') as f:
 # gen docs
 gen_doc.gen_deps_doc()
 gen_doc.gen_boards_doc()
+gen_doc.gen_hil_boards_doc()
 
 # gen presets
 gen_presets.main()

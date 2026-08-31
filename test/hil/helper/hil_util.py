@@ -11,6 +11,7 @@ import glob
 import os
 import signal
 import subprocess
+import unicodedata
 import threading
 import sys
 from pathlib import Path
@@ -18,7 +19,7 @@ from typing import Any
 
 
 # -------------------------------------------------------------
-# HIL example test lists, shared by hil_test.py (runner) and hil_select.py (PR-diff
+# HIL example test lists, shared by hil_test.py (runner) and ci_select.py (PR-diff
 # selector). Run order is shuffled per board (see test_board); every example carries a
 # unique hardcoded idProduct (see its usb_descriptors.c).
 # -------------------------------------------------------------
@@ -90,6 +91,25 @@ def pos_float_env(name: str, default: float) -> float:
 CMD_TIMEOUT = pos_int_env('HIL_CMD_TIMEOUT', 180)
 
 TINYUSB_ROOT = Path(__file__).resolve().parents[3]  # test/hil/helper/ -> repo root
+
+
+def display_width(s: str) -> int:
+    """Terminal COLUMNS, not characters.
+
+    The status marks the reports use -- ✅ ❌ ⚪ ⚠ 🔒 -- are one Python character and TWO
+    columns wide. Measuring with len() pads every cell containing one a column short, so
+    the pipes drift out of line against the header rule for the whole table.
+    """
+    return sum(2 if unicodedata.east_asian_width(c) in 'WF' else 1 for c in s)
+
+
+def pad(s: str, width: int, center: bool = False) -> str:
+    """str.ljust/center, measured in display columns. See display_width."""
+    room = max(0, width - display_width(s))
+    if not center:
+        return s + ' ' * room
+    left = room // 2
+    return ' ' * left + s + ' ' * (room - left)
 
 
 def cmd_stdout_text(out: Any) -> str:
@@ -479,9 +499,26 @@ def run_alongside(argv: list, work, timeout: int) -> subprocess.CompletedProcess
     return _reap()
 
 
-def run_cmd(cmd: str, cwd: str | None = None, timeout: int | None = None,
+def _cmd_label(cmd) -> str:
+    """A one-line name for a banner. An argv whose payload is a `python3 -c` program would
+    otherwise dump the whole body into the CI log, where run_cmd's banners are already the
+    noisiest thing in a failing row."""
+    if isinstance(cmd, str):
+        return cmd
+    parts = [a if len(a) <= 60 else f'<{len(a)}-char program>' for a in cmd]
+    return ' '.join(parts)
+
+
+def run_cmd(cmd: str | list, cwd: str | None = None, timeout: int | None = None,
             binary: bool = False, split_stderr: bool = False,
             quiet: bool = False) -> subprocess.CompletedProcess:
+    """Bounded subprocess: own session, killpg on expiry, rc 124 when it had to be killed.
+
+    `cmd` is a shell STRING or an argv LIST. argv exists for a program that cannot survive
+    a trip through the shell -- a multi-line `python3 -c` body -- which is how the harness
+    runs a library call that no in-process bound can contain. A daemon thread cannot bound
+    a C call that holds the GIL, so for those the child process IS the bound.
+    """
     if timeout is None:
         timeout = CMD_TIMEOUT
     # binary: raw bytes (text mode's errors='replace' mangles non-UTF-8 file content).
@@ -490,32 +527,29 @@ def run_cmd(cmd: str, cwd: str | None = None, timeout: int | None = None,
     # still print: a killed child is always noteworthy).
     popen_kwargs = {
         'cwd': cwd,
-        'shell': True,
+        # a list goes straight to execve; only a string needs a shell to parse it
+        'shell': isinstance(cmd, str),
         'stdout': subprocess.PIPE,
         'stderr': subprocess.PIPE if split_stderr else subprocess.STDOUT,
     }
     if not binary:
         popen_kwargs.update({'text': True, 'encoding': 'utf-8', 'errors': 'replace'})
-    if os.name != 'nt':
-        # C-level setsid, same process-group semantics as preexec_fn=os.setsid but
-        # safe when called from threads (pool_check runs flashes from a thread pool)
-        popen_kwargs['start_new_session'] = True
+    # C-level setsid, same process-group semantics as preexec_fn=os.setsid but safe when
+    # called from threads (pool_check runs flashes from a thread pool)
+    popen_kwargs['start_new_session'] = True
 
     p = subprocess.Popen(cmd, **popen_kwargs)
     try:
         out, err = p.communicate(timeout=timeout)
         r = subprocess.CompletedProcess(args=cmd, returncode=p.returncode, stdout=out, stderr=err)
     except subprocess.TimeoutExpired as ex:
-        if os.name != 'nt':
-            try:
-                os.killpg(p.pid, signal.SIGKILL)
-            except OSError:
-                # ProcessLookupError: already gone. PermissionError: an all-root group
-                # refuses the group kill -- letting either escape would skip the bounded
-                # reap, the pipe close and the rc-124 return this handler exists for.
-                pass
-        else:
-            p.kill()
+        try:
+            os.killpg(p.pid, signal.SIGKILL)
+        except OSError:
+            # ProcessLookupError: already gone. PermissionError: an all-root group refuses
+            # the group kill -- letting either escape would skip the bounded reap, the pipe
+            # close and the rc-124 return this handler exists for.
+            pass
         try:
             out, err = p.communicate(timeout=10)
         except subprocess.TimeoutExpired:
@@ -543,7 +577,7 @@ def run_cmd(cmd: str, cwd: str | None = None, timeout: int | None = None,
         timeout_err = _typed(err if err is not None else ex.stderr)
         if split_stderr and timeout_err is None:
             timeout_err = b'' if binary else ''
-        _print_banner(f'COMMAND TIMEOUT ({timeout}s): {cmd}', timeout_out, timeout_err)
+        _print_banner(f'COMMAND TIMEOUT ({timeout}s): {_cmd_label(cmd)}', timeout_out, timeout_err)
         return subprocess.CompletedProcess(args=cmd, returncode=124, stdout=timeout_out, stderr=timeout_err)
     except BaseException:
         # BaseException, not Exception (as in CPython's own subprocess.run):
@@ -551,18 +585,15 @@ def run_cmd(cmd: str, cwd: str | None = None, timeout: int | None = None,
         # its OWN group, so it never got the terminal's SIGINT -- without this, Ctrl-C
         # leaves the flasher or testusb holding the probe and its usbfs node. Kill and
         # close, never wait: this path must not add a hang of its own.
-        if os.name != 'nt':
-            try:
-                os.killpg(p.pid, signal.SIGKILL)
-            except OSError:
-                pass
-        else:
-            p.kill()
+        try:
+            os.killpg(p.pid, signal.SIGKILL)
+        except OSError:
+            pass
         _close_pipes(p)
         raise
 
     if r.returncode != 0 and not quiet:
-        _print_banner(f'COMMAND FAILED: {cmd}', r.stdout, r.stderr)
+        _print_banner(f'COMMAND FAILED: {_cmd_label(cmd)}', r.stdout, r.stderr)
     elif verbose:
         print(cmd)
         print(cmd_stdout_text(r.stdout))
