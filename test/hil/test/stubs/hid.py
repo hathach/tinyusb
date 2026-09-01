@@ -47,6 +47,8 @@ class device:
         self._last = b''
 
     def open(self, vid, pid, serial):
+        # HID_ECHO really does call this, and usb_autopm/hidraw can block in it, so the
+        # child must be bounded here too -- exercised by test_a_wedged_open_is_killed.
         if _MODE == 'wedged_open':
             while True:
                 time.sleep(3600)

@@ -132,7 +132,11 @@ _METRICS_RE = re.compile(
     r'^(tools/metrics[^/]*\.py$|\.github/scripts/metrics_[^/]*\.py$)')
 _FULL_RE = re.compile(
     r'^(src/common/|src/osal/|src/tusb\.c$|src/tusb\.h$|src/tusb_option\.h$|'
-    r'test/hil/|\.github/workflows/build.*\.yml$|\.github/actions/|\.github/scripts/|'
+    # tools/rtt.py is part of the harness, not a standalone tool: hil_util imports it
+    # at module load, so a break in it breaks every rig run the same way a test/hil/
+    # edit can (the pre-commit hil-test hook runs its unit tests for the same reason)
+    r'test/hil/|tools/rtt\.py$|'
+    r'\.github/workflows/build.*\.yml$|\.github/actions/|\.github/scripts/|'
     # generates the whole CircleCI matrix, same authority as .github/**
     r'\.circleci/|'
     # rule 16 says `tools/build*.py`; name the two siblings the glob implies. Both
@@ -764,6 +768,16 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
         # only the tests whose example builds the lib, and only those the rig runs
         tests = {e for e in lib_examples(lib, repo_root)
                  if any(e in pool for pool in ALL_TESTS.values()) or e in extras}
+        if lib == 'SEGGER_RTT':
+            # no example names this lib, but a board whose roster entry says
+            # "logger": "rtt" (variant defines LOGGER=rtt) reads EVERY test's console
+            # through it -- a break here silently breaks all of that board's rows
+            rtt_boards = [b['name'] for b in roster_boards if b.get('logger') == 'rtt']
+            if rtt_boards:
+                s.roles.update(('device', 'host'))
+                s.add(rtt_boards, 'all',
+                      f'{path}: SEGGER_RTT is the rtt console on {rtt_boards} -> all tests')
+                return
         if not tests:
             s.reasons.append(f'{path}: lib {lib} used by no HIL test, no contribution')
             return
@@ -1139,9 +1153,13 @@ def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
         lib = m.group(1)
         exs = lib_examples(lib, repo_root)
         if not exs:
-            # empty means empty: no example's build pulls this lib in, so no build
-            # compiles it (lib/SEGGER_RTT is only reached through LOGGER=rtt, which
-            # no CI build sets)
+            # empty means empty: no example's build pulls this lib in, so no MAIN-
+            # matrix build compiles it. (lib/SEGGER_RTT is reached through LOGGER=rtt,
+            # which the main matrix never sets; the hil-build legs set it only for
+            # roster boards whose variant defines carry it, via the HIL SEGGER_RTT rule.
+            # No committed CI roster has such a board yet, so a SEGGER_RTT edit is
+            # currently neither built nor HIL-tested by CI -- verify vendor bumps
+            # manually until a rig board adopts "logger": "rtt".)
             s.reasons.append(f'{path}: lib {lib} built by no example, no contribution')
             return
         s.add(all_bsp_families(repo_root), exs, f'{path}: lib {lib} -> {sorted(exs)}')
