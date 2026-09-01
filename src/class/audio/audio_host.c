@@ -6,34 +6,99 @@
  * This file is part of the TinyUSB stack.
  */
 
+// clang-format off
 /*
- * USB Audio Host driver for UAC1 and UAC2 devices. The public API exposes
- * logical capture and playback streams while keeping the USB Audio topology
- * private.
+ * USB Audio Host driver architecture
+ * ==================================
  *
- * Each Audio Control interface provides at most one stream per direction:
- * - capture stream (TUSB_DIR_IN): device -> host, filled by isochronous IN
- *   transfers scheduled by the driver into a FIFO, drained by the application
- *   with tuh_audio_read()
- * - playback stream (TUSB_DIR_OUT): host -> device, drained by isochronous
- *   OUT transfers from a FIFO filled by the application with tuh_audio_write()
+ * One audioh_interface_t represents an Audio Control (AC) interface and owns
+ * at most one logical stream in each direction. A capture stream receives
+ * isochronous IN data from the device; a playback stream sends isochronous OUT
+ * data to the device. Audio topology remains private, while applications see
+ * each stream as a flat list of format, sample-rate, and channel-count tuples.
+ * Internally, tuples using the same Audio Streaming (AS) alternate setting
+ * share one audioh_as_config_t and refer to a rate source by index.
+ * Only Type-I PCM configurations are exposed. UAC1 requires a discrete
+ * sampling-frequency list; UAC2 Clock Source ranges are expanded into the
+ * bounded public list.
  *
- * While a stream is running, the driver keeps one isochronous transfer in
- * flight and submits the next transfer from its completion callback. A FIFO
- * decouples application I/O from the endpoint's polling cadence; only whole
- * audio frames are queued or transferred. Successful packets are reported
- * through tuh_audio_capture_cb()/tuh_audio_playback_cb(); stream operation and
- * transport results are reported through tuh_audio_event_cb().
+ * Mounting discovers the topology and completes any control requests needed
+ * to describe the public configurations:
  *
- * Configurations are exposed as a flat list of discrete format, sample-rate,
- * and channel-count tuples. Internally, configurations are grouped by
- * alternate setting so shared endpoint properties are stored only once.
+ *   USB enumeration
+ *     audioh_open()
+ *       +-- validate and retain the AC descriptor range
+ *       +-- audioh_parse_as() for each consecutive AS interface
+ *       |     +-- parse the protocol-specific AS and format descriptors
+ *       |     +-- associate the data and optional feedback endpoints
+ *       |     `-- store UAC1 rates or a UAC2 Clock Source reference
+ *       +-- audioh_link_feature_units()
+ *       `-- tuh_audio_descriptor_cb()
  *
- * Only Type-I PCM formats and discrete UAC1 sampling frequencies are
- * registered. tuh_audio_configure() selects and opens endpoints;
- * tuh_audio_start() activates the alternate setting and performs the
- * protocol-specific sampling-frequency control.
+ *     audioh_set_config()
+ *       +-- UAC2: audioh_mount_clock_next()
+ *       |     `-- RANGE/CUR completion -> next Clock Source
+ *       |                              -> rebuild public configurations
+ *       `-- audioh_mount_feature_unit_next()
+ *             `-- volume RANGE completion -> next logical stream
+ *                                          -> tuh_audio_mount_cb()
+ *                                          -> usbh_driver_set_config_complete()
+ *
+ * UAC1 rates come from each Format Type descriptor, whereas UAC2 rates are
+ * queried from the Clock Sources referenced by the parsed topology. Feature
+ * Unit parsing records master mute access, and mount probing reads the master
+ * volume range. A device is reported as mounted only after these asynchronous
+ * probes finish.
+ *
+ * Stream configuration is local; stream activation is asynchronous:
+ *
+ *   tuh_audio_configure(stream, configuration)
+ *     +-- resolve the public tuple to AS and rate-source indices
+ *     +-- close endpoints from the previous configuration
+ *     +-- initialize frame size, FIFO, and playback scheduler state
+ *     `-- audioh_stream_open_ep()          (data and optional feedback EP)
+ *
+ *   tuh_audio_start(stream)
+ *     +-- UAC1: SET_INTERFACE(non-zero alt)
+ *     |           `-- optional endpoint SET_CUR(sample rate)
+ *     +-- UAC2: optional Clock Source CUR(sample rate)
+ *     |           `-- SET_INTERFACE(non-zero alt)
+ *     `-- audioh_stream_start_xfer()
+ *           `-- tuh_audio_event_cb(START_COMPLETE)
+ *
+ *   tuh_audio_stop(stream)
+ *     +-- SET_INTERFACE(alt 0) and stop local transfer resubmission
+ *     `-- completion -> tuh_audio_event_cb(STOP_COMPLETE)
+ *
+ * A successful start/stop API return means that the first control request was
+ * submitted. The corresponding event reports completion of the entire chain.
+ * UAC1 sets the rate after activating the endpoint because its control targets
+ * that endpoint; UAC2 sets the Clock Source before activating the AS interface.
+ *
+ * Once started, each endpoint completion prepares and submits its successor:
+ *
+ *   host controller -> audioh_xfer_cb()
+ *     +-- capture data
+ *     |     +-- copy whole audio frames to the overwrite FIFO
+ *     |     +-- tuh_audio_capture_cb()
+ *     |     `-- audioh_stream_capture_xfer()
+ *     +-- playback data
+ *     |     +-- tuh_audio_playback_cb()
+ *     |     `-- audioh_stream_playback_xfer()
+ *     |           +-- calculate the next fractional packet size
+ *     |           +-- read a complete packet from the FIFO, or send silence
+ *     |           `-- submit the next OUT transfer
+ *     `-- explicit feedback
+ *           +-- validate and stage the Q10.14 or Q16.16 rate
+ *           `-- audioh_stream_feedback_xfer()
+ *
+ * tuh_audio_read() and tuh_audio_write() access only the stream FIFOs and do
+ * not need to run from transfer callbacks. The FIFOs decouple application I/O
+ * from USB polling cadence and never expose partial interleaved audio frames.
+ * A transfer failure stops resubmission and is reported through
+ * tuh_audio_event_cb(XFER_FAILED).
  */
+// clang-format on
 
 #include "tusb_option.h"
 
