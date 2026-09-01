@@ -178,16 +178,14 @@ typedef struct {
 typedef struct {
   audioh_feedback_ep_t feedback[CFG_TUH_AUDIO_MAX_AS];
 
-  // Packet rates use Q16.16 audio frames per data-endpoint poll interval.
-  // A new feedback rate is staged in pending_frames_q16 and adopted when
-  // rem_acc wraps.
+  // Packet rates use Q16.16 audio frames per data-endpoint poll interval. The
+  // scheduler snapshots target_frames_q16 once per packet and retains rem_acc,
+  // which integrates fractional frames across feedback updates.
   uint32_t nominal_frames_q16;
   uint32_t target_frames_q16;
-  uint32_t pending_frames_q16;
   uint16_t feedback_min_frames;
   uint16_t feedback_max_frames;
   uint16_t rem_acc;
-  bool     feedback_pending;
   bool     feedback_opened;
 } audioh_playback_t;
 
@@ -570,21 +568,22 @@ static bool audioh_stream_playback_xfer(tuh_audio_stream_t *s) {
   audioh_playback_t        *playback = audioh_get_playback(s);
   TU_VERIFY(usbh_edpt_claim(s->daddr, as->ep_addr), false);
 
-  // Accumulate fractional frames across endpoint intervals so packet lengths
-  // average to the active nominal or feedback rate.
-  uint32_t       frames       = playback->target_frames_q16 >> 16;
-  const uint32_t fraction     = playback->target_frames_q16 & 0xFFFFu;
+  // Use one target for the entire packet calculation. Retaining the fractional
+  // remainder makes the scheduled total follow the sum of changing feedback
+  // values with less than one frame of quantization error.
+  const uint32_t target_q16   = playback->target_frames_q16;
+  uint32_t       frames       = target_q16 >> 16;
+  const uint32_t fraction     = target_q16 & 0xFFFFu;
   uint32_t       next_rem_acc = playback->rem_acc + fraction;
-  bool           loop_done    = (fraction == 0);
   if (next_rem_acc >= 65536u) {
     next_rem_acc -= 65536u;
     frames++;
-    loop_done = true;
   }
 
   const uint64_t bytes_64 = (uint64_t)frames * s->frame_bytes;
   TU_ASSERT(bytes_64 <= as->ep_size && bytes_64 <= CFG_TUH_AUDIO_EPOUT_BUFSIZE &&
-              bytes_64 <= CFG_TUH_AUDIO_STREAM_BUFSIZE, false);
+              bytes_64 <= CFG_TUH_AUDIO_STREAM_BUFSIZE,
+            false);
   const uint16_t bytes = (uint16_t)bytes_64;
   if (tu_fifo_count(&s->edpt.ff) < bytes) {
     // Isochronous OUT must continue at every interval. Send silence until a
@@ -598,12 +597,6 @@ static bool audioh_stream_playback_xfer(tuh_audio_stream_t *s) {
     return false;
   }
   playback->rem_acc = (uint16_t)next_rem_acc;
-  if (loop_done && playback->feedback_pending) {
-    playback->target_frames_q16 = playback->pending_frames_q16;
-    playback->feedback_pending  = false;
-    // Preserve the accumulator at the wrap boundary. Resetting it for each
-    // feedback update would bias the average toward integer packet lengths.
-  }
   return true;
 }
 
@@ -651,7 +644,6 @@ static void audioh_stream_stop_xfers(tuh_audio_stream_t *s) {
   if (s->dir == TUSB_DIR_OUT) {
     audioh_playback_t *playback = audioh_get_playback(s);
     playback->target_frames_q16 = playback->nominal_frames_q16;
-    playback->feedback_pending  = false;
     playback->rem_acc           = 0;
   }
   tu_edpt_stream_clear(&s->edpt);
@@ -858,10 +850,10 @@ static void audioh_feedback_received(tuh_audio_stream_t *s, uint32_t xferred_byt
     return;
   }
 
-  // Replace any unconsumed sample; only the newest rate matters. The scheduler
-  // adopts it when the current fractional packet pattern wraps.
-  playback->pending_frames_q16 = target_q16;
-  playback->feedback_pending   = true;
+  // Host-class callbacks run serially. The playback scheduler snapshots this
+  // target before calculating a packet, so an update cannot split a packet
+  // calculation across two rates.
+  playback->target_frames_q16 = target_q16;
 }
 
 bool audioh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
@@ -1994,10 +1986,8 @@ bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx
     audioh_playback_t *playback   = &p_audio->playback;
     playback->nominal_frames_q16  = audioh_nominal_frames_q16(cfg.sample_rate, as->ep_interval, s->daddr);
     playback->target_frames_q16   = playback->nominal_frames_q16;
-    playback->pending_frames_q16  = 0;
     playback->feedback_min_frames = (uint16_t)((cfg.sample_rate - 1u) / frame_div);
     playback->feedback_max_frames = (uint16_t)(cfg.sample_rate / frame_div + 1u);
-    playback->feedback_pending    = false;
     playback->rem_acc             = 0;
   }
   if (s->dir == TUSB_DIR_IN) {
@@ -2135,7 +2125,6 @@ bool tuh_audio_start(uint8_t dev_idx, uint8_t stream_idx) {
 
   if (s->dir == TUSB_DIR_OUT) {
     p_audio->playback.target_frames_q16 = p_audio->playback.nominal_frames_q16;
-    p_audio->playback.feedback_pending  = false;
     p_audio->playback.rem_acc           = 0;
   }
   s->running   = true;

@@ -1756,7 +1756,7 @@ void test_audio_host_schedules_44100_hz_fractional_packets_with_max_packets_only
   TEST_ASSERT_EQUAL_UINT16(180, edpt_xfer_bytes[9]);
 }
 
-void test_audio_host_applies_10_14_feedback_after_fractional_scheduling_loop(void) {
+void test_audio_host_applies_10_14_feedback_to_next_playback_packet(void) {
   mount_descriptors(playback_44100_with_feedback_10_14, sizeof(playback_44100_with_feedback_10_14));
 
   TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0));
@@ -1765,18 +1765,9 @@ void test_audio_host_applies_10_14_feedback_after_fractional_scheduling_loop(voi
   TEST_ASSERT_EQUAL_UINT16(3, edpt_xfer_bytes_at(0x81, 0));
   TEST_ASSERT_EQUAL_UINT16(176, edpt_xfer_bytes_at(0x01, 0));
 
-  // Request 44 frames/ms after the first nominal 44.1-kHz packet. The old
-  // cycle must still emit its 45-frame correction packet before changing rate.
-  complete_feedback_xfer(44u << 16, 3);
-  for (uint8_t i = 0; i < 10; i++) {
-    complete_playback_xfer();
-  }
-
-  for (uint8_t i = 0; i < 9; i++) {
-    TEST_ASSERT_EQUAL_UINT16(176, edpt_xfer_bytes_at(0x01, i));
-  }
-  TEST_ASSERT_EQUAL_UINT16(180, edpt_xfer_bytes_at(0x01, 9));
-  TEST_ASSERT_EQUAL_UINT16(176, edpt_xfer_bytes_at(0x01, 10));
+  complete_feedback_xfer(45u << 16, 3);
+  complete_playback_xfer();
+  TEST_ASSERT_EQUAL_UINT16(180, edpt_xfer_bytes_at(0x01, 1));
 }
 
 void test_audio_host_accepts_16_16_feedback(void) {
@@ -1788,12 +1779,39 @@ void test_audio_host_accepts_16_16_feedback(void) {
   TEST_ASSERT_EQUAL_UINT16(4, edpt_xfer_bytes_at(0x81, 0));
 
   complete_feedback_xfer(45u << 16, 4);
-  for (uint8_t i = 0; i < 10; i++) {
-    complete_playback_xfer();
-  }
+  complete_playback_xfer();
+  TEST_ASSERT_EQUAL_UINT16(180, edpt_xfer_bytes_at(0x01, 1));
+}
 
-  TEST_ASSERT_EQUAL_UINT16(180, edpt_xfer_bytes_at(0x01, 9));
-  TEST_ASSERT_EQUAL_UINT16(180, edpt_xfer_bytes_at(0x01, 10));
+void test_audio_host_integrates_jittering_feedback_without_resetting_fraction(void) {
+  test_speed = TUSB_SPEED_HIGH;
+  mount_descriptors(playback_44100_with_feedback_16_16, sizeof(playback_44100_with_feedback_16_16));
+
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0));
+  TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
+  complete_interface_set(XFER_RESULT_SUCCESS);
+
+  const uint32_t feedback_q16[] = {
+    (5u << 16) + 655u,        // 5.01 frames/microframe
+    (5u << 16) + 1311u,       // 5.02 frames/microframe
+    (5u << 16) + 655u,        // 5.01 frames/microframe
+  };
+  uint32_t rem_acc = 0x8333u; // Fraction left by the initial nominal 5.5125-frame packet.
+
+  for (uint8_t packet = 1; packet < 24; packet++) {
+    const uint32_t target   = feedback_q16[(packet - 1u) % TU_ARRAY_SIZE(feedback_q16)];
+    uint16_t       frames   = (uint16_t)(target >> 16);
+    uint32_t       next_rem = rem_acc + (target & 0xFFFFu);
+    if (next_rem >= 65536u) {
+      next_rem -= 65536u;
+      frames++;
+    }
+
+    complete_feedback_xfer(target, 4);
+    complete_playback_xfer();
+    TEST_ASSERT_EQUAL_UINT16((uint16_t)(frames * 4u), edpt_xfer_bytes_at(0x01, packet));
+    rem_acc = next_rem;
+  }
 }
 
 void test_audio_host_preserves_high_speed_feedback_fraction_across_updates(void) {
