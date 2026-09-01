@@ -66,25 +66,26 @@ def _termination_signals() -> tuple:
 
 def _terminate_process_group(proc, force: bool) -> None:
     """Stop the server and anything it spawned, on POSIX or Windows."""
-    if proc.poll() is not None:
-        return
     if IS_WINDOWS:
-        if force:
-            # TerminateProcess reaches only the direct child. taskkill /T also
-            # retires helpers a debug server may have spawned and is present on
-            # supported Windows hosts. Fall back to Popen.kill() if it fails.
-            with contextlib.suppress(OSError, subprocess.SubprocessError):
-                subprocess.run(['taskkill', '/PID', str(proc.pid), '/T', '/F'],
-                               stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                               stderr=subprocess.DEVNULL, timeout=10, check=False)
-            if proc.poll() is None:
-                with contextlib.suppress(OSError):
-                    proc.kill()
-        else:
+        if proc.poll() is not None:
+            return
+        # Enumerate and stop the tree while the parent still exists. TerminateProcess
+        # (Popen.terminate/kill) reaches only the direct child, and taskkill cannot find
+        # the descendants by their former parent after that process has exited.
+        # /F is required for console children: without it taskkill can retire the
+        # parent first and leave its child alive, after which /PID can no longer find
+        # the tree. POSIX retains its graceful-then-force ladder below.
+        cmd = ['taskkill', '/PID', str(proc.pid), '/T', '/F']
+        with contextlib.suppress(OSError, subprocess.SubprocessError):
+            subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL, timeout=10, check=False)
+        if proc.poll() is None:
             with contextlib.suppress(OSError):
-                proc.terminate()
+                (proc.kill if force else proc.terminate)()
         return
 
+    if proc.poll() is not None:
+        return
     sig = signal.SIGKILL if force else signal.SIGTERM
     with contextlib.suppress(ProcessLookupError, PermissionError):
         os.killpg(proc.pid, sig)
@@ -97,6 +98,10 @@ class RttError(RuntimeError):
     but named so the harness can tell a console failure from an unrelated
     NotImplementedError / 'dictionary changed size during iteration' and stop
     reporting harness bugs as board failures."""
+
+
+class _StopCapture(Exception):
+    """The CLI stop marker appeared while the RTT console was starting."""
 
 
 def _pos_float_env(name: str, default: float) -> float:
@@ -166,12 +171,41 @@ def free_ports(count: int) -> list:
             s.close()
 
 
-def nm_rtt_addr(elf: str, nm: str = None) -> int:
+def nm_rtt_addr(elf: str, nm: str = None, stop=None) -> int:
     """Control-block address from the FLASHED elf's symbol table. --addr is the way
     out when nm cannot read the file (another architecture, no toolchain)."""
     nm = nm or os.environ.get('RTT_NM', 'arm-none-eabi-nm')
     try:
-        r = subprocess.run([nm, elf], capture_output=True, text=True, timeout=30)
+        cmd = [nm, elf]
+        if stop is None:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        else:
+            if stop():
+                raise _StopCapture
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            deadline = time.monotonic() + 30
+            while True:
+                if stop():
+                    proc.terminate()
+                    try:
+                        proc.communicate(timeout=2)
+                    except subprocess.TimeoutExpired:
+                        proc.kill()
+                        proc.communicate()
+                    raise _StopCapture
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    proc.kill()
+                    stdout, stderr = proc.communicate()
+                    raise subprocess.TimeoutExpired(cmd, 30, output=stdout, stderr=stderr)
+                try:
+                    stdout, stderr = proc.communicate(timeout=min(0.1, remaining))
+                    r = subprocess.CompletedProcess(cmd, proc.returncode, stdout, stderr)
+                    break
+                except subprocess.TimeoutExpired:
+                    pass
+            if stop():
+                raise _StopCapture
     except FileNotFoundError:
         raise SystemExit(f'{nm} not on PATH — set RTT_NM=<your-nm>, or pass --addr')
     except subprocess.TimeoutExpired:
@@ -214,7 +248,10 @@ class _SocketRtt:
         # single-threaded server once 64 KiB of log accumulates (openocd at
         # polling_interval 1 against a resetting target fills that in minutes) and
         # the console goes silent with no error; the file also feeds _server_tail
-        self._log = tempfile.NamedTemporaryFile(prefix='rtt-server-', suffix='.log')
+        # delete=False lets _server_tail() reopen the live file on Windows, where an
+        # auto-delete NamedTemporaryFile otherwise denies the second open. close()
+        # unlinks it explicitly on every platform.
+        self._log = tempfile.NamedTemporaryFile(prefix='rtt-server-', suffix='.log', delete=False)
         try:
             self._proc = subprocess.Popen(cmd, stdin=stdin, stdout=self._log,
                                           stderr=subprocess.STDOUT, **_popen_group_options())
@@ -226,10 +263,12 @@ class _SocketRtt:
             self.close()
             raise
 
-    def _connect(self, port: int) -> None:
+    def _connect(self, port: int, stop=None) -> None:
         try:
             deadline = time.monotonic() + 15
             while time.monotonic() < deadline:
+                if stop and stop():
+                    raise _StopCapture
                 try:
                     self._sock = socket.create_connection(('127.0.0.1', port), timeout=2)
                     break
@@ -237,6 +276,8 @@ class _SocketRtt:
                     if self._proc.poll() is not None:
                         break
                     time.sleep(0.2)
+            if stop and stop():
+                raise _StopCapture
             if self._sock is None:
                 tail = self._server_tail()
                 self.close()
@@ -247,7 +288,7 @@ class _SocketRtt:
                 self.close()
                 raise RttError(f'RTT console: {self.server} died after connect (port {port} hijacked?)')
             self._sock.setblocking(False)
-        except (KeyboardInterrupt, SystemExit):
+        except (KeyboardInterrupt, SystemExit, _StopCapture):
             # a signal mid-construction must not orphan the server we just spawned
             self.close()
             raise
@@ -379,7 +420,11 @@ class _SocketRtt:
         proc = getattr(self, '_proc', None)
         if proc:
             if proc.poll() is None:
-                self._gentle_stop(proc)
+                if IS_WINDOWS:
+                    # taskkill must see the live parent to enumerate its descendants.
+                    _terminate_process_group(proc, force=False)
+                else:
+                    self._gentle_stop(proc)
                 with contextlib.suppress(subprocess.TimeoutExpired):
                     proc.wait(timeout=5)
         if proc and proc.poll() is None:
@@ -402,8 +447,11 @@ class _SocketRtt:
         # grows it while alive -- GC is not a release policy on a rig
         log = getattr(self, '_log', None)
         if log:
+            log_name = log.name
             with contextlib.suppress(OSError, ValueError):
                 log.close()
+            with contextlib.suppress(OSError):
+                os.unlink(log_name)
             self._log = None
 
     # a console dropped without close() must not hold the probe for the process's life
@@ -434,7 +482,7 @@ class JlinkRtt(_SocketRtt):
 
     server = 'JLinkExe'
 
-    def __init__(self, board: dict, timeout: float = 0.1):
+    def __init__(self, board: dict, timeout: float = 0.1, stop=None):
         super().__init__(timeout)
         flasher = board['flasher']
         args = shlex.split(flasher.get('args', ''))
@@ -458,7 +506,7 @@ class JlinkRtt(_SocketRtt):
         # stdin stays open: Commander exits when it runs out of input; close() writes
         # 'exit' there.
         self._spawn(cmd, stdin=subprocess.PIPE)
-        self._connect(port)
+        self._connect(port, stop=stop)
 
     def _gentle_stop(self, proc) -> None:
         with contextlib.suppress(OSError, ValueError):
@@ -484,7 +532,8 @@ class OpenocdRtt(_SocketRtt):
     server = 'openocd'
 
     def __init__(self, cfg: str, addr: int, channel: int, serial_no: str = None,
-                 vid_pid: str = None, timeout: float = 0.1, reset_before_attach: bool = False):
+                 vid_pid: str = None, timeout: float = 0.1, reset_before_attach: bool = False,
+                 stop=None):
         super().__init__(timeout)
         port = free_ports(1)[0]
         # argv, never a shell string: cfg/serial/vid_pid come from roster JSON and the
@@ -525,7 +574,7 @@ class OpenocdRtt(_SocketRtt):
                 '-c', 'rtt polling_interval 1', '-c', 'rtt start',
                 '-c', f'rtt server start {port} {channel}']
         self._spawn(cmd)
-        self._connect(port)
+        self._connect(port, stop=stop)
 
     def _gentle_stop(self, proc) -> None:
         # no stdin channel to ask openocd to exit, and it keeps its listener up after
@@ -638,6 +687,9 @@ def main() -> int:
     if args.stop_file and os.path.exists(args.stop_file):
         ap.error(f'--stop-file already exists: {args.stop_file}')
 
+    def stop_requested():
+        return bool(args.stop_file and os.path.exists(args.stop_file))
+
     def rtt_addr():
         if args.addr:
             try:
@@ -645,7 +697,7 @@ def main() -> int:
             except ValueError:
                 ap.error(f'--addr must be hex, got {args.addr!r}')
         if args.elf:
-            return nm_rtt_addr(args.elf)
+            return nm_rtt_addr(args.elf, stop=stop_requested)
         ap.error('need --elf (flashed elf, address via nm) or --addr')
 
     if args.backend == 'jlink':
@@ -686,11 +738,16 @@ def main() -> int:
                 ap.error('--backend openocd needs --cfg')
             con = OpenocdRtt(args.cfg, rtt_addr(), args.channel,
                              serial_no=args.probe, vid_pid=args.vid_pid,
-                             reset_before_attach=args.reset_before_attach)
+                             reset_before_attach=args.reset_before_attach,
+                             stop=stop_requested)
         else:
             con = JlinkRtt({'flasher': {'uid': args.probe, 'args': f'-device {args.device}'}},
-                           timeout=0.1)
+                           timeout=0.1, stop=stop_requested)
+    except _StopCapture:
+        return 0
     except RttError as e:
+        if stop_requested():
+            return 0
         print(e, file=sys.stderr)
         return 1
     except KeyboardInterrupt:
@@ -725,8 +782,7 @@ def main() -> int:
     rc = 0
     seen = b''   # pre-release accumulator for the banner check only
     try:
-        while ((deadline is None or time.monotonic() < deadline) and
-               not (args.stop_file and os.path.exists(args.stop_file))):
+        while ((deadline is None or time.monotonic() < deadline) and not stop_requested()):
             try:
                 chunk = con.read(con.in_waiting or 1)
             except RttError as e:
