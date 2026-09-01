@@ -249,6 +249,24 @@ class RttPlatformLifecycle(unittest.TestCase):
         con.close()
         self.assertFalse(os.path.exists(log_name))
 
+    def test_posix_server_log_keeps_automatic_deletion(self):
+        class DoneProc:
+            stdin = None
+            stdout = None
+
+            def poll(self):
+                return 0
+
+        con = hil_util._rtt._SocketRtt()
+        named_temporary_file = tempfile.NamedTemporaryFile
+        with mock.patch.object(hil_util._rtt, 'IS_WINDOWS', False), \
+             mock.patch.object(hil_util._rtt.tempfile, 'NamedTemporaryFile',
+                               wraps=named_temporary_file) as named_log, \
+             mock.patch.object(hil_util._rtt.subprocess, 'Popen', return_value=DoneProc()):
+            con._spawn(['fake-server'])
+        self.assertTrue(named_log.call_args.kwargs['delete'])
+        con.close()
+
     def test_connect_honors_a_stop_request_during_setup(self):
         class FakeProc:
             def poll(self):
@@ -273,6 +291,34 @@ class RttPlatformLifecycle(unittest.TestCase):
             with self.assertRaises(hil_util._rtt._StopCapture):
                 hil_util._rtt.nm_rtt_addr(str(fake_nm), nm=sys.executable, stop=stop)
         self.assertLess(time.monotonic() - started, 2)
+
+    def test_symbol_lookup_reaps_nm_when_interrupted(self):
+        class InterruptedNm:
+            returncode = None
+
+            def __init__(self):
+                self.terminated = False
+                self.reaped = False
+
+            def communicate(self, timeout=None):
+                if not self.terminated:
+                    raise KeyboardInterrupt
+                self.reaped = True
+                self.returncode = -1
+                return '', ''
+
+            def terminate(self):
+                self.terminated = True
+
+            def kill(self):
+                self.terminated = True
+
+        proc = InterruptedNm()
+        with mock.patch.object(hil_util._rtt.subprocess, 'Popen', return_value=proc), \
+             self.assertRaises(KeyboardInterrupt):
+            hil_util._rtt.nm_rtt_addr('fake.elf', nm='fake-nm', stop=lambda: False)
+        self.assertTrue(proc.terminated)
+        self.assertTrue(proc.reaped)
 
     def test_windows_defaults_to_jlink_exe(self):
         with mock.patch.object(hil_util._rtt, 'IS_WINDOWS', True), \

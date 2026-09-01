@@ -183,27 +183,32 @@ def nm_rtt_addr(elf: str, nm: str = None, stop=None) -> int:
             if stop():
                 raise _StopCapture
             proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            deadline = time.monotonic() + 30
-            while True:
-                if stop():
-                    proc.terminate()
+            try:
+                deadline = time.monotonic() + 30
+                while True:
+                    if stop():
+                        raise _StopCapture
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise subprocess.TimeoutExpired(cmd, 30)
                     try:
-                        proc.communicate(timeout=2)
+                        stdout, stderr = proc.communicate(timeout=min(0.1, remaining))
+                        r = subprocess.CompletedProcess(cmd, proc.returncode, stdout, stderr)
+                        break
                     except subprocess.TimeoutExpired:
-                        proc.kill()
-                        proc.communicate()
-                    raise _StopCapture
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    proc.kill()
-                    stdout, stderr = proc.communicate()
-                    raise subprocess.TimeoutExpired(cmd, 30, output=stdout, stderr=stderr)
+                        pass
+            except BaseException:
+                # Signals and stop-file cancellation must not strand nm after main()
+                # returns. Reap it before preserving the original exception.
+                with contextlib.suppress(OSError):
+                    proc.terminate()
                 try:
-                    stdout, stderr = proc.communicate(timeout=min(0.1, remaining))
-                    r = subprocess.CompletedProcess(cmd, proc.returncode, stdout, stderr)
-                    break
+                    proc.communicate(timeout=2)
                 except subprocess.TimeoutExpired:
-                    pass
+                    with contextlib.suppress(OSError):
+                        proc.kill()
+                    proc.communicate()
+                raise
             if stop():
                 raise _StopCapture
     except FileNotFoundError:
@@ -248,10 +253,10 @@ class _SocketRtt:
         # single-threaded server once 64 KiB of log accumulates (openocd at
         # polling_interval 1 against a resetting target fills that in minutes) and
         # the console goes silent with no error; the file also feeds _server_tail
-        # delete=False lets _server_tail() reopen the live file on Windows, where an
-        # auto-delete NamedTemporaryFile otherwise denies the second open. close()
-        # unlinks it explicitly on every platform.
-        self._log = tempfile.NamedTemporaryFile(prefix='rtt-server-', suffix='.log', delete=False)
+        # Windows needs delete=False so _server_tail() can reopen the live file.
+        # POSIX keeps NamedTemporaryFile's automatic close/finalizer cleanup.
+        self._log = tempfile.NamedTemporaryFile(prefix='rtt-server-', suffix='.log',
+                                                delete=not IS_WINDOWS)
         try:
             self._proc = subprocess.Popen(cmd, stdin=stdin, stdout=self._log,
                                           stderr=subprocess.STDOUT, **_popen_group_options())
