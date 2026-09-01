@@ -74,7 +74,7 @@ Terminal 2 — connect (`<port>`: 2331 JLink, 3333 OpenOCD):
 arm-none-eabi-gdb build/your_app.elf
 (gdb) target remote :<port>    # then: monitor reset halt → load → continue
 ```
-**RTT:** build `LOG=2 LOGGER=rtt`, run JLinkGDBServer with `-RTTTelnetPort 19021`, then `JLinkRTTClient` (`timeout 20s JLinkRTTClient > rtt.log` for non-interactive capture).
+**RTT:** build `LOG=2 LOGGER=rtt`; capture/console via the `rtt` skill (`.claude/skills/rtt/SKILL.md`).
 
 ## Testing
 

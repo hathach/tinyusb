@@ -34,6 +34,7 @@ ci_skip_boards = {
         'adafruit_fruit_jam',
         'adafruit_metro_rp2350',
         'feather_rp2040_max3421',
+        'pico2_etm_trace',
         'pico_sdk',
         'raspberry_pi_pico_w',
     ],

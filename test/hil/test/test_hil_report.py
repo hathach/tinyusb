@@ -962,6 +962,17 @@ class PoolTimeoutOutranksAStaleLock(unittest.TestCase):
         self.assertFalse(r['locked'], 'a wedge was published as lock contention')
         self.assertFalse(r['pass'])
 
+    def test_a_run_aborted_board_is_not_published_as_lock_contention(self):
+        """run-aborted is written by the same _abort_report path as pool-timeout, for a
+        board the guard never reached. It has to outrank a stale lock cell for the same
+        reason -- otherwise hil-validate.js re-runs a board whose worker RAISED."""
+        doc = {'rows': [{'board': 'boardX',
+                         'cells': {'board-locked': 'fail', 'run-aborted': 'fail'},
+                         'duration': None}], 'banner': '', 'caveat': '', 'scope': ''}
+        r = hil_report.summarize({'boards': [{'name': 'boardX'}]}, ['boardX'], doc)['results'][0]
+        self.assertFalse(r['locked'], 'an aborted run was published as lock contention')
+        self.assertFalse(r['pass'])
+
 
 class NoBoardsExitRespectsFreshness(unittest.TestCase):
     def test_a_fresh_run_does_not_republish_the_previous_rows(self):

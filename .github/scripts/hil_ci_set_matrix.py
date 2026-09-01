@@ -1,5 +1,6 @@
 import argparse
 import json
+import shlex
 import os
 import sys
 
@@ -112,14 +113,20 @@ def main():
 
             # Each variant builds into cmake-build-<variant.name> with its own cmake
             # -D defines and raw CFLAGS. No 'variant' -> a single build named after
-            # the board.
+            # the board; an always-on define (MAX3421_HOST=1, LOGGER=rtt) is a single
+            # self-named variant carrying it.
             variants = board.get('variant') or [{'name': name, 'flags': ''}]
             for v in variants:
                 arg = build_board
                 if v['name'] != name:
                     arg += f' --build-name {v["name"]}'
+                # build_util.yml's Build step splices this string into bash source,
+                # so the quoting round-trips a spaced value into one argv item like
+                # build_board's argv path. The SAME string also reaches the get_deps
+                # env expansion and the artifact-name charset, where spaced/quoted
+                # values still fail (loudly) -- keep defines space-free
                 for d in v.get('defines', []):
-                    arg += f' -D{d}'
+                    arg += f' -D{shlex.quote(d)}'
                 for tok in v.get('flags', '').split():
                     arg += f' --cflag={tok}'
                 append_build_arg(toolchain, arg)

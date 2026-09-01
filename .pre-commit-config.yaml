@@ -51,7 +51,7 @@ repos:
   # Two hooks, split by what each suite RUNS, not by what it reads: discovery is
   # disjoint (test_hil*.py vs the two named suites) so nothing runs twice, but the
   # file patterns overlap where both suites care. hil-test runs test_hil*.py only
-  # (~80s: deliberate hang and timeout simulations) and is scoped to the rig harness
+  # (~45s: deliberate hang and timeout simulations) and is scoped to the rig harness
   # that owns them. The one part of it the selector depends on - the BottomLayer
   # stdlib-closure AST guard over tools/ci_select.py and its imports - is named
   # explicitly by ci-select-test instead, so a tools/ or workflow edit costs 4s
@@ -69,7 +69,7 @@ repos:
   # and md5-checks the logo header from there as its MTP fixtures.
   - id: hil-test
     name: hil-test
-    files: ^(test/hil/|examples/device/mtp/src/)
+    files: ^(test/hil/|examples/device/mtp/src/|tools/rtt\.py$)
     entry: python3 -m unittest discover -s test/hil/test -p 'test_hil*.py'
     pass_filenames: false
     language: system
@@ -84,7 +84,7 @@ repos:
     language: system
   - id: ci-select-test
     name: ci-select-test
-    files: ^(hw/bsp/|hw/mcu/|src/|examples/|test/hil/|tools/(ci_select|build|build_utils|get_deps|metrics)\.py$|\.github/(scripts|workflows)/|\.circleci/)
+    files: ^(hw/bsp/|hw/mcu/|src/|examples/|test/hil/|tools/(ci_select|build|build_utils|get_deps|metrics|rtt)\.py$|\.github/(scripts|workflows)/|\.circleci/)
     entry: sh -c "python3 test/hil/test/test_ci_select.py && python3 test/hil/test/test_ci_metrics.py && cd test/hil/test && python3 -m unittest -q test_hil_util.BottomLayer"
     pass_filenames: false
     language: system

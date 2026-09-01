@@ -288,6 +288,9 @@ scp -q "$ROOT_DIR/test/hil/helper/__init__.py" \
        "$ROOT_DIR/test/hil/helper/hil_lock.py" \
        "$ROOT_DIR/test/hil/helper/hil_report.py" \
        "$REMOTE:$REMOTE_DIR/test/hil/helper/"
+# the rtt console/capture tool (rtt skill), harness-critical: hil_util imports it
+ssh "$REMOTE" mkdir -p "$REMOTE_DIR/tools"
+scp -q "$ROOT_DIR/tools/rtt.py" "$REMOTE:$REMOTE_DIR/tools/"
 
 # Copy only firmware binaries (elf/bin/hex) plus esptool metadata
 # (config.env + flash_args needed by the esptool flasher), preserving structure

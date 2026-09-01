@@ -129,6 +129,10 @@ const postReplyRecipe = (noun) =>
 const history = []
 const repliedIds = new Set() // issue comments can't be thread-resolved, so they re-harvest every cycle — never reply twice
 
+// Backoff between cycles that have nothing to do but wait. Degrades to a no-op
+// rather than throwing if the workflow host has no timer.
+const nap = (ms) => new Promise(res => { if (typeof setTimeout === 'function') setTimeout(res, ms); else res() })
+
 // Canonicalize a repo-relative path for set/collision comparison: resolve ./..
 // segments, unify separators; '' for anything that escapes the repo or uses
 // characters no repo path does (also makes the path shell-safe to interpolate).
@@ -200,11 +204,28 @@ const fixAndVerify = async (workIn) => {
     }
     work.push(g)
   }
+  // HIL rig rosters (test/hil/*.json) describe physical hardware the user owns:
+  // never edit them autonomously — skipping/reshaping tests there papers over a
+  // failing fixture. A failure that needs hardware swapped or re-cabled stays RED
+  // for the user; roster edits happen only with the user's explicit approval.
+  const withheld = []
+  for (const w of work) {
+    for (const f of [...w.files]) if (/^test\/hil\/[^/]+\.json$/.test(f)) {
+      w.files.delete(f)
+      log(`fix for ${w.key}: ${f} is a HIL rig config — edits need user approval, dropped from scope`)
+    }
+    if (w.files.size === 0) {
+      withheld.push(w)
+      log(`fix for ${w.key}: only a HIL rig config edit would address it — leaving red for the user`)
+    }
+  }
+  for (const w of withheld) work.splice(work.indexOf(w), 1)
   const scopeOf = (w) => [...w.files].join(', ')
   const fixes = await pipeline(
     work,
     w => agent(
       `Fix the following issues on the PR branch. ${IN_CHECKOUT}\n` +
+      'Constraint: never modify test/hil/*.json (HIL rig hardware config) — a failure that needs hardware swapped/changed stays red for the user.\n' +
       `Scope: ${scopeOf(w)}\nIssues:\n- ${w.notes.join('\n- ')}`,
       { label: `fix:${w.key}`, phase: 'Fix', agentType: 'code-writer', schema: DEV },
     ),
@@ -218,7 +239,7 @@ const fixAndVerify = async (workIn) => {
   if (alive.length < work.length) log(`${work.length - alive.length} fix group(s) lost to dead workers`)
   const unverified = alive.filter(f => f.addresses !== true)
   for (const f of unverified) log(`fix for ${f.item}: failed verification — ${f.checkReason}`)
-  return { ok: unscoped.length === 0 && alive.length === work.length && unverified.length === 0, fixes: alive }
+  return { ok: unscoped.length === 0 && withheld.length === 0 && alive.length === work.length && unverified.length === 0, fixes: alive }
 }
 
 // Verification gates every push: never push unverified or partial edits.
@@ -368,6 +389,18 @@ for (let cycle = 1; cycle <= maxCycles; cycle++) {
   }
   if (c.status === 'running' || c.infraRerun.length > 0) {
     log(`cycle ${cycle}: CI still settling (${c.infraRerun.length} infra re-run(s)) — re-arming`)
+    continue
+  }
+  if (!r.done) {
+    // A bot has not reported for this head SHA yet. With CI already green there is
+    // nothing else to wait on, so back off before re-arming or the cycle budget
+    // burns on back-to-back re-harvests of the same unchanged PR.
+    if (cycle < maxCycles) {
+      log(`cycle ${cycle}: auto-review still pending — re-arming after a wait`)
+      await nap(60000 * cycle) // no wait on the last cycle: nothing would re-check after it
+    } else {
+      log(`cycle ${cycle}: auto-review still pending — cycle budget exhausted`)
+    }
     continue
   }
   log(`cycle ${cycle}: nothing actionable`)
