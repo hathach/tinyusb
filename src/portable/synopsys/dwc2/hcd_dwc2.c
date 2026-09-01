@@ -191,7 +191,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool channel_disable(const dwc2_regs_t* dwc2
     //   the worst case), the controller generates a channel halted and disables the channel automatically.
     // - For split enabled channels (both non-periodic and periodic), channel disable must not be programmed randomly.
     //   However, channel disable can be programmed for specific scenarios such as NAK and FrmOvrn.
-    if (is_period && (channel->hcsplt & HCSPLT_SPLITEN)) {
+    if (is_period) {
       return true;
     }
   } else {
