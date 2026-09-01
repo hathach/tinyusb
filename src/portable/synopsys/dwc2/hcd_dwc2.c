@@ -666,6 +666,9 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id) {
     }
   } else {
     uint32_t hcintmsk = HCINT_NAK | HCINT_XACT_ERR | HCINT_STALL | HCINT_XFER_COMPLETE | HCINT_DATATOGGLE_ERR;
+    if (is_period) {
+      hcintmsk |= HCINT_FARME_OVERRUN;
+    }
     if (hcchar_bm->ep_dir == TUSB_DIR_IN) {
       hcintmsk |= HCINT_BABBLE_ERR | HCINT_DATATOGGLE_ERR | HCINT_ACK;
     } else {
@@ -1015,6 +1018,11 @@ static bool handle_channel_in_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t h
     } else {
       channel_disable(dwc2, channel);
     }
+  } else if (hcint & HCINT_FARME_OVERRUN) {
+    if (edpt->hcchar_bm.ep_type == HCCHAR_EPTYPE_ISOCHRONOUS) {
+      xfer->result = XFER_RESULT_FAILED;
+    }
+    channel_disable(dwc2, channel);
   } else if (hcint & (HCINT_XACT_ERR | HCINT_BABBLE_ERR | HCINT_STALL)) {
     if (hcint & HCINT_STALL) {
       xfer->result = XFER_RESULT_STALLED;
@@ -1107,6 +1115,12 @@ static bool handle_channel_out_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t 
     }
   } else if (hcint & HCINT_STALL) {
     xfer->result = XFER_RESULT_STALLED;
+    channel_disable(dwc2, channel);
+  } else if (hcint & HCINT_FARME_OVERRUN) {
+    channel_xfer_out_wrapup(dwc2, ch_id);
+    if (edpt->hcchar_bm.ep_type == HCCHAR_EPTYPE_ISOCHRONOUS) {
+      xfer->result = XFER_RESULT_FAILED;
+    }
     channel_disable(dwc2, channel);
   } else if (hcint & HCINT_NYET) {
     xfer->err_count = 0;
@@ -1273,8 +1287,12 @@ static bool handle_channel_in_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
         channel_xfer_in_retry(dwc2, ch_id, hcint);
       }
     } else if (hcint & HCINT_FARME_OVERRUN) {
-      // retry start-split in next binterval
-      channel_xfer_in_retry(dwc2, ch_id, hcint);
+      if (hcchar.ep_type == HCCHAR_EPTYPE_ISOCHRONOUS) {
+        xfer->result = XFER_RESULT_FAILED;
+        is_done      = true;
+      } else {
+        channel_xfer_in_retry(dwc2, ch_id, hcint);
+      }
     }
 
     if (xfer->closing == 1) {
@@ -1341,6 +1359,14 @@ static bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hc
          }
        }
      }
+    } else if (hcint & HCINT_FARME_OVERRUN) {
+      channel_xfer_out_wrapup(dwc2, ch_id);
+      if (edpt->hcchar_bm.ep_type == HCCHAR_EPTYPE_ISOCHRONOUS) {
+        xfer->result = XFER_RESULT_FAILED;
+        is_done      = true;
+      } else {
+        channel_xfer_start(dwc2, ch_id);
+      }
     } else if (hcint & HCINT_NYET) {
       if (hcsplt.split_en && hcsplt.split_compl) {
         // split not yet mean hub has no data, retry complete split
