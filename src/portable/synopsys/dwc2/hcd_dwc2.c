@@ -1384,7 +1384,10 @@ static void handle_channel_irq(uint8_t rhport, bool in_isr) {
       dwc2_channel_char_t hcchar = {.value = channel->hcchar};
 
       const uint32_t hcint = channel->hcint;
-      channel->hcint = hcint; // clear interrupt
+      // Slave handlers process one cause per pass. If ChHltd arrived with
+      // another cause, leave it pending so the next pass retires the halt.
+      const uint32_t hcint_clear = (!is_dma && (hcint & ~HCINT_HALTED)) ? (hcint & ~HCINT_HALTED) : hcint;
+      channel->hcint = hcint_clear;
 
       bool is_done = false;
       if (is_dma) {
