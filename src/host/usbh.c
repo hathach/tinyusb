@@ -2149,7 +2149,8 @@ static bool enum_parse_configuration_desc(uint8_t dev_addr, tusb_desc_configurat
           TU_LOG_USBH("  %s opened\r\n", driver->name);
 
           // bind found driver to all interfaces and endpoint within drv_len
-          tu_bind_driver_to_ep_itf(drv_id, dev->ep2drv, dev->itf2drv, CFG_TUH_INTERFACE_MAX, p_desc, drv_len);
+          TU_ASSERT(tu_bind_driver_to_ep_itf(drv_id, dev->ep2drv, dev->itf2drv, CFG_TUH_INTERFACE_MAX,
+                                             CFG_TUH_ENDPOINT_MAX, p_desc, drv_len));
 
           p_desc += drv_len; // next Interface
           break;             // exit driver find loop
