@@ -661,20 +661,28 @@ class TestRosterFlashersDispatch(unittest.TestCase):
 
     def test_flash_and_reset_exist_for_every_roster_flasher(self):
         for path, board in roster_flashers():
-            name = board['flasher']['name'].lower()
-            for fn in (f'flash_{name}', f'reset_{name}'):
-                self.assertTrue(callable(getattr(hil_flash, fn, None)),
-                                f'{path}: {board["name"]} uses flasher "{name}" '
-                                f'but hil_flash.{fn} does not exist')
+            flashers = [board['flasher']]
+            if board.get('flasher_recover'):
+                flashers.append(board['flasher_recover'])
+            for f in flashers:
+                name = f['name'].lower()
+                for fn in (f'flash_{name}', f'reset_{name}'):
+                    self.assertTrue(callable(getattr(hil_flash, fn, None)),
+                                    f'{path}: {board["name"]} uses flasher "{name}" '
+                                    f'but hil_flash.{fn} does not exist')
 
     def test_firmware_suffix_known_for_every_roster_flasher(self):
         """find_firmware falls back to accepting .elf-or-.bin when a flasher is missing
         from FLASHER_SUFFIX, silently restoring the mismatch that map exists to catch."""
         for path, board in roster_flashers():
-            name = board['flasher']['name'].lower()
-            self.assertIn(name, hil_flash.FLASHER_SUFFIX,
-                          f'{path}: {board["name"]} uses flasher "{name}" '
-                          f'with no hil_flash.FLASHER_SUFFIX entry')
+            flashers = [board['flasher']]
+            if board.get('flasher_recover'):
+                flashers.append(board['flasher_recover'])
+            for f in flashers:
+                name = f['name'].lower()
+                self.assertIn(name, hil_flash.FLASHER_SUFFIX,
+                              f'{path}: {board["name"]} uses flasher "{name}" '
+                              f'with no hil_flash.FLASHER_SUFFIX entry')
 
 
 class FlasherRecoverEntry(unittest.TestCase):
@@ -706,6 +714,41 @@ class FlasherRecoverEntry(unittest.TestCase):
             {'name': 'openocd', 'vid_pid': '0x2e8a 0x000c', 'args': '-f interface/cmsis-dap.cfg'}))
         self.assertFalse(hil_flash.convoy_safe({'name': 'jlink', 'uid': 'X'}))
         self.assertTrue(hil_flash.convoy_safe({'name': 'esptool'}))
+
+    def test_openocd_seq_is_convoy_safe_over_jlink(self):
+        self.assertTrue(hil_flash.convoy_safe(
+            {'name': 'openocd_seq', 'args': '-f interface/jlink.cfg -f target/stm32f4x.cfg'}))
+
+    def test_openocd_seq_uses_explicit_flash_commands_not_program(self):
+        """`program` fails over the jlink transport: Examination failed -> auto_probe
+        failed, measured on stm32f4x and stm32f0x."""
+        from helper import hil_util
+        seen = {}
+        real = hil_util.run_cmd
+        hil_util.run_cmd = lambda cmd, **k: seen.setdefault('cmd', cmd)
+        try:
+            hil_flash.flash_openocd_seq(
+                {'flasher': {'name': 'openocd_seq', 'uid': 'X', 'vid_pid': '0x1366 0x0101',
+                             'args': '-f interface/jlink.cfg'}},
+                '/tmp/fw.elf', timeout=5)
+        finally:
+            hil_util.run_cmd = real
+        self.assertIn('flash write_image erase /tmp/fw.elf', seen['cmd'])
+        self.assertIn('verify_image /tmp/fw.elf', seen['cmd'])
+        self.assertNotIn('program ', seen['cmd'])
+
+    def test_roster_recover_entries_are_convoy_safe_and_named_openocd_seq(self):
+        recover = [b for path, b in roster_flashers()
+                   if path == 'test/hil/tinyusb.json' and 'flasher_recover' in b]
+        self.assertGreaterEqual(len(recover), 7)
+        for b in recover:
+            f = b['flasher_recover']
+            self.assertEqual(f['name'], 'openocd_seq', b['name'])
+            self.assertEqual(f['uid'], b['flasher']['uid'], b['name'])
+            self.assertIn('interface/jlink.cfg', f['args'], b['name'])
+            # examination fails outright on the jlink driver without `adapter speed`
+            self.assertIn('adapter speed', f['args'], b['name'])
+            self.assertTrue(hil_flash.convoy_safe(f), b['name'])
 
 
 class TestModuleMove(unittest.TestCase):
