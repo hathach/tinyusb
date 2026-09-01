@@ -210,6 +210,55 @@ TU_ATTR_ALWAYS_INLINE static inline bool channel_disable(const dwc2_regs_t* dwc2
   return true;
 }
 
+// Retire all active host channels on root-port disconnect without waiting for
+// Channel Halted interrupts.
+// stop new channel/FIFO interrupts, flush queued slave requests, request a
+// halt for enabled channels, then clear their interrupt and software state.
+static void channel_cleanup_on_disconnect(dwc2_regs_t *dwc2) {
+  const uint32_t xfer_ints = GINTSTS_NPTX_FIFO_EMPTY | GINTSTS_PTX_FIFO_EMPTY | GINTSTS_HCINT;
+  dwc2->gintmsk &= ~xfer_ints;
+  dwc2->gintsts  = xfer_ints;
+  dwc2->haintmsk = 0;
+
+  const uint8_t max_channel = dwc2_channel_count(dwc2);
+  #if CFG_TUH_DWC2_SLAVE_ENABLE
+  if (!dma_host_enabled(dwc2)) {
+    // With CHENA clear, CHDIS flushes a posted request without consuming
+    // request-queue space. Clear EPDIR as required for this flush operation.
+    for (uint8_t ch_id = 0; ch_id < max_channel; ch_id++) {
+      if (_hcd_data.xfer[ch_id].allocated) {
+        dwc2_channel_t *channel = &dwc2->channel[ch_id];
+        const uint32_t  hcchar  = channel->hcchar;
+        if (hcchar & HCCHAR_CHENA) {
+          channel->hcchar = (hcchar & ~(HCCHAR_CHENA | HCCHAR_EPDIR)) | HCCHAR_CHDIS;
+        }
+      }
+    }
+  }
+  #endif
+
+  for (uint8_t ch_id = 0; ch_id < max_channel; ch_id++) {
+    if (_hcd_data.xfer[ch_id].allocated) {
+      dwc2_channel_t *channel = &dwc2->channel[ch_id];
+      const uint32_t  hcchar  = channel->hcchar;
+      if (hcchar & HCCHAR_CHENA) {
+        channel->hcchar = hcchar | HCCHAR_CHDIS;
+      }
+      channel->hcintmsk = 0;
+      channel->hcint    = 0xFFFFFFFFU;
+    }
+  }
+
+  tu_memclr(_hcd_data.xfer, sizeof(_hcd_data.xfer));
+  for (uint8_t ep_id = 0; ep_id < CFG_TUH_DWC2_ENDPOINT_MAX; ep_id++) {
+    hcd_endpoint_t *edpt = &_hcd_data.edpt[ep_id];
+    if (edpt->hcchar_bm.enable) {
+      edpt->closing      = 1;
+      edpt->xfer_pending = 0;
+    }
+  }
+}
+
 // Enable a channel, selecting the following frame for a new periodic transfer.
 // Return that frame from the same HFNUM sample used for ODDFRM selection.
 // Clear CHDIS explicitly: a halted channel may retain it in HCCHAR.
@@ -296,11 +345,13 @@ static void edpt_close(dwc2_regs_t *dwc2, uint8_t ep_id) {
 
 // Find an endpoint that is opened previously with hcd_edpt_open()
 // Note: EP0 is bidirectional
-TU_ATTR_ALWAYS_INLINE static inline uint8_t edpt_find_opened(uint8_t dev_addr, uint8_t ep_num, uint8_t ep_dir) {
+TU_ATTR_ALWAYS_INLINE static inline uint8_t edpt_find_opened(uint8_t dev_addr, uint8_t ep_num, uint8_t ep_dir,
+                                                              bool include_closing) {
   for (uint8_t i = 0; i < (uint8_t)CFG_TUH_DWC2_ENDPOINT_MAX; i++) {
     const hcd_endpoint_t     *edpt      = &_hcd_data.edpt[i];
     const dwc2_channel_char_t hcchar_bm = edpt->hcchar_bm;
-    if (hcchar_bm.enable && hcchar_bm.dev_addr == dev_addr && hcchar_bm.ep_num == ep_num &&
+    if (hcchar_bm.enable && (include_closing || !edpt->closing) && hcchar_bm.dev_addr == dev_addr &&
+        hcchar_bm.ep_num == ep_num &&
         (ep_num == 0 || hcchar_bm.ep_dir == ep_dir)) {
       return i;
     }
@@ -606,7 +657,7 @@ bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
   dwc2_regs_t  *dwc2   = DWC2_REG(rhport);
   const uint8_t ep_num = tu_edpt_number(ep_addr);
   const uint8_t ep_dir = tu_edpt_dir(ep_addr);
-  const uint8_t ep_id  = edpt_find_opened(daddr, ep_num, ep_dir);
+  const uint8_t ep_id  = edpt_find_opened(daddr, ep_num, ep_dir, true);
   TU_ASSERT(ep_id < CFG_TUH_DWC2_ENDPOINT_MAX);
 
   edpt_close(dwc2, ep_id);
@@ -687,6 +738,7 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id, bool defer_peri
 
   channel->hcsplt = edpt->hcsplt;
   channel->hcint = 0xFFFFFFFFU; // clear all channel interrupts
+  dwc2->gintmsk |= GINTSTS_HCINT;
 
   if (dma_host_enabled(dwc2)) {
     channel->hcintmsk = HCINT_HALTED;
@@ -815,8 +867,8 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   const uint8_t ep_num = tu_edpt_number(ep_addr);
   const uint8_t ep_dir = tu_edpt_dir(ep_addr);
 
-  uint8_t ep_id = edpt_find_opened(dev_addr, ep_num, ep_dir);
-  TU_ASSERT(ep_id < CFG_TUH_DWC2_ENDPOINT_MAX);
+  uint8_t ep_id = edpt_find_opened(dev_addr, ep_num, ep_dir, false);
+  TU_VERIFY(ep_id < CFG_TUH_DWC2_ENDPOINT_MAX);
   hcd_endpoint_t *edpt = &_hcd_data.edpt[ep_id];
   TU_VERIFY(edpt->closing == 0); // skip if endpoint is closing
 
@@ -857,7 +909,7 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   const uint8_t ep_num = tu_edpt_number(ep_addr);
   const uint8_t ep_dir = tu_edpt_dir(ep_addr);
-  const uint8_t ep_id = edpt_find_opened(dev_addr, ep_num, ep_dir);
+  const uint8_t ep_id = edpt_find_opened(dev_addr, ep_num, ep_dir, false);
   TU_VERIFY(ep_id < CFG_TUH_DWC2_ENDPOINT_MAX);
   hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
 
@@ -887,8 +939,8 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 
 // Submit a special transfer to send 8-byte Setup Packet, when complete hcd_event_xfer_complete() must be invoked
 bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, const uint8_t setup_packet[8]) {
-  uint8_t ep_id = edpt_find_opened(dev_addr, 0, TUSB_DIR_OUT);
-  TU_ASSERT(ep_id < CFG_TUH_DWC2_ENDPOINT_MAX); // no opened endpoint
+  uint8_t ep_id = edpt_find_opened(dev_addr, 0, TUSB_DIR_OUT, false);
+  TU_VERIFY(ep_id < CFG_TUH_DWC2_ENDPOINT_MAX); // endpoint can close asynchronously on disconnect
   hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
   edpt->next_pid = HCTSIZ_PID_SETUP;
 
@@ -900,7 +952,7 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   (void) rhport;
   const uint8_t ep_num = tu_edpt_number(ep_addr);
   const uint8_t ep_dir = tu_edpt_dir(ep_addr);
-  const uint8_t ep_id = edpt_find_opened(dev_addr, ep_num, ep_dir);
+  const uint8_t ep_id = edpt_find_opened(dev_addr, ep_num, ep_dir, false);
   TU_VERIFY(ep_id < CFG_TUH_DWC2_ENDPOINT_MAX);
   hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
 
@@ -990,6 +1042,13 @@ static void handle_rxflvl_irq(uint8_t rhport) {
       // In packet received, pop this entry --> ACK interrupt
       const uint16_t byte_count = grxstsp.byte_count;
       hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
+      if (!xfer->allocated) {
+        // Discard data for a channel retired by disconnect.
+        for (uint16_t count = 0; count < byte_count; count += sizeof(uint32_t)) {
+          (void) dwc2->fifo[0][0];
+        }
+        break;
+      }
       TU_ASSERT(xfer->ep_id < CFG_TUH_DWC2_ENDPOINT_MAX,);
       hcd_endpoint_t* edpt = &_hcd_data.edpt[xfer->ep_id];
 
@@ -1684,6 +1743,19 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     }
   }
 
+  if (gintsts & GINTSTS_DISCINT) {
+    dwc2->gintsts = GINTSTS_DISCINT;
+    channel_cleanup_on_disconnect(dwc2);
+    hcd_event_device_remove(rhport, in_isr);
+
+    // A fast replug can be visible without a pending connect-detect interrupt.
+    const uint32_t hprt = dwc2->hprt;
+    if (!(hprt & HPRT_CONN_DETECT) && (hprt & HPRT_CONN_STATUS)) {
+      hcd_event_device_attach(rhport, in_isr);
+    }
+    return;
+  }
+
   if (gintsts & GINTSTS_HPRTINT) {
     // Host port interrupt: source is cleared in HPRT register
     // TU_LOG1_HEX(dwc2->hprt);
@@ -1728,14 +1800,6 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     handle_channel_irq(rhport, in_isr);
   }
 
-  if (gintsts & GINTSTS_DISCINT) {
-    // Device disconnected
-    dwc2->gintsts = GINTSTS_DISCINT;
-
-    if (0 == (dwc2->hprt & HPRT_CONN_STATUS)) {
-      hcd_event_device_remove(rhport, in_isr);
-    }
-  }
 }
 
 #endif
