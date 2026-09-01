@@ -515,51 +515,54 @@ class PermitReleasesOnlyWhatItTook(unittest.TestCase):
                          'the permit released a slot it never acquired: width grew')
 
 
-class RecoveryPrefersResetOverReflash(unittest.TestCase):
-    """Probe reset is the preferred cure: non-destructive (the wedged firmware survives for
-    autopsy), no flash wear, no risk of a bad park image (a wfe/wfi park has bricked SWD on
-    mimxrt1064_evk and max32666fthr through a power cycle), and measured at 128-129 ms
-    against a full erase+program. It also fits in budgets a reflash does not."""
+class RecoveryUsesAResetOnlyWhenThereIsARealOne(unittest.TestCase):
+    """usbtest's recovery runs the reset unconditionally before the reflash -- it is
+    non-destructive (the wedged firmware survives for autopsy), writes no flash, cannot
+    brick SWD the way a bad park image has (mimxrt1064_evk, max32666fthr), and is measured
+    at 128-129 ms against a full erase+program.
+
+    Two things still gate it, and both are what this pins: a flasher may have no reset
+    primitive at all, and reset_esptool/reset_lm4flash return rc 0 WITHOUT resetting
+    anything. Running those makes the log say "resetting <board> via <flasher>" for a step
+    that did nothing. wedged_pids() arbitrates either way, so behaviour was always right --
+    the record was not, and a false record is what keeps having to be unpicked."""
 
     def setUp(self):
         import usbtest          # test/hil is already on sys.path (see top of file)
-        self.u = usbtest
+        # PRODUCTION, not a copy: re-implementing the screen here let the real gate be
+        # deleted with the suite still green, which is the failure mode this pins.
+        self._reset_fn = usbtest.reset_primitive
 
-    def test_reset_is_attempted_before_the_reflash(self):
-        steps = self.u.recovery_steps('openocd', time_left=600)
-        self.assertEqual([s[0] for s in steps], ['reset', 'flash'])
+    def test_a_stub_that_resets_nothing_is_not_claimed(self):
+        for name in ('esptool', 'lm4flash'):
+            self.assertIsNone(self._reset_fn(name),
+                              f'reset_{name} returns rc 0 without resetting; claiming it '
+                              f'puts a step that did nothing in the record')
 
-    def test_a_budget_too_small_to_reflash_still_gets_the_reset(self):
-        """The old gate skipped recovery whole when a reflash did not fit, leaving the
-        holder in place; a reset needs a fraction of the budget."""
-        steps = self.u.recovery_steps('openocd', time_left=self.u.RECOVER_FLASH_TIMEOUT - 1)
-        self.assertEqual([s[0] for s in steps], ['reset'])
+    def test_a_real_reset_primitive_is_used(self):
+        for name in ('openocd', 'jlink', 'stlink'):
+            self.assertIsNotNone(self._reset_fn(name))
 
-    def test_no_budget_at_all_yields_nothing(self):
-        self.assertEqual(self.u.recovery_steps('openocd', time_left=1), [])
+    def test_a_flasher_with_no_reset_primitive_goes_straight_to_the_reflash(self):
+        self.assertIsNone(self._reset_fn('nosuchflasher'))
 
-    def test_a_flasher_with_no_reset_primitive_goes_straight_to_reflash(self):
-        steps = self.u.recovery_steps('nosuchflasher', time_left=600)
-        self.assertEqual([s[0] for s in steps], ['flash'])
-
-
-class RecoveryDoesNotClaimAResetItDidNotDo(unittest.TestCase):
-    """reset_esptool and reset_lm4flash return rc 0 without resetting anything, so a plan
-    that includes them makes the log say "resetting <board> via <flasher>" for a step that
-    did nothing. wedged_pids() arbitrates, so behaviour was already right -- the record was
-    not, and a false record is what this branch keeps having to unpick."""
-
-    def setUp(self):
+    def test_the_reset_is_attempted_before_the_reflash(self):
+        """Order matters and now lives only in main()'s inline ladder, where no test
+        reaches it -- swapping the two blocks kept the suite green. Reset first is
+        non-destructive: the firmware under test survives for autopsy, no flash is
+        written, and it cannot brick SWD the way a bad park image has on mimxrt1064_evk
+        and max32666fthr."""
+        import ast
         import usbtest
-        self.u = usbtest
+        src = Path(usbtest.__file__).read_text()
+        fn = next(n for n in ast.walk(ast.parse(src))
+                  if isinstance(n, ast.FunctionDef) and n.name == 'main')
+        seg = ast.get_source_segment(src, fn)
+        reset_at = seg.index('reset_fn = reset_primitive(')
+        flash_at = seg.index("flash_fn(board, args.recover_fw")
+        self.assertLess(reset_at, flash_at,
+                        'the reflash is attempted before the non-destructive reset')
 
-    def test_a_no_op_reset_primitive_is_not_scheduled(self):
-        self.assertEqual([k for k, _ in self.u.recovery_steps('esptool', 600)], ['flash'])
-        self.assertEqual([k for k, _ in self.u.recovery_steps('lm4flash', 600)], ['flash'])
-
-    def test_a_real_reset_primitive_still_is(self):
-        self.assertEqual([k for k, _ in self.u.recovery_steps('openocd', 600)],
-                         ['reset', 'flash'])
 
 
 class SudoSoftNeverRaises(unittest.TestCase):

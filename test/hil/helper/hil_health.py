@@ -214,9 +214,6 @@ def _kill_kids(kids: dict, seen: set) -> int:
         own = os.getpgid(0)
     except OSError:
         own = None        # cannot tell our own group apart: never killpg, signal pids only
-    # One list: every pid here is a DESCENDANT of one of our own workers, so it is ours by
-    # construction -- no argv identity check needed, because we never signal anything we
-    # did not discover through our own ppid tree.
     touched: list = []
     for children in kids.values():
         for cpid, cpgid in children:
@@ -249,10 +246,8 @@ def _kill_kids(kids: dict, seen: set) -> int:
     if denied:
         _p(f'warning: could not kill {sorted(denied)}; they still hold whatever they '
               f'had open (probe, usbfs node) into the next job', flush=True)
-    # SURVIVORS, not the signalled-child count: the caller needs to know the rig is dirty
-    # for the next job, and a count of what we successfully signalled cannot tell it that.
-    # (They are different units anyway -- a killpg is counted once per child sharing the
-    # group -- so the old return was never comparable to anything.)
+    # SURVIVORS, not the count we signalled: the caller needs to know the rig is dirty for
+    # the next job, and a killpg is counted once per child sharing the group anyway.
     return len(denied)
 
 

@@ -9,13 +9,35 @@ writers, and the fold to one machine-readable verdict per board.
 
 Dual-mode by design: imported as `helper.hil_report` by hil_test.py, and run as a script by
 the operator (see .claude/agents/hil-operator.md). A script run puts test/hil/helper on
-sys.path rather than test/hil, hence the guarded hil_health import below.
+sys.path rather than test/hil, so this module imports no sibling helper at all --
+_p and the width helpers below are defined locally for that reason.
 """
 import argparse
 import json
 import sys
+import unicodedata
 from pathlib import Path
 
+
+def _w(s: str) -> int:
+    """Terminal COLUMNS, not characters. Every status mark in REPORT_CELL is one Python
+    character and TWO columns wide, so len() pads a cell holding one a column short and
+    the pipes drift out of line with the header rule for the whole table.
+
+    Local, like _p above and for the same reason: this module is also run as a script, and
+    under PYTHONSAFEPATH=1 a sibling import dies before argparse runs. hil_util carries the
+    same pair for callers that can import it.
+    """
+    return sum(2 if unicodedata.east_asian_width(c) in 'WF' else 1 for c in s)
+
+
+def _pad(s: str, width: int, center: bool = False) -> str:
+    """str.ljust/center, measured in display columns. See _w."""
+    room = max(0, width - _w(s))
+    if not center:
+        return s + ' ' * room
+    left = room // 2
+    return ' ' * left + s + ' ' * (room - left)
 
 
 def _p(*args, **kwargs) -> None:
@@ -41,6 +63,10 @@ LOCKED_CELL = 'board-locked'
 # A pseudo-test column, not a real one: write_timeout_report marks the boards that were
 # still dispatched when the pool guard fired. accumulate_report clears it on a retry.
 POOL_TIMEOUT_CELL = 'pool-timeout'
+# The other way a board can fail to report: the pool did not expire, a worker RAISED. Same
+# shape, different cause, and naming the cause is the whole point of the column -- a board
+# marked pool-timeout by an abort that never timed out sends the reader after the guard.
+RUN_ABORTED_CELL = 'run-aborted'
 
 
 def _load(report_dir: Path) -> tuple:
@@ -136,12 +162,14 @@ def render_matrix(rows_all: list) -> str:
     rows_vals = [(lbl, [cell(cells, c) for c in columns] + [dur or ''])
                  for lbl, cells, dur in rows_all]
     board_hdr = 'Board'
-    board_w = max([len(board_hdr)] + [len(lbl) for lbl, _ in rows_vals])
-    col_w = [max([len(h)] + [len(vals[i]) for _, vals in rows_vals])
+    # display_width, not len(): the ✅/❌/⚪ marks are one character and two columns
+    board_w = max([_w(board_hdr)] + [_w(lbl) for lbl, _ in rows_vals])
+    col_w = [max([_w(h)] + [_w(vals[i]) for _, vals in rows_vals])
              for i, h in enumerate(headers)]
 
     def line(label, values):
-        padded = [label.ljust(board_w)] + [v.center(w) for v, w in zip(values, col_w)]
+        padded = [_pad(label, board_w)] + [_pad(v, w, center=True)
+                                           for v, w in zip(values, col_w)]
         return '| ' + ' | '.join(padded) + ' |'
 
     header = line(board_hdr, headers)
@@ -328,6 +356,7 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
                 # never reported, and update() below MERGES, so without this a board that
                 # passed clean on the retry kept a red cell for ever.
                 stale[0].pop(POOL_TIMEOUT_CELL, None)
+                stale[0].pop(RUN_ABORTED_CELL, None)
                 if not stale[0]:
                     # variant-keyed boards never repopulate the board-name row, so drop it
                     # or it renders as a blank ghost row
@@ -336,6 +365,7 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
             row = acc.setdefault(row_label, [{}, None])
             # a row that ran is no longer pool-timed-out, whatever it is keyed by
             row[0].pop(POOL_TIMEOUT_CELL, None)
+            row[0].pop(RUN_ABORTED_CELL, None)
             # the boundary cell is only ever written on failure, so a re-run of this
             # variant that cleared the boundary must drop the previous attempt's ❌
             if BOUNDARY_CELL not in cells:
@@ -385,7 +415,8 @@ def _write_stuck_over_prior_md(report_dir: Path, doc: dict) -> None:
 
 
 def write_timeout_report(report_dir: Path, boards, secs: int,
-                         banner: str = '', prefix: str = '') -> None:
+                         banner: str = '', prefix: str = '',
+                         cell: str = POOL_TIMEOUT_CELL) -> None:
     """Leave a report behind when the worker pool has to be abandoned.
 
     map_async is all-or-nothing, so a timeout loses every per-board result and the report
@@ -403,7 +434,7 @@ def write_timeout_report(report_dir: Path, boards, secs: int,
         caveat = banner or (
             f'**HIL run abandoned: worker pool timed out after {secs}s.**\n\n'
             f'No per-board results could be collected for this attempt. Rows other than '
-            f'the {POOL_TIMEOUT_CELL} cells below are from an earlier attempt. Boards '
+            f'the {cell} cells below are from an earlier attempt. Boards '
             f'dispatched:\n\n' + '\n'.join(f'- {n}' for n in names) + '\n')
         doc, readable = _load(report_dir)
         rows = doc['rows']
@@ -411,13 +442,13 @@ def write_timeout_report(report_dir: Path, boards, secs: int,
         for name in names:
             row = by_board.get(name)
             if row is None:
-                rows.append({'board': name, 'cells': {POOL_TIMEOUT_CELL: 'fail'},
+                rows.append({'board': name, 'cells': {cell: 'fail'},
                              'duration': None})
             else:
                 # _load guarantees `cells` is a dict, so a null-cells row from an uploaded
                 # sidecar can no longer send this down the fallback and publish a board
                 # that ate the whole pool guard as a pass.
-                row['cells'][POOL_TIMEOUT_CELL] = 'fail'
+                row['cells'][cell] = 'fail'
         out = {'rows': rows, 'scope': doc['scope'], 'caveat': caveat,
                'banner': ((doc['banner'] + prefix) if prefix not in doc['banner']
                           else doc['banner'])}
@@ -493,8 +524,11 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
         # a wedge outranks lock contention: `locked` short-circuits `detail` below, so a
         # stale board-locked cell from an earlier attempt used to mask the pool-timeout
         # cell the retry added -- publishing a board that hung the rig as LOCKED, which
-        # hil-validate.js then RE-RUNS, paying another pool guard on it.
-        wedged = any(POOL_TIMEOUT_CELL in cells for cells in mine.values())
+        # hil-validate.js then RE-RUNS, paying another pool guard on it. RUN_ABORTED_CELL
+        # is written by the same _abort_report path for a board the guard never reached,
+        # and must outrank it for the same reason.
+        wedged = any(POOL_TIMEOUT_CELL in cells or RUN_ABORTED_CELL in cells
+                     for cells in mine.values())
         locked = not wedged and any(LOCKED_CELL in cells for cells in mine.values())
         bad = []
         for vname, cells in sorted(mine.items()):

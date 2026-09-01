@@ -499,6 +499,8 @@ class TestPortAndCoreRoleUseExtras(unittest.TestCase):
         self.assertFalse(s['full'])
         for board in boards:
             tests = s['boards'][board]
+            if tests == 'all':
+                continue  # a board whose whole allowed set is selected collapses to 'all'
             self.assertIn('device/hid_composite_freertos', tests)
             self.assertIn('device/cdc_msc_freertos', tests)
             self.assertIn('device/audio_test_freertos', tests)
@@ -510,6 +512,8 @@ class TestPortAndCoreRoleUseExtras(unittest.TestCase):
         self.assertFalse(s['full'])
         for board in boards:
             tests = s['boards'][board]
+            if tests == 'all':
+                continue  # a board whose whole allowed set is selected collapses to 'all'
             self.assertIn('device/hid_composite_freertos', tests)
             self.assertIn('device/cdc_msc_freertos', tests)
             self.assertIn('device/audio_test_freertos', tests)
@@ -955,7 +959,8 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
 
     def test_the_harness_own_tests_select_nothing_on_either_axis(self):
         for p in ('test/hil/test/test_ci_select.py', 'test/hil/test/test_ci_metrics.py',
-                  'test/hil/test/test_hil_bounded.py', 'test/hil/test/stubs/pymtp.py'):
+                  'test/hil/test/test_hil_bounded.py', 'test/hil/test/stubs/pymtp.py',
+                  'test/hil/test/stubs/hid.py'):
             s = ci_select.classify([p], REPO, ROSTERS)
             self.assertFalse(s['full'], p)
             self.assertFalse(s['boards'], p)
@@ -979,12 +984,14 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
         out = subprocess.run(['git', 'ls-files', 'test/hil/test'], cwd=REPO,
                              capture_output=True, text=True, check=True)
         self.assertEqual(sorted(out.stdout.split()), [
+            'test/hil/test/stubs/hid.py',
             'test/hil/test/stubs/pymtp.py',
             'test/hil/test/test_ci_metrics.py',
             'test/hil/test/test_ci_select.py',
             'test/hil/test/test_hil_bounded.py',
             'test/hil/test/test_hil_health.py',
             'test/hil/test/test_hil_report.py',
+            'test/hil/test/test_hil_rtt.py',
             'test/hil/test/test_hil_util.py',
         ], 'test/hil/test/ gained or lost a file; it is carved out of rule 2, so confirm '
            'the rig still does not read anything in there before updating this list')

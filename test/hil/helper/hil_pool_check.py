@@ -54,7 +54,7 @@ ENUM_WAIT_RETRY = 8  # s, uid wait after a recovery reset/re-flash
 SERIAL_WAIT = 6      # s, host-board serial-output wait
 
 print_mutex = threading.Lock()
-_UNKNOWN_WARNED = False   # scan_usb's caveat: once per process, not once per poll
+_STRANDED_WARNED = False   # scan_usb's caveat: once per process, not once per poll
 t0 = time.monotonic()
 
 
@@ -72,20 +72,20 @@ def scan_usb() -> dict:
     USB-Serial-JTAG bridge and the cafe device it flashes both derive it from the same
     MAC), and one dict slot would silently drop whichever lost the race."""
     found = {}
-    # `unknown` matters BEFORE the blindness latch trips: one wedged device is the normal
-    # reason this tool is run, and its serial read stranding makes it absent from `devs`.
-    # Reported as fact, that is "probe MISSING" for hardware that is physically present.
-    devs, unknown = hil_util.usb_scan()
-    # ONCE per process: this is called from 0.5s poll loops across 4 worker threads and
-    # ~26 boards, so warning per call buried the table it exists to qualify under 600+
-    # identical lines. The memo in read_sysfs makes the condition sticky, so one line is
-    # as true as six hundred.
-    global _UNKNOWN_WARNED
-    if unknown and not _UNKNOWN_WARNED:
-        _UNKNOWN_WARNED = True
-        say('WARNING: at least one device did not answer a bounded read; rows below that '
-            'say a probe or board is missing may be this scan losing sight of healthy '
-            'hardware. Find the wedged device (usb-kernel-recover) and re-run.')
+    # usb_scan's `serial` read is bounded by default (see hil_util.read_sysfs) -- this tool
+    # has no pool guard behind it and is run exactly when a device is suspected wedged. A
+    # device that will not answer is simply absent from the table; the footer says so.
+    devs = hil_util.usb_scan()
+    # ONCE per process, at SCAN time, not only in the footer: this tool prints rows as it
+    # goes over minutes, so a board dropped from the scan says "probe MISSING" within
+    # seconds while the only qualification would arrive after the final counts -- and an
+    # operator acting on the streaming output, or a run cut short by ^C, never sees it.
+    global _STRANDED_WARNED
+    if hil_util.sysfs_stranded() and not _STRANDED_WARNED:
+        _STRANDED_WARNED = True
+        say('WARNING: a bounded sysfs read gave up; rows below that say a probe or board '
+            'is missing may be this scan losing sight of healthy hardware. Find the '
+            'wedged device (usb-kernel-recover) and re-run.')
     for dev in devs:
         try:
             found[dev['busport']] = {
@@ -360,7 +360,47 @@ def check_host_serial(board: dict, do_reset: bool = True, want_hello: bool = Fal
 
     do_reset=False listens to the firmware as-is: used right after a flash whose
     own reset already started it — a second openocd/JLink session back-to-back on
-    the same probe can fail transiently and leave the target halted."""
+    the same probe can fail transiently and leave the target halted.
+
+    "logger": "rtt" boards have no VCOM: the same check runs over the probe's RTT
+    console instead. The reset happens BEFORE the console opens (it owns the probe),
+    which also zeroes the .bss ring — so pre-reset backlog cannot count as life, and
+    without a reset Commander delivers the boot burst the preceding flash left."""
+    if board.get('logger') == 'rtt':
+        if do_reset:
+            # a failed reset leaves the previous run's ring intact: attaching anyway would
+            # score stale output as life, so bail to host_alive's board_test reflash ladder
+            rc, err = call_flasher(getattr(hil_flash, f'reset_{board["flasher"]["name"].lower()}'), board)
+            if rc:
+                say(f'{board["name"]:26} reset failed: {err}')
+                return None
+        try:
+            ser = hil_util.JlinkRtt(board, timeout=0.3)
+        except hil_util.RttError as e:
+            say(f'{board["name"]:26} no RTT console: {e}')
+            return None
+        try:
+            data = b''
+            deadline = time.monotonic() + SERIAL_WAIT
+            while time.monotonic() < deadline:
+                ser.write(b'U')
+                data += ser.read(256)
+                # JLinkExe's banner arrives whether or not the target is alive --
+                # judged unfiltered it scores a dead board 'alive'. Same shared filter
+                # as test_host_device_info; complete_only drops a trailing partial
+                # line, so a banner FRAGMENT split by this read boundary cannot count
+                # as target output either.
+                td = hil_util.strip_banner(data, complete_only=True)
+                if want_hello:
+                    if b'Hello from TinyUSB' in td:
+                        return td
+                elif td and not boardtest_output(td):
+                    return td
+            return hil_util.strip_banner(data)
+        except hil_util.RttError:
+            return None  # console died mid-poll (server exited, probe dropped)
+        finally:
+            ser.close()
     import serial
     try:
         port = hil_util.get_serial_dev(board['flasher']['uid'], None, None, 0)
@@ -983,9 +1023,13 @@ def main() -> None:
     headers = ['Board', 'Probe', 'Flash', 'Device', 'Status', 'Note']
     cells = [[r['name'], r['probe'], r['flash'], r['device'],
               status_mark.get(r['status'], r['status']), '; '.join(r['note'])] for r in rows]
-    widths = [max(len(h), *(len(c[i]) for c in cells)) if cells else len(h)
+    # display_width, not len(): ✅ / ❌ / 🔒 / ⚠ are one character and two columns, so
+    # len() pads every row holding one a column short of the header rule
+    _w = hil_util.display_width
+    widths = [max(_w(h), *(_w(c[i]) for c in cells)) if cells else _w(h)
               for i, h in enumerate(headers)]
-    line = lambda vals: '| ' + ' | '.join(v.ljust(w) for v, w in zip(vals, widths)) + ' |'
+    line = lambda vals: ('| ' + ' | '.join(hil_util.pad(v, w)
+                                           for v, w in zip(vals, widths)) + ' |')
     print()
     print(line(headers))
     print('|' + '|'.join('-' * (w + 2) for w in widths) + '|')
@@ -1001,17 +1045,16 @@ def main() -> None:
         counts[r.get('status', 'failed')] += 1
     print(f'\n{counts["ok"]} ok · {counts["flash-failed"]} flash-failed · {counts["failed"]} failed '
           f'· {counts["locked"]} locked · in {time.monotonic() - t0:.0f}s')
-    if hil_util.sysfs_blind():
-        # Without this the table is the worst kind of wrong: once the process latches
-        # blind, every read answers SYSFS_UNKNOWN, scan_usb() returns {}, and EVERY board
-        # prints "probe MISSING"/"off bus" -- a clean-looking report declaring the whole
-        # fleet dead, produced during exactly the incident this tool is run to diagnose,
-        # and it sends the operator to power-cycle a rig where one device is wedged.
-        print('WARNING: this scan lost sight of the bus'
-              f'{hil_util.sysfs_blind_note()}. Rows above that say a probe or board is '
-              f'missing may be this tool losing sight of healthy hardware, not absent '
-              f'hardware. Find the wedged device (see the usb-kernel-recover skill) and '
-              f're-run before acting on the table.')
+    if hil_util.sysfs_stranded():
+        # Without this the table is the worst kind of wrong: a device whose `serial` never
+        # answered is absent from the scan, which prints as "probe MISSING"/"off bus" for
+        # hardware that is physically present -- during exactly the incident this tool is
+        # run to diagnose, and it sends the operator to power-cycle a healthy rig.
+        print('WARNING: at least one sysfs read did not answer within '
+              f'{hil_util.SYSFS_READ_GRACE:.0f}s, so rows above that say a probe or board '
+              f'is missing may be this tool losing sight of healthy hardware rather than '
+              f'absent hardware. Find the wedged device (see the usb-kernel-recover '
+              f'skill) and re-run before acting on the table.')
     sys.exit(min(counts['flash-failed'] + counts['failed'], 125))
 
 

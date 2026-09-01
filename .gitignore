@@ -96,3 +96,4 @@ hw/mcu/sony/cxd56/spresense-exported-sdk/
 hw/mcu/st/
 hw/mcu/ti/
 hw/mcu/wch/
+test/hil/local.json
