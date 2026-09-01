@@ -43,6 +43,53 @@ import threading
 import time
 
 
+IS_WINDOWS = os.name == 'nt'
+
+
+def _tool_exe(env_name: str, posix_name: str, windows_name: str = None) -> str:
+    """Return an overridable executable name without invoking a shell."""
+    return os.environ.get(env_name, windows_name if IS_WINDOWS and windows_name else posix_name)
+
+
+def _popen_group_options() -> dict:
+    """Put each server in an independently terminable process group/session."""
+    if IS_WINDOWS:
+        return {'creationflags': subprocess.CREATE_NEW_PROCESS_GROUP}
+    return {'start_new_session': True}
+
+
+def _termination_signals() -> tuple:
+    """Signals that exist on this host and can request an orderly CLI stop."""
+    names = ('SIGTERM', 'SIGHUP')
+    return tuple(getattr(signal, name) for name in names if hasattr(signal, name))
+
+
+def _terminate_process_group(proc, force: bool) -> None:
+    """Stop the server and anything it spawned, on POSIX or Windows."""
+    if proc.poll() is not None:
+        return
+    if IS_WINDOWS:
+        if force:
+            # TerminateProcess reaches only the direct child. taskkill /T also
+            # retires helpers a debug server may have spawned and is present on
+            # supported Windows hosts. Fall back to Popen.kill() if it fails.
+            with contextlib.suppress(OSError, subprocess.SubprocessError):
+                subprocess.run(['taskkill', '/PID', str(proc.pid), '/T', '/F'],
+                               stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL, timeout=10, check=False)
+            if proc.poll() is None:
+                with contextlib.suppress(OSError):
+                    proc.kill()
+        else:
+            with contextlib.suppress(OSError):
+                proc.terminate()
+        return
+
+    sig = signal.SIGKILL if force else signal.SIGTERM
+    with contextlib.suppress(ProcessLookupError, PermissionError):
+        os.killpg(proc.pid, sig)
+
+
 class RttError(RuntimeError):
     """Every way a console can break: stall, closed, dead or reset server.
 
@@ -170,7 +217,7 @@ class _SocketRtt:
         self._log = tempfile.NamedTemporaryFile(prefix='rtt-server-', suffix='.log')
         try:
             self._proc = subprocess.Popen(cmd, stdin=stdin, stdout=self._log,
-                                          stderr=subprocess.STDOUT, start_new_session=True)
+                                          stderr=subprocess.STDOUT, **_popen_group_options())
         except FileNotFoundError as e:
             self.close()
             raise RttError(f'RTT console: {e.filename or cmd[0]} not on PATH') from e
@@ -336,19 +383,16 @@ class _SocketRtt:
                 with contextlib.suppress(subprocess.TimeoutExpired):
                     proc.wait(timeout=5)
         if proc and proc.poll() is None:
-            # own session (start_new_session), so the group takedown gets the server and
-            # anything it spawned; leaving one alive would hold the probe for the next test
-            try:
-                os.killpg(proc.pid, signal.SIGTERM)
+            # The server owns a separate POSIX session or Windows process group.
+            # Retire it before returning so it cannot hold the probe for the next run.
+            _terminate_process_group(proc, force=False)
+            with contextlib.suppress(subprocess.TimeoutExpired):
                 proc.wait(timeout=5)
-            except (ProcessLookupError, PermissionError):
-                pass
-            except subprocess.TimeoutExpired:
-                with contextlib.suppress(ProcessLookupError, PermissionError):
-                    os.killpg(proc.pid, signal.SIGKILL)
-                # reap, or the server stays a zombie for the caller's lifetime
-                with contextlib.suppress(subprocess.TimeoutExpired):
-                    proc.wait(timeout=2)
+        if proc and proc.poll() is None:
+            _terminate_process_group(proc, force=True)
+            # Reap, or the server stays a zombie for the caller's lifetime.
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                proc.wait(timeout=2)
         if proc:
             for pipe in (proc.stdin, proc.stdout):
                 if pipe:
@@ -406,7 +450,8 @@ class JlinkRtt(_SocketRtt):
         # roster ever carries such args. -ExitOnError makes a failed target connect
         # EXIT Commander
         # (a clean error with the log tail) instead of leaving a banner-only console
-        cmd = ['JLinkExe', '-USB', str(flasher['uid']), '-if', 'swd',
+        cmd = [_tool_exe('RTT_JLINK_EXE', 'JLinkExe', 'JLink.exe'),
+               '-USB', str(flasher['uid']), '-if', 'swd',
                '-JTAGConf', '-1,-1', '-speed', 'auto', '-NoGui', '1',
                '-ExitOnError', '1', '-AutoConnect', '1',
                *args, '-RTTTelnetPort', str(port)]
@@ -445,7 +490,8 @@ class OpenocdRtt(_SocketRtt):
         # argv, never a shell string: cfg/serial/vid_pid come from roster JSON and the
         # command line, and a '$', backtick or quote in any of them would otherwise be
         # substituted by the shell or break out of it
-        cmd = ['openocd', '-c', 'tcl_port disabled', '-c', 'gdb_port disabled',
+        cmd = [_tool_exe('RTT_OPENOCD_EXE', 'openocd'),
+               '-c', 'tcl_port disabled', '-c', 'gdb_port disabled',
                '-c', 'telnet_port disabled']
         # probe pin: vid_pid keeps discovery from opening foreign usbfs nodes (a
         # wedged one hangs the open), serial disambiguates same-model probes —
@@ -485,8 +531,7 @@ class OpenocdRtt(_SocketRtt):
         # no stdin channel to ask openocd to exit, and it keeps its listener up after
         # the client disconnects: go straight to the group takedown instead of blocking
         # the base class's 5 s wait on a process that has no reason to leave
-        with contextlib.suppress(ProcessLookupError, PermissionError):
-            os.killpg(proc.pid, signal.SIGTERM)
+        _terminate_process_group(proc, force=False)
 
 
 def dump_ring(probe: str, device: str, addr: int, out_path: str, channel: int = 0) -> int:
@@ -503,7 +548,8 @@ def dump_ring(probe: str, device: str, addr: int, out_path: str, channel: int = 
     # each ring 6 words {sName, pBuffer, SizeOfBuffer, WrOff, RdOff, Flags}. Read the
     # counts with the descriptor so an out-of-range channel is rejected instead of
     # reading whatever RAM follows the array.
-    jlink = ['JLinkExe', '-USB', probe, '-device', device, '-if', 'swd',
+    jlink = [_tool_exe('RTT_JLINK_EXE', 'JLinkExe', 'JLink.exe'),
+             '-USB', probe, '-device', device, '-if', 'swd',
              '-speed', '4000', '-NoGui', '1', '-AutoConnect', '1']
 
     def _jlink_run(script: str):
@@ -512,9 +558,9 @@ def dump_ring(probe: str, device: str, addr: int, out_path: str, channel: int = 
         try:
             return subprocess.run(jlink, input=script, capture_output=True, text=True, timeout=60)
         except FileNotFoundError:
-            raise SystemExit('JLinkExe not on PATH — the --dump route needs J-Link Commander')
+            raise SystemExit(f'{jlink[0]} not on PATH — the --dump route needs J-Link Commander')
         except subprocess.TimeoutExpired:
-            raise SystemExit('JLinkExe did not finish in 60 s — probe wedged or target unreachable?')
+            raise SystemExit(f'{jlink[0]} did not finish in 60 s — probe wedged or target unreachable?')
 
     script = f'mem32 {addr + 0x10:#x}, 2\nmem32 {addr + 0x18 + channel * 24:#x}, 6\nexit\n'
     r = _jlink_run(script)
@@ -573,6 +619,7 @@ def main() -> int:
     ap.add_argument('--addr', help='SEGGER RTT control block address (hex), instead of --elf')
     ap.add_argument('--channel', type=int, default=0, help='up-buffer index (0 console, 1 SysView)')
     ap.add_argument('--seconds', type=float, default=0, help='capture duration; 0 = until Ctrl-C/EOF')
+    ap.add_argument('--stop-file', help='exit successfully when this path appears')
     ap.add_argument('-i', '--interactive', action='store_true', help='forward stdin to the target')
     ap.add_argument('--reset-before-attach', action='store_true',
                     help='openocd: reset the target inside the capture session so the '
@@ -588,6 +635,8 @@ def main() -> int:
         # a negative index would walk backwards off aUp[] into the control-block
         # header and read garbage as a descriptor
         ap.error(f'--channel must be >= 0, got {args.channel}')
+    if args.stop_file and os.path.exists(args.stop_file):
+        ap.error(f'--stop-file already exists: {args.stop_file}')
 
     def rtt_addr():
         if args.addr:
@@ -615,6 +664,8 @@ def main() -> int:
         ap.error('the openocd backend needs --probe and/or --vid-pid')
 
     if args.dump:
+        if args.stop_file:
+            ap.error('--stop-file is not valid with --dump')
         if args.backend != 'jlink':
             ap.error('--dump uses the jlink backend (debug-AP reads via JLinkExe)')
         return dump_ring(args.probe, args.device, rtt_addr(), args.dump, args.channel)
@@ -625,7 +676,7 @@ def main() -> int:
     # stdin EOF; openocd has no such channel and its own session shields it)
     def _terminate(signum, _frame):
         raise KeyboardInterrupt
-    for _sig in (signal.SIGTERM, signal.SIGHUP):
+    for _sig in _termination_signals():
         with contextlib.suppress(ValueError, OSError):
             signal.signal(_sig, _terminate)
 
@@ -674,7 +725,8 @@ def main() -> int:
     rc = 0
     seen = b''   # pre-release accumulator for the banner check only
     try:
-        while deadline is None or time.monotonic() < deadline:
+        while ((deadline is None or time.monotonic() < deadline) and
+               not (args.stop_file and os.path.exists(args.stop_file))):
             try:
                 chunk = con.read(con.in_waiting or 1)
             except RttError as e:
@@ -716,7 +768,7 @@ def main() -> int:
             print('rtt: no target output within the window', file=sys.stderr)
         # a late TERM landing during the up-to-12 s teardown must not skip the kill
         # escalation and orphan the server -- cleanup is committed at this point
-        for _sig in (signal.SIGTERM, signal.SIGHUP):
+        for _sig in _termination_signals():
             with contextlib.suppress(ValueError, OSError):
                 signal.signal(_sig, signal.SIG_IGN)
         con.close()

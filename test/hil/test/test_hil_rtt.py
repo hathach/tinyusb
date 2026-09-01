@@ -12,6 +12,7 @@ import time
 import unittest
 from contextlib import suppress as contextlib_suppress
 from pathlib import Path
+from unittest import mock
 
 # the module under test lives in the parent dir's helper/ package
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -77,6 +78,68 @@ for line in sys.stdin:
 '''
 
 BOARD = {'flasher': {'uid': '000', 'args': '-device FAKE'}}
+
+
+class RttPlatformLifecycle(unittest.TestCase):
+    def test_cli_missing_jlink_is_a_clean_error_on_this_platform(self):
+        env = dict(os.environ, RTT_JLINK_EXE='definitely-not-a-jlink-tool')
+        r = subprocess.run([sys.executable, str(CLI), '--backend', 'jlink',
+                            '--probe', '000', '--device', 'FAKE', '--seconds', '0.1'],
+                           env=env, capture_output=True, timeout=15)
+        self.assertEqual(r.returncode, 1, r.stderr)
+        self.assertIn(b'not on PATH', r.stderr)
+        self.assertNotIn(b'Traceback', r.stderr)
+
+    def test_process_group_creation_matches_platform(self):
+        options = hil_util._rtt._popen_group_options()
+        if os.name == 'nt':
+            self.assertEqual(options, {'creationflags': subprocess.CREATE_NEW_PROCESS_GROUP})
+        else:
+            self.assertEqual(options, {'start_new_session': True})
+
+    def test_windows_termination_uses_process_api_and_taskkill(self):
+        class FakeProc:
+            pid = 123
+
+            def __init__(self):
+                self.terminated = False
+                self.killed = False
+
+            def poll(self):
+                return None
+
+            def terminate(self):
+                self.terminated = True
+
+            def kill(self):
+                self.killed = True
+
+        proc = FakeProc()
+        with mock.patch.object(hil_util._rtt, 'IS_WINDOWS', True):
+            hil_util._rtt._terminate_process_group(proc, force=False)
+            self.assertTrue(proc.terminated)
+            with mock.patch.object(hil_util._rtt.subprocess, 'run') as taskkill:
+                hil_util._rtt._terminate_process_group(proc, force=True)
+        taskkill.assert_called_once()
+        self.assertEqual(taskkill.call_args.args[0][:4], ['taskkill', '/PID', '123', '/T'])
+        self.assertTrue(proc.killed)
+
+    def test_windows_defaults_to_jlink_exe(self):
+        with mock.patch.object(hil_util._rtt, 'IS_WINDOWS', True), \
+             mock.patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(hil_util._rtt._tool_exe('RTT_JLINK_EXE', 'JLinkExe', 'JLink.exe'),
+                             'JLink.exe')
+
+    def test_cli_rejects_an_existing_stop_file(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            stop_file = Path(temp_dir) / 'capture.stop'
+            stop_file.touch()
+            r = subprocess.run(
+                [sys.executable, str(CLI), '--backend', 'jlink', '--probe', '000',
+                 '--device', 'FAKE', '--stop-file', str(stop_file)],
+                capture_output=True, timeout=20)
+        self.assertEqual(r.returncode, 2)
+        self.assertIn(b'already exists', r.stderr)
 
 
 @unittest.skipIf(os.name == 'nt', 'POSIX PATH/exec semantics')
@@ -195,6 +258,21 @@ class JlinkRttFakeProbe(unittest.TestCase):
         self.assertEqual(r.returncode, 1)
         self.assertIn(b'hello from target', r.stdout)
         self.assertIn(b'server closed', r.stderr)
+
+    def test_cli_stop_file_closes_a_continuous_capture(self):
+        env = dict(os.environ, PATH=self._path, FAKE_JLINK_MODE='tick')
+        with tempfile.TemporaryDirectory() as temp_dir:
+            stop_file = Path(temp_dir) / 'capture.stop'
+            proc = subprocess.Popen(
+                [sys.executable, str(CLI), '--backend', 'jlink', '--probe', '000',
+                 '--device', 'FAKE', '--seconds', '0', '--stop-file', str(stop_file)],
+                env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            time.sleep(0.5)
+            stop_file.touch()
+            stdout, stderr = proc.communicate(timeout=20)
+        self.assertEqual(proc.returncode, 0, stderr)
+        self.assertIn(b'hello from target', stdout)
+        self.assertIn(b'tick', stdout)
 
     def test_peer_reset_latches_eof(self):
         # a killed server closes with RST when bytes are unread; the read side must
