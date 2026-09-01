@@ -204,13 +204,33 @@ TU_ATTR_ALWAYS_INLINE static inline bool channel_disable(const dwc2_regs_t* dwc2
   return true;
 }
 
-// attempt to send IN token to receive data
-TU_ATTR_ALWAYS_INLINE static inline bool channel_send_in_token(const dwc2_regs_t* dwc2, dwc2_channel_t* channel) {
+// Enable a channel, selecting the following frame for a new periodic transfer.
+// Clear CHDIS explicitly: a halted channel may retain it in HCCHAR.
+TU_ATTR_ALWAYS_INLINE static inline void channel_enable(dwc2_regs_t* dwc2, dwc2_channel_t* channel,
+                                                        bool next_periodic_frame) {
+  uint32_t hcchar = channel->hcchar & ~HCCHAR_CHDIS;
+  if (next_periodic_frame) {
+    // Prevent the USB interrupt from consuming the selected frame before
+    // HCCHAR.CHENA is written. Queue-space waits happen before this helper.
+    const uint32_t gahbcfg = dwc2->gahbcfg;
+    dwc2->gahbcfg          = gahbcfg & ~GAHBCFG_GINT;
+    const uint32_t hfnum   = dwc2->hfnum;
+    hcchar                 = (hcchar & ~HCCHAR_ODDFRM) | (((hfnum & 1u) ^ 1u) << HCCHAR_ODDFRM_Pos);
+    channel->hcchar        = hcchar | HCCHAR_CHENA;
+    dwc2->gahbcfg          = gahbcfg;
+  } else {
+    channel->hcchar = hcchar | HCCHAR_CHENA;
+  }
+}
+
+// Attempt to send an IN token to receive data. For a new periodic transfer,
+// select its frame only after request-queue space is available.
+TU_ATTR_ALWAYS_INLINE static inline void channel_send_in_token(dwc2_regs_t* dwc2, dwc2_channel_t* channel,
+                                                               bool next_periodic_frame) {
   while (0 == req_queue_avail(dwc2, channel_is_periodic(channel->hcchar))) {
     // blocking wait for request queue available
   }
-  channel->hcchar |= HCCHAR_CHENA;
-  return true;
+  channel_enable(dwc2, channel, next_periodic_frame);
 }
 
 // Find currently enabled channel. Note: EP0 is bidirectional
@@ -623,9 +643,6 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id) {
   xfer->fifo_bytes = 0;
 
   // hchar: restore but don't enable yet
-  if (is_period) {
-    hcchar_bm->odd_frame = 1 - (dwc2->hfnum & 1);   // transfer on next frame
-  }
   channel->hcchar = (edpt->hcchar & ~HCCHAR_CHENA);
 
   // hctsiz: zero length packet still count as 1
@@ -659,10 +676,10 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id) {
     channel->hcdma = (uint32_t) edpt->buffer;
 
     if (hcchar_bm->ep_dir == TUSB_DIR_IN) {
-      channel_send_in_token(dwc2, channel);
+      channel_send_in_token(dwc2, channel, is_period);
     } else {
       hcd_dcache_clean(edpt->buffer, edpt->buflen);
-      channel->hcchar |= HCCHAR_CHENA;
+      channel_enable(dwc2, channel, is_period);
     }
   } else {
     uint32_t hcintmsk = HCINT_NAK | HCINT_XACT_ERR | HCINT_STALL | HCINT_XFER_COMPLETE | HCINT_DATATOGGLE_ERR;
@@ -686,7 +703,7 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id) {
     // IN Token. If we got NAK, we have to re-enable the channel again in the interrupt. Due to the way usbh stack only
     // call hcd_edpt_xfer() once, we will need to manage de-allocate/re-allocate IN channel dynamically.
     if (hcchar_bm->ep_dir == TUSB_DIR_IN) {
-      channel_send_in_token(dwc2, channel);
+      channel_send_in_token(dwc2, channel, is_period);
     } else {
       channel->hcchar |= HCCHAR_CHENA;
       if (edpt->buflen > 0) {
@@ -853,7 +870,7 @@ static void channel_xfer_in_retry(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
       if (xfer->period_split_nyet_count < HCD_XFER_PERIOD_SPLIT_NYET_MAX) {
         hcchar.odd_frame = 1 - (dwc2->hfnum & 1); // transfer on next frame
         channel->hcchar = hcchar.value;
-        channel_send_in_token(dwc2, channel);
+        channel_send_in_token(dwc2, channel, false);
         return;
       } else {
         // too many NYET, de-allocate channel with below code
@@ -866,7 +883,7 @@ static void channel_xfer_in_retry(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
       // retry on next frame if bInterval is 1
       hcchar.odd_frame = 1 - (dwc2->hfnum & 1);
       channel->hcchar = hcchar.value;
-      channel_send_in_token(dwc2, channel);
+      channel_send_in_token(dwc2, channel, false);
     } else {
       // otherwise, de-allocate channel, enable SOF set frame counter for later transfer
       const dwc2_channel_tsize_t hctsiz = {.value = channel->hctsiz};
@@ -879,7 +896,7 @@ static void channel_xfer_in_retry(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
     }
   } else {
     // for control/bulk: retry immediately
-    channel_send_in_token(dwc2, channel);
+    channel_send_in_token(dwc2, channel, false);
   }
 }
 
@@ -1054,7 +1071,7 @@ static bool handle_channel_in_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t h
         channel->hcintmsk |= HCINT_NYET;
         hcsplt.split_compl = 1;
         channel->hcsplt = hcsplt.value;
-        channel_send_in_token(dwc2, channel);
+        channel_send_in_token(dwc2, channel, false);
       } else {
         // do nothing for complete split with DATA, this will trigger XferComplete and handled there
       }
@@ -1065,7 +1082,7 @@ static bool handle_channel_in_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t h
         // still more packet to receive, also reset to start split
         hcsplt.split_compl = 0;
         channel->hcsplt = hcsplt.value;
-        channel_send_in_token(dwc2, channel);
+        channel_send_in_token(dwc2, channel, false);
       }
     }
   } else if (hcint & HCINT_HALTED) {
@@ -1204,7 +1221,7 @@ static bool handle_channel_in_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
       if (xfer->closing) {
         is_done = true;
       } else {
-        channel_send_in_token(dwc2, channel);
+        channel_send_in_token(dwc2, channel, false);
       }
     } else if (hcint & (HCINT_XFER_COMPLETE | HCINT_STALL | HCINT_BABBLE_ERR)) {
       const uint16_t remain_bytes = (uint16_t) hctsiz.xfer_size;
@@ -1265,7 +1282,7 @@ static bool handle_channel_in_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
           hcchar.odd_frame = 1 - (dwc2->hfnum & 1); // transfer on next frame
           channel->hcchar = hcchar.value;
         }
-        channel_send_in_token(dwc2, channel);
+        channel_send_in_token(dwc2, channel, false);
       }
     } else if (hcint & (HCINT_NAK | HCINT_DATATOGGLE_ERR)) {
       xfer->err_count = 0;
