@@ -326,7 +326,7 @@ class RttPlatformLifecycle(unittest.TestCase):
             self.assertEqual(hil_util._rtt._tool_exe('RTT_JLINK_EXE', 'JLinkExe', 'JLink.exe'),
                              'JLink.exe')
 
-    def test_cli_rejects_an_existing_stop_file(self):
+    def test_cli_accepts_an_existing_stop_file(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             stop_file = Path(temp_dir) / 'capture.stop'
             stop_file.touch()
@@ -334,8 +334,22 @@ class RttPlatformLifecycle(unittest.TestCase):
                 [sys.executable, str(CLI), '--backend', 'jlink', '--probe', '000',
                  '--device', 'FAKE', '--stop-file', str(stop_file)],
                 capture_output=True, timeout=20)
-        self.assertEqual(r.returncode, 2)
-        self.assertIn(b'already exists', r.stderr)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_cli_accepts_a_stop_file_created_immediately_after_spawn(self):
+        env = dict(os.environ, RTT_JLINK_EXE='definitely-not-a-jlink-tool')
+        with tempfile.TemporaryDirectory() as temp_dir:
+            stop_file = Path(temp_dir) / 'capture.stop'
+            for _ in range(5):
+                with contextlib_suppress(FileNotFoundError):
+                    stop_file.unlink()
+                proc = subprocess.Popen(
+                    [sys.executable, str(CLI), '--backend', 'jlink', '--probe', '000',
+                     '--device', 'FAKE', '--stop-file', str(stop_file)],
+                    env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                stop_file.touch()
+                _, stderr = proc.communicate(timeout=20)
+                self.assertEqual(proc.returncode, 0, stderr)
 
     def test_cli_stop_file_cancels_connection_setup(self):
         with tempfile.TemporaryDirectory() as temp_dir:

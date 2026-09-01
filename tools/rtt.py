@@ -690,7 +690,7 @@ def main() -> int:
         # header and read garbage as a descriptor
         ap.error(f'--channel must be >= 0, got {args.channel}')
     if args.stop_file and os.path.exists(args.stop_file):
-        ap.error(f'--stop-file already exists: {args.stop_file}')
+        return 0
 
     def stop_requested():
         return bool(args.stop_file and os.path.exists(args.stop_file))
