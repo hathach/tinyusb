@@ -336,6 +336,10 @@ TU_ATTR_ALWAYS_INLINE static inline usbh_class_driver_t const *get_driver(uint8_
 //--------------------------------------------------------------------+
 static void enum_new_device(hcd_event_t* event);
 static void enum_delay_async(uintptr_t state);
+static void process_enumeration(tuh_xfer_t *xfer);
+#if CFG_TUH_ENUM_TIMEOUT_MS
+static void enum_xfer_timeout_async(uintptr_t user_data);
+#endif
 static void process_remove_event(hcd_event_t *event);
 static void remove_device_tree(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port);
 
@@ -870,6 +874,20 @@ static void control_xfer_sync_complete(tuh_xfer_t* xfer) {
   s->result     = xfer->result;
 }
 
+// Arm a watchdog on the in-flight control transfer if it belongs to enumeration: submitted by the
+// enum state machine (incl. those to the parent hub) or addressed to the device being enumerated
+// (class driver config). Without it a broken device that never completes a stage wedges enumeration
+// and hub polling forever. Non-enumeration transfers are not armed: application owns their pacing.
+TU_ATTR_ALWAYS_INLINE static inline void enum_xfer_timeout_arm(void) {
+#if CFG_TUH_ENUM_TIMEOUT_MS
+  const usbh_ctrl_xfer_info_t* ctrl_info = &_usbh_data.ctrl_xfer_info;
+  if ((ctrl_info->complete_cb == process_enumeration || ctrl_info->daddr == _usbh_data.enumerating_daddr) &&
+      _usbh_data.call_after.func == NULL) {
+    usbh_defer_func_ms_async(CFG_TUH_ENUM_TIMEOUT_MS, enum_xfer_timeout_async, ctrl_info->daddr);
+  }
+#endif
+}
+
 // TODO timeout_ms is not supported yet
 bool tuh_control_xfer (tuh_xfer_t* xfer) {
   const uint8_t daddr = xfer->daddr;
@@ -960,6 +978,7 @@ bool tuh_control_xfer (tuh_xfer_t* xfer) {
     control_xfer_set_stage(CONTROL_STAGE_IDLE);
     return false;
   }
+  enum_xfer_timeout_arm();
 
   if (!is_nonblocking) {
     // No tuh_connected() escape needed: usbh_device_close() routes through
@@ -1019,6 +1038,7 @@ static void control_xfer_dispatch_pending(void) {
                       tu_str_std_request[xfer.setup.bRequest] : "Class Request");
       TU_LOG_BUF_USBH(&xfer.setup, 8);
       if (hcd_setup_send(usbh_get_rhport(xfer.daddr), xfer.daddr, (uint8_t const *) &_usbh_epbuf.request)) {
+        enum_xfer_timeout_arm();
         return; // transfer kicked-off, we are done
       }
     }
@@ -1031,6 +1051,13 @@ static void control_xfer_dispatch_pending(void) {
 static void control_xfer_complete(uint8_t daddr, xfer_result_t result) {
   TU_LOG_USBH("\r\n");
   usbh_ctrl_xfer_info_t* ctrl_info = &_usbh_data.ctrl_xfer_info;
+
+#if CFG_TUH_ENUM_TIMEOUT_MS
+  // disarm enumeration watchdog before callback, which may schedule a delay function
+  if (_usbh_data.call_after.func == enum_xfer_timeout_async) {
+    _usbh_data.call_after.func = NULL;
+  }
+#endif
 
   // duplicate xfer since user can execute control transfer within callback
   tusb_control_request_t const request = _usbh_epbuf.request;
@@ -1696,7 +1723,6 @@ enum {
 static uint8_t enum_get_new_address(bool is_hub);
 static bool    enum_parse_configuration_desc(uint8_t dev_addr, const tusb_desc_configuration_t *desc_cfg);
 static void    enum_full_complete(bool success);
-static void    process_enumeration(tuh_xfer_t *xfer);
 
 enum {
   ENUM_AFTER_DEBOUNCING_DELAY,
@@ -2198,6 +2224,30 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
     }
   }
 }
+
+#if CFG_TUH_ENUM_TIMEOUT_MS
+// Enumeration watchdog expired: the device ACKed SETUP but never completed a later stage
+// (e.g NAK forever). Abort at hcd level and complete as FAILED (not ABORTED, which
+// process_enumeration does not treat as error) to fail this enumeration and resume hub polling.
+static void enum_xfer_timeout_async(uintptr_t user_data) {
+  const uint8_t daddr = (uint8_t) user_data;
+  const usbh_ctrl_xfer_info_t* ctrl_info = &_usbh_data.ctrl_xfer_info;
+  TU_VERIFY(ctrl_info->stage != CONTROL_STAGE_IDLE && ctrl_info->daddr == daddr, );
+
+  const tusb_control_request_t* request = &_usbh_epbuf.request;
+  uint8_t ep_addr = 0; // SETUP stage is OUT
+  if (ctrl_info->stage == CONTROL_STAGE_DATA) {
+    ep_addr = tu_edpt_addr(0, request->bmRequestType_bit.direction);
+  } else if (ctrl_info->stage == CONTROL_STAGE_ACK) {
+    ep_addr = tu_edpt_addr(0, 1 - request->bmRequestType_bit.direction);
+  }
+
+  const uint8_t rhport = usbh_get_rhport(daddr);
+  TU_LOG_USBH("[%u:%u] Control transfer timed out after %u ms\r\n", rhport, daddr, (unsigned) CFG_TUH_ENUM_TIMEOUT_MS);
+  hcd_edpt_abort_xfer(rhport, daddr, ep_addr);
+  control_xfer_complete(daddr, XFER_RESULT_FAILED);
+}
+#endif
 
 static void enum_full_complete(bool success) {
   (void)success;
