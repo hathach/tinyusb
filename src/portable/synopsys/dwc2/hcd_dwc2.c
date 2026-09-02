@@ -44,7 +44,8 @@ enum {
 
 enum {
   HCD_XFER_PERIOD_SPLIT_NYET_MAX = 3,
-  HCD_FRAME_NUMBER_MASK = 0x3fff
+  HCD_FRAME_NUMBER_MASK = 0x3fff,
+  HCD_FRAME_COUNT = HCD_FRAME_NUMBER_MASK + 1
 };
 
 //--------------------------------------------------------------------
@@ -650,6 +651,13 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t*
 
     default:
       break;
+  }
+
+  if (channel_is_periodic(edpt->hcchar)) {
+    // HFNUM cannot distinguish elapsed periods longer than one counter cycle. USB permits the host to provide a
+    // shorter period, so bound the selected period to the history available from HFNUM.
+    const uint32_t ucount = (rh_speed == TUSB_SPEED_HIGH) ? 1u : 8u;
+    edpt->uframe_interval = tu_min32(edpt->uframe_interval, HCD_FRAME_COUNT * ucount);
   }
 
   return true;
