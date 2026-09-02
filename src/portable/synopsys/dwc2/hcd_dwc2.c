@@ -68,9 +68,10 @@ typedef struct {
     uint32_t next_pid        : 2; // PID for next transfer
     uint32_t next_do_ping    : 1; // Do PING for next transfer if possible (highspeed OUT)
     uint32_t closing         : 1; // endpoint is closing
+    uint32_t aborting        : 1; // periodic DMA channel is waiting for its automatic halt
     uint32_t periodic_phase  : 1; // periodic transfer phase is established
     uint32_t xfer_pending    : 1; // periodic transfer waiting for its service interval
-    // uint32_t : 5;
+    // uint32_t : 4;
   };
 
   uint32_t uframe_countdown; // micro-frame count down to transfer for periodic, only need 19-bit
@@ -96,6 +97,7 @@ typedef struct {
                            // be composed of multiple channel_xfer_start() (retry with NAK/NYET)
   uint16_t fifo_bytes;     // bytes written/read from/to FIFO (may not be transferred on USB bus).
   uint8_t  retry_disabled; // 1: channel was disabled to throttle a split retry (NAK in / XactErr out); re-arm on its halt
+  volatile bool aborting;  // periodic DMA abort waiting for the channel's automatic halt
 } hcd_xfer_t;
 
 typedef struct {
@@ -870,7 +872,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   uint8_t ep_id = edpt_find_opened(dev_addr, ep_num, ep_dir, false);
   TU_VERIFY(ep_id < CFG_TUH_DWC2_ENDPOINT_MAX);
   hcd_endpoint_t *edpt = &_hcd_data.edpt[ep_id];
-  TU_VERIFY(edpt->closing == 0); // skip if endpoint is closing
+  TU_VERIFY(edpt->closing == 0 && edpt->aborting == 0); // skip if endpoint is closing or aborting
 
   edpt->buffer = buffer;
   edpt->buflen = buflen;
@@ -920,11 +922,26 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
     edpt->xfer_pending = 0;
     edpt->uframe_countdown = 0;
   }
-  hcd_int_enable(rhport);
 
   if (xfer_pending) {
+    hcd_int_enable(rhport);
     return true;
   }
+
+  // A periodic DMA channel must halt naturally at the next service boundary. Prevent a replacement transfer until the
+  // halt ISR retires the channel, and suppress completion for the aborted transfer.
+  if (dma_host_enabled(dwc2) && channel_is_periodic(edpt->hcchar)) {
+    const uint8_t ch_id = channel_find_enabled(dwc2, dev_addr, ep_num, ep_dir);
+    if (ch_id < 16) {
+      hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
+      edpt->aborting = 1;
+      xfer->aborting = true;
+      hcd_int_enable(rhport);
+      return true;
+    }
+  }
+
+  hcd_int_enable(rhport);
 
   // Channel disable may wait for request-queue space in slave mode.
   // Find enabled channeled and disable it, channel will be de-allocated in the interrupt handler
@@ -1565,6 +1582,25 @@ static void handle_channel_irq(uint8_t rhport, bool in_isr) {
       // another cause, leave it pending so the next pass retires the halt.
       const uint32_t hcint_clear = (!is_dma && (hcint & ~HCINT_HALTED)) ? (hcint & ~HCINT_HALTED) : hcint;
       channel->hcint = hcint_clear;
+
+      if (is_dma && xfer->aborting && (hcint & HCINT_HALTED)) {
+        hcd_endpoint_t* edpt = &_hcd_data.edpt[xfer->ep_id];
+        const bool closing = xfer->closing;
+        // channel_xfer_start() predicts the PID after all requested packets;
+        // an aborted transfer may have completed fewer.
+        if (hcchar.ep_type != HCCHAR_EPTYPE_ISOCHRONOUS) {
+          const dwc2_channel_tsize_t hctsiz = {.value = channel->hctsiz};
+          edpt->next_pid = hctsiz.pid;
+        }
+        xfer->aborting = false;
+        channel_dealloc(dwc2, ch_id);
+        if (closing) {
+          edpt_dealloc(edpt);
+        } else {
+          edpt->aborting = 0;
+        }
+        continue;
+      }
 
       bool is_done = false;
       if (is_dma) {
