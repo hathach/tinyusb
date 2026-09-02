@@ -184,7 +184,9 @@ void board_init(void)
   // rp2040 use pico-pio-usb for host tuh_configure() can be used to passed pio configuration to the host stack
   // Note: tuh_configure() must be called before tuh_init()
   pio_usb_configuration_t pio_cfg = PIO_USB_DEFAULT_CONFIG;
+#ifdef PICO_DEFAULT_PIO_USB_DP_PIN
   pio_cfg.pin_dp = PICO_DEFAULT_PIO_USB_DP_PIN;
+#endif
   tuh_configure(BOARD_TUH_RHPORT, TUH_CFGID_RPI_PIO_USB_CONFIGURATION, &pio_cfg);
 #endif
 
