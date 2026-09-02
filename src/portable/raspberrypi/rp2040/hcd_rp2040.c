@@ -128,6 +128,13 @@ static void __tusb_irq_path_func(sie_start_xfer)(bool send_setup, bool is_rx, bo
 
 // prepare epx_ctrl register for new endpoint
 TU_ATTR_ALWAYS_INLINE static inline void epx_ctrl_prepare(uint8_t transfer_type) {
+  // RP2040-E4 may leave completion status in BUF1 for a single-buffered
+  // transfer, preserving a stale AVAILABLE bit in the shared EPX buffer
+  // control register. Clear it before arming the next transfer.
+  #if defined(PICO_RP2040) && PICO_RP2040 == 1
+  usbh_dpram->epx_buf_ctrl = 0;
+  #endif
+
   usbh_dpram->epx_ctrl = EPX_CTRL_DEFAULT | ((uint32_t)transfer_type << EP_CTRL_BUFFER_TYPE_LSB);
 }
 
@@ -464,11 +471,17 @@ tusb_speed_t hcd_port_speed_get(uint8_t rhport) {
 void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
   (void)rhport;
 
-  if (dev_addr == 0) {
-    return; // address 0 is for device enumeration
-  }
-
   rp2usb_critical_enter();
+
+  // EPX is shared by all non-interrupt endpoints, including EP0 during
+  // enumeration. Clear its hardware state when its owning device goes away;
+  // otherwise the next address-0 control transfer attempts to re-arm an
+  // already-available DPRAM buffer and panics in bufctrl_write32().
+  if (epx->dev_addr == dev_addr && epx->max_packet_size > 0) {
+    usbh_dpram->epx_buf_ctrl = 0;
+    usbh_dpram->epx_ctrl     = 0;
+    rp2usb_reset_transfer(epx);
+  }
 
   for (size_t i = 0; i < TU_ARRAY_SIZE(ep_pool); i++) {
     hw_endpoint_t *ep = &ep_pool[i];
