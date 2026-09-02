@@ -259,6 +259,10 @@ uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s) {
 #define TEST_UAC1_FEATURE_UNIT(_id, _source_id)                                                           \
   TEST_UAC1_FEATURE_UNIT_CTRL(_id, _source_id, AUDIO10_FU_CONTROL_BM_MUTE | AUDIO10_FU_CONTROL_BM_VOLUME)
 
+#define TEST_UAC1_FEATURE_UNIT_STEREO(_id, _source_id, _master, _channel_1, _channel_2)                      \
+  10, TUSB_DESC_CS_INTERFACE, AUDIO10_CS_AC_INTERFACE_FEATURE_UNIT, _id, _source_id, 1, _master, _channel_1, \
+    _channel_2, 0
+
 #define TEST_UAC1_OUTPUT_TERM(_id, _type, _source_id)                                                             \
   9, TUSB_DESC_CS_INTERFACE, AUDIO10_CS_AC_INTERFACE_OUTPUT_TERMINAL, _id, U16_TO_U8S_LE(_type), 0, _source_id, 0
 
@@ -310,6 +314,10 @@ uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s) {
 #define TEST_UAC2_FEATURE_UNIT_STEREO(_id, _source_id, _master_controls)                                              \
   18, TUSB_DESC_CS_INTERFACE, AUDIO20_CS_AC_INTERFACE_FEATURE_UNIT, _id, _source_id, U32_TO_U8S_LE(_master_controls), \
     U32_TO_U8S_LE(0), U32_TO_U8S_LE(0), 0
+
+#define TEST_UAC2_FEATURE_UNIT_STEREO_CHANNELS(_id, _source_id, _master, _channel_1, _channel_2)             \
+  18, TUSB_DESC_CS_INTERFACE, AUDIO20_CS_AC_INTERFACE_FEATURE_UNIT, _id, _source_id, U32_TO_U8S_LE(_master), \
+    U32_TO_U8S_LE(_channel_1), U32_TO_U8S_LE(_channel_2), 0
 
 
 #define TEST_UAC2_AS_INTERFACE_NUM(_itf, _alt, _ep_count)                                    \
@@ -422,6 +430,23 @@ static const uint8_t uac2_playback_read_only_feature_unit[] = {
   TEST_UAC2_FEATURE_UNIT_STEREO(PLAYBACK_FU, PLAYBACK_INPUT_TERM,
                                 (AUDIO20_CTRL_R << AUDIO20_FEATURE_UNIT_CTRL_MUTE_POS) |
                                   (AUDIO20_CTRL_R << AUDIO20_FEATURE_UNIT_CTRL_VOLUME_POS)),
+  TEST_UAC2_OUTPUT_TERM(PLAYBACK_OUTPUT_TERM, AUDIO_TERM_TYPE_OUT_HEADPHONES, PLAYBACK_FU, PLAYBACK_CLOCK),
+  TEST_UAC2_AS_ALT0,
+  TEST_UAC2_AS_INTERFACE(1, 1),
+  TEST_UAC2_AS_GENERAL(PLAYBACK_INPUT_TERM, 2),
+  TEST_UAC2_FORMAT(2, 16),
+  TEST_UAC1_DATA_EP(0x01, TUSB_ISO_EP_ATT_ASYNCHRONOUS, 192, 1),
+  TEST_UAC2_CS_DATA_EP,
+};
+
+static const uint8_t uac2_playback_read_only_master_volume[] = {
+  TEST_UAC2_AC_HEADER(64),
+  TEST_UAC2_CLOCK_SOURCE(PLAYBACK_CLOCK, AUDIO20_CTRL_RW << AUDIO20_CLOCK_SOURCE_CTRL_CLK_FRQ_POS),
+  TEST_UAC2_INPUT_TERM(PLAYBACK_INPUT_TERM, AUDIO_TERM_TYPE_USB_STREAMING, PLAYBACK_CLOCK, 2),
+  TEST_UAC2_FEATURE_UNIT_STEREO_CHANNELS(PLAYBACK_FU, PLAYBACK_INPUT_TERM,
+                                         AUDIO20_CTRL_R << AUDIO20_FEATURE_UNIT_CTRL_VOLUME_POS,
+                                         AUDIO20_CTRL_RW << AUDIO20_FEATURE_UNIT_CTRL_VOLUME_POS,
+                                         AUDIO20_CTRL_RW << AUDIO20_FEATURE_UNIT_CTRL_VOLUME_POS),
   TEST_UAC2_OUTPUT_TERM(PLAYBACK_OUTPUT_TERM, AUDIO_TERM_TYPE_OUT_HEADPHONES, PLAYBACK_FU, PLAYBACK_CLOCK),
   TEST_UAC2_AS_ALT0,
   TEST_UAC2_AS_INTERFACE(1, 1),
@@ -545,6 +570,20 @@ static const uint8_t playback_fu_without_mute_volume[] = {
   TEST_UAC1_AC_HEADER,
   TEST_UAC1_FEATURE_UNIT_CTRL(PLAYBACK_FU, PLAYBACK_INPUT_TERM, AUDIO10_FU_CONTROL_BM_BASS),
   TEST_UAC1_INPUT_TERM(PLAYBACK_INPUT_TERM, AUDIO_TERM_TYPE_USB_STREAMING, 2),
+  TEST_UAC1_OUTPUT_TERM(PLAYBACK_OUTPUT_TERM, AUDIO_TERM_TYPE_OUT_HEADPHONES, PLAYBACK_FU),
+  TEST_UAC1_AS_ALT0,
+  TEST_UAC1_AS_INTERFACE(1, 1),
+  TEST_UAC1_AS_GENERAL(PLAYBACK_INPUT_TERM),
+  TEST_UAC1_FORMAT(2, 2, 16, 48000),
+  TEST_UAC1_DATA_EP(0x01, TUSB_ISO_EP_ATT_ADAPTIVE, 192, 1),
+  TEST_UAC1_CS_DATA_EP,
+};
+
+static const uint8_t playback_fu_channel_volume_only[] = {
+  TEST_UAC1_AC_HEADER,
+  TEST_UAC1_INPUT_TERM(PLAYBACK_INPUT_TERM, AUDIO_TERM_TYPE_USB_STREAMING, 2),
+  TEST_UAC1_FEATURE_UNIT_STEREO(PLAYBACK_FU, PLAYBACK_INPUT_TERM, 0, AUDIO10_FU_CONTROL_BM_VOLUME,
+                                AUDIO10_FU_CONTROL_BM_VOLUME),
   TEST_UAC1_OUTPUT_TERM(PLAYBACK_OUTPUT_TERM, AUDIO_TERM_TYPE_OUT_HEADPHONES, PLAYBACK_FU),
   TEST_UAC1_AS_ALT0,
   TEST_UAC1_AS_INTERFACE(1, 1),
@@ -761,10 +800,12 @@ static const uint8_t playback_11025_interval4[] = {
 
 static uint8_t   fu_cb_count;
 static uintptr_t fu_cb_user_data;
+static tusb_xfer_result_t fu_cb_result;
 
 static void feature_unit_complete(tuh_xfer_t *xfer) {
   fu_cb_count++;
   fu_cb_user_data = xfer->user_data;
+  fu_cb_result    = xfer->result;
 }
 
 static void complete_interface_set(tusb_xfer_result_t result) {
@@ -910,6 +951,7 @@ void setUp(void) {
 
   fu_cb_count     = 0;
   fu_cb_user_data = 0;
+  fu_cb_result    = XFER_RESULT_INVALID;
 
   TEST_ASSERT_TRUE(audioh_init());
 }
@@ -1026,7 +1068,7 @@ void test_audio_host_mounts_uac2_and_sets_clock_before_activating_stream(void) {
   TEST_ASSERT_EQUAL_UINT16(256, range.res);
 
   control_xfer_count = 0;
-  TEST_ASSERT_TRUE(tuh_audio_volume_set(0, 0, (int16_t)(-6 * 256), feature_unit_complete, 42));
+  TEST_ASSERT_TRUE(tuh_audio_volume_set(0, 0, 0, (int16_t)(-6 * 256), feature_unit_complete, 42));
   TEST_ASSERT_EQUAL_UINT8(1, control_xfer_count);
   TEST_ASSERT_EQUAL_UINT8(AUDIO20_CS_REQ_CUR, control_request.bRequest);
   TEST_ASSERT_EQUAL_HEX16(tu_u16(AUDIO20_FU_CTRL_VOLUME, 0), tu_le16toh(control_request.wValue));
@@ -1113,15 +1155,39 @@ void test_audio_host_uac2_read_only_feature_controls_reject_set_and_allow_get(vo
   TEST_ASSERT_TRUE(tuh_audio_mounted(0));
 
   TEST_ASSERT_FALSE(tuh_audio_mute_set(0, 0, false, feature_unit_complete, 0));
-  TEST_ASSERT_FALSE(tuh_audio_volume_set(0, 0, 0, feature_unit_complete, 0));
+  TEST_ASSERT_FALSE(tuh_audio_volume_set(0, 0, 0, 0, feature_unit_complete, 0));
 
   int16_t volume = 0;
-  TEST_ASSERT_TRUE(tuh_audio_volume_get(0, 0, &volume, feature_unit_complete, 7));
+  TEST_ASSERT_TRUE(tuh_audio_volume_get(0, 0, 0, &volume, feature_unit_complete, 7));
   TEST_ASSERT_EQUAL_UINT8(AUDIO20_CS_REQ_CUR, control_request.bRequest);
   TEST_ASSERT_EQUAL(TUSB_DIR_IN, control_request.bmRequestType_bit.direction);
   complete_control_xfer_with_u16((uint16_t)(-12 * 256));
   TEST_ASSERT_EQUAL_INT16(-12 * 256, volume);
   TEST_ASSERT_EQUAL_UINT32(7, fu_cb_user_data);
+}
+
+void test_audio_host_uac2_read_only_master_volume_set_fans_out_to_writable_channels(void) {
+  open_descriptors(uac2_playback_read_only_master_volume, sizeof(uac2_playback_read_only_master_volume));
+  TEST_ASSERT_TRUE(audioh_set_config(AUDIO_DEV_ADDR, AUDIO_AC_ITF));
+  complete_uac2_clock_range(44100, 48000);
+
+  TEST_ASSERT_EQUAL_UINT8(AUDIO20_CS_REQ_RANGE, control_request.bRequest);
+  TEST_ASSERT_EQUAL_HEX16(tu_u16(AUDIO20_FU_CTRL_VOLUME, 0), tu_le16toh(control_request.wValue));
+  complete_uac2_volume_range((int16_t)(-90 * 256), (int16_t)(6 * 256), 256);
+  TEST_ASSERT_TRUE(tuh_audio_mounted(0));
+
+  control_xfer_count = 0;
+  TEST_ASSERT_TRUE(tuh_audio_volume_set(0, 0, 0, -6 * 256, feature_unit_complete, 0x1234));
+  TEST_ASSERT_EQUAL_UINT8(1, control_xfer_count);
+  TEST_ASSERT_EQUAL_HEX16(tu_u16(AUDIO20_FU_CTRL_VOLUME, 1), tu_le16toh(control_request.wValue));
+  complete_control_xfer(XFER_RESULT_SUCCESS);
+
+  TEST_ASSERT_EQUAL_UINT8(2, control_xfer_count);
+  TEST_ASSERT_EQUAL_HEX16(tu_u16(AUDIO20_FU_CTRL_VOLUME, 2), tu_le16toh(control_request.wValue));
+  TEST_ASSERT_EQUAL_UINT8(0, fu_cb_count);
+  complete_control_xfer(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL_UINT8(1, fu_cb_count);
+  TEST_ASSERT_EQUAL_HEX32(0x1234, fu_cb_user_data);
 }
 
 void test_audio_host_uac2_shared_clock_is_discovered_once_for_both_streams(void) {
@@ -1664,7 +1730,7 @@ void test_audio_host_rejects_invalid_cached_volume_range(void) {
   TEST_ASSERT_FALSE(tuh_audio_volume_range_get(0, 0, &range));
 }
 
-void test_audio_host_ignores_feature_unit_without_master_mute_or_volume(void) {
+void test_audio_host_ignores_feature_unit_without_mute_or_volume(void) {
   tuh_audio_volume_range_t range;
   mount_descriptors(playback_fu_without_mute_volume, sizeof(playback_fu_without_mute_volume));
 
@@ -1679,14 +1745,14 @@ void test_audio_host_typed_mute_and_volume_controls(void) {
   mount_descriptors(playback_fu_before_terminal, sizeof(playback_fu_before_terminal));
 
   TEST_ASSERT_TRUE(tuh_audio_volume_range_get(0, 0, &range));
-  TEST_ASSERT_FALSE(tuh_audio_volume_set(0, 0, (int16_t)(range.max + 1), NULL, 0));
+  TEST_ASSERT_FALSE(tuh_audio_volume_set(0, 0, 0, (int16_t)(range.max + 1), NULL, 0));
 
   TEST_ASSERT_TRUE(tuh_audio_mute_set(0, 0, true, feature_unit_complete, 0x1234));
   TEST_ASSERT_EQUAL_HEX8(AUDIO10_CS_REQ_SET_CUR, control_request.bRequest);
   TEST_ASSERT_EQUAL_HEX16(tu_u16(AUDIO10_FU_CTRL_MUTE, 0), tu_le16toh(control_request.wValue));
   TEST_ASSERT_EQUAL_UINT16(1, tu_le16toh(control_request.wLength));
   TEST_ASSERT_EQUAL_HEX8(1, control_buffer[0]);
-  TEST_ASSERT_FALSE(tuh_audio_volume_set(0, 0, -6 * 256, feature_unit_complete, 0));
+  TEST_ASSERT_FALSE(tuh_audio_volume_set(0, 0, 0, -6 * 256, feature_unit_complete, 0));
   complete_control_xfer(XFER_RESULT_SUCCESS);
 
   TEST_ASSERT_TRUE(tuh_audio_mute_get(0, 0, &mute, feature_unit_complete, 0x2345));
@@ -1696,17 +1762,72 @@ void test_audio_host_typed_mute_and_volume_controls(void) {
   complete_control_xfer(XFER_RESULT_SUCCESS);
   TEST_ASSERT_TRUE(mute);
 
-  TEST_ASSERT_TRUE(tuh_audio_volume_set(0, 0, -6 * 256, feature_unit_complete, 0x3456));
+  TEST_ASSERT_TRUE(tuh_audio_volume_set(0, 0, 0, -6 * 256, feature_unit_complete, 0x3456));
   TEST_ASSERT_EQUAL_HEX16(tu_u16(AUDIO10_FU_CTRL_VOLUME, 0), tu_le16toh(control_request.wValue));
   TEST_ASSERT_EQUAL_UINT16(2, tu_le16toh(control_request.wLength));
   TEST_ASSERT_EQUAL_HEX8_ARRAY(((uint8_t[]){0x00, 0xFA}), control_buffer, 2);
   complete_control_xfer(XFER_RESULT_SUCCESS);
 
-  TEST_ASSERT_TRUE(tuh_audio_volume_get(0, 0, &volume, feature_unit_complete, 0x4567));
+  TEST_ASSERT_TRUE(tuh_audio_volume_get(0, 0, 0, &volume, feature_unit_complete, 0x4567));
   complete_control_xfer_with_u16((uint16_t)(-12 * 256));
   TEST_ASSERT_EQUAL_INT16(-12 * 256, volume);
   TEST_ASSERT_EQUAL_UINT8(4, fu_cb_count);
   TEST_ASSERT_EQUAL_HEX32(0x4567, fu_cb_user_data);
+}
+
+void test_audio_host_uac1_channel_volume_supports_individual_and_stream_controls(void) {
+  int16_t volume = 0;
+  open_descriptors(playback_fu_channel_volume_only, sizeof(playback_fu_channel_volume_only));
+  TEST_ASSERT_TRUE(audioh_set_config(AUDIO_DEV_ADDR, AUDIO_AC_ITF));
+  TEST_ASSERT_EQUAL_HEX16(tu_u16(AUDIO10_FU_CTRL_VOLUME, 1), tu_le16toh(control_request.wValue));
+  complete_mount();
+
+  TEST_ASSERT_FALSE(tuh_audio_volume_get(0, 0, 0, &volume, feature_unit_complete, 0));
+  TEST_ASSERT_TRUE(tuh_audio_volume_get(0, 0, 2, &volume, feature_unit_complete, 0x2345));
+  TEST_ASSERT_EQUAL_HEX16(tu_u16(AUDIO10_FU_CTRL_VOLUME, 2), tu_le16toh(control_request.wValue));
+  complete_control_xfer_with_u16((uint16_t)(-12 * 256));
+  TEST_ASSERT_EQUAL_INT16(-12 * 256, volume);
+  TEST_ASSERT_EQUAL_UINT8(1, fu_cb_count);
+
+  TEST_ASSERT_TRUE(tuh_audio_volume_set(0, 0, 1, -3 * 256, feature_unit_complete, 0x3456));
+  TEST_ASSERT_EQUAL_HEX16(tu_u16(AUDIO10_FU_CTRL_VOLUME, 1), tu_le16toh(control_request.wValue));
+  complete_control_xfer(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL_UINT8(2, fu_cb_count);
+
+  const uint8_t before_stream_set = control_xfer_count;
+  TEST_ASSERT_TRUE(tuh_audio_volume_set(0, 0, 0, -6 * 256, feature_unit_complete, 0x4567));
+  TEST_ASSERT_EQUAL_HEX16(tu_u16(AUDIO10_FU_CTRL_VOLUME, 1), tu_le16toh(control_request.wValue));
+  TEST_ASSERT_FALSE(tuh_audio_volume_set(0, 0, 2, 0, feature_unit_complete, 0));
+  complete_control_xfer(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL_UINT8(before_stream_set + 2, control_xfer_count);
+  TEST_ASSERT_EQUAL_HEX16(tu_u16(AUDIO10_FU_CTRL_VOLUME, 2), tu_le16toh(control_request.wValue));
+  TEST_ASSERT_EQUAL_UINT8(2, fu_cb_count);
+  complete_control_xfer(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL_UINT8(3, fu_cb_count);
+  TEST_ASSERT_EQUAL_HEX32(0x4567, fu_cb_user_data);
+}
+
+void test_audio_host_channel_volume_fanout_stops_on_transfer_failure(void) {
+  mount_descriptors(playback_fu_channel_volume_only, sizeof(playback_fu_channel_volume_only));
+
+  TEST_ASSERT_TRUE(tuh_audio_volume_set(0, 0, 0, -6 * 256, feature_unit_complete, 0x5678));
+  TEST_ASSERT_EQUAL_UINT8(1, control_xfer_count);
+  complete_control_xfer(XFER_RESULT_STALLED);
+
+  TEST_ASSERT_EQUAL_UINT8(1, control_xfer_count);
+  TEST_ASSERT_EQUAL_UINT8(1, fu_cb_count);
+  TEST_ASSERT_EQUAL_HEX32(0x5678, fu_cb_user_data);
+  TEST_ASSERT_EQUAL(XFER_RESULT_STALLED, fu_cb_result);
+}
+
+void test_audio_host_channel_volume_fanout_supports_blocking_requests(void) {
+  tusb_xfer_result_t result = XFER_RESULT_INVALID;
+  mount_descriptors(playback_fu_channel_volume_only, sizeof(playback_fu_channel_volume_only));
+
+  TEST_ASSERT_TRUE(tuh_audio_volume_set(0, 0, 0, -6 * 256, NULL, (uintptr_t)&result));
+  TEST_ASSERT_EQUAL_UINT8(2, control_xfer_count);
+  TEST_ASSERT_EQUAL_HEX16(tu_u16(AUDIO10_FU_CTRL_VOLUME, 2), tu_le16toh(control_request.wValue));
+  TEST_ASSERT_EQUAL_UINT8(0, fu_cb_count);
 }
 
 void test_audio_host_volume_set_accepts_silence_and_rounds_unaligned_values(void) {
@@ -1714,12 +1835,12 @@ void test_audio_host_volume_set_accepts_silence_and_rounds_unaligned_values(void
   mount_descriptors(playback_fu_before_terminal, sizeof(playback_fu_before_terminal));
   TEST_ASSERT_TRUE(tuh_audio_volume_range_get(0, 0, &range));
 
-  TEST_ASSERT_TRUE(tuh_audio_volume_set(0, 0, (int16_t)(-6 * 256 + 100), feature_unit_complete, 0));
+  TEST_ASSERT_TRUE(tuh_audio_volume_set(0, 0, 0, (int16_t)(-6 * 256 + 100), feature_unit_complete, 0));
   TEST_ASSERT_EQUAL_UINT8(1, control_xfer_count);
   TEST_ASSERT_EQUAL_HEX8_ARRAY(((uint8_t[]){0x00, 0xFA}), control_buffer, 2);
   complete_control_xfer(XFER_RESULT_SUCCESS);
 
-  TEST_ASSERT_TRUE(tuh_audio_volume_set(0, 0, TUH_AUDIO_VOLUME_SILENCE, feature_unit_complete, 0));
+  TEST_ASSERT_TRUE(tuh_audio_volume_set(0, 0, 0, TUH_AUDIO_VOLUME_SILENCE, feature_unit_complete, 0));
   TEST_ASSERT_EQUAL_UINT8(2, control_xfer_count);
   TEST_ASSERT_EQUAL_HEX8_ARRAY(((uint8_t[]){0x00, 0x80}), control_buffer, 2);
   complete_control_xfer(XFER_RESULT_SUCCESS);

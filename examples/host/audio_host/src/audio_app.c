@@ -365,7 +365,7 @@ static void print_stream_configs(uint8_t idx, uint8_t stream_idx) {
     printf("    master mute supported\r\n");
   }
   if (tuh_audio_volume_range_get(idx, stream_idx, &range)) {
-    printf("    master volume range: min=%d max=%d res=%u (1/256 dB)\r\n", (int)range.min, (int)range.max,
+    printf("    volume range: min=%d max=%d res=%u (1/256 dB)\r\n", (int)range.min, (int)range.max,
            (unsigned)range.res);
   }
   for (uint8_t i = 0; i < tuh_audio_config_count(idx, stream_idx); i++) {
@@ -397,26 +397,26 @@ static void configure_stream_controls(uint8_t idx, uint8_t stream_idx, const cha
   if (tuh_audio_volume_range_get(idx, stream_idx, &range)) {
     has_control = true;
     int16_t            volume;
-    tusb_xfer_result_t result = tuh_audio_volume_get_sync(idx, stream_idx, &volume);
+    tusb_xfer_result_t result = tuh_audio_volume_get_sync(idx, stream_idx, 0, &volume);
     if (result == XFER_RESULT_SUCCESS) {
       printf("  %s master volume: %d (1/256 dB)\r\n", stream_name, volume);
-      int32_t target = FEATURE_UNIT_VOLUME_DB;
-      target         = TU_MAX(target, range.min);
-      target         = TU_MIN(target, range.max);
-      target         = range.min + ((target - range.min + range.res / 2) / range.res) * range.res;
-      target         = TU_MIN(target, range.max);
-      result         = tuh_audio_volume_set_sync(idx, stream_idx, (int16_t)target);
-      if (result == XFER_RESULT_SUCCESS) {
-        printf("  %s master volume set: %d (1/256 dB)\r\n", stream_name, (int)target);
-      }
+    }
+    int32_t target = FEATURE_UNIT_VOLUME_DB;
+    target         = TU_MAX(target, range.min);
+    target         = TU_MIN(target, range.max);
+    target         = range.min + ((target - range.min + range.res / 2) / range.res) * range.res;
+    target         = TU_MIN(target, range.max);
+    result         = tuh_audio_volume_set_sync(idx, stream_idx, 0, (int16_t)target);
+    if (result == XFER_RESULT_SUCCESS) {
+      printf("  %s volume set: %d (1/256 dB)\r\n", stream_name, (int)target);
     }
     if (result != XFER_RESULT_SUCCESS) {
-      printf("  Accessing %s master volume failed: result=%u\r\n", stream_name, result);
+      printf("  Setting %s volume failed: result=%u\r\n", stream_name, result);
     }
   }
 
   if (!has_control) {
-    printf("  %s stream has no master mute/volume control\r\n", stream_name);
+    printf("  %s stream has no mute/volume control\r\n", stream_name);
   }
 }
 

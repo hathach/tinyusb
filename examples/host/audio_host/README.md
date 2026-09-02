@@ -6,7 +6,7 @@ This example demonstrates how to use TinyUSB's USB Audio Host driver (TUH_AUDIO)
 
 - Enumerates and mounts USB Audio Class 1.0 and 2.0 devices
 - Discovers the device's logical streams (capture/playback) and their supported configurations (discrete tuples only)
-- Reports each stream's master mute/volume capabilities and cached volume range
+- Reports each stream's mute/volume capabilities and cached volume range
 - Configures and starts an S16_LE capture stream (44.1 kHz preferred, 48 kHz fallback; stereo preferred, mono accepted)
 - Echoes captured audio to an S16_LE playback stream at the same sample rate (same channel count preferred, mono/stereo conversion otherwise)
 - Frame-based FIFO API: the main loop reads capture when its FIFO is half full and fills playback when its FIFO is half drained; USB transfer callbacks are not used for FIFO servicing
@@ -28,7 +28,7 @@ The echo needs a matching S16_LE playback stream at the capture sample rate; dev
 - UAC1 Type I Format descriptors with `bSamFreqType == 0` are unsupported; the driver requires a list of discrete sampling frequencies.
 - UAC2 supports direct Clock Sources. Clock Selectors, Clock Multipliers, Sampling Rate Converters, Clock Validity, and Valid Alternate Settings controls are not handled.
 - UAC2 sampling-frequency RANGE responses are expanded into at most `CFG_TUH_AUDIO_MAX_SAM_FREQ` discrete configurations. A read-only Clock Source exposes only its current frequency.
-- Master mute and volume controls are discovered before the mount callback, including the volume range. Feature Units without master mute or volume are ignored. UAC2 volume discovery supports the common RANGE response containing one subrange.
+- Master mute and volume controls are discovered before the mount callback. A Feature Unit with volume only on its logical channels is also supported: the range is read from the first controlled channel, and a stream-volume SET writes every logical channel when no writable master control exists. The typed API assumes all logical channels share one range; applications needing different per-channel ranges can use the raw control API. UAC2 volume discovery supports the common RANGE response containing one subrange.
 - The `MaxPacketsOnly` endpoint attribute is not supported. OUT transfers are not padded to `wMaxPacketSize`, and padding in IN transfers is not removed from the reported audio data.
 
 ## Building
@@ -68,10 +68,10 @@ make BOARD=<your_board> flash
 2. Connect a USB Audio device (UAC 1.0 or 2.0) to the USB host port
 3. Open a serial terminal to view output
 4. The example will:
-   - Print each stream's master mute/volume capabilities, cached volume range, and supported configurations when mounted
+   - Print each stream's mute/volume capabilities, cached volume range, and supported configurations when mounted
    - Look for an S16_LE capture configuration at a preferred sample rate (44.1 kHz first, 48 kHz fallback; stereo preferred, mono accepted) and configure it
    - Echo captured audio to an S16_LE playback configuration at the same sample rate (same channel count preferred, converted otherwise)
-   - Read/unmute the microphone and speaker Feature Units and set supported master volumes near -6 dB
+   - Read/unmute the microphone and speaker Feature Units and set supported stream volumes near -6 dB; a channel-only Feature Unit is updated one logical channel at a time
    - Service both FIFOs from `audio_app_task()` at their half-full/half-drained watermarks; a sine test tone plays on the playback stream when no capture stream is echoing
    - Cycle through the three phases (mic-only / spk-only / echo, 5 s each) with `tuh_audio_start()` / `tuh_audio_stop()`; their asynchronous results are printed from `tuh_audio_event_cb()`, and a failed stream is restarted automatically after 100 ms
 
@@ -83,24 +83,24 @@ Connect a USB Audio Device (UAC 1.0 or 2.0) to test
 Audio device mounted: idx=0 addr=1
   capture stream 1, configurations: 2
     master mute supported
-    master volume range: min=-23040 max=1536 res=256 (1/256 dB)
+    volume range: min=-23040 max=1536 res=256 (1/256 dB)
     [0] format=1 rate=44100 channels=2
     [1] format=1 rate=48000 channels=2
   playback stream 0, configurations: 2
     master mute supported
-    master volume range: min=-23040 max=1536 res=256 (1/256 dB)
+    volume range: min=-23040 max=1536 res=256 (1/256 dB)
     [0] format=1 rate=44100 channels=2
     [1] format=1 rate=48000 channels=2
   Configuring 44100 S16_LE capture (2 channels)
   Microphone configured
   Microphone master mute: off
   Microphone master volume: 0 (1/256 dB)
-  Microphone master volume set: -1536 (1/256 dB)
+  Microphone volume set: -1536 (1/256 dB)
   Configuring 44100 S16_LE playback (2 channels)
   Speaker configured
   Speaker master mute: off
   Speaker master volume: 0 (1/256 dB)
-  Speaker master volume set: -1536 (1/256 dB)
+  Speaker volume set: -1536 (1/256 dB)
 ```
 
 ## Configuration

@@ -46,9 +46,10 @@
  *
  * UAC1 rates come from each Format Type descriptor, whereas UAC2 rates are
  * queried from the Clock Sources referenced by the parsed topology. Feature
- * Unit parsing records master mute access, and mount probing reads the master
- * volume range. A device is reported as mounted only after these asynchronous
- * probes finish.
+ * Unit parsing records master mute and master/logical-channel volume access.
+ * Mount probing reads the volume range from the master or first controlled
+ * logical channel. A device is reported as mounted only after these
+ * asynchronous probes finish.
  *
  * Stream configuration is local; stream activation is asynchronous:
  *
@@ -198,6 +199,8 @@ typedef struct {
     struct {
       uint8_t width;
       uint8_t value_type;
+      uint8_t channel;
+      uint8_t last_channel;
     } control;
     struct {
       uint8_t stream_idx;
@@ -239,7 +242,10 @@ typedef struct {
   // Directly associated Feature Unit, or zero when none is usable.
   uint8_t                  feature_unit_id;
   uint8_t                  mute_access;
-  uint8_t                  volume_access;
+  uint8_t                  volume_master_access;
+  uint8_t                  feature_unit_channels;
+  uint8_t                  volume_range_channel;
+  bool                     volume_all_channels_writable;
   tuh_audio_volume_range_t volume_range;
 
   // Bytes in one interleaved audio frame across all channels.
@@ -453,10 +459,14 @@ static bool audioh_stream_config_get(const tuh_audio_stream_t *s, uint8_t config
 }
 
 static void audioh_stream_set_feature_unit(tuh_audio_stream_t *s, uint8_t unit_id, uint8_t mute_access,
-                                           uint8_t volume_access) {
-  s->feature_unit_id = unit_id;
-  s->mute_access     = mute_access;
-  s->volume_access   = volume_access;
+                                           uint8_t volume_master_access, uint8_t channels, uint8_t volume_range_channel,
+                                           bool volume_all_channels_writable) {
+  s->feature_unit_id              = unit_id;
+  s->mute_access                  = mute_access;
+  s->volume_master_access         = volume_master_access;
+  s->feature_unit_channels        = channels;
+  s->volume_range_channel         = volume_range_channel;
+  s->volume_all_channels_writable = volume_all_channels_writable;
 }
 
 static bool audioh_format_from_pcm(uint8_t subslot_size, uint8_t bit_resolution, tuh_audio_format_t *format) {
@@ -492,20 +502,23 @@ static uint32_t audioh_nominal_frames_q16(uint32_t sample_rate, uint8_t ep_inter
 
 // Preserve the stream identity and FIFO allocation while clearing device state.
 static void audioh_stream_reset(tuh_audio_stream_t *s) {
-  s->daddr           = 0;
-  s->stream_idx      = TUSB_INDEX_INVALID_8;
-  s->as_count        = 0;
-  s->config_count    = 0;
-  s->active_config   = TUSB_INDEX_INVALID_8;
-  s->active_as       = TUSB_INDEX_INVALID_8;
-  s->active_rate     = TUSB_INDEX_INVALID_8;
-  s->state           = STREAM_STATE_IDLE;
-  s->running         = false;
-  s->feature_unit_id = 0;
-  s->mute_access     = AUDIOH_CTRL_NONE;
-  s->volume_access   = AUDIOH_CTRL_NONE;
-  s->volume_range    = (tuh_audio_volume_range_t){0};
-  s->frame_bytes     = 0;
+  s->daddr                        = 0;
+  s->stream_idx                   = TUSB_INDEX_INVALID_8;
+  s->as_count                     = 0;
+  s->config_count                 = 0;
+  s->active_config                = TUSB_INDEX_INVALID_8;
+  s->active_as                    = TUSB_INDEX_INVALID_8;
+  s->active_rate                  = TUSB_INDEX_INVALID_8;
+  s->state                        = STREAM_STATE_IDLE;
+  s->running                      = false;
+  s->feature_unit_id              = 0;
+  s->mute_access                  = AUDIOH_CTRL_NONE;
+  s->volume_master_access         = AUDIOH_CTRL_NONE;
+  s->feature_unit_channels        = 0;
+  s->volume_range_channel         = TUSB_INDEX_INVALID_8;
+  s->volume_all_channels_writable = false;
+  s->volume_range                 = (tuh_audio_volume_range_t){0};
+  s->frame_bytes                  = 0;
   tu_edpt_stream_close(&s->edpt);
   tu_edpt_stream_clear(&s->edpt);
 }
@@ -905,7 +918,10 @@ typedef struct {
   uint8_t id;
   uint8_t source_id;
   uint8_t mute_access;
-  uint8_t volume_access;
+  uint8_t volume_master_access;
+  uint8_t channels;
+  uint8_t volume_range_channel;
+  bool    volume_all_channels_writable;
 } audioh_fu_info_t;
 
 typedef struct {
@@ -949,8 +965,9 @@ static bool audioh_ac_entity_valid(const audioh_interface_t *p_audio, const uint
         case AUDIO10_CS_AC_INTERFACE_FEATURE_UNIT: {
           TU_VERIFY(TUH_VALIDATE_BASIC(tu_desc_len(p_desc) >= 7), false);
           const uint8_t control_size = p_desc[5];
-          return TUH_VALIDATE_BASIC(control_size > 0) &&
-                 TUH_VALIDATE_BASIC(control_size <= (uint8_t)(tu_desc_len(p_desc) - 7));
+          const uint8_t control_bytes = (uint8_t)(tu_desc_len(p_desc) - 7);
+          return TUH_VALIDATE_BASIC(control_size > 0) && TUH_VALIDATE_BASIC(control_size <= control_bytes) &&
+                 TUH_VALIDATE_BASIC(control_bytes % control_size == 0);
         }
         default:
           return true;
@@ -965,7 +982,8 @@ static bool audioh_ac_entity_valid(const audioh_interface_t *p_audio, const uint
         case AUDIO20_CS_AC_INTERFACE_OUTPUT_TERMINAL:
           return TUH_VALIDATE_BASIC(tu_desc_len(p_desc) >= sizeof(audio20_desc_output_terminal_t));
         case AUDIO20_CS_AC_INTERFACE_FEATURE_UNIT:
-          return TUH_VALIDATE_BASIC(tu_desc_len(p_desc) >= 10);
+          return TUH_VALIDATE_BASIC(tu_desc_len(p_desc) >= 10) &&
+                 TUH_VALIDATE_BASIC((tu_desc_len(p_desc) - 6u) % 4u == 0);
         case AUDIO20_CS_AC_INTERFACE_CLOCK_SOURCE:
           return TUH_VALIDATE_BASIC(tu_desc_len(p_desc) >= sizeof(audio20_desc_clock_source_t));
         default:
@@ -1033,39 +1051,72 @@ static bool audioh_ac_feature_unit_parse(const audioh_interface_t *p_audio, cons
   if (tu_desc_type(p_desc) != TUSB_DESC_CS_INTERFACE) {
     return false;
   }
+
+  uint8_t control_offset;
+  uint8_t control_size;
+  uint8_t channels;
+  uint8_t mute_access;
   switch (p_audio->protocol) {
   #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC1
     case AUDIO_INT_PROTOCOL_CODE_V1:
-      if (tu_desc_subtype(p_desc) == AUDIO10_CS_AC_INTERFACE_FEATURE_UNIT) {
-        const uint8_t controls = p_desc[6];
-        *info = (audioh_fu_info_t){.id            = p_desc[3],
-                                   .source_id     = p_desc[4],
-                                   .mute_access   = (controls & AUDIO10_FU_CONTROL_BM_MUTE) ? AUDIOH_CTRL_READ_WRITE
-                                                                                            : AUDIOH_CTRL_NONE,
-                                   .volume_access = (controls & AUDIO10_FU_CONTROL_BM_VOLUME) ? AUDIOH_CTRL_READ_WRITE
-                                                                                              : AUDIOH_CTRL_NONE};
-        return info->mute_access != AUDIOH_CTRL_NONE || info->volume_access != AUDIOH_CTRL_NONE;
+      if (tu_desc_subtype(p_desc) != AUDIO10_CS_AC_INTERFACE_FEATURE_UNIT) {
+        return false;
       }
+      control_offset = 6;
+      control_size   = p_desc[5];
+      channels       = (uint8_t)((tu_desc_len(p_desc) - 7u) / control_size - 1u);
+      mute_access = (p_desc[control_offset] & AUDIO10_FU_CONTROL_BM_MUTE) ? AUDIOH_CTRL_READ_WRITE : AUDIOH_CTRL_NONE;
       break;
   #endif
   #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC2
     case AUDIO_INT_PROTOCOL_CODE_V2:
-      if (tu_desc_subtype(p_desc) == AUDIO20_CS_AC_INTERFACE_FEATURE_UNIT) {
-        const uint32_t controls = tu_le32toh(tu_unaligned_read32(&p_desc[5]));
-        *info =
-          (audioh_fu_info_t){.id          = p_desc[3],
-                             .source_id   = p_desc[4],
-                             .mute_access = audioh_uac2_control_access(controls, AUDIO20_FEATURE_UNIT_CTRL_MUTE_POS),
-                             .volume_access =
-                               audioh_uac2_control_access(controls, AUDIO20_FEATURE_UNIT_CTRL_VOLUME_POS)};
-        return info->mute_access != AUDIOH_CTRL_NONE || info->volume_access != AUDIOH_CTRL_NONE;
+      if (tu_desc_subtype(p_desc) != AUDIO20_CS_AC_INTERFACE_FEATURE_UNIT) {
+        return false;
       }
+      control_offset = 5;
+      control_size   = 4;
+      channels       = (uint8_t)((tu_desc_len(p_desc) - 6u) / control_size - 1u);
+      mute_access    = audioh_uac2_control_access(tu_le32toh(tu_unaligned_read32(&p_desc[control_offset])),
+                                                  AUDIO20_FEATURE_UNIT_CTRL_MUTE_POS);
       break;
   #endif
     default:
-      break;
+      return false;
   }
-  return false;
+
+  uint8_t volume_master_access         = AUDIOH_CTRL_NONE;
+  uint8_t volume_range_channel         = TUSB_INDEX_INVALID_8;
+  bool    volume_all_channels_writable = channels > 0;
+  for (uint8_t channel = 0; channel <= channels; channel++) {
+    uint8_t access;
+  #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC2
+    if (p_audio->protocol == AUDIO_INT_PROTOCOL_CODE_V2) {
+      const uint32_t controls = tu_le32toh(tu_unaligned_read32(&p_desc[control_offset + channel * control_size]));
+      access                  = audioh_uac2_control_access(controls, AUDIO20_FEATURE_UNIT_CTRL_VOLUME_POS);
+    } else
+  #endif
+    {
+      access = (p_desc[control_offset + channel * control_size] & AUDIO10_FU_CONTROL_BM_VOLUME) ? AUDIOH_CTRL_READ_WRITE
+                                                                                                : AUDIOH_CTRL_NONE;
+    }
+    if (channel == 0) {
+      volume_master_access = access;
+    } else {
+      volume_all_channels_writable &= access == AUDIOH_CTRL_READ_WRITE;
+    }
+    if (access != AUDIOH_CTRL_NONE && volume_range_channel == TUSB_INDEX_INVALID_8) {
+      volume_range_channel = channel;
+    }
+  }
+
+  *info = (audioh_fu_info_t){.id                           = p_desc[3],
+                             .source_id                    = p_desc[4],
+                             .mute_access                  = mute_access,
+                             .volume_master_access         = volume_master_access,
+                             .channels                     = channels,
+                             .volume_range_channel         = volume_range_channel,
+                             .volume_all_channels_writable = volume_all_channels_writable};
+  return mute_access != AUDIOH_CTRL_NONE || volume_range_channel != TUSB_INDEX_INVALID_8;
 }
 
   #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC2
@@ -1103,7 +1154,8 @@ static void audioh_link_feature_units(audioh_interface_t *p_audio, const audioh_
       }
       const bool linked = (direction == TUSB_DIR_OUT) ? (fu.source_id == terminal.id) : (fu.id == terminal.source_id);
       if (linked) {
-        audioh_stream_set_feature_unit(stream, fu.id, fu.mute_access, fu.volume_access);
+        audioh_stream_set_feature_unit(stream, fu.id, fu.mute_access, fu.volume_master_access, fu.channels,
+                                       fu.volume_range_channel, fu.volume_all_channels_writable);
         break;
       }
     }
@@ -1869,7 +1921,7 @@ bool tuh_audio_volume_range_get(uint8_t idx, uint8_t stream_idx, tuh_audio_volum
   audioh_interface_t *p_audio = &_audioh_itf[idx];
   TU_VERIFY(p_audio->mounted, false);
   tuh_audio_stream_t *s = audioh_get_stream_by_idx(p_audio, stream_idx);
-  TU_VERIFY(s != NULL && s->volume_access != AUDIOH_CTRL_NONE, false);
+  TU_VERIFY(s != NULL && s->volume_range_channel != TUSB_INDEX_INVALID_8, false);
   *range = s->volume_range;
   return true;
 }
@@ -2216,21 +2268,7 @@ uint32_t tuh_audio_read_available(uint8_t dev_idx, uint8_t stream_idx) {
 // AUDIO CONTROL REQUESTS
 //--------------------------------------------------------------------+
 
-// Release driver-owned request state before invoking the application callback,
-// allowing the callback to submit another Feature Unit request immediately.
-static void audioh_fu_set_complete(tuh_xfer_t *xfer) {
-  const uint8_t        idx       = (uint8_t)xfer->user_data;
-  audioh_ctrl_state_t *ctrl      = &_audioh_itf[idx].ctrl;
-  tuh_xfer_cb_t        app_cb    = ctrl->complete_cb;
-  uintptr_t            user_data = ctrl->user_data;
-  ctrl->complete_cb              = NULL;
-  ctrl->fu_busy                  = false;
-
-  xfer->user_data = user_data;
-  if (app_cb != NULL) {
-    app_cb(xfer);
-  }
-}
+static void audioh_fu_set_complete(tuh_xfer_t *xfer);
 
 enum {
   AUDIOH_FU_VALUE_BOOL,
@@ -2301,6 +2339,38 @@ tusb_xfer_result_t tuh_audio_control_xfer_sync(uint8_t idx, uint8_t entity_id, t
     *actual_len = xfer.actual_len;
   }
   return xfer.result;
+}
+
+// Continue a master-volume request across logical channels. Driver-owned
+// request state is released before the final application callback so another
+// Feature Unit request can be submitted from that callback.
+static void audioh_fu_set_complete(tuh_xfer_t *xfer) {
+  const uint8_t        idx     = (uint8_t)xfer->user_data;
+  audioh_interface_t  *p_audio = &_audioh_itf[idx];
+  audioh_ctrl_state_t *ctrl    = &p_audio->ctrl;
+
+  if (xfer->result == XFER_RESULT_SUCCESS && ctrl->fu.control.channel < ctrl->fu.control.last_channel) {
+    tuh_audio_stream_t *s = (tuh_audio_stream_t *)ctrl->value;
+    ctrl->fu.control.channel++;
+    const uint8_t request_code = audioh_control_cur_request(p_audio->protocol, TUSB_DIR_OUT);
+    tuh_xfer_t    next_xfer    = {.complete_cb = audioh_fu_set_complete, .user_data = (uintptr_t)idx};
+    if (audioh_control_submit(idx, s->feature_unit_id, TUSB_DIR_OUT, request_code, AUDIO10_FU_CTRL_VOLUME,
+                              ctrl->fu.control.channel, audioh_fu_ctrl(&_audioh_epbuf[idx]), 2, &next_xfer)) {
+      return;
+    }
+    xfer->result = XFER_RESULT_FAILED;
+  }
+
+  tuh_xfer_cb_t app_cb    = ctrl->complete_cb;
+  uintptr_t     user_data = ctrl->user_data;
+  ctrl->complete_cb       = NULL;
+  ctrl->fu_busy           = false;
+  ctrl->value             = NULL;
+
+  xfer->user_data = user_data;
+  if (app_cb != NULL) {
+    app_cb(xfer);
+  }
 }
 
 static void audioh_fu_value_store(audioh_ctrl_state_t *ctrl, audioh_epbuf_t *epbuf) {
@@ -2387,7 +2457,7 @@ static bool audioh_mount_feature_unit_submit(uint8_t idx) {
   const tusb_control_request_t request  = {
     .bmRequestType_bit = {.recipient = TUSB_REQ_RCPT_INTERFACE, .type = TUSB_REQ_TYPE_CLASS, .direction = TUSB_DIR_IN},
     .bRequest          = uac2 ? AUDIO20_CS_REQ_RANGE : audioh_fu_volume_range_request(ctrl->fu.mount.range_step),
-    .wValue            = tu_htole16(tu_u16(selector, 0)),
+    .wValue            = tu_htole16(tu_u16(selector, s->volume_range_channel)),
     .wIndex            = tu_htole16(tu_u16(s->feature_unit_id, p_audio->ac_itf_num)),
     .wLength           = tu_htole16(uac2 ? 8u : 2u),
   };
@@ -2406,14 +2476,16 @@ static void audioh_mount_feature_unit_next(uint8_t idx) {
 
   while (ctrl->fu.mount.stream_idx < p_audio->stream_count) {
     tuh_audio_stream_t *s = audioh_get_stream_by_idx_unchecked(p_audio, ctrl->fu.mount.stream_idx);
-    if (s->volume_access != AUDIOH_CTRL_NONE) {
+    if (s->volume_range_channel != TUSB_INDEX_INVALID_8) {
       s->volume_range           = (tuh_audio_volume_range_t){0};
       ctrl->fu.mount.range_step = AUDIOH_VOLUME_RANGE_MIN;
       ctrl->fu_busy             = true;
       if (audioh_mount_feature_unit_submit(idx)) {
         return;
       }
-      s->volume_access = AUDIOH_CTRL_NONE;
+      s->volume_master_access         = AUDIOH_CTRL_NONE;
+      s->volume_range_channel         = TUSB_INDEX_INVALID_8;
+      s->volume_all_channels_writable = false;
       if (s->mute_access == AUDIOH_CTRL_NONE) {
         s->feature_unit_id = 0;
       }
@@ -2464,8 +2536,10 @@ static void audioh_mount_feature_unit_complete(tuh_xfer_t *xfer) {
 
   const uint32_t expected_len = uac2 ? 8u : 2u;
   if (xfer->result != XFER_RESULT_SUCCESS || xfer->actual_len != expected_len) {
-    s->volume_access = AUDIOH_CTRL_NONE;
-    s->volume_range  = (tuh_audio_volume_range_t){0};
+    s->volume_master_access         = AUDIOH_CTRL_NONE;
+    s->volume_range_channel         = TUSB_INDEX_INVALID_8;
+    s->volume_all_channels_writable = false;
+    s->volume_range                 = (tuh_audio_volume_range_t){0};
     if (s->mute_access == AUDIOH_CTRL_NONE) {
       s->feature_unit_id = 0;
     }
@@ -2475,17 +2549,24 @@ static void audioh_mount_feature_unit_complete(tuh_xfer_t *xfer) {
   audioh_mount_feature_unit_next(idx);
 }
 
-static bool audioh_fu_set(uint8_t idx, uint8_t stream_idx, uint8_t control_selector, uint16_t value, uint8_t width,
-                          tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+static bool audioh_fu_set(uint8_t idx, uint8_t stream_idx, uint8_t control_selector, uint8_t channel,
+                          uint8_t last_channel, uint16_t value, uint8_t width, tuh_xfer_cb_t complete_cb,
+                          uintptr_t user_data) {
   TU_VERIFY(idx < CFG_TUH_AUDIO_MAX, false);
   audioh_interface_t *p_audio = &_audioh_itf[idx];
   TU_VERIFY(p_audio->mounted, false);
   tuh_audio_stream_t *s = audioh_get_stream_by_idx(p_audio, stream_idx);
   TU_VERIFY(s && s->feature_unit_id != 0, false);
   if (control_selector == AUDIO10_FU_CTRL_MUTE) {
-    TU_VERIFY(s->mute_access == AUDIOH_CTRL_READ_WRITE, false);
+    TU_VERIFY(channel == 0 && last_channel == 0 && s->mute_access == AUDIOH_CTRL_READ_WRITE, false);
   } else if (control_selector == AUDIO10_FU_CTRL_VOLUME) {
-    TU_VERIFY(s->volume_access == AUDIOH_CTRL_READ_WRITE, false);
+    TU_VERIFY(s->volume_range_channel != TUSB_INDEX_INVALID_8 && channel <= last_channel, false);
+    if (channel == 0) {
+      TU_VERIFY(last_channel == 0 && s->volume_master_access == AUDIOH_CTRL_READ_WRITE, false);
+    } else {
+      TU_VERIFY(last_channel <= s->feature_unit_channels, false);
+      TU_VERIFY(channel == last_channel || s->volume_all_channels_writable, false);
+    }
   }
 
   const uint8_t request_code = audioh_control_cur_request(p_audio->protocol, TUSB_DIR_OUT);
@@ -2501,40 +2582,53 @@ static bool audioh_fu_set(uint8_t idx, uint8_t stream_idx, uint8_t control_selec
     val_buf[1] = (uint8_t)((value >> 8) & 0xFF);
   }
 
-  tuh_xfer_t xfer = {.complete_cb = complete_cb, .user_data = user_data};
-
   if (complete_cb == NULL) {
-    const bool result = audioh_control_submit(idx, s->feature_unit_id, TUSB_DIR_OUT, request_code, control_selector, 0,
-                                              val_buf, width, &xfer);
-    ctrl->fu_busy     = false;
+    bool result = true;
+    for (uint8_t current_channel = channel; current_channel <= last_channel; current_channel++) {
+      tuh_xfer_t xfer = {.complete_cb = NULL, .user_data = user_data};
+      result          = audioh_control_submit(idx, s->feature_unit_id, TUSB_DIR_OUT, request_code, control_selector,
+                                              current_channel, val_buf, width, &xfer);
+      if (!result || xfer.result != XFER_RESULT_SUCCESS) {
+        break;
+      }
+    }
+    ctrl->fu_busy = false;
     return result;
   }
 
-  ctrl->complete_cb = complete_cb;
-  ctrl->user_data   = user_data;
-  xfer.complete_cb  = audioh_fu_set_complete;
-  xfer.user_data    = (uintptr_t)idx;
+  ctrl->complete_cb             = complete_cb;
+  ctrl->user_data               = user_data;
+  ctrl->value                   = s;
+  ctrl->fu.control.channel      = channel;
+  ctrl->fu.control.last_channel = last_channel;
+  tuh_xfer_t xfer               = {.complete_cb = audioh_fu_set_complete, .user_data = (uintptr_t)idx};
 
-  if (!audioh_control_submit(idx, s->feature_unit_id, TUSB_DIR_OUT, request_code, control_selector, 0, val_buf, width,
-                             &xfer)) {
+  if (!audioh_control_submit(idx, s->feature_unit_id, TUSB_DIR_OUT, request_code, control_selector, channel, val_buf,
+                             width, &xfer)) {
     ctrl->complete_cb = NULL;
+    ctrl->value       = NULL;
     ctrl->fu_busy     = false;
     return false;
   }
   return true;
 }
 
-static bool audioh_fu_get(uint8_t idx, uint8_t stream_idx, uint8_t control_selector, void *value, uint8_t width,
-                          uint8_t value_type, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+static bool audioh_fu_get(uint8_t idx, uint8_t stream_idx, uint8_t control_selector, uint8_t channel, void *value,
+                          uint8_t width, uint8_t value_type, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   TU_VERIFY(idx < CFG_TUH_AUDIO_MAX, false);
   audioh_interface_t *p_audio = &_audioh_itf[idx];
   TU_VERIFY(p_audio->mounted && value, false);
   tuh_audio_stream_t *s = audioh_get_stream_by_idx(p_audio, stream_idx);
   TU_VERIFY(s && s->feature_unit_id != 0, false);
   if (control_selector == AUDIO10_FU_CTRL_MUTE) {
-    TU_VERIFY(s->mute_access != AUDIOH_CTRL_NONE, false);
+    TU_VERIFY(channel == 0 && s->mute_access != AUDIOH_CTRL_NONE, false);
   } else if (control_selector == AUDIO10_FU_CTRL_VOLUME) {
-    TU_VERIFY(s->volume_access != AUDIOH_CTRL_NONE, false);
+    TU_VERIFY(s->volume_range_channel != TUSB_INDEX_INVALID_8, false);
+    if (channel == 0) {
+      TU_VERIFY(s->volume_master_access != AUDIOH_CTRL_NONE, false);
+    } else {
+      TU_VERIFY(channel <= s->feature_unit_channels, false);
+    }
   }
 
   const uint8_t request_code = audioh_control_cur_request(p_audio->protocol, TUSB_DIR_IN);
@@ -2550,7 +2644,7 @@ static bool audioh_fu_get(uint8_t idx, uint8_t stream_idx, uint8_t control_selec
     // The synchronous transfer completes before its driver-owned response is
     // converted to host order.
     tuh_xfer_t xfer = {.complete_cb = NULL, .user_data = user_data};
-    if (!audioh_control_submit(idx, s->feature_unit_id, TUSB_DIR_IN, request_code, control_selector, 0,
+    if (!audioh_control_submit(idx, s->feature_unit_id, TUSB_DIR_IN, request_code, control_selector, channel,
                                audioh_fu_ctrl(epbuf), width, &xfer)) {
       ctrl->fu_busy = false;
       return false;
@@ -2569,7 +2663,7 @@ static bool audioh_fu_get(uint8_t idx, uint8_t stream_idx, uint8_t control_selec
   ctrl->user_data   = user_data;
   tuh_xfer_t xfer   = {.complete_cb = audioh_fu_get_complete, .user_data = (uintptr_t)idx};
 
-  if (!audioh_control_submit(idx, s->feature_unit_id, TUSB_DIR_IN, request_code, control_selector, 0,
+  if (!audioh_control_submit(idx, s->feature_unit_id, TUSB_DIR_IN, request_code, control_selector, channel,
                              audioh_fu_ctrl(epbuf), width, &xfer)) {
     ctrl->complete_cb = NULL;
     ctrl->fu_busy     = false;
@@ -2579,33 +2673,52 @@ static bool audioh_fu_get(uint8_t idx, uint8_t stream_idx, uint8_t control_selec
 }
 
 bool tuh_audio_mute_set(uint8_t idx, uint8_t stream_idx, bool mute, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  return audioh_fu_set(idx, stream_idx, AUDIO10_FU_CTRL_MUTE, mute ? 1 : 0, 1, complete_cb, user_data);
+  return audioh_fu_set(idx, stream_idx, AUDIO10_FU_CTRL_MUTE, 0, 0, mute ? 1 : 0, 1, complete_cb, user_data);
 }
 
 bool tuh_audio_mute_get(uint8_t idx, uint8_t stream_idx, bool *mute, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  return audioh_fu_get(idx, stream_idx, AUDIO10_FU_CTRL_MUTE, mute, 1, AUDIOH_FU_VALUE_BOOL, complete_cb, user_data);
+  return audioh_fu_get(idx, stream_idx, AUDIO10_FU_CTRL_MUTE, 0, mute, 1, AUDIOH_FU_VALUE_BOOL, complete_cb, user_data);
 }
 
-bool tuh_audio_volume_set(uint8_t idx, uint8_t stream_idx, int16_t volume, tuh_xfer_cb_t complete_cb,
-                          uintptr_t user_data) {
+static bool audioh_volume_normalize(uint8_t idx, uint8_t stream_idx, int16_t *volume) {
   tuh_audio_volume_range_t range;
   TU_VERIFY(tuh_audio_volume_range_get(idx, stream_idx, &range), false);
-  if (volume != TUH_AUDIO_VOLUME_SILENCE) {
-    TU_VERIFY(volume >= range.min && volume <= range.max && range.res != 0, false);
-    const uint32_t offset  = (uint32_t)((int32_t)volume - range.min);
+  if (*volume != TUH_AUDIO_VOLUME_SILENCE) {
+    TU_VERIFY(*volume >= range.min && *volume <= range.max && range.res != 0, false);
+    const uint32_t offset  = (uint32_t)((int32_t)*volume - range.min);
     const uint32_t steps   = (offset + range.res / 2u) / range.res;
     int32_t        rounded = (int32_t)range.min + (int32_t)(steps * range.res);
     if (rounded > range.max) {
       rounded -= range.res;
     }
-    volume = (int16_t)rounded;
+    *volume = (int16_t)rounded;
   }
-  return audioh_fu_set(idx, stream_idx, AUDIO10_FU_CTRL_VOLUME, (uint16_t)volume, 2, complete_cb, user_data);
+  return true;
 }
 
-bool tuh_audio_volume_get(uint8_t idx, uint8_t stream_idx, int16_t *volume, tuh_xfer_cb_t complete_cb,
+bool tuh_audio_volume_set(uint8_t idx, uint8_t stream_idx, uint8_t channel, int16_t volume, tuh_xfer_cb_t complete_cb,
                           uintptr_t user_data) {
-  return audioh_fu_get(idx, stream_idx, AUDIO10_FU_CTRL_VOLUME, volume, 2, AUDIOH_FU_VALUE_I16, complete_cb, user_data);
+  TU_VERIFY(audioh_volume_normalize(idx, stream_idx, &volume), false);
+  if (channel > 0) {
+    return audioh_fu_set(idx, stream_idx, AUDIO10_FU_CTRL_VOLUME, channel, channel, (uint16_t)volume, 2, complete_cb,
+                         user_data);
+  }
+
+  audioh_interface_t *p_audio = &_audioh_itf[idx];
+  tuh_audio_stream_t *s       = audioh_get_stream_by_idx(p_audio, stream_idx);
+  TU_VERIFY(s != NULL, false);
+  if (s->volume_master_access == AUDIOH_CTRL_READ_WRITE) {
+    return audioh_fu_set(idx, stream_idx, AUDIO10_FU_CTRL_VOLUME, 0, 0, (uint16_t)volume, 2, complete_cb, user_data);
+  }
+  TU_VERIFY(s->feature_unit_channels > 0 && s->volume_all_channels_writable, false);
+  return audioh_fu_set(idx, stream_idx, AUDIO10_FU_CTRL_VOLUME, 1, s->feature_unit_channels, (uint16_t)volume, 2,
+                       complete_cb, user_data);
+}
+
+bool tuh_audio_volume_get(uint8_t idx, uint8_t stream_idx, uint8_t channel, int16_t *volume, tuh_xfer_cb_t complete_cb,
+                          uintptr_t user_data) {
+  return audioh_fu_get(idx, stream_idx, AUDIO10_FU_CTRL_VOLUME, channel, volume, 2, AUDIOH_FU_VALUE_I16, complete_cb,
+                       user_data);
 }
 
 #endif

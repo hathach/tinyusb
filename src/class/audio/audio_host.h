@@ -240,7 +240,10 @@ bool tuh_audio_mounted(uint8_t idx);
 uint8_t tuh_audio_get_dev_addr(uint8_t idx);
 // True when the stream's Feature Unit supports master mute control.
 bool tuh_audio_mute_supported(uint8_t idx, uint8_t stream_idx);
-// Get the cached master volume range. Returns false when volume is unsupported.
+// Get the cached volume range. The driver reads the master channel when it
+// supports volume, otherwise the first logical channel with volume control.
+// This typed API assumes logical channels use the same range; applications
+// needing per-channel ranges can use tuh_audio_control_xfer().
 bool tuh_audio_volume_range_get(uint8_t idx, uint8_t stream_idx, tuh_audio_volume_range_t *range);
 
 //--------------------------------------------------------------------+
@@ -256,19 +259,29 @@ bool tuh_audio_control_xfer(uint8_t idx, uint8_t entity_id, tusb_dir_t direction
                             tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
 // Master mute and volume controls. Capability and range information is cached
-// before tuh_audio_mount_cb() is invoked. Volume SET accepts
-// TUH_AUDIO_VOLUME_SILENCE or a value within the cached range; finite values
-// are rounded to the nearest resolution step measured from the range minimum.
+// before tuh_audio_mount_cb() is invoked. Volume channel 0 selects the master;
+// a SET falls back to writing every logical channel when the master is not
+// writable and all logical channels advertise write access. The completion
+// callback is invoked once after the entire operation. A nonzero volume
+// channel directly selects that 1-based Feature Unit logical channel.
+// Per-channel capability is not cached; an unsupported channel is reported by
+// the control transfer.
+//
+// Volume SET accepts TUH_AUDIO_VOLUME_SILENCE or a value within the cached
+// range; finite values are rounded to the nearest resolution step measured
+// from the range minimum.
 bool tuh_audio_mute_set(uint8_t idx, uint8_t stream_idx, bool mute, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 bool tuh_audio_mute_get(uint8_t idx, uint8_t stream_idx, bool *mute, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
-bool tuh_audio_volume_set(uint8_t idx, uint8_t stream_idx, int16_t volume, tuh_xfer_cb_t complete_cb,
+bool tuh_audio_volume_set(uint8_t idx, uint8_t stream_idx, uint8_t channel, int16_t volume, tuh_xfer_cb_t complete_cb,
                           uintptr_t user_data);
-bool tuh_audio_volume_get(uint8_t idx, uint8_t stream_idx, int16_t *volume, tuh_xfer_cb_t complete_cb,
+bool tuh_audio_volume_get(uint8_t idx, uint8_t stream_idx, uint8_t channel, int16_t *volume, tuh_xfer_cb_t complete_cb,
                           uintptr_t user_data);
 
 //--------------------------------------------------------------------+
 // Synchronous control requests block until the transfer completes and return
 // its result. actual_len may be NULL when the received length is not needed.
+// Only use when audio streaming is stopped, otherwise the stream's isochronous
+// transfers may be disrupted and creating audible artifacts !
 //--------------------------------------------------------------------+
 tusb_xfer_result_t tuh_audio_control_xfer_sync(uint8_t idx, uint8_t entity_id, tusb_dir_t direction, uint8_t request,
                                                uint8_t control_selector, uint8_t channel, void *buffer, uint16_t length,
@@ -285,13 +298,13 @@ TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_audio_mute_get_sync(u
 }
 
 TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_audio_volume_set_sync(uint8_t idx, uint8_t stream_idx,
-                                                                                 int16_t volume) {
-  TU_API_SYNC(tuh_audio_volume_set, idx, stream_idx, volume);
+                                                                                 uint8_t channel, int16_t volume) {
+  TU_API_SYNC(tuh_audio_volume_set, idx, stream_idx, channel, volume);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_audio_volume_get_sync(uint8_t idx, uint8_t stream_idx,
-                                                                                 int16_t *volume) {
-  TU_API_SYNC(tuh_audio_volume_get, idx, stream_idx, volume);
+                                                                                 uint8_t channel, int16_t *volume) {
+  TU_API_SYNC(tuh_audio_volume_get, idx, stream_idx, channel, volume);
 }
 
 //--------------------------------------------------------------------+
