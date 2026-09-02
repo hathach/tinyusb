@@ -1583,15 +1583,24 @@ bool tuh_interface_set(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt,
 
 // process detach event from rhport:hub_addr:hub_port
 static void process_remove_event(hcd_event_t *event) {
-  if (_usbh_data.enumerating_daddr == 0 &&
-      event->rhport == _usbh_data.dev0_bus.rhport &&
-      event->connection.hub_addr == _usbh_data.dev0_bus.hub_addr &&
-      event->connection.hub_port == _usbh_data.dev0_bus.hub_port) {
+  const tuh_bus_info_t *dev0_bus = &_usbh_data.dev0_bus;
+  const bool dev0_enumerating = (_usbh_data.enumerating_daddr == 0) && (event->rhport == dev0_bus->rhport);
+
+  if (dev0_enumerating &&
+      event->connection.hub_addr == dev0_bus->hub_addr &&
+      event->connection.hub_port == dev0_bus->hub_port) {
     // dev0 is unplugged while enumerating (not yet assigned an address)
-    usbh_device_close(_usbh_data.dev0_bus.rhport, 0);
-  } else {
-    remove_device_tree(event->rhport, event->connection.hub_addr, event->connection.hub_port);
+    usbh_device_close(dev0_bus->rhport, 0);
+    return;
   }
+
+  // hub_addr = 0 is the whole roothub port: dev0 goes with it even if it sits behind a downstream
+  // hub. Without this, enumerating_daddr stays 0 forever and every later attach is deferred.
+  if (dev0_enumerating && event->connection.hub_addr == 0 && event->connection.hub_port == 0) {
+    usbh_device_close(dev0_bus->rhport, 0);
+  }
+
+  remove_device_tree(event->rhport, event->connection.hub_addr, event->connection.hub_port);
 }
 
 // remove a device at rhport:hub_addr:hub_port and all of its downstream
