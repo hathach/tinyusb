@@ -49,6 +49,10 @@
 #include "board.h"
 #include "bsp/board_api.h"
 
+#if (CFG_TUD_SYSVIEW || CFG_TUH_SYSVIEW) && (defined(MAX32665) || defined(MAX32666))
+#include "sysview_max32_tmr.h"
+#endif
+
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
@@ -71,6 +75,11 @@ void board_init(void) {
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   NVIC_SetPriority(USB_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 #endif
+
+#if (CFG_TUD_SYSVIEW || CFG_TUH_SYSVIEW) && (defined(MAX32665) || defined(MAX32666))
+  sysview_max32_tmr_start();
+#endif
+
   mxc_gpio_cfg_t gpioConfig;
 
   // LED

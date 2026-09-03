@@ -4,11 +4,18 @@
 
 #include "bsp/board_api.h"
 #include "board.h"
+#include "common/tusb_sysview.h"
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
 void USB0_Handler(void) {
+  // Outer bracket around both back-to-back calls: each of tud_/tuh_int_handler() already
+  // self-wraps with TU_SYSVIEW_ISR_ENTER/EXIT, so without this a dual-role build (both
+  // CFG_TUD_ENABLED and CFG_TUH_ENABLED) records ENTER,EXIT,ENTER,EXIT for one real interrupt.
+  // The depth counter in tusb_sysview.c collapses this outer+inner nesting into a single
+  // ENTER/EXIT pair regardless of which role(s) are compiled in.
+  TU_SYSVIEW_ISR_ENTER();
 #if CFG_TUH_ENABLED
   tuh_int_handler(0, true);
 #endif
@@ -16,6 +23,7 @@ void USB0_Handler(void) {
 #if CFG_TUD_ENABLED
   tud_int_handler(0);
 #endif
+  TU_SYSVIEW_ISR_EXIT();
 }
 
 //--------------------------------------------------------------------+
