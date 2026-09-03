@@ -33,6 +33,8 @@ function(family_add_board BOARD_TARGET)
     __USE_LPCOPEN
     CORE_M4
     CFG_TUSB_MEM_SECTION=__attribute__\(\(section\(\".data.$RAM2\"\)\)\)
+    CFG_TUD_MEM_SECTION=__attribute__\(\(section\(\".data.$RAM2\"\)\)\)
+    CFG_TUH_MEM_SECTION=__attribute__\(\(section\(\".data.$RAM2\"\)\)\)
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
     ${SDK_DIR}/inc
