@@ -171,10 +171,11 @@ then `savebin <file> <pBuffer> <SizeOfBuffer>`.)
 - Non-ARM ports must supply `SEGGER_RTT_LOCK/UNLOCK`: the vendored generic
   RISC-V lock uses `mstatus` CSRs that trap (mcause=2) on WCH QingKe. A
   working WCH port exists but is unmerged (maintainer branch
-  `claude/add-systemview-debug`, not on master): `hw/bsp/ch583/
-  sysview_rtt_lock_wch.h` (brace-scoped save/restore of CSR 0x800), and the
-  shared `hw/bsp/sysview_rtt_conf_wch.h` that ch32v20x/ch32v30x family.cmake
-  force-include to win the include-guard race against the vendored conf.
+  `claude/add-systemview-debug`, not on master):
+  `hw/bsp/ch583/sysview_rtt_lock_wch.h` (brace-scoped save/restore of CSR
+  0x800), and the shared `hw/bsp/sysview_rtt_conf_wch.h` that
+  ch32v20x/ch32v30x family.cmake force-include to win the include-guard race
+  against the vendored conf.
 
 ## Common mistakes
 

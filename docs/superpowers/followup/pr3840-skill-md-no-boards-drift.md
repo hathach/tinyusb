@@ -1,35 +1,19 @@
-# `SKILL.md` contradicts the code on no-boards tables
+# `SKILL.md` no-boards bullet: the regression test is still missing
 
 **Origin:** split out of PR #3840, surfaced by its second review round. Delete this file
 when its own PR lands.
 
-`.claude/skills/hil/SKILL.md:150-151` tells the reading agent:
+The documentation half landed in PR #3881. `.claude/skills/hil/SKILL.md`'s
+`**HIL run selected no boards.**` bullet (under "Reporting") now describes both cases: a
+fresh run renders no table, and an `--accumulate` run keeps the previous attempt's rows
+under the notice, which are not this run's and must not be reported as such. That matches
+the code, which deliberately preserves accumulated rows on a no-boards exit because wiping
+them destroyed real results.
 
-> `**HIL run selected no boards.**` — the filters intersected to nothing, so there is **no
-> table at all**. Report that (and the filter shown), never `"pass": true`.
-
-That was true when the no-boards exit wrote a bare notice. It no longer is. An
-`--accumulate` no-boards run keeps the accumulated rows — deliberately, because wiping them
-destroyed real results — so the artifact now reads:
-
-```
-**HIL run selected no boards.** filters emptied
-
-**✅ 1 passed · ❌ 0 failed · ⚪ 0 skipped · blank not run**
-
-| Board | t | duration |
-...
-```
-
-The behaviour is correct; the documentation is wrong, and wrong in the direction that
-matters. An agent is told to expect no table, sees one, and has no rule for whether those
-rows are reportable. **They are not this run's** — they are a previous attempt's, carried
-forward.
-
-**What remains:** update that bullet to describe both cases — a fresh run has no table, an
-`--accumulate` run shows the previous attempt's rows under the notice and they must not be
-reported as this run's. Add a test asserting the fresh case renders no matrix, so the two
-halves cannot drift again.
+**What remains:** a test asserting that the fresh no-boards case renders no matrix while
+the `--accumulate` case keeps the prior rows under the notice, so the two halves cannot
+drift again. The behaviour lives in `test/hil/helper/hil_report.py`'s no-boards exit
+(`accumulate_report` with `fresh`); `test/hil/test/test_hil_report.py` is the suite.
 
 ## Why it was split out
 
