@@ -68,6 +68,7 @@ cmake-metrics/
 lib/CMSIS_5/
 lib/CMSIS_6/
 lib/FreeRTOS-Kernel/
+lib/SystemView/
 lib/fatfs/
 lib/lwip/
 lib/sct_neopixel/

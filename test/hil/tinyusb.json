@@ -261,6 +261,12 @@
                 "vid_pid": "0x2e8a 0x000c",
                 "args": "-f interface/cmsis-dap.cfg -f target/rp2040.cfg -c \"adapter speed 5000\"",
                 "verify": true
+            },
+            "sysview": {
+                "example": "device/cdc_msc",
+                "workload": "cdc_burst",
+                "duration_s": 15,
+                "buffer": 65536
             }
         },
         {
@@ -379,6 +385,13 @@
                 "name": "jlink",
                 "uid": "000773661813",
                 "args": "-device stm32f407vg"
+            },
+            "sysview": {
+                "example": "device/cdc_msc",
+                "workload": "cdc_burst",
+                "duration_s": 15,
+                "buffer": 65536,
+                "ocd_args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/stm32f4x.cfg"
             }
         },
         {

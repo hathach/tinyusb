@@ -17,6 +17,7 @@ Raspberry Pi). Pick capture channels by which end runs Linux, not by habit:
 | **`target-debug`** | **what the target did** (logs, driver state, PC)   | always — either role, needs a debug probe         |
 | `usb-sniffer`      | what crossed the wire (PIDs, handshakes, resets)   | hardware tap cabled in — role-agnostic            |
 | `etm-trace`        | exactly which instructions executed (profile, coverage, history) | SEGGER J-Trace wired to this board's trace header — confirm with the user first |
+| `sysview`          | where CPU time goes: task/ISR schedule, per-context load, switch + ready→run timing, or (post-mortem mode) what ran right before a crash/hang | SEGGER J-Link/J-Trace on this board for live capture, or any OpenOCD-supported probe for raw RTT capture; RTOS/scheduler-level timing question |
 
 For enumeration/transfer bugs the default posture is **dual-side capture** —
 both ends simultaneously: usbmon + a target
@@ -240,7 +241,10 @@ holds the first KB after boot, not the wedge tail. The buffer flags have no
 overwrite mode (only SKIP/TRIM/BLOCK); keeping the tail instead requires the
 firmware-side overwrite write call (rtt skill §post-mortem). So post-mortem
 RTT from a default-mode build is evidence only if a live drain was running —
-otherwise instrument with the RAM ring above.
+otherwise instrument with the RAM ring above. (The one exemption is a
+`-DSYSVIEW_POST_MORTEM=1` build: SystemView's post-mortem mode switches its
+channel to an overwrite ring that always holds the most recent events with no
+drain — the `sysview` skill's route for "what ran right before this hang".)
 Stand up the drain per the **rtt** skill: JLinkExe's `-RTTTelnetPort` (what
 `rtt.py` wraps) is the headless-proven route; JLinkGDBServer's needs
 a GDB client attached on some parts (LPC4088), and JLinkRTTLogger fails to

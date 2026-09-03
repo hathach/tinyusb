@@ -304,8 +304,8 @@ void led_blinking_task(void* param) {
 #ifdef ESP_PLATFORM
   #define USB_STACK_SIZE     4096
 #else
-  // Increase stack size when debug log is enabled
-  #define USB_STACK_SIZE    (3*configMINIMAL_STACK_SIZE/2) * (CFG_TUSB_DEBUG ? 2 : 1)
+  // Increase stack size when debug log or SYSVIEW instrumentation is enabled
+  #define USB_STACK_SIZE    (3*configMINIMAL_STACK_SIZE/2) * ((CFG_TUSB_DEBUG || CFG_TUH_SYSVIEW) ? 2 : 1)
 #endif
 
 

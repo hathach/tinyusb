@@ -542,6 +542,16 @@
   #define CFG_TUSB_DEBUG 0
 #endif
 
+// SEGGER SystemView instrumentation level (like CFG_TUSB_DEBUG):
+//   0=off  1=USB ISR  2=+usbd/usbh functions  3=+dcd/hcd API  4=+class driver API
+// Requires lib/SystemView (python3 tools/get_deps.py) and a SYSVIEW=<level> build.
+#ifndef CFG_TUD_SYSVIEW
+  #define CFG_TUD_SYSVIEW 0
+#endif
+#ifndef CFG_TUH_SYSVIEW
+  #define CFG_TUH_SYSVIEW 0
+#endif
+
 // Level where CFG_TUSB_DEBUG must be at least for USBH is logged
 #ifndef CFG_TUH_LOG_LEVEL
   #define CFG_TUH_LOG_LEVEL   2

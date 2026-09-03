@@ -34,8 +34,8 @@
 #ifdef ESP_PLATFORM
   #define USBH_STACK_SIZE     4096
 #else
-  // Increase stack size when debug log is enabled
-  #define USBH_STACK_SIZE    (configMINIMAL_STACK_SIZE * (CFG_TUSB_DEBUG ? 4 : 2))
+  // Increase stack size when debug log or SYSVIEW instrumentation is enabled
+  #define USBH_STACK_SIZE    (configMINIMAL_STACK_SIZE * ((CFG_TUSB_DEBUG || CFG_TUH_SYSVIEW) ? 4 : 2))
 #endif
 
 

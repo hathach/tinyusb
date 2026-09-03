@@ -19,6 +19,7 @@
 #endif
 
 #include "device/dcd.h"
+#include "common/tusb_sysview.h"
 
 // Current implementation force vbus detection as always present, causing device think it is always plugged into host.
 // Therefore, it cannot detect disconnect event, mistaken it as suspend.
@@ -197,6 +198,12 @@ static void __tusb_irq_path_func(reset_non_control_endpoints)(void) {
 }
 
 static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
+  // The SDK registers this function directly as the hardware ISR (irq_add_shared_handler below)
+  // rather than going through dcd_int_handler()/tud_int_handler() (usbd.h) the way most BSPs'
+  // vector ISRs do, so usbd.h's TU_SYSVIEW_ISR_ENTER/EXIT wrap there never runs for this family
+  // -- wrap the real entry point instead. Single exit path (no early returns), so ENTER/EXIT
+  // bracket the whole body; both compile away at SYSVIEW=0.
+  TU_SYSVIEW_ISR_ENTER();
   const uint32_t status  = usb_hw->ints;
 
   if (status & USB_INTF_DEV_SOF_BITS) {
@@ -326,6 +333,7 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
     usb_hw_clear->sie_status = USB_SIE_STATUS_RESUME_BITS;
   }
 
+  TU_SYSVIEW_ISR_EXIT();
 }
 
 /*------------------------------------------------------------------*/

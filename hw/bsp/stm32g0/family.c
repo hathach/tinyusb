@@ -33,6 +33,10 @@
 #include "bsp/board_api.h"
 #include "board.h"
 
+#if (CFG_TUD_SYSVIEW || CFG_TUH_SYSVIEW) && defined(TIM2)
+#include "../sysview_stm32_tim2.h"
+#endif
+
 #ifdef UART_ID
   #if UART_ID == 1
     #define USARTn            USART1
@@ -86,6 +90,10 @@ void board_init(void) {
 
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   NVIC_SetPriority(USB_UCPD1_2_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+#endif
+
+#if (CFG_TUD_SYSVIEW || CFG_TUH_SYSVIEW) && defined(TIM2)
+  sysview_stm32_tim2_start();
 #endif
 
   GPIO_InitTypeDef GPIO_InitStruct;
@@ -150,7 +158,6 @@ void board_init(void) {
 //--------------------------------------------------------------------+
 // Board porting API
 //--------------------------------------------------------------------+
-
 void board_led_write(bool state) {
   GPIO_PinState pin_state = (GPIO_PinState)(state ? LED_STATE_ON : (1 - LED_STATE_ON));
   HAL_GPIO_WritePin(LED_PORT, LED_PIN, pin_state);

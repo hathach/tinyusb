@@ -95,6 +95,15 @@ jobs:
           path: hil-reports
         continue-on-error: true
 
+      - name: Download SystemView report
+        uses: actions/download-artifact@v5
+        with:
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: sysview-comment
+          path: sysview-comment
+        continue-on-error: true
+
       - name: Combine rig reports (one table per rig)
         id: combine
         run: |
@@ -124,6 +133,10 @@ jobs:
               echo
             done
           } > hil_combined.md
+          if [ -s sysview-comment/sysview_report.md ]; then
+            echo >> hil_combined.md
+            cat sysview-comment/sysview_report.md >> hil_combined.md
+          fi
           # Fork PRs can influence report content and this job posts in base-repo context, so
           # neutralize @-mentions (insert a zero-width space) to prevent notification abuse.
           zwsp=$(printf '\342\200\213')

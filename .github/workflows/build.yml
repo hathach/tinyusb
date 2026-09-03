@@ -627,12 +627,161 @@ jobs:
           if [ -n "$RERUN_ARGS" ]; then SEL_ARGS=''; fi
           python3 test/hil/hil_test.py --retry 1 ${{ matrix.test_args }} $SEL_ARGS ${{ env.HIL_JSON }} $RERUN_ARGS
 
+      - name: Get SystemView capture dependencies
+        # sysview_ci.py capture builds device/cdc_msc for the sysview-flagged boards on
+        # this runner. "Clean workspace" above wipes the checkout every run, so this always
+        # re-clones (get_deps.py's own already-at-pinned-commit skip never gets a chance to
+        # apply here); scoping to just the boards the capture step below actually selects
+        # keeps it to a handful of shallow (depth=1) clones rather than the full job
+        # matrix's dependency set.
+        # N8: board list derived from $HIL_JSON itself -- the same "sysview" key sysview_ci.py's
+        # own select_boards() checks -- instead of a hardcoded pair that silently drifts out of
+        # sync with test/hil/tinyusb.json (a third sysview board added the documented way would
+        # otherwise just build failed here, inside a continue-on-error step, with nothing to say
+        # why). That roster list is then intersected with the PR's own board selection, so a PR
+        # whose selection holds no sysview board clones nothing.
+        if: ${{ !cancelled() && github.run_attempt == '1' }}
+        continue-on-error: true
+        env:
+          SEL_ARGS_TINYUSB: ${{ needs.set-matrix.outputs.hil_args_tinyusb }}
+          SEL_RUN_TINYUSB: ${{ needs.set-matrix.outputs.hil_run_tinyusb }}
+          SEL_ARGS_HFP: ${{ needs.set-matrix.outputs.hil_args_hfp }}
+          SEL_RUN_HFP: ${{ needs.set-matrix.outputs.hil_run_hfp }}
+        run: |
+          case "$HIL_JSON" in
+            *tinyusb.json) SEL_ARGS="$SEL_ARGS_TINYUSB"; SEL_RUN="$SEL_RUN_TINYUSB" ;;
+            *hfp.json)     SEL_ARGS="$SEL_ARGS_HFP";     SEL_RUN="$SEL_RUN_HFP" ;;
+          esac
+          if [ "$SEL_RUN" = "false" ]; then
+            echo "HIL skipped by PR selection, no SystemView deps to fetch"
+            exit 0
+          fi
+          BOARDS=$(SEL_ARGS="$SEL_ARGS" python3 -c "
+          import json, os
+          # -b names only, mirroring the capture step's own selection parse: a -bt board is
+          # never captured, and no -b at all (full matrix) still means every sysview board
+          argv = os.environ['SEL_ARGS'].split()
+          sel = {b for a, b in zip(argv, argv[1:]) if a == '-b'}
+          cfg = json.load(open('$HIL_JSON'))
+          print(' '.join(b['name'] for b in cfg['boards']
+                         if 'sysview' in b and (not sel or b['name'] in sel)))
+          ")
+          if [ -z "$BOARDS" ]; then
+            echo "no selected sysview-flagged board in $HIL_JSON, nothing to fetch deps for"
+            exit 0
+          fi
+          ARGS=""
+          for b in $BOARDS; do ARGS="$ARGS -b $b"; done
+          python3 tools/get_deps.py $ARGS
+
+      - name: SystemView capture
+        # Best-effort perf capture, never gates the job: same board scope as the test
+        # step above, restricted to -b (sysview_ci.py capture has no -bt/--accumulate,
+        # unlike hil_test.py, so those tokens are dropped from the selection string).
+        # Skipped on re-run attempts (run_attempt != 1): a re-run recaptures every board
+        # instead of just the ones that failed, wasting shared-rig time for no report benefit.
+        if: ${{ !cancelled() && github.run_attempt == '1' }}
+        continue-on-error: true
+        env:
+          SEL_ARGS_TINYUSB: ${{ needs.set-matrix.outputs.hil_args_tinyusb }}
+          SEL_RUN_TINYUSB: ${{ needs.set-matrix.outputs.hil_run_tinyusb }}
+          SEL_ARGS_HFP: ${{ needs.set-matrix.outputs.hil_args_hfp }}
+          SEL_RUN_HFP: ${{ needs.set-matrix.outputs.hil_run_hfp }}
+        run: |
+          case "$HIL_JSON" in
+            *tinyusb.json) SEL_ARGS="$SEL_ARGS_TINYUSB"; SEL_RUN="$SEL_RUN_TINYUSB" ;;
+            *hfp.json)     SEL_ARGS="$SEL_ARGS_HFP";     SEL_RUN="$SEL_RUN_HFP" ;;
+          esac
+          if [ "$SEL_RUN" = "false" ]; then echo "SystemView capture skipped by PR selection (no affected boards on this rig)"; exit 0; fi
+          if [ -n "$RERUN_ARGS" ]; then SEL_ARGS="$RERUN_ARGS"; fi
+          SYSVIEW_BOARD_ARGS=""
+          set -- $SEL_ARGS
+          while [ $# -gt 0 ]; do
+            case "$1" in
+              # a trailing bare -b (no board name after it) has no pair to consume; shift just
+              # the one token instead of falling through to an un-shifted, endlessly looping $1
+              -b) [ $# -ge 2 ] && { SYSVIEW_BOARD_ARGS="$SYSVIEW_BOARD_ARGS -b $2"; shift 2; } || shift ;;
+              *) shift ;;
+            esac
+          done
+          python3 test/hil/sysview_ci.py capture ${{ env.HIL_JSON }} \
+            $SYSVIEW_BOARD_ARGS --out sysview-out
+
+      - name: Upload SystemView captures
+        if: ${{ !cancelled() && github.run_attempt == '1' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: sysview-${{ matrix.display }}
+          path: sysview-out/sysview-*.json
+          if-no-files-found: ignore
+          overwrite: true
+
       - name: Upload HIL report
         if: always() && github.event_name == 'pull_request'
         uses: actions/upload-artifact@v7
         with:
           name: hil-report-${{ matrix.display }}
           path: ${{ env.HIL_REPORT_DIR }}/hil_report.md
+          if-no-files-found: ignore
+          overwrite: true
+
+  # ---------------------------------------
+  # Compare this run's SystemView captures (uploaded by hil-tinyusb) against the base
+  # branch's latest captures on the same workflow, producing a sticky-comment-ready
+  # markdown table. hfp.json has no sysview-flagged boards, so its capture step never
+  # uploads anything; only tinyusb.json's captures ever feed this.
+  # ---------------------------------------
+  sysview-report:
+    needs: hil-tinyusb
+    if: always() && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v6
+
+      - name: Download PR SystemView captures
+        uses: actions/download-artifact@v5
+        continue-on-error: true
+        with:
+          pattern: sysview-*
+          path: pr-sysview
+          merge-multiple: true
+
+      - name: Download base branch SystemView captures
+        uses: dawidd6/action-download-artifact@ac66b43f0e6a346234dd65d4d0c8fbb31cb316e5 # v11
+        with:
+          workflow: build.yml
+          workflow_conclusion: ''
+          branch: ${{ github.base_ref }}
+          name: sysview-.*
+          name_is_regexp: true
+          path: base-sysview
+        continue-on-error: true
+
+      - name: Flatten base captures
+        # name_is_regexp downloads each matching artifact into its own subdirectory;
+        # sysview_ci.py report globs sysview-*.json directly in the directory it's given.
+        run: |
+          mkdir -p base-sysview-flat
+          find base-sysview -mindepth 2 -maxdepth 2 -name 'sysview-*.json' \
+            -exec cp {} base-sysview-flat/ \; 2>/dev/null || true
+
+      - name: Generate SystemView report
+        id: report
+        continue-on-error: true        # informational comment: a generator crash must not red the PR
+        run: |
+          python3 test/hil/sysview_ci.py report base-sysview-flat pr-sysview -o sysview_report.md
+          if [ -s sysview_report.md ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload SystemView Comment Artifact
+        if: steps.report.outputs.found == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: sysview-comment
+          path: sysview_report.md
           if-no-files-found: ignore
           overwrite: true
 
