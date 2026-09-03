@@ -234,10 +234,10 @@ void cdc_task(void) {
 // Host Get device information
 //--------------------------------------------------------------------+
 static void print_device_info(uint8_t daddr, const tusb_desc_device_t* desc_device) {
-  // Get String descriptor using Sync API
-  uint16_t serial[64];
-  uint16_t buf[128];
-  (void) buf;
+  // Get String descriptor using Sync API. The buffers are written by the host controller,
+  // so they must sit in memory it can reach (and be cache-line aligned where dcache is on).
+  static CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN uint16_t serial[64];
+  static CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN uint16_t buf[128];
 
   cdc_printf("Device %u: ID %04x:%04x SN ", daddr, desc_device->idVendor, desc_device->idProduct);
   uint8_t xfer_result = tuh_descriptor_get_serial_string_sync(daddr, LANGUAGE_ID, serial, sizeof(serial));
