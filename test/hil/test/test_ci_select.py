@@ -797,17 +797,32 @@ class TestOrphanInvariant(unittest.TestCase):
     # gap used to be masked by a full matrix and is now the whole answer, which is why
     # ci_set_matrix treats a selection that intersects family_list to NOTHING as
     # unusable (UNSCOPED -> full matrix) rather than emitting an all-empty one.
-    # cxd56, f1c100s and same7x moved OUT of this set: they are CI boards in
-    # .github/ci-boards.json (Task 4/5) and now build via family_list.
+    # f1c100s moved OUT of this set: it is now in ci_set_matrix.py's family_list,
+    # which is what this test actually checks (fams - family_list). It is NOT a
+    # CI-pinned board - it is listed in .github/ci-pinned-boards.json's "uncovered"
+    # section instead (dcd_sunxi_musb: no board on either HIL roster) - it builds
+    # (and gets size-tracked) purely because family_list now names it, with no
+    # CI-pinned board behind that build.
+    # cxd56 and same7x were briefly in family_list too (alongside f1c100s), but a
+    # full build broke both: cxd56/spresense fails audio_test_multi_rate,
+    # uac2_headset and uac2_speaker_fb - NuttX's stdbool.h expands false/true to a
+    # cast expression that a plain preprocessor #if can't parse, which
+    # TUD_AUDIO_EP_SIZE's callers in tusb_config.h hit via audio_device.h's #if -
+    # plus midi2_device.c's UINT32_C() is undeclared under NuttX's headers. cxd56
+    # stays reverted out of family_list until that is fixed. same7x is back: its 5
+    # *_freertos examples (no FreeRTOSConfig.h wired up) are skip.txt'd
+    # (family:same7x), and same70_qmtech's board.cmake now points LD_FILE_GNU at
+    # Q21B's linker script instead of the never-added same70n19b_flash.ld - the
+    # whole family builds green again, so it is no longer in this set.
     # espressif is back in this set: it briefly had its own family_list entry
     # ("esp-idf"), but that fed the same espressif_s3_devkitm build hil-build-esp
     # already does, TWICE per code-changed run, on the slowest toolchain in the
-    # workflow - and on CircleCI (no --ci-boards/--one-random) would have built
+    # workflow - and on CircleCI (no --ci-pinned-boards/--one-random) would have built
     # every espressif board across every example with no pin at all. hil-build-esp
     # builds espressif's boards by name instead - though only on hathach/tinyusb:
     # that job is gated on repository_owner, so on a fork an espressif-only PR
     # builds nowhere.
-    UNBUILT_FAMILIES = {'efm32', 'espressif', 'pic32mz', 'py32f0'}
+    UNBUILT_FAMILIES = {'cxd56', 'efm32', 'espressif', 'pic32mz', 'py32f0'}
 
     def test_every_bsp_family_is_in_the_ci_matrix(self):
         sys.path.insert(0, os.path.join(REPO, '.github/scripts'))
@@ -1123,7 +1138,7 @@ class TestSelectionBehavioursThatHadNoTest(unittest.TestCase):
     # _prune_buildable's `ci=True` argument to get_family_boards(), guarding against
     # a laptop/runner disagreement caused by ci_skip_boards/ci_preferred_boards being
     # read only when GITHUB_ACTIONS/CIRCLECI was set. Both dicts and the `ci` parameter
-    # are gone (the CI board list in .github/ci-boards.json is the only
+    # are gone (the CI board list in .github/ci-pinned-boards.json is the only
     # curation mechanism now), so get_family_boards() no longer reads either env var
     # at all - there is no env-conditional behaviour left for this test to guard.
 
@@ -1637,11 +1652,11 @@ class TestBuildClassifier(unittest.TestCase):
         # the other side of the same line: these DECIDE what gets built.
         # tools/metrics.py moved out of this list: it no longer runs in any build (Task
         # 3 removed the `tinyusb_metrics` cmake target), so it is no-contribution now -
-        # see TestNoContributionPaths. ci-boards.json took its place here: it
+        # see TestNoContributionPaths. ci-pinned-boards.json took its place here: it
         # decides which boards a CI-board family's build legs compile (rule 2c).
         for p in ('.circleci/config.yml', '.github/workflows/build.yml',
                   '.github/scripts/ci_set_matrix.py', 'tools/ci_select.py',
-                  'tools/build_utils.py', '.github/ci-boards.json'):
+                  'tools/build_utils.py', '.github/ci-pinned-boards.json'):
             self.assertTrue(self.b([p])['full'], p)
 
     def test_mixed_diff_unions_per_family(self):
@@ -1757,6 +1772,10 @@ class TestNoContributionPaths(unittest.TestCase):
         # .github/scripts/ rule used to cover) joined this bucket for the same reason: a
         # pre-commit-only checker that no build target or rig board ever runs, even though
         # it now reads the HIL rosters too.
+        # '.github/scripts/metrics_pair_compare.py' itself was deleted by the
+        # linkermap-to-membrowse rework (69d81c437); it stays in this list as a historical
+        # path exercising _METRICS_RE's `.github/scripts/metrics_*.py` clause (still a live
+        # rule - see ci_select.py), not as a claim the file still exists.
         for p in ('tools/metrics.py', '.github/scripts/metrics_pair_compare.py',
                   'tools/membrowse_compare.py', 'tools/drivers_coverage_check.py'):
             h = sel([p])
@@ -1768,10 +1787,10 @@ class TestNoContributionPaths(unittest.TestCase):
 
     def test_ci_boards_json_is_full_build_no_hil(self):
         # the opposite asymmetry from metrics: this data decides which boards a
-        # family's build legs actually compile (tools/build.py --ci-boards, Task 2), so
+        # family's build legs actually compile (tools/build.py --ci-pinned-boards, Task 2), so
         # the build axis must go full - but no rig board's behaviour depends on it, so
         # the HIL axis stays empty rather than booking the whole rig.
-        p = '.github/ci-boards.json'
+        p = '.github/ci-pinned-boards.json'
         h = sel([p])
         self.assertFalse(h['full'], p)
         self.assertEqual(h['boards'], {}, p)
@@ -2056,10 +2075,11 @@ class TestBuildPyExampleFilter(unittest.TestCase):
 
     def test_other_targets_pass_through_in_their_own_group(self):
         # a target that is not 'all' keeps its own invocation, so ordering against the
-        # examples is preserved (tinyusb_metrics runs after them, as it did unfiltered)
-        t = self.build.resolve_example_target_groups(['all', 'tinyusb_metrics'],
+        # examples is preserved (examples-membrowse-upload runs after them, same as any
+        # other global aggregate target)
+        t = self.build.resolve_example_target_groups(['all', 'examples-membrowse-upload'],
                                                      ['device/cdc_msc'], 'stm32f407disco')
-        self.assertEqual(t, [['cdc_msc'], ['tinyusb_metrics']])
+        self.assertEqual(t, [['cdc_msc'], ['examples-membrowse-upload']])
 
     def test_unbuildable_examples_drop_and_empty_is_none(self):
         # typec/power_delivery only builds on stm32g4-class parts, never on f4
@@ -2231,13 +2251,13 @@ class TestBuildPyExampleFilter(unittest.TestCase):
 
     def test_target_help_parse(self):
         text = ('[1/1] All primary targets available:\n'
-                'tinyusb_metrics: phony\n'
+                'examples-membrowse-upload: phony\n'
                 'cdc_msc: phony\n'
                 'cdc_msc-membrowse-upload: phony\n'
                 'device/edit_cache: phony\n'
                 '/abs/build/device/cdc_msc/CMakeFiles/cdc_msc-jlink: CUSTOM_COMMAND\n')
         self.assertEqual(self.build.parse_target_help(text),
-                         {'tinyusb_metrics', 'cdc_msc', 'cdc_msc-membrowse-upload'})
+                         {'examples-membrowse-upload', 'cdc_msc', 'cdc_msc-membrowse-upload'})
 
     def test_build_defines_reach_the_example_filter(self):
         # metro_m4_express gets MAX3421_HOST=1 from its roster variant, never

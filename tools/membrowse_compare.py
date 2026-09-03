@@ -23,10 +23,21 @@ Flash-vs-RAM bucketing (_bucket()) is layout-driven, name-table fallback only:
 see _bucket()'s own docstring for the rule and why, verified against a real
 `membrowse report --json --all-symbols` output, not the section-name-prefix
 guessing this replaced.
+
+report_for_elf() passes the elf's own linker scripts, extracted from its ninja
+build graph the same way the CI upload path does (membrowse_report.py) - with
+none given, `membrowse report` falls back to its DEFAULT Code/Data regions,
+which _classify_region() cannot map to flash/ram, so `.data` (and any
+AT()-loaded RAM-function section) loses its flash-side load image and is
+bucketed RAM-only. Verified against a real stm32h743eval build: `.data`
+reports region 'Data' without a linker script, ['FLASH', 'RAM_D1'] with one.
 """
 import json
 import os
+import shutil
 import subprocess
+
+from membrowse_report import extract_ld_scripts, extract_defsyms
 
 # Fallback only (see _bucket()): section-name -> which budgets a symbol counts
 # against, used when a report has no usable memory_layout, or a symbol's own
@@ -73,9 +84,51 @@ _RAM_REGION_HINTS = ('ram', 'tcm', 'ddr')
 _FLASH_REGION_HINTS = ('flash', 'rom')
 
 
+def _find_ninja_build_dir(elf_path):
+    """Nearest ancestor of `elf_path` containing build.ninja, or None."""
+    d = os.path.dirname(os.path.abspath(elf_path))
+    while True:
+        if os.path.isfile(os.path.join(d, 'build.ninja')):
+            return d
+        parent = os.path.dirname(d)
+        if parent == d:
+            return None
+        d = parent
+
+
+def _ld_scripts_and_defsyms(elf_path):
+    """(ld_scripts, defsyms) for `elf_path`'s own link command, read from its
+    ninja build graph exactly like the CI upload path does (see
+    membrowse_report.extract_ld_scripts()/extract_defsyms()). Raises
+    RuntimeError if no build.ninja is found above elf_path, the ninja query
+    fails, or it finds no linker script - silently falling back to
+    membrowse's default regions is the bug this fixes (see module docstring).
+    """
+    build_dir = _find_ninja_build_dir(elf_path)
+    if build_dir is None:
+        raise RuntimeError(f'no build.ninja found above {elf_path} - cannot '
+                            f'determine its linker scripts')
+    target = os.path.relpath(os.path.abspath(elf_path), build_dir)
+    ninja_exe = shutil.which('ninja') or 'ninja'
+    r = subprocess.run([ninja_exe, '-C', build_dir, '-t', 'commands', target],
+                        capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(f"'{ninja_exe} -C {build_dir} -t commands {target}' "
+                            f'failed (exit {r.returncode}): {r.stderr}')
+    ld_scripts = extract_ld_scripts(r.stdout)
+    if not ld_scripts:
+        raise RuntimeError(f'no linker script found in the ninja build graph '
+                            f'for {elf_path}')
+    return ld_scripts, extract_defsyms(r.stdout)
+
+
 def report_for_elf(elf_path, map_path=None):
     """Run membrowse local report on one elf, return parsed JSON dict."""
-    cmd = ['membrowse', 'report', elf_path, '--json', '--all-symbols']
+    ld_scripts, defsyms = _ld_scripts_and_defsyms(elf_path)
+    cmd = ['membrowse', 'report', elf_path, ' '.join(ld_scripts),
+           '--json', '--all-symbols']
+    for sym in defsyms:
+        cmd += ['--def', sym]
     if map_path and os.path.isfile(map_path):
         cmd += ['--map-file', map_path]
     r = subprocess.run(cmd, capture_output=True, text=True)
@@ -151,12 +204,27 @@ def _bucket_from_layout(section_name, section_regions, region_bucket):
         return None
     distinct = {r for r, _ in regions}
     if len(distinct) > 1:
-        # placed in more than one region: a flash-side load copy and a ram-side
-        # run copy (see _section_regions()) - counts against both budgets
-        return ('flash', 'ram')
+        # placed in more than one region (see _section_regions()) - usually a
+        # flash-side load copy and a ram-side run copy, counting against both
+        # budgets, but not always: e.g. a section split across RAM_D1/RAM_D2
+        # (H7-style multi-bank RAM) is ram-only. Union each region's own bucket
+        # (already computed below) instead of assuming ('flash', 'ram').
+        buckets = {b for b in (region_bucket.get(r) for r in distinct) if b}
+        if buckets:
+            return tuple(sorted(buckets))
+        # neither region name is recognized: no layout signal, fall back below.
+        return None
     region_name, section_type = regions[0]
     bucket = region_bucket.get(region_name)
     if bucket is not None:
+        if bucket == 'ram' and any(section_name.startswith(p) for p in BOTH_SECTIONS):
+            # a section known (by name) to also carry a flash-side load image, but
+            # this report's layout lists it under only its RAM (VMA) region - e.g.
+            # raspberry_pi_pico's `.data`, verified against a real `membrowse report
+            # --json --all-symbols`: pico-sdk's linker script never lists `.data`
+            # under FLASH's own `sections`, unlike the stm32h743eval report the
+            # multi-region branch above was verified against.
+            return ('flash', 'ram')
         return (bucket,)
     # Region name unrecognized (e.g. NXP imxrt's m_data2/m_text): fall back to the
     # ELF section classification membrowse already computed from sh_flags for this

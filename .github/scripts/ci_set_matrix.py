@@ -36,7 +36,6 @@ family_list = {
     "ch32v20x": ["riscv-gcc"],
     "ch32v30x": ["riscv-gcc"],
     "ch583": ["riscv-gcc"],
-    "cxd56": ["arm-gcc"],
     "da1469x": ["arm-gcc"],
     "f1c100s": ["arm-gcc"],
     "fomu": ["riscv-gcc"],
@@ -135,7 +134,7 @@ def set_matrix_json(select=None):
         # here, but that meant tools/build.py compiled espressif_s3_devkitm TWICE per
         # code-changed run (once for hil-build-esp's roster, once for this file's
         # esp-idf leg, on the slowest toolchain in the workflow) and, on CircleCI -
-        # which passes neither --ci-boards nor --one-random - would have started a
+        # which passes neither --ci-pinned-boards nor --one-random - would have started a
         # never-before-run esp-idf leg building EVERY espressif board across every
         # example with no pin at all. hil-build-esp builds espressif's boards BY NAME
         # instead (see .github/workflows/build.yml), so falling open to the full

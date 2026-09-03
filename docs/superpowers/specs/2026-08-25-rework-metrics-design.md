@@ -28,7 +28,7 @@ driver. Keep linkermap as a local-only tool for the code-size skill.
    explicit `<target>-linkermap` target stays and local tooling invokes it.
 6. **Espressif included:** membrowse upload is wired into the esp-idf docker
    lane; an espressif board is pinned for the dwc2-ESP32 variant.
-7. **Config approach:** curated `.github/membrowse-targets.json` + a coverage
+7. **Config approach:** curated `.github/ci-pinned-boards.json` + a coverage
    checker that fails when a driver has no pinned board (Approach A).
 8. **`membrowse-onboard.yml` is deleted** — history backfill is done locally
    via the membrowse skill (`membrowse onboard` CLI), not a GH workflow.
@@ -39,7 +39,7 @@ driver. Keep linkermap as a local-only tool for the code-size skill.
 
 ## 1. Pinned-target config
 
-`.github/membrowse-targets.json` (revived; new schema, single source of truth):
+`.github/ci-pinned-boards.json` (revived; new schema, single source of truth):
 
 ```json
 {
@@ -74,7 +74,7 @@ pre-commit hook (runs locally and in the pre-commit CI lane). Fails when:
 ## 2. CI integration
 
 **Board resolution in `build.py`.** New flag
-`--board-pins .github/membrowse-targets.json`, used by the cmake job in place
+`--ci-pinned-boards .github/ci-pinned-boards.json`, used by the cmake job in place
 of `--one-first`:
 
 - family has pinned boards → build exactly those boards (all examples, EX_ARGS
@@ -88,7 +88,7 @@ pinned boards (e.g. samx7x) are added to `family_list`; drivers whose
 toolchain/SDK cannot run in CI go to `uncovered` instead.
 
 **Upload gating.** The Membrowse Upload step still invokes
-`--target examples-membrowse-upload`, but under `--board-pins` build.py visits
+`--target examples-membrowse-upload`, but under `--ci-pinned-boards` build.py visits
 only pinned boards' build dirs for that target. Non-pinned fallback boards are
 built but never uploaded. The `code-changed == false` (`--identical`) path is
 kept, restricted to pinned boards. Scoped PRs upload only the families they
@@ -154,7 +154,7 @@ per-commit uploads on master pushes.
 - Delete `.github/scripts/metrics_pair_compare.py` and the `tinyusb_metrics`
   target in `examples/CMakeLists.txt`.
 - `tools/ci_select.py` + `build.yml` path filters: drop rules referencing the
-  removed metrics files; `membrowse-targets.json` becomes a CI-relevant path
+  removed metrics files; `ci-pinned-boards.json` becomes a CI-relevant path
   (changing it must trigger builds, not be skipped as meta).
 - Check the `make-release` skill for references to release `metrics.json`
   assets; update if present.
@@ -207,7 +207,7 @@ check first.
 
 1. Checker self-test: passes against the final json; fails when a driver
    entry is removed.
-2. Local: `build.py --board-pins` on one multi-pin family (lpc55 + lpc15) and
+2. Local: `build.py --ci-pinned-boards` on one multi-pin family (lpc55 + lpc15) and
    one unpinned family; `metrics_compare_base.py` end-to-end on
    stm32f407disco (proves the explicit `examples-linkermap` path).
 3. `<example>-membrowse` (no-upload) target still works post-refactor.

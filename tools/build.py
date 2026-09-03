@@ -85,7 +85,7 @@ def get_examples(family):
 def resolve_example_target_groups(build_targets, examples, board, extra_defines=()):
     """Map generic targets onto per-example targets for a filtered build (-e), as ONE
     GROUP PER REQUESTED TARGET: 'all' -> the example executables, anything else (e.g.
-    tinyusb_metrics) passes through as its own single-entry group.
+    examples-membrowse-upload) passes through as its own single-entry group.
 
     Grouped rather than flattened because each group becomes one `cmake --build
     --target a b c` invocation: the examples of a group build in parallel (flattening
@@ -159,7 +159,12 @@ def cmake_board(board, build_args, build_name, build_cflags, build_targets, exam
             example_build_dir = f'{build_dir}/{example}'
             if build_utils.skip_example(example, board, defines):
                 ret[2] += 1
-            elif build_targets == ['all']:
+            elif 'all' in build_targets:
+                # membership, not equality: every current caller passes 'all'
+                # alone, so this is unchanged for them, but a combined
+                # `--target all --target X` invocation must still run the idf.py
+                # build below instead of falling through to the "no build dir"
+                # skip further down (build_targets == ['all'] would miss it).
                 rcmd = run_cmd([
                     'idf.py', '-C', f'examples/{example}', '-B', example_build_dir, '-GNinja',
                     f'-DBOARD={board}', *build_flags, 'build'
@@ -365,7 +370,7 @@ def get_family_boards(family, one_random, one_first, examples=None, build_system
 
 def resolve_ci_boards(boards_path, family, boards_only, examples=None,
                       build_system='cmake', extra_defines=()):
-    """Resolve a family to its CI boards (.github/ci-boards.json) - the only
+    """Resolve a family to its CI boards (.github/ci-pinned-boards.json) - the only
     board-curation mechanism now that ci_skip_boards/ci_preferred_boards are gone.
 
     An explicit CI board is not automatically buildable: when `examples` narrows the
@@ -377,15 +382,15 @@ def resolve_ci_boards(boards_path, family, boards_only, examples=None,
     CI board is stm32f407disco, and examples/device/cdc_dual_ports/skip.txt skips
     that board, so a PR touching only that example needs a different stm32f4 board).
 
-    A family with no CI boards - or whose CI boards all fail the filter, which is
-    the same situation as none for the purpose at hand - falls back to the
+    A family with no CI boards - or whose CI boards all fail the examples filter,
+    which is the same situation as none for the purpose at hand - falls back to the
     one-first pick, or to nothing under boards_only (the upload step must not touch
     build dirs of boards that were built only as compile smoke-checks; a CI board
     that cannot build the filter is exactly that: a smoke-check substitute, not the
     tracked board)."""
     with open(boards_path) as f:
         data = json.load(f)
-    ci_boards = [t['board'] for t in data['boards'] if t['family'] == family]
+    ci_boards = [t['board'] for t in data['boards'] if find_family(t['board']) == family]
     if examples is not None:
         ci_boards = [b for b in ci_boards if any(
             not build_utils.skip_example(e, b, extra_defines, build_system)
@@ -420,11 +425,11 @@ def main():
                         help='Build only one random board of each specified family')
     parser.add_argument('--one-first', action='store_true', default=False,
                         help='Build only the first board (alphabetical) of each specified family')
-    parser.add_argument('--ci-boards', default=None, metavar='JSON',
-                        help='Path to ci-boards.json: build the CI boards '
+    parser.add_argument('--ci-pinned-boards', default=None, metavar='JSON',
+                        help='Path to ci-pinned-boards.json: build the CI boards '
                              'of each family (fallback: first board alphabetically)')
-    parser.add_argument('--ci-boards-only', action='store_true', default=False,
-                        help='With --ci-boards: skip families that have no CI board')
+    parser.add_argument('--ci-pinned-boards-only', action='store_true', default=False,
+                        help='With --ci-pinned-boards: skip families that have no CI board')
     parser.add_argument('-j', '--jobs', type=int, default=os.cpu_count(), help='Number of jobs to run in parallel')
     parser.add_argument('-T', '--target', action='append', default=[],
                         help='Build target to use, may be specified multiple times (default: all)')
@@ -442,12 +447,12 @@ def main():
     build_cflags = args.cflag
     one_random = args.one_random
     one_first = args.one_first
-    ci_boards_path = args.ci_boards
-    ci_boards_only = args.ci_boards_only
+    ci_boards_path = args.ci_pinned_boards
+    ci_boards_only = args.ci_pinned_boards_only
     if ci_boards_only and not ci_boards_path:
-        parser.error('--ci-boards-only requires --ci-boards')
+        parser.error('--ci-pinned-boards-only requires --ci-pinned-boards')
     if ci_boards_path and (one_first or one_random):
-        parser.error('--ci-boards replaces --one-first/--one-random')
+        parser.error('--ci-pinned-boards replaces --one-first/--one-random')
     build_targets = args.target if args.target else ['all']
     examples = args.example or None
     verbose = args.verbose
@@ -499,9 +504,19 @@ def main():
             all_boards.extend(get_family_boards(f, one_random, one_first, examples,
                                                 build_system, tuple(build_defines)))
 
+    # --ci-pinned-boards-only is used only by build_util.yml's Membrowse Upload step:
+    # -e there exists so resolve_ci_boards() above can fall back exactly like the
+    # Build step did (dropping a family whose pinned CI board cannot build any
+    # PR-selected example, instead of resolving that board anyway and uploading
+    # --identical for a board this run never touched - see resolve_ci_boards()'s
+    # docstring). That step's own job is still to touch EVERY example of whatever
+    # board got resolved, so the filter must stop at board selection and not also
+    # narrow the actual build.
+    build_examples = None if ci_boards_only else examples
+
     # build all boards
     result = build_boards_list(all_boards, build_defines, build_system, build_name, build_cflags, build_targets,
-                               examples)
+                               build_examples)
 
     total_time = time.monotonic() - total_time
     print(build_separator)

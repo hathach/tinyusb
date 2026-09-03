@@ -3,14 +3,18 @@ name: membrowse
 description: Use when analyzing firmware memory footprint with membrowse — local
   size reports for an elf, base-vs-branch size diffs, uploading CI boards
   to the membrowse dashboard, backfilling history (onboard), or editing
-  .github/ci-boards.json (CI boards covering all dcd/hcd drivers).
+  .github/ci-pinned-boards.json (CI boards covering all dcd/hcd drivers).
 ---
 
 # Membrowse Size Analytics
 
 Membrowse is TinyUSB's first-class size-analytics system. CI uploads every
-example of the CI boards in `.github/ci-boards.json` on master
-pushes and (non-fork) PR builds; the PR upload feeds membrowse-comment.yml's
+example of the CI boards in `.github/ci-pinned-boards.json` on master
+pushes and PR builds, fork PRs included (they upload tokenless, with no
+MEMBROWSE_API_KEY): the `cmake` job uploads every CI-pinned
+board (`--identical` when code did not change), and `hil-build-esp` uploads
+the espressif boards by name (`hil-build-esp-identical` covers
+no-code-change pushes). The PR upload feeds membrowse-comment.yml's
 size comment. Target names are `<board>/<cmake-target>` — the example
 BASENAME (`stm32f407disco/cdc_msc`, never `.../device/cdc_msc`) — and must
 never change: history is keyed on them.
@@ -39,7 +43,7 @@ One entry per CI board with the drivers it covers; `uncovered` documents
 drivers with no CI-buildable board. To add a CI board: add the entry, then
 
     pre-commit run drivers-coverage --all-files
-    python3 tools/build.py --ci-boards .github/ci-boards.json --ci-boards-only -e device/cdc_msc <family>
+    python3 tools/build.py --ci-pinned-boards .github/ci-pinned-boards.json --ci-pinned-boards-only -e device/cdc_msc <family>
 
 The hook (`tools/drivers_coverage_check.py`) enforces name/claim validity —
 unknown driver/board/family, a driver claimed as both covered and uncovered,
@@ -50,7 +54,7 @@ membrowse and HIL-pool coverage gaps as INFO/WARNING without failing.
 
 CI-only under normal operation (build_util.yml). Manual, matching CI:
 
-    MEMBROWSE_API_KEY=... python3 tools/build.py --ci-boards .github/ci-boards.json --ci-boards-only --target examples-membrowse-upload -j 1 <family>
+    MEMBROWSE_API_KEY=... python3 tools/build.py --ci-pinned-boards .github/ci-pinned-boards.json --ci-pinned-boards-only --target examples-membrowse-upload -j 1 <family>
 
 The key is read at build time by `tools/membrowse_report.py`, never baked at
 configure time, never printed.

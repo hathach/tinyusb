@@ -13,39 +13,75 @@ under the same target name as CI but read as a step-discontinuity code-size
 event in the dashboard (and be unfixable after the fact: history is keyed on
 the target name).
 
+`membrowse onboard` (membrowse/commands/onboard.py) checks out and `git clean
+-fdx`s every historical commit unconditionally, in whatever directory it runs.
+Run in place, that would detach HEAD and wipe every ignored file in this repo
+root - deps symlinks included - regardless of how clean `git status` looked
+first. This wrapper instead runs it in a disposable `git worktree`
+(cmake-metrics/_onboard_worktree, removed when done), symlinking deps into it
+first the same way metrics_compare_base.py's base-branch build does - and
+since that same clean also strips the symlinks it just made, the build
+script below re-links them before every historical build too, not just
+the first.
+
 Composes, from repo-root-relative conventions:
-  build dir:    examples/cmake-build-<board>   (must be configured beforehand)
-  build script: cmake --build <build_dir> --target <basename>
+  build dir:    examples/cmake-build-<board>   (must be configured beforehand,
+                so this wrapper can extract ld scripts/defsyms below - but
+                `membrowse onboard` itself runs `git clean -fdx` before every
+                historical build, which deletes this ignored dir, so the
+                build script below reconfigures it fresh each time rather
+                than relying on it surviving between commits)
+  build script: <relink deps> && cmake -S examples -B <build_dir> ... &&
+                cmake --build <build_dir> --target <basename>
   elf path:     <build_dir>/<role>/<basename>/<basename>.elf
   target name:  <board>/<basename>
   ld scripts:   extracted from `ninja -t commands <basename>` in build dir
   --defsym      ditto
-  change scope: --build-dirs src/ hw/          (skip rebuilds elsewhere)
+  change scope: --build-dirs src/ hw/ examples/<role>/<name>/  (skip rebuilds
+                elsewhere - the example's own dir is in scope too, since its
+                sources link into the same elf as src/ and hw/)
 
 Dry-run by default; pass --upload for the real run (requires MEMBROWSE_API_KEY
 in the environment - read at run time, passed as argv, never printed).
 """
 import argparse
 import os
+import shlex
 import shutil
 import subprocess
 import sys
 
 from membrowse_report import ninja_commands, extract_ld_scripts, extract_defsyms
+from metrics_compare_base import symlink_deps
 
 
 def compose(board, example, num_commits, upload, api_key, extra,
-            ld_scripts=(), defsyms=()):
+            ld_scripts=(), defsyms=(), repo_root=None, worktree_dir=None):
     """Return the membrowse onboard argv for one board/example backfill."""
     basename = os.path.basename(example.rstrip('/'))
     build_dir = f'examples/cmake-build-{board}'
+    # `membrowse onboard` runs `git clean -fdx` before every historical build,
+    # which deletes this ignored build_dir - reconfigure it fresh each time
+    # instead of relying on the one checked below to survive.
+    configure = (f'cmake -S examples -B {build_dir} -DBOARD={board} '
+                 f'-G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel')
+    build_script = f'{configure} && cmake --build {build_dir} --target {basename}'
+    if repo_root and worktree_dir:
+        # The same `git clean -fdx` also wipes the dep symlinks main() set up
+        # before the run - before EVERY historical build, not just the first.
+        # Re-run this script (by absolute path, so it's the current checkout's
+        # copy, not whatever tools/membrowse_onboard.py looked like at the
+        # historical commit) to recreate them each time, right after the clean.
+        relink = (f'{shlex.quote(sys.executable)} {shlex.quote(os.path.abspath(__file__))} '
+                 f'--relink-deps {shlex.quote(repo_root)} {shlex.quote(worktree_dir)}')
+        build_script = f'{relink} && {build_script}'
     cmd = [
         'membrowse', 'onboard', str(num_commits),
-        f'cmake --build {build_dir} --target {basename}',
+        build_script,
         f'{build_dir}/{example}/{basename}.elf',
         f'{board}/{basename}',
         api_key,
-        '--build-dirs', 'src/', 'hw/',
+        '--build-dirs', 'src/', 'hw/', f'examples/{example.rstrip("/")}/',
     ]
     if ld_scripts:
         cmd += ['--ld-scripts', ' '.join(ld_scripts)]
@@ -58,6 +94,14 @@ def compose(board, example, num_commits, upload, api_key, extra,
 
 
 def main():
+    # Internal re-entry point: the composed build script calls this script
+    # back (see compose()) to relink deps after each historical `git clean
+    # -fdx`. Handled before the normal argparse below since it's a distinct
+    # invocation shape, not a board/example backfill.
+    if len(sys.argv) == 4 and sys.argv[1] == '--relink-deps':
+        symlink_deps(sys.argv[2], sys.argv[3])
+        return 0
+
     parser = argparse.ArgumentParser(
         description='Backfill membrowse history for one CI board/example '
                     '(dry-run unless --upload). Extra args after -- go to '
@@ -110,12 +154,34 @@ def main():
                  f'different regions than CI under the same target name; check '
                  f'the board/example, or that {build_dir} was built at least once')
 
+    # Isolate the actual onboard run (checks out + `git clean -fdx`s every
+    # historical commit in place - see the module docstring) in a disposable
+    # worktree, never repo_root itself.
+    repo_root = os.getcwd()
+    worktree_dir = os.path.join(repo_root, 'cmake-metrics', '_onboard_worktree')
+
     cmd = compose(args.board, args.example, args.num_commits, args.upload,
-                  api_key or 'dry-run-placeholder', extra, ld_scripts, defsyms)
+                  api_key or 'dry-run-placeholder', extra, ld_scripts, defsyms,
+                  repo_root, worktree_dir)
 
     shown = [('***' if c == api_key and api_key else c) for c in cmd]
     print('+ ' + ' '.join(shown), flush=True)
-    return subprocess.run(cmd).returncode
+
+    if os.path.isdir(worktree_dir):
+        subprocess.run(['git', 'worktree', 'remove', '--force', worktree_dir],
+                       capture_output=True)
+    os.makedirs(os.path.dirname(worktree_dir), exist_ok=True)
+    ret = subprocess.run(['git', 'worktree', 'add', '--detach', worktree_dir, 'HEAD'],
+                         capture_output=True, text=True)
+    if ret.returncode != 0:
+        sys.exit(f'failed to create disposable worktree at {worktree_dir}:\n{ret.stderr}')
+    symlink_deps(repo_root, worktree_dir)
+
+    try:
+        return subprocess.run(cmd, cwd=worktree_dir).returncode
+    finally:
+        subprocess.run(['git', 'worktree', 'remove', '--force', worktree_dir],
+                       capture_output=True)
 
 
 if __name__ == '__main__':

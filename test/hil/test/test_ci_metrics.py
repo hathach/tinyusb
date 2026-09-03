@@ -189,6 +189,27 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         self.assertIn('unexpected characters in the " + key', self.build,
                       'the args_*/run_* emitter must screen each board filter')
 
+    def test_membrowse_upload_owners(self):
+        # Exactly the cmake job and the espressif pair upload; hil-build
+        # builds for the rig only. A `upload-membrowse: true` reappearing on
+        # hil-build re-opens the target-name collision between its
+        # raspberry_pi_pico PIO-USB variant build and cmake's plain build.
+        # hil-build-esp-identical is not a build_util.yml caller (it has no
+        # elf to build - see its own comment), so it never carries the
+        # `upload-membrowse: true` input; it is caught instead by its direct
+        # MEMBROWSE_API_KEY env reference, the only one in this file.
+        import re
+        jobs = re.split(r'\n  (?=[a-z][\w-]*:\n)', self.build)
+        uploaders = sorted(j.split(':', 1)[0] for j in jobs
+                           if 'upload-membrowse: true' in j or 'MEMBROWSE_API_KEY' in j)
+        self.assertEqual(uploaders,
+                         ['cmake', 'hil-build-esp', 'hil-build-esp-identical'])
+
+    def test_no_skip_hil_boards_anywhere(self):
+        self.assertNotIn('--skip-hil-boards', self.build)
+        self.assertNotIn('hil_built_boards', self.build)
+        self.assertNotIn('hil-build-identical:', self.build.replace('hil-build-esp-identical:', ''))
+
     def test_the_guards_accept_what_the_selector_actually_emits(self):
         """A guard that rejects a NORMAL value is worse than no guard: build.yml throws
         the whole selection away, warns, and both axes fall back to full - silently
@@ -332,17 +353,35 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         self.assertGreater(legs, 0)
         self.assertEqual(filtered, 'true')
 
-    def test_membrowse_upload_is_scoped_by_the_pr_filter(self):
-        # Unlike the pre-ci-boards design, the upload now runs $EX_ARGS-filtered:
-        # --ci-boards/--ci-boards-only fixes each CI-board family to its explicit
-        # board list (returned as-is, never --one-first's "first board that can
-        # build this -e set"), so there is no more board-selection divergence for
-        # $EX_ARGS to cause - scoping the upload by the PR's example filter is safe
-        # again.
+    def test_membrowse_upload_is_not_scoped_by_the_pr_filter(self):
+        # The Build step is $EX_ARGS-scoped (compiles only the PR-selected
+        # examples); the Membrowse Upload step's own build/upload must NOT be:
+        # its job is to touch every example of the resolved CI board, real
+        # upload for the ones actually built, --identical for the rest -
+        # scoping the upload itself down to $EX_ARGS would give an
+        # out-of-selection example NO upload attempt at all this commit (a
+        # silent history gap, not the intended --identical row).
+        #
+        # $EX_ARGS DOES need to reach tools/build.py here, though: without it,
+        # resolve_ci_boards() (called with examples=None) always resolves the
+        # pinned CI board, even on the one path (its own docstring;
+        # test_ci_board_that_cannot_build_the_filter_is_dropped_under_boards_only
+        # covers the boards_only=True case this step uses) where the Build step
+        # above fell back to a DIFFERENT board instead - pushing --identical for
+        # a board this run never touched. tools/build.py's --ci-pinned-boards-only
+        # handling keeps $EX_ARGS scoped to that board-eligibility check only, so
+        # passing it through does not reintroduce the per-example scoping above.
         line = [l for l in self.util.splitlines()
                 if '--target examples-membrowse-upload' in l][0]
         self.assertIn('$EX_ARGS', line)
-        self.assertIn('--ci-boards-only', line)
+        self.assertIn('--ci-pinned-boards-only', line)
+
+    def test_the_build_step_stays_scoped_by_the_pr_filter(self):
+        # the fix above only touches the Membrowse Upload step - the Build step
+        # must keep compiling just the PR-selected examples
+        line = [l for l in self.util.splitlines()
+                if 'python tools/build.py $BUILD_PY_ARGS ${{ matrix.arg }} $EX_ARGS' in l]
+        self.assertTrue(line, '$EX_ARGS missing from the Build step invocation')
 
 
 if __name__ == '__main__':

@@ -2,7 +2,7 @@
 """Driver coverage for membrowse's CI boards and the HIL board pool.
 
 Every dcd_*/hcd_* driver under src/portable (plus ehci/ohci, minus template/)
-is checked against two rosters: `.github/ci-boards.json` (which
+is checked against two rosters: `.github/ci-pinned-boards.json` (which
 board's `drivers` list, or `uncovered`, covers it) and the HIL rig rosters
 (test/hil/tinyusb.json, test/hil/hfp.json - which board family, if any, on
 the physical rig builds it).
@@ -10,7 +10,8 @@ the physical rig builds it).
 Coverage GAPS are informational only and never fail the run: a membrowse gap
 documented in `uncovered` prints INFO, an undocumented one prints WARNING,
 and a driver with no rig board prints INFO. VALIDITY errors - malformed
-json, an unknown driver/board/family name, a driver claimed by both
+json, an unknown driver/board name, a board whose family no CI toolchain
+actually builds (ci_set_matrix.family_list), a driver claimed by both
 `boards` and `uncovered`, or an hcd_*/ehci/ohci claim on a board that
 builds no host/ or dual/ example (host examples are only.txt opt-in) - are
 bugs in the file, not gaps, and stay fatal: one line per error to stderr,
@@ -30,8 +31,8 @@ sys.path.insert(0, os.path.join(REPO, 'tools'))
 import build  # noqa: E402
 import build_utils  # noqa: E402
 import ci_select  # noqa: E402
-
-ROSTER_NAMES = ('tinyusb.json', 'hfp.json')
+sys.path.insert(0, os.path.join(REPO, '.github', 'scripts'))
+import ci_set_matrix  # noqa: E402
 
 
 def _is_host_driver(d):
@@ -95,22 +96,39 @@ def check(path):
         return [f'{path}: "uncovered" must be an object of driver: reason']
 
     drivers = list_drivers(os.path.join(REPO, 'src', 'portable'))
+    # ci_set_matrix.family_list is the ground truth for which families any CI
+    # toolchain actually builds. espressif is a deliberate exception there (see its
+    # own comment): hil-build-esp builds it by board name, not through this file, so
+    # its absence from family_list doesn't mean it's unbuilt.
+    ci_families = set(ci_set_matrix.family_list) | {'espressif'}
     covered = set()
     for i, t in enumerate(boards):
         where = f'boards[{i}]'
-        for key in ('board', 'family', 'drivers'):
+        if not isinstance(t, dict):
+            # a bare string/number/list here would otherwise TypeError on t.get()
+            # below - one clear error beats a traceback or bogus "missing" errors
+            errors.append(f'{where}: must be an object, not {type(t).__name__}')
+            continue
+        for key in ('board', 'drivers'):
             if key not in t:
                 errors.append(f'{where}: missing "{key}"')
-        board, family = t.get('board', ''), t.get('family', '')
-        board_ok = False
-        if family and not os.path.isdir(os.path.join(REPO, 'hw', 'bsp', family)):
-            errors.append(f'{where}: unknown family "{family}"')
-        elif board and not os.path.isdir(
-                os.path.join(REPO, 'hw', 'bsp', family, 'boards', board)):
-            errors.append(f'{where}: unknown board "{board}" in family "{family}"')
-        else:
-            board_ok = bool(board and family)
+        board = t.get('board', '')
+        family = ci_select.board_family(board, REPO) if board else None
+        board_ok = family is not None
+        if board and not board_ok:
+            errors.append(f'{where}: unknown board "{board}" (no hw/bsp/*/boards/{board})')
+        if board_ok and family not in ci_families:
+            errors.append(
+                f'{where} ({board}): family "{family}" is pinned but built by no CI '
+                f'toolchain (not in ci_set_matrix.family_list) - no leg ever builds it, '
+                f'so its "drivers" coverage claim is false')
         driver_list = t.get('drivers', [])
+        if not isinstance(driver_list, list):
+            # a string iterates character-by-character below (each "character
+            # matches no driver source file"); null/a number/an object outright
+            # TypeErrors on `for d in driver_list` - one clear error beats either
+            errors.append(f'{where}: "drivers" must be a list of driver names')
+            driver_list = []
         for d in driver_list:
             if d not in drivers:
                 errors.append(f'{where} ({board}): "{d}" matches no driver source file')
@@ -134,7 +152,7 @@ def check(path):
 
 
 def membrowse_gaps(path):
-    """(level, message) for every driver `path` (ci-boards.json) does not
+    """(level, message) for every driver `path` (ci-pinned-boards.json) does not
     cover: INFO when the gap is documented in "uncovered", WARNING when it is
     silently missing."""
     data = load_boards(path)
@@ -149,21 +167,6 @@ def membrowse_gaps(path):
             out.append(('WARNING',
                         f'membrowse: {d} has no CI board (and no uncovered entry)'))
     return out
-
-
-def _roster_boards(repo_root):
-    """Every board named by test/hil/{tinyusb,hfp}.json, deduped by name
-    (first roster wins) - mirrors ci_select.classify()'s own roster union."""
-    all_boards = []
-    seen = set()
-    for name in ROSTER_NAMES:
-        with open(os.path.join(repo_root, 'test', 'hil', name)) as f:
-            boards = json.load(f).get('boards', [])
-        for b in boards:
-            if b['name'] not in seen:
-                seen.add(b['name'])
-                all_boards.append(b)
-    return all_boards
 
 
 def _driver_port(driver_path, repo_root):
@@ -194,7 +197,7 @@ def hil_gaps(repo_root=REPO):
     rule 3/4 reads for a src/portable/ diff) or it turns on a build option
     that gates the port regardless of family (ci_select.port_option_gates/
     board_options - e.g. analog/max3421's MAX3421_HOST)."""
-    roster_boards = _roster_boards(repo_root)
+    roster_boards = build_utils.hil_roster_boards(repo_root)
     gates_by_port = ci_select.port_option_gates(repo_root)
     driver_paths = list_driver_paths(os.path.join(repo_root, 'src', 'portable'))
     out = []
@@ -215,7 +218,7 @@ def hil_gaps(repo_root=REPO):
 
 def main():
     path = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
-        REPO, '.github', 'ci-boards.json')
+        REPO, '.github', 'ci-pinned-boards.json')
     errors = check(path)
     for e in errors:
         print(e, file=sys.stderr)

@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 import functools
+import json
 import os
 import subprocess
 import pathlib
 import re
 
 build_format = '| {:29} | {:30} | {:18} | {:7} | {:6} | {:6} |'
+
+HIL_ROSTER_NAMES = ('tinyusb.json', 'hfp.json')
 
 SUCCEEDED = "\033[32msucceeded\033[0m"
 FAILED = "\033[31mfailed\033[0m"
@@ -404,6 +407,22 @@ def _skip_example(example, board, extra_defines, build_system):
         return True
 
     return False
+
+
+def hil_roster_boards(repo_root, roster_names=HIL_ROSTER_NAMES):
+    """Every board named by test/hil/{tinyusb,hfp}.json, deduped by name (first
+    roster wins). The single source of truth for "is this board on a HIL roster" -
+    used by tools/drivers_coverage_check.py's hil_gaps()."""
+    all_boards = []
+    seen = set()
+    for name in roster_names:
+        with open(os.path.join(repo_root, 'test', 'hil', name)) as f:
+            boards = json.load(f).get('boards', [])
+        for b in boards:
+            if b['name'] not in seen:
+                seen.add(b['name'])
+                all_boards.append(b)
+    return all_boards
 
 
 def build_size(make_cmd):

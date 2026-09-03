@@ -92,11 +92,50 @@ class PerFileSizes(unittest.TestCase):
         self.assertEqual(sizes['flash'], 8)
         self.assertEqual(sizes['ram'], 8)
 
+    def test_data_single_ram_region_still_counts_flash_load_image(self):
+        # raspberry_pi_pico (verified against a real membrowse report): '.data'
+        # is listed under only its RAM region's `sections`, never FLASH's - unlike
+        # test_data_counts_both_via_layout_split's stm32h743eval report, where it
+        # appears under both. A name known (BOTH_SECTIONS) to always carry a
+        # flash-side load image must still count it even when the layout itself
+        # only surfaces the RAM side.
+        layout = {
+            'RAM': fake_region(0x20000000, 0x40000,
+                               [fake_section('.data', 0x20000000, 8, 'data')]),
+        }
+        syms = [{'name': 'd', 'size': 8, 'section': '.data', 'source_file': 'x.c',
+                'object_file': 'device/cdc_msc/CMakeFiles/cdc_msc.dir/co/src/x.c.obj'}]
+        by_file = mc.per_file_sizes(fake_report_with_layout(syms, layout), ['/co/src/'])
+        sizes = by_file[next(iter(by_file))]
+        self.assertEqual(sizes['flash'], 8)
+        self.assertEqual(sizes['ram'], 8)
+
+    def test_split_across_two_ram_regions_stays_ram_only(self):
+        # distinct from test_data_counts_both_via_layout_split: a 2+-region split
+        # is not always a flash+ram pair - RAM_D1/RAM_D2 (H7-style multi-bank RAM)
+        # both classify as 'ram' via _classify_region(), so the union of their
+        # buckets is ram-only, not the old hardcoded ('flash', 'ram').
+        layout = {
+            'RAM_D1': fake_region(0x24000000, 0x80000,
+                                  [fake_section('.bss', 0x24000000, 32, 'bss')]),
+            'RAM_D2': fake_region(0x30000000, 0x48000,
+                                  [fake_section('.bss', 0x30000000, 32, 'bss')]),
+        }
+        syms = [{'name': 'b', 'size': 32, 'section': '.bss', 'source_file': 'x.c',
+                'object_file': 'device/cdc_msc/CMakeFiles/cdc_msc.dir/co/src/x.c.obj'}]
+        by_file = mc.per_file_sizes(fake_report_with_layout(syms, layout), ['/co/src/'])
+        sizes = by_file[next(iter(by_file))]
+        self.assertEqual(sizes['ram'], 32)
+        self.assertEqual(sizes['flash'], 0)
+
     def test_ccmram_style_symbol_lands_in_ram_via_layout(self):
-        # stm32f4's core-coupled RAM: FLASH_SECTIONS/RAM_SECTIONS/BOTH_SECTIONS does
-        # not list '.ccmram', so before this rule it fell through the old catch-all
-        # and was misreported as flash. The region is named CCMRAM (verified against
-        # a real stm32f407disco report), recognized directly by _classify_region().
+        # stm32f4's core-coupled RAM: the region is named CCMRAM (verified against a
+        # real stm32f407disco report), recognized directly by _classify_region() as
+        # 'ram'. '.ccmram' is also in BOTH_SECTIONS (it loads `AT> FLASH` exactly
+        # like '.data' - see the module's BOTH_SECTIONS comment), so a layout entry
+        # listing it under only its RAM-side region must still count the flash-side
+        # load image the layout itself didn't surface - same rule, same reason, as
+        # test_data_single_ram_region_still_counts_flash_load_image()'s rp2040 case.
         layout = {
             'FLASH': fake_region(0x08000000, 0x100000, []),
             'CCMRAM': fake_region(0x10000000, 0x10000,
@@ -107,7 +146,7 @@ class PerFileSizes(unittest.TestCase):
         by_file = mc.per_file_sizes(fake_report_with_layout(syms, layout), ['/co/src/'])
         sizes = by_file[next(iter(by_file))]
         self.assertEqual(sizes['ram'], 64)
-        self.assertEqual(sizes['flash'], 0)
+        self.assertEqual(sizes['flash'], 64)
 
     def test_noncacheable_style_symbol_lands_in_ram_via_unrecognized_region(self):
         # imxrt's CFG_TUSB_MEM_SECTION EHCI/DMA buffers: placed in a region named

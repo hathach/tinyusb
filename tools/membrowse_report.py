@@ -91,8 +91,8 @@ def extract_ld_scripts(commands_text):
 
 def extract_defsyms(commands_text):
     """`VAR=VALUE` --defsym values referenced in `commands_text`
-    (`ninja -t commands` stdout), in the order first encountered."""
-    return DEFSYM_RE.findall(commands_text)
+    (`ninja -t commands` stdout), deduped, in the order first encountered."""
+    return list(dict.fromkeys(DEFSYM_RE.findall(commands_text)))
 
 
 def build_membrowse_cmd(args, commands_text):
@@ -128,10 +128,15 @@ def build_membrowse_cmd(args, commands_text):
 
     key = None
     if args.upload:
-        key = os.environ.get('MEMBROWSE_API_KEY')
-        if not key:
-            sys.exit('error: --upload requires MEMBROWSE_API_KEY in the environment')
-        cmd += ['--upload', '--github', '--target-name', args.target_name, '--api-key', key]
+        cmd += ['--upload', '--github', '--target-name', args.target_name]
+        # No MEMBROWSE_API_KEY (fork PRs: GHA withholds secrets) -> omit
+        # --api-key entirely and let membrowse decide: on a GHA pull_request
+        # event it falls through to its GitHub tokenless auth (server-side
+        # re-validated), matching what master's CMake-expanded bare --api-key
+        # did; anywhere else membrowse itself errors, naming the requirement.
+        key = os.environ.get('MEMBROWSE_API_KEY') or None
+        if key:
+            cmd += ['--api-key', key]
 
     return cmd, key
 

@@ -96,6 +96,10 @@ class Regexes(unittest.TestCase):
         text = 'cc -Wl,--defsym=FOO=0x10 -Wl,--defsym,BAR=1 -o out.elf\n'
         self.assertEqual(mr.DEFSYM_RE.findall(text), ['FOO=0x10', 'BAR=1'])
 
+    def test_defsym_extraction_dedupes_preserving_first_seen_order(self):
+        text = 'cc -Wl,--defsym=FOO=0x10 -Wl,--defsym,BAR=1 -Wl,--defsym=FOO=0x10 -o out.elf\n'
+        self.assertEqual(mr.extract_defsyms(text), ['FOO=0x10', 'BAR=1'])
+
 
 class BuildMembrowseCmd(unittest.TestCase):
     def setUp(self):
@@ -171,15 +175,23 @@ class BuildMembrowseCmd(unittest.TestCase):
                 self._args(elf, ld=['/fake.ld'], option='--json --all-symbols'), '')
             self.assertEqual(cmd[:4], ['membrowse', 'report', '--json', '--all-symbols'])
 
-    def test_upload_requires_key_env(self):
+    def test_upload_without_key_goes_tokenless(self):
+        # Fork PRs: GHA withholds secrets, so the env var is empty. Master's
+        # CMake-expanded bare `--api-key` fell through to membrowse's GitHub
+        # tokenless auth; the wrapper must do the same by OMITTING --api-key,
+        # never by exiting (which, behind continue-on-error, silently drops
+        # every fork PR's upload).
         with tempfile.TemporaryDirectory() as tmp:
             elf = os.path.join(tmp, 'x.elf')
             open(elf, 'w').close()
             env = dict(os.environ)
             env.pop('MEMBROWSE_API_KEY', None)
             with mock.patch.dict(os.environ, env, clear=True):
-                with self.assertRaises(SystemExit):
-                    mr.build_membrowse_cmd(self._args(elf, ld=['/fake.ld'], upload=True), '')
+                cmd, key = mr.build_membrowse_cmd(self._args(elf, ld=['/fake.ld'], upload=True), '')
+            self.assertIsNone(key)
+            self.assertIn('--upload', cmd)
+            self.assertIn('--github', cmd)
+            self.assertNotIn('--api-key', cmd)
 
     def test_upload_appends_key_and_target_name(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -223,12 +235,15 @@ class CliKeyHandling(unittest.TestCase):
                 '--ld', '/fake.ld'] + extra_args
         return subprocess.run(args, capture_output=True, text=True, env=env)
 
-    def test_missing_api_key_errors_cleanly_no_traceback(self):
+    def test_upload_without_key_goes_tokenless(self):
+        # No MEMBROWSE_API_KEY in the environment (fork PR): the CLI must still
+        # invoke membrowse - with --github but no --api-key - instead of exiting.
         with tempfile.TemporaryDirectory() as tmp:
             r = self._run(tmp, ['--upload'], {})
-            self.assertNotEqual(r.returncode, 0)
-            self.assertNotIn('Traceback', r.stderr)
-            self.assertIn('MEMBROWSE_API_KEY', r.stderr)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            logged_line = r.stdout.splitlines()[0]
+            self.assertIn('--github', logged_line)
+            self.assertNotIn('--api-key', logged_line)
 
     def test_upload_redacts_key_in_logged_line(self):
         with tempfile.TemporaryDirectory() as tmp:

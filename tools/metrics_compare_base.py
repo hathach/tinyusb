@@ -172,7 +172,17 @@ def generate_metrics(build_dir, out_basename, filters, example=None):
 
 
 def generate_membrowse_sizes(build_dir, filters, example=None):
-    """Per-file sizes from membrowse local reports over every elf in build_dir."""
+    """Per-file sizes from membrowse local reports over every elf in build_dir.
+
+    Single-example (-e) mode sums a file's size across that example's own elf(s)
+    (e.g. an app + its bootloader) - byte-identical to before this averaging was
+    added. All-examples mode (no -e, `example` is None) glob-matches every
+    example's elf and instead AVERAGES each file's size across the elfs it
+    appeared in, the same way metrics.py's compute_avg() (the legacy linkermap
+    engine's cmd_combine path) averages per file - not summed, or a file linked
+    into N examples would report ~N times its real size, and the board's Flash/
+    RAM columns wouldn't be a real binary's size any more.
+    """
     import membrowse_compare
     pattern = f'{build_dir}/{example}/*.elf' if example \
         else f'{build_dir}/**/*.elf'
@@ -192,10 +202,16 @@ def generate_membrowse_sizes(build_dir, filters, example=None):
                   '`pip install membrowse`, or pass --engine linkermap to use '
                   'the legacy map.json path instead')
             return None
+        except RuntimeError as e:
+            # report_for_elf() raises this when `membrowse report` itself exits
+            # non-zero (e.g. a malformed elf/map) - same bare-traceback-after-
+            # both-builds risk as the FileNotFoundError case above.
+            print(f'  Error: {e}')
+            return None
         for path, sizes in membrowse_compare.per_file_sizes(report, filters).items():
-            entry = combined.setdefault(path, {'flash': 0, 'ram': 0})
-            entry['flash'] += sizes['flash']
-            entry['ram'] += sizes['ram']
+            entry = combined.setdefault(path, {'flash': [], 'ram': []})
+            entry['flash'].append(sizes['flash'])
+            entry['ram'].append(sizes['ram'])
     if not combined:
         # elfs exist but none of their symbols matched `filters` - either the
         # filters are wrong for this checkout, or membrowse's report shape
@@ -207,7 +223,17 @@ def generate_membrowse_sizes(build_dir, filters, example=None):
               f'report format change broke per_file_sizes() matching '
               f'(try --engine linkermap to isolate)')
         return None
-    return combined
+    if example:
+        # Single-example: sum, same as the plain += this replaced.
+        return {path: {'flash': sum(sizes['flash']), 'ram': sum(sizes['ram'])}
+                for path, sizes in combined.items()}
+    # All-examples: average per file, over the number of elfs THAT FILE appeared
+    # in (compute_avg()'s own semantics - not a uniform division by len(elfs), so
+    # a file linked into fewer examples than others isn't diluted by examples
+    # that never referenced it).
+    return {path: {'flash': round(sum(sizes['flash']) / len(sizes['flash'])),
+                   'ram': round(sum(sizes['ram']) / len(sizes['ram']))}
+            for path, sizes in combined.items()}
 
 
 def main():

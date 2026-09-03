@@ -105,7 +105,11 @@ jobs:
           IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
         run: |
           if [ "${{ inputs.toolchain }}" == "esp-idf" ]; then
-            docker run --rm -e MEMBROWSE_API_KEY="$MEMBROWSE_API_KEY" -e CI="$CI" -v $PWD:/project -w /project espressif/idf:tinyusb bash -c "pip install membrowse >/dev/null && python tools/build.py ${{ inputs.build-options }} --target all ${{ matrix.arg }} $EX_ARGS"
+            # --target all never builds the *-membrowse/*-membrowse-upload custom
+            # targets (they are not part of CMake's default `all`, and family_add_membrowse
+            # only declares them at configure time) - membrowse itself never runs in this
+            # step, so it does not need installing here.
+            docker run --rm -e MEMBROWSE_API_KEY="$MEMBROWSE_API_KEY" -e CI="$CI" -v $PWD:/project -w /project espressif/idf:tinyusb bash -c "python tools/build.py ${{ inputs.build-options }} --target all ${{ matrix.arg }} $EX_ARGS"
           else
             BUILD_PY_ARGS="-s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }} --target all"
             python tools/build.py $BUILD_PY_ARGS ${{ matrix.arg }} $EX_ARGS
@@ -117,14 +121,60 @@ jobs:
         continue-on-error: true
         env:
           MEMBROWSE_API_KEY: ${{ secrets.MEMBROWSE_API_KEY }}
+          ARG: ${{ matrix.arg }}
         run: |
+          # A HIL variant leg (--build-name, an extra -D define, or --cflag beyond
+          # the bare board) still configures with the same -DBOARD=<name> as the
+          # plain build - membrowse's target-name is <board>/<example>, derived
+          # from the board alone - so uploading it would overwrite the plain
+          # build's (or another variant's) history under that same name. Only a
+          # bare `-b <board> [-e ...]` leg, the plain build, uploads here; a
+          # variant board still gets built (for the rig) by this same job, just
+          # not uploaded from this leg.
+          case " $ARG " in
+            *' --build-name '*|*' -D'*|*' --cflag='*)
+              echo "skip membrowse upload: variant build ($ARG)"; exit 0 ;;
+          esac
           # code-changed false -> no elf -> membrowse uploads with --identical.
-          # --ci-boards-only: families without a CI board were built as compile
+          # --ci-pinned-boards-only: families without a CI board were built as compile
           # smoke-checks only and must not upload.
+          #
+          # $EX_ARGS DOES reach tools/build.py here: resolve_ci_boards() needs it to
+          # fall back exactly like the Build step above does when the pinned CI board
+          # cannot build any PR-selected example (examples/device/cdc_dual_ports/skip.txt
+          # vs stm32f407disco is the concrete case in resolve_ci_boards()'s docstring).
+          # Without it, this step still resolved the pinned board even when the Build
+          # step above had fallen back to a DIFFERENT one, and pushed --identical for
+          # every example of a board this run never actually built. Under
+          # --ci-pinned-boards-only, tools/build.py uses -e ONLY for that
+          # board-eligibility check - it does not narrow which examples of the
+          # resolved board get built/uploaded here, so this step's job (touch EVERY
+          # example of the resolved board: real upload for the ones the Build step
+          # above built, --identical for the rest) is unaffected.
+          #
+          # $ARG itself can carry -e too, though: hil_ci_set_matrix.py bakes
+          # per-example -e flags into matrix.arg for a PR-scoped hil-build-esp
+          # leg (unlike the cmake job's bare family arg above, which never does)
+          # - left in, that would scope this step's upload down to the same
+          # PR-selected examples the comment above says it must not. Strip them
+          # (independently of $EX_ARGS, which is appended back below).
+          ARG=$(printf '%s' "$ARG" | sed -E 's/ -e [^ ]+//g')
           BUILD_PY_ARGS="-s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }}"
-          CMD="python tools/build.py $BUILD_PY_ARGS --ci-boards-only --target examples-membrowse-upload -j 1 ${{ matrix.arg }} $EX_ARGS"
+          CMD="python tools/build.py $BUILD_PY_ARGS --ci-pinned-boards-only --target examples-membrowse-upload -j 1 $ARG $EX_ARGS"
           if [ "${{ inputs.toolchain }}" == "esp-idf" ]; then
-            docker run --rm -e MEMBROWSE_API_KEY="$MEMBROWSE_API_KEY" -e CI="$CI" -v $PWD:/project -w /project espressif/idf:tinyusb bash -c "pip install membrowse >/dev/null && $CMD"
+            # docker run only inherits what -e names explicitly (a GHA container gets
+            # none of the runner's env by default): membrowse's --github metadata
+            # detection (GITHUB_EVENT_NAME/GITHUB_SHA/...) and its fork-PR tokenless
+            # auth need these to see the actual event, and GITHUB_SHA to report the
+            # right commit. GITHUB_EVENT_PATH points outside the $PWD mount, so mount
+            # it too (read-only); guard it since local/non-Actions runs leave it unset.
+            DOCKER_ENV=(-e MEMBROWSE_API_KEY="$MEMBROWSE_API_KEY" -e CI="$CI"
+                        -e GITHUB_ACTIONS="$GITHUB_ACTIONS" -e GITHUB_EVENT_NAME="$GITHUB_EVENT_NAME"
+                        -e GITHUB_SHA="$GITHUB_SHA" -e GITHUB_REF_NAME="$GITHUB_REF_NAME"
+                        -e GITHUB_EVENT_PATH="$GITHUB_EVENT_PATH")
+            DOCKER_MOUNTS=(-v $PWD:/project)
+            [ -n "$GITHUB_EVENT_PATH" ] && DOCKER_MOUNTS+=(-v "$GITHUB_EVENT_PATH:$GITHUB_EVENT_PATH:ro")
+            docker run --rm "${DOCKER_ENV[@]}" "${DOCKER_MOUNTS[@]}" -w /project espressif/idf:tinyusb bash -c "pip install membrowse >/dev/null && $CMD"
           else
             $CMD
           fi

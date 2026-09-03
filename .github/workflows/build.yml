@@ -41,7 +41,8 @@ jobs:
               - 'tools/ci_select.py'
               - 'tools/get_deps.py'
               - 'tools/rtt.py'
-              - '.github/ci-boards.json'
+              - 'tools/membrowse_report.py'
+              - '.github/ci-pinned-boards.json'
               - '.github/actions/**'
               - '.github/workflows/build.yml'
               - '.github/workflows/build_util.yml'
@@ -234,7 +235,7 @@ jobs:
       build-system: 'cmake'
       toolchain: ${{ matrix.toolchain }}
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
-      build-options: '--ci-boards .github/ci-boards.json'
+      build-options: '--ci-pinned-boards .github/ci-pinned-boards.json'
       example-map: ${{ needs.set-matrix.outputs.example_map }}
       upload-artifacts: false
       upload-membrowse: true
@@ -328,11 +329,12 @@ jobs:
       toolchain: 'esp-idf'
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.hil_json)['esp-idf']) }}
       # build-args are explicit `-b <board>` flags (no bare family name), which
-      # bypass --ci-boards family resolution entirely (tools/build.py main()) - this
-      # is only here to satisfy --ci-boards-only's argparse requirement on --ci-boards
-      build-options: '--ci-boards .github/ci-boards.json'
+      # bypass --ci-pinned-boards family resolution entirely (tools/build.py main()) - this
+      # is only here to satisfy --ci-pinned-boards-only's argparse requirement on --ci-pinned-boards
+      build-options: '--ci-pinned-boards .github/ci-pinned-boards.json'
       upload-artifacts: true
       upload-membrowse: true
+    secrets: inherit
 
   # espressif has no leg in the `cmake` job above (it would double-build the same
   # board on the slowest toolchain - see that job's comment), so unlike every other
@@ -353,6 +355,8 @@ jobs:
     steps:
       - name: Checkout TinyUSB
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Install membrowse
         run: pip install membrowse
@@ -377,6 +381,10 @@ jobs:
               *' --build-name '*|*' -D'*|*' --cflag='*)
                 echo "skip membrowse upload: variant build ($arg)"; continue ;;
             esac
+            # same -e strip as build_util.yml's Membrowse Upload step: $arg can
+            # carry per-example -e flags from a PR-scoped hil_ci_set_matrix.py
+            # selection, and an --identical upload must still touch every example.
+            arg=$(printf '%s' "$arg" | sed -E 's/ -e [^ ]+//g')
             python3 tools/build.py -s cmake --target examples-membrowse-upload -j 1 $arg || true
           done
 

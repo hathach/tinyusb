@@ -10,7 +10,7 @@ import unittest
 REPO = subprocess.run(['git', 'rev-parse', '--show-toplevel'],
                       capture_output=True, text=True, check=True).stdout.strip()
 CHECKER = os.path.join(REPO, 'tools', 'drivers_coverage_check.py')
-BOARDS_JSON = os.path.join(REPO, '.github', 'ci-boards.json')
+BOARDS_JSON = os.path.join(REPO, '.github', 'ci-pinned-boards.json')
 
 sys.path.insert(0, os.path.dirname(CHECKER))
 import drivers_coverage_check as dcc  # noqa: E402
@@ -112,6 +112,30 @@ class CheckerVerdicts(unittest.TestCase):
         self.assertIn('msp_exp430f5529lp', r.stderr)
         self.assertIn('host/ or', r.stderr)
 
+    def test_boards_entry_as_a_string_fails_with_one_clear_error(self):
+        # a bare string here would otherwise TypeError on t.get() ("'str' object
+        # has no attribute 'get'") instead of one clear validity error
+        r = self._mutated(lambda d: d['boards'].append('not_an_object'))
+        self.assertEqual(r.returncode, 1)
+        self.assertIn('must be an object', r.stderr)
+        self.assertNotIn('Traceback', r.stderr)
+
+    def test_drivers_as_a_string_fails_with_one_clear_error(self):
+        # a string here would otherwise iterate character-by-character below
+        # ("d", "c", "d", "_", ... each "matches no driver source file") instead
+        # of one clear validity error
+        r = self._mutated(lambda d: d['boards'][0].update(drivers='dcd_rp2040'))
+        self.assertEqual(r.returncode, 1)
+        self.assertIn('"drivers" must be a list', r.stderr)
+        self.assertNotIn('matches no driver source file', r.stderr)
+
+    def test_drivers_as_null_fails_instead_of_crashing(self):
+        # `for d in None` is an unhandled TypeError, not a validity error
+        r = self._mutated(lambda d: d['boards'][0].update(drivers=None))
+        self.assertEqual(r.returncode, 1)
+        self.assertIn('"drivers" must be a list', r.stderr)
+        self.assertNotIn('Traceback', r.stderr)
+
 
 class MembrowseGaps(unittest.TestCase):
     def test_documented_gap_is_info(self):
@@ -162,12 +186,12 @@ class HilRoleFiltering(unittest.TestCase):
     port family), so only its roster-supplied role changes between cases."""
 
     def _hil_gap_messages(self, boards):
-        orig = dcc._roster_boards
-        dcc._roster_boards = lambda repo_root: boards
+        orig = dcc.build_utils.hil_roster_boards
+        dcc.build_utils.hil_roster_boards = lambda repo_root: boards
         try:
             return {msg for _, msg in dcc.hil_gaps()}
         finally:
-            dcc._roster_boards = orig
+            dcc.build_utils.hil_roster_boards = orig
 
     def test_wrong_role_board_is_still_a_gap(self):
         # device-only: hcd_rusb2 (host-only) must not count this as coverage
@@ -182,11 +206,11 @@ class HilRoleFiltering(unittest.TestCase):
 
 
 class BoardsAreSorted(unittest.TestCase):
-    def test_boards_sorted_by_family_then_board(self):
+    def test_boards_sorted_by_board(self):
         with open(BOARDS_JSON) as f:
             data = json.load(f)
-        keys = [(t['family'], t['board']) for t in data['boards']]
-        self.assertEqual(keys, sorted(keys), 'boards must be sorted by (family, board)')
+        keys = [t['board'] for t in data['boards']]
+        self.assertEqual(keys, sorted(keys), 'boards must be sorted by board name')
 
 
 if __name__ == '__main__':

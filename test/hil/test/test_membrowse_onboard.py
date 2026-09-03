@@ -24,19 +24,33 @@ class Compose(unittest.TestCase):
 
     def test_paths_and_build_script_are_repo_root_relative(self):
         cmd = mo.compose('stm32f407disco', 'device/cdc_msc', 30, False, 'k', [])
-        self.assertEqual(cmd[3], 'cmake --build examples/cmake-build-stm32f407disco '
+        self.assertEqual(cmd[3], 'cmake -S examples -B examples/cmake-build-stm32f407disco '
+                                 '-DBOARD=stm32f407disco -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel '
+                                 '&& cmake --build examples/cmake-build-stm32f407disco '
                                  '--target cdc_msc')
         self.assertEqual(cmd[4], 'examples/cmake-build-stm32f407disco/'
                                  'device/cdc_msc/cdc_msc.elf')
+
+    def test_build_script_reconfigures_before_building(self):
+        # `membrowse onboard` runs `git clean -fdx` before every historical
+        # build, which deletes the ignored build_dir - the build script must
+        # reconfigure it rather than assume it survives from the pre-flight
+        # check in main().
+        cmd = mo.compose('b', 'device/x', 5, False, 'k', [])
+        self.assertIn('cmake -S examples -B examples/cmake-build-b -DBOARD=b', cmd[3])
+        self.assertIn(' && cmake --build examples/cmake-build-b --target x', cmd[3])
 
     def test_dry_run_by_default_upload_drops_it(self):
         self.assertIn('--dry-run', mo.compose('b', 'device/x', 5, False, 'k', []))
         self.assertNotIn('--dry-run', mo.compose('b', 'device/x', 5, True, 'k', []))
 
     def test_build_dirs_scope_and_extra_passthrough(self):
+        # the example's own dir is in scope too - its sources (e.g. src/main.c)
+        # link into the same elf as src/ and hw/, so a change there must also
+        # trigger a rebuild rather than an --identical skip.
         cmd = mo.compose('b', 'host/y', 5, False, 'k', ['--binary-search'])
         i = cmd.index('--build-dirs')
-        self.assertEqual(cmd[i + 1:i + 3], ['src/', 'hw/'])
+        self.assertEqual(cmd[i + 1:i + 4], ['src/', 'hw/', 'examples/host/y/'])
         self.assertEqual(cmd[-1], '--binary-search')
 
     def test_ld_scripts_and_defsyms_passed_through(self):
@@ -114,6 +128,75 @@ class WorktreeGuard(unittest.TestCase):
             self.assertNotEqual(r.returncode, 0)
             self.assertIn('git status', r.stderr)
             self.assertNotIn('Traceback', r.stderr)
+
+
+class DisposableWorktree(unittest.TestCase):
+    """`membrowse onboard` checks out and `git clean -fdx`s every historical
+    commit unconditionally, in whatever directory it runs (membrowse/utils/
+    git.py) - main() must run it in a disposable worktree, never repo_root."""
+
+    def test_membrowse_runs_in_a_disposable_worktree_then_cleans_it_up(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            env = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
+            env.update(GIT_AUTHOR_NAME='t', GIT_AUTHOR_EMAIL='t@t',
+                      GIT_COMMITTER_NAME='t', GIT_COMMITTER_EMAIL='t@t')
+            subprocess.run(['git', 'init', '-q', tmp], check=True,
+                           capture_output=True, env=env)
+            # Ignore everything below (build_dir, ld stub, membrowse stub) so
+            # the dirty-tree guard sees a clean `git status --porcelain`, same
+            # trick as MainExtractionFailure - but track .gitignore itself so
+            # HEAD has a real commit to fork the disposable worktree from.
+            with open(os.path.join(tmp, '.gitignore'), 'w') as f:
+                f.write('*\n')
+            subprocess.run(['git', '-C', tmp, 'add', '-f', '.gitignore'],
+                           check=True, capture_output=True, env=env)
+            subprocess.run(['git', '-C', tmp, '-c', 'commit.gpgsign=false',
+                            'commit', '-q', '-m', 'init'],
+                           check=True, capture_output=True, env=env)
+
+            build_dir = os.path.join(tmp, 'examples', 'cmake-build-b')
+            os.makedirs(build_dir)
+            ld_path = os.path.join(tmp, 'fake.ld')
+            open(ld_path, 'w').close()
+
+            stub_dir = os.path.join(tmp, 'stubbin')
+            os.mkdir(stub_dir)
+            ninja_stub = os.path.join(stub_dir, 'ninja')
+            with open(ninja_stub, 'w') as f:
+                f.write(f'#!/usr/bin/env python3\nprint("cc -Wl,--script={ld_path} -o out.elf")\n')
+            os.chmod(ninja_stub, 0o755)
+
+            # Records the cwd `membrowse` actually ran in, instead of doing
+            # anything a real historical backfill would.
+            cwd_marker = os.path.join(tmp, 'membrowse_cwd.txt')
+            membrowse_stub = os.path.join(stub_dir, 'membrowse')
+            with open(membrowse_stub, 'w') as f:
+                f.write('#!/usr/bin/env python3\nimport os\n'
+                       f'open({cwd_marker!r}, "w").write(os.getcwd())\n')
+            os.chmod(membrowse_stub, 0o755)
+
+            env['PATH'] = stub_dir + os.pathsep + env.get('PATH', '')
+            script = os.path.join(REPO, 'tools', 'membrowse_onboard.py')
+            r = subprocess.run(
+                [sys.executable, script, 'b', 'device/x', '-n', '1'],
+                capture_output=True, text=True, cwd=tmp, env=env)
+            self.assertEqual(r.returncode, 0, r.stderr)
+
+            worktree_dir = os.path.join(tmp, 'cmake-metrics', '_onboard_worktree')
+            with open(cwd_marker) as f:
+                actual_cwd = f.read()
+            self.assertEqual(os.path.realpath(actual_cwd), os.path.realpath(worktree_dir))
+            self.assertNotEqual(os.path.realpath(actual_cwd), os.path.realpath(tmp))
+
+            # Cleaned up afterward, and the caller's own checkout was never
+            # touched (still on its branch, not detached).
+            self.assertFalse(os.path.isdir(worktree_dir))
+            listing = subprocess.run(['git', '-C', tmp, 'worktree', 'list'],
+                                     capture_output=True, text=True, env=env)
+            self.assertNotIn('_onboard_worktree', listing.stdout)
+            branch = subprocess.run(['git', '-C', tmp, 'symbolic-ref', '-q', 'HEAD'],
+                                    capture_output=True, text=True, env=env)
+            self.assertEqual(branch.returncode, 0, 'caller checkout ended up detached')
 
 
 if __name__ == '__main__':

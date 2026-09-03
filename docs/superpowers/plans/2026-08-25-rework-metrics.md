@@ -4,7 +4,7 @@
 
 **Goal:** Membrowse becomes the single CI size-analytics system: the linkermap CI pipeline is removed, membrowse uploads are restricted to a pinned board set covering every dcd/hcd driver, and linkermap survives as a local-only fallback engine.
 
-**Architecture:** A curated `.github/membrowse-targets.json` is the single source of truth: a pre-commit checker enforces driver coverage, `tools/build.py --board-pins` resolves it into CI builds and uploads, and the linkermap-based `tinyusb_metrics`/`code-metrics`/sticky-comment pipeline is deleted. Locally, `tools/metrics_compare_base.py` gains a membrowse diff engine (default) with linkermap kept as `--engine linkermap` fallback.
+**Architecture:** A curated `.github/ci-pinned-boards.json` is the single source of truth: a pre-commit checker enforces driver coverage, `tools/build.py --ci-pinned-boards` resolves it into CI builds and uploads, and the linkermap-based `tinyusb_metrics`/`code-metrics`/sticky-comment pipeline is deleted. Locally, `tools/metrics_compare_base.py` gains a membrowse diff engine (default) with linkermap kept as `--engine linkermap` fallback.
 
 **Tech Stack:** Python 3 (tools/, .github/scripts/), CMake (hw/bsp/family_support.cmake), GitHub Actions YAML, membrowse CLI (pip), pre-commit.
 
@@ -26,13 +26,13 @@
 ### Task 1: Pinned-target config + coverage checker
 
 **Files:**
-- Create: `.github/membrowse-targets.json`
+- Create: `.github/ci-pinned-boards.json`
 - Create: `.github/scripts/membrowse_targets_check.py`
 - Create: `test/hil/test/test_membrowse_targets.py`
 - Modify: `.pre-commit-config.yaml` (new hook after `ci-select-test`)
 
 **Interfaces:**
-- Produces: `.github/membrowse-targets.json` schema consumed by Task 2 (`build.py`) and Task 7 (skill):
+- Produces: `.github/ci-pinned-boards.json` schema consumed by Task 2 (`build.py`) and Task 7 (skill):
   `{"targets": [{"board": str, "family": str, "toolchain": str, "drivers": [str], "note": str}], "uncovered": {driver: reason}}`
 - Produces: `membrowse_targets_check.py` exit 0 on valid file, exit 1 with per-error lines on stderr.
 - Produces: `load_targets(path) -> dict` and `list_drivers(portable_dir) -> set[str]` in `membrowse_targets_check.py` (imported by the test and by Task 2's test for a shared fixture).
@@ -54,7 +54,7 @@ import unittest
 REPO = subprocess.run(['git', 'rev-parse', '--show-toplevel'],
                       capture_output=True, text=True, check=True).stdout.strip()
 CHECKER = os.path.join(REPO, '.github', 'scripts', 'membrowse_targets_check.py')
-TARGETS_JSON = os.path.join(REPO, '.github', 'membrowse-targets.json')
+TARGETS_JSON = os.path.join(REPO, '.github', 'ci-pinned-boards.json')
 
 sys.path.insert(0, os.path.dirname(CHECKER))
 import membrowse_targets_check as mtc  # noqa: E402
@@ -143,7 +143,7 @@ Expected: FAIL — `ModuleNotFoundError: membrowse_targets_check` (checker doesn
 
 ```python
 #!/usr/bin/env python3
-"""Validate .github/membrowse-targets.json against the driver and board tree.
+"""Validate .github/ci-pinned-boards.json against the driver and board tree.
 
 Every dcd_*/hcd_* driver under src/portable (plus ehci/ohci, minus template/)
 must be covered by a pinned board's `drivers` list or listed in `uncovered`
@@ -220,7 +220,7 @@ def check(path):
 
 def main():
     path = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
-        REPO, '.github', 'membrowse-targets.json')
+        REPO, '.github', 'ci-pinned-boards.json')
     errors = check(path)
     for e in errors:
         print(e, file=sys.stderr)
@@ -231,7 +231,7 @@ if __name__ == '__main__':
     sys.exit(main())
 ```
 
-- [ ] **Step 4: Write the initial `.github/membrowse-targets.json`**
+- [ ] **Step 4: Write the initial `.github/ci-pinned-boards.json`**
 
 Use this content, then fix every board/family name the checker rejects (the
 checker validates against `hw/bsp`, so a wrong name fails loudly — check the
@@ -312,24 +312,24 @@ Run: `pre-commit run membrowse-targets --all-files`
 Expected: Passed.
 
 ```bash
-git add .github/membrowse-targets.json .github/scripts/membrowse_targets_check.py \
+git add .github/ci-pinned-boards.json .github/scripts/membrowse_targets_check.py \
         test/hil/test/test_membrowse_targets.py .pre-commit-config.yaml
 git commit -m "ci: add membrowse pinned-target config with driver-coverage checker"
 ```
 
 ---
 
-### Task 2: `build.py --board-pins` / `--pins-only`
+### Task 2: `build.py --ci-pinned-boards` / `--ci-pinned-boards-only`
 
 **Files:**
 - Modify: `tools/build.py` (argparse block ~line 380, board collection in `main()` ~line 455)
 - Create: `test/hil/test/test_board_pins.py`
 
 **Interfaces:**
-- Consumes: `.github/membrowse-targets.json` (Task 1 schema).
-- Produces: `resolve_pinned_boards(pins_path, family, pins_only, examples=None, build_system='cmake', extra_defines=(), ci=None) -> list[str]` in `tools/build.py`. CLI: `--board-pins <path>` (per family: pinned boards if any, else the `--one-first` pick) and `--pins-only` (families without pins contribute no boards; requires `--board-pins`). Task 5's workflows call:
-  - build step: `tools/build.py --board-pins .github/membrowse-targets.json --target all <families>`
-  - upload step: `tools/build.py --board-pins .github/membrowse-targets.json --pins-only --target examples-membrowse-upload -j 1 <families>`
+- Consumes: `.github/ci-pinned-boards.json` (Task 1 schema).
+- Produces: `resolve_pinned_boards(pins_path, family, pins_only, examples=None, build_system='cmake', extra_defines=(), ci=None) -> list[str]` in `tools/build.py`. CLI: `--ci-pinned-boards <path>` (per family: pinned boards if any, else the `--one-first` pick) and `--ci-pinned-boards-only` (families without pins contribute no boards; requires `--ci-pinned-boards`). Task 5's workflows call:
+  - build step: `tools/build.py --ci-pinned-boards .github/ci-pinned-boards.json --target all <families>`
+  - upload step: `tools/build.py --ci-pinned-boards .github/ci-pinned-boards.json --ci-pinned-boards-only --target examples-membrowse-upload -j 1 <families>`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -337,7 +337,7 @@ git commit -m "ci: add membrowse pinned-target config with driver-coverage check
 
 ```python
 #!/usr/bin/env python3
-"""Tests for build.py --board-pins resolution against the real targets file."""
+"""Tests for build.py --ci-pinned-boards resolution against the real targets file."""
 import os
 import subprocess
 import sys
@@ -349,7 +349,7 @@ sys.path.insert(0, os.path.join(REPO, 'tools'))
 os.chdir(REPO)  # build.py resolves hw/bsp relative to cwd
 import build  # noqa: E402
 
-PINS = os.path.join(REPO, '.github', 'membrowse-targets.json')
+PINS = os.path.join(REPO, '.github', 'ci-pinned-boards.json')
 
 
 class BoardPins(unittest.TestCase):
@@ -414,11 +414,11 @@ Add `import json` to the imports at the top of `build.py` (it is not imported to
 Add the CLI arguments next to `--one-first` in `main()`'s argparse block:
 
 ```python
-    parser.add_argument('--board-pins', default=None, metavar='JSON',
-                        help='Path to membrowse-targets.json: build the pinned boards '
+    parser.add_argument('--ci-pinned-boards', default=None, metavar='JSON',
+                        help='Path to ci-pinned-boards.json: build the pinned boards '
                              'of each family (fallback: first board alphabetically)')
-    parser.add_argument('--pins-only', action='store_true', default=False,
-                        help='With --board-pins: skip families that have no pinned board')
+    parser.add_argument('--ci-pinned-boards-only', action='store_true', default=False,
+                        help='With --ci-pinned-boards: skip families that have no pinned board')
 ```
 
 In `main()`, validate and use them. After `one_first = args.one_first` add:
@@ -427,9 +427,9 @@ In `main()`, validate and use them. After `one_first = args.one_first` add:
     board_pins = args.board_pins
     pins_only = args.pins_only
     if pins_only and not board_pins:
-        parser.error('--pins-only requires --board-pins')
+        parser.error('--ci-pinned-boards-only requires --ci-pinned-boards')
     if board_pins and (one_first or one_random):
-        parser.error('--board-pins replaces --one-first/--one-random')
+        parser.error('--ci-pinned-boards replaces --one-first/--one-random')
 ```
 
 Replace the family→boards loop body:
@@ -452,7 +452,7 @@ Expected: PASS (4 tests).
 - [ ] **Step 5: Smoke-check the CLI end to end**
 
 ```bash
-python3 tools/build.py --board-pins .github/membrowse-targets.json --pins-only \
+python3 tools/build.py --ci-pinned-boards .github/ci-pinned-boards.json --ci-pinned-boards-only \
         -e device/cdc_msc stm32f4
 ```
 Expected: builds `device/cdc_msc` for exactly `stm32f407disco`, summary `1 OK`.
@@ -470,7 +470,7 @@ and extend its `files:` regex with `|tools/build\.py$|test/hil/test/test_board_p
 ```bash
 pre-commit run membrowse-targets --all-files
 git add tools/build.py test/hil/test/test_board_pins.py .pre-commit-config.yaml
-git commit -m "build.py: resolve membrowse board pins with --board-pins/--pins-only"
+git commit -m "build.py: resolve membrowse board pins with --ci-pinned-boards/--ci-pinned-boards-only"
 ```
 
 ---
@@ -863,7 +863,7 @@ git commit -m "metrics: add membrowse local-report diff engine, default for code
 
 **Interfaces:**
 - Consumes: nothing new; prepares the family/rule ground Task 6's workflows stand on.
-- Produces: `family_list` entries `"espressif": ["esp-idf"]`, `"same7x": ["arm-gcc"]`, `"cxd56": ["arm-gcc"]`, `"f1c100s": ["arm-gcc"]`; ci_select classifications: metrics tooling = meta (no build), `membrowse-targets.json` = full-build path, `membrowse-onboard` regex entry removed.
+- Produces: `family_list` entries `"espressif": ["esp-idf"]`, `"same7x": ["arm-gcc"]`, `"cxd56": ["arm-gcc"]`, `"f1c100s": ["arm-gcc"]`; ci_select classifications: metrics tooling = meta (no build), `ci-pinned-boards.json` = full-build path, `membrowse-onboard` regex entry removed.
 
 - [ ] **Step 1: Add the new families to `ci_set_matrix.py`**
 
@@ -884,11 +884,11 @@ family again.
 
 ```bash
 python3 tools/get_deps.py same7x cxd56 f1c100s
-python3 tools/build.py --board-pins .github/membrowse-targets.json --pins-only \
+python3 tools/build.py --ci-pinned-boards .github/ci-pinned-boards.json --ci-pinned-boards-only \
         -e device/cdc_msc same7x cxd56 f1c100s
 ```
 Expected: `3 OK`. For any family that FAILS and resists a quick fix: remove it
-from `family_list` again, delete its entry from `.github/membrowse-targets.json`,
+from `family_list` again, delete its entry from `.github/ci-pinned-boards.json`,
 move its driver(s) to `uncovered` with the build error one-liner as reason,
 and re-run `pre-commit run membrowse-targets --all-files` (must pass).
 (espressif is verified in Task 6 — it needs the IDF environment.)
@@ -908,11 +908,11 @@ Three classification changes (find the exact lines with
    local-only tooling → no build, no HIL.
 2. The meta workflow regex (~lines 117-119): remove `membrowse-onboard|`
    (the workflow is deleted in Task 6). `membrowse-comment` stays meta.
-3. Ensure `.github/membrowse-targets.json` is NOT matched by any meta rule
+3. Ensure `.github/ci-pinned-boards.json` is NOT matched by any meta rule
    (it must classify as a full-build path — it changes which boards CI
    builds). Check with:
    `python3 - <<'EOF'` ... or simpler: temporarily `git diff --name-only`-style
-   dry-run: `echo .github/membrowse-targets.json | python3 tools/ci_select.py --stdin`
+   dry-run: `echo .github/ci-pinned-boards.json | python3 tools/ci_select.py --stdin`
    (use the actual invocation `test_ci_select.py` uses if `--stdin` does not
    exist — read the test file for the harness pattern).
    Expected classification: full build matrix, no HIL.
@@ -923,7 +923,7 @@ Run: `python3 test/hil/test/test_ci_select.py && python3 test/hil/test/test_ci_m
 
 Every failure names an assertion about the OLD classification — update those
 assertions to the new expectations from Step 3 (metrics tooling → no build;
-add a new case asserting `.github/membrowse-targets.json` → full build; drop
+add a new case asserting `.github/ci-pinned-boards.json` → full build; drop
 `membrowse-onboard.yml` cases). `test_ci_metrics.py` tests `tools/metrics.py`
 itself — it stays passing untouched (metrics.py is unchanged); only its
 selector-classification cases (if any) move.
@@ -936,7 +936,7 @@ Expected: Passed.
 ```bash
 git add .github/scripts/ci_set_matrix.py tools/ci_select.py \
         test/hil/test/test_ci_select.py test/hil/test/test_ci_metrics.py \
-        .github/membrowse-targets.json
+        .github/ci-pinned-boards.json
 git commit -m "ci_select: metrics tooling is local-only; add pinned membrowse families"
 ```
 
@@ -952,7 +952,7 @@ git commit -m "ci_select: metrics tooling is local-only; add pinned membrowse fa
 - Delete: `.github/scripts/metrics_pair_compare.py`
 
 **Interfaces:**
-- Consumes: `--board-pins`/`--pins-only` (Task 2), families (Task 5).
+- Consumes: `--ci-pinned-boards`/`--ci-pinned-boards-only` (Task 2), families (Task 5).
 - Produces: the final CI shape — no metrics artifacts, membrowse-only size analytics, esp-idf lane uploading.
 
 - [ ] **Step 1: `build_util.yml` edits**
@@ -972,7 +972,7 @@ git commit -m "ci_select: metrics tooling is local-only; add pinned membrowse fa
    (single docker run; upload for esp-idf happens in the Membrowse Upload step
    below, same container image.)
 3. Membrowse Upload step: drop the `inputs.toolchain != 'esp-idf'` condition;
-   add `--pins-only`:
+   add `--ci-pinned-boards-only`:
 
 ```yaml
       - name: Membrowse Upload
@@ -982,10 +982,10 @@ git commit -m "ci_select: metrics tooling is local-only; add pinned membrowse fa
           MEMBROWSE_API_KEY: ${{ secrets.MEMBROWSE_API_KEY }}
         run: |
           # code-changed false -> no elf -> membrowse uploads with --identical.
-          # --pins-only: families without a pinned board were built as compile
+          # --ci-pinned-boards-only: families without a pinned board were built as compile
           # smoke-checks only and must not upload.
           BUILD_PY_ARGS="-s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }}"
-          CMD="python tools/build.py $BUILD_PY_ARGS --pins-only --target examples-membrowse-upload -j 1 ${{ matrix.arg }} $EX_ARGS"
+          CMD="python tools/build.py $BUILD_PY_ARGS --ci-pinned-boards-only --target examples-membrowse-upload -j 1 ${{ matrix.arg }} $EX_ARGS"
           if [ "${{ inputs.toolchain }}" == "esp-idf" ]; then
             docker run --rm -e MEMBROWSE_API_KEY="$MEMBROWSE_API_KEY" -e CI="$CI" -v $PWD:/project -w /project espressif/idf:tinyusb bash -c "pip install membrowse >/dev/null && $CMD"
           else
@@ -1000,7 +1000,7 @@ git commit -m "ci_select: metrics tooling is local-only; add pinned membrowse fa
 
 - Toolchain matrix: uncomment `- 'esp-idf'`.
 - `build-options`: change `'--one-first'` to
-  `'--board-pins .github/membrowse-targets.json'`.
+  `'--ci-pinned-boards .github/ci-pinned-boards.json'`.
 - Delete the `upload-metrics: true` line.
 - Delete the whole `code-metrics` job (lines ~261-389).
 - In `set-matrix`: delete the `build_families_regex` output (line ~30) and the
@@ -1010,7 +1010,7 @@ git commit -m "ci_select: metrics tooling is local-only; add pinned membrowse fa
   no other consumer: `grep -rn "build_families_regex" .github/ .circleci/`
   must return only lines you are deleting.
 - check-paths `code:` filter: remove `- 'tools/metrics.py'`; add
-  `- '.github/membrowse-targets.json'`.
+  `- '.github/ci-pinned-boards.json'`.
 
 - [ ] **Step 3: `pr_comment.yml`**
 
@@ -1044,7 +1044,7 @@ Then verify locally (host has `IDF_PATH`):
 
 ```bash
 . "$IDF_PATH/export.sh"
-python3 tools/build.py --board-pins .github/membrowse-targets.json --pins-only \
+python3 tools/build.py --ci-pinned-boards .github/ci-pinned-boards.json --ci-pinned-boards-only \
         -e device/cdc_msc_freertos espressif
 # then the no-upload dry-run target in the build dir it produced:
 cmake --build cmake-build/cmake-build-espressif_s3_devkitm/device/cdc_msc_freertos --target cdc_msc_freertos-membrowse
@@ -1082,7 +1082,7 @@ git commit -m "ci: membrowse-only size analytics - drop linkermap metrics pipeli
 - Modify: `.claude/skills/code-size/SKILL.md` (engine default + fallback note)
 
 **Interfaces:**
-- Consumes: `metrics_compare_base.py --engine`, `membrowse-targets.json`, `<target>-membrowse` / `examples-membrowse-upload` cmake targets, `membrowse report/onboard/summary` CLI.
+- Consumes: `metrics_compare_base.py --engine`, `ci-pinned-boards.json`, `<target>-membrowse` / `examples-membrowse-upload` cmake targets, `membrowse report/onboard/summary` CLI.
 
 - [ ] **Step 1: Write `.claude/skills/membrowse/SKILL.md`**
 
@@ -1095,13 +1095,13 @@ name: membrowse
 description: Use when analyzing firmware memory footprint with membrowse — local
   size reports for an elf, base-vs-branch size diffs, uploading pinned targets
   to the membrowse dashboard, backfilling history (onboard), or editing
-  .github/membrowse-targets.json (pinned boards covering all dcd/hcd drivers).
+  .github/ci-pinned-boards.json (pinned boards covering all dcd/hcd drivers).
 ---
 
 # Membrowse Size Analytics
 
 Membrowse is TinyUSB's first-class size-analytics system. CI uploads every
-example of the PINNED boards in `.github/membrowse-targets.json` on each
+example of the PINNED boards in `.github/ci-pinned-boards.json` on each
 master push; the membrowse PR comment (membrowse-comment.yml) is the size
 feedback on PRs. Target names are `<board>/<example>` — never change them.
 
@@ -1121,17 +1121,17 @@ membrowse engine is the default; `--engine linkermap` is the legacy fallback
 
 ## Pinned targets
 
-`.github/membrowse-targets.json`: one entry per pinned board with the drivers
+`.github/ci-pinned-boards.json`: one entry per pinned board with the drivers
 it covers; `uncovered` documents drivers with no CI-buildable board. The
 pre-commit hook `membrowse-targets` enforces that every dcd/hcd driver (plus
 ehci/ohci) is covered or documented. To pin a new board: add the entry, run
 `pre-commit run membrowse-targets --all-files`, and check the board builds:
-`python3 tools/build.py --board-pins .github/membrowse-targets.json --pins-only -e device/cdc_msc <family>`.
+`python3 tools/build.py --ci-pinned-boards .github/ci-pinned-boards.json --ci-pinned-boards-only -e device/cdc_msc <family>`.
 
 ## Upload (needs MEMBROWSE_API_KEY)
 
 CI-only under normal operation (build_util.yml). Manual:
-`python3 tools/build.py --board-pins .github/membrowse-targets.json --pins-only --target examples-membrowse-upload -j 1 <family>`
+`python3 tools/build.py --ci-pinned-boards .github/ci-pinned-boards.json --ci-pinned-boards-only --target examples-membrowse-upload -j 1 <family>`
 
 ## History backfill (onboard)
 

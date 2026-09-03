@@ -24,7 +24,6 @@ CFLAGS += \
 	-Wno-error=undef \
 	-Wno-error=cast-align \
 	-Wno-error=unused-parameter \
-	-Wno-error=missing-prototypes \
 	-DCFG_TUSB_MCU=OPT_MCU_CXD56 \
 
 CPU_CORE ?= cortex-m4
