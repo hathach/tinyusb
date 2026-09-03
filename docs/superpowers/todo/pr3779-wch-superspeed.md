@@ -233,3 +233,17 @@ Deferred, with the reason:
 | ------- | --------------------- |
 | `dcd_ch56x_usbhs.c:95` + `dcd_ch56x_usb30.c:1030` — 13,312 B of RAMX (41% of the CH569's 32 KB, its only DMA-reachable RAM) held for bounce storage: a worst-case 7,168 B `bounce_buffer` that stock builds never touch, plus a flat 1,024 B slot per opened endpoint direction regardless of wMaxPacketSize | Real waste, not a defect — nothing misbehaves today. Sizing slots by `TU_ALIGN_UP(mps, 16)` needs per-slot size tracking, because a slot is reused on re-open and an alternate setting can re-open the same direction with a larger mps; that is a change to a hardware-verified allocator and wants its own PR with a HIL run behind it |
 | Neither `hydrausb3_v1` nor `nanoch32h417` appears in `tinyusb.json` or `hfp.json`, so ~3,800 lines of new WCH driver code get no CI hardware coverage | Known and not fixable from here: both boards are on the dev PC, not on ci.lan or the hifiphile rig. Registering them means physically moving hardware onto a rig, which is a rig-side decision |
+
+## From the 2026-09-04 validate run
+
+Fixed (three fixes salvaged from the workflow run, committed on the restored tip):
+`family.c` traps after `NVIC_SystemReset()` (PVS V1082, and the SDK's reset really does
+return), the CH32H417 USB2 driver NAKs an unqueued OUT for isochronous too (an ACK would
+DMA into the stale `EP_RX_DMA` target), and the CH569 USB2 driver shadows the EP0 OUT
+toggle (`ep0_rx_tog`) so no read-modify-write of `EP_RX_CTRL(0)` can race a SETUP.
+
+Still open, judged too risky to change blind:
+
+| Finding | Why it is still open |
+| ------- | --------------------- |
+| `dcd_ch56x_usb30.c` `handle_ep0_rx()` — a second early EP0 OUT data packet overwrites the first: only one `_ep0_early_len` is latched and the `!active` branch re-arms RX into the same `_ep0_buf`, so a multi-packet control-OUT (wLength > 512) that outruns usbd's ~100 us task-side arm loses packet 1 | Host-timing dependent and never observed: the usbtest ctrl suite passes with the current arm sequence. The candidate fix (park NRDY while a packet is held, re-arm when usbd drains it) touches the EP0 arm dance that is silicon-fragile on this chip (a NUMP=0 arm is a dead park); it wants its own bench session with the usbtest ctrl cases in a loop |
