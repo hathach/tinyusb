@@ -88,6 +88,22 @@ function(family_configure_example TARGET RTOS)
   family_configure_common(${TARGET} ${RTOS})
   family_add_tinyusb(${TARGET} OPT_MCU_CH32V20X)
 
+  if (SYSVIEW)
+    # Work around lib/SEGGER_RTT's generic RISC-V lock trapping on WCH's QingKe core, see the header.
+    target_compile_options(${TARGET} PUBLIC -include ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../sysview_rtt_conf_wch.h)
+    if (RHPORT_DEVICE EQUAL 0)
+      # W9: FSDEV (port 0, the default) tail-calls into dcd_int_handler via naked asm, reaching
+      # neither the TU_SYSVIEW_ISR_ENTER/_EXIT macros nor any instrumented handler -- this build
+      # records ZERO ISR-level events, at any SYSVIEW level. Documented as a coverage gap in
+      # .claude/skills/sysview/boards.md ("ISR coverage is per-port"); the build itself said
+      # nothing about it until now. USBFS (RHPORT_DEVICE=1) has full ISR coverage.
+      message(WARNING
+        "SYSVIEW: ${TARGET}/${BOARD} builds on FSDEV (RHPORT_DEVICE=0) -- its naked-asm ISR "
+        "entry bypasses SystemView instrumentation, so this capture will have ZERO ISR-level "
+        "events. See .claude/skills/sysview/boards.md. Use RHPORT_DEVICE=1 (USBFS) for ISR coverage.")
+    endif ()
+  endif ()
+
   target_sources(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c

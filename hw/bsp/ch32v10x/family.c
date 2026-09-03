@@ -64,6 +64,13 @@ static uint32_t SysTick_Config(uint32_t ticks) {
 uint32_t tusb_time_millis_api(void) {
   return system_ticks;
 }
+
+// No SEGGER_SYSVIEW_X_GetTimestamp() here: a QingKe V2 SysTick snapshot (four separate byte
+// registers, no single CNT) needs a torn-read retry loop that compares two full reads for
+// equality against a counter that free-runs every cycle -- effectively never terminates. Not
+// worth fixing since family.cmake FATAL_ERRORs on SYSVIEW for this family already (no RTT lock
+// in ch32v10x's U-mode).
+
 #endif
 
 void board_init(void) {
