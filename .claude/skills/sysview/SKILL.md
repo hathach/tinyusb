@@ -46,7 +46,9 @@ timing, FreeRTOS stack high-water, heap totals, app markers.
   can work**: post-mortem autopsy of a hang (the halt IS the capture), and all
   WCH parts — their SDI attach is destructive (kills USB on ch32v2/v3, resets
   ch583-class, boards.md), so a live session and a USB workload are mutually
-  exclusive there.
+  exclusive there. `sysview_dump.py` scripts that dump over J-Link only; WCH has
+  no `JLINK_DEVICE`, so its dump is hand-driven over OpenOCD (post-mortem
+  section).
 
 - **Hold the board lock** for any route (see the recipe below). Every command
   here runs on the host the probe is attached to — for the ci.lan rig, reaching
@@ -101,8 +103,9 @@ python3 test/hil/helper/hil_lock.py release <board>
   `python3 -c "import serial,time; p=serial.Serial('<node>',115200,timeout=0.2,write_timeout=2); [ (p.write(b'x'*64), p.read(64), time.sleep(0.002)) for _ in range(4000) ]"`
   **Only read back if the example echoes.** `cdc_msc` echoes; the dual examples do
   not call `tud_cdc_read()`, so a read-based workload blocks its full timeout per
-  iteration, outlives the recording window, and can hang the wrapper — drive
-  write-only there, and always set `write_timeout`.
+  iteration and never delivers the traffic you meant to record (the recorder
+  `-stop`s at `--duration-ms` and kills it there, so it costs a wasted capture,
+  not a hung run) — drive write-only there, and always set `write_timeout`.
 - `--no-events` skips the large `events.txt` (needed only for the percentile
   tables); `--export-terminal` adds `SEGGER_SYSVIEW_PrintfHost` output.
   `recording.SVDat` opens in a desktop SystemView for the visual timeline.
@@ -175,6 +178,59 @@ ring under steady CDC bulk traffic covered a ~20-25 ms tail. Size
 bulk rates, never minutes. `--resume` lets the core carry on; by default it stays
 halted (you're mid-autopsy). When done, step 5 of the live recipe applies
 unchanged: restore pristine firmware, then release the lock.
+
+### WCH: the same dump by hand (no J-Link)
+
+`sysview_dump.py` is **J-Link-only** (`JLinkExe`, SWD) and every WCH row in
+`boards.md` has `JLINK_DEVICE` `—`, so on `ch32v20x`/`ch32v30x` the dump is
+hand-driven over OpenOCD: one attach reads the same channel-1 ring descriptor
+and dumps the same bytes, and the WrOff split below is the script's
+linearization verbatim. `ch32v10x` and `ch583` reset on every WCH-Link attach,
+which wipes the ring — no dump route there either (`boards.md`). Build with the
+same `cmake` lines as above (there is no `-jlink` flash target here); `<uid>` is
+the board's `flasher.uid` in `test/hil/tinyusb.json`.
+
+```bash
+ELF=build-pm/cdc_msc_freertos.elf
+OUT=/tmp/sysview-pm; mkdir -p $OUT
+OOCD=(openocd -c "tcl_port disabled" -c "gdb_port disabled" -c "telnet_port disabled"
+      -c "adapter serial <uid>" -c "adapter usb vid_pid 0x1a86 0x8010"
+      -f target/wch-riscv.cfg)
+
+# flash — no `verify`: read-back over SDI returns a repeated word, so it always mismatches
+"${OOCD[@]}" -c "program $ELF reset exit"
+# ... reproduce the hang ...
+
+CB=$(python3 -c "import sys; sys.path.insert(0,'.claude/skills/sysview/scripts'); \
+     from sysview_record import rtt_cb_from_elf as f; print(f('$ELF'))")   # _SEGGER_RTT
+DESC=$(printf '0x%x' $((CB + 0x30)))   # aUp[1] "SysView": sName,pBuffer,SizeOfBuffer,WrOff,RdOff,Flags
+
+# one attach, halt only — NEVER reset: the halt IS the autopsy point, and under
+# SDI a reset target does not come back
+"${OOCD[@]}" -c "init; halt; dump_image $OUT/header.bin $CB 0x48; \
+      set d [read_memory $DESC 32 6]; \
+      dump_image $OUT/ring.bin [lindex \$d 1] [lindex \$d 2]; shutdown"
+
+python3 - "$OUT" <<'EOF'
+import struct, sys, pathlib
+out = pathlib.Path(sys.argv[1])
+hdr = (out / "header.bin").read_bytes()
+assert hdr[:10] == b"SEGGER RTT", "no control block there — wrong ELF, or RAM not initialized"
+_, pbuf, size, wroff, rdoff, _fl = struct.unpack_from("<6I", hdr, 0x30)   # aUp[1] = "SysView"
+ring = (out / "ring.bin").read_bytes()
+assert len(ring) == size, f"read {len(ring)} ring bytes, expected {size}"
+(out / "capture.SVDat").write_bytes(ring[wroff:] + ring[:wroff])          # oldest byte first
+print(f"pBuffer=0x{pbuf:x} SizeOfBuffer={size} WrOff={wroff} RdOff={rdoff}")
+EOF
+python3 .claude/skills/sysview/scripts/sysview_record.py \
+  --from-raw $OUT/capture.SVDat --out $OUT-decoded
+```
+
+The core is left halted; recover the board by reflashing pristine firmware —
+`reset run` under SDI never comes back. **Not bench-run yet**: the OpenOCD/Tcl
+and the split are syntax-checked against openocd 0.12.0+dev and against
+`sysview_dump.py`'s linearization, but no WCH post-mortem has been captured on
+the rig.
 
 ## Build options
 
