@@ -86,6 +86,11 @@ window is the attach_only mid-stream join (2.4–5.6 s across runs).
 - **ra4m1_ek no longer links at `SYSVIEW=4`** — the 2026-08-11 build sweep hit
   `region RAM overflowed by 960 bytes` even at `-DSYSVIEW_BUFFER_SIZE=2048`; its
   rate row predates that. Re-validating needs a lower level or freed RAM.
+- **stm32f401blackpill overrides its family default down to 4096** — the part has
+  64 KiB RAM total, so stm32f4's family-wide 65536 overflows `RAM` by 12952 bytes at
+  `SYSVIEW=4`. `boards/stm32f401blackpill/board.cmake` sets
+  `SYSVIEW_BUFFER_SIZE_DEFAULT 4096`; the rest of the family (>=128 KiB) keeps 65536.
+  Unmeasured — expect the small-buffer event loss the other 4096 rows show.
 - **nrf5340dk cannot be captured at present**: it HardFaults inside `vTaskStartScheduler()`
   before any task runs — reproduced on a plain non-instrumented build and after a full
   `nrfjprog --recover`, so it is a board/boot issue, not a SystemView one. The RTT control block
