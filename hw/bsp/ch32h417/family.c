@@ -158,7 +158,9 @@ static bool loader_get_u32(uint32_t *out) {
   return true;
 }
 
-__attribute__((noreturn)) static void uart_flash_loader(void) {
+// Not marked noreturn: the outer for(;;) below has no break, so it never falls through, but
+// PVS can't prove that through the nested loops and keeps flagging V1082 regardless.
+static void uart_flash_loader(void) {
   USART_ITConfig(USART1, USART_IT_RXNE, DISABLE); // polled from here on
   NVIC_DisableIRQ(USART1_IRQn);
   static uint8_t chunk[1024] __attribute__((aligned(4)));
@@ -178,6 +180,7 @@ __attribute__((noreturn)) static void uart_flash_loader(void) {
       c = loader_getc(5000000u); // ~0.5 s
       if (c == -1 && ++idle >= 60u) {
         NVIC_SystemReset();
+        for (;;) {} // NVIC->CFGR reset write takes a few cycles to land; wait it out rather than fall through
       }
     } while (c != 'H');
 
@@ -243,6 +246,7 @@ __attribute__((noreturn)) static void uart_flash_loader(void) {
       loader_putc('D');
       for (volatile uint32_t i = 0; i < 2000000; i++) {} // drain the last byte
       NVIC_SystemReset();
+      for (;;) {} // NVIC->CFGR reset write takes a few cycles to land; wait it out rather than fall through
     }
     loader_putc('X');
   }
