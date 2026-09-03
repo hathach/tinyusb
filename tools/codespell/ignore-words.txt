@@ -3,6 +3,7 @@ busses
 dout
 endianess
 fro
+hart
 hsi
 inout
 linke
