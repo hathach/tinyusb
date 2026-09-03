@@ -201,7 +201,11 @@ static void update_out(uint8_t rhport, uint8_t ep_num, uint16_t rx_len) {
   } else if (xfer->valid) {
     queue_out_packet(ep_num, xfer);
   } else {
-    set_rx_res(ep_num, xfer->is_iso ? USBHS_UEP_R_RES_ACK : USBHS_UEP_R_RES_NAK);
+    // RES=NAK is documented as "respond with NAK or busy": with no xfer queued this must reject
+    // the packet, not accept it - ACK here would DMA the next OUT packet to EP_RX_DMA's stale
+    // target (still pointing at the just-completed buffer, only queue_out_packet() moves it),
+    // overwriting the completed transfer before task context delivers it.
+    set_rx_res(ep_num, USBHS_UEP_R_RES_NAK);
   }
 }
 
