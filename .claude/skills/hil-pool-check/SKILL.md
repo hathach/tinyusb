@@ -130,7 +130,8 @@ removes VBUS, so there is nothing further to try.
 
 The user-facing answer to a pool check IS the tool's summary table: paste the complete per-board
 table (and footer counts) verbatim — never truncate rows or reduce it to a prose digest like
-"27/27 healthy"; at most one line of commentary below it.
+"27/27 healthy". Commentary below it covers only what the table cannot show: the escalation
+note below, a board that needs a physical replug.
 
 When an escalation above was needed, add a short note under the table naming: which boards needed
 it, which root port was cycled (or that a replug was needed instead), which siblings bounced, and

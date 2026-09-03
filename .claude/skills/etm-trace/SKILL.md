@@ -196,8 +196,8 @@ both. Timing semantics and clock columns are explained at the top of that file.
 ## References
 
 - Ozone manual (UM08025, automation socket §6.7, project commands §7):
-  <https://www.segger.com/downloads/jlink/UM08025_Ozone.pdf> — V3.50, same as
-  the installed Ozone (web is rev 1 vs the local copy's rev 0; the local PDF
-  under /opt/SEGGER/Ozone_V350/Doc remains the offline fallback).
+  <https://www.segger.com/downloads/jlink/UM08025_Ozone.pdf>; the installed
+  Ozone ships its own revision of it under its `Doc/` directory (offline
+  fallback — section numbers can differ between revisions).
 - J-Link / J-Trace manual (UM08001, trace ch. 10, timing troubleshooting):
   <https://kb.segger.com/UM08001_J-Link_/_J-Trace_User_Guide>

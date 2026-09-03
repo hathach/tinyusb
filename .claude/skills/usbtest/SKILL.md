@@ -41,11 +41,11 @@ python3 test/hil/usbtest.py --serial <uid> --keep-binding --tests 29 # one case
   actions runner. It keeps running; the per-board flock is what arbitrates (see the `hil` skill).
   Never start a battery by hand next to a running one: `hil_test.py` budgets 2 concurrent batteries
   per host controller (`HIL_USBTEST_PARALLEL`). The width itself is a profiled throughput/bandwidth
-  trade, not a safety ceiling (hil_lock.py:122-127) — but a battery outside the budget is a real
-  hazard, and the hazard is recorded: unbudgeted concurrent batteries have hard-frozen the rig with
-  a fatal PCIe error on a VFIO-passed xHCI, and a marginal DUT port bouncing under concurrent
-  batteries has killed a uPD720201 outright, which lowering the widths does not fix
-  (hil_lock.py:130-132).
+  trade, not a safety ceiling (the concurrency note above `FLASH_PARALLEL` in `hil_lock.py`) — but
+  a battery outside the budget is a real hazard: unbudgeted concurrent batteries have hard-frozen
+  the rig with a fatal PCIe error on a VFIO-passed xHCI, and a marginal DUT port bouncing under
+  concurrent batteries has killed a uPD720201 outright, which lowering the widths does not fix
+  (that note records every such death).
 
 ## Porting ladder — new MCU/DCD to 30/30
 
