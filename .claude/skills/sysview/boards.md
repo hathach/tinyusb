@@ -52,7 +52,7 @@ it regardless of the column.
 | raspberry_pi_pico2       | rp2040     | rp2350_m33_0      | DWT              | validated — see caveat | OpenOCD |        | —      | —     | —                | —                   |
 | same54_xplained          | samd5x_e5x | ATSAME54P20       | DWT              | validated end-to-end   | J-Link  |        | —      | —     | —                | — (prose below)     |
 | mimxrt1064_evk           | imxrt      | MIMXRT1064xxx6A   | DWT              | validated (dual)       | J-Link  | 65536  | —      | —     | —                | —                   |
-| ch32v307v_r1_1v0         | ch32v30x   | —                 | QingKe SysTick   | tick 996.1 Hz (−0.39%) | dump    |        | —      | —     | —                | —                   |
+| ch32v307v_r1_1v0         | ch32v30x   | —                 | QingKe SysTick   | tick 996.1 Hz (−0.39%) | dump    | 4096   | 0.16 s | 0     | 85, 5.0          | 8.0 / 17.0          |
 | ch582m_evt               | ch583      | —                 | QingKe SysTick   | tick 997.2 Hz (−0.28%) | dump    | 2048   | —      | —     | —                | —                   |
 | nanoch32v203             | ch32v20x   | —                 | QingKe SysTick   | tick 838.6 Hz (−16.1%) | dump    | 2048   | —      | —     | —                | —                   |
 
@@ -64,7 +64,9 @@ validated capture — the 2026-08-12 full-pool campaign for the OpenOCD rows
 `ci.lan:~/sysview-v2/out/campaign-final/`); the rate column keeps each board's
 original measurement, some of which predate the route switch. `—` capture
 cells: the board was not in the campaign (J-Link-only validations, host-role
-pico2, dump-route WCH). Reading the overflow column: zero on 65536 with a fast
+pico2, dump-route WCH — ch32v307's cells are its 2026-09-04 post-mortem dump,
+a 4096-byte ring halted mid-burst, hence the 0.16 s window). Reading the
+overflow column: zero on 65536 with a fast
 probe path; small-buffer boards (2048/4096) drop by design; f723/fruit_jam/
 feather lose on drain-path throughput (drain-rate caveat below). metro's short
 window is the attach_only mid-stream join (2.4–5.6 s across runs).
