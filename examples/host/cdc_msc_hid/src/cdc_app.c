@@ -42,11 +42,24 @@ static size_t console_read(uint8_t *buf, size_t bufsize) {
   return count;
 }
 
-static size_t console_write(const uint8_t *buf, size_t bufsize) {
+// Give up forwarding to the console after this long without progress. Not every board's
+// board_uart_write() reports "no console here" the same way, so the loop below cannot rely
+// on the return value alone to know when to stop.
+enum { CONSOLE_STALL_MS = 10 };
+
+// Returns bytes written, 0 if the console cannot take them right now, negative if this
+// board has no console at all.
+static int console_write(const uint8_t *buf, size_t bufsize) {
+#if defined(LOGGER_RTT)
+  // The console is the debug probe, not a UART: board_uart_write() is a stub on those
+  // boards. NO_BLOCK_SKIP writes all or nothing, so 0 means the probe has not drained the
+  // up-buffer yet.
+  return (int) SEGGER_RTT_Write(0, buf, (unsigned) bufsize);
+#else
   // Use board_uart_write directly for non-blocking behavior.
   // board_putchar -> sys_write has a blocking retry loop that causes UART RX overrun.
-  int wr = board_uart_write(buf, (int) bufsize);
-  return (wr > 0) ? (size_t) wr : 0;
+  return board_uart_write(buf, (int) bufsize);
+#endif
 }
 
 // forward from console to usbh
@@ -70,11 +83,23 @@ void cdc_app_task(void) {
   uint8_t  buf[64];
   uint32_t count = tuh_cdc_read(idx, buf, sizeof(buf));
   uint32_t wr    = 0;
+  uint32_t progress_ms = tusb_time_millis_api();
 
   do {
-    // uart write is slow, while waiting forward uart -> usbh else uart rx can be overflow
+    // console write is slow, while waiting forward console -> usbh else its rx can overflow
     if (count) {
-      wr += console_write(buf + wr, count - wr);
+      const int written = console_write(buf + wr, count - wr);
+      if (written < 0) {
+        break; // no console on this board at all
+      }
+      if (written > 0) {
+        wr += (uint32_t) written;
+        progress_ms = tusb_time_millis_api();
+      } else if (tusb_time_millis_api() - progress_ms > CONSOLE_STALL_MS) {
+        // a TX FIFO or an RTT up-buffer is only ever transiently full: nothing draining it
+        // must not stall the host task, so drop the rest
+        break;
+      }
     }
     console_to_usbh(idx);
   } while (wr < count);
