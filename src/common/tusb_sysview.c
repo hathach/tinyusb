@@ -305,6 +305,9 @@ void tusb_sysview_stack_report(void) {
    * Single writer (usbd's periodic report, or usbh's in a host-only build --
    * never both, never reentered), so no locking is needed. */
   static TaskStatus_t status[SYSVIEW_FREERTOS_MAX_NOF_TASKS];
+  /* pcTaskName points into the live TCB, which a task deleted later in the lap frees; copy the
+   * name at snapshot time so SendTaskInfo() below never dereferences a dead TCB. */
+  static char names[SYSVIEW_FREERTOS_MAX_NOF_TASKS][configMAX_TASK_NAME_LEN];
   /* Report one task per call instead of looping over all of them: even with
    * the array off the stack, up to SYSVIEW_FREERTOS_MAX_NOF_TASKS back-to-back
    * SEGGER_SYSVIEW_SendTaskInfo() calls (each locking + writing the RTT ring buffer) in a
@@ -321,12 +324,16 @@ void tusb_sysview_stack_report(void) {
   // real time, even though this function only ever publishes ONE task per call. Cache its
   // result and refresh only when the rotation wraps back to index 0 (once per full lap over the
   // task list, not every call): same set of Stack Info events published, over the same rotation,
-  // at roughly 1/SYSVIEW_FREERTOS_MAX_NOF_TASKS the scheduler-suspended time. Entries point into
-  // live TCBs (pcTaskName), so a lap-old snapshot assumes no task is deleted meanwhile -- true of
-  // every instrumented example, and the same lifetime SEGGER's own FreeRTOS task list relies on.
+  // at roughly 1/SYSVIEW_FREERTOS_MAX_NOF_TASKS the scheduler-suspended time. Everything published
+  // from a cached entry is a value copy (the name into names[] here, the rest plain integers), so a
+  // task deleted mid-lap only makes its own entry stale, never a dangling dereference.
   static UBaseType_t n = 0;
   if (next_idx == 0) {
     n = uxTaskGetSystemState(status, TU_ARRAY_SIZE(status), NULL);
+    for (UBaseType_t t = 0; t < n; t++) {
+      strncpy(names[t], status[t].pcTaskName, configMAX_TASK_NAME_LEN - 1);
+      names[t][configMAX_TASK_NAME_LEN - 1] = '\0';
+    }
   }
   if (n == 0) { return; }
   UBaseType_t const i = next_idx;
@@ -334,7 +341,7 @@ void tusb_sysview_stack_report(void) {
 
   SEGGER_SYSVIEW_TASKINFO info = {0};
   info.TaskID    = (U32)(uintptr_t) status[i].xHandle;
-  info.sName     = status[i].pcTaskName;
+  info.sName     = names[i];
   info.Prio      = status[i].uxCurrentPriority;
   info.StackBase = (U32)(uintptr_t) status[i].pxStackBase;
   uint32_t const free_bytes = status[i].usStackHighWaterMark * sizeof(StackType_t);

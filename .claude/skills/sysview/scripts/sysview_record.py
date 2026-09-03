@@ -139,6 +139,19 @@ def dismiss_dialogs(display, rounds=6):
         time.sleep(1)
 
 
+def kill_traffic(proc):
+    """Kill a --traffic-cmd and reap it. The command runs under `sh -c`, which can spawn
+    children of its own (a pipeline), so the whole process group goes -- start_new_session
+    at Popen is what makes that group ours to kill."""
+    if not proc or proc.poll() is not None:
+        return
+    try:
+        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    proc.wait()
+
+
 def free_display(display):
     run(["pkill", "-9", "-f", f"Xvfb {display} "])
     time.sleep(1)
@@ -334,19 +347,16 @@ def record(args, serial, rtt):
             time.sleep(1)
         time.sleep(3)  # J-Link connect + first events
 
-        # start_new_session=True: traffic_cmd runs under `sh -c`, which can itself spawn
-        # children (e.g. a pipeline) -- putting it in its own process group lets the
-        # finally block below kill the whole group, not just the shell.
+        # start_new_session=True: its own process group, so kill_traffic() can take the
+        # whole workload down, not just the shell.
         traffic = subprocess.Popen(args.traffic_cmd, shell=True, start_new_session=True) \
             if args.traffic_cmd else None
         time.sleep(args.duration_ms / 1000)
-        if traffic:
-            try:
-                traffic.wait(timeout=60)
-            except subprocess.TimeoutExpired:
-                pass  # killed in the finally block below, whole process group
-
+        # The window is --duration-ms, nothing else: stop the moment it expires, THEN deal
+        # with the workload. Waiting on the process first (as this did, up to 60 s) let a
+        # --traffic-cmd that outlives the interval stretch the recording by that much.
         sv_cmd("-stop")
+        kill_traffic(traffic)
         time.sleep(2)
         # After stop an "overflow events recorded" / info modal (with a Close
         # button) can block -save. Its title varies, so clear by size.
@@ -368,11 +378,7 @@ def record(args, serial, rtt):
             env={**os.environ, "DISPLAY": disp})
         raise
     finally:
-        if traffic and traffic.poll() is None:
-            try:
-                os.killpg(os.getpgid(traffic.pid), signal.SIGKILL)
-            except ProcessLookupError:
-                pass
+        kill_traffic(traffic)
         if sv and sv.poll() is None:
             sv.kill()
         xvfb.kill()

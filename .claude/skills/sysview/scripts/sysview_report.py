@@ -175,9 +175,12 @@ def main():
     heap_last = None  # last "Allocate Memory" / "Free Memory" match (running totals)
     func_durs = {}    # func id (0-based, see TU_SV_FUNC_NAMES) -> [duration_s]
     marker_durs = {}  # marker id -> [duration_s]
-    open_calls = {}   # func id -> [True, ...] stack, one entry per CALL awaiting its RET
+    open_calls = {}   # (func id, context) -> [call_ts, ...] stack, one per CALL awaiting its RET
                        # (a list, not a bool: nesting -- CALL,CALL,RET,RET on the same id, e.g.
-                       # a preempted task -- must pair LIFO, innermost CALL to innermost RET)
+                       # a preempted task -- must pair LIFO, innermost CALL to innermost RET.
+                       # Keyed by context too: two contexts calling the same function interleave
+                       # (A-CALL, B-CALL, A-RET, B-RET), and a single per-id stack would pair
+                       # A's return with B's call, quietly corrupting the duration percentiles)
     dropped_pairs = 0 # count of spliced CALL/RET pairs discarded due to data loss
     # Scheduling reconstruction for cpu_pct_workload: the export's transition events (Task Run /
     # System Idle switch the running task; ISR Enter/Exit nest on top) let per-context busy time
@@ -343,10 +346,11 @@ def main():
                 # duration regex therefore misread almost every return as a call, which both
                 # inflated dropped_pairs to nonsense (108923 against 706 paired) and left the
                 # p50/p99 columns computed from the surviving ~0.5% subsample.
+                key = (fid, row.get("context", ""))
                 if "Returns" not in detail:          # a CALL
-                    open_calls.setdefault(fid, []).append(_ts)
+                    open_calls.setdefault(key, []).append(_ts)
                 else:                                 # a RET
-                    stack = open_calls.get(fid)
+                    stack = open_calls.get(key)
                     if not stack:
                         dropped_pairs += 1           # RET without its CALL: spliced
                     else:
