@@ -45,6 +45,12 @@
 
 #include "bsp/board_api.h"
 #include "board.h"
+// Pulled in directly (matching ch32v20x/family.c), not left to tusb.h's transitive
+// usbd.h/usbh.h path: those only get included when CFG_TUD_ENABLED/CFG_TUH_ENABLED are set,
+// which the board_test example leaves at 0 -- SEGGER_SYSVIEW_X_GetTimestamp() below is gated
+// purely on CFG_TUD_SYSVIEW/CFG_TUH_SYSVIEW, so a SYSVIEW build of a no-USB example needs this
+// header's SEGGER_SYSVIEW.h include on its own to see that function's prototype.
+#include "common/tusb_sysview.h"
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
@@ -76,6 +82,22 @@ __INTERRUPT __HIGH_CODE void SysTick_Handler(void) {
 uint32_t tusb_time_millis_api(void) {
   return system_ticks;
 }
+#endif
+
+// V1: this hook depends on system_ticks/SysTick, both only defined in the OPT_OS_NONE block
+// above, so it can only ever be built there -- but it must not simply vanish outside that block:
+// a CFG_TUSB_OS != OPT_OS_NONE build that still requests SYSVIEW needs a clear compile-time error
+// instead of an undefined-reference link failure indistinguishable from "family not ported yet"
+// on a family that IS ported (no FreeRTOSConfig dir exists here yet -- untested, not unportable).
+// Unlike ch32v20x/v30x there is no cached SystemCoreClock global here -- GetSysClock() (a
+// register read plus a divide, see hw/mcu/wch/ch583/EVT/EXAM/SRC/StdPeriphDriver/CH58x_sys.c) is
+// what SysTick_Config(GetSysClock()/1000) itself was given in board_init() below, so it is what
+// must be used to convert CNT back to microseconds.
+#if (CFG_TUD_SYSVIEW || CFG_TUH_SYSVIEW) && CFG_TUSB_OS == OPT_OS_NONE
+#define SYSVIEW_WCH_CLOCK_HZ() GetSysClock()
+#include "../sysview_wch_timestamp.h"
+#elif CFG_TUD_SYSVIEW || CFG_TUH_SYSVIEW
+#error "SYSVIEW on ch583 needs the bare-metal SysTick tick; not ported for this RTOS yet"
 #endif
 
 //--------------------------------------------------------------------+

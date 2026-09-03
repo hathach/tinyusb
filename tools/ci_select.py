@@ -41,7 +41,7 @@ _prune_buildable then intersects each family with what it can actually build.
 | 13 | `examples/<role>/<name>/**` | `ALL` | just `<name>` | if `<name>` is a HIL test: all boards → that test; else nothing |
 | 14 | `examples/device/board_test/**` | `ALL` | just `board_test` | all boards → all tests (HIL parking firmware) |
 | 15 | `examples/build_system/**`, `examples/CMakeLists.txt`, `examples/<role>/CMakeLists.txt` | `ALL` | `ALL` | all boards → all tests |
-| 16 | `src/common/`, `src/osal/`, `src/tusb.[ch]`, `src/tusb_option.h`, `tools/{build,build_utils,ci_select}.py`, `tools/cmake/**`, `src/CMakeLists.txt`, `src/tinyusb.mk`, `hw/bsp/{family_support.{cmake,mk},family_rules.mk,zephyr_board_aliases.cmake,board.c,board_api.h,ansi_escape.h}`, `.github/**`, `.circleci/**` | `ALL` | `ALL` | all boards → all tests |
+| 16 | `src/common/`, `src/osal/`, `src/tusb.[ch]`, `src/tusb_option.h`, `tools/{build,build_utils,ci_select}.py`, `tools/cmake/**`, `src/CMakeLists.txt`, `src/tinyusb.mk`, `hw/bsp/{family_support.{cmake,mk},family_rules.mk,zephyr_board_aliases.cmake,board.c,board_api.h,ansi_escape.h,sysview_*.h}`, `.github/**`, `.circleci/**` | `ALL` | `ALL` | all boards → all tests |
 | 16a | `lib/<name>/**` | `ALL` | examples whose own `CMakeLists.txt`/`Makefile` names `lib/<name>` | those examples that are HIL tests, on all boards; empty resolves to nothing |
 | 16b | `tools/get_deps.py` | families whose `deps_mandatory`/`deps_optional` entries changed | `ALL` | those families' boards → all tests; a logic change, an `'all'` entry, no base content or a changed token naming no family → full |
 | 17 | anything unclassified (no tracked file reaches this — TestNoTrackedFileIsUnclassified) | `ALL` | `ALL` | all boards → all tests (fail-open) |
@@ -142,9 +142,11 @@ _FULL_RE = re.compile(
     # rule 16 says `tools/build*.py`; name the two siblings the glob implies. Both
     # decide what gets built, so neither can be trusted to narrow its own change.
     r'tools/(build|build_utils|ci_select)\.py$|tools/cmake/|'
-    # the make twins of family_support.cmake are the same authority for the make legs
+    # the make twins of family_support.cmake are the same authority for the make legs;
+    # the shared sysview_*.h are cross-family SystemView build files (compiled only
+    # under -DSYSVIEW, which no CI leg enables, but shared like board.c is)
     r'hw/bsp/(family_support\.(cmake|mk)|family_rules\.mk|zephyr_board_aliases\.cmake|'
-    r'board_api\.h|board\.c|ansi_escape\.h)$|'
+    r'board_api\.h|board\.c|ansi_escape\.h|sysview_[^/]+\.h)$|'
     # rule 15 lists examples/<role>/CMakeLists.txt - it registers every target in that
     # role, so it was only ever reaching `full` through rule 17's fall-through
     r'examples/build_system/|examples/CMakeLists\.txt$|'

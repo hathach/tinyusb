@@ -30,6 +30,7 @@
 
 #include "sam.h"
 #include "bsp/board_api.h"
+#include "common/tusb_sysview.h"
 
 // Suppress warning caused by mcu driver
 #ifdef __GNUC__
@@ -63,6 +64,10 @@ static inline void board_vbus_set(uint8_t rhport, bool state) TU_ATTR_UNUSED;
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
 TU_ATTR_ALWAYS_INLINE static inline void USB_Any_Handler(void) {
+  // Outer bracket: tud_/tuh_int_handler() each self-wrap with TU_SYSVIEW_ISR_ENTER/EXIT, so a
+  // dual-role build without this records ENTER,EXIT,ENTER,EXIT for one real interrupt -- the
+  // depth counter in tusb_sysview.c collapses this outer+inner nesting into one pair.
+  TU_SYSVIEW_ISR_ENTER();
 #if CFG_TUD_ENABLED
   tud_int_handler(0);
 #endif
@@ -70,6 +75,7 @@ TU_ATTR_ALWAYS_INLINE static inline void USB_Any_Handler(void) {
 #if CFG_TUH_ENABLED && !CFG_TUH_MAX3421
   tuh_int_handler(0);
 #endif
+  TU_SYSVIEW_ISR_EXIT();
 }
 
 void USB_0_Handler(void) { USB_Any_Handler(); }

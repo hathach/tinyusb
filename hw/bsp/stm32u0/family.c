@@ -35,6 +35,10 @@ TU_ATTR_UNUSED static void Error_Handler(void) { }
 
 #include "board.h"
 
+#if (CFG_TUD_SYSVIEW || CFG_TUH_SYSVIEW) && defined(TIM2)
+#include "../sysview_stm32_tim2.h"
+#endif
+
 #ifdef UART_ID
   #if UART_ID == 1
     #define USARTn            USART1
@@ -92,6 +96,10 @@ void board_init(void) {
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
   // Explicitly disable systick to prevent its ISR from running before scheduler start
   SysTick->CTRL &= ~1U;
+#endif
+
+#if (CFG_TUD_SYSVIEW || CFG_TUH_SYSVIEW) && defined(TIM2)
+  sysview_stm32_tim2_start();
 #endif
 
   // LED

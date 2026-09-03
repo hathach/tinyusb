@@ -108,7 +108,19 @@ static void send_sys_desc(void) {
   }
 }
 
-#if !defined(SEGGER_SYSVIEW_CORE) || (SEGGER_SYSVIEW_CORE != SEGGER_SYSVIEW_CORE_CM3)
+#if defined(CFG_TUSB_SYSVIEW_TIMESTAMP_BSP) && CFG_TUSB_SYSVIEW_TIMESTAMP_BSP
+  // ARMv7-M part whose DWT lacks CYCCNT (MAX32665/6: DWT_CTRL.NOCYCCNT reads 1 — a part like
+  // this LINKS fine, so the fails-to-link signal below never fires; the symptom is every
+  // duration silently decoding as 0). Its family.cmake builds SystemView with
+  // SEGGER_SYSVIEW_CORE_OTHER so SEGGER calls SEGGER_SYSVIEW_X_GetTimestamp(), and — because
+  // the fixed-1MHz microsecond contract below may be unreachable (MAX32 prescalers are
+  // powers-of-two only) — the BSP reports the counter's rate as well:
+  //
+  //     uint32_t SEGGER_SYSVIEW_X_GetTimestamp(void);       // free-running counter
+  //     uint32_t SEGGER_SYSVIEW_X_GetTimestampFreq(void);   // its rate, Hz
+  extern uint32_t SEGGER_SYSVIEW_X_GetTimestampFreq(void);
+  #define SYSVIEW_TIMESTAMP_FREQ SEGGER_SYSVIEW_X_GetTimestampFreq()
+#elif !defined(SEGGER_SYSVIEW_CORE) || (SEGGER_SYSVIEW_CORE != SEGGER_SYSVIEW_CORE_CM3)
   // No DWT cycle counter on this core (ARMv6-M M0/M0+, RISC-V, ...), so the BSP must supply the
   // timestamp from a free-running hardware timer. Contract for hw/bsp/<family>/family.c:
   //
@@ -135,6 +147,12 @@ U32 SEGGER_SYSVIEW_X_GetInterruptId(void) {
   uint32_t mcause;
   __asm volatile ("csrr %0, mcause" : "=r" (mcause));
   return (U32) (mcause & 0xFFFu);
+  #elif defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__) || defined(__ARM_ARCH_8M_MAIN__) || \
+        defined(__ARM_ARCH_8_1M_MAIN__) || defined(__ARM_ARCH_6M__) || defined(__ARM_ARCH_8M_BASE__)
+  // A Cortex-M built as SEGGER_SYSVIEW_CORE_OTHER (CFG_TUSB_SYSVIEW_TIMESTAMP_BSP parts,
+  // e.g. MAX3266x) lands here: same ICSR.VECTACTIVE read ConfDefaults would have inlined.
+  // 9 bits on v7-M/v8-M-mainline, 6 on v6-M — 0x1FF covers both (upper bits read 0 there).
+  return (*(volatile uint32_t*) 0xE000ED04u) & 0x1FFu;
   #else
   return 0; // unknown core: report "no interrupt" rather than a bogus id
   #endif

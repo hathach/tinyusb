@@ -61,6 +61,14 @@ function(family_configure_example TARGET RTOS)
   family_configure_common(${TARGET} ${RTOS})
   family_add_tinyusb(${TARGET} OPT_MCU_STM32F0)
 
+  if (SYSVIEW AND (MCU_VARIANT STREQUAL "stm32f070xb"))
+    # family.c's SEGGER_SYSVIEW_X_GetTimestamp() (TIM2-based, RM0091 18.2: the only 32-bit
+    # general-purpose timer here) is gated on defined(TIM2); STM32F070 has no TIM2 at all, so
+    # this variant would otherwise fail at LINK time with undefined references instead of a
+    # clear error here -- refuse to configure, matching ch32v10x's FATAL_ERROR pattern.
+    message(FATAL_ERROR "SYSVIEW needs TIM2 for its timestamp source; ${MCU_VARIANT} has none")
+  endif ()
+
   target_sources(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
