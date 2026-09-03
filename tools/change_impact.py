@@ -94,6 +94,10 @@ _NONCODE_RE = re.compile(
     # also swallowed anything merely STARTING with it (a future LICENSE_extra.c),
     # which is the silent-under-selection direction. src/ builds from C sources only; its
     # Python is hand-run helpers (dwc2_info.py)
+    # .claude/skills/sysview/scripts/ stays here on purpose: the rig's sysview capture
+    # (test/hil/sysview_ci.py) runs those scripts, but only in a continue-on-error step
+    # whose output is an informational comment, so a break there cannot fail a run;
+    # the pre-commit hil-test hook runs their unit tests instead.
     r'^(docs/|\.claude/|.*\.(md|rst)$|src/.*\.py$|LICENSE$|LICENSES/)')
 # Repo metadata and tooling that no CI build reads. Inside a build-input location these
 # entries are what keep it off rule 17a, which widens BOTH axes; elsewhere 17b gives the
