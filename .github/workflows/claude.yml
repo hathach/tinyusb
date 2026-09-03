@@ -65,4 +65,4 @@ jobs:
           # command allowlist can safely contain it. Claude still edits files and
           # the action commits/opens the PR; the resulting commit is verified by the
           # repo's CircleCI matrix. --max-turns gives room to investigate + fix.
-          claude_args: '--max-turns 30'
+          claude_args: '--max-turns 30 --model claude-opus-5'
