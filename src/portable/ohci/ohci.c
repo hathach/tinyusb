@@ -232,6 +232,18 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   tusb_time_delay_ms_api(OHCI_REG->rh_descriptorA_bit.power_on_to_good_time * 2); // Wait POTG after power up
 
+  // A device attached before this point sets the port's connect status change, but the RHSC
+  // interrupt that went with it was cleared above and no new edge will follow. Scan the ports
+  // once so an already-connected device is still enumerated.
+  for (uint8_t i = 0; i < TUP_OHCI_RHPORTS; i++) {
+    if (OHCI_REG->rhport_status_bit[i].current_connect_status) {
+      // one write does both: w1c the stale ConnectStatusChange, else the next RHSC reports
+      // this device again, and w1s PortReset to reset the port the way the RHSC path does
+      OHCI_REG->rhport_status[i] = RHPORT_CONNECT_STATUS_CHANGE_MASK | RHPORT_PORT_RESET_STATUS_MASK;
+      hcd_event_device_attach(i, false);
+    }
+  }
+
   return true;
 }
 
