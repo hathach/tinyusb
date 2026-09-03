@@ -66,11 +66,13 @@ repos:
   # pre-commit CI.
   # No types_or: the rig rosters (*.json) are inputs too.
   # examples/device/mtp/src is in scope: test_hil_bounded parses README_TXT_CONTENT
-  # and md5-checks the logo header from there as its MTP fixtures.
+  # and md5-checks the logo header from there as its MTP fixtures. The test_[hs]* pattern
+  # is test_hil*.py plus the test_sysview*.py suites; .claude/skills/sysview/scripts is in
+  # scope because test_sysview_report exercises sysview_report.py, which lives there.
   - id: hil-test
     name: hil-test
-    files: ^(test/hil/|examples/device/mtp/src/|tools/rtt\.py$)
-    entry: python3 -m unittest discover -s test/hil/test -p 'test_hil*.py'
+    files: ^(test/hil/|examples/device/mtp/src/|tools/rtt\.py$|\.claude/skills/sysview/scripts/)
+    entry: python3 -m unittest discover -s test/hil/test -p 'test_[hs]*.py'
     pass_filenames: false
     language: system
   # hil-validate.js decides which boards ship. Its result join has been wrong three times --

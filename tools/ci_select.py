@@ -87,7 +87,11 @@ def _read(path: str) -> str:
 _NONCODE_RE = re.compile(
     # LICENSE is anchored and LICENSES/ named separately: a bare `LICENSE` alternative
     # also swallowed anything merely STARTING with it (a future LICENSE_extra.c),
-    # which is the silent-under-selection direction
+    # which is the silent-under-selection direction.
+    # .claude/skills/sysview/scripts/ stays here on purpose: the rig's sysview capture
+    # (test/hil/sysview_ci.py) runs those scripts, but only in a continue-on-error step
+    # whose output is an informational comment, so a break there cannot fail a run;
+    # the pre-commit hil-test hook runs their unit tests instead.
     r'^(docs/|\.claude/|.*\.(md|rst)$|LICENSE$|LICENSES/)')
 # Repo metadata and tooling that no CI build reads. Enumerated rather than left to
 # rule 17, which widens BOTH axes: a PR touching only .gitignore and a README was
