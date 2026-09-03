@@ -200,6 +200,42 @@
             }
         },
         {
+            "name": "ea4088_quickstart",
+            "uid": "22150C0C1508595343E1857B060000F5",
+            "comment": "console is the LPC-Link2's RTT channel: this probe has no VCOM (rtt skill)",
+            "logger": "rtt",
+            "variant": [
+                { "name": "ea4088_quickstart", "defines": ["LOGGER=rtt"], "flags": "-DBUFFER_SIZE_DOWN=128" }
+            ],
+            "tests": {
+                "device": true,
+                "host": true,
+                "dual": true,
+                "dev_attached": [
+                    {
+                        "vid_pid": "1a86_7523",
+                        "serial": "0",
+                        "is_cdc": true,
+                        "comment": "CH340 USB-serial behind the hub on USB-A J3, TX-RX shorted for the cdc echo half"
+                    },
+                    {
+                        "vid_pid": "346d_5678",
+                        "serial": "6265011211829708393",
+                        "is_msc": true,
+                        "block_size": 512,
+                        "block_count": 3891200,
+                        "msc_inquiry": "VendorCo ProductCode      2.00",
+                        "comment": "USB Disk 2.0 thumbdrive behind the same hub"
+                    }
+                ]
+            },
+            "flasher": {
+                "name": "jlink",
+                "uid": "611000000",
+                "args": "-device LPC4088"
+            }
+        },
+        {
             "name": "lpcxpresso55s28",
             "uid": "2BF1839A7D51F553A15AB03FD08F70AB",
             "tests": {

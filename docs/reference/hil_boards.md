@@ -2,7 +2,7 @@
 
 ### ci rig
 
-27 boards, from `test/hil/tinyusb.json`.
+28 boards, from `test/hil/tinyusb.json`.
 
 | Board                    | Roles              | Flasher   | Variants                                               | Note                                                                                                                                                                   |
 |--------------------------|--------------------|-----------|--------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -14,6 +14,7 @@
 | max32666fthr             | device             | openocd   |                                                        |                                                                                                                                                                        |
 | metro_m4_express         | device, dual       | jlink     | metro_m4_express                                       | pl23x; audio_test_freertos skipped: samd51 iso-IN capture fails (arecord EIO)                                                                                          |
 | lpcxpresso11u37          | device             | jlink     |                                                        |                                                                                                                                                                        |
+| ea4088_quickstart        | device, host, dual | jlink     | ea4088_quickstart                                      | console is the LPC-Link2's RTT channel: this probe has no VCOM (rtt skill)                                                                                             |
 | lpcxpresso55s28          | device             | jlink     |                                                        |                                                                                                                                                                        |
 | ra4m1_ek                 | device             | jlink     |                                                        |                                                                                                                                                                        |
 | raspberry_pi_pico        | device, host, dual | openocd   | raspberry_pi_pico                                      |                                                                                                                                                                        |

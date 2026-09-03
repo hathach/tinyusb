@@ -316,6 +316,28 @@ def open_board_console(board: Board):
     return ser
 
 
+def open_console_reset(board: Board):
+    """Open the board's console and reset it, ordered so the boot output survives.
+
+    The RTT console owns the probe, so the reset has to happen BEFORE it opens and the
+    ring keeps the boot burst for it; a VCOM survives the reset, so resetting after open
+    is what catches the banner. Both orders are needed because the lines the host tests
+    match on (mount messages, enumeration) print exactly once per boot.
+    """
+    flasher = board['flasher']
+
+    def _reset():
+        ret = getattr(hil_flash, f'reset_{flasher["name"].lower()}')(board)
+        assert ret.returncode == 0, 'Failed to reset device'
+
+    if board.get('logger') == 'rtt':
+        _reset()
+        return open_board_console(board)
+    ser = open_board_console(board)
+    _reset()
+    return ser
+
+
 def serial_write_all(ser: serial.Serial, data: bytes):
     # write_timeout is a deadline for the whole call. A timeout means the device stopped
     # draining, and it is fatal: pyserial loses the partial-write count on raise, so
@@ -560,24 +582,10 @@ def test_dual_host_info_to_device_cdc(board):
 # Tests: host
 # -------------------------------------------------------------
 def test_host_device_info(board):
-    flasher = board['flasher']
     declared_devs = [f'{d["vid_pid"]}_{d["serial"]}' for d in board['tests']['dev_attached']]
 
-    if board.get('logger') == 'rtt':
-        # The RTT console owns the probe, so reset BEFORE opening it (Commander then
-        # delivers the buffered boot burst). Unconditional, not only under --skip-flash:
-        # a previous run's console drained the ring, and the enumeration lines print
-        # only once — without this a re-run on unchanged firmware reads an empty ring.
-        ret = getattr(hil_flash, f'reset_{flasher["name"].lower()}')(board)
-        assert ret.returncode == 0, 'Failed to reset device'
-    ser = open_board_console(board)
+    ser = open_console_reset(board)
     try:
-        if board.get('logger') != 'rtt':
-            # reset device since we can miss the first line; on the VCOM the console
-            # survives the reset, so resetting after open catches the boot banner.
-            ret = getattr(hil_flash, f'reset_{flasher["name"].lower()}')(board)
-            assert ret.returncode == 0, 'Failed to reset device'
-
         data = b''
         timeout = enum_timeout()
         while timeout > 0:
@@ -652,172 +660,172 @@ def check_msc_info(lines, msc_devs):
 
 
 def test_host_cdc_msc_hid(board):
-    flasher = board['flasher']
     dev_attached = board['tests'].get('dev_attached', [])
     cdc_devs = [d for d in dev_attached if d.get('is_cdc')]
     msc_devs = [d for d in dev_attached if d.get('is_msc')]
     if not cdc_devs and not msc_devs:
         return 'skipped'
 
-    port = hil_util.get_serial_dev(flasher["uid"], None, None, 0)
-    ser = open_serial_dev(port)
-    ser.timeout = 0.1
+    # console + reset, in the order this board's console needs
+    ser = open_console_reset(board)
+    try:
 
-    # reset device to catch mount messages
-    ret = getattr(hil_flash, f'reset_{flasher["name"].lower()}')(board)
-    assert ret.returncode == 0, 'Failed to reset device'
+        data = b''
+        timeout = enum_timeout()
+        wait_cdc = len(cdc_devs) > 0
+        wait_msc = len(msc_devs) > 0
+        while timeout > 0:
+            # infra death is not a board failure: without this a dead JLinkExe/probe
+            # would burn the whole timeout and report as a mount failure
+            assert not getattr(ser, 'eof', False), \
+                'RTT console died (its server exited or the probe dropped off USB)'
+            new_data = ser.read(ser.in_waiting or 1)
+            if new_data:
+                data += new_data
+                cdc_ok = (not wait_cdc) or (b'CDC Interface is mounted' in data)
+                msc_ok = (not wait_msc) or (b'Disk Size' in data)
+                if cdc_ok and msc_ok:
+                    break
+            time.sleep(0.1)
+            timeout -= 0.1
 
-    data = b''
-    timeout = enum_timeout()
-    wait_cdc = len(cdc_devs) > 0
-    wait_msc = len(msc_devs) > 0
-    while timeout > 0:
-        new_data = ser.read(ser.in_waiting or 1)
-        if new_data:
-            data += new_data
-            cdc_ok = (not wait_cdc) or (b'CDC Interface is mounted' in data)
-            msc_ok = (not wait_msc) or (b'Disk Size' in data)
-            if cdc_ok and msc_ok:
-                break
-        time.sleep(0.1)
-        timeout -= 0.1
+        vid_pid_name = {
+            '0403_6001': 'FTDI', '0403_6010': 'FTDI', '0403_6011': 'FTDI', '0403_6014': 'FTDI',
+            '10c4_ea60': 'CP210x', '10c4_ea70': 'CP210x',
+            '067b_2303': 'PL2303', '067b_23a3': 'PL2303',
+            '1a86_7523': 'CH340', '1a86_7522': 'CH340',
+            '1a86_55d3': 'CH9102', '1a86_55d4': 'CH9102',
+        }
 
-    vid_pid_name = {
-        '0403_6001': 'FTDI', '0403_6010': 'FTDI', '0403_6011': 'FTDI', '0403_6014': 'FTDI',
-        '10c4_ea60': 'CP210x', '10c4_ea70': 'CP210x',
-        '067b_2303': 'PL2303', '067b_23a3': 'PL2303',
-        '1a86_7523': 'CH340', '1a86_7522': 'CH340',
-        '1a86_55d3': 'CH9102', '1a86_55d4': 'CH9102',
-    }
+        lines = data.decode('utf-8', errors='ignore').splitlines()
 
-    lines = data.decode('utf-8', errors='ignore').splitlines()
+        if cdc_devs:
+            assert b'CDC Interface is mounted' in data, 'CDC device not mounted on host'
+            dev = cdc_devs[0]
+            chip_name = vid_pid_name.get(dev['vid_pid'], dev['vid_pid'])
+            for l in lines:
+                if 'CDC Interface is mounted' in l:
+                    print(f'\r\n  {chip_name}: {l} ', end='')
 
-    if cdc_devs:
-        assert b'CDC Interface is mounted' in data, 'CDC device not mounted on host'
-        dev = cdc_devs[0]
-        chip_name = vid_pid_name.get(dev['vid_pid'], dev['vid_pid'])
-        for l in lines:
-            if 'CDC Interface is mounted' in l:
-                print(f'\r\n  {chip_name}: {l} ', end='')
+        if msc_devs:
+            assert b'MassStorage device is mounted' in data, 'MSC device not mounted on host'
+            assert b'Disk Size' in data, 'MSC Disk Size not reported'
+            check_msc_info(lines, msc_devs)
 
-    if msc_devs:
-        assert b'MassStorage device is mounted' in data, 'MSC device not mounted on host'
-        assert b'Disk Size' in data, 'MSC Disk Size not reported'
-        check_msc_info(lines, msc_devs)
+        # CDC echo test via flasher serial
+        if not cdc_devs:
+            return
 
-    # CDC echo test via flasher serial
-    if not cdc_devs:
+        time.sleep(2)
+        ser.read(ser.in_waiting)
+        ser.reset_input_buffer()
+
+        def rand_ascii(length):
+            return "".join(random.choices(string.ascii_letters + string.digits, k=length)).encode("ascii")
+
+        packet_size = 64
+
+        echo_len = 1024
+        echo_data = rand_ascii(echo_len)
+        ser.reset_input_buffer()
+        offset = 0
+        while offset < echo_len:
+            chunk_size = min(random.randint(1, packet_size), echo_len - offset)
+            serial_write_all(ser, echo_data[offset:offset + chunk_size])
+            echo = b''
+            t_end = time.monotonic() + 1.0
+            while time.monotonic() < t_end and len(echo) < chunk_size:
+                rd = ser.read(chunk_size - len(echo))
+                if rd:
+                    echo += rd
+            expected = echo_data[offset:offset + chunk_size]
+            assert echo == expected, (f'CDC echo mismatch at offset {offset} ({chunk_size} bytes):\n'
+                                      f'  expected: {expected}\n  received: {echo}')
+            offset += chunk_size
+
+    finally:
         ser.close()
-        return
-
-    time.sleep(2)
-    ser.read(ser.in_waiting)
-    ser.reset_input_buffer()
-
-    def rand_ascii(length):
-        return "".join(random.choices(string.ascii_letters + string.digits, k=length)).encode("ascii")
-
-    packet_size = 64
-
-    echo_len = 1024
-    echo_data = rand_ascii(echo_len)
-    ser.reset_input_buffer()
-    offset = 0
-    while offset < echo_len:
-        chunk_size = min(random.randint(1, packet_size), echo_len - offset)
-        serial_write_all(ser, echo_data[offset:offset + chunk_size])
-        echo = b''
-        t_end = time.monotonic() + 1.0
-        while time.monotonic() < t_end and len(echo) < chunk_size:
-            rd = ser.read(chunk_size - len(echo))
-            if rd:
-                echo += rd
-        expected = echo_data[offset:offset + chunk_size]
-        assert echo == expected, (f'CDC echo mismatch at offset {offset} ({chunk_size} bytes):\n'
-                                  f'  expected: {expected}\n  received: {echo}')
-        offset += chunk_size
-
-    ser.close()
 
 
 def test_host_msc_file_explorer(board):
-    flasher = board['flasher']
     msc_devs = [d for d in board['tests'].get('dev_attached', []) if d.get('is_msc')]
     if not msc_devs:
         return 'skipped'
 
-    port = hil_util.get_serial_dev(flasher["uid"], None, None, 0)
-    ser = open_serial_dev(port)
-    ser.timeout = 0.1
+    # console + reset, in the order this board's console needs
+    ser = open_console_reset(board)
+    try:
 
-    # reset device to catch mount messages
-    ret = getattr(hil_flash, f'reset_{flasher["name"].lower()}')(board)
-    assert ret.returncode == 0, 'Failed to reset device'
+        data = b''
+        timeout = enum_timeout()
+        while timeout > 0:
+            # infra death is not a board failure: without this a dead JLinkExe/probe
+            # would burn the whole timeout and report as a mount failure
+            assert not getattr(ser, 'eof', False), \
+                'RTT console died (its server exited or the probe dropped off USB)'
+            new_data = ser.read(ser.in_waiting or 1)
+            if new_data:
+                data += new_data
+                if b'Disk Size' in data:
+                    break
+            time.sleep(0.1)
+            timeout -= 0.1
+        assert b'Disk Size' in data, 'MSC device not mounted'
+        lines = data.decode('utf-8', errors='ignore').splitlines()
+        check_msc_info(lines, msc_devs)
 
-    data = b''
-    timeout = enum_timeout()
-    while timeout > 0:
-        new_data = ser.read(ser.in_waiting or 1)
-        if new_data:
-            data += new_data
-            if b'Disk Size' in data:
+        # Send "cat README.TXT" and check response (optional — file may not exist on all drives)
+        time.sleep(1)
+        ser.reset_input_buffer()
+        for ch in 'cat README.TXT\r':
+            serial_write_all(ser, ch.encode())
+            time.sleep(0.002)
+
+        resp = b''
+        t = 10.0
+        while t > 0:
+            rd = ser.read(max(1, ser.in_waiting))
+            if rd:
+                resp += rd
+            if b'>' in resp and resp.rstrip().endswith(b'>'):
                 break
-        time.sleep(0.1)
-        timeout -= 0.1
-    assert b'Disk Size' in data, 'MSC device not mounted'
-    lines = data.decode('utf-8', errors='ignore').splitlines()
-    check_msc_info(lines, msc_devs)
+            time.sleep(0.05)
+            t -= 0.05
 
-    # Send "cat README.TXT" and check response (optional — file may not exist on all drives)
-    time.sleep(1)
-    ser.reset_input_buffer()
-    for ch in 'cat README.TXT\r':
-        serial_write_all(ser, ch.encode())
-        time.sleep(0.002)
+        resp_text = resp.decode('utf-8', errors='ignore')
+        if MSC_README_TXT.decode() in resp_text:
+            print('README.TXT matched ', end='')
 
-    resp = b''
-    t = 10.0
-    while t > 0:
-        rd = ser.read(max(1, ser.in_waiting))
-        if rd:
-            resp += rd
-        if b'>' in resp and resp.rstrip().endswith(b'>'):
-            break
-        time.sleep(0.05)
-        t -= 0.05
+        time.sleep(0.5)
+        ser.reset_input_buffer()
+        for ch in 'dd 1024\r':
+            serial_write_all(ser, ch.encode())
+            time.sleep(0.002)
 
-    resp_text = resp.decode('utf-8', errors='ignore')
-    if MSC_README_TXT.decode() in resp_text:
-        print('README.TXT matched ', end='')
+        resp = b''
+        t = 30.0
+        while t > 0:
+            rd = ser.read(max(1, ser.in_waiting))
+            if rd:
+                resp += rd
+            if b'KB/s' in resp and b'>' in resp:
+                break
+            time.sleep(0.05)
+            t -= 0.05
 
-    time.sleep(0.5)
-    ser.reset_input_buffer()
-    for ch in 'dd 1024\r':
-        serial_write_all(ser, ch.encode())
-        time.sleep(0.002)
+        resp_text = resp.decode('utf-8', errors='ignore')
+        speed = None
+        for line in resp_text.splitlines():
+            if 'KB/s' in line:
+                print(f'{line.strip()} ', end='')
+                m = re.search(r'([\d.]+)\s*([KMG]B/s)', line)  # MSC read speed for the report cell
+                if m:
+                    speed = f'{m.group(1)} {m.group(2)}'
+                break
 
-    resp = b''
-    t = 30.0
-    while t > 0:
-        rd = ser.read(max(1, ser.in_waiting))
-        if rd:
-            resp += rd
-        if b'KB/s' in resp and b'>' in resp:
-            break
-        time.sleep(0.05)
-        t -= 0.05
+    finally:
+        ser.close()
 
-    resp_text = resp.decode('utf-8', errors='ignore')
-    speed = None
-    for line in resp_text.splitlines():
-        if 'KB/s' in line:
-            print(f'{line.strip()} ', end='')
-            m = re.search(r'([\d.]+)\s*([KMG]B/s)', line)  # MSC read speed for the report cell
-            if m:
-                speed = f'{m.group(1)} {m.group(2)}'
-            break
-
-    ser.close()
     assert speed is not None, 'MSC read produced no speed report (dd stalled or failed)'
     return speed
 
@@ -2461,17 +2469,6 @@ def main() -> None:
                               f'configured RTT console')
         print(f'warning: {msg} -- fine for prebuilt example sets, wrong for --build/CI '
               f'builds', flush=True)
-    rtt_fixture = [e['name'] for e in config_boards
-                   if e.get('logger') == 'rtt'
-                   and any(d.get('is_cdc') or d.get('is_msc')
-                           for d in e.get('tests', {}).get('dev_attached', []))]
-    if rtt_fixture:
-        # interim guard, removed when the followup lands: cdc_msc_hid/msc_file_explorer
-        # still open the flasher VCOM directly and would die mid-run on an rtt board
-        _rtt_config_abort(f'"logger": "rtt" boards cannot carry is_cdc/is_msc fixtures yet '
-                          f'(host cdc/msc tests bypass the RTT console — see '
-                          f'the rtt harness-adoption doc in docs/superpowers/followup/): {", ".join(rtt_fixture)}')
-
     if not config_boards:
         # same reason the unknown -b board exits 1: 'No tests were run.' with rc 0 reads as
         # a green HIL leg, so a roster edit emptying a leg's filter stops testing silently
