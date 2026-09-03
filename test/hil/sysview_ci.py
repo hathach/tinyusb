@@ -503,11 +503,11 @@ def flash_and_capture_one(board, fw, out_dir, repo_root):
                 finally:
                     nc.send_signal(signal.SIGINT)
                     try: nc.wait(5)
-                    except subprocess.TimeoutExpired: nc.kill()
+                    except subprocess.TimeoutExpired: nc.kill(); nc.wait()
         finally:
             p.send_signal(signal.SIGINT)
             try: p.wait(8)
-            except subprocess.TimeoutExpired: p.kill()
+            except subprocess.TimeoutExpired: p.kill(); p.wait()
         # A serial death in the first half of the window means the whole capture is
         # mostly idle bus -- fail it outright. A late death still leaves a mostly-live
         # capture; keep it, but flag workload_ok=false so report() gates the metrics.

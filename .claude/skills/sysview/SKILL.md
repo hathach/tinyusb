@@ -118,11 +118,11 @@ ELF, `rtt polling_interval 1`, teardown) so none of it is hand-assembled here:
 ```bash
 # flash first; the capture session then reboots the target itself
 openocd <board's -f/-c args> -c 'adapter serial <uid>' \
-  -c "init; halt; program build-sv/cdc_msc_freertos.elf verify; reset; exit"
+  -c "init; halt; program examples/device/cdc_msc_freertos/build-sv/cdc_msc_freertos.elf verify; reset; exit"
 
 python3 tools/rtt.py --backend openocd --probe <uid> \
   --cfg "<board's -f interface/... -f target/... args>" \
-  --elf build-sv/cdc_msc_freertos.elf --channel 1 --seconds 25 \
+  --elf examples/device/cdc_msc_freertos/build-sv/cdc_msc_freertos.elf --channel 1 --seconds 25 \
   --reset-before-attach > capture.SVDat &
 # ...drive the workload while it records, then decode:
 python3 .claude/skills/sysview/scripts/sysview_record.py \
@@ -159,7 +159,7 @@ different image cannot be autopsied this way.
 
 ```bash
 cmake -B build-pm -DBOARD=<board> -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
-  -DSYSVIEW=4 -DSYSVIEW_POST_MORTEM=1 .
+  -DSYSVIEW=4 -DSYSVIEW_POST_MORTEM=1 examples/device/cdc_msc_freertos
 cmake --build build-pm && ninja -C build-pm cdc_msc_freertos-jlink
 # ... reproduce the hang, then dump WITHOUT resetting (reset destroys evidence) ...
 python3 .claude/skills/sysview/scripts/sysview_dump.py \
