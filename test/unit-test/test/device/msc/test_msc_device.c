@@ -248,12 +248,13 @@ void test_msc(void)
 
   desc_configuration = data_desc_configuration;
   uint8_t const* desc_ep = tu_desc_next(tu_desc_next(desc_configuration));
+  uint8_t const* desc_end = desc_configuration + CONFIG_TOTAL_LEN;
 
   dcd_event_setup_received(rhport, (uint8_t*) &request_set_configuration, false);
 
   // open endpoints
-  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) desc_ep, true);
-  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep), true);
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) desc_ep, desc_end, true);
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep), desc_end, true);
 
   // Prepare SCSI command
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);

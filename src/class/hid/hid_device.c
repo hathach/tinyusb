@@ -222,6 +222,7 @@ uint16_t hidd_open(uint8_t rhport, tusb_desc_interface_t const *desc_itf, uint16
   hidd_epbuf_t *p_epbuf = &_hidd_epbuf[hid_id];
 
   uint8_t const *p_desc = (uint8_t const *)desc_itf;
+  uint8_t const *desc_end = p_desc + max_len;
 
   //------------- HID descriptor -------------//
   p_desc = tu_desc_next(p_desc);
@@ -230,7 +231,8 @@ uint16_t hidd_open(uint8_t rhport, tusb_desc_interface_t const *desc_itf, uint16
 
   //------------- Endpoint Descriptor -------------//
   p_desc = tu_desc_next(p_desc);
-  TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, desc_itf->bNumEndpoints, TUSB_XFER_INTERRUPT, &p_hid->ep_out, &p_hid->ep_in), 0);
+  TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, desc_end, desc_itf->bNumEndpoints, TUSB_XFER_INTERRUPT,
+                                &p_hid->ep_out, &p_hid->ep_in, NULL), 0);
 
   if (desc_itf->bInterfaceSubClass == HID_SUBCLASS_BOOT) {
     p_hid->itf_protocol = desc_itf->bInterfaceProtocol;

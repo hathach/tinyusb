@@ -943,7 +943,7 @@ void dcd_remote_wakeup(uint8_t rhport)
 #endif
 
 // Configure endpoint's registers according to descriptor
-bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
+bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc, uint8_t const * desc_end TU_ATTR_UNUSED)
 {
   (void) rhport;
 
