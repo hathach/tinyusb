@@ -1931,8 +1931,10 @@ static void handle_hprt_irq(uint8_t rhport, bool in_isr) {
       // Port enable
       const tusb_speed_t speed = hprt_speed_get(dwc2);
       port0_enable(dwc2, speed);
-    } else {
-      // TU_ASSERT(false, );
+    } else if (hprt_bm.conn_status == 1u && hprt_bm.conn_detected == 0u) {
+      // The core disabled a still-connected port. Reuse attach handling
+      // to tear down the stale device tree and restart enumeration.
+      hcd_event_device_attach(rhport, in_isr);
     }
   }
 
