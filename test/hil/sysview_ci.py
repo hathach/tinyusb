@@ -164,9 +164,13 @@ def gated_pair(base_j, pr_j, b, p, fmt, delta_fn):
         delta = delta_fn(b, p)
     return bcell, pcell, delta
 
-def board_section(name, base_j, pr_j):
+def board_section(name, base_j, pr_j, base_dropped=None):
     live_window_s = (pr_j.get("capture") or {}).get("live_window_s")
     heading = f"### {name}" + (f" — live {live_window_s:.1f} s" if live_window_s is not None else "")
+    if base_dropped:
+        # The report header states the PR-side config only, so a dropped baseline has to say
+        # here why every row reads "new" -- otherwise it looks like base never captured.
+        heading += f" — base dropped, capture config changed ({', '.join(base_dropped)})"
     lines = [heading, ""]
     if pr_j.get("error"):
         return "\n".join(lines + [f"capture failed: {pr_j['error']}", ""])
@@ -279,6 +283,17 @@ def board_section(name, base_j, pr_j):
                       f'    y-axis "µs" 0 --> {ymax:.1f}'] + bars + ["```"]
     return "\n".join(lines) + "\n"
 
+CAPTURE_CFG_KEYS = ("example", "workload", "duration_s")
+
+def capture_cfg_changes(base_j, pr_j):
+    """Config differences that make a baseline incomparable: a PR that changes a board's
+    sysview example, workload or duration_s measures different work, so base-vs-PR deltas
+    would be noise dressed up as a regression."""
+    if not base_j:
+        return []
+    return [f"{k} `{base_j.get(k)}`→`{pr_j.get(k)}`"
+            for k in CAPTURE_CFG_KEYS if base_j.get(k) != pr_j.get(k)]
+
 def report(base_dir, pr_dir):
     pr = load_set(pr_dir)
     if not pr:
@@ -296,7 +311,8 @@ def report(base_dir, pr_dir):
             f"base `{base_commit}` → PR `{any_pr.get('commit', '?')}`*")
     parts = [HEADER, "", head, ""]
     for b in boards:
-        parts.append(board_section(b, base.get(b), pr[b]))
+        changed = capture_cfg_changes(base.get(b), pr[b])
+        parts.append(board_section(b, None if changed else base.get(b), pr[b], changed))
     parts.append(LEGEND)
     return "\n".join(parts) + "\n"
 
@@ -340,8 +356,9 @@ def board_result(board, commit, metrics=None, capture_info=None, error=None):
             "capture": capture_info or {}, "metrics": metrics, "error": error}
 
 def _workload_cdc_burst(node, duration_s):
-    """Returns True if traffic ran for the full window, False if the serial
-    link died early (device dropped off the bus) -- never raises."""
+    """Returns True if traffic ran for the full window, False if the serial link died early
+    (device dropped off the bus) or the device stayed enumerated but echoed nothing back --
+    never raises."""
     import serial, time
     # write_timeout: without it, a device that stops draining its OUT endpoint blocks s.write()
     # forever, wedging PHASE 2 while the board flock is held -- the same failure mode hil_test.py
@@ -351,17 +368,21 @@ def _workload_cdc_burst(node, duration_s):
     # wedge faster, and importing hil_test would pull in its pymtp dependency for one constant.
     s = serial.Serial(node, 115200, timeout=0.02, write_timeout=2)
     end = time.monotonic() + duration_s
+    echoed = 0
     while time.monotonic() < end:
         t = time.monotonic()
         while time.monotonic() - t < 0.30 and time.monotonic() < end:
             try:
-                s.write(b"x" * 64); s.read(64)
+                s.write(b"x" * 64); echoed += len(s.read(64))
             except Exception:
                 s.close()
                 return False
         time.sleep(min(1.0, max(0, end - time.monotonic())))
     s.close()
-    return True
+    # A device that keeps its CDC endpoints enumerated but never echoes a byte produces a
+    # capture of an idle bus; only writes throwing (the link-died path above) used to fail
+    # this workload, so such a run was published as a clean loaded capture.
+    return echoed > 0
 
 WORKLOADS = {"cdc_burst": _workload_cdc_burst,
              "idle": lambda node, duration_s: __import__("time").sleep(duration_s) or True}

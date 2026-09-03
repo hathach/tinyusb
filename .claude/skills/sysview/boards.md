@@ -91,6 +91,13 @@ window is the attach_only mid-stream join (2.4–5.6 s across runs).
   `SYSVIEW=4`. `boards/stm32f401blackpill/board.cmake` sets
   `SYSVIEW_BUFFER_SIZE_DEFAULT 4096`; the rest of the family (>=128 KiB) keeps 65536.
   Unmeasured — expect the small-buffer event loss the other 4096 rows show.
+- **nrf54h20dk overrides its family default down to 4096** — its linker script puts
+  `.data`/`.bss` in the 32 KiB primary `RAM` (0x22000000), so nrf's family-wide 65536
+  fails to link at `SYSVIEW=4` ("`.bss` is too large to fit in RAM memory segment").
+  `boards/nrf54h20dk/board.cmake` sets `SYSVIEW_BUFFER_SIZE_DEFAULT 4096`; the rest of the
+  family keeps 65536. Unmeasured — expect the small-buffer event loss the other 4096 rows
+  show. Routing static `.bss` to RAM00 (512 KiB, already a TODO in that board.cmake) would
+  free the buffer to grow.
 - **nrf5340dk cannot be captured at present**: it HardFaults inside `vTaskStartScheduler()`
   before any task runs — reproduced on a plain non-instrumented build and after a full
   `nrfjprog --recover`, so it is a board/boot issue, not a SystemView one. The RTT control block

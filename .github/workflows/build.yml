@@ -631,23 +631,43 @@ jobs:
         # sysview_ci.py capture builds device/cdc_msc for the sysview-flagged boards on
         # this runner. "Clean workspace" above wipes the checkout every run, so this always
         # re-clones (get_deps.py's own already-at-pinned-commit skip never gets a chance to
-        # apply here); scoping to just the sysview-flagged boards keeps it to a handful of
-        # shallow (depth=1) clones rather than the full job matrix's dependency set.
+        # apply here); scoping to just the boards the capture step below actually selects
+        # keeps it to a handful of shallow (depth=1) clones rather than the full job
+        # matrix's dependency set.
         # N8: board list derived from $HIL_JSON itself -- the same "sysview" key sysview_ci.py's
         # own select_boards() checks -- instead of a hardcoded pair that silently drifts out of
         # sync with test/hil/tinyusb.json (a third sysview board added the documented way would
         # otherwise just build failed here, inside a continue-on-error step, with nothing to say
-        # why).
+        # why). That roster list is then intersected with the PR's own board selection, so a PR
+        # whose selection holds no sysview board clones nothing.
         if: ${{ !cancelled() && github.run_attempt == '1' }}
         continue-on-error: true
+        env:
+          SEL_ARGS_TINYUSB: ${{ needs.set-matrix.outputs.hil_args_tinyusb }}
+          SEL_RUN_TINYUSB: ${{ needs.set-matrix.outputs.hil_run_tinyusb }}
+          SEL_ARGS_HFP: ${{ needs.set-matrix.outputs.hil_args_hfp }}
+          SEL_RUN_HFP: ${{ needs.set-matrix.outputs.hil_run_hfp }}
         run: |
-          BOARDS=$(python3 -c "
-          import json
+          case "$HIL_JSON" in
+            *tinyusb.json) SEL_ARGS="$SEL_ARGS_TINYUSB"; SEL_RUN="$SEL_RUN_TINYUSB" ;;
+            *hfp.json)     SEL_ARGS="$SEL_ARGS_HFP";     SEL_RUN="$SEL_RUN_HFP" ;;
+          esac
+          if [ "$SEL_RUN" = "false" ]; then
+            echo "HIL skipped by PR selection, no SystemView deps to fetch"
+            exit 0
+          fi
+          BOARDS=$(SEL_ARGS="$SEL_ARGS" python3 -c "
+          import json, os
+          # -b names only, mirroring the capture step's own selection parse: a -bt board is
+          # never captured, and no -b at all (full matrix) still means every sysview board
+          argv = os.environ['SEL_ARGS'].split()
+          sel = {b for a, b in zip(argv, argv[1:]) if a == '-b'}
           cfg = json.load(open('$HIL_JSON'))
-          print(' '.join(b['name'] for b in cfg['boards'] if 'sysview' in b))
+          print(' '.join(b['name'] for b in cfg['boards']
+                         if 'sysview' in b and (not sel or b['name'] in sel)))
           ")
           if [ -z "$BOARDS" ]; then
-            echo "no sysview-flagged boards in $HIL_JSON, nothing to fetch deps for"
+            echo "no selected sysview-flagged board in $HIL_JSON, nothing to fetch deps for"
             exit 0
           fi
           ARGS=""
