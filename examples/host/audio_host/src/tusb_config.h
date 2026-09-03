@@ -95,7 +95,7 @@ extern "C" {
 #define CFG_TUH_DEVICE_MAX (3 * CFG_TUH_HUB + 1)
 
 //------------- Audio Host Config -------------//
-#define CFG_TUH_AUDIO_MAX           2
+#define CFG_TUH_AUDIO_MAX           1
 #define CFG_TUH_AUDIO_EPIN_BUFSIZE  256 // max capture transfer the application submits
 #define CFG_TUH_AUDIO_EPOUT_BUFSIZE 256 // max playback transfer the application submits
 

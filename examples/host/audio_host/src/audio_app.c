@@ -29,24 +29,25 @@
 // - SAMPLE_RATES: sample rates tried in order, first match wins (44.1 kHz stereo by default)
 #define AUDIO_MAX_CHANNELS        2
 #define SAMPLE_RATES              {44100, 48000}
-#define FEATURE_UNIT_VOLUME_DB    (-6 * 256)
+#define FEATURE_UNIT_VOLUME_DB    (-20 * 256)
 #define AUDIO_BUFFER_SAMPLE_COUNT (CFG_TUH_AUDIO_STREAM_BUFSIZE / 2 / sizeof(int16_t))
-static uint8_t                   audio_idx      = TUSB_INDEX_INVALID_8;    // index of the selected audio device
-static uint8_t                   cap_stream_idx = TUSB_INDEX_INVALID_8;    // capture stream index
-static uint8_t                   spk_stream_idx = TUSB_INDEX_INVALID_8;    // playback stream index
-static bool                      mic_ready      = false;                   // capture stream is running
-static bool                      spk_ready      = false;                   // playback stream is running
-static int16_t                   audio_samples[AUDIO_BUFFER_SAMPLE_COUNT]; // shared capture/playback buffer
-static tuh_audio_stream_config_t mic_config;                               // selected capture configuration
-static tuh_audio_stream_config_t spk_config;                               // selected playback configuration
-static uint32_t                  spk_cb_count = 0;                         // playback callbacks (for debug)
-static uint32_t                  mic_cb_count = 0;                         // capture callbacks (for debug)
-static uint32_t                  fail_event_count = 0;                    // transfer/start failures (for debug)
+static uint8_t audio_idx      = TUSB_INDEX_INVALID_8;
+static uint8_t cap_stream_idx = TUSB_INDEX_INVALID_8;
+static uint8_t spk_stream_idx = TUSB_INDEX_INVALID_8;
 
+// True after a stream start request is accepted and until it is stopped or fails.
+static bool mic_enabled;
+static bool spk_enabled;
 
-//--------------------------------------------------------------------+
-// Helper Functions
-//--------------------------------------------------------------------+
+static int16_t                   audio_samples[AUDIO_BUFFER_SAMPLE_COUNT];
+static tuh_audio_stream_config_t mic_config;
+static tuh_audio_stream_config_t spk_config;
+
+// Diagnostic counters printed and cleared once per second.
+static uint32_t spk_cb_count;
+static uint32_t mic_cb_count;
+static uint32_t fail_event_count;
+static uint32_t stats_start_ms;
 
 //--------------------------------------------------------------------+
 // Async Deferred Call Queue
@@ -71,18 +72,19 @@ static void app_defer_queue_clear(void) {
   memset(_defer_q, 0, sizeof(_defer_q));
 }
 
-// Schedule func to be called after 'ms' milliseconds, returns false if queue is full
-static bool app_defer_ms_async(uint32_t ms, app_defer_func_t func, uintptr_t arg) {
+// Schedule func to be called after 'ms' milliseconds. Four slots cover the
+// phase timer, one restart per stream, and the single supported Audio device.
+static void app_defer_ms_async(uint32_t ms, app_defer_func_t func, uintptr_t arg) {
   for (uint8_t i = 0; i < APP_DEFER_QUEUE_SZ; i++) {
     if (_defer_q[i].func == NULL) {
       _defer_q[i].func = func;
       _defer_q[i].arg  = arg;
       // add one to ensure we wait at least 'ms' milliseconds
       _defer_q[i].at_ms = tusb_time_millis_api() + ms + 1;
-      return true;
+      return;
     }
   }
-  return false; // queue full
+  TU_ASSERT(false, ); // Queue sizing above is an application invariant.
 }
 
 // Invoke all callbacks whose delay has expired, must be called periodically from main loop
@@ -127,14 +129,14 @@ static const int16_t sine_lut[SINE_LUT_SIZE] = {
 };
 
 static uint32_t sine_phase;
+static uint32_t sine_phase_step;
 
 // Generate a continuous tone at the selected sample rate and pack each frame
 // according to the actual playback channel count.
 static void spk_fill_sine(uint32_t frames) {
-  const uint32_t phase_step = (uint32_t)(((uint64_t)SINE_TONE_HZ << 32) / spk_config.sample_rate);
   for (uint32_t i = 0; i < frames; i++) {
     const int16_t sample = sine_lut[sine_phase >> (32u - SINE_LUT_BITS)];
-    sine_phase += phase_step;
+    sine_phase += sine_phase_step;
     for (uint8_t ch = 0; ch < spk_config.channels; ch++) {
       audio_samples[i * spk_config.channels + ch] = sample;
     }
@@ -177,35 +179,42 @@ static const uint32_t app_phase_ms[APP_PHASE_COUNT] = {APP_PHASE_MIC_ONLY_MS, AP
 static void app_audio_phase_apply(void) {
   switch (app_audio_phase) {
     case APP_PHASE_MIC_ONLY:
-      if (!mic_ready) {
-        mic_ready = tuh_audio_start(audio_idx, cap_stream_idx);
+      if (!mic_enabled) {
+        mic_enabled = tuh_audio_start(audio_idx, cap_stream_idx);
       }
-      if (spk_ready) {
-        spk_ready = !tuh_audio_stop(audio_idx, spk_stream_idx);
+      if (spk_enabled) {
+        spk_enabled = !tuh_audio_stop(audio_idx, spk_stream_idx);
       }
       printf("  Phase %u: mic on, spk off (data dropped)\r\n", app_audio_phase);
       break;
     case APP_PHASE_SPK_ONLY:
-      if (mic_ready) {
-        mic_ready = !tuh_audio_stop(audio_idx, cap_stream_idx);
+      if (mic_enabled) {
+        mic_enabled = !tuh_audio_stop(audio_idx, cap_stream_idx);
       }
-      if (!spk_ready) {
-        spk_ready = tuh_audio_start(audio_idx, spk_stream_idx);
+      if (!spk_enabled) {
+        spk_enabled = tuh_audio_start(audio_idx, spk_stream_idx);
       }
       printf("  Phase %u: mic off, spk on (sine)\r\n", app_audio_phase);
       break;
     case APP_PHASE_ECHO:
-      if (!mic_ready) {
-        mic_ready = tuh_audio_start(audio_idx, cap_stream_idx);
+      if (!mic_enabled) {
+        mic_enabled = tuh_audio_start(audio_idx, cap_stream_idx);
       }
-      if (!spk_ready) {
-        spk_ready = tuh_audio_start(audio_idx, spk_stream_idx);
+      if (!spk_enabled) {
+        spk_enabled = tuh_audio_start(audio_idx, spk_stream_idx);
       }
       printf("  Phase %u: mic + spk on (echo)\r\n", app_audio_phase);
       break;
     default:
       break;
   }
+}
+
+static void audio_stats_reset(void) {
+  stats_start_ms   = tusb_time_millis_api();
+  mic_cb_count     = 0;
+  spk_cb_count     = 0;
+  fail_event_count = 0;
 }
 
 // Enter a phase, then schedule the next switch after this phase's duration
@@ -215,43 +224,37 @@ static void app_audio_phase_enter(uintptr_t phase) {
   // transfer error) so they cannot re-start a stream this phase stops.
   app_defer_queue_clear();
   app_audio_phase_apply();
+  audio_stats_reset();
   const uint8_t next_phase = (uint8_t)((app_audio_phase + 1) % APP_PHASE_COUNT);
-  app_defer_ms_async(app_phase_ms[app_audio_phase], (app_defer_func_t)app_audio_phase_enter, next_phase);
+  app_defer_ms_async(app_phase_ms[app_audio_phase], app_audio_phase_enter, next_phase);
 }
-
 
 //--------------------------------------------------------------------+
 // Blinking Task
 //--------------------------------------------------------------------+
 void led_blinking_task(void) {
-  const uint32_t  interval_ms = 1000;
-  static uint32_t start_ms    = 0;
+  const uint32_t interval_ms = 1000;
 
   static bool led_state = false;
 
   // Blink every interval ms
-  if (tusb_time_millis_api() - start_ms < interval_ms) {
+  if (tusb_time_millis_api() - stats_start_ms < interval_ms) {
     return; // not enough time
   }
-  start_ms += interval_ms;
+  stats_start_ms += interval_ms;
 
   board_led_write(led_state);
   led_state = 1 - led_state; // toggle
-#if 1
-  printf(" MIC CB=%lu SPK CB=%lu FAIL EVENT=%lu\r\n", (unsigned long)mic_cb_count, (unsigned long)spk_cb_count,
+  printf(" MIC CB=%lu | SPK CB=%lu | FAIL EVENT=%lu\r\n", (unsigned long)mic_cb_count, (unsigned long)spk_cb_count,
          (unsigned long)fail_event_count);
-  mic_cb_count = 0;
-  spk_cb_count = 0;
+  mic_cb_count     = 0;
+  spk_cb_count     = 0;
   fail_event_count = 0;
-
-#endif
 }
 
 //--------------------------------------------------------------------+
 // Application Task
 //--------------------------------------------------------------------+
-
-
 // Echo one chunk after capture is at least half full and playback is at least
 // half drained. This runs from the main loop, independently of USB callbacks.
 static void audio_echo_task(void) {
@@ -274,14 +277,14 @@ static void audio_echo_task(void) {
 }
 
 void audio_app_task(void) {
-  if (mic_ready && spk_ready) {
+  if (mic_enabled && spk_enabled) {
     audio_echo_task();
-  } else if (mic_ready) {
+  } else if (mic_enabled) {
     const uint32_t frames = audio_half_fifo_frames(&mic_config);
     if (tuh_audio_read_available(audio_idx, cap_stream_idx) >= frames) {
       (void)tuh_audio_read(audio_idx, cap_stream_idx, audio_samples, frames);
     }
-  } else if (spk_ready) {
+  } else if (spk_enabled) {
     const uint32_t frames = audio_half_fifo_frames(&spk_config);
     if (tuh_audio_write_available(audio_idx, spk_stream_idx) >= frames) {
       spk_fill_sine(frames);
@@ -318,10 +321,10 @@ static void audio_app_restart_stream(uintptr_t param) {
   }
   if (stream_idx == cap_stream_idx) {
     printf("  Restarting capture stream %u\r\n", stream_idx);
-    mic_ready = tuh_audio_start(idx, stream_idx);
+    mic_enabled = tuh_audio_start(idx, stream_idx);
   } else if (stream_idx == spk_stream_idx) {
     printf("  Restarting playback stream %u\r\n", stream_idx);
-    spk_ready = tuh_audio_start(idx, stream_idx);
+    spk_enabled = tuh_audio_start(idx, stream_idx);
   }
 }
 
@@ -329,14 +332,15 @@ void tuh_audio_event_cb(uint8_t idx, uint8_t stream_idx, tuh_audio_event_t event
   const char *stream_name = (stream_idx == cap_stream_idx) ? "capture" : "playback";
 
   if (event == TUH_AUDIO_EVENT_START_COMPLETE) {
-    printf("  %s start %s: result=%u\r\n", stream_name, result == XFER_RESULT_SUCCESS ? "complete" : "failed",
-           result);
+    printf("  %s start %s: result=%u\r\n", stream_name, result == XFER_RESULT_SUCCESS ? "complete" : "failed", result);
     if (result == XFER_RESULT_SUCCESS) {
       return;
     }
   } else if (event == TUH_AUDIO_EVENT_STOP_COMPLETE) {
-    printf("  %s stop %s: result=%u\r\n", stream_name, result == XFER_RESULT_SUCCESS ? "complete" : "failed",
-           result);
+    printf("  %s stop %s: result=%u\r\n", stream_name, result == XFER_RESULT_SUCCESS ? "complete" : "failed", result);
+    if (result != XFER_RESULT_SUCCESS) {
+      fail_event_count++;
+    }
     return;
   } else {
     printf("  %s transfer failed: result=%u\r\n", stream_name, result);
@@ -344,11 +348,11 @@ void tuh_audio_event_cb(uint8_t idx, uint8_t stream_idx, tuh_audio_event_t event
 
   fail_event_count++;
   if (stream_idx == cap_stream_idx) {
-    mic_ready = false;
+    mic_enabled = false;
   } else if (stream_idx == spk_stream_idx) {
-    spk_ready = false;
+    spk_enabled = false;
   }
-  app_defer_ms_async(100, (app_defer_func_t)audio_app_restart_stream, ((uintptr_t)idx << 8) | stream_idx);
+  app_defer_ms_async(100, audio_app_restart_stream, ((uintptr_t)idx << 8) | stream_idx);
 }
 
 //--------------------------------------------------------------------+
@@ -397,16 +401,14 @@ static void configure_stream_controls(uint8_t idx, uint8_t stream_idx, const cha
   if (tuh_audio_volume_range_get(idx, stream_idx, &range)) {
     has_control = true;
     int16_t            volume;
-    tusb_xfer_result_t result = tuh_audio_volume_get_sync(idx, stream_idx, 0, &volume);
+    tusb_xfer_result_t result = tuh_audio_volume_get_sync(idx, stream_idx, TUH_AUDIO_CHANNEL_MASTER, &volume);
     if (result == XFER_RESULT_SUCCESS) {
       printf("  %s master volume: %d (1/256 dB)\r\n", stream_name, volume);
     }
     int32_t target = FEATURE_UNIT_VOLUME_DB;
     target         = TU_MAX(target, range.min);
     target         = TU_MIN(target, range.max);
-    target         = range.min + ((target - range.min + range.res / 2) / range.res) * range.res;
-    target         = TU_MIN(target, range.max);
-    result         = tuh_audio_volume_set_sync(idx, stream_idx, 0, (int16_t)target);
+    result         = tuh_audio_volume_set_sync(idx, stream_idx, TUH_AUDIO_CHANNEL_MASTER, (int16_t)target);
     if (result == XFER_RESULT_SUCCESS) {
       printf("  %s volume set: %d (1/256 dB)\r\n", stream_name, (int)target);
     }
@@ -428,18 +430,13 @@ void tuh_audio_umount_cb(uint8_t idx) {
     audio_idx      = TUSB_INDEX_INVALID_8;
     cap_stream_idx = TUSB_INDEX_INVALID_8;
     spk_stream_idx = TUSB_INDEX_INVALID_8;
-    mic_ready      = false;
-    spk_ready      = false;
+    mic_enabled    = false;
+    spk_enabled    = false;
   }
 }
 
 static void tuh_audio_mount_async(uintptr_t param) {
   uint8_t idx = (uint8_t)param;
-  if (idx >= CFG_TUH_AUDIO_MAX) {
-    printf("Audio device mount failed: idx=%u exceeds max=%u\r\n", idx, CFG_TUH_AUDIO_MAX);
-    return;
-  }
-
   printf("Audio device mounted: idx=%u addr=%u\r\n", idx, tuh_audio_get_dev_addr(idx));
 
   // Inspect every stream and print its supported configurations
@@ -479,7 +476,7 @@ static void tuh_audio_mount_async(uintptr_t param) {
             mic_config     = config;
             printf("  Microphone configured\r\n");
             configure_stream_controls(idx, stream_idx, "Microphone");
-            mic_ready     = tuh_audio_start(idx, stream_idx);
+            mic_enabled   = tuh_audio_start(idx, stream_idx);
             capture_found = true;
             break;
           }
@@ -532,7 +529,8 @@ static void tuh_audio_mount_async(uintptr_t param) {
   }
   audio_idx = idx;
   printf("  Speaker configured\r\n");
-  sine_phase = 0;
+  sine_phase      = 0;
+  sine_phase_step = (uint32_t)(((uint64_t)SINE_TONE_HZ << 32) / spk_config.sample_rate);
   configure_stream_controls(idx, spk_stream_idx, "Speaker");
 
   if (capture_found) {
@@ -540,11 +538,11 @@ static void tuh_audio_mount_async(uintptr_t param) {
     app_audio_phase_enter(APP_PHASE_MIC_ONLY);
   } else {
     // Playback-only device: start the sine test tone immediately.
-    spk_ready = tuh_audio_start(idx, spk_stream_idx);
+    spk_enabled = tuh_audio_start(idx, spk_stream_idx);
   }
 }
 
 // Invoked when device with Audio interface is mounted
 void tuh_audio_mount_cb(uint8_t idx) {
-  app_defer_ms_async(100, (app_defer_func_t)tuh_audio_mount_async, idx);
+  app_defer_ms_async(100, tuh_audio_mount_async, idx);
 }

@@ -114,6 +114,9 @@ typedef struct {
   uint8_t               channels;
 } tuh_audio_stream_config_t;
 
+// Feature Unit channel zero selects the master channel.
+#define TUH_AUDIO_CHANNEL_MASTER 0
+
 // Volume values are signed 1/256 dB. INT16_MIN represents silence.
 #define TUH_AUDIO_VOLUME_SILENCE INT16_MIN
 
