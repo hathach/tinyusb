@@ -327,6 +327,12 @@
                 "vid_pid": "0x2e8a 0x000c",
                 "args": "-f interface/cmsis-dap.cfg -f target/rp2040.cfg -c \"adapter speed 5000\"",
                 "verify": true
+            },
+            "sysview": {
+                "example": "device/cdc_msc",
+                "workload": "cdc_burst",
+                "duration_s": 15,
+                "buffer": 65536
             }
         },
         {
@@ -453,6 +459,13 @@
             "flasher_recover": {
                 "name": "openocd",
                 "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/stm32f4x.cfg -c \"stm32f4x.cpu configure -event reset-init {}\""
+            },
+            "sysview": {
+                "example": "device/cdc_msc",
+                "workload": "cdc_burst",
+                "duration_s": 15,
+                "buffer": 65536,
+                "ocd_args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/stm32f4x.cfg"
             }
         },
         {
