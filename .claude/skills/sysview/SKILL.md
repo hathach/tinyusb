@@ -185,13 +185,16 @@ unchanged: restore pristine firmware, then release the lock.
 `boards.md` has `JLINK_DEVICE` `—`, so on `ch32v20x`/`ch32v30x` the dump is
 hand-driven over OpenOCD: one attach reads the same channel-1 ring descriptor
 and dumps the same bytes, and the WrOff split below is the script's
-linearization verbatim. `ch32v10x` and `ch583` reset on every WCH-Link attach,
-which wipes the ring — no dump route there either (`boards.md`). Build with the
-same `cmake` lines as above (there is no `-jlink` flash target here); `<uid>` is
-the board's `flasher.uid` in `test/hil/tinyusb.json`.
+linearization verbatim. `ch32v10x` resets on every WCH-Link attach and ch582m's
+ring does not survive OpenOCD's attach-reset (`boards.md`), so this recipe is
+for `ch32v20x`/`ch32v30x` only. Neither family builds the FreeRTOS examples, so
+the post-mortem image is `cdc_msc`; `<uid>` is the board's `flasher.uid` in
+`test/hil/tinyusb.json`.
 
 ```bash
-ELF=build-pm/cdc_msc_freertos.elf
+cmake -B build-pm -DBOARD=<board> -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
+  -DSYSVIEW=4 -DSYSVIEW_POST_MORTEM=1 examples/device/cdc_msc && cmake --build build-pm
+ELF=build-pm/cdc_msc.elf
 OUT=/tmp/sysview-pm; mkdir -p $OUT
 OOCD=(openocd -c "tcl_port disabled" -c "gdb_port disabled" -c "telnet_port disabled"
       -c "adapter serial <uid>" -c "adapter usb vid_pid 0x1a86 0x8010"
@@ -227,10 +230,10 @@ python3 .claude/skills/sysview/scripts/sysview_record.py \
 ```
 
 The core is left halted; recover the board by reflashing pristine firmware —
-`reset run` under SDI never comes back. **Not bench-run yet**: the OpenOCD/Tcl
-and the split are syntax-checked against openocd 0.12.0+dev and against
-`sysview_dump.py`'s linearization, but no WCH post-mortem has been captured on
-the rig.
+`reset run` under SDI never comes back. Bench-run as written on
+`ch32v307v_r1_1v0` (2026-09-04, openocd 0.12.0+dev-02620): a 4096-byte ring
+halted mid-CDC-burst decoded to a 0.16 s window, overflow 0, ISR 85 n=68
+p50 5.0 µs, `tud_task` n=69 p50 8.0 / p99 17.0 µs.
 
 ## Build options
 
