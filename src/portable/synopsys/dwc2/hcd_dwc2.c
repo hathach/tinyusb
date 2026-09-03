@@ -1858,15 +1858,10 @@ static void handle_hprt_irq(uint8_t rhport, bool in_isr) {
       // Port enable
       const tusb_speed_t speed = hprt_speed_get(dwc2);
       port0_enable(dwc2, speed);
-    } else {
-      // Port disabled by the core (port error e.g babble). SOF generation stops, so no transfer
-      // on this bus can ever complete again. Tear down the tree; if something is still connected
-      // re-attach so the port is reset and devices are enumerated again.
-      if (hprt_bm.conn_status == 1u) {
-        hcd_event_device_attach(rhport, in_isr);
-      } else {
-        hcd_event_device_remove(rhport, in_isr);
-      }
+    } else if (hprt_bm.conn_status == 1u && hprt_bm.conn_detected == 0u) {
+      // The core disabled a still-connected port. Reuse attach handling
+      // to tear down the stale device tree and restart enumeration.
+      hcd_event_device_attach(rhport, in_isr);
     }
   }
 
