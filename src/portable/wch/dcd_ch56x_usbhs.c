@@ -95,6 +95,11 @@ CFG_TUD_WCH_DMA_SECTION TU_ATTR_ALIGNED(16) static uint8_t ep0_buffer[EP0_MAX_SI
 CFG_TUD_WCH_DMA_SECTION TU_ATTR_ALIGNED(16) static uint8_t bounce_buffer[CFG_TUD_WCH_USBHS_EP_MAX - 1][2][BOUNCE_BUF_SIZE];
 // Written by both the ISR (SETUP, bus reset) and task context (arming a transfer)
 static volatile bool ep0_tog;
+// EP0 OUT expected toggle, tracked the same way as ep0_tog above and for the same reason: deriving
+// it from a EP_RX_CTRL(0) read-modify-write let a SETUP landing mid-RMW (task context arming a
+// stage, interrupted by the ISR's own write for a new SETUP) restore stale bits over the ISR's
+// fresh state. A plain write sourced from this flag is race-free.
+static volatile bool ep0_rx_tog;
 static volatile bool ep_data_tog[EP_MAX][2];
 
 static void set_ep_toggle(uint8_t ep_num, tusb_dir_t ep_dir, bool data1) {
@@ -149,7 +154,9 @@ static void queue_out_packet(uint8_t ep_num, xfer_ctl_t *xfer) {
   }
 
   if (ep_num == 0) {
-    EP_RX_CTRL(0) = (EP_RX_CTRL(0) & ~(RB_UEP_RRES_MASK)) | UEP_R_RES_ACK;
+    // Full write, not a masked read-modify-write: ep0_rx_tog is the only source for the toggle
+    // bit (see its declaration), so this never needs to read EP_RX_CTRL(0) back.
+    EP_RX_CTRL(0) = UEP_R_RES_ACK | (ep0_rx_tog ? RB_UEP_R_TOG_1 : 0);
   } else if (xfer->is_iso) {
     EP_RX_CTRL(ep_num) = (EP_RX_CTRL(ep_num) & ~(RB_UEP_RRES_MASK)) | RB_UEP_RRES_NO | UEP_R_RES_ACK;
   } else {
@@ -232,6 +239,7 @@ bool ch56x_usb2_init(uint8_t rhport) {
   memset(&xfer_status, 0, sizeof(xfer_status));
   memset((void *)ep_data_tog, 0, sizeof(ep_data_tog));
   ep0_tog = true;
+  ep0_rx_tog = false; // matches R8_UEP0_RX_CTRL = 0 below
 
   R8_USB_CTRL = 0;
   R8_USB_CTRL = UCST_HS | RB_DEV_PU_EN | RB_USB_INT_BUSY | RB_USB_DMA_EN;
@@ -461,11 +469,11 @@ bool ch56x_usb2_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint
   xfer->valid = true;
 
   if (ep_num == 0 && dir == TUSB_DIR_OUT) {
-    if (total_bytes == 0) {
-      EP_RX_CTRL(0) = (EP_RX_CTRL(0) & ~(RB_UEP_R_TOG_MASK)) | RB_UEP_R_TOG_1;
-    } else {
-      EP_RX_CTRL(0) ^= RB_UEP_R_TOG_1;
-    }
+    // Status-OUT (total_bytes == 0) and the first packet of a data-OUT stage both start DATA1;
+    // a later chunk of a multi-packet data-OUT stage flips relative to the previous chunk's arm.
+    // Only the shadow is touched here - queue_out_packet() below does the one register write that
+    // applies it, so EP_RX_CTRL(0) is never read back (see ep0_rx_tog's declaration).
+    ep0_rx_tog = (total_bytes == 0) || !ep0_rx_tog;
   }
 
   if (dir == TUSB_DIR_IN) {
@@ -518,6 +526,7 @@ void ch56x_usb2_int_handler(uint8_t rhport) {
   } else if (int_flag & RB_USB_IF_SETUOACT) {
     const tusb_control_request_t *setup = (const tusb_control_request_t *)(uintptr_t)ep0_buffer;
     ep0_tog = true;
+    ep0_rx_tog = false; // matches the implicit TOG_0 the write below leaves in EP_RX_CTRL(0)
     // A SETUP resets the control pipe: drop any stage still armed from a transfer the host just
     // abandoned (a new SETUP may legally abort one, USB 2.0 8.5.3). Otherwise a completion landing
     // between this SETUP and usbd's next submission would be reported against the stale transfer,
@@ -538,6 +547,7 @@ void ch56x_usb2_int_handler(uint8_t rhport) {
     R8_USB_DEV_AD = 0;
     memset((void *)ep_data_tog, 0, sizeof(ep_data_tog));
     ep0_tog = true;
+    ep0_rx_tog = false;
     EP_RX_CTRL(0) = UEP_R_RES_ACK | RB_UEP_R_TOG_0;
     EP_TX_CTRL(0) = UEP_T_RES_NAK | RB_UEP_T_TOG_0;
 
