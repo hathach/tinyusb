@@ -141,6 +141,7 @@
 #define OPT_MCU_RX65X            1401 ///< Renesas RX65N/RX651
 #define OPT_MCU_RX72N            1402 ///< Renesas RX72N
 #define OPT_MCU_RAXXX            1403 ///< Renesas RA generic
+#define OPT_MCU_SYNERGY          1404 ///< Renesas Synergy series
 
 // Mind Motion
 #define OPT_MCU_MM32F327X        1500 ///< Mind Motion MM32F327
