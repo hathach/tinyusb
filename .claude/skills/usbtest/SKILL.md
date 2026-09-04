@@ -21,7 +21,8 @@ the failing case passing *and* the full battery still at 30/30 across reflash cy
 ## Run
 
 ```bash
-# build (cmake); descriptor sizes auto-adapt per MCU via src/usb_descriptors.h + src/tusb_config.h
+# build (cmake); descriptor sizes auto-adapt per MCU via the example's own
+# src/usb_descriptors.h + src/tusb_config.h (paths below are relative to it)
 cd examples/device/usbtest && cmake -B build -DBOARD=<board> -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel && cmake --build build
 # flash, wait ~3-5 s for enumeration to settle, then:
 python3 test/hil/usbtest.py --serial <uid> --keep-binding            # full battery for the advertised tier
@@ -29,11 +30,22 @@ python3 test/hil/usbtest.py --serial <uid> --keep-binding --tests 29 # one case
 ```
 
 - **Always `--keep-binding`**: the cleanup unbind path has wedged host xHCIs (`usb_hcd_alloc_bandwidth`).
+- CI (`hil_test.py`) additionally passes `--budget` and
+  `--recover-board`/`--recover-fw`: on a HUNG case the battery aborts, RESETS the DUT
+  through its roster probe (non-destructive, ~130 ms) and reflashes only if that does not
+  clear the wedge (see usb-kernel-recover). Manual runs without those flags leave a HUNG
+  device wedged and skip cleanup — expected; reset or reflash it yourself.
 - Always settle a few seconds after flashing — enumeration can bounce once; testusb into the gap sees
   the device drop mid-case.
-- On a CI rig: stop the actions runner before touching hardware; restart after. Never run two
-  batteries concurrently (hil_test.py serializes them; concurrent batteries have hard-frozen a rig
-  via a fatal PCIe error on a VFIO-passed xHCI).
+- On a CI rig: hold the board lock before touching hardware and release it after — never stop the
+  actions runner. It keeps running; the per-board flock is what arbitrates (see the `hil` skill).
+  Never start a battery by hand next to a running one: `hil_test.py` budgets 2 concurrent batteries
+  per host controller (`HIL_USBTEST_PARALLEL`). The width itself is a profiled throughput/bandwidth
+  trade, not a safety ceiling (the concurrency note above `FLASH_PARALLEL` in `hil_lock.py`) — but
+  a battery outside the budget is a real hazard: unbudgeted concurrent batteries have hard-frozen
+  the rig with a fatal PCIe error on a VFIO-passed xHCI, and a marginal DUT port bouncing under
+  concurrent batteries has killed a uPD720201 outright, which lowering the widths does not fix
+  (that note records every such death).
 
 ## Porting ladder — new MCU/DCD to 30/30
 
@@ -42,9 +54,9 @@ python3 test/hil/usbtest.py --serial <uid> --keep-binding --tests 29 # one case
 2. **Tier 2 (ctrl_out 14/21)**, **tier 3 (interrupt 25/26)**, **tier 4 (iso 15/16/22/23)** — raise
    the tier only when the layer below is clean; run the *full* battery after each layer.
 3. **Fit the endpoints**: tier 4 needs 6 endpoints + EP0. Small parts need per-MCU mps/epbuf
-   overrides in `src/usb_descriptors.h` (`USBTEST_INT/ISO_EP_MPS_FS`) and `src/tusb_config.h`
-   (`CFG_TUD_VENDOR_TX_EPSIZE`) — follow the existing CH32/LPC11 patterns. Parts that can't fit go
-   in `skip.txt`.
+   overrides in the example's own `src/usb_descriptors.h` (`USBTEST_INT/ISO_EP_MPS_FS`) and
+   `src/tusb_config.h` (`CFG_TUD_VENDOR_TX_EPSIZE`) — follow the existing CH32/LPC11 patterns.
+   Parts that can't fit go in `skip.txt`.
 4. **Sign-off = reliability, not one pass**: 3–10 full flash→battery cycles. One 30/30 proves
    nothing on a flaky bring-up; deterministic partial counts (e.g. exactly 1-in-8 lost) are a
    signature, not noise — chase them.
@@ -87,6 +99,29 @@ python3 test/hil/usbtest.py --serial <uid> --keep-binding --tests 29 # one case
 | 5     | EIO — iso packet errors (check `dmesg`: "N errors out of M") |
 | 71    | EPROTO — device answered wrong / too slow (after HC retries) |
 
+**Step 0 — read what the case actually does.** The kernel module is ground truth;
+the table above is a summary. Do this before theorising, and always before deciding
+whether a hung case is recoverable. Fetch the rig's exact version (`uname -r`):
+
+```bash
+curl -sO "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/drivers/usb/misc/usbtest.c?h=v6.12.96"
+# case N lives under `case N:` in the kernel's usbtest_do_ioctl()
+# (drivers/usb/misc/usbtest.c); kernel tools/usb/testusb.c maps the flags:
+# -c = param.iterations, -s = param.length, -g = param.sglen  (NOT what they read like)
+```
+
+- **Real traffic and pass criteria.** Case 24 at `-c 256 -s 1024 -g 8` is 256 rounds
+  of 8 bulk-OUT URBs, unlinking `urbs[num-4]`/`urbs[num-2]` and requiring
+  `-ECONNRESET` on those two plus normal completion on the other 6 — not the
+  "256 URBs" the flags suggest.
+- **Whether the wait is bounded** — decisive for recovery. `simple_io` uses
+  `wait_for_completion_timeout` (:481); the unlink paths use a bare
+  `wait_for_completion` (:1502, :1615). A device stalling there wedges the ioctl in
+  **D state permanently** — it holds the device lock, so nothing recovers it
+  (usb-kernel-recover, "The terminal case"). Knowing this first stops you burning
+  the rig on attempts that cannot work.
+- **Which DCD path is implicated**, precisely rather than by category.
+
 1. `usbtest.py` per-case output + its captured `dmesg` (`TEST n` markers bracket each case).
 2. **usbmon** (`usbmon` skill): URB-level ground truth. **It cannot show data toggles or NAKs** —
    a toggle desync and a dead endpoint look identical (Submits without Completes); distinguish
@@ -94,7 +129,7 @@ python3 test/hil/usbtest.py --serial <uid> --keep-binding --tests 29 # one case
 3. **On-device gdb/openocd**: read the EP control registers and DCD structs at the hang.
 4. Heisenbugs (vanish under logging): RAM ring-buffer trace dumped over openocd; for silent lockups
    JLink PC-sampling (`halt`+`regs` repeatedly — a pinned PC names the spin).
-5. **Cross-check the reference manual** (calibre library) before changing any register-level code —
+5. **Cross-check the reference manual** (`read-doc` skill) before changing any register-level code —
    per CLAUDE.md, and because comments/assumptions in DCDs have been wrong about hardware caps.
 6. Check the vendor's **silicon errata** early for timing/DMA hangs (an unimplemented erratum
    workaround caused a case-10 hang on one port).
@@ -120,4 +155,9 @@ python3 test/hil/usbtest.py --serial <uid> --keep-binding --tests 29 # one case
 - "usbmon shows no toggle problem" → usbmon can't see toggles.
 - "It works on gcc" → clang/IAR/LTO/make still pending.
 - "Fixed iso IN" → apply the same exemption to iso OUT (toggle logic is symmetric).
-- A clean single-board run does not validate concurrent/fleet behavior — batteries serialize.
+- A clean single-board run does not validate concurrent/fleet behavior — a fleet run puts up to 2
+  batteries per host controller (`HIL_USBTEST_PARALLEL`) plus concurrent flashes on the same hub
+  uplinks, which one board never exercises.
+- Reasoning about a case from its name or table row → open `usbtest.c` (step 0). The
+  flags don't mean what they look like, and recoverability is a property of that
+  case's wait, not of the rig.

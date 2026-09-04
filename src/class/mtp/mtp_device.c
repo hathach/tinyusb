@@ -437,8 +437,11 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       TU_LOG_DRV("  MTP Data %s CB: xferred_bytes=%lu, xferred_len/total_len=%lu/%lu, is_complete=%d\r\n",
                  is_data_in ? "IN" : "OUT", xferred_bytes, p_mtp->xferred_len, p_mtp->total_len, is_complete ? 1 : 0);
 
-      // Send/queue ZLP if packet is full-sized but transfer is complete
-      if (is_complete && xferred_bytes > 0 && !(xferred_bytes & (threshold - 1))) {
+      // Send/queue ZLP if packet is full-sized but transfer is complete.
+      // OUT must deliver this final payload to the application before receiving
+      // its terminating ZLP below.
+      const bool need_zlp = is_complete && xferred_bytes > 0 && !(xferred_bytes & (threshold - 1));
+      if (is_data_in && need_zlp) {
         TU_LOG_DRV("  queue ZLP\r\n");
         TU_VERIFY(usbd_edpt_claim(p_mtp->rhport, ep_addr));
         TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, ep_addr, NULL, 0, false));
@@ -466,9 +469,16 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
           cb_data.io_container = headerless_packet;
           cb_data.io_container.payload_bytes = xferred_bytes;
         }
-        tud_mtp_data_xfer_cb(&cb_data);
+        if (xferred_bytes > 0) {
+          tud_mtp_data_xfer_cb(&cb_data);
+        }
 
-        if (is_complete) {
+        if (need_zlp) {
+          TU_LOG_DRV("  queue ZLP\r\n");
+          TU_VERIFY(usbd_edpt_claim(p_mtp->rhport, ep_addr));
+          TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, ep_addr, NULL, 0, false));
+          return true;
+        } else if (is_complete) {
           // back to header + payload for response
           cb_data.io_container = headered_packet;
           cb_data.io_container.header->len = sizeof(mtp_container_header_t);

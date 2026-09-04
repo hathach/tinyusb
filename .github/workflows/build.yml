@@ -37,17 +37,24 @@ jobs:
               - 'hw/**'
               - 'test/hil/**'
               - 'tools/build.py'
+              - 'tools/build_utils.py'
+              - 'tools/ci_select.py'
               - 'tools/get_deps.py'
+              - 'tools/metrics.py'
+              - 'tools/rtt.py'
               - '.github/actions/**'
               - '.github/workflows/build.yml'
               - '.github/workflows/build_util.yml'
-              - '.github/workflows/ci_set_matrix.py'
+              - '.github/scripts/**'
 
   set-matrix:
     runs-on: ubuntu-latest
     outputs:
       json: ${{ steps.set-matrix-json.outputs.matrix }}
       hil_json: ${{ steps.set-matrix-json.outputs.hil_matrix }}
+      example_map: ${{ steps.set-matrix-json.outputs.example_map }}
+      build_filtered: ${{ steps.set-matrix-json.outputs.build_filtered }}
+      build_families_regex: ${{ steps.set-matrix-json.outputs.build_families_regex }}
       # one pair per rig job: hil-tinyusb (tinyusb.json minus esptool boards),
       # hil-tinyusb-esp (esptool boards only), hil-tinyusb (hfp.json)
       hil_args_tinyusb: ${{ steps.hil-select.outputs.args_tinyusb }}
@@ -62,7 +69,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: HIL selection (PR only)
+      - name: CI selection (PR only)
         id: hil-select
         if: github.event_name == 'pull_request'
         env:
@@ -72,62 +79,160 @@ jobs:
           # so a missing origin/<base>, a shallow-clone hiccup or a selector traceback
           # must fall back to the FULL matrix (no --select, run=true, no args) instead
           # of failing the job. Same fail-open shape as pr_comment.yml's `|| true`.
+          #
+          # The selector's own unit suite gates it (stdlib-only, seconds): a selector
+          # whose tests fail can still exit 0 with valid-but-WRONG JSON -- fail-open alone
+          # never catches that class, and the pre-commit hil-test hook is a separate,
+          # advisory workflow that nothing here can `needs:`. Test-failing selector =>
+          # full matrix, same as a crashing one.
           SELECT_JSON=''
-          if ! python3 test/hil/test_hil_select.py; then
-            echo "::error::hil_select unit tests failed - falling back to the full HIL matrix"
-          elif ! SELECT_JSON=$(python3 test/hil/hil_select.py --base "origin/$BASE_REF" test/hil/tinyusb.json test/hil/hfp.json); then
-            echo "::warning::hil_select failed - falling back to the full HIL matrix"
+          if ! python3 test/hil/test/test_ci_select.py; then
+            echo "::warning::ci_select unit suite failed - falling back to the full HIL matrix"
+          elif ! SELECT_JSON=$(python3 tools/ci_select.py --base "origin/$BASE_REF" test/hil/tinyusb.json test/hil/hfp.json); then
+            echo "::warning::ci_select failed - falling back to the full HIL matrix"
             SELECT_JSON=''
+          fi
+
+          # The selection is handed on as a FILE in the workspace, never as a step
+          # output/env var: it is ~KBs normally but a mass-sweep PR reaches hundreds of
+          # KB, and an env var that big makes the consuming exec fail with E2BIG BEFORE
+          # any fallback in it can run. Written here, ahead of its first reader.
+          # No file (non-PR event, or any fallback) = full matrix.
+          rm -f ci_select_out.json
+          if [ -n "$SELECT_JSON" ]; then
+            printf '%s' "$SELECT_JSON" > ci_select_out.json
           fi
 
           # One args/run pair per rig job, split by flasher: a job whose own subset is
           # empty skips explicitly instead of running a board filter that matches zero
           # boards ("No tests were run." exits 0 and would read as a green HIL run).
           OUT=''
-          if [ -n "$SELECT_JSON" ]; then
-            OUT=$(SELECT_JSON="$SELECT_JSON" python3 -c '
-          import json, os
-          s = json.loads(os.environ["SELECT_JSON"])
+          if [ -s ci_select_out.json ]; then
+            OUT=$(python3 -c '
+          import json, re, sys
+          s = json.load(open("ci_select_out.json"))
+          # the same reading hil_ci_set_matrix.py applies: full false with no usable
+          # boards map is an UNUSABLE selection, not "nothing selected". Both must agree
+          # - one falling open to the whole roster while the other computes run=false
+          # buys a full 37-leg build and still zero hardware coverage.
+          if not s.get("full") and not isinstance(s.get("boards"), dict):
+              sys.exit("selection has full false but no usable boards map")
           tin = s.get("args_flasher", {}).get("tinyusb.json", {})
           legs = (("tinyusb", " ".join(a for f, a in sorted(tin.items()) if f != "esptool" and a)),
                   ("tinyusb_esp", tin.get("esptool", "")),
                   ("hfp", s.get("args", {}).get("hfp.json", "")))
           for key, a in legs:
+              # roster board names reach $GITHUB_OUTPUT as bare NAME=VALUE lines; a
+              # newline in one would inject extra run_* lines and flip which rig jobs run.
+              # ":" and "," are part of the normal shape - a partial filter is
+              # `-bt <board>:<test>,<test>` (ci_select._board_args)
+              if not re.fullmatch(r"[-A-Za-z0-9_/ .=+:,]*", a):
+                  sys.exit("unexpected characters in the " + key + " board filter")
               print("args_" + key + "=" + a)
               print("run_" + key + "=" + ("true" if (s.get("full") or a) else "false"))
           ') || OUT=''
             if [ -z "$OUT" ]; then
-              echo "::warning::hil_select output unusable - falling back to the full HIL matrix"
-              SELECT_JSON=''
+              echo "::warning::ci_select output unusable - falling back to the full HIL matrix"
+              # the same unusable selection must not stay behind for the build axis
+              rm -f ci_select_out.json
             fi
           fi
           if [ -z "$OUT" ]; then
             OUT=$(for k in tinyusb tinyusb_esp hfp; do printf 'args_%s=\nrun_%s=true\n' "$k" "$k"; done)
           fi
           echo "$OUT"
-          { echo "select=$SELECT_JSON"; echo "$OUT"; } >> $GITHUB_OUTPUT
+          echo "$OUT" >> $GITHUB_OUTPUT
 
       - name: Generate matrix json
         id: set-matrix-json
-        env:
-          SELECT: ${{ steps.hil-select.outputs.select }}
         run: |
-          # build matrix
-          MATRIX_JSON=$(python .github/workflows/ci_set_matrix.py)
+          # Build matrix, scoped by the PR selection when one exists. Best-effort:
+          # ci_set_matrix falls back to the full matrix itself on unusable JSON,
+          # and a missing file (non-PR event, selector fallback) means no flags.
+          SELECT_FILE=ci_select_out.json
+          [ -s "$SELECT_FILE" ] || SELECT_FILE=''
+          BUILD_SELECT_FILE="$SELECT_FILE"
+          MATRIX_JSON=''
+          if [ -n "$SELECT_FILE" ]; then
+            # ci_set_matrix falls open on a selection it cannot use with rc 0 - it prints
+            # the full matrix and says UNSCOPED on stderr. The build extras below must
+            # not stay scoped when it did, or a nominally full build compiles 1 of 44
+            # examples per family and code-metrics compares that partial run against a
+            # full baseline. Only the BUILD axis is dropped: build.families being
+            # unusable says nothing about the boards map the HIL matrix reads.
+            MATRIX_JSON=$(python .github/scripts/ci_set_matrix.py --select-file "$SELECT_FILE" 2>ci_set_matrix.err) || MATRIX_JSON=''
+            cat ci_set_matrix.err >&2
+            if [ -z "$MATRIX_JSON" ] || grep -q 'ci_set_matrix: UNSCOPED' ci_set_matrix.err; then
+              BUILD_SELECT_FILE=''
+            fi
+          fi
+          [ -z "$MATRIX_JSON" ] && MATRIX_JSON=$(python .github/scripts/ci_set_matrix.py)
+
+          # Build-axis extras: the per-family example map rides as a side channel
+          # (a value inside matrix entries would break CircleCI's family parameter
+          # and multiply GHA matrix legs). These stay step outputs - they are small
+          # derived values, unlike the selection they are read from. NOTE jq's //
+          # treats false like null, so .build.full is compared explicitly.
+          EXAMPLE_MAP='{}'
+          BUILD_FILTERED='false'
+          FAMILY_REGEX=''
+          if [ -n "$BUILD_SELECT_FILE" ]; then
+            EXAMPLE_MAP=$(jq -c '.build.family_examples // {}' "$BUILD_SELECT_FILE") || EXAMPLE_MAP='{}'
+            BUILD_FILTERED=$(jq -r 'if (.build? | type) == "object" and .build.full == false then "true" else "false" end' "$BUILD_SELECT_FILE") || BUILD_FILTERED='false'
+            if [ "$BUILD_FILTERED" = "true" ]; then
+              FAMILY_COUNT=$(jq -r '.build.families | length' "$BUILD_SELECT_FILE") || FAMILY_COUNT=0
+              FAMILY_REGEX=$(jq -r '.build.families | join("|")' "$BUILD_SELECT_FILE") || FAMILY_REGEX=''
+              # family names come from hw/bsp dir names, which rule 6 reads straight out
+              # of the PR's diff path - and this is interpolated raw into a
+              # `name_is_regexp` artifact pattern, so a regex metacharacter there would
+              # silently match another family's baseline
+              FAMILY_REJECTED=0
+              case "$FAMILY_REGEX" in
+                *[!-A-Za-z0-9_\|]*)
+                  echo "::warning::unexpected characters in the family list - dropping the scoping"
+                  FAMILY_REGEX=''; FAMILY_REJECTED=1 ;;
+              esac
+              # An EMPTY families list and a REJECTED one both leave FAMILY_REGEX empty and
+              # mean opposite things, so branch on which happened. Testing `-z` alone sent
+              # every nothing-selected PR down the fall-open path: a docs/.gitignore diff
+              # (#3842) and a test/hil-only diff (#3840) each rebuilt all 74 cmake legs
+              # after the selector had correctly chosen none.
+              if [ "$FAMILY_REJECTED" = "1" ]; then
+                # unusable: fall open, and all three drop together. Resetting only
+                # build_filtered leaves the build scoped while code-metrics takes the
+                # UNSCOPED branch, diffing a 1-family run against the full averaged
+                # baseline and publishing that as the PR's code-size impact.
+                BUILD_FILTERED='false'
+                EXAMPLE_MAP='{}'
+                MATRIX_JSON=$(python .github/scripts/ci_set_matrix.py)
+              elif [ "$FAMILY_COUNT" = "0" ]; then
+                # legitimate nothing-selected. MATRIX_JSON already holds the all-empty
+                # matrix ci_set_matrix produced from this selection - keep it, so every
+                # leg skips. Nothing is built, so there is nothing to compare a baseline
+                # against: build_filtered goes false to keep code-metrics off the scoped
+                # path, and EXAMPLE_MAP stays '{}' (family_examples is empty anyway).
+                BUILD_FILTERED='false'
+              fi
+            fi
+          fi
+          # emitted once, after every path that can still change it
           echo "matrix=$MATRIX_JSON"
           echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
+          echo "example_map=$EXAMPLE_MAP" >> $GITHUB_OUTPUT
+          echo "build_filtered=$BUILD_FILTERED" >> $GITHUB_OUTPUT
+          echo "build_families_regex=$FAMILY_REGEX" >> $GITHUB_OUTPUT
 
           # HIL matrix (merged from tinyusb + hifiphile configs), scoped on PRs.
           # Scoping is best-effort too: fall back to the unscoped (full) matrix.
           HIL_MATRIX_JSON=''
-          if [ -n "$SELECT" ]; then
-            HIL_MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py --select "$SELECT" test/hil/tinyusb.json test/hil/hfp.json) || HIL_MATRIX_JSON=''
+          if [ -n "$SELECT_FILE" ]; then
+            HIL_MATRIX_JSON=$(python .github/scripts/hil_ci_set_matrix.py --select-file "$SELECT_FILE" test/hil/tinyusb.json test/hil/hfp.json) || HIL_MATRIX_JSON=''
             if [ -z "$HIL_MATRIX_JSON" ]; then
               echo "::warning::scoped HIL matrix failed - falling back to the full HIL matrix"
             fi
           fi
           if [ -z "$HIL_MATRIX_JSON" ]; then
-            HIL_MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py test/hil/tinyusb.json test/hil/hfp.json)
+            HIL_MATRIX_JSON=$(python .github/scripts/hil_ci_set_matrix.py test/hil/tinyusb.json test/hil/hfp.json)
           fi
           echo "hil_matrix=$HIL_MATRIX_JSON"
           echo "hil_matrix=$HIL_MATRIX_JSON" >> $GITHUB_OUTPUT
@@ -156,6 +261,7 @@ jobs:
       toolchain: ${{ matrix.toolchain }}
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
       build-options: '--one-first'
+      example-map: ${{ needs.set-matrix.outputs.example_map }}
       upload-metrics: true
       upload-artifacts: false
       upload-membrowse: true
@@ -163,8 +269,17 @@ jobs:
     secrets: inherit
 
   code-metrics:
-    needs: [ check-paths, cmake ]
-    if: needs.check-paths.outputs.code_changed == 'true'
+    needs: [ check-paths, cmake, set-matrix ]
+    # A scoped selection can empty every cmake toolchain (a test/hil-only PR). This
+    # job must still run then: skipping it leaves the sticky comment showing the
+    # PREVIOUS push's size table as if it were current. set-matrix must have
+    # SUCCEEDED though: !cancelled() alone let a failed set-matrix through, and this
+    # job would then overwrite the sticky comment with a wrong "built no families"
+    # diagnosis while reporting itself green.
+    if: |
+      !cancelled() && needs.check-paths.outputs.code_changed == 'true' &&
+      needs.set-matrix.result == 'success' &&
+      (needs.cmake.result == 'success' || needs.cmake.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
@@ -181,8 +296,21 @@ jobs:
           pattern: metrics-*
           path: cmake-build
           merge-multiple: true
+          # download-artifact does not fail on a pattern that matches nothing, so a
+          # scoped PR that built no family simply lands here with an empty dir
+
+      - name: Detect empty metrics set
+        run: |
+          # No metrics at all => nothing to aggregate or compare. Write the marker the
+          # sticky comment will carry, so the size section says "skipped" for THIS push
+          # instead of silently keeping the previous push's table.
+          if ! ls cmake-build/*/metrics.json >/dev/null 2>&1; then
+            echo "_Code-size comparison skipped: PR selection built no families on this push._" > metrics_compare.md
+            echo "NO_METRICS=true" >> $GITHUB_ENV
+          fi
 
       - name: Aggregate Code Metrics
+        if: env.NO_METRICS != 'true'
         run: |
           python tools/get_deps.py
           python tools/metrics.py combine -j -m -f tinyusb/src cmake-build/*/metrics.json
@@ -195,7 +323,7 @@ jobs:
           path: metrics.json
 
       - name: Download Base Branch Metrics
-        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+        if: env.NO_METRICS != 'true' && (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch') && needs.set-matrix.outputs.build_filtered != 'true'
         uses: dawidd6/action-download-artifact@v11
         with:
           workflow: build.yml
@@ -204,6 +332,29 @@ jobs:
           name: metrics-tinyusb
           path: base-metrics
         continue-on-error: true
+
+      - name: Download base per-family metrics (scoped PR)
+        if: env.NO_METRICS != 'true' && github.event_name == 'pull_request' && needs.set-matrix.outputs.build_filtered == 'true'
+        uses: dawidd6/action-download-artifact@v11
+        with:
+          workflow: build.yml
+          workflow_conclusion: ''
+          search_artifacts: true      # a docs-only master push uploads no per-family artifacts
+          branch: ${{ github.base_ref }}
+          name: ^metrics-(${{ needs.set-matrix.outputs.build_families_regex }})$
+          name_is_regexp: true
+          path: base-family-metrics
+        continue-on-error: true
+
+      - name: Compare with Base Branch (scoped)
+        if: env.NO_METRICS != 'true' && github.event_name == 'pull_request' && needs.set-matrix.outputs.build_filtered == 'true'
+        run: |
+          # never fall back to the averaged metrics-tinyusb here: a scoped PR vs the
+          # 64-family/46-example average is exactly the mismatch this path prevents
+          python .github/scripts/metrics_pair_compare.py \
+            --base-dir base-family-metrics --new-dir cmake-build --out metrics_compare || \
+            echo "_Code-size comparison failed on the scoped path - see the code-metrics job log._" > metrics_compare.md
+          cat metrics_compare.md
 
       - name: Download Previous Release Asset
         if: github.event_name == 'release'
@@ -218,7 +369,7 @@ jobs:
           gh release download $PREV_TAG -p metrics.json -D base-metrics || echo "No metrics.json found in $PREV_TAG release"
 
       - name: Compare with Base Branch
-        if: github.event_name != 'push'
+        if: env.NO_METRICS != 'true' && github.event_name != 'push' && needs.set-matrix.outputs.build_filtered != 'true'
         run: |
           if [ -f base-metrics/metrics.json ]; then
             python tools/metrics.py compare -m -f tinyusb/src base-metrics/metrics.json metrics.json
@@ -246,6 +397,9 @@ jobs:
           path: |
             metrics_compare.md
             metrics.json
+          # metrics.json is absent when the selection built no family; the marker
+          # in metrics_compare.md is still what the sticky comment needs
+          if-no-files-found: ignore
 
       - name: Post Code Metrics as PR Comment
         if: (github.event_name == 'workflow_dispatch') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false)
@@ -338,7 +492,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # These names are the bucket keys of test/hil/hil_ci_set_matrix.py: every
+        # These names are the bucket keys of .github/scripts/hil_ci_set_matrix.py: every
         # non-esptool roster board must land in one of them (esptool boards go to
         # 'esp-idf', built by hil-build-esp below). hil_ci_set_matrix.py rejects a
         # board whose "toolchain" is not a bucket, so a new bucket must be added in
@@ -379,6 +533,14 @@ jobs:
   hil-tinyusb:
     needs: [ hil-build, set-matrix ]
     name: hil-tinyusb (${{ matrix.display }})
+    # Above hil_test.py's pool guard (HIL_POOL_TIMEOUT, 60 min) so the guard fires first
+    # and still gets to write its report. The 30 min on top is what the job pays OUTSIDE
+    # the guard clock: workspace cleanup, checkout, the multi-board artifact merge and
+    # the D-state note before it; kill_worker_children, shutdown_pool's 30 s grace, the
+    # report write and the upload after it. On a multi-stray convoy that tail alone is
+    # minutes, and a ceiling below guard+tail cancels the job before hil_report.md exists
+    # -- the inversion this branch removes. Both legs share the script and the guard.
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -395,6 +557,9 @@ jobs:
             test_args: ''
     runs-on: ${{ matrix.runner }}
     env:
+      # HIL_POOL_TIMEOUT deliberately unset: hil_test.py's 60 min default is below every
+      # ceiling here, so ceiling > guard holds by construction. Pin it to SHORTEN a run
+      # only -- pinning it above a ceiling re-inverts the two.
       HIL_JSON: ${{ matrix.hil_json }}
     steps:
       - name: Set HIL report dir (per run+job; persists across run attempts)
@@ -482,6 +647,11 @@ jobs:
     needs: [ hil-build-esp, set-matrix ]
     name: hil-tinyusb (tinyusb-esp.json)
     runs-on: [ self-hosted, X64, hathach, hardware-in-the-loop ]
+    # above hil_test.py's pool guard (60 min) with room for the pre-pool checkout
+    # and the post-guard sweep + report upload, so its own guard still writes a report;
+    # only a job wedged past that (unkillable D-state worker) hits this ceiling, which
+    # must exist because the runner has one job slot and holds every queued job hostage
+    timeout-minutes: 90
     env:
       HIL_JSON: test/hil/tinyusb.json
       TEST_ARGS: '--flasher esptool'
@@ -564,7 +734,13 @@ jobs:
       github.repository_owner == 'hathach' &&
       !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true)
     runs-on: [ self-hosted, Linux, X64, hifiphile ]
-    timeout-minutes: 30
+    # Unlike the hil-tinyusb jobs, this one BUILDS with IAR in the same job before running
+    # hil_test.py -- hfp.json's 3 boards, 4 variant entries, "up to 30 minutes" (see the
+    # comment above the selection step). The ceiling has to cover build + the 60 min pool
+    # guard + overhead, or GitHub cancels before the guard can write its report -- the
+    # inversion this branch removes. 30 + 60 = 90; the remaining 30 is the full-history
+    # checkout, get_deps, the post-guard sweep and the report upload.
+    timeout-minutes: 120
     env:
       IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
       PYTHONUNBUFFERED: '1'
@@ -599,27 +775,32 @@ jobs:
         run: |
           # Best-effort: this job is deliberately decoupled from set-matrix so unrelated
           # failures cannot kill hfp coverage - a selector failure here must likewise
-          # fall back to the full hfp matrix (no hil_select.json, no SEL_* vars), never
+          # fall back to the full hfp matrix (no ci_select.json, no SEL_* vars), never
           # fail the job.
-          if ! python3 test/hil/hil_select.py --base "origin/$BASE_REF" test/hil/hfp.json > hil_select.json; then
-            echo "::warning::hil_select failed - running the full hfp matrix"
-            rm -f hil_select.json
+          if ! python3 test/hil/test/test_ci_select.py; then
+            echo "::warning::ci_select unit suite failed - running the full hfp matrix"
+            rm -f ci_select.json
             exit 0
           fi
-          # hil_select.json is passed to hil_ci_set_matrix.py --select below to scope the
+          if ! python3 tools/ci_select.py --base "origin/$BASE_REF" test/hil/hfp.json > ci_select.json; then
+            echo "::warning::ci_select failed - running the full hfp matrix"
+            rm -f ci_select.json
+            exit 0
+          fi
+          # ci_select.json is passed to hil_ci_set_matrix.py --select below to scope the
           # build; it already honours full=true by ignoring the board list.
           # The hil_test.py args go to a file, never to $GITHUB_ENV: they are derived
           # from roster board names, which a PR can edit. Only SEL_RUN (a literal
           # true/false computed here, needed by the step-level `if:`) goes to the env.
           if ! SEL_RUN=$(python3 -c '
           import json
-          s = json.load(open("hil_select.json"))
+          s = json.load(open("ci_select.json"))
           a = s["args"]["hfp.json"]
           open("hil_sel_args.txt", "w").write(a)
           print("true" if (s["full"] or a) else "false")
           '); then
-            echo "::warning::hil_select output unusable - running the full hfp matrix"
-            rm -f hil_select.json hil_sel_args.txt
+            echo "::warning::ci_select output unusable - running the full hfp matrix"
+            rm -f ci_select.json hil_sel_args.txt
             exit 0
           fi
           echo "SEL_RUN=$SEL_RUN"
@@ -628,10 +809,18 @@ jobs:
       - name: Get build boards
         if: env.SEL_RUN != 'false'
         run: |
-          if [ -f hil_select.json ]; then
-            MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py --select "$(cat hil_select.json)" test/hil/hfp.json)
-          else
-            MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py test/hil/hfp.json)
+          # --select-file, never --select "$(cat ...)": a whole selection as one argv
+          # can exceed MAX_ARG_STRLEN on a big diff, and this job's design is to fall
+          # back to the full hfp matrix on any selector trouble, not to fail the step.
+          MATRIX_JSON=''
+          if [ -f ci_select.json ]; then
+            MATRIX_JSON=$(python .github/scripts/hil_ci_set_matrix.py --select-file ci_select.json test/hil/hfp.json) || MATRIX_JSON=''
+            if [ -z "$MATRIX_JSON" ]; then
+              echo "::warning::scoped hfp matrix failed - building the full hfp matrix"
+            fi
+          fi
+          if [ -z "$MATRIX_JSON" ]; then
+            MATRIX_JSON=$(python .github/scripts/hil_ci_set_matrix.py test/hil/hfp.json)
           fi
           # Each variant carries its own --build-name/--cflag, which are global to a
           # single build.py invocation — so keep one matrix entry per line and build
@@ -639,6 +828,13 @@ jobs:
           echo "$MATRIX_JSON" | jq -r '.["arm-gcc"][]' > hil_build_entries.txt
           cat hil_build_entries.txt
           BUILD_ARGS=$(echo "$MATRIX_JSON" | jq -r '.["arm-gcc"] | join(" ")')
+          # board and example names are roster data a PR can edit, and jq -r un-escapes
+          # them: a newline here writes extra NAME=VALUE lines into GITHUB_ENV for every
+          # later step of a job that holds the IAR token. Refuse rather than guess.
+          case "$BUILD_ARGS" in
+            *[!-A-Za-z0-9_/\ .=+]*)
+              echo "::error::unexpected characters in the hfp build args"; exit 1 ;;
+          esac
           echo "BUILD_ARGS=$BUILD_ARGS"
           echo "BUILD_ARGS=$BUILD_ARGS" >> $GITHUB_ENV
 
@@ -648,6 +844,13 @@ jobs:
 
       - name: Build
         if: env.SEL_RUN != 'false'
+        # Bounded SEPARATELY from the job. This is the only HIL job that builds inline
+        # (hil-tinyusb downloads artifacts), and the job ceiling went 30 -> 120 to give the
+        # HIL step room -- which would hand a stalled IAR build the whole two hours on the
+        # shared self-hosted runner, never reaching hil_test.py or the report upload. That
+        # is the stranded-runner-with-no-report failure this branch exists to prevent.
+        # Typical full build here is a few minutes; 30 leaves generous headroom.
+        timeout-minutes: 30
         run: |
           readarray -t ENTRIES < hil_build_entries.txt
           for entry in "${ENTRIES[@]}"; do
@@ -666,7 +869,12 @@ jobs:
           fi
           # empty/absent on a non-PR event or a selector fallback -> full hfp matrix
           SEL_ARGS=$(cat hil_sel_args.txt 2>/dev/null || true)
-          python3 test/hil/hil_test.py $SEL_ARGS hfp.json
+          # --retry 1, like the other two HIL legs. The pool guard is a FLAT 3600s and
+          # does NOT scale with max_retry, so argparse's default of 3 would multiply the
+          # serialized usbtest tail (hfp.json runs four batteries) by three against an
+          # unchanged guard -- on a runner with a single job slot that queues every other
+          # job behind it.
+          python3 test/hil/hil_test.py --retry 1 $SEL_ARGS hfp.json
 
       - name: Upload HIL report
         if: always() && github.event_name == 'pull_request'

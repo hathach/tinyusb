@@ -122,11 +122,11 @@ target_sources(tinyusb_host_base INTERFACE
 		${TOP}/src/host/usbh.c
 		${TOP}/src/host/hub.c
 		${TOP}/src/class/cdc/cdc_host.c
+		${TOP}/src/class/audio/audio_host.c
 		${TOP}/src/class/hid/hid_host.c
 		${TOP}/src/class/midi/midi_host.c
 		${TOP}/src/class/midi/midi2_host.c
 		${TOP}/src/class/msc/msc_host.c
-		${TOP}/src/class/vendor/vendor_host.c
 		)
 
 # Sometimes have to do host specific actions in mostly common functions

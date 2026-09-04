@@ -25,7 +25,9 @@ capability flags only unlock cases, they don't require the endpoints to exist.
 
 import argparse
 import json
+from contextlib import redirect_stdout
 import os
+import pathlib
 import re
 import shutil
 import subprocess
@@ -33,16 +35,81 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))  # PYTHONSAFEPATH drops it
+
 VID = 'cafe'
 PID = '4010'
 GZ_REF = '0525 a4a0'  # copy Gadget Zero's capability profile (ctrl_out+iso+intr)
 SYS_USB = Path('/sys/bus/usb/devices')
 DRIVER = Path('/sys/bus/usb/drivers/usbtest')
-USB_RECOVER = Path(__file__).resolve().parents[2] / '.claude/skills/usb-kernel-recover/scripts/usb_recover.sh'
 PATTERN_PARAM = Path('/sys/module/usbtest/parameters/pattern')
+RECOVER_FLASH_TIMEOUT = 90  # bound on the post-hang reflash; typical flash is 10-20s
+RECOVER_RESET_TIMEOUT = 30  # bound on the post-hang probe reset; ResetTarget measures ~130ms
 
-# Battery per tier, in run order: control sanity first, then simple bulk,
-# queued, unaligned, unlink, halt/toggle, throughput last.
+
+RECOVER_SETTLE = 5          # after each step, to let a freed ioctl unwind
+# The ladder's UNBOUNDED work, which no step timeout covers: two wedged_pids() /proc walks,
+# json.loads of the roster entry, the child's first `import hil_flash`, convoy_safe, the
+# BUDGET back-fill and the JSON print. The deleted _time_left() carried this as a bare
+# '- 35'. Without it the reserve equals its own worst case exactly, and HIL_CMD_TIMEOUT and
+# HIL_USBTEST_BATTERY_BUDGET are both env-overridable -- any of them moving up puts
+# run_cmd's killpg back inside the reflash, orphaning the flasher on the probe.
+RECOVER_OVERHEAD = 40
+
+
+def recovery_reserve(flasher: dict | str) -> int:
+    """Seconds this flasher's post-hang ladder can actually spend.
+
+    Every bounded step can cost its own timeout PLUS run_cmd's post-SIGKILL reap, so the
+    caller must count REAP_GRACE per step or its outer killpg lands mid-reflash and
+    ORPHANS the flasher on the probe. Derived rather than pinned: the predecessor was an
+    independent 250s that could not contain its own ladder, which is why the child used to
+    re-decide before every step and skipped most of them on a real hang.
+
+    Per FLASHER, not one number for the fleet: the Rescue-DP legs are openocd-only
+    (hil_flash.rescue_openocd returns False for anything else), and a stub reset is
+    screened out by reset_primitive -- so an esptool board reserving them would hold a
+    pool worker and a usbtest permit for 200s it can never spend.
+    """
+    import hil_flash
+    from helper import hil_util
+    if isinstance(flasher, str):
+        flasher = {'name': flasher, 'args': ''}
+    name = (flasher.get('name') or '').lower()
+
+    def step(bound):
+        return bound + hil_util.REAP_GRACE
+
+    total = step(RECOVER_FLASH_TIMEOUT) + 2 * RECOVER_SETTLE + RECOVER_OVERHEAD
+    if reset_primitive(name):
+        total += step(RECOVER_RESET_TIMEOUT)
+    # The ARGS, not just the name: rescue_openocd also needs the target cfg to be an RP
+    # one (RESCUE_CFG), so the five WCH/max32666 openocd boards on this rig can never run
+    # it. Reserving its two legs for them holds a pool worker and a usbtest permit for
+    # 200s of dead time -- the same waste the esptool case exists to remove.
+    if name == 'openocd' and any(cfg in (flasher.get('args') or '')
+                                 for cfg in hil_flash.RESCUE_CFG):
+        total += 2 * step(RECOVER_FLASH_TIMEOUT)   # Rescue-DP POR + one retry
+    return total
+
+
+def reset_primitive(flasher_name: str):
+    """The flasher's probe-reset callable, or None when there is nothing real to run.
+
+    Two things gate it. A flasher may have no reset_* at all, and reset_esptool /
+    reset_lm4flash return rc 0 WITHOUT resetting anything -- running those makes the log
+    say "resetting <board> via <flasher>" for a step that did nothing. wedged_pids()
+    arbitrates the outcome either way, so behaviour was always right; the RECORD was not.
+    """
+    import hil_flash   # deferred: stdlib-only unless recovery actually runs
+    fn = getattr(hil_flash, f'reset_{flasher_name.lower()}', None)
+    return None if getattr(fn, 'no_op', False) else fn
+
+
+HELPER_TIMEOUT = 30         # default bound for sudo helpers (dmesg/modprobe/setpci/tee)
+
+# Battery per tier, in run order: control sanity, simple bulk, queued, unaligned, unlink,
+# halt/toggle, throughput last.
 TIER_CASES = {
     1: [0, 9, 10, 1, 2, 3, 4, 5, 6, 7, 8, 17, 18, 19, 20, 11, 12, 24, 13, 29, 27, 28],
     2: [14, 21],
@@ -50,10 +117,10 @@ TIER_CASES = {
     4: [15, 16, 22, 23],
 }
 
-# Per-case testusb parameters (full speed / high speed). All -s/-v values are
-# multiples of 512 so transfers stay packet-aligned at both speeds: the device
-# streams whole max-size packets and a non-aligned IN length would babble.
-# 14/21 must never run with defaults (vary >= length is -EINVAL in the kernel).
+# Per-case testusb parameters (full speed / high speed). All -s/-v values are multiples
+# of 512 so transfers stay packet-aligned at both speeds: the device streams whole max-size
+# packets and a non-aligned IN length would babble. 14/21 must never run with defaults
+# (vary >= length is -EINVAL in the kernel).
 PARAMS = {
     0: ('-c 1', '-c 1'),
     9: ('-c 256', '-c 1000'),
@@ -88,9 +155,40 @@ RE_FAIL = re.compile(r'test (\d+) --> (\d+) \((.*)\)')
 
 
 def run(cmd, **kw):
-    kw.setdefault('capture_output', True)
+    # NOT subprocess.run(timeout=): CPython's post-timeout path is an UNBOUNDED wait() that
+    # never returns on a D-state child -- the hang sysfs_write's timeout exists to catch.
+    timeout = kw.pop('timeout', None)
+    data = kw.pop('input', None)          # subprocess.run-only kwarg; Popen takes stdin
+    kw.pop('capture_output', None)        # ditto: expressed by the PIPEs below
     kw.setdefault('text', True)
-    return subprocess.run(cmd, **kw)
+    kw.setdefault('encoding', 'utf-8')
+    kw.setdefault('errors', 'replace')   # strict decode would raise out of _sudo_soft
+    # NO start_new_session: these helpers (dmesg, modprobe, setpci, tee) must stay in our
+    # process group so hil_test's outer killpg reaps them with us.
+    timeout = timeout if timeout is not None else HELPER_TIMEOUT
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE if data is not None else None,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kw)
+    try:
+        out, err = proc.communicate(input=data, timeout=timeout)
+        return subprocess.CompletedProcess(cmd, proc.returncode, out, err)
+    except subprocess.TimeoutExpired:
+        # Under sudo our child is only the wrapper; the root grandchild survives this and
+        # is left for the report and hil_pool_check to name. Close our pipe ends so an
+        # abandoned child costs no fds.
+        try:
+            proc.kill()          # same group as us: never killpg, that would kill us too
+        except OSError:
+            pass
+        try:
+            proc.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            for pipe in (proc.stdout, proc.stderr, proc.stdin):
+                try:
+                    if pipe is not None:
+                        pipe.close()
+                except OSError:
+                    pass          # unkillable: abandon it, the caller reports the timeout
+        raise
 
 
 def sudo(cmd, **kw):
@@ -104,29 +202,106 @@ def sudo(cmd, **kw):
 
 
 def sysfs_write(path, data, check=True):
-    # A driver-registry write (new_id/remove_id/bind) blocks in D state when a wedged device
-    # holds its lock (driver_attach walks the bus): fail fast and loud instead of piling up
-    # unkillable writers and hanging the whole run -- the rig needs USB recovery first.
+    # A driver-registry write (new_id/remove_id/bind) blocks in D state when a wedged
+    # device holds its lock: fail fast instead of piling up unkillable writers -- the rig
+    # needs USB recovery first.
+    #
+    # Verified in v6.12.96: unbind_store -> device_driver_detach ->
+    # device_release_driver_internal -> __device_driver_lock (drivers/base/dd.c), which
+    # takes device_lock() -- the UNINTERRUPTIBLE variant, unlike the sysfs read path -- and
+    # ALSO device_lock(parent), because usb_bus_type sets need_parent_lock = true
+    # (drivers/usb/core/driver.c:2048). So one such write against a wedged device blocks
+    # unkillably while holding the HUB's lock: that is the mechanism by which a single
+    # wedged port takes its whole bus down, and why this fails fast instead.
     try:
         r = sudo(['tee', str(path)], input=data, timeout=15)
     except subprocess.TimeoutExpired:
         sys.exit(f'write "{data}" > {path} blocked >15s: USB subsystem is wedged '
-                 '(a D-state device lock exists). Recover the rig (usb_recover.sh) '
+                 '(a D-state device lock exists). Recover the rig (usb-kernel-recover skill) '
                  'before running batteries.')
     if check and r.returncode != 0:
         sys.exit(f'write "{data}" > {path} failed: {r.stderr.strip()}')
     return r.returncode == 0
 
 
+def _hu():
+    """The helper module, imported lazily like every other helper use in this file."""
+    from helper import hil_util
+    return hil_util
+
+
+SERIAL_GRACE = 1.0   # tighter than hil_util's shared default on purpose: find_device
+                     # re-scans every cafe:4010 peer after each of ~30 cases and inside
+                     # the 8s startup poll, so N unreadable peers cost N x this per scan
+
+
+def _read_sysfs(path):
+    """The attribute's value, or None. See hil_util.read_sysfs for why `serial` can block."""
+    from helper import hil_util
+    return hil_util.read_sysfs(str(path), SERIAL_GRACE)
+
+
+_DEV_CACHE: dict = {}   # serial -> sysname, see find_device
+
+
+def _reread(sysname, serial):
+    """Re-describe an already-resolved device, CONFIRMING its serial.
+
+    idVendor/idProduct/busnum/devnum/speed are lock-free (sysfs.c:688-705), so they cannot
+    block on a wedged peer -- but every identical board answers them the same, so they
+    prove nothing about identity. `serial` does, at one bounded read: a sysname is a
+    topology path, and after a renumber (controller reset, reboot) it can name a DIFFERENT
+    cafe:4010 board whose verdicts would be filed under this one. Returns None when the
+    serial is gone, mismatched or unconfirmed -- caller falls back to a full scan.
+    """
+    d = SYS_USB / sysname
+    try:
+        if ((d / 'idVendor').read_text().strip() != VID
+                or (d / 'idProduct').read_text().strip() != PID):
+            return None
+        dev_serial = _read_sysfs(d / 'serial')
+        if not isinstance(dev_serial, str) or dev_serial.lower() != serial.lower():
+            return None      # gone, mismatched, or unconfirmable -> full scan decides
+        return {
+            'sysname': sysname,
+            'serial': dev_serial,
+            'node': '/dev/bus/usb/%03d/%03d' % (int((d / 'busnum').read_text()),
+                                                int((d / 'devnum').read_text())),
+            'speed': (d / 'speed').read_text().strip(),
+            'tier': int((d / 'bcdDevice').read_text().strip()[-2:], 16),
+        }
+    except (OSError, ValueError):
+        return None
+
+
 def find_device(serial, first=False):
-    """Locate the usbtest device in sysfs, return info dict or None."""
+    """Locate the usbtest device in sysfs, return info dict or None.
+
+    Cached by serial: this is called after EVERY case, and a full scan pays a bounded
+    but real `serial` read for every cafe:4010 peer on the rig. With another board
+    wedged that cost lands on a HEALTHY battery ~30 times over, truncating it into
+    BUDGET entries. The fast path pays ONE bounded read -- our own device's serial, the
+    only attribute that tells identical boards apart (see _reread).
+    """
+    if serial:
+        sysname = _DEV_CACHE.get(serial.lower())
+        if sysname:
+            hit = _reread(sysname, serial)
+            if hit:
+                return hit
+            _DEV_CACHE.pop(serial.lower(), None)
     matches = []
     for dev in SYS_USB.iterdir():
         try:
             if (dev / 'idVendor').read_text().strip() != VID or \
                (dev / 'idProduct').read_text().strip() != PID:
                 continue
-            dev_serial = (dev / 'serial').read_text().strip()
+            # idVendor/idProduct are cached descriptors; `serial` is served under
+            # device_lock(), so on a wedged DUT this read blocks until the wedge clears.
+            # Contained by the caller's bound, not prevented here -- see hil_util.read_sysfs.
+            dev_serial = _read_sysfs(dev / 'serial')
+            if dev_serial is None:
+                continue
             if serial and dev_serial.lower() != serial.lower():
                 continue
             matches.append({
@@ -141,11 +316,13 @@ def find_device(serial, first=False):
             continue
     if not matches:
         return None
+    if serial and len(matches) == 1:
+        _DEV_CACHE[serial.lower()] = matches[0]['sysname']
     if len(matches) > 1 and not first:
         if serial:
-            # Dual-port parts (nanoch32v203 fsdev/usbfs, ch32v307 usbhs/usbfs) briefly enumerate
-            # BOTH ports with the same serial around a variant reflash; picking one arbitrarily
-            # could bind the stale port. Report ambiguity so the caller retries until it drops.
+            # Dual-port parts (nanoch32v203, ch32v307) briefly enumerate BOTH ports with
+            # one serial around a variant reflash, and picking one could bind the stale
+            # port -- report ambiguity so the caller retries until it drops.
             return {'ambiguous': sorted(m['sysname'] for m in matches)}
         sys.exit(f'multiple {VID}:{PID} devices found, use --serial: '
                  + ', '.join(m["serial"] for m in matches))
@@ -165,8 +342,8 @@ def check_host_compat(dev):
             vid_did = ((pci / 'vendor').read_text().strip(), (pci / 'device').read_text().strip())
             break
         except (OSError, ValueError):
-            # transient sysfs error (e.g. racing a re-enumeration): retry so a blip doesn't
-            # silently pass an incompatible host; if the probe truly fails, fail open but say so
+            # transient sysfs error (racing a re-enumeration): retry so a blip does not
+            # silently pass an incompatible host, then fail open but say so
             if attempt == 2:
                 print('warning: cannot probe the upstream host controller; '
                       'skipping the host compatibility check', file=sys.stderr)
@@ -178,19 +355,16 @@ def check_host_compat(dev):
                  'placed in the EHCI periodic schedule and unlinked reads complete as short '
                  'transfers (EREMOTEIO). Move the DUT to an xHCI port.')
     if drv.startswith('xhci') and vid_did in (('0x1912', '0x0014'), ('0x1912', '0x0015')):
-        # The Renesas uPD720201/uPD720202 must run its latest firmware (>= 2.0.2.6,
-        # K2026090.mem; RAM-uploaded, so it reverts to ROM on every power cycle unless
-        # re-loaded). On the ROM firmware its command ring intermittently dies under unlink
-        # stress: a Configure Endpoint command stops completing, the hub worker deadlocks
-        # holding the device lock (needs a host power cycle). Three separate boards killed
-        # it this way (ch32v307 2026-07-10; ra6m5 test 24, mimxrt1015 2026-07-11). Both
-        # parts expose the FW version register at PCI config offset 0x6c. NOTE this check
-        # is necessary, not sufficient: board-specific batteries have killed the controller
-        # on current firmware too (mimxrt1015, stop-endpoint timeout) - those are handled
-        # by per-board skips in the rig config.
+        # The Renesas uPD720201/uPD720202 must run firmware >= 2.0.2.6 (K2026090.mem;
+        # RAM-uploaded, so it reverts to ROM on every power cycle): on ROM firmware its
+        # command ring dies under unlink stress and the hub worker deadlocks holding the
+        # device lock, needing a host power cycle (ch32v307 2026-07-10; ra6m5 test 24,
+        # mimxrt1015 2026-07-11). Both parts expose the FW version at PCI config 0x6c.
+        # Necessary, not sufficient -- batteries have killed the controller on current
+        # firmware too, which per-board skips in the rig config handle.
         fw = None
         try:
-            r = sudo(['setpci', '-s', pci.name, '0x6c.l'], capture_output=True, text=True)
+            r = _sudo_soft(['setpci', '-s', pci.name, '0x6c.l'], capture_output=True, text=True)
             if r.returncode == 0:
                 fw = int(r.stdout.strip(), 16)
         except (OSError, ValueError):
@@ -211,7 +385,7 @@ def check_host_compat(dev):
 def bind_usbtest(dev):
     """Bind the device's interface 0 to the usbtest driver."""
     if not DRIVER.exists():
-        r = sudo(['modprobe', 'usbtest'])
+        r = _sudo_soft(['modprobe', 'usbtest'])
         if r.returncode != 0 or not DRIVER.exists():
             sys.exit(f'cannot load usbtest module: {r.stderr.strip()}')
 
@@ -222,8 +396,8 @@ def bind_usbtest(dev):
     sysfs_write(DRIVER / 'remove_id', f'{VID} {PID}', check=False)
     sysfs_write(DRIVER / 'new_id', f'{VID} {PID} 0 {GZ_REF}')
     if stale_binding:
-        # bound before the re-registration: that probe captured the OLD dynamic id's capability
-        # profile; unbind once (device is idle here) so the loop below reprobes the fresh one
+        # it probed against the OLD dynamic id's capability profile; unbind once (the
+        # device is idle here) so the loop below reprobes the fresh one
         sysfs_write(drv / 'unbind', intf, check=False)
 
     deadline = time.monotonic() + 3
@@ -248,51 +422,64 @@ def set_pattern(value):
                  'the "pattern" param, or it is not readable')
 
 
+def _sudo_soft(cmd, **kw):
+    """sudo() for calls whose failure must never abort the battery: run() re-raises
+    TimeoutExpired, and two of these are evaluated inside run_case's own timeout handler
+    -- a raise there loses the HUNG verdict, the recovery and the JSON report."""
+    try:
+        return sudo(cmd, **kw)
+    except (OSError, ValueError, subprocess.SubprocessError, SystemExit) as e:
+        # SystemExit too: sudo() sys.exit()s on 'a password is required', unwinding out of
+        # run_case's timeout handler before the HUNG verdict is recorded -- which leaves
+        # unrecovered_hang False and lets the finally run the remove_id/unbind that must
+        # never happen while a D-state device lock is held
+        print(f'{cmd[0]}: {type(e).__name__}: {e}', file=sys.stderr)
+        return subprocess.CompletedProcess(cmd, 1, '', '')
+
+
 def dmesg_tail():
-    r = sudo(['dmesg'])
+    r = _sudo_soft(['dmesg'])
     lines = [l for l in r.stdout.splitlines() if 'usbtest' in l]
     return '\n'.join(lines[-8:])
 
 
+
+
 def wedged_pids(devnode):
-    """Return (pids, complete): PIDs in uninterruptible sleep whose cmdline names devnode, i.e.
-    still holding its usbfs device lock, and whether every /proc entry could actually be read.
+    """(pids, complete): pids still in D state on `devnode` after a recovery reflash.
 
-    Matched by device node rather than by our child's pid because run_case() may wrap testusb in
-    sudo, in which case the Popen pid is the wrapper and the blocked process is its child --
-    killing the wrapper would make a pid-based check look clean while the real holder is stuck.
+    Matched by device node rather than by our child's pid because run_case() may wrap
+    testusb in sudo: the Popen pid is then the wrapper and the blocked process is its
+    child. A clean flash only proves the probe wrote the MCU, not that the D-state holder
+    let go -- this is what tells the two apart.
 
-    complete is False when a PermissionError hid an entry (a hidepid/ProtectProc mount, or the
-    root-owned child of that same sudo). An entry we could not read might be the holder, so the
-    caller must treat that as unrecovered rather than as an all-clear."""
+    FAIL CLOSED. `complete` is False when an entry could be HIDDEN from us, and the caller
+    must then keep treating the hang as unrecovered: the holder is root-owned (run_case
+    uses `sudo -n` whenever the node is not writable) and a hidepid/ProtectProc mount
+    hides exactly that entry. Reporting "no holder" from a scan that could not see it
+    clears unrecovered_hang and lets cleanup run remove_id/unbind against a device whose
+    usbfs lock is still held -- which deadlocks the bus, not just this board.
+
+    Self-contained: /proc is plain text and this is one pass over it, so importing a
+    helper to do it would only add a failure mode on the recovery path.
+    """
     stuck, complete = [], True
-    # hidepid=2 and systemd's ProtectProc=invisible omit other users' processes from iterdir()
-    # entirely -- no entry at all, so no PermissionError to catch -- and testusb runs under sudo
-    # whenever the device node is not writable. The scan would then look clean while hiding the
-    # very holder it exists to find. pid 1 is always root-owned, so being unable to read it means
-    # enumeration is restricted and no result from this scan can be trusted as complete.
+    # A restricted /proc hides other users' entries ENTIRELY -- no entry, so no
+    # PermissionError to catch -- and testusb runs under sudo, so the holder is exactly
+    # what is hidden. Detect the restriction itself rather than its symptom.
     if os.geteuid() != 0 and not os.access('/proc/1/cmdline', os.R_OK):
         complete = False
-    for entry in Path('/proc').iterdir():
-        if not entry.name.isdigit():
-            continue
+    for d in pathlib.Path('/proc').glob('[0-9]*'):
         try:
-            cmdline = (entry / 'cmdline').read_bytes()
+            st = (d / 'stat').read_bytes()
+            if st[st.rindex(b')') + 2:st.rindex(b')') + 3] != b'D':
+                continue
+            if devnode.encode() in (d / 'cmdline').read_bytes():
+                stuck.append(int(d.name))
         except PermissionError:
-            complete = False        # cannot rule this pid out
-            continue
-        except OSError:
-            continue                # raced with process exit: genuinely gone, not hidden
-        if devnode.encode() not in cmdline:
-            continue
-        try:
-            stat = (entry / 'stat').read_text()
-            if stat[stat.rindex(')') + 2] == 'D':   # comm may contain ')', so scan from the right
-                stuck.append(int(entry.name))
-        except PermissionError:
-            complete = False
-        except (OSError, ValueError, IndexError):
-            continue
+            complete = False      # cannot rule this pid out
+        except (OSError, ValueError):
+            continue              # raced with exit
     return stuck, complete
 
 
@@ -306,17 +493,29 @@ def run_case(num, dev, testusb, quick, timeout):
         cmd = ['sudo', '-n'] + cmd
     result = {'num': num, 'name': CASE_NAMES[num], 'params': fs_hs}
 
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    # NO start_new_session: testusb must stay in OUR process group so the caller's outer
+    # killpg still reaps it; a sudo-wrapped child is escalated through sudo below instead.
+    # errors='replace': testusb output is not guaranteed UTF-8, and a strict decode would
+    # raise out of here and out of main(), printing no JSON at all (battery '0/30').
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                         text=True, encoding='utf-8', errors='replace')
     try:
         out, _ = p.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
-        p.kill()
+        # Under sudo we only kill the wrapper; its root-owned testusb keeps the inherited
+        # stdout pipe, so the reap below times out and the overrun is reported as HUNG.
+        # Accepted rather than escalated: the rig's udev rules make the device node
+        # writable, so sudo is the exception, and the harness must never sudo-kill a pid
+        # it cannot prove is its own.
+        try:
+            p.kill()
+        except OSError:
+            pass
         try:
             out, _ = p.communicate(timeout=5)
         except subprocess.TimeoutExpired:
-            # SIGKILL had no effect: the child is in uninterruptible sleep on an
-            # in-kernel usbfs ioctl (device stopped responding mid-transfer).
-            # Abandon it — waiting or re-signalling can never succeed.
+            # SIGKILL had no effect: the child is in uninterruptible sleep on an in-kernel
+            # usbfs ioctl. Abandon it — waiting or re-signalling can never succeed.
             result.update(status='HUNG', detail=f'testusb stuck in D state after {timeout}s',
                           dmesg=dmesg_tail())
             return result
@@ -362,7 +561,16 @@ def main():
     p.add_argument('--keep-binding', action='store_true', help='leave usbtest dynamic id registered')
     p.add_argument('--testusb', default=None, help='path to testusb binary')
     p.add_argument('--timeout', type=int, default=120, help='per-case timeout in seconds')
+    p.add_argument('--recover-board', help='board JSON (name + flasher) for the post-hang '
+                   'reflash recovery; without it a HUNG case leaves the device wedged')
+    p.add_argument('--recover-fw', help='firmware path reflashed by the post-hang recovery')
+    p.add_argument('--budget', type=int, default=0,
+                   help='stop starting new cases after this many seconds (0 = no limit). '
+                        'Callers that impose their own outer bound set this BELOW it, '
+                        'reserving the remainder for the post-hang recovery -- see '
+                        'recovery_reserve() for what that ladder costs')
     args = p.parse_args()
+    t_start = time.monotonic()
     sys.stdout.reconfigure(line_buffering=True)  # per-case results visible when piped/logged
 
     testusb = args.testusb or shutil.which('testusb') or os.path.expanduser('~/testusb')
@@ -370,22 +578,32 @@ def main():
         sys.exit('testusb binary not found: build kernel tools/usb/testusb.c '
                  'and install it, or pass --testusb')
 
-    # retry briefly: right after a flash the enumeration may still be settling, and on dual-port
-    # parts the other port's stale same-serial node takes a moment to drop off (see find_device)
+    # retry briefly: after a flash the enumeration may still be settling, and a dual-port
+    # part's stale same-serial node takes a moment to drop off (see find_device)
     deadline = time.monotonic() + 8
     while True:
         dev = find_device(args.serial)
+        # find_device returns a device or {'ambiguous': [...]}. Screening for the marker
+        # matters: without it the next statement subscripts dev['tier'] -> KeyError, no
+        # JSON on stdout, and hil_test reports "usbtest did not run / 0-30".
         if dev and 'ambiguous' not in dev:
             break
         if time.monotonic() > deadline:
-            if dev:
+            if dev and 'ambiguous' in dev:
                 sys.exit(f"multiple devices with serial {args.serial}: {', '.join(dev['ambiguous'])} "
                          '— stale enumeration from another port? replug or retry')
-            sys.exit(f'no {VID}:{PID} device' + (f' with serial {args.serial}' if args.serial else ''))
+            # a bounded `serial` read that gave up looks exactly like a disconnect from
+            # here, and hil_test relays this line verbatim into the report cell. The
+            # sticky process-wide flag is the RIGHT question at startup -- nothing but
+            # this scan has read anything yet -- unlike mid-battery, where a peer that
+            # stranded at case 2 would answer for our board at case 29.
+            sys.exit(f'no {VID}:{PID} device'
+                     + (f' with serial {args.serial}' if args.serial else '')
+                     + _hu().strand_note())
         time.sleep(0.5)
 
-    # tier drives which cases run; a stale/foreign device advertising an out-of-range tier
-    # must not silently run an empty battery ('0/0 passed' would read as green in CI)
+    # a stale/foreign device advertising an out-of-range tier must not silently run an
+    # empty battery ('0/0 passed' would read as green in CI)
     tier = args.tier or dev['tier']
     if not 1 <= tier <= max(TIER_CASES):
         sys.exit(f"device advertises tier {tier} (bcdDevice ...{tier:02x}); reflash a usbtest build "
@@ -404,8 +622,7 @@ def main():
     if not args.json:
         print(info)
 
-    # probe the upstream controller before touching the device: an incompatible host
-    # (MosChip MCS9990, or uPD720201 on pre-2.0.2.6 firmware) exits here, before any bind
+    # before touching the device: an incompatible host exits here, before any bind
     check_host_compat(dev)
 
     results = []
@@ -414,7 +631,15 @@ def main():
         bind_usbtest(dev)
         set_pattern(0)  # tier 1 firmware sources zeros; also required by perf cases 27/28
 
-        for num in cases:
+        abort_reason = None   # set on any early exit; drives the BUDGET back-fill below
+        for idx, num in enumerate(cases):
+            # Only a HUNG case aborts the battery; an ordinary case timeout is a FAIL and
+            # the loop continues, each burning --timeout+5s, so without this the run can
+            # still be in the case loop when the outer timeout SIGKILLs it before it emits
+            # JSON. Checked before dispatch: worst overshoot is one case.
+            if args.budget and time.monotonic() - t_start > args.budget:
+                abort_reason = f'battery budget {args.budget}s exhausted'
+                break
             results.append(run_case(num, dev, testusb, args.quick, args.timeout))
             r = results[-1]
             if not args.json:
@@ -422,112 +647,266 @@ def main():
                 extra += f" {r['mbps']} MB/s" if 'mbps' in r else ''
                 print(f"test {num:2d} {r['name']:22s} {r['status']:6s}{extra}")
             if r['status'] == 'HUNG':
-                print(f'aborting battery: kernel-side hang, device wedged mid-transfer.\n'
-                      f'auto-recovering: {USB_RECOVER.name} root-cycle {dev["sysname"]} '
-                      f'(see .claude/skills/usb-kernel-recover)', file=sys.stderr)
-                # Cutting VBUS at the root port fails the in-flight URB so the usbfs ioctl returns.
-                # Must run BEFORE any unbind/remove_id, which would take the device lock the stuck
-                # ioctl holds and deadlock the bus.
+                abort_reason = 'battery aborted on a kernel-side hang'
+                # Reflash, NEVER a root-port cycle: resetting the MCU through the DUT's own
+                # debug probe fails the in-flight URB at the source, so the ioctl returns,
+                # the queued kill lands and the cleanup below is lock-safe -- and it reaches
+                # exactly one board, where a root-port cycle bounces every fixture under the
+                # port (and could never remove power anyway; see usb-kernel-recover).
+                # Deliberately not gated on a hub-worker check: our own stuck testusb is
+                # what drives a hub worker into usb_lock_device(), so a pre-check reads
+                # wedged by construction.
                 #
-                # Assume unrecovered until proven otherwise, so that any early exit from this block
-                # -- an OSError spawning the helper, a KeyboardInterrupt, a sudo prompt killing the
-                # run -- still reaches the finally cleanup with the flag set, instead of running
-                # the remove_id/unbind the comments there forbid while a device lock is held.
+                # Assume unrecovered until proven otherwise, so any early exit from this
+                # block reaches the finally with the flag set instead of running the
+                # remove_id/unbind that must not happen while a device lock is held.
                 unrecovered_hang = True
-                # Pass the serial so the helper refuses a stale busport rather than cutting power
-                # to whatever else now occupies that path. Popen rather than sudo()/subprocess.run:
-                # run() would kill() then wait() unbounded on timeout, which never returns if
-                # uhubctl is itself in D state -- the case the timeout exists for. Merge stderr
-                # into stdout so the helper's target-identity and action lines are not lost.
-                # Only pass the serial when we actually have one: an empty third argument reads as
-                # "no expectation" and would silently disable the helper's stale-busport guard.
-                cmd = [str(USB_RECOVER), 'root-cycle', dev['sysname']]
-                if dev['serial']:
-                    cmd.append(dev['serial'])
-                if os.geteuid() != 0:
-                    cmd = ['sudo', '-n'] + cmd
-                try:
-                    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                         text=True)
-                except OSError as e:
-                    # helper missing or not executable, or sudo unavailable. unrecovered_hang is
-                    # already True so the finally block still skips the unsafe cleanup -- this only
-                    # replaces a traceback with a message that says what to fix.
-                    print(f'cannot run {USB_RECOVER}: {e}', file=sys.stderr)
+                print('aborting battery: kernel-side hang, device wedged mid-transfer',
+                      file=sys.stderr)
+                if not (args.recover_board and args.recover_fw):
+                    print('no --recover-board/--recover-fw: the device stays wedged and '
+                          'cleanup is skipped', file=sys.stderr)
                     break
-                rc = None
+                # Both steps are bounded (RECOVER_RESET_TIMEOUT / RECOVER_FLASH_TIMEOUT)
+                # and the caller RESERVES room for both -- hil_test derives its
+                # bound from recovery_reserve(). No re-derivation here:
+                # the old per-step "does it still fit?" arithmetic carried an unexplained
+                # 35s fudge for costs paid downstream, and nobody could re-derive it.
                 try:
-                    out, _ = p.communicate(timeout=60)   # normal run is ~8s
-                    rc = p.returncode
-                except subprocess.TimeoutExpired:
-                    p.kill()
+                    board = json.loads(args.recover_board)
+                    bname, fname = board['name'], board['flasher']['name']
+                    import hil_flash   # deferred: stdlib-only unless recovery actually runs
+                    flash_fn = getattr(hil_flash, f'flash_{fname.lower()}')
+                except Exception as e:   # malformed/short json, import failure, unknown flasher
+                    print(f'reflash recovery unavailable ({e})', file=sys.stderr)
+                    break
+                # DELIVERY must be convoy-safe or the recovery makes things worse: our own
+                # testusb is D-state on this DUT's node, so a flasher that enumerates by
+                # OPENING usbfs nodes blocks on it, survives SIGKILL and is abandoned --
+                # a SECOND stray, the budget spent, the device still wedged. On 2026-08-12
+                # a vid_pid-pinned openocd was the only flasher that still reached its
+                # probe; JLinkExe's ShowEmuList returned zero. See hil_flash.convoy_safe.
+                if not hil_flash.convoy_safe(board['flasher']):
+                    print(f'{fname} is not convoy-safe for delivery (it enumerates by '
+                          f'opening usbfs nodes, and this DUT has a D-state holder on '
+                          f'its own node): skipping the reflash rather than adding a '
+                          f'second stray. Pin the roster entry with vid_pid on an '
+                          f'openocd flasher to enable recovery for this board.',
+                          file=sys.stderr)
+                    break
+                # RESET FIRST: a probe reset fails the in-flight URB at the source just
+                # as a reflash does, but it is non-destructive -- the firmware under test
+                # survives for autopsy -- writes no flash, and cannot brick SWD the way a
+                # bad park image has (mimxrt1064_evk, max32666fthr). Measured ~130 ms.
+                # wedged_pids is the arbiter either way: reset_esptool is a stub that
+                # returns rc 0 without resetting anything, so an exit code proves nothing.
+                reset_fn = reset_primitive(fname)
+                if reset_fn:
+                    print(f'auto-recovering: resetting {bname} via {fname} probe '
+                          f'(non-destructive; reflash only if this does not clear it)',
+                          file=sys.stderr)
+                    # Inspect the signature rather than catching TypeError around the
+                    # call: a TypeError raised INSIDE the primitive would re-run it with
+                    # no bound (run_cmd's 180s CMD_TIMEOUT, against a 40s reserve), and a
+                    # raise from that retry does not reach the sibling except Exception --
+                    # it unwinds past the recovery block, so the battery exits on a
+                    # traceback with no JSON and ~29 real verdicts are discarded.
+                    import inspect
+                    kw = ({'timeout': RECOVER_RESET_TIMEOUT}
+                          if 'timeout' in inspect.signature(reset_fn).parameters else {})
                     try:
-                        out, _ = p.communicate(timeout=5)
-                        rc = p.returncode
-                    except subprocess.TimeoutExpired:
-                        out = ('root-cycle abandoned after 60s: uhubctl did not die to SIGKILL, so '
-                               'it is wedged too and the convoy has spread beyond this device')
-                if out:
-                    print(out.strip(), file=sys.stderr)
-                if rc is not None:
-                    time.sleep(5)  # let the bus settle and the freed ioctl unwind
-                    # Authoritative either way. A non-zero exit only means the device did not come
-                    # back within the poll (a slow bootloader will do that) -- if nothing still
-                    # holds the lock, the bus is usable and cleanup is safe. Conversely a zero exit
-                    # only proves re-enumeration, not that the D-state holder let go.
+                        with redirect_stdout(sys.stderr):
+                            reset_fn(board, **kw)
+                    except Exception as e:
+                        print(f'probe reset raised: {e}; falling through to the reflash',
+                              file=sys.stderr)
+                    time.sleep(RECOVER_SETTLE)     # let the freed ioctl unwind
                     stuck, complete = wedged_pids(dev['node'])
-                    if stuck:
-                        print(f'{dev["sysname"]}: pid(s) {stuck} still in D state on '
-                              f'{dev["node"]} — the device lock was never released', file=sys.stderr)
-                    elif not complete:
-                        print('cannot confirm recovery: /proc is only partly readable, so a '
-                              'hidden D-state holder cannot be ruled out', file=sys.stderr)
-                    else:
+                    if complete and not stuck:
+                        print('probe reset cleared the wedge; skipping the reflash '
+                              '(firmware under test left intact for autopsy)',
+                              file=sys.stderr)
                         unrecovered_hang = False
+                        break
+                print(f'auto-recovering: reflashing {bname} via '
+                      f'{fname} (see .claude/skills/usb-kernel-recover). '
+                      f'Unbudgeted by flash_permit, like the root-cycle it replaced: the '
+                      f'per-controller semaphores live in hil_test\'s process.',
+                      file=sys.stderr)
+                # run_cmd bounds the flash; its banners go to stdout, which in --json mode
+                # carries the result object -- keep them off it. A raising flasher (missing
+                # serial node, unwritable CWD) must not cost the battery its JSON report.
+                try:
+                    with redirect_stdout(sys.stderr):
+                        ret = flash_fn(board, args.recover_fw, timeout=RECOVER_FLASH_TIMEOUT)
+                except Exception as e:
+                    print(f'reflash raised: {e}; the device may still be wedged', file=sys.stderr)
+                    break
+                if ret.returncode != 0:
+                    # a wedged RP DAP answers nothing and the probe has no reset line;
+                    # POR it via the Rescue DP and retry once, exactly as the normal
+                    # flash path does (no-op for every other board/failure)
+                    out_txt = ret.stdout if isinstance(ret.stdout, str) else ''
+                    # inside the redirect like its siblings (hil_test slices the result
+                    # object from the first '{' on stdout), and only if a POR + retry
+                    # still fits before the outer kill
+                    rescued = False
+                    try:
+                        with redirect_stdout(sys.stderr):
+                            rescued = hil_flash.rescue_openocd(
+                                board, out_txt, timeout=RECOVER_FLASH_TIMEOUT)
+                        if rescued:
+                            print('DAP wedged; rescued via Rescue DP, retrying reflash',
+                                  file=sys.stderr)
+                            with redirect_stdout(sys.stderr):
+                                ret = flash_fn(board, args.recover_fw,
+                                               timeout=RECOVER_FLASH_TIMEOUT)
+                    except Exception as e:
+                        # guarded like the first flash: a raise here would unwind past the
+                        # BUDGET back-fill and the JSON print
+                        print(f'rescue/retry raised: {e}', file=sys.stderr)
+                    if ret.returncode != 0:
+                        print(f'reflash failed (rc {ret.returncode}); the device may still '
+                              f'be wedged', file=sys.stderr)
+                # settle even on a non-zero exit: the reset may have landed before the
+                # flasher failed, and the freed ioctl needs a moment to unwind before
+                # wedged_pids samples
+                time.sleep(RECOVER_SETTLE)
+                # Authoritative either way: a clean flash only proves the probe wrote the
+                # MCU, not that the D-state holder let go.
+                stuck, complete = wedged_pids(dev['node'])
+                if stuck:
+                    print(f'{dev["sysname"]}: pid(s) {stuck} still in D state on '
+                          f'{dev["node"]} — the device lock was never released', file=sys.stderr)
+                    # No hub-worker verdict here: our own testusb still holds the DUT's
+                    # device lock, which is what drives a hub worker into usb_lock_device()
+                    # -- any verdict from here is confounded by construction.
+                elif not complete:
+                    print('cannot confirm recovery: /proc is only partly readable, so a '
+                          'hidden D-state holder cannot be ruled out', file=sys.stderr)
+                else:
+                    unrecovered_hang = False
                 break
-            # re-resolve: after a mid-battery re-enumeration the devnum (and thus the node
-            # path) changes; keep testing the live node instead of the stale one. Match on the
-            # concrete serial (not args.serial, which may be None) so this can never retarget to
-            # a different device that happens to share the VID:PID.
-            live = find_device(dev['serial'], first=True)
+            # re-resolve: a mid-battery re-enumeration changes the devnum and so the node
+            # path. Match on the concrete serial (not args.serial, which may be None) so
+            # this can never retarget to another device sharing the VID:PID.
+            # first=False: the ambiguity guard exists because ONE serial can match two
+            # sysfs nodes on the dual-port WCH parts, and `dev = live` below makes any
+            # mistake stick for the rest of the battery -- including wedged_pids() then
+            # scanning the wrong node and clearing unrecovered_hang on a device it never
+            # checked. Ambiguous comes back as {'ambiguous': [...]}, handled below.
+            live = find_device(dev['serial'])
+            if live and live.get('ambiguous'):
+                # two nodes now answer to one serial (the dual-port WCH parts do this
+                # around a re-enumeration). Picking either would file the rest of the
+                # battery's verdicts under a device we cannot identify, so stop here and
+                # keep the recovery in play rather than guess.
+                abort_reason = (f'serial {dev["serial"]} matches more than one device '
+                                f'({", ".join(live["ambiguous"])}) after case {num}')
+                unrecovered_hang = True
+                break
             if not live:
-                results.append({'num': num, 'status': 'FAIL',
-                                'detail': f'device dropped off the bus after case {num}'})
+                # ABSENT vs UNREADABLE: a bounded `serial` read that gave up looks exactly
+                # like a disconnect from here, and the difference decides whether the
+                # cleanup below runs. remove_id/unbind take the UNINTERRUPTIBLE
+                # device_lock (see the driver-registry note above), so performing them
+                # against a device that is merely unreadable -- i.e. probably wedged --
+                # deadlocks the bus rather than tidying up. Fail CLOSED: if anything gave
+                # up during this scan, treat it as the wedge it probably is, which also
+                # keeps the recovery and the board_wedged latch in play.
+                # OUR device's own attribute, not the process-wide sysfs_stranded():
+                # that flag is sticky and every DUT here is cafe:4010, so a peer that
+                # stranded at case 2 would make a genuine disconnect at case 29 report as
+                # an unrecovered wedge for the rest of the run.
+                if _hu().path_stranded(str(SYS_USB / dev['sysname'] / 'serial')):
+                    abort_reason = (f'cannot tell whether the device is still present '
+                                    f'after case {num}: its serial read gave up')
+                    unrecovered_hang = True
+                    break
+                # no second entry for `num`: run_case already recorded it, and a duplicate
+                # inflates the denominator (31/30) and reports a PASSing case as failed
+                abort_reason = f'device dropped off the bus after case {num}'
                 break
             dev = live
+        if abort_reason and all(c in {r['num'] for r in results} for c in cases) \
+                and 'dropped off the bus' in abort_reason and results:
+            # nothing left to back-fill (the drop happened during/after the LAST case),
+            # so the run would report a clean pass; the case it died on is not a pass
+            if results[-1].get('status') == 'PASS':
+                # only a PASS: a real FAIL/NOTRUN verdict names the actual regression
+                # (errno, dmesg) and must not be overwritten by the drop message
+                results[-1] = dict(results[-1], status='FAIL', detail=abort_reason)
+        if abort_reason:
+            # One BUDGET entry per case never dispatched, on EVERY abort path: a shrunken
+            # denominator (4/5 instead of 4/30) hides that most of the battery never
+            # executed and makes a regression in the skipped range read as "not the
+            # problem".
+            ran = {r['num'] for r in results}
+            results += [{'num': n, 'status': 'BUDGET', 'detail': f'not run: {abort_reason}'}
+                        for n in cases if n not in ran]
     finally:
         # best-effort cleanup: a sudo/sysfs failure here (sudo() may sys.exit) must not replace
         # an exception propagating out of the try body with a less useful one
         try:
             if unrecovered_hang:
-                # testusb is still stuck in a usbfs ioctl holding the device lock; remove_id/unbind
-                # would join the convoy and deadlock the bus (see usb-kernel-recover skill) — leave it be
+                # testusb still holds the device lock in a usbfs ioctl: remove_id/unbind
+                # would join the convoy and deadlock the bus (see usb-kernel-recover)
                 print('skipping cleanup after unrecovered hang: ask the operator for a full PVE host '
                       'power cycle (a VM reboot is not reliable — hubs latch up across the PCIe reset)',
                       file=sys.stderr)
             elif not args.keep_binding:
-                sysfs_write(DRIVER / 'remove_id', f'{VID} {PID}', check=False)
-                # release every claimed interface: other devices sharing the VID:PID (stale example
-                # firmware on a test rig) may have been grabbed on probe and would otherwise stay
-                # bound to usbtest until re-plugged, hijacking the next test's device
-                for intf in DRIVER.glob('*:*'):
-                    sysfs_write(DRIVER / 'unbind', intf.name, check=False)
+                # PROCESS-WIDE, unlike the per-case verdict above. That one is per-DUT on
+                # purpose -- a peer that stranded must not make OUR board report wedged.
+                # This cleanup is GLOBAL: it unbinds every interface under the driver,
+                # including the peer we could not read, and unbind takes the
+                # uninterruptible device_lock. Narrowing this gate to path_stranded()
+                # would add a driver-registry writer to an existing wedge.
+                # INSIDE keep_binding rather than before it: hil_test always passes that
+                # flag, so a check further out announced a skip of cleanup that was never
+                # going to run -- one line of noise ahead of the real cause in every
+                # stranded row. ONE line for the same reason: the finally runs before
+                # SystemExit's message reaches stderr.
+                if _hu().sysfs_stranded():
+                    print('cleanup skipped: a sysfs read gave up, so unbind could take a '
+                          'wedged device lock', file=sys.stderr)
+                else:
+                    sysfs_write(DRIVER / 'remove_id', f'{VID} {PID}', check=False)
+                    # release every claimed interface: another device sharing the VID:PID
+                    # (stale example firmware) may have been grabbed on probe and would
+                    # stay bound to usbtest until re-plugged, hijacking the next test
+                    for intf in DRIVER.glob('*:*'):
+                        sysfs_write(DRIVER / 'unbind', intf.name, check=False)
         except SystemExit:
             pass
 
-    failed = [r for r in results if r['status'] != 'PASS']
+    # BUDGET, not NOTRUN: NOTRUN is taken, for a case the KERNEL gated off (-EOPNOTSUPP,
+    # see run_case) -- a real result that must stay in `failed` and keep its case number.
+    # BUDGET keeps the denominator honest without lying about the numerator: naming cases
+    # that never executed as failures sends a maintainer bisecting one of them.
+    notrun = [r for r in results if r['status'] == 'BUDGET']
+    failed = [r for r in results if r['status'] not in ('PASS', 'BUDGET')]
     ran = len(results)
     if args.json:
+        # `wedged` is the verdict this process ALREADY computed; without it the caller had
+        # to infer one from 'HUNG' in our stdout, which misses a recovery that ran and
+        # failed, the ambiguous abort (no case reaches status HUNG), and any battery
+        # killed before it printed.
         print(json.dumps({'serial': dev['serial'], 'speed': dev['speed'], 'tier': tier,
-                          'passed': ran - len(failed), 'failed': len(failed),
+                          'passed': ran - len(failed) - len(notrun),
+                          'failed': len(failed), 'notrun': len(notrun),
+                          'wedged': bool(unrecovered_hang),
                           'cases': results}, indent=2))
     else:
-        print(f"{ran - len(failed)}/{ran} passed")
+        print(f"{ran - len(failed) - len(notrun)}/{ran} passed"
+              + (f", {len(notrun)} not run" if notrun else ""))
         for r in failed:
             print(f"  FAILED test {r['num']}: {r.get('detail', '')}")
             if r.get('dmesg'):
                 print('    ' + r['dmesg'].replace('\n', '\n    '))
-    return len(failed)
+    # NOTRUN counts toward the exit status even though it is reported separately: a
+    # standalone run whose cases were all skipped has NOT passed, and returning 0 hands a
+    # false success to any script driving this directly.
+    return len(failed) + len(notrun)
 
 
 if __name__ == '__main__':

@@ -30,9 +30,9 @@ Hold the board lock for the WHOLE manual session; never stop the
 actions-runner (see the `hil` skill for the full lock protocol):
 
 ```bash
-python3 test/hil/hil_lock.py hold <board> --reason "target debug: <bug>"
+python3 test/hil/helper/hil_lock.py hold <board> --reason "target debug: <bug>"
 # ... instrument / build / flash / capture / GDB ...
-python3 test/hil/hil_lock.py release <board>
+python3 test/hil/helper/hil_lock.py release <board>
 ```
 
 Board → probe mapping: `test/hil/tinyusb.json` — `flasher.name` is the probe
@@ -217,40 +217,36 @@ dump binary memory /tmp/ring.bin &dbg_ring[0] &dbg_ring[512]
 ## TU_LOG capture
 
 Build with `LOG=2` (`LOG=3` adds per-transfer noise and much more timing skew).
-`LOGGER=rtt` routes it over the debug probe — no UART wiring. SEGGER's host
-tools need a J-Link, but OpenOCD serves the same RTT buffer on ST-Link /
-CMSIS-DAP / WCH-Link boards:
+`LOGGER=rtt` routes it over the debug probe — no UART wiring. Stand the
+channel up per the **rtt** skill (servers per probe, transport matrix,
+control-block gotchas live there):
 
 ```bash
-# RTT: JLinkGDBServer from CLAUDE.md "GDB Debugging" + -RTTTelnetPort, then:
-timeout 20s JLinkRTTClient > /tmp/rtt.log        # non-interactive capture
+# RTT (J-Link probe; flash + reset first — the console owns the probe):
+timeout 20s python3 tools/rtt.py --backend jlink --probe <sn> --device <JLINK_DEVICE> > /tmp/rtt.log
 # UART (board's debug serial, if wired):
 stty -F /dev/ttyACM<N> 115200 raw && timeout 20s cat /dev/ttyACM<N> | tee /tmp/uart.log
 ```
 
-```bash
-# OpenOCD RTT (any probe OpenOCD drives) — in telnet :4444 (or -c equivalents):
-rtt setup 0x20000000 0x8000 "SEGGER RTT"   # RAM ORIGIN + LENGTH (from the .ld/map)
-rtt start                                  # after firmware booted; rerun after each reflash
-rtt server start 19021 0
-# then:  timeout 20s nc localhost 19021 > /tmp/rtt.log
-```
-
-OpenOCD polls — bursty logs can drop lines; prefer J-Link where both
-exist. The drain-model warning below applies unchanged.
+OpenOCD RTT (native probes: ST-Link/CMSIS-DAP): rtt skill §OpenOCD — exact
+CB address from `nm`, attach-only. OpenOCD polls — bursty logs can drop
+lines; prefer J-Link where both exist. The drain-model warning below
+applies unchanged.
 
 An RTT-built firmware that has since wedged still holds a log tail in RAM —
 but ONLY what fits the drain model: the default SEGGER mode (NO_BLOCK_SKIP)
 **drops** writes once the ring fills with no reader, so an undrained target
-holds the first KB after boot, not the wedge tail. There is no overwrite mode
-in stock SEGGER RTT (only SKIP/TRIM/BLOCK): post-mortem RTT is evidence only
-if a live drain was running — otherwise instrument with the RAM ring above.
-Use `JLinkGDBServer -RTTTelnetPort 19021` + `JLinkRTTClient` for the drain
-(proven; note the server briefly halts the core on connect). `JLinkRTTLogger`
-fails to find the control block on some parts (LPC4088) even when it exists
-and even given `-RTTAddress`; don't fight it — `nm` the ELF for `_SEGGER_RTT`,
-read the aUp[0] descriptor (`mem32`), `savebin` the buffer — debug-AP RAM
-reads don't halt the target.
+holds the first KB after boot, not the wedge tail. The buffer flags have no
+overwrite mode (only SKIP/TRIM/BLOCK); keeping the tail instead requires the
+firmware-side overwrite write call (rtt skill §post-mortem). So post-mortem
+RTT from a default-mode build is evidence only if a live drain was running —
+otherwise instrument with the RAM ring above.
+Stand up the drain per the **rtt** skill: JLinkExe's `-RTTTelnetPort` (what
+`rtt.py` wraps) is the headless-proven route; JLinkGDBServer's needs
+a GDB client attached on some parts (LPC4088), and JLinkRTTLogger fails to
+find the control block on some parts (measured LPC4088, 0/6). The manual
+ring read for a wedged target (`nm`/`mem32`/`savebin` — debug-AP reads don't
+halt the core) lives there too.
 
 ## GDB — state autopsy and watchpoints
 
@@ -331,7 +327,7 @@ Linux gadget peer):
 
 ```bash
 .claude/skills/usbmon/scripts/usbcap.sh cafe: 30 /tmp/host.pcapng &   # host URBs (usbmon skill)
-timeout 30s JLinkRTTClient > /tmp/target.rtt &                        # target (or ring dump after)
+timeout 30s python3 tools/rtt.py --backend jlink --probe <sn> --device <dev> > /tmp/target.rtt &  # target (rtt skill; or ring dump after)
 wait
 ```
 
@@ -347,7 +343,7 @@ the wire itself: `usb-sniffer` skill (hardware tap, PID-level).
 - J-Link (UM08001): <https://kb.segger.com/UM08001_J-Link_/_J-Trace_User_Guide> — flash breakpoints, RTT, SWO, monitor mode, Commander.
 - OpenOCD: <https://openocd.org/doc/html/index.html> — `rtt`, `bp`/`wp`, `cortex_m vector_catch`/`maskisr`, `itm`/`tpiu`.
 - "Debugging with GDB" (§5.1 = break/watch/dprintf): Tenth Edition (GDB 18)
-  via calibre/`read-doc`, or
+  via the `read-doc` skill, or
   `curl -sL -o /tmp/gdb.pdf https://sourceware.org/gdb/current/onlinedocs/gdb.pdf`
   (the HTML mirror blocks fetchers). Installed `arm-none-eabi-gdb`
   `help <cmd>` is authoritative here.

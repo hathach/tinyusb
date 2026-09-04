@@ -58,6 +58,17 @@ extern "C" {
   #define CFG_TUD_MIDI2_PRODUCT_ID  "TinyUSB-MIDI2"
 #endif
 
+// Function Block capabilities reported in Function Block Info Notification.
+// The GTB descriptor carries direction and group span, but not these: they
+// depend on what the application implements, so they default to "none".
+#ifndef CFG_TUD_MIDI2_FB_CI_VERSION
+  #define CFG_TUD_MIDI2_FB_CI_VERSION      0  // 0: none or unknown, 1 or higher: MIDI-CI version
+#endif
+
+#ifndef CFG_TUD_MIDI2_FB_SYSEX8_STREAMS
+  #define CFG_TUD_MIDI2_FB_SYSEX8_STREAMS  0  // 0: unsupported, 1: single, 2-255: simultaneous streams
+#endif
+
 // String descriptor index for the Group Terminal Block (iBlockItem, Table 5-6).
 // 0 = no string descriptor (default, spec-allowed).
 #ifndef CFG_TUD_MIDI2_BLOCK_STRIDX
@@ -118,6 +129,17 @@ typedef enum {
   MIDI2_STREAM_NEGOTIATED_MIDI2,
 } tud_midi2_stream_result_t;
 
+// Device identity fields, as defined for the MIDI 1.0 Device Inquiry reply and
+// reused by the Device Identity Notification. Every byte carries 7 bits.
+// A 1-byte System Exclusive ID goes in the first of the three manufacturer
+// bytes, so 0x7D is passed as 0x7D0000.
+typedef struct {
+  uint32_t manufacturer;   // 3 bytes, first byte is most significant
+  uint16_t family;         // 2 bytes
+  uint16_t model;          // 2 bytes
+  uint32_t sw_revision;    // 4 bytes
+} tud_midi2_device_identity_t;
+
 //--------------------------------------------------------------------+
 // Application Callback API (weak, optional)
 //--------------------------------------------------------------------+
@@ -137,6 +159,12 @@ const uint8_t* tud_midi2_gtb_desc_cb(uint8_t itf, uint16_t* len);
 // Optional per-block name, sent as a Function Block Name Notification during
 // discovery. Return NULL or "" for no name.
 const char* tud_midi2_fb_name_cb(uint8_t itf, uint8_t fb_idx);
+
+// Optional device identity, sent as a Device Identity Notification when the
+// host sets the 'd' bit in the Endpoint Discovery filter. Same four fields as
+// the MIDI 1.0 Device Inquiry reply. Return false to skip the notification,
+// which is the default. All values are 7-bit per byte.
+bool tud_midi2_device_identity_cb(uint8_t itf, tud_midi2_device_identity_t* identity);
 
 // Optional: intercept an incoming UMP Stream message (MT 0xF). Return PASS to
 // let the built-in responder handle it, or HANDLED / NEGOTIATED_* if the app

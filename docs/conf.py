@@ -31,7 +31,9 @@ extensions = [
 
 templates_path = ['_templates']
 
-exclude_patterns = ['_build']
+# 'superpowers' holds internal plans/specs/handoffs (see CLAUDE.md), not published docs.
+# 'reference/hil_boards.md' is a generated partial that hardware-in-the-loop.md includes.
+exclude_patterns = ['_build', 'superpowers', 'reference/hil_boards.md']
 
 
 # -- Options for HTML output -------------------------------------------------

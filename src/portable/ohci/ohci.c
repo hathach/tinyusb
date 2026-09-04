@@ -378,7 +378,7 @@ static void ed_list_remove_by_addr(ohci_ed_t * p_head, uint8_t dev_addr) {
   ohci_ed_t* p_prev = p_head;
 
   while (p_prev->next) {
-    ohci_ed_t* ed = (ohci_ed_t*)_virt_addr((void*)p_prev->next);
+    ohci_ed_t* ed = hcd_dcache_uncached((ohci_ed_t*)_virt_addr((void*)p_prev->next));
 
     if (ed->w0.dev_addr == dev_addr) {
       // Prevent Host Controller from processing this ED while we remove it
@@ -387,12 +387,28 @@ static void ed_list_remove_by_addr(ohci_ed_t * p_head, uint8_t dev_addr) {
       // unlink ed, will also move up p_prev
       p_prev->next = ed->next;
 
-      // point the removed ED's next pointer to list head to make sure HC can always safely move away from this ED
-      ed->next = (uint32_t)_phys_addr(p_head);
-      ed->w0.used = 0;
-      ed->w0.skip = 0;
+      // Control endpoints (EP number 0) are statically allocated with the device which are only reused
+      // after connection of another device long after HC has finished with them now, these can be freed immediately.
+      if (ed->w0.ep_number != 0) {
+        // Wait until the next frame before reclaiming the ED and its TDs. Set the deadline before
+        // publishing is_reclaiming so a pending SOF IRQ cannot use an older deadline for this ED.
+        ohci_data.reclaim_frame = (uint16_t)(OHCI_REG->frame_number + 1);
+        ed->w0.is_reclaiming = 1;
+
+        // 5.2.7.1.2 Removing. Disable list processing for bulk
+        if (p_head == p_ed_head[TUSB_XFER_BULK]) {
+          OHCI_REG->control &= ~OHCI_CONTROL_LIST_BULK_ENABLE_MASK;
+        }
+
+        // Temporarily enable SOF IRQ. Clear any pending SOF first to wait for the next frame.
+        OHCI_REG->interrupt_status = OHCI_INT_SOF_MASK;
+        OHCI_REG->interrupt_enable = OHCI_INT_SOF_MASK;
+      } else {
+        ed->w0.used = 0;
+        ed->w0.skip = 0;
+      }
     } else {
-      p_prev = (ohci_ed_t*)_virt_addr((void*)p_prev->next);
+      p_prev = ed;
     }
   }
 }
@@ -400,6 +416,7 @@ static void ed_list_remove_by_addr(ohci_ed_t * p_head, uint8_t dev_addr) {
 static ohci_gtd_t* gtd_find_free(void) {
   for (uint8_t i = 0; i < GTD_MAX; i++) {
     if (!ohci_data.gtd_pool[i].used) {
+      ohci_data.gtd_pool[i].used = 1;
       return &ohci_data.gtd_pool[i];
     }
   }
@@ -651,6 +668,60 @@ void hcd_int_handler(uint8_t hostid, bool in_isr) {
 
   // Disable MIE as per OHCI spec 5.3
   OHCI_REG->interrupt_disable = OHCI_INT_MASTER_ENABLE_MASK;
+
+  // Start of frame (SOF). Signed subtraction handles frame number rollover and delayed interrupts.
+  if ((int_status & OHCI_INT_SOF_MASK) &&
+      ((int16_t)((uint16_t)OHCI_REG->frame_number - ohci_data.reclaim_frame) >= 0)) {
+    OHCI_REG->interrupt_disable = OHCI_INT_SOF_MASK;
+
+    bool re_enable_lists = false;
+
+    for (size_t i = 0; i < ED_MAX; i++) {
+      ohci_ed_t* ed = hcd_dcache_uncached(&ohci_data.ed_pool[i]);
+      if (ed->w0.used && ed->w0.is_reclaiming) {
+        TU_ASSERT(ed->w0.skip == 1, );
+        TU_ASSERT(ed->w0.ep_number != 0, );
+
+        // Reclaim orphaned TDs
+        uint32_t td_addr = ed->td_head.address & ~0x0F;
+        while (td_addr) {
+          if (!ed->w0.is_iso) {
+            ohci_gtd_t *gtd = (ohci_gtd_t*)_virt_addr((void*)(uintptr_t)td_addr);
+            gtd->used = 0;
+          } else {
+            // TODO: Free ITD once implemented
+          }
+
+          if (td_addr == ed->td_tail) {
+            break;
+          }
+          td_addr = ((ohci_td_item_t*)_virt_addr((void*)(uintptr_t)td_addr))->next;
+        }
+
+        ed->w0.is_reclaiming = 0;
+        ed->w0.used = 0;
+        ed->w0.skip = 0;
+
+        re_enable_lists = true;
+      }
+    }
+
+    if (re_enable_lists) {
+      // 5.2.7.1.2 Removing
+      // Reset current ED pointers and re-enable lists
+      // Once the next frame has started, the HcControlCurrentED or HcBulkCurrentED register should be adjusted so
+      // that it does not point to the Endpoint Descriptor being removed (for simplicity you may just write
+      // a zero to the register);
+      if (!(OHCI_REG->control & OHCI_CONTROL_LIST_CONTROL_ENABLE_MASK)) {
+        OHCI_REG->control_current_ed = 0;
+        OHCI_REG->control |= OHCI_CONTROL_LIST_CONTROL_ENABLE_MASK;
+      }
+      if (!(OHCI_REG->control & OHCI_CONTROL_LIST_BULK_ENABLE_MASK)) {
+        OHCI_REG->bulk_current_ed = 0;
+        OHCI_REG->control |= OHCI_CONTROL_LIST_BULK_ENABLE_MASK;
+      }
+    }
+  }
 
   // Frame number overflow
   if (int_status & OHCI_INT_FRAME_OVERFLOW_MASK) {

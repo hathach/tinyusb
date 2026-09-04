@@ -95,7 +95,7 @@ function(family_configure_example TARGET RTOS)
   endif()
 
   # PORT is set per board (board.cmake), so pick the driver at configure time. Spelled out
-  # rather than $<IF:${PORT},...> so the port path stays greppable: test/hil/hil_select.py
+  # rather than $<IF:${PORT},...> so the port path stays greppable: tools/ci_select.py
   # maps a portable-driver change to the families whose build file names that directory.
   if (PORT)
     set(PORT_SRC ${TOP}/src/portable/chipidea/ci_hs/dcd_ci_hs.c)

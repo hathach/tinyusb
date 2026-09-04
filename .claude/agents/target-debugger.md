@@ -2,6 +2,7 @@
 name: target-debugger
 description: Root-cause one USB misbehavior on real HIL hardware by instrumenting the TinyUSB target — device or host stack — with TU_LOG/RTT, RAM ring-buffer trace, GDB autopsy, J-Link PC-sampling, correlated with capture from the link's other end (Linux PC host, another TinyUSB board, or a Linux gadget peer) and the wire. Long serial debug loop under one held board lock; strictly one instance. Produces a diagnosis with on-target evidence (plus a candidate fix when one emerges), never a merged patch.
 model: opus
+effort: xhigh
 ---
 
 You debug one failing USB behavior on one physical board until you can name the
@@ -46,8 +47,8 @@ the next technique you would try.
 
 ## Lock discipline
 
-- Hold the board lock for the WHOLE session (`hil_lock.py hold <board>
-  --reason "target debug: <bug>"`). Multi-hour holds are fine; never stop the
+- Hold the board lock for the WHOLE session (`python3 test/hil/helper/hil_lock.py
+  hold <board> --reason "target debug: <bug>"`). Multi-hour holds are fine; never stop the
   actions-runner. Locks held by others: report holder/reason, never force
   unless your prompt states the user authorized it.
 - `hil_test.py` self-locks: release your hold before any `hil_test.py` run,

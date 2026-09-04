@@ -565,6 +565,19 @@ const char* tud_midi2_fb_name_cb(uint8_t itf, uint8_t fb_idx) {
   return (fb_idx == 0) ? "Synth Out" : "Keys In";
 }
 
+// Sent when the host asks for a Device Identity Notification (Endpoint
+// Discovery 'd' filter bit). Same four fields as the MIDI 1.0 Device Inquiry
+// reply; 0x7D is the prototyping SysEx ID, placed in the first of the three
+// manufacturer bytes.
+bool tud_midi2_device_identity_cb(uint8_t itf, tud_midi2_device_identity_t* identity) {
+  (void)itf;
+  identity->manufacturer = 0x7D0000;
+  identity->family       = 0x0001;
+  identity->model        = 0x0001;
+  identity->sw_revision  = 0x00010000;
+  return true;
+}
+
 //--------------------------------------------------------------------+
 // Initial Setup - Program Change, CC, Per-Note Management
 //--------------------------------------------------------------------+

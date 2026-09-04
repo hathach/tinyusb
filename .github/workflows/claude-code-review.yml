@@ -11,6 +11,10 @@ on:
     # those. Same-repo branches (yours or write-access contributors) auto-review.
     types: [opened, synchronize, reopened, ready_for_review]
 
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   claude-review:
     # Skip drafts, and skip fork PRs (no secrets -> would only fail noisily)
@@ -50,9 +54,6 @@ jobs:
           # --comment makes the code-review command post its findings to the PR.
           # Without it the command only prints the review to the Actions log.
           prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }} --comment'
-          # TEMPORARY: expose the full Claude transcript in the Actions log for
-          # debugging. Revert to remove once done.
-          show_full_output: true
           # The headless review was blocked on two tools: compound Bash pipelines
           # (sed/python/grep) and Write (it dropped a check_headings.py helper to
           # inspect the diff). Default permission mode gates both; Read/Grep/Glob/
@@ -61,7 +62,7 @@ jobs:
           # token, so any write is ephemeral and nothing can be pushed.
           claude_args: |
             --max-turns 50
-            --model claude-opus-4-8
-            --effort max
+            --model claude-opus-5
+            --effort high
             --allowedTools Bash,Write
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md

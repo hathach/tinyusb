@@ -92,6 +92,10 @@ enum
   // Only EP3 is available for ISO
   #define EPNUM_AUDIO   0x03
 
+#elif CFG_TUSB_MIMXRT1XXX_ERRATA_ERR050101
+  // ERR050101 (see CFG_TUSB_MIMXRT1XXX_ERRATA_ERR050101): an isochronous IN endpoint needs a number
+  // no other device on the bus uses
+  #define EPNUM_AUDIO   0x07
 #else
   #define EPNUM_AUDIO   0x01
 #endif
