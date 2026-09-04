@@ -24,7 +24,7 @@ Support matrix
      - Guide
    * - Audio 1.0/2.0
      - Yes
-     - No
+     - Yes
      - :doc:`audio`
    * - Bluetooth HCI
      - Yes
