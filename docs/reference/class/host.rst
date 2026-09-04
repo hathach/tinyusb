@@ -2,10 +2,10 @@
 Using Host Classes
 ******************
 
-TinyUSB provides application-level host drivers for CDC serial, HID, MIDI 1.0,
-MIDI 2.0, and Mass Storage.  A host application is asynchronous: a mount
-callback reports a ready interface, I/O is queued, and completion or receive
-callbacks advance the application state.
+TinyUSB provides application-level host drivers for Audio, CDC serial, HID,
+MIDI 1.0, MIDI 2.0, and Mass Storage.  A host application is asynchronous: a
+mount callback reports a ready interface, I/O is queued, and completion or
+receive callbacks advance the application state.
 
 Setup checklist
 ===============
@@ -28,6 +28,7 @@ Typical configuration:
    #define CFG_TUH_ENABLED    1
    #define CFG_TUH_DEVICE_MAX 4
    #define CFG_TUH_HUB        1
+   #define CFG_TUH_AUDIO      1
    #define CFG_TUH_CDC        1
    #define CFG_TUH_HID        (3 * CFG_TUH_DEVICE_MAX)
    #define CFG_TUH_MSC        1
@@ -137,6 +138,7 @@ Do not block ``tuh_task()`` while waiting for a callback that only it can
 dispatch.  Prefer the asynchronous APIs.  Where a class provides a synchronous
 helper, use it only from a context in which the host task can still run.
 
-Start with :doc:`../../examples/host/cdc_msc_hid` for CDC, HID, and MSC,
+Start with :doc:`../../examples/host/audio_host` for Audio,
+:doc:`../../examples/host/cdc_msc_hid` for CDC, HID, and MSC,
 :doc:`../../examples/host/midi_rx` for MIDI 1.0, or
 :doc:`../../examples/host/midi2_host` for MIDI 2.0.
