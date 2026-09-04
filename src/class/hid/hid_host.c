@@ -574,12 +574,12 @@ bool hidh_set_config(uint8_t daddr, uint8_t itf_num) {
 }
 
 static void process_set_config(tuh_xfer_t* xfer) {
-  // Stall is a valid response for SET_IDLE, sometime SET_PROTOCOL as well
-  // therefore we could ignore its result
-  if (!(xfer->setup->bRequest == HID_REQ_CONTROL_SET_IDLE ||
-        xfer->setup->bRequest == HID_REQ_CONTROL_SET_PROTOCOL)) {
-    TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS,);
-  }
+  // Stall is a valid response for SET_IDLE, sometimes SET_PROTOCOL as well.
+  // Other failures include teardown cancellation and must not advance configuration.
+  const bool stall_ok = xfer->result == XFER_RESULT_STALLED &&
+                        (xfer->setup->bRequest == HID_REQ_CONTROL_SET_IDLE ||
+                         xfer->setup->bRequest == HID_REQ_CONTROL_SET_PROTOCOL);
+  TU_VERIFY(xfer->result == XFER_RESULT_SUCCESS || stall_ok,);
 
   uintptr_t const state = xfer->user_data;
   uint8_t const itf_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
