@@ -3,7 +3,7 @@ name: pre-pr
 description: Use before opening or updating a TinyUSB PR — derives affected boards from the branch diff, runs the full-check workflow (software validation + optional HIL on the rig), and summarizes a ship/no-ship verdict.
 ---
 
-# /pre-pr — pre-PR validation
+# Pre-PR validation
 
 Run the software + hardware gate for the current branch. The user invoking this skill is the opt-in for launching the workflows below.
 
@@ -52,6 +52,6 @@ Invoke the Workflow tool:
 ## 5. Summarize
 
 - Per-stage table: unit / build:<board> / size / pvs, then HIL per board — pass/fail with the first error for each failure.
-- If the hardware result has non-empty `locked` (a CI job held those boards): ask the user with AskUserQuestion — **Force now** (re-invoke `hil-validate` with `force: true` for those boards; user accepts the risk of colliding with a mid-test CI job), **Keep waiting** (re-invoke `hil-validate` for them after a few minutes; ask again if still locked), or **Accept** the partial verdict. Never force without the user's answer.
+- If the hardware result has non-empty `locked` (a CI job held those boards): ask the user to choose **Force now** (re-invoke `hil-validate` with `force: true` for those boards; user accepts the risk of colliding with a mid-test CI job), **Keep waiting** (re-invoke `hil-validate` for them after a few minutes; ask again if still locked), or **Accept** the partial verdict. Never force without the user's answer.
 - Wedged boards: point at `.claude/skills/usb-kernel-recover/SKILL.md`.
 - End with a clear ship / no-ship verdict and what to fix first.

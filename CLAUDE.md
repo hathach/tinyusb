@@ -14,6 +14,16 @@ Bias toward caution over speed. For trivial tasks, use judgment.
 - **Goal-driven** — turn tasks into verifiable goals ("write failing test, make it pass"). For multi-step work, state a brief `step → verify` plan.
 - **Worktrees** — default to a git worktree for any branch or multi-step work; never switch the shared primary checkout's branch. Sessions run concurrently: switching the primary checkout mid-flight disrupts other sessions and can silently point a review, build, or commit at the wrong diff. Only trivial one-shot fixes may skip this. Standard location: `.worktrees/<branch-name>` at the repo root (gitignored), e.g. `git worktree add .worktrees/my-branch -b my-branch`. In a new worktree, symlink the dependency dirs (`lib/*`, `hw/mcu/*`, `tools/linkermap` — the keys of `deps_all` in `tools/get_deps.py`) to the primary checkout instead of re-cloning them; only if the branch needs a different dep revision, replace that one symlink with a real dir and run `get_deps.py` for it.
 
+## Claude and Codex Collaboration
+
+Claude Code is the primary harness. `CLAUDE.md` and `.claude/{agents,skills,workflows}` are canonical; `AGENTS.md -> CLAUDE.md` and `.agents -> .claude` expose the same instructions and skills to standalone Codex. `.codex/agents/*.toml` are thin adapters that pin Codex models and load the canonical Markdown roles; do not copy role bodies or maintain other Codex-specific mirrors.
+
+- Use `/codex:review` for an independent read-only review and `/codex:adversarial-review` to challenge the implementation or design.
+- Use `/codex:rescue` for substantial bounded implementation, diagnosis, or a second pass when Claude is stuck; use its `--background`, `--resume`, and `--fresh` controls when needed.
+- When Codex should use a named TinyUSB role, select its `.codex/agents/<role>.toml` adapter; the adapter loads `.claude/agents/<role>.md` as the canonical role.
+- Reviews and research may run beside Claude. For write-capable delegation, use a separate worktree if Claude continues editing; otherwise yield the current worktree to Codex until it finishes. Never let both edit overlapping files in one worktree.
+- `.claude/workflows/*.js` remain Claude Code-native orchestration. Codex may review or rescue work around a workflow, but no Codex-specific workflow mirror is maintained.
+
 ## Ground Rules
 
 - **Language/style:** C99, 2-space indent (no tabs), snake_case helpers, `UPPER_CASE` macros. Public APIs use `tud_`/`tuh_`; macros use `TU_`. Headers self-contained with `#if CFG_TUSB_MCU` guards.

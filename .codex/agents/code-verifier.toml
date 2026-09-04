@@ -1,0 +1,7 @@
+name = "code-verifier"
+description = "Load the canonical code-verifier agent from .claude/agents/code-verifier.md."
+model = "gpt-5.6-sol"
+model_reasoning_effort = "xhigh"
+developer_instructions = """
+Before acting, locate the repository root with `git rev-parse --show-toplevel`, then read `.claude/agents/code-verifier.md` from that root completely and follow its body as your role instructions. Ignore its Claude-specific YAML frontmatter.
+"""
