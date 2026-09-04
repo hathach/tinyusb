@@ -69,7 +69,7 @@ typedef struct {
     uint32_t next_pid        : 2; // PID for next transfer
     uint32_t next_do_ping    : 1; // Do PING for next transfer if possible (highspeed OUT)
     uint32_t closing         : 1; // endpoint is closing
-    uint32_t aborting        : 1; // periodic DMA channel is waiting for its automatic halt
+    uint32_t aborting        : 1; // endpoint has an active channel waiting to be retired
     uint32_t periodic_phase  : 1; // periodic transfer phase is established
     uint32_t xfer_pending    : 1; // periodic transfer waiting for its service interval
   };
@@ -102,7 +102,7 @@ typedef struct {
     uint8_t ls_waiting     : 1; // affected low-speed channel is parked until SOF grants it a frame
 #endif
   };
-  volatile bool aborting;  // periodic DMA abort waiting for the channel's automatic halt
+  volatile bool aborting;  // close/abort is waiting for the channel to halt
 } hcd_xfer_t;
 
 typedef struct {
@@ -451,21 +451,6 @@ TU_ATTR_ALWAYS_INLINE static inline bool channel_xfer_enable(dwc2_regs_t* dwc2, 
   return true;
 }
 
-// Find currently enabled channel. Note: EP0 is bidirectional
-TU_ATTR_ALWAYS_INLINE static inline uint8_t channel_find_enabled(dwc2_regs_t* dwc2, uint8_t dev_addr, uint8_t ep_num, uint8_t ep_dir) {
-  const uint8_t max_channel = dwc2_channel_count(dwc2);
-  for (uint8_t ch_id = 0; ch_id < max_channel; ch_id++) {
-    if (_hcd_data.xfer[ch_id].allocated) {
-      const dwc2_channel_char_t hcchar = {.value = dwc2->channel[ch_id].hcchar};
-      if (hcchar.dev_addr == dev_addr && hcchar.ep_num == ep_num && (ep_num == 0 || hcchar.ep_dir == ep_dir)) {
-        return ch_id;
-      }
-    }
-  }
-  return TUSB_INDEX_INVALID_8;
-}
-
-
 // Allocate a new endpoint
 TU_ATTR_ALWAYS_INLINE static inline uint8_t edpt_alloc(void) {
   for (uint32_t i = 0; i < CFG_TUH_DWC2_ENDPOINT_MAX; i++) {
@@ -483,42 +468,84 @@ TU_ATTR_ALWAYS_INLINE static inline void edpt_dealloc(hcd_endpoint_t *edpt) {
   edpt->hcchar_bm.enable = 0;
 }
 
-// close an opened endpoint
-static void edpt_close(dwc2_regs_t *dwc2, uint8_t ep_id) {
+// Start retiring an endpoint's queued or active transfer. Keep this transition atomic with the SOF dispatcher, which
+// may otherwise grant a parked low-speed channel while it is being removed. Slave mode may need to wait for
+// request-queue space, so let channel/disconnect interrupts run while waiting.
+static void edpt_channel_retire(dwc2_regs_t *dwc2, uint8_t ep_id, bool closing) {
   hcd_endpoint_t *edpt = &_hcd_data.edpt[ep_id];
-  edpt->closing        = 1; // mark endpoint as closing
-
-#if DWC2_LS_ONE_XACT_PER_FRAME
   const uint32_t gahbcfg = dwc2->gahbcfg;
   dwc2->gahbcfg = gahbcfg & ~GAHBCFG_GINT;
-#endif
 
-  // disable active channel belong to this endpoint
-  for (uint8_t ch_id = 0; ch_id < DWC2_CHANNEL_COUNT_MAX; ch_id++) {
-    hcd_xfer_t *xfer = &_hcd_data.xfer[ch_id];
-    if (xfer->allocated && xfer->ep_id == ep_id) {
-#if DWC2_LS_ONE_XACT_PER_FRAME
-      if (xfer->ls_waiting) {
-        channel_dealloc(dwc2, ch_id);
-        edpt_dealloc(edpt);
-        dwc2->gahbcfg = gahbcfg;
-        return;
-      }
-#endif
-      dwc2_channel_t *channel = &dwc2->channel[ch_id];
-      xfer->closing           = 1;
-#if DWC2_LS_ONE_XACT_PER_FRAME
-      dwc2->gahbcfg = gahbcfg;
-#endif
-      channel_disable(dwc2, channel);
-      return; // only 1 active channel per endpoint
-    }
+  if (closing) {
+    edpt->closing = 1;
+  } else if (edpt->xfer_pending) {
+    edpt->xfer_pending = 0;
+    edpt->uframe_countdown = 0;
+    dwc2->gahbcfg = gahbcfg;
+    return;
+  } else {
+    edpt->aborting = 1;
   }
 
+  while (true) {
+    uint8_t ch_id = TUSB_INDEX_INVALID_8;
+    const uint8_t max_channel = dwc2_channel_count(dwc2);
+    for (uint8_t i = 0; i < max_channel; i++) {
+      const hcd_xfer_t *xfer = &_hcd_data.xfer[i];
+      if (xfer->allocated && xfer->ep_id == ep_id) {
+        ch_id = i;
+        break;
+      }
+    }
+
+    if (ch_id == TUSB_INDEX_INVALID_8) {
+      if (closing) {
+        edpt_dealloc(edpt);
+      } else {
+        edpt->aborting = 0;
+      }
+      dwc2->gahbcfg = gahbcfg;
+      return;
+    }
+
+    hcd_xfer_t *xfer = &_hcd_data.xfer[ch_id];
 #if DWC2_LS_ONE_XACT_PER_FRAME
-  dwc2->gahbcfg = gahbcfg;
+    if (xfer->ls_waiting) {
+      edpt->uframe_countdown = 0;
+      channel_dealloc(dwc2, ch_id);
+      if (closing) {
+        edpt_dealloc(edpt);
+      } else {
+        edpt->aborting = 0;
+      }
+      dwc2->gahbcfg = gahbcfg;
+      return;
+    }
 #endif
-  edpt_dealloc(edpt); // no active channel, safe to de-alloc now
+
+    dwc2_channel_t *channel = &dwc2->channel[ch_id];
+    const bool is_period = channel_is_periodic(channel->hcchar);
+    xfer->closing = closing;
+    xfer->aborting = true;
+
+    if (!dma_host_enabled(dwc2) && 0 == req_queue_avail(dwc2, is_period)) {
+      // The halt request itself needs queue space. Interrupts may retire the channel naturally while we wait.
+      dwc2->gahbcfg = gahbcfg;
+      while (xfer->allocated && 0 == req_queue_avail(dwc2, is_period)) {
+      }
+      dwc2->gahbcfg = gahbcfg & ~GAHBCFG_GINT;
+      continue;
+    }
+
+    channel_disable(dwc2, channel);
+    dwc2->gahbcfg = gahbcfg;
+    return;
+  }
+}
+
+// close an opened endpoint
+static void edpt_close(dwc2_regs_t *dwc2, uint8_t ep_id) {
+  edpt_channel_retire(dwc2, ep_id, true);
 }
 
 // Find an endpoint that is opened previously with hcd_edpt_open()
@@ -1124,61 +1151,14 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   return edpt_xfer_kickoff(dwc2, ep_id);
 }
 
-// Abort a queued transfer. Note: it can only abort transfer that has not been started
-// Return true if a queued transfer is aborted, false if there is no transfer to abort
+// Abort a queued or active transfer.
 bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   const uint8_t ep_num = tu_edpt_number(ep_addr);
   const uint8_t ep_dir = tu_edpt_dir(ep_addr);
   const uint8_t ep_id = edpt_find_opened(dev_addr, ep_num, ep_dir, false);
   TU_VERIFY(ep_id < CFG_TUH_DWC2_ENDPOINT_MAX);
-  hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
-
-  hcd_int_disable(rhport);
-
-  const bool xfer_pending = edpt->xfer_pending;
-  if (xfer_pending) {
-    edpt->xfer_pending = 0;
-    edpt->uframe_countdown = 0;
-  }
-
-  if (xfer_pending) {
-    hcd_int_enable(rhport);
-    return true;
-  }
-
-#if DWC2_LS_ONE_XACT_PER_FRAME
-  const uint8_t waiting_ch = channel_find_enabled(dwc2, dev_addr, ep_num, ep_dir);
-  if (waiting_ch < 16 && _hcd_data.xfer[waiting_ch].ls_waiting) {
-    edpt->uframe_countdown = 0;
-    channel_dealloc(dwc2, waiting_ch);
-    hcd_int_enable(rhport);
-    return true;
-  }
-#endif
-
-  // A periodic DMA channel must halt naturally at the next service boundary. Prevent a replacement transfer until the
-  // halt ISR retires the channel, and suppress completion for the aborted transfer.
-  if (dma_host_enabled(dwc2) && channel_is_periodic(edpt->hcchar)) {
-    const uint8_t ch_id = channel_find_enabled(dwc2, dev_addr, ep_num, ep_dir);
-    if (ch_id < 16) {
-      hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
-      edpt->aborting = 1;
-      xfer->aborting = true;
-      hcd_int_enable(rhport);
-      return true;
-    }
-  }
-
-  hcd_int_enable(rhport);
-
-  // Channel disable may wait for request-queue space in slave mode.
-  // Find enabled channel and disable it; the interrupt handler will de-allocate it.
-  const uint8_t ch_id = channel_find_enabled(dwc2, dev_addr, ep_num, ep_dir);
-  if (ch_id < 16) {
-    dwc2_channel_t* channel = &dwc2->channel[ch_id];
-    channel_disable(dwc2, channel);
-  }
+  edpt_channel_retire(dwc2, ep_id, false);
 
   return true;
 }
@@ -1296,8 +1276,8 @@ static void handle_rxflvl_irq(uint8_t rhport) {
       // In packet received, pop this entry --> ACK interrupt
       const uint16_t byte_count = grxstsp.byte_count;
       hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
-      if (!xfer->allocated) {
-        // Discard data for a channel retired by disconnect.
+      if (!xfer->allocated || xfer->aborting) {
+        // Discard data for a channel retired by disconnect, close, or abort.
         for (uint16_t count = 0; count < byte_count; count += sizeof(uint32_t)) {
           (void) dwc2->fifo[0][0];
         }
@@ -1370,7 +1350,7 @@ static bool handle_txfifo_empty(dwc2_regs_t* dwc2, bool is_periodic) {
     hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
     dwc2_channel_t* channel = &dwc2->channel[ch_id];
     const dwc2_channel_char_t hcchar = {.value = channel->hcchar};
-    if (xfer->allocated && channel_is_periodic(hcchar.value) == is_periodic &&
+    if (xfer->allocated && !xfer->aborting && channel_is_periodic(hcchar.value) == is_periodic &&
         0 == (channel->hcintmsk & HCINT_HALTED) && hcchar.ep_dir == TUSB_DIR_OUT) {
       if (channel_txfifo_write(dwc2, ch_id, is_periodic)) {
         return true;
@@ -1853,7 +1833,11 @@ static void handle_channel_irq(uint8_t rhport, bool in_isr) {
       const uint32_t hcint_clear = (!is_dma && (hcint & ~HCINT_HALTED)) ? (hcint & ~HCINT_HALTED) : hcint;
       channel->hcint = hcint_clear;
 
-      if (is_dma && xfer->aborting && (hcint & HCINT_HALTED)) {
+      if (xfer->aborting) {
+        if (!(hcint & HCINT_HALTED)) {
+          continue;
+        }
+
         hcd_endpoint_t* edpt = &_hcd_data.edpt[xfer->ep_id];
         const bool closing = xfer->closing;
         // channel_xfer_start() predicts the PID after all requested packets;
@@ -1863,6 +1847,7 @@ static void handle_channel_irq(uint8_t rhport, bool in_isr) {
           edpt->next_pid = hctsiz.pid;
         }
         xfer->aborting = false;
+        channel->hcint = HCINT_HALTED;
         channel_dealloc(dwc2, ch_id);
         if (closing) {
           edpt_dealloc(edpt);
