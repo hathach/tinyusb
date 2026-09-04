@@ -60,14 +60,15 @@ fi
 Read `full`, never `args` alone: `args` is empty for BOTH `full: true` (run the whole matrix — a broad or
 unclassified change) and "nothing selected" (skip). Skip only when `full` is false AND `args` is empty.
 
-Unit suites (no hardware), all five run by the `hil-test`/`ci-select-test` pre-commit
-hooks: `test_ci_select.py` covers only selection, `test_ci_metrics.py` only the code-size
-plumbing. The containment work --- bounded reads, the kill ladders, the build and pool
-guards --- lives in `test_hil_bounded.py`, `test_hil_health.py` and `test_hil_util.py`, so
-run all five when changing `test/hil`:
-`for f in test/hil/test/test_*.py; do python3 "$f"; done` (~48s, of which
-`test_hil_bounded.py` is ~30s of deliberate hang/timeout simulation; the two `test_ci_*`
-suites are ~4s together).
+Unit suites (no hardware) live in `test/hil/test/test_*.py`; the `hil-test` pre-commit hook
+runs every `test_hil*.py`, `ci-select-test` the two `test_ci_*` suites plus
+`test_hil_util.BottomLayer`. `test_ci_select.py` covers only selection, `test_ci_metrics.py`
+only the code-size plumbing; the containment work --- bounded reads, the kill ladders, the
+build and pool guards --- lives in `test_hil_bounded.py`, `test_hil_health.py` and
+`test_hil_util.py`; `test_hil_report.py` covers the report document and `test_hil_rtt.py`
+the RTT console. Run them all when changing `test/hil`:
+`for f in test/hil/test/test_*.py; do python3 "$f"; done` (about a minute, half of it
+`test_hil_bounded.py`'s deliberate hang/timeout simulation).
 
 ## Pre-flight rig health check
 
@@ -134,23 +135,29 @@ the run before its own guard can write a report. NEVER cancel early.
 ## Reporting
 
 The user-facing answer to a HIL run IS the tool's summary table: paste the complete per-board
-table (and footer counts) verbatim — never truncate rows or reduce it to a prose digest; at most
-one line of commentary below it.
+table (and footer counts) verbatim — never truncate rows or reduce it to a prose digest.
+Commentary below it covers only what the table cannot show: a banner verdict from the list
+below, a retry, a wedged board.
 
 **First check what sits above the table.** Six banners can appear there; match on a
 PREFIX, since each carries trailing detail and two are blockquotes:
 
-- `**HIL run abandoned: worker pool timed out after …s.**` — no results were collected this
-  attempt, so any table below is a PREVIOUS attempt's. Report the abandonment, never those
-  rows, and never `"pass": true`.
-- `**HIL run aborted: a worker raised …**` — same rule: a worker crashed before results
-  were collected; any table below is stale. Report the abort, never the rows.
+- `**HIL run abandoned: worker pool timed out after …s.**` and
+  `**HIL run aborted: a worker raised …**` — the pool guard fired, or a worker crashed. The
+  banner counts what happened: "N board(s) below finished and are this run's; K never
+  reported and are NOT in the table: <names>". The N finished boards' rows are this run's:
+  report them. The K named boards are not this run's whatever the table shows — on a fresh
+  run they have no row, on an `--accumulate` retry a previous attempt's row survives under
+  the banner and `hil_report.py` still folds it into `results` as ran — so name them as not
+  run; the `<config>.failed` re-run spec covers them. Never `"pass": true`.
 - `**HIL run abandoned: the worker pool would not shut down.**` — DIFFERENT: the table
   below IS this run's, but the pool could not be shut down afterwards (the job exits
   non-zero even if every board passed). Report the results AND the abandonment; never
   `"pass": true`.
-- `**HIL run selected no boards.**` — the filters intersected to nothing, so there is no
-  table at all. Report that (and the filter shown), never `"pass": true`.
+- `**HIL run selected no boards.**` — the filters intersected to nothing. A fresh run shows
+  no table; an `--accumulate` run keeps the previous attempt's rows under the notice, and
+  they are not this run's. Report the empty selection (and the filter shown), never
+  `"pass": true`.
 - `> **Rig note.**` — a process was in D state when the run started. This is NOT a wedge:
   a healthy in-flight testusb is uninterruptible for most of every case, and the rig
   supports a dev run alongside CI. On its own it is never `wedged: true` and never turns a

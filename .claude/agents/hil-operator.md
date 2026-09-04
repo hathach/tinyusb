@@ -47,9 +47,10 @@ The GitHub Actions runner keeps running during your work. Per-board flock locks 
   schedule them — it round-robins boards across host controllers and budgets simultaneous flashes
   and usbtest batteries per controller. Those budgets live in one process, so a second
   `hil_test.py` alongside the first does not share them and the rig sees double the configured
-  width. (Do not read that as the cause of a dead card: hil_lock.py:128-131 records that every
-  observed uPD720201 death traced to a marginal DUT port bouncing under concurrent batteries,
-  and that lowering the widths does not fix a bad port — fix the port or pull the board.)
+  width. (A dead uPD720201 card is not that: every observed death traced to a marginal DUT
+  port bouncing under concurrent batteries, and lowering the widths does not fix a bad port —
+  fix the port or pull the board; the concurrency note above `FLASH_PARALLEL` in `hil_lock.py`
+  keeps the record.)
 - On test failure, retry ONCE, with `-v` for diagnosis. Retry from the spec the run just wrote —
   `<config>.failed`, which already begins with `--accumulate` and restricts each board to its
   failed tests via `-bt`. If you compose the retry by hand you MUST pass `--accumulate` yourself:
@@ -76,6 +77,6 @@ python3 test/hil/helper/hil_report.py <config> -b BOARD [-b BOARD...]   # from t
 
 `results`, `banner` and `caveat` are copied, never retyped, reworded or re-ordered (`caveat` is the run-level notice — abandoned, aborted, no-boards — and it can say the run failed while every row says pass): report rows are named
 per variant, a variant name need not start with the board name, and lock contention is a cell
-rather than a phrase, so re-deriving any of it by hand is how this contract broke before.
+rather than a phrase, so any of it re-derived by hand has come out wrong before.
 `wedged` is yours — the boards your run left unresponsive, usually none — and the only field you
 author.
