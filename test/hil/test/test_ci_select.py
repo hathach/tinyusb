@@ -2603,5 +2603,28 @@ class TestGetDepsExampleShim(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
 
 
+class TestGetDepsExistingDirectory(unittest.TestCase):
+    def test_directory_without_git_metadata_is_initialized(self):
+        from tempfile import TemporaryDirectory
+        from unittest import mock
+        import get_deps
+
+        with TemporaryDirectory() as top:
+            dep = pathlib.Path(top, 'lib', 'dep')
+            dep.mkdir(parents=True)
+            result = subprocess.CompletedProcess([], 0, stdout=b'parent-head\n')
+            with mock.patch.object(get_deps, 'TOP', pathlib.Path(top)), \
+                    mock.patch.dict(get_deps.deps_all,
+                                    {'lib/dep': ['https://example.invalid/dep.git',
+                                                 '0123456789abcdef', 'test']},
+                                    clear=True), \
+                    mock.patch.object(get_deps, 'run_cmd', return_value=result) as run:
+                self.assertEqual(get_deps.get_a_dep('lib/dep'), 0)
+
+        commands = [call.args[0] for call in run.call_args_list]
+        self.assertTrue(commands[0].endswith(' init'), commands)
+        self.assertFalse(any(' reset --hard' in command for command in commands), commands)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=1)
