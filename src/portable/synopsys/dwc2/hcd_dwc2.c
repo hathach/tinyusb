@@ -176,6 +176,83 @@ TU_ATTR_ALWAYS_INLINE static inline bool channel_is_periodic(uint32_t hcchar) {
   return hcchar_bm.ep_type == HCCHAR_EPTYPE_INTERRUPT || hcchar_bm.ep_type == HCCHAR_EPTYPE_ISOCHRONOUS;
 }
 
+#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
+// The FS core cannot run two low-speed transactions in the same frame: a low-speed device behind a
+// full-speed hub is addressed with a preamble packet, and a second one in the same frame makes the
+// core clear HPRT.PENA, which kills the whole root port. ESP-IDF works around this in hcd_dwc.c with
+// a 1 ms delay per low-speed control stage (espressif/esp-idf#15683). Reserve one frame per
+// low-speed transaction instead, which also covers the periodic IN of a second low-speed device.
+// Directly attached low-speed devices use no preamble and are not affected.
+#define DWC2_LS_ONE_XACT_PER_FRAME 1
+#else
+#define DWC2_LS_ONE_XACT_PER_FRAME 0
+#endif
+
+#if DWC2_LS_ONE_XACT_PER_FRAME
+#define DWC2_LS_FRAME_MASK     0x3FFFu // FrNum counts 0..0x3FFF
+#define DWC2_LS_FRAME_SPIN_MAX 200000u // covers a frame, but never spins forever if SOFs have stopped
+
+static uint32_t _ls_frame_end = 0; // last frame claimed by a low-speed transaction
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t ls_frame_now(const dwc2_regs_t* dwc2) {
+  return dwc2->hfnum & DWC2_LS_FRAME_MASK;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline int32_t ls_frame_diff(uint32_t a, uint32_t b) {
+  const uint32_t d = (a - b) & DWC2_LS_FRAME_MASK;
+  return (int32_t)(d << 18) >> 18; // sign-extend 14-bit so the FrNum wrap compares correctly
+}
+
+// A transaction is free to run once the frames claimed by the previous one have passed. offset is
+// where this channel would start: periodic channels are armed for the next frame (odd_frame),
+// non-periodic ones go out in the current frame.
+TU_ATTR_ALWAYS_INLINE static inline bool ls_frame_free(const dwc2_regs_t* dwc2, uint32_t offset) {
+  return ls_frame_diff(ls_frame_now(dwc2) + offset, _ls_frame_end) > 0;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool ls_needs_preamble(const dwc2_regs_t* dwc2, uint32_t hcchar, uint32_t hcsplt) {
+  const dwc2_channel_char_t char_bm = {.value = hcchar};
+  const dwc2_channel_split_t splt_bm = {.value = hcsplt};
+  const dwc2_hprt_t hprt = {.value = dwc2->hprt};
+  // high/full speed device, split transaction or low-speed root port: no preamble, nothing to space out
+  return char_bm.low_speed_dev && !splt_bm.split_en && hprt.speed == HPRT_SPEED_FULL;
+}
+
+// Claim the frames this channel's transaction will occupy, waiting out the ones a previous low-speed
+// transaction still holds. Must be called on every path that enables a low-speed channel, including
+// the NAK retries that re-issue an IN token without going through channel_xfer_start(), and always
+// before a caller masks interrupts: this can wait out a whole frame.
+static void ls_frame_reserve(const dwc2_regs_t* dwc2, dwc2_channel_t* channel) {
+  if (!ls_needs_preamble(dwc2, channel->hcchar, channel->hcsplt)) {
+    return;
+  }
+
+  const bool is_period = channel_is_periodic(channel->hcchar);
+  const dwc2_channel_tsize_t hctsiz = {.value = channel->hctsiz};
+  const uint32_t offset = is_period ? 1u : 0u;
+  // the core runs the packets of a multi-packet transfer back-to-back, which at low speed can spill
+  // past the end of the frame it started in
+  const uint32_t span = (!is_period && hctsiz.packet_count > 1) ? 1u : 0u;
+
+  uint32_t spin = DWC2_LS_FRAME_SPIN_MAX;
+  while (spin-- && !ls_frame_free(dwc2, offset)) {}
+
+  const uint32_t now = ls_frame_now(dwc2);
+  if (is_period) {
+    dwc2_channel_char_t rearm = {.value = channel->hcchar};
+    rearm.odd_frame = 1 - (now & 1); // waiting may have crossed a frame boundary
+    channel->hcchar = rearm.value;   // channel_enable() re-picks the frame when it selects one itself
+  }
+  _ls_frame_end = (now + offset + span) & DWC2_LS_FRAME_MASK;
+}
+
+// Periodic low-speed IN armed from the SOF interrupt: defer to the next frame rather than spin, the
+// endpoint already has a retry path for that.
+TU_ATTR_ALWAYS_INLINE static inline bool ls_edpt_deferred(const dwc2_regs_t* dwc2, const hcd_endpoint_t* edpt) {
+  return ls_needs_preamble(dwc2, edpt->hcchar, edpt->hcsplt) && !ls_frame_free(dwc2, 1);
+}
+#endif
+
 TU_ATTR_ALWAYS_INLINE static inline uint8_t req_queue_avail(const dwc2_regs_t* dwc2, bool is_period) {
   if (is_period) {
     const dwc2_hptxsts_t hptxsts = {.value = dwc2->hptxsts};
@@ -292,6 +369,11 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t channel_send_in_token(dwc2_regs_t* 
   while (0 == req_queue_avail(dwc2, channel_is_periodic(channel->hcchar))) {
     // blocking wait for request queue available
   }
+#if DWC2_LS_ONE_XACT_PER_FRAME
+  // after the queue wait, not before: a wait that spans a frame boundary would leave the
+  // reservation naming a frame this channel no longer starts in
+  ls_frame_reserve(dwc2, channel);
+#endif
   return channel_enable(dwc2, channel, next_periodic_frame);
 }
 
@@ -760,6 +842,9 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id, bool defer_peri
       periodic_frame = channel_send_in_token(dwc2, channel, is_period);
     } else {
       hcd_dcache_clean(edpt->buffer, edpt->buflen);
+#if DWC2_LS_ONE_XACT_PER_FRAME
+      ls_frame_reserve(dwc2, channel); // IN is covered inside channel_send_in_token()
+#endif
       periodic_frame = channel_enable(dwc2, channel, is_period);
     }
   }
@@ -789,6 +874,13 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id, bool defer_peri
     if (hcchar_bm->ep_dir == TUSB_DIR_IN) {
       periodic_frame = channel_send_in_token(dwc2, channel, is_period);
     } else {
+#if DWC2_LS_ONE_XACT_PER_FRAME
+      // the path taken whenever host DMA is off, which is the default: every low-speed OUT and SETUP
+      // goes out here, including the control stages of a device enumerating next to a live low-speed
+      // interrupt IN. Before the masked region below, since waiting out a frame with the controller's
+      // interrupt disabled would hold off every other channel too.
+      ls_frame_reserve(dwc2, channel);
+#endif
       // The final FIFO word creates the OUT request. Keep CHENA and that write
       // atomic with respect to this controller's ISR.
       // This region never waits for FIFO or queue space.
@@ -1666,8 +1758,12 @@ static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
           edpt->uframe_countdown -= tu_min32(ucount, edpt->uframe_countdown);
         }
         if (edpt->uframe_countdown == 0) {
-          if (!edpt_xfer_kickoff(dwc2, ep_id)) {
-            edpt->uframe_countdown = ucount; // failed to start, try again next frame
+          bool deferred = false;
+#if DWC2_LS_ONE_XACT_PER_FRAME
+          deferred = ls_edpt_deferred(dwc2, edpt);
+#endif
+          if (deferred || !edpt_xfer_kickoff(dwc2, ep_id)) {
+            edpt->uframe_countdown = ucount; // busy low-speed frame or failed to start: try next frame
           }
         }
 
@@ -1762,8 +1858,10 @@ static void handle_hprt_irq(uint8_t rhport, bool in_isr) {
       // Port enable
       const tusb_speed_t speed = hprt_speed_get(dwc2);
       port0_enable(dwc2, speed);
-    } else {
-      // TU_ASSERT(false, );
+    } else if (hprt_bm.conn_status == 1u && hprt_bm.conn_detected == 0u) {
+      // The core disabled a still-connected port. Reuse attach handling
+      // to tear down the stale device tree and restart enumeration.
+      hcd_event_device_attach(rhport, in_isr);
     }
   }
 
