@@ -5,6 +5,7 @@
 # hil-test hook can run this on GitHub's bare runner. Run directly:
 #   python3 test/hil/test/test_hil_rtt.py
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -12,6 +13,7 @@ import time
 import unittest
 from contextlib import suppress as contextlib_suppress
 from pathlib import Path
+from unittest import mock
 
 # the module under test lives in the parent dir's helper/ package
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -77,6 +79,308 @@ for line in sys.stdin:
 '''
 
 BOARD = {'flasher': {'uid': '000', 'args': '-device FAKE'}}
+
+
+class RttPlatformLifecycle(unittest.TestCase):
+    def test_cli_missing_jlink_is_a_clean_error_on_this_platform(self):
+        env = dict(os.environ, RTT_JLINK_EXE='definitely-not-a-jlink-tool')
+        r = subprocess.run([sys.executable, str(CLI), '--backend', 'jlink',
+                            '--probe', '000', '--device', 'FAKE', '--seconds', '0.1'],
+                           env=env, capture_output=True, timeout=15)
+        self.assertEqual(r.returncode, 1, r.stderr)
+        self.assertIn(b'not on PATH', r.stderr)
+        self.assertNotIn(b'Traceback', r.stderr)
+
+    def test_process_group_creation_matches_platform(self):
+        options = hil_util._rtt._popen_group_options()
+        if os.name == 'nt':
+            self.assertEqual(options, {'creationflags': subprocess.CREATE_NEW_PROCESS_GROUP})
+        else:
+            self.assertEqual(options, {'start_new_session': True})
+
+    def test_windows_termination_uses_process_api_and_taskkill(self):
+        class FakeProc:
+            pid = 123
+
+            def __init__(self):
+                self.terminated = False
+                self.killed = False
+
+            def poll(self):
+                return None
+
+            def terminate(self):
+                self.terminated = True
+
+            def kill(self):
+                self.killed = True
+
+        proc = FakeProc()
+        with mock.patch.object(hil_util._rtt, 'IS_WINDOWS', True), \
+             mock.patch.object(hil_util._rtt.subprocess, 'run') as taskkill:
+            hil_util._rtt._terminate_process_group(proc, force=False)
+        taskkill.assert_called_once()
+        self.assertEqual(taskkill.call_args.args[0][:4], ['taskkill', '/PID', '123', '/T'])
+        self.assertIn('/F', taskkill.call_args.args[0])
+        self.assertTrue(proc.terminated)
+
+        proc = FakeProc()
+        with mock.patch.object(hil_util._rtt, 'IS_WINDOWS', True), \
+             mock.patch.object(hil_util._rtt.subprocess, 'run') as taskkill:
+            hil_util._rtt._terminate_process_group(proc, force=True)
+        self.assertIn('/F', taskkill.call_args.args[0])
+        self.assertTrue(proc.killed)
+
+    def test_windows_close_stops_the_tree_before_the_parent_can_exit(self):
+        class FakeProc:
+            pid = 123
+            stdin = None
+            stdout = None
+
+            def __init__(self):
+                self.alive = True
+
+            def poll(self):
+                return None if self.alive else 0
+
+            def wait(self, timeout):
+                if self.alive:
+                    raise subprocess.TimeoutExpired('fake', timeout)
+                return 0
+
+        class FakeConsole(hil_util._rtt._SocketRtt):
+            def __init__(self, proc):
+                super().__init__()
+                self._proc = proc
+                self.gentle_called = False
+
+            def _gentle_stop(self, proc):
+                self.gentle_called = True
+                proc.alive = False
+
+        proc = FakeProc()
+        con = FakeConsole(proc)
+
+        def stop_tree(stopped_proc, force):
+            self.assertIs(stopped_proc, proc)
+            self.assertFalse(force)
+            stopped_proc.alive = False
+
+        with mock.patch.object(hil_util._rtt, 'IS_WINDOWS', True), \
+             mock.patch.object(hil_util._rtt, '_terminate_process_group', side_effect=stop_tree) as stop:
+            con.close()
+        stop.assert_called_once_with(proc, force=False)
+        self.assertFalse(con.gentle_called)
+
+    @unittest.skipUnless(os.name == 'nt', 'Windows process-tree semantics')
+    def test_windows_close_reaps_a_real_child_process(self):
+        import ctypes
+
+        def pid_exists(pid):
+            handle = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid)
+            if not handle:
+                return False
+            try:
+                exit_code = ctypes.c_ulong()
+                if not ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+                    return False
+                return exit_code.value == 259  # STILL_ACTIVE
+            finally:
+                ctypes.windll.kernel32.CloseHandle(handle)
+
+        child_code = 'import time; time.sleep(60)'
+        parent_code = ('import subprocess, sys, time; '
+                       f'p = subprocess.Popen([sys.executable, "-c", {child_code!r}]); '
+                       'print(p.pid, flush=True); time.sleep(60)')
+        con = hil_util._rtt._SocketRtt()
+        con._spawn([sys.executable, '-c', parent_code])
+        proc = con._proc
+        child_pid = None
+        try:
+            deadline = time.monotonic() + 5
+            while child_pid is None and time.monotonic() < deadline:
+                match = re.search(r'\d+', con._server_tail())
+                if match:
+                    child_pid = int(match.group())
+                    break
+                time.sleep(0.05)
+            self.assertIsNotNone(child_pid, 'child PID was not written to the server log')
+            taskkill_results = []
+            real_run = subprocess.run
+
+            def run_taskkill(cmd, **kwargs):
+                kwargs['stdout'] = subprocess.PIPE
+                kwargs['stderr'] = subprocess.PIPE
+                result = real_run(cmd, **kwargs)
+                taskkill_results.append(result)
+                return result
+
+            with mock.patch.object(hil_util._rtt.subprocess, 'run', side_effect=run_taskkill):
+                con.close()
+            self.assertEqual(taskkill_results[0].returncode, 0, taskkill_results[0].stderr)
+            self.assertIsNotNone(proc.poll())
+            deadline = time.monotonic() + 2
+            while pid_exists(child_pid) and time.monotonic() < deadline:
+                time.sleep(0.05)
+            self.assertFalse(pid_exists(child_pid))
+        finally:
+            con.close()
+            for pid in (proc.pid, child_pid):
+                if pid and pid_exists(pid):
+                    subprocess.run(['taskkill', '/PID', str(pid), '/T', '/F'],
+                                   capture_output=True, check=False)
+
+    @unittest.skipUnless(os.name == 'nt', 'Windows temporary-file sharing semantics')
+    def test_server_log_can_be_reopened_and_is_removed(self):
+        class DoneProc:
+            stdin = None
+            stdout = None
+
+            def poll(self):
+                return 0
+
+        con = hil_util._rtt._SocketRtt()
+        with mock.patch.object(hil_util._rtt.subprocess, 'Popen', return_value=DoneProc()):
+            con._spawn(['fake-server'])
+        log_name = con._log.name
+        con._log.write(b'useful server failure')
+        con._log.flush()
+        self.assertIn('useful server failure', con._server_tail())
+        con.close()
+        self.assertFalse(os.path.exists(log_name))
+
+    def test_posix_server_log_keeps_automatic_deletion(self):
+        class DoneProc:
+            stdin = None
+            stdout = None
+
+            def poll(self):
+                return 0
+
+        con = hil_util._rtt._SocketRtt()
+        named_temporary_file = tempfile.NamedTemporaryFile
+        with mock.patch.object(hil_util._rtt, 'IS_WINDOWS', False), \
+             mock.patch.object(hil_util._rtt.tempfile, 'NamedTemporaryFile',
+                               wraps=named_temporary_file) as named_log, \
+             mock.patch.object(hil_util._rtt.subprocess, 'Popen', return_value=DoneProc()):
+            con._spawn(['fake-server'])
+        self.assertTrue(named_log.call_args.kwargs['delete'])
+        con.close()
+
+    def test_connect_honors_a_stop_request_during_setup(self):
+        class FakeProc:
+            def poll(self):
+                return None
+
+        con = hil_util._rtt._SocketRtt()
+        con._proc = FakeProc()
+        con.close = mock.Mock()
+        stop = mock.Mock(side_effect=(False, True))
+        with mock.patch.object(hil_util._rtt.socket, 'create_connection', side_effect=OSError), \
+             mock.patch.object(hil_util._rtt.time, 'sleep'), \
+             self.assertRaises(hil_util._rtt._StopCapture):
+            con._connect(1234, stop=stop)
+        con.close.assert_called_once()
+
+    def test_symbol_lookup_honors_a_stop_request(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            fake_nm = Path(temp_dir) / 'slow_nm.py'
+            fake_nm.write_text('import time\ntime.sleep(30)\n')
+            stop = mock.Mock(side_effect=(False, False, True))
+            started = time.monotonic()
+            with self.assertRaises(hil_util._rtt._StopCapture):
+                hil_util._rtt.nm_rtt_addr(str(fake_nm), nm=sys.executable, stop=stop)
+        self.assertLess(time.monotonic() - started, 2)
+
+    def test_symbol_lookup_reaps_nm_when_interrupted(self):
+        class InterruptedNm:
+            returncode = None
+
+            def __init__(self):
+                self.terminated = False
+                self.reaped = False
+
+            def communicate(self, timeout=None):
+                if not self.terminated:
+                    raise KeyboardInterrupt
+                self.reaped = True
+                self.returncode = -1
+                return '', ''
+
+            def terminate(self):
+                self.terminated = True
+
+            def kill(self):
+                self.terminated = True
+
+        proc = InterruptedNm()
+        with mock.patch.object(hil_util._rtt.subprocess, 'Popen', return_value=proc), \
+             self.assertRaises(KeyboardInterrupt):
+            hil_util._rtt.nm_rtt_addr('fake.elf', nm='fake-nm', stop=lambda: False)
+        self.assertTrue(proc.terminated)
+        self.assertTrue(proc.reaped)
+
+    def test_windows_defaults_to_jlink_exe(self):
+        with mock.patch.object(hil_util._rtt, 'IS_WINDOWS', True), \
+             mock.patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(hil_util._rtt._tool_exe('RTT_JLINK_EXE', 'JLinkExe', 'JLink.exe'),
+                             'JLink.exe')
+
+    def test_cli_accepts_an_existing_stop_file(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            stop_file = Path(temp_dir) / 'capture.stop'
+            stop_file.touch()
+            r = subprocess.run(
+                [sys.executable, str(CLI), '--backend', 'jlink', '--probe', '000',
+                 '--device', 'FAKE', '--stop-file', str(stop_file)],
+                capture_output=True, timeout=20)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_cli_accepts_a_stop_file_created_immediately_after_spawn(self):
+        env = dict(os.environ, RTT_JLINK_EXE='definitely-not-a-jlink-tool')
+        with tempfile.TemporaryDirectory() as temp_dir:
+            stop_file = Path(temp_dir) / 'capture.stop'
+            for _ in range(5):
+                with contextlib_suppress(FileNotFoundError):
+                    stop_file.unlink()
+                proc = subprocess.Popen(
+                    [sys.executable, str(CLI), '--backend', 'jlink', '--probe', '000',
+                     '--device', 'FAKE', '--stop-file', str(stop_file)],
+                    env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                stop_file.touch()
+                _, stderr = proc.communicate(timeout=20)
+                self.assertEqual(proc.returncode, 0, stderr)
+
+    def test_cli_stop_file_cancels_connection_setup(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            stop_file = Path(temp_dir) / 'capture.stop'
+
+            def start_console(*_args, **kwargs):
+                stop_file.touch()
+                self.assertTrue(kwargs['stop']())
+                raise hil_util._rtt._StopCapture
+
+            argv = [str(CLI), '--backend', 'jlink', '--probe', '000', '--device', 'FAKE',
+                    '--stop-file', str(stop_file)]
+            with mock.patch.object(sys, 'argv', argv), \
+                 mock.patch.object(hil_util._rtt, 'JlinkRtt', side_effect=start_console):
+                self.assertEqual(hil_util._rtt.main(), 0)
+
+    def test_cli_stop_file_cancels_symbol_lookup(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            stop_file = Path(temp_dir) / 'capture.stop'
+
+            def find_symbol(_elf, nm=None, stop=None):
+                self.assertIsNone(nm)
+                stop_file.touch()
+                self.assertTrue(stop())
+                raise hil_util._rtt._StopCapture
+
+            argv = [str(CLI), '--backend', 'openocd', '--probe', '000', '--cfg', '-f fake.cfg',
+                    '--elf', 'fake.elf', '--stop-file', str(stop_file)]
+            with mock.patch.object(sys, 'argv', argv), \
+                 mock.patch.object(hil_util._rtt, 'nm_rtt_addr', side_effect=find_symbol):
+                self.assertEqual(hil_util._rtt.main(), 0)
 
 
 @unittest.skipIf(os.name == 'nt', 'POSIX PATH/exec semantics')
@@ -195,6 +499,21 @@ class JlinkRttFakeProbe(unittest.TestCase):
         self.assertEqual(r.returncode, 1)
         self.assertIn(b'hello from target', r.stdout)
         self.assertIn(b'server closed', r.stderr)
+
+    def test_cli_stop_file_closes_a_continuous_capture(self):
+        env = dict(os.environ, PATH=self._path, FAKE_JLINK_MODE='tick')
+        with tempfile.TemporaryDirectory() as temp_dir:
+            stop_file = Path(temp_dir) / 'capture.stop'
+            proc = subprocess.Popen(
+                [sys.executable, str(CLI), '--backend', 'jlink', '--probe', '000',
+                 '--device', 'FAKE', '--seconds', '0', '--stop-file', str(stop_file)],
+                env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            time.sleep(0.5)
+            stop_file.touch()
+            stdout, stderr = proc.communicate(timeout=20)
+        self.assertEqual(proc.returncode, 0, stderr)
+        self.assertIn(b'hello from target', stdout)
+        self.assertIn(b'tick', stdout)
 
     def test_peer_reset_latches_eof(self):
         # a killed server closes with RST when bytes are unread; the read side must
