@@ -8,6 +8,9 @@ CFLAGS += \
   -DCORE_M4 \
   -D__USE_LPCOPEN \
   -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data.$$RAM2")))' \
+  -DCFG_TUD_MEM_SECTION='__attribute__((section(".data.$$RAM2")))' \
+  -DCFG_TUH_MEM_SECTION='__attribute__((section(".data.$$RAM2")))' \
+  -DBOARD_TUH_RHPORT=0 \
   -DCFG_TUSB_MCU=OPT_MCU_LPC40XX
 
 # mcu driver cause following warnings

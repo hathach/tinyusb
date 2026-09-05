@@ -121,6 +121,11 @@ void board_init(void) {
 
   // set portfunc: USB1 = host, USB2 = device
   LPC_USB->StCtrl = 0x3;
+
+  // VBUS on the USB1 host connector, see the P1.19 note in board.h. Driven either way:
+  // left as an input it would float the switch enable in a device-only build.
+  Chip_GPIO_SetPinState(LPC_GPIO, 1, 19, CFG_TUH_ENABLED);
+  Chip_GPIO_SetPinDIROutput(LPC_GPIO, 1, 19);
 }
 
 //--------------------------------------------------------------------+

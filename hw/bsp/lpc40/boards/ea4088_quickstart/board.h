@@ -59,9 +59,10 @@ static const PINMUX_GRP_T pinmuxing[] = {
     { 0, 29, (IOCON_FUNC1 | IOCON_MODE_INACT) }, // D+1
     { 0, 30, (IOCON_FUNC1 | IOCON_MODE_INACT) }, // D-1
     { 1, 18, (IOCON_FUNC1 | IOCON_MODE_INACT) }, // UP LED1
-    { 1, 19, (IOCON_FUNC2 | IOCON_MODE_INACT) }, // PPWR1
-//  {2, 14, (IOCON_FUNC2 | IOCON_MODE_INACT)}, // VBUS1
-//  {2, 15, (IOCON_FUNC2 | IOCON_MODE_INACT)}, // OVRCR1
+    // U7 (STMPS2171) enables VBUS on a HIGH level, but USB_PPWR1 asserts LOW, so the port
+    // never gets power while the peripheral function drives this pin. Keep it a GPIO and
+    // drive it high in board_init() instead.
+    { 1, 19, (IOCON_FUNC0 | IOCON_MODE_INACT) }, // VBUS1 enable (active high)
 
     // USB2 as Device
     { 0, 31, (IOCON_FUNC1 | IOCON_MODE_INACT) }, // D+2

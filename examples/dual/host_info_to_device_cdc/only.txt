@@ -9,3 +9,4 @@ mcu:STM32F4
 mcu:STM32F7
 mcu:STM32H7
 mcu:ESP32P4
+mcu:LPC40XX
