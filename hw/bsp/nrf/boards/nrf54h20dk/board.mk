@@ -6,9 +6,6 @@ CFLAGS += -DNRF54H20_XXAA
 # RAM00 (512 KB) and drop this.
 CFLAGS += -DCFG_EXAMPLE_VIDEO_READONLY
 
-# enable max3421 host driver for this board
-MAX3421_HOST = 1
-
 # caused by void SystemStoreFICRNS() (without void) in system_nrf5340_application.c
 CFLAGS += -Wno-error=strict-prototypes
 
