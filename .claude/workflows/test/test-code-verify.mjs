@@ -122,7 +122,8 @@ await check('fails closed when codex dies', async () => {
 })
 
 await check('only validate bypasses the router for one-level nesting', async () => {
-  const dir = new URL('.', import.meta.url)
+  const dir = new URL('../', import.meta.url)
+  assert.ok(readdirSync(dir).includes('code-verify.js'), 'workflow scan must target its parent directory')
   const offenders = readdirSync(dir)
     .filter(name => name.endsWith('.js') && !['code-verify.js', 'validate.js'].includes(name))
     .filter(name => /agentType:\s*['"](?:codex-)?code-verifier['"]/.test(
