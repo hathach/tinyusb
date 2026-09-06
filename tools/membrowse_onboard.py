@@ -107,7 +107,7 @@ def write_linker_shim(ninja, build_dir, target, output, *scripts):
         if '"' in path or not os.path.isfile(path):
             sys.exit(f'linker script not found or unsupported: {path!r}')
         lines.append(f'INCLUDE "{path}"')
-    with open(output, 'w') as f:  # NOSONAR - trusted internal CLI path
+    with open(output, 'w') as f:
         f.write('\n'.join(lines) + '\n')
     return 0
 
@@ -171,7 +171,7 @@ def main():
     if ret.returncode != 0:
         sys.exit(f'failed to create disposable worktree at {worktree_dir}:\n{ret.stderr}')
     try:
-        return subprocess.run(cmd, cwd=worktree_dir).returncode  # NOSONAR - trusted local developer CLI argv
+        return subprocess.run(cmd, cwd=worktree_dir).returncode
     finally:
         subprocess.run(['git', 'worktree', 'remove', '--force', worktree_dir],
                        capture_output=True)

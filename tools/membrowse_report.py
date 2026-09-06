@@ -38,7 +38,7 @@ def ninja_commands(ninja, build_dir, target):
     even when --ld overrides linker-script extraction: --defsym extraction still
     reads this same output, so a failed query is fatal under --ld too.
     """
-    r = subprocess.run([ninja, '-C', build_dir, '-t', 'commands', target],  # NOSONAR - trusted local developer CLI argv
+    r = subprocess.run([ninja, '-C', build_dir, '-t', 'commands', target],
                         capture_output=True, text=True)
     if r.returncode != 0:
         sys.exit(f"error: '{ninja} -C {build_dir} -t commands {target}' failed "
@@ -152,7 +152,7 @@ def main(argv=None):
     # land ahead of this line in a captured stream.
     print(' '.join(shlex.quote(p) for p in logged), flush=True)
 
-    return subprocess.run(cmd).returncode  # NOSONAR - trusted local developer CLI argv
+    return subprocess.run(cmd).returncode
 
 
 if __name__ == '__main__':

@@ -120,7 +120,7 @@ def build_board(src_dir, build_dir, board, example=None, linkermap=False):
     os.makedirs(build_dir, exist_ok=True)
     map_pattern = f'{build_dir}/{example}/*.map.json' if example \
         else f'{build_dir}/**/*.map.json'
-    map_paths = glob.glob(map_pattern, recursive=True) if linkermap else []  # NOSONAR - trusted local developer CLI path
+    map_paths = glob.glob(map_pattern, recursive=True) if linkermap else []
     old_maps = {path: (os.stat(path).st_mtime_ns, os.stat(path).st_size)
                 for path in map_paths}
     ret = run(['cmake', '-B', build_dir, '-G', 'Ninja',
@@ -141,7 +141,7 @@ def build_board(src_dir, build_dir, board, example=None, linkermap=False):
         target = f'{os.path.basename(example)}-linkermap' if example else 'examples-linkermap'
         ret = run(['cmake', '--build', build_dir, '--target', target], timeout=600)
         if ret.returncode != 0:
-            maps = glob.glob(map_pattern, recursive=True)  # NOSONAR - trusted local developer CLI path
+            maps = glob.glob(map_pattern, recursive=True)
             fresh = any(path not in old_maps or
                         (os.stat(path).st_mtime_ns, os.stat(path).st_size) != old_maps[path]
                         for path in maps)
@@ -193,7 +193,7 @@ def generate_membrowse_sizes(build_dir, filters, example=None):
     import membrowse_compare
     pattern = f'{build_dir}/{example}/*.elf' if example \
         else f'{build_dir}/**/*.elf'
-    elfs = glob.glob(pattern, recursive=True)  # NOSONAR - trusted local developer CLI path
+    elfs = glob.glob(pattern, recursive=True)
     if not elfs:
         print(f'  Error: no .elf files in {build_dir}')
         return None
@@ -341,7 +341,7 @@ def main():
                 suffix = f'_{example.replace("/", "_")}' if example else ''
                 stale_report = os.path.join(board_dir, f'metrics_compare{suffix}.md')
                 if os.path.isfile(stale_report):
-                    os.remove(stale_report)  # NOSONAR - trusted local developer CLI path
+                    os.remove(stale_report)
             base_build = os.path.join(board_dir, 'base')
             cur_build = os.path.join(board_dir, 'build')
 
@@ -382,7 +382,7 @@ def main():
 
                     print(f'[5/5] Comparing {board}{label}...')
                     md = membrowse_compare.compare_reports(base_sizes, cur_sizes)
-                    with open(f'{out_base}.md', 'w') as f:  # NOSONAR - trusted local developer CLI path
+                    with open(f'{out_base}.md', 'w') as f:
                         f.write(md)
                     print(md)
                 else:

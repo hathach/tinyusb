@@ -79,7 +79,7 @@ def list_drivers(portable_dir):
 
 
 def load_boards(path):
-    with open(path) as f:  # NOSONAR - trusted local developer CLI path
+    with open(path) as f:
         return json.load(f)
 
 

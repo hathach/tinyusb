@@ -340,7 +340,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install membrowse
-        run: 'pip install --only-binary=:all: membrowse==1.2.9'
+        run: pip install membrowse
 
       - name: Membrowse identical upload (espressif, no code change)
         continue-on-error: true

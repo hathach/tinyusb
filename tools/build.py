@@ -388,7 +388,7 @@ def resolve_ci_boards(boards_path, family, boards_only, examples=None,
     build dirs of boards that were built only as compile smoke-checks; a CI board
     that cannot build the filter is exactly that: a smoke-check substitute, not the
     tracked board)."""
-    with open(boards_path) as f:  # NOSONAR - trusted local developer CLI path
+    with open(boards_path) as f:
         data = json.load(f)
     ci_boards = [t['board'] for t in data['boards'] if find_family(t['board']) == family]
     if examples is not None:
