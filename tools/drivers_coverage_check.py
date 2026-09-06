@@ -7,9 +7,8 @@ board's `drivers` list, or `uncovered`, covers it) and the HIL rig rosters
 (test/hil/tinyusb.json, test/hil/hfp.json - which board family, if any, on
 the physical rig builds it).
 
-Coverage GAPS are informational only and never fail the run: a membrowse gap
-documented in `uncovered` prints INFO, an undocumented one prints WARNING,
-and a driver with no rig board prints INFO. VALIDITY errors - malformed
+Documented membrowse gaps and drivers with no rig board are informational.
+An undocumented membrowse gap is fatal, as are validity errors: malformed
 json, an unknown driver/board name, a board/driver mismatch, a board whose
 family no CI toolchain actually builds (ci_set_matrix.family_list), a driver claimed by both
 `boards` and `uncovered`, or an hcd_*/ehci/ohci claim on a board that
@@ -84,8 +83,7 @@ def load_boards(path):
 
 
 def check(path):
-    """Validity errors only - fatal, one line each. Coverage gaps (a driver
-    with no CI board) are no longer errors; see membrowse_gaps()."""
+    """Fatal roster validity and undocumented coverage errors, one line each."""
     errors = []
     data = load_boards(path)
     boards = data.get('boards')
@@ -158,6 +156,9 @@ def check(path):
             errors.append(f'"{d}" is both covered and uncovered')
         if not (isinstance(reason, str) and reason.strip()):
             errors.append(f'uncovered "{d}": reason must be a non-empty string')
+
+    for d in sorted(drivers - covered - set(uncovered)):
+        errors.append(f'membrowse: {d} has no CI board and no uncovered entry')
 
     return errors
 

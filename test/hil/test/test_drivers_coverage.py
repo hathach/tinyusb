@@ -64,16 +64,14 @@ class CheckerVerdicts(unittest.TestCase):
         self.addCleanup(os.unlink, tmp.name)
         return run_checker(tmp.name)
 
-    def test_missing_driver_becomes_a_warning_not_a_failure(self):
-        # drop every entry covering dcd_rp2040 and don't add it to uncovered: a
-        # coverage gap, not a validity error - it must not fail the run
+    def test_undocumented_missing_driver_fails(self):
+        # A new driver must be covered or carry an explicit uncovered reason.
         def mutate(d):
             for t in d['boards']:
                 t['drivers'] = [x for x in t['drivers'] if x != 'dcd_rp2040']
         r = self._mutated(mutate)
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn('WARNING: membrowse: dcd_rp2040 has no CI board', r.stdout)
-        self.assertEqual(r.stderr, '')
+        self.assertEqual(r.returncode, 1)
+        self.assertIn('dcd_rp2040 has no CI board and no uncovered entry', r.stderr)
 
     def test_unknown_driver_name_fails(self):
         r = self._mutated(lambda d: d['boards'][0]['drivers'].append('dcd_nonexistent'))
