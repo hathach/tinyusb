@@ -113,5 +113,48 @@ await check('all code-verifier calls use the router', async () => {
   assert.deepEqual(offenders, [])
 })
 
+await check('validate uses one dual-provider router call', async () => {
+  const src = readFileSync(new URL('./validate.js', import.meta.url), 'utf8')
+  assert.equal((src.match(/workflow\(['"]code-verify['"]/g) || []).length, 1)
+  assert.match(src, /const reviewProvider = reviewStageNames\.length === 2 \? 'both'/)
+  assert.match(src, /provider:\s*reviewProvider/)
+  assert.doesNotMatch(src, /codex review --base/)
+  assert.doesNotMatch(src, /model:\s*['"]opus['"][^}]*schema:\s*REVIEW/)
+})
+
+await check('validate keeps provider results and gates separate', async () => {
+  const src = readFileSync(new URL('./validate.js', import.meta.url), 'utf8').replace(/^export /m, '')
+  const calls = []
+  const fn = new AsyncFunction(
+    'args', 'agent', 'pipeline', 'parallel', 'phase', 'log', 'workflow', 'budget', src)
+  const agent = async (prompt, options) => {
+    assert.equal(options.agentType, 'builder')
+    return { board: 'test', pass: true, builtCount: 1, failures: [] }
+  }
+  const workflow = async (name, args) => {
+    calls.push({ name, args })
+    return {
+      claude: {
+        pass: true, detail: 'claude',
+        findings: [{ file: 'a.c', line: 1, severity: 'CONFIRMED P2 correctness', summary: 'bug' }],
+      },
+      codex: {
+        pass: true, detail: 'codex',
+        findings: [{ file: 'b.c', line: 2, severity: 'CONFIRMED P2 correctness', summary: 'bug' }],
+      },
+    }
+  }
+  const parallel = thunks => Promise.all(thunks.map(run => run()))
+  const result = await fn(
+    { boards: ['test'], skip: ['unit', 'size', 'pvs'], maxCycles: 1 },
+    agent, null, parallel, () => {}, () => {}, workflow, null,
+  )
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].name, 'code-verify')
+  assert.equal(calls[0].args.provider, 'both')
+  assert.equal(result.stages.find(s => s.stage === 'review').pass, false)
+  assert.equal(result.stages.find(s => s.stage === 'codex').pass, true)
+})
+
 console.log(failed ? `\n${failed} FAILED` : '\nall checks passed')
 process.exit(failed ? 1 : 0)
