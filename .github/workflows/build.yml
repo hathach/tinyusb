@@ -330,7 +330,7 @@ jobs:
   # branch routes straight to it when there is no build dir), so plain python on
   # ubuntu-latest is enough - no ESP-IDF docker image, no idf.py, no compiler.
   hil-build-esp-identical:
-    needs: [ check-paths, set-matrix ]
+    needs: [ check-paths ]
     if: needs.check-paths.outputs.code_changed != 'true' && github.repository_owner == 'hathach'
     runs-on: ubuntu-latest
     steps:
@@ -346,12 +346,12 @@ jobs:
         continue-on-error: true
         env:
           MEMBROWSE_API_KEY: ${{ secrets.MEMBROWSE_API_KEY }}
-          ESP_ARGS: ${{ toJSON(fromJSON(needs.set-matrix.outputs.hil_json)['esp-idf']) }}
         run: |
           # one tools/build.py call per board, not one call for all of them: the
           # default shell here is `bash -eo pipefail`, and a later board must still
           # get its upload attempt even if an earlier one fails
-          echo "$ESP_ARGS" | python3 -c 'import json, sys; [print(a) for a in json.load(sys.stdin)]' |
+          python3 .github/scripts/hil_ci_set_matrix.py test/hil/tinyusb.json |
+          python3 -c 'import json, sys; [print(a) for a in json.load(sys.stdin)["esp-idf"]]' |
           while IFS= read -r arg; do
             # same variant guard as build_util.yml's Membrowse Upload step: a
             # -DMA variant leg configures with the same -DBOARD=<name> as the
@@ -362,10 +362,6 @@ jobs:
               *' --build-name '*|*' -D'*|*' --cflag='*)
                 echo "skip membrowse upload: variant build ($arg)"; continue ;;
             esac
-            # same -e strip as build_util.yml's Membrowse Upload step: $arg can
-            # carry per-example -e flags from a PR-scoped hil_ci_set_matrix.py
-            # selection, and an --identical upload must still touch every example.
-            arg=$(printf '%s' "$arg" | sed -E 's/ -e [^ ]+//g')
             python3 tools/build.py -s cmake --target examples-membrowse-upload -j 1 $arg || true
           done
 

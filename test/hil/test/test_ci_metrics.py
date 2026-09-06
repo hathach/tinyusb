@@ -202,6 +202,13 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         self.assertEqual(uploaders,
                          ['cmake', 'hil-build-esp', 'hil-build-esp-identical'])
 
+    def test_esp_identical_upload_uses_full_roster(self):
+        import re
+        jobs = re.split(r'\n  (?=[a-z][\w-]*:\n)', self.build)
+        job = next(j for j in jobs if j.startswith('hil-build-esp-identical:'))
+        self.assertIn('hil_ci_set_matrix.py test/hil/tinyusb.json', job)
+        self.assertNotIn('needs.set-matrix.outputs.hil_json', job)
+
     def test_no_skip_hil_boards_anywhere(self):
         self.assertNotIn('--skip-hil-boards', self.build)
         self.assertNotIn('hil_built_boards', self.build)
