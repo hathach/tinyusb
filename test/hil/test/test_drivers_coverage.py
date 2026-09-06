@@ -82,6 +82,16 @@ class CheckerVerdicts(unittest.TestCase):
         self.assertEqual(r.returncode, 1)
         self.assertIn('no_such_board', r.stderr)
 
+    def test_board_claiming_an_unrelated_driver_fails(self):
+        def mutate(d):
+            for t in d['boards']:
+                if t['board'] == 'stm32f407disco':
+                    t['drivers'][0] = 'dcd_nrf5x'
+        r = self._mutated(mutate)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn('stm32f407disco', r.stderr)
+        self.assertIn('does not build', r.stderr)
+
     def test_driver_in_both_lists_fails(self):
         def mutate(d):
             drv = d['boards'][0]['drivers'][0]

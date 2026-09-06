@@ -20,9 +20,9 @@ Composes, from repo-root-relative conventions:
   elf path:     <build_dir>/<role>/<basename>/<basename>.elf
   target name:  <board>/<basename>
   ld scripts:   regenerated after every build from its ninja graph
-  change scope: --build-dirs src/ hw/ examples/<role>/<name>/  (skip rebuilds
-                elsewhere - the example's own dir is in scope too, since its
-                sources link into the same elf as src/ and hw/)
+  change scope: --build-dirs src/ hw/ examples/<role>/<name>/ tools/get_deps.py
+                (skip rebuilds elsewhere - the example's own dir and dependency
+                manifest are in scope because both can change the same elf)
 
 Dry-run by default; pass --upload for the real run (requires MEMBROWSE_API_KEY
 in the environment - read at run time, passed as argv, never printed).
@@ -64,7 +64,8 @@ def compose(board, example, num_commits, upload, api_key, extra):
         api_key,
     ]
     if '--binary-search' not in extra:
-        cmd += ['--build-dirs', 'src/', 'hw/', f'examples/{example.rstrip("/")}/']
+        cmd += ['--build-dirs', 'src/', 'hw/', f'examples/{example.rstrip("/")}/',
+                'tools/get_deps.py']
     cmd += ['--ld-scripts', shim_path]
     if not upload:
         cmd.append('--dry-run')

@@ -10,8 +10,8 @@ the physical rig builds it).
 Coverage GAPS are informational only and never fail the run: a membrowse gap
 documented in `uncovered` prints INFO, an undocumented one prints WARNING,
 and a driver with no rig board prints INFO. VALIDITY errors - malformed
-json, an unknown driver/board name, a board whose family no CI toolchain
-actually builds (ci_set_matrix.family_list), a driver claimed by both
+json, an unknown driver/board name, a board/driver mismatch, a board whose
+family no CI toolchain actually builds (ci_set_matrix.family_list), a driver claimed by both
 `boards` and `uncovered`, or an hcd_*/ehci/ohci claim on a board that
 builds no host/ or dual/ example (host examples are only.txt opt-in) - are
 bugs in the file, not gaps, and stay fatal: one line per error to stderr,
@@ -95,12 +95,14 @@ def check(path):
     if not isinstance(uncovered, dict):
         return [f'{path}: "uncovered" must be an object of driver: reason']
 
-    drivers = list_drivers(os.path.join(REPO, 'src', 'portable'))
+    driver_paths = list_driver_paths(os.path.join(REPO, 'src', 'portable'))
+    drivers = set(driver_paths)
     # ci_set_matrix.family_list is the ground truth for which families any CI
     # toolchain actually builds. espressif is a deliberate exception there (see its
     # own comment): hil-build-esp builds it by board name, not through this file, so
     # its absence from family_list doesn't mean it's unbuilt.
     ci_families = set(ci_set_matrix.family_list) | {'espressif'}
+    gates_by_port = ci_select.port_option_gates(REPO)
     covered = set()
     for i, t in enumerate(boards):
         where = f'boards[{i}]'
@@ -115,6 +117,7 @@ def check(path):
         board = t.get('board', '')
         family = ci_select.board_family(board, REPO) if board else None
         board_ok = family is not None
+        options = ci_select.board_options({'name': board}, REPO) if board_ok else set()
         if board and not board_ok:
             errors.append(f'{where}: unknown board "{board}" (no hw/bsp/*/boards/{board})')
         if board_ok and family not in ci_families:
@@ -132,6 +135,14 @@ def check(path):
         for d in driver_list:
             if d not in drivers:
                 errors.append(f'{where} ({board}): "{d}" matches no driver source file')
+            elif board_ok:
+                port = _driver_port(driver_paths[d], REPO)
+                families = ci_select.port_families(port, REPO) if port else set()
+                gates = gates_by_port.get(port, set()) if port else set()
+                if family not in families and not gates & options:
+                    errors.append(
+                        f'{where} ({board}): claims "{d}" but does not build its '
+                        f'"{port}" port')
             covered.add(d)
 
         host_drivers = [d for d in driver_list if _is_host_driver(d)]
