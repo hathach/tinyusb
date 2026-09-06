@@ -17,7 +17,7 @@ FLASH_SECTIONS = ('.text', '.rodata', '.isr_vector', '.vector', '.init', '.fini'
 RAM_SECTIONS = ('.bss', '.noinit', '.stack', '.heap',
                 'NonCacheable', '.fast', 'm_usb_global', '.time_critical')
 # These sections have a flash load image and RAM run address.
-BOTH_SECTIONS = ('.data', '.ramfunc', '.fastrun', '.itcm', '.dtcm', '.ccmram')
+BOTH_SECTIONS = ('.data', '.relocate', '.ramfunc', '.fastrun', '.itcm', '.dtcm', '.ccmram')
 
 _RAM_REGION_HINTS = ('ram', 'tcm', 'ddr')
 _FLASH_REGION_HINTS = ('flash', 'rom')

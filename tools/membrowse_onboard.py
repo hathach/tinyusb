@@ -5,13 +5,9 @@ Thin wrapper over `membrowse onboard` that derives every convention-bound
 argument from the board and example name, so a backfill cannot land under a
 target name that differs from what CI uploads (family_support.cmake uses
 `<board>/<cmake-target>`, i.e. the example BASENAME - not the role/name path).
-That includes the linker scripts and --defsym values: they're extracted from
-the same build dir's ninja graph, using membrowse_report.py's own extraction
-helpers, so a backfill is computed over the SAME regions CI's per-commit
-upload used - not membrowse's DEFAULT Code/Data regions, which would land
-under the same target name as CI but read as a step-discontinuity code-size
-event in the dashboard (and be unfixable after the fact: history is keyed on
-the target name).
+Each historical build writes a small linker shim from that commit's ninja graph,
+so linker scripts and --defsym values match the ELF being reported rather than
+the caller's current checkout.
 
 `membrowse onboard` (membrowse/commands/onboard.py) checks out and `git clean
 -fdx`s every historical commit unconditionally, in whatever directory it runs.
@@ -25,18 +21,12 @@ script below re-links them before every historical build too, not just
 the first.
 
 Composes, from repo-root-relative conventions:
-  build dir:    examples/cmake-build-<board>   (must be configured beforehand,
-                so this wrapper can extract ld scripts/defsyms below - but
-                `membrowse onboard` itself runs `git clean -fdx` before every
-                historical build, which deletes this ignored dir, so the
-                build script below reconfigures it fresh each time rather
-                than relying on it surviving between commits)
+  build dir:    examples/cmake-build-<board> (reconfigured for every commit)
   build script: <relink deps> && cmake -S examples -B <build_dir> ... &&
                 cmake --build <build_dir> --target <basename>
   elf path:     <build_dir>/<role>/<basename>/<basename>.elf
   target name:  <board>/<basename>
-  ld scripts:   extracted from `ninja -t commands <basename>` in build dir
-  --defsym      ditto
+  ld scripts:   regenerated after every build from its ninja graph
   change scope: --build-dirs src/ hw/ examples/<role>/<name>/  (skip rebuilds
                 elsewhere - the example's own dir is in scope too, since its
                 sources link into the same elf as src/ and hw/)
@@ -51,12 +41,12 @@ import shutil
 import subprocess
 import sys
 
-from membrowse_report import ninja_commands, extract_ld_scripts, extract_defsyms
+from membrowse_report import LD_SCRIPT_RE, ninja_commands, extract_defsyms
 from metrics_compare_base import symlink_deps
 
 
 def compose(board, example, num_commits, upload, api_key, extra,
-            ld_scripts=(), defsyms=(), repo_root=None, worktree_dir=None):
+            repo_root=None, worktree_dir=None):
     """Return the membrowse onboard argv for one board/example backfill."""
     basename = os.path.basename(example.rstrip('/'))
     build_dir = f'examples/cmake-build-{board}'
@@ -66,6 +56,7 @@ def compose(board, example, num_commits, upload, api_key, extra,
     configure = (f'cmake -S examples -B {build_dir} -DBOARD={board} '
                  f'-G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel')
     build_script = f'{configure} && cmake --build {build_dir} --target {basename}'
+    shim_path = f'{build_dir}/.membrowse-onboard.ld'
     if repo_root and worktree_dir:
         # The same `git clean -fdx` also wipes the dep symlinks main() set up
         # before the run - before EVERY historical build, not just the first.
@@ -75,6 +66,10 @@ def compose(board, example, num_commits, upload, api_key, extra,
         relink = (f'{shlex.quote(sys.executable)} {shlex.quote(os.path.abspath(__file__))} '
                  f'--relink-deps {shlex.quote(repo_root)} {shlex.quote(worktree_dir)}')
         build_script = f'{relink} && {build_script}'
+        write_shim = (f'{shlex.quote(sys.executable)} {shlex.quote(os.path.abspath(__file__))} '
+                      f'--write-linker-shim {shlex.quote(shutil.which("ninja") or "ninja")} '
+                      f'{shlex.quote(build_dir)} {shlex.quote(basename)} {shlex.quote(shim_path)}')
+        build_script = f'{build_script} && {write_shim}'
     cmd = [
         'membrowse', 'onboard', str(num_commits),
         build_script,
@@ -83,14 +78,35 @@ def compose(board, example, num_commits, upload, api_key, extra,
         api_key,
         '--build-dirs', 'src/', 'hw/', f'examples/{example.rstrip("/")}/',
     ]
-    if ld_scripts:
-        cmd += ['--ld-scripts', ' '.join(ld_scripts)]
-    for sym in defsyms:
-        cmd += ['--def', sym]
+    if repo_root and worktree_dir:
+        cmd += ['--ld-scripts', shim_path]
     if not upload:
         cmd.append('--dry-run')
     cmd += extra
     return cmd
+
+
+def write_linker_shim(ninja, build_dir, target, output):
+    """Write current build's linker scripts and defsyms to a stable path."""
+    commands = ninja_commands(ninja, build_dir, target)
+    scripts = list(dict.fromkeys(LD_SCRIPT_RE.findall(commands)))
+    if not scripts:
+        sys.exit(f'no linker script found in the ninja build graph for target {target!r}')
+
+    lines = []
+    for sym in extract_defsyms(commands):
+        name, separator, value = sym.partition('=')
+        if not separator:
+            sys.exit(f'invalid --defsym value in ninja build graph: {sym!r}')
+        lines.append(f'{name} = {value};')
+    for script in scripts:
+        path = script if os.path.isabs(script) else os.path.abspath(os.path.join(build_dir, script))
+        if '"' in path or not os.path.isfile(path):
+            sys.exit(f'linker script not found or unsupported: {path!r}')
+        lines.append(f'INCLUDE "{path}"')
+    with open(output, 'w') as f:  # NOSONAR - trusted internal CLI path
+        f.write('\n'.join(lines) + '\n')
+    return 0
 
 
 def main():
@@ -101,6 +117,8 @@ def main():
     if len(sys.argv) == 4 and sys.argv[1] == '--relink-deps':
         symlink_deps(sys.argv[2], sys.argv[3])
         return 0
+    if len(sys.argv) == 6 and sys.argv[1] == '--write-linker-shim':
+        return write_linker_shim(*sys.argv[2:])
 
     parser = argparse.ArgumentParser(
         description='Backfill membrowse history for one CI board/example '
@@ -133,27 +151,6 @@ def main():
         sys.exit('working tree is not clean - commit or stash before onboarding:\n'
                  + dirty)
 
-    build_dir = f'examples/cmake-build-{args.board}'
-    if not os.path.isdir(build_dir):
-        sys.exit(f'{build_dir} not configured - run from the repo root after e.g.\n'
-                 f'  cmake -B {build_dir} -DBOARD={args.board} -G Ninja '
-                 f'-DCMAKE_BUILD_TYPE=MinSizeRel examples')
-
-    # Same ninja-graph extraction CI's family_add_membrowse()/membrowse_report.py
-    # uses, so the backfill lands under the same regions as CI's own uploads for
-    # this target name (see the module docstring). ninja_commands() itself exits
-    # loudly on a failed query.
-    basename = os.path.basename(args.example.rstrip('/'))
-    ninja = shutil.which('ninja') or 'ninja'
-    commands_text = ninja_commands(ninja, build_dir, basename)
-    ld_scripts = extract_ld_scripts(commands_text)
-    defsyms = extract_defsyms(commands_text)
-    if not ld_scripts:
-        sys.exit(f'no linker script found in the ninja build graph for target '
-                 f'{basename!r} in {build_dir!r} - a backfill would compute over '
-                 f'different regions than CI under the same target name; check '
-                 f'the board/example, or that {build_dir} was built at least once')
-
     # Isolate the actual onboard run (checks out + `git clean -fdx`s every
     # historical commit in place - see the module docstring) in a disposable
     # worktree, never repo_root itself.
@@ -161,8 +158,7 @@ def main():
     worktree_dir = os.path.join(repo_root, 'cmake-metrics', '_onboard_worktree')
 
     cmd = compose(args.board, args.example, args.num_commits, args.upload,
-                  api_key or 'dry-run-placeholder', extra, ld_scripts, defsyms,
-                  repo_root, worktree_dir)
+                  api_key or 'dry-run-placeholder', extra, repo_root, worktree_dir)
 
     shown = [('***' if c == api_key and api_key else c) for c in cmd]
     print('+ ' + ' '.join(shown), flush=True)

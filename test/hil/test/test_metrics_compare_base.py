@@ -10,6 +10,7 @@ import io
 import os
 import subprocess
 import sys
+import tempfile
 import unittest
 from unittest import mock
 
@@ -127,6 +128,39 @@ class GenerateMembrowseSizes(unittest.TestCase):
             result = mcb.generate_membrowse_sizes('/fake/build', ['build/'], example='ex')
         self.assertIsNotNone(result)
         self.assertEqual(result['x.c']['flash'], 300)  # sum, not average
+
+
+class MainFailure(unittest.TestCase):
+    def test_failed_report_removes_stale_output_and_returns_nonzero(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            board_dir = os.path.join(tmp, 'b')
+            os.makedirs(board_dir)
+            stale = os.path.join(board_dir, 'metrics_compare.md')
+            with open(stale, 'w') as f:
+                f.write('stale')
+            ok = subprocess.CompletedProcess([], 0, '', '')
+            with mock.patch.object(sys, 'argv', ['metrics_compare_base.py', '-b', 'b']), \
+                 mock.patch.object(mcb, 'METRICS_DIR', tmp), \
+                 mock.patch.object(mcb, 'run', return_value=ok), \
+                 mock.patch.object(mcb, 'symlink_deps'), \
+                 mock.patch.object(mcb, 'build_board', return_value=True), \
+                 mock.patch.object(mcb, 'generate_membrowse_sizes', return_value=None):
+                result = mcb.main()
+            self.assertEqual(result, 1)
+            self.assertFalse(os.path.exists(stale))
+
+    def test_success_returns_zero(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(os.path.join(tmp, 'b'))
+            ok = subprocess.CompletedProcess([], 0, '', '')
+            sizes = {'x.c': {'flash': 1, 'ram': 1}}
+            with mock.patch.object(sys, 'argv', ['metrics_compare_base.py', '-b', 'b']), \
+                 mock.patch.object(mcb, 'METRICS_DIR', tmp), \
+                 mock.patch.object(mcb, 'run', return_value=ok), \
+                 mock.patch.object(mcb, 'symlink_deps'), \
+                 mock.patch.object(mcb, 'build_board', return_value=True), \
+                 mock.patch.object(mcb, 'generate_membrowse_sizes', return_value=sizes):
+                self.assertEqual(mcb.main(), 0)
 
 
 if __name__ == '__main__':

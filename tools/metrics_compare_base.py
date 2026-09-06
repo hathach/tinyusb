@@ -321,6 +321,7 @@ def main():
     # Symlink dependency dirs (lib/*, hw/mcu/*/*, tools/*) so the worktree builds.
     symlink_deps(TINYUSB_ROOT, worktree_dir)
 
+    failed = False
     try:
         examples = args.example or [None]
         # For --combined: track every (base_build, cur_build) pair so we can aggregate at the end.
@@ -329,6 +330,11 @@ def main():
         for board in args.board:
             print(f'\n=== {board} ===')
             board_dir = os.path.join(METRICS_DIR, board)
+            for example in examples:
+                suffix = f'_{example.replace("/", "_")}' if example else ''
+                stale_report = os.path.join(board_dir, f'metrics_compare{suffix}.md')
+                if os.path.isfile(stale_report):
+                    os.remove(stale_report)  # NOSONAR - trusted local developer CLI path
             base_build = os.path.join(board_dir, 'base')
             cur_build = os.path.join(board_dir, 'build')
 
@@ -347,6 +353,7 @@ def main():
                     board_failed = True
                     break
             if board_failed:
+                failed = True
                 continue
 
             built_pairs.append((board, base_build, cur_build))
@@ -363,6 +370,7 @@ def main():
                     base_sizes = generate_membrowse_sizes(base_build, base_filters, example)
                     cur_sizes = generate_membrowse_sizes(cur_build, cur_filters, example)
                     if base_sizes is None or cur_sizes is None:
+                        failed = True
                         continue
 
                     print(f'[5/5] Comparing {board}{label}...')
@@ -377,6 +385,7 @@ def main():
                     cur_json = generate_metrics(cur_build, os.path.join(board_dir, f'build_metrics{suffix}'),
                                                 cur_filters, example)
                     if not base_json or not cur_json:
+                        failed = True
                         continue
 
                     print(f'[5/5] Comparing {board}{label}...')
@@ -452,7 +461,8 @@ def main():
     finally:
         print(f'\nCleaning up worktree...')
         run(['git', '-C', TINYUSB_ROOT, 'worktree', 'remove', '--force', worktree_dir])
+    return 1 if failed else 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

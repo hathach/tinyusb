@@ -142,6 +142,14 @@ class BuildMembrowseCmd(unittest.TestCase):
                 self._args(elf, ld=['/fake.ld'], option='--json --all-symbols'), '')
             self.assertEqual(cmd[:4], ['membrowse', 'report', '--json', '--all-symbols'])
 
+    def test_option_split_preserves_quoted_values(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            elf = os.path.join(tmp, 'x.elf')
+            open(elf, 'w').close()
+            cmd, _key = mr.build_membrowse_cmd(
+                self._args(elf, ld=['/fake.ld'], option='--label "two words"'), '')
+            self.assertEqual(cmd[:4], ['membrowse', 'report', '--label', 'two words'])
+
 class CliKeyHandling(unittest.TestCase):
     """End-to-end CLI tests: real `python3 tools/membrowse_report.py` subprocess,
     with a stub `membrowse` injected into PATH so the real tool is never invoked."""

@@ -112,7 +112,7 @@ def build_membrowse_cmd(args, commands_text):
         map_args = ['--map-file', map_path]
 
     membrowse_exe = shutil.which('membrowse') or 'membrowse'
-    option_args = args.option.split()
+    option_args = shlex.split(args.option)
 
     cmd = [membrowse_exe, 'report'] + option_args
     if os.path.isfile(args.elf):

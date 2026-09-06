@@ -96,6 +96,16 @@ class PerFileSizes(unittest.TestCase):
         self.assertEqual(sizes['flash'], 8)
         self.assertEqual(sizes['ram'], 8)
 
+    def test_relocate_single_ram_region_still_counts_flash_load_image(self):
+        layout = {
+            'RAM': fake_region(0x20000000, 0x40000,
+                               [fake_section('.relocate', 0x20000000, 8, 'data')]),
+        }
+        syms = [{'name': 'd', 'size': 8, 'section': '.relocate', 'source_file': 'x.c',
+                'object_file': 'device/cdc_msc/CMakeFiles/cdc_msc.dir/co/src/x.c.obj'}]
+        sizes = mc.per_file_sizes(fake_report_with_layout(syms, layout), ['/co/src/'])['x.c']
+        self.assertEqual(sizes, {'flash': 8, 'ram': 8})
+
     def test_split_across_two_ram_regions_stays_ram_only(self):
         # Multiple regions can all be RAM banks.
         layout = {
