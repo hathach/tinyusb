@@ -120,8 +120,9 @@ def build_board(src_dir, build_dir, board, example=None, linkermap=False):
     os.makedirs(build_dir, exist_ok=True)
     map_pattern = f'{build_dir}/{example}/*.map.json' if example \
         else f'{build_dir}/**/*.map.json'
+    map_paths = glob.glob(map_pattern, recursive=True) if linkermap else []  # NOSONAR - trusted local developer CLI path
     old_maps = {path: (os.stat(path).st_mtime_ns, os.stat(path).st_size)
-                for path in glob.glob(map_pattern, recursive=True)} if linkermap else {}
+                for path in map_paths}
     ret = run(['cmake', '-B', build_dir, '-G', 'Ninja',
                f'-DBOARD={board}', '-DCMAKE_BUILD_TYPE=MinSizeRel',
                os.path.join(src_dir, 'examples')])
