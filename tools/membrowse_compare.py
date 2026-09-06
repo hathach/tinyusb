@@ -15,9 +15,10 @@ from membrowse_report import extract_ld_scripts, extract_defsyms
 FLASH_SECTIONS = ('.text', '.rodata', '.isr_vector', '.vector', '.init', '.fini',
                   '.interrupts', '.flash_config', '.ivt', '.id_code', '.option_setting')
 RAM_SECTIONS = ('.bss', '.noinit', '.stack', '.heap',
-                'NonCacheable', '.fast', 'm_usb_global', '.time_critical')
+                'NonCacheable', '.fast', 'm_usb_global')
 # These sections have a flash load image and RAM run address.
-BOTH_SECTIONS = ('.data', '.relocate', '.ramfunc', '.fastrun', '.itcm', '.dtcm', '.ccmram')
+BOTH_SECTIONS = ('.data', '.relocate', '.ramfunc', '.fastrun', '.itcm', '.dtcm', '.ccmram',
+                 '.time_critical')
 
 _RAM_REGION_HINTS = ('ram', 'tcm', 'ddr')
 _FLASH_REGION_HINTS = ('flash', 'rom')
@@ -118,7 +119,7 @@ def _bucket_from_layout(section_name, section_regions, region_bucket):
             return tuple(sorted(buckets))
         return None
     region_name, section_type = regions[0]
-    if section_type == 'data' and any(section_name.startswith(p) for p in BOTH_SECTIONS):
+    if any(section_name.startswith(p) for p in BOTH_SECTIONS):
         return ('flash', 'ram')
     bucket = region_bucket.get(region_name)
     if bucket is not None:
