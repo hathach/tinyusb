@@ -174,7 +174,7 @@ jobs:
                         -e GITHUB_EVENT_PATH="$GITHUB_EVENT_PATH")
             DOCKER_MOUNTS=(-v $PWD:/project)
             [ -n "$GITHUB_EVENT_PATH" ] && DOCKER_MOUNTS+=(-v "$GITHUB_EVENT_PATH:$GITHUB_EVENT_PATH:ro")
-            docker run --rm "${DOCKER_ENV[@]}" "${DOCKER_MOUNTS[@]}" -w /project espressif/idf:tinyusb bash -c "pip install membrowse >/dev/null && $CMD"
+            docker run --rm "${DOCKER_ENV[@]}" "${DOCKER_MOUNTS[@]}" -w /project espressif/idf:tinyusb bash -c "pip install --only-binary=:all: membrowse==1.2.9 >/dev/null && $CMD"
           else
             $CMD
           fi

@@ -178,7 +178,7 @@ def main():
     symlink_deps(repo_root, worktree_dir)
 
     try:
-        return subprocess.run(cmd, cwd=worktree_dir).returncode
+        return subprocess.run(cmd, cwd=worktree_dir).returncode  # NOSONAR - trusted local developer CLI argv
     finally:
         subprocess.run(['git', 'worktree', 'remove', '--force', worktree_dir],
                        capture_output=True)

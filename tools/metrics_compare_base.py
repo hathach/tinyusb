@@ -138,7 +138,7 @@ def build_board(src_dir, build_dir, board, example=None, linkermap=False):
         if ret.returncode != 0:
             pattern = f'{build_dir}/{example}/*.map.json' if example \
                 else f'{build_dir}/**/*.map.json'
-            if not glob.glob(pattern, recursive=True):
+            if not glob.glob(pattern, recursive=True):  # NOSONAR - trusted local developer CLI path
                 print(f'  Error: linkermap target failed for {board} - '
                       f'run `python3 tools/get_deps.py` to fetch tools/linkermap')
                 return False
@@ -186,7 +186,7 @@ def generate_membrowse_sizes(build_dir, filters, example=None):
     import membrowse_compare
     pattern = f'{build_dir}/{example}/*.elf' if example \
         else f'{build_dir}/**/*.elf'
-    elfs = glob.glob(pattern, recursive=True)
+    elfs = glob.glob(pattern, recursive=True)  # NOSONAR - trusted local developer CLI path
     if not elfs:
         print(f'  Error: no .elf files in {build_dir}')
         return None
@@ -367,7 +367,7 @@ def main():
 
                     print(f'[5/5] Comparing {board}{label}...')
                     md = membrowse_compare.compare_reports(base_sizes, cur_sizes)
-                    with open(f'{out_base}.md', 'w') as f:
+                    with open(f'{out_base}.md', 'w') as f:  # NOSONAR - trusted local developer CLI path
                         f.write(md)
                     print(md)
                 else:

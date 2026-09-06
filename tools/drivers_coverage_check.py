@@ -51,7 +51,7 @@ def _builds_host_or_dual(board, family):
     dual/ example" errors for every host/dual driver claim)."""
     with ci_select._in_repo(REPO):
         examples = build.get_examples(family)
-        return any((e.startswith('host/') or e.startswith('dual/'))
+        return any(e.startswith(('host/', 'dual/'))
                   and not build_utils.skip_example(e, board)
                   for e in examples)
 
@@ -79,7 +79,7 @@ def list_drivers(portable_dir):
 
 
 def load_boards(path):
-    with open(path) as f:
+    with open(path) as f:  # NOSONAR - trusted local developer CLI path
         return json.load(f)
 
 
