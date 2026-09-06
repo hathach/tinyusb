@@ -21,45 +21,8 @@ import shutil
 import subprocess
 import sys
 
-# (?:-Wl,--script=|-T\s*)SCRIPT.ld from a `ninja -t commands` link line
-LD_SCRIPT_RE = re.compile(r'(?:-Wl,--script=|-T\s*)([A-Za-z0-9_./-]+\.ld)')
-# `INCLUDE "foo.ld"` / `INCLUDE foo.ld` at the start of a linker script line
-INCLUDE_RE = re.compile(r'^\s*INCLUDE\s+[<"]?([^">\s]+\.ld)', re.MULTILINE)
 # `--defsym=SYM=VAL` or `--defsym,SYM=VAL` from a link line
 DEFSYM_RE = re.compile(r'--defsym[=,](\S+)')
-
-
-def resolve_includes(seed_scripts):
-    """Breadth-first-resolve nested `INCLUDE` directives starting from seed_scripts.
-
-    An include name is resolved as-is first, then relative to the directory of the
-    script that included it. Dedupes and is cycle-safe. Returns scripts in the order
-    first encountered.
-    """
-    all_scripts = []
-    pending = list(seed_scripts)
-    while pending:
-        next_pending = []
-        for script in pending:
-            if script in all_scripts:
-                continue
-            all_scripts.append(script)
-            script_dir = os.path.dirname(script)
-            try:
-                with open(script) as f:
-                    text = f.read()
-            except OSError:
-                text = ''
-            for inc in INCLUDE_RE.findall(text):
-                resolved = None
-                if os.path.isfile(inc):
-                    resolved = inc
-                elif os.path.isfile(os.path.join(script_dir, inc)):
-                    resolved = os.path.join(script_dir, inc)
-                if resolved and resolved not in all_scripts and resolved not in next_pending:
-                    next_pending.append(resolved)
-        pending = next_pending
-    return all_scripts
 
 
 def ninja_commands(ninja, build_dir, target):
@@ -83,10 +46,27 @@ def ninja_commands(ninja, build_dir, target):
     return r.stdout
 
 
+def extract_ld_script_paths(commands_text):
+    """Linker script argv from `ninja -t commands` output."""
+    scripts = []
+    for line in commands_text.splitlines():
+        try:
+            args = shlex.split(line)
+        except ValueError:
+            continue
+        for i, arg in enumerate(args):
+            if arg == '-T' and i + 1 < len(args):
+                scripts.append(args[i + 1])
+            elif arg.startswith('-T') and len(arg) > 2:
+                scripts.append(arg[2:])
+            elif arg.startswith('-Wl,--script='):
+                scripts.append(arg.split('=', 1)[1])
+    return scripts
+
+
 def extract_ld_scripts(commands_text):
-    """Linker scripts referenced in `commands_text` (`ninja -t commands` stdout),
-    with nested INCLUDE directives resolved (see resolve_includes())."""
-    return resolve_includes(LD_SCRIPT_RE.findall(commands_text))
+    """Deduped linker scripts referenced by `ninja -t commands` output."""
+    return list(dict.fromkeys(extract_ld_script_paths(commands_text)))
 
 
 def extract_defsyms(commands_text):

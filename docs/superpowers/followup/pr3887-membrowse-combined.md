@@ -1,7 +1,5 @@
 # membrowse Engine: `--combined`/`--ci` Support
 
-> rename to pr<NNN>-membrowse-combined.md when the PR opens
-
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Let `tools/metrics_compare_base.py --combined` (and `--ci`, which implies it)
@@ -40,7 +38,7 @@ file when its own PR lands.
   (`tools/metrics_compare_base.py:239-240`), so today `--ci` **requires**
   `--engine linkermap` — there is no membrowse path to reach at all for a full sweep.
 - **Per-board membrowse comparison already works and is proven correct for single boards**
-  (see `pr-rework-metrics-drop-linkermap.md`'s +40 B `tusb.c` equivalence result). The gap is
+  (see `pr3887-drop-linkermap.md`'s +40 B `tusb.c` equivalence result). The gap is
   purely the missing aggregation-across-boards step, not the per-board diff logic.
 - **The linkermap combine path is the model to match the *output* of, not necessarily the
   implementation**: `metrics_compare_base.py:371-414` builds a `_combined` dir, concatenates
@@ -65,7 +63,7 @@ file when its own PR lands.
    no longer erroring.
 5. **Docs**: `.claude/skills/code-size/SKILL.md` and `.claude/skills/membrowse/SKILL.md` both
    currently tell the user `--ci`/`--combined` needs `--engine linkermap` — update once this
-   lands (this is also part of what unblocks `pr-rework-metrics-drop-linkermap.md`).
+   lands (this is also part of what unblocks `pr3887-drop-linkermap.md`).
 6. Validate with a real `--ci` run and compare the combined report's totals against the
    equivalent `--engine linkermap --ci` run for the same branch, board-for-board, before
    trusting the new path in CI.
@@ -81,7 +79,7 @@ landed as its own commit outside this follow-up's scope; nothing here depends on
 - It is genuinely unimplemented, not a bug fix on top of working code — `--combined` and
   `--engine membrowse` have never coexisted, so this is new aggregation logic, not a small
   patch.
-- It is the direct blocker for `pr-rework-metrics-drop-linkermap.md`; keeping it as its own
+- It is the direct blocker for `pr3887-drop-linkermap.md`; keeping it as its own
   PR means that removal PR can cite "membrowse combined has shipped and been used for N CI
   runs" as its own established fact rather than bundling an untested new code path with a
   deletion of the fallback for it.

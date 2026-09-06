@@ -149,6 +149,16 @@ class PerFileSizes(unittest.TestCase):
         self.assertEqual(sizes['ram'], 256)
         self.assertEqual(sizes['flash'], 0)
 
+    def test_data_in_vendor_named_ram_still_counts_flash_load_image(self):
+        layout = {
+            'm_data': fake_region(0x1ffff000, 0x4000,
+                                  [fake_section('.data', 0x1ffff000, 8, 'data')]),
+        }
+        syms = [{'name': 'd', 'size': 8, 'section': '.data', 'source_file': 'x.c',
+                'object_file': 'device/cdc_msc/CMakeFiles/cdc_msc.dir/co/src/x.c.obj'}]
+        sizes = mc.per_file_sizes(fake_report_with_layout(syms, layout), ['/co/src/'])['x.c']
+        self.assertEqual(sizes, {'flash': 8, 'ram': 8})
+
     def test_noncacheable_style_symbol_without_layout_still_lands_in_ram(self):
         # The name fallback covers reports without a memory layout.
         syms = [{'name': 'dma_buf', 'size': 256, 'section': 'NonCacheable', 'source_file': 'x.c',

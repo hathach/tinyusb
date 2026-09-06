@@ -1,7 +1,5 @@
 # Drop the linkermap Metrics Pipeline
 
-> rename to pr<NNN>-drop-linkermap.md when the PR opens
-
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Remove the legacy linkermap-based code-size pipeline (CMake targets,
@@ -69,7 +67,7 @@ file when its own PR lands.
 
 ## What remains (not started)
 
-1. Land `pr-rework-metrics-membrowse-combined.md` first (the blocker below).
+1. Land `pr3887-membrowse-combined.md` first (the blocker below).
 2. Delete `family_add_linkermap` and its two custom targets from
    `hw/bsp/family_support.cmake`; drop the call to it inside the block that currently calls
    `family_add_bloaty(${TARGET})` / `family_add_linkermap(${TARGET})` /
@@ -91,7 +89,7 @@ file when its own PR lands.
 ## Why this is a separate PR
 
 - **It is blocked**, not merely deferred: `--combined`/`--ci` has no membrowse
-  implementation yet (`pr-rework-metrics-membrowse-combined.md`), and linkermap is the only
+  implementation yet (`pr3887-membrowse-combined.md`), and linkermap is the only
   engine that path can use today. Removing linkermap before that lands would delete
   the only way to run a full CI-family size sweep.
 - **"Proven in daily use" is a time-based gate, not a code-based one.** The rework-metrics

@@ -25,10 +25,10 @@ class Compose(unittest.TestCase):
 
     def test_paths_and_build_script_are_repo_root_relative(self):
         cmd = mo.compose('stm32f407disco', 'device/cdc_msc', 30, False, 'k', [])
-        self.assertEqual(cmd[3], 'cmake -S examples -B examples/cmake-build-stm32f407disco '
-                                 '-DBOARD=stm32f407disco -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel '
-                                 '&& cmake --build examples/cmake-build-stm32f407disco '
-                                 '--target cdc_msc')
+        self.assertIn('cmake -S examples -B examples/cmake-build-stm32f407disco '
+                      '-DBOARD=stm32f407disco -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel', cmd[3])
+        self.assertIn('cmake --build examples/cmake-build-stm32f407disco '
+                      '--target cdc_msc', cmd[3])
         self.assertEqual(cmd[4], 'examples/cmake-build-stm32f407disco/'
                                  'device/cdc_msc/cdc_msc.elf')
 
@@ -49,20 +49,26 @@ class Compose(unittest.TestCase):
         # the example's own dir is in scope too - its sources (e.g. src/main.c)
         # link into the same elf as src/ and hw/, so a change there must also
         # trigger a rebuild rather than an --identical skip.
-        cmd = mo.compose('b', 'host/y', 5, False, 'k', ['--binary-search'])
+        cmd = mo.compose('b', 'host/y', 5, False, 'k', ['--initial-commit', 'HEAD~5'])
         i = cmd.index('--build-dirs')
         self.assertEqual(cmd[i + 1:i + 4], ['src/', 'hw/', 'examples/host/y/'])
-        self.assertEqual(cmd[-1], '--binary-search')
+        self.assertEqual(cmd[-2:], ['--initial-commit', 'HEAD~5'])
 
-    def test_linker_settings_are_regenerated_by_each_historical_build(self):
-        cmd = mo.compose('b', 'device/x', 5, False, 'k', [], '/repo', '/worktree')
+    def test_binary_search_omits_mutually_exclusive_build_dirs(self):
+        cmd = mo.compose('b', 'device/x', 5, False, 'k', ['--binary-search'])
+        self.assertNotIn('--build-dirs', cmd)
+
+    def test_explicit_commits_omit_mutually_exclusive_count(self):
+        cmd = mo.compose('b', 'device/x', 5, False, 'k', ['--commits', 'a b'])
+        self.assertNotIn('5', cmd[:4])
+
+    def test_each_historical_build_fetches_its_own_deps_and_linker_settings(self):
+        cmd = mo.compose('b', 'device/x', 5, False, 'k', [])
         i = cmd.index('--ld-scripts')
         self.assertEqual(cmd[i + 1], 'examples/cmake-build-b/.membrowse-onboard.ld')
+        self.assertIn('tools/get_deps.py -b b', cmd[3])
         self.assertIn('--write-linker-shim', cmd[3])
-
-    def test_pure_compose_without_worktree_omits_linker_shim(self):
-        cmd = mo.compose('b', 'device/x', 5, False, 'k', [])
-        self.assertNotIn('--ld-scripts', cmd)
+        self.assertNotIn('--relink-deps', cmd[3])
 
 
 class WriteLinkerShim(unittest.TestCase):

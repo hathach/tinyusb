@@ -15,53 +15,6 @@ sys.path.insert(0, os.path.join(REPO, 'tools'))
 import membrowse_report as mr  # noqa: E402
 
 
-class ResolveIncludes(unittest.TestCase):
-    def test_include_relative_to_script_dir(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            a = os.path.join(tmp, 'a.ld')
-            b = os.path.join(tmp, 'b.ld')
-            with open(a, 'w') as f:
-                f.write('INCLUDE "b.ld"\n')
-            with open(b, 'w') as f:
-                f.write('/* leaf */\n')
-            self.assertEqual(mr.resolve_includes([a]), [a, b])
-
-    def test_include_resolved_as_is_before_relative_join(self):
-        # the include name is a path already valid on its own (here: absolute, and
-        # in a directory OTHER than the including script's) - must resolve via the
-        # as-is check, not by joining with the including script's directory.
-        with tempfile.TemporaryDirectory() as tmp:
-            sub1 = os.path.join(tmp, 'sub1')
-            sub2 = os.path.join(tmp, 'sub2')
-            os.mkdir(sub1)
-            os.mkdir(sub2)
-            a = os.path.join(sub1, 'a.ld')
-            b = os.path.join(sub2, 'b.ld')
-            with open(a, 'w') as f:
-                f.write(f'INCLUDE "{b}"\n')
-            with open(b, 'w') as f:
-                f.write('/* leaf */\n')
-            self.assertEqual(mr.resolve_includes([a]), [a, b])
-
-    def test_dedup_and_cycle_safe(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            a = os.path.join(tmp, 'a.ld')
-            b = os.path.join(tmp, 'b.ld')
-            with open(a, 'w') as f:
-                f.write('INCLUDE "b.ld"\n')
-            with open(b, 'w') as f:
-                f.write('INCLUDE "a.ld"\n')  # cycle back to a.ld
-            result = mr.resolve_includes([a])
-            self.assertEqual(result, [a, b])  # each script appears exactly once
-
-    def test_missing_include_target_skipped(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            a = os.path.join(tmp, 'a.ld')
-            with open(a, 'w') as f:
-                f.write('INCLUDE "does_not_exist.ld"\n')
-            self.assertEqual(mr.resolve_includes([a]), [a])
-
-
 class NinjaCommands(unittest.TestCase):
     def test_success_returns_stdout(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -75,7 +28,12 @@ class NinjaCommands(unittest.TestCase):
 class Regexes(unittest.TestCase):
     def test_ld_script_extraction_both_forms(self):
         text = 'cc -Wl,--script=a.ld -o out.elf\ncc -T b.ld -o out2.elf\ncc -Tb.ld -o out3.elf\n'
-        self.assertEqual(mr.LD_SCRIPT_RE.findall(text), ['a.ld', 'b.ld', 'b.ld'])
+        self.assertEqual(mr.extract_ld_script_paths(text), ['a.ld', 'b.ld', 'b.ld'])
+
+    def test_ld_script_extraction_handles_drive_letters_and_spaces(self):
+        text = 'cc -T C:/work/tinyusb/board.ld -o a.elf\ncc -T "/work/a b/board.ld" -o b.elf\n'
+        self.assertEqual(mr.extract_ld_script_paths(text),
+                         ['C:/work/tinyusb/board.ld', '/work/a b/board.ld'])
 
     def test_defsym_extraction_both_separators(self):
         text = 'cc -Wl,--defsym=FOO=0x10 -Wl,--defsym,BAR=1 -o out.elf\n'
