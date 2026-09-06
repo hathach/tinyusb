@@ -34,7 +34,7 @@
 - Consumes: `{ prompt: string, schema: object, provider?: 'codex'|'claude'|'both', label?: string }`
 - Produces: the requested schema for a single provider; `{ codex, claude }` for `both`
 
-- [ ] **Step 1: Write failing router tests**
+- [x] **Step 1: Write failing router tests**
 
 Create `test-code-verify.mjs` with a small harness that evaluates a workflow body inside an async function with mocked `agent` and `parallel` primitives. Add checks for:
 
@@ -67,7 +67,7 @@ await assert.rejects(run({ prompt: 'review', schema: RESULT }, { ...answers, cod
 
 The mock identifies the native Claude call by `agentType: 'code-verifier'` and the Codex bridge by `model: 'haiku'`.
 
-- [ ] **Step 2: Run the test and verify RED**
+- [x] **Step 2: Run the test and verify RED**
 
 Run:
 
@@ -77,7 +77,7 @@ node .claude/workflows/test-code-verify.mjs
 
 Expected: FAIL because `.claude/workflows/code-verify.js` does not exist.
 
-- [ ] **Step 3: Implement the minimal router**
+- [x] **Step 3: Implement the minimal router**
 
 Create `code-verify.js` with:
 
@@ -147,7 +147,7 @@ run timeout 600s codex exec -C <root> -m <adapter model>
 return the result file's JSON verbatim; if any command fails, do not fabricate a result
 ```
 
-- [ ] **Step 4: Run router tests and syntax check**
+- [x] **Step 4: Run router tests and syntax check**
 
 Run:
 
@@ -158,7 +158,7 @@ node .claude/workflows/test-code-verify.mjs
 
 Expected: all router checks pass and the syntax checker prints `OK`.
 
-- [ ] **Step 5: Register the focused pre-commit hook**
+- [x] **Step 5: Register the focused pre-commit hook**
 
 Add under `repo: local`:
 
@@ -179,7 +179,7 @@ pre-commit run code-verify-logic --all-files
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit the router**
+- [x] **Step 6: Commit the router**
 
 ```bash
 git add .claude/workflows/code-verify.js \
@@ -201,7 +201,7 @@ git commit -m "workflows: add Codex verifier routing"
 - Consumes: `workflow('code-verify', { prompt, schema, label })`
 - Produces: the same structured result each former native verifier call consumed
 
-- [ ] **Step 1: Add the failing no-bypass test**
+- [x] **Step 1: Add the failing no-bypass test**
 
 Scan every `.claude/workflows/*.js` except `code-verify.js` and fail if it matches:
 
@@ -209,7 +209,7 @@ Scan every `.claude/workflows/*.js` except `code-verify.js` and fail if it match
 /agentType:\s*['"]code-verifier['"]/
 ```
 
-- [ ] **Step 2: Run the test and verify RED**
+- [x] **Step 2: Run the test and verify RED**
 
 Run:
 
@@ -219,7 +219,7 @@ node .claude/workflows/test-code-verify.mjs
 
 Expected: FAIL naming direct calls in `driver-review.js`, `fanout-dev.js`, and `pr-babysit.js`.
 
-- [ ] **Step 3: Replace each direct call**
+- [x] **Step 3: Replace each direct call**
 
 Use this shape without a `provider`, so Codex is selected:
 
@@ -234,7 +234,7 @@ workflow('code-verify', {
 
 Keep every caller's existing null/result handling. Remove the `max` effort override from the adversarial `driver-review` call; provider adapters own the approved `xhigh` effort.
 
-- [ ] **Step 4: Verify callers and commit**
+- [x] **Step 4: Verify callers and commit**
 
 Run:
 
@@ -264,11 +264,11 @@ git commit -m "workflows: route code verification through Codex"
 - Consumes: `workflow('code-verify', { provider: 'both', prompt, schema, label })`
 - Produces: separate `review` and `codex` stage rows from one independent dual-provider dispatch
 
-- [ ] **Step 1: Add a failing validate wiring check**
+- [x] **Step 1: Add a failing validate wiring check**
 
 Assert that `validate.js` contains one `workflow('code-verify'` call with `provider: 'both'`, and contains neither `codex review --base` nor a direct Opus review agent.
 
-- [ ] **Step 2: Run the test and verify RED**
+- [x] **Step 2: Run the test and verify RED**
 
 Run:
 
@@ -278,7 +278,7 @@ node .claude/workflows/test-code-verify.mjs
 
 Expected: FAIL because `validate.js` still owns separate Claude and Codex review agents.
 
-- [ ] **Step 3: Normalize the shared review prompt**
+- [x] **Step 3: Normalize the shared review prompt**
 
 Keep the existing `REVIEW` schema but require `severity` to include both independent gate signals:
 
@@ -297,7 +297,7 @@ const codexBlocking = f =>
   /^confirmed/i.test(f.severity) && /\bP[01]\b/i.test(f.severity)
 ```
 
-- [ ] **Step 4: Dispatch and split both results**
+- [x] **Step 4: Dispatch and split both results**
 
 Schedule one internal `reviews` thunk when either review stage is enabled. Select `both` when neither `review` nor `codex` is skipped; otherwise select the remaining provider. Normalize its return into the existing stage rows:
 
@@ -318,7 +318,7 @@ return rows
 
 Flatten stage-thunk results before updating `latest`. When building the next `toRun` set, map failed `review` or `codex` rows back to the `reviews` scheduler name. Preserve the existing `skip`, fixer evidence, retry, restart-required, and final-report contracts.
 
-- [ ] **Step 5: Verify validate and commit**
+- [x] **Step 5: Verify validate and commit**
 
 Run:
 
@@ -346,7 +346,7 @@ git commit -m "validate: share dual review routing"
 - Consumes: the implemented router and migrated callers
 - Produces: repository guidance and fresh end-to-end evidence
 
-- [ ] **Step 1: Update the collaboration contract**
+- [x] **Step 1: Update the collaboration contract**
 
 Replace the claim that Codex only works around workflow edges with concise guidance:
 
@@ -357,7 +357,7 @@ Replace the claim that Codex only works around workflow edges with concise guida
   verifier agent directly or copy the Codex bridge command.
 ```
 
-- [ ] **Step 2: Run static and repository checks**
+- [x] **Step 2: Run static and repository checks**
 
 Run:
 
@@ -371,6 +371,11 @@ pre-commit run --all-files
 Expected: all checks pass.
 
 - [ ] **Step 3: Run one live read-only smoke test**
+
+Blocked on 2026-09-06 before workflow dispatch: Claude Code returned HTTP 403
+because the organization disables subscription access. A direct run of the
+same Codex subprocess path passed with `gpt-5.6-sol`, `xhigh`, the read-only
+sandbox, canonical `.claude/agents/code-verifier.md`, and valid schema output.
 
 From Claude Code, invoke `code-verify` with the default provider, a prompt that asks which canonical role file it loaded, and this schema:
 
@@ -387,7 +392,7 @@ From Claude Code, invoke `code-verify` with the default provider, a prompt that 
 
 Expected: `role` names `.claude/agents/code-verifier.md`, `readOnly` is true, the worktree stays clean, and the run reports Sol/xhigh from `.codex/agents/code-verifier.toml`.
 
-- [ ] **Step 4: Mark the plan complete and commit documentation**
+- [x] **Step 4: Mark the plan complete and commit documentation**
 
 Mark completed checkboxes in this file, then run:
 
