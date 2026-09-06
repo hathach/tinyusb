@@ -342,9 +342,10 @@ def get_a_dep(d):
     p = Path(TOP / d)
     git_cmd = f"git -C {p}"
 
-    # Init git deps if not existed
-    if not p.exists():
-        p.mkdir(parents=True)
+    # Init git deps if not initialized. Checking only p.exists() lets git -C walk
+    # up to TinyUSB's repository when an empty dependency directory is present.
+    if not (p / '.git').exists():
+        p.mkdir(parents=True, exist_ok=True)
         run_cmd(f"{git_cmd} init")
         run_cmd(f"{git_cmd} remote add origin {url}")
         head = None
