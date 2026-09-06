@@ -172,6 +172,29 @@ class BuildBoardLinkermap(unittest.TestCase):
 
 
 class MainFailure(unittest.TestCase):
+    def test_build_dirs_are_cleaned_before_build(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            stale_paths = [os.path.join(tmp, 'b', side, 'removed', 'removed.elf')
+                           for side in ('base', 'build')]
+            for path in stale_paths:
+                os.makedirs(os.path.dirname(path))
+                with open(path, 'w') as f:
+                    f.write('stale')
+
+            def build_board(*_args, **_kwargs):
+                self.assertFalse(any(os.path.exists(path) for path in stale_paths))
+                return True
+
+            ok = subprocess.CompletedProcess([], 0, '', '')
+            sizes = {'x.c': {'flash': 1, 'ram': 1}}
+            with mock.patch.object(sys, 'argv', ['metrics_compare_base.py', '-b', 'b']), \
+                 mock.patch.object(mcb, 'METRICS_DIR', tmp), \
+                 mock.patch.object(mcb, 'run', return_value=ok), \
+                 mock.patch.object(mcb, 'symlink_deps'), \
+                 mock.patch.object(mcb, 'build_board', side_effect=build_board), \
+                 mock.patch.object(mcb, 'generate_membrowse_sizes', return_value=sizes):
+                self.assertEqual(mcb.main(), 0)
+
     def test_failed_report_removes_stale_output_and_returns_nonzero(self):
         with tempfile.TemporaryDirectory() as tmp:
             board_dir = os.path.join(tmp, 'b')

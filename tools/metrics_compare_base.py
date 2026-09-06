@@ -20,6 +20,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 
@@ -344,6 +345,8 @@ def main():
                     os.remove(stale_report)
             base_build = os.path.join(board_dir, 'base')
             cur_build = os.path.join(board_dir, 'build')
+            shutil.rmtree(base_build, ignore_errors=True)
+            shutil.rmtree(cur_build, ignore_errors=True)
 
             # Build only the requested examples (or all if -e not given). Single-example
             # mode used to build everything and filter at metric time — that was wasted work.
