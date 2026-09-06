@@ -119,6 +119,18 @@ class PerFileSizes(unittest.TestCase):
                                   ['/co/src/'])['device/usbd.c']
         self.assertEqual(sizes, {'flash': 8, 'ram': 8})
 
+    def test_fast_code_in_ilm_counts_flash_load_image_and_ram(self):
+        layout = {
+            'ILM': fake_region(0x00080000, 0x20000,
+                               [fake_section('.fast', 0x00080000, 8, 'code')]),
+        }
+        syms = [{'name': 'dcd_event_handler', 'size': 8, 'section': '.fast',
+                 'source_file': 'usbd.c',
+                 'object_file': 'device/cdc_msc/CMakeFiles/cdc_msc.dir/co/src/device/usbd.c.obj'}]
+        sizes = mc.per_file_sizes(fake_report_with_layout(syms, layout),
+                                  ['/co/src/'])['device/usbd.c']
+        self.assertEqual(sizes, {'flash': 8, 'ram': 8})
+
     def test_split_across_two_ram_regions_stays_ram_only(self):
         # Multiple regions can all be RAM banks.
         layout = {
