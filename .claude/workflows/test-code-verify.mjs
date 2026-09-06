@@ -137,6 +137,22 @@ await check('router rejections preserve caller null-result contracts', async () 
   }
 })
 
+await check('driver review drops a failed routed scanner', async () => {
+  const src = readFileSync(new URL('./driver-review.js', import.meta.url), 'utf8').replace(/^export /m, '')
+  const fn = new AsyncFunction(
+    'args', 'agent', 'pipeline', 'parallel', 'phase', 'log', 'workflow', 'budget', src)
+  const pipeline = async (items, ...stages) => Promise.all(items.map(async item => {
+    let value = item
+    for (const stage of stages) value = await stage(value, item)
+    return value
+  }))
+  const result = await fn(
+    { dirs: ['src/portable/test'], dimensions: ['correctness'] },
+    null, pipeline, null, () => {}, () => {}, async () => { throw new Error('verifier died') }, null,
+  )
+  assert.deepEqual(result, [])
+})
+
 await check('validate dispatches directly to stay within one workflow level', async () => {
   const src = readFileSync(new URL('./validate.js', import.meta.url), 'utf8')
   assert.equal((src.match(/workflow\(['"]code-verify['"]/g) || []).length, 0)
@@ -151,17 +167,20 @@ await check('validate keeps provider results and gates separate', async () => {
   const src = readFileSync(new URL('./validate.js', import.meta.url), 'utf8').replace(/^export /m, '')
   const calls = []
   let failCodex = false
+  let blocking = false
   const fn = new AsyncFunction(
     'args', 'agent', 'pipeline', 'parallel', 'phase', 'log', 'workflow', 'budget', src)
   const agent = async (prompt, options) => {
     calls.push(options.agentType)
     if (options.agentType === 'code-verifier') return {
       pass: true, detail: 'claude',
-      findings: [{ file: 'a.c', line: 1, severity: 'CONFIRMED P2 correctness', summary: 'bug' }],
+      findings: [{ file: 'a.c', line: 1,
+        severity: blocking ? 'CONFIRMED P1 safety' : 'CONFIRMED P2 correctness', summary: 'bug' }],
     }
     if (options.agentType === 'codex-code-verifier') return failCodex ? null : {
       pass: true, detail: 'codex',
-      findings: [{ file: 'b.c', line: 2, severity: 'CONFIRMED P2 correctness', summary: 'bug' }],
+      findings: [{ file: 'b.c', line: 2,
+        severity: blocking ? 'CONFIRMED P1 safety' : 'CONFIRMED P1 quality', summary: 'bug' }],
     }
     assert.equal(options.agentType, 'builder')
     return { board: 'test', pass: true, builtCount: 1, failures: [] }
@@ -173,8 +192,16 @@ await check('validate keeps provider results and gates separate', async () => {
     agent, null, parallel, () => {}, () => {}, workflow, null,
   )
   assert.deepEqual(calls.sort(), ['builder', 'code-verifier', 'codex-code-verifier'])
-  assert.equal(result.stages.find(s => s.stage === 'review').pass, false)
+  assert.equal(result.stages.find(s => s.stage === 'review').pass, true)
   assert.equal(result.stages.find(s => s.stage === 'codex').pass, true)
+
+  blocking = true
+  const blocked = await fn(
+    { boards: ['test'], skip: ['unit', 'size', 'pvs'], maxCycles: 1 },
+    agent, null, parallel, () => {}, () => {}, workflow, null,
+  )
+  assert.equal(blocked.stages.find(s => s.stage === 'review').pass, false)
+  assert.equal(blocked.stages.find(s => s.stage === 'codex').pass, false)
 
   failCodex = true
   const partial = await fn(

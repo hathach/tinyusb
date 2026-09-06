@@ -112,10 +112,9 @@ const PATHS = {
 }
 
 // gate helpers — enforced here, never trusted from the agents
-const confirmedReview = f =>
-  /^confirmed/i.test(f.severity) && !/quality|simplification|style/i.test(f.severity)
-const codexBlocking = f =>
-  /^confirmed/i.test(f.severity) && /\bP[01]\b/i.test(f.severity)
+const reviewBlocking = f =>
+  /^confirmed/i.test(f.severity) && /\bP[01]\b/i.test(f.severity) &&
+  /\b(correctness|safety|security)\b/i.test(f.severity)
 
 // ---------------------------------------------------------------------------
 // Stage builders, parameterized so later cycles can re-run a subset. Stage
@@ -206,12 +205,12 @@ function stageThunk(name, cycle) {
       const rows = []
       if (reviewStageNames.includes('review')) rows.push(byProvider.claude ? {
         stage: 'review', pass: byProvider.claude.pass &&
-          !byProvider.claude.findings.some(confirmedReview),
+          !byProvider.claude.findings.some(reviewBlocking),
         findings: byProvider.claude.findings, detail: byProvider.claude.detail,
       } : { stage: 'review', pass: false, findings: [], detail: 'stage agent died' })
       if (reviewStageNames.includes('codex')) rows.push(byProvider.codex ? {
         stage: 'codex', pass: byProvider.codex.pass &&
-          !byProvider.codex.findings.some(codexBlocking),
+          !byProvider.codex.findings.some(reviewBlocking),
         findings: byProvider.codex.findings, detail: byProvider.codex.detail,
       } : { stage: 'codex', pass: false, findings: [], detail: 'stage agent died' })
       return rows
@@ -224,7 +223,8 @@ function stageThunk(name, cycle) {
 }
 
 // Only the material that FAILED the gate reaches the fixer: confirmed review
-// findings, codex P0/P1, and failed unit/build/size/pvs stage evidence.
+// P0/P1 correctness/safety/security findings and failed unit/build/size/pvs
+// stage evidence.
 // PLAUSIBLE and quality findings stay report-only — fixing them here would
 // churn style on an otherwise green branch. Bounded at the leaves (per-stage
 // finding cap, clipped summaries/details) so the serialized JSON stays valid
@@ -233,7 +233,7 @@ function stageThunk(name, cycle) {
 function fixerEvidence(failures) {
   return failures.map(f => {
     const findings = (f.findings || [])
-      .filter(f.stage === 'review' ? confirmedReview : codexBlocking)
+      .filter(reviewBlocking)
       .slice(0, 10)
       .map(x => ({ ...x, summary: clip(x.summary, 300) }))
     if (f.stage === 'review' || f.stage === 'codex')

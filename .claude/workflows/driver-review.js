@@ -60,7 +60,7 @@ const results = await pipeline(
     prompt: `Review ${p.dir} for exactly one dimension: ${p.dim}. Read the sources yourself. Coverage-first — report everything, a verifier filters.`,
     label: `scan:${short(p.dir)}`,
     schema: FINDINGS,
-  }),
+  }).catch(() => null),
 
   (scan, p) => {
     if (!scan) return null  // dead scanner — dropped, counted, and logged below
@@ -72,7 +72,7 @@ const results = await pipeline(
         'Try to REFUTE it; real=true only if it survives your best attempt. Return {"real": bool, "reason": string}.',
         label: `verify:${short(p.dir)}:${f.line}`,
         schema: VERDICT,
-      }).then(v => v && { ...f, verdict: v })
+      }).catch(() => null).then(v => v && { ...f, verdict: v })
     )).then(vs => {
       const alive = vs.filter(Boolean)
       if (alive.length < scan.findings.length) {
