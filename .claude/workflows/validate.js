@@ -112,21 +112,50 @@ const PATHS = {
 }
 
 // gate helpers — enforced here, never trusted from the agents
-const confirmedReview = f =>
-  /^confirmed/i.test(f.severity) && !/quality|simplification|style/i.test(f.severity)
-const codexBlocking = f => /\bP[01]\b/i.test(f.severity)
+const reviewBlocking = f =>
+  /^confirmed/i.test(f.severity) && /\bP[01]\b/i.test(f.severity) &&
+  /\b(correctness|safety|security)\b/i.test(f.severity)
 
 // ---------------------------------------------------------------------------
 // Stage builders, parameterized so later cycles can re-run a subset. Stage
-// names: 'unit', 'build:<board>', 'size', 'pvs', 'review', 'codex'.
+// names: 'unit', 'build:<board>', 'size', 'pvs', and the dual-provider
+// 'reviews' scheduler, which emits the public 'review' and 'codex' rows.
 // ---------------------------------------------------------------------------
+const reviewStageNames = []
+if (!skip.includes('review')) reviewStageNames.push('review')
+if (!skip.includes('codex')) reviewStageNames.push('codex')
+const reviewProvider = reviewStageNames.length === 2 ? 'both'
+  : reviewStageNames[0] === 'review' ? 'claude'
+    : reviewStageNames[0] === 'codex' ? 'codex' : null
+const reviewPrompt =
+  `Code-review this branch's diff vs ${base} (git diff ${base}...HEAD), coverage-first: walk every hunk, no spot checks. ` +
+  'Find pass — candidate defects across all dimensions: correctness/logic, ISR & concurrency safety, ' +
+  'memory/resource handling (bounds, leaks, no dynamic alloc), API contract & spec conformance, ' +
+  'security of untrusted input parsing, behavior regressions; plus quality/simplification notes. ' +
+  'Verify pass — adversarially check each candidate against the surrounding code: verdict CONFIRMED ' +
+  '(failing scenario constructed) or PLAUSIBLE (could not refute); report both, drop only refuted ones. ' +
+  'Read-only: never apply fixes. severity must be "CONFIRMED P0 correctness", "CONFIRMED P1 safety", ' +
+  '"PLAUSIBLE P2 quality", or the same format with P0-P3 and one of correctness, safety, security, ' +
+  'quality, simplification, or style. pass=false only for a CONFIRMED P0/P1 correctness, safety, or ' +
+  'security bug; detail = one-line review summary.'
 const stageNames = []
 if (!skip.includes('unit')) stageNames.push('unit')
 for (const b of args.boards) stageNames.push(`build:${b}`)
 if (!skip.includes('size')) stageNames.push('size')
 if (!skip.includes('pvs')) stageNames.push('pvs')
-if (!skip.includes('review')) stageNames.push('review')
-if (!skip.includes('codex')) stageNames.push('codex')
+if (reviewProvider) stageNames.push('reviews')
+const scheduleName = name => name === 'review' || name === 'codex' ? 'reviews' : name
+const displayNames = names => names.flatMap(name => name === 'reviews' ? reviewStageNames : [name])
+
+function runReviewProvider(provider, label) {
+  if (provider === 'codex') return agent(
+    JSON.stringify({ prompt: reviewPrompt, schema: REVIEW }),
+    { label: `${label}:codex`, phase: 'Validate', agentType: 'codex-code-verifier', schema: REVIEW },
+  )
+  return agent(reviewPrompt, {
+    label: `${label}:claude`, phase: 'Validate', agentType: 'code-verifier', schema: REVIEW,
+  })
+}
 
 function stageThunk(name, cycle) {
   const label = (cycle > 1 ? `c${cycle}:` : '') + name
@@ -167,41 +196,35 @@ function stageThunk(name, cycle) {
     detail: r.pass ? r.detail : clip(`${r.detail} ${JSON.stringify(r.changedFindings)}`),
   } : died).catch(() => died)
 
-  if (name === 'review') return () => agent(
-    `Code-review this branch's diff vs ${base} (git diff ${base}...HEAD), coverage-first: walk every hunk, no spot checks. ` +
-    'Find pass — candidate defects across all dimensions: correctness/logic, ISR & concurrency safety, ' +
-    'memory/resource handling (bounds, leaks, no dynamic alloc), API contract & spec conformance, ' +
-    'security of untrusted input parsing, behavior regressions; plus quality/simplification notes. ' +
-    'Verify pass — adversarially check each candidate against the surrounding code: verdict CONFIRMED ' +
-    '(failing scenario constructed) or PLAUSIBLE (could not refute); report both, drop only refuted ones. ' +
-    'Read-only: never apply fixes. severity = verdict plus category (e.g. "CONFIRMED correctness"). ' +
-    'pass=false if any CONFIRMED correctness/safety/security bug survives; PLAUSIBLE and quality findings keep pass=true. ' +
-    'detail = one-line review summary.',
-    { label, phase: 'Validate', model: 'opus', effort: 'high', schema: REVIEW },
-  ).then(r => r ? {
-    stage: name,
-    pass: r.pass && !r.findings.some(confirmedReview),
-    findings: r.findings, detail: r.detail,
-  } : died).catch(() => died)
-
-  if (name === 'codex') return () => agent(
-    `Run a Codex review of this branch's diff vs ${base}: ` +
-    `codex review --base ${base} -c model="gpt-5.6-sol" -c model_reasoning_effort="high" ` +
-    '(Bash timeout 600000; run from the repo root). Parse its output into findings; severity = Codex\'s priority label. ' +
-    'pass=false only if Codex reports a correctness bug (P0/P1); style-level items keep pass=true. ' +
-    'detail = Codex\'s overall verdict line. If the codex CLI is missing or the run errors, pass=false with the error in detail.',
-    { label, phase: 'Validate', model: 'haiku', schema: REVIEW },
-  ).then(r => r ? {
-    stage: name,
-    pass: r.pass && !r.findings.some(codexBlocking),
-    findings: r.findings, detail: r.detail,
-  } : died).catch(() => died)
+  if (name === 'reviews') return () => {
+    const pending = reviewProvider === 'both'
+      ? parallel(['codex', 'claude'].map(provider => () => runReviewProvider(provider, label)))
+        .then(([codex, claude]) => ({ codex, claude }))
+      : runReviewProvider(reviewProvider, label).then(r => ({ [reviewProvider]: r }))
+    return pending.then(byProvider => {
+      const rows = []
+      if (reviewStageNames.includes('review')) rows.push(byProvider.claude ? {
+        stage: 'review', pass: byProvider.claude.pass &&
+          !byProvider.claude.findings.some(reviewBlocking),
+        findings: byProvider.claude.findings, detail: byProvider.claude.detail,
+      } : { stage: 'review', pass: false, findings: [], detail: 'stage agent died' })
+      if (reviewStageNames.includes('codex')) rows.push(byProvider.codex ? {
+        stage: 'codex', pass: byProvider.codex.pass &&
+          !byProvider.codex.findings.some(reviewBlocking),
+        findings: byProvider.codex.findings, detail: byProvider.codex.detail,
+      } : { stage: 'codex', pass: false, findings: [], detail: 'stage agent died' })
+      return rows
+    }).catch(() => reviewStageNames.map(stage => ({
+      stage, pass: false, findings: [], detail: 'stage agent died',
+    })))
+  }
 
   throw new Error(`unknown stage ${name}`)
 }
 
 // Only the material that FAILED the gate reaches the fixer: confirmed review
-// findings, codex P0/P1, and failed unit/build/size/pvs stage evidence.
+// P0/P1 correctness/safety/security findings and failed unit/build/size/pvs
+// stage evidence.
 // PLAUSIBLE and quality findings stay report-only — fixing them here would
 // churn style on an otherwise green branch. Bounded at the leaves (per-stage
 // finding cap, clipped summaries/details) so the serialized JSON stays valid
@@ -210,7 +233,7 @@ function stageThunk(name, cycle) {
 function fixerEvidence(failures) {
   return failures.map(f => {
     const findings = (f.findings || [])
-      .filter(f.stage === 'review' ? confirmedReview : codexBlocking)
+      .filter(reviewBlocking)
       .slice(0, 10)
       .map(x => ({ ...x, summary: clip(x.summary, 300) }))
     if (f.stage === 'review' || f.stage === 'codex')
@@ -249,11 +272,13 @@ const history = []
 let toRun = new Set(stageNames)
 
 for (let cycle = 1; cycle <= maxCycles; cycle++) {
-  log(`cycle ${cycle}/${maxCycles}: running ${toRun.size}/${stageNames.length} stage(s)`)
-  const results = await parallel([...toRun].map(n => stageThunk(n, cycle)))
-  for (const r of results.filter(Boolean)) latest.set(r.stage, r)
+  const ran = displayNames([...toRun])
+  log(`cycle ${cycle}/${maxCycles}: running ${ran.length}/${displayNames(stageNames).length} stage(s)`)
+  const batches = await parallel([...toRun].map(n => stageThunk(n, cycle)))
+  const results = batches.flatMap(r => Array.isArray(r) ? r : [r]).filter(Boolean)
+  for (const r of results) latest.set(r.stage, r)
   const failures = [...latest.values()].filter(r => !r.pass)
-  const entry = { cycle, ran: [...toRun], failed: failures.map(f => f.stage), fix: null }
+  const entry = { cycle, ran, failed: failures.map(f => f.stage), fix: null }
   history.push(entry)
 
   if (failures.length === 0) {
@@ -279,7 +304,7 @@ for (let cycle = 1; cycle <= maxCycles; cycle++) {
     const deadStages = failures.filter(f => f.detail === 'stage agent died').map(f => f.stage)
     if (deadStages.length > 0) {
       log(`cycle ${cycle}: fix agent changed nothing — retrying dead stage(s): ${deadStages.join(', ')}`)
-      toRun = new Set(deadStages)
+      toRun = new Set(deadStages.map(scheduleName))
       continue
     }
     log(`cycle ${cycle}: fix agent changed nothing — stopping`)
@@ -328,9 +353,8 @@ for (let cycle = 1; cycle <= maxCycles; cycle++) {
   const docsOnly = trusted && files.length > 0 && files.every(f =>
     !f.startsWith('.claude/') && f !== 'CLAUDE.md' && f !== 'AGENTS.md' &&
     (/^docs\//.test(f) || f.endsWith('.md') || f.endsWith('.rst')))
-  toRun = new Set(failures.map(f => f.stage))
-  if (!skip.includes('review')) toRun.add('review')
-  if (!skip.includes('codex')) toRun.add('codex')
+  toRun = new Set(failures.map(f => scheduleName(f.stage)))
+  if (reviewProvider) toRun.add('reviews')
   if (!docsOnly) for (const n of stageNames) toRun.add(n)
 }
 

@@ -7,10 +7,10 @@
 // test/hil/helper/hil_report.py, where the roster is, and arrives here as fields. What is
 // left is a lookup and a verdict, and this pins both.
 //
-// Run: node .claude/workflows/test-hil-validate.mjs
+// Run: node .claude/workflows/test/test-hil-validate.mjs
 import { readFileSync } from 'node:fs'
 
-const src = readFileSync(new URL('./hil-validate.js', import.meta.url), 'utf8')
+const src = readFileSync(new URL('../hil-validate.js', import.meta.url), 'utf8')
 // slice by marker, but never silently: a renamed marker must fail with its name, not with a
 // confusing ReferenceError from a garbage slice
 const cut = (start, end) => {

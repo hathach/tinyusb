@@ -527,7 +527,7 @@ hil_health goes back to doing one thing: killing wedged processes."
 - Modify: `test/hil/helper/hil_report.py` (real `summarize` + CLI)
 - Delete: `test/hil/helper/hil_summary.py`
 - Modify: `test/hil/hil_ci.sh` (drop `hil_summary.py` from the scp list)
-- Modify: `.claude/agents/hil-operator.md:71`, `.claude/workflows/hil-validate.js:14,17,54,58,67`, `.claude/workflows/test-hil-validate.mjs:7`
+- Modify: `.claude/agents/hil-operator.md:71`, `.claude/workflows/hil-validate.js:14,17,54,58,67`, `.claude/workflows/test/test-hil-validate.mjs:7`
 - Modify: `test/hil/test/test_hil_bounded.py` (move `SummaryFoldsReportToBoards` out), `test/hil/test/test_hil_report.py`
 
 **Interfaces:**
@@ -587,7 +587,7 @@ python3 test/hil/helper/hil_report.py <config> -b BOARD [-b BOARD...]   # from t
 ```
 
 In `.claude/workflows/hil-validate.js` lines 14, 17, 54 and 67, and
-`.claude/workflows/test-hil-validate.mjs` line 7, replace the prose mentions of
+`.claude/workflows/test/test-hil-validate.mjs` line 7, replace the prose mentions of
 `hil_summary.py` with `hil_report.py`. Change nothing else in those files — the operator's
 return contract (`{results, banner, wedged}`) is untouched.
 
@@ -595,7 +595,7 @@ return contract (`{results, banner, wedged}`) is untouched.
 
 Run: `python3 test/hil/test/test_hil_report.py` → OK
 Run: `python3 -m unittest discover -s test/hil/test` → 275 OK
-Run: `node .claude/workflows/test-hil-validate.mjs` → OK
+Run: `node .claude/workflows/test/test-hil-validate.mjs` → OK
 Run: `grep -rn "hil_summary" . --include=*.py --include=*.sh --include=*.js --include=*.mjs --include=*.md | grep -v docs/superpowers` → no hits
 
 - [ ] **Step 6: Commit**
@@ -603,7 +603,7 @@ Run: `grep -rn "hil_summary" . --include=*.py --include=*.sh --include=*.js --in
 ```bash
 git add test/hil/helper/hil_report.py test/hil/hil_ci.sh test/hil/test/ \
         .claude/agents/hil-operator.md .claude/workflows/hil-validate.js \
-        .claude/workflows/test-hil-validate.mjs
+        .claude/workflows/test/test-hil-validate.mjs
 git rm --cached test/hil/helper/hil_summary.py 2>/dev/null || true
 git commit -m "hil_report: fold hil_summary in; one module owns the document end to end
 

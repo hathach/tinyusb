@@ -79,7 +79,13 @@ repos:
   - id: hil-validate-logic
     name: hil-validate-logic
     files: ^\.claude/workflows/
-    entry: node .claude/workflows/test-hil-validate.mjs
+    entry: node .claude/workflows/test/test-hil-validate.mjs
+    pass_filenames: false
+    language: system
+  - id: code-verify-logic
+    name: code-verify-logic
+    files: ^\.claude/(workflows/|agents/codex-code-verifier\.md$)
+    entry: node .claude/workflows/test/test-code-verify.mjs
     pass_filenames: false
     language: system
   - id: ci-select-test
