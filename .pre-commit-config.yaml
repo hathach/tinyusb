@@ -82,6 +82,12 @@ repos:
     entry: node .claude/workflows/test-hil-validate.mjs
     pass_filenames: false
     language: system
+  - id: code-verify-logic
+    name: code-verify-logic
+    files: ^\.claude/workflows/
+    entry: node .claude/workflows/test-code-verify.mjs
+    pass_filenames: false
+    language: system
   - id: ci-select-test
     name: ci-select-test
     files: ^(hw/bsp/|hw/mcu/|src/|examples/|test/hil/|tools/(ci_select|build|build_utils|get_deps|metrics|rtt)\.py$|\.github/(scripts|workflows)/|\.circleci/)
