@@ -1573,6 +1573,19 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const audioh_
   return p_desc;
 }
 
+static uint16_t audioh_open_fail(audioh_interface_t *p_audio) {
+  audioh_stream_reset(&p_audio->in_stream);
+  audioh_stream_reset(&p_audio->out_stream);
+  audioh_playback_reset(&p_audio->playback);
+  p_audio->daddr             = 0;
+  p_audio->ac_itf_num        = 0;
+  p_audio->protocol          = 0;
+  p_audio->stream_count      = 0;
+  p_audio->rate_source_count = 0;
+  p_audio->mounted           = false;
+  return 0;
+}
+
 uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t *desc_itf, uint16_t max_len) {
   (void)rhport;
 
@@ -1606,7 +1619,7 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
   audioh_ac_desc_range_t ac_desc = {.desc_start = p_desc};
   while (p_desc < desc_end) {
     if (!audioh_desc_valid(p_desc, desc_end, 2)) {
-      goto open_failed;
+      return audioh_open_fail(p_audio);
     }
     if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE) {
       break;
@@ -1614,10 +1627,10 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
 
     if (tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE) {
       if (!audioh_desc_valid(p_desc, desc_end, 3)) {
-        goto open_failed;
+        return audioh_open_fail(p_audio);
       }
       if (!audioh_ac_entity_valid(p_audio, p_desc)) {
-        goto open_failed;
+        return audioh_open_fail(p_audio);
       }
     }
     p_desc = tu_desc_next(p_desc);
@@ -1628,7 +1641,7 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
   // its Audio Control descriptor block.
   while (p_desc < desc_end) {
     if (!audioh_desc_valid(p_desc, desc_end, 2)) {
-      goto open_failed;
+      return audioh_open_fail(p_audio);
     }
     if (tu_desc_type(p_desc) != TUSB_DESC_INTERFACE) {
       p_desc = tu_desc_next(p_desc);
@@ -1636,7 +1649,7 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
     }
 
     if (!audioh_desc_valid(p_desc, desc_end, sizeof(tusb_desc_interface_t))) {
-      goto open_failed;
+      return audioh_open_fail(p_audio);
     }
     const tusb_desc_interface_t *desc_interface = (const tusb_desc_interface_t *)p_desc;
     if (desc_interface->bInterfaceClass != TUSB_CLASS_AUDIO ||
@@ -1649,14 +1662,14 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
                desc_interface->bAlternateSetting);
     p_desc = audioh_parse_as(p_audio, &ac_desc, desc_interface, p_desc, desc_end);
     if (p_desc == NULL) {
-      goto open_failed;
+      return audioh_open_fail(p_audio);
     }
   }
 
   audioh_link_feature_units(p_audio, &ac_desc);
 
   if (p_audio->in_stream.as_count == 0 && p_audio->out_stream.as_count == 0) {
-    goto open_failed;
+    return audioh_open_fail(p_audio);
   }
 
   // Assign contiguous public indices in playback-then-capture order.
@@ -1677,18 +1690,6 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
   tuh_audio_descriptor_cb(idx, &desc_cb_data);
 
   return (uint16_t)((uintptr_t)p_desc - (uintptr_t)desc_start);
-
-open_failed:
-  audioh_stream_reset(&p_audio->in_stream);
-  audioh_stream_reset(&p_audio->out_stream);
-  audioh_playback_reset(&p_audio->playback);
-  p_audio->daddr             = 0;
-  p_audio->ac_itf_num        = 0;
-  p_audio->protocol          = 0;
-  p_audio->stream_count      = 0;
-  p_audio->rate_source_count = 0;
-  p_audio->mounted           = false;
-  return 0;
 }
 
 //--------------------------------------------------------------------+

@@ -1844,7 +1844,8 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
 
   // Draining the RxFIFO completion status can assert HCINT.XferCompl. Read
   // the live status here so the completion is handled in this ISR invocation.
-  if ((dwc2->gintsts & dwc2->gintmsk) & GINTSTS_HCINT) {
+  const uint32_t gintmsk_live = dwc2->gintmsk;
+  if ((dwc2->gintsts & gintmsk_live) & GINTSTS_HCINT) {
     handle_channel_irq(rhport, in_isr);
   }
 
