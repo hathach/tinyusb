@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readdirSync, readFileSync } from 'node:fs'
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
-const source = readFileSync(new URL('./code-verify.js', import.meta.url), 'utf8')
+const source = readFileSync(new URL('../code-verify.js', import.meta.url), 'utf8')
 const workflowBody = source.replace(/^export /m, '')
 
 const RESULT = {
@@ -61,7 +61,7 @@ await check('defaults to codex', async () => {
 })
 
 await check('bridge owns the Codex subprocess contract', async () => {
-  const bridge = readFileSync(new URL('../agents/codex-code-verifier.md', import.meta.url), 'utf8')
+  const bridge = readFileSync(new URL('../../agents/codex-code-verifier.md', import.meta.url), 'utf8')
   assert.match(bridge, /model: haiku/)
   assert.match(bridge, /effort: low/)
   assert.match(bridge, /\.codex\/agents\/code-verifier\.toml/)
@@ -132,13 +132,13 @@ await check('only validate bypasses the router for one-level nesting', async () 
 
 await check('router rejections preserve caller null-result contracts', async () => {
   for (const name of ['fanout-dev.js', 'pr-babysit.js']) {
-    const src = readFileSync(new URL(name, new URL('.', import.meta.url)), 'utf8')
+    const src = readFileSync(new URL(`../${name}`, import.meta.url), 'utf8')
     assert.match(src, /workflow\('code-verify',[\s\S]*?\}\)\.catch\(\(\) => null\)\s*\.then/)
   }
 })
 
 await check('driver review drops a failed routed scanner', async () => {
-  const src = readFileSync(new URL('./driver-review.js', import.meta.url), 'utf8').replace(/^export /m, '')
+  const src = readFileSync(new URL('../driver-review.js', import.meta.url), 'utf8').replace(/^export /m, '')
   const fn = new AsyncFunction(
     'args', 'agent', 'pipeline', 'parallel', 'phase', 'log', 'workflow', 'budget', src)
   const pipeline = async (items, ...stages) => Promise.all(items.map(async item => {
@@ -154,7 +154,7 @@ await check('driver review drops a failed routed scanner', async () => {
 })
 
 await check('validate dispatches directly to stay within one workflow level', async () => {
-  const src = readFileSync(new URL('./validate.js', import.meta.url), 'utf8')
+  const src = readFileSync(new URL('../validate.js', import.meta.url), 'utf8')
   assert.equal((src.match(/workflow\(['"]code-verify['"]/g) || []).length, 0)
   assert.match(src, /const reviewProvider = reviewStageNames\.length === 2 \? 'both'/)
   assert.match(src, /agentType:\s*'codex-code-verifier'/)
@@ -164,7 +164,7 @@ await check('validate dispatches directly to stay within one workflow level', as
 })
 
 await check('validate keeps provider results and gates separate', async () => {
-  const src = readFileSync(new URL('./validate.js', import.meta.url), 'utf8').replace(/^export /m, '')
+  const src = readFileSync(new URL('../validate.js', import.meta.url), 'utf8').replace(/^export /m, '')
   const calls = []
   let failCodex = false
   let blocking = false

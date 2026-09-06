@@ -125,7 +125,7 @@ result.
 
 ## Verification
 
-Add `.claude/workflows/test-code-verify.mjs` using only Node's standard
+Add `.claude/workflows/test/test-code-verify.mjs` using only Node's standard
 library. Execute the router with mocked workflow primitives and verify:
 
 - omitted provider dispatches only Codex;
@@ -140,7 +140,7 @@ Register the test as a local pre-commit hook for `.claude/workflows/` changes.
 Also run:
 
 1. `.claude/workflows/check.sh` for every workflow JavaScript file.
-2. `node .claude/workflows/test-code-verify.mjs`.
+2. `node .claude/workflows/test/test-code-verify.mjs`.
 3. `pre-commit run --all-files`.
 4. One live read-only `code-verify` workflow call with a small schema, checking
    that Codex used the canonical role and returned valid structured output.
@@ -148,7 +148,7 @@ Also run:
 ## Repository Changes
 
 - Add `.claude/workflows/code-verify.js`.
-- Add `.claude/workflows/test-code-verify.mjs`.
+- Add `.claude/workflows/test/test-code-verify.mjs`.
 - Add `.claude/agents/codex-code-verifier.md`.
 - Modify `.claude/workflows/{driver-review,fanout-dev,pr-babysit,validate}.js`.
 - Modify `.pre-commit-config.yaml` to run the router self-test.

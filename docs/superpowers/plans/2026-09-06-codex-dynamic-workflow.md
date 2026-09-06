@@ -27,7 +27,7 @@
 
 **Files:**
 - Create: `.claude/workflows/code-verify.js`
-- Create: `.claude/workflows/test-code-verify.mjs`
+- Create: `.claude/workflows/test/test-code-verify.mjs`
 - Modify: `.pre-commit-config.yaml`
 
 **Interfaces:**
@@ -72,7 +72,7 @@ The mock identifies the native Claude call by `agentType: 'code-verifier'` and t
 Run:
 
 ```bash
-node .claude/workflows/test-code-verify.mjs
+node .claude/workflows/test/test-code-verify.mjs
 ```
 
 Expected: FAIL because `.claude/workflows/code-verify.js` does not exist.
@@ -152,7 +152,7 @@ return the result file's JSON verbatim; if any command fails, do not fabricate a
 Run:
 
 ```bash
-node .claude/workflows/test-code-verify.mjs
+node .claude/workflows/test/test-code-verify.mjs
 .claude/workflows/check.sh .claude/workflows/code-verify.js
 ```
 
@@ -166,7 +166,7 @@ Add under `repo: local`:
   - id: code-verify-logic
     name: code-verify-logic
     files: ^\.claude/workflows/
-    entry: node .claude/workflows/test-code-verify.mjs
+    entry: node .claude/workflows/test/test-code-verify.mjs
     pass_filenames: false
     language: system
 ```
@@ -183,7 +183,7 @@ Expected: PASS.
 
 ```bash
 git add .claude/workflows/code-verify.js \
-  .claude/workflows/test-code-verify.mjs .pre-commit-config.yaml
+  .claude/workflows/test/test-code-verify.mjs .pre-commit-config.yaml
 git commit -m "workflows: add Codex verifier routing"
 ```
 
@@ -192,7 +192,7 @@ git commit -m "workflows: add Codex verifier routing"
 ### Task 2: Route Canonical Verifier Calls
 
 **Files:**
-- Modify: `.claude/workflows/test-code-verify.mjs`
+- Modify: `.claude/workflows/test/test-code-verify.mjs`
 - Modify: `.claude/workflows/driver-review.js`
 - Modify: `.claude/workflows/fanout-dev.js`
 - Modify: `.claude/workflows/pr-babysit.js`
@@ -214,7 +214,7 @@ Scan every `.claude/workflows/*.js` except `code-verify.js` and fail if it match
 Run:
 
 ```bash
-node .claude/workflows/test-code-verify.mjs
+node .claude/workflows/test/test-code-verify.mjs
 ```
 
 Expected: FAIL naming direct calls in `driver-review.js`, `fanout-dev.js`, and `pr-babysit.js`.
@@ -239,14 +239,14 @@ Keep every caller's existing null/result handling. Remove the `max` effort overr
 Run:
 
 ```bash
-node .claude/workflows/test-code-verify.mjs
+node .claude/workflows/test/test-code-verify.mjs
 for f in .claude/workflows/*.js; do .claude/workflows/check.sh "$f"; done
 ```
 
 Expected: no bypasses and every workflow syntax check passes.
 
 ```bash
-git add .claude/workflows/test-code-verify.mjs \
+git add .claude/workflows/test/test-code-verify.mjs \
   .claude/workflows/driver-review.js .claude/workflows/fanout-dev.js \
   .claude/workflows/pr-babysit.js
 git commit -m "workflows: route code verification through Codex"
@@ -258,7 +258,7 @@ git commit -m "workflows: route code verification through Codex"
 
 **Files:**
 - Modify: `.claude/workflows/validate.js`
-- Modify: `.claude/workflows/test-code-verify.mjs`
+- Modify: `.claude/workflows/test/test-code-verify.mjs`
 
 **Interfaces:**
 - Consumes: `workflow('code-verify', { provider: 'both', prompt, schema, label })`
@@ -273,7 +273,7 @@ Assert that `validate.js` contains one `workflow('code-verify'` call with `provi
 Run:
 
 ```bash
-node .claude/workflows/test-code-verify.mjs
+node .claude/workflows/test/test-code-verify.mjs
 ```
 
 Expected: FAIL because `validate.js` still owns separate Claude and Codex review agents.
@@ -323,14 +323,14 @@ Flatten stage-thunk results before updating `latest`. When building the next `to
 Run:
 
 ```bash
-node .claude/workflows/test-code-verify.mjs
+node .claude/workflows/test/test-code-verify.mjs
 .claude/workflows/check.sh .claude/workflows/validate.js
 ```
 
 Expected: PASS.
 
 ```bash
-git add .claude/workflows/validate.js .claude/workflows/test-code-verify.mjs
+git add .claude/workflows/validate.js .claude/workflows/test/test-code-verify.mjs
 git commit -m "validate: share dual review routing"
 ```
 
@@ -362,7 +362,7 @@ Replace the claim that Codex only works around workflow edges with concise guida
 Run:
 
 ```bash
-node .claude/workflows/test-code-verify.mjs
+node .claude/workflows/test/test-code-verify.mjs
 for f in .claude/workflows/*.js; do .claude/workflows/check.sh "$f"; done
 git diff --check origin/master...HEAD
 pre-commit run --all-files
