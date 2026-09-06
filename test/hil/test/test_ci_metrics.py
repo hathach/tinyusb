@@ -88,7 +88,7 @@ class TestByExample(unittest.TestCase):
 
 
 CIRCLECI = os.path.join(REPO, '.circleci')
-SENTINELS = ('example-map-default', 'build-filtered-default')
+SENTINEL = 'example-map-default'
 
 
 class TestCircleCiSentinelContract(unittest.TestCase):
@@ -101,25 +101,22 @@ class TestCircleCiSentinelContract(unittest.TestCase):
         self.config = open(os.path.join(CIRCLECI, 'config.yml')).read()
         self.config2 = open(os.path.join(CIRCLECI, 'config2.yml')).read()
 
-    def test_each_sentinel_appears_once_on_a_default_line(self):
-        for tag in SENTINELS:
-            marker = f'# {tag}: rewritten in-place by config.yml set-matrix'
-            hits = [l for l in self.config2.splitlines() if l.strip().endswith(marker)]
-            self.assertEqual(len(hits), 1, f'{tag}: {len(hits)} sentinel lines in config2.yml')
-            self.assertIn('default:', hits[0], f'{tag}: sentinel is not on a default: line')
+    def test_sentinel_appears_once_on_a_default_line(self):
+        marker = f'# {SENTINEL}: rewritten in-place by config.yml set-matrix'
+        hits = [l for l in self.config2.splitlines() if l.strip().endswith(marker)]
+        self.assertEqual(len(hits), 1, f'{SENTINEL}: {len(hits)} sentinel lines in config2.yml')
+        self.assertIn('default:', hits[0], f'{SENTINEL}: sentinel is not on a default: line')
 
     def test_the_selection_travels_as_a_file(self):
         # a mass-sweep selection runs to hundreds of KB: handed to ci_set_matrix as one
-        # argv it E2BIGs the step before the `||` fallback can fire, and EXAMPLE_MAP /
-        # BUILD_FILTERED (derived with jq, no argv limit) would then label a FULL build
-        # scoped -- the build and its label disagreeing is worse than either alone
+        # argv it E2BIGs the step before the `||` fallback can fire, while EXAMPLE_MAP
+        # would remain scoped and disagree with the full build
         self.assertIn('--select-file', self.config)
         self.assertNotIn('--select "', self.config)
 
-    def test_the_rewriter_names_the_same_sentinels(self):
-        for tag in SENTINELS:
-            self.assertIn(f"'{tag}'", self.config,
-                          f'{tag}: config.yml rewrite block does not name this sentinel')
+    def test_the_rewriter_names_the_same_sentinel(self):
+        self.assertIn(f"'{SENTINEL}'", self.config,
+                      f'{SENTINEL}: config.yml rewrite block does not name this sentinel')
         self.assertIn("# {tag}: rewritten in-place by config.yml set-matrix", self.config,
                       'config.yml no longer builds the sentinel comment it matches on')
 
@@ -307,7 +304,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         Nothing else exercises it, which is why the empty/rejected conflation shipped."""
         import re as _re, shlex, subprocess, tempfile, json as _json
         repo = os.path.dirname(CIRCLECI)
-        i = self.build.index("EXAMPLE_MAP='{}'\n          BUILD_FILTERED='false'")
+        i = self.build.index("EXAMPLE_MAP='{}'")
         i = self.build.rindex('\n', 0, i) + 1
         j = self.build.index('          echo "matrix=$MATRIX_JSON"', i)
         block = _re.sub(r'^ {10}', '', self.build[i:j], flags=_re.M)
@@ -326,13 +323,11 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
                 fh.write('BUILD_SELECT_FILE=' + shlex.quote(selp) + '\n')
                 fh.write('MATRIX_JSON=' + shlex.quote(matrix) + '\n')
                 fh.write(block)
-                # sentinel + newline separated: the block itself writes ::warning:: to
-                # stdout
-                fh.write('\nprintf "@@R@@\\n%s\\n%s" "$MATRIX_JSON" "$BUILD_FILTERED"\n')
+                fh.write('\nprintf "@@R@@\\n%s" "$MATRIX_JSON"\n')
             r = subprocess.run(['bash', sh], capture_output=True, text=True, cwd=repo)
             self.assertEqual(r.returncode, 0, r.stderr)
-            mj, filtered = r.stdout.split('@@R@@\n', 1)[1].split('\n', 1)
-            return sum(len(v) for v in _json.loads(mj).values()), filtered
+            mj = r.stdout.split('@@R@@\n', 1)[1]
+            return sum(len(v) for v in _json.loads(mj).values())
 
     def test_an_empty_family_list_is_not_treated_as_unusable(self):
         """A legitimate nothing-selected PR (every family filtered out) must keep the
@@ -341,17 +336,15 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         #3842 (docs + .gitignore) and #3840 (test/hil only) each rebuilt all 74 cmake
         legs after the selector had correctly chosen none, because an earlier version
         of this block conflated an empty families list with an unusable one."""
-        legs, filtered = self._run_extras_block(
+        legs = self._run_extras_block(
             {'build': {'full': False, 'families': [], 'family_examples': {}}})
         self.assertEqual(legs, 0, 'an empty families list must keep the all-empty matrix')
-        self.assertEqual(filtered, 'false', 'nothing was built, so nothing to compare')
 
     def test_a_real_family_list_stays_scoped(self):
-        legs, filtered = self._run_extras_block(
+        legs = self._run_extras_block(
             {'build': {'full': False, 'families': ['stm32f4', 'rp2040'],
                        'family_examples': {}}})
         self.assertGreater(legs, 0)
-        self.assertEqual(filtered, 'true')
 
     def test_membrowse_upload_is_not_scoped_by_the_pr_filter(self):
         # The Build step is $EX_ARGS-scoped (compiles only the PR-selected

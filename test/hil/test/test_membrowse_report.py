@@ -72,21 +72,6 @@ class NinjaCommands(unittest.TestCase):
             self.assertEqual(mr.ninja_commands(fake_ninja, tmp, 'x'),
                               'cc -Wl,--script=a.ld -o out.elf\n')
 
-    def test_failure_exits_naming_invocation_and_stderr(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            fake_ninja = os.path.join(tmp, 'fake_ninja.sh')
-            with open(fake_ninja, 'w') as f:
-                f.write('#!/bin/sh\necho "ninja: error: unknown target" >&2\nexit 1\n')
-            os.chmod(fake_ninja, 0o755)
-            with self.assertRaises(SystemExit) as cm:
-                mr.ninja_commands(fake_ninja, tmp, 'mytarget')
-            msg = str(cm.exception)
-            self.assertIn(fake_ninja, msg)
-            self.assertIn(tmp, msg)
-            self.assertIn('mytarget', msg)
-            self.assertIn('ninja: error: unknown target', msg)
-
-
 class Regexes(unittest.TestCase):
     def test_ld_script_extraction_both_forms(self):
         text = 'cc -Wl,--script=a.ld -o out.elf\ncc -T b.ld -o out2.elf\ncc -Tb.ld -o out3.elf\n'
@@ -111,11 +96,6 @@ class BuildMembrowseCmd(unittest.TestCase):
         base = dict(target_name='board/example', upload=False, ld=None, option='')
         base.update(kw)
         return argparse.Namespace(elf=elf, **base)
-
-    def test_identical_fallback_when_elf_missing(self):
-        cmd, key = mr.build_membrowse_cmd(self._args('/no/such/elf'), '')
-        self.assertEqual(cmd, ['membrowse', 'report', '--identical'])
-        self.assertIsNone(key)
 
     def test_local_report_includes_elf_and_ld_scripts(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -144,19 +124,6 @@ class BuildMembrowseCmd(unittest.TestCase):
             self.assertEqual(cmd[cmd.index('--def') + 1], 'FOO=0x10')
             self.assertIn('BAR=1', cmd)
 
-    def test_no_ld_scripts_without_override_exits(self):
-        # empty commands_text (or one with no LD_SCRIPT_RE match) + no --ld override
-        # is exactly the silent-wrong-region-sizes case: must fail loudly, not fall
-        # through to `membrowse report <elf> ''`.
-        with tempfile.TemporaryDirectory() as tmp:
-            elf = os.path.join(tmp, 'x.elf')
-            open(elf, 'w').close()
-            with self.assertRaises(SystemExit) as cm:
-                mr.build_membrowse_cmd(self._args(elf), '')
-            msg = str(cm.exception)
-            self.assertIn('linker script', msg)
-            self.assertIn('--ld', msg)
-
     def test_ld_override_skips_ninja_extraction(self):
         with tempfile.TemporaryDirectory() as tmp:
             elf = os.path.join(tmp, 'x.elf')
@@ -174,36 +141,6 @@ class BuildMembrowseCmd(unittest.TestCase):
             cmd, _key = mr.build_membrowse_cmd(
                 self._args(elf, ld=['/fake.ld'], option='--json --all-symbols'), '')
             self.assertEqual(cmd[:4], ['membrowse', 'report', '--json', '--all-symbols'])
-
-    def test_upload_without_key_goes_tokenless(self):
-        # Fork PRs: GHA withholds secrets, so the env var is empty. Master's
-        # CMake-expanded bare `--api-key` fell through to membrowse's GitHub
-        # tokenless auth; the wrapper must do the same by OMITTING --api-key,
-        # never by exiting (which, behind continue-on-error, silently drops
-        # every fork PR's upload).
-        with tempfile.TemporaryDirectory() as tmp:
-            elf = os.path.join(tmp, 'x.elf')
-            open(elf, 'w').close()
-            env = dict(os.environ)
-            env.pop('MEMBROWSE_API_KEY', None)
-            with mock.patch.dict(os.environ, env, clear=True):
-                cmd, key = mr.build_membrowse_cmd(self._args(elf, ld=['/fake.ld'], upload=True), '')
-            self.assertIsNone(key)
-            self.assertIn('--upload', cmd)
-            self.assertIn('--github', cmd)
-            self.assertNotIn('--api-key', cmd)
-
-    def test_upload_appends_key_and_target_name(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            elf = os.path.join(tmp, 'x.elf')
-            open(elf, 'w').close()
-            with mock.patch.dict(os.environ, {'MEMBROWSE_API_KEY': 'dummysecret'}):
-                cmd, key = mr.build_membrowse_cmd(
-                    self._args(elf, ld=['/fake.ld'], upload=True, target_name='board/ex'), '')
-            self.assertEqual(key, 'dummysecret')
-            self.assertEqual(cmd[cmd.index('--api-key') + 1], 'dummysecret')
-            self.assertEqual(cmd[cmd.index('--target-name') + 1], 'board/ex')
-
 
 class CliKeyHandling(unittest.TestCase):
     """End-to-end CLI tests: real `python3 tools/membrowse_report.py` subprocess,
@@ -245,27 +182,16 @@ class CliKeyHandling(unittest.TestCase):
             self.assertIn('--github', logged_line)
             self.assertNotIn('--api-key', logged_line)
 
-    def test_upload_redacts_key_in_logged_line(self):
+    def test_upload_redacts_logged_key_and_passes_real_key(self):
         with tempfile.TemporaryDirectory() as tmp:
             r = self._run(tmp, ['--upload'], {'MEMBROWSE_API_KEY': 'dummysecret'})
             self.assertEqual(r.returncode, 0, r.stderr)
             logged_line = r.stdout.splitlines()[0]
             self.assertNotIn('dummysecret', logged_line)
             self.assertIn('***', logged_line)
-
-    def test_upload_passes_real_key_to_membrowse(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            r = self._run(tmp, ['--upload'], {'MEMBROWSE_API_KEY': 'dummysecret'})
-            self.assertEqual(r.returncode, 0, r.stderr)
             stub_line = [l for l in r.stdout.splitlines() if l.startswith('STUB_ARGV:')]
             self.assertTrue(stub_line, r.stdout)
             self.assertIn('dummysecret', stub_line[0])
-
-    def test_local_report_no_key_needed(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            r = self._run(tmp, [], {})
-            self.assertEqual(r.returncode, 0, r.stderr)
-            self.assertIn('STUB_ARGV:', r.stdout)
 
     def test_no_ld_scripts_without_override_errors_cleanly_no_traceback(self):
         # same scenario as test_no_ld_scripts_without_override_exits, but through

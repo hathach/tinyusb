@@ -18,7 +18,7 @@ independent analysis tool with its own target).
 **Tech Stack:** CMake (`hw/bsp/family_support.cmake`), Python 3.13 stdlib
 (`tools/metrics_compare_base.py`, `tools/get_deps.py`).
 
-**Spec:** none — split out of the rework-metrics branch (`docs/superpowers/specs/2026-08-25-rework-metrics-design.md` / `docs/superpowers/plans/2026-08-25-rework-metrics.md`), which made membrowse the default engine but kept linkermap alive as the only engine `--combined`/`--ci` can use.
+**Spec:** none — split out of the rework-metrics branch (`docs/superpowers/specs/2026-08-25-rework-metrics-design.md`), which made membrowse the default engine but kept linkermap alive as the only engine `--combined`/`--ci` can use.
 
 **Origin:** split out of the `rework-metrics` branch's final-review fix wave. Delete this
 file when its own PR lands.

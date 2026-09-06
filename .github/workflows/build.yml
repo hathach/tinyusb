@@ -54,7 +54,6 @@ jobs:
       json: ${{ steps.set-matrix-json.outputs.matrix }}
       hil_json: ${{ steps.set-matrix-json.outputs.hil_matrix }}
       example_map: ${{ steps.set-matrix-json.outputs.example_map }}
-      build_filtered: ${{ steps.set-matrix-json.outputs.build_filtered }}
       # one pair per rig job: hil-tinyusb (tinyusb.json minus esptool boards),
       # hil-tinyusb-esp (esptool boards only), hil-tinyusb (hfp.json)
       hil_args_tinyusb: ${{ steps.hil-select.outputs.args_tinyusb }}
@@ -168,33 +167,15 @@ jobs:
           fi
           [ -z "$MATRIX_JSON" ] && MATRIX_JSON=$(python .github/scripts/ci_set_matrix.py)
 
-          # Build-axis extras: the per-family example map rides as a side channel
-          # (a value inside matrix entries would break CircleCI's family parameter
-          # and multiply GHA matrix legs). These stay step outputs - they are small
-          # derived values, unlike the selection they are read from. NOTE jq's //
-          # treats false like null, so .build.full is compared explicitly.
+          # The per-family example map rides as a side channel: putting it inside
+          # matrix entries would multiply GHA legs and break CircleCI's family parameter.
           EXAMPLE_MAP='{}'
-          BUILD_FILTERED='false'
           if [ -n "$BUILD_SELECT_FILE" ]; then
             EXAMPLE_MAP=$(jq -c '.build.family_examples // {}' "$BUILD_SELECT_FILE") || EXAMPLE_MAP='{}'
-            BUILD_FILTERED=$(jq -r 'if (.build? | type) == "object" and .build.full == false then "true" else "false" end' "$BUILD_SELECT_FILE") || BUILD_FILTERED='false'
-            if [ "$BUILD_FILTERED" = "true" ]; then
-              FAMILY_COUNT=$(jq -r '.build.families | length' "$BUILD_SELECT_FILE") || FAMILY_COUNT=0
-              if [ "$FAMILY_COUNT" = "0" ]; then
-                # legitimate nothing-selected. MATRIX_JSON already holds the all-empty
-                # matrix ci_set_matrix produced from this selection - keep it, so every
-                # leg skips. Nothing is built, so there is nothing to compare a baseline
-                # against: build_filtered goes false (nothing to report as scoped), and
-                # EXAMPLE_MAP stays '{}' (family_examples is empty anyway).
-                BUILD_FILTERED='false'
-              fi
-            fi
           fi
-          # emitted once, after every path that can still change it
           echo "matrix=$MATRIX_JSON"
           echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
           echo "example_map=$EXAMPLE_MAP" >> $GITHUB_OUTPUT
-          echo "build_filtered=$BUILD_FILTERED" >> $GITHUB_OUTPUT
 
           # HIL matrix (merged from tinyusb + hifiphile configs), scoped on PRs.
           # Scoping is best-effort too: fall back to the unscoped (full) matrix.

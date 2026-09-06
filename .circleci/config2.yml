@@ -4,9 +4,6 @@ parameters:
   example-map:
     type: string
     default: "{}"  # example-map-default: rewritten in-place by config.yml set-matrix
-  build-filtered:
-    type: string
-    default: "false"  # build-filtered-default: rewritten in-place by config.yml set-matrix
 
 commands:
   setup-toolchain:
