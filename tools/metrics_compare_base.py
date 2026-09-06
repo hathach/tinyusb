@@ -118,6 +118,10 @@ def build_board(src_dir, build_dir, board, example=None, linkermap=False):
     build above — so a missing target is only fatal if no map.json resulted.
     """
     os.makedirs(build_dir, exist_ok=True)
+    map_pattern = f'{build_dir}/{example}/*.map.json' if example \
+        else f'{build_dir}/**/*.map.json'
+    old_maps = {path: (os.stat(path).st_mtime_ns, os.stat(path).st_size)
+                for path in glob.glob(map_pattern, recursive=True)} if linkermap else {}
     ret = run(['cmake', '-B', build_dir, '-G', 'Ninja',
                f'-DBOARD={board}', '-DCMAKE_BUILD_TYPE=MinSizeRel',
                os.path.join(src_dir, 'examples')])
@@ -136,9 +140,11 @@ def build_board(src_dir, build_dir, board, example=None, linkermap=False):
         target = f'{os.path.basename(example)}-linkermap' if example else 'examples-linkermap'
         ret = run(['cmake', '--build', build_dir, '--target', target], timeout=600)
         if ret.returncode != 0:
-            pattern = f'{build_dir}/{example}/*.map.json' if example \
-                else f'{build_dir}/**/*.map.json'
-            if not glob.glob(pattern, recursive=True):  # NOSONAR - trusted local developer CLI path
+            maps = glob.glob(map_pattern, recursive=True)  # NOSONAR - trusted local developer CLI path
+            fresh = any(path not in old_maps or
+                        (os.stat(path).st_mtime_ns, os.stat(path).st_size) != old_maps[path]
+                        for path in maps)
+            if not fresh:
                 print(f'  Error: linkermap target failed for {board} - '
                       f'run `python3 tools/get_deps.py` to fetch tools/linkermap')
                 return False

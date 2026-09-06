@@ -130,6 +130,47 @@ class GenerateMembrowseSizes(unittest.TestCase):
         self.assertEqual(result['x.c']['flash'], 300)  # sum, not average
 
 
+class BuildBoardLinkermap(unittest.TestCase):
+    def test_failed_target_rejects_map_left_by_an_earlier_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            build_dir = os.path.join(tmp, 'build')
+            map_dir = os.path.join(build_dir, 'device', 'x')
+            os.makedirs(map_dir)
+            with open(os.path.join(map_dir, 'x.map.json'), 'w') as f:
+                f.write('stale')
+            ok = subprocess.CompletedProcess([], 0, '', '')
+            failed = subprocess.CompletedProcess([], 1, '', 'no such target')
+            with mock.patch.object(mcb, 'run', side_effect=[ok, ok, failed]):
+                self.assertFalse(mcb.build_board(tmp, build_dir, 'b',
+                                                 'device/x', linkermap=True))
+
+    def test_failed_target_accepts_map_regenerated_by_plain_build(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            build_dir = os.path.join(tmp, 'build')
+            map_dir = os.path.join(build_dir, 'device', 'x')
+            os.makedirs(map_dir)
+            map_path = os.path.join(map_dir, 'x.map.json')
+            with open(map_path, 'w') as f:
+                f.write('map')
+            os.utime(map_path, ns=(1, 1))
+            ok = subprocess.CompletedProcess([], 0, '', '')
+            failed = subprocess.CompletedProcess([], 1, '', 'no such target')
+            results = iter((ok, ok, failed))
+            calls = 0
+
+            def run(*_args, **_kwargs):
+                nonlocal calls
+                calls += 1
+                result = next(results)
+                if calls == 2:
+                    os.utime(map_path, ns=(2, 2))
+                return result
+
+            with mock.patch.object(mcb, 'run', side_effect=run):
+                self.assertTrue(mcb.build_board(tmp, build_dir, 'b',
+                                                'device/x', linkermap=True))
+
+
 class MainFailure(unittest.TestCase):
     def test_failed_report_removes_stale_output_and_returns_nonzero(self):
         with tempfile.TemporaryDirectory() as tmp:

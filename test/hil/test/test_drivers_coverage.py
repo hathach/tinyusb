@@ -2,10 +2,13 @@
 """Tests for tools/drivers_coverage_check.py and the real boards/roster files."""
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
 import unittest
+
+import yaml
 
 REPO = subprocess.run(['git', 'rev-parse', '--show-toplevel'],
                       capture_output=True, text=True, check=True).stdout.strip()
@@ -221,6 +224,17 @@ class BoardsAreSorted(unittest.TestCase):
             data = json.load(f)
         keys = [t['board'] for t in data['boards']]
         self.assertEqual(keys, sorted(keys), 'boards must be sorted by board name')
+
+
+class HookScope(unittest.TestCase):
+    def test_every_checker_input_triggers_the_hook(self):
+        with open(os.path.join(REPO, '.pre-commit-config.yaml')) as f:
+            hooks = [h for repo in yaml.safe_load(f)['repos'] for h in repo['hooks']]
+        pattern = next(h['files'] for h in hooks if h['id'] == 'drivers-coverage')
+        for path in ('.github/scripts/ci_set_matrix.py',
+                     'examples/CMakeLists.txt',
+                     'examples/device/cdc_msc/skip.txt'):
+            self.assertRegex(path, re.compile(pattern))
 
 
 if __name__ == '__main__':

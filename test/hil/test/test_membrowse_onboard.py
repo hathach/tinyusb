@@ -51,9 +51,21 @@ class Compose(unittest.TestCase):
         # trigger a rebuild rather than an --identical skip.
         cmd = mo.compose('b', 'host/y', 5, False, 'k', ['--initial-commit', 'HEAD~5'])
         i = cmd.index('--build-dirs')
-        self.assertEqual(cmd[i + 1:i + 5],
-                         ['src/', 'hw/', 'examples/host/y/', 'tools/get_deps.py'])
+        self.assertEqual(cmd[i + 1:i + 8], [
+            'src/', 'hw/', 'examples/build_system/', 'examples/CMakeLists.txt',
+            'examples/host/CMakeLists.txt', 'examples/host/y/', 'tools/get_deps.py'])
         self.assertEqual(cmd[-2:], ['--initial-commit', 'HEAD~5'])
+
+    def test_espressif_uses_idf_build_and_generated_linker_scripts(self):
+        cmd = mo.compose('espressif_s3_devkitm', 'device/cdc_msc_freertos',
+                         5, False, 'k', [], family='espressif')
+        build = cmd[3]
+        self.assertIn('idf.py -C examples/device/cdc_msc_freertos', build)
+        self.assertIn('-DBOARD=espressif_s3_devkitm build', build)
+        self.assertIn('cdc_msc_freertos.elf', build)
+        self.assertIn('esp-idf/esp_system/ld/memory.ld', build)
+        self.assertEqual(cmd[4], 'examples/cmake-build-espressif_s3_devkitm/'
+                                 'cdc_msc_freertos.elf')
 
     def test_binary_search_omits_mutually_exclusive_build_dirs(self):
         cmd = mo.compose('b', 'device/x', 5, False, 'k', ['--binary-search'])
@@ -83,6 +95,24 @@ class WriteLinkerShim(unittest.TestCase):
                 mo.write_linker_shim('ninja', 'build', 'x', out)
             with open(out) as f:
                 self.assertEqual(f.read(), 'FLASH_SIZE = 256K;\nINCLUDE "/tree/board.ld"\n')
+
+    def test_explicit_scripts_are_resolved_from_the_build_dir(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            build = os.path.join(tmp, 'build')
+            script_dir = os.path.join(build, 'esp-idf', 'esp_system', 'ld')
+            os.makedirs(script_dir)
+            for name in ('memory.ld', 'sections.ld'):
+                open(os.path.join(script_dir, name), 'w').close()
+            out = os.path.join(build, 'settings.ld')
+            with mock.patch.object(mo, 'ninja_commands', return_value='cc -o x.elf\n'):
+                mo.write_linker_shim(
+                    'ninja', build, 'x.elf', out,
+                    'esp-idf/esp_system/ld/memory.ld',
+                    'esp-idf/esp_system/ld/sections.ld')
+            with open(out) as f:
+                self.assertEqual(f.read(),
+                                 f'INCLUDE "{script_dir}/memory.ld"\n'
+                                 f'INCLUDE "{script_dir}/sections.ld"\n')
 
 
 class WorktreeGuard(unittest.TestCase):

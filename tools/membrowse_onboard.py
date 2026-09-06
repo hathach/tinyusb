@@ -13,7 +13,7 @@ the caller's current checkout.
 place. This wrapper confines that to a disposable worktree; each build then runs
 that commit's `tools/get_deps.py` so dependency revisions match the ELF.
 
-Composes, from repo-root-relative conventions:
+Composes, from repo-root-relative conventions (using idf.py for espressif):
   build dir:    examples/cmake-build-<board> (reconfigured for every commit)
   build script: tools/get_deps.py -b <board> && cmake -S examples -B <build_dir> ... &&
                 cmake --build <build_dir> --target <basename>
@@ -37,7 +37,7 @@ import sys
 from membrowse_report import extract_ld_script_paths, ninja_commands, extract_defsyms
 
 
-def compose(board, example, num_commits, upload, api_key, extra):
+def compose(board, example, num_commits, upload, api_key, extra, family=None):
     """Return the membrowse onboard argv for one board/example backfill."""
     basename = os.path.basename(example.rstrip('/'))
     build_dir = f'examples/cmake-build-{board}'
@@ -45,27 +45,43 @@ def compose(board, example, num_commits, upload, api_key, extra):
     # which deletes this ignored build_dir - reconfigure it fresh each time.
     python = shlex.quote(sys.executable)
     quoted_build_dir = shlex.quote(build_dir)
-    configure = (f'cmake -S examples -B {quoted_build_dir} {shlex.quote(f"-DBOARD={board}")} '
-                 f'-G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel')
-    build_script = (f'{python} tools/get_deps.py -b {shlex.quote(board)} && {configure} && '
-                    f'cmake --build {quoted_build_dir} --target {shlex.quote(basename)}')
+    if family == 'espressif':
+        build = (f'idf.py -C {shlex.quote(f"examples/{example}")} -B {quoted_build_dir} '
+                 f'-GNinja {shlex.quote(f"-DBOARD={board}")} build')
+        elf_path = f'{build_dir}/{basename}.elf'
+        link_target = f'{basename}.elf'
+        shim_scripts = ('esp-idf/esp_system/ld/memory.ld',
+                        'esp-idf/esp_system/ld/sections.ld')
+    else:
+        configure = (f'cmake -S examples -B {quoted_build_dir} '
+                     f'{shlex.quote(f"-DBOARD={board}")} -G Ninja '
+                     f'-DCMAKE_BUILD_TYPE=MinSizeRel')
+        build = f'{configure} && cmake --build {quoted_build_dir} --target {shlex.quote(basename)}'
+        elf_path = f'{build_dir}/{example}/{basename}.elf'
+        link_target = basename
+        shim_scripts = ()
+    build_script = f'{python} tools/get_deps.py -b {shlex.quote(board)} && {build}'
     shim_path = f'{build_dir}/.membrowse-onboard.ld'
     write_shim = (f'{python} {shlex.quote(os.path.abspath(__file__))} '
                   f'--write-linker-shim {shlex.quote(shutil.which("ninja") or "ninja")} '
-                  f'{quoted_build_dir} {shlex.quote(basename)} {shlex.quote(shim_path)}')
+                  f'{quoted_build_dir} {shlex.quote(link_target)} {shlex.quote(shim_path)}')
+    if shim_scripts:
+        write_shim += ' ' + ' '.join(map(shlex.quote, shim_scripts))
     build_script = f'{build_script} && {write_shim}'
     cmd = ['membrowse', 'onboard']
     if '--commits' not in extra:
         cmd.append(str(num_commits))
     cmd += [
         build_script,
-        f'{build_dir}/{example}/{basename}.elf',
+        elf_path,
         f'{board}/{basename}',
         api_key,
     ]
     if '--binary-search' not in extra:
-        cmd += ['--build-dirs', 'src/', 'hw/', f'examples/{example.rstrip("/")}/',
-                'tools/get_deps.py']
+        role = example.split('/', 1)[0]
+        cmd += ['--build-dirs', 'src/', 'hw/', 'examples/build_system/',
+                'examples/CMakeLists.txt', f'examples/{role}/CMakeLists.txt',
+                f'examples/{example.rstrip("/")}/', 'tools/get_deps.py']
     cmd += ['--ld-scripts', shim_path]
     if not upload:
         cmd.append('--dry-run')
@@ -73,10 +89,10 @@ def compose(board, example, num_commits, upload, api_key, extra):
     return cmd
 
 
-def write_linker_shim(ninja, build_dir, target, output):
+def write_linker_shim(ninja, build_dir, target, output, *scripts):
     """Write current build's linker scripts and defsyms to a stable path."""
     commands = ninja_commands(ninja, build_dir, target)
-    scripts = list(dict.fromkeys(extract_ld_script_paths(commands)))
+    scripts = scripts or tuple(dict.fromkeys(extract_ld_script_paths(commands)))
     if not scripts:
         sys.exit(f'no linker script found in the ninja build graph for target {target!r}')
 
@@ -98,7 +114,7 @@ def write_linker_shim(ninja, build_dir, target, output):
 
 def main():
     # Internal re-entry point used by the historical build script.
-    if len(sys.argv) == 6 and sys.argv[1] == '--write-linker-shim':
+    if len(sys.argv) >= 6 and sys.argv[1] == '--write-linker-shim':
         return write_linker_shim(*sys.argv[2:])
 
     parser = argparse.ArgumentParser(
@@ -138,8 +154,10 @@ def main():
     repo_root = os.getcwd()
     worktree_dir = os.path.join(repo_root, 'cmake-metrics', '_onboard_worktree')
 
+    family = 'espressif' if os.path.isdir(
+        os.path.join(repo_root, 'hw', 'bsp', 'espressif', 'boards', args.board)) else None
     cmd = compose(args.board, args.example, args.num_commits, args.upload,
-                  api_key or 'dry-run-placeholder', extra)
+                  api_key or 'dry-run-placeholder', extra, family)
 
     shown = [('***' if c == api_key and api_key else c) for c in cmd]
     print('+ ' + ' '.join(shown), flush=True)
