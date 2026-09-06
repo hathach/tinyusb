@@ -15,6 +15,8 @@ fallback.
 - Claude Code remains the dynamic workflow runtime and orchestrator.
 - `.claude/workflows/` remains the only authored workflow tree.
 - `.claude/agents/code-verifier.md` remains the only authored verifier role.
+- `.claude/agents/codex-code-verifier.md` is a process bridge, not a second
+  verifier role.
 - `.codex/agents/code-verifier.toml` remains the Codex model/effort adapter. It
   currently selects `gpt-5.6-sol` at `xhigh` effort and loads the canonical
   Markdown role.
@@ -67,8 +69,8 @@ override in `driver-review.js` is removed so both providers use their approved
 ## Codex Provider
 
 Dynamic workflow JavaScript cannot directly run shell commands, so the Codex
-path uses one Haiku/low Claude agent as a thin process bridge. The bridge does
-no review work. It:
+path invokes `.claude/agents/codex-code-verifier.md`, a Haiku/low process
+bridge shared with child workflows. The bridge does no review work. It:
 
 1. Locates the repository root.
 2. Reads `.codex/agents/code-verifier.toml` with Python's standard `tomllib` to
@@ -100,14 +102,16 @@ nested router:
 
 Those calls omit `provider` and therefore use Codex only.
 
-Replace `validate.js`'s separate Claude and ad-hoc Codex review implementations
-with one `code-verify` call using `provider: 'both'`. Preserve two independently
-reported stages and apply the existing Claude and Codex gating rules to their
-respective results. A failed provider remains a failed stage.
+`full-check` already invokes `validate`, and Claude Code limits workflow nesting
+to one level. Therefore `validate.js` cannot invoke `code-verify`; it dispatches
+the same `codex-code-verifier` and `code-verifier` agents directly, in parallel
+for `both`, while preserving the two reported stages and their separate gates.
+A failed provider remains a failed stage.
 
-Future dynamic workflows that need this role call `workflow('code-verify',
-...)`; they do not invoke `agentType: 'code-verifier'` directly or copy the
-Codex command.
+Future root workflows that need this role call `workflow('code-verify', ...)`.
+A workflow that is itself called by another workflow must dispatch the shared
+bridge/native agents directly, as `validate` does. No workflow copies the Codex
+command.
 
 ## Concurrency and Safety
 
@@ -129,8 +133,8 @@ library. Execute the router with mocked workflow primitives and verify:
 - `both` starts independent Codex and Claude calls and returns both results;
 - invalid inputs fail before dispatch;
 - a dead or malformed Codex result fails without invoking Claude;
-- no workflow other than `code-verify.js` directly names the `code-verifier`
-  agent type.
+- only `validate.js` bypasses the router, to respect the one-level nesting
+  limit, and it uses the same shared bridge/native agents.
 
 Register the test as a local pre-commit hook for `.claude/workflows/` changes.
 Also run:
@@ -145,6 +149,7 @@ Also run:
 
 - Add `.claude/workflows/code-verify.js`.
 - Add `.claude/workflows/test-code-verify.mjs`.
+- Add `.claude/agents/codex-code-verifier.md`.
 - Modify `.claude/workflows/{driver-review,fanout-dev,pr-babysit,validate}.js`.
 - Modify `.pre-commit-config.yaml` to run the router self-test.
 - Modify `CLAUDE.md` to describe Codex-backed verifier routing instead of

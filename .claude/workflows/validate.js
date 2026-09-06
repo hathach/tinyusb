@@ -148,6 +148,16 @@ if (reviewProvider) stageNames.push('reviews')
 const scheduleName = name => name === 'review' || name === 'codex' ? 'reviews' : name
 const displayNames = names => names.flatMap(name => name === 'reviews' ? reviewStageNames : [name])
 
+function runReviewProvider(provider, label) {
+  if (provider === 'codex') return agent(
+    JSON.stringify({ prompt: reviewPrompt, schema: REVIEW }),
+    { label: `${label}:codex`, phase: 'Validate', agentType: 'codex-code-verifier', schema: REVIEW },
+  )
+  return agent(reviewPrompt, {
+    label: `${label}:claude`, phase: 'Validate', agentType: 'code-verifier', schema: REVIEW,
+  })
+}
+
 function stageThunk(name, cycle) {
   const label = (cycle > 1 ? `c${cycle}:` : '') + name
   // findings: [] so a dead review/codex stage flows through fixerEvidence()
@@ -187,26 +197,28 @@ function stageThunk(name, cycle) {
     detail: r.pass ? r.detail : clip(`${r.detail} ${JSON.stringify(r.changedFindings)}`),
   } : died).catch(() => died)
 
-  if (name === 'reviews') return () => workflow('code-verify', {
-    prompt: reviewPrompt, label, schema: REVIEW, provider: reviewProvider,
-  }).then(r => {
-    const byProvider = reviewProvider === 'both' ? r : { [reviewProvider]: r }
-    const rows = []
-    if (byProvider.claude) rows.push({
-      stage: 'review',
-      pass: byProvider.claude.pass && !byProvider.claude.findings.some(confirmedReview),
-      findings: byProvider.claude.findings, detail: byProvider.claude.detail,
-    })
-    if (byProvider.codex) rows.push({
-      stage: 'codex',
-      pass: byProvider.codex.pass && !byProvider.codex.findings.some(codexBlocking),
-      findings: byProvider.codex.findings, detail: byProvider.codex.detail,
-    })
-    if (rows.length !== reviewStageNames.length) throw new Error('review provider result missing')
-    return rows
-  }).catch(() => reviewStageNames.map(stage => ({
-    stage, pass: false, findings: [], detail: 'stage agent died',
-  })))
+  if (name === 'reviews') return () => {
+    const pending = reviewProvider === 'both'
+      ? parallel(['codex', 'claude'].map(provider => () => runReviewProvider(provider, label)))
+        .then(([codex, claude]) => ({ codex, claude }))
+      : runReviewProvider(reviewProvider, label).then(r => ({ [reviewProvider]: r }))
+    return pending.then(byProvider => {
+      const rows = []
+      if (reviewStageNames.includes('review')) rows.push(byProvider.claude ? {
+        stage: 'review', pass: byProvider.claude.pass &&
+          !byProvider.claude.findings.some(confirmedReview),
+        findings: byProvider.claude.findings, detail: byProvider.claude.detail,
+      } : { stage: 'review', pass: false, findings: [], detail: 'stage agent died' })
+      if (reviewStageNames.includes('codex')) rows.push(byProvider.codex ? {
+        stage: 'codex', pass: byProvider.codex.pass &&
+          !byProvider.codex.findings.some(codexBlocking),
+        findings: byProvider.codex.findings, detail: byProvider.codex.detail,
+      } : { stage: 'codex', pass: false, findings: [], detail: 'stage agent died' })
+      return rows
+    }).catch(() => reviewStageNames.map(stage => ({
+      stage, pass: false, findings: [], detail: 'stage agent died',
+    })))
+  }
 
   throw new Error(`unknown stage ${name}`)
 }

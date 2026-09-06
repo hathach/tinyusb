@@ -84,7 +84,7 @@ repos:
     language: system
   - id: code-verify-logic
     name: code-verify-logic
-    files: ^\.claude/workflows/
+    files: ^\.claude/(workflows/|agents/codex-code-verifier\.md$)
     entry: node .claude/workflows/test-code-verify.mjs
     pass_filenames: false
     language: system

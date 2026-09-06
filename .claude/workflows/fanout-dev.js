@@ -98,7 +98,7 @@ const results = await pipeline(
       'Dimension: does the diff correctly and completely implement the task with no unintended side effects? Coverage-first findings.',
       label: `review:${short(item)}`,
       schema: FINDINGS,
-    }).then(f => {
+    }).catch(() => null).then(f => {
       // review: array = findings; null = reviewer died; absent = not requested
       if (!f) log(`review:${short(item)}: reviewer agent died`)
       return { ...r, review: f ? f.findings : null }

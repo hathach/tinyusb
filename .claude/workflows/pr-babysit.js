@@ -234,7 +234,8 @@ const fixAndVerify = async (workIn) => {
       'Return {"addresses": bool, "reason": string}.',
       label: `check:${w.key}`,
       schema: CHECK,
-    }).then(v => ({ ...fix, addresses: !!(v && v.addresses), checkReason: v ? v.reason : 'verifier died' })),
+    }).catch(() => null)
+      .then(v => ({ ...fix, addresses: !!(v && v.addresses), checkReason: v ? v.reason : 'verifier died' })),
   )
   const alive = fixes.filter(Boolean)
   if (alive.length < work.length) log(`${work.length - alive.length} fix group(s) lost to dead workers`)

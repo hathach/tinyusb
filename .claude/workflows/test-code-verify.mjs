@@ -20,15 +20,16 @@ async function run(args, provided = answers) {
   let parallelCalls = 0
   const agent = async (prompt, options) => {
     const provider = options.agentType === 'code-verifier' ? 'claude'
-      : options.model === 'haiku' ? 'codex' : 'unknown'
+      : options.agentType === 'codex-code-verifier' ? 'codex' : 'unknown'
     calls.push({ provider, prompt, options })
     const answer = provided[provider]
     if (answer instanceof Error) throw answer
+    if (answer && typeof answer.answer !== 'string') throw new Error('schema mismatch')
     return structuredClone(answer)
   }
   const parallel = async (thunks) => {
     parallelCalls++
-    return Promise.all(thunks.map(fn => fn()))
+    return Promise.all(thunks.map(fn => Promise.resolve().then(fn).catch(() => null)))
   }
   const fn = new AsyncFunction(
     'args', 'agent', 'pipeline', 'parallel', 'phase', 'log', 'workflow', 'budget',
@@ -54,14 +55,21 @@ await check('defaults to codex', async () => {
   assert.deepEqual(result, answers.codex)
   assert.deepEqual(calls.map(c => c.provider), ['codex'])
   assert.equal(parallelCalls, 0)
-  assert.equal(calls[0].options.effort, 'low')
+  assert.equal(calls[0].options.agentType, 'codex-code-verifier')
   assert.deepEqual(calls[0].options.schema, RESULT)
-  assert.match(calls[0].prompt, /\.codex\/agents\/code-verifier\.toml/)
-  assert.match(calls[0].prompt, /tomllib/)
-  assert.match(calls[0].prompt, /timeout 600s codex exec/)
-  assert.match(calls[0].prompt, /--sandbox read-only/)
-  assert.match(calls[0].prompt, /--output-schema/)
-  assert.match(calls[0].prompt, /--output-last-message/)
+  assert.deepEqual(JSON.parse(calls[0].prompt), { prompt: 'review', schema: RESULT })
+})
+
+await check('bridge owns the Codex subprocess contract', async () => {
+  const bridge = readFileSync(new URL('../agents/codex-code-verifier.md', import.meta.url), 'utf8')
+  assert.match(bridge, /model: haiku/)
+  assert.match(bridge, /effort: low/)
+  assert.match(bridge, /\.codex\/agents\/code-verifier\.toml/)
+  assert.match(bridge, /tomllib/)
+  assert.match(bridge, /timeout 600s codex exec/)
+  assert.match(bridge, /--sandbox read-only/)
+  assert.match(bridge, /--output-schema/)
+  assert.match(bridge, /--output-last-message/)
 })
 
 await check('selects claude', async () => {
@@ -87,8 +95,8 @@ await check('rejects invalid input before dispatch', async () => {
   for (const args of [null, {}, { prompt: '', schema: RESULT }, { prompt: 'x', schema: [] }]) {
     await assert.rejects(run(args), /args must be/)
   }
-  await assert.rejects(
-    run({ prompt: 'review', schema: RESULT, provider: 'auto' }),
+  for (const provider of ['', 'auto']) await assert.rejects(
+    run({ prompt: 'review', schema: RESULT, provider }),
     /provider must be codex, claude, or both/,
   )
 })
@@ -102,22 +110,39 @@ await check('fails closed when codex dies', async () => {
     run({ prompt: 'review', schema: RESULT }, { ...answers, codex: new Error('broken') }),
     /codex verifier failed: broken/,
   )
+  await assert.rejects(
+    run({ prompt: 'review', schema: RESULT, provider: 'both' },
+      { ...answers, codex: new Error('broken') }),
+    /codex verifier failed/,
+  )
+  await assert.rejects(
+    run({ prompt: 'review', schema: RESULT }, { ...answers, codex: { answer: 1 } }),
+    /codex verifier failed: schema mismatch/,
+  )
 })
 
-await check('all code-verifier calls use the router', async () => {
+await check('only validate bypasses the router for one-level nesting', async () => {
   const dir = new URL('.', import.meta.url)
   const offenders = readdirSync(dir)
-    .filter(name => name.endsWith('.js') && name !== 'code-verify.js')
-    .filter(name => /agentType:\s*['"]code-verifier['"]/.test(
+    .filter(name => name.endsWith('.js') && !['code-verify.js', 'validate.js'].includes(name))
+    .filter(name => /agentType:\s*['"](?:codex-)?code-verifier['"]/.test(
       readFileSync(new URL(name, dir), 'utf8')))
   assert.deepEqual(offenders, [])
 })
 
-await check('validate uses one dual-provider router call', async () => {
+await check('router rejections preserve caller null-result contracts', async () => {
+  for (const name of ['fanout-dev.js', 'pr-babysit.js']) {
+    const src = readFileSync(new URL(name, new URL('.', import.meta.url)), 'utf8')
+    assert.match(src, /workflow\('code-verify',[\s\S]*?\}\)\.catch\(\(\) => null\)\s*\.then/)
+  }
+})
+
+await check('validate dispatches directly to stay within one workflow level', async () => {
   const src = readFileSync(new URL('./validate.js', import.meta.url), 'utf8')
-  assert.equal((src.match(/workflow\(['"]code-verify['"]/g) || []).length, 1)
+  assert.equal((src.match(/workflow\(['"]code-verify['"]/g) || []).length, 0)
   assert.match(src, /const reviewProvider = reviewStageNames\.length === 2 \? 'both'/)
-  assert.match(src, /provider:\s*reviewProvider/)
+  assert.match(src, /agentType:\s*'codex-code-verifier'/)
+  assert.match(src, /agentType:\s*'code-verifier'/)
   assert.doesNotMatch(src, /codex review --base/)
   assert.doesNotMatch(src, /model:\s*['"]opus['"][^}]*schema:\s*REVIEW/)
 })
@@ -125,35 +150,39 @@ await check('validate uses one dual-provider router call', async () => {
 await check('validate keeps provider results and gates separate', async () => {
   const src = readFileSync(new URL('./validate.js', import.meta.url), 'utf8').replace(/^export /m, '')
   const calls = []
+  let failCodex = false
   const fn = new AsyncFunction(
     'args', 'agent', 'pipeline', 'parallel', 'phase', 'log', 'workflow', 'budget', src)
   const agent = async (prompt, options) => {
+    calls.push(options.agentType)
+    if (options.agentType === 'code-verifier') return {
+      pass: true, detail: 'claude',
+      findings: [{ file: 'a.c', line: 1, severity: 'CONFIRMED P2 correctness', summary: 'bug' }],
+    }
+    if (options.agentType === 'codex-code-verifier') return failCodex ? null : {
+      pass: true, detail: 'codex',
+      findings: [{ file: 'b.c', line: 2, severity: 'CONFIRMED P2 correctness', summary: 'bug' }],
+    }
     assert.equal(options.agentType, 'builder')
     return { board: 'test', pass: true, builtCount: 1, failures: [] }
   }
-  const workflow = async (name, args) => {
-    calls.push({ name, args })
-    return {
-      claude: {
-        pass: true, detail: 'claude',
-        findings: [{ file: 'a.c', line: 1, severity: 'CONFIRMED P2 correctness', summary: 'bug' }],
-      },
-      codex: {
-        pass: true, detail: 'codex',
-        findings: [{ file: 'b.c', line: 2, severity: 'CONFIRMED P2 correctness', summary: 'bug' }],
-      },
-    }
-  }
+  const workflow = async () => { throw new Error('validate cannot nest a workflow') }
   const parallel = thunks => Promise.all(thunks.map(run => run()))
   const result = await fn(
     { boards: ['test'], skip: ['unit', 'size', 'pvs'], maxCycles: 1 },
     agent, null, parallel, () => {}, () => {}, workflow, null,
   )
-  assert.equal(calls.length, 1)
-  assert.equal(calls[0].name, 'code-verify')
-  assert.equal(calls[0].args.provider, 'both')
+  assert.deepEqual(calls.sort(), ['builder', 'code-verifier', 'codex-code-verifier'])
   assert.equal(result.stages.find(s => s.stage === 'review').pass, false)
   assert.equal(result.stages.find(s => s.stage === 'codex').pass, true)
+
+  failCodex = true
+  const partial = await fn(
+    { boards: ['test'], skip: ['unit', 'size', 'pvs'], maxCycles: 1 },
+    agent, null, parallel, () => {}, () => {}, workflow, null,
+  )
+  assert.equal(partial.stages.find(s => s.stage === 'review').detail, 'claude')
+  assert.equal(partial.stages.find(s => s.stage === 'codex').detail, 'stage agent died')
 })
 
 console.log(failed ? `\n${failed} FAILED` : '\nall checks passed')

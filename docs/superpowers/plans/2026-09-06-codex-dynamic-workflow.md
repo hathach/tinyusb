@@ -403,3 +403,18 @@ git status --short
 ```
 
 Expected: clean worktree with four implementation commits after the design commit.
+
+---
+
+### Task 5: Respect Claude's One-level Workflow Limit
+
+Final review of the installed Claude Code 2.1.263 runtime found that
+`workflow()` rejects calls from child workflows. Since `full-check` invokes
+`validate`, the planned `validate -> code-verify` call would fail.
+
+- [x] Move the Haiku/low subprocess contract into the shared
+  `.claude/agents/codex-code-verifier.md` bridge.
+- [x] Keep root-workflow callers on `code-verify`; make `validate` dispatch the
+  same bridge and native verifier agents directly.
+- [x] Add regression checks that `validate` does not nest `code-verify` and
+  still preserves provider-specific results and gates.
