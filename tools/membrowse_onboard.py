@@ -79,7 +79,7 @@ def compose(board, example, num_commits, upload, api_key, extra, family=None):
     ]
     if '--binary-search' not in extra:
         role = example.split('/', 1)[0]
-        cmd += ['--build-dirs', 'src/', 'hw/', 'examples/build_system/',
+        cmd += ['--build-dirs', 'src/', 'hw/', 'lib/', 'examples/build_system/',
                 'examples/CMakeLists.txt', f'examples/{role}/CMakeLists.txt',
                 f'examples/{example.rstrip("/")}/', 'tools/get_deps.py']
     cmd += ['--ld-scripts', shim_path]

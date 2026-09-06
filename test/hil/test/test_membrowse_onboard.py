@@ -51,8 +51,8 @@ class Compose(unittest.TestCase):
         # trigger a rebuild rather than an --identical skip.
         cmd = mo.compose('b', 'host/y', 5, False, 'k', ['--initial-commit', 'HEAD~5'])
         i = cmd.index('--build-dirs')
-        self.assertEqual(cmd[i + 1:i + 8], [
-            'src/', 'hw/', 'examples/build_system/', 'examples/CMakeLists.txt',
+        self.assertEqual(cmd[i + 1:i + 9], [
+            'src/', 'hw/', 'lib/', 'examples/build_system/', 'examples/CMakeLists.txt',
             'examples/host/CMakeLists.txt', 'examples/host/y/', 'tools/get_deps.py'])
         self.assertEqual(cmd[-2:], ['--initial-commit', 'HEAD~5'])
 
