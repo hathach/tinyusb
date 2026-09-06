@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 const source = readFileSync(new URL('./code-verify.js', import.meta.url), 'utf8')
@@ -102,6 +102,15 @@ await check('fails closed when codex dies', async () => {
     run({ prompt: 'review', schema: RESULT }, { ...answers, codex: new Error('broken') }),
     /codex verifier failed: broken/,
   )
+})
+
+await check('all code-verifier calls use the router', async () => {
+  const dir = new URL('.', import.meta.url)
+  const offenders = readdirSync(dir)
+    .filter(name => name.endsWith('.js') && name !== 'code-verify.js')
+    .filter(name => /agentType:\s*['"]code-verifier['"]/.test(
+      readFileSync(new URL(name, dir), 'utf8')))
+  assert.deepEqual(offenders, [])
 })
 
 console.log(failed ? `\n${failed} FAILED` : '\nall checks passed')

@@ -229,11 +229,12 @@ const fixAndVerify = async (workIn) => {
       `Scope: ${scopeOf(w)}\nIssues:\n- ${w.notes.join('\n- ')}`,
       { label: `fix:${w.key}`, phase: 'Fix', agentType: 'code-writer', schema: DEV },
     ),
-    (fix, w) => fix && agent(
-      `${IN_CHECKOUT}Verify the uncommitted changes for ${scopeOf(w)} (use git diff -- <the files above>, and read any newly created untracked files directly) address these issues:\n- ${w.notes.join('\n- ')}\n` +
+    (fix, w) => fix && workflow('code-verify', {
+      prompt: `${IN_CHECKOUT}Verify the uncommitted changes for ${scopeOf(w)} (use git diff -- <the files above>, and read any newly created untracked files directly) address these issues:\n- ${w.notes.join('\n- ')}\n` +
       'Return {"addresses": bool, "reason": string}.',
-      { label: `check:${w.key}`, phase: 'Verify', agentType: 'code-verifier', schema: CHECK },
-    ).then(v => ({ ...fix, addresses: !!(v && v.addresses), checkReason: v ? v.reason : 'verifier died' })),
+      label: `check:${w.key}`,
+      schema: CHECK,
+    }).then(v => ({ ...fix, addresses: !!(v && v.addresses), checkReason: v ? v.reason : 'verifier died' })),
   )
   const alive = fixes.filter(Boolean)
   if (alive.length < work.length) log(`${work.length - alive.length} fix group(s) lost to dead workers`)

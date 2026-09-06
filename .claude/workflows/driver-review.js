@@ -56,22 +56,23 @@ log(`${pairs.length} scan units (${args.dirs.length} dirs x ${DIMS.length} dimen
 const results = await pipeline(
   pairs,
 
-  p => agent(
-    `Review ${p.dir} for exactly one dimension: ${p.dim}. Read the sources yourself. Coverage-first — report everything, a verifier filters.`,
-    { label: `scan:${short(p.dir)}`, phase: 'Scan', agentType: 'code-verifier', schema: FINDINGS },
-  ),
+  p => workflow('code-verify', {
+    prompt: `Review ${p.dir} for exactly one dimension: ${p.dim}. Read the sources yourself. Coverage-first — report everything, a verifier filters.`,
+    label: `scan:${short(p.dir)}`,
+    schema: FINDINGS,
+  }),
 
   (scan, p) => {
     if (!scan) return null  // dead scanner — dropped, counted, and logged below
     if (scan.findings.length === 0) return { dir: p.dir, dim: p.dim, findings: [] }
     return parallel(scan.findings.map(f => () =>
-      agent(
-        `Adversarially verify ONE review finding about ${p.dir}.\nDimension: ${p.dim}\nFinding: ${JSON.stringify(f)}\n` +
+      workflow('code-verify', {
+        prompt: `Adversarially verify ONE review finding about ${p.dir}.\nDimension: ${p.dim}\nFinding: ${JSON.stringify(f)}\n` +
         'Read the cited code plus enough context (callers, ISR paths, macros, and the datasheet if register-related) to judge. ' +
         'Try to REFUTE it; real=true only if it survives your best attempt. Return {"real": bool, "reason": string}.',
-        // max: one judgment-dense call per finding decides what survives - worth the top tier
-        { label: `verify:${short(p.dir)}:${f.line}`, phase: 'Verify', agentType: 'code-verifier', effort: 'max', schema: VERDICT },
-      ).then(v => v && { ...f, verdict: v })
+        label: `verify:${short(p.dir)}:${f.line}`,
+        schema: VERDICT,
+      }).then(v => v && { ...f, verdict: v })
     )).then(vs => {
       const alive = vs.filter(Boolean)
       if (alive.length < scan.findings.length) {

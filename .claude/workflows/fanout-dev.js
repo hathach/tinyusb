@@ -93,11 +93,12 @@ const results = await pipeline(
 
   (r, item) => {
     if (!r || !args.review || args.worktree) return r
-    return agent(
-      `Review the uncommitted change in ${item} (inspect with: git diff -- ${item}) against this task:\n${args.task}\n` +
+    return workflow('code-verify', {
+      prompt: `Review the uncommitted change in ${item} (inspect with: git diff -- ${item}) against this task:\n${args.task}\n` +
       'Dimension: does the diff correctly and completely implement the task with no unintended side effects? Coverage-first findings.',
-      { label: `review:${short(item)}`, phase: 'Review', agentType: 'code-verifier', schema: FINDINGS },
-    ).then(f => {
+      label: `review:${short(item)}`,
+      schema: FINDINGS,
+    }).then(f => {
       // review: array = findings; null = reviewer died; absent = not requested
       if (!f) log(`review:${short(item)}: reviewer agent died`)
       return { ...r, review: f ? f.findings : null }
