@@ -50,7 +50,7 @@ ninja -C examples/cmake-build-adafruit_metro_rp2350 cdc_msc-openocd  # Or OpenOC
 
 ## PRs and Follow-ups
 
-- Before opening or updating a PR, run `pre-pr`.
+- Before opening or updating a PR, follow Build and Validate; use `pre-pr` when workflows are available.
 - Use imperative commit/PR subjects; keep scope focused, link relevant issues, and include test/build evidence.
 - After opening a PR, use `pr-babysit` (`.claude/workflows/pr-babysit.js`) to drive reviews and CI to green. If workflows are unavailable, use `gh pr checks <num>` and `gh pr view <num> --comments`; fix failures, push, and resolve review threads.
 - **Deferred work** — Separate scope gets a separate PR/session. Use `superpowers:writing-plans` for one handoff per topic at `docs/superpowers/followup/pr<NNN>-<topic>.md` (`NNN` = originating PR). Include evidence, remaining work, and why deferred; delete when its PR lands.
