@@ -13,7 +13,7 @@ export const meta = {
 //         reviewProvider?: 'codex'|'claude'|'both', maxCycles?: number }
 if (typeof args === 'string') { try { args = JSON.parse(args) } catch { /* not JSON: shape check below reports it */ } }
 if (!args || !Array.isArray(args.boards) || args.boards.length === 0) {
-  throw new Error('args must be { boards: string[], examples?, base?, skip?, maxCycles? }')
+  throw new Error('args must be { boards: string[], examples?, base?, skip?, reviewProvider?, maxCycles? }')
 }
 if (args.maxCycles !== undefined && (!Number.isInteger(args.maxCycles) || args.maxCycles < 1)) {
   throw new Error('maxCycles must be an integer >= 1')
