@@ -5,7 +5,6 @@ const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 const workflowBody = readFileSync(new URL('../pr-babysit.js', import.meta.url), 'utf8').replace(/^export /m, '')
 
 const GREEN = { status: 'green', infraRerun: [], realFailures: [] }
-const clone = (v) => (v === undefined ? v : structuredClone(v))
 const finding = (over = {}) => ({
   source: 'codex', commentId: 1, file: 'src/a.c', line: 1,
   claim: 'bad', verdict: 'valid', reason: '', fixHint: 'fix it', ...over,
@@ -13,28 +12,26 @@ const finding = (over = {}) => ({
 const oneValid = { findings: [finding()], replies: [], done: true }
 const SHA = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678'
 
-// Drive the workflow against stub agents. `reviews`/`ci` accept an array to
-// answer successive cycles; `fix`/`push` patch (or null out) those replies.
+// Drive the workflow against stub agents. Every cycle gets the same `reviews`
+// and `ci` answer; `fix`/`push` patch (or null out) those replies.
 async function run(opts = {}) {
   const logs = []
   const labels = []
   const napPoints = [] // logs.length when a backoff started, to prove ordering
-  const reviewsQueue = [].concat(opts.reviews ?? { findings: [], replies: [], done: true })
-  const ciQueue = [].concat(opts.ci ?? GREEN)
-  const next = (q) => (q.length > 1 ? q.shift() : q[0])
+  const reviews = opts.reviews ?? { findings: [], replies: [], done: true }
+  const ci = opts.ci ?? GREEN
 
   const agent = async (prompt, options) => {
     const label = options.label
     labels.push(label)
-    if (label.startsWith('ci#')) return clone(next(ciQueue))
+    if (label.startsWith('ci#')) return structuredClone(ci)
     if (label.startsWith('reviews#')) {
-      const r = next(reviewsQueue)
-      if (r instanceof Error) throw r
-      return clone(r)
+      if (reviews instanceof Error) throw reviews
+      return structuredClone(reviews)
     }
     if (label.startsWith('scope')) return { files: [] }
     if (label.startsWith('fix:')) {
-      if (opts.fix === null) return null
+      if (opts.fix === null) return null // a dead code-writer
       return {
         item: label.slice(4), diffstat: `stat:${label.slice(4)}`,
         buildOk: true, board: 'stm32f407disco', notes: '', ...opts.fix,
@@ -48,18 +45,16 @@ async function run(opts = {}) {
     }
     if (label.startsWith('push#')) {
       if (opts.push === null) return { pass: false, detail: 'push rejected', sha: '' }
-      if (opts.push instanceof Error) throw opts.push
       return { pass: true, detail: 'pushed to claude/foo', sha: SHA, ...opts.push }
     }
     throw new Error(`unstubbed agent label ${label}`)
   }
-  const pipeline = async (items, first, second) => {
-    const out = []
-    for (const item of items) out.push(await second(await first(item), item))
-    return out
-  }
+  // Match the host's pipeline: every item's first stage runs concurrently, each
+  // second stage starts as soon as its own first stage lands, results in order.
+  const pipeline = (items, first, second) =>
+    Promise.all(items.map(async item => second(await first(item), item)))
   const parallel = (thunks) => Promise.all(thunks.map(fn => fn()))
-  const workflow = async () => clone(opts.verify ?? { addresses: true, reason: 'verified' })
+  const workflow = async () => structuredClone(opts.verify ?? { addresses: true, reason: 'verified' })
 
   // nap()'s real delay is minutes; fire it immediately and record where in the
   // log stream it happened.
@@ -82,6 +77,18 @@ const summaries = (logs) => logs.filter(l => l.startsWith('cycle ') && l.include
 // cell must stay part of that cell.
 const rowsOf = (summary) => summary.split('\n').slice(3)
   .map(l => l.replace(/^\| /, '').replace(/ \|$/, '').split(' | ').map(c => c.trim()))
+// GFM's own row rule: a backslash escapes the next character, so only an
+// unescaped pipe splits cells. Applying it is the only way to prove a claim
+// carrying `\|` renders inside one cell instead of spilling into extra columns.
+const gfmCells = (row) => {
+  const cells = ['']
+  for (let i = 0; i < row.length; i++) {
+    if (row[i] === '\\') cells[cells.length - 1] += row[++i] ?? ''
+    else if (row[i] === '|') cells.push('')
+    else cells[cells.length - 1] += row[i]
+  }
+  return cells.slice(1, -1).map(c => c.trim()) // the framing pipes leave an empty cell at each end
+}
 
 let failed = 0
 async function check(name, fn) {
@@ -123,7 +130,6 @@ await check('the summary tables every verdict, fix and pushed SHA', async () => 
       replies: [{ commentId: 3, body: 'refuted because…' }, { commentId: 2, body: 'already fixed in…' }],
       done: true,
     },
-    ci: { status: 'green', infraRerun: [], realFailures: [] },
   })
   const rows = rowsOf(summaries(logs)[0])
   assert.deepEqual(rows.map(r => r[2]), ['valid', 'stale', 'invalid'], 'valid first, then stale, then invalid')
@@ -136,13 +142,31 @@ await check('the summary tables every verdict, fix and pushed SHA', async () => 
   assert.equal(result.history[0].reviewPush.sha, SHA)
 })
 
-await check('a fix whose build failed is never pushed', async () => {
+await check('a claim already containing a backslash-pipe stays one cell', async () => {
+  const { logs } = await run({
+    reviews: { findings: [finding({ claim: 'the regex \\| splits the row' })], replies: [], done: true },
+  })
+  const cells = gfmCells(summaries(logs)[0].split('\n')[3])
+  assert.equal(cells.length, 5, 'the row keeps exactly its five columns')
+  assert.equal(cells[1], 'src/a.c:1 the regex \\| splits the row', 'and renders the backslash and pipe literally')
+})
+
+await check('a fix whose build failed is never pushed, and skips the verifier', async () => {
   const { result, logs, labels } = await run({ reviews: oneValid, fix: { buildOk: false } })
   assert.equal(result.pass, false)
   assert.equal(result.reason, 'fix-verification-failed')
   assert.equal(labels.some(l => l.startsWith('push#')), false, 'no push may be attempted')
   assert.ok(logs.some(l => /targeted build FAILED/.test(l)))
-  assert.match(rowsOf(summaries(logs)[0])[0][3], /BUILD FAILED/)
+  assert.match(rowsOf(summaries(logs)[0])[0][3], /unverified: targeted build failed/,
+    'reported as unverified, and the verifier is not paid for a broken build')
+})
+
+await check('a dead code-writer withholds the fix', async () => {
+  const { result, logs, labels } = await run({ reviews: oneValid, fix: null })
+  assert.equal(result.reason, 'fix-verification-failed')
+  assert.equal(labels.some(l => l.startsWith('push#')), false)
+  assert.ok(logs.some(l => /lost to dead workers/.test(l)))
+  assert.match(rowsOf(summaries(logs)[0])[0][3], /withheld/)
 })
 
 await check('a fix the verifier rejects is reported unverified, not pushed', async () => {
@@ -218,6 +242,13 @@ await check('a failed push stops the loop after a summary', async () => {
   const { result, logs } = await run({ reviews: oneValid, push: null })
   assert.equal(result.reason, 'push-failed')
   assert.equal(summaries(logs).length, 1)
+  const row = rowsOf(summaries(logs)[0])[0]
+  assert.match(row[3], /fixed \+ committed, PUSH FAILED: push rejected/,
+    'the fix is committed locally — the row must say so, and say the push failed')
+  assert.equal(row[4], '-', 'a failed push carries no commit SHA')
+  assert.equal(result.history[0].reviewPushFailed.detail, 'push rejected')
+  const dry = await run({ reviews: oneValid, args: { autoPush: false } })
+  assert.notEqual(row[3], rowsOf(summaries(dry.logs)[0])[0][3], 'and reads differently from a dry run')
 })
 
 await check('the pending-bot backoff is taken after the cycle summary', async () => {
