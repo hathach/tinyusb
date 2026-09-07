@@ -468,7 +468,7 @@ class PoolCheckEspIdfBuild(unittest.TestCase):
         os.environ['IDF_PATH'] = '/definitely/missing/esp-idf'
         self.assertEqual(self.pool_check.build_example(self.board, 'esp32s3', self.example), 127)
 
-    def test_idf_path_is_passed_as_a_bash_argument(self):
+    def test_idf_path_is_passed_in_the_child_environment(self):
         with TemporaryDirectory(prefix='idf $path ') as td:
             Path(td, 'export.sh').touch()
             os.environ['IDF_PATH'] = td
@@ -481,10 +481,9 @@ class PoolCheckEspIdfBuild(unittest.TestCase):
             self.pool_check.hil_util.run_cmd = fake_run_cmd
             self.assertEqual(self.pool_check.build_example(self.board, 'esp32s3', self.example), 0)
             cmd, kwargs = calls[0]
-            self.assertEqual(cmd[:5], ['bash', '-c',
-                                       '. "$1/export.sh" >/dev/null && shift && exec "$@"',
-                                       'bash', td])
-            self.assertEqual(cmd[5], 'idf.py')
+            self.assertEqual(cmd[:7], ['env', f'IDF_PATH={td}', 'bash', '-c',
+                                       '. "$IDF_PATH/export.sh" >/dev/null && exec "$@"',
+                                       'bash', 'idf.py'])
             self.assertEqual(kwargs['timeout'], 600)
 
 
