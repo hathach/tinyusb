@@ -44,8 +44,8 @@ async function run(opts = {}) {
       }
     }
     if (label.startsWith('push#')) {
-      if (opts.push === null) return { pass: false, detail: 'push rejected', sha: '' }
-      return { pass: true, detail: 'pushed to claude/foo', sha: SHA, ...opts.push }
+      if (opts.push === null) return { pass: false, committed: true, detail: 'push rejected', sha: '' }
+      return { pass: true, committed: true, detail: 'pushed to claude/foo', sha: SHA, ...opts.push }
     }
     throw new Error(`unstubbed agent label ${label}`)
   }
@@ -249,6 +249,19 @@ await check('a failed push stops the loop after a summary', async () => {
   assert.equal(result.history[0].reviewPushFailed.detail, 'push rejected')
   const dry = await run({ reviews: oneValid, args: { autoPush: false } })
   assert.notEqual(row[3], rowsOf(summaries(dry.logs)[0])[0][3], 'and reads differently from a dry run')
+})
+
+await check('a push that failed before committing is not reported as committed', async () => {
+  const { result, logs } = await run({
+    reviews: oneValid,
+    push: { pass: false, committed: false, detail: 'pre-commit hook rejected', sha: '' },
+  })
+  assert.equal(result.reason, 'push-failed')
+  const row = rowsOf(summaries(logs)[0])[0]
+  assert.match(row[3], /fixed, COMMIT FAILED: pre-commit hook rejected/,
+    'nothing landed in git — the row must not send the reader after a nonexistent commit')
+  assert.doesNotMatch(row[3], /PUSH FAILED|\+ committed/, 'and must not claim a commit to recover')
+  assert.equal(row[4], '-')
 })
 
 await check('the pending-bot backoff is taken after the cycle summary', async () => {

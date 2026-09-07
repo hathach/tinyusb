@@ -87,10 +87,16 @@ const CHECK = {
   required: ['addresses', 'reason'],
   properties: { addresses: { type: 'boolean' }, reason: { type: 'string' } },
 }
+// `committed` separates the two ways pass=false happens: the commit exists and
+// only the push was rejected, or no commit was ever created (hook rejection,
+// missing git identity) and the work is still only in the working tree.
 const PUSH = {
   type: 'object', additionalProperties: false,
-  required: ['pass', 'detail', 'sha'],
-  properties: { pass: { type: 'boolean' }, detail: { type: 'string' }, sha: { type: 'string' } },
+  required: ['pass', 'committed', 'detail', 'sha'],
+  properties: {
+    pass: { type: 'boolean' }, committed: { type: 'boolean' },
+    detail: { type: 'string' }, sha: { type: 'string' },
+  },
 }
 const SCOPE = {
   type: 'object', additionalProperties: false,
@@ -301,9 +307,15 @@ const fixCell = (fixes, id, push, pushFailed) => {
   // fail verification with that reason, so it never reaches the pushable text.
   if (fix.addresses !== true) return `unverified: ${fix.checkReason}`
   const stat = fix.diffstat ? ` — ${fix.diffstat}` : ''
-  // A rejected push leaves the branch committed locally: distinct from the dry
-  // run's untouched-index state, so the reader knows what to recover.
-  if (pushFailed) return `fixed + committed, PUSH FAILED: ${pushFailed.detail || 'no detail'}${stat}`
+  // Two different recoveries, so never infer one from the other: a rejected push
+  // leaves the fix committed locally, while a failed commit leaves it only in the
+  // working tree with nothing in git to recover.
+  if (pushFailed) {
+    const detail = pushFailed.detail || 'no detail'
+    return pushFailed.committed
+      ? `fixed + committed, PUSH FAILED: ${detail}${stat}`
+      : `fixed, COMMIT FAILED: ${detail}${stat}`
+  }
   return `${push ? 'fixed + pushed' : 'fixed, uncommitted'}${stat}`
 }
 const VERDICT_ORDER = { valid: 0, stale: 1, invalid: 2 }
@@ -347,10 +359,11 @@ const commitAndPush = async (cycle, what) => {
   const push = await agent(
     `${IN_CHECKOUT}On the PR branch: commit ALL working-tree changes as ONE commit (imperative message summarizing the cycle-${cycle} ${what} fixes for PR #${args.pr}, repo commit conventions), ` +
     "then push to the PR's remote branch. pass=true only if commit AND push succeeded; " +
+    'committed = a commit was created, even if the push then failed (false if the commit itself never landed); ' +
     'sha = the pushed commit SHA, `git rev-parse HEAD` verbatim and nothing else; detail = one line on what was pushed.',
     { label: `push#${cycle}-${what}`, phase: 'Push', model: 'sonnet', schema: PUSH },
   )
-  return push || { pass: false, detail: 'push agent died', sha: '' }
+  return push || { pass: false, committed: false, detail: 'push agent died', sha: '' }
 }
 
 let napMs = 0 // backoff owed from the previous cycle, taken after its summary
