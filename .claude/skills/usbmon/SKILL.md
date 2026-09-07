@@ -1,6 +1,6 @@
 ---
 name: usbmon
-description: Use when capturing, analyzing, or debugging USB bus traffic on a link where a Linux PC is the host (TinyUSB in device role) — enumeration failures, STALLed control transfers, missing/short bulk or interrupt transfers, isochronous/audio dropouts, or descriptor problems. Captures host-side URBs with usbmon + tshark into a Wireshark pcapng and decodes them. Not applicable when TinyUSB is the host — no URBs traverse the PC (use usb-sniffer / target-debug). Use whenever you need to see what the Linux host actually exchanged with a device on real hardware, even if the user just says "sniff USB", "capture the enumeration", or "why won't my device enumerate".
+description: Use when capturing, analyzing, or debugging USB bus traffic on a link where a Linux PC is the host (TinyUSB in device role) — enumeration failures, STALLed control transfers, missing/short bulk or interrupt transfers, isochronous/audio dropouts, or descriptor problems. Captures host-side URBs with usbmon + tshark into a Wireshark pcapng and decodes them. Not applicable when TinyUSB is the host — no URBs traverse the PC (use usb-sniffer / target-debug). Use it whenever you need to see what the Linux host actually exchanged with a device on real hardware.
 ---
 
 # usbmon — capture & debug USB traffic

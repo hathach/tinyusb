@@ -189,7 +189,7 @@ await check('validate keeps provider results and gates separate', async () => {
   const workflow = async () => { throw new Error('validate cannot nest a workflow') }
   const parallel = thunks => Promise.all(thunks.map(run => run()))
   const result = await fn(
-    { boards: ['test'], skip: ['unit', 'size', 'pvs'], maxCycles: 1 },
+    { boards: ['test'], skip: ['unit', 'size', 'pvs'], reviewProvider: 'both', maxCycles: 1 },
     agent, null, parallel, () => {}, () => {}, workflow, null,
   )
   assert.deepEqual(calls.sort(), ['builder', 'code-verifier', 'codex-code-verifier'])
@@ -198,7 +198,7 @@ await check('validate keeps provider results and gates separate', async () => {
 
   blocking = true
   const blocked = await fn(
-    { boards: ['test'], skip: ['unit', 'size', 'pvs'], maxCycles: 1 },
+    { boards: ['test'], skip: ['unit', 'size', 'pvs'], reviewProvider: 'both', maxCycles: 1 },
     agent, null, parallel, () => {}, () => {}, workflow, null,
   )
   assert.equal(blocked.stages.find(s => s.stage === 'review').pass, false)
@@ -206,11 +206,91 @@ await check('validate keeps provider results and gates separate', async () => {
 
   failCodex = true
   const partial = await fn(
-    { boards: ['test'], skip: ['unit', 'size', 'pvs'], maxCycles: 1 },
+    { boards: ['test'], skip: ['unit', 'size', 'pvs'], reviewProvider: 'both', maxCycles: 1 },
     agent, null, parallel, () => {}, () => {}, workflow, null,
   )
   assert.equal(partial.stages.find(s => s.stage === 'review').detail, 'claude')
   assert.equal(partial.stages.find(s => s.stage === 'codex').detail, 'stage agent died')
+})
+
+await check('validate reviews with codex unless claude is explicitly selected', async () => {
+  const src = readFileSync(new URL('../validate.js', import.meta.url), 'utf8').replace(/^export /m, '')
+  const fn = new AsyncFunction(
+    'args', 'agent', 'pipeline', 'parallel', 'phase', 'log', 'workflow', 'budget', src)
+  const parallel = thunks => Promise.all(thunks.map(run => run()))
+  const runValidate = async extra => {
+    const calls = []
+    const agent = async (prompt, options) => {
+      calls.push(options.agentType)
+      if (options.agentType === 'builder') return { board: 'test', pass: true, builtCount: 1, failures: [] }
+      return { pass: true, detail: options.agentType, findings: [] }
+    }
+    const result = await fn(
+      { boards: ['test'], skip: ['unit', 'size', 'pvs'], maxCycles: 1, ...extra },
+      agent, null, parallel, () => {}, () => {}, null, null,
+    )
+    return { calls, result }
+  }
+
+  // the default must never spend a Claude review
+  for (const extra of [{}, { reviewProvider: 'codex' }]) {
+    const { calls, result } = await runValidate(extra)
+    assert.deepEqual(calls.sort(), ['builder', 'codex-code-verifier'])
+    assert.equal(result.stages.some(s => s.stage === 'review'), false)
+    assert.equal(result.stages.find(s => s.stage === 'codex').pass, true)
+  }
+
+  const claudeOnly = await runValidate({ reviewProvider: 'claude' })
+  assert.deepEqual(claudeOnly.calls.sort(), ['builder', 'code-verifier'])
+  assert.equal(claudeOnly.result.stages.some(s => s.stage === 'codex'), false)
+
+  const both = await runValidate({ reviewProvider: 'both' })
+  assert.deepEqual(both.calls.sort(), ['builder', 'code-verifier', 'codex-code-verifier'])
+
+  // skip still turns a selected reviewer off
+  const skipped = await runValidate({ reviewProvider: 'both', skip: ['unit', 'size', 'pvs', 'review'] })
+  assert.deepEqual(skipped.calls.sort(), ['builder', 'codex-code-verifier'])
+
+  // selecting a reviewer and skipping it is contradictory input, not silence
+  await assert.rejects(
+    runValidate({ reviewProvider: 'claude', skip: ['unit', 'size', 'pvs', 'review'] }),
+    /reviewProvider "claude" is cancelled by skip/,
+  )
+  await assert.rejects(
+    runValidate({ reviewProvider: 'both', skip: ['unit', 'size', 'pvs', 'review', 'codex'] }),
+    /reviewProvider "both" is cancelled by skip/,
+  )
+
+  // skip:['codex'] used to mean "review with Claude" — it must not silently
+  // become an unreviewed green now that Codex is the only default reviewer
+  await assert.rejects(
+    runValidate({ skip: ['unit', 'size', 'pvs', 'codex'] }),
+    /leaves no diff reviewer/,
+  )
+  // skipping every reviewer is unmistakable, so it stays legal
+  const noReview = await runValidate({ skip: ['unit', 'size', 'pvs', 'review', 'codex'] })
+  assert.deepEqual(noReview.calls.sort(), ['builder'])
+  assert.equal(noReview.result.stages.some(s => s.stage === 'review' || s.stage === 'codex'), false)
+
+  for (const reviewProvider of ['', 'auto', 'CODEX']) {
+    await assert.rejects(runValidate({ reviewProvider }), /reviewProvider must be codex, claude, or both/)
+  }
+})
+
+await check('full-check forwards the reviewer selection to validate', async () => {
+  const src = readFileSync(new URL('../full-check.js', import.meta.url), 'utf8').replace(/^export /m, '')
+  const fn = new AsyncFunction(
+    'args', 'agent', 'pipeline', 'parallel', 'phase', 'log', 'workflow', 'budget', src)
+  const seen = []
+  const workflow = async (name, workflowArgs) => {
+    seen.push({ name, args: workflowArgs })
+    return { pass: true }
+  }
+  await fn({ boards: ['test'], reviewProvider: 'both' },
+    null, null, null, () => {}, () => {}, workflow, null)
+  assert.deepEqual(seen.map(s => s.name), ['validate'])
+  assert.equal(seen[0].args.reviewProvider, 'both')
+  assert.deepEqual(seen[0].args.boards, ['test'])
 })
 
 console.log(failed ? `\n${failed} FAILED` : '\nall checks passed')
