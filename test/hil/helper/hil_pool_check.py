@@ -467,8 +467,9 @@ def build_example(board: dict, variant: str, example: str) -> int:
     variants = board.get('variant') or [{'name': name}]
     vcfg = next((v for v in variants if v['name'] == variant), variants[0])
     if board['flasher']['name'].lower() == 'esptool':
-        if not shutil.which('idf.py'):
-            return 127  # ESP-IDF env not sourced in this shell
+        idf_path = os.environ.get('IDF_PATH')
+        if not idf_path and not shutil.which('idf.py'):
+            return 127  # ESP-IDF env not sourced in this shell and IDF_PATH unset
         # -B keyed off the VARIANT so ensure_fw's post-build lookup finds it
         cmd = ['idf.py', '-C', f'examples/{example}',
                '-B', f'cmake-build/cmake-build-{vcfg["name"]}/{example}',
@@ -477,11 +478,17 @@ def build_example(board: dict, variant: str, example: str) -> int:
             cmd.insert(-1, f'-D{d}')
         if vcfg.get('flags'):
             cmd.insert(-1, f'-DCFLAGS_CLI={vcfg["flags"]}')
+        # source export.sh in THIS subprocess only, via bash -c: it mutates PATH/venv
+        # (idf.py, xtensa/riscv toolchain, IDF's own python) which must not leak into
+        # the parent process or sibling threads' concurrent ARM/RISC-V builds
+        if idf_path and not shutil.which('idf.py'):
+            cmd = ['bash', '-c',
+                   f'. "{idf_path}/export.sh" >/dev/null && {shlex.join(cmd)}']
         # the IDF component manager writes examples/<ex>/dependencies.lock in the
         # SOURCE tree (idf.py -B relocates only the build dir), so concurrent esp
         # builds of one example for different targets corrupt each other's solve
         with _esp_lock, _build_sem:
-            return hil_util.run_cmd(shlex.join(cmd), cwd=str(hil_util.TINYUSB_ROOT),
+            return hil_util.run_cmd(cmd, cwd=str(hil_util.TINYUSB_ROOT),
                                     timeout=600).returncode
     cmd = [sys.executable, str(hil_util.TINYUSB_ROOT / 'tools' / 'build.py'),
            '-b', name, '-T', Path(example).name,
