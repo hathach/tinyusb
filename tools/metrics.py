@@ -101,9 +101,9 @@ def combine_files(input_files, filters=None):
                 if fin.endswith('_by_example.json') and isinstance(json_data, dict) and \
                         all(isinstance(v, dict) and 'files' in v for v in json_data.values()):
                     # a metrics_by_example.json: one data entry per example. Keyed on
-                    # the filename, which IS the contract (write_by_example, the CMake
-                    # rule and metrics_pair_compare all spell that suffix) - a shape
-                    # sniff would silently reroute any coincidentally-shaped JSON.
+                    # the filename, which IS the contract (write_by_example below spells
+                    # the same suffix) - a shape sniff would silently reroute any
+                    # coincidentally-shaped JSON.
                     for ex in sorted(json_data):
                         # same TOTAL scrub the shared path below applies: this branch
                         # `continue`s past it, so do it here or a by-example input keeps

@@ -1,0 +1,43 @@
+{
+  "boards": [
+    { "board": "adafruit_fruit_jam",       "drivers": ["dcd_rp2040", "hcd_pio_usb"],        "note": "RP2350, PIO-USB host (CFG_TUH_RPI_PIO_USB)" },
+    { "board": "ch32v307v_r1_1v0",         "drivers": ["dcd_ch32_usbhs"] },
+    { "board": "ea4088_quickstart",        "drivers": ["dcd_lpc17_40", "ohci"],             "note": "ohci host, HIL (htpc)" },
+    { "board": "ek_tm4c123gxl",            "drivers": ["dcd_musb"],                         "note": "musb TM4C variant, HIL" },
+    { "board": "feather_nrf52840_express", "drivers": ["dcd_nrf5x"],                        "note": "HIL" },
+    { "board": "frdm_kl25z",               "drivers": ["dcd_ci_fs", "hcd_ci_fs"] },
+    { "board": "lpcxpresso11u68",          "drivers": ["dcd_lpc_ip3511"],                   "note": "ip3511 FS" },
+    { "board": "lpcxpresso55s28",          "drivers": ["dcd_lpc_ip3511", "hcd_lpc_ip3516"], "note": "ip3511 HS + ip3516 host, HIL" },
+    { "board": "max32666fthr",             "drivers": ["dcd_musb"],                         "note": "musb MAX3266x variant, HIL" },
+    { "board": "metro_m0_express",         "drivers": ["dcd_samd"],                         "note": "pins the family's CI board (formerly ci_preferred_boards)" },
+    { "board": "metro_m4_express",         "drivers": ["dcd_samd", "hcd_samd"] },
+    { "board": "mimxrt1064_evk",           "drivers": ["dcd_ci_hs", "ehci", "hcd_ci_hs"],   "note": "HIL" },
+    { "board": "msp_exp430f5529lp",        "drivers": ["dcd_msp430x5xx"] },
+    { "board": "nanoch32v203",             "drivers": ["dcd_ch32_usbfs", "hcd_ch32_usbfs"] },
+    { "board": "ra6m5_ek",                 "drivers": ["dcd_rusb2", "hcd_rusb2"],           "note": "rusb2 HS variant" },
+    { "board": "raspberry_pi_pico",        "drivers": ["dcd_rp2040", "hcd_rp2040"],         "note": "HIL" },
+    { "board": "raspberry_pi_pico2",       "drivers": ["dcd_rp2040", "hcd_rp2040"],         "note": "RP2350 variant, HIL" },
+    { "board": "same70_xplained",          "drivers": ["dcd_samx7x"],                       "note": "family newly added to CI" },
+    { "board": "samg55_xplained",          "drivers": ["dcd_samg"] },
+    { "board": "stm32f407disco",           "drivers": ["dcd_dwc2", "hcd_dwc2"],             "note": "dwc2 STM32 variant, HIL" },
+    { "board": "stm32g0b1nucleo",          "drivers": ["hcd_stm32_fsdev"] },
+    { "board": "stm32h743eval",            "drivers": ["dcd_dwc2"],                         "note": "pins the family's CI board (formerly ci_preferred_boards)" },
+    { "board": "stm32l412nucleo",          "drivers": ["dcd_stm32_fsdev"],                  "note": "HIL" }
+  ],
+  "uncovered": {
+    "dcd_cxd56": "spresense unpinned - no board on either HIL roster and no other CI board carries dcd_cxd56; build-only size tracking with no hardware behind it",
+    "dcd_da146xx": "da1469x_dk_pro unpinned - no board on either HIL roster and no other CI board carries dcd_da146xx; build-only size tracking with no hardware behind it",
+    "dcd_eptri": "fomu unpinned - no board on either HIL roster and no other CI board carries dcd_eptri; build-only size tracking with no hardware behind it",
+    "dcd_ft9xx": "mm900evxb unpinned - no board on either HIL roster and no other CI board carries dcd_ft9xx; build-only size tracking with no hardware behind it",
+    "dcd_mm32f327x_otg": "mm32 unpinned - maintainer trimmed the pinned set",
+    "dcd_nuc120": "nuvoton unpinned - maintainer trimmed the pinned set",
+    "dcd_nuc121": "nuvoton unpinned - maintainer trimmed the pinned set",
+    "dcd_nuc505": "nuvoton unpinned - maintainer trimmed the pinned set",
+    "dcd_pic": "pic32mx has no BSP family in hw/bsp; XC toolchain not in CI",
+    "dcd_pic32mz": "hw/bsp/pic32mz is make-only (no family.cmake); CI membrowse lane is cmake",
+    "dcd_pio_usb": "PIO-USB device role needs Pico-PIO-USB lib config no CI board enables by default",
+    "dcd_sunxi_musb": "f1c100s unpinned - maintainer trimmed the pinned set",
+    "hcd_max3421": "feather_rp2040_max3421 unpinned - needs a board with MAX3421_HOST=1",
+    "hcd_musb": "msp432e4 unpinned - no host-role musb board in the pinned set"
+  }
+}

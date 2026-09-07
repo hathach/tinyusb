@@ -15,3 +15,6 @@ mcu:RAXXX
 family:broadcom_32bit
 family:broadcom_64bit
 family:hpmicro
+# same7x has no FreeRTOSConfig.h wired up in the tree (hw/bsp/same7x/FreeRTOSConfig/
+# does not exist): fatal error: FreeRTOSConfig.h: No such file or directory
+family:same7x

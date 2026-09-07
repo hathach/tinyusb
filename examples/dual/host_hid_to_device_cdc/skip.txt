@@ -1,0 +1,7 @@
+# pico_sdk is a meta-board with no board.h pin defines of its own (settings come
+# purely from the SDK's own PICO_BOARD default) - it has no PICO_DEFAULT_PIO_USB_*
+# macros, so a dual-role rp2040 example (host side runs over PIO-USB, the only way
+# to get a second controller) fails: "PICO_DEFAULT_PIO_USB_DP_PIN undeclared" in
+# hw/bsp/rp2040/family.c. Found when ci_skip_boards' removal let CircleCI build
+# pico_sdk for the first time.
+board:pico_sdk

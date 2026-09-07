@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# Unit tests for the by-example half of tools/metrics.py and the (family, example)
-# pair-compare script. Stdlib only; synthetic map.json fixtures, no builds.
+# Unit tests for the by-example half of tools/metrics.py and the CircleCI/GitHub
+# Actions selection hand-off contracts. Stdlib only; synthetic map.json fixtures, no
+# builds.
 #   python3 test/hil/test/test_ci_metrics.py
 import json
 import os
@@ -70,9 +71,9 @@ class TestByExample(unittest.TestCase):
             self.assertNotIn('TOTAL', {n.upper() for n in names})
 
     def test_by_example_expansion_is_keyed_on_the_filename(self):
-        # the '_by_example.json' suffix IS the contract (write_by_example, the CMake
-        # rule and metrics_pair_compare all spell it). A shape-sniff would reroute
-        # any coincidentally-shaped JSON into the per-example branch instead.
+        # the '_by_example.json' suffix IS the contract (write_by_example spells it).
+        # A shape-sniff would reroute any coincidentally-shaped JSON into the
+        # per-example branch instead.
         with tempfile.TemporaryDirectory() as td:
             look_alike = os.path.join(td, 'metrics.json')
             with open(look_alike, 'w') as f:
@@ -86,175 +87,8 @@ class TestByExample(unittest.TestCase):
             self.assertNotIn('usbd.c', {f['file'] for f in combined.get('files', [])})
 
 
-PAIR_COMPARE = os.path.join(REPO, '.github/scripts/metrics_pair_compare.py')
-
-
-def fake_by_example(root, board, data):
-    d = os.path.join(root, f'cmake-build-{board}')
-    os.makedirs(d, exist_ok=True)
-    with open(os.path.join(d, 'metrics_by_example.json'), 'w') as f:
-        json.dump(data, f)
-
-
-class TestPairCompare(unittest.TestCase):
-    def test_intersection_compare(self):
-        with tempfile.TemporaryDirectory() as td:
-            base, new = os.path.join(td, 'base'), os.path.join(td, 'new')
-            # real board names so board->family resolution works against hw/bsp
-            fake_by_example(base, 'raspberry_pi_pico',
-                            {'device/cdc_msc': {'files': [entry('usbd.c', 100)]},
-                             'device/dfu': {'files': [entry('dfu_device.c', 10)]}})
-            fake_by_example(new, 'raspberry_pi_pico',
-                            {'device/cdc_msc': {'files': [entry('usbd.c', 120)]}})
-            out = os.path.join(td, 'cmp')
-            r = subprocess.run([sys.executable, PAIR_COMPARE, '--base-dir', base,
-                                '--new-dir', new, '--out', out],
-                               capture_output=True, text=True)
-            self.assertEqual(r.returncode, 0, r.stderr)
-            md = open(out + '.md').read()
-            self.assertIn('usbd.c', md)
-            self.assertNotIn('dfu_device.c', md)          # not on both sides
-            self.assertIn('raspberry_pi_pico', md)         # scope footer names the board
-            self.assertIn('device/dfu', md)                # named as dropped
-
-    def test_a_different_board_of_the_same_family_is_not_compared(self):
-        """--one-first returns all_boards[0], so adding a board can shift which one a
-        family builds. Keyed on the family, the base run's sizes and the PR run's sizes
-        would land under one key and the difference between two unrelated MCUs would be
-        published as this PR's code-size impact."""
-        with tempfile.TemporaryDirectory() as td:
-            base, new = os.path.join(td, 'base'), os.path.join(td, 'new')
-            # both rp2040, both device/cdc_msc - only the board differs
-            fake_by_example(base, 'raspberry_pi_pico',
-                            {'device/cdc_msc': {'files': [entry('usbd.c', 100)]}})
-            fake_by_example(new, 'adafruit_fruit_jam',
-                            {'device/cdc_msc': {'files': [entry('usbd.c', 900)]}})
-            out = os.path.join(td, 'cmp')
-            r = subprocess.run([sys.executable, PAIR_COMPARE, '--base-dir', base,
-                                '--new-dir', new, '--out', out],
-                               capture_output=True, text=True)
-            self.assertEqual(r.returncode, 0, r.stderr)
-            md = open(out + '.md').read()
-            self.assertIn('skipped', md)
-            self.assertNotIn('+800', md)
-
-    def test_empty_intersection_writes_note(self):
-        with tempfile.TemporaryDirectory() as td:
-            base, new = os.path.join(td, 'base'), os.path.join(td, 'new')
-            fake_by_example(base, 'raspberry_pi_pico', {'device/dfu': {'files': [entry('a.c', 1)]}})
-            fake_by_example(new, 'stm32f407disco', {'device/cdc_msc': {'files': [entry('b.c', 1)]}})
-            out = os.path.join(td, 'cmp')
-            r = subprocess.run([sys.executable, PAIR_COMPARE, '--base-dir', base,
-                                '--new-dir', new, '--out', out],
-                               capture_output=True, text=True)
-            self.assertEqual(r.returncode, 0, r.stderr)
-            self.assertIn('skipped', open(out + '.md').read())
-
-    def test_malformed_files_are_skipped_with_stderr_note(self):
-        with tempfile.TemporaryDirectory() as td:
-            base, new = os.path.join(td, 'base'), os.path.join(td, 'new')
-            # good pair on both sides -- must survive the malformed siblings below
-            fake_by_example(base, 'raspberry_pi_pico',
-                            {'device/cdc_msc': {'files': [entry('usbd.c', 100)]}})
-            fake_by_example(new, 'raspberry_pi_pico',
-                            {'device/cdc_msc': {'files': [entry('usbd.c', 120)]}})
-            # well-formed JSON, wrong shape (a list, not a {example: {files: [...]}} dict)
-            wrong_shape = os.path.join(base, 'cmake-build-stm32f407disco', 'metrics_by_example.json')
-            os.makedirs(os.path.dirname(wrong_shape), exist_ok=True)
-            with open(wrong_shape, 'w') as f:
-                json.dump(['not', 'a', 'dict'], f)
-            # metrics_by_example.json not under a cmake-build-<board> dir
-            misplaced = os.path.join(base, 'not_a_board_dir', 'metrics_by_example.json')
-            os.makedirs(os.path.dirname(misplaced), exist_ok=True)
-            with open(misplaced, 'w') as f:
-                json.dump({'device/dfu': {'files': [entry('dfu_device.c', 10)]}}, f)
-
-            out = os.path.join(td, 'cmp')
-            r = subprocess.run([sys.executable, PAIR_COMPARE, '--base-dir', base,
-                                '--new-dir', new, '--out', out],
-                               capture_output=True, text=True)
-            self.assertEqual(r.returncode, 0, r.stderr)   # fail-open: never crash the job
-            md = open(out + '.md').read()
-            self.assertIn('usbd.c', md)                    # good pair still compared
-            self.assertIn(wrong_shape, r.stderr)
-            self.assertIn(misplaced, r.stderr)
-            self.assertIn('skipping', r.stderr)
-
-
-    def test_missing_base_baseline_gets_its_own_note(self):
-        # interim state right after this feature merges: master has not uploaded a
-        # per-example baseline yet, so the BASE side collects nothing. The generic
-        # "no pair on both sides" note misattributes that to the PR's own scoping.
-        with tempfile.TemporaryDirectory() as td:
-            base, new = os.path.join(td, 'base'), os.path.join(td, 'new')
-            os.makedirs(base)
-            fake_by_example(new, 'raspberry_pi_pico',
-                            {'device/cdc_msc': {'files': [entry('usbd.c', 100)]}})
-            out = os.path.join(td, 'cmp')
-            r = subprocess.run([sys.executable, PAIR_COMPARE, '--base-dir', base,
-                                '--new-dir', new, '--out', out],
-                               capture_output=True, text=True)
-            self.assertEqual(r.returncode, 0, r.stderr)
-            md = open(out + '.md').read()
-            self.assertIn('No per-example baseline from the base branch yet', md)
-            self.assertIn('next push', md)
-            self.assertNotIn('comparison skipped', md)
-
-    def test_a_partially_malformed_file_contributes_nothing(self):
-        """A file that blows up half way through must drop WHOLE. Entries parsed
-        before the malformation used to stay in the comparison while stderr claimed
-        the file had been skipped - a silently truncated table published as the
-        code-size verdict. A non-list 'files' (TypeError) also has to be caught."""
-        with tempfile.TemporaryDirectory() as td:
-            base, new = os.path.join(td, 'base'), os.path.join(td, 'new')
-            # good entry FIRST, malformed second: the leak is order-dependent
-            fake_by_example(base, 'raspberry_pi_pico',
-                            {'device/cdc_msc': {'files': [entry('leaked.c', 100)]},
-                             'device/dfu': {'files': 42}})
-            fake_by_example(new, 'raspberry_pi_pico',
-                            {'device/cdc_msc': {'files': [entry('leaked.c', 120)]}})
-            # a sibling file that is fine on both sides must still be compared
-            fake_by_example(base, 'stm32f407disco',
-                            {'device/cdc_msc': {'files': [entry('good.c', 10)]}})
-            fake_by_example(new, 'stm32f407disco',
-                            {'device/cdc_msc': {'files': [entry('good.c', 12)]}})
-            out = os.path.join(td, 'cmp')
-            r = subprocess.run([sys.executable, PAIR_COMPARE, '--base-dir', base,
-                                '--new-dir', new, '--out', out],
-                               capture_output=True, text=True)
-            self.assertEqual(r.returncode, 0, r.stderr)
-            md = open(out + '.md').read()
-            self.assertIn('good.c', md)
-            self.assertNotIn('leaked.c', md)
-            self.assertIn('skipping', r.stderr)
-            self.assertIn(os.path.join(base, 'cmake-build-raspberry_pi_pico'), r.stderr)
-
-    def test_dropped_footer_is_summarised_not_dumped(self):
-        """The sticky PR comment is capped at 65,536 chars by GitHub; a broad scoped
-        PR drops hundreds of (family, example) pairs and the full list alone ran to
-        tens of KB, pushing the comment past the cap and reddening code-metrics."""
-        with tempfile.TemporaryDirectory() as td:
-            base, new = os.path.join(td, 'base'), os.path.join(td, 'new')
-            common = {'device/cdc_msc': {'files': [entry('usbd.c', 100)]}}
-            extra = {f'device/example_{i:03d}': {'files': [entry(f'f{i}.c', i + 1)]}
-                     for i in range(30)}
-            fake_by_example(base, 'raspberry_pi_pico', dict(common, **extra))
-            fake_by_example(new, 'raspberry_pi_pico', common)
-            out = os.path.join(td, 'cmp')
-            r = subprocess.run([sys.executable, PAIR_COMPARE, '--base-dir', base,
-                                '--new-dir', new, '--out', out],
-                               capture_output=True, text=True)
-            self.assertEqual(r.returncode, 0, r.stderr)
-            md = open(out + '.md').read()
-            footer = md[md.index('_Scoped compare:'):]
-            self.assertLess(len(footer), 2048, footer)
-            self.assertIn('30', footer)                 # the count is still reported
-            self.assertIn('more', footer)               # truncation marker
-            self.assertIn('device/example_029', r.stderr)   # full list on stderr
-
-
 CIRCLECI = os.path.join(REPO, '.circleci')
-SENTINELS = ('example-map-default', 'build-filtered-default')
+SENTINEL = 'example-map-default'
 
 
 class TestCircleCiSentinelContract(unittest.TestCase):
@@ -267,32 +101,29 @@ class TestCircleCiSentinelContract(unittest.TestCase):
         self.config = open(os.path.join(CIRCLECI, 'config.yml')).read()
         self.config2 = open(os.path.join(CIRCLECI, 'config2.yml')).read()
 
-    def test_each_sentinel_appears_once_on_a_default_line(self):
-        for tag in SENTINELS:
-            marker = f'# {tag}: rewritten in-place by config.yml set-matrix'
-            hits = [l for l in self.config2.splitlines() if l.strip().endswith(marker)]
-            self.assertEqual(len(hits), 1, f'{tag}: {len(hits)} sentinel lines in config2.yml')
-            self.assertIn('default:', hits[0], f'{tag}: sentinel is not on a default: line')
+    def test_sentinel_appears_once_on_a_default_line(self):
+        marker = f'# {SENTINEL}: rewritten in-place by config.yml set-matrix'
+        hits = [l for l in self.config2.splitlines() if l.strip().endswith(marker)]
+        self.assertEqual(len(hits), 1, f'{SENTINEL}: {len(hits)} sentinel lines in config2.yml')
+        self.assertIn('default:', hits[0], f'{SENTINEL}: sentinel is not on a default: line')
 
     def test_the_selection_travels_as_a_file(self):
         # a mass-sweep selection runs to hundreds of KB: handed to ci_set_matrix as one
-        # argv it E2BIGs the step before the `||` fallback can fire, and EXAMPLE_MAP /
-        # BUILD_FILTERED (derived with jq, no argv limit) would then label a FULL build
-        # scoped -- the build and its label disagreeing is worse than either alone
+        # argv it E2BIGs the step before the `||` fallback can fire, while EXAMPLE_MAP
+        # would remain scoped and disagree with the full build
         self.assertIn('--select-file', self.config)
         self.assertNotIn('--select "', self.config)
 
-    def test_the_rewriter_names_the_same_sentinels(self):
-        for tag in SENTINELS:
-            self.assertIn(f"'{tag}'", self.config,
-                          f'{tag}: config.yml rewrite block does not name this sentinel')
+    def test_the_rewriter_names_the_same_sentinel(self):
+        self.assertIn(f"'{SENTINEL}'", self.config,
+                      f'{SENTINEL}: config.yml rewrite block does not name this sentinel')
         self.assertIn("# {tag}: rewritten in-place by config.yml set-matrix", self.config,
                       'config.yml no longer builds the sentinel comment it matches on')
 
     def test_the_rewrite_precedes_the_scoped_entries(self):
         # the scoping is all-or-nothing: config2's checked-in defaults are {} / false =
         # unfiltered, so a rewrite that fails AFTER the family entries were generated
-        # leaves a subset of families built and code-metrics told it was a full build.
+        # leaves a subset of families built while the build is labeled full.
         # Rewrite first, and on failure drop the scoping (back to the full matrix).
         rewrite = self.config.index("p = '.circleci/config2.yml'")
         entries = self.config.index('gen_build_entry() {')
@@ -354,6 +185,34 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         self.assertIn('case "$BUILD_ARGS" in', self.build)
         self.assertIn('unexpected characters in the " + key', self.build,
                       'the args_*/run_* emitter must screen each board filter')
+
+    def test_membrowse_upload_owners(self):
+        # Exactly the cmake job and the espressif pair upload; hil-build
+        # builds for the rig only. A `upload-membrowse: true` reappearing on
+        # hil-build re-opens the target-name collision between its
+        # raspberry_pi_pico PIO-USB variant build and cmake's plain build.
+        # hil-build-esp-identical is not a build_util.yml caller (it has no
+        # elf to build - see its own comment), so it never carries the
+        # `upload-membrowse: true` input; it is caught instead by its direct
+        # MEMBROWSE_API_KEY env reference, the only one in this file.
+        import re
+        jobs = re.split(r'\n  (?=[a-z][\w-]*:\n)', self.build)
+        uploaders = sorted(j.split(':', 1)[0] for j in jobs
+                           if 'upload-membrowse: true' in j or 'MEMBROWSE_API_KEY' in j)
+        self.assertEqual(uploaders,
+                         ['cmake', 'hil-build-esp', 'hil-build-esp-identical'])
+
+    def test_esp_identical_upload_uses_full_roster(self):
+        import re
+        jobs = re.split(r'\n  (?=[a-z][\w-]*:\n)', self.build)
+        job = next(j for j in jobs if j.startswith('hil-build-esp-identical:'))
+        self.assertIn('hil_ci_set_matrix.py test/hil/tinyusb.json', job)
+        self.assertNotIn('needs.set-matrix.outputs.hil_json', job)
+
+    def test_no_skip_hil_boards_anywhere(self):
+        self.assertNotIn('--skip-hil-boards', self.build)
+        self.assertNotIn('hil_built_boards', self.build)
+        self.assertNotIn('hil-build-identical:', self.build.replace('hil-build-esp-identical:', ''))
 
     def test_the_guards_accept_what_the_selector_actually_emits(self):
         """A guard that rejects a NORMAL value is worse than no guard: build.yml throws
@@ -452,7 +311,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         Nothing else exercises it, which is why the empty/rejected conflation shipped."""
         import re as _re, shlex, subprocess, tempfile, json as _json
         repo = os.path.dirname(CIRCLECI)
-        i = self.build.index("EXAMPLE_MAP='{}'\n          BUILD_FILTERED='false'")
+        i = self.build.index("EXAMPLE_MAP='{}'")
         i = self.build.rindex('\n', 0, i) + 1
         j = self.build.index('          echo "matrix=$MATRIX_JSON"', i)
         block = _re.sub(r'^ {10}', '', self.build[i:j], flags=_re.M)
@@ -471,110 +330,58 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
                 fh.write('BUILD_SELECT_FILE=' + shlex.quote(selp) + '\n')
                 fh.write('MATRIX_JSON=' + shlex.quote(matrix) + '\n')
                 fh.write(block)
-                # sentinel + newline separated: the block itself writes ::warning:: to
-                # stdout, and '|' would collide with the regex's own separator
-                fh.write('\nprintf "@@R@@\\n%s\\n%s\\n%s" "$MATRIX_JSON" "$BUILD_FILTERED" "$FAMILY_REGEX"\n')
+                fh.write('\nprintf "@@R@@\\n%s" "$MATRIX_JSON"\n')
             r = subprocess.run(['bash', sh], capture_output=True, text=True, cwd=repo)
             self.assertEqual(r.returncode, 0, r.stderr)
-            mj, filtered, regex = r.stdout.split('@@R@@\n', 1)[1].split('\n', 2)
-            return sum(len(v) for v in _json.loads(mj).values()), filtered, regex
+            mj = r.stdout.split('@@R@@\n', 1)[1]
+            return sum(len(v) for v in _json.loads(mj).values())
 
     def test_an_empty_family_list_is_not_treated_as_unusable(self):
-        """.build.families is read twice - as a count and as a `|`-joined regex. An EMPTY
-        list and one REJECTED by the charset guard both leave the regex empty and mean
-        opposite things, so the block has to branch on which happened.
+        """A legitimate nothing-selected PR (every family filtered out) must keep the
+        all-empty matrix ci_set_matrix produced, not fall open to a full build.
 
-        Testing `-z "$FAMILY_REGEX"` alone sent every nothing-selected PR down the
-        fall-open path and discarded the correct all-empty matrix: #3842 (docs +
-        .gitignore) and #3840 (test/hil only) each rebuilt all 74 cmake legs after the
-        selector had correctly chosen none."""
-        legs, filtered, regex = self._run_extras_block(
+        #3842 (docs + .gitignore) and #3840 (test/hil only) each rebuilt all 74 cmake
+        legs after the selector had correctly chosen none, because an earlier version
+        of this block conflated an empty families list with an unusable one."""
+        legs = self._run_extras_block(
             {'build': {'full': False, 'families': [], 'family_examples': {}}})
         self.assertEqual(legs, 0, 'an empty families list must keep the all-empty matrix')
-        self.assertEqual(filtered, 'false', 'nothing was built, so nothing to compare')
-        self.assertEqual(regex, '')
 
     def test_a_real_family_list_stays_scoped(self):
-        legs, filtered, regex = self._run_extras_block(
+        legs = self._run_extras_block(
             {'build': {'full': False, 'families': ['stm32f4', 'rp2040'],
                        'family_examples': {}}})
         self.assertGreater(legs, 0)
-        self.assertEqual(filtered, 'true')
-        self.assertEqual(regex, 'stm32f4|rp2040')
-
-    def test_a_regex_metacharacter_in_a_family_name_falls_open(self):
-        # the name is interpolated raw into a name_is_regexp artifact pattern, so a
-        # metacharacter would match another family's baseline - reject and widen
-        legs, filtered, regex = self._run_extras_block(
-            {'build': {'full': False, 'families': ['stm32f4.*'], 'family_examples': {}}})
-        self.assertGreater(legs, 100, 'a rejected family list must fall open to full')
-        self.assertEqual(filtered, 'false')
-        self.assertEqual(regex, '')
 
     def test_membrowse_upload_is_not_scoped_by_the_pr_filter(self):
-        # by decision, the upload runs unfiltered so the size history stays keyed on the
-        # family's preferred board whatever the PR touched. $EX_ARGS would not have
-        # scoped the targets either way - `examples-membrowse-upload` is not `all`, so
-        # resolve_example_target_groups passes it through as the aggregate - but it DID
-        # move the board, because --one-first picks one that can build the -e set.
+        # The Build step is $EX_ARGS-scoped (compiles only the PR-selected
+        # examples); the Membrowse Upload step's own build/upload must NOT be:
+        # its job is to touch every example of the resolved CI board, real
+        # upload for the ones actually built, --identical for the rest -
+        # scoping the upload itself down to $EX_ARGS would give an
+        # out-of-selection example NO upload attempt at all this commit (a
+        # silent history gap, not the intended --identical row).
         #
-        # The accepted cost: on a family whose preferred board cannot build that set,
-        # the upload lands on a board the Build step never compiled and every example
-        # goes up --identical. test_the_upload_board_can_diverge_from_the_built_board
-        # keeps that consequence measured rather than assumed.
+        # $EX_ARGS DOES need to reach tools/build.py here, though: without it,
+        # resolve_ci_boards() (called with examples=None) always resolves the
+        # pinned CI board, even on the one path (its own docstring;
+        # test_ci_board_that_cannot_build_the_filter_is_dropped_under_boards_only
+        # covers the boards_only=True case this step uses) where the Build step
+        # above fell back to a DIFFERENT board instead - pushing --identical for
+        # a board this run never touched. tools/build.py's --ci-pinned-boards-only
+        # handling keeps $EX_ARGS scoped to that board-eligibility check only, so
+        # passing it through does not reintroduce the per-example scoping above.
         line = [l for l in self.util.splitlines()
                 if '--target examples-membrowse-upload' in l][0]
-        self.assertNotIn('$EX_ARGS', line)
-        self.assertNotIn('-e ', line)
+        self.assertIn('$EX_ARGS', line)
+        self.assertIn('--ci-pinned-boards-only', line)
 
-    def test_the_upload_board_can_diverge_from_the_built_board(self):
-        """Pins the SIZE of what the removal gave up, so it cannot grow unnoticed.
-
-        --one-first with no -e returns preferred_list[0]; with one it returns the first
-        preferred board that can build it. Where those differ, the Membrowse Upload step
-        configures a build dir the Build step never wrote.
-
-        ci=True unconditionally, as _prune_buildable does and for the same reason: the
-        answer must be the runner's, not the developer's. The CI skip lists are off by
-        default locally, which moves the pick on three families - this test asserted the
-        local set and went red on its first CI run."""
-        sys.path.insert(0, os.path.join(REPO, 'tools'))
-        import build as build_py
-        roles = ('device', 'host', 'dual')
-        exs = sorted(f'{r}/{n}' for r in roles
-                     for n in os.listdir(os.path.join(REPO, 'examples', r))
-                     if os.path.isdir(os.path.join(REPO, 'examples', r, n)))
-        fams = sorted(d for d in os.listdir(os.path.join(REPO, 'hw/bsp'))
-                      if os.path.isdir(os.path.join(REPO, 'hw/bsp', d, 'boards')))
-        cwd = os.getcwd()
-        os.chdir(REPO)
-        try:
-            diverging = set()
-            for fam in fams:
-                try:
-                    base = build_py.get_family_boards(fam, False, True, None, 'cmake',
-                                                      (), ci=True)
-                except Exception:
-                    continue
-                if not base:
-                    continue
-                for e in exs:
-                    try:
-                        one = build_py.get_family_boards(fam, False, True, [e], 'cmake',
-                                                         (), ci=True)
-                    except Exception:
-                        continue
-                    if one and one[0] != base[0]:
-                        diverging.add(fam)
-                        break
-        finally:
-            os.chdir(cwd)
-        self.assertEqual(diverging, {'imxrt', 'lpc11', 'lpc18', 'lpc54', 'mcx', 'nrf', 'rx',
-                                     'samd11', 'samd2x_l2x', 'samd5x_e5x', 'stm32l0',
-                                     'stm32l4', 'tm4c'},
-                         'the set of families whose membrowse upload can land on an '
-                         'uncompiled board changed; re-check whether dropping $EX_ARGS '
-                         'from the upload step is still the right trade')
+    def test_the_build_step_stays_scoped_by_the_pr_filter(self):
+        # the fix above only touches the Membrowse Upload step - the Build step
+        # must keep compiling just the PR-selected examples
+        line = [l for l in self.util.splitlines()
+                if 'python tools/build.py $BUILD_PY_ARGS ${{ matrix.arg }} $EX_ARGS' in l]
+        self.assertTrue(line, '$EX_ARGS missing from the Build step invocation')
 
 
 if __name__ == '__main__':

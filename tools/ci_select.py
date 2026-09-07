@@ -25,7 +25,9 @@ _prune_buildable then intersects each family with what it can actually build.
 | 1 | `docs/`, `.claude/`, `*.md`, `*.rst`, `LICENSE` | — | — | — |
 | 1b | `.gitignore`, `.clang-format`, `.agents`, `.codex/**`, `.idea/**`, `test/{fuzz,unit-test}/**`, `test/hil/test/**`, non-build `.github/**`, packaging manifests | — | — | — |
 | 2 | `test/hil/**` (not `test/hil/test/**`) | — | — | all boards → all tests |
-| 2b | `tools/metrics.py`, `.github/scripts/metrics_*.py` | `ALL` (unchanged — `tinyusb_metrics` runs `metrics.py` as a build target) | `ALL` | — (nothing on the rig runs it) |
+| 2b | `tools/metrics.py`, `.github/scripts/metrics_*.py`, `tools/membrowse_compare.py`, `tools/membrowse_onboard.py`, `tools/drivers_coverage_check.py` | — (local-only tooling, no CI build runs it) | — | — (nothing on the rig runs it) |
+| 2c | `.github/ci-pinned-boards.json` | `ALL` | `ALL` | — (CI board data; no rig board's behaviour depends on it) |
+| 2d | `tools/membrowse_report.py` | `ALL` | `ALL` | — (build-time script invoked from family_support.cmake; no rig board runs it) |
 | 3 | `src/portable/<port>/dcd_*`, `*_device.[ch]` | `FAM` | `DEV`+`DUAL` | `FAM`'s device-role boards → device+dual tests |
 | 4 | `src/portable/<port>/hcd_*`, `*_host.[ch]` | `FAM` | `HOST`+`DUAL` | `FAM`'s host-role boards → host+dual tests |
 | 5 | `src/portable/<port>/**` (anything else) | `FAM` | `ALL` | `FAM`'s boards → all their tests |
@@ -113,23 +115,40 @@ _META_RE = re.compile(
     # gate before trusting a selection), so they cannot change what the rig does.
     # The harness itself stays under _FULL_RE's test/hil/ prefix.
     r'test/(fuzz|unit-test)/|test/hil/test/|'
-    # .github, minus the build machinery named in _FULL_RE
-    r'\.github/(FUNDING\.yml$|labeler\.yml$|membrowse_pr_message\.j2$|ISSUE_TEMPLATE/|'
+    # .github, minus the build machinery named in _FULL_RE. ci-pinned-boards.json now
+    # feeds tools/build.py's --ci-pinned-boards (Task 2) and decides which boards the build
+    # matrix compiles, so it is deliberately NOT here - see _CI_BOARDS_RE below.
+    r'\.github/(FUNDING\.yml$|labeler\.yml$|membrowse_pr_message\.j2$|'
+    r'ISSUE_TEMPLATE/|'
     r'workflows/(cifuzz|claude|claude-code-review|labeler|membrowse-comment|'
-    r'membrowse-onboard|pr_comment|pre-commit|static_analysis|trigger)\.yml$)|'
+    r'pr_comment|pre-commit|static_analysis|trigger)\.yml$)|'
     # tools/ scripts no build invokes (tools/build*.py and metrics are handled above)
     r'tools/(build_doc|check_example_pids|file2carray|gen_doc|gen_presets|iar_gen|'
     r'make_release|mksunxi|pcapng_to_corpus)\.py$|tools/iar_template\.ipcf$'
     r')')
-# Build-size metrics tooling. HIL axis ONLY: nothing on the rig runs any of it, and
-# without this rule these paths are unclassified, so a metrics-only PR booked an
-# exclusive full 30-board sweep to validate a script no board executes.
-# The BUILD axis deliberately keeps its full-matrix answer: `tinyusb_metrics` runs
-# tools/metrics.py as a build target (examples/CMakeLists.txt), and build_util.yml adds
-# `--target tinyusb_metrics` to every metrics leg - a break in it fails the build, so a
-# build has to exercise it.
+# Local-only build-size/membrowse-compare/driver-coverage tooling. BOTH axes: no
+# contribution. Nothing on the rig runs any of it, and - since `tinyusb_metrics` (the
+# cmake target that ran tools/metrics.py as a POST_BUILD step) is gone - no CI build
+# invokes it either. drivers_coverage_check.py is the same story even though it now
+# reads the HIL rosters too: it is a pre-commit-only checker, not something any build
+# or rig board runs. Without this rule these paths are unclassified, so a metrics-only
+# PR would book both a full build matrix AND an exclusive full 30-board sweep to
+# validate scripts nothing in CI runs.
 _METRICS_RE = re.compile(
-    r'^(tools/metrics[^/]*\.py$|\.github/scripts/metrics_[^/]*\.py$)')
+    r'^(tools/(metrics[^/]*|membrowse_compare|membrowse_onboard|drivers_coverage_check)\.py$|'
+    r'\.github/scripts/metrics_[^/]*\.py$)')
+# CI board data (Task 2's tools/build.py --ci-pinned-boards). Build axis: it decides which
+# boards the CI-board families' build legs actually compile, so a bad edit can silently
+# stop covering a family - full build matrix is the only safe answer. HIL axis: no rig
+# board's behaviour depends on which board a family uses for membrowse, so it
+# gets the same no-contribution answer as everything else under _META_RE.
+_CI_BOARDS_RE = re.compile(r'^\.github/ci-pinned-boards\.json$')
+# family_add_membrowse()'s custom targets invoke this script for every family with a
+# ci-pinned-boards.json board (build_util.yml's Membrowse Upload step runs
+# unconditionally on the main cmake job), so which family it can break is data, not
+# code - same ambiguity as rule 2c, same full-build-matrix answer. Nothing on the
+# physical rig ever runs it, so the HIL axis gets rule 2c's no-contribution answer too.
+_MEMBROWSE_SCRIPT_RE = re.compile(r'^tools/membrowse_report\.py$')
 _FULL_RE = re.compile(
     r'^(src/common/|src/osal/|src/tusb\.c$|src/tusb\.h$|src/tusb_option\.h$|'
     # tools/rtt.py is part of the harness, not a standalone tool: hil_util imports it
@@ -651,6 +670,12 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
     if _METRICS_RE.match(path):                                   # rule 2b
         s.reasons.append(f'{path}: build-size metrics tooling, no HIL contribution')
         return
+    if _CI_BOARDS_RE.match(path):                                 # rule 2c
+        s.reasons.append(f'{path}: CI board data, no HIL contribution')
+        return
+    if _MEMBROWSE_SCRIPT_RE.match(path):                          # rule 2d
+        s.reasons.append(f'{path}: membrowse build-time script, no HIL contribution')
+        return
     if _FULL_RE.match(path):
         s.force_full(f'{path}: core/infra -> full matrix')
         return
@@ -1164,10 +1189,22 @@ def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
             return
         s.add(all_bsp_families(repo_root), exs, f'{path}: lib {lib} -> {sorted(exs)}')
         return
-    if _METRICS_RE.match(path):
-        # HIL-suppressed above; on this axis they stay full - tools/metrics.py runs as
-        # the `tinyusb_metrics` build target, so a break in it fails the build
-        s.force_full(f'{path}: metrics tooling runs in the build -> full build matrix')
+    if _METRICS_RE.match(path):                                   # rule 2b
+        # local-only tooling: no CI build invokes it (the `tinyusb_metrics` cmake
+        # target that once did is gone), same no-contribution answer as the HIL axis
+        s.reasons.append(f'{path}: build-size metrics tooling, no build contribution')
+        return
+    if _CI_BOARDS_RE.match(path):                                 # rule 2c
+        # opposite of rule 2b: this data decides which boards' build legs actually
+        # compile (tools/build.py --ci-pinned-boards, Task 2), so a bad entry can silently
+        # stop covering a family - full build matrix is the only safe answer
+        s.force_full(f'{path}: CI board data changes which boards build -> full build matrix')
+        return
+    if _MEMBROWSE_SCRIPT_RE.match(path):                          # rule 2d
+        # invoked by family_add_membrowse's custom targets for every family with a
+        # ci-pinned-boards.json board - same "which family is affected is
+        # data, not code" ambiguity as rule 2c, same safe answer
+        s.force_full(f'{path}: membrowse build-time script -> full build matrix')
         return
     if _FULL_RE.match(path):                                      # rules 15-16
         # attribution, not behaviour: these already reached `full` through the
@@ -1202,7 +1239,7 @@ def _prune_buildable(fams, fam_ex, repo_root):
     CircleCI's cmake legs build every board of a family, so an example gated to a
     single board (only.txt board:mimxrt1060_evk) would otherwise lose ALL compile
     coverage exactly when a PR touches it. get_family_boards(.., False, False) is
-    that full list, with the same CI skip lists the build jobs apply.
+    that full list.
 
     EITHER build system counts too. This one list gates CircleCI's make legs as well
     as its cmake ones, and the two answer different questions (build_utils.skip_example):
@@ -1221,12 +1258,12 @@ def _prune_buildable(fams, fam_ex, repo_root):
                 reasons.append(f'{fam}: family dir gone from tree, dropped')
                 continue
             try:
-                # ci=True unconditionally: this answers "what will CI build", so it must
-                # not change with GITHUB_ACTIONS/CIRCLECI being set. Locally the lists
-                # are off by default, and rp2040 would keep feather_rp2040_max3421 -
-                # the only board satisfying the max3421 only.txt files - giving a
-                # developer a family list the runner will not reproduce.
-                boards = build_py.get_family_boards(fam, False, False, ci=True)
+                # get_family_boards() no longer varies with GITHUB_ACTIONS/CIRCLECI
+                # (ci_skip_boards/ci_preferred_boards are gone - the CI board list
+                # in .github/ci-pinned-boards.json is the only curation mechanism now, and
+                # resolve_ci_boards() is a separate lookup this pruner does not need),
+                # so a laptop and a runner answer the same here without forcing anything.
+                boards = build_py.get_family_boards(fam, False, False)
             except OSError as e:                 # belt and braces: never traceback here
                 reasons.append(f'{fam}: boards unreadable ({e}), dropped')
                 continue

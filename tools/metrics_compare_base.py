@@ -11,8 +11,8 @@ Usage:
   python tools/metrics_compare_base.py -b raspberry_pi_pico -f portable/raspberrypi
   python tools/metrics_compare_base.py -b raspberry_pi_pico -e device/cdc_msc
   python tools/metrics_compare_base.py -b raspberry_pi_pico -e device/cdc_msc --bloaty
-  python tools/metrics_compare_base.py --ci                          # first board of each arm-gcc family, combined
-  python tools/metrics_compare_base.py -b pico -b pico2 --combined   # aggregate listed boards
+  python tools/metrics_compare_base.py --ci --engine linkermap                        # first board of each arm-gcc family, combined
+  python tools/metrics_compare_base.py -b pico -b pico2 --combined --engine linkermap # aggregate listed boards
 """
 import argparse
 import glob
@@ -20,6 +20,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 
@@ -104,13 +105,25 @@ def ci_first_boards():
     return boards
 
 
-def build_board(src_dir, build_dir, board, example=None):
+def build_board(src_dir, build_dir, board, example=None, linkermap=False):
     """Configure and build examples for a board. Returns True on success.
 
     When `example` is given, only that target is built (`cmake --build --target NAME`),
     keeping single-example workflows fast.
+
+    When `linkermap` is set, also build the linkermap target (`<ex>-linkermap`, or
+    the `examples-linkermap` aggregate when no example is given) so map.json files
+    exist for the linkermap engine. Older trees (e.g. a base worktree checked out
+    before the examples-linkermap aggregate target was added) don't have that
+    target but still produce map.json via a legacy POST_BUILD hook on the plain
+    build above — so a missing target is only fatal if no map.json resulted.
     """
     os.makedirs(build_dir, exist_ok=True)
+    map_pattern = f'{build_dir}/{example}/*.map.json' if example \
+        else f'{build_dir}/**/*.map.json'
+    map_paths = glob.glob(map_pattern, recursive=True) if linkermap else []
+    old_maps = {path: (os.stat(path).st_mtime_ns, os.stat(path).st_size)
+                for path in map_paths}
     ret = run(['cmake', '-B', build_dir, '-G', 'Ninja',
                f'-DBOARD={board}', '-DCMAKE_BUILD_TYPE=MinSizeRel',
                os.path.join(src_dir, 'examples')])
@@ -124,6 +137,19 @@ def build_board(src_dir, build_dir, board, example=None):
     if ret.returncode != 0:
         print(f'  Error building {board}: {ret.stderr}')
         return False
+
+    if linkermap:
+        target = f'{os.path.basename(example)}-linkermap' if example else 'examples-linkermap'
+        ret = run(['cmake', '--build', build_dir, '--target', target], timeout=600)
+        if ret.returncode != 0:
+            maps = glob.glob(map_pattern, recursive=True)
+            fresh = any(path not in old_maps or
+                        (os.stat(path).st_mtime_ns, os.stat(path).st_size) != old_maps[path]
+                        for path in maps)
+            if not fresh:
+                print(f'  Error: linkermap target failed for {board} - '
+                      f'run `python3 tools/get_deps.py` to fetch tools/linkermap')
+                return False
     return True
 
 
@@ -153,6 +179,71 @@ def generate_metrics(build_dir, out_basename, filters, example=None):
     return f'{out_basename}.json'
 
 
+def generate_membrowse_sizes(build_dir, filters, example=None):
+    """Per-file sizes from membrowse local reports over every elf in build_dir.
+
+    Single-example (-e) mode sums a file's size across that example's own elf(s)
+    (e.g. an app + its bootloader) - byte-identical to before this averaging was
+    added. All-examples mode (no -e, `example` is None) glob-matches every
+    example's elf and instead AVERAGES each file's size across the elfs it
+    appeared in, the same way metrics.py's compute_avg() (the legacy linkermap
+    engine's cmd_combine path) averages per file - not summed, or a file linked
+    into N examples would report ~N times its real size, and the board's Flash/
+    RAM columns wouldn't be a real binary's size any more.
+    """
+    import membrowse_compare
+    pattern = f'{build_dir}/{example}/*.elf' if example \
+        else f'{build_dir}/**/*.elf'
+    elfs = glob.glob(pattern, recursive=True)
+    if not elfs:
+        print(f'  Error: no .elf files in {build_dir}')
+        return None
+    combined = {}
+    for elf in sorted(elfs):
+        try:
+            report = membrowse_compare.report_for_elf(elf, elf + '.map')
+        except FileNotFoundError:
+            # subprocess.run(['membrowse', ...]) raises this when the CLI isn't
+            # installed - the default size-diff engine, so this would otherwise
+            # surface as a bare traceback after both boards' builds already ran.
+            print('  Error: `membrowse` CLI not found - install it with '
+                  '`pip install membrowse`, or pass --engine linkermap to use '
+                  'the legacy map.json path instead')
+            return None
+        except RuntimeError as e:
+            # report_for_elf() raises this when `membrowse report` itself exits
+            # non-zero (e.g. a malformed elf/map) - same bare-traceback-after-
+            # both-builds risk as the FileNotFoundError case above.
+            print(f'  Error: {e}')
+            return None
+        for path, sizes in membrowse_compare.per_file_sizes(report, filters).items():
+            entry = combined.setdefault(path, {'flash': [], 'ram': []})
+            entry['flash'].append(sizes['flash'])
+            entry['ram'].append(sizes['ram'])
+    if not combined:
+        # elfs exist but none of their symbols matched `filters` - either the
+        # filters are wrong for this checkout, or membrowse's report shape
+        # changed again (this is exactly the failure mode fix round 1 diagnosed:
+        # per_file_sizes()'s object_file/source_file matching silently returning
+        # nothing). Surface it instead of writing a degenerate TOTAL 0/0/0/0 table.
+        print(f'  Error: {len(elfs)} .elf file(s) in {build_dir} but no symbols '
+              f'matched filters {filters} - check the filters, or a membrowse '
+              f'report format change broke per_file_sizes() matching '
+              f'(try --engine linkermap to isolate)')
+        return None
+    if example:
+        # Single-example: sum, same as the plain += this replaced.
+        return {path: {'flash': sum(sizes['flash']), 'ram': sum(sizes['ram'])}
+                for path, sizes in combined.items()}
+    # All-examples: average per file, over the number of elfs THAT FILE appeared
+    # in (compute_avg()'s own semantics - not a uniform division by len(elfs), so
+    # a file linked into fewer examples than others isn't diluted by examples
+    # that never referenced it).
+    return {path: {'flash': round(sum(sizes['flash']) / len(sizes['flash'])),
+                   'ram': round(sum(sizes['ram']) / len(sizes['ram']))}
+            for path, sizes in combined.items()}
+
+
 def main():
     global verbose
 
@@ -171,8 +262,14 @@ def main():
                         help='Compare specific example (repeatable, e.g. -e device/cdc_msc -e host/cdc_msc_hid)')
     parser.add_argument('--bloaty', action='store_true',
                         help='Use bloaty for detailed section/symbol diff (requires -e)')
+    parser.add_argument('--engine', choices=['membrowse', 'linkermap'],
+                        default='membrowse',
+                        help='Size-diff engine (default: membrowse local reports; '
+                             'linkermap is the legacy map.json path)')
     parser.add_argument('--ci', action='store_true',
-                        help='Add the first board of every arm-gcc CI family. Implies --combined.')
+                        help='Add the first board of every arm-gcc CI family. Implies --combined, '
+                             'which needs --engine linkermap (the membrowse engine doesn\'t '
+                             'support --combined yet).')
     parser.add_argument('--combined', action='store_true',
                         help='Aggregate map.json files across all boards into one comparison '
                              '(in cmake-metrics/_combined/), instead of (or in addition to) per-board.')
@@ -198,6 +295,11 @@ def main():
 
     if not args.board:
         parser.error('at least one -b BOARD is required (or pass --ci)')
+
+    if args.combined and args.engine == 'membrowse':
+        parser.error('--combined is not yet supported with --engine membrowse '
+                      '(it aggregates the linkermap engine\'s per-board metrics '
+                      'JSONs); pass --engine linkermap')
 
     metrics_py = os.path.join(TINYUSB_ROOT, 'tools', 'metrics.py')
     worktree_dir = os.path.join(METRICS_DIR, '_worktree')
@@ -227,6 +329,7 @@ def main():
     # Symlink dependency dirs (lib/*, hw/mcu/*/*, tools/*) so the worktree builds.
     symlink_deps(TINYUSB_ROOT, worktree_dir)
 
+    failed = False
     try:
         examples = args.example or [None]
         # For --combined: track every (base_build, cur_build) pair so we can aggregate at the end.
@@ -235,23 +338,32 @@ def main():
         for board in args.board:
             print(f'\n=== {board} ===')
             board_dir = os.path.join(METRICS_DIR, board)
+            for example in examples:
+                suffix = f'_{example.replace("/", "_")}' if example else ''
+                stale_report = os.path.join(board_dir, f'metrics_compare{suffix}.md')
+                if os.path.isfile(stale_report):
+                    os.remove(stale_report)
             base_build = os.path.join(board_dir, 'base')
             cur_build = os.path.join(board_dir, 'build')
+            shutil.rmtree(base_build, ignore_errors=True)
+            shutil.rmtree(cur_build, ignore_errors=True)
 
             # Build only the requested examples (or all if -e not given). Single-example
             # mode used to build everything and filter at metric time — that was wasted work.
             board_failed = False
+            want_linkermap = args.engine == 'linkermap'
             for example in examples:
                 build_label = f' --target {os.path.basename(example)}' if example else ''
                 print(f'[2/5] Building {args.base_branch} for {board}{build_label}...')
-                if not build_board(worktree_dir, base_build, board, example):
+                if not build_board(worktree_dir, base_build, board, example, linkermap=want_linkermap):
                     board_failed = True
                     break
                 print(f'[3/5] Building current for {board}{build_label}...')
-                if not build_board(TINYUSB_ROOT, cur_build, board, example):
+                if not build_board(TINYUSB_ROOT, cur_build, board, example, linkermap=want_linkermap):
                     board_failed = True
                     break
             if board_failed:
+                failed = True
                 continue
 
             built_pairs.append((board, base_build, cur_build))
@@ -260,20 +372,35 @@ def main():
                 suffix = f'_{example.replace("/", "_")}' if example else ''
                 label = f' ({example})' if example else ''
 
-                # Step 4: Generate metrics
-                print(f'[4/5] Generating metrics for {board}{label}...')
-                base_json = generate_metrics(base_build, os.path.join(board_dir, f'base_metrics{suffix}'),
-                                             base_filters, example)
-                cur_json = generate_metrics(cur_build, os.path.join(board_dir, f'build_metrics{suffix}'),
-                                            cur_filters, example)
-                if not base_json or not cur_json:
-                    continue
-
-                # Step 5: Compare
+                # Step 4/5: Generate metrics and compare
                 out_base = os.path.join(board_dir, f'metrics_compare{suffix}')
-                print(f'[5/5] Comparing {board}{label}...')
-                ret = run([sys.executable, metrics_py, 'compare', '-m', '-o', out_base, base_json, cur_json])
-                print(ret.stdout)
+                if args.engine == 'membrowse':
+                    import membrowse_compare
+                    print(f'[4/5] Generating membrowse reports for {board}{label}...')
+                    base_sizes = generate_membrowse_sizes(base_build, base_filters, example)
+                    cur_sizes = generate_membrowse_sizes(cur_build, cur_filters, example)
+                    if base_sizes is None or cur_sizes is None:
+                        failed = True
+                        continue
+
+                    print(f'[5/5] Comparing {board}{label}...')
+                    md = membrowse_compare.compare_reports(base_sizes, cur_sizes)
+                    with open(f'{out_base}.md', 'w') as f:
+                        f.write(md)
+                    print(md)
+                else:
+                    print(f'[4/5] Generating metrics for {board}{label}...')
+                    base_json = generate_metrics(base_build, os.path.join(board_dir, f'base_metrics{suffix}'),
+                                                 base_filters, example)
+                    cur_json = generate_metrics(cur_build, os.path.join(board_dir, f'build_metrics{suffix}'),
+                                                cur_filters, example)
+                    if not base_json or not cur_json:
+                        failed = True
+                        continue
+
+                    print(f'[5/5] Comparing {board}{label}...')
+                    ret = run([sys.executable, metrics_py, 'compare', '-m', '-o', out_base, base_json, cur_json])
+                    print(ret.stdout)
 
                 # Optional: bloaty diff
                 if args.bloaty and example:
@@ -344,7 +471,8 @@ def main():
     finally:
         print(f'\nCleaning up worktree...')
         run(['git', '-C', TINYUSB_ROOT, 'worktree', 'remove', '--force', worktree_dir])
+    return 1 if failed else 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

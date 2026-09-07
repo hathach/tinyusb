@@ -40,8 +40,9 @@ jobs:
               - 'tools/build_utils.py'
               - 'tools/ci_select.py'
               - 'tools/get_deps.py'
-              - 'tools/metrics.py'
               - 'tools/rtt.py'
+              - 'tools/membrowse_report.py'
+              - '.github/ci-pinned-boards.json'
               - '.github/actions/**'
               - '.github/workflows/build.yml'
               - '.github/workflows/build_util.yml'
@@ -53,8 +54,6 @@ jobs:
       json: ${{ steps.set-matrix-json.outputs.matrix }}
       hil_json: ${{ steps.set-matrix-json.outputs.hil_matrix }}
       example_map: ${{ steps.set-matrix-json.outputs.example_map }}
-      build_filtered: ${{ steps.set-matrix-json.outputs.build_filtered }}
-      build_families_regex: ${{ steps.set-matrix-json.outputs.build_families_regex }}
       # one pair per rig job: hil-tinyusb (tinyusb.json minus esptool boards),
       # hil-tinyusb-esp (esptool boards only), hil-tinyusb (hfp.json)
       hil_args_tinyusb: ${{ steps.hil-select.outputs.args_tinyusb }}
@@ -157,9 +156,9 @@ jobs:
             # ci_set_matrix falls open on a selection it cannot use with rc 0 - it prints
             # the full matrix and says UNSCOPED on stderr. The build extras below must
             # not stay scoped when it did, or a nominally full build compiles 1 of 44
-            # examples per family and code-metrics compares that partial run against a
-            # full baseline. Only the BUILD axis is dropped: build.families being
-            # unusable says nothing about the boards map the HIL matrix reads.
+            # examples per family and membrowse uploads that partial run's sizes as if
+            # it were the full build. Only the BUILD axis is dropped: build.families
+            # being unusable says nothing about the boards map the HIL matrix reads.
             MATRIX_JSON=$(python .github/scripts/ci_set_matrix.py --select-file "$SELECT_FILE" 2>ci_set_matrix.err) || MATRIX_JSON=''
             cat ci_set_matrix.err >&2
             if [ -z "$MATRIX_JSON" ] || grep -q 'ci_set_matrix: UNSCOPED' ci_set_matrix.err; then
@@ -168,59 +167,15 @@ jobs:
           fi
           [ -z "$MATRIX_JSON" ] && MATRIX_JSON=$(python .github/scripts/ci_set_matrix.py)
 
-          # Build-axis extras: the per-family example map rides as a side channel
-          # (a value inside matrix entries would break CircleCI's family parameter
-          # and multiply GHA matrix legs). These stay step outputs - they are small
-          # derived values, unlike the selection they are read from. NOTE jq's //
-          # treats false like null, so .build.full is compared explicitly.
+          # The per-family example map rides as a side channel: putting it inside
+          # matrix entries would multiply GHA legs and break CircleCI's family parameter.
           EXAMPLE_MAP='{}'
-          BUILD_FILTERED='false'
-          FAMILY_REGEX=''
           if [ -n "$BUILD_SELECT_FILE" ]; then
             EXAMPLE_MAP=$(jq -c '.build.family_examples // {}' "$BUILD_SELECT_FILE") || EXAMPLE_MAP='{}'
-            BUILD_FILTERED=$(jq -r 'if (.build? | type) == "object" and .build.full == false then "true" else "false" end' "$BUILD_SELECT_FILE") || BUILD_FILTERED='false'
-            if [ "$BUILD_FILTERED" = "true" ]; then
-              FAMILY_COUNT=$(jq -r '.build.families | length' "$BUILD_SELECT_FILE") || FAMILY_COUNT=0
-              FAMILY_REGEX=$(jq -r '.build.families | join("|")' "$BUILD_SELECT_FILE") || FAMILY_REGEX=''
-              # family names come from hw/bsp dir names, which rule 6 reads straight out
-              # of the PR's diff path - and this is interpolated raw into a
-              # `name_is_regexp` artifact pattern, so a regex metacharacter there would
-              # silently match another family's baseline
-              FAMILY_REJECTED=0
-              case "$FAMILY_REGEX" in
-                *[!-A-Za-z0-9_\|]*)
-                  echo "::warning::unexpected characters in the family list - dropping the scoping"
-                  FAMILY_REGEX=''; FAMILY_REJECTED=1 ;;
-              esac
-              # An EMPTY families list and a REJECTED one both leave FAMILY_REGEX empty and
-              # mean opposite things, so branch on which happened. Testing `-z` alone sent
-              # every nothing-selected PR down the fall-open path: a docs/.gitignore diff
-              # (#3842) and a test/hil-only diff (#3840) each rebuilt all 74 cmake legs
-              # after the selector had correctly chosen none.
-              if [ "$FAMILY_REJECTED" = "1" ]; then
-                # unusable: fall open, and all three drop together. Resetting only
-                # build_filtered leaves the build scoped while code-metrics takes the
-                # UNSCOPED branch, diffing a 1-family run against the full averaged
-                # baseline and publishing that as the PR's code-size impact.
-                BUILD_FILTERED='false'
-                EXAMPLE_MAP='{}'
-                MATRIX_JSON=$(python .github/scripts/ci_set_matrix.py)
-              elif [ "$FAMILY_COUNT" = "0" ]; then
-                # legitimate nothing-selected. MATRIX_JSON already holds the all-empty
-                # matrix ci_set_matrix produced from this selection - keep it, so every
-                # leg skips. Nothing is built, so there is nothing to compare a baseline
-                # against: build_filtered goes false to keep code-metrics off the scoped
-                # path, and EXAMPLE_MAP stays '{}' (family_examples is empty anyway).
-                BUILD_FILTERED='false'
-              fi
-            fi
           fi
-          # emitted once, after every path that can still change it
           echo "matrix=$MATRIX_JSON"
           echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
           echo "example_map=$EXAMPLE_MAP" >> $GITHUB_OUTPUT
-          echo "build_filtered=$BUILD_FILTERED" >> $GITHUB_OUTPUT
-          echo "build_families_regex=$FAMILY_REGEX" >> $GITHUB_OUTPUT
 
           # HIL matrix (merged from tinyusb + hifiphile configs), scoped on PRs.
           # Scoping is best-effort too: fall back to the unscoped (full) matrix.
@@ -238,7 +193,8 @@ jobs:
           echo "hil_matrix=$HIL_MATRIX_JSON" >> $GITHUB_OUTPUT
 
   # ------------------------------------------------------------------------------
-  # CMake build: only one board per family (first alphabetically). Full build is done by CircleCI in PR
+  # CMake build: membrowse's CI board(s) per family, falling back to one board (first
+  # alphabetically) for families with no CI board. Full build is done by CircleCI in PR
   # Note:
   # For Make and IAR build: will be done on CircleCI only (one random per family as well)
   # ------------------------------------------------------------------------------
@@ -260,183 +216,12 @@ jobs:
       build-system: 'cmake'
       toolchain: ${{ matrix.toolchain }}
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
-      build-options: '--one-first'
+      build-options: '--ci-pinned-boards .github/ci-pinned-boards.json'
       example-map: ${{ needs.set-matrix.outputs.example_map }}
-      upload-metrics: true
       upload-artifacts: false
       upload-membrowse: true
       code-changed: ${{ needs.check-paths.outputs.code_changed == 'true' }}
     secrets: inherit
-
-  code-metrics:
-    needs: [ check-paths, cmake, set-matrix ]
-    # A scoped selection can empty every cmake toolchain (a test/hil-only PR). This
-    # job must still run then: skipping it leaves the sticky comment showing the
-    # PREVIOUS push's size table as if it were current. set-matrix must have
-    # SUCCEEDED though: !cancelled() alone let a failed set-matrix through, and this
-    # job would then overwrite the sticky comment with a wrong "built no families"
-    # diagnosis while reporting itself green.
-    if: |
-      !cancelled() && needs.check-paths.outputs.code_changed == 'true' &&
-      needs.set-matrix.result == 'success' &&
-      (needs.cmake.result == 'success' || needs.cmake.result == 'skipped')
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-      contents: write
-    steps:
-      - name: Checkout TinyUSB
-        uses: actions/checkout@v6
-        with:
-          fetch-tags: ${{ github.event_name == 'release' }}
-
-      - name: Download Artifacts
-        uses: actions/download-artifact@v5
-        with:
-          pattern: metrics-*
-          path: cmake-build
-          merge-multiple: true
-          # download-artifact does not fail on a pattern that matches nothing, so a
-          # scoped PR that built no family simply lands here with an empty dir
-
-      - name: Detect empty metrics set
-        run: |
-          # No metrics at all => nothing to aggregate or compare. Write the marker the
-          # sticky comment will carry, so the size section says "skipped" for THIS push
-          # instead of silently keeping the previous push's table.
-          if ! ls cmake-build/*/metrics.json >/dev/null 2>&1; then
-            echo "_Code-size comparison skipped: PR selection built no families on this push._" > metrics_compare.md
-            echo "NO_METRICS=true" >> $GITHUB_ENV
-          fi
-
-      - name: Aggregate Code Metrics
-        if: env.NO_METRICS != 'true'
-        run: |
-          python tools/get_deps.py
-          python tools/metrics.py combine -j -m -f tinyusb/src cmake-build/*/metrics.json
-
-      - name: Upload Metrics Artifact
-        if: github.event_name == 'push' || github.event_name == 'release'
-        uses: actions/upload-artifact@v7
-        with:
-          name: metrics-tinyusb
-          path: metrics.json
-
-      - name: Download Base Branch Metrics
-        if: env.NO_METRICS != 'true' && (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch') && needs.set-matrix.outputs.build_filtered != 'true'
-        uses: dawidd6/action-download-artifact@v11
-        with:
-          workflow: build.yml
-          workflow_conclusion: ''
-          branch: ${{ github.base_ref }}
-          name: metrics-tinyusb
-          path: base-metrics
-        continue-on-error: true
-
-      - name: Download base per-family metrics (scoped PR)
-        if: env.NO_METRICS != 'true' && github.event_name == 'pull_request' && needs.set-matrix.outputs.build_filtered == 'true'
-        uses: dawidd6/action-download-artifact@v11
-        with:
-          workflow: build.yml
-          workflow_conclusion: ''
-          search_artifacts: true      # a docs-only master push uploads no per-family artifacts
-          branch: ${{ github.base_ref }}
-          name: ^metrics-(${{ needs.set-matrix.outputs.build_families_regex }})$
-          name_is_regexp: true
-          path: base-family-metrics
-        continue-on-error: true
-
-      - name: Compare with Base Branch (scoped)
-        if: env.NO_METRICS != 'true' && github.event_name == 'pull_request' && needs.set-matrix.outputs.build_filtered == 'true'
-        run: |
-          # never fall back to the averaged metrics-tinyusb here: a scoped PR vs the
-          # 64-family/46-example average is exactly the mismatch this path prevents
-          python .github/scripts/metrics_pair_compare.py \
-            --base-dir base-family-metrics --new-dir cmake-build --out metrics_compare || \
-            echo "_Code-size comparison failed on the scoped path - see the code-metrics job log._" > metrics_compare.md
-          cat metrics_compare.md
-
-      - name: Download Previous Release Asset
-        if: github.event_name == 'release'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          PREV_TAG=$(git tag --sort=-creatordate | head -n 2 | tail -n 1)
-          echo "Previous Release: $PREV_TAG"
-          echo "PREV_TAG=$PREV_TAG" >> $GITHUB_ENV
-
-          mkdir -p base-metrics
-          gh release download $PREV_TAG -p metrics.json -D base-metrics || echo "No metrics.json found in $PREV_TAG release"
-
-      - name: Compare with Base Branch
-        if: env.NO_METRICS != 'true' && github.event_name != 'push' && needs.set-matrix.outputs.build_filtered != 'true'
-        run: |
-          if [ -f base-metrics/metrics.json ]; then
-            python tools/metrics.py compare -m -f tinyusb/src base-metrics/metrics.json metrics.json
-            cat metrics_compare.md
-          else
-            echo "No base metrics found, skipping comparison"
-            cp metrics.md metrics_compare.md
-          fi
-
-      - name: Upload Release Assets
-        if: github.event_name == 'release'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          CURR_TAG=${{ github.event.release.tag_name }}
-          COMPARE_FILE="metrics_compare_${CURR_TAG}-${PREV_TAG}.md"
-          mv metrics_compare.md $COMPARE_FILE
-          gh release upload $CURR_TAG metrics.json $COMPARE_FILE
-
-      - name: Upload Metrics Comment Artifact
-        if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v7
-        with:
-          name: metrics-comment
-          path: |
-            metrics_compare.md
-            metrics.json
-          # metrics.json is absent when the selection built no family; the marker
-          # in metrics_compare.md is still what the sticky comment needs
-          if-no-files-found: ignore
-
-      - name: Post Code Metrics as PR Comment
-        if: (github.event_name == 'workflow_dispatch') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false)
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          header: code-metrics
-          path: metrics_compare.md
-
-  # ---------------------------------------
-  # Keep the metrics baseline available on no-code-change pushes
-  # The code-metrics job only runs (and uploads metrics-tinyusb) when code changed, so a
-  # workflow/docs-only push to master would leave the latest run without a baseline for PRs
-  # to compare against. Carry the previous artifact forward so the baseline is never missing.
-  # ---------------------------------------
-  metrics-carry-forward:
-    needs: [ check-paths ]
-    if: github.event_name == 'push' && needs.check-paths.outputs.code_changed != 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download previous metrics baseline from this branch
-        uses: dawidd6/action-download-artifact@v11
-        with:
-          workflow: build.yml
-          workflow_conclusion: ''      # any conclusion, matching the PR-side baseline download
-          search_artifacts: true       # scan back past runs that lack the artifact (e.g. earlier no-code pushes)
-          branch: ${{ github.ref_name }}
-          name: metrics-tinyusb
-          path: .
-          if_no_artifact_found: warn
-        continue-on-error: true        # best-effort: never make a no-code push red
-
-      - name: Re-publish baseline so the latest run keeps it
-        if: hashFiles('metrics.json') != ''
-        uses: actions/upload-artifact@v7
-        with:
-          name: metrics-tinyusb
-          path: metrics.json
 
   # ---------------------------------------
   # Build Make/CMake on Windows/MacOS
@@ -524,7 +309,61 @@ jobs:
       build-system: 'cmake'
       toolchain: 'esp-idf'
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.hil_json)['esp-idf']) }}
+      # build-args are explicit `-b <board>` flags (no bare family name), which
+      # bypass --ci-pinned-boards family resolution entirely (tools/build.py main()) - this
+      # is only here to satisfy --ci-pinned-boards-only's argparse requirement on --ci-pinned-boards
+      build-options: '--ci-pinned-boards .github/ci-pinned-boards.json'
       upload-artifacts: true
+      upload-membrowse: true
+    secrets: inherit
+
+  # espressif has no leg in the `cmake` job above (it would double-build the same
+  # board on the slowest toolchain - see that job's comment), so unlike every other
+  # CI board its --identical upload has nowhere to run on a no-code-change push:
+  # hil-build-esp is gated on code_changed, and loosening that gate would let
+  # hil-tinyusb-esp's hardware run start on a docs-only push too (its own SEL_RUN
+  # gate is PR-only - see build.yml's "CI selection (PR only)" step - so on a push
+  # event it defaults to "run everything", not "skip"). This job takes the opposite
+  # gate instead, with no downstream dependents, so it can never reach the rig.
+  # --identical needs neither a compiled elf nor a configured build dir
+  # (tools/membrowse_report.py's --elf-missing path; tools/build.py's espressif
+  # branch routes straight to it when there is no build dir), so plain python on
+  # ubuntu-latest is enough - no ESP-IDF docker image, no idf.py, no compiler.
+  hil-build-esp-identical:
+    needs: [ check-paths ]
+    if: needs.check-paths.outputs.code_changed != 'true' && github.repository_owner == 'hathach'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install membrowse
+        run: pip install membrowse
+
+      - name: Membrowse identical upload (espressif, no code change)
+        continue-on-error: true
+        env:
+          MEMBROWSE_API_KEY: ${{ secrets.MEMBROWSE_API_KEY }}
+        run: |
+          # one tools/build.py call per board, not one call for all of them: the
+          # default shell here is `bash -eo pipefail`, and a later board must still
+          # get its upload attempt even if an earlier one fails
+          python3 .github/scripts/hil_ci_set_matrix.py test/hil/tinyusb.json |
+          python3 -c 'import json, sys; [print(a) for a in json.load(sys.stdin)["esp-idf"]]' |
+          while IFS= read -r arg; do
+            # same variant guard as build_util.yml's Membrowse Upload step: a
+            # -DMA variant leg configures with the same -DBOARD=<name> as the
+            # plain leg, and membrowse's target-name ({board}/{example}) is
+            # derived from the board alone - uploading both would write two
+            # --identical rows under the same target every no-code-change push
+            case " $arg " in
+              *' --build-name '*|*' -D'*|*' --cflag='*)
+                echo "skip membrowse upload: variant build ($arg)"; continue ;;
+            esac
+            python3 tools/build.py -s cmake --target examples-membrowse-upload -j 1 $arg || true
+          done
 
   # ---------------------------------------
   # Hardware in the loop (HIL)

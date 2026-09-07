@@ -37,6 +37,7 @@ family_list = {
     "ch32v30x": ["riscv-gcc"],
     "ch583": ["riscv-gcc"],
     "da1469x": ["arm-gcc"],
+    "f1c100s": ["arm-gcc"],
     "fomu": ["riscv-gcc"],
     "ft9xx": ["ft9xx-gcc"],
     "gd32vf103": ["riscv-gcc"],
@@ -72,6 +73,7 @@ family_list = {
     "samd11": ["arm-gcc", "arm-clang"],
     "samd2x_l2x": ["arm-gcc", "arm-clang"],
     "samd5x_e5x": ["arm-gcc", "arm-clang"],
+    "same7x": ["arm-gcc"],
     "samg": ["arm-gcc", "arm-clang"],
     "stm32c0": ["arm-gcc", "arm-clang", "arm-iar"],
     "stm32c5": ["arm-gcc", "arm-clang", "arm-iar"],
@@ -95,9 +97,6 @@ family_list = {
     "stm32wba": ["arm-gcc", "arm-clang", "arm-iar"],
     "tm4c": ["arm-gcc"],
     "xmc4000": ["arm-gcc"],
-    # S3, P4 will be built by hil test
-    # "-bespressif_s3_devkitm": ["esp-idf"],
-    # "-bespressif_p4_function_ev": ["esp-idf"],
 }
 
 
@@ -129,14 +128,18 @@ def set_matrix_json(select=None):
         matrix[toolchain] = fams
     if sel_fams:
         # a family this file does not list builds on no toolchain, so it contributes no
-        # leg. hw/bsp holds several CI has never built (efm32, py32f0, same7x, ...) plus
-        # espressif, whose boards hil-build-esp builds by name.
-        # espressif is not a gap: its examples need the ESP-IDF environment
-        # (CLAUDE.md: `. "$IDF_PATH/export.sh"` before any build), which the cmake legs
-        # do not have - that is why it is commented out of family_list above. Its
-        # coverage comes from hil-build-esp, which builds those boards BY NAME in an IDF
-        # container, so an espressif-only PR is already validated and falling open to the
-        # full matrix would add 74 legs, none of which can compile espressif.
+        # leg. hw/bsp holds a few CI has never built (efm32, pic32mz, py32f0, ...) - a
+        # missing family.cmake or no CI toolchain support, not a gap in this file.
+        # espressif is not a gap either: it briefly had its own family_list entry
+        # here, but that meant tools/build.py compiled espressif_s3_devkitm TWICE per
+        # code-changed run (once for hil-build-esp's roster, once for this file's
+        # esp-idf leg, on the slowest toolchain in the workflow) and, on CircleCI -
+        # which passes neither --ci-pinned-boards nor --one-random - would have started a
+        # never-before-run esp-idf leg building EVERY espressif board across every
+        # example with no pin at all. hil-build-esp builds espressif's boards BY NAME
+        # instead (see .github/workflows/build.yml), so falling open to the full
+        # matrix for an espressif-only selection would add 74 legs, none of which can
+        # compile espressif.
         unbuilt = sorted(f for f in sel_fams if f not in family_list and f != 'espressif')
         if unbuilt and not any(matrix.values()):
             # NONE of the selected families is buildable here, so every leg would skip

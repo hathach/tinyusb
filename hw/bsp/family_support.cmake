@@ -224,6 +224,21 @@ function(family_initialize_project PROJECT DIR)
     get_filename_component(SHORT_NAME ${DIR} NAME)
     message(FATAL_ERROR "${SHORT_NAME} is not supported on FAMILY=${FAMILY}")
   endif()
+
+  # espressif builds through ESP-IDF's own project.cmake, never through
+  # family_configure_common (family_add_membrowse's normal call site) - every
+  # espressif example's CMakeLists.txt returns right after this function, so hook
+  # it here instead, now that project() has created the ${PROJECT}.elf target.
+  if (FAMILY STREQUAL "espressif")
+    # IDF's own linker scripts, generated per-project; family_add_membrowse's ninja
+    # extraction cannot resolve them (see the comment at its definition)
+    set(MEMBROWSE_LD_OVERRIDE
+      "$<TARGET_FILE_DIR:${PROJECT}.elf>/esp-idf/esp_system/ld/memory.ld $<TARGET_FILE_DIR:${PROJECT}.elf>/esp-idf/esp_system/ld/sections.ld")
+    # TARGET=PROJECT (no .elf) keeps the custom target/upload name matching every
+    # other family's <board>/<example>; ELF_TARGET=PROJECT.elf is the real CMake
+    # target the .elf/.map/ninja lookups need to resolve.
+    family_add_membrowse(${PROJECT} ${PROJECT}.elf)
+  endif()
 endfunction()
 
 # Add bloaty (https://github.com/google/bloaty/) target, required compile with -g (debug)
@@ -254,6 +269,11 @@ endfunction()
 
 # Add linkermap target (https://github.com/hathach/linkermap)
 function(family_add_linkermap TARGET)
+  # local-only tool: skip silently when get_deps.py has not fetched it
+  if (NOT EXISTS ${LINKERMAP_PY})
+    return()
+  endif ()
+
   set(OPTION "-j")
   if (DEFINED LINKERMAP_OPTION)
     string(APPEND OPTION " ${LINKERMAP_OPTION}")
@@ -261,96 +281,68 @@ function(family_add_linkermap TARGET)
   separate_arguments(OPTION_LIST UNIX_COMMAND ${OPTION})
 
   add_custom_target(${TARGET}-linkermap
+    DEPENDS ${TARGET}
     COMMAND python ${LINKERMAP_PY} ${OPTION_LIST} $<TARGET_FILE:${TARGET}>.map
     VERBATIM
     )
 
-  #set_property(TARGET ${TARGET}-linkermap PROPERTY FOLDER ${TARGET}-group)
-
-  # post build
-  add_custom_command(TARGET ${TARGET} POST_BUILD
-    COMMAND python ${LINKERMAP_PY} ${OPTION_LIST} $<TARGET_FILE:${TARGET}>.map
-    VERBATIM)
+  if (NOT TARGET examples-linkermap)
+    add_custom_target(examples-linkermap)
+  endif ()
+  add_dependencies(examples-linkermap ${TARGET}-linkermap)
 endfunction()
 
-# Add membrowse target (installed with pip install membrowse)
+# Add membrowse target (installed with pip install membrowse). TARGET names the
+# custom target and the uploaded <board>/<example> report; an optional second
+# argument is the actual CMake executable target to read the ELF/linker info from,
+# for espressif where that differs from TARGET (see family_initialize_project).
 function(family_add_membrowse TARGET)
-  find_program(MEMBROWSE_EXE membrowse)
-  if (MEMBROWSE_EXE STREQUAL MEMBROWSE_EXE-NOTFOUND)
-    # force anyway, bash login shell will find it from pip install path
-    set(MEMBROWSE_EXE membrowse)
+  if (ARGC GREATER 1)
+    set(ELF_TARGET ${ARGV1})
+  else ()
+    set(ELF_TARGET ${TARGET})
   endif ()
 
-  set(OPTION "")
-  if (DEFINED MEMBROWSE_OPTION)
-    string(APPEND OPTION " ${MEMBROWSE_OPTION}")
-  endif ()
-
-  # For Ninja generator, extract all linker scripts from Ninja commands (with INCLUDE) and pass them to membrowse.
+  # For Ninja generator, tools/membrowse_report.py extracts linker scripts (with
+  # INCLUDE resolution) and --defsym symbols from the ninja build graph, then runs
+  # `membrowse report` (looked up on PATH, see the script). It also handles
+  # MEMBROWSE_API_KEY at build time (not here at configure time) so the key is never
+  # baked into build.ninja or printed.
   if (CMAKE_GENERATOR MATCHES "Ninja")
-    set(TARGET_ELF_PATH "$<TARGET_FILE_DIR:${TARGET}>/$<TARGET_FILE_NAME:${TARGET}>")
-    set(MEMBROWSE_LD_SCRIPTS_CMD
-      "ld_scripts=\"$(${CMAKE_MAKE_PROGRAM} -C ${CMAKE_BINARY_DIR} -t commands ${TARGET} | grep -oP '(?:-Wl,--script=|-T\\s*)\\K[A-Za-z0-9_./-]+\\.ld' | xargs)\"; \
-all_ld_scripts=\"\"; \
-pending_ld_scripts=\"$ld_scripts\"; \
-while [ -n \"$pending_ld_scripts\" ]; do \
-  next_pending=\"\"; \
-  for script in $pending_ld_scripts; do \
-    case \" $all_ld_scripts \" in *\" $script \"*) continue ;; esac; \
-    all_ld_scripts=\"$all_ld_scripts $script\"; \
-    script_dir=$(dirname \"$script\"); \
-    include_scripts=$(grep -hoP '^\\s*INCLUDE\\s+[<\"]?\\K[^\">[:space:]]+\\.ld' \"$script\" 2>/dev/null | xargs); \
-    for include_script in $include_scripts; do \
-      resolved_script=\"\"; \
-      if [ -f \"$include_script\" ]; then \
-        resolved_script=\"$include_script\"; \
-      elif [ -f \"$script_dir/$include_script\" ]; then \
-        resolved_script=\"$script_dir/$include_script\"; \
-      fi; \
-      if [ -n \"$resolved_script\" ]; then \
-        case \" $all_ld_scripts $next_pending \" in *\" $resolved_script \"*) ;; *) next_pending=\"$next_pending $resolved_script\" ;; esac; \
-      fi; \
-    done; \
-  done; \
-  pending_ld_scripts=\"$(echo \"$next_pending\" | xargs)\"; \
-done; \
-ld_scripts=\"$(echo \"$all_ld_scripts\" | xargs)\"")
-    set(MEMBROWSE_LD_DEFS_CMD
-      "ld_symbols=\"$(${CMAKE_MAKE_PROGRAM} -C ${CMAKE_BINARY_DIR} -t commands ${TARGET} | grep -oP '(?<=--defsym[=,])[^[:space:]]+' | xargs)\"; \
-ld_defs=\"\"; \
-for symbol in $ld_symbols; do \
-  ld_defs=\"$ld_defs --def $symbol\"; \
-done; \
-ld_defs=\"$(echo \"$ld_defs\" | xargs)\"")
-    set(MEMBROWSE_PREPARE_CMD
-      "if [ -f \"${TARGET_ELF_PATH}\" ]; then \
-  ${MEMBROWSE_LD_SCRIPTS_CMD}; \
-  ${MEMBROWSE_LD_DEFS_CMD}; \
-  map_arg=\"\"; \
-  if [ -f \"${TARGET_ELF_PATH}.map\" ]; then map_arg=\"--map-file \\\"${TARGET_ELF_PATH}.map\\\"\"; fi; \
-  if [ \"$MEMBROWSE_UPLOAD\" = \"1\" ]; then \
-    MEMBROWSE_CMD=\"${MEMBROWSE_EXE} report ${OPTION} \\\"${TARGET_ELF_PATH}\\\" \\\"$ld_scripts\\\" $ld_defs $map_arg --upload --github --target-name ${BOARD}/${TARGET} --api-key $ENV{MEMBROWSE_API_KEY}\"; \
-  else \
-    MEMBROWSE_CMD=\"${MEMBROWSE_EXE} report ${OPTION} \\\"${TARGET_ELF_PATH}\\\" \\\"$ld_scripts\\\" $ld_defs $map_arg\"; \
-  fi; \
-else \
-  if [ \"$MEMBROWSE_UPLOAD\" = \"1\" ]; then \
-    MEMBROWSE_CMD=\"${MEMBROWSE_EXE} report ${OPTION} --identical --upload --github --target-name ${BOARD}/${TARGET} --api-key $ENV{MEMBROWSE_API_KEY}\"; \
-  else \
-    MEMBROWSE_CMD=\"${MEMBROWSE_EXE} report ${OPTION} --identical\"; \
-  fi; \
-fi; \
-echo \"$MEMBROWSE_CMD\"")
+    set(TARGET_ELF_PATH "$<TARGET_FILE_DIR:${ELF_TARGET}>/$<TARGET_FILE_NAME:${ELF_TARGET}>")
+
+    set(MEMBROWSE_ARGS
+      --build-dir ${CMAKE_BINARY_DIR}
+      --ninja ${CMAKE_MAKE_PROGRAM}
+      --target ${ELF_TARGET}
+      --elf ${TARGET_ELF_PATH}
+      --target-name ${BOARD}/${TARGET}
+      )
+    if (DEFINED MEMBROWSE_OPTION)
+      list(APPEND MEMBROWSE_ARGS --option "${MEMBROWSE_OPTION}")
+    endif ()
+    # espressif's final link command references its generated linker scripts by bare
+    # filename (resolved via -L search paths IDF adds, not full paths ninja -t
+    # commands can see), so ninja-graph extraction finds unresolvable names. Let the
+    # caller (family_initialize_project's espressif branch) hand the known scripts
+    # over explicitly instead.
+    if (DEFINED MEMBROWSE_LD_OVERRIDE)
+      separate_arguments(MEMBROWSE_LD_OVERRIDE_LIST UNIX_COMMAND "${MEMBROWSE_LD_OVERRIDE}")
+      list(APPEND MEMBROWSE_ARGS --ld ${MEMBROWSE_LD_OVERRIDE_LIST})
+    endif ()
 
     add_custom_target(${TARGET}-membrowse
-      DEPENDS ${TARGET}
-      COMMAND ${CMAKE_COMMAND} -E env MEMBROWSE_UPLOAD=0 bash -lc "${MEMBROWSE_PREPARE_CMD}; eval \"$MEMBROWSE_CMD\""
+      DEPENDS ${ELF_TARGET}
+      COMMAND python ${TOP}/tools/membrowse_report.py ${MEMBROWSE_ARGS}
       VERBATIM
       )
     #set_property(TARGET ${TARGET}-membrowse PROPERTY FOLDER ${TARGET}-group)
 
+    # No DEPENDS on ELF_TARGET here: CI's upload path must still run (as an
+    # --identical metadata-only upload) for a commit that never rebuilt this elf,
+    # so this target must never force a rebuild.
     add_custom_target(${TARGET}-membrowse-upload
-      COMMAND ${CMAKE_COMMAND} -E env MEMBROWSE_UPLOAD=1 bash -lc "${MEMBROWSE_PREPARE_CMD}; eval \"$MEMBROWSE_CMD\""
+      COMMAND python ${TOP}/tools/membrowse_report.py ${MEMBROWSE_ARGS} --upload
       VERBATIM
       )
 

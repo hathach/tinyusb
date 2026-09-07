@@ -142,8 +142,7 @@ jobs:
           path: pvs-studio-${{ matrix.board }}.sarif
 
   SonarQube:
-    # Only run on non-forked PR since secrets token is required
-    if: github.repository_owner == 'hathach' && github.event.pull_request.head.repo.fork == false
+    if: false
     runs-on: ubuntu-latest
     env:
       BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory

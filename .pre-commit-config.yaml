@@ -95,6 +95,13 @@ repos:
     pass_filenames: false
     language: system
 
+  - id: drivers-coverage
+    name: drivers-coverage
+    files: ^(\.github/ci-pinned-boards\.json$|\.github/scripts/ci_set_matrix\.py$|tools/drivers_coverage_check\.py$|tools/ci_select\.py$|tools/build_utils\.py$|hw/bsp/|src/portable/|examples/|test/hil/test/test_drivers_coverage\.py$|tools/build\.py$|test/hil/test/test_ci_boards\.py$|tools/membrowse_compare\.py$|tools/metrics_compare_base\.py$|test/hil/test/test_membrowse_compare\.py$|test/hil/test/test_metrics_compare_base\.py$|tools/membrowse_report\.py$|test/hil/test/test_membrowse_report\.py$|tools/membrowse_onboard\.py$|test/hil/test/test_membrowse_onboard\.py$|test/hil/tinyusb\.json$|test/hil/hfp\.json$)
+    entry: sh -c "python3 tools/drivers_coverage_check.py && python3 test/hil/test/test_drivers_coverage.py && python3 test/hil/test/test_ci_boards.py && python3 test/hil/test/test_membrowse_compare.py && python3 test/hil/test/test_metrics_compare_base.py && python3 test/hil/test/test_membrowse_report.py && python3 test/hil/test/test_membrowse_onboard.py"
+    pass_filenames: false
+    language: system
+
 #  - id: build-fuzzer
 #    name: build-fuzzer
 #    files: ^(src/|test/fuzz/)
