@@ -468,8 +468,9 @@ def build_example(board: dict, variant: str, example: str) -> int:
     vcfg = next((v for v in variants if v['name'] == variant), variants[0])
     if board['flasher']['name'].lower() == 'esptool':
         idf_path = os.environ.get('IDF_PATH')
-        if not idf_path and not shutil.which('idf.py'):
-            return 127  # ESP-IDF env not sourced in this shell and IDF_PATH unset
+        idf_py = shutil.which('idf.py')
+        if not idf_py and (not idf_path or not (Path(idf_path) / 'export.sh').is_file()):
+            return 127  # ESP-IDF env is unavailable in this shell
         # -B keyed off the VARIANT so ensure_fw's post-build lookup finds it
         cmd = ['idf.py', '-C', f'examples/{example}',
                '-B', f'cmake-build/cmake-build-{vcfg["name"]}/{example}',
@@ -481,9 +482,9 @@ def build_example(board: dict, variant: str, example: str) -> int:
         # source export.sh in THIS subprocess only, via bash -c: it mutates PATH/venv
         # (idf.py, xtensa/riscv toolchain, IDF's own python) which must not leak into
         # the parent process or sibling threads' concurrent ARM/RISC-V builds
-        if idf_path and not shutil.which('idf.py'):
-            cmd = ['bash', '-c',
-                   f'. "{idf_path}/export.sh" >/dev/null && {shlex.join(cmd)}']
+        if idf_path and not idf_py:
+            cmd = ['bash', '-c', '. "$1/export.sh" >/dev/null && exec "$@"',
+                   'bash', idf_path, *cmd]
         # the IDF component manager writes examples/<ex>/dependencies.lock in the
         # SOURCE tree (idf.py -B relocates only the build dir), so concurrent esp
         # builds of one example for different targets corrupt each other's solve
