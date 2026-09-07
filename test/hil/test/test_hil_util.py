@@ -444,5 +444,48 @@ class BoundedReadForGuardlessCallers(unittest.TestCase):
         self.assertIsNone(self.hil_util.read_sysfs(os.path.join(self.td.name, 'nope')))
 
 
+class PoolCheckEspIdfBuild(unittest.TestCase):
+    def setUp(self):
+        from helper import hil_pool_check
+        self.pool_check = hil_pool_check
+        self.board = {'name': 'esp32s3', 'flasher': {'name': 'esptool'}}
+        self.example = 'device/cdc_msc_freertos'
+        self.old_idf_path = os.environ.get('IDF_PATH')
+        self.addCleanup(self._restore_idf_path)
+        self.old_which = self.pool_check.shutil.which
+        self.addCleanup(setattr, self.pool_check.shutil, 'which', self.old_which)
+        self.old_run_cmd = self.pool_check.hil_util.run_cmd
+        self.addCleanup(setattr, self.pool_check.hil_util, 'run_cmd', self.old_run_cmd)
+        self.pool_check.shutil.which = lambda _: None
+
+    def _restore_idf_path(self):
+        if self.old_idf_path is None:
+            os.environ.pop('IDF_PATH', None)
+        else:
+            os.environ['IDF_PATH'] = self.old_idf_path
+
+    def test_missing_export_script_reports_missing_idf_environment(self):
+        os.environ['IDF_PATH'] = '/definitely/missing/esp-idf'
+        self.assertEqual(self.pool_check.build_example(self.board, 'esp32s3', self.example), 127)
+
+    def test_idf_command_is_shell_quoted_without_argument_forwarding(self):
+        with TemporaryDirectory(prefix='idf $path ') as td:
+            Path(td, 'export.sh').touch()
+            os.environ['IDF_PATH'] = td
+            calls = []
+
+            def fake_run_cmd(cmd, **kwargs):
+                calls.append((cmd, kwargs))
+                return type('Result', (), {'returncode': 0})()
+
+            self.pool_check.hil_util.run_cmd = fake_run_cmd
+            self.assertEqual(self.pool_check.build_example(self.board, 'esp32s3', self.example), 0)
+            cmd, kwargs = calls[0]
+            self.assertEqual(cmd[:4], ['env', f'IDF_PATH={td}', 'bash', '-c'])
+            self.assertTrue(cmd[4].startswith('. "$IDF_PATH/export.sh" >/dev/null && idf.py '))
+            self.assertNotIn('$@', cmd[4])
+            self.assertEqual(kwargs['timeout'], 600)
+
+
 if __name__ == '__main__':
     unittest.main()
