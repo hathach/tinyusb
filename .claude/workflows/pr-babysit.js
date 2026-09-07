@@ -538,9 +538,20 @@ for (let cycle = 1; cycle <= maxCycles; cycle++) {
   if (napMs > 0) { await nap(napMs); napMs = 0 }
   const entry = { cycle }
   history.push(entry)
-  const verdict = await runCycle(cycle, entry)
-  entry.summary = cycleSummary(entry)
-  log(entry.summary)
+  // A rejection from any worker not individually guarded (replies/resolve/scope/
+  // fixer/push) must not skip the scoreboard — that is exactly the cycle worth
+  // reporting. Converting it to a failure verdict instead of rethrowing keeps
+  // `history`, as the dead-validator path does.
+  let verdict
+  try {
+    verdict = await runCycle(cycle, entry)
+  } catch (e) {
+    entry.error = `cycle threw: ${e && e.message}`
+    verdict = { pass: false, cycles: cycle, history, reason: 'cycle-threw' }
+  } finally {
+    entry.summary = cycleSummary(entry)
+    log(entry.summary)
+  }
   if (verdict) return verdict
 }
 return { pass: false, cycles: maxCycles, history, reason: 'maxCycles reached' }

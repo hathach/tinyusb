@@ -24,6 +24,7 @@ async function run(opts = {}) {
   const agent = async (prompt, options) => {
     const label = options.label
     labels.push(label)
+    if (opts.throwOn && label.startsWith(opts.throwOn)) throw new Error(`${label} exploded`)
     if (label.startsWith('ci#')) return structuredClone(ci)
     if (label.startsWith('reviews#')) {
       if (reviews instanceof Error) throw reviews
@@ -261,6 +262,18 @@ await check('a push that failed before committing is not reported as committed',
   assert.match(row[3], /fixed, COMMIT FAILED: pre-commit hook rejected/,
     'nothing landed in git — the row must not send the reader after a nonexistent commit')
   assert.doesNotMatch(row[3], /PUSH FAILED|\+ committed/, 'and must not claim a commit to recover')
+  assert.equal(row[4], '-')
+})
+
+await check('a worker rejection outside the guarded lanes still reports the cycle', async () => {
+  const { result, logs } = await run({ reviews: oneValid, throwOn: 'push#' })
+  assert.equal(result.pass, false)
+  assert.equal(result.reason, 'cycle-threw')
+  assert.equal(result.history.length, 1, 'the verdict keeps the history it was built from')
+  assert.match(result.history[0].error, /cycle threw: push#1-review exploded/)
+  assert.equal(summaries(logs).length, 1, 'the scoreboard survives an agent-failure cycle')
+  const row = rowsOf(summaries(logs)[0])[0]
+  assert.match(row[3], /fixed, uncommitted/, 'the push never landed, so the fix is only in the tree')
   assert.equal(row[4], '-')
 })
 
