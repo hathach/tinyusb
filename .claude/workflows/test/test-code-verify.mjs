@@ -261,8 +261,14 @@ await check('validate reviews with codex unless claude is explicitly selected', 
     /reviewProvider "both" is cancelled by skip/,
   )
 
-  // skipping the default reviewer is legal but leaves nothing reviewing the diff
-  const noReview = await runValidate({ skip: ['unit', 'size', 'pvs', 'codex'] })
+  // skip:['codex'] used to mean "review with Claude" — it must not silently
+  // become an unreviewed green now that Codex is the only default reviewer
+  await assert.rejects(
+    runValidate({ skip: ['unit', 'size', 'pvs', 'codex'] }),
+    /leaves no diff reviewer/,
+  )
+  // skipping every reviewer is unmistakable, so it stays legal
+  const noReview = await runValidate({ skip: ['unit', 'size', 'pvs', 'review', 'codex'] })
   assert.deepEqual(noReview.calls.sort(), ['builder'])
   assert.equal(noReview.result.stages.some(s => s.stage === 'review' || s.stage === 'codex'), false)
 

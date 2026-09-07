@@ -134,15 +134,22 @@ if (requestedProvider !== 'claude' && !skip.includes('codex')) reviewStageNames.
 const reviewProvider = reviewStageNames.length === 2 ? 'both'
   : reviewStageNames[0] === 'review' ? 'claude'
     : reviewStageNames[0] === 'codex' ? 'codex' : null
-// Asking for a reviewer and skipping it is contradictory input, not a request
-// for silence — the run would otherwise report green having reviewed nothing.
-if (args.reviewProvider && !reviewProvider) {
-  throw new Error(`reviewProvider "${requestedProvider}" is cancelled by skip: ${skip.join(', ')}`)
+// Reviewing nothing is only legal as an unmistakable request, because this is
+// the pre-PR gate: anything less would let it report green over an unreviewed
+// diff. Selecting a reviewer and skipping it is contradictory, and skip:['codex']
+// alone meant "review with Claude" until Codex became the default — honouring it
+// now as "review with nobody" would turn that contract change into a silent pass.
+if (!reviewProvider) {
+  if (args.reviewProvider) {
+    throw new Error(`reviewProvider "${requestedProvider}" is cancelled by skip: ${skip.join(', ')}`)
+  }
+  if (!(skip.includes('review') && skip.includes('codex'))) {
+    throw new Error(
+      `skip: [${skip.join(', ')}] leaves no diff reviewer — skip both 'review' and 'codex' ` +
+      "to run none, or pass reviewProvider: 'claude' to review with Claude")
+  }
+  log('no diff review will run — every reviewer is skipped')
 }
-// 'codex' alone is now the default reviewer, so skipping it leaves no diff
-// review at all — legal (skip means skip), but never silent: under the old
-// contract skip:['codex'] meant "review with Claude".
-if (!reviewProvider) log('no diff review will run — every reviewer is skipped')
 const reviewPrompt =
   `Code-review this branch's diff vs ${base} (git diff ${base}...HEAD), coverage-first: walk every hunk, no spot checks. ` +
   'Find pass — candidate defects across all dimensions: correctness/logic, ISR & concurrency safety, ' +
