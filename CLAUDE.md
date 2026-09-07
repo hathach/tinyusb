@@ -43,7 +43,7 @@ ninja -C examples/cmake-build-adafruit_metro_rp2350 cdc_msc-openocd  # Or OpenOC
 - ESP-IDF: `. "$IDF_PATH/export.sh"` before build/flash/monitor; run `idf.py -DBOARD=<board> build` in the ESP-IDF example.
 - Debug/logging: `-DCMAKE_BUILD_TYPE=Debug -DLOG=2 -DLOGGER=rtt`.
 - Before submitting: `pre-commit run --all-files` (includes unit tests).
-- For code changes: build a board's full example set. Add fuzz/HIL coverage for parsers or protocol state machines.
+- For code changes: build the full example set for boards that exercise the changed modules. Add fuzz/HIL coverage for parsers or protocol state machines.
 - Validate device runtime on hardware; a successful build alone does not establish runtime correctness.
 - After board/dependency changes, regenerate docs with `build-doc`.
 - Before committing code changes, verify size impact with `code-size`.
