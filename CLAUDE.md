@@ -22,7 +22,7 @@ Claude Code is the primary harness. `CLAUDE.md` and `.claude/{agents,skills,work
 - Use `/codex:rescue` for substantial bounded implementation, diagnosis, or a second pass when Claude is stuck; use its `--background`, `--resume`, and `--fresh` controls when needed.
 - When Codex should use a named TinyUSB role, select its `.codex/agents/<role>.toml` adapter; the adapter loads `.claude/agents/<role>.md` as the canonical role.
 - Reviews and research may run beside Claude. For write-capable delegation, use a separate worktree if Claude continues editing; otherwise yield the current worktree to Codex until it finishes. Never let both edit overlapping files in one worktree.
-- `.claude/workflows/*.js` remain the canonical Claude Code orchestration. Root workflows route `code-verifier` work through `code-verify`: Codex by default, or Claude/both when selected. Because workflows nest only one level, `validate` dispatches the same verifier agents directly when called by `full-check`. The Codex subprocess lives only in `.claude/agents/codex-code-verifier.md`; never copy it into a workflow.
+- `.claude/workflows/*.js` remain the canonical Claude Code orchestration. Root workflows route `code-verifier` work through `code-verify`: Codex by default, or Claude/both when selected. Because workflows nest only one level, `validate` dispatches the same verifier agents directly when called by `full-check`, with the same default: pass `reviewProvider: 'claude'|'both'` (through `full-check` too) to spend a Claude review, or nothing runs but Codex. The Codex subprocess lives only in `.claude/agents/codex-code-verifier.md`; never copy it into a workflow.
 
 ## Ground Rules
 

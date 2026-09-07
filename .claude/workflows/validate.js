@@ -1,6 +1,6 @@
 export const meta = {
   name: 'validate',
-  description: 'Pre-PR software validation loop: unit tests + per-board build sweeps + code-size compare + PVS + diff reviews (claude + codex) in parallel; a red verdict dispatches a fix agent for the confirmed findings, then the affected stages re-run — up to maxCycles (default 5) validation passes; a fix that edits a workflow file stops with restartRequired so the caller re-invokes it',
+  description: 'Pre-PR software validation loop: unit tests + per-board build sweeps + code-size compare + PVS + the diff review (Codex by default; Claude only when reviewProvider selects it) in parallel; a red verdict dispatches a fix agent for the confirmed findings, then the affected stages re-run — up to maxCycles (default 5) validation passes; a fix that edits a workflow file stops with restartRequired so the caller re-invokes it',
   whenToUse: 'Before opening or updating a PR, after any non-trivial change',
   phases: [
     { title: 'Validate', detail: 'unit + builds + size + pvs + reviews in parallel' },
@@ -9,7 +9,8 @@ export const meta = {
 }
 
 // args: { boards: string[], examples?: string, base?: string,
-//         skip?: ('unit'|'size'|'pvs'|'review'|'codex')[], maxCycles?: number }
+//         skip?: ('unit'|'size'|'pvs'|'review'|'codex')[],
+//         reviewProvider?: 'codex'|'claude'|'both', maxCycles?: number }
 if (typeof args === 'string') { try { args = JSON.parse(args) } catch { /* not JSON: shape check below reports it */ } }
 if (!args || !Array.isArray(args.boards) || args.boards.length === 0) {
   throw new Error('args must be { boards: string[], examples?, base?, skip?, maxCycles? }')
@@ -121,12 +122,27 @@ const reviewBlocking = f =>
 // names: 'unit', 'build:<board>', 'size', 'pvs', and the dual-provider
 // 'reviews' scheduler, which emits the public 'review' and 'codex' rows.
 // ---------------------------------------------------------------------------
+// Same default as the code-verify router: Codex reviews, Claude only when
+// asked for. An unconfigured run must never spend a second reviewer silently.
+const requestedProvider = args.reviewProvider ?? 'codex'
+if (!['codex', 'claude', 'both'].includes(requestedProvider)) {
+  throw new Error('reviewProvider must be codex, claude, or both')
+}
 const reviewStageNames = []
-if (!skip.includes('review')) reviewStageNames.push('review')
-if (!skip.includes('codex')) reviewStageNames.push('codex')
+if (requestedProvider !== 'codex' && !skip.includes('review')) reviewStageNames.push('review')
+if (requestedProvider !== 'claude' && !skip.includes('codex')) reviewStageNames.push('codex')
 const reviewProvider = reviewStageNames.length === 2 ? 'both'
   : reviewStageNames[0] === 'review' ? 'claude'
     : reviewStageNames[0] === 'codex' ? 'codex' : null
+// Asking for a reviewer and skipping it is contradictory input, not a request
+// for silence — the run would otherwise report green having reviewed nothing.
+if (args.reviewProvider && !reviewProvider) {
+  throw new Error(`reviewProvider "${requestedProvider}" is cancelled by skip: ${skip.join(', ')}`)
+}
+// 'codex' alone is now the default reviewer, so skipping it leaves no diff
+// review at all — legal (skip means skip), but never silent: under the old
+// contract skip:['codex'] meant "review with Claude".
+if (!reviewProvider) log('no diff review will run — every reviewer is skipped')
 const reviewPrompt =
   `Code-review this branch's diff vs ${base} (git diff ${base}...HEAD), coverage-first: walk every hunk, no spot checks. ` +
   'Find pass — candidate defects across all dimensions: correctness/logic, ISR & concurrency safety, ' +
