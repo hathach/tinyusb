@@ -58,11 +58,11 @@ jobs:
           # No custom prompt: Claude performs the instructions in the @claude comment.
 
           # Deliberately NO Bash in the tool allowlist. @claude can be summoned on a
-          # fork PR (claude-code-review.yml even directs fork PRs here), and this job
-          # holds the OAuth secret + a write token. Any build/interpreter command
-          # (python -c, cmake/make custom targets, etc.) run against attacker-
-          # controlled PR content is arbitrary code + network execution, so no
-          # command allowlist can safely contain it. Claude still edits files and
-          # the action commits/opens the PR; the resulting commit is verified by the
-          # repo's CircleCI matrix. --max-turns gives room to investigate + fix.
+          # fork PR, and this job holds the OAuth secret + a write token. Any build
+          # or interpreter command (python -c, cmake/make custom targets, etc.) run
+          # against attacker-controlled PR content is arbitrary code + network
+          # execution, so no command allowlist can safely contain it. Claude edits
+          # files and the action commits/opens the PR; the resulting commit is
+          # verified by the repo's CircleCI matrix. --max-turns gives room to
+          # investigate + fix.
           claude_args: '--max-turns 30 --model claude-opus-5'
