@@ -483,7 +483,7 @@ def build_example(board: dict, variant: str, example: str) -> int:
         # (idf.py, xtensa/riscv toolchain, IDF's own python) which must not leak into
         # the parent process or sibling threads' concurrent ARM/RISC-V builds
         if idf_path and not idf_py:
-            cmd = ['bash', '-c', '. "$1/export.sh" >/dev/null && exec "$@"',
+            cmd = ['bash', '-c', '. "$1/export.sh" >/dev/null && shift && exec "$@"',
                    'bash', idf_path, *cmd]
         # the IDF component manager writes examples/<ex>/dependencies.lock in the
         # SOURCE tree (idf.py -B relocates only the build dir), so concurrent esp

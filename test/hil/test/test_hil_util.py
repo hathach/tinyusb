@@ -482,7 +482,7 @@ class PoolCheckEspIdfBuild(unittest.TestCase):
             self.assertEqual(self.pool_check.build_example(self.board, 'esp32s3', self.example), 0)
             cmd, kwargs = calls[0]
             self.assertEqual(cmd[:5], ['bash', '-c',
-                                       '. "$1/export.sh" >/dev/null && exec "$@"',
+                                       '. "$1/export.sh" >/dev/null && shift && exec "$@"',
                                        'bash', td])
             self.assertEqual(cmd[5], 'idf.py')
             self.assertEqual(kwargs['timeout'], 600)
