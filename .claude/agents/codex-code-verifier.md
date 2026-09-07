@@ -1,6 +1,6 @@
 ---
 name: codex-code-verifier
-description: Bridge one structured code-verifier task to Codex. Read-only.
+description: Run one structured code-verifier task on Codex rather than Claude — a bridge only, taking JSON `prompt`+`schema` in, returning schema-valid JSON, read-only, failing rather than fabricating a result. Use `code-verifier` for the Claude-hosted equivalent.
 tools: Bash
 model: haiku
 effort: low
