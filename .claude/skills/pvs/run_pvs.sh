@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run PVS-Studio static analysis on TinyUSB for a given BOARD.
 #
-# Implements the build + analyze flow behind CLAUDE.md "Static Analysis (PVS-Studio)":
+# Implements the build + analyze flow in this directory's SKILL.md:
 #   - build all examples for BOARD with compile_commands.json exported
 #   - run pvs-studio-analyzer against that compile DB using .PVS-Studio/.pvsconfig
 #   - convert the log to human-readable (errorfile) and SARIF output
