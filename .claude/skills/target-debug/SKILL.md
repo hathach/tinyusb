@@ -250,11 +250,14 @@ halt the core) lives there too.
 
 ## GDB — state autopsy and watchpoints
 
-Start one server using the board's device/config and probe serial:
+Start one server using the board's device/config and probe serial. These
+OpenOCD examples cover STM32H7 with ST-Link and RP2040 with CMSIS-DAP;
+select the installed OpenOCD `interface/` and `target/` configs for other boards:
 
 ```bash
 JLinkGDBServer -device <JLINK_DEVICE> -select usb=<uid> -if SWD -speed 4000 -port 2331 -nogui -singlerun
-openocd <OPENOCD_OPTION> -c 'adapter serial <uid>'
+openocd -f interface/stlink.cfg -f target/stm32h7x.cfg -c 'adapter serial <uid>'
+openocd -f interface/cmsis-dap.cfg -f target/rp2040.cfg -c 'adapter serial <uid>' -c 'adapter speed 5000'
 ```
 
 Connect with the matching toolchain's GDB (`arm-none-eabi-gdb <flashed.elf>`
