@@ -1,149 +1,56 @@
 # TinyUSB Agent Instructions
 
-TinyUSB is a cross-platform USB Host/Device stack for embedded systems: memory-safe (no dynamic allocation) and thread-safe (ISR events deferred to task context).
-
-Reference these instructions first; fall back to search/bash only when reality diverges.
-
-## Behavioral Guidelines
+## Working Rules
 
 Bias toward caution over speed. For trivial tasks, use judgment.
 
-- **Think first** — state assumptions; ask if unclear; when a choice matters, name it and recommend one rather than picking silently or surveying every option.
-- Follow YAGNI. Reuse existing code, standard-library, and native-platform features before adding dependencies or abstractions. Prefer the smallest clear solution, but never sacrifice correctness, safety, or necessary tests.
-- **Surgical changes** — touch only what the task requires; match existing style; don't refactor working code; mention unrelated dead code rather than deleting it. Remove only orphans *your* changes created.
-- **Goal-driven** — turn tasks into verifiable goals ("write failing test, make it pass"). For multi-step work, state a brief `step → verify` plan.
-- **Worktrees** — For branch or multi-step work, run `git worktree add .worktrees/<branch> -b <branch>`; never switch the primary checkout. Symlink the `deps_all` paths from `tools/get_deps.py` to the primary checkout; replace only a dependency that needs a different revision, then run `get_deps.py` for it.
+- Think first — state assumptions; ask if unclear; when a choice matters, name it and recommend one rather than picking silently or surveying every option.
+- Simplicity — Follow YAGNI. Reuse existing code, standard-library, and native-platform features before adding dependencies or abstractions. Prefer the smallest clear solution, but never sacrifice correctness, safety, or necessary tests.
+- Surgical changes — touch only what the task requires; match existing style; don't refactor working code; mention unrelated dead code rather than deleting it. Remove only orphans your changes created.
+- Goal-driven — turn tasks into verifiable goals ("write failing test, make it pass"). For multi-step work, state a brief `step → verify` plan.
+- Assume the dev machine is configured. Run commands directly; troubleshoot setup only when a command fails.
+- **Worktrees** — For branch or multi-step work: `git worktree add .worktrees/<branch> -b <branch>`; never switch the primary checkout. Symlink `deps_all` paths from `tools/get_deps.py` to the primary checkout; replace a symlink and rerun `get_deps.py` only for a different revision.
+- Hardware references — before register/bitfield/pinout/errata/timing claims or DCD/HCD changes, use `read-doc` to check Calibre first; report missing documents. Search its database, never the library tree.
+- Open-source behavior — when investigating an issue or understanding behavior (e.g. kernel, libusb, OpenOCD; usbfs, usbtest, sysfs attributes, device locks, D state), read the source for the version in use rather than infer from symptoms.
+- Code references — boards: `hw/bsp/`, `docs/reference/boards.rst`; classes: `src/class/`; core/config: `src/tusb.h`, `src/tusb_option.h`, each example's `src/tusb_config.h`; build/deps: `tools/build.py`, `tools/get_deps.py`; unit tests: `test/unit-test/project.yml`.
+
+## Code Rules
+
+- C99, 2-space indent, no tabs; `snake_case` helpers, `UPPER_CASE` macros, `tud_`/`tuh_` public APIs, `TU_` macros.
+- No dynamic allocation. Defer ISR work to task context. Use `TU_ASSERT()` for error checks; check return values.
+- Keep headers self-contained with `#if CFG_TUSB_MCU` guards. Include order: C stdlib → tusb common → drivers → classes.
 
 ## Claude and Codex Collaboration
 
-Claude Code is the primary harness. `CLAUDE.md` and `.claude/{agents,skills,workflows}` are canonical; `AGENTS.md -> CLAUDE.md` and `.agents -> .claude` expose the same instructions and skills to standalone Codex. `.codex/agents/*.toml` are thin adapters that pin Codex models and load the canonical Markdown roles; do not copy role bodies or maintain other Codex-specific mirrors.
+- Keep `CLAUDE.md` and `.claude/{agents,skills,workflows}` canonical; preserve `AGENTS.md -> CLAUDE.md` and `.agents -> .claude`.
+- Use `.codex/agents/<role>.toml` to load `.claude/agents/<role>.md`; keep adapters thin and never duplicate role bodies.
+- Use `/codex:review` for independent read-only review, `/codex:adversarial-review` to challenge a design, and `/codex:rescue` for bounded implementation or diagnosis.
+- Concurrent writers need separate worktrees; otherwise yield the worktree until delegated edits finish.
+- Keep orchestration in `.claude/workflows/`. Use `code-verify` with `provider: 'codex'` (default), `'claude'`, or `'both'`; `validate`/`full-check` use `reviewProvider`. Keep workflow nesting to one level and the Codex subprocess in `.claude/agents/codex-code-verifier.md`.
 
-- Use `/codex:review` for an independent read-only review and `/codex:adversarial-review` to challenge the implementation or design.
-- Use `/codex:rescue` for substantial bounded implementation, diagnosis, or a second pass when Claude is stuck; use its `--background`, `--resume`, and `--fresh` controls when needed.
-- When Codex should use a named TinyUSB role, select its `.codex/agents/<role>.toml` adapter; the adapter loads `.claude/agents/<role>.md` as the canonical role.
-- Reviews and research may run beside Claude. For write-capable delegation, use a separate worktree if Claude continues editing; otherwise yield the current worktree to Codex until it finishes. Never let both edit overlapping files in one worktree.
-- `.claude/workflows/*.js` remain the canonical Claude Code orchestration. Verifier work routes through `code-verify`, whose `provider` argument runs Codex unless set to `'claude'` or `'both'`. `validate` dispatches those agents directly — workflows nest only one level — under its own `reviewProvider` argument, same values and default, forwarded by `full-check`. The Codex subprocess lives only in `.claude/agents/codex-code-verifier.md`; never copy it into a workflow.
+## Build and Validate
 
-## Ground Rules
-
-- **Language/style:** C99, 2-space indent (no tabs), snake_case helpers, `UPPER_CASE` macros. Public APIs use `tud_`/`tuh_`; macros use `TU_`. Headers self-contained with `#if CFG_TUSB_MCU` guards.
-- **Safety:** no dynamic allocation; defer ISR work to task context; use `TU_ASSERT()` for error checks; always check return values; include order: C stdlib → tusb common → drivers → classes.
-- **Layout:** `src/` core, `hw/{mcu,bsp}/` MCU+BSP, `examples/{device,host,dual}/`, `test/{unit-test,fuzz,hil}/`, `docs/`, `tools/`.
-- **Commits/PRs:** imperative mood, scoped changes, link issues, include test/build evidence. After opening a PR, drive it to green: address automated review comments (Copilot/Codex/Claude) and fix failing CI, pushing follow-ups until checks pass and threads resolve. Useful: `gh pr checks <num> --watch`, `gh pr view <num> --comments`.
-- **Deferred work:** work that is worth doing but is a *separate scope* from the current PR — it deserves its own PR, written by a different session. Write it as a **handoff** with the `superpowers:writing-plans` skill, one doc per follow-up, in `docs/superpowers/followup/pr<NNN>-<topic>.md` (the PR it was split out of, so the origin stays traceable). Say what is already established (with citations/measurements), what remains, and why it was split out. Delete the doc when its PR lands. Never bundle unrelated follow-ups into one file.
-- **Formatting/lint:** `clang-format` (`.clang-format`), `codespell` (`.codespellrc`); run `pre-commit run --all-files` before submitting.
-
-## Bootstrap
+Build all examples for a board from the repo root; preserve `cmake-build-<board>` for HIL:
 
 ```bash
-sudo apt-get install -y gcc-arm-none-eabi          # ARM toolchain (2-5 min, one-time)
-python3 tools/get_deps.py [FAMILY|-b BOARD]        # fetch deps into lib/, hw/mcu/ (<1 s)
-. "$IDF_PATH/export.sh"                            # Espressif only: before any build/flash/monitor (IDF_PATH set per host)
+cmake -S examples -B examples/cmake-build-adafruit_metro_rp2350 -DBOARD=adafruit_metro_rp2350 -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel
+cmake --build examples/cmake-build-adafruit_metro_rp2350
+ninja -C examples/cmake-build-adafruit_metro_rp2350 cdc_msc-jlink    # Flash with J-Link
+ninja -C examples/cmake-build-adafruit_metro_rp2350 cdc_msc-openocd  # Or OpenOCD
 ```
 
-## Build
+- Single example after configuring above: `cmake --build examples/cmake-build-adafruit_metro_rp2350 --target cdc_msc`.
+- ESP-IDF: `. "$IDF_PATH/export.sh"` before build/flash/monitor; run `idf.py -DBOARD=<board> build` in the ESP-IDF example.
+- Debug/logging: `-DCMAKE_BUILD_TYPE=Debug -DLOG=2 -DLOGGER=rtt`.
+- Before submitting: `pre-commit run --all-files` (includes unit tests).
+- For code changes: build the full example set for boards that exercise the changed modules. Add fuzz/HIL coverage for parsers or protocol state machines.
+- Validate device runtime on hardware; a successful build alone does not establish runtime correctness.
+- After board/dependency changes, regenerate docs with `build-doc`.
+- Before committing code changes, verify size impact with `code-size`.
 
-Single example (CMake+Ninja, recommended, 1-3 s):
-```bash
-cd examples/device/cdc_msc && mkdir -p build && cd build
-cmake -DBOARD=raspberry_pi_pico -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel .. && cmake --build .
-```
+## PRs and Follow-ups
 
-All examples for a board (15-20 s; some objcopy failures are non-critical). The build dir **must** be `cmake-build-<board>` — HIL tests expect that exact name:
-```bash
-cd examples
-cmake -B cmake-build-raspberry_pi_pico -DBOARD=raspberry_pi_pico -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel . && cmake --build cmake-build-raspberry_pi_pico
-```
-
-- **Make:** `cd examples/device/cdc_msc && make BOARD=raspberry_pi_pico all`
-- **Espressif** (ESP-IDF examples only, e.g. `cdc_msc_freertos`): after `export.sh`, `cd examples/device/cdc_msc_freertos && idf.py -DBOARD=espressif_s3_devkitc build`
-- **Options** (CMake `-D…` / Make `…=…`): `CMAKE_BUILD_TYPE=Debug`/`DEBUG=1`; `LOG=2` (`LOGGER=rtt` for RTT); `RHPORT_DEVICE=1`; `RHPORT_DEVICE_SPEED=OPT_MODE_FULL_SPEED`
-
-## Flash
-
-```bash
-ninja cdc_msc-jlink       # CMake; Make: make BOARD=<board> flash-jlink
-ninja cdc_msc-openocd     # CMake; Make: make BOARD=<board> flash-openocd
-ninja cdc_msc-uf2         # CMake; Make: make BOARD=<board> all uf2
-ninja -t targets          # list CMake targets
-```
-Espressif (after `export.sh`): `idf.py -DBOARD=<board> flash` / `… monitor`.
-
-## GDB Debugging
-
-Look up `JLINK_DEVICE` / `OPENOCD_OPTION` in `hw/bsp/*/boards/*/board.cmake` (CMake) or `board.mk` (Make).
-
-Terminal 1 — start a gdbserver:
-```bash
-JLinkGDBServer -device stm32h743xi -if SWD -speed 4000 -port 2331 -nogui   # JLink → :2331
-openocd -f interface/stlink.cfg -f target/stm32h7x.cfg                     # OpenOCD → :3333
-openocd -f interface/cmsis-dap.cfg -f target/rp2040.cfg -c "adapter speed 5000"   # rp2040/rp2350
-```
-Terminal 2 — connect (`<port>`: 2331 JLink, 3333 OpenOCD):
-```bash
-arm-none-eabi-gdb build/your_app.elf
-(gdb) target remote :<port>    # then: monitor reset halt → load → continue
-```
-**RTT:** build `LOG=2 LOGGER=rtt`; capture/console via the `rtt` skill (`.claude/skills/rtt/SKILL.md`).
-
-## Testing
-
-**Unit (Ceedling, Unity+CMock, ~4 s):**
-```bash
-sudo gem install ceedling
-cd test/unit-test && ceedling test:all        # or ceedling test:test_fifo
-```
-
-**HIL (2-5 min):** invoke the `hil` skill (`.claude/skills/hil/SKILL.md`) — local vs remote mode, config selection, SSH copy steps, debugging. Requires pre-built examples (Build → "All examples for a board").
-
-## Documentation
-
-Sphinx docs in `docs/` (`.rst`, or `.md` via MyST). Use the `build-doc` skill (`.claude/skills/build-doc/SKILL.md`) to build/preview locally and regenerate auto-generated files (`tools/gen_doc.py` + `tools/gen_presets.py`) after adding a board or dependency.
-
-## Code Size Metrics
-
-Verify size impact before committing with the `code-size` skill (`.claude/skills/code-size/SKILL.md`) — it wraps `tools/metrics_compare_base.py` for the base-vs-branch worktree + build + compare. Scopes: single example (`-e device/cdc_msc -b <board>`, add `--bloaty`), all examples on a board (`-b <board>`), or all arm-gcc CI families (`--ci`). Reports land in `cmake-metrics/<board>/metrics_compare.md` (and `_combined/` for `--ci`).
-
-## Static Analysis (PVS-Studio)
-
-Use the `pvs` skill (`.claude/skills/pvs/SKILL.md`) — it builds the examples with an exported `compile_commands.json` and runs SAST + MISRA C:2023/C++:2008 for a board, emitting readable + SARIF output (~10-30 s). The examples build exports `compile_commands.json` by default.
-
-## Validation After Changes
-
-1. `pre-commit run --all-files` — format, spell, unit tests, HIL suites (~55 s; the
-   HIL hooks deliberately exercise real timeouts and hangs).
-2. Build at least one board's full example set (Build → "All examples for a board") for modules you touched.
-3. Run relevant unit tests; add fuzz/HIL coverage for parsers or protocol state machines.
-
-**Boards good for local testing:**
-- `stm32f407disco` — no external SDK
-- `raspberry_pi_pico` — Pico SDK required
-- Others: see `hw/bsp/FAMILY/boards/`
-
-Device examples need real hardware to validate runtime behavior; must at least build.
-
-## Release
-
-Cutting a release — version bump, regenerated files, the per-release changelog, validation, and the maintainer's commit/tag/GitHub-release — is handled by the `make-release` skill (`.claude/skills/make-release/SKILL.md`).
-
-## References
-
-- MCU reference manuals, datasheets, schematics: before answering register/bitfield/pinout/errata/timing questions from memory or the web — or changing a specific dcd/hcd driver — use the `read-doc` skill (`.claude/skills/read-doc/SKILL.md`) to cross-check against the maintainer's document library; tell the user if the needed document is missing (skill no-ops if the library is absent). Never search the library tree directly — the skill owns its location and search.
-- Linux kernel behaviour (usbfs, usbtest, sysfs attributes, device locks, D state): never
-  infer it from symptoms — read the source for the *running* version. It refutes as often
-  as it confirms: it has killed two plausible dcd theories and corrected a recovery skill's
-  own attribute list.
-  ```bash
-  V=$(uname -r | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+')   # on the rig: ssh ci.lan uname -r
-  curl -fsSL "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/drivers/usb/core/sysfs.c?h=v$V"
-  ```
-- Supported MCUs/boards: `hw/bsp/` and `docs/reference/boards.rst`.
-- USB classes: `src/class/{cdc,hid,msc,audio,…}/` — each has `*_device.c` and `*_host.c`.
-- Key files: `src/tusb.h`, `src/tusb_option.h`, `tools/get_deps.py`, `tools/build.py`, `test/unit-test/project.yml` (each example carries its own `src/tusb_config.h`).
-
-## Common Build Issues
-
-- Missing compiler → install `gcc-arm-none-eabi`.
-- Missing deps → `python3 tools/get_deps.py FAMILY`.
-- Unknown board → check `hw/bsp/FAMILY/boards/`.
-- `objcopy` errors in full builds are often non-critical; retry the single example.
+- Before opening or updating a PR, follow Build and Validate; use `pre-pr` when workflows are available.
+- Use imperative commit/PR subjects; keep scope focused, link relevant issues, and include test/build evidence.
+- After opening a PR, use `pr-babysit` (`.claude/workflows/pr-babysit.js`) to drive reviews and CI to green. If workflows are unavailable, use `gh pr checks <num>` and `gh pr view <num> --comments`; fix failures, push, and resolve review threads.
+- **Deferred work** — Separate scope gets a separate PR/session. Use `superpowers:writing-plans` for one handoff per topic at `docs/superpowers/followup/pr<NNN>-<topic>.md` (`NNN` = originating PR). Include evidence, remaining work, and why deferred; delete when its PR lands.

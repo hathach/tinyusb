@@ -250,13 +250,26 @@ halt the core) lives there too.
 
 ## GDB — state autopsy and watchpoints
 
-Connect/load recipes per probe family (J-Link, OpenOCD for ST-Link /
-CMSIS-DAP / WCH-Link) are in CLAUDE.md "GDB Debugging"; script sessions with
-JLinkGDBServer `-singlerun` — the server exits with the connection, and
+Start one server using the board's device/config and probe serial. These
+OpenOCD examples cover STM32H7 with ST-Link and RP2040 with CMSIS-DAP;
+select the installed OpenOCD `interface/` and `target/` configs for other boards:
+
+```bash
+JLinkGDBServer -device <JLINK_DEVICE> -select usb=<uid> -if SWD -speed 4000 -port 2331 -nogui -singlerun
+openocd -f interface/stlink.cfg -f target/stm32h7x.cfg -c 'adapter serial <uid>'
+openocd -f interface/cmsis-dap.cfg -f target/rp2040.cfg -c 'adapter serial <uid>' -c 'adapter speed 5000'
+```
+
+Connect with the matching toolchain's GDB (`arm-none-eabi-gdb <flashed.elf>`
+for ARM), then `target remote :2331` for J-Link or `target remote :3333`
+for OpenOCD. For an autopsy, use `monitor halt`; for a fresh start only,
+use `monitor reset halt`, `load`, then `continue`.
+
+Script JLinkGDBServer sessions with `-singlerun` — the server exits with the connection, and
 back-to-back relaunches race the probe handle and hang. Release builds keep
 DWARF (`MinSizeRel`), so `p`/struct access works on HIL firmware.
 
-**Autopsy of a wedged board: attach and halt ONLY** — skip CLAUDE.md's
+**Autopsy of a wedged board: attach and halt ONLY** — skip
 `monitor reset halt` + `load` (those are for fresh starts; a reset destroys
 the evidence). Symbolize with the ELF that is actually flashed —
 `<build root>/cmake-build-<board>/<example>/<example>.elf` from the run that
