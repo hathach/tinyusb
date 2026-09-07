@@ -1,11 +1,11 @@
 export const meta = {
   name: 'fanout-dev',
-  description: 'Implement one described change across many ports/file-sets: one port-dev worker per item, independent builder verification, optional review',
+  description: 'Implement one described change across many ports/file-sets: one code-writer worker per item, independent builder verification, optional review',
   whenToUse: 'Applying a fix or pattern across multiple TinyUSB ports (e.g. the same DCD bug in several drivers)',
   phases: [
-    { title: 'Implement', detail: 'port-dev per item (opus xhigh)' },
+    { title: 'Implement', detail: 'code-writer per item (opus xhigh)' },
     { title: 'Verify', detail: 'builder single-example check' },
-    { title: 'Review', detail: 'optional driver-reviewer pass' },
+    { title: 'Review', detail: 'optional code-verifier pass' },
   ],
 }
 
@@ -71,7 +71,7 @@ const results = await pipeline(
       : ' Pick a verification board from hw/bsp whose family uses this scope.'),
     {
       label: `dev:${short(item)}`, phase: 'Implement',
-      agentType: 'port-dev', effort: 'xhigh', schema: DEV,
+      agentType: 'code-writer', schema: DEV,
       ...(args.worktree ? { isolation: 'worktree' } : {}),
     },
   ),
@@ -93,11 +93,12 @@ const results = await pipeline(
 
   (r, item) => {
     if (!r || !args.review || args.worktree) return r
-    return agent(
-      `Review the uncommitted change in ${item} (inspect with: git diff -- ${item}) against this task:\n${args.task}\n` +
+    return workflow('code-verify', {
+      prompt: `Review the uncommitted change in ${item} (inspect with: git diff -- ${item}) against this task:\n${args.task}\n` +
       'Dimension: does the diff correctly and completely implement the task with no unintended side effects? Coverage-first findings.',
-      { label: `review:${short(item)}`, phase: 'Review', agentType: 'driver-reviewer', effort: 'xhigh', schema: FINDINGS },
-    ).then(f => {
+      label: `review:${short(item)}`,
+      schema: FINDINGS,
+    }).catch(() => null).then(f => {
       // review: array = findings; null = reviewer died; absent = not requested
       if (!f) log(`review:${short(item)}: reviewer agent died`)
       return { ...r, review: f ? f.findings : null }

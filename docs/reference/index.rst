@@ -14,4 +14,5 @@ Complete reference documentation for TinyUSB APIs, configuration, and supported 
    dependencies
    concurrency
    device_issues
+   hardware-in-the-loop
    glossary

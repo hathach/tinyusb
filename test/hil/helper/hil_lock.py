@@ -175,13 +175,12 @@ def controller_of(uid: str):
     if cached:
         return cached
     # vid='cafe' first: the target is always a TinyUSB DUT, and the VID is a lock-free
-    # descriptor field. Without it this read every probe's and hub's `serial` -- the
-    # attribute served under device_lock -- so a HEALTHY peer mid-usbtest would strand a
-    # reader here and spend one of this worker's four blindness credits.
-    devs, _ = hil_util.usb_scan(vid='cafe', serial=uid)
+    # descriptor field. Without it this reads every probe's and hub's `serial` -- the one
+    # attribute served under device_lock -- so a wedged peer would block us here.
+    devs = hil_util.usb_scan(vid='cafe', serial=uid)
     for dev in devs:
         busnum = hil_util.read_sysfs(os.path.join(dev['dir'], 'busnum'))
-        if busnum is None or busnum is hil_util.SYSFS_UNKNOWN:
+        if busnum is None:
             continue
         try:
             root = os.path.realpath(f'/sys/bus/usb/devices/usb{int(busnum)}')
@@ -212,7 +211,7 @@ def controller_slot(pci: str) -> int:
 # Unresolved boards budget in a slot of their OWN, one past the real ones, and that slot
 # holds exactly ONE permit whatever the per-controller width is. Neither neighbour works:
 # a permit on every slot (the old fail-closed rule) serialized the whole fleet the moment
-# a worker went blind, while a full private budget let unknown boards run a second
+# one board could not be resolved, while a full private budget let unknown boards run a second
 # controller's worth of batteries on top of the resolved ones -- doubling the load on
 # whichever physical controller they actually sit on, which is the saturation the
 # uPD720201 deaths above are attributed to. Width 1 caps the over-subscription at +1.
@@ -252,8 +251,8 @@ class controller_permit:
         if pci is None:
             pci = controller_of(uid)
         if pci is None and warn_unknown:
-            log(f'warning: cannot resolve {uid} to a host controller'
-                f'{hil_util.sysfs_blind_note()}; budgeting it in the unknown bucket')
+            log(f'warning: cannot resolve {uid} to a host controller; '
+                f'budgeting it in the unknown bucket')
         self.slots = [controller_slot(pci) if pci else UNKNOWN_SLOT]
 
     def __enter__(self):

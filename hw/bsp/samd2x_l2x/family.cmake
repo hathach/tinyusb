@@ -106,7 +106,6 @@ function(family_configure_example TARGET RTOS)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
     ${TOP}/src/portable/microchip/samd/dcd_samd.c
-    ${TOP}/src/portable/microchip/samd/hcd_samd.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
   # Add HCD support for SAMD21 (has host capability)

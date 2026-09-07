@@ -1,9 +1,9 @@
 # HIL fleet-wedge containment
 
 Date: 2026-07-30
-Status: implemented, then superseded in part — addendum last checked 2026-08-12
-against the shipped code; where they disagree the CODE and the usb-kernel-recover
-skill win, never this document.
+Status: implemented, then superseded in part, then TRIMMED (2026-08-25 — see the
+addendum at the end). Last checked against the shipped code 2026-08-25; where they
+disagree the CODE and the usb-kernel-recover skill win, never this document.
 
 - **Pool guard.** A single constant, not the flat 4200s below and not a derivation:
   `POOL_TIMEOUT = pos_int_env('HIL_POOL_TIMEOUT', 3600)`. A per-controller model briefly
@@ -17,7 +17,9 @@ skill win, never this document.
 - **Job ceilings.** 90/90/120 min (build.yml), not 60/60/90 and not the 85/115 below.
   They must clear the 3600s guard plus the pre-pool checkout/artifact merge and the
   post-guard sweep and report upload. No job pins `HIL_POOL_TIMEOUT`.
-- **Battery budgets.** `USBTEST_BATTERY_BUDGET` 260s, `USBTEST_RECOVERY_BUDGET` 250s.
+- **Battery budgets.** `USBTEST_BATTERY_BUDGET` 260s. The recovery reserve is no longer a
+  constant: `usbtest.recovery_reserve(flasher)` derives it per flasher (RP-target openocd 390s,
+  other openocd/jlink/stlink 190s, esptool/lm4flash 150s) — see the trim addendum.
   The 200s-with-a-197s-floor derivation recorded here was never shipped; the floor
   assertion was removed with it.
 - **HUNG recovery.** Reflash of the DUT through its roster flasher
@@ -234,3 +236,108 @@ a stuck run and explain it without anyone touching the rig.
   the board or flashing `board_test` by hand resolves it without any code change.
 - **An unattended PVE watchdog** that detects the wedge and power-cycles the host.
   Declined: more moving parts, and it can cut a running CI job.
+
+---
+
+## Trim addendum — 2026-08-25
+
+The containment above grew past what one maintainer could hold. This records what was
+removed and, more importantly, the rule that decided it, so the next reader does not
+re-derive the deleted layers from the incident above.
+
+### The dividing principle
+
+**The CI job ceiling bounds how long a run can burn. It does nothing about state that
+outlives the run.** Cut what the ceiling contains; keep what it does not.
+
+- Contained by the ceiling: a worker blocked on a wedged device. `drain_pool` keeps the
+  boards that finished, `_write_failed_spec` names the one in flight, `_abandon_exit`
+  writes and uploads the report, and the job dies at `timeout-minutes` regardless. The
+  cost is one pool slot.
+- **Not** contained: a D-state holder left on a usbfs node, or an unswept stray still
+  holding a probe. The job dies and those survive it, on a self-hosted runner, into the
+  next run. That is the original incident.
+
+### Removed
+
+- **The sysfs blindness subsystem.** `SYSFS_UNKNOWN`, the `_SysfsUnknown` sentinel, the
+  path→inode strand memo with its `_STRAND_MISS` miss-sentinel, the four-credit blindness
+  cap, `sysfs_blind()`/`sysfs_blind_note()`, `note_sysfs_strand()`, `bounded_open()`,
+  `usb_scan`'s `(list, bool)` return, usbtest's `inconclusive` abort, and `_blind_note`'s
+  report banner. `read_sysfs` is an ordinary `open().read()` returning `str | None`.
+
+  It was a three-valued contract five files had to reason about, and misreading unknown as
+  absence was silent — a healthy board reported as a firmware regression. It existed for
+  exactly one attribute that can block. Verified against v6.12.96 `sysfs.c`: only
+  `usb_string_attr` (`product`/`manufacturer`/`serial`, sysfs.c:141-143) takes
+  `usb_lock_device_interruptible`; `idVendor`, `idProduct`, `bcdDevice`, `busnum`,
+  `devnum` and `speed` are lock-free `sysfs_emit` from cached fields. Two of the five
+  `read_sysfs` call sites read attributes that cannot block at all.
+
+  **The bound stayed, and it is not opt-in.** An early cut of this trim made `read_sysfs`
+  unbounded on the theory that a blocked worker costs one pool slot. That is false:
+  `usb_scan` reads `serial` on every device matching the VID to find the one it wants, and
+  `hil_lock.controller_of` does exactly that from `controller_permit`, on essentially every
+  board — so one wedged DUT would stall *every* worker and the pool guard would take the
+  whole run. `read_sysfs` and `usb_scan` are bounded by `SYSFS_READ_GRACE` by default;
+  three call sites forgot an opt-in version within a single sitting, and a unit test now
+  pins the default.
+
+  What is gone is the *contract*, not the bound: no third value, no process-wide blindness
+  latch, no `(list, bool)` return, no report banner. A give-up reads as None like any
+  unreadable attribute, and the cost is confined to the device that is actually wedged.
+
+  **`hil_pool_check` is why the memo has to be exact.** It is a standalone
+  ThreadPoolExecutor tool with no guard behind it, run precisely when a device is suspected
+  wedged, and it polls (`wait_device` re-scans every 0.5 s). The bounded read gives up and
+  remembers
+  the path so a poll loop cannot leak a thread and an fd per pass. That memo is keyed by
+  **kernfs inode, not by path**: a busport does not change when a board returns to the same
+  physical port, so a path-only blacklist would outlive the wedge and make the tool's own
+  recovery flow (reset/reflash → `wait_device` polls for the new inode) never see the board
+  again. A changed inode is the all-clear; `os.stat` is safe on a wedged device because it
+  does not invoke `->show()`. A give-up reads as None
+  — the same as unreadable — and `sysfs_stranded()` lets the footer warn that a "missing"
+  row may be the tool losing sight of healthy hardware. One local bound with a warning
+  line, not the five-file three-valued contract that was removed.
+
+- **The recovery budget arithmetic.** `recovery_steps()`, `_time_left()` and its three
+  per-step gates. The reserve was an independent 250s — one number for the whole fleet —
+  that could not contain the ladder it
+  reserved for (reset 30 + reflash 90 + Rescue-DP POR 90 + retry 90 + settles), which is
+  why the child re-decided before every step — with a bare `- 35` for downstream costs
+  that nobody could re-derive. Between them they produced a recovery that skipped its own
+  steps for most real hangs. The reserve now counts `hil_util.REAP_GRACE` **per bounded
+  step** — `run_cmd` spends that reaping a child it had to SIGKILL, on top of the step's own
+  timeout — which is what the `- 35` was standing in for. Undersizing it is worse than not
+  recovering at all: the outer killpg lands mid-reflash and orphans the flasher on the
+  probe. A unit test asserts the reserve covers the ladder. `USBTEST_RECOVERY_BUDGET` is now derived from
+  `usbtest.RECOVER_*` **per flasher and per target**: the Rescue-DP legs are openocd-only
+  (`rescue_openocd` refuses anything else) and a stub reset is screened out, so an esptool
+  board no longer reserves 200s it can never spend. The child runs the ladder straight
+  through, and `--outer-timeout` — parsed but unused once the gates went — is deleted.
+
+### Deliberately kept
+
+- The pool guard, `drain_pool`, the re-run spec, `_abandon_exit`, the CI ceilings.
+- `hil_health`'s sweep **including** `_kill_and_confirm`. SIGKILL is queued, not delivered,
+  for a task in uninterruptible sleep, and a healthy in-flight testusb sits in exactly that
+  state — so `os.kill` returning success proves nothing, and the recheck is the only honest
+  answer to "is the rig dirty for the next job?".
+- usbtest's reset→check→reflash ladder and the `convoy_safe` gate. This is the only thing
+  that unpoisons the rig mid-run, and PR #3832 extends it from 11 to 18 of 27 boards.
+- `mtp_test.py` as a separate process — one job, a clean boundary, and runnable by hand
+  against a board while debugging.
+
+### Structural changes with no behaviour change
+
+- Blocking device IO now runs in a child process everywhere, not just where it was noticed
+  first. The printer WRITE half joined the read half (`usblp_open` ignores `O_NONBLOCK` and
+  stalls in `usb_autopm_get_interface()` holding the driver-global `usblp_mutex`), and the
+  HID echo followed (`hid.enumerate()` reads `manufacturer`/`product` for every HID device
+  it lists, both under the device lock). `test_device_midi_test` is NOT in that set: ALSA
+  rawmidi honours `O_NONBLOCK` on open (v6.12.96 rawmidi.c:489), unlike usblp.
+- `main()`'s two abort paths were near-identical 40-line blocks; `_abort_report` holds that
+  shape once. The controller-hint cache and pool construction moved to their own helpers.
+- The unit suite stopped sleeping 54 of its 78 seconds — mostly one named-and-zeroable
+  post-flash settle paid by ten tests against a fake rig.

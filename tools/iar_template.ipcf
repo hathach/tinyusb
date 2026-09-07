@@ -81,9 +81,7 @@
         </group>
         <group name="src/class/vendor">
             <path>$TUSB_DIR$/src/class/vendor/vendor_device.c</path>
-            <path>$TUSB_DIR$/src/class/vendor/vendor_host.c</path>
             <path>$TUSB_DIR$/src/class/vendor/vendor_device.h</path>
-            <path>$TUSB_DIR$/src/class/vendor/vendor_host.h</path>
         </group>
         <group name="src/class/video">
             <path>$TUSB_DIR$/src/class/video/video_device.c</path>

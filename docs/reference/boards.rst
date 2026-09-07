@@ -236,19 +236,20 @@ nrf54lm20dk                  Nordic nRF54LM20 DK                    nrf       ht
 Raspberry Pi
 ------------
 
-================================  ============================================  ==============  ==========================================================  ======
-Board                             Name                                          Family          URL                                                         Note
-================================  ============================================  ==============  ==========================================================  ======
+================================  ============================================  ==============  ================================================================  ======
+Board                             Name                                          Family          URL                                                               Note
+================================  ============================================  ==============  ================================================================  ======
 raspberrypi_zero                  Raspberry Pi Zero                             broadcom_32bit  https://www.raspberrypi.org/products/raspberry-pi-zero/
 raspberrypi_cm4                   Raspberry CM4                                 broadcom_64bit  https://www.raspberrypi.org/products/compute-module-4
 raspberrypi_zero2                 Raspberry Zero2                               broadcom_64bit  https://www.raspberrypi.org/products/raspberry-pi-zero-2-w
 adafruit_feather_rp2040_usb_host  Adafruit Feather RP2040 with USB Type A Host  rp2040          https://www.adafruit.com/product/5723
 adafruit_fruit_jam                Adafruit Fruit Jam - Mini RP2350              rp2040          https://www.adafruit.com/product/6200
 adafruit_metro_rp2350             Adafruit Metro RP2350                         rp2040          https://www.adafruit.com/product/6003
+pico2_etm_trace                   Pico 2 ETM Trace Carrier                      rp2040          https://github.com/hathach/pcb/tree/main/pico2_trace_motherboard
 raspberry_pi_pico                 Pico                                          rp2040          https://www.raspberrypi.com/products/raspberry-pi-pico/
 raspberry_pi_pico2                Pico2                                         rp2040          https://www.raspberrypi.com/products/raspberry-pi-pico-2/
 raspberry_pi_pico_w               Pico                                          rp2040          https://www.raspberrypi.com/products/raspberry-pi-pico/
-================================  ============================================  ==============  ==========================================================  ======
+================================  ============================================  ==============  ================================================================  ======
 
 Renesas
 -------

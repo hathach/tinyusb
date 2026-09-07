@@ -26,7 +26,7 @@ reference.
 | mimxrt1170_evkb    | 996 MHz              | 50 MHz (root/2)       | 1     | 0       | weld 0 Ω R1881-R1886; JP4 shorted; J58 (populated) | re-weld R1884 (D3 open; D1/D2 meter-verified good) → width 4 |
 | ra6m5_ek (M33)     | 200 MHz              | 25 MHz (TRCLK/4 /2)   | 4     | 0 (unset) | J9 closed; native J20 trace | —                                           |
 | ra8m1_ek (M85)     | 480 MHz              | 60 MHz (TRCLK/4 /2)   | 4     | 0 (unset) | J9 closed + Table 7 jumpers | —                                           |
-| raspberry_pi_pico2 (RP2350 M33) | 48 MHz  | 24 MHz (clk_sys/2)    | 4     | 0 (unset) | fly-wire GPIO1-5 → MIPI20 (map in jdebug) | 72-80 MHz per seating (re-qualify); >80 needs V3 probe + trace board |
+| pico2_etm_trace (RP2350 M33)    | 150 MHz | 75 MHz (clk_sys/2)    | 4     | +1 ns   | Pico 2 on the trace-carrier PCB (MIPI-20) | —                                           |
 | same54_xplained (E54 M4F) | 120 MHz       | 60 MHz (CPU/2)        | 4     | 0 (unset) | none — populated 20-pin ETM header | —                                      |
 | same70_xplained (E70 M7) | 300 MHz         | 37.5 MHz (PCK3/2)     | 1     | 0 (unset) | solder 20-pin header on J403 (bottom) | width 4 blocked: D1 (J403.16) dead at speed — probe-channel crosscheck pending |
 | SEGGER H7/F407 ref | demo defaults        | demo                  | 4     | demo    | probe-powered: add `--power`  | —                                           |
@@ -105,42 +105,68 @@ Board caveats (beyond the table):
   the decoder at t≈0.05 s every run. Runs both chip maxima (120 MHz TRCLK,
   60 MHz pin) clean. `ReadIntoTraceCache 0x0 0x10000` in the download hook
   covers runtime chip-ROM execution. ISR entry: `tusb_int_handler`.
-- **raspberry_pi_pico2** (RP2350): TRACECLK is a fixed clk_sys/2, no divider
-  (DDR data, like every ARM TPIU pin port). **Measured cliff on this rig:**
-  80 MHz core (40 MHz TRACECLK) traces idle code but dies under dense data;
-  88 MHz+ dies instantly at any width/global-timing/TIF/pad setting. Cause
-  not pinned down: the same V2 probe samples 66 MHz TRACECLK (132 Msample/s)
-  on metro_m7_1011, so it is NOT a plain probe sample-rate ceiling. The
-  cliff at >40 MHz TRACECLK (84+ MHz core) survived a full sweep - global
-  AND per-pin `--trace-timing`, pad drive 2/4/8/12 mA + slew, width 4/2/1,
-  TIF 1-25 MHz, newer J-Link library - all flat, so it is V3-probe / real-
-  trace-board territory (SEGGER's Pico 2 KB requires J-Trace PRO **V3.0+**
-  and recommends a proper trace board; community reports fly-wires fail at
-  75 MHz for everyone, PCBs work). Separately, fly-wire seating quality
-  sets the width-4 DENSE-data ceiling (48-72 MHz observed across seatings):
-  after ANY rewiring re-qualify with idle blinky at the target clock, then
-  cdc_msc x3. Random unknown-packet deaths KB into a clean stream = one
-  marginal wire; `--trace-width` 1 vs 2 vs 4 bisects which (width 1 =
-  CLK+D0 only; D1 = GPIO3->MIPI20 pin 16 has gone marginal twice on this
-  rig). Width-1 is a full-quality fallback: complete cdc_msc profiles at up
-  to 80 MHz core even when width 4 is broken.
-  **Never set a custom JLinkScript** — it
-  replaces J-Link's built-in RP2350 device script, which both declares the
-  trace component map (funnel/TPIU/ETM are not in the ROM table → "Required
-  trace components for pin trace not found", 0 fetches) and re-arms the whole
-  chip-side path via `OnTraceStart` at every resume. Firmware therefore does
-  no trace setup; TRACE_ETM builds only (a) pin clk_sys to 48 MHz from crt0
-  (board.cmake) — the fly-wire ceiling: 96/150 MHz kill the stream in the
-  startup burst at any sample timing (and at 150 MHz the saturated probe
-  stops answering halts, "CPU could not be halted"); any post-arm clock
-  change steps TRACECLK mid-stream and kills the decoder — and (b)
-  clear TIMER0/1 DBGPAUSE (family.c): debug sessions leave cores
-  halted-at-reset and the default DBGPAUSE freezes the µs timer, so every
-  `sleep_ms()` spins forever (looks like a dead board; watchdog-scratch
-  breadcrumbs survive warm resets but not POR when diagnosing). UART console
-  is TX-only (GPIO1 = TRACECLK). Empty reset/download hooks: the bootrom
-  must run the IMAGE_DEF. If the chip ends up wedged/un-attachable:
-  J-Link `erase` + reset drops it into BOOTSEL (2e8a:000f) for picotool.
+- **pico2_etm_trace** (Pico 2 / RP2350 on the carrier; board `raspberry_pi_pico2`
+  is the bare module and has no trace wiring): rig = **pico2 trace motherboard PCB**
+  (~/code/pcb/pico2_trace_motherboard: MIPI-20, 27 Ohm source-terminated,
+  GND-guarded). TRACECLK is a fixed clk_sys/2 (DDR), so the board traces at
+  the rp2350 pico-sdk default 150 MHz -> 75 MHz TRACECLK width 4, validated
+  2026-08-26: cdc_msc enumeration burst 3/3, zero overflow, **data sampling
+  +1 ns** (committed in the reference; idle eye -1000..+2000 ps, +3000 dead;
+  TD aliases modulo the 6.67 ns UI); soak: cdc_msc_throughput under a live
+  host CDC+MSC bulk pump, 3/3 x 15 s, zero overflow, 53.7M fetches (DCD hot
+  path at 9% load). `TRACE_ETM` is set by the board's own board.cmake - no
+  build flag needed.
+  **Other rates need a hand-built clock**: pass `SYS_CLK_KHZ` *together with*
+  `PLL_SYS_VCO_FREQ_HZ`/`POSTDIV1`/`POSTDIV2` from the SDK's
+  `scripts/vcocalc.py` as compile definitions (a bare `-DSYS_CLK_KHZ=` only
+  sets a CMake cache var and is silently ignored - the BSP no longer carries
+  a PLL table). Measured: 180000 = 90 MHz TRACECLK, loaded eye
+  +4000..+5000 ps (3/3); 240000 = **the J-Trace PRO V2 ceiling** (120 MHz
+  TRACECLK, TD +3500) — **⚠ 240 MHz was measured with the core regulator
+  raised to 1.15 V, which nothing does automatically any more: add
+  `SYS_CLK_VREG_VOLTAGE_AUTO_ADJUST=1` and
+  `SYS_CLK_VREG_VOLTAGE_MIN=VREG_VOLTAGE_1_15` yourself, or the chip runs
+  60% over its 150 MHz rating at stock 1.10 V.** >=125 MHz
+  TRACECLK is a hard probe wall at every sample delay/width (the V2 AT its
+  documented limit: Arm spec 100 MHz in-spec, SEGGER's tuned-V2 best is
+  120; the 150 MHz on current product pages is V3/V4). **Firmware needs
+  almost no trace code**: J-Link's built-in RP2350 device script declares
+  the off-ROM-table trace components (funnel/TPIU/ETM) and re-arms the
+  whole chip-side path via OnTraceStart at every resume — **never set a
+  custom JLinkScript** (it replaces the built-in script: "Required trace
+  components for pin trace not found", 0 fetches). What TRACE_ETM (set by
+  this board's board.cmake) does in firmware: (a) clears TIMER0/1 DBGPAUSE
+  — J-Link does NOT clear it, and with the reset default the us-timer
+  freezes while a core is debug-halted, so sleep_ms() spins forever after
+  any debugger session (measured: DBGPAUSE reads 0x7 and TIMERAWL stands
+  still until the clear); (b) compile-time pin-conflict checks — #error if
+  the UART console lands on a trace pin GP1-5, #pragma message if the
+  default I2C does. The console itself is full-duplex on GP12/13 (the
+  carrier routes it off GP0/1; the old TX-only fallback is gone with the
+  fly-wire rig). PCB A/B validation did remove the 12 mA fast-slew trace
+  pads (default pads pass 3/3 with a wider idle eye) — do not re-add
+  without fresh PCB evidence. A runtime clk_sys switch **silently
+  truncates the capture at the switch** (no decoder error — profile just
+  ends; verified 3/3 with a board_init-time 120->156 step), so nothing may
+  re-switch the clock at runtime.
+  **This is the only trace-capable board in the rp2040 family** - it owns the
+  sole ozone reference, so `--board <any other rp2040/rp2350 board>` exits
+  with "cannot resolve J-Link device" (the script's board.cmake fallback
+  cannot help: this family sets `JLINK_DEVICE` in family.cmake). Capture with
+  `--board pico2_etm_trace`.
+  **Arm-phase flake**: an occasional instant unknown-packet death at
+  offset ~0x10-0x6C right at trace start — just re-run; only mid-stream
+  deaths indicate a real problem. **Loose MIPI-20 cable symptom ladder**:
+  flash "Failed to perform RAMCode-sided Prepare()" / "Download failed"
+  first, then "Target voltage too low" (VTref lost) — reseat the cable at
+  both ends before debugging software. Empty reset/download hooks in the
+  reference: the bootrom must run the IMAGE_DEF (setting SP/PC from the
+  vector table bypasses it and the pico-sdk runtime never comes up). If
+  the chip ends up wedged/un-attachable: J-Link `erase` + reset drops it
+  into BOOTSEL (2e8a:000f) for picotool. *Historical*: bring-up used a
+  fly-wire rig (same GPIO1-5 -> MIPI20 map) whose wire SI capped TRACECLK
+  at 24-40 MHz and motivated the removed workarounds; it is retired —
+  details in git history (the 48/80 MHz PLL rows left with it).
 - **same54_xplained**: the CM4 trace unit is clocked from **GCLK channel 47
   (GCLK_CM4_TRACE)** — with it disabled the pins mux fine, TPIU/ETM arm
   fine, and the port stays perfectly silent (zero fetches, no errors);

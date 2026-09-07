@@ -40,7 +40,7 @@ Not for general concepts, repo/code questions, or when no such doc is likely.
 
 ## Find
 
-Keywords from `/read-doc <keywords>`, else derived from the question (part
+Keywords supplied as skill arguments, else derived from the question (part
 number, peripheral, spec name). `search.py` ANDs them across every metadata
 field and prints the best matches first — at most 40, and the header says when
 more matched:
@@ -53,7 +53,7 @@ python3 .claude/skills/read-doc/search.py RT1060 RT1064 --any
 Exit 0 matched, 1 nothing matched, 2 bad usage or no library — 2 means the
 search never ran, so fix the invocation instead of broadening.
 
-One match → read it. Several → list and ask via AskUserQuestion. Nothing
+One match → read it. Several → list them and ask the user which to read. Nothing
 (exit 1) → retry with fewer keywords; the part number alone often works where
 `<part> datasheet` does not, because words like "datasheet" and "manual" are
 rarely in the metadata. `--any` only changes anything with two or more
@@ -66,11 +66,11 @@ Set `CALIBRE_LIBRARY` to search a library elsewhere.
 
 `search.py` prints one `FORMAT path` line per stored file:
 
-- **PDF** — Read with `pages`; for >10 pages start `pages: "1-20"` (TOC/overview),
-  report the page count, then read sections on demand.
-- **Any other format** (EPUB, MOBI, CHM, ZIP…) — Read has no decoder for these
-  and returns mojibake rather than an error. Say the document is not in a
-  readable format; do not paste what Read returned.
+- **PDF** — use the runtime's PDF-reading capability with page ranges; for >10
+  pages start with pages 1-20 (TOC/overview), report the page count, then read
+  sections on demand.
+- **Any other format** (EPUB, MOBI, CHM, ZIP…) — if the runtime has no decoder,
+  say the document is not in a readable format; do not paste mojibake.
 - **`MISSING`** — the metadata is real but the file is not on disk (library
   mid-sync, or the file was deleted). Report the file as unavailable, not the
   document as nonexistent.

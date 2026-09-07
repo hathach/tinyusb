@@ -1296,8 +1296,8 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num) {
         TU_LOG_USBD("  %s opened\r\n", driver->name);
 
         // bind found driver to all interfaces and endpoint within drv_len
-        TU_ASSERT(tu_bind_driver_to_ep_itf(drv_id, _usbd_dev.ep2drv, _usbd_dev.itf2drv, CFG_TUD_INTERFACE_MAX, p_desc,
-                                           drv_len));
+        TU_ASSERT(tu_bind_driver_to_ep_itf(drv_id, _usbd_dev.ep2drv, _usbd_dev.itf2drv, CFG_TUD_INTERFACE_MAX,
+                                           CFG_TUD_ENDPPOINT_MAX, p_desc, drv_len));
 
         p_desc += drv_len; // next Interface
         break; // exit driver find loop

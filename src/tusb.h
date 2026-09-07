@@ -28,6 +28,10 @@
 #if CFG_TUH_ENABLED
   #include "host/usbh.h"
 
+  #if CFG_TUH_AUDIO
+    #include "class/audio/audio_host.h"
+  #endif
+
   #if CFG_TUH_HID
     #include "class/hid/hid_host.h"
   #endif
@@ -48,9 +52,6 @@
     #include "class/midi/midi2_host.h"
   #endif
 
-  #if CFG_TUH_VENDOR
-    #include "class/vendor/vendor_host.h"
-  #endif
 #else
   #ifndef tuh_int_handler
   #define tuh_int_handler(...)

@@ -60,7 +60,7 @@ Supporters (Word)
 
 .. WORD-SUPPORTERS-START
 
-*No supporters yet — be the first!*
+cee\*\*\*\*
 
 .. WORD-SUPPORTERS-END
 
@@ -69,7 +69,7 @@ Thanks (Byte)
 
 .. BYTE-THANKS-START
 
-*No names listed yet — be the first!*
+`@8086net <https://github.com/8086net>`__, `@GCRev <https://github.com/GCRev>`__
 
 .. BYTE-THANKS-END
 

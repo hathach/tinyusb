@@ -8,11 +8,21 @@ Reference these instructions first; fall back to search/bash only when reality d
 
 Bias toward caution over speed. For trivial tasks, use judgment.
 
-- **Think first** — state assumptions; ask if unclear; present alternatives instead of picking silently.
-- **Simplicity** — no features, abstractions, flexibility, or error handling beyond what was asked. If 200 lines could be 50, rewrite.
+- **Think first** — state assumptions; ask if unclear; when a choice matters, name it and recommend one rather than picking silently or surveying every option.
+- Follow YAGNI. Reuse existing code, standard-library, and native-platform features before adding dependencies or abstractions. Prefer the smallest clear solution, but never sacrifice correctness, safety, or necessary tests.
 - **Surgical changes** — touch only what the task requires; match existing style; don't refactor working code; mention unrelated dead code rather than deleting it. Remove only orphans *your* changes created.
 - **Goal-driven** — turn tasks into verifiable goals ("write failing test, make it pass"). For multi-step work, state a brief `step → verify` plan.
-- **Worktrees** — default to a git worktree for any branch or multi-step work; never switch the shared primary checkout's branch. Sessions run concurrently: switching the primary checkout mid-flight disrupts other sessions and can silently point a review, build, or commit at the wrong diff. Only trivial one-shot fixes may skip this. Standard location: `.worktrees/<branch-name>` at the repo root (gitignored), e.g. `git worktree add .worktrees/my-branch -b my-branch`. In a new worktree, symlink the dependency dirs (`lib/*`, `hw/mcu/*`, `tools/linkermap` — the keys of `deps_all` in `tools/get_deps.py`) to the primary checkout instead of re-cloning them; only if the branch needs a different dep revision, replace that one symlink with a real dir and run `get_deps.py` for it.
+- **Worktrees** — For branch or multi-step work, run `git worktree add .worktrees/<branch> -b <branch>`; never switch the primary checkout. Symlink the `deps_all` paths from `tools/get_deps.py` to the primary checkout; replace only a dependency that needs a different revision, then run `get_deps.py` for it.
+
+## Claude and Codex Collaboration
+
+Claude Code is the primary harness. `CLAUDE.md` and `.claude/{agents,skills,workflows}` are canonical; `AGENTS.md -> CLAUDE.md` and `.agents -> .claude` expose the same instructions and skills to standalone Codex. `.codex/agents/*.toml` are thin adapters that pin Codex models and load the canonical Markdown roles; do not copy role bodies or maintain other Codex-specific mirrors.
+
+- Use `/codex:review` for an independent read-only review and `/codex:adversarial-review` to challenge the implementation or design.
+- Use `/codex:rescue` for substantial bounded implementation, diagnosis, or a second pass when Claude is stuck; use its `--background`, `--resume`, and `--fresh` controls when needed.
+- When Codex should use a named TinyUSB role, select its `.codex/agents/<role>.toml` adapter; the adapter loads `.claude/agents/<role>.md` as the canonical role.
+- Reviews and research may run beside Claude. For write-capable delegation, use a separate worktree if Claude continues editing; otherwise yield the current worktree to Codex until it finishes. Never let both edit overlapping files in one worktree.
+- `.claude/workflows/*.js` remain the canonical Claude Code orchestration. Verifier work routes through `code-verify`, whose `provider` argument runs Codex unless set to `'claude'` or `'both'`. `validate` dispatches those agents directly — workflows nest only one level — under its own `reviewProvider` argument, same values and default, forwarded by `full-check`. The Codex subprocess lives only in `.claude/agents/codex-code-verifier.md`; never copy it into a workflow.
 
 ## Ground Rules
 
@@ -28,7 +38,7 @@ Bias toward caution over speed. For trivial tasks, use judgment.
 ```bash
 sudo apt-get install -y gcc-arm-none-eabi          # ARM toolchain (2-5 min, one-time)
 python3 tools/get_deps.py [FAMILY|-b BOARD]        # fetch deps into lib/, hw/mcu/ (<1 s)
-. $HOME/code/esp-idf/export.sh                     # Espressif only: before any build/flash/monitor
+. "$IDF_PATH/export.sh"                            # Espressif only: before any build/flash/monitor (IDF_PATH set per host)
 ```
 
 ## Build
@@ -74,7 +84,7 @@ Terminal 2 — connect (`<port>`: 2331 JLink, 3333 OpenOCD):
 arm-none-eabi-gdb build/your_app.elf
 (gdb) target remote :<port>    # then: monitor reset halt → load → continue
 ```
-**RTT:** build `LOG=2 LOGGER=rtt`, run JLinkGDBServer with `-RTTTelnetPort 19021`, then `JLinkRTTClient` (`timeout 20s JLinkRTTClient > rtt.log` for non-interactive capture).
+**RTT:** build `LOG=2 LOGGER=rtt`; capture/console via the `rtt` skill (`.claude/skills/rtt/SKILL.md`).
 
 ## Testing
 
@@ -129,7 +139,7 @@ Cutting a release — version bump, regenerated files, the per-release changelog
   ```
 - Supported MCUs/boards: `hw/bsp/` and `docs/reference/boards.rst`.
 - USB classes: `src/class/{cdc,hid,msc,audio,…}/` — each has `*_device.c` and `*_host.c`.
-- Key files: `src/tusb.h`, `src/tusb_config.h`, `tools/get_deps.py`, `tools/build.py`, `test/unit-test/project.yml`.
+- Key files: `src/tusb.h`, `src/tusb_option.h`, `tools/get_deps.py`, `tools/build.py`, `test/unit-test/project.yml` (each example carries its own `src/tusb_config.h`).
 
 ## Common Build Issues
 

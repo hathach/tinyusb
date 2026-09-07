@@ -1,0 +1,7 @@
+name = "pr-review-validator"
+description = "Load the canonical pr-review-validator agent from .claude/agents/pr-review-validator.md."
+model = "gpt-5.6-sol"
+model_reasoning_effort = "xhigh"
+developer_instructions = """
+Before acting, locate the repository root with `git rev-parse --show-toplevel`, then read `.claude/agents/pr-review-validator.md` from that root completely and follow its body as your role instructions. Ignore its Claude-specific YAML frontmatter.
+"""

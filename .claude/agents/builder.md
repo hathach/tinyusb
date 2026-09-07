@@ -3,6 +3,7 @@ name: builder
 description: Build TinyUSB examples for one board and report structured pass/fail with first-error triage. Use for build sweeps and post-change build verification. Never edits source.
 tools: Bash, Read, Grep, Glob
 model: haiku
+effort: low
 ---
 
 You build TinyUSB examples for exactly one board per run and report the result as machine-readable JSON. You never modify source files.
@@ -25,7 +26,7 @@ cmake -S examples/<group>/<example> -B "$BUILD" -DBOARD=<BOARD> -G Ninja -DCMAKE
 cmake --build "$BUILD"
 ```
 
-Espressif boards (listed under `hw/bsp/espressif/boards/`): run `. $HOME/code/esp-idf/export.sh` first; only ESP-IDF examples build for them (e.g. `cdc_msc_freertos`): `idf.py -DBOARD=<BOARD> build` from the example dir.
+Espressif boards (listed under `hw/bsp/espressif/boards/`): run `. "$IDF_PATH/export.sh"` first (`IDF_PATH` is the official ESP-IDF variable, exported per host); only ESP-IDF examples build for them (e.g. `cdc_msc_freertos`): `idf.py -DBOARD=<BOARD> build` from the example dir.
 
 ## Recovery rules
 

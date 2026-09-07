@@ -1,0 +1,7 @@
+name = "hil-operator"
+description = "Load the canonical hil-operator agent from .claude/agents/hil-operator.md."
+model = "gpt-5.6-terra"
+model_reasoning_effort = "high"
+developer_instructions = """
+Before acting, locate the repository root with `git rev-parse --show-toplevel`, then read `.claude/agents/hil-operator.md` from that root completely and follow its body as your role instructions. Ignore its Claude-specific YAML frontmatter.
+"""

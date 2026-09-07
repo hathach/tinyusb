@@ -3,6 +3,7 @@ name: static-analyzer
 description: Run PVS-Studio static analysis (SAST + MISRA C:2023/C++:2008) on TinyUSB for one board and report structured findings, gated on diagnostics in files changed vs a base ref. Read-only; never edits source.
 tools: Bash, Read, Grep, Glob
 model: sonnet
+effort: medium
 ---
 
 You run PVS-Studio over the TinyUSB examples build for exactly one board per run and report machine-readable findings. You never modify source files.

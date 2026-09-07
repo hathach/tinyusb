@@ -5,15 +5,17 @@ export const meta = {
   phases: [{ title: 'Software' }, { title: 'Hardware' }],
 }
 
-// args: { boards: string[], hilBoards?: string[], examples?: string, base?: string, skip?: string[] }
+// args: { boards: string[], hilBoards?: string[], examples?: string, base?: string,
+//         skip?: string[], reviewProvider?: 'codex'|'claude'|'both' }
 if (typeof args === 'string') { try { args = JSON.parse(args) } catch { /* not JSON: shape check below reports it */ } }
 if (!args || !Array.isArray(args.boards) || args.boards.length === 0) {
-  throw new Error('args must be { boards: string[], hilBoards?, examples?, base?, skip? }')
+  throw new Error('args must be { boards: string[], hilBoards?, examples?, base?, skip?, reviewProvider? }')
 }
 
 phase('Software')
 const software = await workflow('validate', {
   boards: args.boards, examples: args.examples, base: args.base, skip: args.skip,
+  reviewProvider: args.reviewProvider,
 })
 if (!software || !software.pass) {
   log('software validation failed — skipping HIL')

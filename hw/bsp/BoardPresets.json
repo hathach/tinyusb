@@ -507,6 +507,10 @@
       "inherits": "default"
     },
     {
+      "name": "pico2_etm_trace",
+      "inherits": "default"
+    },
+    {
       "name": "pico_sdk",
       "inherits": "default"
     },
@@ -1639,6 +1643,11 @@
       "name": "nutiny_sdk_nuc505",
       "description": "Build preset for the nutiny_sdk_nuc505 board",
       "configurePreset": "nutiny_sdk_nuc505"
+    },
+    {
+      "name": "pico2_etm_trace",
+      "description": "Build preset for the pico2_etm_trace board",
+      "configurePreset": "pico2_etm_trace"
     },
     {
       "name": "pico_sdk",
@@ -3897,6 +3906,19 @@
         {
           "type": "build",
           "name": "nutiny_sdk_nuc505"
+        }
+      ]
+    },
+    {
+      "name": "pico2_etm_trace",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "pico2_etm_trace"
+        },
+        {
+          "type": "build",
+          "name": "pico2_etm_trace"
         }
       ]
     },

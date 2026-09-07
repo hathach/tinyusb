@@ -7,7 +7,7 @@ MCU low-level peripheral drivers and external libraries for building TinyUSB exa
 ========================================  ================================================================  ========================================  ===================================================================================================================================================================================================================================================================================================================================================
 Local Path                                Repo                                                              Commit                                    Required by
 ========================================  ================================================================  ========================================  ===================================================================================================================================================================================================================================================================================================================================================
-hw/mcu/allwinner                          https://github.com/hathach/allwinner_driver.git                   8e5e89e8e132c0fd90e72d5422e5d3d68232b756  fc100s
+hw/mcu/allwinner                          https://github.com/hathach/allwinner_driver.git                   8e5e89e8e132c0fd90e72d5422e5d3d68232b756  f1c100s
 hw/mcu/analog/msdk                        https://github.com/analogdevicesinc/msdk.git                      b20b398d3e5e2007594e54a74ba3d2a2e50ddd75  maxim
 hw/mcu/artery/at32f402_405                https://github.com/ArteryTek/AT32F402_405_Firmware_Library.git    4424515c2663e82438654e0947695295df2abdfe  at32f402_405
 hw/mcu/artery/at32f403a_407               https://github.com/ArteryTek/AT32F403A_407_Firmware_Library.git   f2cb360c3d28fada76b374308b8c4c61d37a090b  at32f403a_407
@@ -38,7 +38,7 @@ hw/mcu/raspberry_pi/Pico-PIO-USB          https://github.com/sekigon-gonnoc/Pico
 hw/mcu/renesas/fsp                        https://github.com/renesas/fsp.git                                edcc97d684b6f716728a60d7a6fea049d9870bd6  ra
 hw/mcu/renesas/rx                         https://github.com/kkitayam/rx_device.git                         706b4e0cf485605c32351e2f90f5698267996023  rx
 hw/mcu/silabs/cmsis-dfp-efm32gg12b        https://github.com/cmsis-packs/cmsis-dfp-efm32gg12b.git           f1c31b7887669cb230b3ea63f9b56769078960bc  efm32
-hw/mcu/sony/cxd56/spresense-exported-sdk  https://github.com/sonydevworld/spresense-exported-sdk.git        2ec2a1538362696118dc3fdf56f33dacaf8f4067  spresense
+hw/mcu/sony/cxd56/spresense-exported-sdk  https://github.com/sonydevworld/spresense-exported-sdk.git        2ec2a1538362696118dc3fdf56f33dacaf8f4067  cxd56
 hw/mcu/st/cmsis-device-u0                 https://github.com/STMicroelectronics/cmsis-device-u0.git         e3a627c6a5bc4eb2388e1885a95cc155e1672253  stm32u0
 hw/mcu/st/cmsis-device-wba                https://github.com/STMicroelectronics/cmsis-device-wba.git        647d8522e5fd15049e9a1cc30ed19d85e5911eaf  stm32wba
 hw/mcu/st/cmsis_device_c0                 https://github.com/STMicroelectronics/cmsis_device_c0.git         517611273f835ffe95318947647bc1408f69120d  stm32c0
