@@ -7,7 +7,7 @@ match, never decides whether a finding holds, and never declares a loop
 converged; it reports and lets the caller decide.
 
   peer.py peers
-  peer.py send --to w1F:p2 --scope "..." --ask "..." [--delta "..."]
+  peer.py send --to w1F:p2 --scope "..." (--ask "..." | --ask-file q.md) [--delta ...]
   peer.py read --from w1F:p2 --for w1F:p1-018 [--wait 900000]
   peer.py check --kind result --file reply.txt
 """
@@ -27,6 +27,7 @@ TERMINATOR = {'request': 'END REQUEST', 'result': 'END RESULT'}
 DEFAULT_AUTHORITY = 'Read-only; no edits, no commits. Reply in this pane.'
 EVIDENCE = ('REPRODUCED', 'SOURCE', 'INFERRED')
 VERDICTS = ('FINDINGS', 'NO FINDINGS', 'INCOMPLETE')
+NO_ANSWER, MALFORMED = 3, 4  # read's exit codes, as SKILL.md documents them
 FIELDS = {
     'request': ['ID', 'FROM', 'AUTHORITY', 'SCOPE', 'DELTA', 'ASK'],
     'result': ['FOR', 'FROM', 'CAPACITY', 'COVERAGE', 'FINDINGS', 'VERDICT'],
@@ -40,10 +41,26 @@ RESULT_END = re.compile(LEAD + TERMINATOR['result'] + r'\b')
 FOR_LINE = re.compile(LEAD + r'FOR:\s*(\S+)', re.M)
 END_ID = re.compile(TERMINATOR['result'] + r'\s+(\S+)')
 
+# `<Fn> [LABEL] <file>:<line>` opens a finding, and only that line carries an
+# evidence label: the prose under it may hold brackets of its own, `buf[LEN]`
+# included, which a whole-envelope scan read as invented labels.
+FINDING_HEAD = re.compile(LEAD + r'(F\d+\S*)[^[\n]*(?:\[([^\]]*)\])?')
+
 
 def die(msg, code=1):
     print(msg, file=sys.stderr)
     raise SystemExit(code)
+
+
+class Note(str):
+    """An extract_result note carrying the exit status it implies, so `read`
+    honours 3-means-no-answer / 4-means-malformed without re-deriving the
+    reason from the message text."""
+
+    def __new__(cls, text, status):
+        note = super().__new__(cls, text)
+        note.status = status
+        return note
 
 
 def herdr_raw(*args):
@@ -66,6 +83,16 @@ def find_peers(cwd=None, me=None):
     me = me or os.environ.get('HERDR_PANE_ID')
     return [a for a in herdr('agent', 'list')['result']['agents']
             if os.path.realpath(a.get('cwd', '')) == here and a.get('pane_id') != me]
+
+
+def require_peer(pane, me=None):
+    """A pane id is not proof of a peer. A stale or copied one names a session
+    in another worktree, which must neither receive our request context nor
+    have its output read back."""
+    found = [p['pane_id'] for p in find_peers(me=me)]
+    if pane not in found:
+        die(f'{pane} is not an agent pane sharing this worktree; discovered: '
+            f'{", ".join(found) or "none"}', 2)
 
 
 def own_identity():
@@ -113,10 +140,13 @@ def section(text, name):
 def extract_result(text, req_id):
     """Pull the envelope answering req_id out of raw pane text.
 
-    Returns (body, note). Anything other than exactly one match is reported
-    rather than resolved: silently taking one is how a stale reply gets read as
-    a fresh one. The notes describe only what this capture holds — whether the
-    peer is still writing is not something the text can settle.
+    Returns (body, note), the note carrying the exit status it implies:
+    NO_ANSWER while this capture holds no reply for the id, MALFORMED once one
+    is there but breaks the envelope contract. Anything other than exactly one
+    match is reported rather than resolved: silently taking one is how a stale
+    reply gets read as a fresh one. The notes describe only what this capture
+    holds — whether the peer is still writing is not something the text can
+    settle.
     """
     lines = text.splitlines()
     blocks, start = [], None
@@ -135,25 +165,30 @@ def extract_result(text, req_id):
             continue
         end = END_ID.search(body.rsplit('\n', 1)[-1])
         if not end or end.group(1) != req_id:
-            return None, (f'an envelope says FOR: {req_id} but closes with '
-                          f'"{body.rsplit(chr(10), 1)[-1].strip()}"; the two ids must agree')
+            return None, Note(f'an envelope says FOR: {req_id} but closes with '
+                              f'"{body.rsplit(chr(10), 1)[-1].strip()}"; the two ids must agree',
+                              MALFORMED)
         matching.append(body)
 
+    # A duplicated id is malformed, not absent: the answer is on screen, it just
+    # cannot be told from its twin.
     if len(matching) > 1:
-        return None, f'{len(matching)} envelopes claim to answer {req_id}; resolve by hand'
+        return None, Note(f'{len(matching)} envelopes claim to answer {req_id}; '
+                          'resolve by hand', MALFORMED)
     if matching:
         return matching[0], None
     if unterminated:
-        return None, ('an envelope began but this capture holds no END RESULT for it: '
-                      'it may still be streaming, or be beyond the line window')
+        return None, Note('an envelope began but this capture holds no END RESULT for it: '
+                          'it may still be streaming, or be beyond the line window', NO_ANSWER)
     if blocks:
         seen = sorted({m.group(1) for body in blocks
                        if (m := FOR_LINE.search(body))})
         if not seen:
-            return None, 'a complete envelope is present but carries no FOR line; it is malformed'
-        return None, (f'this capture holds no envelope for {req_id}; '
-                      f'it answers {", ".join(seen)}')
-    return None, f'no result envelope in this capture for {req_id}'
+            return None, Note('a complete envelope is present but carries no FOR line; '
+                              'it is malformed', MALFORMED)
+        return None, Note(f'this capture holds no envelope for {req_id}; '
+                          f'it answers {", ".join(seen)}', NO_ANSWER)
+    return None, Note(f'no result envelope in this capture for {req_id}', NO_ANSWER)
 
 
 def check(kind, text):
@@ -179,24 +214,41 @@ def check(kind, text):
         verdict = re.search(LEAD + r'VERDICT:\s*(.+?)\s*$', text, re.M)
         if verdict and verdict.group(1) not in VERDICTS:
             problems.append(f'VERDICT "{verdict.group(1)}" is not one of {", ".join(VERDICTS)}')
-        for label in re.findall(r'\[([A-Z]+)\]', text):
-            if label not in EVIDENCE:
+        findings = section(text, 'FINDINGS')
+        heads = [m for line in findings.splitlines() if (m := FINDING_HEAD.match(line))]
+        for m in heads:
+            label = m.group(2)
+            if label is None:
+                problems.append(f'finding {m.group(1)} carries no evidence label; '
+                                f'expected one of {", ".join(EVIDENCE)}')
+            elif label not in EVIDENCE:
                 problems.append(f'evidence label [{label}] is not one of {", ".join(EVIDENCE)}')
-        has_findings = bool(section(text, 'FINDINGS'))
-        if verdict and verdict.group(1) == 'NO FINDINGS' and has_findings:
+        if findings and not heads:
+            problems.append('the findings section lists no '
+                            f'"<Fn> [{"|".join(EVIDENCE)}] <file>:<line>" finding')
+        if verdict and verdict.group(1) == 'NO FINDINGS' and findings:
             problems.append('VERDICT is NO FINDINGS but the findings section is not empty')
-        if verdict and verdict.group(1) == 'FINDINGS' and not has_findings:
+        if verdict and verdict.group(1) == 'FINDINGS' and not findings:
             problems.append('VERDICT is FINDINGS but no finding is listed')
     return problems
 
 
-def read_arg(value):
-    """Literal text, a path, or - for stdin."""
-    if value is None:
+def read_arg(literal, path, flag):
+    """Text from --<flag>, file contents from --<flag>-file, stdin from either
+    as `-`. A literal that also names a file is refused rather than guessed:
+    the probe this replaces read the file whenever a question happened to match
+    a path, with no way to say which reading was meant."""
+    if path is not None:
+        return (sys.stdin.read() if path == '-' else open(path).read()).strip()
+    if literal is None:
         return None
-    if value == '-':
+    if literal == '-':
         return sys.stdin.read().strip()
-    return open(value).read().strip() if os.path.exists(value) else value
+    if os.path.exists(literal):
+        die(f'--{flag} value "{literal}" also names an existing path; pass '
+            f'--{flag}-file {literal} to send its contents, or the text on '
+            f'stdin as --{flag} - to send it literally')
+    return literal
 
 
 def main():
@@ -209,8 +261,12 @@ def main():
     s = sub.add_parser('send', help='build and submit a request envelope')
     s.add_argument('--to', required=True)
     s.add_argument('--scope', required=True)
-    s.add_argument('--ask', required=True, help='the question, a file path, or - for stdin')
-    s.add_argument('--delta', help='applied/rejected findings, a path, or -')
+    ask = s.add_mutually_exclusive_group(required=True)
+    ask.add_argument('--ask', help='the question itself, or - for stdin')
+    ask.add_argument('--ask-file', metavar='PATH', help='read the question from a file, or -')
+    delta = s.add_mutually_exclusive_group()
+    delta.add_argument('--delta', help='applied/rejected findings, or - for stdin')
+    delta.add_argument('--delta-file', metavar='PATH', help='read the delta from a file, or -')
     s.add_argument('--authority')
     s.add_argument('--from-name', help='override the agent kind Herdr reports')
     s.add_argument('--dry-run', action='store_true')
@@ -241,12 +297,13 @@ def main():
 
     if a.cmd == 'send':
         me, kind = own_identity()
+        require_peer(a.to, me)
         req_id = next_id(me)
-        ask = read_arg(a.ask)
+        ask = read_arg(a.ask, a.ask_file, 'ask')
         if not ask:
             die('--ask resolved to nothing')
         body = build_request(req_id, f'{a.from_name or kind}, {me}', a.scope, ask,
-                             a.authority, read_arg(a.delta))
+                             a.authority, read_arg(a.delta, a.delta_file, 'delta'))
         problems = check('request', body)
         if problems:
             die('refusing to send a malformed request:\n  ' + '\n  '.join(problems))
@@ -261,18 +318,19 @@ def main():
         return 0
 
     if a.cmd == 'read':
+        require_peer(a.pane)
         if a.wait:
             herdr_raw('agent', 'wait', a.pane, '--timeout', str(a.wait))
         text = herdr_raw('agent', 'read', a.pane, '--source', 'recent-unwrapped',
                          '--lines', str(a.lines))
         body, note = extract_result(text, a.req_id)
         if body is None:
-            die(note, 3)
+            die(note, note.status)
         print(body)
         problems = check('result', body)
         if problems:
             print('envelope problems:\n  ' + '\n  '.join(problems), file=sys.stderr)
-            return 4
+            return MALFORMED
         return 0
 
     if a.cmd == 'check':

@@ -31,7 +31,7 @@ def run(role, prompt_file=None, schema_file=None):
 
 
 class AllowlistTest(unittest.TestCase):
-    def test_read_only_roles_is_exactly_two(self):
+    def test_read_only_roles_is_exactly_code_verifier(self):
         self.assertEqual(codex_agent.READ_ONLY_ROLES, frozenset({'code-verifier'}))
 
     def test_write_role_is_rejected_before_reading_the_adapter(self):

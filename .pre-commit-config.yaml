@@ -100,12 +100,16 @@ repos:
     entry: sh -c "python3 test/hil/test/test_ci_select.py && python3 test/hil/test/test_ci_metrics.py && cd test/hil/test && python3 -m unittest -q test_hil_util.BottomLayer"
     pass_filenames: false
     language: system
+  # language: python, not system: the suites are stdlib-only except for the
+  # front-matter checks, so pre-commit's venv supplies PyYAML rather than
+  # relying on it being installed system-wide.
   - id: claude-scripts
     name: claude-scripts
     files: ^\.claude/(codex-agent\.py|skills/.*/scripts/|test/)
     entry: python3 -m unittest discover -s .claude/test -p 'test_*.py'
     pass_filenames: false
-    language: system
+    language: python
+    additional_dependencies: [pyyaml]
 
 #  - id: build-fuzzer
 #    name: build-fuzzer

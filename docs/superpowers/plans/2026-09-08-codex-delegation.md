@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make every read-only agent role routable to Codex through one enforcing launcher, move PR review validation to Codex behind a Claude challenge stage, and codify the Herdr peer channel as a skill.
+**Goal:** Make every read-only agent role routable to Codex through one enforcing launcher, validate PR reviews on Claude and challenge every dismissal on Codex before it is posted, and codify the Herdr peer channel as a skill.
 
-**Architecture:** A committed Python launcher owns the role allowlist and the `codex exec` invocation; a thin Markdown bridge agent only invokes it. Workflows dispatch to that bridge with a literal role. `pr-babysit` gains a `reviewValidator` knob that, on `codex`, inserts a Claude challenge stage between Codex's verdicts and any public reply.
+**Architecture:** A committed Python launcher owns the role allowlist and the `codex exec` invocation; a thin Markdown bridge agent only invokes it. Workflows dispatch to that bridge with a literal role. `pr-babysit` keeps review validation on Claude and inserts an unconditional Codex challenge stage between the validator's dismissals and any public reply.
 
 **Tech Stack:** Node ESM workflow scripts driven by the Workflow tool; `node:assert/strict` tests executed via pre-commit `language: system` hooks; Python 3.11+ stdlib (`tomllib`, `argparse`, `subprocess`, `tempfile`) for the launcher; `codex exec` CLI 0.153.4.
 
@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Read-only role set is exactly `code-verifier` and `pr-review-validator`. No other role may be dispatched to Codex in this plan.
+- Read-only role set is exactly `code-verifier`. No other role may be dispatched to Codex in this plan. Tasks 1 and 4 were written with `pr-review-validator` in the set; the Task 4 revert took it back out — see that task's banner.
 - The launcher runs `codex exec` with `--sandbox read-only`, always. No sandbox parameter is exposed.
 - The launcher prints nothing to stdout on any failure path, and exits non-zero.
 - No fallback: a Codex failure never silently reruns the work on Claude and never fabricates JSON.
@@ -531,7 +531,15 @@ It names a count, and a third provider would make the name a lie."
 > knob and the dispatch below are gone; validation stays on Claude and the role
 > is off the launcher's allowlist. The reasoning is in the design doc, and
 > #3903 covers what would have to change for a role like this to run on Codex.
-> Task 5's challenge chain survives, always running on Codex.
+>
+> The revert reaches forward, so read the rest of the plan through it. Task 1's
+> `READ_ONLY_ROLES` lost `pr-review-validator`. Every later `reviewValidator`
+> reference is dead text: the `args: { reviewValidator: 'claude' }` checks and
+> the `reviewValidator === 'codex'` gate in Task 5, and the CLAUDE.md bullet
+> quoted in Task 6. What shipped is one architecture with no knob — reviews
+> always dispatch to the native `pr-review-validator` on Claude, and Task 5's
+> challenge stage always runs on Codex, so `contested` is filtered straight off
+> `r.findings` and Task 5's `provider: 'claude'` reads `'codex'`.
 
 **Files:**
 - Modify: `.claude/workflows/pr-babysit.js:8-12` (args docs and shape check), `:386-390` (the reviews dispatch)
@@ -1154,4 +1162,4 @@ git commit -m "docs: hand off Codex writer-role delegation"
 
 **Spec coverage:** Read-only role set → Task 1. Generic bridge, both halves → Tasks 1-2. `both`→`all` → Task 3. Routing table → Tasks 2, 4, 6. Challenge chain, every rule including deferral, retry branch and exhaustion → Task 5. Herdr peer channel skill → Task 7. Delivery split → Tasks 1-6 are PR A, Task 7 is PR B, Task 8 is the deferral. Verification section → the tests inside Tasks 1-5 plus the `pre-commit run --all-files` gates in Tasks 6 and 7.
 
-**Type consistency:** `READ_ONLY_ROLES` and `resolve_adapter` are defined in Task 1 and used by its test only. Agent type `codex-agent` is introduced in Task 2 and reused in Task 4. `reviewValidator` is defined in Task 4 and read in Task 5. `deferredComments` and the `deferred` result field are defined in Task 5 and used nowhere earlier. `CHALLENGE`'s `{id, upheld, reason}` matches the verdict handling and every test case.
+**Type consistency:** `READ_ONLY_ROLES` and `resolve_adapter` are defined in Task 1 and used by its test only. Agent type `codex-agent` is introduced in Task 2 and reused in Task 4. `reviewValidator` was defined in Task 4 and read in Task 5; the Task 4 revert removed both and left the challenge stage unconditional. `deferredComments` and the `deferred` result field are defined in Task 5 and used nowhere earlier. `CHALLENGE`'s `{id, upheld, reason}` matches the verdict handling and every test case.

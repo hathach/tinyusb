@@ -171,8 +171,10 @@ const owesDismissal = (commentId) => {
 // the claim, either of which would strand the dismissal it was meant to retire.
 // The contract that makes it stable lives in pr-review-validator.md.
 const dismissalKey = (f) => f.findingId
-const unresolvedVerdict = (cycles, deferred) =>
-  ({ pass: false, cycles, history, reason: 'deferred-replies-unresolved', deferred })
+// dryRun says the debt was never postable, so a caller can tell an intentionally
+// unposted obligation from a reply workflow that failed.
+const unresolvedVerdict = (cycles, deferred, dryRun = false) =>
+  ({ pass: false, cycles, history, reason: 'deferred-replies-unresolved', deferred, dryRun })
 
 // Backoff between cycles that have nothing to do but wait. Degrades to a no-op
 // rather than throwing if the workflow host has no timer.
@@ -372,7 +374,7 @@ const cycleSummary = (entry) => {
       cell(f.source, 16),
       cell(`${f.file}:${f.line} ${f.claim}`),
       cell(f.overturned ? 'overturned' : f.verdict, 8),
-      valid ? cell((f.overturned ? 'codex refuted → claude overturned, ' : '') +
+      valid ? cell((f.overturned ? 'claude refuted → codex overturned, ' : '') +
         fixCell(entry.reviewFixes, f.commentId, entry.reviewPush, entry.reviewPushFailed), 60)
         : cell(`${f.verdict === 'stale' ? 'already fixed' : 'refuted'}, ${
           answerState(f.commentId)}`, 60),
@@ -461,7 +463,6 @@ const runCycle = async (cycle, entry) => {
     // Whichever model validated, an independent one checks the dismissals
     // before any of them is posted: the reviewer's thread gets closed by that
     // reply, so it is the one verdict worth a second opinion.
-    const overturnedNow = new Map() // commentId -> findings this challenge accepted
     const contested = r.findings.filter(f => f.verdict !== 'valid')
     if (contested.length > 0) {
       const submitted = contested.map((f, id) => ({
@@ -499,7 +500,6 @@ const runCycle = async (cycle, entry) => {
         f.verdict = 'valid'
         f.overturned = true   // rendered by cycleSummary's valid arm
         f.fixHint = v.reason  // the evidence, not the dismissal it replaced
-        overturnedNow.set(f.commentId, (overturnedNow.get(f.commentId) || 0) + 1)
       }
     }
 
@@ -581,12 +581,18 @@ const runCycle = async (cycle, entry) => {
     // REVIEWS does not tie replies to findings, so a validator can draft a
     // reply for a comment that owes no refutation; posting it would refute a
     // reviewer on no one's authority. One per comment, too: postReplyRecipe
-    // posts a single threaded reply and resolves the thread.
-    const seenReply = new Set()
-    const freshReplies = r.replies.filter(x =>
-      owed(x.commentId) === 'refutation' && owesDismissal(x.commentId) &&
-      !seenReply.has(x.commentId) && seenReply.add(x.commentId))
-    const withheld = r.replies.length - freshReplies.length
+    // posts a single threaded reply and resolves the thread - so sibling drafts
+    // are merged into that body rather than dropped, since pay() then retires
+    // every dismissal on the comment, including the ones they answer.
+    let withheld = 0
+    const replyFor = new Map()
+    for (const x of r.replies) {
+      if (owed(x.commentId) !== 'refutation' || !owesDismissal(x.commentId)) { withheld++; continue }
+      const prev = replyFor.get(x.commentId)
+      if (prev) prev.body += `\n\n${x.body}`
+      else replyFor.set(x.commentId, { commentId: x.commentId, body: x.body })
+    }
+    const freshReplies = [...replyFor.values()]
     if (withheld > 0) log(`cycle ${cycle}: ${withheld} drafted reply/replies withheld`)
     if (freshReplies.length > 0 && args.autoPush === true) {
       const posted = await agent(
@@ -631,22 +637,34 @@ const runCycle = async (cycle, entry) => {
       reviewPushed = true
       // A comment still waiting on a sibling refutation is not answered by a
       // fix note: that note resolves the thread over the unanswered half.
-      const answerable = validFindings.filter(f => owed(f.commentId) === 'fixNote')
-      const resolved = await agent(
-        `The fixes for PR #${args.pr}'s valid review findings were just committed and pushed (${push.sha}). ` +
-        `For each finding below: ${postReplyRecipe('fix note')}` +
-        'Each reply states the finding is fixed in the pushed commit, with one line on the change. ' +
-        `Findings: ${JSON.stringify(answerable
-          .map(f => ({ commentId: f.commentId, file: f.file, line: f.line, claim: f.claim, fixHint: f.fixHint })))}. ` +
-        'pass=true only if every reply was posted and every thread resolved; detail = what went where. ' +
-        'doneIds = the commentIds fully handled: reply posted AND (thread resolved, or an issue comment with no thread to resolve).',
-        { label: `resolve#${cycle}`, phase: 'Push', model: 'sonnet', schema: OPIDS },
-      )
-      const offeredFix = new Set(answerable.map(f => f.commentId))
-      for (const id of (resolved && resolved.doneIds) || []) {
-        if (offeredFix.has(id)) pay(id, 'fixNote')
+      // One entry per comment, for the reason the refutations are merged: the
+      // note is posted once and resolves the thread, and pay() then settles the
+      // whole comment - so every finding on it must be named in that one note.
+      const answerable = new Map()
+      for (const f of validFindings) {
+        if (owed(f.commentId) !== 'fixNote') continue
+        const prev = answerable.get(f.commentId)
+        if (prev) { prev.claim += `; ${f.claim}`; prev.fixHint += `; ${f.fixHint}` }
+        else {
+          answerable.set(f.commentId,
+            { commentId: f.commentId, file: f.file, line: f.line, claim: f.claim, fixHint: f.fixHint })
+        }
       }
-      if (!resolved || !resolved.pass) log(`cycle ${cycle}: fixed reply/resolve incomplete — ${resolved ? resolved.detail : 'agent died'}`)
+      if (answerable.size > 0) {
+        const resolved = await agent(
+          `The fixes for PR #${args.pr}'s valid review findings were just committed and pushed (${push.sha}). ` +
+          `For each finding below: ${postReplyRecipe('fix note')}` +
+          'Each reply states the finding is fixed in the pushed commit, with one line on the change. ' +
+          `Findings: ${JSON.stringify([...answerable.values()])}. ` +
+          'pass=true only if every reply was posted and every thread resolved; detail = what went where. ' +
+          'doneIds = the commentIds fully handled: reply posted AND (thread resolved, or an issue comment with no thread to resolve).',
+          { label: `resolve#${cycle}`, phase: 'Push', model: 'sonnet', schema: OPIDS },
+        )
+        for (const id of (resolved && resolved.doneIds) || []) {
+          if (answerable.has(id)) pay(id, 'fixNote')
+        }
+        if (!resolved || !resolved.pass) log(`cycle ${cycle}: fixed reply/resolve incomplete — ${resolved ? resolved.detail : 'agent died'}`)
+      }
     }
 
     // ---- CI lane result ----
@@ -757,5 +775,5 @@ for (let cycle = 1; cycle <= maxCycles; cycle++) {
   if (verdict) return verdict
 }
 return debt.size > 0
-  ? unresolvedVerdict(maxCycles, [...debt.keys()])
+  ? unresolvedVerdict(maxCycles, [...debt.keys()], args.autoPush !== true)
   : { pass: false, cycles: maxCycles, history, reason: 'maxCycles reached' }

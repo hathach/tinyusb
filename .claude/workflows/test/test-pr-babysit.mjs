@@ -360,6 +360,26 @@ await check('an upheld refutation still replies and resolves', async () => {
   assert.match(posted.prompt, /"commentId":1/)
 })
 
+await check('sibling refutations on one comment are merged into its single reply', async () => {
+  // Posting resolves the thread, so only one reply per comment goes out - but
+  // that reply retires every dismissal on the comment, so dropping a sibling
+  // draft would retire a refutation the reviewer never saw.
+  const { calls, result } = await run({
+    reviews: {
+      findings: [invalidFinding({ commentId: 7 }), invalidFinding({ commentId: 7, line: 9 })],
+      replies: [{ commentId: 7, body: 'the first point misreads the guard' },
+        { commentId: 7, body: 'the second point is about dead code' }],
+      done: true,
+    },
+    args: { autoPush: true, maxCycles: 1 },
+  })
+  const posted = calls.filter(c => c.label.startsWith('replies#'))
+  assert.equal(posted.length, 1, 'one posting agent, one reply per thread')
+  assert.match(posted[0].prompt, /the first point misreads the guard/)
+  assert.match(posted[0].prompt, /the second point is about dead code/)
+  assert.equal(result.pass, true, `both dismissals must be settled (got ${result.reason})`)
+})
+
 await check('an overturned finding is fixed, replied to, and carries the challenger reason', async () => {
   const { calls } = await run({
     reviews: { findings: [invalidFinding()], replies: [{ commentId: 1, body: 'no' }], done: true },
@@ -396,6 +416,60 @@ await check('a mixed comment defers its reply and blocks the green exit', async 
   assert.deepEqual(result.deferred, [7])
 })
 
+await check('no fix note is dispatched when the push answers no comment', async () => {
+  // The mixed comment defers its note, so there is nothing to post. Dispatching
+  // anyway risks throwing after the fix is already pushed, which would report
+  // the cycle as a crash instead of re-arming for the deferred reply.
+  const { calls, result } = await run({
+    reviews: {
+      findings: [invalidFinding({ commentId: 7 }), invalidFinding({ commentId: 7, line: 9 })],
+      replies: [{ commentId: 7, body: 'both wrong' }],
+      done: true,
+    },
+    challenge: { verdicts: [
+      { id: 0, upheld: false, reason: 'real' },
+      { id: 1, upheld: true, reason: 'stands' },
+    ] },
+    throwOn: 'resolve#',
+    args: { autoPush: true, maxCycles: 1 },
+  })
+  assert.equal(calls.some(c => c.label.startsWith('resolve#')), false, 'nothing to answer, nothing to dispatch')
+  assert.equal(result.reason, 'deferred-replies-unresolved', `the push must not read as a crash (got ${result.reason})`)
+})
+
+await check('two valid findings on one comment share one fix note', async () => {
+  // One note per thread, as postReplyRecipe posts it - and it has to name both
+  // claims, because paying the comment settles both.
+  let cycle = 0
+  const { calls, result } = await run({
+    args: { autoPush: true, maxCycles: 2 },
+    reviewsPerCycle: () => {
+      cycle++
+      return cycle === 1
+        ? { findings: [finding({ commentId: 1, claim: 'the first leak' }),
+          finding({ commentId: 1, line: 9, claim: 'the second leak' })], replies: [], done: true }
+        : { findings: [], replies: [], done: true }
+    },
+  })
+  const resolve = calls.filter(c => c.label.startsWith('resolve#'))
+  assert.equal(resolve.length, 1)
+  assert.equal([...resolve[0].prompt.matchAll(/"commentId":1\b/g)].length, 1, 'one note for the thread')
+  assert.match(resolve[0].prompt, /the first leak; the second leak/)
+  assert.equal(result.pass, true, `the comment must be settled (got ${result.reason})`)
+})
+
+await check('a dry run that runs out of cycles still reads as a dry run', async () => {
+  // Bots never settle, so the green exit that reports dryRun is never reached
+  // and the loop expires with the debt it was never allowed to post.
+  const { result } = await run({
+    args: { autoPush: false, maxCycles: 2 },
+    reviews: { findings: [invalidFinding()], replies: [{ commentId: 1, body: 'no' }], done: false },
+  })
+  assert.equal(result.reason, 'deferred-replies-unresolved')
+  assert.deepEqual(result.deferred, [1])
+  assert.equal(result.dryRun, true, 'unposted-by-design debt must not read as a failed reply workflow')
+})
+
 await check('a broken challenge response fails the cycle', async () => {
   for (const challenge of [
     null,
@@ -417,7 +491,10 @@ await check('the summary marks an overturned finding', async () => {
     challenge: { verdicts: [{ id: 0, upheld: false, reason: 'real' }] },
     args: { autoPush: true, maxCycles: 1 },
   })
-  assert.ok(logs.some(l => l.includes('overturned')), 'cycle table must show the overturn')
+  // Named in the order the decision was made: Claude validates and refutes,
+  // Codex challenges that dismissal and overturns it.
+  assert.ok(logs.some(l => l.includes('claude refuted → codex overturned')),
+    'cycle table must show the overturn, with the providers in the order they acted')
 })
 
 await check('a deferred obligation is cleared only by a posted reply', async () => {
@@ -545,9 +622,9 @@ await check('a comment is never replied to twice in one cycle', async () => {
 })
 
 await check('a deferred refutation can still be posted after a fix note', async () => {
-  // The fix note puts the comment in repliedIds. If that also blocks the reply
-  // stage, the refutation it still owes can never go out and the deferral is
-  // permanent.
+  // The fix note records the comment in answeredWith. If that also blocks the
+  // reply stage, the refutation its debt still owes can never go out and the
+  // deferral is permanent.
   let cycle = 0
   const { result } = await run({
     args: { autoPush: true, maxCycles: 4 },
@@ -567,9 +644,9 @@ await check('a deferred refutation can still be posted after a fix note', async 
 })
 
 await check('an already-answered comment is not deferred for a missing draft', async () => {
-  // repliedIds means the thread was answered and resolved. Deferring it again
-  // because this harvest drafted no reply creates an obligation nothing can
-  // discharge.
+  // An entry in answeredWith means the thread was answered and resolved.
+  // Re-opening its debt because this harvest drafted no reply creates an
+  // obligation nothing can discharge.
   let cycle = 0
   const { result } = await run({
     args: { autoPush: true, maxCycles: 3 },
