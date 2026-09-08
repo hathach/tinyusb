@@ -957,35 +957,13 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, const uint8_t setup_packet
 bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   (void)rhport;
   LOG_CH32_USBFSH("hcd_edpt_clear_stall(dev_addr=0x%02x, ep=0x%02x)\r\n", dev_addr, ep_addr);
-  uint8_t edpt_num                     = tu_edpt_number(ep_addr);
-  uint8_t setup_request_clear_stall[8] = {0x02, 0x01, 0x00, 0x00, edpt_num, 0x00, 0x00, 0x00};
-  memcpy(USBFS_TX_Buf, setup_request_clear_stall, 8);
-  USBOTG_H_FS->HOST_TX_LEN = 8;
-
-  bool prev_int_state = interrupt_enabled;
-  hcd_int_disable(0);
-
-  // This path bypasses hardware_start_xfer(); re-point the TX DMA manually.
-  USBOTG_H_FS->HOST_TX_DMA  = (uint32_t)USBFS_TX_Buf;
-  USBOTG_H_FS->HOST_TX_CTRL = 0;
-  USBOTG_H_FS->HOST_RX_CTRL = 0;
-
-  hardware_update_device_address(dev_addr);
-
-  USBOTG_H_FS->HOST_EP_PID = (USB_PID_SETUP << 4) | 0x00;
-  USBOTG_H_FS->INT_FG      = USBFS_UIF_TRANSFER; // clear stale flag + go
-  while ((USBOTG_H_FS->INT_FG & USBFS_UIF_TRANSFER) == 0) {}
-  // STOP then clear, so the permanently-enabled UIE_TRANSFER does not re-fire.
-  USBOTG_H_FS->HOST_EP_PID = 0;
-  USBOTG_H_FS->INT_FG      = USBFS_UIF_TRANSFER;
-  uint8_t response_pid     = USBOTG_H_FS->INT_ST & USBFS_UIS_H_RES_MASK;
-  (void)response_pid;
-  LOG_CH32_USBFSH("hcd_edpt_clear_stall() response pid=0x%02x\r\n", response_pid);
-
-  if (prev_int_state) {
-    hcd_int_enable(0);
+  usb_edpt_t *edpt = get_edpt_record(dev_addr, ep_addr);
+  if (edpt == NULL) {
+    return false;
   }
-
+  bool prev = usbfs_irq_save();
+  edpt->data_toggle = 0;
+  usbfs_irq_restore(prev);
   return true;
 }
 
