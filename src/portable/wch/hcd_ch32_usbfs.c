@@ -565,17 +565,17 @@ static void cb_transfer_complete(uint8_t request_pid, uint8_t response_pid, usb_
 
   if (response_pid == USB_PID_NAK) {
     LOG_CH32_USBFSH("NAK response\r\n");
-    if (edpt->xfer_type == TUSB_XFER_INTERRUPT) {
+    if (edpt->xfer_type == TUSB_XFER_INTERRUPT && tu_edpt_dir(ep_addr) == TUSB_DIR_IN) {
       // Interrupt IN: a NAK means "no data yet"; report success (no bytes).
       bool prev                     = usbfs_irq_save();
       usb_current_xfer_info.is_busy = false;
       usbfs_irq_restore(prev);
       hcd_event_xfer_complete(dev_addr, ep_addr, 0, XFER_RESULT_SUCCESS, in_isr);
     } else {
-      // Bulk/control NAK: stash for a SOF-driven retry with progressive backoff
-      // (1->2->4...->64 frames). A tight task-loop retry floods the device's
-      // endpoint ISR and starves its main loop (and ours); backing off lets the
-      // device finish processing and ACK.
+      // Bulk/control/interrupt OUT NAK: stash for a SOF-driven retry with
+      // progressive backoff (1->2->4...->64 frames). A tight task-loop retry
+      // floods the device's endpoint ISR and starves its main loop (and ours);
+      // backing off lets the device finish processing and ACK.
       bool prev                     = usbfs_irq_save();
       usb_current_xfer_info.is_busy = false;
       edpt->is_nak_pending          = true;
