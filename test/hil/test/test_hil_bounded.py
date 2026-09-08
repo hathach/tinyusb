@@ -1620,7 +1620,7 @@ class HidEchoRunsInAChild(unittest.TestCase):
 class StrayNoteSurvivesTheTupleWidth(unittest.TestCase):
     """_stray_note reads r[5] -- and three producers build this tuple at three widths, so
     `len(r) > 5 and r[5]` reads a WRONG SLOT rather than raising if a field is ever
-    inserted. The live handoff pr3840-mret-board-result.md proposes exactly that, and the
+    inserted. The live handoff in issue #3896 proposes exactly that, and the
     report would then say "no strays" while probes and usbfs nodes stay held into the next
     job. The index changed once already in this branch (r[6] -> r[5])."""
 
