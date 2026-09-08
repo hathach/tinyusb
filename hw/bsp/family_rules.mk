@@ -137,6 +137,13 @@ OPENOCD_OPTION ?=
 flash-openocd: $(BUILD)/$(PROJECT).elf
 	$(OPENOCD) $(OPENOCD_OPTION) -c "program $< verify reset exit"
 
+# --------------- probe-rs -----------------
+# flash with https://probe-rs.rs
+PROBE_RS ?= probe-rs
+PROBE_RS_OPTION ?=
+flash-probe-rs: $(BUILD)/$(PROJECT).elf
+	$(PROBE_RS) download --chip $(PROBE_RS_CHIP) $(PROBE_RS_OPTION) --verify --reset $<
+
 # --------------- openocd-wch -----------------
 # WCH parts need an openocd built with the wlinke adapter. The image is written
 # without verify: WCH code flash is not readable back over the debug bus.
