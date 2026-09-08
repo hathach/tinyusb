@@ -295,17 +295,18 @@ await check('full-check forwards the reviewer selection to validate', async () =
 
 await check('fanout simplifies once after all writers and before verification', async () => {
   const src = readFileSync(new URL('../fanout-dev.js', import.meta.url), 'utf8').replace(/^export /m, '')
-  const fn = new AsyncFunction('args', 'agent', 'pipeline', 'log', 'workflow', src)
-  const pipeline = (items, ...stages) => Promise.all(items.map(async item => {
+  const fn = new AsyncFunction(
+    'args', 'agent', 'pipeline', 'parallel', 'phase', 'log', 'workflow', 'budget', src)
+  const pipeline = (items, ...stages) => Promise.all(items.map(async (item, index) => {
     let value = item
-    for (const stage of stages) value = await stage(value, item)
+    for (const stage of stages) value = await stage(value, item, index)
     return value
   }))
-  const run = async ({ worktree = false, deadWriter = false, deadSimplifier = false,
-    throwingSimplifier = false, changed = false, deadBuilder = false } = {}) => {
+  const runFanout = async ({ worktree = false, deadWriter = false, deadSimplifier = false,
+    deadBuilder = false } = {}) => {
     const events = []
     const logs = []
-    const simplification = { changed, files: changed ? ['a/file.c'] : [], summary: 'done' }
+    const scopes = []
     const agent = async (prompt, options) => {
       if (options.agentType === 'code-writer') {
         const item = options.label.slice(4)
@@ -313,14 +314,16 @@ await check('fanout simplifies once after all writers and before verification', 
         events.push(`wrote:${item}`)
         if (deadWriter && item === 'a') return null
         assert.equal(options.isolation, worktree ? 'worktree' : undefined)
-        return { item, board: item, buildOk: true, diffstat: '', notes: '' }
+        return { item, board: item, buildOk: true, diffstat: '', notes: `note:${item}` }
       }
       if (options.agentType === 'code-simplifier') {
         assert.deepEqual([...events].sort(), ['wrote:a', 'wrote:b'])
-        assert.match(prompt, /Assigned scopes: \["a","b"\]/)
+        scopes.push(prompt.match(/Assigned scopes: (\[[^\]]*\])/)[1])
+        // writer results reach the simplifier as notes only, not build metadata
+        assert.match(prompt, /Writer notes: .*note:b/)
+        assert.doesNotMatch(prompt, /buildOk/)
         events.push('simplified')
-        if (throwingSimplifier) throw new Error('simplifier crashed')
-        return deadSimplifier ? null : simplification
+        return deadSimplifier ? null : { changed: true, files: ['b/file.c'], summary: 'tidied' }
       }
       assert.equal(options.agentType, 'builder')
       assert.equal(events.filter(e => e === 'simplified').length, 1)
@@ -335,26 +338,38 @@ await check('fanout simplifies once after all writers and before verification', 
       return { findings: [] }
     }
     const result = await fn({ task: 'fix', items: ['a', 'b'], review: true, worktree },
-      agent, pipeline, message => logs.push(message), workflow)
-    return { result, events, logs, simplification }
+      agent, pipeline, null, () => {}, message => logs.push(message), workflow, null)
+    return { result, events, logs, scopes }
   }
-  for (const changed of [false, true]) {
-    const { result, events, simplification } = await run({ changed })
-    assert.equal(events.filter(e => e === 'simplified').length, 1)
-    assert.equal(result.length, 2)
-    for (const row of result) {
-      assert.equal(row.verifyBuild, true)
-      assert.deepEqual(row.review, [])
-      assert.deepEqual(row.simplification, simplification)
-    }
+
+  const { result, events, logs, scopes } = await runFanout()
+  assert.equal(events.filter(e => e === 'simplified').length, 1)
+  assert.deepEqual(scopes, ['["a","b"]'])
+  assert.equal(result.length, 2)
+  for (const row of result) {
+    assert.equal(row.verifyBuild, true)
+    assert.deepEqual(row.review, [])
+    // the run-level simplification is logged once, not stamped on every row
+    assert.equal('simplification' in row, false)
   }
-  await assert.rejects(run({ deadWriter: true }), /writer failed/)
-  await assert.rejects(run({ deadSimplifier: true }), /simplifier failed/)
-  await assert.rejects(run({ throwingSimplifier: true }), /simplifier crashed/)
-  const isolated = await run({ worktree: true })
+  assert.ok(logs.some(message => /^simplify: b\/file\.c — tidied$/.test(message)))
+  assert.match(logs.at(-1), /2\/2 items completed; 2 build-clean/)
+
+  // a dead writer drops its own item; the survivors are still simplified and verified
+  const partial = await runFanout({ deadWriter: true })
+  assert.deepEqual(partial.scopes, ['["b"]'])
+  assert.deepEqual(partial.result.map(row => row.item), ['b'])
+  assert.ok(partial.logs.some(message => /1 item\(s\) dropped/.test(message)))
+  assert.match(partial.logs.at(-1), /1\/2 items completed; 1 build-clean/)
+
+  await assert.rejects(runFanout({ deadSimplifier: true }), /simplifier failed/)
+
+  const isolated = await runFanout({ worktree: true })
   assert.deepEqual(isolated.events.sort(), ['wrote:a', 'wrote:b'])
   assert.match(isolated.logs[0], /deferred until integration/)
-  const unverified = await run({ deadBuilder: true })
+  assert.match(isolated.logs.at(-1), /2\/2 items completed; 2 build-clean/)
+
+  const unverified = await runFanout({ deadBuilder: true })
   assert.ok(unverified.result.every(row => row.verifyBuild === null))
   assert.match(unverified.logs.at(-1), /0 build-clean/)
 })

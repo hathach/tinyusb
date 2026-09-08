@@ -62,6 +62,15 @@ const FINDINGS = {
   },
 }
 
+const SIMPLIFY = {
+  type: 'object', additionalProperties: false,
+  required: ['changed', 'files', 'summary'],
+  properties: {
+    changed: { type: 'boolean' }, files: { type: 'array', items: { type: 'string' } },
+    summary: { type: 'string' },
+  },
+}
+
 const devs = await pipeline(
   args.items,
 
@@ -78,53 +87,50 @@ const devs = await pipeline(
   ),
 )
 
-let simplification = null
-if (!args.worktree) {
-  if (devs.length !== args.items.length || devs.some(dev => !dev)) {
-    throw new Error('writer failed — resolve incomplete work before combined simplification and verification')
-  }
-  simplification = await agent(
-    `Simplify the completed changes for this task:\n${args.task}\n\n` +
-    `Assigned scopes: ${JSON.stringify(args.items)}. Touch nothing outside them.\n` +
-    `Writer results: ${JSON.stringify(devs)}\n` +
-    'All writers have finished. Inspect staged and unstaged changes and task-owned untracked files. ' +
-    'Make one behavior-preserving pass; no changes is success. Independent builds and optional review follow.',
-    {
-      label: 'simplify', phase: 'Simplify', agentType: 'code-simplifier',
-      schema: {
-        type: 'object', additionalProperties: false,
-        required: ['changed', 'files', 'summary'],
-        properties: {
-          changed: { type: 'boolean' },
-          files: { type: 'array', items: { type: 'string' } },
-          summary: { type: 'string' },
-        },
-      },
-    },
-  )
-  if (!simplification) throw new Error('simplifier failed — inspect possible partial edits before retrying')
+const summarize = (rows, buildClean) => {
+  const dropped = args.items.length - rows.length
+  if (dropped > 0) log(`${dropped} item(s) dropped (worker died)`)
+  log(`${rows.length}/${args.items.length} items completed; ${rows.filter(buildClean).length} build-clean`)
+  return rows
 }
 
-const results = await pipeline(
-  args.items.map((item, index) => ({ item, dev: devs[index] })),
+// worktree mode: edits live in each worker's own worktree; neither an independent
+// verifier nor one combined simplifier in the shared tree can see them — trust
+// dev.buildOk and leave both to integration.
+if (args.worktree) return summarize(devs.filter(Boolean), r => r.buildOk)
 
-  ({ dev, item }) => {
+const live = args.items.filter((_, index) => devs[index])
+if (live.length === 0) return summarize([], r => r.verifyBuild === true)
+
+const simplification = await agent(
+  `Simplify the completed changes for this task:\n${args.task}\n\n` +
+  `Assigned scopes: ${JSON.stringify(live)}. Touch nothing outside them.\n` +
+  `Writer notes: ${JSON.stringify(devs.filter(Boolean).map(dev => ({ item: dev.item, notes: dev.notes })))}\n` +
+  'All writers have finished. Inspect staged and unstaged changes and task-owned untracked files. ' +
+  'Make one behavior-preserving pass; no changes is success. Independent builds and optional review follow.',
+  { label: 'simplify', phase: 'Simplify', agentType: 'code-simplifier', schema: SIMPLIFY },
+)
+if (!simplification) throw new Error('simplifier failed — inspect possible partial edits before retrying')
+log(`simplify: ${simplification.changed ? simplification.files.join(', ') : 'no changes'} — ${simplification.summary}`)
+
+const results = await pipeline(
+  args.items,
+
+  (item, _item, index) => {
+    const dev = devs[index]
     if (!dev) return null
-    // worktree mode: edits live in the worker's own worktree; an independent
-    // verifier in the shared tree cannot see them — trust dev.buildOk.
-    if (args.worktree) return dev
     return agent(
       `Build the single example device/cdc_msc for board ${dev.board}. Use a unique build dir (mktemp -d) to avoid collisions with parallel builds.`,
       { label: `verify:${short(item)}`, phase: 'Verify', agentType: 'builder', schema: BUILD },
     ).then(b => {
       // verifyBuild: true/false = real builder verdict; null = builder died
       if (!b) log(`verify:${short(item)}: builder agent died — independent verification unknown`)
-      return { ...dev, simplification, verifyBuild: b ? b.pass : null }
+      return { ...dev, verifyBuild: b ? b.pass : null }
     })
   },
 
-  (r, { item }) => {
-    if (!r || !args.review || args.worktree) return r
+  (r, item) => {
+    if (!r || !args.review) return r
     return workflow('code-verify', {
       prompt: `Review the uncommitted change in ${item} (inspect staged and unstaged changes with git diff HEAD -- ${item}, and read task-owned untracked files) against this task:\n${args.task}\n` +
       'Dimension: does the diff correctly and completely implement the task with no unintended side effects? Coverage-first findings.',
@@ -138,8 +144,4 @@ const results = await pipeline(
   },
 )
 
-const done = results.filter(Boolean)
-const dropped = args.items.length - done.length
-if (dropped > 0) log(`${dropped} item(s) dropped (worker died)`)
-log(`${done.length}/${args.items.length} items completed; ${done.filter(r => args.worktree ? r.buildOk : r.verifyBuild === true).length} build-clean`)
-return done
+return summarize(results.filter(Boolean), r => r.verifyBuild === true)

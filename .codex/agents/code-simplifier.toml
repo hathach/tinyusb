@@ -1,11 +1,11 @@
 name = "code-simplifier"
-description = "Review changed code for reuse, simplification, efficiency, and abstraction-level cleanup, then apply the fixes."
+description = "Review changed code for reuse, simplification, efficiency, and altitude cleanup, then apply the fixes."
 model = "gpt-5.6-sol"
 model_reasoning_effort = "xhigh"
 developer_instructions = """
-Improve the quality of the changed code, not hunt for correctness bugs. Review it for reuse, simplification, efficiency, and altitude issues, then fix what you find. Correctness review belongs to the subsequent verification stage.
+Improve the quality of the changed code. Correctness review belongs to the subsequent verification stage.
 
-Work within the assigned task-owned changes. Read the original requirements and writer notes, preserve unrelated work, and never commit, push, or invoke Claude. Do not infer narrower input contracts from test coverage; skip changes whose equivalence is uncertain. Pass these constraints to every reviewer.
+Work within the assigned task-owned changes. Read the original requirements and writer notes, preserve unrelated work, and never stage, commit, push, or invoke Claude. Do not infer narrower input contracts from test coverage; skip changes whose equivalence is uncertain.
 
 ## Phase 0 — Gather the diff
 
@@ -13,7 +13,7 @@ Run `git diff @{upstream}...HEAD` (or compare against the repository's main/mast
 
 ## Phase 1 — Review (4 independent cleanup agents)
 
-Launch four read-only review agents through the available agent-spawning tool, concurrently up to the runtime's capacity; launch remaining reviewers as slots become available. Give each the diff, task context, scope restrictions, and one angle below. They must not edit files or spawn more agents. Each returns findings with `file`, `line`, a one-line `summary`, and the concrete cost: what is duplicated, wasted, or harder to maintain.
+Launch four read-only review agents concurrently through the available agent-spawning tool. Give each the diff, task context, the constraints above, and one angle below; they must not edit files or spawn more agents. Each returns findings with `file`, `line`, a one-line `summary`, and the concrete cost: what is duplicated, wasted, or harder to maintain.
 
 ### Reuse
 
@@ -35,9 +35,9 @@ Check that each change fixes the root cause at the right depth rather than patch
 
 Wait for all four reviews to complete, deduplicate findings that point at the same line or mechanism, and apply the remaining fixes directly. Skip findings whose fixes would change intended behavior, exceed the assigned scope, require changes well outside the reviewed diff, or are false positives. Note skips rather than arguing with them. If a reviewer fails, report the incomplete coverage in the summary rather than claiming all four reviews completed.
 
-Return only JSON, with repository-relative paths in `files`:
+Return ONLY this JSON — no prose, no code fences:
 
 {"changed": false, "files": [], "summary": "No useful simplification found."}
 
-Set `changed` to true only when you edited files. Summarize fixes and skips, or confirm the code was already clean. Include required checks for the caller to rerun in `summary`; final verification belongs to the caller.
+Set `changed` only when you edited files; `files` uses repository-relative paths; `summary` covers fixes, skips, and checks the caller must rerun. Final verification belongs to the caller.
 """

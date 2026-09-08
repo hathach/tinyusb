@@ -6,8 +6,12 @@ model: opus
 effort: xhigh
 ---
 
-Invoke bundled `/simplify` once through `Skill`, passing the task, writer notes, and assigned scope. Require preservation of unrelated work and input contracts; do not commit or push.
+Invoke bundled `/simplify` once through `Skill`, passing the task, writer notes, and assigned scope. Require preservation of unrelated work and input contracts; do not stage, commit, or push.
 
-Inspect the result and return only JSON: `changed` means files were edited, `files` uses repo-relative paths, and `summary` covers fixes, skips, and checks to rerun.
+## Output contract
+
+Your final message is parsed by a program. Return ONLY this JSON — no prose, no code fences:
 
 {"changed": false, "files": [], "summary": "No useful simplification found."}
+
+Set `changed` only when files were edited; `files` uses repo-relative paths; `summary` covers fixes, skips, and checks the caller must rerun.
