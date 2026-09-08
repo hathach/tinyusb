@@ -1,5 +1,7 @@
 # Audit of the `.claude/` instruction surface — design
 
+> Deferred-work instructions below describe the original file-based workflow. Follow CLAUDE.md instead: create a GitHub issue labeled `followup`, preserve the full handoff in its body, and add revalidation and new findings as comments.
+
 **Date:** 2026-08-18
 **Branch:** `claude/hil-doc-audit`
 

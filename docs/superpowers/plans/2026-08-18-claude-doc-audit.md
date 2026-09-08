@@ -1,5 +1,7 @@
 # `.claude/` Instruction-Surface Audit Implementation Plan
 
+> Deferred-work instructions below describe the original file-based workflow. Follow CLAUDE.md instead: create a GitHub issue labeled `followup`, preserve the full handoff in its body, and add revalidation and new findings as comments.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Give every falsifiable claim in the 4,689-line `.claude/` + `CLAUDE.md` instruction surface a verdict backed by a citation, correct the ones current source refutes, and remove duplication without deleting hard-earned rig knowledge.
