@@ -559,14 +559,7 @@ static void cb_transfer_complete(uint8_t request_pid, uint8_t response_pid, usb_
     bool prev                     = usbfs_irq_save();
     usb_current_xfer_info.is_busy = false;
     usbfs_irq_restore(prev);
-    hcd_edpt_clear_stall(0, dev_addr, ep_addr);
-    edpt->data_toggle = 0;
-    // Re-arm the stalled transaction once after clear-stall.
-    bool prev2                        = usbfs_irq_save();
-    usb_current_xfer_info.is_busy     = true;
-    usb_current_xfer_info.xferred_len = 0;
-    usbfs_irq_restore(prev2);
-    hardware_start_xfer(request_pid, ep_addr, 0, false);
+    hcd_event_xfer_complete(dev_addr, ep_addr, 0, XFER_RESULT_STALLED, in_isr);
     return;
   }
 
