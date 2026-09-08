@@ -6,7 +6,8 @@ export const meta = {
 }
 
 // args: { pr: number, maxCycles?: number, autoPush?: boolean (default false = dry run),
-//          checkoutDir?: string (PR branch checkout; default: the session working dir) }
+//          checkoutDir?: string (PR branch checkout; default: the session working dir),
+//          }
 if (typeof args === 'string') { try { args = JSON.parse(args) } catch { /* not JSON: shape check below reports it */ } }
 if (!args || !args.pr) {
   throw new Error('args must be { pr: number, maxCycles?, autoPush?, checkoutDir? }; run from the PR branch checkout or point checkoutDir at it')
@@ -46,6 +47,23 @@ const CI = {
     },
   },
 }
+const CHALLENGE = {
+  type: 'object', additionalProperties: false,
+  required: ['verdicts'],
+  properties: {
+    verdicts: {
+      type: 'array',
+      items: {
+        type: 'object', additionalProperties: false,
+        required: ['id', 'upheld', 'reason'],
+        properties: {
+          id: { type: 'integer' }, upheld: { type: 'boolean' }, reason: { type: 'string' },
+        },
+      },
+    },
+  },
+}
+
 const REVIEWS = {
   type: 'object', additionalProperties: false,
   required: ['findings', 'replies', 'done'],
@@ -54,9 +72,10 @@ const REVIEWS = {
       type: 'array',
       items: {
         type: 'object', additionalProperties: false,
-        required: ['source', 'commentId', 'file', 'line', 'claim', 'verdict', 'reason', 'fixHint'],
+        required: ['source', 'findingId', 'commentDigest', 'commentId', 'file', 'line', 'claim', 'verdict', 'reason', 'fixHint'],
         properties: {
-          source: { type: 'string' }, commentId: { type: 'integer' },
+          source: { type: 'string' }, findingId: { type: 'string' },
+          commentDigest: { type: 'string' }, commentId: { type: 'integer' },
           file: { type: 'string' }, line: { type: 'integer' }, claim: { type: 'string' },
           verdict: { type: 'string', enum: ['valid', 'invalid', 'stale'] },
           reason: { type: 'string' }, fixHint: { type: 'string' },
@@ -133,7 +152,27 @@ const postReplyRecipe = (noun) =>
   `After replying to an inline comment, mark its thread resolved. ${RESOLVE_RECIPE} `
 
 const history = []
-const repliedIds = new Set() // issue comments can't be thread-resolved, so they re-harvest every cycle — never reply twice
+// commentId -> { how, digest }: how the comment has been answered so far
+// ('refutation' or 'fixNote') and the body that answer addressed. Either answer
+// resolved its thread, so the comment accrues no further debt from a later
+// harvest - until the reviewer edits the body, which the digest catches: our
+// answer then stands against points that are no longer the ones being made.
+const answeredWith = new Map()
+// commentId -> { dismissals, note }: which dismissals we have relied on without
+// telling the reviewer, and whether a landed fix still owes its note. Standing
+// debt, not a snapshot: a harvest that drops a finding does not settle it. The
+// next validator is asked to re-report these, and the final verdict names them.
+const debt = new Map()
+const owesDismissal = (commentId) => {
+  const d = debt.get(commentId)
+  return !!d && d.dismissals.size > 0
+}
+// findingId, not the location: a fix shifts the line and a re-harvest rewords
+// the claim, either of which would strand the dismissal it was meant to retire.
+// The contract that makes it stable lives in pr-review-validator.md.
+const dismissalKey = (f) => f.findingId
+const unresolvedVerdict = (cycles, deferred) =>
+  ({ pass: false, cycles, history, reason: 'deferred-replies-unresolved', deferred })
 
 // Backoff between cycles that have nothing to do but wait. Degrades to a no-op
 // rather than throwing if the workflow host has no timer.
@@ -319,6 +358,10 @@ const fixCell = (fixes, id, push, pushFailed) => {
   return `${push ? 'fixed + pushed' : 'fixed, uncommitted'}${stat}`
 }
 const VERDICT_ORDER = { valid: 0, stale: 1, invalid: 2 }
+const answerState = (commentId) => !answeredWith.has(commentId) ? 'reply pending'
+  : answeredWith.get(commentId).how === 'refutation' ? 'replied + resolved'
+    : owesDismissal(commentId) ? 'deferred to next cycle' : 'answered by fix note'
+
 const cycleSummary = (entry) => {
   const rows = []
   const findings = [...((entry.reviews && entry.reviews.findings) || [])]
@@ -328,9 +371,11 @@ const cycleSummary = (entry) => {
     rows.push([
       cell(f.source, 16),
       cell(`${f.file}:${f.line} ${f.claim}`),
-      cell(f.verdict, 8),
-      valid ? cell(fixCell(entry.reviewFixes, f.commentId, entry.reviewPush, entry.reviewPushFailed), 60)
-        : cell(`${f.verdict === 'stale' ? 'already fixed' : 'refuted'}, ${repliedIds.has(f.commentId) ? 'replied + resolved' : 'reply pending'}`, 60),
+      cell(f.overturned ? 'overturned' : f.verdict, 8),
+      valid ? cell((f.overturned ? 'codex refuted → claude overturned, ' : '') +
+        fixCell(entry.reviewFixes, f.commentId, entry.reviewPush, entry.reviewPushFailed), 60)
+        : cell(`${f.verdict === 'stale' ? 'already fixed' : 'refuted'}, ${
+          answerState(f.commentId)}`, 60),
       valid ? shaOf(entry.reviewPush) : '-',
     ])
   }
@@ -383,22 +428,166 @@ const runCycle = async (cycle, entry) => {
       { label: `ci#${cycle}`, phase: 'Triage', agentType: 'pr-ci-watcher', schema: CI },
     ).catch(e => { log(`cycle ${cycle}: pr-ci-watcher errored — ${e && e.message}`); return null })
 
-    const r = await agent(
-      `Validate the bot review findings on PR #${args.pr} per your procedure. ${IN_CHECKOUT}`,
-      { label: `reviews#${cycle}`, phase: 'Triage', agentType: 'pr-review-validator', schema: REVIEWS },
-    ).catch(e => { log(`cycle ${cycle}: pr-review-validator errored — ${e && e.message}`); return null })
+    const owedLastCycle = [...debt.keys()]
+    const reviewPrompt =
+      `Validate the bot review findings on PR #${args.pr} per your procedure. ${IN_CHECKOUT}` +
+      (owedLastCycle.length > 0
+        ? 'These comments still owe an answer from an earlier cycle; report their findings again ' +
+          `so they can be reconciled: ${JSON.stringify(owedLastCycle)}. ` : '')
+    // Claude, not Codex: the whole procedure is `gh`, and the read-only sandbox
+    // the Codex launcher enforces has no network, so a Codex-hosted validator
+    // reports an empty harvest as a settled one.
+    const r = await agent(reviewPrompt, {
+      label: `reviews#${cycle}`, phase: 'Triage', agentType: 'pr-review-validator', schema: REVIEWS,
+    }).catch(e => { log(`cycle ${cycle}: review validator errored — ${e && e.message}`); return null })
     if (!r) {
       entry.error = 'pr-review-validator died'
       return { pass: false, cycles: cycle, history, reason: 'review-validator-died' }
     }
     entry.reviews = r
-    // Outward reply/resolve attempts this cycle that did not fully complete; a green
-    // PR must not terminate the loop while any remain, or the retry never happens.
-    let pendingReplies = 0
 
-    // Post drafted replies to REFUTED findings immediately. Outward-facing,
-    // so gated on autoPush.
-    const freshReplies = r.replies.filter(x => !repliedIds.has(x.commentId))
+    // findingId is the only thing telling one dismissal on a comment from
+    // another. Two findings sharing one would silently collapse into a single
+    // obligation, so a harvest that reuses an id is not a harvest we can account
+    // for at all.
+    const idsSeen = new Set()
+    const reused = r.findings.find(f => idsSeen.size === idsSeen.add(f.findingId).size)
+    if (reused) {
+      log(`cycle ${cycle}: validator reused findingId ${reused.findingId} — cannot tell its findings apart`)
+      entry.error = 'duplicate findingId'
+      return { pass: false, cycles: cycle, history, reason: 'duplicate-finding-ids' }
+    }
+
+    // Whichever model validated, an independent one checks the dismissals
+    // before any of them is posted: the reviewer's thread gets closed by that
+    // reply, so it is the one verdict worth a second opinion.
+    const overturnedNow = new Map() // commentId -> findings this challenge accepted
+    const contested = r.findings.filter(f => f.verdict !== 'valid')
+    if (contested.length > 0) {
+      const submitted = contested.map((f, id) => ({
+        id, commentId: f.commentId, file: f.file, line: f.line,
+        claim: f.claim, verdict: f.verdict, reason: f.reason,
+      }))
+      const ch = await workflow('code-verify', {
+        provider: 'codex',
+        label: `challenge#${cycle}`,
+        schema: CHALLENGE,
+        prompt: `${IN_CHECKOUT}Another reviewer dismissed these findings on PR #${args.pr}; each ` +
+          "dismissal is about to be posted publicly and will close the reviewer's thread. " +
+          'For every id, decide whether the dismissal holds. upheld=true means the dismissal is ' +
+          'correct and the finding really is invalid or already fixed; upheld=false means the ' +
+          'finding is real and must be fixed, and reason is the evidence that shows it. ' +
+          'Return exactly one verdict per submitted id and no others.\n' +
+          `Findings: ${JSON.stringify(submitted)}.`,
+      }).catch(e => { log(`cycle ${cycle}: challenger errored — ${e && e.message}`); return null })
+
+      // ids are indexes into contested, so a bad one indexes to undefined.
+      const seen = new Set()
+      const complete = ch && Array.isArray(ch.verdicts) &&
+        ch.verdicts.length === contested.length &&
+        ch.verdicts.every(v => contested[v.id] && !seen.has(v.id) && (seen.add(v.id), true))
+      if (!complete) {
+        // Silence must never become a public claim that a reviewer was wrong.
+        log(`cycle ${cycle}: challenge incomplete — refutations withheld`)
+        entry.error = 'review challenger died'
+        return { pass: false, cycles: cycle, history, reason: 'review-challenger-died' }
+      }
+
+      for (const v of ch.verdicts) {
+        if (v.upheld) continue
+        const f = contested[v.id]
+        f.verdict = 'valid'
+        f.overturned = true   // rendered by cycleSummary's valid arm
+        f.fixHint = v.reason  // the evidence, not the dismissal it replaced
+        overturnedNow.set(f.commentId, (overturnedNow.get(f.commentId) || 0) + 1)
+      }
+    }
+
+    // One derived answer to "what does this comment still owe us", replacing
+    // the rules that used to be spread across the reply, fix-note and summary
+    // stages. Derived, not stored: an obligation cannot outlive its cause.
+    //   wait      - carries both a valid and a refuted finding. Refuting it now
+    //               resolves the thread over a fix that has not landed, and the
+    //               drafted body would deny a finding we may have just accepted.
+    //   refutation- refuted findings only; the drafted reply answers it.
+    //   fixNote   - valid findings only; the post-fix note answers it.
+    const ledger = new Map()
+    const digestOf = new Map()
+    for (const f of r.findings) {
+      const e = ledger.get(f.commentId) || { valid: 0, refuted: 0 }
+      if (f.verdict === 'valid') e.valid++; else e.refuted++
+      ledger.set(f.commentId, e)
+      digestOf.set(f.commentId, f.commentDigest)
+    }
+    const owed = (commentId) => {
+      const e = ledger.get(commentId)
+      if (!e) return 'none'
+      if (e.valid && e.refuted) return 'wait'
+      return e.refuted ? 'refutation' : e.valid ? 'fixNote' : 'none'
+    }
+    // Accrue this harvest. A comment already answered accrues nothing further:
+    // answering resolved its thread, so a later stale re-report of the finding
+    // we fixed is a consequence of our own fix, not a new dismissal owed to the
+    // reviewer.
+    //
+    // Dismissals are held by identity, not counted. Overturning one retires
+    // that one - re-reporting a finding the challenge already overturned must
+    // not retire a different dismissal still outstanding - and a comment the
+    // validator stopped reporting keeps everything it owed.
+    for (const f of r.findings) {
+      const prior = answeredWith.get(f.commentId)
+      // Edited after we answered it: the reply that resolved the thread spoke to
+      // a body that no longer stands, so it settles nothing about this one.
+      if (prior && prior.digest !== undefined && prior.digest !== f.commentDigest) {
+        log(`cycle ${cycle}: comment ${f.commentId} was edited after we answered it — its points owe an answer again`)
+        answeredWith.delete(f.commentId)
+      }
+      const answered = answeredWith.has(f.commentId)
+      let d = debt.get(f.commentId)
+      const open = () => (d || (debt.set(f.commentId, d = { dismissals: new Set(), note: false }), d))
+      if (d && d.digest !== f.commentDigest) {
+        // Renumbered under us. Keep everything owed and let the run end
+        // unresolved rather than retire a dismissal by a reused id.
+        log(`cycle ${cycle}: comment ${f.commentId} was edited — its finding ids no longer identify what we owe`)
+        d.digest = f.commentDigest
+        d.renumbered = true
+      }
+      if (f.verdict !== 'valid') {
+        if (!answered) { const e = open(); e.dismissals.add(dismissalKey(f)); e.digest = f.commentDigest }
+        continue
+      }
+      // Valid now, whether the challenge overturned it or it always was: it is
+      // no longer a dismissal. Retiring one is always allowed, even on an
+      // answered comment - otherwise a debt the challenge later overturns can
+      // never be discharged. Except on a comment whose body was edited: its
+      // ids were renumbered, so the id that would retire A may now name B.
+      if (d && !d.renumbered) d.dismissals.delete(dismissalKey(f))
+      if (!answered) { const e = open(); e.note = true; if (e.digest === undefined) e.digest = f.commentDigest }
+      if (d && d.dismissals.size === 0 && !d.note && !d.renumbered) debt.delete(f.commentId)
+    }
+    // A refutation resolves the thread, so it settles the comment outright. A
+    // fix note does not: it says "fixed in commit X", which is not the answer a
+    // dismissal owes, and letting it stand in for one closes the thread with
+    // the wrong content.
+    const pay = (commentId, how) => {
+      answeredWith.set(commentId, { how, digest: digestOf.get(commentId) })
+      const d = debt.get(commentId)
+      if (!d) return
+      d.note = false
+      if (how === 'refutation') { d.dismissals.clear(); d.renumbered = false }
+      if (d.dismissals.size === 0 && !d.renumbered) debt.delete(commentId)
+    }
+
+    // REVIEWS does not tie replies to findings, so a validator can draft a
+    // reply for a comment that owes no refutation; posting it would refute a
+    // reviewer on no one's authority. One per comment, too: postReplyRecipe
+    // posts a single threaded reply and resolves the thread.
+    const seenReply = new Set()
+    const freshReplies = r.replies.filter(x =>
+      owed(x.commentId) === 'refutation' && owesDismissal(x.commentId) &&
+      !seenReply.has(x.commentId) && seenReply.add(x.commentId))
+    const withheld = r.replies.length - freshReplies.length
+    if (withheld > 0) log(`cycle ${cycle}: ${withheld} drafted reply/replies withheld`)
     if (freshReplies.length > 0 && args.autoPush === true) {
       const posted = await agent(
         `Reply to and resolve these refuted review comments on PR #${args.pr}. For each: ${postReplyRecipe('reply')}` +
@@ -407,11 +596,10 @@ const runCycle = async (cycle, entry) => {
         'doneIds = the commentIds fully handled: reply posted (or already present) AND (thread resolved, or an issue comment with no thread to resolve).',
         { label: `replies#${cycle}`, phase: 'Push', model: 'sonnet', schema: OPIDS },
       )
-      // Per-id accounting, matching the resolve path: only fully handled ids are marked
-      // replied; a failed reply/resolve stays fresh and retries next cycle (the prompt's
-      // already-present check keeps the retry from duplicating the reply).
-      for (const id of (posted && posted.doneIds) || []) repliedIds.add(id)
-      pendingReplies += freshReplies.filter(x => !repliedIds.has(x.commentId)).length
+      const offered = new Set(freshReplies.map(x => x.commentId))
+      for (const id of (posted && posted.doneIds) || []) {
+        if (offered.has(id)) pay(id, 'refutation') // a stray id answers nothing
+      }
       if (!posted || !posted.pass) log(`cycle ${cycle}: refuted reply/resolve incomplete — ${posted ? posted.detail : 'agent died'}`)
     }
 
@@ -441,21 +629,23 @@ const runCycle = async (cycle, entry) => {
       }
       entry.reviewPush = push
       reviewPushed = true
+      // A comment still waiting on a sibling refutation is not answered by a
+      // fix note: that note resolves the thread over the unanswered half.
+      const answerable = validFindings.filter(f => owed(f.commentId) === 'fixNote')
       const resolved = await agent(
         `The fixes for PR #${args.pr}'s valid review findings were just committed and pushed (${push.sha}). ` +
         `For each finding below: ${postReplyRecipe('fix note')}` +
         'Each reply states the finding is fixed in the pushed commit, with one line on the change. ' +
-        `Findings: ${JSON.stringify(validFindings.map(f => ({ commentId: f.commentId, file: f.file, line: f.line, claim: f.claim, fixHint: f.fixHint })))}. ` +
+        `Findings: ${JSON.stringify(answerable
+          .map(f => ({ commentId: f.commentId, file: f.file, line: f.line, claim: f.claim, fixHint: f.fixHint })))}. ` +
         'pass=true only if every reply was posted and every thread resolved; detail = what went where. ' +
         'doneIds = the commentIds fully handled: reply posted AND (thread resolved, or an issue comment with no thread to resolve).',
         { label: `resolve#${cycle}`, phase: 'Push', model: 'sonnet', schema: OPIDS },
       )
-      // Per-id accounting: a fully handled finding never re-replies (an issue comment
-      // has no thread to resolve, so it re-harvests as stale next cycle and would get
-      // a duplicate "fixed" note); an unfinished one stays out of repliedIds so its
-      // reply/resolve is retried next cycle instead of silently abandoned.
-      for (const id of (resolved && resolved.doneIds) || []) repliedIds.add(id)
-      pendingReplies += validFindings.filter(f => !repliedIds.has(f.commentId)).length
+      const offeredFix = new Set(answerable.map(f => f.commentId))
+      for (const id of (resolved && resolved.doneIds) || []) {
+        if (offeredFix.has(id)) pay(id, 'fixNote')
+      }
       if (!resolved || !resolved.pass) log(`cycle ${cycle}: fixed reply/resolve incomplete — ${resolved ? resolved.detail : 'agent died'}`)
     }
 
@@ -500,9 +690,21 @@ const runCycle = async (cycle, entry) => {
       return null // pushed: fresh CI run next cycle
     }
     if (r.done && c.status === 'green') {
-      if (pendingReplies > 0) {
-        log(`cycle ${cycle}: PR green but ${pendingReplies} reply/resolve unfinished — re-arming to retry`)
-        return null
+      const outstanding = [...debt.keys()]
+      if (outstanding.length > 0) {
+        if (args.autoPush !== true) {
+          // Nothing can be posted in a dry run, so the debt is an artefact of
+          // that, not a deferral. Reported here rather than earlier so every
+          // fix lane this run is allowed to exercise has already run.
+          log('autoPush not set: replies left unposted (dry run)')
+          return { pass: false, cycles: cycle, history, dryRun: true }
+        }
+        if (cycle < maxCycles) {
+          log(`cycle ${cycle}: PR green but ${outstanding.length} comment(s) still owed an answer — re-arming`)
+          napMs = 60000 * cycle
+          return null
+        }
+        return unresolvedVerdict(cycle, outstanding)
       }
       log(`cycle ${cycle}: PR is green with no unresolved valid findings`)
       return { pass: true, cycles: cycle, history }
@@ -554,4 +756,6 @@ for (let cycle = 1; cycle <= maxCycles; cycle++) {
   }
   if (verdict) return verdict
 }
-return { pass: false, cycles: maxCycles, history, reason: 'maxCycles reached' }
+return debt.size > 0
+  ? unresolvedVerdict(maxCycles, [...debt.keys()])
+  : { pass: false, cycles: maxCycles, history, reason: 'maxCycles reached' }
