@@ -985,7 +985,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, const uint8_t setup_packet
   const uint16_t setup_packet_datalen = 8;
   memcpy(USBFS_TX_Buf, setup_packet, setup_packet_datalen);
   USBOTG_H_FS->HOST_TX_LEN          = setup_packet_datalen;
-  uint8_t ep_addr                   = (setup_packet[0] & 0x80) ? 0x80 : 0x00;
+  uint8_t ep_addr                   = 0x00; // SETUP is always OUT
   usb_current_xfer_info.dev_addr    = dev_addr;
   usb_current_xfer_info.ep_addr     = ep_addr;
   usb_current_xfer_info.xfer_type   = TUSB_XFER_CONTROL;
