@@ -1,6 +1,6 @@
 export const meta = {
   name: 'pr-babysit',
-  description: 'Drive a PR to green: a fast review lane (validate bot findings, fix, push without waiting on CI) overlapped with a CI-watch lane; code-writer fixes, code-verifier verification, at most one push per lane per cycle',
+  description: 'Drive a PR to green: a fast review lane (validate bot findings, fix, push without waiting on CI) overlapped with a CI-watch lane; code-writer fixes, code-verifier verification, at most one push per lane per cycle, and a bot/finding/outcome/commit table logged per cycle',
   whenToUse: 'After opening a PR, from a checkout of the PR branch. Default is a dry run (fixes left uncommitted, nothing posted); passing autoPush: true is the explicit authorization for pushes and PR comments.',
   phases: [{ title: 'Triage' }, { title: 'Fix' }, { title: 'Verify' }, { title: 'Push' }],
 }
@@ -87,10 +87,16 @@ const CHECK = {
   required: ['addresses', 'reason'],
   properties: { addresses: { type: 'boolean' }, reason: { type: 'string' } },
 }
-const OP = {
+// `committed` separates the two ways pass=false happens: the commit exists and
+// only the push was rejected, or no commit was ever created (hook rejection,
+// missing git identity) and the work is still only in the working tree.
+const PUSH = {
   type: 'object', additionalProperties: false,
-  required: ['pass', 'detail'],
-  properties: { pass: { type: 'boolean' }, detail: { type: 'string' } },
+  required: ['pass', 'committed', 'detail', 'sha'],
+  properties: {
+    pass: { type: 'boolean' }, committed: { type: 'boolean' },
+    detail: { type: 'string' }, sha: { type: 'string' },
+  },
 }
 const SCOPE = {
   type: 'object', additionalProperties: false,
@@ -152,6 +158,8 @@ const canon = (p) => {
 }
 
 // Group actionable notes by top-level scope (plain JS — no model tokens).
+// A note keeps its id alongside its text so the cycle summary can still map a
+// finding to the fix that handled it after grouping and merging.
 const groupWork = (notes) => {
   const groups = new Map()
   for (const n of notes) {
@@ -159,7 +167,7 @@ const groupWork = (notes) => {
     if (!groups.has(key)) groups.set(key, { key, files: new Set(), notes: [] })
     const g = groups.get(key)
     n.files.forEach(f => { const c = canon(f); if (c) g.files.add(c) })
-    g.notes.push(n.text)
+    g.notes.push({ id: n.id, text: n.text })
   }
   return [...groups.values()]
 }
@@ -167,6 +175,11 @@ const groupWork = (notes) => {
 // Fix + verify one work list; returns { ok, fixes } — ok only if every group
 // was scoped, fixed by a live worker, AND passed code-verifier verification.
 const fixAndVerify = async (workIn) => {
+  const textOf = (w) => w.notes.map(n => n.text).join('\n- ')
+  // The note ids ride along on the fix so the cycle summary can say which
+  // finding each fix answered, after grouping and the overlap merge.
+  const verdictOf = (fix, w, addresses, checkReason) =>
+    ({ ...fix, ids: w.notes.map(n => n.id), addresses, checkReason })
   // code-writer's contract needs an explicit file set: a group whose notes named no
   // files (a CI failure whose log yielded no paths) is scoped by a dedicated agent
   // first; if that fails too, the group is withheld (ok=false → human review) rather
@@ -174,7 +187,7 @@ const fixAndVerify = async (workIn) => {
   const fileless = workIn.filter(w => w.files.size === 0)
   await parallel(fileless.map(w => () =>
     agent(
-      `${IN_CHECKOUT}Determine which repo files must change to address these notes (read the code; if a note is a CI failure, read its CI log too):\n- ${w.notes.join('\n- ')}\n` +
+      `${IN_CHECKOUT}Determine which repo files must change to address these notes (read the code; if a note is a CI failure, read its CI log too):\n- ${textOf(w)}\n` +
       'files = repo-relative paths; empty only if genuinely undeterminable.',
       { label: `scope:${w.key}`, phase: 'Fix', model: 'sonnet', schema: SCOPE },
     ).then(s => s && s.files.forEach(f => { const c = canon(f); if (c) w.files.add(c) }))))
@@ -226,186 +239,319 @@ const fixAndVerify = async (workIn) => {
     w => agent(
       `Fix the following issues on the PR branch. ${IN_CHECKOUT}\n` +
       'Constraint: never modify test/hil/*.json (HIL rig hardware config) — a failure that needs hardware swapped/changed stays red for the user.\n' +
-      `Scope: ${scopeOf(w)}\nIssues:\n- ${w.notes.join('\n- ')}`,
+      `Scope: ${scopeOf(w)}\nIssues:\n- ${textOf(w)}`,
       { label: `fix:${w.key}`, phase: 'Fix', agentType: 'code-writer', schema: DEV },
     ),
-    (fix, w) => fix && workflow('code-verify', {
-      prompt: `${IN_CHECKOUT}Verify the uncommitted changes for ${scopeOf(w)} (use git diff -- <the files above>, and read any newly created untracked files directly) address these issues:\n- ${w.notes.join('\n- ')}\n` +
-      'Return {"addresses": bool, "reason": string}.',
-      label: `check:${w.key}`,
-      schema: CHECK,
-    }).catch(() => null)
-      .then(v => ({ ...fix, addresses: !!(v && v.addresses), checkReason: v ? v.reason : 'verifier died' })),
+    (fix, w) => {
+      if (!fix) return null
+      // A broken build is already fatal below, so skip the verifier: its verdict
+      // could not change the outcome and it is the expensive step here.
+      if (fix.buildOk === false) return verdictOf(fix, w, false, 'targeted build failed')
+      return workflow('code-verify', {
+        prompt: `${IN_CHECKOUT}Verify the uncommitted changes for ${scopeOf(w)} (use git diff -- <the files above>, and read any newly created untracked files directly) address these issues:\n- ${textOf(w)}\n` +
+        'Return {"addresses": bool, "reason": string}.',
+        label: `check:${w.key}`,
+        schema: CHECK,
+      }).catch(() => null)
+        .then(v => verdictOf(fix, w, !!(v && v.addresses), v ? v.reason : 'verifier died'))
+    },
   )
   const alive = fixes.filter(Boolean)
   if (alive.length < work.length) log(`${work.length - alive.length} fix group(s) lost to dead workers`)
   const unverified = alive.filter(f => f.addresses !== true)
   for (const f of unverified) log(`fix for ${f.item}: failed verification — ${f.checkReason}`)
-  return { ok: unscoped.length === 0 && withheld.length === 0 && alive.length === work.length && unverified.length === 0, fixes: alive }
+  // A fix whose own targeted build failed is not pushable, however well it reads
+  // against the finding: CI would only rediscover the break a cycle later.
+  const broken = alive.filter(f => f.buildOk === false)
+  for (const f of broken) log(`fix for ${f.item}: targeted build FAILED — not pushable`)
+  return {
+    ok: unscoped.length === 0 && withheld.length === 0 && alive.length === work.length
+      && unverified.length === 0 && broken.length === 0,
+    fixes: alive,
+  }
+}
+
+// ---- per-cycle scoreboard ----
+// One markdown row per validated bot finding (and real CI failure): what the bot
+// claimed, the verdict, what happened to it, and the commit carrying the fix.
+// A finding is identified by its commentId (as it already is for replies); a CI
+// failure gets an `id` stamped on it where the watcher's list arrives, because
+// two matrix legs of one job report the same `check`.
+
+// Markdown cells break on newlines and bare pipes; long claims need a cap.
+// Backslashes go first: escaping pipes in `\|` without it yields `\\|`, whose
+// doubled backslash GFM eats, leaving the pipe live to split the row.
+const cell = (s, max = 90) => {
+  const t = String(s ?? '').replace(/\s+/g, ' ').replace(/\\/g, '\\\\').replace(/\|/g, '\\|').trim()
+  if (!t) return '-'
+  return t.length > max ? `${t.slice(0, max - 1)}…` : t
+}
+const mdTable = (headers, rows) => {
+  const w = headers.map((h, i) => Math.max(h.length, ...rows.map(r => r[i].length)))
+  const line = (cells) => `| ${cells.map((c, i) => c.padEnd(w[i])).join(' | ')} |`
+  return [line(headers), line(w.map(n => '-'.repeat(n))), ...rows.map(line)].join('\n')
+}
+// Validate the pushed SHA rather than trusting it: it is model output, and a
+// mislabeled commit in the table is worse than no commit at all.
+const shaOf = (push) => {
+  const s = push && push.sha && String(push.sha).trim()
+  return s && /^[0-9a-f]{7,40}$/.test(s) ? s.slice(0, 8) : '-'
+}
+const fixCell = (fixes, id, push, pushFailed) => {
+  // No fixes array at all = that lane never got to dispatch this cycle (a dead
+  // agent, or a push in the other lane that superseded it).
+  if (!fixes) return 'no fix attempted this cycle'
+  const fix = fixes.find(x => x.ids.includes(id))
+  if (!fix) return 'withheld (no fix dispatched)'
+  // A broken build reports as unverified: fixAndVerify makes buildOk === false
+  // fail verification with that reason, so it never reaches the pushable text.
+  if (fix.addresses !== true) return `unverified: ${fix.checkReason}`
+  const stat = fix.diffstat ? ` — ${fix.diffstat}` : ''
+  // Two different recoveries, so never infer one from the other: a rejected push
+  // leaves the fix committed locally, while a failed commit leaves it only in the
+  // working tree with nothing in git to recover.
+  if (pushFailed) {
+    const detail = pushFailed.detail || 'no detail'
+    return pushFailed.committed
+      ? `fixed + committed, PUSH FAILED: ${detail}${stat}`
+      : `fixed, COMMIT FAILED: ${detail}${stat}`
+  }
+  return `${push ? 'fixed + pushed' : 'fixed, uncommitted'}${stat}`
+}
+const VERDICT_ORDER = { valid: 0, stale: 1, invalid: 2 }
+const cycleSummary = (entry) => {
+  const rows = []
+  const findings = [...((entry.reviews && entry.reviews.findings) || [])]
+    .sort((a, b) => (VERDICT_ORDER[a.verdict] ?? 3) - (VERDICT_ORDER[b.verdict] ?? 3))
+  for (const f of findings) {
+    const valid = f.verdict === 'valid'
+    rows.push([
+      cell(f.source, 16),
+      cell(`${f.file}:${f.line} ${f.claim}`),
+      cell(f.verdict, 8),
+      valid ? cell(fixCell(entry.reviewFixes, f.commentId, entry.reviewPush, entry.reviewPushFailed), 60)
+        : cell(`${f.verdict === 'stale' ? 'already fixed' : 'refuted'}, ${repliedIds.has(f.commentId) ? 'replied + resolved' : 'reply pending'}`, 60),
+      valid ? shaOf(entry.reviewPush) : '-',
+    ])
+  }
+  for (const rf of ((entry.ci && entry.ci.realFailures) || [])) {
+    rows.push([
+      cell(`ci:${rf.check}`, 24),
+      cell(rf.firstError),
+      rf.rigSide ? 'rig-side' : 'ci-real',
+      rf.rigSide ? 'left red for the rig' : cell(fixCell(entry.ciFixes, rf.id, entry.ciPush, entry.ciPushFailed), 60),
+      rf.rigSide ? '-' : shaOf(entry.ciPush),
+    ])
+  }
+  const head = `cycle ${entry.cycle} summary — CI ${entry.ci ? entry.ci.status : 'unknown'}, ` +
+    `${entry.reviews ? (entry.reviews.done ? 'all bots settled' : 'bots still pending') : 'no review data'}` +
+    `${entry.error ? `, ERROR: ${entry.error}` : ''}`
+  return rows.length === 0
+    ? `${head}\n(no bot findings, no real CI failures)`
+    : `${head}\n${mdTable(['Bot', 'Finding', 'Verdict', 'Outcome', 'Commit'], rows)}`
 }
 
 // Verification gates every push: never push unverified or partial edits.
+// Returns the agent's verdict as-is (pass=false and all) so the caller can tell
+// the summary whether the fix is sitting committed-but-unpushed; a dead agent
+// becomes a pass=false verdict of its own.
 const commitAndPush = async (cycle, what) => {
   const push = await agent(
     `${IN_CHECKOUT}On the PR branch: commit ALL working-tree changes as ONE commit (imperative message summarizing the cycle-${cycle} ${what} fixes for PR #${args.pr}, repo commit conventions), ` +
-    "then push to the PR's remote branch. pass=true only if commit AND push succeeded; detail = pushed SHA.",
-    { label: `push#${cycle}-${what}`, phase: 'Push', model: 'sonnet', schema: OP },
+    "then push to the PR's remote branch. pass=true only if commit AND push succeeded; " +
+    'committed = a commit was created, even if the push then failed (false if the commit itself never landed); ' +
+    'sha = the pushed commit SHA, `git rev-parse HEAD` verbatim and nothing else; detail = one line on what was pushed.',
+    { label: `push#${cycle}-${what}`, phase: 'Push', model: 'sonnet', schema: PUSH },
   )
-  return push && push.pass ? push : null
+  return push || { pass: false, committed: false, detail: 'push agent died', sha: '' }
+}
+
+let napMs = 0 // backoff owed from the previous cycle, taken after its summary
+
+// One cycle: returns null to re-arm, or the workflow's final result to stop.
+// Records what happened on `entry` as it goes, so the caller can report a cycle
+// that ended early.
+const runCycle = async (cycle, entry) => {
+  let ciPromise = null
+  // Every early return below can leave the CI lane still running: settle it in a
+  // finally so no CI agent outlives the workflow, even on a throw.
+  try {
+    // Two independent lanes, launched together. The review lane never waits on
+    // CI: it validates, fixes, and pushes while the CI lane is still watching.
+    ciPromise = agent(
+      `Watch CI for PR #${args.pr} per your procedure; wait for pending checks.`,
+      { label: `ci#${cycle}`, phase: 'Triage', agentType: 'pr-ci-watcher', schema: CI },
+    ).catch(e => { log(`cycle ${cycle}: pr-ci-watcher errored — ${e && e.message}`); return null })
+
+    const r = await agent(
+      `Validate the bot review findings on PR #${args.pr} per your procedure. ${IN_CHECKOUT}`,
+      { label: `reviews#${cycle}`, phase: 'Triage', agentType: 'pr-review-validator', schema: REVIEWS },
+    ).catch(e => { log(`cycle ${cycle}: pr-review-validator errored — ${e && e.message}`); return null })
+    if (!r) {
+      entry.error = 'pr-review-validator died'
+      return { pass: false, cycles: cycle, history, reason: 'review-validator-died' }
+    }
+    entry.reviews = r
+    // Outward reply/resolve attempts this cycle that did not fully complete; a green
+    // PR must not terminate the loop while any remain, or the retry never happens.
+    let pendingReplies = 0
+
+    // Post drafted replies to REFUTED findings immediately. Outward-facing,
+    // so gated on autoPush.
+    const freshReplies = r.replies.filter(x => !repliedIds.has(x.commentId))
+    if (freshReplies.length > 0 && args.autoPush === true) {
+      const posted = await agent(
+        `Reply to and resolve these refuted review comments on PR #${args.pr}. For each: ${postReplyRecipe('reply')}` +
+        'If a thread already carries an identical reply of ours (a prior attempt that posted but failed to resolve), do not repost — just resolve it. ' +
+        `Replies: ${JSON.stringify(freshReplies)}. pass=true only if every reply was posted and every inline thread resolved; detail = what went where. ` +
+        'doneIds = the commentIds fully handled: reply posted (or already present) AND (thread resolved, or an issue comment with no thread to resolve).',
+        { label: `replies#${cycle}`, phase: 'Push', model: 'sonnet', schema: OPIDS },
+      )
+      // Per-id accounting, matching the resolve path: only fully handled ids are marked
+      // replied; a failed reply/resolve stays fresh and retries next cycle (the prompt's
+      // already-present check keeps the retry from duplicating the reply).
+      for (const id of (posted && posted.doneIds) || []) repliedIds.add(id)
+      pendingReplies += freshReplies.filter(x => !repliedIds.has(x.commentId)).length
+      if (!posted || !posted.pass) log(`cycle ${cycle}: refuted reply/resolve incomplete — ${posted ? posted.detail : 'agent died'}`)
+    }
+
+    // ---- review lane: fix + push without waiting for CI ----
+    const validFindings = r.findings.filter(x => x.verdict === 'valid')
+    let reviewPushed = false
+    if (validFindings.length > 0) {
+      const work = groupWork(validFindings.map(f => ({
+        id: f.commentId, scopeFile: f.file, files: [f.file],
+        text: `${f.file}:${f.line} [${f.source}] ${f.claim} — hint: ${f.fixHint}`,
+      })))
+      const { ok, fixes } = await fixAndVerify(work)
+      entry.reviewFixes = fixes
+      if (args.autoPush !== true) {
+        log('autoPush not set: review-lane fixes left uncommitted (dry run)')
+        return { pass: false, cycles: cycle, history, dryRun: true }
+      }
+      if (!ok) {
+        log(`cycle ${cycle}: review-lane fixes left uncommitted for human review — not pushing unverified changes`)
+        return { pass: false, cycles: cycle, history, reason: 'fix-verification-failed' }
+      }
+      const push = await commitAndPush(cycle, 'review')
+      if (!push.pass) {
+        entry.reviewPushFailed = push
+        log(`cycle ${cycle}: review-lane push failed (${push.detail}) — stopping`)
+        return { pass: false, cycles: cycle, history, reason: 'push-failed' }
+      }
+      entry.reviewPush = push
+      reviewPushed = true
+      const resolved = await agent(
+        `The fixes for PR #${args.pr}'s valid review findings were just committed and pushed (${push.sha}). ` +
+        `For each finding below: ${postReplyRecipe('fix note')}` +
+        'Each reply states the finding is fixed in the pushed commit, with one line on the change. ' +
+        `Findings: ${JSON.stringify(validFindings.map(f => ({ commentId: f.commentId, file: f.file, line: f.line, claim: f.claim, fixHint: f.fixHint })))}. ` +
+        'pass=true only if every reply was posted and every thread resolved; detail = what went where. ' +
+        'doneIds = the commentIds fully handled: reply posted AND (thread resolved, or an issue comment with no thread to resolve).',
+        { label: `resolve#${cycle}`, phase: 'Push', model: 'sonnet', schema: OPIDS },
+      )
+      // Per-id accounting: a fully handled finding never re-replies (an issue comment
+      // has no thread to resolve, so it re-harvests as stale next cycle and would get
+      // a duplicate "fixed" note); an unfinished one stays out of repliedIds so its
+      // reply/resolve is retried next cycle instead of silently abandoned.
+      for (const id of (resolved && resolved.doneIds) || []) repliedIds.add(id)
+      pendingReplies += validFindings.filter(f => !repliedIds.has(f.commentId)).length
+      if (!resolved || !resolved.pass) log(`cycle ${cycle}: fixed reply/resolve incomplete — ${resolved ? resolved.detail : 'agent died'}`)
+    }
+
+    // ---- CI lane result ----
+    const c = await ciPromise
+    if (!c) {
+      log(`cycle ${cycle}: pr-ci-watcher died — re-arming`)
+      return null
+    }
+    if (reviewPushed) {
+      // The push restarted CI: this cycle's CI verdict is superseded. Re-arm;
+      // next cycle's ci#N watches the fresh run.
+      log(`cycle ${cycle}: review-lane push superseded the CI run — re-arming`)
+      return null
+    }
+    c.realFailures.forEach((rf, i) => { rf.id = `ci:${i}:${rf.check}` })
+    const rigSide = c.realFailures.filter(rf => rf.rigSide)
+    for (const rf of rigSide) log(`cycle ${cycle}: rig-side CI failure (not fixing): ${rf.check} — ${rf.firstError.slice(0, 120)}`)
+    const fixable = c.realFailures.filter(rf => !rf.rigSide)
+    if (fixable.length > 0) {
+      const work = groupWork(fixable.map(rf => ({
+        id: rf.id, scopeFile: rf.files[0] || rf.check, files: rf.files,
+        text: `CI ${rf.check}: ${rf.firstError}`,
+      })))
+      const { ok, fixes } = await fixAndVerify(work)
+      entry.ciFixes = fixes
+      if (args.autoPush !== true) {
+        log('autoPush not set: CI-lane fixes left uncommitted (dry run)')
+        return { pass: false, cycles: cycle, history, dryRun: true }
+      }
+      if (!ok) {
+        log(`cycle ${cycle}: CI-lane fixes left uncommitted for human review — not pushing unverified changes`)
+        return { pass: false, cycles: cycle, history, reason: 'fix-verification-failed' }
+      }
+      const ciPush = await commitAndPush(cycle, 'ci')
+      if (!ciPush.pass) {
+        entry.ciPushFailed = ciPush
+        log(`cycle ${cycle}: CI-lane push failed (${ciPush.detail}) — stopping`)
+        return { pass: false, cycles: cycle, history, reason: 'push-failed' }
+      }
+      entry.ciPush = ciPush
+      return null // pushed: fresh CI run next cycle
+    }
+    if (r.done && c.status === 'green') {
+      if (pendingReplies > 0) {
+        log(`cycle ${cycle}: PR green but ${pendingReplies} reply/resolve unfinished — re-arming to retry`)
+        return null
+      }
+      log(`cycle ${cycle}: PR is green with no unresolved valid findings`)
+      return { pass: true, cycles: cycle, history }
+    }
+    if (r.done && rigSide.length > 0 && fixable.length === 0 && c.infraRerun.length === 0 && c.status !== 'running') {
+      log(`cycle ${cycle}: CI red only from rig-side failures — human/rig attention needed, nothing to fix in the PR`)
+      return { pass: false, cycles: cycle, history, reason: 'ci-red-rig-side' }
+    }
+    if (c.status === 'running' || c.infraRerun.length > 0) {
+      log(`cycle ${cycle}: CI still settling (${c.infraRerun.length} infra re-run(s)) — re-arming`)
+      return null
+    }
+    if (!r.done) {
+      // A bot has not reported for this head SHA yet. With CI already green there is
+      // nothing else to wait on, so back off before re-arming or the cycle budget
+      // burns on back-to-back re-harvests of the same unchanged PR.
+      if (cycle < maxCycles) {
+        log(`cycle ${cycle}: auto-review still pending — re-arming after a wait`)
+        napMs = 60000 * cycle // taken at the top of the next cycle, after this one's summary
+      } else {
+        log(`cycle ${cycle}: auto-review still pending — cycle budget exhausted`)
+      }
+      return null
+    }
+    log(`cycle ${cycle}: nothing actionable`)
+    return { pass: false, cycles: cycle, history, reason: 'unactionable' }
+  } finally {
+    if (ciPromise) entry.ci = await ciPromise
+  }
 }
 
 for (let cycle = 1; cycle <= maxCycles; cycle++) {
-  // Two independent lanes, launched together. The review lane never waits on
-  // CI: it validates, fixes, and pushes while the CI lane is still watching.
-  const ciPromise = agent(
-    `Watch CI for PR #${args.pr} per your procedure; wait for pending checks.`,
-    { label: `ci#${cycle}`, phase: 'Triage', agentType: 'pr-ci-watcher', schema: CI },
-  ).catch(e => { log(`cycle ${cycle}: pr-ci-watcher errored — ${e && e.message}`); return null })
-  // Every early return below leaves the loop while the CI lane is still
-  // running: settle it first so no CI agent outlives the workflow.
-  const stopWith = async (result) => { await ciPromise; return result }
-
-  const r = await agent(
-    `Validate the bot review findings on PR #${args.pr} per your procedure. ${IN_CHECKOUT}`,
-    { label: `reviews#${cycle}`, phase: 'Triage', agentType: 'pr-review-validator', schema: REVIEWS },
-  )
-  if (!r) {
-    history.push({ cycle, error: 'pr-review-validator died' })
-    return await stopWith({ pass: false, cycles: cycle, history, reason: 'review-validator-died' })
-  }
-  const entry = { cycle, reviews: r }
+  if (napMs > 0) { await nap(napMs); napMs = 0 }
+  const entry = { cycle }
   history.push(entry)
-  // Outward reply/resolve attempts this cycle that did not fully complete; a green
-  // PR must not terminate the loop while any remain, or the retry never happens.
-  let pendingReplies = 0
-
-  // Post drafted replies to REFUTED findings immediately. Outward-facing,
-  // so gated on autoPush.
-  const freshReplies = r.replies.filter(x => !repliedIds.has(x.commentId))
-  if (freshReplies.length > 0 && args.autoPush === true) {
-    const posted = await agent(
-      `Reply to and resolve these refuted review comments on PR #${args.pr}. For each: ${postReplyRecipe('reply')}` +
-      'If a thread already carries an identical reply of ours (a prior attempt that posted but failed to resolve), do not repost — just resolve it. ' +
-      `Replies: ${JSON.stringify(freshReplies)}. pass=true only if every reply was posted and every inline thread resolved; detail = what went where. ` +
-      'doneIds = the commentIds fully handled: reply posted (or already present) AND (thread resolved, or an issue comment with no thread to resolve).',
-      { label: `replies#${cycle}`, phase: 'Push', model: 'sonnet', schema: OPIDS },
-    )
-    // Per-id accounting, matching the resolve path: only fully handled ids are marked
-    // replied; a failed reply/resolve stays fresh and retries next cycle (the prompt's
-    // already-present check keeps the retry from duplicating the reply).
-    for (const id of (posted && posted.doneIds) || []) repliedIds.add(id)
-    pendingReplies += freshReplies.filter(x => !repliedIds.has(x.commentId)).length
-    if (!posted || !posted.pass) log(`cycle ${cycle}: refuted reply/resolve incomplete — ${posted ? posted.detail : 'agent died'}`)
+  // A rejection from any worker not individually guarded (replies/resolve/scope/
+  // fixer/push) must not skip the scoreboard — that is exactly the cycle worth
+  // reporting. Converting it to a failure verdict instead of rethrowing keeps
+  // `history`, as the dead-validator path does.
+  let verdict
+  try {
+    verdict = await runCycle(cycle, entry)
+  } catch (e) {
+    entry.error = `cycle threw: ${e && e.message}`
+    verdict = { pass: false, cycles: cycle, history, reason: 'cycle-threw' }
+  } finally {
+    entry.summary = cycleSummary(entry)
+    log(entry.summary)
   }
-
-  // ---- review lane: fix + push without waiting for CI ----
-  const validFindings = r.findings.filter(x => x.verdict === 'valid')
-  let reviewPushed = false
-  if (validFindings.length > 0) {
-    const work = groupWork(validFindings.map(f => ({
-      scopeFile: f.file, files: [f.file],
-      text: `${f.file}:${f.line} [${f.source}] ${f.claim} — hint: ${f.fixHint}`,
-    })))
-    const { ok, fixes } = await fixAndVerify(work)
-    entry.reviewFixes = fixes
-    if (args.autoPush !== true) {
-      log('autoPush not set: review-lane fixes left uncommitted (dry run)')
-      return await stopWith({ pass: false, cycles: cycle, history, dryRun: true })
-    }
-    if (!ok) {
-      log(`cycle ${cycle}: review-lane fixes left uncommitted for human review — not pushing unverified changes`)
-      return await stopWith({ pass: false, cycles: cycle, history, reason: 'fix-verification-failed' })
-    }
-    const push = await commitAndPush(cycle, 'review')
-    if (!push) {
-      log(`cycle ${cycle}: review-lane push failed — stopping`)
-      return await stopWith({ pass: false, cycles: cycle, history, reason: 'push-failed' })
-    }
-    reviewPushed = true
-    const resolved = await agent(
-      `The fixes for PR #${args.pr}'s valid review findings were just committed and pushed (${push.detail}). ` +
-      `For each finding below: ${postReplyRecipe('fix note')}` +
-      'Each reply states the finding is fixed in the pushed commit, with one line on the change. ' +
-      `Findings: ${JSON.stringify(validFindings.map(f => ({ commentId: f.commentId, file: f.file, line: f.line, claim: f.claim, fixHint: f.fixHint })))}. ` +
-      'pass=true only if every reply was posted and every thread resolved; detail = what went where. ' +
-      'doneIds = the commentIds fully handled: reply posted AND (thread resolved, or an issue comment with no thread to resolve).',
-      { label: `resolve#${cycle}`, phase: 'Push', model: 'sonnet', schema: OPIDS },
-    )
-    // Per-id accounting: a fully handled finding never re-replies (an issue comment
-    // has no thread to resolve, so it re-harvests as stale next cycle and would get
-    // a duplicate "fixed" note); an unfinished one stays out of repliedIds so its
-    // reply/resolve is retried next cycle instead of silently abandoned.
-    for (const id of (resolved && resolved.doneIds) || []) repliedIds.add(id)
-    pendingReplies += validFindings.filter(f => !repliedIds.has(f.commentId)).length
-    if (!resolved || !resolved.pass) log(`cycle ${cycle}: fixed reply/resolve incomplete — ${resolved ? resolved.detail : 'agent died'}`)
-  }
-
-  // ---- CI lane result ----
-  const c = await ciPromise
-  entry.ci = c
-  if (!c) {
-    log(`cycle ${cycle}: pr-ci-watcher died — re-arming`)
-    continue
-  }
-  if (reviewPushed) {
-    // The push restarted CI: this cycle's CI verdict is superseded. Re-arm;
-    // next cycle's ci#N watches the fresh run.
-    log(`cycle ${cycle}: review-lane push superseded the CI run — re-arming`)
-    continue
-  }
-  const rigSide = c.realFailures.filter(rf => rf.rigSide)
-  for (const rf of rigSide) log(`cycle ${cycle}: rig-side CI failure (not fixing): ${rf.check} — ${rf.firstError.slice(0, 120)}`)
-  const fixable = c.realFailures.filter(rf => !rf.rigSide)
-  if (fixable.length > 0) {
-    const work = groupWork(fixable.map(rf => ({
-      scopeFile: rf.files[0] || rf.check, files: rf.files,
-      text: `CI ${rf.check}: ${rf.firstError}`,
-    })))
-    const { ok, fixes } = await fixAndVerify(work)
-    entry.ciFixes = fixes
-    if (args.autoPush !== true) {
-      log('autoPush not set: CI-lane fixes left uncommitted (dry run)')
-      return { pass: false, cycles: cycle, history, dryRun: true }
-    }
-    if (!ok) {
-      log(`cycle ${cycle}: CI-lane fixes left uncommitted for human review — not pushing unverified changes`)
-      return { pass: false, cycles: cycle, history, reason: 'fix-verification-failed' }
-    }
-    if (!(await commitAndPush(cycle, 'ci'))) {
-      log(`cycle ${cycle}: CI-lane push failed — stopping`)
-      return { pass: false, cycles: cycle, history, reason: 'push-failed' }
-    }
-    continue // pushed: fresh CI run next cycle
-  }
-  if (r.done && c.status === 'green') {
-    if (pendingReplies > 0) {
-      log(`cycle ${cycle}: PR green but ${pendingReplies} reply/resolve unfinished — re-arming to retry`)
-      continue
-    }
-    log(`cycle ${cycle}: PR is green with no unresolved valid findings`)
-    return { pass: true, cycles: cycle, history }
-  }
-  if (r.done && rigSide.length > 0 && fixable.length === 0 && c.infraRerun.length === 0 && c.status !== 'running') {
-    log(`cycle ${cycle}: CI red only from rig-side failures — human/rig attention needed, nothing to fix in the PR`)
-    return { pass: false, cycles: cycle, history, reason: 'ci-red-rig-side' }
-  }
-  if (c.status === 'running' || c.infraRerun.length > 0) {
-    log(`cycle ${cycle}: CI still settling (${c.infraRerun.length} infra re-run(s)) — re-arming`)
-    continue
-  }
-  if (!r.done) {
-    // A bot has not reported for this head SHA yet. With CI already green there is
-    // nothing else to wait on, so back off before re-arming or the cycle budget
-    // burns on back-to-back re-harvests of the same unchanged PR.
-    if (cycle < maxCycles) {
-      log(`cycle ${cycle}: auto-review still pending — re-arming after a wait`)
-      await nap(60000 * cycle) // no wait on the last cycle: nothing would re-check after it
-    } else {
-      log(`cycle ${cycle}: auto-review still pending — cycle budget exhausted`)
-    }
-    continue
-  }
-  log(`cycle ${cycle}: nothing actionable`)
-  return { pass: false, cycles: cycle, history, reason: 'unactionable' }
+  if (verdict) return verdict
 }
 return { pass: false, cycles: maxCycles, history, reason: 'maxCycles reached' }
