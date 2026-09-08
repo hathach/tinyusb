@@ -618,6 +618,12 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
 bool hcd_deinit(uint8_t rhport) {
   (void)rhport;
   hardware_init_host(false);
+  g_sof_frame             = 0;
+  interrupt_enabled       = false;
+  port_reset_in_progress  = false;
+  int_state_for_portreset = false;
+  tu_memclr((void *)&usb_current_xfer_info, sizeof(usb_current_xfer_info));
+  tu_memclr(usb_edpt_list, sizeof(usb_edpt_list));
   return true;
 }
 
