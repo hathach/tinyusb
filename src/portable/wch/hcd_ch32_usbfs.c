@@ -726,10 +726,20 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     if (attached) {
       hcd_event_device_attach(rhport, true);
     } else {
-      // Drop any in-flight / queued ISO on disconnect.
-      bool prev                     = usbfs_irq_save();
+      // Drop any in-flight / queued ISO and NAK-pending state on disconnect.
+      bool prev = usbfs_irq_save();
       usb_current_xfer_info.is_busy = false;
       USBOTG_H_FS->HOST_EP_PID      = 0;
+      // Clear ISO and NAK-pending state for all endpoints so the SOF ISR
+      // does not try to re-arm transfers for the detached device.
+      for (size_t i = 0; i < TU_ARRAY_SIZE(usb_edpt_list); i++) {
+        usb_edpt_t *edpt = &usb_edpt_list[i];
+        if (edpt->configured) {
+          edpt->iso_queued     = false;
+          edpt->iso_active     = false;
+          edpt->is_nak_pending = false;
+        }
+      }
       usbfs_irq_restore(prev);
       hcd_event_device_remove(rhport, true);
     }
