@@ -933,15 +933,30 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
 bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   (void)rhport;
   usb_edpt_t *edpt = get_edpt_record(dev_addr, ep_addr);
-  if (edpt == NULL || edpt->xfer_type != TUSB_XFER_ISOCHRONOUS) {
+  if (edpt == NULL) {
     return false;
   }
-  // Only a queued (not-yet-started) ISO transfer can be aborted.
+
   bool prev    = usbfs_irq_save();
   bool aborted = false;
-  if (edpt->iso_queued && !edpt->iso_active) {
-    edpt->iso_queued = false;
-    aborted          = true;
+
+  if (edpt->xfer_type == TUSB_XFER_ISOCHRONOUS) {
+    // Only a queued (not-yet-started) ISO transfer can be aborted.
+    if (edpt->iso_queued && !edpt->iso_active) {
+      edpt->iso_queued = false;
+      aborted          = true;
+    }
+  } else {
+    // For control/bulk/interrupt: abort the in-flight transfer if it belongs
+    // to this endpoint.
+    if (usb_current_xfer_info.is_busy &&
+        usb_current_xfer_info.dev_addr == dev_addr &&
+        usb_current_xfer_info.ep_addr == ep_addr) {
+      USBOTG_H_FS->HOST_EP_PID      = 0;
+      usb_current_xfer_info.is_busy = false;
+      edpt->is_nak_pending          = false;
+      aborted                       = true;
+    }
   }
   usbfs_irq_restore(prev);
   return aborted;
