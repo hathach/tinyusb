@@ -746,6 +746,25 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     // their 1/frame cadence even while a control transfer is NAKing (the retry
     // happens in the gaps). Reversing this starves ISO under a persistent
     // control NAK.
+
+    // Check for transfer timeout on the in-flight slot.
+    if (usb_current_xfer_info.is_busy) {
+      uint32_t elapsed = tusb_time_millis_api() - usb_current_xfer_info.start_ms;
+      if (elapsed > USB_XFER_TIMEOUT_MILLIS) {
+        uint8_t dev_addr = usb_current_xfer_info.dev_addr;
+        uint8_t ep_addr  = usb_current_xfer_info.ep_addr;
+        LOG_CH32_USBFSH("Transfer timeout, dev=0x%02x, ep=0x%02x\r\n", dev_addr, ep_addr);
+        // Clear any NAK-pending state so arm_nak_retry does not re-arm.
+        usb_edpt_t *edpt = get_edpt_record(dev_addr, ep_addr);
+        if (edpt != NULL) {
+          edpt->is_nak_pending = false;
+        }
+        USBOTG_H_FS->HOST_EP_PID      = 0;
+        usb_current_xfer_info.is_busy = false;
+        hcd_event_xfer_complete(dev_addr, ep_addr, 0, XFER_RESULT_FAILED, true);
+      }
+    }
+
     arm_iso_drain(true);
     arm_nak_retry();
     // fall through
