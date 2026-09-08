@@ -24,6 +24,7 @@ Bias toward caution over speed. For trivial tasks, use judgment.
 
 - Keep `CLAUDE.md` and `.claude/{agents,skills,workflows}` canonical; preserve `AGENTS.md -> CLAUDE.md` and `.agents -> .claude`.
 - Use `.codex/agents/<role>.toml` to load `.claude/agents/<role>.md`; keep adapters thin and never duplicate role bodies.
+- Exception: `code-simplifier` wraps bundled `/simplify` in Claude; Codex keeps its standalone equivalent in TOML.
 - Use `/codex:review` for independent read-only review, `/codex:adversarial-review` to challenge a design, and `/codex:rescue` for bounded implementation or diagnosis.
 - Concurrent writers need separate worktrees; otherwise yield the worktree until delegated edits finish.
 - Keep orchestration in `.claude/workflows/`. Use `code-verify` with `provider: 'codex'` (default), `'claude'`, or `'both'`; `validate`/`full-check` use `reviewProvider`. Keep workflow nesting to one level and the Codex subprocess in `.claude/agents/codex-code-verifier.md`.

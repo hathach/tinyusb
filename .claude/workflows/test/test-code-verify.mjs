@@ -293,5 +293,86 @@ await check('full-check forwards the reviewer selection to validate', async () =
   assert.deepEqual(seen[0].args.boards, ['test'])
 })
 
+await check('fanout simplifies once after all writers and before verification', async () => {
+  const src = readFileSync(new URL('../fanout-dev.js', import.meta.url), 'utf8').replace(/^export /m, '')
+  const fn = new AsyncFunction(
+    'args', 'agent', 'pipeline', 'parallel', 'phase', 'log', 'workflow', 'budget', src)
+  const pipeline = (items, ...stages) => Promise.all(items.map(async (item, index) => {
+    let value = item
+    for (const stage of stages) value = await stage(value, item, index)
+    return value
+  }))
+  const runFanout = async ({ worktree = false, deadWriter = false, deadSimplifier = false,
+    deadBuilder = false } = {}) => {
+    const events = []
+    const logs = []
+    const scopes = []
+    const agent = async (prompt, options) => {
+      if (options.agentType === 'code-writer') {
+        const item = options.label.slice(4)
+        if (item === 'a') await new Promise(resolve => setImmediate(resolve))
+        events.push(`wrote:${item}`)
+        if (deadWriter && item === 'a') return null
+        assert.equal(options.isolation, worktree ? 'worktree' : undefined)
+        return { item, board: item, buildOk: true, diffstat: '', notes: `note:${item}` }
+      }
+      if (options.agentType === 'code-simplifier') {
+        assert.deepEqual([...events].sort(), ['wrote:a', 'wrote:b'])
+        scopes.push(prompt.match(/Assigned scopes: (\[[^\]]*\])/)[1])
+        // writer results reach the simplifier as notes only, not build metadata
+        assert.match(prompt, /Writer notes: .*note:b/)
+        assert.doesNotMatch(prompt, /buildOk/)
+        events.push('simplified')
+        return deadSimplifier ? null : { changed: true, files: ['b/file.c'], summary: 'tidied' }
+      }
+      assert.equal(options.agentType, 'builder')
+      assert.equal(events.filter(e => e === 'simplified').length, 1)
+      events.push(options.label)
+      return deadBuilder ? null : { pass: true }
+    }
+    const workflow = async (name, args) => {
+      assert.equal(name, 'code-verify')
+      assert.ok(events.includes(args.label.replace('review:', 'verify:')))
+      assert.match(args.prompt, /git diff HEAD/)
+      events.push(args.label)
+      return { findings: [] }
+    }
+    const result = await fn({ task: 'fix', items: ['a', 'b'], review: true, worktree },
+      agent, pipeline, null, () => {}, message => logs.push(message), workflow, null)
+    return { result, events, logs, scopes }
+  }
+
+  const { result, events, logs, scopes } = await runFanout()
+  assert.equal(events.filter(e => e === 'simplified').length, 1)
+  assert.deepEqual(scopes, ['["a","b"]'])
+  assert.equal(result.length, 2)
+  for (const row of result) {
+    assert.equal(row.verifyBuild, true)
+    assert.deepEqual(row.review, [])
+    // the run-level simplification is logged once, not stamped on every row
+    assert.equal('simplification' in row, false)
+  }
+  assert.ok(logs.some(message => /^simplify: b\/file\.c — tidied$/.test(message)))
+  assert.match(logs.at(-1), /2\/2 items completed; 2 build-clean/)
+
+  // a dead writer drops its own item; the survivors are still simplified and verified
+  const partial = await runFanout({ deadWriter: true })
+  assert.deepEqual(partial.scopes, ['["b"]'])
+  assert.deepEqual(partial.result.map(row => row.item), ['b'])
+  assert.ok(partial.logs.some(message => /1 item\(s\) dropped/.test(message)))
+  assert.match(partial.logs.at(-1), /1\/2 items completed; 1 build-clean/)
+
+  await assert.rejects(runFanout({ deadSimplifier: true }), /simplifier failed/)
+
+  const isolated = await runFanout({ worktree: true })
+  assert.deepEqual(isolated.events.sort(), ['wrote:a', 'wrote:b'])
+  assert.match(isolated.logs[0], /deferred until integration/)
+  assert.match(isolated.logs.at(-1), /2\/2 items completed; 2 build-clean/)
+
+  const unverified = await runFanout({ deadBuilder: true })
+  assert.ok(unverified.result.every(row => row.verifyBuild === null))
+  assert.match(unverified.logs.at(-1), /0 build-clean/)
+})
+
 console.log(failed ? `\n${failed} FAILED` : '\nall checks passed')
 process.exit(failed ? 1 : 0)

@@ -1,9 +1,10 @@
 export const meta = {
   name: 'fanout-dev',
-  description: 'Implement one described change across many ports/file-sets: one code-writer worker per item, independent builder verification, optional review',
+  description: 'Implement one described change across many ports/file-sets: writers, one combined simplification pass, independent builder verification, optional review',
   whenToUse: 'Applying a fix or pattern across multiple TinyUSB ports (e.g. the same DCD bug in several drivers)',
   phases: [
-    { title: 'Implement', detail: 'code-writer per item (opus xhigh)' },
+    { title: 'Implement', detail: 'code-writer per item' },
+    { title: 'Simplify', detail: 'one pass after all shared-checkout writers finish' },
     { title: 'Verify', detail: 'builder single-example check' },
     { title: 'Review', detail: 'optional code-verifier pass' },
   ],
@@ -17,7 +18,7 @@ if (!args || !args.task || !Array.isArray(args.items) || args.items.length === 0
 const boardFor = (item) =>
   typeof args.board === 'string' ? args.board : (args.board && args.board[item]) || null
 const short = (s) => s.replace(/\/+$/, '').split('/').slice(-2).join('/')
-if (args.worktree) log('worktree mode: independent builder verification and review skipped (workers verify inside their own worktrees)')
+if (args.worktree) log('worktree mode: combined simplification, independent builder verification and review deferred until integration (workers verify inside their own worktrees)')
 
 const DEV = {
   type: 'object', additionalProperties: false,
@@ -61,7 +62,16 @@ const FINDINGS = {
   },
 }
 
-const results = await pipeline(
+const SIMPLIFY = {
+  type: 'object', additionalProperties: false,
+  required: ['changed', 'files', 'summary'],
+  properties: {
+    changed: { type: 'boolean' }, files: { type: 'array', items: { type: 'string' } },
+    summary: { type: 'string' },
+  },
+}
+
+const devs = await pipeline(
   args.items,
 
   item => agent(
@@ -75,12 +85,40 @@ const results = await pipeline(
       ...(args.worktree ? { isolation: 'worktree' } : {}),
     },
   ),
+)
 
-  (dev, item) => {
+const summarize = (rows, buildClean) => {
+  const dropped = args.items.length - rows.length
+  if (dropped > 0) log(`${dropped} item(s) dropped (worker died)`)
+  log(`${rows.length}/${args.items.length} items completed; ${rows.filter(buildClean).length} build-clean`)
+  return rows
+}
+
+// worktree mode: edits live in each worker's own worktree; neither an independent
+// verifier nor one combined simplifier in the shared tree can see them — trust
+// dev.buildOk and leave both to integration.
+if (args.worktree) return summarize(devs.filter(Boolean), r => r.buildOk)
+
+const live = args.items.filter((_, index) => devs[index])
+if (live.length === 0) return summarize([], r => r.verifyBuild === true)
+
+const simplification = await agent(
+  `Simplify the completed changes for this task:\n${args.task}\n\n` +
+  `Assigned scopes: ${JSON.stringify(live)}. Touch nothing outside them.\n` +
+  `Writer notes: ${JSON.stringify(devs.filter(Boolean).map(dev => ({ item: dev.item, notes: dev.notes })))}\n` +
+  'All writers have finished. Inspect staged and unstaged changes and task-owned untracked files. ' +
+  'Make one behavior-preserving pass; no changes is success. Independent builds and optional review follow.',
+  { label: 'simplify', phase: 'Simplify', agentType: 'code-simplifier', schema: SIMPLIFY },
+)
+if (!simplification) throw new Error('simplifier failed — inspect possible partial edits before retrying')
+log(`simplify: ${simplification.changed ? simplification.files.join(', ') : 'no changes'} — ${simplification.summary}`)
+
+const results = await pipeline(
+  args.items,
+
+  (item, _item, index) => {
+    const dev = devs[index]
     if (!dev) return null
-    // worktree mode: edits live in the worker's own worktree; an independent
-    // verifier in the shared tree cannot see them — trust dev.buildOk.
-    if (args.worktree) return dev
     return agent(
       `Build the single example device/cdc_msc for board ${dev.board}. Use a unique build dir (mktemp -d) to avoid collisions with parallel builds.`,
       { label: `verify:${short(item)}`, phase: 'Verify', agentType: 'builder', schema: BUILD },
@@ -92,9 +130,9 @@ const results = await pipeline(
   },
 
   (r, item) => {
-    if (!r || !args.review || args.worktree) return r
+    if (!r || !args.review) return r
     return workflow('code-verify', {
-      prompt: `Review the uncommitted change in ${item} (inspect with: git diff -- ${item}) against this task:\n${args.task}\n` +
+      prompt: `Review the uncommitted change in ${item} (inspect staged and unstaged changes with git diff HEAD -- ${item}, and read task-owned untracked files) against this task:\n${args.task}\n` +
       'Dimension: does the diff correctly and completely implement the task with no unintended side effects? Coverage-first findings.',
       label: `review:${short(item)}`,
       schema: FINDINGS,
@@ -106,8 +144,4 @@ const results = await pipeline(
   },
 )
 
-const done = results.filter(Boolean)
-const dropped = args.items.length - done.length
-if (dropped > 0) log(`${dropped} item(s) dropped (worker died)`)
-log(`${done.length}/${args.items.length} items completed; ${done.filter(r => r.buildOk && r.verifyBuild !== false).length} build-clean`)
-return done
+return summarize(results.filter(Boolean), r => r.verifyBuild === true)
