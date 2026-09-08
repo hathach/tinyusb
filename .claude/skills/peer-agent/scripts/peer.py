@@ -156,7 +156,7 @@ def extract_result(text, req_id):
         elif start is not None and RESULT_END.match(line):
             blocks.append('\n'.join(lines[start:i + 1]))
             start = None
-    unterminated = start is not None
+    partial = '\n'.join(lines[start:]) if start is not None else None
 
     matching = []
     for body in blocks:
@@ -176,8 +176,14 @@ def extract_result(text, req_id):
         return None, Note(f'{len(matching)} envelopes claim to answer {req_id}; '
                           'resolve by hand', MALFORMED)
     if matching:
+        # The complete one need not be the answer: a rerun of the same id may be
+        # streaming right now, so this is the duplicate case caught mid-write.
+        streaming = FOR_LINE.search(partial) if partial else None
+        if streaming and streaming.group(1) == req_id:
+            return None, Note(f'a complete envelope answers {req_id} and another for the '
+                              'same id is still being written; resolve by hand', MALFORMED)
         return matching[0], None
-    if unterminated:
+    if partial is not None:
         return None, Note('an envelope began but this capture holds no END RESULT for it: '
                           'it may still be streaming, or be beyond the line window', NO_ANSWER)
     if blocks:

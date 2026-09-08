@@ -105,7 +105,7 @@ repos:
   # relying on it being installed system-wide.
   - id: claude-scripts
     name: claude-scripts
-    files: ^\.claude/(codex-agent\.py|skills/.*/scripts/|test/)
+    files: ^\.claude/(codex-agent\.py|skills/.*/(scripts/|SKILL\.md)|test/)
     entry: python3 -m unittest discover -s .claude/test -p 'test_*.py'
     pass_filenames: false
     language: python

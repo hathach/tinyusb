@@ -81,6 +81,23 @@ class ExtractTest(unittest.TestCase):
         self.assertIsNone(body)
         self.assertIn('2 envelopes', note)
 
+    def test_a_complete_answer_beside_a_streaming_twin_is_refused(self):
+        # a rerun of the same id: the finished envelope on screen is the stale
+        # one, so taking it would read the previous round as this round's answer
+        text = (RESULT.format(id='w1:p1-7') + '\n'
+                + RESULT.format(id='w1:p1-7').split('VERDICT:')[0])
+        body, note = peer.extract_result(text, 'w1:p1-7')
+        self.assertIsNone(body)
+        self.assertEqual(note.status, peer.MALFORMED)
+        self.assertIn('still being written', note)
+
+    def test_a_streaming_envelope_for_another_id_does_not_block_the_answer(self):
+        text = (RESULT.format(id='w1:p1-7') + '\n'
+                + RESULT.format(id='w1:p1-8').split('VERDICT:')[0])
+        body, note = peer.extract_result(text, 'w1:p1-7')
+        self.assertIsNone(note)
+        self.assertIn('F1 [REPRODUCED]', body)
+
 
 class CheckTest(unittest.TestCase):
     def test_a_well_formed_result_passes(self):
