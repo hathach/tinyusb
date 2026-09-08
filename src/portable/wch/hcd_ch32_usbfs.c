@@ -405,10 +405,6 @@ static void arm_iso_drain(bool in_isr) {
     armed   = true;
   }
 
-  if (!in_isr) {
-    usbfs_irq_restore(prev);
-  }
-
   if (armed) {
     // is_busy is set, so no other arm path can race the HOST_EP_PID write.
     hardware_set_port_address_speed(arm_dev);
@@ -418,6 +414,10 @@ static void arm_iso_drain(bool in_isr) {
       USBOTG_H_FS->HOST_TX_LEN = arm_len;
       hardware_start_xfer(USB_PID_OUT, arm_ep, 0, true);
     }
+  }
+
+  if (!in_isr) {
+    usbfs_irq_restore(prev);
   }
 }
 
@@ -622,7 +622,8 @@ bool hcd_deinit(uint8_t rhport) {
   interrupt_enabled       = false;
   port_reset_in_progress  = false;
   int_state_for_portreset = false;
-  tu_memclr((void *)&usb_current_xfer_info, sizeof(usb_current_xfer_info));
+  // Use uintptr_t to avoid cast-qual warning on volatile pointer.
+  tu_memclr((void *)(uintptr_t)&usb_current_xfer_info, sizeof(usb_current_xfer_info));
   tu_memclr(usb_edpt_list, sizeof(usb_edpt_list));
   return true;
 }
@@ -912,18 +913,28 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
   // (no ISO competing for the single slot), so the busy-wait is safe.
   while (usb_current_xfer_info.is_busy) {}
 
+  // Mask interrupts to atomically validate and arm.
+  bool prev = usbfs_irq_save();
+  // Re-validate: endpoint may have been closed by a disconnect ISR while we waited.
+  usb_edpt_t *edpt_check = get_edpt_record(dev_addr, ep_addr);
+  if (edpt_check == NULL || !edpt_check->configured) {
+    usbfs_irq_restore(prev);
+    return false;
+  }
+
   hardware_set_port_address_speed(dev_addr);
 
   usb_current_xfer_info.is_busy     = true;
   usb_current_xfer_info.dev_addr    = dev_addr;
   usb_current_xfer_info.ep_addr     = ep_addr;
-  usb_current_xfer_info.xfer_type   = edpt_info->xfer_type;
+  usb_current_xfer_info.xfer_type   = edpt_check->xfer_type;
   usb_current_xfer_info.buffer      = buffer;
   usb_current_xfer_info.bufferlen   = buflen;
   usb_current_xfer_info.start_ms    = tusb_time_millis_api();
   usb_current_xfer_info.xferred_len = 0;
 
-  edpt_info->nak_backoff = 1; // fresh transfer: reset the progressive NAK backoff
+  edpt_check->nak_backoff = 1; // fresh transfer: reset the progressive NAK backoff
+  usbfs_irq_restore(prev);
 
   if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN) {
     LOG_CH32_USBFSH("hcd_edpt_xfer(): READ, dev=0x%02x, ep=0x%02x, len=%d\r\n", dev_addr, ep_addr, buflen);
@@ -973,16 +984,23 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, const uint8_t setup_packet
 
   while (usb_current_xfer_info.is_busy) {}
 
+  // Mask interrupts to atomically validate before arming.
+  bool prev_setup = usbfs_irq_save();
+  // Re-validate: endpoint records may have been cleared by a disconnect ISR.
+  usb_edpt_t *edpt_info_tx = get_edpt_record(dev_addr, 0x00);
+  usb_edpt_t *edpt_info_rx = get_edpt_record(dev_addr, 0x80);
+  if (edpt_info_tx == NULL || !edpt_info_tx->configured ||
+      edpt_info_rx == NULL || !edpt_info_rx->configured) {
+    usbfs_irq_restore(prev_setup);
+    return false;
+  }
+
   usb_current_xfer_info.is_busy = true;
+  usbfs_irq_restore(prev_setup);
 
   LOG_CH32_USBFSH("hcd_setup_send(dev_addr=0x%02x)\r\n", dev_addr);
 
   hardware_set_port_address_speed(dev_addr);
-
-  usb_edpt_t *edpt_info_tx = get_edpt_record(dev_addr, 0x00);
-  usb_edpt_t *edpt_info_rx = get_edpt_record(dev_addr, 0x80);
-  TU_ASSERT(edpt_info_tx != NULL, false);
-  TU_ASSERT(edpt_info_rx != NULL, false);
 
   // SETUP always starts with DATA0 (OUT toggle). A control read's first data
   // packet is DATA1, so the IN endpoint toggle must be primed to DATA1 here.
