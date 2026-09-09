@@ -13,7 +13,7 @@ const finding = (over = {}) => {
   }
   return { findingId: `${f.commentId}#${f.line}`, commentDigest: `d${f.commentId}`, ...f } // overridable
 }
-const oneValid = { findings: [finding()], replies: [], done: true }
+const oneValid = { findings: [finding()], replies: [] }
 const SHA = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678'
 
 // Drive the workflow against stub agents. Every cycle gets the same `reviews`
@@ -22,7 +22,7 @@ async function run(opts = {}) {
   const logs = []
   const calls = []
   const napPoints = [] // logs.length when a backoff started, to prove ordering
-  const reviews = opts.reviews ?? { findings: [], replies: [], pending: [], done: true }
+  const reviews = opts.reviews ?? { findings: [], replies: [], pending: [] }
   const ci = opts.ci ?? GREEN
 
   const agent = async (prompt, options) => {
@@ -154,7 +154,6 @@ await check('the summary tables every verdict, fix and pushed SHA', async () => 
       ],
       // the validator drafts a reply for every invalid AND stale finding
       replies: [{ commentId: 3, body: 'refuted because…' }, { commentId: 2, body: 'already fixed in…' }],
-      done: true,
     },
   })
   const rows = rowsOf(summaries(logs)[0])
@@ -170,7 +169,7 @@ await check('the summary tables every verdict, fix and pushed SHA', async () => 
 
 await check('a claim already containing a backslash-pipe stays one cell', async () => {
   const { logs } = await run({
-    reviews: { findings: [finding({ claim: 'the regex \\| splits the row' })], replies: [], done: true },
+    reviews: { findings: [finding({ claim: 'the regex \\| splits the row' })], replies: [] },
   })
   const cells = gfmCells(summaries(logs)[0].split('\n')[3])
   assert.equal(cells.length, 5, 'the row keeps exactly its five columns')
@@ -213,7 +212,7 @@ await check('a dry run leaves the fix uncommitted', async () => {
 
 await check('a HIL roster edit is withheld rather than committed', async () => {
   const { result, logs, labels } = await run({
-    reviews: { findings: [finding({ file: 'test/hil/tinyusb.json' })], replies: [], done: true },
+    reviews: { findings: [finding({ file: 'test/hil/tinyusb.json' })], replies: [] },
   })
   assert.equal(result.reason, 'fix-verification-failed')
   assert.equal(labels.some(l => l.startsWith('fix:')), false, 'no fixer may be dispatched for a rig config')
@@ -238,7 +237,7 @@ await check('two matrix legs of one check name keep separate fixes', async () =>
 
 await check('a rig-side CI failure is left red, with no fix and no commit', async () => {
   const { result, logs, labels } = await run({
-    reviews: { findings: [], replies: [], done: true },
+    reviews: { findings: [], replies: [] },
     ci: {
       status: 'red', infraRerun: [],
       realFailures: [{ check: 'hil / pico', firstError: 'board did not enumerate', files: [], rigSide: true }],
@@ -305,7 +304,7 @@ await check('a worker rejection outside the guarded lanes still reports the cycl
 await check('the pending-bot backoff is taken after the cycle summary', async () => {
   const { result, logs, napPoints } = await run({
     args: { maxCycles: 2 },
-    reviews: { findings: [], replies: [], done: false },
+    reviews: { findings: [], replies: [], pending: [{ bot: 'codex', reason: 'sticky row shows 👀 on head' }] },
   })
   assert.equal(result.reason, 'maxCycles reached')
   assert.equal(summaries(logs).length, 2, 'every cycle reports')
@@ -318,7 +317,7 @@ await check('a pending bot is named with its reason in the summary and the re-ar
   const { result, logs } = await run({
     args: { maxCycles: 2 },
     reviews: {
-      findings: [], replies: [], done: false,
+      findings: [], replies: [],
       pending: [{ bot: 'coderabbit', reason: 'status on head a1b2c3d is pending | Review in progress' },
         { bot: 'claude', reason: 'check run claude-review queued' }],
     },
@@ -335,8 +334,8 @@ await check('a bot pending one cycle and settled the next lets the run pass', as
   const { result, logs } = await run({
     args: { maxCycles: 3 },
     reviewsPerCycle: () => ++n === 1
-      ? { findings: [], replies: [], done: false, pending: [{ bot: 'claude', reason: 'no claude-review check run on head yet' }] }
-      : { findings: [], replies: [], done: true, pending: [] },
+      ? { findings: [], replies: [], pending: [{ bot: 'claude', reason: 'no claude-review check run on head yet' }] }
+      : { findings: [], replies: [], pending: [] },
   })
   assert.equal(result.pass, true)
   assert.equal(result.cycles, 2)
@@ -345,28 +344,15 @@ await check('a bot pending one cycle and settled the next lets the run pass', as
   assert.match(heads[1], /all bots settled/)
 })
 
-await check('the validator contract requires pending alongside done', async () => {
+await check('the validator contract requires pending and carries no done flag', async () => {
   // The stub agent does not enforce options.schema, so pin the contract in the
   // source: a harvest without `pending` must be rejected by the host, or the
-  // summary silently loses the reason a bot is outstanding.
-  assert.match(WORKFLOW_SRC, /required: \['findings', 'replies', 'pending', 'done'\]/)
+  // summary silently loses the reason a bot is outstanding; and settled-ness
+  // is derived from `pending`, never read from a second flag it could
+  // contradict.
+  assert.match(WORKFLOW_SRC, /required: \['findings', 'replies', 'pending'\]/)
   assert.match(WORKFLOW_SRC, /required: \['bot', 'reason'\]/)
-})
-
-await check('a validator that says not-done but names no bot is called out, not rendered blank', async () => {
-  const { logs } = await run({
-    reviews: { findings: [], replies: [], done: false, pending: [] },
-  })
-  assert.match(summaries(logs)[0].split('\n')[0], /bots still pending: unnamed — validator gave no reason/)
-})
-
-await check('done with a bot still named pending is treated as pending', async () => {
-  const { result, logs } = await run({
-    reviews: { findings: [], replies: [], done: true, pending: [{ bot: 'codex', reason: 'sticky row shows 👀 on head' }] },
-  })
-  assert.equal(result.reason, 'maxCycles reached', 'the evidence outranks the flag')
-  assert.match(logs.find(l => l.includes('reported done with bots still pending')), /codex \(sticky row shows 👀 on head\)/)
-  assert.match(summaries(logs)[0].split('\n')[0], /bots still pending: codex/)
+  assert.doesNotMatch(WORKFLOW_SRC, /\br\.done\b|done: \{ type: 'boolean' \}/)
 })
 
 await check('reviews never route to the Codex bridge', async () => {
@@ -388,7 +374,7 @@ await check('a Claude validator is challenged by Codex, not left unchecked', asy
   // is Claude's, so the check on it has to be someone else's - and code-verifier
   // is the one role that works on Codex, reading the checkout with no network.
   const { workflowCalls } = await run({
-    reviews: { findings: [invalidFinding()], replies: [{ commentId: 1, body: 'no' }], done: true },
+    reviews: { findings: [invalidFinding()], replies: [{ commentId: 1, body: 'no' }] },
   })
   const ch = workflowCalls.find(w => w.label.startsWith('challenge#'))
   assert.ok(ch, 'a Claude-validated refutation must still be challenged')
@@ -397,7 +383,7 @@ await check('a Claude validator is challenged by Codex, not left unchecked', asy
 
 await check('the challenge routes through code-verify', async () => {
   const { workflowCalls } = await run({
-    reviews: { findings: [invalidFinding()], replies: [{ commentId: 1, body: 'no' }], done: true },
+    reviews: { findings: [invalidFinding()], replies: [{ commentId: 1, body: 'no' }] },
   })
   const ch = workflowCalls.find(w => w.label.startsWith('challenge#'))
   assert.ok(ch, 'expected a challenge stage')
@@ -406,7 +392,7 @@ await check('the challenge routes through code-verify', async () => {
 
 await check('an upheld refutation still replies and resolves', async () => {
   const { calls } = await run({
-    reviews: { findings: [invalidFinding()], replies: [{ commentId: 1, body: 'no' }], done: true },
+    reviews: { findings: [invalidFinding()], replies: [{ commentId: 1, body: 'no' }] },
     challenge: { verdicts: [{ id: 0, upheld: true, reason: 'stands' }] },
     args: { autoPush: true },
   })
@@ -424,7 +410,6 @@ await check('sibling refutations on one comment are merged into its single reply
       findings: [invalidFinding({ commentId: 7 }), invalidFinding({ commentId: 7, line: 9 })],
       replies: [{ commentId: 7, body: 'the first point misreads the guard' },
         { commentId: 7, body: 'the second point is about dead code' }],
-      done: true,
     },
     args: { autoPush: true, maxCycles: 1 },
   })
@@ -437,7 +422,7 @@ await check('sibling refutations on one comment are merged into its single reply
 
 await check('an overturned finding is fixed, replied to, and carries the challenger reason', async () => {
   const { calls } = await run({
-    reviews: { findings: [invalidFinding()], replies: [{ commentId: 1, body: 'no' }], done: true },
+    reviews: { findings: [invalidFinding()], replies: [{ commentId: 1, body: 'no' }] },
     challenge: { verdicts: [{ id: 0, upheld: false, reason: 'the NAK path is real' }] },
     args: { autoPush: true },
   })
@@ -455,7 +440,6 @@ await check('a mixed comment defers its reply and blocks the green exit', async 
     reviews: {
       findings: [invalidFinding({ commentId: 7 }), invalidFinding({ commentId: 7, line: 9 })],
       replies: [{ commentId: 7, body: 'both wrong' }],
-      done: true,
     },
     challenge: { verdicts: [
       { id: 0, upheld: false, reason: 'real' },
@@ -479,7 +463,6 @@ await check('no fix note is dispatched when the push answers no comment', async 
     reviews: {
       findings: [invalidFinding({ commentId: 7 }), invalidFinding({ commentId: 7, line: 9 })],
       replies: [{ commentId: 7, body: 'both wrong' }],
-      done: true,
     },
     challenge: { verdicts: [
       { id: 0, upheld: false, reason: 'real' },
@@ -502,8 +485,8 @@ await check('two valid findings on one comment share one fix note', async () => 
       cycle++
       return cycle === 1
         ? { findings: [finding({ commentId: 1, claim: 'the first leak' }),
-          finding({ commentId: 1, line: 9, claim: 'the second leak' })], replies: [], done: true }
-        : { findings: [], replies: [], done: true }
+          finding({ commentId: 1, line: 9, claim: 'the second leak' })], replies: [] }
+        : { findings: [], replies: [] }
     },
   })
   const resolve = calls.filter(c => c.label.startsWith('resolve#'))
@@ -518,7 +501,7 @@ await check('a dry run that runs out of cycles still reads as a dry run', async 
   // and the loop expires with the debt it was never allowed to post.
   const { result } = await run({
     args: { autoPush: false, maxCycles: 2 },
-    reviews: { findings: [invalidFinding()], replies: [{ commentId: 1, body: 'no' }], done: false },
+    reviews: { findings: [invalidFinding()], replies: [{ commentId: 1, body: 'no' }], pending: [{ bot: 'codex', reason: 'still reviewing head' }] },
   })
   assert.equal(result.reason, 'deferred-replies-unresolved')
   assert.deepEqual(result.deferred, [1])
@@ -533,7 +516,7 @@ await check('a broken challenge response fails the cycle', async () => {
     { verdicts: [{ id: 0, upheld: true, reason: 'x' }, { id: 0, upheld: false, reason: 'y' }] },
   ]) {
     const { result } = await run({
-      reviews: { findings: [invalidFinding()], replies: [{ commentId: 1, body: 'no' }], done: true },
+      reviews: { findings: [invalidFinding()], replies: [{ commentId: 1, body: 'no' }] },
       challenge, args: { autoPush: true, maxCycles: 1 },
     })
     assert.equal(result.reason, 'review-challenger-died')
@@ -542,7 +525,7 @@ await check('a broken challenge response fails the cycle', async () => {
 
 await check('the summary marks an overturned finding', async () => {
   const { logs } = await run({
-    reviews: { findings: [invalidFinding()], replies: [{ commentId: 1, body: 'no' }], done: true },
+    reviews: { findings: [invalidFinding()], replies: [{ commentId: 1, body: 'no' }] },
     challenge: { verdicts: [{ id: 0, upheld: false, reason: 'real' }] },
     args: { autoPush: true, maxCycles: 1 },
   })
@@ -562,9 +545,9 @@ await check('a deferred obligation is cleared only by a posted reply', async () 
       cycle++
       return cycle === 1
         ? { findings: [invalidFinding({ commentId: 7 }), invalidFinding({ commentId: 7, line: 9 })],
-          replies: [{ commentId: 7, body: 'both wrong' }], done: true }
+          replies: [{ commentId: 7, body: 'both wrong' }] }
         : { findings: [invalidFinding({ commentId: 7, line: 9 })],
-          replies: [{ commentId: 7, body: 'still wrong' }], done: true }
+          replies: [{ commentId: 7, body: 'still wrong' }] }
     },
     challengePerCycle: () => cycle === 1
       ? { verdicts: [{ id: 0, upheld: false, reason: 'real' }, { id: 1, upheld: true, reason: 'stands' }] }
@@ -581,7 +564,6 @@ await check('an orphan reply is never posted unchallenged', async () => {
     reviews: {
       findings: [finding({ commentId: 1, verdict: 'valid' })],
       replies: [{ commentId: 99, body: 'you are wrong' }],
-      done: true,
     },
     args: { autoPush: true, maxCycles: 1 },
   })
@@ -600,8 +582,8 @@ await check('a stray doneId cannot discharge an unrelated deferral', async () =>
       cycle++
       return cycle === 1
         ? { findings: [invalidFinding({ commentId: 7 }), invalidFinding({ commentId: 7, line: 9 })],
-          replies: [{ commentId: 7, body: 'both wrong' }], done: true }
-        : { findings: [], replies: [], done: true }
+          replies: [{ commentId: 7, body: 'both wrong' }] }
+        : { findings: [], replies: [] }
     },
     challengePerCycle: () => ({ verdicts: [
       { id: 0, upheld: false, reason: 'real' }, { id: 1, upheld: true, reason: 'stands' }] }),
@@ -615,7 +597,7 @@ await check('a refutation with no drafted reply is not silently dropped', async 
   // it. Nothing else accounts for that answer, so the cycle could go green with
   // the reviewer's thread untouched.
   const { result } = await run({
-    reviews: { findings: [invalidFinding({ commentId: 5 })], replies: [], done: true },
+    reviews: { findings: [invalidFinding({ commentId: 5 })], replies: [] },
     challenge: { verdicts: [{ id: 0, upheld: true, reason: 'stands' }] },
     args: { autoPush: true, maxCycles: 1 },
   })
@@ -630,7 +612,6 @@ await check('a comment mixing valid and refuted findings is not resolved early',
     reviews: {
       findings: [finding({ commentId: 3, verdict: 'valid' }), invalidFinding({ commentId: 3, line: 9 })],
       replies: [{ commentId: 3, body: 'the second one is wrong' }],
-      done: true,
     },
     challenge: { verdicts: [{ id: 0, upheld: true, reason: 'stands' }] },
     args: { autoPush: true, maxCycles: 1 },
@@ -652,8 +633,8 @@ await check('a fix note does not discharge a deferred refutation', async () => {
       cycle++
       return cycle === 1
         ? { findings: [finding({ commentId: 4, verdict: 'valid' }), invalidFinding({ commentId: 4, line: 9 })],
-          replies: [{ commentId: 4, body: 'the second is wrong' }], done: true }
-        : { findings: [finding({ commentId: 4, verdict: 'valid' })], replies: [], done: true }
+          replies: [{ commentId: 4, body: 'the second is wrong' }] }
+        : { findings: [finding({ commentId: 4, verdict: 'valid' })], replies: [] }
     },
     challengePerCycle: () => ({ verdicts: [{ id: 0, upheld: true, reason: 'stands' }] }),
   })
@@ -666,7 +647,6 @@ await check('a comment is never replied to twice in one cycle', async () => {
     reviews: {
       findings: [invalidFinding({ commentId: 8 })],
       replies: [{ commentId: 8, body: 'wrong' }, { commentId: 8, body: 'also wrong' }],
-      done: true,
     },
     challenge: { verdicts: [{ id: 0, upheld: true, reason: 'stands' }] },
     args: { autoPush: true, maxCycles: 1 },
@@ -687,11 +667,11 @@ await check('a deferred refutation can still be posted after a fix note', async 
       cycle++
       if (cycle === 1) {
         return { findings: [finding({ commentId: 4, verdict: 'valid' }), invalidFinding({ commentId: 4, line: 9 })],
-          replies: [{ commentId: 4, body: 'the second is wrong' }], done: true }
+          replies: [{ commentId: 4, body: 'the second is wrong' }] }
       }
-      if (cycle === 2) return { findings: [finding({ commentId: 4, verdict: 'valid' })], replies: [], done: true }
+      if (cycle === 2) return { findings: [finding({ commentId: 4, verdict: 'valid' })], replies: [] }
       return { findings: [invalidFinding({ commentId: 4, line: 9 })],
-        replies: [{ commentId: 4, body: 'still wrong' }], done: true }
+        replies: [{ commentId: 4, body: 'still wrong' }] }
     },
     challengePerCycle: () => ({ verdicts: [{ id: 0, upheld: true, reason: 'stands' }] }),
   })
@@ -709,8 +689,8 @@ await check('an already-answered comment is not deferred for a missing draft', a
       cycle++
       return cycle === 1
         ? { findings: [invalidFinding({ commentId: 7 })],
-          replies: [{ commentId: 7, body: 'wrong' }], done: true }
-        : { findings: [invalidFinding({ commentId: 7 })], replies: [], done: true }
+          replies: [{ commentId: 7, body: 'wrong' }] }
+        : { findings: [invalidFinding({ commentId: 7 })], replies: [] }
     },
     challengePerCycle: () => ({ verdicts: [{ id: 0, upheld: true, reason: 'stands' }] }),
   })
@@ -728,7 +708,7 @@ await check('an obligation dies with the finding that created it', async () => {
       cycle++
       return { findings: [finding({ commentId: 6, verdict: 'valid' }),
         invalidFinding({ commentId: 6, line: 9 })],
-      replies: [{ commentId: 6, body: 'the second is wrong' }], done: true }
+      replies: [{ commentId: 6, body: 'the second is wrong' }] }
     },
     challengePerCycle: () => cycle === 1
       ? { verdicts: [{ id: 0, upheld: true, reason: 'stands' }] }
@@ -750,10 +730,10 @@ await check('overturning one refutation does not excuse a vanished sibling', asy
       cycle++
       if (cycle === 1) {
         return { findings: [invalidFinding({ commentId: 7 }), invalidFinding({ commentId: 7, line: 9 })],
-          replies: [], done: true }
+          replies: [] }
       }
-      if (cycle === 2) return { findings: [invalidFinding({ commentId: 7, line: 9 })], replies: [], done: true }
-      return { findings: [], replies: [], done: true }
+      if (cycle === 2) return { findings: [invalidFinding({ commentId: 7, line: 9 })], replies: [] }
+      return { findings: [], replies: [] }
     },
     challengePerCycle: () => cycle === 1
       ? { verdicts: [{ id: 0, upheld: true, reason: 'stands' }, { id: 1, upheld: true, reason: 'stands' }] }
@@ -773,7 +753,7 @@ await check('a retried fix note discharges its own carried obligation', async ()
     dropDoneIds: (label) => cycle === 1 && label.startsWith('resolve#'),
     reviewsPerCycle: () => {
       cycle++
-      return cycle <= 2 ? structuredClone(oneValid) : { findings: [], replies: [], done: true }
+      return cycle <= 2 ? structuredClone(oneValid) : { findings: [], replies: [] }
     },
   })
   assert.equal(result.pass, true, `the retried fix note must clear its deferral (got ${result.reason})`)
@@ -790,7 +770,7 @@ await check('a stale re-report of a fixed finding owes nothing', async () => {
       cycle++
       return cycle === 1
         ? structuredClone(oneValid)
-        : { findings: [finding({ verdict: 'stale' })], replies: [], done: true }
+        : { findings: [finding({ verdict: 'stale' })], replies: [] }
     },
   })
   assert.equal(result.pass, true, `a stale re-report reopened a settled comment (got ${result.reason})`)
@@ -807,7 +787,7 @@ await check('an edit to an answered comment owes an answer again', async () => {
       cycle++
       return cycle === 1
         ? structuredClone(oneValid)
-        : { findings: [invalidFinding({ commentDigest: 'edited' })], replies: [], done: true }
+        : { findings: [invalidFinding({ commentDigest: 'edited' })], replies: [] }
     },
   })
   assert.ok(logs.some(l => l.includes('comment 1 was edited after we answered it')), 'the edit must be reported')
@@ -825,7 +805,7 @@ await check('a fix note reads as deferred only while it still owes a dismissal',
       cycle++
       return cycle === 1
         ? structuredClone(oneValid)
-        : { findings: [finding({ verdict: 'stale' })], replies: [], done: true }
+        : { findings: [finding({ verdict: 'stale' })], replies: [] }
     },
   })
   assert.match(rowsOf(summaries(paid.logs)[1])[0][3], /already fixed, answered by fix note/)
@@ -839,10 +819,10 @@ await check('a fix note reads as deferred only while it still owes a dismissal',
       mixed++
       if (mixed === 1) {
         return { findings: [finding({ commentId: 4, verdict: 'valid' }), invalidFinding({ commentId: 4, line: 9 })],
-          replies: [], done: true }
+          replies: [] }
       }
-      if (mixed === 2) return { findings: [finding({ commentId: 4, verdict: 'valid' })], replies: [], done: true }
-      return { findings: [invalidFinding({ commentId: 4, line: 9 })], replies: [], done: true }
+      if (mixed === 2) return { findings: [finding({ commentId: 4, verdict: 'valid' })], replies: [] }
+      return { findings: [invalidFinding({ commentId: 4, line: 9 })], replies: [] }
     },
   })
   assert.match(rowsOf(summaries(owing.logs)[2])[0][3], /refuted, deferred to next cycle/)
@@ -853,7 +833,7 @@ await check('a dry run reports refutations it would post rather than deferring t
   // exhaustion and call it unresolved. The review lane already says dryRun.
   const { calls, result } = await run({
     args: { autoPush: false, maxCycles: 3 },
-    reviews: { findings: [invalidFinding()], replies: [{ commentId: 1, body: 'no' }], done: true },
+    reviews: { findings: [invalidFinding()], replies: [{ commentId: 1, body: 'no' }] },
   })
   assert.equal(calls.some(c => c.label.startsWith('replies#')), false, 'a dry run must post nothing')
   assert.equal(result.dryRun, true)
@@ -871,10 +851,10 @@ await check('a dropped dismissal survives a later harvest that reports fewer', a
       cycle++
       if (cycle === 1) {
         return { findings: [invalidFinding({ commentId: 7 }), invalidFinding({ commentId: 7, line: 9 })],
-          replies: [], done: true }
+          replies: [] }
       }
-      if (cycle <= 3) return { findings: [invalidFinding({ commentId: 7, line: 9 })], replies: [], done: true }
-      return { findings: [], replies: [], done: true }
+      if (cycle <= 3) return { findings: [invalidFinding({ commentId: 7, line: 9 })], replies: [] }
+      return { findings: [], replies: [] }
     },
     challengePerCycle: () => cycle === 3
       ? { verdicts: [{ id: 0, upheld: false, reason: 'real' }] }
@@ -897,8 +877,8 @@ await check('a stale reply settles the fix note its own failed attempt owed', as
     reviewsPerCycle: () => {
       cycle++
       if (cycle === 1) return structuredClone(oneValid)
-      if (cycle === 2) return { findings: [finding({ verdict: 'stale' })], replies: [{ commentId: 1, body: 'already fixed' }], done: true }
-      return { findings: [], replies: [], done: true }
+      if (cycle === 2) return { findings: [finding({ verdict: 'stale' })], replies: [{ commentId: 1, body: 'already fixed' }] }
+      return { findings: [], replies: [] }
     },
   })
   assert.equal(result.pass, true, `the stale reply must settle the comment (got ${result.reason})`)
@@ -914,7 +894,7 @@ await check('an answered comment is not replied to again for a stale re-report',
       cycle++
       return cycle === 1
         ? structuredClone(oneValid)
-        : { findings: [finding({ verdict: 'stale' })], replies: [{ commentId: 1, body: 'already fixed' }], done: true }
+        : { findings: [finding({ verdict: 'stale' })], replies: [{ commentId: 1, body: 'already fixed' }] }
     },
   })
   assert.equal(calls.some(c => c.label.startsWith('replies#')), false,
@@ -929,7 +909,6 @@ await check('a dry run still runs the fixers it is allowed to run', async () => 
     reviews: {
       findings: [invalidFinding({ commentId: 1 }), finding({ commentId: 2, verdict: 'valid' })],
       replies: [{ commentId: 1, body: 'no' }],
-      done: true,
     },
   })
   assert.ok(calls.some(c => c.label.startsWith('fix:')), 'the dry run skipped the fixer')
@@ -948,10 +927,10 @@ await check('re-overturning a finding does not retire a different dismissal', as
       cycle++
       if (cycle === 1) {
         return { findings: [invalidFinding({ commentId: 7 }), invalidFinding({ commentId: 7, line: 9 })],
-          replies: [], done: true }
+          replies: [] }
       }
-      if (cycle <= 3) return { findings: [invalidFinding({ commentId: 7, line: 9 })], replies: [], done: true }
-      return { findings: [], replies: [], done: true }
+      if (cycle <= 3) return { findings: [invalidFinding({ commentId: 7, line: 9 })], replies: [] }
+      return { findings: [], replies: [] }
     },
     challengePerCycle: () => cycle === 1
       ? { verdicts: [{ id: 0, upheld: true, reason: 'stands' }, { id: 1, upheld: true, reason: 'stands' }] }
@@ -967,7 +946,7 @@ await check('a dry run runs the CI fixer before reporting withheld replies', asy
   // would skip fix work the dry run is allowed to do and leave uncommitted.
   const { calls, result } = await run({
     args: { autoPush: false, maxCycles: 2 },
-    reviews: { findings: [invalidFinding()], replies: [{ commentId: 1, body: 'no' }], done: true },
+    reviews: { findings: [invalidFinding()], replies: [{ commentId: 1, body: 'no' }] },
     ci: {
       status: 'red',
       infraRerun: [],
@@ -989,10 +968,10 @@ await check('a dismissal survives the fix that moves its line', async () => {
     args: { autoPush: true, maxCycles: 5 },
     reviewsPerCycle: () => {
       cycle++
-      if (cycle === 1) return { findings: [A(), invalidFinding({ commentId: 7, findingId: '7#2', line: 20 })], replies: [], done: true }
-      if (cycle === 2) return { findings: [invalidFinding({ commentId: 7, findingId: '7#2', line: 20 })], replies: [], done: true }
-      if (cycle === 3) return { findings: [A({ line: 11 })], replies: [], done: true }
-      return { findings: [], replies: [], done: true }
+      if (cycle === 1) return { findings: [A(), invalidFinding({ commentId: 7, findingId: '7#2', line: 20 })], replies: [] }
+      if (cycle === 2) return { findings: [invalidFinding({ commentId: 7, findingId: '7#2', line: 20 })], replies: [] }
+      if (cycle === 3) return { findings: [A({ line: 11 })], replies: [] }
+      return { findings: [], replies: [] }
     },
     challengePerCycle: () => cycle === 1
       ? { verdicts: [{ id: 0, upheld: true, reason: 'stands' }, { id: 1, upheld: true, reason: 'stands' }] }
@@ -1018,9 +997,9 @@ await check('an edited comment stops the run instead of retiring by a reused id'
     args: { autoPush: true, maxCycles: 4 },
     reviewsPerCycle: () => {
       cycle++
-      if (cycle === 1) return { findings: [invalidFinding({ commentId: 7, findingId: '7#1', commentDigest: 'before' })], replies: [], done: true }
-      if (cycle === 2) return { findings: [invalidFinding({ commentId: 7, findingId: '7#1', commentDigest: 'after' })], replies: [], done: true }
-      return { findings: [], replies: [], done: true }
+      if (cycle === 1) return { findings: [invalidFinding({ commentId: 7, findingId: '7#1', commentDigest: 'before' })], replies: [] }
+      if (cycle === 2) return { findings: [invalidFinding({ commentId: 7, findingId: '7#1', commentDigest: 'after' })], replies: [] }
+      return { findings: [], replies: [] }
     },
     challengePerCycle: () => cycle === 1
       ? { verdicts: [{ id: 0, upheld: true, reason: 'stands' }] }
@@ -1040,13 +1019,13 @@ await check('an edited comment can still be answered by a later refutation', asy
     args: { autoPush: true, maxCycles: 5 },
     reviewsPerCycle: () => {
       cycle++
-      if (cycle === 1) return { findings: [invalidFinding({ commentId: 7, findingId: '7#1', commentDigest: 'before' })], replies: [], done: true }
-      if (cycle === 2) return { findings: [invalidFinding({ commentId: 7, findingId: '7#1', commentDigest: 'after' })], replies: [], done: true }
+      if (cycle === 1) return { findings: [invalidFinding({ commentId: 7, findingId: '7#1', commentDigest: 'before' })], replies: [] }
+      if (cycle === 2) return { findings: [invalidFinding({ commentId: 7, findingId: '7#1', commentDigest: 'after' })], replies: [] }
       if (cycle === 3) {
         return { findings: [invalidFinding({ commentId: 7, findingId: '7#2', commentDigest: 'after' })],
-          replies: [{ commentId: 7, body: 'still wrong' }], done: true }
+          replies: [{ commentId: 7, body: 'still wrong' }] }
       }
-      return { findings: [], replies: [], done: true }
+      return { findings: [], replies: [] }
     },
     challengePerCycle: () => cycle === 2
       ? { verdicts: [{ id: 0, upheld: false, reason: 'real' }] }
@@ -1064,7 +1043,7 @@ await check('a harvest that reuses a findingId is rejected', async () => {
     reviews: {
       findings: [invalidFinding({ commentId: 7, findingId: '7#1', line: 10 }),
         invalidFinding({ commentId: 7, findingId: '7#1', line: 20 })],
-      replies: [], done: true,
+      replies: [],
     },
   })
   assert.equal(result.reason, 'duplicate-finding-ids')
