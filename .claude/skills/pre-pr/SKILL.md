@@ -55,7 +55,7 @@ If the unique union of `buildBoards` and `hilBoards` is non-empty, invoke the Wo
 
 ## 5. Summarize
 
-- Per-stage table: simplify (changed files or "no changes") / unit / build:<board> / size / pvs, then HIL per board — pass/fail with the first error for each failure.
+- Per-stage table: simplify (changed files, "no changes", or "skipped: <reason>" when step 1 was skipped) / unit / build:<board> / size / pvs, then HIL per board — pass/fail with the first error for each failure.
 - If the hardware result has non-empty `locked` (a CI job held those boards): ask the user to choose **Force now** (re-invoke `hil-validate` with `force: true` for those boards; user accepts the risk of colliding with a mid-test CI job), **Keep waiting** (re-invoke `hil-validate` for them after a few minutes; ask again if still locked), or **Accept** the partial verdict. Never force without the user's answer.
 - Wedged boards: point at `.claude/skills/usb-kernel-recover/SKILL.md`.
 - End with a clear ship / no-ship verdict and what to fix first.
