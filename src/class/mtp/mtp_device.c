@@ -95,6 +95,11 @@ typedef struct {
   TUD_EPBUF_TYPE_DEF(mtp_event_t, buf_event);
 } mtpd_epbuf_t;
 
+// Transfer completion is inferred from the byte count of each queued buffer: a terminating short
+// packet must leave the buffer short, so the buffer has to be a whole number of bulk packets.
+TU_VERIFY_STATIC(CFG_TUD_MTP_EP_BUFSIZE % (TUD_OPT_HIGH_SPEED ? 512 : 64) == 0,
+                 "CFG_TUD_MTP_EP_BUFSIZE must be a multiple of the bulk max packet size");
+
 //--------------------------------------------------------------------+
 // INTERNAL FUNCTION DECLARATION
 //--------------------------------------------------------------------+
