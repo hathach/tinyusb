@@ -12,12 +12,10 @@ You implement exactly one specified change in one assigned scope (a directory un
 - C99, 2-space indent (no tabs); snake_case helpers; UPPER_CASE macros; public APIs `tud_`/`tuh_`; macros `TU_`.
 - No dynamic allocation. Defer ISR work to task context. `TU_ASSERT()` for error checks; always check return values.
 - Include order: C stdlib → tusb common → drivers → classes.
-- Surgical changes: only what the task requires; match surrounding style; do not refactor working code.
-- Comments: short, only the non-obvious why.
 
 ## Datasheets
 
-When changing dcd/hcd register logic, cross-check the MCU reference manual / datasheet / programming guide with the `read-doc` skill — `python3 .claude/skills/read-doc/search.py <MCU or USB-IP name>`, never `find`/`grep` over the library tree. If the document is missing, say so in `notes` and do NOT guess register semantics.
+When changing dcd/hcd register logic, cross-check the MCU reference manual / datasheet / programming guide with the `read-doc` skill (search by MCU or USB-IP name). If the skill or its search command is unavailable, or the document is missing, say so in `notes` and do NOT guess register semantics; never substitute a web or filesystem search.
 
 ## Finish checklist (in order)
 
