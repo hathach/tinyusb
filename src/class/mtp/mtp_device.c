@@ -432,6 +432,12 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
         // OUT completion: reaching total_len or ZLP only. A short packet does NOT end the phase
         // (an early short packet before total_len is the cancel case, not normal completion).
         is_complete = (p_mtp->xferred_len >= p_mtp->total_len) || ((xferred_bytes == 0 && p_mtp->xferred_len > 0));
+        // Unknown length (total_len = 0xFFFFFFFF, as the container Length field is when the host does
+        // not declare a size): there is no total_len to reach, and the host only sends a ZLP when its
+        // data happens to be a multiple of the packet size, so the short packet is the terminator.
+        if (p_mtp->total_len == UINT32_MAX && xferred_bytes > 0 && xferred_bytes < threshold) {
+          is_complete = true;
+        }
       }
 
       TU_LOG_DRV("  MTP Data %s CB: xferred_bytes=%lu, xferred_len/total_len=%lu/%lu, is_complete=%d\r\n",
