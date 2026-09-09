@@ -119,6 +119,8 @@ typedef struct {
     struct TU_ATTR_PACKED {
       uint8_t self_powered     : 1; // configuration descriptor's attribute;
       uint8_t remote_wakeup_en : 1; // enable/disable by host
+      uint8_t u1_enable        : 1; // enable/disable by host
+      uint8_t u2_enable        : 1; // enable/disable by host
     };
     uint8_t dev_state_bm;
   };
@@ -525,6 +527,9 @@ bool tud_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
  #if CFG_TUSB_DEBUG >= CFG_TUD_LOG_LEVEL
   char const* speed_str = 0;
   switch (rh_init->speed) {
+    case TUSB_SPEED_SUPER:
+      speed_str = "Super";
+    break;
     case TUSB_SPEED_HIGH:
       speed_str = "High";
     break;
@@ -1027,6 +1032,17 @@ static bool process_std_device_request(uint8_t rhport, tusb_control_request_t co
           tud_control_status(rhport, p_request);
           return true;
 
+        case TUSB_REQ_FEATURE_U1_ENABLE:
+        case TUSB_REQ_FEATURE_U2_ENABLE:
+          TU_VERIFY(_usbd_dev.speed == TUSB_SPEED_SUPER);
+          if (TUSB_REQ_FEATURE_U1_ENABLE == p_request->wValue) {
+            _usbd_dev.u1_enable = 1;
+          } else {
+            _usbd_dev.u2_enable = 1;
+          }
+          tud_control_status(rhport, p_request);
+          return true;
+
         #if CFG_TUD_TEST_MODE
         case TUSB_REQ_FEATURE_TEST_MODE: {
           // Only handle the test mode if supported and valid
@@ -1046,7 +1062,18 @@ static bool process_std_device_request(uint8_t rhport, tusb_control_request_t co
       }
 
     case TUSB_REQ_CLEAR_FEATURE:
-      // Only support remote wakeup for device feature
+      // Only support remote wakeup and SuperSpeed U1/U2 for device feature
+      if (TUSB_REQ_FEATURE_U1_ENABLE == p_request->wValue || TUSB_REQ_FEATURE_U2_ENABLE == p_request->wValue) {
+        TU_VERIFY(_usbd_dev.speed == TUSB_SPEED_SUPER);
+        if (TUSB_REQ_FEATURE_U1_ENABLE == p_request->wValue) {
+          _usbd_dev.u1_enable = 0;
+        } else {
+          _usbd_dev.u2_enable = 0;
+        }
+        tud_control_status(rhport, p_request);
+        return true;
+      }
+
       TU_VERIFY(TUSB_REQ_FEATURE_REMOTE_WAKEUP == p_request->wValue);
       TU_LOG_USBD("    Disable Remote Wakeup\r\n");
 
@@ -1061,6 +1088,16 @@ static bool process_std_device_request(uint8_t rhport, tusb_control_request_t co
       // - Bit 1: Remote Wakeup enabled
       return process_get_status(rhport, p_request, (uint16_t) _usbd_dev.dev_state_bm);
     }
+
+    case TUSB_REQ_SET_SEL:
+      TU_VERIFY(_usbd_dev.speed == TUSB_SPEED_SUPER);
+      TU_VERIFY(p_request->wLength == 6);
+      return tud_control_xfer(rhport, p_request, usbd_get_ctrl_buf(), 6);
+
+    case TUSB_REQ_SET_ISOCH_DELAY:
+      TU_VERIFY(_usbd_dev.speed == TUSB_SPEED_SUPER);
+      tud_control_status(rhport, p_request);
+      return true;
 
     default:
       TU_BREAKPOINT();
@@ -1525,13 +1562,14 @@ void usbd_spin_unlock(bool in_isr) {
 }
 
 // Parse consecutive endpoint descriptors (IN & OUT)
-bool usbd_open_edpt_pair(uint8_t rhport, const uint8_t *p_desc, uint8_t ep_count, uint8_t xfer_type, uint8_t *ep_out,
-                         uint8_t *ep_in) {
+bool usbd_open_edpt_pair(uint8_t rhport, const uint8_t *p_desc, uint8_t const *desc_end, uint8_t ep_count,
+                         uint8_t xfer_type, uint8_t *ep_out, uint8_t *ep_in, uint8_t const **p_desc_next) {
   for (int i = 0; i < ep_count; i++) {
     const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
 
-    TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && xfer_type == desc_ep->bmAttributes.xfer);
-    TU_ASSERT(usbd_edpt_open(rhport, desc_ep));
+    TU_ASSERT(tu_desc_in_bounds(p_desc, desc_end) && TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType &&
+              xfer_type == desc_ep->bmAttributes.xfer);
+    TU_ASSERT(usbd_edpt_open(rhport, desc_ep, desc_end));
 
     if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
       (*ep_in) = desc_ep->bEndpointAddress;
@@ -1540,6 +1578,13 @@ bool usbd_open_edpt_pair(uint8_t rhport, const uint8_t *p_desc, uint8_t ep_count
     }
 
     p_desc = tu_desc_next(p_desc);
+    p_desc = tu_desc_skip_ss_ep_companion(p_desc, desc_end);
+  }
+
+  // Report descriptor position past the consumed endpoints (incl. any SS companions) so callers
+  // can compute their exact driver length.
+  if (p_desc_next != NULL) {
+    *p_desc_next = p_desc;
   }
 
   return true;
@@ -1561,13 +1606,13 @@ void usbd_defer_func(osal_task_func_t func, void* param, bool in_isr) {
 // USBD Endpoint API
 //--------------------------------------------------------------------+
 
-bool usbd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const* desc_ep) {
+bool usbd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const* desc_ep, uint8_t const *desc_end) {
   rhport = _usbd_rhport;
 
   TU_ASSERT(tu_edpt_number(desc_ep->bEndpointAddress) < CFG_TUD_ENDPPOINT_MAX);
   TU_ASSERT(tu_edpt_validate(desc_ep, (tusb_speed_t)_usbd_dev.speed));
 
-  return dcd_edpt_open(rhport, desc_ep);
+  return dcd_edpt_open(rhport, desc_ep, desc_end);
 }
 
 bool usbd_edpt_claim(uint8_t rhport, uint8_t ep_addr) {

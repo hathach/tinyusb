@@ -486,7 +486,7 @@ uint16_t midid_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uint1
   while ((found_ep < desc_midi->bNumEndpoints) && tu_desc_in_bounds(p_desc, desc_end)) {
     if (TUSB_DESC_ENDPOINT == tu_desc_type(p_desc)) {
       const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
-      TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
+      TU_ASSERT(usbd_edpt_open(rhport, desc_ep, desc_end), 0);
       const uint8_t ep_addr = ((const tusb_desc_endpoint_t *)p_desc)->bEndpointAddress;
 
       if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN) {

@@ -581,7 +581,7 @@ void dcd_sof_enable(uint8_t rhport, bool en) {
 /* DCD Endpoint port
  *------------------------------------------------------------------*/
 
-bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const* desc_edpt) {
+bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const* desc_edpt, uint8_t const * desc_end TU_ATTR_UNUSED) {
   TU_ASSERT(dfifo_alloc(rhport, desc_edpt->bEndpointAddress, tu_edpt_packet_size(desc_edpt),
                        desc_edpt->bmAttributes.xfer == TUSB_XFER_BULK));
   edpt_activate(rhport, desc_edpt);

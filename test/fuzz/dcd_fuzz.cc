@@ -142,7 +142,7 @@ void dcd_sof_enable(uint8_t rhport, bool en) {
 //--------------------------------------------------------------------+
 
 // Configure endpoint's registers according to descriptor
-bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) {
+bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep, uint8_t const * desc_end TU_ATTR_UNUSED) {
   UNUSED(rhport);
   UNUSED(desc_ep);
   return _fuzz_data_provider->ConsumeBool();

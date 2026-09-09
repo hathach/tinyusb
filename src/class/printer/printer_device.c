@@ -201,7 +201,7 @@ uint16_t printerd_open(uint8_t rhport, const tusb_desc_interface_t *itf_desc, ui
     const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
     TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_BULK == desc_ep->bmAttributes.xfer, 0);
 
-    TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
+    TU_ASSERT(usbd_edpt_open(rhport, desc_ep, desc_end), 0);
 
     if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
       tu_edpt_stream_t *stream_tx = &p->tx_stream;
