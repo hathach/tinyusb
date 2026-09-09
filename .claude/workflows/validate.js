@@ -10,7 +10,7 @@ export const meta = {
 
 // args: { boards: string[], examples?: string, base?: string,
 //         skip?: ('unit'|'size'|'pvs'|'review'|'codex')[],
-//         reviewProvider?: 'codex'|'claude'|'both', maxCycles?: number }
+//         reviewProvider?: 'codex'|'claude'|'all', maxCycles?: number }
 if (typeof args === 'string') { try { args = JSON.parse(args) } catch { /* not JSON: shape check below reports it */ } }
 if (!args || !Array.isArray(args.boards) || args.boards.length === 0) {
   throw new Error('args must be { boards: string[], examples?, base?, skip?, reviewProvider?, maxCycles? }')
@@ -125,13 +125,13 @@ const reviewBlocking = f =>
 // Same default as the code-verify router: Codex reviews, Claude only when
 // asked for. An unconfigured run must never spend a second reviewer silently.
 const requestedProvider = args.reviewProvider ?? 'codex'
-if (!['codex', 'claude', 'both'].includes(requestedProvider)) {
-  throw new Error('reviewProvider must be codex, claude, or both')
+if (!['codex', 'claude', 'all'].includes(requestedProvider)) {
+  throw new Error('reviewProvider must be codex, claude, or all')
 }
 const reviewStageNames = []
 if (requestedProvider !== 'codex' && !skip.includes('review')) reviewStageNames.push('review')
 if (requestedProvider !== 'claude' && !skip.includes('codex')) reviewStageNames.push('codex')
-const reviewProvider = reviewStageNames.length === 2 ? 'both'
+const reviewProvider = reviewStageNames.length === 2 ? 'all'
   : reviewStageNames[0] === 'review' ? 'claude'
     : reviewStageNames[0] === 'codex' ? 'codex' : null
 // Reviewing nothing is only legal as an unmistakable request, because this is
@@ -172,8 +172,8 @@ const displayNames = names => names.flatMap(name => name === 'reviews' ? reviewS
 
 function runReviewProvider(provider, label) {
   if (provider === 'codex') return agent(
-    JSON.stringify({ prompt: reviewPrompt, schema: REVIEW }),
-    { label: `${label}:codex`, phase: 'Validate', agentType: 'codex-code-verifier', schema: REVIEW },
+    JSON.stringify({ role: 'code-verifier', prompt: reviewPrompt, schema: REVIEW }),
+    { label: `${label}:codex`, phase: 'Validate', agentType: 'codex-agent', schema: REVIEW },
   )
   return agent(reviewPrompt, {
     label: `${label}:claude`, phase: 'Validate', agentType: 'code-verifier', schema: REVIEW,
@@ -220,7 +220,7 @@ function stageThunk(name, cycle) {
   } : died).catch(() => died)
 
   if (name === 'reviews') return () => {
-    const pending = reviewProvider === 'both'
+    const pending = reviewProvider === 'all'
       ? parallel(['codex', 'claude'].map(provider => () => runReviewProvider(provider, label)))
         .then(([codex, claude]) => ({ codex, claude }))
       : runReviewProvider(reviewProvider, label).then(r => ({ [reviewProvider]: r }))

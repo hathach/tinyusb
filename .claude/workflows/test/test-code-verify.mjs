@@ -3,6 +3,10 @@ import { readdirSync, readFileSync } from 'node:fs'
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 const source = readFileSync(new URL('../code-verify.js', import.meta.url), 'utf8')
+// Read the workflow tree once: four separate checks scan it.
+const WORKFLOW_DIR = new URL('../', import.meta.url)
+const WORKFLOW_SRC = readdirSync(WORKFLOW_DIR).filter(n => n.endsWith('.js'))
+  .map(name => [name, readFileSync(new URL(name, WORKFLOW_DIR), 'utf8')])
 const workflowBody = source.replace(/^export /m, '')
 
 const RESULT = {
@@ -20,7 +24,7 @@ async function run(args, provided = answers) {
   let parallelCalls = 0
   const agent = async (prompt, options) => {
     const provider = options.agentType === 'code-verifier' ? 'claude'
-      : options.agentType === 'codex-code-verifier' ? 'codex' : 'unknown'
+      : options.agentType === 'codex-agent' ? 'codex' : 'unknown'
     calls.push({ provider, prompt, options })
     const answer = provided[provider]
     if (answer instanceof Error) throw answer
@@ -55,21 +59,27 @@ await check('defaults to codex', async () => {
   assert.deepEqual(result, answers.codex)
   assert.deepEqual(calls.map(c => c.provider), ['codex'])
   assert.equal(parallelCalls, 0)
-  assert.equal(calls[0].options.agentType, 'codex-code-verifier')
+  assert.equal(calls[0].options.agentType, 'codex-agent')
   assert.deepEqual(calls[0].options.schema, RESULT)
-  assert.deepEqual(JSON.parse(calls[0].prompt), { prompt: 'review', schema: RESULT })
+  assert.deepEqual(JSON.parse(calls[0].prompt),
+    { role: 'code-verifier', prompt: 'review', schema: RESULT })
 })
 
-await check('bridge owns the Codex subprocess contract', async () => {
-  const bridge = readFileSync(new URL('../../agents/codex-code-verifier.md', import.meta.url), 'utf8')
+await check('the launcher owns the Codex subprocess contract', async () => {
+  const launcher = readFileSync(new URL('../../codex-agent.py', import.meta.url), 'utf8')
+  assert.match(launcher, /READ_ONLY_ROLES = frozenset\(\{'code-verifier'\}\)/)
+  assert.match(launcher, /tomllib/)
+  assert.match(launcher, /'timeout', TIMEOUT, 'codex', 'exec'/)
+  assert.match(launcher, /'--sandbox', 'read-only'/)
+  assert.match(launcher, /--output-schema/)
+  // no sandbox knob may be reachable from the caller
+  assert.doesNotMatch(launcher, /add_argument\(['"]--sandbox/)
+
+  const bridge = readFileSync(new URL('../../agents/codex-agent.md', import.meta.url), 'utf8')
   assert.match(bridge, /model: haiku/)
   assert.match(bridge, /effort: low/)
-  assert.match(bridge, /\.codex\/agents\/code-verifier\.toml/)
-  assert.match(bridge, /tomllib/)
-  assert.match(bridge, /timeout 600s codex exec/)
-  assert.match(bridge, /--sandbox read-only/)
-  assert.match(bridge, /--output-schema/)
-  assert.match(bridge, /--output-last-message/)
+  assert.match(bridge, /python3 \.claude\/codex-agent\.py/)
+  assert.doesNotMatch(bridge, /codex exec/, 'the bridge must not run codex itself')
 })
 
 await check('selects claude', async () => {
@@ -83,9 +93,9 @@ await check('selects claude', async () => {
   assert.deepEqual(calls[0].options.schema, RESULT)
 })
 
-await check('runs both independently', async () => {
+await check('runs all providers independently', async () => {
   const { result, calls, parallelCalls } = await run(
-    { prompt: 'review', schema: RESULT, provider: 'both' })
+    { prompt: 'review', schema: RESULT, provider: 'all' })
   assert.deepEqual(result, { codex: answers.codex, claude: answers.claude })
   assert.deepEqual(calls.map(c => c.provider).sort(), ['claude', 'codex'])
   assert.equal(parallelCalls, 1)
@@ -97,7 +107,7 @@ await check('rejects invalid input before dispatch', async () => {
   }
   for (const provider of ['', 'auto']) await assert.rejects(
     run({ prompt: 'review', schema: RESULT, provider }),
-    /provider must be codex, claude, or both/,
+    /provider must be codex, claude, or all/,
   )
 })
 
@@ -111,7 +121,7 @@ await check('fails closed when codex dies', async () => {
     /codex verifier failed: broken/,
   )
   await assert.rejects(
-    run({ prompt: 'review', schema: RESULT, provider: 'both' },
+    run({ prompt: 'review', schema: RESULT, provider: 'all' },
       { ...answers, codex: new Error('broken') }),
     /codex verifier failed/,
   )
@@ -157,8 +167,8 @@ await check('driver review drops a failed routed scanner', async () => {
 await check('validate dispatches directly to stay within one workflow level', async () => {
   const src = readFileSync(new URL('../validate.js', import.meta.url), 'utf8')
   assert.equal((src.match(/workflow\(['"]code-verify['"]/g) || []).length, 0)
-  assert.match(src, /const reviewProvider = reviewStageNames\.length === 2 \? 'both'/)
-  assert.match(src, /agentType:\s*'codex-code-verifier'/)
+  assert.match(src, /const reviewProvider = reviewStageNames\.length === 2 \? 'all'/)
+  assert.match(src, /agentType:\s*'codex-agent'/)
   assert.match(src, /agentType:\s*'code-verifier'/)
   assert.doesNotMatch(src, /codex review --base/)
   assert.doesNotMatch(src, /model:\s*['"]opus['"][^}]*schema:\s*REVIEW/)
@@ -178,7 +188,7 @@ await check('validate keeps provider results and gates separate', async () => {
       findings: [{ file: 'a.c', line: 1,
         severity: blocking ? 'CONFIRMED P1 safety' : 'CONFIRMED P2 correctness', summary: 'bug' }],
     }
-    if (options.agentType === 'codex-code-verifier') return failCodex ? null : {
+    if (options.agentType === 'codex-agent') return failCodex ? null : {
       pass: true, detail: 'codex',
       findings: [{ file: 'b.c', line: 2,
         severity: blocking ? 'CONFIRMED P1 safety' : 'CONFIRMED P1 quality', summary: 'bug' }],
@@ -189,16 +199,16 @@ await check('validate keeps provider results and gates separate', async () => {
   const workflow = async () => { throw new Error('validate cannot nest a workflow') }
   const parallel = thunks => Promise.all(thunks.map(run => run()))
   const result = await fn(
-    { boards: ['test'], skip: ['unit', 'size', 'pvs'], reviewProvider: 'both', maxCycles: 1 },
+    { boards: ['test'], skip: ['unit', 'size', 'pvs'], reviewProvider: 'all', maxCycles: 1 },
     agent, null, parallel, () => {}, () => {}, workflow, null,
   )
-  assert.deepEqual(calls.sort(), ['builder', 'code-verifier', 'codex-code-verifier'])
+  assert.deepEqual(calls.sort(), ['builder', 'code-verifier', 'codex-agent'])
   assert.equal(result.stages.find(s => s.stage === 'review').pass, true)
   assert.equal(result.stages.find(s => s.stage === 'codex').pass, true)
 
   blocking = true
   const blocked = await fn(
-    { boards: ['test'], skip: ['unit', 'size', 'pvs'], reviewProvider: 'both', maxCycles: 1 },
+    { boards: ['test'], skip: ['unit', 'size', 'pvs'], reviewProvider: 'all', maxCycles: 1 },
     agent, null, parallel, () => {}, () => {}, workflow, null,
   )
   assert.equal(blocked.stages.find(s => s.stage === 'review').pass, false)
@@ -206,7 +216,7 @@ await check('validate keeps provider results and gates separate', async () => {
 
   failCodex = true
   const partial = await fn(
-    { boards: ['test'], skip: ['unit', 'size', 'pvs'], reviewProvider: 'both', maxCycles: 1 },
+    { boards: ['test'], skip: ['unit', 'size', 'pvs'], reviewProvider: 'all', maxCycles: 1 },
     agent, null, parallel, () => {}, () => {}, workflow, null,
   )
   assert.equal(partial.stages.find(s => s.stage === 'review').detail, 'claude')
@@ -235,7 +245,7 @@ await check('validate reviews with codex unless claude is explicitly selected', 
   // the default must never spend a Claude review
   for (const extra of [{}, { reviewProvider: 'codex' }]) {
     const { calls, result } = await runValidate(extra)
-    assert.deepEqual(calls.sort(), ['builder', 'codex-code-verifier'])
+    assert.deepEqual(calls.sort(), ['builder', 'codex-agent'])
     assert.equal(result.stages.some(s => s.stage === 'review'), false)
     assert.equal(result.stages.find(s => s.stage === 'codex').pass, true)
   }
@@ -244,12 +254,12 @@ await check('validate reviews with codex unless claude is explicitly selected', 
   assert.deepEqual(claudeOnly.calls.sort(), ['builder', 'code-verifier'])
   assert.equal(claudeOnly.result.stages.some(s => s.stage === 'codex'), false)
 
-  const both = await runValidate({ reviewProvider: 'both' })
-  assert.deepEqual(both.calls.sort(), ['builder', 'code-verifier', 'codex-code-verifier'])
+  const all = await runValidate({ reviewProvider: 'all' })
+  assert.deepEqual(all.calls.sort(), ['builder', 'code-verifier', 'codex-agent'])
 
   // skip still turns a selected reviewer off
-  const skipped = await runValidate({ reviewProvider: 'both', skip: ['unit', 'size', 'pvs', 'review'] })
-  assert.deepEqual(skipped.calls.sort(), ['builder', 'codex-code-verifier'])
+  const skipped = await runValidate({ reviewProvider: 'all', skip: ['unit', 'size', 'pvs', 'review'] })
+  assert.deepEqual(skipped.calls.sort(), ['builder', 'codex-agent'])
 
   // selecting a reviewer and skipping it is contradictory input, not silence
   await assert.rejects(
@@ -257,8 +267,8 @@ await check('validate reviews with codex unless claude is explicitly selected', 
     /reviewProvider "claude" is cancelled by skip/,
   )
   await assert.rejects(
-    runValidate({ reviewProvider: 'both', skip: ['unit', 'size', 'pvs', 'review', 'codex'] }),
-    /reviewProvider "both" is cancelled by skip/,
+    runValidate({ reviewProvider: 'all', skip: ['unit', 'size', 'pvs', 'review', 'codex'] }),
+    /reviewProvider "all" is cancelled by skip/,
   )
 
   // skip:['codex'] used to mean "review with Claude" — it must not silently
@@ -273,7 +283,7 @@ await check('validate reviews with codex unless claude is explicitly selected', 
   assert.equal(noReview.result.stages.some(s => s.stage === 'review' || s.stage === 'codex'), false)
 
   for (const reviewProvider of ['', 'auto', 'CODEX']) {
-    await assert.rejects(runValidate({ reviewProvider }), /reviewProvider must be codex, claude, or both/)
+    await assert.rejects(runValidate({ reviewProvider }), /reviewProvider must be codex, claude, or all/)
   }
 })
 
@@ -286,10 +296,10 @@ await check('full-check forwards the reviewer selection to validate', async () =
     seen.push({ name, args: workflowArgs })
     return { pass: true }
   }
-  await fn({ boards: ['test'], reviewProvider: 'both' },
+  await fn({ boards: ['test'], reviewProvider: 'all' },
     null, null, null, () => {}, () => {}, workflow, null)
   assert.deepEqual(seen.map(s => s.name), ['validate'])
-  assert.equal(seen[0].args.reviewProvider, 'both')
+  assert.equal(seen[0].args.reviewProvider, 'all')
   assert.deepEqual(seen[0].args.boards, ['test'])
 })
 
@@ -372,6 +382,50 @@ await check('fanout simplifies once after all writers and before verification', 
   const unverified = await runFanout({ deadBuilder: true })
   assert.ok(unverified.result.every(row => row.verifyBuild === null))
   assert.match(unverified.logs.at(-1), /0 build-clean/)
+})
+
+await check('the retired bridge is referenced nowhere', async () => {
+  for (const [name, src] of WORKFLOW_SRC) assert.doesNotMatch(src, /codex-code-verifier/, name)
+})
+
+await check('every codex-agent dispatch names a literal read-only role', async () => {
+  // Read the allowlist from the launcher: a role added there and nowhere else
+  // must not slip past this scan, and one removed must not keep passing it.
+  const launcher = readFileSync(new URL('../../codex-agent.py', import.meta.url), 'utf8')
+  const allowed = [...launcher.match(/READ_ONLY_ROLES = frozenset\(\{([^}]*)\}\)/)[1]
+    .matchAll(/'([a-z-]+)'/g)].map(m => m[1])
+  assert.ok(allowed.length > 0, 'could not read READ_ONLY_ROLES from codex-agent.py')
+  const dispatches = []
+  for (const [name, src] of WORKFLOW_SRC) {
+    if (!/agentType:\s*['"]codex-agent['"]/.test(src)) continue
+    for (const m of src.matchAll(/role:\s*(['"])([a-z-]+)\1/g)) dispatches.push([name, m[2]])
+    // A computed role would defeat the scan, so forbid every shape that hides
+    // one: a bare identifier, and a template literal (backticks, which the
+    // quoted-string pattern above does not see).
+    assert.doesNotMatch(src, /role:\s*[A-Za-z_$][\w$]*[,\s}]/, `${name} computes its role`)
+    assert.doesNotMatch(src, /role:\s*`/, `${name} builds its role from a template literal`)
+  }
+  assert.ok(dispatches.length > 0, 'expected at least one codex-agent dispatch')
+  for (const [name, role] of dispatches) {
+    assert.ok(allowed.includes(role), `${name} dispatches disallowed role ${role}`)
+  }
+})
+
+await check('the retired provider value is accepted nowhere', async () => {
+  // Case-insensitive rather than a [Pp] class: codespell rewrites the bare
+  // `rovider` fragment such a class leaves behind, silently breaking the scan.
+  const offersBoth = /provider[^\n]*['"]both['"]/i
+  // The scan is a negative assertion, so a typo in it passes silently forever.
+  assert.match("provider: 'both'", offersBoth)
+  assert.match('reviewProvider: "both"', offersBoth)
+  for (const [name, src] of WORKFLOW_SRC) {
+    // scoped to the provider enum: 'both' is an ordinary English word elsewhere
+    assert.doesNotMatch(src, offersBoth, `${name} still offers 'both'`)
+  }
+  await assert.rejects(
+    run({ prompt: 'review', schema: RESULT, provider: 'both' }),
+    /provider must be codex, claude, or all/,
+  )
 })
 
 console.log(failed ? `\n${failed} FAILED` : '\nall checks passed')

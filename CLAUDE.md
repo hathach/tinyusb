@@ -20,14 +20,22 @@ Bias toward caution over speed. For trivial tasks, use judgment.
 - No dynamic allocation. Defer ISR work to task context. Use `TU_ASSERT()` for error checks; check return values.
 - Keep headers self-contained with `#if CFG_TUSB_MCU` guards. Include order: C stdlib → tusb common → drivers → classes.
 
+## Skills
+
+- When creating or editing skills, put deterministic, checkable mechanics in `.claude/skills/<name>/scripts/`; keep judgment and usage in `SKILL.md`, without duplicating script logic.
+- Scripts must fail explicitly rather than guess; report ambiguous alternatives for the caller to choose.
+- Test new or substantially changed scripts in `.claude/test/test_*.py`; add tests to untested older scripts when touched.
+
 ## Claude and Codex Collaboration
 
 - Keep `CLAUDE.md` and `.claude/{agents,skills,workflows}` canonical; preserve `AGENTS.md -> CLAUDE.md` and `.agents -> .claude`.
-- Use `.codex/agents/<role>.toml` to load `.claude/agents/<role>.md`; keep adapters thin and never duplicate role bodies.
+- For a standalone Codex session, use `.codex/agents/<role>.toml` to load `.claude/agents/<role>.md`; keep adapters thin and never duplicate role bodies.
 - Exception: `code-simplifier` wraps bundled `/simplify` in Claude; Codex keeps its standalone equivalent in TOML.
 - Use `/codex:review` for independent read-only review, `/codex:adversarial-review` to challenge a design, and `/codex:rescue` for bounded implementation or diagnosis.
 - Concurrent writers need separate worktrees; otherwise yield the worktree until delegated edits finish.
-- Keep orchestration in `.claude/workflows/`. Use `code-verify` with `provider: 'codex'` (default), `'claude'`, or `'both'`; `validate`/`full-check` use `reviewProvider`. Keep workflow nesting to one level and the Codex subprocess in `.claude/agents/codex-code-verifier.md`.
+- Use `peer-agent` for read-only consultation with another agent session in this worktree; it is a peer, not a subagent.
+- Keep orchestration in `.claude/workflows/`. Use `code-verify` with `provider: 'codex'` (default), `'claude'`, or `'all'`; `validate`/`full-check` use `reviewProvider`; `pr-babysit` has an independent model challenge every dismissal before it is posted. Keep workflow nesting to one level.
+- Delegate Codex workflow jobs through `.claude/agents/codex-agent.md`; `.claude/codex-agent.py` enforces the allowed roles. Its read-only sandbox has no network: jobs must use local evidence, since failed network reads can produce false empty results. Write-capable roles need worktree isolation first.
 
 ## Build and Validate
 

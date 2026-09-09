@@ -6,7 +6,7 @@ export const meta = {
 }
 
 // args: { boards: string[], hilBoards?: string[], examples?: string, base?: string,
-//         skip?: string[], reviewProvider?: 'codex'|'claude'|'both' }
+//         skip?: string[], reviewProvider?: 'codex'|'claude'|'all' }
 if (typeof args === 'string') { try { args = JSON.parse(args) } catch { /* not JSON: shape check below reports it */ } }
 if (!args || !Array.isArray(args.boards) || args.boards.length === 0) {
   throw new Error('args must be { boards: string[], hilBoards?, examples?, base?, skip?, reviewProvider? }')
