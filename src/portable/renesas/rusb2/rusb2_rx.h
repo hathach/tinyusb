@@ -42,7 +42,7 @@ TU_ATTR_ALWAYS_INLINE static inline void rusb2_module_start(uint8_t rhport, bool
 TU_ATTR_ALWAYS_INLINE static inline void rusb2_int_enable(uint8_t rhport)
 {
   (void) rhport;
-#if (CFG_TUSB_MCU == OPT_MCU_RX72N)
+#if (CFG_TUSB_MCU == OPT_MCU_RX72N) || (CFG_TUSB_MCU == OPT_MCU_RX65X)
   IEN(PERIB, INTB185) = 1;
 #else
   IEN(USB0, USBI0) = 1;
@@ -52,7 +52,7 @@ TU_ATTR_ALWAYS_INLINE static inline void rusb2_int_enable(uint8_t rhport)
 TU_ATTR_ALWAYS_INLINE static inline void rusb2_int_disable(uint8_t rhport)
 {
   (void) rhport;
-#if (CFG_TUSB_MCU == OPT_MCU_RX72N)
+#if (CFG_TUSB_MCU == OPT_MCU_RX72N) || (CFG_TUSB_MCU == OPT_MCU_RX65X)
   IEN(PERIB, INTB185) = 0;
 #else
   IEN(USB0, USBI0) = 0;
@@ -62,7 +62,7 @@ TU_ATTR_ALWAYS_INLINE static inline void rusb2_int_disable(uint8_t rhport)
 // MCU specific PHY init
 TU_ATTR_ALWAYS_INLINE static inline void rusb2_phy_init(void)
 {
-#if (CFG_TUSB_MCU == OPT_MCU_RX72N)
+#if (CFG_TUSB_MCU == OPT_MCU_RX72N) || (CFG_TUSB_MCU == OPT_MCU_RX65X)
   IR(PERIB, INTB185) = 0;
 #else
   IR(USB0, USBI0) = 0;

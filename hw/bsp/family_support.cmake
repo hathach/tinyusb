@@ -864,9 +864,8 @@ function(family_flash_rfp TARGET)
     DEPENDS ${TARGET}
     COMMAND ${CMAKE_OBJCOPY} -O srec -I elf32-rx-be-ns $<TARGET_FILE:${TARGET}> $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.mot
     COMMAND ${RFP_CLI} -device ${RFP_DEVICE} -tool ${RFP_TOOL} -if fine
-      -fo id FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
       -auth id FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
-      -auto $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.mot
+      -a $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.mot
     VERBATIM
     )
 
