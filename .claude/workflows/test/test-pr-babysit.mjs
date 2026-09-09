@@ -22,7 +22,7 @@ async function run(opts = {}) {
   const logs = []
   const calls = []
   const napPoints = [] // logs.length when a backoff started, to prove ordering
-  const reviews = opts.reviews ?? { findings: [], replies: [], done: true }
+  const reviews = opts.reviews ?? { findings: [], replies: [], pending: [], done: true }
   const ci = opts.ci ?? GREEN
 
   const agent = async (prompt, options) => {
@@ -312,6 +312,61 @@ await check('the pending-bot backoff is taken after the cycle summary', async ()
   assert.equal(napPoints.length, 1, 'no backoff after the last cycle')
   const firstSummaryAt = logs.findIndex(l => l.startsWith('cycle 1 summary'))
   assert.ok(napPoints[0] > firstSummaryAt, 'cycle 1 reported before the wait, not after it')
+})
+
+await check('a pending bot is named with its reason in the summary and the re-arm log', async () => {
+  const { result, logs } = await run({
+    args: { maxCycles: 2 },
+    reviews: {
+      findings: [], replies: [], done: false,
+      pending: [{ bot: 'coderabbit', reason: 'status on head a1b2c3d is pending | Review in progress' },
+        { bot: 'claude', reason: 'check run claude-review queued' }],
+    },
+  })
+  assert.equal(result.reason, 'maxCycles reached')
+  const head = summaries(logs)[0].split('\n')[0]
+  assert.match(head, /bots still pending: coderabbit \(status on head a1b2c3d is pending \\\| Review in progress\); claude \(check run claude-review queued\)/)
+  assert.match(logs.find(l => l.includes('re-arming after a wait')), /coderabbit \(status on head/)
+  assert.match(logs.find(l => l.includes('cycle budget exhausted')), /claude \(check run claude-review queued\)/)
+})
+
+await check('a bot pending one cycle and settled the next lets the run pass', async () => {
+  let n = 0
+  const { result, logs } = await run({
+    args: { maxCycles: 3 },
+    reviewsPerCycle: () => ++n === 1
+      ? { findings: [], replies: [], done: false, pending: [{ bot: 'claude', reason: 'no claude-review check run on head yet' }] }
+      : { findings: [], replies: [], done: true, pending: [] },
+  })
+  assert.equal(result.pass, true)
+  assert.equal(result.cycles, 2)
+  const heads = summaries(logs).map(s => s.split('\n')[0])
+  assert.match(heads[0], /bots still pending: claude \(no claude-review check run on head yet\)/)
+  assert.match(heads[1], /all bots settled/)
+})
+
+await check('the validator contract requires pending alongside done', async () => {
+  // The stub agent does not enforce options.schema, so pin the contract in the
+  // source: a harvest without `pending` must be rejected by the host, or the
+  // summary silently loses the reason a bot is outstanding.
+  assert.match(WORKFLOW_SRC, /required: \['findings', 'replies', 'pending', 'done'\]/)
+  assert.match(WORKFLOW_SRC, /required: \['bot', 'reason'\]/)
+})
+
+await check('a validator that says not-done but names no bot is called out, not rendered blank', async () => {
+  const { logs } = await run({
+    reviews: { findings: [], replies: [], done: false, pending: [] },
+  })
+  assert.match(summaries(logs)[0].split('\n')[0], /bots still pending: unnamed — validator gave no reason/)
+})
+
+await check('done with a bot still named pending is treated as pending', async () => {
+  const { result, logs } = await run({
+    reviews: { findings: [], replies: [], done: true, pending: [{ bot: 'codex', reason: 'sticky row shows 👀 on head' }] },
+  })
+  assert.equal(result.reason, 'maxCycles reached', 'the evidence outranks the flag')
+  assert.match(logs.find(l => l.includes('reported done with bots still pending')), /codex \(sticky row shows 👀 on head\)/)
+  assert.match(summaries(logs)[0].split('\n')[0], /bots still pending: codex/)
 })
 
 await check('reviews never route to the Codex bridge', async () => {

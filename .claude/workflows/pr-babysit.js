@@ -66,7 +66,7 @@ const CHALLENGE = {
 
 const REVIEWS = {
   type: 'object', additionalProperties: false,
-  required: ['findings', 'replies', 'done'],
+  required: ['findings', 'replies', 'pending', 'done'],
   properties: {
     findings: {
       type: 'array',
@@ -88,6 +88,16 @@ const REVIEWS = {
         type: 'object', additionalProperties: false,
         required: ['commentId', 'body'],
         properties: { commentId: { type: 'integer' }, body: { type: 'string' } },
+      },
+    },
+    // Why each bot is still outstanding on the head SHA (#3906): three cycles
+    // once waited on a reviewer that had left, and nothing said so.
+    pending: {
+      type: 'array',
+      items: {
+        type: 'object', additionalProperties: false,
+        required: ['bot', 'reason'],
+        properties: { bot: { type: 'string' }, reason: { type: 'string' } },
       },
     },
     done: { type: 'boolean' },
@@ -364,6 +374,14 @@ const answerState = (commentId) => !answeredWith.has(commentId) ? 'reply pending
   : answeredWith.get(commentId).how === 'refutation' ? 'replied + resolved'
     : owesDismissal(commentId) ? 'deferred to next cycle' : 'answered by fix note'
 
+// A validator that says "not done" without naming a bot is the silent wait
+// this exists to end, so that case is called out rather than rendered blank.
+const pendingText = (r) => {
+  const p = Array.isArray(r.pending) ? r.pending : []
+  return p.length === 0 ? 'unnamed — validator gave no reason'
+    : p.map(x => `${cell(x.bot, 16)} (${cell(x.reason, 120)})`).join('; ')
+}
+
 const cycleSummary = (entry) => {
   const rows = []
   const findings = [...((entry.reviews && entry.reviews.findings) || [])]
@@ -391,7 +409,7 @@ const cycleSummary = (entry) => {
     ])
   }
   const head = `cycle ${entry.cycle} summary — CI ${entry.ci ? entry.ci.status : 'unknown'}, ` +
-    `${entry.reviews ? (entry.reviews.done ? 'all bots settled' : 'bots still pending') : 'no review data'}` +
+    `${entry.reviews ? (entry.reviews.done ? 'all bots settled' : `bots still pending: ${pendingText(entry.reviews)}`) : 'no review data'}` +
     `${entry.error ? `, ERROR: ${entry.error}` : ''}`
   return rows.length === 0
     ? `${head}\n(no bot findings, no real CI failures)`
@@ -447,6 +465,12 @@ const runCycle = async (cycle, entry) => {
       return { pass: false, cycles: cycle, history, reason: 'review-validator-died' }
     }
     entry.reviews = r
+    // The validator named a bot still working on head yet claimed settled: the
+    // evidence wins over the flag, since "done" is what its evidence must sum to.
+    if (r.done && Array.isArray(r.pending) && r.pending.length > 0) {
+      log(`cycle ${cycle}: validator reported done with bots still pending — treating as pending: ${pendingText(r)}`)
+      r.done = false
+    }
 
     // findingId is the only thing telling one dismissal on a comment from
     // another. Two findings sharing one would silently collapse into a single
@@ -740,10 +764,10 @@ const runCycle = async (cycle, entry) => {
       // nothing else to wait on, so back off before re-arming or the cycle budget
       // burns on back-to-back re-harvests of the same unchanged PR.
       if (cycle < maxCycles) {
-        log(`cycle ${cycle}: auto-review still pending — re-arming after a wait`)
+        log(`cycle ${cycle}: auto-review still pending (${pendingText(r)}) — re-arming after a wait`)
         napMs = 60000 * cycle // taken at the top of the next cycle, after this one's summary
       } else {
-        log(`cycle ${cycle}: auto-review still pending — cycle budget exhausted`)
+        log(`cycle ${cycle}: auto-review still pending (${pendingText(r)}) — cycle budget exhausted`)
       }
       return null
     }
