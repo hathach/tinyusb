@@ -157,6 +157,9 @@ static bool tud_audio_feature_unit_get_request(uint8_t rhport, tusb_control_requ
 {
   uint8_t const ctrl_sel    = TU_U16_HIGH(p_request->wValue);
   uint8_t const channel_num = TU_U16_LOW(p_request->wValue);
+  // Channel number is host-controlled (0..255) but mute[]/volume[] hold only
+  // CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1 entries - reject out-of-range (STALL)
+  if (channel_num > CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX) return false;
 
   if (ctrl_sel == AUDIO20_FU_CTRL_MUTE && p_request->bRequest == AUDIO20_CS_REQ_CUR)
   {
@@ -196,6 +199,9 @@ static bool tud_audio_feature_unit_set_request(uint8_t rhport, tusb_control_requ
 
   uint8_t const ctrl_sel    = TU_U16_HIGH(p_request->wValue);
   uint8_t const channel_num = TU_U16_LOW(p_request->wValue);
+  // Channel number is host-controlled (0..255) but mute[]/volume[] hold only
+  // CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1 entries - reject out-of-range (STALL)
+  if (channel_num > CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX) return false;
 
   TU_VERIFY(p_request->bRequest == AUDIO20_CS_REQ_CUR);
 

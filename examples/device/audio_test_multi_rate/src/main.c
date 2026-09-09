@@ -234,6 +234,10 @@ static bool audio10_set_req_entity(tusb_control_request_t const *p_request, uint
 
   // If request is for our feature unit (ID defined in usbd.h)
   if (entityID == 0x02) {
+    // Channel number is host-controlled (0..255) but mute[]/volume[] hold only
+    // CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1 entries - reject out-of-range (STALL)
+    if (channelNum > CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX) return false;
+
     switch (ctrlSel) {
       case AUDIO10_FU_CTRL_MUTE:
         switch (p_request->bRequest) {
@@ -282,6 +286,10 @@ static bool audio10_get_req_entity(uint8_t rhport, tusb_control_request_t const 
 
   // If request is for our feature unit (ID defined in usbd.h)
   if (entityID == 0x02) {
+    // Channel number is host-controlled (0..255) but mute[]/volume[] hold only
+    // CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1 entries - reject out-of-range (STALL)
+    if (channelNum > CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX) return false;
+
     switch (ctrlSel) {
       case AUDIO10_FU_CTRL_MUTE:
         // Audio control mute cur parameter block consists of only one byte - we thus can send it right away
@@ -355,6 +363,10 @@ static bool audio20_set_req_entity(tusb_control_request_t const *p_request, uint
 
   // If request is for our feature unit
   if (entityID == UAC2_ENTITY_FEATURE_UNIT) {
+    // Channel number is host-controlled (0..255) but mute[]/volume[] hold only
+    // CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1 entries - reject out-of-range (STALL)
+    if (channelNum > CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX) return false;
+
     switch (ctrlSel) {
       case AUDIO20_FU_CTRL_MUTE:
         // Request uses format layout 1
@@ -435,6 +447,10 @@ static bool audio20_get_req_entity(uint8_t rhport, tusb_control_request_t const 
 
   // Feature unit
   if (entityID == UAC2_ENTITY_FEATURE_UNIT) {
+    // Channel number is host-controlled (0..255) but mute[]/volume[] hold only
+    // CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1 entries - reject out-of-range (STALL)
+    if (channelNum > CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX) return false;
+
     switch (ctrlSel) {
       case AUDIO20_FU_CTRL_MUTE:
         // Audio control mute cur parameter block consists of only one byte - we thus can send it right away
