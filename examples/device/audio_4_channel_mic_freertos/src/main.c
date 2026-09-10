@@ -296,6 +296,10 @@ bool tud_audio_set_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p
 
   // If request is for our feature unit
   if (entityID == 2) {
+    // Channel number is host-controlled (0..255) but mute[]/volume[] hold only
+    // CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1 entries - reject out-of-range (STALL)
+    if (channelNum > CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX) return false;
+
     switch (ctrlSel) {
       case AUDIO20_FU_CTRL_MUTE:
         // Request uses format layout 1
@@ -391,6 +395,10 @@ bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p
 
   // Feature unit
   if (entityID == 2) {
+    // Channel number is host-controlled (0..255) but mute[]/volume[] hold only
+    // CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1 entries - reject out-of-range (STALL)
+    if (channelNum > CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX) return false;
+
     switch (ctrlSel) {
       case AUDIO20_FU_CTRL_MUTE:
         // Audio control mute cur parameter block consists of only one byte - we thus can send it right away
