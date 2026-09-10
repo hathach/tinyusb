@@ -20,6 +20,26 @@
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
+
+// For small mcus such as RA2A1/S124 there are only 5 pipes and no D0/D1 FIFOs
+#if defined(BSP_MCU_GROUP_RA2A1) || defined(BSP_MCU_GROUP_S124) || defined(BSP_MCU_GROUP_S128) || defined(BSP_MCU_GROUP_S1JA)
+  #define HAS_5PIPE_FIFO
+#endif
+
+#if defined(HAS_5PIPE_FIFO)
+  #define DATA_FIFO       CFIFO
+  #define DATA_FIFOSEL    CFIFOSEL
+  #define DATA_FIFOCTR    CFIFOCTR
+  #define DATA_FIFOSEL_b  CFIFOSEL_b
+  #define DATA_FIFOCTR_b  CFIFOCTR_b
+#else
+  #define DATA_FIFO       D0FIFO
+  #define DATA_FIFOSEL    D0FIFOSEL
+  #define DATA_FIFOCTR    D0FIFOCTR
+  #define DATA_FIFOSEL_b  D0FIFOSEL_b
+  #define DATA_FIFOCTR_b  D0FIFOCTR_b
+#endif
+
 enum {
   PIPE_COUNT = 10,
 };
@@ -68,15 +88,23 @@ static hcd_data_t _hcd;
 // - Pipes 3 to 5: Bulk
 // - Pipes 6 to 9: Interrupt
 //
-// Note: for small mcu such as
-// - RA2A1: only pipe 4-7 are available, and no support for ISO
+// Note: for small mcu with PIPE_COUNT == 5, only pipe 0 and 4-7 are available, and no support for ISO
 static unsigned find_pipe(unsigned xfer_type) {
+  #if defined(HAS_5PIPE_FIFO)
+  const uint8_t pipe_idx_arr[4][2] = {
+      { 0, 0 }, // Control
+      { 0, 0 }, // Isochronous not supported
+      { 4, 5 }, // Bulk
+      { 6, 7 }, // Interrupt
+  };
+  #else
   const uint8_t pipe_idx_arr[4][2] = {
       { 0, 0 }, // Control
       { 1, 2 }, // Isochronous
       { 1, 5 }, // Bulk
       { 6, 9 }, // Interrupt
   };
+  #endif
 
   // find backward since only pipe 1, 2 support ISO
   const uint8_t idx_first = pipe_idx_arr[xfer_type][0];
@@ -134,8 +162,8 @@ static uint16_t edpt_max_packet_size(rusb2_reg_t *rusb, unsigned num)
 
 static inline void pipe_wait_for_ready(rusb2_reg_t* rusb, unsigned num)
 {
-  while (rusb->D0FIFOSEL_b.CURPIPE != num) ;
-  while (!rusb->D0FIFOCTR_b.FRDY) {}
+  while (rusb->DATA_FIFOSEL_b.CURPIPE != num) ;
+  while (!rusb->DATA_FIFOCTR_b.FRDY) {}
 }
 
 static bool pipe0_xfer_in(rusb2_reg_t* rusb)
@@ -205,25 +233,25 @@ static bool pipe_xfer_in(rusb2_reg_t* rusb, unsigned num)
   } else {
     fifo_sel |= RUSB2_FIFOSEL_MBW_16BIT;
   }
-  rusb->D0FIFOSEL = fifo_sel;
+  rusb->DATA_FIFOSEL = fifo_sel;
 
   const unsigned mps  = edpt_max_packet_size(rusb, num);
   pipe_wait_for_ready(rusb, num);
-  const unsigned vld  = rusb->D0FIFOCTR_b.DTLN;
+  const unsigned vld  = rusb->DATA_FIFOCTR_b.DTLN;
   const unsigned len  = TU_MIN(TU_MIN(rem, mps), vld);
   void          *buf  = pipe->buf;
   if (len) {
-    // pipe_read_packet(buf, (volatile void*)&rusb->D0FIFO, len);
+    // pipe_read_packet(buf, (volatile void*)&rusb->DATA_FIFO, len);
     tu_hwfifo_access_t access_mode = {.data_stride = (rusb2_is_highspeed_reg(rusb) ? 4u : 2u),
                                       .param       = (uintptr_t)rusb};
-    tu_hwfifo_read(&rusb->D0FIFO, buf, len, &access_mode);
+    tu_hwfifo_read(&rusb->DATA_FIFO, buf, len, &access_mode);
     pipe->buf = (uint8_t*)buf + len;
   }
   if (len < mps) {
-    rusb->D0FIFOCTR = RUSB2_D0FIFOCTR_BCLR_Msk;
+    rusb->DATA_FIFOCTR = RUSB2_D0FIFOCTR_BCLR_Msk;
   }
-  rusb->D0FIFOSEL = 0;
-  while (rusb->D0FIFOSEL_b.CURPIPE) ; /* if CURPIPE bits changes, check written value */
+  rusb->DATA_FIFOSEL = 0;
+  while (rusb->DATA_FIFOSEL_b.CURPIPE) ; /* if CURPIPE bits changes, check written value */
   pipe->remaining = rem - len;
   if ((len < mps) || (rem == len)) {
     pipe->buf = NULL;
@@ -248,24 +276,24 @@ static bool pipe_xfer_out(rusb2_reg_t* rusb, unsigned num)
   } else {
     fifo_sel |= RUSB2_FIFOSEL_MBW_16BIT;
   }
-  rusb->D0FIFOSEL = fifo_sel;
+  rusb->DATA_FIFOSEL = fifo_sel;
 
   const unsigned mps  = edpt_max_packet_size(rusb, num);
   pipe_wait_for_ready(rusb, num);
   const unsigned len  = TU_MIN(rem, mps);
   void          *buf  = pipe->buf;
   if (len) {
-    // pipe_write_packet(buf, (volatile void*)&rusb->D0FIFO, len);
+    // pipe_write_packet(buf, (volatile void*)&rusb->DATA_FIFO, len);
     tu_hwfifo_access_t access_mode = {.data_stride = (rusb2_is_highspeed_reg(rusb) ? 4u : 2u),
                                       .param       = (uintptr_t)rusb};
-    tu_hwfifo_write(&rusb->D0FIFO, buf, len, &access_mode);
+    tu_hwfifo_write(&rusb->DATA_FIFO, buf, len, &access_mode);
     pipe->buf = (uint8_t*)buf + len;
   }
   if (len < mps) {
-    rusb->D0FIFOCTR = RUSB2_D0FIFOCTR_BVAL_Msk;
+    rusb->DATA_FIFOCTR = RUSB2_D0FIFOCTR_BVAL_Msk;
   }
-  rusb->D0FIFOSEL = 0;
-  while (rusb->D0FIFOSEL_b.CURPIPE) ; /* if CURPIPE bits changes, check written value */
+  rusb->DATA_FIFOSEL = 0;
+  while (rusb->DATA_FIFOSEL_b.CURPIPE) ; /* if CURPIPE bits changes, check written value */
   pipe->remaining = rem - len;
   return false;
 }
@@ -331,11 +359,11 @@ static bool process_pipe_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr,
     if (buflen) {
       pipe_xfer_out(rusb, num);
     } else { /* ZLP */
-      rusb->D0FIFOSEL = num;
+      rusb->DATA_FIFOSEL = num;
       pipe_wait_for_ready(rusb, num);
-      rusb->D0FIFOCTR = RUSB2_D0FIFOCTR_BVAL_Msk;
-      rusb->D0FIFOSEL = 0;
-      while (rusb->D0FIFOSEL_b.CURPIPE) {} /* if CURPIPE bits changes, check written value */
+      rusb->DATA_FIFOCTR = RUSB2_D0FIFOCTR_BVAL_Msk;
+      rusb->DATA_FIFOSEL = 0;
+      while (rusb->DATA_FIFOSEL_b.CURPIPE) {} /* if CURPIPE bits changes, check written value */
     }
   } else {
     volatile uint16_t     *ctr = get_pipectr(rusb, num);
@@ -465,8 +493,10 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
     rusb->SOFCFG_b.INTL = 1;
     rusb->DVSTCTR0_b.VBUSEN = 1;
     rusb->CFIFOSEL_b.MBW = 1;
+#if !defined(HAS_5PIPE_FIFO)
     rusb->D0FIFOSEL_b.MBW = 1;
     rusb->D1FIFOSEL_b.MBW = 1;
+#endif
     rusb->INTSTS0 = 0;
     for ( volatile int i = 0; i < 30000; ++i );
     rusb->SYSCFG_b.USBE = 1;

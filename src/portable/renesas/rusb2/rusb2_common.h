@@ -25,6 +25,8 @@
     #define D0FIFOCTR_b CFIFOCTR_b
   #endif
 
+#elif TU_CHECK_MCU(OPT_MCU_SYNERGY)
+  #include "rusb2_synergy.h"
 #else
   #error "Unsupported MCU"
 #endif
