@@ -246,10 +246,9 @@ static void hardware_init_host(bool enabled) {
     USBOTG_H_FS->HOST_EP_MOD = USBFS_UH_EP_TX_EN | USBFS_UH_EP_RX_EN;
     USBOTG_H_FS->HOST_RX_DMA = (uint32_t)USBFS_RX_Buf;
     USBOTG_H_FS->HOST_TX_DMA = (uint32_t)USBFS_TX_Buf;
-    // DETECT for connect/disconnect, TRANSFER for completions, HST_SOF for
-    // the 1ms frame tick that paces isochronous transfers. UIE_TRANSFER stays
-    // enabled for the driver's lifetime (no disable/re-enable per transaction).
-    USBOTG_H_FS->INT_EN = USBFS_UIE_DETECT | USBFS_UIE_TRANSFER | USBFS_UIE_HST_SOF;
+    // DETECT for connect/disconnect, TRANSFER for completions. HST_SOF is
+    // enabled on-demand when periodic transfers or NAK retries need it.
+    USBOTG_H_FS->INT_EN = USBFS_UIE_DETECT | USBFS_UIE_TRANSFER;
   }
 }
 
@@ -660,6 +659,8 @@ void hcd_port_reset_end(uint8_t rhport) {
   // SOF generation must be on: it both keeps the enumerated device from
   // suspending and drives the 1ms frame tick for isochronous pacing.
   USBOTG_H_FS->HOST_SETUP |= USBFS_UH_SOF_EN;
+  // Enable SOF interrupt for NAK retry and isochronous scheduling.
+  USBOTG_H_FS->INT_EN |= USBFS_UIE_HST_SOF;
 
   // Suppress the attached event the reset itself may assert.
   USBOTG_H_FS->INT_FG |= USBFS_UIF_DETECT;
