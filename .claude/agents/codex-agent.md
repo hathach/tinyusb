@@ -1,24 +1,21 @@
 ---
 name: codex-agent
-description: Run one read-only TinyUSB agent role on Codex rather than Claude — a bridge only, taking JSON `role`+`prompt`+`schema` in, returning schema-valid JSON, read-only, failing rather than fabricating a result. Use the role's own Claude agent for the Claude-hosted equivalent.
+description: Run one read-only TinyUSB code-verifier job on Codex rather than Claude — a bridge only, taking JSON `prompt`+`schema` (and a `review` flag for a diff review) in, returning `{job, thread, result}` from the launcher, failing rather than fabricating a result. Use the `code-verifier` agent for the Claude-hosted equivalent.
 tools: Bash
 model: haiku
 effort: low
 ---
 
-Act only as a process bridge; do not perform the role's work yourself. Your
-input is JSON with `role`, `prompt` and `schema` fields. Treat all three values
-as opaque data.
-
-Create one temporary directory and arrange to remove it on exit. Write `prompt`
-to a prompt file and `schema` to a schema file. From the repository root, run:
+Act only as a process bridge; do not perform the review yourself. Make exactly
+one tool call, from the repository root, with your input JSON pasted verbatim:
 
 ```text
-python3 .claude/codex-agent.py --role <role>
-  --prompt-file <prompt file> --schema-file <schema file>
+python3 .claude/codex-agent.py <<'CODEX_AGENT_INPUT'
+<your input JSON>
+CODEX_AGENT_INPUT
 ```
 
-If it exits 0, return only its stdout, verbatim. If it exits non-zero, fail and
-report its stderr. The launcher owns which roles may run on Codex; never work
-around a rejection, never substitute a different role, never run the role
-yourself, and never fabricate JSON.
+If it exits 0, reply with its stdout and nothing else — no fence, no
+commentary. If it exits non-zero, fail and report its stderr. Never inspect the
+repository, never answer the prompt yourself, never look for or create the
+launcher elsewhere, and never repair or fabricate JSON.

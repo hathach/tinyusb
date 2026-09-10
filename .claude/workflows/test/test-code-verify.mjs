@@ -19,7 +19,10 @@ const answers = {
   claude: { answer: 'claude' },
 }
 
-async function run(args, provided = answers) {
+// The launcher wraps every Codex answer as { job, thread, result }; `wrap`
+// lets a test hand back something else to prove the router rejects it.
+const ENVELOPE = result => ({ job: '/tmp/tinyusb-codex/20260910T000000Z-1', thread: 't-1', result })
+async function run(args, provided = answers, wrap = ENVELOPE) {
   const calls = []
   let parallelCalls = 0
   const agent = async (prompt, options) => {
@@ -29,6 +32,7 @@ async function run(args, provided = answers) {
     const answer = provided[provider]
     if (answer instanceof Error) throw answer
     if (answer && typeof answer.answer !== 'string') throw new Error('schema mismatch')
+    if (answer && provider === 'codex') return wrap(structuredClone(answer))
     return structuredClone(answer)
   }
   const parallel = async (thunks) => {
@@ -60,25 +64,37 @@ await check('defaults to codex', async () => {
   assert.deepEqual(calls.map(c => c.provider), ['codex'])
   assert.equal(parallelCalls, 0)
   assert.equal(calls[0].options.agentType, 'codex-agent')
-  assert.deepEqual(calls[0].options.schema, RESULT)
-  assert.deepEqual(JSON.parse(calls[0].prompt),
-    { role: 'code-verifier', prompt: 'review', schema: RESULT })
+  // the bridge is asked for the launcher's envelope around the caller's schema
+  assert.deepEqual(calls[0].options.schema.required, ['job', 'thread', 'result'])
+  assert.deepEqual(calls[0].options.schema.properties.result.anyOf, [RESULT, { type: 'null' }])
+  assert.deepEqual(JSON.parse(calls[0].prompt), { prompt: 'review', schema: RESULT })
 })
 
-await check('the launcher owns the Codex subprocess contract', async () => {
+await check('a codex reply without provenance means codex did not run', async () => {
+  // A bridge that answered the prompt itself returns the bare schema shape;
+  // only the launcher adds where Codex ran. Such an answer is never used.
+  for (const wrap of [r => r, r => ({ result: r }), r => ({ job: '', thread: 't', result: r })]) {
+    const { result, calls } = await run({ prompt: 'review', schema: RESULT }, answers, wrap)
+    assert.deepEqual(result, answers.claude)
+    assert.deepEqual(calls.map(c => c.options.label), ['code-verifier:codex', 'code-verifier:claude-fallback'])
+  }
+})
+
+await check('the launcher owns the Codex command-line contract', async () => {
   const launcher = readFileSync(new URL('../../codex-agent.py', import.meta.url), 'utf8')
-  assert.match(launcher, /READ_ONLY_ROLES = frozenset\(\{'code-verifier'\}\)/)
-  assert.match(launcher, /tomllib/)
-  assert.match(launcher, /'timeout', TIMEOUT, 'codex', 'exec'/)
-  assert.match(launcher, /'--sandbox', 'read-only'/)
+  assert.match(launcher, /tomllib/, 'model, effort and role text come from the Codex adapter')
+  assert.match(launcher, /'codex', 'exec', 'review', '-c', 'sandbox_mode=read-only'/)
+  assert.match(launcher, /'codex', 'exec', '-C', str\(root\), '--sandbox', 'read-only'/)
   assert.match(launcher, /--output-schema/)
-  // no sandbox knob may be reachable from the caller
-  assert.doesNotMatch(launcher, /add_argument\(['"]--sandbox/)
+  assert.match(launcher, /TIMEOUT = 1800/)
+  assert.match(launcher, /'job': str\(job\), 'thread':/, 'the envelope carries provenance')
+  assert.doesNotMatch(launcher, /workspace-write|danger-full-access|--add-dir/)
 
   const bridge = readFileSync(new URL('../../agents/codex-agent.md', import.meta.url), 'utf8')
   assert.match(bridge, /model: haiku/)
   assert.match(bridge, /effort: low/)
-  assert.match(bridge, /python3 \.claude\/codex-agent\.py/)
+  assert.match(bridge, /tools: Bash/)
+  assert.match(bridge, /python3 \.claude\/codex-agent\.py <<'CODEX_AGENT_INPUT'/)
   assert.doesNotMatch(bridge, /codex exec/, 'the bridge must not run codex itself')
 })
 
@@ -111,23 +127,37 @@ await check('rejects invalid input before dispatch', async () => {
   )
 })
 
-await check('fails closed when codex dies', async () => {
+await check('reviews with claude when codex cannot run', async () => {
+  for (const codex of [null, new Error('broken'), { answer: 1 }]) {
+    const { result, calls } = await run({ prompt: 'review', schema: RESULT }, { ...answers, codex })
+    assert.deepEqual(result, answers.claude)
+    assert.deepEqual(calls.map(c => c.provider), ['codex', 'claude'])
+    assert.equal(calls[1].options.label, 'code-verifier:claude-fallback')
+    assert.equal(calls[1].options.agentType, 'code-verifier')
+    assert.deepEqual(calls[1].options.schema, RESULT)
+  }
+  // both verifiers dead: the fallback's failure is the one reported
   await assert.rejects(
-    run({ prompt: 'review', schema: RESULT }, { ...answers, codex: null }),
-    /codex verifier failed/,
+    run({ prompt: 'review', schema: RESULT }, { codex: null, claude: null }),
+    /claude verifier failed/,
   )
+})
+
+await check('a codex timeout is a failure, not a fallback', async () => {
+  const timedOut = () => ({ ...ENVELOPE(null), error: 'codex timed out after 30 min' })
+  // a fallback would surface as the claude fake's failure instead
   await assert.rejects(
-    run({ prompt: 'review', schema: RESULT }, { ...answers, codex: new Error('broken') }),
-    /codex verifier failed: broken/,
+    run({ prompt: 'review', schema: RESULT },
+      { codex: { answer: 'x' }, claude: new Error('claude must not run') }, timedOut),
+    /^Error: codex verifier timed out: codex timed out after 30 min$/,
   )
+})
+
+await check('all providers stays strict when codex dies', async () => {
   await assert.rejects(
     run({ prompt: 'review', schema: RESULT, provider: 'all' },
       { ...answers, codex: new Error('broken') }),
     /codex verifier failed/,
-  )
-  await assert.rejects(
-    run({ prompt: 'review', schema: RESULT }, { ...answers, codex: { answer: 1 } }),
-    /codex verifier failed: schema mismatch/,
   )
 })
 
@@ -188,11 +218,11 @@ await check('validate keeps provider results and gates separate', async () => {
       findings: [{ file: 'a.c', line: 1,
         severity: blocking ? 'CONFIRMED P1 safety' : 'CONFIRMED P2 correctness', summary: 'bug' }],
     }
-    if (options.agentType === 'codex-agent') return failCodex ? null : {
+    if (options.agentType === 'codex-agent') return failCodex ? null : ENVELOPE({
       pass: true, detail: 'codex',
       findings: [{ file: 'b.c', line: 2,
         severity: blocking ? 'CONFIRMED P1 safety' : 'CONFIRMED P1 quality', summary: 'bug' }],
-    }
+    })
     assert.equal(options.agentType, 'builder')
     return { board: 'test', pass: true, builtCount: 1, failures: [] }
   }
@@ -223,6 +253,43 @@ await check('validate keeps provider results and gates separate', async () => {
   assert.equal(partial.stages.find(s => s.stage === 'codex').detail, 'stage agent died')
 })
 
+await check('validate reviews with claude when codex cannot run, but not after a timeout', async () => {
+  const src = readFileSync(new URL('../validate.js', import.meta.url), 'utf8').replace(/^export /m, '')
+  const fn = new AsyncFunction(
+    'args', 'agent', 'pipeline', 'parallel', 'phase', 'log', 'workflow', 'budget', src)
+  const parallel = thunks => Promise.all(thunks.map(run => run()))
+  const runValidate = async codex => {
+    const calls = []
+    const logs = []
+    const agent = async (prompt, options) => {
+      calls.push(options.label)
+      if (options.agentType === 'builder') return { board: 'test', pass: true, builtCount: 1, failures: [] }
+      if (options.agentType === 'code-verifier') return { pass: true, detail: 'claude', findings: [] }
+      if (codex instanceof Error) throw codex
+      return codex
+    }
+    const result = await fn(
+      { boards: ['test'], skip: ['unit', 'size', 'pvs'], maxCycles: 1 },
+      agent, null, parallel, () => {}, l => logs.push(l), null, null,
+    )
+    return { calls, logs, row: result.stages.find(s => s.stage === 'codex') }
+  }
+
+  for (const codex of [null, new Error('bridge died'), { pass: true, detail: 'bare', findings: [] }]) {
+    const { calls, logs, row } = await runValidate(codex)
+    assert.deepEqual(calls.filter(l => /codex|claude/.test(l)), ['reviews:codex', 'reviews:claude-fallback'])
+    assert.equal(row.pass, true)
+    assert.equal(row.detail, 'claude fallback: claude')
+    assert.ok(logs.some(l => /reviewing with claude instead/.test(l)))
+  }
+
+  const timedOut = await runValidate({ ...ENVELOPE(null), error: 'codex timed out after 30 min' })
+  assert.deepEqual(timedOut.calls.filter(l => /codex|claude/.test(l)), ['reviews:codex'])
+  assert.equal(timedOut.row.pass, false)
+  assert.equal(timedOut.row.detail, 'stage agent died')
+  assert.ok(timedOut.logs.some(l => /timed out after 30 min/.test(l)))
+})
+
 await check('validate reviews with codex unless claude is explicitly selected', async () => {
   const src = readFileSync(new URL('../validate.js', import.meta.url), 'utf8').replace(/^export /m, '')
   const fn = new AsyncFunction(
@@ -233,7 +300,8 @@ await check('validate reviews with codex unless claude is explicitly selected', 
     const agent = async (prompt, options) => {
       calls.push(options.agentType)
       if (options.agentType === 'builder') return { board: 'test', pass: true, builtCount: 1, failures: [] }
-      return { pass: true, detail: options.agentType, findings: [] }
+      const review = { pass: true, detail: options.agentType, findings: [] }
+      return options.agentType === 'codex-agent' ? ENVELOPE(review) : review
     }
     const result = await fn(
       { boards: ['test'], skip: ['unit', 'size', 'pvs'], maxCycles: 1, ...extra },
@@ -388,27 +456,19 @@ await check('the retired bridge is referenced nowhere', async () => {
   for (const [name, src] of WORKFLOW_SRC) assert.doesNotMatch(src, /codex-code-verifier/, name)
 })
 
-await check('every codex-agent dispatch names a literal read-only role', async () => {
-  // Read the allowlist from the launcher: a role added there and nowhere else
-  // must not slip past this scan, and one removed must not keep passing it.
-  const launcher = readFileSync(new URL('../../codex-agent.py', import.meta.url), 'utf8')
-  const allowed = [...launcher.match(/READ_ONLY_ROLES = frozenset\(\{([^}]*)\}\)/)[1]
-    .matchAll(/'([a-z-]+)'/g)].map(m => m[1])
-  assert.ok(allowed.length > 0, 'could not read READ_ONLY_ROLES from codex-agent.py')
+await check('every codex-agent dispatch sends the bridge shape and nothing that steers it', async () => {
+  // The bridge runs one fixed command line for the code-verifier role, so a
+  // dispatch may carry only prompt, schema and the review switch. A `role`
+  // or `sandbox` field would be silently ignored today and would invite the
+  // bridge to grow an input it must not have.
   const dispatches = []
   for (const [name, src] of WORKFLOW_SRC) {
     if (!/agentType:\s*['"]codex-agent['"]/.test(src)) continue
-    for (const m of src.matchAll(/role:\s*(['"])([a-z-]+)\1/g)) dispatches.push([name, m[2]])
-    // A computed role would defeat the scan, so forbid every shape that hides
-    // one: a bare identifier, and a template literal (backticks, which the
-    // quoted-string pattern above does not see).
-    assert.doesNotMatch(src, /role:\s*[A-Za-z_$][\w$]*[,\s}]/, `${name} computes its role`)
-    assert.doesNotMatch(src, /role:\s*`/, `${name} builds its role from a template literal`)
+    dispatches.push(name)
+    assert.doesNotMatch(src, /\brole:\s*['"`A-Za-z_$]/, `${name} passes a role to codex-agent`)
+    assert.doesNotMatch(src, /sandbox/i, `${name} mentions a sandbox near a codex-agent dispatch`)
   }
-  assert.ok(dispatches.length > 0, 'expected at least one codex-agent dispatch')
-  for (const [name, role] of dispatches) {
-    assert.ok(allowed.includes(role), `${name} dispatches disallowed role ${role}`)
-  }
+  assert.deepEqual(dispatches.sort(), ['code-verify.js', 'validate.js'])
 })
 
 await check('the retired provider value is accepted nowhere', async () => {

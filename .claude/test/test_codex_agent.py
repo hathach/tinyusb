@@ -13,106 +13,178 @@ LAUNCHER = ROOT / '.claude' / 'codex-agent.py'
 sys.path.insert(0, str(LAUNCHER.parent))
 codex_agent = __import__('codex-agent')
 
-
-def run(role, prompt_file=None, schema_file=None):
-    """Invoke the launcher. Given paths are used as-is; otherwise real temp
-    files are created, since some paths must exist for the run to get that far."""
-    with tempfile.TemporaryDirectory() as tmp:
-        if prompt_file is None:
-            prompt_file = Path(tmp) / 'prompt.txt'
-            prompt_file.write_text('review the diff')
-        if schema_file is None:
-            schema_file = Path(tmp) / 'schema.json'
-            schema_file.write_text('{"type": "object"}')
-        return subprocess.run(
-            [sys.executable, str(LAUNCHER), '--role', role,
-             '--prompt-file', str(prompt_file), '--schema-file', str(schema_file)],
-            capture_output=True, text=True, cwd=str(ROOT))
+ADAPTER = codex_agent.role(ROOT)
+SCHEMA = {'type': 'object', 'required': ['pass']}
+EVENTS = '{"type":"thread.started","thread_id":"t-42"}\n{"type":"turn.completed"}\n'
 
 
-class AllowlistTest(unittest.TestCase):
-    def test_read_only_roles_is_exactly_code_verifier(self):
-        self.assertEqual(codex_agent.READ_ONLY_ROLES, frozenset({'code-verifier'}))
+class InputTest(unittest.TestCase):
+    def test_prompt_and_schema_are_required(self):
+        for bad in ['{}', '{"prompt": "x"}', '{"schema": {}}', '{"prompt": " ", "schema": {}}',
+                    '{"prompt": "x", "schema": []}', '[]']:
+            with self.assertRaises(ValueError, msg=bad):
+                codex_agent.read_input(io.StringIO(bad))
 
-    def test_write_role_is_rejected_before_reading_the_adapter(self):
-        # code-writer.toml exists on disk, so a rejection here proves the
-        # allowlist runs before any adapter path is opened.
-        self.assertTrue((ROOT / '.codex' / 'agents' / 'code-writer.toml').is_file())
-        result = run('code-writer')
-        self.assertEqual(result.returncode, 2)
-        self.assertEqual(result.stdout, '')
-        self.assertIn('code-writer', result.stderr)
-
-    def test_unknown_role_is_rejected(self):
-        result = run('not-a-role')
-        self.assertEqual(result.returncode, 2)
-        self.assertEqual(result.stdout, '')
-
-    def test_resolve_adapter_refuses_a_disallowed_role(self):
-        with self.assertRaises(ValueError):
-            codex_agent.resolve_adapter(ROOT, 'hil-operator')
-
-    def test_resolve_adapter_reads_an_allowed_role(self):
-        adapter = codex_agent.resolve_adapter(ROOT, 'code-verifier')
-        self.assertTrue(adapter['model'])
-        self.assertTrue(adapter['developer_instructions'].strip())
-
-    def test_a_timeout_is_reported_as_a_timeout(self):
-        # `timeout` exits 124 when it kills the child. Reporting that as a bare
-        # failure sent a real review's partial stderr up as if the arguments
-        # were wrong; the caller must be able to tell the two apart.
-        self.assertIn('timed out', codex_agent.failure_detail(124, 'whatever'))
-        self.assertNotIn('timed out', codex_agent.failure_detail(1, 'real error'))
-        self.assertIn('real error', codex_agent.failure_detail(1, 'real error'))
-
-    def test_missing_prompt_file_exits_one_with_empty_stdout(self):
-        result = run('code-verifier', '/nonexistent/p', '/nonexistent/s')
+    def test_bad_input_exits_one_with_empty_stdout(self):
+        result = subprocess.run([sys.executable, str(LAUNCHER)], input='{"prompt": "x"}',
+                                capture_output=True, text=True, cwd='/')
         self.assertEqual(result.returncode, 1)
         self.assertEqual(result.stdout, '')
+        self.assertIn('prompt', result.stderr)
 
 
-class SubprocessTest(unittest.TestCase):
-    """The real codex run is expensive, so the failure paths are mocked."""
+class CommandTest(unittest.TestCase):
+    def test_plain_mode_is_a_sandboxed_exec_with_the_schema(self):
+        cmd = codex_agent.command(ROOT, ADAPTER, Path('/j'), review=False)
+        self.assertEqual(cmd[:6], ['codex', 'exec', '-C', str(ROOT), '--sandbox', 'read-only'])
+        self.assertEqual(cmd[cmd.index('--output-schema') + 1], '/j/schema.json')
+        self.assertEqual(cmd[cmd.index('-o') + 1], '/j/result.json')
+        self.assertEqual(cmd[-2:], ['--json', '-'])
 
-    def _invoke(self, returncode, stderr='', result_body=None):
-        def fake_run(cmd, **kw):
-            if result_body is not None:
-                # --output-last-message names the file codex is meant to write
-                Path(cmd[cmd.index('--output-last-message') + 1]).write_text(result_body)
-            return subprocess.CompletedProcess(cmd, returncode, stdout='', stderr=stderr)
+    def test_review_mode_is_read_only_by_config_override(self):
+        # `codex exec review` has no --sandbox flag; without the override it
+        # inherits the user's config, which may be danger-full-access.
+        cmd = codex_agent.command(ROOT, ADAPTER, Path('/j'), review=True)
+        self.assertEqual(cmd[:5], ['codex', 'exec', 'review', '-c', 'sandbox_mode=read-only'])
+        self.assertNotIn('--sandbox', cmd)
+        self.assertNotIn('--output-schema', cmd)  # ignored by the reviewer
+        self.assertNotIn('-C', cmd)
 
+    def test_model_and_effort_come_from_the_codex_adapter(self):
+        for review in (False, True):
+            cmd = codex_agent.command(ROOT, ADAPTER, Path('/j'), review)
+            self.assertEqual(cmd[cmd.index('-m') + 1], ADAPTER['model'])
+            self.assertIn(f'model_reasoning_effort={ADAPTER["model_reasoning_effort"]}', cmd)
+
+    def test_no_mode_can_widen_the_sandbox(self):
+        src = LAUNCHER.read_text()
+        for word in ('workspace-write', 'danger-full-access', '--add-dir'):
+            self.assertNotIn(word, src)
+
+
+class ThreadIdTest(unittest.TestCase):
+    def test_first_thread_started_event_wins(self):
         with tempfile.TemporaryDirectory() as tmp:
-            prompt = Path(tmp) / 'p.txt'
-            schema = Path(tmp) / 's.json'
-            prompt.write_text('review')
-            schema.write_text('{"type": "object"}')
-            argv = ['codex-agent.py', '--role', 'code-verifier',
-                    '--prompt-file', str(prompt), '--schema-file', str(schema)]
-            with mock.patch.object(sys, 'argv', argv), \
-                 mock.patch.object(codex_agent.subprocess, 'run', fake_run), \
-                 mock.patch.object(sys, 'stdout', new_callable=io.StringIO) as out:
-                code = codex_agent.main()
-            return code, out.getvalue()
+            f = Path(tmp) / 'events.jsonl'
+            f.write_text('garbage\n' + EVENTS + '{"type":"thread.started","thread_id":"later"}\n')
+            self.assertEqual(codex_agent.thread_id(f), 't-42')
+            f.write_text('{"type":"turn.completed"}\n')
+            self.assertIsNone(codex_agent.thread_id(f))
 
-    def test_success_forwards_the_result_verbatim(self):
-        body = json.dumps({'pass': True})
-        code, out = self._invoke(0, result_body=body)
-        self.assertEqual(code, 0)
-        self.assertEqual(out, body)
 
-    def test_nonzero_exit_yields_no_stdout(self):
-        code, out = self._invoke(1, stderr='codex blew up', result_body='{"pass": true}')
-        self.assertEqual(code, 1)
-        self.assertEqual(out, '')
+class RunTest(unittest.TestCase):
+    """The real codex run is expensive, so subprocess.run is faked per outcome."""
 
-    def test_a_missing_result_file_is_a_failure(self):
-        code, out = self._invoke(0, result_body=None)
-        self.assertEqual(code, 1)
-        self.assertEqual(out, '')
+    def _run(self, data, outcome, result_body='{"pass": true}', recovered_body=None):
+        seen = {'cmds': []}
 
-    def test_a_non_json_result_never_reaches_stdout(self):
-        with self.assertRaises(json.JSONDecodeError):
-            self._invoke(0, result_body='I could not comply.')
+        def fake_run(cmd, **kw):
+            seen['cmds'].append(cmd)
+            if cmd[2] == 'resume':  # the conversion turn
+                seen['recover'] = Path(kw['stdin'].name).read_text()
+                if recovered_body is not None:
+                    Path(kw['stdout'].name).with_name('result.json').write_text(recovered_body)
+                return subprocess.CompletedProcess(cmd, 0)
+            seen['cmd'] = cmd
+            seen['cwd'] = kw['cwd']
+            seen['prompt'] = Path(kw['stdin'].name).read_text()
+            kw['stdout'].write(EVENTS)
+            kw['stderr'].write('rmcp noise\nreal error\n')
+            if outcome == 'timeout':
+                raise subprocess.TimeoutExpired(cmd, kw['timeout'])
+            if outcome == 'ok' and result_body is not None:
+                Path(kw['stdout'].name).with_name('result.json').write_text(result_body)
+            return subprocess.CompletedProcess(cmd, 0 if outcome == 'ok' else 3)
+
+        with tempfile.TemporaryDirectory() as tmp, \
+             mock.patch.object(codex_agent, 'JOBS', Path(tmp)), \
+             mock.patch.object(codex_agent.subprocess, 'run', fake_run):
+            try:
+                out = codex_agent.run(data, ROOT, stamp='s')
+            except RuntimeError as e:
+                return None, str(e), seen
+            seen['files'] = sorted(p.name for p in Path(out['job']).iterdir())
+            return out, None, seen
+
+    def test_success_returns_an_envelope_with_provenance(self):
+        out, err, seen = self._run({'prompt': 'review it', 'schema': SCHEMA}, 'ok')
+        self.assertIsNone(err)
+        self.assertEqual(out['result'], {'pass': True})
+        self.assertEqual(out['thread'], 't-42')
+        self.assertTrue(out['job'].endswith('/s-%d' % __import__('os').getpid()))
+        self.assertEqual(seen['files'], ['events.jsonl', 'prompt.txt', 'result.json', 'schema.json', 'stderr.txt'])
+        self.assertEqual(seen['cwd'], ROOT)
+
+    def test_prompt_carries_the_role_and_only_review_mode_carries_the_schema(self):
+        _, _, plain = self._run({'prompt': 'review it', 'schema': SCHEMA}, 'ok')
+        _, _, review = self._run({'prompt': 'review it', 'schema': SCHEMA, 'review': True}, 'ok')
+        for seen in (plain, review):
+            self.assertTrue(seen['prompt'].startswith(ADAPTER['developer_instructions'].rstrip()))
+            self.assertIn('review it', seen['prompt'])
+        self.assertNotIn(codex_agent.OUTPUT_CONTRACT, plain['prompt'])
+        self.assertIn(codex_agent.OUTPUT_CONTRACT + json.dumps(SCHEMA), review['prompt'])
+        self.assertEqual(plain['cmd'][1:3], ['exec', '-C'])
+        self.assertEqual(review['cmd'][1:3], ['exec', 'review'])
+
+    def test_timeout_is_an_envelope_without_a_result(self):
+        out, err, seen = self._run({'prompt': 'x', 'schema': SCHEMA}, 'timeout')
+        self.assertIsNone(err)
+        self.assertIsNone(out['result'])
+        self.assertIn('timed out', out['error'])
+        self.assertEqual(out['thread'], 't-42')
+        self.assertIn('events.jsonl', seen['files'])
+
+    def test_nonzero_exit_reports_stderr_without_mcp_noise(self):
+        out, err, _ = self._run({'prompt': 'x', 'schema': SCHEMA}, 'fail')
+        self.assertIsNone(out)
+        self.assertIn('exited 3', err)
+        self.assertIn('real error', err)
+        self.assertNotIn('rmcp', err)
+
+    def test_missing_or_non_json_result_is_a_failure_in_plain_mode(self):
+        for body in (None, 'I could not comply.'):
+            out, err, seen = self._run({'prompt': 'x', 'schema': SCHEMA}, 'ok', result_body=body)
+            self.assertIsNone(out, body)
+            self.assertIn('no JSON result', err)
+            self.assertEqual(len(seen['cmds']), 1)  # plain mode never resumes
+
+    def test_review_prose_is_converted_by_one_resume_turn(self):
+        # The reviewer ignores --output-schema and sometimes answers in its own
+        # prose format; the conversion turn must restate the caller's rules
+        # (severity format lives there) and the schema, on the same thread.
+        out, err, seen = self._run({'prompt': 'rules here', 'schema': SCHEMA, 'review': True}, 'ok',
+                                   result_body='- [P1] prose finding', recovered_body='{"pass": false}')
+        self.assertIsNone(err)
+        self.assertEqual(out['result'], {'pass': False})
+        self.assertEqual(out['thread'], 't-42')
+        self.assertEqual([c[1:3] for c in seen['cmds']], [['exec', 'review'], ['exec', 'resume']])
+        resume = seen['cmds'][1]
+        self.assertEqual(resume[3], 't-42')
+        self.assertIn('sandbox_mode=read-only', resume)
+        self.assertIn('rules here', seen['recover'])
+        self.assertIn(codex_agent.OUTPUT_CONTRACT + json.dumps(SCHEMA), seen['recover'])
+
+    def test_review_prose_twice_is_a_failure(self):
+        out, err, seen = self._run({'prompt': 'x', 'schema': SCHEMA, 'review': True}, 'ok',
+                                   result_body='prose', recovered_body='still prose')
+        self.assertIsNone(out)
+        self.assertIn('even after one conversion turn', err)
+        self.assertEqual(len(seen['cmds']), 2)
+
+
+class BridgeTest(unittest.TestCase):
+    def test_bridge_frontmatter_is_valid_yaml_with_its_guards(self):
+        # An unquoted `key: value` inside the description turned the whole
+        # frontmatter into a parse error once; the harness then drops the
+        # tools/model/effort pins silently.
+        import yaml
+        text = (ROOT / '.claude' / 'agents' / 'codex-agent.md').read_text()
+        meta = yaml.safe_load(text.split('---\n')[1])
+        self.assertEqual(meta['name'], 'codex-agent')
+        self.assertIsInstance(meta['description'], str)
+        self.assertEqual((meta['tools'], meta['model'], meta['effort']), ('Bash', 'haiku', 'low'))
+        self.assertIn("python3 .claude/codex-agent.py <<'CODEX_AGENT_INPUT'", text)
+        self.assertNotIn('codex exec', text)
 
 
 if __name__ == '__main__':

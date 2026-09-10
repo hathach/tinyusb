@@ -170,13 +170,40 @@ if (reviewProvider) stageNames.push('reviews')
 const scheduleName = name => name === 'review' || name === 'codex' ? 'reviews' : name
 const displayNames = names => names.flatMap(name => name === 'reviews' ? reviewStageNames : [name])
 
-function runReviewProvider(provider, label) {
-  if (provider === 'codex') return agent(
-    JSON.stringify({ role: 'code-verifier', prompt: reviewPrompt, schema: REVIEW }),
-    { label: `${label}:codex`, phase: 'Validate', agentType: 'codex-agent', schema: REVIEW },
-  )
-  return agent(reviewPrompt, {
-    label: `${label}:claude`, phase: 'Validate', agentType: 'code-verifier', schema: REVIEW,
+// The launcher wraps Codex's answer with where it ran; a reply without a job
+// dir and thread id did not come from Codex. A timed-out run is an envelope
+// with result: null and an error line: Codex ran, so it is a dead stage; any
+// other failure means Codex cannot run and Claude reviews instead, unless
+// 'all' asked for two independent verdicts.
+const CODEX_ENVELOPE = {
+  type: 'object', additionalProperties: false,
+  required: ['job', 'thread', 'result'],
+  properties: {
+    job: { type: 'string' }, thread: { type: ['string', 'null'] },
+    result: { anyOf: [REVIEW, { type: 'null' }] }, error: { type: 'string' },
+  },
+}
+const runClaudeReview = (label, suffix = 'claude') => agent(reviewPrompt, {
+  label: `${label}:${suffix}`, phase: 'Validate', agentType: 'code-verifier', schema: REVIEW,
+})
+function runReviewProvider(provider, label, fallback = true) {
+  if (provider !== 'codex') return runClaudeReview(label)
+  return agent(
+    JSON.stringify({ review: true, prompt: reviewPrompt, schema: REVIEW }),
+    { label: `${label}:codex`, phase: 'Validate', agentType: 'codex-agent', schema: CODEX_ENVELOPE },
+  ).then(r => {
+    const fromCodex = r && typeof r.job === 'string' && r.job && r.thread
+    if (fromCodex && r.result) return r.result
+    if (fromCodex && r.result === null && r.error) {
+      log(`${label}: ${r.error}`)
+      return null
+    }
+    return fallback ? { fallback: true } : null
+  }, () => fallback ? { fallback: true } : null).then(r => {
+    if (!r || !r.fallback) return r
+    log(`${label}: codex cannot run — reviewing with claude instead`)
+    return runClaudeReview(label, 'claude-fallback')
+      .then(c => c && { ...c, detail: `claude fallback: ${c.detail}` })
   })
 }
 
@@ -221,7 +248,7 @@ function stageThunk(name, cycle) {
 
   if (name === 'reviews') return () => {
     const pending = reviewProvider === 'all'
-      ? parallel(['codex', 'claude'].map(provider => () => runReviewProvider(provider, label)))
+      ? parallel(['codex', 'claude'].map(provider => () => runReviewProvider(provider, label, false)))
         .then(([codex, claude]) => ({ codex, claude }))
       : runReviewProvider(reviewProvider, label).then(r => ({ [reviewProvider]: r }))
     return pending.then(byProvider => {

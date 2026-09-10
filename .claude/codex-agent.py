@@ -1,31 +1,32 @@
 #!/usr/bin/env python3
-"""Run one read-only TinyUSB agent role on Codex and print its JSON result.
+"""Run one read-only TinyUSB code-verifier job on Codex and print its result.
 
-The role allowlist here is the enforcement boundary: the Markdown bridge that
-invokes this script cannot be trusted to honour a rule stated only in prose.
+stdin: {"prompt": str, "schema": object, "review": bool?}
+stdout: {"job": <dir>, "thread": <codex thread id>, "result": <the JSON Codex produced>}
+
+Review mode (`codex exec review`) ignores --output-schema, so the contract rides
+in the prompt; when the reviewer still answers in prose, one resume turn on the
+same thread converts it.
+
+Each job keeps prompt, schema, the --json event log, stderr and the result under
+/tmp/tinyusb-codex/<job>/: tail the log to watch, kill the codex pid to stop,
+`codex exec resume <thread>` to ask a follow-up.
 """
 
-import argparse
+import datetime
 import json
+import os
 import subprocess
 import sys
-import tempfile
 import tomllib
 from pathlib import Path
 
-# A role belongs here only if it can do its whole job from the local checkout.
-# `codex exec --sandbox read-only` has no network, so a role built on `gh` does
-# not fail there - it answers from an empty view, which is worse.
-READ_ONLY_ROLES = frozenset({'code-verifier'})
+TIMEOUT = 1800  # a full-diff review at xhigh effort routinely passes 10 min
+JOBS = Path('/tmp/tinyusb-codex')
 
-TIMEOUT = '1800s'  # a full-diff review at xhigh effort routinely passes 10 min
-
-
-def failure_detail(returncode, stderr):
-    if returncode == 124:  # `timeout` killed the child
-        return (f'codex exec timed out after {TIMEOUT}; its partial output is not a '
-                'result. Narrow the prompt or raise TIMEOUT.')
-    return stderr
+# `codex exec review` ignores --output-schema, so the contract rides in the prompt.
+OUTPUT_CONTRACT = ('Your final message must be exactly one JSON object valid '
+                   'against this JSON schema, with no prose and no code fence:\n')
 
 
 def repo_root():
@@ -34,60 +35,104 @@ def repo_root():
     return Path(__file__).resolve().parents[1]
 
 
-def resolve_adapter(root, role):
-    if role not in READ_ONLY_ROLES:
-        raise ValueError(
-            f'role {role!r} is not in the read-only set '
-            f'({", ".join(sorted(READ_ONLY_ROLES))}); '
-            'write-capable roles are not routable to Codex')
-    with open(Path(root) / '.codex' / 'agents' / f'{role}.toml', 'rb') as f:
+def read_input(stream):
+    data = json.load(stream)
+    if not isinstance(data, dict) or not isinstance(data.get('prompt'), str) or \
+            not data['prompt'].strip() or not isinstance(data.get('schema'), dict):
+        raise ValueError('input must be {"prompt": str, "schema": object, "review"?: bool}')
+    return data
+
+
+def role(root):
+    """Model, effort and role instructions come from the same adapter a
+    standalone Codex session loads, so there is one source for both harnesses."""
+    with open(root / '.codex' / 'agents' / 'code-verifier.toml', 'rb') as f:
         return tomllib.load(f)
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--role', required=True)
-    parser.add_argument('--prompt-file', required=True)
-    parser.add_argument('--schema-file', required=True)
-    args = parser.parse_args()
+def command(root, adapter, job, review):
+    model = ['-m', adapter['model'], '-c', f'model_reasoning_effort={adapter["model_reasoning_effort"]}']
+    out = ['-o', str(job / 'result.json'), '--json', '-']
+    if review:
+        # no --sandbox flag here; the -c override is what keeps it read-only
+        return ['codex', 'exec', 'review', '-c', 'sandbox_mode=read-only', *model, *out]
+    return ['codex', 'exec', '-C', str(root), '--sandbox', 'read-only',
+            '--output-schema', str(job / 'schema.json'), *model, *out]
 
-    root = repo_root()
+
+def recover(root, adapter, job, thread, data):
+    """The reviewer sometimes answers in its own prose format despite the
+    contract; one resume turn on the same thread converts that answer. The
+    review ran as a sub-thread, so the instructions must be restated."""
+    schema = (job / 'schema.json').read_text()
+    (job / 'recover.txt').write_text(
+        'Convert your review above into its structured form, following these instructions:\n' +
+        data['prompt'].rstrip() + '\n\n' + OUTPUT_CONTRACT + schema + '\n')
+    cmd = ['codex', 'exec', 'resume', thread, '-c', 'sandbox_mode=read-only',
+           '-m', adapter['model'], '-c', f'model_reasoning_effort={adapter["model_reasoning_effort"]}',
+           '-o', str(job / 'result.json'), '--json', '-']
+    with open(job / 'recover.txt') as stdin, open(job / 'events.jsonl', 'a') as events, \
+            open(job / 'stderr.txt', 'a') as stderr:
+        subprocess.run(cmd, cwd=root, stdin=stdin, stdout=events, stderr=stderr, timeout=TIMEOUT)
+
+
+def thread_id(events):
+    for line in events.read_text().splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if event.get('type') == 'thread.started':
+            return event.get('thread_id')
+    return None
+
+
+def run(data, root, stamp=None):
+    adapter = role(root)
+    review = bool(data.get('review'))
+    stamp = stamp or datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+    job = JOBS / f'{stamp}-{os.getpid()}'
+    job.mkdir(parents=True)
+    schema = json.dumps(data['schema'])
+    (job / 'schema.json').write_text(schema)
+    prompt = adapter['developer_instructions'].rstrip() + '\n\n' + data['prompt'].rstrip() + '\n'
+    if review:
+        prompt += '\n' + OUTPUT_CONTRACT + schema + '\n'
+    (job / 'prompt.txt').write_text(prompt)
+
+    with open(job / 'prompt.txt') as stdin, open(job / 'events.jsonl', 'w') as events, \
+            open(job / 'stderr.txt', 'w') as stderr:
+        try:
+            proc = subprocess.run(command(root, adapter, job, review), cwd=root,
+                                  stdin=stdin, stdout=events, stderr=stderr, timeout=TIMEOUT)
+        except subprocess.TimeoutExpired:
+            proc = None
+    if proc is None:
+        # Codex ran and never finished: an envelope without a result, so the
+        # caller can tell this from Codex being unavailable and not fall back.
+        return {'job': str(job), 'thread': thread_id(job / 'events.jsonl'), 'result': None,
+                'error': f'codex timed out after {TIMEOUT // 60} min; partial output is not a result'}
+    if proc.returncode != 0:
+        tail = [l for l in (job / 'stderr.txt').read_text().splitlines() if 'rmcp' not in l][-20:]
+        raise RuntimeError(f'codex exited {proc.returncode} ({job}):\n' + '\n'.join(tail))
+    thread = thread_id(job / 'events.jsonl')
     try:
-        adapter = resolve_adapter(root, args.role)
-    except ValueError as e:
-        print(e, file=sys.stderr)
-        return 2
+        result = json.loads((job / 'result.json').read_text())
+    except (OSError, ValueError) as e:
+        if not (review and thread):
+            raise RuntimeError(f'codex produced no JSON result ({job}): {e}') from None
+        recover(root, adapter, job, thread, data)
+        try:
+            result = json.loads((job / 'result.json').read_text())
+        except (OSError, ValueError) as e2:
+            raise RuntimeError(f'codex produced no JSON result, even after one '
+                               f'conversion turn ({job}): {e2}') from None
+    return {'job': str(job), 'thread': thread, 'result': result}
 
-    prompt = Path(args.prompt_file).read_text()
-    json.loads(Path(args.schema_file).read_text())  # reject a bad schema before spending a run
 
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp = Path(tmp)
-        composed = tmp / 'prompt.txt'
-        composed.write_text(
-            adapter['developer_instructions'].rstrip() + '\n\n' + prompt)
-        result_path = tmp / 'result.json'
-        with open(composed, 'rb') as stdin:
-            run = subprocess.run([
-                'timeout', TIMEOUT, 'codex', 'exec',
-                '-C', str(root),
-                '-m', adapter['model'],
-                '-c', f'model_reasoning_effort={adapter["model_reasoning_effort"]}',
-                '--sandbox', 'read-only',
-                '--output-schema', args.schema_file,
-                '--output-last-message', str(result_path),
-                '-',
-            ], stdin=stdin, capture_output=True, text=True)
-        if run.returncode != 0:
-            print(failure_detail(run.returncode, run.stderr), file=sys.stderr)
-            return 1
-        if not result_path.is_file():
-            print('codex produced no result file', file=sys.stderr)
-            return 1
-        body = result_path.read_text()
-
-    json.loads(body)  # never hand the caller something that is not JSON
-    sys.stdout.write(body)
+def main():
+    data = read_input(sys.stdin)
+    sys.stdout.write(json.dumps(run(data, repo_root())))
     return 0
 
 
