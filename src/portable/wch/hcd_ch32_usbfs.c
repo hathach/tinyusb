@@ -859,9 +859,6 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t 
     TU_ASSERT(get_or_add_edpt_record(dev_addr, ep_addr, max_packet_size, xfer_type) != NULL, false);
   }
 
-  USBOTG_H_FS->HOST_CTRL |= USBFS_UH_PORT_EN;
-  USBOTG_H_FS->HOST_SETUP |= USBFS_UH_SOF_EN;
-
   hardware_set_port_address_speed(dev_addr);
 
   return true;
