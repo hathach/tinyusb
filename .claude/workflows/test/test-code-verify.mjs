@@ -144,13 +144,16 @@ await check('reviews with claude when codex cannot run', async () => {
 })
 
 await check('a codex timeout is a failure, not a fallback', async () => {
-  const timedOut = () => ({ ...ENVELOPE(null), error: 'codex timed out after 30 min' })
-  // a fallback would surface as the claude fake's failure instead
-  await assert.rejects(
-    run({ prompt: 'review', schema: RESULT },
-      { codex: { answer: 'x' }, claude: new Error('claude must not run') }, timedOut),
-    /^Error: codex verifier timed out: codex timed out after 30 min$/,
-  )
+  // a fallback would surface as the claude fake's failure instead; a timeout
+  // before thread.started carries thread: null and is still a timeout
+  for (const thread of ['t-1', null]) {
+    const timedOut = () => ({ ...ENVELOPE(null), thread, error: 'codex timed out after 30 min' })
+    await assert.rejects(
+      run({ prompt: 'review', schema: RESULT },
+        { codex: { answer: 'x' }, claude: new Error('claude must not run') }, timedOut),
+      /^Error: codex verifier timed out: codex timed out after 30 min$/,
+    )
+  }
 })
 
 await check('all providers stays strict when codex dies', async () => {
@@ -311,11 +314,13 @@ await check('validate reviews with claude when codex cannot run, but not after a
     assert.ok(logs.some(l => /reviewing with claude instead/.test(l)))
   }
 
-  const timedOut = await runValidate({ ...ENVELOPE(null), error: 'codex timed out after 30 min' })
-  assert.deepEqual(timedOut.calls.filter(l => /codex|claude/.test(l)), ['reviews:codex'])
-  assert.equal(timedOut.row.pass, false)
-  assert.equal(timedOut.row.detail, 'stage agent died')
-  assert.ok(timedOut.logs.some(l => /timed out after 30 min/.test(l)))
+  for (const thread of ['t-1', null]) {
+    const timedOut = await runValidate({ ...ENVELOPE(null), thread, error: 'codex timed out after 30 min' })
+    assert.deepEqual(timedOut.calls.filter(l => /codex|claude/.test(l)), ['reviews:codex'])
+    assert.equal(timedOut.row.pass, false)
+    assert.equal(timedOut.row.detail, 'stage agent died')
+    assert.ok(timedOut.logs.some(l => /timed out after 30 min/.test(l)))
+  }
 })
 
 await check('validate reviews with codex unless claude is explicitly selected', async () => {

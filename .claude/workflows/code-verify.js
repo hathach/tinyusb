@@ -27,13 +27,15 @@ const envelope = schema => ({
     result: { anyOf: [schema, { type: 'null' }] }, error: { type: 'string' },
   },
 })
-const fromCodex = r => r && typeof r.job === 'string' && r.job && r.thread
+// A timeout before Codex announced its thread has thread: null; the job dir
+// and the error line still say Codex ran.
+const fromCodex = r => r && typeof r.job === 'string' && r.job
 const runCodex = () => agent(
   JSON.stringify({ prompt: args.prompt, schema: args.schema }), {
     label: `${label}:codex`, phase: 'Verify', agentType: 'codex-agent', schema: envelope(args.schema),
   }).then(r => {
   if (fromCodex(r) && r.result === null && r.error) throw new Error(`codex verifier timed out: ${r.error}`)
-  if (!fromCodex(r) || !r.result) throw new Error('codex verifier failed')
+  if (!fromCodex(r) || !r.thread || !r.result) throw new Error('codex verifier failed')
   return r.result
 }).catch(e => {
   if (e && /^codex verifier (failed|timed out)/.test(e.message)) throw e

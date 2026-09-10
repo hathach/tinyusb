@@ -82,6 +82,8 @@ class RunTest(unittest.TestCase):
             seen['cmds'].append(cmd)
             if cmd[2] == 'resume':  # the conversion turn
                 seen['recover'] = Path(kw['stdin'].name).read_text()
+                if outcome == 'recover-timeout':
+                    raise subprocess.TimeoutExpired(cmd, kw['timeout'])
                 if recovered_body is not None:
                     Path(kw['stdout'].name).with_name('result.json').write_text(recovered_body)
                 return subprocess.CompletedProcess(cmd, 0)
@@ -94,7 +96,7 @@ class RunTest(unittest.TestCase):
                 raise subprocess.TimeoutExpired(cmd, kw['timeout'])
             if outcome == 'ok' and result_body is not None:
                 Path(kw['stdout'].name).with_name('result.json').write_text(result_body)
-            return subprocess.CompletedProcess(cmd, 0 if outcome == 'ok' else 3)
+            return subprocess.CompletedProcess(cmd, 0 if outcome in ('ok', 'recover-timeout') else 3)
 
         with tempfile.TemporaryDirectory() as tmp, \
              mock.patch.object(codex_agent, 'JOBS', Path(tmp)), \
@@ -125,6 +127,14 @@ class RunTest(unittest.TestCase):
         self.assertIn(codex_agent.OUTPUT_CONTRACT + json.dumps(SCHEMA), review['prompt'])
         self.assertEqual(plain['cmd'][1:3], ['exec', '-C'])
         self.assertEqual(review['cmd'][1:3], ['exec', 'review'])
+
+    def test_a_timeout_in_the_conversion_turn_is_the_same_envelope(self):
+        out, err, seen = self._run({'prompt': 'x', 'schema': SCHEMA, 'review': True}, 'recover-timeout',
+                                   result_body=None)
+        self.assertIsNone(err)
+        self.assertIn('recover', seen)
+        self.assertIsNone(out['result'])
+        self.assertIn('timed out', out['error'])
 
     def test_timeout_is_an_envelope_without_a_result(self):
         out, err, seen = self._run({'prompt': 'x', 'schema': SCHEMA}, 'timeout')

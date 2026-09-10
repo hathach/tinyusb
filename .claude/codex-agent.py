@@ -76,6 +76,13 @@ def recover(root, adapter, job, thread, data):
         subprocess.run(cmd, cwd=root, stdin=stdin, stdout=events, stderr=stderr, timeout=TIMEOUT)
 
 
+def timed_out(job):
+    """Codex ran and never finished: an envelope without a result, so the
+    caller can tell this from Codex being unavailable and not fall back."""
+    return {'job': str(job), 'thread': thread_id(job / 'events.jsonl'), 'result': None,
+            'error': f'codex timed out after {TIMEOUT // 60} min; partial output is not a result'}
+
+
 def thread_id(events):
     for line in events.read_text().splitlines():
         try:
@@ -108,10 +115,7 @@ def run(data, root, stamp=None):
         except subprocess.TimeoutExpired:
             proc = None
     if proc is None:
-        # Codex ran and never finished: an envelope without a result, so the
-        # caller can tell this from Codex being unavailable and not fall back.
-        return {'job': str(job), 'thread': thread_id(job / 'events.jsonl'), 'result': None,
-                'error': f'codex timed out after {TIMEOUT // 60} min; partial output is not a result'}
+        return timed_out(job)
     if proc.returncode != 0:
         tail = [l for l in (job / 'stderr.txt').read_text().splitlines() if 'rmcp' not in l][-20:]
         raise RuntimeError(f'codex exited {proc.returncode} ({job}):\n' + '\n'.join(tail))
@@ -121,7 +125,10 @@ def run(data, root, stamp=None):
     except (OSError, ValueError) as e:
         if not (review and thread):
             raise RuntimeError(f'codex produced no JSON result ({job}): {e}') from None
-        recover(root, adapter, job, thread, data)
+        try:
+            recover(root, adapter, job, thread, data)
+        except subprocess.TimeoutExpired:
+            return timed_out(job)
         try:
             result = json.loads((job / 'result.json').read_text())
         except (OSError, ValueError) as e2:

@@ -192,9 +192,9 @@ function runReviewProvider(provider, label, fallback = true) {
     JSON.stringify({ review: true, prompt: reviewPrompt, schema: REVIEW }),
     { label: `${label}:codex`, phase: 'Validate', agentType: 'codex-agent', schema: CODEX_ENVELOPE },
   ).then(r => {
-    const fromCodex = r && typeof r.job === 'string' && r.job && r.thread
-    if (fromCodex && r.result) return r.result
-    if (fromCodex && r.result === null && r.error) {
+    const fromCodex = r && typeof r.job === 'string' && r.job
+    if (fromCodex && r.thread && r.result) return r.result
+    if (fromCodex && r.result === null && r.error) {  // thread may be null: a timeout before thread.started
       log(`${label}: ${r.error}`)
       return null
     }
