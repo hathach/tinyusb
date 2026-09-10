@@ -12,12 +12,12 @@ description: Use when capturing, analyzing, or debugging USB bus traffic on a li
 ## Capture
 
 ```bash
-.claude/skills/usbmon/scripts/usbcap.sh <bus|VID:PID|auto> [seconds] [outfile]
+.claude/skills/usbmon/scripts/usbcap.py <bus|VID:PID|VID:|auto> [seconds] [outfile] [--snaplen 128]
 # examples
-.claude/skills/usbmon/scripts/usbcap.sh cafe: 10              # auto-find a TinyUSB (VID 0xcafe) device
-.claude/skills/usbmon/scripts/usbcap.sh 3 8 /tmp/enum.pcapng  # bus 3, 8 s
+.claude/skills/usbmon/scripts/usbcap.py cafe: 10              # the bus of the plugged-in TinyUSB (VID 0xcafe) device
+.claude/skills/usbmon/scripts/usbcap.py 3 8 /tmp/enum.pcapng  # bus 3, 8 s
 ```
-`lsusb` shows `Bus 00N` → interface `usbmonN`; `usbmon0` = all buses. Capture the device's own bus. To catch enumeration, start the capture, then replug the device.
+`lsusb` shows `Bus 00N` → interface `usbmonN`; `usbmon0` = all buses. Capture the device's own bus. A selector that matches devices on several buses (`cafe:` on a rig) is refused with the matches listed: pick the bus, or `auto` when you really want every bus. To catch enumeration, start the capture, then replug the device.
 
 ## Analyze
 
@@ -52,18 +52,15 @@ Combine with `&&` — e.g. one endpoint's data: `usb.endpoint_address==0x02 && u
 
 ## Host-side kernel logs (dynamic debug)
 
-usbmon shows the URBs; the kernel's **dynamic debug** shows the host driver's *reasoning* that usbmon can't — port resets, enumeration retries, address (re)assignment, EP halts, xHCI ring/command errors. Turn it on, reproduce, read `dmesg`:
+usbmon shows the URBs; the kernel's **dynamic debug** shows the host driver's *reasoning* that usbmon can't — port resets, enumeration retries, address (re)assignment, EP halts, xHCI ring/command errors. The `usb-kernel-debug` skill owns it; its script flips the print flag on an allowlisted set of USB modules:
 
 ```bash
-# pick the module from `lsusb -t` Driver= : xhci_hcd (USB3 / most modern HCs), ehci_hcd (USB2),
-# plus usbcore for enumeration / hub / descriptor logic (controller-independent).
-echo 'module usbcore +p'  | sudo tee /sys/kernel/debug/dynamic_debug/control
-echo 'module xhci_hcd +p' | sudo tee /sys/kernel/debug/dynamic_debug/control
-dmesg -w                                                       # follow live; replug to catch enumeration
-echo 'module xhci_hcd -p' | sudo tee /sys/kernel/debug/dynamic_debug/control   # OFF when done — very noisy
+sudo .claude/skills/usb-kernel-debug/scripts/usb_dyndbg.sh on usbcore xhci_hcd   # host controller from `lsusb -t` Driver=; usbcore for enumeration/hub logic
+dmesg -w                                                                        # follow live; replug to catch enumeration
+sudo .claude/skills/usb-kernel-debug/scripts/usb_dyndbg.sh off usbcore xhci_hcd  # OFF when done — very noisy
 ```
 
-`+p` enables the print flag at every call-site in that module (`+pfl` also tags func+line); `grep <module> /sys/kernel/debug/dynamic_debug/control` lists active sites. The control file is debugfs (`/sys/kernel/debug`), root-only → use `sudo tee` (a plain `sudo echo >` redirects as your user, not root). Needs `CONFIG_DYNAMIC_DEBUG` (standard on distro kernels). Best for **re-enumerates / enumeration stalls / port-reset storms**, where usbmon shows the resets but not the host's reason.
+Best for **re-enumerates / enumeration stalls / port-reset storms**, where usbmon shows the resets but not the host's reason.
 
 ## Troubleshoot — symptom → what to check
 

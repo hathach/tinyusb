@@ -339,9 +339,9 @@ TinyUSB-as-host: swap usbmon for `usb-sniffer`, + `usb-kernel-debug` on a
 Linux gadget peer):
 
 ```bash
-.claude/skills/usbmon/scripts/usbcap.sh cafe: 30 /tmp/host.pcapng &   # host URBs (usbmon skill)
-timeout 30s python3 tools/rtt.py --backend jlink --probe <sn> --device <dev> > /tmp/target.rtt &  # target (rtt skill; or ring dump after)
-wait
+.claude/skills/usbmon/scripts/usbcap.py <bus> 30 /tmp/host.pcapng & cap=$!   # host URBs (usbmon skill); the board's bus, `cafe:` is refused on a rig with several
+timeout 30s python3 tools/rtt.py --backend jlink --probe <sn> --device <dev> > /tmp/target.rtt & rtt=$!  # target (rtt skill; or ring dump after)
+wait $cap && wait $rtt   # a bare `wait` returns 0 even when one side failed
 ```
 
 RTT lines and ring events carry no wall-clock: correlate on unambiguous
