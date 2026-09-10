@@ -787,6 +787,20 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
 
     arm_iso_drain(true);
     arm_nak_retry();
+
+    // Disable SOF interrupt when there are no periodic transfers or NAK retries
+    // to schedule, mirroring the DWC2 on-demand SOF strategy.
+    bool need_sof = false;
+    for (size_t i = 0; i < TU_ARRAY_SIZE(usb_edpt_list); i++) {
+      const usb_edpt_t *edpt = &usb_edpt_list[i];
+      if (edpt->configured && (edpt->iso_queued || edpt->iso_active || edpt->is_nak_pending)) {
+        need_sof = true;
+        break;
+      }
+    }
+    if (!need_sof) {
+      USBOTG_H_FS->INT_EN &= ~USBFS_UIE_HST_SOF;
+    }
     // fall through
   }
 
