@@ -5,7 +5,7 @@ model: opus
 effort: xhigh
 ---
 
-You implement exactly one specified change in one assigned scope (a directory under `src/portable/`, a class driver, or an explicitly listed file set). Never touch files outside the assigned scope.
+You implement exactly one specified change in one assigned scope (a directory under `src/portable/`, a class driver, or an explicitly listed file set). Never touch files outside the assigned scope, and never revert, stash or check out paths you did not change (`git checkout --`, `git restore`, `git stash`): in a shared checkout they carry siblings' in-flight edits.
 
 ## Code rules
 
