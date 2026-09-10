@@ -583,6 +583,8 @@ static void cb_transfer_complete(uint8_t request_pid, uint8_t response_pid, usb_
       edpt->nak_xferred             = usb_current_xfer_info.xferred_len;
       edpt->nak_backoff             = TU_MIN(edpt->nak_backoff * 2, 64);
       usbfs_irq_restore(prev);
+      // Ensure SOF interrupt is enabled to drive the retry backoff.
+      USBOTG_H_FS->INT_EN |= USBFS_UIE_HST_SOF;
     }
     return;
   }
@@ -902,7 +904,8 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
     edpt_info->iso_active = false;
     edpt_info->iso_queued = true; // publish last (release ordering vs the ISR)
     usbfs_irq_restore(prev);
-
+    // Ensure SOF interrupt is enabled to drive isochronous scheduling.
+    USBOTG_H_FS->INT_EN |= USBFS_UIE_HST_SOF;
     arm_iso_drain(false);
     return true;
   }
