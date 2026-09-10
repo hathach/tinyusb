@@ -1,6 +1,6 @@
 export const meta = {
   name: 'driver-review',
-  description: 'Review driver directories across dimensions with code-verifier scanners, then adversarially verify every finding; returns only confirmed findings',
+  description: 'Review driver directories across dimensions with code-verifier scanners, then adversarially verify every finding; returns { confirmed, dropped, unverified } so a clean result is distinguishable from lost coverage',
   whenToUse: 'Auditing dcd/hcd drivers for a bug class (pass question) or a full-dimension review (default dimensions)',
   phases: [
     { title: 'Scan', detail: 'code-verifier per (dir x dimension)' },
@@ -63,8 +63,8 @@ const results = await pipeline(
   }).catch(() => null),
 
   (scan, p) => {
-    if (!scan) return null  // dead scanner — dropped, counted, and logged below
-    if (scan.findings.length === 0) return { dir: p.dir, dim: p.dim, findings: [] }
+    if (!scan) return { dir: p.dir, dim: p.dim, dropped: true, findings: [], unverified: [] }
+    if (scan.findings.length === 0) return { dir: p.dir, dim: p.dim, findings: [], unverified: [] }
     return parallel(scan.findings.map(f => () =>
       workflow('code-verify', {
         prompt: `Adversarially verify ONE review finding about ${p.dir}.\nDimension: ${p.dim}\nFinding: ${JSON.stringify(f)}\n` +
@@ -74,17 +74,22 @@ const results = await pipeline(
         schema: VERDICT,
       }).catch(() => null).then(v => v && { ...f, verdict: v })
     )).then(vs => {
-      const alive = vs.filter(Boolean)
-      if (alive.length < scan.findings.length) {
-        log(`${short(p.dir)}: ${scan.findings.length - alive.length} finding(s) lost to dead verifiers — treat as unverified, re-run if needed`)
+      const unverified = scan.findings.filter((_, i) => !vs[i])
+      if (unverified.length > 0) {
+        log(`${short(p.dir)}: ${unverified.length} finding(s) lost to dead verifiers — treat as unverified, re-run if needed`)
       }
-      return { dir: p.dir, dim: p.dim, findings: alive.filter(x => x.verdict.real) }
+      return { dir: p.dir, dim: p.dim, findings: vs.filter(x => x && x.verdict.real), unverified }
     })
   },
 )
 
-const units = results.filter(Boolean)
-if (units.length < pairs.length) log(`${pairs.length - units.length} scan unit(s) dropped (scanner died)`)
-const confirmed = units.filter(r => r.findings.length > 0)
+// Lost coverage travels with the findings: an empty `confirmed` only means
+// "clean" when `dropped` and `unverified` are empty too.
+const dropped = results.filter(r => r.dropped).map(r => ({ dir: r.dir, dim: r.dim }))
+if (dropped.length > 0) log(`${dropped.length} scan unit(s) dropped (scanner died)`)
+const unverified = results.filter(r => r.unverified.length > 0)
+  .map(r => ({ dir: r.dir, dim: r.dim, findings: r.unverified }))
+const confirmed = results.filter(r => r.findings.length > 0)
+  .map(r => ({ dir: r.dir, dim: r.dim, findings: r.findings }))
 log(`${confirmed.length} scan units produced confirmed findings`)
-return confirmed
+return { confirmed, dropped, unverified }

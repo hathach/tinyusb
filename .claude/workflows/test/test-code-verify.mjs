@@ -187,11 +187,39 @@ await check('driver review drops a failed routed scanner', async () => {
     for (const stage of stages) value = await stage(value, item)
     return value
   }))
-  const result = await fn(
-    { dirs: ['src/portable/test'], dimensions: ['correctness'] },
-    null, pipeline, null, () => {}, () => {}, async () => { throw new Error('verifier died') }, null,
+  const parallel = thunks => Promise.all(thunks.map(run => run()))
+  const unit = { dir: 'src/portable/test', dim: 'correctness' }
+  const finding = { file: 'a.c', line: 1, snippet: 's', why: 'w', severity: 'major', confidence: 'high' }
+
+  // scanner dies: the unit is reported as dropped, never as clean
+  const dead = await fn(
+    { dirs: [unit.dir], dimensions: [unit.dim] },
+    null, pipeline, parallel, () => {}, () => {}, async () => { throw new Error('verifier died') }, null,
   )
-  assert.deepEqual(result, [])
+  assert.deepEqual(dead, { confirmed: [], dropped: [unit], unverified: [] })
+
+  // scanner reports, every verifier dies: the finding is reported as unverified
+  const lost = await fn(
+    { dirs: [unit.dir], dimensions: [unit.dim] },
+    null, pipeline, parallel, () => {}, () => {}, async (name, a) => {
+      if (/Adversarially verify/.test(a.prompt)) throw new Error('verifier died')
+      return { scope: unit.dir, dimension: unit.dim, findings: [finding] }
+    }, null,
+  )
+  assert.deepEqual(lost, { confirmed: [], dropped: [], unverified: [{ ...unit, findings: [finding] }] })
+
+  // one verifier confirms, one refutes: only the survivor is confirmed
+  const mixed = await fn(
+    { dirs: [unit.dir], dimensions: [unit.dim] },
+    null, pipeline, parallel, () => {}, () => {}, async (name, a) => {
+      if (/Adversarially verify/.test(a.prompt)) return { real: /line":1,/.test(a.prompt), reason: 'r' }
+      return { scope: unit.dir, dimension: unit.dim, findings: [finding, { ...finding, line: 2 }] }
+    }, null,
+  )
+  assert.deepEqual(mixed, {
+    confirmed: [{ ...unit, findings: [{ ...finding, verdict: { real: true, reason: 'r' } }] }],
+    dropped: [], unverified: [],
+  })
 })
 
 await check('validate dispatches directly to stay within one workflow level', async () => {
