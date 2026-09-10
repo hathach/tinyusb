@@ -14,6 +14,10 @@
  * than once per 1 ms USB frame. This driver paces isochronous transfers with
  * the SOF interrupt: each ISO endpoint is allowed at most one transaction per
  * USB frame, armed from the SOF tick and from the ISO completion handler.
+ *
+ * Interrupt endpoints are paced the same way: a NAK parks the request and the
+ * SOF ISR re-arms it at most once per bInterval frame, so a HID endpoint is
+ * polled at its declared rate instead of as fast as the class can re-submit.
  */
 
 #include "tusb_option.h"
@@ -104,14 +108,17 @@ typedef struct usb_edpt {
   uint16_t iso_len;
   uint16_t iso_last_frame; // frame in which this endpoint was last armed
 
-  // NAK retry stash (non-ISO control/bulk). Re-armed once per frame from the
-  // SOF ISR (arm_nak_retry) so a NAK'd control transfer is retried with 1 ms
-  // backoff, not hammered in a tight task loop (which floods the device's
-  // control endpoint and starves the bus + main loop).
+  // NAK retry stash (non-ISO). Re-armed from the SOF ISR (arm_nak_retry): an
+  // interrupt endpoint once per bInterval frame, control/bulk with a
+  // progressive backoff. Reporting the NAK to the stack instead would make the
+  // class re-submit immediately and poll the device far faster than its
+  // interval, flooding the device's endpoint ISR and starving the bus + main
+  // loop.
   bool     is_nak_pending;
-  uint16_t nak_last_frame;
+  uint16_t nak_last_frame; // frame of the most recent attempt
   uint16_t nak_xferred;
-  uint8_t  nak_backoff; // frames to wait before the next NAK retry (progressive)
+  uint8_t  nak_backoff;    // control/bulk: frames to wait before the next retry
+  uint8_t  interval;       // interrupt: bInterval in frames
   uint16_t buflen;
   uint8_t *buf;
 } usb_edpt_t;
@@ -181,6 +188,7 @@ static usb_edpt_t *add_edpt_record(uint8_t dev_addr, uint8_t ep_addr, uint16_t m
   slot->nak_last_frame  = 0;
   slot->nak_xferred     = 0;
   slot->nak_backoff     = 1;
+  slot->interval        = 1;
   slot->buflen          = 0;
   slot->buf             = NULL;
   slot->iso_queued      = false;
@@ -195,12 +203,16 @@ static usb_edpt_t *add_edpt_record(uint8_t dev_addr, uint8_t ep_addr, uint16_t m
 }
 
 static usb_edpt_t *get_or_add_edpt_record(uint8_t dev_addr, uint8_t ep_addr, uint16_t max_packet_size,
-                                          uint8_t xfer_type) {
+                                          uint8_t xfer_type, uint8_t interval) {
   usb_edpt_t *ret = get_edpt_record(dev_addr, ep_addr);
-  if (ret != NULL) {
-    return ret;
+  if (ret == NULL) {
+    ret = add_edpt_record(dev_addr, ep_addr, max_packet_size, xfer_type);
+    if (ret == NULL) {
+      return NULL;
+    }
   }
-  return add_edpt_record(dev_addr, ep_addr, max_packet_size, xfer_type);
+  ret->interval = interval; // refresh: a re-enumeration can revise the descriptor
+  return ret;
 }
 
 static void remove_edpt_record_for_device(uint8_t dev_addr) {
@@ -420,10 +432,11 @@ static void arm_iso_drain(bool in_isr) {
   }
 }
 
-// Re-arm a NAK'd control/bulk transfer once per USB frame (1 ms backoff) so the
-// device has time to finish processing. Called from the SOF ISR, ahead of ISO,
-// so a NAK'd control transfer (e.g. a SET_CUR status stage) makes progress even
-// while a non-ISO transfer is in flight. At most one endpoint is armed per
+// Re-arm a NAK'd request once its wait has elapsed: an interrupt endpoint is
+// polled once per bInterval frame, control/bulk back off progressively. Called
+// from the SOF ISR, ahead of ISO, and again whenever a completion frees the SIE
+// slot, so a NAK'd control transfer (e.g. a SET_CUR status stage) makes progress
+// even while another transfer is in flight. At most one endpoint is armed per
 // call (single SIE).
 static void arm_nak_retry(void) {
   if (usb_current_xfer_info.is_busy) {
@@ -432,8 +445,11 @@ static void arm_nak_retry(void) {
   usb_edpt_t *best = NULL;
   for (size_t i = 0; i < TU_ARRAY_SIZE(usb_edpt_list); i++) {
     usb_edpt_t *cur = &usb_edpt_list[i];
-    if (cur->configured && cur->is_nak_pending && (uint16_t)(g_sof_frame - cur->nak_last_frame) >= cur->nak_backoff &&
-        (cur->xfer_type == TUSB_XFER_CONTROL || cur->xfer_type == TUSB_XFER_BULK)) {
+    if (!cur->configured || !cur->is_nak_pending) {
+      continue;
+    }
+    const uint16_t wait = (cur->xfer_type == TUSB_XFER_INTERRUPT) ? cur->interval : cur->nak_backoff;
+    if ((uint16_t)(g_sof_frame - cur->nak_last_frame) >= wait) {
       best = cur;
       break;
     }
@@ -564,28 +580,25 @@ static void cb_transfer_complete(uint8_t request_pid, uint8_t response_pid, usb_
 
   if (response_pid == USB_PID_NAK) {
     LOG_CH32_USBFSH("NAK response\r\n");
-    if (edpt->xfer_type == TUSB_XFER_INTERRUPT && tu_edpt_dir(ep_addr) == TUSB_DIR_IN) {
-      // Interrupt IN: a NAK means "no data yet"; report success (no bytes).
-      bool prev                     = usbfs_irq_save();
-      usb_current_xfer_info.is_busy = false;
-      usbfs_irq_restore(prev);
-      hcd_event_xfer_complete(dev_addr, ep_addr, 0, XFER_RESULT_SUCCESS, in_isr);
-    } else {
-      // Bulk/control/interrupt OUT NAK: stash for a SOF-driven retry with
-      // progressive backoff (1->2->4...->64 frames). A tight task-loop retry
-      // floods the device's endpoint ISR and starves its main loop (and ours);
-      // backing off lets the device finish processing and ACK.
-      bool prev                     = usbfs_irq_save();
-      usb_current_xfer_info.is_busy = false;
-      edpt->is_nak_pending          = true;
-      edpt->buflen                  = usb_current_xfer_info.bufferlen;
-      edpt->buf                     = usb_current_xfer_info.buffer;
-      edpt->nak_xferred             = usb_current_xfer_info.xferred_len;
-      edpt->nak_backoff             = TU_MIN(edpt->nak_backoff * 2, 64);
-      usbfs_irq_restore(prev);
-      // Ensure SOF interrupt is enabled to drive the retry backoff.
-      USBOTG_H_FS->INT_EN |= USBFS_UIE_HST_SOF;
+    // No handshake: park the request and let arm_nak_retry re-arm it once its
+    // wait has elapsed -- an interrupt endpoint is polled once per bInterval
+    // frame, control/bulk back off progressively (1->2->4...->64 frames).
+    // Completing the transfer here instead (as a zero-length success) would
+    // make the class re-submit at once and poll the device far faster than its
+    // interval, flooding the device's endpoint ISR and starving the bus.
+    bool prev                     = usbfs_irq_save();
+    usb_current_xfer_info.is_busy = false;
+    edpt->is_nak_pending          = true;
+    edpt->nak_last_frame          = g_sof_frame;
+    edpt->buflen                  = usb_current_xfer_info.bufferlen;
+    edpt->buf                     = usb_current_xfer_info.buffer;
+    edpt->nak_xferred             = usb_current_xfer_info.xferred_len;
+    if (edpt->xfer_type != TUSB_XFER_INTERRUPT) {
+      edpt->nak_backoff = TU_MIN(edpt->nak_backoff * 2, 64);
     }
+    usbfs_irq_restore(prev);
+    // Ensure SOF interrupt is enabled to drive the retry.
+    USBOTG_H_FS->INT_EN |= USBFS_UIE_HST_SOF;
     return;
   }
 
@@ -640,6 +653,12 @@ void hcd_port_reset(uint8_t rhport) {
   // Drop any in-flight / queued ISO so it does not resume after the reset.
   usb_current_xfer_info.is_busy = false;
   USBOTG_H_FS->HOST_EP_PID      = 0;
+
+  // Parked NAK retries belong to the pre-reset device: drop them too, or the
+  // SOF ISR re-arms them against a stale address during re-enumeration.
+  for (size_t i = 0; i < TU_ARRAY_SIZE(usb_edpt_list); i++) {
+    usb_edpt_list[i].is_nak_pending = false;
+  }
 
   USBOTG_H_FS->HOST_CTRL |= USBFS_UH_BUS_RESET;
 }
@@ -853,6 +872,14 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
       cb_transfer_complete(request_pid, response_pid, edpt_info, in_isr);
     }
   }
+
+  // A completion or NAK stash above may have freed the SIE slot: give a due
+  // retry its turn in this frame rather than waiting for the next SOF tick. The
+  // interval gate keeps the endpoint just retried out of the running, so parked
+  // endpoints round-robin instead of starving the ones later in the list.
+  if (!usb_current_xfer_info.is_busy) {
+    arm_nak_retry();
+  }
 }
 
 //--------------------------------------------------------------------+
@@ -867,13 +894,17 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t 
   LOG_CH32_USBFSH("hcd_edpt_open(dev_addr=0x%02x, ep=0x%02x, mps=%d, type=%d)\r\n", dev_addr, ep_addr, max_packet_size,
                   xfer_type);
 
+  // Interrupt endpoints are polled at most once per bInterval frame
+  // (arm_nak_retry); a malformed zero interval means every frame.
+  uint8_t const interval = (xfer_type == TUSB_XFER_INTERRUPT && ep_desc->bInterval > 1) ? ep_desc->bInterval : 1;
+
   while (usb_current_xfer_info.is_busy) {}
 
   if (tu_edpt_number(ep_addr) == 0x00) {
-    TU_ASSERT(get_or_add_edpt_record(dev_addr, 0x00, max_packet_size, xfer_type) != NULL, false);
-    TU_ASSERT(get_or_add_edpt_record(dev_addr, 0x80, max_packet_size, xfer_type) != NULL, false);
+    TU_ASSERT(get_or_add_edpt_record(dev_addr, 0x00, max_packet_size, xfer_type, interval) != NULL, false);
+    TU_ASSERT(get_or_add_edpt_record(dev_addr, 0x80, max_packet_size, xfer_type, interval) != NULL, false);
   } else {
-    TU_ASSERT(get_or_add_edpt_record(dev_addr, ep_addr, max_packet_size, xfer_type) != NULL, false);
+    TU_ASSERT(get_or_add_edpt_record(dev_addr, ep_addr, max_packet_size, xfer_type, interval) != NULL, false);
   }
 
   hardware_set_port_address_speed(dev_addr);
@@ -889,9 +920,10 @@ bool hcd_edpt_close(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
     return false;
   }
   bool prev        = usbfs_irq_save();
-  edpt->configured = false;
-  edpt->iso_queued = false;
-  edpt->iso_active = false;
+  edpt->configured     = false;
+  edpt->iso_queued     = false;
+  edpt->iso_active     = false;
+  edpt->is_nak_pending = false; // drop any parked retry
   if (usb_current_xfer_info.is_busy && usb_current_xfer_info.dev_addr == dev_addr &&
       usb_current_xfer_info.ep_addr == ep_addr) {
     usb_current_xfer_info.is_busy = false;
@@ -948,7 +980,9 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
   usb_current_xfer_info.start_ms    = tusb_time_millis_api();
   usb_current_xfer_info.xferred_len = 0;
 
-  edpt_check->nak_backoff = 1; // fresh transfer: reset the progressive NAK backoff
+  // Fresh submit supersedes any retry parked for this endpoint earlier.
+  edpt_check->is_nak_pending = false;
+  edpt_check->nak_backoff    = 1;
   usbfs_irq_restore(prev);
 
   if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN) {
@@ -979,8 +1013,12 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
       aborted          = true;
     }
   } else {
-    // For control/bulk/interrupt: abort the in-flight transfer if it belongs
-    // to this endpoint.
+    // For control/bulk/interrupt: drop a parked retry, and abort the in-flight
+    // transfer if it belongs to this endpoint.
+    if (edpt->is_nak_pending) {
+      edpt->is_nak_pending = false;
+      aborted              = true;
+    }
     if (usb_current_xfer_info.is_busy &&
         usb_current_xfer_info.dev_addr == dev_addr &&
         usb_current_xfer_info.ep_addr == ep_addr) {
