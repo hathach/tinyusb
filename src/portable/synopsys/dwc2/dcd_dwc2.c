@@ -16,6 +16,10 @@
 #error DWC2 require either CFG_TUD_DWC2_SLAVE_ENABLE or CFG_TUD_DWC2_DMA_ENABLE to be enabled
 #endif
 
+#if CFG_TUD_DWC2_PTI_ENABLE && !CFG_TUD_DWC2_DMA_ENABLE
+#error CFG_TUD_DWC2_PTI_ENABLE requires CFG_TUD_DWC2_DMA_ENABLE (Buffer DMA)
+#endif
+
 // Debug level for DWC2
 #define DWC2_DEBUG    2
 
@@ -113,6 +117,32 @@ TU_ATTR_ALWAYS_INLINE static inline bool dma_device_enabled(const dwc2_regs_t* d
   // Internal DMA only
   const dwc2_ghwcfg2_t ghwcfg2 = {.value = dwc2->ghwcfg2};
   return CFG_TUD_DWC2_DMA_ENABLE && ghwcfg2.arch == GHWCFG2_ARCH_INTERNAL_DMA;
+}
+
+// Periodic Transfer Interrupt: DCTL.IgnrFrmNum in Buffer DMA only (not Slave, not thresholding)
+TU_ATTR_ALWAYS_INLINE static inline bool pti_device_enabled(const dwc2_regs_t* dwc2) {
+#if CFG_TUD_DWC2_PTI_ENABLE
+  return dma_device_enabled(dwc2);
+#else
+  (void) dwc2;
+  return false;
+#endif
+}
+
+static void pti_configure(dwc2_regs_t* dwc2) {
+#if CFG_TUD_DWC2_PTI_ENABLE
+  if (!dma_device_enabled(dwc2)) {
+    return;
+  }
+  dwc2->dctl |= DCTL_IGNRFRMNUM;
+  const dwc2_ghwcfg4_t ghwcfg4 = {.value = dwc2->ghwcfg4};
+  // Explicitly disable AHB thresholding (defensive programming only)
+  if (ghwcfg4.dedicated_fifos) {
+    dwc2->dthrctl &= (uint32_t) ~(DTHRCTL_NONISOTHREN | DTHRCTL_ISOTHREN | DTHRCTL_RXTHREN);
+  }
+#else
+  (void) dwc2;
+#endif
 }
 
 static void dma_setup_prepare(uint8_t rhport) {
@@ -455,6 +485,8 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   dcfg |= DCFG_NZLSOHSK; // send STALL back and discard if host send non-zlp during control status
   dwc2->dcfg = dcfg;
 
+  pti_configure(dwc2); // No operation if !CFG_TUD_DWC2_PTI_ENABLE
+
   dcd_disconnect(rhport);
 
   // Force device mode
@@ -761,6 +793,8 @@ static void handle_bus_reset(uint8_t rhport) {
   dcfg.address = 0;
   dwc2->dcfg = dcfg.value;
 
+  pti_configure(dwc2); // No operation if !CFG_TUD_DWC2_PTI_ENABLE
+
   // 6. Configure maximum packet size for EP0
   uint8_t mps = 0;
   switch (CFG_TUD_ENDPOINT0_SIZE) {
@@ -779,7 +813,11 @@ static void handle_bus_reset(uint8_t rhport) {
   xfer_status[0][TUSB_DIR_OUT].max_size = CFG_TUD_ENDPOINT0_SIZE;
   xfer_status[0][TUSB_DIR_IN].max_size = CFG_TUD_ENDPOINT0_SIZE;
 
-  uint32_t gintmsk = GINTMSK_OTGINT | GINTMSK_IEPINT | GINTMSK_IISOIXFRM;
+  uint32_t gintmsk = GINTMSK_OTGINT | GINTMSK_IEPINT;
+  // PTI carries missed ISOC IN data to the next frame; IncompISOCIN must stay masked
+  if (!pti_device_enabled(dwc2)) {
+    gintmsk |= GINTMSK_IISOIXFRM;
+  }
   if(dma_device_enabled(dwc2)) {
     gintmsk |= GINTMSK_OEPINT;
     dma_setup_prepare(rhport);
@@ -1032,6 +1070,19 @@ static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepi
     // Normal OUT transfer complete
     if (!doepint_bm.status_phase_rx && !doepint_bm.setup_packet_rx) {
       xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
+      dwc2_dep_t* epout = &dwc2->epout[epnum];
+
+#if CFG_TUD_DWC2_PTI_ENABLE
+      // PTI: XferCompl can mean a dropped ISOC OUT packet (CRC/RxFIFO), not a good payload
+      if (doepint_bm.iso_packet_drop) {
+        const dwc2_depctl_t depctl = {.value = epout->doepctl};
+        if (depctl.type == DEPCTL_EPTYPE_ISOCHRONOUS) {
+          dcd_event_xfer_complete(rhport, epnum, 0, XFER_RESULT_FAILED, true);
+          return;
+        }
+      }
+#endif
+
       if ((epnum == 0) && _dcd_data.ep0_pending[TUSB_DIR_OUT]) {
         // EP0 can only handle one packet: invalidate and advance past the received bytes, then
         // schedule the next.
@@ -1041,8 +1092,6 @@ static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepi
         }
         edpt_schedule_packets(rhport, epnum, TUSB_DIR_OUT);
       } else {
-        dwc2_dep_t* epout = &dwc2->epout[epnum];
-
         // determine actual received bytes
         const dwc2_ep_tsize_t tsiz = {.value = epout->tsiz};
         const uint16_t remain = tsiz.xfer_size;
@@ -1273,10 +1322,12 @@ void dcd_int_handler(uint8_t rhport) {
   }
 #endif
 
-  // Incomplete isochronous IN transfer interrupt handling.
+  // Incomplete isochronous IN transfer interrupt handling (masked when PTI is enabled).
   if (gintsts & GINTSTS_IISOIXFR) {
     dwc2->gintsts = GINTSTS_IISOIXFR;
-    handle_incomplete_iso_in(rhport);
+    if (!pti_device_enabled(dwc2)) {
+      handle_incomplete_iso_in(rhport);
+    }
   }
 }
 

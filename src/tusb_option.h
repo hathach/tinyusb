@@ -350,6 +350,17 @@
   #define CFG_TUD_DWC2_SLAVE_ENABLE CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT
 #endif
 
+// Periodic Transfer Interrupt (PTI) for device Buffer DMA (DCTL.IgnrFrmNum).
+// When enabled, ISOC even/odd frame matching is ignored so a transfer can be
+// armed in the current or next (micro)frame. Invalid in Slave mode; requires DMA.
+#ifndef CFG_TUD_DWC2_PTI_ENABLE
+  #ifndef CFG_TUD_DWC2_PTI_ENABLE_DEFAULT
+    #define CFG_TUD_DWC2_PTI_ENABLE_DEFAULT 0
+  #endif
+
+  #define CFG_TUD_DWC2_PTI_ENABLE CFG_TUD_DWC2_PTI_ENABLE_DEFAULT
+#endif
+
 // DMA mode for host
 #ifndef CFG_TUH_DWC2_DMA_ENABLE
   #ifndef CFG_TUH_DWC2_DMA_ENABLE_DEFAULT
