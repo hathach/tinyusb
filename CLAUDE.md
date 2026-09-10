@@ -19,7 +19,6 @@
 ## Claude and Codex Collaboration
 
 - For a standalone Codex session, use `.codex/agents/<role>.toml` to load `.claude/agents/<role>.md`; keep adapters thin and never duplicate role bodies.
-- Exception: `code-simplifier` wraps bundled `/simplify` in Claude; Codex keeps its standalone equivalent in TOML.
 - Keep orchestration in `.claude/workflows/`. Use `code-verify` with `provider: 'codex'` (default; reviews with Claude when Codex cannot run, but not after a Codex timeout), `'claude'`, or `'all'`; `validate`/`full-check` use `reviewProvider`; `pr-babysit` has an independent model challenge every dismissal before it is posted. Keep workflow nesting to one level.
 - Delegate Codex workflow jobs through `.claude/agents/codex-agent.md`; `.claude/codex-agent.py` runs `codex exec --sandbox read-only` (`codex exec review` for `validate`'s diff review), keeps each job under `/tmp/tinyusb-codex/<job>/` and returns `{job, thread, result}`: `tail -f` the job's `events.jsonl` to watch, `kill` the `codex exec` pid to stop, `codex exec resume <thread>` to ask a follow-up. Its read-only sandbox has no network: jobs must use local evidence, since failed network reads can produce false empty results. Write-capable roles need worktree isolation first.
 

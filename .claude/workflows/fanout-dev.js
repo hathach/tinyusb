@@ -107,8 +107,12 @@ const simplification = await agent(
   `Assigned scopes: ${JSON.stringify(live)}. Touch nothing outside them.\n` +
   `Writer notes: ${JSON.stringify(devs.filter(Boolean).map(dev => ({ item: dev.item, notes: dev.notes })))}\n` +
   'All writers have finished. Inspect staged and unstaged changes and task-owned untracked files. ' +
-  'Make one behavior-preserving pass; no changes is success. Independent builds and optional review follow.',
-  { label: 'simplify', phase: 'Simplify', agentType: 'code-simplifier', schema: SIMPLIFY },
+  'Invoke the bundled /simplify skill exactly once through the Skill tool, passing the task, the writer notes and the assigned scopes; ' +
+  'require it to preserve unrelated work and input contracts. Make one behavior-preserving pass; no changes is success. ' +
+  'Do not stage, commit or push. Independent builds and optional review follow. ' +
+  'Return ONLY this JSON, no prose, no code fence: {"changed": false, "files": [], "summary": "No useful simplification found."} — ' +
+  'changed=true only if files were edited; files = repo-relative paths; summary covers fixes, skips and checks the caller must rerun.',
+  { label: 'simplify', phase: 'Simplify', model: 'opus', effort: 'xhigh', schema: SIMPLIFY },
 )
 if (!simplification) throw new Error('simplifier failed — inspect possible partial edits before retrying')
 log(`simplify: ${simplification.changed ? simplification.files.join(', ') : 'no changes'} — ${simplification.summary}`)

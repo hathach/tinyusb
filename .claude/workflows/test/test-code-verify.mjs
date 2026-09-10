@@ -422,7 +422,11 @@ await check('fanout simplifies once after all writers and before verification', 
         assert.equal(options.isolation, worktree ? 'worktree' : undefined)
         return { item, board: item, buildOk: true, diffstat: '', notes: `note:${item}` }
       }
-      if (options.agentType === 'code-simplifier') {
+      if (options.label === 'simplify') {
+        // inline general subagent: /simplify via Skill, no agent definition
+        assert.equal(options.agentType, undefined)
+        assert.match(prompt, /\/simplify skill exactly once through the Skill tool/)
+        assert.match(prompt, /Do not stage, commit or push/)
         assert.deepEqual([...events].sort(), ['wrote:a', 'wrote:b'])
         scopes.push(prompt.match(/Assigned scopes: (\[[^\]]*\])/)[1])
         // writer results reach the simplifier as notes only, not build metadata
