@@ -14,9 +14,34 @@ LAUNCHER = ROOT / '.claude' / 'codex-agent.py'
 sys.path.insert(0, str(LAUNCHER.parent))
 codex_agent = __import__('codex-agent')
 
-ADAPTER = codex_agent.role(ROOT)
+ADAPTER = {'name': 'code-verifier', 'model': 'gpt-test', 'model_reasoning_effort': 'low',
+           'developer_instructions': 'Read the role file and follow it.\n'}
 SCHEMA = {'type': 'object', 'required': ['pass']}
 EVENTS = '{"type":"thread.started","thread_id":"t-42"}\n{"type":"turn.completed"}\n'
+
+
+class AdapterTest(unittest.TestCase):
+    def test_role_loads_the_toml_and_run_uses_it_by_default(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            toml = Path(tmp) / 'code-verifier.toml'
+            toml.write_text('model = "gpt-file"\nmodel_reasoning_effort = "low"\n'
+                            'developer_instructions = "From the file.\\n"\n')
+            self.assertEqual(codex_agent.role(toml)['model'], 'gpt-file')
+            seen = {}
+
+            def fake_run(cmd, **kw):
+                seen['cmd'] = cmd
+                seen['prompt'] = Path(kw['stdin'].name).read_text()
+                Path(kw['stdout'].name).with_name('result.json').write_text('{"pass": true}')
+                kw['stdout'].write(EVENTS)
+                return subprocess.CompletedProcess(cmd, 0)
+
+            with mock.patch.object(codex_agent, 'ADAPTER', toml), \
+                 mock.patch.object(codex_agent, 'JOBS', Path(tmp) / 'jobs'), \
+                 mock.patch.object(codex_agent.subprocess, 'run', fake_run):
+                codex_agent.run({'prompt': 'review it', 'schema': SCHEMA}, ROOT, stamp='s')
+            self.assertEqual(seen['cmd'][seen['cmd'].index('-m') + 1], 'gpt-file')
+            self.assertTrue(seen['prompt'].startswith('From the file.'))
 
 
 class InputTest(unittest.TestCase):
@@ -115,7 +140,7 @@ class RunTest(unittest.TestCase):
              mock.patch.object(codex_agent, 'JOBS', Path(tmp)), \
              mock.patch.object(codex_agent.subprocess, 'run', fake_run):
             try:
-                out = codex_agent.run(data, ROOT, stamp='s')
+                out = codex_agent.run(data, ROOT, stamp='s', adapter=ADAPTER)
             except RuntimeError as e:
                 return None, str(e), seen
             seen['files'] = sorted(p.name for p in Path(out['job']).iterdir())

@@ -23,6 +23,8 @@ from pathlib import Path
 
 TIMEOUT = 1800  # a full-diff review at xhigh effort routinely passes 10 min
 JOBS = Path('/tmp/tinyusb-codex')
+# The role is agentrc's user-level code-verifier, installed for both harnesses.
+ADAPTER = Path.home() / '.codex' / 'agents' / 'code-verifier.toml'
 
 # `codex exec review` ignores --output-schema, so the contract rides in the prompt.
 OUTPUT_CONTRACT = ('Your final message must be exactly one JSON object valid '
@@ -43,10 +45,10 @@ def read_input(stream):
     return data
 
 
-def role(root):
+def role(path=None):
     """Model, effort and role instructions come from the same adapter a
     standalone Codex session loads, so there is one source for both harnesses."""
-    with open(root / '.codex' / 'agents' / 'code-verifier.toml', 'rb') as f:
+    with open(path or ADAPTER, 'rb') as f:
         return tomllib.load(f)
 
 
@@ -107,8 +109,8 @@ def load_result(job):
         return None, str(e)
 
 
-def run(data, root, stamp=None):
-    adapter = role(root)
+def run(data, root, stamp=None, adapter=None):
+    adapter = adapter or role()
     review = bool(data.get('review'))
     stamp = stamp or datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     job = JOBS / f'{stamp}-{os.getpid()}'

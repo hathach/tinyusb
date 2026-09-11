@@ -280,6 +280,9 @@ const fixAndVerify = async (workIn) => {
     w => agent(
       `Fix the following issues on the PR branch. ${IN_CHECKOUT}\n` +
       'Constraint: never modify test/hil/*.json (HIL rig hardware config) — a failure that needs hardware swapped/changed stays red for the user.\n' +
+      'Choose a board from hw/bsp/<family>/boards/ whose family uses the changed files and substitute it below. Verify with: ' +
+      'cmake -S examples/device/cdc_msc -B <BUILD> -DBOARD=<board> -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel && cmake --build <BUILD>; ' +
+      'on missing deps run python3 tools/get_deps.py <FAMILY> once and retry.\n' +
       `Scope: ${scopeOf(w)}\nIssues:\n- ${textOf(w)}`,
       { label: `fix:${w.key}`, phase: 'Fix', agentType: 'code-writer', schema: DEV },
     ),
