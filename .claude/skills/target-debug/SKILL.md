@@ -14,7 +14,7 @@ Raspberry Pi). Pick capture channels by which end runs Linux, not by habit:
 |--------------------|----------------------------------------------------|---------------------------------------------------|
 | `usb-kernel-debug` | what the Linux host exchanged (usbmon URBs, host role only) and why its kernel acted (dynamic debug) | Linux on either end: PC host or Linux gadget peer |
 | **`target-debug`** | **what the target did** (logs, driver state, PC)   | always — either role, needs a debug probe         |
-| `usb-sniffer`      | what crossed the wire (PIDs, handshakes, resets)   | hardware tap cabled in — role-agnostic            |
+| `usb-sniffer`      | what crossed the wire (PIDs, handshakes, resets); user-level skill from agentrc | hardware tap cabled in — role-agnostic |
 | `etm-trace`        | exactly which instructions executed (profile, coverage, history) | SEGGER J-Trace wired to this board's trace header — confirm with the user first |
 
 For enumeration/transfer bugs the default posture is **dual-side capture** —
@@ -348,7 +348,8 @@ anchors — bus reset, SET_ADDRESS, the first transfer on the failing EP — the
 lay device events between anchors in host-URB order. Logging the SOF/frame
 number on the target gives a shared clock when you need finer alignment.
 When host and target evidence disagree, or the host sees nothing at all, add
-the wire itself: `usb-sniffer` skill (hardware tap, PID-level).
+the wire itself: `usb-sniffer` skill (hardware tap, PID-level; user-level from
+agentrc — without it, capture by hand with `usb_sniffer --capture --speed <hs|fs|ls> --limit N`).
 
 ## Manuals
 

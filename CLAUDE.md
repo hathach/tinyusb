@@ -14,7 +14,7 @@
 ## Skills
 
 - Skill script tests live in `.claude/test/test_*.py`.
-- Some skills are user-level from [agentrc](https://github.com/hathach/agentrc), e.g. `read-doc`, `simplify-gate`; when one is unavailable, take the "skill unavailable" branch.
+- Some skills are user-level from [agentrc](https://github.com/hathach/agentrc), e.g. `read-doc`, `simplify-gate`, `usb-sniffer`; when one is unavailable, take the "skill unavailable" branch.
 
 ## Claude and Codex Collaboration
 
