@@ -11,7 +11,7 @@ coverage, and optionally the raw instruction history.
 
 | Skill           | Answers                                                                    |
 |-----------------|----------------------------------------------------------------------------|
-| `usb-kernel-debug` | what the Linux host actually exchanged (usbmon URBs) and why its kernel acted |
+| `usb-kernel-debug` | what the Linux host actually exchanged (usbmon URBs) and why its kernel acted (user-level skill from agentrc) |
 | `target-debug`  | what the target did (logs, driver state, sampled PCs)                      |
 | `usb-sniffer`   | what crossed the wire (user-level skill from agentrc)                      |
 | **`etm-trace`** | **exactly which instructions executed, when** (profile, coverage, history) |
