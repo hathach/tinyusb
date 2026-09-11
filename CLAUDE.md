@@ -9,7 +9,7 @@ Bias toward caution over speed. For trivial tasks, use judgment.
 - Surgical changes — touch only what the task requires; match existing style; don't refactor working code; mention unrelated dead code rather than deleting it. Remove only orphans your changes created.
 - Goal-driven — turn tasks into verifiable goals ("write failing test, make it pass"). For multi-step work, state a brief `step → verify` plan.
 - Assume the dev machine is configured. Run commands directly; troubleshoot setup only when a command fails.
-- **Worktrees** — For branch or multi-step work: `git worktree add .worktrees/<branch> -b <branch>`; never switch the primary checkout. Symlink `deps_all` paths from `tools/get_deps.py` to the primary checkout; replace a symlink and rerun `get_deps.py` only for a different revision.
+- Worktrees — For branch or multi-step work: `git worktree add .worktrees/<branch> -b <branch>`; never switch the primary checkout. Symlink `deps_all` paths from `tools/get_deps.py` to the primary checkout; replace a symlink and rerun `get_deps.py` only for a different revision.
 - Hardware references — before register/bitfield/pinout/errata/timing claims or DCD/HCD changes, use `read-doc` to check Calibre first; report missing documents. Search its database, never the library tree.
 - Open-source behavior — when investigating an issue or understanding behavior (e.g. kernel, libusb, OpenOCD; usbfs, usbtest, sysfs attributes, device locks, D state), read the source for the version in use rather than infer from symptoms.
 - Code references — boards: `hw/bsp/`, `docs/reference/boards.rst`; classes: `src/class/`; core/config: `src/tusb.h`, `src/tusb_option.h`, each example's `src/tusb_config.h`; build/deps: `tools/build.py`, `tools/get_deps.py`; unit tests: `test/unit-test/project.yml`.
@@ -52,6 +52,7 @@ ninja -C examples/cmake-build-adafruit_metro_rp2350 cdc_msc-openocd  # Or OpenOC
 - ESP-IDF: `. "$IDF_PATH/export.sh"` before build/flash/monitor; run `idf.py -DBOARD=<board> build` in the ESP-IDF example.
 - Debug/logging: `-DCMAKE_BUILD_TYPE=Debug -DLOG=2 -DLOGGER=rtt`.
 - Before submitting: `pre-commit run --all-files` (includes unit tests).
+- Simplify before validating: `pre-pr` starts by running the `code-simplifier` agent on the branch diff and committing what it changes, so the validated tree is the pushed one. A change made without `pre-pr` gets the same pass by hand (`/simplify`).
 - For code changes: build the full example set for boards that exercise the changed modules. Add fuzz/HIL coverage for parsers or protocol state machines.
 - Validate device runtime on hardware; a successful build alone does not establish runtime correctness.
 - After board/dependency changes, regenerate docs with `build-doc`.
@@ -59,7 +60,7 @@ ninja -C examples/cmake-build-adafruit_metro_rp2350 cdc_msc-openocd  # Or OpenOC
 
 ## PRs and Follow-ups
 
-- Before opening or updating a PR, follow Build and Validate; use `pre-pr` when workflows are available.
-- Use imperative commit/PR subjects; keep scope focused, link relevant issues, and include test/build evidence.
+- Create a new PR only when explicitly asked by the user; before opening or updating one, follow Build and Validate and use `pre-pr` when workflows are available.
+- Use imperative commit/PR subjects and concise PR titles and descriptions; keep scope focused, link relevant issues, and include test/build evidence.
 - After opening a PR, use `pr-babysit` (`.claude/workflows/pr-babysit.js`) to drive reviews and CI to green. If workflows are unavailable, use `gh pr checks <num>` and `gh pr view <num> --comments`; fix failures, push, and resolve review threads.
-- **Deferred work** — Separate scope gets a separate PR/session. Create one GitHub issue per topic with `gh issue create --label followup`; link the originating PR and preserve the full handoff in the issue body, including evidence, remaining work, and why deferred. Add revalidation, new findings, and changes to remaining work as issue comments. Close the issue when its implementing PR lands.
+- Deferred work — Separate scope gets a separate PR/session. Create one GitHub issue per topic with `gh issue create --label followup`; link the originating PR and preserve the full handoff in the issue body, including evidence, remaining work, and why deferred. Add revalidation, new findings, and changes to remaining work as issue comments. Close the issue when its implementing PR lands.

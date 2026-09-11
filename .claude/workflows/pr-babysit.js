@@ -66,7 +66,7 @@ const CHALLENGE = {
 
 const REVIEWS = {
   type: 'object', additionalProperties: false,
-  required: ['findings', 'replies', 'done'],
+  required: ['findings', 'replies', 'pending'],
   properties: {
     findings: {
       type: 'array',
@@ -90,7 +90,18 @@ const REVIEWS = {
         properties: { commentId: { type: 'integer' }, body: { type: 'string' } },
       },
     },
-    done: { type: 'boolean' },
+    // Why each bot is still outstanding on the head SHA (#3906): three cycles
+    // once waited on a reviewer that had left, and nothing said so. There is
+    // no `done`: it is this list being empty plus no valid finding, and a
+    // second flag saying the same thing would only need reconciling.
+    pending: {
+      type: 'array',
+      items: {
+        type: 'object', additionalProperties: false,
+        required: ['bot', 'reason'],
+        properties: { bot: { type: 'string' }, reason: { type: 'string' } },
+      },
+    },
   },
 }
 const DEV = {
@@ -364,6 +375,9 @@ const answerState = (commentId) => !answeredWith.has(commentId) ? 'reply pending
   : answeredWith.get(commentId).how === 'refutation' ? 'replied + resolved'
     : owesDismissal(commentId) ? 'deferred to next cycle' : 'answered by fix note'
 
+const pendingOf = (r) => (r && Array.isArray(r.pending)) ? r.pending : []
+const pendingText = (r) => pendingOf(r).map(x => `${cell(x.bot, 16)} (${cell(x.reason, 120)})`).join('; ')
+
 const cycleSummary = (entry) => {
   const rows = []
   const findings = [...((entry.reviews && entry.reviews.findings) || [])]
@@ -391,7 +405,7 @@ const cycleSummary = (entry) => {
     ])
   }
   const head = `cycle ${entry.cycle} summary — CI ${entry.ci ? entry.ci.status : 'unknown'}, ` +
-    `${entry.reviews ? (entry.reviews.done ? 'all bots settled' : 'bots still pending') : 'no review data'}` +
+    `${!entry.reviews ? 'no review data' : pendingOf(entry.reviews).length === 0 ? 'all bots settled' : `bots still pending: ${pendingText(entry.reviews)}`}` +
     `${entry.error ? `, ERROR: ${entry.error}` : ''}`
   return rows.length === 0
     ? `${head}\n(no bot findings, no real CI failures)`
@@ -447,6 +461,7 @@ const runCycle = async (cycle, entry) => {
       return { pass: false, cycles: cycle, history, reason: 'review-validator-died' }
     }
     entry.reviews = r
+    const botsSettled = pendingOf(r).length === 0
 
     // findingId is the only thing telling one dismissal on a comment from
     // another. Two findings sharing one would silently collapse into a single
@@ -707,7 +722,9 @@ const runCycle = async (cycle, entry) => {
       entry.ciPush = ciPush
       return null // pushed: fresh CI run next cycle
     }
-    if (r.done && c.status === 'green') {
+    // Every valid finding returned above (fixed and pushed, or left for a
+    // human), so "done" here is just the bots having settled.
+    if (botsSettled && c.status === 'green') {
       const outstanding = [...debt.keys()]
       if (outstanding.length > 0) {
         if (args.autoPush !== true) {
@@ -727,7 +744,7 @@ const runCycle = async (cycle, entry) => {
       log(`cycle ${cycle}: PR is green with no unresolved valid findings`)
       return { pass: true, cycles: cycle, history }
     }
-    if (r.done && rigSide.length > 0 && fixable.length === 0 && c.infraRerun.length === 0 && c.status !== 'running') {
+    if (botsSettled && rigSide.length > 0 && fixable.length === 0 && c.infraRerun.length === 0 && c.status !== 'running') {
       log(`cycle ${cycle}: CI red only from rig-side failures — human/rig attention needed, nothing to fix in the PR`)
       return { pass: false, cycles: cycle, history, reason: 'ci-red-rig-side' }
     }
@@ -735,16 +752,13 @@ const runCycle = async (cycle, entry) => {
       log(`cycle ${cycle}: CI still settling (${c.infraRerun.length} infra re-run(s)) — re-arming`)
       return null
     }
-    if (!r.done) {
+    if (!botsSettled) {
       // A bot has not reported for this head SHA yet. With CI already green there is
       // nothing else to wait on, so back off before re-arming or the cycle budget
       // burns on back-to-back re-harvests of the same unchanged PR.
-      if (cycle < maxCycles) {
-        log(`cycle ${cycle}: auto-review still pending — re-arming after a wait`)
-        napMs = 60000 * cycle // taken at the top of the next cycle, after this one's summary
-      } else {
-        log(`cycle ${cycle}: auto-review still pending — cycle budget exhausted`)
-      }
+      const more = cycle < maxCycles
+      log(`cycle ${cycle}: auto-review still pending (${pendingText(r)}) — ${more ? 're-arming after a wait' : 'cycle budget exhausted'}`)
+      if (more) napMs = 60000 * cycle // taken at the top of the next cycle, after this one's summary
       return null
     }
     log(`cycle ${cycle}: nothing actionable`)
