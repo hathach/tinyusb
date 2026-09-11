@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
+"""Regenerate hw/bsp/BoardPresets.json and every example's CMakePresets.json
+from the board.cmake files under hw/bsp."""
 import os
 import json
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[4]
+
+
 def main():
+    os.chdir(ROOT)
     board_list = []
     board_list_esp = []
 

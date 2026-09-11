@@ -13,9 +13,7 @@ description: Use when cutting a new TinyUSB release — version bump, regenerate
 # set version = 'X.Y.Z' in tools/make_release.py, then FROM REPO ROOT:
 python3 tools/make_release.py
 ```
-Refreshes `tusb_option.h`, `repository.yml`, `library.json`, `sonar-project.properties`, and (via gen_doc/gen_presets) `docs/reference/{boards,dependencies}.rst`, `docs/reference/hil_boards.md` + preset JSONs (they change only if boards, deps or the HIL rosters did).
-
-Gotchas: `gen_doc` needs `pandas`+`tabulate` (not in requirements) → `pip install pandas tabulate`; `boards.rst` lands with no trailing newline → let pre-commit fix it (step 3).
+Refreshes `tusb_option.h`, `repository.yml`, `library.json`, `sonar-project.properties`, and (via the build-doc skill's `gen_doc.py`/`gen_presets.py`) `docs/reference/{boards,dependencies}.rst`, `docs/reference/hil_boards.md` + preset JSONs (they change only if boards, deps or the HIL rosters did).
 
 ## 2. Changelog — `docs/changelog/` (the hard part)
 
@@ -49,7 +47,7 @@ xargs -P8 -I{} gh pr view {} --json number,title,labels \
 pre-commit run --files docs/changelog/X.Y.Z.md docs/changelog/index.rst \
   docs/reference/boards.rst docs/reference/dependencies.rst \
   library.json repository.yml sonar-project.properties src/tusb_option.h tools/make_release.py
-python3 tools/build_doc.py -c            # docs build clean (see build-doc skill)
+.claude/skills/build-doc/scripts/build_doc.py -c   # docs build clean, warnings fail it (see build-doc skill)
 ( cd test/unit-test && ceedling test:all )
 ( cd examples/device/cdc_msc && rm -rf build && mkdir build && cd build && \
   cmake -DBOARD=stm32f407disco -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel .. && cmake --build . )

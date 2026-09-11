@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Build the TinyUSB Sphinx documentation locally.
 
-Thin wrapper around `sphinx-build` so a manual doc build is one command.
-`conf.py` auto-collects example READMEs, so no extra steps are needed.
+Thin wrapper around `sphinx-build`; `conf.py` auto-collects example READMEs, so
+no extra steps are needed. Warnings fail the build unless --no-strict is given:
+every Sphinx warning here is a doc bug (broken ref, page missing from a toctree).
 
-    python3 tools/build_doc.py            # build docs/_build/
-    python3 tools/build_doc.py -c -W -o   # clean, fail on warnings, open result
+    build_doc.py            # build docs/_build/, fail on warnings
+    build_doc.py -c -o      # clean first, open the result
 """
 import argparse
 import shutil
@@ -14,15 +15,15 @@ import sys
 import webbrowser
 from pathlib import Path
 
-TOP = Path(__file__).parent.parent.resolve()
-DOCS = TOP / "docs"
+ROOT = Path(__file__).resolve().parents[4]
+DOCS = ROOT / "docs"
 BUILD = DOCS / "_build"
 
 
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("-c", "--clean", action="store_true", help="remove docs/_build first")
-    p.add_argument("-W", "--strict", action="store_true", help="treat warnings as errors")
+    p.add_argument("--no-strict", action="store_true", help="let warnings pass (exit 0 with warnings)")
     p.add_argument("-o", "--open", action="store_true", help="open the built docs in a browser")
     args = p.parse_args()
 
@@ -30,7 +31,7 @@ def main():
         shutil.rmtree(BUILD)
 
     cmd = ["sphinx-build", "-b", "html"]
-    if args.strict:
+    if not args.no_strict:
         cmd.append("-W")
     cmd += [str(DOCS), str(BUILD)]
 

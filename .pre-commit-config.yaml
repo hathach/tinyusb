@@ -40,6 +40,13 @@ repos:
     pass_filenames: false
     language: system
 
+  - id: gen-doc
+    name: regenerate reference docs
+    files: ^(hw/bsp/.*/(board\.h|family\.c)|tools/get_deps\.py|test/hil/(tinyusb|hfp)\.json)$
+    entry: python3 .claude/skills/build-doc/scripts/gen_doc.py
+    pass_filenames: false
+    language: system
+
   - id: unit-test
     name: unit-test
     files: ^(src/|test/unit-test/)

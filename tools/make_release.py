@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import re
-import gen_doc
-import gen_presets
+import subprocess
+import sys
 
 version = '0.21.0'
 
@@ -56,13 +56,9 @@ fdata = re.sub(r'(sonar\.projectVersion=)\d+\.\d+\.\d+', r'\g<1>{}'.format(versi
 with open(f_sonar_properties, 'w') as f:
     f.write(fdata)
 
-# gen docs
-gen_doc.gen_deps_doc()
-gen_doc.gen_boards_doc()
-gen_doc.gen_hil_boards_doc()
-
-# gen presets
-gen_presets.main()
+# gen docs and presets
+for script in ('gen_doc.py', 'gen_presets.py'):
+    subprocess.run([sys.executable, f'.claude/skills/build-doc/scripts/{script}'], check=True)
 
 ###################
 # docs/changelog/
