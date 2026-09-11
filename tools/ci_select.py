@@ -118,7 +118,7 @@ _META_RE = re.compile(
     r'workflows/(cifuzz|claude|claude-code-review|labeler|membrowse-comment|'
     r'membrowse-onboard|pr_comment|pre-commit|static_analysis|trigger)\.yml$)|'
     # tools/ scripts no build invokes (tools/build*.py and metrics are handled above)
-    r'tools/(check_example_pids|file2carray|iar_gen|make_release|mksunxi|pcapng_to_corpus)\.py$|'
+    r'tools/(check_example_pids|file2carray|iar_gen|mksunxi|pcapng_to_corpus)\.py$|'
     r'tools/iar_template\.ipcf$'
     r')')
 # Build-size metrics tooling. HIL axis ONLY: nothing on the rig runs any of it, and

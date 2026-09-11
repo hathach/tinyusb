@@ -1629,7 +1629,7 @@ class TestBuildClassifier(unittest.TestCase):
                   '.clang-format', '.idea/misc.xml', 'version.yml', 'library.json',
                   'examples/CMakePresets.json', 'test/fuzz/fuzz.cc',
                   'test/unit-test/project.yml', '.github/workflows/pr_comment.yml',
-                  'tools/make_release.py', '.claude/skills/build-doc/scripts/gen_doc.py', '.agents', '.codex/agents/builder.toml'):
+                  '.claude/skills/build-doc/scripts/gen_doc.py', '.agents', '.codex/agents/builder.toml'):
             s = self.b([p])
             self.assertFalse(s['full'], p)
             self.assertEqual(s['families'], [], p)
