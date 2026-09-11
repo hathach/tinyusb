@@ -949,9 +949,7 @@ await check('a dismissal survives the fix that moves its line', async () => {
 await check('the validator contract defines the id the debt is keyed on', async () => {
   // pr-babysit keys every unanswered dismissal on findingId. If the validator
   // stops emitting a stable one, the debt silently never retires.
-  const md = readFileSync(new URL('../../agents/pr-review-validator.md', import.meta.url), 'utf8')
-  assert.match(md, /findingId/, 'the validator no longer documents findingId')
-  assert.match(md, /"findingId":/, 'the output contract example omits findingId')
+  // The validator side of the contract is guarded by agentrc's own tests.
   assert.match(workflowBody, /required: \[[^\]]*'findingId'/, 'REVIEWS no longer requires findingId')
 })
 

@@ -435,7 +435,7 @@ const runCycle = async (cycle, entry) => {
 
     const owedLastCycle = [...debt.keys()]
     const reviewPrompt =
-      `Validate the bot review findings on PR #${args.pr} per your procedure. ${IN_CHECKOUT}` +
+      `Validate the bot review findings on PR #${args.pr} per your procedure; Codex, Copilot and CodeRabbit auto-run on this repo. ${IN_CHECKOUT}` +
       (owedLastCycle.length > 0
         ? 'These comments still owe an answer from an earlier cycle; report their findings again ' +
           `so they can be reconciled: ${JSON.stringify(owedLastCycle)}. ` : '')
