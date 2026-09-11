@@ -243,9 +243,11 @@ function stageThunk(name, cycle) {
   ).then(r => r ? { stage: name, ...r } : died).catch(() => died)
 
   if (name === 'pvs') return () => agent(
-    `Run PVS-Studio static analysis for board ${args.boards[0]}, gating on files changed vs ${base}. ` +
-    'Parallel build agents are running — use your dedicated build dir, never cmake-build-<board>.',
-    { label, phase: 'Validate', agentType: 'static-analyzer', effort: 'low', schema: PVS },
+    `Build: cmake examples -B examples/cmake-build-pvs -G Ninja -DBOARD=${args.boards[0]} -DCMAKE_BUILD_TYPE=MinSizeRel && ` +
+    'cmake --build examples/cmake-build-pvs (parallel build agents are running: never share cmake-build-<board>; ' +
+    'a missing lib/ or hw/mcu/ dependency means `python3 tools/get_deps.py -b <board>` once, then retry). ' +
+    `Compile DB: examples/cmake-build-pvs/compile_commands.json. Rules: .PVS-Studio/.pvsconfig. Base: ${base}.`,
+    { label, phase: 'Validate', agentType: 'pvs-studio', effort: 'low', schema: PVS },
   ).then(r => r ? {
     stage: name, pass: r.pass,
     detail: r.pass ? r.detail : clip(`${r.detail} ${JSON.stringify(r.changedFindings)}`),

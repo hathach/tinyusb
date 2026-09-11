@@ -14,7 +14,8 @@
 ## Skills
 
 - Skill script tests live in `.claude/test/test_*.py`.
-- User-level skills from [agentrc](https://github.com/hathach/agentrc) this repo uses: `read-doc`, `simplify-gate`, `usb-sniffer`, `usb-kernel-debug`; when one is unavailable, skip the step that needs it.
+- User-level skills from [agentrc](https://github.com/hathach/agentrc) this repo uses: `read-doc`, `simplify-gate`, `usb-sniffer`, `usb-kernel-debug`, and the `pvs-studio` agent; when one is unavailable, skip the step that needs it.
+- Static analysis: the `pvs-studio` agent with rules `.PVS-Studio/.pvsconfig` (never add suppressions) on a board's examples build; `raspberry_pi_pico` mirrors CI, `stm32f407disco` is fastest.
 
 ## Claude and Codex Collaboration
 
