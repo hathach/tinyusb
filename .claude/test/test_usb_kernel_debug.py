@@ -1,4 +1,4 @@
-"""Tests for .claude/skills/usbmon/scripts/usbcap.py: bus resolution refuses
+"""Tests for .claude/skills/usb-kernel-debug/scripts/usbcap.py: bus resolution refuses
 to guess between buses, and the CLI reports tshark failures explicitly."""
 import importlib.util
 import os
@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-SCRIPT = Path(__file__).resolve().parents[1] / 'skills' / 'usbmon' / 'scripts' / 'usbcap.py'
+SCRIPT = Path(__file__).resolve().parents[1] / 'skills' / 'usb-kernel-debug' / 'scripts' / 'usbcap.py'
 spec = importlib.util.spec_from_file_location('usbcap', SCRIPT)
 usbcap = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(usbcap)

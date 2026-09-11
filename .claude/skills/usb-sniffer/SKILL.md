@@ -9,8 +9,7 @@ Extends the debugging trio with the layer below URBs:
 
 | Skill              | Answers                                                            |
 |--------------------|--------------------------------------------------------------------|
-| `usbmon`           | what a Linux PC host exchanged (URBs)                              |
-| `usb-kernel-debug` | why the Linux kernel acted (dmesg / dynamic debug)                 |
+| `usb-kernel-debug` | what a Linux PC host exchanged (usbmon URBs) and why its kernel acted (dynamic debug, either end) |
 | `target-debug`     | what the TinyUSB target did (device or host role)                  |
 | **`usb-sniffer`**  | **what actually crossed D+/D-** (PIDs, handshakes, resets, timing) |
 

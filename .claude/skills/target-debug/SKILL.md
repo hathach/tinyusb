@@ -12,8 +12,7 @@ Raspberry Pi). Pick capture channels by which end runs Linux, not by habit:
 
 | Skill              | Answers                                            | Exists when                                       |
 |--------------------|----------------------------------------------------|---------------------------------------------------|
-| `usbmon`           | what the Linux host exchanged (URBs)               | a Linux PC is the link's host                     |
-| `usb-kernel-debug` | why the Linux kernel acted (dmesg / dynamic debug) | Linux on either end: PC host or Linux gadget peer |
+| `usb-kernel-debug` | what the Linux host exchanged (usbmon URBs, host role only) and why its kernel acted (dynamic debug) | Linux on either end: PC host or Linux gadget peer |
 | **`target-debug`** | **what the target did** (logs, driver state, PC)   | always — either role, needs a debug probe         |
 | `usb-sniffer`      | what crossed the wire (PIDs, handshakes, resets)   | hardware tap cabled in — role-agnostic            |
 | `etm-trace`        | exactly which instructions executed (profile, coverage, history) | SEGGER J-Trace wired to this board's trace header — confirm with the user first |
@@ -339,7 +338,7 @@ TinyUSB-as-host: swap usbmon for `usb-sniffer`, + `usb-kernel-debug` on a
 Linux gadget peer):
 
 ```bash
-.claude/skills/usbmon/scripts/usbcap.py <bus> 30 /tmp/host.pcapng & cap=$!   # host URBs (usbmon skill); the board's bus, `cafe:` is refused on a rig with several
+.claude/skills/usb-kernel-debug/scripts/usbcap.py <bus> 30 /tmp/host.pcapng & cap=$!   # host URBs (usb-kernel-debug skill); the board's bus, `cafe:` is refused on a rig with several
 timeout 30s python3 tools/rtt.py --backend jlink --probe <sn> --device <dev> > /tmp/target.rtt & rtt=$!  # target (rtt skill; or ring dump after)
 wait $cap && wait $rtt   # a bare `wait` returns 0 even when one side failed
 ```
