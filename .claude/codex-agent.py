@@ -50,9 +50,11 @@ def role(root):
         return tomllib.load(f)
 
 
-def command(root, adapter, job, review):
+def command(root, adapter, job, review, resume=None):
     model = ['-m', adapter['model'], '-c', f'model_reasoning_effort={adapter["model_reasoning_effort"]}']
     out = ['-o', str(job / 'result.json'), '--json', '-']
+    if resume:
+        return ['codex', 'exec', 'resume', resume, '-c', 'sandbox_mode=read-only', *model, *out]
     if review:
         # no --sandbox flag here; the -c override is what keeps it read-only
         return ['codex', 'exec', 'review', '-c', 'sandbox_mode=read-only', *model, *out]
@@ -60,38 +62,49 @@ def command(root, adapter, job, review):
             '--output-schema', str(job / 'schema.json'), *model, *out]
 
 
-def recover(root, adapter, job, thread, data):
+def recover(root, adapter, job, thread, data, schema):
     """The reviewer sometimes answers in its own prose format despite the
     contract; one resume turn on the same thread converts that answer. The
     review ran as a sub-thread, so the instructions must be restated."""
-    schema = (job / 'schema.json').read_text()
     (job / 'recover.txt').write_text(
         'Convert your review above into its structured form, following these instructions:\n' +
         data['prompt'].rstrip() + '\n\n' + OUTPUT_CONTRACT + schema + '\n')
-    cmd = ['codex', 'exec', 'resume', thread, '-c', 'sandbox_mode=read-only',
-           '-m', adapter['model'], '-c', f'model_reasoning_effort={adapter["model_reasoning_effort"]}',
-           '-o', str(job / 'result.json'), '--json', '-']
     with open(job / 'recover.txt') as stdin, open(job / 'events.jsonl', 'a') as events, \
             open(job / 'stderr.txt', 'a') as stderr:
-        subprocess.run(cmd, cwd=root, stdin=stdin, stdout=events, stderr=stderr, timeout=TIMEOUT)
+        subprocess.run(command(root, adapter, job, True, resume=thread), cwd=root,
+                       stdin=stdin, stdout=events, stderr=stderr, timeout=TIMEOUT)
+
+
+def envelope(job, thread, status, result=None, error=None):
+    """What the bridge relays: status 'ok' carries the result; 'timeout' means
+    Codex ran and never finished, which a caller must not mistake for Codex
+    being unavailable. thread is null when the run died before thread.started."""
+    return {'job': str(job), 'thread': thread, 'status': status, 'result': result, 'error': error}
 
 
 def timed_out(job):
-    """Codex ran and never finished: an envelope without a result, so the
-    caller can tell this from Codex being unavailable and not fall back."""
-    return {'job': str(job), 'thread': thread_id(job / 'events.jsonl'), 'result': None,
-            'error': f'codex timed out after {TIMEOUT // 60} min; partial output is not a result'}
+    return envelope(job, thread_id(job / 'events.jsonl'), 'timeout',
+                    error=f'codex timed out after {TIMEOUT // 60} min; partial output is not a result')
 
 
 def thread_id(events):
-    for line in events.read_text().splitlines():
-        try:
-            event = json.loads(line)
-        except ValueError:
-            continue
-        if event.get('type') == 'thread.started':
-            return event.get('thread_id')
+    with events.open() as f:
+        for line in f:
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            if event.get('type') == 'thread.started':
+                return event.get('thread_id')
     return None
+
+
+def load_result(job):
+    """(result, error text) from result.json."""
+    try:
+        return json.loads((job / 'result.json').read_text()), None
+    except (OSError, ValueError) as e:
+        return None, str(e)
 
 
 def run(data, root, stamp=None):
@@ -119,22 +132,19 @@ def run(data, root, stamp=None):
     if proc.returncode != 0:
         tail = [l for l in (job / 'stderr.txt').read_text().splitlines() if 'rmcp' not in l][-20:]
         raise RuntimeError(f'codex exited {proc.returncode} ({job}):\n' + '\n'.join(tail))
+    result, error = load_result(job)
     thread = thread_id(job / 'events.jsonl')
-    try:
-        result = json.loads((job / 'result.json').read_text())
-    except (OSError, ValueError) as e:
-        if not (review and thread):
-            raise RuntimeError(f'codex produced no JSON result ({job}): {e}') from None
+    turns = ''
+    if result is None and review and thread:
         try:
-            recover(root, adapter, job, thread, data)
+            recover(root, adapter, job, thread, data, schema)
         except subprocess.TimeoutExpired:
             return timed_out(job)
-        try:
-            result = json.loads((job / 'result.json').read_text())
-        except (OSError, ValueError) as e2:
-            raise RuntimeError(f'codex produced no JSON result, even after one '
-                               f'conversion turn ({job}): {e2}') from None
-    return {'job': str(job), 'thread': thread, 'result': result}
+        result, error = load_result(job)
+        turns = ', even after one conversion turn'
+    if result is None:
+        raise RuntimeError(f'codex produced no JSON result{turns} ({job}): {error}')
+    return envelope(job, thread, 'ok', result=result)
 
 
 def main():

@@ -27,33 +27,35 @@ Bus 005 Device 013: ID 1366:0101 SEGGER J-Link PLUS
 
 
 class ResolveTest(unittest.TestCase):
-    def test_bus_numbers_and_auto_pass_through(self):
-        self.assertEqual(usbcap.resolve('3', LSUSB), 3)
-        self.assertEqual(usbcap.resolve('0', LSUSB), 0)
-        self.assertEqual(usbcap.resolve('auto', LSUSB), 0)
+    def test_bus_numbers_and_auto_never_run_lsusb(self):
+        never = lambda: self.fail('lsusb must not run')
+        self.assertEqual(usbcap.resolve('3', never), 3)
+        self.assertEqual(usbcap.resolve('0', never), 0)
+        self.assertEqual(usbcap.resolve('auto', never), 0)
 
     def test_a_single_match_names_its_bus(self):
-        self.assertEqual(usbcap.resolve('046d:c52b', LSUSB), 1)
-        self.assertEqual(usbcap.resolve('1366:', LSUSB), 5)
-        self.assertEqual(usbcap.resolve('CAFE:4001', LSUSB), 3)
+        self.assertEqual(usbcap.resolve('046d:c52b', lambda: LSUSB), 1)
+        self.assertEqual(usbcap.resolve('1366:', lambda: LSUSB), 5)
+        self.assertEqual(usbcap.resolve('CAFE:4001', lambda: LSUSB), 3)
 
     def test_matches_on_one_bus_are_not_ambiguous(self):
-        self.assertEqual(usbcap.resolve('1d6b:', LSUSB), 1)
+        self.assertEqual(usbcap.resolve('1d6b:', lambda: LSUSB), 1)
 
     def test_matches_across_buses_are_refused_with_the_list(self):
-        with self.assertRaises(usbcap.Ambiguous) as ctx:
-            usbcap.resolve('cafe:', LSUSB)
-        self.assertEqual([m[0] for m in ctx.exception.matches], [3, 3, 5])
+        with self.assertRaises(ValueError) as ctx:
+            usbcap.resolve('cafe:', lambda: LSUSB)
+        self.assertIn('several buses; pass the bus number', str(ctx.exception))
+        self.assertIn('bus 3 device 7: cafe:4010', str(ctx.exception))
         self.assertIn('bus 5 device 12: cafe:4010 TinyUSB TinyUSB usbtest', str(ctx.exception))
-        with self.assertRaises(usbcap.Ambiguous):
-            usbcap.resolve('cafe:4010', LSUSB)
+        with self.assertRaises(ValueError):
+            usbcap.resolve('cafe:4010', lambda: LSUSB)
 
-    def test_no_match_and_bad_selector_are_distinct_errors(self):
-        with self.assertRaises(LookupError):
-            usbcap.resolve('1a86:8010', LSUSB)
+    def test_no_match_and_bad_selector_say_which(self):
+        with self.assertRaisesRegex(ValueError, 'no device matching'):
+            usbcap.resolve('1a86:8010', lambda: LSUSB)
         for bad in ('cafe', 'cafe:40', 'xyz:1234', '', '3a'):
-            with self.assertRaises(ValueError):
-                usbcap.resolve(bad, LSUSB)
+            with self.assertRaisesRegex(ValueError, 'bad target'):
+                usbcap.resolve(bad, lambda: LSUSB)
 
 
 class CliTest(unittest.TestCase):
@@ -71,10 +73,8 @@ class CliTest(unittest.TestCase):
                    f'echo "$@" >> {self.log}\n'
                    f'rc=$(cat {self.tshark_rc})\n'
                    '[ "$rc" = 0 ] || { echo "tshark: The capture session could not be initiated" >&2; exit $rc; }\n'
-                   'case "$1" in\n'
-                   '  -i) out=""; while [ $# -gt 0 ]; do [ "$1" = -w ] && out=$2; shift; done; : > "$out";;\n'
-                   '  -r) printf "1 0.000 host -> 3.7.0 USB 64 URB_CONTROL in\\n2 0.001 3.7.0 -> host USB 64 URB_CONTROL in\\n";;\n'
-                   'esac\n')
+                   'out=""; while [ $# -gt 0 ]; do [ "$1" = -w ] && out=$2; shift; done; : > "$out"\n')
+        self._stub('capinfos', '#!/bin/sh\necho "Number of packets:   2"\n')
 
     def tearDown(self):
         self.tmp.cleanup()

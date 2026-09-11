@@ -170,41 +170,46 @@ if (reviewProvider) stageNames.push('reviews')
 const scheduleName = name => name === 'review' || name === 'codex' ? 'reviews' : name
 const displayNames = names => names.flatMap(name => name === 'reviews' ? reviewStageNames : [name])
 
-// The launcher wraps Codex's answer with where it ran; a reply without a job
-// dir and thread id did not come from Codex. A timed-out run is an envelope
-// with result: null and an error line: Codex ran, so it is a dead stage; any
-// other failure means Codex cannot run and Claude reviews instead, unless
-// 'all' asked for two independent verdicts.
+// The launcher wraps Codex's answer with where it ran and how it ended:
+// status 'ok' carries the result, 'timeout' means Codex ran and never
+// finished, so it is a dead stage; a reply without a job dir did not come
+// from Codex, whatever its shape. Same contract as code-verify.js, which
+// validate cannot nest (one workflow level).
 const CODEX_ENVELOPE = {
   type: 'object', additionalProperties: false,
-  required: ['job', 'thread', 'result'],
+  required: ['job', 'thread', 'status', 'result'],
   properties: {
     job: { type: 'string' }, thread: { type: ['string', 'null'] },
-    result: { anyOf: [REVIEW, { type: 'null' }] }, error: { type: 'string' },
+    status: { enum: ['ok', 'timeout'] },
+    result: { anyOf: [REVIEW, { type: 'null' }] }, error: { type: ['string', 'null'] },
   },
 }
+const outcome = r => !r || typeof r.job !== 'string' || !r.job ? 'unavailable'
+  : r.status === 'timeout' ? 'timeout'
+  : r.status === 'ok' && r.thread && r.result ? 'ok' : 'unavailable'
 const runClaudeReview = (label, suffix = 'claude') => agent(reviewPrompt, {
   label: `${label}:${suffix}`, phase: 'Validate', agentType: 'code-verifier', schema: REVIEW,
 })
+// Codex that cannot run hands the diff review to Claude, unless 'all' asked
+// for two independent verdicts (fallback = false).
 function runReviewProvider(provider, label, fallback = true) {
   if (provider !== 'codex') return runClaudeReview(label)
+  const claudeInstead = () => {
+    if (!fallback) return null
+    log(`${label}: codex cannot run — reviewing with claude instead`)
+    return runClaudeReview(label, 'claude-fallback')
+      .then(c => c && { ...c, detail: `claude fallback: ${c.detail}` })
+  }
   return agent(
     JSON.stringify({ review: true, prompt: reviewPrompt, schema: REVIEW }),
     { label: `${label}:codex`, phase: 'Validate', agentType: 'codex-agent', schema: CODEX_ENVELOPE },
   ).then(r => {
-    const fromCodex = r && typeof r.job === 'string' && r.job
-    if (fromCodex && r.thread && r.result) return r.result
-    if (fromCodex && r.result === null && r.error) {  // thread may be null: a timeout before thread.started
-      log(`${label}: ${r.error}`)
-      return null
+    switch (outcome(r)) {
+      case 'ok': return r.result
+      case 'timeout': log(`${label}: ${r.error}`); return null
+      default: return claudeInstead()
     }
-    return fallback ? { fallback: true } : null
-  }, () => fallback ? { fallback: true } : null).then(r => {
-    if (!r || !r.fallback) return r
-    log(`${label}: codex cannot run — reviewing with claude instead`)
-    return runClaudeReview(label, 'claude-fallback')
-      .then(c => c && { ...c, detail: `claude fallback: ${c.detail}` })
-  })
+  }, claudeInstead)
 }
 
 function stageThunk(name, cycle) {

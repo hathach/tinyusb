@@ -1,5 +1,6 @@
 import io
 import json
+import os
 import subprocess
 import sys
 from unittest import mock
@@ -87,7 +88,6 @@ class RunTest(unittest.TestCase):
                 if recovered_body is not None:
                     Path(kw['stdout'].name).with_name('result.json').write_text(recovered_body)
                 return subprocess.CompletedProcess(cmd, 0)
-            seen['cmd'] = cmd
             seen['cwd'] = kw['cwd']
             seen['prompt'] = Path(kw['stdin'].name).read_text()
             kw['stdout'].write(EVENTS)
@@ -113,7 +113,7 @@ class RunTest(unittest.TestCase):
         self.assertIsNone(err)
         self.assertEqual(out['result'], {'pass': True})
         self.assertEqual(out['thread'], 't-42')
-        self.assertTrue(out['job'].endswith('/s-%d' % __import__('os').getpid()))
+        self.assertTrue(out['job'].endswith('/s-%d' % os.getpid()))
         self.assertEqual(seen['files'], ['events.jsonl', 'prompt.txt', 'result.json', 'schema.json', 'stderr.txt'])
         self.assertEqual(seen['cwd'], ROOT)
 
@@ -125,8 +125,8 @@ class RunTest(unittest.TestCase):
             self.assertIn('review it', seen['prompt'])
         self.assertNotIn(codex_agent.OUTPUT_CONTRACT, plain['prompt'])
         self.assertIn(codex_agent.OUTPUT_CONTRACT + json.dumps(SCHEMA), review['prompt'])
-        self.assertEqual(plain['cmd'][1:3], ['exec', '-C'])
-        self.assertEqual(review['cmd'][1:3], ['exec', 'review'])
+        self.assertEqual(plain['cmds'][0][1:3], ['exec', '-C'])
+        self.assertEqual(review['cmds'][0][1:3], ['exec', 'review'])
 
     def test_a_timeout_in_the_conversion_turn_is_the_same_envelope(self):
         out, err, seen = self._run({'prompt': 'x', 'schema': SCHEMA, 'review': True}, 'recover-timeout',

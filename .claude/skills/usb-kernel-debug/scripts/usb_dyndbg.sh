@@ -27,31 +27,28 @@ allowed() { local m; for m in $ALLOW; do [ "$m" = "$1" ] && return 0; done; retu
 
 # Control lines are: file:line [module]function =flags "format"; `p` in flags
 # is the print flag, `=_` means none set.
-sites() {  # sites <module|-> : lines of the allowlisted module(s) with p set; exit 3 if none, awk's status on a read error
-  local module=$1
-  awk -v module="$module" -v allow=" $ALLOW " '
+sites() {  # sites <module|-> : lines of the allowlisted module(s) with p set; empty when none
+  awk -v module="$1" -v allow=" $ALLOW " '
     {
       m = $2; sub(/\].*/, "", m); sub(/^\[/, "", m)
       if (module != "-" ? m != module : index(allow, " " m " ") == 0) next
-      if ($3 ~ /^=[a-z_]*p/) { print; found = 1 }
-    }
-    END { exit found ? 0 : 3 }' "$CTL"
+      if ($3 ~ /^=[a-z_]*p/) print
+    }' "$CTL"
+}
+require_ctl() {
+  [ -e "$CTL" ] && return
+  [ -e "${CTL%/*/*}" ] && [ ! -r "${CTL%/*/*}" ] && die "cannot access ${CTL%/*/*} (run with sudo?)"
+  die "dynamic_debug unavailable (need CONFIG_DYNAMIC_DEBUG + debugfs mounted at $CTL)"
 }
 
 action=${1:-}; shift || true
 case "$action" in
-  -h|--help|help) help; exit 0 ;;
-  on|off|status) ;;
-  *) usage ;;
-esac
-if [ ! -e "$CTL" ]; then
-  [ -e "${CTL%/*/*}" ] && [ ! -r "${CTL%/*/*}" ] && die "cannot access ${CTL%/*/*} (run with sudo?)"
-  die "dynamic_debug unavailable (need CONFIG_DYNAMIC_DEBUG + debugfs mounted at $CTL)"
-fi
-
-case "$action" in
+  -h|--help|help)
+    help
+    ;;
   on|off)
     [ "$#" -ge 1 ] || usage
+    require_ctl
     flag='+p'; [ "$action" = off ] && flag='-p'
     for m in "$@"; do allowed "$m" || die "module not allowlisted: $m"; done
     for m in "$@"; do
@@ -62,12 +59,18 @@ case "$action" in
   status)
     m=${1:--}
     [ "$m" = - ] || allowed "$m" || die "module not allowlisted: $m"
+    require_ctl
     [ -r "$CTL" ] || die "cannot read $CTL (run with sudo?)"
-    rc=0; sites "$m" || rc=$?
-    case "$rc" in
-      0) ;;
-      3) [ "$m" = - ] && echo "(no print sites enabled in any allowlisted module)" || echo "(no print sites enabled for $m)" ;;
-      *) die "cannot read $CTL (awk exited $rc)" ;;
-    esac
+    out=$(sites "$m") || die "cannot read $CTL"
+    if [ -n "$out" ]; then
+      printf '%s\n' "$out"
+    elif [ "$m" = - ]; then
+      echo "(no print sites enabled in any allowlisted module)"
+    else
+      echo "(no print sites enabled for $m)"
+    fi
+    ;;
+  *)
+    usage
     ;;
 esac

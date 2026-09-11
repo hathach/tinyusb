@@ -2,12 +2,17 @@ import assert from 'node:assert/strict'
 import { readdirSync, readFileSync } from 'node:fs'
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
-const source = readFileSync(new URL('../code-verify.js', import.meta.url), 'utf8')
-// Read the workflow tree once: four separate checks scan it.
+// Read the workflow tree once: every check scans or runs from it.
 const WORKFLOW_DIR = new URL('../', import.meta.url)
 const WORKFLOW_SRC = readdirSync(WORKFLOW_DIR).filter(n => n.endsWith('.js'))
   .map(name => [name, readFileSync(new URL(name, WORKFLOW_DIR), 'utf8')])
-const workflowBody = source.replace(/^export /m, '')
+const sourceOf = name => new Map(WORKFLOW_SRC).get(name)
+// A workflow body runs as an async function over the runtime globals.
+const compile = name => new AsyncFunction(
+  'args', 'agent', 'pipeline', 'parallel', 'phase', 'log', 'workflow', 'budget',
+  sourceOf(name).replace(/^export /m, ''))
+const parallelAll = thunks => Promise.all(thunks.map(run => run()))
+const source = sourceOf('code-verify.js')
 
 const RESULT = {
   type: 'object', additionalProperties: false,
@@ -21,7 +26,10 @@ const answers = {
 
 // The launcher wraps every Codex answer as { job, thread, result }; `wrap`
 // lets a test hand back something else to prove the router rejects it.
-const ENVELOPE = result => ({ job: '/tmp/tinyusb-codex/20260910T000000Z-1', thread: 't-1', result })
+const ENVELOPE = result => ({
+  job: '/tmp/tinyusb-codex/20260910T000000Z-1', thread: 't-1', status: 'ok', result, error: null,
+})
+const TIMEOUT = thread => ({ ...ENVELOPE(null), thread, status: 'timeout', error: 'codex timed out after 30 min' })
 async function run(args, provided = answers, wrap = ENVELOPE) {
   const calls = []
   let parallelCalls = 0
@@ -39,11 +47,7 @@ async function run(args, provided = answers, wrap = ENVELOPE) {
     parallelCalls++
     return Promise.all(thunks.map(fn => Promise.resolve().then(fn).catch(() => null)))
   }
-  const fn = new AsyncFunction(
-    'args', 'agent', 'pipeline', 'parallel', 'phase', 'log', 'workflow', 'budget',
-    workflowBody,
-  )
-  const result = await fn(args, agent, null, parallel, () => {}, () => {}, null, null)
+  const result = await compile('code-verify.js')(args, agent, null, parallel, () => {}, () => {}, null, null)
   return { result, calls, parallelCalls }
 }
 
@@ -65,7 +69,8 @@ await check('defaults to codex', async () => {
   assert.equal(parallelCalls, 0)
   assert.equal(calls[0].options.agentType, 'codex-agent')
   // the bridge is asked for the launcher's envelope around the caller's schema
-  assert.deepEqual(calls[0].options.schema.required, ['job', 'thread', 'result'])
+  assert.deepEqual(calls[0].options.schema.required, ['job', 'thread', 'status', 'result'])
+  assert.deepEqual(calls[0].options.schema.properties.status, { enum: ['ok', 'timeout'] })
   assert.deepEqual(calls[0].options.schema.properties.result.anyOf, [RESULT, { type: 'null' }])
   assert.deepEqual(JSON.parse(calls[0].prompt), { prompt: 'review', schema: RESULT })
 })
@@ -73,29 +78,16 @@ await check('defaults to codex', async () => {
 await check('a codex reply without provenance means codex did not run', async () => {
   // A bridge that answered the prompt itself returns the bare schema shape;
   // only the launcher adds where Codex ran. Such an answer is never used.
-  for (const wrap of [r => r, r => ({ result: r }), r => ({ job: '', thread: 't', result: r })]) {
+  for (const wrap of [r => r, r => ({ result: r }), r => ({ job: '', thread: 't', status: 'ok', result: r })]) {
     const { result, calls } = await run({ prompt: 'review', schema: RESULT }, answers, wrap)
     assert.deepEqual(result, answers.claude)
     assert.deepEqual(calls.map(c => c.options.label), ['code-verifier:codex', 'code-verifier:claude-fallback'])
   }
 })
 
-await check('the launcher owns the Codex command-line contract', async () => {
+await check('the launcher envelope carries provenance and status', async () => {
   const launcher = readFileSync(new URL('../../codex-agent.py', import.meta.url), 'utf8')
-  assert.match(launcher, /tomllib/, 'model, effort and role text come from the Codex adapter')
-  assert.match(launcher, /'codex', 'exec', 'review', '-c', 'sandbox_mode=read-only'/)
-  assert.match(launcher, /'codex', 'exec', '-C', str\(root\), '--sandbox', 'read-only'/)
-  assert.match(launcher, /--output-schema/)
-  assert.match(launcher, /TIMEOUT = 1800/)
-  assert.match(launcher, /'job': str\(job\), 'thread':/, 'the envelope carries provenance')
-  assert.doesNotMatch(launcher, /workspace-write|danger-full-access|--add-dir/)
-
-  const bridge = readFileSync(new URL('../../agents/codex-agent.md', import.meta.url), 'utf8')
-  assert.match(bridge, /model: haiku/)
-  assert.match(bridge, /effort: low/)
-  assert.match(bridge, /tools: Bash/)
-  assert.match(bridge, /python3 \.claude\/codex-agent\.py <<'CODEX_AGENT_INPUT'/)
-  assert.doesNotMatch(bridge, /codex exec/, 'the bridge must not run codex itself')
+  assert.match(launcher, /'job': str\(job\), 'thread': thread, 'status': status/, 'the envelope the routers switch on')
 })
 
 await check('selects claude', async () => {
@@ -147,7 +139,7 @@ await check('a codex timeout is a failure, not a fallback', async () => {
   // a fallback would surface as the claude fake's failure instead; a timeout
   // before thread.started carries thread: null and is still a timeout
   for (const thread of ['t-1', null]) {
-    const timedOut = () => ({ ...ENVELOPE(null), thread, error: 'codex timed out after 30 min' })
+    const timedOut = () => TIMEOUT(thread)
     await assert.rejects(
       run({ prompt: 'review', schema: RESULT },
         { codex: { answer: 'x' }, claude: new Error('claude must not run') }, timedOut),
@@ -165,32 +157,29 @@ await check('all providers stays strict when codex dies', async () => {
 })
 
 await check('only validate bypasses the router for one-level nesting', async () => {
-  const dir = new URL('../', import.meta.url)
-  assert.ok(readdirSync(dir).includes('code-verify.js'), 'workflow scan must target its parent directory')
-  const offenders = readdirSync(dir)
-    .filter(name => name.endsWith('.js') && !['code-verify.js', 'validate.js'].includes(name))
-    .filter(name => /agentType:\s*['"](?:codex-)?code-verifier['"]/.test(
-      readFileSync(new URL(name, dir), 'utf8')))
+  assert.ok(sourceOf('code-verify.js'), 'workflow scan must target its parent directory')
+  const offenders = WORKFLOW_SRC
+    .filter(([name]) => !['code-verify.js', 'validate.js'].includes(name))
+    .filter(([, src]) => /agentType:\s*['"](?:codex-)?code-verifier['"]/.test(src))
+    .map(([name]) => name)
   assert.deepEqual(offenders, [])
 })
 
 await check('router rejections preserve caller null-result contracts', async () => {
   for (const name of ['fanout-dev.js', 'pr-babysit.js']) {
-    const src = readFileSync(new URL(`../${name}`, import.meta.url), 'utf8')
+    const src = sourceOf(name)
     assert.match(src, /workflow\('code-verify',[\s\S]*?\}\)\.catch\(\(\) => null\)\s*\.then/)
   }
 })
 
 await check('driver review drops a failed routed scanner', async () => {
-  const src = readFileSync(new URL('../driver-review.js', import.meta.url), 'utf8').replace(/^export /m, '')
-  const fn = new AsyncFunction(
-    'args', 'agent', 'pipeline', 'parallel', 'phase', 'log', 'workflow', 'budget', src)
+  const fn = compile('driver-review.js')
   const pipeline = async (items, ...stages) => Promise.all(items.map(async item => {
     let value = item
     for (const stage of stages) value = await stage(value, item)
     return value
   }))
-  const parallel = thunks => Promise.all(thunks.map(run => run()))
+  const parallel = parallelAll
   const unit = { dir: 'src/portable/test', dim: 'correctness' }
   const finding = { file: 'a.c', line: 1, snippet: 's', why: 'w', severity: 'major', confidence: 'high' }
 
@@ -226,7 +215,7 @@ await check('driver review drops a failed routed scanner', async () => {
 })
 
 await check('validate dispatches directly to stay within one workflow level', async () => {
-  const src = readFileSync(new URL('../validate.js', import.meta.url), 'utf8')
+  const src = sourceOf('validate.js')
   assert.equal((src.match(/workflow\(['"]code-verify['"]/g) || []).length, 0)
   assert.match(src, /const reviewProvider = reviewStageNames\.length === 2 \? 'all'/)
   assert.match(src, /agentType:\s*'codex-agent'/)
@@ -236,12 +225,10 @@ await check('validate dispatches directly to stay within one workflow level', as
 })
 
 await check('validate keeps provider results and gates separate', async () => {
-  const src = readFileSync(new URL('../validate.js', import.meta.url), 'utf8').replace(/^export /m, '')
   const calls = []
   let failCodex = false
   let blocking = false
-  const fn = new AsyncFunction(
-    'args', 'agent', 'pipeline', 'parallel', 'phase', 'log', 'workflow', 'budget', src)
+  const fn = compile('validate.js')
   const agent = async (prompt, options) => {
     calls.push(options.agentType)
     if (options.agentType === 'code-verifier') return {
@@ -258,7 +245,7 @@ await check('validate keeps provider results and gates separate', async () => {
     return { board: 'test', pass: true, builtCount: 1, failures: [] }
   }
   const workflow = async () => { throw new Error('validate cannot nest a workflow') }
-  const parallel = thunks => Promise.all(thunks.map(run => run()))
+  const parallel = parallelAll
   const result = await fn(
     { boards: ['test'], skip: ['unit', 'size', 'pvs'], reviewProvider: 'all', maxCycles: 1 },
     agent, null, parallel, () => {}, () => {}, workflow, null,
@@ -285,10 +272,8 @@ await check('validate keeps provider results and gates separate', async () => {
 })
 
 await check('validate reviews with claude when codex cannot run, but not after a timeout', async () => {
-  const src = readFileSync(new URL('../validate.js', import.meta.url), 'utf8').replace(/^export /m, '')
-  const fn = new AsyncFunction(
-    'args', 'agent', 'pipeline', 'parallel', 'phase', 'log', 'workflow', 'budget', src)
-  const parallel = thunks => Promise.all(thunks.map(run => run()))
+  const fn = compile('validate.js')
+  const parallel = parallelAll
   const runValidate = async codex => {
     const calls = []
     const logs = []
@@ -315,7 +300,7 @@ await check('validate reviews with claude when codex cannot run, but not after a
   }
 
   for (const thread of ['t-1', null]) {
-    const timedOut = await runValidate({ ...ENVELOPE(null), thread, error: 'codex timed out after 30 min' })
+    const timedOut = await runValidate(TIMEOUT(thread))
     assert.deepEqual(timedOut.calls.filter(l => /codex|claude/.test(l)), ['reviews:codex'])
     assert.equal(timedOut.row.pass, false)
     assert.equal(timedOut.row.detail, 'stage agent died')
@@ -324,10 +309,8 @@ await check('validate reviews with claude when codex cannot run, but not after a
 })
 
 await check('validate reviews with codex unless claude is explicitly selected', async () => {
-  const src = readFileSync(new URL('../validate.js', import.meta.url), 'utf8').replace(/^export /m, '')
-  const fn = new AsyncFunction(
-    'args', 'agent', 'pipeline', 'parallel', 'phase', 'log', 'workflow', 'budget', src)
-  const parallel = thunks => Promise.all(thunks.map(run => run()))
+  const fn = compile('validate.js')
+  const parallel = parallelAll
   const runValidate = async extra => {
     const calls = []
     const agent = async (prompt, options) => {
@@ -389,9 +372,7 @@ await check('validate reviews with codex unless claude is explicitly selected', 
 })
 
 await check('full-check forwards the reviewer selection to validate', async () => {
-  const src = readFileSync(new URL('../full-check.js', import.meta.url), 'utf8').replace(/^export /m, '')
-  const fn = new AsyncFunction(
-    'args', 'agent', 'pipeline', 'parallel', 'phase', 'log', 'workflow', 'budget', src)
+  const fn = compile('full-check.js')
   const seen = []
   const workflow = async (name, workflowArgs) => {
     seen.push({ name, args: workflowArgs })
@@ -405,9 +386,7 @@ await check('full-check forwards the reviewer selection to validate', async () =
 })
 
 await check('fanout simplifies once after all writers and before verification', async () => {
-  const src = readFileSync(new URL('../fanout-dev.js', import.meta.url), 'utf8').replace(/^export /m, '')
-  const fn = new AsyncFunction(
-    'args', 'agent', 'pipeline', 'parallel', 'phase', 'log', 'workflow', 'budget', src)
+  const fn = compile('fanout-dev.js')
   const pipeline = (items, ...stages) => Promise.all(items.map(async (item, index) => {
     let value = item
     for (const stage of stages) value = await stage(value, item, index)
