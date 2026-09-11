@@ -138,9 +138,10 @@ class RunTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp, \
              mock.patch.object(codex_agent, 'JOBS', Path(tmp)), \
+             mock.patch.object(codex_agent, 'role', lambda: ADAPTER), \
              mock.patch.object(codex_agent.subprocess, 'run', fake_run):
             try:
-                out = codex_agent.run(data, ROOT, stamp='s', adapter=ADAPTER)
+                out = codex_agent.run(data, ROOT, stamp='s')
             except RuntimeError as e:
                 return None, str(e), seen
             seen['files'] = sorted(p.name for p in Path(out['job']).iterdir())

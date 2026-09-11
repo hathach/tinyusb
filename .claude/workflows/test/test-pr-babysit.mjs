@@ -946,10 +946,7 @@ await check('a dismissal survives the fix that moves its line', async () => {
   assert.equal(result.pass, true, `a shifted line stranded a retired dismissal (got ${result.reason})`)
 })
 
-await check('the validator contract defines the id the debt is keyed on', async () => {
-  // pr-babysit keys every unanswered dismissal on findingId. If the validator
-  // stops emitting a stable one, the debt silently never retires.
-  // The validator side of the contract is guarded by agentrc's own tests.
+await check('REVIEWS requires findingId', async () => {
   assert.match(workflowBody, /required: \[[^\]]*'findingId'/, 'REVIEWS no longer requires findingId')
 })
 

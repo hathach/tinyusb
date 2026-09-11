@@ -355,8 +355,7 @@ the wire itself: `usb-sniffer` skill (hardware tap, PID-level).
 usbmon (`usb-kernel-debug`) is URB-level: it cannot show data toggles or NAKs,
 so a device-side stall and a toggle desync look identical (Submits on an
 endpoint with no Completes). The host capture locates the failing request;
-the target side names the cause. `MinSizeRel` still ships DWARF, so GDB can
-read the structs.
+the target side names the cause.
 
 | Host-side symptom                           | Target-side check                                                                                                                                                                                                                                                                               |
 |---------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
