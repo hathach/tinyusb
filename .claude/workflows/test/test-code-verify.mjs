@@ -85,11 +85,6 @@ await check('a codex reply without provenance means codex did not run', async ()
   }
 })
 
-await check('the launcher envelope carries provenance and status', async () => {
-  const launcher = readFileSync(new URL('../../codex-agent.py', import.meta.url), 'utf8')
-  assert.match(launcher, /'job': str\(job\), 'thread': thread, 'status': status/, 'the envelope the routers switch on')
-})
-
 await check('selects claude', async () => {
   const { result, calls, parallelCalls } = await run(
     { prompt: 'review', schema: RESULT, provider: 'claude', label: 'check' })

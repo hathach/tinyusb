@@ -58,9 +58,22 @@ class CommandTest(unittest.TestCase):
             self.assertIn(f'model_reasoning_effort={ADAPTER["model_reasoning_effort"]}', cmd)
 
     def test_no_mode_can_widen_the_sandbox(self):
-        src = LAUNCHER.read_text()
-        for word in ('workspace-write', 'danger-full-access', '--add-dir'):
-            self.assertNotIn(word, src)
+        modes = [dict(review=False), dict(review=True), dict(review=True, resume='t-1')]
+        for mode in modes:
+            cmd = codex_agent.command(ROOT, ADAPTER, Path('/j'), **mode)
+            self.assertTrue('--sandbox' in cmd or '-c' in cmd, cmd)
+            if '--sandbox' in cmd:
+                self.assertEqual(cmd[cmd.index('--sandbox') + 1], 'read-only')
+            else:
+                self.assertIn('sandbox_mode=read-only', cmd)
+            for word in ('workspace-write', 'danger-full-access', '--add-dir'):
+                self.assertNotIn(word, cmd)
+
+    def test_resume_is_the_conversion_turn_on_the_same_thread(self):
+        cmd = codex_agent.command(ROOT, ADAPTER, Path('/j'), review=True, resume='t-1')
+        self.assertEqual(cmd[:4], ['codex', 'exec', 'resume', 't-1'])
+        self.assertEqual(cmd[cmd.index('-o') + 1], '/j/result.json')
+        self.assertEqual(cmd[-2:], ['--json', '-'])
 
 
 class ThreadIdTest(unittest.TestCase):
@@ -111,6 +124,8 @@ class RunTest(unittest.TestCase):
     def test_success_returns_an_envelope_with_provenance(self):
         out, err, seen = self._run({'prompt': 'review it', 'schema': SCHEMA}, 'ok')
         self.assertIsNone(err)
+        self.assertEqual(out['status'], 'ok')
+        self.assertIsNone(out['error'])
         self.assertEqual(out['result'], {'pass': True})
         self.assertEqual(out['thread'], 't-42')
         self.assertTrue(out['job'].endswith('/s-%d' % os.getpid()))
@@ -133,12 +148,14 @@ class RunTest(unittest.TestCase):
                                    result_body=None)
         self.assertIsNone(err)
         self.assertIn('recover', seen)
+        self.assertEqual(out['status'], 'timeout')
         self.assertIsNone(out['result'])
         self.assertIn('timed out', out['error'])
 
     def test_timeout_is_an_envelope_without_a_result(self):
         out, err, seen = self._run({'prompt': 'x', 'schema': SCHEMA}, 'timeout')
         self.assertIsNone(err)
+        self.assertEqual(out['status'], 'timeout')
         self.assertIsNone(out['result'])
         self.assertIn('timed out', out['error'])
         self.assertEqual(out['thread'], 't-42')
