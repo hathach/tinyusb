@@ -429,7 +429,7 @@ const runCycle = async (cycle, entry) => {
     // Two independent lanes, launched together. The review lane never waits on
     // CI: it validates, fixes, and pushes while the CI lane is still watching.
     ciPromise = agent(
-      `Watch CI for PR #${args.pr} per your procedure; wait for pending checks.`,
+      `Watch CI for PR #${args.pr} per your procedure; wait budget for pending checks: 30 minutes.`,
       { label: `ci#${cycle}`, phase: 'Triage', agentType: 'pr-ci-watcher', schema: CI },
     ).catch(e => { log(`cycle ${cycle}: pr-ci-watcher errored — ${e && e.message}`); return null })
 
