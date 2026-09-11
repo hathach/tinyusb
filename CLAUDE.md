@@ -2,7 +2,7 @@
 
 ## Working Rules
 
-- **Worktrees** — symlink `deps_all` paths from `tools/get_deps.py` to the primary checkout; replace a symlink and rerun `get_deps.py` only for a different revision.
+- Worktrees — symlink `deps_all` paths from `tools/get_deps.py` to the primary checkout; replace a symlink and rerun `get_deps.py` only for a different revision.
 - Code references — boards: `hw/bsp/`, `docs/reference/boards.rst`; classes: `src/class/`; core/config: `src/tusb.h`, `src/tusb_option.h`, each example's `src/tusb_config.h`; build/deps: `tools/build.py`, `tools/get_deps.py`; unit tests: `test/unit-test/project.yml`.
 
 ## Code Rules
@@ -18,7 +18,6 @@
 
 ## Claude and Codex Collaboration
 
-- For a standalone Codex session, use `.codex/agents/<role>.toml` to load `.claude/agents/<role>.md`; keep adapters thin and never duplicate role bodies.
 - Keep orchestration in `.claude/workflows/`. Use `code-verify` with `provider: 'codex'` (default; reviews with Claude when Codex cannot run, but not after a Codex timeout), `'claude'`, or `'all'`; `validate`/`full-check` use `reviewProvider`; `pr-babysit` has Codex challenge every dismissal before it is posted (Claude when Codex cannot run, so the challenge is then not independent). Keep workflow nesting to one level.
 - Delegate Codex workflow jobs through `.claude/agents/codex-agent.md`; `.claude/codex-agent.py` runs `codex exec --sandbox read-only` (`codex exec review` for `validate`'s diff review), keeps each job under `/tmp/tinyusb-codex/<job>/` and returns `{job, thread, status, result}` (`status` is `ok` or `timeout`): `tail -f` the job's `events.jsonl` to watch, `kill` the `codex exec` pid to stop, `codex exec resume <thread>` to ask a follow-up. Its read-only sandbox has no network: jobs must use local evidence, since failed network reads can produce false empty results. Write-capable roles need worktree isolation first.
 
