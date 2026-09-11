@@ -1,5 +1,6 @@
-"""Tests for .claude/skills/usb-kernel-debug/scripts/usbcap.py: bus resolution refuses
-to guess between buses, and the CLI reports tshark failures explicitly."""
+"""Tests for the usb-kernel-debug scripts: usbcap.py's bus resolution refuses
+to guess between buses and reports tshark failures explicitly; usb_dyndbg.sh
+reads the print flag from a fixture control file and helps without debugfs."""
 import importlib.util
 import os
 import stat
@@ -10,6 +11,7 @@ import unittest
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'skills' / 'usb-kernel-debug' / 'scripts' / 'usbcap.py'
+DYNDBG = SCRIPT.with_name('usb_dyndbg.sh')
 spec = importlib.util.spec_from_file_location('usbcap', SCRIPT)
 usbcap = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(usbcap)
@@ -116,6 +118,102 @@ class CliTest(unittest.TestCase):
         self.assertIn('tshark exited 2', r.stderr)
         self.assertIn('could not be initiated', r.stderr)
         self.assertIn('/dev/usbmon3 access', r.stderr)
+
+
+CONTROL = '''\
+# filename:lineno [module]function flags format
+init/main.c:1116 [main]initcall_blacklist =p "blacklisting initcall %s\\n"
+drivers/usb/core/hub.c:100 [usbcore]hub_port_init =p "port %d reset\\n"
+drivers/usb/core/hub.c:200 [usbcore]hub_events =pfl "hub event\\n"
+drivers/usb/core/hub.c:300 [usbcore]hub_quiesce =_ "quiesce\\n"
+drivers/usb/host/xhci-hub.c:559 [xhci_hcd]xhci_disable_port =_ "Ignoring request\\n"
+drivers/usb/host/xhci-ring.c:10 [xhci_hcd]xhci_ring =flmt "no print flag\\n"
+'''
+
+
+class DyndbgTest(unittest.TestCase):
+    """The control file is a fixture; the kernel format is file:line [module]function =flags "format"."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.ctl = Path(self.tmp.name) / 'dynamic_debug' / 'control'
+        self.ctl.parent.mkdir()
+        self.ctl.write_text(CONTROL)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _run(self, *args, ctl=None):
+        env = {**os.environ, 'USB_DYNDBG_CTL': str(ctl or self.ctl)}
+        return subprocess.run(['bash', str(DYNDBG), *args], capture_output=True, text=True, env=env)
+
+    def test_help_works_without_debugfs(self):
+        r = self._run('--help', ctl=Path(self.tmp.name) / 'missing' / 'dynamic_debug' / 'control')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn('usbcore xhci_hcd', r.stdout)
+        self.assertIn('lsusb -t', r.stdout)
+        r = self._run(ctl=Path(self.tmp.name) / 'missing' / 'dynamic_debug' / 'control')
+        self.assertEqual(r.returncode, 2, 'no action is a usage error')
+        self.assertIn('usage:', r.stderr)
+
+    def test_missing_debugfs_and_unreadable_debugfs_are_distinct(self):
+        missing = Path(self.tmp.name) / 'missing' / 'dynamic_debug' / 'control'
+        missing.parent.parent.mkdir()
+        r = self._run('status', ctl=missing)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn('dynamic_debug unavailable', r.stderr)
+        locked = Path(self.tmp.name) / 'locked'
+        locked.mkdir(mode=0o000)
+        r = self._run('status', ctl=locked / 'dynamic_debug' / 'control')
+        locked.chmod(0o700)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn('run with sudo', r.stderr)
+
+    def test_status_lists_only_print_enabled_sites_of_allowlisted_modules(self):
+        r = self._run('status')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        lines = r.stdout.splitlines()
+        self.assertEqual([l.split()[0] for l in lines], ['drivers/usb/core/hub.c:100', 'drivers/usb/core/hub.c:200'])
+        self.assertNotIn('[main]', r.stdout, 'a non-allowlisted module is out of scope')
+        r = self._run('status', 'xhci_hcd')
+        self.assertEqual(r.returncode, 0)
+        self.assertEqual(r.stdout.strip(), '(no print sites enabled for xhci_hcd)', '=_ and =flmt are not print-enabled')
+        r = self._run('status', 'usbcore')
+        self.assertIn('=pfl', r.stdout)
+        self.assertNotIn('quiesce', r.stdout)
+
+    def test_status_refuses_a_module_outside_the_allowlist(self):
+        r = self._run('status', 'main')
+        self.assertEqual(r.returncode, 1)
+        self.assertIn('not allowlisted: main', r.stderr)
+
+    def test_status_reports_an_unreadable_control_file(self):
+        self.ctl.chmod(0o000)
+        r = self._run('status')
+        self.ctl.chmod(0o600)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn('cannot read', r.stderr)
+
+    def test_a_read_error_is_not_reported_as_no_sites(self):
+        broken = Path(self.tmp.name) / 'dir' / 'dynamic_debug' / 'control'
+        broken.mkdir(parents=True)  # readable by stat, unreadable as a file
+        r = self._run('status', ctl=broken)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn('cannot read', r.stderr)
+        self.assertNotIn('no print sites', r.stdout)
+
+    def test_on_and_off_write_one_command_per_module_and_refuse_others(self):
+        r = self._run('on', 'usbcore', 'dwc2')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout, 'dynamic debug on: usbcore\ndynamic debug on: dwc2\n')
+        self.assertEqual(self.ctl.read_text(), 'module dwc2 +p\n', 'each write replaces the file: the last command')
+        self._run('off', 'dwc2')
+        self.assertEqual(self.ctl.read_text(), 'module dwc2 -p\n')
+        r = self._run('on', 'usbcore', 'ext4')
+        self.assertEqual(r.returncode, 1)
+        self.assertIn('not allowlisted: ext4', r.stderr)
+        self.assertEqual(self.ctl.read_text(), 'module dwc2 -p\n', 'nothing written when any module is refused')
+        self.assertEqual(self._run('on').returncode, 2)
 
 
 if __name__ == '__main__':

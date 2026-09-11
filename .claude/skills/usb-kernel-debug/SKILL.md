@@ -20,15 +20,12 @@ Neither sees inside the TinyUSB MCU (`target-debug` skill) or the wire itself
 
 `usbmon` records host-side **URBs** — control / bulk / interrupt / isochronous transfers, descriptors, class requests, STALLs, short packets — i.e. exactly what the host exchanged with a device.
 
-**Setup (assumed in place):** `usbmon` loaded and a udev rule `SUBSYSTEM=="usbmon", GROUP="wireshark", MODE="0640"` with your user in the `wireshark` group — so `tshark` captures with no `sudo`. Freshly added to the group? The running shell doesn't have it yet (group adds need a new login) — wrap captures in `sg wireshark -c '...'`; reading a finished `.pcapng` (`tshark -r`) needs no group.
+Requires `usbmon` loaded and `/dev/usbmon*` readable by your user (`wireshark` group); the script says so when `tshark` cannot open the interface — a fresh group membership needs a new login or `sg wireshark -c '...'`. Reading a finished `.pcapng` needs no group.
 
 ```bash
-.claude/skills/usb-kernel-debug/scripts/usbcap.py <bus|VID:PID|VID:|auto> [seconds] [outfile] [--snaplen 128]
-# examples
-.claude/skills/usb-kernel-debug/scripts/usbcap.py cafe: 10              # the bus of the plugged-in TinyUSB (VID 0xcafe) device
-.claude/skills/usb-kernel-debug/scripts/usbcap.py 3 8 /tmp/enum.pcapng  # bus 3, 8 s
+.claude/skills/usb-kernel-debug/scripts/usbcap.py cafe: 10   # the bus of the plugged-in TinyUSB device, 10 s; --help for selectors and defaults
 ```
-`lsusb` shows `Bus 00N` → interface `usbmonN`; `usbmon0` = all buses. Capture the device's own bus. A selector that matches devices on several buses (`cafe:` on a rig) is refused with the matches listed: pick the bus, or `auto` when you really want every bus. `--snaplen 128` keeps only URB headers/status, not payloads — use it for long/high-throughput captures. To catch enumeration, start the capture, then replug the device.
+Capture the device's own bus. A selector matching devices on several buses (`cafe:` on a rig) is refused with the matches listed: pass the bus, or `auto` when you really want every bus. Full payloads by default; `--snaplen 128` keeps URB headers and status only, for long or high-throughput captures. To catch enumeration, start the capture, then replug the device.
 
 ## usbmon — analyze
 
@@ -63,30 +60,14 @@ Combine with `&&` — e.g. one endpoint's data: `usb.endpoint_address==0x02 && u
 
 ## Dynamic debug (either role)
 
-Kernel **dynamic debug** shows the Linux side's *reasoning* that capture can't: port resets and their causes, enumeration retries, address (re)assignment, EP halts, xHCI ring/command errors. `scripts/usb_dyndbg.sh`, run with `sudo`, flips the print flag for an allowlisted set of USB modules only:
+Kernel **dynamic debug** shows the Linux side's *reasoning* that capture can't: port resets and their causes, enumeration retries, address (re)assignment, EP halts, xHCI ring/command errors. `scripts/usb_dyndbg.sh` (`--help` lists the allowlisted modules; run with `sudo`) flips the print flag for those USB modules only:
 
 ```bash
-# all examples below abbreviate:  sudo .claude/skills/usb-kernel-debug/scripts/usb_dyndbg.sh
-sudo usb_dyndbg.sh on  usbcore xhci_hcd   # enable +p; pick modules from `lsusb -t` Driver=
-sudo usb_dyndbg.sh status [module]        # list enabled print sites
-sudo usb_dyndbg.sh off usbcore xhci_hcd   # ALWAYS turn off when done — very noisy
+sudo .claude/skills/usb-kernel-debug/scripts/usb_dyndbg.sh on usbcore xhci_hcd    # then reproduce while following `sudo dmesg -w`
+sudo .claude/skills/usb-kernel-debug/scripts/usb_dyndbg.sh off usbcore xhci_hcd   # ALWAYS: left on, it floods the log and skews timing
 ```
 
-Allowlisted modules: `usbcore xhci_hcd xhci_pci xhci_pci_renesas ehci_hcd
-ehci_pci ohci_hcd ohci_pci uhci_hcd dwc2 dwc3 cdc_acm usb_storage uas
-libcomposite udc_core` (`dwc2`/`dwc3` + the last two cover a Linux gadget
-peer's device side).
-
-1. `sudo usb_dyndbg.sh on usbcore <hcd-module>` — `usbcore` for enumeration/hub
-   logic, plus the controller module (`lsusb -t` shows the driver per bus).
-   On a gadget peer: `dwc2` (or `dwc3`) + `udc_core` + `libcomposite` instead —
-   run on the peer itself (its SSH/serial console); the script is self-contained,
-   copy it over.
-2. Reproduce (replug / re-enumerate / rerun the failing test) while following
-   `sudo dmesg -w` (or grab `sudo dmesg | tail` afterwards).
-3. `sudo usb_dyndbg.sh off ...` — leaving it on floods the log and skews timing.
-
-Best for **re-enumerates / enumeration stalls / port-reset storms**, where usbmon shows the resets but not the host's reason. Requires `CONFIG_DYNAMIC_DEBUG` and mounted debugfs (standard on distro kernels).
+Module choice by role: on a host, `usbcore` for enumeration/hub logic plus the controller driver `lsusb -t` shows for the bus; on a gadget peer, `dwc2` (or `dwc3`) + `udc_core` + `libcomposite`, run on the peer itself (the script is self-contained, copy it over). Best for **re-enumerates / enumeration stalls / port-reset storms**, where usbmon shows the resets but not the host's reason.
 
 ## Troubleshoot — symptom → what to check
 
@@ -94,8 +75,8 @@ Best for **re-enumerates / enumeration stalls / port-reset storms**, where usbmo
 |---|---|
 | Not recognized / re-enumerates | Is `GET DESCRIPTOR (DEVICE)` answered, `bMaxPacketSize0` sane? Repeated SET_ADDRESS / resets = device too slow to respond. Enable `usbcore`/`xhci_hcd` dynamic debug (above) for the host's reset reason. |
 | Enumeration stalls | Find the last good control transfer; the next request (often CONFIG, a string, or the first class request) is what your `tud_descriptor_*` / control callback mishandled. |
-| Control STALL | `usb.urb_status!=0` on a control URB = a `tud_*_control_xfer_cb` returned `false` or didn't handle that `bRequest` (decode it with `-V`). |
-| Bulk / interrupt missing or short | On the endpoint, do Submits get Completes? an unexpected short (`usb.data_len < wMaxPacketSize`) = FIFO/length bug; no completions = the class never wrote. |
+| Control STALL | A control URB completing `-32` (`-EPIPE`) is the STALL: usually a `tud_*_control_xfer_cb` returning `false` or an unhandled `bRequest` (decode it with `-V`). `-71` is not a STALL, see the errno list. |
+| Bulk / interrupt missing or short | On the endpoint, do Submits get Completes? An unexpected short (`usb.data_len < wMaxPacketSize`) suggests a FIFO/length bug; no completions can be the class never writing, a stalled endpoint or a toggle desync, which usbmon cannot separate — check the target side (GDB, `target-debug`). |
 | CDC read (`dd`/cat) hangs, IN endpoint idle | Don't assume a bulk-IN bug. Check EP0: did `SET_CONTROL_LINE_STATE` (`bmRequestType==0x21`) complete `0` or fail `-71`? If it failed, the device never saw DTR → `tud_cdc_connected()` is false → the app stops sourcing TX. A device that streams fine in isolation but stalls right after a bulk **write** phase points here (control transfer starved by concurrent bulk). Confirm device-side with GDB: `_cdcd_itf[0].line_state` bit0 (DTR). |
 | ISO / audio dropouts | ISO URB cadence (~1/ms at full-speed) and payload lengths; zero-length frames = device starved the endpoint. |
 | Wrong descriptors | `-V` decodes them; check `bLength` / `wTotalLength` against your `tud_descriptor_configuration_cb`. |
