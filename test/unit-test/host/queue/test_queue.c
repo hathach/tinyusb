@@ -278,6 +278,10 @@ int main(void) {
   accept = false;
   assert(!usbh_edpt_xfer(1, 0x81, NULL, 0));
   assert(dev->ep_pending[1][1] == CFG_TUH_XFER_QUEUE_DEPTH - 1 && usbh_edpt_busy(1, 0x81));
+  // A rejected refill returns its claim while older requests remain pending.
+  assert(usbh_edpt_claim(1, 0x81));
+  assert(usbh_edpt_release(1, 0x81));
+  assert(!usbh_edpt_release(1, 0x81));
   for (unsigned slot = 1; slot < CFG_TUH_XFER_QUEUE_DEPTH; slot++) {
     assert(usbh_edpt_retire_event(dev, &e));
   }
@@ -293,6 +297,13 @@ int main(void) {
   e.xfer_complete.result = XFER_RESULT_SUCCESS;
   assert(usbh_edpt_retire_event(dev, &e));
   assert(!usbh_edpt_claim(1, 0x81));
+  assert(usbh_edpt_release(1, 0x81));
+  // Rejecting the only request leaves the endpoint idle and claimable again.
+  accept = false;
+  assert(usbh_edpt_claim(1, 0x81));
+  assert(!usbh_edpt_xfer(1, 0x81, NULL, 0));
+  assert(dev->ep_pending[1][1] == 0 && !usbh_edpt_busy(1, 0x81));
+  assert(usbh_edpt_claim(1, 0x81));
   assert(usbh_edpt_release(1, 0x81));
   test_public_dispatch_and_close();
   test_audio_ring();

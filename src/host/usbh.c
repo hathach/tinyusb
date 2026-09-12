@@ -156,6 +156,19 @@ static usbh_device_t _usbh_devices[TOTAL_DEVICES];
 // BUSY means at least one request is outstanding; SPACE grants another claim.
 #define USBH_EP_QUEUE_SPACE 0x08u
 
+// Caller holds the lock. Restore capacity after an event, released claim, or
+// rejected submission; submitting a request itself must not grant another claim.
+static void usbh_edpt_update_queue_state(volatile uint8_t* ep_state, uint8_t pending) {
+  uint8_t state = *ep_state & (uint8_t) ~(TU_EDPT_STATE_BUSY | USBH_EP_QUEUE_SPACE);
+  if (pending != 0) {
+    state |= TU_EDPT_STATE_BUSY;
+    if (pending < CFG_TUH_XFER_QUEUE_DEPTH && !(state & TU_EDPT_STATE_CLAIMED)) {
+      state |= USBH_EP_QUEUE_SPACE;
+    }
+  }
+  *ep_state = state;
+}
+
 static bool usbh_edpt_retire_event(usbh_device_t* dev, hcd_event_t const* event) {
   uint8_t const epnum = tu_edpt_number(event->xfer_complete.ep_addr);
   uint8_t const dir = tu_edpt_dir(event->xfer_complete.ep_addr);
@@ -169,13 +182,7 @@ static bool usbh_edpt_retire_event(usbh_device_t* dev, hcd_event_t const* event)
   if (event->xfer_complete.result != XFER_RESULT_QUEUED) {
     dev->ep_pending[epnum][dir]--;
   }
-  *state &= (uint8_t) ~USBH_EP_QUEUE_SPACE;
-  if (dev->ep_pending[epnum][dir] == 0) {
-    *state &= (uint8_t) ~TU_EDPT_STATE_BUSY;
-  } else if (dev->ep_pending[epnum][dir] < CFG_TUH_XFER_QUEUE_DEPTH &&
-             !(*state & TU_EDPT_STATE_CLAIMED)) {
-    *state |= USBH_EP_QUEUE_SPACE;
-  }
+  usbh_edpt_update_queue_state(state, dev->ep_pending[epnum][dir]);
   usbh_spin_unlock(false);
   return true;
 }
@@ -1370,9 +1377,7 @@ bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr) {
   bool const claimed = (*state & TU_EDPT_STATE_CLAIMED) != 0;
   if (claimed) {
     *state &= (uint8_t) ~TU_EDPT_STATE_CLAIMED;
-    if (dev->ep_pending[epnum][dir] != 0 && dev->ep_pending[epnum][dir] < CFG_TUH_XFER_QUEUE_DEPTH) {
-      *state |= USBH_EP_QUEUE_SPACE;
-    }
+    usbh_edpt_update_queue_state(state, dev->ep_pending[epnum][dir]);
   }
   usbh_spin_unlock(false);
   return claimed;
@@ -1436,13 +1441,7 @@ bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t* bu
     // HCD error, roll back this request without losing older completions.
     usbh_spin_lock(false);
     dev->ep_pending[epnum][dir]--;
-    *ep_state &= (uint8_t) ~(TU_EDPT_STATE_BUSY | USBH_EP_QUEUE_SPACE);
-    if (dev->ep_pending[epnum][dir] != 0) {
-      *ep_state |= TU_EDPT_STATE_BUSY;
-      if (!(*ep_state & TU_EDPT_STATE_CLAIMED)) {
-        *ep_state |= USBH_EP_QUEUE_SPACE;
-      }
-    }
+    usbh_edpt_update_queue_state(ep_state, dev->ep_pending[epnum][dir]);
     usbh_spin_unlock(false);
 #else
     // HCD error, clear busy and claimed to allow next transfer
