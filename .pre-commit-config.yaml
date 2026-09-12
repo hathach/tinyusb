@@ -48,6 +48,13 @@ repos:
     types_or: [c, header]
     language: system
 
+  - id: host-test
+    name: host driver tests (CTest)
+    files: ^(src/|test/unit-test/|\.pre-commit-config\.yaml$)
+    entry: sh -c "cmake -S test/unit-test/host -B build/host-test -DCMAKE_BUILD_TYPE=Debug && cmake --build build/host-test --parallel 2 && ctest --test-dir build/host-test --output-on-failure"
+    pass_filenames: false
+    language: system
+
   # Two hooks, split by what each suite RUNS, not by what it reads: discovery is
   # disjoint (test_hil*.py vs the two named suites) so nothing runs twice, but the
   # file patterns overlap where both suites care. hil-test runs test_hil*.py only

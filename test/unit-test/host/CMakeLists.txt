@@ -1,0 +1,67 @@
+cmake_minimum_required(VERSION 3.20)
+
+# Also allow running the host fixtures without installing Ceedling.
+if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  project(tinyusb_host_tests LANGUAGES C)
+  enable_testing()
+endif ()
+
+if (NOT CMAKE_C_COMPILER_ID MATCHES "^(GNU|Clang)$")
+  message(FATAL_ERROR "Host fixtures require GCC or Clang (MinGW on Windows).")
+endif ()
+
+get_filename_component(TINYUSB_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
+
+function(add_host_test name fixture)
+  add_executable(${name} ${fixture})
+  get_filename_component(fixture_dir "${fixture}" DIRECTORY)
+  target_include_directories(${name} PRIVATE ${fixture_dir} ${TINYUSB_ROOT}/src)
+  set_target_properties(${name} PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED YES)
+  # Keep assertions active even when configured with a release build type.
+  target_compile_options(${name} PRIVATE -O2 -g -Wall -Wextra -Werror -UNDEBUG)
+  add_test(NAME ${name} COMMAND ${name})
+  set_tests_properties(${name} PROPERTIES TIMEOUT 10 LABELS host)
+endfunction()
+
+foreach (variant IN ITEMS disabled depth1 depth2 depth4)
+  set(name test_ehci_iso_${variant})
+  add_host_test(${name} ${CMAKE_CURRENT_LIST_DIR}/ehci/test_iso.c)
+  if (variant STREQUAL "disabled")
+    set(ep_count 0)
+    set(depth 1)
+  else ()
+    set(ep_count 4)
+    string(REPLACE "depth" "" depth ${variant})
+  endif ()
+  target_compile_definitions(${name} PRIVATE CFG_TUH_EHCI_ISO_EP_MAX=${ep_count}
+    CFG_TUH_XFER_QUEUE_DEPTH=${depth} TUP_HCD_XFER_QUEUE_DEPTH=4)
+  target_compile_options(${name} PRIVATE -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast)
+  # EHCI hardware links are 32-bit; keep the static simulated DMA memory below 4 GiB.
+  if (WIN32)
+    target_link_options(${name} PRIVATE -Wl,--image-base,0x400000,--disable-dynamicbase)
+  else ()
+    target_compile_options(${name} PRIVATE -fno-pie)
+    target_link_options(${name} PRIVATE -no-pie)
+  endif ()
+endforeach ()
+
+foreach (depth IN ITEMS 1 2 4)
+  foreach (controller IN ITEMS generic ehci max3421)
+    set(name test_usbh_queue_depth${depth}_${controller})
+    add_host_test(${name} ${CMAKE_CURRENT_LIST_DIR}/queue/test_queue.c)
+    target_sources(${name} PRIVATE ${TINYUSB_ROOT}/src/tusb.c ${TINYUSB_ROOT}/src/common/tusb_fifo.c)
+    target_compile_options(${name} PRIVATE -ffunction-sections -fdata-sections)
+    target_link_options(${name} PRIVATE -Wl,--gc-sections)
+    # Leave depth undefined for the default single-buffer configuration.
+    if (NOT depth EQUAL 1)
+      target_compile_definitions(${name} PRIVATE CFG_TUH_XFER_QUEUE_DEPTH=${depth}
+        TUP_HCD_XFER_QUEUE_DEPTH=${depth})
+    endif ()
+    if (NOT controller STREQUAL "generic")
+      target_compile_definitions(${name} PRIVATE TUP_USBIP_EHCI)
+    endif ()
+    if (controller STREQUAL "max3421")
+      target_compile_definitions(${name} PRIVATE CFG_TUH_MAX3421=1)
+    endif ()
+  endforeach ()
+endforeach ()
