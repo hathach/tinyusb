@@ -182,6 +182,12 @@ void board_init(void) {
   }
 #endif
 
+#if defined(__ICACHE_PRESENT) && __ICACHE_PRESENT
+  if (SCB_CCR_IC_Msk != (SCB_CCR_IC_Msk & SCB->CCR)) {
+    SCB_EnableICache();
+  }
+#endif
+
   BOARD_InitBootPins();
   BOARD_BootClockRUN();
   SystemCoreClockUpdate();
