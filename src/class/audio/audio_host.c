@@ -76,7 +76,9 @@
  * UAC1 sets the rate after activating the endpoint because its control targets
  * that endpoint; UAC2 sets the Clock Source before activating the AS interface.
  *
- * Once started, each endpoint completion prepares and submits its successor:
+ * Each data stream owns CFG_TUH_XFER_QUEUE_DEPTH packet buffers. QUEUED
+ * primes another free buffer without returning ownership of the first. Terminal
+ * completions retire buffers in FIFO order and submit their successors:
  *
  *   host controller -> audioh_xfer_cb()
  *     +-- capture data
@@ -250,6 +252,10 @@ typedef struct {
 
   // Bytes in one interleaved audio frame across all channels.
   uint16_t frame_bytes;
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
+  uint8_t packet_head;
+  uint8_t packet_count;
+#endif
 
   // The FIFO decouples application I/O from isochronous transfers. ep_buf is
   // assigned during driver initialization and the endpoint during configure.
@@ -293,8 +299,10 @@ typedef struct {
   } control;
   // Feedback transfers may overlap runtime control transfers, so the feedback buffer is separate.
   TUH_EPBUF_DEF(feedback, 4);
-  TUH_EPBUF_DEF(epin, CFG_TUH_AUDIO_EPIN_BUFSIZE);
-  TUH_EPBUF_DEF(epout, CFG_TUH_AUDIO_EPOUT_BUFSIZE);
+  struct {
+    TUH_EPBUF_DEF(epin, CFG_TUH_AUDIO_EPIN_BUFSIZE);
+    TUH_EPBUF_DEF(epout, CFG_TUH_AUDIO_EPOUT_BUFSIZE);
+  } packet[CFG_TUH_XFER_QUEUE_DEPTH];
 } audioh_epbuf_t;
 
 static audioh_interface_t _audioh_itf[CFG_TUH_AUDIO_MAX];
@@ -519,6 +527,9 @@ static void audioh_stream_reset(tuh_audio_stream_t *s) {
   s->volume_all_channels_writable = false;
   s->volume_range                 = (tuh_audio_volume_range_t){0};
   s->frame_bytes                  = 0;
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
+  s->packet_head = s->packet_count = 0;
+#endif
   tu_edpt_stream_close(&s->edpt);
   tu_edpt_stream_clear(&s->edpt);
 }
@@ -559,16 +570,46 @@ static bool audioh_stream_feedback_xfer(tuh_audio_stream_t *s) {
   return usbh_edpt_xfer(s->daddr, feedback->ep_addr, _audioh_epbuf[s->idx].feedback, feedback->ep_size);
 }
 
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
+static uint8_t* audioh_packet_buffer(tuh_audio_stream_t* s, uint8_t slot) {
+  return s->dir == TUSB_DIR_IN ? _audioh_epbuf[s->idx].packet[slot].epin :
+                                _audioh_epbuf[s->idx].packet[slot].epout;
+}
+
+static bool audioh_stream_capture_xfer(tuh_audio_stream_t *s) {
+  const audioh_as_config_t *as = audioh_stream_active_as(s);
+  TU_VERIFY(s->packet_count < CFG_TUH_XFER_QUEUE_DEPTH, false);
+  TU_VERIFY(usbh_edpt_claim(s->daddr, as->ep_addr), false);
+  uint8_t const slot = (s->packet_head + s->packet_count) % CFG_TUH_XFER_QUEUE_DEPTH;
+  s->packet_count++;
+  if (!usbh_edpt_xfer(s->daddr, as->ep_addr, audioh_packet_buffer(s, slot), as->ep_size)) {
+    s->packet_count--;
+    return false;
+  }
+  return true;
+}
+#else
 static bool audioh_stream_capture_xfer(tuh_audio_stream_t *s) {
   const audioh_as_config_t *as = audioh_stream_active_as(s);
   TU_VERIFY(usbh_edpt_claim(s->daddr, as->ep_addr), false);
   return usbh_edpt_xfer(s->daddr, as->ep_addr, s->edpt.ep_buf, as->ep_size);
 }
+#endif
 
 static bool audioh_stream_playback_xfer(tuh_audio_stream_t *s) {
   const audioh_as_config_t *as       = audioh_stream_active_as(s);
   audioh_playback_t        *playback = audioh_get_playback(s);
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
+  TU_VERIFY(s->packet_count < CFG_TUH_XFER_QUEUE_DEPTH, false);
+#endif
   TU_VERIFY(usbh_edpt_claim(s->daddr, as->ep_addr), false);
+
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
+  uint8_t const slot = (s->packet_head + s->packet_count) % CFG_TUH_XFER_QUEUE_DEPTH;
+  uint8_t* buffer = audioh_packet_buffer(s, slot);
+#else
+  uint8_t* buffer = s->edpt.ep_buf;
+#endif
 
   // Use one target for the entire packet calculation. Retaining the fractional
   // remainder makes the scheduled total follow the sum of changing feedback
@@ -586,12 +627,18 @@ static bool audioh_stream_playback_xfer(tuh_audio_stream_t *s) {
   if (tu_fifo_count(&s->edpt.ff) < bytes) {
     // Isochronous OUT must continue at every interval. Send silence until a
     // complete packet is queued, leaving any partial packet in the FIFO.
-    tu_memclr(s->edpt.ep_buf, bytes);
+    tu_memclr(buffer, bytes);
   } else {
-    tu_fifo_read_n(&s->edpt.ff, s->edpt.ep_buf, bytes);
+    tu_fifo_read_n(&s->edpt.ff, buffer, bytes);
   }
 
-  if (!usbh_edpt_xfer(s->daddr, as->ep_addr, s->edpt.ep_buf, bytes)) {
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
+  s->packet_count++;
+#endif
+  if (!usbh_edpt_xfer(s->daddr, as->ep_addr, buffer, bytes)) {
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
+    s->packet_count--;
+#endif
     return false;
   }
   playback->rem_acc = (uint16_t)next_rem_acc;
@@ -624,6 +671,9 @@ static bool audioh_stream_close_ep(tuh_audio_stream_t *s) {
   }
 
   tu_edpt_stream_close(&s->edpt);
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
+  s->packet_head = s->packet_count = 0;
+#endif
   return true;
 }
 
@@ -763,9 +813,9 @@ bool audioh_init(void) {
     out->dir = TUSB_DIR_OUT;
 
     TU_VERIFY(tu_edpt_stream_init(&in->edpt, true, false, true, in->ff_buf, CFG_TUH_AUDIO_STREAM_BUFSIZE,
-                                  _audioh_epbuf[idx].epin));
+                                  _audioh_epbuf[idx].packet[0].epin));
     TU_VERIFY(tu_edpt_stream_init(&out->edpt, true, true, false, out->ff_buf, CFG_TUH_AUDIO_STREAM_BUFSIZE,
-                                  _audioh_epbuf[idx].epout));
+                                  _audioh_epbuf[idx].packet[0].epout));
 
     audioh_stream_reset(in);
     audioh_stream_reset(out);
@@ -860,9 +910,32 @@ bool audioh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uin
     return false;
   }
 
-  // Stopping one endpoint does not cancel every transfer that may already be
-  // in flight (for example, a playback data and feedback pair). Ignore those
-  // completions after the stream has stopped.
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
+  const uint8_t feedback_ep = audioh_get_playback(s)->feedback[s->active_as].ep_addr;
+  bool const is_feedback = s->dir == TUSB_DIR_OUT && feedback_ep != 0 && ep_addr == feedback_ep;
+  if (result == XFER_RESULT_QUEUED) {
+    // QUEUED is a capacity notification, not completion of the oldest buffer.
+    // It may have waited behind terminal events; a full ring needs no refill.
+    if (s->running && !is_feedback && s->packet_count < CFG_TUH_XFER_QUEUE_DEPTH) {
+      bool const accepted = s->dir == TUSB_DIR_IN ? audioh_stream_capture_xfer(s) : audioh_stream_playback_xfer(s);
+      if (!accepted) {
+        audioh_stream_xfer_failed(s, XFER_RESULT_FAILED);
+      }
+    }
+    return true;
+  }
+
+  uint8_t* completed_buffer = NULL;
+  if (!is_feedback) {
+    TU_VERIFY(s->packet_count != 0, false);
+    completed_buffer = audioh_packet_buffer(s, s->packet_head);
+    s->packet_head = (s->packet_head + 1) % CFG_TUH_XFER_QUEUE_DEPTH;
+    s->packet_count--;
+  }
+#else
+  uint8_t* completed_buffer = s->edpt.ep_buf;
+#endif
+  // Stopped streams still retire buffers, but do not notify or replenish.
   if (!s->running) {
     return true;
   }
@@ -874,8 +947,11 @@ bool audioh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uin
     return true;
   }
 
+#if CFG_TUH_XFER_QUEUE_DEPTH == 1
   const uint8_t feedback_ep = audioh_get_playback(s)->feedback[s->active_as].ep_addr;
-  if (s->dir == TUSB_DIR_OUT && feedback_ep != 0 && ep_addr == feedback_ep) {
+  bool const is_feedback = s->dir == TUSB_DIR_OUT && feedback_ep != 0 && ep_addr == feedback_ep;
+#endif
+  if (is_feedback) {
     audioh_feedback_received(s, xferred_bytes);
     if (!audioh_stream_feedback_xfer(s)) {
       audioh_stream_xfer_failed(s, XFER_RESULT_FAILED);
@@ -887,7 +963,7 @@ bool audioh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uin
     // Queue whole capture frames, notify the application, then re-arm.
     const uint16_t bytes = (uint16_t)(xferred_bytes - (xferred_bytes % s->frame_bytes));
     if (bytes > 0) {
-      tu_fifo_write_n(&s->edpt.ff, s->edpt.ep_buf, bytes);
+      tu_fifo_write_n(&s->edpt.ff, completed_buffer, bytes);
     }
     tuh_audio_capture_cb(s->idx, s->stream_idx, (uint16_t)xferred_bytes);
     if (s->running && !audioh_stream_capture_xfer(s)) {
