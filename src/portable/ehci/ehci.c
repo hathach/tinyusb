@@ -54,6 +54,106 @@
 #define QHD_MAX      (CFG_TUH_DEVICE_MAX*CFG_TUH_ENDPOINT_MAX + CFG_TUH_HUB)
 #define QTD_MAX      QHD_MAX
 
+/* ISO scheduling
+ *
+ * CFG_TUH_EHCI_ISO_EP_MAX defaults to 4 on ChipIdea HS, 0 elsewhere; zero
+ * removes ISO storage/scheduling. Feedback consumes an endpoint slot. Other
+ * EHCI ports need a scheduling clock equivalent to ChipIdea's SOF interrupt.
+ * Each submission covers one service interval: HS uses iTDs (up to 3
+ * transactions), FS uses siTDs. Requests exceeding interval capacity fail.
+ *
+ * CFG_TUH_XFER_QUEUE_DEPTH defaults to 1; EHCI supports up to 2. Accepted
+ * buffers/descriptors remain owned until FIFO terminal completion. QUEUED
+ * reports spare capacity with zero length; it does not release the buffer.
+ * Audio uses a buffer per slot, primes on QUEUED and refills on completion.
+ * Public tuh_edpt_xfer() retains single-outstanding callback behavior.
+ *
+ * FS behind an HS hub uses a fixed best-effort schedule within one H-frame:
+ *   OUT: start-splits from H0, one per 188 bytes, through H5; no completes.
+ *   IN (including feedback): start-split H2, complete-splits H4..H7.
+ * H-frames lead the SOF frame number by one microframe. No bus-time admission,
+ * per-TT slot allocation, or frame-spanning splits are implemented.
+ *
+ * Packet limits per service interval (queue depth does not increase these):
+ *   Mic only: IN maximum packet size <= 564; retries share 4 complete slots.
+ *   Speaker only, no feedback: OUT maximum packet size <= 1023 (6 splits).
+ *   Headset or speaker + feedback: OUT <= 376 avoids the IN start slot.
+ * The 376-byte limit is NOT enforced: accepted OUT packets >= 377 overlap H2
+ * and can disrupt audio even with successful completions. Smaller packets
+ * still contend for FS bus time; multiple IN endpoints share the same slots.
+ * Direct FS uses the embedded TT without these masks, allowing 1023 bytes
+ * in either direction. Buffer sizes may impose smaller limits.
+ *
+ * The audio example has 256-byte buffers. At 1 ms, nominal stereo playback
+ * needs 192 bytes for 48 kHz S16 (2 splits), 288 for packed S24 (2), or 384
+ * for 48 kHz S32 / 96 kHz S16 (3, overlaps IN). Use the largest packet,
+ * including rate/feedback variation. Larger buffers do not change the masks.
+ * Tested: RT1064 + Genesys HS hub + FS headset, stereo S16 OUT / mono S16 IN
+ * at 44.1/48 kHz. The 564/1023 maxima, 376 boundary and FS feedback are untested.
+ *
+ * Preserve endpoint phase, skip late slots, publish with a 2-microframe lead;
+ * long intervals wait until inside the 8-frame window. Depth 2 and prompt
+ * task refill are needed for consecutive HS 125 us intervals. SOF handling
+ * must run before the 8 ms ring repeats, or hardware may revisit stale active
+ * descriptors. Timeout, close and cancellation quiesce periodic DMA before
+ * releasing buffers; software cannot undo packets sent during an IRQ delay
+ * and does not retry missed ISO packets.
+ *
+ * Descriptor storage uses three reusable frame banks per endpoint, each with
+ * one descriptor per queue slot: 1536 bytes for 4 endpoints at depth 2.
+ * A bank is linked into exactly one frame; its links stay fixed during that
+ * frame. Completed banks are reclaimed two microframes after frame end,
+ * outside the next traversal's prefetch window, and only after all queued
+ * references retire. Native FS needs the third bank even at queue depth 1.
+ *
+ * References: EHCI 1.0 ch. 3/4; USB 2.0 ch. 11; RT1064 RM Rev. 2 ch. 42.
+ */
+#ifndef CFG_TUH_EHCI_ISO_EP_MAX
+  #ifdef TUP_USBIP_CHIPIDEA_HS
+    #define CFG_TUH_EHCI_ISO_EP_MAX 4
+  #else
+    #define CFG_TUH_EHCI_ISO_EP_MAX 0
+  #endif
+#endif
+
+#if CFG_TUH_EHCI_ISO_EP_MAX
+// Current/queued frames plus retirement grace, including native FS at depth 1.
+#define ISO_TD_BANK_COUNT 3
+
+// An iTD must not cross a 4 KiB boundary (EHCI chapter 3).
+typedef union TU_ATTR_ALIGNED(64) {
+  ehci_itd_t itd;
+  ehci_sitd_t sitd;
+  volatile uint32_t words[16]; // snapshot a hardware status word without repeated bitfield reads
+} iso_td_t;
+
+typedef struct {
+  uint32_t scheduled_uframe;
+  uint8_t* buffer;
+  uint16_t buflen;
+  bool armed;
+  uint8_t bank;
+} iso_req_t;
+
+typedef struct {
+  uint8_t daddr;
+  uint8_t ep_addr;
+  uint8_t speed;
+  uint8_t mult;
+  uint8_t hub_addr;
+  uint8_t hub_port;
+  uint16_t packet_size;
+  uint32_t interval;
+  uint32_t next_uframe;
+  uint8_t head;
+  uint8_t count;
+  uint8_t reclaim_bank;
+  uint8_t current_bank;
+  iso_req_t req[CFG_TUH_XFER_QUEUE_DEPTH];
+  uint32_t td_frame[ISO_TD_BANK_COUNT]; // absolute frame start, UINT32_MAX when unlinked
+} iso_ep_t;
+#endif
+
 typedef struct {
   ehci_link_t period_framelist[FRAMELIST_SIZE];
 
@@ -70,6 +170,18 @@ typedef struct {
 
   ehci_qhd_t qhd_pool[QHD_MAX];
   ehci_qtd_t qtd_pool[QTD_MAX] TU_ATTR_ALIGNED(32);
+
+#if CFG_TUH_EHCI_ISO_EP_MAX
+  // Each bank is linked into one frame and reused there until the frame ends.
+  // Hardware descriptors never share cache lines with software endpoint state.
+  iso_td_t iso_td[CFG_TUH_EHCI_ISO_EP_MAX][ISO_TD_BANK_COUNT][CFG_TUH_XFER_QUEUE_DEPTH];
+  iso_ep_t iso_ep[CFG_TUH_EHCI_ISO_EP_MAX];
+  uint32_t iso_uframe;
+  uint16_t iso_last_frindex;
+  uint8_t iso_saved_itc;
+  uint8_t iso_threshold;
+  uint8_t iso_frame_offset;
+#endif
 
   ehci_registers_t* regs;         // operational register
   ehci_cap_registers_t* cap_regs; // capability register
@@ -147,6 +259,15 @@ TU_ATTR_ALWAYS_INLINE static inline ehci_link_t* list_next (ehci_link_t const *p
 TU_ATTR_ALWAYS_INLINE static inline void list_insert (ehci_link_t *current, ehci_link_t *entry, uint8_t type);
 TU_ATTR_ALWAYS_INLINE static inline void list_remove(ehci_link_t* head, ehci_link_t* prev, ehci_qhd_t* qhd);
 static void list_remove_qhd_by_addr(ehci_link_t *list_head, uint8_t dev_addr, uint8_t ep_addr);
+
+#if CFG_TUH_EHCI_ISO_EP_MAX
+static iso_ep_t* iso_ep_find(uint8_t daddr, uint8_t ep_addr);
+static bool iso_ep_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t const* desc);
+static bool iso_ep_close(uint8_t rhport, iso_ep_t* ep);
+static bool iso_xfer(uint8_t rhport, iso_ep_t* ep, uint8_t* buffer, uint16_t buflen);
+static bool iso_abort(uint8_t rhport, iso_ep_t* ep);
+static void iso_process(bool in_isr);
+#endif
 
 static void ehci_disable_schedule(ehci_registers_t* regs, bool is_period) {
   // maybe have a timeout for status
@@ -275,6 +396,14 @@ void hcd_device_close(uint8_t rhport, uint8_t daddr) {
   if (daddr == 0) {
     return;
   }
+
+#if CFG_TUH_EHCI_ISO_EP_MAX
+  for (size_t i = 0; i < CFG_TUH_EHCI_ISO_EP_MAX; i++) {
+    if (ehci_data.iso_ep[i].daddr == daddr) {
+      TU_ASSERT(iso_ep_close(rhport, &ehci_data.iso_ep[i]), );
+    }
+  }
+#endif
 
   // Remove from async list all endpoints of this device
   list_remove_qhd_by_addr((ehci_link_t *) list_get_async_head(rhport), daddr, TUSB_INDEX_INVALID_8);
@@ -414,8 +543,13 @@ bool ehci_deinit(uint8_t rhport) {
 //--------------------------------------------------------------------+
 
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc) {
-  // TODO not support ISO yet
-  TU_ASSERT (ep_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS);
+  if (ep_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) {
+#if CFG_TUH_EHCI_ISO_EP_MAX
+    return iso_ep_open(rhport, dev_addr, ep_desc);
+#else
+    return false;
+#endif
+  }
 
   //------------- Prepare Queue Head -------------//
   ehci_qhd_t *p_qhd;
@@ -465,6 +599,12 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
 }
 
 bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
+#if CFG_TUH_EHCI_ISO_EP_MAX
+  iso_ep_t* iso = iso_ep_find(daddr, ep_addr);
+  if (iso != NULL) {
+    return iso_ep_close(rhport, iso);
+  }
+#endif
   ehci_qhd_t* qhd = qhd_get_from_addr(daddr, ep_addr);
   TU_VERIFY(qhd != NULL);
 
@@ -504,6 +644,13 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
 
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen) {
   (void) rhport;
+
+#if CFG_TUH_EHCI_ISO_EP_MAX
+  iso_ep_t* iso = iso_ep_find(dev_addr, ep_addr);
+  if (iso != NULL) {
+    return iso_xfer(rhport, iso, buffer, buflen);
+  }
+#endif
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
@@ -551,8 +698,14 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
 bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   (void) rhport;
 
-  // TODO ISO not supported yet
+#if CFG_TUH_EHCI_ISO_EP_MAX
+  iso_ep_t* iso = iso_ep_find(dev_addr, ep_addr);
+  if (iso != NULL) {
+    return iso_abort(rhport, iso);
+  }
+#endif
   ehci_qhd_t* qhd = qhd_get_from_addr(dev_addr, ep_addr);
+  TU_VERIFY(qhd != NULL);
   ehci_qtd_t * volatile qtd = qhd->attached_qtd;
   TU_VERIFY(qtd != NULL); // no queued transfer
 
@@ -582,13 +735,561 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 
 bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
   (void) rhport;
+#if CFG_TUH_EHCI_ISO_EP_MAX
+  TU_VERIFY(iso_ep_find(daddr, ep_addr) == NULL); // ISO endpoints do not halt
+#endif
   ehci_qhd_t *qhd = qhd_get_from_addr(daddr, ep_addr);
+  TU_VERIFY(qhd != NULL);
   qhd->qtd_overlay.halted = 0;
   qhd->qtd_overlay.data_toggle = 0;
   hcd_dcache_clean_invalidate(qhd, sizeof(ehci_qhd_t));
 
   return true;
 }
+
+#if CFG_TUH_EHCI_ISO_EP_MAX
+//--------------------------------------------------------------------+
+// Isochronous transfers: one service interval per HCD submission
+//--------------------------------------------------------------------+
+
+// FRINDEX is a 14-bit microframe counter, independent of the frame-list size
+// (RT1064 RM 42.7.21). Sample at each SOF, including while an endpoint is idle.
+static uint32_t iso_now(void) {
+  uint16_t const index = (uint16_t) (ehci_data.regs->frame_index & 0x3fff);
+  ehci_data.iso_uframe += (index - ehci_data.iso_last_frindex) & 0x3fff;
+  ehci_data.iso_last_frindex = index;
+  // Native FS runs the embedded translator on frame boundaries. FRINDEX has
+  // already advanced to the next frame while the current bus frame executes.
+  // On a HS root link the normal microframe scheduling clock applies.
+  return ehci_data.iso_uframe - ehci_data.iso_frame_offset;
+}
+
+static uint32_t iso_earliest(uint32_t now) {
+  uint32_t const threshold = ehci_data.iso_threshold;
+  // EHCI 4.7.2.1 includes one microframe of uncertainty: even a controller
+  // without caching needs two microframes of lead time.
+  return (threshold & 8) ? ((now + 9) & ~7u) : now + tu_max32(2, threshold + 1);
+}
+
+static iso_ep_t* iso_ep_find(uint8_t daddr, uint8_t ep_addr) {
+  if (daddr == 0) {
+    return NULL;
+  }
+  for (size_t i = 0; i < CFG_TUH_EHCI_ISO_EP_MAX; i++) {
+    iso_ep_t* ep = &ehci_data.iso_ep[i];
+    if (ep->daddr == daddr && ep->ep_addr == ep_addr) {
+      return ep;
+    }
+  }
+  return NULL;
+}
+
+static iso_td_t* iso_td(iso_ep_t const* ep, iso_req_t const* req) {
+  size_t const ep_index = (size_t) (ep - ehci_data.iso_ep);
+  return &ehci_data.iso_td[ep_index][req->bank][req - ep->req];
+}
+
+static bool iso_ep_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t const* desc) {
+  TU_VERIFY(daddr != 0 && tu_edpt_number(desc->bEndpointAddress) != 0);
+  if (iso_ep_find(daddr, desc->bEndpointAddress) != NULL) {
+    return true;
+  }
+
+  tuh_bus_info_t bus;
+  TU_VERIFY(tuh_bus_info_get(daddr, &bus));
+  TU_VERIFY(bus.speed == TUSB_SPEED_FULL || bus.speed == TUSB_SPEED_HIGH);
+  TU_VERIFY(desc->bInterval >= 1 && desc->bInterval <= 16);
+  uint16_t const mps = tu_edpt_packet_size(desc);
+  uint8_t const mult = (uint8_t) (((tu_le16toh(desc->wMaxPacketSize) >> 11) & 3) + 1);
+  TU_VERIFY(mps != 0 && mult <= 3);
+  if (bus.speed == TUSB_SPEED_FULL) {
+    TU_VERIFY(mps <= 1023 && mult == 1);
+    // Best effort, single H-frame only. Large FS IN packets require a
+    // frame-spanning complete-split schedule (RT1064 RM 42.5.3.12.3.1).
+    TU_VERIFY(ehci_data.regs->portsc_bm.nxp_port_speed != TUSB_SPEED_HIGH ||
+              tu_edpt_dir(desc->bEndpointAddress) == TUSB_DIR_OUT || mps <= 564);
+  } else {
+    TU_VERIFY(mps <= 1024);
+  }
+
+  // Find the upstream HS transaction translator, including FS hubs between
+  // the endpoint and TT. Direct FS uses the embedded TT (hub address zero).
+  uint8_t hub_addr = bus.hub_addr;
+  uint8_t hub_port = bus.hub_port;
+  while (bus.speed != TUSB_SPEED_HIGH && hub_addr != 0) {
+    tuh_bus_info_t hub;
+    TU_VERIFY(tuh_bus_info_get(hub_addr, &hub));
+    if (hub.speed == TUSB_SPEED_HIGH) {
+      break;
+    }
+    hub_addr = hub.hub_addr;
+    hub_port = hub.hub_port;
+  }
+
+  size_t ep_index;
+  for (ep_index = 0; ep_index < CFG_TUH_EHCI_ISO_EP_MAX; ep_index++) {
+    if (ehci_data.iso_ep[ep_index].daddr == 0) {
+      break;
+    }
+  }
+  TU_VERIFY(ep_index < CFG_TUH_EHCI_ISO_EP_MAX);
+
+  hcd_int_disable(rhport);
+  iso_ep_t* ep = &ehci_data.iso_ep[ep_index];
+  tu_memclr(ep, sizeof(*ep));
+  ep->ep_addr = desc->bEndpointAddress;
+  ep->speed = bus.speed;
+  ep->packet_size = mps;
+  ep->mult = mult;
+  ep->hub_addr = hub_addr;
+  ep->hub_port = hub_port;
+  ep->interval = (1u << (desc->bInterval - 1)) * (bus.speed == TUSB_SPEED_FULL ? 8u : 1u);
+  // Keep the extended counter congruent to FRINDEX even when ISO was disabled.
+  if (!(ehci_data.regs->inten & EHCI_INT_MASK_NXP_SOF)) {
+    ehci_data.iso_last_frindex = (uint16_t) (ehci_data.regs->frame_index & 0x3fff);
+    ehci_data.iso_uframe = ehci_data.iso_last_frindex;
+    ehci_data.iso_saved_itc = ehci_data.regs->command_bm.int_threshold;
+    // These remain fixed for this root connection; refresh when ISO is reopened.
+    ehci_data.iso_threshold = ehci_data.cap_regs->hccparams_bm.iso_schedule_threshold;
+    ehci_data.iso_frame_offset = ehci_data.regs->portsc_bm.nxp_port_speed == TUSB_SPEED_FULL ? 8 : 0;
+  }
+  ep->next_uframe = iso_now();
+  ep->daddr = daddr;
+  // Retire each packet promptly so task context can submit the next interval.
+  ehci_data.regs->command_bm.int_threshold = 0;
+
+  for (size_t bank = 0; bank < ISO_TD_BANK_COUNT; bank++) {
+    ep->td_frame[bank] = UINT32_MAX;
+    for (size_t slot = 0; slot < CFG_TUH_XFER_QUEUE_DEPTH; slot++) {
+      iso_td_t* td = &ehci_data.iso_td[ep_index][bank][slot];
+      tu_memclr(td, sizeof(*td));
+      td->itd.next.terminate = 1;
+      uint8_t const dir = tu_edpt_dir(ep->ep_addr);
+      if (ep->speed == TUSB_SPEED_HIGH) {
+        // Endpoint fields share the low bits of the buffer page pointers.
+        td->itd.BufferPointer[0] = ep->daddr | (tu_edpt_number(ep->ep_addr) << 8);
+        td->itd.BufferPointer[1] = ep->packet_size | (dir << 11);
+        td->itd.BufferPointer[2] = ep->mult;
+      } else {
+        td->sitd.dev_addr = ep->daddr;
+        td->sitd.ep_number = tu_edpt_number(ep->ep_addr);
+        td->sitd.hub_addr = ep->hub_addr;
+        td->sitd.port_number = ep->hub_port;
+        td->sitd.direction = dir;
+        td->sitd.back.terminate = 1;
+        if (dir == TUSB_DIR_IN && !ehci_data.iso_frame_offset) {
+          // Leave H0/H1 for common FS audio OUT packets.
+          td->sitd.int_smask = 4;
+          td->sitd.fl_int_cmask = 0xf0;
+        }
+      }
+      hcd_dcache_clean(td, sizeof(*td));
+    }
+  }
+  ehci_data.regs->status = EHCI_INT_MASK_NXP_SOF;
+  ehci_data.regs->inten |= EHCI_INT_MASK_NXP_SOF;
+  hcd_int_enable(rhport);
+  return true;
+}
+
+// The caller has either stopped periodic DMA, or waited until the frame and
+// its cached traversal state have passed. Banks are contiguous in their chain.
+static void iso_bank_remove(iso_ep_t* ep, size_t bank) {
+  uint32_t const frame = ep->td_frame[bank];
+  if (frame == UINT32_MAX) {
+    return;
+  }
+  size_t const index = (size_t) (ep - ehci_data.iso_ep);
+  iso_td_t* tds = ehci_data.iso_td[index][bank];
+  ehci_link_t* link = &ehci_data.period_framelist[(frame >> 3) % FRAMELIST_SIZE];
+  while (!link->terminate && tu_align32(link->address) != (uint32_t) &tds[CFG_TUH_XFER_QUEUE_DEPTH - 1]) {
+    link = list_next(link);
+    hcd_dcache_invalidate(link, sizeof(iso_td_t));
+  }
+  if (!link->terminate) {
+    *link = tds[0].itd.next;
+    hcd_dcache_clean((void*) tu_align32((uint32_t) link), 32);
+  }
+  ep->td_frame[bank] = UINT32_MAX;
+  if (ep->reclaim_bank == bank) {
+    for (size_t i = 0; i < ISO_TD_BANK_COUNT; i++) {
+      uint32_t const frame_i = ep->td_frame[i];
+      if (frame_i != UINT32_MAX && (ep->td_frame[ep->reclaim_bank] == UINT32_MAX ||
+          (int32_t) (frame_i - ep->td_frame[ep->reclaim_bank]) < 0)) {
+        ep->reclaim_bank = (uint8_t) i;
+      }
+    }
+  }
+}
+
+static bool iso_bank_busy(iso_ep_t const* ep, size_t bank) {
+  for (size_t i = 0; i < ep->count; i++) {
+    iso_req_t const* req = &ep->req[(ep->head + i) % CFG_TUH_XFER_QUEUE_DEPTH];
+    if (req->armed && req->bank == bank) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool iso_bank_can_remove(iso_ep_t const* ep, size_t bank, uint32_t now) {
+  uint32_t const frame = ep->td_frame[bank];
+  // EHCI 4.7.2.1 releases cached traversal state as its frame ends. Allow two
+  // further microframes before editing any predecessor's hardware cache line.
+  if (frame == UINT32_MAX || (int32_t) (now - (frame + 10)) < 0 || iso_bank_busy(ep, bank)) {
+    return false;
+  }
+  // After a long idle, this frame-list entry may be revisited. Unlink only
+  // behind the current traversal and outside the next visit's prefetch window.
+  uint32_t const distance = (now - frame) % (FRAMELIST_SIZE * 8);
+  return distance >= 10 && distance < (FRAMELIST_SIZE - 2) * 8;
+}
+
+static void iso_bank_reclaim(iso_ep_t* ep, uint32_t now) {
+  for (size_t bank = 0; bank < ISO_TD_BANK_COUNT; bank++) {
+    if (iso_bank_can_remove(ep, bank, now)) {
+      iso_bank_remove(ep, bank);
+    }
+  }
+}
+
+static bool iso_bank_get(iso_ep_t* ep, iso_req_t* req, uint32_t now) {
+  uint32_t const frame = req->scheduled_uframe & ~7u;
+  // Consecutive HS requests usually share the most recently selected frame.
+  if (ep->td_frame[ep->current_bank] == frame) {
+    req->bank = ep->current_bank;
+    return true;
+  }
+  size_t free_bank = ISO_TD_BANK_COUNT;
+  for (size_t bank = 0; bank < ISO_TD_BANK_COUNT; bank++) {
+    if (ep->td_frame[bank] == frame) {
+      req->bank = (uint8_t) bank;
+      ep->current_bank = (uint8_t) bank;
+      return true;
+    }
+    if (ep->td_frame[bank] == UINT32_MAX) {
+      free_bank = bank;
+    }
+  }
+  if (free_bank == ISO_TD_BANK_COUNT) {
+    for (size_t bank = 0; bank < ISO_TD_BANK_COUNT; bank++) {
+      if (!iso_bank_can_remove(ep, bank, now)) {
+        continue;
+      }
+      iso_bank_remove(ep, bank);
+      free_bank = bank;
+      break;
+    }
+  }
+  if (free_bank == ISO_TD_BANK_COUNT) {
+    return false; // a long-interval request can wait for an older frame to retire
+  }
+  size_t const index = (size_t) (ep - ehci_data.iso_ep);
+  ehci_link_t* head = &ehci_data.period_framelist[(frame >> 3) % FRAMELIST_SIZE];
+  ehci_link_t next = *head;
+  for (size_t slot = 0; slot < CFG_TUH_XFER_QUEUE_DEPTH; slot++) {
+    iso_td_t* td = &ehci_data.iso_td[index][free_bank][slot];
+    // The old bank is no longer hardware-owned. Clear every old transaction
+    // before publishing its links, including an unused request slot.
+    if (ep->speed == TUSB_SPEED_HIGH) {
+      tu_memclr(td->itd.xact, sizeof(td->itd.xact));
+    } else {
+      td->words[3] = 0;
+    }
+    td->itd.next = next;
+    hcd_dcache_clean(td, sizeof(*td));
+    next.address = (uint32_t) td | ((ep->speed == TUSB_SPEED_HIGH ? EHCI_QTYPE_ITD : EHCI_QTYPE_SITD) << 1);
+  }
+  *head = next;
+  hcd_dcache_clean((void*) tu_align32((uint32_t) head), 32);
+  ep->td_frame[free_bank] = frame;
+  if (ep->td_frame[ep->reclaim_bank] == UINT32_MAX ||
+      (int32_t) (frame - ep->td_frame[ep->reclaim_bank]) < 0) {
+    ep->reclaim_bank = (uint8_t) free_bank;
+  }
+  req->bank = (uint8_t) free_bank;
+  ep->current_bank = (uint8_t) free_bank;
+  return true;
+}
+
+// Called with the controller interrupt excluded. Only arm a frame after its
+// preceding visit has ended, so long intervals cannot alias onto the short ring.
+static void iso_arm(iso_ep_t* ep, iso_req_t* req, uint32_t now) {
+  if ((int32_t) (req->scheduled_uframe - now) >= (int32_t) ((FRAMELIST_SIZE - 1) * 8)) {
+    return;
+  }
+  if (!iso_bank_get(ep, req, now)) {
+    return;
+  }
+  iso_td_t* td = iso_td(ep, req);
+  uint32_t const buffer = (uint32_t) req->buffer;
+  uint32_t const page = buffer & ~0xfffu;
+  uint8_t const dir = tu_edpt_dir(ep->ep_addr);
+  if (ep->speed == TUSB_SPEED_HIGH) {
+    ehci_itd_t* itd = &td->itd;
+    // Reset transaction state from the previous visit, preserving the links
+    // and endpoint fields that the controller only reads (EHCI 3.3).
+    tu_memclr(itd->xact, sizeof(itd->xact));
+    itd->BufferPointer[0] = page | (itd->BufferPointer[0] & 0xfff);
+    itd->BufferPointer[1] = (page + 4096) | (itd->BufferPointer[1] & 0xfff);
+    itd->BufferPointer[2] = (page + 8192) | (itd->BufferPointer[2] & 0xfff);
+    uint8_t const slot = req->scheduled_uframe & 7;
+    td->words[1 + slot] = (buffer & 0xfff) | TU_BIT(15) | ((uint32_t) req->buflen << 16);
+  } else {
+    ehci_sitd_t* sitd = &td->sitd;
+    sitd->buffer[0] = buffer;
+    sitd->buffer[1] = page + 4096;
+    if (dir == TUSB_DIR_OUT && !ehci_data.iso_frame_offset) {
+      uint8_t const count = (uint8_t) tu_max32(1, (req->buflen + 187u) / 188u);
+      sitd->int_smask = (uint8_t) ((1u << count) - 1u);
+      sitd->buffer[1] |= count | (count > 1 ? TU_BIT(3) : 0); // T-count, TP=Begin/All
+    }
+    // Reset status, split progress and page selection; retain endpoint/masks.
+    td->words[3] = ((uint32_t) req->buflen << 16) | TU_BIT(31);
+  }
+  // Publish buffer pointers and controls while inactive, then publish Active.
+  // No other request shares this descriptor's transaction records.
+  hcd_dcache_clean(td, sizeof(*td));
+  if (ep->speed == TUSB_SPEED_HIGH) {
+    td->itd.xact[req->scheduled_uframe & 7].active = 1;
+  } else {
+    td->sitd.active = 1;
+  }
+  req->armed = true;
+  hcd_dcache_clean(td, sizeof(*td));
+}
+
+static bool iso_xfer(uint8_t rhport, iso_ep_t* ep, uint8_t* buffer, uint16_t buflen) {
+  TU_VERIFY(ep->count < CFG_TUH_XFER_QUEUE_DEPTH && buflen <= ep->packet_size * ep->mult);
+  TU_VERIFY(buffer != NULL || buflen == 0);
+  if (buflen != 0) {
+    if (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN) {
+      TU_VERIFY(hcd_dcache_clean_invalidate(buffer, buflen));
+    } else {
+      TU_VERIFY(hcd_dcache_clean(buffer, buflen));
+    }
+  }
+  hcd_int_disable(rhport);
+  uint32_t const now = iso_now();
+  uint32_t earliest = iso_earliest(now);
+  if (ep->speed == TUSB_SPEED_FULL) {
+    earliest = (earliest + 7) & ~7u;
+  }
+  uint32_t scheduled = ep->next_uframe;
+  if ((int32_t) (scheduled - earliest) < 0) {
+    uint32_t const behind = earliest - scheduled;
+    // ISO intervals are powers of two. Round the distance, retaining phase.
+    scheduled += (behind + ep->interval - 1) & ~(ep->interval - 1);
+  }
+  if (ep->speed == TUSB_SPEED_FULL) {
+    scheduled = (scheduled + 7) & ~7u;
+  }
+  iso_req_t* req = &ep->req[(ep->head + ep->count) % CFG_TUH_XFER_QUEUE_DEPTH];
+  req->buffer = buffer;
+  req->buflen = buflen;
+  req->scheduled_uframe = scheduled;
+  ep->next_uframe = scheduled + ep->interval;
+  req->armed = false;
+  ep->count++;
+  iso_arm(ep, req, now);
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
+  if (ep->count < CFG_TUH_XFER_QUEUE_DEPTH) {
+    // Publish the intermediate notification before any terminal interrupt.
+    hcd_event_xfer_complete(ep->daddr, ep->ep_addr, 0, XFER_RESULT_QUEUED, false);
+  }
+#endif
+  hcd_int_enable(rhport);
+  return true;
+}
+
+static void iso_process(bool in_isr) {
+  // Keep the extended clock running even when all open endpoints are idle.
+  (void) iso_now();
+  for (size_t i = 0; i < CFG_TUH_EHCI_ISO_EP_MAX; i++) {
+    iso_ep_t* ep = &ehci_data.iso_ep[i];
+    if (ep->daddr == 0) {
+      continue;
+    }
+    // Retire FIFO order even if both slots complete before the ISR runs.
+    for (size_t retired = 0; retired < CFG_TUH_XFER_QUEUE_DEPTH && ep->count; retired++) {
+      iso_req_t* req = &ep->req[ep->head];
+      // Retiring an earlier endpoint may have waited for periodic DMA to stop.
+      uint32_t now = iso_now();
+      if (!req->armed && (int32_t) (req->scheduled_uframe - iso_earliest(now)) >= 0) {
+        iso_arm(ep, req, now);
+      }
+      // Future requests cannot complete yet; keep descriptor cache lines alone.
+      if ((int32_t) (now - req->scheduled_uframe) < 0) {
+        break;
+      }
+      bool active = true;
+      bool error = false;
+      uint32_t actual = 0;
+      iso_td_t* td = req->armed ? iso_td(ep, req) : NULL;
+      if (req->armed) {
+        hcd_dcache_invalidate(td, sizeof(*td));
+        if (ep->speed == TUSB_SPEED_HIGH) {
+          uint8_t const slot = req->scheduled_uframe & 7;
+          uint32_t const status = td->words[1 + slot]; // iTD transaction status/control
+          active = (status & TU_BIT(31)) != 0;
+          if (!active) {
+            error = (status & (TU_BIT(28) | TU_BIT(29) | TU_BIT(30))) != 0;
+            actual = tu_edpt_dir(ep->ep_addr) ? (status >> 16) & 0xfff : req->buflen;
+          }
+        } else {
+          uint32_t const status = td->words[3]; // siTD transfer status/control
+          active = (status & TU_BIT(7)) != 0;
+          if (!active) {
+            error = (status & 0x7c) != 0; // missed microframe, transaction, babble, buffer, error
+            actual = req->buflen - tu_min16(req->buflen, (status >> 16) & 0x3ff);
+          }
+        }
+      }
+      uint32_t const end = ep->speed == TUSB_SPEED_HIGH ? req->scheduled_uframe + 1 :
+                          (req->scheduled_uframe & ~7u) + 8;
+      if (active && (int32_t) (now - end) < 0) {
+        break;
+      }
+      if (active) {
+        // The service slot has passed. Clear stale work before this frame-list
+        // entry recurs; a late ISO packet must not be silently replayed.
+        if (req->armed) {
+          // A delayed interrupt may find this TD executing on a later ring
+          // visit. Quiesce DMA before returning ownership of its buffer.
+          ehci_disable_schedule(ehci_data.regs, true);
+          hcd_dcache_invalidate(td, sizeof(*td));
+          if (ep->speed == TUSB_SPEED_HIGH) {
+            td->itd.xact[req->scheduled_uframe & 7].active = 0;
+          } else {
+            td->sitd.active = 0;
+          }
+          hcd_dcache_clean(td, sizeof(*td));
+          ehci_enable_schedule(ehci_data.regs, true);
+          now = iso_now();
+        }
+        error = true;
+      }
+      // Once a frame-list entry has recurred, a cleared Active bit cannot prove
+      // which visit delivered the packet. Do not claim an on-time success.
+      if ((int32_t) (now - ((req->scheduled_uframe & ~7u) + FRAMELIST_SIZE * 8u)) >= 0) {
+        error = true;
+      }
+      if (error) {
+        actual = 0; // descriptor byte counts need not be valid on an error
+      }
+      if (tu_edpt_dir(ep->ep_addr) && actual != 0) {
+        if (!hcd_dcache_invalidate(req->buffer, actual)) {
+          error = true;
+          actual = 0;
+        }
+      }
+      req->armed = false;
+      ep->head = (ep->head + 1) % CFG_TUH_XFER_QUEUE_DEPTH;
+      ep->count--;
+      hcd_event_xfer_complete(ep->daddr, ep->ep_addr, actual,
+                             error ? XFER_RESULT_FAILED : XFER_RESULT_SUCCESS, in_isr);
+    }
+    uint32_t const reclaim_frame = ep->td_frame[ep->reclaim_bank];
+    uint32_t const last_now = ehci_data.iso_uframe - ehci_data.iso_frame_offset;
+    if (reclaim_frame != UINT32_MAX && (int32_t) (last_now - (reclaim_frame + 10)) >= 0) {
+      iso_bank_reclaim(ep, iso_now());
+    }
+#if CFG_TUH_XFER_QUEUE_DEPTH > 2
+    // A deeper queue can span more frames than there are banks. Use reclaimed
+    // banks before a waiting request reaches the head, keeping its lead time.
+    for (size_t pending = 0; pending < ep->count; pending++) {
+      iso_req_t* req = &ep->req[(ep->head + pending) % CFG_TUH_XFER_QUEUE_DEPTH];
+      if (req->armed) {
+        continue;
+      }
+      uint32_t const now = iso_now();
+      if ((int32_t) (req->scheduled_uframe - iso_earliest(now)) < 0) {
+        continue; // FIFO retirement reports missed requests without arming them.
+      }
+      iso_arm(ep, req, now);
+      if (!req->armed) {
+        break; // Later requests also need a free bank and scheduling window.
+      }
+    }
+#endif
+  }
+}
+
+static bool iso_abort(uint8_t rhport, iso_ep_t* ep) {
+  TU_VERIFY(ep->count != 0);
+  hcd_int_disable(rhport);
+  // Cancel the entire queue only if none of its requests has started. The
+  // endpoint's FIFO completion contract cannot omit a request in the middle.
+  bool armed = false;
+  for (size_t i = 0; i < ep->count; i++) {
+    armed |= ep->req[(ep->head + i) % CFG_TUH_XFER_QUEUE_DEPTH].armed;
+  }
+  if (armed) {
+    ehci_disable_schedule(ehci_data.regs, true);
+  }
+  uint32_t const earliest = iso_earliest(iso_now());
+  bool queued = true;
+  for (size_t i = 0; i < ep->count; i++) {
+    iso_req_t* req = &ep->req[(ep->head + i) % CFG_TUH_XFER_QUEUE_DEPTH];
+    if (req->armed) {
+      iso_td_t* td = iso_td(ep, req);
+      hcd_dcache_invalidate(td, sizeof(*td));
+      bool const active = ep->speed == TUSB_SPEED_HIGH ?
+        td->itd.xact[req->scheduled_uframe & 7].active : td->sitd.active;
+      queued &= active && (int32_t) (req->scheduled_uframe - earliest) >= 0;
+    }
+  }
+  if (queued) {
+    for (size_t i = 0; i < ep->count; i++) {
+      iso_req_t* req = &ep->req[(ep->head + i) % CFG_TUH_XFER_QUEUE_DEPTH];
+      if (req->armed) {
+        iso_td_t* td = iso_td(ep, req);
+        if (ep->speed == TUSB_SPEED_HIGH) {
+          td->itd.xact[req->scheduled_uframe & 7].active = 0;
+        } else {
+          td->sitd.active = 0;
+        }
+        hcd_dcache_clean(td, sizeof(*td));
+      }
+      req->armed = false;
+    }
+    ep->count = 0;
+    ep->next_uframe = earliest;
+    if (armed) {
+      for (size_t bank = 0; bank < ISO_TD_BANK_COUNT; bank++) {
+        iso_bank_remove(ep, bank);
+      }
+    }
+  }
+  if (armed) {
+    ehci_enable_schedule(ehci_data.regs, true);
+  }
+  hcd_int_enable(rhport);
+  return queued;
+}
+
+static bool iso_ep_close(uint8_t rhport, iso_ep_t* ep) {
+  hcd_int_disable(rhport);
+  // Teardown is infrequent. Quiesce periodic DMA before removing links or
+  // recycling descriptors, including a split transaction already in progress.
+  ehci_disable_schedule(ehci_data.regs, true);
+  for (size_t bank = 0; bank < ISO_TD_BANK_COUNT; bank++) {
+    iso_bank_remove(ep, bank);
+  }
+  tu_memclr(ep, sizeof(*ep));
+  bool any_open = false;
+  for (size_t i = 0; i < CFG_TUH_EHCI_ISO_EP_MAX; i++) {
+    any_open |= ehci_data.iso_ep[i].daddr != 0;
+  }
+  if (!any_open) {
+    ehci_data.regs->inten &= ~EHCI_INT_MASK_NXP_SOF;
+    ehci_data.regs->command_bm.int_threshold = ehci_data.iso_saved_itc;
+  }
+  ehci_enable_schedule(ehci_data.regs, true);
+  hcd_int_enable(rhport);
+  return true;
+}
+#endif
 
 //--------------------------------------------------------------------+
 // EHCI Interrupt Handler
@@ -629,11 +1330,23 @@ void port_connect_status_change_isr(uint8_t rhport) {
 // Check queue head for potential transfer complete (successful or error)
 TU_ATTR_ALWAYS_INLINE static inline
 void qhd_xfer_complete_isr(ehci_qhd_t * qhd) {
+  // This pointer is software-owned; idle QHs need no hardware status reads.
+  ehci_qtd_t* const qtd = qhd->attached_qtd;
+  if (qtd == NULL) {
+    return;
+  }
   hcd_dcache_invalidate(qhd, sizeof(ehci_qhd_t)); // HC may have updated the overlay
   volatile ehci_qtd_t *qtd_overlay = &qhd->qtd_overlay;
 
   // process non-active (completed) QHD with attached (scheduled) TD
-  if ( !qtd_overlay->active && qhd->attached_qtd != NULL ) {
+  if ( !qtd_overlay->active ) {
+    // An unrelated periodic interrupt can arrive before the controller has
+    // fetched a newly attached qTD. The inactive overlay then still belongs
+    // to the previous transfer; only a retired qTD establishes completion.
+    hcd_dcache_invalidate(qtd, sizeof(ehci_qtd_t));
+    if (qtd->active) {
+      return;
+    }
     xfer_result_t xfer_result;
 
     if ( qtd_overlay->halted ) {
@@ -651,9 +1364,6 @@ void qhd_xfer_complete_isr(ehci_qhd_t * qhd) {
     } else {
       xfer_result = XFER_RESULT_SUCCESS;
     }
-
-    ehci_qtd_t * volatile qtd = qhd->attached_qtd;
-    hcd_dcache_invalidate(qtd, sizeof(ehci_qtd_t)); // HC may have written back TD
 
     uint8_t const dir = (qtd->pid == EHCI_PID_IN) ? 1 : 0;
     uint32_t const xferred_bytes = qtd->expected_bytes - qtd->total_bytes;
@@ -702,7 +1412,7 @@ void process_period_xfer_isr(uint8_t rhport, uint32_t interval_ms) {
       }
         break;
 
-      // TODO support hs/fs ISO
+      // ISO descriptors are retired by iso_process().
       case EHCI_QTYPE_ITD:
       case EHCI_QTYPE_SITD:
       case EHCI_QTYPE_FSTN:
@@ -727,6 +1437,12 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     return;
   }
 
+#if CFG_TUH_EHCI_ISO_EP_MAX
+  if (int_status & regs->inten & EHCI_INT_MASK_NXP_SOF) {
+    regs->status = EHCI_INT_MASK_NXP_SOF;
+  }
+#endif
+
   if (int_status & EHCI_INT_MASK_FRAMELIST_ROLLOVER) {
     ehci_data.uframe_number += (FRAMELIST_SIZE << 3);
     regs->status = EHCI_INT_MASK_FRAMELIST_ROLLOVER; // Acknowledge
@@ -748,13 +1464,24 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
   // A USB transfer is completed (OK or error)
   uint32_t const usb_int = int_status & (EHCI_INT_MASK_USB | EHCI_INT_MASK_ERROR);
   if (usb_int) {
+    // Acknowledge before scanning: a completion that arrives after its QH was
+    // visited must remain pending for the next interrupt.
+    regs->status = usb_int;
+  }
+#if CFG_TUH_EHCI_ISO_EP_MAX
+  // SOF and completion commonly arrive together. Scan ISO only once, keeping
+  // interrupt work short enough for task context to replenish the next slot.
+  if (usb_int || (int_status & regs->inten & EHCI_INT_MASK_NXP_SOF)) {
+    iso_process(in_isr);
+  }
+#endif
+  if (usb_int) {
     proccess_async_xfer_isr(list_get_async_head(rhport));
 
     for ( uint32_t i = 1; i <= FRAMELIST_SIZE; i *= 2 ) {
       process_period_xfer_isr(rhport, i);
     }
 
-    regs->status = usb_int; // Acknowledge
   }
 
   //------------- There is some removed async previously -------------//
