@@ -71,7 +71,8 @@ bool usbh_edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_
   return usbh_edpt_xfer_with_callback(dev_addr, ep_addr, buffer, total_bytes, NULL, 0);
 }
 
-// Claim an endpoint before submitting a transfer.
+// Claim an endpoint before submitting a transfer. Queue-aware class producers
+// must serialize submissions in USBH task context to preserve FIFO ordering.
 // If caller does not make any transfer, it must release endpoint for others.
 bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr);
 

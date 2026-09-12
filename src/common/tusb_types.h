@@ -264,7 +264,10 @@ typedef enum {
   XFER_RESULT_STALLED,
   XFER_RESULT_TIMEOUT,
   XFER_RESULT_ABORTED,
-  XFER_RESULT_INVALID
+  XFER_RESULT_INVALID,
+  // Intermediate host notification: another transfer may be submitted.
+  // The queued transfer still owns its buffer until a terminal result arrives.
+  XFER_RESULT_QUEUED
 } xfer_result_t;
 
 #define tusb_xfer_result_t xfer_result_t

@@ -360,6 +360,12 @@ static void process_new_status(tuh_xfer_t* xfer);
 
 // callback as response of interrupt endpoint polling
 bool hub_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
+  if (result == XFER_RESULT_QUEUED) {
+    return true;
+  }
+#endif
+
   (void) xferred_bytes;
   (void) ep_addr;
 

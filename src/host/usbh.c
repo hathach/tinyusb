@@ -130,6 +130,9 @@ typedef struct {
   uint8_t ep2drv[CFG_TUH_ENDPOINT_MAX][2]; // map endpoint to driver ( 0xff is invalid ), can use only 4-bit each
 
   volatile uint8_t ep_status[CFG_TUH_ENDPOINT_MAX][2];
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
+  uint8_t ep_pending[CFG_TUH_ENDPOINT_MAX][2];
+#endif
 
 #if CFG_TUH_API_EDPT_XFER
   // TODO array can be CFG_TUH_ENDPOINT_MAX-1
@@ -148,6 +151,35 @@ typedef struct {
 // hub address start from CFG_TUH_DEVICE_MAX+1
 // TODO: hub can has its own simpler struct to save memory
 static usbh_device_t _usbh_devices[TOTAL_DEVICES];
+
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
+// BUSY means at least one request is outstanding; SPACE grants another claim.
+#define USBH_EP_QUEUE_SPACE 0x08u
+
+static bool usbh_edpt_retire_event(usbh_device_t* dev, hcd_event_t const* event) {
+  uint8_t const epnum = tu_edpt_number(event->xfer_complete.ep_addr);
+  uint8_t const dir = tu_edpt_dir(event->xfer_complete.ep_addr);
+  usbh_spin_lock(false);
+  if (epnum >= CFG_TUH_ENDPOINT_MAX ||
+      dev->ep_pending[epnum][dir] == 0) {
+    usbh_spin_unlock(false);
+    return false;
+  }
+  volatile uint8_t* state = &dev->ep_status[epnum][dir];
+  if (event->xfer_complete.result != XFER_RESULT_QUEUED) {
+    dev->ep_pending[epnum][dir]--;
+  }
+  *state &= (uint8_t) ~USBH_EP_QUEUE_SPACE;
+  if (dev->ep_pending[epnum][dir] == 0) {
+    *state &= (uint8_t) ~TU_EDPT_STATE_BUSY;
+  } else if (dev->ep_pending[epnum][dir] < CFG_TUH_XFER_QUEUE_DEPTH &&
+             !(*state & TU_EDPT_STATE_CLAIMED)) {
+    *state |= USBH_EP_QUEUE_SPACE;
+  }
+  usbh_spin_unlock(false);
+  return true;
+}
+#endif
 
 // Mutex for claiming endpoint
 #if OSAL_MUTEX_REQUIRED
@@ -352,6 +384,9 @@ static void process_remove_event(hcd_event_t *event);
 static void remove_device_tree(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port);
 
 static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size);
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
+static bool usbh_edpt_claim_internal(uint8_t dev_addr, uint8_t ep_addr, bool allow_queue);
+#endif
 static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
 static void control_xfer_dispatch_pending(void);
 static void control_xfer_complete(uint8_t daddr, xfer_result_t result);
@@ -806,8 +841,18 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
           usbh_device_t* dev = get_device(event.dev_addr);
           TU_VERIFY(dev && dev->connected,);
 
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
+          if (epnum != 0) {
+            if (!usbh_edpt_retire_event(dev, &event)) {
+              break;
+            }
+          } else {
+            dev->ep_status[epnum][ep_dir] &= (uint8_t) ~(TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED);
+          }
+#else
           // clear busy and claimed
           dev->ep_status[epnum][ep_dir] &= (uint8_t) ~(TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED);
+#endif
 
           if (0 == epnum) {
             usbh_control_xfer_cb(event.dev_addr, ep_addr, (xfer_result_t) event.xfer_complete.result, event.xfer_complete.len);
@@ -828,7 +873,13 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
                   .complete_cb = complete_cb,
                   .user_data   = dev->ep_callback[epnum][ep_dir].user_data
               };
-              complete_cb(&xfer);
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
+              // Public application callbacks retain one terminal notification.
+              if (xfer.result != XFER_RESULT_QUEUED)
+#endif
+              {
+                complete_cb(&xfer);
+              }
             }else
             #endif
             {
@@ -1171,7 +1222,11 @@ bool tuh_edpt_xfer(tuh_xfer_t* xfer) {
   uint8_t const ep_addr = xfer->ep_addr;
 
   TU_VERIFY(daddr && ep_addr);
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
+  TU_VERIFY(usbh_edpt_claim_internal(daddr, ep_addr, false));
+#else
   TU_VERIFY(usbh_edpt_claim(daddr, ep_addr));
+#endif
 
   if (!usbh_edpt_xfer_with_callback(daddr, ep_addr, xfer->buffer, (uint16_t) xfer->buflen,
                                     xfer->complete_cb, xfer->user_data)) {
@@ -1202,9 +1257,15 @@ bool tuh_edpt_abort_xfer(uint8_t daddr, uint8_t ep_addr) {
 
     TU_VERIFY(dev->ep_status[epnum][dir] & TU_EDPT_STATE_BUSY); // non-control skip if not busy
     // abort then mark as ready and release endpoint
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
+    TU_VERIFY(hcd_edpt_abort_xfer(dev->bus_info.rhport, daddr, ep_addr));
+    dev->ep_pending[epnum][dir] = 0;
+    dev->ep_status[epnum][dir] = 0;
+#else
     hcd_edpt_abort_xfer(dev->bus_info.rhport, daddr, ep_addr);
     dev->ep_status[epnum][dir] &= (uint8_t) ~TU_EDPT_STATE_BUSY; // clear busy
     tu_edpt_release(&dev->ep_status[epnum][dir], _usbh_mutex);
+#endif
   }
 
   return true;
@@ -1254,6 +1315,31 @@ void usbh_defer_func(osal_task_func_t func, void *param, bool in_isr) {
 //--------------------------------------------------------------------+
 
 // Claim an endpoint for transfer
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
+static bool usbh_edpt_claim_internal(uint8_t dev_addr, uint8_t ep_addr, bool allow_queue) {
+  // Note: addr0 only use tuh_control_xfer
+  usbh_device_t* dev = get_device(dev_addr);
+  TU_ASSERT(dev && dev->connected);
+
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir = tu_edpt_dir(ep_addr);
+
+  usbh_spin_lock(false);
+  volatile uint8_t* state = &dev->ep_status[epnum][dir];
+  bool const available = !(*state & TU_EDPT_STATE_CLAIMED) &&
+    (!(*state & TU_EDPT_STATE_BUSY) || (allow_queue && (*state & USBH_EP_QUEUE_SPACE) &&
+                                      dev->ep_pending[epnum][dir] < CFG_TUH_XFER_QUEUE_DEPTH));
+  if (available) {
+    *state = (*state & (uint8_t) ~USBH_EP_QUEUE_SPACE) | TU_EDPT_STATE_CLAIMED;
+  }
+  usbh_spin_unlock(false);
+  return available;
+}
+
+bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr) {
+  return usbh_edpt_claim_internal(dev_addr, ep_addr, true);
+}
+#else
 bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr) {
   // Note: addr0 only use tuh_control_xfer
   usbh_device_t* dev = get_device(dev_addr);
@@ -1267,6 +1353,7 @@ bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr) {
 
   return true;
 }
+#endif
 
 // Release an claimed endpoint due to failed transfer attempt
 bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr) {
@@ -1277,10 +1364,24 @@ bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr) {
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
 
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
+  usbh_spin_lock(false);
+  volatile uint8_t* state = &dev->ep_status[epnum][dir];
+  bool const claimed = (*state & TU_EDPT_STATE_CLAIMED) != 0;
+  if (claimed) {
+    *state &= (uint8_t) ~TU_EDPT_STATE_CLAIMED;
+    if (dev->ep_pending[epnum][dir] != 0 && dev->ep_pending[epnum][dir] < CFG_TUH_XFER_QUEUE_DEPTH) {
+      *state |= USBH_EP_QUEUE_SPACE;
+    }
+  }
+  usbh_spin_unlock(false);
+  return claimed;
+#else
   TU_VERIFY(tu_edpt_release(&dev->ep_status[epnum][dir], _usbh_mutex));
   TU_LOG_USBH("[%u] Released EP 0x%02x\r\n", dev_addr, ep_addr);
 
   return true;
+#endif
 }
 
 // Submit an transfer
@@ -1298,24 +1399,55 @@ bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t* bu
 
   TU_LOG_USBH("  Queue EP %02X with %u bytes ... \r\n", ep_addr, total_bytes);
 
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
+  usbh_spin_lock(false);
+  if (((*ep_state & TU_EDPT_STATE_BUSY) && !(*ep_state & TU_EDPT_STATE_CLAIMED)) ||
+      dev->ep_pending[epnum][dir] >= CFG_TUH_XFER_QUEUE_DEPTH) {
+    usbh_spin_unlock(false);
+    return false;
+  }
+
+  // Set busy first since the actual transfer can be complete before hcd_edpt_xfer()
+  // could return and USBH task can preempt and clear the busy
+  *ep_state = (*ep_state & (uint8_t) ~(TU_EDPT_STATE_CLAIMED | USBH_EP_QUEUE_SPACE)) | TU_EDPT_STATE_BUSY;
+  dev->ep_pending[epnum][dir]++;
+#else
   // Attempt to transfer on a busy endpoint, sound like an race condition !
   TU_ASSERT((*ep_state & TU_EDPT_STATE_BUSY) == 0);
 
   // Set busy first since the actual transfer can be complete before hcd_edpt_xfer()
   // could return and USBH task can preempt and clear the busy
   *ep_state |= TU_EDPT_STATE_BUSY;
+#endif
 
 #if CFG_TUH_API_EDPT_XFER
   dev->ep_callback[epnum][dir].complete_cb = complete_cb;
   dev->ep_callback[epnum][dir].user_data   = user_data;
 #endif
 
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
+  usbh_spin_unlock(false);
+#endif
   if (hcd_edpt_xfer(dev->bus_info.rhport, dev_addr, ep_addr, buffer, total_bytes)) {
     TU_LOG_USBH("OK\r\n");
     return true;
   } else {
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
+    // HCD error, roll back this request without losing older completions.
+    usbh_spin_lock(false);
+    dev->ep_pending[epnum][dir]--;
+    *ep_state &= (uint8_t) ~(TU_EDPT_STATE_BUSY | USBH_EP_QUEUE_SPACE);
+    if (dev->ep_pending[epnum][dir] != 0) {
+      *ep_state |= TU_EDPT_STATE_BUSY;
+      if (!(*ep_state & TU_EDPT_STATE_CLAIMED)) {
+        *ep_state |= USBH_EP_QUEUE_SPACE;
+      }
+    }
+    usbh_spin_unlock(false);
+#else
     // HCD error, clear busy and claimed to allow next transfer
     *ep_state &= (uint8_t) ~(TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED);
+#endif
     TU_LOG1("Failed\r\n");
 //    TU_BREAKPOINT();
     return false;
@@ -1351,7 +1483,19 @@ bool tuh_edpt_open(uint8_t dev_addr, tusb_desc_endpoint_t const* desc_ep) {
 bool tuh_edpt_close(uint8_t daddr, uint8_t ep_addr) {
   TU_VERIFY(0 != tu_edpt_number(ep_addr)); // cannot close EP0
   tuh_edpt_abort_xfer(daddr, ep_addr); // abort any pending transfer
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
+  bool const closed = hcd_edpt_close(usbh_get_rhport(daddr), daddr, ep_addr);
+  usbh_device_t* dev = get_device(daddr);
+  if (closed && dev != NULL) {
+    uint8_t const epnum = tu_edpt_number(ep_addr);
+    uint8_t const dir = tu_edpt_dir(ep_addr);
+    dev->ep_pending[epnum][dir] = 0;
+    dev->ep_status[epnum][dir] = 0;
+  }
+  return closed;
+#else
   return hcd_edpt_close(usbh_get_rhport(daddr), daddr, ep_addr);
+#endif
 }
 
 bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr) {

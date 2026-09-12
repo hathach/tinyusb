@@ -526,6 +526,12 @@ void midih2_close(uint8_t dev_addr) {
 }
 
 bool midih2_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
+  if (result == XFER_RESULT_QUEUED) {
+    return true;
+  }
+#endif
+
   uint8_t idx = get_idx_by_ep_addr(dev_addr, ep_addr);
   TU_VERIFY(idx < CFG_TUH_MIDI2);
 

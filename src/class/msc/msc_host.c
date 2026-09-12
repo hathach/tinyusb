@@ -306,6 +306,12 @@ void msch_close(uint8_t dev_addr) {
 }
 
 bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes) {
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
+  if (event == XFER_RESULT_QUEUED) {
+    return true;
+  }
+#endif
+
   msch_interface_t* p_msc = get_itf(dev_addr);
   msch_epbuf_t* epbuf = get_epbuf(dev_addr);
   msc_cbw_t const * cbw = &epbuf->cbw;

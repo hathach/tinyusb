@@ -782,6 +782,25 @@
   #define CFG_TUH_TASK_EVENTS_PER_RUN  16
 #endif
 
+// HCD queue capacity. Applications can select this after MCU/IP resolution.
+#ifndef TUP_HCD_XFER_QUEUE_DEPTH
+  #if defined(TUP_USBIP_EHCI) && !CFG_TUH_MAX3421
+    #define TUP_HCD_XFER_QUEUE_DEPTH 2
+  #else
+    #define TUP_HCD_XFER_QUEUE_DEPTH 1
+  #endif
+#endif
+
+// Maximum outstanding packets per endpoint. HCDs with spare capacity notify
+// class drivers with XFER_RESULT_QUEUED; other HCDs keep one packet in flight.
+#ifndef CFG_TUH_XFER_QUEUE_DEPTH
+  #define CFG_TUH_XFER_QUEUE_DEPTH 1
+#endif
+
+#if CFG_TUH_XFER_QUEUE_DEPTH < 1 || CFG_TUH_XFER_QUEUE_DEPTH > TUP_HCD_XFER_QUEUE_DEPTH
+  #error CFG_TUH_XFER_QUEUE_DEPTH must be between 1 and TUP_HCD_XFER_QUEUE_DEPTH
+#endif
+
 //------------- CLASS -------------//
 
 #ifndef CFG_TUH_HUB

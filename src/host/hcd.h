@@ -142,7 +142,9 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t const * e
 // Close an endpoint
 bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr);
 
-// Submit a transfer, when complete hcd_event_xfer_complete() must be invoked
+// Submit a transfer. Every accepted request has one terminal completion, in FIFO order.
+// A queue-capable HCD may first emit XFER_RESULT_QUEUED if another slot is free.
+// That intermediate event does not return ownership of the submitted buffer.
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen);
 
 // Abort a queued transfer. Note: it can only abort transfer that has not been started
