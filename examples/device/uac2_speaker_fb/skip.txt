@@ -6,3 +6,6 @@ mcu:SAMG
 board:stm32l052dap52
 family:broadcom_64bit
 mcu:CH583
+mcu:CH32X035
+mcu:CH32V103
+mcu:CH32V20X
