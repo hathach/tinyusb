@@ -778,6 +778,24 @@ function(family_flash_pyocd TARGET)
 endfunction()
 
 
+# Add flash with https://probe-rs.rs
+function(family_flash_probe_rs TARGET)
+  if (NOT DEFINED PROBE_RS)
+    set(PROBE_RS probe-rs)
+  endif ()
+
+  separate_arguments(OPTION_LIST UNIX_COMMAND ${PROBE_RS_OPTION})
+
+  add_custom_target(${TARGET}-probe-rs
+    DEPENDS ${TARGET}
+    COMMAND ${PROBE_RS} download --chip ${PROBE_RS_CHIP} ${OPTION_LIST} --verify --reset $<TARGET_FILE:${TARGET}>
+    VERBATIM
+    )
+
+  #set_property(TARGET ${TARGET}-probe-rs PROPERTY FOLDER ${TARGET}-group)
+endfunction()
+
+
 # Flash with UF2
 function(family_flash_uf2 TARGET FAMILY_ID)
   add_custom_target(${TARGET}-uf2
