@@ -101,4 +101,6 @@ function(family_configure_example TARGET RTOS)
   # Flashing
   family_add_bin_hex(${TARGET})
   family_flash_jlink(${TARGET})
+  set(PROBE_RS_CHIP ${MCU_VARIANT})
+  family_flash_probe_rs(${TARGET})
 endfunction()
