@@ -139,10 +139,7 @@ typedef struct {
   uint8_t daddr;
   uint8_t ep_addr;
   uint8_t speed;
-  uint8_t mult;
-  uint8_t hub_addr;
-  uint8_t hub_port;
-  uint16_t packet_size;
+  uint16_t max_xfer_bytes;
   uint32_t interval;
   uint32_t next_uframe;
   uint8_t head;
@@ -581,10 +578,6 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
       list_head = list_get_period_head(rhport, p_qhd->interval_ms);
       break;
 
-    case TUSB_XFER_ISOCHRONOUS:
-      // TODO iso is not supported
-      break;
-
     default:
       break;
   }
@@ -839,10 +832,7 @@ static bool iso_ep_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t cons
   tu_memclr(ep, sizeof(*ep));
   ep->ep_addr = desc->bEndpointAddress;
   ep->speed = bus.speed;
-  ep->packet_size = mps;
-  ep->mult = mult;
-  ep->hub_addr = hub_addr;
-  ep->hub_port = hub_port;
+  ep->max_xfer_bytes = (uint16_t) (mps * mult);
   ep->interval = (1u << (desc->bInterval - 1)) * (bus.speed == TUSB_SPEED_FULL ? 8u : 1u);
   // Keep the extended counter congruent to FRINDEX even when ISO was disabled.
   if (!(ehci_data.regs->inten & EHCI_INT_MASK_NXP_SOF)) {
@@ -868,13 +858,13 @@ static bool iso_ep_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t cons
       if (ep->speed == TUSB_SPEED_HIGH) {
         // Endpoint fields share the low bits of the buffer page pointers.
         td->itd.BufferPointer[0] = ep->daddr | (tu_edpt_number(ep->ep_addr) << 8);
-        td->itd.BufferPointer[1] = ep->packet_size | (dir << 11);
-        td->itd.BufferPointer[2] = ep->mult;
+        td->itd.BufferPointer[1] = mps | (dir << 11);
+        td->itd.BufferPointer[2] = mult;
       } else {
         td->sitd.dev_addr = ep->daddr;
         td->sitd.ep_number = tu_edpt_number(ep->ep_addr);
-        td->sitd.hub_addr = ep->hub_addr;
-        td->sitd.port_number = ep->hub_port;
+        td->sitd.hub_addr = hub_addr;
+        td->sitd.port_number = hub_port;
         td->sitd.direction = dir;
         td->sitd.back.terminate = 1;
         if (dir == TUSB_DIR_IN && !ehci_data.iso_frame_offset) {
@@ -1060,7 +1050,7 @@ static void iso_arm(iso_ep_t* ep, iso_req_t* req, uint32_t now) {
 }
 
 static bool iso_xfer(uint8_t rhport, iso_ep_t* ep, uint8_t* buffer, uint16_t buflen) {
-  TU_VERIFY(ep->count < CFG_TUH_XFER_QUEUE_DEPTH && buflen <= ep->packet_size * ep->mult);
+  TU_VERIFY(ep->count < CFG_TUH_XFER_QUEUE_DEPTH && buflen <= ep->max_xfer_bytes);
   TU_VERIFY(buffer != NULL || buflen == 0);
   if (buflen != 0) {
     if (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN) {
@@ -1657,10 +1647,6 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
         p_qhd->fl_int_cmask = 0x1c; // 0b11100
         p_qhd->interval_ms = interval;
       }
-      break;
-
-    case TUSB_XFER_ISOCHRONOUS:
-      // TODO not support ISO yet
       break;
 
     default: break;

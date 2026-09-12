@@ -408,7 +408,7 @@ static void test_descriptor_reuse(void) {
         for (unsigned round = 0; round < 16; round++) {
           req->scheduled_uframe = round * FRAMELIST_SIZE * 8 + (hs ? round & 7 : 0);
           req->buffer = buffer + ((round & 1) ? 0 : 4095);
-          req->buflen = round % 3 == 0 ? mps * ep->mult : (round % 3 == 1 ? 192 : 0);
+          req->buflen = round % 3 == 0 ? mps * (hs ? 3 : 1) : (round % 3 == 1 ? 192 : 0);
           req->armed = false;
           iso_arm(ep, req, req->scheduled_uframe - 2);
           assert(req->armed);
