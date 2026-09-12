@@ -575,11 +575,15 @@ static uint8_t* audioh_packet_buffer(tuh_audio_stream_t* s, uint8_t slot) {
   return s->dir == TUSB_DIR_IN ? _audioh_epbuf[s->idx].packet[slot].epin :
                                 _audioh_epbuf[s->idx].packet[slot].epout;
 }
+#endif
 
 static bool audioh_stream_capture_xfer(tuh_audio_stream_t *s) {
   const audioh_as_config_t *as = audioh_stream_active_as(s);
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
   TU_VERIFY(s->packet_count < CFG_TUH_XFER_QUEUE_DEPTH, false);
+#endif
   TU_VERIFY(usbh_edpt_claim(s->daddr, as->ep_addr), false);
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
   uint8_t const slot = (s->packet_head + s->packet_count) % CFG_TUH_XFER_QUEUE_DEPTH;
   s->packet_count++;
   if (!usbh_edpt_xfer(s->daddr, as->ep_addr, audioh_packet_buffer(s, slot), as->ep_size)) {
@@ -587,14 +591,10 @@ static bool audioh_stream_capture_xfer(tuh_audio_stream_t *s) {
     return false;
   }
   return true;
-}
 #else
-static bool audioh_stream_capture_xfer(tuh_audio_stream_t *s) {
-  const audioh_as_config_t *as = audioh_stream_active_as(s);
-  TU_VERIFY(usbh_edpt_claim(s->daddr, as->ep_addr), false);
   return usbh_edpt_xfer(s->daddr, as->ep_addr, s->edpt.ep_buf, as->ep_size);
-}
 #endif
+}
 
 static bool audioh_stream_playback_xfer(tuh_audio_stream_t *s) {
   const audioh_as_config_t *as       = audioh_stream_active_as(s);
