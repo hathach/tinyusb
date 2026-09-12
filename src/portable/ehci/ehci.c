@@ -1315,7 +1315,7 @@ TU_ATTR_ALWAYS_INLINE static inline
 void port_connect_status_change_isr(uint8_t rhport) {
   // NOTE There is an sequence plug->unplug->…..-> plug if device is powering with pre-plugged device
   if ( ehci_data.regs->portsc_bm.current_connect_status ) {
-    hcd_port_reset(rhport);
+    // USBH resets the port after connection debounce.
     hcd_event_device_attach(rhport, true);
   } else // device unplugged
   {
