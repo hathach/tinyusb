@@ -81,7 +81,7 @@ extern "C" {
 
 #define CFG_TUH_ENUMERATION_BUFSIZE 512
 
-#define CFG_TUH_HUB                 0
+#define CFG_TUH_HUB                 1
 #define CFG_TUH_CDC                 0
 #define CFG_TUH_HID                 0
 #define CFG_TUH_MSC                 0
@@ -95,6 +95,10 @@ extern "C" {
 #define CFG_TUH_DEVICE_MAX (3 * CFG_TUH_HUB + 1)
 
 //------------- Audio Host Config -------------//
+// Use the HCD's queue capacity, resolved by tusb_option.h after this config.
+#ifndef CFG_TUH_XFER_QUEUE_DEPTH
+  #define CFG_TUH_XFER_QUEUE_DEPTH TUP_HCD_XFER_QUEUE_DEPTH
+#endif
 #define CFG_TUH_AUDIO_MAX           1
 #define CFG_TUH_AUDIO_EPIN_BUFSIZE  256 // max capture transfer the application submits
 #define CFG_TUH_AUDIO_EPOUT_BUFSIZE 256 // max playback transfer the application submits

@@ -24,6 +24,7 @@ The echo needs a matching S16_LE playback stream at the capture sample rate; dev
 
 ## Limitations and trade-offs
 
+- FS audio behind an HS hub on ChipIdea EHCI uses a fixed best-effort split schedule. With a mic or explicit feedback IN endpoint active, OUT packets above 376 bytes overlap the IN start slot; the HCD currently accepts these sizes, so successful submission does not establish schedulability. This example's 256-byte endpoint buffers impose a smaller packet limit. See the [EHCI scheduling notes](../../../src/portable/ehci/ehci.c) before increasing buffers or using additional endpoints on the same transaction translator.
 - Explicit feedback endpoints are supported with both 10.14 and 16.16 feedback values. An implicit-feedback IN endpoint is treated as an ordinary audio-data endpoint and is not used to pace playback.
 - UAC1 Type I Format descriptors with `bSamFreqType == 0` are unsupported; the driver requires a list of discrete sampling frequencies.
 - UAC2 supports direct Clock Sources. Clock Selectors, Clock Multipliers, Sampling Rate Converters, Clock Validity, and Valid Alternate Settings controls are not handled.
