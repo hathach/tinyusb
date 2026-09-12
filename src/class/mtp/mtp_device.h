@@ -82,7 +82,9 @@ bool tud_mtp_mounted(void);
 // send data phase
 bool tud_mtp_data_send(mtp_container_info_t* p_container);
 
-// receive data phase
+// receive data phase. On the first call, header->len is the expected total length of the data block
+// (header + payload); set it to 0xFFFFFFFF when the host did not declare a size (e.g. SendObject after
+// an ObjectInfo with ObjectCompressedSize 0 or 0xFFFFFFFF), then a short packet ends the phase.
 bool tud_mtp_data_receive(mtp_container_info_t* p_container);
 
 // send response
