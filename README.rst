@@ -281,7 +281,9 @@ Supported CPUs
 |              |    +------------------------+--------+------+-----------+------------------------+--------------------+
 |              |    | 105, 107               | ✅     | ✅   | ❌        | dwc2                   |                    |
 |              +----+------------------------+--------+------+-----------+------------------------+--------------------+
-|              | F2, F4, F7, H7, H7RS        | ✅     | ✅   | ✅        | dwc2                   |                    |
+|              | F2, F4, H7, H7RS            | ✅     | ✅   | ✅        | dwc2                   |                    |
+|              +-----------------------------+--------+------+-----------+------------------------+--------------------+
+|              | F7                          | ✅     | ✅   | ✅        | dwc2                   | LS hub issue [3]_  |
 |              +-----------------------------+--------+------+-----------+------------------------+--------------------+
 |              | C0, C5, G0, H5, U3          | ✅     | ✅   | ❌        | stm32_fsdev            | 2KB USB RAM        |
 |              +-----------------------------+--------+------+-----------+------------------------+--------------------+
@@ -328,6 +330,7 @@ Table Legend
 
 .. [1] NRND (Not Recommended for New Design), see `NXP LPC54600 issues <docs/reference/device_issues.rst#nxp-lpc54600>`_
 .. [2] ISO data loss, see `WCH CH32F20x/CH32V20x/CH32V30x issues <docs/reference/device_issues.rst#wch-ch32f20x-ch32v20x-ch32v30x>`_
+.. [3] Low-speed device through hub limitation, see `STM32F7 issues <docs/reference/device_issues.rst#stmicroelectronics-stm32f7>`_
 
 Development Tools
 -----------------
