@@ -6,16 +6,15 @@ export const meta = {
 }
 
 // args: { boards: string[], hilBoards?: string[], examples?: string, base?: string,
-//         skip?: string[], reviewProvider?: 'codex'|'claude'|'all' }
+//         skip?: string[], maxCycles?: number }
 if (typeof args === 'string') { try { args = JSON.parse(args) } catch { /* not JSON: shape check below reports it */ } }
 if (!args || !Array.isArray(args.boards) || args.boards.length === 0) {
-  throw new Error('args must be { boards: string[], hilBoards?, examples?, base?, skip?, reviewProvider? }')
+  throw new Error('args must be { boards: string[], hilBoards?, examples?, base?, skip?, maxCycles? }')
 }
 
 phase('Software')
 const software = await workflow('validate', {
-  boards: args.boards, examples: args.examples, base: args.base, skip: args.skip,
-  reviewProvider: args.reviewProvider,
+  boards: args.boards, examples: args.examples, base: args.base, skip: args.skip, maxCycles: args.maxCycles,
 })
 if (!software || !software.pass) {
   log('software validation failed — skipping HIL')

@@ -291,13 +291,11 @@ const fixAndVerify = async (workIn) => {
       // A broken build is already fatal below, so skip the verifier: its verdict
       // could not change the outcome and it is the expensive step here.
       if (fix.buildOk === false) return verdictOf(fix, w, false, 'targeted build failed')
-      return workflow('code-verify', {
-        prompt: `${IN_CHECKOUT}Verify the uncommitted changes for ${scopeOf(w)} (use git diff -- <the files above>, and read any newly created untracked files directly) address these issues:\n- ${textOf(w)}\n` +
+      return agent(
+        `${IN_CHECKOUT}Verify the uncommitted changes for ${scopeOf(w)} (use git diff -- <the files above>, and read any newly created untracked files directly) address these issues:\n- ${textOf(w)}\n` +
         'Return {"addresses": bool, "reason": string}.',
-        label: `check:${w.key}`,
-        role: 'finding-verifier',
-        schema: CHECK,
-      }).catch(() => null)
+        { label: `check:${w.key}`, phase: 'Fix', agentType: 'finding-verifier', schema: CHECK },
+      ).catch(() => null)
         .then(v => verdictOf(fix, w, !!(v && v.addresses), v ? v.reason : 'verifier died'))
     },
   )
@@ -378,7 +376,7 @@ const cycleSummary = (entry) => {
       cell(f.source, 16),
       cell(`${f.file}:${f.line} ${f.claim}`),
       cell(f.overturned ? 'overturned' : f.verdict, 8),
-      valid ? cell((f.overturned ? 'claude refuted → codex overturned, ' : '') +
+      valid ? cell((f.overturned ? 'refuted, then overturned, ' : '') +
         fixCell(entry.reviewFixes, f.commentId, entry.reviewPush, entry.reviewPushFailed), 60)
         : cell(`${f.verdict === 'stale' ? 'already fixed' : 'refuted'}, ${
           answerState(f.commentId)}`, 60),
@@ -440,9 +438,6 @@ const runCycle = async (cycle, entry) => {
       (owedLastCycle.length > 0
         ? 'These comments still owe an answer from an earlier cycle; report their findings again ' +
           `so they can be reconciled: ${JSON.stringify(owedLastCycle)}. ` : '')
-    // Claude, not Codex: the whole procedure is `gh`, and the read-only sandbox
-    // the Codex launcher enforces has no network, so a Codex-hosted validator
-    // reports an empty harvest as a settled one.
     const r = await agent(reviewPrompt, {
       label: `reviews#${cycle}`, phase: 'Triage', agentType: 'pr-review-validator', schema: REVIEWS,
     }).catch(e => { log(`cycle ${cycle}: review validator errored — ${e && e.message}`); return null })
@@ -473,19 +468,18 @@ const runCycle = async (cycle, entry) => {
         id, commentId: f.commentId, file: f.file, line: f.line,
         claim: f.claim, verdict: f.verdict, reason: f.reason,
       }))
-      const ch = await workflow('code-verify', {
-        provider: 'codex',
-        label: `challenge#${cycle}`,
-        role: 'finding-verifier',
-        schema: CHALLENGE,
-        prompt: `${IN_CHECKOUT}Another reviewer dismissed these findings on PR #${args.pr}; each ` +
+      // The challenger is a second Claude role, not an independent model: an
+      // independent second opinion is the chief session's coworker lane.
+      const ch = await agent(
+        `${IN_CHECKOUT}Another reviewer dismissed these findings on PR #${args.pr}; each ` +
           "dismissal is about to be posted publicly and will close the reviewer's thread. " +
           'For every id, decide whether the dismissal holds. upheld=true means the dismissal is ' +
           'correct and the finding really is invalid or already fixed; upheld=false means the ' +
           'finding is real and must be fixed, and reason is the evidence that shows it. ' +
           'Return exactly one verdict per submitted id and no others.\n' +
           `Findings: ${JSON.stringify(submitted)}.`,
-      }).catch(e => { log(`cycle ${cycle}: challenger errored — ${e && e.message}`); return null })
+        { label: `challenge#${cycle}`, phase: 'Triage', agentType: 'finding-verifier', schema: CHALLENGE },
+      ).catch(e => { log(`cycle ${cycle}: challenger errored — ${e && e.message}`); return null })
 
       // ids are indexes into contested, so a bad one indexes to undefined.
       const seen = new Set()

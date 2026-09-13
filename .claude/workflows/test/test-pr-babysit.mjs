@@ -55,6 +55,20 @@ async function run(opts = {}) {
       if (opts.push === null) return { pass: false, committed: true, detail: 'push rejected', sha: '' }
       return { pass: true, committed: true, detail: 'pushed to claude/foo', sha: SHA, ...opts.push }
     }
+    if (label.startsWith('challenge#')) {
+      assert.equal(options.agentType, 'finding-verifier')
+      if (opts.challengePerCycle) return opts.challengePerCycle()
+      if (!('challenge' in opts)) {
+        // default: uphold every submitted dismissal, i.e. today's behaviour
+        const ids = [...String(prompt).matchAll(/"id":(\d+)/g)].map(m => Number(m[1]))
+        return { verdicts: ids.map(id => ({ id, upheld: true, reason: 'stands' })) }
+      }
+      return opts.challenge === null ? null : structuredClone(opts.challenge)
+    }
+    if (label.startsWith('check:')) {
+      assert.equal(options.agentType, 'finding-verifier')
+      return structuredClone(opts.verify ?? { addresses: true, reason: 'verified' })
+    }
     throw new Error(`unstubbed agent label ${label}`)
   }
   // Match the host's pipeline: every item's first stage runs concurrently, each
@@ -62,26 +76,7 @@ async function run(opts = {}) {
   const pipeline = (items, first, second) =>
     Promise.all(items.map(async item => second(await first(item), item)))
   const parallel = (thunks) => Promise.all(thunks.map(fn => fn()))
-  const workflowCalls = []
-  const workflow = async (name, wargs) => {
-    workflowCalls.push({
-      name,
-      label: (wargs && wargs.label) || '',
-      prompt: (wargs && wargs.prompt) || '',
-      provider: wargs && wargs.provider,
-      role: wargs && wargs.role,
-    })
-    if (String((wargs && wargs.label) || '').startsWith('challenge#')) {
-      if (opts.challengePerCycle) return opts.challengePerCycle()
-      if (!('challenge' in opts)) {
-        // default: uphold every submitted dismissal, i.e. today's behaviour
-        const ids = [...String(wargs.prompt).matchAll(/"id":(\d+)/g)].map(m => Number(m[1]))
-        return { verdicts: ids.map(id => ({ id, upheld: true, reason: 'stands' })) }
-      }
-      return opts.challenge === null ? null : structuredClone(opts.challenge)
-    }
-    return structuredClone(opts.verify ?? { addresses: true, reason: 'verified' })
-  }
+  const workflow = async () => { throw new Error('pr-babysit cannot nest a workflow') }
 
   // nap()'s real delay is minutes; fire it immediately and record where in the
   // log stream it happened.
@@ -93,7 +88,7 @@ async function run(opts = {}) {
     const result = await fn(
       { pr: 3888, maxCycles: 1, autoPush: true, ...opts.args },
       agent, pipeline, parallel, () => {}, (m) => logs.push(String(m)), workflow, null)
-    return { result, logs, labels: calls.map(c => c.label), calls, napPoints, workflowCalls }
+    return { result, logs, labels: calls.map(c => c.label), calls, napPoints }
   } finally {
     globalThis.setTimeout = realTimeout
   }
@@ -197,15 +192,13 @@ await check('a dead code-writer withholds the fix', async () => {
 })
 
 await check('a fix the verifier rejects is reported unverified, not pushed', async () => {
-  const { result, logs, labels, workflowCalls } = await run({
+  const { result, logs, labels, calls } = await run({
     reviews: oneValid, verify: { addresses: false, reason: 'does not address the claim' },
   })
   assert.equal(result.reason, 'fix-verification-failed')
   assert.equal(labels.some(l => l.startsWith('push#')), false)
   assert.match(rowsOf(summaries(logs)[0])[0][3], /unverified: does not address the claim/)
-  const checkCall = workflowCalls.find(w => w.label.startsWith('check:'))
-  assert.equal(checkCall.name, 'code-verify')
-  assert.equal(checkCall.role, 'finding-verifier')
+  assert.equal(calls.find(c => c.label.startsWith('check:')).agentType, 'finding-verifier')
 })
 
 await check('a dry run leaves the fix uncommitted', async () => {
@@ -318,39 +311,24 @@ await check('the pending-bot backoff is taken after the cycle summary', async ()
   assert.ok(napPoints[0] > firstSummaryAt, 'cycle 1 reported before the wait, not after it')
 })
 
-await check('reviews never route to the Codex bridge', async () => {
-  // The validator's whole procedure is `gh`, and the launcher's read-only
-  // sandbox has no network: a Codex-hosted run reports an empty harvest as a
-  // settled one rather than failing. It must not be reachable from here.
+await check('reviews go to the validator role directly', async () => {
   const { calls } = await run()
   const reviews = calls.find(c => c.label.startsWith('reviews#'))
   assert.equal(reviews.agentType, 'pr-review-validator')
-  assert.equal(reviews.prompt.includes('"role"'), false)
-  assert.equal(calls.some(c => c.agentType === 'codex-agent'), false)
-  assert.doesNotMatch(WORKFLOW_SRC, /pr-review-validator['"]?\s*,\s*prompt|role: 'pr-review-validator'/)
+  assert.doesNotMatch(WORKFLOW_SRC, /workflow\(|codex-agent/)
 })
 
 const invalidFinding = (over = {}) => finding({ verdict: 'invalid', ...over })
 
-await check('a Claude validator is challenged by Codex, not left unchecked', async () => {
-  // The challenge protects the act of publicly refuting a reviewer. Validation
-  // is Claude's, so the check on it uses Codex with local evidence.
-  const { workflowCalls } = await run({
+await check('every dismissal is challenged before it is posted', async () => {
+  // The challenge protects the act of publicly refuting a reviewer. It is a
+  // second Claude role; an independent model is the chief session's coworker lane.
+  const { calls } = await run({
     reviews: { findings: [invalidFinding()], replies: [{ commentId: 1, body: 'no' }], done: true },
   })
-  const ch = workflowCalls.find(w => w.label.startsWith('challenge#'))
-  assert.ok(ch, 'a Claude-validated refutation must still be challenged')
-  assert.equal(ch.provider, 'codex')
-})
-
-await check('the challenge routes through code-verify', async () => {
-  const { workflowCalls } = await run({
-    reviews: { findings: [invalidFinding()], replies: [{ commentId: 1, body: 'no' }], done: true },
-  })
-  const ch = workflowCalls.find(w => w.label.startsWith('challenge#'))
-  assert.ok(ch, 'expected a challenge stage')
-  assert.equal(ch.name, 'code-verify')
-  assert.equal(ch.role, 'finding-verifier')
+  const ch = calls.find(c => c.label.startsWith('challenge#'))
+  assert.ok(ch, 'a validated refutation must still be challenged')
+  assert.equal(ch.agentType, 'finding-verifier')
 })
 
 await check('an upheld refutation still replies and resolves', async () => {
@@ -495,10 +473,10 @@ await check('the summary marks an overturned finding', async () => {
     challenge: { verdicts: [{ id: 0, upheld: false, reason: 'real' }] },
     args: { autoPush: true, maxCycles: 1 },
   })
-  // Named in the order the decision was made: Claude validates and refutes,
-  // Codex challenges that dismissal and overturns it.
-  assert.ok(logs.some(l => l.includes('claude refuted → codex overturned')),
-    'cycle table must show the overturn, with the providers in the order they acted')
+  // Named in the order the decision was made: the validator refutes, the
+  // challenger overturns that dismissal.
+  assert.ok(logs.some(l => l.includes('refuted, then overturned')),
+    'cycle table must show the overturn in the order the roles acted')
 })
 
 await check('a deferred obligation is cleared only by a posted reply', async () => {

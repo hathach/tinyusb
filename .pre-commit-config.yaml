@@ -89,10 +89,10 @@ repos:
     entry: node .claude/workflows/test/test-hil-validate.mjs
     pass_filenames: false
     language: system
-  - id: code-verify-logic
-    name: code-verify-logic
-    files: ^\.claude/(workflows/|codex-agent\.py$|agents/codex-agent\.md$)
-    entry: node .claude/workflows/test/test-code-verify.mjs
+  - id: workflow-logic
+    name: workflow-logic
+    files: ^\.claude/workflows/
+    entry: node .claude/workflows/test/test-workflows.mjs
     pass_filenames: false
     language: system
   - id: pr-babysit-logic
@@ -112,7 +112,7 @@ repos:
   # relying on it being installed system-wide.
   - id: claude-scripts
     name: claude-scripts
-    files: ^\.claude/(codex-agent\.py|skills/.*/(scripts/|SKILL\.md)|test/)
+    files: ^\.claude/(skills/.*/(scripts/|SKILL\.md)|test/)
     entry: python3 -m unittest discover -s .claude/test -p 'test_*.py'
     pass_filenames: false
     language: python

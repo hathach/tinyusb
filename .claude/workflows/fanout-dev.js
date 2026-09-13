@@ -139,12 +139,11 @@ const results = await pipeline(
 
   (r, item) => {
     if (!r || !args.review) return r
-    return workflow('code-verify', {
-      prompt: `Review the uncommitted change in ${item} (inspect staged and unstaged changes with git diff HEAD -- ${item}, and read task-owned untracked files) against this task:\n${args.task}\n` +
+    return agent(
+      `Review the uncommitted change in ${item} (inspect staged and unstaged changes with git diff HEAD -- ${item}, and read task-owned untracked files) against this task:\n${args.task}\n` +
       'Dimension: does the diff correctly and completely implement the task with no unintended side effects? Coverage-first findings.',
-      label: `review:${short(item)}`,
-      schema: FINDINGS,
-    }).catch(() => null).then(f => {
+      { label: `review:${short(item)}`, phase: 'Verify', agentType: 'code-verifier', schema: FINDINGS },
+    ).catch(() => null).then(f => {
       // review: array = findings; null = reviewer died; absent = not requested
       if (!f) log(`review:${short(item)}: reviewer agent died`)
       return { ...r, review: f ? f.findings : null }
