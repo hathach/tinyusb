@@ -778,7 +778,7 @@ function(family_flash_pyocd TARGET)
 endfunction()
 
 
-# Add flash with https://probe-rs.rs
+# Add flash with https://probe.rs
 function(family_flash_probe_rs TARGET)
   if (NOT DEFINED PROBE_RS)
     set(PROBE_RS probe-rs)

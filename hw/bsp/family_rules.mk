@@ -138,7 +138,7 @@ flash-openocd: $(BUILD)/$(PROJECT).elf
 	$(OPENOCD) $(OPENOCD_OPTION) -c "program $< verify reset exit"
 
 # --------------- probe-rs -----------------
-# flash with https://probe-rs.rs
+# flash with https://probe.rs
 PROBE_RS ?= probe-rs
 PROBE_RS_OPTION ?=
 flash-probe-rs: $(BUILD)/$(PROJECT).elf
