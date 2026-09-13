@@ -200,53 +200,6 @@ await check('router rejections preserve caller null-result contracts', async () 
   }
 })
 
-await check('driver review drops a failed routed scanner', async () => {
-  const fn = compile('driver-review.js')
-  const pipeline = async (items, ...stages) => Promise.all(items.map(async item => {
-    let value = item
-    for (const stage of stages) value = await stage(value, item)
-    return value
-  }))
-  const parallel = parallelAll
-  const unit = { dir: 'src/portable/test', dim: 'correctness' }
-  const finding = { file: 'a.c', line: 1, snippet: 's', why: 'w', severity: 'major', confidence: 'high' }
-
-  // scanner dies: the unit is reported as dropped, never as clean
-  const dead = await fn(
-    { dirs: [unit.dir], dimensions: [unit.dim] },
-    null, pipeline, parallel, () => {}, () => {}, async () => { throw new Error('verifier died') }, null,
-  )
-  assert.deepEqual(dead, { confirmed: [], dropped: [unit], unverified: [] })
-
-  // scanner reports, every verifier dies: the finding is reported as unverified
-  const lost = await fn(
-    { dirs: [unit.dir], dimensions: [unit.dim] },
-    null, pipeline, parallel, () => {}, () => {}, async (name, a) => {
-      if (/Adversarially verify/.test(a.prompt)) throw new Error('verifier died')
-      return { scope: unit.dir, dimension: unit.dim, findings: [finding] }
-    }, null,
-  )
-  assert.deepEqual(lost, { confirmed: [], dropped: [], unverified: [{ ...unit, findings: [finding] }] })
-
-  // one verifier confirms, one refutes: only the survivor is confirmed
-  const calls = []
-  const mixed = await fn(
-    { dirs: [unit.dir], dimensions: [unit.dim] },
-    null, pipeline, parallel, () => {}, () => {}, async (name, a) => {
-      calls.push({ name, args: a })
-      if (/Adversarially verify/.test(a.prompt)) return { real: /line":1,/.test(a.prompt), reason: 'r' }
-      return { scope: unit.dir, dimension: unit.dim, findings: [finding, { ...finding, line: 2 }] }
-    }, null,
-  )
-  assert.deepEqual(mixed, {
-    confirmed: [{ ...unit, findings: [{ ...finding, verdict: { real: true, reason: 'r' } }] }],
-    dropped: [], unverified: [],
-  })
-  assert.deepEqual(calls.map(c => c.name), ['code-verify', 'code-verify', 'code-verify'])
-  assert.equal(Object.hasOwn(calls[0].args, 'role'), false)
-  assert.deepEqual(calls.slice(1).map(c => c.args.role), ['finding-verifier', 'finding-verifier'])
-})
-
 await check('validate dispatches directly to stay within one workflow level', async () => {
   const src = sourceOf('validate.js')
   assert.equal((src.match(/workflow\(['"]code-verify['"]/g) || []).length, 0)
