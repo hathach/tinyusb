@@ -214,7 +214,7 @@ const groupWork = (notes) => {
 }
 
 // Fix + verify one work list; returns { ok, fixes } — ok only if every group
-// was scoped, fixed by a live worker, AND passed code-verifier verification.
+// was scoped, fixed by a live worker, AND passed finding-verifier verification.
 const fixAndVerify = async (workIn) => {
   const textOf = (w) => w.notes.map(n => n.text).join('\n- ')
   // The note ids ride along on the fix so the cycle summary can say which
@@ -295,6 +295,7 @@ const fixAndVerify = async (workIn) => {
         prompt: `${IN_CHECKOUT}Verify the uncommitted changes for ${scopeOf(w)} (use git diff -- <the files above>, and read any newly created untracked files directly) address these issues:\n- ${textOf(w)}\n` +
         'Return {"addresses": bool, "reason": string}.',
         label: `check:${w.key}`,
+        role: 'finding-verifier',
         schema: CHECK,
       }).catch(() => null)
         .then(v => verdictOf(fix, w, !!(v && v.addresses), v ? v.reason : 'verifier died'))
@@ -475,6 +476,7 @@ const runCycle = async (cycle, entry) => {
       const ch = await workflow('code-verify', {
         provider: 'codex',
         label: `challenge#${cycle}`,
+        role: 'finding-verifier',
         schema: CHALLENGE,
         prompt: `${IN_CHECKOUT}Another reviewer dismissed these findings on PR #${args.pr}; each ` +
           "dismissal is about to be posted publicly and will close the reviewer's thread. " +

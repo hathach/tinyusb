@@ -34,7 +34,7 @@ async function run(args, provided = answers, wrap = ENVELOPE) {
   const calls = []
   let parallelCalls = 0
   const agent = async (prompt, options) => {
-    const provider = options.agentType === 'code-verifier' ? 'claude'
+    const provider = ['code-verifier', 'finding-verifier'].includes(options.agentType) ? 'claude'
       : options.agentType === 'codex-agent' ? 'codex' : 'unknown'
     calls.push({ provider, prompt, options })
     const answer = provided[provider]
@@ -72,7 +72,7 @@ await check('defaults to codex', async () => {
   assert.deepEqual(calls[0].options.schema.required, ['job', 'thread', 'status', 'result'])
   assert.deepEqual(calls[0].options.schema.properties.status, { enum: ['ok', 'timeout'] })
   assert.deepEqual(calls[0].options.schema.properties.result.anyOf, [RESULT, { type: 'null' }])
-  assert.deepEqual(JSON.parse(calls[0].prompt), { prompt: 'review', schema: RESULT })
+  assert.deepEqual(JSON.parse(calls[0].prompt), { prompt: 'review', schema: RESULT, role: 'code-verifier' })
 })
 
 await check('a codex reply without provenance means codex did not run', async () => {
@@ -102,6 +102,39 @@ await check('runs all providers independently', async () => {
   assert.deepEqual(result, { codex: answers.codex, claude: answers.claude })
   assert.deepEqual(calls.map(c => c.provider).sort(), ['claude', 'codex'])
   assert.equal(parallelCalls, 1)
+})
+
+await check('both roles propagate through codex, claude and fallback', async () => {
+  for (const role of ['code-verifier', 'finding-verifier']) {
+    for (const provider of ['codex', 'claude', 'all']) {
+      const { result, calls } = await run({ prompt: 'verify', schema: RESULT, provider, role })
+      assert.deepEqual(result, provider === 'all' ? answers : answers[provider])
+      for (const call of calls) {
+        if (call.provider === 'codex') {
+          assert.deepEqual(JSON.parse(call.prompt), { prompt: 'verify', schema: RESULT, role })
+        } else {
+          assert.equal(call.options.agentType, role)
+        }
+      }
+    }
+    const { result, calls } = await run(
+      { prompt: 'verify', schema: RESULT, role }, { ...answers, codex: null })
+    assert.deepEqual(result, answers.claude)
+    assert.equal(JSON.parse(calls[0].prompt).role, role)
+    assert.equal(calls[1].options.agentType, role)
+    assert.equal(calls[1].options.label, 'code-verifier:claude-fallback')
+  }
+})
+
+await check('unknown roles are rejected before any agent call', async () => {
+  for (const role of ['', 'code-writer', '../code-verifier', null, 1, {}]) {
+    let calls = 0
+    await assert.rejects(compile('code-verify.js')(
+      { prompt: 'verify', schema: RESULT, role }, async () => { calls++ },
+      null, parallelAll, () => {}, () => {}, null, null,
+    ), /role must be code-verifier or finding-verifier/)
+    assert.equal(calls, 0)
+  }
 })
 
 await check('rejects invalid input before dispatch', async () => {
@@ -155,7 +188,7 @@ await check('only validate bypasses the router for one-level nesting', async () 
   assert.ok(sourceOf('code-verify.js'), 'workflow scan must target its parent directory')
   const offenders = WORKFLOW_SRC
     .filter(([name]) => !['code-verify.js', 'validate.js'].includes(name))
-    .filter(([, src]) => /agentType:\s*['"](?:codex-)?code-verifier['"]/.test(src))
+    .filter(([, src]) => /agentType:\s*['"](?:code-verifier|finding-verifier|codex-code-verifier)['"]/.test(src))
     .map(([name]) => name)
   assert.deepEqual(offenders, [])
 })
@@ -196,9 +229,11 @@ await check('driver review drops a failed routed scanner', async () => {
   assert.deepEqual(lost, { confirmed: [], dropped: [], unverified: [{ ...unit, findings: [finding] }] })
 
   // one verifier confirms, one refutes: only the survivor is confirmed
+  const calls = []
   const mixed = await fn(
     { dirs: [unit.dir], dimensions: [unit.dim] },
     null, pipeline, parallel, () => {}, () => {}, async (name, a) => {
+      calls.push({ name, args: a })
       if (/Adversarially verify/.test(a.prompt)) return { real: /line":1,/.test(a.prompt), reason: 'r' }
       return { scope: unit.dir, dimension: unit.dim, findings: [finding, { ...finding, line: 2 }] }
     }, null,
@@ -207,6 +242,9 @@ await check('driver review drops a failed routed scanner', async () => {
     confirmed: [{ ...unit, findings: [{ ...finding, verdict: { real: true, reason: 'r' } }] }],
     dropped: [], unverified: [],
   })
+  assert.deepEqual(calls.map(c => c.name), ['code-verify', 'code-verify', 'code-verify'])
+  assert.equal(Object.hasOwn(calls[0].args, 'role'), false)
+  assert.deepEqual(calls.slice(1).map(c => c.args.role), ['finding-verifier', 'finding-verifier'])
 })
 
 await check('validate dispatches directly to stay within one workflow level', async () => {
@@ -311,6 +349,7 @@ await check('validate reviews with codex unless claude is explicitly selected', 
     const agent = async (prompt, options) => {
       calls.push(options.agentType)
       if (options.agentType === 'builder') return { board: 'test', pass: true, builtCount: 1, failures: [] }
+      if (options.agentType === 'codex-agent') assert.equal(Object.hasOwn(JSON.parse(prompt), 'role'), false)
       const review = { pass: true, detail: options.agentType, findings: [] }
       return options.agentType === 'codex-agent' ? ENVELOPE(review) : review
     }
@@ -421,6 +460,7 @@ await check('fanout simplifies once after all writers and before verification', 
     }
     const workflow = async (name, args) => {
       assert.equal(name, 'code-verify')
+      assert.equal(Object.hasOwn(args, 'role'), false)
       assert.ok(events.includes(args.label.replace('review:', 'verify:')))
       assert.match(args.prompt, /git diff HEAD/)
       events.push(args.label)
@@ -467,16 +507,17 @@ await check('the retired bridge is referenced nowhere', async () => {
   for (const [name, src] of WORKFLOW_SRC) assert.doesNotMatch(src, /codex-code-verifier/, name)
 })
 
-await check('every codex-agent dispatch sends the bridge shape and nothing that steers it', async () => {
-  // The bridge runs one fixed command line for the code-verifier role, so a
-  // dispatch may carry only prompt, schema and the review switch. A `role`
-  // or `sandbox` field would be silently ignored today and would invite the
-  // bridge to grow an input it must not have.
+await check('pr-babysit selects finding-verifier for fixes and dismissals', async () => {
+  const src = sourceOf('pr-babysit.js')
+  assert.match(src, /label: `check:\$\{w.key\}`,\s*role: 'finding-verifier'/)
+  assert.match(src, /label: `challenge#\$\{cycle\}`,\s*role: 'finding-verifier'/)
+})
+
+await check('codex-agent dispatches cannot steer the sandbox', async () => {
   const dispatches = []
   for (const [name, src] of WORKFLOW_SRC) {
     if (!/agentType:\s*['"]codex-agent['"]/.test(src)) continue
     dispatches.push(name)
-    assert.doesNotMatch(src, /\brole:\s*['"`A-Za-z_$]/, `${name} passes a role to codex-agent`)
     assert.doesNotMatch(src, /sandbox/i, `${name} mentions a sandbox near a codex-agent dispatch`)
   }
   assert.deepEqual(dispatches.sort(), ['code-verify.js', 'validate.js'])

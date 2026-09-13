@@ -1,19 +1,24 @@
 export const meta = {
   name: 'code-verify',
-  description: 'Run the canonical code-verifier with Codex (default), Claude, or all independently',
+  description: 'Run code-verifier or finding-verifier with Codex (default), Claude, or all independently',
   whenToUse: 'Nested by TinyUSB workflows that need structured code verification',
   phases: [{ title: 'Verify' }],
 }
 
-// args: { prompt: string, schema: object, provider?: 'codex'|'claude'|'all', label?: string }
+// args: { prompt: string, schema: object, provider?: 'codex'|'claude'|'all',
+//         role?: 'code-verifier'|'finding-verifier', label?: string }
 if (typeof args === 'string') { try { args = JSON.parse(args) } catch { args = null } }
 if (!args || typeof args.prompt !== 'string' || !args.prompt.trim() ||
     !args.schema || typeof args.schema !== 'object' || Array.isArray(args.schema)) {
-  throw new Error('args must be { prompt: string, schema: object, provider?, label? }')
+  throw new Error('args must be { prompt: string, schema: object, provider?, role?, label? }')
 }
 const provider = args.provider ?? 'codex'
 if (!['codex', 'claude', 'all'].includes(provider)) {
   throw new Error('provider must be codex, claude, or all')
+}
+const role = args.role === undefined ? 'code-verifier' : args.role
+if (!['code-verifier', 'finding-verifier'].includes(role)) {
+  throw new Error('role must be code-verifier or finding-verifier')
 }
 const label = args.label || 'code-verifier'
 // The launcher wraps Codex's answer with where it ran and how it ended:
@@ -33,7 +38,7 @@ const outcome = r => !r || typeof r.job !== 'string' || !r.job ? 'unavailable'
   : r.status === 'timeout' ? 'timeout'
   : r.status === 'ok' && r.thread && r.result ? 'ok' : 'unavailable'
 const runCodex = () => agent(
-  JSON.stringify({ prompt: args.prompt, schema: args.schema }), {
+  JSON.stringify({ prompt: args.prompt, schema: args.schema, role }), {
     label: `${label}:codex`, phase: 'Verify', agentType: 'codex-agent', schema: CODEX_ENVELOPE,
   }).then(r => {
   switch (outcome(r)) {
@@ -47,7 +52,7 @@ const runCodex = () => agent(
 })
 
 const runClaude = (suffix = 'claude') => agent(args.prompt, {
-  label: `${label}:${suffix}`, phase: 'Verify', agentType: 'code-verifier', schema: args.schema,
+  label: `${label}:${suffix}`, phase: 'Verify', agentType: role, schema: args.schema,
 }).then(r => {
   if (!r) throw new Error('claude verifier failed')
   return r

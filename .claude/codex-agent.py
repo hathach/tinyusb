@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Run one read-only TinyUSB code-verifier job on Codex and print its result.
+"""Run one read-only code-verifier or finding-verifier job on Codex.
 
-stdin: {"prompt": str, "schema": object, "review": bool?}
-stdout: {"job": <dir>, "thread": <codex thread id>, "result": <the JSON Codex produced>}
+stdin: {"prompt": str, "schema": object, "review": bool?, "role": str?}
+role: code-verifier (default) or finding-verifier; review selects the CLI path only.
+stdout: {"job": <dir>, "thread": <codex thread id>, "status": str, "result": object, "error": str?}
 
 Review mode (`codex exec review`) ignores --output-schema, so the contract rides
 in the prompt; when the reviewer still answers in prose, one resume turn on the
@@ -23,7 +24,7 @@ from pathlib import Path
 
 TIMEOUT = 1800  # a full-diff review at xhigh effort routinely passes 10 min
 JOBS = Path('/tmp/tinyusb-codex')
-ADAPTER = Path.home() / '.codex' / 'agents' / 'code-verifier.toml'
+ADAPTERS = Path.home() / '.codex' / 'agents'
 
 # `codex exec review` ignores --output-schema, so the contract rides in the prompt.
 OUTPUT_CONTRACT = ('Your final message must be exactly one JSON object valid '
@@ -40,13 +41,15 @@ def read_input(stream):
     data = json.load(stream)
     if not isinstance(data, dict) or not isinstance(data.get('prompt'), str) or \
             not data['prompt'].strip() or not isinstance(data.get('schema'), dict):
-        raise ValueError('input must be {"prompt": str, "schema": object, "review"?: bool}')
+        raise ValueError('input must be {"prompt": str, "schema": object, "review"?: bool, "role"?: str}')
+    if data.get('role', 'code-verifier') not in ('code-verifier', 'finding-verifier'):
+        raise ValueError('role must be code-verifier or finding-verifier')
     return data
 
 
-def role(path=None):
+def role(name='code-verifier'):
     """Load the model, effort and instructions from the user-level Codex adapter."""
-    with open(path or ADAPTER, 'rb') as f:
+    with open(ADAPTERS / f'{name}.toml', 'rb') as f:
         return tomllib.load(f)
 
 
@@ -108,7 +111,7 @@ def load_result(job):
 
 
 def run(data, root, stamp=None):
-    adapter = role()
+    adapter = role(data.get('role', 'code-verifier'))
     review = bool(data.get('review'))
     stamp = stamp or datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     job = JOBS / f'{stamp}-{os.getpid()}'

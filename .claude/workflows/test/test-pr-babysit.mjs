@@ -69,6 +69,7 @@ async function run(opts = {}) {
       label: (wargs && wargs.label) || '',
       prompt: (wargs && wargs.prompt) || '',
       provider: wargs && wargs.provider,
+      role: wargs && wargs.role,
     })
     if (String((wargs && wargs.label) || '').startsWith('challenge#')) {
       if (opts.challengePerCycle) return opts.challengePerCycle()
@@ -196,12 +197,15 @@ await check('a dead code-writer withholds the fix', async () => {
 })
 
 await check('a fix the verifier rejects is reported unverified, not pushed', async () => {
-  const { result, logs, labels } = await run({
+  const { result, logs, labels, workflowCalls } = await run({
     reviews: oneValid, verify: { addresses: false, reason: 'does not address the claim' },
   })
   assert.equal(result.reason, 'fix-verification-failed')
   assert.equal(labels.some(l => l.startsWith('push#')), false)
   assert.match(rowsOf(summaries(logs)[0])[0][3], /unverified: does not address the claim/)
+  const checkCall = workflowCalls.find(w => w.label.startsWith('check:'))
+  assert.equal(checkCall.name, 'code-verify')
+  assert.equal(checkCall.role, 'finding-verifier')
 })
 
 await check('a dry run leaves the fix uncommitted', async () => {
@@ -330,8 +334,7 @@ const invalidFinding = (over = {}) => finding({ verdict: 'invalid', ...over })
 
 await check('a Claude validator is challenged by Codex, not left unchecked', async () => {
   // The challenge protects the act of publicly refuting a reviewer. Validation
-  // is Claude's, so the check on it has to be someone else's - and code-verifier
-  // is the one role that works on Codex, reading the checkout with no network.
+  // is Claude's, so the check on it uses Codex with local evidence.
   const { workflowCalls } = await run({
     reviews: { findings: [invalidFinding()], replies: [{ commentId: 1, body: 'no' }], done: true },
   })
@@ -347,6 +350,7 @@ await check('the challenge routes through code-verify', async () => {
   const ch = workflowCalls.find(w => w.label.startsWith('challenge#'))
   assert.ok(ch, 'expected a challenge stage')
   assert.equal(ch.name, 'code-verify')
+  assert.equal(ch.role, 'finding-verifier')
 })
 
 await check('an upheld refutation still replies and resolves', async () => {

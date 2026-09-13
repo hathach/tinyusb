@@ -21,12 +21,12 @@ EVENTS = '{"type":"thread.started","thread_id":"t-42"}\n{"type":"turn.completed"
 
 
 class AdapterTest(unittest.TestCase):
-    def test_role_loads_the_toml_and_run_uses_it_by_default(self):
+    def test_run_loads_the_adapter_for_each_role_and_defaults_to_code_verifier(self):
         with tempfile.TemporaryDirectory() as tmp:
-            toml = Path(tmp) / 'code-verifier.toml'
-            toml.write_text('model = "gpt-file"\nmodel_reasoning_effort = "low"\n'
-                            'developer_instructions = "From the file.\\n"\n')
-            self.assertEqual(codex_agent.role(toml)['model'], 'gpt-file')
+            for name, effort in [('code-verifier', 'low'), ('finding-verifier', 'xhigh')]:
+                (Path(tmp) / f'{name}.toml').write_text(
+                    f'model = "{name}-model"\nmodel_reasoning_effort = "{effort}"\n'
+                    f'developer_instructions = "Read {name}.\\n"\n')
             seen = {}
 
             def fake_run(cmd, **kw):
@@ -36,12 +36,19 @@ class AdapterTest(unittest.TestCase):
                 kw['stdout'].write(EVENTS)
                 return subprocess.CompletedProcess(cmd, 0)
 
-            with mock.patch.object(codex_agent, 'ADAPTER', toml), \
+            with mock.patch.object(codex_agent, 'ADAPTERS', Path(tmp)), \
                  mock.patch.object(codex_agent, 'JOBS', Path(tmp) / 'jobs'), \
                  mock.patch.object(codex_agent.subprocess, 'run', fake_run):
-                codex_agent.run({'prompt': 'review it', 'schema': SCHEMA}, ROOT, stamp='s')
-            self.assertEqual(seen['cmd'][seen['cmd'].index('-m') + 1], 'gpt-file')
-            self.assertTrue(seen['prompt'].startswith('From the file.'))
+                for i, extra in enumerate([{}, {'role': 'code-verifier'}, {'role': 'finding-verifier'}]):
+                    name = extra.get('role', 'code-verifier')
+                    for review in (False, True):
+                        codex_agent.run({'prompt': 'review it', 'schema': SCHEMA, 'review': review, **extra},
+                                        ROOT, stamp=f'{i}-{review}')
+                        self.assertEqual(seen['cmd'][seen['cmd'].index('-m') + 1], f'{name}-model')
+                        effort = 'low' if name == 'code-verifier' else 'xhigh'
+                        self.assertIn(f'model_reasoning_effort={effort}', seen['cmd'])
+                        self.assertTrue(seen['prompt'].startswith(f'Read {name}.'))
+                        self.assertEqual(seen['cmd'][1:3], ['exec', 'review' if review else '-C'])
 
 
 class InputTest(unittest.TestCase):
@@ -57,6 +64,25 @@ class InputTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertEqual(result.stdout, '')
         self.assertIn('prompt', result.stderr)
+
+    def test_unknown_role_raises_before_loading_or_dispatching(self):
+        with mock.patch.object(codex_agent, 'role') as adapter, \
+             mock.patch.object(codex_agent.subprocess, 'run') as dispatch:
+            for name in ('', 'code-writer', '../code-verifier', None, 1, {}):
+                data = json.dumps({'prompt': 'verify it', 'schema': SCHEMA, 'role': name})
+                with mock.patch.object(sys, 'stdin', io.StringIO(data)), \
+                     self.assertRaisesRegex(ValueError, 'role must be code-verifier or finding-verifier'):
+                    codex_agent.main()
+            adapter.assert_not_called()
+            dispatch.assert_not_called()
+
+    def test_unknown_role_cli_exits_one_with_empty_stdout(self):
+        result = subprocess.run([sys.executable, str(LAUNCHER)],
+                                input=json.dumps({'prompt': 'verify it', 'schema': SCHEMA, 'role': 'code-writer'}),
+                                capture_output=True, text=True, cwd='/')
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout, '')
+        self.assertIn('ValueError: role must be code-verifier or finding-verifier', result.stderr)
 
 
 class CommandTest(unittest.TestCase):
@@ -138,7 +164,7 @@ class RunTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp, \
              mock.patch.object(codex_agent, 'JOBS', Path(tmp)), \
-             mock.patch.object(codex_agent, 'role', lambda: ADAPTER), \
+             mock.patch.object(codex_agent, 'role', lambda name: ADAPTER), \
              mock.patch.object(codex_agent.subprocess, 'run', fake_run):
             try:
                 out = codex_agent.run(data, ROOT, stamp='s')

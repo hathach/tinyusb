@@ -14,7 +14,7 @@
 ## Skills
 
 - Skill script tests live in `.claude/test/test_*.py`.
-- From [agentrc](https://github.com/hathach/agentrc): skills `read-doc`, `simplify-gate`, `usb-sniffer`, `usb-kernel-debug`; agents `pvs-studio`, `code-writer`, `code-verifier`, `pr-ci-watcher`, `pr-review-validator`. When one is unavailable, skip the step that needs it.
+- From [agentrc](https://github.com/hathach/agentrc): skills `read-doc`, `simplify-gate`, `usb-sniffer`, `usb-kernel-debug`; agents `pvs-studio`, `code-writer`, `code-verifier`, `finding-verifier`, `pr-ci-watcher`, `pr-review-validator`. When one is unavailable, skip the step that needs it.
 - Static analysis: the `pvs-studio` agent with rules `.PVS-Studio/.pvsconfig` (never add suppressions) on a board's examples build; `raspberry_pi_pico` mirrors CI, `stm32f407disco` is fastest.
 
 ## Claude and Codex Collaboration

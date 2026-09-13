@@ -71,6 +71,7 @@ const results = await pipeline(
         'Read the cited code plus enough context (callers, ISR paths, macros, and the datasheet if register-related) to judge. ' +
         'Try to REFUTE it; real=true only if it survives your best attempt. Return {"real": bool, "reason": string}.',
         label: `verify:${short(p.dir)}:${f.line}`,
+        role: 'finding-verifier',
         schema: VERDICT,
       }).catch(() => null).then(v => v && { ...f, verdict: v })
     )).then(vs => {
