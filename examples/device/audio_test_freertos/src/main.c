@@ -284,7 +284,7 @@ bool tud_audio_set_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p
   if (entityID == 2) {
     // Channel number is host-controlled (0..255) but mute[]/volume[] hold only
     // CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1 entries - reject out-of-range (STALL)
-    if (channelNum > CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX) return false;
+    TU_VERIFY(channelNum <= CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX);
 
     switch (ctrlSel) {
       case AUDIO20_FU_CTRL_MUTE:
@@ -383,7 +383,7 @@ bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p
   if (entityID == 2) {
     // Channel number is host-controlled (0..255) but mute[]/volume[] hold only
     // CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1 entries - reject out-of-range (STALL)
-    if (channelNum > CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX) return false;
+    TU_VERIFY(channelNum <= CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX);
 
     switch (ctrlSel) {
       case AUDIO20_FU_CTRL_MUTE:
