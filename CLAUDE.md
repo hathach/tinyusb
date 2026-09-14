@@ -42,9 +42,12 @@
     "protected": "^test/hil/[^/]+\\.json$", "ciWait": 30}
   ```
   `reviewers` is required — `[]` runs the CI lane and harvests no review — and
-  `protected` is a regex matched against repo-relative paths.
-  It dry-runs by default: `"autoPush": true` is the authorization to push and to post
-  PR comments, and is the user's to give. `protected` keeps the HIL rig rosters out of
+  `protected` is a regex matched against repo-relative paths. `maxCycles` bounds the
+  review/fix/CI rounds (default 3); `checkoutDir` points it at the PR checkout when you
+  are not running from inside one.
+  It dry-runs by default. `"autoPush": true` is what tells it to push and to post PR
+  comments, and is the user's to give — it does not stop an agent from doing either,
+  it decides whether the workflow asks. `protected` keeps the HIL rig rosters out of
   every fix scope, since a failure needing hardware changed stays red for a human.
   Omit `build` and it resolves this repo's build contract. It refuses before touching
   anything on `dirty-start`, `wrong-branch`, `wrong-head`, `wrong-remote` (github.com
