@@ -59,7 +59,7 @@ class InterfaceSelection(unittest.TestCase):
 class NamespaceLifetime(unittest.TestCase):
     def setUp(self):
         self.calls = []
-        self.proc = Mock(returncode=0)
+        self.proc = Mock(returncode=0, pid=1234)
         self.proc.stdout = io.StringIO('4321\n')
         self.proc.poll.return_value = 0
         self.proc.communicate.return_value = ('HTTP verified\n', '')
@@ -125,6 +125,65 @@ class NamespaceLifetime(unittest.TestCase):
         self.proc.communicate.return_value = ('', 'corrupt data')
         with self.assertRaisesRegex(RuntimeError, 'corrupt data'):
             net.check_device('ABC123')
+
+    def test_readiness_timeout_cleans_up_without_reported_pid(self):
+        net.select.select.return_value = ([], [], [])
+        self.proc.poll.return_value = None
+        with patch.object(net.hil_health, 'child_procs', return_value={1234: [(4321, 1)]}), \
+                patch.object(net.os, 'kill') as kill:
+            with self.assertRaisesRegex(RuntimeError, 'did not become ready'):
+                net.check_device('ABC123')
+        net.command.assert_not_called()
+        kill.assert_called_once_with(4321, net.signal.SIGTERM)
+        self.proc.send_signal.assert_called_once_with(net.signal.SIGTERM)
+        self.proc.communicate.assert_called_once_with(timeout=5)
+
+    def test_root_child_is_left_for_sudo_to_signal(self):
+        with patch.object(net.hil_health, 'child_procs', return_value={1234: [(4321, 1)]}), \
+                patch.object(net.os, 'kill', side_effect=PermissionError()):
+            net.stop_client(self.proc, None)
+        self.proc.send_signal.assert_called_once_with(net.signal.SIGTERM)
+        self.proc.communicate.assert_called_once_with(timeout=5)
+
+
+@unittest.skipUnless(os.name == 'posix', 'Linux process-tree cleanup')
+class UnreportedClient(unittest.TestCase):
+    def test_live_wrapper_and_descendant_without_pid_are_reaped(self):
+        # Both ignore TERM so this also exercises the KILL pass. They inherit our
+        # process group; cleanup must not signal the test runner or its siblings.
+        code = '''import os, signal, subprocess, sys, time
+signal.signal(signal.SIGTERM, signal.SIG_IGN)
+child = subprocess.Popen([sys.executable, '-c',
+    'import signal,time; signal.signal(signal.SIGTERM,signal.SIG_IGN); print("ready",flush=True); time.sleep(60)'],
+    stdout=subprocess.PIPE, text=True)
+child.stdout.readline()
+print(child.pid, flush=True)
+time.sleep(60)
+'''
+        proc = net.subprocess.Popen([sys.executable, '-c', code], stdout=net.subprocess.PIPE,
+                                    stderr=net.subprocess.PIPE, text=True)
+        child = None
+        try:
+            self.assertTrue(net.select.select([proc.stdout], [], [], 5)[0])
+            # The test knows the descendant PID; stop_client deliberately does not.
+            child = int(proc.stdout.readline())
+            with patch.object(net.os, 'killpg') as killpg:
+                net.stop_client(proc, None, grace=0.1)
+            killpg.assert_not_called()
+            self.assertIsNotNone(proc.poll())
+            stat = Path('/proc') / str(child) / 'stat'
+            if stat.exists():
+                self.assertEqual(stat.read_text().rsplit(')', 1)[1].split()[0], 'Z')
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait(timeout=5)
+            if child is not None:
+                try:
+                    os.kill(child, net.signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            net.hil_util._close_pipes(proc)
 
 
 class HttpVerification(unittest.TestCase):
