@@ -34,5 +34,22 @@
 ## PRs and Follow-ups
 
 - Before opening or updating a PR, follow Build and Validate; use `pre-pr` when workflows are available.
-- After opening a PR, use `pr-babysit` (`.claude/workflows/pr-babysit.js`) to drive reviews and CI to green. If workflows are unavailable, use `gh pr checks <num>` and `gh pr view <num> --comments`; fix failures, push, and resolve review threads.
+- After opening a PR, drive reviews and CI to green with the user-level `pr-babysit`
+  workflow, from a **clean** checkout of the PR branch with no other writer in it: an
+  edit to a path the run already owns cannot be told from its own and would be pushed.
+  ```
+  Workflow /pr-babysit {"pr": <num>, "reviewers": ["codex","copilot","coderabbit"],
+    "protected": "^test/hil/[^/]+\\.json$", "ciWait": 30}
+  ```
+  `reviewers` is required — `[]` runs the CI lane and harvests no review — and
+  `protected` is a regex matched against repo-relative paths.
+  It dry-runs by default: `"autoPush": true` is the authorization to push and to post
+  PR comments, and is the user's to give. `protected` keeps the HIL rig rosters out of
+  every fix scope, since a failure needing hardware changed stays red for a human.
+  Omit `build` and it resolves this repo's build contract. It refuses before touching
+  anything on `dirty-start`, `wrong-branch`, `wrong-head`, `wrong-remote` (github.com
+  over https or ssh only, and every push URL must be the PR's head repository),
+  `unsafe-ref` and `preflight-died`; `push-failed` with a `commit failed audit:` detail
+  means the commit was made and deliberately not pushed.
+- If workflows are unavailable, use `gh pr checks <num>` and `gh pr view <num> --comments`; fix failures, push, and resolve review threads.
 - The follow-up label is `followup`.

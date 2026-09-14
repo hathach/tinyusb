@@ -171,11 +171,5 @@ await check('fanout simplifies once after all writers and before verification', 
   assert.match(unverified.logs.at(-1), /0 build-clean/)
 })
 
-await check('pr-babysit checks fixes and challenges dismissals with finding-verifier', async () => {
-  const src = sourceOf('pr-babysit.js')
-  assert.match(src, /label: `check:\$\{w.key\}`, phase: 'Fix', agentType: 'finding-verifier'/)
-  assert.match(src, /label: `challenge#\$\{cycle\}`, phase: 'Triage', agentType: 'finding-verifier'/)
-})
-
 console.log(failed ? `\n${failed} FAILED` : '\nall checks passed')
 process.exit(failed ? 1 : 0)
