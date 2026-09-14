@@ -9,7 +9,7 @@ description: The project build contract. Use when a change must be verified by b
 
 ```bash
 B=.claude/skills/build/scripts/build.py
-python3 $B --scope <changed paths...>        # boards a change affects, one per family
+python3 $B --scope <changed paths or dirs>   # boards a change affects, one per family
 python3 $B --base master                      # same, from the branch diff
 python3 $B --board stm32f407disco [-e device/cdc_msc] [-T target]
 python3 $B --board stm32f407disco -e host/cdc_msc_hid --cflag=-DCFG_TUH_CDC_FTDI_LATENCY=16
@@ -22,8 +22,10 @@ The last stdout line is JSON: `pass`, per-board `status` (`ok`, `failed`, `skipp
 ## Judgment
 
 - **Full example set by default.** `-e` narrows to named examples for a quick check; a change in `src/` or a class driver is verified by the full set on every resolved board before it is called green.
-- **Scope, not guesswork.** `--scope` runs `tools/ci_select.py`: one board per affected family; a board whose own `hw/bsp/<family>/boards/<board>/` files changed is built itself, else a rig-roster board of the family, else the first in the family. A full-matrix answer (core or unclassified paths) builds `stm32f407disco` and `raspberry_pi_pico`, plus any board whose own files changed. A special target the changed path needs (for example `tinyusb_metrics` for `tools/metrics.py`) is `-T`; a default sweep is no evidence for it.
-- **No board builds the scope** is exit 3, neither a pass nor a usage error, and `nothingToBuild` carries `ci_select`'s reason per path. `non-code, no build contribution` (docs, `.claude/`, unit tests) means there is nothing a build could verify, so say that and move on. Anything else there is firmware no example or board compiles — a class no example enables, a lib nothing builds, a port mapping to no family — which is a coverage gap: report it to the human rather than calling the change verified.
+- **Scope, not guesswork.** `--scope` takes changed paths, expanding a directory into its tracked files first, and runs `tools/ci_select.py`: one board per affected family; a board whose own `hw/bsp/<family>/boards/<board>/` files changed is built itself, else a rig-roster board of the family, else the first in the family. A full-matrix answer (core or unclassified paths) builds `stm32f407disco` and `raspberry_pi_pico`, plus any board whose own files changed. A special target the changed path needs (for example `tinyusb_metrics` for `tools/metrics.py`) is `-T`; a default sweep is no evidence for it.
+- **No board builds the scope** is exit 3, neither a pass nor a usage error, and `nothingToBuild` carries `ci_select`'s reason per path. Report it by kind, and quote the reason verbatim either way, so that a reader of your report can never mistake it for a build that ran:
+  - every reason is `non-code, no build contribution` (docs, `.claude/`, `*.md`, unit tests): there is nothing a build could verify, which is not a failure. A boolean verdict (`buildOk`, `pass`) is true, and the reason goes in your notes.
+  - any other reason (a class no example enables, a lib nothing builds, a port mapping to no board family): that is firmware nothing compiles. The verdict is false and the reason is the finding — a human decides whether to add coverage or accept the gap.
 - **Private dirs for parallel agents.** Builds land in `cmake-build/cmake-build-agent-<pid>-<board>`; remove yours when done. `--shared` writes `cmake-build/cmake-build-<board>`, the dir `hil_test.py` flashes from by default, and needs exclusive ownership of that board: never while a HIL run or another agent is on it.
 - **Dependencies.** The family's entries in `tools/get_deps.py` must exist. In a worktree, symlink them from the primary checkout (`CLAUDE.md`, Working Rules); `--fetch-deps` is for a fresh clone. The script never fetches on its own.
 - **Code no example enables.** A branch behind a `CFG_*` option no board sets is not compiled by any sweep, so a change there is unverified until you build it with the option on: `--cflag=-D<OPTION>=<value>` (repeatable), narrowed with `-e` to one example that reaches the code. `-D` passes a build-system define (`LOG=2`) the same way, except on Espressif boards, where `tools/build.py` hands defines to cmake only, so the run is refused rather than built without them. Never hand-roll a cmake line for this.

@@ -80,6 +80,34 @@ class ResolveTest(unittest.TestCase):
         self.assertEqual(boards, ['stm32f411blackpill'])
         self.assertIn('changed boards', how)
 
+    def test_a_directory_scope_expands_to_its_tracked_files(self):
+        # a bare board directory matches neither ci_select's rules nor the changed-board
+        # rule, and would resolve to the family's sample instead of the board edited
+        files = build.expand_scope(['hw/bsp/stm32f4/boards/stm32f411blackpill'])
+        self.assertIn('hw/bsp/stm32f4/boards/stm32f411blackpill/board.h', files)
+        sel = {'build': {'full': False, 'families': ['stm32f4']}, 'boards': {}}
+        self.assertEqual(build.boards_for(sel, files)[0], ['stm32f411blackpill'])
+
+    def test_expansion_includes_a_new_untracked_file(self):
+        # fanout verifies uncommitted work: a new board or driver file is untracked
+        d = build.ROOT / 'hw' / 'bsp' / 'stm32f4' / 'boards' / 'stm32f411blackpill'
+        new = d / 'probe_new_file.h'
+        new.write_text('')
+        try:
+            files = build.expand_scope([str(d.relative_to(build.ROOT))])
+        finally:
+            new.unlink()
+        self.assertIn('hw/bsp/stm32f4/boards/stm32f411blackpill/probe_new_file.h', files)
+
+    def test_a_file_scope_is_left_alone_and_an_empty_directory_is_an_error(self):
+        self.assertEqual(build.expand_scope(['src/tusb.c', 'no/such/path.c']),
+                         ['src/tusb.c', 'no/such/path.c'])
+        with mock.patch.object(build.subprocess, 'run', return_value=mock.Mock(returncode=0, stdout='')), \
+             mock.patch.object(build.Path, 'is_dir', return_value=True), mock.patch.object(sys, 'stderr'):
+            with self.assertRaises(SystemExit) as cm:
+                build.expand_scope(['docs'])
+        self.assertEqual(cm.exception.code, 2)
+
     def test_unknown_board_is_an_error(self):
         with self.assertRaises(SystemExit) as cm:
             build.family_of('no_such_board')

@@ -18,10 +18,16 @@ if (!args || !args.task || !Array.isArray(args.items) || args.items.length === 0
 const boardFor = (item) =>
   typeof args.board === 'string' ? args.board : (args.board && args.board[item]) || null
 const short = (s) => s.replace(/\/+$/, '').split('/').slice(-2).join('/')
-// code-writer is generic: the verification build is the workflow's to name.
-const buildRecipe = (board) =>
-  ` Verify with the project build contract (.claude/skills/build/SKILL.md): python3 .claude/skills/build/scripts/build.py ` +
-  (board ? `--board ${board}` : '--scope <the files you changed>') + ' -e device/cdc_msc; its JSON pass is your buildOk.'
+// code-writer is generic: the verification build is the workflow's to name. Without a
+// board the contract resolves the item's own scope, and the workflow keeps naming the
+// same thing to the independent verifier, rather than trusting the writer's echo.
+const buildArgs = (item) => {
+  const board = boardFor(item)
+  return board ? `--board ${board}` : `--scope ${item}`
+}
+const buildRecipe = (item) =>
+  ' Verify with the project build contract (.claude/skills/build/SKILL.md): ' +
+  `python3 .claude/skills/build/scripts/build.py ${buildArgs(item)}; report its verdict as that file says.`
 if (args.worktree) log('worktree mode: combined simplification, independent builder verification and review deferred until integration (workers verify inside their own worktrees)')
 
 const DEV = {
@@ -80,7 +86,7 @@ const devs = await pipeline(
 
   item => agent(
     `${args.task}\n\nAssigned scope: ${item} — touch nothing outside it.` +
-    buildRecipe(boardFor(item)),
+    buildRecipe(item),
     {
       label: `dev:${short(item)}`, phase: 'Implement',
       agentType: 'code-writer', schema: DEV,
@@ -125,7 +131,7 @@ const results = await pipeline(
     const dev = devs[index]
     if (!dev) return null
     return agent(
-      `Build the single example device/cdc_msc for board ${dev.board}. Use a unique build dir (mktemp -d) to avoid collisions with parallel builds.`,
+      `Build ${buildArgs(item)} through the project build contract; parallel siblings are building, so keep the private build dir the contract gives you.`,
       { label: `verify:${short(item)}`, phase: 'Verify', agentType: 'builder', schema: BUILD },
     ).then(b => {
       // verifyBuild: true/false = real builder verdict; null = builder died

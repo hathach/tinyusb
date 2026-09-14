@@ -103,11 +103,14 @@ await check('fanout simplifies once after all writers and before verification', 
     const agent = async (prompt, options) => {
       if (options.agentType === 'code-writer') {
         const item = options.label.slice(4)
+        assert.match(prompt, new RegExp(`build\\.py --scope ${item}\\b`))
+        assert.doesNotMatch(prompt, /-e device\/cdc_msc/)
         if (item === 'a') await new Promise(resolve => setImmediate(resolve))
         events.push(`wrote:${item}`)
         if (deadWriter && item === 'a') return null
         assert.equal(options.isolation, worktree ? 'worktree' : undefined)
-        return { item, board: item, buildOk: true, diffstat: '', notes: `note:${item}` }
+        // board is what code-writer.md returns when the prompt named none: empty
+        return { item, board: '', buildOk: true, diffstat: '', notes: `note:${item}` }
       }
       if (options.label === 'simplify') {
         // inline general subagent: /simplify via Skill, no agent definition
@@ -130,6 +133,10 @@ await check('fanout simplifies once after all writers and before verification', 
       }
       assert.equal(options.agentType, 'builder')
       assert.equal(events.filter(e => e === 'simplified').length, 1)
+      // the workflow names the scope itself; a writer that reports no board must not
+      // leave the verifier building "for board ."
+      assert.match(prompt, /--scope (a|b)\b/)
+      assert.doesNotMatch(prompt, /--board\s*(;|$)/m)
       events.push(options.label)
       return deadBuilder ? null : { pass: true }
     }

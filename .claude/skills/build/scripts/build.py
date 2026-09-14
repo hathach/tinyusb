@@ -51,6 +51,28 @@ def family_boards(family):
     return sorted(p.name for p in (ROOT / 'hw' / 'bsp' / family / 'boards').iterdir() if p.is_dir())
 
 
+def expand_scope(scope):
+    """The files of every directory in the scope, new ones included. ci_select and the
+    changed-board rule both classify file paths: a bare directory matches neither, so a
+    board directory would resolve to its family's sample instead of the board itself.
+    Untracked-but-not-ignored files count, because the work being verified is usually
+    uncommitted and a new board or driver file would otherwise be classified away."""
+    out = []
+    for p in scope:
+        if (ROOT / p).is_dir():
+            r = subprocess.run(['git', 'ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', p],
+                               capture_output=True, text=True, cwd=ROOT)
+            if r.returncode != 0:
+                fail(f'git ls-files failed for {p}:\n{r.stderr.strip()}')
+            files = [f for f in r.stdout.split('\0') if f]
+            if not files:
+                fail(f'{p} is a directory with no files git reports; name the files to build for')
+            out.extend(files)
+        else:
+            out.append(p)
+    return out
+
+
 def changed_paths(base):
     """The branch's changed paths against base, the same set ci_select --base classifies."""
     r = subprocess.run(['git', 'diff', '--name-only', f'{base}...HEAD'], capture_output=True, text=True, cwd=ROOT)
@@ -182,7 +204,8 @@ def fail(message):
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     how = p.add_mutually_exclusive_group(required=True)
-    how.add_argument('--scope', nargs='+', metavar='PATH', help='changed paths, repo-relative')
+    how.add_argument('--scope', nargs='+', metavar='PATH',
+                     help='changed paths or directories, repo-relative')
     how.add_argument('--base', metavar='REF', help='resolve the scope from git diff against REF')
     how.add_argument('--board', action='append', default=None, help='build this board (repeatable)')
     p.add_argument('-e', '--example', action='append', default=[], help='only these examples (role/name)')
@@ -202,8 +225,9 @@ def main(argv=None):
     if a.board:
         boards, how_resolved = a.board, 'named boards'
     else:
-        sel, reasons = select(scope=a.scope, base=a.base, config=Path(a.config))
-        boards, how_resolved = boards_for(sel, a.scope if a.scope is not None else changed_paths(a.base))
+        scope = expand_scope(a.scope) if a.scope is not None else None
+        sel, reasons = select(scope=scope, base=a.base, config=Path(a.config))
+        boards, how_resolved = boards_for(sel, scope if scope is not None else changed_paths(a.base))
         if not boards:
             # Not a pass and not a usage error: no board builds this scope. Whether that
             # is nothing to verify (docs) or unverified firmware (a class no example
