@@ -23,12 +23,13 @@
 # THE SOFTWARE.
 
 # Host setup (required: a missing tool fails its test rather than skipping it):
-#   - System packages: sudo apt install mtools libmtp9 libmtp-runtime alsa-utils iproute2 udev
+#   - System packages: sudo apt install mtools libmtp9 libmtp-runtime alsa-utils iproute2 udev util-linux
 #       mtools      read_disk_file (device/cdc_msc, device/msc_dual_lun)
 #       libmtp9     pymtp ctypes load (device/mtp); Debian 13 uses libmtp9t64
 #       libmtp-runtime  mtp-probe and the completed-device /dev/libmtp-* marker
 #       alsa-utils  arecord (device/audio_test_freertos)
 #       iproute2    isolated USB network test (root or passwordless sudo)
+#       util-linux  unshare/nsenter for per-process network namespaces
 #       udev        udevadm wait (systemd >= 251) for USB network initialization
 #       openocd     unified openocd from https://github.com/hathach/openocd (branch tinyusb) for wch, rp2040/rp2350, analog max32
 #   - device/usbtest: usbtest kernel module + testusb binary (kernel tools/usb/testusb.c) on PATH,
@@ -1291,8 +1292,6 @@ def test_device_mtp(board):
 def test_device_net_lwip_webserver(board):
     script = Path(__file__).resolve().parent / 'net_test.py'
     cmd = [sys.executable, str(script), '--uid', board['uid']]
-    if os.geteuid() != 0:
-        cmd = ['sudo', '-n'] + cmd
     ret = hil_util.run_cmd(cmd, timeout=110, split_stderr=True, quiet=True)
     assert ret.returncode == 0, (f'USB network test failed (rc={ret.returncode}): '
                                  f'{ret.stdout} {ret.stderr}')
