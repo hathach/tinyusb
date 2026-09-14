@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Build TinyUSB examples for the boards a change affects, or for named boards.
 
-  build.py (--scope PATH... | --base REF | --board B...) [-e role/name]... [-T target]... [--shared]
+  build.py (--scope PATH... | --base REF | --board B...) [-e role/name]... [-T target]...
+           [-D SYMBOL]... [--cflag FLAG]... [--shared]
 
 Scope resolution goes through tools/ci_select.py: one board per affected family
 (a rig-roster board of that family first, else the first in hw/bsp/<family>/boards),
@@ -12,8 +13,9 @@ parallel agent. Dependencies the family needs (get_deps.py's table) are checked 
 a missing one is an error naming the remedy, or fetched when --fetch-deps is given.
 
 stdout ends with one JSON line: {"pass", "boards": [{"board", "family", "buildDir",
-"status", "built" (elfs this run wrote), "firstError"}], "resolution"}. Exit 0 pass, 1 a board failed, 2 usage or
-resolution error (nothing to build is an error, never a pass).
+"status", "built" (elfs this run wrote), "firstError"}], "resolution"}. Exit 0 pass, 1 a board failed, 2 usage or resolution error, 3 no board builds this
+scope, with ci_select's per-path reasons in "nothingToBuild" for the caller to judge:
+"non-code" is nothing to verify, a class no example enables is unverified firmware.
 """
 
 import argparse
@@ -58,8 +60,9 @@ def changed_paths(base):
 
 
 def select(scope=None, base=None, config=HIL_CONFIG):
-    """ci_select's JSON for a path list or, with --base, for the branch diff: only the
-    base form sees dependency revision changes (get_deps.py table edits)."""
+    """(ci_select's JSON, its per-path build-axis reasons) for a path list or, with
+    --base, for the branch diff: only the base form sees dependency revision changes
+    (get_deps.py table edits)."""
     if base:
         cmd = [sys.executable, str(ROOT / 'tools' / 'ci_select.py'), '--base', base, str(config)]
     else:
@@ -69,21 +72,26 @@ def select(scope=None, base=None, config=HIL_CONFIG):
     r = subprocess.run(cmd, capture_output=True, text=True, cwd=ROOT)
     if r.returncode != 0:
         fail(f'ci_select failed:\n{r.stderr.strip()}')
-    return json.loads(r.stdout.splitlines()[-1])
+    reasons = [l.split('ci_select[build]: ', 1)[1] for l in r.stderr.splitlines()
+               if l.startswith('ci_select[build]: ')]
+    return json.loads(r.stdout.splitlines()[-1]), reasons
 
 
 def boards_for(selection, scope=()):
     """One board per affected family: a board whose own hw/bsp dir is in the scope,
     else a rig-roster board of the family, else the first under hw/bsp/<family>/boards.
-    The representative pair for the full matrix. Zero families is an error: a scope
-    that builds nothing must never pass."""
+    The representative pair for the full matrix. No family is not a verdict this
+    script can give: a docs path contributes nothing to build, but so does a class
+    no example enables or a port no board maps, and those are unverified firmware
+    rather than nothing to verify. The caller gets ci_select's own per-path reasons
+    and decides."""
     build = selection['build']
     changed = {m.group(2): m.group(1) for m in map(BOARD_PATH.match, scope) if m}
     if build['full']:
         return list(dict.fromkeys(FULL_MATRIX_BOARDS + sorted(changed))), \
             'full matrix' + (f', changed boards {sorted(changed)}' if changed else '')
     if not build['families']:
-        fail('the scope selects no build family; name a board with --board if it must build anyway')
+        return [], 'no build family'
     rig = {b: family_of(b) for b in selection.get('boards', {})}
     boards = []
     for fam in build['families']:
@@ -112,8 +120,14 @@ def ensure_deps(family, fetch, verbose):
              f'from the primary checkout; otherwise rerun with --fetch-deps (python3 tools/get_deps.py {family})')
 
 
-def build_one(board, examples, targets, shared, fetch, verbose):
+def build_one(board, examples, targets, defines, cflags, shared, fetch, verbose):
     family = family_of(board)
+    # tools/build.py hands -D to cmake but not to idf.py, so a define would be
+    # dropped and the build would pass without the configuration it was asked for
+    if defines and family == 'espressif':
+        fail(f'-D is not forwarded to idf.py, so it cannot configure {board} (family espressif). '
+             'A preprocessor macro can go through --cflag; a build-system setting (LOG, LOGGER) has no '
+             'path here, since the BSP translates those into other defines')
     ensure_deps(family, fetch, verbose)
     name = board if shared else f'agent-{os.getpid()}-{board}'
     cmd = [sys.executable, str(ROOT / 'tools' / 'build.py'), '-b', board]
@@ -123,6 +137,10 @@ def build_one(board, examples, targets, shared, fetch, verbose):
         cmd += ['-e', e]
     for t in targets:
         cmd += ['-T', t]
+    for d in defines:
+        cmd += ['-D', d]
+    for f in cflags:
+        cmd += [f'--cflag={f}']
     started = time.time()
     rc, out = run(cmd, verbose)
     rows = ROW.findall(out)
@@ -169,6 +187,11 @@ def main(argv=None):
     how.add_argument('--board', action='append', default=None, help='build this board (repeatable)')
     p.add_argument('-e', '--example', action='append', default=[], help='only these examples (role/name)')
     p.add_argument('-T', '--target', action='append', default=[], help='build target (default all)')
+    p.add_argument('-D', '--define', action='append', default=[],
+                   help='build-system define, e.g. -D LOG=2 (repeatable)')
+    p.add_argument('--cflag', action='append', default=[],
+                   help='raw compiler flag, e.g. --cflag=-DCFG_TUH_CDC_FTDI_LATENCY=16, to compile a '
+                        'config-guarded branch no example enables (repeatable)')
     p.add_argument('--fetch-deps', action='store_true', help='run tools/get_deps.py for a family whose deps are missing')
     p.add_argument('--shared', action='store_true',
                    help='build in the canonical cmake-build-<board> HIL dir instead of a private one')
@@ -179,9 +202,17 @@ def main(argv=None):
     if a.board:
         boards, how_resolved = a.board, 'named boards'
     else:
-        sel = select(scope=a.scope, base=a.base, config=Path(a.config))
+        sel, reasons = select(scope=a.scope, base=a.base, config=Path(a.config))
         boards, how_resolved = boards_for(sel, a.scope if a.scope is not None else changed_paths(a.base))
-    results = [build_one(b, a.example, a.target, a.shared, a.fetch_deps, a.verbose) for b in boards]
+        if not boards:
+            # Not a pass and not a usage error: no board builds this scope. Whether that
+            # is nothing to verify (docs) or unverified firmware (a class no example
+            # enables, a port no board maps) is the caller's call, on these reasons.
+            print(json.dumps({'pass': False, 'boards': [], 'resolution': how_resolved,
+                              'nothingToBuild': reasons}))
+            return 3
+    results = [build_one(b, a.example, a.target, a.define, a.cflag, a.shared, a.fetch_deps, a.verbose)
+               for b in boards]
     ok = all(r['status'] == 'ok' for r in results)
     print(json.dumps({'pass': ok, 'boards': results, 'resolution': how_resolved}))
     return 0 if ok else 1

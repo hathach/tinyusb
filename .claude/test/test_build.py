@@ -32,7 +32,7 @@ class ResolveTest(unittest.TestCase):
         # ci_select --base sees dependency revision changes that a path list cannot;
         # the diff paths serve board preservation only
         with mock.patch.object(build, 'changed_paths', return_value=['hw/bsp/stm32f4/boards/stm32f411blackpill/board.h']), \
-             mock.patch.object(build, 'select', return_value={'build': {'full': False, 'families': ['stm32f4']}, 'boards': {}}) as sel, \
+             mock.patch.object(build, 'select', return_value=({'build': {'full': False, 'families': ['stm32f4']}, 'boards': {}}, [])) as sel, \
              mock.patch.object(build, 'build_one', return_value={'status': 'ok'}) as b1, mock.patch('sys.stdout'):
             build.main(['--base', 'master'])
         self.assertEqual(sel.call_args.kwargs['base'], 'master')
@@ -40,14 +40,33 @@ class ResolveTest(unittest.TestCase):
         self.assertEqual(b1.call_args[0][0], 'stm32f411blackpill')
 
     def test_select_base_passes_base_to_ci_select(self):
-        with mock.patch.object(build.subprocess, 'run', return_value=mock.Mock(returncode=0, stdout='{"build": {}}')) as run:
+        with mock.patch.object(build.subprocess, 'run',
+                               return_value=mock.Mock(returncode=0, stdout='{"build": {}}', stderr='')) as run:
             build.select(base='master')
         self.assertEqual(run.call_args[0][0][2:4], ['--base', 'master'])
 
-    def test_no_family_is_an_error_not_a_pass(self):
-        with self.assertRaises(SystemExit) as cm:
-            build.boards_for({'build': {'full': False, 'families': []}, 'boards': {}})
-        self.assertEqual(cm.exception.code, 2)
+    def test_no_family_resolves_to_no_board(self):
+        boards, how = build.boards_for({'build': {'full': False, 'families': []}, 'boards': {}},
+                                       ['docs/index.rst'])
+        self.assertEqual((boards, how), ([], 'no build family'))
+
+    def test_a_scope_no_board_builds_is_exit_3_with_the_reason_per_path(self):
+        # docs and .claude are nothing to verify; a class no example enables, a lib
+        # nothing builds and a port mapping to no family are unverified firmware. The
+        # script reports ci_select's own words for each rather than judging.
+        for scope, marker in (
+            (['docs/index.rst', '.claude/agents/builder.md'], 'non-code'),
+            (['src/class/bth/bth_device.c'], 'enabled by no example'),
+            (['lib/SEGGER_RTT/RTT/SEGGER_RTT.c'], 'built by no example'),
+            (['src/portable/no_vendor/no_driver/dcd_bogus.c'], 'families []'),
+        ):
+            with mock.patch.object(build, 'build_one') as b1, mock.patch('sys.stdout') as out:
+                self.assertEqual(build.main(['--scope', *scope]), 3, scope)
+            b1.assert_not_called()
+            printed = json.loads(out.write.call_args_list[0][0][0])
+            self.assertEqual((printed['pass'], printed['boards']), (False, []))
+            self.assertTrue(any(marker in r for r in printed['nothingToBuild']),
+                            f'{scope}: {printed["nothingToBuild"]}')
 
     def test_rig_board_of_the_family_is_preferred_over_the_first_bsp_board(self):
         sel = {'build': {'full': False, 'families': ['stm32f4']}, 'boards': {'stm32f407disco': 'all'}}
@@ -71,7 +90,7 @@ class VerdictTest(unittest.TestCase):
     def build(self, rc, out, fetch=False):
         with mock.patch.object(build, 'run', return_value=(rc, out)) as run, \
              mock.patch.object(build, 'missing_deps', return_value=[]):
-            r = build.build_one('stm32f407disco', ['device/cdc_msc'], [], False, fetch, False)
+            r = build.build_one('stm32f407disco', ['device/cdc_msc'], [], [], [], False, fetch, False)
         cmd = run.call_args[0][0]
         self.assertIn('--build-name', cmd)
         self.assertEqual(cmd[cmd.index('-e') + 1], 'device/cdc_msc')
@@ -94,7 +113,7 @@ class VerdictTest(unittest.TestCase):
                 time.sleep(0.01); fresh.write_bytes(b''); return 0, row('stm32f407disco', 'all', OK)
             with mock.patch.object(build, 'run', fake_run), mock.patch.object(build, 'missing_deps', return_value=[]), \
                  mock.patch.object(build.os, 'getpid', return_value='test'):
-                r = build.build_one('stm32f407disco', [], [], False, False, False)
+                r = build.build_one('stm32f407disco', [], [], [], [], False, False, False)
         finally:
             shutil.rmtree(d)
         self.assertEqual(r['built'], 1)
@@ -119,10 +138,29 @@ class VerdictTest(unittest.TestCase):
         self.assertEqual(r['status'], 'error')
         self.assertIn('device/nope', r['firstError'])
 
+    def test_defines_and_cflags_reach_tools_build(self):
+        with mock.patch.object(build, 'run', return_value=(0, row('stm32f407disco', 'all', OK))) as run, \
+             mock.patch.object(build, 'missing_deps', return_value=[]):
+            build.build_one('stm32f407disco', ['host/cdc_msc_hid'], [], ['LOG=2'],
+                            ['-DCFG_TUH_CDC_FTDI_LATENCY=16'], False, False, False)
+        cmd = run.call_args[0][0]
+        self.assertEqual(cmd[cmd.index('-D') + 1], 'LOG=2')
+        self.assertIn('--cflag=-DCFG_TUH_CDC_FTDI_LATENCY=16', cmd)
+
+    def test_a_define_on_an_espressif_board_is_refused_not_dropped(self):
+        esp = build.family_boards('espressif')[0]
+        with mock.patch.object(build, 'run') as run, mock.patch.object(sys, 'stderr') as err:
+            with self.assertRaises(SystemExit) as cm:
+                build.build_one(esp, [], [], ['LOG=2'], [], False, False, False)
+        self.assertEqual(cm.exception.code, 2)
+        self.assertIn('idf.py', err.write.call_args[0][0])
+        self.assertNotIn('instead', err.write.call_args[0][0])  # no non-equivalent replacement offered
+        run.assert_not_called()
+
     def test_shared_uses_the_canonical_hil_dir(self):
         with mock.patch.object(build, 'run', return_value=(0, row('stm32f407disco', 'all', OK))) as run, \
              mock.patch.object(build, 'missing_deps', return_value=[]):
-            r = build.build_one('stm32f407disco', [], [], True, False, False)
+            r = build.build_one('stm32f407disco', [], [], [], [], True, False, False)
         self.assertNotIn('--build-name', run.call_args[0][0])
         self.assertEqual(r['buildDir'], 'cmake-build/cmake-build-stm32f407disco')
 
