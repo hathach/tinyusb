@@ -75,6 +75,7 @@ HARNESS_FILES = (
     'test/hil/pymtp.py',
     'test/hil/mtp_test.py',
     'test/hil/mtp_raw.py',
+    'test/hil/net_test.py',
     'test/hil/sysview_ci.py',   # hil_test.py imports it; --sysview-out itself is refused here
     'test/hil/helper/__init__.py',
     'test/hil/helper/agentrc.py',
