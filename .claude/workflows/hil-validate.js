@@ -1,7 +1,7 @@
 export const meta = {
   name: 'hil-validate',
   description: 'Hardware-in-the-loop run: one hil-operator flashes and tests every board in a single hil_test.py run; per-board flock locks arbitrate with concurrent CI (the actions-runner keeps running)',
-  whenToUse: 'After validate passes, to exercise built firmware on the physical rig. Requires the boards to be built (examples/cmake-build-<board>, plus a dir per declared variant). If the result has non-empty `locked`, ask the user: force (re-invoke with force: true), continue waiting (re-invoke later), or accept the partial result. Pass force: true ONLY with explicit user authorization.',
+  whenToUse: 'After validate passes, to exercise built firmware on the physical rig. Requires the boards to be built (cmake-build/cmake-build-<board>, plus a dir per declared variant). If the result has non-empty `locked`, ask the user: force (re-invoke with force: true), continue waiting (re-invoke later), or accept the partial result. Pass force: true ONLY with explicit user authorization.',
   phases: [{ title: 'HIL', detail: 'one hil-operator, every board in one hil_test.py run' }],
 }
 

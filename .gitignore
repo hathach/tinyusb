@@ -36,6 +36,7 @@ test_old/
 tests_obsolete/
 _build/
 build/
+!/.claude/skills/build/
 /examples/*/*/ses
 /examples/*/*/ozone
 /examples/obsolete

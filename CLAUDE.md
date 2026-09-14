@@ -24,18 +24,8 @@
 
 ## Build and Validate
 
-Build all examples for a board from the repo root; preserve `cmake-build-<board>` for HIL:
-
-```bash
-cmake -S examples -B examples/cmake-build-adafruit_metro_rp2350 -DBOARD=adafruit_metro_rp2350 -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel
-cmake --build examples/cmake-build-adafruit_metro_rp2350
-ninja -C examples/cmake-build-adafruit_metro_rp2350 cdc_msc-jlink    # Flash with J-Link
-ninja -C examples/cmake-build-adafruit_metro_rp2350 cdc_msc-openocd  # Or OpenOCD
-```
-
-- Single example after configuring above: `cmake --build examples/cmake-build-adafruit_metro_rp2350 --target cdc_msc`.
+- Build contract: `.claude/skills/build/SKILL.md`. Its script resolves a change to boards and builds them; `--shared` writes `cmake-build/cmake-build-<board>`, the dir HIL flashes from, so preserve it. Flash with `ninja -C cmake-build/cmake-build-<board> <example>-jlink` or `-openocd`.
 - ESP-IDF: `. "$IDF_PATH/export.sh"` before build/flash/monitor; run `idf.py -DBOARD=<board> build` in the ESP-IDF example.
-- Debug/logging: `-DCMAKE_BUILD_TYPE=Debug -DLOG=2 -DLOGGER=rtt`.
 - Before submitting: `pre-commit run --all-files` (includes unit tests).
 - For code changes: build the full example set for boards that exercise the changed modules. Add fuzz/HIL coverage for parsers or protocol state machines.
 - After board/dependency changes, regenerate docs with `build-doc`.

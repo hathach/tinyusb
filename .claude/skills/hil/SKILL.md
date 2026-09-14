@@ -51,7 +51,7 @@ SEL=$(python3 tools/ci_select.py --base master test/hil/tinyusb.json)
 FULL=$(printf '%s' "$SEL" | python3 -c "import json,sys; print(json.load(sys.stdin)['full'])")
 ARGS=$(printf '%s' "$SEL" | python3 -c "import json,sys; print(json.load(sys.stdin)['args']['tinyusb.json'])")
 if [ "$FULL" = "True" ] || [ -n "$ARGS" ]; then
-  python3 test/hil/hil_test.py -B examples $ARGS test/hil/tinyusb.json   # $ARGS empty when full: run everything
+  python3 test/hil/hil_test.py $ARGS test/hil/tinyusb.json   # $ARGS empty when full: run everything
 else
   echo "diff affects nothing on this rig - skip HIL"
 fi
@@ -81,7 +81,7 @@ See the `usb-kernel-recover` skill for what a real wedge looks like and how to c
 
 ## Prerequisites
 
-Examples must be built for the target board(s) — see [Build and Validate](../../../CLAUDE.md#build-and-validate) (produces `examples/cmake-build-<board>/`). `-B examples` points `hil_test.py` at that parent folder. (This applies to `hil_test.py`; `hil_pool_check.py` builds its own missing firmware.)
+Examples must be built for the target board(s) — see [Build and Validate](../../../CLAUDE.md#build-and-validate) (the `build` skill's `--shared` produces `cmake-build/cmake-build-<board>/`, the folder `hil_test.py` flashes from by default). (This applies to `hil_test.py`; `hil_pool_check.py` builds its own missing firmware.)
 
 A board whose flasher probe has no VCOM (or whose BSP has no UART) uses RTT as its console — "No serial device found for /dev/serial/by-id/…" on every host test is the symptom. Config: `"logger": "rtt"` (jlink flashers only) plus a self-named variant carrying the define — `"variant": [{"name": "<board>", "defines": ["LOGGER=rtt"]}]` — and prebuilt example sets must carry the same `-DLOGGER=rtt`. Caveat: the cdc/msc-fixture host tests don't speak RTT yet, so such a board cannot carry `is_cdc`/`is_msc` fixtures (the config loader rejects it; see the rtt follow-up doc). Details: the `rtt` skill.
 
@@ -100,10 +100,10 @@ Set `CONFIG` from `hostname` first (`test/hil/local.json` on a dev PC, `test/hil
 CONFIG=test/hil/local.json      # on ci use: CONFIG=test/hil/tinyusb.json
 
 # All boards in the config:
-python3 test/hil/hil_test.py -B examples "$CONFIG"
+python3 test/hil/hil_test.py "$CONFIG"
 
 # A single board (replace stm32f723disco):
-python3 test/hil/hil_test.py -b stm32f723disco -B examples "$CONFIG"
+python3 test/hil/hil_test.py -b stm32f723disco "$CONFIG"
 ```
 
 ## Remote execution (dev PC → ci.lan only)

@@ -157,7 +157,7 @@ function stageThunk(name, cycle) {
   if (name.startsWith('build:')) {
     const b = name.slice('build:'.length)
     return () => agent(
-      `Build TinyUSB examples for board ${b}` + (args.examples ? ` (only: ${args.examples})` : ' (full example set)') + '.',
+      `Build TinyUSB examples for board ${b}` + (args.examples ? ` (only: ${args.examples})` : ' (full example set)') + ' in the shared HIL build dir.',
       { label, phase: 'Validate', agentType: 'builder', schema: BUILD },
     ).then(r => r ? {
       stage: name, pass: r.pass,

@@ -18,13 +18,10 @@ if (!args || !args.task || !Array.isArray(args.items) || args.items.length === 0
 const boardFor = (item) =>
   typeof args.board === 'string' ? args.board : (args.board && args.board[item]) || null
 const short = (s) => s.replace(/\/+$/, '').split('/').slice(-2).join('/')
-// code-writer is generic: the verification build is the workflow's to name;
-// <BUILD> is the agent's placeholder for a private mktemp dir.
+// code-writer is generic: the verification build is the workflow's to name.
 const buildRecipe = (board) =>
-  (board ? ` Verify with board ${board}:` :
-    ' Choose a board from hw/bsp/<family>/boards/ whose family uses this scope and substitute it below. Verify with:') +
-  ` cmake -S examples/device/cdc_msc -B <BUILD> -DBOARD=${board || '<board>'} -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel && cmake --build <BUILD>; ` +
-  'on missing deps run python3 tools/get_deps.py <FAMILY> once and retry.'
+  ` Verify with the project build contract (.claude/skills/build/SKILL.md): python3 .claude/skills/build/scripts/build.py ` +
+  (board ? `--board ${board}` : '--scope <the files you changed>') + ' -e device/cdc_msc; its JSON pass is your buildOk.'
 if (args.worktree) log('worktree mode: combined simplification, independent builder verification and review deferred until integration (workers verify inside their own worktrees)')
 
 const DEV = {
