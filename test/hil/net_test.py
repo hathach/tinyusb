@@ -5,11 +5,10 @@
 Invoked by hil_test.py while it holds the board lock. Only the USB network interface
 whose parent has the requested serial is moved. Each board gets its own namespace:
 the example deliberately shares its MAC and 192.168.7.1 with every other board.
-Requires iproute2, udevadm wait, and root (or passwordless sudo).
+Requires iproute2, util-linux, udevadm wait, and root (or passwordless sudo).
 No persistent host configuration.
 """
 import argparse
-from contextlib import contextmanager
 import hashlib
 import http.client
 import json
@@ -18,7 +17,8 @@ from pathlib import Path
 import signal
 import sys
 import time
-import uuid
+import select
+import subprocess
 
 from helper import hil_util
 
@@ -66,28 +66,72 @@ def wait_interface(uid, timeout=30):
                        f'found {matches}; {detail}')
 
 
-@contextmanager
-def network_namespace(iface):
-    ns = 'tusb-net-' + uuid.uuid4().hex[:12]
-    command(['ip', 'netns', 'add', ns])
+def privileged(argv):
+    return (['sudo', '-n'] if os.geteuid() != 0 else []) + argv
+
+
+def stop_client(proc, pid):
+    # The unshare child runs as us, even when its sudo wrapper belongs to root.
+    # Terminate that child directly so sudo can reap it and return normally.
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        if pid is not None:
+            try:
+                os.kill(pid, sig)
+            except ProcessLookupError:
+                pass
+        try:
+            proc.communicate(timeout=5)
+            return
+        except subprocess.TimeoutExpired:
+            pass
+    hil_util._close_pipes(proc)
+    raise RuntimeError('network client did not exit after SIGKILL')
+
+
+def check_device(uid):
+    iface = wait_interface(uid)
+    print(f'USB serial {uid}: interface {iface}', flush=True)
+    # Anonymous namespace: its last process exiting releases the USB interface,
+    # even on SIGKILL. unshare drops to the caller's UID/GID BEFORE executing any
+    # checkout-controlled Python. Only trusted system tools run with elevation.
+    argv = privileged(['unshare', '--net', '--setgid', str(os.getgid()),
+                       '--setuid', str(os.getuid()), sys.executable,
+                       str(Path(__file__).resolve()), '--http'])
+    # Keep the child in our process group: hil_test's interruption sweep can kill
+    # the whole group without stranding a detached namespace owner.
+    proc = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, text=True)
+    pid = None
     try:
-        command(['ip', 'link', 'set', 'dev', iface, 'netns', ns])
-        # udev may have renamed it while it was still on the host. The new
-        # namespace contains only loopback and the interface we just moved.
-        links = json.loads(command(['ip', '-n', ns, '-j', 'link', 'show']))
+        if not select.select([proc.stdout], [], [], 5)[0]:
+            raise RuntimeError('network namespace client did not become ready')
+        ready = proc.stdout.readline(64).strip()
+        if not ready.isdecimal():
+            raise RuntimeError(f'network namespace client failed to start: {ready!r}')
+        pid = int(ready)
+        ns = f'/proc/{pid}/ns/net'
+        command(privileged(['ip', 'link', 'set', 'dev', iface, 'netns', str(pid)]))
+        ip = privileged(['nsenter', '--net=' + ns, 'ip'])
+        links = json.loads(command(ip + ['-j', 'link', 'show']))
         names = [link['ifname'] for link in links if link['ifname'] != 'lo']
         if len(names) != 1:
             raise RuntimeError(f'{ns}: expected one network interface, found {names}')
         iface = names[0]
-        # Remove any address a host network manager assigned before the move.
-        command(['ip', '-n', ns, 'addr', 'flush', 'dev', iface])
-        command(['ip', '-n', ns, 'addr', 'add', '192.168.7.2/24', 'dev', iface])
-        command(['ip', '-n', ns, 'link', 'set', 'dev', iface, 'up'])
-        yield ns
+        command(ip + ['addr', 'flush', 'dev', iface])
+        command(ip + ['addr', 'add', '192.168.7.2/24', 'dev', iface])
+        command(ip + ['link', 'set', 'dev', iface, 'up'])
+        try:
+            stdout, stderr = proc.communicate(input='go\n', timeout=30)
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError('network HTTP client timed out after 30s') from exc
+        if proc.returncode:
+            raise RuntimeError(f'network HTTP client failed (rc={proc.returncode}): {stdout} {stderr}')
+        print(stdout, end='', flush=True)
     finally:
-        # Delete on success and failure. Once no process holds the namespace, its
-        # physical USB interface returns to the host (ip-netns(8)).
-        command(['ip', 'netns', 'delete', ns])
+        if proc.poll() is None:
+            stop_client(proc, pid)
+        else:
+            hil_util._close_pipes(proc)
 
 
 def check_http():
@@ -136,24 +180,13 @@ def main():
     signal.signal(signal.SIGTERM, interrupted)
     signal.alarm(75)
     if args.http:
+        print(os.getpid(), flush=True)
+        if sys.stdin.readline().strip() != 'go':
+            raise RuntimeError('network setup owner exited before starting HTTP')
+        print(f'network client uid/gid: {os.getuid()}/{os.getgid()}', flush=True)
         check_http()
     else:
-        if os.geteuid() != 0:
-            raise RuntimeError('USB network setup requires root or passwordless sudo')
-        iface = wait_interface(args.uid)
-        print(f'USB serial {args.uid}: interface {iface}', flush=True)
-        with network_namespace(iface) as ns:
-            try:
-                output = command(['ip', 'netns', 'exec', ns, sys.executable,
-                                  str(Path(__file__).resolve()), '--http'], timeout=30)
-            except RuntimeError:
-                for view in (['-s', 'link'], ['addr'], ['neigh']):
-                    try:
-                        print(command(['ip', '-n', ns, *view, 'show']), file=sys.stderr)
-                    except RuntimeError as diagnostic:
-                        print(diagnostic, file=sys.stderr)
-                raise
-            print(output, end='', flush=True)
+        check_device(args.uid)
     signal.alarm(0)
 
 

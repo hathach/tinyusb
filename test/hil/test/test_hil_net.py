@@ -56,51 +56,75 @@ class InterfaceSelection(unittest.TestCase):
                 net.wait_interface('ABC123', timeout=1)
 
 
-class NamespaceCleanup(unittest.TestCase):
+class NamespaceLifetime(unittest.TestCase):
     def setUp(self):
         self.calls = []
-        self.failure = None
+        self.proc = Mock(returncode=0)
+        self.proc.stdout = io.StringIO('4321\n')
+        self.proc.poll.return_value = 0
+        self.proc.communicate.return_value = ('HTTP verified\n', '')
 
         def command(argv):
             self.calls.append(argv)
-            if self.failure and self.failure in argv:
-                raise RuntimeError('injected failure')
             if '-j' in argv:
                 return json.dumps([{'ifname': 'lo'}, {'ifname': 'renamed0'}])
             return ''
 
-        p = patch.object(net, 'command', side_effect=command)
-        p.start()
-        self.addCleanup(p.stop)
+        for name, value in [('wait_interface', Mock(return_value='usb7')),
+                            ('command', Mock(side_effect=command))]:
+            p = patch.object(net, name, value)
+            p.start()
+            self.addCleanup(p.stop)
+        for p in [patch.object(net.subprocess, 'Popen', return_value=self.proc),
+                  patch.object(net.select, 'select', return_value=([self.proc.stdout], [], [])),
+                  patch.object(net.os, 'geteuid', return_value=1000, create=True),
+                  patch.object(net.os, 'getuid', return_value=1000, create=True),
+                  patch.object(net.os, 'getgid', return_value=1000, create=True),
+                  patch.object(net.signal, 'SIGKILL', 9, create=True),
+                  patch('sys.stdout', new_callable=io.StringIO)]:
+            p.start()
+            self.addCleanup(p.stop)
 
-    def test_namespace_deleted_after_data_failure_and_rename(self):
-        with self.assertRaisesRegex(AssertionError, 'bad data'):
-            with net.network_namespace('usb7') as ns:
-                self.assertIn(['ip', '-n', ns, 'addr', 'add', '192.168.7.2/24',
-                               'dev', 'renamed0'], self.calls)
-                raise AssertionError('bad data')
-        self.assertEqual(self.calls[-1], ['ip', 'netns', 'delete', ns])
-        self.assertIn(['ip', 'link', 'set', 'dev', 'usb7', 'netns', ns], self.calls)
+    def test_python_runs_as_caller_in_anonymous_namespace(self):
+        net.check_device('ABC123')
+        argv = net.subprocess.Popen.call_args.args[0]
+        self.assertEqual(argv[:7], ['sudo', '-n', 'unshare', '--net', '--setgid', '1000', '--setuid'])
+        self.assertEqual(argv[7], '1000')
+        self.assertNotIn('start_new_session', net.subprocess.Popen.call_args.kwargs)
+        self.assertIn(['sudo', '-n', 'ip', 'link', 'set', 'dev', 'usb7', 'netns', '4321'], self.calls)
+        self.assertTrue(any('renamed0' in c for c in self.calls))
+        self.assertFalse(any(c[:4] == ['sudo', '-n', 'ip', 'netns'] for c in self.calls))
+        self.proc.communicate.assert_called_once_with(input='go\n', timeout=30)
 
-    def test_namespace_deleted_if_move_fails(self):
-        self.failure = 'usb7'
-        with self.assertRaisesRegex(RuntimeError, 'injected'):
-            with net.network_namespace('usb7'):
-                self.fail('move failure must abort setup')
-        self.assertEqual(self.calls[-1][:3], ['ip', 'netns', 'delete'])
+    def test_interrupt_terminates_client_and_reaps_sudo(self):
+        net.command.side_effect = KeyboardInterrupt()
+        self.proc.poll.return_value = None
+        with patch.object(net.os, 'kill') as kill:
+            with self.assertRaises(KeyboardInterrupt):
+                net.check_device('ABC123')
+        kill.assert_called_once_with(4321, net.signal.SIGTERM)
+        self.proc.communicate.assert_called_once_with(timeout=5)
 
-    def test_failed_creation_does_not_delete_an_existing_namespace(self):
-        self.failure = 'add'
-        with self.assertRaises(RuntimeError):
-            with net.network_namespace('usb7'):
-                self.fail('creation failed')
-        self.assertEqual(len(self.calls), 1)
+    def test_setup_failure_releases_namespace_owner(self):
+        net.command.side_effect = RuntimeError('move failed')
+        self.proc.poll.return_value = None
+        with patch.object(net.os, 'kill') as kill:
+            with self.assertRaisesRegex(RuntimeError, 'move failed'):
+                net.check_device('ABC123')
+        kill.assert_called_once_with(4321, net.signal.SIGTERM)
 
-    def test_signal_unwinds_namespace(self):
-        with self.assertRaises(TimeoutError):
-            with net.network_namespace('usb7'):
-                net.interrupted(15, None)
-        self.assertEqual(self.calls[-1][:3], ['ip', 'netns', 'delete'])
+    def test_stalled_client_escalates_after_cleanup_grace(self):
+        self.proc.communicate.side_effect = [net.subprocess.TimeoutExpired('client', 5), ('', '')]
+        with patch.object(net.os, 'kill') as kill:
+            net.stop_client(self.proc, 4321)
+        self.assertEqual([c.args for c in kill.call_args_list],
+                         [(4321, net.signal.SIGTERM), (4321, net.signal.SIGKILL)])
+
+    def test_http_failure_is_reported(self):
+        self.proc.returncode = 1
+        self.proc.communicate.return_value = ('', 'corrupt data')
+        with self.assertRaisesRegex(RuntimeError, 'corrupt data'):
+            net.check_device('ABC123')
 
 
 class HttpVerification(unittest.TestCase):
