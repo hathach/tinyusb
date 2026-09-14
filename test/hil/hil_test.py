@@ -23,7 +23,7 @@
 # THE SOFTWARE.
 
 # Host setup (required: a missing tool fails its test rather than skipping it):
-#   - System packages: sudo apt install mtools libmtp9 libmtp-runtime alsa-utils iproute2
+#   - System packages: sudo apt install mtools libmtp9 libmtp-runtime alsa-utils iproute2 udev
 #       mtools      read_disk_file (device/cdc_msc, device/msc_dual_lun)
 #       libmtp9     pymtp ctypes load (device/mtp); Debian 13 uses libmtp9t64
 #       libmtp-runtime  mtp-probe and the completed-device /dev/libmtp-* marker
