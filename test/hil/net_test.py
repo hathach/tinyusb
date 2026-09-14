@@ -20,7 +20,7 @@ import time
 import select
 import subprocess
 
-from helper import hil_util
+from helper import hil_health, hil_util
 
 DEVICE_IP = '192.168.7.1'
 # Default assets in the pinned lwIP dependency's src/apps/http/fsdata.c. Verify
@@ -70,17 +70,30 @@ def privileged(argv):
     return (['sudo', '-n'] if os.geteuid() != 0 else []) + argv
 
 
-def stop_client(proc, pid):
+def stop_client(proc, pid, grace=5):
     # The unshare child runs as us, even when its sudo wrapper belongs to root.
     # Terminate that child directly so sudo can reap it and return normally.
     for sig in (signal.SIGTERM, signal.SIGKILL):
-        if pid is not None:
+        if pid is None:
+            # Startup can fail before Python reports its PID. Walk only this
+            # Popen child's descendants, leaves first, then signal the wrapper.
+            # Never killpg: these processes share the HIL caller's group.
+            children = hil_health.child_procs([proc.pid]).get(proc.pid, [])
+            for child, _pgid in reversed(children):
+                try:
+                    os.kill(child, sig)
+                except (ProcessLookupError, PermissionError):
+                    # sudo relays SIGTERM to a child still running as root before
+                    # unshare drops privileges; the caller can signal sudo itself.
+                    pass
+            proc.send_signal(sig)
+        else:
             try:
                 os.kill(pid, sig)
             except ProcessLookupError:
                 pass
         try:
-            proc.communicate(timeout=5)
+            proc.communicate(timeout=grace)
             return
         except subprocess.TimeoutExpired:
             pass
