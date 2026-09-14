@@ -49,7 +49,7 @@
   Omit `build` and it resolves this repo's build contract. It refuses before touching
   anything on `dirty-start`, `wrong-branch`, `wrong-head`, `wrong-remote` (github.com
   over https or ssh only, and every push URL must be the PR's head repository),
-  `unsafe-ref` and `preflight-died`; `push-failed` with a `commit failed audit:` detail
+  and `preflight-died`; `push-failed` with a `commit failed audit:` detail
   means the commit was made and deliberately not pushed.
 - If workflows are unavailable, use `gh pr checks <num>` and `gh pr view <num> --comments`; fix failures, push, and resolve review threads.
 - The follow-up label is `followup`.
