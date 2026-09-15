@@ -18,7 +18,7 @@ installed from agentrc); read the relevant one BEFORE acting:
 
 | Skill              | Use for                                                                                                                                                                                               |
 |--------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| target-debug       | primary playbook — technique choice by intrusiveness, channel choice by link topology, capture recipes, bp/wp budget + cost model, vector catch + fault autopsy, SWO trace, GDB autopsy, rig warnings |
+| target-debug       | primary playbook (user-level from agentrc; its `scripts/pc_sample.py` is the PC-sampling technique) — technique choice by intrusiveness, channel choice by link topology, capture recipes, bp/wp budget + cost model, vector catch + fault autopsy, SWO trace, GDB autopsy, rig warnings |
 | hil                | host/config selection, board lock protocol, `hil_test.py` invocation                                                                                                                                  |
 | esp-target-debug   | PRIMARY playbook for Espressif boards — built-in USB-Serial-JTAG attach, the PHY map that decides whether JTAG exists, FreeRTOS threads via ESP_RTOS; target-debug still supplies the methodology     |
 | usb-sniffer        | wire-level capture (hardware tap): host can't see the bus, usbmon vs target logs disagree, or TinyUSB is the host (no usbmon anywhere); user-level from agentrc |
