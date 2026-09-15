@@ -19,7 +19,8 @@ stdout ends with one JSON line: {"pass", "boards": [{"board", "family", "buildDi
 "uncovered" is firmware no board's build compiled (a class no example enables, a lib
 nothing builds, a port whose family no built board has, an example no built board
 wrote an elf for), a coverage gap whatever else built.
-Exit 0 pass, 1 a board failed, 2 usage or resolution error, 3 uncovered paths.
+Exit 0 pass, 1 a board failed, 2 usage or resolution error ("error" carries the
+message, a missing dependency's remedy included), 3 uncovered paths.
 """
 
 import argparse
@@ -294,13 +295,22 @@ def run(cmd, verbose):
     return r.returncode, r.stdout
 
 
+class Parser(argparse.ArgumentParser):
+    def error(self, message):  # usage errors reach the caller the same way as resolution errors
+        self.print_usage(sys.stderr)
+        fail(message)
+
+
 def fail(message):
+    """Usage or resolution error, exit 2. The JSON line carries it too, so a caller
+    that reads stdout only (a workflow summary) can quote a missing-dependency remedy."""
     sys.stderr.write(f'error: {message}\n')
+    print(json.dumps({'pass': False, 'boards': [], 'error': message}))
     sys.exit(2)
 
 
 def main(argv=None):
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p = Parser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     how = p.add_mutually_exclusive_group(required=True)
     how.add_argument('--scope', nargs='+', metavar='PATH',
                      help='changed paths or directories, repo-relative')

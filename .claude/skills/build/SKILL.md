@@ -17,7 +17,7 @@ python3 $B ... --shared                       # canonical cmake-build-<board>, t
 python3 $B ... --fetch-deps                   # fetch a family's missing deps instead of failing
 ```
 
-The last stdout line is JSON: `pass`, per-board `status` (`ok`, `failed`, `skipped`, `error`), `built` (elf files this run wrote), `firstError`, `buildDir`, how the boards were resolved, and the scope paths nothing builds, split into `nothingToBuild` and `uncovered`. Exit 0 pass, 1 a board failed, 2 usage or resolution error, 3 an uncovered path. `-v` streams the build to stderr.
+The last stdout line is JSON: `pass`, per-board `status` (`ok`, `failed`, `skipped`, `error`), `built` (elf files this run wrote), `firstError`, `buildDir`, how the boards were resolved, and the scope paths nothing builds, split into `nothingToBuild` and `uncovered`. Exit 0 pass, 1 a board failed, 2 usage or resolution error with the message in `error` (a missing dependency names its remedy there), 3 an uncovered path. `-v` streams the build to stderr.
 
 ## Judgment
 

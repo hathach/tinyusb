@@ -222,9 +222,17 @@ class ResolveTest(unittest.TestCase):
         self.assertEqual(cm.exception.code, 2)
 
     def test_unknown_board_is_an_error(self):
-        with self.assertRaises(SystemExit) as cm:
+        with self.assertRaises(SystemExit) as cm, mock.patch('sys.stdout') as out:
             build.family_of('no_such_board')
         self.assertEqual(cm.exception.code, 2)
+        # exit 2 still ends stdout with a JSON line, so a caller reading only that can quote it
+        printed = json.loads(out.write.call_args_list[0][0][0])
+        self.assertEqual((printed['pass'], printed['boards']), (False, []))
+        self.assertIn('no_such_board', printed['error'])
+        with self.assertRaises(SystemExit) as cm, mock.patch('sys.stdout') as out, mock.patch('sys.stderr'):
+            build.main(['--scope', 'src/tusb.c', '--base', 'HEAD'])  # a usage error, the same way
+        self.assertEqual(cm.exception.code, 2)
+        self.assertIn('not allowed with', json.loads(out.write.call_args_list[0][0][0])['error'])
 
 
 class VerdictTest(unittest.TestCase):
@@ -309,7 +317,7 @@ class VerdictTest(unittest.TestCase):
 
     def test_a_define_on_an_espressif_board_is_refused_not_dropped(self):
         esp = build.family_boards('espressif')[0]
-        with mock.patch.object(build, 'run') as run, mock.patch.object(sys, 'stderr') as err:
+        with mock.patch.object(build, 'run') as run, mock.patch.object(sys, 'stderr') as err, mock.patch('sys.stdout'):
             with self.assertRaises(SystemExit) as cm:
                 build.build_one(esp, [], [], ['LOG=2'], [], False, False, False)
         self.assertEqual(cm.exception.code, 2)
