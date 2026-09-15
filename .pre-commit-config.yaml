@@ -42,7 +42,7 @@ repos:
 
   - id: gen-doc
     name: regenerate reference docs
-    files: ^(hw/bsp/.*/(board\.h|family\.c)|tools/get_deps\.py|test/hil/(tinyusb|hfp)\.json)$
+    files: ^(hw/bsp/.*/(board\.h|family\.c)|tools/get_deps\.py|test/hil/(tinyusb|hfp)\.json|\.claude/skills/build-doc/scripts/gen_doc\.py)$
     entry: python3 .claude/skills/build-doc/scripts/gen_doc.py
     pass_filenames: false
     language: system

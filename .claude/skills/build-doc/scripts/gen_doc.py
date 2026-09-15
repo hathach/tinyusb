@@ -38,14 +38,16 @@ def boards(bsp):
         if not f_meta:
             skipped.append(family_dir)
             continue
-        vendor = vendors.setdefault(f_meta.get('manufacturer', ''), {})
+        manufacturer = f_meta.get('manufacturer', '')
         for board_dir in sorted(p for p in (family_dir / 'boards').iterdir() if p.is_dir()):
             b_meta = metadata(board_dir / 'board.h')
             if not b_meta:
                 skipped.append(board_dir)
                 continue
-            vendor[board_dir.name] = [b_meta.get('name', ''), family_dir.name,
-                                      b_meta.get('url', ''), b_meta.get('note', '')]
+            # setdefault here, not before the loop: a family whose boards are all
+            # undocumented must not leave an empty vendor section behind.
+            vendors.setdefault(manufacturer, {})[board_dir.name] = [
+                b_meta.get('name', ''), family_dir.name, b_meta.get('url', ''), b_meta.get('note', '')]
     return vendors, skipped
 
 

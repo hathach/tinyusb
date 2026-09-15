@@ -35,11 +35,8 @@ It refuses when `--prev` is not an ancestor of the head, and when a first-parent
 ## 3. Validate (leave unstaged)
 
 ```bash
-pre-commit run --files docs/changelog/X.Y.Z.md docs/changelog/index.rst \
-  docs/reference/boards.rst docs/reference/dependencies.rst \
-  library.json repository.yml sonar-project.properties src/tusb_option.h
+pre-commit run --all-files                         # every file step 1 regenerated, unit tests included
 .claude/skills/build-doc/scripts/build_doc.py -c   # docs build clean, warnings fail it (see build-doc skill)
-( cd test/unit-test && ceedling test:all )
 ( cd examples/device/cdc_msc && rm -rf build && mkdir build && cd build && \
   cmake -DBOARD=stm32f407disco -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel .. && cmake --build . )
 git diff --stat -- ':!.idea'             # .idea/* is IDE noise

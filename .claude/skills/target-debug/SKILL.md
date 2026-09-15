@@ -340,7 +340,8 @@ Linux gadget peer):
 ```bash
 ~/.claude/skills/usb-kernel-debug/scripts/usbcap.py <bus> 30 /tmp/host.pcapng & cap=$!   # host URBs (usb-kernel-debug skill); the board's bus, `cafe:` is refused on a rig with several
 timeout 30s python3 tools/rtt.py --backend jlink --probe <sn> --device <dev> > /tmp/target.rtt & rtt=$!  # target (rtt skill; or ring dump after)
-wait $cap && wait $rtt   # a bare `wait` returns 0 even when one side failed
+wait $cap; rc_cap=$?; wait $rtt; rc_rtt=$?   # `wait $cap && wait $rtt` would skip the rtt wait when cap failed
+[ $rc_cap -eq 0 ] && [ $rc_rtt -eq 0 ]       # a bare `wait` returns 0 even when one side failed
 ```
 
 RTT lines and ring events carry no wall-clock: correlate on unambiguous

@@ -118,6 +118,9 @@ def boards_for(selection, scope=(), reasons=()):
     see coverage() for what the scope's unbuilt paths mean."""
     build = selection['build']
     changed = {m.group(2): m.group(1) for m in map(BOARD_PATH.match, scope) if m}
+    # a board the change deletes is still in the diff: drop it, so its family falls
+    # through to the rig-roster/first-board pick instead of failing family_of()
+    changed = {b: f for b, f in changed.items() if (ROOT / 'hw' / 'bsp' / f / 'boards' / b).is_dir()}
     rig = {b: family_of(b) for b in selection.get('boards', {})}
     changed_note = f', changed boards {sorted(changed)}' if changed else ''
     if build['full']:
@@ -227,14 +230,19 @@ def configured(board, family, examples, defines, build_dir, elfs, fresh):
     example (<dir>/<role>/<example>): the examples this run attempted are decided by
     the same functions tools/build.py uses, and a shared dir's tree for one it skipped
     proves nothing. Every other family is one CMake tree whose registered targets say
-    which elfs the configuration still builds; unreadable, only elfs written now count."""
+    which elfs the configuration still builds; unreadable, only elfs written now count.
+    -e narrows that further to the examples asked for: a shared dir also keeps the elf
+    of one this run never built."""
     if family == 'espressif':
         attempted = {e.split('/', 1)[1] for e in tools_build.get_examples(family)
                      if (not examples or e in examples)
                      and not tools_build.build_utils.skip_example(e, board, defines)}
         return [e for e in elfs if e.parent.name in attempted]
     reg = tools_build.cmake_registered_targets(str(ROOT / build_dir))
-    return [e for e in elfs if e.stem in reg] if reg else fresh
+    if not reg:
+        return fresh
+    asked = {e.split('/', 1)[1] for e in examples}
+    return [e for e in elfs if e.stem in reg and (not asked or e.stem in asked)]
 
 
 def build_one(board, examples, targets, defines, cflags, shared, fetch, verbose):
@@ -274,10 +282,12 @@ def build_one(board, examples, targets, defines, cflags, shared, fetch, verbose)
     # built counts only what this invocation wrote: a shared dir keeps older elfs. A
     # green build leaves every configured target up to date, so an elf it did not
     # relink is verified too, but only if its target is still configured: a shared dir
-    # also keeps the elf of an example this configuration no longer builds.
+    # also keeps the elf of an example this configuration no longer builds. -T builds
+    # the named targets alone, so then only a fresh elf is evidence of anything.
     elfs = list((ROOT / build_dir).rglob('*.elf')) if (ROOT / build_dir).is_dir() else []
     fresh = [e for e in elfs if e.stat().st_mtime >= started]
-    verified = configured(board, family, examples, defines, build_dir, elfs, fresh) if status == 'ok' else fresh
+    verified = configured(board, family, examples, defines, build_dir, elfs, fresh) \
+        if status == 'ok' and not targets else fresh
     return {'board': board, 'family': family, 'buildDir': build_dir, 'status': status,
             'built': len(fresh), 'okExamples': sorted({e.stem for e in verified}), 'firstError': first}
 

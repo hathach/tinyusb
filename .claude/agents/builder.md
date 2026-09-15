@@ -12,7 +12,7 @@ Read `.claude/skills/build/SKILL.md` from the repository root and run its script
 
 ## Failure triage
 
-For each failing example capture the FIRST compiler or linker error line (not the ninja/make summary). Classify each failure: `compile-error` | `link-error` | `config-error` | `deps-missing` | `toolchain-missing` | `no-build-coverage` | `other`. The script's exit 2 with a dependency message is `deps-missing`; an unknown board is `config-error`. Exit 3 is the contract's coverage-gap outcome: `pass` false and one `no-build-coverage` failure per `uncovered` reason, quoted verbatim as `firstError`, beside whatever the resolved boards reported. A scope of only `nothingToBuild` paths is exit 0 with no boards: `pass` true, and the reasons go in `failures` so the reader sees no build ran.
+For each failing example capture the FIRST compiler or linker error line (not the ninja/make summary). Classify each failure: `compile-error` | `link-error` | `config-error` | `deps-missing` | `toolchain-missing` | `no-build-coverage` | `nothing-to-build` | `other`. The script's exit 2 with a dependency message is `deps-missing`; an unknown board is `config-error`. Exit 3 is the contract's coverage-gap outcome: `pass` false and one failure per `uncovered` reason, `{"example": "", "class": "no-build-coverage", "firstError": "<reason verbatim>"}`, beside whatever the resolved boards reported. A scope of only `nothingToBuild` paths is exit 0 with no boards: `pass` true, and one failure per reason in that same shape with class `nothing-to-build`, so the reader sees no build ran.
 
 ## Output contract
 
