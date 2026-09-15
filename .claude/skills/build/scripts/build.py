@@ -5,11 +5,11 @@
            [-D SYMBOL]... [--cflag FLAG]... [--shared]
 
 Scope resolution goes through tools/ci_select.py: one board per affected family
-(a rig-roster board of that family first, else the first in hw/bsp/<family>/boards),
-or the representative pair when the selection is the full matrix. Each board builds
-through tools/build.py in a private cmake-build-agent-<pid> dir; --shared uses the
-canonical cmake-build-<board> that HIL flashes from and must not be shared with a
-parallel agent. Dependencies the family needs (get_deps.py's table) are checked first:
+(a rig-roster board of that family first, else the first in hw/bsp/<family>/boards,
+preferring one that builds an example the change affects), or the representative pair
+when the selection is the full matrix. Each board builds through tools/build.py in a
+private cmake-build-agent-<pid> dir; --shared uses the canonical cmake-build-<board>
+that HIL flashes from and must not be shared with a parallel agent. Dependencies the family needs (get_deps.py's table) are checked first:
 a missing one is an error naming the remedy, or fetched when --fetch-deps is given.
 
 stdout ends with one JSON line: {"pass", "boards": [{"board", "family", "buildDir",
@@ -109,9 +109,27 @@ def select(scope=None, base=None, config=HIL_CONFIG):
     return json.loads(r.stdout.splitlines()[-1]), reasons
 
 
+def representative(candidates, examples):
+    """The family's board to build: the first candidate this build can compile one of
+    the affected examples on, else the first. ci_select keeps a family when ANY of its
+    boards builds the selection under EITHER build system, so the first candidate can be
+    one skipped for every affected example (samd11's cynthion_d11 is skip.txt'd out of
+    device/mtp) and verify none of the change. No example list means the family's whole
+    set, where any board compiles some of it."""
+    def builds_any(board):
+        try:
+            return any(not tools_build.build_utils.skip_example(e, board) for e in examples)
+        except OSError:              # family mid-bring-up, unreadable to the mcu scrape
+            return True
+    if not examples:
+        return candidates[0]
+    return next((b for b in candidates if builds_any(b)), candidates[0])
+
+
 def boards_for(selection, scope=(), reasons=()):
     """One board per affected family: a board whose own hw/bsp dir is in the scope,
-    else a rig-roster board of the family, else the first under hw/bsp/<family>/boards.
+    else a rig-roster board of the family, else one under hw/bsp/<family>/boards,
+    preferring in either case one that builds an affected example (representative).
     The representative pair for the full matrix, plus one board per family a scope
     path names (a port, bsp or mcu path): the pair stands in for the matrix on core
     code, not on a port it does not contain. No family is not a verdict on its own:
@@ -134,13 +152,14 @@ def boards_for(selection, scope=(), reasons=()):
     if not build['families']:
         return [], 'no build family'
     boards = []
+    fam_ex = build.get('family_examples', {})
     for fam in build['families']:
         own = sorted(b for b, f in changed.items() if f == fam)
         on_rig = sorted(b for b, f in rig.items() if f == fam)
-        candidates = own or on_rig or family_boards(fam)
+        candidates = own or list(dict.fromkeys(on_rig + family_boards(fam)))
         if not candidates:
             fail(f'family {fam} has no boards under hw/bsp/{fam}/boards')
-        boards.extend(own or candidates[:1])
+        boards.extend(own or [representative(candidates, fam_ex.get(fam))])
     return boards, f'one board per family {build["families"]}' + changed_note
 
 
@@ -210,9 +229,13 @@ def coverage(reasons, scope, results, chosen=False):
 
 
 def missing_deps(family):
+    """Present means content, not a directory: get_deps.py git-inits the dep dir before
+    fetching and exits 0 whatever the fetch did (its run_cmd's status is ignored), so a
+    fetch that failed leaves a dir holding nothing but .git."""
     needed = list(get_deps.deps_mandatory) + \
         [d for d, entry in get_deps.deps_optional.items() if family in entry[2].split()]
-    return [d for d in needed if not (ROOT / d).is_dir() or not any((ROOT / d).iterdir())]
+    return [d for d in needed if not (ROOT / d).is_dir()
+            or not any(p.name != '.git' for p in (ROOT / d).iterdir())]
 
 
 def ensure_deps(family, fetch, verbose):
