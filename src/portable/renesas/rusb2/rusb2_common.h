@@ -14,8 +14,8 @@
 #elif TU_CHECK_MCU(OPT_MCU_RAXXX)
   #include "rusb2_ra.h"
 
-  // Hack for D0FIFO definitions on RA Cortex-M23
-  #if defined(RENESAS_CORTEX_M23)
+  // Hack for D0FIFO definitions on RA with usb device support only
+  #ifdef RUSB2_RA_USBFS_DEVICE_ONLY
     #define D0FIFO      CFIFO
     #define D0FIFOSEL   CFIFOSEL
     #define D0FIFOSEL_b CFIFOSEL_b

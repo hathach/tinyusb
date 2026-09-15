@@ -38,6 +38,10 @@ extern "C" {
 //
 //--------------------------------------------------------------------+
 
+#if defined(BSP_MCU_GROUP_RA2A1) || defined(BSP_MCU_GROUP_RA2L2) || defined(BSP_MCU_GROUP_RA4E2) || defined(BSP_MCU_GROUP_RA6E2) || defined(BSP_MCU_GROUP_RA6T3)
+#define RUSB2_RA_USBFS_DEVICE_ONLY
+#endif
+
 typedef struct {
   uint32_t reg_base;
   int32_t irqnum;
