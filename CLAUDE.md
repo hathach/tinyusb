@@ -38,16 +38,21 @@
   workflow, from a **clean** checkout of the PR branch with no other writer in it: an
   edit to a path the run already owns cannot be told from its own and would be pushed.
   ```
-  Workflow /pr-babysit {"pr": <num>, "reviewers": ["codex","copilot","coderabbit"],
+  Workflow /pr-babysit {"pr": <num>, "reviewers": ["codex","copilot","coderabbit","claude"],
+    "autoRun": ["codex","coderabbit","claude"],
     "protected": "^test/hil/[^/]+\\.json$", "ciWait": 30}
   ```
   `reviewers` is required — `[]` runs the CI lane and harvests no review — and
-  `protected` is a regex matched against repo-relative paths. `maxCycles` bounds the
+  `autoRun` is the subset of it that runs on every push and gates `done` (default: all
+  of `reviewers`), so Copilot is harvested but not waited on. `protected` is a regex
+  matched against repo-relative paths. `maxCycles` bounds the
   review/fix/CI rounds (default 3); `checkoutDir` points it at the PR checkout when you
   are not running from inside one.
   It dry-runs by default. `"autoPush": true` is what tells it to push and to post PR
   comments, and is the user's to give — it does not stop an agent from doing either,
-  it decides whether the workflow asks. `protected` keeps the HIL rig rosters out of
+  it decides whether the workflow asks. A dry run still reruns a CI job classified as
+  an infra flake, the one GitHub action dry mode does not suppress; fixes stay
+  uncommitted and nothing is posted. `protected` keeps the HIL rig rosters out of
   every fix scope, since a failure needing hardware changed stays red for a human.
   Omit `build` and it resolves this repo's build contract. It refuses before touching
   anything on `dirty-start`, `wrong-branch`, `wrong-head`, `wrong-remote` (github.com
