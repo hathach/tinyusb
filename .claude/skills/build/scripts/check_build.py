@@ -21,8 +21,9 @@ stdout ends with one JSON line: {"pass", "boards": [{"board", "family", "buildDi
 "uncovered"}. A scope path nothing builds is one of two kinds, in ci_select's words:
 "nothingToBuild" is nothing to verify (docs, .claude/, unit tests, HIL harness);
 "uncovered" is firmware no board's build compiled (a class no example enables, a lib
-nothing builds, a port whose family no built board has, an example no built board
-wrote an elf for), a coverage gap whatever else built.
+nothing builds, a port no built board compiles - wrong family, wrong USB IP or an
+option the port is gated behind - an example no built board wrote an elf for, or a
+build target the default sweep never runs), a coverage gap whatever else built.
 Exit 0 pass, 1 a board failed, 2 usage or resolution error ("error" carries the
 message, a missing dependency's remedy included), 3 uncovered paths.
 """
@@ -49,6 +50,7 @@ ROW = re.compile(r'^\|\s*(\S+)\s*\|\s*(.+?)\s*\|\s*\x1b\[\d+m(OK|Failed|Skipped)
 sys.path.insert(0, str(ROOT / 'tools'))
 import get_deps  # noqa: E402  the dependency table, one source with the fetcher
 import build as tools_build  # noqa: E402  tools/build.py, first on the path above
+import ci_select  # noqa: E402  the same classifier run below, here for its option knowledge
 
 
 def family_of(board):
@@ -100,14 +102,14 @@ def select(scope=None, base=None, config=HIL_CONFIG):
     """(ci_select's JSON, its per-path build-axis reasons) for a path list or, with
     --base, for the branch diff: only the base form sees dependency revision changes
     (get_deps.py table edits)."""
-    ci_select = [sys.executable, str(ROOT / 'tools' / 'ci_select.py')]
+    selector = [sys.executable, str(ROOT / 'tools' / 'ci_select.py')]
     with tempfile.TemporaryDirectory() as tmp:   # the path list goes away with it, fail() included
         if base:
-            cmd = ci_select + ['--base', base, str(config)]
+            cmd = selector + ['--base', base, str(config)]
         else:
             listing = Path(tmp) / 'scope.txt'
             listing.write_text('\n'.join(scope) + '\n')
-            cmd = ci_select + ['--diff-file', str(listing), str(config)]
+            cmd = selector + ['--diff-file', str(listing), str(config)]
         r = subprocess.run(cmd, capture_output=True, text=True, cwd=ROOT)
     if r.returncode != 0:
         fail(f'ci_select failed:\n{r.stderr.strip()}')
@@ -116,10 +118,11 @@ def select(scope=None, base=None, config=HIL_CONFIG):
     return json.loads(r.stdout.splitlines()[-1]), reasons
 
 
-def representatives(candidates, examples, usbips=(), keep=()):
+def representatives(candidates, examples, usbips=(), keep=(), options=frozenset()):
     """The family's boards to build: the boards in `keep` (the ones the change edits),
-    plus one candidate per USB-IP requirement set none of them selects, plus a plain first
-    pick when that leaves nothing. A candidate that compiles one of the affected examples
+    plus one candidate per USB-IP requirement set none of them selects, plus one turning on
+    the build options an option-gated port needs, plus a plain first pick when that leaves
+    nothing. A candidate that compiles one of the affected examples
     is preferred, the criterion dropped rather than returning nothing when it leaves no
     candidate: ci_select keeps a family when ANY of its boards builds the selection under
     EITHER build system, so the first candidate can be one skipped for every affected
@@ -130,7 +133,9 @@ def representatives(candidates, examples, usbips=(), keep=()):
     scope changing both drivers needs a board apiece or one of them preprocesses away to
     nothing. A requirement set no candidate satisfies adds no board - then no board of the
     family compiles that driver at all, and coverage() reports the path as uncovered
-    instead of the run going green on a body it never saw.
+    instead of the run going green on a body it never saw. `options` is the same rule for
+    a port no family file compiles outright: family_support.cmake adds analog/max3421 only
+    under MAX3421_HOST=1, which a board turns on in its own board.cmake or not at all here.
     No example list means the family's whole set, where any board compiles some of it."""
     def builds_any(board):
         try:
@@ -147,6 +152,10 @@ def representatives(candidates, examples, usbips=(), keep=()):
         if any(req <= board_usbips(b) for b in picked):
             continue
         hit = next((b for b in pool if req <= board_usbips(b)), None)
+        if hit:
+            picked.append(hit)
+    if options and not any(options <= board_options(b) for b in picked):
+        hit = next((b for b in pool if options <= board_options(b)), None)
         if hit:
             picked.append(hit)
     return picked or [pool[0]]
@@ -319,11 +328,20 @@ def board_usbips(board):
     return frozenset(USBIP_DEFINE.findall(r.stdout))
 
 
+def board_options(board):
+    """The build options a board turns on in its own board.cmake, ci_select's scrape. The
+    rig roster's variant defines are deliberately not in it: this script passes no -D of
+    its own, so an option only a roster entry sets (metro_m4_express and MAX3421_HOST=1)
+    is off in the build that runs here."""
+    return ci_select.bsp_board_options(board, str(ROOT))
+
+
 def boards_for(selection, scope=(), reasons=()):
     """One board per affected family, plus one more per changed driver the first does not
     compile: a board whose own hw/bsp dir is in the scope, else a rig-roster board of the
     family, else one under hw/bsp/<family>/boards, and then a board per USB-IP requirement
-    set of the changed ports that none of those selects (representatives).
+    set of the changed ports, and one turning on the build option an option-gated port
+    needs, that none of those selects (representatives).
     The representative pair for the full matrix, plus boards for every family a scope
     path names (a port, bsp or mcu path): the pair stands in for the matrix on core
     code, not on a port it does not contain. No family is not a verdict on its own:
@@ -336,6 +354,7 @@ def boards_for(selection, scope=(), reasons=()):
     rig = {b: family_of(b) for b in selection.get('boards', {})}
     changed_note = f', changed boards {sorted(changed)}' if changed else ''
     ips = family_usbips(reasons)
+    opts = family_options(reasons)
     if build['full']:
         boards = list(dict.fromkeys(FULL_MATRIX_BOARDS + sorted(changed)))
         have = {}
@@ -352,7 +371,8 @@ def boards_for(selection, scope=(), reasons=()):
                                             family_boards(fam)))
             if not candidates:                     # a family with no boards, coverage() reports it
                 continue
-            picked = [b for b in representatives(candidates, None, ips.get(fam, ()), have.get(fam, []))
+            picked = [b for b in representatives(candidates, None, ips.get(fam, ()), have.get(fam, []),
+                                                 opts.get(fam, frozenset()))
                       if b not in boards]
             boards += picked
             if picked:
@@ -368,7 +388,8 @@ def boards_for(selection, scope=(), reasons=()):
         candidates = list(dict.fromkeys(own + on_rig + family_boards(fam)))
         if not candidates:
             fail(f'family {fam} has no boards under hw/bsp/{fam}/boards')
-        boards.extend(representatives(candidates, fam_ex.get(fam), ips.get(fam, ()), own))
+        boards.extend(representatives(candidates, fam_ex.get(fam), ips.get(fam, ()), own,
+                                      opts.get(fam, frozenset())))
     return boards, f'one board per family {build["families"]}' + changed_note
 
 
@@ -376,6 +397,9 @@ FAMILIES_IN = re.compile(r"-> families \[(.*?)\]|: bsp family (\S+)$")
 EXAMPLES_IN = re.compile(r"-> \[(.*?)\]$|: example (\S+)$")
 ROLE_IN = re.compile(r": core (device|host) stack$")
 PORT_IN = re.compile(r": port (\S+) -> families \[")
+# ci_select's wording for tools/metrics.py and .github/scripts/metrics_*.py, the one
+# build reason that names a cmake target rather than families or examples
+METRICS_IN = re.compile(r": metrics tooling runs in the build\b")
 
 
 def _named(pattern, reason):
@@ -402,16 +426,45 @@ def family_usbips(reasons):
     return out
 
 
-def usbip_covered(reason, results):
-    """Whether the boards built compile the changed driver, not merely its family: the
-    USB-IP sets the path needs against the ones a built board's MCU selects. A board that
-    cannot say (board_usbips empty - no host cc, an MCU branch behind an SDK header)
-    counts as satisfying, so a family the preprocessor probe cannot answer for is never
-    reported as a gap. A reason naming no port is nothing to judge this way."""
-    if not PORT_IN.search(reason):
+def port_gates(port):
+    """The build options that decide whether a port dir is compiled at all, ci_select's
+    family_support.cmake scrape: {'analog/max3421': {'MAX3421_HOST'}}. Empty for a port a
+    family file compiles outright."""
+    return ci_select.port_option_gates(str(ROOT)).get(port, set())
+
+
+def family_options(reasons):
+    """family -> the build options its picks must turn on, one set per option-gated port
+    the scope changed. A gated port is named with its families like any other, but a board
+    of one of them compiles none of it unless the option is on: without this an
+    hcd_max3421.c change resolves to espressif_p4_function_ev and adafruit_fruit_jam, where
+    the changed file is in no build at all."""
+    out = {}
+    for r in reasons:
+        m = PORT_IN.search(r)
+        if m and port_gates(m.group(1)):
+            for fam in named_families(r) or ():
+                out.setdefault(fam, set()).update(port_gates(m.group(1)))
+    return out
+
+
+def port_covered(reason, results):
+    """Whether the boards built compile the changed driver, not merely its family. Two
+    gates decide that: the USB-IP sets the path needs against the ones a built board's MCU
+    selects, and the build options its port dir is compiled behind, which a built board
+    turns on in its own board.cmake or nowhere. A board that cannot say its IPs
+    (board_usbips empty - no host cc, an MCU branch behind an SDK header) counts as
+    satisfying, so a family the preprocessor probe cannot answer for is never reported as
+    a gap. A reason naming no port is nothing to judge this way."""
+    m = PORT_IN.search(reason)
+    if not m:
         return True
     fams = named_families(reason) or set()
-    have = [board_usbips(r['board']) for r in results if r.get('board') and r['family'] in fams]
+    built = [r['board'] for r in results if r.get('board') and r['family'] in fams]
+    gates = port_gates(m.group(1))
+    if gates and not any(gates <= board_options(b) for b in built):
+        return False
+    have = [board_usbips(b) for b in built]
     return all(any(not ips or req <= ips for ips in have)
                for req in path_usbips(reason.split(': ', 1)[0]))
 
@@ -435,8 +488,11 @@ def coverage(reasons, scope, results, chosen=False):
     family _prune_buildable dropped (dir gone, boards unreadable, or every example
     filtered, which it drops without a reason line), or a full-matrix run whose pair
     does not contain the port. A port path is a gap too when the boards built are of its
-    families but none selects the USB IP its driver is guarded by (usbip_covered): no
-    board of those families compiles the changed body. A path that named examples is a
+    families but none compiles the changed body (port_covered): none selects the USB IP
+    its driver is guarded by, or none turns on the build option its port dir is gated
+    behind. A path whose reason names a build target rather than families or examples
+    (tools/metrics.py runs as tinyusb_metrics) is a gap whatever built: the default sweep
+    builds `all`, which never runs that target. A path that named examples is a
     gap when no board wrote an elf for any of them; a core stack path names every example
     of its role; any other contributing path is a gap when the run produced no elf at all
     (-T help is a green build of nothing). `chosen` (-e or -T given) hands all that to
@@ -450,10 +506,13 @@ def coverage(reasons, scope, results, chosen=False):
             benign.append(r)
         elif r.endswith('no contribution') or r.endswith('dropped'):
             gaps.append(r)
-        elif fams is not None and not (fams & built_fams and usbip_covered(r, results)):
+        elif fams is not None and not (fams & built_fams and port_covered(r, results)):
             gaps.append(r)
         elif chosen:
             continue
+        elif METRICS_IN.search(r):
+            gaps.append(f'{r} (the default sweep builds `all`, which does not run '
+                        f'tinyusb_metrics: rerun with -T all -T tinyusb_metrics)')
         elif exs is not None and not {e.split('/', 1)[1] for e in exs} & ok_ex:
             gaps.append(r)
         elif results and not ok_ex:

@@ -142,6 +142,15 @@ if (!skip.includes('size')) stageNames.push('size')
 if (!skip.includes('pvs')) stageNames.push('pvs')
 if (review) stageNames.push('review')
 
+// The analyser needs one compile database, and tools/build.py writes one per
+// example under <build dir>/<example>/ for an Espressif board (idf.py backend)
+// instead of one at the build dir root — so an Espressif board is no candidate.
+// Candidates are the sweep's own boards, so PVS still sees the changed port,
+// then the board the repo designates for static analysis: stm32f407disco is
+// the fastest of the two and dwc2 like the Espressif parts.
+const pvsBoards = [...args.boards, 'stm32f407disco'].join(' ')
+if (!skip.includes('pvs')) log(`pvs compile DB: first non-Espressif of ${pvsBoards}`)
+
 function stageThunk(name, cycle) {
   const label = (cycle > 1 ? `c${cycle}:` : '') + name
   // findings: [] so a dead review stage flows through fixerEvidence()
@@ -173,8 +182,11 @@ function stageThunk(name, cycle) {
   ).then(r => r ? { stage: name, ...r } : died).catch(() => died)
 
   if (name === 'pvs') return () => agent(
-    'Compile DB, through the project build tool, as ONE shell command from the repo root so both $$ expand to the same pid: ' +
-    `D=cmake-build/cmake-build-pvs-$$ && python3 tools/build.py -b ${args.boards[0]} --build-name pvs-$$ && ls $D/compile_commands.json ` +
+    'Compile DB, through the project build tool, as ONE shell command from the repo root so both $$ expand to the same pid ' +
+    '(B is the first candidate board that is not Espressif — an Espressif board builds through idf.py, which writes a ' +
+    'compile DB per example under $D/<example>/ and none at $D): ' +
+    `D=cmake-build/cmake-build-pvs-$$ && B=$(for b in ${pvsBoards}; do [ -d hw/bsp/espressif/boards/$b ] || { echo $b; break; }; done) && ` +
+    'python3 tools/build.py -b $B --build-name pvs-$$ && ls $D/compile_commands.json ' +
     '(--build-name keeps this run\'s tree private: a fixed name is clobbered by a concurrent validate run, and ' +
     'cmake-build-<board> belongs to the parallel build agents; a missing lib/ or hw/mcu/ dependency means ' +
     '`python3 tools/get_deps.py -b <board>` once, then retry). ' +
