@@ -133,8 +133,7 @@ typedef struct {
   volatile uint8_t ep_status[CFG_TUD_ENDPPOINT_MAX][2];
 
 #if OSAL_MUTEX_REQUIRED
-  // OUT endpoint whose xfer_cb may still be reading the transfer buffer, 0 if none. Written only in the
-  // usbd task, under the claim mutex so usbd_edpt_claim_idle() sees it together with ep_status.
+  // OUT endpoint whose xfer_cb may still read its buffer, 0 if none. Written by the usbd task under _usbd_mutex
   volatile uint8_t cb_ep_addr;
 #endif
 } usbd_device_t;
@@ -761,9 +760,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
 
 #if OSAL_MUTEX_REQUIRED
         if (epnum != 0 && ep_dir == TUSB_DIR_OUT) {
-          // Clear busy + claimed. xfer_cb may still be reading the transfer buffer, so record the endpoint in
-          // the same critical section: usbd_edpt_claim_idle() refuses it until the class reports the buffer
-          // consumed or xfer_cb returns.
+          // Clear busy + claimed and record the endpoint together, so claim_idle never sees one without the other
           (void) osal_mutex_lock(_usbd_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
           _usbd_dev.cb_ep_addr = ep_addr;
           _usbd_dev.ep_status[epnum][ep_dir] &= (uint8_t) ~(TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED);
@@ -793,7 +790,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
         }
 
 #if OSAL_MUTEX_REQUIRED
-        // xfer_cb returned: the transfer buffer is no longer in use
+        // xfer_cb returned, the buffer is no longer in use
         usbd_edpt_xfer_consumed(event.rhport, ep_addr);
 #endif
         break;
@@ -1621,8 +1618,7 @@ bool usbd_edpt_claim_idle(uint8_t rhport, uint8_t ep_addr) {
   uint8_t const dir = tu_edpt_dir(ep_addr);
   volatile uint8_t *ep_state = &_usbd_dev.ep_status[epnum][dir];
 
-  // Lock-free pre-check, as in tu_edpt_claim(), so an armed endpoint costs no mutex. A stale BUSY only
-  // refuses this call and the next application read retries. cb_ep_addr is only read under the mutex.
+  // Lock-free pre-check as in tu_edpt_claim(); a stale BUSY only refuses this call
   TU_VERIFY((*ep_state & (TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED)) == 0);
   (void) osal_mutex_lock(_usbd_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
 
@@ -1639,9 +1635,7 @@ bool usbd_edpt_claim_idle(uint8_t rhport, uint8_t ep_addr) {
 void usbd_edpt_xfer_consumed(uint8_t rhport, uint8_t ep_addr) {
   (void) rhport;
 
-  // Only the usbd task writes cb_ep_addr, and this runs in it, so the unlocked read is current.
-  // Clear under the claim mutex: a usbd_edpt_claim_idle() after this sees the endpoint free, and one
-  // before it is ordered before the caller's following FIFO check, which then sees the space it freed.
+  // Clear under the mutex: a refused claim_idle is ordered before the caller's FIFO check, so no re-arm is lost
   if (ep_addr != 0 && _usbd_dev.cb_ep_addr == ep_addr) {
     (void) osal_mutex_lock(_usbd_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
     _usbd_dev.cb_ep_addr = 0;

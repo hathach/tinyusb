@@ -386,9 +386,7 @@ void test_usbd_control_out_overrun_clamp(void)
 // Application-context claim while xfer_cb runs
 //--------------------------------------------------------------------+
 
-// usbd clears BUSY|CLAIMED before xfer_cb, which may still be reading the transfer buffer.
-// usbd_edpt_claim_idle() must refuse the endpoint until the class reports the buffer consumed or
-// xfer_cb returns, while the class's own usbd_edpt_claim() inside xfer_cb keeps working.
+// usbd_edpt_claim_idle() refuses the endpoint while xfer_cb may still read its buffer
 
 // One MSC interface on bulk 0x02/0x82, so completions on 0x02 reach the mocked mscd_xfer_cb
 uint8_t const data_desc_configuration_msc[] = {
@@ -483,8 +481,7 @@ static bool xfer_cb_rearm(uint8_t rhport_, uint8_t ep_addr, xfer_result_t result
   return true;
 }
 
-// A class that re-arms inside xfer_cb leaves the endpoint BUSY. If that transfer's completion is then
-// dropped by a full queue, the endpoint must still be claimable from application context.
+// A re-armed transfer whose completion is dropped must leave the endpoint claimable
 void test_usbd_claim_idle_recovers_after_rearmed_completion_dropped(void) {
   // fillers drain through usbd_reset -> class reset
   mscd_reset_Ignore();

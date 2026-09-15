@@ -356,8 +356,7 @@ static bool stream_xfer(tu_edpt_stream_t *s, uint16_t count) {
   return false;
 }
 
-// Claim for a read transfer. From application context a device endpoint is not handed out while its
-// xfer_cb may still be reading the transfer buffer; that callback re-arms the endpoint itself.
+// App context: refuse a device endpoint whose xfer_cb may still read the buffer; xfer_cb re-arms it
 static bool stream_claim_read(tu_edpt_stream_t *s, bool from_app) {
 #if CFG_TUD_ENABLED && OSAL_MUTEX_REQUIRED
   if (from_app && !s->is_host) {
@@ -447,7 +446,7 @@ void tu_edpt_stream_read_consumed(tu_edpt_stream_t *s) {
 
 static uint32_t stream_read_xfer(tu_edpt_stream_t *s, bool from_app) {
 #if CFG_TUD_ENABLED && OSAL_MUTEX_REQUIRED
-  // class driver context: the last transfer buffer has been consumed, application re-arm is safe again
+  // class driver context: the buffer has been copied out
   if (!from_app) {
     tu_edpt_stream_read_consumed(s);
   }
