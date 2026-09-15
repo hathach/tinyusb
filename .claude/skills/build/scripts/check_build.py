@@ -199,13 +199,90 @@ def mcu_defines():
     return frozenset(n for n in MCU_DEFINE.findall(text) if not n.startswith(('TUP_', 'CFG_', '__')))
 
 
+FAMILY_MCUS_SET = re.compile(r'set\s*\(\s*FAMILY_MCUS\s+([^)\s]+)')
+CMAKE_COND = re.compile(r'^(if|elseif|else|endif)\s*\((.*)\)\s*$')
+VARIANT_EQ = re.compile(r'MCU_VARIANT\s+STREQUAL\s+"?([\w.]+)"?')
+
+
+def logical_lines(text):
+    """One cmake command per item, a call whose arguments span lines joined (maxim's
+    family.cmake wraps an if() over two), comment lines dropped: a condition read half
+    is a condition misread."""
+    pending = ''
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith('#'):
+            continue
+        pending = f'{pending} {line}' if pending else line
+        if pending.count('(') > pending.count(')'):
+            continue
+        yield pending
+        pending = ''
+
+
+def variant_test(cond, variant):
+    """Whether an if() condition holds for this MCU_VARIANT, None when nothing can say:
+    a board whose cmake spells no variant, or a condition that is not an MCU_VARIANT
+    equality or an OR-chain of them (nrf ORs two)."""
+    terms = VARIANT_EQ.findall(cond)
+    if not variant or not terms or VARIANT_EQ.sub('', cond).replace('OR', ' ').strip(' \t()'):
+        return None
+    return variant in terms
+
+
+@functools.lru_cache(maxsize=None)
+def variant_mcu(family, variant):
+    """(family.cmake picks FAMILY_MCUS inside an if(), the token it picks for this
+    MCU_VARIANT). A cmake build compiles with CFG_TUSB_MCU=OPT_MCU_${FAMILY_MCUS}
+    (family_add_tinyusb), and nrf and mcx choose FAMILY_MCUS per variant, which
+    build_utils' scrape does not evaluate - it takes the family file's FIRST
+    CFG_TUSB_MCU token, so every nrf board answers NRF54, the nrf52840 ones included,
+    and those select no TUP_USBIP at all while NRF54 selects DWC2.
+    Only MCU_VARIANT equality decides a branch; a pick under any other condition, or one
+    whose token is not a plain name, leaves the token None for the caller to read as
+    'cannot say'."""
+    try:
+        text = (ROOT / 'hw' / 'bsp' / family / 'family.cmake').read_text(encoding='utf-8', errors='replace')
+    except OSError:
+        return False, None
+    keyed, token = False, None
+    stack = []                   # per open if(): [this branch active, what the chain did]
+    for line in logical_lines(text):
+        m = CMAKE_COND.match(line)
+        if m:
+            kw, cond = m.groups()
+            if kw == 'endif':
+                if stack:
+                    stack.pop()
+            elif kw == 'if':
+                stack.append([variant_test(cond, variant), ''])
+            elif stack:
+                active, chain = stack[-1]
+                chain = chain or ('taken' if active is True else 'unknown' if active is None else '')
+                if chain:        # an earlier branch decided the chain, or nothing can say it did
+                    active = False if chain == 'taken' else None
+                else:
+                    active = True if kw == 'else' else variant_test(cond, variant)
+                stack[-1] = [active, chain]
+            continue
+        m = FAMILY_MCUS_SET.search(line)
+        if not m:
+            continue
+        keyed = keyed or bool(stack)
+        if all(a is True for a, _ in stack):
+            tok = m.group(1).strip('"')
+            token = tok if tok.isidentifier() else None
+    return keyed, token
+
+
 @functools.lru_cache(maxsize=None)
 def board_usbips(board):
     """The TUP_USBIP_* a board's MCU selects, asked of the preprocessor instead of
     scraped: tusb_mcu.h keys them off CFG_TUSB_MCU and then, for a family carrying two
     IPs, off the device-model define, a chain no regex reproduces. Empty is 'cannot
     say' - no host cc, an MCU token that resolves to no OPT_MCU_*, a branch including an
-    SDK header (imxrt, lpc54), a device define the board's cmake never spells - and the
+    SDK header (imxrt, lpc54), a device define the board's cmake never spells, a family
+    whose FAMILY_MCUS this board's MCU_VARIANT does not resolve (variant_mcu) - and the
     caller falls back to its other criteria."""
     family = family_of(board)
     board_dir = ROOT / 'hw' / 'bsp' / family / 'boards' / board
@@ -213,6 +290,12 @@ def board_usbips(board):
         mcu, _ = tools_build.build_utils._board_mcu(str(board_dir), str(ROOT / 'hw' / 'bsp' / family), family)
     except OSError:                  # family mid-bring-up: no family.cmake to scrape
         return frozenset()
+    variant = tools_build.build_utils._cmake_sets(str(board_dir / 'board.cmake')).get('MCU_VARIANT')
+    keyed, picked = variant_mcu(family, variant if isinstance(variant, str) else None)
+    if keyed:                        # the scrape cannot answer a per-variant family
+        if not picked:
+            return frozenset()
+        mcu = picked
     # the board's own cmake first: family.cmake names a device define only for the
     # families that pick one there, and then the same one for every board
     names = set()
@@ -461,8 +544,9 @@ def stale_options(build_dir, supplied):
     configuration nobody asked for. Which names those are is no fixed list, so the entry's
     type answers instead of a whitelist: a -D no cmake code declares keeps UNINITIALIZED,
     the type only a command line gives, and the four tools/build.py passes on every
-    configure are this run's own. An option this run does set is no risk: its -D
-    overwrites the cached value.
+    configure are this run's own. An empty value is an option too: -DLOG= leaves a cache
+    entry, if(DEFINED LOG) is true for it, and the build compiles with CFG_TUSB_DEBUG=.
+    An option this run does set is no risk: its -D overwrites the cached value.
     Espressif builds one idf tree per example under the dir, each with a cache full of
     idf.py's own untyped defines; -D is refused for that family (build_one), so there only
     the sticky trio can have come from a command line."""
@@ -480,7 +564,7 @@ def stale_options(build_dir, supplied):
             if not m:
                 continue
             name, kind, value = m.groups()
-            if not value or name in supplied or name in BUILD_PY_OPTIONS:
+            if name in supplied or name in BUILD_PY_OPTIONS:
                 continue
             if name in STICKY_OPTIONS or (from_build_py and kind == 'UNINITIALIZED'):
                 out[name] = value
