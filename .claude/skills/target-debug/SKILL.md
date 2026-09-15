@@ -217,7 +217,7 @@ dump binary memory /tmp/ring.bin &dbg_ring[0] &dbg_ring[512]
 
 Build with `LOG=2` (`LOG=3` adds per-transfer noise and much more timing skew).
 `LOGGER=rtt` routes it over the debug probe — no UART wiring. Stand the
-channel up per the **rtt** skill (servers per probe, transport matrix,
+channel up per the user-level **rtt** skill from agentrc (servers per probe, transport matrix,
 control-block gotchas live there):
 
 ```bash
