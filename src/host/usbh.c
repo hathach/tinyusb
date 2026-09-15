@@ -2064,7 +2064,6 @@ static void process_enumeration(tuh_xfer_t *xfer) {
     case ENUM_SET_CONFIG: {
       uint8_t config_idx = (uint8_t) tu_le16toh(xfer->setup->wIndex);
       if (tuh_enum_descriptor_configuration_cb(daddr, config_idx, (const tusb_desc_configuration_t*) _usbh_epbuf.ctrl)) {
-<<<<<<< HEAD
         // For xHCI: pass full config to HCD before SET_CONFIGURATION
         const uint8_t rhport = usbh_get_rhport(daddr);
         if (!hcd_parse_full_conf_descriptor((tusb_desc_configuration_t*) _usbh_epbuf.ctrl, rhport)) {
@@ -2072,13 +2071,6 @@ static void process_enumeration(tuh_xfer_t *xfer) {
           break;
         }
         is_enum_failed = !tuh_configuration_set(daddr, config_idx+1u, process_enumeration, ENUM_CONFIG_DRIVER);
-=======
-        //For xHCI controller, endpoint descriptor needs to be passed to xHCI structures explicitly
-        const uint8_t rhport = usbh_get_rhport(daddr);
-        TU_ASSERT(hcd_parse_full_conf_descriptor((tusb_desc_configuration_t*) _usbh_epbuf.ctrl, rhport),);
-        TU_ASSERT(tuh_configuration_set(daddr, config_idx+1, process_enumeration, ENUM_CONFIG_DRIVER),);
-        break;
->>>>>>> b1c605c68 (cleanup xHCI driver dependencies)
       } else {
         config_idx++;
         TU_ASSERT(config_idx < dev->desc_device.bNumConfigurations,);
