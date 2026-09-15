@@ -302,7 +302,7 @@ deps_optional = {
                     'tm4c '],
     'lib/CMSIS_6': ['https://github.com/ARM-software/CMSIS_6.git',
                     '6f0a58d01aa9bd2feba212097f9afe7acd991d52',
-                    'imxrt kinetis_k32l ra stm32n6 lpc51 lpc55 mcx stm32c5'],
+                    'imxrt kinetis_k32l ra stm32n6 lpc51 lpc55 mcx stm32c5 synergy'],
     'lib/sct_neopixel': ['https://github.com/gsteiert/sct_neopixel.git',
                          'e73e04ca63495672d955f9268e003cffe168fcd8',
                          'lpc55'],

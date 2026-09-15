@@ -19,7 +19,7 @@ function(family_resolve_board BOARD_NAME BOARD_PATH_OUT)
 
   file(GLOB _board_paths
     LIST_DIRECTORIES true
-    RELATIVE ${TOP}/hw/bsp
+    RELATIVE ${TOP}
     ${TOP}/hw/bsp/*/boards/*
     )
 
@@ -122,8 +122,8 @@ endif ()
 if (NOT DEFINED FAMILY)
   family_resolve_board("${BOARD}" BOARD_PATH)
 
-  string(REPLACE "/" ";" BOARD_PATH ${BOARD_PATH})
-  list(GET BOARD_PATH 0 FAMILY)
+  string(REPLACE "/" ";" BOARD_PATH_LIST ${BOARD_PATH})
+  list(GET BOARD_PATH_LIST 2 FAMILY)
   set(FAMILY ${FAMILY} CACHE STRING "Board family")
 endif ()
 

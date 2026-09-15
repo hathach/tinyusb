@@ -1674,7 +1674,13 @@ TU_ATTR_BIT_FIELD_ORDER_END
 #define RUSB2_FIFOSEL_MBW_16BIT         (1U << RUSB2_CFIFOSEL_MBW_Pos)    /* 16-bit width */
 #define RUSB2_FIFOSEL_MBW_32BIT         (2U << RUSB2_CFIFOSEL_MBW_Pos)    /* 32-bit width */
 
-#define RUSB2_INTSTS0_CTSQ_CTRL_RDATA   (1U << RUSB2_INTSTS0_CTSQ_Pos)
+#define RUSB2_INTSTS0_CTSQ_CTRL_IDLE           (0U << RUSB2_INTSTS0_CTSQ_Pos)    /* Control setup/idle stage */
+#define RUSB2_INTSTS0_CTSQ_CTRL_RDATA          (1U << RUSB2_INTSTS0_CTSQ_Pos)    /* Control read data stage */
+#define RUSB2_INTSTS0_CTSQ_CTRL_RSTATUS        (2U << RUSB2_INTSTS0_CTSQ_Pos)    /* Control read status stage */
+#define RUSB2_INTSTS0_CTSQ_CTRL_WDATA          (3U << RUSB2_INTSTS0_CTSQ_Pos)    /* Control write data stage */
+#define RUSB2_INTSTS0_CTSQ_CTRL_WSTATUS        (4U << RUSB2_INTSTS0_CTSQ_Pos)    /* Control write status stage */
+#define RUSB2_INTSTS0_CTSQ_CTRL_WSTATUS_NODATA (5U << RUSB2_INTSTS0_CTSQ_Pos)    /* Control write status no data stage */
+#define RUSB2_INTSTS0_CTSQ_CTRL_ERROR          (6U << RUSB2_INTSTS0_CTSQ_Pos)    /* Control error stage */
 
 #define RUSB2_INTSTS0_DVSQ_STATE_DEF    (1U << RUSB2_INTSTS0_DVSQ_Pos)    /* Default state */
 #define RUSB2_INTSTS0_DVSQ_STATE_ADDR   (2U << RUSB2_INTSTS0_DVSQ_Pos)    /* Address state */

@@ -90,7 +90,7 @@ hw/mcu/nordic/nrfx/
 hw/mcu/nuvoton/
 hw/mcu/nxp/
 hw/mcu/raspberry_pi/
-hw/mcu/renesas/
+hw/mcu/renesas/fsp/
 hw/mcu/silabs/
 hw/mcu/sony/cxd56/spresense-exported-sdk/
 hw/mcu/st/
