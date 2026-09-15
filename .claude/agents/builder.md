@@ -12,7 +12,7 @@ Read `.claude/skills/build/SKILL.md` from the repository root and run its script
 
 ## Failure triage
 
-For each failing example capture the FIRST compiler or linker error line (not the ninja/make summary). Classify each failure: `compile-error` | `link-error` | `config-error` | `deps-missing` | `toolchain-missing` | `no-build-coverage` | `other`. The script's exit 2 with a dependency message is `deps-missing`; an unknown board is `config-error`. Exit 3 is the contract's no-board-builds-this outcome: report it as the skill says, `pass` true with the reason in `failures` only when every reason is the non-code kind, and `pass` false with class `no-build-coverage` and the reason as `firstError` otherwise.
+For each failing example capture the FIRST compiler or linker error line (not the ninja/make summary). Classify each failure: `compile-error` | `link-error` | `config-error` | `deps-missing` | `toolchain-missing` | `no-build-coverage` | `other`. The script's exit 2 with a dependency message is `deps-missing`; an unknown board is `config-error`. Exit 3 is the contract's coverage-gap outcome: `pass` false and one `no-build-coverage` failure per `uncovered` reason, quoted verbatim as `firstError`, beside whatever the resolved boards reported. A scope of only `nothingToBuild` paths is exit 0 with no boards: `pass` true, and the reasons go in `failures` so the reader sees no build ran.
 
 ## Output contract
 
@@ -20,4 +20,4 @@ Your final message is parsed by a program. Return ONLY this JSON: its first char
 
 {"board": "<board>", "pass": true, "builtCount": 42, "failures": [{"example": "device/cdc_msc", "class": "compile-error", "firstError": "..."}]}
 
-`pass` is true only when the script's `pass` is true, or when exit 3 carried nothing but non-code reasons. `builtCount` = the script's `built`, summed over the boards it resolved; `board` = the board you were given, or the boards the scope resolved to, comma-separated, and empty when it resolved to none.
+`pass` is the script's `pass`. `builtCount` = the script's `built`, summed over the boards it resolved; `board` = the board you were given, or the boards the scope resolved to, comma-separated, and empty when it resolved to none.

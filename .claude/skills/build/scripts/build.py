@@ -13,9 +13,13 @@ parallel agent. Dependencies the family needs (get_deps.py's table) are checked 
 a missing one is an error naming the remedy, or fetched when --fetch-deps is given.
 
 stdout ends with one JSON line: {"pass", "boards": [{"board", "family", "buildDir",
-"status", "built" (elfs this run wrote), "firstError"}], "resolution"}. Exit 0 pass, 1 a board failed, 2 usage or resolution error, 3 no board builds this
-scope, with ci_select's per-path reasons in "nothingToBuild" for the caller to judge:
-"non-code" is nothing to verify, a class no example enables is unverified firmware.
+"status", "built" and "okExamples" (elfs this run wrote), "firstError"}], "resolution", "nothingToBuild",
+"uncovered"}. A scope path nothing builds is one of two kinds, in ci_select's words:
+"nothingToBuild" is nothing to verify (docs, .claude/, unit tests, HIL harness);
+"uncovered" is firmware no board's build compiled (a class no example enables, a lib
+nothing builds, a port whose family no built board has, an example no built board
+wrote an elf for), a coverage gap whatever else built.
+Exit 0 pass, 1 a board failed, 2 usage or resolution error, 3 uncovered paths.
 """
 
 import argparse
@@ -38,6 +42,10 @@ BOARD_PATH = re.compile(r'^hw/bsp/([^/]+)/boards/([^/]+)/')
 ROW = re.compile(r'^\|\s*(\S+)\s*\|\s*(.+?)\s*\|\s*\x1b\[\d+m(OK|Failed|Skipped)\x1b\[0m', re.M)
 sys.path.insert(0, str(ROOT / 'tools'))
 import get_deps  # noqa: E402  the dependency table, one source with the fetcher
+import importlib.util  # noqa: E402
+_spec = importlib.util.spec_from_file_location('tools_build', ROOT / 'tools' / 'build.py')
+tools_build = importlib.util.module_from_spec(_spec)  # `import build` here is this file
+_spec.loader.exec_module(tools_build)
 
 
 def family_of(board):
@@ -48,7 +56,8 @@ def family_of(board):
 
 
 def family_boards(family):
-    return sorted(p.name for p in (ROOT / 'hw' / 'bsp' / family / 'boards').iterdir() if p.is_dir())
+    d = ROOT / 'hw' / 'bsp' / family / 'boards'
+    return sorted(p.name for p in d.iterdir() if p.is_dir()) if d.is_dir() else []
 
 
 def expand_scope(scope):
@@ -99,22 +108,27 @@ def select(scope=None, base=None, config=HIL_CONFIG):
     return json.loads(r.stdout.splitlines()[-1]), reasons
 
 
-def boards_for(selection, scope=()):
+def boards_for(selection, scope=(), reasons=()):
     """One board per affected family: a board whose own hw/bsp dir is in the scope,
     else a rig-roster board of the family, else the first under hw/bsp/<family>/boards.
-    The representative pair for the full matrix. No family is not a verdict this
-    script can give: a docs path contributes nothing to build, but so does a class
-    no example enables or a port no board maps, and those are unverified firmware
-    rather than nothing to verify. The caller gets ci_select's own per-path reasons
-    and decides."""
+    The representative pair for the full matrix, plus one board per family a scope
+    path names (a port, bsp or mcu path): the pair stands in for the matrix on core
+    code, not on a port it does not contain. No family is not a verdict on its own:
+    see coverage() for what the scope's unbuilt paths mean."""
     build = selection['build']
     changed = {m.group(2): m.group(1) for m in map(BOARD_PATH.match, scope) if m}
+    rig = {b: family_of(b) for b in selection.get('boards', {})}
+    changed_note = f', changed boards {sorted(changed)}' if changed else ''
     if build['full']:
-        return list(dict.fromkeys(FULL_MATRIX_BOARDS + sorted(changed))), \
-            'full matrix' + (f', changed boards {sorted(changed)}' if changed else '')
+        boards = list(dict.fromkeys(FULL_MATRIX_BOARDS + sorted(changed)))
+        have = {family_of(b) for b in boards}
+        named = sorted(set().union(*(named_families(r) or set() for r in reasons)) - have)
+        for fam in named:
+            candidates = sorted(b for b, f in rig.items() if f == fam) or family_boards(fam)
+            boards.extend(candidates[:1])          # none: a family with no boards, coverage() reports it
+        return boards, 'full matrix' + changed_note + (f', named families {named}' if named else '')
     if not build['families']:
         return [], 'no build family'
-    rig = {b: family_of(b) for b in selection.get('boards', {})}
     boards = []
     for fam in build['families']:
         own = sorted(b for b, f in changed.items() if f == fam)
@@ -123,7 +137,72 @@ def boards_for(selection, scope=()):
         if not candidates:
             fail(f'family {fam} has no boards under hw/bsp/{fam}/boards')
         boards.extend(own or candidates[:1])
-    return boards, f'one board per family {build["families"]}' + (f', changed boards {sorted(changed)}' if changed else '')
+    return boards, f'one board per family {build["families"]}' + changed_note
+
+
+FAMILIES_IN = re.compile(r"-> families \[(.*?)\]|: bsp family (\S+)$")
+EXAMPLES_IN = re.compile(r"-> \[(.*?)\]$|: example (\S+)$")
+ROLE_IN = re.compile(r": core (device|host) stack$")
+
+
+def _named(pattern, reason):
+    m = pattern.search(reason)
+    if not m:
+        return None
+    return set(re.findall(r"'([^']+)'", m.group(1))) if m.group(1) is not None else {m.group(2)}
+
+
+def named_families(reason):
+    return _named(FAMILIES_IN, reason)
+
+
+def named_examples(reason):
+    """Examples the reason names; for a core stack path, every example of that role
+    (dual examples run both), since any one of them compiles the stack."""
+    m = ROLE_IN.search(reason)
+    if m:
+        return {f'{role}/{p.name}' for role in (m.group(1), 'dual')
+                for p in (ROOT / 'examples' / role).iterdir() if p.is_dir()}
+    return _named(EXAMPLES_IN, reason)
+
+
+def coverage(reasons, scope, results, chosen=False):
+    """ci_select's per-path build reasons as (nothing to verify, uncovered firmware),
+    judged against what was actually built. 'no build contribution' is its wording
+    for non-code paths, and a get_deps.py edit that changes no entry is the same;
+    every other 'no contribution' is a class, typec or lib no example enables. A path
+    that named families is a gap when none was built: a port mapping to no family, a
+    family _prune_buildable dropped (dir gone, boards unreadable, or every example
+    filtered, which it drops without a reason line), or a full-matrix run whose pair
+    does not contain the port. A path that named examples is a gap when no board wrote
+    an elf for any of them; a core stack path names every example of its role; any
+    other contributing path is a gap when the run produced no elf at all (-T help is
+    a green build of nothing). `chosen` (-e or -T given) hands all that to the caller.
+    With no board at all, every path not explained as nothing-to-verify is a gap."""
+    built_fams = {r['family'] for r in results}
+    ok_ex = set().union(*(set(r.get('okExamples', ())) for r in results)) if results else set()
+    benign, gaps = [], []
+    for r in reasons:
+        fams, exs = named_families(r), named_examples(r)
+        if r.endswith('no build contribution') or r.endswith('no dep entry changed, no contribution'):
+            benign.append(r)
+        elif r.endswith('no contribution') or r.endswith('dropped'):
+            gaps.append(r)
+        elif fams is not None and not fams & built_fams:
+            gaps.append(r)
+        elif chosen:
+            continue
+        elif exs is not None and not {e.split('/', 1)[1] for e in exs} & ok_ex:
+            gaps.append(r)
+        elif results and not ok_ex:
+            gaps.append(r)
+    if not results:
+        explained = {r.split(': ', 1)[0] for r in benign + gaps}
+        for path in scope:
+            if path not in explained:
+                gaps.append(next((r for r in reasons if r.startswith(path + ': ')),
+                                 f'{path}: no build reason from ci_select'))
+    return benign, gaps
 
 
 def missing_deps(family):
@@ -140,6 +219,21 @@ def ensure_deps(family, fetch, verbose):
     if missing:
         fail(f'family {family} is missing dependencies: {", ".join(missing)}. In a worktree symlink them '
              f'from the primary checkout; otherwise rerun with --fetch-deps (python3 tools/get_deps.py {family})')
+
+
+def configured(board, family, examples, defines, build_dir, elfs, fresh):
+    """After a green build, the elfs it verified. Espressif builds one idf tree per
+    example (<dir>/<role>/<example>): the examples this run attempted are decided by
+    the same functions tools/build.py uses, and a shared dir's tree for one it skipped
+    proves nothing. Every other family is one CMake tree whose registered targets say
+    which elfs the configuration still builds; unreadable, only elfs written now count."""
+    if family == 'espressif':
+        attempted = {e.split('/', 1)[1] for e in tools_build.get_examples(family)
+                     if (not examples or e in examples)
+                     and not tools_build.build_utils.skip_example(e, board, defines)}
+        return [e for e in elfs if e.parent.name in attempted]
+    reg = tools_build.cmake_registered_targets(str(ROOT / build_dir))
+    return [e for e in elfs if e.stem in reg] if reg else fresh
 
 
 def build_one(board, examples, targets, defines, cflags, shared, fetch, verbose):
@@ -176,11 +270,15 @@ def build_one(board, examples, targets, defines, cflags, shared, fetch, verbose)
         status, first = 'failed', first_error(out) or rows[-1][1]
     else:
         status, first = 'ok', ''
-    # only artifacts this invocation wrote: a shared dir keeps older examples' elfs
-    built = sum(1 for e in (ROOT / build_dir).rglob('*.elf') if e.stat().st_mtime >= started) \
-        if (ROOT / build_dir).is_dir() else 0
+    # built counts only what this invocation wrote: a shared dir keeps older elfs. A
+    # green build leaves every configured target up to date, so an elf it did not
+    # relink is verified too, but only if its target is still configured: a shared dir
+    # also keeps the elf of an example this configuration no longer builds.
+    elfs = list((ROOT / build_dir).rglob('*.elf')) if (ROOT / build_dir).is_dir() else []
+    fresh = [e for e in elfs if e.stat().st_mtime >= started]
+    verified = configured(board, family, examples, defines, build_dir, elfs, fresh) if status == 'ok' else fresh
     return {'board': board, 'family': family, 'buildDir': build_dir, 'status': status,
-            'built': built, 'firstError': first}
+            'built': len(fresh), 'okExamples': sorted({e.stem for e in verified}), 'firstError': first}
 
 
 def first_error(out):
@@ -221,25 +319,25 @@ def main(argv=None):
     p.add_argument('--config', default=str(HIL_CONFIG), help='rig roster for ci_select (default: tinyusb.json)')
     p.add_argument('-v', '--verbose', action='store_true', help='stream build output to stderr')
     a = p.parse_args(argv)
+    os.chdir(ROOT)  # tools/build.py's example listing reads examples/ relative to the root
 
+    extra = {}
     if a.board:
         boards, how_resolved = a.board, 'named boards'
     else:
-        scope = expand_scope(a.scope) if a.scope is not None else None
-        sel, reasons = select(scope=scope, base=a.base, config=Path(a.config))
-        boards, how_resolved = boards_for(sel, scope if scope is not None else changed_paths(a.base))
-        if not boards:
-            # Not a pass and not a usage error: no board builds this scope. Whether that
-            # is nothing to verify (docs) or unverified firmware (a class no example
-            # enables, a port no board maps) is the caller's call, on these reasons.
-            print(json.dumps({'pass': False, 'boards': [], 'resolution': how_resolved,
-                              'nothingToBuild': reasons}))
-            return 3
+        paths = expand_scope(a.scope) if a.scope is not None else changed_paths(a.base)
+        sel, reasons = select(scope=paths if a.scope is not None else None, base=a.base, config=Path(a.config))
+        boards, how_resolved = boards_for(sel, paths, reasons)
     results = [build_one(b, a.example, a.target, a.define, a.cflag, a.shared, a.fetch_deps, a.verbose)
                for b in boards]
-    ok = all(r['status'] == 'ok' for r in results)
-    print(json.dumps({'pass': ok, 'boards': results, 'resolution': how_resolved}))
-    return 0 if ok else 1
+    built_ok = all(r['status'] == 'ok' for r in results)
+    if not a.board:
+        # an uncovered path fails the scope even when every board built green: a class
+        # driver plus the core file that registers it is the common shape
+        extra['nothingToBuild'], extra['uncovered'] = coverage(reasons, paths, results, bool(a.example or a.target))
+    ok = built_ok and not extra.get('uncovered')
+    print(json.dumps({'pass': ok, 'boards': results, 'resolution': how_resolved, **extra}))
+    return 0 if ok else (1 if not built_ok else 3)
 
 
 if __name__ == '__main__':
