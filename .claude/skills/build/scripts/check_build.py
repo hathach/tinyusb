@@ -6,8 +6,9 @@
 
 Scope resolution goes through tools/ci_select.py: one board per affected family
 (a rig-roster board of that family first, else the first in hw/bsp/<family>/boards,
-preferring one that builds an example the change affects), or the representative pair
-when the selection is the full matrix. Each board builds through tools/build.py in a
+preferring one that builds an example the change affects and whose MCU selects the
+changed port's USB IP), or the representative pair when the selection is the full
+matrix. Each board builds through tools/build.py in a
 private cmake-build-agent-<pid> dir; --shared uses the canonical cmake-build-<board>
 that HIL flashes from and must not be shared with a parallel agent. Dependencies the family needs (get_deps.py's table) are checked first:
 a missing one is an error naming the remedy, or fetched when --fetch-deps is given.
@@ -24,6 +25,7 @@ message, a missing dependency's remedy included), 3 uncovered paths.
 """
 
 import argparse
+import functools
 import json
 import os
 import re
@@ -95,13 +97,15 @@ def select(scope=None, base=None, config=HIL_CONFIG):
     """(ci_select's JSON, its per-path build-axis reasons) for a path list or, with
     --base, for the branch diff: only the base form sees dependency revision changes
     (get_deps.py table edits)."""
-    if base:
-        cmd = [sys.executable, str(ROOT / 'tools' / 'ci_select.py'), '--base', base, str(config)]
-    else:
-        with tempfile.NamedTemporaryFile('w', suffix='.txt', delete=False) as f:
-            f.write('\n'.join(scope) + '\n')
-        cmd = [sys.executable, str(ROOT / 'tools' / 'ci_select.py'), '--diff-file', f.name, str(config)]
-    r = subprocess.run(cmd, capture_output=True, text=True, cwd=ROOT)
+    ci_select = [sys.executable, str(ROOT / 'tools' / 'ci_select.py')]
+    with tempfile.TemporaryDirectory() as tmp:   # the path list goes away with it, fail() included
+        if base:
+            cmd = ci_select + ['--base', base, str(config)]
+        else:
+            listing = Path(tmp) / 'scope.txt'
+            listing.write_text('\n'.join(scope) + '\n')
+            cmd = ci_select + ['--diff-file', str(listing), str(config)]
+        r = subprocess.run(cmd, capture_output=True, text=True, cwd=ROOT)
     if r.returncode != 0:
         fail(f'ci_select failed:\n{r.stderr.strip()}')
     reasons = [l.split('ci_select[build]: ', 1)[1] for l in r.stderr.splitlines()
@@ -109,27 +113,104 @@ def select(scope=None, base=None, config=HIL_CONFIG):
     return json.loads(r.stdout.splitlines()[-1]), reasons
 
 
-def representative(candidates, examples):
-    """The family's board to build: the first candidate this build can compile one of
-    the affected examples on, else the first. ci_select keeps a family when ANY of its
-    boards builds the selection under EITHER build system, so the first candidate can be
-    one skipped for every affected example (samd11's cynthion_d11 is skip.txt'd out of
-    device/mtp) and verify none of the change. No example list means the family's whole
-    set, where any board compiles some of it."""
+def representative(candidates, examples, usbips=()):
+    """The family's board to build: the first candidate that compiles one of the affected
+    examples AND selects a changed port's USB IP, each criterion dropped rather than
+    returning nothing when it leaves no candidate. ci_select keeps a family when ANY of
+    its boards builds the selection under EITHER build system, so the first candidate can
+    be one skipped for every affected example (samd11's cynthion_d11 is skip.txt'd out of
+    device/mtp) and verify none of the change. It can equally be one whose MCU selects a
+    different IP than the changed driver: every stm32l4 board but stm32l412nucleo is DWC2,
+    while the family's family.cmake also compiles fsdev, so an fsdev change on the rig
+    board stm32l476disco preprocesses the changed body away and goes green on nothing.
+    No example list means the family's whole set, where any board compiles some of it."""
     def builds_any(board):
         try:
             return any(not tools_build.build_utils.skip_example(e, board) for e in examples)
         except OSError:              # family mid-bring-up, unreadable to the mcu scrape
             return True
-    if not examples:
-        return candidates[0]
-    return next((b for b in candidates if builds_any(b)), candidates[0])
+    pool = candidates
+    if examples:
+        pool = [b for b in pool if builds_any(b)] or pool
+    if usbips:
+        pool = [b for b in pool if any(req <= board_usbips(b) for req in usbips)] or pool
+    return pool[0]
+
+
+USBIP_TERM = re.compile(r'^\s*defined\s*\(\s*(TUP_USBIP_\w+)\s*\)\s*$')
+USBIP_DEFINE = re.compile(r'^#define (TUP_USBIP_\w+)', re.M)
+MCU_DEFINE = re.compile(r'defined\s*\(\s*(\w+)\s*\)')
+WORD = re.compile(r'\w+')
+
+
+@functools.lru_cache(maxsize=None)
+def port_usbips(port):
+    """One TUP_USBIP_* set per driver of a src/portable dir: what that driver's body
+    needs defined, read off the `defined(TUP_USBIP_*)` conjuncts of the first #if guard
+    naming one (a negated or bracketed term is not a conjunct and is left out). Empty
+    for a port no TUP_USBIP gates (rp2040, nrf5x), which its family compiles outright."""
+    out = set()
+    for src in sorted((ROOT / 'src' / 'portable' / port).glob('*.c')):
+        for line in src.read_text(encoding='utf-8', errors='replace').splitlines():
+            if not line.startswith('#if'):
+                continue
+            req = frozenset(m.group(1) for m in map(USBIP_TERM.match, line[3:].split('&&')) if m)
+            if req:
+                out.add(req)
+                break
+    return frozenset(out)
+
+
+@functools.lru_cache(maxsize=None)
+def mcu_defines():
+    """The device-model macros tusb_mcu.h branches on (STM32L476xx, LPC54114_cm4_SERIES),
+    so the one a board spells can be picked out of its cmake wherever it spells it."""
+    text = (ROOT / 'src' / 'common' / 'tusb_mcu.h').read_text(encoding='utf-8', errors='replace')
+    return frozenset(n for n in MCU_DEFINE.findall(text) if not n.startswith(('TUP_', 'CFG_', '__')))
+
+
+@functools.lru_cache(maxsize=None)
+def board_usbips(board):
+    """The TUP_USBIP_* a board's MCU selects, asked of the preprocessor instead of
+    scraped: tusb_mcu.h keys them off CFG_TUSB_MCU and then, for a family carrying two
+    IPs, off the device-model define, a chain no regex reproduces. Empty is 'cannot
+    say' - no host cc, an MCU token that resolves to no OPT_MCU_*, a branch including an
+    SDK header (imxrt, lpc54), a device define the board's cmake never spells - and the
+    caller falls back to its other criteria."""
+    family = family_of(board)
+    board_dir = ROOT / 'hw' / 'bsp' / family / 'boards' / board
+    try:
+        mcu, _ = tools_build.build_utils._board_mcu(str(board_dir), str(ROOT / 'hw' / 'bsp' / family), family)
+    except OSError:                  # family mid-bring-up: no family.cmake to scrape
+        return frozenset()
+    # the board's own cmake first: family.cmake names a device define only for the
+    # families that pick one there, and then the same one for every board
+    names = set()
+    for f in (board_dir / 'board.cmake', ROOT / 'hw' / 'bsp' / family / 'family.cmake'):
+        try:
+            names = mcu_defines() & set(WORD.findall(f.read_text(encoding='utf-8', errors='replace')))
+        except OSError:
+            continue
+        if names:
+            break
+    cmd = ['cc', '-E', '-dM', f'-DCFG_TUSB_MCU=OPT_MCU_{mcu}',
+           # tusb_option.h reaches for the firmware's tusb_config.h, which no board has
+           # outside an example's build tree; nothing before tusb_mcu.h reads it
+           '-DCFG_TUSB_CONFIG_FILE=<stdint.h>',
+           '-I', str(ROOT / 'src'), '-x', 'c', str(ROOT / 'src' / 'tusb_option.h')] + \
+        [f'-D{n}' for n in sorted(names)]
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, cwd=ROOT)
+    except OSError:                  # no host compiler: every board answers 'cannot say'
+        return frozenset()
+    return frozenset(USBIP_DEFINE.findall(r.stdout))
 
 
 def boards_for(selection, scope=(), reasons=()):
     """One board per affected family: a board whose own hw/bsp dir is in the scope,
     else a rig-roster board of the family, else one under hw/bsp/<family>/boards,
-    preferring in either case one that builds an affected example (representative).
+    preferring in either case one that builds an affected example and selects a changed
+    port's USB IP (representative).
     The representative pair for the full matrix, plus one board per family a scope
     path names (a port, bsp or mcu path): the pair stands in for the matrix on core
     code, not on a port it does not contain. No family is not a verdict on its own:
@@ -141,13 +222,15 @@ def boards_for(selection, scope=(), reasons=()):
     changed = {b: f for b, f in changed.items() if (ROOT / 'hw' / 'bsp' / f / 'boards' / b).is_dir()}
     rig = {b: family_of(b) for b in selection.get('boards', {})}
     changed_note = f', changed boards {sorted(changed)}' if changed else ''
+    ips = family_usbips(reasons)
     if build['full']:
         boards = list(dict.fromkeys(FULL_MATRIX_BOARDS + sorted(changed)))
         have = {family_of(b) for b in boards}
         named = sorted(set().union(*(named_families(r) or set() for r in reasons)) - have)
         for fam in named:
             candidates = sorted(b for b, f in rig.items() if f == fam) or family_boards(fam)
-            boards.extend(candidates[:1])          # none: a family with no boards, coverage() reports it
+            if candidates:                         # none: a family with no boards, coverage() reports it
+                boards.append(representative(candidates, None, ips.get(fam, ())))
         return boards, 'full matrix' + changed_note + (f', named families {named}' if named else '')
     if not build['families']:
         return [], 'no build family'
@@ -159,13 +242,14 @@ def boards_for(selection, scope=(), reasons=()):
         candidates = own or list(dict.fromkeys(on_rig + family_boards(fam)))
         if not candidates:
             fail(f'family {fam} has no boards under hw/bsp/{fam}/boards')
-        boards.extend(own or [representative(candidates, fam_ex.get(fam))])
+        boards.extend(own or [representative(candidates, fam_ex.get(fam), ips.get(fam, ()))])
     return boards, f'one board per family {build["families"]}' + changed_note
 
 
 FAMILIES_IN = re.compile(r"-> families \[(.*?)\]|: bsp family (\S+)$")
 EXAMPLES_IN = re.compile(r"-> \[(.*?)\]$|: example (\S+)$")
 ROLE_IN = re.compile(r": core (device|host) stack$")
+PORT_IN = re.compile(r": port (\S+) -> families \[")
 
 
 def _named(pattern, reason):
@@ -177,6 +261,20 @@ def _named(pattern, reason):
 
 def named_families(reason):
     return _named(FAMILIES_IN, reason)
+
+
+def family_usbips(reasons):
+    """family -> the TUP_USBIP_* sets its pick should select, from the ports the scope
+    changed. A family carrying two IPs (stm32l4 is fsdev and dwc2, ch32v20x fsdev and
+    wch usbhs) is named by a port change whatever its boards are, so without this the
+    pick can be a board the changed driver preprocesses away to nothing."""
+    out = {}
+    for r in reasons:
+        m = PORT_IN.search(r)
+        if m:
+            for fam in named_families(r) or ():
+                out.setdefault(fam, set()).update(port_usbips(m.group(1)))
+    return out
 
 
 def named_examples(reason):
