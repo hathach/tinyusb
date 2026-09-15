@@ -98,10 +98,41 @@ def changed_paths(base):
     return r.stdout.split()
 
 
+GET_DEPS = 'tools/get_deps.py'
+DEPS_UNRESOLVED = f'{GET_DEPS}: dep changes not resolvable -> full build matrix'
+
+
+def worktree_dep_reasons():
+    """ci_select's rule 16b answer for a get_deps.py edit the working tree carries, the one
+    a path list cannot reach: --diff-file mode has no base blob of the file, so the rule
+    falls open to the full matrix and boards_for stands the representative pair in for it -
+    an nRF-only pin bump would report green with no nrf board built. HEAD is the base the
+    scope form has, and ci_select classifies the entries changed against it. A file that
+    matches HEAD carries its change in a commit instead, where only --base can say which
+    entries it touched, so the run is refused rather than answered from the pair. A change
+    the entry diff cannot resolve (a logic change to get_deps.py itself) keeps ci_select's
+    full-matrix reason, the fail-open the pair does stand in for."""
+    r = subprocess.run(['git', 'show', f'HEAD:{GET_DEPS}'], capture_output=True, text=True, cwd=ROOT)
+    try:
+        work = (ROOT / GET_DEPS).read_text(encoding='utf-8', errors='replace')
+    except OSError:
+        work = None
+    if r.returncode != 0 or work is None or work == r.stdout:
+        fail(f'{GET_DEPS} is in the scope with no working-tree change to read its dep entries off, so '
+             f'the families the edit affects cannot be resolved here and the scope would build the '
+             f'representative pair alone, verifying no dependency: rerun with --base <ref> for a dep '
+             f'bump that is already committed')
+    fams = ci_select.get_deps_changed_families(r.stdout, work, str(ROOT))
+    if fams is None:                 # a logic change to get_deps itself: every family, ci_select's fail-open
+        return [DEPS_UNRESOLVED]
+    return ci_select.classify_build([GET_DEPS], str(ROOT), fams)['reasons']
+
+
 def select(scope=None, base=None, config=HIL_CONFIG):
     """(ci_select's JSON, its per-path build-axis reasons) for a path list or, with
-    --base, for the branch diff: only the base form sees dependency revision changes
-    (get_deps.py table edits)."""
+    --base, for the branch diff. Only the base form sees a dependency revision change
+    (a get_deps.py table edit) through ci_select; for the scope form the uncommitted one
+    is resolved here (worktree_dep_reasons)."""
     selector = [sys.executable, str(ROOT / 'tools' / 'ci_select.py')]
     with tempfile.TemporaryDirectory() as tmp:   # the path list goes away with it, fail() included
         if base:
@@ -115,6 +146,9 @@ def select(scope=None, base=None, config=HIL_CONFIG):
         fail(f'ci_select failed:\n{r.stderr.strip()}')
     reasons = [l.split('ci_select[build]: ', 1)[1] for l in r.stderr.splitlines()
                if l.startswith('ci_select[build]: ')]
+    if not base and DEPS_UNRESOLVED in reasons:
+        resolved = worktree_dep_reasons()
+        reasons = [x for r in reasons for x in (resolved if r == DEPS_UNRESOLVED else [r])]
     return json.loads(r.stdout.splitlines()[-1]), reasons
 
 
@@ -666,7 +700,9 @@ def build_one(board, examples, targets, defines, cflags, shared, fetch, verbose)
     ensure_deps(family, fetch, verbose)
     name = board if shared else f'agent-{os.getpid()}-{board}'
     build_dir = f'cmake-build/cmake-build-{name}'
-    supplied = {d.partition('=')[0] for d in defines} | ({'CFLAGS_CLI'} if cflags else set())
+    # -D takes cmake's NAME:TYPE=value form too, whose cache entry is still keyed by NAME
+    # alone: unnormalised, a typed define matches neither the cache nor its own sidecar record
+    supplied = {d.partition('=')[0].partition(':')[0] for d in defines} | ({'CFLAGS_CLI'} if cflags else set())
     if shared:
         stale = stale_options(build_dir, supplied)
         if stale:
