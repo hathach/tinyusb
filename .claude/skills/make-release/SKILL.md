@@ -37,8 +37,7 @@ It refuses when `--prev` is not an ancestor of the head, and when a first-parent
 ```bash
 pre-commit run --all-files                         # every file step 1 regenerated, unit tests included
 .claude/skills/build-doc/scripts/build_doc.py -c   # docs build clean, warnings fail it (see build-doc skill)
-( cd examples/device/cdc_msc && rm -rf build && mkdir build && cd build && \
-  cmake -DBOARD=stm32f407disco -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel .. && cmake --build . )
+python3 .claude/skills/build/scripts/check_build.py --board stm32f407disco -e device/cdc_msc  # smoke build, a release changes no firmware
 git diff --stat -- ':!.idea'             # .idea/* is IDE noise
 ```
 Confirm the version matches across `tusb_option.h` / `library.json` / `repository.yml` / `sonar-project.properties`.

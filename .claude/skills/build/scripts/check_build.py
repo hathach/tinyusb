@@ -11,7 +11,7 @@ USB-IP requirement set of the changed drivers that none of them selects, or the
 representative pair when the selection is the full matrix. Each board builds through
 tools/build.py in a private cmake-build-agent-<pid> dir; --shared uses the canonical
 cmake-build-<board> that HIL flashes from, must not be shared with a parallel agent,
-and is refused when its CMake cache still carries an option this run does not set.
+and is refused when it still carries an option from an earlier configure this run does not set.
 Dependencies the family needs (get_deps.py's table) are checked first: one missing,
 empty or not at the pinned commit is an error naming the remedy, or fetched when
 --fetch-deps is given.
@@ -533,6 +533,25 @@ def configured(board, family, examples, defines, build_dir, elfs, fresh):
 STICKY_OPTIONS = ('LOG', 'LOGGER', 'CFLAGS_CLI')   # family_support.cmake reads these with if(DEFINED)
 BUILD_PY_OPTIONS = ('BOARD', 'CMAKE_BUILD_TYPE', 'LINKERMAP_OPTION', 'TOOLCHAIN')
 CACHE_ENTRY = re.compile(r'^([A-Za-z_]\w*):([A-Z]+)=(.*)$')
+AGENT_DEFINES = '.agent-defines'
+
+
+def record_options(build_dir, supplied):
+    """Record the option names this run configured the dir with, for stale_options() to read
+    back. Written after the build, so it names a dir some configure reached; a run refused
+    over a stale option exits before here, leaving the record that refused it in place."""
+    d = ROOT / build_dir
+    if d.is_dir():
+        (d / AGENT_DEFINES).write_text(json.dumps(sorted(supplied)) + '\n')
+
+
+def recorded_options(build_dir):
+    """The option names an earlier run of this dir recorded, empty for a dir configured
+    before the sidecar existed or for one whose sidecar no longer parses."""
+    try:
+        return set(json.loads((ROOT / build_dir / AGENT_DEFINES).read_text(encoding='utf-8')))
+    except (OSError, ValueError, TypeError):
+        return set()
 
 
 def stale_options(build_dir, supplied):
@@ -541,10 +560,15 @@ def stale_options(build_dir, supplied):
     build files act on it - family_support.cmake reads LOG, LOGGER and CFLAGS_CLI with
     if(DEFINED) and MAX3421_HOST with STREQUAL, a family.cmake reads what it likes
     (RHPORT_DEVICE) - so a shared dir silently builds, and the HIL flashes out of it, a
-    configuration nobody asked for. Which names those are is no fixed list, so the entry's
-    type answers instead of a whitelist: a -D no cmake code declares keeps UNINITIALIZED,
-    the type only a command line gives, and the four tools/build.py passes on every
-    configure are this run's own. An empty value is an option too: -DLOG= leaves a cache
+    configuration nobody asked for. Which names those are is no fixed list, so what an
+    earlier run recorded answers first (record_options), whatever type the cache now shows:
+    cmake code may declare a -D as a typed cache variable - hw/bsp/rp2040/pico_sdk_import.cmake
+    retypes PICO_SDK_PATH to PATH - and the value then survives with nothing in the cache
+    left to say a command line gave it. The entry type is the fallback for a dir configured
+    before the sidecar existed: a -D no cmake code declares keeps UNINITIALIZED, the type
+    only a command line gives, and the four tools/build.py passes on every configure are
+    this run's own. A recorded name the cache no longer carries is no risk either - nothing
+    holds its value. An empty value is an option too: -DLOG= leaves a cache
     entry, if(DEFINED LOG) is true for it, and the build compiles with CFG_TUSB_DEBUG=.
     An option this run does set is no risk: its -D overwrites the cached value.
     Espressif builds one idf tree per example under the dir, each with a cache full of
@@ -552,6 +576,7 @@ def stale_options(build_dir, supplied):
     the sticky trio can have come from a command line."""
     out = {}
     root = ROOT / build_dir
+    recorded = recorded_options(build_dir)
     caches = [(root / 'CMakeCache.txt', True)] + \
         [(c, False) for c in sorted(root.glob('*/*/CMakeCache.txt'))]
     for cache, from_build_py in caches:
@@ -566,7 +591,7 @@ def stale_options(build_dir, supplied):
             name, kind, value = m.groups()
             if name in supplied or name in BUILD_PY_OPTIONS:
                 continue
-            if name in STICKY_OPTIONS or (from_build_py and kind == 'UNINITIALIZED'):
+            if name in recorded or name in STICKY_OPTIONS or (from_build_py and kind == 'UNINITIALIZED'):
                 out[name] = value
     return out
 
@@ -582,9 +607,9 @@ def build_one(board, examples, targets, defines, cflags, shared, fetch, verbose)
     ensure_deps(family, fetch, verbose)
     name = board if shared else f'agent-{os.getpid()}-{board}'
     build_dir = f'cmake-build/cmake-build-{name}'
+    supplied = {d.partition('=')[0] for d in defines} | ({'CFLAGS_CLI'} if cflags else set())
     if shared:
-        stale = stale_options(build_dir, {d.partition('=')[0] for d in defines} |
-                              ({'CFLAGS_CLI'} if cflags else set()))
+        stale = stale_options(build_dir, supplied)
         if stale:
             fail(f'{build_dir} was configured with {", ".join(f"{k}={v}" for k, v in sorted(stale.items()))} '
                  f'and this run does not set {"/".join(sorted(stale))}: cmake keeps a -D for the life of the '
@@ -603,6 +628,7 @@ def build_one(board, examples, targets, defines, cflags, shared, fetch, verbose)
         cmd += [f'--cflag={f}']
     started = time.time()
     rc, out = run(cmd, verbose)
+    record_options(build_dir, supplied)
     rows = ROW.findall(out)
     statuses = [s for _, _, s in rows]
     if not rows:

@@ -173,10 +173,12 @@ function stageThunk(name, cycle) {
   ).then(r => r ? { stage: name, ...r } : died).catch(() => died)
 
   if (name === 'pvs') return () => agent(
-    `Build: cmake examples -B examples/cmake-build-pvs -G Ninja -DBOARD=${args.boards[0]} -DCMAKE_BUILD_TYPE=MinSizeRel && ` +
-    'cmake --build examples/cmake-build-pvs (parallel build agents are running: never share cmake-build-<board>; ' +
-    'a missing lib/ or hw/mcu/ dependency means `python3 tools/get_deps.py -b <board>` once, then retry). ' +
-    `Compile DB: examples/cmake-build-pvs/compile_commands.json. Rules: .PVS-Studio/.pvsconfig. Base: ${base}.`,
+    'Compile DB, through the project build tool, as ONE shell command from the repo root so both $$ expand to the same pid: ' +
+    `D=cmake-build/cmake-build-pvs-$$ && python3 tools/build.py -b ${args.boards[0]} --build-name pvs-$$ && ls $D/compile_commands.json ` +
+    '(--build-name keeps this run\'s tree private: a fixed name is clobbered by a concurrent validate run, and ' +
+    'cmake-build-<board> belongs to the parallel build agents; a missing lib/ or hw/mcu/ dependency means ' +
+    '`python3 tools/get_deps.py -b <board>` once, then retry). ' +
+    `Analyze the compile_commands.json that printed, then remove its build dir. Rules: .PVS-Studio/.pvsconfig. Base: ${base}.`,
     { label, phase: 'Validate', agentType: 'pvs-studio', effort: 'low', schema: PVS },
   ).then(r => r ? {
     stage: name, pass: r.pass,
