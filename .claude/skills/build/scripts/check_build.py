@@ -6,12 +6,15 @@
 
 Scope resolution goes through tools/ci_select.py: one board per affected family
 (a rig-roster board of that family first, else the first in hw/bsp/<family>/boards,
-preferring one that builds an example the change affects and whose MCU selects the
-changed port's USB IP), or the representative pair when the selection is the full
-matrix. Each board builds through tools/build.py in a
-private cmake-build-agent-<pid> dir; --shared uses the canonical cmake-build-<board>
-that HIL flashes from and must not be shared with a parallel agent. Dependencies the family needs (get_deps.py's table) are checked first:
-a missing one is an error naming the remedy, or fetched when --fetch-deps is given.
+preferring one that builds an example the change affects), plus one more board per
+USB-IP requirement set of the changed drivers that none of them selects, or the
+representative pair when the selection is the full matrix. Each board builds through
+tools/build.py in a private cmake-build-agent-<pid> dir; --shared uses the canonical
+cmake-build-<board> that HIL flashes from, must not be shared with a parallel agent,
+and is refused when its CMake cache still carries an option this run does not set.
+Dependencies the family needs (get_deps.py's table) are checked first: one missing,
+empty or not at the pinned commit is an error naming the remedy, or fetched when
+--fetch-deps is given.
 
 stdout ends with one JSON line: {"pass", "boards": [{"board", "family", "buildDir",
 "status", "built" and "okExamples" (elfs this run wrote), "firstError"}], "resolution", "nothingToBuild",
@@ -113,28 +116,40 @@ def select(scope=None, base=None, config=HIL_CONFIG):
     return json.loads(r.stdout.splitlines()[-1]), reasons
 
 
-def representative(candidates, examples, usbips=()):
-    """The family's board to build: the first candidate that compiles one of the affected
-    examples AND selects a changed port's USB IP, each criterion dropped rather than
-    returning nothing when it leaves no candidate. ci_select keeps a family when ANY of
-    its boards builds the selection under EITHER build system, so the first candidate can
-    be one skipped for every affected example (samd11's cynthion_d11 is skip.txt'd out of
-    device/mtp) and verify none of the change. It can equally be one whose MCU selects a
-    different IP than the changed driver: every stm32l4 board but stm32l412nucleo is DWC2,
-    while the family's family.cmake also compiles fsdev, so an fsdev change on the rig
-    board stm32l476disco preprocesses the changed body away and goes green on nothing.
+def representatives(candidates, examples, usbips=(), keep=()):
+    """The family's boards to build: the boards in `keep` (the ones the change edits),
+    plus one candidate per USB-IP requirement set none of them selects, plus a plain first
+    pick when that leaves nothing. A candidate that compiles one of the affected examples
+    is preferred, the criterion dropped rather than returning nothing when it leaves no
+    candidate: ci_select keeps a family when ANY of its boards builds the selection under
+    EITHER build system, so the first candidate can be one skipped for every affected
+    example (samd11's cynthion_d11 is skip.txt'd out of device/mtp) and verify none of the
+    change.
+    One board is not enough for a family carrying two IPs: every stm32l4 board but
+    stm32l412nucleo is DWC2 while the family's family.cmake also compiles fsdev, so a
+    scope changing both drivers needs a board apiece or one of them preprocesses away to
+    nothing. A requirement set no candidate satisfies adds no board - then no board of the
+    family compiles that driver at all, and coverage() reports the path as uncovered
+    instead of the run going green on a body it never saw.
     No example list means the family's whole set, where any board compiles some of it."""
     def builds_any(board):
         try:
             return any(not tools_build.build_utils.skip_example(e, board) for e in examples)
         except OSError:              # family mid-bring-up, unreadable to the mcu scrape
             return True
-    pool = candidates
+    pool = list(candidates)
     if examples:
         pool = [b for b in pool if builds_any(b)] or pool
-    if usbips:
-        pool = [b for b in pool if any(req <= board_usbips(b) for req in usbips)] or pool
-    return pool[0]
+    picked = list(keep)
+    # widest set first: a board selecting FSDEV and FSDEV_DRD answers the hcd's
+    # requirement and the dcd's, where the other order would pick two boards
+    for req in sorted(usbips, key=lambda s: (-len(s), sorted(s))):
+        if any(req <= board_usbips(b) for b in picked):
+            continue
+        hit = next((b for b in pool if req <= board_usbips(b)), None)
+        if hit:
+            picked.append(hit)
+    return picked or [pool[0]]
 
 
 USBIP_TERM = re.compile(r'^\s*defined\s*\(\s*(TUP_USBIP_\w+)\s*\)\s*$')
@@ -144,21 +159,36 @@ WORD = re.compile(r'\w+')
 
 
 @functools.lru_cache(maxsize=None)
-def port_usbips(port):
-    """One TUP_USBIP_* set per driver of a src/portable dir: what that driver's body
-    needs defined, read off the `defined(TUP_USBIP_*)` conjuncts of the first #if guard
-    naming one (a negated or bracketed term is not a conjunct and is left out). Empty
-    for a port no TUP_USBIP gates (rp2040, nrf5x), which its family compiles outright."""
-    out = set()
-    for src in sorted((ROOT / 'src' / 'portable' / port).glob('*.c')):
-        for line in src.read_text(encoding='utf-8', errors='replace').splitlines():
-            if not line.startswith('#if'):
-                continue
-            req = frozenset(m.group(1) for m in map(USBIP_TERM.match, line[3:].split('&&')) if m)
-            if req:
-                out.add(req)
-                break
-    return frozenset(out)
+def source_usbips(src):
+    """What one driver's body needs defined, read off the `defined(TUP_USBIP_*)` conjuncts
+    of the first #if guard naming one (a negated or bracketed term is not a conjunct and
+    is left out). Empty for a driver no TUP_USBIP gates (rp2040, nrf5x), which its family
+    compiles outright."""
+    try:
+        text = Path(src).read_text(encoding='utf-8', errors='replace')
+    except OSError:                  # a file the change deletes is still in the diff
+        return frozenset()
+    for line in text.splitlines():
+        if not line.startswith('#if'):
+            continue
+        req = frozenset(m.group(1) for m in map(USBIP_TERM.match, line[3:].split('&&')) if m)
+        if req:
+            return req
+    return frozenset()
+
+
+@functools.lru_cache(maxsize=None)
+def path_usbips(path):
+    """One TUP_USBIP_* set per driver a changed src/portable path stands for: its own when
+    the path is a driver, else every driver's in its dir (a header they all include). The
+    port dir's union is too weak for a driver: hcd_stm32_fsdev.c is guarded by
+    TUP_USBIP_FSDEV && TUP_USBIP_FSDEV_DRD, and a board selecting only its dcd sibling's
+    TUP_USBIP_FSDEV (ch32v203c_r0_1v0) preprocesses the changed body away."""
+    p = ROOT / path
+    own = source_usbips(str(p)) if p.suffix == '.c' else frozenset()
+    if own:
+        return frozenset({own})
+    return frozenset(s for s in map(source_usbips, sorted(str(c) for c in p.parent.glob('*.c'))) if s)
 
 
 @functools.lru_cache(maxsize=None)
@@ -207,11 +237,11 @@ def board_usbips(board):
 
 
 def boards_for(selection, scope=(), reasons=()):
-    """One board per affected family: a board whose own hw/bsp dir is in the scope,
-    else a rig-roster board of the family, else one under hw/bsp/<family>/boards,
-    preferring in either case one that builds an affected example and selects a changed
-    port's USB IP (representative).
-    The representative pair for the full matrix, plus one board per family a scope
+    """One board per affected family, plus one more per changed driver the first does not
+    compile: a board whose own hw/bsp dir is in the scope, else a rig-roster board of the
+    family, else one under hw/bsp/<family>/boards, and then a board per USB-IP requirement
+    set of the changed ports that none of those selects (representatives).
+    The representative pair for the full matrix, plus boards for every family a scope
     path names (a port, bsp or mcu path): the pair stands in for the matrix on core
     code, not on a port it does not contain. No family is not a verdict on its own:
     see coverage() for what the scope's unbuilt paths mean."""
@@ -225,13 +255,26 @@ def boards_for(selection, scope=(), reasons=()):
     ips = family_usbips(reasons)
     if build['full']:
         boards = list(dict.fromkeys(FULL_MATRIX_BOARDS + sorted(changed)))
-        have = {family_of(b) for b in boards}
-        named = sorted(set().union(*(named_families(r) or set() for r in reasons)) - have)
-        for fam in named:
-            candidates = sorted(b for b, f in rig.items() if f == fam) or family_boards(fam)
-            if candidates:                         # none: a family with no boards, coverage() reports it
-                boards.append(representative(candidates, None, ips.get(fam, ())))
-        return boards, 'full matrix' + changed_note + (f', named families {named}' if named else '')
+        have = {}
+        for b in boards:
+            have.setdefault(family_of(b), []).append(b)
+        added = []
+        for fam in sorted(set().union(*(named_families(r) or set() for r in reasons))):
+            # the whole family, not the rig roster alone: the roster hides the one board
+            # that selects the changed IP (stm32l4 is stm32l476disco on the rig, DWC2,
+            # while only stm32l412nucleo is fsdev), and a family already in the pair still
+            # needs a second board when the pair's does not compile the changed driver
+            candidates = list(dict.fromkeys(have.get(fam, []) +
+                                            sorted(b for b, f in rig.items() if f == fam) +
+                                            family_boards(fam)))
+            if not candidates:                     # a family with no boards, coverage() reports it
+                continue
+            picked = [b for b in representatives(candidates, None, ips.get(fam, ()), have.get(fam, []))
+                      if b not in boards]
+            boards += picked
+            if picked:
+                added.append(fam)
+        return boards, 'full matrix' + changed_note + (f', named families {added}' if added else '')
     if not build['families']:
         return [], 'no build family'
     boards = []
@@ -239,10 +282,10 @@ def boards_for(selection, scope=(), reasons=()):
     for fam in build['families']:
         own = sorted(b for b, f in changed.items() if f == fam)
         on_rig = sorted(b for b, f in rig.items() if f == fam)
-        candidates = own or list(dict.fromkeys(on_rig + family_boards(fam)))
+        candidates = list(dict.fromkeys(own + on_rig + family_boards(fam)))
         if not candidates:
             fail(f'family {fam} has no boards under hw/bsp/{fam}/boards')
-        boards.extend(own or [representative(candidates, fam_ex.get(fam), ips.get(fam, ()))])
+        boards.extend(representatives(candidates, fam_ex.get(fam), ips.get(fam, ()), own))
     return boards, f'one board per family {build["families"]}' + changed_note
 
 
@@ -264,17 +307,30 @@ def named_families(reason):
 
 
 def family_usbips(reasons):
-    """family -> the TUP_USBIP_* sets its pick should select, from the ports the scope
-    changed. A family carrying two IPs (stm32l4 is fsdev and dwc2, ch32v20x fsdev and
-    wch usbhs) is named by a port change whatever its boards are, so without this the
-    pick can be a board the changed driver preprocesses away to nothing."""
+    """family -> the TUP_USBIP_* sets its picks must select between them, one per driver
+    the scope changed. A family carrying two IPs (stm32l4 is fsdev and dwc2, ch32v20x
+    fsdev and wch usbhs) is named by a port change whatever its boards are, so without
+    this a pick can be a board the changed driver preprocesses away to nothing."""
     out = {}
     for r in reasons:
-        m = PORT_IN.search(r)
-        if m:
+        if PORT_IN.search(r):
             for fam in named_families(r) or ():
-                out.setdefault(fam, set()).update(port_usbips(m.group(1)))
+                out.setdefault(fam, set()).update(path_usbips(r.split(': ', 1)[0]))
     return out
+
+
+def usbip_covered(reason, results):
+    """Whether the boards built compile the changed driver, not merely its family: the
+    USB-IP sets the path needs against the ones a built board's MCU selects. A board that
+    cannot say (board_usbips empty - no host cc, an MCU branch behind an SDK header)
+    counts as satisfying, so a family the preprocessor probe cannot answer for is never
+    reported as a gap. A reason naming no port is nothing to judge this way."""
+    if not PORT_IN.search(reason):
+        return True
+    fams = named_families(reason) or set()
+    have = [board_usbips(r['board']) for r in results if r.get('board') and r['family'] in fams]
+    return all(any(not ips or req <= ips for ips in have)
+               for req in path_usbips(reason.split(': ', 1)[0]))
 
 
 def named_examples(reason):
@@ -295,11 +351,13 @@ def coverage(reasons, scope, results, chosen=False):
     that named families is a gap when none was built: a port mapping to no family, a
     family _prune_buildable dropped (dir gone, boards unreadable, or every example
     filtered, which it drops without a reason line), or a full-matrix run whose pair
-    does not contain the port. A path that named examples is a gap when no board wrote
-    an elf for any of them; a core stack path names every example of its role; any
-    other contributing path is a gap when the run produced no elf at all (-T help is
-    a green build of nothing). `chosen` (-e or -T given) hands all that to the caller.
-    With no board at all, every path not explained as nothing-to-verify is a gap."""
+    does not contain the port. A port path is a gap too when the boards built are of its
+    families but none selects the USB IP its driver is guarded by (usbip_covered): no
+    board of those families compiles the changed body. A path that named examples is a
+    gap when no board wrote an elf for any of them; a core stack path names every example
+    of its role; any other contributing path is a gap when the run produced no elf at all
+    (-T help is a green build of nothing). `chosen` (-e or -T given) hands all that to
+    the caller. With no board at all, every path not explained as nothing-to-verify is a gap."""
     built_fams = {r['family'] for r in results}
     ok_ex = set().union(*(set(r.get('okExamples', ())) for r in results)) if results else set()
     benign, gaps = [], []
@@ -309,7 +367,7 @@ def coverage(reasons, scope, results, chosen=False):
             benign.append(r)
         elif r.endswith('no contribution') or r.endswith('dropped'):
             gaps.append(r)
-        elif fams is not None and not fams & built_fams:
+        elif fams is not None and not (fams & built_fams and usbip_covered(r, results)):
             gaps.append(r)
         elif chosen:
             continue
@@ -326,14 +384,35 @@ def coverage(reasons, scope, results, chosen=False):
     return benign, gaps
 
 
+def dep_head(path):
+    """The dep checkout's commit, or None when nothing can say: a dir git would answer
+    for the enclosing tinyusb repo (no .git of its own, a vendored copy) or a checkout
+    with no HEAD yet."""
+    if not (path / '.git').exists():
+        return None
+    r = subprocess.run(['git', '-C', str(path), 'rev-parse', 'HEAD'], capture_output=True, text=True)
+    return r.stdout.strip() if r.returncode == 0 else None
+
+
 def missing_deps(family):
-    """Present means content, not a directory: get_deps.py git-inits the dep dir before
-    fetching and exits 0 whatever the fetch did (its run_cmd's status is ignored), so a
-    fetch that failed leaves a dir holding nothing but .git."""
+    """The family's dependencies that are not what get_deps.py's table asks for, each
+    named with why. Present means content, not a directory: get_deps.py git-inits the dep
+    dir before fetching and exits 0 whatever the fetch did (its run_cmd's status is
+    ignored), so a fetch that failed leaves a dir holding nothing but .git. A checkout at
+    another commit is the same kind of miss: when the change under test bumps a pin, a
+    stale checkout builds the revision the change is replacing and verifies nothing."""
     needed = list(get_deps.deps_mandatory) + \
         [d for d, entry in get_deps.deps_optional.items() if family in entry[2].split()]
-    return [d for d in needed if not (ROOT / d).is_dir()
-            or not any(p.name != '.git' for p in (ROOT / d).iterdir())]
+    out = []
+    for d in needed:
+        p = ROOT / d
+        if not p.is_dir() or not any(f.name != '.git' for f in p.iterdir()):
+            out.append(d)
+            continue
+        pin, head = get_deps.deps_all[d][1], dep_head(p)
+        if head is not None and head != pin:
+            out.append(f'{d} (at {head[:10]}, pinned {pin[:10]})')
+    return out
 
 
 def ensure_deps(family, fetch, verbose):
@@ -342,8 +421,10 @@ def ensure_deps(family, fetch, verbose):
         run([sys.executable, str(ROOT / 'tools' / 'get_deps.py'), family], verbose)
         missing = missing_deps(family)
     if missing:
-        fail(f'family {family} is missing dependencies: {", ".join(missing)}. In a worktree symlink them '
-             f'from the primary checkout; otherwise rerun with --fetch-deps (python3 tools/get_deps.py {family})')
+        fail(f'family {family} dependencies are not the pinned ones: {", ".join(missing)}. In a worktree '
+             f'symlink them from the primary checkout and fetch there, since get_deps.py here checks out a '
+             f'revision every other worktree shares; otherwise rerun with --fetch-deps '
+             f'(python3 tools/get_deps.py {family})')
 
 
 def configured(board, family, examples, defines, build_dir, elfs, fresh):
@@ -366,6 +447,31 @@ def configured(board, family, examples, defines, build_dir, elfs, fresh):
     return [e for e in elfs if e.stem in reg and (not asked or e.stem in asked)]
 
 
+STICKY_OPTIONS = ('LOG', 'LOGGER', 'CFLAGS_CLI')   # family_support.cmake reads these with if(DEFINED)
+CACHE_ENTRY = re.compile(r'^([A-Za-z_]\w*):[A-Z]+=(.*)$')
+
+
+def stale_options(build_dir, supplied):
+    """{option: value} a build dir's CMake cache still carries from an earlier configure
+    and this invocation does not set. cmake keeps a -D for the life of the dir, and
+    family_support.cmake reads LOG, LOGGER and CFLAGS_CLI with if(DEFINED), so a shared
+    dir silently builds - and the HIL flashes out of it - a configuration nobody asked
+    for. An option this run does set is no risk: its -D overwrites the cached value.
+    Espressif builds one idf tree per example under the dir, each with its own cache."""
+    out = {}
+    root = ROOT / build_dir
+    for cache in [root / 'CMakeCache.txt'] + sorted(root.glob('*/*/CMakeCache.txt')):
+        try:
+            text = cache.read_text(encoding='utf-8', errors='replace')
+        except OSError:
+            continue
+        for line in text.splitlines():
+            m = CACHE_ENTRY.match(line)
+            if m and m.group(1) in STICKY_OPTIONS and m.group(1) not in supplied and m.group(2):
+                out[m.group(1)] = m.group(2)
+    return out
+
+
 def build_one(board, examples, targets, defines, cflags, shared, fetch, verbose):
     family = family_of(board)
     # tools/build.py hands -D to cmake but not to idf.py, so a define would be
@@ -376,6 +482,15 @@ def build_one(board, examples, targets, defines, cflags, shared, fetch, verbose)
              'path here, since the BSP translates those into other defines')
     ensure_deps(family, fetch, verbose)
     name = board if shared else f'agent-{os.getpid()}-{board}'
+    build_dir = f'cmake-build/cmake-build-{name}'
+    if shared:
+        stale = stale_options(build_dir, {d.partition('=')[0] for d in defines} |
+                              ({'CFLAGS_CLI'} if cflags else set()))
+        if stale:
+            fail(f'{build_dir} was configured with {", ".join(f"{k}={v}" for k, v in sorted(stale.items()))} '
+                 f'and this run does not set {"/".join(sorted(stale))}: cmake keeps a -D for the life of the '
+                 f'dir, so the firmware - and the HIL run that flashes it - would carry a configuration '
+                 f'nobody asked for. Pass the same option(s), or remove the dir to build it clean')
     cmd = [sys.executable, str(ROOT / 'tools' / 'build.py'), '-b', board]
     if not shared:
         cmd += ['--build-name', name]
@@ -391,7 +506,6 @@ def build_one(board, examples, targets, defines, cflags, shared, fetch, verbose)
     rc, out = run(cmd, verbose)
     rows = ROW.findall(out)
     statuses = [s for _, _, s in rows]
-    build_dir = f'cmake-build/cmake-build-{name}'
     if not rows:
         status, first = 'error', (out.strip().splitlines() or ['tools/build.py produced no result rows'])[-1]
     elif all(s == 'Skipped' for s in statuses):
@@ -454,7 +568,8 @@ def main(argv=None):
     p.add_argument('--cflag', action='append', default=[],
                    help='raw compiler flag, e.g. --cflag=-DCFG_TUH_CDC_FTDI_LATENCY=16, to compile a '
                         'config-guarded branch no example enables (repeatable)')
-    p.add_argument('--fetch-deps', action='store_true', help='run tools/get_deps.py for a family whose deps are missing')
+    p.add_argument('--fetch-deps', action='store_true',
+                   help='run tools/get_deps.py for a family whose deps are missing or off the pinned commit')
     p.add_argument('--shared', action='store_true',
                    help='build in the canonical cmake-build-<board> HIL dir instead of a private one')
     p.add_argument('--config', default=str(HIL_CONFIG), help='rig roster for ci_select (default: tinyusb.json)')
