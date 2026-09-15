@@ -84,8 +84,11 @@ def expand_scope(scope):
 
 
 def changed_paths(base):
-    """The branch's changed paths against base, the same set ci_select --base classifies."""
-    r = subprocess.run(['git', 'diff', '--name-only', f'{base}...HEAD'], capture_output=True, text=True, cwd=ROOT)
+    """The branch's changed paths against base, the same set ci_select --base classifies.
+    --no-renames as ci_select does: rename detection reports only a rename's destination,
+    so the board or port a file moved out of would never be built."""
+    r = subprocess.run(['git', 'diff', '--no-renames', '--name-only', f'{base}...HEAD'],
+                       capture_output=True, text=True, cwd=ROOT)
     if r.returncode != 0:
         fail(f'git diff against {base} failed:\n{r.stderr.strip()}')
     return r.stdout.split()
