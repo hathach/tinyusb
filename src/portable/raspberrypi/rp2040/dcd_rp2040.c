@@ -240,8 +240,6 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
         hw_endpoint_lock_update(ep, 1);
 
         if (ep->state == EPSTATE_PENDING) {
-          ep->state = EPSTATE_ACTIVE;
-
           io_rw_32 *buf_reg32 = get_buf_ctrl(i, TUSB_DIR_IN);
           io_rw_16 *buf_reg16 = (io_rw_16 *)buf_reg32;
 
@@ -252,19 +250,27 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
           };
 
           const bool buf0_idle = !(buf_reg16[0] & BUSY_MASK);
-          const bool buf1_idle = (ep->remaining_len > 0) && !(buf_reg16[1] & BUSY_MASK);
+          const bool buf1_idle = !(buf_reg16[1] & BUSY_MASK);
+          const bool fresh     = (ep->xferred_len == 0);
 
           if (buf0_idle && buf1_idle) {
-            // both are idle, start fresh
+            // Both idle: no data in flight. Reset buffer select to buf0 and start.
+            // Required for a fresh transfer (select is stale from the previous
+            // transfer) and safe for a mid-transfer resume.
             io_rw_32 *ep_reg = get_ep_ctrl(i, TUSB_DIR_IN);
             rp2usb_buffer_start(ep, ep_reg, buf_reg32, false);
-          } else if (buf0_idle) {
+            ep->state = EPSTATE_ACTIVE;
+          } else if (!fresh && buf0_idle) {
+            // Mid-transfer: re-arm the idle buffer without changing the select.
             uint16_t buf0 = bufctrl_prepare16(ep, ep->dpram_buf, false);
             bufctrl_write16(buf_reg16, buf0);
-          } else if (buf1_idle) {
+            ep->state = EPSTATE_ACTIVE;
+          } else if (!fresh && buf1_idle) {
             uint16_t buf1 = bufctrl_prepare16(ep, ep->dpram_buf + 64, false);
             bufctrl_write16(buf_reg16 + 1, buf1);
+            ep->state = EPSTATE_ACTIVE;
           }
+          // else: stay PENDING, retry on next SOF.
         }
 
         hw_endpoint_lock_update(ep, -1);
