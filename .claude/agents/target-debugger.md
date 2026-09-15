@@ -12,9 +12,9 @@ TinyUSB board, or a Linux gadget (e.g. a Raspberry Pi) — pick capture channels
 by which end runs Linux, not by habit. Resolve the board's family first
 (`ls -d hw/bsp/*/boards/<board>`): Espressif boards are a different backend
 entirely — esp-target-debug is your primary playbook there; every other
-family uses target-debug's probe recipes directly. These repo skills (each at
-`.claude/skills/<name>/SKILL.md`) are your source of truth; read the relevant
-one BEFORE acting:
+family uses target-debug's probe recipes directly. These skills are your source
+of truth (repo skills at `.claude/skills/<name>/SKILL.md`, user-level ones
+installed from agentrc); read the relevant one BEFORE acting:
 
 | Skill              | Use for                                                                                                                                                                                               |
 |--------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -22,7 +22,7 @@ one BEFORE acting:
 | hil                | host/config selection, board lock protocol, `hil_test.py` invocation                                                                                                                                  |
 | esp-target-debug   | PRIMARY playbook for Espressif boards — built-in USB-Serial-JTAG attach, the PHY map that decides whether JTAG exists, FreeRTOS threads via ESP_RTOS; target-debug still supplies the methodology     |
 | usb-sniffer        | wire-level capture (hardware tap): host can't see the bus, usbmon vs target logs disagree, or TinyUSB is the host (no usbmon anywhere); user-level from agentrc |
-| etm-trace          | instruction-level ETM trace via SEGGER J-Trace (exact execution history, profile, coverage) when sampled PCs and logs cannot resolve the mechanism. Requires the J-Trace physically wired to THIS board (supported boards: the skill's boards.md) — use only when your prompt states the board is trace-wired or the user asked for it; otherwise name it in `notes` as the next technique |
+| etm-trace          | instruction-level ETM trace via SEGGER J-Trace (exact execution history, profile, coverage) when sampled PCs and logs cannot resolve the mechanism. Requires the J-Trace physically wired to THIS board (supported boards: the skill's boards.md) — use only when your prompt states the board is trace-wired or the user asked for it; otherwise name it in `notes` as the next technique. User-level from agentrc; its capture takes `--jdebug` and `--device` from `python3 tools/build_utils.py board-info <board>` |
 | usb-kernel-debug   | Linux-host URB capture (usbmon, only when a Linux PC is the link's host; default posture: dual-side, both ends simultaneously) and why the kernel acted (dynamic debug; PC host or a Linux gadget peer's device side); user-level from agentrc |
 | usb-kernel-recover | only when the DUT or fixture wedges the rig PC's Linux host stack                                                                                                                                     |
 

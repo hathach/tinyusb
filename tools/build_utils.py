@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
+import argparse
 import functools
 import os
+import shlex
 import subprocess
+import sys
 import pathlib
 import re
 
@@ -417,3 +420,125 @@ def build_size(make_cmd):
             return (flash_size, sram_size)
 
     return (0, 0)
+
+
+class BoardInfoError(ValueError):
+    pass
+
+
+def _cmake_set_values(path, name):
+    """Every uncommented set(NAME value) of one variable in a cmake file, in order."""
+    try:
+        text = pathlib.Path(path).read_text(**_TEXT)
+    except OSError:
+        return []
+    out = []
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith('#'):
+            continue
+        m = _CMAKE_SET_RE.match(line)
+        if m and m.group(1) == name:
+            out.append(m.group(2).strip('"'))
+    return out
+
+
+def _expand_or_refuse(value, files, depth=0):
+    """`value` with every ${VAR} replaced from the first of `files` that sets it.
+    Unlike _cmake_expand this refuses a variable set more than once in that file:
+    those are conditional branches (`if (M4 STREQUAL "1") set(JLINK_CORE _M4)`)
+    the textual parser cannot pick between, and a debug probe pointed at the
+    wrong core is worse than no answer."""
+    if depth > 4:
+        raise BoardInfoError(f'{value}: expansion too deep')
+    out = value
+    for name in set(_CMAKE_VAR_RE.findall(value)):
+        for f in files:
+            vals = _cmake_set_values(f, name)
+            if vals:
+                break
+        else:
+            raise BoardInfoError(f'${{{name}}} is set in none of {", ".join(files)}')
+        distinct = list(dict.fromkeys(vals))
+        if len(distinct) > 1:
+            raise BoardInfoError(f'${{{name}}} is set conditionally in {f}: '
+                                 f'{", ".join(distinct)} - pass the value by hand')
+        out = out.replace('${' + name + '}', _expand_or_refuse(distinct[0], files, depth + 1))
+    if '${' in out:
+        raise BoardInfoError(f'{value}: cannot expand')
+    return out
+
+
+def _board_files(board):
+    if not pathlib.Path('hw/bsp').is_dir():
+        raise BoardInfoError('no hw/bsp here - run from the tinyusb root')
+    if not re.fullmatch(r'[A-Za-z0-9_.-]+', board):
+        raise BoardInfoError(f'{board!r} is not a board name')   # _board_dirs would glob it
+    hits = sorted(pathlib.Path('hw/bsp').glob('*/boards/' + board))
+    if not hits:
+        raise BoardInfoError(f'unknown board {board}')
+    if len(hits) > 1:
+        raise BoardInfoError(f'{board} exists in several families: ' + ', '.join(map(str, hits)))
+    board_dir = hits[0]
+    return board_dir, (str(board_dir / 'board.cmake'), str(board_dir.parent.parent / 'family.cmake'))
+
+
+def board_jlink(board):
+    """The board's J-Link device name from its board.cmake, else its family.cmake,
+    ${...} expanded. A conditional or unresolvable definition is refused unless
+    the board's reference Ozone project names the device (it is what a trace
+    capture drives anyway)."""
+    _, files = _board_files(board)
+    for f in files:
+        vals = _cmake_set_values(f, 'JLINK_DEVICE')
+        if vals:
+            break
+    else:
+        raise BoardInfoError(f'{board}: no JLINK_DEVICE in board.cmake or family.cmake')
+    distinct = list(dict.fromkeys(vals))
+    try:
+        if len(distinct) > 1:
+            raise BoardInfoError(f'{board}: JLINK_DEVICE is set conditionally in {f}: '
+                                 f'{", ".join(distinct)} - pass the device by hand')
+        return _expand_or_refuse(distinct[0], files)
+    except BoardInfoError as e:
+        jdebug = board_jdebug(board)
+        if not jdebug:
+            raise
+        m = re.search(r'^\s*Project\.SetDevice\s*\(\s*"([^"]+)"', pathlib.Path(jdebug).read_text(**_TEXT), re.M)
+        if not m:
+            raise BoardInfoError(f'{e}; {jdebug} names no device either')
+        return m.group(1)
+
+
+def board_jdebug(board):
+    """The board's reference Ozone project (hw/bsp/<family>/boards/<board>/ozone/*.jdebug),
+    or None; refuses when there are several."""
+    board_dir, _ = _board_files(board)
+    hits = sorted((board_dir / 'ozone').glob('*.jdebug'))
+    if len(hits) > 1:
+        raise BoardInfoError(f'{board}: several reference projects: '
+                             + ', '.join(str(h) for h in hits))
+    return str(hits[0]) if hits else None
+
+
+def main(argv=None):
+    p = argparse.ArgumentParser(description='Board facts for the debug skills; run from the tinyusb root.')
+    sub = p.add_subparsers(dest='cmd', required=True)
+    bi = sub.add_parser('board-info', help='J-Link device and reference Ozone project of a '
+                                           'board, as shell assignments')
+    bi.add_argument('board')
+    args = p.parse_args(argv)
+    try:
+        device = board_jlink(args.board)
+        jdebug = board_jdebug(args.board)
+    except BoardInfoError as e:
+        print(f'error: {e}', file=sys.stderr)
+        return 1
+    print(f'JLINK_DEVICE={shlex.quote(device)}')
+    print(f'JDEBUG={shlex.quote(jdebug) if jdebug else ""}')
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

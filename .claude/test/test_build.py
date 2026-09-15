@@ -367,5 +367,101 @@ class MainTest(unittest.TestCase):
             self.assertEqual(build.main(['--board', 'b']), 1)
 
 
+UTILS = Path(__file__).resolve().parents[2] / 'tools' / 'build_utils.py'
+_uspec = importlib.util.spec_from_file_location('build_utils_under_test', UTILS)
+utils = importlib.util.module_from_spec(_uspec)
+_uspec.loader.exec_module(utils)
+
+
+class BoardInfoTest(unittest.TestCase):
+    """board-info: the J-Link device and reference project of a board, refusing
+    every definition the textual cmake parser would otherwise have to guess at."""
+
+    def setUp(self):
+        import os
+        import tempfile
+        self._dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._dir.cleanup)
+        self.addCleanup(os.chdir, os.getcwd())
+        os.chdir(self._dir.name)
+
+    def board(self, name, board_cmake, family='fam', family_cmake='', jdebugs=()):
+        d = Path('hw/bsp') / family / 'boards' / name
+        d.mkdir(parents=True)
+        (d / 'board.cmake').write_text(board_cmake)
+        (d.parent.parent / 'family.cmake').write_text(family_cmake)
+        for j in jdebugs:
+            (d / 'ozone').mkdir(exist_ok=True)
+            (d / 'ozone' / j).write_text('Project.SetDevice ("X");\n')
+
+    def test_literal_and_expanded_definitions(self):
+        self.board('literal', 'set(JLINK_DEVICE stm32h743xi)\n')
+        self.board('variant', 'set(MCU_VARIANT MK64FN1M0)\nset(JLINK_DEVICE ${MCU_VARIANT}xxx12)\n')
+        self.board('fromfamily', 'set(MAX_DEVICE max32650)\n', family='maxim',
+                   family_cmake='set(JLINK_DEVICE ${MAX_DEVICE})\n')
+        self.assertEqual(utils.board_jlink('literal'), 'stm32h743xi')
+        self.assertEqual(utils.board_jlink('variant'), 'MK64FN1M0xxx12')
+        self.assertEqual(utils.board_jlink('fromfamily'), 'max32650')
+
+    def test_conditional_definitions_are_refused_with_the_candidates(self):
+        # rp2040's family.cmake picks JLINK_DEVICE by PICO_PLATFORM
+        self.board('pico', '', family='rp2040',
+                   family_cmake='if (A)\n  set(JLINK_DEVICE rp2040_m0_0)\nelse ()\n  set(JLINK_DEVICE rp2350_m33_0)\nendif ()\n')
+        with self.assertRaises(utils.BoardInfoError) as cm:
+            utils.board_jlink('pico')
+        self.assertIn('rp2040_m0_0, rp2350_m33_0', str(cm.exception))
+        # mimxrt1170_evkb reaches JLINK_CORE, set per core, while expanding
+        self.board('rt1170', 'set(MCU_VARIANT MIMXRT1176)\nif (M4 STREQUAL "1")\n  set(JLINK_CORE _M4)\n'
+                             'else ()\n  set(JLINK_CORE _M7)\nendif()\nset(JLINK_DEVICE ${MCU_VARIANT}xxxxA${JLINK_CORE})\n')
+        with self.assertRaises(utils.BoardInfoError) as cm:
+            utils.board_jlink('rt1170')
+        self.assertIn('_M4, _M7', str(cm.exception))
+
+    def test_reference_project_settles_a_conditional_device(self):
+        # pico2_etm_trace: the rp2040 family picks JLINK_DEVICE by PICO_PLATFORM, but
+        # the board's reference Ozone project names the device the capture uses
+        fam = 'if (A)\n  set(JLINK_DEVICE rp2040_m0_0)\nelse ()\n  set(JLINK_DEVICE rp2350_m33_0)\nendif ()\n'
+        self.board('carrier', '', family='rp2040', family_cmake=fam, jdebugs=('rp2350.jdebug',))
+        ref = Path('hw/bsp/rp2040/boards/carrier/ozone/rp2350.jdebug')
+        ref.write_text('void OnProjectLoad (void) {\n  // Project.SetDevice ("OLD");\n  Project.SetDevice ("RP2350_M33_0");\n}\n')
+        self.assertEqual(utils.board_jlink('carrier'), 'RP2350_M33_0')
+        ref.write_text('void OnProjectLoad (void) {\n}\n')
+        with self.assertRaises(utils.BoardInfoError) as cm:
+            utils.board_jlink('carrier')
+        self.assertIn('names no device either', str(cm.exception))
+
+    def test_unresolvable_or_missing_definitions_are_refused(self):
+        self.board('nope', 'set(JLINK_DEVICE ${UNSET_ANYWHERE})\n')
+        self.board('none', 'set(MCU_VARIANT x)\n')
+        self.board('dup', 'set(JLINK_DEVICE d)\n', family='fam2')
+        self.board('dup', 'set(JLINK_DEVICE d)\n', family='fam3')
+        for name, want in (('nope', 'UNSET_ANYWHERE'), ('none', 'no JLINK_DEVICE'), ('absent', 'unknown board'),
+                           ('no*', 'not a board name'), ('dup', 'several families')):
+            with self.assertRaises(utils.BoardInfoError) as cm:
+                utils.board_jlink(name)
+            self.assertIn(want, str(cm.exception))
+
+    def test_reference_project_is_the_sole_jdebug_or_none(self):
+        self.board('one', 'set(JLINK_DEVICE d)\n', jdebugs=('ref.jdebug',))
+        self.board('zero', 'set(JLINK_DEVICE d)\n')
+        self.board('two', 'set(JLINK_DEVICE d)\n', jdebugs=('a.jdebug', 'b.jdebug'))
+        self.assertEqual(utils.board_jdebug('one'), 'hw/bsp/fam/boards/one/ozone/ref.jdebug')
+        self.assertIsNone(utils.board_jdebug('zero'))
+        with self.assertRaises(utils.BoardInfoError):
+            utils.board_jdebug('two')
+
+    def test_cli_prints_shell_assignments_or_the_refusal(self):
+        self.board('b', 'set(JLINK_DEVICE stm32h743xi)\n', jdebugs=('ref.jdebug',))
+        with mock.patch('sys.stdout') as out:
+            rc = utils.main(['board-info', 'b'])
+        self.assertEqual(rc, 0)
+        self.assertEqual(''.join(c[0][0] for c in out.write.call_args_list),
+                         'JLINK_DEVICE=stm32h743xi\nJDEBUG=hw/bsp/fam/boards/b/ozone/ref.jdebug\n')
+        with mock.patch('sys.stderr') as err:
+            rc = utils.main(['board-info', 'missing'])
+        self.assertEqual(rc, 1)
+        self.assertIn('unknown board', ''.join(c[0][0] for c in err.write.call_args_list))
+
+
 if __name__ == '__main__':
     unittest.main()
