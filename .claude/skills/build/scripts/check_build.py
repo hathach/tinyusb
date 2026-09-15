@@ -448,27 +448,42 @@ def configured(board, family, examples, defines, build_dir, elfs, fresh):
 
 
 STICKY_OPTIONS = ('LOG', 'LOGGER', 'CFLAGS_CLI')   # family_support.cmake reads these with if(DEFINED)
-CACHE_ENTRY = re.compile(r'^([A-Za-z_]\w*):[A-Z]+=(.*)$')
+BUILD_PY_OPTIONS = ('BOARD', 'CMAKE_BUILD_TYPE', 'LINKERMAP_OPTION', 'TOOLCHAIN')
+CACHE_ENTRY = re.compile(r'^([A-Za-z_]\w*):([A-Z]+)=(.*)$')
 
 
 def stale_options(build_dir, supplied):
     """{option: value} a build dir's CMake cache still carries from an earlier configure
-    and this invocation does not set. cmake keeps a -D for the life of the dir, and
-    family_support.cmake reads LOG, LOGGER and CFLAGS_CLI with if(DEFINED), so a shared
-    dir silently builds - and the HIL flashes out of it - a configuration nobody asked
-    for. An option this run does set is no risk: its -D overwrites the cached value.
-    Espressif builds one idf tree per example under the dir, each with its own cache."""
+    and this invocation does not set. cmake keeps a -D for the life of the dir and the
+    build files act on it - family_support.cmake reads LOG, LOGGER and CFLAGS_CLI with
+    if(DEFINED) and MAX3421_HOST with STREQUAL, a family.cmake reads what it likes
+    (RHPORT_DEVICE) - so a shared dir silently builds, and the HIL flashes out of it, a
+    configuration nobody asked for. Which names those are is no fixed list, so the entry's
+    type answers instead of a whitelist: a -D no cmake code declares keeps UNINITIALIZED,
+    the type only a command line gives, and the four tools/build.py passes on every
+    configure are this run's own. An option this run does set is no risk: its -D
+    overwrites the cached value.
+    Espressif builds one idf tree per example under the dir, each with a cache full of
+    idf.py's own untyped defines; -D is refused for that family (build_one), so there only
+    the sticky trio can have come from a command line."""
     out = {}
     root = ROOT / build_dir
-    for cache in [root / 'CMakeCache.txt'] + sorted(root.glob('*/*/CMakeCache.txt')):
+    caches = [(root / 'CMakeCache.txt', True)] + \
+        [(c, False) for c in sorted(root.glob('*/*/CMakeCache.txt'))]
+    for cache, from_build_py in caches:
         try:
             text = cache.read_text(encoding='utf-8', errors='replace')
         except OSError:
             continue
         for line in text.splitlines():
             m = CACHE_ENTRY.match(line)
-            if m and m.group(1) in STICKY_OPTIONS and m.group(1) not in supplied and m.group(2):
-                out[m.group(1)] = m.group(2)
+            if not m:
+                continue
+            name, kind, value = m.groups()
+            if not value or name in supplied or name in BUILD_PY_OPTIONS:
+                continue
+            if name in STICKY_OPTIONS or (from_build_py and kind == 'UNINITIALIZED'):
+                out[name] = value
     return out
 
 
