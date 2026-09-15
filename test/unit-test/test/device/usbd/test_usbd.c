@@ -381,3 +381,133 @@ void test_usbd_control_out_overrun_clamp(void)
 
   tud_task();
 }
+
+//--------------------------------------------------------------------+
+// Application-context claim while xfer_cb runs
+//--------------------------------------------------------------------+
+
+// usbd clears BUSY|CLAIMED before xfer_cb, which may still be reading the transfer buffer.
+// usbd_edpt_claim_idle() must refuse the endpoint until the class reports the buffer consumed or
+// xfer_cb returns, while the class's own usbd_edpt_claim() inside xfer_cb keeps working.
+
+// One MSC interface on bulk 0x02/0x82, so completions on 0x02 reach the mocked mscd_xfer_cb
+uint8_t const data_desc_configuration_msc[] = {
+  TUD_CONFIG_DESCRIPTOR(1, 1, 0, TUD_CONFIG_DESC_LEN + TUD_MSC_DESC_LEN, 0x00, 100),
+  TUD_MSC_DESCRIPTOR(0, 0, 0x02, 0x82, 64),
+};
+
+tusb_control_request_t const req_set_configuration = {
+  .bmRequestType = 0x00,
+  .bRequest = TUSB_REQ_SET_CONFIGURATION,
+  .wValue = 1,
+  .wIndex = 0x0000,
+  .wLength = 0
+};
+
+static uint8_t out_buf[64];
+static bool cb_claim_idle;
+static bool cb_claim;
+
+static void set_configuration_msc(void) {
+  desc_configuration = data_desc_configuration_msc;
+  mscd_open_IgnoreAndReturn(TUD_MSC_DESC_LEN);
+  dcd_event_setup_received(rhport, (uint8_t*) &req_set_configuration, false);
+
+  // status
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_set_configuration, 1);
+
+  tud_task();
+}
+
+static void arm_out_and_complete(void) {
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, 0x02));
+  dcd_edpt_xfer_ExpectAndReturn(rhport, 0x02, out_buf, 64, false, true);
+  TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport, 0x02, out_buf, 64, false));
+  dcd_event_xfer_complete(rhport, 0x02, 64, XFER_RESULT_SUCCESS, false);
+}
+
+static bool xfer_cb_probe_claims(uint8_t rhport_, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes,
+                                 int num_calls) {
+  (void) result; (void) xferred_bytes; (void) num_calls;
+  cb_claim_idle = usbd_edpt_claim_idle(rhport_, ep_addr);
+  cb_claim = usbd_edpt_claim(rhport_, ep_addr);
+  if (cb_claim) {
+    usbd_edpt_release(rhport_, ep_addr);
+  }
+  return true;
+}
+
+void test_usbd_claim_idle_refused_while_xfer_cb_runs(void) {
+  set_configuration_msc();
+  arm_out_and_complete();
+
+  mscd_xfer_cb_Stub(xfer_cb_probe_claims);
+  tud_task();
+
+  TEST_ASSERT_FALSE(cb_claim_idle); // buffer may still be in use
+  TEST_ASSERT_TRUE(cb_claim);       // class re-arm is still allowed
+
+  // xfer_cb returned without re-arming: the endpoint is idle again
+  TEST_ASSERT_TRUE(usbd_edpt_claim_idle(rhport, 0x02));
+  TEST_ASSERT_TRUE(usbd_edpt_release(rhport, 0x02));
+}
+
+static bool xfer_cb_consume_then_claim_idle(uint8_t rhport_, uint8_t ep_addr, xfer_result_t result,
+                                            uint32_t xferred_bytes, int num_calls) {
+  (void) result; (void) xferred_bytes; (void) num_calls;
+  usbd_edpt_xfer_consumed(rhport_, ep_addr);
+  cb_claim_idle = usbd_edpt_claim_idle(rhport_, ep_addr);
+  if (cb_claim_idle) {
+    usbd_edpt_release(rhport_, ep_addr);
+  }
+  return true;
+}
+
+void test_usbd_claim_idle_allowed_after_xfer_consumed(void) {
+  set_configuration_msc();
+  arm_out_and_complete();
+
+  mscd_xfer_cb_Stub(xfer_cb_consume_then_claim_idle);
+  tud_task();
+
+  TEST_ASSERT_TRUE(cb_claim_idle);
+}
+
+static bool xfer_cb_rearm(uint8_t rhport_, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes,
+                          int num_calls) {
+  (void) result; (void) xferred_bytes; (void) num_calls;
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport_, ep_addr));
+  TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport_, ep_addr, out_buf, 64, false));
+  return true;
+}
+
+// A class that re-arms inside xfer_cb leaves the endpoint BUSY. If that transfer's completion is then
+// dropped by a full queue, the endpoint must still be claimable from application context.
+void test_usbd_claim_idle_recovers_after_rearmed_completion_dropped(void) {
+  // fillers drain through usbd_reset -> class reset
+  mscd_reset_Ignore();
+
+  set_configuration_msc();
+  arm_out_and_complete();
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, 0x02, out_buf, 64, false, true); // re-arm inside xfer_cb
+  mscd_xfer_cb_Stub(xfer_cb_rearm);
+  tud_task();
+  TEST_ASSERT_FALSE(usbd_edpt_claim_idle(rhport, 0x02)); // busy with the re-armed transfer
+
+  // fill the queue to the brim, then complete the re-armed transfer: queue_event() drops it
+  for (unsigned i = 0; i < CFG_TUD_TASK_QUEUE_SZ; i++) {
+    dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, false);
+  }
+  dcd_event_xfer_complete(rhport, 0x02, 64, XFER_RESULT_SUCCESS, false);
+
+  TEST_ASSERT_TRUE(usbd_edpt_claim_idle(rhport, 0x02));
+  TEST_ASSERT_TRUE(usbd_edpt_release(rhport, 0x02));
+
+  // drain the fillers so later tests start from an empty queue
+  for (unsigned i = 0; i < (CFG_TUD_TASK_QUEUE_SZ / CFG_TUD_TASK_EVENTS_PER_RUN) + 1; i++) {
+    tud_task();
+  }
+}

@@ -139,6 +139,8 @@
       - CFG_TUSB_DEBUG=0
       - CFG_TUH_AUDIO_EPIN_BUFSIZE=1024
       - CFG_TUH_AUDIO_EPOUT_BUFSIZE=1024
+    :test_usbd:
+      - TUP_MCU_MULTIPLE_CORE=1 # OSAL_MUTEX_REQUIRED, for the application-context claim
   :release: []
 
   # Enable to inject name of a test as a unique compilation symbol into its respective executable build.
