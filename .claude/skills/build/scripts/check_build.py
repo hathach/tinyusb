@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build TinyUSB examples for the boards a change affects, or for named boards.
 
-  build.py (--scope PATH... | --base REF | --board B...) [-e role/name]... [-T target]...
+  check_build.py (--scope PATH... | --base REF | --board B...) [-e role/name]... [-T target]...
            [-D SYMBOL]... [--cflag FLAG]... [--shared]
 
 Scope resolution goes through tools/ci_select.py: one board per affected family
@@ -43,10 +43,7 @@ BOARD_PATH = re.compile(r'^hw/bsp/([^/]+)/boards/([^/]+)/')
 ROW = re.compile(r'^\|\s*(\S+)\s*\|\s*(.+?)\s*\|\s*\x1b\[\d+m(OK|Failed|Skipped)\x1b\[0m', re.M)
 sys.path.insert(0, str(ROOT / 'tools'))
 import get_deps  # noqa: E402  the dependency table, one source with the fetcher
-import importlib.util  # noqa: E402
-_spec = importlib.util.spec_from_file_location('tools_build', ROOT / 'tools' / 'build.py')
-tools_build = importlib.util.module_from_spec(_spec)  # `import build` here is this file
-_spec.loader.exec_module(tools_build)
+import build as tools_build  # noqa: E402  tools/build.py, first on the path above
 
 
 def family_of(board):

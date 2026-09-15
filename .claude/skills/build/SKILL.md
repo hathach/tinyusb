@@ -5,10 +5,10 @@ description: The project build contract. Use when a change must be verified by b
 
 # Build contract
 
-`scripts/build.py` is the entry point for verifying a change; every agent and workflow that does so calls it rather than composing cmake lines. Two builds are not verification and stay on `tools/build.py` directly: the debug build below, and the PVS compile-database build in `validate`, which needs one configured tree for the analyser, not a sweep.
+`scripts/check_build.py` is the entry point for verifying a change; every agent and workflow that does so calls it rather than composing cmake lines. Two builds are not verification and stay on `tools/build.py` directly: the debug build below, and the PVS compile-database build in `validate`, which needs one configured tree for the analyser, not a sweep.
 
 ```bash
-B=.claude/skills/build/scripts/build.py
+B=.claude/skills/build/scripts/check_build.py
 python3 $B --scope <changed paths or dirs>   # boards a change affects, one per family
 python3 $B --base master                      # same, from the branch diff
 python3 $B --board stm32f407disco [-e device/cdc_msc] [-T target]

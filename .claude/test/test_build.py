@@ -1,4 +1,4 @@
-"""Tests for the build skill's build.py: scope resolution through ci_select, the
+"""Tests for the build skill's check_build.py: scope resolution through ci_select, the
 dependency preflight, and the verdict it derives from tools/build.py's rows.
 The build itself is stubbed; a real board build is verified by running the script."""
 import importlib.util
@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-SCRIPT = Path(__file__).resolve().parents[1] / 'skills' / 'build' / 'scripts' / 'build.py'
+SCRIPT = Path(__file__).resolve().parents[1] / 'skills' / 'build' / 'scripts' / 'check_build.py'
 spec = importlib.util.spec_from_file_location('build_skill', SCRIPT)
 build = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(build)

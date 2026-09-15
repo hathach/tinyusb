@@ -27,7 +27,7 @@ const buildArgs = (item) => {
 }
 const buildRecipe = (item) =>
   ' Verify with the project build contract (.claude/skills/build/SKILL.md): ' +
-  `python3 .claude/skills/build/scripts/build.py ${buildArgs(item)}; report its verdict as that file says.`
+  `python3 .claude/skills/build/scripts/check_build.py ${buildArgs(item)}; report its verdict as that file says.`
 if (args.worktree) log('worktree mode: combined simplification, independent builder verification and review deferred until integration (workers verify inside their own worktrees)')
 
 const DEV = {
