@@ -79,6 +79,17 @@ bool usbd_edpt_claim(uint8_t rhport, uint8_t ep_addr);
 // Release claimed endpoint without submitting a transfer
 bool usbd_edpt_release(uint8_t rhport, uint8_t ep_addr);
 
+#if OSAL_MUTEX_REQUIRED
+// Only needed when the application can run concurrently with the usbd task.
+// Claim an endpoint from application context. Unlike usbd_edpt_claim(), this also fails while the
+// xfer_cb of the endpoint's last completed transfer may still be reading its buffer.
+bool usbd_edpt_claim_idle(uint8_t rhport, uint8_t ep_addr);
+
+// Report from the class driver that the buffer of the last completed transfer has been consumed, so
+// usbd_edpt_claim_idle() can succeed again. usbd also does this when xfer_cb returns. usbd task only.
+void usbd_edpt_xfer_consumed(uint8_t rhport, uint8_t ep_addr);
+#endif
+
 // Check if endpoint is busy transferring
 bool usbd_edpt_busy(uint8_t rhport, uint8_t ep_addr);
 

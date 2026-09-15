@@ -141,8 +141,24 @@ uint32_t tu_edpt_stream_write_available(tu_edpt_stream_t *s);
 // Read from stream
 uint32_t tu_edpt_stream_read(tu_edpt_stream_t *s, void *buffer, uint32_t bufsize);
 
-// Start an usb transfer if endpoint is not busy
+// Start an usb transfer if endpoint is not busy. For class driver context (open, xfer_cb)
 uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s);
+
+// Start an usb transfer from application context (read, flush). Unlike tu_edpt_stream_read_xfer(),
+// this does not re-arm a device endpoint while its xfer_cb may still be reading the transfer buffer.
+// The two only differ when the application can run concurrently with the usbd task.
+#if CFG_TUD_ENABLED && OSAL_MUTEX_REQUIRED
+uint32_t tu_edpt_stream_read_xfer_app(tu_edpt_stream_t *s);
+#else
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_edpt_stream_read_xfer_app(tu_edpt_stream_t *s) {
+  return tu_edpt_stream_read_xfer(s);
+}
+#endif
+
+#if CFG_TUD_ENABLED && OSAL_MUTEX_REQUIRED
+// Report that the transfer buffer of the last completed read has been consumed (device streams)
+void tu_edpt_stream_read_consumed(tu_edpt_stream_t *s);
+#endif
 
 // Complete read transfer by writing EP -> FIFO. Must be called in the transfer complete callback
 TU_ATTR_ALWAYS_INLINE static inline
@@ -150,6 +166,9 @@ void tu_edpt_stream_read_xfer_complete(tu_edpt_stream_t* s, uint32_t xferred_byt
   if (s->ep_buf != NULL) {
     tu_fifo_write_n(&s->ff, s->ep_buf, (uint16_t)xferred_bytes);
   }
+#if CFG_TUD_ENABLED && OSAL_MUTEX_REQUIRED
+  tu_edpt_stream_read_consumed(s); // an application-context re-arm is safe again
+#endif
 }
 
 // Complete read transfer with provided buffer

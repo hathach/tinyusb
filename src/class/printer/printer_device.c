@@ -108,7 +108,7 @@ void tud_printer_n_read_flush(uint8_t itf) {
   TU_VERIFY(itf < CFG_TUD_PRINTER, );
   printer_interface_t *p = &_printer_itf[itf];
   tu_edpt_stream_clear(&p->rx_stream);
-  tu_edpt_stream_read_xfer(&p->rx_stream);
+  tu_edpt_stream_read_xfer_app(&p->rx_stream);
 }
 
 //--------------------------------------------------------------------+
