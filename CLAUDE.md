@@ -35,6 +35,6 @@
 
 - Before opening or updating a PR, follow Build and Validate; use `pre-pr` when workflows are available.
 - After opening a PR, use `chief` to drive reviews and CI to green. TinyUSB `pr-babysit` args:
-  `{"pr": <num>, "reviewers": ["codex","copilot","coderabbit","claude"], "autoRun": ["codex","coderabbit","claude"], "protected": "^test/hil/[^/]+\\.json$"}`
+  `{"pr": <num>, "reviewers": ["codex","copilot","coderabbit"], "autoRun": ["codex","copilot","coderabbit"], "protected": "^test/hil/[^/]+\\.json$"}`
   (`protected` excludes the HIL rig rosters from automated fixes).
 - The follow-up label is `followup`.
