@@ -1634,10 +1634,7 @@
         "mcu": "OPT_MCU_NRF5X",
         "options": {},
         "portable": [
-          "nordic/nrf5x/dcd_nrf5x.c",
-          "synopsys/dwc2/dcd_dwc2.c",
-          "synopsys/dwc2/dwc2_common.c",
-          "synopsys/dwc2/hcd_dwc2.c"
+          "nordic/nrf5x/dcd_nrf5x.c"
         ]
       }
     },
@@ -1650,10 +1647,7 @@
         "mcu": "OPT_MCU_NRF5X",
         "options": {},
         "portable": [
-          "nordic/nrf5x/dcd_nrf5x.c",
-          "synopsys/dwc2/dcd_dwc2.c",
-          "synopsys/dwc2/dwc2_common.c",
-          "synopsys/dwc2/hcd_dwc2.c"
+          "nordic/nrf5x/dcd_nrf5x.c"
         ]
       }
     },
@@ -1666,10 +1660,7 @@
         "mcu": "OPT_MCU_NRF5X",
         "options": {},
         "portable": [
-          "nordic/nrf5x/dcd_nrf5x.c",
-          "synopsys/dwc2/dcd_dwc2.c",
-          "synopsys/dwc2/dwc2_common.c",
-          "synopsys/dwc2/hcd_dwc2.c"
+          "nordic/nrf5x/dcd_nrf5x.c"
         ]
       }
     },
@@ -1682,10 +1673,7 @@
         "mcu": "OPT_MCU_NRF5X",
         "options": {},
         "portable": [
-          "nordic/nrf5x/dcd_nrf5x.c",
-          "synopsys/dwc2/dcd_dwc2.c",
-          "synopsys/dwc2/dwc2_common.c",
-          "synopsys/dwc2/hcd_dwc2.c"
+          "nordic/nrf5x/dcd_nrf5x.c"
         ]
       }
     },
@@ -1698,10 +1686,7 @@
         "mcu": "OPT_MCU_NRF5X",
         "options": {},
         "portable": [
-          "nordic/nrf5x/dcd_nrf5x.c",
-          "synopsys/dwc2/dcd_dwc2.c",
-          "synopsys/dwc2/dwc2_common.c",
-          "synopsys/dwc2/hcd_dwc2.c"
+          "nordic/nrf5x/dcd_nrf5x.c"
         ]
       }
     },
@@ -1714,10 +1699,7 @@
         "mcu": "OPT_MCU_NRF5X",
         "options": {},
         "portable": [
-          "nordic/nrf5x/dcd_nrf5x.c",
-          "synopsys/dwc2/dcd_dwc2.c",
-          "synopsys/dwc2/dwc2_common.c",
-          "synopsys/dwc2/hcd_dwc2.c"
+          "nordic/nrf5x/dcd_nrf5x.c"
         ]
       }
     },
@@ -1730,10 +1712,7 @@
         "mcu": "OPT_MCU_NRF5X",
         "options": {},
         "portable": [
-          "nordic/nrf5x/dcd_nrf5x.c",
-          "synopsys/dwc2/dcd_dwc2.c",
-          "synopsys/dwc2/dwc2_common.c",
-          "synopsys/dwc2/hcd_dwc2.c"
+          "nordic/nrf5x/dcd_nrf5x.c"
         ]
       }
     },
@@ -1746,10 +1725,7 @@
         "mcu": "OPT_MCU_NRF5X",
         "options": {},
         "portable": [
-          "nordic/nrf5x/dcd_nrf5x.c",
-          "synopsys/dwc2/dcd_dwc2.c",
-          "synopsys/dwc2/dwc2_common.c",
-          "synopsys/dwc2/hcd_dwc2.c"
+          "nordic/nrf5x/dcd_nrf5x.c"
         ]
       }
     },
@@ -1762,10 +1738,7 @@
         "mcu": "OPT_MCU_NRF5X",
         "options": {},
         "portable": [
-          "nordic/nrf5x/dcd_nrf5x.c",
-          "synopsys/dwc2/dcd_dwc2.c",
-          "synopsys/dwc2/dwc2_common.c",
-          "synopsys/dwc2/hcd_dwc2.c"
+          "nordic/nrf5x/dcd_nrf5x.c"
         ]
       }
     },
@@ -1778,10 +1751,7 @@
         "mcu": "OPT_MCU_NRF5X",
         "options": {},
         "portable": [
-          "nordic/nrf5x/dcd_nrf5x.c",
-          "synopsys/dwc2/dcd_dwc2.c",
-          "synopsys/dwc2/dwc2_common.c",
-          "synopsys/dwc2/hcd_dwc2.c"
+          "nordic/nrf5x/dcd_nrf5x.c"
         ]
       }
     },
@@ -1794,7 +1764,6 @@
         "mcu": "OPT_MCU_NRF54",
         "options": {},
         "portable": [
-          "nordic/nrf5x/dcd_nrf5x.c",
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
@@ -1810,7 +1779,6 @@
         "mcu": "OPT_MCU_NRF54",
         "options": {},
         "portable": [
-          "nordic/nrf5x/dcd_nrf5x.c",
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
@@ -3397,10 +3365,7 @@
         "options": {},
         "portable": [
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
-          "st/stm32_fsdev/fsdev_common.c",
-          "synopsys/dwc2/dcd_dwc2.c",
-          "synopsys/dwc2/dwc2_common.c",
-          "synopsys/dwc2/hcd_dwc2.c"
+          "st/stm32_fsdev/fsdev_common.c"
         ]
       }
     },
@@ -3415,8 +3380,6 @@
         "mcu": "OPT_MCU_STM32L4",
         "options": {},
         "portable": [
-          "st/stm32_fsdev/dcd_stm32_fsdev.c",
-          "st/stm32_fsdev/fsdev_common.c",
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
@@ -3434,8 +3397,6 @@
         "mcu": "OPT_MCU_STM32L4",
         "options": {},
         "portable": [
-          "st/stm32_fsdev/dcd_stm32_fsdev.c",
-          "st/stm32_fsdev/fsdev_common.c",
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
@@ -3453,8 +3414,6 @@
         "mcu": "OPT_MCU_STM32L4",
         "options": {},
         "portable": [
-          "st/stm32_fsdev/dcd_stm32_fsdev.c",
-          "st/stm32_fsdev/fsdev_common.c",
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
@@ -3472,8 +3431,6 @@
         "mcu": "OPT_MCU_STM32L4",
         "options": {},
         "portable": [
-          "st/stm32_fsdev/dcd_stm32_fsdev.c",
-          "st/stm32_fsdev/fsdev_common.c",
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
@@ -3553,9 +3510,6 @@
         "mcu": "OPT_MCU_STM32U5",
         "options": {},
         "portable": [
-          "st/stm32_fsdev/dcd_stm32_fsdev.c",
-          "st/stm32_fsdev/fsdev_common.c",
-          "st/stm32_fsdev/hcd_stm32_fsdev.c",
           "st/typec/typec_stm32.c",
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
@@ -3577,10 +3531,7 @@
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
           "st/stm32_fsdev/fsdev_common.c",
           "st/stm32_fsdev/hcd_stm32_fsdev.c",
-          "st/typec/typec_stm32.c",
-          "synopsys/dwc2/dcd_dwc2.c",
-          "synopsys/dwc2/dwc2_common.c",
-          "synopsys/dwc2/hcd_dwc2.c"
+          "st/typec/typec_stm32.c"
         ]
       }
     },
@@ -3593,9 +3544,6 @@
         "mcu": "OPT_MCU_STM32U5",
         "options": {},
         "portable": [
-          "st/stm32_fsdev/dcd_stm32_fsdev.c",
-          "st/stm32_fsdev/fsdev_common.c",
-          "st/stm32_fsdev/hcd_stm32_fsdev.c",
           "st/typec/typec_stm32.c",
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
@@ -3612,9 +3560,6 @@
         "mcu": "OPT_MCU_STM32U5",
         "options": {},
         "portable": [
-          "st/stm32_fsdev/dcd_stm32_fsdev.c",
-          "st/stm32_fsdev/fsdev_common.c",
-          "st/stm32_fsdev/hcd_stm32_fsdev.c",
           "st/typec/typec_stm32.c",
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
@@ -3633,9 +3578,6 @@
         "mcu": "OPT_MCU_STM32U5",
         "options": {},
         "portable": [
-          "st/stm32_fsdev/dcd_stm32_fsdev.c",
-          "st/stm32_fsdev/fsdev_common.c",
-          "st/stm32_fsdev/hcd_stm32_fsdev.c",
           "st/typec/typec_stm32.c",
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
