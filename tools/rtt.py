@@ -59,8 +59,13 @@ def _popen_group_options() -> dict:
 
 
 def _termination_signals() -> tuple:
-    """Signals that exist on this host and can request an orderly CLI stop."""
-    names = ('SIGTERM', 'SIGHUP')
+    """Signals that exist on this host and can request an orderly CLI stop.
+
+    The interactive interrupts are in the list for the teardown's SIG_IGN pass: a
+    second Ctrl-C (or Ctrl-Break) must not cut the kill escalation short and leave
+    the server holding the probe. Routing them through _terminate on the way in
+    raises KeyboardInterrupt exactly as the default handler did."""
+    names = ('SIGTERM', 'SIGHUP', 'SIGINT', 'SIGBREAK')
     return tuple(getattr(signal, name) for name in names if hasattr(signal, name))
 
 
