@@ -123,7 +123,7 @@ curl -sO "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain
 - **Which DCD path is implicated**, precisely rather than by category.
 
 1. `usbtest.py` per-case output + its captured `dmesg` (`TEST n` markers bracket each case).
-2. **usbmon** (`usbmon` skill): URB-level ground truth. **It cannot show data toggles or NAKs** —
+2. **usbmon** (`usb-kernel-debug` skill): URB-level ground truth. **It cannot show data toggles or NAKs** —
    a toggle desync and a dead endpoint look identical (Submits without Completes); distinguish
    device-side with GDB.
 3. **On-device gdb/openocd**: read the EP control registers and DCD structs at the hang.

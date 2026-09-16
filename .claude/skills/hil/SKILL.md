@@ -51,7 +51,7 @@ SEL=$(python3 tools/ci_select.py --base master test/hil/tinyusb.json)
 FULL=$(printf '%s' "$SEL" | python3 -c "import json,sys; print(json.load(sys.stdin)['full'])")
 ARGS=$(printf '%s' "$SEL" | python3 -c "import json,sys; print(json.load(sys.stdin)['args']['tinyusb.json'])")
 if [ "$FULL" = "True" ] || [ -n "$ARGS" ]; then
-  python3 test/hil/hil_test.py -B examples $ARGS test/hil/tinyusb.json   # $ARGS empty when full: run everything
+  python3 test/hil/hil_test.py $ARGS test/hil/tinyusb.json   # $ARGS empty when full: run everything
 else
   echo "diff affects nothing on this rig - skip HIL"
 fi
@@ -81,7 +81,7 @@ See the `usb-kernel-recover` skill for what a real wedge looks like and how to c
 
 ## Prerequisites
 
-Examples must be built for the target board(s) — see [Build and Validate](../../../CLAUDE.md#build-and-validate) (produces `examples/cmake-build-<board>/`). `-B examples` points `hil_test.py` at that parent folder. (This applies to `hil_test.py`; `hil_pool_check.py` builds its own missing firmware.)
+Examples must be built for the target board(s) — see [Build and Validate](../../../CLAUDE.md#build-and-validate). For a **local** run the `build` skill's `--shared` produces `cmake-build/cmake-build-<board>/`, the folder `hil_test.py` flashes from by default. A **remote** run needs the other layout — `hil_ci.sh` stages from `examples/cmake-build-<board>/` only; see Remote execution below. (This applies to `hil_test.py`; `hil_pool_check.py` builds its own missing firmware.)
 
 A board whose flasher probe has no VCOM (or whose BSP has no UART) uses RTT as its console — "No serial device found for /dev/serial/by-id/…" on every host test is the symptom. Config: `"logger": "rtt"` (jlink flashers only) plus a self-named variant carrying the define — `"variant": [{"name": "<board>", "defines": ["LOGGER=rtt"]}]` — and prebuilt example sets must carry the same `-DLOGGER=rtt`. Caveat: the cdc/msc-fixture host tests don't speak RTT yet, so such a board cannot carry `is_cdc`/`is_msc` fixtures (the config loader rejects it; see the rtt follow-up doc). Details: the `rtt` skill.
 
@@ -100,10 +100,10 @@ Set `CONFIG` from `hostname` first (`test/hil/local.json` on a dev PC, `test/hil
 CONFIG=test/hil/local.json      # on ci use: CONFIG=test/hil/tinyusb.json
 
 # All boards in the config:
-python3 test/hil/hil_test.py -B examples "$CONFIG"
+python3 test/hil/hil_test.py "$CONFIG"
 
 # A single board (replace stm32f723disco):
-python3 test/hil/hil_test.py -b stm32f723disco -B examples "$CONFIG"
+python3 test/hil/hil_test.py -b stm32f723disco "$CONFIG"
 ```
 
 ## Remote execution (dev PC → ci.lan only)
@@ -120,6 +120,12 @@ bash test/hil/hil_ci.sh -b raspberry_pi_pico2 -b stm32f723disco -t host/cdc_msc_
 
 One invocation per board is wrong here, not merely slow: each run `rm -rf`s `REMOTE_DIR`
 and rewrites the report, so only the last board's rows survive.
+
+This wrapper stages binaries from `examples/cmake-build-<board>/` — the cmake preset layout — and nothing else:
+its resolver and its all-boards glob never look in `cmake-build/`, so a tree built only by the `build` skill's
+`--shared` is refused as unbuilt (`no build directory under <root>/examples/`). Build the boards the preset way
+for a remote run: `cd examples && cmake --preset <board> && cmake --build --preset <board>`. The remote side is
+already `-B examples`, matching what was staged.
 
 Env overrides: `REMOTE`, `REMOTE_DIR`, `CONFIG`. Fails fast if the build dir/repo layout is missing.
 

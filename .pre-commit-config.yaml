@@ -40,6 +40,13 @@ repos:
     pass_filenames: false
     language: system
 
+  - id: gen-doc
+    name: regenerate reference docs
+    files: ^(hw/bsp/.*/(board\.h|family\.c)|tools/get_deps\.py|test/hil/(tinyusb|hfp)\.json|\.claude/skills/build-doc/scripts/gen_doc\.py)$
+    entry: python3 .claude/skills/build-doc/scripts/gen_doc.py
+    pass_filenames: false
+    language: system
+
   - id: unit-test
     name: unit-test
     files: ^(src/|test/unit-test/)
@@ -82,16 +89,10 @@ repos:
     entry: node .claude/workflows/test/test-hil-validate.mjs
     pass_filenames: false
     language: system
-  - id: code-verify-logic
-    name: code-verify-logic
-    files: ^\.claude/(workflows/|codex-agent\.py$|agents/codex-agent\.md$)
-    entry: node .claude/workflows/test/test-code-verify.mjs
-    pass_filenames: false
-    language: system
-  - id: pr-babysit-logic
-    name: pr-babysit-logic
+  - id: workflow-logic
+    name: workflow-logic
     files: ^\.claude/workflows/
-    entry: node .claude/workflows/test/test-pr-babysit.mjs
+    entry: node .claude/workflows/test/test-workflows.mjs
     pass_filenames: false
     language: system
   - id: ci-select-test
@@ -105,7 +106,7 @@ repos:
   # relying on it being installed system-wide.
   - id: claude-scripts
     name: claude-scripts
-    files: ^\.claude/(codex-agent\.py|skills/.*/(scripts/|SKILL\.md)|test/)
+    files: ^\.claude/(skills/.*/(scripts/|SKILL\.md)|test/)
     entry: python3 -m unittest discover -s .claude/test -p 'test_*.py'
     pass_filenames: false
     language: python

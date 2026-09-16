@@ -318,6 +318,29 @@ deps_all = {**deps_mandatory, **deps_optional}
 
 # TOP is tinyusb root dir
 TOP = Path(__file__).parent.parent.resolve()
+DEPS_RST = TOP / 'docs/reference/dependencies.rst'
+
+
+def rst_table(headers, rows):
+    """Sphinx simple table: columns two spaces apart, header at least two wider than its text."""
+    rows = [[c.strip() for c in r] for r in rows]
+    widths = [max([len(h) + 2] + [len(r[i]) for r in rows]) for i, h in enumerate(headers)]
+    rule = '  '.join('=' * w for w in widths)
+    line = lambda cells: '  '.join(c.ljust(w) for c, w in zip(cells, widths)).rstrip()
+    return '\n'.join([rule, line(headers), rule, *(line(r) for r in rows), rule])
+
+
+def gen_doc(path=DEPS_RST):
+    rows = [[d, url, commit, families] for d, (url, commit, families) in sorted(deps_all.items())]
+    Path(path).write_text(f"""\
+************
+Dependencies
+************
+
+MCU low-level peripheral drivers and external libraries for building TinyUSB examples
+
+{rst_table(['Local Path', 'Repo', 'Commit', 'Required by'], rows)}
+""")
 
 
 def run_cmd(cmd):
@@ -390,7 +413,14 @@ def main():
     # verbatim (.github/actions/get_deps, build.yml's hil-hfp-iar) and an
     # argparse error here reds the Get Dependencies step of every scoped PR
     parser.add_argument('-e', '--example', action='append', default=[], help='Have no effect')
+    parser.add_argument('--gen-doc', nargs='?', const=DEPS_RST, metavar='RST',
+                        help=f'write the dependency table for the docs ({DEPS_RST.relative_to(TOP)}) and exit, fetching nothing')
     args = parser.parse_args()
+
+    if args.gen_doc:
+        gen_doc(args.gen_doc)
+        print(f'wrote {args.gen_doc}')
+        return 0
 
     families = args.families
     boards = args.board

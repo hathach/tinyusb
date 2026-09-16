@@ -20,6 +20,7 @@ hw/mcu/artery/at32f45x                    https://github.com/ArteryTek/AT32F45x_
 hw/mcu/bridgetek/ft9xx/ft90x-sdk          https://github.com/BRTSG-FOSS/ft90x-sdk.git                       03f74eac84645178fdde7f2e5ca9acdcb7bd9dcd  ft9xx
 hw/mcu/broadcom                           https://github.com/adafruit/broadcom-peripherals.git              08370086080759ed54ac1136d62d2ad24c6fa267  broadcom_32bit broadcom_64bit
 hw/mcu/gd/nuclei-sdk                      https://github.com/Nuclei-Software/nuclei-sdk.git                 7eb7bfa9ea4fbeacfafe1d5f77d5a0e6ed3922e7  gd32vf103
+hw/mcu/geehy/APM32F0xx_SDK                https://github.com/GeehySemi/APM32F0xx_SDK.git                    cfc1fe826e1869133de86d4c6b298fc153e6bc32  apm32f0xx
 hw/mcu/hpmicro/hpm_sdk                    https://github.com/hpmicro/hpm_sdk                                8d2af741ecc4aaa82d7ee395dc1ce25d7070c3ff  hpmicro
 hw/mcu/infineon/mtb-xmclib-cat3           https://github.com/Infineon/mtb-xmclib-cat3.git                   daf5500d03cba23e68c2f241c30af79cd9d63880  xmc4000
 hw/mcu/microchip                          https://github.com/hathach/microchip_driver.git                   9e8b37e307d8404033bb881623a113931e1edf27  sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x samd2x_l2x samg
@@ -33,6 +34,8 @@ hw/mcu/nxp/mcux-devices-mcx               https://github.com/nxp-mcuxpresso/mcux
 hw/mcu/nxp/mcux-devices-rt                https://github.com/nxp-mcuxpresso/mcux-devices-rt                 dba2b523c9df61f3330bd186242f8210a8e47c45  imxrt
 hw/mcu/nxp/mcux-sdk                       https://github.com/nxp-mcuxpresso/mcux-sdk                        a1bdae309a14ec95a4f64a96d3315a4f89c397c6  kinetis_k kinetis_kl lpc54 rw61x
 hw/mcu/nxp/mcuxsdk-core                   https://github.com/nxp-mcuxpresso/mcuxsdk-core                    0c5c6b16deb211110e06bde896cdff59ab213e16  imxrt kinetis_k32l lpc51 lpc55 mcx
+hw/mcu/puya/PY32F071_Firmware             https://github.com/OpenPuya/PY32F071_Firmware.git                 73e384cddce63e3019de41d9b6af17dfc96fa536  py32f0
+hw/mcu/puya/PY32F072_Firmware             https://github.com/OpenPuya/PY32F072_Firmware.git                 bc3a6cdbece335a27abb8b51e6fc4911f5116185  py32f0
 hw/mcu/raspberry_pi/FreeRTOS-Kernel       https://github.com/raspberrypi/FreeRTOS-Kernel.git                4f7299d6ea746b27a9dd19e87af568e34bd65b15  rp2040
 hw/mcu/raspberry_pi/Pico-PIO-USB          https://github.com/sekigon-gonnoc/Pico-PIO-USB.git                675543bcc9baa8170f868ab7ba316d418dbcf41f  rp2040
 hw/mcu/renesas/fsp                        https://github.com/renesas/fsp.git                                edcc97d684b6f716728a60d7a6fea049d9870bd6  ra

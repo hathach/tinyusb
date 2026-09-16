@@ -18,6 +18,16 @@ if (!args || !args.task || !Array.isArray(args.items) || args.items.length === 0
 const boardFor = (item) =>
   typeof args.board === 'string' ? args.board : (args.board && args.board[item]) || null
 const short = (s) => s.replace(/\/+$/, '').split('/').slice(-2).join('/')
+// code-writer is generic: the verification build is the workflow's to name. Without a
+// board the contract resolves the item's own scope, and the workflow keeps naming the
+// same thing to the independent verifier, rather than trusting the writer's echo.
+const buildArgs = (item) => {
+  const board = boardFor(item)
+  return board ? `--board ${board}` : `--scope ${item}`
+}
+const buildRecipe = (item) =>
+  ' Verify with the project build contract (.claude/skills/build/SKILL.md): ' +
+  `python3 .claude/skills/build/scripts/check_build.py ${buildArgs(item)}; report its verdict as that file says.`
 if (args.worktree) log('worktree mode: combined simplification, independent builder verification and review deferred until integration (workers verify inside their own worktrees)')
 
 const DEV = {
@@ -76,9 +86,7 @@ const devs = await pipeline(
 
   item => agent(
     `${args.task}\n\nAssigned scope: ${item} — touch nothing outside it.` +
-    (boardFor(item)
-      ? ` Verify with board ${boardFor(item)}.`
-      : ' Pick a verification board from hw/bsp whose family uses this scope.'),
+    buildRecipe(item),
     {
       label: `dev:${short(item)}`, phase: 'Implement',
       agentType: 'code-writer', schema: DEV,
@@ -107,8 +115,11 @@ const simplification = await agent(
   `Assigned scopes: ${JSON.stringify(live)}. Touch nothing outside them.\n` +
   `Writer notes: ${JSON.stringify(devs.filter(Boolean).map(dev => ({ item: dev.item, notes: dev.notes })))}\n` +
   'All writers have finished. Inspect staged and unstaged changes and task-owned untracked files. ' +
-  'Make one behavior-preserving pass; no changes is success. Independent builds and optional review follow.',
-  { label: 'simplify', phase: 'Simplify', agentType: 'code-simplifier', schema: SIMPLIFY },
+  'Invoke the bundled /simplify skill exactly once through the Skill tool, passing the task, the writer notes and the assigned scopes; ' +
+  'require it to preserve unrelated work and input contracts. Make one behavior-preserving pass; no changes is success. ' +
+  'Do not stage, commit or push. Independent builds and optional review follow. ' +
+  'changed=true only if files were edited; files = repo-relative paths; summary covers fixes, skips and checks the caller must rerun.',
+  { label: 'simplify', phase: 'Simplify', model: 'opus', effort: 'xhigh', schema: SIMPLIFY },
 )
 if (!simplification) throw new Error('simplifier failed — inspect possible partial edits before retrying')
 log(`simplify: ${simplification.changed ? simplification.files.join(', ') : 'no changes'} — ${simplification.summary}`)
@@ -120,7 +131,7 @@ const results = await pipeline(
     const dev = devs[index]
     if (!dev) return null
     return agent(
-      `Build the single example device/cdc_msc for board ${dev.board}. Use a unique build dir (mktemp -d) to avoid collisions with parallel builds.`,
+      `Build ${buildArgs(item)} through the project build contract; parallel siblings are building, so keep the private build dir the contract gives you.`,
       { label: `verify:${short(item)}`, phase: 'Verify', agentType: 'builder', schema: BUILD },
     ).then(b => {
       // verifyBuild: true/false = real builder verdict; null = builder died
@@ -131,12 +142,11 @@ const results = await pipeline(
 
   (r, item) => {
     if (!r || !args.review) return r
-    return workflow('code-verify', {
-      prompt: `Review the uncommitted change in ${item} (inspect staged and unstaged changes with git diff HEAD -- ${item}, and read task-owned untracked files) against this task:\n${args.task}\n` +
+    return agent(
+      `Review the uncommitted change in ${item} (inspect staged and unstaged changes with git diff HEAD -- ${item}, and read task-owned untracked files) against this task:\n${args.task}\n` +
       'Dimension: does the diff correctly and completely implement the task with no unintended side effects? Coverage-first findings.',
-      label: `review:${short(item)}`,
-      schema: FINDINGS,
-    }).catch(() => null).then(f => {
+      { label: `review:${short(item)}`, phase: 'Verify', agentType: 'code-verifier', schema: FINDINGS },
+    ).catch(() => null).then(f => {
       // review: array = findings; null = reviewer died; absent = not requested
       if (!f) log(`review:${short(item)}: reviewer agent died`)
       return { ...r, review: f ? f.findings : null }

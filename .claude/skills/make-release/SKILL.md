@@ -10,49 +10,34 @@ description: Use when cutting a new TinyUSB release — version bump, regenerate
 ## 1. Bump + regenerate
 
 ```bash
-# set version = 'X.Y.Z' in tools/make_release.py, then FROM REPO ROOT:
-python3 tools/make_release.py
+R=.claude/skills/make-release/scripts/release.py
+$R bump X.Y.Z                                      # tusb_option.h, repository.yml, library.json, sonar-project.properties
+.claude/skills/build-doc/scripts/gen_doc.py        # docs/reference/{boards,dependencies}.rst, hil_boards.md
+.claude/skills/build-doc/scripts/gen_presets.py    # hw/bsp/BoardPresets.json + per-example CMakePresets.json
 ```
-Refreshes `tusb_option.h`, `repository.yml`, `library.json`, `sonar-project.properties`, and (via gen_doc/gen_presets) `docs/reference/{boards,dependencies}.rst`, `docs/reference/hil_boards.md` + preset JSONs (they change only if boards, deps or the HIL rosters did).
-
-Gotchas: `gen_doc` needs `pandas`+`tabulate` (not in requirements) → `pip install pandas tabulate`; `boards.rst` lands with no trailing newline → let pre-commit fix it (step 3).
+`bump` refuses a version that is not `X.Y.Z` or equals the current one, and refuses (writing nothing) when a file's version line no longer matches its pattern — fix the file or the pattern, never hand-edit around it. The regenerated files change only if boards, deps or the HIL rosters did (see the build-doc skill for what a diff there means).
 
 ## 2. Changelog — `docs/changelog/` (the hard part)
 
-New file `docs/changelog/X.Y.Z.md`, listed **first** in `docs/changelog/index.rst`. Get the PR set by **commit reachability, not merge date** (a date query wrongly pulls in the prior release's changelog PR at the boundary):
+New file `docs/changelog/X.Y.Z.md`, listed **first** in `docs/changelog/index.rst`. The PR set comes from **commit reachability, not merge date** (a date query wrongly pulls in the prior release's changelog PR at the boundary):
 
 ```bash
-PREV=0.20.0
-git merge-base --is-ancestor $PREV HEAD && echo OK   # else stop: range invalid
-git log --first-parent $PREV..HEAD --pretty=%s > /tmp/fp.txt
-{ sed -nE 's/^Merge pull request #([0-9]+).*/\1/p' /tmp/fp.txt   # merge-button
-  sed -nE 's/.*\(#([0-9]+)\)$/\1/p'                /tmp/fp.txt ; } | sort -un > /tmp/prs.txt   # squash
-grep -vE '^Merge pull request #[0-9]+|\(#[0-9]+\)$' /tmp/fp.txt   # guard: must be empty (direct pushes)
-xargs -P8 -I{} gh pr view {} --json number,title,labels \
-  --jq '"#\(.number)\t\(.title)\t[\(.labels|map(.name)|join(","))]"' < /tmp/prs.txt   # categorize
+$R prs --prev 0.20.0 [--head master] > /tmp/prs.txt   # '#N<TAB>title<TAB>[labels]', one PR per line
 ```
-`--first-parent` skips dev-merges; the two `sed`s catch merge-button + squash. A PR merged into a *feature branch* folds into its parent (won't appear alone) — reflect its final state in the parent's bullet.
+It refuses when `--prev` is not an ancestor of the head, and when a first-parent commit is not a merged PR (a direct push: decide what to do with it, do not silence the guard). A PR merged into a *feature branch* folds into its parent (won't appear alone) — reflect its final state in the parent's bullet.
 
 **Curate** into the prior file's exact Markdown (MyST) style:
 - Title = version (`# X.Y.Z`), then italic date (ask if unknown). Add to top of `index.rst`.
 - Section order: **General** (New MCUs and Boards / Code Quality and Build / Documentation) → **API Changes** → **Device Stack** (per class) → **Host Stack** → **Controller Driver (DCD & HCD)** (per driver) → **Testing** → **Contributors**. Sections are `##`; each class/driver group is a `###` sub-heading, not a bullet.
 - Single backticks for symbols; group related PRs into one bullet (don't dump). `Port *`/driver labels help bucket DCD/HCD.
-- **Contributors**: unique non-bot PR authors, alphabetical (the only contributor credit — no separate page):
-  ```bash
-  xargs -P8 -I{} gh pr view {} --json author --jq '.author.login' < /tmp/prs.txt \
-    | grep -viE '\[bot\]$|^(copilot|claude|dependabot|github-actions)$' | sort -uf | sed 's/^/@/' | paste -sd, - | sed 's/,/, /g'   # drop any CI/service accounts
-  ```
+- **Contributors**: unique non-bot PR authors, alphabetical (the only contributor credit — no separate page): `$R contributors --prev 0.20.0` prints the line; drop any CI/service account it did not recognise.
 
 ## 3. Validate (leave unstaged)
 
 ```bash
-pre-commit run --files docs/changelog/X.Y.Z.md docs/changelog/index.rst \
-  docs/reference/boards.rst docs/reference/dependencies.rst \
-  library.json repository.yml sonar-project.properties src/tusb_option.h tools/make_release.py
-python3 tools/build_doc.py -c            # docs build clean (see build-doc skill)
-( cd test/unit-test && ceedling test:all )
-( cd examples/device/cdc_msc && rm -rf build && mkdir build && cd build && \
-  cmake -DBOARD=stm32f407disco -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel .. && cmake --build . )
+pre-commit run --all-files                         # every file step 1 regenerated, unit tests included
+.claude/skills/build-doc/scripts/build_doc.py -c   # docs build clean, warnings fail it (see build-doc skill)
+python3 .claude/skills/build/scripts/check_build.py --board stm32f407disco -e device/cdc_msc  # smoke build, a release changes no firmware
 git diff --stat -- ':!.idea'             # .idea/* is IDE noise
 ```
 Confirm the version matches across `tusb_option.h` / `library.json` / `repository.yml` / `sonar-project.properties`.

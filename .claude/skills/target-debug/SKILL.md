@@ -12,10 +12,9 @@ Raspberry Pi). Pick capture channels by which end runs Linux, not by habit:
 
 | Skill              | Answers                                            | Exists when                                       |
 |--------------------|----------------------------------------------------|---------------------------------------------------|
-| `usbmon`           | what the Linux host exchanged (URBs)               | a Linux PC is the link's host                     |
-| `usb-kernel-debug` | why the Linux kernel acted (dmesg / dynamic debug) | Linux on either end: PC host or Linux gadget peer |
+| `usb-kernel-debug` | what the Linux host exchanged (usbmon URBs, host role only) and why its kernel acted (dynamic debug); user-level skill from agentrc | Linux on either end: PC host or Linux gadget peer |
 | **`target-debug`** | **what the target did** (logs, driver state, PC)   | always — either role, needs a debug probe         |
-| `usb-sniffer`      | what crossed the wire (PIDs, handshakes, resets)   | hardware tap cabled in — role-agnostic            |
+| `usb-sniffer`      | what crossed the wire (PIDs, handshakes, resets); user-level skill from agentrc | hardware tap cabled in — role-agnostic |
 | `etm-trace`        | exactly which instructions executed (profile, coverage, history) | SEGGER J-Trace wired to this board's trace header — confirm with the user first |
 
 For enumeration/transfer bugs the default posture is **dual-side capture** —
@@ -339,9 +338,10 @@ TinyUSB-as-host: swap usbmon for `usb-sniffer`, + `usb-kernel-debug` on a
 Linux gadget peer):
 
 ```bash
-.claude/skills/usbmon/scripts/usbcap.sh cafe: 30 /tmp/host.pcapng &   # host URBs (usbmon skill)
-timeout 30s python3 tools/rtt.py --backend jlink --probe <sn> --device <dev> > /tmp/target.rtt &  # target (rtt skill; or ring dump after)
-wait
+~/.claude/skills/usb-kernel-debug/scripts/usbcap.py <bus> 30 /tmp/host.pcapng & cap=$!   # host URBs (usb-kernel-debug skill); the board's bus, `cafe:` is refused on a rig with several
+timeout 30s python3 tools/rtt.py --backend jlink --probe <sn> --device <dev> > /tmp/target.rtt & rtt=$!  # target (rtt skill; or ring dump after)
+wait $cap; rc_cap=$?; wait $rtt; rc_rtt=$?   # `wait $cap && wait $rtt` would skip the rtt wait when cap failed
+[ $rc_cap -eq 0 ] && [ $rc_rtt -eq 0 ]       # a bare `wait` returns 0 even when one side failed
 ```
 
 RTT lines and ring events carry no wall-clock: correlate on unambiguous
@@ -350,6 +350,23 @@ lay device events between anchors in host-URB order. Logging the SOF/frame
 number on the target gives a shared clock when you need finer alignment.
 When host and target evidence disagree, or the host sees nothing at all, add
 the wire itself: `usb-sniffer` skill (hardware tap, PID-level).
+
+## Host-side symptoms → what to check on the target
+
+usbmon (`usb-kernel-debug`) is URB-level: it cannot show data toggles or NAKs,
+so a device-side stall and a toggle desync look identical (Submits on an
+endpoint with no Completes). The host capture locates the failing request;
+the target side names the cause.
+
+| Host-side symptom                           | Target-side check                                                                                                                                                                                                                                                                               |
+|---------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Not recognized / re-enumerates              | Is `GET DESCRIPTOR (DEVICE)` answered, `bMaxPacketSize0` sane? Repeated SET_ADDRESS / resets = device too slow to respond; usbcore/xhci dynamic debug gives the host's reset reason.                                                                                                            |
+| Enumeration stalls                          | The request after the last good control transfer (often CONFIG, a string, or the first class request) is what `tud_descriptor_*` / the control callback mishandled.                                                                                                                             |
+| Control URB completes `-32` (`-EPIPE`)      | A real STALL: usually a `tud_*_control_xfer_cb` returning `false` or an unhandled `bRequest` (decode it with `tshark -V`). `-71` (`-EPROTO`) is not a STALL: the device mis-/under-served the transfer, e.g. EP0 starved under bulk load.                                                       |
+| Bulk / interrupt missing or short           | Unexpected short (`usb.data_len < wMaxPacketSize`) suggests a FIFO/length bug; no completions can be the class never writing, a halted endpoint or a toggle desync — read the EP control register (response/toggle bits) and `data.xfer[ep][dir]`, `_usbd_dev.ep_status` in GDB.                |
+| CDC read (`dd`/cat) hangs, IN endpoint idle | Check EP0 first: did `SET_CONTROL_LINE_STATE` (`bmRequestType==0x21`) complete `0` or fail `-71`? If it failed the device never saw DTR, `tud_cdc_connected()` is false and the app stops sourcing TX; typical right after a bulk **write** phase. Confirm with `_cdcd_itf[0].line_state` bit0. |
+| ISO / audio dropouts                        | Zero-length ISO frames = the device starved the endpoint; check the cadence the class feeds.                                                                                                                                                                                                    |
+| Wrong descriptors                           | `bLength` / `wTotalLength` against `tud_descriptor_configuration_cb`.                                                                                                                                                                                                                           |
 
 ## Manuals
 

@@ -118,8 +118,8 @@ _META_RE = re.compile(
     r'workflows/(cifuzz|claude|claude-code-review|labeler|membrowse-comment|'
     r'membrowse-onboard|pr_comment|pre-commit|static_analysis|trigger)\.yml$)|'
     # tools/ scripts no build invokes (tools/build*.py and metrics are handled above)
-    r'tools/(build_doc|check_example_pids|file2carray|gen_doc|gen_presets|iar_gen|'
-    r'make_release|mksunxi|pcapng_to_corpus)\.py$|tools/iar_template\.ipcf$'
+    r'tools/(check_example_pids|file2carray|iar_gen|mksunxi|pcapng_to_corpus)\.py$|'
+    r'tools/iar_template\.ipcf$'
     r')')
 # Build-size metrics tooling. HIL axis ONLY: nothing on the rig runs any of it, and
 # without this rule these paths are unclassified, so a metrics-only PR booked an
