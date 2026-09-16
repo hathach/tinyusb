@@ -1,0 +1,3742 @@
+{
+  "apm32f0xx": {
+    "apm32f072_dev_board": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "APM32F0XX"
+        ],
+        "mcu": "OPT_MCU_APM32F0XX",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c"
+        ]
+      }
+    }
+  },
+  "at32f402_405": {
+    "at_start_f402": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "AT32F402_405"
+        ],
+        "mcu": "OPT_MCU_AT32F402_405",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "at_start_f405": {
+      "cmake": {
+        "defines": {
+          "AT32F405RCT7": "1"
+        },
+        "family_mcus": [
+          "AT32F402_405"
+        ],
+        "mcu": "OPT_MCU_AT32F402_405",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    }
+  },
+  "at32f403a_407": {
+    "at32f403a_weact_blackpill": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "AT32F403A_407"
+        ],
+        "mcu": "OPT_MCU_AT32F403A_407",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c"
+        ]
+      }
+    },
+    "at_start_f403a": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "AT32F403A_407"
+        ],
+        "mcu": "OPT_MCU_AT32F403A_407",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c"
+        ]
+      }
+    },
+    "at_start_f407": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "AT32F403A_407"
+        ],
+        "mcu": "OPT_MCU_AT32F403A_407",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c"
+        ]
+      }
+    }
+  },
+  "at32f413": {
+    "at_start_f413": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "AT32F413"
+        ],
+        "mcu": "OPT_MCU_AT32F413",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c"
+        ]
+      }
+    }
+  },
+  "at32f415": {
+    "at_start_f415": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "AT32F415"
+        ],
+        "mcu": "OPT_MCU_AT32F415",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    }
+  },
+  "at32f423": {
+    "at_start_f423": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "AT32F423"
+        ],
+        "mcu": "OPT_MCU_AT32F423",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    }
+  },
+  "at32f425": {
+    "at_start_f425": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "AT32F425"
+        ],
+        "mcu": "OPT_MCU_AT32F425",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    }
+  },
+  "at32f435_437": {
+    "at_start_f435": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "AT32F435_437"
+        ],
+        "mcu": "OPT_MCU_AT32F435_437",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "at_start_f437": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "AT32F435_437"
+        ],
+        "mcu": "OPT_MCU_AT32F435_437",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    }
+  },
+  "at32f45x": {
+    "at_start_f455": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "AT32F45X"
+        ],
+        "mcu": "OPT_MCU_AT32F45X",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "at_start_f456": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "AT32F45X"
+        ],
+        "mcu": "OPT_MCU_AT32F45X",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "at_start_f457": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "AT32F45X"
+        ],
+        "mcu": "OPT_MCU_AT32F45X",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    }
+  },
+  "broadcom_32bit": {
+    "raspberrypi_zero": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "BCM2835"
+        ],
+        "mcu": "OPT_MCU_BCM2835",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    }
+  },
+  "broadcom_64bit": {
+    "raspberrypi_cm4": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "BCM2711",
+          "BCM2835"
+        ],
+        "mcu": "OPT_MCU_BCM2711",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "raspberrypi_zero2": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "BCM2711",
+          "BCM2835"
+        ],
+        "mcu": "OPT_MCU_BCM2837",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    }
+  },
+  "ch32f20x": {
+    "ch32f205r-r0": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "CH32F20X"
+        ],
+        "mcu": "OPT_MCU_CH32F20X",
+        "options": {},
+        "portable": [
+          "wch/dcd_ch32_usbhs.c"
+        ]
+      }
+    }
+  },
+  "ch32v10x": {
+    "ch32v103c_bluepill": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "CH32V103"
+        ],
+        "mcu": "OPT_MCU_CH32V103",
+        "options": {},
+        "portable": [
+          "wch/dcd_ch32_usbfs.c"
+        ]
+      }
+    },
+    "ch32v103r_r1_1v0": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "CH32V103"
+        ],
+        "mcu": "OPT_MCU_CH32V103",
+        "options": {},
+        "portable": [
+          "wch/dcd_ch32_usbfs.c"
+        ]
+      }
+    }
+  },
+  "ch32v20x": {
+    "ch32v203c_r0_1v0": {
+      "cmake": {
+        "defines": {
+          "CFG_TUD_WCH_USBIP_FSDEV": "1"
+        },
+        "family_mcus": [
+          "CH32V20X"
+        ],
+        "mcu": "OPT_MCU_CH32V20X",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c",
+          "wch/dcd_ch32_usbfs.c",
+          "wch/hcd_ch32_usbfs.c"
+        ]
+      }
+    },
+    "ch32v203g_r0_1v0": {
+      "cmake": {
+        "defines": {
+          "CFG_TUD_WCH_USBIP_FSDEV": "1"
+        },
+        "family_mcus": [
+          "CH32V20X"
+        ],
+        "mcu": "OPT_MCU_CH32V20X",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c",
+          "wch/dcd_ch32_usbfs.c",
+          "wch/hcd_ch32_usbfs.c"
+        ]
+      }
+    },
+    "nanoch32v203": {
+      "cmake": {
+        "defines": {
+          "CFG_TUD_WCH_USBIP_FSDEV": "1"
+        },
+        "family_mcus": [
+          "CH32V20X"
+        ],
+        "mcu": "OPT_MCU_CH32V20X",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c",
+          "wch/dcd_ch32_usbfs.c",
+          "wch/hcd_ch32_usbfs.c"
+        ]
+      }
+    }
+  },
+  "ch32v30x": {
+    "ch32v307v_r1_1v0": {
+      "cmake": {
+        "defines": {
+          "CFG_TUD_WCH_USBIP_USBHS": "1"
+        },
+        "family_mcus": [
+          "CH32V307"
+        ],
+        "mcu": "OPT_MCU_CH32V307",
+        "options": {},
+        "portable": [
+          "wch/dcd_ch32_usbfs.c",
+          "wch/dcd_ch32_usbhs.c"
+        ]
+      }
+    },
+    "nanoch32v305": {
+      "cmake": {
+        "defines": {
+          "CFG_TUD_WCH_USBIP_USBHS": "1"
+        },
+        "family_mcus": [
+          "CH32V307"
+        ],
+        "mcu": "OPT_MCU_CH32V307",
+        "options": {},
+        "portable": [
+          "wch/dcd_ch32_usbfs.c",
+          "wch/dcd_ch32_usbhs.c"
+        ]
+      }
+    }
+  },
+  "ch583": {
+    "ch582m_evt": {
+      "cmake": {
+        "defines": {
+          "CFG_TUD_WCH_USBIP_USBFS": "1"
+        },
+        "family_mcus": [
+          "CH583"
+        ],
+        "mcu": "OPT_MCU_CH583",
+        "options": {},
+        "portable": [
+          "wch/dcd_ch32_usbfs.c"
+        ]
+      }
+    },
+    "yd-ch582m": {
+      "cmake": {
+        "defines": {
+          "CFG_TUD_WCH_USBIP_USBFS": "1"
+        },
+        "family_mcus": [
+          "CH583"
+        ],
+        "mcu": "OPT_MCU_CH583",
+        "options": {},
+        "portable": [
+          "wch/dcd_ch32_usbfs.c"
+        ]
+      }
+    }
+  },
+  "cxd56": {
+    "spresense": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "CXD56"
+        ],
+        "mcu": "OPT_MCU_CXD56",
+        "options": {},
+        "portable": [
+          "sony/cxd56/dcd_cxd56.c"
+        ]
+      }
+    }
+  },
+  "da1469x": {
+    "da14695_dk_usb": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "DA1469X"
+        ],
+        "mcu": "OPT_MCU_DA1469X",
+        "options": {},
+        "portable": [
+          "dialog/da146xx/dcd_da146xx.c"
+        ]
+      }
+    },
+    "da1469x_dk_pro": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "DA1469X"
+        ],
+        "mcu": "OPT_MCU_DA1469X",
+        "options": {},
+        "portable": [
+          "dialog/da146xx/dcd_da146xx.c"
+        ]
+      }
+    }
+  },
+  "efm32": {
+    "sltb009a": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "EFM32GG"
+        ],
+        "mcu": "OPT_MCU_EFM32GG",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    }
+  },
+  "espressif": {
+    "adafruit_feather_esp32_v2": {
+      "cmake": {
+        "defines": {
+          "CFG_TUH_MAX3421": "1"
+        },
+        "family_mcus": [
+          "ESP32",
+          "MAX3421"
+        ],
+        "mcu": "OPT_MCU_ESP32",
+        "options": {
+          "MAX3421_HOST": "1"
+        },
+        "portable": [
+          "analog/max3421/hcd_max3421.c",
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "adafruit_feather_esp32c6": {
+      "cmake": {
+        "defines": {
+          "CFG_TUH_MAX3421": "1"
+        },
+        "family_mcus": [
+          "ESP32C6",
+          "MAX3421"
+        ],
+        "mcu": "OPT_MCU_ESP32C6",
+        "options": {
+          "MAX3421_HOST": "1"
+        },
+        "portable": [
+          "analog/max3421/hcd_max3421.c",
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "adafruit_feather_esp32s2": {
+      "cmake": {
+        "defines": {
+          "CFG_TUH_MAX3421": "1"
+        },
+        "family_mcus": [
+          "ESP32S2",
+          "MAX3421"
+        ],
+        "mcu": "OPT_MCU_ESP32S2",
+        "options": {
+          "MAX3421_HOST": "1"
+        },
+        "portable": [
+          "analog/max3421/hcd_max3421.c",
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "adafruit_feather_esp32s3": {
+      "cmake": {
+        "defines": {
+          "CFG_TUH_MAX3421": "1"
+        },
+        "family_mcus": [
+          "ESP32S3",
+          "MAX3421"
+        ],
+        "mcu": "OPT_MCU_ESP32S3",
+        "options": {
+          "MAX3421_HOST": "1"
+        },
+        "portable": [
+          "analog/max3421/hcd_max3421.c",
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "adafruit_magtag_29gray": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "ESP32S2"
+        ],
+        "mcu": "OPT_MCU_ESP32S2",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "adafruit_metro_esp32s2": {
+      "cmake": {
+        "defines": {
+          "CFG_TUH_MAX3421": "1"
+        },
+        "family_mcus": [
+          "ESP32S2",
+          "MAX3421"
+        ],
+        "mcu": "OPT_MCU_ESP32S2",
+        "options": {
+          "MAX3421_HOST": "1"
+        },
+        "portable": [
+          "analog/max3421/hcd_max3421.c",
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "espressif_addax_1": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "ESP32S3"
+        ],
+        "mcu": "OPT_MCU_ESP32S3",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "espressif_c3_devkitc": {
+      "cmake": {
+        "defines": {
+          "CFG_TUH_MAX3421": "1"
+        },
+        "family_mcus": [
+          "ESP32C3",
+          "MAX3421"
+        ],
+        "mcu": "OPT_MCU_ESP32C3",
+        "options": {
+          "MAX3421_HOST": "1"
+        },
+        "portable": [
+          "analog/max3421/hcd_max3421.c",
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "espressif_c6_devkitc": {
+      "cmake": {
+        "defines": {
+          "CFG_TUH_MAX3421": "1"
+        },
+        "family_mcus": [
+          "ESP32C6",
+          "MAX3421"
+        ],
+        "mcu": "OPT_MCU_ESP32C6",
+        "options": {
+          "MAX3421_HOST": "1"
+        },
+        "portable": [
+          "analog/max3421/hcd_max3421.c",
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "espressif_kaluga_1": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "ESP32S2"
+        ],
+        "mcu": "OPT_MCU_ESP32S2",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "espressif_p4_function_ev": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "ESP32P4"
+        ],
+        "mcu": "OPT_MCU_ESP32P4",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "espressif_s2_devkitc": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "ESP32S2"
+        ],
+        "mcu": "OPT_MCU_ESP32S2",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "espressif_s3_devkitc": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "ESP32S3"
+        ],
+        "mcu": "OPT_MCU_ESP32S3",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "espressif_s3_devkitm": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "ESP32S3"
+        ],
+        "mcu": "OPT_MCU_ESP32S3",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "espressif_saola_1": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "ESP32S2"
+        ],
+        "mcu": "OPT_MCU_ESP32S2",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    }
+  },
+  "f1c100s": {
+    "f1c100s": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "F1C100S"
+        ],
+        "mcu": "OPT_MCU_F1C100S",
+        "options": {},
+        "portable": [
+          "sunxi/dcd_sunxi_musb.c"
+        ]
+      }
+    }
+  },
+  "fomu": {
+    "fomu": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "VALENTYUSB_EPTRI"
+        ],
+        "mcu": "OPT_MCU_VALENTYUSB_EPTRI",
+        "options": {},
+        "portable": [
+          "valentyusb/eptri/dcd_eptri.c"
+        ]
+      }
+    }
+  },
+  "ft9xx": {
+    "mm900evxb": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "FT90X"
+        ],
+        "mcu": "OPT_MCU_FT90X",
+        "options": {},
+        "portable": [
+          "bridgetek/ft9xx/dcd_ft9xx.c"
+        ]
+      }
+    }
+  },
+  "gd32vf103": {
+    "sipeed_longan_nano": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "GD32VF103"
+        ],
+        "mcu": "OPT_MCU_GD32VF103",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    }
+  },
+  "hpmicro": {
+    "hpm6750evk2": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "HPMICRO"
+        ],
+        "mcu": "OPT_MCU_HPM",
+        "options": {},
+        "portable": [
+          "chipidea/ci_hs/dcd_ci_hs.c",
+          "chipidea/ci_hs/hcd_ci_hs.c",
+          "ehci/ehci.c"
+        ]
+      }
+    }
+  },
+  "imxrt": {
+    "metro_m7_1011": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "MIMXRT1XXX"
+        ],
+        "mcu": "OPT_MCU_MIMXRT1XXX",
+        "options": {},
+        "portable": [
+          "chipidea/ci_hs/dcd_ci_hs.c",
+          "chipidea/ci_hs/hcd_ci_hs.c",
+          "ehci/ehci.c"
+        ]
+      }
+    },
+    "mimxrt1010_evk": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "MIMXRT1XXX"
+        ],
+        "mcu": "OPT_MCU_MIMXRT1XXX",
+        "options": {},
+        "portable": [
+          "chipidea/ci_hs/dcd_ci_hs.c",
+          "chipidea/ci_hs/hcd_ci_hs.c",
+          "ehci/ehci.c"
+        ]
+      }
+    },
+    "mimxrt1015_evk": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "MIMXRT1XXX"
+        ],
+        "mcu": "OPT_MCU_MIMXRT1XXX",
+        "options": {},
+        "portable": [
+          "chipidea/ci_hs/dcd_ci_hs.c",
+          "chipidea/ci_hs/hcd_ci_hs.c",
+          "ehci/ehci.c"
+        ]
+      }
+    },
+    "mimxrt1020_evk": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "MIMXRT1XXX"
+        ],
+        "mcu": "OPT_MCU_MIMXRT1XXX",
+        "options": {},
+        "portable": [
+          "chipidea/ci_hs/dcd_ci_hs.c",
+          "chipidea/ci_hs/hcd_ci_hs.c",
+          "ehci/ehci.c"
+        ]
+      }
+    },
+    "mimxrt1024_evk": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "MIMXRT1XXX"
+        ],
+        "mcu": "OPT_MCU_MIMXRT1XXX",
+        "options": {},
+        "portable": [
+          "chipidea/ci_hs/dcd_ci_hs.c",
+          "chipidea/ci_hs/hcd_ci_hs.c",
+          "ehci/ehci.c"
+        ]
+      }
+    },
+    "mimxrt1050_evkb": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "MIMXRT1XXX"
+        ],
+        "mcu": "OPT_MCU_MIMXRT1XXX",
+        "options": {},
+        "portable": [
+          "chipidea/ci_hs/dcd_ci_hs.c",
+          "chipidea/ci_hs/hcd_ci_hs.c",
+          "ehci/ehci.c"
+        ]
+      }
+    },
+    "mimxrt1060_evk": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "MIMXRT1XXX"
+        ],
+        "mcu": "OPT_MCU_MIMXRT1XXX",
+        "options": {},
+        "portable": [
+          "chipidea/ci_hs/dcd_ci_hs.c",
+          "chipidea/ci_hs/hcd_ci_hs.c",
+          "ehci/ehci.c"
+        ]
+      }
+    },
+    "mimxrt1064_evk": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "MIMXRT1XXX"
+        ],
+        "mcu": "OPT_MCU_MIMXRT1XXX",
+        "options": {},
+        "portable": [
+          "chipidea/ci_hs/dcd_ci_hs.c",
+          "chipidea/ci_hs/hcd_ci_hs.c",
+          "ehci/ehci.c"
+        ]
+      }
+    },
+    "mimxrt1170_evkb": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "MIMXRT1XXX"
+        ],
+        "mcu": "OPT_MCU_MIMXRT1XXX",
+        "options": {},
+        "portable": [
+          "chipidea/ci_hs/dcd_ci_hs.c",
+          "chipidea/ci_hs/hcd_ci_hs.c",
+          "ehci/ehci.c"
+        ]
+      }
+    },
+    "teensy_40": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "MIMXRT1XXX"
+        ],
+        "mcu": "OPT_MCU_MIMXRT1XXX",
+        "options": {},
+        "portable": [
+          "chipidea/ci_hs/dcd_ci_hs.c",
+          "chipidea/ci_hs/hcd_ci_hs.c",
+          "ehci/ehci.c"
+        ]
+      }
+    },
+    "teensy_41": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "MIMXRT1XXX"
+        ],
+        "mcu": "OPT_MCU_MIMXRT1XXX",
+        "options": {},
+        "portable": [
+          "chipidea/ci_hs/dcd_ci_hs.c",
+          "chipidea/ci_hs/hcd_ci_hs.c",
+          "ehci/ehci.c"
+        ]
+      }
+    }
+  },
+  "kinetis_k": {
+    "frdm_k64f": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "KINETIS_K"
+        ],
+        "mcu": "OPT_MCU_KINETIS_K",
+        "options": {},
+        "portable": [
+          "chipidea/ci_fs/dcd_ci_fs.c",
+          "chipidea/ci_fs/hcd_ci_fs.c"
+        ]
+      }
+    },
+    "teensy_35": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "KINETIS_K"
+        ],
+        "mcu": "OPT_MCU_KINETIS_K",
+        "options": {},
+        "portable": [
+          "chipidea/ci_fs/dcd_ci_fs.c",
+          "chipidea/ci_fs/hcd_ci_fs.c"
+        ]
+      }
+    }
+  },
+  "kinetis_k32l": {
+    "frdm_k32l2a4s": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "KINETIS_K32L"
+        ],
+        "mcu": "OPT_MCU_KINETIS_K32L",
+        "options": {},
+        "portable": [
+          "chipidea/ci_fs/dcd_ci_fs.c",
+          "chipidea/ci_fs/hcd_ci_fs.c"
+        ]
+      }
+    },
+    "frdm_k32l2b": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "KINETIS_K32L"
+        ],
+        "mcu": "OPT_MCU_KINETIS_K32L",
+        "options": {},
+        "portable": [
+          "chipidea/ci_fs/dcd_ci_fs.c",
+          "chipidea/ci_fs/hcd_ci_fs.c"
+        ]
+      }
+    },
+    "kuiic": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "KINETIS_K32L"
+        ],
+        "mcu": "OPT_MCU_KINETIS_K32L",
+        "options": {},
+        "portable": [
+          "chipidea/ci_fs/dcd_ci_fs.c",
+          "chipidea/ci_fs/hcd_ci_fs.c"
+        ]
+      }
+    }
+  },
+  "kinetis_kl": {
+    "frdm_kl25z": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "KINETIS_KL"
+        ],
+        "mcu": "OPT_MCU_KINETIS_KL",
+        "options": {},
+        "portable": [
+          "chipidea/ci_fs/dcd_ci_fs.c",
+          "chipidea/ci_fs/hcd_ci_fs.c"
+        ]
+      }
+    }
+  },
+  "lpc11": {
+    "lpcxpresso11u37": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "LPC11UXX"
+        ],
+        "mcu": "OPT_MCU_LPC11UXX",
+        "options": {},
+        "portable": [
+          "nxp/lpc_ip3511/dcd_lpc_ip3511.c"
+        ]
+      }
+    },
+    "lpcxpresso11u68": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "LPC11UXX"
+        ],
+        "mcu": "OPT_MCU_LPC11UXX",
+        "options": {},
+        "portable": [
+          "nxp/lpc_ip3511/dcd_lpc_ip3511.c"
+        ]
+      }
+    }
+  },
+  "lpc13": {
+    "lpcxpresso1347": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "LPC13XX"
+        ],
+        "mcu": "OPT_MCU_LPC13XX",
+        "options": {},
+        "portable": [
+          "nxp/lpc_ip3511/dcd_lpc_ip3511.c"
+        ]
+      }
+    }
+  },
+  "lpc15": {
+    "lpcxpresso1549": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "LPC15XX"
+        ],
+        "mcu": "OPT_MCU_LPC15XX",
+        "options": {},
+        "portable": [
+          "nxp/lpc_ip3511/dcd_lpc_ip3511.c"
+        ]
+      }
+    }
+  },
+  "lpc17": {
+    "lpcxpresso1769": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "LPC175X_6X"
+        ],
+        "mcu": "OPT_MCU_LPC175X_6X",
+        "options": {},
+        "portable": [
+          "nxp/lpc17_40/dcd_lpc17_40.c",
+          "ohci/ohci.c"
+        ]
+      }
+    },
+    "mbed1768": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "LPC175X_6X"
+        ],
+        "mcu": "OPT_MCU_LPC175X_6X",
+        "options": {},
+        "portable": [
+          "nxp/lpc17_40/dcd_lpc17_40.c",
+          "ohci/ohci.c"
+        ]
+      }
+    }
+  },
+  "lpc18": {
+    "lpcxpresso18s37": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "LPC18XX"
+        ],
+        "mcu": "OPT_MCU_LPC18XX",
+        "options": {},
+        "portable": [
+          "chipidea/ci_hs/dcd_ci_hs.c",
+          "chipidea/ci_hs/hcd_ci_hs.c",
+          "ehci/ehci.c"
+        ]
+      }
+    },
+    "mcb1800": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "LPC18XX"
+        ],
+        "mcu": "OPT_MCU_LPC18XX",
+        "options": {},
+        "portable": [
+          "chipidea/ci_hs/dcd_ci_hs.c",
+          "chipidea/ci_hs/hcd_ci_hs.c",
+          "ehci/ehci.c"
+        ]
+      }
+    }
+  },
+  "lpc40": {
+    "ea4088_quickstart": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "LPC40XX"
+        ],
+        "mcu": "OPT_MCU_LPC40XX",
+        "options": {},
+        "portable": [
+          "nxp/lpc17_40/dcd_lpc17_40.c",
+          "ohci/ohci.c"
+        ]
+      }
+    }
+  },
+  "lpc43": {
+    "ea4357": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "LPC43XX"
+        ],
+        "mcu": "OPT_MCU_LPC43XX",
+        "options": {},
+        "portable": [
+          "chipidea/ci_hs/dcd_ci_hs.c",
+          "chipidea/ci_hs/hcd_ci_hs.c",
+          "ehci/ehci.c"
+        ]
+      }
+    },
+    "lpcxpresso43s67": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "LPC43XX"
+        ],
+        "mcu": "OPT_MCU_LPC43XX",
+        "options": {},
+        "portable": [
+          "chipidea/ci_hs/dcd_ci_hs.c",
+          "chipidea/ci_hs/hcd_ci_hs.c",
+          "ehci/ehci.c"
+        ]
+      }
+    }
+  },
+  "lpc51": {
+    "lpcxpresso51u68": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "LPC51"
+        ],
+        "mcu": "OPT_MCU_LPC51",
+        "options": {},
+        "portable": [
+          "nxp/lpc_ip3511/dcd_lpc_ip3511.c"
+        ]
+      }
+    }
+  },
+  "lpc54": {
+    "lpcxpresso54114": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "LPC54"
+        ],
+        "mcu": "OPT_MCU_LPC54",
+        "options": {},
+        "portable": [
+          "nxp/lpc_ip3511/dcd_lpc_ip3511.c",
+          "nxp/lpc_ip3516/hcd_lpc_ip3516.c"
+        ]
+      }
+    },
+    "lpcxpresso54608": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "LPC54"
+        ],
+        "mcu": "OPT_MCU_LPC54",
+        "options": {},
+        "portable": [
+          "nxp/lpc_ip3511/dcd_lpc_ip3511.c",
+          "ohci/ohci.c"
+        ]
+      }
+    },
+    "lpcxpresso54628": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "LPC54"
+        ],
+        "mcu": "OPT_MCU_LPC54",
+        "options": {},
+        "portable": [
+          "nxp/lpc_ip3511/dcd_lpc_ip3511.c",
+          "ohci/ohci.c"
+        ]
+      }
+    }
+  },
+  "lpc55": {
+    "double_m33_express": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "LPC55"
+        ],
+        "mcu": "OPT_MCU_LPC55",
+        "options": {},
+        "portable": [
+          "nxp/lpc_ip3511/dcd_lpc_ip3511.c",
+          "ohci/ohci.c"
+        ]
+      }
+    },
+    "lpcxpresso55s28": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "LPC55"
+        ],
+        "mcu": "OPT_MCU_LPC55",
+        "options": {},
+        "portable": [
+          "nxp/lpc_ip3511/dcd_lpc_ip3511.c",
+          "ohci/ohci.c"
+        ]
+      }
+    },
+    "lpcxpresso55s69": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "LPC55"
+        ],
+        "mcu": "OPT_MCU_LPC55",
+        "options": {},
+        "portable": [
+          "nxp/lpc_ip3511/dcd_lpc_ip3511.c",
+          "ohci/ohci.c"
+        ]
+      }
+    },
+    "mcu_link": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "LPC55"
+        ],
+        "mcu": "OPT_MCU_LPC55",
+        "options": {},
+        "portable": [
+          "nxp/lpc_ip3511/dcd_lpc_ip3511.c",
+          "ohci/ohci.c"
+        ]
+      }
+    }
+  },
+  "maxim": {
+    "apard32690": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "MAX32690"
+        ],
+        "mcu": "OPT_MCU_MAX32690",
+        "options": {},
+        "portable": [
+          "mentor/musb/dcd_musb.c"
+        ]
+      }
+    },
+    "max32650evkit": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "MAX32650"
+        ],
+        "mcu": "OPT_MCU_MAX32650",
+        "options": {},
+        "portable": [
+          "mentor/musb/dcd_musb.c"
+        ]
+      }
+    },
+    "max32650fthr": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "MAX32650"
+        ],
+        "mcu": "OPT_MCU_MAX32650",
+        "options": {},
+        "portable": [
+          "mentor/musb/dcd_musb.c"
+        ]
+      }
+    },
+    "max32651evkit": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "MAX32650"
+        ],
+        "mcu": "OPT_MCU_MAX32650",
+        "options": {},
+        "portable": [
+          "mentor/musb/dcd_musb.c"
+        ]
+      }
+    },
+    "max32666evkit": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "MAX32665"
+        ],
+        "mcu": "OPT_MCU_MAX32665",
+        "options": {},
+        "portable": [
+          "mentor/musb/dcd_musb.c"
+        ]
+      }
+    },
+    "max32666fthr": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "MAX32665"
+        ],
+        "mcu": "OPT_MCU_MAX32665",
+        "options": {},
+        "portable": [
+          "mentor/musb/dcd_musb.c"
+        ]
+      }
+    },
+    "max32690evkit": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "MAX32690"
+        ],
+        "mcu": "OPT_MCU_MAX32690",
+        "options": {},
+        "portable": [
+          "mentor/musb/dcd_musb.c"
+        ]
+      }
+    },
+    "max78002evkit": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "MAX78002"
+        ],
+        "mcu": "OPT_MCU_MAX78002",
+        "options": {},
+        "portable": [
+          "mentor/musb/dcd_musb.c"
+        ]
+      }
+    }
+  },
+  "mcx": {
+    "frdm_mcxa153": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "MCXA15"
+        ],
+        "mcu": "OPT_MCU_MCXA15",
+        "options": {},
+        "portable": [
+          "chipidea/ci_fs/dcd_ci_fs.c"
+        ]
+      }
+    },
+    "frdm_mcxa156": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "MCXA15"
+        ],
+        "mcu": "OPT_MCU_MCXA15",
+        "options": {},
+        "portable": [
+          "chipidea/ci_fs/dcd_ci_fs.c"
+        ]
+      }
+    },
+    "frdm_mcxn947": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "MCXN9"
+        ],
+        "mcu": "OPT_MCU_MCXN9",
+        "options": {},
+        "portable": [
+          "chipidea/ci_hs/dcd_ci_hs.c"
+        ]
+      }
+    },
+    "mcxn947brk": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "MCXN9"
+        ],
+        "mcu": "OPT_MCU_MCXN9",
+        "options": {},
+        "portable": [
+          "chipidea/ci_hs/dcd_ci_hs.c"
+        ]
+      }
+    }
+  },
+  "mm32": {
+    "mm32f327x_mb39": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "MM32F327X"
+        ],
+        "mcu": "OPT_MCU_MM32F327X",
+        "options": {},
+        "portable": [
+          "mindmotion/mm32/dcd_mm32f327x_otg.c"
+        ]
+      }
+    },
+    "mm32f327x_pitaya_lite": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "MM32F327X"
+        ],
+        "mcu": "OPT_MCU_MM32F327X",
+        "options": {},
+        "portable": [
+          "mindmotion/mm32/dcd_mm32f327x_otg.c"
+        ]
+      }
+    }
+  },
+  "msp430": {
+    "msp_exp430f5529lp": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "MSP430x5xx"
+        ],
+        "mcu": "OPT_MCU_MSP430x5xx",
+        "options": {},
+        "portable": [
+          "ti/msp430x5xx/dcd_msp430x5xx.c"
+        ]
+      }
+    }
+  },
+  "msp432e4": {
+    "msp_exp432e401y": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "MSP432E4"
+        ],
+        "mcu": "OPT_MCU_MSP432E4",
+        "options": {},
+        "portable": [
+          "mentor/musb/dcd_musb.c",
+          "mentor/musb/hcd_musb.c"
+        ]
+      }
+    }
+  },
+  "nrf": {
+    "adafruit_clue": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "NRF5X"
+        ],
+        "mcu": "OPT_MCU_NRF5X",
+        "options": {},
+        "portable": [
+          "nordic/nrf5x/dcd_nrf5x.c",
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "arduino_nano33_ble": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "NRF5X"
+        ],
+        "mcu": "OPT_MCU_NRF5X",
+        "options": {},
+        "portable": [
+          "nordic/nrf5x/dcd_nrf5x.c",
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "circuitplayground_bluefruit": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "NRF5X"
+        ],
+        "mcu": "OPT_MCU_NRF5X",
+        "options": {},
+        "portable": [
+          "nordic/nrf5x/dcd_nrf5x.c",
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "feather_nrf52840_express": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "NRF5X"
+        ],
+        "mcu": "OPT_MCU_NRF5X",
+        "options": {},
+        "portable": [
+          "nordic/nrf5x/dcd_nrf5x.c",
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "feather_nrf52840_sense": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "NRF5X"
+        ],
+        "mcu": "OPT_MCU_NRF5X",
+        "options": {},
+        "portable": [
+          "nordic/nrf5x/dcd_nrf5x.c",
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "itsybitsy_nrf52840": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "NRF5X"
+        ],
+        "mcu": "OPT_MCU_NRF5X",
+        "options": {},
+        "portable": [
+          "nordic/nrf5x/dcd_nrf5x.c",
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "nrf52833dk": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "NRF5X"
+        ],
+        "mcu": "OPT_MCU_NRF5X",
+        "options": {},
+        "portable": [
+          "nordic/nrf5x/dcd_nrf5x.c",
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "nrf52840dk": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "NRF5X"
+        ],
+        "mcu": "OPT_MCU_NRF5X",
+        "options": {},
+        "portable": [
+          "nordic/nrf5x/dcd_nrf5x.c",
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "nrf52840dongle": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "NRF5X"
+        ],
+        "mcu": "OPT_MCU_NRF5X",
+        "options": {},
+        "portable": [
+          "nordic/nrf5x/dcd_nrf5x.c",
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "nrf5340dk": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "NRF5X"
+        ],
+        "mcu": "OPT_MCU_NRF5X",
+        "options": {},
+        "portable": [
+          "nordic/nrf5x/dcd_nrf5x.c",
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "nrf54h20dk": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "NRF54"
+        ],
+        "mcu": "OPT_MCU_NRF54",
+        "options": {},
+        "portable": [
+          "nordic/nrf5x/dcd_nrf5x.c",
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "nrf54lm20dk": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "NRF54"
+        ],
+        "mcu": "OPT_MCU_NRF54",
+        "options": {},
+        "portable": [
+          "nordic/nrf5x/dcd_nrf5x.c",
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    }
+  },
+  "nuc100_120": {
+    "nutiny_sdk_nuc120": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "NUC100",
+          "NUC120"
+        ],
+        "mcu": "OPT_MCU_NUC120",
+        "options": {},
+        "portable": [
+          "nuvoton/nuc120/dcd_nuc120.c"
+        ]
+      }
+    }
+  },
+  "nuc121_125": {
+    "nutiny_sdk_nuc121": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "NUC121"
+        ],
+        "mcu": "OPT_MCU_NUC121",
+        "options": {},
+        "portable": [
+          "nuvoton/nuc121/dcd_nuc121.c"
+        ]
+      }
+    },
+    "nutiny_sdk_nuc125": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "NUC121"
+        ],
+        "mcu": "OPT_MCU_NUC121",
+        "options": {},
+        "portable": [
+          "nuvoton/nuc121/dcd_nuc121.c"
+        ]
+      }
+    }
+  },
+  "nuc126": {
+    "nutiny_nuc126v": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "NUC126"
+        ],
+        "mcu": "OPT_MCU_NUC126",
+        "options": {},
+        "portable": [
+          "nuvoton/nuc121/dcd_nuc121.c"
+        ]
+      }
+    }
+  },
+  "nuc505": {
+    "nutiny_sdk_nuc505": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "NUC505"
+        ],
+        "mcu": "OPT_MCU_NUC505",
+        "options": {},
+        "portable": [
+          "nuvoton/nuc505/dcd_nuc505.c"
+        ]
+      }
+    }
+  },
+  "pic32mz": {
+    "olimex_emz64": {
+      "cmake": null
+    },
+    "olimex_hmz144": {
+      "cmake": null
+    }
+  },
+  "py32f0": {
+    "py32f071_dev_board": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "PY32F0"
+        ],
+        "mcu": "OPT_MCU_PY32F0",
+        "options": {},
+        "portable": [
+          "mentor/musb/dcd_musb.c"
+        ]
+      }
+    }
+  },
+  "ra": {
+    "portenta_c33": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "RAXXX",
+          "ra6m5"
+        ],
+        "mcu": "OPT_MCU_RAXXX",
+        "options": {},
+        "portable": [
+          "renesas/rusb2/dcd_rusb2.c",
+          "renesas/rusb2/hcd_rusb2.c",
+          "renesas/rusb2/rusb2_common.c"
+        ]
+      }
+    },
+    "ra2a1_ek": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "RAXXX",
+          "ra2a1"
+        ],
+        "mcu": "OPT_MCU_RAXXX",
+        "options": {},
+        "portable": [
+          "renesas/rusb2/dcd_rusb2.c",
+          "renesas/rusb2/hcd_rusb2.c",
+          "renesas/rusb2/rusb2_common.c"
+        ]
+      }
+    },
+    "ra4m1_ek": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "RAXXX",
+          "ra4m1"
+        ],
+        "mcu": "OPT_MCU_RAXXX",
+        "options": {},
+        "portable": [
+          "renesas/rusb2/dcd_rusb2.c",
+          "renesas/rusb2/hcd_rusb2.c",
+          "renesas/rusb2/rusb2_common.c"
+        ]
+      }
+    },
+    "ra4m3_ek": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "RAXXX",
+          "ra4m3"
+        ],
+        "mcu": "OPT_MCU_RAXXX",
+        "options": {},
+        "portable": [
+          "renesas/rusb2/dcd_rusb2.c",
+          "renesas/rusb2/hcd_rusb2.c",
+          "renesas/rusb2/rusb2_common.c"
+        ]
+      }
+    },
+    "ra6m1_ek": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "RAXXX",
+          "ra6m1"
+        ],
+        "mcu": "OPT_MCU_RAXXX",
+        "options": {},
+        "portable": [
+          "renesas/rusb2/dcd_rusb2.c",
+          "renesas/rusb2/hcd_rusb2.c",
+          "renesas/rusb2/rusb2_common.c"
+        ]
+      }
+    },
+    "ra6m5_ek": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "RAXXX",
+          "ra6m5"
+        ],
+        "mcu": "OPT_MCU_RAXXX",
+        "options": {},
+        "portable": [
+          "renesas/rusb2/dcd_rusb2.c",
+          "renesas/rusb2/hcd_rusb2.c",
+          "renesas/rusb2/rusb2_common.c"
+        ]
+      }
+    },
+    "ra8m1_ek": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "RAXXX",
+          "ra8m1"
+        ],
+        "mcu": "OPT_MCU_RAXXX",
+        "options": {},
+        "portable": [
+          "renesas/rusb2/dcd_rusb2.c",
+          "renesas/rusb2/hcd_rusb2.c",
+          "renesas/rusb2/rusb2_common.c"
+        ]
+      }
+    },
+    "uno_r4": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "RAXXX",
+          "ra4m1"
+        ],
+        "mcu": "OPT_MCU_RAXXX",
+        "options": {},
+        "portable": [
+          "renesas/rusb2/dcd_rusb2.c",
+          "renesas/rusb2/hcd_rusb2.c",
+          "renesas/rusb2/rusb2_common.c"
+        ]
+      }
+    }
+  },
+  "rp2040": {
+    "adafruit_feather_rp2040_usb_host": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "RP2040"
+        ],
+        "mcu": "OPT_MCU_RP2040",
+        "options": {},
+        "portable": [
+          "raspberrypi/pio_usb/dcd_pio_usb.c",
+          "raspberrypi/pio_usb/hcd_pio_usb.c",
+          "raspberrypi/rp2040/dcd_rp2040.c",
+          "raspberrypi/rp2040/hcd_rp2040.c",
+          "raspberrypi/rp2040/rp2040_usb.c"
+        ]
+      }
+    },
+    "adafruit_fruit_jam": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "RP2040"
+        ],
+        "mcu": "OPT_MCU_RP2040",
+        "options": {},
+        "portable": [
+          "raspberrypi/pio_usb/dcd_pio_usb.c",
+          "raspberrypi/pio_usb/hcd_pio_usb.c",
+          "raspberrypi/rp2040/dcd_rp2040.c",
+          "raspberrypi/rp2040/hcd_rp2040.c",
+          "raspberrypi/rp2040/rp2040_usb.c"
+        ]
+      }
+    },
+    "adafruit_metro_rp2350": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "RP2040"
+        ],
+        "mcu": "OPT_MCU_RP2040",
+        "options": {},
+        "portable": [
+          "raspberrypi/pio_usb/dcd_pio_usb.c",
+          "raspberrypi/pio_usb/hcd_pio_usb.c",
+          "raspberrypi/rp2040/dcd_rp2040.c",
+          "raspberrypi/rp2040/hcd_rp2040.c",
+          "raspberrypi/rp2040/rp2040_usb.c"
+        ]
+      }
+    },
+    "feather_rp2040_max3421": {
+      "cmake": {
+        "defines": {
+          "CFG_TUH_MAX3421": "1"
+        },
+        "family_mcus": [
+          "MAX3421",
+          "RP2040"
+        ],
+        "mcu": "OPT_MCU_RP2040",
+        "options": {
+          "MAX3421_HOST": "1"
+        },
+        "portable": [
+          "analog/max3421/hcd_max3421.c",
+          "raspberrypi/pio_usb/dcd_pio_usb.c",
+          "raspberrypi/pio_usb/hcd_pio_usb.c",
+          "raspberrypi/rp2040/dcd_rp2040.c",
+          "raspberrypi/rp2040/hcd_rp2040.c",
+          "raspberrypi/rp2040/rp2040_usb.c"
+        ]
+      }
+    },
+    "pico2_etm_trace": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "RP2040"
+        ],
+        "mcu": "OPT_MCU_RP2040",
+        "options": {},
+        "portable": [
+          "raspberrypi/pio_usb/dcd_pio_usb.c",
+          "raspberrypi/pio_usb/hcd_pio_usb.c",
+          "raspberrypi/rp2040/dcd_rp2040.c",
+          "raspberrypi/rp2040/hcd_rp2040.c",
+          "raspberrypi/rp2040/rp2040_usb.c"
+        ]
+      }
+    },
+    "pico_sdk": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "RP2040"
+        ],
+        "mcu": "OPT_MCU_RP2040",
+        "options": {},
+        "portable": [
+          "raspberrypi/pio_usb/dcd_pio_usb.c",
+          "raspberrypi/pio_usb/hcd_pio_usb.c",
+          "raspberrypi/rp2040/dcd_rp2040.c",
+          "raspberrypi/rp2040/hcd_rp2040.c",
+          "raspberrypi/rp2040/rp2040_usb.c"
+        ]
+      }
+    },
+    "raspberry_pi_pico": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "RP2040"
+        ],
+        "mcu": "OPT_MCU_RP2040",
+        "options": {},
+        "portable": [
+          "raspberrypi/pio_usb/dcd_pio_usb.c",
+          "raspberrypi/pio_usb/hcd_pio_usb.c",
+          "raspberrypi/rp2040/dcd_rp2040.c",
+          "raspberrypi/rp2040/hcd_rp2040.c",
+          "raspberrypi/rp2040/rp2040_usb.c"
+        ]
+      }
+    },
+    "raspberry_pi_pico2": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "RP2040"
+        ],
+        "mcu": "OPT_MCU_RP2040",
+        "options": {},
+        "portable": [
+          "raspberrypi/pio_usb/dcd_pio_usb.c",
+          "raspberrypi/pio_usb/hcd_pio_usb.c",
+          "raspberrypi/rp2040/dcd_rp2040.c",
+          "raspberrypi/rp2040/hcd_rp2040.c",
+          "raspberrypi/rp2040/rp2040_usb.c"
+        ]
+      }
+    },
+    "raspberry_pi_pico_w": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "RP2040"
+        ],
+        "mcu": "OPT_MCU_RP2040",
+        "options": {},
+        "portable": [
+          "raspberrypi/pio_usb/dcd_pio_usb.c",
+          "raspberrypi/pio_usb/hcd_pio_usb.c",
+          "raspberrypi/rp2040/dcd_rp2040.c",
+          "raspberrypi/rp2040/hcd_rp2040.c",
+          "raspberrypi/rp2040/rp2040_usb.c"
+        ]
+      }
+    }
+  },
+  "rw61x": {
+    "frdm_rw612": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "RW61X"
+        ],
+        "mcu": "OPT_MCU_RW61X",
+        "options": {},
+        "portable": [
+          "chipidea/ci_hs/dcd_ci_hs.c",
+          "chipidea/ci_hs/hcd_ci_hs.c",
+          "ehci/ehci.c"
+        ]
+      }
+    }
+  },
+  "rx": {
+    "gr_citrus": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "RX63X"
+        ],
+        "mcu": "OPT_MCU_RX63X",
+        "options": {},
+        "portable": [
+          "renesas/rusb2/dcd_rusb2.c",
+          "renesas/rusb2/hcd_rusb2.c",
+          "renesas/rusb2/rusb2_common.c"
+        ]
+      }
+    },
+    "rx65n_target": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "RX65X"
+        ],
+        "mcu": "OPT_MCU_RX65X",
+        "options": {},
+        "portable": [
+          "renesas/rusb2/dcd_rusb2.c",
+          "renesas/rusb2/hcd_rusb2.c",
+          "renesas/rusb2/rusb2_common.c"
+        ]
+      }
+    }
+  },
+  "samd11": {
+    "cynthion_d11": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "SAMD11"
+        ],
+        "mcu": "OPT_MCU_SAMD11",
+        "options": {},
+        "portable": [
+          "microchip/samd/dcd_samd.c"
+        ]
+      }
+    },
+    "samd11_xplained": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "SAMD11"
+        ],
+        "mcu": "OPT_MCU_SAMD11",
+        "options": {},
+        "portable": [
+          "microchip/samd/dcd_samd.c"
+        ]
+      }
+    }
+  },
+  "samd2x_l2x": {
+    "atsamd21_xpro": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "SAMD21",
+          "SAML2X"
+        ],
+        "mcu": "OPT_MCU_SAMD21",
+        "options": {},
+        "portable": [
+          "microchip/samd/dcd_samd.c",
+          "microchip/samd/hcd_samd.c"
+        ]
+      }
+    },
+    "atsaml21_xpro": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "SAMD21",
+          "SAML2X"
+        ],
+        "mcu": "OPT_MCU_SAML21",
+        "options": {},
+        "portable": [
+          "microchip/samd/dcd_samd.c"
+        ]
+      }
+    },
+    "circuitplayground_express": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "SAMD21",
+          "SAML2X"
+        ],
+        "mcu": "OPT_MCU_SAMD21",
+        "options": {},
+        "portable": [
+          "microchip/samd/dcd_samd.c",
+          "microchip/samd/hcd_samd.c"
+        ]
+      }
+    },
+    "curiosity_nano": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "SAMD21",
+          "SAML2X"
+        ],
+        "mcu": "OPT_MCU_SAMD21",
+        "options": {},
+        "portable": [
+          "microchip/samd/dcd_samd.c",
+          "microchip/samd/hcd_samd.c"
+        ]
+      }
+    },
+    "cynthion_d21": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "SAMD21",
+          "SAML2X"
+        ],
+        "mcu": "OPT_MCU_SAMD21",
+        "options": {},
+        "portable": [
+          "microchip/samd/dcd_samd.c",
+          "microchip/samd/hcd_samd.c"
+        ]
+      }
+    },
+    "feather_m0_express": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "SAMD21",
+          "SAML2X"
+        ],
+        "mcu": "OPT_MCU_SAMD21",
+        "options": {},
+        "portable": [
+          "microchip/samd/dcd_samd.c",
+          "microchip/samd/hcd_samd.c"
+        ]
+      }
+    },
+    "itsybitsy_m0": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "SAMD21",
+          "SAML2X"
+        ],
+        "mcu": "OPT_MCU_SAMD21",
+        "options": {},
+        "portable": [
+          "microchip/samd/dcd_samd.c",
+          "microchip/samd/hcd_samd.c"
+        ]
+      }
+    },
+    "metro_m0_express": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "SAMD21",
+          "SAML2X"
+        ],
+        "mcu": "OPT_MCU_SAMD21",
+        "options": {},
+        "portable": [
+          "microchip/samd/dcd_samd.c",
+          "microchip/samd/hcd_samd.c"
+        ]
+      }
+    },
+    "qtpy": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "SAMD21",
+          "SAML2X"
+        ],
+        "mcu": "OPT_MCU_SAMD21",
+        "options": {},
+        "portable": [
+          "microchip/samd/dcd_samd.c",
+          "microchip/samd/hcd_samd.c"
+        ]
+      }
+    },
+    "saml22_feather": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "SAMD21",
+          "SAML2X"
+        ],
+        "mcu": "OPT_MCU_SAML22",
+        "options": {},
+        "portable": [
+          "microchip/samd/dcd_samd.c"
+        ]
+      }
+    },
+    "seeeduino_xiao": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "SAMD21",
+          "SAML2X"
+        ],
+        "mcu": "OPT_MCU_SAMD21",
+        "options": {},
+        "portable": [
+          "microchip/samd/dcd_samd.c",
+          "microchip/samd/hcd_samd.c"
+        ]
+      }
+    },
+    "sensorwatch_m0": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "SAMD21",
+          "SAML2X"
+        ],
+        "mcu": "OPT_MCU_SAML22",
+        "options": {},
+        "portable": [
+          "microchip/samd/dcd_samd.c"
+        ]
+      }
+    },
+    "sparkfun_samd21_mini_usb": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "SAMD21",
+          "SAML2X"
+        ],
+        "mcu": "OPT_MCU_SAMD21",
+        "options": {},
+        "portable": [
+          "microchip/samd/dcd_samd.c",
+          "microchip/samd/hcd_samd.c"
+        ]
+      }
+    },
+    "trinket_m0": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "SAMD21",
+          "SAML2X"
+        ],
+        "mcu": "OPT_MCU_SAMD21",
+        "options": {},
+        "portable": [
+          "microchip/samd/dcd_samd.c",
+          "microchip/samd/hcd_samd.c"
+        ]
+      }
+    }
+  },
+  "samd5x_e5x": {
+    "d5035_01": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "SAMD51",
+          "SAME54"
+        ],
+        "mcu": "OPT_MCU_SAMD51",
+        "options": {},
+        "portable": [
+          "microchip/samd/dcd_samd.c",
+          "microchip/samd/hcd_samd.c"
+        ]
+      }
+    },
+    "feather_m4_express": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "SAMD51",
+          "SAME54"
+        ],
+        "mcu": "OPT_MCU_SAMD51",
+        "options": {},
+        "portable": [
+          "microchip/samd/dcd_samd.c",
+          "microchip/samd/hcd_samd.c"
+        ]
+      }
+    },
+    "itsybitsy_m4": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "SAMD51",
+          "SAME54"
+        ],
+        "mcu": "OPT_MCU_SAMD51",
+        "options": {},
+        "portable": [
+          "microchip/samd/dcd_samd.c",
+          "microchip/samd/hcd_samd.c"
+        ]
+      }
+    },
+    "metro_m4_express": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "SAMD51",
+          "SAME54"
+        ],
+        "mcu": "OPT_MCU_SAMD51",
+        "options": {},
+        "portable": [
+          "microchip/samd/dcd_samd.c",
+          "microchip/samd/hcd_samd.c"
+        ]
+      }
+    },
+    "pybadge": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "SAMD51",
+          "SAME54"
+        ],
+        "mcu": "OPT_MCU_SAMD51",
+        "options": {},
+        "portable": [
+          "microchip/samd/dcd_samd.c",
+          "microchip/samd/hcd_samd.c"
+        ]
+      }
+    },
+    "pyportal": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "SAMD51",
+          "SAME54"
+        ],
+        "mcu": "OPT_MCU_SAMD51",
+        "options": {},
+        "portable": [
+          "microchip/samd/dcd_samd.c",
+          "microchip/samd/hcd_samd.c"
+        ]
+      }
+    },
+    "same54_xplained": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "SAMD51",
+          "SAME54"
+        ],
+        "mcu": "OPT_MCU_SAMD51",
+        "options": {},
+        "portable": [
+          "microchip/samd/dcd_samd.c",
+          "microchip/samd/hcd_samd.c"
+        ]
+      }
+    }
+  },
+  "same7x": {
+    "same70_qmtech": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "SAMX7X"
+        ],
+        "mcu": "OPT_MCU_SAMX7X",
+        "options": {},
+        "portable": [
+          "microchip/samx7x/dcd_samx7x.c"
+        ]
+      }
+    },
+    "same70_xplained": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "SAMX7X"
+        ],
+        "mcu": "OPT_MCU_SAMX7X",
+        "options": {},
+        "portable": [
+          "microchip/samx7x/dcd_samx7x.c"
+        ]
+      }
+    }
+  },
+  "samg": {
+    "samg55_xplained": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "SAMG"
+        ],
+        "mcu": "OPT_MCU_SAMG",
+        "options": {},
+        "portable": [
+          "microchip/samg/dcd_samg.c"
+        ]
+      }
+    }
+  },
+  "stm32c0": {
+    "stm32c071nucleo": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32C0"
+        ],
+        "mcu": "OPT_MCU_STM32C0",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c",
+          "st/stm32_fsdev/hcd_stm32_fsdev.c",
+          "st/typec/typec_stm32.c"
+        ]
+      }
+    }
+  },
+  "stm32c5": {
+    "stm32c542nucleo": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32C5"
+        ],
+        "mcu": "OPT_MCU_STM32C5",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c",
+          "st/stm32_fsdev/hcd_stm32_fsdev.c"
+        ]
+      }
+    }
+  },
+  "stm32f0": {
+    "stm32f070rbnucleo": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32F0"
+        ],
+        "mcu": "OPT_MCU_STM32F0",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c"
+        ]
+      }
+    },
+    "stm32f072disco": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32F0"
+        ],
+        "mcu": "OPT_MCU_STM32F0",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c"
+        ]
+      }
+    },
+    "stm32f072eval": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32F0"
+        ],
+        "mcu": "OPT_MCU_STM32F0",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c"
+        ]
+      }
+    }
+  },
+  "stm32f1": {
+    "stm32f103_bluepill": {
+      "cmake": {
+        "defines": {
+          "STM32F103xB": "1"
+        },
+        "family_mcus": [
+          "STM32F1"
+        ],
+        "mcu": "OPT_MCU_STM32F1",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c"
+        ]
+      }
+    },
+    "stm32f103_mini_2": {
+      "cmake": {
+        "defines": {
+          "STM32F103xB": "1"
+        },
+        "family_mcus": [
+          "STM32F1"
+        ],
+        "mcu": "OPT_MCU_STM32F1",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c"
+        ]
+      }
+    },
+    "stm32f103ze_iar": {
+      "cmake": {
+        "defines": {
+          "STM32F103xE": "1"
+        },
+        "family_mcus": [
+          "STM32F1"
+        ],
+        "mcu": "OPT_MCU_STM32F1",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c"
+        ]
+      }
+    }
+  },
+  "stm32f2": {
+    "stm32f207nucleo": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32F2"
+        ],
+        "mcu": "OPT_MCU_STM32F2",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    }
+  },
+  "stm32f3": {
+    "stm32f303disco": {
+      "cmake": {
+        "defines": {
+          "STM32F303xC": "1"
+        },
+        "family_mcus": [
+          "STM32F3"
+        ],
+        "mcu": "OPT_MCU_STM32F3",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c"
+        ]
+      }
+    }
+  },
+  "stm32f4": {
+    "feather_stm32f405": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32F4"
+        ],
+        "mcu": "OPT_MCU_STM32F4",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "pyboardv11": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32F4"
+        ],
+        "mcu": "OPT_MCU_STM32F4",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32f401blackpill": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32F4"
+        ],
+        "mcu": "OPT_MCU_STM32F4",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32f407blackvet": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32F4"
+        ],
+        "mcu": "OPT_MCU_STM32F4",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32f407disco": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32F4"
+        ],
+        "mcu": "OPT_MCU_STM32F4",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32f411blackpill": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32F4"
+        ],
+        "mcu": "OPT_MCU_STM32F4",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32f411disco": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32F4"
+        ],
+        "mcu": "OPT_MCU_STM32F4",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32f412disco": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32F4"
+        ],
+        "mcu": "OPT_MCU_STM32F4",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32f412nucleo": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32F4"
+        ],
+        "mcu": "OPT_MCU_STM32F4",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32f439nucleo": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32F4"
+        ],
+        "mcu": "OPT_MCU_STM32F4",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    }
+  },
+  "stm32f7": {
+    "stlinkv3mini": {
+      "cmake": {
+        "defines": {
+          "STM32F723xx": "1"
+        },
+        "family_mcus": [
+          "STM32F7"
+        ],
+        "mcu": "OPT_MCU_STM32F7",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32f723disco": {
+      "cmake": {
+        "defines": {
+          "STM32F723xx": "1"
+        },
+        "family_mcus": [
+          "STM32F7"
+        ],
+        "mcu": "OPT_MCU_STM32F7",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32f746disco": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32F7"
+        ],
+        "mcu": "OPT_MCU_STM32F7",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32f746nucleo": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32F7"
+        ],
+        "mcu": "OPT_MCU_STM32F7",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32f767nucleo": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32F7"
+        ],
+        "mcu": "OPT_MCU_STM32F7",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32f769disco": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32F7"
+        ],
+        "mcu": "OPT_MCU_STM32F7",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    }
+  },
+  "stm32g0": {
+    "stm32g0b1nucleo": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32G0"
+        ],
+        "mcu": "OPT_MCU_STM32G0",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c",
+          "st/stm32_fsdev/hcd_stm32_fsdev.c",
+          "st/typec/typec_stm32.c"
+        ]
+      }
+    }
+  },
+  "stm32g4": {
+    "b_g474e_dpow1": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32G4"
+        ],
+        "mcu": "OPT_MCU_STM32G4",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c",
+          "st/typec/typec_stm32.c"
+        ]
+      }
+    },
+    "stm32g474nucleo": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32G4"
+        ],
+        "mcu": "OPT_MCU_STM32G4",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c",
+          "st/typec/typec_stm32.c"
+        ]
+      }
+    },
+    "stm32g491nucleo": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32G4"
+        ],
+        "mcu": "OPT_MCU_STM32G4",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c",
+          "st/typec/typec_stm32.c"
+        ]
+      }
+    }
+  },
+  "stm32h5": {
+    "stm32h503nucleo": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32H5"
+        ],
+        "mcu": "OPT_MCU_STM32H5",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c",
+          "st/stm32_fsdev/hcd_stm32_fsdev.c",
+          "st/typec/typec_stm32.c"
+        ]
+      }
+    },
+    "stm32h533nucleo": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32H5"
+        ],
+        "mcu": "OPT_MCU_STM32H5",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c",
+          "st/stm32_fsdev/hcd_stm32_fsdev.c",
+          "st/typec/typec_stm32.c"
+        ]
+      }
+    },
+    "stm32h563nucleo": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32H5"
+        ],
+        "mcu": "OPT_MCU_STM32H5",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c",
+          "st/stm32_fsdev/hcd_stm32_fsdev.c",
+          "st/typec/typec_stm32.c"
+        ]
+      }
+    },
+    "stm32h573i_dk": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32H5"
+        ],
+        "mcu": "OPT_MCU_STM32H5",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c",
+          "st/stm32_fsdev/hcd_stm32_fsdev.c",
+          "st/typec/typec_stm32.c"
+        ]
+      }
+    }
+  },
+  "stm32h7": {
+    "daisyseed": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32H7"
+        ],
+        "mcu": "OPT_MCU_STM32H7",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32h723nucleo": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32H7"
+        ],
+        "mcu": "OPT_MCU_STM32H7",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32h743_weact": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32H7"
+        ],
+        "mcu": "OPT_MCU_STM32H7",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32h743eval": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32H7"
+        ],
+        "mcu": "OPT_MCU_STM32H7",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32h743nucleo": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32H7"
+        ],
+        "mcu": "OPT_MCU_STM32H7",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32h745disco": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32H7"
+        ],
+        "mcu": "OPT_MCU_STM32H7",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32h747disco": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32H7"
+        ],
+        "mcu": "OPT_MCU_STM32H7",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32h750_weact": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32H7"
+        ],
+        "mcu": "OPT_MCU_STM32H7",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32h750bdk": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32H7"
+        ],
+        "mcu": "OPT_MCU_STM32H7",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "waveshare_openh743i": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32H7"
+        ],
+        "mcu": "OPT_MCU_STM32H7",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    }
+  },
+  "stm32h7rs": {
+    "stm32h7s3nucleo": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32H7RS"
+        ],
+        "mcu": "OPT_MCU_STM32H7RS",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    }
+  },
+  "stm32l0": {
+    "stm32l052dap52": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32L0"
+        ],
+        "mcu": "OPT_MCU_STM32L0",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c"
+        ]
+      }
+    },
+    "stm32l0538disco": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32L0"
+        ],
+        "mcu": "OPT_MCU_STM32L0",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c"
+        ]
+      }
+    }
+  },
+  "stm32l4": {
+    "stm32l412nucleo": {
+      "cmake": {
+        "defines": {
+          "STM32L412xx": "1"
+        },
+        "family_mcus": [
+          "STM32L4"
+        ],
+        "mcu": "OPT_MCU_STM32L4",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c",
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32l476disco": {
+      "cmake": {
+        "defines": {
+          "STM32L476xx": "1"
+        },
+        "family_mcus": [
+          "STM32L4"
+        ],
+        "mcu": "OPT_MCU_STM32L4",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c",
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32l496nucleo": {
+      "cmake": {
+        "defines": {
+          "STM32L496xx": "1"
+        },
+        "family_mcus": [
+          "STM32L4"
+        ],
+        "mcu": "OPT_MCU_STM32L4",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c",
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32l4p5nucleo": {
+      "cmake": {
+        "defines": {
+          "STM32L4P5xx": "1"
+        },
+        "family_mcus": [
+          "STM32L4"
+        ],
+        "mcu": "OPT_MCU_STM32L4",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c",
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32l4r5nucleo": {
+      "cmake": {
+        "defines": {
+          "STM32L4R5xx": "1"
+        },
+        "family_mcus": [
+          "STM32L4"
+        ],
+        "mcu": "OPT_MCU_STM32L4",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c",
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    }
+  },
+  "stm32n6": {
+    "stm32n6570dk": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32N6"
+        ],
+        "mcu": "OPT_MCU_STM32N6",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32n657nucleo": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32N6"
+        ],
+        "mcu": "OPT_MCU_STM32N6",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    }
+  },
+  "stm32u0": {
+    "stm32u083cdk": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32U0"
+        ],
+        "mcu": "OPT_MCU_STM32U0",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c"
+        ]
+      }
+    },
+    "stm32u083nucleo": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32U0"
+        ],
+        "mcu": "OPT_MCU_STM32U0",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c"
+        ]
+      }
+    }
+  },
+  "stm32u5": {
+    "b_u585i_iot2a": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32U5"
+        ],
+        "mcu": "OPT_MCU_STM32U5",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c",
+          "st/stm32_fsdev/hcd_stm32_fsdev.c",
+          "st/typec/typec_stm32.c",
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32u545nucleo": {
+      "cmake": {
+        "defines": {
+          "STM32U545xx": "1"
+        },
+        "family_mcus": [
+          "STM32U5"
+        ],
+        "mcu": "OPT_MCU_STM32U5",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c",
+          "st/stm32_fsdev/hcd_stm32_fsdev.c",
+          "st/typec/typec_stm32.c",
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32u575eval": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32U5"
+        ],
+        "mcu": "OPT_MCU_STM32U5",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c",
+          "st/stm32_fsdev/hcd_stm32_fsdev.c",
+          "st/typec/typec_stm32.c",
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32u575nucleo": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32U5"
+        ],
+        "mcu": "OPT_MCU_STM32U5",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c",
+          "st/stm32_fsdev/hcd_stm32_fsdev.c",
+          "st/typec/typec_stm32.c",
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "stm32u5a5nucleo": {
+      "cmake": {
+        "defines": {
+          "STM32U5A5xx": "1"
+        },
+        "family_mcus": [
+          "STM32U5"
+        ],
+        "mcu": "OPT_MCU_STM32U5",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c",
+          "st/stm32_fsdev/hcd_stm32_fsdev.c",
+          "st/typec/typec_stm32.c",
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    }
+  },
+  "stm32wb": {
+    "stm32wb55nucleo": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32WB"
+        ],
+        "mcu": "OPT_MCU_STM32WB",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c"
+        ]
+      }
+    }
+  },
+  "stm32wba": {
+    "stm32wba_nucleo": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32WBA"
+        ],
+        "mcu": "OPT_MCU_STM32WBA",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    }
+  },
+  "tm4c": {
+    "ek_tm4c123gxl": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "TM4C"
+        ],
+        "mcu": "OPT_MCU_TM4C123",
+        "options": {},
+        "portable": [
+          "mentor/musb/dcd_musb.c",
+          "mentor/musb/hcd_musb.c"
+        ]
+      }
+    },
+    "ek_tm4c1294xl": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "TM4C"
+        ],
+        "mcu": "OPT_MCU_TM4C129",
+        "options": {},
+        "portable": [
+          "mentor/musb/dcd_musb.c",
+          "mentor/musb/hcd_musb.c"
+        ]
+      }
+    }
+  },
+  "xmc4000": {
+    "xmc4500_relax": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "XMC4000"
+        ],
+        "mcu": "OPT_MCU_XMC4000",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    },
+    "xmc4700_relax": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "XMC4000"
+        ],
+        "mcu": "OPT_MCU_XMC4000",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ]
+      }
+    }
+  }
+}

@@ -261,6 +261,83 @@ class ResolveTest(unittest.TestCase):
         self.assertIn('not allowed with', json.loads(out.write.call_args_list[0][0][0])['error'])
 
 
+class CatalogTest(unittest.TestCase):
+    """Board selection and port coverage read hw/bsp/family.json rows and the
+    preprocessed driver body, not the family cmake files."""
+    DWC2, FSDEV = 'synopsys/dwc2/dcd_dwc2.c', 'st/stm32_fsdev/dcd_stm32_fsdev.c'
+    ROWS = {'stm32l4': {'stm32l476disco': {'cmake': {'portable': [DWC2]}},
+                        'stm32l412nucleo': {'cmake': {'portable': [FSDEV]}},
+                        'stm32l4r5nucleo': {'cmake': {'portable': [DWC2]}}}}
+    IPS = {'stm32l476disco': frozenset({'TUP_USBIP_DWC2'}), 'stm32l412nucleo': frozenset({'TUP_USBIP_FSDEV'}),
+           'stm32l4r5nucleo': None}
+
+    def setUp(self):
+        for name, value in (('catalog', lambda: self.ROWS), ('family_of', lambda b: 'stm32l4'),
+                            ('board_usbips', lambda b: self.IPS[b]),
+                            ('source_usbips', lambda src: frozenset({'TUP_USBIP_DWC2'} if 'dwc2' in src else {'TUP_USBIP_FSDEV'}))):
+            patcher = mock.patch.object(build, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_selection_adds_a_board_per_changed_driver_its_row_compiles(self):
+        pool = ['stm32l476disco', 'stm32l412nucleo']
+        # one board per driver: the dwc2 pick cannot stand in for fsdev
+        self.assertEqual(build.representatives(pool, None, {self.DWC2, self.FSDEV}), ['stm32l412nucleo', 'stm32l476disco'])
+        # a kept board that compiles the driver needs no second pick
+        self.assertEqual(build.representatives(pool, None, {self.DWC2}, keep=['stm32l476disco']), ['stm32l476disco'])
+        # a driver no row lists adds nothing: coverage() reports the gap after the build
+        self.assertEqual(build.representatives(pool, None, {'analog/max3421/hcd_max3421.c'}), ['stm32l476disco'])
+        # a row whose USB-IP probe cannot say (no host cc, SDK header) counts by its portable list
+        self.assertEqual(build.representatives(['stm32l4r5nucleo', 'stm32l412nucleo'], None, {self.DWC2}), ['stm32l4r5nucleo'])
+        # a listed driver whose guard needs an IP the board does not select is not compiled there
+        self.ROWS['stm32l4']['stm32l412nucleo']['cmake']['portable'].append(self.DWC2)
+        try:
+            self.assertFalse(build.compiles('stm32l412nucleo', self.DWC2))
+        finally:
+            self.ROWS['stm32l4']['stm32l412nucleo']['cmake']['portable'].remove(self.DWC2)
+
+    def test_port_gap_is_the_preprocessed_body_of_an_instance_this_run_built(self):
+        import tempfile
+        driver = 'src/portable/nordic/nrf5x/dcd_nrf5x.c'
+        reason = f"{driver}: port nordic/nrf5x -> families ['nrf']"
+        with tempfile.TemporaryDirectory() as d:
+            src = str(build.ROOT / driver)
+            entries = [{'directory': d, 'file': src, 'command': f'gcc -o {ex}/x.o -c {src}',
+                        'output': f'{d}/device/{ex}/CMakeFiles/x.dir/dcd_nrf5x.c.o'} for ex in ('cdc_msc', 'hid')]
+            Path(d, 'compile_commands.json').write_text(json.dumps(entries))
+            result = {'board': 'nrf52840dk', 'family': 'nrf', 'buildDir': d, 'okExamples': ['cdc_msc']}
+            with mock.patch.object(build, 'source_lines', return_value=0):
+                self.assertEqual(build.port_gap(reason, [result]),
+                                 'nordic/nrf5x/dcd_nrf5x.c: nrf52840dk body preprocessed away')
+            with mock.patch.object(build, 'source_lines', return_value=7) as lines:
+                self.assertIsNone(build.port_gap(reason, [result]))
+                # only the instance of an example this run built is preprocessed
+                self.assertEqual([c[0][0]['command'] for c in lines.call_args_list], [entries[0]['command']])
+            with mock.patch.object(build, 'source_lines', return_value=None):
+                self.assertIn('unverified: preprocessing failed', build.port_gap(reason, [result]))
+            self.assertIn('compiled only in examples this run did not build',
+                          build.port_gap(reason, [dict(result, okExamples=['msc_dual_lun'])]))
+            Path(d, 'compile_commands.json').write_text('[]')
+            self.assertIn('not compiled in its default configuration', build.port_gap(reason, [result]))
+            Path(d, 'compile_commands.json').unlink()
+            self.assertIn('unverified: no compile database', build.port_gap(reason, [result]))
+        # a family with no built board, a deleted driver, a non-port path
+        self.assertIn('no board of its family built', build.port_gap(reason, [{'board': 'x', 'family': 'stm32f4', 'buildDir': '/nowhere'}]))
+        self.assertIsNone(build.port_gap("src/portable/x/y/dcd_gone.c: port x/y -> families ['nrf']", []))
+        self.assertIsNone(build.port_gap('hw/bsp/nrf/family.c: bsp family nrf', []))
+
+    def test_source_lines_counts_the_files_own_non_directive_lines(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            entry = {'directory': d, 'file': 'dcd.c', 'command': 'gcc -DX=1 -o x.o -c dcd.c'}
+            out = f'# 1 "dcd.c"\n\nint a;\n# 1 "tusb.h"\nint from_header;\n# 3 "dcd.c" 2\n#pragma once\nint b;\n'
+            with mock.patch.object(build.subprocess, 'run', return_value=mock.Mock(returncode=0, stdout=out)) as run:
+                self.assertEqual(build.source_lines(entry), 2)
+            self.assertEqual(run.call_args[0][0], ['gcc', '-DX=1', '-E', 'dcd.c'])
+            with mock.patch.object(build.subprocess, 'run', return_value=mock.Mock(returncode=1, stdout='')):
+                self.assertIsNone(build.source_lines(entry))
+
+
 class VerdictTest(unittest.TestCase):
     def build(self, rc, out, fetch=False):
         with mock.patch.object(build, 'run', return_value=(rc, out)) as run, \
@@ -397,8 +474,18 @@ class DepsTest(unittest.TestCase):
             build.ensure_deps('nrf', True, False)
         self.assertEqual(run.call_args[0][0][-2:], [str(build.ROOT / 'tools' / 'get_deps.py'), 'nrf'])
 
+    def test_a_row_is_written_only_from_a_fresh_default_configure(self):
+        tb = build.tools_build
+        with mock.patch.object(tb.build_utils, 'missing_deps', return_value=[]), \
+             mock.patch.object(tb.family_json, 'update', return_value='family.json: updated b') as update:
+            self.assertIn('cmake-build/x existed before this configure', tb.canonical_row('f', ['cmake-build/x'], ['cmake-build/x']))
+            update.assert_not_called()
+            self.assertEqual(tb.canonical_row('f', ['cmake-build/x'], []), 'family.json: updated b')
+        with mock.patch.object(tb.build_utils, 'missing_deps', return_value=['hw/mcu/nordic/nrfx']):
+            self.assertIn('deps not at their pins', tb.canonical_row('nrf', ['cmake-build/x'], []))
+
     def test_family_deps_come_from_get_deps_table(self):
-        self.assertIn('hw/mcu/nordic/nrfx', [d for d, e in build.get_deps.deps_optional.items() if 'nrf' in e[2].split()])
+        self.assertIn('hw/mcu/nordic/nrfx', [d for d, e in build.tools_build.build_utils.get_deps.deps_optional.items() if 'nrf' in e[2].split()])
 
 
 class MainTest(unittest.TestCase):
@@ -408,7 +495,7 @@ class MainTest(unittest.TestCase):
              mock.patch('sys.stdout') as out:
             self.assertEqual(build.main(['--board', 'b']), 0)
         printed = json.loads(out.write.call_args_list[0][0][0])
-        self.assertEqual(printed, {'pass': True, 'boards': results, 'resolution': 'named boards'})
+        self.assertEqual(printed, {'pass': True, 'boards': results, 'resolution': 'named boards', 'familyJsonChanged': False})
         results[0]['status'] = 'failed'
         with mock.patch.object(build, 'build_one', return_value=results[0]), mock.patch('sys.stdout'):
             self.assertEqual(build.main(['--board', 'b']), 1)

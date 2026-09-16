@@ -8,6 +8,8 @@ import sys
 import pathlib
 import re
 
+import get_deps
+
 build_format = '| {:29} | {:30} | {:18} | {:7} | {:6} | {:6} |'
 
 SUCCEEDED = "\033[32msucceeded\033[0m"
@@ -409,6 +411,38 @@ def _skip_example(example, board, extra_defines, build_system):
         return True
 
     return False
+
+
+def dep_head(path):
+    """The dep checkout's commit, or None when nothing can say: a dir git would answer
+    for the enclosing tinyusb repo (no .git of its own, a vendored copy) or a checkout
+    with no HEAD yet."""
+    if not (path / '.git').exists():
+        return None
+    r = subprocess.run(['git', '-C', str(path), 'rev-parse', 'HEAD'], capture_output=True, text=True)
+    return r.stdout.strip() if r.returncode == 0 else None
+
+
+def missing_deps(family, root=None):
+    """The family's dependencies that are not what get_deps.py's table asks for, each
+    named with why. Present means content, not a directory: get_deps.py git-inits the dep
+    dir before fetching and exits 0 whatever the fetch did (its run_cmd's status is
+    ignored), so a fetch that failed leaves a dir holding nothing but .git. A checkout at
+    another commit is the same kind of miss: when the change under test bumps a pin, a
+    stale checkout builds the revision the change is replacing and verifies nothing."""
+    root = pathlib.Path(root) if root else pathlib.Path(__file__).resolve().parents[1]
+    needed = list(get_deps.deps_mandatory) + \
+        [d for d, entry in get_deps.deps_optional.items() if family in entry[2].split()]
+    out = []
+    for d in needed:
+        p = root / d
+        if not p.is_dir() or not any(f.name != '.git' for f in p.iterdir()):
+            out.append(d)
+            continue
+        pin, head = get_deps.deps_all[d][1], dep_head(p)
+        if head is not None and head != pin:
+            out.append(f'{d} (at {head[:10]}, pinned {pin[:10]})')
+    return out
 
 
 def build_size(make_cmd):

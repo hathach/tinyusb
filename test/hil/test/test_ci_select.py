@@ -993,6 +993,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/stubs/pymtp.py',
             'test/hil/test/test_ci_metrics.py',
             'test/hil/test/test_ci_select.py',
+            'test/hil/test/test_family_json.py',
             'test/hil/test/test_hil_bounded.py',
             'test/hil/test/test_hil_health.py',
             'test/hil/test/test_hil_report.py',
