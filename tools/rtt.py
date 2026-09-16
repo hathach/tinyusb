@@ -689,18 +689,19 @@ def main() -> int:
         # a negative index would walk backwards off aUp[] into the control-block
         # header and read garbage as a descriptor
         ap.error(f'--channel must be >= 0, got {args.channel}')
-    if args.stop_file and os.path.exists(args.stop_file):
-        return 0
-
     def stop_requested():
         return bool(args.stop_file and os.path.exists(args.stop_file))
 
+    addr = None
+    if args.addr:
+        try:
+            addr = int(args.addr, 16)
+        except ValueError:
+            ap.error(f'--addr must be hex, got {args.addr!r}')
+
     def rtt_addr():
-        if args.addr:
-            try:
-                return int(args.addr, 16)
-            except ValueError:
-                ap.error(f'--addr must be hex, got {args.addr!r}')
+        if addr is not None:
+            return addr
         if args.elf:
             return nm_rtt_addr(args.elf, stop=stop_requested)
         ap.error('need --elf (flashed elf, address via nm) or --addr')
@@ -719,6 +720,10 @@ def main() -> int:
             ap.error('the jlink backend needs --probe and --device')
     elif not (args.probe or args.vid_pid):
         ap.error('the openocd backend needs --probe and/or --vid-pid')
+    if (args.backend == 'openocd' or args.dump) and not (args.addr or args.elf):
+        ap.error('need --elf (flashed elf, address via nm) or --addr')
+    if args.backend == 'openocd' and not args.cfg:
+        ap.error('--backend openocd needs --cfg')
 
     if args.dump:
         if args.stop_file:
@@ -726,6 +731,10 @@ def main() -> int:
         if args.backend != 'jlink':
             ap.error('--dump uses the jlink backend (debug-AP reads via JLinkExe)')
         return dump_ring(args.probe, args.device, rtt_addr(), args.dump, args.channel)
+    # A marker that already exists is a cancellation that completed: exit as a
+    # stopped capture would, but only for an invocation that could have captured.
+    if stop_requested():
+        return 0
 
     # install BEFORE the console exists: an external `timeout`/kill during the
     # up-to-15 s connect window must still reach the cleanup below, or the openocd
@@ -739,8 +748,6 @@ def main() -> int:
 
     try:
         if args.backend == 'openocd':
-            if not args.cfg:
-                ap.error('--backend openocd needs --cfg')
             con = OpenocdRtt(args.cfg, rtt_addr(), args.channel,
                              serial_no=args.probe, vid_pid=args.vid_pid,
                              reset_before_attach=args.reset_before_attach,
