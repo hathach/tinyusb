@@ -1,5 +1,9 @@
 # Follow-up: move rtt.py out of tinyusb for good
 
+**2026-09-16: superseded in part by `hil-farm.md`** — both design rounds folded
+this move into the HIL farm extraction (rtt.py becomes the farm skill's console
+layer); the loader/pin design below is kept only as reference.
+
 Deferred from the 2026-09-15 migration of the `rtt` skill to agentrc. The skill
 (text, board notes, CLI and tests) now lives in agentrc; `tools/rtt.py` stays
 here as a byte-identical copy because the HIL harness imports its classes.
