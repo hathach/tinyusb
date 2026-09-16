@@ -399,9 +399,11 @@ class BoardInfoTest(unittest.TestCase):
         self.board('variant', 'set(MCU_VARIANT MK64FN1M0)\nset(JLINK_DEVICE ${MCU_VARIANT}xxx12)\n')
         self.board('fromfamily', 'set(MAX_DEVICE max32650)\n', family='maxim',
                    family_cmake='set(JLINK_DEVICE ${MAX_DEVICE})\n')
+        self.board('upper', 'SET(MCU_VARIANT nrf52840)\nSET(JLINK_DEVICE ${MCU_VARIANT}_xxaa)\n')
         self.assertEqual(utils.board_jlink('literal'), 'stm32h743xi')
         self.assertEqual(utils.board_jlink('variant'), 'MK64FN1M0xxx12')
         self.assertEqual(utils.board_jlink('fromfamily'), 'max32650')
+        self.assertEqual(utils.board_jlink('upper'), 'nrf52840_xxaa')
 
     def test_conditional_definitions_are_refused_with_the_candidates(self):
         # rp2040's family.cmake picks JLINK_DEVICE by PICO_PLATFORM
