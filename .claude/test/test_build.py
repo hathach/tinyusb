@@ -53,7 +53,10 @@ class ResolveTest(unittest.TestCase):
     def _main_scope(self, scope, built=None):
         built = built or {'board': 'b', 'family': 'f', 'buildDir': 'd', 'status': 'ok', 'firstError': '',
                           'okExamples': ['cdc_msc', 'cdc_msc_hid']}
-        with mock.patch.object(build, 'build_one', return_value=built) as b1, mock.patch('sys.stdout') as out:
+        # the scopes below name paths that exist nowhere, to drive ci_select's reasons:
+        # let them through the existence check as tracked deletions would be
+        with mock.patch.object(build, 'build_one', return_value=built) as b1, mock.patch('sys.stdout') as out, \
+             mock.patch.object(build, 'tracked', return_value=True):
             rc = build.main(['--scope', *scope])
         return rc, json.loads(out.write.call_args_list[0][0][0]), b1
 
@@ -213,8 +216,31 @@ class ResolveTest(unittest.TestCase):
         self.assertIn('hw/bsp/stm32f4/boards/stm32f411blackpill/probe_new_file.h', files)
 
     def test_a_file_scope_is_left_alone_and_an_empty_directory_is_an_error(self):
-        self.assertEqual(build.expand_scope(['src/tusb.c', 'no/such/path.c']),
-                         ['src/tusb.c', 'no/such/path.c'])
+        self.assertEqual(build.expand_scope(['src/tusb.c']), ['src/tusb.c'])
+        # a path in neither the tree nor the index would classify as the full matrix and
+        # come back green; a tracked file deleted from the tree is a real change
+        with self.assertRaises(SystemExit) as cm, mock.patch('sys.stdout'), mock.patch.object(sys, 'stderr') as err:
+            build.expand_scope(['src/tusb.c', 'no/such/path.c'])
+        self.assertEqual(cm.exception.code, 2)
+        self.assertIn('no/such/path.c does not exist and is not a tracked file', err.write.call_args[0][0])
+        # a deletion counts whether or not it is staged, and a pathspec is not a path
+        import os, subprocess, tempfile
+        # under a git hook GIT_DIR/GIT_INDEX_FILE point at THIS repository: scrub them, or
+        # the temporary repository's commit lands on the branch running the suite
+        env = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
+        with tempfile.TemporaryDirectory() as d, mock.patch.dict(os.environ, env, clear=True):
+            root = Path(d)
+            git = lambda *args: subprocess.run(['git', '-C', d, *args], check=True, env=env)
+            git('init', '-q'); git('config', 'user.email', 't@t'); git('config', 'user.name', 't')
+            (root / 'src').mkdir(); (root / 'src' / 'gone.c').write_text(''); (root / 'src' / 'kept.c').write_text('')
+            git('add', '.'); git('commit', '-q', '--no-verify', '-m', 'x')
+            (root / 'src' / 'gone.c').unlink()
+            with mock.patch.object(build, 'ROOT', root):
+                self.assertEqual(build.expand_scope(['src/gone.c']), ['src/gone.c'])
+                git('rm', '-q', '--cached', 'src/gone.c')
+                self.assertEqual(build.expand_scope(['src/gone.c']), ['src/gone.c'])
+                with self.assertRaises(SystemExit), mock.patch('sys.stdout'), mock.patch.object(sys, 'stderr'):
+                    build.expand_scope(['src/*.c'])
         with mock.patch.object(build.subprocess, 'run', return_value=mock.Mock(returncode=0, stdout='')), \
              mock.patch.object(build.Path, 'is_dir', return_value=True), mock.patch.object(sys, 'stderr'):
             with self.assertRaises(SystemExit) as cm:
@@ -314,6 +340,27 @@ class VerdictTest(unittest.TestCase):
         cmd = run.call_args[0][0]
         self.assertEqual(cmd[cmd.index('-D') + 1], 'LOG=2')
         self.assertIn('--cflag=-DCFG_TUH_CDC_FTDI_LATENCY=16', cmd)
+
+    def test_a_define_on_a_build_owned_key_is_refused(self):
+        # tools/build.py passes -DBOARD first, so a caller's would win and the artifacts
+        # would be named after the board that was asked for, not the one built
+        for define in ['BOARD=raspberry_pi_pico', 'CMAKE_BUILD_TYPE:STRING=Debug', 'TOOLCHAIN=clang']:
+            with mock.patch.object(build, 'run') as run, mock.patch.object(sys, 'stderr') as err, mock.patch('sys.stdout'):
+                with self.assertRaises(SystemExit) as cm:
+                    build.build_one('stm32f407disco', [], [], [define], [], False, False, False)
+            self.assertEqual(cm.exception.code, 2)
+            self.assertIn(f'-D {define.partition("=")[0].partition(":")[0]}', err.write.call_args[0][0])
+            run.assert_not_called()
+
+    def test_recorded_options_normalise_a_legacy_typed_entry(self):
+        import shutil
+        d = build.ROOT / 'cmake-build' / 'cmake-build-agent-test-typed'
+        shutil.rmtree(d, ignore_errors=True); d.mkdir(parents=True)
+        try:
+            (d / build.AGENT_DEFINES).write_text('["LOG:STRING=2", "RHPORT_DEVICE"]\n')
+            self.assertEqual(build.recorded_options(str(d.relative_to(build.ROOT))), {'LOG', 'RHPORT_DEVICE'})
+        finally:
+            shutil.rmtree(d)
 
     def test_a_define_on_an_espressif_board_is_refused_not_dropped(self):
         esp = build.family_boards('espressif')[0]

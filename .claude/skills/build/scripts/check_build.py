@@ -82,9 +82,21 @@ def expand_scope(scope):
             if not files:
                 fail(f'{p} is a directory with no files git reports; name the files to build for')
             out.extend(files)
-        else:
+        elif (ROOT / p).exists() or tracked(p):
             out.append(p)
+        else:
+            # ci_select classifies an unknown path as the full matrix, whose pair then
+            # covers it: a typo would come back green for a path no change touched
+            fail(f'{p} does not exist and is not a tracked file; only a path present in the '
+                 f'tree or deleted from it can be in the scope')
     return out
+
+
+def tracked(path):
+    """Whether HEAD holds exactly this path: a deletion, staged or not, is a change to
+    build for. Not a pathspec lookup, which would let `src/*.c` through as a match."""
+    r = subprocess.run(['git', 'cat-file', '-e', f'HEAD:{path}'], capture_output=True, text=True, cwd=ROOT)
+    return r.returncode == 0
 
 
 def changed_paths(base):
@@ -642,7 +654,9 @@ def recorded_options(build_dir):
     """The option names an earlier run of this dir recorded, empty for a dir configured
     before the sidecar existed or for one whose sidecar no longer parses."""
     try:
-        return set(json.loads((ROOT / build_dir / AGENT_DEFINES).read_text(encoding='utf-8')))
+        names = json.loads((ROOT / build_dir / AGENT_DEFINES).read_text(encoding='utf-8'))
+        # a record from before build_one normalised its names can hold NAME:TYPE=value
+        return {str(n).partition('=')[0].partition(':')[0] for n in names}
     except (OSError, ValueError, TypeError):
         return set()
 
@@ -697,6 +711,12 @@ def build_one(board, examples, targets, defines, cflags, shared, fetch, verbose)
         fail(f'-D is not forwarded to idf.py, so it cannot configure {board} (family espressif). '
              'A preprocessor macro can go through --cflag; a build-system setting (LOG, LOGGER) has no '
              'path here, since the BSP translates those into other defines')
+    # tools/build.py puts its own -DBOARD and friends before the caller's, so a -D on
+    # one of those keys would win and the artifacts would carry another board's name
+    owned = sorted({d.partition('=')[0].partition(':')[0] for d in defines} & set(BUILD_PY_OPTIONS))
+    if owned:
+        fail(f'-D {", ".join(owned)}: tools/build.py owns {"/".join(BUILD_PY_OPTIONS)}; name the board '
+             f'with --board and leave the build type, linker map and toolchain to it')
     ensure_deps(family, fetch, verbose)
     name = board if shared else f'agent-{os.getpid()}-{board}'
     build_dir = f'cmake-build/cmake-build-{name}'

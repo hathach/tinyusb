@@ -64,6 +64,18 @@ class BumpTest(unittest.TestCase):
             self.assertEqual((root / 'repository.yml').read_text(), REPOSITORY_YML)
             self.assertEqual((root / 'sonar-project.properties').read_text(), SONAR)
 
+    def test_a_new_major_gets_its_own_alias_and_the_old_major_keeps_its_last_release(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            fixture(root)
+            release.bump(root, '1.0.0')
+            text = (root / 'repository.yml').read_text()
+            self.assertIn('    "1.0.0": "1.0.0"\n    "1-latest": "1.0.0"\n    "0-latest": "0.21.0"\n', text)
+            release.bump(root, '1.0.1')
+            text = (root / 'repository.yml').read_text()
+            self.assertIn('    "1.0.1": "1.0.1"\n    "1-latest": "1.0.1"\n    "0-latest": "0.21.0"\n', text)
+            self.assertEqual(text.count('-latest'), 2)
+
     def test_repository_yml_already_listing_the_version_gets_no_second_entry_but_a_current_alias(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
