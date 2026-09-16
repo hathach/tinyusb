@@ -23,7 +23,9 @@ SKIPPED = "\033[33mskipped\033[0m"
 _TEXT = {'encoding': 'utf-8', 'errors': 'replace'}
 
 _FAMILY_MCUS_RE = re.compile(r'set\s*\(\s*FAMILY_MCUS\s+([^)]*)\)')
-_CMAKE_SET_RE = re.compile(r'set\s*\(\s*([A-Za-z_]\w*)\s+([^)\s]+)')
+# cmake command names are case-insensitive, so SET(...) defines a variable as much
+# as set(...) does; the name group keeps `SET(${OUTVAR} ...)` out either way.
+_CMAKE_SET_RE = re.compile(r'set\s*\(\s*([A-Za-z_]\w*)\s+([^)\s]+)', re.IGNORECASE)
 _CMAKE_VAR_RE = re.compile(r'\$\{([A-Za-z_]\w*)\}')
 _CMAKE_CASE_RE = re.compile(r'string\s*\(\s*(TOUPPER|TOLOWER)\s+(\S+)\s+([A-Za-z_]\w*)\s*\)')
 
