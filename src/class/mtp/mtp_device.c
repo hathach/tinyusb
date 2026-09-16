@@ -266,6 +266,7 @@ uint16_t mtpd_open(uint8_t rhport, tusb_desc_interface_t const* itf_desc, uint16
 
   // mtp driver length is fixed
   const uint16_t mtpd_itf_size = sizeof(tusb_desc_interface_t) + 3 * sizeof(tusb_desc_endpoint_t);
+  const uint8_t *desc_end = (const uint8_t *)itf_desc + max_len;
 
   // Max length must be at least 1 interface + 3 endpoints
   TU_ASSERT(itf_desc->bNumEndpoints == 3 && max_len >= mtpd_itf_size);
@@ -277,12 +278,13 @@ uint16_t mtpd_open(uint8_t rhport, tusb_desc_interface_t const* itf_desc, uint16
   // Open interrupt IN endpoint
   const tusb_desc_endpoint_t* ep_desc_int = (const tusb_desc_endpoint_t*) tu_desc_next(itf_desc);
   TU_ASSERT(ep_desc_int->bDescriptorType == TUSB_DESC_ENDPOINT && ep_desc_int->bmAttributes.xfer == TUSB_XFER_INTERRUPT, 0);
-  TU_ASSERT(usbd_edpt_open(rhport, ep_desc_int), 0);
+  TU_ASSERT(usbd_edpt_open(rhport, ep_desc_int, desc_end), 0);
   p_mtp->ep_event = ep_desc_int->bEndpointAddress;
 
   // Open endpoint pair
   const tusb_desc_endpoint_t* ep_desc_bulk = (const tusb_desc_endpoint_t*) tu_desc_next(ep_desc_int);
-  TU_ASSERT(usbd_open_edpt_pair(rhport, (const uint8_t*)ep_desc_bulk, 2, TUSB_XFER_BULK, &p_mtp->ep_out, &p_mtp->ep_in), 0);
+  TU_ASSERT(usbd_open_edpt_pair(rhport, (const uint8_t*)ep_desc_bulk, desc_end, 2, TUSB_XFER_BULK, &p_mtp->ep_out,
+                                &p_mtp->ep_in, NULL), 0);
   TU_ASSERT(prepare_new_command(p_mtp), 0);
 
   if (tud_speed_get() == TUSB_SPEED_FULL) {

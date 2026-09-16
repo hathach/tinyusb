@@ -68,6 +68,7 @@ typedef enum {
   TUSB_SPEED_FULL = 0,
   TUSB_SPEED_LOW  = 1,
   TUSB_SPEED_HIGH = 2,
+  TUSB_SPEED_SUPER = 3,
   TUSB_SPEED_AUTO = 0xaa,
   TUSB_SPEED_INVALID = 0xff,
 } tusb_speed_t;
@@ -93,14 +94,15 @@ enum {
 enum {
   TUSB_EPSIZE_BULK_FS = 64,
   TUSB_EPSIZE_BULK_HS = 512,
+  TUSB_EPSIZE_BULK_SS = 1024,
 
   TUSB_EPSIZE_ISO_FS_MAX = 1023,
   TUSB_EPSIZE_ISO_HS_MAX = 1024,
 };
 
 // Endpoint Bulk size depending on host/device max speed
-#define TUD_EPSIZE_BULK_MAX   (TUD_OPT_HIGH_SPEED ? 512 : 64)
-#define TUH_EPSIZE_BULK_MAX   (TUH_OPT_HIGH_SPEED ? 512 : 64)
+#define TUD_EPSIZE_BULK_MAX   (TUD_OPT_SUPER_SPEED ? 1024 : (TUD_OPT_HIGH_SPEED ? 512 : 64))
+#define TUH_EPSIZE_BULK_MAX   (TUH_OPT_SUPER_SPEED ? 1024 : (TUH_OPT_HIGH_SPEED ? 512 : 64))
 
 /// Isochronous Endpoint Attributes
 typedef enum {
@@ -156,13 +158,17 @@ typedef enum {
   TUSB_REQ_SET_CONFIGURATION = 9  ,
   TUSB_REQ_GET_INTERFACE     = 10 ,
   TUSB_REQ_SET_INTERFACE     = 11 ,
-  TUSB_REQ_SYNCH_FRAME       = 12
+  TUSB_REQ_SYNCH_FRAME       = 12 ,
+  TUSB_REQ_SET_SEL           = 48 ,
+  TUSB_REQ_SET_ISOCH_DELAY   = 49
 } tusb_request_code_t;
 
 typedef enum {
   TUSB_REQ_FEATURE_EDPT_HALT     = 0,
   TUSB_REQ_FEATURE_REMOTE_WAKEUP = 1,
-  TUSB_REQ_FEATURE_TEST_MODE     = 2
+  TUSB_REQ_FEATURE_TEST_MODE     = 2,
+  TUSB_REQ_FEATURE_U1_ENABLE     = 48,
+  TUSB_REQ_FEATURE_U2_ENABLE     = 49
 } tusb_request_feature_selector_t;
 
 typedef enum {

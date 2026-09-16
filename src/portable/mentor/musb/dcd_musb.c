@@ -780,7 +780,7 @@ void dcd_sof_enable(uint8_t rhport, bool en)
 //--------------------------------------------------------------------+
 
 // Configure endpoint's registers according to descriptor
-bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc) {
+bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc, uint8_t const * desc_end TU_ATTR_UNUSED) {
   const unsigned ep_addr = ep_desc->bEndpointAddress;
   const unsigned epn     = tu_edpt_number(ep_addr);
   const tusb_dir_t epdir  = tu_edpt_dir(ep_addr);

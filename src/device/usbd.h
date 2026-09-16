@@ -54,7 +54,7 @@ TU_ATTR_DEPRECATED("Please use tusb_init(rhport, rh_init) instead")
 TU_ATTR_ALWAYS_INLINE static inline bool tud_init (uint8_t rhport) {
   const tusb_rhport_init_t rh_init = {
     .role = TUSB_ROLE_DEVICE,
-    .speed = TUD_OPT_HIGH_SPEED ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL
+    .speed = TUD_OPT_SUPER_SPEED ? TUSB_SPEED_SUPER : (TUD_OPT_HIGH_SPEED ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL)
   };
   return tud_rhport_init(rhport, &rh_init);
 }
@@ -188,10 +188,22 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 //--------------------------------------------------------------------+
 
 #define TUD_BOS_DESC_LEN      5
+#define TUD_BOS_USB20_EXT_DESC_LEN  7
+#define TUD_BOS_SUPERSPEED_USB_DESC_LEN 10
+#define TUD_SUPERSPEED_DESC_EP_COMPANION_LEN 6
 
 // total length, number of device caps
 #define TUD_BOS_DESCRIPTOR(_total_len, _caps_num) \
   5, TUSB_DESC_BOS, U16_TO_U8S_LE(_total_len), _caps_num
+
+// USB 2.0 Extension Device Capability
+#define TUD_BOS_USB20_EXT_DESCRIPTOR(_attr) \
+  7, TUSB_DESC_DEVICE_CAPABILITY, DEVICE_CAPABILITY_USB20_EXTENSION, U32_TO_U8S_LE(_attr)
+
+// SuperSpeed USB Device Capability
+#define TUD_BOS_SUPERSPEED_USB_DESCRIPTOR(_attr, _speeds, _func_support, _u1_exit_lat, _u2_exit_lat) \
+  10, TUSB_DESC_DEVICE_CAPABILITY, DEVICE_CAPABILITY_SUPERSPEED_USB, _attr, U16_TO_U8S_LE(_speeds), \
+  _func_support, _u1_exit_lat, U16_TO_U8S_LE(_u2_exit_lat)
 
 // Device Capability Platform 128-bit UUID + Data
 #define TUD_BOS_PLATFORM_DESCRIPTOR(...) \
@@ -230,6 +242,9 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 // Config number, interface count, string index, total length, attribute, power in mA
 #define TUD_CONFIG_DESCRIPTOR(config_num, _itfcount, _stridx, _total_len, _attribute, _power_ma) \
   9, TUSB_DESC_CONFIGURATION, U16_TO_U8S_LE(_total_len), _itfcount, config_num, _stridx, TU_BIT(7) | _attribute, (uint8_t)TU_MIN((_power_ma)/2, UINT8_MAX)
+
+#define TUD_SUPERSPEED_DESC_EP_COMPANION(_max_burst, _attr, _bytes_per_interval) \
+  6, TUSB_DESC_SUPERSPEED_ENDPOINT_COMPANION, _max_burst, _attr, U16_TO_U8S_LE(_bytes_per_interval)
 
 //--------------------------------------------------------------------+
 // CDC Descriptor Templates
