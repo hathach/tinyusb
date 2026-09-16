@@ -83,7 +83,7 @@ See the `usb-kernel-recover` skill for what a real wedge looks like and how to c
 
 Examples must be built for the target board(s) — see [Build and Validate](../../../CLAUDE.md#build-and-validate). For a **local** run the `build` skill's `--shared` produces `cmake-build/cmake-build-<board>/`, the folder `hil_test.py` flashes from by default. A **remote** run needs the other layout — `hil_ci.sh` stages from `examples/cmake-build-<board>/` only; see Remote execution below. (This applies to `hil_test.py`; `hil_pool_check.py` builds its own missing firmware.)
 
-A board whose flasher probe has no VCOM (or whose BSP has no UART) uses RTT as its console — "No serial device found for /dev/serial/by-id/…" on every host test is the symptom. Config: `"logger": "rtt"` (jlink flashers only) plus a self-named variant carrying the define — `"variant": [{"name": "<board>", "defines": ["LOGGER=rtt"]}]` — and prebuilt example sets must carry the same `-DLOGGER=rtt`. Caveat: the cdc/msc-fixture host tests don't speak RTT yet, so such a board cannot carry `is_cdc`/`is_msc` fixtures (the config loader rejects it; see the rtt follow-up doc). Details: the `rtt` skill.
+A board whose flasher probe has no VCOM (or whose BSP has no UART) uses RTT as its console — "No serial device found for /dev/serial/by-id/…" on every host test is the symptom. Config: `"logger": "rtt"` (jlink flashers only) plus a self-named variant carrying the define — `"variant": [{"name": "<board>", "defines": ["LOGGER=rtt"]}]` — and prebuilt example sets must carry the same `-DLOGGER=rtt`. Caveat: the cdc/msc-fixture host tests don't speak RTT yet, so such a board cannot carry `is_cdc`/`is_msc` fixtures (the config loader rejects it). Details: the `rtt` skill.
 
 ## Arguments
 

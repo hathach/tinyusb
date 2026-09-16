@@ -126,12 +126,10 @@ curl -sO "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain
 2. **usbmon** (`usb-kernel-debug` skill): URB-level ground truth. **It cannot show data toggles or NAKs** —
    a toggle desync and a dead endpoint look identical (Submits without Completes); distinguish
    device-side with GDB.
-3. **On-device gdb/openocd**: read the EP control registers and DCD structs at the hang.
-4. Heisenbugs (vanish under logging): RAM ring-buffer trace dumped over openocd; for silent lockups
-   JLink PC-sampling (`halt`+`regs` repeatedly — a pinned PC names the spin).
-5. **Cross-check the reference manual** (`read-doc` skill) before changing any register-level code —
+3. **Target-side diagnosis**: `target-debug` (`esp-target-debug` for Espressif) on the original failing case.
+4. **Cross-check the reference manual** (`read-doc` skill) before changing any register-level code —
    per CLAUDE.md, and because comments/assumptions in DCDs have been wrong about hardware caps.
-6. Check the vendor's **silicon errata** early for timing/DMA hangs (an unimplemented erratum
+5. Check the vendor's **silicon errata** early for timing/DMA hangs (an unimplemented erratum
    workaround caused a case-10 hang on one port).
 
 ## Traps that pass gcc/desk review but fail elsewhere
