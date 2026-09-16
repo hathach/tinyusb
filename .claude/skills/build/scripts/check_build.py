@@ -169,7 +169,8 @@ def select(scope=None, base=None, config=HIL_CONFIG):
 def representatives(candidates, examples, drivers=(), keep=()):
     """The family's boards to build: the boards in `keep` (the ones the change edits),
     plus one candidate per changed driver none of them compiles (its catalog row lists
-    the driver, and selects the USB IPs its guard names where the probe can say), plus a
+    the driver, selects the USB IPs its guard names where the probe can say, and defines
+    none of the options it negates: hcd_dwc2.c is empty on a MAX3421 board), plus a
     plain first pick when that leaves nothing. A candidate that compiles one of the affected examples
     is preferred, the criterion dropped rather than returning nothing when it leaves no
     candidate: ci_select keeps a family when ANY of its boards builds the selection under
@@ -203,6 +204,9 @@ def representatives(candidates, examples, drivers=(), keep=()):
 
 
 USBIP_TERM = re.compile(r'^\s*defined\s*\(\s*(TUP_USBIP_\w+)\s*\)\s*$')
+# a CFG_ option a guard negates, either way the drivers write it: !CFG_TUH_MAX3421,
+# or hcd_samd.c's !(defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421)
+OFF_TERM = re.compile(r'!\s*(?:CFG_(\w+)|\(\s*defined\s*\(\s*CFG_(\w+)\s*\)\s*&&\s*CFG_\2\s*\))')
 LINE_MARK = re.compile(r'^# \d+ "([^"]*)"')
 
 
@@ -223,6 +227,21 @@ def source_usbips(src):
         if req:
             return req
     return frozenset()
+
+
+@functools.lru_cache(maxsize=None)
+def source_off_options(src):
+    """The CFG_ options one driver's guard requires off, read off the negated conjuncts of
+    the file's first #if, which is the guard in every portable source. A board whose row
+    turns one on compiles the file to an empty translation unit whatever its portable list
+    says: hcd_dwc2.c and hcd_rp2040.c are excluded by CFG_TUH_MAX3421, so a MAX3421 board
+    must not be the family's representative for them."""
+    try:
+        text = Path(src).read_text(encoding='utf-8', errors='replace')
+    except OSError:                  # a file the change deletes is still in the diff
+        return frozenset()
+    guard = next((l for l in text.splitlines() if l.startswith('#if')), '')
+    return frozenset('CFG_' + (m.group(1) or m.group(2)) for m in OFF_TERM.finditer(guard))
 
 
 @functools.lru_cache(maxsize=None)
@@ -265,13 +284,18 @@ def board_usbips(board):
 
 def compiles(board, driver):
     """Whether the board's default configuration compiles src/portable/<driver> with every USB-IP
-    conjunct its guard names selected, as far as the row and the probe can say: an
-    unknown probe forbids nothing here, the body test after the build decides."""
+    conjunct its guard names selected and none of the options it negates defined, as far
+    as the row and the probe can say: an unknown probe forbids nothing here, the body test
+    after the build decides."""
     row = row_of(board)
     if not row or driver not in row['portable']:
         return False
+    src = str(ROOT / 'src' / 'portable' / driver)
+    on = {d for d, v in (row.get('defines') or {}).items() if str(v) != '0'}
+    if on & source_off_options(src):
+        return False
     ips = board_usbips(board)
-    return ips is None or source_usbips(str(ROOT / 'src' / 'portable' / driver)) <= ips
+    return ips is None or source_usbips(src) <= ips
 
 
 def boards_for(selection, scope=(), reasons=()):
@@ -481,7 +505,9 @@ def coverage(reasons, scope, results, chosen=False):
     gap when no board wrote an elf for any of them; a core stack path names every example
     of its role; any other contributing path is a gap when the run produced no elf at all
     (-T help is a green build of nothing). `chosen` (-e or -T given) hands all that to
-    the caller. With no board at all, every path not explained as nothing-to-verify is a gap."""
+    the caller, bar a family no board of which was built: narrowing the examples does not
+    change which families the scope resolves to. With no board at all, every path not
+    explained as nothing-to-verify is a gap."""
     built_fams = {r['family'] for r in results}
     ok_ex = set().union(*(set(r.get('okExamples', ())) for r in results)) if results else set()
     benign, gaps = [], []
@@ -493,10 +519,10 @@ def coverage(reasons, scope, results, chosen=False):
             gaps.append(r)
         elif fams is not None and not fams & built_fams:
             gaps.append(r)
-        elif fams is not None and (gap := port_gap(r, results)):
-            gaps.append(f'{r} ({gap})')
         elif chosen:
             continue
+        elif fams is not None and (gap := port_gap(r, results)):
+            gaps.append(f'{r} ({gap})')
         elif METRICS_IN.search(r):
             gaps.append(f'{r} (the default sweep builds `all`, which does not run '
                         f'tinyusb_metrics: rerun with -T all -T tinyusb_metrics)')

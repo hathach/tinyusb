@@ -429,7 +429,7 @@ def main():
                         help='Only build these examples (role/name, repeatable). Default: all examples')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
     parser.add_argument('--configure-only', action='store_true',
-                        help='Configure without building: enough to write the board\'s hw/bsp/family.json row')
+                        help='Configure without building (cmake only): enough to write the board\'s hw/bsp/family.json row')
     args = parser.parse_args()
     global configure_only, canonical
 
@@ -461,6 +461,10 @@ def main():
         # test names - so a stale one must be loud, not green
         if not os.path.isdir(os.path.join('examples', e)):
             parser.error(f"-e/--example '{e}': no such example directory examples/{e}")
+
+    # make builds in one pass, so the flag would be silently ignored there
+    if configure_only and build_system != 'cmake':
+        parser.error('--configure-only requires -s/--build-system cmake')
 
     build_defines.append(f'TOOLCHAIN={toolchain}')
 

@@ -13,9 +13,10 @@ configure exports compile_commands.json; `observe` joins them and `merge` writes
 `cmake: null` marks a board of a Make-only family, and only the boards NULL_BOARDS lists.
 `check` needs no toolchain: inventory both ways against hw/bsp/*/boards/*, field shapes,
 and the canonical serialization byte for byte. `fix` is what pre-commit runs: it drops
-rows of boards that are gone, configures each missing board once into a fresh private
-dir, rewrites the file canonical, and exits 1 when it changed anything, so the commit
-is retried with the file staged, the way codespell's fixes are.
+rows of boards that are gone, configures once into a fresh private dir every board that
+has no row and every board whose cmake the commit changes, rewrites the file canonical,
+and exits 1 when it changed anything, so the commit is retried with the file staged, the
+way codespell's fixes are.
 """
 import argparse
 import json
@@ -50,7 +51,8 @@ def canonical_text(data):
 
 def load(path=CATALOG):
     """The catalog, {} when the file does not exist; malformed JSON is a Failure, never
-    something to replace."""
+    something to replace, and so is a family that is not an object of board rows: past
+    this point every caller may take both levels for mappings."""
     try:
         text = path.read_text(encoding='utf-8')
     except FileNotFoundError:
@@ -61,6 +63,10 @@ def load(path=CATALOG):
         raise Failure(f'{path.relative_to(ROOT)} is not valid JSON ({e}); fix it by hand')
     if not isinstance(data, dict):
         raise Failure(f'{path.relative_to(ROOT)} is not a JSON object')
+    for family, rows in data.items():
+        if not isinstance(rows, dict):
+            kind = 'null' if rows is None else f'a {type(rows).__name__}'
+            raise Failure(f'{family} is {kind}, not an object of board rows; fix it by hand')
     return data
 
 
@@ -361,12 +367,45 @@ def check(path=CATALOG, root=ROOT):
     return out
 
 
-def fix(path=CATALOG, root=ROOT, run=subprocess.run):
+def changed_cmake(root=ROOT, run=subprocess.run):
+    """The hw/bsp cmake files the tree changes against HEAD, which is what a commit is about
+    to carry; nothing when git cannot say (no git, no repository, no HEAD)."""
+    try:
+        r = run(['git', '-C', str(root), 'diff', '--name-only', '-z', 'HEAD', '--', 'hw/bsp'],
+                capture_output=True, text=True)
+    except OSError:
+        return []
+    return [p for p in r.stdout.split('\0') if p] if r.returncode == 0 else []
+
+
+def stale_rows(changed, tree):
+    """(family, board) whose row was observed before one of the `changed` paths edited the
+    cmake it was configured from: a file under the board's own dir is that board, one in
+    the family dir is every board of the family. hw/bsp/family_support.cmake is left out on
+    purpose: it configures every board, and re-observing all of them is a sweep, not a hook."""
+    out = set()
+    for p in changed:
+        parts = p.split('/')
+        if not p.endswith('.cmake') or len(parts) < 4 or parts[:2] != ['hw', 'bsp'] or parts[2] not in tree:
+            continue
+        family = parts[2]
+        if parts[3] == 'boards':
+            if len(parts) > 4 and parts[4] in tree[family]:
+                out.add((family, parts[4]))
+        else:
+            out.update((family, b) for b in tree[family])
+    return out
+
+
+def fix(path=CATALOG, root=ROOT, run=subprocess.run, changed_paths=None):
     """Repair what observation can: drop rows of boards or families that are gone, set
-    NULL_BOARDS' rows to null, rewrite the file canonical (one locked edit), then
-    configure each board without a row once into a private dir of this process
-    (removed after). Returns (whether the file changed, what check() still reports).
-    A board this machine cannot configure stays reported, with tools/build.py's reason."""
+    NULL_BOARDS' rows to null, rewrite the file canonical (one locked edit), then configure
+    once into a private dir of this process (removed after) each board without a row and
+    each board whose cmake `changed_paths` names - the row it carries was observed from
+    the configuration before that edit, defaulting to what git reports uncommitted.
+    Returns (whether the file changed, what check() still reports). A board this machine
+    cannot configure keeps the row it has, with tools/build.py's reason printed, and a
+    board that has none stays reported."""
     tree = inventory(root)
     before = path.read_text(encoding='utf-8') if path.is_file() else None
 
@@ -387,10 +426,14 @@ def fix(path=CATALOG, root=ROOT, run=subprocess.run):
         data = load(path)
     except Failure as e:
         return False, [str(e)]
+    stale = stale_rows(changed_cmake(root) if changed_paths is None else changed_paths, tree)
     for family, boards in tree.items():
+        rows = data.get(family, {})
         for board in boards:
-            entry = data.get(family, {}).get(board)
-            if isinstance(entry, dict) and (entry.get('cmake') is not None or board in NULL_BOARDS.get(family, ())):
+            entry = rows.get(board)
+            if board in NULL_BOARDS.get(family, ()):
+                continue
+            if isinstance(entry, dict) and entry.get('cmake') is not None and (family, board) not in stale:
                 continue
             name = f'fj-{board}-{os.getpid()}'
             build_dir = root / 'cmake-build' / f'cmake-build-{name}'
@@ -453,7 +496,11 @@ def main(argv=None):
             print(f'{CATALOG.relative_to(ROOT)} updated: stage it and commit again')
         return 1 if changed or problems else 0
     if a.cmd == 'format':
-        CATALOG.write_text(canonical_text(load()), encoding='utf-8')
+        try:
+            CATALOG.write_text(canonical_text(load()), encoding='utf-8')
+        except Failure as e:
+            print(f'family.json: not formatted: {e}', file=sys.stderr)
+            return 1
         return 0
     try:
         family, board, row, entries = join(a.build_dir)
