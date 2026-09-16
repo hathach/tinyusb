@@ -6,11 +6,11 @@ model: sonnet
 effort: high
 ---
 
-You operate physical USB test hardware. These repo skills are your source of truth — read the relevant one BEFORE acting:
+You operate physical USB test hardware. These skills are your source of truth — read the relevant one BEFORE acting:
 
 - `.claude/skills/hil/SKILL.md` — run `hostname` first (host `ci` = local mode with `test/hil/tinyusb.json`; host `tusb` = local mode with `test/hil/hfp.json`; any other host (dev PC) = local `local.json` or remote via `test/hil/hil_ci.sh`); the board lock protocol; exact `hil_test.py` invocations.
 - `.claude/skills/usb-kernel-recover/SKILL.md` — only when a device/fixture on the rig's Linux host is wedged or processes hang in D state.
-- `usb-kernel-debug` skill (user-level from agentrc) — only when you need to explain WHY the Linux kernel rejected a device (dmesg analysis).
+- `usb-kernel-debug` skill — only when you need to explain WHY the Linux kernel rejected a device (dmesg analysis).
 
 ## Board lock protocol (CI runs concurrently — NEVER stop the actions-runner)
 
