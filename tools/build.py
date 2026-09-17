@@ -246,7 +246,15 @@ def canonical_row(family, build_dirs, existed):
     """Write the board's family.json row from a flag-free configure of dirs that did not
     exist before it: a -D lives in the cache for the life of a dir, whatever type CMake
     later gives the entry, so a configure into an existing dir is not the board's
-    default configuration. Off-pin deps are not it either."""
+    default configuration. Off-pin deps are not it either, and neither is a bare command
+    line under an environment that carries compiler flags."""
+    # cmake seeds CMAKE_<LANG>_FLAGS from these on a first configure, for the languages
+    # examples/CMakeLists.txt enables (cmake-env-variables(7)), so CFLAGS=-DSTM32L476xx
+    # reaches every compile command and family_json.observe reads it as the board's own
+    env_flags = [v for v in ('CFLAGS', 'CXXFLAGS', 'ASMFLAGS') if os.environ.get(v, '').strip()]
+    if env_flags:
+        return f'family.json: not updated: {", ".join(env_flags)} set in the environment; ' \
+               f'cmake compiles with it, so this is not the board\'s default configuration'
     if existed:
         return f'family.json: not updated: {", ".join(existed)} existed before this configure; ' \
                f'remove it to observe the default configuration'
@@ -449,7 +457,9 @@ def main():
     configure_only = args.configure_only
     # decided before TOOLCHAIN= joins the defines: a -D, --cflag or another toolchain
     # describes a variant, not the board. A private dir is fine (cmake_board refuses one
-    # with a leftover cache); -e only selects targets, the cmake tree configures whole
+    # with a leftover cache); -e only selects targets, the cmake tree configures whole.
+    # The command line is only half of it - canonical_row() refuses the flags CFLAGS and
+    # its siblings add to a configure this test cannot see
     canonical = build_system == 'cmake' and not build_defines and not build_cflags and toolchain == 'gcc'
 
     for e in args.example:

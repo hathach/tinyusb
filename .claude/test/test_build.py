@@ -3,6 +3,7 @@ dependency preflight, and the verdict it derives from tools/build.py's rows.
 The build itself is stubbed; a real board build is verified by running the script."""
 import importlib.util
 import json
+import os
 import sys
 import unittest
 from pathlib import Path
@@ -483,6 +484,16 @@ class DepsTest(unittest.TestCase):
             self.assertEqual(tb.canonical_row('f', ['cmake-build/x'], []), 'family.json: updated b')
         with mock.patch.object(tb.build_utils, 'missing_deps', return_value=['hw/mcu/nordic/nrfx']):
             self.assertIn('deps not at their pins', tb.canonical_row('nrf', ['cmake-build/x'], []))
+        # cmake seeds the compile flags from these, so the configure is not the default one
+        with mock.patch.object(tb.build_utils, 'missing_deps', return_value=[]), \
+             mock.patch.object(tb.family_json, 'update') as update, \
+             mock.patch.dict(os.environ, {'CFLAGS': '-DSTM32L476xx'}):
+            self.assertIn('CFLAGS set in the environment', tb.canonical_row('f', ['cmake-build/x'], []))
+            update.assert_not_called()
+        with mock.patch.object(tb.build_utils, 'missing_deps', return_value=[]), \
+             mock.patch.object(tb.family_json, 'update', return_value='family.json: updated b'), \
+             mock.patch.dict(os.environ, {'CFLAGS': '  '}):
+            self.assertEqual(tb.canonical_row('f', ['cmake-build/x'], []), 'family.json: updated b', 'blank is unset')
 
     def test_family_deps_come_from_get_deps_table(self):
         self.assertIn('hw/mcu/nordic/nrfx', [d for d, e in build.tools_build.build_utils.get_deps.deps_optional.items() if 'nrf' in e[2].split()])
