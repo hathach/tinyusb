@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import json
 import random
 import os
 import re
@@ -30,26 +31,6 @@ parallel_jobs = os.cpu_count()
 configure_only = False
 # a configure with nothing but the board named: its row goes into hw/bsp/family.json
 canonical = False
-
-# CI board control lists (used when running under CI)
-ci_skip_boards = {
-    'rp2040': [
-        'adafruit_feather_rp2040_usb_host',
-        'adafruit_fruit_jam',
-        'adafruit_metro_rp2350',
-        'feather_rp2040_max3421',
-        'pico2_etm_trace',
-        'pico_sdk',
-        'raspberry_pi_pico_w',
-    ],
-}
-
-ci_preferred_boards = {
-    'rp2040': ['raspberry_pi_pico'],
-    'samd2x_l2x': ['metro_m0_express'],
-    'samd5x_e5x': ['metro_m4_express'],
-    'stm32h7': ['stm32h743eval']
-}
 
 
 # -----------------------------
@@ -108,7 +89,7 @@ def get_examples(family):
 def resolve_example_target_groups(build_targets, examples, board, extra_defines=()):
     """Map generic targets onto per-example targets for a filtered build (-e), as ONE
     GROUP PER REQUESTED TARGET: 'all' -> the example executables, anything else (e.g.
-    tinyusb_metrics) passes through as its own single-entry group.
+    examples-membrowse-upload) passes through as its own single-entry group.
 
     Grouped rather than flattened because each group becomes one `cmake --build
     --target a b c` invocation: the examples of a group build in parallel (flattening
@@ -180,17 +161,45 @@ def cmake_board(board, build_args, build_name, build_cflags, build_targets, exam
                 print_build_result(board, 'examples (PR filter)', 2, '-')
                 return [0, 0, 1]
         for example in all_examples:
+            example_build_dir = f'{build_dir}/{example}'
             if build_utils.skip_example(example, board, defines):
                 ret[2] += 1
-            else:
-                if os.path.isdir(f'{build_dir}/{example}'):
-                    existed.append(f'{build_dir}/{example}')
+            elif 'all' in build_targets:
+                if os.path.isdir(example_build_dir):
+                    existed.append(example_build_dir)
                 rcmd = run_cmd([
-                    'idf.py', '-C', f'examples/{example}', '-B', f'{build_dir}/{example}', '-GNinja',
+                    'idf.py', '-C', f'examples/{example}', '-B', example_build_dir, '-GNinja',
                     f'-DBOARD={board}', *build_flags, 'reconfigure' if configure_only else 'build'
                 ])
                 ret[0 if rcmd.returncode == 0 else 1] += 1
-                configured.append(f'{build_dir}/{example}')
+                configured.append(example_build_dir)
+            elif not os.path.isdir(example_build_dir) and build_targets == ['examples-membrowse-upload']:
+                # 'all' never ran here (e.g. no code change). Other families get their
+                # --identical upload from a cheap cmake configure; espressif's only
+                # equivalent is a full idf.py build, so call membrowse_report.py's
+                # --identical path directly, which needs no elf or build dir.
+                name = example.split('/', 1)[1]
+                rcmd = run_cmd([
+                    sys.executable, os.path.join(os.path.dirname(__file__), 'membrowse_report.py'),
+                    '--build-dir', example_build_dir, '--ninja', 'ninja', '--target', name,
+                    '--elf', f'{example_build_dir}/{name}.elf',
+                    '--target-name', f'{board}/{name}', '--upload',
+                ])
+                ret[0 if rcmd.returncode == 0 else 1] += 1
+            elif not os.path.isdir(example_build_dir):
+                # a non-'all' target (e.g. examples-membrowse-upload) runs against an
+                # already-configured IDF build dir; without one - PR filter, family
+                # skip, or a standalone --target invocation never ran 'all' here - there
+                # is nothing to run the target against, so skip rather than fail
+                print_build_result(board, f'{example} ({build_targets[0]}, no build dir)', 2, '-')
+                ret[2] += 1
+            else:
+                rcmd = None
+                for target in build_targets:
+                    rcmd = run_cmd(['cmake', '--build', example_build_dir, '--target', target])
+                    if rcmd.returncode != 0:
+                        break
+                ret[0 if rcmd.returncode == 0 else 1] += 1
         # one idf tree per example: the row needs them all, so -e leaves it alone
         if canonical and examples is None and configured and ret[1] == 0:
             print(canonical_row(family, configured, existed), file=sys.stderr)
@@ -205,7 +214,7 @@ def cmake_board(board, build_args, build_name, build_cflags, build_targets, exam
                 return [0, 0, 1]
         existed = [build_dir] if os.path.isdir(build_dir) else []
         rcmd = run_cmd(['cmake', 'examples', '-B', build_dir, '-GNinja',
-                        f'-DBOARD={board}', '-DCMAKE_BUILD_TYPE=MinSizeRel', '-DLINKERMAP_OPTION=-q -f tinyusb/src',
+                        f'-DBOARD={board}', '-DCMAKE_BUILD_TYPE=MinSizeRel',
                         *build_args, *build_flags])
         if rcmd.returncode == 0 and canonical:
             print(canonical_row(family, [build_dir], existed), file=sys.stderr)
@@ -338,8 +347,14 @@ def build_boards_list(boards, build_defines, build_system, build_name, build_cfl
     return ret
 
 
+def builds_any(board, examples, extra_defines=(), build_system='cmake'):
+    """True if `board` builds at least one of `examples` (always, with no filter)."""
+    return examples is None or any(
+        not build_utils.skip_example(e, board, extra_defines, build_system) for e in examples)
+
+
 def get_family_boards(family, one_random, one_first, examples=None, build_system='cmake',
-                      extra_defines=(), ci=None):
+                      extra_defines=()):
     """Get list of boards for a family.
 
     Args:
@@ -357,56 +372,53 @@ def get_family_boards(family, one_random, one_first, examples=None, build_system
         extra_defines: this build's -D tokens, so a board whose only.txt match comes
             from -DMAX3421_HOST=1 is not judged unbuildable here and buildable in
             cmake_board
-        ci: force the ci_skip_boards / ci_preferred_boards lists on or off. Default
-            None reads the environment, which is right for a build but NOT for a caller
-            asking what CI would do: ci_select must answer the same on a laptop as on a
-            runner, or /pre-pr and the code-size skill report a family list CI will not
-            reproduce.
 
     Returns:
         List of board names
     """
-    if ci is None:
-        ci = bool(os.getenv('GITHUB_ACTIONS') or os.getenv('CIRCLECI'))
-    skip_list = []
-    preferred_list = []
-    if ci:
-        skip_list = ci_skip_boards.get(family, [])
-        preferred_list = ci_preferred_boards.get(family, [])
-
     all_boards = []
     for entry in os.scandir(f"hw/bsp/{family}/boards"):
-        if entry.is_dir() and entry.name not in skip_list:
+        if entry.is_dir():
             all_boards.append(entry.name)
     if not all_boards:
         print(f"No boards found for family '{family}'")
         return []
     all_boards.sort()
 
-    # If only-one flags are set, honor select list first, then pick first or random
+    # If only-one flags are set, pick a board buildable under the filter (else first/random)
     if one_first or one_random:
-        def buildable(board):
-            # no filter, or nothing in the filter is buildable anywhere: keep today's
-            # answer rather than inventing a different board
-            return examples is None or any(
-                not build_utils.skip_example(e, board, extra_defines, build_system)
-                for e in examples)
-
-        # the WHOLE preferred list, in order - stopping at entry one would abandon a
-        # curated list for the raw alphabetical order the moment its first board cannot
-        # build the filter, which also moves the board the metrics baseline is keyed on
-        # the whole preferred list, in order. Unreachable-when-unfiltered: with
-        # examples is None, buildable() is True and the loop returns on entry one.
-        for b in preferred_list:
-            if buildable(b):
-                return [b]
-        candidates = [b for b in all_boards if buildable(b)] or all_boards
+        # nothing in the filter is buildable anywhere: keep the unfiltered pick
+        candidates = [b for b in all_boards
+                      if builds_any(b, examples, extra_defines, build_system)] or all_boards
         if one_first:
             return [candidates[0]]
         if one_random:
             return [random.choice(candidates)]
 
     return all_boards
+
+
+def resolve_ci_boards(boards_path, family, boards_only, examples=None,
+                      build_system='cmake', extra_defines=()):
+    """Resolve a family to its CI boards (.github/ci-pinned-boards.json).
+
+    A CI board that builds none of `examples` is dropped, or a scoped PR would
+    compile nothing on that leg and report green (e.g. cdc_dual_ports/skip.txt skips
+    stm32f407disco). A family left with no CI board falls back to the one-first
+    pick, or to nothing under boards_only: the upload step must not touch boards
+    built only as compile smoke-checks."""
+    with open(boards_path) as f:
+        data = json.load(f)
+    ci_boards = [t['board'] for t in data['boards']
+                 if find_family(t['board']) == family
+                 and builds_any(t['board'], examples, extra_defines, build_system)]
+    if ci_boards:
+        return ci_boards
+    if boards_only:
+        return []
+    return get_family_boards(family, one_random=False, one_first=True,
+                             examples=examples, build_system=build_system,
+                             extra_defines=extra_defines)
 
 
 # -----------------------------
@@ -430,6 +442,11 @@ def main():
                         help='Build only one random board of each specified family')
     parser.add_argument('--one-first', action='store_true', default=False,
                         help='Build only the first board (alphabetical) of each specified family')
+    parser.add_argument('--ci-pinned-boards', default=None, metavar='JSON',
+                        help='Path to ci-pinned-boards.json: build the CI boards '
+                             'of each family (fallback: first board alphabetically)')
+    parser.add_argument('--ci-pinned-boards-only', action='store_true', default=False,
+                        help='With --ci-pinned-boards: skip families that have no CI board')
     parser.add_argument('-j', '--jobs', type=int, default=os.cpu_count(), help='Number of jobs to run in parallel')
     parser.add_argument('-T', '--target', action='append', default=[],
                         help='Build target to use, may be specified multiple times (default: all)')
@@ -450,6 +467,12 @@ def main():
     build_cflags = args.cflag
     one_random = args.one_random
     one_first = args.one_first
+    ci_boards_path = args.ci_pinned_boards
+    ci_boards_only = args.ci_pinned_boards_only
+    if ci_boards_only and not ci_boards_path:
+        parser.error('--ci-pinned-boards-only requires --ci-pinned-boards')
+    if ci_boards_path and (one_first or one_random):
+        parser.error('--ci-pinned-boards replaces --one-first/--one-random')
     build_targets = args.target if args.target else ['all']
     examples = args.example or None
     verbose = args.verbose
@@ -505,12 +528,20 @@ def main():
     # get boards from families and append to boards list
     all_boards = list(boards)
     for f in all_families:
-        all_boards.extend(get_family_boards(f, one_random, one_first, examples,
-                                            build_system, tuple(build_defines)))
+        if ci_boards_path:
+            all_boards.extend(resolve_ci_boards(ci_boards_path, f, ci_boards_only, examples,
+                                                build_system, tuple(build_defines)))
+        else:
+            all_boards.extend(get_family_boards(f, one_random, one_first, examples,
+                                                build_system, tuple(build_defines)))
+
+    # --ci-pinned-boards-only (the upload step): -e only picks the board, the same
+    # fallback the Build step made; every example of that board is then uploaded
+    build_examples = None if ci_boards_only else examples
 
     # build all boards
     result = build_boards_list(all_boards, build_defines, build_system, build_name, build_cflags, build_targets,
-                               examples)
+                               build_examples)
 
     total_time = time.monotonic() - total_time
     print(build_separator)
