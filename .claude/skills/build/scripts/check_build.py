@@ -169,9 +169,10 @@ def select(scope=None, base=None, config=HIL_CONFIG):
 def representatives(candidates, examples, drivers=(), keep=()):
     """The family's boards to build: the boards in `keep` (the ones the change edits),
     plus one candidate per changed driver none of them compiles (its catalog row lists
-    the driver, selects the USB IPs its guard names where the probe can say, and neither
-    the row nor the board's own cmake turns on an option the guard negates: hcd_dwc2.c is
-    empty on a MAX3421 board, hcd_rp2040.c on a PIO-USB one), plus a
+    the driver, selects the USB IPs its guard names where the probe can say, and its row
+    and own cmake turn on no option the guard negates and leave off none of the per-board
+    ones it requires: hcd_dwc2.c is empty on a MAX3421 board, hcd_rp2040.c on a PIO-USB
+    one, hcd_pio_usb.c on a board that is neither), plus a
     plain first pick when that leaves nothing. A candidate that compiles one of the affected examples
     is preferred, the criterion dropped rather than returning nothing when it leaves no
     candidate: ci_select keeps a family when ANY of its boards builds the selection under
@@ -208,6 +209,9 @@ USBIP_TERM = re.compile(r'^\s*defined\s*\(\s*(TUP_USBIP_\w+)\s*\)\s*$')
 # a CFG_ option a guard negates, either way the drivers write it: !CFG_TUH_MAX3421,
 # or hcd_samd.c's !(defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421)
 OFF_TERM = re.compile(r'!\s*(?:CFG_(\w+)|\(\s*defined\s*\(\s*CFG_(\w+)\s*\)\s*&&\s*CFG_\2\s*\))')
+# a CFG_ option a guard requires on: a plain conjunct, as hcd_pio_usb.c names
+# CFG_TUH_RPI_PIO_USB. A defined() test, a comparison and a negated term are not that
+ON_TERM = re.compile(r'^\s*(CFG_\w+)\s*$')
 LINE_MARK = re.compile(r'^# \d+ "([^"]*)"')
 BOARD_CMAKE_SET = re.compile(r'^\s*set\s*\(\s*(CFG_\w+)\s+([^\s)]*)', re.M | re.I)
 CMAKE_FALSE = {'', '0', 'OFF', 'NO', 'FALSE', 'N', 'IGNORE', 'NOTFOUND'}
@@ -233,18 +237,32 @@ def source_usbips(src):
 
 
 @functools.lru_cache(maxsize=None)
-def source_off_options(src):
-    """The CFG_ options one driver's guard requires off, read off the negated conjuncts of
-    the file's first #if, which is the guard in every portable source. A board whose row
-    turns one on compiles the file to an empty translation unit whatever its portable list
-    says: hcd_dwc2.c and hcd_rp2040.c are excluded by CFG_TUH_MAX3421, so a MAX3421 board
-    must not be the family's representative for them."""
+def guard_of(src):
+    """One driver's first #if line, which is the guard in every portable source."""
     try:
         text = Path(src).read_text(encoding='utf-8', errors='replace')
     except OSError:                  # a file the change deletes is still in the diff
-        return frozenset()
-    guard = next((l for l in text.splitlines() if l.startswith('#if')), '')
-    return frozenset('CFG_' + (m.group(1) or m.group(2)) for m in OFF_TERM.finditer(guard))
+        return ''
+    return next((l for l in text.splitlines() if l.startswith('#if')), '')
+
+
+@functools.lru_cache(maxsize=None)
+def source_off_options(src):
+    """The CFG_ options one driver's guard requires off, read off its negated conjuncts.
+    A board whose row turns one on compiles the file to an empty translation unit whatever
+    its portable list says: hcd_dwc2.c and hcd_rp2040.c are excluded by CFG_TUH_MAX3421,
+    so a MAX3421 board must not be the family's representative for them."""
+    return frozenset('CFG_' + (m.group(1) or m.group(2)) for m in OFF_TERM.finditer(guard_of(src)))
+
+
+@functools.lru_cache(maxsize=None)
+def source_on_options(src):
+    """The CFG_ options one driver's guard requires on, read off its plain conjuncts: the
+    mirror of source_off_options, since a board that leaves CFG_TUH_RPI_PIO_USB off
+    compiles hcd_pio_usb.c to an empty translation unit just as a MAX3421 one does
+    hcd_rp2040.c. Only a conjunct some board.cmake of the family sets can reject a
+    candidate (family_cmake_options)."""
+    return frozenset(m.group(1) for m in map(ON_TERM.match, guard_of(src)[3:].split('&&')) if m)
 
 
 @functools.lru_cache(maxsize=None)
@@ -302,17 +320,29 @@ def board_cmake_options(board):
                      if m.group(2).strip('"').upper() not in CMAKE_FALSE)
 
 
+@functools.lru_cache(maxsize=None)
+def family_cmake_options(family):
+    """The CFG_ options some board.cmake of the family turns on: the per-board knobs a
+    guard's positive conjunct can be held against. A conjunct outside that set says
+    nothing about one board of the family - CFG_TUH_ENABLED comes from the example's
+    tusb_config.h, CFG_TUH_MAX3421 from family.cmake's own MAX3421_HOST translation - and
+    requiring it would reject every candidate."""
+    return frozenset().union(*(board_cmake_options(b) for b in family_boards(family)))
+
+
 def compiles(board, driver):
     """Whether the board's default configuration compiles src/portable/<driver> with every USB-IP
-    conjunct its guard names selected and none of the options it negates defined, as far
-    as the row, the board's own cmake and the probe can say: an unknown probe forbids
-    nothing here, the body test after the build decides."""
+    conjunct its guard names selected, every per-board option it requires on, and none of
+    the options it negates defined, as far as the row, the board's own cmake and the probe
+    can say: an unknown probe forbids nothing here, the body test after the build decides."""
     row = row_of(board)
     if not row or driver not in row['portable']:
         return False
     src = str(ROOT / 'src' / 'portable' / driver)
     on = {d for d, v in (row.get('defines') or {}).items() if str(v) != '0'} | board_cmake_options(board)
     if on & source_off_options(src):
+        return False
+    if (source_on_options(src) & family_cmake_options(family_of(board))) - on:
         return False
     ips = board_usbips(board)
     return ips is None or source_usbips(src) <= ips
