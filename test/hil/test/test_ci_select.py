@@ -1615,7 +1615,8 @@ class TestBuildClassifier(unittest.TestCase):
     def test_full_paths(self):                                     # rules 15-17
         for p in ('src/common/tusb_fifo.c', 'src/osal/osal.h', 'src/tusb.c',
                   'src/tusb_option.h',
-                  'tools/build.py', 'tools/cmake/cpu/cortex-m4.cmake',
+                  'tools/build.py', 'tools/family_json.py',
+                  'tools/cmake/cpu/cortex-m4.cmake',
                   'examples/CMakeLists.txt', 'examples/device/CMakeLists.txt',
                   'examples/build_system/cmake/cpu.cmake', '.github/workflows/build.yml',
                   '.circleci/config.yml', 'src/CMakeLists.txt', 'src/tinyusb.mk',
