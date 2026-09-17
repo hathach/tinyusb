@@ -37,6 +37,7 @@ static scsi_inquiry_resp_t inquiry_resp;
 static SemaphoreHandle_t xDiskIoMutex = NULL;
 static SemaphoreHandle_t xDiskIoComplete = NULL;
 uint32_t dev_block_count;
+static uint8_t msc_dev_addr = 0;  /* 0 = no MSC mounted */
 
 static bool init_disk_io_sync(void)
 {
@@ -119,17 +120,22 @@ void tuh_msc_mount_cb(uint8_t dev_addr)
     PRINT("A MassStorage device mounted");
 
     uint8_t const lun = 0;
+    msc_dev_addr = dev_addr;
     tuh_msc_inquiry(dev_addr, lun, &inquiry_resp, msc_inquiry_complete_cb, 0);
 }
 
 void tuh_msc_umount_cb(uint8_t dev_addr)
 {
-    msc_mount_complete = 0;
+    if (dev_addr == msc_dev_addr) {
+        msc_dev_addr = 0;
+        msc_mount_complete = 0;
+        dev_block_count = 0;
+    }
     PRINT("A MassStorage device is unmounted, address - %d\r\n", dev_addr);
 }
 bool usb_disk_read(void *buffer, uint32_t lba, uint16_t count)
 {
-    const uint8_t dev_addr = 1U;
+    const uint8_t dev_addr = msc_dev_addr;
     const uint8_t lun = 0U;
     bool read_submitted;
 
@@ -183,7 +189,7 @@ bool usb_disk_read(void *buffer, uint32_t lba, uint16_t count)
 
 bool usb_disk_write(void *buffer, uint32_t lba, uint16_t count)
 {
-    const uint8_t dev_addr = 1U;
+    const uint8_t dev_addr = msc_dev_addr;
     const uint8_t lun = 0U;
     bool write_submitted;
 
