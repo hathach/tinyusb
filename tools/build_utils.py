@@ -413,14 +413,19 @@ def _skip_example(example, board, extra_defines, build_system):
     return False
 
 
+HEAD_UNKNOWN = object()
+
+
 def dep_head(path):
-    """The dep checkout's commit, or None when nothing can say: a dir git would answer
-    for the enclosing tinyusb repo (no .git of its own, a vendored copy) or a checkout
-    with no HEAD yet."""
+    """The dep checkout's commit; None when git would answer for the enclosing tinyusb
+    repo (no .git of its own, a vendored copy), so the pin cannot apply; HEAD_UNKNOWN
+    when the dir has its own .git that names no commit - a git-init without a fetch, or
+    a checkout broken partway - where the revision built is anybody's guess."""
     if not (path / '.git').exists():
         return None
     r = subprocess.run(['git', '-C', str(path), 'rev-parse', 'HEAD'], capture_output=True, text=True)
-    return r.stdout.strip() if r.returncode == 0 else None
+    head = r.stdout.strip()
+    return head if r.returncode == 0 and head else HEAD_UNKNOWN
 
 
 def missing_deps(family, root=None):
@@ -440,7 +445,9 @@ def missing_deps(family, root=None):
             out.append(d)
             continue
         pin, head = get_deps.deps_all[d][1], dep_head(p)
-        if head is not None and head != pin:
+        if head is HEAD_UNKNOWN:
+            out.append(f'{d} (revision unknown, pinned {pin[:10]})')
+        elif head is not None and head != pin:
             out.append(f'{d} (at {head[:10]}, pinned {pin[:10]})')
     return out
 
