@@ -141,17 +141,8 @@ uint32_t tu_edpt_stream_write_available(tu_edpt_stream_t *s);
 // Read from stream
 uint32_t tu_edpt_stream_read(tu_edpt_stream_t *s, void *buffer, uint32_t bufsize);
 
-// Start an usb transfer if endpoint is not busy (class driver context)
+// Start an usb transfer if endpoint is not busy
 uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s);
-
-// Same, from application context: never re-arms while xfer_cb may still read the buffer
-#if CFG_TUD_ENABLED && OSAL_MUTEX_REQUIRED
-uint32_t tu_edpt_stream_read_xfer_app(tu_edpt_stream_t *s);
-#else
-TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_edpt_stream_read_xfer_app(tu_edpt_stream_t *s) {
-  return tu_edpt_stream_read_xfer(s);
-}
-#endif
 
 #if CFG_TUD_ENABLED && OSAL_MUTEX_REQUIRED
 // Mark the last completed read's buffer copied out (device streams)

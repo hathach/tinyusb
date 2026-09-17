@@ -356,15 +356,15 @@ static bool stream_xfer(tu_edpt_stream_t *s, uint16_t count) {
   return false;
 }
 
-// App context: refuse a device endpoint whose xfer_cb may still read the buffer; xfer_cb re-arms it
-static bool stream_claim_read(tu_edpt_stream_t *s, bool from_app) {
+// Refuse a device endpoint whose xfer_cb may still be reading the endpoint buffer. The class
+// driver's own re-arm is unaffected: tu_edpt_stream_read_xfer_complete() releases the buffer
+// as soon as it is copied out, before the driver re-arms.
+static bool stream_claim_read(tu_edpt_stream_t *s) {
 #if CFG_TUD_ENABLED && OSAL_MUTEX_REQUIRED
-  if (from_app && !s->is_host) {
+  if (!s->is_host) {
     TU_VERIFY(s->ep_addr != 0); // must be opened
     return usbd_edpt_claim_idle(s->hwid, s->ep_addr);
   }
-#else
-  (void) from_app;
 #endif
   return stream_claim(s);
 }
@@ -444,14 +444,7 @@ void tu_edpt_stream_read_consumed(tu_edpt_stream_t *s) {
 }
 #endif
 
-static uint32_t stream_read_xfer(tu_edpt_stream_t *s, bool from_app) {
-#if CFG_TUD_ENABLED && OSAL_MUTEX_REQUIRED
-  // class driver context: the buffer has been copied out
-  if (!from_app) {
-    tu_edpt_stream_read_consumed(s);
-  }
-#endif
-
+uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s) {
   uint16_t available = tu_fifo_remaining(&s->ff);
 
   // Prepare for incoming data but only allow what we can store in the ring buffer.
@@ -459,7 +452,7 @@ static uint32_t stream_read_xfer(tu_edpt_stream_t *s, bool from_app) {
   // and slowly move it to the FIFO when read().
   // This pre-check reduces endpoint claiming
   TU_VERIFY(available >= s->mps);
-  TU_VERIFY(stream_claim_read(s, from_app), 0);
+  TU_VERIFY(stream_claim_read(s), 0);
   available = tu_fifo_remaining(&s->ff); // re-get available since fifo can be changed
 
   if (available >= s->mps) {
@@ -475,19 +468,9 @@ static uint32_t stream_read_xfer(tu_edpt_stream_t *s, bool from_app) {
   }
 }
 
-uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s) {
-  return stream_read_xfer(s, false);
-}
-
-#if CFG_TUD_ENABLED && OSAL_MUTEX_REQUIRED
-uint32_t tu_edpt_stream_read_xfer_app(tu_edpt_stream_t *s) {
-  return stream_read_xfer(s, true);
-}
-#endif
-
 uint32_t tu_edpt_stream_read(tu_edpt_stream_t *s, void *buffer, uint32_t bufsize) {
   const uint32_t num_read = tu_fifo_read_n(&s->ff, buffer, (uint16_t)bufsize);
-  tu_edpt_stream_read_xfer_app(s);
+  tu_edpt_stream_read_xfer(s);
   return num_read;
 }
 

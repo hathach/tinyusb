@@ -187,7 +187,7 @@ void tud_cdc_n_read_flush(uint8_t itf) {
   TU_VERIFY(itf < CFG_TUD_CDC, );
   cdcd_interface_t *p_cdc = &_cdcd_itf[itf];
   tu_edpt_stream_clear(&p_cdc->rx_stream);
-  tu_edpt_stream_read_xfer_app(&p_cdc->rx_stream);
+  tu_edpt_stream_read_xfer(&p_cdc->rx_stream);
 }
 
 //--------------------------------------------------------------------+

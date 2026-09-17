@@ -200,7 +200,7 @@ void tud_vendor_n_read_flush(uint8_t idx) {
   TU_VERIFY(idx < CFG_TUD_VENDOR, );
   vendord_interface_t *p_itf = &_vendord_itf[idx];
   tu_edpt_stream_clear(&p_itf->rx_stream);
-  tu_edpt_stream_read_xfer_app(&p_itf->rx_stream);
+  tu_edpt_stream_read_xfer(&p_itf->rx_stream);
 }
   #endif
 
@@ -234,7 +234,7 @@ bool tud_vendor_n_read_xfer(uint8_t idx) {
   vendord_interface_t *p_itf = &_vendord_itf[idx];
 
     #if CFG_TUD_VENDOR_TXRX_BUFFERED
-  return tu_edpt_stream_read_xfer_app(&p_itf->rx_stream);
+  return tu_edpt_stream_read_xfer(&p_itf->rx_stream);
 
     #else
   // Non-FIFO mode (0 while an altsetting without a bulk OUT ep is active)
