@@ -371,9 +371,11 @@ def check(path=CATALOG, root=ROOT):
 
 def changed_cmake(root=ROOT, run=subprocess.run):
     """The hw/bsp cmake files the tree changes against HEAD, which is what a commit is about
-    to carry; nothing when git cannot say (no git, no repository, no HEAD)."""
+    to carry; nothing when git cannot say (no git, no repository, no HEAD). --no-renames as
+    ci_select does: rename detection reports only a rename's destination, so the board or
+    family a file moved out of would keep its row from before the move."""
     try:
-        r = run(['git', '-C', str(root), 'diff', '--name-only', '-z', 'HEAD', '--', 'hw/bsp'],
+        r = run(['git', '-C', str(root), 'diff', '--no-renames', '--name-only', '-z', 'HEAD', '--', 'hw/bsp'],
                 capture_output=True, text=True)
     except OSError:
         return []
@@ -383,13 +385,16 @@ def changed_cmake(root=ROOT, run=subprocess.run):
 def stale_rows(changed, tree):
     """(family, board) whose row was observed before one of the `changed` paths edited the
     cmake it was configured from: a file under the board's own dir is that board, one in
-    the family dir is every board of the family. hw/bsp/family_support.cmake and
+    the family dir is every board of the family. A family's cmake is its .cmake files and
+    its CMakeLists.txt: hw/bsp/espressif/components/tinyusb_src/CMakeLists.txt is where
+    every Espressif row's portable sources and defines come from. hw/bsp/family_support.cmake and
     src/common/tusb_mcu.h are left out on purpose: each feeds every row, and re-observing all
     of them is a sweep, not a hook; that sweep is `refresh`, run when a release is cut."""
     out = set()
     for p in changed:
         parts = p.split('/')
-        if not p.endswith('.cmake') or len(parts) < 4 or parts[:2] != ['hw', 'bsp'] or parts[2] not in tree:
+        if not (p.endswith('.cmake') or p.endswith('/CMakeLists.txt')) or len(parts) < 4 \
+                or parts[:2] != ['hw', 'bsp'] or parts[2] not in tree:
             continue
         family = parts[2]
         if parts[3] == 'boards':

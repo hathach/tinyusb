@@ -169,8 +169,9 @@ def select(scope=None, base=None, config=HIL_CONFIG):
 def representatives(candidates, examples, drivers=(), keep=()):
     """The family's boards to build: the boards in `keep` (the ones the change edits),
     plus one candidate per changed driver none of them compiles (its catalog row lists
-    the driver, selects the USB IPs its guard names where the probe can say, and defines
-    none of the options it negates: hcd_dwc2.c is empty on a MAX3421 board), plus a
+    the driver, selects the USB IPs its guard names where the probe can say, and neither
+    the row nor the board's own cmake turns on an option the guard negates: hcd_dwc2.c is
+    empty on a MAX3421 board, hcd_rp2040.c on a PIO-USB one), plus a
     plain first pick when that leaves nothing. A candidate that compiles one of the affected examples
     is preferred, the criterion dropped rather than returning nothing when it leaves no
     candidate: ci_select keeps a family when ANY of its boards builds the selection under
@@ -208,6 +209,8 @@ USBIP_TERM = re.compile(r'^\s*defined\s*\(\s*(TUP_USBIP_\w+)\s*\)\s*$')
 # or hcd_samd.c's !(defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421)
 OFF_TERM = re.compile(r'!\s*(?:CFG_(\w+)|\(\s*defined\s*\(\s*CFG_(\w+)\s*\)\s*&&\s*CFG_\2\s*\))')
 LINE_MARK = re.compile(r'^# \d+ "([^"]*)"')
+BOARD_CMAKE_SET = re.compile(r'^\s*set\s*\(\s*(CFG_\w+)\s+([^\s)]*)', re.M | re.I)
+CMAKE_FALSE = {'', '0', 'OFF', 'NO', 'FALSE', 'N', 'IGNORE', 'NOTFOUND'}
 
 
 @functools.lru_cache(maxsize=None)
@@ -282,16 +285,33 @@ def board_usbips(board):
     return ips
 
 
+@functools.lru_cache(maxsize=None)
+def board_cmake_options(board):
+    """The CFG_ options a board's own board.cmake turns on. A row's `defines` hold only
+    what tusb_mcu.h keys on, so an option that gates a driver's guard without reaching
+    tusb_mcu.h is absent from it: adafruit_fruit_jam sets CFG_TUH_RPI_PIO_USB, which
+    hcd_rp2040.c's guard negates, and its row's `defines` are empty. Scraped rather than
+    observed, which only a selection may do - a candidate is rejected, never accepted, on
+    this, and the body test after the build is still the verdict."""
+    path = ROOT / 'hw' / 'bsp' / family_of(board) / 'boards' / board / 'board.cmake'
+    try:
+        text = path.read_text(encoding='utf-8', errors='replace')
+    except OSError:                  # Make-only board, or a family whose cmake is elsewhere
+        return frozenset()
+    return frozenset(m.group(1) for m in BOARD_CMAKE_SET.finditer(text)
+                     if m.group(2).strip('"').upper() not in CMAKE_FALSE)
+
+
 def compiles(board, driver):
     """Whether the board's default configuration compiles src/portable/<driver> with every USB-IP
     conjunct its guard names selected and none of the options it negates defined, as far
-    as the row and the probe can say: an unknown probe forbids nothing here, the body test
-    after the build decides."""
+    as the row, the board's own cmake and the probe can say: an unknown probe forbids
+    nothing here, the body test after the build decides."""
     row = row_of(board)
     if not row or driver not in row['portable']:
         return False
     src = str(ROOT / 'src' / 'portable' / driver)
-    on = {d for d, v in (row.get('defines') or {}).items() if str(v) != '0'}
+    on = {d for d, v in (row.get('defines') or {}).items() if str(v) != '0'} | board_cmake_options(board)
     if on & source_off_options(src):
         return False
     ips = board_usbips(board)

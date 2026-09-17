@@ -477,6 +477,10 @@ class DepsTest(unittest.TestCase):
 
     def test_a_row_is_written_only_from_a_fresh_default_configure(self):
         tb = build.tools_build
+        # the runner's own compiler flags would answer for canonical_row before the case does
+        env = mock.patch.dict(os.environ, {'CFLAGS': '', 'CXXFLAGS': '', 'ASMFLAGS': ''})
+        env.start()
+        self.addCleanup(env.stop)
         with mock.patch.object(tb.build_utils, 'missing_deps', return_value=[]), \
              mock.patch.object(tb.family_json, 'update', return_value='family.json: updated b') as update:
             self.assertIn('cmake-build/x existed before this configure', tb.canonical_row('f', ['cmake-build/x'], ['cmake-build/x']))
