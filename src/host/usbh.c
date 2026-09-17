@@ -517,6 +517,9 @@ bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
     case TUSB_SPEED_AUTO:
       speed_str = "Auto";
     break;
+    case TUSB_SPEED_SS:
+      speed_str = "SuperSpeed";
+    break;
   default:
     break;
   }
