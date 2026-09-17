@@ -526,6 +526,15 @@ def _board_files(board):
     return board_dir, (str(board_dir / 'board.cmake'), str(board_dir.parent.parent / 'family.cmake'))
 
 
+def _checked_device(value, source):
+    """A J-Link device name as the BSPs and Ozone projects spell it (LPC11U37/401,
+    XMC4500-1024). A scrape that yields anything else reaches a probe's command line
+    as an option rather than a device, so refuse it like _board_files refuses a board."""
+    if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_./+-]*', value):
+        raise BoardInfoError(f'{value!r} in {source} is not a J-Link device name')
+    return value
+
+
 def board_jlink(board):
     """The board's J-Link device name from its board.cmake, else its family.cmake,
     ${...} expanded. A conditional or unresolvable definition is refused unless
@@ -543,7 +552,7 @@ def board_jlink(board):
         if len(distinct) > 1:
             raise BoardInfoError(f'{board}: JLINK_DEVICE is set conditionally in {f}: '
                                  f'{", ".join(distinct)} - pass the device by hand')
-        return _expand_or_refuse(distinct[0], files)
+        return _checked_device(_expand_or_refuse(distinct[0], files), f)
     except BoardInfoError as e:
         jdebug = board_jdebug(board)
         if not jdebug:
@@ -551,7 +560,7 @@ def board_jlink(board):
         m = re.search(r'^\s*Project\.SetDevice\s*\(\s*"([^"]+)"', pathlib.Path(jdebug).read_text(**_TEXT), re.M)
         if not m:
             raise BoardInfoError(f'{e}; {jdebug} names no device either')
-        return m.group(1)
+        return _checked_device(m.group(1), jdebug)
 
 
 def board_jdebug(board):
