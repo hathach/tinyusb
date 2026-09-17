@@ -177,9 +177,8 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t*
   }
   else
   {
+  return hcd_dwc3_edpt_open(rhport, dev_addr, desc_ep);
   }
-
-  return true;
 }
 
 // No definition present in both controller porting layer
@@ -211,8 +210,8 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   }
   else
   {
+  return hcd_dwc3_edpt_abort_xfer(rhport, dev_addr, ep_addr);
   }
-  return true;
 }
 
 // Submit a special transfer to send 8-byte Setup Packet, when complete hcd_event_xfer_complete() must be invoked
@@ -237,9 +236,8 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   }
   else
   {
+  return hcd_dwc3_edpt_clear_stall(rhport, dev_addr, ep_addr);
   }
-
-  return true;
 }
 
 bool hcd_parse_full_conf_descriptor( tusb_desc_configuration_t *desc_cfg, uint8_t rhport )

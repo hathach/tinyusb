@@ -91,9 +91,9 @@ int wait_for_command_completion_event( struct xhci_data *xhci_ptr, int type )
     return 0;
 }
 
-void xhci_command_event_complete( xcc_event_t event )
+void xhci_command_event_complete( xcc_event_t event, bool in_isr )
 {
-    (void) osal_queue_send(xhci_queue, &event);
+    (void) osal_queue_send(xhci_queue, &event, in_isr);
 }
 
 void reset_usb_port( uint8_t rhport )

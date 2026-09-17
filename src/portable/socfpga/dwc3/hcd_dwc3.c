@@ -201,7 +201,8 @@ static bool hcd_send_address_cmd( void )
 
 static void hcd_dwc3_update_device_address( uint8_t daddr )
 {
-    device_addr = 1U;
+    // device_addr = 1U;
+    device_addr = daddr;
 }
 
 void hcd_dwc3_port_reset_end( uint8_t rhport )
@@ -334,13 +335,17 @@ bool hcd_dwc3_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t 
     // There is no separate data stage for xHCI controller. Hence skip the tinyusb enumeration step for data stage
     if( buffer == NULL && (buflen == 0) && (usb_set_config == 0))
     {
-	  if( usb_set_config == 1 )
-	  {
-        usb_set_config = 0;
-	  }
-      hcd_event_xfer_complete(daddr, ep_num, 8, XFER_RESULT_SUCCESS, true);
-      return true;
+        hcd_event_xfer_complete(daddr, ep_num, 8, XFER_RESULT_SUCCESS, true);
+        return true;
     }
+
+    if( usb_set_config == 1 )
+    {
+        usb_set_config = 0;
+    }
+    
+    ep_data[ep_dci].buffer = buffer;
+    ep_data[ep_dci].buflen = buflen;
 
     if( ep_num == 0 )
     {
@@ -411,6 +416,11 @@ void hcd_dwc3_int_handler( uint8_t rhport, bool in_isr )
         {
             uint32_t xfer_bytes = tr_event.tc_status_params.transfer_len;
             ep_dci = (int) event_data.tr_event.tc_ctrl_params.ep_dci;
+            if (ep_dci < 1 || ep_dci > 13)
+            {
+                ERROR("Invalid endpoint DCI %d", ep_dci);
+                break;
+            }
             ep_num = DCI2EP[ ep_dci - 1 ];
             hcd_event_xfer_complete(device_addr, ep_num, xfer_bytes, XFER_RESULT_SUCCESS,
                     true);
@@ -444,7 +454,7 @@ void hcd_dwc3_int_handler( uint8_t rhport, bool in_isr )
 
     case COMMAND_COMPLETION_EVENT:
         cc_event = event_data.cc_event;
-        xhci_command_event_complete(cc_event);
+        xhci_command_event_complete(cc_event, in_isr);
         break;
 
     default: /* do nothing */

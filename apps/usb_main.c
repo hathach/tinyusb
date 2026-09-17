@@ -51,24 +51,22 @@ void usb3_task(void *arg)
         PRINT("USB OTG port initialized successfully");
     }
 
-   /*initialize host stack for usb3 SS port*/
+     /*initialize host stack for usb3 SS port*/
     if (!tusb_init(USB3_SS_PORT, &host_init))
     {
-        ERROR("Error in initialising usb3 port");
+        ERROR("Error in initialising usb3 SS port");
     }
 
-    else
-    {    
-        /*initialize host stack for usb3 HS port*/
-        if (!tusb_init(USB3_HS_PORT, &host_init))
-        {
-            ERROR("Error in initialising usb3 port");
-        }
-        else
-        {
-            PRINT("USB3.1 port initialized successfully");
-        }
+    /*initialize host stack for usb3 HS port*/
+    if (!tusb_init(USB3_HS_PORT, &host_init))
+    {
+        ERROR("Error in initialising usb3 HS port");
     }
+    else
+    {
+        PRINT("USB3.1 port initialized successfully");
+    }
+    
     while (1)
     {
         tuh_task();

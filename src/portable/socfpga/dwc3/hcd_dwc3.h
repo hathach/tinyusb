@@ -73,7 +73,7 @@ int wait_for_command_completion_event(struct xhci_data *xhci_ptr, int type);
  * @brief  notify about the completion of command ring operation
  * @param[in] command completion event params
  */
-void xhci_command_event_complete(xcc_event_t event);
+void xhci_command_event_complete(xcc_event_t event, bool in_isr);
 
 bool hcd_dwc3_init(uint8_t rhport, const tusb_rhport_init_t* rh_init);
 void hcd_dwc3_int_enable (uint8_t rhport);

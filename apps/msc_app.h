@@ -1,6 +1,9 @@
 #ifndef __MSC_APP_H__
 #define __MSC_APP_H__
 
+#include <stdbool.h>
+#include <stdint.h>
+
 /*
  * @brief read data from usb3 device
  *  true if read command is send successfully
