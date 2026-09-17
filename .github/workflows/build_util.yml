@@ -28,10 +28,6 @@ on:
         required: false
         default: false
         type: boolean
-      upload-metrics:
-        required: false
-        default: false
-        type: boolean
       upload-membrowse:
         required: false
         default: false
@@ -109,38 +105,60 @@ jobs:
           IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
         run: |
           if [ "${{ inputs.toolchain }}" == "esp-idf" ]; then
-            docker run --rm -e MEMBROWSE_API_KEY="$MEMBROWSE_API_KEY" -e CI="$CI" -v $PWD:/project -w /project espressif/idf:tinyusb python tools/build.py --target all ${{ matrix.arg }} $EX_ARGS
+            # --target all never builds the *-membrowse/*-membrowse-upload custom
+            # targets (they are not part of CMake's default `all`, and family_add_membrowse
+            # only declares them at configure time) - membrowse itself never runs in this
+            # step, so it does not need installing here.
+            docker run --rm -e CI="$CI" -v $PWD:/project -w /project espressif/idf:tinyusb bash -c "python tools/build.py ${{ inputs.build-options }} --target all ${{ matrix.arg }} $EX_ARGS"
           else
             BUILD_PY_ARGS="-s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }} --target all"
-            if [ "${{ inputs.upload-metrics }}" = "true" ]; then
-              BUILD_PY_ARGS="$BUILD_PY_ARGS --target tinyusb_metrics"
-            fi
             python tools/build.py $BUILD_PY_ARGS ${{ matrix.arg }} $EX_ARGS
           fi
         shell: bash
 
       - name: Membrowse Upload
-        if: inputs.toolchain != 'esp-idf' && inputs.upload-membrowse == true
+        if: inputs.upload-membrowse == true
         continue-on-error: true
         env:
           MEMBROWSE_API_KEY: ${{ secrets.MEMBROWSE_API_KEY }}
+          ARG: ${{ matrix.arg }}
         run: |
-          # if code-changed is false --> there is no elf -> membrowse target upload with --identical flag
-          # deliberately unscoped by $EX_ARGS: keeps the size history on a stable board
-          # per family, at the cost of an --identical-only upload where that board is not
-          # the one the Build step picked (test_ci_metrics pins which families those are)
+          # A HIL variant leg (--build-name, an extra -D define, or --cflag beyond
+          # the bare board) still configures with the same -DBOARD=<name> as the
+          # plain build - membrowse's target-name is <board>/<example>, derived
+          # from the board alone - so uploading it would overwrite the plain
+          # build's (or another variant's) history under that same name. Only a
+          # bare `-b <board> [-e ...]` leg, the plain build, uploads here; a
+          # variant board still gets built (for the rig) by this same job, just
+          # not uploaded from this leg.
+          case " $ARG " in
+            *' --build-name '*|*' -D'*|*' --cflag='*)
+              echo "skip membrowse upload: variant build ($ARG)"; exit 0 ;;
+          esac
+          # code-changed false -> no elf -> membrowse uploads with --identical.
+          # --ci-pinned-boards-only: families without a CI board were built as compile
+          # smoke-checks only and must not upload. -e (in $EX_ARGS or $ARG) only picks
+          # the board there (see resolve_ci_boards()); every example of it uploads.
           BUILD_PY_ARGS="-s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }}"
-          python tools/build.py $BUILD_PY_ARGS --target examples-membrowse-upload -j 1 ${{ matrix.arg }}
+          CMD="python tools/build.py $BUILD_PY_ARGS --ci-pinned-boards-only --target examples-membrowse-upload -j 1 $ARG $EX_ARGS"
+          if [ "${{ inputs.toolchain }}" == "esp-idf" ]; then
+            # docker run only inherits what -e names explicitly (a GHA container gets
+            # none of the runner's env by default): membrowse's --github metadata
+            # detection (GITHUB_EVENT_NAME/GITHUB_SHA/...) and its fork-PR tokenless
+            # auth need these to see the actual event, and GITHUB_SHA to report the
+            # right commit. GITHUB_EVENT_PATH points outside the $PWD mount, so mount
+            # it too (read-only); guard it since local/non-Actions runs leave it unset.
+            DOCKER_ENV=(-e MEMBROWSE_API_KEY="$MEMBROWSE_API_KEY" -e CI="$CI"
+                        -e GITHUB_ACTIONS="$GITHUB_ACTIONS" -e GITHUB_EVENT_NAME="$GITHUB_EVENT_NAME"
+                        -e GITHUB_SHA="$GITHUB_SHA" -e GITHUB_REF_NAME="$GITHUB_REF_NAME"
+                        -e GITHUB_EVENT_PATH="$GITHUB_EVENT_PATH")
+            DOCKER_MOUNTS=(-v $PWD:/project)
+            [ -n "$GITHUB_EVENT_PATH" ] && DOCKER_MOUNTS+=(-v "$GITHUB_EVENT_PATH:$GITHUB_EVENT_PATH:ro")
+            docker run --rm "${DOCKER_ENV[@]}" "${DOCKER_MOUNTS[@]}" -w /project espressif/idf:tinyusb bash -c "pip install membrowse >/dev/null && $CMD"
+          else
+            $CMD
+          fi
         shell: bash
-
-      - name: Upload Artifacts for Metrics
-        if: inputs.upload-metrics == true && inputs.code-changed == true
-        uses: actions/upload-artifact@v7
-        with:
-          name: metrics-${{ matrix.arg }}
-          path: |
-            cmake-build/cmake-build-*/metrics.json
-            cmake-build/cmake-build-*/metrics_by_example.json
 
       - name: Artifact name
         if: inputs.upload-artifacts == true
@@ -165,7 +183,7 @@ jobs:
           echo "ARTIFACT_TAG=$TAG" >> $GITHUB_ENV
 
       - name: Upload Artifacts for Hardware Testing
-        if: inputs.upload-artifacts == true && inputs.code-changed == true
+        if: inputs.upload-artifacts == true
         uses: actions/upload-artifact@v7
         with:
           name: binaries-${{ inputs.toolchain }}-${{ env.ARTIFACT_TAG }}
