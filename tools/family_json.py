@@ -16,7 +16,9 @@ and the canonical serialization byte for byte. `fix` is what pre-commit runs: it
 rows of boards that are gone, configures once into a fresh private dir every board that
 has no row and every board whose cmake the commit changes, rewrites the file canonical,
 and exits 1 when it changed anything, so the commit is retried with the file staged, the
-way codespell's fixes are.
+way codespell's fixes are. `refresh` is the release sweep: every cmake board re-observed the
+same way, exit 1 when any board could not be. Between releases an edit to what every row is
+observed through (src/common/tusb_mcu.h, hw/bsp/family_support.cmake) is not detected.
 """
 import argparse
 import json
@@ -381,8 +383,9 @@ def changed_cmake(root=ROOT, run=subprocess.run):
 def stale_rows(changed, tree):
     """(family, board) whose row was observed before one of the `changed` paths edited the
     cmake it was configured from: a file under the board's own dir is that board, one in
-    the family dir is every board of the family. hw/bsp/family_support.cmake is left out on
-    purpose: it configures every board, and re-observing all of them is a sweep, not a hook."""
+    the family dir is every board of the family. hw/bsp/family_support.cmake and
+    src/common/tusb_mcu.h are left out on purpose: each feeds every row, and re-observing all
+    of them is a sweep, not a hook; that sweep is `refresh`, run when a release is cut."""
     out = set()
     for p in changed:
         parts = p.split('/')
@@ -397,19 +400,35 @@ def stale_rows(changed, tree):
     return out
 
 
-def fix(path=CATALOG, root=ROOT, run=subprocess.run, changed_paths=None):
-    """Repair what observation can: drop rows of boards or families that are gone, set
-    NULL_BOARDS' rows to null, rewrite the file canonical (one locked edit), then configure
-    once into a private dir of this process (removed after) each board without a row and
-    each board whose cmake `changed_paths` names - the row it carries was observed from
-    the configuration before that edit, defaulting to what git reports uncommitted.
-    Returns (whether the file changed, what check() still reports). A board this machine
-    cannot configure keeps the row it has, with tools/build.py's reason printed, and a
-    board that has none stays reported."""
-    tree = inventory(root)
-    before = path.read_text(encoding='utf-8') if path.is_file() else None
+OBSERVED = re.compile(r'^family\.json: (updated|unchanged) (\S+)')
 
-    def prune(data):
+
+def reobserve(boards, root=ROOT, run=subprocess.run):
+    """Configure each (family, board) once with tools/build.py into a private dir of this
+    process, removed after, so the row is observed fresh. Prints build.py's line per board;
+    returns the boards it did not observe, with why: a nonzero exit, a "not updated"
+    reason, or no line at all (an Espressif example that failed to configure)."""
+    failed = []
+    for family, board in boards:
+        name = f'fj-{board}-{os.getpid()}'
+        build_dir = root / 'cmake-build' / f'cmake-build-{name}'
+        r = run([sys.executable, 'tools/build.py', '-b', board, '--configure-only', '--build-name', name],
+                cwd=root, capture_output=True, text=True)
+        shutil.rmtree(build_dir, ignore_errors=True)
+        line = next((l for l in r.stderr.splitlines() if l.startswith('family.json: ')), None)
+        print(line or f'family.json: {board} not updated: tools/build.py exit {r.returncode}')
+        m = OBSERVED.match(line or '')
+        if r.returncode != 0 or not m or m.group(2) != board:
+            failed.append((family, board, line or f'tools/build.py exit {r.returncode}'))
+    return failed
+
+
+def prune(path, root):
+    """Drop rows of boards or families that are gone, set NULL_BOARDS' rows to null,
+    rewrite the file canonical (one locked edit); the inventory and the data after."""
+    tree = inventory(root)
+
+    def edit(data):
         for family in list(data):
             if family not in tree:
                 del data[family]
@@ -421,29 +440,43 @@ def fix(path=CATALOG, root=ROOT, run=subprocess.run, changed_paths=None):
             for board in boards:
                 if board in tree.get(family, ()):
                     data.setdefault(family, {})[board] = {'cmake': None}
+    rewrite(edit, path)
+    return tree, load(path)
+
+
+def fix(path=CATALOG, root=ROOT, run=subprocess.run, changed_paths=None):
+    """Repair what observation can: prune, then re-observe each board without a row and
+    each board whose cmake `changed_paths` names - the row it carries was observed from
+    the configuration before that edit, defaulting to what git reports uncommitted.
+    Returns (whether the file changed, what check() still reports). A board this machine
+    cannot configure keeps the row it has, with tools/build.py's reason printed, and a
+    board that has none stays reported."""
+    before = path.read_text(encoding='utf-8') if path.is_file() else None
     try:
-        rewrite(prune, path)
-        data = load(path)
+        tree, data = prune(path, root)
     except Failure as e:
         return False, [str(e)]
     stale = stale_rows(changed_cmake(root) if changed_paths is None else changed_paths, tree)
-    for family, boards in tree.items():
-        rows = data.get(family, {})
-        for board in boards:
-            entry = rows.get(board)
-            if board in NULL_BOARDS.get(family, ()):
-                continue
-            if isinstance(entry, dict) and entry.get('cmake') is not None and (family, board) not in stale:
-                continue
-            name = f'fj-{board}-{os.getpid()}'
-            build_dir = root / 'cmake-build' / f'cmake-build-{name}'
-            r = run([sys.executable, 'tools/build.py', '-b', board, '--configure-only', '--build-name', name],
-                    cwd=root, capture_output=True, text=True)
-            shutil.rmtree(build_dir, ignore_errors=True)
-            line = next((l for l in r.stderr.splitlines() if l.startswith('family.json: ')), None)
-            print(line or f'family.json: {board} not updated: tools/build.py exit {r.returncode}')
+    todo = [(family, board) for family, boards in tree.items() for board in boards
+            if board not in NULL_BOARDS.get(family, ())
+            and (not isinstance(data.get(family, {}).get(board), dict)
+                 or data[family][board].get('cmake') is None or (family, board) in stale)]
+    reobserve(todo, root, run)
     changed = (path.read_text(encoding='utf-8') if path.is_file() else None) != before
     return changed, check(path, root)
+
+
+def refresh(path=CATALOG, root=ROOT, run=subprocess.run):
+    """The release sweep: prune, then re-observe every board that is not Make-only, rows
+    or no rows. Returns (boards asked, boards not observed with why, what check() still
+    reports); a board not observed keeps the row it had."""
+    try:
+        tree, _ = prune(path, root)
+    except Failure as e:
+        return [], [], [str(e)]
+    todo = [(family, board) for family, boards in tree.items() for board in boards
+            if board not in NULL_BOARDS.get(family, ())]
+    return todo, reobserve(todo, root, run), check(path, root)
 
 
 def row_violations(row, mcus, root):
@@ -477,6 +510,7 @@ def main(argv=None):
     sub = p.add_subparsers(dest='cmd', required=True)
     sub.add_parser('check', help='every violation, exit 1 if any; no toolchain needed')
     sub.add_parser('fix', help='repair the catalog in place (pre-commit); exit 1 when it changed or cannot')
+    sub.add_parser('refresh', help='re-observe every cmake board (release); exit 1 when one could not be')
     sub.add_parser('format', help='rewrite the catalog in canonical form')
     o = sub.add_parser('observe', help="print a configured build dir's row without writing it")
     o.add_argument('build_dir', nargs='+')
@@ -489,12 +523,20 @@ def main(argv=None):
             print(f'repair: {FIX}')
         return 1 if problems else 0
     if a.cmd == 'fix':
-        changed, problems = fix()
+        changed, problems = fix(CATALOG, ROOT, subprocess.run)
         for line in problems:
             print(line)
         if changed:
             print(f'{CATALOG.relative_to(ROOT)} updated: stage it and commit again')
         return 1 if changed or problems else 0
+    if a.cmd == 'refresh':
+        asked, failed, problems = refresh(CATALOG, ROOT, subprocess.run)
+        for line in problems:
+            print(line)
+        for family, board, why in failed:
+            print(f'{family}/{board}: not observed: {why}')
+        print(f'{len(asked) - len(failed)} of {len(asked)} boards re-observed')
+        return 1 if failed or problems else 0
     if a.cmd == 'format':
         try:
             CATALOG.write_text(canonical_text(load()), encoding='utf-8')

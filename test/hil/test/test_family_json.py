@@ -293,6 +293,78 @@ class Check(unittest.TestCase):
                 changed, problems = fj.fix(path, root, run)
             self.assertEqual((changed, problems), (False, ['nrf: no row for any of its 1 boards']))
 
+    def test_refresh_reobserves_every_cmake_board_and_fails_on_any_it_could_not(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = fixture_root(d)
+            (root / 'hw' / 'bsp' / 'pic32mz' / 'boards' / 'olimex_emz64').mkdir(parents=True)
+            (root / 'hw' / 'bsp' / 'nrf' / 'boards' / 'nrf52840dk').mkdir(parents=True)
+            (root / 'hw' / 'bsp' / 'nrf' / 'boards' / 'nrf5340dk').mkdir(parents=True)
+            (root / 'hw' / 'bsp' / 'espressif' / 'boards' / 'esp32s3_devkitm').mkdir(parents=True)
+            path = root / 'hw' / 'bsp' / 'family.json'
+            # a row to keep, a null cmake row that is not Make-only, a missing row, and
+            # a file that is not canonical: refresh accepts a dirty catalog
+            path.write_text(json.dumps({'stm32f4': {'stm32f407disco': {'cmake': ROW}},
+                                        'nrf': {'nrf52840dk': {'cmake': None}}}))
+            dirs = []
+
+            def run(argv, **kw):
+                board = argv[argv.index('-b') + 1]
+                dirs.append(root / 'cmake-build' / f'cmake-build-{argv[-1]}')
+                dirs[-1].mkdir(parents=True)  # what a configure leaves; refresh must remove it
+                if board == 'stm32f407disco':
+                    return mock.Mock(returncode=0, stderr='family.json: unchanged stm32f407disco\n')
+                if board == 'nrf52840dk':
+                    fj.merge('nrf', board, dict(ROW, mcu='OPT_MCU_NRF5X'), path)
+                    return mock.Mock(returncode=0, stderr='family.json: updated nrf52840dk\n')
+                if board == 'nrf5340dk':
+                    return mock.Mock(returncode=1, stderr='family.json: not updated: nrf deps not at their pins: x\n')
+                return mock.Mock(returncode=0, stderr='')  # an Espressif example that did not configure: no line
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                asked, failed, problems = fj.refresh(path, root, run)
+            self.assertEqual(asked, [('espressif', 'esp32s3_devkitm'), ('nrf', 'nrf52840dk'), ('nrf', 'nrf5340dk'),
+                                     ('stm32f4', 'stm32f407disco')], 'every board but the Make-only one, rows or not')
+            self.assertEqual([(f, b) for f, b, _ in failed], [('espressif', 'esp32s3_devkitm'), ('nrf', 'nrf5340dk')],
+                             'no line and a refusal both fail; unchanged and updated both count')
+            self.assertEqual(failed[0][2], 'tools/build.py exit 0')
+            self.assertIn('not at their pins', failed[1][2])
+            self.assertEqual(len(dirs), 4)
+            self.assertFalse(any(x.exists() for x in dirs), 'every private dir removed, failures included')
+            data = json.loads(path.read_text())
+            self.assertEqual(data['stm32f4']['stm32f407disco']['cmake'], ROW, 'a row not re-observed is kept')
+            self.assertEqual(data['nrf']['nrf52840dk']['cmake']['mcu'], 'OPT_MCU_NRF5X')
+            self.assertEqual(data['pic32mz'], {'olimex_emz64': {'cmake': None}})
+            self.assertEqual(path.read_text(), fj.canonical_text(data))
+            self.assertEqual(problems, ['espressif: no row for any of its 1 boards', 'nrf/nrf5340dk: no row'])
+
+    def test_refresh_cli_exits_1_on_a_kept_row_it_could_not_observe_and_0_when_all_observed(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = fixture_root(d)
+            path = root / 'hw' / 'bsp' / 'family.json'
+            path.write_text(fj.canonical_text({'stm32f4': {'stm32f407disco': {'cmake': ROW}}}))
+            answers = {}
+
+            def run(argv, **kw):
+                return mock.Mock(**answers)
+            with mock.patch.object(fj, 'CATALOG', path), mock.patch.object(fj, 'ROOT', root), \
+                    mock.patch('subprocess.run', run):
+                # the old row still passes check(): only the missing observation fails the sweep
+                for answers in ({'returncode': 1, 'stderr': ''},
+                                {'returncode': 0, 'stderr': ''},
+                                {'returncode': 0, 'stderr': 'family.json: not updated: cmake-build existed before\n'}):
+                    with contextlib.redirect_stdout(io.StringIO()) as out:
+                        self.assertEqual(fj.main(['refresh']), 1, answers)
+                    self.assertIn('0 of 1 boards re-observed', out.getvalue())
+                    self.assertIn('stm32f4/stm32f407disco: not observed:', out.getvalue())
+                answers = {'returncode': 0, 'stderr': 'family.json: unchanged stm32f407disco\n'}
+                with contextlib.redirect_stdout(io.StringIO()) as out:
+                    self.assertEqual(fj.main(['refresh']), 0)
+                self.assertIn('1 of 1 boards re-observed', out.getvalue())
+                # fix keeps its own contract: a changed file is exit 1
+                path.write_text(json.dumps({'stm32f4': {'stm32f407disco': {'cmake': ROW}}}))
+                with contextlib.redirect_stdout(io.StringIO()) as out:
+                    self.assertEqual(fj.main(['fix']), 1)
+                self.assertIn('updated: stage it and commit again', out.getvalue())
+
     def test_the_catalog_in_this_tree_is_complete(self):
         # what the pre-commit hook guarantees: every board dir has a row, every row a board
         problems = fj.check()
