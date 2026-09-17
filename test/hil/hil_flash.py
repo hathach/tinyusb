@@ -100,10 +100,14 @@ def _openocd_cmd_base(flasher):
                 print(f'warning: {uid} has a malformed vid_pid {flasher["vid_pid"]!r} '
                       f'(want "0xVVVV 0xPPPP"); probe pin DROPPED, so discovery will open '
                       f'foreign usbfs nodes', file=sys.stderr, flush=True)
-    elif flasher.get('uid') not in _VID_PID_WARNED:
+    elif ('interface/jlink.cfg' not in (flasher.get('args') or '')
+          and flasher.get('uid') not in _VID_PID_WARNED):
         # stderr, once per probe: test_example captures stdout, so a passing run would
         # swallow this and the operator would never learn discovery still opens every
-        # usbfs node
+        # usbfs node. Skipped over the jlink driver: libjaylink discovery gates on
+        # idVendor == 0x1366 before libusb_open (same rationale as convoy_safe's
+        # docstring), so it never opens a foreign node regardless of the missing pin --
+        # the warning would be false there.
         _VID_PID_WARNED.add(flasher.get('uid'))
         print(f'warning: openocd flasher {flasher.get("uid", "?")} has no vid_pid pin; '
               f'probe discovery will open every usbfs node (hangs on a wedged one)',
@@ -133,6 +137,29 @@ def reset_openocd(board, timeout=None):
     ret = hil_util.run_cmd(f'{_openocd_cmd_base(flasher)} -c "init; reset run; exit"',
                            timeout=timeout)
     return ret
+
+
+def flash_openocd_seq(board, firmware, timeout=None):
+    # Explicit commands, NOT `program`: over the jlink transport `program` fails at the
+    # flash bank probe ("Examination failed" -> "auto_probe failed"), measured on
+    # stm32f4x and stm32f0x, with or without a preceding reset halt. This sequence
+    # succeeded on all seven candidate boards.
+    flasher = board['flasher']
+    verify = f' -c "verify_image {firmware}"' if flasher.get('verify', True) else ''
+    return hil_util.run_cmd(
+        f'{_openocd_cmd_base(flasher)} -c "init" -c "reset halt" '
+        f'-c "flash write_image erase {firmware}"{verify} -c "reset run" -c "shutdown"',
+        timeout=timeout)
+
+
+def reset_openocd_seq(board, timeout=None):
+    # Behaviorally reset_openocd, but this exact invocation is what was bench-validated
+    # over the jlink transport on all seven flasher_recover boards — don't fold into
+    # reset_openocd (or change either) without re-benching the recovery path.
+    flasher = board['flasher']
+    return hil_util.run_cmd(
+        f'{_openocd_cmd_base(flasher)} -c "init" -c "reset run" -c "shutdown"',
+        timeout=timeout)
 
 
 # OpenOCD's messages for "the target's debug port did not answer". The probe is fine when
@@ -240,7 +267,7 @@ def convoy_safe(flasher: dict) -> bool:
     # 'openocd_wch'-style entry would pass this gate, reserve the Rescue-DP legs,
     # and then find no recovery path at all -- paying for a path that cannot fire, which
     # is the precise cost this gate exists to avoid.
-    if name != 'openocd':
+    if name not in ('openocd', 'openocd_seq'):
         return False
     if valid_vid_pid(flasher.get('vid_pid')):
         return True
@@ -301,6 +328,7 @@ FLASHER_SUFFIX = {
     'jlink': '.elf',
     'lm4flash': '.bin',
     'openocd': '.elf',
+    'openocd_seq': '.elf',
     'stlink': '.elf',
 }
 
