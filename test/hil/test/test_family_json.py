@@ -5,6 +5,7 @@ real tree, which is what the pre-commit hook guarantees."""
 import contextlib
 import io
 import json
+import os
 import pathlib
 import sys
 import tempfile
@@ -72,11 +73,27 @@ def fixture_root(d):
     (root / 'src' / 'tusb.c').write_text('')
     (root / 'hw' / 'bsp' / 'stm32f4' / 'boards' / 'stm32f407disco').mkdir(parents=True)
     (root / 'hw' / 'bsp' / 'stm32f4' / 'family.cmake').write_text('')
+    # examples/<group>/CMakeLists.txt is what makes a directory a group, as it is what
+    # examples/CMakeLists.txt adds; build_system has none and is not one.
+    for group, names in (('device', ('cdc_msc', 'board_test')), ('dual', ('host_hid_to_device_cdc',)),
+                         ('host', ('cdc_msc_hid',)), ('typec', ('power_delivery',))):
+        (root / 'examples' / group).mkdir(parents=True)
+        (root / 'examples' / group / 'CMakeLists.txt').write_text('')
+        for n in names:
+            (root / 'examples' / group / n / 'src').mkdir(parents=True)
+    (root / 'examples' / 'build_system' / 'cmake').mkdir(parents=True)
     return root
 
 
+def example_entry(directory, root, group, name, file='src/main.c', relative=False):
+    """A compile command for one example's own source, as the configure records it."""
+    path = root / 'examples' / group / name / file
+    spelled = os.path.relpath(path, directory) if relative else str(path)
+    return entry(directory, spelled, {'CFG_TUSB_MCU': 'OPT_MCU_STM32F4'})
+
+
 ROW = {'defines': {'STM32F407xx': '1'}, 'family_mcus': ['STM32F4'], 'mcu': 'OPT_MCU_STM32F4',
-       'options': {}, 'portable': ['synopsys/dwc2/dcd_dwc2.c']}
+       'options': {}, 'portable': ['synopsys/dwc2/dcd_dwc2.c'], 'roles': []}
 
 
 class Extract(unittest.TestCase):
@@ -129,6 +146,67 @@ class Observe(unittest.TestCase):
             with self.assertRaises(fj.Failure) as cm:
                 fj.observe(b, root)
             self.assertIn(fj.PART, str(cm.exception))
+
+
+class Roles(unittest.TestCase):
+    def groups_of(self, root, build, extra):
+        b = fixture_build(root, build, entries=[
+            entry(b_dir := root / 'cmake-build' / build, str(root / 'src' / 'tusb.c'), {'CFG_TUSB_MCU': 'OPT_MCU_STM32F4'}),
+            *extra(b_dir),
+        ])
+        return fj.observe(b, root)[2]['roles']
+
+    def test_roles_are_the_groups_whose_example_sources_the_configure_compiled(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = fixture_root(d)
+            cases = {
+                'device only': (lambda b: [example_entry(b, root, 'device', 'cdc_msc')], ['device']),
+                'host only': (lambda b: [example_entry(b, root, 'host', 'cdc_msc_hid')], ['host']),
+                'dual stays dual': (lambda b: [example_entry(b, root, 'dual', 'host_hid_to_device_cdc')], ['dual']),
+                'every group, sorted': (lambda b: [example_entry(b, root, g, n) for g, n in
+                                                   (('host', 'cdc_msc_hid'), ('device', 'cdc_msc'),
+                                                    ('typec', 'power_delivery'), ('dual', 'host_hid_to_device_cdc'))],
+                                        ['device', 'dual', 'host', 'typec']),
+                'two units of one example are one role': (
+                    lambda b: [example_entry(b, root, 'device', 'cdc_msc'),
+                               example_entry(b, root, 'device', 'cdc_msc', file='src/usb_descriptors.c')], ['device']),
+                'none configured': (lambda b: [], []),
+            }
+            for name, (extra, expected) in cases.items():
+                self.assertEqual(self.groups_of(root, f'r{abs(hash(name))}', extra), expected, name)
+
+    def test_a_path_that_is_not_an_examples_group_example_source_is_no_role(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = fixture_root(d)
+            (root / 'examples' / 'CMakeLists.txt').write_text('')  # the tree's own file, not a group
+            for name, extra in {
+                'a group dir with no CMakeLists.txt': lambda b: [example_entry(b, root, 'build_system', 'cmake')],
+                'a file directly under the group': lambda b: [entry(b, str(root / 'examples' / 'device' / 'x.c'), {'CFG_TUSB_MCU': 'OPT_MCU_STM32F4'})],
+                'an example dir that does not exist': lambda b: [example_entry(b, root, 'device', 'gone')],
+            }.items():
+                self.assertEqual(self.groups_of(root, f'n{abs(hash(name))}', extra), [], name)
+
+    def test_a_relative_file_path_is_resolved_against_its_directory(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = fixture_root(d)
+            spelled = example_entry(root / 'cmake-build' / 'rel', root, 'device', 'cdc_msc', relative=True)['file']
+            self.assertFalse(os.path.isabs(spelled), 'the fixture must spell the file relative, as a real database may')
+            roles = self.groups_of(root, 'rel', lambda b: [example_entry(b, root, 'device', 'cdc_msc', relative=True)])
+            self.assertEqual(roles, ['device'], 'compile_commands.json may spell file relative to directory')
+
+    def test_join_unions_roles_over_the_espressif_example_trees(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = fixture_root(d)
+            dirs = []
+            for group, name in (('device', 'cdc_msc'), ('host', 'cdc_msc_hid')):
+                b = root / 'cmake-build' / f'esp-{group}'
+                b.mkdir(parents=True)
+                dirs.append(fixture_build(root, f'esp-{group}', entries=[
+                    entry(b, str(root / 'src' / 'tusb.c'), {'CFG_TUSB_MCU': 'OPT_MCU_STM32F4'}),
+                    example_entry(b, root, group, name)]))
+            with mock.patch.object(fj, 'ROOT', root):
+                _, _, row, _ = fj.join(dirs)
+            self.assertEqual(row['roles'], ['device', 'host'], 'one IDF dir per example, the board is their union')
 
 
 def runner(real, host):
@@ -242,6 +320,12 @@ class Check(unittest.TestCase):
                 ({**good, 'stm32f4': {'stm32f407disco': {'cmake': dict(ROW, extra=1)}}}, 'fields must be exactly'),
                 ({**good, 'stm32f4': {'stm32f407disco': {'cmake': dict(ROW, portable=['synopsys/dwc2/hcd_dwc2.c', 'synopsys/dwc2/dcd_dwc2.c'])}}}, 'portable must be a sorted list'),
                 ({**good, 'stm32f4': {'stm32f407disco': {'cmake': dict(ROW, portable=['none/dcd_none.c'])}}}, 'is not a relative path to a file under src/portable/'),
+                ({**good, 'stm32f4': {'stm32f407disco': {'cmake': {k: v for k, v in ROW.items() if k != 'roles'}}}}, 'fields must be exactly'),
+                ({**good, 'stm32f4': {'stm32f407disco': {'cmake': dict(ROW, roles=['host', 'device'])}}}, 'roles must be a sorted list'),
+                ({**good, 'stm32f4': {'stm32f407disco': {'cmake': dict(ROW, roles=['device', 'device'])}}}, 'roles must be a sorted list'),
+                ({**good, 'stm32f4': {'stm32f407disco': {'cmake': dict(ROW, roles=['gadget'])}}}, 'roles: gadget is not a group under examples/'),
+                ({**good, 'stm32f4': {'stm32f407disco': {'cmake': dict(ROW, roles=[1])}}}, 'roles must be a sorted list'),
+                ({**good, 'stm32f4': {'stm32f407disco': {'cmake': dict(ROW, roles=[{}])}}}, 'roles must be a sorted list'),
                 ({**good, 'stm32f4': {'stm32f407disco': {'cmake': dict(ROW, portable=[str(root / 'src' / 'portable' / 'synopsys/dwc2/dcd_dwc2.c')])}}}, 'is not a relative path'),
                 ({**good, 'stm32f4': {'stm32f407disco': {'cmake': dict(ROW, portable=['../portable/synopsys/dwc2/dcd_dwc2.c'])}}}, 'is not a relative path'),
                 ({**good, 'stm32f4': {'stm32f407disco': {'cmake': dict(ROW, mcu='OPT_MCU_BOGUS')}}}, 'is not an OPT_MCU_* defined in src/tusb_option.h'),
@@ -364,6 +448,60 @@ class Check(unittest.TestCase):
                 with contextlib.redirect_stdout(io.StringIO()) as out:
                     self.assertEqual(fj.main(['fix']), 1)
                 self.assertIn('updated: stage it and commit again', out.getvalue())
+
+    def test_a_stale_row_whose_reobservation_failed_is_reported_and_exits_1(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = fixture_root(d)
+            path = root / 'hw' / 'bsp' / 'family.json'
+            path.write_text(fj.canonical_text({'stm32f4': {'stm32f407disco': {'cmake': ROW}}}))
+            changed = ['hw/bsp/stm32f4/boards/stm32f407disco/board.cmake']
+            answers = {}
+
+            def run(argv, **kw):
+                return mock.Mock(**answers)
+            # the board's own cmake changed, so its row is stale; the configure fails
+            answers = {'returncode': 1, 'stderr': 'family.json: not updated: stm32f4 deps not at their pins: x\n'}
+            with contextlib.redirect_stdout(io.StringIO()):
+                changed_file, problems = fj.fix(path, root, run, changed)
+            self.assertFalse(changed_file, 'the row it could not observe is kept')
+            self.assertEqual(problems, ['stm32f4/stm32f407disco: row kept from before the change that made it stale: '
+                                        'family.json: not updated: stm32f4 deps not at their pins: x'])
+            self.assertEqual(json.loads(path.read_text())['stm32f4']['stm32f407disco']['cmake'], ROW)
+            with mock.patch.object(fj, 'CATALOG', path), mock.patch.object(fj, 'ROOT', root), \
+                    mock.patch.object(fj, 'changed_cmake', return_value=changed), \
+                    mock.patch('subprocess.run', run), contextlib.redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(fj.main(['fix']), 1)
+            self.assertIn('row kept from before the change that made it stale', out.getvalue())
+            # observed again, unchanged: nothing to report
+            answers = {'returncode': 0, 'stderr': 'family.json: unchanged stm32f407disco\n'}
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(fj.fix(path, root, run, changed), (False, []))
+
+    def test_a_malformed_entry_keeps_its_structural_diagnostic_and_nothing_else(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = fixture_root(d)
+            path = root / 'hw' / 'bsp' / 'family.json'
+            path.write_text(json.dumps({'stm32f4': {'stm32f407disco': ['malformed']}}))
+
+            def run(argv, **kw):
+                return mock.Mock(returncode=1, stderr='family.json: not updated: no toolchain\n')
+            with contextlib.redirect_stdout(io.StringIO()):
+                _, problems = fj.fix(path, root, run, ['hw/bsp/stm32f4/boards/stm32f407disco/board.cmake'])
+            self.assertEqual(problems, ['stm32f4/stm32f407disco: an entry is {"cmake": ...} and nothing else'],
+                             'a row that is not a mapping is check()\'s to report, and repair must not trip over it')
+
+    def test_a_board_with_no_row_at_all_gets_only_its_own_diagnostic(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = fixture_root(d)
+            path = root / 'hw' / 'bsp' / 'family.json'
+            path.write_text(fj.canonical_text({}))
+
+            def run(argv, **kw):
+                return mock.Mock(returncode=1, stderr='family.json: not updated: no toolchain\n')
+            with contextlib.redirect_stdout(io.StringIO()):
+                _, problems = fj.fix(path, root, run, ['hw/bsp/stm32f4/boards/stm32f407disco/board.cmake'])
+            self.assertEqual(problems, ['stm32f4: no row for any of its 1 boards'],
+                             'a board with nothing to keep is reported once, by check()')
 
     def test_the_catalog_in_this_tree_is_complete(self):
         # what the pre-commit hook guarantees: every board dir has a row, every row a board

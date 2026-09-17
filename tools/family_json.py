@@ -4,7 +4,7 @@ the configure's own outputs, never scraped from cmake text.
 
     {"<family>": {"<board>": {"cmake": {"defines": {...}, "family_mcus": [...],
                                         "mcu": "OPT_MCU_*", "options": {...},
-                                        "portable": [...]}}}}
+                                        "portable": [...], "roles": [...]}}}}
 
 A row is written by tools/build.py after a default configure of the board (no -D or
 --cflag, the gcc toolchain, the family's deps at their pins, into a dir that did not
@@ -16,9 +16,12 @@ and the canonical serialization byte for byte. `fix` is what pre-commit runs: it
 rows of boards that are gone, configures once into a fresh private dir every board that
 has no row and every board whose cmake the commit changes, rewrites the file canonical,
 and exits 1 when it changed anything, so the commit is retried with the file staged, the
-way codespell's fixes are. `refresh` is the release sweep: every cmake board re-observed the
-same way, exit 1 when any board could not be. Between releases an edit to what every row is
-observed through (src/common/tusb_mcu.h, hw/bsp/family_support.cmake) is not detected.
+way codespell's fixes are. `roles` is which of the groups under examples/ the configure built a target of, the half of
+driver coverage `portable` cannot answer: a board compiling an hcd its family always compiles
+covers nothing if it configures no host or dual example. `refresh` is the release sweep: every
+cmake board re-observed the same way, exit 1 when any board could not be. Between releases an
+edit to what every row is observed through (src/common/tusb_mcu.h, hw/bsp/family_support.cmake,
+and for `roles` an example's own CMakeLists.txt, skip.txt or only.txt) is not detected.
 """
 import argparse
 import json
@@ -33,7 +36,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / 'hw' / 'bsp' / 'family.json'
 PART = 'family.json.part'
-FIELDS = ('defines', 'family_mcus', 'mcu', 'options', 'portable')
+FIELDS = ('defines', 'family_mcus', 'mcu', 'options', 'portable', 'roles')
 # Make-only boards, the one hand-typed fact in the file
 NULL_BOARDS = {'pic32mz': ('olimex_emz64', 'olimex_hmz144')}
 DIRECTIVE = re.compile(r'^\s*#\s*(if|elif|ifdef|ifndef)\b(.*)$')
@@ -140,10 +143,23 @@ def defines_of(tokens):
     return out
 
 
+def example_groups(root=ROOT):
+    """The groups examples/CMakeLists.txt adds as subdirectories, read from the tree rather
+    than from its EXAMPLES_LIST: a directory under examples/ with a CMakeLists.txt of its
+    own. One vocabulary for `roles`, shared by the observer and the validator."""
+    ex = Path(root) / 'examples'
+    return {d.name for d in ex.iterdir() if d.is_dir() and (d / 'CMakeLists.txt').is_file()} if ex.is_dir() else set()
+
+
 def observe(build_dir, root=None):
     """(family, board, row, entries) from one configured build dir, or a Failure. Entries
     are the compile commands of TinyUSB translation units under src/; the row's `mcu`
-    must agree across them and `defines` is their union, one value per key."""
+    must agree across them and `defines` is their union, one value per key. `roles` is read
+    the same way, from the example sources the configure compiled: an example compiles its
+    own sources, so a translation unit under examples/<group>/<example>/ is that target,
+    configured. It says a target of that group exists, not which examples they were, and an
+    example whose CMakeLists.txt returns before adding a target contributes nothing, which
+    is the point: passing the family filter is not proof of a target."""
     build_dir, root = Path(build_dir), Path(root or ROOT)
     try:
         part = json.loads((build_dir / PART).read_text(encoding='utf-8'))
@@ -158,11 +174,17 @@ def observe(build_dir, root=None):
     except ValueError as e:
         raise Failure(f'compile_commands.json in {build_dir} is not valid JSON ({e})')
     src = (root / 'src').resolve()
-    entries = []
+    examples = (root / 'examples').resolve()
+    groups = example_groups(root)
+    entries, roles = [], set()
     for e in db:
         f = Path(e['directory'], e['file']).resolve()
         if src in f.parents:
             entries.append((f.relative_to(src).as_posix(), e))
+        elif examples in f.parents:
+            parts = f.relative_to(examples).parts
+            if len(parts) > 2 and parts[0] in groups and (examples / parts[0] / parts[1]).is_dir():
+                roles.add(parts[0])
     if not entries:
         raise Failure(f'no TinyUSB translation unit in {build_dir}/compile_commands.json')
     tested = tested_identifiers((root / 'src' / 'common' / 'tusb_mcu.h').read_text(encoding='utf-8'))
@@ -189,6 +211,7 @@ def observe(build_dir, root=None):
     row = {
         'defines': defines, 'family_mcus': sorted(set(part['family_mcus'])), 'mcu': mcu,
         'options': dict(part.get('options', {})), 'portable': sorted(portable),
+        'roles': sorted(roles),
     }
     return part['family'], part['board'], row, [e for _, e in entries]
 
@@ -281,10 +304,11 @@ def _lock(f):
 
 def join(build_dirs):
     """(family, board, row, entries) over the dirs of one configure (Espressif has one
-    per example): the same board everywhere, the row fields agreeing, `portable` the
-    union."""
+    per example): the same board everywhere, the row fields agreeing, `portable` and
+    `roles` the union — one Espressif dir holds one example, so its roles are one
+    group of the board's."""
     family = board = row = None
-    portable, entries = set(), []
+    portable, roles, entries = set(), set(), []
     for d in build_dirs:
         f, b, r, es = observe(d)
         if row is None:
@@ -296,10 +320,12 @@ def join(build_dirs):
                 if r[k] != row[k]:
                     raise Failure(f'{k} differs between example trees: {row[k]} and {r[k]} ({d})')
         portable.update(r['portable'])
+        roles.update(r['roles'])
         entries.extend(es)
     if row is None:
         raise Failure('no configured build dir')
     row['portable'] = sorted(portable)
+    row['roles'] = sorted(roles)
     return family, board, row, entries
 
 
@@ -387,9 +413,11 @@ def stale_rows(changed, tree):
     cmake it was configured from: a file under the board's own dir is that board, one in
     the family dir is every board of the family. A family's cmake is its .cmake files and
     its CMakeLists.txt: hw/bsp/espressif/components/tinyusb_src/CMakeLists.txt is where
-    every Espressif row's portable sources and defines come from. hw/bsp/family_support.cmake and
-    src/common/tusb_mcu.h are left out on purpose: each feeds every row, and re-observing all
-    of them is a sweep, not a hook; that sweep is `refresh`, run when a release is cut."""
+    every Espressif row's portable sources and defines come from. hw/bsp/family_support.cmake,
+    src/common/tusb_mcu.h and the example tree (an example's CMakeLists.txt, skip.txt or
+    only.txt decides `roles` for any board) are left out on purpose: each feeds every row, and
+    re-observing all of them is a sweep, not a hook; that sweep is `refresh`, run when a
+    release is cut."""
     out = set()
     for p in changed:
         parts = p.split('/')
@@ -466,9 +494,22 @@ def fix(path=CATALOG, root=ROOT, run=subprocess.run, changed_paths=None):
             if board not in NULL_BOARDS.get(family, ())
             and (not isinstance(data.get(family, {}).get(board), dict)
                  or data[family][board].get('cmake') is None or (family, board) in stale)]
-    reobserve(todo, root, run)
+    failed = reobserve(todo, root, run)
     changed = (path.read_text(encoding='utf-8') if path.is_file() else None) != before
-    return changed, check(path, root)
+    problems = check(path, root)
+    try:
+        after = load(path)
+    except Failure:
+        after = {}
+    # A row this run decided was stale, whose board would not be observed, is not what the
+    # tree configures any more: keeping it quietly would make the catalog the last
+    # successful observation rather than the truth. A board merely un-observable here,
+    # whose row nothing invalidated, keeps its row without a word, as before.
+    for family, board, why in failed:
+        entry = after.get(family, {}).get(board)
+        if (family, board) in stale and isinstance(entry, dict) and entry.get('cmake') is not None:
+            problems.append(f'{family}/{board}: row kept from before the change that made it stale: {why}')
+    return changed, problems
 
 
 def refresh(path=CATALOG, root=ROOT, run=subprocess.run):
@@ -490,7 +531,7 @@ def row_violations(row, mcus, root):
         return [f'fields must be exactly {", ".join(FIELDS)}']
     if not isinstance(row['mcu'], str) or row['mcu'] not in mcus:
         out.append(f'mcu {row["mcu"]!r} is not an OPT_MCU_* defined in src/tusb_option.h')
-    for name in ('family_mcus', 'portable'):
+    for name in ('family_mcus', 'portable', 'roles'):
         v = row[name]
         if not isinstance(v, list) or not all(isinstance(x, str) for x in v) or v != sorted(set(v)):
             out.append(f'{name} must be a sorted list of unique strings')
@@ -504,6 +545,10 @@ def row_violations(row, mcus, root):
             if not isinstance(p, str) or p.startswith('/') or '..' in p.split('/') \
                     or not (root / 'src' / 'portable' / p).is_file():
                 out.append(f'portable entry {p!r} is not a relative path to a file under src/portable/')
+    if isinstance(row['roles'], list) and all(isinstance(x, str) for x in row['roles']):
+        unknown = sorted(set(row['roles']) - example_groups(root))
+        if unknown:
+            out.append(f'roles: {", ".join(unknown)} is not a group under examples/')
     if isinstance(row['family_mcus'], list) and isinstance(row['options'], dict):
         if ('MAX3421' in row['family_mcus']) != (row['options'].get('MAX3421_HOST') == '1'):
             out.append('MAX3421 belongs in family_mcus exactly when options.MAX3421_HOST is "1"')

@@ -11,6 +11,9 @@
         "portable": [
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
           "st/stm32_fsdev/fsdev_common.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -28,6 +31,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -45,6 +52,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     }
@@ -61,6 +72,9 @@
         "portable": [
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
           "st/stm32_fsdev/fsdev_common.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -75,6 +89,9 @@
         "portable": [
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
           "st/stm32_fsdev/fsdev_common.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -89,6 +106,9 @@
         "portable": [
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
           "st/stm32_fsdev/fsdev_common.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -105,6 +125,9 @@
         "portable": [
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
           "st/stm32_fsdev/fsdev_common.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -122,6 +145,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     }
@@ -139,6 +166,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     }
@@ -156,6 +187,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     }
@@ -173,6 +208,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -188,6 +227,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     }
@@ -205,6 +248,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -220,6 +267,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -235,6 +286,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     }
@@ -252,6 +307,9 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -270,6 +328,9 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -286,6 +347,9 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -301,6 +365,9 @@
         "options": {},
         "portable": [
           "wch/dcd_ch32_usbhs.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -316,6 +383,9 @@
         "options": {},
         "portable": [
           "wch/dcd_ch32_usbfs.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -329,6 +399,9 @@
         "options": {},
         "portable": [
           "wch/dcd_ch32_usbfs.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -349,6 +422,11 @@
           "st/stm32_fsdev/fsdev_common.c",
           "wch/dcd_ch32_usbfs.c",
           "wch/hcd_ch32_usbfs.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -367,6 +445,11 @@
           "st/stm32_fsdev/fsdev_common.c",
           "wch/dcd_ch32_usbfs.c",
           "wch/hcd_ch32_usbfs.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -385,6 +468,11 @@
           "st/stm32_fsdev/fsdev_common.c",
           "wch/dcd_ch32_usbfs.c",
           "wch/hcd_ch32_usbfs.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     }
@@ -403,6 +491,9 @@
         "portable": [
           "wch/dcd_ch32_usbfs.c",
           "wch/dcd_ch32_usbhs.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -419,6 +510,9 @@
         "portable": [
           "wch/dcd_ch32_usbfs.c",
           "wch/dcd_ch32_usbhs.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -436,6 +530,9 @@
         "options": {},
         "portable": [
           "wch/dcd_ch32_usbfs.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -451,6 +548,9 @@
         "options": {},
         "portable": [
           "wch/dcd_ch32_usbfs.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -466,6 +566,9 @@
         "options": {},
         "portable": [
           "sony/cxd56/dcd_cxd56.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -481,6 +584,9 @@
         "options": {},
         "portable": [
           "dialog/da146xx/dcd_da146xx.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -494,6 +600,9 @@
         "options": {},
         "portable": [
           "dialog/da146xx/dcd_da146xx.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -511,6 +620,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     }
@@ -534,6 +647,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -555,6 +672,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -576,6 +697,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -597,6 +722,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -612,6 +741,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -633,6 +766,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -648,6 +785,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -669,6 +810,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -690,6 +835,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -705,6 +854,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -720,6 +873,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -735,6 +892,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -750,6 +911,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -765,6 +930,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -780,6 +949,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     }
@@ -795,6 +968,9 @@
         "options": {},
         "portable": [
           "sunxi/dcd_sunxi_musb.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -810,6 +986,9 @@
         "options": {},
         "portable": [
           "valentyusb/eptri/dcd_eptri.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -825,6 +1004,9 @@
         "options": {},
         "portable": [
           "bridgetek/ft9xx/dcd_ft9xx.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -842,6 +1024,9 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -859,6 +1044,10 @@
           "chipidea/ci_hs/dcd_ci_hs.c",
           "chipidea/ci_hs/hcd_ci_hs.c",
           "ehci/ehci.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     }
@@ -876,6 +1065,11 @@
           "chipidea/ci_hs/dcd_ci_hs.c",
           "chipidea/ci_hs/hcd_ci_hs.c",
           "ehci/ehci.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -891,6 +1085,11 @@
           "chipidea/ci_hs/dcd_ci_hs.c",
           "chipidea/ci_hs/hcd_ci_hs.c",
           "ehci/ehci.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -906,6 +1105,11 @@
           "chipidea/ci_hs/dcd_ci_hs.c",
           "chipidea/ci_hs/hcd_ci_hs.c",
           "ehci/ehci.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -921,6 +1125,11 @@
           "chipidea/ci_hs/dcd_ci_hs.c",
           "chipidea/ci_hs/hcd_ci_hs.c",
           "ehci/ehci.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -936,6 +1145,11 @@
           "chipidea/ci_hs/dcd_ci_hs.c",
           "chipidea/ci_hs/hcd_ci_hs.c",
           "ehci/ehci.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -951,6 +1165,11 @@
           "chipidea/ci_hs/dcd_ci_hs.c",
           "chipidea/ci_hs/hcd_ci_hs.c",
           "ehci/ehci.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -966,6 +1185,11 @@
           "chipidea/ci_hs/dcd_ci_hs.c",
           "chipidea/ci_hs/hcd_ci_hs.c",
           "ehci/ehci.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -981,6 +1205,11 @@
           "chipidea/ci_hs/dcd_ci_hs.c",
           "chipidea/ci_hs/hcd_ci_hs.c",
           "ehci/ehci.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -996,6 +1225,11 @@
           "chipidea/ci_hs/dcd_ci_hs.c",
           "chipidea/ci_hs/hcd_ci_hs.c",
           "ehci/ehci.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -1011,6 +1245,11 @@
           "chipidea/ci_hs/dcd_ci_hs.c",
           "chipidea/ci_hs/hcd_ci_hs.c",
           "ehci/ehci.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -1026,6 +1265,11 @@
           "chipidea/ci_hs/dcd_ci_hs.c",
           "chipidea/ci_hs/hcd_ci_hs.c",
           "ehci/ehci.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     }
@@ -1042,6 +1286,10 @@
         "portable": [
           "chipidea/ci_fs/dcd_ci_fs.c",
           "chipidea/ci_fs/hcd_ci_fs.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -1056,6 +1304,10 @@
         "portable": [
           "chipidea/ci_fs/dcd_ci_fs.c",
           "chipidea/ci_fs/hcd_ci_fs.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     }
@@ -1072,6 +1324,9 @@
         "portable": [
           "chipidea/ci_fs/dcd_ci_fs.c",
           "chipidea/ci_fs/hcd_ci_fs.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -1086,6 +1341,9 @@
         "portable": [
           "chipidea/ci_fs/dcd_ci_fs.c",
           "chipidea/ci_fs/hcd_ci_fs.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -1100,6 +1358,9 @@
         "portable": [
           "chipidea/ci_fs/dcd_ci_fs.c",
           "chipidea/ci_fs/hcd_ci_fs.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -1116,6 +1377,10 @@
         "portable": [
           "chipidea/ci_fs/dcd_ci_fs.c",
           "chipidea/ci_fs/hcd_ci_fs.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     }
@@ -1131,6 +1396,9 @@
         "options": {},
         "portable": [
           "nxp/lpc_ip3511/dcd_lpc_ip3511.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -1144,6 +1412,9 @@
         "options": {},
         "portable": [
           "nxp/lpc_ip3511/dcd_lpc_ip3511.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -1159,6 +1430,9 @@
         "options": {},
         "portable": [
           "nxp/lpc_ip3511/dcd_lpc_ip3511.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -1174,6 +1448,9 @@
         "options": {},
         "portable": [
           "nxp/lpc_ip3511/dcd_lpc_ip3511.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -1190,6 +1467,10 @@
         "portable": [
           "nxp/lpc17_40/dcd_lpc17_40.c",
           "ohci/ohci.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -1204,6 +1485,10 @@
         "portable": [
           "nxp/lpc17_40/dcd_lpc17_40.c",
           "ohci/ohci.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     }
@@ -1221,6 +1506,10 @@
           "chipidea/ci_hs/dcd_ci_hs.c",
           "chipidea/ci_hs/hcd_ci_hs.c",
           "ehci/ehci.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -1236,6 +1525,11 @@
           "chipidea/ci_hs/dcd_ci_hs.c",
           "chipidea/ci_hs/hcd_ci_hs.c",
           "ehci/ehci.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     }
@@ -1252,6 +1546,11 @@
         "portable": [
           "nxp/lpc17_40/dcd_lpc17_40.c",
           "ohci/ohci.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     }
@@ -1269,6 +1568,11 @@
           "chipidea/ci_hs/dcd_ci_hs.c",
           "chipidea/ci_hs/hcd_ci_hs.c",
           "ehci/ehci.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -1284,6 +1588,11 @@
           "chipidea/ci_hs/dcd_ci_hs.c",
           "chipidea/ci_hs/hcd_ci_hs.c",
           "ehci/ehci.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     }
@@ -1299,6 +1608,9 @@
         "options": {},
         "portable": [
           "nxp/lpc_ip3511/dcd_lpc_ip3511.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -1315,6 +1627,9 @@
         "portable": [
           "nxp/lpc_ip3511/dcd_lpc_ip3511.c",
           "nxp/lpc_ip3516/hcd_lpc_ip3516.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -1329,6 +1644,10 @@
         "portable": [
           "nxp/lpc_ip3511/dcd_lpc_ip3511.c",
           "ohci/ohci.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -1343,6 +1662,10 @@
         "portable": [
           "nxp/lpc_ip3511/dcd_lpc_ip3511.c",
           "ohci/ohci.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     }
@@ -1359,6 +1682,10 @@
         "portable": [
           "nxp/lpc_ip3511/dcd_lpc_ip3511.c",
           "ohci/ohci.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -1373,6 +1700,10 @@
         "portable": [
           "nxp/lpc_ip3511/dcd_lpc_ip3511.c",
           "ohci/ohci.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -1387,6 +1718,10 @@
         "portable": [
           "nxp/lpc_ip3511/dcd_lpc_ip3511.c",
           "ohci/ohci.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -1401,6 +1736,10 @@
         "portable": [
           "nxp/lpc_ip3511/dcd_lpc_ip3511.c",
           "ohci/ohci.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     }
@@ -1416,6 +1755,9 @@
         "options": {},
         "portable": [
           "mentor/musb/dcd_musb.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -1429,6 +1771,9 @@
         "options": {},
         "portable": [
           "mentor/musb/dcd_musb.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -1442,6 +1787,9 @@
         "options": {},
         "portable": [
           "mentor/musb/dcd_musb.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -1455,6 +1803,9 @@
         "options": {},
         "portable": [
           "mentor/musb/dcd_musb.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -1468,6 +1819,9 @@
         "options": {},
         "portable": [
           "mentor/musb/dcd_musb.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -1481,6 +1835,9 @@
         "options": {},
         "portable": [
           "mentor/musb/dcd_musb.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -1494,6 +1851,9 @@
         "options": {},
         "portable": [
           "mentor/musb/dcd_musb.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -1507,6 +1867,9 @@
         "options": {},
         "portable": [
           "mentor/musb/dcd_musb.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -1522,6 +1885,9 @@
         "options": {},
         "portable": [
           "chipidea/ci_fs/dcd_ci_fs.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -1535,6 +1901,9 @@
         "options": {},
         "portable": [
           "chipidea/ci_fs/dcd_ci_fs.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -1548,6 +1917,9 @@
         "options": {},
         "portable": [
           "chipidea/ci_hs/dcd_ci_hs.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -1561,6 +1933,9 @@
         "options": {},
         "portable": [
           "chipidea/ci_hs/dcd_ci_hs.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -1576,6 +1951,9 @@
         "options": {},
         "portable": [
           "mindmotion/mm32/dcd_mm32f327x_otg.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -1589,6 +1967,9 @@
         "options": {},
         "portable": [
           "mindmotion/mm32/dcd_mm32f327x_otg.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -1604,6 +1985,9 @@
         "options": {},
         "portable": [
           "ti/msp430x5xx/dcd_msp430x5xx.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -1620,6 +2004,10 @@
         "portable": [
           "mentor/musb/dcd_musb.c",
           "mentor/musb/hcd_musb.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     }
@@ -1635,6 +2023,9 @@
         "options": {},
         "portable": [
           "nordic/nrf5x/dcd_nrf5x.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -1648,6 +2039,9 @@
         "options": {},
         "portable": [
           "nordic/nrf5x/dcd_nrf5x.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -1661,6 +2055,9 @@
         "options": {},
         "portable": [
           "nordic/nrf5x/dcd_nrf5x.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -1674,6 +2071,9 @@
         "options": {},
         "portable": [
           "nordic/nrf5x/dcd_nrf5x.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -1687,6 +2087,9 @@
         "options": {},
         "portable": [
           "nordic/nrf5x/dcd_nrf5x.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -1700,6 +2103,9 @@
         "options": {},
         "portable": [
           "nordic/nrf5x/dcd_nrf5x.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -1713,6 +2119,9 @@
         "options": {},
         "portable": [
           "nordic/nrf5x/dcd_nrf5x.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -1726,6 +2135,9 @@
         "options": {},
         "portable": [
           "nordic/nrf5x/dcd_nrf5x.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -1739,6 +2151,9 @@
         "options": {},
         "portable": [
           "nordic/nrf5x/dcd_nrf5x.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -1752,6 +2167,9 @@
         "options": {},
         "portable": [
           "nordic/nrf5x/dcd_nrf5x.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -1767,6 +2185,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -1782,6 +2204,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     }
@@ -1798,6 +2224,9 @@
         "options": {},
         "portable": [
           "nuvoton/nuc120/dcd_nuc120.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -1813,6 +2242,9 @@
         "options": {},
         "portable": [
           "nuvoton/nuc121/dcd_nuc121.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -1826,6 +2258,9 @@
         "options": {},
         "portable": [
           "nuvoton/nuc121/dcd_nuc121.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -1841,6 +2276,9 @@
         "options": {},
         "portable": [
           "nuvoton/nuc121/dcd_nuc121.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -1856,6 +2294,9 @@
         "options": {},
         "portable": [
           "nuvoton/nuc505/dcd_nuc505.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -1879,6 +2320,9 @@
         "options": {},
         "portable": [
           "mentor/musb/dcd_musb.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -1897,6 +2341,11 @@
           "renesas/rusb2/dcd_rusb2.c",
           "renesas/rusb2/hcd_rusb2.c",
           "renesas/rusb2/rusb2_common.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -1913,6 +2362,10 @@
           "renesas/rusb2/dcd_rusb2.c",
           "renesas/rusb2/hcd_rusb2.c",
           "renesas/rusb2/rusb2_common.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -1929,6 +2382,10 @@
           "renesas/rusb2/dcd_rusb2.c",
           "renesas/rusb2/hcd_rusb2.c",
           "renesas/rusb2/rusb2_common.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -1945,6 +2402,10 @@
           "renesas/rusb2/dcd_rusb2.c",
           "renesas/rusb2/hcd_rusb2.c",
           "renesas/rusb2/rusb2_common.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -1961,6 +2422,10 @@
           "renesas/rusb2/dcd_rusb2.c",
           "renesas/rusb2/hcd_rusb2.c",
           "renesas/rusb2/rusb2_common.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -1977,6 +2442,11 @@
           "renesas/rusb2/dcd_rusb2.c",
           "renesas/rusb2/hcd_rusb2.c",
           "renesas/rusb2/rusb2_common.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -1993,6 +2463,10 @@
           "renesas/rusb2/dcd_rusb2.c",
           "renesas/rusb2/hcd_rusb2.c",
           "renesas/rusb2/rusb2_common.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -2009,6 +2483,10 @@
           "renesas/rusb2/dcd_rusb2.c",
           "renesas/rusb2/hcd_rusb2.c",
           "renesas/rusb2/rusb2_common.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     }
@@ -2028,6 +2506,11 @@
           "raspberrypi/rp2040/dcd_rp2040.c",
           "raspberrypi/rp2040/hcd_rp2040.c",
           "raspberrypi/rp2040/rp2040_usb.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -2045,6 +2528,11 @@
           "raspberrypi/rp2040/dcd_rp2040.c",
           "raspberrypi/rp2040/hcd_rp2040.c",
           "raspberrypi/rp2040/rp2040_usb.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -2062,6 +2550,11 @@
           "raspberrypi/rp2040/dcd_rp2040.c",
           "raspberrypi/rp2040/hcd_rp2040.c",
           "raspberrypi/rp2040/rp2040_usb.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -2085,6 +2578,11 @@
           "raspberrypi/rp2040/dcd_rp2040.c",
           "raspberrypi/rp2040/hcd_rp2040.c",
           "raspberrypi/rp2040/rp2040_usb.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -2102,6 +2600,11 @@
           "raspberrypi/rp2040/dcd_rp2040.c",
           "raspberrypi/rp2040/hcd_rp2040.c",
           "raspberrypi/rp2040/rp2040_usb.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -2119,6 +2622,11 @@
           "raspberrypi/rp2040/dcd_rp2040.c",
           "raspberrypi/rp2040/hcd_rp2040.c",
           "raspberrypi/rp2040/rp2040_usb.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -2136,6 +2644,11 @@
           "raspberrypi/rp2040/dcd_rp2040.c",
           "raspberrypi/rp2040/hcd_rp2040.c",
           "raspberrypi/rp2040/rp2040_usb.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -2153,6 +2666,11 @@
           "raspberrypi/rp2040/dcd_rp2040.c",
           "raspberrypi/rp2040/hcd_rp2040.c",
           "raspberrypi/rp2040/rp2040_usb.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -2170,6 +2688,11 @@
           "raspberrypi/rp2040/dcd_rp2040.c",
           "raspberrypi/rp2040/hcd_rp2040.c",
           "raspberrypi/rp2040/rp2040_usb.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     }
@@ -2187,6 +2710,10 @@
           "chipidea/ci_hs/dcd_ci_hs.c",
           "chipidea/ci_hs/hcd_ci_hs.c",
           "ehci/ehci.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     }
@@ -2204,6 +2731,10 @@
           "renesas/rusb2/dcd_rusb2.c",
           "renesas/rusb2/hcd_rusb2.c",
           "renesas/rusb2/rusb2_common.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -2219,6 +2750,10 @@
           "renesas/rusb2/dcd_rusb2.c",
           "renesas/rusb2/hcd_rusb2.c",
           "renesas/rusb2/rusb2_common.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     }
@@ -2234,6 +2769,9 @@
         "options": {},
         "portable": [
           "microchip/samd/dcd_samd.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -2247,6 +2785,9 @@
         "options": {},
         "portable": [
           "microchip/samd/dcd_samd.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -2264,6 +2805,10 @@
         "portable": [
           "microchip/samd/dcd_samd.c",
           "microchip/samd/hcd_samd.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -2278,6 +2823,9 @@
         "options": {},
         "portable": [
           "microchip/samd/dcd_samd.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -2293,6 +2841,10 @@
         "portable": [
           "microchip/samd/dcd_samd.c",
           "microchip/samd/hcd_samd.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -2308,6 +2860,10 @@
         "portable": [
           "microchip/samd/dcd_samd.c",
           "microchip/samd/hcd_samd.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -2323,6 +2879,10 @@
         "portable": [
           "microchip/samd/dcd_samd.c",
           "microchip/samd/hcd_samd.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -2338,6 +2898,10 @@
         "portable": [
           "microchip/samd/dcd_samd.c",
           "microchip/samd/hcd_samd.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -2353,6 +2917,10 @@
         "portable": [
           "microchip/samd/dcd_samd.c",
           "microchip/samd/hcd_samd.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -2368,6 +2936,10 @@
         "portable": [
           "microchip/samd/dcd_samd.c",
           "microchip/samd/hcd_samd.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -2383,6 +2955,10 @@
         "portable": [
           "microchip/samd/dcd_samd.c",
           "microchip/samd/hcd_samd.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -2397,6 +2973,9 @@
         "options": {},
         "portable": [
           "microchip/samd/dcd_samd.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -2412,6 +2991,10 @@
         "portable": [
           "microchip/samd/dcd_samd.c",
           "microchip/samd/hcd_samd.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -2426,6 +3009,9 @@
         "options": {},
         "portable": [
           "microchip/samd/dcd_samd.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -2441,6 +3027,10 @@
         "portable": [
           "microchip/samd/dcd_samd.c",
           "microchip/samd/hcd_samd.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -2456,6 +3046,10 @@
         "portable": [
           "microchip/samd/dcd_samd.c",
           "microchip/samd/hcd_samd.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     }
@@ -2473,6 +3067,10 @@
         "portable": [
           "microchip/samd/dcd_samd.c",
           "microchip/samd/hcd_samd.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -2488,6 +3086,10 @@
         "portable": [
           "microchip/samd/dcd_samd.c",
           "microchip/samd/hcd_samd.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -2503,6 +3105,10 @@
         "portable": [
           "microchip/samd/dcd_samd.c",
           "microchip/samd/hcd_samd.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -2518,6 +3124,10 @@
         "portable": [
           "microchip/samd/dcd_samd.c",
           "microchip/samd/hcd_samd.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -2533,6 +3143,10 @@
         "portable": [
           "microchip/samd/dcd_samd.c",
           "microchip/samd/hcd_samd.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -2548,6 +3162,10 @@
         "portable": [
           "microchip/samd/dcd_samd.c",
           "microchip/samd/hcd_samd.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -2563,6 +3181,10 @@
         "portable": [
           "microchip/samd/dcd_samd.c",
           "microchip/samd/hcd_samd.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     }
@@ -2578,6 +3200,9 @@
         "options": {},
         "portable": [
           "microchip/samx7x/dcd_samx7x.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -2591,6 +3216,9 @@
         "options": {},
         "portable": [
           "microchip/samx7x/dcd_samx7x.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -2606,6 +3234,9 @@
         "options": {},
         "portable": [
           "microchip/samg/dcd_samg.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -2624,6 +3255,11 @@
           "st/stm32_fsdev/fsdev_common.c",
           "st/stm32_fsdev/hcd_stm32_fsdev.c",
           "st/typec/typec_stm32.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     }
@@ -2641,6 +3277,11 @@
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
           "st/stm32_fsdev/fsdev_common.c",
           "st/stm32_fsdev/hcd_stm32_fsdev.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     }
@@ -2657,6 +3298,9 @@
         "portable": [
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
           "st/stm32_fsdev/fsdev_common.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -2671,6 +3315,9 @@
         "portable": [
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
           "st/stm32_fsdev/fsdev_common.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -2685,6 +3332,9 @@
         "portable": [
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
           "st/stm32_fsdev/fsdev_common.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -2703,6 +3353,9 @@
         "portable": [
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
           "st/stm32_fsdev/fsdev_common.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -2719,6 +3372,9 @@
         "portable": [
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
           "st/stm32_fsdev/fsdev_common.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -2735,6 +3391,9 @@
         "portable": [
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
           "st/stm32_fsdev/fsdev_common.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -2752,6 +3411,11 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     }
@@ -2770,6 +3434,9 @@
         "portable": [
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
           "st/stm32_fsdev/fsdev_common.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -2787,6 +3454,11 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -2802,6 +3474,11 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -2817,6 +3494,11 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -2832,6 +3514,11 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -2847,6 +3534,11 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -2862,6 +3554,11 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -2877,6 +3574,11 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -2892,6 +3594,11 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -2907,6 +3614,11 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -2922,6 +3634,11 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     }
@@ -2941,6 +3658,11 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -2958,6 +3680,11 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -2973,6 +3700,11 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -2988,6 +3720,11 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -3003,6 +3740,11 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -3018,6 +3760,11 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     }
@@ -3036,6 +3783,11 @@
           "st/stm32_fsdev/fsdev_common.c",
           "st/stm32_fsdev/hcd_stm32_fsdev.c",
           "st/typec/typec_stm32.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     }
@@ -3053,6 +3805,10 @@
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
           "st/stm32_fsdev/fsdev_common.c",
           "st/typec/typec_stm32.c"
+        ],
+        "roles": [
+          "device",
+          "typec"
         ]
       }
     },
@@ -3068,6 +3824,10 @@
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
           "st/stm32_fsdev/fsdev_common.c",
           "st/typec/typec_stm32.c"
+        ],
+        "roles": [
+          "device",
+          "typec"
         ]
       }
     },
@@ -3083,6 +3843,10 @@
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
           "st/stm32_fsdev/fsdev_common.c",
           "st/typec/typec_stm32.c"
+        ],
+        "roles": [
+          "device",
+          "typec"
         ]
       }
     }
@@ -3101,6 +3865,11 @@
           "st/stm32_fsdev/fsdev_common.c",
           "st/stm32_fsdev/hcd_stm32_fsdev.c",
           "st/typec/typec_stm32.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -3117,6 +3886,11 @@
           "st/stm32_fsdev/fsdev_common.c",
           "st/stm32_fsdev/hcd_stm32_fsdev.c",
           "st/typec/typec_stm32.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -3133,6 +3907,11 @@
           "st/stm32_fsdev/fsdev_common.c",
           "st/stm32_fsdev/hcd_stm32_fsdev.c",
           "st/typec/typec_stm32.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -3149,6 +3928,11 @@
           "st/stm32_fsdev/fsdev_common.c",
           "st/stm32_fsdev/hcd_stm32_fsdev.c",
           "st/typec/typec_stm32.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     }
@@ -3166,6 +3950,11 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -3181,6 +3970,11 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -3196,6 +3990,11 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -3211,6 +4010,11 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -3226,6 +4030,11 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -3241,6 +4050,11 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -3256,6 +4070,11 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -3271,6 +4090,11 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -3286,6 +4110,11 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -3301,6 +4130,11 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     }
@@ -3318,6 +4152,11 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     }
@@ -3334,6 +4173,9 @@
         "portable": [
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
           "st/stm32_fsdev/fsdev_common.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -3348,6 +4190,9 @@
         "portable": [
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
           "st/stm32_fsdev/fsdev_common.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -3366,6 +4211,9 @@
         "portable": [
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
           "st/stm32_fsdev/fsdev_common.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -3383,6 +4231,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -3400,6 +4252,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -3417,6 +4273,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -3434,6 +4294,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     }
@@ -3451,6 +4315,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     },
@@ -3466,6 +4334,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     }
@@ -3482,6 +4354,9 @@
         "portable": [
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
           "st/stm32_fsdev/fsdev_common.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -3496,6 +4371,9 @@
         "portable": [
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
           "st/stm32_fsdev/fsdev_common.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -3514,6 +4392,12 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host",
+          "typec"
         ]
       }
     },
@@ -3532,6 +4416,11 @@
           "st/stm32_fsdev/fsdev_common.c",
           "st/stm32_fsdev/hcd_stm32_fsdev.c",
           "st/typec/typec_stm32.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -3548,6 +4437,12 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host",
+          "typec"
         ]
       }
     },
@@ -3564,6 +4459,12 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host",
+          "typec"
         ]
       }
     },
@@ -3582,6 +4483,12 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host",
+          "typec"
         ]
       }
     }
@@ -3598,6 +4505,9 @@
         "portable": [
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
           "st/stm32_fsdev/fsdev_common.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -3615,6 +4525,10 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
         ]
       }
     }
@@ -3631,6 +4545,9 @@
         "portable": [
           "mentor/musb/dcd_musb.c",
           "mentor/musb/hcd_musb.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -3645,6 +4562,9 @@
         "portable": [
           "mentor/musb/dcd_musb.c",
           "mentor/musb/hcd_musb.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }
@@ -3662,6 +4582,9 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     },
@@ -3677,6 +4600,9 @@
           "synopsys/dwc2/dcd_dwc2.c",
           "synopsys/dwc2/dwc2_common.c",
           "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }

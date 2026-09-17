@@ -16,7 +16,7 @@ $R bump X.Y.Z                                      # tusb_option.h, repository.y
 .claude/skills/build-doc/scripts/gen_presets.py    # hw/bsp/BoardPresets.json + per-example CMakePresets.json
 . "$IDF_PATH/export.sh" && python3 tools/family_json.py refresh   # hw/bsp/family.json: every board re-observed
 ```
-`refresh` configures every cmake board once, Espressif included, so it needs every toolchain and every dependency at its pin (`tools/get_deps.py all`) and the ESP-IDF environment sourced; it exits 1 naming each board it could not observe, and a row it could not observe keeps its old value. Nothing between releases re-checks rows against `src/common/tusb_mcu.h` or `hw/bsp/family_support.cmake` edits; this step is where they catch up.
+`refresh` configures every cmake board once, Espressif included, so it needs every toolchain and every dependency at its pin (`tools/get_deps.py all`) and the ESP-IDF environment sourced; it exits 1 naming each board it could not observe, and a row it could not observe keeps its old value. Nothing between releases re-checks rows against `src/common/tusb_mcu.h`, `hw/bsp/family_support.cmake` or example-eligibility edits (an example's `CMakeLists.txt`, `skip.txt` or `only.txt`, which decide a row's `roles`); this step is where they catch up.
 `bump` refuses a version that is not `X.Y.Z` or equals the current one, and refuses (writing nothing) when a file's version line no longer matches its pattern — fix the file or the pattern, never hand-edit around it. The regenerated files change only if boards, deps or the HIL rosters did (see the build-doc skill for what a diff there means).
 
 ## 2. Changelog — `docs/changelog/` (the hard part)
