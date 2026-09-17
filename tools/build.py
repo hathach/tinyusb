@@ -11,6 +11,7 @@ from pathlib import Path
 from multiprocessing import Pool
 
 import build_utils
+import family_json
 
 STATUS_OK = "\033[32mOK\033[0m"
 STATUS_FAILED = "\033[31mFailed\033[0m"
@@ -26,6 +27,9 @@ build_status = [STATUS_OK, STATUS_FAILED, STATUS_SKIPPED]
 
 verbose = False
 parallel_jobs = os.cpu_count()
+configure_only = False
+# a configure with nothing but the board named: its row goes into hw/bsp/family.json
+canonical = False
 
 # CI board control lists (used when running under CI)
 ci_skip_boards = {
@@ -169,6 +173,7 @@ def cmake_board(board, build_args, build_name, build_cflags, build_targets, exam
     if family == 'espressif':
         # for espressif, we have to build example individually
         all_examples = get_examples(family)
+        configured, existed = [], []
         if examples is not None:
             all_examples = [e for e in all_examples if e in examples]
             if not all_examples:
@@ -178,11 +183,17 @@ def cmake_board(board, build_args, build_name, build_cflags, build_targets, exam
             if build_utils.skip_example(example, board, defines):
                 ret[2] += 1
             else:
+                if os.path.isdir(f'{build_dir}/{example}'):
+                    existed.append(f'{build_dir}/{example}')
                 rcmd = run_cmd([
                     'idf.py', '-C', f'examples/{example}', '-B', f'{build_dir}/{example}', '-GNinja',
-                    f'-DBOARD={board}', *build_flags, 'build'
+                    f'-DBOARD={board}', *build_flags, 'reconfigure' if configure_only else 'build'
                 ])
                 ret[0 if rcmd.returncode == 0 else 1] += 1
+                configured.append(f'{build_dir}/{example}')
+        # one idf tree per example: the row needs them all, so -e leaves it alone
+        if canonical and examples is None and configured and ret[1] == 0:
+            print(canonical_row(family, configured, existed), file=sys.stderr)
     else:
         # the skip.txt/only.txt prefilter reads no configure output: answer it first,
         # so a selection this board builds nothing of costs no cmake run at all
@@ -192,10 +203,15 @@ def cmake_board(board, build_args, build_name, build_cflags, build_targets, exam
             if not examples:
                 print_build_result(board, 'examples (PR filter)', 2, '-')
                 return [0, 0, 1]
+        existed = [build_dir] if os.path.isdir(build_dir) else []
         rcmd = run_cmd(['cmake', 'examples', '-B', build_dir, '-GNinja',
                         f'-DBOARD={board}', '-DCMAKE_BUILD_TYPE=MinSizeRel', '-DLINKERMAP_OPTION=-q -f tinyusb/src',
                         *build_args, *build_flags])
-        if rcmd.returncode == 0:
+        if rcmd.returncode == 0 and canonical:
+            print(canonical_row(family, [build_dir], existed), file=sys.stderr)
+        if rcmd.returncode == 0 and configure_only:
+            pass
+        elif rcmd.returncode == 0:
             target_groups = [[t] for t in build_targets]
             if examples is not None:
                 registered = cmake_registered_targets(build_dir)
@@ -224,6 +240,28 @@ def cmake_board(board, build_args, build_name, build_cflags, build_targets, exam
 
     print_build_result(board, ','.join(build_targets), 0 if ret[1] == 0 else 1, time.monotonic() - start_time)
     return ret
+
+
+def canonical_row(family, build_dirs, existed):
+    """Write the board's family.json row from a flag-free configure of dirs that did not
+    exist before it: a -D lives in the cache for the life of a dir, whatever type CMake
+    later gives the entry, so a configure into an existing dir is not the board's
+    default configuration. Off-pin deps are not it either, and neither is a bare command
+    line under an environment that carries compiler flags."""
+    # cmake seeds CMAKE_<LANG>_FLAGS from these on a first configure, for the languages
+    # examples/CMakeLists.txt enables (cmake-env-variables(7)), so CFLAGS=-DSTM32L476xx
+    # reaches every compile command and family_json.observe reads it as the board's own
+    env_flags = [v for v in ('CFLAGS', 'CXXFLAGS', 'ASMFLAGS') if os.environ.get(v, '').strip()]
+    if env_flags:
+        return f'family.json: not updated: {", ".join(env_flags)} set in the environment; ' \
+               f'cmake compiles with it, so this is not the board\'s default configuration'
+    if existed:
+        return f'family.json: not updated: {", ".join(existed)} existed before this configure; ' \
+               f'remove it to observe the default configuration'
+    missing = build_utils.missing_deps(family)
+    if missing:
+        return f'family.json: not updated: {family} deps not at their pins: {", ".join(missing)}'
+    return family_json.update(build_dirs)
 
 
 # -----------------------------
@@ -398,7 +436,10 @@ def main():
     parser.add_argument('-e', '--example', action='append', default=[],
                         help='Only build these examples (role/name, repeatable). Default: all examples')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
+    parser.add_argument('--configure-only', action='store_true',
+                        help='Configure without building (cmake only): enough to write the board\'s hw/bsp/family.json row')
     args = parser.parse_args()
+    global configure_only, canonical
 
     families = args.families
     boards = args.board
@@ -413,6 +454,13 @@ def main():
     examples = args.example or None
     verbose = args.verbose
     parallel_jobs = args.jobs
+    configure_only = args.configure_only
+    # decided before TOOLCHAIN= joins the defines: a -D, --cflag or another toolchain
+    # describes a variant, not the board. A private dir is fine (cmake_board refuses one
+    # with a leftover cache); -e only selects targets, the cmake tree configures whole.
+    # The command line is only half of it - canonical_row() refuses the flags CFLAGS and
+    # its siblings add to a configure this test cannot see
+    canonical = build_system == 'cmake' and not build_defines and not build_cflags and toolchain == 'gcc'
 
     for e in args.example:
         if not EXAMPLE_RE.fullmatch(e):
@@ -423,6 +471,10 @@ def main():
         # test names - so a stale one must be loud, not green
         if not os.path.isdir(os.path.join('examples', e)):
             parser.error(f"-e/--example '{e}': no such example directory examples/{e}")
+
+    # make builds in one pass, so the flag would be silently ignored there
+    if configure_only and build_system != 'cmake':
+        parser.error('--configure-only requires -s/--build-system cmake')
 
     build_defines.append(f'TOOLCHAIN={toolchain}')
 

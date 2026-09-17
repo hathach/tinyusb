@@ -3,6 +3,7 @@ dependency preflight, and the verdict it derives from tools/build.py's rows.
 The build itself is stubbed; a real board build is verified by running the script."""
 import importlib.util
 import json
+import os
 import sys
 import unittest
 from pathlib import Path
@@ -53,7 +54,10 @@ class ResolveTest(unittest.TestCase):
     def _main_scope(self, scope, built=None):
         built = built or {'board': 'b', 'family': 'f', 'buildDir': 'd', 'status': 'ok', 'firstError': '',
                           'okExamples': ['cdc_msc', 'cdc_msc_hid']}
-        with mock.patch.object(build, 'build_one', return_value=built) as b1, mock.patch('sys.stdout') as out:
+        # the scopes below name paths that exist nowhere, to drive ci_select's reasons:
+        # let them through the existence check as tracked deletions would be
+        with mock.patch.object(build, 'build_one', return_value=built) as b1, mock.patch('sys.stdout') as out, \
+             mock.patch.object(build, 'tracked', return_value=True):
             rc = build.main(['--scope', *scope])
         return rc, json.loads(out.write.call_args_list[0][0][0]), b1
 
@@ -213,8 +217,31 @@ class ResolveTest(unittest.TestCase):
         self.assertIn('hw/bsp/stm32f4/boards/stm32f411blackpill/probe_new_file.h', files)
 
     def test_a_file_scope_is_left_alone_and_an_empty_directory_is_an_error(self):
-        self.assertEqual(build.expand_scope(['src/tusb.c', 'no/such/path.c']),
-                         ['src/tusb.c', 'no/such/path.c'])
+        self.assertEqual(build.expand_scope(['src/tusb.c']), ['src/tusb.c'])
+        # a path in neither the tree nor the index would classify as the full matrix and
+        # come back green; a tracked file deleted from the tree is a real change
+        with self.assertRaises(SystemExit) as cm, mock.patch('sys.stdout'), mock.patch.object(sys, 'stderr') as err:
+            build.expand_scope(['src/tusb.c', 'no/such/path.c'])
+        self.assertEqual(cm.exception.code, 2)
+        self.assertIn('no/such/path.c does not exist and is not a tracked file', err.write.call_args[0][0])
+        # a deletion counts whether or not it is staged, and a pathspec is not a path
+        import os, subprocess, tempfile
+        # under a git hook GIT_DIR/GIT_INDEX_FILE point at THIS repository: scrub them, or
+        # the temporary repository's commit lands on the branch running the suite
+        env = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
+        with tempfile.TemporaryDirectory() as d, mock.patch.dict(os.environ, env, clear=True):
+            root = Path(d)
+            git = lambda *args: subprocess.run(['git', '-C', d, *args], check=True, env=env)
+            git('init', '-q'); git('config', 'user.email', 't@t'); git('config', 'user.name', 't')
+            (root / 'src').mkdir(); (root / 'src' / 'gone.c').write_text(''); (root / 'src' / 'kept.c').write_text('')
+            git('add', '.'); git('commit', '-q', '--no-verify', '-m', 'x')
+            (root / 'src' / 'gone.c').unlink()
+            with mock.patch.object(build, 'ROOT', root):
+                self.assertEqual(build.expand_scope(['src/gone.c']), ['src/gone.c'])
+                git('rm', '-q', '--cached', 'src/gone.c')
+                self.assertEqual(build.expand_scope(['src/gone.c']), ['src/gone.c'])
+                with self.assertRaises(SystemExit), mock.patch('sys.stdout'), mock.patch.object(sys, 'stderr'):
+                    build.expand_scope(['src/*.c'])
         with mock.patch.object(build.subprocess, 'run', return_value=mock.Mock(returncode=0, stdout='')), \
              mock.patch.object(build.Path, 'is_dir', return_value=True), mock.patch.object(sys, 'stderr'):
             with self.assertRaises(SystemExit) as cm:
@@ -233,6 +260,83 @@ class ResolveTest(unittest.TestCase):
             build.main(['--scope', 'src/tusb.c', '--base', 'HEAD'])  # a usage error, the same way
         self.assertEqual(cm.exception.code, 2)
         self.assertIn('not allowed with', json.loads(out.write.call_args_list[0][0][0])['error'])
+
+
+class CatalogTest(unittest.TestCase):
+    """Board selection and port coverage read hw/bsp/family.json rows and the
+    preprocessed driver body, not the family cmake files."""
+    DWC2, FSDEV = 'synopsys/dwc2/dcd_dwc2.c', 'st/stm32_fsdev/dcd_stm32_fsdev.c'
+    ROWS = {'stm32l4': {'stm32l476disco': {'cmake': {'portable': [DWC2]}},
+                        'stm32l412nucleo': {'cmake': {'portable': [FSDEV]}},
+                        'stm32l4r5nucleo': {'cmake': {'portable': [DWC2]}}}}
+    IPS = {'stm32l476disco': frozenset({'TUP_USBIP_DWC2'}), 'stm32l412nucleo': frozenset({'TUP_USBIP_FSDEV'}),
+           'stm32l4r5nucleo': None}
+
+    def setUp(self):
+        for name, value in (('catalog', lambda: self.ROWS), ('family_of', lambda b: 'stm32l4'),
+                            ('board_usbips', lambda b: self.IPS[b]),
+                            ('source_usbips', lambda src: frozenset({'TUP_USBIP_DWC2'} if 'dwc2' in src else {'TUP_USBIP_FSDEV'}))):
+            patcher = mock.patch.object(build, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_selection_adds_a_board_per_changed_driver_its_row_compiles(self):
+        pool = ['stm32l476disco', 'stm32l412nucleo']
+        # one board per driver: the dwc2 pick cannot stand in for fsdev
+        self.assertEqual(build.representatives(pool, None, {self.DWC2, self.FSDEV}), ['stm32l412nucleo', 'stm32l476disco'])
+        # a kept board that compiles the driver needs no second pick
+        self.assertEqual(build.representatives(pool, None, {self.DWC2}, keep=['stm32l476disco']), ['stm32l476disco'])
+        # a driver no row lists adds nothing: coverage() reports the gap after the build
+        self.assertEqual(build.representatives(pool, None, {'analog/max3421/hcd_max3421.c'}), ['stm32l476disco'])
+        # a row whose USB-IP probe cannot say (no host cc, SDK header) counts by its portable list
+        self.assertEqual(build.representatives(['stm32l4r5nucleo', 'stm32l412nucleo'], None, {self.DWC2}), ['stm32l4r5nucleo'])
+        # a listed driver whose guard needs an IP the board does not select is not compiled there
+        self.ROWS['stm32l4']['stm32l412nucleo']['cmake']['portable'].append(self.DWC2)
+        try:
+            self.assertFalse(build.compiles('stm32l412nucleo', self.DWC2))
+        finally:
+            self.ROWS['stm32l4']['stm32l412nucleo']['cmake']['portable'].remove(self.DWC2)
+
+    def test_port_gap_is_the_preprocessed_body_of_an_instance_this_run_built(self):
+        import tempfile
+        driver = 'src/portable/nordic/nrf5x/dcd_nrf5x.c'
+        reason = f"{driver}: port nordic/nrf5x -> families ['nrf']"
+        with tempfile.TemporaryDirectory() as d:
+            src = str(build.ROOT / driver)
+            entries = [{'directory': d, 'file': src, 'command': f'gcc -o {ex}/x.o -c {src}',
+                        'output': f'{d}/device/{ex}/CMakeFiles/x.dir/dcd_nrf5x.c.o'} for ex in ('cdc_msc', 'hid')]
+            Path(d, 'compile_commands.json').write_text(json.dumps(entries))
+            result = {'board': 'nrf52840dk', 'family': 'nrf', 'buildDir': d, 'okExamples': ['cdc_msc']}
+            with mock.patch.object(build, 'source_lines', return_value=0):
+                self.assertEqual(build.port_gap(reason, [result]),
+                                 'nordic/nrf5x/dcd_nrf5x.c: nrf52840dk body preprocessed away')
+            with mock.patch.object(build, 'source_lines', return_value=7) as lines:
+                self.assertIsNone(build.port_gap(reason, [result]))
+                # only the instance of an example this run built is preprocessed
+                self.assertEqual([c[0][0]['command'] for c in lines.call_args_list], [entries[0]['command']])
+            with mock.patch.object(build, 'source_lines', return_value=None):
+                self.assertIn('unverified: preprocessing failed', build.port_gap(reason, [result]))
+            self.assertIn('compiled only in examples this run did not build',
+                          build.port_gap(reason, [dict(result, okExamples=['msc_dual_lun'])]))
+            Path(d, 'compile_commands.json').write_text('[]')
+            self.assertIn('not compiled in its default configuration', build.port_gap(reason, [result]))
+            Path(d, 'compile_commands.json').unlink()
+            self.assertIn('unverified: no compile database', build.port_gap(reason, [result]))
+        # a family with no built board, a deleted driver, a non-port path
+        self.assertIn('no board of its family built', build.port_gap(reason, [{'board': 'x', 'family': 'stm32f4', 'buildDir': '/nowhere'}]))
+        self.assertIsNone(build.port_gap("src/portable/x/y/dcd_gone.c: port x/y -> families ['nrf']", []))
+        self.assertIsNone(build.port_gap('hw/bsp/nrf/family.c: bsp family nrf', []))
+
+    def test_source_lines_counts_the_files_own_non_directive_lines(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            entry = {'directory': d, 'file': 'dcd.c', 'command': 'gcc -DX=1 -o x.o -c dcd.c'}
+            out = f'# 1 "dcd.c"\n\nint a;\n# 1 "tusb.h"\nint from_header;\n# 3 "dcd.c" 2\n#pragma once\nint b;\n'
+            with mock.patch.object(build.subprocess, 'run', return_value=mock.Mock(returncode=0, stdout=out)) as run:
+                self.assertEqual(build.source_lines(entry), 2)
+            self.assertEqual(run.call_args[0][0], ['gcc', '-DX=1', '-E', 'dcd.c'])
+            with mock.patch.object(build.subprocess, 'run', return_value=mock.Mock(returncode=1, stdout='')):
+                self.assertIsNone(build.source_lines(entry))
 
 
 class VerdictTest(unittest.TestCase):
@@ -315,6 +419,27 @@ class VerdictTest(unittest.TestCase):
         self.assertEqual(cmd[cmd.index('-D') + 1], 'LOG=2')
         self.assertIn('--cflag=-DCFG_TUH_CDC_FTDI_LATENCY=16', cmd)
 
+    def test_a_define_on_a_build_owned_key_is_refused(self):
+        # tools/build.py passes -DBOARD first, so a caller's would win and the artifacts
+        # would be named after the board that was asked for, not the one built
+        for define in ['BOARD=raspberry_pi_pico', 'CMAKE_BUILD_TYPE:STRING=Debug', 'TOOLCHAIN=clang']:
+            with mock.patch.object(build, 'run') as run, mock.patch.object(sys, 'stderr') as err, mock.patch('sys.stdout'):
+                with self.assertRaises(SystemExit) as cm:
+                    build.build_one('stm32f407disco', [], [], [define], [], False, False, False)
+            self.assertEqual(cm.exception.code, 2)
+            self.assertIn(f'-D {define.partition("=")[0].partition(":")[0]}', err.write.call_args[0][0])
+            run.assert_not_called()
+
+    def test_recorded_options_normalise_a_legacy_typed_entry(self):
+        import shutil
+        d = build.ROOT / 'cmake-build' / 'cmake-build-agent-test-typed'
+        shutil.rmtree(d, ignore_errors=True); d.mkdir(parents=True)
+        try:
+            (d / build.AGENT_DEFINES).write_text('["LOG:STRING=2", "RHPORT_DEVICE"]\n')
+            self.assertEqual(build.recorded_options(str(d.relative_to(build.ROOT))), {'LOG', 'RHPORT_DEVICE'})
+        finally:
+            shutil.rmtree(d)
+
     def test_a_define_on_an_espressif_board_is_refused_not_dropped(self):
         esp = build.family_boards('espressif')[0]
         with mock.patch.object(build, 'run') as run, mock.patch.object(sys, 'stderr') as err, mock.patch('sys.stdout'):
@@ -350,8 +475,32 @@ class DepsTest(unittest.TestCase):
             build.ensure_deps('nrf', True, False)
         self.assertEqual(run.call_args[0][0][-2:], [str(build.ROOT / 'tools' / 'get_deps.py'), 'nrf'])
 
+    def test_a_row_is_written_only_from_a_fresh_default_configure(self):
+        tb = build.tools_build
+        # the runner's own compiler flags would answer for canonical_row before the case does
+        env = mock.patch.dict(os.environ, {'CFLAGS': '', 'CXXFLAGS': '', 'ASMFLAGS': ''})
+        env.start()
+        self.addCleanup(env.stop)
+        with mock.patch.object(tb.build_utils, 'missing_deps', return_value=[]), \
+             mock.patch.object(tb.family_json, 'update', return_value='family.json: updated b') as update:
+            self.assertIn('cmake-build/x existed before this configure', tb.canonical_row('f', ['cmake-build/x'], ['cmake-build/x']))
+            update.assert_not_called()
+            self.assertEqual(tb.canonical_row('f', ['cmake-build/x'], []), 'family.json: updated b')
+        with mock.patch.object(tb.build_utils, 'missing_deps', return_value=['hw/mcu/nordic/nrfx']):
+            self.assertIn('deps not at their pins', tb.canonical_row('nrf', ['cmake-build/x'], []))
+        # cmake seeds the compile flags from these, so the configure is not the default one
+        with mock.patch.object(tb.build_utils, 'missing_deps', return_value=[]), \
+             mock.patch.object(tb.family_json, 'update') as update, \
+             mock.patch.dict(os.environ, {'CFLAGS': '-DSTM32L476xx'}):
+            self.assertIn('CFLAGS set in the environment', tb.canonical_row('f', ['cmake-build/x'], []))
+            update.assert_not_called()
+        with mock.patch.object(tb.build_utils, 'missing_deps', return_value=[]), \
+             mock.patch.object(tb.family_json, 'update', return_value='family.json: updated b'), \
+             mock.patch.dict(os.environ, {'CFLAGS': '  '}):
+            self.assertEqual(tb.canonical_row('f', ['cmake-build/x'], []), 'family.json: updated b', 'blank is unset')
+
     def test_family_deps_come_from_get_deps_table(self):
-        self.assertIn('hw/mcu/nordic/nrfx', [d for d, e in build.get_deps.deps_optional.items() if 'nrf' in e[2].split()])
+        self.assertIn('hw/mcu/nordic/nrfx', [d for d, e in build.tools_build.build_utils.get_deps.deps_optional.items() if 'nrf' in e[2].split()])
 
 
 class MainTest(unittest.TestCase):
@@ -361,7 +510,7 @@ class MainTest(unittest.TestCase):
              mock.patch('sys.stdout') as out:
             self.assertEqual(build.main(['--board', 'b']), 0)
         printed = json.loads(out.write.call_args_list[0][0][0])
-        self.assertEqual(printed, {'pass': True, 'boards': results, 'resolution': 'named boards'})
+        self.assertEqual(printed, {'pass': True, 'boards': results, 'resolution': 'named boards', 'familyJsonChanged': False})
         results[0]['status'] = 'failed'
         with mock.patch.object(build, 'build_one', return_value=results[0]), mock.patch('sys.stdout'):
             self.assertEqual(build.main(['--board', 'b']), 1)

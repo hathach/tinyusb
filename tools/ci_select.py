@@ -41,7 +41,7 @@ _prune_buildable then intersects each family with what it can actually build.
 | 13 | `examples/<role>/<name>/**` | `ALL` | just `<name>` | if `<name>` is a HIL test: all boards → that test; else nothing |
 | 14 | `examples/device/board_test/**` | `ALL` | just `board_test` | all boards → all tests (HIL parking firmware) |
 | 15 | `examples/build_system/**`, `examples/CMakeLists.txt`, `examples/<role>/CMakeLists.txt` | `ALL` | `ALL` | all boards → all tests |
-| 16 | `src/common/`, `src/osal/`, `src/tusb.[ch]`, `src/tusb_option.h`, `tools/{build,build_utils,ci_select}.py`, `tools/cmake/**`, `src/CMakeLists.txt`, `src/tinyusb.mk`, `hw/bsp/{family_support.{cmake,mk},family_rules.mk,zephyr_board_aliases.cmake,board.c,board_api.h,ansi_escape.h}`, `.github/**`, `.circleci/**` | `ALL` | `ALL` | all boards → all tests |
+| 16 | `src/common/`, `src/osal/`, `src/tusb.[ch]`, `src/tusb_option.h`, `tools/{build,build_utils,ci_select,family_json}.py`, `tools/cmake/**`, `src/CMakeLists.txt`, `src/tinyusb.mk`, `hw/bsp/{family_support.{cmake,mk},family_rules.mk,zephyr_board_aliases.cmake,board.c,board_api.h,ansi_escape.h}`, `.github/**`, `.circleci/**` | `ALL` | `ALL` | all boards → all tests |
 | 16a | `lib/<name>/**` | `ALL` | examples whose own `CMakeLists.txt`/`Makefile` names `lib/<name>` | those examples that are HIL tests, on all boards; empty resolves to nothing |
 | 16b | `tools/get_deps.py` | families whose `deps_mandatory`/`deps_optional` entries changed | `ALL` | those families' boards → all tests; a logic change, an `'all'` entry, no base content or a changed token naming no family → full |
 | 17 | anything unclassified (no tracked file reaches this — TestNoTrackedFileIsUnclassified) | `ALL` | `ALL` | all boards → all tests (fail-open) |
@@ -107,6 +107,9 @@ _META_RE = re.compile(
     r'sonar-project\.properties$|library\.json$|pkg\.yml$|repository\.yml$|'
     r'version\.yml$|SConscript$|'
     r'.*CMakePresets\.json$|hw/bsp/BoardPresets\.json$|examples/west\.yml$|'
+    # what each board's default configure compiles: the build skill reads it and
+    # tools/build.py rewrites a row, no firmware build depends on it
+    r'hw/bsp/family\.json$|'
     r'.*/[0-9]+-tinyusb[^/]*\.rules$|tools/usb_drivers/|tools/codespell/|'
     # test/hil/test/ holds the harness's own unit tests, not the harness: nothing on
     # the rig runs them (pre-commit does, and build.yml runs test_ci_select.py as the
@@ -139,9 +142,11 @@ _FULL_RE = re.compile(
     r'\.github/workflows/build.*\.yml$|\.github/actions/|\.github/scripts/|'
     # generates the whole CircleCI matrix, same authority as .github/**
     r'\.circleci/|'
-    # rule 16 says `tools/build*.py`; name the two siblings the glob implies. Both
-    # decide what gets built, so neither can be trusted to narrow its own change.
-    r'tools/(build|build_utils|ci_select)\.py$|tools/cmake/|'
+    # rule 16 says `tools/build*.py`; name the siblings the glob implies. build_utils
+    # and ci_select decide what gets built, so neither can be trusted to narrow its own
+    # change; family_json runs inside build.py after every default configure, so a
+    # break in it fails the build the same way
+    r'tools/(build|build_utils|ci_select|family_json)\.py$|tools/cmake/|'
     # the make twins of family_support.cmake are the same authority for the make legs
     r'hw/bsp/(family_support\.(cmake|mk)|family_rules\.mk|zephyr_board_aliases\.cmake|'
     r'board_api\.h|board\.c|ansi_escape\.h)$|'

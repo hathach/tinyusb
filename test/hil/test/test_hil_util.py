@@ -140,7 +140,7 @@ class BottomLayer(unittest.TestCase):
         # module runs ctypes.CDLL(find_library('mtp')) at import and raises where there
         # is no libmtp, taking ci_select down with it.
         local = {'helper', 'hil_util', 'ci_select', 'hil_flash',
-                 'hil_health', 'hil_lock', 'hil_pool_check', 'build', 'build_utils'}
+                 'hil_health', 'hil_lock', 'hil_pool_check', 'build', 'build_utils', 'get_deps', 'family_json'}
         allowed = set(sys.stdlib_module_names) | local
         # hil_pool_check included: test_hil_util_is_a_single_module_instance imports it
         # on the bare runner, and its `import serial` is function-local for exactly
@@ -151,7 +151,8 @@ class BottomLayer(unittest.TestCase):
         # the ast.Import walk below, which is why it must be listed explicitly
         for mod in ('helper/hil_util', 'hil_flash', '../../tools/ci_select',
                     'helper/hil_health', 'helper/hil_lock', 'helper/hil_pool_check',
-                    '../../tools/build', '../../tools/build_utils', '../../tools/rtt'):
+                    '../../tools/build', '../../tools/build_utils', '../../tools/rtt',
+                    '../../tools/get_deps', '../../tools/family_json'):
             tree = ast.parse((hil_dir / f'{mod}.py').read_text())
             # module level only: a deferred import inside a function cannot break
             # importability (hil_pool_check keeps `import serial` function-local

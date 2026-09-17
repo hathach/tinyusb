@@ -959,5 +959,24 @@ if (MAX3421_HOST STREQUAL "1")
   set(FAMILY_MCUS ${FAMILY_MCUS} MAX3421)
 endif ()
 
+# What this configure selected, for tools/family_json.py to join with the compile
+# database into the board's hw/bsp/family.json row. Written on every configure;
+# tools/build.py decides whether the configure was the board's default one.
+set(_FJ_MCUS "")
+foreach(_FJ_M ${FAMILY_MCUS})
+  string(REPLACE "\\" "\\\\" _FJ_M "${_FJ_M}")
+  string(REPLACE "\"" "\\\"" _FJ_M "${_FJ_M}")
+  list(APPEND _FJ_MCUS "\"${_FJ_M}\"")
+endforeach()
+list(JOIN _FJ_MCUS ", " _FJ_MCUS)
+set(_FJ_OPTIONS "")
+if (DEFINED MAX3421_HOST)
+  string(REPLACE "\\" "\\\\" _FJ_V "${MAX3421_HOST}")
+  string(REPLACE "\"" "\\\"" _FJ_V "${_FJ_V}")
+  set(_FJ_OPTIONS "\"MAX3421_HOST\": \"${_FJ_V}\"")
+endif ()
+file(WRITE ${CMAKE_BINARY_DIR}/family.json.part
+  "{\"board\": \"${BOARD}\", \"family\": \"${FAMILY}\", \"family_mcus\": [${_FJ_MCUS}], \"options\": {${_FJ_OPTIONS}}}\n")
+
 # save it in case of re-inclusion
 set(FAMILY_MCUS ${FAMILY_MCUS} CACHE INTERNAL "")

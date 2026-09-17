@@ -37,6 +37,21 @@ def current_version(option_h):
     return f'{parts["MAJOR"]}.{parts["MINOR"]}.{parts["REVISION"]}'
 
 
+def repository_edits(text, version, major):
+    """The substitutions for repository.yml: the version gets its own entry above the
+    aliases, unless a rerun already added it, and the alias of ITS major moves to it. A
+    first release of a new major adds that alias; the previous major's keeps pointing at
+    the last release of that major, since a 0-latest user did not ask for 1.x."""
+    alias = f'"{major}-latest"'
+    listed = f'"{version}": "{version}"' in text
+    if f'{alias}:' in text:
+        subs = [(rf'({re.escape(alias)}): "\d+\.\d+\.\d+"', rf'\1: "{version}"')]
+        return subs if listed else [(rf'( *)({re.escape(alias)}): "\d+\.\d+\.\d+"', rf'\1"{version}": "{version}"\n\1\2: "{version}"')]
+    # no alias for this major yet: put the version and the new alias above the first alias
+    entry = '' if listed else f'"{version}": "{version}"\n\\1'
+    return [(r'( *)("\d+-latest": "\d+\.\d+\.\d+")', rf'\1{entry}{alias}: "{version}"\n\1\2')]
+
+
 def bump(root, version):
     """Substitute the version into the four release files; the changed paths, or Refused."""
     if not VERSION_RE.match(version):
@@ -47,16 +62,13 @@ def bump(root, version):
     if current == version:
         raise Refused(f'{version} is already the version in src/tusb_option.h')
 
-    latest = (r'("0-latest"): "\d+\.\d+\.\d+"', rf'\1: "{version}"')
     edits = {
         option_h: [
             (r'(#define TUSB_VERSION_MAJOR *) \d+', rf'\g<1> {major}'),
             (r'(#define TUSB_VERSION_MINOR *) \d+', rf'\g<1> {minor}'),
             (r'(#define TUSB_VERSION_REVISION *) \d+', rf'\g<1> {rev}'),
         ],
-        # the version gets its own entry above the alias, unless a rerun already added it
-        root / 'repository.yml': [latest] if f'"{version}": "{version}"' in (root / 'repository.yml').read_text()
-        else [(r'("0-latest"): "\d+\.\d+\.\d+"', rf'"{version}": "{version}"\n    \1: "{version}"')],
+        root / 'repository.yml': repository_edits((root / 'repository.yml').read_text(), version, major),
         root / 'library.json': [(r'( {4}"version":) "\d+\.\d+\.\d+"', rf'\1 "{version}"')],
         root / 'sonar-project.properties': [(r'(sonar\.projectVersion=)\d+\.\d+\.\d+', rf'\g<1>{version}')],
     }
@@ -65,7 +77,7 @@ def bump(root, version):
         before = path.read_text()
         after = before
         for pattern, repl in subs:
-            after = re.sub(pattern, repl, after)
+            after = re.sub(pattern, repl, after, count=1)
         if after == before:
             raise Refused(f'{path.relative_to(root)}: no line matched the version pattern; nothing written')
         pending.append((path, after))

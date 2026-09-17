@@ -8,6 +8,8 @@ import sys
 import pathlib
 import re
 
+import get_deps
+
 build_format = '| {:29} | {:30} | {:18} | {:7} | {:6} | {:6} |'
 
 SUCCEEDED = "\033[32msucceeded\033[0m"
@@ -411,6 +413,45 @@ def _skip_example(example, board, extra_defines, build_system):
     return False
 
 
+HEAD_UNKNOWN = object()
+
+
+def dep_head(path):
+    """The dep checkout's commit; None when git would answer for the enclosing tinyusb
+    repo (no .git of its own, a vendored copy), so the pin cannot apply; HEAD_UNKNOWN
+    when the dir has its own .git that names no commit - a git-init without a fetch, or
+    a checkout broken partway - where the revision built is anybody's guess."""
+    if not (path / '.git').exists():
+        return None
+    r = subprocess.run(['git', '-C', str(path), 'rev-parse', 'HEAD'], capture_output=True, text=True)
+    head = r.stdout.strip()
+    return head if r.returncode == 0 and head else HEAD_UNKNOWN
+
+
+def missing_deps(family, root=None):
+    """The family's dependencies that are not what get_deps.py's table asks for, each
+    named with why. Present means content, not a directory: get_deps.py git-inits the dep
+    dir before fetching and exits 0 whatever the fetch did (its run_cmd's status is
+    ignored), so a fetch that failed leaves a dir holding nothing but .git. A checkout at
+    another commit is the same kind of miss: when the change under test bumps a pin, a
+    stale checkout builds the revision the change is replacing and verifies nothing."""
+    root = pathlib.Path(root) if root else pathlib.Path(__file__).resolve().parents[1]
+    needed = list(get_deps.deps_mandatory) + \
+        [d for d, entry in get_deps.deps_optional.items() if family in entry[2].split()]
+    out = []
+    for d in needed:
+        p = root / d
+        if not p.is_dir() or not any(f.name != '.git' for f in p.iterdir()):
+            out.append(d)
+            continue
+        pin, head = get_deps.deps_all[d][1], dep_head(p)
+        if head is HEAD_UNKNOWN:
+            out.append(f'{d} (revision unknown, pinned {pin[:10]})')
+        elif head is not None and head != pin:
+            out.append(f'{d} (at {head[:10]}, pinned {pin[:10]})')
+    return out
+
+
 def build_size(make_cmd):
     size_output = subprocess.run(make_cmd + ' size', shell=True, stdout=subprocess.PIPE).stdout.decode("utf-8").splitlines()
     for i, l in enumerate(size_output):
@@ -485,6 +526,15 @@ def _board_files(board):
     return board_dir, (str(board_dir / 'board.cmake'), str(board_dir.parent.parent / 'family.cmake'))
 
 
+def _checked_device(value, source):
+    """A J-Link device name as the BSPs and Ozone projects spell it (LPC11U37/401,
+    XMC4500-1024). A scrape that yields anything else reaches a probe's command line
+    as an option rather than a device, so refuse it like _board_files refuses a board."""
+    if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_./+-]*', value):
+        raise BoardInfoError(f'{value!r} in {source} is not a J-Link device name')
+    return value
+
+
 def board_jlink(board):
     """The board's J-Link device name from its board.cmake, else its family.cmake,
     ${...} expanded. A conditional or unresolvable definition is refused unless
@@ -502,7 +552,7 @@ def board_jlink(board):
         if len(distinct) > 1:
             raise BoardInfoError(f'{board}: JLINK_DEVICE is set conditionally in {f}: '
                                  f'{", ".join(distinct)} - pass the device by hand')
-        return _expand_or_refuse(distinct[0], files)
+        return _checked_device(_expand_or_refuse(distinct[0], files), f)
     except BoardInfoError as e:
         jdebug = board_jdebug(board)
         if not jdebug:
@@ -510,7 +560,7 @@ def board_jlink(board):
         m = re.search(r'^\s*Project\.SetDevice\s*\(\s*"([^"]+)"', pathlib.Path(jdebug).read_text(**_TEXT), re.M)
         if not m:
             raise BoardInfoError(f'{e}; {jdebug} names no device either')
-        return m.group(1)
+        return _checked_device(m.group(1), jdebug)
 
 
 def board_jdebug(board):
