@@ -138,8 +138,10 @@ def build_board(src_dir, build_dir, board, example=None, linkermap=False):
     if linkermap:
         target = f'{os.path.basename(example)}-linkermap' if example else 'examples-linkermap'
         ret = run(['cmake', '--build', build_dir, '--target', target], timeout=600)
-        map_pattern = f'{build_dir}/{example}/*.map.json' if example \
-            else f'{build_dir}/**/*.map.json'
+        # escape the dir, not the wildcards: a checkout path is a path, not a pattern
+        root = glob.escape(build_dir)
+        map_pattern = f'{root}/{example}/*.map.json' if example \
+            else f'{root}/**/*.map.json'
         if ret.returncode != 0 and not glob.glob(map_pattern, recursive=True):
             print(f'  Error: linkermap target failed for {board} - '
                   f'run `python3 tools/get_deps.py` to fetch tools/linkermap')
@@ -153,10 +155,12 @@ def generate_metrics(build_dir, out_basename, filters, example=None):
     `filters` is a list of substrings; metrics.py keeps a compile unit if its path
     contains any of them.
     """
+    # escape the dir, not the wildcards: a checkout path is a path, not a pattern
+    root = glob.escape(build_dir)
     if example:
-        patterns = glob.glob(f'{build_dir}/{example}/*.map.json')
+        patterns = glob.glob(f'{root}/{example}/*.map.json')
     else:
-        patterns = glob.glob(f'{build_dir}/**/*.map.json', recursive=True)
+        patterns = glob.glob(f'{root}/**/*.map.json', recursive=True)
     if not patterns:
         print(f'  Error: no .map.json files in {build_dir}' + (f' for {example}' if example else ''))
         return None
@@ -181,8 +185,10 @@ def generate_membrowse_sizes(build_dir, filters, example=None):
     elfs it appears in, like metrics.py's compute_avg(): a sum would count a file
     linked into N examples N times.
     """
-    pattern = f'{build_dir}/{example}/*.elf' if example \
-        else f'{build_dir}/**/*.elf'
+    # escape the dir, not the wildcards: a checkout path is a path, not a pattern
+    root = glob.escape(build_dir)
+    pattern = f'{root}/{example}/*.elf' if example \
+        else f'{root}/**/*.elf'
     elfs = glob.glob(pattern, recursive=True)
     if not elfs:
         print(f'  Error: no .elf files in {build_dir}')

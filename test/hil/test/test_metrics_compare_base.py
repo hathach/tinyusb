@@ -152,6 +152,14 @@ class BuildBoardLinkermap(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             self.assertTrue(self._build(tmp, with_map=True))
 
+    def test_map_lookup_survives_glob_metachars_in_the_path(self):
+        # a checkout at .../pr[1]/... must not report the linkermap target fatal
+        # when the map.json is right there
+        with tempfile.TemporaryDirectory() as tmp:
+            bracketed = os.path.join(tmp, 'pr[1]')
+            os.makedirs(bracketed)
+            self.assertTrue(self._build(bracketed, with_map=True))
+
 
 class MainFailure(unittest.TestCase):
     def _main(self, tmp, build_board=True, sizes=None):
@@ -319,6 +327,64 @@ class MainFailure(unittest.TestCase):
             self.assertEqual(rc, 0)
             self.assertIn('no per-board metrics found', out)
             self.assertFalse(os.path.exists(stale))
+
+
+class GlobMetacharsInBuildDir(unittest.TestCase):
+    """A build dir under a path with glob metachars - a worktree or CI workspace
+    named after e.g. `pr[1]` - must still find the files a good build produced.
+    """
+
+    def _tree(self, tmp):
+        build_dir = os.path.join(tmp, 'pr[1]', 'build')
+        ex_dir = os.path.join(build_dir, 'device', 'cdc_msc')
+        os.makedirs(ex_dir)
+        elf = os.path.join(ex_dir, 'cdc_msc.elf')
+        map_json = os.path.join(ex_dir, 'cdc_msc.map.json')
+        for path in (elf, map_json, elf + '.map'):
+            open(path, 'w').close()
+        return build_dir, elf, map_json
+
+    def test_map_json_found(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            build_dir, _elf, map_json = self._tree(tmp)
+            cmds = []
+
+            def run(cmd, **_kwargs):
+                cmds.append(cmd)
+                return subprocess.CompletedProcess([], 0, '', '')
+
+            with mock.patch.object(mcb, 'run', side_effect=run):
+                out = mcb.generate_metrics(build_dir, os.path.join(tmp, 'm'), ['src/'])
+            self.assertIsNotNone(out)
+            self.assertIn(map_json, cmds[0])
+
+    def test_map_json_found_for_a_single_example(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            build_dir, _elf, map_json = self._tree(tmp)
+            cmds = []
+
+            def run(cmd, **_kwargs):
+                cmds.append(cmd)
+                return subprocess.CompletedProcess([], 0, '', '')
+
+            with mock.patch.object(mcb, 'run', side_effect=run):
+                out = mcb.generate_metrics(build_dir, os.path.join(tmp, 'm'), ['src/'],
+                                           example='device/cdc_msc')
+            self.assertIsNotNone(out)
+            self.assertIn(map_json, cmds[0])
+
+    def test_elf_found(self):
+        fake_report = {'symbols': [
+            {'name': 'x', 'size': 4, 'section': '.text',
+             'object_file': 'build/x.c.obj', 'source_file': 'x.c'},
+        ]}
+        with tempfile.TemporaryDirectory() as tmp:
+            build_dir, _elf, _map_json = self._tree(tmp)
+            with mock.patch.object(membrowse_compare, 'report_for_elf',
+                                   return_value=fake_report):
+                result = mcb.generate_membrowse_sizes(build_dir, ['build/'])
+            self.assertIsNotNone(result)
+            self.assertEqual(result['x.c']['flash'], 4)
 
 
 if __name__ == '__main__':
