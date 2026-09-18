@@ -406,9 +406,6 @@ FAMILIES_IN = re.compile(r"-> families \[(.*?)\]|: bsp family (\S+)$")
 EXAMPLES_IN = re.compile(r"-> \[(.*?)\]$|: example (\S+)$")
 ROLE_IN = re.compile(r": core (device|host) stack$")
 PORT_IN = re.compile(r": port (\S+) -> families \[")
-# ci_select's wording for tools/metrics.py and .github/scripts/metrics_*.py, the one
-# build reason that names a cmake target rather than families or examples
-METRICS_IN = re.compile(r": metrics tooling runs in the build\b")
 
 
 def _named(pattern, reason):
@@ -549,15 +546,13 @@ def coverage(reasons, scope, results, chosen=False):
     filtered, which it drops without a reason line), or a full-matrix run whose pair
     does not contain the port. A port path is a gap too when the boards built are of its
     families but none compiled the changed body (port_gap): the driver is in no built
-    board's default configuration, or its guard preprocessed it away there. A path whose reason names a build target rather than families or examples
-    (tools/metrics.py runs as tinyusb_metrics) is a gap whatever built: the default sweep
-    builds `all`, which never runs that target. A path that named examples is a
-    gap when no board wrote an elf for any of them; a core stack path names every example
-    of its role; any other contributing path is a gap when the run produced no elf at all
-    (-T help is a green build of nothing). `chosen` (-e or -T given) hands all that to
-    the caller, bar a family no board of which was built: narrowing the examples does not
-    change which families the scope resolves to. With no board at all, every path not
-    explained as nothing-to-verify is a gap."""
+    board's default configuration, or its guard preprocessed it away there. A path that
+    named examples is a gap when no board wrote an elf for any of them; a core stack path
+    names every example of its role; any other contributing path is a gap when the run
+    produced no elf at all (-T help is a green build of nothing). `chosen` (-e or -T
+    given) hands all that to the caller, bar a family no board of which was built:
+    narrowing the examples does not change which families the scope resolves to. With no
+    board at all, every path not explained as nothing-to-verify is a gap."""
     built_fams = {r['family'] for r in results}
     ok_ex = set().union(*(set(r.get('okExamples', ())) for r in results)) if results else set()
     benign, gaps = [], []
@@ -573,9 +568,6 @@ def coverage(reasons, scope, results, chosen=False):
             continue
         elif fams is not None and (gap := port_gap(r, results)):
             gaps.append(f'{r} ({gap})')
-        elif METRICS_IN.search(r):
-            gaps.append(f'{r} (the default sweep builds `all`, which does not run '
-                        f'tinyusb_metrics: rerun with -T all -T tinyusb_metrics)')
         elif exs is not None and not {e.split('/', 1)[1] for e in exs} & ok_ex:
             gaps.append(r)
         elif results and not ok_ex:

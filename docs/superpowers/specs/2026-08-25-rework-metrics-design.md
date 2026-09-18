@@ -213,8 +213,10 @@ check first.
 3b. Diff-engine equivalence: run `metrics_compare_base.py` with both engines
    on the same change (stm32f407disco) and compare per-file deltas; membrowse
    engine must attribute sizes to `src/` files comparably to metrics.py.
-4. CI on the PR branch: build.yml runs with upload gating (no API key on the
-   PR context → skips/`--identical` paths exercised), esp-idf lane compiles.
+4. CI on the PR branch: build.yml uploads from every non-variant pinned leg —
+   `MEMBROWSE_API_KEY` only adds `--api-key`, and a fork PR without it falls back
+   to membrowse's tokenless GHA auth; `--identical` is the no-ELF path
+   (code-changed false, `hil-build-esp-identical`). esp-idf lane compiles.
 5. `pre-commit run --all-files`.
 
 ## Out of scope

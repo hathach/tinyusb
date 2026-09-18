@@ -11,8 +11,9 @@ linkermap engine, so `--engine linkermap` is no longer required for a full CI-fa
 JSON to aggregate today — `membrowse_compare.compare_reports()` only ever produces a markdown
 table for one board pair. This follow-up needs a per-board machine-readable intermediate
 (likely `per_file_sizes()`'s `{path: {'flash', 'ram'}}` dict, dumped to JSON per board) and a
-combine step that sums those dicts across boards before rendering the same markdown table
-shape `compare_reports()` produces today.
+combine step that averages those dicts over the boards each file appears on — `metrics.py`'s
+`compute_avg()` semantics, since summing would report a file built on N boards N times —
+before rendering the same markdown table shape `compare_reports()` produces today.
 
 **Tech Stack:** Python 3.13 stdlib (`json`, `subprocess`) — `tools/membrowse_compare.py`,
 `tools/metrics_compare_base.py`.
@@ -52,7 +53,8 @@ file when its own PR lands.
    region-classified totals, written to `cmake-metrics/<board>/membrowse_metrics.json` per
    side (base/current) — the membrowse-engine analog of what `generate_metrics()` writes for
    linkermap today.
-2. **Implement the combine step**: sum the per-file dicts across all boards' JSON, render with
+2. **Implement the combine step**: average each per-file entry over the boards' JSON it appears
+   in, as `compute_avg()` does (a sum would count a file on N boards N times), render with
    the same `compare_reports()` markdown shape, write to
    `cmake-metrics/_combined/metrics_compare.md`.
 3. **Drop that `parser.error`**; make `--ci`/`--combined`

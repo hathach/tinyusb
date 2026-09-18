@@ -452,10 +452,6 @@ and already gating CI's selector step):
 
 ## Known gaps
 
-- **CircleCI size comparison.** CircleCI stores only the combined `metrics.json`, so the
-  intersection compare is unavailable there; when filtered it prints a note and copies
-  `metrics.md`. Its `metrics_compare.md` is a stored artifact that nothing reads in review — the
-  PR comment comes from GHA. Making CircleCI store per-example metrics is a follow-up.
 - **HIL re-run attempts.** A re-run spec is a subset of the original selection, so the
   firmware `hil-build` produced already covers it. This holds only while re-run specs stay
   subsets; a future "re-run with extra tests" feature would need `hil-build` re-run too.
