@@ -732,6 +732,10 @@
   #define TUP_USBIP_FSDEV_APM32
   #define CFG_TUSB_FSDEV_PMA_SIZE 1024u
 
+#elif TU_CHECK_MCU(OPT_MCU_SOCFPGA)
+  #define TUP_USBIP_DWC2
+  #define CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT   64
+
 #endif
 
 // External USB controller

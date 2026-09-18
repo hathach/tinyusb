@@ -49,6 +49,11 @@ TU_ATTR_WEAK bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg
   return false;
 }
 
+TU_ATTR_WEAK bool hcd_parse_full_conf_descriptor(tusb_desc_configuration_t* desc_cfg, uint8_t rhport) {
+  (void) desc_cfg; (void) rhport;
+  return true;
+}
+
 TU_ATTR_WEAK void tuh_enum_descriptor_device_cb(uint8_t daddr, const tusb_desc_device_t *desc_device) {
   (void) daddr; (void) desc_device;
 }
@@ -511,6 +516,9 @@ bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
     break;
     case TUSB_SPEED_AUTO:
       speed_str = "Auto";
+    break;
+    case TUSB_SPEED_SS:
+      speed_str = "SuperSpeed";
     break;
   default:
     break;
@@ -2064,6 +2072,12 @@ static void process_enumeration(tuh_xfer_t *xfer) {
     case ENUM_SET_CONFIG: {
       uint8_t config_idx = (uint8_t) tu_le16toh(xfer->setup->wIndex);
       if (tuh_enum_descriptor_configuration_cb(daddr, config_idx, (const tusb_desc_configuration_t*) _usbh_epbuf.ctrl)) {
+        // For xHCI: pass full config to HCD before SET_CONFIGURATION
+        const uint8_t rhport = usbh_get_rhport(daddr);
+        if (!hcd_parse_full_conf_descriptor((tusb_desc_configuration_t*) _usbh_epbuf.ctrl, rhport)) {
+          is_enum_failed = true;
+          break;
+        }
         is_enum_failed = !tuh_configuration_set(daddr, config_idx+1u, process_enumeration, ENUM_CONFIG_DRIVER);
       } else {
         config_idx++;

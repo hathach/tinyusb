@@ -364,15 +364,13 @@ uint16_t msch_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t
   (void) rhport;
   TU_VERIFY(MSC_SUBCLASS_SCSI == desc_itf->bInterfaceSubClass && MSC_PROTOCOL_BOT == desc_itf->bInterfaceProtocol, 0);
 
-  // msc driver length is fixed
-  const uint16_t drv_len =
-    (uint16_t)(sizeof(tusb_desc_interface_t) + desc_itf->bNumEndpoints * sizeof(tusb_desc_endpoint_t));
-  TU_ASSERT(drv_len <= max_len, 0);
-
   msch_interface_t           *p_msc   = get_itf(dev_addr);
   const tusb_desc_endpoint_t *ep_desc = (const tusb_desc_endpoint_t *)tu_desc_next(desc_itf);
-
+  const uint8_t *desc_start = (const uint8_t *) desc_itf;
+  TU_ASSERT(sizeof(tusb_desc_interface_t) <= max_len, 0);
+  
   for (uint32_t i = 0; i < 2; i++) {
+    TU_ASSERT((uint16_t)((const uint8_t*) ep_desc - desc_start + sizeof(tusb_desc_endpoint_t)) <= max_len, 0);
     TU_ASSERT(TUSB_DESC_ENDPOINT == ep_desc->bDescriptorType && TUSB_XFER_BULK == ep_desc->bmAttributes.xfer, 0);
     TU_ASSERT(tuh_edpt_open(dev_addr, ep_desc), 0);
 
@@ -382,10 +380,21 @@ uint16_t msch_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t
       p_msc->ep_out = ep_desc->bEndpointAddress;
     }
 
-    ep_desc = (tusb_desc_endpoint_t const*) tu_desc_next(ep_desc);
+    // For SS devices, the EP descriptor structure is different from normal EP descriptors.
+    if( tuh_speed_get(dev_addr) == TUSB_SPEED_SS)
+    {
+      ep_desc = (tusb_desc_endpoint_t const*) tu_desc_next(ep_desc);
+      ep_desc = (tusb_desc_endpoint_t const*) tu_desc_next(ep_desc);
+    }
+    else
+    {
+      ep_desc = (tusb_desc_endpoint_t const*) tu_desc_next(ep_desc);
+    }
   }
 
   p_msc->itf_num = desc_itf->bInterfaceNumber;
+  const uint16_t drv_len = (uint16_t)((const uint8_t*) ep_desc - desc_start);
+  TU_ASSERT(drv_len <= max_len, 0);
 
   return drv_len;
 }
