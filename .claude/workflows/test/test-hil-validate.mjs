@@ -92,5 +92,9 @@ check('a retry that abandoned sinks the run even with all rows passing',
 check('an omitted caveat cannot silently disable the gate (schema requires it)',
   HIL_REQUIRED.includes('caveat'), true)
 
+check('force forwards the caller\'s scope and never claims human approval',
+  [/THE CALLER SCOPE NAMES FORCING THESE BOARDS/.test(src), /USER HAS EXPLICITLY AUTHORIZED|explicit user authorization/i.test(src)],
+  [true, false])
+
 console.log(failed ? `\n${failed} FAILED` : '\nall checks passed')
 process.exit(failed ? 1 : 0)

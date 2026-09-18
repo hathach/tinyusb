@@ -13,7 +13,7 @@ Run TinyUSB HIL tests on real boards. **Run `hostname` first** — it tells you 
 | `tusb` (hifiphile's external rig) | `test/hil/hfp.json`                  | no outbound SSH to dev PCs/ci; SSH-reachable FROM both |
 | anything else (a dev PC)          | `test/hil/local.json`                | yes (large pool, `test/hil/tinyusb.json`)              |
 
-Default to **local**. Use **remote** only when on a dev PC and the user says `remote`/`ci.lan`. Never attempt remote on `ci`.
+Default to **local**. Use **remote** only when on a dev PC and the request or task scope names `remote`/`ci.lan`. Never attempt remote on `ci`.
 
 `tusb` (ssh alias `hifiphile`) is an external rig (hosted by maintainer hifiphile), exercised by the
 GitHub CI `hil-tinyusb (hfp.json)` matrix job — **never run HIL against it unless the user explicitly asks.**
@@ -31,10 +31,11 @@ python3 test/hil/helper/hil_lock.py hold BOARD [BOARD...] --reason "why"
 python3 test/hil/helper/hil_lock.py release BOARD [BOARD...]
 ```
 
+- A manual session on a dev-bench board with no entry in this host's HIL config locks it by an agreed board name, with no config: `hil_lock.py hold BOARD --reason "..."` only reserves that name, so verify the probe serial and board identity yourself. A named-board lock needs no config; config-driven tools (`hil_test.py`, `hil_pool_check.py` without an explicit config, `hil_lock.py hold --all`) still need this host's config.
 - Never pre-hold boards you are about to run `hil_test.py` on — it self-locks and would treat your own hold as a conflict.
 - Rig-wide operations (uhubctl power cycling, `usb_recover.sh root-cycle`, pci-rebind, controller resets — bus renumbering) affect every board: `hil_lock.py hold --all --config <this host's config> --reason "..."` first — `--all` defaults to `tinyusb.json`, so on `tusb` it would reserve 27 boards that do not exist there and none of the three that do. Even a single root-port bounce needs `--all`: nothing maps a sysfs busport to a board name, and `hil_lock.py hold` accepts any string, so a "just the siblings" hold reserves nothing while reporting success.
 - `hil_lock.py status` lists holders. Locks auto-release when the holder process dies (kernel flock); `/tmp` clears on reboot.
-- Forcing past a lock: `HIL_NO_BOARD_LOCK=1 python3 test/hil/hil_test.py ...` bypasses the guard without killing the holder. Only with the user's explicit go-ahead — they accept the risk of colliding with whatever holds the board.
+- Forcing past a lock: `HIL_NO_BOARD_LOCK=1 python3 test/hil/hil_test.py ...` bypasses the guard without killing the holder. Only when the request or task scope explicitly names forcing that board — it risks colliding with whatever holds it; a refused hold alone never adds that scope.
 
 ## Pool check (board/probe health)
 
@@ -90,7 +91,7 @@ A board whose flasher probe has no VCOM (or whose BSP has no UART) uses RTT as i
 - **Board:** `-b BOARD_NAME`, repeatable for a subset (`-b a -b b`); omit to run all boards in the config. Give a whole set to ONE run rather than one run per board: it schedules the boards across host controllers and budgets concurrent flashes and usbtest batteries per controller (`hil_lock.py` `FLASH_PARALLEL`/`USBTEST_PARALLEL`). Those permits are in-process semaphores — a second `hil_test.py` running alongside does not share them, it multiplies the load on the same xHCI cards.
 - **Pass-through:** `-v`, `-r N`, etc. forwarded unchanged.
 
-If `local.json` is missing on a dev PC, ask the user to supply one (only fall back to `tinyusb.json` if told to).
+If `local.json` is missing on a dev PC, ask the user to supply one before a `hil_test.py` or `hil_pool_check.py` run. An agent that cannot ask (`hil-operator`) does not run `hil_test.py`: it returns one `ran: false` row per requested board whose `detail` names the missing `test/hil/local.json`. Fall back to `tinyusb.json` only when the request or task scope says so; a manual session locks by board name as Board locks says.
 
 ## Local execution
 
