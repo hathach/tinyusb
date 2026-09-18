@@ -64,13 +64,13 @@ def report_for_elf(elf_path, map_path=None):
 
 
 def _bucket_by_name(section):
-    """Guess flash/RAM from a symbol's section name."""
+    """Guess the flash/RAM bucket set from a symbol's section name."""
     s = section or ''
     if any(s.startswith(p) for p in BOTH_SECTIONS):
-        return ('flash', 'ram')
+        return frozenset({'flash', 'ram'})
     if any(s.startswith(p) for p in RAM_SECTIONS):
-        return ('ram',)
-    return ('flash',)
+        return frozenset({'ram'})
+    return frozenset({'flash'})
 
 
 def _classify_region(name):
@@ -96,8 +96,8 @@ def _section_regions(memory_layout):
 
 
 def _bucket_from_layout(section_name, section_regions, region_bucket):
-    """flash/ram/both tuple for `section_name` from the layout, or None if the
-    layout has no usable answer (caller falls back to _bucket_by_name())."""
+    """Bucket set for `section_name` from the layout, or None if the layout has
+    no usable answer (caller falls back to _bucket_by_name())."""
     regions = section_regions.get(section_name)
     if not regions:
         return None
@@ -105,21 +105,34 @@ def _bucket_from_layout(section_name, section_regions, region_bucket):
     if len(distinct) > 1:
         # A split may span flash/RAM or multiple RAM banks; union classifications.
         buckets = {b for b in (region_bucket.get(r) for r in distinct) if b}
-        if buckets:
-            return tuple(sorted(buckets))
-        return None
+        return frozenset(buckets) or None
     region_name, section_type = regions[0]
     if any(section_name.startswith(p) for p in BOTH_SECTIONS):
-        return ('flash', 'ram')
+        return frozenset({'flash', 'ram'})
     bucket = region_bucket.get(region_name)
     if bucket is not None:
-        return (bucket,)
+        return frozenset({bucket})
     # Vendor region names fall back to membrowse's ELF section classification.
     if section_type == 'data':
-        return ('ram',)
+        return frozenset({'ram'})
     if section_type in ('code', 'rodata'):
-        return ('flash',)
+        return frozenset({'flash'})
     return None  # SECTION_TYPE_UNKNOWN (not SHF_ALLOC) or missing - no signal
+
+
+def _relative_key(src, filters):
+    """Source path relative to the first matching filter, object suffix stripped,
+    or None when no filter matches."""
+    for f in filters:
+        idx = src.find(f)
+        if idx < 0:
+            continue
+        key = src[idx + len(f):]
+        for suffix in ('.obj', '.o'):
+            if key.endswith(suffix):
+                return key[:-len(suffix)]
+        return key
+    return None
 
 
 def per_file_sizes(report, filters):
@@ -132,18 +145,9 @@ def per_file_sizes(report, filters):
         src = sym.get('object_file') or sym.get('source_file') or ''
         if not src or not sym.get('size'):
             continue
-        key = None
-        for f in filters:
-            idx = src.find(f)
-            if idx >= 0:
-                key = src[idx + len(f):]
-                break
+        key = _relative_key(src, filters)
         if key is None:
             continue
-        if key.endswith('.obj'):
-            key = key[:-len('.obj')]
-        elif key.endswith('.o'):
-            key = key[:-len('.o')]
         entry = by_file.setdefault(key, {'flash': 0, 'ram': 0})
         buckets = _bucket_from_layout(sym.get('section'), section_regions, region_bucket)
         for b in buckets or _bucket_by_name(sym.get('section')):

@@ -154,6 +154,26 @@ class CheckerVerdicts(unittest.TestCase):
         self.assertIn('must be an object', r.stderr)
         self.assertNotIn('Traceback', r.stderr)
 
+    def test_compound_cases_keep_their_exact_error_list(self):
+        # pinned against extraction: an unbuilt family is NOT an early exit (a valid
+        # row still enters coverage), a missing row adds its own line after it, and a
+        # duplicate is judged against what already entered coverage
+        self.catalog['pic32mz'] = {'olimex_emz64': {'cmake': {
+            'roles': ['device'], 'portable': ['microchip/pic32mz/dcd_pic32mz.c']}}}
+        del self.waivers['dcd_pic32mz']
+        r = self._run(['stm32f407disco', 'olimex_emz64'])
+        self.assertEqual(r.returncode, 1)
+        self.assertEqual(r.stderr.splitlines(), [
+            'boards[1] (olimex_emz64): family "pic32mz" is pinned but built by no CI '
+            'toolchain (not in ci_set_matrix.family_list), so it covers nothing'])
+
+    def test_a_board_covering_nothing_still_counts_as_entered(self):
+        # empty roles/portable is valid coverage: the second entry is a duplicate,
+        # not a fresh board, so `if drivers:` would be the wrong test
+        self.catalog['stm32f4']['stm32f411disco'] = {'cmake': {'roles': [], 'portable': []}}
+        r = self._run(['stm32f411disco', 'stm32f411disco'])
+        self.assertIn('boards[1] (stm32f411disco): duplicate entry', r.stderr)
+
     def test_malformed_catalog_rows_fail_with_one_clear_error(self):
         # hw/bsp/family.json is validated by its own hook, but nothing sets fail_fast:
         # a hand-corrupted catalog must reach this hook as a line, not a traceback

@@ -101,6 +101,42 @@ def _load_object(path):
     return data, []
 
 
+def _entry_coverage(entry, where, catalog, ci_families):
+    """(board or None, driver stems or None, errors) for one roster entry.
+    Drivers None means the entry contributes no coverage; a board with an error
+    against it can still contribute (an unbuilt family is not an early exit)."""
+    if not isinstance(entry, dict):
+        return None, None, [f'{where}: must be an object, not {type(entry).__name__}']
+    board = entry.get('board')
+    if not board:
+        return None, None, [f'{where}: missing "board"']
+    where = f'{where} ({board})'
+    family = ci_select.board_family(board, REPO)
+    if family is None:
+        return board, None, [f'{where}: unknown board (no hw/bsp/*/boards/{board})']
+    errors = []
+    if family not in ci_families:
+        errors.append(
+            f'{where}: family "{family}" is pinned but built by no CI toolchain '
+            f'(not in ci_set_matrix.family_list), so it covers nothing')
+    rows = catalog.get(family)
+    if not isinstance(rows, dict) or board not in rows:
+        return board, None, errors + [f'{where}: no row in hw/bsp/family.json']
+    row = rows[board]
+    if not (isinstance(row, dict) and isinstance(row.get('cmake'), dict)):
+        return board, None, errors + [
+            f'{where}: hw/bsp/family.json row has no cmake configure']
+    cmake = row['cmake']
+    # row_drivers indexes both straight away: a catalog hand-edited between
+    # family.json's own hook and this one must fail as a line, not a traceback
+    if not all(isinstance(cmake.get(k), list) and all(isinstance(x, str) for x in cmake[k])
+               for k in ('roles', 'portable')):
+        return board, None, errors + [
+            f'{where}: hw/bsp/family.json cmake row needs string lists '
+            f'"roles" and "portable"']
+    return board, row_drivers(cmake), errors
+
+
 def pinned_coverage(path, catalog_path=FAMILY_JSON):
     """(errors, {board: driver stems} before waivers, uncovered)."""
     data, load_errors = _load_object(path)
@@ -123,44 +159,15 @@ def pinned_coverage(path, catalog_path=FAMILY_JSON):
     # board name rather than as a matrix leg.
     ci_families = set(ci_set_matrix.family_list)
     coverage = {}
-    for i, t in enumerate(boards):
-        where = f'boards[{i}]'
-        if not isinstance(t, dict):
-            errors.append(f'{where}: must be an object, not {type(t).__name__}')
+    for i, entry in enumerate(boards):
+        board, board_drivers, entry_errors = _entry_coverage(
+            entry, f'boards[{i}]', catalog, ci_families)
+        if board is not None and board in coverage:
+            errors.append(f'boards[{i}] ({board}): duplicate entry')
             continue
-        board = t.get('board')
-        if not board:
-            errors.append(f'{where}: missing "board"')
-            continue
-        where = f'{where} ({board})'
-        if board in coverage:
-            errors.append(f'{where}: duplicate entry')
-            continue
-        family = ci_select.board_family(board, REPO)
-        if family is None:
-            errors.append(f'{where}: unknown board (no hw/bsp/*/boards/{board})')
-            continue
-        if family not in ci_families:
-            errors.append(
-                f'{where}: family "{family}" is pinned but built by no CI toolchain '
-                f'(not in ci_set_matrix.family_list), so it covers nothing')
-        rows = catalog.get(family)
-        if not isinstance(rows, dict) or board not in rows:
-            errors.append(f'{where}: no row in hw/bsp/family.json')
-            continue
-        row = rows[board]
-        if not (isinstance(row, dict) and isinstance(row.get('cmake'), dict)):
-            errors.append(f'{where}: hw/bsp/family.json row has no cmake configure')
-            continue
-        cmake = row['cmake']
-        # row_drivers indexes both straight away: a catalog hand-edited between
-        # family.json's own hook and this one must fail as a line, not a traceback
-        if not all(isinstance(cmake.get(k), list) and all(isinstance(x, str) for x in cmake[k])
-                   for k in ('roles', 'portable')):
-            errors.append(f'{where}: hw/bsp/family.json cmake row needs string lists '
-                          f'"roles" and "portable"')
-            continue
-        coverage[board] = row_drivers(cmake)
+        errors += entry_errors
+        if board_drivers is not None:
+            coverage[board] = board_drivers
 
     for d, reason in uncovered.items():
         if d not in drivers:
