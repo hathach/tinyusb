@@ -198,6 +198,72 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
                     self.assertTrue(ok(classes['EX_ARGS'], ex_args),
                                     f'{path}/{fam}: the EX_ARGS guard rejects {ex_args!r}')
 
+    def test_the_cmake_job_builds_the_pinned_matrix(self):
+        # the boards this job exists for: CircleCI builds every board of every family,
+        # so an unpinned family here would only repeat one of its legs
+        self.assertIn('pinned_matrix', self.build)
+        self.assertIn('needs.set-matrix.outputs.pinned_json', self.jobs['cmake'])
+        self.assertNotIn('needs.set-matrix.outputs.json)', self.jobs['cmake'])
+        # the Build step keeps its -e filter: --ci-pinned-boards-only would null it
+        # (tools/build.py sets build_examples=None) and compile every example
+        self.assertNotIn('--ci-pinned-boards-only', self.jobs['cmake'])
+
+    def _run_matrix_step(self, sel, fail_pinned=False):
+        """Run the whole 'Generate matrix json' step for real, optionally with the
+        SCOPED --pinned invocation failing (the unscoped fallback still works, as a
+        broken script would not). Returns the step's $GITHUB_OUTPUT as a dict."""
+        import re as _re, shlex, subprocess, tempfile, json as _json
+        repo = os.path.dirname(CIRCLECI)
+        i = self.build.index('SELECT_FILE=ci_select_out.json')
+        i = self.build.rindex('\n', 0, i) + 1
+        j = self.build.index('# HIL matrix', i)
+        block = _re.sub(r'^ {10}', '', self.build[i:j], flags=_re.M)
+        with tempfile.TemporaryDirectory() as d:
+            # ci_set_matrix resolves the repo from its own path and reads hw/bsp for
+            # the pinned families, so the fake tree needs both
+            for name in ('.github', 'hw'):
+                os.symlink(os.path.join(repo, name), os.path.join(d, name))
+            with open(os.path.join(d, 'ci_select_out.json'), 'w') as fh:
+                _json.dump(sel, fh)
+            bin_dir = os.path.join(d, 'bin')
+            os.mkdir(bin_dir)
+            with open(os.path.join(bin_dir, 'python'), 'w') as fh:
+                fh.write('#!/bin/sh\n')
+                if fail_pinned:
+                    fh.write('case " $* " in *" --pinned "*--select-file*) exit 1 ;; esac\n')
+                fh.write(f'exec {shlex.quote(sys.executable)} "$@"\n')
+            os.chmod(os.path.join(bin_dir, 'python'), 0o755)
+            out = os.path.join(d, 'gh_output')
+            open(out, 'w').close()
+            r = subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', block], cwd=d,
+                               capture_output=True, text=True,
+                               env={**os.environ, 'PATH': bin_dir + os.pathsep + os.environ['PATH'],
+                                    'GITHUB_OUTPUT': out})
+            self.assertEqual(r.returncode, 0, r.stderr)
+            with open(out) as fh:
+                return dict(l.split('=', 1) for l in fh.read().splitlines() if '=' in l)
+
+    def test_the_pinned_matrix_is_scoped_with_the_example_map(self):
+        sel = {'build': {'full': False, 'families': ['stm32f4'],
+                         'family_examples': {'stm32f4': ['device/cdc_msc']}}}
+        import json as _json
+        got = self._run_matrix_step(sel)
+        self.assertEqual(_json.loads(got['pinned_matrix'])['arm-gcc'], ['stm32f4'])
+        self.assertEqual(_json.loads(got['example_map']), sel['build']['family_examples'])
+
+    def test_a_failed_pinned_matrix_drops_the_example_map_too(self):
+        # the pinned matrix falls open on its own failure; leaving the example map
+        # scoped would filter the examples of a full build and upload those sizes
+        sel = {'build': {'full': False, 'families': ['stm32f4'],
+                         'family_examples': {'stm32f4': ['device/cdc_msc']}}}
+        import json as _json, subprocess
+        got = self._run_matrix_step(sel, fail_pinned=True)
+        self.assertEqual(_json.loads(got['example_map']), {})
+        repo = os.path.dirname(CIRCLECI)
+        full = subprocess.run([sys.executable, os.path.join(repo, '.github/scripts/ci_set_matrix.py'),
+                               '--pinned'], capture_output=True, text=True, cwd=repo).stdout
+        self.assertEqual(_json.loads(got['pinned_matrix']), _json.loads(full))
+
     def test_an_unusable_selection_is_unusable_for_both_matrices(self):
         # hil_ci_set_matrix reads "full false with no boards map" as unusable and falls
         # open to the whole roster; if this emitter instead computed run_*=false, the
@@ -224,35 +290,11 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
             self.assertIn('UNSCOPED', flat[max(0, i - 200):i],
                           'a fall-open path without the marker build.yml greps for')
 
-    def _run_extras_block(self, sel):
-        """Extract the build-extras shell block from build.yml and run it for real.
-        Nothing else exercises it, which is why the empty/rejected conflation shipped."""
-        import re as _re, shlex, subprocess, tempfile, json as _json
-        repo = os.path.dirname(CIRCLECI)
-        i = self.build.index("EXAMPLE_MAP='{}'")
-        i = self.build.rindex('\n', 0, i) + 1
-        j = self.build.index('          echo "matrix=$MATRIX_JSON"', i)
-        block = _re.sub(r'^ {10}', '', self.build[i:j], flags=_re.M)
-        with tempfile.TemporaryDirectory() as d:
-            selp = os.path.join(d, 'sel.json')
-            with open(selp, 'w') as fh:
-                _json.dump(sel, fh)
-            matrix = subprocess.run(
-                [sys.executable, os.path.join(repo, '.github/scripts/ci_set_matrix.py'),
-                 '--select-file', selp], capture_output=True, text=True, cwd=repo).stdout.strip()
-            self.assertTrue(matrix, 'ci_set_matrix produced nothing')
-            sh = os.path.join(d, 'probe.sh')
-            with open(sh, 'w') as fh:
-                # shlex.quote, not hand-rolled quoting: a TMPDIR with a space in it
-                # made this fail for a reason that had nothing to do with the block
-                fh.write('BUILD_SELECT_FILE=' + shlex.quote(selp) + '\n')
-                fh.write('MATRIX_JSON=' + shlex.quote(matrix) + '\n')
-                fh.write(block)
-                fh.write('\nprintf "@@R@@\\n%s" "$MATRIX_JSON"\n')
-            r = subprocess.run(['bash', sh], capture_output=True, text=True, cwd=repo)
-            self.assertEqual(r.returncode, 0, r.stderr)
-            mj = r.stdout.split('@@R@@\n', 1)[1]
-            return sum(len(v) for v in _json.loads(mj).values())
+    def _matrix_legs(self, sel):
+        """Families across every toolchain leg of the step's matrix, for `sel`."""
+        import json as _json
+        return sum(len(v) for v in
+                   _json.loads(self._run_matrix_step(sel)['pinned_matrix']).values())
 
     def test_an_empty_family_list_is_not_treated_as_unusable(self):
         """A legitimate nothing-selected PR (every family filtered out) must keep the
@@ -261,15 +303,17 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         #3842 (docs + .gitignore) and #3840 (test/hil only) each rebuilt all 74 cmake
         legs after the selector had correctly chosen none, because an earlier version
         of this block conflated an empty families list with an unusable one."""
-        legs = self._run_extras_block(
+        legs = self._matrix_legs(
             {'build': {'full': False, 'families': [], 'family_examples': {}}})
         self.assertEqual(legs, 0, 'an empty families list must keep the all-empty matrix')
 
     def test_a_real_family_list_stays_scoped(self):
-        legs = self._run_extras_block(
+        legs = self._matrix_legs(
             {'build': {'full': False, 'families': ['stm32f4', 'rp2040'],
                        'family_examples': {}}})
         self.assertGreater(legs, 0)
+        self.assertLess(legs, self._matrix_legs(
+            {'build': {'full': True, 'families': [], 'family_examples': {}}}))
 
     def test_membrowse_upload_is_not_scoped_by_the_pr_filter(self):
         # $EX_ARGS must reach build.py so the upload resolves the same board the Build

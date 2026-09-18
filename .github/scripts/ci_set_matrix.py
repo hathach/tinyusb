@@ -100,7 +100,20 @@ family_list = {
 }
 
 
-def set_matrix_json(select=None):
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def pinned_families(repo_root=REPO):
+    """Families with a board in .github/ci-pinned-boards.json. Board names are
+    unique across hw/bsp/*/boards, so the board alone gives the family."""
+    with open(os.path.join(repo_root, '.github', 'ci-pinned-boards.json')) as f:
+        boards = {e['board'] for e in json.load(f)['boards']}
+    bsp = os.path.join(repo_root, 'hw', 'bsp')
+    return {fam for fam in os.listdir(bsp)
+            if any(os.path.isdir(os.path.join(bsp, fam, 'boards', b)) for b in boards)}
+
+
+def set_matrix_json(select=None, pinned=False):
     sel_fams = None
     if select:
         # every shape check is explicit: this runs AFTER main()'s fail-open handler, so
@@ -145,10 +158,16 @@ def set_matrix_json(select=None):
             print(f'ci_set_matrix: UNSCOPED - no selected family is built by any '
                   f'toolchain here ({", ".join(unbuilt)}), emitting the full matrix',
                   file=sys.stderr)
-            return set_matrix_json(None)
+            return set_matrix_json(None, pinned)
         if unbuilt:
             print(f'ci_set_matrix: selected families built by no toolchain here: '
                   f'{", ".join(unbuilt)}', file=sys.stderr)
+    if pinned:
+        # last, after every UNSCOPED decision above: those rules ask whether the
+        # SELECTION is usable, and an empty pinned matrix is a legitimate "no pinned
+        # family selected", not a selection to widen back to the full matrix.
+        keep = pinned_families()
+        matrix = {tc: [f for f in fams if f in keep] for tc, fams in matrix.items()}
     print(json.dumps(matrix))
 
 
@@ -161,6 +180,9 @@ def main():
     # already have the selection on disk pass the path instead
     group.add_argument('--select-file', help='file holding the same JSON as --select')
     group.add_argument('--base', help='git ref: run tools/ci_select.py --base REF and scope from it')
+    parser.add_argument('--pinned', action='store_true',
+                        help='keep only families with a board in .github/ci-pinned-boards.json '
+                             '(the GHA cmake leg; CircleCI builds every board unfiltered)')
     args = parser.parse_args()
 
     select = None
@@ -183,7 +205,7 @@ def main():
         print(f'ci_set_matrix: UNSCOPED - selection unusable ({e}), emitting the full '
               f'matrix', file=sys.stderr)
         select = None
-    set_matrix_json(select)
+    set_matrix_json(select, args.pinned)
 
 
 if __name__ == '__main__':

@@ -1852,6 +1852,83 @@ class TestCiSetMatrix(unittest.TestCase):
         self.assertEqual(m['riscv-gcc'], [])
         self.assertEqual(set(m), set(json.loads(self.run_matrix().stdout)))  # all keys kept
 
+    def test_pinned_keeps_only_families_with_a_pinned_board(self):
+        import json as _json
+        pinned = _json.loads(self.run_matrix('--pinned').stdout)
+        full = _json.loads(self.run_matrix().stdout)
+        self.assertEqual(set(pinned), set(full))  # every toolchain key kept
+        with open(os.path.join(REPO, '.github', 'ci-pinned-boards.json')) as f:
+            boards = {e['board'] for e in _json.load(f)['boards']}
+        fams = set().union(*pinned.values())
+        for fam in fams:
+            self.assertTrue(any(os.path.isdir(os.path.join(REPO, 'hw', 'bsp', fam, 'boards', b))
+                                for b in boards), f'{fam} has no pinned board')
+        # every pinned board's family must reach a leg, or its size stops being tracked
+        for b in boards:
+            fam = next(f for f in os.listdir(os.path.join(REPO, 'hw', 'bsp'))
+                       if os.path.isdir(os.path.join(REPO, 'hw', 'bsp', f, 'boards', b)))
+            self.assertIn(fam, fams | {'espressif'}, f'{b}: pinned but no build leg')
+        for fam in set(full['arm-gcc']) - fams:
+            self.assertNotIn(fam, pinned['arm-gcc'])
+
+    def test_pinned_composes_with_select_scoping(self):
+        sel = json.dumps({'build': {'full': False, 'families': ['rp2040', 'stm32f4', 'stm32f0'],
+                                    'family_examples': {}}})
+        m = json.loads(self.run_matrix('--pinned', '--select', sel).stdout)
+        # stm32f0 has no pinned board; rp2040 and stm32f4 do
+        self.assertEqual(m['arm-gcc'], ['rp2040', 'stm32f4'])
+
+    def test_pinned_selection_with_no_pinned_family_is_empty_not_unscoped(self):
+        # a legitimate "nothing pinned was selected": widening to the full matrix here
+        # would build every family from a diff that touched one unpinned one
+        sel = json.dumps({'build': {'full': False, 'families': ['stm32f0'],
+                                    'family_examples': {}}})
+        r = self.run_matrix('--pinned', '--select', sel)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(set().union(*json.loads(r.stdout).values()), set())
+        self.assertNotIn('UNSCOPED', r.stderr)
+
+    def test_pinned_keeps_the_unbuilt_family_fall_open_intact(self):
+        # efm32 is built by no toolchain: the selection is still usable (stm32f0 scopes
+        # it), so the pinned filter must not turn that into "nothing buildable" and
+        # widen back to the full matrix
+        sel = json.dumps({'build': {'full': False, 'families': ['stm32f0', 'efm32'],
+                                    'family_examples': {}}})
+        r = self.run_matrix('--pinned', '--select', sel)
+        self.assertNotIn('UNSCOPED', r.stderr)
+        self.assertEqual(set().union(*json.loads(r.stdout).values()), set())
+
+    def test_pinned_falls_open_to_the_pinned_full_matrix(self):
+        # an unusable selection widens to the full matrix, still pinned-filtered: the
+        # flag says which boards this leg exists for, not how wide the selection is
+        r = self.run_matrix('--pinned', '--select', 'not json {')
+        self.assertEqual(r.returncode, 0)
+        self.assertIn('ci_set_matrix: UNSCOPED', r.stderr)
+        self.assertEqual(json.loads(r.stdout), json.loads(self.run_matrix('--pinned').stdout))
+
+    def test_pinned_espressif_only_selection_adds_no_leg(self):
+        # espressif boards are built by name in hil-build-esp, never as a family leg
+        sel = json.dumps({'build': {'full': False, 'families': ['espressif'],
+                                    'family_examples': {}}})
+        r = self.run_matrix('--pinned', '--select', sel)
+        self.assertNotIn('UNSCOPED', r.stderr)
+        self.assertEqual(set().union(*json.loads(r.stdout).values()), set())
+
+    def test_pinned_survives_the_unbuildable_selection_fall_open(self):
+        # the recursive fall-open path: a selection of families no toolchain builds
+        # re-emits the FULL matrix, which must still be pinned-filtered
+        sel = json.dumps({'build': {'full': False, 'families': ['efm32'],
+                                    'family_examples': {}}})
+        r = self.run_matrix('--pinned', '--select', sel)
+        self.assertIn('ci_set_matrix: UNSCOPED', r.stderr)
+        self.assertEqual(json.loads(r.stdout), json.loads(self.run_matrix('--pinned').stdout))
+
+    def test_unflagged_output_is_unchanged_for_circleci(self):
+        sel = json.dumps({'build': {'full': False, 'families': ['rp2040', 'stm32f0'],
+                                    'family_examples': {}}})
+        m = json.loads(self.run_matrix('--select', sel).stdout)
+        self.assertEqual(m['arm-gcc'], ['rp2040', 'stm32f0'])
+
     def test_malformed_select_falls_open(self):
         base = json.loads(self.run_matrix().stdout)
         r = self.run_matrix('--select', 'not json {')

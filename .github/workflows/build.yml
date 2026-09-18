@@ -51,7 +51,7 @@ jobs:
   set-matrix:
     runs-on: ubuntu-latest
     outputs:
-      json: ${{ steps.set-matrix-json.outputs.matrix }}
+      pinned_json: ${{ steps.set-matrix-json.outputs.pinned_matrix }}
       hil_json: ${{ steps.set-matrix-json.outputs.hil_matrix }}
       example_map: ${{ steps.set-matrix-json.outputs.example_map }}
       # one pair per rig job: hil-tinyusb (tinyusb.json minus esptool boards),
@@ -151,7 +151,7 @@ jobs:
           SELECT_FILE=ci_select_out.json
           [ -s "$SELECT_FILE" ] || SELECT_FILE=''
           BUILD_SELECT_FILE="$SELECT_FILE"
-          MATRIX_JSON=''
+          PINNED_JSON=''
           if [ -n "$SELECT_FILE" ]; then
             # ci_set_matrix falls open on a selection it cannot use with rc 0 - it prints
             # the full matrix and says UNSCOPED on stderr. The build extras below must
@@ -159,13 +159,15 @@ jobs:
             # examples per family and membrowse uploads that partial run's sizes as if
             # it were the full build. Only the BUILD axis is dropped: build.families
             # being unusable says nothing about the boards map the HIL matrix reads.
-            MATRIX_JSON=$(python .github/scripts/ci_set_matrix.py --select-file "$SELECT_FILE" 2>ci_set_matrix.err) || MATRIX_JSON=''
+            # --pinned filters AFTER every fall-open decision, so this run's stderr is
+            # the same marker the unfiltered one prints - no second invocation needed.
+            PINNED_JSON=$(python .github/scripts/ci_set_matrix.py --pinned --select-file "$SELECT_FILE" 2>ci_set_matrix.err) || PINNED_JSON=''
             cat ci_set_matrix.err >&2
-            if [ -z "$MATRIX_JSON" ] || grep -q 'ci_set_matrix: UNSCOPED' ci_set_matrix.err; then
+            if [ -z "$PINNED_JSON" ] || grep -q 'ci_set_matrix: UNSCOPED' ci_set_matrix.err; then
               BUILD_SELECT_FILE=''
             fi
           fi
-          [ -z "$MATRIX_JSON" ] && MATRIX_JSON=$(python .github/scripts/ci_set_matrix.py)
+          [ -z "$PINNED_JSON" ] && PINNED_JSON=$(python .github/scripts/ci_set_matrix.py --pinned)
 
           # The per-family example map rides as a side channel: putting it inside
           # matrix entries would multiply GHA legs and break CircleCI's family parameter.
@@ -173,8 +175,8 @@ jobs:
           if [ -n "$BUILD_SELECT_FILE" ]; then
             EXAMPLE_MAP=$(jq -c '.build.family_examples // {}' "$BUILD_SELECT_FILE") || EXAMPLE_MAP='{}'
           fi
-          echo "matrix=$MATRIX_JSON"
-          echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
+          echo "pinned_matrix=$PINNED_JSON"
+          echo "pinned_matrix=$PINNED_JSON" >> $GITHUB_OUTPUT
           echo "example_map=$EXAMPLE_MAP" >> $GITHUB_OUTPUT
 
           # HIL matrix (merged from tinyusb + hifiphile configs), scoped on PRs.
@@ -193,8 +195,11 @@ jobs:
           echo "hil_matrix=$HIL_MATRIX_JSON" >> $GITHUB_OUTPUT
 
   # ------------------------------------------------------------------------------
-  # CMake build: membrowse's CI board(s) per family, falling back to one board (first
-  # alphabetically) for families with no CI board. Full build is done by CircleCI in PR
+  # CMake build: the families with a membrowse CI board, building that board - the only
+  # boards this job exists for, since CircleCI builds every board of every family. A
+  # pinned board that cannot build the PR's -e examples still falls back to another board
+  # of its family (see resolve_ci_boards), which then builds but does not upload. A
+  # toolchain with no pinned family gets an empty matrix entry and skips.
   # Note:
   # For Make and IAR build: will be done on CircleCI only (one random per family as well)
   # ------------------------------------------------------------------------------
@@ -215,7 +220,7 @@ jobs:
     with:
       build-system: 'cmake'
       toolchain: ${{ matrix.toolchain }}
-      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
+      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.pinned_json)[matrix.toolchain]) }}
       build-options: '--ci-pinned-boards .github/ci-pinned-boards.json'
       example-map: ${{ needs.set-matrix.outputs.example_map }}
       upload-artifacts: false
