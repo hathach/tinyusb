@@ -196,11 +196,13 @@ class MainFailure(unittest.TestCase):
             os.makedirs(os.path.join(tmp, 'b'))
             self.assertEqual(self._main(tmp, sizes={'x.c': {'flash': 1, 'ram': 1}}), 0)
 
-    def _main_combined(self, tmp, fail_out=None, metrics=True):
+    def _main_combined(self, tmp, fail_out=None, metrics=True, build_ok=True, example=None):
         """main() with --combined --engine linkermap and metrics.py stubbed out.
 
         `fail_out` is the metrics.py `-o` path (relative to METRICS_DIR) whose run
-        returns 1; `metrics` False fails per-board metric generation instead.
+        returns 1; `metrics` False fails per-board metric generation instead;
+        `build_ok` False fails every board build; `example` adds -e (whose per-board
+        JSONs carry a suffix the combined step doesn't read).
         Returns (rc, stdout, the argv lists run() saw).
         """
         ok = subprocess.CompletedProcess([], 0, '', '')
@@ -221,12 +223,14 @@ class MainFailure(unittest.TestCase):
                 f.write('{}')
             return f'{out_basename}.json'
 
-        with mock.patch.object(sys, 'argv', ['metrics_compare_base.py', '-b', 'b',
-                                             '--combined', '--engine', 'linkermap']), \
+        argv = ['metrics_compare_base.py', '-b', 'b', '--combined', '--engine', 'linkermap']
+        if example:
+            argv += ['-e', example]
+        with mock.patch.object(sys, 'argv', argv), \
              mock.patch.object(mcb, 'METRICS_DIR', tmp), \
              mock.patch.object(mcb, 'run', side_effect=run), \
              mock.patch.object(mcb, 'symlink_deps'), \
-             mock.patch.object(mcb, 'build_board', return_value=True), \
+             mock.patch.object(mcb, 'build_board', return_value=build_ok), \
              mock.patch.object(mcb, 'generate_metrics', side_effect=generate_metrics):
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf):
@@ -279,6 +283,42 @@ class MainFailure(unittest.TestCase):
             self.assertFalse(any(os.path.exists(path) for path in stale))
             self.assertFalse(any(path in cmd for cmd in cmds for path in stale))
             self.assertNotIn('combined report', out)
+
+    def _seed_combined_report(self, tmp):
+        """A previous run's combined report, left behind in the gitignored
+        cmake-metrics/ tree that nothing else wipes."""
+        os.makedirs(os.path.join(tmp, '_combined'))
+        stale = os.path.join(tmp, '_combined', 'metrics_compare.md')
+        with open(stale, 'w') as f:
+            f.write('| previous run | 100 | 200 |')
+        return stale
+
+    def test_combined_compare_failure_drops_the_previous_report(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            stale = self._seed_combined_report(tmp)
+            rc, out, _cmds = self._main_combined(
+                tmp, fail_out=os.path.join('_combined', 'metrics_compare'))
+            self.assertEqual(rc, 1)
+            self.assertFalse(os.path.exists(stale))
+
+    def test_no_board_built_drops_the_previous_combined_report(self):
+        # every board fails to build, so the combined step is skipped entirely
+        with tempfile.TemporaryDirectory() as tmp:
+            stale = self._seed_combined_report(tmp)
+            rc, out, _cmds = self._main_combined(tmp, build_ok=False)
+            self.assertEqual(rc, 1)
+            self.assertFalse(os.path.exists(stale))
+
+    def test_no_per_board_metrics_drops_the_previous_combined_report(self):
+        # -e with --combined finds no whole-board JSONs and just prints, so this
+        # run exits 0: the stale report must already be gone, or a reader
+        # following the exit code takes a previous run's numbers for this one's.
+        with tempfile.TemporaryDirectory() as tmp:
+            stale = self._seed_combined_report(tmp)
+            rc, out, _cmds = self._main_combined(tmp, example='device/cdc_msc')
+            self.assertEqual(rc, 0)
+            self.assertIn('no per-board metrics found', out)
+            self.assertFalse(os.path.exists(stale))
 
 
 if __name__ == '__main__':

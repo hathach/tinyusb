@@ -314,6 +314,14 @@ def main():
         # For --combined: track every (base_build, cur_build) pair so we can aggregate at the end.
         built_pairs = []
 
+        combined_dir = os.path.join(METRICS_DIR, '_combined')
+        # unconditional, like the per-board cleanup below: a combined step that
+        # fails, or never runs (no board built, or -e leaving no whole-board
+        # JSONs), must not leave a previous run's report for a reader to take
+        # for this one's — cmake-metrics/ is gitignored and persists.
+        if args.combined:
+            shutil.rmtree(combined_dir, ignore_errors=True)
+
         for board in args.board:
             print(f'\n=== {board} ===')
             board_dir = os.path.join(METRICS_DIR, board)
@@ -412,7 +420,6 @@ def main():
         # Aggregates the per-board metrics JSONs (not raw map.json globs) so the argv
         # stays small even with --ci spanning many boards.
         if args.combined and built_pairs:
-            combined_dir = os.path.join(METRICS_DIR, '_combined')
             os.makedirs(combined_dir, exist_ok=True)
 
             # Use the no-suffix per-board JSONs (whole-board metrics). Combined mode
