@@ -344,7 +344,9 @@ jobs:
           persist-credentials: false
 
       - name: Install membrowse
-        run: pip install membrowse
+        # pinned and wheel-only: an unpinned sdist would run its setup scripts on
+        # a runner that holds MEMBROWSE_API_KEY
+        run: 'pip install --only-binary :all: membrowse==1.2.9'
 
       - name: Membrowse identical upload (espressif, no code change)
         continue-on-error: true
