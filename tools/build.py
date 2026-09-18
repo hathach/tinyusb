@@ -98,6 +98,7 @@ def get_examples(family):
 
     if family == 'espressif':
         all_examples.append('device/board_test')
+        all_examples.append('device/cdc_msc_throughput')
         all_examples.append('device/usbtest')
         all_examples.append('device/video_capture')
         all_examples.append('host/device_info')
