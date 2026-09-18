@@ -154,6 +154,30 @@ class CheckerVerdicts(unittest.TestCase):
         self.assertIn('must be an object', r.stderr)
         self.assertNotIn('Traceback', r.stderr)
 
+    def test_malformed_catalog_rows_fail_with_one_clear_error(self):
+        # hw/bsp/family.json is validated by its own hook, but nothing sets fail_fast:
+        # a hand-corrupted catalog must reach this hook as a line, not a traceback
+        row = self.catalog['stm32f4']['stm32f407disco']
+        for name, family_rows, expect in (
+                ('family value is a list', ['stm32f407disco'], 'no row in hw/bsp/family.json'),
+                ('board entry is a list', {'stm32f407disco': ['x']}, 'no cmake configure'),
+                ('cmake is a list', {'stm32f407disco': {'cmake': ['x']}}, 'no cmake configure'),
+                ('no roles', {'stm32f407disco': {'cmake': {'portable': ['a.c']}}},
+                 'needs string lists'),
+                ('roles of lists',
+                 {'stm32f407disco': {'cmake': {'roles': [['device']], 'portable': ['a.c']}}},
+                 'needs string lists'),
+                ('portable of ints',
+                 {'stm32f407disco': {'cmake': {'roles': ['device'], 'portable': [1]}}},
+                 'needs string lists')):
+            with self.subTest(name):
+                self.catalog['stm32f4'] = family_rows
+                r = self._run(['stm32f407disco'])
+                self.assertEqual(r.returncode, 1)
+                self.assertNotIn('Traceback', r.stderr)
+                self.assertIn(expect, r.stderr)
+        self.catalog['stm32f4'] = {'stm32f407disco': row}
+
     def test_malformed_roster_json_fails_with_one_clear_error(self):
         r = run_checker(write_text(self, '{ bad json'), write_json(self, self.catalog))
         self.assertEqual(r.returncode, 1)

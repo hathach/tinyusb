@@ -144,14 +144,23 @@ def pinned_coverage(path, catalog_path=FAMILY_JSON):
             errors.append(
                 f'{where}: family "{family}" is pinned but built by no CI toolchain '
                 f'(not in ci_set_matrix.family_list), so it covers nothing')
-        if board not in catalog.get(family, {}):
+        rows = catalog.get(family)
+        if not isinstance(rows, dict) or board not in rows:
             errors.append(f'{where}: no row in hw/bsp/family.json')
             continue
-        row = catalog[family][board]
-        if not (row and row.get('cmake')):
+        row = rows[board]
+        if not (isinstance(row, dict) and isinstance(row.get('cmake'), dict)):
             errors.append(f'{where}: hw/bsp/family.json row has no cmake configure')
             continue
-        coverage[board] = row_drivers(row['cmake'])
+        cmake = row['cmake']
+        # row_drivers indexes both straight away: a catalog hand-edited between
+        # family.json's own hook and this one must fail as a line, not a traceback
+        if not all(isinstance(cmake.get(k), list) and all(isinstance(x, str) for x in cmake[k])
+                   for k in ('roles', 'portable')):
+            errors.append(f'{where}: hw/bsp/family.json cmake row needs string lists '
+                          f'"roles" and "portable"')
+            continue
+        coverage[board] = row_drivers(cmake)
 
     for d, reason in uncovered.items():
         if d not in drivers:
