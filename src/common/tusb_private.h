@@ -144,9 +144,12 @@ uint32_t tu_edpt_stream_read(tu_edpt_stream_t *s, void *buffer, uint32_t bufsize
 // Start an usb transfer if endpoint is not busy
 uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s);
 
+// Mark the last completed read's buffer copied out (device streams). Class drivers that skip
+// tu_edpt_stream_read_xfer_complete() on a failed transfer must call this before re-arming.
 #if CFG_TUD_ENABLED && OSAL_MUTEX_REQUIRED
-// Mark the last completed read's buffer copied out (device streams)
 void tu_edpt_stream_read_consumed(tu_edpt_stream_t *s);
+#else
+TU_ATTR_ALWAYS_INLINE static inline void tu_edpt_stream_read_consumed(tu_edpt_stream_t *s) { (void) s; }
 #endif
 
 // Complete read transfer by writing EP -> FIFO. Must be called in the transfer complete callback
@@ -155,9 +158,7 @@ void tu_edpt_stream_read_xfer_complete(tu_edpt_stream_t* s, uint32_t xferred_byt
   if (s->ep_buf != NULL) {
     tu_fifo_write_n(&s->ff, s->ep_buf, (uint16_t)xferred_bytes);
   }
-#if CFG_TUD_ENABLED && OSAL_MUTEX_REQUIRED
   tu_edpt_stream_read_consumed(s);
-#endif
 }
 
 // Complete read transfer with provided buffer

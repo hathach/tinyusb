@@ -758,21 +758,10 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
 
         TU_LOG_USBD("on EP %02X with %u bytes\r\n", ep_addr, (unsigned int) event.xfer_complete.len);
 
-#if OSAL_MUTEX_REQUIRED
-        if (epnum != 0 && ep_dir == TUSB_DIR_OUT) {
-          // Clear busy + claimed and record the endpoint together, so claim_idle never sees one without the other
-          (void) osal_mutex_lock(_usbd_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
-          _usbd_dev.cb_ep_addr = ep_addr;
-          _usbd_dev.ep_status[epnum][ep_dir] &= (uint8_t) ~(TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED);
-          (void) osal_mutex_unlock(_usbd_mutex);
-        } else
-#endif
-        {
+        if (0 == epnum) {
           // Clear busy + claimed
           _usbd_dev.ep_status[epnum][ep_dir] &= (uint8_t) ~(TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED);
-        }
 
-        if (0 == epnum) {
           // Not stalled on failure: a DCD refuses an EP0 prime when a newer setup is already
           // latched, and EP0 stalls are cleared by hardware when that setup arrives - so a stall
           // issued here lands after the auto-clear and would stall the transfer that superseded
@@ -782,17 +771,32 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
             TU_LOG_USBD("  Control stage not continued\r\n");
           }
         } else {
+          // Resolve the driver first: its early return must not leave cb_ep_addr recorded
           usbd_class_driver_t const* driver = get_driver(_usbd_dev.ep2drv[epnum][ep_dir]);
           TU_ASSERT(driver,);
 
+#if OSAL_MUTEX_REQUIRED
+          if (ep_dir == TUSB_DIR_OUT) {
+            // Clear busy + claimed and record the endpoint together, so claim_idle never sees one without the other
+            (void) osal_mutex_lock(_usbd_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+            _usbd_dev.cb_ep_addr = ep_addr;
+            _usbd_dev.ep_status[epnum][ep_dir] &= (uint8_t) ~(TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED);
+            (void) osal_mutex_unlock(_usbd_mutex);
+          } else
+#endif
+          {
+            // Clear busy + claimed
+            _usbd_dev.ep_status[epnum][ep_dir] &= (uint8_t) ~(TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED);
+          }
+
           TU_LOG_USBD("  %s xfer callback\r\n", driver->name);
           driver->xfer_cb(event.rhport, ep_addr, (xfer_result_t) event.xfer_complete.result, event.xfer_complete.len);
-        }
 
 #if OSAL_MUTEX_REQUIRED
-        // xfer_cb returned, the buffer is no longer in use
-        usbd_edpt_xfer_consumed(event.rhport, ep_addr);
+          // xfer_cb returned, the buffer is no longer in use
+          usbd_edpt_xfer_consumed(event.rhport, ep_addr);
 #endif
+        }
         break;
       }
 

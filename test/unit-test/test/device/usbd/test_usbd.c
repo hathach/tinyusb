@@ -419,11 +419,19 @@ static void set_configuration_msc(void) {
   tud_task();
 }
 
-static void arm_out_and_complete(void) {
+static void arm_out(void) {
   TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, 0x02));
   dcd_edpt_xfer_ExpectAndReturn(rhport, 0x02, out_buf, 64, false, true);
   TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport, 0x02, out_buf, 64, false));
-  dcd_event_xfer_complete(rhport, 0x02, 64, XFER_RESULT_SUCCESS, false);
+}
+
+static void arm_out_and_complete_with(xfer_result_t result) {
+  arm_out();
+  dcd_event_xfer_complete(rhport, 0x02, 64, result, false);
+}
+
+static void arm_out_and_complete(void) {
+  arm_out_and_complete_with(XFER_RESULT_SUCCESS);
 }
 
 static bool xfer_cb_probe_claims(uint8_t rhport_, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes,
@@ -471,6 +479,37 @@ void test_usbd_claim_idle_allowed_after_xfer_consumed(void) {
   tud_task();
 
   TEST_ASSERT_TRUE(cb_claim_idle);
+}
+
+// A failed OUT completion still hands the buffer to xfer_cb: cdc, printer and vendor copy it out
+// regardless of result, so the guard must be armed for it too
+void test_usbd_claim_idle_refused_while_xfer_cb_runs_on_failed_transfer(void) {
+  set_configuration_msc();
+  arm_out_and_complete_with(XFER_RESULT_FAILED);
+
+  mscd_xfer_cb_Stub(xfer_cb_probe_claims);
+  tud_task();
+
+  TEST_ASSERT_FALSE(cb_claim_idle); // buffer may still be in use even though the transfer failed
+  TEST_ASSERT_TRUE(cb_claim);       // class re-arm is still allowed
+
+  TEST_ASSERT_TRUE(usbd_edpt_claim_idle(rhport, 0x02));
+  TEST_ASSERT_TRUE(usbd_edpt_release(rhport, 0x02));
+}
+
+// A completion that arrives after a bus reset finds no driver and returns early; that must not
+// leave the endpoint recorded as in-callback with nothing left to clear it
+void test_usbd_claim_idle_not_stranded_by_completion_after_reset(void) {
+  set_configuration_msc();
+  arm_out();
+
+  mscd_reset_Ignore();
+  dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, false);
+  dcd_event_xfer_complete(rhport, 0x02, 64, XFER_RESULT_SUCCESS, false); // stale, queued behind the reset
+  tud_task();
+
+  TEST_ASSERT_TRUE(usbd_edpt_claim_idle(rhport, 0x02));
+  TEST_ASSERT_TRUE(usbd_edpt_release(rhport, 0x02));
 }
 
 static bool xfer_cb_rearm(uint8_t rhport_, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes,
