@@ -339,6 +339,9 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          # nothing here talks to the remote, and the steps below run third-party
+          # membrowse: no reason to leave GITHUB_TOKEN in .git/config for it
+          persist-credentials: false
 
       - name: Install membrowse
         run: pip install membrowse
