@@ -32,8 +32,8 @@
 // (partition table, GPT header). Higher LBAs return whatever is already in the
 // transfer buffer, so `dd` numbers reflect the USB/driver ceiling, not any
 // simulated storage or per-byte memset cost.
-// CDC path drains RX in tud_cdc_rx_cb and sources TX from a static filler, refilled
-// on every TX completion, so `dd` can target /dev/ttyACMx in either direction.
+// CDC path drains RX in tud_cdc_rx_cb and sources TX from a static filler after every
+// tud_task() pass, so `dd` can target /dev/ttyACMx in either direction.
 // Builds bare-metal or with FreeRTOS (CFG_TUSB_OS, always FreeRTOS on ESP-IDF).
 
 static void cdc_throughput_task(void);
@@ -85,12 +85,6 @@ static void cdc_throughput_task(void) {
     room -= n;
   }
   tud_cdc_write_flush();
-}
-
-// Refill as soon as a transfer completes so CDC IN is not bound to the polling rate
-void tud_cdc_tx_complete_cb(uint8_t itf) {
-  (void) itf;
-  cdc_throughput_task();
 }
 
 //--------------------------------------------------------------------+
@@ -170,8 +164,6 @@ int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void *buffer, u
 //--------------------------------------------------------------------+
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
 
-#define CDC_STACK_SIZE      (configMINIMAL_STACK_SIZE * 2)
-
 #ifdef ESP_PLATFORM
   #define USBD_STACK_SIZE   4096
   void app_main(void) {
@@ -185,9 +177,6 @@ int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void *buffer, u
 #if configSUPPORT_STATIC_ALLOCATION
 static StackType_t  usb_device_stack[USBD_STACK_SIZE];
 static StaticTask_t usb_device_taskdef;
-
-static StackType_t  cdc_stack[CDC_STACK_SIZE];
-static StaticTask_t cdc_taskdef;
 #endif
 
 static void usb_device_task(void *param) {
@@ -199,27 +188,18 @@ static void usb_device_task(void *param) {
 
   board_init_after_tusb();
 
+  // tud_task() blocks until an event: pump CDC after each event batch without waiting for a tick
   while (1) {
-    tud_task(); // blocks until there is a new event
-  }
-}
-
-// Primes TX after connect; tud_cdc_tx_complete_cb keeps it saturated in between
-static void cdc_task(void *param) {
-  (void) param;
-  while (1) {
+    tud_task();
     cdc_throughput_task();
-    vTaskDelay(1);
   }
 }
 
 static void freertos_init(void) {
   #if configSUPPORT_STATIC_ALLOCATION
   xTaskCreateStatic(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, usb_device_stack, &usb_device_taskdef);
-  xTaskCreateStatic(cdc_task, "cdc", CDC_STACK_SIZE, NULL, configMAX_PRIORITIES-2, cdc_stack, &cdc_taskdef);
   #else
   xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, NULL);
-  xTaskCreate(cdc_task, "cdc", CDC_STACK_SIZE, NULL, configMAX_PRIORITIES-2, NULL);
   #endif
 
   // only start scheduler for non-espressif mcu (espressif starts it in startup code)
