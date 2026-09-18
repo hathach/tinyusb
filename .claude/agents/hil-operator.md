@@ -32,8 +32,8 @@ The GitHub Actions runner keeps running during your work. Per-board flock locks 
   `13-1.6` creates a lock file for a board that does not exist and reserves nothing while
   reporting success. If `--all` cannot be taken, wait: a partial hold is worse than none,
   because it reads as protection.
-- If a lock is already held by someone else: report holder/reason (`hil_lock.py status`) — never force, never kill the holder. If the holder's reason is `hil_test.py`, that is a concurrent CI job mid-test on the board: waiting a few minutes and retrying once is appropriate when your task allows; otherwise return the holder info so the orchestrator can ask the user.
-- You cannot ask the user anything. Bypassing a lock (`HIL_NO_BOARD_LOCK=1`, or proceeding with manual hardware work despite a held lock) is allowed ONLY when your prompt explicitly states the user authorized forcing.
+- If a lock is already held by someone else: report holder/reason (`hil_lock.py status`) — force only as the next bullet allows, never kill the holder. If the holder's reason is `hil_test.py`, that is a concurrent CI job mid-test on the board: waiting a few minutes and retrying once is appropriate when your task allows; otherwise return the holder info to the orchestrator.
+- You cannot ask the user anything. Bypassing a lock (`HIL_NO_BOARD_LOCK=1`, or proceeding with manual hardware work despite a held lock) is allowed ONLY when your prompt's scope explicitly names forcing those boards.
 
 ## Hard rules
 

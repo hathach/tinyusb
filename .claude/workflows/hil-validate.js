@@ -1,7 +1,7 @@
 export const meta = {
   name: 'hil-validate',
   description: 'Hardware-in-the-loop run: one hil-operator flashes and tests every board in a single hil_test.py run; per-board flock locks arbitrate with concurrent CI (the actions-runner keeps running)',
-  whenToUse: 'After validate passes, to exercise built firmware on the physical rig. Requires the boards to be built (cmake-build/cmake-build-<board>, plus a dir per declared variant). If the result has non-empty `locked`, ask the user: force (re-invoke with force: true), continue waiting (re-invoke later), or accept the partial result. Pass force: true ONLY with explicit user authorization.',
+  whenToUse: 'After validate passes, to exercise built firmware on the physical rig. Requires the boards to be built (cmake-build/cmake-build-<board>, plus a dir per declared variant). If the result has non-empty `locked`, act on the task scope: force (re-invoke with force: true) when it names forcing those boards, otherwise wait and re-invoke, or return the holders and the scope gap to the caller; accepting a partial result is the caller decision. Pass force: true ONLY when the caller scope names forcing.',
   phases: [{ title: 'HIL', detail: 'one hil-operator, every board in one hil_test.py run' }],
 }
 
@@ -53,7 +53,7 @@ const runBoards = (boards, isRetry = false) => agent(
     : '') +
   'Do NOT touch the actions-runner service and do NOT pre-hold the board locks — hil_test.py self-locks each board for its flash+test. ' +
   (args.force
-    ? 'THE USER HAS EXPLICITLY AUTHORIZED FORCING: run hil_test.py with HIL_NO_BOARD_LOCK=1 in the environment (bypasses the board lock check; do NOT release or kill the existing holder). '
+    ? 'THE CALLER SCOPE NAMES FORCING THESE BOARDS: run hil_test.py with HIL_NO_BOARD_LOCK=1 in the environment (bypasses the board lock check; do NOT release or kill the existing holder). '
     : 'A board whose lock is held (a dev session or concurrent CI job) fails fast inside the run without blocking the others — never force the lock. ') +
   'If hil_test.py refuses the run with "board(s) not in <config>", re-run it WITHOUT the unknown names but keep the FULL board list on the hil_report call below — it emits a ran:false entry for every board you name, so the unknown ones surface as "no report row" instead of costing the whole batch. ' +
   'Use the config for this host (hostname first). Run hil_test.py as a BACKGROUND Bash task and wait for it (a stuck fleet runs to its pool guard, 60 min by default — beyond any foreground timeout); never cancel it early. ' +
@@ -141,7 +141,7 @@ const summarize = (rs, force, caveat) => ({
 
 const { pass, wedged, locked } = summarize(results, args.force, runCaveat)
 if (wedged.length) log(`WEDGED boards needing usb-kernel-recover: ${wedged.join(', ')}`)
-// Workers cannot prompt the user — surface still-locked boards for the main
-// session to ask: force (re-invoke with force: true), wait, or accept.
-if (locked.length) log(`still locked after retry: ${locked.join(', ')} — ask the user: force / keep waiting / accept`)
+// Workers cannot decide scope — surface still-locked boards to the caller, whose
+// scope decides: force (re-invoke with force: true), wait, or accept.
+if (locked.length) log(`still locked after retry: ${locked.join(', ')} — caller's scope decides: force / keep waiting / accept`)
 return { pass, results, wedged, locked, caveat: runCaveat }
