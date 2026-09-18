@@ -33,7 +33,7 @@ import shlex
 import subprocess
 import sys
 
-from membrowse_report import extract_ld_scripts, ninja_commands, extract_defsyms
+from membrowse_report import extract_ld_scripts, ninja_commands, extract_defsyms, redacted
 
 
 def compose(board, example, num_commits, upload, api_key, extra, family=None):
@@ -146,8 +146,7 @@ def main():
     cmd = compose(args.board, args.example, args.num_commits, args.upload,
                   api_key or 'dry-run-placeholder', extra, family)
 
-    shown = [('***' if c == api_key and api_key else c) for c in cmd]
-    print('+ ' + ' '.join(shown), flush=True)
+    print('+ ' + ' '.join(redacted(cmd, api_key)), flush=True)
 
     if os.path.isdir(worktree_dir):
         subprocess.run(['git', 'worktree', 'remove', '--force', worktree_dir],

@@ -82,15 +82,20 @@ def build_membrowse_cmd(args, commands_text):
     else:
         cmd += ['--identical']
 
-    key = None
     if args.upload:
         cmd += ['--upload', '--github', '--target-name', args.target_name]
         # no key (fork PRs: GHA withholds secrets) -> membrowse's tokenless GHA auth
-        key = os.environ.get('MEMBROWSE_API_KEY') or None
+        key = os.environ.get('MEMBROWSE_API_KEY')
         if key:
             cmd += ['--api-key', key]
 
-    return cmd, key
+    return cmd
+
+
+def redacted(cmd, secret):
+    """argv with `secret` masked, for logging. By value, not by the flag before it:
+    membrowse onboard takes the key as a positional (tools/membrowse_onboard.py)."""
+    return [('***' if secret and part == secret else part) for part in cmd]
 
 
 def main(argv=None):
@@ -117,10 +122,10 @@ def main(argv=None):
             if os.path.isfile(args.elf) else ''
     except RuntimeError as e:
         sys.exit(f'error: {e}')
-    cmd, key = build_membrowse_cmd(args, commands_text)
+    cmd = build_membrowse_cmd(args, commands_text)
 
-    logged = cmd if key is None else ['***' if part == key else part for part in cmd]
     # flush: piped stdout is block-buffered and the child's output would land first
+    logged = redacted(cmd, os.environ.get('MEMBROWSE_API_KEY'))
     print(' '.join(shlex.quote(p) for p in logged), flush=True)
 
     return subprocess.run(cmd).returncode

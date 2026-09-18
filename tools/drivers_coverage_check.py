@@ -27,12 +27,14 @@ The HIL family mapping reuses tools/ci_select.py's rule-3/4 machinery
 filter that pick which rig boards a src/portable/ diff selects) rather than
 a second heuristic.
 """
+import functools
 import json
 import os
 import sys
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 FAMILY_JSON = os.path.join(REPO, 'hw', 'bsp', 'family.json')
+PORTABLE = os.path.join(REPO, 'src', 'portable')
 sys.path.insert(0, os.path.join(REPO, 'tools'))
 import ci_select  # noqa: E402
 sys.path.insert(0, os.path.join(REPO, '.github', 'scripts'))
@@ -60,6 +62,7 @@ def row_drivers(row):
     return out
 
 
+@functools.lru_cache(maxsize=None)
 def list_driver_paths(portable_dir):
     """{stem: source path} for every dcd_*/hcd_* driver plus ehci/ohci, template
     excluded. A stem collision (two files with the same driver name) silently
@@ -99,12 +102,11 @@ def pinned_coverage(path, catalog_path=FAMILY_JSON):
         catalog = json.load(f)
 
     errors = []
-    drivers = set(list_driver_paths(os.path.join(REPO, 'src', 'portable')))
-    # ci_set_matrix.family_list is the ground truth for which families any CI
-    # toolchain actually builds. espressif is a deliberate exception there (see its
-    # own comment): hil-build-esp builds it by board name, not through this file, so
-    # its absence from family_list doesn't mean it's unbuilt.
-    ci_families = set(ci_set_matrix.family_list) | {'espressif'}
+    drivers = set(list_driver_paths(PORTABLE))
+    # ci_set_matrix.family_list is the ground truth for which families CI builds at
+    # all - espressif included, with no toolchain, since hil-build-esp builds it by
+    # board name rather than as a matrix leg.
+    ci_families = set(ci_set_matrix.family_list)
     coverage = {}
     for i, t in enumerate(boards):
         where = f'boards[{i}]'
@@ -153,10 +155,9 @@ def check(path, catalog_path=FAMILY_JSON):
     return pinned_coverage(path, catalog_path)[0]
 
 
-def membrowse_gaps(path, catalog_path=FAMILY_JSON):
+def membrowse_gaps(coverage, uncovered):
     """('INFO', message) per waiver, naming the pinned boards whose compiled
     driver it suppresses. Only meaningful once check() passed."""
-    _errors, coverage, uncovered = pinned_coverage(path, catalog_path)
     out = []
     for d, reason in sorted(uncovered.items()):
         boards = sorted(b for b, drivers in coverage.items() if d in drivers)
@@ -216,12 +217,13 @@ def main():
     path = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
         REPO, '.github', 'ci-pinned-boards.json')
     catalog_path = sys.argv[2] if len(sys.argv) > 2 else FAMILY_JSON
-    errors = check(path, catalog_path)
+    errors, coverage, uncovered = pinned_coverage(path, catalog_path)
     for e in errors:
         print(e, file=sys.stderr)
     if errors:
         return 1
-    for level, msg in membrowse_gaps(path, catalog_path) + hil_gaps():
+    gaps = membrowse_gaps(coverage, uncovered) + hil_gaps()
+    for level, msg in gaps:
         print(f'{level}: {msg}')
     return 0
 

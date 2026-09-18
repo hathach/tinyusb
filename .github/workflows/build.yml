@@ -314,10 +314,6 @@ jobs:
       build-system: 'cmake'
       toolchain: 'esp-idf'
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.hil_json)['esp-idf']) }}
-      # build-args are explicit `-b <board>` flags (no bare family name), which
-      # bypass --ci-pinned-boards family resolution entirely (tools/build.py main()) - this
-      # is only here to satisfy --ci-pinned-boards-only's argparse requirement on --ci-pinned-boards
-      build-options: '--ci-pinned-boards .github/ci-pinned-boards.json'
       upload-artifacts: true
       upload-membrowse: true
     secrets: inherit

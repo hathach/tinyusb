@@ -3,6 +3,7 @@
 # Unit tests for the CircleCI/GitHub Actions selection hand-off contracts.
 # Stdlib only; no builds.
 #   python3 test/hil/test/test_ci_metrics.py
+import json
 import os
 import re
 import sys
@@ -212,19 +213,19 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         """Run the whole 'Generate matrix json' step for real, optionally with the
         SCOPED --pinned invocation failing (the unscoped fallback still works, as a
         broken script would not). Returns the step's $GITHUB_OUTPUT as a dict."""
-        import re as _re, shlex, subprocess, tempfile, json as _json
+        import shlex, subprocess, tempfile
         repo = os.path.dirname(CIRCLECI)
         i = self.build.index('SELECT_FILE=ci_select_out.json')
         i = self.build.rindex('\n', 0, i) + 1
         j = self.build.index('# HIL matrix', i)
-        block = _re.sub(r'^ {10}', '', self.build[i:j], flags=_re.M)
+        block = re.sub(r'^ {10}', '', self.build[i:j], flags=re.M)
         with tempfile.TemporaryDirectory() as d:
             # ci_set_matrix resolves the repo from its own path and reads hw/bsp for
             # the pinned families, so the fake tree needs both
             for name in ('.github', 'hw'):
                 os.symlink(os.path.join(repo, name), os.path.join(d, name))
             with open(os.path.join(d, 'ci_select_out.json'), 'w') as fh:
-                _json.dump(sel, fh)
+                json.dump(sel, fh)
             bin_dir = os.path.join(d, 'bin')
             os.mkdir(bin_dir)
             with open(os.path.join(bin_dir, 'python'), 'w') as fh:
@@ -246,23 +247,22 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
     def test_the_pinned_matrix_is_scoped_with_the_example_map(self):
         sel = {'build': {'full': False, 'families': ['stm32f4'],
                          'family_examples': {'stm32f4': ['device/cdc_msc']}}}
-        import json as _json
         got = self._run_matrix_step(sel)
-        self.assertEqual(_json.loads(got['pinned_matrix'])['arm-gcc'], ['stm32f4'])
-        self.assertEqual(_json.loads(got['example_map']), sel['build']['family_examples'])
+        self.assertEqual(json.loads(got['pinned_matrix'])['arm-gcc'], ['stm32f4'])
+        self.assertEqual(json.loads(got['example_map']), sel['build']['family_examples'])
 
     def test_a_failed_pinned_matrix_drops_the_example_map_too(self):
         # the pinned matrix falls open on its own failure; leaving the example map
         # scoped would filter the examples of a full build and upload those sizes
         sel = {'build': {'full': False, 'families': ['stm32f4'],
                          'family_examples': {'stm32f4': ['device/cdc_msc']}}}
-        import json as _json, subprocess
+        import subprocess
         got = self._run_matrix_step(sel, fail_pinned=True)
-        self.assertEqual(_json.loads(got['example_map']), {})
+        self.assertEqual(json.loads(got['example_map']), {})
         repo = os.path.dirname(CIRCLECI)
         full = subprocess.run([sys.executable, os.path.join(repo, '.github/scripts/ci_set_matrix.py'),
                                '--pinned'], capture_output=True, text=True, cwd=repo).stdout
-        self.assertEqual(_json.loads(got['pinned_matrix']), _json.loads(full))
+        self.assertEqual(json.loads(got['pinned_matrix']), json.loads(full))
 
     def test_an_unusable_selection_is_unusable_for_both_matrices(self):
         # hil_ci_set_matrix reads "full false with no boards map" as unusable and falls
@@ -282,9 +282,8 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         # every message that emits the full matrix must carry the marker, and a purely
         # informational note (a partial family miss) must not claim to have done so.
         # Adjacent string literals are joined first, since these messages wrap.
-        import re as _re
-        flat = _re.sub(r"['\"]\s*\n\s*f?['\"]", '', matrix)
-        hits = [m.start() for m in _re.finditer('emitting the full ', flat)]
+        flat = re.sub(r"['\"]\s*\n\s*f?['\"]", '', matrix)
+        hits = [m.start() for m in re.finditer('emitting the full ', flat)]
         self.assertGreaterEqual(len(hits), 2, 'fall-open messages not found')
         for i in hits:
             self.assertIn('UNSCOPED', flat[max(0, i - 200):i],
@@ -292,9 +291,8 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
 
     def _matrix_legs(self, sel):
         """Families across every toolchain leg of the step's matrix, for `sel`."""
-        import json as _json
         return sum(len(v) for v in
-                   _json.loads(self._run_matrix_step(sel)['pinned_matrix']).values())
+                   json.loads(self._run_matrix_step(sel)['pinned_matrix']).values())
 
     def test_an_empty_family_list_is_not_treated_as_unusable(self):
         """A legitimate nothing-selected PR (every family filtered out) must keep the

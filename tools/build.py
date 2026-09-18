@@ -58,6 +58,9 @@ def run_cmd(cmd):
     return r
 
 
+CI_PINNED_BOARDS = '.github/ci-pinned-boards.json'
+
+
 def find_family(board):
     bsp_dir = Path("hw/bsp")
     for family_dir in bsp_dir.iterdir():
@@ -409,8 +412,11 @@ def resolve_ci_boards(boards_path, family, boards_only, examples=None,
     built only as compile smoke-checks."""
     with open(boards_path) as f:
         data = json.load(f)
+    # membership in this family's board dir, not find_family() per entry: that walks
+    # every hw/bsp family for each of the 23 pinned boards to answer one family's question
+    family_boards = {e.name for e in os.scandir(f'hw/bsp/{family}/boards') if e.is_dir()}
     ci_boards = [t['board'] for t in data['boards']
-                 if find_family(t['board']) == family
+                 if t['board'] in family_boards
                  and builds_any(t['board'], examples, extra_defines, build_system)]
     if ci_boards:
         return ci_boards
@@ -446,7 +452,8 @@ def main():
                         help='Path to ci-pinned-boards.json: build the CI boards '
                              'of each family (fallback: first board alphabetically)')
     parser.add_argument('--ci-pinned-boards-only', action='store_true', default=False,
-                        help='With --ci-pinned-boards: skip families that have no CI board')
+                        help='As --ci-pinned-boards, but a family with no CI board '
+                             'contributes nothing instead of falling back')
     parser.add_argument('-j', '--jobs', type=int, default=os.cpu_count(), help='Number of jobs to run in parallel')
     parser.add_argument('-T', '--target', action='append', default=[],
                         help='Build target to use, may be specified multiple times (default: all)')
@@ -467,10 +474,10 @@ def main():
     build_cflags = args.cflag
     one_random = args.one_random
     one_first = args.one_first
-    ci_boards_path = args.ci_pinned_boards
     ci_boards_only = args.ci_pinned_boards_only
-    if ci_boards_only and not ci_boards_path:
-        parser.error('--ci-pinned-boards-only requires --ci-pinned-boards')
+    # --only implies the roster: the upload step passes only that flag, and every
+    # caller wants the one roster there is
+    ci_boards_path = args.ci_pinned_boards or (CI_PINNED_BOARDS if ci_boards_only else None)
     if ci_boards_path and (one_first or one_random):
         parser.error('--ci-pinned-boards replaces --one-first/--one-random')
     build_targets = args.target if args.target else ['all']

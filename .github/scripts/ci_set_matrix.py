@@ -18,7 +18,9 @@ toolchain_list = [
     "rx-gcc"
 ]
 
-# family: [supported toolchain]
+# family: [cmake toolchains that build it]. An empty list means CI builds the family
+# by board name instead of as a matrix leg (espressif: hil-build-esp, in an IDF
+# container), so it belongs here - "not in family_list" means CI never builds it.
 family_list = {
     "apm32f0xx": ["arm-gcc"],
     "at32f402_405": ["arm-gcc"],
@@ -39,6 +41,7 @@ family_list = {
     "da1469x": ["arm-gcc"],
     "f1c100s": ["arm-gcc"],
     "fomu": ["riscv-gcc"],
+    "espressif": [],
     "ft9xx": ["ft9xx-gcc"],
     "gd32vf103": ["riscv-gcc"],
     "hpmicro": ["riscv-gcc"],
@@ -143,11 +146,11 @@ def set_matrix_json(select=None, pinned=False):
         # a family this file does not list builds on no toolchain, so it contributes no
         # leg. hw/bsp holds a few CI has never built (efm32, pic32mz, py32f0, ...) - a
         # missing family.cmake or no CI toolchain support, not a gap in this file.
-        # espressif is not a gap either: hil-build-esp builds its boards BY NAME in an
-        # IDF container (an esp-idf leg here would double-build them, and CircleCI would
-        # build every espressif board), so falling open to the full matrix for an
-        # espressif-only selection would add 74 legs, none of which can compile it.
-        unbuilt = sorted(f for f in sel_fams if f not in family_list and f != 'espressif')
+        # espressif is in family_list with no toolchain: hil-build-esp builds its boards
+        # BY NAME in an IDF container (an esp-idf leg here would double-build them, and
+        # CircleCI would build every espressif board), so falling open to the full matrix
+        # for an espressif-only selection would add 74 legs, none of which can compile it.
+        unbuilt = sorted(f for f in sel_fams if f not in family_list)
         if unbuilt and not any(matrix.values()):
             # NONE of the selected families is buildable here, so every leg would skip
             # and the PR would go green from a build job that ran no compiler. That is

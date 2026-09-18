@@ -791,12 +791,12 @@ class TestOrphanInvariant(unittest.TestCase):
         for v in vendors:
             self.assertTrue(ci_select.mcu_families(v + '/x.c', REPO), f'{v}: resolves to no family')
 
-    # hw/bsp families ci_set_matrix's family_list maps to no toolchain, so a PR touching
-    # one gets no compile coverage (ci_set_matrix treats a selection that intersects
+    # hw/bsp families absent from ci_set_matrix's family_list, so a PR touching one
+    # gets no compile coverage (ci_set_matrix treats a selection that intersects
     # family_list to nothing as unusable -> full matrix). cxd56: NuttX headers break
-    # the audio/midi2 examples. espressif: hil-build-esp builds its boards by name
-    # (hathach/tinyusb only - that job is gated on repository_owner).
-    UNBUILT_FAMILIES = {'cxd56', 'efm32', 'espressif', 'pic32mz', 'py32f0'}
+    # the audio/midi2 examples. espressif is NOT here: it is in family_list with no
+    # toolchain, since hil-build-esp builds its boards by name.
+    UNBUILT_FAMILIES = {'cxd56', 'efm32', 'pic32mz', 'py32f0'}
 
     def test_every_bsp_family_is_in_the_ci_matrix(self):
         sys.path.insert(0, os.path.join(REPO, '.github/scripts'))

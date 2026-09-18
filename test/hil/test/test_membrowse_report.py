@@ -60,16 +60,15 @@ class BuildMembrowseCmd(unittest.TestCase):
             elf = os.path.join(tmp, 'x.elf')
             open(elf, 'w').close()
             commands = 'cc -Wl,--script=/a/b.ld -o x.elf\n'
-            cmd, key = mr.build_membrowse_cmd(self._args(elf), commands)
+            cmd = mr.build_membrowse_cmd(self._args(elf), commands)
             self.assertEqual(cmd, ['membrowse', 'report', elf, '/a/b.ld'])
-            self.assertIsNone(key)
 
     def test_map_file_appended_when_present(self):
         with tempfile.TemporaryDirectory() as tmp:
             elf = os.path.join(tmp, 'x.elf')
             open(elf, 'w').close()
             open(elf + '.map', 'w').close()
-            cmd, _key = mr.build_membrowse_cmd(self._args(elf, ld=['/fake.ld']), '')
+            cmd = mr.build_membrowse_cmd(self._args(elf, ld=['/fake.ld']), '')
             self.assertIn('--map-file', cmd)
             self.assertEqual(cmd[cmd.index('--map-file') + 1], elf + '.map')
 
@@ -78,7 +77,7 @@ class BuildMembrowseCmd(unittest.TestCase):
             elf = os.path.join(tmp, 'x.elf')
             open(elf, 'w').close()
             commands = 'cc -Wl,--defsym=FOO=0x10 -Wl,--defsym,BAR=1 -o x.elf\n'
-            cmd, _key = mr.build_membrowse_cmd(self._args(elf, ld=['/fake.ld']), commands)
+            cmd = mr.build_membrowse_cmd(self._args(elf, ld=['/fake.ld']), commands)
             self.assertEqual(cmd[cmd.index('--def') + 1], 'FOO=0x10')
             self.assertIn('BAR=1', cmd)
 
@@ -87,7 +86,7 @@ class BuildMembrowseCmd(unittest.TestCase):
             elf = os.path.join(tmp, 'x.elf')
             open(elf, 'w').close()
             commands = 'cc -Wl,--script=/should/not/be-used.ld -o x.elf\n'
-            cmd, _key = mr.build_membrowse_cmd(
+            cmd = mr.build_membrowse_cmd(
                 self._args(elf, ld=['/override/a.ld', '/override/b.ld']), commands)
             self.assertIn('/override/a.ld /override/b.ld', cmd)
             self.assertNotIn('/should/not/be-used.ld', ' '.join(cmd))
@@ -97,7 +96,7 @@ class BuildMembrowseCmd(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             elf = os.path.join(tmp, 'x.elf')
             open(elf, 'w').close()
-            cmd, _key = mr.build_membrowse_cmd(
+            cmd = mr.build_membrowse_cmd(
                 self._args(elf, ld=['/fake.ld'], option='--json --all-symbols'), '')
             self.assertEqual(cmd[:4], ['membrowse', 'report', '--json', '--all-symbols'])
 
@@ -105,9 +104,24 @@ class BuildMembrowseCmd(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             elf = os.path.join(tmp, 'x.elf')
             open(elf, 'w').close()
-            cmd, _key = mr.build_membrowse_cmd(
+            cmd = mr.build_membrowse_cmd(
                 self._args(elf, ld=['/fake.ld'], option='--label "two words"'), '')
             self.assertEqual(cmd[:4], ['membrowse', 'report', '--label', 'two words'])
+
+
+class Redaction(unittest.TestCase):
+    def test_masks_the_key_wherever_it_sits(self):
+        # membrowse report puts it after --api-key, membrowse onboard as a positional
+        # (tools/membrowse_onboard.py compose()), so the rule is by value
+        self.assertEqual(mr.redacted(['membrowse', 'report', '--api-key', 's3cret'], 's3cret'),
+                         ['membrowse', 'report', '--api-key', '***'])
+        self.assertEqual(mr.redacted(['membrowse', 'onboard', 'b/e', 's3cret'], 's3cret'),
+                         ['membrowse', 'onboard', 'b/e', '***'])
+
+    def test_no_key_leaves_the_argv_alone(self):
+        for secret in (None, ''):
+            self.assertEqual(mr.redacted(['membrowse', 'report', 'x'], secret),
+                             ['membrowse', 'report', 'x'])
 
 
 class CliKeyHandling(unittest.TestCase):
