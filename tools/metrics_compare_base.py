@@ -319,9 +319,15 @@ def main():
             board_dir = os.path.join(METRICS_DIR, board)
             for example in examples:
                 suffix = f'_{example.replace("/", "_")}' if example else ''
-                stale_report = os.path.join(board_dir, f'metrics_compare{suffix}.md')
-                if os.path.isfile(stale_report):
-                    os.remove(stale_report)
+                # drop the metrics JSONs too: the combined step reads them back by
+                # name, so a previous run's file would stand in for one this run
+                # failed to generate (worst case: fresh base vs stale current).
+                for stale in (f'metrics_compare{suffix}.md',
+                              f'base_metrics{suffix}.json',
+                              f'build_metrics{suffix}.json'):
+                    stale_path = os.path.join(board_dir, stale)
+                    if os.path.isfile(stale_path):
+                        os.remove(stale_path)
             base_build = os.path.join(board_dir, 'base')
             cur_build = os.path.join(board_dir, 'build')
             shutil.rmtree(base_build, ignore_errors=True)
@@ -436,16 +442,22 @@ def main():
                 ret = _combine(base_out, base_jsons)
                 if ret.returncode != 0:
                     print(f'  combined base error: {ret.stderr}')
+                    failed = True
                 else:
                     ret = _combine(cur_out, cur_jsons)
                     if ret.returncode != 0:
                         print(f'  combined current error: {ret.stderr}')
+                        failed = True
                     else:
                         out_combined = os.path.join(combined_dir, 'metrics_compare')
                         ret = run([sys.executable, metrics_py, 'compare', '-m',
                                    '-o', out_combined, f'{base_out}.json', f'{cur_out}.json'])
                         print(ret.stdout)
-                        print(f'  combined report: {out_combined}.md')
+                        if ret.returncode != 0:
+                            print(f'  combined compare error: {ret.stderr}')
+                            failed = True
+                        else:
+                            print(f'  combined report: {out_combined}.md')
     finally:
         print(f'\nCleaning up worktree...')
         run(['git', '-C', TINYUSB_ROOT, 'worktree', 'remove', '--force', worktree_dir])

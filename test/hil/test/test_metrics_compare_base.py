@@ -196,6 +196,90 @@ class MainFailure(unittest.TestCase):
             os.makedirs(os.path.join(tmp, 'b'))
             self.assertEqual(self._main(tmp, sizes={'x.c': {'flash': 1, 'ram': 1}}), 0)
 
+    def _main_combined(self, tmp, fail_out=None, metrics=True):
+        """main() with --combined --engine linkermap and metrics.py stubbed out.
+
+        `fail_out` is the metrics.py `-o` path (relative to METRICS_DIR) whose run
+        returns 1; `metrics` False fails per-board metric generation instead.
+        Returns (rc, stdout, the argv lists run() saw).
+        """
+        ok = subprocess.CompletedProcess([], 0, '', '')
+        bad = subprocess.CompletedProcess([], 1, '', 'boom')
+        cmds = []
+
+        def run(cmd, **_kwargs):
+            cmds.append(cmd)
+            if '-o' not in cmd:
+                return ok
+            return bad if os.path.relpath(cmd[cmd.index('-o') + 1], tmp) == fail_out else ok
+
+        def generate_metrics(_build_dir, out_basename, _filters, example=None):
+            if not metrics:
+                return None
+            os.makedirs(os.path.dirname(out_basename), exist_ok=True)
+            with open(f'{out_basename}.json', 'w') as f:
+                f.write('{}')
+            return f'{out_basename}.json'
+
+        with mock.patch.object(sys, 'argv', ['metrics_compare_base.py', '-b', 'b',
+                                             '--combined', '--engine', 'linkermap']), \
+             mock.patch.object(mcb, 'METRICS_DIR', tmp), \
+             mock.patch.object(mcb, 'run', side_effect=run), \
+             mock.patch.object(mcb, 'symlink_deps'), \
+             mock.patch.object(mcb, 'build_board', return_value=True), \
+             mock.patch.object(mcb, 'generate_metrics', side_effect=generate_metrics):
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                rc = mcb.main()
+        return rc, buf.getvalue(), cmds
+
+    def test_combined_success_returns_zero_and_reports(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, out, _cmds = self._main_combined(tmp)
+            self.assertEqual(rc, 0)
+            self.assertIn('combined report', out)
+
+    def test_combined_base_combine_failure_returns_nonzero(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, out, _cmds = self._main_combined(
+                tmp, fail_out=os.path.join('_combined', 'base_metrics'))
+            self.assertEqual(rc, 1)
+            self.assertNotIn('combined report', out)
+
+    def test_combined_current_combine_failure_returns_nonzero(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, out, _cmds = self._main_combined(
+                tmp, fail_out=os.path.join('_combined', 'build_metrics'))
+            self.assertEqual(rc, 1)
+            self.assertNotIn('combined report', out)
+
+    def test_combined_compare_failure_returns_nonzero(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, out, _cmds = self._main_combined(
+                tmp, fail_out=os.path.join('_combined', 'metrics_compare'))
+            self.assertEqual(rc, 1)
+            self.assertNotIn('combined report', out)
+            self.assertIn('boom', out)
+            self.assertFalse(os.path.isfile(os.path.join(tmp, '_combined',
+                                                         'metrics_compare.md')))
+
+    def test_failed_metrics_drop_the_board_from_the_combined_set(self):
+        # a previous run's JSONs must not stand in for the ones this run failed
+        # to generate - the board simply drops out of the combined comparison
+        with tempfile.TemporaryDirectory() as tmp:
+            board_dir = os.path.join(tmp, 'b')
+            os.makedirs(board_dir)
+            stale = [os.path.join(board_dir, name)
+                     for name in ('base_metrics.json', 'build_metrics.json')]
+            for path in stale:
+                with open(path, 'w') as f:
+                    f.write('{}')
+            rc, out, cmds = self._main_combined(tmp, metrics=False)
+            self.assertEqual(rc, 1)
+            self.assertFalse(any(os.path.exists(path) for path in stale))
+            self.assertFalse(any(path in cmd for cmd in cmds for path in stale))
+            self.assertNotIn('combined report', out)
+
 
 if __name__ == '__main__':
     unittest.main()
