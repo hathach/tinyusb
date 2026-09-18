@@ -88,18 +88,33 @@ def _port_scope(driver_path, gates_by_port, repo_root):
     return port, ci_select.port_families(port, repo_root), gates_by_port.get(port, set())
 
 
+def _load_object(path):
+    """(json object, errors): an unreadable, malformed or non-object file is one
+    fatal line like every other check, not a traceback."""
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        return None, [f'{path}: {e}']
+    if not isinstance(data, dict):
+        return None, [f'{path}: top level must be an object']
+    return data, []
+
+
 def pinned_coverage(path, catalog_path=FAMILY_JSON):
     """(errors, {board: driver stems} before waivers, uncovered)."""
-    with open(path) as f:
-        data = json.load(f)
+    data, load_errors = _load_object(path)
+    if load_errors:
+        return load_errors, {}, {}
     boards = data.get('boards')
     uncovered = data.get('uncovered', {})
     if not isinstance(boards, list) or not boards:
         return [f'{path}: "boards" must be a non-empty list'], {}, {}
     if not isinstance(uncovered, dict):
         return [f'{path}: "uncovered" must be an object of driver: reason'], {}, {}
-    with open(catalog_path) as f:
-        catalog = json.load(f)
+    catalog, load_errors = _load_object(catalog_path)
+    if load_errors:
+        return load_errors, {}, {}
 
     errors = []
     drivers = set(list_driver_paths(PORTABLE))

@@ -25,8 +25,12 @@ def run_checker(json_path, *extra):
 
 
 def write_json(tc, data):
+    return write_text(tc, json.dumps(data))
+
+
+def write_text(tc, text):
     tmp = tempfile.NamedTemporaryFile('w', suffix='.json', delete=False)
-    json.dump(data, tmp)
+    tmp.write(text)
     tmp.close()
     tc.addCleanup(os.unlink, tmp.name)
     return tmp.name
@@ -149,6 +153,18 @@ class CheckerVerdicts(unittest.TestCase):
         self.assertEqual(r.returncode, 1)
         self.assertIn('must be an object', r.stderr)
         self.assertNotIn('Traceback', r.stderr)
+
+    def test_malformed_roster_json_fails_with_one_clear_error(self):
+        r = run_checker(write_text(self, '{ bad json'), write_json(self, self.catalog))
+        self.assertEqual(r.returncode, 1)
+        self.assertNotIn('Traceback', r.stderr)
+        self.assertEqual(len(r.stderr.strip().splitlines()), 1)
+
+    def test_non_object_roster_fails_with_one_clear_error(self):
+        r = run_checker(write_text(self, '[]'), write_json(self, self.catalog))
+        self.assertEqual(r.returncode, 1)
+        self.assertNotIn('Traceback', r.stderr)
+        self.assertIn('top level must be an object', r.stderr)
 
     def test_waiver_overlapping_coverage_is_not_an_error(self):
         r = self._run(['stm32f407disco'], dict(self.waivers, dcd_dwc2='empty build'))
