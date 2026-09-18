@@ -485,6 +485,17 @@ class TestRealRosterOnlyListTests(unittest.TestCase):
         for board in boards:
             self.assertEqual(s['boards'][board], ['device/hid_composite_freertos'])
 
+    def test_dual_mode_example_change_selects_only_list_boards(self):
+        # cdc_msc_throughput is not a *_freertos example: espressif builds it only via
+        # build.py's extra list, and selects it only via the roster only-list
+        boards = on_roster(self, 'espressif_s3_devkitm', 'espressif_p4_function_ev')
+        s = ci_select.classify(['examples/device/cdc_msc_throughput/src/main.c'], REPO, real_rosters())
+        self.assertFalse(s['full'])
+        for board in boards:
+            self.assertEqual(s['boards'][board], ['device/cdc_msc_throughput'])
+        self.assertIn('espressif', ci_select.classify_build(
+            ['examples/device/cdc_msc_throughput/src/main.c'], REPO)['families'])
+
     def test_class_change_includes_only_list_boards(self):
         boards = on_roster(self, 'espressif_s3_devkitm', 'espressif_p4_function_ev')
         s = ci_select.classify(['src/class/hid/hid_device.c'], REPO, real_rosters())
@@ -2542,6 +2553,16 @@ class TestPrunePoolIsBuildPys(unittest.TestCase):
                 self.assertNotEqual(pool, allex)          # the carve-out is real
             else:
                 self.assertEqual(pool, allex, f'{fam}: build.py narrows this family')
+
+    def test_espressif_builds_every_example_its_rig_boards_run(self):
+        # an only-list example missing from get_examples('espressif') has no binary,
+        # so HIL reports it skipped rather than failing
+        pool = set(self.build_py.get_examples('espressif'))
+        for _, boards in real_rosters():
+            for b in boards:
+                if b.get('flasher', {}).get('name') == 'esptool':
+                    for t in b.get('tests', {}).get('only', []):
+                        self.assertIn(t, pool, f"{b['name']}: {t}")
 
     def test_selections_are_what_the_espressif_only_rule_gave(self):
         # espressif's own list is the one value that ever differed from the unfiltered
