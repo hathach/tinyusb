@@ -25,6 +25,7 @@
 ## Build and Validate
 
 - Build contract: `.claude/skills/build/SKILL.md`. Its script resolves a change to boards and builds them; `--shared` writes `cmake-build/cmake-build-<board>`, the dir HIL flashes from, so preserve it. Flash with `ninja -C cmake-build/cmake-build-<board> <example>-jlink` or `-openocd`.
+- HIL contract: `.claude/skills/hil/SKILL.md`. It owns taking and releasing a rig board and names the HIL config json for the host you are on.
 - ESP-IDF: `. "$IDF_PATH/export.sh"` before anything Espressif; verification still goes through the build contract, with `idf.py -DBOARD=<board> flash monitor` in the example reserved for interactive flash and monitor.
 - Before submitting: `pre-commit run --all-files` (includes unit tests).
 - For code changes: build the full example set for boards that exercise the changed modules. Add fuzz/HIL coverage for parsers or protocol state machines.
