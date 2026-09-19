@@ -19,8 +19,7 @@ jobs:
             # matrix). CircleCI has no base-branch var; tinyusb PRs target master.
             # The selection lands in a FILE and never travels as an argv: a mass-sweep
             # diff selects hundreds of KB, and E2BIG would fail the step before the
-            # `||` fallback could fire - leaving a full build labelled scoped, because
-            # EXAMPLE_MAP/BUILD_FILTERED below have no such limit and stay scoped.
+            # `||` fallback could fire while EXAMPLE_MAP below stayed scoped.
             SELECT_FILE=ci_select_out.json
             rm -f "$SELECT_FILE"
             if [ -n "${CIRCLE_PULL_REQUEST:-}" ]; then
@@ -45,8 +44,8 @@ jobs:
             if [ -f "$SELECT_FILE" ]; then
               # ci_set_matrix also falls open with rc 0, saying UNSCOPED on stderr. The
               # extras below must follow it, exactly as build.yml does: a full matrix
-              # paired with a still-scoped -e list builds a fraction of each family and
-              # tells code-metrics it was an unscoped run.
+              # paired with a still-scoped -e list silently builds a fraction of each
+              # family instead of the full set the matrix claims.
               MATRIX_JSON=$(python .github/scripts/ci_set_matrix.py --select-file "$SELECT_FILE" 2>ci_set_matrix.err) || MATRIX_JSON=''
               cat ci_set_matrix.err
               if [ -z "$MATRIX_JSON" ] || grep -q 'ci_set_matrix: UNSCOPED' ci_set_matrix.err; then
@@ -57,43 +56,37 @@ jobs:
             echo "MATRIX_JSON=$MATRIX_JSON"
 
             EXAMPLE_MAP='{}'
-            BUILD_FILTERED='false'
             if [ -f "$SELECT_FILE" ]; then
               EXAMPLE_MAP=$(jq -c '.build.family_examples // {}' < "$SELECT_FILE") || EXAMPLE_MAP='{}'
-              BUILD_FILTERED=$(jq -r 'if (.build? | type) == "object" and .build.full == false then "true" else "false" end' < "$SELECT_FILE") || BUILD_FILTERED='false'
             fi
 
             # /pipeline/continue caps parameter values at 512 chars - a scoped map is
-            # KBs, so both values ride inside the generated config itself (config max
-            # is 3MB), swapped into the parameter defaults by sentinel-line match.
+            # KBs, so it rides inside the generated config itself (config max is 3MB),
+            # swapped into the parameter default by sentinel-line match.
             # Fail-open: a sentinel that drifted (renamed comment, reformatted line)
-            # must not red EVERY CircleCI pipeline. The rewrite is all-or-nothing
-            # (config2.yml is only written once both substitutions succeeded).
-            #
-            # Done BEFORE the family entries are generated, and a failure drops the
-            # scoping entirely: the checked-in defaults are {} / false = unfiltered, so
-            # a scoped FAMILY list with unfiltered defaults would build a subset of
-            # families while telling code-metrics it had built them all.
-            if ! EXAMPLE_MAP="$EXAMPLE_MAP" BUILD_FILTERED="$BUILD_FILTERED" python3 - \<<'PYEOF'
+            # must not red every CircleCI pipeline. This runs before family entries;
+            # the checked-in default is unfiltered, so a failed rewrite drops scoping.
+            # Otherwise
+            # a scoped FAMILY list with unfiltered defaults would silently build only a
+            # subset of each family's examples under a matrix that claims a full build.
+            if ! EXAMPLE_MAP="$EXAMPLE_MAP" python3 - \<<'PYEOF'
             import os
             p = '.circleci/config2.yml'
             t = open(p).read()
             def yq(s):  # YAML single-quoted scalar
                 return "'" + s.replace("'", "''") + "'"
-            for env, tag in (('EXAMPLE_MAP', 'example-map-default'),
-                             ('BUILD_FILTERED', 'build-filtered-default')):
-                old = [l for l in t.splitlines() if l.strip().endswith(f'# {tag}: rewritten in-place by config.yml set-matrix')]
-                assert len(old) == 1, f'{tag}: sentinel not found exactly once'
-                line = old[0]
-                new = line.split('default:')[0] + 'default: ' + yq(os.environ[env]) + f'  # {tag}'
-                t = t.replace(line, new, 1)
+            tag = 'example-map-default'
+            old = [l for l in t.splitlines() if l.strip().endswith(f'# {tag}: rewritten in-place by config.yml set-matrix')]
+            assert len(old) == 1, f'{tag}: sentinel not found exactly once'
+            line = old[0]
+            new = line.split('default:')[0] + 'default: ' + yq(os.environ['EXAMPLE_MAP']) + f'  # {tag}'
+            t = t.replace(line, new, 1)
             open(p, 'w').write(t)
             PYEOF
             then
               echo "warning: sentinel rewrite failed - dropping the scoping, full build"
               MATRIX_JSON="$FULL_MATRIX_JSON"
               EXAMPLE_MAP='{}'
-              BUILD_FILTERED='false'
             fi
 
             BUILDSYSTEM_LIST=(
@@ -141,9 +134,6 @@ jobs:
               echo "              build-args: ['$build_args']" >> .circleci/config2.yml
             }
 
-            # Collect all build aliases for code-metrics requires (cmake only, exclude esp-idf)
-            BUILD_ALIASES=()
-
             for build_system in "${BUILDSYSTEM_LIST[@]}"; do
               for toolchain in "${TOOLCHAIN_LIST[@]}"; do
                 # make does not support these toolchains
@@ -162,21 +152,9 @@ jobs:
 
                 gen_build_entry "$build_system" "$toolchain" "$FAMILY"
                 ANY_BUILD=1
-
-                # Only add cmake builds: excluding esp-idf or build_args="--one-random" to metrics requirements
-                if [ "$build_system" == "cmake" ] && [ "$toolchain" != "esp-idf" ] && [ "$toolchain" != "arm-iar" ]; then
-                  BUILD_ALIASES+=("build-${build_system}-${toolchain}")
-                fi
               done
             done
 
-            if [ ${#BUILD_ALIASES[@]} -gt 0 ]; then
-              echo "      - code-metrics:" >> .circleci/config2.yml
-              echo "          requires:" >> .circleci/config2.yml
-              for alias in "${BUILD_ALIASES[@]}"; do
-                echo "            - $alias" >> .circleci/config2.yml
-              done
-            fi
             if [ "${ANY_BUILD:-0}" != "1" ]; then
               # a workflow with zero jobs is invalid config
               echo "      - no-op" >> .circleci/config2.yml

@@ -18,7 +18,9 @@ toolchain_list = [
     "rx-gcc"
 ]
 
-# family: [supported toolchain]
+# family: [cmake toolchains that build it]. An empty list means CI builds the family
+# by board name instead of as a matrix leg (espressif: hil-build-esp, in an IDF
+# container), so it belongs here - "not in family_list" means CI never builds it.
 family_list = {
     "apm32f0xx": ["arm-gcc"],
     "at32f402_405": ["arm-gcc"],
@@ -37,7 +39,9 @@ family_list = {
     "ch32v30x": ["riscv-gcc"],
     "ch583": ["riscv-gcc"],
     "da1469x": ["arm-gcc"],
+    "f1c100s": ["arm-gcc"],
     "fomu": ["riscv-gcc"],
+    "espressif": [],
     "ft9xx": ["ft9xx-gcc"],
     "gd32vf103": ["riscv-gcc"],
     "hpmicro": ["riscv-gcc"],
@@ -72,6 +76,7 @@ family_list = {
     "samd11": ["arm-gcc", "arm-clang"],
     "samd2x_l2x": ["arm-gcc", "arm-clang"],
     "samd5x_e5x": ["arm-gcc", "arm-clang"],
+    "same7x": ["arm-gcc"],
     "samg": ["arm-gcc", "arm-clang"],
     "stm32c0": ["arm-gcc", "arm-clang", "arm-iar"],
     "stm32c5": ["arm-gcc", "arm-clang", "arm-iar"],
@@ -95,13 +100,23 @@ family_list = {
     "stm32wba": ["arm-gcc", "arm-clang", "arm-iar"],
     "tm4c": ["arm-gcc"],
     "xmc4000": ["arm-gcc"],
-    # S3, P4 will be built by hil test
-    # "-bespressif_s3_devkitm": ["esp-idf"],
-    # "-bespressif_p4_function_ev": ["esp-idf"],
 }
 
 
-def set_matrix_json(select=None):
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def pinned_families(repo_root=REPO):
+    """Families with a board in .github/ci-pinned-boards.json. Board names are
+    unique across hw/bsp/*/boards, so the board alone gives the family."""
+    with open(os.path.join(repo_root, '.github', 'ci-pinned-boards.json')) as f:
+        boards = {e['board'] for e in json.load(f)['boards']}
+    bsp = os.path.join(repo_root, 'hw', 'bsp')
+    return {fam for fam in os.listdir(bsp)
+            if any(os.path.isdir(os.path.join(bsp, fam, 'boards', b)) for b in boards)}
+
+
+def set_matrix_json(select=None, pinned=False):
     sel_fams = None
     if select:
         # every shape check is explicit: this runs AFTER main()'s fail-open handler, so
@@ -129,15 +144,13 @@ def set_matrix_json(select=None):
         matrix[toolchain] = fams
     if sel_fams:
         # a family this file does not list builds on no toolchain, so it contributes no
-        # leg. hw/bsp holds several CI has never built (efm32, py32f0, same7x, ...) plus
-        # espressif, whose boards hil-build-esp builds by name.
-        # espressif is not a gap: its examples need the ESP-IDF environment
-        # (CLAUDE.md: `. "$IDF_PATH/export.sh"` before any build), which the cmake legs
-        # do not have - that is why it is commented out of family_list above. Its
-        # coverage comes from hil-build-esp, which builds those boards BY NAME in an IDF
-        # container, so an espressif-only PR is already validated and falling open to the
-        # full matrix would add 74 legs, none of which can compile espressif.
-        unbuilt = sorted(f for f in sel_fams if f not in family_list and f != 'espressif')
+        # leg. hw/bsp holds a few CI has never built (efm32, pic32mz, py32f0, ...) - a
+        # missing family.cmake or no CI toolchain support, not a gap in this file.
+        # espressif is in family_list with no toolchain: hil-build-esp builds its boards
+        # BY NAME in an IDF container (an esp-idf leg here would double-build them, and
+        # CircleCI would build every espressif board), so falling open to the full matrix
+        # for an espressif-only selection would add 74 legs, none of which can compile it.
+        unbuilt = sorted(f for f in sel_fams if f not in family_list)
         if unbuilt and not any(matrix.values()):
             # NONE of the selected families is buildable here, so every leg would skip
             # and the PR would go green from a build job that ran no compiler. That is
@@ -148,10 +161,16 @@ def set_matrix_json(select=None):
             print(f'ci_set_matrix: UNSCOPED - no selected family is built by any '
                   f'toolchain here ({", ".join(unbuilt)}), emitting the full matrix',
                   file=sys.stderr)
-            return set_matrix_json(None)
+            return set_matrix_json(None, pinned)
         if unbuilt:
             print(f'ci_set_matrix: selected families built by no toolchain here: '
                   f'{", ".join(unbuilt)}', file=sys.stderr)
+    if pinned:
+        # last, after every UNSCOPED decision above: those rules ask whether the
+        # SELECTION is usable, and an empty pinned matrix is a legitimate "no pinned
+        # family selected", not a selection to widen back to the full matrix.
+        keep = pinned_families()
+        matrix = {tc: [f for f in fams if f in keep] for tc, fams in matrix.items()}
     print(json.dumps(matrix))
 
 
@@ -164,6 +183,9 @@ def main():
     # already have the selection on disk pass the path instead
     group.add_argument('--select-file', help='file holding the same JSON as --select')
     group.add_argument('--base', help='git ref: run tools/ci_select.py --base REF and scope from it')
+    parser.add_argument('--pinned', action='store_true',
+                        help='keep only families with a board in .github/ci-pinned-boards.json '
+                             '(the GHA cmake leg; CircleCI builds every board unfiltered)')
     args = parser.parse_args()
 
     select = None
@@ -186,7 +208,7 @@ def main():
         print(f'ci_set_matrix: UNSCOPED - selection unusable ({e}), emitting the full '
               f'matrix', file=sys.stderr)
         select = None
-    set_matrix_json(select)
+    set_matrix_json(select, args.pinned)
 
 
 if __name__ == '__main__':

@@ -406,9 +406,10 @@ FAMILIES_IN = re.compile(r"-> families \[(.*?)\]|: bsp family (\S+)$")
 EXAMPLES_IN = re.compile(r"-> \[(.*?)\]$|: example (\S+)$")
 ROLE_IN = re.compile(r": core (device|host) stack$")
 PORT_IN = re.compile(r": port (\S+) -> families \[")
-# ci_select's wording for tools/metrics.py and .github/scripts/metrics_*.py, the one
-# build reason that names a cmake target rather than families or examples
-METRICS_IN = re.compile(r": metrics tooling runs in the build\b")
+# the one build reason whose path is verified by a cmake target outside `all`:
+# family_support.cmake declares examples-membrowse-upload with add_custom_target
+MEMBROWSE_IN = re.compile(r': membrowse build-time script\b')
+MEMBROWSE_TARGET = 'examples-membrowse-upload'
 
 
 def _named(pattern, reason):
@@ -539,7 +540,7 @@ def named_examples(reason):
     return _named(EXAMPLES_IN, reason)
 
 
-def coverage(reasons, scope, results, chosen=False):
+def coverage(reasons, scope, results, chosen=False, targets=()):
     """ci_select's per-path build reasons as (nothing to verify, uncovered firmware),
     judged against what was actually built. 'no build contribution' is its wording
     for non-code paths, and a get_deps.py edit that changes no entry is the same;
@@ -549,15 +550,17 @@ def coverage(reasons, scope, results, chosen=False):
     filtered, which it drops without a reason line), or a full-matrix run whose pair
     does not contain the port. A port path is a gap too when the boards built are of its
     families but none compiled the changed body (port_gap): the driver is in no built
-    board's default configuration, or its guard preprocessed it away there. A path whose reason names a build target rather than families or examples
-    (tools/metrics.py runs as tinyusb_metrics) is a gap whatever built: the default sweep
-    builds `all`, which never runs that target. A path that named examples is a
-    gap when no board wrote an elf for any of them; a core stack path names every example
-    of its role; any other contributing path is a gap when the run produced no elf at all
-    (-T help is a green build of nothing). `chosen` (-e or -T given) hands all that to
-    the caller, bar a family no board of which was built: narrowing the examples does not
-    change which families the scope resolves to. With no board at all, every path not
-    explained as nothing-to-verify is a gap."""
+    board's default configuration, or its guard preprocessed it away there. A path that
+    named examples is a gap when no board wrote an elf for any of them; a core stack path
+    names every example of its role; any other contributing path is a gap when the run
+    produced no elf at all (-T help is a green build of nothing). A path whose reason names
+    a build target rather than families or examples (tools/membrowse_report.py is verified
+    by examples-membrowse-upload) is a gap unless the run selected that target: the default
+    sweep builds `all`, which never runs it, and another -e or -T does not stand in for it.
+    `chosen` (-e or -T given) hands the rest to the caller, bar a family no board of which
+    was built and bar that target: narrowing the examples does not change which families
+    the scope resolves to. With no
+    board at all, every path not explained as nothing-to-verify is a gap."""
     built_fams = {r['family'] for r in results}
     ok_ex = set().union(*(set(r.get('okExamples', ())) for r in results)) if results else set()
     benign, gaps = [], []
@@ -569,13 +572,13 @@ def coverage(reasons, scope, results, chosen=False):
             gaps.append(r)
         elif fams is not None and not fams & built_fams:
             gaps.append(r)
+        elif MEMBROWSE_IN.search(r) and MEMBROWSE_TARGET not in targets:
+            gaps.append(f'{r} (the default sweep builds `all`, which does not run '
+                        f'{MEMBROWSE_TARGET}: rerun with -T all -T {MEMBROWSE_TARGET})')
         elif chosen:
             continue
         elif fams is not None and (gap := port_gap(r, results)):
             gaps.append(f'{r} ({gap})')
-        elif METRICS_IN.search(r):
-            gaps.append(f'{r} (the default sweep builds `all`, which does not run '
-                        f'tinyusb_metrics: rerun with -T all -T tinyusb_metrics)')
         elif exs is not None and not {e.split('/', 1)[1] for e in exs} & ok_ex:
             gaps.append(r)
         elif results and not ok_ex:
@@ -836,7 +839,8 @@ def main(argv=None):
     if not a.board:
         # an uncovered path fails the scope even when every board built green: a class
         # driver plus the core file that registers it is the common shape
-        extra['nothingToBuild'], extra['uncovered'] = coverage(reasons, paths, results, bool(a.example or a.target))
+        extra['nothingToBuild'], extra['uncovered'] = coverage(
+            reasons, paths, results, bool(a.example or a.target), a.target)
     ok = built_ok and not extra.get('uncovered')
     print(json.dumps({'pass': ok, 'boards': results, 'resolution': how_resolved, **extra}))
     return 0 if ok else (1 if not built_ok else 3)

@@ -360,7 +360,7 @@ void board_reset_to_bootloader(void) {
 //--------------------------------------------------------------------+
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
 
-void max3421_int_handler(uint gpio, uint32_t event_mask) {
+static void max3421_int_handler(uint gpio, uint32_t event_mask) {
   if (!(gpio == MAX3421_INTR_PIN && event_mask & GPIO_IRQ_EDGE_FALL)) {
     return;
   }

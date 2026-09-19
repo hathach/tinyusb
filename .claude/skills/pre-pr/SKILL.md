@@ -21,9 +21,9 @@ Run the software + hardware gate for the current branch. The user invoking this 
   `build.full` is true, use `stm32f407disco` + `raspberry_pi_pico` as the broad representative
   set.
 - A non-default build target selected by the changed path must run through its existing
-  command (for example, `tinyusb_metrics` for `tools/metrics.py`). A default board sweep is
-  not evidence for a target it does not execute; report the target unverified if the current
-  workflow cannot express it.
+  command (for example, `examples-membrowse-upload` for `tools/membrowse_report.py`). A
+  default board sweep is not evidence for a target it does not execute; report the target
+  unverified if the current workflow cannot express it.
 - `hilBoards`: derive only from the top-level HIL selection, never from `buildBoards`. When
   top-level `full` is false, sample one board per family from the keys of top-level `boards`;
   when it is true, use the broad representative set above. Run HIL only if the rig is reachable

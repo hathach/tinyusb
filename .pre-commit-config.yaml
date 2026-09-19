@@ -107,13 +107,22 @@ repos:
     entry: sh -c "python3 test/hil/test/test_ci_select.py && python3 test/hil/test/test_ci_metrics.py && cd test/hil/test && python3 -m unittest -q test_hil_util.BottomLayer"
     pass_filenames: false
     language: system
-  # language: python, not system: the suites are stdlib-only except for the
-  # front-matter checks, so pre-commit's venv supplies PyYAML rather than
+  # language: python, not system, for the next two hooks: their suites are
+  # stdlib-only except where they parse YAML (skill front matter,
+  # .pre-commit-config.yaml), so pre-commit's venv supplies PyYAML rather than
   # relying on it being installed system-wide.
   - id: claude-scripts
     name: claude-scripts
     files: ^\.claude/(skills/.*/(scripts/|SKILL\.md)|test/)
     entry: python3 -m unittest discover -s .claude/test -p 'test_*.py'
+    pass_filenames: false
+    language: python
+    additional_dependencies: [pyyaml]
+
+  - id: drivers-coverage
+    name: drivers-coverage
+    files: ^(\.github/ci-pinned-boards\.json$|\.github/scripts/ci_set_matrix\.py$|tools/drivers_coverage_check\.py$|tools/ci_select\.py$|tools/build_utils\.py$|hw/bsp/|src/portable/|examples/|test/hil/test/test_drivers_coverage\.py$|tools/build\.py$|test/hil/test/test_ci_boards\.py$|tools/membrowse_compare\.py$|tools/metrics_compare_base\.py$|test/hil/test/test_membrowse_compare\.py$|test/hil/test/test_metrics_compare_base\.py$|tools/membrowse_report\.py$|test/hil/test/test_membrowse_report\.py$|tools/membrowse_onboard\.py$|test/hil/test/test_membrowse_onboard\.py$|test/hil/tinyusb\.json$|test/hil/hfp\.json$)
+    entry: sh -c "cd test/hil/test && python3 -m unittest -q test_drivers_coverage test_ci_boards test_membrowse_compare test_metrics_compare_base test_membrowse_report test_membrowse_onboard"
     pass_filenames: false
     language: python
     additional_dependencies: [pyyaml]

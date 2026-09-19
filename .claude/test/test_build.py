@@ -166,6 +166,20 @@ class ResolveTest(unittest.TestCase):
         self.assertEqual(build.coverage([r], ['src/tusb.c'], nothing, chosen=True)[1], [])
         self.assertEqual(build.coverage([r], ['src/tusb.c'], [{'family': 'stm32f4', 'okExamples': ['cdc_msc']}])[1], [])
 
+    def test_a_membrowse_script_change_needs_its_own_target_not_a_default_sweep(self):
+        # examples-membrowse-upload is a plain add_custom_target: `all` never runs
+        # tools/membrowse_report.py, so a green sweep is no evidence for it
+        r = 'tools/membrowse_report.py: membrowse build-time script -> full build matrix'
+        built = [{'family': 'stm32f4', 'okExamples': ['cdc_msc']}]
+        gap = (f'{r} (the default sweep builds `all`, which does not run '
+               f'examples-membrowse-upload: rerun with -T all -T examples-membrowse-upload)')
+        self.assertEqual(build.coverage([r], ['tools/membrowse_report.py'], built)[1], [gap])
+        # another -e/-T does not stand in for the target
+        self.assertEqual(build.coverage([r], ['tools/membrowse_report.py'], built,
+                                        chosen=True, targets=('all',))[1], [gap])
+        self.assertEqual(build.coverage([r], ['tools/membrowse_report.py'], built, chosen=True,
+                                        targets=('all', 'examples-membrowse-upload'))[1], [])
+
     def test_a_core_stack_path_needs_a_built_example_of_its_role(self):
         reasons = ['src/host/usbh.c: core host stack', 'src/device/usbd.c: core device stack']
         scope = [r.split(':')[0] for r in reasons]

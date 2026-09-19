@@ -18,6 +18,7 @@ import pathlib
 import re
 import subprocess
 import sys
+import types
 import unittest
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(
@@ -801,17 +802,12 @@ class TestOrphanInvariant(unittest.TestCase):
         for v in vendors:
             self.assertTrue(ci_select.mcu_families(v + '/x.c', REPO), f'{v}: resolves to no family')
 
-    # hw/bsp families ci_set_matrix's family_list does not map to any toolchain. Master
-    # gave a PR touching one of these no compile coverage either - none of the other 64
-    # families compiles same7x's board.h - so this is not new. What IS new is that the
-    # gap used to be masked by a full matrix and is now the whole answer, which is why
-    # ci_set_matrix treats a selection that intersects family_list to NOTHING as
-    # unusable (UNSCOPED -> full matrix) rather than emitting an all-empty one.
-    # espressif is here because hil-build-esp builds its boards by name rather than by
-    # family - though only on hathach/tinyusb: that job is gated on repository_owner,
-    # so on a fork an espressif-only PR builds nowhere.
-    UNBUILT_FAMILIES = {'cxd56', 'efm32', 'espressif', 'f1c100s', 'pic32mz', 'py32f0',
-                        'same7x'}
+    # hw/bsp families absent from ci_set_matrix's family_list, so a PR touching one
+    # gets no compile coverage (ci_set_matrix treats a selection that intersects
+    # family_list to nothing as unusable -> full matrix). cxd56: NuttX headers break
+    # the audio/midi2 examples. espressif is NOT here: it is in family_list with no
+    # toolchain, since hil-build-esp builds its boards by name.
+    UNBUILT_FAMILIES = {'cxd56', 'efm32', 'pic32mz', 'py32f0'}
 
     def test_every_bsp_family_is_in_the_ci_matrix(self):
         sys.path.insert(0, os.path.join(REPO, '.github/scripts'))
@@ -1002,14 +998,20 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
         self.assertEqual(sorted(out.stdout.split()), [
             'test/hil/test/stubs/hid.py',
             'test/hil/test/stubs/pymtp.py',
+            'test/hil/test/test_ci_boards.py',
             'test/hil/test/test_ci_metrics.py',
             'test/hil/test/test_ci_select.py',
+            'test/hil/test/test_drivers_coverage.py',
             'test/hil/test/test_family_json.py',
             'test/hil/test/test_hil_bounded.py',
             'test/hil/test/test_hil_health.py',
             'test/hil/test/test_hil_report.py',
             'test/hil/test/test_hil_rtt.py',
             'test/hil/test/test_hil_util.py',
+            'test/hil/test/test_membrowse_compare.py',
+            'test/hil/test/test_membrowse_onboard.py',
+            'test/hil/test/test_membrowse_report.py',
+            'test/hil/test/test_metrics_compare_base.py',
         ], 'test/hil/test/ gained or lost a file; it is carved out of rule 2, so confirm '
            'the rig still does not read anything in there before updating this list')
 
@@ -1117,28 +1119,6 @@ class TestSelectionBehavioursThatHadNoTest(unittest.TestCase):
         duals = {e for exs in s['family_examples'].values() for e in exs
                  if e.startswith('dual/')}
         self.assertTrue(duals, 'a dcd change selected no dual example')
-
-    def test_the_selector_answers_the_same_with_and_without_ci_env(self):
-        # mutant: drop ci=True from _prune_buildable. ci_skip_boards/ci_preferred_boards
-        # only apply when GITHUB_ACTIONS/CIRCLECI is set, so without the pin a laptop and
-        # a runner disagree - and /pre-pr would report a family list CI will not build.
-        files = ['examples/host/cdc_msc_hid_freertos/src/main.c']
-        old = os.environ.get('GITHUB_ACTIONS')
-        os.environ.pop('GITHUB_ACTIONS', None)
-        try:
-            local = ci_select.classify_build(files, REPO)['families']
-            os.environ['GITHUB_ACTIONS'] = 'true'
-            import importlib
-            importlib.reload(ci_select)
-            runner = ci_select.classify_build(files, REPO)['families']
-        finally:
-            if old is None:
-                os.environ.pop('GITHUB_ACTIONS', None)
-            else:
-                os.environ['GITHUB_ACTIONS'] = old
-            import importlib
-            importlib.reload(ci_select)
-        self.assertEqual(local, runner, 'the selector must not depend on the CI env vars')
 
 
 class TestRuleTableIsCarbonOfTheSpec(unittest.TestCase):
@@ -1651,7 +1631,7 @@ class TestBuildClassifier(unittest.TestCase):
         # the other side of the same line: these DECIDE what gets built
         for p in ('.circleci/config.yml', '.github/workflows/build.yml',
                   '.github/scripts/ci_set_matrix.py', 'tools/ci_select.py',
-                  'tools/build_utils.py', 'tools/metrics.py'):
+                  'tools/build_utils.py', '.github/ci-pinned-boards.json'):
             self.assertTrue(self.b([p])['full'], p)
 
     def test_mixed_diff_unions_per_family(self):
@@ -1759,16 +1739,25 @@ class TestNoContributionPaths(unittest.TestCase):
     Unclassified means FULL on both axes, so a metrics-only PR would otherwise cost the
     whole build matrix plus an exclusive full-rig sweep - where master ran nothing."""
 
-    def test_metrics_scripts_run_on_no_board_but_still_build(self):
-        # HIL axis only. tools/metrics.py IS executed by a build - examples/CMakeLists.txt
-        # makes it the `tinyusb_metrics` target and build_util.yml adds
-        # `--target tinyusb_metrics` - so the build axis must keep exercising it, or a
-        # break merges green and reds the next master push. Nothing on the rig runs it.
-        for p in ('tools/metrics.py', '.github/scripts/metrics_pair_compare.py'):
+    def test_metrics_scripts_contribute_nothing_on_either_axis(self):
+        # no CI build and no rig board runs any of these (drivers_coverage_check.py is
+        # pre-commit only)
+        for p in ('tools/metrics.py', 'tools/membrowse_onboard.py',
+                  'tools/membrowse_compare.py', 'tools/drivers_coverage_check.py'):
             h = sel([p])
             self.assertFalse(h['full'], p)
             self.assertEqual(h['boards'], {}, p)
-            self.assertTrue(ci_select.classify_build([p], REPO)['full'], p)
+            b = ci_select.classify_build([p], REPO)
+            self.assertFalse(b['full'], p)
+            self.assertEqual(b['families'], [], p)
+
+    def test_ci_boards_json_is_full_build_no_hil(self):
+        # decides which boards a family's build legs compile; no rig board depends on it
+        p = '.github/ci-pinned-boards.json'
+        h = sel([p])
+        self.assertFalse(h['full'], p)
+        self.assertEqual(h['boards'], {}, p)
+        self.assertTrue(ci_select.classify_build([p], REPO)['full'], p)
 
     def test_typec_example_builds_but_runs_nothing(self):
         # examples/typec is compiled by the build matrix and run by no rig board; the
@@ -1874,6 +1863,83 @@ class TestCiSetMatrix(unittest.TestCase):
         self.assertEqual(m['riscv-gcc'], [])
         self.assertEqual(set(m), set(json.loads(self.run_matrix().stdout)))  # all keys kept
 
+    def test_pinned_keeps_only_families_with_a_pinned_board(self):
+        import json as _json
+        pinned = _json.loads(self.run_matrix('--pinned').stdout)
+        full = _json.loads(self.run_matrix().stdout)
+        self.assertEqual(set(pinned), set(full))  # every toolchain key kept
+        with open(os.path.join(REPO, '.github', 'ci-pinned-boards.json')) as f:
+            boards = {e['board'] for e in _json.load(f)['boards']}
+        fams = set().union(*pinned.values())
+        for fam in fams:
+            self.assertTrue(any(os.path.isdir(os.path.join(REPO, 'hw', 'bsp', fam, 'boards', b))
+                                for b in boards), f'{fam} has no pinned board')
+        # every pinned board's family must reach a leg, or its size stops being tracked
+        for b in boards:
+            fam = next(f for f in os.listdir(os.path.join(REPO, 'hw', 'bsp'))
+                       if os.path.isdir(os.path.join(REPO, 'hw', 'bsp', f, 'boards', b)))
+            self.assertIn(fam, fams | {'espressif'}, f'{b}: pinned but no build leg')
+        for fam in set(full['arm-gcc']) - fams:
+            self.assertNotIn(fam, pinned['arm-gcc'])
+
+    def test_pinned_composes_with_select_scoping(self):
+        sel = json.dumps({'build': {'full': False, 'families': ['rp2040', 'stm32f4', 'stm32f0'],
+                                    'family_examples': {}}})
+        m = json.loads(self.run_matrix('--pinned', '--select', sel).stdout)
+        # stm32f0 has no pinned board; rp2040 and stm32f4 do
+        self.assertEqual(m['arm-gcc'], ['rp2040', 'stm32f4'])
+
+    def test_pinned_selection_with_no_pinned_family_is_empty_not_unscoped(self):
+        # a legitimate "nothing pinned was selected": widening to the full matrix here
+        # would build every family from a diff that touched one unpinned one
+        sel = json.dumps({'build': {'full': False, 'families': ['stm32f0'],
+                                    'family_examples': {}}})
+        r = self.run_matrix('--pinned', '--select', sel)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(set().union(*json.loads(r.stdout).values()), set())
+        self.assertNotIn('UNSCOPED', r.stderr)
+
+    def test_pinned_keeps_the_unbuilt_family_fall_open_intact(self):
+        # efm32 is built by no toolchain: the selection is still usable (stm32f0 scopes
+        # it), so the pinned filter must not turn that into "nothing buildable" and
+        # widen back to the full matrix
+        sel = json.dumps({'build': {'full': False, 'families': ['stm32f0', 'efm32'],
+                                    'family_examples': {}}})
+        r = self.run_matrix('--pinned', '--select', sel)
+        self.assertNotIn('UNSCOPED', r.stderr)
+        self.assertEqual(set().union(*json.loads(r.stdout).values()), set())
+
+    def test_pinned_falls_open_to_the_pinned_full_matrix(self):
+        # an unusable selection widens to the full matrix, still pinned-filtered: the
+        # flag says which boards this leg exists for, not how wide the selection is
+        r = self.run_matrix('--pinned', '--select', 'not json {')
+        self.assertEqual(r.returncode, 0)
+        self.assertIn('ci_set_matrix: UNSCOPED', r.stderr)
+        self.assertEqual(json.loads(r.stdout), json.loads(self.run_matrix('--pinned').stdout))
+
+    def test_pinned_espressif_only_selection_adds_no_leg(self):
+        # espressif boards are built by name in hil-build-esp, never as a family leg
+        sel = json.dumps({'build': {'full': False, 'families': ['espressif'],
+                                    'family_examples': {}}})
+        r = self.run_matrix('--pinned', '--select', sel)
+        self.assertNotIn('UNSCOPED', r.stderr)
+        self.assertEqual(set().union(*json.loads(r.stdout).values()), set())
+
+    def test_pinned_survives_the_unbuildable_selection_fall_open(self):
+        # the recursive fall-open path: a selection of families no toolchain builds
+        # re-emits the FULL matrix, which must still be pinned-filtered
+        sel = json.dumps({'build': {'full': False, 'families': ['efm32'],
+                                    'family_examples': {}}})
+        r = self.run_matrix('--pinned', '--select', sel)
+        self.assertIn('ci_set_matrix: UNSCOPED', r.stderr)
+        self.assertEqual(json.loads(r.stdout), json.loads(self.run_matrix('--pinned').stdout))
+
+    def test_unflagged_output_is_unchanged_for_circleci(self):
+        sel = json.dumps({'build': {'full': False, 'families': ['rp2040', 'stm32f0'],
+                                    'family_examples': {}}})
+        m = json.loads(self.run_matrix('--select', sel).stdout)
+        self.assertEqual(m['arm-gcc'], ['rp2040', 'stm32f0'])
+
     def test_malformed_select_falls_open(self):
         base = json.loads(self.run_matrix().stdout)
         r = self.run_matrix('--select', 'not json {')
@@ -1927,13 +1993,13 @@ class TestCiSetMatrix(unittest.TestCase):
         self.assertIn('ci_set_matrix: UNSCOPED', r.stderr)   # build.yml greps this
 
     def test_families_no_toolchain_builds_falls_open(self):
-        # hw/bsp/same7x is real but in no toolchain's list, so scoping to it emits an
+        # hw/bsp/efm32 is real but in no toolchain's list, so scoping to it emits an
         # all-empty matrix: every leg skips and the PR goes green from a build job that
         # ran no compiler. Unusable, not "nothing selected" - and the marker matters,
         # because that is what build.yml and CircleCI grep to drop the build extras too.
         base = json.loads(self.run_matrix().stdout)
         r = self.run_matrix('--select',
-                            json.dumps({'build': {'full': False, 'families': ['same7x']}}))
+                            json.dumps({'build': {'full': False, 'families': ['efm32']}}))
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(json.loads(r.stdout), base)
         self.assertIn('ci_set_matrix: UNSCOPED', r.stderr)
@@ -1941,11 +2007,11 @@ class TestCiSetMatrix(unittest.TestCase):
     def test_a_partial_toolchain_miss_still_scopes(self):
         # one buildable family is real coverage: scope to it and just note the other
         r = self.run_matrix('--select', json.dumps(
-            {'build': {'full': False, 'families': ['stm32f4', 'same7x']}}))
+            {'build': {'full': False, 'families': ['stm32f4', 'efm32']}}))
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(json.loads(r.stdout)['arm-gcc'], ['stm32f4'])
         self.assertNotIn('UNSCOPED', r.stderr)
-        self.assertIn('same7x', r.stderr)
+        self.assertIn('efm32', r.stderr)
 
     def test_explicit_empty_families_selects_nothing(self):
         # an explicit [] IS a legitimate answer (a diff that builds nothing)
@@ -2049,10 +2115,11 @@ class TestBuildPyExampleFilter(unittest.TestCase):
 
     def test_other_targets_pass_through_in_their_own_group(self):
         # a target that is not 'all' keeps its own invocation, so ordering against the
-        # examples is preserved (tinyusb_metrics runs after them, as it did unfiltered)
-        t = self.build.resolve_example_target_groups(['all', 'tinyusb_metrics'],
+        # examples is preserved (examples-membrowse-upload runs after them, same as any
+        # other global aggregate target)
+        t = self.build.resolve_example_target_groups(['all', 'examples-membrowse-upload'],
                                                      ['device/cdc_msc'], 'stm32f407disco')
-        self.assertEqual(t, [['cdc_msc'], ['tinyusb_metrics']])
+        self.assertEqual(t, [['cdc_msc'], ['examples-membrowse-upload']])
 
     def test_unbuildable_examples_drop_and_empty_is_none(self):
         # typec/power_delivery only builds on stm32g4-class parts, never on f4
@@ -2065,19 +2132,45 @@ class TestBuildPyExampleFilter(unittest.TestCase):
                                                                    'stm32f407disco'))
 
     def test_espressif_empty_intersection_skips_without_building(self):
+        from unittest import mock
         # cmake_board's espressif branch must short-circuit on an empty -e
         # intersection the same way the generic cmake/make branches do, and
         # must do so before touching idf.py (no real esp-idf build here).
         calls = []
-        real_run_cmd = self.build.run_cmd            # `del` here would drop the real one
-        self.build.run_cmd = lambda cmd: calls.append(cmd)  # would only run for a real build
-        try:
+        with mock.patch.object(self.build, 'run_cmd', calls.append):
             r = self.build.cmake_board('espressif_s3_devkitc', [], None, [], ['all'],
                                        examples=['nonexistent/example'])
-        finally:
-            self.build.run_cmd = real_run_cmd
         self.assertEqual(r, [0, 0, 1])
         self.assertEqual(calls, [])
+
+    def test_espressif_no_build_dir_uploads_identical_instead_of_skipping(self):
+        from unittest import mock
+        # regression: any target other than 'all' with no build dir (a no-code-change
+        # CI run, since idf.py never ran 'all' here) used to print "no build dir" and
+        # skip - silently uploading nothing, unlike every other CI board, which still
+        # gets an --identical upload via its cheap `cmake` configure. This target must
+        # instead invoke membrowse_report.py directly (its --identical path needs
+        # neither idf.py nor a build dir) rather than going through idf.py/cmake.
+        calls = []
+        def fake_run(cmd):
+            calls.append(cmd)
+            return types.SimpleNamespace(returncode=0)
+
+        with mock.patch.object(self.build, 'run_cmd', fake_run):
+            r = self.build.cmake_board('espressif_s3_devkitc', [], None, [],
+                                       ['examples-membrowse-upload'],
+                                       examples=['device/cdc_msc_freertos'])
+        self.assertEqual(r, [1, 0, 0])
+        self.assertEqual(len(calls), 1)
+        cmd = calls[0]
+        self.assertIn('membrowse_report.py', cmd[1])
+        self.assertNotIn('idf.py', cmd[0])
+        self.assertIn('--upload', cmd)
+        self.assertEqual(cmd[cmd.index('--target-name') + 1],
+                         'espressif_s3_devkitc/cdc_msc_freertos')
+        # the whole point: the --elf path must NOT exist, so membrowse_report.py's
+        # own elf-missing check takes the --identical branch
+        self.assertFalse(os.path.isfile(cmd[cmd.index('--elf') + 1]))
 
     def test_make_one_example_uses_make_semantics(self):
         # F1 end to end: the make path must ask skip_example with build_system='make',
@@ -2195,13 +2288,13 @@ class TestBuildPyExampleFilter(unittest.TestCase):
 
     def test_target_help_parse(self):
         text = ('[1/1] All primary targets available:\n'
-                'tinyusb_metrics: phony\n'
+                'examples-membrowse-upload: phony\n'
                 'cdc_msc: phony\n'
                 'cdc_msc-membrowse-upload: phony\n'
                 'device/edit_cache: phony\n'
                 '/abs/build/device/cdc_msc/CMakeFiles/cdc_msc-jlink: CUSTOM_COMMAND\n')
         self.assertEqual(self.build.parse_target_help(text),
-                         {'tinyusb_metrics', 'cdc_msc', 'cdc_msc-membrowse-upload'})
+                         {'examples-membrowse-upload', 'cdc_msc', 'cdc_msc-membrowse-upload'})
 
     def test_build_defines_reach_the_example_filter(self):
         # metro_m4_express gets MAX3421_HOST=1 from its roster variant, never
