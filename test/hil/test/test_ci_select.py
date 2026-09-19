@@ -1676,8 +1676,8 @@ class TestBuildPostFilter(unittest.TestCase):
     def test_espressif_prunes_to_what_its_build_path_can_build(self):
         # build.py's espressif branch builds get_examples('espressif') only (the
         # *_freertos examples plus a short extra list), so keeping espressif for a
-        # device/mtp diff spins CircleCI's most expensive leg up to skip everything
-        s = ci_select.classify_build(['examples/device/mtp/src/main.c'], REPO)
+        # device/cdc_msc diff spins CircleCI's most expensive leg up to skip everything
+        s = ci_select.classify_build(['examples/device/cdc_msc/src/main.c'], REPO)
         self.assertFalse(s['full'])
         self.assertNotIn('espressif', s['families'])
 

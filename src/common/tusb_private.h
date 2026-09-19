@@ -31,6 +31,7 @@ extern tusb_role_t _tusb_rhport_role[TUP_USBIP_CONTROLLER_NUM];
 #define TU_EDPT_STATE_BUSY    0x01u
 #define TU_EDPT_STATE_STALLED 0x02u
 #define TU_EDPT_STATE_CLAIMED 0x04u
+#define TU_EDPT_STATE_RX_PENDING 0x08u // OUT xfer completed, ep buffer not yet consumed by the class (#1292)
 
 typedef struct {
   uint8_t  hwid;    // device: rhport, host: daddr
@@ -144,11 +145,21 @@ uint32_t tu_edpt_stream_read(tu_edpt_stream_t *s, void *buffer, uint32_t bufsize
 // Start an usb transfer if endpoint is not busy
 uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s);
 
+#if CFG_TUD_ENABLED && OSAL_MUTEX_REQUIRED
+// Release an OUT endpoint's RX_PENDING hold once its buffer is consumed, allowing it to be claimed
+void usbd_edpt_rx_consume(uint8_t rhport, uint8_t ep_addr);
+#else
+  #define usbd_edpt_rx_consume(_rhport, _ep_addr)
+#endif
+
 // Complete read transfer by writing EP -> FIFO. Must be called in the transfer complete callback
 TU_ATTR_ALWAYS_INLINE static inline
 void tu_edpt_stream_read_xfer_complete(tu_edpt_stream_t* s, uint32_t xferred_bytes) {
   if (s->ep_buf != NULL) {
     tu_fifo_write_n(&s->ff, s->ep_buf, (uint16_t)xferred_bytes);
+  }
+  if (!s->is_host) {
+    usbd_edpt_rx_consume(s->hwid, s->ep_addr);
   }
 }
 
