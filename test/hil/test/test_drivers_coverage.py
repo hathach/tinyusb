@@ -184,6 +184,21 @@ class CheckerVerdicts(unittest.TestCase):
         r = self._run(['stm32f411disco', 'stm32f411disco'])
         self.assertIn('boards[1] (stm32f411disco): duplicate entry', r.stderr)
 
+    def test_a_board_that_never_enters_coverage_is_never_a_duplicate(self):
+        # the mirror of the case above: a board whose row yields no coverage never
+        # enters it, so each occurrence reports its own error and none is a duplicate
+        for name, board, expect in (
+                ('invalid row', 'stm32f439nucleo',
+                 'hw/bsp/family.json row has no cmake configure'),
+                ('unknown board', 'no_such_board',
+                 'unknown board (no hw/bsp/*/boards/no_such_board)')):
+            with self.subTest(name):
+                r = self._run(['stm32f407disco', board, board])
+                self.assertEqual(r.returncode, 1)
+                self.assertEqual(r.stderr.splitlines(),
+                                 [f'boards[1] ({board}): {expect}',
+                                  f'boards[2] ({board}): {expect}'])
+
     def test_malformed_catalog_rows_fail_with_one_clear_error(self):
         # hw/bsp/family.json is validated by its own hook, but nothing sets fail_fast:
         # a hand-corrupted catalog must reach this hook as a line, not a traceback

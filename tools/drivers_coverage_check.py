@@ -139,6 +139,17 @@ def _entry_coverage(entry, where, catalog, ci_families):
     return board, row_drivers(cmake), errors
 
 
+def _waiver_errors(uncovered, drivers):
+    """One line per waiver naming no driver source file or carrying a blank reason."""
+    errors = []
+    for d, reason in uncovered.items():
+        if d not in drivers:
+            errors.append(f'uncovered: "{d}" matches no driver source file')
+        if not (isinstance(reason, str) and reason.strip()):
+            errors.append(f'uncovered "{d}": reason must be a non-empty string')
+    return errors
+
+
 def pinned_coverage(path, catalog_path=FAMILY_JSON):
     """(errors, {board: driver stems} before waivers, uncovered)."""
     data, load_errors = _load_object(path)
@@ -171,11 +182,7 @@ def pinned_coverage(path, catalog_path=FAMILY_JSON):
         if board_drivers is not None:
             coverage[board] = board_drivers
 
-    for d, reason in uncovered.items():
-        if d not in drivers:
-            errors.append(f'uncovered: "{d}" matches no driver source file')
-        if not (isinstance(reason, str) and reason.strip()):
-            errors.append(f'uncovered "{d}": reason must be a non-empty string')
+    errors += _waiver_errors(uncovered, drivers)
 
     covered = set().union(*coverage.values())
     for d in sorted(drivers - covered - set(uncovered)):
