@@ -57,6 +57,7 @@
                     "device/cdc_msc_throughput",
                     "device/hid_composite_freertos",
                     "device/audio_test_freertos",
+                    "device/mtp",
                     "device/usbtest",
                     "host/device_info",
                     "host/msc_file_explorer_freertos"
@@ -98,6 +99,7 @@
                     "device/cdc_msc_throughput",
                     "device/hid_composite_freertos",
                     "device/audio_test_freertos",
+                    "device/mtp",
                     "device/usbtest",
                     "host/device_info",
                     "host/msc_file_explorer_freertos"
