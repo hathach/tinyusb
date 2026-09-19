@@ -32,10 +32,15 @@
 // (partition table, GPT header). Higher LBAs return whatever is already in the
 // transfer buffer, so `dd` numbers reflect the USB/driver ceiling, not any
 // simulated storage or per-byte memset cost.
-// CDC path drains RX in tud_cdc_rx_cb and sources TX from a static filler in the
-// main loop so `dd` can target /dev/ttyACMx in either direction.
+// CDC path drains RX in tud_cdc_rx_cb and sources TX from a static filler after every
+// tud_task() pass, so `dd` can target /dev/ttyACMx in either direction.
+// Builds bare-metal or with FreeRTOS (CFG_TUSB_OS, always FreeRTOS on ESP-IDF).
 
 static void cdc_throughput_task(void);
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+static void freertos_init(void);
+#endif
 
 //--------------------------------------------------------------------+
 // Main
@@ -43,6 +48,9 @@ static void cdc_throughput_task(void);
 int main(void) {
   board_init();
 
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  freertos_init();
+#else
   tusb_rhport_init_t dev_init = {.role = TUSB_ROLE_DEVICE, .speed = TUSB_SPEED_AUTO};
   tusb_init(BOARD_TUD_RHPORT, &dev_init);
 
@@ -52,6 +60,7 @@ int main(void) {
     tud_task();
     cdc_throughput_task();
   }
+#endif
 }
 
 //--------------------------------------------------------------------+
@@ -149,3 +158,53 @@ int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void *buffer, u
   tud_msc_set_sense(lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00);
   return -1;
 }
+
+//--------------------------------------------------------------------+
+// FreeRTOS
+//--------------------------------------------------------------------+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+
+#ifdef ESP_PLATFORM
+  #define USBD_STACK_SIZE   4096
+  void app_main(void) {
+    main();
+  }
+#else
+  // Increase stack size when debug log is enabled
+  #define USBD_STACK_SIZE   (3*configMINIMAL_STACK_SIZE/2) * (CFG_TUSB_DEBUG ? 2 : 1)
+#endif
+
+#if configSUPPORT_STATIC_ALLOCATION
+static StackType_t  usb_device_stack[USBD_STACK_SIZE];
+static StaticTask_t usb_device_taskdef;
+#endif
+
+static void usb_device_task(void *param) {
+  (void) param;
+
+  // Must be called after the scheduler starts: the USB IRQ handler uses RTOS queue APIs
+  tusb_rhport_init_t dev_init = {.role = TUSB_ROLE_DEVICE, .speed = TUSB_SPEED_AUTO};
+  tusb_init(BOARD_TUD_RHPORT, &dev_init);
+
+  board_init_after_tusb();
+
+  // tud_task() blocks until an event: pump CDC after each event batch without waiting for a tick
+  while (1) {
+    tud_task();
+    cdc_throughput_task();
+  }
+}
+
+static void freertos_init(void) {
+  #if configSUPPORT_STATIC_ALLOCATION
+  xTaskCreateStatic(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, usb_device_stack, &usb_device_taskdef);
+  #else
+  xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, NULL);
+  #endif
+
+  // only start scheduler for non-espressif mcu (espressif starts it in startup code)
+  #ifndef ESP_PLATFORM
+  vTaskStartScheduler();
+  #endif
+}
+#endif

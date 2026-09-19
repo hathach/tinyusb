@@ -54,6 +54,7 @@
             "tests": {
                 "only": [
                     "device/cdc_msc_freertos",
+                    "device/cdc_msc_throughput",
                     "device/hid_composite_freertos",
                     "device/audio_test_freertos",
                     "device/usbtest",
@@ -94,6 +95,7 @@
             "tests": {
                 "only": [
                     "device/cdc_msc_freertos",
+                    "device/cdc_msc_throughput",
                     "device/hid_composite_freertos",
                     "device/audio_test_freertos",
                     "device/usbtest",
