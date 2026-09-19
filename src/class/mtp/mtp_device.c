@@ -215,6 +215,7 @@ bool tud_mtp_data_receive(mtp_container_info_t *p_container) {
 
   TU_LOG_DRV("  MTP Data OUT: xferred_len/total_len=%lu/%lu, xact_len=%u\r\n", p_mtp->xferred_len, p_mtp->total_len,
              xact_len);
+  usbd_edpt_rx_consume(p_mtp->rhport, p_mtp->ep_out); // arming a new receive relinquishes the previous data
   TU_VERIFY(usbd_edpt_claim(p_mtp->rhport, p_mtp->ep_out));
   TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_out, _mtpd_epbuf.buf, xact_len, false));
   return true;
@@ -475,6 +476,7 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
 
         if (need_zlp) {
           TU_LOG_DRV("  queue ZLP\r\n");
+          usbd_edpt_rx_consume(p_mtp->rhport, ep_addr); // arming a new receive relinquishes the previous data
           TU_VERIFY(usbd_edpt_claim(p_mtp->rhport, ep_addr));
           TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, ep_addr, NULL, 0, false));
           return true;

@@ -120,6 +120,7 @@ add_ceedling_test(
   "${CEEDLING_WORKDIR}/../../src/tusb.c;${CEEDLING_WORKDIR}/../../src/device/usbd.c;${CEEDLING_WORKDIR}/../../src/common/tusb_fifo.c"
   "${CEEDLING_BUILD_DIR}/test/mocks/test_usbd/mock_dcd.c;${CEEDLING_BUILD_DIR}/test/mocks/test_usbd/mock_msc_device.c"
   )
+target_compile_definitions(test_usbd PRIVATE TUP_MCU_MULTIPLE_CORE=1)
 
 add_ceedling_test(
   test_msc_device
