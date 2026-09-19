@@ -108,8 +108,10 @@ def _entry_coverage(entry, where, catalog, ci_families):
     if not isinstance(entry, dict):
         return None, None, [f'{where}: must be an object, not {type(entry).__name__}']
     board = entry.get('board')
-    if not board:
-        return None, None, [f'{where}: missing "board"']
+    # the type check too: a truthy non-string board reaches board_family() as a traceback
+    if not (isinstance(board, str) and board):
+        return None, None, [f'{where}: missing "board"' if not board else
+                            f'{where}: "board" must be a string, not {type(board).__name__}']
     where = f'{where} ({board})'
     family = ci_select.board_family(board, REPO)
     if family is None:

@@ -154,6 +154,16 @@ class CheckerVerdicts(unittest.TestCase):
         self.assertIn('must be an object', r.stderr)
         self.assertNotIn('Traceback', r.stderr)
 
+    def test_non_string_board_fails_with_one_clear_error(self):
+        for value, kind in ((['stm32f407disco'], 'list'),
+                            ({'name': 'stm32f407disco'}, 'dict'), (42, 'int')):
+            with self.subTest(kind):
+                r = self._run(['stm32f407disco', {'board': value}])
+                self.assertEqual(r.returncode, 1)
+                self.assertNotIn('Traceback', r.stderr)
+                self.assertEqual(r.stderr.splitlines(),
+                                 [f'boards[1]: "board" must be a string, not {kind}'])
+
     def test_compound_cases_keep_their_exact_error_list(self):
         # pinned against extraction: an unbuilt family is NOT an early exit (a valid
         # row still enters coverage), a missing row adds its own line after it, and a
