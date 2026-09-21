@@ -145,7 +145,7 @@ uint32_t tu_edpt_stream_read(tu_edpt_stream_t *s, void *buffer, uint32_t bufsize
 // Start an usb transfer if endpoint is not busy
 uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s);
 
-#if CFG_TUD_ENABLED && OSAL_MUTEX_REQUIRED
+#if CFG_TUD_ENABLED
 // Release an OUT endpoint's RX_PENDING hold once its buffer is consumed, allowing it to be claimed
 void usbd_edpt_rx_consume(uint8_t rhport, uint8_t ep_addr);
 #else

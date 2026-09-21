@@ -132,8 +132,6 @@
       - CFG_TUD_EDPT_DEDICATED_HWFIFO=1
       - CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE=6
       - CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE=0
-    :test_usbd:
-      - TUP_MCU_MULTIPLE_CORE=1 # OSAL_MUTEX_REQUIRED with osal_none, exercising the endpoint claim mutex
     :test_audio_host:
       - CFG_TUH_ENABLED=1
       - CFG_TUH_AUDIO=1
