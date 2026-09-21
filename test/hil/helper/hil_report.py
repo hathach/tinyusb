@@ -8,7 +8,7 @@ that document: the cell vocabulary, the one classifier both artifacts share, ren
 writers, and the fold to one machine-readable verdict per board.
 
 Dual-mode by design: imported as `helper.hil_report` by hil_test.py, and run as a script by
-the operator (see .claude/agents/hil-operator.md). A script run puts test/hil/helper on
+the operator (the HIL contract's Reporting section, .claude/skills/hil/SKILL.md). A script run puts test/hil/helper on
 sys.path rather than test/hil, so this module imports no sibling helper at all --
 _p and the width helpers below are defined locally for that reason.
 """
@@ -42,7 +42,7 @@ def _pad(s: str, width: int, center: bool = False) -> str:
 
 def _p(*args, **kwargs) -> None:
     """Print that cannot raise. Defined here rather than imported from hil_health: this
-    module is ALSO run as a script (hil-operator.md invokes it by path), and under
+    module is ALSO run as a script (the HIL contract invokes it by path), and under
     PYTHONSAFEPATH=1 -- which the suite's own MTP fixtures set -- sys.path[0] is not the
     script dir, so any sibling import dies before argparse runs. Five lines beat that."""
     try:

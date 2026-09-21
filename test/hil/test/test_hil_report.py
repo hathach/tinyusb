@@ -62,7 +62,7 @@ class OneClassifierForBothArtifacts(unittest.TestCase):
 
 class ModuleWorksImportedAndAsAScript(unittest.TestCase):
     """It is imported as helper.hil_report by hil_test, and run as a script by the operator
-    (.claude/agents/hil-operator.md). A script run puts helper/ on sys.path, NOT test/hil,
+    (the HIL contract, .claude/skills/hil/SKILL.md). A script run puts helper/ on sys.path, NOT test/hil,
     so a plain `from helper import hil_health` breaks the CLI and only the CLI."""
 
     def test_importable_as_a_package_module(self):

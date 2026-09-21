@@ -15,7 +15,7 @@
 
 - Agents, skills and workflows beyond this repo's `.claude/` come from [agentrc](https://github.com/hathach/agentrc); install it before agent work on TinyUSB.
 - Skill script tests live in `.claude/test/test_*.py`.
-- Hardware diagnosis and repair use agentrc's `hw-debugger`; independent hardware claims and committed-fix validation use `hw-validator`, orchestrated by `chief`.
+- Hardware diagnosis and repair use agentrc's `hw-debugger`; independent hardware claims and committed-fix validation use `hw-validator`; routine HIL runs use `hil-operator`, which follows the HIL contract below — all orchestrated by `chief`.
 - Driver audit: the `code-audit` workflow with `dirs` (e.g. `src/portable/<vendor>/<driver>`) and `dimensions`: `correctness: transfer state machines, endpoint bookkeeping, completion and error paths`; `ISR safety: work deferred to task context, shared-state races, register access ordering`; `register use vs datasheet and MCU errata: cross-check the reference manual AND errata sheets via the read-doc skill; if the skill is unavailable treat the document as absent (low confidence, never a web/filesystem substitute); a missing erratum workaround is a finding`; `style: repo conventions (TU_ASSERT, no dynamic allocation, include order, naming)`.
 - Static analysis: the `pvs-studio` agent with rules `.PVS-Studio/.pvsconfig` (never add suppressions) on a board's examples build; `raspberry_pi_pico` mirrors CI, `stm32f407disco` is fastest.
 
