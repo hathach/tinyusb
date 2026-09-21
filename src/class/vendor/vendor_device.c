@@ -224,6 +224,7 @@ TU_ATTR_UNUSED static inline uint32_t vendord_ep_write_available(vendord_interfa
 
 TU_ATTR_UNUSED static inline bool vendord_ep_read_xfer(vendord_interface_t *p_itf, uint8_t ep, uint8_t *epbuf, uint16_t xfer_len) {
   TU_VERIFY(ep > 0); // must be opened
+  usbd_edpt_rx_consume(p_itf->rhport, ep); // arming a new receive relinquishes the previous data
   TU_VERIFY(usbd_edpt_claim(p_itf->rhport, ep));
   return usbd_edpt_xfer(p_itf->rhport, ep, epbuf, xfer_len, false);
 }

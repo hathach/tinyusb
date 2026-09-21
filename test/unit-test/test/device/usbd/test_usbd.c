@@ -381,3 +381,146 @@ void test_usbd_control_out_overrun_clamp(void)
 
   tud_task();
 }
+
+//--------------------------------------------------------------------+
+// OUT endpoint held by RX_PENDING until its buffer is consumed (#1292)
+//--------------------------------------------------------------------+
+enum {
+  EDPT_MSC_OUT = 0x01,
+  EDPT_MSC_IN  = 0x81
+};
+
+uint8_t const msc_desc_configuration[] = {
+  TUD_CONFIG_DESCRIPTOR(1, 1, 0, TUD_CONFIG_DESC_LEN + TUD_MSC_DESC_LEN, 0, 100),
+  TUD_MSC_DESCRIPTOR(0, 0, EDPT_MSC_OUT, EDPT_MSC_IN, 64),
+};
+
+tusb_control_request_t const req_set_configuration = {
+  .bmRequestType = 0x00,
+  .bRequest      = TUSB_REQ_SET_CONFIGURATION,
+  .wValue        = 1,
+  .wIndex        = 0,
+  .wLength       = 0
+};
+
+static uint8_t msc_out_buf[64];
+
+// Bind the bulk endpoints to the (mocked) MSC driver, then claim and arm the OUT endpoint
+static void msc_out_armed(void) {
+  mscd_reset_Ignore();
+  dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, false);
+  tud_task();
+
+  desc_configuration = msc_desc_configuration;
+  dcd_event_setup_received(rhport, (uint8_t*) &req_set_configuration, false);
+  mscd_open_ExpectAndReturn(rhport, (tusb_desc_interface_t const*) (msc_desc_configuration + TUD_CONFIG_DESC_LEN),
+                            TUD_MSC_DESC_LEN, TUD_MSC_DESC_LEN);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_set_configuration, 1);
+  tud_task();
+
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, msc_out_buf, sizeof(msc_out_buf), false, true);
+  TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport, EDPT_MSC_OUT, msc_out_buf, sizeof(msc_out_buf), false));
+}
+
+static void msc_out_complete(CMOCK_mscd_xfer_cb_CALLBACK xfer_cb) {
+  mscd_xfer_cb_Stub(xfer_cb);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_out_buf), XFER_RESULT_SUCCESS, false);
+  tud_task();
+}
+
+static bool xfer_cb_claim_after_consume(uint8_t rhport_, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes,
+                                        int num_calls) {
+  (void) result; (void) xferred_bytes; (void) num_calls;
+  TEST_ASSERT_FALSE(usbd_edpt_busy(rhport_, ep_addr));
+  TEST_ASSERT_FALSE(usbd_edpt_claim(rhport_, ep_addr)); // buffer not yet consumed
+
+  usbd_edpt_rx_consume(rhport_, ep_addr);
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport_, ep_addr));
+  TEST_ASSERT_TRUE(usbd_edpt_release(rhport_, ep_addr));
+  return true;
+}
+
+void test_usbd_out_complete_refuses_claim_until_consumed(void) {
+  msc_out_armed();
+  msc_out_complete(xfer_cb_claim_after_consume);
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
+}
+
+static bool xfer_cb_no_consume(uint8_t rhport_, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes,
+                               int num_calls) {
+  (void) result; (void) xferred_bytes; (void) num_calls;
+  TEST_ASSERT_FALSE(usbd_edpt_claim(rhport_, ep_addr));
+  return true;
+}
+
+// xfer_cb that neither consumes nor re-arms: the hold outlives xfer_cb until the class consumes
+void test_usbd_out_complete_held_after_xfer_cb_until_consumed(void) {
+  msc_out_armed();
+  msc_out_complete(xfer_cb_no_consume);
+  TEST_ASSERT_FALSE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
+  usbd_edpt_rx_consume(rhport, EDPT_MSC_OUT);
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
+}
+
+static bool xfer_cb_consume_rearm(uint8_t rhport_, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes,
+                                  int num_calls) {
+  (void) result; (void) xferred_bytes; (void) num_calls;
+  usbd_edpt_rx_consume(rhport_, ep_addr);
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport_, ep_addr));
+  dcd_edpt_xfer_ExpectAndReturn(rhport_, ep_addr, msc_out_buf, sizeof(msc_out_buf), false, true);
+  TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport_, ep_addr, msc_out_buf, sizeof(msc_out_buf), false));
+  return true;
+}
+
+// a transfer re-armed inside xfer_cb stays BUSY and is not held by RX_PENDING
+void test_usbd_out_rearmed_in_xfer_cb_stays_busy(void) {
+  msc_out_armed();
+  msc_out_complete(xfer_cb_consume_rearm);
+  TEST_ASSERT_TRUE(usbd_edpt_busy(rhport, EDPT_MSC_OUT));
+  TEST_ASSERT_FALSE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
+}
+
+static bool xfer_cb_rearm_refused(uint8_t rhport_, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes,
+                                  int num_calls) {
+  (void) result; (void) xferred_bytes; (void) num_calls;
+  // direct re-arm without claim, as MSC does; the DCD refuses it
+  dcd_edpt_xfer_ExpectAndReturn(rhport_, ep_addr, msc_out_buf, sizeof(msc_out_buf), false, false);
+  TEST_ASSERT_FALSE(usbd_edpt_xfer(rhport_, ep_addr, msc_out_buf, sizeof(msc_out_buf), false));
+  return true;
+}
+
+// a failed re-arm leaves the endpoint idle: neither BUSY nor still held by RX_PENDING
+void test_usbd_out_failed_rearm_in_xfer_cb_stays_idle(void) {
+  msc_out_armed();
+  msc_out_complete(xfer_cb_rearm_refused);
+  TEST_ASSERT_FALSE(usbd_edpt_busy(rhport, EDPT_MSC_OUT));
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
+}
+
+static bool xfer_cb_rearm_dropped(uint8_t rhport_, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes,
+                                  int num_calls) {
+  (void) result; (void) xferred_bytes; (void) num_calls;
+  dcd_edpt_xfer_ExpectAndReturn(rhport_, ep_addr, msc_out_buf, sizeof(msc_out_buf), false, true);
+  TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport_, ep_addr, msc_out_buf, sizeof(msc_out_buf), false));
+
+  // fill the queue with events that leave endpoints alone, so the re-armed completion is dropped
+  for (unsigned i = 0; i < CFG_TUD_TASK_QUEUE_SZ; i++) {
+    dcd_event_bus_signal(rhport_, DCD_EVENT_SUSPEND, false);
+  }
+  dcd_event_xfer_complete(rhport_, ep_addr, sizeof(msc_out_buf), XFER_RESULT_SUCCESS, false);
+  return true;
+}
+
+// a re-armed transfer whose completion is dropped leaves the endpoint idle
+void test_usbd_out_dropped_rearm_in_xfer_cb_stays_idle(void) {
+  msc_out_armed();
+  msc_out_complete(xfer_cb_rearm_dropped);
+  for (unsigned i = 0; i < (CFG_TUD_TASK_QUEUE_SZ / CFG_TUD_TASK_EVENTS_PER_RUN) + 1; i++) {
+    tud_task();
+  }
+  TEST_ASSERT_FALSE(usbd_edpt_busy(rhport, EDPT_MSC_OUT));
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
+}

@@ -753,10 +753,19 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
 
         TU_LOG_USBD("on EP %02X with %u bytes\r\n", ep_addr, (unsigned int) event.xfer_complete.len);
 
-        // Clear busy + claimed
-        _usbd_dev.ep_status[epnum][ep_dir] &= (uint8_t) ~(TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED);
+        usbd_class_driver_t const* driver = NULL; // EP0 has no class driver
+        if (0 != epnum) {
+          driver = get_driver(_usbd_dev.ep2drv[epnum][ep_dir]);
+          TU_ASSERT(driver,);
+        }
 
-        if (0 == epnum) {
+        // Clear busy + claimed. An OUT endpoint changed to RX_PENDING, so no other task can claim and re-arm it before
+        // its buffer is consumed
+        uint8_t const rx_pending = (0 != epnum && ep_dir == TUSB_DIR_OUT) ? TU_EDPT_STATE_RX_PENDING : 0u;
+        _usbd_dev.ep_status[epnum][ep_dir] = (uint8_t) (
+          (_usbd_dev.ep_status[epnum][ep_dir] & ~(TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED)) | rx_pending);
+
+        if (driver == NULL) {
           // Not stalled on failure: a DCD refuses an EP0 prime when a newer setup is already
           // latched, and EP0 stalls are cleared by hardware when that setup arrives - so a stall
           // issued here lands after the auto-clear and would stall the transfer that superseded
@@ -766,9 +775,6 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
             TU_LOG_USBD("  Control stage not continued\r\n");
           }
         } else {
-          usbd_class_driver_t const* driver = get_driver(_usbd_dev.ep2drv[epnum][ep_dir]);
-          TU_ASSERT(driver,);
-
           TU_LOG_USBD("  %s xfer callback\r\n", driver->name);
           driver->xfer_cb(event.rhport, ep_addr, (xfer_result_t) event.xfer_complete.result, event.xfer_complete.len);
         }
@@ -1589,6 +1595,21 @@ bool usbd_edpt_release(uint8_t rhport, uint8_t ep_addr) {
   return tu_edpt_release(&_usbd_dev.ep_status[epnum][dir], _usbd_mutex);
 }
 
+void usbd_edpt_rx_consume(uint8_t rhport, uint8_t ep_addr) {
+  (void) rhport;
+
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir = tu_edpt_dir(ep_addr);
+  volatile uint8_t *ep_state = &_usbd_dev.ep_status[epnum][dir];
+
+  TU_VERIFY((*ep_state & TU_EDPT_STATE_RX_PENDING) != 0,);
+  (void) osal_mutex_lock(_usbd_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+  if ((*ep_state & TU_EDPT_STATE_RX_PENDING) != 0) {
+    *ep_state &= (uint8_t) ~TU_EDPT_STATE_RX_PENDING;
+  }
+  (void) osal_mutex_unlock(_usbd_mutex);
+}
+
 bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes, bool is_isr) {
   rhport = _usbd_rhport;
 
@@ -1610,7 +1631,8 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
 
   // Set busy first since the actual transfer can be complete before dcd_edpt_xfer()
   // could return and USBD task can preempt and clear the busy
-  _usbd_dev.ep_status[epnum][dir] |= TU_EDPT_STATE_BUSY;
+  _usbd_dev.ep_status[epnum][dir] =
+    (uint8_t) ((_usbd_dev.ep_status[epnum][dir] & ~TU_EDPT_STATE_RX_PENDING) | TU_EDPT_STATE_BUSY);
 
   if (dcd_edpt_xfer(rhport, ep_addr, buffer, total_bytes, is_isr)) {
     return true;
@@ -1643,7 +1665,8 @@ bool usbd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_
 
   // Set busy first since the actual transfer can be complete before dcd_edpt_xfer() could return
   // and usbd task can preempt and clear the busy
-  _usbd_dev.ep_status[epnum][dir] |= TU_EDPT_STATE_BUSY;
+  _usbd_dev.ep_status[epnum][dir] =
+    (uint8_t) ((_usbd_dev.ep_status[epnum][dir] & ~TU_EDPT_STATE_RX_PENDING) | TU_EDPT_STATE_BUSY);
 
   if (dcd_edpt_xfer_fifo(rhport, ep_addr, ff, total_bytes, is_isr)) {
     TU_LOG_USBD("OK\r\n");

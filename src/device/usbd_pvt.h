@@ -74,6 +74,8 @@ bool usbd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
 
 // Claim an endpoint before submitting a transfer.
 // If caller does not make any transfer, it must release endpoint for others.
+// From an OUT xfer_cb, call usbd_edpt_rx_consume() (common/tusb_private.h) before claiming, or re-arm with
+// usbd_edpt_xfer() directly: the claim is refused until the buffer is consumed.
 bool usbd_edpt_claim(uint8_t rhport, uint8_t ep_addr);
 
 // Release claimed endpoint without submitting a transfer
