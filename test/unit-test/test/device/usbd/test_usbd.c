@@ -456,10 +456,12 @@ static bool xfer_cb_no_consume(uint8_t rhport_, uint8_t ep_addr, xfer_result_t r
   return true;
 }
 
-// xfer_cb that neither consumes nor re-arms: usbd releases the endpoint once xfer_cb returns
-void test_usbd_out_complete_released_after_xfer_cb(void) {
+// xfer_cb that neither consumes nor re-arms: the hold outlives xfer_cb until the class consumes
+void test_usbd_out_complete_held_after_xfer_cb_until_consumed(void) {
   msc_out_armed();
   msc_out_complete(xfer_cb_no_consume);
+  TEST_ASSERT_FALSE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
+  usbd_edpt_rx_consume(rhport, EDPT_MSC_OUT);
   TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
 }
 
@@ -473,7 +475,7 @@ static bool xfer_cb_consume_rearm(uint8_t rhport_, uint8_t ep_addr, xfer_result_
   return true;
 }
 
-// the consume after xfer_cb returns must not touch the transfer xfer_cb re-armed
+// a transfer re-armed inside xfer_cb stays BUSY and is not held by RX_PENDING
 void test_usbd_out_rearmed_in_xfer_cb_stays_busy(void) {
   msc_out_armed();
   msc_out_complete(xfer_cb_consume_rearm);

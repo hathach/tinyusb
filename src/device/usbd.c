@@ -759,8 +759,8 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
           TU_ASSERT(driver,);
         }
 
-        // Clear busy + claimed. A class OUT endpoint goes straight to RX_PENDING, so no other task can claim
-        // and re-arm it before its buffer is consumed (#1292)
+        // Clear busy + claimed. An OUT endpoint changed to RX_PENDING, so no other task can claim and re-arm it before
+        // its buffer is consumed
         uint8_t const rx_pending = (0 != epnum && ep_dir == TUSB_DIR_OUT) ? TU_EDPT_STATE_RX_PENDING : 0u;
         _usbd_dev.ep_status[epnum][ep_dir] = (uint8_t) (
           (_usbd_dev.ep_status[epnum][ep_dir] & ~(TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED)) | rx_pending);
@@ -777,7 +777,6 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
         } else {
           TU_LOG_USBD("  %s xfer callback\r\n", driver->name);
           driver->xfer_cb(event.rhport, ep_addr, (xfer_result_t) event.xfer_complete.result, event.xfer_complete.len);
-          usbd_edpt_rx_consume(event.rhport, ep_addr); // in case xfer_cb did not
         }
         break;
       }
