@@ -19,11 +19,6 @@ import re
 import subprocess
 import sys
 import types
-
-
-def _read(path):
-    with open(path) as f:
-        return f.read()
 import unittest
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(
@@ -33,6 +28,11 @@ sys.path.insert(0, os.path.join(REPO, 'tools'))
 import hil_flash
 import ci_select
 from helper.hil_util import device_tests, dual_tests
+
+
+def _read(path):
+    with open(path) as f:
+        return f.read()
 
 
 def real_rosters():
