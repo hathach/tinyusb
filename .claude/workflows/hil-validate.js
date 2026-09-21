@@ -1,7 +1,7 @@
 export const meta = {
   name: 'hil-validate',
   description: 'Hardware-in-the-loop run: one hil-operator flashes and tests every board in a single hil_test.py run; per-board flock locks arbitrate with concurrent CI (the actions-runner keeps running)',
-  whenToUse: 'After validate passes, to exercise built firmware on the physical rig. Requires the boards to be built (cmake-build/cmake-build-<board>, plus a dir per declared variant). If the result has non-empty `locked`, act on the task scope: force (re-invoke with force: true) when it names forcing those boards, otherwise wait and re-invoke, or return the holders and the scope gap to the caller; accepting a partial result is the caller decision. Pass force: true ONLY when the caller scope names forcing.',
+  whenToUse: 'Launched by the caller (chief) when the task needs hardware evidence, after validate passes; pre-pr only reports candidates. Before launch, establish matching firmware for every requested board, example and variant at the intended revision, in the layout the HIL contract (.claude/skills/hil/SKILL.md) names for this host: local and remote runs differ. If the result has non-empty `locked`, act on the task scope: force (re-invoke with force: true) when it names forcing those boards, otherwise wait and re-invoke, or return the holders and the scope gap to the caller; accepting a partial result is the caller decision. Pass force: true ONLY when the caller scope names forcing.',
   phases: [{ title: 'HIL', detail: 'one hil-operator, every board in one hil_test.py run' }],
 }
 
