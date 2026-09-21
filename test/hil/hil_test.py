@@ -1953,7 +1953,7 @@ def test_board(board: Board) -> tuple:
         return name, 1, [], [(name, {hil_report.LOCKED_CELL: 'fail'}, None)], 0.0
     # Admission: a previous run left this board with a confirmed D-state holder on its node.
     # Flashing into it would block, survive SIGKILL and cost the pool guard again, so refuse
-    # in seconds with its own cell -- not the locked one, which hil-validate retries. Read
+    # in seconds with its own cell -- not the locked one, which the caller retries. Read
     # whether or not the lock was available: a failed lock must not admit a marked board.
     marker = hil_lock.read_wedged(name)
     if marker is not None:
@@ -2470,7 +2470,7 @@ def main() -> None:
     # default 1, not 3: the pool guard is a FLAT 3600s that does not scale with max_retry,
     # and one usbtest test at default 3 can burn 1530s of it (510s outer x3) for a single
     # board. Every CI caller already pins --retry 1; the bare invocations in the hil skill
-    # and hil-validate.js run against the same one-slot rig and used to inherit 3.
+    # and its delegated runs go against the same one-slot rig and used to inherit 3.
     parser.add_argument('-r', '--retry', type=int, default=1, help='Retry count for failed tests (default: 1)')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
     args = parser.parse_args()

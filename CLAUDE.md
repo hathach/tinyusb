@@ -23,16 +23,16 @@
 
 - Build contract: `.claude/skills/build/SKILL.md`. Its script resolves a change to boards and builds them; `--shared` writes `cmake-build/cmake-build-<board>`, the dir HIL flashes from, so preserve it. Flash with `ninja -C cmake-build/cmake-build-<board> <example>-jlink` or `-openocd`.
 - HIL contract: `.claude/skills/hil/SKILL.md`. It owns taking and releasing a rig board and names the HIL config json for the host you are on.
-- Validation: the `validate` workflow (unit tests, per-board builds, code size, PVS, diff review) over the selection `pre-pr` returns; `chief` launches it with the base pinned and `maxCycles: 1`. Hardware is separate: `hil-validate` under the HIL contract, only when the task needs hardware evidence.
+- Validation: CI supplies the PR software checks (selected builds, pre-commit with the unit tests, code-size reporting, static analysis where enabled); after authorization `pr-babysit` watches them and coordinates repairs. Hardware is separate: `hil-operator` under the HIL contract, on the boards the task names, only when the task needs hardware evidence; the PR's HIL matrix is CI's.
 - ESP-IDF: `. "$IDF_PATH/export.sh"` before anything Espressif; verification still goes through the build contract, with `idf.py -DBOARD=<board> flash monitor` in the example reserved for interactive flash and monitor.
-- Before submitting: `pre-commit run --all-files` (includes unit tests).
+- Before submitting, and again after a rebase: `pre-commit run --all-files` (includes unit tests).
 - For code changes: build the full example set for boards that exercise the changed modules. Add fuzz/HIL coverage for parsers or protocol state machines.
 - After board/dependency changes, regenerate docs with `build-doc`.
 - Before committing code changes, verify size impact with `code-size`.
 
 ## PRs and Follow-ups
 
-- Before opening or updating a PR, follow Build and Validate; use `pre-pr` for the board selection and the `validate` launch when workflows are available. HIL is not part of it.
+- Before opening or updating a PR, follow Build and Validate. HIL is not part of it.
 - After opening a PR, ask the human to authorize one headless `chief` invocation to drive reviews and CI to green under agentrc chief's Authorization exception. Name the PR URL, head repository and branch, and actions: push commits to that branch, post replies to the PR's review feedback, and resolve review threads through `pr-babysit` with `autoPush: true`. On an affirmative answer, launch `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude -p --agent chief "$task"` in the PR worktree. The task names the PR, head repository and branch, expected HEAD and scope, and includes the question and answer verbatim. Leave the checkout to chief until it exits; a new chief invocation requires a fresh exchange. TinyUSB `pr-babysit` args:
   `{"pr": <num>, "protected": "^test/hil/[^/]+\\.json$"}`; reviewers are agentrc's default.
   (`protected` excludes the HIL rig rosters from automated fixes).

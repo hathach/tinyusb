@@ -506,7 +506,7 @@ def variants_of(cfg: dict, board: str) -> list:
 def summarize(cfg: dict, boards: list, report: dict) -> dict:
     # .get, not a subscript: this is the one reader an agent's verdict depends on, and a
     # row without 'board' used to kill the CLI with a traceback and no results at all --
-    # hil-validate.js then reports every board as "hil-operator returned no entry".
+    # the caller then sees no entry for any board.
     rows = {r['board']: r.get('cells') or {}
             for r in (report.get('rows') or [])
             if isinstance(r, dict) and 'board' in r}
@@ -535,7 +535,7 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
         # by board name, but variants_of returns only DECLARED variant names -- and
         # nanoch32v203 / ch32v307v_r1_1v0 declare none equal to their board name. Without
         # this those rows are invisible, so a lock held by concurrent CI is published as a
-        # hardware FAIL and hil-validate.js never retries it.
+        # hardware FAIL that the caller never retries.
         if board in rows and board not in mine:
             mine[board] = rows[board]
         if not mine:
@@ -545,14 +545,14 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
         # a wedge outranks lock contention: `locked` short-circuits `detail` below, so a
         # stale board-locked cell from an earlier attempt used to mask the pool-timeout
         # cell the retry added -- publishing a board that hung the rig as LOCKED, which
-        # hil-validate.js then RE-RUNS, paying another pool guard on it. RUN_ABORTED_CELL
+        # the caller then RE-RUNS, paying another pool guard on it. RUN_ABORTED_CELL
         # is written by the same _abort_report path for a board the guard never reached,
         # and must outrank it for the same reason.
         wedged = any(POOL_TIMEOUT_CELL in cells or RUN_ABORTED_CELL in cells
                      for cells in mine.values())
         # the per-row VERIFIED wedge, distinct from `wedged` above, which is this run's
         # pool-level outcome and never proof about one board. It outranks a lock cell the
-        # same way: a wedged board must never be published as LOCKED, which hil-validate.js
+        # same way: a wedged board must never be published as LOCKED, which the caller
         # re-runs.
         board_wedged = any(WEDGED_CELL in cells for cells in mine.values())
         refused = any(cells.get(WEDGED_CELL) == WEDGED_REFUSED for cells in mine.values())
@@ -581,8 +581,12 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
                         'wedged': board_wedged, 'detail': detail})
     # `caveat` too: an abandoned or no-boards run says so THERE, and this JSON is all
     # an agent gets -- leaving it in the sidecar puts it back where only a human looks.
-    return {'results': results, 'banner': report.get('banner', ''),
-            'caveat': report.get('caveat', '')}
+    caveat = report.get('caveat', '')
+    # the verdict of THIS snapshot: every row can pass on an abandoned or no-boards run, so
+    # the caveat gates it. --accumulate clears an earlier attempt's caveat by design, so the
+    # verdict of a retry sequence is the caller's, from every attempt's result.
+    return {'pass': bool(results) and all(r['pass'] for r in results) and not caveat,
+            'results': results, 'banner': report.get('banner', ''), 'caveat': caveat}
 
 
 def main() -> int:

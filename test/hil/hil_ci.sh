@@ -224,7 +224,7 @@ REMOTE
 # reads it -- the retry spec reaches the rig as the -b/-bt arguments the caller expanded
 # from it (`hil_ci.sh $(cat <config>.failed)`).
 # argparse decides, not a case arm: hil_test.py declares `-a, --accumulate`, so argparse
-# also accepts `-av`, `-va`, `--accum` and `--acc` -- and hil-validate.js tells the
+# also accepts `-av`, `-va`, `--accum` and `--acc` -- and the HIL contract tells the
 # operator to retry "adding -v", which makes `-av` the natural spelling. A hand-rolled
 # match missed all four: no upload, and the else-branch warning never fired either, so the
 # one-row table replaced the full-fleet one in silence.

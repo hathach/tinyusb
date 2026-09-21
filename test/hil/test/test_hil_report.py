@@ -543,7 +543,7 @@ class SummaryFoldsReportToBoards(unittest.TestCase):
         self.assertIn('marked wedged', got[0]['detail'])
 
     def test_a_wedge_outranks_a_lock_cell(self):
-        """hil-validate.js re-runs LOCKED boards; a wedged one must never read as locked."""
+        """the caller re-runs LOCKED boards; a wedged one must never read as locked."""
         got = self._sum(['b'], [('b', {hil_report.LOCKED_CELL: 'fail', hil_report.WEDGED_CELL: 'fail'})])
         self.assertEqual((got[0]['locked'], got[0]['wedged'], got[0]['pass']), (False, True, False))
 
@@ -781,7 +781,7 @@ class SummarizeSeesEveryRow(unittest.TestCase):
         """hil_test writes lock-contention and pool-timeout rows keyed by BOARD name, but
         variants_of returns only declared variant names -- so for nanoch32v203 and
         ch32v307v_r1_1v0 those rows were invisible and a held lock published as a
-        hardware FAIL that hil-validate.js never retried."""
+        hardware FAIL that the caller never retried."""
         cfg = {'boards': [{'name': 'nano',
                            'variant': [{'name': 'nano-fsdev'}, {'name': 'nano-usbfs'}]}]}
         doc = {'rows': [{'board': 'nano', 'cells': {'board-locked': 'fail'},
@@ -797,6 +797,69 @@ class SummarizeSeesEveryRow(unittest.TestCase):
                                    {'rows': [{'cells': {}}, {'board': 'a',
                                                              'cells': {'t': 'pass'}}]})
         self.assertTrue(out['results'][0]['pass'])
+
+
+class RunVerdictIsASnapshot(unittest.TestCase):
+    """`pass` is what the caller reads instead of re-deriving "every row passed and no caveat".
+    It judges THIS report only: accumulate_report() drops an earlier attempt's caveat, so the
+    verdict of a retry sequence is the caller's from every attempt's result."""
+
+    ABANDON = '**HIL run abandoned: worker pool timed out after 1s.** treat board results as unverified.\n'
+
+    def _verdict(self, boards, rows, cfg_boards=None, banner='', caveat=''):
+        td = TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        d = Path(td.name)
+        hil_report.write_report(d, {'rows': [{'board': b, 'cells': c, 'duration': '1s'} for b, c in rows],
+                                    'banner': banner, 'scope': '', 'caveat': caveat})
+        cfg = {'boards': cfg_boards or [{'name': b} for b in boards]}
+        return hil_report.summarize(cfg, boards, hil_report._load(d)[0])
+
+    def test_every_row_passing_and_no_caveat_is_a_pass(self):
+        v = self._verdict(['a', 'b'], [('a', {'usbtest': 'pass'}), ('b', {'usbtest': 'pass'})])
+        self.assertTrue(v['pass'])
+
+    def test_a_rig_health_banner_alone_does_not_fail_it(self):
+        v = self._verdict(['a'], [('a', {'usbtest': 'pass'})], banner='> **Rig note.** 1 process in D state.\n')
+        self.assertTrue(v['pass'])
+
+    def test_a_caveat_fails_a_run_whose_rows_all_pass(self):
+        v = self._verdict(['a'], [('a', {'usbtest': 'pass'})], caveat=self.ABANDON)
+        self.assertTrue(all(r['pass'] for r in v['results']))
+        self.assertFalse(v['pass'])
+
+    def test_one_failing_locked_wedged_missing_or_unknown_row_fails_it(self):
+        self.assertFalse(self._verdict(['a', 'b'], [('a', {'usbtest': 'pass'}), ('b', {'usbtest': 'fail'})])['pass'])
+        self.assertFalse(self._verdict(['a'], [('a', {hil_report.LOCKED_CELL: 'fail'})])['pass'])
+        self.assertFalse(self._verdict(['a'], [('a', {hil_report.WEDGED_CELL: 'fail'})])['pass'])
+        self.assertFalse(self._verdict(['a', 'b'], [('a', {'usbtest': 'pass'})])['pass'])
+        self.assertFalse(self._verdict(['a', 'zz'], [('a', {'usbtest': 'pass'})],
+                                       cfg_boards=[{'name': 'a'}])['pass'])
+
+    def test_no_rows_is_not_a_pass(self):
+        self.assertFalse(self._verdict(['a'], [])['pass'])
+
+    def test_the_verdict_is_per_snapshot_across_an_accumulate_retry(self):
+        td = TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        rd = Path(td.name)
+        cfg = {'boards': [{'name': 'boardA'}]}
+        rows = [('boardA', 0, 0, [('boardA', {'cdc_msc': 'OK'}, '1s')], 0)]
+        # an abandoned first attempt: the stamp path sets the caveat on a report whose rows pass
+        hil_report.accumulate_report(rows, rd, True, '', '')
+        doc, _ = hil_report._load(rd)
+        doc['caveat'] = self.ABANDON
+        hil_report.write_report(rd, doc)
+        self.assertFalse(hil_report.summarize(cfg, ['boardA'], hil_report._load(rd)[0])['pass'])
+        # a clean accumulated re-run clears the caveat, and THIS snapshot passes: the sequence
+        # verdict is the caller's, who still holds the first attempt's False
+        hil_report.accumulate_report(rows, rd, False, '', '')
+        self.assertTrue(hil_report.summarize(cfg, ['boardA'], hil_report._load(rd)[0])['pass'])
+        # the other direction: a clean first attempt, then a re-run that abandoned
+        doc, _ = hil_report._load(rd)
+        doc['caveat'] = self.ABANDON
+        hil_report.write_report(rd, doc)
+        self.assertFalse(hil_report.summarize(cfg, ['boardA'], hil_report._load(rd)[0])['pass'])
 
 
 class NoBoardsExitKeepsWhatRan(unittest.TestCase):
@@ -895,7 +958,7 @@ class HilCiUploadsTheAccumulateMergeBase(unittest.TestCase):
 
     def test_every_spelling_argparse_accepts_is_detected(self):
         """hil_test.py declares `-a, --accumulate`, so argparse also takes -av, -va,
-        --accum and --acc; hil-validate.js tells the operator to retry 'adding -v'."""
+        --accum and --acc; the HIL contract tells the operator to retry 'adding -v'."""
         for spelling in ('--accumulate', '-a', '-av', '-va', '--accum', '--acc'):
             self.assertEqual(self._gate(spelling), '1', f'{spelling} was not detected')
 
@@ -1021,7 +1084,7 @@ class AMalformedSidecarNeverCostsTheReport(unittest.TestCase):
 class PoolTimeoutOutranksAStaleLock(unittest.TestCase):
     def test_a_wedge_is_not_published_as_lock_contention(self):
         """locked was computed across every cell and short-circuited detail, so a board
-        that wedged the rig on the retry was reported as LOCKED -- and hil-validate.js
+        that wedged the rig on the retry was reported as LOCKED -- and the caller
         re-runs those, paying another pool guard on a board that just hung it."""
         doc = {'rows': [{'board': 'boardX',
                          'cells': {'board-locked': 'fail', 'pool-timeout': 'fail'},
@@ -1033,7 +1096,7 @@ class PoolTimeoutOutranksAStaleLock(unittest.TestCase):
     def test_a_run_aborted_board_is_not_published_as_lock_contention(self):
         """run-aborted is written by the same _abort_report path as pool-timeout, for a
         board the guard never reached. It has to outrank a stale lock cell for the same
-        reason -- otherwise hil-validate.js re-runs a board whose worker RAISED."""
+        reason -- otherwise the caller re-runs a board whose worker RAISED."""
         doc = {'rows': [{'board': 'boardX',
                          'cells': {'board-locked': 'fail', 'run-aborted': 'fail'},
                          'duration': None}], 'banner': '', 'caveat': '', 'scope': ''}

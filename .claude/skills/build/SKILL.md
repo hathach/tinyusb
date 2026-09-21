@@ -5,7 +5,7 @@ description: The project build contract. Use when a change must be verified by b
 
 # Build contract
 
-`scripts/check_build.py` is the entry point for verifying a change; every agent and workflow that does so calls it rather than composing cmake lines. Two builds are not verification and stay on `tools/build.py` directly: the debug build below, and the PVS compile-database build in `validate`, which needs one configured tree for the analyser, not a sweep.
+`scripts/check_build.py` is the entry point for verifying a change; every agent and workflow that does so calls it rather than composing cmake lines. Two builds are not verification and stay on `tools/build.py` directly: the debug build below, and the PVS compile-database build for the `pvs-studio` agent, which needs one configured tree for the analyser, not a sweep.
 
 ```bash
 B=.claude/skills/build/scripts/check_build.py

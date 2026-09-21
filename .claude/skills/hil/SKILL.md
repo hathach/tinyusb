@@ -149,19 +149,23 @@ paste the complete per-board table (and footer counts) verbatim — never trunca
 it to a prose digest. Commentary below it covers only what the table cannot show: a banner
 verdict from the list below, a retry, a wedged board.
 
-A delegated run (the `hil-operator` role, a workflow) returns the machine output instead, in the
-JSON shape its prompt specifies and nothing else. From the directory the run wrote its report to:
+A delegated run (the `hil-operator` role) returns the machine output instead: exactly
+`{ pass, results, banner, caveat, wedged }` and nothing else. From the directory the run wrote its
+report to:
 
 ```bash
 python3 test/hil/helper/hil_report.py <config> -b BOARD [-b BOARD...]
 ```
 
-`results`, `banner` and `caveat` are copied from its output verbatim — never retyped, reworded
-or re-ordered: rows are named per variant, a variant name need not start with the board name,
-and lock contention is a cell rather than a phrase, so any of it re-derived by hand has come out
-wrong before. `caveat` is the run-level notice (abandoned, aborted, no boards) and can say the
-run failed while every row says pass; it is empty on every other run, so a non-empty `caveat`
-means the run did not pass, while an empty one alone establishes nothing. Each row's `wedged`
+`pass`, `results`, `banner` and `caveat` are copied from its output verbatim — never retyped,
+reworded or re-ordered: rows are named per variant, a variant name need not start with the board
+name, and lock contention is a cell rather than a phrase, so any of it re-derived by hand has come
+out wrong before. `results` has exactly one entry per requested board. `pass` is the verdict of
+this report snapshot: every row can pass on an abandoned or no-boards run, so the run-level
+`caveat` (abandoned, aborted, no boards; empty on every other run) gates it. `--accumulate`
+clears an earlier attempt's caveat by design, so the verdict of a retry sequence is the caller's:
+keep every attempt's result, a clean subset re-run never erases an earlier run-level failure, and
+a re-run's own caveat fails the sequence. Each row's `wedged`
 is the report's verified verdict (a `board-wedged` cell) and is copied with the row; the
 top-level `wedged` — the boards the run left unresponsive, usually none — is the operator's
 own observation and the only field it authors when a run happened; it names requested boards,
@@ -171,8 +175,16 @@ a known name remains — an empty `-b` list runs every configured board — keep
 requested list on the `hil_report.py` call, which emits a `ran: false` row for each unknown
 board. When no run started (a missing config, every name unknown, a refused hold with no
 permitted retry, a scope gap, unbuilt firmware), it authors the rows instead: one per requested
-board, `ran: false`, `pass: false`, `locked` as observed, the reason in `detail`, `banner` and
-`caveat` empty — and reads no stale report.
+board, `ran: false`, `pass: false`, `locked` as observed, the reason in `detail`, top-level
+`pass: false`, `banner` and `caveat` empty — and reads no stale report. The caller treats a
+missing or malformed reply as inconclusive, never as a pass or a fail.
+
+The caller decides what follows a run. The whole board set goes to ONE run (above); the failure
+retry below runs only on a report with no `locked` or `wedged` board and an empty `caveat`, so
+any other outcome returns to the caller as it is. On `locked` the caller bypasses with `HIL_NO_BOARD_LOCK=1` only
+when the task scope names bypassing those boards' locks, never releasing or killing the holder;
+or waits and re-runs the locked boards with `--accumulate`; or accepts, reporting the boards not
+covered. A `wedged` board is never re-run: it goes to `usb-kernel-recover`.
 
 **First check what sits above the table.** Six banners can appear there; match on a
 PREFIX, since each carries trailing detail and two are blockquotes:
@@ -202,7 +214,10 @@ PREFIX, since each carries trailing detail and two are blockquotes:
   into the NEXT job. The table below is this run's and can be reported, but say the rig is
   dirty: the next job starts degraded and nothing in the harness can clear it.
 
-On failure, retry once with `-v` — from the `<config>.failed` spec the run just wrote, which
+On a test failure, retry once with `-v` — only when the report has no `locked` or `wedged` board
+and an empty `caveat`; otherwise return the snapshot without retrying, since the `.failed` spec
+lists those boards too and an accumulated retry would clear a caveat the caller must keep. Retry
+from the `<config>.failed` spec the run just wrote, which
 already begins with `--accumulate` and restricts each board to its failed tests. A hand-scoped
 `-b <board>` retry MUST pass `--accumulate` too: a fresh run unlinks the report, replacing the
 whole-fleet table with a one-row table. A usbtest battery that produced per-case verdicts is not

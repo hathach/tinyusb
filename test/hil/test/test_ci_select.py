@@ -569,7 +569,7 @@ class TestFamilies(unittest.TestCase):
 
     def test_full_selection_still_reports_families(self):
         """A full-matrix file must not hide the families of the other changed files:
-        consumers that build from `families` (e.g. /pre-pr) ignore `boards` when full."""
+        consumers that build from `families` (the build skill) ignore `boards` when full."""
         s = sel(['src/common/tusb_fifo.c', 'src/portable/microchip/samx7x/dcd_samx7x.c'])
         self.assertTrue(s['full'])
         self.assertIn('same7x', s['families'])
