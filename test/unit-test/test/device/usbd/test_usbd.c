@@ -30,7 +30,6 @@
 #include "tusb.h"
 #include "usbd.h"
 #include "device/usbd_pvt.h"
-#include "common/tusb_private.h"
 TEST_SOURCE_FILE("usbd.c")
 
 // Mock File
