@@ -31,7 +31,8 @@ from helper.hil_util import device_tests, dual_tests
 
 
 def _read(path):
-    with open(path) as f:
+    # Fixed encoding, like ci_select._read: a non-UTF-8 locale would fail on tracked non-ASCII bytes.
+    with open(path, encoding='utf-8', errors='replace') as f:
         return f.read()
 
 
