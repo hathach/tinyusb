@@ -281,7 +281,7 @@ def canonical_row(family, build_dirs, existed):
 # -----------------------------
 # Make
 # -----------------------------
-def make_one_example(example, board, make_option, build_targets, defines=()):
+def make_one_example(example, board, make_option, build_targets, defines=(), jobs=1):
     # Check if board is skipped. Make semantics: family.mk decides, not the
     # family.cmake MCU list (see build_utils.skip_example).
     if build_utils.skip_example(example, board, defines, build_system='make'):
@@ -289,7 +289,7 @@ def make_one_example(example, board, make_option, build_targets, defines=()):
         r = 2
     else:
         start_time = time.monotonic()
-        make_cmd = ["make", "-C", f"examples/{example}", f"BOARD={board}", '-j', str(parallel_jobs)]
+        make_cmd = ["make", "-C", f"examples/{example}", f"BOARD={board}", '-j', str(jobs)]
         if make_option:
             make_cmd += shlex.split(make_option)
         r = 0
@@ -320,9 +320,12 @@ def make_board(board, build_args, build_targets, examples=None, defines=()):
         # espressif and rp2040 do not support make, use cmake instead
         final_status = 2
     else:
-        # bound by -j: os.cpu_count() is the host's core count in CI containers, and each worker runs make -j too
-        with Pool(processes=parallel_jobs) as pool:
-            pool_args = list((map(lambda e, b=board, o=f"{build_args}", t=build_targets, d=defines: [e, b, o, t, d], all_examples)))
+        # -j is the total budget, split between the pool and each worker's make -j;
+        # os.cpu_count() is the host's core count in CI containers
+        pool_size = max(1, min(parallel_jobs, len(all_examples)))
+        make_jobs = parallel_jobs // pool_size
+        with Pool(processes=pool_size) as pool:
+            pool_args = list((map(lambda e, b=board, o=f"{build_args}", t=build_targets, d=defines, j=make_jobs: [e, b, o, t, d, j], all_examples)))
             r = pool.starmap(make_one_example, pool_args)
             # sum all element of same index (column sum)
             ret = list(map(sum, list(zip(*r))))
@@ -466,6 +469,8 @@ def main():
     parser.add_argument('--configure-only', action='store_true',
                         help='Configure without building (cmake only): enough to write the board\'s hw/bsp/family.json row')
     args = parser.parse_args()
+    if args.jobs < 1:
+        parser.error('-j/--jobs must be at least 1')
     global configure_only, canonical
 
     families = args.families
