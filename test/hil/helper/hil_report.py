@@ -83,7 +83,7 @@ RUN_ABORTED_CELL = 'run-aborted'
 def _load(report_dir: Path) -> tuple:
     """(doc, readable) for the sidecar, coerced to the canonical shape.
 
-    hil_ci.sh uploads a sidecar as the --accumulate merge base, so a non-conforming one is
+    hil_remote.py uploads a sidecar as the --accumulate merge base, so a non-conforming one is
     reachable from OUTSIDE the harness -- and every writer here runs on a path where a
     TypeError costs the whole report. Coerce once, at the boundary, instead of guarding
     each use: `banner: null` used to kill a fully successful run with a traceback and no
@@ -204,8 +204,7 @@ def render_report(doc: dict) -> str:
     """The markdown IS a rendering of the sidecar. Every writer goes through here, so a
     table can never contain something the JSON does not."""
     # .get throughout, not subscripts: mark_report_abandoned renders a sidecar it did NOT
-    # write (hil_ci.sh reuses a persistent REMOTE_DIR, so it may be an older version's or
-    # a torn one) on the way to os._exit, and a KeyError there is not in its handler --
+    # write (a report dir can hold an older version's or a torn one) on the way to os._exit, and a KeyError there is not in its handler --
     # it would unwind into multiprocessing's unbounded join and hang the runner it is
     # trying to free. Same reason summarize() below reads cells as `r.get('cells') or {}`.
     md = render_matrix([(r.get('board', '?'), r.get('cells') or {}, r.get('duration'))
@@ -342,7 +341,7 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
     mret into rows could live in hil_test and only the merge here, but that would rewrite
     the subtle parts -- stale board-locked clearing, BOUNDARY_CELL dropping, duration=None
     preservation -- for a tidier seam. Data-shape coupling, not an import cycle."""
-    # ONE canonical load: a sidecar reaching here may have been uploaded by hil_ci.sh as
+    # ONE canonical load: a sidecar reaching here may have been uploaded by hil_remote.py as
     # the merge base, so it is untrusted input. `banner` carries forward -- it describes
     # the conditions the earlier cells were collected under, and the .failed spec re-runs
     # only FAILURES so those passes are never re-earned. `caveat` does NOT: it records how

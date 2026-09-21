@@ -1137,6 +1137,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_ci_select.py',
             'test/hil/test/test_drivers_coverage.py',
             'test/hil/test/test_family_json.py',
+            'test/hil/test/test_hil_args.py',
             'test/hil/test/test_hil_bounded.py',
             'test/hil/test/test_hil_health.py',
             'test/hil/test/test_hil_recover.py',

@@ -38,7 +38,6 @@
 # ACTION=="add", SUBSYSTEM=="tty", SUBSYSTEMS=="usb", MODE="0666", PROGRAM="/bin/sh -c 'echo $$ID_SERIAL_SHORT | rev | cut -c -8 | rev'", SYMLINK+="ttyUSB_%c.%s{bInterfaceNumber}"
 # ACTION=="add", SUBSYSTEM=="block", SUBSYSTEMS=="usb", ENV{ID_FS_USAGE}=="filesystem", MODE="0666", PROGRAM="/bin/sh -c 'echo $$ID_SERIAL_SHORT | rev | cut -c -8 | rev'", RUN{program}+="/usr/bin/systemd-mount --no-block --automount=yes --collect $devnode /media/blkUSB_%c.%s{bInterfaceNumber}"
 
-import argparse
 import io
 import itertools
 import os
@@ -64,7 +63,7 @@ from multiprocessing import TimeoutError as MpTimeoutError
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # PYTHONSAFEPATH drops it
 import hil_flash
 import usbtest    # for the recovery bounds only; hil_test runs it as a subprocess
-from helper import hil_health, hil_lock, hil_recover, hil_report, hil_util
+from helper import hil_args, hil_health, hil_lock, hil_recover, hil_report, hil_util
 from helper.hil_util import device_tests, dual_tests, host_test
 
 # Raw Lock/Semaphore objects in Pool initargs are inheritable only under fork
@@ -365,7 +364,7 @@ def serial_write_all(ser: serial.Serial, data: bytes):
 RTT_BANNER_RE = hil_util.RTT_BANNER_RE
 
 LP_OPEN_TIMEOUT = 5   # bound on opening the printer lp node; see test_device_printer_to_cdc
-# Runs under hil_util.run_alongside as `python3 -c`. Inline rather than a file so hil_ci.sh's
+# Runs under hil_util.run_alongside as `python3 -c`. Inline rather than a file so hil_remote.py's
 # staging list does not need another entry to keep the rig working.
 LP_READER = (
     'import os, sys\n'
@@ -2489,29 +2488,7 @@ def main() -> None:
 
     duration = time.time()
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('config_file', help='Configuration JSON file')
-    parser.add_argument('-b', '--board', action='append', default=[], help='Boards to test, all if not specified')
-    parser.add_argument('--flasher', action='append', default=[],
-                        help='Only boards using these flashers, e.g. esptool '
-                             '(for splitting one config across CI jobs)')
-    parser.add_argument('--exclude-flasher', action='append', default=[],
-                        help='Exclude boards using these flashers')
-    parser.add_argument('-a', '--accumulate', action='store_true',
-                        help='Merge results into the existing report instead of starting fresh '
-                             '(re-runs; the .failed file starts with this)')
-    parser.add_argument('-sf', '--skip-flash', action='store_true', help='Run tests without flashing firmware (use whatever is already on the board)')
-    parser.add_argument('-t', '--test-only', action='append', default=[], help='Tests to run, all if not specified')
-    parser.add_argument('-bt', '--board-test', action='append', default=[],
-                        help='Per-board test list as BOARD:test1,test2 (overrides -t for that board); repeat for multiple boards')
-    parser.add_argument('-B', '--build-dir', default='cmake-build', help='Build folder name (default: cmake-build)')
-    parser.add_argument('--build', action='store_true', help='Build firmware for selected boards with cmake before running tests')
-    # default 1, not 3: the pool guard is a FLAT 3600s that does not scale with max_retry,
-    # and one usbtest test at default 3 can burn 1530s of it (510s outer x3) for a single
-    # board. Every CI caller already pins --retry 1; the bare invocations in the hil skill
-    # and its delegated runs go against the same one-slot rig and used to inherit 3.
-    parser.add_argument('-r', '--retry', type=int, default=1, help='Retry count for failed tests (default: 1)')
-    parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
+    parser = hil_args.build_parser()
     args = parser.parse_args()
     if args.retry < 1:
         # 0 would make every test loop body never run: all-red cells, exit 0
@@ -2661,8 +2638,8 @@ def main() -> None:
     # (kill_worker_children, a BrokenPipeError from its print) leaves _abandon_exit armed.
     pool_abandoned = True
     abort_args = None   # the _abort_report call an abort path made, re-run after recovery
-    # BEFORE Manager()/Pool(), not inside the try: hil_ci.sh reuses a persistent REMOTE_DIR
-    # and scp's the report back unconditionally, so if a fork failure (OSError/EAGAIN right
+    # BEFORE Manager()/Pool(), not inside the try: a fresh invocation may reuse a report dir
+    # holding a previous run's report, so if a fork failure (OSError/EAGAIN right
     # after a convoy -- the case this whole block guards) skipped the wipe, the finally's
     # _abandon_exit would stamp "HIL run abandoned" onto the PREVIOUS run's report and
     # publish last night's board results as this run's. Nothing is live yet here, so an

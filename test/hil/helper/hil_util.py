@@ -442,7 +442,7 @@ if not _rtt_path.exists():
     # name the real cause: a bare FileNotFoundError out of an exec_module here reads
     # as a harness bug, when the actual problem is an incompletely staged tree
     raise ImportError(f'{_rtt_path} is missing — the RTT console lives there and the '
-                      f'harness depends on it; stage it alongside test/hil (hil_ci.sh does)')
+                      f'harness depends on it; stage it alongside test/hil (hil_remote.py does)')
 _rtt_spec = _ilu.spec_from_file_location('tinyusb_tools_rtt', _rtt_path)
 _rtt = _ilu.module_from_spec(_rtt_spec)
 sys.modules[_rtt_spec.name] = _rtt   # registered: RttError must be picklable across the fork Pool

@@ -85,7 +85,7 @@ See the `usb-kernel-recover` skill for what a real wedge looks like and how to c
 
 ## Prerequisites
 
-Examples must be built for the target board(s) — see [Build and Validate](../../../CLAUDE.md#build-and-validate). For a **local** run the `build` skill's `--shared` produces `cmake-build/cmake-build-<board>/`, the folder `hil_test.py` flashes from by default. A **remote** run needs the other layout — `hil_ci.sh` stages from `examples/cmake-build-<board>/` only; see Remote execution below. (This applies to `hil_test.py`; `hil_pool_check.py` builds its own missing firmware.)
+Examples must be built for the target board(s) — see [Build and Validate](../../../CLAUDE.md#build-and-validate). For a **local** run the `build` skill's `--shared` produces `cmake-build/cmake-build-<board>/`, the folder `hil_test.py` flashes from by default. A **remote** run stages the same folder; see Remote execution below. (This applies to `hil_test.py`; `hil_pool_check.py` builds its own missing firmware.)
 
 A board whose flasher probe has no VCOM (or whose BSP has no UART) uses RTT as its console — "No serial device found for /dev/serial/by-id/…" on every host test is the symptom. Config: `"logger": "rtt"` (jlink flashers only) plus a self-named variant carrying the define — `"variant": [{"name": "<board>", "defines": ["LOGGER=rtt"]}]` — and prebuilt example sets must carry the same `-DLOGGER=rtt`. Caveat: the cdc/msc-fixture host tests don't speak RTT yet, so such a board cannot carry `is_cdc`/`is_msc` fixtures (the config loader rejects it). Details: the `rtt` skill.
 
@@ -112,26 +112,26 @@ python3 test/hil/hil_test.py -b stm32f723disco "$CONFIG"
 
 ## Remote execution (dev PC → ci.lan only)
 
-`test/hil/hil_ci.sh` handles dir setup, scp of test scripts, rsync of firmware (`.elf`/`.bin`/`.hex`), and runs `hil_test.py` on `ci.lan` with `tinyusb.json`:
+`scripts/hil_remote.py` takes `hil_test.py`'s own arguments, minus the config. It stages the harness, the config and the firmware the run will read under `-B` (default `cmake-build`, the `build` skill's `--shared` layout), runs `hil_test.py` on `ci.lan` with `tinyusb.json`, and copies the report pair and `<config>.failed` back to the checkout root:
 
 ```bash
-# All boards:
-bash test/hil/hil_ci.sh
+R=.claude/skills/hil/scripts/hil_remote.py
+# All boards built under cmake-build/:
+python3 $R
 
 # A subset — repeat -b, ONE invocation for the whole set:
-bash test/hil/hil_ci.sh -b raspberry_pi_pico2 -b stm32f723disco -t host/cdc_msc_hid -r 1
+python3 $R -b raspberry_pi_pico2 -b stm32f723disco -t host/cdc_msc_hid -r 1
 ```
 
 One invocation per board is wrong here, not merely slow: each run `rm -rf`s `REMOTE_DIR`
 and rewrites the report, so only the last board's rows survive.
 
-This wrapper stages binaries from `examples/cmake-build-<board>/` — the cmake preset layout — and nothing else:
-its resolver and its all-boards glob never look in `cmake-build/`, so a tree built only by the `build` skill's
-`--shared` is refused as unbuilt (`no build directory under <root>/examples/`). Build the boards the preset way
-for a remote run: `cd examples && cmake --preset <board> && cmake --build --preset <board>`. The remote side is
-already `-B examples`, matching what was staged.
+Before touching the rig it refuses a board not in the config, and a requested board with none of its
+`<-B>/cmake-build-<variant>` dirs, naming the dirs it looked for (a variant's build flags are in the
+config); it warns for each variant with no build, whose cells would be skipped rather than tested.
+`--build` is refused: the rig receives binaries only.
 
-Env overrides: `REMOTE`, `REMOTE_DIR`, `CONFIG`. Fails fast if the build dir/repo layout is missing.
+Env overrides: `REMOTE`, `REMOTE_DIR`, `CONFIG`, `ROOT_DIR`.
 
 ## Timing
 

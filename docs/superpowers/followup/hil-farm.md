@@ -21,7 +21,7 @@ jlink/stlink/openocd/esptool/lm4flash), board locks + controller permits
 (`helper/hil_lock.py`), consoles (pyserial + `tools/rtt.py`), sysfs/usb_scan and
 bounded subprocess helpers (`helper/hil_util.py`), pool + health
 (`helper/hil_health.py`), pool check (`helper/hil_pool_check.py`), report
-(`helper/hil_report.py`), SSH staging (`hil_ci.sh`).
+(`helper/hil_report.py`), SSH staging (`.claude/skills/hil/scripts/hil_remote.py`).
 
 Project layer: the ~30 `test_*` cases and `_tests_for` map in `hil_test.py`
 (~1500 lines), the example list in `hil_util.py:31-52`, `find_firmware` and the
@@ -34,7 +34,7 @@ Seams where TinyUSB leaks into generic files (Codex, verified by path):
 through VID `cafe` and firmware serials; `hil_pool_check.py:224` selects and
 builds TinyUSB examples, parses `usb_descriptors.c`, recognizes "Hello from
 TinyUSB"; `hil_report.py:320` consumes TinyUSB worker tuples and failure
-columns; `hil_ci.sh` stages a TinyUSB source tree into a reused directory.
+columns; `hil_remote.py` stages a TinyUSB source tree into a reused directory.
 
 Lifecycle the runner owns: validate -> reserve -> flash -> test -> restore
 approved state -> release -> report. Test success and cleanup success are

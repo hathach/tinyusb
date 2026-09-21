@@ -76,7 +76,7 @@ repos:
   # and md5-checks the logo header from there as its MTP fixtures.
   - id: hil-test
     name: hil-test
-    files: ^(test/hil/|examples/device/mtp/src/|tools/rtt\.py$)
+    files: ^(test/hil/|examples/device/mtp/src/|tools/rtt\.py$|\.claude/skills/hil/scripts/hil_remote\.py$)
     entry: python3 -m unittest discover -s test/hil/test -p 'test_hil*.py'
     pass_filenames: false
     language: system
