@@ -37,6 +37,7 @@ python3 test/hil/helper/hil_lock.py release BOARD [BOARD...]
 - Never pre-hold boards you are about to run `hil_test.py` on — it self-locks and would treat your own hold as a conflict.
 - Rig-wide operations (uhubctl power cycling, `usb_recover.sh root-cycle`, pci-rebind, controller resets — bus renumbering) affect every board: `hil_lock.py hold --all --config <this host's config> --reason "..."` first — `--all` defaults to `tinyusb.json`, so on `tusb` it would reserve 27 boards that do not exist there and none of the three that do. Even a single root-port bounce needs `--all`: nothing maps a sysfs busport to a board name, and `hil_lock.py hold` accepts any string, so a "just the siblings" hold reserves nothing while reporting success. If `--all` cannot be taken, wait: a partial hold is worse than none, because it reads as protection.
 - `hil_lock.py status` lists holders. Locks auto-release when the holder process dies (kernel flock); `/tmp` clears on reboot.
+- A board that finished a run with a confirmed wedge (usbtest still saw a D-state holder on its node after the confirmation window) is marked `<board>.wedged` beside its flock, and `hil_test.py` refuses it in seconds with a `board-wedged` cell until the marker is cleared. `hil_lock.py wedged status` lists markers; after recovery has been verified, `hil_lock.py wedged clear BOARD --evidence '{"board": "BOARD", "uid": "<marker uid>", "holders": [], "complete": true, "identity": "<serial>@<busport>"}'` clears one, refusing while the board is held or when the evidence does not verify that marker. The marker and its `<board>.wedge-dmesg.txt` share the lock dir's lifetime. It contains that board's reuse only: it does not shield other enumerators from the poisoned node, a worker killed before writing leaves none, and a reboot clears the marker and the kernel's stuck processes but not necessarily the DUT, probe or controller, so post-reboot health still needs `hil-pool-check`.
 - Forcing past a lock: `HIL_NO_BOARD_LOCK=1 python3 test/hil/hil_test.py ...` bypasses the guard without killing the holder. Only when the request or task scope explicitly names forcing that board — it risks colliding with whatever holds it; a refused hold alone never adds that scope.
 
 ## Pool check (board/probe health)
@@ -160,9 +161,11 @@ or re-ordered: rows are named per variant, a variant name need not start with th
 and lock contention is a cell rather than a phrase, so any of it re-derived by hand has come out
 wrong before. `caveat` is the run-level notice (abandoned, aborted, no boards) and can say the
 run failed while every row says pass; it is empty on every other run, so a non-empty `caveat`
-means the run did not pass, while an empty one alone establishes nothing. `wedged` — the boards
-the run left unresponsive, usually none — is the operator's own observation and the only field
-it authors when a run happened; it names requested boards, never a variant row name.
+means the run did not pass, while an empty one alone establishes nothing. Each row's `wedged`
+is the report's verified verdict (a `board-wedged` cell) and is copied with the row; the
+top-level `wedged` — the boards the run left unresponsive, usually none — is the operator's
+own observation and the only field it authors when a run happened; it names requested boards,
+never a variant row name.
 A run refused with `board(s) not in <config>` is re-run without the unknown names only while
 a known name remains — an empty `-b` list runs every configured board — keeping the full
 requested list on the `hil_report.py` call, which emits a `ran: false` row for each unknown

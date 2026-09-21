@@ -60,6 +60,12 @@ REPORT_JSON = 'hil_report.json'
 REPORT_CELL = {'pass': '✅', 'fail': '❌', 'skip': '⚪'}
 BOUNDARY_CELL = 'same-PID boundary'
 LOCKED_CELL = 'board-locked'
+# a CONFIRMED wedge (usbtest saw a D-state holder on the node after its confirmation
+# window) has value 'fail'; a board refused at admission because a previous run left that
+# marker has WEDGED_REFUSED (fail-icon prefixed so the tally counts it, distinct so the
+# verdict knows nothing was flashed this attempt)
+WEDGED_CELL = 'board-wedged'
+WEDGED_REFUSED = f'{REPORT_CELL["fail"]} refused at admission'
 # A pseudo-test column, not a real one: write_timeout_report marks the boards that were
 # still dispatched when the pool guard fired. accumulate_report clears it on a retry.
 POOL_TIMEOUT_CELL = 'pool-timeout'
@@ -346,12 +352,16 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
     # current cells override prior for boards/tests that ran; a filtered run reports
     # duration None, keeping the previous full-run value
     for name, _, _, rows, *_ in mret:
-        if rows and not any(LOCKED_CELL in cells for _, cells, _ in rows):
+        refused = any(cells.get(WEDGED_CELL) == WEDGED_REFUSED for _, cells, _ in rows)
+        if rows and not refused and not any(LOCKED_CELL in cells for _, cells, _ in rows):
             # board ran for real: clear a stale lock-failure cell (its row is keyed by
-            # board name; test rows may be variant names)
+            # board name; test rows may be variant names), and a stale wedge cell on every
+            # row of the board -- admission let it in, so the marker was cleared, and a
+            # green re-run must not stay red for ever under last time's wedge
             stale = acc.get(name)
             if stale is not None:
                 stale[0].pop(LOCKED_CELL, None)
+                stale[0].pop(WEDGED_CELL, None)
                 # and the pool-timeout mark: write_timeout_report stamps it on a board that
                 # never reported, and update() below MERGES, so without this a board that
                 # passed clean on the retry kept a red cell for ever.
@@ -366,6 +376,9 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
             # a row that ran is no longer pool-timed-out, whatever it is keyed by
             row[0].pop(POOL_TIMEOUT_CELL, None)
             row[0].pop(RUN_ABORTED_CELL, None)
+            # nor wedged: this attempt's row says so or it does not
+            if WEDGED_CELL not in cells:
+                row[0].pop(WEDGED_CELL, None)
             # the boundary cell is only ever written on failure, so a re-run of this
             # variant that cleared the boundary must drop the previous attempt's ❌
             if BOUNDARY_CELL not in cells:
@@ -507,7 +520,7 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
         # variant of another board, or a stale row keyed by that name, reports it as ran.
         if board not in configured:
             results.append({'board': board, 'ran': False, 'pass': False, 'locked': False,
-                            'detail': 'not a board in the config'})
+                            'wedged': False, 'detail': 'not a board in the config'})
             continue
         names = variants_of(cfg, board)
         mine = {n: rows[n] for n in names if n in rows}
@@ -527,7 +540,7 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
             mine[board] = rows[board]
         if not mine:
             results.append({'board': board, 'ran': False, 'pass': False, 'locked': False,
-                            'detail': 'no report row for this board'})
+                            'wedged': False, 'detail': 'no report row for this board'})
             continue
         # a wedge outranks lock contention: `locked` short-circuits `detail` below, so a
         # stale board-locked cell from an earlier attempt used to mask the pool-timeout
@@ -537,23 +550,35 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
         # and must outrank it for the same reason.
         wedged = any(POOL_TIMEOUT_CELL in cells or RUN_ABORTED_CELL in cells
                      for cells in mine.values())
-        locked = not wedged and any(LOCKED_CELL in cells for cells in mine.values())
+        # the per-row VERIFIED wedge, distinct from `wedged` above, which is this run's
+        # pool-level outcome and never proof about one board. It outranks a lock cell the
+        # same way: a wedged board must never be published as LOCKED, which hil-validate.js
+        # re-runs.
+        board_wedged = any(WEDGED_CELL in cells for cells in mine.values())
+        refused = any(cells.get(WEDGED_CELL) == WEDGED_REFUSED for cells in mine.values())
+        locked = not wedged and not board_wedged and any(LOCKED_CELL in cells for cells in mine.values())
         bad = []
         for vname, cells in sorted(mine.items()):
             for test, val in sorted(cells.items()):
-                if test == LOCKED_CELL:
+                if test in (LOCKED_CELL, WEDGED_CELL):
                     continue
                 if cell_state(val) == 'fail':
                     bad.append(f'{vname} {test}: {val}')
-        ok = not bad and not locked
+        ok = not bad and not locked and not board_wedged
         if locked:
             detail = 'held by another holder; not flashed'
+        elif refused:
+            detail = 'marked wedged by a previous run; not flashed'
+        elif board_wedged:
+            detail = 'wedged (confirmed D-state holder on the node); ' + '; '.join(bad)
         elif bad:
             detail = '; '.join(bad)
         else:
             detail = f'{len(mine)} variant(s), {sum(len(c) for c in mine.values())} cell(s) ok'
-        results.append({'board': board, 'ran': True, 'pass': ok, 'locked': locked,
-                        'detail': detail})
+        # an admission refusal never flashed this attempt, whatever test history an
+        # --accumulate re-run kept in the row
+        results.append({'board': board, 'ran': not refused, 'pass': ok, 'locked': locked,
+                        'wedged': board_wedged, 'detail': detail})
     # `caveat` too: an abandoned or no-boards run says so THERE, and this JSON is all
     # an agent gets -- leaving it in the sidecar puts it back where only a human looks.
     return {'results': results, 'banner': report.get('banner', ''),

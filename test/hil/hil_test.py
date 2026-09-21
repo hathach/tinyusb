@@ -124,6 +124,11 @@ verbose = False
 # SIGKILL and becomes another stray. maxtasksperchild=1 gives each board its own worker,
 # so this global is board-scoped; test_board resets it anyway.
 board_wedged = ''
+# True only when usbtest's verdict carried `wedge_confirmation: confirmed`: a D-state holder
+# was still on the node after the confirmation window. The admission marker keys on this;
+# an unverified or scan-less containment latches the board for this run but marks nothing.
+board_wedge_confirmed = False
+board_wedge_evidence: dict = {}   # usbtest's last holder scan (node, holders, complete) + serial
 max_retry = 1   # mirrors argparse's -r default (see main); defined HERE too so
                 # test_example is callable (and testable) without going through main()
 PROFILE = os.environ.get('HIL_PROFILE') == '1'  # timestamped logs + permit/flash timing + ctrl-map dump
@@ -1561,15 +1566,17 @@ def test_device_usbtest(board):
     # recovery can actually run, and only what THIS flasher's ladder can spend -- a board
     # that cannot recover used to hold a pool worker AND its battery permit idle for a
     # reserve it had no way to spend, under a usbtest width of 2.
+    # Without recovery the child still watches a HUNG node for usbtest.WEDGE_CONFIRM_S
+    # before calling it a wedge, so that window is reserved on both paths.
     outer = USBTEST_BATTERY_BUDGET + USBTEST_OVERSHOOT + (
-        usbtest.recovery_reserve(_rec_flasher) if recovery else 0)
+        usbtest.recovery_reserve(_rec_flasher) if recovery else usbtest.WEDGE_CONFIRM_S)
     if _current_fw and skip_flash:
-        print('note: --skip-flash disables usbtest hang recovery; a HUNG case will leave '
-              'the device wedged until it is reflashed', flush=True)
+        print('note: --skip-flash disables usbtest hang recovery; a confirmed wedge will '
+              'leave the device wedged until it is reflashed', flush=True)
     elif _current_fw and not recovery:
         print(f'note: {_rec_flasher["name"]} cannot deliver a reflash past a poisoned '
               f'usbfs node, so usbtest hang recovery is disabled for {board["name"]}; a '
-              f'HUNG case will leave it wedged for the rest of the run', flush=True)
+              f'confirmed wedge will leave it wedged for the rest of the run', flush=True)
     if recovery:
         # ship the RECOVERY flasher as `flasher`: usbtest.py and convoy_safe both read
         # board['flasher'], so substituting here keeps the entire child side unaware that
@@ -1626,22 +1633,33 @@ def _usbtest_verdict(board: Board, data: dict, out: str, passed: int, failed: in
     one wedge becoming one stray per remaining example, which is the convoy this whole
     containment path exists to prevent.
     """
-    global board_wedged
+    global board_wedged, board_wedge_confirmed, board_wedge_evidence
     # A HUNG case that recovery could not clear leaves a D-state holder on this board's
     # usbfs node. Latch it: the remaining examples would each flash THROUGH that node,
     # block, survive SIGKILL and add another stray -- turning one wedge into one stray per
     # remaining example, which is the convoy this branch exists to contain.
-    # The battery's OWN verdict first: `recovery` only says the flags were passed, not that
-    # the reflash worked, so a convoy-safe board whose recovery failed used to come back
-    # unlatched and flash every remaining example through the poisoned node.
-    if data.get('wedged') or (not recovery and 'HUNG' in out):
+    # The battery's OWN verdict: `recovery` only says the flags were passed, not that the
+    # reflash worked, so a convoy-safe board whose recovery failed used to come back
+    # unlatched and flash every remaining example through the poisoned node. And only the
+    # verdict: usbtest now watches a HUNG node before it says wedged, so 'HUNG' in the
+    # output is a timeout whose kill landed late, not a wedge (#3944).
+    if data.get('wedged'):
         # rec_flasher, NOT board['flasher']: recovery was decided against recover_flasher()
         # in the caller, and the two diverge as soon as a roster carries the
         # optional `flasher_recover` key -- naming the wrong one sends the operator to the
         # wrong probe. The wording stays on what usbtest actually reported ("still wedged"),
         # because unrecovered_hang is also set by the ambiguous abort, where
         # nothing hung and the old text was false on both clauses.
-        board_wedged = (f'{board["name"]}: usbtest reports the device still wedged '
+        # Positive confirmation only: '' (an abort path with no scan) and 'unverified' (an
+        # incomplete scan) are contained the same way but never called verified.
+        confirmation = data.get('wedge_confirmation')
+        board_wedge_confirmed = confirmation == 'confirmed'
+        board_wedge_evidence = dict(data.get('wedge_evidence') or {}, serial=data.get('serial', ''))
+        board_wedged = (f'{board["name"]}: usbtest '
+                        + ('reports the device still wedged ' if confirmation == 'confirmed' else
+                           'could not verify the hang (incomplete process scan), contained as wedged '
+                           if confirmation == 'unverified' else
+                           'reports the device wedged without a confirmation scan, contained as wedged ')
                         + (f'after a recovery reflash via {rec_flasher["name"]}' if recovery
                            else f'and {rec_flasher["name"]} cannot deliver a recovery reflash'))
 
@@ -1922,8 +1940,10 @@ def test_board(board: Board) -> tuple:
     name = board['name']
     flasher = board['flasher']
 
-    global board_wedged
+    global board_wedged, board_wedge_confirmed, board_wedge_evidence
     board_wedged = ''
+    board_wedge_confirmed = False
+    board_wedge_evidence = {}
     try:
         _lock_fh = hil_lock.acquire_board_lock(name)
     except RuntimeError as e:
@@ -1931,6 +1951,21 @@ def test_board(board: Board) -> tuple:
         # visible report row so the ❌ matches the exit code; failed-tests stays empty so a
         # re-run repeats the whole board (no bogus -bt filter)
         return name, 1, [], [(name, {hil_report.LOCKED_CELL: 'fail'}, None)], 0.0
+    # Admission: a previous run left this board with a confirmed D-state holder on its node.
+    # Flashing into it would block, survive SIGKILL and cost the pool guard again, so refuse
+    # in seconds with its own cell -- not the locked one, which hil-validate retries. Read
+    # whether or not the lock was available: a failed lock must not admit a marked board.
+    marker = hil_lock.read_wedged(name)
+    if marker is not None:
+        log_line(f'{name:25} {STATUS_FAILED}: marked wedged: {marker.get("reason", "?")} '
+                 f'(since {marker.get("since", "?")}; clear with hil_lock.py wedged clear after recovery)')
+        if _lock_fh:
+            try:
+                _lock_fh.truncate(0)
+            except OSError:
+                pass
+            _lock_fh.close()
+        return name, 1, [], [(name, {hil_report.WEDGED_CELL: hil_report.WEDGED_REFUSED}, None)], 0.0
     # after the lock: flock wait behind a concurrent run is not board cost
     t_board = time.monotonic()
     try:
@@ -2018,6 +2053,8 @@ def test_board(board: Board) -> tuple:
             if board_wedged:
                 log_line(f'{vname:40} SKIPPING the rest of this board: {board_wedged}; '
                          f'flashing through the poisoned node would add a stray per test')
+                if board_wedge_confirmed:
+                    cells[hil_report.WEDGED_CELL] = 'fail'
             dur = f'{time.monotonic() - t_variant:.0f}s' if run_list and not partial else None
             rows.append((vname, cells, dur))
 
@@ -2057,6 +2094,11 @@ def test_board(board: Board) -> tuple:
                 hil_health.kill_own_children()
             except Exception as se:   # noqa: BLE001 - never mask the original failure
                 print(f'warning: stray sweep failed: {type(se).__name__}: {se}', flush=True)
+        if board_wedged and board_wedge_confirmed:
+            # Under our own flock, before it drops: the next run must refuse this board
+            # before touching it. No flock (fail-open, HIL_NO_BOARD_LOCK) writes nothing:
+            # a marker written outside a reservation could race a run that just took it.
+            _mark_wedged(board, _lock_fh)
         if _lock_fh:
             try:
                 # clear our pid record before dropping the flock: this worker process
@@ -2066,6 +2108,43 @@ def test_board(board: Board) -> tuple:
             except OSError:
                 pass
             _lock_fh.close()
+
+
+def _mark_wedged(board: Board, lock_fh) -> None:
+    """Write the admission marker and the dmesg tail, best effort: a failure here is logged,
+    never raised over the board's own verdict. The dmesg tail lives beside the marker in the
+    lock dir, not in the checkout or the report dir: CI deletes its workspace, and the
+    marker must never outlive the evidence it points at -- the two share one lifetime."""
+    # the reservation first: without it nothing is written, the sidecar included -- a
+    # symlink planted at its path must not be followed by a run that owns no board
+    if not hil_lock.holds_board(board['name'], lock_fh):
+        log_line(f'{board["name"]:25} NOT marked wedged: no board reservation held')
+        return
+    dmesg_path = ''
+    try:
+        r = subprocess.run(['sudo', '-n', 'dmesg'], capture_output=True, timeout=30)
+        if r.returncode != 0:
+            r = subprocess.run(['dmesg'], capture_output=True, timeout=30)
+        if r.returncode == 0:
+            p = os.path.join(hil_lock.BOARD_LOCK_DIR, f'{board["name"]}.wedge-dmesg.txt')
+            if hil_lock.atomic_write(p, b'\n'.join(r.stdout.splitlines()[-50:]) + b'\n'):
+                dmesg_path = p
+            else:
+                log_line(f'{board["name"]:25} wedge dmesg not saved: write refused')
+    except (OSError, subprocess.SubprocessError) as e:
+        log_line(f'{board["name"]:25} wedge dmesg not saved: {type(e).__name__}: {e}')
+    # what usbtest observed, so a recovery can identify and re-verify the same hardware:
+    # the device node, the D-state holders and the scan completeness behind the verdict
+    info = {'uid': board.get('uid', ''), 'reason': board_wedged, 'confirmation': 'confirmed',
+            'evidence': board_wedge_evidence,
+            'run': os.environ.get('GITHUB_RUN_ID', '') or f'pid {os.getpid()}',
+            'report_dir': str(Path(os.environ.get('HIL_REPORT_DIR', '.')).resolve()),
+            'dmesg': dmesg_path}
+    if hil_lock.write_wedged(board['name'], info, lock_fh):
+        log_line(f'{board["name"]:25} marked wedged for the next run; clear with '
+                 f'`hil_lock.py wedged clear {board["name"]} --evidence ...` after recovery')
+    else:
+        log_line(f'{board["name"]:25} NOT marked wedged: marker write failed')
 
 
 # controller hints from previous runs: uid -> {'name', 'pci', 'duration'}. Only 'pci' is

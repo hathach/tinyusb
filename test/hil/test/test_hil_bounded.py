@@ -17,10 +17,13 @@
 # mtp_test.py subprocess, which gets the fake pymtp via PYTHONPATH.
 # Run directly:
 #   python3 test/hil/test/test_hil_bounded.py
+import io
+import json
 import os
 import stat
 import sys
 import threading
+from contextlib import redirect_stderr, redirect_stdout
 from multiprocessing import TimeoutError as MpTimeoutError
 import time
 import types
@@ -170,7 +173,7 @@ class UsbtestRecovery(unittest.TestCase):
         # each bounded step costs its timeout PLUS run_cmd's post-SIGKILL reap
         flash = usbtest.RECOVER_FLASH_TIMEOUT + _hu.REAP_GRACE
         reset = usbtest.RECOVER_RESET_TIMEOUT + _hu.REAP_GRACE
-        fixed = 2 * usbtest.RECOVER_SETTLE + usbtest.RECOVER_OVERHEAD
+        fixed = usbtest.WEDGE_CONFIRM_S + 2 * usbtest.RECOVER_SETTLE + usbtest.RECOVER_OVERHEAD
         rp = {'name': 'openocd', 'args': '-f target/rp2040.cfg'}
         for flasher, steps in (
                 # an RP openocd board: reset, reflash, then Rescue-DP POR + one retry
@@ -607,6 +610,375 @@ class WedgedPidsFailsClosed(unittest.TestCase):
         self.assertFalse(complete, 'a hidden holder was reported as absent')
 
 
+class WedgeConfirmation(unittest.TestCase):
+    """A HUNG verdict is 'the kill was not reaped in 5 s', which a slow but finite in-kernel
+    wait also produces. Only a holder still on the node after WEDGE_CONFIRM_S is a wedge; a
+    holder that clears is a timeout (false wedges on stm32f746disco, #3944)."""
+
+    def _confirm(self, scans, budget=30):
+        import usbtest
+        self.addCleanup(setattr, usbtest, 'wedged_pids', usbtest.wedged_pids)
+        self.addCleanup(setattr, usbtest.time, 'sleep', usbtest.time.sleep)
+        self.addCleanup(setattr, usbtest.time, 'monotonic', usbtest.time.monotonic)
+        it = iter(scans)
+        last = scans[-1]
+        usbtest.wedged_pids = lambda node: next(it, last)
+        clock = [0.0]
+        usbtest.time.sleep = lambda s: clock.__setitem__(0, clock[0] + s)
+        usbtest.time.monotonic = lambda: clock[0]
+        return usbtest.confirm_wedge('/dev/bus/usb/999/999', budget=budget, poll=1.0)
+
+    def test_a_holder_that_clears_is_a_timeout_not_a_wedge(self):
+        stuck, complete, waited = self._confirm([([4242], True), ([4242], True), ([], True)])
+        self.assertEqual(stuck, [])
+        self.assertTrue(complete)
+        self.assertAlmostEqual(waited, 2.0)
+
+    def test_a_holder_still_there_at_the_budget_is_a_wedge(self):
+        stuck, complete, waited = self._confirm([([4242], True)], budget=30)
+        self.assertEqual(stuck, [4242])
+        self.assertTrue(complete)
+        self.assertGreaterEqual(waited, 30)
+
+    def test_an_incomplete_scan_never_reads_as_clear(self):
+        stuck, complete, waited = self._confirm([([], False)], budget=5)
+        self.assertFalse(complete, 'a hidden holder was reported as absent')
+        self.assertGreaterEqual(waited, 5, 'gave up before the budget on an incomplete scan')
+
+    def test_the_reserve_pays_for_the_confirmation_on_every_path(self):
+        """hil_test.py reserves the window on the no-recovery path too (#3944): the outer
+        bound is what keeps run_cmd's kill from landing inside the confirmation."""
+        import usbtest
+        self.assertGreater(usbtest.WEDGE_CONFIRM_S, 5, 'must outlast the 5 s reap that produced HUNG')
+        self.assertGreaterEqual(usbtest.recovery_reserve({'name': 'esptool', 'args': ''}),
+                                usbtest.WEDGE_CONFIRM_S + usbtest.RECOVER_FLASH_TIMEOUT)
+
+
+class WedgeConfirmationOnTheMainPath(unittest.TestCase):
+    """The transitions together, through usbtest.main(): a cleared holder ends the battery as
+    a timeout FAIL and lets the cleanup writes run; a persistent holder is a confirmed wedge;
+    an incomplete scan is contained like a wedge but reported unverified; an exception during
+    the confirmation still reaches the finally with the hang flagged; and every recovery scan
+    re-derives the confirmation, so a stale 'confirmed' never outlives an incomplete final scan."""
+
+    class _Out(io.StringIO):
+        def reconfigure(self, **kw):
+            pass
+
+    def _main(self, confirm, keep_binding=True, recover=None, scans=None):
+        """Returns (json or None, stderr, exception or None, sysfs writes)."""
+        import usbtest
+        dev = {'serial': 'U', 'node': '/dev/bus/usb/999/999', 'speed': '480', 'tier': 1,
+               'sysname': '1-1'}
+        writes = []
+
+        def patch(obj, name, value):
+            self.addCleanup(setattr, obj, name, getattr(obj, name))
+            setattr(obj, name, value)
+        patch(usbtest, 'find_device', lambda serial, first=False: dict(dev))
+        patch(usbtest, 'check_host_compat', lambda d: None)
+        patch(usbtest, 'bind_usbtest', lambda d: None)
+        patch(usbtest, 'set_pattern', lambda v: None)
+        patch(usbtest, 'dmesg_tail', lambda: '')
+        patch(usbtest, 'sysfs_write', lambda path, data, check=True: writes.append((str(path), data)))
+        patch(usbtest, '_hu', lambda: types.SimpleNamespace(sysfs_stranded=lambda: False,
+                                                             path_stranded=lambda p: False,
+                                                             strand_note=lambda: ''))
+        td = TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        patch(usbtest, 'DRIVER', Path(td.name))          # no bound interfaces to unbind
+        patch(usbtest, 'run_case', lambda num, d, tu, quick, timeout:
+              {'num': num, 'name': 'x', 'params': '', 'status': 'HUNG',
+               'detail': f'testusb stuck in D state after {timeout}s'})
+        patch(usbtest, 'confirm_wedge', confirm)
+        patch(usbtest.time, 'sleep', lambda s: None)
+        if scans is not None:
+            it = iter(scans)
+            patch(usbtest, 'wedged_pids', lambda node: next(it))
+        if recover:
+            # a convoy-safe openocd board whose reset and reflash are stubs
+            patch(hil_flash, 'convoy_safe', lambda f: True)
+            patch(hil_flash, 'flash_openocd', lambda board, fw, **kw:
+                  types.SimpleNamespace(returncode=0, stdout=b'', stderr=b''))
+            patch(hil_flash, 'rescue_openocd', lambda *a, **k: False)
+            patch(usbtest, 'reset_primitive', lambda name: (lambda board, **kw: None))
+        self.addCleanup(setattr, sys, 'argv', sys.argv)
+        sys.argv = ['usbtest.py', '--serial', 'U', '--json', '--tests', '1',
+                    '--timeout', '7', '--testusb', sys.executable]
+        if keep_binding:
+            sys.argv.append('--keep-binding')
+        if recover:
+            sys.argv += ['--recover-board', json.dumps({'name': 'b', 'flasher': {
+                'name': 'openocd', 'vid_pid': '0x1 0x2', 'args': ''}}),
+                         '--recover-fw', '/tmp/fw.elf']
+        out, err, exc = self._Out(), io.StringIO(), None
+        from contextlib import redirect_stderr
+        with redirect_stdout(out), redirect_stderr(err):
+            try:
+                usbtest.main()
+            except Exception as e:   # noqa: BLE001 - the test inspects it
+                exc = e
+        data = json.loads(out.getvalue()) if out.getvalue().strip() else None
+        return data, err.getvalue(), exc, writes
+
+    def test_a_cleared_holder_is_a_timeout_fail_and_cleanup_writes_run(self):
+        data, err, exc, writes = self._main(lambda node: ([], True, 6.0), keep_binding=False)
+        self.assertIsNone(exc)
+        self.assertFalse(data['wedged'])
+        self.assertEqual(data['wedge_confirmation'], 'cleared')
+        self.assertEqual(data['cases'][0]['status'], 'FAIL')
+        self.assertIn('no holder observed after 6s', data['cases'][0]['detail'])
+        self.assertNotIn('skipping cleanup after unrecovered hang', err)
+        self.assertTrue(any(p.endswith('remove_id') for p, _ in writes), writes)
+
+    def test_a_persistent_holder_is_a_confirmed_wedge_and_cleanup_never_writes(self):
+        data, err, _exc, writes = self._main(lambda node: ([4242], True, 30.0), keep_binding=False)
+        self.assertTrue(data['wedged'])
+        self.assertEqual(data['wedge_confirmation'], 'confirmed')
+        self.assertEqual(data['cases'][0]['status'], 'HUNG')
+        self.assertIn('skipping cleanup after unrecovered hang', err)
+        self.assertEqual(writes, [])
+
+    def test_an_incomplete_scan_is_contained_but_reported_unverified(self):
+        data, err, _exc, writes = self._main(lambda node: ([], False, 30.0), keep_binding=False)
+        self.assertTrue(data['wedged'], 'an unseen holder must still be contained')
+        self.assertEqual(data['wedge_confirmation'], 'unverified')
+        self.assertIn('unverified', err)
+        self.assertIn('skipping cleanup after unrecovered hang', err)
+        self.assertEqual(writes, [])
+
+    def test_an_exception_during_confirmation_still_skips_cleanup(self):
+        def boom(node):
+            raise RuntimeError('proc walk failed')
+        data, err, exc, writes = self._main(boom, keep_binding=False)
+        self.assertIsInstance(exc, RuntimeError)
+        self.assertIsNone(data, 'no verdict was printed')
+        self.assertIn('skipping cleanup after unrecovered hang', err)
+        self.assertEqual(writes, [])
+
+    def test_recovery_scans_re_derive_the_confirmation(self):
+        # confirmed, then the reset scan and the post-reflash scan cannot see every pid:
+        # the stale 'confirmed' must not survive into the verdict
+        data, _err, _exc, _w = self._main(lambda node: ([4242], True, 30.0), recover=True,
+                                          scans=[([], False), ([], False)])
+        self.assertTrue(data['wedged'])
+        self.assertEqual(data['wedge_confirmation'], 'unverified')
+        # unverified at first, then a complete scan finds the holder after both actions
+        data, _err, _exc, _w = self._main(lambda node: ([], False, 30.0), recover=True,
+                                          scans=[([4242], True), ([4242], True)])
+        self.assertTrue(data['wedged'])
+        self.assertEqual(data['wedge_confirmation'], 'confirmed')
+        # confirmed, then the probe reset clears it
+        data, _err, _exc, _w = self._main(lambda node: ([4242], True, 30.0), recover=True,
+                                          scans=[([], True)])
+        self.assertFalse(data['wedged'])
+        self.assertEqual(data['wedge_confirmation'], 'cleared')
+
+
+class WedgedMarker(unittest.TestCase):
+    """#3944: a confirmed wedge marks the board beside its flock so the next run refuses it
+    in seconds; the marker needs a reservation to write and recovery evidence to clear."""
+
+    def setUp(self):
+        from helper import hil_lock
+        td = TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        self.addCleanup(setattr, hil_lock, 'BOARD_LOCK_DIR', hil_lock.BOARD_LOCK_DIR)
+        hil_lock.BOARD_LOCK_DIR = td.name
+        self.dir = Path(td.name)
+        self.hl = hil_lock
+        self.ok = {'board': 'b', 'holders': [], 'complete': True, 'identity': 'U@1-1'}
+
+    def test_a_marker_needs_a_reservation_to_be_written(self):
+        self.assertFalse(self.hl.write_wedged('b', {'reason': 'x'}, None))
+        self.assertIsNone(self.hl.read_wedged('b'))
+        fh = self.hl.flock_nb('b')
+        self.addCleanup(fh.close)
+        self.assertTrue(self.hl.write_wedged('b', {'reason': 'x'}, fh))
+        info = self.hl.read_wedged('b')
+        self.assertEqual((info['board'], info['reason']), ('b', 'x'))
+        self.assertTrue(info['since'])
+        self.assertEqual([], [p for p in self.dir.iterdir() if p.name.endswith('.tmp')])
+
+    def test_a_marker_that_cannot_be_trusted_still_refuses_the_board(self):
+        os.symlink('/nonexistent', self.dir / 'b.wedged')
+        self.assertIn('symlink', self.hl.read_wedged('b')['reason'])
+        fh = self.hl.flock_nb('b')
+        self.addCleanup(fh.close)
+        self.assertFalse(self.hl.write_wedged('b', {}, fh), 'never write through a symlink')
+        (self.dir / 'c.wedged').write_text('{not json')
+        self.assertIn('unreadable', self.hl.read_wedged('c')['reason'])
+        (self.dir / 'd.wedged').write_text('{}')
+        self.assertIn('malformed', self.hl.read_wedged('d')['reason'], 'an empty object admitted the board')
+        (self.dir / 'e.wedged').mkdir()
+        self.assertIn('not a regular file', self.hl.read_wedged('e')['reason'])
+        os.mkfifo(self.dir / 'f.wedged')
+        self.assertIn('not a regular file', self.hl.read_wedged('f')['reason'], 'a FIFO must not block admission')
+        self.assertIn('untrusted', self.hl.clear_wedged('f', dict(self.ok, board='f')),
+                      'no evidence verifies a marker this code did not write')
+        with self.assertRaises(ValueError):
+            self.hl.read_wedged('../etc')
+
+    def test_a_reservation_must_be_this_boards_open_lock(self):
+        other = self.hl.flock_nb('other')
+        self.addCleanup(other.close)
+        self.assertFalse(self.hl.write_wedged('b', {'reason': 'x'}, other), 'another board\'s lock is not a reservation')
+        fh = self.hl.flock_nb('b')
+        self.assertTrue(self.hl.write_wedged('b', {'reason': 'x'}, fh))
+        self.assertIn('does not hold', self.hl.clear_wedged('b', self.ok, lock_fh=other))
+        fh.close()
+        self.assertIn('does not hold', self.hl.clear_wedged('b', self.ok, lock_fh=fh), 'a closed handle')
+        self.assertIsNotNone(self.hl.read_wedged('b'))
+
+    def test_evidence_must_verify_this_marker(self):
+        fh = self.hl.flock_nb('b')
+        self.hl.write_wedged('b', {'reason': 'x', 'uid': 'UID1'}, fh)
+        fh.close()
+        for bad, why in ((dict(self.ok, board='other'), 'names board'),
+                         (dict(self.ok, uid='WRONG'), 'uid'),
+                         (dict(self.ok, uid='UID1', identity='no-busport'), 'identity'),
+                         (dict(self.ok, uid='UID1', identity='@1-1'), 'identity'),
+                         (dict(self.ok, uid='UID1', identity='U@'), 'identity'),
+                         (dict(self.ok, uid='UID1', holders=[7]), 'holder'),
+                         ('not a dict', 'JSON object')):
+            self.assertIn(why, self.hl.clear_wedged('b', bad), bad)
+        self.assertEqual(self.hl.clear_wedged('b', dict(self.ok, uid='UID1')), '')
+
+    def test_the_identity_must_match_the_serial_the_wedge_was_observed_on(self):
+        fh = self.hl.flock_nb('b')
+        self.hl.write_wedged('b', {'reason': 'x', 'uid': 'UID1', 'evidence': {'serial': 'RIGHT'}}, fh)
+        fh.close()
+        self.assertIn('observed on', self.hl.clear_wedged('b', dict(self.ok, uid='UID1', identity='WRONG@1-1')))
+        self.assertIsNotNone(self.hl.read_wedged('b'))
+        self.assertEqual(self.hl.clear_wedged('b', dict(self.ok, uid='UID1', identity='RIGHT@1-1')), '')
+
+    def test_a_short_write_keeps_the_previous_marker(self):
+        fh = self.hl.flock_nb('b')
+        self.addCleanup(fh.close)
+        self.assertTrue(self.hl.write_wedged('b', {'reason': 'first'}, fh))
+        import resource
+        soft, hard = resource.getrlimit(resource.RLIMIT_FSIZE)
+        self.addCleanup(resource.setrlimit, resource.RLIMIT_FSIZE, (soft, hard))
+        import signal
+        prev = signal.signal(signal.SIGXFSZ, signal.SIG_IGN)   # get EFBIG, not a signal
+        self.addCleanup(signal.signal, signal.SIGXFSZ, prev)
+        resource.setrlimit(resource.RLIMIT_FSIZE, (4, hard))
+        self.assertFalse(self.hl.write_wedged('b', {'reason': 'second, much longer'}, fh))
+        resource.setrlimit(resource.RLIMIT_FSIZE, (soft, hard))
+        self.assertEqual(self.hl.read_wedged('b')['reason'], 'first', 'a torn marker replaced the good one')
+        self.assertEqual([], [p for p in self.dir.iterdir() if p.name.endswith('.tmp')])
+
+    def test_the_temporary_file_never_follows_a_symlink(self):
+        victim = self.dir / 'victim'
+        victim.write_text('keep me')
+        os.symlink(victim, self.dir / f'b.wedged.{os.getpid()}.tmp')
+        fh = self.hl.flock_nb('b')
+        self.addCleanup(fh.close)
+        self.assertFalse(self.hl.write_wedged('b', {'reason': 'x'}, fh))
+        self.assertEqual(victim.read_text(), 'keep me')
+        self.assertIsNone(self.hl.read_wedged('b'))
+
+    def test_clearing_needs_evidence_and_a_free_board(self):
+        fh = self.hl.flock_nb('b')
+        self.assertTrue(self.hl.write_wedged('b', {'reason': 'x'}, fh))
+        self.hl.write_record(fh, 'dev session')
+        self.assertIn('held by', self.hl.clear_wedged('b', self.ok), 'a held board is not cleared')
+        self.assertIsNotNone(self.hl.read_wedged('b'))
+        fh.close()
+        self.assertIn('evidence', self.hl.clear_wedged('b', {}))
+        self.assertIn('evidence', self.hl.clear_wedged('b', dict(self.ok, holders=[1])))
+        self.assertIn('evidence', self.hl.clear_wedged('b', dict(self.ok, complete=False)))
+        self.assertIsNotNone(self.hl.read_wedged('b'))
+        self.assertEqual(self.hl.clear_wedged('b', self.ok), '')
+        self.assertIsNone(self.hl.read_wedged('b'))
+        self.assertEqual(self.hl.clear_wedged('b', self.ok), 'not marked')
+
+    def test_the_holder_clears_under_its_own_reservation(self):
+        fh = self.hl.flock_nb('b')
+        self.addCleanup(fh.close)
+        self.hl.write_wedged('b', {'reason': 'x'}, fh)
+        self.assertEqual(self.hl.clear_wedged('b', self.ok, lock_fh=fh), '')
+
+    def test_the_cli_lists_and_clears(self):
+        fh = self.hl.flock_nb('b')
+        self.hl.write_wedged('b', {'reason': 'x'}, fh)
+        fh.close()
+        out = io.StringIO()
+        with redirect_stdout(out):
+            self.assertEqual(self.hl.cmd_wedged('status'), 0)
+        self.assertIn('b: {', out.getvalue())
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            self.assertEqual(self.hl.cmd_wedged('clear', 'b', 'not json'), 2)
+            self.assertEqual(self.hl.cmd_wedged('clear', 'b', '{}'), 1)
+            self.assertEqual(self.hl.cmd_wedged('clear', 'b', json.dumps(self.ok)), 0)
+        self.assertIsNone(self.hl.read_wedged('b'))
+
+    def _admit(self, board_name='b'):
+        called = []
+        self.addCleanup(setattr, hil_test, '_tests_for', hil_test._tests_for)
+        hil_test._tests_for = lambda board: called.append(board) or []
+        ret = hil_test.test_board({'name': board_name, 'uid': 'U', 'flasher': {'name': 'openocd'}})
+        return ret, called
+
+    def test_admission_refuses_a_marked_board_before_any_hardware_access(self):
+        fh = self.hl.flock_nb('b')
+        self.hl.write_wedged('b', {'reason': 'still wedged'}, fh)
+        fh.close()
+        (name, err, failed, rows, dur), called = self._admit()
+        self.assertEqual((name, err, failed, dur), ('b', 1, [], 0.0))
+        self.assertEqual(rows, [('b', {hil_test.hil_report.WEDGED_CELL: hil_test.hil_report.WEDGED_REFUSED}, None)])
+        self.assertEqual(called, [], 'the board was touched despite the marker')
+        self.assertIsNone(self.hl.read_record('b') or None, 'the lock record was left behind')
+        fh2 = self.hl.flock_nb('b')   # the flock was dropped again
+        fh2.close()
+
+    def test_admission_is_checked_even_when_the_lock_is_bypassed(self):
+        fh = self.hl.flock_nb('b')
+        self.hl.write_wedged('b', {'reason': 'still wedged'}, fh)
+        fh.close()
+        self.addCleanup(os.environ.pop, 'HIL_NO_BOARD_LOCK', None)
+        os.environ['HIL_NO_BOARD_LOCK'] = '1'
+        (_n, err, _f, rows, _d), called = self._admit()
+        self.assertEqual((err, called), (1, []))
+        self.assertEqual(rows[0][1], {hil_test.hil_report.WEDGED_CELL: hil_test.hil_report.WEDGED_REFUSED})
+
+    def test_admission_refuses_an_empty_object_marker(self):
+        (self.dir / 'b.wedged').write_text('{}')
+        (_n, err, _f, rows, _d), called = self._admit()
+        self.assertEqual((err, called), (1, []), 'an empty marker admitted the board')
+        self.assertEqual(rows[0][1], {hil_test.hil_report.WEDGED_CELL: hil_test.hil_report.WEDGED_REFUSED})
+
+    def test_mark_wedged_writes_marker_and_dmesg_under_a_reservation_only(self):
+        import subprocess as sp
+        self.addCleanup(setattr, hil_test.subprocess, 'run', hil_test.subprocess.run)
+        hil_test.subprocess.run = lambda cmd, **kw: sp.CompletedProcess(
+            cmd, 0, stdout=b'\n'.join(f'line {i}'.encode() for i in range(80)), stderr=b'')
+        self.addCleanup(setattr, hil_test, 'board_wedged', hil_test.board_wedged)
+        self.addCleanup(setattr, hil_test, 'board_wedge_evidence', hil_test.board_wedge_evidence)
+        hil_test.board_wedged = 'b: usbtest reports the device still wedged'
+        hil_test.board_wedge_evidence = {'node': '/dev/bus/usb/003/009', 'holders': [4242],
+                                         'complete': True, 'serial': 'UID1'}
+        board = {'name': 'b', 'uid': 'UID1', 'flasher': {'name': 'openocd'}}
+        victim = self.dir / 'victim'
+        victim.write_text('keep me')
+        os.symlink(victim, self.dir / 'b.wedge-dmesg.txt')
+        hil_test._mark_wedged(board, None)
+        self.assertIsNone(self.hl.read_wedged('b'), 'no reservation, no marker')
+        self.assertEqual(victim.read_text(), 'keep me', 'the sidecar was written without a reservation')
+        (self.dir / 'b.wedge-dmesg.txt').unlink()
+        fh = self.hl.flock_nb('b')
+        self.addCleanup(fh.close)
+        hil_test._mark_wedged(board, fh)
+        info = self.hl.read_wedged('b')
+        self.assertEqual((info['uid'], info['confirmation']), ('UID1', 'confirmed'))
+        self.assertIn('still wedged', info['reason'])
+        self.assertEqual(info['evidence']['node'], '/dev/bus/usb/003/009')
+        self.assertEqual(info['evidence']['holders'], [4242])
+        dmesg = Path(info['dmesg'])
+        self.assertEqual(dmesg.parent, self.dir, 'evidence lives with the marker, not in a checkout')
+        self.assertEqual(len(dmesg.read_text().splitlines()), 50)
+
+
 class MtpGioOrdering(_MtpFakeRig, unittest.TestCase):
     """gio must not run until the device is READY.
 
@@ -886,10 +1258,14 @@ class UsbtestOuterBoundIsOneValue(unittest.TestCase):
         self.assertLess(wch['timeout'], rp['timeout'])
 
     def test_a_board_with_no_recovery_does_not_pay_for_one(self):
+        import usbtest
         seen = self._invoke({'name': 'stlink', 'uid': 'X'})   # never convoy_safe
-        # It does not carry the RECOVERY reserve it cannot spend
+        # It does not carry the RECOVERY reserve it cannot spend, only the window in which
+        # the child watches a HUNG node before calling it a wedge (#3944): that runs on
+        # every path, and an outer kill inside it loses the JSON and the verdict.
         self.assertEqual(seen['timeout'],
-                         hil_test.USBTEST_BATTERY_BUDGET + hil_test.USBTEST_OVERSHOOT)
+                         hil_test.USBTEST_BATTERY_BUDGET + hil_test.USBTEST_OVERSHOOT
+                         + usbtest.WEDGE_CONFIRM_S)
         # ...but it MUST still exceed the child's own --budget. The battery checks the
         # budget before dispatching, so it can overshoot by one already-started case; an
         # equal bound SIGKILLs it just as it goes to print, turning ~29 real per-case
@@ -902,10 +1278,13 @@ class UsbtestOuterBoundIsOneValue(unittest.TestCase):
 
     def test_skip_flash_still_bounds_the_child(self):
         """--skip-flash disables recovery, so the child must not be given a reserve it
-        cannot spend -- but it MUST still be bounded."""
+        cannot spend -- but it MUST still be bounded, and the bound still covers the window
+        in which the child watches a HUNG node before calling it a wedge."""
+        import usbtest
         seen = self._invoke({'name': 'openocd', 'vid_pid': '0x1366 0x1024'}, skip_flash=True)
         self.assertEqual(seen['timeout'],
-                         hil_test.USBTEST_BATTERY_BUDGET + hil_test.USBTEST_OVERSHOOT)
+                         hil_test.USBTEST_BATTERY_BUDGET + hil_test.USBTEST_OVERSHOOT
+                         + usbtest.WEDGE_CONFIRM_S)
 
 
 class UsbtestRetryPolicy(unittest.TestCase):
@@ -1417,7 +1796,7 @@ class WedgeVerdictReachesTheLatch(unittest.TestCase):
         hil_test.board_wedged = ''
         no_settle(self)
 
-    def _run(self, stdout, rc=0):
+    def _run(self, stdout, rc=0, flasher=None):
         from helper import hil_lock, hil_util
         class R:
             returncode = rc
@@ -1432,7 +1811,8 @@ class WedgeVerdictReachesTheLatch(unittest.TestCase):
         self.addCleanup(setattr, hil_lock, 'usbtest_permit', hil_lock.usbtest_permit)
         from contextlib import contextmanager
         hil_lock.usbtest_permit = contextmanager(lambda uid: iter([None]))
-        board = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd', 'vid_pid': '0x1 0x2'}}
+        board = {'name': 'b', 'uid': 'U',
+                 'flasher': flasher or {'name': 'openocd', 'vid_pid': '0x1 0x2'}}
         try:
             hil_test.test_device_usbtest(board)
         except Exception:
@@ -1447,6 +1827,22 @@ class WedgeVerdictReachesTheLatch(unittest.TestCase):
     def test_no_wedge_reported_does_not_latch(self):
         js = '{"serial":"U","speed":"480","tier":1,"passed":2,"failed":0,"notrun":0,'              '"wedged":false,"cases":[]}'
         self.assertFalse(self._run(js))
+
+    def test_only_a_confirmed_wedge_qualifies_for_the_marker(self):
+        for confirmation, want in (('confirmed', True), ('unverified', False), ('', False)):
+            js = ('{"serial":"U","speed":"480","tier":1,"passed":1,"failed":1,"notrun":0,'
+                  f'"wedged":true,"wedge_confirmation":"{confirmation}","cases":[]}}')
+            self.assertTrue(self._run(js), confirmation)
+            self.assertIs(hil_test.board_wedge_confirmed, want, confirmation)
+
+    def test_a_late_cleared_timeout_on_a_board_without_recovery_does_not_latch(self):
+        """usbtest watches a HUNG node before it says wedged (#3944); the old inference
+        `not recovery and 'HUNG' in out` latched a healthy stlink board on a slow case."""
+        js = ('{"serial":"U","speed":"480","tier":1,"passed":1,"failed":1,"notrun":0,'
+              '"wedged":false,"cases":[{"num":10,"status":"FAIL","detail":"timeout after 60s '
+              '(the kill landed 7s late; no holder left on the node); was HUNG"}]}')
+        self.assertFalse(self._run(js, flasher={'name': 'stlink', 'uid': 'X'}),
+                         'a cleared holder latched the board as wedged')
 
     def test_an_unparseable_battery_that_mentions_HUNG_still_latches(self):
         """rc 124 mid-print: no JSON to read, and this is the likeliest real wedge."""

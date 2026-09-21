@@ -536,6 +536,55 @@ class SummaryFoldsReportToBoards(unittest.TestCase):
         self.assertTrue(got[0]['ran'])
         self.assertFalse(got[1]['ran'], 'a stale row must not report a removed board as run')
 
+    def test_a_board_refused_at_admission_is_wedged_not_run_and_not_locked(self):
+        got = self._sum(['b'], [('b', {hil_report.WEDGED_CELL: hil_report.WEDGED_REFUSED})])
+        self.assertEqual((got[0]['ran'], got[0]['pass'], got[0]['locked'], got[0]['wedged']),
+                         (False, False, False, True))
+        self.assertIn('marked wedged', got[0]['detail'])
+
+    def test_a_wedge_outranks_a_lock_cell(self):
+        """hil-validate.js re-runs LOCKED boards; a wedged one must never read as locked."""
+        got = self._sum(['b'], [('b', {hil_report.LOCKED_CELL: 'fail', hil_report.WEDGED_CELL: 'fail'})])
+        self.assertEqual((got[0]['locked'], got[0]['wedged'], got[0]['pass']), (False, True, False))
+
+    def test_admission_over_accumulated_history_did_not_run_this_attempt(self):
+        got = self._sum(['b'], [('b', {'cdc_msc': 'pass', hil_report.WEDGED_CELL: hil_report.WEDGED_REFUSED})])
+        self.assertEqual((got[0]['ran'], got[0]['wedged'], got[0]['pass']), (False, True, False))
+
+    def _acc(self, d, mret, fresh):
+        return json.loads((d / 'hil_report.json').read_text()) if hil_report.accumulate_report(
+            mret, d, fresh) is not None else None
+
+    def test_an_accumulated_rerun_that_ran_clears_last_attempts_wedge(self):
+        td = TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        d = Path(td.name)
+        cfg = {'boards': [{'name': 'b', 'variant': [{'name': 'b-fs'}, {'name': 'b-hs'}]}]}
+        wedge = [('b', 1, [], [('b-fs', {'usbtest': '❌ 3/30', hil_report.WEDGED_CELL: 'fail'}, '9s'),
+                               ('b-hs', {'cdc_msc': '⚪ board wedged', hil_report.WEDGED_CELL: 'fail'}, '1s')], 10.0)]
+        doc = self._acc(d, wedge, True)
+        self.assertTrue(hil_report.summarize(cfg, ['b'], doc)['results'][0]['wedged'])
+        # admission refusal on the next attempt keeps the history but did not run
+        refused = [('b', 1, [], [('b', {hil_report.WEDGED_CELL: hil_report.WEDGED_REFUSED}, None)], 0.0)]
+        r = hil_report.summarize(cfg, ['b'], self._acc(d, refused, False))['results'][0]
+        self.assertEqual((r['ran'], r['wedged'], r['pass']), (False, True, False))
+        # recovered and re-run green: no wedge cell survives on any row
+        clean = [('b', 0, [], [('b-fs', {'usbtest': 'pass'}, '8s'), ('b-hs', {'cdc_msc': 'pass'}, '2s')], 10.0)]
+        doc = self._acc(d, clean, False)
+        for row in doc['rows']:
+            self.assertNotIn(hil_report.WEDGED_CELL, row['cells'], row)
+        r = hil_report.summarize(cfg, ['b'], doc)['results'][0]
+        self.assertEqual((r['ran'], r['wedged'], r['pass']), (True, False, True))
+
+    def test_a_confirmed_wedge_during_the_run_is_wedged_and_ran(self):
+        got = self._sum(['b'], [('b', {'usbtest': '❌ 3/30', hil_report.WEDGED_CELL: 'fail'})])
+        self.assertEqual((got[0]['ran'], got[0]['pass'], got[0]['wedged']), (True, False, True))
+        self.assertIn('confirmed D-state holder', got[0]['detail'])
+
+    def test_an_ordinary_row_carries_wedged_false(self):
+        got = self._sum(['b'], [('b', {'cdc_msc': 'pass'})])
+        self.assertIs(got[0]['wedged'], False)
+
     def test_the_caveat_reaches_the_agents_verdict(self):
         """The abandon/no-boards notice lives in the document now, and this JSON is all an
         agent gets -- dropping it here puts the caveat back where only a human sees it."""
