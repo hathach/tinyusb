@@ -517,6 +517,25 @@ class SummaryFoldsReportToBoards(unittest.TestCase):
         self.assertFalse(got[1]['ran'], "beta must not inherit alpha's row")
 
 
+    def test_an_unknown_board_matching_a_declared_variant_is_not_run(self):
+        """hil_test.py rejects a name outside the config, so no row can be its own; a declared
+        variant of another board that happens to carry that name must not make it ran:true."""
+        got = self._sum(['beta', 'alpha'],
+                        [('alpha', {'usbtest': 'pass'})],
+                        cfg_boards=[{'name': 'beta', 'variant': [{'name': 'alpha'}]}])
+        self.assertTrue(got[0]['ran'])
+        self.assertTrue(got[0]['pass'])
+        self.assertFalse(got[1]['ran'], 'alpha is not a configured board')
+        self.assertFalse(got[1]['pass'])
+        self.assertIn('not a board', got[1]['detail'])
+
+    def test_an_unknown_board_with_a_stale_row_is_not_run(self):
+        got = self._sum(['known', 'gone'],
+                        [('known', {'usbtest': 'pass'}), ('gone', {'usbtest': 'pass'})],
+                        cfg_boards=[{'name': 'known'}])
+        self.assertTrue(got[0]['ran'])
+        self.assertFalse(got[1]['ran'], 'a stale row must not report a removed board as run')
+
     def test_the_caveat_reaches_the_agents_verdict(self):
         """The abandon/no-boards notice lives in the document now, and this JSON is all an
         agent gets -- dropping it here puts the caveat back where only a human sees it."""

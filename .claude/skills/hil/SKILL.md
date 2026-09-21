@@ -159,12 +159,17 @@ python3 test/hil/helper/hil_report.py <config> -b BOARD [-b BOARD...]
 or re-ordered: rows are named per variant, a variant name need not start with the board name,
 and lock contention is a cell rather than a phrase, so any of it re-derived by hand has come out
 wrong before. `caveat` is the run-level notice (abandoned, aborted, no boards) and can say the
-run failed while every row says pass. `wedged` — the boards the run left unresponsive, usually
-none — is the operator's own observation and the only field it authors when a run happened.
-When no run started (a missing config, a refused hold with no permitted retry, a scope gap,
-unbuilt firmware), it authors the rows instead: one per requested board, `ran: false`,
-`pass: false`, `locked` as observed, the reason in `detail`, `banner` and `caveat` empty — and
-reads no stale report.
+run failed while every row says pass; it is empty on every other run, so a non-empty `caveat`
+means the run did not pass, while an empty one alone establishes nothing. `wedged` — the boards
+the run left unresponsive, usually none — is the operator's own observation and the only field
+it authors when a run happened; it names requested boards, never a variant row name.
+A run refused with `board(s) not in <config>` is re-run without the unknown names only while
+a known name remains — an empty `-b` list runs every configured board — keeping the full
+requested list on the `hil_report.py` call, which emits a `ran: false` row for each unknown
+board. When no run started (a missing config, every name unknown, a refused hold with no
+permitted retry, a scope gap, unbuilt firmware), it authors the rows instead: one per requested
+board, `ran: false`, `pass: false`, `locked` as observed, the reason in `detail`, `banner` and
+`caveat` empty — and reads no stale report.
 
 **First check what sits above the table.** Six banners can appear there; match on a
 PREFIX, since each carries trailing detail and two are blockquotes:

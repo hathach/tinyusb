@@ -499,8 +499,16 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
             if isinstance(r, dict) and 'board' in r}
     owner = {v['name']: b['name'] for b in cfg.get('boards', [])
              for v in (b.get('variant') or [])}
+    configured = {b['name'] for b in cfg.get('boards', [])}
     results = []
     for board in boards:
+        # hil_test.py refuses a name outside the config, so no run produced a row for it;
+        # without this guard variants_of() falls back to the name itself and a declared
+        # variant of another board, or a stale row keyed by that name, reports it as ran.
+        if board not in configured:
+            results.append({'board': board, 'ran': False, 'pass': False, 'locked': False,
+                            'detail': 'not a board in the config'})
+            continue
         names = variants_of(cfg, board)
         mine = {n: rows[n] for n in names if n in rows}
         # a variant name that is neither declared nor prefixed cannot be attributed; the
