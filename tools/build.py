@@ -320,7 +320,8 @@ def make_board(board, build_args, build_targets, examples=None, defines=()):
         # espressif and rp2040 do not support make, use cmake instead
         final_status = 2
     else:
-        with Pool(processes=os.cpu_count()) as pool:
+        # bound by -j: os.cpu_count() is the host's core count in CI containers, and each worker runs make -j too
+        with Pool(processes=parallel_jobs) as pool:
             pool_args = list((map(lambda e, b=board, o=f"{build_args}", t=build_targets, d=defines: [e, b, o, t, d], all_examples)))
             r = pool.starmap(make_one_example, pool_args)
             # sum all element of same index (column sum)
