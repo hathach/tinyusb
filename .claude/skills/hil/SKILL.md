@@ -23,7 +23,7 @@ GitHub CI `hil-tinyusb (hfp.json)` matrix job — **never run HIL against it unl
 The `ci` rig also hosts a GitHub Actions runner that flashes boards and runs HIL as part of CI. Hardware access is arbitrated **per board** with kernel flocks in `/tmp/tinyusb-hil-locks/` — do NOT stop the runner service.
 
 - `hil_test.py` self-locks each board for its flash+test (holder reason `hil_test.py`). A locked board fails immediately (`<board>  Failed: board locked: {holder info}`) without flashing — in CI, re-run the failed job later; if your `hold` is refused with reason `hil_test.py`, a CI job is mid-test — wait a few minutes and retry rather than forcing.
-- For hardware work outside `hil_test.py` (JLink/GDB, manual flashing, `usbtest.py`, serial poking), hold the lock first:
+- For hardware work outside `hil_test.py` (JLink/GDB, manual flashing, `usbtest.py`, serial poking), hold the lock first and release it when done — release is mandatory cleanup; the auto-release on holder death is a backstop, not the plan:
 
 ```bash
 python3 test/hil/helper/hil_lock.py hold BOARD [BOARD...] --reason "why"
@@ -31,9 +31,11 @@ python3 test/hil/helper/hil_lock.py hold BOARD [BOARD...] --reason "why"
 python3 test/hil/helper/hil_lock.py release BOARD [BOARD...]
 ```
 
+- A hold refused by another holder: report holder and reason (`hil_lock.py status`), never kill the holder. A holder reason of `hil_test.py` is a CI job mid-test — wait a few minutes and retry once when the task allows, otherwise return the holder to the caller.
+
 - A manual session on a dev-bench board with no entry in this host's HIL config locks it by an agreed board name, with no config: `hil_lock.py hold BOARD --reason "..."` only reserves that name, so verify the probe serial and board identity yourself. A named-board lock needs no config; config-driven tools (`hil_test.py`, `hil_pool_check.py` without an explicit config, `hil_lock.py hold --all`) still need this host's config.
 - Never pre-hold boards you are about to run `hil_test.py` on — it self-locks and would treat your own hold as a conflict.
-- Rig-wide operations (uhubctl power cycling, `usb_recover.sh root-cycle`, pci-rebind, controller resets — bus renumbering) affect every board: `hil_lock.py hold --all --config <this host's config> --reason "..."` first — `--all` defaults to `tinyusb.json`, so on `tusb` it would reserve 27 boards that do not exist there and none of the three that do. Even a single root-port bounce needs `--all`: nothing maps a sysfs busport to a board name, and `hil_lock.py hold` accepts any string, so a "just the siblings" hold reserves nothing while reporting success.
+- Rig-wide operations (uhubctl power cycling, `usb_recover.sh root-cycle`, pci-rebind, controller resets — bus renumbering) affect every board: `hil_lock.py hold --all --config <this host's config> --reason "..."` first — `--all` defaults to `tinyusb.json`, so on `tusb` it would reserve 27 boards that do not exist there and none of the three that do. Even a single root-port bounce needs `--all`: nothing maps a sysfs busport to a board name, and `hil_lock.py hold` accepts any string, so a "just the siblings" hold reserves nothing while reporting success. If `--all` cannot be taken, wait: a partial hold is worse than none, because it reads as protection.
 - `hil_lock.py status` lists holders. Locks auto-release when the holder process dies (kernel flock); `/tmp` clears on reboot.
 - Forcing past a lock: `HIL_NO_BOARD_LOCK=1 python3 test/hil/hil_test.py ...` bypasses the guard without killing the holder. Only when the request or task scope explicitly names forcing that board — it risks colliding with whatever holds it; a refused hold alone never adds that scope.
 
@@ -78,7 +80,7 @@ the table. It never aborts, and it is a hint rather than a diagnosis. What bound
 run is `HIL_POOL_TIMEOUT` plus the job's `timeout-minutes`; what diagnoses a wedged rig is
 the `hil-pool-check` skill.
 
-See the `usb-kernel-recover` skill for what a real wedge looks like and how to clear it.
+See the `usb-kernel-recover` skill for what a real wedge looks like and how to clear it, and the `usb-kernel-debug` skill to explain WHY the kernel rejected a device (dmesg analysis).
 
 ## Prerequisites
 
@@ -88,7 +90,7 @@ A board whose flasher probe has no VCOM (or whose BSP has no UART) uses RTT as i
 
 ## Arguments
 
-- **Board:** `-b BOARD_NAME`, repeatable for a subset (`-b a -b b`); omit to run all boards in the config. Give a whole set to ONE run rather than one run per board: it schedules the boards across host controllers and budgets concurrent flashes and usbtest batteries per controller (`hil_lock.py` `FLASH_PARALLEL`/`USBTEST_PARALLEL`). Those permits are in-process semaphores — a second `hil_test.py` running alongside does not share them, it multiplies the load on the same xHCI cards.
+- **Board:** `-b BOARD_NAME`, repeatable for a subset (`-b a -b b`); omit to run all boards in the config. Give a whole set to ONE run rather than one run per board: it schedules the boards across host controllers and budgets concurrent flashes and usbtest batteries per controller (`hil_lock.py` `FLASH_PARALLEL`/`USBTEST_PARALLEL`). Those permits are in-process semaphores — a second `hil_test.py` running alongside does not share them, it multiplies the load on the same xHCI cards. (A dead uPD720201 card is not a width problem: every observed death traced to a marginal DUT port bouncing under concurrent batteries, and lowering the widths does not fix a bad port — fix the port or pull the board; the concurrency note above `FLASH_PARALLEL` in `hil_lock.py` keeps the record.)
 - **Pass-through:** `-v`, `-r N`, etc. forwarded unchanged.
 
 If `local.json` is missing on a dev PC, ask the user to supply one before a `hil_test.py` or `hil_pool_check.py` run. An agent that cannot ask (`hil-operator`) does not run `hil_test.py`: it returns one `ran: false` row per requested board whose `detail` names the missing `test/hil/local.json`. Fall back to `tinyusb.json` only when the request or task scope says so; a manual session locks by board name as Board locks says.
@@ -141,10 +143,28 @@ the run before its own guard can write a report. NEVER cancel early.
 
 ## Reporting
 
-The user-facing answer to a HIL run IS the tool's summary table: paste the complete per-board
-table (and footer counts) verbatim — never truncate rows or reduce it to a prose digest.
-Commentary below it covers only what the table cannot show: a banner verdict from the list
-below, a retry, a wedged board.
+Two audiences, two shapes. Interactively, the answer to a HIL run IS the tool's summary table:
+paste the complete per-board table (and footer counts) verbatim — never truncate rows or reduce
+it to a prose digest. Commentary below it covers only what the table cannot show: a banner
+verdict from the list below, a retry, a wedged board.
+
+A delegated run (the `hil-operator` role, a workflow) returns the machine output instead, in the
+JSON shape its prompt specifies and nothing else. From the directory the run wrote its report to:
+
+```bash
+python3 test/hil/helper/hil_report.py <config> -b BOARD [-b BOARD...]
+```
+
+`results`, `banner` and `caveat` are copied from its output verbatim — never retyped, reworded
+or re-ordered: rows are named per variant, a variant name need not start with the board name,
+and lock contention is a cell rather than a phrase, so any of it re-derived by hand has come out
+wrong before. `caveat` is the run-level notice (abandoned, aborted, no boards) and can say the
+run failed while every row says pass. `wedged` — the boards the run left unresponsive, usually
+none — is the operator's own observation and the only field it authors when a run happened.
+When no run started (a missing config, a refused hold with no permitted retry, a scope gap,
+unbuilt firmware), it authors the rows instead: one per requested board, `ran: false`,
+`pass: false`, `locked` as observed, the reason in `detail`, `banner` and `caveat` empty — and
+reads no stale report.
 
 **First check what sits above the table.** Six banners can appear there; match on a
 PREFIX, since each carries trailing detail and two are blockquotes:
@@ -177,5 +197,10 @@ PREFIX, since each carries trailing detail and two are blockquotes:
 On failure, retry once with `-v` — from the `<config>.failed` spec the run just wrote, which
 already begins with `--accumulate` and restricts each board to its failed tests. A hand-scoped
 `-b <board>` retry MUST pass `--accumulate` too: a fresh run unlinks the report, replacing the
-whole-fleet table with a one-row table. If that is still not enough, add temporary debug prints
-to `hil_test.py`.
+whole-fleet table with a one-row table. A usbtest battery that produced per-case verdicts is not
+auto-retried; its result already stands. If a board or fixture stops enumerating, or a tool of
+yours hangs in D state, that is a wedge: consult `usb-kernel-recover`, save `dmesg | tail -50`
+as an artifact beside the report (never into the report's rows), and name the board in `wedged` —
+a `> **Rig note.**` banner about someone else's D-state process is not that. If a retry is still not enough, an interactive
+session may add temporary debug prints to `hil_test.py`; a non-editing operator returns the
+failure for diagnosis instead.
