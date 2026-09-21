@@ -184,7 +184,20 @@ retry below runs only on a report with no `locked` or `wedged` board and an empt
 any other outcome returns to the caller as it is. On `locked` the caller bypasses with `HIL_NO_BOARD_LOCK=1` only
 when the task scope names bypassing those boards' locks, never releasing or killing the holder;
 or waits and re-runs the locked boards with `--accumulate`; or accepts, reporting the boards not
-covered. A `wedged` board is never re-run: it goes to `usb-kernel-recover`.
+covered. A `wedged` board is never re-run. A delegated run recovers it only through its own paths (the
+in-run confirmation, the post-pool phase under Board locks); a marker still standing after them is
+reported, and any further recovery is a separately dispatched recovery action (below).
+
+A dispatched recovery action is its own operation, never part of a run: the prompt names one
+board, its busport, the rung ceiling, the budget and the reservation. Follow `usb-kernel-recover`
+from its triage up to that ceiling and never above it, holding `--all` for every rig-wide rung.
+Rung 1 resets through the board's recovery flasher (`flasher_recover`, else `flasher`); one that
+is not `convoy_safe`, JLinkExe included, runs only behind `usb_recover.sh shield` on the board's
+busport, unshielded afterwards;
+sysrq and the hypervisor rungs need the user and are returned as the blocker in a headless run.
+Clear the marker only with `hil_lock.py wedged clear` and the evidence it verifies, and report
+the cleanup explicitly: marker cleared, or kept with the reason, plus any shield record or hold
+still standing. A HIL run on that board follows only a cleared marker.
 
 **First check what sits above the table.** Six banners can appear there; match on a
 PREFIX, since each carries trailing detail and two are blockquotes:
@@ -222,8 +235,8 @@ already begins with `--accumulate` and restricts each board to its failed tests.
 `-b <board>` retry MUST pass `--accumulate` too: a fresh run unlinks the report, replacing the
 whole-fleet table with a one-row table. A usbtest battery that produced per-case verdicts is not
 auto-retried; its result already stands. If a board or fixture stops enumerating, or a tool of
-yours hangs in D state, that is a wedge: consult `usb-kernel-recover`, save `dmesg | tail -50`
-as an artifact beside the report (never into the report's rows), and name the board in `wedged` —
+yours hangs in D state, that is a wedge: save `dmesg | tail -50` as an artifact beside the
+report (never into the report's rows) and name the board in `wedged`, without recovering it —
 a `> **Rig note.**` banner about someone else's D-state process is not that. If a retry is still not enough, an interactive
 session may add temporary debug prints to `hil_test.py`; a non-editing operator returns the
 failure for diagnosis instead.

@@ -71,17 +71,32 @@ sudo usb_recover.sh unshield <busport> $$      # restore the recorded modes; the
 - Leaf shields vanish on re-enumeration (new kobject, new inodes); `unshield`
   restores only the surviving originals and reports the rest as gone. It never
   copies modes from a sibling: two of the nine are 644 where the rest are 444.
+- **JLinkExe always needs it**, even with `-USB`/`-SelectEmuBySN`: to find its probe
+  it reads `product`, `serial` and `bNumInterfaces` of every USB device on the host
+  (strace, ci.lan 2026-09-21), and those are served under each device's lock.
 - **Not needed for openocd pinned with `vid_pid`** or over `interface/jlink.cfg`
-  (`hil_flash.convoy_safe`) — those skip a foreign device before `libusb_open`.
+  (`hil_flash.convoy_safe`) — those skip a foreign device before `libusb_open`
+  and read no other device's locking attributes.
 
 ## 3. The rungs — go straight to the one triage names
 
-**Rung 1 — wedged DUT: reset it through its own probe.**
+**Rung 1 — wedged DUT: reset it through its own probe.** Resolve the board's
+recovery flasher from the HIL roster, its `flasher_recover` or else its primary
+`flasher` (`hil_flash.recover_flasher`). A convoy-safe one (`hil_flash.convoy_safe`,
+section 2) needs no shield; for openocd:
 
 ```bash
+openocd -c "adapter serial <probe-sn>" <flasher args> -c "init; reset run; shutdown"
+```
+
+Any other runs only behind the shield (section 2), then unshield; for JLink:
+
+```bash
+sudo usb_recover.sh shield <busport> $$
 printf "r\ng\nq\n" > /tmp/rec.jlink
 JLinkExe -device <DEV> -if SWD -speed 4000 -SelectEmuBySN <probe-sn> \
          -autoconnect 1 -nogui 1 -CommandFile /tmp/rec.jlink
+sudo usb_recover.sh unshield <busport> $$
 ```
 
 Reset **before** park-flash: non-destructive (the firmware under test survives
@@ -99,8 +114,8 @@ DWC2** — measured 2026-08-16 on stm32f407disco: `r; g` gave
 
 **Park-flash** (`--recover-board`/`--recover-fw`, what `usbtest.py` automates) is
 the fallback where the reset cannot reach the peripheral. Delivery must be
-convoy-safe: **openocd pinned with `vid_pid`**, or esptool (`-p <ttyACM>`).
-JLinkExe selects by serial, which needs `libusb_open`, so it needs the shield.
+convoy-safe: **openocd pinned with `vid_pid`** or over `interface/jlink.cfg`, or
+esptool (`-p <ttyACM>`). JLinkExe needs the shield (section 2).
 
 **Rung 2 — wedged PROBE: `root-cycle`.** A probe has no probe to reset it, so the
 port-side drop is the only lever left that avoids the KERNEL device lock. It
