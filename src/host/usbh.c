@@ -317,7 +317,24 @@ static usbh_class_driver_t const usbh_class_drivers[] = {
     .close      = cush_close
   }
   #endif
+  
+  
+    #if CFG_TUH_SBC
+    {
+      .init       = sbch_init,
+      .open       = sbch_open,
+      .set_config = sbch_set_config,
+      .xfer_cb    = sbch_xfer_cb,
+      .close      = sbch_close
+    },
+  #endif
+  
+  
+  
 };
+
+
+
 
 // Additional class drivers implemented by application
 static usbh_class_driver_t const * _app_driver = NULL;
