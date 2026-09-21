@@ -47,14 +47,15 @@ def flash_jlink(board: Board, firmware: str, timeout=None) -> subprocess.Complet
     return ret
 
 
-def reset_jlink(board: Board) -> subprocess.CompletedProcess:
+def reset_jlink(board: Board, timeout=None) -> subprocess.CompletedProcess:
     flasher = board['flasher']
     script = ['halt', 'r', 'go', 'exit']
     f_jlink = Path(f'{board["name"]}_reset.jlink')
     if not f_jlink.exists():
         with f_jlink.open('w') as f:
             f.writelines(f'{s}\n' for s in script)
-    ret = hil_util.run_cmd(f'JLinkExe -USB {flasher["uid"]} {flasher["args"]} -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile {f_jlink}')
+    ret = hil_util.run_cmd(f'JLinkExe -USB {flasher["uid"]} {flasher["args"]} -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile {f_jlink}',
+                           timeout=timeout)
     return ret
 
 
@@ -100,6 +101,10 @@ def _openocd_cmd_base(flasher):
                 print(f'warning: {uid} has a malformed vid_pid {flasher["vid_pid"]!r} '
                       f'(want "0xVVVV 0xPPPP"); probe pin DROPPED, so discovery will open '
                       f'foreign usbfs nodes', file=sys.stderr, flush=True)
+    elif JLINK_CFG in (flasher.get('args') or ''):
+        # the jlink driver never reads the pin and libjaylink opens SEGGER devices only
+        # (convoy_safe), so there is nothing to warn about
+        pass
     elif flasher.get('uid') not in _VID_PID_WARNED:
         # stderr, once per probe: test_example captures stdout, so a passing run would
         # swallow this and the operator would never learn discovery still opens every
@@ -112,17 +117,22 @@ def _openocd_cmd_base(flasher):
             f'-c "adapter serial {flasher["uid"]}" {vid_pid}{flasher["args"]}')
 
 
-# `verify` is on by default, opted out per board with "verify": false. WCH targets must
-# opt out: read-back over the WCH-Link sdi transport returns a repeated word instead of
-# memory contents, so verification always mismatches (measured on ch32v103r and ch32v307v,
-# 2026-07-30). Do NOT drop verify fleet-wide for them — every other openocd board reads
-# back, and without it a partial or corrupt write exits 0 and the tests run bad firmware.
+# `verify` is on by default, opted out per board with "verify": false. ch32v103r and
+# ch582m opt out: a raw dump_image of their flash is not the image just written (~85% of
+# bytes differ, the same at 0x0 and 0x08000000, shifting with halt vs reset halt, and
+# abstract memory reads fail), so verify_image always fails there.
+# ch32v203 and ch32v307 read back byte-exact and verify, and catch a one-byte negative
+# control, over progbuf and abstract alike (ci.lan, 2026-09-21). Do NOT drop verify
+# fleet-wide -- without it a partial or corrupt write exits 0 and the tests run bad firmware.
+# `program` = init; reset init; write_image erase; verify; reset run. Its reset-init event is
+# what some targets need (kx.cfg's `kinetis disable_wdog`; without it frdm_k64f's verify takes
+# 21 s). stm32f0x/f4x/f7x/l4x.cfg raise `adapter speed` to 8000 there, which their J-Link
+# recovery entries cannot run, so those entries empty the event in the roster instead.
 def flash_openocd(board, firmware, timeout=None):
     flasher = board['flasher']
     verify = ' verify' if flasher.get('verify', True) else ''
-    ret = hil_util.run_cmd(f'{_openocd_cmd_base(flasher)} -c "program {firmware}{verify} reset exit"',
-                           timeout=timeout)
-    return ret
+    return hil_util.run_cmd(f'{_openocd_cmd_base(flasher)} -c "program {firmware}{verify} reset exit"',
+                            timeout=timeout)
 
 
 def reset_openocd(board, timeout=None):
@@ -133,6 +143,12 @@ def reset_openocd(board, timeout=None):
     ret = hil_util.run_cmd(f'{_openocd_cmd_base(flasher)} -c "init; reset run; exit"',
                            timeout=timeout)
     return ret
+
+
+# A J-Link board's `flasher_recover`: the same probe driven by openocd, whose libjaylink
+# discovery opens SEGGER devices only (convoy_safe), where JLinkExe reads locking sysfs
+# attributes of every USB device and blocks on a wedged one.
+JLINK_CFG = 'interface/jlink.cfg'
 
 
 # OpenOCD's messages for "the target's debug port did not answer". The probe is fine when
@@ -209,9 +225,11 @@ def convoy_safe(flasher: dict) -> bool:
 
     Everything else enumerates by OPENING nodes, would block in D state on the poisoned
     one, survive SIGKILL and become a second stray. JLinkExe cannot be pinned: selection
-    is serial-only (-USB/-SelectEmuBySN) and reading a serial requires the open (J-Link
-    Commander V9.66 exposes no VID/PID filter), so those boards can only become
-    convoy-safe by moving to openocd.
+    is serial-only (-USB/-SelectEmuBySN, no VID/PID filter in J-Link Commander V9.66), and
+    it reads the serial from sysfs: strace on ci.lan (2026-09-21) shows it opening only its
+    own probe's usbfs node but reading `product`, `serial` and `bNumInterfaces` -- served
+    under the device lock -- of every USB device on the host. So those boards can only
+    become convoy-safe by moving to openocd (or behind usb_recover.sh's shield).
 
     Verified against openocd 0ce743125 (the rig's build), because the INVERSE is what
     bites: cmsis_dap_usb_bulk.c:107 skips on `id_filter && !id_match`, and `id_filter` is
@@ -248,9 +266,10 @@ def convoy_safe(flasher: dict) -> bool:
     # never reads adapter_usb_get_vids/pids (selection is adapter serial / usb address /
     # usb location), but libjaylink's discovery returns early unless idVendor == 0x1366 and
     # the PID is in its table, and only THEN calls libusb_open (discovery_usb.c). So it
-    # never opens a foreign node -- which is exactly what JLinkExe, SEGGER's own tool,
-    # does do. Verified against openocd 0ce743125 and libjaylink master.
-    return 'interface/jlink.cfg' in (flasher.get('args') or '')
+    # never opens a foreign node. Verified against openocd 0ce743125 and libjaylink 0.4.0,
+    # and by strace on ci.lan (2026-09-21): only SEGGER usbfs nodes opened, and the only
+    # locking sysfs attribute read is the selected probe's bConfigurationValue.
+    return JLINK_CFG in (flasher.get('args') or '')
 
 
 def flash_esptool(board: Board, firmware: str, timeout=None) -> subprocess.CompletedProcess:

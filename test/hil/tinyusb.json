@@ -28,6 +28,11 @@
                 "name": "jlink",
                 "uid": "000621000000",
                 "args": "-device MK64FN1M0xxx12"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "uid": "000621000000",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/k60.cfg -c \"adapter speed 4000\""
             }
         },
         {
@@ -138,6 +143,11 @@
                 "name": "jlink",
                 "uid": "681295394",
                 "args": "-device nrf52840_xxaa"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "uid": "681295394",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -c \"adapter speed 4000\" -f target/nrf52.cfg"
             }
         },
         {
@@ -185,6 +195,11 @@
                 "name": "jlink",
                 "uid": "123456",
                 "args": "-device ATSAMD51J19"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "uid": "123456",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -c \"adapter speed 4000\" -f target/atsame5x.cfg"
             }
         },
         {
@@ -199,6 +214,12 @@
                 "name": "jlink",
                 "uid": "000724441579",
                 "args": "-device LPC11U37/401"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "uid": "000724441579",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/lpc11xx.cfg -c \"adapter speed 4000\"",
+                "verify": false
             }
         },
         {
@@ -235,6 +256,12 @@
                 "name": "jlink",
                 "uid": "611000000",
                 "args": "-device LPC4088"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "uid": "611000000",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/lpc40xx.cfg -c \"adapter speed 4000\"",
+                "verify": false
             }
         },
         {
@@ -249,6 +276,12 @@
                 "name": "jlink",
                 "uid": "000727031389",
                 "args": "-device LPC55S28"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "uid": "000727031389",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -c \"adapter speed 1000\" -c \"swd newdap lpc55s28 cpu -expected-id 0\" -c \"dap create lpc55s28.dap -chain-position lpc55s28.cpu\" -c \"target create lpc55s28.cpu cortex_m -dap lpc55s28.dap\" -c \"cortex_m reset_config sysresetreq\"",
+                "note": "reset only: openocd has no LPC55 target cfg or flash driver, so a reflash through this entry fails"
             }
         },
         {
@@ -403,6 +436,11 @@
                 "uid": "779541626",
                 "args": "-device stm32f072rb"
             },
+            "flasher_recover": {
+                "name": "openocd",
+                "uid": "779541626",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/stm32f0x.cfg -c \"stm32f0x.cpu configure -event reset-init {}\""
+            },
             "comment": "2x16 access scheme with 1KB USB SRAM"
         },
         {
@@ -417,6 +455,11 @@
                 "name": "jlink",
                 "uid": "000773661813",
                 "args": "-device stm32f407vg"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "uid": "000773661813",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/stm32f4x.cfg -c \"stm32f4x.cpu configure -event reset-init {}\""
             }
         },
         {
@@ -451,6 +494,11 @@
                 "name": "jlink",
                 "uid": "000776606156",
                 "args": "-device stm32f723ie"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "uid": "000776606156",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/stm32f7x.cfg -c \"stm32f7x.cpu configure -event reset-init {}\""
             },
             "comment": "Device port0 FS (slave only), Host port1 HS with DMA"
         },
@@ -499,6 +547,11 @@
                 "name": "jlink",
                 "uid": "777632258",
                 "args": "-device STM32L476VG"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "uid": "777632258",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/stm32l4x.cfg -c \"stm32l4x.cpu configure -event reset-init {}\""
             }
         },
         {
@@ -531,8 +584,7 @@
                 "name": "openocd",
                 "uid": "A76D8F062C2A",
                 "vid_pid": "0x1a86 0x8010",
-                "args": "-f target/wch-riscv.cfg",
-                "verify": false
+                "args": "-f target/wch-riscv.cfg"
             }
         },
         {
@@ -569,8 +621,7 @@
                 "name": "openocd",
                 "uid": "BC5DA47360D0",
                 "vid_pid": "0x1a86 0x8010",
-                "args": "-f target/wch-riscv.cfg",
-                "verify": false
+                "args": "-f target/wch-riscv.cfg"
             }
         },
         {
@@ -617,6 +668,12 @@
                 "name": "jlink",
                 "uid": "000725299165",
                 "args": "-device MIMXRT1064xxx6A"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "uid": "000725299165",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -c \"adapter speed 1000\" -c \"swd newdap rt1064 cpu -expected-id 0\" -c \"dap create rt1064.dap -chain-position rt1064.cpu\" -c \"target create rt1064.cpu cortex_m -dap rt1064.dap\" -c \"cortex_m reset_config sysresetreq\"",
+                "note": "reset only: openocd has no i.MX RT target cfg or FlexSPI flash driver, so a reflash through this entry fails"
             }
         },
         {
@@ -633,6 +690,12 @@
                 "name": "jlink",
                 "uid": "1051856258",
                 "args": "-device NRF54LM20A_M33"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "uid": "1051856258",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/nordic/nrf54l.cfg -c \"adapter speed 4000\"",
+                "note": "reset only: nrf54l.cfg declares no RRAM flash bank, so a reflash through this entry fails"
             }
         }
     ],

@@ -48,6 +48,8 @@ RECOVER_RESET_TIMEOUT = 30  # bound on the post-hang probe reset; ResetTarget me
 
 
 RECOVER_SETTLE = 5          # after each step, to let a freed ioctl unwind
+# Keep at least 5 s, the validated value: metro_m4_express's UF2 bootloader stays resident when
+# two resets land ~1 s apart (double-tap), so a reset then the fallback reflash would not boot.
 # How long a HUNG case is watched before it counts as a wedge. HUNG only says the kill
 # was not reaped within 5 s; testusb in a long but finite in-kernel URB wait looks the
 # same and is reaped once the URB completes. Reserved on every HUNG path, recovery or not.

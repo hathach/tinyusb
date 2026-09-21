@@ -36,6 +36,12 @@
                 "name": "jlink",
                 "uid": "728973776",
                 "args": "-device LPC43S67_M4"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "uid": "728973776",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/lpc4357.cfg -c \"adapter speed 4000\"",
+                "verify": false
             }
         }
     ]

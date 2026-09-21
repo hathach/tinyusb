@@ -1202,7 +1202,7 @@ class UsbtestOuterBoundIsOneValue(unittest.TestCase):
     recovery can actually run. Otherwise a board on a path that cannot recover holds a pool
     worker and its battery permit idle for the difference, under a usbtest width of 2."""
 
-    def _invoke(self, flasher, skip_flash=False):
+    def _invoke(self, flasher, skip_flash=False, recover=None):
         from contextlib import contextmanager
         from helper import hil_lock, hil_util
 
@@ -1234,8 +1234,11 @@ class UsbtestOuterBoundIsOneValue(unittest.TestCase):
         patch(hil_test, 'skip_flash', skip_flash)
         patch(hil_test, '_current_fw', '/tmp/fw.elf')
         patch(hil_util, 'run_cmd', fake_run)
+        board = {'name': 'b', 'uid': 'UID1', 'flasher': flasher}
+        if recover is not None:
+            board['flasher_recover'] = recover
         with self.assertRaises(hil_test.TestFail):
-            hil_test.test_device_usbtest({'name': 'b', 'uid': 'UID1', 'flasher': flasher})
+            hil_test.test_device_usbtest(board)
         return seen
 
     def test_a_recoverable_board_reserves_the_recovery_budget(self):
@@ -1275,6 +1278,29 @@ class UsbtestOuterBoundIsOneValue(unittest.TestCase):
         case_timeout = int(toks[toks.index('--timeout') + 1])
         self.assertGreaterEqual(seen['timeout'] - budget, case_timeout,
                                 'the outer kill can land mid-case, before the JSON')
+
+    def test_a_jlink_board_recovers_through_its_flasher_recover_entry(self):
+        """The roster's optional second flasher (#3945): the primary stays JLinkExe, which
+        is never convoy-safe, so the reserve and the --recover-board JSON both follow the
+        openocd entry -- with the firmware jlink flashed, not a re-derived one."""
+        import json
+        import shlex
+        import usbtest
+        prim = {'name': 'jlink', 'uid': '779541626', 'args': '-device stm32f072rb'}
+        rec = {'name': 'openocd', 'uid': '779541626',
+               'args': '-f interface/jlink.cfg -c "adapter speed 4000" -f target/stm32f0x.cfg'}
+        alone = self._invoke(prim)
+        self.assertNotIn('--recover-board', alone['cmd'])
+        seen = self._invoke(prim, recover=rec)
+        self.assertEqual(seen['timeout'], hil_test.USBTEST_BATTERY_BUDGET
+                         + hil_test.USBTEST_OVERSHOOT + usbtest.recovery_reserve(rec))
+        toks = shlex.split(seen['cmd'])
+        shipped = json.loads(toks[toks.index('--recover-board') + 1])
+        self.assertEqual(shipped, {'name': 'b', 'flasher': rec})
+        self.assertEqual(toks[toks.index('--recover-fw') + 1], '/tmp/fw.elf')
+        # the reset step is reserved, and no Rescue-DP legs: reset_openocd is real, unlike esptool's no_op stub
+        self.assertEqual(usbtest.recovery_reserve(rec) - usbtest.recovery_reserve({'name': 'esptool'}),
+                         usbtest.RECOVER_RESET_TIMEOUT + hil_test.hil_util.REAP_GRACE)
 
     def test_skip_flash_still_bounds_the_child(self):
         """--skip-flash disables recovery, so the child must not be given a reserve it
