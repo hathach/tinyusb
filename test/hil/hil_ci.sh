@@ -286,6 +286,7 @@ scp -q "$ROOT_DIR/test/hil/helper/__init__.py" \
        "$ROOT_DIR/test/hil/helper/hil_util.py" \
        "$ROOT_DIR/test/hil/helper/hil_health.py" \
        "$ROOT_DIR/test/hil/helper/hil_lock.py" \
+       "$ROOT_DIR/test/hil/helper/hil_recover.py" \
        "$ROOT_DIR/test/hil/helper/hil_report.py" \
        "$REMOTE:$REMOTE_DIR/test/hil/helper/"
 # the rtt console/capture tool (rtt skill), harness-critical: hil_util imports it

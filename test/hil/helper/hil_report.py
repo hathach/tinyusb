@@ -66,6 +66,11 @@ LOCKED_CELL = 'board-locked'
 # verdict knows nothing was flashed this attempt)
 WEDGED_CELL = 'board-wedged'
 WEDGED_REFUSED = f'{REPORT_CELL["fail"]} refused at admission'
+# the post-pool recovery verified the holder gone and the DUT enumerated, and cleared the
+# marker: the test verdict stands, the board is no longer wedged
+WEDGED_RECOVERED = f'{REPORT_CELL["skip"]} recovered post-run'
+WEDGED_REFUSED_RECOVERED = f'{REPORT_CELL["skip"]} refused at admission; recovered post-run'
+REFUSED_CELLS = (WEDGED_REFUSED, WEDGED_REFUSED_RECOVERED)
 # A pseudo-test column, not a real one: write_timeout_report marks the boards that were
 # still dispatched when the pool guard fired. accumulate_report clears it on a retry.
 POOL_TIMEOUT_CELL = 'pool-timeout'
@@ -324,7 +329,7 @@ def mark_report_no_boards(report_dir: Path, msg: str, fresh: bool = True) -> Non
 
 
 def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = '',
-                      banner: str = '', caveat: str = '') -> str:
+                      banner: str = '', caveat: str = '', owned: dict | None = None) -> str:
     """Merge this run's results into json in report_dir, then (re)write
     the markdown matrix to md. `fresh` (a first run, no --accumulate)
     starts a new report; otherwise a re-run accumulates so boards/tests that
@@ -352,7 +357,18 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
     # current cells override prior for boards/tests that ran; a filtered run reports
     # duration None, keeping the previous full-run value
     for name, _, _, rows, *_ in mret:
-        refused = any(cells.get(WEDGED_CELL) == WEDGED_REFUSED for _, cells, _ in rows)
+        refused = any(cells.get(WEDGED_CELL) in REFUSED_CELLS for _, cells, _ in rows)
+        if any(cells.get(WEDGED_CELL) in (WEDGED_RECOVERED, WEDGED_REFUSED_RECOVERED)
+               for _, cells, _ in rows):
+            # the post-run recovery verified the board: every wedge cell an earlier attempt
+            # left on its rows (the board row and its DECLARED variants, `owned`, never a
+            # name that merely shares the prefix) is that same wedge, so it is recovered
+            # too; the test failures beside it stay
+            for key in {name, *(owned or {}).get(name, [])}:
+                cells = acc.get(key, [{}])[0]
+                if WEDGED_CELL in cells and cell_state(cells[WEDGED_CELL]) == 'fail':
+                    cells[WEDGED_CELL] = (WEDGED_REFUSED_RECOVERED if cells[WEDGED_CELL] == WEDGED_REFUSED
+                                          else WEDGED_RECOVERED)
         if rows and not refused and not any(LOCKED_CELL in cells for _, cells, _ in rows):
             # board ran for real: clear a stale lock-failure cell (its row is keyed by
             # board name; test rows may be variant names), and a stale wedge cell on every
@@ -554,8 +570,11 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
         # pool-level outcome and never proof about one board. It outranks a lock cell the
         # same way: a wedged board must never be published as LOCKED, which the caller
         # re-runs.
-        board_wedged = any(WEDGED_CELL in cells for cells in mine.values())
-        refused = any(cells.get(WEDGED_CELL) == WEDGED_REFUSED for cells in mine.values())
+        board_wedged = any(cell_state(cells[WEDGED_CELL]) == 'fail'
+                           for cells in mine.values() if WEDGED_CELL in cells)
+        recovered = any(cells.get(WEDGED_CELL) in (WEDGED_RECOVERED, WEDGED_REFUSED_RECOVERED)
+                        for cells in mine.values())
+        refused = any(cells.get(WEDGED_CELL) in REFUSED_CELLS for cells in mine.values())
         locked = not wedged and not board_wedged and any(LOCKED_CELL in cells for cells in mine.values())
         bad = []
         for vname, cells in sorted(mine.items()):
@@ -564,7 +583,7 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
                     continue
                 if cell_state(val) == 'fail':
                     bad.append(f'{vname} {test}: {val}')
-        ok = not bad and not locked and not board_wedged
+        ok = not bad and not locked and not board_wedged and not refused
         if locked:
             detail = 'held by another holder; not flashed'
         elif refused:
@@ -575,6 +594,8 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
             detail = '; '.join(bad)
         else:
             detail = f'{len(mine)} variant(s), {sum(len(c) for c in mine.values())} cell(s) ok'
+        if recovered and not board_wedged:
+            detail += '; wedge recovered post-run (marker cleared)'
         # an admission refusal never flashed this attempt, whatever test history an
         # --accumulate re-run kept in the row
         results.append({'board': board, 'ran': not refused, 'pass': ok, 'locked': locked,

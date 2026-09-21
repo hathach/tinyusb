@@ -64,7 +64,7 @@ from multiprocessing import TimeoutError as MpTimeoutError
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # PYTHONSAFEPATH drops it
 import hil_flash
 import usbtest    # for the recovery bounds only; hil_test runs it as a subprocess
-from helper import hil_health, hil_lock, hil_report, hil_util
+from helper import hil_health, hil_lock, hil_recover, hil_report, hil_util
 from helper.hil_util import device_tests, dual_tests, host_test
 
 # Raw Lock/Semaphore objects in Pool initargs are inheritable only under fork
@@ -2110,6 +2110,42 @@ def test_board(board: Board) -> tuple:
             _lock_fh.close()
 
 
+def _owned_rows(boards: list) -> dict:
+    """board -> its declared variant row names, the ownership accumulate_report needs to
+    recover an earlier attempt's wedge cells on the right rows."""
+    return {b['name']: [v['name'] for v in (b.get('variant') or [])] for b in boards}
+
+
+def _after_pool(config: dict, boards: list, mret: list, abort_args) -> dict:
+    """Recovery, then persistence: an abort path has already written its report from
+    these rows, so a recovery that changed them re-runs that same _abort_report call --
+    same reason, same caveat, same timeout cells, recovered wedge cells."""
+    outcomes = _recover_wedged_rows(config, boards, mret)
+    if abort_args and any(isinstance(o, dict) and o.get('recovered') for o in outcomes.values()):
+        args, kw = abort_args
+        _abort_report(*args, **kw)
+    return outcomes
+
+
+def _recover_wedged_rows(config: dict, boards: list, mret: list) -> dict:
+    """Run the post-pool recovery (hil_recover) and fold a verified recovery into the
+    rows: the wedge cell becomes its recovered form, the test verdict stands. Never
+    raises over the report."""
+    try:
+        outcomes = hil_recover.recover_wedged(config, boards, log_line, skip_flash=skip_flash)
+    except Exception as e:   # noqa: BLE001
+        print(f'warning: wedge recovery raised {type(e).__name__}: {e}', flush=True)
+        return {}
+    recovered_cell = {'fail': hil_report.WEDGED_RECOVERED,
+                      hil_report.WEDGED_REFUSED: hil_report.WEDGED_REFUSED_RECOVERED}
+    for name, _, _, rows, *_ in mret:
+        if outcomes.get(name, {}).get('recovered'):
+            for _, cells, _ in rows:
+                if cells.get(hil_report.WEDGED_CELL) in recovered_cell:
+                    cells[hil_report.WEDGED_CELL] = recovered_cell[cells[hil_report.WEDGED_CELL]]
+    return outcomes
+
+
 def _mark_wedged(board: Board, lock_fh) -> None:
     """Write the admission marker and the dmesg tail, best effort: a failure here is logged,
     never raised over the board's own verdict. The dmesg tail lives beside the marker in the
@@ -2139,7 +2175,9 @@ def _mark_wedged(board: Board, lock_fh) -> None:
             'evidence': board_wedge_evidence,
             'run': os.environ.get('GITHUB_RUN_ID', '') or f'pid {os.getpid()}',
             'report_dir': str(Path(os.environ.get('HIL_REPORT_DIR', '.')).resolve()),
-            'dmesg': dmesg_path}
+            'dmesg': dmesg_path,
+            # the artifact under test, for the post-pool reflash fallback (hil_recover)
+            'fw': _current_fw or ''}
     if hil_lock.write_wedged(board['name'], info, lock_fh):
         log_line(f'{board["name"]:25} marked wedged for the next run; clear with '
                  f'`hil_lock.py wedged clear {board["name"]} --evidence ...` after recovery')
@@ -2395,7 +2433,8 @@ def _abort_report(reason: str, mret: list, config_boards: list, failed_fname: Pa
               f"{', '.join(stuck)}. The re-run spec covers those.\n")
     try:
         hil_report.accumulate_report(mret, report_dir, fresh, '',
-                                     health_banner + _stray_note(mret), caveat=banner)
+                                     health_banner + _stray_note(mret), caveat=banner,
+                                     owned=_owned_rows(config_boards))
         return
     except Exception as rerr:  # noqa: BLE001 - the caller's raise must still happen
         print(f'warning: partial report failed: {type(rerr).__name__}: {rerr}'
@@ -2621,6 +2660,7 @@ def main() -> None:
     # assignment sits at the END of the inner finally, so anything raising before it
     # (kill_worker_children, a BrokenPipeError from its print) leaves _abandon_exit armed.
     pool_abandoned = True
+    abort_args = None   # the _abort_report call an abort path made, re-run after recovery
     # BEFORE Manager()/Pool(), not inside the try: hil_ci.sh reuses a persistent REMOTE_DIR
     # and scp's the report back unconditionally, so if a fork failure (OSError/EAGAIN right
     # after a convoy -- the case this whole block guards) skipped the wipe, the finally's
@@ -2650,8 +2690,8 @@ def main() -> None:
             # completed rig time -- and left the re-run spec unwritten, so CI re-tested all
             # ~26 boards to find the one that wedged. Draining as results arrive keeps what
             # finished and names only what was still in flight.
+            mret = []   # before imap: the pool finally reads it on every path
             it = pool.imap_unordered(test_board, config_boards)
-            mret = []
             deadline = time.monotonic() + POOL_TIMEOUT
             try:
                 mret = drain_pool(it, config_boards, deadline, out=mret)
@@ -2660,9 +2700,10 @@ def main() -> None:
                 # the ordered sweep (kill_worker_children BEFORE terminate, or a reaped
                 # worker's flasher reparents out of reach), the outer one os._exit's.
                 mret = te.finished
-                _abort_report(f'abandoned: worker pool timed out after {POOL_TIMEOUT}s',
-                              mret, config_boards, failed_fname, report_dir, fresh,
-                              health_banner, timeout_secs=POOL_TIMEOUT)
+                abort_args = ((f'abandoned: worker pool timed out after {POOL_TIMEOUT}s',
+                               mret, config_boards, failed_fname, report_dir, fresh,
+                               health_banner), {'timeout_secs': POOL_TIMEOUT})
+                _abort_report(*abort_args[0], **abort_args[1])
                 _p(f'HIL worker pool timed out after {POOL_TIMEOUT}s; sweeping and '
                    f'shutting it down (abandoning it if a worker is unkillable)',
                    flush=True)
@@ -2672,9 +2713,10 @@ def main() -> None:
                 # get_serial_dev raise in the worker's flash section, which no per-test
                 # handler guards. The drain means `mret` already holds every board that
                 # finished, so keep those rows and name only the ones still in flight.
-                _abort_report(f'aborted: a worker raised {type(e).__name__}: {e}',
-                              mret, config_boards, failed_fname, report_dir, fresh,
-                              health_banner)
+                abort_args = ((f'aborted: a worker raised {type(e).__name__}: {e}',
+                               mret, config_boards, failed_fname, report_dir, fresh,
+                               health_banner), {})
+                _abort_report(*abort_args[0], **abort_args[1])
                 raise
 
             err_count = build_err + sum(e[1] for e in mret)
@@ -2708,6 +2750,10 @@ def main() -> None:
                 pool_abandoned = not hil_health.shutdown_pool(pool)
             except Exception as e:
                 print(f'warning: pool shutdown failed: {type(e).__name__}: {e}', flush=True)
+            # Marked boards are recovered HERE, on the abort paths too: the workers are
+            # gone and shutdown is confirmed, so every board can be reserved for the shield.
+            if not pool_abandoned:
+                _after_pool(config, config_boards, mret, abort_args)
 
         # refresh controller hints: pci resolved this run, plus durations from full runs
         # only (a filtered run would understate the board's real cost)
@@ -2734,7 +2780,8 @@ def main() -> None:
         scoped = sorted(set(args.board) | set(board_test))
         scope = f'{len(scoped)} board(s) — {", ".join(scoped)}' if scoped else ''
         report = hil_report.accumulate_report(mret, report_dir, fresh, scope,
-                                              health_banner + _stray_note(mret))
+                                              health_banner + _stray_note(mret),
+                                              owned=_owned_rows(config['boards']))
         print()
         print(report)
         print(f'\nReport written to {(report_dir / hil_report.REPORT_MD).resolve()}')

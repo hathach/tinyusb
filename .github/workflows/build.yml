@@ -378,7 +378,8 @@ jobs:
   hil-tinyusb:
     needs: [ hil-build, set-matrix ]
     name: hil-tinyusb (${{ matrix.display }})
-    # Above hil_test.py's pool guard (HIL_POOL_TIMEOUT, 60 min) so the guard fires first
+    # Above hil_test.py's pool guard (HIL_POOL_TIMEOUT, 60 min) plus its post-pool wedge
+    # recovery (HIL_RECOVERY_TIMEOUT, 10 min) so the guard fires first
     # and still gets to write its report. The 30 min on top is what the job pays OUTSIDE
     # the guard clock: workspace cleanup, checkout, the multi-board artifact merge and
     # the D-state note before it; kill_worker_children, shutdown_pool's 30 s grace, the
@@ -492,7 +493,7 @@ jobs:
     needs: [ hil-build-esp, set-matrix ]
     name: hil-tinyusb (tinyusb-esp.json)
     runs-on: [ self-hosted, X64, hathach, hardware-in-the-loop ]
-    # above hil_test.py's pool guard (60 min) with room for the pre-pool checkout
+    # above hil_test.py's pool guard (60 min) and post-pool wedge recovery (10 min) with room for the pre-pool checkout
     # and the post-guard sweep + report upload, so its own guard still writes a report;
     # only a job wedged past that (unkillable D-state worker) hits this ceiling, which
     # must exist because the runner has one job slot and holds every queued job hostage

@@ -216,12 +216,13 @@ def convoy_safe(flasher: dict) -> bool:
     """Can this flasher DELIVER a recovery while a usbfs node on the rig is poisoned?
 
     A post-HUNG reflash only helps if the flasher reaches its probe without opening the
-    wedged node. Two shapes qualify:
+    wedged node. Three shapes qualify:
 
     * openocd pinned with the roster's `vid_pid` -- the match is made from the cached
       descriptor and the loop `continue`s BEFORE libusb_open, so a foreign node is never
       opened. On 2026-08-12 it was the only flasher that still reached its probe.
     * esptool -- delivery is `-p <ttyACM>`, a named port; it never enumerates usbfs.
+    * openocd over interface/jlink.cfg -- libjaylink opens SEGGER devices only (below).
 
     Everything else enumerates by OPENING nodes, would block in D state on the poisoned
     one, survive SIGKILL and become a second stray. JLinkExe cannot be pinned: selection
