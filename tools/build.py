@@ -27,7 +27,7 @@ build_separator = '-' * 95
 build_status = [STATUS_OK, STATUS_FAILED, STATUS_SKIPPED]
 
 verbose = False
-parallel_jobs = os.cpu_count()
+parallel_jobs = os.cpu_count() or 1
 configure_only = False
 # a configure with nothing but the board named: its row goes into hw/bsp/family.json
 canonical = False
@@ -460,7 +460,7 @@ def main():
     parser.add_argument('--ci-pinned-boards-only', action='store_true', default=False,
                         help='As --ci-pinned-boards, but a family with no CI board '
                              'contributes nothing instead of falling back')
-    parser.add_argument('-j', '--jobs', type=int, default=os.cpu_count(), help='Number of jobs to run in parallel')
+    parser.add_argument('-j', '--jobs', type=int, default=os.cpu_count() or 1, help='Number of jobs to run in parallel')
     parser.add_argument('-T', '--target', action='append', default=[],
                         help='Build target to use, may be specified multiple times (default: all)')
     parser.add_argument('-e', '--example', action='append', default=[],
