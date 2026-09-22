@@ -205,8 +205,10 @@ def recover_flasher(board: dict) -> dict:
     cannot reach its probe past a poisoned usbfs node, but the same probe driven by openocd
     often can (see convoy_safe). Keeping it a separate key rather than a list means the
     primary's shape never changes, so nothing that reads board['flasher'] has to care.
+    The entry drives the primary's probe, so its uid is the primary's.
     """
-    return board.get('flasher_recover') or board['flasher']
+    rec = board.get('flasher_recover')
+    return {'uid': board['flasher'].get('uid'), **rec} if rec else board['flasher']
 
 
 def convoy_safe(flasher: dict) -> bool:

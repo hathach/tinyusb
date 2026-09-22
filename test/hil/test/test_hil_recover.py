@@ -24,7 +24,7 @@ CFG = {'boards': [
     {'name': 'b1', 'uid': 'UID1', 'flasher': {'name': 'jlink', 'uid': 'P1', 'args': '-device x'},
      # openocd over stlink without a pin is NOT convoy-safe: b1 is the shielded board,
      # b2 (pinned by vid_pid) the one recovered without a shield
-     'flasher_recover': {'name': 'openocd', 'uid': 'P1', 'args': '-f interface/stlink.cfg -f target/x.cfg'}},
+     'flasher_recover': {'name': 'openocd', 'args': '-f interface/stlink.cfg -f target/x.cfg'}},
     {'name': 'b2', 'uid': 'UID2', 'flasher': {'name': 'openocd', 'uid': 'P2', 'vid_pid': '0x2e8a 0x000c', 'args': '-f t.cfg'}},
 ], 'boards-skip': [{'name': 'parked', 'uid': 'UID3', 'flasher': {'name': 'jlink', 'uid': 'P3', 'args': ''}}]}
 NODE = '/dev/bus/usb/013/042'

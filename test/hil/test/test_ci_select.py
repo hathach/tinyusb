@@ -703,8 +703,9 @@ class FlasherRecoverEntry(unittest.TestCase):
 
     def test_recover_flasher_prefers_the_optional_entry(self):
         prim = {'name': 'jlink', 'uid': 'X', 'args': '-device MIMXRT1064xxx6A'}
-        rec = {'name': 'openocd', 'uid': 'X', 'args': '-f interface/jlink.cfg -f target/foo.cfg'}
-        self.assertEqual(hil_flash.recover_flasher({'flasher': prim, 'flasher_recover': rec}), rec)
+        rec = {'name': 'openocd', 'args': '-f interface/jlink.cfg -f target/foo.cfg'}
+        self.assertEqual(hil_flash.recover_flasher({'flasher': prim, 'flasher_recover': rec}),
+                         {**rec, 'uid': 'X'})   # the primary's probe
         self.assertEqual(hil_flash.recover_flasher({'flasher': prim}), prim)
 
     def test_openocd_over_jlink_is_convoy_safe_without_a_pin(self):
@@ -830,11 +831,13 @@ class FlasherRecoverEntry(unittest.TestCase):
         for path, board in roster_flashers():
             if 'flasher_recover' not in board:
                 continue
-            rec, prim, name = board['flasher_recover'], board['flasher'], board['name']
+            prim, name = board['flasher'], board['name']
             seen.add(name)
+            self.assertNotIn('uid', board['flasher_recover'], f'{name}: the probe is the primary\'s')
+            rec = hil_flash.recover_flasher(board)
             self.assertEqual(prim['name'], 'jlink', name)
             self.assertEqual(rec['name'], 'openocd', name)
-            self.assertEqual(rec['uid'], prim['uid'], f'{name}: recovery must use the same probe')
+            self.assertEqual(rec['uid'], prim['uid'], name)
             self.assertIn('interface/jlink.cfg', rec['args'], name)
             self.assertIn('transport select swd', rec['args'], name)
             stm32 = re.search(r'-f target/(stm32(?:f0|f4|f7|l4)x)\.cfg', rec['args'])

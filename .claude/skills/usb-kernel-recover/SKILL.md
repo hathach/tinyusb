@@ -82,7 +82,7 @@ sudo usb_recover.sh unshield <busport> $$      # restore the recorded modes; the
 
 **Rung 1 — wedged DUT: reset it through its own probe.** Resolve the board's
 recovery flasher from the HIL roster, its `flasher_recover` or else its primary
-`flasher` (`hil_flash.recover_flasher`). A convoy-safe one (`hil_flash.convoy_safe`,
+`flasher` (`hil_flash.recover_flasher`; `<probe-sn>` is the primary's `uid` either way). A convoy-safe one (`hil_flash.convoy_safe`,
 section 2) needs no shield; for openocd:
 
 ```bash
