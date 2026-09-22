@@ -12,7 +12,7 @@
                         "vid_pid": "1a86_55d4",
                         "serial": "52D2023934",
                         "is_cdc": true,
-                        "comment": "CH9102 USB-serial (TX-RX loopback)"
+                        "note": "CH9102 USB-serial (TX-RX loopback)"
                     },
                     {
                         "vid_pid": "21c4_0cc7",
@@ -86,9 +86,9 @@
                 "name": "esptool",
                 "uid": "4ea4f48f6bc3ee11bbb9d00f9e1b1c54",
                 "args": "-b 1500000",
-                "comment": "use --force for ESP32-P4 v0.1"
+                "note": "use --force for ESP32-P4 v0.1"
             },
-            "comment": "Use TS3USB30 mux to test both device and host"
+            "note": "Use TS3USB30 mux to test both device and host"
         },
         {
             "name": "espressif_s3_devkitm",
@@ -120,7 +120,7 @@
                         "block_size": 512,
                         "block_count": 30720000,
                         "msc_inquiry": "General  UDisk            5.00",
-                        "comment": "General UDisk reports iSerialNumber=U+0409"
+                        "note": "General UDisk reports iSerialNumber=U+0409"
                     }
                 ]
             },
@@ -129,7 +129,7 @@
                 "uid": "3ea619acd1cdeb11a0a0b806e93fd3f1",
                 "args": "-b 1500000"
             },
-            "comment": "Use TS3USB30 mux to test both device and host"
+            "note": "Use TS3USB30 mux to test both device and host"
         },
         {
             "name": "feather_nrf52840_express",
@@ -189,7 +189,7 @@
                         "is_cdc": true
                     }
                 ],
-                "comment": "pl23x; audio_test_freertos skipped: samd51 iso-IN capture fails (arecord EIO)"
+                "note": "pl23x; audio_test_freertos skipped: samd51 iso-IN capture fails (arecord EIO)"
             },
             "flasher": {
                 "name": "jlink",
@@ -225,7 +225,7 @@
         {
             "name": "ea4088_quickstart",
             "uid": "22150C0C1508595343E1857B060000F5",
-            "comment": "console is the LPC-Link2's RTT channel: this probe has no VCOM (rtt skill)",
+            "note": "console is the LPC-Link2's RTT channel: this probe has no VCOM (rtt skill)",
             "logger": "rtt",
             "variant": [
                 { "name": "ea4088_quickstart", "defines": ["LOGGER=rtt"], "flags": "-DBUFFER_SIZE_DOWN=128" }
@@ -239,7 +239,7 @@
                         "vid_pid": "1a86_7523",
                         "serial": "0",
                         "is_cdc": true,
-                        "comment": "CH340 USB-serial behind the hub on USB-A J3, TX-RX shorted for the cdc echo half"
+                        "note": "CH340 USB-serial behind the hub on USB-A J3, TX-RX shorted for the cdc echo half"
                     },
                     {
                         "vid_pid": "346d_5678",
@@ -248,7 +248,7 @@
                         "block_size": 512,
                         "block_count": 3891200,
                         "msc_inquiry": "VendorCo ProductCode      2.00",
-                        "comment": "USB Disk 2.0 thumbdrive behind the same hub"
+                        "note": "USB Disk 2.0 thumbdrive behind the same hub"
                     }
                 ]
             },
@@ -313,7 +313,7 @@
                         "vid_pid": "1a86_7523",
                         "serial": "0",
                         "is_cdc": true,
-                        "comment": "ch34x"
+                        "note": "ch34x"
                     },
                     {
                         "vid_pid": "048d_04d2",
@@ -322,7 +322,7 @@
                         "block_size": 512,
                         "block_count": 30720000,
                         "msc_inquiry": "General  UDisk            5.00",
-                        "comment": "General UDisk reports iSerialNumber=U+0409"
+                        "note": "General UDisk reports iSerialNumber=U+0409"
                     }
                 ]
             },
@@ -364,7 +364,7 @@
                 "args": "-f interface/cmsis-dap.cfg -f target/rp2040.cfg -c \"adapter speed 5000\"",
                 "verify": true
             },
-            "comment": "Test native host"
+            "note": "Test native host"
         },
         {
             "name": "raspberry_pi_pico2",
@@ -441,7 +441,7 @@
                 "uid": "779541626",
                 "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/stm32f0x.cfg -c \"stm32f0x.cpu configure -event reset-init {}\""
             },
-            "comment": "2x16 access scheme with 1KB USB SRAM"
+            "note": "2x16 access scheme with 1KB USB SRAM"
         },
         {
             "name": "stm32f407disco",
@@ -478,7 +478,7 @@
                         "vid_pid": "10c4_ea60",
                         "serial": "0001",
                         "is_cdc": true,
-                        "comment": "cp2102"
+                        "note": "cp2102"
                     },
                     {
                         "vid_pid": "21c4_0cc7",
@@ -500,7 +500,7 @@
                 "uid": "000776606156",
                 "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/stm32f7x.cfg -c \"stm32f7x.cpu configure -event reset-init {}\""
             },
-            "comment": "Device port0 FS (slave only), Host port1 HS with DMA"
+            "note": "Device port0 FS (slave only), Host port1 HS with DMA"
         },
         {
             "name": "stm32h743nucleo",
@@ -533,7 +533,7 @@
                 "uid": "066FFF495087534867063844",
                 "verify": true
             },
-            "comment": "32-bit scheme, 2KB USB SRAM"
+            "note": "32-bit scheme, 2KB USB SRAM"
         },
         {
             "name": "stm32l476disco",
@@ -684,7 +684,7 @@
                 "host": false,
                 "dual": false,
                 "skip": ["device/audio_test_freertos"],
-                "comment": "board new to HIL: audio_test_freertos never reaches dcd_init (FreeRTOS itself runs; cdc_msc_freertos and usbtest pass) - example-level issue on nRF54L, fix separately"
+                "note": "board new to HIL: audio_test_freertos never reaches dcd_init (FreeRTOS itself runs; cdc_msc_freertos and usbtest pass) - example-level issue on nRF54L, fix separately"
             },
             "flasher": {
                 "name": "jlink",
@@ -703,7 +703,7 @@
         {
             "name": "ra8m1_ek",
             "uid": "797D142D36345030364E1737922E4B4E",
-            "comment": "USBHS bring-up pending (HS chirp completes digitally but terminations never switch; FS-forced build passed usbtest 30/30). Parked until fixed",
+            "note": "USBHS bring-up pending (HS chirp completes digitally but terminations never switch; FS-forced build passed usbtest 30/30). Parked until fixed",
             "tests": {
                 "device": true,
                 "host": false,
@@ -736,13 +736,13 @@
         {
             "name": "ra6m5_ek",
             "uid": "8419032D32363657364EF4622D294B4E",
-            "comment": "Unstable in CI: intermittent usbtest failures plus cdc_dual_ports/hid_boot_interface/midi_test/mtp/printer_to_cdc flapping. Parked until diagnosed",
+            "note": "Unstable in CI: intermittent usbtest failures plus cdc_dual_ports/hid_boot_interface/midi_test/mtp/printer_to_cdc flapping. Parked until diagnosed",
             "tests": {
                 "device": true,
                 "host": false,
                 "dual": false,
                 "skip": ["device/cdc_msc_throughput", "device/msc_dual_lun"],
-                "comment": "MSC writes wedge the uPD720201 host (URBs queued, zero wire activity, bus-15 ctrl xfers time out until the device's URBs are killed); reproduced identically with master firmware - device side armed+BUF and exonerated. MSC reads and usbtest bulk (15.8 MB/s) are fine"
+                "note": "MSC writes wedge the uPD720201 host (URBs queued, zero wire activity, bus-15 ctrl xfers time out until the device's URBs are killed); reproduced identically with master firmware - device side armed+BUF and exonerated. MSC reads and usbtest bulk (15.8 MB/s) are fine"
             },
             "flasher": {
                 "name": "jlink",

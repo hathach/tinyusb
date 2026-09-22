@@ -46,7 +46,7 @@ def fixture(root):
     (root / 'test' / 'hil' / 'tinyusb.json').write_text(json.dumps({'boards': [
         {'name': 'acme_one', 'tests': {'device': True, 'host': True, 'dual': False},
          'flasher': {'name': 'jlink'}, 'variant': [{'name': 'acme_one_hs'}],
-         'comment': 'needs  a | jumper'},
+         'note': 'needs  a | jumper'},
         {'name': 'acme_two', 'tests': {'only': ['host/cdc_msc', 'device/hid']}},
     ]}))
     (root / 'test' / 'hil' / 'hfp.json').write_text(json.dumps({'boards': []}))
