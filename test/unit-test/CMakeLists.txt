@@ -144,3 +144,4 @@ target_compile_definitions(test_audio_host PRIVATE
   )
 
 enable_testing()
+add_subdirectory(host)
