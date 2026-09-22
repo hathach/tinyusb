@@ -90,7 +90,7 @@ WEDGED_SUFFIX = '.wedged'
 
 
 def wedged_path(board: str) -> str:
-    if not _BOARD_NAME_RE.match(board or ''):
+    if not _BOARD_NAME_RE.fullmatch(board or ''):
         raise ValueError(f'not a board name: {board!r}')
     return os.path.join(BOARD_LOCK_DIR, f'{board}{WEDGED_SUFFIX}')
 
@@ -257,7 +257,7 @@ def wedged_boards() -> list:
     for fn in sorted(os.listdir(BOARD_LOCK_DIR)):
         if fn.endswith(WEDGED_SUFFIX):
             board = fn[:-len(WEDGED_SUFFIX)]
-            if not _BOARD_NAME_RE.match(board):
+            if not _BOARD_NAME_RE.fullmatch(board):
                 out.append((board, _refused(board, 'has an invalid name')))
                 continue
             out.append((board, read_wedged(board) or {}))

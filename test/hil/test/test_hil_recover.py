@@ -126,7 +126,7 @@ class Recovery(unittest.TestCase):
         self.scans = [([4242], True)]
         out = self.run_phase()
         self.assertFalse(out['b1']['recovered'])
-        self.assertIn('survived', out['b1']['why'])
+        self.assertEqual(out['b1']['why'], 'a D-state holder survived the reset and the reflash')
         self.assertEqual([c[0] for c in self.calls][-1], 'unshield')
         self.assertIsNotNone(hil_lock.read_wedged('b1'))
 
@@ -263,6 +263,7 @@ class Recovery(unittest.TestCase):
         self.assertFalse(out['b1']['recovered'])
         self.assertNotIn('flash', [c[0] for c in self.calls])
         self.assertTrue(any('reset-only' in s for s in out['b1']['steps']), out)
+        self.assertEqual(out['b1']['why'], 'a D-state holder survived the reset; reflash skipped: reset-only recovery flasher')
 
     def test_no_recorded_firmware_skips_the_reflash(self):
         self.mark(fw='')
@@ -271,6 +272,14 @@ class Recovery(unittest.TestCase):
         self.assertFalse(out['b1']['recovered'])
         self.assertNotIn('flash', [c[0] for c in self.calls])
         self.assertTrue(any('reflash skipped' in s for s in out['b1']['steps']))
+
+    def test_a_board_name_with_a_trailing_newline_is_refused(self):
+        with self.assertRaises(ValueError):
+            hil_lock.wedged_path('b1\n')
+        Path(self.td.name, 'b1\n' + hil_lock.WEDGED_SUFFIX).write_text('{}')
+        [(board, info)] = hil_lock.wedged_boards()
+        self.assertEqual(board, 'b1\n')
+        self.assertIn('invalid name', info['reason'])
 
     def test_the_budget_stops_the_phase_before_a_board_it_cannot_finish(self):
         self.mark()

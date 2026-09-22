@@ -221,6 +221,7 @@ def recover_board(board: dict, marker: dict, lock_fh, budget: Budget) -> dict:
             return out
         unshield_reserve = shield_cost + SCAN_ALLOWANCE
         cleared = False
+        tried, reflash_skip = [], ''   # what actually ran, for the verdict's wording
         own_shield = needs_shield   # until the script says otherwise: an interrupted shield may have published
         try:
             if needs_shield:
@@ -242,20 +243,24 @@ def recover_board(board: dict, marker: dict, lock_fh, budget: Budget) -> dict:
                     out['steps'].append(f'probe reset via {fname}')
                 except Exception as e:   # noqa: BLE001 - the scan is the arbiter
                     out['steps'].append(f'probe reset via {fname} raised {type(e).__name__}: {e}')
+                tried.append('the reset')
                 time.sleep(SETTLE)
                 cleared = scan('after reset')
             if not cleared:
                 flash_fn = getattr(_hil_flash(), f'flash_{fname}', None)
                 # roster `"reflash": false`: the tool has no flash driver for this chip, only a reset
                 if not rec_board['flasher'].get('reflash', True):
-                    out['steps'].append('reflash skipped: reset-only recovery flasher')
+                    reflash_skip = 'reset-only recovery flasher'
                 elif not fw or not Path(fw).exists():
-                    out['steps'].append('no firmware artifact recorded: reflash skipped')
+                    reflash_skip = 'no firmware artifact recorded'
                 elif not flash_fn:
-                    out['steps'].append(f'no flash_{fname}: reflash skipped')
+                    reflash_skip = f'no flash_{fname}'
                 elif budget.left() < step_cost(ut.RECOVER_FLASH_TIMEOUT) + SETTLE + unshield_reserve:
-                    out['steps'].append('reflash skipped: not enough budget left to reflash and unshield')
+                    reflash_skip = 'not enough budget left to reflash and unshield'
+                if reflash_skip:
+                    out['steps'].append(f'reflash skipped: {reflash_skip}')
                 else:
+                    tried.append('the reflash')
                     try:
                         with redirect_stdout(sys.stderr):
                             r = flash_fn(rec_board, fw, timeout=budget.cap(ut.RECOVER_FLASH_TIMEOUT, unshield_reserve + SETTLE))
@@ -279,7 +284,10 @@ def recover_board(board: dict, marker: dict, lock_fh, budget: Budget) -> dict:
         if out['why']:
             return out
         if not cleared:
-            out['why'] = 'a D-state holder survived the reset and the reflash'
+            ran = ' and '.join(tried)
+            out['why'] = f'a D-state holder survived {ran}' if ran else 'a D-state holder remains; no reset or reflash ran'
+            if reflash_skip:
+                out['why'] += f'; reflash skipped: {reflash_skip}'
             return out
     # verified: a complete scan found no holder. Now the identity the marker asks for,
     # each serial read bounded so the whole walk stays inside what is left.
