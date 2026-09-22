@@ -23,6 +23,7 @@ spec.loader.exec_module(hil_remote)
 
 REAL_RSYNC = shutil.which('rsync')
 needs_rsync = unittest.skipUnless(REAL_RSYNC, 'rsync not installed; the fake rsync execs the real one')
+needs_flock = unittest.skipUnless(shutil.which('flock', path='/usr/bin:/bin'), 'flock not on the fake rig PATH (/usr/bin:/bin)')
 
 FAKE_SSH = f'''#!{sys.executable}
 import json, os, subprocess, sys
@@ -191,6 +192,7 @@ class Refusals(Rig):
 
 
 @needs_rsync
+@needs_flock
 class Staging(Rig):
     def test_board_spellings_stage_their_firmware(self):
         self.build('alpha', 'beta_one', 'beta_two')
@@ -255,6 +257,7 @@ class Staging(Rig):
 
 
 @needs_rsync
+@needs_flock
 class TheRun(Rig):
     def test_args_and_env_survive_transport(self):
         self.build('alpha')
@@ -305,6 +308,7 @@ class TheRun(Rig):
                             for a in rsync), rsync)
 
 
+@needs_flock
 class RemoteLock(Rig):
     """A second run sharing REMOTE_DIR must not rm -rf the tree the first one is running from."""
 
@@ -367,6 +371,7 @@ class RemoteLock(Rig):
 
 
 @needs_rsync
+@needs_flock
 class Reports(Rig):
     def setUp(self):
         super().setUp()
