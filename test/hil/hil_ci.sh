@@ -280,6 +280,7 @@ scp -q "$ROOT_DIR/test/hil/hil_test.py" \
        "$ROOT_DIR/test/hil/usbtest.py" \
        "$ROOT_DIR/test/hil/pymtp.py" \
        "$ROOT_DIR/test/hil/mtp_test.py" \
+       "$ROOT_DIR/test/hil/net_test.py" \
        "$CONFIG" \
        "$REMOTE:$REMOTE_DIR/test/hil/"
 scp -q "$ROOT_DIR/test/hil/helper/__init__.py" \

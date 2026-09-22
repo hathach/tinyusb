@@ -23,12 +23,14 @@
 # THE SOFTWARE.
 
 # Host setup (required: a missing tool fails its test rather than skipping it):
-#   - System packages: sudo apt install mtools libmtp9 libmtp-runtime alsa-utils iperf
+#   - System packages: sudo apt install mtools libmtp9 libmtp-runtime alsa-utils iproute2 udev util-linux
 #       mtools      read_disk_file (device/cdc_msc, device/msc_dual_lun)
 #       libmtp9     pymtp ctypes load (device/mtp); Debian 13 uses libmtp9t64
 #       libmtp-runtime  mtp-probe and the completed-device /dev/libmtp-* marker
 #       alsa-utils  arecord (device/audio_test_freertos)
-#       iperf       throughput tests (device/net_lwip_*)
+#       iproute2    isolated USB network test (root or passwordless sudo)
+#       util-linux  unshare/nsenter for per-process network namespaces
+#       udev        udevadm wait (systemd >= 251) for USB network initialization
 #       openocd     unified openocd from https://github.com/hathach/openocd (branch tinyusb) for wch, rp2040/rp2350, analog max32
 #   - device/usbtest: usbtest kernel module + testusb binary (kernel tools/usb/testusb.c) on PATH,
 #     plus sudo for modprobe / sysfs writes
@@ -1288,60 +1290,12 @@ def test_device_mtp(board):
 
 
 def test_device_net_lwip_webserver(board):
-    # MAC hard-coded in examples/device/net_lwip_webserver/src/main.c; Linux names the
-    # iface enx<MAC_lowercase_no_colons>. Device IP 192.168.7.1, iperf2 TCP server on 5001
-    # (INCLUDE_IPERF).
-    import socket
-    mac_no_colons = '0202846a9600'
-    iface = 'enx' + mac_no_colons
-    device_ip = '192.168.7.1'
-    iperf_port = 5001
-
-    # Wait for an IPv4 address in the device's subnet (it serves DHCP); 30s because USB
-    # enum + DHCP serve is slower on the CI HIL hardware than locally.
-    iface_timeout = 30
-    deadline = time.monotonic() + iface_timeout
-    host_ip = None
-    while time.monotonic() < deadline:
-        ret = subprocess.run(['ip', '-o', '-4', 'addr', 'show', iface],
-                             capture_output=True, text=True, timeout=2)
-        m = re.search(r'inet (192\.168\.7\.\d+)/', ret.stdout) if ret.returncode == 0 else None
-        if m:
-            host_ip = m.group(1)
-            break
-        time.sleep(0.5)
-    assert host_ip, f'USB net iface {iface} did not come up with 192.168.7.x within {iface_timeout}s'
-
-    # Poll until the device accepts: the net stack and the iperf bind come up after DHCP.
-    deadline = time.monotonic() + enum_timeout()
-    last_err = None
-    while time.monotonic() < deadline:
-        try:
-            with socket.create_connection((device_ip, iperf_port), timeout=1):
-                last_err = None
-                break
-        except OSError as e:
-            last_err = e
-            time.sleep(0.3)
-    assert last_err is None, f'iperf TCP {device_ip}:{iperf_port} not accepting within {enum_timeout()}s: {last_err}'
-
-    # 5-second iperf2 TCP test; -y C for stable parsing (final summary line is
-    # timestamp,src_ip,src_port,dst_ip,dst_port,id,interval,bytes,bps).
-    ret = hil_util.run_cmd(f'iperf -c {device_ip} -t 5 -y C',
-                           timeout=30, split_stderr=True, quiet=True)
-    stderr = (ret.stderr or '').strip()
-    stdout = (ret.stdout or '').strip()
-    assert ret.returncode == 0, f'iperf rc={ret.returncode}: stderr={stderr!r} stdout={stdout!r}'
-    lines = [l for l in stdout.splitlines() if l]
-    assert lines, f'iperf produced no output (rc={ret.returncode}, stderr={stderr!r})'
-    try:
-        bps = int(lines[-1].split(',')[-1])
-    except (ValueError, IndexError) as e:
-        raise AssertionError(f'could not parse iperf output: {lines[-1]!r} ({e})')
-    mbps = bps / 1e6
-    print(f'  iperf {mbps:5.1f} Mbps', end='')
-
-    assert mbps >= 1.0, f'iperf throughput too low: {mbps:.2f} Mbps'
+    script = Path(__file__).resolve().parent / 'net_test.py'
+    cmd = [sys.executable, str(script), '--uid', board['uid']]
+    ret = hil_util.run_cmd(cmd, timeout=110, split_stderr=True, quiet=True)
+    assert ret.returncode == 0, (f'USB network test failed (rc={ret.returncode}): '
+                                 f'{ret.stdout} {ret.stderr}')
+    print(ret.stdout.strip(), end='')
 
 
 def test_device_msc_dual_lun(board):
