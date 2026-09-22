@@ -11,6 +11,7 @@
 # which pulls pyserial.
 import contextlib
 import glob
+import inspect
 import io
 import json
 import os
@@ -693,6 +694,16 @@ class TestRosterFlashersDispatch(unittest.TestCase):
             self.assertIn(name, hil_flash.FLASHER_SUFFIX,
                           f'{path}: {board["name"]} uses flasher "{name}" '
                           f'with no hil_flash.FLASHER_SUFFIX entry')
+
+    def test_every_real_reset_takes_the_callers_bound(self):
+        """hil_recover calls every reset primitive with timeout=, unguarded: one without the
+        parameter never resets, its TypeError logged as a reset that raised. The `no_op`
+        stubs are the ones usbtest.reset_primitive screens out, so they are never called."""
+        for fn_name in dir(hil_flash):
+            fn = getattr(hil_flash, fn_name)
+            if fn_name.startswith('reset_') and callable(fn) and not getattr(fn, 'no_op', False):
+                self.assertIn('timeout', inspect.signature(fn).parameters,
+                              f'hil_flash.{fn_name} takes no timeout')
 
 
 class FlasherRecoverEntry(unittest.TestCase):
