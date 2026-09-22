@@ -1178,6 +1178,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_hil_recover.py',
             'test/hil/test/test_hil_report.py',
             'test/hil/test/test_hil_rtt.py',
+            'test/hil/test/test_hil_usbtest_id.py',
             'test/hil/test/test_hil_util.py',
             'test/hil/test/test_membrowse_compare.py',
             'test/hil/test/test_membrowse_onboard.py',

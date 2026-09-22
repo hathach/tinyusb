@@ -24,6 +24,7 @@ capability flags only unlock cases, they don't require the endpoints to exist.
 """
 
 import argparse
+import fcntl
 import json
 from contextlib import redirect_stdout
 import os
@@ -43,6 +44,9 @@ GZ_REF = '0525 a4a0'  # copy Gadget Zero's capability profile (ctrl_out+iso+intr
 SYS_USB = Path('/sys/bus/usb/devices')
 DRIVER = Path('/sys/bus/usb/drivers/usbtest')
 PATTERN_PARAM = Path('/sys/module/usbtest/parameters/pattern')
+REGISTER_LOCK_DIR = None    # None: hil_lock's board lock dir, shared by every run on the rig
+REGISTER_LOCK_NAME = 'usbtest-new_id.lock'
+REGISTER_LOCK_TIMEOUT = 30  # a holder only checks and writes new_id, itself bounded at 15 s
 RECOVER_FLASH_TIMEOUT = 90  # bound on the post-hang reflash; typical flash is 10-20s
 RECOVER_RESET_TIMEOUT = 30  # bound on the post-hang probe reset; jlink ResetTarget ~130ms, stlink --rst --go ~100ms
 
@@ -393,24 +397,48 @@ def check_host_compat(dev):
                      'reverts to ROM on every power cycle).')
 
 
-def bind_usbtest(dev):
-    """Bind the device's interface 0 to the usbtest driver."""
+def register_usbtest_id():
+    """Register cafe:4010 with usbtest, once per rig, before any battery starts.
+
+    new_id runs driver_attach, which takes the device lock (and, need_parent_lock, the
+    usb_device's) of every matching cafe:4010 interface on the rig, bound or not. A peer
+    battery's testusb case holds its usb_device lock for the whole case (usbdev_do_ioctl), so
+    a write while batteries run waits for the slowest peer case and trips sysfs_write's bound.
+    usb_store_new_id has no duplicate check: hence check first, under a flock, so two
+    initializers make one entry. The listing shows no driver_info, so an inherited entry's
+    capability profile cannot be read back; one installed by hand with the wrong profile is
+    fixed on an idle rig (remove_id, then this)."""
     if not DRIVER.exists():
         r = _sudo_soft(['modprobe', 'usbtest'])
         if r.returncode != 0 or not DRIVER.exists():
             sys.exit(f'cannot load usbtest module: {r.stderr.strip()}')
+    lock_dir = REGISTER_LOCK_DIR
+    if lock_dir is None:
+        from helper import hil_lock
+        lock_dir = hil_lock.BOARD_LOCK_DIR
+    os.makedirs(lock_dir, exist_ok=True)
+    with open(os.path.join(lock_dir, REGISTER_LOCK_NAME), 'a') as fh:
+        deadline = time.monotonic() + REGISTER_LOCK_TIMEOUT
+        while True:
+            try:
+                fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() > deadline:
+                    sys.exit(f'usbtest id registration lock {fh.name} held >{REGISTER_LOCK_TIMEOUT}s')
+                time.sleep(0.1)
+        try:
+            listed = (DRIVER / 'new_id').read_text().splitlines()
+        except OSError as e:
+            sys.exit(f'cannot read {DRIVER / "new_id"}: {e.strerror}')
+        if f'{VID} {PID}' not in listed:
+            sysfs_write(DRIVER / 'new_id', f'{VID} {PID} 0 {GZ_REF}')
 
-    # always re-register in case a stale dynamic id carries a different profile
+
+def bind_usbtest(dev):
+    """Bind the device's interface 0 to usbtest. The id is registered already
+    (register_usbtest_id), so this writes only this device's own bind/unbind."""
     intf = f'{dev["sysname"]}:1.0'
-    drv = SYS_USB / intf / 'driver'
-    stale_binding = drv.is_symlink() and drv.resolve().name == 'usbtest'
-    sysfs_write(DRIVER / 'remove_id', f'{VID} {PID}', check=False)
-    sysfs_write(DRIVER / 'new_id', f'{VID} {PID} 0 {GZ_REF}')
-    if stale_binding:
-        # it probed against the OLD dynamic id's capability profile; unbind once (the
-        # device is idle here) so the loop below reprobes the fresh one
-        sysfs_write(drv / 'unbind', intf, check=False)
-
     deadline = time.monotonic() + 3
     while time.monotonic() < deadline:
         drv = SYS_USB / intf / 'driver'
@@ -661,6 +689,7 @@ def main():
     # before touching the device: an incompatible host exits here, before any bind
     check_host_compat(dev)
 
+    register_usbtest_id()
     results = []
     unrecovered_hang = False
     wedge_confirmation = ''   # '' (no hang), 'cleared', 'confirmed' or 'unverified'

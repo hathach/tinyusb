@@ -683,6 +683,7 @@ class WedgeConfirmationOnTheMainPath(unittest.TestCase):
         patch(usbtest, 'find_device', lambda serial, first=False: dict(dev))
         patch(usbtest, 'check_host_compat', lambda d: None)
         patch(usbtest, 'bind_usbtest', lambda d: None)
+        patch(usbtest, 'register_usbtest_id', lambda: None)
         patch(usbtest, 'set_pattern', lambda v: None)
         patch(usbtest, 'dmesg_tail', lambda: '')
         patch(usbtest, 'sysfs_write', lambda path, data, check=True: writes.append((str(path), data)))

@@ -62,7 +62,7 @@ from multiprocessing import TimeoutError as MpTimeoutError
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # PYTHONSAFEPATH drops it
 import hil_flash
-import usbtest    # for the recovery bounds only; hil_test runs it as a subprocess
+import usbtest    # the recovery bounds and the id registration; batteries run it as a subprocess
 from helper import hil_args, hil_health, hil_lock, hil_recover, hil_report, hil_util
 from helper.hil_util import device_tests, dual_tests, host_test
 
@@ -1893,7 +1893,7 @@ def build_board(board: Board) -> tuple[str, int]:
     return name, failed
 
 
-def _tests_for(board: Board) -> list:
+def _tests_for(board: Board, log: bool = True) -> list:
     """Which examples this board runs, in roster order.
 
     Three sources, most specific first: an explicit -bt list for this board, a global -t
@@ -1927,8 +1927,24 @@ def _tests_for(board: Board) -> list:
     for skip in board_tests.get('skip', []):
         if skip in test_list:
             test_list.remove(skip)
-            log_line(f'{name:25} {skip:30} ... Skip')
+            if log:
+                log_line(f'{name:25} {skip:30} ... Skip')
     return test_list
+
+
+def register_usbtest_if_selected(boards: list, report_dir: Path, fresh: bool) -> None:
+    """Register usbtest's id once, before any battery: a new_id write during batteries
+    waits for every peer's in-flight case (usbtest.register_usbtest_id). A failure stops the
+    run here, leaving a report rather than the previous run's table."""
+    if not any('device/usbtest' in _tests_for(b, log=False) for b in boards):
+        return
+    try:
+        usbtest.register_usbtest_id()
+    except SystemExit as e:
+        msg = f'usbtest id registration failed: {e}'
+        print(f'ERROR: {msg}', flush=True)
+        hil_report.mark_report_no_boards(report_dir, msg, fresh=fresh)
+        sys.exit(1)
 
 
 def test_board(board: Board) -> tuple:
@@ -2568,6 +2584,8 @@ def main() -> None:
         # regression the parameter exists to prevent.
         hil_report.mark_report_no_boards(rd, msg, fresh=not args.accumulate)
         sys.exit(1)
+    register_usbtest_if_selected(config_boards, Path(os.environ.get('HIL_REPORT_DIR', '.')),
+                                 fresh=not args.accumulate)
 
 
     # Before the build: the probe needs nothing from it, and the annotation is more useful
