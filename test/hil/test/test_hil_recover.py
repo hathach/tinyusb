@@ -52,7 +52,9 @@ class Recovery(unittest.TestCase):
         self.patch(hil_recover, 'busport_of_node', lambda node: self.busport)
         self.patch(hil_recover, 'SETTLE', 0)
         self.patch(hil_recover, '_script', self.fake_script)
-        self.patch(hil_util, 'usb_scan', lambda **kw: list(self.enumerated))
+        # the real usb_scan matches `serial` case-insensitively
+        self.patch(hil_util, 'usb_scan', lambda serial=None, **kw: [
+            d for d in self.enumerated if serial is None or d['serial'].lower() == serial.lower()])
         self.patch(usbtest, 'wedged_pids', self.fake_scan)
         self.patch(hil_flash, 'reset_openocd', lambda board, timeout=None: self.calls.append(('reset', 'openocd', timeout)))
         self.patch(hil_flash, 'flash_openocd', lambda board, fw, timeout=None: self.calls.append(('flash', fw, timeout)) or subprocess.CompletedProcess('', 0))

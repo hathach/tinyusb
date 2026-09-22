@@ -2135,13 +2135,12 @@ def _recover_wedged_rows(config: dict, boards: list, mret: list) -> dict:
     except Exception as e:   # noqa: BLE001
         print(f'warning: wedge recovery raised {type(e).__name__}: {e}', flush=True)
         return {}
-    recovered_cell = {'fail': hil_report.WEDGED_RECOVERED,
-                      hil_report.WEDGED_REFUSED: hil_report.WEDGED_REFUSED_RECOVERED}
     for name, _, _, rows, *_ in mret:
         if outcomes.get(name, {}).get('recovered'):
             for _, cells, _ in rows:
-                if cells.get(hil_report.WEDGED_CELL) in recovered_cell:
-                    cells[hil_report.WEDGED_CELL] = recovered_cell[cells[hil_report.WEDGED_CELL]]
+                recovered = hil_report.recovered_form(cells.get(hil_report.WEDGED_CELL))
+                if recovered:
+                    cells[hil_report.WEDGED_CELL] = recovered
     return outcomes
 
 

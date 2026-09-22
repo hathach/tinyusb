@@ -99,6 +99,11 @@ def _refused(board: str, why: str) -> dict:
     return {'board': board, 'reason': f'marker {why}; refused'}
 
 
+def is_untrusted(marker: dict) -> bool:
+    """A marker read_wedged could not trust (see _refused), not one this code wrote."""
+    return str(marker.get('reason', '')).endswith('; refused')
+
+
 def read_wedged(board: str):
     """The marker as a dict, None when the board is not marked. Fail CLOSED: a marker that
     exists but cannot be trusted (a symlink, not a regular file, another owner, unreadable,
@@ -228,7 +233,7 @@ def clear_wedged(board: str, evidence: dict, lock_fh=None) -> str:
         marker = read_wedged(board)
         if marker is None:
             return 'not marked'
-        if str(marker.get('reason', '')).endswith('; refused'):
+        if is_untrusted(marker):
             # not a marker this code wrote: nothing to match evidence against, so no
             # evidence verifies it -- a human removes the file after looking at it
             return f'untrusted marker ({marker["reason"]}); inspect and remove it by hand'
@@ -250,7 +255,7 @@ def wedged_boards() -> list:
         return []
     out = []
     for fn in sorted(os.listdir(BOARD_LOCK_DIR)):
-        if fn.endswith(WEDGED_SUFFIX) and not fn.endswith('.tmp'):
+        if fn.endswith(WEDGED_SUFFIX):
             board = fn[:-len(WEDGED_SUFFIX)]
             out.append((board, read_wedged(board) or {}))
     return out

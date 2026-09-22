@@ -10,6 +10,7 @@ to the checkout root.
 Env overrides: REMOTE (ssh host), REMOTE_DIR (rm -rf'd and recreated each run), CONFIG
 (HIL config json), ROOT_DIR (checkout to test; defaults to this script's own).
 """
+import importlib
 import json
 import os
 import re
@@ -67,10 +68,11 @@ def fail(msg):
     sys.exit(f'error: {msg}')
 
 
-def load_parser():
-    sys.path.insert(0, str(ROOT / 'test' / 'hil'))
-    from helper import hil_args
-    return hil_args.build_parser()
+def helper(name):
+    """A test/hil/helper module, imported from this checkout's harness."""
+    if str(ROOT / 'test' / 'hil') not in sys.path:
+        sys.path.insert(0, str(ROOT / 'test' / 'hil'))
+    return importlib.import_module(f'helper.{name}')
 
 
 def check_remote_dir(remote_dir):
@@ -86,11 +88,6 @@ def check_build_dir(build_dir):
         fail(f'-B must be a relative path inside the checkout: {build_dir}')
 
 
-def variant_names(board):
-    """The build dirs hil_test.py's find_firmware reads: one per variant, else the board's."""
-    return [v['name'] for v in board.get('variant') or [{'name': board['name']}]]
-
-
 def resolve_firmware(config, boards, build_dir):
     """Return the existing <build_dir>/cmake-build-<variant> dirs to stage, refusing before
     anything remote is touched: an unknown board fails the whole remote run after staging,
@@ -102,7 +99,7 @@ def resolve_firmware(config, boards, build_dir):
     root = ROOT / build_dir
     dirs, missing = [], []
     for name in boards or roster:
-        found = [root / f'cmake-build-{v}' for v in variant_names(roster[name])]
+        found = [root / f'cmake-build-{v}' for v in helper('hil_report').variants_of(config, name)]
         present = [d for d in found if d.is_dir()]
         if boards and not present:
             missing.append(f'  {name}: none of {", ".join(str(d.relative_to(ROOT)) for d in found)}')
@@ -127,10 +124,8 @@ def sidecar_matches(sidecar, config):
         rows = json.loads(sidecar.read_text()).get('rows') or []
     except (OSError, ValueError, AttributeError):
         return False
-    known = set()
-    for b in config.get('boards', []):
-        known.add(b.get('name'))
-        known.update(v.get('name') for v in b.get('variant') or [])
+    variants_of = helper('hil_report').variants_of
+    known = {n for b in config.get('boards', []) for n in (b['name'], *variants_of(config, b['name']))}
     return not rows or any(isinstance(r, dict) and r.get('board') in known for r in rows)
 
 
@@ -160,7 +155,8 @@ def rsync(*args, optional=False):
 def copy_back(remote, remote_dir, config_name):
     """Fetch the report pair all-or-nothing: the markdown is a rendering of the sidecar, and
     a half-copied pair publishes last run's table beside this run's data."""
-    md, js = ROOT / 'hil_report.md', ROOT / 'hil_report.json'
+    report = helper('hil_report')
+    md, js = ROOT / report.REPORT_MD, ROOT / report.REPORT_JSON
     tmp = [p.with_name(p.name + '.tmp') for p in (md, js)]
     ok = all(rsync('-q', f'{remote}:{remote_dir}/{p.name}', str(t), optional=True) == 0 and t.is_file()
              for p, t in zip((md, js), tmp))
@@ -188,7 +184,7 @@ def main(argv):
     if not (ROOT / 'test/hil/hil_test.py').is_file():
         fail(f'{ROOT} does not look like a tinyusb checkout')
     check_remote_dir(remote_dir)
-    args = load_parser().parse_args([*argv, str(config_path)])
+    args = helper('hil_args').build_parser().parse_args([*argv, str(config_path)])
     if args.build:
         fail('--build would build on the rig, which gets binaries only; build locally with\n'
              '  python3 .claude/skills/build/scripts/check_build.py --board <board> --shared')
@@ -227,9 +223,9 @@ def main(argv):
             rsync('-q', str(config_path), f'{remote}:{remote_dir}/test/hil/') != 0:
         fail('could not stage the harness')
     print(f'==> Copying firmware from {len(firmware)} build dir(s) under {args.build_dir}/')
-    for d in firmware:
-        if rsync('-a', *FIRMWARE_FILTER, str(d), f'{remote}:{remote_dir}/{args.build_dir}/') != 0:
-            fail(f'could not stage {d}')
+    # one transfer: every dir lands under the same <build_dir>/, by its own name
+    if rsync('-a', *FIRMWARE_FILTER, *map(str, firmware), f'{remote}:{remote_dir}/{args.build_dir}/') != 0:
+        fail('could not stage the firmware')
 
     print(f'==> Running HIL test on {remote}')
     rc = subprocess.run(['ssh', remote, run_command(remote_dir, argv, config_path.name)],

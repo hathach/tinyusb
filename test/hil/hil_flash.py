@@ -101,11 +101,8 @@ def _openocd_cmd_base(flasher):
                 print(f'warning: {uid} has a malformed vid_pid {flasher["vid_pid"]!r} '
                       f'(want "0xVVVV 0xPPPP"); probe pin DROPPED, so discovery will open '
                       f'foreign usbfs nodes', file=sys.stderr, flush=True)
-    elif JLINK_CFG in (flasher.get('args') or ''):
-        # the jlink driver never reads the pin and libjaylink opens SEGGER devices only
-        # (convoy_safe), so there is nothing to warn about
-        pass
-    elif flasher.get('uid') not in _VID_PID_WARNED:
+    elif not convoy_safe(flasher) and flasher.get('uid') not in _VID_PID_WARNED:
+        # (unpinned yet convoy-safe is openocd over the jlink driver: nothing to warn about)
         # stderr, once per probe: test_example captures stdout, so a passing run would
         # swallow this and the operator would never learn discovery still opens every
         # usbfs node

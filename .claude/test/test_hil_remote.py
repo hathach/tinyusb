@@ -71,7 +71,7 @@ class Rig(unittest.TestCase):
         for rel in hil_remote.HARNESS_FILES:
             (self.root / rel).parent.mkdir(parents=True, exist_ok=True)
             src = REPO / rel
-            shutil.copy(src, self.root / rel) if rel.endswith('hil_args.py') else (self.root / rel).write_text('#')
+            shutil.copy(src, self.root / rel) if rel.endswith(('hil_args.py', 'hil_report.py')) else (self.root / rel).write_text('#')
         (self.root / 'test/hil/tinyusb.json').write_text(json.dumps(CONFIG))
         self.home = self.tmp / 'home'
         (self.home / '.local/bin').mkdir(parents=True)
@@ -314,10 +314,6 @@ class Reports(Rig):
 
 
 class Units(unittest.TestCase):
-    def test_variant_names_mirror_find_firmware(self):
-        self.assertEqual(hil_remote.variant_names({'name': 'a'}), ['a'])
-        self.assertEqual(hil_remote.variant_names({'name': 'a', 'variant': [{'name': 'x'}]}), ['x'])
-
     def test_sidecar_provenance(self):
         with tempfile.TemporaryDirectory() as td:
             p = Path(td) / 's.json'

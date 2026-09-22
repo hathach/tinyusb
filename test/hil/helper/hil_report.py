@@ -71,6 +71,7 @@ WEDGED_REFUSED = f'{REPORT_CELL["fail"]} refused at admission'
 WEDGED_RECOVERED = f'{REPORT_CELL["skip"]} recovered post-run'
 WEDGED_REFUSED_RECOVERED = f'{REPORT_CELL["skip"]} refused at admission; recovered post-run'
 REFUSED_CELLS = (WEDGED_REFUSED, WEDGED_REFUSED_RECOVERED)
+RECOVERED_CELLS = (WEDGED_RECOVERED, WEDGED_REFUSED_RECOVERED)
 # A pseudo-test column, not a real one: write_timeout_report marks the boards that were
 # still dispatched when the pool guard fired. accumulate_report clears it on a retry.
 POOL_TIMEOUT_CELL = 'pool-timeout'
@@ -121,6 +122,13 @@ def _load(report_dir: Path) -> tuple:
     text = lambda k: raw[k] if isinstance(raw.get(k), str) else ''
     return {'rows': rows, 'banner': text('banner'), 'scope': text('scope'),
             'caveat': text('caveat')}, True
+
+
+def recovered_form(cell):
+    """The recovered form of a failed wedge cell, None for any other cell."""
+    if cell == WEDGED_REFUSED:
+        return WEDGED_REFUSED_RECOVERED
+    return WEDGED_RECOVERED if cell is not None and cell_state(cell) == 'fail' else None
 
 
 def cell_state(v) -> str:
@@ -357,17 +365,15 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
     # duration None, keeping the previous full-run value
     for name, _, _, rows, *_ in mret:
         refused = any(cells.get(WEDGED_CELL) in REFUSED_CELLS for _, cells, _ in rows)
-        if any(cells.get(WEDGED_CELL) in (WEDGED_RECOVERED, WEDGED_REFUSED_RECOVERED)
-               for _, cells, _ in rows):
+        if any(cells.get(WEDGED_CELL) in RECOVERED_CELLS for _, cells, _ in rows):
             # the post-run recovery verified the board: every wedge cell an earlier attempt
             # left on its rows (the board row and its DECLARED variants, `owned`, never a
             # name that merely shares the prefix) is that same wedge, so it is recovered
             # too; the test failures beside it stay
             for key in {name, *(owned or {}).get(name, [])}:
                 cells = acc.get(key, [{}])[0]
-                if WEDGED_CELL in cells and cell_state(cells[WEDGED_CELL]) == 'fail':
-                    cells[WEDGED_CELL] = (WEDGED_REFUSED_RECOVERED if cells[WEDGED_CELL] == WEDGED_REFUSED
-                                          else WEDGED_RECOVERED)
+                if recovered_form(cells.get(WEDGED_CELL)):
+                    cells[WEDGED_CELL] = recovered_form(cells[WEDGED_CELL])
         if rows and not refused and not any(LOCKED_CELL in cells for _, cells, _ in rows):
             # board ran for real: clear a stale lock-failure cell (its row is keyed by
             # board name; test rows may be variant names), and a stale wedge cell on every
@@ -571,8 +577,7 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
         # re-runs.
         board_wedged = any(cell_state(cells[WEDGED_CELL]) == 'fail'
                            for cells in mine.values() if WEDGED_CELL in cells)
-        recovered = any(cells.get(WEDGED_CELL) in (WEDGED_RECOVERED, WEDGED_REFUSED_RECOVERED)
-                        for cells in mine.values())
+        recovered = any(cells.get(WEDGED_CELL) in RECOVERED_CELLS for cells in mine.values())
         refused = any(cells.get(WEDGED_CELL) in REFUSED_CELLS for cells in mine.values())
         locked = not wedged and not board_wedged and any(LOCKED_CELL in cells for cells in mine.values())
         bad = []

@@ -137,7 +137,7 @@ def marker_identity(board: dict, marker: dict) -> str:
     """'' when the marker describes THIS roster board's hardware, else why not: the uid
     the worker recorded must be the roster's, and the evidence must name the node and
     the serial the wedge was observed on."""
-    if str(marker.get('reason', '')).endswith('; refused'):
+    if hil_lock.is_untrusted(marker):
         return f'untrusted marker: {marker["reason"]}'
     if marker.get('uid') != board.get('uid'):
         return f'marker uid {marker.get("uid")!r} is not the roster\'s {board.get("uid")!r}'
@@ -172,12 +172,16 @@ def _script(action: str, *args: str, timeout: int = SHIELD_TIMEOUT):
     return r.returncode, hil_util.cmd_stdout_text(r.stdout).strip()
 
 
-def recover_board(board: dict, marker: dict, lock_fh, log, budget: Budget) -> dict:
+def _not_recovered(why: str = '') -> dict:
+    return {'recovered': False, 'steps': [], 'why': why, 'identity': ''}
+
+
+def recover_board(board: dict, marker: dict, lock_fh, budget: Budget) -> dict:
     """One board's recovery under the fleet reservation. Returns the outcome record:
     {'recovered': bool, 'steps': [...], 'why': str, 'identity': str}."""
     ut = _usbtest()
     name = board['name']
-    out = {'recovered': False, 'steps': [], 'why': '', 'identity': ''}
+    out = _not_recovered()
     ev = marker.get('evidence') or {}
     node, serial, fw = ev['node'], ev['serial'], marker.get('fw') or ''
     rec_board = {'name': name, 'flasher': _hil_flash().recover_flasher(board)}
@@ -280,8 +284,7 @@ def recover_board(board: dict, marker: dict, lock_fh, log, budget: Budget) -> di
         out['why'] = 'holder gone, but no budget left for the identity scan; marker kept'
         return out
     per_read = max(0.2, min(hil_util.SYSFS_READ_GRACE, budget.left() / 8))
-    devs = [d for d in hil_util.usb_scan(serial=serial, timeout=per_read)
-            if d['serial'].lower() == serial.lower()]
+    devs = hil_util.usb_scan(serial=serial, timeout=per_read)
     if len(devs) != 1:
         out['why'] = f'holder gone but the DUT ({serial}) is not enumerated exactly once ({len(devs)} found)'
         return out
@@ -316,8 +319,7 @@ def _phase(config: dict, marked: list, log, budget: Budget, report=lambda outcom
         for board in marked:
             name = board['name']
             if budget.left() <= 0:
-                outcomes[name] = {'recovered': False, 'steps': [], 'identity': '',
-                                  'why': 'recovery budget exhausted before this board'}
+                outcomes[name] = _not_recovered('recovery budget exhausted before this board')
                 log(f'{name:25} wedge NOT recovered: {outcomes[name]["why"]}')
                 continue
             # re-read under the reservation: another run or operator may have cleared or
@@ -328,10 +330,10 @@ def _phase(config: dict, marked: list, log, budget: Budget, report=lambda outcom
                 continue
             why = marker_identity(board, marker)
             if why:
-                outcomes[name] = {'recovered': False, 'steps': [], 'why': why, 'identity': ''}
+                outcomes[name] = _not_recovered(why)
             else:
                 log(f'{name:25} recovering the wedge it is marked with (fleet reserved)')
-                outcomes[name] = recover_board(board, marker, held.get(name), log, budget)
+                outcomes[name] = recover_board(board, marker, held.get(name), budget)
             o = outcomes[name]
             log(f'{name:25} wedge {"RECOVERED" if o["recovered"] else "NOT recovered"}'
                 f'{": " + o["why"] if o["why"] else ""}; ' + ' | '.join(o['steps']))
@@ -403,12 +405,14 @@ def _sweep(tracked: dict, log) -> int:
         except PermissionError:
             pass
         alive.append(pid)
+    if not alive:
+        return 0
     time.sleep(0.2)
-    n = sum(1 for pid in alive if _alive(pid, tracked[pid]))
-    if n:
-        log(f'wedge recovery: {n} step process(es) survived SIGKILL ({", ".join(str(p) for p in alive if _alive(p, tracked[p]))}); '
+    left = [pid for pid in alive if _alive(pid, tracked[pid])]
+    if left:
+        log(f'wedge recovery: {len(left)} step process(es) survived SIGKILL ({", ".join(map(str, left))}); '
             f'the fleet stays reserved by the supervisor (pid {os.getpid()}) until they end')
-    return n
+    return len(left)
 
 
 def _supervised(config: dict, marked: list, log) -> dict:

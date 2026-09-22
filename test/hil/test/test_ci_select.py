@@ -770,7 +770,7 @@ class FlasherRecoverEntry(unittest.TestCase):
         hil_flash._VID_PID_WARNED.discard('S-jl')
         cap = io.StringIO()
         with contextlib.redirect_stderr(cap):
-            cmd = hil_flash._openocd_cmd_base({'uid': 'S-jl', 'args': '-f interface/jlink.cfg'})
+            cmd = hil_flash._openocd_cmd_base({'name': 'openocd', 'uid': 'S-jl', 'args': '-f interface/jlink.cfg'})
         self.assertNotIn('vid_pid', cmd)
         self.assertEqual(cap.getvalue(), '')
 
