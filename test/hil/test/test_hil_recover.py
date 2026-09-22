@@ -135,6 +135,38 @@ class Recovery(unittest.TestCase):
         self.scans = [([], False)]
         out = self.run_phase()
         self.assertFalse(out['b1']['recovered'])
+        self.assertEqual(out['b1']['why'], 'holder scan incomplete after the reset and the reflash')
+        self.assertIsNotNone(hil_lock.read_wedged('b1'))
+
+    def test_a_reflash_that_raises_is_not_worded_as_run(self):
+        self.mark()
+        self.scans = [([4242], True)]
+
+        def raising_flash(board, fw, timeout=None):
+            raise RuntimeError('probe gone')
+        self.patch(hil_flash, 'flash_openocd', raising_flash)
+        out = self.run_phase()
+        self.assertFalse(out['b1']['recovered'])
+        self.assertEqual(out['b1']['why'], 'a D-state holder survived the reset and a reflash that raised')
+        self.assertTrue(any('raised RuntimeError: probe gone' in s for s in out['b1']['steps']), out)
+
+    def test_no_reset_primitive_goes_straight_to_the_reflash(self):
+        self.mark()
+        self.patch(usbtest, 'reset_primitive', lambda name: None)
+        self.scans = [([4242], True)]
+        out = self.run_phase()
+        self.assertFalse(out['b1']['recovered'])
+        self.assertEqual(out['b1']['why'], 'a D-state holder survived the reflash')
+        self.assertEqual([c[0] for c in self.calls], ['shield', 'flash', 'scan', 'unshield'])
+
+    def test_no_reset_primitive_and_no_reflash_scans_nothing(self):
+        self.mark(fw='')
+        self.patch(usbtest, 'reset_primitive', lambda name: None)
+        out = self.run_phase()
+        self.assertFalse(out['b1']['recovered'])
+        self.assertEqual(out['b1']['why'],
+                         'holder not re-scanned; no reset or reflash ran; reflash skipped: no firmware artifact recorded')
+        self.assertEqual([c[0] for c in self.calls], ['shield', 'unshield'])
         self.assertIsNotNone(hil_lock.read_wedged('b1'))
 
     def test_a_failed_unshield_keeps_the_marker_even_after_a_clean_scan(self):
@@ -404,7 +436,8 @@ class Recovery(unittest.TestCase):
         out = self.run_phase(supervise=True)
         self.assertEqual(out, {})
         self.assertLess(time.monotonic() - t0, 15)
-        self.assertTrue(any('did not report' in l for l in self.log), self.log)
+        # PHASE_TIMEOUT + overrun() + step_cost(SHIELD_TIMEOUT) + 5 + REAP_GRACE = 1 + 0 + 1 + 5 + 0
+        self.assertTrue(any('did not report within 7s' in l for l in self.log), self.log)
         self.assertIsNotNone(hil_lock.read_wedged('b1'))
 
     def test_the_watchdog_still_unshields_and_says_so(self):

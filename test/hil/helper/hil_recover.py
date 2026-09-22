@@ -187,9 +187,12 @@ def recover_board(board: dict, marker: dict, lock_fh, budget: Budget) -> dict:
     rec_board = {'name': name, 'flasher': _hil_flash().recover_flasher(board)}
     fname = rec_board['flasher']['name']
     me = str(os.getpid())
+    last_scan = None   # (holders, complete) of the latest scan; None until one runs
 
     def scan(after: str) -> bool:
-        stuck, complete = ut.wedged_pids(node)
+        nonlocal last_scan
+        last_scan = ut.wedged_pids(node)
+        stuck, complete = last_scan
         out['steps'].append(f'{after}: holders {stuck} complete={complete}')
         return complete and not stuck
 
@@ -241,9 +244,10 @@ def recover_board(board: dict, marker: dict, lock_fh, budget: Budget) -> dict:
                     with redirect_stdout(sys.stderr):
                         reset_fn(rec_board, timeout=budget.cap(ut.RECOVER_RESET_TIMEOUT, unshield_reserve + SETTLE))
                     out['steps'].append(f'probe reset via {fname}')
+                    tried.append('the reset')
                 except Exception as e:   # noqa: BLE001 - the scan is the arbiter
                     out['steps'].append(f'probe reset via {fname} raised {type(e).__name__}: {e}')
-                tried.append('the reset')
+                    tried.append('a reset that raised')
                 time.sleep(SETTLE)
                 cleared = scan('after reset')
             if not cleared:
@@ -260,13 +264,14 @@ def recover_board(board: dict, marker: dict, lock_fh, budget: Budget) -> dict:
                 if reflash_skip:
                     out['steps'].append(f'reflash skipped: {reflash_skip}')
                 else:
-                    tried.append('the reflash')
                     try:
                         with redirect_stdout(sys.stderr):
                             r = flash_fn(rec_board, fw, timeout=budget.cap(ut.RECOVER_FLASH_TIMEOUT, unshield_reserve + SETTLE))
                         out['steps'].append(f'reflash via {fname}: rc {getattr(r, "returncode", "?")}')
+                        tried.append('the reflash')
                     except Exception as e:   # noqa: BLE001
                         out['steps'].append(f'reflash via {fname} raised {type(e).__name__}: {e}')
+                        tried.append('a reflash that raised')
                     time.sleep(SETTLE)
                     cleared = scan('after reflash')
         finally:
@@ -285,7 +290,12 @@ def recover_board(board: dict, marker: dict, lock_fh, budget: Budget) -> dict:
             return out
         if not cleared:
             ran = ' and '.join(tried)
-            out['why'] = f'a D-state holder survived {ran}' if ran else 'a D-state holder remains; no reset or reflash ran'
+            if last_scan is None:
+                out['why'] = 'holder not re-scanned; no reset or reflash ran'
+            elif last_scan[0]:
+                out['why'] = f'a D-state holder survived {ran}'
+            else:
+                out['why'] = f'holder scan incomplete after {ran}'
             if reflash_skip:
                 out['why'] += f'; reflash skipped: {reflash_skip}'
             return out
