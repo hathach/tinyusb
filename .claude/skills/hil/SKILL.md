@@ -125,12 +125,20 @@ python3 $R -b raspberry_pi_pico2 -b stm32f723disco -t host/cdc_msc_hid -r 1
 
 One invocation per board is wrong here, not merely slow: each run `rm -rf`s `REMOTE_DIR`
 and rewrites the report, so only the last board's rows survive. A second run sharing
-`REMOTE_DIR` is refused, before the wipe, while the first holds `<REMOTE_DIR>.lock`.
+`REMOTE_DIR` is refused, before the wipe, while the first holds `<REMOTE_DIR>.lock`. The rig
+needs `flock`; setup fails without it.
 
-Before touching the rig it refuses a board not in the config, and a requested board with none of its
-`<-B>/cmake-build-<variant>` dirs, naming the dirs it looked for (a variant's build flags are in the
-config); it warns for each variant with no build, whose cells would be skipped rather than tested.
-`--build` is refused: the rig receives binaries only.
+Before touching the rig it refuses a board not in the config, then applies `--flasher` and
+`--exclude-flasher` (`no board left after the flasher filter` when none survives), then refuses a
+requested board the filter kept with none of its `<-B>/cmake-build-<variant>` dirs, naming the dirs
+it looked for (a variant's build flags are in the config); a board the filter drops needs no build.
+Without `-b` it refuses with `nothing to test` when no board the filter kept is built. It warns for
+each variant with no build, whose cells would be skipped rather than tested. `--build` is refused:
+the rig receives binaries only.
+
+Exit 200 means the remote tree stopped being this run's after staging (another run sharing
+`REMOTE_DIR` replaced it): `hil_test.py` did not run and nothing was copied back, so any local
+`hil_report` pair or `<config>.failed` is from an earlier run. Re-run; never report from it.
 
 Env overrides: `REMOTE`, `REMOTE_DIR`, `CONFIG`, `ROOT_DIR`.
 
