@@ -70,9 +70,10 @@ def flash_stlink(board, firmware, timeout=None):
                             timeout=timeout)
 
 
-def reset_stlink(board):
+def reset_stlink(board, timeout=None):
     flasher = board['flasher']
-    return hil_util.run_cmd(f'STM32_Programmer_CLI --connect port=swd sn={flasher["uid"]} --rst --go')
+    return hil_util.run_cmd(f'STM32_Programmer_CLI --connect port=swd sn={flasher["uid"]} --rst --go',
+                            timeout=timeout)
 
 
 def _openocd_cmd_base(flasher):

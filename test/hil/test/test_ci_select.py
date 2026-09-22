@@ -790,6 +790,16 @@ class FlasherRecoverEntry(unittest.TestCase):
         self.assertIn('JLinkExe -USB S1', cmd)
         self.assertEqual(kw.get('timeout'), 11)
 
+    def test_reset_stlink_forwards_the_callers_bound(self):
+        """hil_recover calls every reset primitive with timeout=; without the parameter the
+        stlink boards' wedge recovery raised TypeError and never reset."""
+        board = {'name': 'b', 'flasher': {'name': 'stlink', 'uid': 'S1'}}
+        cmd, kw = self._capture(hil_flash.reset_stlink, board, timeout=11)
+        self.assertEqual(cmd, 'STM32_Programmer_CLI --connect port=swd sn=S1 --rst --go')
+        self.assertEqual(kw.get('timeout'), 11)
+        _, kw = self._capture(hil_flash.reset_stlink, board)
+        self.assertIsNone(kw.get('timeout'))                  # run_cmd's CMD_TIMEOUT, as before
+
     def test_roster_recover_entries_are_demonstrated_openocd_over_jlink_ones(self):
         """Every `flasher_recover` in a HIL config is openocd over interface/jlink.cfg on the SAME
         probe as its jlink primary and dispatches. The set is the boards whose reset over
