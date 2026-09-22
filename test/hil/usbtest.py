@@ -439,8 +439,9 @@ def _sudo_soft(cmd, **kw):
         # run_case's timeout handler before the HUNG verdict is recorded -- which leaves
         # unrecovered_hang False and lets the finally run the remove_id/unbind that must
         # never happen while a D-state device lock is held
-        print(f'{cmd[0]}: {type(e).__name__}: {e}', file=sys.stderr)
-        return subprocess.CompletedProcess(cmd, 1, '', '')
+        why = f'{cmd[0]}: {type(e).__name__}: {e}'
+        print(why, file=sys.stderr)
+        return subprocess.CompletedProcess(cmd, 1, '', why)
 
 
 def dmesg_tail():
