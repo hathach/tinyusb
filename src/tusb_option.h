@@ -366,7 +366,7 @@
 // DMA mode for host
 #ifndef CFG_TUH_DWC2_DMA_ENABLE
   #ifndef CFG_TUH_DWC2_DMA_ENABLE_DEFAULT
-    #define CFG_TUH_DWC2_DMA_ENABLE_DEFAULT 0
+    #define CFG_TUH_DWC2_DMA_ENABLE_DEFAULT 1
   #endif
 
   #define CFG_TUH_DWC2_DMA_ENABLE CFG_TUH_DWC2_DMA_ENABLE_DEFAULT
@@ -574,7 +574,7 @@
 // Alignment requirement of buffer used for usb transferring. if MEM_ALIGN is different for
 // host and device controller use: CFG_TUD_MEM_ALIGN, CFG_TUH_MEM_ALIGN instead
 #ifndef CFG_TUSB_MEM_ALIGN
-  #define CFG_TUSB_MEM_ALIGN      TU_ATTR_ALIGNED(4)
+  #define CFG_TUSB_MEM_ALIGN      TU_ATTR_ALIGNED(64)
 #endif
 
 #ifndef CFG_TUSB_MEM_DCACHE_LINE_SIZE
@@ -780,7 +780,7 @@
 
 #ifndef CFG_TUH_MEM_DCACHE_ENABLE
   #ifndef CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT
-  #define CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT  0
+  #define CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT  1
   #endif
 
   #define CFG_TUH_MEM_DCACHE_ENABLE   CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT

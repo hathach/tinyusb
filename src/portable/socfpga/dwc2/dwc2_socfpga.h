@@ -37,7 +37,10 @@ extern "C" {
   #include "socfpga_usb_otg_reg.h"
   #include "socfpga_interrupt.h"
   #include "socfpga_cache.h"
+  #include "socfpga_gpio.h"
   #include "osal_log.h"
+  //toggle gpio for usb2 reset
+  #define USB_GPIO_TOGGLE 0
 #else
   #error "Unsupported MCUs"
 #endif

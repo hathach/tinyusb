@@ -358,6 +358,59 @@ bool hcd_dwc2_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) 
   return true;
 }
 
+#if( USB_GPIO_TOGGLE == 1 )
+static bool is_pin_gpio(uint8_t pin)
+{
+  uint32_t val;
+  val = RD_REG32(PINMUX_REG(pin));
+  val &= PINMUX_MASK;
+  return (val == PINMUX_GPIO);
+}
+
+/*
+ * @brief Configure the pin as gpio in pinmux
+ */
+static void config_pinmux(uint8_t pin)
+{
+  uint32_t reg_val;
+  if (is_pin_gpio(pin) == false)
+  {
+    printf("\n\r Configuring pinmux reg");
+    /* Change pin functionality to gpio */
+    reg_val = RD_REG32(PINMUX_REG(pin));
+    reg_val = (reg_val & ~PINMUX_MASK) | PINMUX_GPIO;
+    WR_REG32(PINMUX_REG(pin), reg_val);
+  }
+}
+
+// gpio reset for socfpga usb2 controller
+static int usb2_gpio_reset()
+{
+  #define GPIO_USB_RESET GPIO1_PIN4
+
+  gpio_handle_t led;
+  int led_config = GPIO_DIR_OUT;
+  int ret;
+
+  config_pinmux(GPIO_USB_RESET);
+  led = gpio_open(GPIO_USB_RESET);
+
+  ret = gpio_ioctl(led, SET_GPIO_DIR, &led_config);
+
+  if( ret != 0 )
+  {
+    ERROR("gpio reset failed");
+    gpio_close(led);
+    return -1;
+  }
+
+  gpio_write_sync(led, 1);
+  osal_task_delay(10);
+
+  return 0;
+}
+#endif
+
 // Initialize controller to host mode
 bool hcd_dwc2_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rh_init;
@@ -366,6 +419,13 @@ bool hcd_dwc2_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   tu_memclr(&_hcd_data, sizeof(_hcd_data));
 
 #if (CFG_TUSB_MCU == OPT_MCU_SOCFPGA)
+
+#if ( USB_GPIO_TOGGLE == 1 )
+  if( usb2_gpio_reset() != 0 )
+  {
+    return false;
+  }
+#endif
   if (rstmgr_assert_reset(RST_USB0) != 0)
   {
       ERROR("Unable to assert the usb2 reset");
