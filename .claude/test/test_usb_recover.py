@@ -148,17 +148,15 @@ class Shield(unittest.TestCase):
 
     def test_unshield_skips_objects_that_re_enumerated_or_vanished(self):
         self.run_script('shield', '13-1.6', str(self.owner.pid))
-        # the leaf re-enumerated: same path, new inodes, kernel-fresh modes
-        for a in ATTRS:
-            (self.dev / '13-1.6' / a).unlink()
-        (self.dev / '13-1.6').rmdir()
+        # the leaf re-enumerated: same path, new inodes, kernel-fresh modes. The old objects are
+        # moved aside, not deleted: a filesystem that reuses freed inode numbers (CI's does) would
+        # otherwise hand the new leaf the old inodes and the script would rightly restore them.
+        gone = Path(self.td.name) / 'gone'
+        gone.mkdir()
+        (self.dev / '13-1.6').rename(gone / '13-1.6')
         self.add('13-1.6')
-        # a fake extra attr file shows nothing else is touched; the parent hub vanished entirely
-        for a in ATTRS:
-            p = self.dev / '13-1' / a
-            if p.exists():
-                p.unlink()
-        (self.dev / '13-1').rmdir()
+        # the parent hub vanished entirely
+        (self.dev / '13-1').rename(gone / '13-1')
         out = self.run_script('unshield', '13-1.6', str(self.owner.pid))
         self.assertIn('restored 9 attribute(s), 16 gone', out)
         self.assertEqual(mode(self.dev / 'usb13/bConfigurationValue'), 0o644)
