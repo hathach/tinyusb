@@ -19,7 +19,7 @@ with a uPD720201 card, hosted by hifiphile.
 | Part            | Used on `ci`                                                                     | Notes                                                                                   |
 |-----------------|----------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------|
 | Host PC         | Ryzen 9 3900X, MSI MAG B550M MORTAR WIFI, 32 GB                                  | Any x86 with a working IOMMU                                                            |
-| USB controllers | 4 × Renesas uPD720201 (`1912:0014` rev 03) on one PCIe card                      | [SSU SU-U3244-12U][aio-card]: four controllers behind an on-board PCIe switch, 12 ports |
+| USB controllers | 8 × Renesas uPD720201 (`1912:0014` rev 03) on two PCIe cards                     | [SSU SU-U3244-12U][aio-card]: four controllers behind an on-board PCIe switch, 12 ports |
 | Leaf hubs       | [MCS-92M 7-port USB 2.0 hub board][hub-board]                                    | XH2.54 headers instead of Type-A: sturdier under handling and far tidier to route       |
 | Cables          | XH2.54 → [Type-C][cable-c] / [micro-B][cable-micro] pigtails                     | Hub-end pin order: `+`, `D−`, `D+`, `−`                                                 |
 | Debug probes    | J-Link, ST-Link, RP2040 debug probe (CMSIS-DAP), WCH-Link, TI ICDI, ESP USB-JTAG | One per board — see Attached boards below                                               |
@@ -65,7 +65,7 @@ In `/etc/default/grub`, then `update-grub`:
 GRUB_CMDLINE_LINUX_DEFAULT="quiet iommu=pt pcie_acs_override=downstream,multifunction"
 ```
 
-`pcie_acs_override` is required because the card's four controllers sit behind its own
+`pcie_acs_override` is required because each card's four controllers sit behind its own
 PCIe switch, and that switch does not advertise ACS. Without the override all four land
 in one IOMMU group and none can be passed through individually. It relaxes DMA isolation
 between them — fine on a dedicated test rig, not on a shared host. Note it is a
@@ -108,10 +108,12 @@ One `hostpci` entry per controller, not per card — take the BDFs from
 ```bash
 qm set <vmid> --machine q35 --cpu host \
     --hostpci0 0000:07:00,pcie=1 --hostpci1 0000:08:00,pcie=1 \
-    --hostpci2 0000:09:00,pcie=1 --hostpci3 0000:0a:00,pcie=1
+    --hostpci2 0000:09:00,pcie=1 --hostpci3 0000:0a:00,pcie=1 \
+    --hostpci4 0000:2d:00,pcie=1 --hostpci5 0000:2e:00,pcie=1 \
+    --hostpci6 0000:2f:00,pcie=1 --hostpci7 0000:30:00,pcie=1
 ```
 
-`qm config <vmid>` should then list all four.
+`qm config <vmid>` should then list all eight.
 
 ## Guest
 
@@ -227,8 +229,8 @@ The `usbtest` battery additionally needs `testusb` built from the kernel tools a
 
 **One 7-port hub per uPD720201 root port. Never chain hubs.**
 
-Each controller presents four root ports (on both its USB 2 and USB 3 root hubs); the
-card brings 12 of those 16 out to connectors. Hang exactly one leaf hub on a root port.
+Each controller presents four root ports (on both its USB 2 and USB 3 root hubs); each
+card brings 12 of its 16 out to connectors. Hang exactly one leaf hub on a root port.
 
 Boards are grouped into storage boxes, each holding **two** leaf hubs: one carries only
 debug probes, the other only the boards under test. Keeping them apart is what makes

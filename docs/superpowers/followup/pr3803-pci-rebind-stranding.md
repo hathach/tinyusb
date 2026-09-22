@@ -19,7 +19,7 @@ detectable — a guard in `usb_recover.sh`.
 - A stranded controller takes every fixture on it offline; recovery is
   `usb_recover.sh pci-bind <addr>` or, failing that, a PVE **host** power cycle — an
   operator action. Do not start this without being able to reach the host.
-- The rig has two Renesas controllers plus an AMD one; pick the controller with the fewest
+- The rig has eight Renesas controllers; pick the controller with the fewest
   fixtures for the experiment.
 
 ## What is already established
