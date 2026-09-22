@@ -61,8 +61,9 @@
  * Each submission covers one service interval: HS uses iTDs (up to 3
  * transactions), FS uses siTDs. Requests exceeding interval capacity fail.
  *
- * CFG_TUH_XFER_QUEUE_DEPTH defaults to 1; EHCI supports up to 2. Accepted
- * buffers/descriptors remain owned until FIFO terminal completion. QUEUED
+ * CFG_TUH_CHIPIDEA_ISO_ENABLE enables ISO and defaults CFG_TUH_XFER_QUEUE_DEPTH
+ * to 2 (maximum supported); otherwise depth defaults to 1. Accepted buffers
+ * and descriptors remain owned until FIFO terminal completion. QUEUED
  * reports spare capacity with zero length; it does not release the buffer.
  * Audio uses a buffer per slot, primes on QUEUED and refills on completion.
  * Public tuh_edpt_xfer() retains single-outstanding callback behavior.
@@ -108,7 +109,7 @@
  *
  * References: EHCI 1.0 ch. 3/4; USB 2.0 ch. 11; RT1064 RM Rev. 2 ch. 42.
  */
-#ifdef TUP_USBIP_CHIPIDEA_HS
+#if defined(TUP_USBIP_CHIPIDEA_HS) && CFG_TUH_CHIPIDEA_ISO_ENABLE
 // An iTD must not cross a 4 KiB boundary (EHCI chapter 3).
 typedef union TU_ATTR_ALIGNED(64) {
   ehci_itd_t itd;
@@ -139,12 +140,12 @@ typedef struct {
 
 typedef union {
   ehci_qhd_t qhd;
-#ifdef TUP_USBIP_CHIPIDEA_HS
+#if defined(TUP_USBIP_CHIPIDEA_HS) && CFG_TUH_CHIPIDEA_ISO_ENABLE
   iso_ep_t iso;
 #endif
 } ehci_ep_t;
 
-#ifdef TUP_USBIP_CHIPIDEA_HS
+#if defined(TUP_USBIP_CHIPIDEA_HS) && CFG_TUH_CHIPIDEA_ISO_ENABLE
 typedef union TU_ATTR_ALIGNED(64) {
   ehci_qtd_t qtd[2];
   iso_td_t iso;
@@ -166,7 +167,7 @@ typedef struct {
   }control[CFG_TUH_DEVICE_MAX+CFG_TUH_HUB+1];
 
   ehci_ep_t qhd_pool[QHD_MAX];
-#ifdef TUP_USBIP_CHIPIDEA_HS
+#if defined(TUP_USBIP_CHIPIDEA_HS) && CFG_TUH_CHIPIDEA_ISO_ENABLE
   ehci_td_pair_t qtd_pool[(QTD_MAX + 1) / 2];
   bool qhd_is_iso[QHD_MAX];
   bool qtd_is_iso[(QTD_MAX + 1) / 2];
@@ -174,7 +175,7 @@ typedef struct {
   ehci_qtd_t qtd_pool[QTD_MAX] TU_ATTR_ALIGNED(32);
 #endif
 
-#ifdef TUP_USBIP_CHIPIDEA_HS
+#if defined(TUP_USBIP_CHIPIDEA_HS) && CFG_TUH_CHIPIDEA_ISO_ENABLE
   uint32_t iso_uframe;
   uint16_t iso_last_frindex;
   uint8_t iso_saved_itc;
@@ -259,7 +260,7 @@ TU_ATTR_ALWAYS_INLINE static inline void list_insert (ehci_link_t *current, ehci
 TU_ATTR_ALWAYS_INLINE static inline void list_remove(ehci_link_t* head, ehci_link_t* prev, ehci_qhd_t* qhd);
 static void list_remove_qhd_by_addr(ehci_link_t *list_head, uint8_t dev_addr, uint8_t ep_addr);
 
-#ifdef TUP_USBIP_CHIPIDEA_HS
+#if defined(TUP_USBIP_CHIPIDEA_HS) && CFG_TUH_CHIPIDEA_ISO_ENABLE
 static iso_ep_t* iso_ep_find(uint8_t daddr, uint8_t ep_addr);
 static bool iso_ep_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t const* desc);
 static bool iso_ep_close(uint8_t rhport, iso_ep_t* ep);
@@ -396,7 +397,7 @@ void hcd_device_close(uint8_t rhport, uint8_t daddr) {
     return;
   }
 
-#ifdef TUP_USBIP_CHIPIDEA_HS
+#if defined(TUP_USBIP_CHIPIDEA_HS) && CFG_TUH_CHIPIDEA_ISO_ENABLE
   for (size_t i = 0; i < QHD_MAX; i++) {
     if (ehci_data.qhd_is_iso[i] && ehci_data.qhd_pool[i].iso.daddr == daddr) {
       TU_ASSERT(iso_ep_close(rhport, &ehci_data.qhd_pool[i].iso), );
@@ -543,7 +544,7 @@ bool ehci_deinit(uint8_t rhport) {
 
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc) {
   if (ep_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) {
-#ifdef TUP_USBIP_CHIPIDEA_HS
+#if defined(TUP_USBIP_CHIPIDEA_HS) && CFG_TUH_CHIPIDEA_ISO_ENABLE
     return iso_ep_open(rhport, dev_addr, ep_desc);
 #else
     return false;
@@ -594,7 +595,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
 }
 
 bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
-#ifdef TUP_USBIP_CHIPIDEA_HS
+#if defined(TUP_USBIP_CHIPIDEA_HS) && CFG_TUH_CHIPIDEA_ISO_ENABLE
   iso_ep_t* iso = iso_ep_find(daddr, ep_addr);
   if (iso != NULL) {
     return iso_ep_close(rhport, iso);
@@ -640,7 +641,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen) {
   (void) rhport;
 
-#ifdef TUP_USBIP_CHIPIDEA_HS
+#if defined(TUP_USBIP_CHIPIDEA_HS) && CFG_TUH_CHIPIDEA_ISO_ENABLE
   iso_ep_t* iso = iso_ep_find(dev_addr, ep_addr);
   if (iso != NULL) {
     return iso_xfer(rhport, iso, buffer, buflen);
@@ -693,7 +694,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
 bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   (void) rhport;
 
-#ifdef TUP_USBIP_CHIPIDEA_HS
+#if defined(TUP_USBIP_CHIPIDEA_HS) && CFG_TUH_CHIPIDEA_ISO_ENABLE
   iso_ep_t* iso = iso_ep_find(dev_addr, ep_addr);
   if (iso != NULL) {
     return iso_abort(rhport, iso);
@@ -730,7 +731,7 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 
 bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
   (void) rhport;
-#ifdef TUP_USBIP_CHIPIDEA_HS
+#if defined(TUP_USBIP_CHIPIDEA_HS) && CFG_TUH_CHIPIDEA_ISO_ENABLE
   TU_VERIFY(iso_ep_find(daddr, ep_addr) == NULL); // ISO endpoints do not halt
 #endif
   ehci_qhd_t *qhd = qhd_get_from_addr(daddr, ep_addr);
@@ -742,7 +743,7 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
   return true;
 }
 
-#ifdef TUP_USBIP_CHIPIDEA_HS
+#if defined(TUP_USBIP_CHIPIDEA_HS) && CFG_TUH_CHIPIDEA_ISO_ENABLE
 //--------------------------------------------------------------------+
 // Isochronous transfers: one service interval per HCD submission
 //--------------------------------------------------------------------+
@@ -1197,7 +1198,7 @@ void async_advance_isr(uint8_t rhport) {
   (void) rhport;
 
   for (uint32_t i = 0; i < QHD_MAX; i++) {
-#ifdef TUP_USBIP_CHIPIDEA_HS
+#if defined(TUP_USBIP_CHIPIDEA_HS) && CFG_TUH_CHIPIDEA_ISO_ENABLE
     if (ehci_data.qhd_is_iso[i]) {
       continue;
     }
@@ -1336,7 +1337,7 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     return;
   }
 
-#ifdef TUP_USBIP_CHIPIDEA_HS
+#if defined(TUP_USBIP_CHIPIDEA_HS) && CFG_TUH_CHIPIDEA_ISO_ENABLE
   if (int_status & regs->inten & EHCI_INT_MASK_NXP_SOF) {
     regs->status = EHCI_INT_MASK_NXP_SOF;
   }
@@ -1367,7 +1368,7 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     // visited must remain pending for the next interrupt.
     regs->status = usb_int;
   }
-#ifdef TUP_USBIP_CHIPIDEA_HS
+#if defined(TUP_USBIP_CHIPIDEA_HS) && CFG_TUH_CHIPIDEA_ISO_ENABLE
   // SOF and completion commonly arrive together. Scan ISO only once, keeping
   // interrupt work short enough for task context to replenish the next slot.
   if (usb_int || (int_status & regs->inten & EHCI_INT_MASK_NXP_SOF)) {
@@ -1472,7 +1473,7 @@ TU_ATTR_ALWAYS_INLINE static inline ehci_qhd_t* qhd_control(uint8_t dev_addr) {
 // Find a free queue head
 TU_ATTR_ALWAYS_INLINE static inline ehci_qhd_t *qhd_find_free(void) {
   for (uint32_t i = 0; i < QHD_MAX; i++) {
-#ifdef TUP_USBIP_CHIPIDEA_HS
+#if defined(TUP_USBIP_CHIPIDEA_HS) && CFG_TUH_CHIPIDEA_ISO_ENABLE
     if (ehci_data.qhd_is_iso[i]) {
       continue;
     }
@@ -1499,7 +1500,7 @@ static ehci_qhd_t *qhd_get_from_addr(uint8_t dev_addr, uint8_t ep_addr) {
   ehci_qhd_t *result = NULL;
   usbh_spin_lock(false);
   for (uint32_t i = 0; i < QHD_MAX; i++) {
-#ifdef TUP_USBIP_CHIPIDEA_HS
+#if defined(TUP_USBIP_CHIPIDEA_HS) && CFG_TUH_CHIPIDEA_ISO_ENABLE
     if (ehci_data.qhd_is_iso[i]) {
       continue;
     }
@@ -1624,7 +1625,7 @@ TU_ATTR_ALWAYS_INLINE static inline ehci_qtd_t* qtd_control(uint8_t dev_addr) {
 
 TU_ATTR_ALWAYS_INLINE static inline ehci_qtd_t *qtd_find_free(void) {
   for (uint32_t i = 0; i < QTD_MAX; i++) {
-#ifdef TUP_USBIP_CHIPIDEA_HS
+#if defined(TUP_USBIP_CHIPIDEA_HS) && CFG_TUH_CHIPIDEA_ISO_ENABLE
     if (!ehci_data.qtd_is_iso[i / 2] && !ehci_data.qtd_pool[i / 2].qtd[i % 2].used) {
       return &ehci_data.qtd_pool[i / 2].qtd[i % 2];
     }

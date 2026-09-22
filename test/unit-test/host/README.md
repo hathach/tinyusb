@@ -17,15 +17,15 @@ Set `CMAKE_C_COMPILER` when configuring to select a compiler explicitly.
   FRINDEX. Covers native FS, split transactions, HS, descriptor reuse,
   completion ordering/errors, cancellation, reset debounce and frame wrap.
   Shared QH/qTD pool tests cover mixed interrupt/ISO allocation, exhaustion,
-  rollback and reuse. Builds generic EHCI without ISO and ChipIdea at queue
-  depths 1, 2 and 4. Static DMA fixtures
-  are linked below 4 GiB; hardware descriptor layouts are asserted separately
+  rollback and reuse. Builds ChipIdea with ISO disabled and enabled at queue
+  depths 1, 2 and 4, and checks that the ISO flag keeps depth 1 on generic EHCI
+  and MAX3421. Static DMA fixtures are linked below 4 GiB; hardware descriptor layouts are asserted separately
   from the native-pointer software tail.
 - **USBH/audio:** actual stack and audio drivers with a stub HCD. Covers
   buffer ownership, queue capacity, callback dispatch, failed submissions,
   abort/close, capture/playback refill, underrun silence, feedback and reset
   timing. Builds generic, EHCI and MAX3421 configurations at depths 1, 2 and 4.
 
-The 13 CTest cases retain assertions in release builds and have bounded
+The 15 CTest cases retain assertions in release builds and have bounded
 execution times. They do not emulate DMA/cache coherency or USB wire timing;
 those still require hardware tests.

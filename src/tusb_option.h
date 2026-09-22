@@ -782,9 +782,14 @@
   #define CFG_TUH_TASK_EVENTS_PER_RUN  16
 #endif
 
-// HCD queue capacity. Applications can select this after MCU/IP resolution.
+// ChipIdea ISO is opt-in and selects two outstanding transfers by default.
+#ifndef CFG_TUH_CHIPIDEA_ISO_ENABLE
+  #define CFG_TUH_CHIPIDEA_ISO_ENABLE 0
+#endif
+
+// HCD queue capacity, resolved after the MCU/IP and controller selection.
 #ifndef TUP_HCD_XFER_QUEUE_DEPTH
-  #if defined(TUP_USBIP_EHCI) && !CFG_TUH_MAX3421
+  #if defined(TUP_USBIP_CHIPIDEA_HS) && CFG_TUH_CHIPIDEA_ISO_ENABLE && !CFG_TUH_MAX3421
     #define TUP_HCD_XFER_QUEUE_DEPTH 2
   #else
     #define TUP_HCD_XFER_QUEUE_DEPTH 1
@@ -794,7 +799,11 @@
 // Maximum outstanding packets per endpoint. HCDs with spare capacity notify
 // class drivers with XFER_RESULT_QUEUED; other HCDs keep one packet in flight.
 #ifndef CFG_TUH_XFER_QUEUE_DEPTH
-  #define CFG_TUH_XFER_QUEUE_DEPTH 1
+  #if defined(TUP_USBIP_CHIPIDEA_HS) && CFG_TUH_CHIPIDEA_ISO_ENABLE && !CFG_TUH_MAX3421
+    #define CFG_TUH_XFER_QUEUE_DEPTH TUP_HCD_XFER_QUEUE_DEPTH
+  #else
+    #define CFG_TUH_XFER_QUEUE_DEPTH 1
+  #endif
 #endif
 
 #if CFG_TUH_XFER_QUEUE_DEPTH < 1 || CFG_TUH_XFER_QUEUE_DEPTH > TUP_HCD_XFER_QUEUE_DEPTH

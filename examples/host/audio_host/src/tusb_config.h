@@ -95,9 +95,9 @@ extern "C" {
 #define CFG_TUH_DEVICE_MAX (3 * CFG_TUH_HUB + 1)
 
 //------------- Audio Host Config -------------//
-// Use the HCD's queue capacity, resolved by tusb_option.h after this config.
-#ifndef CFG_TUH_XFER_QUEUE_DEPTH
-  #define CFG_TUH_XFER_QUEUE_DEPTH TUP_HCD_XFER_QUEUE_DEPTH
+// Enable ISO and two transfer buffers on ChipIdea; other HCDs keep their defaults.
+#ifndef CFG_TUH_CHIPIDEA_ISO_ENABLE
+  #define CFG_TUH_CHIPIDEA_ISO_ENABLE 1
 #endif
 #define CFG_TUH_AUDIO_MAX           1
 #define CFG_TUH_AUDIO_EPIN_BUFSIZE  256 // max capture transfer the application submits

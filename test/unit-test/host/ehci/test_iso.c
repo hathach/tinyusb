@@ -14,6 +14,7 @@
 #define TU_VERIFY_STATIC(condition, ...) _Static_assert(condition, __VA_ARGS__)
 #include "portable/ehci/ehci.c"
 
+_Static_assert(CFG_TUH_XFER_QUEUE_DEPTH == TEST_EXPECTED_QUEUE_DEPTH, "queue depth selection");
 _Static_assert(sizeof(ehci_link_t) == 4, "link ABI");
 _Static_assert(sizeof(ehci_qtd_t) == 32, "qTD ABI");
 _Static_assert(offsetof(ehci_qhd_t, qtd_overlay) == 16, "QH hardware prefix");
@@ -76,7 +77,7 @@ static void test_attach_debounce(void) {
   assert(regs.portsc == before); // Attach must not reset the port before USBH debounces it.
 }
 
-#ifdef TUP_USBIP_CHIPIDEA_HS
+#if defined(TUP_USBIP_CHIPIDEA_HS) && CFG_TUH_CHIPIDEA_ISO_ENABLE && !CFG_TUH_MAX3421
 #define TEST_ISO_STREAM_EP_COUNT 4
 
 static bool open_ep(uint8_t addr, uint8_t speed, uint16_t size, uint8_t interval) {
@@ -378,7 +379,7 @@ static void test_qtd_retirement(void) {
   assert(events == 1);
 }
 
-#ifdef TUP_USBIP_CHIPIDEA_HS
+#if defined(TUP_USBIP_CHIPIDEA_HS) && CFG_TUH_CHIPIDEA_ISO_ENABLE && !CFG_TUH_MAX3421
 static void test_limits_and_late_completion(void) {
   reset(TUSB_SPEED_HIGH);
   assert(!open_ep(0x80, TUSB_SPEED_HIGH, 64, 1));
@@ -810,7 +811,7 @@ int main(void) {
   assert((uintptr_t)&ehci_data <= UINT32_MAX && (uintptr_t)buffer <= UINT32_MAX);
   test_attach_debounce();
   test_qtd_retirement();
-#ifdef TUP_USBIP_CHIPIDEA_HS
+#if defined(TUP_USBIP_CHIPIDEA_HS) && CFG_TUH_CHIPIDEA_ISO_ENABLE && !CFG_TUH_MAX3421
   test_shared_pools();
   test_native_fs();
   test_split();
@@ -831,6 +832,15 @@ int main(void) {
 #if CFG_TUH_XFER_QUEUE_DEPTH > 1
   test_queue();
 #endif
+#else
+  reset(TUSB_SPEED_HIGH);
+  tusb_desc_endpoint_t const iso_desc = {
+    .bLength = sizeof(iso_desc), .bDescriptorType = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = 0x81, .bmAttributes = {.xfer = TUSB_XFER_ISOCHRONOUS},
+    .wMaxPacketSize = 64, .bInterval = 1
+  };
+  assert(!hcd_edpt_open(0, 1, &iso_desc));
+  assert(regs.command_bm.int_threshold == 8);
 #endif
   puts("EHCI ISO regression tests passed");
   return 0;
