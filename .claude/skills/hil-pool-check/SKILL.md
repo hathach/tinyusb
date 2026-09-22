@@ -75,15 +75,13 @@ own list — `STM32_Programmer_CLI -l st-link`, or `JLinkExe -CommandFile <scrip
 kernel and not the tool, which is a host-to-probe fault. A dead target reports the opposite: the
 probe identifies itself normally and then fails to connect.
 
-The next rung is a root-port bounce, and what it buys depends on which card the probe hangs off
-(`readlink -f /sys/bus/usb/devices/usb<bus>` gives the PCI address):
-
-- **Renesas** (five cards here): `uhubctl` lists their root hubs as `ppps`-capable, but the cards
-  do not implement it — VBUS never drops, only D+/D− (see usb-kernel-recover). A cycle is therefore
-  a harder forced re-enumeration, **not** a power cycle: worth one attempt, but a probe that rode
-  out the `authorized` toggle can ride this out too. Do not read `ppps` here as power control.
-- **AMD `0000:02:00.0`** (where the WCH-Links live): no port-power switching at all — `uhubctl`
-  does not list it. There is nothing to cycle; go straight to a physical replug.
+The next rung is a root-port bounce. Every probe hangs off one of the eight Renesas uPD720201
+controllers (`readlink -f /sys/bus/usb/devices/usb<bus>` gives the PCI address): `uhubctl` lists
+their root hubs as `ppps`-capable, but the cards do not implement it — VBUS never drops, only
+D+/D− (see usb-kernel-recover; measured on the `05`–`08` card, assumed for `01`–`04`). A cycle is
+therefore a harder forced re-enumeration, **not** a power cycle: worth one attempt, but a probe
+that rode out the `authorized` toggle can ride this out too. Do not read `ppps` here as power
+control; past that, only a physical replug is left.
 
 The leaf hubs are ganged, so a bounce hits every device under that root port. Escalate by hand, in
 this order:

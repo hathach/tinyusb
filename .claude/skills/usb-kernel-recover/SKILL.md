@@ -218,12 +218,12 @@ Observed: 5 boards missing with a completely clean D-state list, because
 ## Rig layout (ci.lan, bus numbers renumber every boot)
 
 `readlink -f /sys/bus/usb/devices/usb<N>` → its PCI address; `sudo uhubctl` lists
-the root hubs it can drive, against their PCI address. Five Renesas uPD720201 cards
-— `0000:01:00.0`, `03`, `04`, `05`, `06:00.0` — advertise per-port `ppps` on both
-their USB2 and USB3 root hubs, **but do not implement it**: the silicon never drops
-VBUS, so a cycle re-enumerates the port and nothing more (above). Do not read
-`uhubctl`'s `ppps` as power control on this rig. AMD `0000:02:00.0` does not appear
-in `uhubctl` at all — no switching of any kind. Which tree holds which probes moves
-with re-cabling, so derive it (`lsusb -s <bus>:`) rather than trusting a stored map.
-Verified 2026-08-18; `sudo` is passwordless for `hathach` here, so every rung above
-runs without a prompt.
+the root hubs it can drive, against their PCI address. Eight Renesas uPD720201
+controllers — `0000:01:00.0` to `0000:08:00.0`, on two cards — advertise per-port
+`ppps` on both their USB2 and USB3 root hubs, **but do not implement it**: the
+silicon never drops VBUS (measured on the `05`–`08` card; `01`–`04` is unmeasured,
+assume the same), so a cycle re-enumerates the port and nothing more (above). Do not
+read `uhubctl`'s `ppps` as power control on this rig. Which tree holds which probes
+moves with re-cabling, so derive it (`lsusb -s <bus>:`) rather than trusting a
+stored map. Verified 2026-09-22; `sudo` is passwordless for `hathach` here, so every
+rung above runs without a prompt.
