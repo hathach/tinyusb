@@ -77,7 +77,14 @@ esac
 command -v flock >/dev/null || { echo "flock not found on the rig" >&2; exit 1; }
 mkdir -p -- "$(dirname -- "$d")"
 exec 9>>"$d.lock"
-flock -n 9 || { echo "another hil_remote run holds $d.lock -- not wiping its tree" >&2; exit 1; }
+flock -n -E 75 9 || {
+  rc=$?
+  case $rc in
+    75) echo "another hil_remote run holds $d.lock -- not wiping its tree" >&2 ;;
+    *) echo "flock on $d.lock failed (exit $rc) -- not wiping its tree" >&2 ;;
+  esac
+  exit 1
+}
 rm -rf -- "$d"
 mkdir -p -- "$d/test/hil/helper" "$d/tools" "$d/$2"
 printf '%s\n' "$3" >"$d/.hil-remote-run"

@@ -328,6 +328,19 @@ class RemoteLock(Rig):
         self.assertTrue((self.remote / 'running/x').is_file())
         self.assertEqual([c['tool'] for c in self.calls()], ['ssh'])
 
+    def test_a_failing_flock_is_not_reported_as_a_held_lock(self):
+        rig_bin = self.tmp / 'rig-bin'
+        rig_bin.mkdir()
+        fake(rig_bin / 'flock', '#!/bin/sh\necho "flock: 9: No locks available" >&2\nexit 71\n')
+        fake(self.bin / 'ssh', FAKE_SSH.replace("'PATH': '/usr/bin:/bin'", f"'PATH': '{rig_bin}:/usr/bin:/bin'"))
+        self.build('alpha')
+        (self.remote / 'running').mkdir(parents=True)
+        r = self.hil_remote('-b', 'alpha')
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn(f'flock on {self.remote}.lock failed (exit 71)', r.stderr)
+        self.assertNotIn('another hil_remote run holds', r.stderr)
+        self.assertTrue((self.remote / 'running').is_dir())
+
     @needs_rsync
     def test_the_lock_is_held_for_the_run_and_released_after(self):
         self.build('alpha')
