@@ -209,7 +209,7 @@ def recover_flasher(board: dict) -> dict:
     The entry drives the primary's probe, so its uid is the primary's.
     """
     rec = board.get('flasher_recover')
-    return {'uid': board['flasher'].get('uid'), **rec} if rec else board['flasher']
+    return {**rec, 'uid': board['flasher'].get('uid')} if rec else board['flasher']
 
 
 def convoy_safe(flasher: dict) -> bool:
