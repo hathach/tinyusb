@@ -86,7 +86,7 @@ typedef struct {
   uint32_t uframe_countdown; // micro-frame count down to transfer for periodic, only need 18-bit
 
   uint8_t* buffer;
-  uint16_t buflen;
+  uint32_t buflen;
 } hcd_endpoint_t;
 
 // Additional info for each channel when it is active
@@ -100,7 +100,7 @@ typedef struct {
   };
   uint8_t result;
 
-  uint16_t xferred_bytes;  // bytes that accumulate transferred though USB bus for the whole hcd_edpt_xfer(), which can
+  uint32_t xferred_bytes;  // bytes that accumulate transferred though USB bus for the whole hcd_edpt_xfer(), which can
                            // be composed of multiple channel_xfer_start() (retry with NAK/NYET)
   uint16_t fifo_bytes;     // bytes written/read from/to FIFO (may not be transferred on USB bus).
 } hcd_xfer_t;
@@ -727,7 +727,7 @@ static bool edpt_xfer_kickoff(dwc2_regs_t* dwc2, uint8_t ep_id) {
 }
 
 // Submit a transfer, when complete hcd_event_xfer_complete() must be invoked
-bool hcd_dwc2_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen) {
+bool hcd_dwc2_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint32_t buflen) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   const uint8_t ep_num = tu_edpt_number(ep_addr);
   const uint8_t ep_dir = tu_edpt_dir(ep_addr);

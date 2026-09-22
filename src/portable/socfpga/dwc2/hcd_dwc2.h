@@ -19,7 +19,7 @@ tusb_speed_t hcd_dwc2_port_speed_get(uint8_t rhport);
 void hcd_dwc2_device_close(uint8_t rhport, uint8_t dev_addr);
 
 bool hcd_dwc2_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t* desc_ep);
-bool hcd_dwc2_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen);
+bool hcd_dwc2_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint32_t buflen);
 bool hcd_dwc2_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr);
 bool hcd_dwc2_setup_send(uint8_t rhport, uint8_t dev_addr, const uint8_t setup_packet[8]);
 bool hcd_dwc2_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr);

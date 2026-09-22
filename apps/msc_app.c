@@ -29,8 +29,10 @@
 #include "semphr.h"
 #include "tusb.h"
 #include "osal_log.h"
+#include "socfpga_usb.h"
+#include "hcd_dwc3.h"
 
-void fatfs_test( void);
+#define MSC_BLOCK_SIZE (512)
 
 static volatile int msc_mount_complete = 0;
 static scsi_inquiry_resp_t inquiry_resp;
@@ -82,21 +84,7 @@ bool msc_inquiry_complete_cb(uint8_t dev_addr, tuh_msc_complete_data_t const * c
     /* MSC mount process completed */
     dev_block_count = block_count;
     msc_mount_complete = 1;
-#if 0
-	r_buffer = (uint8_t *)pvPortMallocCoherent(512);
-	w_buffer = (uint8_t *)pvPortMallocCoherent(512);
 
-	memset(r_buffer, '.', 512);
-	memset(w_buffer, '?', 512);
-
-    status_flag_cb = true;
-    tuh_msc_write10(dev_addr, 0, w_buffer, 10000, 1, disk_io_complete_fat, 0);
-    wait_for_disk_io_fat();
-
-    status_flag_cb = true;
-    tuh_msc_read10(dev_addr, 0, r_buffer, 10000, 1, disk_io_complete_fat, 0);
-    wait_for_disk_io_fat();
-#endif
     return true;
 }
 
@@ -115,6 +103,14 @@ void tuh_msc_umount_cb(uint8_t dev_addr)
         msc_dev_addr = 0;
         msc_mount_complete = 0;
         dev_block_count = 0;
+    }
+
+    //for dwc3 controller, deinit sequence needs to be done after a device is unplugged
+    tuh_bus_info_t dev_info;
+    tuh_bus_info_get(dev_addr, &dev_info);
+    if( dev_info.rhport != SOCFPGA_USB2_OTG_PORT )
+    {
+        hcd_dwc3_device_close(dev_info.rhport);
     }
     PRINT("A MassStorage device is unmounted, address - %d\r\n", dev_addr);
 }
@@ -136,33 +132,23 @@ bool usb_disk_read(void *buffer, uint32_t lba, uint16_t count)
         return false;
     }
 
-    const size_t xfer_size = (size_t) block_size * count;
-
-    uint8_t *ptr = pvPortMallocCoherent(xfer_size);
-    if (ptr == NULL)
-    {
-        return false;
-    }
-
     if (xSemaphoreTake(xDiskIoMutex, portMAX_DELAY) != pdTRUE)
     {
-        vPortFree(ptr);
         return false;
     }
 
     (void) xSemaphoreTake(xDiskIoComplete, 0);
-    read_submitted = tuh_msc_read10(dev_addr, lun, ptr, lba, count, disk_io_complete_fat, 0);
+    // cache invalidate operation is required before read operation for dwc2 controller.
+    usb_dcache_clean(buffer, MSC_BLOCK_SIZE*count);
+    read_submitted = tuh_msc_read10(dev_addr, lun, buffer, lba, count, disk_io_complete_fat, 0);
     if (!read_submitted)
     {
         (void) xSemaphoreGive(xDiskIoMutex);
-        vPortFree(ptr);
         return false;
     }
 
     wait_for_disk_io_fat();
-    memcpy(buffer, ptr, xfer_size);
     (void) xSemaphoreGive(xDiskIoMutex);
-    vPortFree(ptr);
 
     return true;
 }

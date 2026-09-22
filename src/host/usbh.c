@@ -1292,7 +1292,7 @@ bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr) {
 }
 
 // Submit an transfer
-bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes,
+bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t* buffer, uint32_t total_bytes,
                                   tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   (void) complete_cb;
   (void) user_data;

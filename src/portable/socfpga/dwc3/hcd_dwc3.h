@@ -85,14 +85,14 @@ void hcd_dwc3_port_reset(uint8_t rhport);
 
 void hcd_dwc3_port_reset_end(uint8_t rhport);
 tusb_speed_t hcd_dwc3_port_speed_get(uint8_t rhport);
-void hcd_dwc3_device_close(uint8_t rhport, uint8_t dev_addr);
 
 bool hcd_dwc3_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t* desc_ep);
-bool hcd_dwc3_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen);
+bool hcd_dwc3_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint32_t buflen);
 bool hcd_dwc3_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr);
 bool hcd_dwc3_setup_send(uint8_t rhport, uint8_t dev_addr, const uint8_t setup_packet[8]);
 bool hcd_dwc3_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr);
 bool hcd_dwc3_parse_full_conf_descriptor( tusb_desc_configuration_t *desc_cfg );
+void hcd_dwc3_device_close( uint8_t rhport );
 
 void hcd_dwc3_int_handler(uint8_t rhport, bool in_isr);
 

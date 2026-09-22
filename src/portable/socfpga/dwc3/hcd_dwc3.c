@@ -245,11 +245,8 @@ tusb_speed_t hcd_dwc3_port_speed_get( uint8_t rhport )
     return ret;
 }
 
-void hcd_dwc3_device_close( uint8_t rhport, uint8_t dev_addr )
+void hcd_dwc3_device_close( uint8_t rhport )
 {
-#if 0
-    (void) dev_addr;
-
     uint32_t slotid;
 
     if (rhport == USB3_SS_PORT)
@@ -273,8 +270,8 @@ void hcd_dwc3_device_close( uint8_t rhport, uint8_t dev_addr )
 
         dealloc_usb_port(Usb3handle);
         device_addr = 0U;
+        usb_set_config = 0;
     }
-#endif
 }
 
 /*--------------------------------------------------------------------+
@@ -327,7 +324,7 @@ bool hcd_dwc3_edpt_open( uint8_t rhport, uint8_t daddr,
     return true;
 }
 
-bool hcd_dwc3_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen)
+bool hcd_dwc3_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buffer, uint32_t buflen)
 {
     const uint8_t ep_num = tu_edpt_number(ep_addr);
     const unsigned dir = (uint32_t) tu_edpt_dir(ep_addr);
