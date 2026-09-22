@@ -520,6 +520,49 @@ class Recovery(unittest.TestCase):
         else:
             self.fail('the fleet stayed reserved after the watchdog')
 
+    def assert_a_stalled_primitive_reaches_the_watchdog(self, primitive, stall):
+        """The primitive's own `except Exception` must not swallow the watchdog: the phase
+        would scan and gate on as if the step had failed, and the hard alarm could then
+        cut off the unshield."""
+        self.mark()
+        trace = Path(self.td.name) / 'trace'
+
+        def tracing_script(action, *a, timeout=60):
+            with open(trace, 'a') as f:
+                f.write(action + '\n')
+            return 0, f'{action} stub'
+        self.patch(hil_recover, '_script', tracing_script)
+        self.patch(hil_flash, primitive, stall)
+        self.scans = [([4242], True)]                         # the reset leaves the holder: the reflash runs
+        self.patch(hil_recover, 'SHIELD_TIMEOUT', 1)
+        self.patch(hil_recover, 'SCAN_ALLOWANCE', 0)
+        self.patch(usbtest, 'RECOVER_RESET_TIMEOUT', 1)
+        self.patch(usbtest, 'RECOVER_FLASH_TIMEOUT', 1)
+        self.patch(hil_util, 'REAP_GRACE', 0)
+        self.patch(hil_recover, 'PHASE_TIMEOUT', 4)
+        self.patch(hil_recover, 'overrun', lambda: 0)
+        out = self.run_phase(supervise=True)
+        self.assertEqual(trace.read_text().split(), ['shield', 'unshield'])
+        self.assertTrue(any('watchdog: phase exceeded' in l for l in self.log), self.log)
+        self.assertNotIn('b1', out)
+        self.assertIsNotNone(hil_lock.read_wedged('b1'))
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            try:
+                hil_lock.flock_nb('b1').close(); break
+            except OSError:
+                time.sleep(0.2)
+        else:
+            self.fail('the fleet stayed reserved after the watchdog')
+
+    def test_the_watchdog_reaches_the_phase_through_a_stalled_reset(self):
+        self.assert_a_stalled_primitive_reaches_the_watchdog(
+            'reset_openocd', lambda board, timeout=None: time.sleep(60))
+
+    def test_the_watchdog_reaches_the_phase_through_a_stalled_reflash(self):
+        self.assert_a_stalled_primitive_reaches_the_watchdog(
+            'flash_openocd', lambda board, fw, timeout=None: time.sleep(60))
+
     def test_a_surviving_child_keeps_the_fleet_reserved_after_the_report(self):
         self.mark()
         until = time.monotonic() + 3

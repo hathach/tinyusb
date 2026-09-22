@@ -322,9 +322,10 @@ def recover_board(board: dict, marker: dict, lock_fh, budget: Budget) -> dict:
     return out
 
 
-class Watchdog(Exception):
+class Watchdog(BaseException):
     """Raised into the phase by the supervisor's alarm: the finally blocks unshield and
-    release, which an os._exit would have skipped."""
+    release, which an os._exit would have skipped. BaseException so a step's own
+    `except Exception` cannot swallow it and carry the phase on."""
 
 
 def _phase(config: dict, marked: list, log, budget: Budget, report=lambda outcomes: None) -> dict:
