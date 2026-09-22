@@ -58,7 +58,7 @@ class Recovery(unittest.TestCase):
         self.patch(hil_util, 'usb_scan', lambda serial=None, **kw: [
             d for d in self.enumerated if serial is None or d['serial'].lower() == serial.lower()])
         self.patch(usbtest, 'wedged_pids', self.fake_scan)
-        self.patch(hil_flash, 'reset_openocd', lambda board, timeout=None: self.calls.append(('reset', 'openocd', timeout)))
+        self.patch(hil_flash, 'reset_openocd', lambda board, timeout=None: self.calls.append(('reset', 'openocd', timeout)) or subprocess.CompletedProcess('', 0))
         self.patch(hil_flash, 'flash_openocd', lambda board, fw, timeout=None: self.calls.append(('flash', fw, timeout)) or subprocess.CompletedProcess('', 0))
         self.log = []
 
@@ -151,6 +151,34 @@ class Recovery(unittest.TestCase):
         self.assertFalse(out['b1']['recovered'])
         self.assertEqual(out['b1']['why'], 'a D-state holder survived the reset and a reflash that raised')
         self.assertTrue(any('raised RuntimeError: probe gone' in s for s in out['b1']['steps']), out)
+
+    def test_a_reset_that_raises_is_not_worded_as_run(self):
+        self.mark()
+        self.scans = [([4242], True)]
+
+        def raising_reset(board, timeout=None):
+            raise RuntimeError('probe gone')
+        self.patch(hil_flash, 'reset_openocd', raising_reset)
+        out = self.run_phase()
+        self.assertFalse(out['b1']['recovered'])
+        self.assertEqual(out['b1']['why'], 'a D-state holder survived a reset that raised and the reflash')
+        self.assertTrue(any('probe reset via openocd raised RuntimeError: probe gone' in s
+                            for s in out['b1']['steps']), out)
+
+    def test_a_reset_or_reflash_that_failed_is_not_worded_as_run(self):
+        """run_cmd returns rc 124 on a timeout rather than raising."""
+        self.mark()
+        self.scans = [([4242], True)]
+        self.patch(hil_flash, 'reset_openocd', lambda board, timeout=None: subprocess.CompletedProcess('', 124))
+        out = self.run_phase()
+        self.assertFalse(out['b1']['recovered'])
+        self.assertEqual(out['b1']['why'], 'a D-state holder survived a reset that failed (rc 124) and the reflash')
+        self.assertIn('probe reset via openocd: rc 124', out['b1']['steps'])
+        self.patch(hil_flash, 'flash_openocd', lambda board, fw, timeout=None: subprocess.CompletedProcess('', 1))
+        out = self.run_phase()
+        self.assertEqual(out['b1']['why'],
+                         'a D-state holder survived a reset that failed (rc 124) and a reflash that failed (rc 1)')
+        self.assertIn('reflash via openocd: rc 1', out['b1']['steps'])
 
     def test_no_reset_primitive_goes_straight_to_the_reflash(self):
         self.mark()

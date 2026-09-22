@@ -242,9 +242,10 @@ def recover_board(board: dict, marker: dict, lock_fh, budget: Budget) -> dict:
             if reset_fn:
                 try:
                     with redirect_stdout(sys.stderr):
-                        reset_fn(rec_board, timeout=budget.cap(ut.RECOVER_RESET_TIMEOUT, unshield_reserve + SETTLE))
-                    out['steps'].append(f'probe reset via {fname}')
-                    tried.append('the reset')
+                        r = reset_fn(rec_board, timeout=budget.cap(ut.RECOVER_RESET_TIMEOUT, unshield_reserve + SETTLE))
+                    rc = getattr(r, 'returncode', '?')
+                    out['steps'].append(f'probe reset via {fname}: rc {rc}')
+                    tried.append('the reset' if rc == 0 else f'a reset that failed (rc {rc})')
                 except Exception as e:   # noqa: BLE001 - the scan is the arbiter
                     out['steps'].append(f'probe reset via {fname} raised {type(e).__name__}: {e}')
                     tried.append('a reset that raised')
@@ -267,8 +268,9 @@ def recover_board(board: dict, marker: dict, lock_fh, budget: Budget) -> dict:
                     try:
                         with redirect_stdout(sys.stderr):
                             r = flash_fn(rec_board, fw, timeout=budget.cap(ut.RECOVER_FLASH_TIMEOUT, unshield_reserve + SETTLE))
-                        out['steps'].append(f'reflash via {fname}: rc {getattr(r, "returncode", "?")}')
-                        tried.append('the reflash')
+                        rc = getattr(r, 'returncode', '?')
+                        out['steps'].append(f'reflash via {fname}: rc {rc}')
+                        tried.append('the reflash' if rc == 0 else f'a reflash that failed (rc {rc})')
                     except Exception as e:   # noqa: BLE001
                         out['steps'].append(f'reflash via {fname} raised {type(e).__name__}: {e}')
                         tried.append('a reflash that raised')
