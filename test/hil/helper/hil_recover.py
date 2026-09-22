@@ -176,12 +176,14 @@ def _not_recovered(why: str = '') -> dict:
     return {'recovered': False, 'steps': [], 'why': why, 'identity': ''}
 
 
-def recover_board(board: dict, marker: dict, lock_fh, budget: Budget) -> dict:
+def recover_board(board: dict, marker: dict, lock_fh, budget: Budget, out: dict | None = None) -> dict:
     """One board's recovery under the fleet reservation. Returns the outcome record:
-    {'recovered': bool, 'steps': [...], 'why': str, 'identity': str}."""
+    {'recovered': bool, 'steps': [...], 'why': str, 'identity': str}, filled into `out`
+    when given, so a Watchdog raised through here still leaves the caller the unshield's
+    steps and why."""
     ut = _usbtest()
     name = board['name']
-    out = _not_recovered()
+    out = _not_recovered() if out is None else out
     ev = marker.get('evidence') or {}
     node, serial, fw = ev['node'], ev['serial'], marker.get('fw') or ''
     rec_board = {'name': name, 'flasher': _hil_flash().recover_flasher(board)}
@@ -339,6 +341,13 @@ def _phase(config: dict, marked: list, log, budget: Budget, report=lambda outcom
         report({})
         return {}
     outcomes = {}
+    inflight = ''   # the board recover_board is running, whose record a Watchdog leaves unlogged
+
+    def log_outcome(name):
+        o = outcomes[name]
+        log(f'{name:25} wedge {"RECOVERED" if o["recovered"] else "NOT recovered"}'
+            f'{": " + o["why"] if o["why"] else ""}; ' + ' | '.join(o['steps']))
+
     try:
         for board in marked:
             name = board['name']
@@ -357,12 +366,16 @@ def _phase(config: dict, marked: list, log, budget: Budget, report=lambda outcom
                 outcomes[name] = _not_recovered(why)
             else:
                 log(f'{name:25} recovering the wedge it is marked with (fleet reserved)')
-                outcomes[name] = recover_board(board, marker, held.get(name), budget)
-            o = outcomes[name]
-            log(f'{name:25} wedge {"RECOVERED" if o["recovered"] else "NOT recovered"}'
-                f'{": " + o["why"] if o["why"] else ""}; ' + ' | '.join(o['steps']))
+                outcomes[name], inflight = _not_recovered(), name
+                recover_board(board, marker, held.get(name), budget, outcomes[name])
+                inflight = ''
+            log_outcome(name)
     except Watchdog as e:
-        log(f'wedge recovery watchdog: {e}; unshield done where a shield was up, releasing')
+        if inflight:
+            o = outcomes[inflight]
+            o['why'] = (o['why'] + '; ' if o['why'] else '') + f'watchdog: {e}'
+            log_outcome(inflight)
+        log(f'wedge recovery watchdog: {e}; unshield attempted where a shield was up (see the board line), releasing')
         outcomes['__error__'] = f'watchdog: {e}'
     finally:
         # a flasher or shield child in its own session must not outlive the reservation.

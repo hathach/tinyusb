@@ -544,7 +544,9 @@ class Recovery(unittest.TestCase):
         out = self.run_phase(supervise=True)
         self.assertEqual(trace.read_text().split(), ['shield', 'unshield'])
         self.assertTrue(any('watchdog: phase exceeded' in l for l in self.log), self.log)
-        self.assertNotIn('b1', out)
+        self.assertFalse(out['b1']['recovered'], out)
+        self.assertIn('watchdog: phase exceeded', out['b1']['why'])
+        self.assertTrue(any(s.startswith('unshield ') for s in out['b1']['steps']), out)
         self.assertIsNotNone(hil_lock.read_wedged('b1'))
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline:
@@ -562,6 +564,49 @@ class Recovery(unittest.TestCase):
     def test_the_watchdog_reaches_the_phase_through_a_stalled_reflash(self):
         self.assert_a_stalled_primitive_reaches_the_watchdog(
             'flash_openocd', lambda board, fw, timeout=None: time.sleep(60))
+
+    def assert_a_watchdog_keeps_a_failed_unshield(self, stall_shield=False):
+        """The unshield runs in recover_board's finally while the Watchdog unwinds through
+        it: its failure must still reach the board's record and its logged line, not only
+        the phase's watchdog line."""
+        self.mark()
+        logf = Path(self.td.name) / 'log'
+
+        def file_log(line):                                  # the phase logs from the forked supervisor
+            with open(logf, 'a') as f:
+                f.write(line + '\n')
+
+        def script(action, *a, timeout=60):
+            if action == 'shield':
+                if stall_shield:
+                    time.sleep(60)
+                return 0, 'shield stub'
+            return 1, 'unshield: restore failed; record r KEPT'
+        self.patch(hil_recover, '_script', script)
+        if not stall_shield:
+            self.patch(usbtest, 'wedged_pids', lambda node: time.sleep(60))   # the post-reset scan stalls
+        self.patch(hil_recover, 'SHIELD_TIMEOUT', 1)
+        self.patch(hil_recover, 'SCAN_ALLOWANCE', 0)
+        self.patch(usbtest, 'RECOVER_RESET_TIMEOUT', 1)
+        self.patch(hil_util, 'REAP_GRACE', 0)
+        self.patch(hil_recover, 'PHASE_TIMEOUT', 4)
+        self.patch(hil_recover, 'overrun', lambda: 0)
+        out = hil_recover.recover_wedged(CFG, CFG['boards'], file_log)
+        self.assertFalse(out['b1']['recovered'], out)
+        self.assertIn('unshield failed, shield record kept: unshield: restore failed; record r KEPT', out['b1']['why'])
+        self.assertIn('watchdog: phase exceeded', out['b1']['why'])
+        lines = logf.read_text().splitlines()
+        board = [l for l in lines if l.startswith('b1') and 'wedge NOT recovered' in l]
+        self.assertEqual(len(board), 1, lines)
+        self.assertIn('unshield failed, shield record kept', board[0])
+        self.assertFalse(any('unshield done' in l for l in lines), lines)
+        self.assertIsNotNone(hil_lock.read_wedged('b1'))
+
+    def test_a_watchdog_through_a_stalled_scan_keeps_a_failed_unshield(self):
+        self.assert_a_watchdog_keeps_a_failed_unshield()
+
+    def test_a_watchdog_through_a_stalled_shield_keeps_a_failed_unshield(self):
+        self.assert_a_watchdog_keeps_a_failed_unshield(stall_shield=True)
 
     def test_a_surviving_child_keeps_the_fleet_reserved_after_the_report(self):
         self.mark()
