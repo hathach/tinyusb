@@ -62,6 +62,15 @@ static void reset(uint8_t root_speed) {
   events = 0;
 }
 
+static void test_attach_debounce(void) {
+  reset(TUSB_SPEED_FULL);
+  regs.portsc |= EHCI_PORTSC_MASK_CURRENT_CONNECT_STATUS;
+  uint32_t const before = regs.portsc;
+  port_connect_status_change_isr(0);
+  assert(events == 1 && event.event_id == HCD_EVENT_DEVICE_ATTACH);
+  assert(regs.portsc == before); // Attach must not reset the port before USBH debounces it.
+}
+
 static void test_endpoint_lookup(void) {
   reset(TUSB_SPEED_HIGH);
   // Same endpoint number in both directions, and the same address on another device.
@@ -829,6 +838,7 @@ static void test_future_completion(void) {
 int main(void) {
   // Hardware links are 32-bit. The runner places static fixtures below 4 GiB.
   assert((uintptr_t)&ehci_data <= UINT32_MAX && (uintptr_t)buffer <= UINT32_MAX);
+  test_attach_debounce();
   test_endpoint_lookup();
   test_qtd_retirement();
 #if defined(TUP_USBIP_CHIPIDEA_HS) && CFG_TUH_CHIPIDEA_ISO_ENABLE
