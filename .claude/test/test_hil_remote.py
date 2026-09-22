@@ -338,6 +338,34 @@ class RemoteLock(Rig):
         self.lock()
 
     @needs_rsync
+    def test_a_failed_staging_releases_the_lock(self):
+        fake(self.bin / 'rsync', FAKE_RSYNC.replace('args = [', "if 'test/hil/hil_test.py' in sys.argv:\n    sys.exit(1)\nargs = [", 1))
+        # a lease that outlives its stdin by a second: the wrapper must wait it out, not exit holding the lock
+        fake(self.bin / 'ssh', FAKE_SSH.replace("['sh', '-c', cmd]", "['sh', '-c', cmd.replace('cat >/dev/null', 'cat >/dev/null; sleep 1')]"))
+        self.build('alpha')
+        r = self.hil_remote('-b', 'alpha')
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn('could not stage the harness', r.stderr)
+        self.lock()
+
+    @needs_rsync
+    def test_the_lock_is_held_for_the_copy_back(self):
+        seen = self.tmp / 'copy_back_lock'
+        fake(self.bin / 'rsync', FAKE_RSYNC.replace('args = [', f'''if any(a.startswith('rig:') and a.endswith('/hil_report.md') for a in sys.argv):
+    import fcntl
+    with open({str(self.remote) + '.lock'!r}, 'a') as lk:
+        try:
+            fcntl.flock(lk, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            open({str(seen)!r}, 'w').write('free')
+        except BlockingIOError:
+            open({str(seen)!r}, 'w').write('held')
+args = [''', 1))
+        self.build('alpha')
+        r = self.hil_remote('-b', 'alpha', FAKE_WRITE='hil_report.md hil_report.json')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(seen.read_text(), 'held')
+
+    @needs_rsync
     def test_a_noisy_rig_shell_does_not_hide_the_marker(self):
         # a login shell greeting on stdout with no trailing newline
         fake(self.bin / 'ssh', FAKE_SSH.replace("['sh', '-c', cmd]", "['sh', '-c', 'printf greeting; ' + cmd]"))
