@@ -24,6 +24,7 @@ The echo needs a matching S16_LE playback stream at the capture sample rate; dev
 
 ## Limitations and trade-offs
 
+- FS audio behind an HS hub on ChipIdea EHCI uses a fixed best-effort split schedule. With a mic or explicit feedback IN endpoint active, OUT packets above 376 bytes overlap the IN start slot; the HCD currently accepts these sizes, so successful submission does not establish schedulability. This example's 256-byte endpoint buffers impose a smaller packet limit. See the [EHCI scheduling notes](../../../src/portable/ehci/ehci.c) before increasing buffers or using additional endpoints on the same transaction translator.
 - Explicit feedback endpoints are supported with both 10.14 and 16.16 feedback values. An implicit-feedback IN endpoint is treated as an ordinary audio-data endpoint and is not used to pace playback.
 - UAC1 Type I Format descriptors with `bSamFreqType == 0` are unsupported; the driver requires a list of discrete sampling frequencies.
 - UAC2 supports direct Clock Sources. Clock Selectors, Clock Multipliers, Sampling Rate Converters, Clock Validity, and Valid Alternate Settings controls are not handled.
@@ -116,7 +117,7 @@ Edit `src/tusb_config.h` to modify:
 ## Notes
 
 - `tuh_audio_descriptor_cb()` exposes the validated Audio Control descriptor block during enumeration. Applications that need raw entity controls must copy the required entity IDs or descriptor fields before the callback returns, then use `tuh_audio_control_xfer()` after the device mounts.
-- While a stream is running, the driver keeps one isochronous transfer in flight and re-submits on completion, so transfers follow the endpoint's `bInterval`. `tuh_audio_capture_cb()` / `tuh_audio_playback_cb()` only count completed transfers; `audio_app_task()` services the FIFOs independently from the main loop. `tuh_audio_event_cb()` reports asynchronous start/stop results and unrecoverable transfer failures. The example restarts a failed stream automatically 100 ms later.
+- While a stream is running, the driver queues up to `CFG_TUH_XFER_QUEUE_DEPTH` isochronous transfers with separate buffers and refills on completion. The example selects depth 2 on supported EHCI configurations and depth 1 otherwise. Transfers follow the endpoint's `bInterval`. `tuh_audio_capture_cb()` / `tuh_audio_playback_cb()` only count completed transfers; `audio_app_task()` services the FIFOs independently from the main loop. `tuh_audio_event_cb()` reports asynchronous start/stop results and unrecoverable transfer failures. The example restarts a failed stream automatically 100 ms later.
 - Capture and playback streams running concurrently in the same Audio Control instance must use the same sample rate.
 - `tuh_audio_read()` / `tuh_audio_write()` are non-blocking FIFO operations: they return the number of whole frames actually read/queued. `tuh_audio_read_available()` reports captured frames ready to read; `tuh_audio_write_available()` reports free playback capacity. `tuh_audio_write()` only queues data; the playback transfer-completion chain sends it, or sends silence when the FIFO does not contain a complete polling interval without consuming the partial data.
 - Isochronous transfers require the host to poll `tuh_task()` continuously; the capture FIFO absorbs short scheduling gaps and overwrites the oldest frames when full.
