@@ -631,6 +631,7 @@ void dcd_edpt_close_all(uint8_t rhport) {
 
   // Disable non-control interrupt
   dwc2->daintmsk = (1 << DAINTMSK_OEPM_Pos) | (1 << DAINTMSK_IEPM_Pos);
+  dwc2->diepempmsk = 0;
 
   for (uint8_t n = 1; n < ep_count; n++) {
     for (uint8_t d = 0; d < 2; d++) {
