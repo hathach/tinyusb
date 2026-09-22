@@ -120,6 +120,14 @@
 //------------- MSC -------------//
 #define CFG_TUH_MSC_MAXLUN    4 // typical for most card reader
 
+/* Exactly one must be 1 */
+#define SOCFPGA_USB_HOST_USE_USB3  1
+#define SOCFPGA_USB_HOST_USE_OTG   0
+
+#if (SOCFPGA_USB_HOST_USE_USB3 + SOCFPGA_USB_HOST_USE_OTG) != 1
+#error "Enable exactly one of USB3 or OTG host"
+#endif
+
 #ifdef __cplusplus
  }
 #endif

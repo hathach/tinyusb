@@ -52,6 +52,7 @@ static bool init_disk_io_sync(void)
     return (xDiskIoMutex != NULL) && (xDiskIoComplete != NULL);
 }
 
+#if SOCFPGA_USB_HOST_USE_USB3
 void usb3_task(void *arg)
 {
     (void)arg;
@@ -81,6 +82,8 @@ void usb3_task(void *arg)
     if(!init_disk_io_sync())
     {
         ERROR("Failed to initialize disk IO synchronization primitives");
+        vTaskDelete(NULL);   
+        return;
     }
 
     while (1)
@@ -89,7 +92,9 @@ void usb3_task(void *arg)
         osal_task_delay(100);
     }
 }
+#endif
 
+#if SOCFPGA_USB_HOST_USE_OTG
 void usb_otg_task(void *arg)
 {
     (void)arg;
@@ -114,6 +119,8 @@ void usb_otg_task(void *arg)
     if(!init_disk_io_sync())
     {
         ERROR("Failed to initialize disk IO synchronization primitives");
+        vTaskDelete(NULL);   
+        return;
     }
 
     while (1)
@@ -122,4 +129,5 @@ void usb_otg_task(void *arg)
         osal_task_delay(100);
     }
 }
+#endif
 
