@@ -34,25 +34,10 @@ void fatfs_test( void);
 
 static volatile int msc_mount_complete = 0;
 static scsi_inquiry_resp_t inquiry_resp;
-static SemaphoreHandle_t xDiskIoMutex = NULL;
-static SemaphoreHandle_t xDiskIoComplete = NULL;
+extern SemaphoreHandle_t xDiskIoMutex;
+extern SemaphoreHandle_t xDiskIoComplete;
 uint32_t dev_block_count;
 static uint8_t msc_dev_addr = 0;  /* 0 = no MSC mounted */
-
-static bool init_disk_io_sync(void)
-{
-    if (xDiskIoMutex == NULL)
-    {
-        xDiskIoMutex = xSemaphoreCreateMutex();
-    }
-
-    if (xDiskIoComplete == NULL)
-    {
-        xDiskIoComplete = xSemaphoreCreateBinary();
-    }
-
-    return (xDiskIoMutex != NULL) && (xDiskIoComplete != NULL);
-}
 
 static void wait_for_disk_io_fat()
 {
@@ -145,11 +130,6 @@ bool usb_disk_read(void *buffer, uint32_t lba, uint16_t count)
         return false;
     }
 
-    if (!init_disk_io_sync())
-    {
-        return false;
-    }
-
     const uint32_t block_size = tuh_msc_get_block_size(dev_addr, lun);
     if (block_size == 0)
     {
@@ -195,11 +175,6 @@ bool usb_disk_write(void *buffer, uint32_t lba, uint16_t count)
 
     if( buffer == NULL || count == 0 || lba >= dev_block_count ||
         (uint32_t) count > (dev_block_count - lba) )
-    {
-        return false;
-    }
-
-    if (!init_disk_io_sync())
     {
         return false;
     }

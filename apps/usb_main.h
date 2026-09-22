@@ -44,14 +44,14 @@
  * - -ETIMEDOUT if device fails to mount within the timeout period.
  */
 
-int usb3_wait_to_mount(int timeout);
+int usb_wait_to_mount(int timeout);
 
 /**
- * @brief  This api should be invoked as a thread to initialize the tinyusb stack. This thread
- *         initializes the usb3 driver followed by the enumeration of the attached device.
+ * @brief  These APIs should be invoked as a thread to initialize the tinyusb stack. These APIs
+ *         initialize the usb3 driver and usb2 driver followed by the enumeration of the attached device.
  */
 void usb3_task(void *arg);
-
+void usb_otg_task(void *arg);
 /**
  * @}
  */

@@ -1,5 +1,6 @@
 #include <errno.h>
 #include "FreeRTOS.h"
+#include "semphr.h"
 #include "task.h"
 #include "tusb.h"
 #include "tusb_config.h"
@@ -12,7 +13,10 @@
 #define USB3_HS_PORT    (1)
 #define USB3_SS_PORT    (2)
 
-int usb3_wait_to_mount(int timeout)
+SemaphoreHandle_t xDiskIoMutex = NULL;
+SemaphoreHandle_t xDiskIoComplete = NULL;
+
+int usb_wait_to_mount(int timeout)
 {
     while (timeout >= 0)
     {
@@ -31,7 +35,62 @@ int usb3_wait_to_mount(int timeout)
     return 0;
 }
 
+static bool init_disk_io_sync(void)
+{
+    if (xDiskIoMutex == NULL)
+    {
+        PRINT("Creating disk IO mutex");
+        xDiskIoMutex = xSemaphoreCreateMutex();
+    }
+
+    if (xDiskIoComplete == NULL)
+    {
+        PRINT("Creating disk IO complete semaphore");
+        xDiskIoComplete = xSemaphoreCreateBinary();
+    }
+
+    return (xDiskIoMutex != NULL) && (xDiskIoComplete != NULL);
+}
+
 void usb3_task(void *arg)
+{
+    (void)arg;
+
+    tusb_rhport_init_t host_init = {
+        .role = TUSB_ROLE_HOST,
+        .speed = TUSB_SPEED_AUTO
+    };
+
+     /*initialize host stack for usb3 SS port*/
+    if (!tusb_init(USB3_SS_PORT, &host_init))
+    {
+        ERROR("Error in initialising usb3 SS port");
+    }
+
+    /*initialize host stack for usb3 HS port*/
+    if (!tusb_init(USB3_HS_PORT, &host_init))
+    {
+        ERROR("Error in initialising usb3 HS port");
+    }
+    else
+    {
+        PRINT("USB3.1 port initialized successfully");
+    }
+    
+    //create mutex + binary semaphore only once
+    if(!init_disk_io_sync())
+    {
+        ERROR("Failed to initialize disk IO synchronization primitives");
+    }
+
+    while (1)
+    {
+        tuh_task();
+        osal_task_delay(100);
+    }
+}
+
+void usb_otg_task(void *arg)
 {
     (void)arg;
 
@@ -50,23 +109,13 @@ void usb3_task(void *arg)
     {
         PRINT("USB OTG port initialized successfully");
     }
-
-     /*initialize host stack for usb3 SS port*/
-    if (!tusb_init(USB3_SS_PORT, &host_init))
-    {
-        ERROR("Error in initialising usb3 SS port");
-    }
-
-    /*initialize host stack for usb3 HS port*/
-    if (!tusb_init(USB3_HS_PORT, &host_init))
-    {
-        ERROR("Error in initialising usb3 HS port");
-    }
-    else
-    {
-        PRINT("USB3.1 port initialized successfully");
-    }
     
+    //create mutex + binary semaphore only once
+    if(!init_disk_io_sync())
+    {
+        ERROR("Failed to initialize disk IO synchronization primitives");
+    }
+
     while (1)
     {
         tuh_task();

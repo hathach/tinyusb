@@ -343,7 +343,7 @@ bool hcd_dwc3_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t 
     {
         usb_set_config = 0;
     }
-    
+
     ep_data[ep_dci].buffer = buffer;
     ep_data[ep_dci].buflen = buflen;
 
@@ -422,6 +422,7 @@ void hcd_dwc3_int_handler( uint8_t rhport, bool in_isr )
                 break;
             }
             ep_num = DCI2EP[ ep_dci - 1 ];
+            handle_endpoint_transfer(ep_dci, ep_num);
             hcd_event_xfer_complete(device_addr, ep_num, xfer_bytes, XFER_RESULT_SUCCESS,
                     true);
         }
