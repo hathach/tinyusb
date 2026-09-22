@@ -1959,10 +1959,7 @@ def test_board(board: Board) -> tuple:
         log_line(f'{name:25} {STATUS_FAILED}: marked wedged: {marker.get("reason", "?")} '
                  f'(since {marker.get("since", "?")}; clear with hil_lock.py wedged clear after recovery)')
         if _lock_fh:
-            try:
-                _lock_fh.truncate(0)
-            except OSError:
-                pass
+            hil_lock.clear_record(_lock_fh)
             _lock_fh.close()
         return name, 1, [], [(name, {hil_report.WEDGED_CELL: hil_report.WEDGED_REFUSED}, None)], 0.0
     # after the lock: flock wait behind a concurrent run is not board cost
@@ -2099,13 +2096,10 @@ def test_board(board: Board) -> tuple:
             # a marker written outside a reservation could race a run that just took it.
             _mark_wedged(board, _lock_fh)
         if _lock_fh:
-            try:
-                # clear our pid record before dropping the flock: this worker process
-                # lives on (pool reuse), so a stale record would make hil_lock's
-                # pid-liveness checks report a freed board as locked for the rest of the run
-                _lock_fh.truncate(0)
-            except OSError:
-                pass
+            # clear our pid record before dropping the flock: this worker process
+            # lives on (pool reuse), so a stale record would make hil_lock's
+            # pid-liveness checks report a freed board as locked for the rest of the run
+            hil_lock.clear_record(_lock_fh)
             _lock_fh.close()
 
 
@@ -2155,18 +2149,15 @@ def _mark_wedged(board: Board, lock_fh) -> None:
         log_line(f'{board["name"]:25} NOT marked wedged: no board reservation held')
         return
     dmesg_path = ''
-    try:
-        r = subprocess.run(['sudo', '-n', 'dmesg'], capture_output=True, timeout=30)
-        if r.returncode != 0:
-            r = subprocess.run(['dmesg'], capture_output=True, timeout=30)
-        if r.returncode == 0:
-            p = os.path.join(hil_lock.BOARD_LOCK_DIR, f'{board["name"]}.wedge-dmesg.txt')
-            if hil_lock.atomic_write(p, b'\n'.join(r.stdout.splitlines()[-50:]) + b'\n'):
-                dmesg_path = p
-            else:
-                log_line(f'{board["name"]:25} wedge dmesg not saved: write refused')
-    except (OSError, subprocess.SubprocessError) as e:
-        log_line(f'{board["name"]:25} wedge dmesg not saved: {type(e).__name__}: {e}')
+    r = usbtest._sudo_soft(['dmesg'])
+    if r.returncode != 0:
+        log_line(f'{board["name"]:25} wedge dmesg not saved: dmesg exited {r.returncode}')
+    else:
+        p = os.path.join(hil_lock.BOARD_LOCK_DIR, f'{board["name"]}.wedge-dmesg.txt')
+        if hil_lock.atomic_write(p, ('\n'.join(r.stdout.splitlines()[-50:]) + '\n').encode()):
+            dmesg_path = p
+        else:
+            log_line(f'{board["name"]:25} wedge dmesg not saved: write refused')
     # what usbtest observed, so a recovery can identify and re-verify the same hardware:
     # the device node, the D-state holders and the scan completeness behind the verdict
     info = {'uid': board.get('uid', ''), 'reason': board_wedged, 'confirmation': 'confirmed',

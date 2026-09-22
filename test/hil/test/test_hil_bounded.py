@@ -952,9 +952,9 @@ class WedgedMarker(unittest.TestCase):
 
     def test_mark_wedged_writes_marker_and_dmesg_under_a_reservation_only(self):
         import subprocess as sp
-        self.addCleanup(setattr, hil_test.subprocess, 'run', hil_test.subprocess.run)
-        hil_test.subprocess.run = lambda cmd, **kw: sp.CompletedProcess(
-            cmd, 0, stdout=b'\n'.join(f'line {i}'.encode() for i in range(80)), stderr=b'')
+        self.addCleanup(setattr, hil_test.usbtest, '_sudo_soft', hil_test.usbtest._sudo_soft)
+        hil_test.usbtest._sudo_soft = lambda cmd, **kw: sp.CompletedProcess(
+            cmd, 0, stdout='\n'.join(f'line {i}' for i in range(80)), stderr='')
         self.addCleanup(setattr, hil_test, 'board_wedged', hil_test.board_wedged)
         self.addCleanup(setattr, hil_test, 'board_wedge_evidence', hil_test.board_wedge_evidence)
         hil_test.board_wedged = 'b: usbtest reports the device still wedged'
