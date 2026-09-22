@@ -196,7 +196,8 @@ Rung 1 resets through the board's recovery flasher (`flasher_recover`, else `fla
 is not `convoy_safe`, JLinkExe included, runs only behind `usb_recover.sh shield` on the board's
 busport, unshielded afterwards;
 sysrq and the hypervisor rungs need the user and are returned as the blocker in a headless run.
-Clear the marker only with `hil_lock.py wedged clear` and the evidence it verifies, and report
+Clear the marker only with `hil_lock.py wedged clear` and the evidence it verifies; a marker it
+refuses as untrusted or invalid-name is reported for a human to inspect and remove by hand. Report
 the cleanup explicitly: marker cleared, or kept with the reason, plus any shield record or hold
 still standing. A HIL run on that board follows only a cleared marker.
 

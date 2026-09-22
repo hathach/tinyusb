@@ -218,7 +218,10 @@ def clear_wedged(board: str, evidence: dict, lock_fh=None) -> str:
     """Remove the marker; '' on success, else why not. Needs evidence that verifies THIS
     marker (check_evidence) and the board reserved: `lock_fh` holding the board's flock,
     or none, in which case the flock is taken here and refused while anyone holds it."""
-    path = wedged_path(board)
+    try:
+        path = wedged_path(board)
+    except ValueError:
+        return 'not a board name; a marker under an invalid name is inspected and removed by hand'
     own = lock_fh is None
     if own:
         try:
@@ -258,17 +261,22 @@ def wedged_boards() -> list:
         if fn.endswith(WEDGED_SUFFIX):
             board = fn[:-len(WEDGED_SUFFIX)]
             if not _BOARD_NAME_RE.fullmatch(board):
-                out.append((board, _refused(board, 'has an invalid name')))
+                out.append((board, _refused(board, 'has an invalid name; inspect and remove it by hand')))
                 continue
             out.append((board, read_wedged(board) or {}))
     return out
+
+
+def _shown(board: str) -> str:
+    """The board name for one line of output: an invalid one (a newline, say) quoted and escaped."""
+    return board if _BOARD_NAME_RE.fullmatch(board or '') else json.dumps(board)
 
 
 def cmd_wedged(sub: str, board: str = '', evidence: str = '') -> int:
     if sub == 'status':
         marks = wedged_boards()
         for b, info in marks:
-            print(f'{b}: {json.dumps(info)}')
+            print(f'{_shown(b)}: {json.dumps(info)}')
         if not marks:
             print('no board is marked wedged')
         return 0
@@ -279,7 +287,7 @@ def cmd_wedged(sub: str, board: str = '', evidence: str = '') -> int:
         return 2
     why = clear_wedged(board, ev)
     if why:
-        print(f'{board}: not cleared: {why}', file=sys.stderr)
+        print(f'{_shown(board)}: not cleared: {why}', file=sys.stderr)
         return 1
     print(f'cleared: {board}')
     return 0

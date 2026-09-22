@@ -3,6 +3,7 @@
 a temp dir, and the assertions are about ORDER and GATES: the fleet reservation before any
 shield, unshield in a finally, the marker cleared only on a complete no-holder scan plus a
 re-enumerated DUT, everything deferred with the marker kept otherwise."""
+import io
 import json
 import os
 import subprocess
@@ -11,6 +12,7 @@ import tempfile
 import time
 import types
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -312,6 +314,21 @@ class Recovery(unittest.TestCase):
         [(board, info)] = hil_lock.wedged_boards()
         self.assertEqual(board, 'b1\n')
         self.assertIn('invalid name', info['reason'])
+
+    def test_an_invalid_name_marker_is_listed_on_one_line_and_left_to_a_human(self):
+        marker = Path(self.td.name, 'b1\n' + hil_lock.WEDGED_SUFFIX)
+        marker.write_text('{}')
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out):
+            self.assertEqual(hil_lock.cmd_wedged('status'), 0)
+        self.assertEqual(out.getvalue().count('\n'), 1, out.getvalue())
+        self.assertTrue(out.getvalue().startswith('"b1\\n": '), out.getvalue())
+        self.assertIn('inspect and remove it by hand', out.getvalue())
+        with redirect_stderr(err):
+            self.assertEqual(hil_lock.cmd_wedged('clear', 'b1\n', '{}'), 1)
+        self.assertEqual(err.getvalue().count('\n'), 1, err.getvalue())
+        self.assertIn('removed by hand', err.getvalue())
+        self.assertTrue(marker.exists())
 
     def test_the_budget_stops_the_phase_before_a_board_it_cannot_finish(self):
         self.mark()
