@@ -19,6 +19,8 @@ import re
 import shlex
 import subprocess
 import sys
+import tempfile
+import time
 from pathlib import Path
 
 ROOT = Path(os.environ.get('ROOT_DIR') or Path(__file__).resolve().parents[4]).resolve()
@@ -57,8 +59,12 @@ REMOTE_DIR_RE = re.compile(r'^(/|~/)[A-Za-z0-9_.~/-]*[A-Za-z0-9_-]$')
 
 # Runs on the remote. $1 arrives shlex-quoted, so a leading ~/ is expanded here, where
 # $HOME is a value; the second gate then sees the real rm -rf target. The lock sits beside
-# the tree, which the wipe would take with it, and is held by the trailing cat until the
-# wrapper closes this session's stdin; a dead wrapper closes it too.
+# the tree, which the wipe would take with it: exclusive for the wipe, then shared for the
+# staging while the trailing cat keeps this session open, and the run session takes its own
+# shared hold (run_command) so a wrapper that dies mid-run leaves hil_test.py's tree covered.
+# A wiper needs the exclusive lock, which any shared holder refuses. The tree also carries
+# this run's token: a run session that lost its lease (wrapper died between staging and the
+# run, a wiper got in) finds another run's token, or none, and refuses the replacement tree.
 SETUP_SCRIPT = r'''
 set -e
 case "$1" in
@@ -74,7 +80,11 @@ exec 9>>"$d.lock"
 flock -n 9 || { echo "another hil_remote run holds $d.lock -- not wiping its tree" >&2; exit 1; }
 rm -rf -- "$d"
 mkdir -p -- "$d/test/hil/helper" "$d/tools" "$d/$2"
-echo "HIL_REMOTE_DIR=$d"
+printf '%s\n' "$3" >"$d/.hil-remote-run"
+flock -s 9
+# on its own line: a rig shell that greets on stdout without a newline would glue the marker
+# to it, and the wrapper would wait for a line that never comes
+printf '\nHIL_REMOTE_DIR=%s\n' "$d"
 cat >/dev/null
 '''
 
@@ -160,29 +170,52 @@ def forwarded_env():
             if re.fullmatch(r'HIL_[A-Z0-9_]*', k) and k != 'HIL_REPORT_DIR']
 
 
-def run_command(remote_dir, argv, config_name):
+def tree_guard(remote_dir, token):
+    """Shell that takes a shared hold on the tree's lock (kept by the exec that follows it)
+    and checks the tree is still this run's; false once a wiper replaced it."""
+    return (f'exec 9>>{shlex.quote(remote_dir + ".lock")} && flock -s -w 60 9 && '
+            f'[ "$(cat {shlex.quote(remote_dir + "/.hil-remote-run")} 2>/dev/null)" = {shlex.quote(token)} ]')
+
+
+# The run session's exit when the guard fails: nothing of ours ran there. Above hil_test.py's
+# 0-125 (its failure count), the shell's 126-127 and 128+signal, and below ssh's own 255.
+TREE_REPLACED = 200
+
+
+def run_command(remote_dir, argv, config_name, token=''):
     # --retry 1 first so a caller's -r wins by argparse's last-wins; the pool guard does not
     # scale with retries, so a higher default would starve a shared rig.
     # The PATH prefix: flasher CLIs live in ~/.local/bin and ~/bin, and a non-interactive
     # ssh shell sources no profile.
     run = ['python3', '-u', 'test/hil/hil_test.py', '--retry', '1', *argv, f'test/hil/{config_name}']
-    return (f'cd {shlex.quote(remote_dir)} && export PATH="$HOME/.local/bin:$HOME/bin:$PATH" && '
+    # fd 9 stays open across the exec, so the shared lock lives as long as hil_test.py does
+    return (f'{{ {tree_guard(remote_dir, token)}; }} || '
+            f'{{ echo "{remote_dir} is not this run\'s tree any more (wiped by another run?)" >&2; exit {TREE_REPLACED}; }}; '
+            f'cd {shlex.quote(remote_dir)} && export PATH="$HOME/.local/bin:$HOME/bin:$PATH" && '
             f'exec env {shlex.join([*forwarded_env(), *run])}')
 
 
-def rsync(*args, optional=False):
+def rsync(guard, *args, optional=False):
+    """rsync with a remote endpoint under `guard` = (remote_dir, token): the remote rsync
+    server starts only under a shared hold on the tree's lock with this run's token still
+    in place, so a transfer never lands in a tree another run rebuilt after our lease died."""
+    remote_dir, token = guard
+    # rsync appends its --server arguments after --rsync-path, so `sh -c '...' rsync` makes
+    # them "$@" of the guard shell, which execs the real rsync on them
+    server = f'sh -c {shlex.quote(tree_guard(remote_dir, token) + " && exec rsync \"$@\"")} rsync'
     # an optional fetch (a green run writes no .failed) must not print rsync's code-23 error
-    return subprocess.run(['rsync', '-e', shlex.join(['ssh', *SSH_OPTS]), *args], cwd=ROOT,
-                          stderr=subprocess.DEVNULL if optional else None).returncode
+    return subprocess.run(['rsync', '-e', shlex.join(['ssh', *SSH_OPTS]), f'--rsync-path={server}', *args],
+                          cwd=ROOT, stderr=subprocess.DEVNULL if optional else None).returncode
 
 
-def copy_back(remote, remote_dir, config_name):
+def copy_back(remote, remote_dir, token, config_name):
     """Fetch the report pair all-or-nothing: the markdown is a rendering of the sidecar, and
     a half-copied pair publishes last run's table beside this run's data."""
     report = helper('hil_report')
     md, js = ROOT / report.REPORT_MD, ROOT / report.REPORT_JSON
     tmp = [p.with_name(p.name + '.tmp') for p in (md, js)]
-    ok = all(rsync('-q', f'{remote}:{remote_dir}/{p.name}', str(t), optional=True) == 0 and t.is_file()
+    guard = (remote_dir, token)
+    ok = all(rsync(guard, '-q', f'{remote}:{remote_dir}/{p.name}', str(t), optional=True) == 0 and t.is_file()
              for p, t in zip((md, js), tmp))
     if ok:
         for p, t in zip((md, js), tmp):
@@ -196,24 +229,31 @@ def copy_back(remote, remote_dir, config_name):
     # A green run writes no .failed, so a stale local spec would re-flash boards that passed.
     spec = ROOT / f'{config_name}.failed'
     spec.unlink(missing_ok=True)
-    if rsync('-q', f'{remote}:{remote_dir}/{spec.name}', str(spec), optional=True) == 0 and spec.is_file():
+    if rsync(guard, '-q', f'{remote}:{remote_dir}/{spec.name}', str(spec), optional=True) == 0 and spec.is_file():
         print(f'==> {spec.name} copied to {spec}')
 
 
 @contextlib.contextmanager
 def remote_lease(remote, remote_dir, build_dir):
-    """Wipe and recreate remote_dir, yielding its absolute path while this ssh session holds
-    its lock: another runner sharing REMOTE_DIR would otherwise rm -rf this run's tree."""
+    """Wipe and recreate remote_dir, yielding (its absolute path, this run's token) while this
+    ssh session holds its lock: another runner sharing REMOTE_DIR would otherwise rm -rf this
+    run's tree."""
+    token = f'{os.getpid()}-{time.time_ns()}'
+    # stderr to a file, not a pipe: nothing drains a pipe while the lease is held, and a
+    # remote that writes more than the pipe buffer (rm -rf reporting hundreds of entries)
+    # would block with the lock taken
+    err_file = tempfile.TemporaryFile('w+')
     lease = subprocess.Popen(
-        ['ssh', *SSH_OPTS, remote, shlex.join(['bash', '-c', SETUP_SCRIPT, 'hil-setup', remote_dir, build_dir])],
-        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        ['ssh', *SSH_OPTS, remote, shlex.join(['bash', '-c', SETUP_SCRIPT, 'hil-setup', remote_dir, build_dir, token])],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=err_file, text=True)
     marked = next((ln.rstrip('\n').partition('=')[2] for ln in lease.stdout
                    if ln.startswith('HIL_REMOTE_DIR=')), '')
     if not marked.startswith('/'):
-        _, err = lease.communicate()
-        fail(f'remote setup failed (exit {lease.returncode}): {err.strip()}')
+        lease.communicate()
+        err_file.seek(0)
+        fail(f'remote setup failed (exit {lease.returncode}): {err_file.read().strip()}')
     try:
-        yield marked
+        yield marked, token
     finally:
         try:
             lease.communicate(timeout=30)
@@ -242,11 +282,12 @@ def main(argv):
     firmware = resolve_firmware(config, args)
 
     print(f'==> Setting up remote {remote}:{remote_dir}')
-    with remote_lease(remote, remote_dir, args.build_dir) as remote_dir:
-        return stage_and_run(remote, remote_dir, argv, args, config, config_path, firmware)
+    with remote_lease(remote, remote_dir, args.build_dir) as (remote_dir, token):
+        return stage_and_run(remote, remote_dir, token, argv, args, config, config_path, firmware)
 
 
-def stage_and_run(remote, remote_dir, argv, args, config, config_path, firmware):
+def stage_and_run(remote, remote_dir, token, argv, args, config, config_path, firmware):
+    guard = (remote_dir, token)
     if args.accumulate:
         # the wipe cleared the rig's copy; without the local sidecar as merge base the retry's
         # small table replaces the full one
@@ -259,22 +300,24 @@ def stage_and_run(remote, remote_dir, argv, args, config, config_path, firmware)
                   "uploading it; this run's table will REPLACE the previous one", file=sys.stderr)
         else:
             print('==> Uploading hil_report.json as the --accumulate merge base')
-            if rsync('-q', str(sidecar), f'{remote}:{remote_dir}/') != 0:
+            if rsync(guard, '-q', str(sidecar), f'{remote}:{remote_dir}/') != 0:
                 fail('could not upload hil_report.json')
 
     print('==> Copying the harness and config')
-    if rsync('-aqR', *HARNESS_FILES, f'{remote}:{remote_dir}/') != 0 or \
-            rsync('-q', str(config_path), f'{remote}:{remote_dir}/test/hil/') != 0:
+    if rsync(guard, '-aqR', *HARNESS_FILES, f'{remote}:{remote_dir}/') != 0 or \
+            rsync(guard, '-q', str(config_path), f'{remote}:{remote_dir}/test/hil/') != 0:
         fail('could not stage the harness')
     print(f'==> Copying firmware from {len(firmware)} build dir(s) under {args.build_dir}/')
     # one transfer: every dir lands under the same <build_dir>/, by its own name
-    if rsync('-a', *FIRMWARE_FILTER, *map(str, firmware), f'{remote}:{remote_dir}/{args.build_dir}/') != 0:
+    if rsync(guard, '-a', *FIRMWARE_FILTER, *map(str, firmware), f'{remote}:{remote_dir}/{args.build_dir}/') != 0:
         fail('could not stage the firmware')
 
     print(f'==> Running HIL test on {remote}')
-    rc = subprocess.run(['ssh', *SSH_OPTS, remote, run_command(remote_dir, argv, config_path.name)],
+    rc = subprocess.run(['ssh', *SSH_OPTS, remote, run_command(remote_dir, argv, config_path.name, token)],
                         stdin=subprocess.DEVNULL).returncode
-    copy_back(remote, remote_dir, config_path.name)
+    if rc == TREE_REPLACED:
+        return rc     # nothing of ours ran there: no report to fetch, and another run's must not land here
+    copy_back(remote, remote_dir, token, config_path.name)
     return rc
 
 

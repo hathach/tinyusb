@@ -56,8 +56,13 @@ with open(os.getcwd() + '.lock', 'a') as lk:
         lock_held = False
     except BlockingIOError:
         lock_held = True
+    # the run session's own shared hold: fd 9 open on the lock file across the exec
+    try:
+        own_hold = os.fstat(9).st_ino == os.fstat(lk.fileno()).st_ino
+    except OSError:
+        own_hold = False
 with open(os.environ['FAKE_RUN'], 'w') as f:
-    json.dump({{'argv': sys.argv[1:], 'cwd': os.getcwd(), 'lock_held': lock_held,
+    json.dump({{'argv': sys.argv[1:], 'cwd': os.getcwd(), 'lock_held': lock_held, 'own_hold': own_hold,
                'env': {{k: v for k, v in os.environ.items() if k.startswith('HIL_')}}}}, f)
 for name in os.environ.get('FAKE_WRITE', '').split():
     open(name, 'w').write('from the rig')
@@ -211,7 +216,7 @@ class Staging(Rig):
               for v in ('one', 'two') for x in ('bin', 'elf')] + \
              [f'cmake-build/cmake-build-beta_{v}/device/cdc_msc/flash_args' for v in ('one', 'two')]
         self.assertEqual(self.remote_files(),
-                         sorted([*hil_remote.HARNESS_FILES, 'test/hil/tinyusb.json', *fw]))
+                         sorted([*hil_remote.HARNESS_FILES, 'test/hil/tinyusb.json', '.hil-remote-run', *fw]))
 
     def test_a_missing_variant_warns(self):
         self.build('beta_one')
@@ -294,6 +299,10 @@ class TheRun(Rig):
         self.assertEqual([a[:len(opts) + 1] for a in ssh], [[*opts, 'rig']] * 2)
         self.assertTrue(rsync)
         self.assertTrue(all(a[:2] == ['-e', shlex.join(['ssh', *opts])] for a in rsync), rsync)
+        # every remote rsync server starts under the tree guard: shared lock plus this run's token
+        token = (self.remote / '.hil-remote-run').read_text().strip()
+        self.assertTrue(all(a[2].startswith('--rsync-path=sh -c ') and 'flock -s' in a[2] and token in a[2]
+                            for a in rsync), rsync)
 
 
 class RemoteLock(Rig):
@@ -321,7 +330,40 @@ class RemoteLock(Rig):
         r = self.hil_remote('-b', 'alpha')
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertTrue(self.ran()['lock_held'])
+        self.assertTrue(self.ran()['own_hold'], 'hil_test.py must hold the lock itself, not only the lease')
         self.lock()
+
+    @needs_rsync
+    def test_a_noisy_rig_shell_does_not_hide_the_marker(self):
+        # a login shell greeting on stdout with no trailing newline
+        fake(self.bin / 'ssh', FAKE_SSH.replace("['sh', '-c', cmd]", "['sh', '-c', 'printf greeting; ' + cmd]"))
+        self.build('alpha')
+        r = self.hil_remote('-b', 'alpha')
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    @needs_rsync
+    def test_a_chatty_setup_stderr_does_not_deadlock(self):
+        fake(self.bin / 'ssh', FAKE_SSH.replace("['sh', '-c', cmd]",
+                                                "['sh', '-c', 'head -c 300000 /dev/zero | tr \\\\0 x >&2; ' + cmd]"))
+        self.build('alpha')
+        r = self.hil_remote('-b', 'alpha')
+        self.assertEqual(r.returncode, 0, r.stderr[-300:])
+
+    @needs_rsync
+    def test_a_tree_replaced_after_staging_is_refused(self):
+        # the lease died and another run wiped and rebuilt the tree before this run session
+        # took its hold: its token is gone, so it must not run in the replacement
+        fake(self.bin / 'ssh', FAKE_SSH.replace(
+            "['sh', '-c', cmd]",
+            "['sh', '-c', ('rm -rf \"$0\" && mkdir -p \"$0/test/hil\"; ' if 'hil_test.py' in cmd else '') + cmd, "
+            f"{str(self.remote)!r}]"))
+        self.build('alpha')
+        r = self.hil_remote('-b', 'alpha')
+        self.assertEqual(r.returncode, hil_remote.TREE_REPLACED, r.stderr)
+        self.assertIn("not this run's tree any more", r.stderr)
+        self.assertFalse(self.run_file.exists(), 'hil_test.py ran in a tree that is not this run\'s')
+        # and nothing was fetched from the replacement tree
+        self.assertEqual([c['tool'] for c in self.calls()][-1], 'ssh', 'copy_back ran after the refusal')
 
 
 @needs_rsync
