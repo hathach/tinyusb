@@ -184,7 +184,10 @@ class UsbtestRecovery(unittest.TestCase):
                  reset + flash + fixed),
                 # esptool: reset_esptool is a stub (no_op) and rescue refuses a
                 # non-openocd flasher, so ONE reflash is all it can ever spend
-                ({'name': 'esptool', 'args': ''}, flash + fixed)):
+                ({'name': 'esptool', 'args': ''}, flash + fixed),
+                # reset-only (roster "reflash": false): the reset and its settle, nothing else
+                ({'name': 'openocd', 'args': '-f interface/jlink.cfg', 'reflash': False},
+                 reset + usbtest.WEDGE_CONFIRM_S + usbtest.RECOVER_SETTLE + usbtest.RECOVER_OVERHEAD)):
             self.assertEqual(usbtest.recovery_reserve(flasher), steps,
                              f'{flasher} reserves time it cannot spend, or too little')
 
@@ -667,7 +670,7 @@ class WedgeConfirmationOnTheMainPath(unittest.TestCase):
         def reconfigure(self, **kw):
             pass
 
-    def _main(self, confirm, keep_binding=True, recover=None, scans=None):
+    def _main(self, confirm, keep_binding=True, recover=None, scans=None, flasher_extra=None):
         """Returns (json or None, stderr, exception or None, sysfs writes)."""
         import usbtest
         dev = {'serial': 'U', 'node': '/dev/bus/usb/999/999', 'speed': '480', 'tier': 1,
@@ -700,7 +703,8 @@ class WedgeConfirmationOnTheMainPath(unittest.TestCase):
         if recover:
             # a convoy-safe openocd board whose reset and reflash are stubs
             patch(hil_flash, 'convoy_safe', lambda f: True)
-            patch(hil_flash, 'flash_openocd', lambda board, fw, **kw:
+            self.flashed = []          # every in-run reflash the ladder attempted
+            patch(hil_flash, 'flash_openocd', lambda board, fw, **kw: self.flashed.append(fw) or
                   types.SimpleNamespace(returncode=0, stdout=b'', stderr=b''))
             patch(hil_flash, 'rescue_openocd', lambda *a, **k: False)
             patch(usbtest, 'reset_primitive', lambda name: (lambda board, **kw: None))
@@ -711,7 +715,7 @@ class WedgeConfirmationOnTheMainPath(unittest.TestCase):
             sys.argv.append('--keep-binding')
         if recover:
             sys.argv += ['--recover-board', json.dumps({'name': 'b', 'flasher': {
-                'name': 'openocd', 'vid_pid': '0x1 0x2', 'args': ''}}),
+                'name': 'openocd', 'vid_pid': '0x1 0x2', 'args': '', **(flasher_extra or {})}}),
                          '--recover-fw', '/tmp/fw.elf']
         out, err, exc = self._Out(), io.StringIO(), None
         from contextlib import redirect_stderr
@@ -757,6 +761,17 @@ class WedgeConfirmationOnTheMainPath(unittest.TestCase):
         self.assertIsNone(data, 'no verdict was printed')
         self.assertIn('skipping cleanup after unrecovered hang', err)
         self.assertEqual(writes, [])
+
+    def test_a_reset_only_recovery_flasher_never_reflashes_in_run(self):
+        # the holder survives the reset, so the ladder reflashes...
+        self._main(lambda node: ([4242], True, 30.0), recover=True, scans=[([4242], True), ([4242], True)])
+        self.assertEqual(self.flashed, ['/tmp/fw.elf'])
+        # ...unless the entry is reset-only
+        data, err, _exc, _w = self._main(lambda node: ([4242], True, 30.0), recover=True,
+                                         scans=[([4242], True)], flasher_extra={'reflash': False})
+        self.assertTrue(data['wedged'])
+        self.assertIn('reset-only recovery flasher', err)
+        self.assertEqual(self.flashed, [], 'a reset-only entry must never reflash in-run')
 
     def test_recovery_scans_re_derive_the_confirmation(self):
         # confirmed, then the reset scan and the post-reflash scan cannot see every pid:

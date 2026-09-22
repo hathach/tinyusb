@@ -275,6 +275,7 @@
             "flasher_recover": {
                 "name": "openocd",
                 "args": "-f interface/jlink.cfg -c \"transport select swd\" -c \"adapter speed 1000\" -c \"swd newdap lpc55s28 cpu -expected-id 0\" -c \"dap create lpc55s28.dap -chain-position lpc55s28.cpu\" -c \"target create lpc55s28.cpu cortex_m -dap lpc55s28.dap\" -c \"cortex_m reset_config sysresetreq\"",
+                "reflash": false,
                 "note": "reset only: openocd has no LPC55 target cfg or flash driver, so a reflash through this entry fails"
             }
         },
@@ -662,6 +663,7 @@
             "flasher_recover": {
                 "name": "openocd",
                 "args": "-f interface/jlink.cfg -c \"transport select swd\" -c \"adapter speed 1000\" -c \"swd newdap rt1064 cpu -expected-id 0\" -c \"dap create rt1064.dap -chain-position rt1064.cpu\" -c \"target create rt1064.cpu cortex_m -dap rt1064.dap\" -c \"cortex_m reset_config sysresetreq\"",
+                "reflash": false,
                 "note": "reset only: openocd has no i.MX RT target cfg or FlexSPI flash driver, so a reflash through this entry fails"
             }
         },
@@ -683,6 +685,7 @@
             "flasher_recover": {
                 "name": "openocd",
                 "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/nordic/nrf54l.cfg -c \"adapter speed 4000\"",
+                "reflash": false,
                 "note": "reset only: nrf54l.cfg declares no RRAM flash bank, so a reflash through this entry fails"
             }
         }

@@ -6,7 +6,7 @@ worker or an earlier run's, is recovered after the worker pool is down, one boar
 time, under ONE reservation of every board in the config: the shield touches the shared
 root hub, so nothing else may be flashing or enumerating meanwhile. Per board: shield
 (usb-kernel-recover; only when the recovery flasher is not convoy-safe) -> probe reset ->
-reflash if the holder survived -> unshield ->
+reflash if the holder survived (never for a `"reflash": false` recovery flasher) -> unshield ->
 verify (complete holder scan with no holder, and the DUT enumerated again) -> clear the
 admission marker with that evidence. Anything less leaves the marker for the next run and
 says why.
@@ -246,7 +246,10 @@ def recover_board(board: dict, marker: dict, lock_fh, budget: Budget) -> dict:
                 cleared = scan('after reset')
             if not cleared:
                 flash_fn = getattr(_hil_flash(), f'flash_{fname}', None)
-                if not fw or not Path(fw).exists():
+                # roster `"reflash": false`: the tool has no flash driver for this chip, only a reset
+                if not rec_board['flasher'].get('reflash', True):
+                    out['steps'].append('reflash skipped: reset-only recovery flasher')
+                elif not fw or not Path(fw).exists():
                     out['steps'].append('no firmware artifact recorded: reflash skipped')
                 elif not flash_fn:
                     out['steps'].append(f'no flash_{fname}: reflash skipped')

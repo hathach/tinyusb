@@ -86,9 +86,14 @@ def recovery_reserve(flasher: dict | str) -> int:
     def step(bound):
         return bound + hil_util.REAP_GRACE
 
-    total = WEDGE_CONFIRM_S + step(RECOVER_FLASH_TIMEOUT) + 2 * RECOVER_SETTLE + RECOVER_OVERHEAD
+    total = WEDGE_CONFIRM_S + 2 * RECOVER_SETTLE + RECOVER_OVERHEAD
     if reset_primitive(name):
         total += step(RECOVER_RESET_TIMEOUT)
+    # a reset-only entry (roster "reflash": false) never reflashes: no flash step, no
+    # settle after it, and none of the rescue legs below
+    if not flasher.get('reflash', True):
+        return total - RECOVER_SETTLE
+    total += step(RECOVER_FLASH_TIMEOUT)
     # The ARGS, not just the name: rescue_openocd also needs the target cfg to be an RP
     # one (RESCUE_CFG), so the five WCH/max32666 openocd boards on this rig can never run
     # it. Reserving its two legs for them holds a pool worker and a usbtest permit for
@@ -790,6 +795,11 @@ def main():
                               file=sys.stderr)
                         unrecovered_hang = False
                         break
+                if not board['flasher'].get('reflash', True):
+                    # roster "reflash": false: the tool has no flash driver for this chip
+                    print(f'reset-only recovery flasher {fname}: no reflash; the device '
+                          f'stays wedged for the post-run recovery', file=sys.stderr)
+                    break
                 wedge_confirmation = 'unverified'   # the reflash changes the state
                 print(f'auto-recovering: reflashing {bname} via '
                       f'{fname} (see .claude/skills/usb-kernel-recover). '

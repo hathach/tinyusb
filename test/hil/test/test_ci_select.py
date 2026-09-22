@@ -843,6 +843,9 @@ class FlasherRecoverEntry(unittest.TestCase):
             stm32 = re.search(r'-f target/(stm32(?:f0|f4|f7|l4)x)\.cfg', rec['args'])
             self.assertEqual(rec.get('note', '').startswith('reset only'),
                              name in reset_only or name == 'nrf54lm20dk', f'{name}: reset-only note')
+            # machine-readable twin of the note: hil_recover skips the reflash on it
+            self.assertEqual(rec.get('reflash', True), not rec.get('note', '').startswith('reset only'),
+                             f'{name}: "reflash": false iff the note says reset only')
             if name in reset_only:
                 self.assertEqual(rec['args'], reset_only[name])
             elif stm32:

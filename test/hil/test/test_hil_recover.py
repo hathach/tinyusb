@@ -254,6 +254,16 @@ class Recovery(unittest.TestCase):
         self.assertTrue(out['b1']['recovered'], out)
         self.assertEqual([c[0] for c in self.calls], ['scan'])
 
+    def test_a_reset_only_recovery_flasher_never_reflashes(self):
+        CFG['boards'][0]['flasher_recover']['reflash'] = False
+        self.addCleanup(CFG['boards'][0]['flasher_recover'].pop, 'reflash')
+        self.mark()
+        self.scans = [([4242], True)]
+        out = self.run_phase()
+        self.assertFalse(out['b1']['recovered'])
+        self.assertNotIn('flash', [c[0] for c in self.calls])
+        self.assertTrue(any('reset-only' in s for s in out['b1']['steps']), out)
+
     def test_no_recorded_firmware_skips_the_reflash(self):
         self.mark(fw='')
         self.scans = [([4242], True)]
