@@ -446,7 +446,13 @@ bool hidh_deinit(void) {
 }
 
 bool hidh_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
+  if (result == XFER_RESULT_QUEUED) {
+    return true;
+  }
+#else
   (void) result;
+#endif
 
   uint8_t const dir = tu_edpt_dir(ep_addr);
   uint8_t const idx = get_idx_by_epaddr(daddr, ep_addr);

@@ -141,7 +141,13 @@ void midih_close(uint8_t daddr) {
 }
 
 bool midih_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
+#if CFG_TUH_XFER_QUEUE_DEPTH > 1
+  if (result == XFER_RESULT_QUEUED) {
+    return true;
+  }
+#else
   (void) result;
+#endif
   const uint8_t idx = get_idx_by_ep_addr(dev_addr, ep_addr);
   TU_VERIFY(idx < CFG_TUH_MIDI);
   midih_interface_t *p_midi = &_midi_host[idx];
