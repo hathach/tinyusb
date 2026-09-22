@@ -377,6 +377,25 @@ bool hcd_dwc3_edpt_abort_xfer( uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr
     return false;
 }
 
+static void handle_endpoint_transfer(uint8_t ep_dci, uint8_t ep_addr)
+{
+  uint8_t *buffer = ep_data[ep_dci].buffer;
+  uint32_t buflen = ep_data[ep_dci].buflen;
+  const unsigned dir = (uint32_t) tu_edpt_dir(ep_addr);
+  const uint8_t ep_num = tu_edpt_number(ep_addr);
+
+  if(ep_num == 0 && buflen != 0)
+  {
+    cache_force_invalidate(buffer, buflen);
+  }
+
+  if( dir == TUSB_DIR_IN )
+  {
+    cache_force_invalidate(buffer, buflen);
+  }
+
+}
+
 void hcd_dwc3_int_handler( uint8_t rhport, bool in_isr )
 {
 
