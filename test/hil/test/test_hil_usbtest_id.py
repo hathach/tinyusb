@@ -5,13 +5,19 @@ driver_attach, which takes the device lock of every cafe:4010 interface on the r
 waits for every peer battery's in-flight testusb case. Stubbed sysfs; the kernel side is
 proved by a rig run."""
 import ast
+import errno
+import fcntl
 import io
 import os
+import select
+import signal
+import subprocess
 import sys
 import threading
 import time
 import types
 import unittest
+import unittest.mock
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -25,6 +31,7 @@ serial_stub.SerialException = type('SerialException', (Exception,), {})
 serial_stub.SerialTimeoutException = type('SerialTimeoutException', (Exception,), {})
 sys.modules.setdefault('serial', serial_stub)
 import usbtest  # noqa: E402
+from helper import hil_lock  # noqa: E402
 
 HIL_DIR = Path(TEST_DIR).parent
 ENTRY = f'{usbtest.VID} {usbtest.PID} 0 {usbtest.GZ_REF}'
@@ -48,11 +55,17 @@ class FakeDriver:
         self.modprobe = []
         if loaded:
             self.load()
+        self.test = test
         for name, value in (('DRIVER', self.driver), ('SYS_USB', self.sys_usb),
-                            ('REGISTER_LOCK_DIR', str(self.locks)),
                             ('sysfs_write', self.sysfs_write), ('_sudo_soft', self.sudo_soft)):
-            test.addCleanup(setattr, usbtest, name, getattr(usbtest, name))
-            setattr(usbtest, name, value)
+            self.patch(name, value)
+        test.addCleanup(setattr, hil_lock, 'BOARD_LOCK_DIR', hil_lock.BOARD_LOCK_DIR)
+        hil_lock.BOARD_LOCK_DIR = str(self.locks)
+
+    def patch(self, name, value, module=None):
+        module = module or usbtest
+        self.test.addCleanup(setattr, module, name, getattr(module, name))
+        setattr(module, name, value)
 
     def load(self):
         self.driver.mkdir(parents=True, exist_ok=True)
@@ -80,19 +93,20 @@ class FakeDriver:
             d = self.root / 'drivers' / driver
             d.mkdir(parents=True, exist_ok=True)
             (intf / 'driver').symlink_to(d)
+            (d / intf.name).symlink_to(intf)   # the driver dir lists what it binds, as sysfs does
         return intf
 
 
 class RegisterOnce(unittest.TestCase):
-    def test_writes_the_profiled_entry_when_none_is_listed(self):
-        fake = FakeDriver(self)
-        usbtest.register_usbtest_id()
-        self.assertEqual(fake.writes, [('new_id', ENTRY)])
-
-    def test_an_existing_entry_means_no_write(self):
-        fake = FakeDriver(self, listed='cafe 4010\n')
-        usbtest.register_usbtest_id()
-        self.assertEqual(fake.writes, [])
+    def test_writes_the_profiled_entry_only_when_the_id_is_not_listed(self):
+        for listed, writes in (('', [('new_id', ENTRY)]),
+                               ('cafe 4010\n', []),
+                               ('0525 a4a0\ncafe 4010\n', []),
+                               ('0525 a4a0\ncafe 4011\ncafe 4010 ff\n', [('new_id', ENTRY)])):
+            with self.subTest(listed=listed):
+                fake = FakeDriver(self, listed=listed)
+                usbtest.register_usbtest_id()
+                self.assertEqual(fake.writes, writes)
 
     def test_idempotent(self):
         fake = FakeDriver(self)
@@ -100,14 +114,58 @@ class RegisterOnce(unittest.TestCase):
             usbtest.register_usbtest_id()
         self.assertEqual(fake.writes, [('new_id', ENTRY)])
 
-    def test_our_entry_after_another_id_counts(self):
-        fake = FakeDriver(self, listed='0525 a4a0\ncafe 4010\n')
-        usbtest.register_usbtest_id()
+    def test_an_unusable_lock_dir_is_a_named_exit(self):
+        fake = FakeDriver(self)
+        fake.locks.write_text('')   # a file where the lock dir should be
+        with self.assertRaises(SystemExit) as cm:
+            usbtest.register_usbtest_id()
+        self.assertIn('registration lock', str(cm.exception))
         self.assertEqual(fake.writes, [])
 
-    def test_another_ids_entry_does_not_count(self):
-        fake = FakeDriver(self, listed='0525 a4a0\ncafe 4011\ncafe 4010 ff\n')
-        usbtest.register_usbtest_id()
+    def test_a_refused_flock_is_a_named_exit(self):
+        fake = FakeDriver(self)
+
+        def no_locks(fh, op):
+            raise OSError(errno.ENOLCK, 'No locks available')
+        with unittest.mock.patch.object(fcntl, 'flock', no_locks):
+            with self.assertRaises(SystemExit) as cm:
+                usbtest.register_usbtest_id()
+        self.assertIn('No locks available', str(cm.exception))
+        self.assertEqual(fake.writes, [])
+
+    def test_a_peer_mid_write_holds_the_lock_until_its_attach_returns(self):
+        # the kernel lists the id BEFORE driver_attach: a second initializer must not trust
+        # the listing while the first's write is still in flight
+        fake = FakeDriver(self)
+        published = threading.Event()
+        release = threading.Event()
+        real = fake.sysfs_write
+
+        def slow_write(path, data, check=True):
+            real(path, data, check)      # the fake lists the id now, as the kernel does
+            published.set()
+            release.wait(5)              # ... and driver_attach is still running
+            return True
+        fake.patch('sysfs_write', slow_write)
+        second_done = threading.Event()
+        first = threading.Thread(target=usbtest.register_usbtest_id, daemon=True)
+        second = threading.Thread(target=lambda: (usbtest.register_usbtest_id(), second_done.set()),
+                                  daemon=True)
+
+        def reap():   # runs first among the cleanups: before the patches and the temp dir go
+            release.set()
+            started = [t for t in (first, second) if t.ident is not None]
+            for t in started:
+                t.join(5)
+            self.assertFalse([t for t in started if t.is_alive()], 'initializer thread outlived the test')
+        self.addCleanup(reap)
+        first.start()
+        self.assertTrue(published.wait(5))
+        second.start()
+        self.assertFalse(second_done.wait(0.5), 'a battery would start beside the attach')
+        release.set()
+        first.join(5)
+        self.assertTrue(second_done.wait(5))
         self.assertEqual(fake.writes, [('new_id', ENTRY)])
 
     def test_loads_the_module_when_missing(self):
@@ -115,13 +173,6 @@ class RegisterOnce(unittest.TestCase):
         usbtest.register_usbtest_id()
         self.assertEqual(fake.modprobe, [['modprobe', 'usbtest']])
         self.assertEqual(fake.writes, [('new_id', ENTRY)])
-
-    def test_never_removes_an_id(self):
-        fake = FakeDriver(self, listed='cafe 4010\n')
-        usbtest.register_usbtest_id()
-        fake2 = FakeDriver(self)
-        usbtest.register_usbtest_id()
-        self.assertFalse([w for w in fake.writes + fake2.writes if w[0] == 'remove_id'])
 
     def test_two_initializers_make_one_entry(self):
         fake = FakeDriver(self)
@@ -143,7 +194,6 @@ class RegisterOnce(unittest.TestCase):
         self.assertEqual((fake.driver / 'new_id').read_text(), 'cafe 4010\n')
 
     def test_the_lock_is_bounded_and_released(self):
-        import fcntl
         fake = FakeDriver(self)
         fake.locks.mkdir()
         holder = open(fake.locks / usbtest.REGISTER_LOCK_NAME, 'a')
@@ -174,6 +224,47 @@ class RegisterOnce(unittest.TestCase):
         fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)   # raises if still held
 
 
+class AKilledHolderReleasesTheLock(unittest.TestCase):
+    """The registration flock dies with its holder, however the holder dies: the next
+    initializer registers at once, against the same lock file."""
+
+    def test_the_next_initializer_registers_without_waiting(self):
+        fake = FakeDriver(self)
+        fake.locks.mkdir()
+        lock = fake.locks / usbtest.REGISTER_LOCK_NAME
+        ready_r, ready_w = os.pipe()
+        self.addCleanup(os.close, ready_r)
+        try:
+            holder = subprocess.Popen(
+                [sys.executable, '-c',
+                 'import fcntl, os, sys, time\n'
+                 'fh = open(sys.argv[1], "a")\n'
+                 'fcntl.flock(fh, fcntl.LOCK_EX)\n'
+                 'os.write(int(sys.argv[2]), b"1")\n'
+                 'time.sleep(60)\n',
+                 str(lock), str(ready_w)], pass_fds=(ready_w,))
+        finally:
+            os.close(ready_w)
+        self.addCleanup(lambda: holder.poll() is None and (holder.kill(), holder.wait(5)))
+        ready, _, _ = select.select([ready_r], [], [], 10)
+        self.assertTrue(ready and os.read(ready_r, 1) == b'1', 'holder never took the lock')
+        with open(lock) as fh:   # the child really holds it: the kill below is what frees it
+            with self.assertRaises(BlockingIOError):
+                fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        inode = lock.stat().st_ino
+
+        holder.send_signal(signal.SIGKILL)
+        self.assertEqual(holder.wait(5), -signal.SIGKILL)
+        self.addCleanup(setattr, usbtest, 'REGISTER_LOCK_TIMEOUT', usbtest.REGISTER_LOCK_TIMEOUT)
+        usbtest.REGISTER_LOCK_TIMEOUT = 2
+        with unittest.mock.patch.object(fcntl, 'flock', wraps=fcntl.flock) as flock:
+            usbtest.register_usbtest_id()
+        attempts = [c for c in flock.call_args_list if c.args[1] & fcntl.LOCK_EX]
+        self.assertEqual(len(attempts), 1)   # taken first try: the dead holder's lock is gone
+        self.assertEqual(fake.writes, [('new_id', ENTRY)])
+        self.assertEqual(lock.stat().st_ino, inode)
+
+
 class BindOwnInterface(unittest.TestCase):
     def test_already_bound_returns_at_once(self):
         fake = FakeDriver(self, listed='cafe 4010\n')
@@ -194,8 +285,7 @@ class BindOwnInterface(unittest.TestCase):
             elif Path(path).name == 'bind':
                 (intf / 'driver').symlink_to(fake.driver)
             return True
-        self.addCleanup(setattr, usbtest, 'sysfs_write', usbtest.sysfs_write)
-        usbtest.sysfs_write = write
+        fake.patch('sysfs_write', write)
         foreign = (intf / 'driver').resolve()
         usbtest.bind_usbtest({'sysname': '1-1'})
         self.assertEqual(fake.writes, [(str(foreign / 'unbind'), '1-1:1.0'),
@@ -210,15 +300,56 @@ class BindOwnInterface(unittest.TestCase):
             self.assertNotIn(word, body)
 
 
+class StandaloneLeavesThePeersAlone(unittest.TestCase):
+    """A standalone battery, with or without --keep-binding, writes no registry entry and
+    unbinds nothing: a peer mid-battery keeps its binding and the shared id stays."""
+
+    def run_main(self, *extra):
+        fake = FakeDriver(self, listed='cafe 4010\n')
+        ours = fake.interface('1-1', driver='usbtest')
+        peer = fake.interface('2-1', driver='usbtest')
+        dev = {'serial': 'U', 'node': '/dev/bus/usb/001/002', 'speed': '480', 'tier': 1,
+               'sysname': '1-1'}
+
+        fake.patch('find_device', lambda serial, first=False: dict(dev))
+        fake.patch('check_host_compat', lambda d: None)
+        fake.patch('set_pattern', lambda v: None)
+        fake.patch('dmesg_tail', lambda: '')
+        fake.patch('_hu', lambda: types.SimpleNamespace(path_stranded=lambda p: False,
+                                                        strand_note=lambda: ''))
+        fake.patch('run_case', lambda num, d, tu, quick, timeout:
+                   {'num': num, 'name': 'x', 'params': '', 'status': 'PASS', 'detail': ''})
+        self.addCleanup(setattr, sys, 'argv', sys.argv)
+        sys.argv = ['usbtest.py', '--serial', 'U', '--json', '--tests', '1',
+                    '--testusb', sys.executable, *extra]
+        # both bindings are visible to a driver-wide unbind loop, so its absence is what is tested
+        self.assertEqual(sorted(p.name for p in fake.driver.glob('*:*')), ['1-1:1.0', '2-1:1.0'])
+
+        class Out(io.StringIO):
+            def reconfigure(self, **kw):   # main() line-buffers stdout
+                pass
+        with redirect_stdout(Out()), redirect_stderr(io.StringIO()):
+            usbtest.main()
+        return fake, ours, peer
+
+    def test_without_keep_binding(self):
+        fake, ours, peer = self.run_main()
+        self.assertEqual(fake.writes, [])
+        self.assertTrue((ours / 'driver').is_symlink() and (peer / 'driver').is_symlink())
+        self.assertEqual((fake.driver / 'new_id').read_text(), 'cafe 4010\n')
+
+    def test_keep_binding_is_still_accepted(self):
+        fake, _ours, peer = self.run_main('--keep-binding')
+        self.assertEqual(fake.writes, [])
+        self.assertTrue((peer / 'driver').is_symlink())
+
+
 class Callers(unittest.TestCase):
     def test_standalone_usbtest_registers_before_binding(self):
         src = (HIL_DIR / 'usbtest.py').read_text()
         main = next(n for n in ast.walk(ast.parse(src))
                     if isinstance(n, ast.FunctionDef) and n.name == 'main')
         # a statement of main's own body, so no condition can skip it, and ahead of the bind
-        top = [ast.unparse(n.value.func) for n in main.body
-               if isinstance(n, ast.Expr) and isinstance(n.value, ast.Call)]
-        self.assertIn('register_usbtest_id', top)
         reg = next(n.lineno for n in main.body if isinstance(n, ast.Expr)
                    and ast.unparse(n.value) == 'register_usbtest_id()')
         bind = min(n.lineno for n in ast.walk(main) if isinstance(n, ast.Call)
@@ -278,23 +409,25 @@ class HilTestRegistersBeforeThePool(unittest.TestCase):
             raise SystemExit('cannot load usbtest module: nope')
         usbtest.register_usbtest_id = fail
         with TemporaryDirectory() as td, redirect_stdout(io.StringIO()) as out:
+            previous = Path(td) / self.hil_test.hil_report.REPORT_JSON
+            previous.write_text('{"rows": [{"board": "stale", "cells": {"device/usbtest": "30/30"}}]}')
             with self.assertRaises(SystemExit) as cm:
                 self.hil_test.register_usbtest_if_selected(
                     [{'name': 'a', 'tests': {'only': ['device/usbtest']}}], Path(td), fresh=True)
-            report = (Path(td) / self.hil_test.hil_report.REPORT_JSON).read_text()
+            report = previous.read_text()
         self.assertEqual(cm.exception.code, 1)
         self.assertIn('cannot load usbtest module', out.getvalue())
         self.assertIn('cannot load usbtest module', report)
+        self.assertNotIn('stale', report)   # the previous run's table does not survive
 
     def test_called_before_the_build_and_the_pool(self):
         src = (HIL_DIR / 'hil_test.py').read_text()
         main = next(n for n in ast.walk(ast.parse(src))
                     if isinstance(n, ast.FunctionDef) and n.name == 'main')
-        order = [ast.unparse(n.func) for n in ast.walk(main) if isinstance(n, ast.Call)]
-        lines = {name: min(n.lineno for n in ast.walk(main) if isinstance(n, ast.Call)
-                           and ast.unparse(n.func) == name)
+        lines = {name: min((n.lineno for n in ast.walk(main) if isinstance(n, ast.Call)
+                            and ast.unparse(n.func) == name), default=None)
                  for name in ('register_usbtest_if_selected', 'build_board', '_start_pool')}
-        self.assertIn('register_usbtest_if_selected', order)
+        self.assertIsNotNone(lines['register_usbtest_if_selected'])
         self.assertLess(lines['register_usbtest_if_selected'], lines['build_board'])
         self.assertLess(lines['register_usbtest_if_selected'], lines['_start_pool'])
 

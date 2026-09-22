@@ -25,16 +25,18 @@ the failing case passing *and* the full battery still at 30/30 across reflash cy
 # src/usb_descriptors.h + src/tusb_config.h (paths below are relative to it)
 cd examples/device/usbtest && cmake -B build -DBOARD=<board> -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel && cmake --build build
 # flash, wait ~3-5 s for enumeration to settle, then:
-python3 test/hil/usbtest.py --serial <uid> --keep-binding            # full battery for the advertised tier
-python3 test/hil/usbtest.py --serial <uid> --keep-binding --tests 29 # one case
+python3 test/hil/usbtest.py --serial <uid>            # full battery for the advertised tier
+python3 test/hil/usbtest.py --serial <uid> --tests 29 # one case
 ```
 
-- **Always `--keep-binding`**: the cleanup unbind path has wedged host xHCIs (`usb_hcd_alloc_bandwidth`).
+- The run registers `cafe 4010` with the usbtest module once per rig (Gadget Zero's profile) and
+  leaves the id and the binding in place: an unbind has wedged host xHCIs
+  (`usb_hcd_alloc_bandwidth`), and the next example enumerates under its own PID.
 - CI (`hil_test.py`) additionally passes `--budget` and
   `--recover-board`/`--recover-fw`: on a HUNG case the battery aborts, RESETS the DUT
   through its roster probe (non-destructive, ~130 ms) and reflashes only if that does not
   clear the wedge (see usb-kernel-recover). Manual runs without those flags leave a HUNG
-  device wedged and skip cleanup — expected; reset or reflash it yourself.
+  device wedged — expected; reset or reflash it yourself.
 - Always settle a few seconds after flashing — enumeration can bounce once; testusb into the gap sees
   the device drop mid-case.
 - On a CI rig: hold the board lock before touching hardware and release it after — never stop the
@@ -46,6 +48,23 @@ python3 test/hil/usbtest.py --serial <uid> --keep-binding --tests 29 # one case
   the rig with a fatal PCIe error on a VFIO-passed xHCI, and a marginal DUT port bouncing under
   concurrent batteries has killed a uPD720201 outright, which lowering the widths does not fix
   (that note records every such death).
+
+## Repair a wrong profile
+
+The listing (`/sys/bus/usb/drivers/usbtest/new_id`) shows only `cafe 4010`, never the profile behind
+it; a bound interface keeps the profile it was probed with. Symptoms of a wrong one (say the
+user-mode profile `0525 a4a4`): cases 14/21, 25/26 and 15/16/22/23 come back NOTRUN while
+the bulk cases pass, and `dmesg` names the probe (`Linux gadget zero` is the right one).
+Repair is a module reload on a reserved, idle rig; `remove_id` alone leaves every bound
+interface on the old profile.
+
+1. Reserve the whole fleet as the `hil` skill's rig-wide rule says (it owns that command and
+   its per-host config trap); go on only once it holds, and confirm no `testusb`/`usbtest.py`
+   is running.
+2. `sudo modprobe -r usbtest`, then `sudo modprobe usbtest`. A refused unload means an interface
+   is still in use: find that holder and wait; never force it.
+3. Register the correct entry: the next run of `usbtest.py` or `hil_test.py` does it.
+4. Verify `dmesg` shows a `Linux gadget zero` probe for the next enumerated board, then release.
 
 ## Porting ladder — new MCU/DCD to 30/30
 

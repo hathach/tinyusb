@@ -21,6 +21,7 @@ import io
 import json
 import os
 import stat
+import subprocess
 import sys
 import threading
 from contextlib import redirect_stderr, redirect_stdout
@@ -596,8 +597,8 @@ class WedgedPidsFailsClosed(unittest.TestCase):
     """A scan that could not SEE the holder must not report "no holder". The holder is
     root-owned (run_case uses sudo -n when the node is not writable) and that is exactly
     what a hidepid/ProtectProc mount hides — so an unreadable /proc reading as clear
-    clears unrecovered_hang and lets cleanup unbind a device whose usbfs lock is still
-    held, which deadlocks the bus rather than one board."""
+    clears unrecovered_hang and reports a device whose usbfs lock is still held as
+    recovered, which is the wedge the operator then has to find."""
 
     def test_returns_a_completeness_flag_not_just_pids(self):
         import usbtest
@@ -661,7 +662,7 @@ class WedgeConfirmation(unittest.TestCase):
 
 class WedgeConfirmationOnTheMainPath(unittest.TestCase):
     """The transitions together, through usbtest.main(): a cleared holder ends the battery as
-    a timeout FAIL and lets the cleanup writes run; a persistent holder is a confirmed wedge;
+    a timeout FAIL with nothing written; a persistent holder is a confirmed wedge;
     an incomplete scan is contained like a wedge but reported unverified; an exception during
     the confirmation still reaches the finally with the hang flagged; and every recovery scan
     re-derives the confirmation, so a stale 'confirmed' never outlives an incomplete final scan."""
@@ -687,8 +688,7 @@ class WedgeConfirmationOnTheMainPath(unittest.TestCase):
         patch(usbtest, 'set_pattern', lambda v: None)
         patch(usbtest, 'dmesg_tail', lambda: '')
         patch(usbtest, 'sysfs_write', lambda path, data, check=True: writes.append((str(path), data)))
-        patch(usbtest, '_hu', lambda: types.SimpleNamespace(sysfs_stranded=lambda: False,
-                                                             path_stranded=lambda p: False,
+        patch(usbtest, '_hu', lambda: types.SimpleNamespace(path_stranded=lambda p: False,
                                                              strand_note=lambda: ''))
         td = TemporaryDirectory()
         self.addCleanup(td.cleanup)
@@ -728,22 +728,22 @@ class WedgeConfirmationOnTheMainPath(unittest.TestCase):
         data = json.loads(out.getvalue()) if out.getvalue().strip() else None
         return data, err.getvalue(), exc, writes
 
-    def test_a_cleared_holder_is_a_timeout_fail_and_cleanup_writes_run(self):
+    def test_a_cleared_holder_is_a_timeout_fail_and_nothing_is_written(self):
         data, err, exc, writes = self._main(lambda node: ([], True, 6.0), keep_binding=False)
         self.assertIsNone(exc)
         self.assertFalse(data['wedged'])
         self.assertEqual(data['wedge_confirmation'], 'cleared')
         self.assertEqual(data['cases'][0]['status'], 'FAIL')
         self.assertIn('no holder observed after 6s', data['cases'][0]['detail'])
-        self.assertNotIn('skipping cleanup after unrecovered hang', err)
-        self.assertTrue(any(p.endswith('remove_id') for p, _ in writes), writes)
+        self.assertNotIn('unrecovered hang', err)
+        self.assertEqual(writes, [], 'a standalone run removed the id or unbound a peer')
 
-    def test_a_persistent_holder_is_a_confirmed_wedge_and_cleanup_never_writes(self):
+    def test_a_persistent_holder_is_a_confirmed_wedge_and_nothing_is_written(self):
         data, err, _exc, writes = self._main(lambda node: ([4242], True, 30.0), keep_binding=False)
         self.assertTrue(data['wedged'])
         self.assertEqual(data['wedge_confirmation'], 'confirmed')
         self.assertEqual(data['cases'][0]['status'], 'HUNG')
-        self.assertIn('skipping cleanup after unrecovered hang', err)
+        self.assertIn('unrecovered hang: ask the operator', err)
         self.assertEqual(writes, [])
 
     def test_an_incomplete_scan_is_contained_but_reported_unverified(self):
@@ -751,16 +751,16 @@ class WedgeConfirmationOnTheMainPath(unittest.TestCase):
         self.assertTrue(data['wedged'], 'an unseen holder must still be contained')
         self.assertEqual(data['wedge_confirmation'], 'unverified')
         self.assertIn('unverified', err)
-        self.assertIn('skipping cleanup after unrecovered hang', err)
+        self.assertIn('unrecovered hang: ask the operator', err)
         self.assertEqual(writes, [])
 
-    def test_an_exception_during_confirmation_still_skips_cleanup(self):
+    def test_an_exception_during_confirmation_still_reports_the_hang(self):
         def boom(node):
             raise RuntimeError('proc walk failed')
         data, err, exc, writes = self._main(boom, keep_binding=False)
         self.assertIsInstance(exc, RuntimeError)
         self.assertIsNone(data, 'no verdict was printed')
-        self.assertIn('skipping cleanup after unrecovered hang', err)
+        self.assertIn('unrecovered hang: ask the operator', err)
         self.assertEqual(writes, [])
 
     def test_a_reset_only_recovery_flasher_never_reflashes_in_run(self):
@@ -1961,24 +1961,40 @@ class UsbtestStartupDoesNotClaimAbsenceBlind(unittest.TestCase):
                       'usbtest claims absence without consulting sysfs_stranded()')
 
 
-class UsbtestGlobalCleanupStaysProcessWide(unittest.TestCase):
-    """The strand flag has TWO consumers at different scopes. The per-case verdict is
-    per-DUT -- a peer that stranded must not make OUR board report wedged. But the finally
-    block's cleanup is GLOBAL: remove_id plus an unbind of every interface under the
-    usbtest driver, including that peer's. Those writes take the uninterruptible
-    device_lock, so the global path has to stay gated on the process-wide question."""
+class UsbtestNeverCleansUp(unittest.TestCase):
+    """main's finally writes nothing: remove_id makes the next registration wait on peers'
+    in-flight cases, and a driver-wide unbind cut peer batteries and has wedged a host xHCI
+    through the uninterruptible device_lock. The id and bindings stay for every run."""
 
-    def test_the_global_unbind_consults_the_process_wide_flag(self):
+    def test_the_finally_block_writes_nothing(self):
         import ast
         import usbtest
         tree = ast.parse(Path(usbtest.__file__).read_text())
-        fins = [n for n in ast.walk(tree) if isinstance(n, ast.Try) and n.finalbody
-                and 'remove_id' in ast.unparse(ast.Module(body=n.finalbody, type_ignores=[]))]
-        self.assertEqual(len(fins), 1, 'the cleanup finally moved; retarget this test')
-        body = ast.unparse(ast.Module(body=fins[0].finalbody, type_ignores=[]))
-        self.assertIn('sysfs_stranded', body,
-                      'global remove_id/unbind runs without the process-wide strand gate')
+        main = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'main')
+        fins = [n for n in ast.walk(main) if isinstance(n, ast.Try) and n.finalbody]
+        self.assertTrue(fins, 'main lost its finally; retarget this test')
+        for fin in fins:
+            body = ast.unparse(ast.Module(body=fin.finalbody, type_ignores=[]))
+            # every registry/bind write goes through sysfs_write
+            self.assertNotIn('sysfs_write', body, "main's finally writes to sysfs")
 
+
+class SysfsWriteTimeoutNamesTheUncertainty(unittest.TestCase):
+    def test_a_blocked_write_is_contention_or_a_wedge_and_stays_bounded(self):
+        import usbtest
+        seen = {}
+
+        def blocked(cmd, **kw):
+            seen.update(kw)
+            raise subprocess.TimeoutExpired(cmd, kw.get('timeout'))
+        self.addCleanup(setattr, usbtest, 'sudo', usbtest.sudo)
+        usbtest.sudo = blocked
+        with self.assertRaises(SystemExit) as cm:
+            usbtest.sysfs_write('/sys/bus/usb/drivers/usbtest/new_id', 'cafe 4010 0 0525 a4a0')
+        self.assertEqual(seen.get('timeout'), 15)
+        msg = str(cm.exception)
+        self.assertIn('possible device-lock contention or a wedged device', msg)
+        self.assertNotIn('USB subsystem is wedged', msg)
 
 if __name__ == '__main__':
     unittest.main()
