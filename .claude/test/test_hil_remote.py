@@ -3,9 +3,11 @@ clean environment and a temp HOME, a fake rsync strips the host prefix, and a fa
 in that HOME's ~/.local/bin stands in for hil_test.py. So the quoting, the tilde expansion,
 the PATH shim and every refusal-before-wipe execute for real. Plumbing only: the real
 transport is proved by a run on ci.lan."""
+import fcntl
 import importlib.util
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -24,7 +26,10 @@ needs_rsync = unittest.skipUnless(REAL_RSYNC, 'rsync not installed; the fake rsy
 
 FAKE_SSH = f'''#!{sys.executable}
 import json, os, subprocess, sys
-host, cmd = sys.argv[1], sys.argv[2]
+args = sys.argv[1:]
+while args[:1] == ['-o']:
+    args = args[2:]
+host, cmd = args[0], args[1]
 with open(os.environ['FAKE_LOG'], 'a') as f:
     f.write(json.dumps({{'tool': 'ssh', 'argv': sys.argv[1:]}}) + '\\n')
 env = {{'HOME': os.environ['FAKE_HOME'], 'PATH': '/usr/bin:/bin'}}
@@ -40,12 +45,19 @@ args = [a.split(':', 1)[1] if a.startswith('rig:') else a for a in sys.argv[1:]]
 os.execv({REAL_RSYNC!r}, [{REAL_RSYNC!r}, *args])
 '''
 
-# hil_test.py on the "rig": record argv, cwd and the HIL_* env it got; write the report pair
-# and a .failed spec when asked; exit with FAKE_RC.
+# hil_test.py on the "rig": record argv, cwd, the HIL_* env it got and whether another run
+# could take the REMOTE_DIR lock; write the report pair and a .failed spec when asked; exit
+# with FAKE_RC.
 FAKE_PYTHON = f'''#!{sys.executable}
-import json, os, sys
+import fcntl, json, os, sys
+with open(os.getcwd() + '.lock', 'a') as lk:
+    try:
+        fcntl.flock(lk, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        lock_held = False
+    except BlockingIOError:
+        lock_held = True
 with open(os.environ['FAKE_RUN'], 'w') as f:
-    json.dump({{'argv': sys.argv[1:], 'cwd': os.getcwd(),
+    json.dump({{'argv': sys.argv[1:], 'cwd': os.getcwd(), 'lock_held': lock_held,
                'env': {{k: v for k, v in os.environ.items() if k.startswith('HIL_')}}}}, f)
 for name in os.environ.get('FAKE_WRITE', '').split():
     open(name, 'w').write('from the rig')
@@ -53,8 +65,8 @@ sys.exit(int(os.environ.get('FAKE_RC', '0')))
 '''
 
 CONFIG = {'boards': [
-    {'name': 'alpha'},
-    {'name': 'beta', 'variant': [{'name': 'beta_one'}, {'name': 'beta_two'}]},
+    {'name': 'alpha', 'flasher': {'name': 'jlink'}},
+    {'name': 'beta', 'flasher': {'name': 'openocd'}, 'variant': [{'name': 'beta_one'}, {'name': 'beta_two'}]},
 ]}
 
 
@@ -153,6 +165,14 @@ class Refusals(Rig):
     def test_all_boards_with_nothing_built(self):
         self.refused(self.hil_remote(), 'nothing to test')
 
+    def test_a_flasher_filter_that_leaves_no_board(self):
+        self.build('alpha')
+        self.refused(self.hil_remote('-b', 'alpha', '--flasher', 'openocd'), 'no board left after the flasher filter')
+
+    def test_a_board_the_flasher_filter_drops_satisfies_nothing(self):
+        self.build('beta_one')
+        self.refused(self.hil_remote('--exclude-flasher', 'openocd'), 'nothing to test')
+
     def test_the_preset_layout_is_not_read(self):
         self.build('alpha', root='examples')
         self.refused(self.hil_remote('-b', 'alpha'), 'no build under cmake-build/ for:')
@@ -199,6 +219,13 @@ class Staging(Rig):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn('no cmake-build/cmake-build-beta_two -- its cells will be skipped', r.stderr)
         self.assertNotIn('beta_one --', r.stderr)
+
+    def test_a_board_the_flasher_filter_drops_needs_no_build(self):
+        self.build('alpha')
+        r = self.hil_remote('-b', 'alpha', '-b', 'beta', '--exclude-flasher', 'openocd')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual({f.split('/')[1] for f in self.remote_files() if f.startswith('cmake-build/')},
+                         {'cmake-build-alpha'})
 
     def test_all_boards_stage_whatever_is_built(self):
         self.build('alpha', 'beta_two')
@@ -251,11 +278,50 @@ class TheRun(Rig):
                             for d in rsync_dests), rsync_dests)
 
     def test_the_remote_gate_refuses_home(self):
-        r = subprocess.run(['bash', '-s', '--', '~/', 'cmake-build'], input=hil_remote.SETUP_SCRIPT,
-                           capture_output=True, text=True, env={'HOME': str(self.home), 'PATH': '/usr/bin:/bin'})
+        r = subprocess.run(['bash', '-c', hil_remote.SETUP_SCRIPT, 'hil-setup', '~/', 'cmake-build'],
+                           stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                           env={'HOME': str(self.home), 'PATH': '/usr/bin:/bin'})
         self.assertNotEqual(r.returncode, 0)
         self.assertIn('refusing', r.stderr)
         self.assertTrue((self.home / '.local/bin/python3').exists())
+
+    def test_every_ssh_carries_the_keepalive_options(self):
+        self.build('alpha')
+        self.assertEqual(self.hil_remote('-b', 'alpha').returncode, 0)
+        opts = list(hil_remote.SSH_OPTS)
+        ssh = [c['argv'] for c in self.calls() if c['tool'] == 'ssh']
+        rsync = [c['argv'] for c in self.calls() if c['tool'] == 'rsync']
+        self.assertEqual([a[:len(opts) + 1] for a in ssh], [[*opts, 'rig']] * 2)
+        self.assertTrue(rsync)
+        self.assertTrue(all(a[:2] == ['-e', shlex.join(['ssh', *opts])] for a in rsync), rsync)
+
+
+class RemoteLock(Rig):
+    """A second run sharing REMOTE_DIR must not rm -rf the tree the first one is running from."""
+
+    def lock(self):
+        lk = open(f'{self.remote}.lock', 'a')
+        self.addCleanup(lk.close)
+        fcntl.flock(lk, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    def test_a_held_lock_refuses_before_the_wipe(self):
+        self.build('alpha')
+        (self.remote / 'running').mkdir(parents=True)
+        (self.remote / 'running/x').write_text('the other run')
+        self.lock()
+        r = self.hil_remote('-b', 'alpha')
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn(f'another hil_remote run holds {self.remote}.lock', r.stderr)
+        self.assertTrue((self.remote / 'running/x').is_file())
+        self.assertEqual([c['tool'] for c in self.calls()], ['ssh'])
+
+    @needs_rsync
+    def test_the_lock_is_held_for_the_run_and_released_after(self):
+        self.build('alpha')
+        r = self.hil_remote('-b', 'alpha')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertTrue(self.ran()['lock_held'])
+        self.lock()
 
 
 @needs_rsync

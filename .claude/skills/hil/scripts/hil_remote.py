@@ -7,9 +7,11 @@ firmware the run will look for under -B (default cmake-build, the build skill's 
 layout), runs it there, and copies the report pair and the <config>.failed re-run spec back
 to the checkout root.
 
-Env overrides: REMOTE (ssh host), REMOTE_DIR (rm -rf'd and recreated each run), CONFIG
-(HIL config json), ROOT_DIR (checkout to test; defaults to this script's own).
+Env overrides: REMOTE (ssh host), REMOTE_DIR (rm -rf'd and recreated each run, under a lock
+on <REMOTE_DIR>.lock that refuses a second run sharing it), CONFIG (HIL config json), ROOT_DIR
+(checkout to test; defaults to this script's own).
 """
+import contextlib
 import importlib
 import json
 import os
@@ -42,6 +44,10 @@ HARNESS_FILES = (
     '.claude/skills/usb-kernel-recover/scripts/usb_recover.sh',
 )
 
+# A stalled link must end the run, not hang it: no subprocess timeout fits a HIL run of
+# up to HIL_POOL_TIMEOUT, so ssh itself drops a peer silent for 30 s x 4.
+SSH_OPTS = ('-o', 'ServerAliveInterval=30', '-o', 'ServerAliveCountMax=4', '-o', 'ConnectTimeout=20')
+
 FIRMWARE_FILTER = ['--prune-empty-dirs', '--include=*/', '--include=*.elf', '--include=*.bin',
                    '--include=*.hex', '--include=config.env', '--include=flash_args', '--exclude=*']
 
@@ -50,7 +56,9 @@ FIRMWARE_FILTER = ['--prune-empty-dirs', '--include=*/', '--include=*.elf', '--i
 REMOTE_DIR_RE = re.compile(r'^(/|~/)[A-Za-z0-9_.~/-]*[A-Za-z0-9_-]$')
 
 # Runs on the remote. $1 arrives shlex-quoted, so a leading ~/ is expanded here, where
-# $HOME is a value; the second gate then sees the real rm -rf target.
+# $HOME is a value; the second gate then sees the real rm -rf target. The lock sits beside
+# the tree, which the wipe would take with it, and is held by the trailing cat until the
+# wrapper closes this session's stdin; a dead wrapper closes it too.
 SETUP_SCRIPT = r'''
 set -e
 case "$1" in
@@ -60,9 +68,14 @@ esac
 case "$d" in
   ''|/|"$HOME"|"$HOME"/) echo "refusing to rm -rf '$d'" >&2; exit 1 ;;
 esac
+command -v flock >/dev/null || { echo "flock not found on the rig" >&2; exit 1; }
+mkdir -p -- "$(dirname -- "$d")"
+exec 9>>"$d.lock"
+flock -n 9 || { echo "another hil_remote run holds $d.lock -- not wiping its tree" >&2; exit 1; }
 rm -rf -- "$d"
 mkdir -p -- "$d/test/hil/helper" "$d/tools" "$d/$2"
 echo "HIL_REMOTE_DIR=$d"
+cat >/dev/null
 '''
 
 
@@ -90,17 +103,26 @@ def check_build_dir(build_dir):
         fail(f'-B must be a relative path inside the checkout: {build_dir}')
 
 
-def resolve_firmware(config, boards, build_dir):
+def resolve_firmware(config, args):
     """Return the existing <build_dir>/cmake-build-<variant> dirs to stage, refusing before
     anything remote is touched: an unknown board fails the whole remote run after staging,
-    and a board with no build at all would only show up as `Skip (no binary)` rows."""
+    and a board with no build at all would only show up as `Skip (no binary)` rows.
+    Boards are selected as hil_test.py does, so a build of a board it drops satisfies nothing."""
+    boards, build_dir = args.board, args.build_dir
     roster = {b['name']: b for b in config.get('boards', [])}
     unknown = [b for b in boards if b not in roster]
     if unknown:
         fail(f'not in the config: {" ".join(unknown)} (-b takes board names, not variant names)')
+    selected = boards or list(roster)
+    if args.flasher or args.exclude_flasher:
+        selected = [n for n in selected if roster[n]['flasher']['name'] not in args.exclude_flasher
+                    and (not args.flasher or roster[n]['flasher']['name'] in args.flasher)]
+        if not selected:
+            fail(f'no board left after the flasher filter (--flasher {args.flasher or "-"}, '
+                 f'--exclude-flasher {args.exclude_flasher or "-"})')
     root = ROOT / build_dir
     dirs, missing = [], []
-    for name in boards or roster:
+    for name in selected:
         found = [root / f'cmake-build-{v}' for v in helper('hil_report').variants_of(config, name)]
         present = [d for d in found if d.is_dir()]
         if boards and not present:
@@ -115,7 +137,7 @@ def resolve_firmware(config, boards, build_dir):
         # the dirs, not a build command: a variant's dir name and flags come from the roster
         fail(f'no build under {build_dir}/ for:\n' + '\n'.join(missing))
     if not dirs:
-        fail(f'no {build_dir}/cmake-build-* build for any board in the config -- nothing to test')
+        fail(f'no {build_dir}/cmake-build-* build for any selected board in the config -- nothing to test')
     return dirs
 
 
@@ -150,7 +172,7 @@ def run_command(remote_dir, argv, config_name):
 
 def rsync(*args, optional=False):
     # an optional fetch (a green run writes no .failed) must not print rsync's code-23 error
-    return subprocess.run(['rsync', *args], cwd=ROOT,
+    return subprocess.run(['rsync', '-e', shlex.join(['ssh', *SSH_OPTS]), *args], cwd=ROOT,
                           stderr=subprocess.DEVNULL if optional else None).returncode
 
 
@@ -178,6 +200,28 @@ def copy_back(remote, remote_dir, config_name):
         print(f'==> {spec.name} copied to {spec}')
 
 
+@contextlib.contextmanager
+def remote_lease(remote, remote_dir, build_dir):
+    """Wipe and recreate remote_dir, yielding its absolute path while this ssh session holds
+    its lock: another runner sharing REMOTE_DIR would otherwise rm -rf this run's tree."""
+    lease = subprocess.Popen(
+        ['ssh', *SSH_OPTS, remote, shlex.join(['bash', '-c', SETUP_SCRIPT, 'hil-setup', remote_dir, build_dir])],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    marked = next((ln.rstrip('\n').partition('=')[2] for ln in lease.stdout
+                   if ln.startswith('HIL_REMOTE_DIR=')), '')
+    if not marked.startswith('/'):
+        _, err = lease.communicate()
+        fail(f'remote setup failed (exit {lease.returncode}): {err.strip()}')
+    try:
+        yield marked
+    finally:
+        try:
+            lease.communicate(timeout=30)
+        except subprocess.TimeoutExpired:
+            lease.kill()
+            lease.wait()
+
+
 def main(argv):
     remote = os.environ.get('REMOTE', 'ci.lan')
     remote_dir = os.environ.get('REMOTE_DIR', '/tmp/tinyusb-hil')
@@ -195,16 +239,14 @@ def main(argv):
         config = json.loads(config_path.read_text())
     except (OSError, ValueError) as e:
         fail(f'could not read the config {config_path}: {e}')
-    firmware = resolve_firmware(config, args.board, args.build_dir)
+    firmware = resolve_firmware(config, args)
 
     print(f'==> Setting up remote {remote}:{remote_dir}')
-    setup = subprocess.run(['ssh', remote, shlex.join(['bash', '-s', '--', remote_dir, args.build_dir])],
-                           input=SETUP_SCRIPT, capture_output=True, text=True)
-    marked = [ln.partition('=')[2] for ln in setup.stdout.splitlines() if ln.startswith('HIL_REMOTE_DIR=')]
-    if setup.returncode != 0 or len(marked) != 1 or not marked[0].startswith('/'):
-        fail(f'remote setup failed (exit {setup.returncode}): {setup.stderr.strip()}')
-    remote_dir = marked[0]
+    with remote_lease(remote, remote_dir, args.build_dir) as remote_dir:
+        return stage_and_run(remote, remote_dir, argv, args, config, config_path, firmware)
 
+
+def stage_and_run(remote, remote_dir, argv, args, config, config_path, firmware):
     if args.accumulate:
         # the wipe cleared the rig's copy; without the local sidecar as merge base the retry's
         # small table replaces the full one
@@ -230,7 +272,7 @@ def main(argv):
         fail('could not stage the firmware')
 
     print(f'==> Running HIL test on {remote}')
-    rc = subprocess.run(['ssh', remote, run_command(remote_dir, argv, config_path.name)],
+    rc = subprocess.run(['ssh', *SSH_OPTS, remote, run_command(remote_dir, argv, config_path.name)],
                         stdin=subprocess.DEVNULL).returncode
     copy_back(remote, remote_dir, config_path.name)
     return rc

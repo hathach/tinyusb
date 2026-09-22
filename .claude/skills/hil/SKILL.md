@@ -124,7 +124,8 @@ python3 $R -b raspberry_pi_pico2 -b stm32f723disco -t host/cdc_msc_hid -r 1
 ```
 
 One invocation per board is wrong here, not merely slow: each run `rm -rf`s `REMOTE_DIR`
-and rewrites the report, so only the last board's rows survive.
+and rewrites the report, so only the last board's rows survive. A second run sharing
+`REMOTE_DIR` is refused, before the wipe, while the first holds `<REMOTE_DIR>.lock`.
 
 Before touching the rig it refuses a board not in the config, and a requested board with none of its
 `<-B>/cmake-build-<variant>` dirs, naming the dirs it looked for (a variant's build flags are in the
