@@ -524,3 +524,42 @@ void test_usbd_out_dropped_rearm_in_xfer_cb_stays_idle(void) {
   TEST_ASSERT_FALSE(usbd_edpt_busy(rhport, EDPT_MSC_OUT));
   TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
 }
+
+//--------------------------------------------------------------------+
+// Endpoint stream ZLP
+//--------------------------------------------------------------------+
+
+// A host read asking for more than the stream has sent only ends on a short packet, so a
+// stream whose last transfer was a non-zero multiple of mps must follow it with a ZLP. With a
+// one-packet ep buffer every transfer is at most mps, so the condition must not exclude mps
+// itself: excluding it leaves such a read waiting after every 64-byte write.
+void test_usbd_stream_write_zlp_after_full_packet(void)
+{
+  uint8_t ff_buf[64];
+  uint8_t ep_buf[64];
+  tu_edpt_stream_t stream;
+  tusb_desc_endpoint_t desc_ep = {
+    .bLength          = sizeof(tusb_desc_endpoint_t),
+    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = 0x82,
+    .bmAttributes     = { .xfer = TUSB_XFER_BULK },
+    .wMaxPacketSize   = 64,
+    .bInterval        = 0
+  };
+
+  TEST_ASSERT_TRUE(tu_edpt_stream_init(&stream, false, true, false, ff_buf, sizeof(ff_buf), ep_buf));
+  tu_edpt_stream_open(&stream, rhport, &desc_ep, sizeof(ep_buf));
+
+  // nothing sent, or a short last packet: the host already saw the end of the transfer
+  TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, 0));
+  TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, 63));
+
+  // data still pending: the next data transfer terminates it, not a ZLP
+  TEST_ASSERT_EQUAL(1, tu_edpt_stream_write(&stream, "x", 1));
+  TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, 64));
+  tu_fifo_clear(&stream.ff);
+
+  // one full packet and nothing left to send
+  dcd_edpt_xfer_ExpectAndReturn(rhport, 0x82, NULL, 0, false, true);
+  TEST_ASSERT_TRUE(tu_edpt_stream_write_zlp_if_needed(&stream, 64));
+}
