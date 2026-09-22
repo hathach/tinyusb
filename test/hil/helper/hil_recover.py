@@ -453,12 +453,13 @@ def _supervised(config: dict, marked: list, log) -> dict:
             os._exit(1)
     os.close(w_fd)
     chunks = []
-    deadline = time.monotonic() + bound + cleanup + hil_util.REAP_GRACE
+    waited = bound + cleanup + hil_util.REAP_GRACE
+    deadline = time.monotonic() + waited
     try:
         while True:
             wait = deadline - time.monotonic()
             if wait <= 0:
-                log(f'wedge recovery supervisor (pid {pid}) did not report within {deadline:.0f}s; '
+                log(f'wedge recovery supervisor (pid {pid}) did not report within {waited:.0f}s; '
                     'it keeps the fleet reserved until its own watchdog ends it, and the markers stand')
                 return {}
             ready, _, _ = select.select([r_fd], [], [], wait)

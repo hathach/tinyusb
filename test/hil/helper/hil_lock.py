@@ -257,6 +257,9 @@ def wedged_boards() -> list:
     for fn in sorted(os.listdir(BOARD_LOCK_DIR)):
         if fn.endswith(WEDGED_SUFFIX):
             board = fn[:-len(WEDGED_SUFFIX)]
+            if not _BOARD_NAME_RE.match(board):
+                out.append((board, _refused(board, 'has an invalid name')))
+                continue
             out.append((board, read_wedged(board) or {}))
     return out
 

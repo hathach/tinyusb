@@ -20,6 +20,7 @@ hil_remote = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(hil_remote)
 
 REAL_RSYNC = shutil.which('rsync')
+needs_rsync = unittest.skipUnless(REAL_RSYNC, 'rsync not installed; the fake rsync execs the real one')
 
 FAKE_SSH = f'''#!{sys.executable}
 import json, os, subprocess, sys
@@ -164,6 +165,7 @@ class Refusals(Rig):
             self.refused(self.hil_remote('-b', 'alpha', '-B', bad), '-B must be')
 
 
+@needs_rsync
 class Staging(Rig):
     def test_board_spellings_stage_their_firmware(self):
         self.build('alpha', 'beta_one', 'beta_two')
@@ -220,6 +222,7 @@ class Staging(Rig):
         self.assertFalse((self.remote / 'stale').exists())
 
 
+@needs_rsync
 class TheRun(Rig):
     def test_args_and_env_survive_transport(self):
         self.build('alpha')
@@ -255,6 +258,7 @@ class TheRun(Rig):
         self.assertTrue((self.home / '.local/bin/python3').exists())
 
 
+@needs_rsync
 class Reports(Rig):
     def setUp(self):
         super().setUp()
