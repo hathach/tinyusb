@@ -663,7 +663,7 @@ class WedgeConfirmationOnTheMainPath(unittest.TestCase):
     the confirmation still reaches the finally with the hang flagged; and every recovery scan
     re-derives the confirmation, so a stale 'confirmed' never outlives an incomplete final scan."""
 
-    def _main(self, confirm, keep_binding=True, recover=None, scans=None, flasher_extra=None, reflash=None):
+    def _main(self, confirm, recover=None, scans=None, flasher_extra=None, reflash=None):
         """Returns (json or None, stderr, exception or None, sysfs writes)."""
         import usbtest
         writes = []
@@ -693,8 +693,6 @@ class WedgeConfirmationOnTheMainPath(unittest.TestCase):
             patch(hil_flash, 'rescue_openocd', lambda *a, **k: False)
             patch(usbtest, 'reset_primitive', lambda name: (lambda board, **kw: None))
         usbtest_harness.argv(self, '--timeout', '7')
-        if keep_binding:
-            sys.argv.append('--keep-binding')
         if recover:
             sys.argv += ['--recover-board', json.dumps({'name': 'b', 'flasher': {
                 'name': 'openocd', 'vid_pid': '0x1 0x2', 'args': '', **(flasher_extra or {})}}),
@@ -709,7 +707,7 @@ class WedgeConfirmationOnTheMainPath(unittest.TestCase):
         return data, err.getvalue(), exc, writes
 
     def test_a_cleared_holder_is_a_timeout_fail_and_nothing_is_written(self):
-        data, err, exc, writes = self._main(lambda node: ([], True, 6.0), keep_binding=False)
+        data, err, exc, writes = self._main(lambda node: ([], True, 6.0))
         self.assertIsNone(exc)
         self.assertFalse(data['wedged'])
         self.assertEqual(data['wedge_confirmation'], 'cleared')
@@ -719,7 +717,7 @@ class WedgeConfirmationOnTheMainPath(unittest.TestCase):
         self.assertEqual(writes, [], 'a standalone run removed the id or unbound a peer')
 
     def test_a_persistent_holder_is_a_confirmed_wedge_and_nothing_is_written(self):
-        data, err, _exc, writes = self._main(lambda node: ([4242], True, 30.0), keep_binding=False)
+        data, err, _exc, writes = self._main(lambda node: ([4242], True, 30.0))
         self.assertTrue(data['wedged'])
         self.assertEqual(data['wedge_confirmation'], 'confirmed')
         self.assertEqual(data['cases'][0]['status'], 'HUNG')
@@ -727,7 +725,7 @@ class WedgeConfirmationOnTheMainPath(unittest.TestCase):
         self.assertEqual(writes, [])
 
     def test_an_incomplete_scan_is_contained_but_reported_unverified(self):
-        data, err, _exc, writes = self._main(lambda node: ([], False, 30.0), keep_binding=False)
+        data, err, _exc, writes = self._main(lambda node: ([], False, 30.0))
         self.assertTrue(data['wedged'], 'an unseen holder must still be contained')
         self.assertEqual(data['wedge_confirmation'], 'unverified')
         self.assertIn('unverified', err)
@@ -737,7 +735,7 @@ class WedgeConfirmationOnTheMainPath(unittest.TestCase):
     def test_an_exception_during_confirmation_still_reports_the_hang(self):
         def boom(node):
             raise RuntimeError('proc walk failed')
-        data, err, exc, writes = self._main(boom, keep_binding=False)
+        data, err, exc, writes = self._main(boom)
         self.assertIsInstance(exc, RuntimeError)
         self.assertIsNone(data, 'no verdict was printed')
         self.assertIn('unrecovered hang: ask the operator', err)

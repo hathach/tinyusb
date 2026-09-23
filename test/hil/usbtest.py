@@ -627,8 +627,6 @@ def main():
     p.add_argument('--tests', help='comma-separated case numbers, overrides tier battery')
     p.add_argument('--quick', action='store_true', help='divide iteration counts by 8')
     p.add_argument('--json', action='store_true', help='machine-readable output on stdout')
-    p.add_argument('--keep-binding', action='store_true',
-                   help='no-op, kept for old command lines: the id and binding always stay')
     p.add_argument('--testusb', default=None, help='path to testusb binary')
     p.add_argument('--timeout', type=int, default=120, help='per-case timeout in seconds')
     p.add_argument('--recover-board', help='board JSON (name + flasher) for the post-hang '

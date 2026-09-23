@@ -296,7 +296,7 @@ class BindOwnInterface(unittest.TestCase):
 
 
 class StandaloneLeavesThePeersAlone(unittest.TestCase):
-    """A standalone battery, with or without --keep-binding, writes no registry entry and
+    """A standalone battery writes no registry entry and
     unbinds nothing: a peer mid-battery keeps its binding and the shared id stays."""
 
     def run_main(self, *extra):
@@ -312,16 +312,11 @@ class StandaloneLeavesThePeersAlone(unittest.TestCase):
             usbtest.main()
         return fake, ours, peer
 
-    def test_without_keep_binding(self):
+    def test_a_full_run_leaves_the_id_and_both_bindings(self):
         fake, ours, peer = self.run_main()
         self.assertEqual(fake.writes, [])
         self.assertTrue((ours / 'driver').is_symlink() and (peer / 'driver').is_symlink())
         self.assertEqual((fake.driver / 'new_id').read_text(), 'cafe 4010\n')
-
-    def test_keep_binding_is_still_accepted(self):
-        fake, _ours, peer = self.run_main('--keep-binding')
-        self.assertEqual(fake.writes, [])
-        self.assertTrue((peer / 'driver').is_symlink())
 
 
 class Callers(unittest.TestCase):
