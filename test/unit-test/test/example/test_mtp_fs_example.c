@@ -123,6 +123,7 @@ void setUp(void) {
   refuse_receive_at = 0;
   is_session_opened = false;
   send_obj_handle = 0;
+  send_obj_info_incomplete = false;
   memset(fs_buf, SENTINEL, sizeof(fs_buf));
   // the example's file table as built: frees the one RAM slot a previous test created a file in
   if (!fs_objects_saved) {
@@ -190,23 +191,58 @@ void test_send_object_without_session_is_refused(void) {
   check_sentinels_from(0);
 }
 
+// a SendObjectInfo whose dataset is still being read: the object is staged but not created
+static void stage_object_info(void) {
+  begin_command(MTP_OP_SEND_OBJECT_INFO, SUPPORTED_STORAGE_ID);
+  uint8_t dataset[sizeof(mtp_object_info_header_t) + 1 + 2 * 8] = { 0 };
+  fill_object_info((mtp_object_info_header_t*) dataset, 100);
+  uint8_t* name = dataset + sizeof(mtp_object_info_header_t);
+  name[0] = 4;
+  const uint16_t utf16[4] = { 'a', '.', 't', 0 };
+  memcpy(name + 1, utf16, sizeof(utf16));
+  deliver_out(dataset, sizeof(dataset), sizeof(dataset) + 64);
+  TEST_ASSERT_NOT_EQUAL(0, send_obj_handle);
+}
+
 void test_cancel_drops_the_staged_handle_but_keeps_the_session(void) {
   open_session();
-  send_object_info(100);
+  const uint32_t handle = send_object_info(100);
   tud_mtp_request_cb_data_t req = { .buf = (uint8_t*) &command };
   TEST_ASSERT_TRUE(tud_mtp_request_cancel_cb(&req));
   TEST_ASSERT_TRUE(is_session_opened);
+  TEST_ASSERT_TRUE(fs_file_exist(fs_get_file(handle))); // a completed ObjectInfo is a real object
   begin_command(MTP_OP_SEND_OBJECT, 0);
   TEST_ASSERT_EQUAL_HEX16(MTP_RESP_INVALID_OBJECT_HANDLE, api.resp_code);
 }
 
+void test_cancel_mid_send_object_info_discards_the_staged_object(void) {
+  open_session();
+  const uint32_t files = fs_get_file_count();
+  stage_object_info();
+  tud_mtp_request_cb_data_t req = { .buf = (uint8_t*) &command };
+  TEST_ASSERT_TRUE(tud_mtp_request_cancel_cb(&req));
+  TEST_ASSERT_EQUAL(0, send_obj_handle);
+  TEST_ASSERT_EQUAL(files, fs_get_file_count());
+}
+
 void test_device_reset_closes_the_session(void) {
   open_session();
-  send_object_info(100);
+  const uint32_t handle = send_object_info(100);
   tud_mtp_request_cb_data_t req = { 0 };
   TEST_ASSERT_TRUE(tud_mtp_request_device_reset_cb(&req));
   TEST_ASSERT_FALSE(is_session_opened);
   TEST_ASSERT_EQUAL(0, send_obj_handle);
+  TEST_ASSERT_TRUE(fs_file_exist(fs_get_file(handle)));
+}
+
+void test_device_reset_mid_send_object_info_discards_the_staged_object(void) {
+  open_session();
+  const uint32_t files = fs_get_file_count();
+  stage_object_info();
+  tud_mtp_request_cb_data_t req = { 0 };
+  TEST_ASSERT_TRUE(tud_mtp_request_device_reset_cb(&req));
+  TEST_ASSERT_EQUAL(0, send_obj_handle);
+  TEST_ASSERT_EQUAL(files, fs_get_file_count());
 }
 
 // an ObjectInfo whose filename spills into a 2nd packet: one object, name truncated and

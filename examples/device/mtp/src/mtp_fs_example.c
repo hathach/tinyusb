@@ -173,6 +173,7 @@ fs_op_handler_dict_t fs_op_handler_dict[] = {
 
 static bool is_session_opened = false;
 static uint32_t send_obj_handle = 0;
+static bool send_obj_info_incomplete = false; // SendObjectInfo's dataset is still being read
 
 //--------------------------------------------------------------------+
 //
@@ -205,6 +206,7 @@ static inline fs_file_t* fs_create_file(void) {
     fs_file_t* f = &fs_objects[i];
     if (!fs_file_exist(f)) {
       send_obj_handle = i + 1;
+      send_obj_info_incomplete = true;
       return f;
     }
   }
@@ -218,6 +220,7 @@ static void fs_discard_staged_file(void) {
     f->name[0] = 0;
   }
   send_obj_handle = 0;
+  send_obj_info_incomplete = false;
 }
 
 // simple malloc
@@ -241,6 +244,9 @@ bool tud_mtp_request_cancel_cb(tud_mtp_request_cb_data_t* cb_data) {
   memcpy(&cancel_data, cb_data->buf, sizeof(cancel_data));
   (void) cancel_data.code;
   (void ) cancel_data.transaction_id;
+  if (send_obj_info_incomplete) {
+    fs_discard_staged_file(); // the slot holds a name but no complete ObjectInfo
+  }
   send_obj_handle = 0; // a cancelled SendObjectInfo/SendObject leaves no object to write to
   return true;
 }
@@ -250,6 +256,9 @@ bool tud_mtp_request_cancel_cb(tud_mtp_request_cb_data_t* cb_data) {
 bool tud_mtp_request_device_reset_cb(tud_mtp_request_cb_data_t* cb_data) {
   (void) cb_data;
   is_session_opened = false; // Device Reset closes all open sessions (Still Image CDD B.9)
+  if (send_obj_info_incomplete) {
+    fs_discard_staged_file();
+  }
   send_obj_handle = 0;       // ... and with them any object SendObjectInfo was staging
   return true;
 }
@@ -341,6 +350,7 @@ int32_t tud_mtp_data_complete_cb(tud_mtp_cb_data_t* cb_data) {
       (void) mtp_container_add_uint32(resp, SUPPORTED_STORAGE_ID);
       (void) mtp_container_add_uint32(resp, f->parent);
       (void) mtp_container_add_uint32(resp, send_obj_handle);
+      send_obj_info_incomplete = false;
       resp->header->code = MTP_RESP_OK;
       break;
     }
