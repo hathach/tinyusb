@@ -219,11 +219,12 @@ bool tud_mtp_data_send(mtp_container_info_t *p_container) {
   TU_LOG_DRV("  MTP Data IN: xferred_len/total_len=%lu/%lu, xact_len=%u\r\n", p_mtp->xferred_len, p_mtp->total_len,
              xact_len);
   if (xact_len) {
-    if (!usbd_edpt_claim(p_mtp->rhport, p_mtp->ep_in)) {
+    // a refused transfer also releases the claim
+    if (!usbd_edpt_claim(p_mtp->rhport, p_mtp->ep_in) ||
+        !usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_in, _mtpd_epbuf.buf, xact_len, false)) {
       p_mtp->phase = prev_phase; // no data phase started: the app can retry later
       return false;
     }
-    TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_in, _mtpd_epbuf.buf, xact_len, false));
   }
   return true;
 }
@@ -263,8 +264,13 @@ bool tud_mtp_response_send(mtp_container_info_t* p_container) {
   epbuf->header.type = MTP_CONTAINER_TYPE_RESPONSE_BLOCK;
   epbuf->header.transaction_id = p_mtp->command.header.transaction_id;
 
+  const uint8_t prev_phase = p_mtp->phase;
   p_mtp->phase = MTP_PHASE_RESPONSE;
-  return usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_in, (uint8_t*) epbuf, (uint16_t) len, false);
+  if (!usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_in, (uint8_t*) epbuf, (uint16_t) len, false)) {
+    p_mtp->phase = prev_phase;
+    return false;
+  }
+  return true;
 }
 
 bool tud_mtp_mounted(void) {
