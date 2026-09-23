@@ -600,6 +600,33 @@ void test_leftover_zlp_in_command_phase_is_absorbed(void) {
   expect_response(tid, MTP_RESP_OK, 0);
 }
 
+// the dcd refuses the command read after a leftover ZLP: halt rather than idle with nothing armed
+void test_leftover_zlp_read_refused_stalls(void) {
+  open_device(TUSB_SPEED_HIGH);
+  dcd_refuse_ep = EP_OUT;
+  host_out(NULL, 0);
+  TEST_ASSERT_EQUAL_MESSAGE(-1, dcd_refuse_ep, "command read never attempted");
+  TEST_ASSERT_EQUAL(0, app.cmd_calls);
+  recover_from_error(EP_OUT, EP_IN);
+  const uint32_t tid = host_command(MTP_OP_OPEN_SESSION, NULL, 0);
+  expect_response(tid, MTP_RESP_OK, 0);
+}
+
+// the dcd refuses the command read once the response is sent: halt rather than idle with nothing armed
+void test_response_complete_read_refused_stalls(void) {
+  open_device(TUSB_SPEED_HIGH);
+  host_command(MTP_OP_OPEN_SESSION, NULL, 0);
+  const uint16_t resp_len = expect_call(DCD_XFER, EP_IN, HDR)->len;
+  expect_no_more_calls();
+  dcd_refuse_ep = EP_OUT;
+  host_in_done(resp_len);
+  TEST_ASSERT_EQUAL_MESSAGE(-1, dcd_refuse_ep, "command read never attempted");
+  TEST_ASSERT_EQUAL(1, app.resp_complete_calls);
+  recover_from_error(EP_IN, EP_OUT);
+  const uint32_t tid = host_command(MTP_OP_OPEN_SESSION, NULL, 0);
+  expect_response(tid, MTP_RESP_OK, 0);
+}
+
 //--------------------------------------------------------------------+
 // Data OUT
 //--------------------------------------------------------------------+
@@ -953,6 +980,25 @@ void test_cancel_in_data_in_defers_read_until_in_completes(void) {
   TEST_ASSERT_EQUAL_MESSAGE(0, app.xfer_calls, "abandoned data IN must not continue");
   expect_command_read();
   expect_no_more_calls();
+}
+
+// the dcd refuses the Cancel-deferred read once the abandoned data IN completes: halt
+void test_cancel_in_data_in_deferred_read_refused_stalls(void) {
+  open_device(TUSB_SPEED_HIGH);
+  app.data_mode = APP_SEND;
+  app.data_len = 1000;
+  const uint32_t tid = host_command(MTP_OP_GET_DEVICE_INFO, NULL, 0);
+  expect_call(DCD_XFER, EP_IN, BUFSIZE);
+  host_cancel(tid);
+  expect_no_more_calls();
+  dcd_refuse_ep = EP_OUT;
+  host_in_done(BUFSIZE);
+  TEST_ASSERT_EQUAL_MESSAGE(-1, dcd_refuse_ep, "command read never attempted");
+  TEST_ASSERT_EQUAL(0, app.xfer_calls);
+  recover_from_error(EP_OUT, EP_IN);
+  app.data_mode = APP_NO_DATA;
+  const uint32_t next = host_command(MTP_OP_OPEN_SESSION, NULL, 0);
+  expect_response(next, MTP_RESP_OK, 0);
 }
 
 void test_cancel_in_data_complete_returns_to_command(void) {

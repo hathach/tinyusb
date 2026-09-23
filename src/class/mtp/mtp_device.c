@@ -486,7 +486,9 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       if (ep_addr == p_mtp->ep_in || xferred_bytes == 0) {
         // leftover of an abandoned transaction: an IN freeing the buffer the Cancel-deferred read
         // needs, or the host's terminating ZLP. Absorb it and listen again.
-        prepare_new_command(p_mtp);
+        if (!prepare_new_command(p_mtp)) {
+          p_mtp->phase = MTP_PHASE_ERROR; // nothing armed to receive the next command
+        }
         break;
       }
       // received new command: a header and 0 to 5 whole parameters, all of them delivered (which
@@ -631,7 +633,9 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       }
       // response phase is complete -> prepare for new command
       tud_mtp_response_complete_cb(&cb_data);
-      prepare_new_command(p_mtp);
+      if (!prepare_new_command(p_mtp)) {
+        p_mtp->phase = MTP_PHASE_ERROR; // nothing armed to receive the next command
+      }
       break;
 
     case MTP_PHASE_ERROR:
