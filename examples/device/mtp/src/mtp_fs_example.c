@@ -213,7 +213,7 @@ static inline fs_file_t* fs_create_file(void) {
   return NULL;
 }
 
-// drop the object SendObjectInfo staged but could not finish reading
+// drop the object SendObjectInfo staged when its dataset or SendObject's data falls short
 static void fs_discard_staged_file(void) {
   fs_file_t* f = fs_get_file(send_obj_handle);
   if (f != NULL) {
@@ -352,6 +352,23 @@ int32_t tud_mtp_data_complete_cb(tud_mtp_cb_data_t* cb_data) {
       (void) mtp_container_add_uint32(resp, f->parent);
       (void) mtp_container_add_uint32(resp, send_obj_handle);
       send_obj_info_incomplete = false;
+      resp->header->code = MTP_RESP_OK;
+      break;
+    }
+
+    case MTP_OP_SEND_OBJECT: {
+      fs_file_t* f = fs_get_file(send_obj_handle);
+      if (f == NULL) {
+        resp->header->code = MTP_RESP_GENERAL_ERROR;
+        break;
+      }
+      const uint32_t received = cb_data->total_xferred_bytes - sizeof(mtp_container_header_t);
+      if (received < f->size) {
+        fs_discard_staged_file(); // the unwritten tail would read back stale fs_buf contents
+        resp->header->code = MTP_RESP_INCOMPLETE_TRANSFER;
+        break;
+      }
+      send_obj_handle = 0; // the ObjectInfo is consumed: another SendObject needs a new one (PTP 10.4.13)
       resp->header->code = MTP_RESP_OK;
       break;
     }
@@ -692,7 +709,7 @@ static int32_t fs_send_object(tud_mtp_cb_data_t* cb_data) {
   }
   fs_file_t* f = fs_get_file(send_obj_handle);
   if (f == NULL) {
-    return MTP_RESP_INVALID_OBJECT_HANDLE;
+    return MTP_RESP_NO_VALID_OBJECTINFO;
   }
 
   if (cb_data->phase == MTP_PHASE_COMMAND) {
