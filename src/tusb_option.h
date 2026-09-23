@@ -177,6 +177,8 @@
 #define OPT_MCU_CH32V20X         2220 ///< WCH CH32V20X
 #define OPT_MCU_CH32V103         2230 ///< WCH CH32V103
 #define OPT_MCU_CH583            2240 ///< WCH CH583
+#define OPT_MCU_CH32X035         2250 ///< WCH CH32X035
+#define OPT_MCU_CH32X033         OPT_MCU_CH32X035 ///< WCH CH32X033 (alias, same USB IP as CH32X035)
 #define OPT_MCU_CH582            OPT_MCU_CH583 ///< WCH CH582 (alias, same USB IP as CH583)
 
 // NXP LPC MCX
