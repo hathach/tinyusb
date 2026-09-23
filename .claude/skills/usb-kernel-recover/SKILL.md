@@ -52,38 +52,51 @@ grep -l <SERIAL> /sys/bus/usb/devices/*/serial    # only on a HEALTHY device
 
 A wedged device blocks every enumerator that reads its locking attributes —
 JLinkExe, uhubctl, openocd's HID fallback. `chmod 000` makes the VFS reject the
-read before `->show()` runs, so they skip it and keep enumerating:
+read before `->show()` runs, so they skip it and keep enumerating. `chmod` never
+blocks (inode setattr, no `show()`), so it works on a fully wedged device.
 
 ```bash
-for f in bNumInterfaces bmAttributes bMaxPower configuration bConfigurationValue \
-         product manufacturer serial avoid_reset_quirk; do
-  sudo chmod 000 /sys/bus/usb/devices/<busport>/$f
-done
+sudo usb_recover.sh shield <busport> $$        # leaf + parent hub + root hub, modes recorded first
+sudo usb_recover.sh shield-status              # who holds what, owner alive/dead, what re-enumerated
+sudo usb_recover.sh unshield <busport> $$      # restore the recorded modes; the owner pid, or none once it is dead
 ```
 
-- Shield the **leaf, its parent hub, and the root hub** (`usb<N>`) — a stuck
-  uhubctl locks the root hub too.
+- The owner pid is the recovery session (your shell, the orchestrating process),
+  not the short-lived `sudo`: a stale shield is one whose owner is gone, and
+  `shield-status` says so. Never unshield blindly; a live foreign owner is refused.
+- The root hub is shared, so a second shield touching it is refused: finish or
+  unshield the first one.
 - **Run the recovery tool as NON-root**: root has `CAP_DAC_OVERRIDE`, ignores the
   `000`, and blocks anyway.
-- **Only those nine.** `descriptors`, `busnum`, `devnum`, `speed`, `idVendor`,
-  `idProduct` are lock-free and libusb needs them; a blanket `chmod` breaks
-  enumeration instead of fixing it.
-- `chmod` never blocks (inode setattr, no `show()`), so it works on a fully
-  wedged device.
-- **Not needed for openocd pinned with `vid_pid`** — it matches the cached
-  descriptor and skips a foreign device before `libusb_open`
-  (cmsis_dap_usb_bulk.c:107, bulk backend; the HID fallback ignores the pin).
-- Leaf shields vanish on re-enumeration; **the root hub's must be restored**:
-  `sudo chmod "$(stat -c %a /sys/bus/usb/devices/usb<healthy>/$f)" …/usb<N>/$f`
+- Leaf shields vanish on re-enumeration (new kobject, new inodes); `unshield`
+  restores only the surviving originals and reports the rest as gone. It never
+  copies modes from a sibling: two of the nine are 644 where the rest are 444.
+- **JLinkExe always needs it**, even with `-USB`/`-SelectEmuBySN`: to find its probe
+  it reads `product`, `serial` and `bNumInterfaces` of every USB device on the host
+  (strace, ci.lan 2026-09-21), and those are served under each device's lock.
+- **Not needed for openocd pinned with `vid_pid`** or over `interface/jlink.cfg`
+  (`hil_flash.convoy_safe`) — those skip a foreign device before `libusb_open`
+  and read no other device's locking attributes.
 
 ## 3. The rungs — go straight to the one triage names
 
-**Rung 1 — wedged DUT: reset it through its own probe.**
+**Rung 1 — wedged DUT: reset it through its own probe.** Resolve the board's
+recovery flasher from the HIL roster, its `flasher_recover` or else its primary
+`flasher` (`hil_flash.recover_flasher`; `<probe-sn>` is the primary's `uid` either way). A convoy-safe one (`hil_flash.convoy_safe`,
+section 2) needs no shield; for openocd:
 
 ```bash
+openocd -c "adapter serial <probe-sn>" <flasher args> -c "init; reset run; shutdown"
+```
+
+Any other runs only behind the shield (section 2), then unshield; for JLink:
+
+```bash
+sudo usb_recover.sh shield <busport> $$
 printf "r\ng\nq\n" > /tmp/rec.jlink
 JLinkExe -device <DEV> -if SWD -speed 4000 -SelectEmuBySN <probe-sn> \
          -autoconnect 1 -nogui 1 -CommandFile /tmp/rec.jlink
+sudo usb_recover.sh unshield <busport> $$
 ```
 
 Reset **before** park-flash: non-destructive (the firmware under test survives
@@ -101,8 +114,8 @@ DWC2** — measured 2026-08-16 on stm32f407disco: `r; g` gave
 
 **Park-flash** (`--recover-board`/`--recover-fw`, what `usbtest.py` automates) is
 the fallback where the reset cannot reach the peripheral. Delivery must be
-convoy-safe: **openocd pinned with `vid_pid`**, or esptool (`-p <ttyACM>`).
-JLinkExe selects by serial, which needs `libusb_open`, so it needs the shield.
+convoy-safe: **openocd pinned with `vid_pid`** or over `interface/jlink.cfg`, or
+esptool (`-p <ttyACM>`). JLinkExe needs the shield (section 2).
 
 **Rung 2 — wedged PROBE: `root-cycle`.** A probe has no probe to reset it, so the
 port-side drop is the only lever left that avoids the KERNEL device lock. It

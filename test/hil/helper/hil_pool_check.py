@@ -942,7 +942,7 @@ def controller_summary() -> list[str]:
 
 def main() -> None:
     # toolchain/flasher CLIs live in the user bin dirs, which non-login shells may lack --
-    # the same PATH shim hil_ci.sh applies on the remote side
+    # the same PATH shim hil_remote.py applies on the remote side
     for d in (Path.home() / 'bin', Path.home() / '.local' / 'bin'):
         if d.is_dir() and str(d) not in os.environ.get('PATH', '').split(os.pathsep):
             os.environ['PATH'] = f'{d}{os.pathsep}{os.environ.get("PATH", "")}'

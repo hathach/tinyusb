@@ -220,7 +220,7 @@ class ResolveTest(unittest.TestCase):
         self.assertEqual(build.boards_for(sel, files)[0], ['stm32f411blackpill'])
 
     def test_expansion_includes_a_new_untracked_file(self):
-        # fanout verifies uncommitted work: a new board or driver file is untracked
+        # scope verification covers uncommitted work: a new board or driver file is untracked
         d = build.ROOT / 'hw' / 'bsp' / 'stm32f4' / 'boards' / 'stm32f411blackpill'
         new = d / 'probe_new_file.h'
         new.write_text('')

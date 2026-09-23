@@ -378,8 +378,10 @@ jobs:
   hil-tinyusb:
     needs: [ hil-build, set-matrix ]
     name: hil-tinyusb (${{ matrix.display }})
-    # Above hil_test.py's pool guard (HIL_POOL_TIMEOUT, 60 min) so the guard fires first
-    # and still gets to write its report. The 30 min on top is what the job pays OUTSIDE
+    # Above hil_test.py's pool guard (HIL_POOL_TIMEOUT, 60 min) plus its post-pool wedge
+    # recovery (up to ~14 min: HIL_RECOVERY_TIMEOUT 600 s + 170 s step overrun + 75 s
+    # cleanup + 10 s reap = 855 s) so the guard fires first
+    # and still gets to write its report. The ~15 min on top is what the job pays OUTSIDE
     # the guard clock: workspace cleanup, checkout, the multi-board artifact merge and
     # the D-state note before it; kill_worker_children, shutdown_pool's 30 s grace, the
     # report write and the upload after it. On a multi-stray convoy that tail alone is
@@ -492,7 +494,7 @@ jobs:
     needs: [ hil-build-esp, set-matrix ]
     name: hil-tinyusb (tinyusb-esp.json)
     runs-on: [ self-hosted, X64, hathach, hardware-in-the-loop ]
-    # above hil_test.py's pool guard (60 min) with room for the pre-pool checkout
+    # above hil_test.py's pool guard (60 min) and post-pool wedge recovery (up to ~14 min) with ~15 min for the pre-pool checkout
     # and the post-guard sweep + report upload, so its own guard still writes a report;
     # only a job wedged past that (unkillable D-state worker) hits this ceiling, which
     # must exist because the runner has one job slot and holds every queued job hostage
@@ -582,9 +584,10 @@ jobs:
     # Unlike the hil-tinyusb jobs, this one BUILDS with IAR in the same job before running
     # hil_test.py -- hfp.json's 3 boards, 4 variant entries, "up to 30 minutes" (see the
     # comment above the selection step). The ceiling has to cover build + the 60 min pool
-    # guard + overhead, or GitHub cancels before the guard can write its report -- the
-    # inversion this branch removes. 30 + 60 = 90; the remaining 30 is the full-history
-    # checkout, get_deps, the post-guard sweep and the report upload.
+    # guard + the post-pool wedge recovery (up to ~14 min, see hil-tinyusb) + overhead, or
+    # GitHub cancels before the guard can write its report -- the inversion this branch
+    # removes. 30 + 60 + 14 = 104; the remaining ~15 is the full-history checkout,
+    # get_deps, the post-guard sweep and the report upload.
     timeout-minutes: 120
     env:
       IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}

@@ -76,23 +76,8 @@ repos:
   # and md5-checks the logo header from there as its MTP fixtures.
   - id: hil-test
     name: hil-test
-    files: ^(test/hil/|examples/device/mtp/src/|tools/rtt\.py$)
+    files: ^(test/hil/|examples/device/mtp/src/|tools/rtt\.py$|\.claude/skills/hil/scripts/hil_remote\.py$)
     entry: python3 -m unittest discover -s test/hil/test -p 'test_hil*.py'
-    pass_filenames: false
-    language: system
-  # hil-validate.js decides which boards ship. Its result join has been wrong three times --
-  # dropping variant-named rows, letting a PASS erase a FAIL, breaking the `board locked`
-  # anchor it had just fixed -- each time because the logic was reasoned about instead of run.
-  - id: hil-validate-logic
-    name: hil-validate-logic
-    files: ^\.claude/workflows/
-    entry: node .claude/workflows/test/test-hil-validate.mjs
-    pass_filenames: false
-    language: system
-  - id: workflow-logic
-    name: workflow-logic
-    files: ^\.claude/workflows/
-    entry: node .claude/workflows/test/test-workflows.mjs
     pass_filenames: false
     language: system
   - id: family-json

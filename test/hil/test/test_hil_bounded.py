@@ -17,10 +17,13 @@
 # mtp_test.py subprocess, which gets the fake pymtp via PYTHONPATH.
 # Run directly:
 #   python3 test/hil/test/test_hil_bounded.py
+import io
+import json
 import os
 import stat
 import sys
 import threading
+from contextlib import redirect_stderr, redirect_stdout
 from multiprocessing import TimeoutError as MpTimeoutError
 import time
 import types
@@ -170,7 +173,7 @@ class UsbtestRecovery(unittest.TestCase):
         # each bounded step costs its timeout PLUS run_cmd's post-SIGKILL reap
         flash = usbtest.RECOVER_FLASH_TIMEOUT + _hu.REAP_GRACE
         reset = usbtest.RECOVER_RESET_TIMEOUT + _hu.REAP_GRACE
-        fixed = 2 * usbtest.RECOVER_SETTLE + usbtest.RECOVER_OVERHEAD
+        fixed = usbtest.WEDGE_CONFIRM_S + 2 * usbtest.RECOVER_SETTLE + usbtest.RECOVER_OVERHEAD
         rp = {'name': 'openocd', 'args': '-f target/rp2040.cfg'}
         for flasher, steps in (
                 # an RP openocd board: reset, reflash, then Rescue-DP POR + one retry
@@ -181,7 +184,10 @@ class UsbtestRecovery(unittest.TestCase):
                  reset + flash + fixed),
                 # esptool: reset_esptool is a stub (no_op) and rescue refuses a
                 # non-openocd flasher, so ONE reflash is all it can ever spend
-                ({'name': 'esptool', 'args': ''}, flash + fixed)):
+                ({'name': 'esptool', 'args': ''}, flash + fixed),
+                # reset-only (roster "reflash": false): the reset and its settle, nothing else
+                ({'name': 'openocd', 'args': '-f interface/jlink.cfg', 'reflash': False},
+                 reset + usbtest.WEDGE_CONFIRM_S + usbtest.RECOVER_SETTLE + usbtest.RECOVER_OVERHEAD)):
             self.assertEqual(usbtest.recovery_reserve(flasher), steps,
                              f'{flasher} reserves time it cannot spend, or too little')
 
@@ -247,14 +253,16 @@ class BuildBoardContract(unittest.TestCase):
 
 class RemoteStaging(unittest.TestCase):
     def test_import_closure_is_staged_to_the_rig(self):
-        # hil_ci.sh stages an explicit scp whitelist; a module that is not on it exists
+        # hil_remote.py stages an explicit whitelist; a module that is not on it exists
         # locally and in CI checkouts but silently never reaches the remote rig (how
         # mtp_test.py was first missed). Walk the local-import closure of everything
-        # the rig executes and require each file's exact scp entry — a bare-substring
-        # match would be satisfied by a mention in a comment or the run line.
+        # the rig executes and require each file in HARNESS_FILES, read by ast so this
+        # suite needs nothing the wrapper imports.
         import ast
         hil_dir = Path(TEST_DIR).parents[0]
-        staged = (hil_dir / 'hil_ci.sh').read_text()
+        wrapper = hil_dir.parents[1] / '.claude/skills/hil/scripts/hil_remote.py'
+        staged = next(ast.literal_eval(n.value) for n in ast.parse(wrapper.read_text()).body
+                      if isinstance(n, ast.Assign) and ast.unparse(n.targets[0]) == 'HARNESS_FILES')
 
         def imported_paths(pyfile):
             # ast, not regex: an earlier regex walker went silently vacuous on a
@@ -282,8 +290,8 @@ class RemoteStaging(unittest.TestCase):
             seen.add(f)
             todo += list(imported_paths(hil_dir / f))
         for f in sorted(seen):
-            self.assertIn(f'"$ROOT_DIR/test/hil/{f}"', staged,
-                          f'{f} runs on the rig but hil_ci.sh does not scp it')
+            self.assertIn(f'test/hil/{f}', staged,
+                          f'{f} runs on the rig but hil_remote.py does not stage it')
 
 
 class _MtpFakeRig:
@@ -607,6 +615,407 @@ class WedgedPidsFailsClosed(unittest.TestCase):
         self.assertFalse(complete, 'a hidden holder was reported as absent')
 
 
+class WedgeConfirmation(unittest.TestCase):
+    """A HUNG verdict is 'the kill was not reaped in 5 s', which a slow but finite in-kernel
+    wait also produces. Only a holder still on the node after WEDGE_CONFIRM_S is a wedge; a
+    holder that clears is a timeout (false wedges on stm32f746disco, #3944)."""
+
+    def _confirm(self, scans, budget=30):
+        import usbtest
+        self.addCleanup(setattr, usbtest, 'wedged_pids', usbtest.wedged_pids)
+        self.addCleanup(setattr, usbtest.time, 'sleep', usbtest.time.sleep)
+        self.addCleanup(setattr, usbtest.time, 'monotonic', usbtest.time.monotonic)
+        it = iter(scans)
+        last = scans[-1]
+        usbtest.wedged_pids = lambda node: next(it, last)
+        clock = [0.0]
+        usbtest.time.sleep = lambda s: clock.__setitem__(0, clock[0] + s)
+        usbtest.time.monotonic = lambda: clock[0]
+        return usbtest.confirm_wedge('/dev/bus/usb/999/999', budget=budget, poll=1.0)
+
+    def test_a_holder_that_clears_is_a_timeout_not_a_wedge(self):
+        stuck, complete, waited = self._confirm([([4242], True), ([4242], True), ([], True)])
+        self.assertEqual(stuck, [])
+        self.assertTrue(complete)
+        self.assertAlmostEqual(waited, 2.0)
+
+    def test_a_holder_still_there_at_the_budget_is_a_wedge(self):
+        stuck, complete, waited = self._confirm([([4242], True)], budget=30)
+        self.assertEqual(stuck, [4242])
+        self.assertTrue(complete)
+        self.assertGreaterEqual(waited, 30)
+
+    def test_an_incomplete_scan_never_reads_as_clear(self):
+        stuck, complete, waited = self._confirm([([], False)], budget=5)
+        self.assertFalse(complete, 'a hidden holder was reported as absent')
+        self.assertGreaterEqual(waited, 5, 'gave up before the budget on an incomplete scan')
+
+    def test_the_reserve_pays_for_the_confirmation_on_every_path(self):
+        """hil_test.py reserves the window on the no-recovery path too (#3944): the outer
+        bound is what keeps run_cmd's kill from landing inside the confirmation."""
+        import usbtest
+        self.assertGreater(usbtest.WEDGE_CONFIRM_S, 5, 'must outlast the 5 s reap that produced HUNG')
+        self.assertGreaterEqual(usbtest.recovery_reserve({'name': 'esptool', 'args': ''}),
+                                usbtest.WEDGE_CONFIRM_S + usbtest.RECOVER_FLASH_TIMEOUT)
+
+
+class WedgeConfirmationOnTheMainPath(unittest.TestCase):
+    """The transitions together, through usbtest.main(): a cleared holder ends the battery as
+    a timeout FAIL and lets the cleanup writes run; a persistent holder is a confirmed wedge;
+    an incomplete scan is contained like a wedge but reported unverified; an exception during
+    the confirmation still reaches the finally with the hang flagged; and every recovery scan
+    re-derives the confirmation, so a stale 'confirmed' never outlives an incomplete final scan."""
+
+    class _Out(io.StringIO):
+        def reconfigure(self, **kw):
+            pass
+
+    def _main(self, confirm, keep_binding=True, recover=None, scans=None, flasher_extra=None, reflash=None):
+        """Returns (json or None, stderr, exception or None, sysfs writes)."""
+        import usbtest
+        dev = {'serial': 'U', 'node': '/dev/bus/usb/999/999', 'speed': '480', 'tier': 1,
+               'sysname': '1-1'}
+        writes = []
+
+        def patch(obj, name, value):
+            self.addCleanup(setattr, obj, name, getattr(obj, name))
+            setattr(obj, name, value)
+        patch(usbtest, 'find_device', lambda serial, first=False: dict(dev))
+        patch(usbtest, 'check_host_compat', lambda d: None)
+        patch(usbtest, 'bind_usbtest', lambda d: None)
+        patch(usbtest, 'set_pattern', lambda v: None)
+        patch(usbtest, 'dmesg_tail', lambda: '')
+        patch(usbtest, 'sysfs_write', lambda path, data, check=True: writes.append((str(path), data)))
+        patch(usbtest, '_hu', lambda: types.SimpleNamespace(sysfs_stranded=lambda: False,
+                                                             path_stranded=lambda p: False,
+                                                             strand_note=lambda: ''))
+        td = TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        patch(usbtest, 'DRIVER', Path(td.name))          # no bound interfaces to unbind
+        patch(usbtest, 'run_case', lambda num, d, tu, quick, timeout:
+              {'num': num, 'name': 'x', 'params': '', 'status': 'HUNG',
+               'detail': f'testusb stuck in D state after {timeout}s'})
+        patch(usbtest, 'confirm_wedge', confirm)
+        patch(usbtest.time, 'sleep', lambda s: None)
+        if scans is not None:
+            it = iter(scans)
+            patch(usbtest, 'wedged_pids', lambda node: next(it))
+        if recover:
+            # a convoy-safe openocd board whose reset and reflash are stubs
+            patch(hil_flash, 'convoy_safe', lambda f: True)
+            self.flashed = []          # every in-run reflash the ladder attempted
+            patch(hil_flash, 'flash_openocd', reflash or (lambda board, fw, **kw: self.flashed.append(fw) or
+                  types.SimpleNamespace(returncode=0, stdout=b'', stderr=b'')))
+            patch(hil_flash, 'rescue_openocd', lambda *a, **k: False)
+            patch(usbtest, 'reset_primitive', lambda name: (lambda board, **kw: None))
+        self.addCleanup(setattr, sys, 'argv', sys.argv)
+        sys.argv = ['usbtest.py', '--serial', 'U', '--json', '--tests', '1',
+                    '--timeout', '7', '--testusb', sys.executable]
+        if keep_binding:
+            sys.argv.append('--keep-binding')
+        if recover:
+            sys.argv += ['--recover-board', json.dumps({'name': 'b', 'flasher': {
+                'name': 'openocd', 'vid_pid': '0x1 0x2', 'args': '', **(flasher_extra or {})}}),
+                         '--recover-fw', '/tmp/fw.elf']
+        out, err, exc = self._Out(), io.StringIO(), None
+        from contextlib import redirect_stderr
+        with redirect_stdout(out), redirect_stderr(err):
+            try:
+                usbtest.main()
+            except Exception as e:   # noqa: BLE001 - the test inspects it
+                exc = e
+        data = json.loads(out.getvalue()) if out.getvalue().strip() else None
+        return data, err.getvalue(), exc, writes
+
+    def test_a_cleared_holder_is_a_timeout_fail_and_cleanup_writes_run(self):
+        data, err, exc, writes = self._main(lambda node: ([], True, 6.0), keep_binding=False)
+        self.assertIsNone(exc)
+        self.assertFalse(data['wedged'])
+        self.assertEqual(data['wedge_confirmation'], 'cleared')
+        self.assertEqual(data['cases'][0]['status'], 'FAIL')
+        self.assertIn('no holder observed after 6s', data['cases'][0]['detail'])
+        self.assertNotIn('skipping cleanup after unrecovered hang', err)
+        self.assertTrue(any(p.endswith('remove_id') for p, _ in writes), writes)
+
+    def test_a_persistent_holder_is_a_confirmed_wedge_and_cleanup_never_writes(self):
+        data, err, _exc, writes = self._main(lambda node: ([4242], True, 30.0), keep_binding=False)
+        self.assertTrue(data['wedged'])
+        self.assertEqual(data['wedge_confirmation'], 'confirmed')
+        self.assertEqual(data['cases'][0]['status'], 'HUNG')
+        self.assertIn('skipping cleanup after unrecovered hang', err)
+        self.assertEqual(writes, [])
+
+    def test_an_incomplete_scan_is_contained_but_reported_unverified(self):
+        data, err, _exc, writes = self._main(lambda node: ([], False, 30.0), keep_binding=False)
+        self.assertTrue(data['wedged'], 'an unseen holder must still be contained')
+        self.assertEqual(data['wedge_confirmation'], 'unverified')
+        self.assertIn('unverified', err)
+        self.assertIn('skipping cleanup after unrecovered hang', err)
+        self.assertEqual(writes, [])
+
+    def test_an_exception_during_confirmation_still_skips_cleanup(self):
+        def boom(node):
+            raise RuntimeError('proc walk failed')
+        data, err, exc, writes = self._main(boom, keep_binding=False)
+        self.assertIsInstance(exc, RuntimeError)
+        self.assertIsNone(data, 'no verdict was printed')
+        self.assertIn('skipping cleanup after unrecovered hang', err)
+        self.assertEqual(writes, [])
+
+    def test_a_reset_only_recovery_flasher_never_reflashes_in_run(self):
+        # the holder survives the reset, so the ladder reflashes...
+        self._main(lambda node: ([4242], True, 30.0), recover=True, scans=[([4242], True), ([4242], True)])
+        self.assertEqual(self.flashed, ['/tmp/fw.elf'])
+        # ...unless the entry is reset-only
+        data, err, _exc, _w = self._main(lambda node: ([4242], True, 30.0), recover=True,
+                                         scans=[([4242], True)], flasher_extra={'reflash': False})
+        self.assertTrue(data['wedged'])
+        self.assertIn('reset-only recovery flasher', err)
+        self.assertEqual(self.flashed, [], 'a reset-only entry must never reflash in-run')
+
+    def test_recovery_scans_re_derive_the_confirmation(self):
+        # confirmed, then the reset scan and the post-reflash scan cannot see every pid:
+        # the stale 'confirmed' must not survive into the verdict
+        data, _err, _exc, _w = self._main(lambda node: ([4242], True, 30.0), recover=True,
+                                          scans=[([], False), ([], False)])
+        self.assertTrue(data['wedged'])
+        self.assertEqual(data['wedge_confirmation'], 'unverified')
+        # unverified at first, then a complete scan finds the holder after both actions
+        data, _err, _exc, _w = self._main(lambda node: ([], False, 30.0), recover=True,
+                                          scans=[([4242], True), ([4242], True)])
+        self.assertTrue(data['wedged'])
+        self.assertEqual(data['wedge_confirmation'], 'confirmed')
+        # confirmed, then the probe reset clears it
+        data, _err, _exc, _w = self._main(lambda node: ([4242], True, 30.0), recover=True,
+                                          scans=[([], True)])
+        self.assertFalse(data['wedged'])
+        self.assertEqual(data['wedge_confirmation'], 'cleared')
+
+    @staticmethod
+    def _raising_reflash(board, fw, **kw):
+        raise RuntimeError('probe gone')
+
+    def test_a_reflash_that_raises_still_gets_the_rescan_on_a_kept_holder(self):
+        data, err, exc, _w = self._main(lambda node: ([4242], True, 30.0), recover=True,
+                                        scans=[([4242], True), ([4242], True)], reflash=self._raising_reflash)
+        self.assertIsNone(exc)
+        self.assertTrue(data['wedged'])
+        self.assertEqual(data['wedge_confirmation'], 'confirmed')
+        self.assertEqual(data['wedge_evidence']['after'], 'reflash')
+        self.assertIn('reflash raised', err)
+
+    def test_a_reflash_that_raises_still_gets_the_rescan_on_a_cleared_holder(self):
+        data, _err, exc, _w = self._main(lambda node: ([4242], True, 30.0), recover=True,
+                                         scans=[([4242], True), ([], True)], reflash=self._raising_reflash)
+        self.assertIsNone(exc)
+        self.assertFalse(data['wedged'])
+        self.assertEqual(data['wedge_confirmation'], 'cleared')
+
+
+class WedgedMarker(unittest.TestCase):
+    """#3944: a confirmed wedge marks the board beside its flock so the next run refuses it
+    in seconds; the marker needs a reservation to write and recovery evidence to clear."""
+
+    def setUp(self):
+        from helper import hil_lock
+        td = TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        self.addCleanup(setattr, hil_lock, 'BOARD_LOCK_DIR', hil_lock.BOARD_LOCK_DIR)
+        hil_lock.BOARD_LOCK_DIR = td.name
+        self.dir = Path(td.name)
+        self.hl = hil_lock
+        self.ok = {'board': 'b', 'holders': [], 'complete': True, 'identity': 'U@1-1'}
+
+    def test_a_marker_needs_a_reservation_to_be_written(self):
+        self.assertFalse(self.hl.write_wedged('b', {'reason': 'x'}, None))
+        self.assertIsNone(self.hl.read_wedged('b'))
+        fh = self.hl.flock_nb('b')
+        self.addCleanup(fh.close)
+        self.assertTrue(self.hl.write_wedged('b', {'reason': 'x'}, fh))
+        info = self.hl.read_wedged('b')
+        self.assertEqual((info['board'], info['reason']), ('b', 'x'))
+        self.assertTrue(info['since'])
+        self.assertEqual([], [p for p in self.dir.iterdir() if p.name.endswith('.tmp')])
+
+    def test_a_marker_that_cannot_be_trusted_still_refuses_the_board(self):
+        os.symlink('/nonexistent', self.dir / 'b.wedged')
+        self.assertIn('symlink', self.hl.read_wedged('b')['reason'])
+        fh = self.hl.flock_nb('b')
+        self.addCleanup(fh.close)
+        self.assertFalse(self.hl.write_wedged('b', {}, fh), 'never write through a symlink')
+        (self.dir / 'c.wedged').write_text('{not json')
+        self.assertIn('unreadable', self.hl.read_wedged('c')['reason'])
+        (self.dir / 'd.wedged').write_text('{}')
+        self.assertIn('malformed', self.hl.read_wedged('d')['reason'], 'an empty object admitted the board')
+        (self.dir / 'e.wedged').mkdir()
+        self.assertIn('not a regular file', self.hl.read_wedged('e')['reason'])
+        os.mkfifo(self.dir / 'f.wedged')
+        self.assertIn('not a regular file', self.hl.read_wedged('f')['reason'], 'a FIFO must not block admission')
+        self.assertIn('untrusted', self.hl.clear_wedged('f', dict(self.ok, board='f')),
+                      'no evidence verifies a marker this code did not write')
+        with self.assertRaises(ValueError):
+            self.hl.read_wedged('../etc')
+
+    def test_a_reservation_must_be_this_boards_open_lock(self):
+        other = self.hl.flock_nb('other')
+        self.addCleanup(other.close)
+        self.assertFalse(self.hl.write_wedged('b', {'reason': 'x'}, other), 'another board\'s lock is not a reservation')
+        fh = self.hl.flock_nb('b')
+        self.assertTrue(self.hl.write_wedged('b', {'reason': 'x'}, fh))
+        self.assertIn('does not hold', self.hl.clear_wedged('b', self.ok, lock_fh=other))
+        fh.close()
+        self.assertIn('does not hold', self.hl.clear_wedged('b', self.ok, lock_fh=fh), 'a closed handle')
+        self.assertIsNotNone(self.hl.read_wedged('b'))
+
+    def test_evidence_must_verify_this_marker(self):
+        fh = self.hl.flock_nb('b')
+        self.hl.write_wedged('b', {'reason': 'x', 'uid': 'UID1'}, fh)
+        fh.close()
+        for bad, why in ((dict(self.ok, board='other'), 'names board'),
+                         (dict(self.ok, uid='WRONG'), 'uid'),
+                         (dict(self.ok, uid='UID1', identity='no-busport'), 'identity'),
+                         (dict(self.ok, uid='UID1', identity='@1-1'), 'identity'),
+                         (dict(self.ok, uid='UID1', identity='U@'), 'identity'),
+                         (dict(self.ok, uid='UID1', holders=[7]), 'holder'),
+                         ('not a dict', 'JSON object')):
+            self.assertIn(why, self.hl.clear_wedged('b', bad), bad)
+        self.assertEqual(self.hl.clear_wedged('b', dict(self.ok, uid='UID1')), '')
+
+    def test_the_identity_must_match_the_serial_the_wedge_was_observed_on(self):
+        fh = self.hl.flock_nb('b')
+        self.hl.write_wedged('b', {'reason': 'x', 'uid': 'UID1', 'evidence': {'serial': 'RIGHT'}}, fh)
+        fh.close()
+        self.assertIn('observed on', self.hl.clear_wedged('b', dict(self.ok, uid='UID1', identity='WRONG@1-1')))
+        self.assertIsNotNone(self.hl.read_wedged('b'))
+        self.assertEqual(self.hl.clear_wedged('b', dict(self.ok, uid='UID1', identity='RIGHT@1-1')), '')
+
+    def test_a_short_write_keeps_the_previous_marker(self):
+        fh = self.hl.flock_nb('b')
+        self.addCleanup(fh.close)
+        self.assertTrue(self.hl.write_wedged('b', {'reason': 'first'}, fh))
+        import resource
+        soft, hard = resource.getrlimit(resource.RLIMIT_FSIZE)
+        self.addCleanup(resource.setrlimit, resource.RLIMIT_FSIZE, (soft, hard))
+        import signal
+        prev = signal.signal(signal.SIGXFSZ, signal.SIG_IGN)   # get EFBIG, not a signal
+        self.addCleanup(signal.signal, signal.SIGXFSZ, prev)
+        resource.setrlimit(resource.RLIMIT_FSIZE, (4, hard))
+        self.assertFalse(self.hl.write_wedged('b', {'reason': 'second, much longer'}, fh))
+        resource.setrlimit(resource.RLIMIT_FSIZE, (soft, hard))
+        self.assertEqual(self.hl.read_wedged('b')['reason'], 'first', 'a torn marker replaced the good one')
+        self.assertEqual([], [p for p in self.dir.iterdir() if p.name.endswith('.tmp')])
+
+    def test_the_temporary_file_never_follows_a_symlink(self):
+        victim = self.dir / 'victim'
+        victim.write_text('keep me')
+        os.symlink(victim, self.dir / f'b.wedged.{os.getpid()}.tmp')
+        fh = self.hl.flock_nb('b')
+        self.addCleanup(fh.close)
+        self.assertFalse(self.hl.write_wedged('b', {'reason': 'x'}, fh))
+        self.assertEqual(victim.read_text(), 'keep me')
+        self.assertIsNone(self.hl.read_wedged('b'))
+
+    def test_clearing_needs_evidence_and_a_free_board(self):
+        fh = self.hl.flock_nb('b')
+        self.assertTrue(self.hl.write_wedged('b', {'reason': 'x'}, fh))
+        self.hl.write_record(fh, 'dev session')
+        self.assertIn('held by', self.hl.clear_wedged('b', self.ok), 'a held board is not cleared')
+        self.assertIsNotNone(self.hl.read_wedged('b'))
+        fh.close()
+        self.assertIn('evidence', self.hl.clear_wedged('b', {}))
+        self.assertIn('evidence', self.hl.clear_wedged('b', dict(self.ok, holders=[1])))
+        self.assertIn('evidence', self.hl.clear_wedged('b', dict(self.ok, complete=False)))
+        self.assertIsNotNone(self.hl.read_wedged('b'))
+        self.assertEqual(self.hl.clear_wedged('b', self.ok), '')
+        self.assertIsNone(self.hl.read_wedged('b'))
+        self.assertEqual(self.hl.clear_wedged('b', self.ok), 'not marked')
+
+    def test_the_holder_clears_under_its_own_reservation(self):
+        fh = self.hl.flock_nb('b')
+        self.addCleanup(fh.close)
+        self.hl.write_wedged('b', {'reason': 'x'}, fh)
+        self.assertEqual(self.hl.clear_wedged('b', self.ok, lock_fh=fh), '')
+
+    def test_the_cli_lists_and_clears(self):
+        fh = self.hl.flock_nb('b')
+        self.hl.write_wedged('b', {'reason': 'x'}, fh)
+        fh.close()
+        out = io.StringIO()
+        with redirect_stdout(out):
+            self.assertEqual(self.hl.cmd_wedged('status'), 0)
+        self.assertIn('b: {', out.getvalue())
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            self.assertEqual(self.hl.cmd_wedged('clear', 'b', 'not json'), 2)
+            self.assertEqual(self.hl.cmd_wedged('clear', 'b', '{}'), 1)
+            self.assertEqual(self.hl.cmd_wedged('clear', 'b', json.dumps(self.ok)), 0)
+        self.assertIsNone(self.hl.read_wedged('b'))
+
+    def _admit(self, board_name='b'):
+        called = []
+        self.addCleanup(setattr, hil_test, '_tests_for', hil_test._tests_for)
+        hil_test._tests_for = lambda board: called.append(board) or []
+        ret = hil_test.test_board({'name': board_name, 'uid': 'U', 'flasher': {'name': 'openocd'}})
+        return ret, called
+
+    def test_admission_refuses_a_marked_board_before_any_hardware_access(self):
+        fh = self.hl.flock_nb('b')
+        self.hl.write_wedged('b', {'reason': 'still wedged'}, fh)
+        fh.close()
+        (name, err, failed, rows, dur), called = self._admit()
+        self.assertEqual((name, err, failed, dur), ('b', 1, [], 0.0))
+        self.assertEqual(rows, [('b', {hil_test.hil_report.WEDGED_CELL: hil_test.hil_report.WEDGED_REFUSED}, None)])
+        self.assertEqual(called, [], 'the board was touched despite the marker')
+        self.assertIsNone(self.hl.read_record('b') or None, 'the lock record was left behind')
+        fh2 = self.hl.flock_nb('b')   # the flock was dropped again
+        fh2.close()
+
+    def test_admission_is_checked_even_when_the_lock_is_bypassed(self):
+        fh = self.hl.flock_nb('b')
+        self.hl.write_wedged('b', {'reason': 'still wedged'}, fh)
+        fh.close()
+        self.addCleanup(os.environ.pop, 'HIL_NO_BOARD_LOCK', None)
+        os.environ['HIL_NO_BOARD_LOCK'] = '1'
+        (_n, err, _f, rows, _d), called = self._admit()
+        self.assertEqual((err, called), (1, []))
+        self.assertEqual(rows[0][1], {hil_test.hil_report.WEDGED_CELL: hil_test.hil_report.WEDGED_REFUSED})
+
+    def test_admission_refuses_an_empty_object_marker(self):
+        (self.dir / 'b.wedged').write_text('{}')
+        (_n, err, _f, rows, _d), called = self._admit()
+        self.assertEqual((err, called), (1, []), 'an empty marker admitted the board')
+        self.assertEqual(rows[0][1], {hil_test.hil_report.WEDGED_CELL: hil_test.hil_report.WEDGED_REFUSED})
+
+    def test_mark_wedged_writes_marker_and_dmesg_under_a_reservation_only(self):
+        import subprocess as sp
+        self.addCleanup(setattr, hil_test.usbtest, '_sudo_soft', hil_test.usbtest._sudo_soft)
+        hil_test.usbtest._sudo_soft = lambda cmd, **kw: sp.CompletedProcess(
+            cmd, 0, stdout='\n'.join(f'line {i}' for i in range(80)), stderr='')
+        self.addCleanup(setattr, hil_test, 'board_wedged', hil_test.board_wedged)
+        self.addCleanup(setattr, hil_test, 'board_wedge_evidence', hil_test.board_wedge_evidence)
+        hil_test.board_wedged = 'b: usbtest reports the device still wedged'
+        hil_test.board_wedge_evidence = {'node': '/dev/bus/usb/003/009', 'holders': [4242],
+                                         'complete': True, 'serial': 'UID1'}
+        board = {'name': 'b', 'uid': 'UID1', 'flasher': {'name': 'openocd'}}
+        victim = self.dir / 'victim'
+        victim.write_text('keep me')
+        os.symlink(victim, self.dir / 'b.wedge-dmesg.txt')
+        hil_test._mark_wedged(board, None)
+        self.assertIsNone(self.hl.read_wedged('b'), 'no reservation, no marker')
+        self.assertEqual(victim.read_text(), 'keep me', 'the sidecar was written without a reservation')
+        (self.dir / 'b.wedge-dmesg.txt').unlink()
+        fh = self.hl.flock_nb('b')
+        self.addCleanup(fh.close)
+        hil_test._mark_wedged(board, fh)
+        info = self.hl.read_wedged('b')
+        self.assertEqual((info['uid'], info['confirmation']), ('UID1', 'confirmed'))
+        self.assertIn('still wedged', info['reason'])
+        self.assertEqual(info['evidence']['node'], '/dev/bus/usb/003/009')
+        self.assertEqual(info['evidence']['holders'], [4242])
+        dmesg = Path(info['dmesg'])
+        self.assertEqual(dmesg.parent, self.dir, 'evidence lives with the marker, not in a checkout')
+        self.assertEqual(len(dmesg.read_text().splitlines()), 50)
+
+
 class MtpGioOrdering(_MtpFakeRig, unittest.TestCase):
     """gio must not run until the device is READY.
 
@@ -830,7 +1239,7 @@ class UsbtestOuterBoundIsOneValue(unittest.TestCase):
     recovery can actually run. Otherwise a board on a path that cannot recover holds a pool
     worker and its battery permit idle for the difference, under a usbtest width of 2."""
 
-    def _invoke(self, flasher, skip_flash=False):
+    def _invoke(self, flasher, skip_flash=False, recover=None):
         from contextlib import contextmanager
         from helper import hil_lock, hil_util
 
@@ -862,8 +1271,11 @@ class UsbtestOuterBoundIsOneValue(unittest.TestCase):
         patch(hil_test, 'skip_flash', skip_flash)
         patch(hil_test, '_current_fw', '/tmp/fw.elf')
         patch(hil_util, 'run_cmd', fake_run)
+        board = {'name': 'b', 'uid': 'UID1', 'flasher': flasher}
+        if recover is not None:
+            board['flasher_recover'] = recover
         with self.assertRaises(hil_test.TestFail):
-            hil_test.test_device_usbtest({'name': 'b', 'uid': 'UID1', 'flasher': flasher})
+            hil_test.test_device_usbtest(board)
         return seen
 
     def test_a_recoverable_board_reserves_the_recovery_budget(self):
@@ -886,10 +1298,14 @@ class UsbtestOuterBoundIsOneValue(unittest.TestCase):
         self.assertLess(wch['timeout'], rp['timeout'])
 
     def test_a_board_with_no_recovery_does_not_pay_for_one(self):
+        import usbtest
         seen = self._invoke({'name': 'stlink', 'uid': 'X'})   # never convoy_safe
-        # It does not carry the RECOVERY reserve it cannot spend
+        # It does not carry the RECOVERY reserve it cannot spend, only the window in which
+        # the child watches a HUNG node before calling it a wedge (#3944): that runs on
+        # every path, and an outer kill inside it loses the JSON and the verdict.
         self.assertEqual(seen['timeout'],
-                         hil_test.USBTEST_BATTERY_BUDGET + hil_test.USBTEST_OVERSHOOT)
+                         hil_test.USBTEST_BATTERY_BUDGET + hil_test.USBTEST_OVERSHOOT
+                         + usbtest.WEDGE_CONFIRM_S)
         # ...but it MUST still exceed the child's own --budget. The battery checks the
         # budget before dispatching, so it can overshoot by one already-started case; an
         # equal bound SIGKILLs it just as it goes to print, turning ~29 real per-case
@@ -900,12 +1316,38 @@ class UsbtestOuterBoundIsOneValue(unittest.TestCase):
         self.assertGreaterEqual(seen['timeout'] - budget, case_timeout,
                                 'the outer kill can land mid-case, before the JSON')
 
+    def test_a_jlink_board_recovers_through_its_flasher_recover_entry(self):
+        """The roster's optional second flasher (#3945): the primary stays JLinkExe, which
+        is never convoy-safe, so the reserve and the --recover-board JSON both follow the
+        openocd entry -- with the firmware jlink flashed, not a re-derived one."""
+        import json
+        import shlex
+        import usbtest
+        prim = {'name': 'jlink', 'uid': '779541626', 'args': '-device stm32f072rb'}
+        rec = {'name': 'openocd', 'uid': '779541626',
+               'args': '-f interface/jlink.cfg -c "adapter speed 4000" -f target/stm32f0x.cfg'}
+        alone = self._invoke(prim)
+        self.assertNotIn('--recover-board', alone['cmd'])
+        seen = self._invoke(prim, recover=rec)
+        self.assertEqual(seen['timeout'], hil_test.USBTEST_BATTERY_BUDGET
+                         + hil_test.USBTEST_OVERSHOOT + usbtest.recovery_reserve(rec))
+        toks = shlex.split(seen['cmd'])
+        shipped = json.loads(toks[toks.index('--recover-board') + 1])
+        self.assertEqual(shipped, {'name': 'b', 'flasher': rec})
+        self.assertEqual(toks[toks.index('--recover-fw') + 1], '/tmp/fw.elf')
+        # the reset step is reserved, and no Rescue-DP legs: reset_openocd is real, unlike esptool's no_op stub
+        self.assertEqual(usbtest.recovery_reserve(rec) - usbtest.recovery_reserve({'name': 'esptool'}),
+                         usbtest.RECOVER_RESET_TIMEOUT + hil_test.hil_util.REAP_GRACE)
+
     def test_skip_flash_still_bounds_the_child(self):
         """--skip-flash disables recovery, so the child must not be given a reserve it
-        cannot spend -- but it MUST still be bounded."""
+        cannot spend -- but it MUST still be bounded, and the bound still covers the window
+        in which the child watches a HUNG node before calling it a wedge."""
+        import usbtest
         seen = self._invoke({'name': 'openocd', 'vid_pid': '0x1366 0x1024'}, skip_flash=True)
         self.assertEqual(seen['timeout'],
-                         hil_test.USBTEST_BATTERY_BUDGET + hil_test.USBTEST_OVERSHOOT)
+                         hil_test.USBTEST_BATTERY_BUDGET + hil_test.USBTEST_OVERSHOOT
+                         + usbtest.WEDGE_CONFIRM_S)
 
 
 class UsbtestRetryPolicy(unittest.TestCase):
@@ -1005,303 +1447,6 @@ class UsbtestOuterKillStaysRetryable(unittest.TestCase):
             hil_test.test_device_usbtest({'name': 'b', 'uid': 'UID1',
                                           'flasher': {'name': 'openocd'}})
         self.assertFalse(cm.exception.parsed)
-
-
-class RemoteDirIsScreened(unittest.TestCase):
-    """REMOTE_DIR reaches the rig through `rm -rf`, an scp remote path and an rsync
-    remote path -- all re-split and expanded by the REMOTE shell, none of them
-    protectable by quoting the local variable. So the script screens the value once
-    instead: it must survive that re-split unchanged, and `~` must keep working."""
-
-    def _run(self, remote_dir, *args, keep_going=False):
-        import subprocess
-        with TemporaryDirectory() as td:
-            # real ssh/scp/rsync would reach the rig; these just record the argv. Exit 77
-            # unless the caller needs the script to run on to the second ssh.
-            rc = 0 if keep_going else 77
-            for tool in ('ssh', 'scp', 'rsync'):
-                write_script(Path(td) / tool, f'echo "stub-{tool} $*" >&2; exit {rc}')
-            # hil_ci.sh now refuses an all-boards run with nothing built, so this arg-quoting
-            # test needs a checkout stub with one build dir to reach the run invocation
-            root = Path(td) / 'root'
-            (root / 'test' / 'hil').mkdir(parents=True)
-            (root / 'test' / 'hil' / 'hil_test.py').touch()
-            (root / 'examples' / 'cmake-build-alpha').mkdir(parents=True)
-            env = {**os.environ, 'REMOTE_DIR': remote_dir, 'REMOTE': 'stub',
-                   'ROOT_DIR': str(root),
-                   'PATH': td + os.pathsep + os.environ['PATH']}
-            return subprocess.run(
-                ['bash', str(Path(TEST_DIR).parents[0] / 'hil_ci.sh'), *args],
-                capture_output=True, text=True, timeout=60, env=env)
-
-    def test_whitespace_is_refused(self):
-        # unscreened, the remote `rm -rf -- "$1"` gets a TRUNCATED path and deletes
-        # the wrong tree
-        r = self._run('/tmp/hil dir')
-        self.assertNotEqual(r.returncode, 0)
-        self.assertIn('REMOTE_DIR', r.stderr)
-
-    def test_command_substitution_is_refused(self):
-        r = self._run('/tmp/$(touch pwned)')
-        self.assertNotEqual(r.returncode, 0)
-        self.assertIn('REMOTE_DIR', r.stderr)
-
-    def test_bare_root_is_refused(self):
-        r = self._run('/')
-        self.assertNotEqual(r.returncode, 0)
-        self.assertIn('REMOTE_DIR', r.stderr)
-
-    def test_a_tilde_path_is_accepted(self):
-        """The one override %q broke: `~` must reach the remote shell UNESCAPED or it
-        creates a literal '~' directory in the login dir."""
-        r = self._run('~/tinyusb-hil')
-        self.assertIn('~/tinyusb-hil', r.stderr)     # got as far as the first ssh
-        self.assertNotIn('\\~', r.stderr)            # %q escapes it; the remote shell won't
-
-    def test_paths_that_would_rm_rf_something_huge_are_refused(self):
-        """Passing the tilde through UNESCAPED is what makes this dangerous: the remote
-        shell expands `~/` to the login dir, so `rm -rf -- "$1"` takes out $HOME -- one
-        typo away from the documented REMOTE_DIR=~/dir override. A bare root, a
-        no-component path and a foreign ~user are the same class."""
-        for bad in ('~/', '~root/x', '~-', '//', '/.', '/tmp/hil/'):
-            with self.subTest(remote_dir=bad):
-                r = self._run(bad)
-                self.assertNotEqual(r.returncode, 0, f'{bad!r} was accepted')
-                self.assertIn('REMOTE_DIR', r.stderr)
-
-    def test_an_arg_containing_a_space_survives_the_remote_resplit(self):
-        """ssh joins its argv into ONE string the remote shell re-splits, so an unquoted
-        `-t 'host/cdc msc'` arrives as two arguments and hil_test.py sees a stray word
-        where it expects the config path."""
-        r = self._run('/tmp/tinyusb-hil', '-t', 'host/cdc msc', keep_going=True)
-        run_line = [l for l in r.stderr.splitlines() if 'bash -s --' in l][-1]
-        self.assertIn(r'host/cdc\ msc', run_line)
-
-
-class EveryBoardIsStaged(unittest.TestCase):
-    """One hil_test.py run takes several `-b` flags, and hil-operator hands it the whole board
-    set that way. The `-b` parse loop kept a single BOARD, so only the LAST board's binaries
-    were rsynced and every other board died on the rig with a missing firmware path -- after
-    its flash slot and lock were already spent.
-
-    Three of these five fail against the pre-fix script (the discriminating unbuilt case
-    puts the board FIRST, because the old single-BOARD parse happened to handle a trailing
-    one correctly); the run-line and variant-dir tests are characterization -- the old script
-    already forwarded ARGS whole and read variants from the config for its one board."""
-
-    def _run(self, boards, cfg_boards=None, variants=None):
-        import json
-        import subprocess
-        td = TemporaryDirectory()
-        self.addCleanup(td.cleanup)
-        root = Path(td.name) / 'root'
-        (root / 'test' / 'hil').mkdir(parents=True)
-        (root / 'test' / 'hil' / 'hil_test.py').touch()
-        built = cfg_boards if cfg_boards is not None else boards
-        (root / 'examples').mkdir(parents=True, exist_ok=True)
-        for b in built:
-            (root / 'examples' / f'cmake-build-{b}').mkdir(parents=True)
-        roster = [{'name': b} for b in boards]
-        for entry in roster:
-            for v in (variants or {}).get(entry['name'], []):
-                entry.setdefault('variant', []).append({'name': v})
-        cfg = root / 'test' / 'hil' / 'cfg.json'
-        cfg.write_text(json.dumps({'boards': roster}))
-        stubs = Path(td.name) / 'bin'
-        stubs.mkdir()
-        # real ssh/scp/rsync would reach the rig; these just record the argv
-        for tool in ('ssh', 'scp', 'rsync'):
-            write_script(stubs / tool, f'echo "stub-{tool} $*" >&2; exit 0')
-        env = {**os.environ, 'REMOTE': 'stub', 'ROOT_DIR': str(root), 'CONFIG': str(cfg),
-               'PATH': str(stubs) + os.pathsep + os.environ['PATH']}
-        args = [a for b in boards for a in ('-b', b)]
-        r = subprocess.run(['bash', str(Path(TEST_DIR).parents[0] / 'hil_ci.sh'), *args],
-                           capture_output=True, text=True, timeout=60, env=env)
-        r.rsyncs = [l for l in r.stderr.splitlines() if l.startswith('stub-rsync')]
-        # the RUN ssh is the one carrying hil_test.py's args; the setup ssh is not
-        r.run_lines = [l for l in r.stderr.splitlines() if '--retry 1' in l]
-        return r
-
-    def test_binaries_for_every_requested_board_are_copied(self):
-        r = self._run(['alpha', 'beta', 'gamma'])
-        self.assertEqual(r.returncode, 0, r.stderr)
-        for b in ('alpha', 'beta', 'gamma'):
-            self.assertTrue(any(f'cmake-build-{b} ' in l for l in r.rsyncs),
-                            f'{b} binaries never staged: {r.rsyncs}')
-
-    def test_every_board_reaches_hil_test(self):
-        r = self._run(['alpha', 'beta'])
-        self.assertEqual(len(r.run_lines), 1, r.stderr)
-        self.assertIn('-b alpha', r.run_lines[0])
-        self.assertIn('-b beta', r.run_lines[0])
-
-    def test_an_unbuilt_board_aborts_before_anything_is_staged(self):
-        """The discriminating case: the unbuilt board is FIRST. The pre-fix script kept only
-        the last -b, found it built, and ran happily while silently testing one board. It also
-        has to fail BEFORE staging -- the old in-loop check fired after the remote tree was
-        wiped and earlier boards were rsynced, costing a run and leaving a half-staged rig."""
-        r = self._run(['alpha', 'beta'], cfg_boards=['beta'])
-        self.assertNotEqual(r.returncode, 0, 'unbuilt first board was accepted')
-        self.assertIn('alpha', r.stdout + r.stderr)
-        self.assertEqual(r.rsyncs, [], f'staged despite an unbuilt board: {r.rsyncs}')
-        self.assertEqual(r.run_lines, [], 'reached the run despite an unbuilt board')
-
-    def test_a_board_whose_firmware_is_only_a_variant_dir_is_accepted(self):
-        """Variant names are not required to be prefixed with the board name, so a board can
-        own no `cmake-build-<board>` dir at all. A pre-flight that only globs the board name
-        rejects it and tells the user to build firmware that is already there."""
-        r = self._run(['alpha', 'beta'], cfg_boards=['alpha', 'odd-name-v'],
-                      variants={'beta': ['odd-name-v']})
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertTrue(any('cmake-build-odd-name-v ' in l for l in r.rsyncs),
-                        f"beta's variant dir never staged: {r.rsyncs}")
-
-    def test_all_unbuilt_boards_are_named_at_once(self):
-        """One build round should fix every complaint, so the guard reports the whole set."""
-        r = self._run(['alpha', 'beta', 'gamma'], cfg_boards=['beta'])
-        self.assertNotEqual(r.returncode, 0)
-        out = r.stdout + r.stderr
-        self.assertIn('alpha', out)
-        self.assertIn('gamma', out)
-
-
-class StagingCoversEveryBoardForm(unittest.TestCase):
-    """hil_test.py declares `-b, --board` with action='append', so argparse accepts --board X,
-    --board=X and -bX too. Staging only the bare form sent boards to the rig with no firmware,
-    where every test logs `Skip (no binary)` and counts zero errors -- a green row for a board
-    that was never flashed. Also covers the roster check, which has to fire BEFORE the remote
-    tree is wiped, since hil_test.py rejects an unknown -b for the whole run."""
-
-    def _run(self, argv, built, roster=None, variants=None, env_extra=None, stale=None):
-        import json
-        import subprocess
-        td = TemporaryDirectory()
-        self.addCleanup(td.cleanup)
-        root = Path(td.name) / 'root'
-        (root / 'test' / 'hil').mkdir(parents=True)
-        (root / 'test' / 'hil' / 'hil_test.py').touch()
-        (root / 'examples').mkdir(parents=True, exist_ok=True)
-        for b in built:
-            (root / 'examples' / f'cmake-build-{b}').mkdir(parents=True)
-        entries = [{'name': b} for b in (roster if roster is not None else built)]
-        for e in entries:
-            for v in (variants or {}).get(e['name'], []):
-                e.setdefault('variant', []).append({'name': v})
-        cfg = root / 'test' / 'hil' / 'cfg.json'
-        cfg.write_text(json.dumps({'boards': entries}))
-        stubs = Path(td.name) / 'bin'
-        stubs.mkdir()
-        # ssh joins its argv into ONE string that the REMOTE shell re-splits, and feeds the
-        # heredoc on stdin. A stub that echoes "$*" hides exactly that, which is how a
-        # completely broken env-forwarding change once passed its own test -- so this stub
-        # re-splits like the real thing and reports the script body separately.
-        write_script(stubs / 'ssh', 'shift; printf "REMOTE-ARGV: %s\\n" "$*" >&2; '
-                                    'body=$(cat); printf "REMOTE-BODY: %s\\n" "$body" >&2; exit 0')
-        for tool in ('scp', 'rsync'):
-            write_script(stubs / tool, f'echo "stub-{tool} $*" >&2; exit 0')
-        for name, content in (stale or {}).items():
-            (root / name).write_text(content)
-        env = {**os.environ, 'REMOTE': 'stub', 'ROOT_DIR': str(root), 'CONFIG': str(cfg),
-               'PATH': str(stubs) + os.pathsep + os.environ['PATH'], **(env_extra or {})}
-        r = subprocess.run(['bash', str(Path(TEST_DIR).parents[0] / 'hil_ci.sh'), *argv],
-                           capture_output=True, text=True, timeout=60, env=env)
-        r.rsyncs = [l for l in r.stderr.splitlines() if l.startswith('stub-rsync')]
-        r.run_lines = [l for l in r.stderr.splitlines() if '--retry 1' in l]
-        r.body = '\n'.join(l for l in r.stderr.splitlines() if l.startswith('REMOTE-BODY'))
-        r.stale_left = {name: (root / name).exists() for name in (stale or {})}
-        return r
-
-    def test_long_board_forms_are_staged_and_only_that_board(self):
-        """Two boards are built so the pre-fix 'copy all built binaries' else-branch cannot
-        stage the right one by accident -- that is what made the first version of this test
-        pass against master while the feature was broken. -balpha is the glued short form
-        argparse resolves to --board alpha; unparsed it fell through to the all-boards branch
-        and silently staged everything built with no roster check."""
-        for argv in (['--board', 'alpha'], ['--board=alpha'], ['-balpha']):
-            with self.subTest(argv=argv):
-                r = self._run(argv, built=['alpha', 'beta'], roster=['alpha', 'beta'])
-                self.assertEqual(r.returncode, 0, r.stderr)
-                self.assertTrue(any('cmake-build-alpha ' in l for l in r.rsyncs),
-                                f'{argv} never staged: {r.rsyncs}')
-                self.assertFalse(any('cmake-build-beta ' in l for l in r.rsyncs),
-                                 f'{argv} staged an unrequested board: {r.rsyncs}')
-
-    def test_board_test_flag_is_not_mistaken_for_a_board(self):
-        """-bt is hil_test.py's --board-test and is exactly what <config>.failed contains, so
-        a glued -b?* pattern turns the documented retry into 'not in the roster: t'."""
-        for argv in (['-b', 'alpha', '-bt', 'alpha:device/cdc_msc'],
-                     ['-b', 'alpha', '-btalpha:device/cdc_msc']):
-            with self.subTest(argv=argv):
-                r = self._run(argv, built=['alpha'])
-                self.assertEqual(r.returncode, 0, r.stderr)
-                self.assertNotIn('not in', r.stderr)
-                self.assertTrue(any('alpha:device/cdc_msc' in l for l in r.run_lines),
-                                f'-bt never reached the rig: {r.run_lines}')
-
-    def test_a_board_outside_the_roster_is_refused_before_staging(self):
-        r = self._run(['-b', 'alpha', '-b', 'ghost'], built=['alpha', 'ghost'], roster=['alpha'])
-        self.assertNotEqual(r.returncode, 0)
-        self.assertIn('ghost', r.stdout + r.stderr)
-        self.assertEqual(r.rsyncs, [], 'staged despite an unknown board')
-        self.assertEqual(r.run_lines, [], 'reached the run despite an unknown board')
-
-    def test_a_variant_with_no_build_dir_warns_instead_of_passing_silently(self):
-        r = self._run(['-b', 'alpha'], built=['alpha'], variants={'alpha': ['alpha-DMA']})
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn('alpha-DMA', r.stderr)
-        self.assertIn('skipped, not tested', r.stderr)
-
-    def test_no_build_dirs_at_all_aborts_the_all_boards_form(self):
-        """`hil_ci.sh` with no -b stages everything built. With nothing built it used to wipe
-        the rig, stage nothing, and return a green all-skip table."""
-        r = self._run([], built=[], roster=['alpha'])
-        self.assertNotEqual(r.returncode, 0)
-        self.assertIn('nothing to test', r.stdout + r.stderr)
-        self.assertEqual(r.run_lines, [], 'reached the run with nothing staged')
-        self.assertNotIn('Setting up remote', r.stdout + r.stderr,
-                         'the guard fired only after the remote tree was already wiped')
-
-    def test_hil_env_reaches_the_rig_as_environment_not_argv(self):
-        """An authorized force is HIL_NO_BOARD_LOCK=1. Passed through ssh's argv it arrives as a
-        positional argument and argparse exits 2, so it has to travel in the script body."""
-        r = self._run(['-b', 'alpha'], built=['alpha'], env_extra={'HIL_NO_BOARD_LOCK': '1'})
-        self.assertEqual(r.returncode, 0, r.stderr)
-        # one %q-quoted word of `export NAME=value; ` fragments, evaluated by the remote —
-        # NOT a bare NAME=value element, which hil_test.py's argparse takes as a positional.
-        # %q backslash-escapes the spaces, so match the pieces rather than the plain phrase.
-        run = '\n'.join(r.run_lines)
-        self.assertIn('HIL_NO_BOARD_LOCK=1', run)
-        self.assertIn('export', run)
-        self.assertFalse(any(' HIL_NO_BOARD_LOCK=1 ' in l for l in r.run_lines),
-                         'env reached argv unquoted, where hil_test.py sees a positional')
-
-    def test_a_value_with_spaces_survives_forwarding(self):
-        r = self._run(['-b', 'alpha'], built=['alpha'],
-                      env_extra={'HIL_SCRATCH': '/tmp/my scratch'})
-        self.assertEqual(r.returncode, 0, r.stderr)
-        run = '\n'.join(r.run_lines)
-        self.assertIn('HIL_SCRATCH', run)
-        self.assertIn('scratch', run)
-
-    def test_hil_report_dir_is_never_forwarded(self):
-        """Where the report lands on the rig is this script's contract (REMOTE_DIR, where all
-        three copy-backs look); forwarding a local HIL_REPORT_DIR relocates it there and every
-        copy-back comes home empty -- two of the three silently."""
-        r = self._run(['-b', 'alpha'], built=['alpha'],
-                      env_extra={'HIL_REPORT_DIR': '/tmp/elsewhere'})
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertFalse(any('HIL_REPORT_DIR' in l for l in r.run_lines),
-                         f'HIL_REPORT_DIR reached the rig: {r.run_lines}')
-
-    def test_a_stale_local_failed_spec_does_not_survive_a_green_run(self):
-        """A green run writes no .failed on the rig, so the copy-back scp no-ops; the local
-        spec from a previous FAILED run must not survive it looking current -- a later
-        "retry from the spec" would re-flash boards that already passed."""
-        r = self._run(['-b', 'alpha'], built=['alpha'],
-                      stale={'cfg.json.failed': '--accumulate -b alpha'})
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertFalse(r.stale_left['cfg.json.failed'],
-                         "last run's re-run spec survived a green run")
 
 
 class PoolGuardKeepsWhatFinished(unittest.TestCase):
@@ -1417,7 +1562,7 @@ class WedgeVerdictReachesTheLatch(unittest.TestCase):
         hil_test.board_wedged = ''
         no_settle(self)
 
-    def _run(self, stdout, rc=0):
+    def _run(self, stdout, rc=0, flasher=None):
         from helper import hil_lock, hil_util
         class R:
             returncode = rc
@@ -1432,7 +1577,8 @@ class WedgeVerdictReachesTheLatch(unittest.TestCase):
         self.addCleanup(setattr, hil_lock, 'usbtest_permit', hil_lock.usbtest_permit)
         from contextlib import contextmanager
         hil_lock.usbtest_permit = contextmanager(lambda uid: iter([None]))
-        board = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd', 'vid_pid': '0x1 0x2'}}
+        board = {'name': 'b', 'uid': 'U',
+                 'flasher': flasher or {'name': 'openocd', 'vid_pid': '0x1 0x2'}}
         try:
             hil_test.test_device_usbtest(board)
         except Exception:
@@ -1447,6 +1593,22 @@ class WedgeVerdictReachesTheLatch(unittest.TestCase):
     def test_no_wedge_reported_does_not_latch(self):
         js = '{"serial":"U","speed":"480","tier":1,"passed":2,"failed":0,"notrun":0,'              '"wedged":false,"cases":[]}'
         self.assertFalse(self._run(js))
+
+    def test_only_a_confirmed_wedge_qualifies_for_the_marker(self):
+        for confirmation, want in (('confirmed', True), ('unverified', False), ('', False)):
+            js = ('{"serial":"U","speed":"480","tier":1,"passed":1,"failed":1,"notrun":0,'
+                  f'"wedged":true,"wedge_confirmation":"{confirmation}","cases":[]}}')
+            self.assertTrue(self._run(js), confirmation)
+            self.assertIs(hil_test.board_wedge_confirmed, want, confirmation)
+
+    def test_a_late_cleared_timeout_on_a_board_without_recovery_does_not_latch(self):
+        """usbtest watches a HUNG node before it says wedged (#3944); the old inference
+        `not recovery and 'HUNG' in out` latched a healthy stlink board on a slow case."""
+        js = ('{"serial":"U","speed":"480","tier":1,"passed":1,"failed":1,"notrun":0,'
+              '"wedged":false,"cases":[{"num":10,"status":"FAIL","detail":"timeout after 60s '
+              '(the kill landed 7s late; no holder left on the node); was HUNG"}]}')
+        self.assertFalse(self._run(js, flasher={'name': 'stlink', 'uid': 'X'}),
+                         'a cleared holder latched the board as wedged')
 
     def test_an_unparseable_battery_that_mentions_HUNG_still_latches(self):
         """rc 124 mid-print: no JSON to read, and this is the likeliest real wedge."""

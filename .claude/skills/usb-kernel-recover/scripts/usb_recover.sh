@@ -14,7 +14,30 @@
 #                                              # device: it renumbers every bus it owns.
 #   sudo usb_recover.sh pci-bind   <pciaddr> [drv]  # re-attach a driver to a DRIVERLESS controller
 #   sudo usb_recover.sh resolve    <devnode>   # e.g. /dev/ttyACM3 -> print its <busport> (no privilege needed)
+#   sudo usb_recover.sh shield     <busport> <owner-pid>    # chmod 000 the nine locking attrs of the wedged leaf, its
+#                                              # parent hub and the root hub so non-root libusb enumerators skip it;
+#                                              # records every original mode first. Refused while another shield
+#                                              # covers any of the same objects.
+#   sudo usb_recover.sh unshield   <busport> [owner-pid]    # restore the recorded modes on the surviving originals
+#                                              # (same inode) and drop the record; refused while a DIFFERENT owner
+#                                              # is still alive. A stale record (owner gone) needs no pid.
+#   sudo usb_recover.sh shield-status [busport] # records, their owners (alive/dead) and what is still shielded
 set -euo pipefail
+
+# The shield's locking attributes: served under the device lock, so a wedged device blocks
+# every reader (usb-kernel-recover SKILL.md section 2). descriptors/busnum/devnum/speed/
+# idVendor/idProduct are lock-free and libusb needs them -- never in this list.
+SHIELD_ATTRS='bNumInterfaces bmAttributes bMaxPower configuration bConfigurationValue product manufacturer serial avoid_reset_quirk'
+# Test seams, honoured only WITHOUT root: a fake sysfs tree and a scratch state dir. Under
+# sudo they are ignored, so the script cannot be pointed at arbitrary paths as a privileged chmod.
+SYSFS=/sys
+SHIELD_STATE=/run/tinyusb-hil/shield
+FAIL_CHMOD=''          # a path whose chmod the tests make fail, to reach the rollback-failure branch
+if [ "$(id -u)" -ne 0 ]; then
+  SYSFS=${USB_RECOVER_SYSFS:-/sys}
+  SHIELD_STATE=${USB_RECOVER_STATE:-/run/tinyusb-hil/shield}
+  FAIL_CHMOD=${USB_RECOVER_TEST_FAIL_CHMOD:-}
+fi
 
 USBPATH_RE='^[0-9]+-[0-9]+(\.[0-9]+)*$'
 PCI_RE='^[0-9a-fA-F]{4}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-9]$'
@@ -82,6 +105,210 @@ require_usb_controller() {
 sysfs_gen() { stat -c %i "/sys/bus/usb/devices/$1/" 2>/dev/null || echo none; }
 usage() { grep -E '^#   sudo usb_recover' "$0" >&2; exit 2; }
 
+# ---- shield -----------------------------------------------------------------------------
+# One record per shielded busport under $SHIELD_STATE, written BEFORE the first chmod:
+#   owner <pid> <start-time> <boot-id>
+#   obj <name> <dir-inode>            (leaf, parent hub, root hub)
+#   attr <name>/<attr> <inode> <mode>
+# The inode is the object's generation: re-enumeration destroys the kobject and its
+# attributes and creates new ones, so unshield restores only what still carries the
+# recorded inode and reports the rest as gone. Modes are restored from the record, never
+# copied from a sibling (siblings differ, and may carry another shield). Every check and
+# mutation runs under one flock, so two shields cannot both pass the overlap check.
+
+attr_op() {
+  # attr_op stat PATH            -> "<inode> <mode>"      rc 0
+  # attr_op chmod PATH INODE MODE -> "ok"                 rc 0, applied to THAT inode
+  # rc 2 "gone": the path is absent or names a different inode (re-enumerated, replaced)
+  # rc 1: could not inspect or change it -- never mistaken for gone
+  # O_PATH|O_NOFOLLOW pins the object without opening it for reading (no ->show() on a
+  # wedged attribute, no read permission needed), fstat gives the inode of exactly that
+  # object, and chmod through /proc/self/fd changes it and nothing that replaced it.
+  FAIL_CHMOD="$FAIL_CHMOD" python3 - "$@" <<'PY'
+import os, stat, sys
+op, path = sys.argv[1], sys.argv[2]
+if op == 'chmod' and path == os.environ.get('FAIL_CHMOD') and sys.argv[4] != '000':
+    print('chmod failed: injected'); sys.exit(1)     # a RESTORE that fails, the rollback branch
+try:
+    fd = os.open(path, os.O_PATH | os.O_NOFOLLOW | os.O_CLOEXEC)
+except FileNotFoundError:
+    print('gone'); sys.exit(2)
+except OSError as e:
+    print(f'inspect failed: {e.strerror}'); sys.exit(1)
+try:
+    st = os.fstat(fd)
+    if not stat.S_ISREG(st.st_mode):
+        print('not a regular file'); sys.exit(1)
+    if op == 'stat':
+        print(f'{st.st_ino} {st.st_mode & 0o777:o}'); sys.exit(0)
+    if str(st.st_ino) != sys.argv[3]:
+        print('gone'); sys.exit(2)
+    if st.st_mode & 0o777 == int(sys.argv[4], 8):
+        print('ok'); sys.exit(0)        # already there: nothing to change, nothing to fail
+    try:
+        os.chmod(f'/proc/self/fd/{fd}', int(sys.argv[4], 8))
+    except OSError as e:
+        print(f'chmod failed: {e.strerror}'); sys.exit(1)
+    print('ok')
+finally:
+    os.close(fd)
+PY
+}
+
+shield_objects() {
+  # leaf, its parent hub, the root hub -- unique, in that order
+  local bp=$1 bus=${1%%-*} parent
+  if [[ "$bp" == *.* ]]; then parent=${bp%.*}; else parent="usb$bus"; fi
+  echo "$bp"
+  [ "$parent" != "usb$bus" ] && echo "$parent"
+  echo "usb$bus"
+}
+
+proc_start() {  # start time of a pid (clock ticks since boot), '' when it is gone
+  local stat
+  stat=$(cat "/proc/$1/stat" 2>/dev/null) || return 0
+  stat=${stat##*) }          # skip past the comm field, which may contain spaces
+  set -- $stat
+  echo "${20:-}"             # field 22 of the full line
+}
+
+owner_alive() {  # pid start boot -> 0 when that very process still runs
+  [ "$3" = "$(cat /proc/sys/kernel/random/boot_id)" ] || return 1
+  [ -n "$2" ] && [ "$(proc_start "$1")" = "$2" ]
+}
+
+record_owner() {  # the record's "owner pid start boot" fields, plus alive|dead
+  local pid start boot
+  read -r _ pid start boot < <(grep -m1 '^owner ' "$1")
+  if owner_alive "$pid" "$start" "$boot"; then echo "$pid $start $boot alive"; else echo "$pid $start $boot dead"; fi
+}
+
+shield_lock() {
+  mkdir -p -m 700 "$SHIELD_STATE" || die "cannot create $SHIELD_STATE"
+  exec 9>>"$SHIELD_STATE/.lock" || die "cannot open $SHIELD_STATE/.lock"
+  flock -w 30 9 || die "another shield/unshield has held $SHIELD_STATE/.lock for 30 s"
+}
+
+# restore_from LINES... : chmod each "attr <obj/f> <ino> <mode>" line back to <mode>.
+# Sets restored/gone and appends failures to failed[].
+restore_from() {
+  local line out rc
+  for line in "$@"; do
+    set -- $line
+    rc=0; out=$(attr_op chmod "$SYSFS/bus/usb/devices/$2" "$3" "$4") || rc=$?   # never a bare assignment under set -e
+    case $rc in
+      0) restored=$((restored + 1)) ;;
+      2) gone=$((gone + 1)) ;;
+      *) failed+=("$2 ($out)") ;;
+    esac
+  done
+}
+
+shield() {
+  local bp=$1 pid=$2 start objs obj rec tmp d f path out rc changed=() line
+  local restored=0 gone=0 failed=()
+  [[ "$bp" =~ $USBPATH_RE ]] || die "bad usb path: $bp"
+  [[ "$pid" =~ ^[0-9]+$ ]] || die "shield: owner pid '$pid' is not a pid"
+  start=$(proc_start "$pid")
+  [ -n "$start" ] || die "shield: owner pid $pid is not a running process"
+  objs=$(shield_objects "$bp")
+  for obj in $objs; do
+    [ -d "$SYSFS/bus/usb/devices/$obj/" ] || die "shield: no such usb object: $obj"
+  done
+  shield_lock
+  # overlap: one owner's unshield must never drop another's root-hub shield
+  for rec in "$SHIELD_STATE"/*; do
+    [ -f "$rec" ] || continue
+    for obj in $objs; do
+      if grep -q "^obj $obj " "$rec"; then
+        die "shield: $obj is already covered by the shield on $(basename "$rec") (owner $(record_owner "$rec")); refusing"
+      fi
+    done
+  done
+  rec="$SHIELD_STATE/$bp"
+  # snapshot every attribute before anything is published or changed; an attribute that
+  # cannot be inspected stops the shield here, with nothing done
+  tmp=$(mktemp "$SHIELD_STATE/.$bp.XXXXXX")
+  {
+    echo "owner $pid $start $(cat /proc/sys/kernel/random/boot_id)"
+    for obj in $objs; do
+      d="$SYSFS/bus/usb/devices/$obj"
+      echo "obj $obj $(stat -c %i "$d/")"
+      for f in $SHIELD_ATTRS; do
+        rc=0; out=$(attr_op stat "$d/$f") || rc=$?
+        case $rc in
+          0) echo "attr $obj/$f $out" ;;
+          2) echo "absent $obj/$f" ;;
+          *) rm -f "$tmp"; die "shield: cannot inspect $obj/$f ($out); nothing changed" ;;
+        esac
+      done
+    done
+  } > "$tmp" || { rm -f "$tmp"; exit 1; }
+  mv "$tmp" "$rec"
+  # mutate only the inodes just recorded, and roll back on the first failure so a
+  # half-shield never survives; a rollback that itself fails keeps the record
+  while read -r line; do
+    set -- $line
+    [ "$1" = attr ] || continue
+    rc=0; out=$(attr_op chmod "$SYSFS/bus/usb/devices/$2" "$3" 000) || rc=$?
+    if [ $rc -ne 0 ]; then
+      restore_from "${changed[@]}"
+      if [ ${#failed[@]} -gt 0 ]; then
+        die "shield: chmod 000 $2 failed ($out); rollback incomplete: ${failed[*]}; record $rec KEPT for unshield"
+      fi
+      rm -f "$rec"
+      die "shield: chmod 000 $2 failed ($out); rolled back $restored attribute(s), no record kept"
+    fi
+    changed+=("$line")
+  done < "$rec"
+  echo "shielded $bp: ${#changed[@]} attribute(s) on $(echo $objs | tr ' ' ,) set 000; record $rec (owner pid $pid)"
+}
+
+unshield() {
+  local bp=$1 pid=${2:-} rec owner line lines=()
+  local restored=0 gone=0 failed=()
+  [[ "$bp" =~ $USBPATH_RE ]] || die "bad usb path: $bp"
+  shield_lock
+  rec="$SHIELD_STATE/$bp"
+  [ -f "$rec" ] || die "unshield: no shield record for $bp under $SHIELD_STATE"
+  owner=$(record_owner "$rec")
+  set -- $owner
+  if [ "$4" = alive ] && [ "$pid" != "$1" ]; then
+    die "unshield: $bp is shielded by live pid $1; pass that pid, or wait for it"
+  fi
+  while read -r line; do
+    [[ "$line" == attr\ * ]] && lines+=("$line")
+  done < "$rec"
+  restore_from "${lines[@]}"
+  if [ ${#failed[@]} -gt 0 ]; then
+    die "unshield: could not restore ${failed[*]}; record $rec kept (restored $restored, gone $gone)"
+  fi
+  rm -f "$rec"
+  echo "unshielded $bp: restored $restored attribute(s), $gone gone (re-enumerated or unplugged); record removed"
+}
+
+shield_status() {
+  local only=${1:-} rec bp line n=0 still open gone unknown out rc
+  for rec in "$SHIELD_STATE"/*; do
+    [ -f "$rec" ] || continue
+    bp=$(basename "$rec")
+    [ -z "$only" ] || [ "$bp" = "$only" ] || continue
+    n=$((n + 1)); still=0; open=0; gone=0; unknown=0
+    while read -r line; do
+      set -- $line
+      [ "$1" = attr ] || continue
+      rc=0; out=$(attr_op stat "$SYSFS/bus/usb/devices/$2") || rc=$?
+      if [ $rc -eq 0 ] && [ "${out%% *}" = "$3" ]; then
+        if [ "${out##* }" = 0 ]; then still=$((still + 1)); else open=$((open + 1)); fi
+      elif [ $rc -eq 1 ]; then unknown=$((unknown + 1))
+      else gone=$((gone + 1)); fi
+    done < "$rec"
+    set -- $(record_owner "$rec")
+    echo "$bp: owner pid $1 $4; $still attribute(s) still shielded, $open recorded but not shielded, $gone gone, $unknown uninspectable; objects: $(grep '^obj ' "$rec" | cut -d' ' -f2 | tr '\n' ' ')"
+  done
+  [ $n -gt 0 ] || echo "no shields recorded under $SHIELD_STATE"
+}
+
 # Resolve a /dev node (ttyACMx, ttyUSBx, sgN, ...) up to its USB device busport.
 resolve() {
   local node=$1 syspath dev
@@ -98,9 +325,19 @@ resolve() {
 }
 
 action=${1:-}; target=${2:-}
-[ -n "$action" ] && [ -n "$target" ] || usage
+[ -n "$action" ] || usage
+[ -n "$target" ] || [ "$action" = shield-status ] || usage
 
 case "$action" in
+  shield)
+    shield "$target" "${3:-}"
+    ;;
+  unshield)
+    unshield "$target" "${3:-}"
+    ;;
+  shield-status)
+    shield_status "$target"
+    ;;
   resolve)
     resolve "$target"
     ;;

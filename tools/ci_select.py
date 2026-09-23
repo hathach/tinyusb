@@ -10,7 +10,7 @@ docs/superpowers/specs/2026-07-29-hil-pr-scoped-selection-design.md and
 docs/superpowers/specs/2026-08-19-ci-build-family-filter-design.md.
 
 JSON: full, boards (name -> 'all' | [tests]), families (bsp families the diff
-touches, including ones with no rig board - build-only consumers such as /pre-pr
+touches, including ones with no rig board - build-only consumers
 sample from these), args (hil_test.py args per config) and args_flasher (the same
 args split by each board's flasher, for CI legs that split one rig by flasher).
 
@@ -588,7 +588,7 @@ def lib_examples(lib_name: str, repo_root: str) -> set:
     for ex in all_examples(repo_root):
         # the two filenames directly: '**/*' enumerated 489 entries per lib against a
         # clean tree to use 107, and grows without bound once `make BOARD=... all` has
-        # written examples/<role>/<name>/_build/ - which is where /pre-pr runs
+        # written examples/<role>/<name>/_build/ - which is where a local build runs
         for f in sorted(glob.glob(_rg(repo_root, 'examples', ex, '**', 'CMakeLists.txt'),
                                   recursive=True) +
                         glob.glob(_rg(repo_root, 'examples', ex, '**', 'Makefile'),

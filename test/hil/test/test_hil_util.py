@@ -173,7 +173,7 @@ class RunAlongsideKeepsStderrOffThePayload(unittest.TestCase):
     it wrote. Merging stderr into that stream turns any stray child stderr byte -- a
     PYTHONWARNINGS chirp, a sitecustomize print, a venv .pth deprecation -- into
     'CDC->Printer wrong data', sending a maintainer after the printer class driver for an
-    interpreter warning. hil_ci.sh runs python3 with no isolating flags."""
+    interpreter warning. hil_remote.py runs python3 with no isolating flags."""
 
     def test_child_stderr_does_not_contaminate_stdout(self):
         from helper import hil_util

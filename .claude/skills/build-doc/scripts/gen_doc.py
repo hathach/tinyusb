@@ -99,7 +99,7 @@ def hil_rows(entries):
             ', '.join(roles),
             b.get('flasher', {}).get('name', ''),
             hil_cell(', '.join(v['name'] for v in b.get('variant') or [])),
-            hil_cell(b.get('comment') or tests.get('comment')),
+            hil_cell(b.get('note') or tests.get('note')),
         ])
     return rows
 

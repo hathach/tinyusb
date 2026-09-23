@@ -12,7 +12,7 @@
                         "vid_pid": "1a86_55d4",
                         "serial": "52D2023934",
                         "is_cdc": true,
-                        "comment": "CH9102 USB-serial (TX-RX loopback)"
+                        "note": "CH9102 USB-serial (TX-RX loopback)"
                     },
                     {
                         "vid_pid": "21c4_0cc7",
@@ -28,6 +28,10 @@
                 "name": "jlink",
                 "uid": "000621000000",
                 "args": "-device MK64FN1M0xxx12"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/k60.cfg -c \"adapter speed 4000\""
             }
         },
         {
@@ -82,9 +86,9 @@
                 "name": "esptool",
                 "uid": "4ea4f48f6bc3ee11bbb9d00f9e1b1c54",
                 "args": "-b 1500000",
-                "comment": "use --force for ESP32-P4 v0.1"
+                "note": "use --force for ESP32-P4 v0.1"
             },
-            "comment": "Use TS3USB30 mux to test both device and host"
+            "note": "Use TS3USB30 mux to test both device and host"
         },
         {
             "name": "espressif_s3_devkitm",
@@ -117,7 +121,7 @@
                         "block_size": 512,
                         "block_count": 30720000,
                         "msc_inquiry": "General  UDisk            5.00",
-                        "comment": "General UDisk reports iSerialNumber=U+0409"
+                        "note": "General UDisk reports iSerialNumber=U+0409"
                     }
                 ]
             },
@@ -126,7 +130,7 @@
                 "uid": "3ea619acd1cdeb11a0a0b806e93fd3f1",
                 "args": "-b 1500000"
             },
-            "comment": "Use TS3USB30 mux to test both device and host"
+            "note": "Use TS3USB30 mux to test both device and host"
         },
         {
             "name": "feather_nrf52840_express",
@@ -140,6 +144,10 @@
                 "name": "jlink",
                 "uid": "681295394",
                 "args": "-device nrf52840_xxaa"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -c \"adapter speed 4000\" -f target/nrf52.cfg"
             }
         },
         {
@@ -181,12 +189,16 @@
                         "is_cdc": true
                     }
                 ],
-                "comment": "pl23x; audio_test_freertos skipped: samd51 iso-IN capture fails (arecord EIO)"
+                "note": "pl23x; audio_test_freertos skipped: samd51 iso-IN capture fails (arecord EIO)"
             },
             "flasher": {
                 "name": "jlink",
                 "uid": "123456",
                 "args": "-device ATSAMD51J19"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -c \"adapter speed 4000\" -f target/atsame5x.cfg"
             }
         },
         {
@@ -201,12 +213,17 @@
                 "name": "jlink",
                 "uid": "000724441579",
                 "args": "-device LPC11U37/401"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/lpc11xx.cfg -c \"adapter speed 4000\"",
+                "verify": false
             }
         },
         {
             "name": "ea4088_quickstart",
             "uid": "22150C0C1508595343E1857B060000F5",
-            "comment": "console is the LPC-Link2's RTT channel: this probe has no VCOM (rtt skill)",
+            "note": "console is the LPC-Link2's RTT channel: this probe has no VCOM (rtt skill)",
             "logger": "rtt",
             "variant": [
                 { "name": "ea4088_quickstart", "defines": ["LOGGER=rtt"], "flags": "-DBUFFER_SIZE_DOWN=128" }
@@ -220,7 +237,7 @@
                         "vid_pid": "1a86_7523",
                         "serial": "0",
                         "is_cdc": true,
-                        "comment": "CH340 USB-serial behind the hub on USB-A J3, TX-RX shorted for the cdc echo half"
+                        "note": "CH340 USB-serial behind the hub on USB-A J3, TX-RX shorted for the cdc echo half"
                     },
                     {
                         "vid_pid": "346d_5678",
@@ -229,7 +246,7 @@
                         "block_size": 512,
                         "block_count": 3891200,
                         "msc_inquiry": "VendorCo ProductCode      2.00",
-                        "comment": "USB Disk 2.0 thumbdrive behind the same hub"
+                        "note": "USB Disk 2.0 thumbdrive behind the same hub"
                     }
                 ]
             },
@@ -237,6 +254,11 @@
                 "name": "jlink",
                 "uid": "611000000",
                 "args": "-device LPC4088"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/lpc40xx.cfg -c \"adapter speed 4000\"",
+                "verify": false
             }
         },
         {
@@ -251,6 +273,12 @@
                 "name": "jlink",
                 "uid": "000727031389",
                 "args": "-device LPC55S28"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -c \"adapter speed 1000\" -c \"swd newdap lpc55s28 cpu -expected-id 0\" -c \"dap create lpc55s28.dap -chain-position lpc55s28.cpu\" -c \"target create lpc55s28.cpu cortex_m -dap lpc55s28.dap\" -c \"cortex_m reset_config sysresetreq\"",
+                "reflash": false,
+                "note": "reset only: openocd has no LPC55 target cfg or flash driver, so a reflash through this entry fails"
             }
         },
         {
@@ -282,7 +310,7 @@
                         "vid_pid": "1a86_7523",
                         "serial": "0",
                         "is_cdc": true,
-                        "comment": "ch34x"
+                        "note": "ch34x"
                     },
                     {
                         "vid_pid": "048d_04d2",
@@ -291,7 +319,7 @@
                         "block_size": 512,
                         "block_count": 30720000,
                         "msc_inquiry": "General  UDisk            5.00",
-                        "comment": "General UDisk reports iSerialNumber=U+0409"
+                        "note": "General UDisk reports iSerialNumber=U+0409"
                     }
                 ]
             },
@@ -333,7 +361,7 @@
                 "args": "-f interface/cmsis-dap.cfg -f target/rp2040.cfg -c \"adapter speed 5000\"",
                 "verify": true
             },
-            "comment": "Test native host"
+            "note": "Test native host"
         },
         {
             "name": "raspberry_pi_pico2",
@@ -405,7 +433,11 @@
                 "uid": "779541626",
                 "args": "-device stm32f072rb"
             },
-            "comment": "2x16 access scheme with 1KB USB SRAM"
+            "flasher_recover": {
+                "name": "openocd",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/stm32f0x.cfg -c \"stm32f0x.cpu configure -event reset-init {}\""
+            },
+            "note": "2x16 access scheme with 1KB USB SRAM"
         },
         {
             "name": "stm32f407disco",
@@ -419,6 +451,10 @@
                 "name": "jlink",
                 "uid": "000773661813",
                 "args": "-device stm32f407vg"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/stm32f4x.cfg -c \"stm32f4x.cpu configure -event reset-init {}\""
             }
         },
         {
@@ -437,7 +473,7 @@
                         "vid_pid": "10c4_ea60",
                         "serial": "0001",
                         "is_cdc": true,
-                        "comment": "cp2102"
+                        "note": "cp2102"
                     },
                     {
                         "vid_pid": "21c4_0cc7",
@@ -454,7 +490,11 @@
                 "uid": "000776606156",
                 "args": "-device stm32f723ie"
             },
-            "comment": "Device port0 FS (slave only), Host port1 HS with DMA"
+            "flasher_recover": {
+                "name": "openocd",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/stm32f7x.cfg -c \"stm32f7x.cpu configure -event reset-init {}\""
+            },
+            "note": "Device port0 FS (slave only), Host port1 HS with DMA"
         },
         {
             "name": "stm32h743nucleo",
@@ -487,7 +527,7 @@
                 "uid": "066FFF495087534867063844",
                 "verify": true
             },
-            "comment": "32-bit scheme, 2KB USB SRAM"
+            "note": "32-bit scheme, 2KB USB SRAM"
         },
         {
             "name": "stm32l476disco",
@@ -501,6 +541,10 @@
                 "name": "jlink",
                 "uid": "777632258",
                 "args": "-device STM32L476VG"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/stm32l4x.cfg -c \"stm32l4x.cpu configure -event reset-init {}\""
             }
         },
         {
@@ -533,8 +577,7 @@
                 "name": "openocd",
                 "uid": "A76D8F062C2A",
                 "vid_pid": "0x1a86 0x8010",
-                "args": "-f target/wch-riscv.cfg",
-                "verify": false
+                "args": "-f target/wch-riscv.cfg"
             }
         },
         {
@@ -571,8 +614,7 @@
                 "name": "openocd",
                 "uid": "BC5DA47360D0",
                 "vid_pid": "0x1a86 0x8010",
-                "args": "-f target/wch-riscv.cfg",
-                "verify": false
+                "args": "-f target/wch-riscv.cfg"
             }
         },
         {
@@ -619,6 +661,12 @@
                 "name": "jlink",
                 "uid": "000725299165",
                 "args": "-device MIMXRT1064xxx6A"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -c \"adapter speed 1000\" -c \"swd newdap rt1064 cpu -expected-id 0\" -c \"dap create rt1064.dap -chain-position rt1064.cpu\" -c \"target create rt1064.cpu cortex_m -dap rt1064.dap\" -c \"cortex_m reset_config sysresetreq\"",
+                "reflash": false,
+                "note": "reset only: openocd has no i.MX RT target cfg or FlexSPI flash driver, so a reflash through this entry fails"
             }
         },
         {
@@ -629,12 +677,18 @@
                 "host": false,
                 "dual": false,
                 "skip": ["device/audio_test_freertos"],
-                "comment": "board new to HIL: audio_test_freertos never reaches dcd_init (FreeRTOS itself runs; cdc_msc_freertos and usbtest pass) - example-level issue on nRF54L, fix separately"
+                "note": "board new to HIL: audio_test_freertos never reaches dcd_init (FreeRTOS itself runs; cdc_msc_freertos and usbtest pass) - example-level issue on nRF54L, fix separately"
             },
             "flasher": {
                 "name": "jlink",
                 "uid": "1051856258",
                 "args": "-device NRF54LM20A_M33"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/nordic/nrf54l.cfg -c \"adapter speed 4000\"",
+                "reflash": false,
+                "note": "reset only: nrf54l.cfg declares no RRAM flash bank, so a reflash through this entry fails"
             }
         }
     ],
@@ -642,7 +696,7 @@
         {
             "name": "ra8m1_ek",
             "uid": "797D142D36345030364E1737922E4B4E",
-            "comment": "USBHS bring-up pending (HS chirp completes digitally but terminations never switch; FS-forced build passed usbtest 30/30). Parked until fixed",
+            "note": "USBHS bring-up pending (HS chirp completes digitally but terminations never switch; FS-forced build passed usbtest 30/30). Parked until fixed",
             "tests": {
                 "device": true,
                 "host": false,
@@ -675,13 +729,13 @@
         {
             "name": "ra6m5_ek",
             "uid": "8419032D32363657364EF4622D294B4E",
-            "comment": "Unstable in CI: intermittent usbtest failures plus cdc_dual_ports/hid_boot_interface/midi_test/mtp/printer_to_cdc flapping. Parked until diagnosed",
+            "note": "Unstable in CI: intermittent usbtest failures plus cdc_dual_ports/hid_boot_interface/midi_test/mtp/printer_to_cdc flapping. Parked until diagnosed",
             "tests": {
                 "device": true,
                 "host": false,
                 "dual": false,
                 "skip": ["device/cdc_msc_throughput", "device/msc_dual_lun"],
-                "comment": "MSC writes wedge the uPD720201 host (URBs queued, zero wire activity, bus-15 ctrl xfers time out until the device's URBs are killed); reproduced identically with master firmware - device side armed+BUF and exonerated. MSC reads and usbtest bulk (15.8 MB/s) are fine"
+                "note": "MSC writes wedge the uPD720201 host (URBs queued, zero wire activity, bus-15 ctrl xfers time out until the device's URBs are killed); reproduced identically with master firmware - device side armed+BUF and exonerated. MSC reads and usbtest bulk (15.8 MB/s) are fine"
             },
             "flasher": {
                 "name": "jlink",

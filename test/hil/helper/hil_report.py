@@ -8,7 +8,7 @@ that document: the cell vocabulary, the one classifier both artifacts share, ren
 writers, and the fold to one machine-readable verdict per board.
 
 Dual-mode by design: imported as `helper.hil_report` by hil_test.py, and run as a script by
-the operator (see .claude/agents/hil-operator.md). A script run puts test/hil/helper on
+the operator (the HIL contract's Reporting section, .claude/skills/hil/SKILL.md). A script run puts test/hil/helper on
 sys.path rather than test/hil, so this module imports no sibling helper at all --
 _p and the width helpers below are defined locally for that reason.
 """
@@ -42,7 +42,7 @@ def _pad(s: str, width: int, center: bool = False) -> str:
 
 def _p(*args, **kwargs) -> None:
     """Print that cannot raise. Defined here rather than imported from hil_health: this
-    module is ALSO run as a script (hil-operator.md invokes it by path), and under
+    module is ALSO run as a script (the HIL contract invokes it by path), and under
     PYTHONSAFEPATH=1 -- which the suite's own MTP fixtures set -- sys.path[0] is not the
     script dir, so any sibling import dies before argparse runs. Five lines beat that."""
     try:
@@ -60,6 +60,18 @@ REPORT_JSON = 'hil_report.json'
 REPORT_CELL = {'pass': '✅', 'fail': '❌', 'skip': '⚪'}
 BOUNDARY_CELL = 'same-PID boundary'
 LOCKED_CELL = 'board-locked'
+# a CONFIRMED wedge (usbtest saw a D-state holder on the node after its confirmation
+# window) has value 'fail'; a board refused at admission because a previous run left that
+# marker has WEDGED_REFUSED (fail-icon prefixed so the tally counts it, distinct so the
+# verdict knows nothing was flashed this attempt)
+WEDGED_CELL = 'board-wedged'
+WEDGED_REFUSED = f'{REPORT_CELL["fail"]} refused at admission'
+# the post-pool recovery verified the holder gone and the DUT enumerated, and cleared the
+# marker: the test verdict stands, the board is no longer wedged
+WEDGED_RECOVERED = f'{REPORT_CELL["skip"]} recovered post-run'
+WEDGED_REFUSED_RECOVERED = f'{REPORT_CELL["skip"]} refused at admission; recovered post-run'
+REFUSED_CELLS = (WEDGED_REFUSED, WEDGED_REFUSED_RECOVERED)
+RECOVERED_CELLS = (WEDGED_RECOVERED, WEDGED_REFUSED_RECOVERED)
 # A pseudo-test column, not a real one: write_timeout_report marks the boards that were
 # still dispatched when the pool guard fired. accumulate_report clears it on a retry.
 POOL_TIMEOUT_CELL = 'pool-timeout'
@@ -72,7 +84,7 @@ RUN_ABORTED_CELL = 'run-aborted'
 def _load(report_dir: Path) -> tuple:
     """(doc, readable) for the sidecar, coerced to the canonical shape.
 
-    hil_ci.sh uploads a sidecar as the --accumulate merge base, so a non-conforming one is
+    hil_remote.py uploads a sidecar as the --accumulate merge base, so a non-conforming one is
     reachable from OUTSIDE the harness -- and every writer here runs on a path where a
     TypeError costs the whole report. Coerce once, at the boundary, instead of guarding
     each use: `banner: null` used to kill a fully successful run with a traceback and no
@@ -110,6 +122,13 @@ def _load(report_dir: Path) -> tuple:
     text = lambda k: raw[k] if isinstance(raw.get(k), str) else ''
     return {'rows': rows, 'banner': text('banner'), 'scope': text('scope'),
             'caveat': text('caveat')}, True
+
+
+def recovered_form(cell):
+    """The recovered form of a failed wedge cell, None for any other cell."""
+    if cell == WEDGED_REFUSED:
+        return WEDGED_REFUSED_RECOVERED
+    return WEDGED_RECOVERED if cell is not None and cell_state(cell) == 'fail' else None
 
 
 def cell_state(v) -> str:
@@ -193,8 +212,7 @@ def render_report(doc: dict) -> str:
     """The markdown IS a rendering of the sidecar. Every writer goes through here, so a
     table can never contain something the JSON does not."""
     # .get throughout, not subscripts: mark_report_abandoned renders a sidecar it did NOT
-    # write (hil_ci.sh reuses a persistent REMOTE_DIR, so it may be an older version's or
-    # a torn one) on the way to os._exit, and a KeyError there is not in its handler --
+    # write (a report dir can hold an older version's or a torn one) on the way to os._exit, and a KeyError there is not in its handler --
     # it would unwind into multiprocessing's unbounded join and hang the runner it is
     # trying to free. Same reason summarize() below reads cells as `r.get('cells') or {}`.
     md = render_matrix([(r.get('board', '?'), r.get('cells') or {}, r.get('duration'))
@@ -318,7 +336,7 @@ def mark_report_no_boards(report_dir: Path, msg: str, fresh: bool = True) -> Non
 
 
 def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = '',
-                      banner: str = '', caveat: str = '') -> str:
+                      banner: str = '', caveat: str = '', owned: dict | None = None) -> str:
     """Merge this run's results into json in report_dir, then (re)write
     the markdown matrix to md. `fresh` (a first run, no --accumulate)
     starts a new report; otherwise a re-run accumulates so boards/tests that
@@ -331,7 +349,7 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
     mret into rows could live in hil_test and only the merge here, but that would rewrite
     the subtle parts -- stale board-locked clearing, BOUNDARY_CELL dropping, duration=None
     preservation -- for a tidier seam. Data-shape coupling, not an import cycle."""
-    # ONE canonical load: a sidecar reaching here may have been uploaded by hil_ci.sh as
+    # ONE canonical load: a sidecar reaching here may have been uploaded by hil_remote.py as
     # the merge base, so it is untrusted input. `banner` carries forward -- it describes
     # the conditions the earlier cells were collected under, and the .failed spec re-runs
     # only FAILURES so those passes are never re-earned. `caveat` does NOT: it records how
@@ -346,12 +364,25 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
     # current cells override prior for boards/tests that ran; a filtered run reports
     # duration None, keeping the previous full-run value
     for name, _, _, rows, *_ in mret:
-        if rows and not any(LOCKED_CELL in cells for _, cells, _ in rows):
+        refused = any(cells.get(WEDGED_CELL) in REFUSED_CELLS for _, cells, _ in rows)
+        if any(cells.get(WEDGED_CELL) in RECOVERED_CELLS for _, cells, _ in rows):
+            # the post-run recovery verified the board: every wedge cell an earlier attempt
+            # left on its rows (the board row and its DECLARED variants, `owned`, never a
+            # name that merely shares the prefix) is that same wedge, so it is recovered
+            # too; the test failures beside it stay
+            for key in {name, *(owned or {}).get(name, [])}:
+                cells = acc.get(key, [{}])[0]
+                if recovered_form(cells.get(WEDGED_CELL)):
+                    cells[WEDGED_CELL] = recovered_form(cells[WEDGED_CELL])
+        if rows and not refused and not any(LOCKED_CELL in cells for _, cells, _ in rows):
             # board ran for real: clear a stale lock-failure cell (its row is keyed by
-            # board name; test rows may be variant names)
+            # board name; test rows may be variant names), and a stale wedge cell on every
+            # row of the board -- admission let it in, so the marker was cleared, and a
+            # green re-run must not stay red for ever under last time's wedge
             stale = acc.get(name)
             if stale is not None:
                 stale[0].pop(LOCKED_CELL, None)
+                stale[0].pop(WEDGED_CELL, None)
                 # and the pool-timeout mark: write_timeout_report stamps it on a board that
                 # never reported, and update() below MERGES, so without this a board that
                 # passed clean on the retry kept a red cell for ever.
@@ -366,6 +397,9 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
             # a row that ran is no longer pool-timed-out, whatever it is keyed by
             row[0].pop(POOL_TIMEOUT_CELL, None)
             row[0].pop(RUN_ABORTED_CELL, None)
+            # nor wedged: this attempt's row says so or it does not
+            if WEDGED_CELL not in cells:
+                row[0].pop(WEDGED_CELL, None)
             # the boundary cell is only ever written on failure, so a re-run of this
             # variant that cleared the boundary must drop the previous attempt's ❌
             if BOUNDARY_CELL not in cells:
@@ -493,14 +527,22 @@ def variants_of(cfg: dict, board: str) -> list:
 def summarize(cfg: dict, boards: list, report: dict) -> dict:
     # .get, not a subscript: this is the one reader an agent's verdict depends on, and a
     # row without 'board' used to kill the CLI with a traceback and no results at all --
-    # hil-validate.js then reports every board as "hil-operator returned no entry".
+    # the caller then sees no entry for any board.
     rows = {r['board']: r.get('cells') or {}
             for r in (report.get('rows') or [])
             if isinstance(r, dict) and 'board' in r}
     owner = {v['name']: b['name'] for b in cfg.get('boards', [])
              for v in (b.get('variant') or [])}
+    configured = {b['name'] for b in cfg.get('boards', [])}
     results = []
     for board in boards:
+        # hil_test.py refuses a name outside the config, so no run produced a row for it;
+        # without this guard variants_of() falls back to the name itself and a declared
+        # variant of another board, or a stale row keyed by that name, reports it as ran.
+        if board not in configured:
+            results.append({'board': board, 'ran': False, 'pass': False, 'locked': False,
+                            'wedged': False, 'detail': 'not a board in the config'})
+            continue
         names = variants_of(cfg, board)
         mine = {n: rows[n] for n in names if n in rows}
         # a variant name that is neither declared nor prefixed cannot be attributed; the
@@ -514,42 +556,62 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
         # by board name, but variants_of returns only DECLARED variant names -- and
         # nanoch32v203 / ch32v307v_r1_1v0 declare none equal to their board name. Without
         # this those rows are invisible, so a lock held by concurrent CI is published as a
-        # hardware FAIL and hil-validate.js never retries it.
+        # hardware FAIL that the caller never retries.
         if board in rows and board not in mine:
             mine[board] = rows[board]
         if not mine:
             results.append({'board': board, 'ran': False, 'pass': False, 'locked': False,
-                            'detail': 'no report row for this board'})
+                            'wedged': False, 'detail': 'no report row for this board'})
             continue
         # a wedge outranks lock contention: `locked` short-circuits `detail` below, so a
         # stale board-locked cell from an earlier attempt used to mask the pool-timeout
         # cell the retry added -- publishing a board that hung the rig as LOCKED, which
-        # hil-validate.js then RE-RUNS, paying another pool guard on it. RUN_ABORTED_CELL
+        # the caller then RE-RUNS, paying another pool guard on it. RUN_ABORTED_CELL
         # is written by the same _abort_report path for a board the guard never reached,
         # and must outrank it for the same reason.
         wedged = any(POOL_TIMEOUT_CELL in cells or RUN_ABORTED_CELL in cells
                      for cells in mine.values())
-        locked = not wedged and any(LOCKED_CELL in cells for cells in mine.values())
+        # the per-row VERIFIED wedge, distinct from `wedged` above, which is this run's
+        # pool-level outcome and never proof about one board. It outranks a lock cell the
+        # same way: a wedged board must never be published as LOCKED, which the caller
+        # re-runs.
+        board_wedged = any(cell_state(cells[WEDGED_CELL]) == 'fail'
+                           for cells in mine.values() if WEDGED_CELL in cells)
+        recovered = any(cells.get(WEDGED_CELL) in RECOVERED_CELLS for cells in mine.values())
+        refused = any(cells.get(WEDGED_CELL) in REFUSED_CELLS for cells in mine.values())
+        locked = not wedged and not board_wedged and any(LOCKED_CELL in cells for cells in mine.values())
         bad = []
         for vname, cells in sorted(mine.items()):
             for test, val in sorted(cells.items()):
-                if test == LOCKED_CELL:
+                if test in (LOCKED_CELL, WEDGED_CELL):
                     continue
                 if cell_state(val) == 'fail':
                     bad.append(f'{vname} {test}: {val}')
-        ok = not bad and not locked
+        ok = not bad and not locked and not board_wedged and not refused
         if locked:
             detail = 'held by another holder; not flashed'
+        elif refused:
+            detail = 'marked wedged by a previous run; not flashed'
+        elif board_wedged:
+            detail = 'wedged (confirmed D-state holder on the node); ' + '; '.join(bad)
         elif bad:
             detail = '; '.join(bad)
         else:
             detail = f'{len(mine)} variant(s), {sum(len(c) for c in mine.values())} cell(s) ok'
-        results.append({'board': board, 'ran': True, 'pass': ok, 'locked': locked,
-                        'detail': detail})
+        if recovered and not board_wedged:
+            detail += '; wedge recovered post-run (marker cleared)'
+        # an admission refusal never flashed this attempt, whatever test history an
+        # --accumulate re-run kept in the row
+        results.append({'board': board, 'ran': not refused, 'pass': ok, 'locked': locked,
+                        'wedged': board_wedged, 'detail': detail})
     # `caveat` too: an abandoned or no-boards run says so THERE, and this JSON is all
     # an agent gets -- leaving it in the sidecar puts it back where only a human looks.
-    return {'results': results, 'banner': report.get('banner', ''),
-            'caveat': report.get('caveat', '')}
+    caveat = report.get('caveat', '')
+    # the verdict of THIS snapshot: every row can pass on an abandoned or no-boards run, so
+    # the caveat gates it. --accumulate clears an earlier attempt's caveat by design, so the
+    # verdict of a retry sequence is the caller's, from every attempt's result.
+    return {'pass': bool(results) and all(r['pass'] for r in results) and not caveat,
+            'results': results, 'banner': report.get('banner', ''), 'caveat': caveat}
 
 
 def main() -> int:

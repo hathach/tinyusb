@@ -9,10 +9,12 @@ batteries per host controller; they have no CLI meaning. The CLI below
 (hold/release/status) manages board locks only.
 """
 import argparse
+import errno
 import fcntl
 import json
 import os
 import re
+import stat
 import select
 import signal
 import sys
@@ -23,7 +25,8 @@ from helper import hil_util
 
 BOARD_LOCK_DIR = '/tmp/tinyusb-hil-locks'
 CI_REASON = 'hil_test.py'   # release-protected holder tag (release refuses to kill it)
-PROTECTED_REASONS = {CI_REASON, 'pool_check'}  # cmd_release refuses to SIGTERM these holders
+RECOVERY_REASON = f'{CI_REASON} wedge recovery'   # hil_recover's fleet reservation
+PROTECTED_REASONS = {CI_REASON, RECOVERY_REASON, 'pool_check'}  # cmd_release refuses to SIGTERM these holders
 PROFILE = os.environ.get('HIL_PROFILE') == '1'
 
 
@@ -74,6 +77,221 @@ def read_record(board: str):
             return json.load(f)
     except (OSError, ValueError):
         return None
+
+
+# --- wedged-board markers -----------------------------------------------------
+# A board whose usbfs node still had a D-state holder when hil_test.py finished with it
+# (a CONFIRMED wedge, usbtest's `wedge_confirmation`) is marked here so the next run
+# refuses it in seconds instead of flashing into the poisoned node and paying the pool
+# guard again. Same namespace and lifetime as the flocks: /tmp, cleared by the reboot
+# that also clears the wedge. Written only under the board's flock by the run that saw
+# it; cleared only with recovery evidence, never as a bare delete.
+_BOARD_NAME_RE = re.compile(r'^[A-Za-z0-9_.-]+$')
+WEDGED_SUFFIX = '.wedged'
+
+
+def wedged_path(board: str) -> str:
+    if not _BOARD_NAME_RE.fullmatch(board or ''):
+        raise ValueError(f'not a board name: {board!r}')
+    return os.path.join(BOARD_LOCK_DIR, f'{board}{WEDGED_SUFFIX}')
+
+
+def _refused(board: str, why: str) -> dict:
+    return {'board': board, 'reason': f'marker {why}; refused'}
+
+
+def is_untrusted(marker: dict) -> bool:
+    """A marker read_wedged could not trust (see _refused), not one this code wrote."""
+    return str(marker.get('reason', '')).endswith('; refused')
+
+
+def read_wedged(board: str):
+    """The marker as a dict, None when the board is not marked. Fail CLOSED: a marker that
+    exists but cannot be trusted (a symlink, not a regular file, another owner, unreadable,
+    malformed) still counts as marked, with the problem in `reason`, so a broken marker never
+    admits a board. Opened O_NOFOLLOW and checked on the open fd: no islink-then-open race."""
+    path = wedged_path(board)
+    try:
+        # O_NONBLOCK: a FIFO planted here would otherwise block the open for ever, before
+        # fstat can say it is not a regular file
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    except FileNotFoundError:
+        return None
+    except OSError as e:
+        return _refused(board, 'is a symlink' if e.errno == errno.ELOOP else f'unreadable ({e.strerror})')
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode):
+            return _refused(board, 'is not a regular file')
+        if st.st_uid != os.geteuid():
+            return _refused(board, f'is owned by uid {st.st_uid}, not us')
+        with os.fdopen(fd, 'r') as f:
+            fd = -1
+            info = json.load(f)
+    except (OSError, ValueError) as e:
+        return _refused(board, f'unreadable ({type(e).__name__})')
+    finally:
+        if fd >= 0:
+            os.close(fd)
+    if not isinstance(info, dict) or not info.get('reason'):
+        return _refused(board, 'malformed')
+    return info
+
+
+def holds_board(board: str, lock_fh) -> bool:
+    """Is `lock_fh` a reservation of THIS board? The handle must be open, be the board's lock
+    file (same device and inode) and take LOCK_EX|LOCK_NB on it: that succeeds for the open
+    file description that already holds the flock, and for one that finds it free, which
+    holds it from here on -- either way the caller then owns the board. It fails while
+    anyone else holds it. A closed or unrelated handle is not a reservation."""
+    try:
+        if lock_fh is None or lock_fh.closed:
+            return False
+        own, disk = os.fstat(lock_fh.fileno()), os.stat(lock_path(board))
+        if (own.st_dev, own.st_ino) != (disk.st_dev, disk.st_ino):
+            return False
+        fcntl.flock(lock_fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return True
+    except (OSError, ValueError):
+        return False
+
+
+def atomic_write(path: str, data: bytes) -> bool:
+    """Write `path` through an exclusive temporary file and one replace: never follows a
+    planted symlink, never leaves a torn file. False on any failure."""
+    tmp = f'{path}.{os.getpid()}.tmp'
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o644)
+        # buffered and closed before the replace: a short write (quota, ENOSPC, a size
+        # limit) raises here and the previous target survives untouched
+        with os.fdopen(fd, 'wb') as f:
+            f.write(data)
+        if os.path.getsize(tmp) != len(data):
+            raise OSError('short write')
+        if os.path.islink(path):
+            raise OSError('target is a symlink')
+        os.replace(tmp, path)
+        return True
+    except OSError:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        return False
+
+
+def write_wedged(board: str, info: dict, lock_fh) -> bool:
+    """Mark the board. `lock_fh` must hold the board's flock (holds_board): with none, the
+    fail-open or HIL_NO_BOARD_LOCK path, nothing is written and False comes back, because a
+    marker written outside a reservation could race a run that just took the board. Atomic
+    and symlink-proof: an exclusive temporary file, then replace; a reader sees the old
+    marker or the new one, never a torn file."""
+    if not holds_board(board, lock_fh):
+        return False
+    record = dict(info, board=board, since=info.get('since') or time.strftime('%Y-%m-%dT%H:%M:%S%z'))
+    return atomic_write(wedged_path(board), json.dumps(record).encode())
+
+
+def check_evidence(board: str, marker: dict, evidence) -> str:
+    """'' when `evidence` verifies recovery of THIS marker, else why not: a complete holder
+    scan with no holder, the same board, the marker's device uid, and the re-enumerated
+    identity (serial@busport) the recovery observed."""
+    if not isinstance(evidence, dict):
+        return 'evidence must be a JSON object'
+    if evidence.get('board') != board:
+        return f'evidence names board {evidence.get("board")!r}, marker is {board}'
+    if marker.get('uid') and evidence.get('uid') != marker['uid']:
+        return f'evidence uid {evidence.get("uid")!r} is not the marker\'s {marker["uid"]}'
+    if evidence.get('holders') not in ([], ()) or evidence.get('complete') is not True:
+        return 'evidence must show a complete holder scan that found no holder'
+    identity = evidence.get('identity')
+    serial, _, busport = identity.partition('@') if isinstance(identity, str) else ('', '', '')
+    if not serial or not busport:
+        return 'evidence must name the re-enumerated identity as <serial>@<busport>'
+    observed = (marker.get('evidence') or {}).get('serial')
+    if observed and serial != observed:
+        return f'evidence serial {serial!r} is not the one the wedge was observed on ({observed})'
+    return ''
+
+
+def clear_wedged(board: str, evidence: dict, lock_fh=None) -> str:
+    """Remove the marker; '' on success, else why not. Needs evidence that verifies THIS
+    marker (check_evidence) and the board reserved: `lock_fh` holding the board's flock,
+    or none, in which case the flock is taken here and refused while anyone holds it."""
+    try:
+        path = wedged_path(board)
+    except ValueError:
+        return 'not a board name; a marker under an invalid name is inspected and removed by hand'
+    own = lock_fh is None
+    if own:
+        try:
+            lock_fh = flock_nb(board)
+        except OSError:
+            info = read_record(board) or {}
+            return (f'board held by {info.get("reason", "another holder")} '
+                    f'(pid {info.get("pid")}); release it first')
+    elif not holds_board(board, lock_fh):
+        return 'the given handle does not hold this board\'s lock'
+    try:
+        marker = read_wedged(board)
+        if marker is None:
+            return 'not marked'
+        if is_untrusted(marker):
+            # not a marker this code wrote: nothing to match evidence against, so no
+            # evidence verifies it -- a human removes the file after looking at it
+            return f'untrusted marker ({marker["reason"]}); inspect and remove it by hand'
+        why = check_evidence(board, marker, evidence)
+        if why:
+            return why
+        os.unlink(path)
+        return ''
+    except OSError as e:
+        return f'cannot clear: {e}'
+    finally:
+        if own:
+            lock_fh.close()
+
+
+def wedged_boards() -> list:
+    """(board, info) for every marker in the lock dir."""
+    if not os.path.isdir(BOARD_LOCK_DIR):
+        return []
+    out = []
+    for fn in sorted(os.listdir(BOARD_LOCK_DIR)):
+        if fn.endswith(WEDGED_SUFFIX):
+            board = fn[:-len(WEDGED_SUFFIX)]
+            if not _BOARD_NAME_RE.fullmatch(board):
+                out.append((board, _refused(board, 'has an invalid name; inspect and remove it by hand')))
+                continue
+            out.append((board, read_wedged(board) or {}))
+    return out
+
+
+def _shown(board: str) -> str:
+    """The board name for one line of output: an invalid one (a newline, say) quoted and escaped."""
+    return board if _BOARD_NAME_RE.fullmatch(board or '') else json.dumps(board)
+
+
+def cmd_wedged(sub: str, board: str = '', evidence: str = '') -> int:
+    if sub == 'status':
+        marks = wedged_boards()
+        for b, info in marks:
+            print(f'{_shown(b)}: {json.dumps(info)}')
+        if not marks:
+            print('no board is marked wedged')
+        return 0
+    try:
+        ev = json.loads(evidence) if evidence else {}
+    except ValueError:
+        print('--evidence is not JSON', file=sys.stderr)
+        return 2
+    why = clear_wedged(board, ev)
+    if why:
+        print(f'{_shown(board)}: not cleared: {why}', file=sys.stderr)
+        return 1
+    print(f'cleared: {board}')
+    return 0
 
 
 # --- per-board dev-session locks ------------------------------------------
@@ -480,6 +698,8 @@ Usage:
   hil_lock.py hold --all [--config CONFIG.json] --reason TEXT
   hil_lock.py release BOARD [BOARD...] | release --all
   hil_lock.py status
+  hil_lock.py wedged status
+  hil_lock.py wedged clear BOARD --evidence '{"board": "BOARD", "uid": "<marker uid>", "holders": [], "complete": true, "identity": "<serial>@<busport>"}'
 
 A holder process holds ALL boards given in one `hold` call; releasing any of
 them kills that holder and releases all of its boards.
@@ -502,7 +722,18 @@ def main():
     p_rel.add_argument('boards', nargs='*')
     p_rel.add_argument('--all', action='store_true')
     sub.add_parser('status')
+    p_w = sub.add_parser('wedged', help='markers left by a confirmed wedge; see the hil skill')
+    p_w.add_argument('sub', choices=['status', 'clear'])
+    p_w.add_argument('board', nargs='?', default='')
+    p_w.add_argument('--evidence', default='',
+                     help='JSON from the recovery that verified THIS board: {"board": "BOARD", '
+                          '"uid": "<marker uid>", "holders": [], "complete": true, '
+                          '"identity": "<serial>@<busport>"}')
     a = ap.parse_args()
+    if a.cmd == 'wedged':
+        if a.sub == 'clear' and not a.board:
+            ap.error('wedged clear needs a board')
+        sys.exit(cmd_wedged(a.sub, a.board, a.evidence))
     if a.cmd == 'hold':
         boards = boards_from_config(a.config) if a.all else a.boards
         if not boards:

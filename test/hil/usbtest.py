@@ -44,10 +44,16 @@ SYS_USB = Path('/sys/bus/usb/devices')
 DRIVER = Path('/sys/bus/usb/drivers/usbtest')
 PATTERN_PARAM = Path('/sys/module/usbtest/parameters/pattern')
 RECOVER_FLASH_TIMEOUT = 90  # bound on the post-hang reflash; typical flash is 10-20s
-RECOVER_RESET_TIMEOUT = 30  # bound on the post-hang probe reset; ResetTarget measures ~130ms
+RECOVER_RESET_TIMEOUT = 30  # bound on the post-hang probe reset; jlink ResetTarget ~130ms, stlink --rst --go ~100ms
 
 
 RECOVER_SETTLE = 5          # after each step, to let a freed ioctl unwind
+# Keep at least 5 s, the validated value: metro_m4_express's UF2 bootloader stays resident when
+# two resets land ~1 s apart (double-tap), so a reset then the fallback reflash would not boot.
+# How long a HUNG case is watched before it counts as a wedge. HUNG only says the kill
+# was not reaped within 5 s; testusb in a long but finite in-kernel URB wait looks the
+# same and is reaped once the URB completes. Reserved on every HUNG path, recovery or not.
+WEDGE_CONFIRM_S = 30
 # The ladder's UNBOUNDED work, which no step timeout covers: two wedged_pids() /proc walks,
 # json.loads of the roster entry, the child's first `import hil_flash`, convoy_safe, the
 # BUDGET back-fill and the JSON print. The deleted _time_left() carried this as a bare
@@ -80,9 +86,14 @@ def recovery_reserve(flasher: dict | str) -> int:
     def step(bound):
         return bound + hil_util.REAP_GRACE
 
-    total = step(RECOVER_FLASH_TIMEOUT) + 2 * RECOVER_SETTLE + RECOVER_OVERHEAD
+    total = WEDGE_CONFIRM_S + 2 * RECOVER_SETTLE + RECOVER_OVERHEAD
     if reset_primitive(name):
         total += step(RECOVER_RESET_TIMEOUT)
+    # a reset-only entry (roster "reflash": false) never reflashes: no flash step, no
+    # settle after it, and none of the rescue legs below
+    if not flasher.get('reflash', True):
+        return total - RECOVER_SETTLE
+    total += step(RECOVER_FLASH_TIMEOUT)
     # The ARGS, not just the name: rescue_openocd also needs the target cfg to be an RP
     # one (RESCUE_CFG), so the five WCH/max32666 openocd boards on this rig can never run
     # it. Reserving its two legs for them holds a pool worker and a usbtest permit for
@@ -433,8 +444,9 @@ def _sudo_soft(cmd, **kw):
         # run_case's timeout handler before the HUNG verdict is recorded -- which leaves
         # unrecovered_hang False and lets the finally run the remove_id/unbind that must
         # never happen while a D-state device lock is held
-        print(f'{cmd[0]}: {type(e).__name__}: {e}', file=sys.stderr)
-        return subprocess.CompletedProcess(cmd, 1, '', '')
+        why = f'{cmd[0]}: {type(e).__name__}: {e}'
+        print(why, file=sys.stderr)
+        return subprocess.CompletedProcess(cmd, 1, '', why)
 
 
 def dmesg_tail():
@@ -481,6 +493,30 @@ def wedged_pids(devnode):
         except (OSError, ValueError):
             continue              # raced with exit
     return stuck, complete
+
+
+def confirmation_of(stuck, complete) -> str:
+    """One scan's verdict: 'cleared', 'confirmed' or 'unverified' (a scan that could not
+    see every pid proves nothing either way)."""
+    if not complete:
+        return 'unverified'
+    return 'confirmed' if stuck else 'cleared'
+
+
+def confirm_wedge(devnode, budget=WEDGE_CONFIRM_S, poll=1.0):
+    """(stuck, complete, waited): watch the node's D-state holders for up to `budget` s.
+
+    Returns as soon as one COMPLETE scan finds no holder: the HUNG case was a timeout whose
+    kill landed late, not a wedge. A scan that could not see every pid never counts as
+    clear (wedged_pids fails closed), so the caller keeps treating it as a hang.
+    """
+    t0 = time.monotonic()
+    while True:
+        stuck, complete = wedged_pids(devnode)
+        waited = time.monotonic() - t0
+        if (complete and not stuck) or waited >= budget:
+            return stuck, complete, waited
+        time.sleep(poll)
 
 
 def run_case(num, dev, testusb, quick, timeout):
@@ -627,6 +663,8 @@ def main():
 
     results = []
     unrecovered_hang = False
+    wedge_confirmation = ''   # '' (no hang), 'cleared', 'confirmed' or 'unverified'
+    wedge_evidence = {}       # the last holder scan behind that verdict: node, holders, complete
     try:
         bind_usbtest(dev)
         set_pattern(0)  # tier 1 firmware sources zeros; also required by perf cases 27/28
@@ -647,7 +685,32 @@ def main():
                 extra += f" {r['mbps']} MB/s" if 'mbps' in r else ''
                 print(f"test {num:2d} {r['name']:22s} {r['status']:6s}{extra}")
             if r['status'] == 'HUNG':
-                abort_reason = 'battery aborted on a kernel-side hang'
+                # Assume the hang is real from here on: an exception or interruption during
+                # the confirmation reaches the finally with the flag set, so cleanup never
+                # joins an unresolved convoy. Cleared only by one COMPLETE empty scan.
+                unrecovered_hang = True
+                wedge_confirmation = 'unverified'
+                # Not a wedge until the node still has a holder after WEDGE_CONFIRM_S:
+                # a slow case whose kill landed late was reported wedged before (#3944),
+                # and on a board without recovery that latched a healthy board.
+                stuck, complete, waited = confirm_wedge(dev['node'])
+                wedge_evidence = {'node': dev['node'], 'holders': list(stuck),
+                                  'complete': complete, 'waited_s': round(waited)}
+                if complete and not stuck:
+                    unrecovered_hang = False
+                    wedge_confirmation = 'cleared'
+                    r.update(status='FAIL',
+                             detail=f'timeout after {args.timeout}s (no holder observed '
+                                    f'after {waited:.0f}s of confirmation)')
+                    abort_reason = f'battery ended on a late-cleared timeout in case {num}'
+                    print(f'case {num} timed out; no holder on the node after {waited:.0f}s, '
+                          f'not a wedge', file=sys.stderr)
+                    break
+                # An incomplete scan is contained exactly like a confirmed wedge but is
+                # reported apart: nothing downstream may treat it as verified.
+                wedge_confirmation = confirmation_of(stuck, complete)
+                abort_reason = ('battery aborted on a kernel-side hang' if complete else
+                                'battery aborted on a kernel-side hang (confirmation scan incomplete)')
                 # Reflash, NEVER a root-port cycle: resetting the MCU through the DUT's own
                 # debug probe fails the in-flight URB at the source, so the ioctl returns,
                 # the queued kill lands and the cleanup below is lock-safe -- and it reaches
@@ -657,11 +720,9 @@ def main():
                 # what drives a hub worker into usb_lock_device(), so a pre-check reads
                 # wedged by construction.
                 #
-                # Assume unrecovered until proven otherwise, so any early exit from this
-                # block reaches the finally with the flag set instead of running the
-                # remove_id/unbind that must not happen while a device lock is held.
-                unrecovered_hang = True
-                print('aborting battery: kernel-side hang, device wedged mid-transfer',
+                print('aborting battery: kernel-side hang, '
+                      + ('device wedged mid-transfer' if complete else
+                         'device hang unverified (incomplete process scan), contained as a wedge'),
                       file=sys.stderr)
                 if not (args.recover_board and args.recover_fw):
                     print('no --recover-board/--recover-fw: the device stays wedged and '
@@ -714,6 +775,9 @@ def main():
                     import inspect
                     kw = ({'timeout': RECOVER_RESET_TIMEOUT}
                           if 'timeout' in inspect.signature(reset_fn).parameters else {})
+                    # a recovery action changes the state: the earlier confirmation no
+                    # longer describes the node until the next scan says so
+                    wedge_confirmation = 'unverified'
                     try:
                         with redirect_stdout(sys.stderr):
                             reset_fn(board, **kw)
@@ -722,12 +786,21 @@ def main():
                               file=sys.stderr)
                     time.sleep(RECOVER_SETTLE)     # let the freed ioctl unwind
                     stuck, complete = wedged_pids(dev['node'])
+                    wedge_confirmation = confirmation_of(stuck, complete)
+                    wedge_evidence = {'node': dev['node'], 'holders': list(stuck),
+                                      'complete': complete, 'after': 'probe reset'}
                     if complete and not stuck:
                         print('probe reset cleared the wedge; skipping the reflash '
                               '(firmware under test left intact for autopsy)',
                               file=sys.stderr)
                         unrecovered_hang = False
                         break
+                if not board['flasher'].get('reflash', True):
+                    # roster "reflash": false: the tool has no flash driver for this chip
+                    print(f'reset-only recovery flasher {fname}: no reflash; the device '
+                          f'stays wedged for the post-run recovery', file=sys.stderr)
+                    break
+                wedge_confirmation = 'unverified'   # the reflash changes the state
                 print(f'auto-recovering: reflashing {bname} via '
                       f'{fname} (see .claude/skills/usb-kernel-recover). '
                       f'Unbudgeted by flash_permit, like the root-cycle it replaced: the '
@@ -735,14 +808,15 @@ def main():
                       file=sys.stderr)
                 # run_cmd bounds the flash; its banners go to stdout, which in --json mode
                 # carries the result object -- keep them off it. A raising flasher (missing
-                # serial node, unwritable CWD) must not cost the battery its JSON report.
+                # serial node, unwritable CWD) must not cost the battery its JSON report,
+                # nor the re-scan below that decides the verdict.
                 try:
                     with redirect_stdout(sys.stderr):
                         ret = flash_fn(board, args.recover_fw, timeout=RECOVER_FLASH_TIMEOUT)
                 except Exception as e:
                     print(f'reflash raised: {e}; the device may still be wedged', file=sys.stderr)
-                    break
-                if ret.returncode != 0:
+                    ret = None
+                if ret is not None and ret.returncode != 0:
                     # a wedged RP DAP answers nothing and the probe has no reset line;
                     # POR it via the Rescue DP and retry once, exactly as the normal
                     # flash path does (no-op for every other board/failure)
@@ -775,6 +849,9 @@ def main():
                 # Authoritative either way: a clean flash only proves the probe wrote the
                 # MCU, not that the D-state holder let go.
                 stuck, complete = wedged_pids(dev['node'])
+                wedge_confirmation = confirmation_of(stuck, complete)
+                wedge_evidence = {'node': dev['node'], 'holders': list(stuck),
+                                  'complete': complete, 'after': 'reflash'}
                 if stuck:
                     print(f'{dev["sysname"]}: pid(s) {stuck} still in D state on '
                           f'{dev["node"]} — the device lock was never released', file=sys.stderr)
@@ -895,6 +972,8 @@ def main():
                           'passed': ran - len(failed) - len(notrun),
                           'failed': len(failed), 'notrun': len(notrun),
                           'wedged': bool(unrecovered_hang),
+                          'wedge_confirmation': wedge_confirmation,
+                          'wedge_evidence': wedge_evidence,
                           'cases': results}, indent=2))
     else:
         print(f"{ran - len(failed) - len(notrun)}/{ran} passed"

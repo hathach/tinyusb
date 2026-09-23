@@ -581,6 +581,7 @@ class SudoSoftNeverRaises(unittest.TestCase):
         self.u.sudo = boom
         r = self.u._sudo_soft(['dmesg'])            # must not propagate
         self.assertEqual(r.returncode, 1)
+        self.assertIn(f'dmesg: {type(exc).__name__}: {exc}', r.stderr)   # callers quote it
 
     def test_systemexit_from_a_password_prompt_is_contained(self):
         self._check(SystemExit('sudo needs a password'))

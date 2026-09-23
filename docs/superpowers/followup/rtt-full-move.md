@@ -16,9 +16,9 @@ here as a byte-identical copy because the HIL harness imports its classes.
   `"logger": "rtt"` (only `ea4088_quickstart` in `tinyusb.json`).
 - `tools/ci_select.py` imports `hil_util` on GitHub-hosted ubuntu-latest runners
   (build.yml path-selection jobs), so the file must be present there today.
-- `hil_ci.sh` stages `tools/rtt.py` next to `test/hil`; build.yml's path filter
+- `hil_remote.py` (hil skill) stages `tools/rtt.py` next to `test/hil`; build.yml's path filter
   and the pre-commit `hil-test` pattern name the file; `test_hil_rtt.py` asserts
-  the staging line and keeps the harness-side contracts only.
+  its `HARNESS_FILES` entry and keeps the harness-side contracts only.
 - agentrc `skills/rtt/scripts/rtt.py` is identical; `tests/test_rtt.py` there
   holds the class and CLI tests. Two copies drift unless one goes.
 
@@ -30,7 +30,7 @@ here as a byte-identical copy because the HIL harness imports its classes.
    `RttError` still pickles across the fork pool; the ImportError names the
    resolved path, the variable and the install command. `ci_select` then never
    touches it.
-2. Delete `tools/rtt.py`; drop the `hil_ci.sh` staging line, the build.yml path
+2. Delete `tools/rtt.py`; drop its `HARNESS_FILES` entry in `hil_remote.py`, the build.yml path
    filter entry, the pre-commit pattern and the staging assertion.
 3. `test_hil_rtt.py`: loader tests against a stub module (default path,
    override, missing-install diagnostic, console-factory wiring); nothing that

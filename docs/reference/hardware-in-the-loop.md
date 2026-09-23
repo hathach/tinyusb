@@ -212,7 +212,7 @@ SUBSYSTEM=="usb", ATTR{idVendor}=="045b", MODE="0664", GROUP="plugdev"
 ```
 
 Flasher CLIs and toolchains must be reachable from *non-interactive* shells — neither the
-Actions runner nor `hil_ci.sh` sources a login profile. Keep them in `~/.local/bin` and
+Actions runner nor `hil_remote.py` sources a login profile. Keep them in `~/.local/bin` and
 `~/bin` (symlinks are fine) and add both to the runner's `.path`.
 
 `pciutils` and passwordless sudo are hard requirements, not conveniences:
@@ -295,7 +295,7 @@ From a development PC, the same run can be driven remotely. `REMOTE` and `CONFIG
 default to `ci`, so point them at your own:
 
 ```bash
-REMOTE=myrig.lan CONFIG=$PWD/test/hil/local.json bash test/hil/hil_ci.sh -b <board>
+REMOTE=myrig.lan CONFIG=$PWD/test/hil/local.json python3 .claude/skills/hil/scripts/hil_remote.py -b <board>
 ```
 
 ## Gotchas

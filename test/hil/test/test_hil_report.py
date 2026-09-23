@@ -62,7 +62,7 @@ class OneClassifierForBothArtifacts(unittest.TestCase):
 
 class ModuleWorksImportedAndAsAScript(unittest.TestCase):
     """It is imported as helper.hil_report by hil_test, and run as a script by the operator
-    (.claude/agents/hil-operator.md). A script run puts helper/ on sys.path, NOT test/hil,
+    (the HIL contract, .claude/skills/hil/SKILL.md). A script run puts helper/ on sys.path, NOT test/hil,
     so a plain `from helper import hil_health` breaks the CLI and only the CLI."""
 
     def test_importable_as_a_package_module(self):
@@ -116,8 +116,8 @@ class RenderReportIsPureFunctionOfTheDocument(unittest.TestCase):
         self.assertIn('No tests were run.', md)
 
     def test_a_malformed_row_does_not_raise(self):
-        """mark_report_abandoned renders a sidecar it did not write -- hil_ci.sh reuses a
-        persistent REMOTE_DIR, so it can be an older version's or a torn one -- and it runs
+        """mark_report_abandoned renders a sidecar it did not write -- a report dir can hold
+        an older version's or a torn one -- and it runs
         on the way to os._exit, where a KeyError hangs the runner in multiprocessing's
         unbounded join() instead of freeing it."""
         md = hil_report.render_report(self._doc(
@@ -517,6 +517,74 @@ class SummaryFoldsReportToBoards(unittest.TestCase):
         self.assertFalse(got[1]['ran'], "beta must not inherit alpha's row")
 
 
+    def test_an_unknown_board_matching_a_declared_variant_is_not_run(self):
+        """hil_test.py rejects a name outside the config, so no row can be its own; a declared
+        variant of another board that happens to carry that name must not make it ran:true."""
+        got = self._sum(['beta', 'alpha'],
+                        [('alpha', {'usbtest': 'pass'})],
+                        cfg_boards=[{'name': 'beta', 'variant': [{'name': 'alpha'}]}])
+        self.assertTrue(got[0]['ran'])
+        self.assertTrue(got[0]['pass'])
+        self.assertFalse(got[1]['ran'], 'alpha is not a configured board')
+        self.assertFalse(got[1]['pass'])
+        self.assertIn('not a board', got[1]['detail'])
+
+    def test_an_unknown_board_with_a_stale_row_is_not_run(self):
+        got = self._sum(['known', 'gone'],
+                        [('known', {'usbtest': 'pass'}), ('gone', {'usbtest': 'pass'})],
+                        cfg_boards=[{'name': 'known'}])
+        self.assertTrue(got[0]['ran'])
+        self.assertFalse(got[1]['ran'], 'a stale row must not report a removed board as run')
+
+    def test_a_board_refused_at_admission_is_wedged_not_run_and_not_locked(self):
+        got = self._sum(['b'], [('b', {hil_report.WEDGED_CELL: hil_report.WEDGED_REFUSED})])
+        self.assertEqual((got[0]['ran'], got[0]['pass'], got[0]['locked'], got[0]['wedged']),
+                         (False, False, False, True))
+        self.assertIn('marked wedged', got[0]['detail'])
+
+    def test_a_wedge_outranks_a_lock_cell(self):
+        """the caller re-runs LOCKED boards; a wedged one must never read as locked."""
+        got = self._sum(['b'], [('b', {hil_report.LOCKED_CELL: 'fail', hil_report.WEDGED_CELL: 'fail'})])
+        self.assertEqual((got[0]['locked'], got[0]['wedged'], got[0]['pass']), (False, True, False))
+
+    def test_admission_over_accumulated_history_did_not_run_this_attempt(self):
+        got = self._sum(['b'], [('b', {'cdc_msc': 'pass', hil_report.WEDGED_CELL: hil_report.WEDGED_REFUSED})])
+        self.assertEqual((got[0]['ran'], got[0]['wedged'], got[0]['pass']), (False, True, False))
+
+    def _acc(self, d, mret, fresh):
+        return json.loads((d / 'hil_report.json').read_text()) if hil_report.accumulate_report(
+            mret, d, fresh) is not None else None
+
+    def test_an_accumulated_rerun_that_ran_clears_last_attempts_wedge(self):
+        td = TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        d = Path(td.name)
+        cfg = {'boards': [{'name': 'b', 'variant': [{'name': 'b-fs'}, {'name': 'b-hs'}]}]}
+        wedge = [('b', 1, [], [('b-fs', {'usbtest': '❌ 3/30', hil_report.WEDGED_CELL: 'fail'}, '9s'),
+                               ('b-hs', {'cdc_msc': '⚪ board wedged', hil_report.WEDGED_CELL: 'fail'}, '1s')], 10.0)]
+        doc = self._acc(d, wedge, True)
+        self.assertTrue(hil_report.summarize(cfg, ['b'], doc)['results'][0]['wedged'])
+        # admission refusal on the next attempt keeps the history but did not run
+        refused = [('b', 1, [], [('b', {hil_report.WEDGED_CELL: hil_report.WEDGED_REFUSED}, None)], 0.0)]
+        r = hil_report.summarize(cfg, ['b'], self._acc(d, refused, False))['results'][0]
+        self.assertEqual((r['ran'], r['wedged'], r['pass']), (False, True, False))
+        # recovered and re-run green: no wedge cell survives on any row
+        clean = [('b', 0, [], [('b-fs', {'usbtest': 'pass'}, '8s'), ('b-hs', {'cdc_msc': 'pass'}, '2s')], 10.0)]
+        doc = self._acc(d, clean, False)
+        for row in doc['rows']:
+            self.assertNotIn(hil_report.WEDGED_CELL, row['cells'], row)
+        r = hil_report.summarize(cfg, ['b'], doc)['results'][0]
+        self.assertEqual((r['ran'], r['wedged'], r['pass']), (True, False, True))
+
+    def test_a_confirmed_wedge_during_the_run_is_wedged_and_ran(self):
+        got = self._sum(['b'], [('b', {'usbtest': '❌ 3/30', hil_report.WEDGED_CELL: 'fail'})])
+        self.assertEqual((got[0]['ran'], got[0]['pass'], got[0]['wedged']), (True, False, True))
+        self.assertIn('confirmed D-state holder', got[0]['detail'])
+
+    def test_an_ordinary_row_carries_wedged_false(self):
+        got = self._sum(['b'], [('b', {'cdc_msc': 'pass'})])
+        self.assertIs(got[0]['wedged'], False)
+
     def test_the_caveat_reaches_the_agents_verdict(self):
         """The abandon/no-boards notice lives in the document now, and this JSON is all an
         agent gets -- dropping it here puts the caveat back where only a human sees it."""
@@ -713,7 +781,7 @@ class SummarizeSeesEveryRow(unittest.TestCase):
         """hil_test writes lock-contention and pool-timeout rows keyed by BOARD name, but
         variants_of returns only declared variant names -- so for nanoch32v203 and
         ch32v307v_r1_1v0 those rows were invisible and a held lock published as a
-        hardware FAIL that hil-validate.js never retried."""
+        hardware FAIL that the caller never retried."""
         cfg = {'boards': [{'name': 'nano',
                            'variant': [{'name': 'nano-fsdev'}, {'name': 'nano-usbfs'}]}]}
         doc = {'rows': [{'board': 'nano', 'cells': {'board-locked': 'fail'},
@@ -729,6 +797,69 @@ class SummarizeSeesEveryRow(unittest.TestCase):
                                    {'rows': [{'cells': {}}, {'board': 'a',
                                                              'cells': {'t': 'pass'}}]})
         self.assertTrue(out['results'][0]['pass'])
+
+
+class RunVerdictIsASnapshot(unittest.TestCase):
+    """`pass` is what the caller reads instead of re-deriving "every row passed and no caveat".
+    It judges THIS report only: accumulate_report() drops an earlier attempt's caveat, so the
+    verdict of a retry sequence is the caller's from every attempt's result."""
+
+    ABANDON = '**HIL run abandoned: worker pool timed out after 1s.** treat board results as unverified.\n'
+
+    def _verdict(self, boards, rows, cfg_boards=None, banner='', caveat=''):
+        td = TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        d = Path(td.name)
+        hil_report.write_report(d, {'rows': [{'board': b, 'cells': c, 'duration': '1s'} for b, c in rows],
+                                    'banner': banner, 'scope': '', 'caveat': caveat})
+        cfg = {'boards': cfg_boards or [{'name': b} for b in boards]}
+        return hil_report.summarize(cfg, boards, hil_report._load(d)[0])
+
+    def test_every_row_passing_and_no_caveat_is_a_pass(self):
+        v = self._verdict(['a', 'b'], [('a', {'usbtest': 'pass'}), ('b', {'usbtest': 'pass'})])
+        self.assertTrue(v['pass'])
+
+    def test_a_rig_health_banner_alone_does_not_fail_it(self):
+        v = self._verdict(['a'], [('a', {'usbtest': 'pass'})], banner='> **Rig note.** 1 process in D state.\n')
+        self.assertTrue(v['pass'])
+
+    def test_a_caveat_fails_a_run_whose_rows_all_pass(self):
+        v = self._verdict(['a'], [('a', {'usbtest': 'pass'})], caveat=self.ABANDON)
+        self.assertTrue(all(r['pass'] for r in v['results']))
+        self.assertFalse(v['pass'])
+
+    def test_one_failing_locked_wedged_missing_or_unknown_row_fails_it(self):
+        self.assertFalse(self._verdict(['a', 'b'], [('a', {'usbtest': 'pass'}), ('b', {'usbtest': 'fail'})])['pass'])
+        self.assertFalse(self._verdict(['a'], [('a', {hil_report.LOCKED_CELL: 'fail'})])['pass'])
+        self.assertFalse(self._verdict(['a'], [('a', {hil_report.WEDGED_CELL: 'fail'})])['pass'])
+        self.assertFalse(self._verdict(['a', 'b'], [('a', {'usbtest': 'pass'})])['pass'])
+        self.assertFalse(self._verdict(['a', 'zz'], [('a', {'usbtest': 'pass'})],
+                                       cfg_boards=[{'name': 'a'}])['pass'])
+
+    def test_no_rows_is_not_a_pass(self):
+        self.assertFalse(self._verdict(['a'], [])['pass'])
+
+    def test_the_verdict_is_per_snapshot_across_an_accumulate_retry(self):
+        td = TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        rd = Path(td.name)
+        cfg = {'boards': [{'name': 'boardA'}]}
+        rows = [('boardA', 0, 0, [('boardA', {'cdc_msc': 'OK'}, '1s')], 0)]
+        # an abandoned first attempt: the stamp path sets the caveat on a report whose rows pass
+        hil_report.accumulate_report(rows, rd, True, '', '')
+        doc, _ = hil_report._load(rd)
+        doc['caveat'] = self.ABANDON
+        hil_report.write_report(rd, doc)
+        self.assertFalse(hil_report.summarize(cfg, ['boardA'], hil_report._load(rd)[0])['pass'])
+        # a clean accumulated re-run clears the caveat, and THIS snapshot passes: the sequence
+        # verdict is the caller's, who still holds the first attempt's False
+        hil_report.accumulate_report(rows, rd, False, '', '')
+        self.assertTrue(hil_report.summarize(cfg, ['boardA'], hil_report._load(rd)[0])['pass'])
+        # the other direction: a clean first attempt, then a re-run that abandoned
+        doc, _ = hil_report._load(rd)
+        doc['caveat'] = self.ABANDON
+        hil_report.write_report(rd, doc)
+        self.assertFalse(hil_report.summarize(cfg, ['boardA'], hil_report._load(rd)[0])['pass'])
 
 
 class NoBoardsExitKeepsWhatRan(unittest.TestCase):
@@ -804,52 +935,6 @@ class TheFooterCountsAreNotSwapped(unittest.TestCase):
         self.assertIn(f'{hil_report.REPORT_CELL["skip"]} 1 skipped', md)
 
 
-class HilCiUploadsTheAccumulateMergeBase(unittest.TestCase):
-    """hil_ci.sh rm -rf's REMOTE_DIR at the start of every run, and accumulate_report
-    merges onto the sidecar in the run's cwd -- so without an upload a remote
-    `--accumulate` retry silently starts from nothing and its one-row table REPLACES the
-    full-fleet one. The copy-back at the end has always existed; the upload did not."""
-
-    def _gate(self, *args):
-        """Run the real gate block out of hil_ci.sh and return its ACCUMULATE verdict.
-
-        Executed, not grepped: the previous pair of tests searched the source text and
-        stayed green when `if [ "$ACCUMULATE" = 1 ]` was mutated to `if true`, because the
-        comment block above it mentions --accumulate five times."""
-        sh = (Path(HIL_DIR) / 'hil_ci.sh').read_text(encoding='utf-8')
-        a = sh.index('ACCUMULATE=$(python3 -')
-        b = sh.index(') || ACCUMULATE=0', a) + len(') || ACCUMULATE=0')
-        script = 'ARGS=("$@")\n' + sh[a:b] + '\necho "$ACCUMULATE"'
-        r = subprocess.run(['bash', '-c', script, '_', *args],
-                           capture_output=True, text=True, timeout=60)
-        self.assertEqual(r.returncode, 0, r.stderr)
-        return r.stdout.strip()
-
-    def test_every_spelling_argparse_accepts_is_detected(self):
-        """hil_test.py declares `-a, --accumulate`, so argparse also takes -av, -va,
-        --accum and --acc; hil-validate.js tells the operator to retry 'adding -v'."""
-        for spelling in ('--accumulate', '-a', '-av', '-va', '--accum', '--acc'):
-            self.assertEqual(self._gate(spelling), '1', f'{spelling} was not detected')
-
-    def test_a_run_without_it_is_not_treated_as_accumulate(self):
-        for spelling in ('-b', '-v', '--retry'):
-            self.assertEqual(self._gate(spelling), '0', f'{spelling} falsely detected')
-
-    def test_the_sidecar_is_uploaded_and_gated(self):
-        sh = (Path(HIL_DIR) / 'hil_ci.sh').read_text(encoding='utf-8')
-        up = [ln for ln in sh.splitlines()
-              if 'scp' in ln and 'hil_report.json' in ln and '$REMOTE:' in ln]
-        self.assertTrue(up, 'nothing uploads hil_report.json; --accumulate has no merge base')
-        self.assertIn('if [ "$ACCUMULATE" = 1 ]', sh, 'the upload is not gated')
-
-    def test_a_missing_merge_base_is_loud(self):
-        """The damage: --accumulate with nothing to merge onto succeeds and quietly
-        publishes a small table where a full one used to be."""
-        warn = [ln for ln in (Path(HIL_DIR) / 'hil_ci.sh').read_text().splitlines()
-                if 'warning' in ln.lower() and 'accumulate' in ln.lower()]
-        self.assertTrue(warn, 'no warning when --accumulate has no local sidecar')
-
-
 class RunOutcomeAndRigHealthAreSeparate(unittest.TestCase):
     """`banner` describes the CONDITIONS cells were collected under, so it carries across a
     retry. `caveat` describes how a RUN ENDED, so it must not: a clean retry that reports
@@ -895,7 +980,7 @@ class RunOutcomeAndRigHealthAreSeparate(unittest.TestCase):
 
 
 class AMalformedSidecarNeverCostsTheReport(unittest.TestCase):
-    """hil_ci.sh now uploads a sidecar as the merge base, so a non-conforming one is
+    """hil_remote.py now uploads a sidecar as the merge base, so a non-conforming one is
     reachable from outside the harness."""
 
     def _write(self, rd, doc):
@@ -953,7 +1038,7 @@ class AMalformedSidecarNeverCostsTheReport(unittest.TestCase):
 class PoolTimeoutOutranksAStaleLock(unittest.TestCase):
     def test_a_wedge_is_not_published_as_lock_contention(self):
         """locked was computed across every cell and short-circuited detail, so a board
-        that wedged the rig on the retry was reported as LOCKED -- and hil-validate.js
+        that wedged the rig on the retry was reported as LOCKED -- and the caller
         re-runs those, paying another pool guard on a board that just hung it."""
         doc = {'rows': [{'board': 'boardX',
                          'cells': {'board-locked': 'fail', 'pool-timeout': 'fail'},
@@ -965,7 +1050,7 @@ class PoolTimeoutOutranksAStaleLock(unittest.TestCase):
     def test_a_run_aborted_board_is_not_published_as_lock_contention(self):
         """run-aborted is written by the same _abort_report path as pool-timeout, for a
         board the guard never reached. It has to outrank a stale lock cell for the same
-        reason -- otherwise hil-validate.js re-runs a board whose worker RAISED."""
+        reason -- otherwise the caller re-runs a board whose worker RAISED."""
         doc = {'rows': [{'board': 'boardX',
                          'cells': {'board-locked': 'fail', 'run-aborted': 'fail'},
                          'duration': None}], 'banner': '', 'caveat': '', 'scope': ''}
@@ -1065,7 +1150,7 @@ class EveryWriterRendersBeforeItCommits(unittest.TestCase):
 class MissingSidecarDoesNotDestroyTheMarkdown(unittest.TestCase):
     def test_an_absent_sidecar_keeps_the_prior_table(self):
         """`recovered` was only cleared when the sidecar was TORN, not when it was absent
-        -- reachable from hil_ci.sh's asymmetric copy-back and build.yml's skip marker."""
+        -- reachable from hil_remote.py's asymmetric copy-back and build.yml's skip marker."""
         td = TemporaryDirectory()
         self.addCleanup(td.cleanup)
         rd = Path(td.name)
@@ -1075,7 +1160,7 @@ class MissingSidecarDoesNotDestroyTheMarkdown(unittest.TestCase):
 
 
 class LoadIsTheOnlyTrustBoundary(unittest.TestCase):
-    """hil_ci.sh uploads a sidecar as the merge base, so these shapes arrive from OUTSIDE
+    """hil_remote.py uploads a sidecar as the merge base, so these shapes arrive from OUTSIDE
     the harness. Every one of these raised past a handler before."""
 
     def _seed(self, rd, raw):
