@@ -1167,6 +1167,20 @@ void test_data_send_refused_from_command_keeps_phase(void) {
   expect_still_in_command_phase(&io, tid, 200);
 }
 
+// same, with the dcd refusing the transfer after the claim succeeded
+void test_data_send_refused_by_dcd_keeps_phase(void) {
+  open_device(TUSB_SPEED_HIGH);
+  app.silent = true;
+  const uint32_t tid = host_command(MTP_OP_GET_DEVICE_INFO, NULL, 0);
+  mtp_container_info_t io = headered_io();
+  io.header->len = HDR + 100;
+  dcd_refuse_ep = EP_IN;
+  TEST_ASSERT_FALSE(tud_mtp_data_send(&io));
+  TEST_ASSERT_EQUAL_MESSAGE(-1, dcd_refuse_ep, "data IN never attempted");
+  expect_no_more_calls();
+  expect_still_in_command_phase(&io, tid, 200);
+}
+
 void test_data_receive_refused_from_command_keeps_phase(void) {
   open_device(TUSB_SPEED_HIGH);
   app.silent = true;
@@ -1212,6 +1226,21 @@ void test_response_refused_while_in_busy_leaves_buffer(void) {
   TEST_ASSERT_EQUAL_MEMORY(before, io.header, HDR);
   expect_no_more_calls();
   TEST_ASSERT_TRUE(usbd_edpt_release(RHPORT, EP_IN));
+  expect_still_in_command_phase(&io, tid, 100);
+}
+
+// the dcd refuses the response transfer: nothing was queued, so the phase stays in command
+void test_response_refused_by_dcd_keeps_phase(void) {
+  open_device(TUSB_SPEED_HIGH);
+  app.silent = true;
+  const uint32_t tid = host_command(MTP_OP_OPEN_SESSION, NULL, 0);
+  mtp_container_info_t io = headered_io();
+  io.header->len = HDR;
+  io.header->code = MTP_RESP_OK;
+  dcd_refuse_ep = EP_IN;
+  TEST_ASSERT_FALSE(tud_mtp_response_send(&io));
+  TEST_ASSERT_EQUAL_MESSAGE(-1, dcd_refuse_ep, "response never attempted");
+  expect_no_more_calls();
   expect_still_in_command_phase(&io, tid, 100);
 }
 
