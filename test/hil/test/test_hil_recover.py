@@ -312,6 +312,40 @@ class Recovery(unittest.TestCase):
         self.assertIn('budget exhausted', out['b1']['why'])
         self.assertEqual([c for c in self.calls if c[0] == 'shield'], [])
 
+    def test_release_refuses_to_kill_the_recovery_reservation(self):
+        """A SIGTERM from `hil_lock.py release` would end the supervisor before its finally:
+        the shield stays applied with nobody left to unshield it."""
+        r, w = os.pipe()
+        pid = os.fork()
+        if pid == 0:                                         # the supervisor's reservation
+            try:
+                os.close(r)
+                os.setsid()
+                held, _ = hil_recover.reserve_all({'boards': [{'name': 'b1'}]})
+                os.write(w, b'1' if held else b'0')
+                time.sleep(60)
+            finally:
+                os._exit(0)
+        os.close(w)
+
+        def reap():
+            try:
+                os.kill(pid, signal.SIGKILL)
+                os.waitpid(pid, 0)
+            except (ProcessLookupError, ChildProcessError):
+                pass
+        self.addCleanup(reap)
+        self.assertEqual(os.read(r, 1), b'1')
+        os.close(r)
+        err = io.StringIO()
+        with redirect_stderr(err), redirect_stdout(io.StringIO()):
+            self.assertEqual(hil_lock.cmd_release(['b1']), 1)
+        self.assertEqual(os.waitpid(pid, os.WNOHANG), (0, 0), 'release killed the recovery supervisor')
+        self.assertIn('not killing it', err.getvalue())
+        self.assertEqual(hil_lock.read_record('b1')['reason'], hil_recover.RECOVERY_REASON)
+        with self.assertRaises(OSError):
+            hil_lock.flock_nb('b1')
+
     def test_real_preconditions(self):
         self.assertEqual(REAL_PRECONDITIONS(), '')
         self.assertIn('--skip-flash', REAL_PRECONDITIONS(skip_flash=True))

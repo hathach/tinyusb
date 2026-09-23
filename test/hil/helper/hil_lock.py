@@ -25,7 +25,8 @@ from helper import hil_util
 
 BOARD_LOCK_DIR = '/tmp/tinyusb-hil-locks'
 CI_REASON = 'hil_test.py'   # release-protected holder tag (release refuses to kill it)
-PROTECTED_REASONS = {CI_REASON, 'pool_check'}  # cmd_release refuses to SIGTERM these holders
+RECOVERY_REASON = f'{CI_REASON} wedge recovery'   # hil_recover's fleet reservation
+PROTECTED_REASONS = {CI_REASON, RECOVERY_REASON, 'pool_check'}  # cmd_release refuses to SIGTERM these holders
 PROFILE = os.environ.get('HIL_PROFILE') == '1'
 
 

@@ -42,7 +42,7 @@ from helper import hil_health, hil_lock, hil_util
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 USB_RECOVER = REPO_ROOT / '.claude' / 'skills' / 'usb-kernel-recover' / 'scripts' / 'usb_recover.sh'
-RECOVERY_REASON = f'{hil_lock.CI_REASON} wedge recovery'   # CI_REASON prefix: release refuses to kill it
+RECOVERY_REASON = hil_lock.RECOVERY_REASON   # release-protected: a SIGTERM would skip the unshield and release
 # The whole phase, all boards. One step can overrun it by its own bound plus the reap
 # grace, which is what the job timeout above it has to absorb.
 PHASE_TIMEOUT = hil_util.pos_int_env('HIL_RECOVERY_TIMEOUT', 600)
