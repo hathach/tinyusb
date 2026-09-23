@@ -489,6 +489,17 @@ def _supervised(config: dict, marked: list, log) -> dict:
                     os.close(w_fd)
                 except OSError:
                     pass
+                # hil_test has its outcomes: a retention must not hold its stdio, or a reader
+                # waiting for EOF (hil_remote's ssh) waits it out, and a vanished one breaks
+                # the retention's next log line
+                try:
+                    devnull = os.open(os.devnull, os.O_RDWR)
+                    for std_fd in (0, 1, 2):
+                        os.dup2(devnull, std_fd)
+                    if devnull > 2:
+                        os.close(devnull)
+                except OSError:
+                    pass
         try:
             def _watchdog(*_):
                 signal.signal(signal.SIGALRM, lambda *_: os._exit(3))   # the hard stop behind the cleanup

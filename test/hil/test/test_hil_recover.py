@@ -6,6 +6,7 @@ re-enumerated DUT, everything deferred with the marker kept otherwise."""
 import io
 import json
 import os
+import select
 import signal
 import subprocess
 import sys
@@ -847,6 +848,48 @@ class Recovery(unittest.TestCase):
                 time.sleep(0.5)
         else:
             self.fail('the supervisor never released after its children ended')
+
+    def test_a_retaining_supervisor_lets_go_of_hil_tests_stdout(self):
+        """A reader waiting for EOF on hil_test's output (hil_remote's ssh) must not wait out
+        the retention: once hil_test has its outcomes, the supervisor holds none of its stdio."""
+        self.mark()
+        survivor = Path(self.td.name) / 'survivor'
+        survivor.touch()
+        self.addCleanup(survivor.unlink, missing_ok=True)       # a failed run still lets the supervisor go
+        self.patch(hil_recover, '_sweep', lambda tracked, log: 1 if survivor.exists() else 0)
+        r, w = os.pipe()
+        pid = os.fork()
+        if pid == 0:                                             # hil_test, its stdout and stderr the pipe
+            try:
+                os.close(r)
+                for fd in (1, 2):
+                    os.dup2(w, fd)
+                os.close(w)
+                out = hil_recover.recover_wedged(CFG, CFG['boards'], lambda line: os.write(1, f'{line}\n'.encode()))
+                os.write(1, f'{json.dumps(out)}\n'.encode())
+            finally:
+                os._exit(0)
+        os.close(w)
+        self.addCleanup(os.waitpid, pid, 0)
+        chunks, deadline = [], time.monotonic() + 20
+        try:
+            while True:
+                ready, _, _ = select.select([r], [], [], max(0, deadline - time.monotonic()))
+                if not ready:
+                    self.fail(f'no EOF on hil_test\'s stdout while the supervisor retains: {b"".join(chunks)!r}')
+                chunk = os.read(r, 65536)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+        finally:
+            os.close(r)
+        text = b''.join(chunks).decode()
+        self.assertIn('keeps every board reserved', text)
+        self.assertTrue(json.loads(text.splitlines()[-1])['b1']['recovered'], text)
+        with self.assertRaises(OSError):
+            hil_lock.flock_nb('parked')                          # EOF came during the retention
+        survivor.unlink()
+        self.assert_released('b1', 'b2', 'parked', within=15)
 
     def test_retention_outlives_the_watchdog(self):
         """A survivor that never dies: the alarms are cancelled on entering retention, so
