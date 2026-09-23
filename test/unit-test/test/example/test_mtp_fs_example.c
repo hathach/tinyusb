@@ -21,6 +21,7 @@
 static struct {
   uint32_t data_receive, data_send, response_send;
   uint16_t resp_code;
+  uint32_t resp_len;
 } api;
 
 static uint32_t refuse_receive_at; // this data_receive call since begin_command() fails (0: none)
@@ -29,6 +30,7 @@ bool tud_mtp_data_send(mtp_container_info_t* p_container) { (void) p_container; 
 bool tud_mtp_response_send(mtp_container_info_t* p_container) {
   api.response_send++;
   api.resp_code = p_container->header->code;
+  api.resp_len = p_container->header->len;
   return true;
 }
 bool tud_mtp_event_send(mtp_event_t* event) { (void) event; return true; }
@@ -341,15 +343,19 @@ void test_send_object_info_without_a_filename_character_is_refused(void) {
   TEST_ASSERT_EQUAL(files, fs_get_file_count());
 }
 
-void test_send_object_command_receive_refused_answers_error(void) {
+static void check_send_object_command_refused(uint32_t size) {
   open_session();
-  send_object_info(100);
+  send_object_info(size);
   refuse_receive_at = 1;
   begin_command(MTP_OP_SEND_OBJECT, 0);
   TEST_ASSERT_EQUAL(1, api.data_receive);
   TEST_ASSERT_EQUAL(1, api.response_send);
   TEST_ASSERT_EQUAL_HEX16(MTP_RESP_GENERAL_ERROR, api.resp_code);
+  TEST_ASSERT_EQUAL(HDR, api.resp_len);
 }
+void test_send_object_command_receive_refused_answers_error(void) { check_send_object_command_refused(100); }
+// an object larger than the endpoint buffer: a response carrying its length could not be sent
+void test_send_object_large_command_receive_refused_answers_error(void) { check_send_object_command_refused(BUFSIZE + 100); }
 
 static void check_send_object_continuation_refused(uint32_t refused_at) {
   open_session();
@@ -365,6 +371,7 @@ static void check_send_object_continuation_refused(uint32_t refused_at) {
   TEST_ASSERT_EQUAL(refused_at, api.data_receive);
   TEST_ASSERT_EQUAL(1, api.response_send);
   TEST_ASSERT_EQUAL_HEX16(MTP_RESP_GENERAL_ERROR, api.resp_code);
+  TEST_ASSERT_EQUAL(HDR, api.resp_len);
 }
 void test_send_object_first_packet_receive_refused_answers_error(void) { check_send_object_continuation_refused(2); }
 void test_send_object_later_packet_receive_refused_answers_error(void) { check_send_object_continuation_refused(3); }
