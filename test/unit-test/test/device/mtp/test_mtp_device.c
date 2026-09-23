@@ -1001,6 +1001,26 @@ void test_cancel_in_data_in_deferred_read_refused_stalls(void) {
   expect_response(next, MTP_RESP_OK, 0);
 }
 
+// libmtp 1.1.22 (ptp_read_cancel_func) polls Get Device Status for as long as it reads Device
+// Busy and only then drains the Bulk-in pipe: the undrained IN must not hold the status at Busy
+void test_cancel_in_data_in_status_polled_before_drain(void) {
+  open_device(TUSB_SPEED_HIGH);
+  app.data_mode = APP_SEND;
+  app.data_len = 1000;
+  const uint32_t tid = host_command(MTP_OP_GET_DEVICE_INFO, NULL, 0);
+  expect_call(DCD_XFER, EP_IN, BUFSIZE);
+  host_cancel(tid);
+  expect_status_ok();
+  expect_no_more_calls();
+  host_in_done(BUFSIZE); // the drain
+  expect_command_read();
+  expect_no_more_calls();
+  expect_status_ok();
+  app.data_mode = APP_NO_DATA;
+  const uint32_t next = host_command(MTP_OP_OPEN_SESSION, NULL, 0);
+  expect_response(next, MTP_RESP_OK, 0);
+}
+
 void test_cancel_in_data_complete_returns_to_command(void) {
   open_device(TUSB_SPEED_HIGH);
   uint8_t pkt[BUFSIZE];
