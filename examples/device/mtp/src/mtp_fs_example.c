@@ -598,14 +598,16 @@ static int32_t fs_send_object_info(tud_mtp_cb_data_t* cb_data) {
   }
 
   if (cb_data->phase == MTP_PHASE_COMMAND) {
-    (void) tud_mtp_data_receive(io_container);
+    if (!tud_mtp_data_receive(io_container)) {
+      return MTP_RESP_GENERAL_ERROR;
+    }
   } else if (cb_data->phase == MTP_PHASE_DATA) {
     // Only the 1st packet carries the ObjectInfo; a long filename, the dates and keywords can
     // spill into further packets, which are read to the declared length and ignored.
     const bool is_first_packet = (cb_data->total_xferred_bytes == sizeof(mtp_container_header_t) + io_container->payload_bytes);
     if (!is_first_packet) {
-      if (cb_data->total_xferred_bytes < io_container->header->len) {
-        (void) tud_mtp_data_receive(io_container);
+      if (cb_data->total_xferred_bytes < io_container->header->len && !tud_mtp_data_receive(io_container)) {
+        return MTP_RESP_GENERAL_ERROR; // answered while the host still owes data: the driver stalls
       }
       return 0;
     }
@@ -647,8 +649,8 @@ static int32_t fs_send_object_info(tud_mtp_cb_data_t* cb_data) {
     const uint32_t name_units_here = (io_container->payload_bytes - sizeof(mtp_object_info_header_t) - 1) / 2;
     (void) mtp_container_get_string(buf, f->name, tu_min32(TU_ARRAY_SIZE(f->name), name_units_here + 1));
     // ignore date created/modified/keywords
-    if (cb_data->total_xferred_bytes < io_container->header->len) {
-      (void) tud_mtp_data_receive(io_container);
+    if (cb_data->total_xferred_bytes < io_container->header->len && !tud_mtp_data_receive(io_container)) {
+      return MTP_RESP_GENERAL_ERROR;
     }
   } else {
     // nothing to do
