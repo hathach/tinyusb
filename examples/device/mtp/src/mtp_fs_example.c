@@ -211,6 +211,15 @@ static inline fs_file_t* fs_create_file(void) {
   return NULL;
 }
 
+// drop the object SendObjectInfo staged but could not finish reading
+static void fs_discard_staged_file(void) {
+  fs_file_t* f = fs_get_file(send_obj_handle);
+  if (f != NULL) {
+    f->name[0] = 0;
+  }
+  send_obj_handle = 0;
+}
+
 // simple malloc
 static inline uint8_t* fs_malloc(size_t size) {
 #ifdef CFG_EXAMPLE_MTP_READONLY
@@ -607,6 +616,7 @@ static int32_t fs_send_object_info(tud_mtp_cb_data_t* cb_data) {
     const bool is_first_packet = (cb_data->total_xferred_bytes == sizeof(mtp_container_header_t) + io_container->payload_bytes);
     if (!is_first_packet) {
       if (cb_data->total_xferred_bytes < io_container->header->len && !tud_mtp_data_receive(io_container)) {
+        fs_discard_staged_file();
         return MTP_RESP_GENERAL_ERROR; // answered while the host still owes data: the driver stalls
       }
       return 0;
@@ -650,6 +660,7 @@ static int32_t fs_send_object_info(tud_mtp_cb_data_t* cb_data) {
     (void) mtp_container_get_string(buf, f->name, tu_min32(TU_ARRAY_SIZE(f->name), name_units_here + 1));
     // ignore date created/modified/keywords
     if (cb_data->total_xferred_bytes < io_container->header->len && !tud_mtp_data_receive(io_container)) {
+      fs_discard_staged_file();
       return MTP_RESP_GENERAL_ERROR;
     }
   } else {
