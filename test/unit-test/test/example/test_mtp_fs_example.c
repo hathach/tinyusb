@@ -264,6 +264,7 @@ void test_send_object_info_command_receive_refused_answers_error(void) {
 
 static void check_continuation_refused(uint32_t refused_at) {
   open_session();
+  const uint32_t files = fs_get_file_count();
   begin_command(MTP_OP_SEND_OBJECT_INFO, SUPPORTED_STORAGE_ID);
   refuse_receive_at = refused_at;
   uint8_t pkt[BUFSIZE] = { 0 };
@@ -279,6 +280,9 @@ static void check_continuation_refused(uint32_t refused_at) {
   TEST_ASSERT_EQUAL(refused_at, api.data_receive);
   TEST_ASSERT_EQUAL(1, api.response_send);
   TEST_ASSERT_EQUAL_HEX16(MTP_RESP_GENERAL_ERROR, api.resp_code);
+  // the object the error answered for is not left occupying a slot
+  TEST_ASSERT_EQUAL(0, send_obj_handle);
+  TEST_ASSERT_EQUAL(files, fs_get_file_count());
 }
 void test_send_object_info_first_packet_receive_refused_answers_error(void) { check_continuation_refused(2); }
 void test_send_object_info_later_packet_receive_refused_answers_error(void) { check_continuation_refused(3); }
