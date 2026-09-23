@@ -214,7 +214,7 @@ void test_cancel_drops_the_staged_handle_but_keeps_the_session(void) {
   TEST_ASSERT_TRUE(is_session_opened);
   TEST_ASSERT_TRUE(fs_file_exist(fs_get_file(handle))); // a completed ObjectInfo is a real object
   begin_command(MTP_OP_SEND_OBJECT, 0);
-  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_NO_VALID_OBJECTINFO, api.resp_code);
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_INVALID_OBJECT_HANDLE, api.resp_code);
 }
 
 void test_cancel_mid_send_object_info_discards_the_staged_object(void) {
@@ -422,7 +422,7 @@ void test_send_object_again_without_object_info_is_refused(void) {
   begin_command(MTP_OP_SEND_OBJECT, 0);
   TEST_ASSERT_EQUAL(0, api.data_receive);
   TEST_ASSERT_EQUAL(1, api.response_send);
-  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_NO_VALID_OBJECTINFO, api.resp_code);
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_INVALID_OBJECT_HANDLE, api.resp_code);
   TEST_ASSERT_TRUE(fs_file_exist(fs_get_file(handle)));
   TEST_ASSERT_EACH_EQUAL_HEX8(0xA5, fs_buf, 100);
 }
