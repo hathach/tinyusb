@@ -600,6 +600,18 @@ static int32_t fs_send_object_info(tud_mtp_cb_data_t* cb_data) {
   if (cb_data->phase == MTP_PHASE_COMMAND) {
     (void) tud_mtp_data_receive(io_container);
   } else if (cb_data->phase == MTP_PHASE_DATA) {
+    // Only the 1st packet carries the ObjectInfo; a long filename, the dates and keywords can
+    // spill into further packets, which are read to the declared length and ignored.
+    const bool is_first_packet = (cb_data->total_xferred_bytes == sizeof(mtp_container_header_t) + io_container->payload_bytes);
+    if (!is_first_packet) {
+      if (cb_data->total_xferred_bytes < io_container->header->len) {
+        (void) tud_mtp_data_receive(io_container);
+      }
+      return 0;
+    }
+    if (io_container->payload_bytes < sizeof(mtp_object_info_header_t) + 1) {
+      return MTP_RESP_INVALID_DATASET;
+    }
     mtp_object_info_header_t* obj_info = (mtp_object_info_header_t*) io_container->payload;
     if (obj_info->storage_id != 0 && obj_info->storage_id != SUPPORTED_STORAGE_ID) {
       return MTP_RESP_INVALID_STORAGE_ID;
@@ -630,9 +642,14 @@ static int32_t fs_send_object_info(tud_mtp_cb_data_t* cb_data) {
     f->association_type = obj_info->association_type;
     f->size = obj_info->object_compressed_size;
     f->data = f_buf;
-    uint8_t* buf = io_container->payload + sizeof(mtp_object_info_header_t);
-    (void) mtp_container_get_string(buf, f->name, TU_ARRAY_SIZE(f->name));
+    // the filename may continue in the next packet: copy only what this one holds
+    const uint8_t* buf = io_container->payload + sizeof(mtp_object_info_header_t);
+    const uint32_t name_units_here = (io_container->payload_bytes - sizeof(mtp_object_info_header_t) - 1) / 2;
+    (void) mtp_container_get_string(buf, f->name, tu_min32(TU_ARRAY_SIZE(f->name), name_units_here + 1));
     // ignore date created/modified/keywords
+    if (cb_data->total_xferred_bytes < io_container->header->len) {
+      (void) tud_mtp_data_receive(io_container);
+    }
   } else {
     // nothing to do
   }
