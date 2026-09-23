@@ -36,7 +36,8 @@ typedef enum {
   MTP_PHASE_COMMAND = 0,
   MTP_PHASE_DATA,
   MTP_PHASE_RESPONSE,
-  MTP_PHASE_ERROR
+  MTP_PHASE_ERROR,
+  MTP_PHASE_DATA_COMPLETE, ///< data phase fully finished (incl. terminating ZLP), response not sent yet
 } mtp_phase_type_t;
 
 // PTP/MTP Class requests, PIMA 15740-2000: D.5.2
