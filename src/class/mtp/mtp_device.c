@@ -268,6 +268,10 @@ bool tud_mtp_response_send(mtp_container_info_t* p_container) {
   p_mtp->phase = MTP_PHASE_RESPONSE;
   if (!usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_in, (uint8_t*) epbuf, (uint16_t) len, false)) {
     p_mtp->phase = prev_phase;
+    if (p_container->header != &epbuf->header) {
+      // undo the move so that a retry with the same headerless view packs the same payload
+      memmove(p_container->payload, epbuf->payload, len - sizeof(mtp_container_header_t));
+    }
     return false;
   }
   return true;
