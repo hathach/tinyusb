@@ -2895,23 +2895,34 @@ class TestGetDepsExampleShim(unittest.TestCase):
 
 
 class TestGetDepsExistingDirectory(unittest.TestCase):
-    def run_get_dep(self, fail=None, create_git=True):
+    def run_get_dep(self, fail=None, create_git=True, initialized=False, valid=True, unborn=False,
+                    origin=True):
         from tempfile import TemporaryDirectory
         from unittest import mock
         import get_deps
 
-        with TemporaryDirectory() as top:
+        with TemporaryDirectory(prefix='tinyusb deps ') as top:
             dep = pathlib.Path(top, 'lib', 'dep')
             dep.mkdir(parents=True)
+            if initialized:
+                (dep / '.git').mkdir()
 
             commands = []
 
             def run(command):
                 commands.append(command)
-                if command.endswith(' init') and fail != 'init' and create_git:
+                if command[-1] == 'init' and fail != 'init' and create_git:
                     (dep / '.git').mkdir()
-                return subprocess.CompletedProcess([], 1 if fail and command.endswith(fail) else 0,
-                                                   stdout=b'parent-head\n')
+                returncode, output = 0, b'parent-head\n'
+                if command[-1] == '--is-inside-work-tree':
+                    returncode, output = (0, b'true\n') if valid else (1, b'not a repository\n')
+                elif command[-3:] == ['remote', 'get-url', 'origin']:
+                    returncode, output = ((0, b'https://example.invalid/dep.git\n') if origin else (1, b''))
+                elif command[-1] == 'HEAD' and unborn:
+                    returncode, output = 1, b''
+                if fail and command[-1].endswith(fail):
+                    returncode = 1
+                return subprocess.CompletedProcess([], returncode, stdout=output)
 
             with mock.patch.object(get_deps, 'TOP', pathlib.Path(top)), \
                     mock.patch.dict(get_deps.deps_all,
@@ -2925,14 +2936,15 @@ class TestGetDepsExistingDirectory(unittest.TestCase):
 
     def test_directory_without_git_metadata_is_initialized(self):
         dep, commands, status = self.run_get_dep()
-        git = f'git -C {dep}'
+        git = ['git', '-C', str(dep)]
         self.assertEqual(status, 0)
         self.assertEqual(commands, [
-            f'{git} init',
-            f'{git} remote add origin https://example.invalid/dep.git',
-            f'{git} fetch --depth 1 origin 0123456789abcdef',
-            f'{git} checkout FETCH_HEAD',
+            [*git, 'init'],
+            [*git, 'remote', 'add', 'origin', 'https://example.invalid/dep.git'],
+            [*git, 'fetch', '--depth', '1', 'origin', '0123456789abcdef'],
+            [*git, 'checkout', 'FETCH_HEAD'],
         ])
+        self.assertIn(' ', str(dep))
 
     def test_git_failures_stop_dependency_setup(self):
         for name, suffix, count in [('init', 'init', 1), ('remote', 'dep.git', 2),
@@ -2946,6 +2958,24 @@ class TestGetDepsExistingDirectory(unittest.TestCase):
         _, commands, status = self.run_get_dep(create_git=False)
         self.assertEqual(status, 1)
         self.assertEqual(len(commands), 1)
+
+    def test_unborn_repository_retries_fetch(self):
+        dep, commands, status = self.run_get_dep(initialized=True, unborn=True, origin=False)
+        git = ['git', '-C', str(dep)]
+        self.assertEqual(status, 0)
+        self.assertEqual(commands, [
+            [*git, 'rev-parse', '--is-inside-work-tree'],
+            [*git, 'remote', 'get-url', 'origin'],
+            [*git, 'remote', 'add', 'origin', 'https://example.invalid/dep.git'],
+            [*git, 'rev-parse', '--verify', 'HEAD'],
+            [*git, 'fetch', '--depth', '1', 'origin', '0123456789abcdef'],
+            [*git, 'checkout', 'FETCH_HEAD'],
+        ])
+
+    def test_invalid_git_metadata_stops_setup(self):
+        dep, commands, status = self.run_get_dep(initialized=True, valid=False)
+        self.assertEqual(status, 1)
+        self.assertEqual(commands, [['git', '-C', str(dep), 'rev-parse', '--is-inside-work-tree']])
 
 
 if __name__ == '__main__':
