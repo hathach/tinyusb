@@ -808,14 +808,15 @@ def main():
                       file=sys.stderr)
                 # run_cmd bounds the flash; its banners go to stdout, which in --json mode
                 # carries the result object -- keep them off it. A raising flasher (missing
-                # serial node, unwritable CWD) must not cost the battery its JSON report.
+                # serial node, unwritable CWD) must not cost the battery its JSON report,
+                # nor the re-scan below that decides the verdict.
                 try:
                     with redirect_stdout(sys.stderr):
                         ret = flash_fn(board, args.recover_fw, timeout=RECOVER_FLASH_TIMEOUT)
                 except Exception as e:
                     print(f'reflash raised: {e}; the device may still be wedged', file=sys.stderr)
-                    break
-                if ret.returncode != 0:
+                    ret = None
+                if ret is not None and ret.returncode != 0:
                     # a wedged RP DAP answers nothing and the probe has no reset line;
                     # POR it via the Rescue DP and retry once, exactly as the normal
                     # flash path does (no-op for every other board/failure)

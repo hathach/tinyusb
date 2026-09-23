@@ -670,7 +670,7 @@ class WedgeConfirmationOnTheMainPath(unittest.TestCase):
         def reconfigure(self, **kw):
             pass
 
-    def _main(self, confirm, keep_binding=True, recover=None, scans=None, flasher_extra=None):
+    def _main(self, confirm, keep_binding=True, recover=None, scans=None, flasher_extra=None, reflash=None):
         """Returns (json or None, stderr, exception or None, sysfs writes)."""
         import usbtest
         dev = {'serial': 'U', 'node': '/dev/bus/usb/999/999', 'speed': '480', 'tier': 1,
@@ -704,8 +704,8 @@ class WedgeConfirmationOnTheMainPath(unittest.TestCase):
             # a convoy-safe openocd board whose reset and reflash are stubs
             patch(hil_flash, 'convoy_safe', lambda f: True)
             self.flashed = []          # every in-run reflash the ladder attempted
-            patch(hil_flash, 'flash_openocd', lambda board, fw, **kw: self.flashed.append(fw) or
-                  types.SimpleNamespace(returncode=0, stdout=b'', stderr=b''))
+            patch(hil_flash, 'flash_openocd', reflash or (lambda board, fw, **kw: self.flashed.append(fw) or
+                  types.SimpleNamespace(returncode=0, stdout=b'', stderr=b'')))
             patch(hil_flash, 'rescue_openocd', lambda *a, **k: False)
             patch(usbtest, 'reset_primitive', lambda name: (lambda board, **kw: None))
         self.addCleanup(setattr, sys, 'argv', sys.argv)
@@ -788,6 +788,26 @@ class WedgeConfirmationOnTheMainPath(unittest.TestCase):
         # confirmed, then the probe reset clears it
         data, _err, _exc, _w = self._main(lambda node: ([4242], True, 30.0), recover=True,
                                           scans=[([], True)])
+        self.assertFalse(data['wedged'])
+        self.assertEqual(data['wedge_confirmation'], 'cleared')
+
+    @staticmethod
+    def _raising_reflash(board, fw, **kw):
+        raise RuntimeError('probe gone')
+
+    def test_a_reflash_that_raises_still_gets_the_rescan_on_a_kept_holder(self):
+        data, err, exc, _w = self._main(lambda node: ([4242], True, 30.0), recover=True,
+                                        scans=[([4242], True), ([4242], True)], reflash=self._raising_reflash)
+        self.assertIsNone(exc)
+        self.assertTrue(data['wedged'])
+        self.assertEqual(data['wedge_confirmation'], 'confirmed')
+        self.assertEqual(data['wedge_evidence']['after'], 'reflash')
+        self.assertIn('reflash raised', err)
+
+    def test_a_reflash_that_raises_still_gets_the_rescan_on_a_cleared_holder(self):
+        data, _err, exc, _w = self._main(lambda node: ([4242], True, 30.0), recover=True,
+                                         scans=[([4242], True), ([], True)], reflash=self._raising_reflash)
+        self.assertIsNone(exc)
         self.assertFalse(data['wedged'])
         self.assertEqual(data['wedge_confirmation'], 'cleared')
 
