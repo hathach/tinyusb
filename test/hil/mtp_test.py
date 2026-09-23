@@ -24,6 +24,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))  # PYTHONSAFEPATH dr
 
 from pathlib import Path
 from pymtp import LIBMTP_DeviceEntry, LIBMTP_RawDevice, MTP
+import mtp_raw
 
 FILE1_EXPECT = b'TinyUSB MTP Filesystem example'
 FILE2_MD5_EXPECT = '40ef23fc2891018d41a05d4a0d5f822f'  # md5sum of logo.png
@@ -141,6 +142,7 @@ def _gvfs_unmount(uid: str, deadline: float) -> None:
 
 
 def open_mtp_dev(uid: str, timeout: float):
+    """(MTP, (busnum, devnum)) of the opened device, or (None, None) on timeout."""
     mtp = MTP()
     deadline = time.monotonic() + timeout
     while True:
@@ -166,7 +168,7 @@ def open_mtp_dev(uid: str, timeout: float):
                 if mtp.device:
                     serial = mtp.get_serialnumber()
                     if (serial.decode('utf-8') if serial else '').lower() == uid.lower():
-                        return mtp
+                        return mtp, target
                     mtp.disconnect()
         except Exception as e:
             print(f'mtp poll: {type(e).__name__}: {e}', file=sys.stderr)
@@ -180,12 +182,12 @@ def open_mtp_dev(uid: str, timeout: float):
                     pass
                 mtp.device = None
         if time.monotonic() >= deadline:
-            return None
+            return None, None
         time.sleep(1)
 
 
 def run_session(uid: str, timeout: float) -> int:
-    mtp = open_mtp_dev(uid, timeout)
+    mtp, target = open_mtp_dev(uid, timeout)
     if mtp is None or mtp.device is None:
         print('MTP device not found')
         return 1
@@ -231,7 +233,24 @@ def run_session(uid: str, timeout: float) -> int:
         return 1
     finally:
         mtp.disconnect()
-    return 0
+    return run_raw(target)
+
+
+def run_raw(target) -> int:
+    """The recovery cases libmtp cannot drive, over pyusb, after libmtp let go of the
+    device. The offline tests script libmtp, not the bulk pipes: the fake rig has no
+    device to speak raw PTP to, so they are skipped there."""
+    if _ROOT:
+        print('raw cases skipped: fake rig')
+        return 0
+    try:
+        failures = mtp_raw.run_raw_session(*target)
+    except mtp_raw.RawError as e:
+        print(f'raw cases: {e}')
+        return 1
+    for f in failures:
+        print(f'raw case failed: {f}')
+    return 1 if failures else 0
 
 
 def main() -> int:

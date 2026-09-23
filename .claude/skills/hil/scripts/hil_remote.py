@@ -35,6 +35,7 @@ HARNESS_FILES = (
     'test/hil/usbtest.py',
     'test/hil/pymtp.py',
     'test/hil/mtp_test.py',
+    'test/hil/mtp_raw.py',
     'test/hil/helper/__init__.py',
     'test/hil/helper/hil_args.py',
     'test/hil/helper/hil_health.py',
