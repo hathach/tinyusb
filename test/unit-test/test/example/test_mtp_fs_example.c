@@ -214,7 +214,7 @@ void test_cancel_drops_the_staged_handle_but_keeps_the_session(void) {
   TEST_ASSERT_TRUE(is_session_opened);
   TEST_ASSERT_TRUE(fs_file_exist(fs_get_file(handle))); // a completed ObjectInfo is a real object
   begin_command(MTP_OP_SEND_OBJECT, 0);
-  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_INVALID_OBJECT_HANDLE, api.resp_code);
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_NO_VALID_OBJECTINFO, api.resp_code);
 }
 
 void test_cancel_mid_send_object_info_discards_the_staged_object(void) {
@@ -375,3 +375,54 @@ static void check_send_object_continuation_refused(uint32_t refused_at) {
 }
 void test_send_object_first_packet_receive_refused_answers_error(void) { check_send_object_continuation_refused(2); }
 void test_send_object_later_packet_receive_refused_answers_error(void) { check_send_object_continuation_refused(3); }
+
+// the host's container declares fewer bytes than SendObjectInfo did: PTP 11.3.7 says discard
+void test_send_object_short_is_incomplete_and_discarded(void) {
+  open_session();
+  const uint32_t files = fs_get_file_count();
+  const uint32_t handle = send_object_info(100);
+  uint8_t pkt[60];
+  memset(pkt, 0x5A, sizeof(pkt));
+  begin_command(MTP_OP_SEND_OBJECT, 0);
+  deliver_out(pkt, sizeof(pkt), sizeof(pkt));
+  data_complete();
+  TEST_ASSERT_EQUAL(1, api.response_send);
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_INCOMPLETE_TRANSFER, api.resp_code);
+  TEST_ASSERT_EQUAL(HDR, api.resp_len);
+  TEST_ASSERT_FALSE(fs_file_exist(fs_get_file(handle)));
+  TEST_ASSERT_EQUAL(files, fs_get_file_count());
+  TEST_ASSERT_EQUAL(0, send_obj_handle);
+}
+
+static uint32_t send_object_exact(uint8_t fill) {
+  const uint32_t handle = send_object_info(100);
+  uint8_t pkt[100];
+  memset(pkt, fill, sizeof(pkt));
+  begin_command(MTP_OP_SEND_OBJECT, 0);
+  deliver_out(pkt, sizeof(pkt), sizeof(pkt));
+  data_complete();
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_OK, api.resp_code);
+  return handle;
+}
+
+void test_send_object_exact_size_is_kept(void) {
+  open_session();
+  const uint32_t files = fs_get_file_count();
+  const uint32_t handle = send_object_exact(0xA5);
+  TEST_ASSERT_EQUAL(HDR, api.resp_len);
+  TEST_ASSERT_TRUE(fs_file_exist(fs_get_file(handle)));
+  TEST_ASSERT_EQUAL(files + 1, fs_get_file_count());
+  TEST_ASSERT_EACH_EQUAL_HEX8(0xA5, fs_buf, 100);
+}
+
+// PTP 10.4.13: a successful SendObject consumes the ObjectInfo, so a 2nd one cannot touch the 1st object
+void test_send_object_again_without_object_info_is_refused(void) {
+  open_session();
+  const uint32_t handle = send_object_exact(0xA5);
+  begin_command(MTP_OP_SEND_OBJECT, 0);
+  TEST_ASSERT_EQUAL(0, api.data_receive);
+  TEST_ASSERT_EQUAL(1, api.response_send);
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_NO_VALID_OBJECTINFO, api.resp_code);
+  TEST_ASSERT_TRUE(fs_file_exist(fs_get_file(handle)));
+  TEST_ASSERT_EACH_EQUAL_HEX8(0xA5, fs_buf, 100);
+}
