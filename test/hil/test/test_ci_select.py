@@ -1141,7 +1141,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
     def test_the_harness_own_tests_select_nothing_on_either_axis(self):
         for p in ('test/hil/test/test_ci_select.py', 'test/hil/test/test_ci_metrics.py',
                   'test/hil/test/test_hil_bounded.py', 'test/hil/test/stubs/pymtp.py',
-                  'test/hil/test/stubs/hid.py'):
+                  'test/hil/test/stubs/hid.py', 'test/hil/test/usbtest_harness.py'):
             s = ci_select.classify([p], REPO, ROSTERS)
             self.assertFalse(s['full'], p)
             self.assertFalse(s['boards'], p)
@@ -1178,11 +1178,13 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_hil_recover.py',
             'test/hil/test/test_hil_report.py',
             'test/hil/test/test_hil_rtt.py',
+            'test/hil/test/test_hil_usbtest_id.py',
             'test/hil/test/test_hil_util.py',
             'test/hil/test/test_membrowse_compare.py',
             'test/hil/test/test_membrowse_onboard.py',
             'test/hil/test/test_membrowse_report.py',
             'test/hil/test/test_metrics_compare_base.py',
+            'test/hil/test/usbtest_harness.py',
         ], 'test/hil/test/ gained or lost a file; it is carved out of rule 2, so confirm '
            'the rig still does not read anything in there before updating this list')
 

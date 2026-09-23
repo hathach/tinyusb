@@ -62,7 +62,7 @@ from multiprocessing import TimeoutError as MpTimeoutError
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # PYTHONSAFEPATH drops it
 import hil_flash
-import usbtest    # for the recovery bounds only; hil_test runs it as a subprocess
+import usbtest    # the recovery bounds and the id registration; batteries run it as a subprocess
 from helper import hil_args, hil_health, hil_lock, hil_recover, hil_report, hil_util
 from helper.hil_util import device_tests, dual_tests, host_test
 
@@ -1533,16 +1533,12 @@ def test_device_usbtest(board):
     # that gap sees the device drop mid-case
     time.sleep(USBTEST_SETTLE)
 
-    # --keep-binding is required for concurrent batteries: usbtest.py's cleanup unbinds
-    # EVERY usbtest-bound interface, killing a peer battery under USBTEST_PARALLEL > 1, and
-    # that unbind path has also wedged a host xHCI (usb_hcd_alloc_bandwidth) here. Harmless
-    # to leave: the next example enumerates under a different PID.
     script = Path(__file__).resolve().parent / 'usbtest.py'
     # --budget makes the battery a real bound: repeated case timeouts (a FAIL, not a HUNG,
     # so the battery keeps going) can otherwise spend the whole outer timeout inside the
     # case loop, leaving the recovery below nothing.
     cmd = (f'{shlex.quote(sys.executable)} {shlex.quote(str(script))} '
-           f'--serial {shlex.quote(uid)} --json --keep-binding '
+           f'--serial {shlex.quote(uid)} --json '
            f'--timeout 60 --budget {USBTEST_BATTERY_BUDGET}')
     # Post-hang recovery reflashes the DUT through its own probe, NEVER a root-port cycle
     # (one board reached instead of every fixture under the port; see usb-kernel-recover).
@@ -1893,8 +1889,8 @@ def build_board(board: Board) -> tuple[str, int]:
     return name, failed
 
 
-def _tests_for(board: Board) -> list:
-    """Which examples this board runs, in roster order.
+def _tests_for(board: Board) -> tuple:
+    """Which examples this board runs, in roster order, and the roster skips removed.
 
     Three sources, most specific first: an explicit -bt list for this board, a global -t
     list filtered against what the board can actually do, or the roster's own capability
@@ -1903,18 +1899,18 @@ def _tests_for(board: Board) -> list:
     """
     name = board['name']
     if name in board_test:
-        return list(board_test[name])
+        return list(board_test[name]), []
 
     board_tests = board.get('tests', {})
     if test_only:
         if 'only' in board_tests:
             allowed = set(board_tests['only'])
-            return [t for t in test_only if t in allowed]
+            return [t for t in test_only if t in allowed], []
         return [t for t in test_only
-                if board_tests.get(t.split('/', 1)[0]) is True]
+                if board_tests.get(t.split('/', 1)[0]) is True], []
 
     if 'tests' not in board:
-        return []
+        return [], []
     test_list: list = []
     if board_tests.get('device') is True:
         test_list += list(device_tests)
@@ -1924,11 +1920,23 @@ def _tests_for(board: Board) -> list:
         test_list += host_test
     if 'only' in board_tests:
         test_list = list(board_tests['only'])
-    for skip in board_tests.get('skip', []):
-        if skip in test_list:
-            test_list.remove(skip)
-            log_line(f'{name:25} {skip:30} ... Skip')
-    return test_list
+    skipped = [s for s in board_tests.get('skip', []) if s in test_list]
+    return [t for t in test_list if t not in skipped], skipped
+
+
+def register_usbtest_if_selected(boards: list, report_dir: Path, fresh: bool) -> None:
+    """Register usbtest's id once, before any battery: a new_id write during batteries
+    waits for every peer's in-flight case (usbtest.register_usbtest_id). A failure stops the
+    run here, leaving a report rather than the previous run's table."""
+    if not any('device/usbtest' in _tests_for(b)[0] for b in boards):
+        return
+    try:
+        usbtest.register_usbtest_id()
+    except SystemExit as e:
+        msg = f'usbtest id registration failed: {e}'
+        print(f'ERROR: {msg}', flush=True)
+        hil_report.mark_report_no_boards(report_dir, msg, fresh=fresh)
+        sys.exit(1)
 
 
 def test_board(board: Board) -> tuple:
@@ -1965,7 +1973,9 @@ def test_board(board: Board) -> tuple:
     # after the lock: flock wait behind a concurrent run is not board cost
     t_board = time.monotonic()
     try:
-        test_list = _tests_for(board)
+        test_list, skipped = _tests_for(board)
+        for skip in skipped:
+            log_line(f'{name:25} {skip:30} ... Skip')
 
         err_count = 0
         failed_tests = []
@@ -2554,6 +2564,9 @@ def main() -> None:
                               f'configured RTT console')
         print(f'warning: {msg} -- fine for prebuilt example sets, wrong for --build/CI '
               f'builds', flush=True)
+    # The report sidecar and the .failed re-run spec live in report_dir (CI keys it by run
+    # id: persistent across attempts, private to one run)
+    report_dir = Path(os.environ.get('HIL_REPORT_DIR', '.'))
     if not config_boards:
         # same reason the unknown -b board exits 1: 'No tests were run.' with rc 0 reads as
         # a green HIL leg, so a roster edit emptying a leg's filter stops testing silently
@@ -2562,13 +2575,12 @@ def main() -> None:
         print(msg, flush=True)
         # loud AND leaving evidence: exiting with no report at all lets the PR comment
         # keep the previous push's stale table under a red job
-        rd = Path(os.environ.get('HIL_REPORT_DIR', '.'))
         # fresh must be threaded through: this runs BEFORE the `if fresh:` wipe below, so
         # defaulting it here wiped an --accumulate run's accumulated rows -- the exact
         # regression the parameter exists to prevent.
-        hil_report.mark_report_no_boards(rd, msg, fresh=not args.accumulate)
+        hil_report.mark_report_no_boards(report_dir, msg, fresh=not args.accumulate)
         sys.exit(1)
-
+    register_usbtest_if_selected(config_boards, report_dir, fresh=not args.accumulate)
 
     # Before the build: the probe needs nothing from it, and the annotation is more useful
     # early than after a multi-board cmake build has been paid for.
@@ -2594,11 +2606,8 @@ def main() -> None:
         print(f'Build phase done: {build_err} failed')
         print('-' * 30)
 
-    # The report sidecar and the .failed re-run spec live in report_dir (CI keys it by run
-    # id: persistent across attempts, private to one run). A full run starts fresh; a re-run
-    # (--accumulate, which .failed always starts with) merges so already-passed boards
-    # survive. -bt alone is not a re-run marker.
-    report_dir = Path(os.environ.get('HIL_REPORT_DIR', '.'))
+    # A full run starts fresh; a re-run (--accumulate, which .failed always starts with)
+    # merges so already-passed boards survive. -bt alone is not a re-run marker.
     failed_fname = report_dir / (config_file.name + '.failed')
     fresh = not args.accumulate
 
