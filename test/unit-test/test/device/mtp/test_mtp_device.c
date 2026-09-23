@@ -1056,6 +1056,24 @@ void test_cancel_in_data_complete_returns_to_command(void) {
   expect_no_more_calls();
 }
 
+// the dcd refuses the command read Cancel arms: halt rather than idle with nothing armed
+void test_cancel_read_refused_stalls(void) {
+  open_device(TUSB_SPEED_HIGH);
+  uint8_t pkt[BUFSIZE];
+  const uint32_t tid = start_data_out(100, pkt);
+  app.defer_response = true;
+  host_out(pkt, HDR + 100);
+  expect_no_more_calls();
+  dcd_refuse_ep = EP_OUT;
+  host_cancel(tid);
+  TEST_ASSERT_EQUAL_MESSAGE(-1, dcd_refuse_ep, "command read never attempted");
+  TEST_ASSERT_EQUAL(1, app.cancel_calls);
+  recover_from_error(EP_OUT, EP_IN);
+  app.data_mode = APP_NO_DATA;
+  const uint32_t next = host_command(MTP_OP_OPEN_SESSION, NULL, 0);
+  expect_response(next, MTP_RESP_OK, 0);
+}
+
 void test_cancel_in_command_and_response_changes_nothing(void) {
   open_device(TUSB_SPEED_HIGH);
   host_cancel(0);
@@ -1110,6 +1128,23 @@ void test_device_reset_read_refused_stalls(void) {
   expect_call(DCD_STALL, EP_IN, 0);
   expect_call(DCD_CLEAR_STALL, EP_IN, 0);
   recover_from_error(EP_IN, EP_OUT);
+  const uint32_t tid = host_command(MTP_OP_OPEN_SESSION, NULL, 0);
+  expect_response(tid, MTP_RESP_OK, 0);
+}
+
+// the dcd refuses the command read once the host has cleared both halts: halt again
+void test_clear_halt_read_refused_stalls(void) {
+  open_device(TUSB_SPEED_HIGH);
+  app.cmd_ret = -1;
+  host_command(MTP_OP_OPEN_SESSION, NULL, 0);
+  expect_stall_both();
+  host_clear_halt(EP_IN);
+  expect_no_more_calls();
+  dcd_refuse_ep = EP_OUT;
+  host_clear_halt(EP_OUT);
+  TEST_ASSERT_EQUAL_MESSAGE(-1, dcd_refuse_ep, "command read never attempted");
+  recover_from_error(EP_IN, EP_OUT);
+  app.cmd_ret = 0;
   const uint32_t tid = host_command(MTP_OP_OPEN_SESSION, NULL, 0);
   expect_response(tid, MTP_RESP_OK, 0);
 }
