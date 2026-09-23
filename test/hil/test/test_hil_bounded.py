@@ -36,11 +36,7 @@ TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 # the modules under test live in the parent dir (test/hil), not here
 sys.path.insert(0, os.path.dirname(TEST_DIR))
 
-serial_stub = types.ModuleType('serial')
-serial_stub.Serial = type('Serial', (), {})
-serial_stub.SerialException = type('SerialException', (Exception,), {})
-serial_stub.SerialTimeoutException = type('SerialTimeoutException', (Exception,), {})
-sys.modules.setdefault('serial', serial_stub)
+import usbtest_harness
 import hil_flash
 import hil_test
 
@@ -667,35 +663,22 @@ class WedgeConfirmationOnTheMainPath(unittest.TestCase):
     the confirmation still reaches the finally with the hang flagged; and every recovery scan
     re-derives the confirmation, so a stale 'confirmed' never outlives an incomplete final scan."""
 
-    class _Out(io.StringIO):
-        def reconfigure(self, **kw):
-            pass
-
     def _main(self, confirm, keep_binding=True, recover=None, scans=None, flasher_extra=None, reflash=None):
         """Returns (json or None, stderr, exception or None, sysfs writes)."""
         import usbtest
-        dev = {'serial': 'U', 'node': '/dev/bus/usb/999/999', 'speed': '480', 'tier': 1,
-               'sysname': '1-1'}
         writes = []
 
         def patch(obj, name, value):
-            self.addCleanup(setattr, obj, name, getattr(obj, name))
-            setattr(obj, name, value)
-        patch(usbtest, 'find_device', lambda serial, first=False: dict(dev))
-        patch(usbtest, 'check_host_compat', lambda d: None)
+            usbtest_harness.patch(self, obj, name, value)
+        usbtest_harness.stub_device(self, usbtest, lambda num, d, tu, quick, timeout:
+                                    {'num': num, 'name': 'x', 'params': '', 'status': 'HUNG',
+                                     'detail': f'testusb stuck in D state after {timeout}s'})
         patch(usbtest, 'bind_usbtest', lambda d: None)
         patch(usbtest, 'register_usbtest_id', lambda: None)
-        patch(usbtest, 'set_pattern', lambda v: None)
-        patch(usbtest, 'dmesg_tail', lambda: '')
         patch(usbtest, 'sysfs_write', lambda path, data, check=True: writes.append((str(path), data)))
-        patch(usbtest, '_hu', lambda: types.SimpleNamespace(path_stranded=lambda p: False,
-                                                             strand_note=lambda: ''))
         td = TemporaryDirectory()
         self.addCleanup(td.cleanup)
         patch(usbtest, 'DRIVER', Path(td.name))          # no bound interfaces to unbind
-        patch(usbtest, 'run_case', lambda num, d, tu, quick, timeout:
-              {'num': num, 'name': 'x', 'params': '', 'status': 'HUNG',
-               'detail': f'testusb stuck in D state after {timeout}s'})
         patch(usbtest, 'confirm_wedge', confirm)
         patch(usbtest.time, 'sleep', lambda s: None)
         if scans is not None:
@@ -709,17 +692,14 @@ class WedgeConfirmationOnTheMainPath(unittest.TestCase):
                   types.SimpleNamespace(returncode=0, stdout=b'', stderr=b'')))
             patch(hil_flash, 'rescue_openocd', lambda *a, **k: False)
             patch(usbtest, 'reset_primitive', lambda name: (lambda board, **kw: None))
-        self.addCleanup(setattr, sys, 'argv', sys.argv)
-        sys.argv = ['usbtest.py', '--serial', 'U', '--json', '--tests', '1',
-                    '--timeout', '7', '--testusb', sys.executable]
+        usbtest_harness.argv(self, '--timeout', '7')
         if keep_binding:
             sys.argv.append('--keep-binding')
         if recover:
             sys.argv += ['--recover-board', json.dumps({'name': 'b', 'flasher': {
                 'name': 'openocd', 'vid_pid': '0x1 0x2', 'args': '', **(flasher_extra or {})}}),
                          '--recover-fw', '/tmp/fw.elf']
-        out, err, exc = self._Out(), io.StringIO(), None
-        from contextlib import redirect_stderr
+        out, err, exc = usbtest_harness.Out(), io.StringIO(), None
         with redirect_stdout(out), redirect_stderr(err):
             try:
                 usbtest.main()
@@ -954,7 +934,7 @@ class WedgedMarker(unittest.TestCase):
     def _admit(self, board_name='b'):
         called = []
         self.addCleanup(setattr, hil_test, '_tests_for', hil_test._tests_for)
-        hil_test._tests_for = lambda board: called.append(board) or []
+        hil_test._tests_for = lambda board: called.append(board) or ([], [])
         ret = hil_test.test_board({'name': board_name, 'uid': 'U', 'flasher': {'name': 'openocd'}})
         return ret, called
 

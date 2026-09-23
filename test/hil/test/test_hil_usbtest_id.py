@@ -24,12 +24,7 @@ from tempfile import TemporaryDirectory
 
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(TEST_DIR))
-# hil_test imports pyserial, which the bare pre-commit runner lacks; nothing here opens a port
-serial_stub = types.ModuleType('serial')
-serial_stub.Serial = type('Serial', (), {})
-serial_stub.SerialException = type('SerialException', (Exception,), {})
-serial_stub.SerialTimeoutException = type('SerialTimeoutException', (Exception,), {})
-sys.modules.setdefault('serial', serial_stub)
+import usbtest_harness  # noqa: E402 - stubs serial before hil_test is imported
 import usbtest  # noqa: E402
 from helper import hil_lock  # noqa: E402
 
@@ -308,27 +303,12 @@ class StandaloneLeavesThePeersAlone(unittest.TestCase):
         fake = FakeDriver(self, listed='cafe 4010\n')
         ours = fake.interface('1-1', driver='usbtest')
         peer = fake.interface('2-1', driver='usbtest')
-        dev = {'serial': 'U', 'node': '/dev/bus/usb/001/002', 'speed': '480', 'tier': 1,
-               'sysname': '1-1'}
-
-        fake.patch('find_device', lambda serial, first=False: dict(dev))
-        fake.patch('check_host_compat', lambda d: None)
-        fake.patch('set_pattern', lambda v: None)
-        fake.patch('dmesg_tail', lambda: '')
-        fake.patch('_hu', lambda: types.SimpleNamespace(path_stranded=lambda p: False,
-                                                        strand_note=lambda: ''))
-        fake.patch('run_case', lambda num, d, tu, quick, timeout:
-                   {'num': num, 'name': 'x', 'params': '', 'status': 'PASS', 'detail': ''})
-        self.addCleanup(setattr, sys, 'argv', sys.argv)
-        sys.argv = ['usbtest.py', '--serial', 'U', '--json', '--tests', '1',
-                    '--testusb', sys.executable, *extra]
+        usbtest_harness.stub_device(self, usbtest, lambda num, d, tu, quick, timeout:
+                                    {'num': num, 'name': 'x', 'params': '', 'status': 'PASS', 'detail': ''})
+        usbtest_harness.argv(self, *extra)
         # both bindings are visible to a driver-wide unbind loop, so its absence is what is tested
         self.assertEqual(sorted(p.name for p in fake.driver.glob('*:*')), ['1-1:1.0', '2-1:1.0'])
-
-        class Out(io.StringIO):
-            def reconfigure(self, **kw):   # main() line-buffers stdout
-                pass
-        with redirect_stdout(Out()), redirect_stderr(io.StringIO()):
+        with redirect_stdout(usbtest_harness.Out()), redirect_stderr(io.StringIO()):
             usbtest.main()
         return fake, ours, peer
 
@@ -370,23 +350,19 @@ class HilTestRegistersBeforeThePool(unittest.TestCase):
 
     def select(self, boards, test_only=(), board_test=None):
         ht = self.hil_test
-        for name in ('test_only', 'board_test', 'log_line'):
+        for name in ('test_only', 'board_test'):
             self.addCleanup(setattr, ht, name, getattr(ht, name))
         ht.test_only = list(test_only)
         ht.board_test = dict(board_test or {})
-        logged = []
-        ht.log_line = logged.append
         ht.register_usbtest_if_selected(boards, Path('.'), fresh=True)
-        return logged
 
     def test_the_roster_capability_selects_it(self):
         self.select([{'name': 'a', 'tests': {'host': True}}, {'name': 'b', 'tests': {'device': True}}])
         self.assertEqual(self.calls, ['register'])
 
-    def test_a_roster_skip_removes_it_without_logging(self):
-        logged = self.select([{'name': 'a', 'tests': {'device': True, 'skip': ['device/usbtest']}}])
+    def test_a_roster_skip_removes_it(self):
+        self.select([{'name': 'a', 'tests': {'device': True, 'skip': ['device/usbtest']}}])
         self.assertEqual(self.calls, [])
-        self.assertEqual(logged, [], 'the selection check logged a Skip line of its own')
 
     def test_a_t_list_without_it(self):
         self.select([{'name': 'a', 'tests': {'device': True}}], test_only=['device/cdc_msc'])

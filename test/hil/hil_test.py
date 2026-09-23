@@ -1889,8 +1889,8 @@ def build_board(board: Board) -> tuple[str, int]:
     return name, failed
 
 
-def _tests_for(board: Board, log: bool = True) -> list:
-    """Which examples this board runs, in roster order.
+def _tests_for(board: Board) -> tuple:
+    """Which examples this board runs, in roster order, and the roster skips removed.
 
     Three sources, most specific first: an explicit -bt list for this board, a global -t
     list filtered against what the board can actually do, or the roster's own capability
@@ -1899,18 +1899,18 @@ def _tests_for(board: Board, log: bool = True) -> list:
     """
     name = board['name']
     if name in board_test:
-        return list(board_test[name])
+        return list(board_test[name]), []
 
     board_tests = board.get('tests', {})
     if test_only:
         if 'only' in board_tests:
             allowed = set(board_tests['only'])
-            return [t for t in test_only if t in allowed]
+            return [t for t in test_only if t in allowed], []
         return [t for t in test_only
-                if board_tests.get(t.split('/', 1)[0]) is True]
+                if board_tests.get(t.split('/', 1)[0]) is True], []
 
     if 'tests' not in board:
-        return []
+        return [], []
     test_list: list = []
     if board_tests.get('device') is True:
         test_list += list(device_tests)
@@ -1920,19 +1920,15 @@ def _tests_for(board: Board, log: bool = True) -> list:
         test_list += host_test
     if 'only' in board_tests:
         test_list = list(board_tests['only'])
-    for skip in board_tests.get('skip', []):
-        if skip in test_list:
-            test_list.remove(skip)
-            if log:
-                log_line(f'{name:25} {skip:30} ... Skip')
-    return test_list
+    skipped = [s for s in board_tests.get('skip', []) if s in test_list]
+    return [t for t in test_list if t not in skipped], skipped
 
 
 def register_usbtest_if_selected(boards: list, report_dir: Path, fresh: bool) -> None:
     """Register usbtest's id once, before any battery: a new_id write during batteries
     waits for every peer's in-flight case (usbtest.register_usbtest_id). A failure stops the
     run here, leaving a report rather than the previous run's table."""
-    if not any('device/usbtest' in _tests_for(b, log=False) for b in boards):
+    if not any('device/usbtest' in _tests_for(b)[0] for b in boards):
         return
     try:
         usbtest.register_usbtest_id()
@@ -1977,7 +1973,9 @@ def test_board(board: Board) -> tuple:
     # after the lock: flock wait behind a concurrent run is not board cost
     t_board = time.monotonic()
     try:
-        test_list = _tests_for(board)
+        test_list, skipped = _tests_for(board)
+        for skip in skipped:
+            log_line(f'{name:25} {skip:30} ... Skip')
 
         err_count = 0
         failed_tests = []
