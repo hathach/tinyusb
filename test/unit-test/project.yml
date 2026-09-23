@@ -139,6 +139,9 @@
       - CFG_TUSB_DEBUG=0
       - CFG_TUH_AUDIO_EPIN_BUFSIZE=1024
       - CFG_TUH_AUDIO_EPOUT_BUFSIZE=1024
+    :test_mtp_device:
+      - CFG_TUD_MSC=0
+      - CFG_TUD_MTP=1
   :release: []
 
   # Enable to inject name of a test as a unique compilation symbol into its respective executable build.
