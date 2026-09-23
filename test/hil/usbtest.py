@@ -44,7 +44,7 @@ SYS_USB = Path('/sys/bus/usb/devices')
 DRIVER = Path('/sys/bus/usb/drivers/usbtest')
 PATTERN_PARAM = Path('/sys/module/usbtest/parameters/pattern')
 RECOVER_FLASH_TIMEOUT = 90  # bound on the post-hang reflash; typical flash is 10-20s
-RECOVER_RESET_TIMEOUT = 30  # bound on the post-hang probe reset; ResetTarget measures ~130ms
+RECOVER_RESET_TIMEOUT = 30  # bound on the post-hang probe reset; jlink ResetTarget ~130ms, stlink --rst --go ~100ms
 
 
 RECOVER_SETTLE = 5          # after each step, to let a freed ioctl unwind

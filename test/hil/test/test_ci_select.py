@@ -717,6 +717,8 @@ class FlasherRecoverEntry(unittest.TestCase):
         rec = {'name': 'openocd', 'args': '-f interface/jlink.cfg -f target/foo.cfg'}
         self.assertEqual(hil_flash.recover_flasher({'flasher': prim, 'flasher_recover': rec}),
                          {**rec, 'uid': 'X'})   # the primary's probe
+        self.assertEqual(hil_flash.recover_flasher(
+            {'flasher': prim, 'flasher_recover': {**rec, 'uid': 'Y'}})['uid'], 'X')
         self.assertEqual(hil_flash.recover_flasher({'flasher': prim}), prim)
 
     def test_openocd_over_jlink_is_convoy_safe_without_a_pin(self):
