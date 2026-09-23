@@ -17,30 +17,9 @@ OSAL_QUEUE_DEF(usbh_int_set, xhci_event_params, XHCI_QUEUE_SZ, xcc_event_t);
 
 static QueueHandle_t xhci_queue;
 
-Usb3_Handle_t* alloc_usb_port( void )
+void dealloc_usb_port( struct xhci_data *xhci_handle )
 {
-    int ret;
-    Usb3_Handle_t *xHandle = (Usb3_Handle_t*) pvPortAlignedAlloc(64,
-            sizeof(Usb3_Handle_t));
-    if ( xHandle == NULL )
-    {
-        ERROR("Cannot allocate memory");
-        return NULL;
-    }
-
-    ret = is_ptr_mem_aligned((uint64_t) xHandle, 64);
-    if ( ret != 0 )
-    {
-        ERROR("Cannot allocate memory");
-        return NULL;
-    }
-
-    return xHandle;
-}
-
-void dealloc_usb_port( Usb3_Handle_t *handle )
-{
-    deallocate_xhci_context(&handle->xhci_priv);
+    deallocate_xhci_context(xhci_handle);
 }
 
 int init_hcd_params( void )
@@ -56,7 +35,7 @@ int init_hcd_params( void )
 
 int wait_for_command_completion_event( struct xhci_data *xhci_ptr, int type )
 {
-    xcc_event_t event;
+    xcc_event_t event = {0};
     while ( true )
     {
         if ( osal_queue_receive(xhci_queue, &event, UINT32_MAX) == pdTRUE )

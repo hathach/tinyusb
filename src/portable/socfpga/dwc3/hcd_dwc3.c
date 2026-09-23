@@ -27,31 +27,38 @@
 
 #include <math.h>
 #include "tusb.h"
-#include "socfpga_rst_mngr.h"
 #include "host/hcd.h"
-
-#include "dwc3.h"
-#include "xhci_commands.h"
-#include "xhci_endpoints.h"
-#include "xhci_interrupts.h"
-#include "xhci_doorbell.h"
-#include "hcd_dwc3.h"
-#include "socfpga_usb.h"
 #include "tusb_private.h"
-#include "osal_log.h"
 
-#define USB3_HS_PORT (1)
-#define USB3_SS_PORT (2)
+#if CFG_TUSB_MCU == OPT_MCU_SOCFPGA
+  #include "socfpga_rst_mngr.h"
+  #include "dwc3.h"
+  #include "xhci_commands.h"
+  #include "xhci_endpoints.h"
+  #include "xhci_interrupts.h"
+  #include "xhci_doorbell.h"
+  #include "hcd_dwc3.h"
+  #include "osal_log.h"
+  #include "socfpga_cache.h"
+#endif
+
+typedef struct
+{
+  uint8_t *buffer;
+  uint32_t buflen;
+} hcd_dwc3_endpoint_t;
+
+#define XHCI_DCI_MAX 31
+hcd_dwc3_endpoint_t ep_data[XHCI_DCI_MAX];
 
 static void hcd_xhci_set_configuration();
 static void hcd_dwc3_update_device_address( uint8_t daddr );
 
-Usb3_Handle_t *Usb3handle;
-uint8_t device_addr = 0;
-
+struct xhci_data xhci_handle __attribute__((aligned(64)));
 static struct xhci_int_desc usb3_int_desc;
 static tusb_control_request_t ctrl_req;
 static int usb_set_config = 0;
+uint8_t device_addr = 0;
 
 bool hcd_dwc3_init( uint8_t rhport, const tusb_rhport_init_t *rh_init )
 {
@@ -59,7 +66,7 @@ bool hcd_dwc3_init( uint8_t rhport, const tusb_rhport_init_t *rh_init )
     (void) rh_init;
     int ret;
 
-    if (rhport == USB3_SS_PORT)
+    if (rhport == SOCFPGA_USB3_SS_PORT)
     {
         usb3_int_ptr->int_handler = tusb_int_handler;
         if (register_usb3ISR(usb3_int_ptr) == false)
@@ -70,13 +77,6 @@ bool hcd_dwc3_init( uint8_t rhport, const tusb_rhport_init_t *rh_init )
         if (rstmgr_deassert_reset(RST_USB1) != 0)
         {
             ERROR("\r\n Unable to deassdert the usb3 reset \r\n");
-            return false;
-        }
-
-        Usb3handle = alloc_usb_port();
-        if (Usb3handle == NULL)
-        {
-            ERROR("Cannot allocate memory!!!");
             return false;
         }
 
@@ -94,32 +94,37 @@ bool hcd_dwc3_init( uint8_t rhport, const tusb_rhport_init_t *rh_init )
             return false;
         }
 
-        if( xhci_init(&Usb3handle->xhci_priv) == false )
-		{
-            ERROR("xHCI init failed -%d!!!", ret);
+        //clear xHCI data structure members
+        tu_memclr(&xhci_handle, sizeof(xhci_handle));
+
+        if( xhci_init(&xhci_handle) == false )
+        {
+            ERROR("xHCI init failed !!!");
             return false;
-		}
+        }
     }
 
     return true;
 }
 bool hcd_dwc3_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr)
 {
+  (void)rhport;
+  (void)daddr;
+  (void)ep_addr;
   return true;
 }
 
 void hcd_dwc3_int_enable( uint8_t rhport )
 {
-
-    switch (rhport)
-    {
-    case USB3_HS_PORT:
-        enable_xhci_interrupts();
-        break;
+  switch (rhport)
+  {
+    case SOCFPGA_USB3_HS_PORT:
+      enable_xhci_interrupts();
+      break;
 
     default: /* do nothing */
-        break;
-    }
+      break;
+  }
 }
 
 void hcd_dwc3_int_disable( uint8_t rhport )
@@ -150,9 +155,9 @@ void hcd_dwc3_port_reset( uint8_t rhport )
 
 static bool hcd_enable_slot( void )
 {
-    enable_slot_command(Usb3handle->xhci_priv.xcr_ring);
+    enable_slot_command(xhci_handle.xcr_ring);
 
-    if (wait_for_command_completion_event(&Usb3handle->xhci_priv,
+    if (wait_for_command_completion_event(&xhci_handle,
             ENABLE_SLOT_CMD) != 0)
     {
         return false;
@@ -165,43 +170,42 @@ static bool hcd_send_address_cmd( void )
 {
     int ret;
 
-    update_device_dev_speed(&Usb3handle->xhci_priv);
+    update_device_dev_speed(&xhci_handle);
 
-    ret = init_input_device_context(&Usb3handle->xhci_priv);
+    ret = init_input_device_context(&xhci_handle);
     if (ret != 0)
     {
         ERROR("XHCI Error -%d!!!", ret);
         return false;
     }
 
-    update_dcbaa_entry(&Usb3handle->xhci_priv);
+    update_dcbaa_entry(&xhci_handle);
 
-    set_device_address(&Usb3handle->xhci_priv);
+    set_device_address(&xhci_handle);
 
-    if (wait_for_command_completion_event(&Usb3handle->xhci_priv,
+    if (wait_for_command_completion_event(&xhci_handle,
             ADDRESS_DEVICE_CMD) != 0)
     {
         return false;
     }
 
-    update_device_address(&Usb3handle->xhci_priv);
+    update_device_address(&xhci_handle);
 
-    if (Usb3handle->xhci_priv.dev_data.dev_addr == 0U)
+    if (xhci_handle.dev_data.dev_addr == 0U)
     {
         return false; /* device address can not be zero after address command is sent */
     }
 
-    display_xhci_device_params(&Usb3handle->xhci_priv.dev_data);
-    display_ip_context(Usb3handle->xhci_priv.ip_ctx);
-    display_op_context(Usb3handle->xhci_priv.op_ctx);
-    display_event_trbs(&Usb3handle->xhci_priv);
+    display_xhci_device_params(&xhci_handle.dev_data);
+    display_ip_context(xhci_handle.ip_ctx);
+    display_op_context(xhci_handle.op_ctx);
+    display_event_trbs(&xhci_handle);
 
     return true;
 }
 
 static void hcd_dwc3_update_device_address( uint8_t daddr )
 {
-    // device_addr = 1U;
     device_addr = daddr;
 }
 
@@ -218,8 +222,6 @@ void hcd_dwc3_port_reset_end( uint8_t rhport )
 
 tusb_speed_t hcd_dwc3_port_speed_get( uint8_t rhport )
 {
-
-    (void) rhport;
     uint8_t dev_speed;
     tusb_speed_t ret;
 
@@ -249,26 +251,26 @@ void hcd_dwc3_device_close( uint8_t rhport )
 {
     uint32_t slotid;
 
-    if (rhport == USB3_SS_PORT)
+    if (rhport == SOCFPGA_USB3_SS_PORT)
     {
         /* Issue WR for usb3 ports only */
         xhci_warm_reset(rhport);
     }
 
-    slotid = Usb3handle->xhci_priv.dev_data.slot_id;
+    slotid = xhci_handle.dev_data.slot_id;
 
     if (slotid != 0U)
     {
-        disable_slot_command(Usb3handle->xhci_priv.xcr_ring, slotid);
+        disable_slot_command(xhci_handle.xcr_ring, slotid);
 
-        if (wait_for_command_completion_event(&Usb3handle->xhci_priv,
+        if (wait_for_command_completion_event(&xhci_handle,
                 DISABLE_SLOT_CMD) != 0)
         {
             ERROR("xHCI command failed");
             return;
         }
 
-        dealloc_usb_port(Usb3handle);
+        dealloc_usb_port(&xhci_handle);
         device_addr = 0U;
         usb_set_config = 0;
     }
@@ -279,15 +281,15 @@ void hcd_dwc3_device_close( uint8_t rhport )
  *--------------------------------------------------------------------+*/
 static void hcd_xhci_set_configuration()
 {
-        update_xhc_slot_context(&Usb3handle->xhci_priv);
+        update_xhc_slot_context(&xhci_handle);
 
-        init_xhc_endpoint_context(&Usb3handle->xhci_priv, BULK_OUT);
+        init_xhc_endpoint_context(&xhci_handle, BULK_OUT);
 
-        init_xhc_endpoint_context(&Usb3handle->xhci_priv, BULK_IN);
+        init_xhc_endpoint_context(&xhci_handle, BULK_IN);
 
-        configure_endpoint(&Usb3handle->xhci_priv);
+        configure_endpoint(&xhci_handle);
 
-        if (wait_for_command_completion_event(&Usb3handle->xhci_priv,
+        if (wait_for_command_completion_event(&xhci_handle,
                 CONFIGURE_ENDPOINT_CMD) != 0)
         {
             return;
@@ -297,6 +299,7 @@ static void hcd_xhci_set_configuration()
 bool hcd_dwc3_setup_send( uint8_t rhport, uint8_t daddr,
         uint8_t const setup_packet[ 8 ] )
 {
+    (void)rhport;
     memcpy(&ctrl_req, &setup_packet[0], sizeof(ctrl_req));
 
     if ((tusb_request_code_t) setup_packet[ 1 ] == TUSB_REQ_SET_CONFIGURATION)
@@ -328,6 +331,9 @@ bool hcd_dwc3_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t 
 {
     const uint8_t ep_num = tu_edpt_number(ep_addr);
     const unsigned dir = (uint32_t) tu_edpt_dir(ep_addr);
+    const uint8_t ep_dci = get_ep_dci(ep_addr);
+
+    (void)rhport;
 
     // There is no separate data stage for xHCI controller. Hence skip the tinyusb enumeration step for data stage
     if( buffer == NULL && (buflen == 0) && (usb_set_config == 0))
@@ -346,20 +352,20 @@ bool hcd_dwc3_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t 
 
     if( ep_num == 0 )
     {
-      configure_setup_stage(&Usb3handle->xhci_priv, buffer, (usb_control_request_t *)&ctrl_req);
-      ring_xhci_ep0_db(&Usb3handle->xhci_priv.op_regs);
+      configure_setup_stage(&xhci_handle, buffer, (usb_control_request_t *)&ctrl_req);
+      ring_xhci_ep0_db(&xhci_handle.op_regs);
 	  if( buffer != NULL )
 	  {
-        usb_dcache_invalidate(buffer, buflen);
+        cache_force_invalidate(buffer, buflen);
       }
     }
     else
     {
 	  if( dir == TUSB_DIR_OUT )
 	  {
-        usb_dcache_clean(buffer, buflen); 
+        cache_force_write_back(buffer, buflen); 
 	  }
-      endpoint_transfer(&Usb3handle->xhci_priv, (int) ep_num, (uint8_t) dir, buffer, buflen);
+      endpoint_transfer(&xhci_handle, (int) ep_num, (uint8_t) dir, buffer, buflen);
     }
 
     return true;
@@ -372,6 +378,16 @@ bool hcd_dwc3_edpt_abort_xfer( uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr
     (void) ep_addr;
 
     return false;
+}
+
+bool hcd_dwc3_edpt_clear_stall( uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr )
+{
+  (void) rhport;
+  (void) dev_addr;
+  (void) ep_addr;
+
+  /* xHCI Clear Feature / Reset Endpoint not wired yet */
+  return true;
 }
 
 static void handle_endpoint_transfer(uint8_t ep_dci, uint8_t ep_addr)
@@ -418,7 +434,7 @@ void hcd_dwc3_int_handler( uint8_t rhport, bool in_isr )
 
     xhci_event_trb_t event_data;
 
-    event_data = get_xhc_event(&Usb3handle->xhci_priv);
+    event_data = get_xhc_event(&xhci_handle);
 
     trb_id =
             (xhci_event_trb_type_t) event_data.event_trb.trb_control_field.
@@ -450,14 +466,14 @@ void hcd_dwc3_int_handler( uint8_t rhport, bool in_isr )
 
         /* RH port id should be always less than maximum supported port */
         if ((rh_params.rhport < 1U) || (rh_params.rhport >
-                Usb3handle->xhci_priv.xhc_cap_ptr->hcsparams1_params.max_ports))
+                xhci_handle.xhc_cap_ptr->hcsparams1_params.max_ports))
         {
             break;
         }
         if (rh_params.dev_attach_flag == 1)
         {
             hcd_event_device_attach(rh_params.rhport, in_isr);
-            update_device_rh_params(&Usb3handle->xhci_priv, rh_params);
+            update_device_rh_params(&xhci_handle, rh_params);
         }
         else if (rh_params.dev_attach_flag == -1)
         {
@@ -482,31 +498,31 @@ void hcd_dwc3_int_handler( uint8_t rhport, bool in_isr )
 
 bool hcd_evaluate_xhci_context( void )
 {
-    const uint16_t bcd_usb = Usb3handle->xhci_priv.usb_desc.dev_desc.bcdUSB;
+    tusb_desc_device_t usb_desc;
+    TU_ASSERT(tuh_descriptor_get_device_local(device_addr, &usb_desc));
+    const uint16_t bcd_usb = usb_desc.bcdUSB;
     uint16_t desc_max_pkt_size;
     const uint16_t ep0_pkt_size =
-            (Usb3handle->xhci_priv.ip_ctx->xe_context[ 0 ].xec_info &
+            (xhci_handle.ip_ctx->xe_context[ 0 ].xec_info &
             ~EP_CTX_MAX_PKT_SIZE_MSK) >> EP_CTX_MAX_PKT_SIZE_POS;
 
     if (bcd_usb >= 0x300U)
     {
-        desc_max_pkt_size = (uint16_t) pow(2,
-                Usb3handle->xhci_priv.usb_desc.dev_desc.bMaxPacketSize0);
+        desc_max_pkt_size = (uint16_t) pow(2, usb_desc.bMaxPacketSize0);
     }
     else
     {
-        desc_max_pkt_size =
-                Usb3handle->xhci_priv.usb_desc.dev_desc.bMaxPacketSize0;
+        desc_max_pkt_size = usb_desc.bMaxPacketSize0;
     }
 
     if (ep0_pkt_size != desc_max_pkt_size)
     {
-        update_endpoint_packetsize(Usb3handle->xhci_priv.ip_ctx,
+        update_endpoint_packetsize(xhci_handle.ip_ctx,
                 desc_max_pkt_size);
 
-        evaluate_endpoint(&Usb3handle->xhci_priv);
+        evaluate_endpoint(&xhci_handle);
 
-        if (wait_for_command_completion_event(&Usb3handle->xhci_priv,
+        if (wait_for_command_completion_event(&xhci_handle,
                 EVALUATE_CONTEXT_CMD) != 0)
         {
             return false;
@@ -519,7 +535,7 @@ bool hcd_evaluate_xhci_context( void )
 }
 bool hcd_dwc3_parse_full_conf_descriptor( tusb_desc_configuration_t *desc_cfg )
 {
-    const uint8_t usb_speed = Usb3handle->xhci_priv.dev_data.dev_speed;
+    const uint8_t usb_speed = xhci_handle.dev_data.dev_speed;
 
     uint16_t const total_len = tu_le16toh(desc_cfg->wTotalLength);
     uint8_t const *desc_end = ((uint8_t const*) desc_cfg) + total_len;
@@ -584,7 +600,7 @@ bool hcd_dwc3_parse_full_conf_descriptor( tusb_desc_configuration_t *desc_cfg )
                         ep_desc);
             }
 
-            if (xhci_parse_endpoint_descriptor(&Usb3handle->xhci_priv,
+            if (xhci_parse_endpoint_descriptor(&xhci_handle,
                     &xhci_ep_desc) != 0)
             {
                 ERROR("Failed to parse endpoint descriptor");

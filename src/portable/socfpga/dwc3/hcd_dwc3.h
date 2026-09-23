@@ -17,24 +17,11 @@
 #define XHCI_SPEED_SS    (4)
 #define XHCI_QUEUE_SZ    (10U)
 
-typedef struct
-{
-    /* reference to xHCI structure */
-    struct xhci_data xhci_priv __attribute__((aligned(64)));
-}Usb3_Handle_t;
-
-/*
- * @brief  allocate all the usb3 port memory
- * @return
- *  xHanlde  reference to Usb3_Handle_t structure
- */
-Usb3_Handle_t*alloc_usb_port(void);
-
 /*
  * @brief  deallocate all the usb3 port memory
  * @param[in] handle usb3 port reference handle
  */
-void dealloc_usb_port(Usb3_Handle_t*handle);
+void dealloc_usb_port(struct xhci_data *xhci_handle);
 
 /*
  * @brief api to check whether the reset process has completed or not

@@ -52,8 +52,8 @@ static bool init_disk_io_sync(void)
     return (xDiskIoMutex != NULL) && (xDiskIoComplete != NULL);
 }
 
-#if SOCFPGA_USB_HOST_USE_USB3
-void usb3_task(void *arg)
+
+void usb_task(void *arg)
 {
     (void)arg;
 
@@ -61,6 +61,17 @@ void usb3_task(void *arg)
         .role = TUSB_ROLE_HOST,
         .speed = TUSB_SPEED_AUTO
     };
+
+    /*initialize host stack for usb otg HS port*/
+    if (!tusb_init(USB_OTG_PORT, &host_init))
+    {
+        ERROR("Error in initialising usb otg port");
+        /*suspend the task*/
+    }
+    else
+    {
+        PRINT("USB OTG port initialized successfully");
+    }
 
      /*initialize host stack for usb3 SS port*/
     if (!tusb_init(USB3_SS_PORT, &host_init))
@@ -92,42 +103,6 @@ void usb3_task(void *arg)
         osal_task_delay(100);
     }
 }
-#endif
 
-#if SOCFPGA_USB_HOST_USE_OTG
-void usb_otg_task(void *arg)
-{
-    (void)arg;
 
-    tusb_rhport_init_t host_init = {
-        .role = TUSB_ROLE_HOST,
-        .speed = TUSB_SPEED_AUTO
-    };
-
-    /*initialize host stack for usb otg HS port*/
-    if (!tusb_init(USB_OTG_PORT, &host_init))
-    {
-        ERROR("Error in initialising usb otg port");
-        /*suspend the task*/
-    }
-    else
-    {
-        PRINT("USB OTG port initialized successfully");
-    }
-    
-    //create mutex + binary semaphore only once
-    if(!init_disk_io_sync())
-    {
-        ERROR("Failed to initialize disk IO synchronization primitives");
-        vTaskDelete(NULL);   
-        return;
-    }
-
-    while (1)
-    {
-        tuh_task();
-        osal_task_delay(100);
-    }
-}
-#endif
 

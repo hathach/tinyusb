@@ -11,30 +11,30 @@
 
 /**
  * @file usb_main.h
- * @brief USB3 HAL driver header file
+ * @brief USB HAL driver header file
  */
 
 #include <stdio.h>
 
 /**
- * @defgroup usb3 USB3
+ * @defgroup usb USB
  * @ingroup drivers
  * @{
  */
 
 /**
- * @defgroup usb3_fns Functions
- * @ingroup usb3
+ * @defgroup usb_fns Functions
+ * @ingroup usb
  * USB3 HAL APIs
  */
 
 /**
- * @addtogroup usb3_fns
+ * @addtogroup usb_fns
  * @{
  */
 
 /**
- * @brief  Wait until the specified timeout, for the usb3 device to be enumerated
+ * @brief  Wait until the specified timeout, for the usb device to be enumerated
  *         and mounted properly. If the device is not mounted within the time, timeout
  *         occurs.
  *
@@ -47,20 +47,18 @@
 int usb_wait_to_mount(int timeout);
 
 /**
- * @brief  These APIs should be invoked as a thread to initialize the tinyusb stack. These APIs
- *         initialize the usb3 driver and usb2 driver followed by the enumeration of the attached device.
+ * @brief  This api should be invoked as a thread to initialize the tinyusb stack. This thread
+ *         initializes the USB2.0 and USB3.1 driver followed by the enumeration of the attached device.
  */
-void usb3_task(void *arg);
-void usb_otg_task(void *arg);
+void usb_task(void *arg);
 /**
  * @}
  */
-/* end of group usb3_fns */
+/* end of group usb_fns */
 
 /**
  * @}
  */
-/* end of group usb3 */
+/* end of group usb */
 
 #endif /* __USB3_MAIN_H__ */
-
