@@ -369,18 +369,26 @@ def get_a_dep(d):
     # up to TinyUSB's repository when an empty dependency directory is present.
     if not (p / '.git').exists():
         p.mkdir(parents=True, exist_ok=True)
-        run_cmd(f"{git_cmd} init")
-        run_cmd(f"{git_cmd} remote add origin {url}")
+        if run_cmd(f"{git_cmd} init").returncode != 0 or not (p / '.git').exists():
+            return 1
+        if run_cmd(f"{git_cmd} remote add origin {url}").returncode != 0:
+            return 1
         head = None
     else:
         # Check if commit is already fetched
         result = run_cmd(f"{git_cmd} rev-parse HEAD")
-        head = result.stdout.decode("utf-8").splitlines()[0]
-        run_cmd(f"{git_cmd} reset --hard")
+        heads = result.stdout.decode("utf-8").splitlines()
+        if result.returncode != 0 or not heads:
+            return 1
+        head = heads[0]
+        if run_cmd(f"{git_cmd} reset --hard").returncode != 0:
+            return 1
 
     if commit != head:
-        run_cmd(f"{git_cmd} fetch --depth 1 origin {commit}")
-        run_cmd(f"{git_cmd} checkout FETCH_HEAD")
+        if run_cmd(f"{git_cmd} fetch --depth 1 origin {commit}").returncode != 0:
+            return 1
+        if run_cmd(f"{git_cmd} checkout FETCH_HEAD").returncode != 0:
+            return 1
 
     # Remove files that conflict with TinyUSB's custom versions
     if d in deps_remove_files:

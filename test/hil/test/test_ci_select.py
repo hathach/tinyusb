@@ -2895,7 +2895,7 @@ class TestGetDepsExampleShim(unittest.TestCase):
 
 
 class TestGetDepsExistingDirectory(unittest.TestCase):
-    def test_directory_without_git_metadata_is_initialized(self):
+    def run_get_dep(self, fail=None, create_git=True):
         from tempfile import TemporaryDirectory
         from unittest import mock
         import get_deps
@@ -2903,18 +2903,49 @@ class TestGetDepsExistingDirectory(unittest.TestCase):
         with TemporaryDirectory() as top:
             dep = pathlib.Path(top, 'lib', 'dep')
             dep.mkdir(parents=True)
-            result = subprocess.CompletedProcess([], 0, stdout=b'parent-head\n')
+
+            commands = []
+
+            def run(command):
+                commands.append(command)
+                if command.endswith(' init') and fail != 'init' and create_git:
+                    (dep / '.git').mkdir()
+                return subprocess.CompletedProcess([], 1 if fail and command.endswith(fail) else 0,
+                                                   stdout=b'parent-head\n')
+
             with mock.patch.object(get_deps, 'TOP', pathlib.Path(top)), \
                     mock.patch.dict(get_deps.deps_all,
                                     {'lib/dep': ['https://example.invalid/dep.git',
                                                  '0123456789abcdef', 'test']},
                                     clear=True), \
-                    mock.patch.object(get_deps, 'run_cmd', return_value=result) as run:
-                self.assertEqual(get_deps.get_a_dep('lib/dep'), 0)
+                    mock.patch.object(get_deps, 'run_cmd', side_effect=run):
+                status = get_deps.get_a_dep('lib/dep')
 
-        commands = [call.args[0] for call in run.call_args_list]
-        self.assertTrue(commands[0].endswith(' init'), commands)
-        self.assertFalse(any(' reset --hard' in command for command in commands), commands)
+        return dep, commands, status
+
+    def test_directory_without_git_metadata_is_initialized(self):
+        dep, commands, status = self.run_get_dep()
+        git = f'git -C {dep}'
+        self.assertEqual(status, 0)
+        self.assertEqual(commands, [
+            f'{git} init',
+            f'{git} remote add origin https://example.invalid/dep.git',
+            f'{git} fetch --depth 1 origin 0123456789abcdef',
+            f'{git} checkout FETCH_HEAD',
+        ])
+
+    def test_git_failures_stop_dependency_setup(self):
+        for name, suffix, count in [('init', 'init', 1), ('remote', 'dep.git', 2),
+                                    ('fetch', '0123456789abcdef', 3), ('checkout', 'FETCH_HEAD', 4)]:
+            with self.subTest(failed=name):
+                _, commands, status = self.run_get_dep(suffix)
+                self.assertEqual(status, 1)
+                self.assertEqual(len(commands), count)
+
+    def test_init_without_dependency_metadata_stops_setup(self):
+        _, commands, status = self.run_get_dep(create_git=False)
+        self.assertEqual(status, 1)
+        self.assertEqual(len(commands), 1)
 
 
 if __name__ == '__main__':
