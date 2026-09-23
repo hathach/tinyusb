@@ -232,6 +232,7 @@ bool tud_mtp_request_cancel_cb(tud_mtp_request_cb_data_t* cb_data) {
   memcpy(&cancel_data, cb_data->buf, sizeof(cancel_data));
   (void) cancel_data.code;
   (void ) cancel_data.transaction_id;
+  send_obj_handle = 0; // a cancelled SendObjectInfo/SendObject leaves no object to write to
   return true;
 }
 
@@ -239,6 +240,8 @@ bool tud_mtp_request_cancel_cb(tud_mtp_request_cb_data_t* cb_data) {
 // return false to stall the request
 bool tud_mtp_request_device_reset_cb(tud_mtp_request_cb_data_t* cb_data) {
   (void) cb_data;
+  is_session_opened = false; // Device Reset closes all open sessions (Still Image CDD B.9)
+  send_obj_handle = 0;       // ... and with them any object SendObjectInfo was staging
   return true;
 }
 
@@ -306,17 +309,18 @@ int32_t tud_mtp_data_xfer_cb(tud_mtp_cb_data_t* cb_data) {
     resp_code = handler(cb_data);
   }
   if (resp_code > MTP_RESP_UNDEFINED) {
-    // send response if needed
+    // Early response (e.g. fs_send_object_info() rejects the dataset): reset to a bare header
+    io_container->header->len = sizeof(mtp_container_header_t);
     io_container->header->code = (uint16_t)resp_code;
     tud_mtp_response_send(io_container);
   }
-
   return 0;
 }
 
 int32_t tud_mtp_data_complete_cb(tud_mtp_cb_data_t* cb_data) {
   const mtp_container_command_t* command = cb_data->command_container;
   mtp_container_info_t* resp = &cb_data->io_container;
+
   switch (command->header.code) {
     case MTP_OP_SEND_OBJECT_INFO: {
       fs_file_t* f = fs_get_file(send_obj_handle);
@@ -638,6 +642,9 @@ static int32_t fs_send_object_info(tud_mtp_cb_data_t* cb_data) {
 
 static int32_t fs_send_object(tud_mtp_cb_data_t* cb_data) {
   mtp_container_info_t* io_container = &cb_data->io_container;
+  if (!is_session_opened) {
+    return MTP_RESP_SESSION_NOT_OPEN;
+  }
   fs_file_t* f = fs_get_file(send_obj_handle);
   if (f == NULL) {
     return MTP_RESP_INVALID_OBJECT_HANDLE;
@@ -649,8 +656,12 @@ static int32_t fs_send_object(tud_mtp_cb_data_t* cb_data) {
   } else {
     // file contents offset is total xferred minus header size minus last received chunk
     const uint32_t offset = cb_data->total_xferred_bytes - sizeof(mtp_container_header_t) - io_container->payload_bytes;
-    memcpy(f->data + offset, io_container->payload, io_container->payload_bytes);
-    if (cb_data->total_xferred_bytes - sizeof(mtp_container_header_t) < f->size) {
+    // a host may send more than SendObjectInfo declared: never write past the object
+    if (offset < f->size) {
+      memcpy(f->data + offset, io_container->payload, tu_min32(io_container->payload_bytes, f->size - offset));
+    }
+    // keep reading to the host's declared length; anything past f->size is discarded above
+    if (cb_data->total_xferred_bytes < io_container->header->len) {
       tud_mtp_data_receive(io_container);
     }
   }
