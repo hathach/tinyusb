@@ -324,6 +324,13 @@ def recover_board(board: dict, marker: dict, lock_fh, budget: Budget, out: dict 
     return out
 
 
+def _marker_gone(board: str) -> bool:
+    try:
+        return hil_lock.read_wedged(board) is None
+    except Exception:   # noqa: BLE001 - unknown is not gone
+        return False
+
+
 class Watchdog(BaseException):
     """Raised into the phase by the supervisor's alarm: the finally blocks unshield and
     release, which an os._exit would have skipped. BaseException so a step's own
@@ -341,7 +348,7 @@ def _phase(config: dict, marked: list, log, budget: Budget, report=lambda outcom
         report({})
         return {}
     outcomes = {}
-    inflight = ''   # the board recover_board is running, whose record a Watchdog leaves unlogged
+    inflight = ''   # the board whose outcome exists but whose line may not be out yet
 
     def log_outcome(name):
         o = outcomes[name]
@@ -350,10 +357,10 @@ def _phase(config: dict, marked: list, log, budget: Budget, report=lambda outcom
 
     try:
         for board in marked:
-            name = board['name']
+            name = inflight = board['name']
             if budget.left() <= 0:
                 outcomes[name] = _not_recovered('recovery budget exhausted before this board')
-                log(f'{name:25} wedge NOT recovered: {outcomes[name]["why"]}')
+                log_outcome(name)
                 continue
             # re-read under the reservation: another run or operator may have cleared or
             # replaced it while the locks were being taken
@@ -366,17 +373,25 @@ def _phase(config: dict, marked: list, log, budget: Budget, report=lambda outcom
                 outcomes[name] = _not_recovered(why)
             else:
                 log(f'{name:25} recovering the wedge it is marked with (fleet reserved)')
-                outcomes[name], inflight = _not_recovered(), name
+                outcomes[name] = _not_recovered()
                 recover_board(board, marker, held.get(name), budget, outcomes[name])
-                inflight = ''
             log_outcome(name)
-    except Watchdog as e:
-        if inflight:
-            o = outcomes[inflight]
-            o['why'] = (o['why'] + '; ' if o['why'] else '') + f'watchdog: {e}'
+            inflight = ''   # only once its line is out: an interrupted log_outcome is redone below
+    except (Watchdog, Exception) as e:   # noqa: BLE001 - the in-flight record must say why it stopped
+        what = f'watchdog: {e}' if isinstance(e, Watchdog) else f'{type(e).__name__}: {e}'
+        o = outcomes.get(inflight)
+        if o is not None:
+            # identity is set just before clear_wedged, and under the reservation only this
+            # phase can clear the marker: both mean the clear succeeded before the record
+            # could say so. Without identity the marker may have gone before the reservation.
+            if not o['recovered'] and o['identity'] and _marker_gone(inflight):
+                o['recovered'] = True
+            o['why'] = (o['why'] + '; ' if o['why'] else '') + what
             log_outcome(inflight)
-        log(f'wedge recovery watchdog: {e}; unshield attempted where a shield was up (see the board line), releasing')
-        outcomes['__error__'] = f'watchdog: {e}'
+            log(f'wedge recovery {what} during {inflight}; see its line, releasing')
+        else:
+            log(f'wedge recovery {what} between boards; releasing')
+        outcomes['__error__'] = what
     finally:
         # a flasher or shield child in its own session must not outlive the reservation.
         # Descendants are snapshotted ONCE, by pid and start time, then killed and watched

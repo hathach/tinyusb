@@ -6,6 +6,7 @@ re-enumerated DUT, everything deferred with the marker kept otherwise."""
 import io
 import json
 import os
+import signal
 import subprocess
 import sys
 import tempfile
@@ -65,6 +66,27 @@ class Recovery(unittest.TestCase):
     def patch(self, obj, name, value):
         self.addCleanup(setattr, obj, name, getattr(obj, name))
         setattr(obj, name, value)
+
+    @staticmethod
+    def stall(*_a, **_k):
+        """A step that never returns. It re-arms the forked supervisor's own watchdog alarm
+        to a second from now, so the phase budget can stay generous: admission never races
+        the alarm on a slow runner."""
+        signal.alarm(1)
+        time.sleep(60)
+
+    def assert_released(self, *names, within=10):
+        """The supervisor reports before it releases: poll, never check once."""
+        deadline = time.monotonic() + within
+        for name in names:
+            while True:
+                try:
+                    hil_lock.flock_nb(name).close()
+                    break
+                except OSError:
+                    if time.monotonic() > deadline:
+                        self.fail(f'{name} stayed reserved after the phase')
+                    time.sleep(0.2)
 
     def fake_shield_preconditions(self):
         self.shield_checks += 1
@@ -366,12 +388,130 @@ class Recovery(unittest.TestCase):
         self.assertIn('budget exhausted', out['b1']['why'])
         self.assertEqual(self.calls, [])
 
-    def test_the_reservation_is_released_when_a_board_raises(self):
+    def test_a_board_that_raises_is_recorded_and_the_reservation_released(self):
         self.mark()
         self.patch(hil_recover, 'recover_board', lambda *a, **k: 1 / 0)
-        with self.assertRaises(ZeroDivisionError):
-            self.run_phase()
+        out = self.run_phase()
+        self.assertFalse(out['b1']['recovered'])
+        self.assertEqual(out['b1']['why'], 'ZeroDivisionError: division by zero')
+        self.assertEqual(len([l for l in self.log if l.startswith('b1') and 'wedge NOT recovered' in l]), 1, self.log)
+        self.assertTrue(any('division by zero during b1' in l for l in self.log), self.log)
+        self.assertIsNotNone(hil_lock.read_wedged('b1'))
         hil_lock.flock_nb('b1').close()
+
+    def test_a_step_that_raises_reaches_the_parent_with_its_reason(self):
+        """The supervisor reports once, from the phase's finally: an exception that escaped
+        the phase used to arrive as a bare 'NOT recovered' with no why."""
+        self.mark()
+
+        def boom(serial=None, **kw):
+            raise RuntimeError('boom')
+        self.patch(hil_util, 'usb_scan', boom)                 # the identity scan, after a clean holder scan
+        out = self.run_phase(supervise=True)
+        self.assertFalse(out['b1']['recovered'], out)
+        self.assertIn('RuntimeError: boom', out['b1']['why'])
+        self.assertIsNotNone(hil_lock.read_wedged('b1'))
+        self.assert_released('b1', 'b2', 'parked')
+
+    def assert_a_watchdog_around_the_clear(self, after_clear):
+        self.mark()
+        real = hil_lock.clear_wedged
+
+        def clear(board, evidence, lock_fh=None):
+            if after_clear:
+                self.assertEqual(real(board, evidence, lock_fh), '')
+            raise hil_recover.Watchdog('phase exceeded 4s')
+        self.patch(hil_lock, 'clear_wedged', clear)
+        out = self.run_phase()
+        self.assertIn('watchdog: phase exceeded 4s', out['b1']['why'])
+        return out
+
+    def test_a_watchdog_right_after_the_clear_still_reports_the_recovery(self):
+        out = self.assert_a_watchdog_around_the_clear(after_clear=True)
+        self.assertTrue(out['b1']['recovered'], out)
+        self.assertIsNone(hil_lock.read_wedged('b1'))
+        self.assertTrue(any(l.startswith('b1') and 'wedge RECOVERED' in l for l in self.log), self.log)
+
+    def test_a_watchdog_before_the_clear_is_not_a_recovery(self):
+        out = self.assert_a_watchdog_around_the_clear(after_clear=False)
+        self.assertFalse(out['b1']['recovered'], out)
+        self.assertIsNotNone(hil_lock.read_wedged('b1'))
+
+    def test_a_watchdog_inside_the_board_line_logs_it_again(self):
+        self.mark()
+        fired = []
+
+        def log(line):
+            if line.startswith('b1') and 'wedge RECOVERED' in line and not fired:
+                fired.append(line)
+                raise hil_recover.Watchdog('phase exceeded 4s')
+            self.log.append(line)
+        out = hil_recover.recover_wedged(CFG, CFG['boards'], log, supervise=False)
+        self.assertTrue(fired)
+        self.assertTrue(out['b1']['recovered'], out)
+        board = [l for l in self.log if l.startswith('b1') and 'wedge RECOVERED' in l]
+        self.assertEqual(len(board), 1, self.log)
+        self.assertIn('watchdog: phase exceeded 4s', board[0])
+        self.assertTrue(any('watchdog: phase exceeded 4s during b1' in l for l in self.log), self.log)
+
+    def test_a_watchdog_inside_a_rejected_boards_line_logs_it_again(self):
+        self.mark(uid='OTHER')                               # marker_identity refuses it
+        fired = []
+
+        def log(line):
+            if line.startswith('b1') and 'wedge NOT recovered' in line and not fired:
+                fired.append(line)
+                raise hil_recover.Watchdog('phase exceeded 4s')
+            self.log.append(line)
+        out = hil_recover.recover_wedged(CFG, CFG['boards'], log, supervise=False)
+        self.assertTrue(fired)
+        self.assertFalse(out['b1']['recovered'], out)            # its marker stands: nothing to infer
+        board = [l for l in self.log if l.startswith('b1') and 'wedge NOT recovered' in l]
+        self.assertEqual(len(board), 1, self.log)
+        self.assertIn("marker uid 'OTHER'", board[0])
+        self.assertIn('watchdog: phase exceeded 4s', board[0])
+        self.assertIsNotNone(hil_lock.read_wedged('b1'))
+
+    def test_a_marker_gone_before_the_reservation_is_not_a_recovery_under_the_watchdog(self):
+        """The budget branch skips the re-read: a marker another caller cleared before the
+        reservation must not read as this phase's recovery when its line is interrupted."""
+        self.mark()
+        real = hil_recover.reserve_all
+
+        def reserve(config):
+            os.unlink(hil_lock.wedged_path('b1'))            # cleared by someone else first
+            return real(config)
+        self.patch(hil_recover, 'reserve_all', reserve)
+        self.patch(hil_recover, 'PHASE_TIMEOUT', 0)
+        fired = []
+
+        def log(line):
+            if line.startswith('b1') and 'wedge NOT recovered' in line and not fired:
+                fired.append(line)
+                raise hil_recover.Watchdog('phase exceeded 0s')
+            self.log.append(line)
+        out = hil_recover.recover_wedged(CFG, CFG['boards'], log, supervise=False)
+        self.assertTrue(fired)
+        self.assertFalse(out['b1']['recovered'], out)
+        self.assertIn('budget exhausted', out['b1']['why'])
+
+    def test_a_watchdog_between_boards_names_no_board(self):
+        self.mark()
+        self.mark_b2()
+        real = hil_recover.marker_identity
+
+        def identity(board, marker):
+            if board['name'] == 'b2':
+                raise hil_recover.Watchdog('phase exceeded 4s')
+            return real(board, marker)
+        self.patch(hil_recover, 'marker_identity', identity)
+        out = self.run_phase()
+        self.assertTrue(out['b1']['recovered'], out)
+        self.assertEqual(out['b1']['why'], '')
+        self.assertNotIn('b2', out)
+        self.assertTrue(any('between boards' in l for l in self.log), self.log)
+        self.assertFalse(any(' during ' in l for l in self.log), self.log)
+        self.assertIsNotNone(hil_lock.read_wedged('b2'))
 
     def test_skip_flash_defers_the_whole_phase(self):
         self.mark()
@@ -462,8 +602,7 @@ class Recovery(unittest.TestCase):
         self.assertTrue(out['b1']['recovered'], out)
         self.assertEqual(out['b1']['identity'], 'UID1@13-2.3')
         self.assertIsNone(hil_lock.read_wedged('b1'))
-        for name in ('b1', 'b2', 'parked'):
-            hil_lock.flock_nb(name).close()
+        self.assert_released('b1', 'b2', 'parked')
 
     def test_a_supervisor_that_does_not_report_is_abandoned_with_the_markers_standing(self):
         self.mark()
@@ -496,13 +635,13 @@ class Recovery(unittest.TestCase):
                 f.write(action + '\n')
             return 0, f'{action} stub'
         self.patch(hil_recover, '_script', tracing_script)
-        self.patch(usbtest, 'wedged_pids', lambda node: time.sleep(60))       # the stall
+        self.patch(usbtest, 'wedged_pids', self.stall)       # the stall
         # shrink every bound so the board is admitted and the watchdog fires in seconds
         self.patch(hil_recover, 'SHIELD_TIMEOUT', 1)
         self.patch(hil_recover, 'SCAN_ALLOWANCE', 0)
         self.patch(usbtest, 'RECOVER_RESET_TIMEOUT', 1)
         self.patch(hil_util, 'REAP_GRACE', 0)
-        self.patch(hil_recover, 'PHASE_TIMEOUT', 4)
+        self.patch(hil_recover, 'PHASE_TIMEOUT', 30)
         self.patch(hil_recover, 'overrun', lambda: 0)
         t0 = time.monotonic()
         out = self.run_phase(supervise=True)
@@ -539,7 +678,7 @@ class Recovery(unittest.TestCase):
         self.patch(usbtest, 'RECOVER_RESET_TIMEOUT', 1)
         self.patch(usbtest, 'RECOVER_FLASH_TIMEOUT', 1)
         self.patch(hil_util, 'REAP_GRACE', 0)
-        self.patch(hil_recover, 'PHASE_TIMEOUT', 4)
+        self.patch(hil_recover, 'PHASE_TIMEOUT', 30)
         self.patch(hil_recover, 'overrun', lambda: 0)
         out = self.run_phase(supervise=True)
         self.assertEqual(trace.read_text().split(), ['shield', 'unshield'])
@@ -559,11 +698,11 @@ class Recovery(unittest.TestCase):
 
     def test_the_watchdog_reaches_the_phase_through_a_stalled_reset(self):
         self.assert_a_stalled_primitive_reaches_the_watchdog(
-            'reset_openocd', lambda board, timeout=None: time.sleep(60))
+            'reset_openocd', self.stall)
 
     def test_the_watchdog_reaches_the_phase_through_a_stalled_reflash(self):
         self.assert_a_stalled_primitive_reaches_the_watchdog(
-            'flash_openocd', lambda board, fw, timeout=None: time.sleep(60))
+            'flash_openocd', self.stall)
 
     def assert_a_watchdog_keeps_a_failed_unshield(self, stall_shield=False):
         """The unshield runs in recover_board's finally while the Watchdog unwinds through
@@ -579,17 +718,17 @@ class Recovery(unittest.TestCase):
         def script(action, *a, timeout=60):
             if action == 'shield':
                 if stall_shield:
-                    time.sleep(60)
+                    self.stall()
                 return 0, 'shield stub'
             return 1, 'unshield: restore failed; record r KEPT'
         self.patch(hil_recover, '_script', script)
         if not stall_shield:
-            self.patch(usbtest, 'wedged_pids', lambda node: time.sleep(60))   # the post-reset scan stalls
+            self.patch(usbtest, 'wedged_pids', self.stall)   # the post-reset scan stalls
         self.patch(hil_recover, 'SHIELD_TIMEOUT', 1)
         self.patch(hil_recover, 'SCAN_ALLOWANCE', 0)
         self.patch(usbtest, 'RECOVER_RESET_TIMEOUT', 1)
         self.patch(hil_util, 'REAP_GRACE', 0)
-        self.patch(hil_recover, 'PHASE_TIMEOUT', 4)
+        self.patch(hil_recover, 'PHASE_TIMEOUT', 30)
         self.patch(hil_recover, 'overrun', lambda: 0)
         out = hil_recover.recover_wedged(CFG, CFG['boards'], file_log)
         self.assertFalse(out['b1']['recovered'], out)
@@ -608,15 +747,53 @@ class Recovery(unittest.TestCase):
     def test_a_watchdog_through_a_stalled_shield_keeps_a_failed_unshield(self):
         self.assert_a_watchdog_keeps_a_failed_unshield(stall_shield=True)
 
+    def test_a_watchdog_on_the_second_board_leaves_the_first_ones_record_alone(self):
+        self.mark()
+        self.mark_b2()
+        logf = Path(self.td.name) / 'log'
+
+        def file_log(line):                                  # the phase logs from the forked supervisor
+            with open(logf, 'a') as f:
+                f.write(line + '\n')
+        scans = []
+
+        def scan(node):                                      # b1's one scan clears; b2's stalls
+            scans.append(node)
+            if len(scans) > 1:
+                self.stall()
+            return [], True
+        self.patch(usbtest, 'wedged_pids', scan)
+        self.patch(hil_recover, 'SHIELD_TIMEOUT', 1)
+        self.patch(hil_recover, 'SCAN_ALLOWANCE', 0)
+        self.patch(usbtest, 'RECOVER_RESET_TIMEOUT', 1)
+        self.patch(hil_util, 'REAP_GRACE', 0)
+        self.patch(hil_recover, 'PHASE_TIMEOUT', 30)
+        self.patch(hil_recover, 'overrun', lambda: 0)
+        out = hil_recover.recover_wedged(CFG, CFG['boards'], file_log)
+        self.assertTrue(out['b1']['recovered'], out)
+        self.assertEqual(out['b1']['why'], '')
+        self.assertFalse(out['b2']['recovered'], out)
+        self.assertIn('watchdog: phase exceeded', out['b2']['why'])
+        lines = logf.read_text().splitlines()
+        self.assertEqual(len([l for l in lines if l.startswith('b1') and 'wedge RECOVERED' in l]), 1, lines)
+        b2 = [l for l in lines if l.startswith('b2') and 'wedge NOT recovered' in l]
+        self.assertEqual(len(b2), 1, lines)
+        self.assertIn('watchdog: phase exceeded', b2[0])
+        self.assertTrue(any('during b2' in l for l in lines), lines)
+        self.assertIsNone(hil_lock.read_wedged('b1'))
+        self.assertIsNotNone(hil_lock.read_wedged('b2'))
+
     def test_a_surviving_child_keeps_the_fleet_reserved_after_the_report(self):
         self.mark()
-        until = time.monotonic() + 3
-        self.patch(hil_recover, '_sweep', lambda tracked, log: 1 if time.monotonic() < until else 0)
+        survivor = Path(self.td.name) / 'survivor'               # a gate, not a clock: a slow fork cannot outrun it
+        survivor.touch()
+        self.patch(hil_recover, '_sweep', lambda tracked, log: 1 if survivor.exists() else 0)
         out = self.run_phase(supervise=True)
         self.assertTrue(out['b1']['recovered'], out)            # the verdict arrived first
         self.assertTrue(any('survived' in l and 'keeps every board reserved' in l for l in self.log), self.log)
         with self.assertRaises(OSError):
             hil_lock.flock_nb('parked')                          # still held by the supervisor
+        survivor.unlink()
         deadline = time.monotonic() + 15
         while time.monotonic() < deadline:
             try:
@@ -673,14 +850,14 @@ class Recovery(unittest.TestCase):
             with open(trace, 'a') as f:
                 f.write(action + '\n')
             if action == 'shield':
-                time.sleep(60)                                   # published, never returned
+                self.stall()                                     # published, never returned
             return 0, f'{action} stub'
         self.patch(hil_recover, '_script', stalling_script)
         self.patch(hil_recover, 'SHIELD_TIMEOUT', 1)
         self.patch(hil_recover, 'SCAN_ALLOWANCE', 0)
         self.patch(usbtest, 'RECOVER_RESET_TIMEOUT', 1)
         self.patch(hil_util, 'REAP_GRACE', 0)
-        self.patch(hil_recover, 'PHASE_TIMEOUT', 4)
+        self.patch(hil_recover, 'PHASE_TIMEOUT', 30)
         self.patch(hil_recover, 'overrun', lambda: 0)
         self.run_phase(supervise=True)
         self.assertEqual(trace.read_text().split(), ['shield', 'unshield'])
