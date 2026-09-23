@@ -402,7 +402,12 @@ bool mtpd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
         // never completes and CONTROL_STAGE_ACK below is never reached
         tud_control_status(rhport, request);
       } else if (stage == CONTROL_STAGE_ACK) {
-        prepare_new_command(p_mtp);
+        if (!prepare_new_command(p_mtp)) {
+          // nothing armed to receive the next command: halt, for the host to clear
+          p_mtp->phase = MTP_PHASE_ERROR;
+          usbd_edpt_stall(rhport, p_mtp->ep_out);
+          usbd_edpt_stall(rhport, p_mtp->ep_in);
+        }
         return tud_mtp_request_device_reset_cb(&cb_data);
       }
       break;
@@ -484,16 +489,16 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
         prepare_new_command(p_mtp);
         break;
       }
-      // received new command; a runt must not be matched against stale buffer contents
-      if (xferred_bytes < sizeof(mtp_container_header_t) ||
-          p_container->header.len < sizeof(mtp_container_header_t) ||
+      // received new command: a header and 0 to 5 whole parameters, all of them delivered (which
+      // rules out a runt). Nothing is matched against stale buffer contents.
+      const uint32_t cmd_len = p_container->header.len;
+      if (cmd_len < sizeof(mtp_container_header_t) || cmd_len > xferred_bytes ||
+          cmd_len > sizeof(mtp_container_command_t) || (cmd_len - sizeof(mtp_container_header_t)) % 4 != 0 ||
           p_container->header.type != MTP_CONTAINER_TYPE_COMMAND_BLOCK) {
         p_mtp->phase = MTP_PHASE_ERROR;
         break;
       }
-      // 0 to 5 parameters: save what arrived and zero the rest, never stale buffer bytes
-      const uint32_t cmd_len = tu_min32(tu_min32(xferred_bytes, p_container->header.len),
-                                        sizeof(mtp_container_command_t));
+      // absent parameters read as 0, never stale bytes
       memcpy(&p_mtp->command, p_container, cmd_len); // save new command
       tu_memclr((uint8_t*) &p_mtp->command + cmd_len, sizeof(mtp_container_command_t) - cmd_len);
       p_container->header.len = sizeof(mtp_container_header_t); // default container to header only
@@ -588,9 +593,12 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
         }
         if (need_zlp) {
           // Arm the terminating ZLP's read only now: it lands in the buffer the payload above was
-          // delivered from. A failed claim means the application armed its own read instead.
+          // delivered from. A busy endpoint means the application armed its own read instead.
           TU_LOG_DRV("  queue ZLP OUT\r\n");
-          (void) arm_out_read(p_mtp);
+          if (!usbd_edpt_busy(rhport, p_mtp->ep_out) && !arm_out_read(p_mtp)) {
+            p_mtp->phase = MTP_PHASE_ERROR; // nothing armed to receive the ZLP
+            break;
+          }
           return true;
         }
       }
