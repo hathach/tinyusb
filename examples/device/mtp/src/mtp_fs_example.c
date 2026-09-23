@@ -709,7 +709,7 @@ static int32_t fs_send_object(tud_mtp_cb_data_t* cb_data) {
   }
   fs_file_t* f = fs_get_file(send_obj_handle);
   if (f == NULL) {
-    return MTP_RESP_NO_VALID_OBJECTINFO;
+    return MTP_RESP_INVALID_OBJECT_HANDLE;
   }
 
   if (cb_data->phase == MTP_PHASE_COMMAND) {
