@@ -142,12 +142,20 @@
     :test_mtp_device:
       - CFG_TUD_MSC=0
       - CFG_TUD_MTP=1
+    :test_mtp_fs_example:
+      - CFG_TUD_MSC=0
+      - CFG_TUD_MTP=1
   :release: []
 
   # Enable to inject name of a test as a unique compilation symbol into its respective executable build.
   :use_test_definition: FALSE
 
 # Configure additional command line flags provided to tools used in each build step
+:flags:
+  :test:
+    :compile:
+      :test_mtp_fs_example: # bsp/board_api.h for the example it compiles in place
+        - -I../../hw
 # :flags:
 #   :release:
 #     :compile:         # Add '-Wall' and '--02' to compilation of all files in release target
