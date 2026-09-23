@@ -300,7 +300,8 @@ int32_t tud_mtp_command_received_cb(tud_mtp_cb_data_t* cb_data) {
     resp_code = handler(cb_data);
   }
   if (resp_code > MTP_RESP_UNDEFINED) {
-    // send response if needed
+    // a handler that failed to start its data phase may have grown len: reset to a bare header
+    io_container->header->len = sizeof(mtp_container_header_t);
     io_container->header->code = (uint16_t)resp_code;
     tud_mtp_response_send(io_container);
   }
