@@ -402,12 +402,12 @@ void dcd_int_handler(uint8_t rhport) {
   if (int_flag & USBHS_TRANSFER_FLAG) {
     const uint8_t token = int_status & MASK_UIS_TOKEN;
     const uint8_t ep_num = int_status & MASK_UIS_ENDP;
-    const uint16_t len = USBHSD->RX_LEN;
 
     if (token == USBHS_TOKEN_PID_SOF) {
       uint32_t frame_count = USBHSD->FRAME_NO & USBHS_FRAME_NO_NUM_MASK;
       dcd_event_sof(rhport, frame_count, true);
     } else if (token == USBHS_TOKEN_PID_OUT) {
+      const uint16_t len = USBHSD->RX_LEN;
       update_out(rhport, ep_num, len);
     } else if (token == USBHS_TOKEN_PID_IN) {
       update_in(rhport, ep_num, false);
