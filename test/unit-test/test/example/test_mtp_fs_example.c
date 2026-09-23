@@ -91,16 +91,19 @@ static void open_session(void) {
   TEST_ASSERT_EQUAL_HEX16(MTP_RESP_OK, api.resp_code);
 }
 
+static void fill_object_info(mtp_object_info_header_t* oi, uint32_t size) {
+  oi->storage_id = SUPPORTED_STORAGE_ID;
+  oi->object_format = MTP_OBJ_FORMAT_TEXT;
+  oi->object_compressed_size = size;
+  oi->parent_object = 0xFFFFFFFFu;
+}
+
 // SendObjectInfo declaring `size` bytes; returns the new handle
 static uint32_t send_object_info(uint32_t size) {
   begin_command(MTP_OP_SEND_OBJECT_INFO, SUPPORTED_STORAGE_ID);
   TEST_ASSERT_EQUAL(1, api.data_receive);
   uint8_t dataset[sizeof(mtp_object_info_header_t) + 1 + 2 * 8] = { 0 };
-  mtp_object_info_header_t* oi = (mtp_object_info_header_t*) dataset;
-  oi->storage_id = SUPPORTED_STORAGE_ID;
-  oi->object_format = MTP_OBJ_FORMAT_TEXT;
-  oi->object_compressed_size = size;
-  oi->parent_object = 0xFFFFFFFFu;
+  fill_object_info((mtp_object_info_header_t*) dataset, size);
   uint8_t* name = dataset + sizeof(mtp_object_info_header_t);
   name[0] = 4;
   const uint16_t utf16[4] = { 'a', '.', 't', 0 };
@@ -129,11 +132,7 @@ void setUp(void) {
 void tearDown(void) {}
 
 static void check_sentinels_from(uint32_t from) {
-  for (uint32_t i = from; i < sizeof(fs_buf); i++) {
-    if (fs_buf[i] != SENTINEL) {
-      TEST_FAIL_MESSAGE("write past the declared object size");
-    }
-  }
+  TEST_ASSERT_EACH_EQUAL_HEX8_MESSAGE(SENTINEL, fs_buf + from, sizeof(fs_buf) - from, "write past the declared object size");
 }
 
 //--------------------------------------------------------------------+
@@ -205,5 +204,50 @@ void test_device_reset_closes_the_session(void) {
   tud_mtp_request_cb_data_t req = { 0 };
   TEST_ASSERT_TRUE(tud_mtp_request_device_reset_cb(&req));
   TEST_ASSERT_FALSE(is_session_opened);
+  TEST_ASSERT_EQUAL(0, send_obj_handle);
+}
+
+// an ObjectInfo whose filename spills into a 2nd packet: one object, name truncated and
+// terminated, the rest of the dataset read to the declared length and ignored
+void test_send_object_info_spanning_two_packets(void) {
+  open_session();
+  begin_command(MTP_OP_SEND_OBJECT_INFO, SUPPORTED_STORAGE_ID);
+  TEST_ASSERT_EQUAL(1, api.data_receive);
+  uint8_t dataset[sizeof(mtp_object_info_header_t) + 1 + 2 * 255 + 3];
+  memset(dataset, 0, sizeof(dataset));
+  fill_object_info((mtp_object_info_header_t*) dataset, 100);
+  uint8_t* name = dataset + sizeof(mtp_object_info_header_t);
+  name[0] = 255; // 254 characters + NUL on the wire
+  for (uint32_t i = 0; i < 254; i++) {
+    name[1 + 2 * i] = (uint8_t) ('a' + i % 26);
+  }
+  const uint32_t first = BUFSIZE - HDR;
+  deliver_out(dataset, first, sizeof(dataset));
+  TEST_ASSERT_EQUAL(2, api.data_receive); // keeps reading
+  TEST_ASSERT_EQUAL(0, api.response_send);
+  deliver_out(dataset + first, sizeof(dataset) - first, 0);
+  TEST_ASSERT_EQUAL(2, api.data_receive); // declared length reached
+  TEST_ASSERT_EQUAL(0, api.response_send);
+  data_complete();
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_OK, api.resp_code);
+
+  const uint32_t handle = send_obj_handle;
+  TEST_ASSERT_NOT_EQUAL(0, handle);
+  const fs_file_t* f = fs_get_file(handle);
+  TEST_ASSERT_EQUAL(100, f->size);
+  for (uint32_t i = 0; i < FS_MAX_FILENAME_LEN - 1; i++) TEST_ASSERT_EQUAL_HEX16('a' + i % 26, f->name[i]);
+  TEST_ASSERT_EQUAL_HEX16(0, f->name[FS_MAX_FILENAME_LEN - 1]);
+  // exactly one object was created: the spare slot is used and the table has no other new file
+  uint32_t files = 0;
+  for (size_t i = 0; i < FS_MAX_FILE_COUNT; i++) files += fs_file_exist(&fs_objects[i]) ? 1 : 0;
+  TEST_ASSERT_EQUAL(3, files);
+}
+
+void test_send_object_info_runt_dataset_is_refused(void) {
+  open_session();
+  begin_command(MTP_OP_SEND_OBJECT_INFO, SUPPORTED_STORAGE_ID);
+  uint8_t dataset[8] = { 0 };
+  deliver_out(dataset, sizeof(dataset), sizeof(dataset));
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_INVALID_DATASET, api.resp_code);
   TEST_ASSERT_EQUAL(0, send_obj_handle);
 }
