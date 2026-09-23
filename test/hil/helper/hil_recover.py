@@ -361,6 +361,7 @@ def _phase(config: dict, marked: list, log, budget: Budget, report=lambda outcom
             if budget.left() <= 0:
                 outcomes[name] = _not_recovered('recovery budget exhausted before this board')
                 log_outcome(name)
+                inflight = ''
                 continue
             # re-read under the reservation: another run or operator may have cleared or
             # replaced it while the locks were being taken

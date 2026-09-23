@@ -513,6 +513,17 @@ class Recovery(unittest.TestCase):
         self.assertFalse(any(' during ' in l for l in self.log), self.log)
         self.assertIsNotNone(hil_lock.read_wedged('b2'))
 
+    def test_a_watchdog_after_an_exhausted_boards_line_names_no_board(self):
+        def marked():
+            yield CFG['boards'][0]
+            raise hil_recover.Watchdog('phase exceeded 4s')   # the alarm handled at the budget branch's continue
+        out = hil_recover._phase(CFG, marked(), self.log.append, hil_recover.Budget(0))
+        board = [l for l in self.log if l.startswith('b1') and 'wedge NOT recovered' in l]
+        self.assertEqual(len(board), 1, self.log)
+        self.assertEqual(out['b1']['why'], 'recovery budget exhausted before this board')
+        self.assertTrue(any('between boards' in l for l in self.log), self.log)
+        self.assertFalse(any(' during ' in l for l in self.log), self.log)
+
     def test_skip_flash_defers_the_whole_phase(self):
         self.mark()
         self.patch(hil_recover, 'preconditions', REAL_PRECONDITIONS)
