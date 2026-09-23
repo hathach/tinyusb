@@ -627,7 +627,7 @@ static int32_t fs_send_object_info(tud_mtp_cb_data_t* cb_data) {
     f->size = obj_info->object_compressed_size;
     f->data = f_buf;
     uint8_t* buf = io_container->payload + sizeof(mtp_object_info_header_t);
-    (void) mtp_container_get_string(buf, f->name);
+    (void) mtp_container_get_string(buf, f->name, TU_ARRAY_SIZE(f->name));
     // ignore date created/modified/keywords
   } else {
     // nothing to do
