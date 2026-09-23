@@ -182,6 +182,16 @@ static bool prepare_new_command(mtpd_interface_t* p_mtp) {
   return usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_out, _mtpd_epbuf.buf, CFG_TUD_MTP_EP_BUFSIZE, false);
 }
 
+// A refused command read halts both bulk endpoints rather than idle with nothing armed: Get Device
+// Status reports them, and the host clearing both retries the read.
+static void prepare_new_command_or_halt(mtpd_interface_t* p_mtp) {
+  if (!prepare_new_command(p_mtp)) {
+    p_mtp->phase = MTP_PHASE_ERROR;
+    usbd_edpt_stall(p_mtp->rhport, p_mtp->ep_out);
+    usbd_edpt_stall(p_mtp->rhport, p_mtp->ep_in);
+  }
+}
+
 // Data IN: the zero-length packet that terminates the data phase; false (after TU_ASSERT's
 // diagnostics) sends the caller to ERROR
 static bool queue_zlp_in(mtpd_interface_t* p_mtp, uint8_t ep_addr) {
@@ -366,7 +376,7 @@ bool mtpd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
       // order; listen again only once both are clear.
       if (p_mtp->phase == MTP_PHASE_ERROR &&
           !usbd_edpt_stalled(rhport, p_mtp->ep_in) && usbd_edpt_ready(rhport, p_mtp->ep_out)) {
-        prepare_new_command(p_mtp);
+        prepare_new_command_or_halt(p_mtp);
       }
     }
     return true;
@@ -383,7 +393,7 @@ bool mtpd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
           p_mtp->phase = MTP_PHASE_COMMAND;
           // a data IN still sending from the shared buffer defers the read to its completion
           if (!usbd_edpt_busy(rhport, p_mtp->ep_in)) {
-            prepare_new_command(p_mtp);
+            prepare_new_command_or_halt(p_mtp);
           }
         }
         return tud_mtp_request_cancel_cb(&cb_data);
@@ -412,12 +422,7 @@ bool mtpd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
         // never completes and CONTROL_STAGE_ACK below is never reached
         tud_control_status(rhport, request);
       } else if (stage == CONTROL_STAGE_ACK) {
-        if (!prepare_new_command(p_mtp)) {
-          // nothing armed to receive the next command: halt, for the host to clear
-          p_mtp->phase = MTP_PHASE_ERROR;
-          usbd_edpt_stall(rhport, p_mtp->ep_out);
-          usbd_edpt_stall(rhport, p_mtp->ep_in);
-        }
+        prepare_new_command_or_halt(p_mtp);
         return tud_mtp_request_device_reset_cb(&cb_data);
       }
       break;
