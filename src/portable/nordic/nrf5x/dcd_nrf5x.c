@@ -555,12 +555,14 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
       // dcd_edpt_clear_stall() writes SIZE.EPOUT, which lets the next one overwrite it
       xfer->data_received = false;
     } else {
+#ifdef NRF52_SERIES // the nRF5340 USBD documents no register at this offset
       // EPSTALL does not discard a packet already loaded into the IN buffer: it would go out
       // as soon as the halt clears. Disarm it through the undocumented test register nrfx's
       // usbd_ep_abort() uses (0x7B6 + 2*(n-1), bit 1).
       *((volatile uint32_t*) (NRF_USBD_BASE + 0x800)) = 0x7B6 + 2u * (epnum - 1u);
       *((volatile uint32_t*) (NRF_USBD_BASE + 0x804)) |= TU_BIT(1);
       (void) *((volatile uint32_t*) (NRF_USBD_BASE + 0x804));
+#endif
     }
   }
   if (epnum != EP_ISO_NUM) {
