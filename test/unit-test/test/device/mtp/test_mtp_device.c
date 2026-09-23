@@ -230,6 +230,7 @@ static struct {
   bool receive_after_last; // data_xfer_cb arms a read after the last payload too
   uint16_t resp_code;
   uint8_t resp_nparams;
+  bool resp_refused_once; // the dcd refuses the first response, which the app retries unchanged
 
   uint32_t cmd_calls, xfer_calls, complete_calls, resp_complete_calls, cancel_calls, reset_calls, status_calls;
   uint8_t complete_phase;
@@ -248,6 +249,12 @@ static void app_respond(tud_mtp_cb_data_t* cb) {
   }
   cb->io_container.header->code = app.resp_code;
   for (uint8_t i = 0; i < app.resp_nparams; i++) mtp_container_add_uint32(&cb->io_container, 0x1000 + i);
+  if (app.resp_refused_once) {
+    app.resp_refused_once = false;
+    dcd_refuse_ep = EP_IN;
+    TEST_ASSERT_FALSE(tud_mtp_response_send(&cb->io_container));
+    TEST_ASSERT_EQUAL_MESSAGE(-1, dcd_refuse_ep, "response never attempted");
+  }
   TEST_ASSERT_TRUE(tud_mtp_response_send(&cb->io_container));
 }
 
@@ -811,6 +818,22 @@ void test_response_from_headerless_packet_keeps_params(void) {
   expect_call(DCD_XFER, EP_OUT, BUFSIZE);
   app.respond_at_xfer = 2;
   app.resp_nparams = 2;
+  host_out(pkt, BUFSIZE);
+  check_response(expect_call(DCD_XFER, EP_IN, HDR + 8), tid, MTP_RESP_OK, 2);
+  expect_call(DCD_XFER, EP_OUT, BUFSIZE); // ZLP read
+  expect_no_more_calls();
+}
+
+// same, with the dcd refusing the first attempt: the retry must find the headerless view intact
+void test_response_from_headerless_packet_retried_after_refusal(void) {
+  open_device(TUSB_SPEED_HIGH);
+  uint8_t pkt[BUFSIZE];
+  const uint32_t tid = start_data_out(2 * BUFSIZE - HDR, pkt);
+  host_out(pkt, BUFSIZE);
+  expect_call(DCD_XFER, EP_OUT, BUFSIZE);
+  app.respond_at_xfer = 2;
+  app.resp_nparams = 2;
+  app.resp_refused_once = true;
   host_out(pkt, BUFSIZE);
   check_response(expect_call(DCD_XFER, EP_IN, HDR + 8), tid, MTP_RESP_OK, 2);
   expect_call(DCD_XFER, EP_OUT, BUFSIZE); // ZLP read
