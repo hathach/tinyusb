@@ -322,3 +322,49 @@ static void check_continuation_refused(uint32_t refused_at) {
 }
 void test_send_object_info_first_packet_receive_refused_answers_error(void) { check_continuation_refused(2); }
 void test_send_object_info_later_packet_receive_refused_answers_error(void) { check_continuation_refused(3); }
+
+// the first transfer ends inside the filename's first UTF-16 character
+void test_send_object_info_without_a_filename_character_is_refused(void) {
+  open_session();
+  const uint32_t files = fs_get_file_count();
+  begin_command(MTP_OP_SEND_OBJECT_INFO, SUPPORTED_STORAGE_ID);
+  uint8_t dataset[sizeof(mtp_object_info_header_t) + 1 + 2 * 4] = { 0 };
+  fill_object_info((mtp_object_info_header_t*) dataset, 100);
+  dataset[sizeof(mtp_object_info_header_t)] = 4;
+  dataset[sizeof(mtp_object_info_header_t) + 1] = 'a';
+  deliver_out(dataset, sizeof(mtp_object_info_header_t) + 2, sizeof(dataset));
+  TEST_ASSERT_EQUAL(1, api.data_receive);
+  TEST_ASSERT_EQUAL(1, api.response_send);
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_INVALID_DATASET, api.resp_code);
+  TEST_ASSERT_EQUAL(0, send_obj_handle);
+  TEST_ASSERT_FALSE(send_obj_info_incomplete);
+  TEST_ASSERT_EQUAL(files, fs_get_file_count());
+}
+
+void test_send_object_command_receive_refused_answers_error(void) {
+  open_session();
+  send_object_info(100);
+  refuse_receive_at = 1;
+  begin_command(MTP_OP_SEND_OBJECT, 0);
+  TEST_ASSERT_EQUAL(1, api.data_receive);
+  TEST_ASSERT_EQUAL(1, api.response_send);
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_GENERAL_ERROR, api.resp_code);
+}
+
+static void check_send_object_continuation_refused(uint32_t refused_at) {
+  open_session();
+  send_object_info(100);
+  begin_command(MTP_OP_SEND_OBJECT, 0);
+  refuse_receive_at = refused_at;
+  uint8_t pkt[BUFSIZE] = { 0 };
+  deliver_out(pkt, BUFSIZE - HDR, 3 * BUFSIZE - HDR); // host declares 3 packets
+  if (refused_at > 2) {
+    TEST_ASSERT_EQUAL(0, api.response_send);
+    deliver_out(pkt, BUFSIZE, 0);
+  }
+  TEST_ASSERT_EQUAL(refused_at, api.data_receive);
+  TEST_ASSERT_EQUAL(1, api.response_send);
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_GENERAL_ERROR, api.resp_code);
+}
+void test_send_object_first_packet_receive_refused_answers_error(void) { check_send_object_continuation_refused(2); }
+void test_send_object_later_packet_receive_refused_answers_error(void) { check_send_object_continuation_refused(3); }

@@ -668,6 +668,10 @@ static int32_t fs_send_object_info(tud_mtp_cb_data_t* cb_data) {
     const uint8_t* buf = io_container->payload + sizeof(mtp_object_info_header_t);
     const uint32_t name_units_here = (io_container->payload_bytes - sizeof(mtp_object_info_header_t) - 1) / 2;
     (void) mtp_container_get_string(buf, f->name, tu_min32(TU_ARRAY_SIZE(f->name), name_units_here + 1));
+    if (f->name[0] == 0) {
+      fs_discard_staged_file(); // an unnamed object would be invisible to GetObjectHandles
+      return MTP_RESP_INVALID_DATASET;
+    }
     // ignore date created/modified/keywords
     if (cb_data->total_xferred_bytes < io_container->header->len && !tud_mtp_data_receive(io_container)) {
       fs_discard_staged_file();
@@ -692,7 +696,9 @@ static int32_t fs_send_object(tud_mtp_cb_data_t* cb_data) {
 
   if (cb_data->phase == MTP_PHASE_COMMAND) {
     io_container->header->len += f->size;
-    tud_mtp_data_receive(io_container);
+    if (!tud_mtp_data_receive(io_container)) {
+      return MTP_RESP_GENERAL_ERROR;
+    }
   } else {
     // file contents offset is total xferred minus header size minus last received chunk
     const uint32_t offset = cb_data->total_xferred_bytes - sizeof(mtp_container_header_t) - io_container->payload_bytes;
@@ -701,8 +707,8 @@ static int32_t fs_send_object(tud_mtp_cb_data_t* cb_data) {
       memcpy(f->data + offset, io_container->payload, tu_min32(io_container->payload_bytes, f->size - offset));
     }
     // keep reading to the host's declared length; anything past f->size is discarded above
-    if (cb_data->total_xferred_bytes < io_container->header->len) {
-      tud_mtp_data_receive(io_container);
+    if (cb_data->total_xferred_bytes < io_container->header->len && !tud_mtp_data_receive(io_container)) {
+      return MTP_RESP_GENERAL_ERROR; // answered while the host still owes data: the driver stalls
     }
   }
 
