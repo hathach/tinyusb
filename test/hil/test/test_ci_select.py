@@ -711,6 +711,10 @@ class ResetPrimitive(unittest.TestCase):
         for name in ('openocd', 'jlink', 'stlink'):
             self.assertIsNotNone(hil_flash.reset_primitive(name))
 
+    def test_the_raw_roster_name_is_case_folded(self):
+        self.assertIs(hil_flash.reset_primitive('OpenOCD'), hil_flash.reset_openocd)
+        self.assertIsNone(hil_flash.reset_primitive('ESPTool'))
+
     def test_an_unknown_flasher_raises_like_the_flash_dispatch(self):
         with self.assertRaises(AttributeError):
             hil_flash.reset_primitive('nosuchflasher')
