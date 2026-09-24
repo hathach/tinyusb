@@ -179,7 +179,6 @@ static bool send_obj_incomplete = false;
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
-// Get pointer to object info from handle
 static inline bool fs_file_exist(fs_file_t* f) {
   return f->name[0] != 0;
 }
@@ -234,6 +233,26 @@ static int32_t send_data(tud_mtp_cb_data_t* cb_data) {
   return (cb_data->phase == MTP_PHASE_COMMAND) ? MTP_RESP_DEVICE_BUSY : -1;
 }
 
+// Keep reading to the host's declared length. A refused read is answered while the host still owes
+// data, which makes the driver stall, and leaves the staged object partly received: discard it.
+static int32_t receive_rest(tud_mtp_cb_data_t* cb_data) {
+  mtp_container_info_t* io_container = &cb_data->io_container;
+  if (cb_data->total_xferred_bytes < io_container->header->len && !tud_mtp_data_receive(io_container)) {
+    fs_discard_staged_file();
+    return MTP_RESP_GENERAL_ERROR;
+  }
+  return 0;
+}
+
+// a cancelled or reset SendObjectInfo/SendObject leaves no object to write to; a completed
+// ObjectInfo is kept, a partly read one is discarded
+static void fs_abandon_send_object(void) {
+  if (send_obj_incomplete) {
+    fs_discard_staged_file();
+  }
+  send_obj_handle = 0;
+}
+
 // simple malloc
 static inline uint8_t* fs_malloc(size_t size) {
 #ifdef CFG_EXAMPLE_MTP_READONLY
@@ -255,10 +274,7 @@ bool tud_mtp_request_cancel_cb(tud_mtp_request_cb_data_t* cb_data) {
   memcpy(&cancel_data, cb_data->buf, sizeof(cancel_data));
   (void) cancel_data.code;
   (void ) cancel_data.transaction_id;
-  if (send_obj_incomplete) {
-    fs_discard_staged_file(); // its ObjectInfo or data is only partly read
-  }
-  send_obj_handle = 0; // a cancelled SendObjectInfo/SendObject leaves no object to write to
+  fs_abandon_send_object();
   return true;
 }
 
@@ -267,10 +283,7 @@ bool tud_mtp_request_cancel_cb(tud_mtp_request_cb_data_t* cb_data) {
 bool tud_mtp_request_device_reset_cb(tud_mtp_request_cb_data_t* cb_data) {
   (void) cb_data;
   is_session_opened = false; // Device Reset closes all open sessions (Still Image CDD B.9)
-  if (send_obj_incomplete) {
-    fs_discard_staged_file();
-  }
-  send_obj_handle = 0;       // ... and with them any object SendObjectInfo was staging
+  fs_abandon_send_object();
   return true;
 }
 
@@ -293,57 +306,33 @@ int32_t tud_mtp_request_get_device_status_cb(tud_mtp_request_cb_data_t* cb_data)
 //--------------------------------------------------------------------+
 // Bulk Only Protocol
 //--------------------------------------------------------------------+
-int32_t tud_mtp_command_received_cb(tud_mtp_cb_data_t* cb_data) {
-  const mtp_container_command_t* command = cb_data->command_container;
-  mtp_container_info_t* io_container = &cb_data->io_container;
+// Look up and run the operation's handler; a positive code is its response, sent here with a bare
+// header since a handler that answers early or failed to start its data phase may have grown len
+static int32_t dispatch_op(tud_mtp_cb_data_t* cb_data) {
   fs_op_handler_t handler = NULL;
   for (size_t i = 0; i < TU_ARRAY_SIZE(fs_op_handler_dict); i++) {
-    if (fs_op_handler_dict[i].op_code == command->header.code) {
+    if (fs_op_handler_dict[i].op_code == cb_data->command_container->header.code) {
       handler = fs_op_handler_dict[i].handler;
       break;
     }
   }
 
-  int32_t resp_code;
-  if (handler == NULL) {
-    resp_code = MTP_RESP_OPERATION_NOT_SUPPORTED;
-  } else {
-    resp_code = handler(cb_data);
-  }
+  const int32_t resp_code = (handler == NULL) ? MTP_RESP_OPERATION_NOT_SUPPORTED : handler(cb_data);
   if (resp_code > MTP_RESP_UNDEFINED) {
-    // a handler that failed to start its data phase may have grown len: reset to a bare header
+    mtp_container_info_t* io_container = &cb_data->io_container;
     io_container->header->len = sizeof(mtp_container_header_t);
     io_container->header->code = (uint16_t)resp_code;
     tud_mtp_response_send(io_container);
   }
-
   return resp_code;
 }
 
+int32_t tud_mtp_command_received_cb(tud_mtp_cb_data_t* cb_data) {
+  return dispatch_op(cb_data);
+}
+
 int32_t tud_mtp_data_xfer_cb(tud_mtp_cb_data_t* cb_data) {
-  const mtp_container_command_t* command = cb_data->command_container;
-  mtp_container_info_t* io_container = &cb_data->io_container;
-
-  fs_op_handler_t handler = NULL;
-  for (size_t i = 0; i < TU_ARRAY_SIZE(fs_op_handler_dict); i++) {
-    if (fs_op_handler_dict[i].op_code == command->header.code) {
-      handler = fs_op_handler_dict[i].handler;
-      break;
-    }
-  }
-
-  int32_t resp_code;
-  if (handler == NULL) {
-    resp_code = MTP_RESP_OPERATION_NOT_SUPPORTED;
-  } else {
-    resp_code = handler(cb_data);
-  }
-  if (resp_code > MTP_RESP_UNDEFINED) {
-    // Early response (e.g. fs_send_object_info() rejects the dataset): reset to a bare header
-    io_container->header->len = sizeof(mtp_container_header_t);
-    io_container->header->code = (uint16_t)resp_code;
-    tud_mtp_response_send(io_container);
-  }
+  const int32_t resp_code = dispatch_op(cb_data);
   return (resp_code < 0) ? resp_code : 0; // negative: the driver stalls, cancelling the data phase
 }
 
@@ -646,11 +635,7 @@ static int32_t fs_send_object_info(tud_mtp_cb_data_t* cb_data) {
     // spill into further packets, which are read to the declared length and ignored.
     const bool is_first_packet = (cb_data->total_xferred_bytes == sizeof(mtp_container_header_t) + io_container->payload_bytes);
     if (!is_first_packet) {
-      if (cb_data->total_xferred_bytes < io_container->header->len && !tud_mtp_data_receive(io_container)) {
-        fs_discard_staged_file();
-        return MTP_RESP_GENERAL_ERROR; // answered while the host still owes data: the driver stalls
-      }
-      return 0;
+      return receive_rest(cb_data);
     }
     if (io_container->payload_bytes < sizeof(mtp_object_info_header_t) + 1) {
       return MTP_RESP_INVALID_DATASET;
@@ -694,10 +679,7 @@ static int32_t fs_send_object_info(tud_mtp_cb_data_t* cb_data) {
       return MTP_RESP_INVALID_DATASET;
     }
     // ignore date created/modified/keywords
-    if (cb_data->total_xferred_bytes < io_container->header->len && !tud_mtp_data_receive(io_container)) {
-      fs_discard_staged_file();
-      return MTP_RESP_GENERAL_ERROR;
-    }
+    return receive_rest(cb_data);
   } else {
     // nothing to do
   }
@@ -728,11 +710,7 @@ static int32_t fs_send_object(tud_mtp_cb_data_t* cb_data) {
     if (offset < f->size) {
       memcpy(f->data + offset, io_container->payload, tu_min32(io_container->payload_bytes, f->size - offset));
     }
-    // keep reading to the host's declared length; anything past f->size is discarded above
-    if (cb_data->total_xferred_bytes < io_container->header->len && !tud_mtp_data_receive(io_container)) {
-      fs_discard_staged_file(); // partly written
-      return MTP_RESP_GENERAL_ERROR; // answered while the host still owes data: the driver stalls
-    }
+    return receive_rest(cb_data); // anything past f->size is discarded above
   }
 
   return 0;
