@@ -175,7 +175,9 @@ def representatives(candidates, examples, drivers=(), keep=()):
     ones it requires: hcd_dwc2.c is empty on a MAX3421 board, hcd_rp2040.c on a PIO-USB
     one, hcd_pio_usb.c on a board that is neither). Drivers without USB-IP guards need
     one compiling board per MCU_VARIANT in board.cmake; boards without it share one
-    group. Add a plain first pick when that leaves nothing. A candidate that compiles
+    group. The missing guard is a deliberate selection proxy for variant-dependent code,
+    not a claim that guarded drivers have no variant-specific behaviour. Add a plain
+    first pick when that leaves nothing. A candidate that compiles
     one of the affected examples is preferred, the criterion dropped when it leaves no
     candidate: ci_select keeps a family when ANY of its boards builds the selection under
     EITHER build system, so the first candidate can be one skipped for every affected
@@ -226,8 +228,7 @@ CMAKE_FALSE = {'', '0', 'OFF', 'NO', 'FALSE', 'N', 'IGNORE', 'NOTFOUND'}
 def source_usbips(src):
     """What one driver's body needs defined, read off the `defined(TUP_USBIP_*)` conjuncts
     of the first #if guard naming one (a negated or bracketed term is not a conjunct and
-    is left out). Empty for a driver no TUP_USBIP gates (rp2040, nrf5x): its body may
-    still vary by MCU_VARIANT, so representatives covers each compiling variant."""
+    is left out). Empty for a driver no TUP_USBIP gates (rp2040, nrf5x)."""
     try:
         text = Path(src).read_text(encoding='utf-8', errors='replace')
     except OSError:                  # a file the change deletes is still in the diff
@@ -370,8 +371,7 @@ def boards_for(selection, scope=(), reasons=()):
     compile: a board whose own hw/bsp dir is in the scope, else a rig-roster board of the
     family, else one under hw/bsp/<family>/boards, and then a board per USB-IP requirement
     set of the changed ports, and one turning on the build option an option-gated port
-    needs, that none of those selects (representatives). Ports without USB-IP guards
-    add a compiling board per MCU_VARIANT.
+    needs, that none of those selects (representatives).
     The representative pair for the full matrix, plus boards for every family a scope
     path names (a port, bsp or mcu path): the pair stands in for the matrix on core
     code, not on a port it does not contain. No family is not a verdict on its own:
