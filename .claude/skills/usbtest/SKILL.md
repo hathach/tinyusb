@@ -23,10 +23,14 @@ the failing case passing *and* the full battery still at 30/30 across reflash cy
 ```bash
 # build through the build contract; descriptor sizes auto-adapt per MCU via the example's
 # own src/usb_descriptors.h + src/tusb_config.h. No -D: it sticks to the dir HIL flashes from.
-python3 .claude/skills/build/scripts/check_build.py --board <board> -e device/usbtest --shared
+# board_test is the park firmware hil_test.py flashes after the battery.
+python3 .claude/skills/build/scripts/check_build.py --board <board> -e device/usbtest -e device/board_test --shared
 
 # rig board, full battery: the HIL harness self-locks (no pre-hold), flashes through the
-# roster's probe, budgets the battery and enables hang recovery where the board allows
+# roster's probe, budgets the battery and enables hang recovery where the board allows.
+# A roster board with a "variant" list runs every variant from its own cmake-build-<variant>
+# with that variant's flags, which the build above does not produce: skip it and add --build
+# here, which builds each variant's full example set first.
 python3 test/hil/hil_test.py -b <board> -t device/usbtest <this host's config>
 
 # one case by hand: the harness re-parks the board afterwards, so hold it, flash usbtest with
@@ -137,7 +141,7 @@ whether a hung case is recoverable. Fetch the upstream version matching the rig'
 kernel (`uname -r`; the distro's own source when its patches matter):
 
 ```bash
-curl -sO "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/drivers/usb/misc/usbtest.c?h=v$(uname -r | sed 's/[-+].*//')"   # run on the rig
+curl --fail -sO "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/drivers/usb/misc/usbtest.c?h=v$(uname -r | sed 's/[-+].*//; s/\.0$//')"   # run on the rig; x.y.0 is tagged vx.y
 # case N lives under `case N:` in the kernel's usbtest_do_ioctl()
 # (drivers/usb/misc/usbtest.c); kernel tools/usb/testusb.c maps the flags:
 # -c = param.iterations, -s = param.length, -g = param.sglen  (NOT what they read like)
