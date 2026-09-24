@@ -779,6 +779,10 @@ class WedgeConfirmationOnTheMainPath(unittest.TestCase):
         ignored = [e for e in self.ladder if e[0] == 'lookup' or (e[0] == 'sleep' and e not in steps)]
         self.assertEqual([steps.get(e, e) for e in self.ladder if e not in ignored], want)
 
+    def test_the_settle_keeps_its_validated_minimum(self):
+        import usbtest
+        self.assertGreaterEqual(usbtest.RECOVER_SETTLE, 5, 'validated minimum: metro_m4_express UF2 double-tap')
+
     def test_the_reset_is_attempted_before_the_reflash(self):
         self._ladder([([4242], True), ([], True)], ['reset', 'settle', 'scan', 'flash', 'settle', 'scan'])
 
