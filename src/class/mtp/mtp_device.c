@@ -267,7 +267,8 @@ bool tud_mtp_response_send(mtp_container_info_t* p_container) {
 
   // Headerless view (2nd+ data packet): its header lives in io_header and its payload starts where
   // the header goes, so move the payload down before copying the header in.
-  if (p_container->header != &epbuf->header) {
+  const bool external_header = (p_container->header != &epbuf->header);
+  if (external_header) {
     memmove(epbuf->payload, p_container->payload, len - sizeof(mtp_container_header_t));
     epbuf->header = *p_container->header;
   }
@@ -278,7 +279,7 @@ bool tud_mtp_response_send(mtp_container_info_t* p_container) {
   p_mtp->phase = MTP_PHASE_RESPONSE;
   if (!usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_in, (uint8_t*) epbuf, (uint16_t) len, false)) {
     p_mtp->phase = prev_phase;
-    if (p_container->header != &epbuf->header) {
+    if (external_header) {
       // undo the move so that a retry with the same headerless view packs the same payload
       memmove(p_container->payload, epbuf->payload, len - sizeof(mtp_container_header_t));
     }
@@ -574,16 +575,15 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       // this final payload to the application before arming the read for the terminating
       // ZLP, since both use the same endpoint buffer.
       const bool need_zlp = is_complete && xferred_bytes > 0 && !(xferred_bytes & (threshold - 1));
-      if (is_data_in && need_zlp) {
-        if (queue_zlp_in(p_mtp, ep_addr)) {
-          return true;
-        }
-        p_mtp->phase = MTP_PHASE_ERROR; // endpoint unavailable
-        break;
-      }
-
       if (is_data_in) {
         // Data In
+        if (need_zlp) {
+          if (queue_zlp_in(p_mtp, ep_addr)) {
+            return true;
+          }
+          p_mtp->phase = MTP_PHASE_ERROR; // endpoint unavailable
+          break;
+        }
         if (!is_complete) {
           // 2nd+ packet: payload only
           cb_data.io_container = headerless_packet;
