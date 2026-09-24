@@ -712,6 +712,30 @@ void test_data_out_runt_first_packet_stalls(void) {
   recover_from_error(EP_OUT, EP_IN);
 }
 
+// a first data-OUT container that is not this transaction's data block never reaches the application
+static void check_data_out_foreign_header(uint16_t type, uint16_t code, uint32_t tid_delta) {
+  open_device(TUSB_SPEED_HIGH);
+  uint8_t pkt[BUFSIZE];
+  const uint32_t tid = start_data_out(100, pkt);
+  mtp_container_header_t* h = (mtp_container_header_t*) pkt;
+  h->type = type;
+  h->code = code;
+  h->transaction_id = tid + tid_delta;
+  host_out(pkt, HDR + 100);
+  TEST_ASSERT_EQUAL(0, app.xfer_calls);
+  recover_from_error(EP_OUT, EP_IN);
+}
+
+void test_data_out_non_data_container_stalls(void) {
+  check_data_out_foreign_header(MTP_CONTAINER_TYPE_COMMAND_BLOCK, MTP_OP_SEND_OBJECT_INFO, 0);
+}
+void test_data_out_other_operation_stalls(void) {
+  check_data_out_foreign_header(MTP_CONTAINER_TYPE_DATA_BLOCK, MTP_OP_SEND_OBJECT, 0);
+}
+void test_data_out_other_transaction_stalls(void) {
+  check_data_out_foreign_header(MTP_CONTAINER_TYPE_DATA_BLOCK, MTP_OP_SEND_OBJECT_INFO, 1);
+}
+
 void test_data_out_xfer_callback_negative_stalls(void) {
   open_device(TUSB_SPEED_HIGH);
   uint8_t pkt[BUFSIZE];
