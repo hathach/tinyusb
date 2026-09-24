@@ -34,10 +34,12 @@ python3 .claude/skills/build/scripts/check_build.py --board <board> -e device/us
 python3 test/hil/hil_test.py -b <board> -t device/usbtest <this host's config>
 
 # one case by hand: the harness re-parks the board afterwards, so hold it, flash usbtest with
-# its probe pinned (<device> from `tools/build_utils.py board-info <board>`), wait ~3-5 s for
-# enumeration, run, release
+# its probe pinned, wait ~3-5 s for enumeration, run, release. From the board's entry in this
+# host's HIL config json: <probe-uid>/<args> are its flasher "uid"/"args", <uid> its own "uid".
+# A non-jlink flasher: run the command flash_<flasher>() in test/hil/hil_flash.py builds for the
+# usbtest image its FLASHER_SUFFIX entry picks.
 python3 test/hil/helper/hil_lock.py hold <board> --reason "usbtest case 29"
-JLinkExe -device <device> -USB <probe-serial> -if swd -JTAGConf -1,-1 -speed auto -nogui 1 \
+JLinkExe -USB <probe-uid> <args> -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 \
     -CommandFile cmake-build/cmake-build-<board>/device/usbtest/usbtest.jlink
 python3 test/hil/usbtest.py --serial <uid> --tests 29
 python3 test/hil/helper/hil_lock.py release <board>
