@@ -1228,9 +1228,8 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_hil_rtt.py',
             'test/hil/test/test_hil_usbtest_id.py',
             'test/hil/test/test_hil_util.py',
+            'test/hil/test/test_membrowse_cli.py',
             'test/hil/test/test_membrowse_compare.py',
-            'test/hil/test/test_membrowse_onboard.py',
-            'test/hil/test/test_membrowse_report.py',
             'test/hil/test/test_metrics_compare_base.py',
             'test/hil/test/usbtest_harness.py',
         ], 'test/hil/test/ gained or lost a file; it is carved out of rule 2, so confirm '
@@ -1962,8 +1961,8 @@ class TestNoContributionPaths(unittest.TestCase):
     def test_metrics_scripts_contribute_nothing_on_either_axis(self):
         # no CI build and no rig board runs any of these (drivers_coverage_check.py is
         # pre-commit only)
-        for p in ('tools/metrics.py', 'tools/membrowse_onboard.py',
-                  'tools/membrowse_compare.py', 'tools/drivers_coverage_check.py'):
+        for p in ('tools/metrics.py', 'tools/membrowse_compare.py',
+                  'tools/drivers_coverage_check.py'):
             h = sel([p])
             self.assertFalse(h['full'], p)
             self.assertEqual(h['boards'], {}, p)
@@ -1974,6 +1973,14 @@ class TestNoContributionPaths(unittest.TestCase):
     def test_ci_boards_json_is_full_build_no_hil(self):
         # decides which boards a family's build legs compile; no rig board depends on it
         p = '.github/ci-pinned-boards.json'
+        h = sel([p])
+        self.assertFalse(h['full'], p)
+        self.assertEqual(h['boards'], {}, p)
+        self.assertTrue(ci_select.classify_build([p], REPO)['full'], p)
+
+    def test_membrowse_cli_is_a_full_build_matrix_without_hil(self):
+        # run by family_add_membrowse() for every pinned board (rule 2d)
+        p = 'tools/membrowse_cli.py'
         h = sel([p])
         self.assertFalse(h['full'], p)
         self.assertEqual(h['boards'], {}, p)
@@ -2369,7 +2376,7 @@ class TestBuildPyExampleFilter(unittest.TestCase):
         # CI run, since idf.py never ran 'all' here) used to print "no build dir" and
         # skip - silently uploading nothing, unlike every other CI board, which still
         # gets an --identical upload via its cheap `cmake` configure. This target must
-        # instead invoke membrowse_report.py directly (its --identical path needs
+        # instead invoke `membrowse_cli.py report` directly (its --identical path needs
         # neither idf.py nor a build dir) rather than going through idf.py/cmake.
         calls = []
         def fake_run(cmd):
@@ -2387,13 +2394,14 @@ class TestBuildPyExampleFilter(unittest.TestCase):
         self.assertEqual(r, [1, 0, 0])
         self.assertEqual(len(calls), 1)
         cmd = calls[0]
-        self.assertIn('membrowse_report.py', cmd[1])
+        self.assertIn('membrowse_cli.py', cmd[1])
+        self.assertEqual(cmd[2], 'report')
         self.assertNotIn('idf.py', cmd[0])
         self.assertIn('--upload', cmd)
         self.assertEqual(cmd[cmd.index('--target-name') + 1],
                          'espressif_s3_devkitc/cdc_msc_freertos')
         # the whole point: --elf names the file the (absent) build dir would hold, so
-        # membrowse_report.py's own elf-missing check takes the --identical branch
+        # `membrowse_cli.py report`'s own elf-missing check takes the --identical branch
         self.assertEqual(cmd[cmd.index('--elf') + 1],
                          'cmake-build/cmake-build-espressif_s3_devkitc/device/cdc_msc_freertos/cdc_msc_freertos.elf')
 

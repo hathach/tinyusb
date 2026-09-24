@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Unit tests for tools/membrowse_compare.py (pure functions, no build needed)."""
 import os
+import subprocess
 import sys
+import tempfile
 import unittest
+from unittest import mock
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
 sys.path.insert(0, os.path.join(REPO, 'tools'))
@@ -46,6 +49,24 @@ SYMS_CUR = [
     {'name': 'dcd_buf', 'size': 64, 'section': '.bss', 'source_file': 'dcd_dwc2.c',
      'object_file': 'device/cdc_msc/CMakeFiles/cdc_msc.dir/co2/src/portable/synopsys/dwc2/dcd_dwc2.c.obj'},
 ]
+
+
+class ReportForElf(unittest.TestCase):
+    def test_uses_the_elfs_link_and_runs_from_the_build_dir(self):
+        with tempfile.TemporaryDirectory() as build:
+            open(os.path.join(build, 'build.ninja'), 'w').close()
+            elf = os.path.join(build, 'device', 'x', 'x.elf')
+            os.makedirs(os.path.dirname(elf))
+            commands = 'cc -Wl,--script=/sdk/memmap.ld -Wl,--defsym=X=1 -o device/x/x.elf\n'
+            done = subprocess.CompletedProcess([], 0, '{}', '')
+            with mock.patch.object(mc, 'link_command', return_value=commands) as link, \
+                 mock.patch.object(mc.subprocess, 'run', return_value=done) as run:
+                mc.report_for_elf(elf)
+            link.assert_called_once_with('ninja', build, elf)
+            cmd = run.call_args.args[0]
+            self.assertEqual(cmd[2:4], [elf, '/sdk/memmap.ld'])
+            self.assertEqual(cmd[cmd.index('--def') + 1], 'X=1')
+            self.assertEqual(run.call_args.kwargs['cwd'], build)
 
 
 class PerFileSizes(unittest.TestCase):
@@ -263,6 +284,162 @@ class CompareReports(unittest.TestCase):
         self.assertIn('dcd_dwc2.c', md)
         self.assertIn('+20', md)          # flash grew 100 -> 120
         self.assertIn('TOTAL', md)
+
+
+class AllSymbolSizes(unittest.TestCase):
+    def test_unattributed_symbol_counts_in_all_symbols_only(self):
+        syms = SYMS_BASE + [{'name': 'anon', 'size': 7, 'section': '.text',
+                             'source_file': '', 'object_file': ''}]
+        sizes = mc.elf_sizes(fake_report(syms), ['/co/src/'])
+        self.assertEqual(sizes['all'], {'flash': 100 + 999 + 7, 'ram': 64})
+        self.assertEqual(sizes['files'], {'portable/synopsys/dwc2/dcd_dwc2.c':
+                                          {'flash': 100, 'ram': 64}})
+
+
+def elf(files, all_syms=None):
+    """elf_sizes() shape: files as {path: (flash, ram)}; all-symbols defaults to their sum."""
+    files = {p: {'flash': f, 'ram': r} for p, (f, r) in files.items()}
+    if all_syms is None:
+        all_syms = (sum(v['flash'] for v in files.values()), sum(v['ram'] for v in files.values()))
+    return {'files': files, 'all': {'flash': all_syms[0], 'ram': all_syms[1]}}
+
+
+def pair_ids(n, board='b'):
+    return [(board, f'device/ex{i}/ex{i}.elf') for i in range(n)]
+
+
+class PairElfs(unittest.TestCase):
+    def test_unmatched_and_failed_elfs_are_not_paired(self):
+        a, b, c, d = pair_ids(4)
+        base = {a: elf({'x.c': (1, 0)}), b: elf({}), c: None}
+        cur = {a: elf({'x.c': (1, 0)}), c: elf({}), d: elf({})}
+        pairs, base_only, cur_only = mc.pair_elfs(base, cur)
+        self.assertEqual(list(pairs), [a])     # c's base report failed
+        self.assertEqual(base_only, [b])
+        self.assertEqual(cur_only, [d])
+
+
+class RenderPairs(unittest.TestCase):
+    def render(self, base, cur, failures=()):
+        pairs, base_only, cur_only = mc.pair_elfs(base, cur)
+        return mc.render_pairs(pairs, len(base.keys() & cur.keys()), base_only, cur_only, failures)
+
+    def test_different_elf_sets_give_zero_on_shared_pairs(self):
+        a, b, extra = pair_ids(3)
+        base = {a: elf({'x.c': (100, 8)}), b: elf({'x.c': (200, 8)})}
+        cur = {a: elf({'x.c': (100, 8)}), b: elf({'x.c': (200, 8)}), extra: elf({'x.c': (900, 8)})}
+        md = self.render(base, cur)
+        self.assertIn('Coverage (INCOMPLETE):** 2 of 2 matched elf pairs compared, 0 changed', md)
+        self.assertIn('current-only: `b: device/ex2/ex2.elf`', md)
+        self.assertIn('_no changes_', md)
+
+    def test_single_pair_with_an_unmatched_elf_is_incomplete(self):
+        a, extra = pair_ids(2)
+        md = self.render({a: elf({'x.c': (1, 0)})}, {a: elf({'x.c': (1, 0)}), extra: elf({})})
+        self.assertIn('Coverage (INCOMPLETE):** 1 of 1 matched', md)
+        self.assertIn('current-only: `b: device/ex1/ex1.elf`', md)
+
+    def test_zero_pairs_are_not_reported_as_no_changes(self):
+        a, b = pair_ids(2)
+        for base, cur, failures in (({}, {}, [(('b', None), 'current', 'build', 'failed')]),
+                                    ({a: elf({})}, {b: elf({})}, [])):
+            md = self.render(base, cur, failures)
+            self.assertIn('Coverage (INCOMPLETE):** 0 of 0 matched', md)
+            self.assertIn('_no comparable pairs_', md)
+            self.assertNotIn('_no changes_', md)
+            if failures:
+                self.assertIn('FAILED `b` current build: failed', md)
+
+    def test_equal_extremes_pick_the_same_witness_whatever_the_insertion_order(self):
+        a, b, c = pair_ids(3)
+        base = {i: elf({'x.c': (100, 0)}) for i in (a, b, c)}
+        cur = {a: elf({'x.c': (110, 0)}), b: elf({'x.c': (110, 0)}), c: elf({'x.c': (100, 0)})}
+        forward = self.render(base, cur)
+        backward = self.render(dict(reversed(list(base.items()))), dict(reversed(list(cur.items()))))
+        self.assertEqual(forward, backward)
+        self.assertIn('| x.c | 2/3 | 0 | +10 (b: device/ex0/ex0.elf) |', forward)
+
+    def test_failed_elfs_of_one_example_stay_distinguishable(self):
+        app, loader = ('b', 'device/ex/app.elf'), ('b', 'device/ex/loader.elf')
+        md = self.render({app: None, loader: None}, {app: elf({}), loader: elf({})},
+                         [(app, 'base', 'report', 'x'), (loader, 'base', 'report', 'y')])
+        self.assertIn('FAILED `b: device/ex/app.elf` base report: x', md)
+        self.assertIn('FAILED `b: device/ex/loader.elf` base report: y', md)
+
+    def test_one_growing_pair_among_many_stays_visible(self):
+        ids = pair_ids(10)
+        base = {i: elf({'x.c': (100, 0)}) for i in ids}
+        cur = {**base, ids[3]: elf({'x.c': (300, 0)})}
+        md = self.render(base, cur)
+        self.assertIn('| x.c | 1/10 | 0 | +200 (b: device/ex3/ex3.elf) | 0 | 0 |', md)
+
+    def test_opposite_signs_do_not_cancel(self):
+        a, b = pair_ids(2)
+        base = {a: elf({'x.c': (100, 0)}), b: elf({'x.c': (100, 0)})}
+        cur = {a: elf({'x.c': (110, 0)}), b: elf({'x.c': (90, 0)})}
+        md = self.render(base, cur)
+        self.assertIn('| x.c | 2/2 | -10 (b: device/ex1/ex1.elf) | +10 (b: device/ex0/ex0.elf) |', md)
+
+    def test_cancelling_files_inside_a_pair_still_mark_it_changed(self):
+        a, b = pair_ids(2)
+        base = {a: elf({'x.c': (100, 0), 'y.c': (100, 0)}), b: elf({'x.c': (1, 0)})}
+        cur = {a: elf({'x.c': (140, 0), 'y.c': (60, 0)}), b: elf({'x.c': (1, 0)})}
+        md = self.render(base, cur)
+        self.assertIn('2 of 2 matched elf pairs compared, 1 changed', md)
+        self.assertIn('| b: device/ex0/ex0.elf | 0 | 0 | 0 | 0 |', md)
+        self.assertIn('| x.c | 1/2 |', md)
+        self.assertIn('| y.c | 1/1 |', md)
+
+    def test_file_added_and_removed_inside_a_pair(self):
+        a, b = pair_ids(2)
+        base = {a: elf({'old.c': (50, 0)}), b: elf({})}
+        cur = {a: elf({'new.c': (30, 4)}), b: elf({})}
+        md = self.render(base, cur)
+        # a file only one pair has: its min and max are that pair's delta
+        self.assertIn('| old.c | 1/1 | -50 (b: device/ex0/ex0.elf) | -50 (b: device/ex0/ex0.elf) | 0 | 0 |', md)
+        self.assertIn('| new.c | 1/1 | +30 (b: device/ex0/ex0.elf) | +30 (b: device/ex0/ex0.elf) '
+                      '| +4 (b: device/ex0/ex0.elf) | +4 (b: device/ex0/ex0.elf) |', md)
+
+    def test_elfs_of_one_example_are_separate_pairs(self):
+        app, loader = ('b', 'device/ex/app.elf'), ('b', 'device/ex/loader.elf')
+        base = {app: elf({'x.c': (100, 0)}), loader: elf({'x.c': (10, 0)})}
+        cur = {app: elf({'x.c': (100, 0)}), loader: elf({'x.c': (20, 0)})}
+        md = self.render(base, cur)
+        self.assertIn('| b: device/ex/loader.elf | +10 |', md)
+        self.assertNotIn('| b: device/ex/app.elf |', md)
+
+    def test_pair_totals_are_per_pair_not_summed_file_extremes(self):
+        a, b = pair_ids(2)
+        base = {a: elf({'x.c': (0, 0), 'y.c': (0, 0)}), b: elf({'x.c': (0, 0), 'y.c': (0, 0)})}
+        cur = {a: elf({'x.c': (10, 0), 'y.c': (0, 0)}), b: elf({'x.c': (0, 0), 'y.c': (10, 0)})}
+        md = self.render(base, cur)
+        self.assertIn('| b: device/ex0/ex0.elf | +10 | 0 |', md)
+        self.assertIn('| b: device/ex1/ex1.elf | +10 | 0 |', md)
+        self.assertNotIn('+20', md)
+
+    def test_ram_only_change(self):
+        a, b = pair_ids(2)
+        base = {a: elf({'x.c': (100, 64)}), b: elf({'x.c': (100, 64)})}
+        cur = {a: elf({'x.c': (100, 128)}), b: elf({'x.c': (100, 64)})}
+        md = self.render(base, cur)
+        self.assertIn('| x.c | 1/2 | 0 | 0 | 0 | +64 (b: device/ex0/ex0.elf) |', md)
+
+    def test_all_symbols_change_outside_src_is_reported(self):
+        a, b = pair_ids(2)
+        base = {a: elf({'x.c': (100, 0)}, all_syms=(1000, 0)), b: elf({'x.c': (1, 0)})}
+        cur = {a: elf({'x.c': (100, 0)}, all_syms=(1024, 0)), b: elf({'x.c': (1, 0)})}
+        md = self.render(base, cur)
+        self.assertIn('| b: device/ex0/ex0.elf | 0 | 0 | +24 | 0 |', md)
+
+    def test_single_pair_keeps_the_detail_table_and_incomplete_status(self):
+        a, b = pair_ids(2)
+        base = {a: elf({'x.c': (100, 0)}), b: None}
+        cur = {a: elf({'x.c': (120, 0)}), b: elf({})}
+        md = self.render(base, cur, failures=[(b, 'base', 'report', 'boom')])
+        self.assertIn('Coverage (INCOMPLETE):** 1 of 2 matched elf pairs compared, 1 changed', md)
+        self.assertIn('FAILED `b: device/ex1/ex1.elf` base report: boom', md)
+        self.assertIn('all symbols: Flash Δ +20, RAM Δ 0', md)
+        self.assertIn('| x.c | 100 | 120 | +20 |', md)
 
 
 if __name__ == '__main__':

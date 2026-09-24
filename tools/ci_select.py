@@ -25,9 +25,9 @@ _prune_buildable then intersects each family with what it can actually build.
 | 1 | `docs/`, `.claude/`, `*.md`, `*.rst`, `LICENSE` | — | — | — |
 | 1b | `.gitignore`, `.clang-format`, `.agents`, `.codex/**`, `.idea/**`, `test/{fuzz,unit-test}/**`, `test/hil/test/**`, non-build `.github/**`, packaging manifests | — | — | — |
 | 2 | `test/hil/**` (not `test/hil/test/**`) | — | — | all boards → all tests |
-| 2b | `tools/metrics.py`, `tools/membrowse_compare.py`, `tools/membrowse_onboard.py`, `tools/drivers_coverage_check.py` | — (local-only tooling, no CI build runs it) | — | — (nothing on the rig runs it) |
+| 2b | `tools/metrics.py`, `tools/membrowse_compare.py`, `tools/drivers_coverage_check.py` | — (local-only tooling, no CI build runs it) | — | — (nothing on the rig runs it) |
 | 2c | `.github/ci-pinned-boards.json` | `ALL` | `ALL` | — (CI board data; no rig board's behaviour depends on it) |
-| 2d | `tools/membrowse_report.py` | `ALL` | `ALL` | — (build-time script invoked from family_support.cmake; no rig board runs it) |
+| 2d | `tools/membrowse_cli.py` | `ALL` | `ALL` | — (build-time script invoked from family_support.cmake; no rig board runs it) |
 | 3 | `src/portable/<port>/dcd_*`, `*_device.[ch]` | `FAM` | `DEV`+`DUAL` | `FAM`'s device-role boards → device+dual tests |
 | 4 | `src/portable/<port>/hcd_*`, `*_host.[ch]` | `FAM` | `HOST`+`DUAL` | `FAM`'s host-role boards → host+dual tests |
 | 5 | `src/portable/<port>/**` (anything else) | `FAM` | `ALL` | `FAM`'s boards → all their tests |
@@ -130,14 +130,14 @@ _META_RE = re.compile(
 # Local-only size/coverage tooling: no CI build and no rig board runs it (the
 # drivers-coverage checker is pre-commit only), so no contribution on either axis.
 _METRICS_RE = re.compile(
-    r'^tools/(metrics[^/]*|membrowse_compare|membrowse_onboard|drivers_coverage_check)\.py$')
+    r'^tools/(metrics[^/]*|membrowse_compare|drivers_coverage_check)\.py$')
 # CI board data (tools/build.py --ci-pinned-boards): it decides which boards a family's
 # build legs compile, so a bad edit can silently drop a family - full build matrix. No
 # rig board depends on it.
 _CI_BOARDS_RE = re.compile(r'^\.github/ci-pinned-boards\.json$')
 # Run by family_add_membrowse() for every family with a pinned board: which family it
 # breaks is data, not code, so full build matrix as rule 2c. No rig board runs it.
-_MEMBROWSE_SCRIPT_RE = re.compile(r'^tools/membrowse_report\.py$')
+_MEMBROWSE_SCRIPT_RE = re.compile(r'^tools/membrowse_cli\.py$')
 _FULL_RE = re.compile(
     r'^(src/common/|src/osal/|src/tusb\.c$|src/tusb\.h$|src/tusb_option\.h$|'
     # tools/rtt.py is part of the harness, not a standalone tool: hil_util imports it

@@ -302,7 +302,7 @@ function(family_add_membrowse TARGET)
     set(ELF_TARGET ${TARGET})
   endif ()
 
-  # For Ninja generator, tools/membrowse_report.py extracts linker scripts (with
+  # For Ninja generator, `tools/membrowse_cli.py report` extracts linker scripts (with
   # INCLUDE resolution) and --defsym symbols from the ninja build graph, then runs
   # `membrowse report` (looked up on PATH, see the script). It also handles
   # MEMBROWSE_API_KEY at build time (not here at configure time) so the key is never
@@ -313,7 +313,6 @@ function(family_add_membrowse TARGET)
     set(MEMBROWSE_ARGS
       --build-dir ${CMAKE_BINARY_DIR}
       --ninja ${CMAKE_MAKE_PROGRAM}
-      --target ${ELF_TARGET}
       --elf ${TARGET_ELF_PATH}
       --target-name ${BOARD}/${TARGET}
       )
@@ -326,7 +325,7 @@ function(family_add_membrowse TARGET)
 
     add_custom_target(${TARGET}-membrowse
       DEPENDS ${ELF_TARGET}
-      COMMAND python ${TOP}/tools/membrowse_report.py ${MEMBROWSE_ARGS}
+      COMMAND python ${TOP}/tools/membrowse_cli.py report ${MEMBROWSE_ARGS}
       VERBATIM
       )
     #set_property(TARGET ${TARGET}-membrowse PROPERTY FOLDER ${TARGET}-group)
@@ -335,7 +334,7 @@ function(family_add_membrowse TARGET)
     # --identical metadata-only upload) for a commit that never rebuilt this elf,
     # so this target must never force a rebuild.
     add_custom_target(${TARGET}-membrowse-upload
-      COMMAND python ${TOP}/tools/membrowse_report.py ${MEMBROWSE_ARGS} --upload
+      COMMAND python ${TOP}/tools/membrowse_cli.py report ${MEMBROWSE_ARGS} --upload
       VERBATIM
       )
 

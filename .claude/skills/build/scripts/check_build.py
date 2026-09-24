@@ -563,9 +563,10 @@ def coverage(reasons, scope, results, chosen=False, targets=()):
     named examples is a gap when no board wrote an elf for any of them; a core stack path
     names every example of its role; any other contributing path is a gap when the run
     produced no elf at all (-T help is a green build of nothing). A path whose reason names
-    a build target rather than families or examples (tools/membrowse_report.py is verified
-    by examples-membrowse-upload) is a gap unless the run selected that target: the default
-    sweep builds `all`, which never runs it, and another -e or -T does not stand in for it.
+    a build target rather than families or examples (a membrowse build-time script is
+    verified by examples-membrowse-upload) is a gap unless the run selected that target:
+    the default sweep builds `all`, which never runs it, and another -e or -T does not
+    stand in for it.
     `chosen` (-e or -T given) hands the rest to the caller, bar a family no board of which
     was built and bar that target: narrowing the examples does not change which families
     the scope resolves to. With no

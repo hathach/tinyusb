@@ -8,7 +8,7 @@ import json
 import os
 import subprocess
 
-from membrowse_report import extract_ld_scripts, extract_defsyms, ninja_commands
+from membrowse_cli import extract_ld_scripts, extract_defsyms, link_command
 
 # Fallback names verified against in-repo linker scripts; anything else counts as flash.
 RAM_SECTIONS = ('.bss', '.noinit', '.stack', '.heap',
@@ -33,31 +33,31 @@ def _find_ninja_build_dir(elf_path):
         d = parent
 
 
-def _ld_scripts_and_defsyms(elf_path):
-    """Return linker scripts and defsyms from the ELF's ninja build graph."""
+def _link_settings(elf_path):
+    """Return the ELF's build dir, and the linker scripts and defsyms of its link."""
     build_dir = _find_ninja_build_dir(elf_path)
     if build_dir is None:
         raise RuntimeError(f'no build.ninja found above {elf_path} - cannot '
                             f'determine its linker scripts')
-    target = os.path.relpath(os.path.abspath(elf_path), build_dir)
-    commands = ninja_commands('ninja', build_dir, target)
+    commands = link_command('ninja', build_dir, elf_path)
     ld_scripts = extract_ld_scripts(commands)
     if not ld_scripts:
         raise RuntimeError(f'no linker script found in the ninja build graph '
                             f'for {elf_path}')
-    return ld_scripts, extract_defsyms(commands)
+    return build_dir, ld_scripts, extract_defsyms(commands)
 
 
 def report_for_elf(elf_path, map_path=None):
     """Run membrowse local report on one elf, return parsed JSON dict."""
-    ld_scripts, defsyms = _ld_scripts_and_defsyms(elf_path)
+    build_dir, ld_scripts, defsyms = _link_settings(elf_path)
     cmd = ['membrowse', 'report', elf_path, ' '.join(ld_scripts),
            '--json', '--all-symbols']
     for sym in defsyms:
         cmd += ['--def', sym]
     if map_path and os.path.isfile(map_path):
         cmd += ['--map-file', map_path]
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    # from the link's working dir, as membrowse_cli.report() does
+    r = subprocess.run(cmd, capture_output=True, text=True, cwd=build_dir)
     if r.returncode != 0:
         raise RuntimeError(f'membrowse report failed for {elf_path}: {r.stderr}')
     return json.loads(r.stdout)
@@ -135,11 +135,18 @@ def _relative_key(src, filters):
     return None
 
 
-def per_file_sizes(report, filters):
-    """Return flash/RAM sizes keyed by filtered relative source path."""
+def _bucketer(report):
+    """Return section name -> flash/RAM bucket set for one report."""
     layout = report.get('memory_layout') or {}
     section_regions = _section_regions(layout)
     region_bucket = {name: _classify_region(name) for name in layout}
+    return lambda section: (_bucket_from_layout(section, section_regions, region_bucket)
+                            or _bucket_by_name(section))
+
+
+def per_file_sizes(report, filters):
+    """Return flash/RAM sizes keyed by filtered relative source path."""
+    buckets = _bucketer(report)
     by_file = {}
     for sym in report.get('symbols', []):
         src = sym.get('object_file') or sym.get('source_file') or ''
@@ -149,10 +156,26 @@ def per_file_sizes(report, filters):
         if key is None:
             continue
         entry = by_file.setdefault(key, {'flash': 0, 'ram': 0})
-        buckets = _bucket_from_layout(sym.get('section'), section_regions, region_bucket)
-        for b in buckets or _bucket_by_name(sym.get('section')):
+        for b in buckets(sym.get('section')):
             entry[b] += sym['size']
     return by_file
+
+
+def all_symbol_sizes(report):
+    """Flash/RAM summed over every sized symbol, attributed or not. Aliases can
+    overlap, so this is a symbol-size sum, not occupied bytes."""
+    buckets = _bucketer(report)
+    total = {'flash': 0, 'ram': 0}
+    for sym in report.get('symbols', []):
+        if sym.get('size'):
+            for b in buckets(sym.get('section')):
+                total[b] += sym['size']
+    return total
+
+
+def elf_sizes(report, filters):
+    """Per-file (filtered) and all-symbol sizes of one elf."""
+    return {'files': per_file_sizes(report, filters), 'all': all_symbol_sizes(report)}
 
 
 def _fmt(delta):
@@ -187,3 +210,136 @@ def compare_reports(base_by_file, cur_by_file):
     if len(lines) == 3 and rows:
         lines.insert(2, '| _no per-file changes_ | | | | | | |')
     return '\n'.join(lines) + '\n'
+
+
+def pair_elfs(base, cur):
+    """Pair two {elf_id: elf_sizes, or None for a failed report} maps.
+
+    Returns (pairs, base_only, cur_only): `pairs` maps each id with a report on
+    both sides to (base, cur); ids on one side only are listed, never paired.
+    """
+    pairs = {i: (base[i], cur[i]) for i in sorted(base.keys() & cur.keys())
+             if base[i] is not None and cur[i] is not None}
+    return pairs, sorted(base.keys() - cur.keys()), sorted(cur.keys() - base.keys())
+
+
+def _delta(b, c):
+    return c['flash'] - b['flash'], c['ram'] - b['ram']
+
+
+def _file_deltas(b, c):
+    """{path: (flash Δ, RAM Δ)} over the union of both sides' files."""
+    zero = {'flash': 0, 'ram': 0}
+    return {path: _delta(b['files'].get(path, zero), c['files'].get(path, zero))
+            for path in sorted(set(b['files']) | set(c['files']))}
+
+
+def _src_total(sizes):
+    return {k: sum(f[k] for f in sizes['files'].values()) for k in ('flash', 'ram')}
+
+
+def _label(elf_id):
+    board, elf = elf_id
+    return f'{board}: {elf}' if elf else board
+
+
+def _extreme(value_id):
+    delta, elf_id = value_id
+    return f'{_fmt(delta)} ({_label(elf_id)})' if delta else '0'
+
+
+def _file_stats(file_deltas):
+    """Per file: pairs present/changed and the (Δ, elf id) extremes of each
+    metric, the first id winning ties. `file_deltas` maps sorted elf ids to
+    _file_deltas()."""
+    entries = {}
+    for elf_id, deltas in file_deltas.items():
+        for path, d in deltas.items():
+            entries.setdefault(path, []).append((elf_id, d))
+    stats = {}
+    for path, es in entries.items():
+        stats[path] = {'present': len(es), 'changed': sum(any(d) for _, d in es)}
+        for i, k in enumerate(('flash', 'ram')):
+            lo = min(es, key=lambda e: e[1][i])
+            hi = max(es, key=lambda e: e[1][i])
+            stats[path][k] = [(lo[1][i], lo[0]), (hi[1][i], hi[0])]
+    return stats
+
+
+def render_pairs(pairs, matched, base_only=(), cur_only=(), failures=(), boards=()):
+    """Markdown report over paired elfs keyed by (board, elf path).
+
+    Every statistic is over per-pair deltas. `matched` counts ids built on both
+    sides, compared or not;
+    `failures` are (elf id, side, stage, message), the elf path None for a
+    board-level failure. Failures or unmatched elfs mark the report INCOMPLETE.
+    `boards` lists the requested boards, so an unchanged or failed one is named.
+    """
+    file_deltas = {i: _file_deltas(b, c) for i, (b, c) in pairs.items()}
+    changed = [i for i, (b, c) in pairs.items()
+               if any(_delta(b['all'], c['all'])) or any(any(d) for d in file_deltas[i].values())]
+    status = 'INCOMPLETE' if failures or base_only or cur_only else 'complete'
+    lines = [f'**Coverage ({status}):** {len(pairs)} of {matched} matched elf pairs '
+             f'compared, {len(changed)} changed']
+    if boards:
+        lines.append('- boards: ' + ', '.join(f'`{b}`' for b in boards))
+    for label, ids in (('base-only', base_only), ('current-only', cur_only)):
+        if ids:
+            lines.append(f'- {label}: ' + ', '.join(f'`{_label(i)}`' for i in ids))
+    for elf_id, side, stage, message in failures:
+        lines.append(f'- FAILED `{_label(elf_id)}` {side} {stage}: {message}')
+    lines.append('')
+
+    if len(pairs) == 1:
+        (elf_id, (b, c)), = pairs.items()
+        df, dr = _delta(b['all'], c['all'])
+        lines += [f'`{_label(elf_id)}` all symbols: Flash Δ {_fmt(df)}, RAM Δ {_fmt(dr)}', '',
+                  compare_reports(b['files'], c['files'])]
+        return '\n'.join(lines)
+    if not pairs:
+        return '\n'.join(lines + ['_no comparable pairs_', ''])
+    if not changed:
+        return '\n'.join(lines + ['_no changes_', ''])
+
+    lines += ['| Pair | filtered Flash Δ | filtered RAM Δ | all-symbols Flash Δ | all-symbols RAM Δ |',
+              '|------|-----------------:|---------------:|--------------------:|------------------:|']
+    for elf_id in changed:
+        b, c = pairs[elf_id]
+        src = _delta(_src_total(b), _src_total(c))
+        syms = _delta(b['all'], c['all'])
+        lines.append(f'| {_label(elf_id)} | ' + ' | '.join(_fmt(d) for d in src + syms) + ' |')
+
+    stats = _file_stats(file_deltas)
+    rows = sorted((p for p, s in stats.items() if s['changed']),
+                  key=lambda p: (-max(abs(v[0]) for k in ('flash', 'ram') for v in stats[p][k]), p))
+    lines += ['', '_Changed / present: pairs where the file changed / compared pairs that contain it._',
+              '', '| File | Changed / present | Flash Δ min | Flash Δ max | RAM Δ min | RAM Δ max |',
+              '|------|------------------:|------------:|------------:|----------:|----------:|']
+    for path in rows:
+        s = stats[path]
+        lines.append(f'| {path} | {s["changed"]}/{s["present"]} | '
+                     + ' | '.join(_extreme(v) for k in ('flash', 'ram') for v in s[k]) + ' |')
+
+    for elf_id in changed:
+        b, c = pairs[elf_id]
+        lines += ['', f'<details><summary>{_label(elf_id)}</summary>', '',
+                  compare_reports(b['files'], c['files']), '</details>']
+    return '\n'.join(lines) + '\n'
+
+
+def compare_sides(base, cur, failures=(), boards=(), scope=None):
+    """Pair two sides and render them. Returns (md, failures, ok).
+
+    `failures` comes back with a filter failure for `scope` added when no
+    compared pair matched a file (wrong filters, or a membrowse report shape
+    change broke per_file_sizes()); pass `scope=None` when each scope was
+    already checked. `ok` is False on any failure or when nothing was compared.
+    """
+    pairs, base_only, cur_only = pair_elfs(base, cur)
+    failures = list(failures)
+    if scope and pairs and not any(b['files'] or c['files'] for b, c in pairs.values()):
+        failures.append((scope, 'both', 'filter',
+                         'no symbols matched filters - check them, or a membrowse report '
+                         'format change broke per_file_sizes() (try --engine linkermap to isolate)'))
+    md = render_pairs(pairs, len(base.keys() & cur.keys()), base_only, cur_only, failures, boards)
+    return md, failures, bool(pairs) and not failures

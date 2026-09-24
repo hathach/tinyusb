@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Unit tests for tools/metrics_compare_base.py's generate_membrowse_sizes() guard.
+"""Unit tests for tools/metrics_compare_base.py.
 
-Exercises the "elfs found but no symbols matched filters" failure mode with
-glob.glob and membrowse_compare.report_for_elf monkeypatched, so no build and
-no real membrowse CLI invocation is needed.
+glob.glob, membrowse_compare.report_for_elf and the build steps are
+monkeypatched, so no build and no real membrowse CLI invocation is needed.
 """
 import contextlib
 import io
+import json
 import os
 import subprocess
 import sys
@@ -27,104 +27,76 @@ def _run_capturing_stdout(*args, **kwargs):
     return result, buf.getvalue()
 
 
+def _report(size):
+    return {'symbols': [{'name': 'x', 'size': size, 'section': '.text',
+                         'object_file': 'build/x.c.obj', 'source_file': 'x.c'}]}
+
+
 class GenerateMembrowseSizes(unittest.TestCase):
-    def test_no_elfs_errors_and_returns_none(self):
+    def test_no_elfs_errors_and_returns_nothing(self):
         with mock.patch('glob.glob', return_value=[]):
-            result, out = _run_capturing_stdout('/fake/build', ['/fake/src/'])
-        self.assertIsNone(result)
+            (sizes, errors), out = _run_capturing_stdout('/fake/build', ['/fake/src/'])
+        self.assertEqual(sizes, {})
+        self.assertEqual(errors[0][0], None)
         self.assertIn('no .elf files', out)
 
-    def test_elfs_found_but_nothing_matches_filters_errors_and_returns_none(self):
-        # a filter typo, or a membrowse report-shape change breaking per_file_sizes()
-        # matching: must not silently produce an empty/degenerate table
-        fake_report = {'symbols': [
-            {'name': 'x', 'size': 4, 'section': '.text',
-             'object_file': 'build/x.c.obj', 'source_file': 'x.c'},
-        ]}
-        with mock.patch('glob.glob', return_value=['/fake/build/ex/ex.elf']), \
-             mock.patch.object(membrowse_compare, 'report_for_elf', return_value=fake_report):
-            result, out = _run_capturing_stdout('/fake/build', ['/no/such/prefix/'])
-        self.assertIsNone(result)
-        self.assertIn('no symbols matched filters', out)
-        self.assertIn('--engine linkermap', out)
-
-    def test_membrowse_cli_missing_errors_and_returns_none(self):
+    def test_membrowse_cli_missing_errors_and_returns_nothing(self):
         # subprocess.run(['membrowse', ...]) raises FileNotFoundError when the
         # CLI isn't installed - must not surface as a bare traceback after the
         # base+branch builds already ran (minutes of work).
         with mock.patch('glob.glob', return_value=['/fake/build/ex/ex.elf']), \
              mock.patch.object(membrowse_compare, 'report_for_elf',
                                 side_effect=FileNotFoundError('membrowse')):
-            result, out = _run_capturing_stdout('/fake/build', ['/fake/src/'])
-        self.assertIsNone(result)
+            (sizes, errors), out = _run_capturing_stdout('/fake/build', ['/fake/src/'])
+        self.assertEqual(sizes, {})
+        self.assertEqual(errors[0][0], None)
         self.assertIn('pip install membrowse', out)
         self.assertIn('--engine linkermap', out)
 
-    def test_membrowse_report_failure_errors_and_returns_none(self):
+    def test_membrowse_report_failure_marks_only_that_elf(self):
         # report_for_elf() raises RuntimeError when `membrowse report` itself
-        # exits non-zero - must not surface as a bare traceback after the
-        # base+branch builds already ran (minutes of work).
-        with mock.patch('glob.glob', return_value=['/fake/build/ex/ex.elf']), \
-             mock.patch.object(membrowse_compare, 'report_for_elf',
-                                side_effect=RuntimeError('membrowse report failed for /fake/build/ex/ex.elf: boom')):
-            result, out = _run_capturing_stdout('/fake/build', ['/fake/src/'])
-        self.assertIsNone(result)
+        # exits non-zero: that elf fails, the others are still reported
+        def report(elf, _map):
+            if 'bad' in elf:
+                raise RuntimeError(f'membrowse report failed for {elf}: boom')
+            return _report(4)
+        with mock.patch('glob.glob', return_value=['/fake/build/bad/bad.elf',
+                                                    '/fake/build/ok/ok.elf']), \
+             mock.patch.object(membrowse_compare, 'report_for_elf', side_effect=report):
+            (sizes, errors), out = _run_capturing_stdout('/fake/build', ['build/'])
+        self.assertIsNone(sizes['bad/bad.elf'])
+        self.assertEqual(sizes['ok/ok.elf']['files']['x.c']['flash'], 4)
+        self.assertEqual([rel for rel, _ in errors], ['bad/bad.elf'])
         self.assertIn('membrowse report failed', out)
 
-    def test_elfs_found_and_filters_match_returns_sizes(self):
-        fake_report = {'symbols': [
-            {'name': 'x', 'size': 4, 'section': '.text',
-             'object_file': 'build/x.c.obj', 'source_file': 'x.c'},
-        ]}
-        with mock.patch('glob.glob', return_value=['/fake/build/ex/ex.elf']), \
-             mock.patch.object(membrowse_compare, 'report_for_elf', return_value=fake_report):
-            result = mcb.generate_membrowse_sizes('/fake/build', ['build/'])
-        self.assertIsNotNone(result)
-        self.assertIn('x.c', result)
-        self.assertEqual(result['x.c']['flash'], 4)
+    def test_malformed_report_marks_only_that_elf(self):
+        def report(elf, _map):
+            if 'bad' in elf:
+                raise json.JSONDecodeError('Expecting value', '', 0)
+            return _report(4)
+        with mock.patch('glob.glob', return_value=['/fake/build/bad/bad.elf',
+                                                    '/fake/build/ok/ok.elf']), \
+             mock.patch.object(membrowse_compare, 'report_for_elf', side_effect=report):
+            (sizes, errors), out = _run_capturing_stdout('/fake/build', ['build/'])
+        self.assertIsNone(sizes['bad/bad.elf'])
+        self.assertEqual(sizes['ok/ok.elf']['files']['x.c']['flash'], 4)
+        self.assertEqual([rel for rel, _ in errors], ['bad/bad.elf'])
+        self.assertIn('malformed membrowse report', out)
 
-    def test_all_examples_scope_averages_a_file_shared_across_elfs(self):
-        # No `example` arg (the -b-with-no-e, all-examples scope): a file linked
-        # by more than one elf must be AVERAGED across them, matching
-        # metrics.py's compute_avg() semantics from the legacy linkermap engine
-        # this replaces - not summed, or a file linked by N examples would
-        # report ~N times its real size and Flash/RAM wouldn't be a real
-        # binary's size any more.
-        report_a = {'symbols': [
-            {'name': 'x', 'size': 100, 'section': '.text',
-             'object_file': 'build/x.c.obj', 'source_file': 'x.c'},
-        ]}
-        report_b = {'symbols': [
-            {'name': 'x', 'size': 200, 'section': '.text',
-             'object_file': 'build/x.c.obj', 'source_file': 'x.c'},
-        ]}
-        with mock.patch('glob.glob', return_value=['/fake/build/ex1/ex1.elf',
-                                                    '/fake/build/ex2/ex2.elf']), \
+    def test_each_elf_is_kept_by_its_relative_path(self):
+        # no averaging or summing across elfs: every elf, including two of one
+        # example (app + bootloader), is its own pairing identity
+        # keyed by elf: the reports run on a thread pool, in no fixed order
+        flash = {'/fake/build/ex/app.elf': 100, '/fake/build/ex/loader.elf': 200,
+                 '/fake/build/ex2/ex2.elf': 300}
+        with mock.patch('glob.glob', return_value=list(flash)), \
              mock.patch.object(membrowse_compare, 'report_for_elf',
-                                side_effect=[report_a, report_b]):
-            result = mcb.generate_membrowse_sizes('/fake/build', ['build/'])
-        self.assertIsNotNone(result)
-        self.assertEqual(result['x.c']['flash'], 150)  # (100+200)/2, not 300
-
-    def test_single_example_scope_sums_across_its_own_elfs(self):
-        # `example` given (-e): must stay byte-identical to before averaging was
-        # added - an example with more than one of its own elf (e.g. app +
-        # bootloader) sums, it does not average.
-        report_a = {'symbols': [
-            {'name': 'x', 'size': 100, 'section': '.text',
-             'object_file': 'build/x.c.obj', 'source_file': 'x.c'},
-        ]}
-        report_b = {'symbols': [
-            {'name': 'x', 'size': 200, 'section': '.text',
-             'object_file': 'build/x.c.obj', 'source_file': 'x.c'},
-        ]}
-        with mock.patch('glob.glob', return_value=['/fake/build/ex/app.elf',
-                                                    '/fake/build/ex/loader.elf']), \
-             mock.patch.object(membrowse_compare, 'report_for_elf',
-                                side_effect=[report_a, report_b]):
-            result = mcb.generate_membrowse_sizes('/fake/build', ['build/'], example='ex')
-        self.assertIsNotNone(result)
-        self.assertEqual(result['x.c']['flash'], 300)  # sum, not average
+                                side_effect=lambda elf, _map: _report(flash[elf])):
+            sizes, errors = mcb.generate_membrowse_sizes('/fake/build', ['build/'])
+        self.assertEqual(errors, [])
+        self.assertEqual({rel: s['files']['x.c']['flash'] for rel, s in sizes.items()},
+                         {'ex/app.elf': 100, 'ex/loader.elf': 200, 'ex2/ex2.elf': 300})
+        self.assertEqual(sizes['ex/app.elf']['all'], {'flash': 100, 'ram': 0})
 
 
 class BuildBoardLinkermap(unittest.TestCase):
@@ -161,18 +133,36 @@ class BuildBoardLinkermap(unittest.TestCase):
             self.assertTrue(self._build(bracketed, with_map=True))
 
 
+def _elf(flash):
+    return {'files': {'x.c': {'flash': flash, 'ram': 0}}, 'all': {'flash': flash, 'ram': 0}}
+
+
 class MainFailure(unittest.TestCase):
-    def _main(self, tmp, build_board=True, sizes=None):
+    def _run_main(self, tmp, argv, build_board, generate=None, run=None):
+        """main() on the membrowse engine with the build, report and command
+        steps stubbed. `build_board` is its side_effect (it must create the board
+        dir, as the real one does); `generate` the generate_membrowse_sizes()
+        side_effect. Returns (rc, stdout)."""
         ok = subprocess.CompletedProcess([], 0, '', '')
-        board_patch = (dict(side_effect=build_board) if callable(build_board)
-                       else dict(return_value=build_board))
-        with mock.patch.object(sys, 'argv', ['metrics_compare_base.py', '-b', 'b']), \
+        with mock.patch.object(sys, 'argv', ['metrics_compare_base.py'] + argv), \
              mock.patch.object(mcb, 'METRICS_DIR', tmp), \
-             mock.patch.object(mcb, 'run', return_value=ok), \
+             mock.patch.object(mcb, 'run', side_effect=run or (lambda *_a, **_k: ok)), \
              mock.patch.object(mcb, 'symlink_deps'), \
-             mock.patch.object(mcb, 'build_board', **board_patch), \
-             mock.patch.object(mcb, 'generate_membrowse_sizes', return_value=sizes):
-            return mcb.main()
+             mock.patch.object(mcb, 'build_board', side_effect=build_board), \
+             mock.patch.object(mcb, 'generate_membrowse_sizes', side_effect=generate):
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                rc = mcb.main()
+        return rc, buf.getvalue()
+
+    def _main(self, tmp, build_board=None, sizes=None, cur_sizes=None):
+        """main() for board `b`; `sizes` is what generate_membrowse_sizes() returns for
+        the base side and, unless `cur_sizes` is given, the current side too."""
+        def build(_src, _build_dir, board, *_args, **_kwargs):
+            os.makedirs(os.path.join(tmp, board), exist_ok=True)
+            return build_board() if build_board else True
+        side_sizes = iter([sizes, sizes if cur_sizes is None else cur_sizes])
+        return self._run_main(tmp, ['-b', 'b'], build, lambda *_a, **_k: next(side_sizes))
 
     def test_build_dirs_are_cleaned_before_build(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -183,26 +173,175 @@ class MainFailure(unittest.TestCase):
                 with open(path, 'w') as f:
                     f.write('stale')
 
-            def build_board(*_args, **_kwargs):
+            def build_board():
                 self.assertFalse(any(os.path.exists(path) for path in stale_paths))
                 return True
 
-            self.assertEqual(self._main(tmp, build_board, {'x.c': {'flash': 1, 'ram': 1}}), 0)
+            rc, _out = self._main(tmp, build_board, ({'ex/ex.elf': _elf(1)}, []))
+            self.assertEqual(rc, 0)
 
-    def test_failed_report_removes_stale_output_and_returns_nonzero(self):
+    def test_failed_report_replaces_stale_output_and_returns_nonzero(self):
         with tempfile.TemporaryDirectory() as tmp:
             board_dir = os.path.join(tmp, 'b')
             os.makedirs(board_dir)
             stale = os.path.join(board_dir, 'metrics_compare.md')
             with open(stale, 'w') as f:
                 f.write('stale')
-            self.assertEqual(self._main(tmp, sizes=None), 1)
-            self.assertFalse(os.path.exists(stale))
+            rc, _out = self._main(tmp, sizes=({}, [(None, 'boom')]))
+            self.assertEqual(rc, 1)
+            with open(stale) as f:
+                md = f.read()
+            self.assertIn('INCOMPLETE', md)
+            self.assertIn('_no comparable pairs_', md)
+            self.assertIn('boom', md)
 
     def test_success_returns_zero(self):
         with tempfile.TemporaryDirectory() as tmp:
-            os.makedirs(os.path.join(tmp, 'b'))
-            self.assertEqual(self._main(tmp, sizes={'x.c': {'flash': 1, 'ram': 1}}), 0)
+            rc, _out = self._main(tmp, sizes=({'ex/ex.elf': _elf(1)}, []),
+                                  cur_sizes=({'ex/ex.elf': _elf(3)}, []))
+            self.assertEqual(rc, 0)
+            with open(os.path.join(tmp, 'b', 'metrics_compare.md')) as f:
+                self.assertIn('| x.c | 1 | 3 | +2 |', f.read())
+
+    def test_unmatched_elf_is_incomplete_but_not_a_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, out = self._main(tmp, sizes=({'ex/ex.elf': _elf(1)}, []),
+                                 cur_sizes=({'ex/ex.elf': _elf(1), 'new/new.elf': _elf(5)}, []))
+            self.assertEqual(rc, 0)
+            self.assertIn('INCOMPLETE', out)
+            self.assertIn('current-only: `b: new/new.elf`', out)
+
+    def test_no_symbols_matched_filters_fails(self):
+        # a filter typo, or a membrowse report-shape change breaking per_file_sizes()
+        # matching: must not silently produce an empty/degenerate table
+        empty = {'files': {}, 'all': {'flash': 4, 'ram': 0}}
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, out = self._main(tmp, sizes=({'ex/ex.elf': empty}, []))
+            self.assertEqual(rc, 1)
+            self.assertIn('no symbols matched filters', out)
+            self.assertIn('--engine linkermap', out)
+
+    def test_one_side_without_matched_files_is_a_valid_removal(self):
+        empty = {'files': {}, 'all': {'flash': 4, 'ram': 0}}
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, out = self._main(tmp, sizes=({'ex/ex.elf': _elf(8)}, []),
+                                 cur_sizes=({'ex/ex.elf': empty}, []))
+            self.assertEqual(rc, 0)
+            self.assertIn('| x.c | 8 | 0 | -8 |', out)
+
+    def _main_membrowse_combined(self, tmp, sizes, build_ok=('b1', 'b2'), example=None):
+        """main() with -b b1 -b b2 --combined on the membrowse engine. `sizes` maps
+        (board, side) to what generate_membrowse_sizes() returns; boards not in
+        `build_ok` fail their base build. Returns (rc, stdout, combined md or None)."""
+        def build_board(_src, _build_dir, board, *_args, **_kwargs):
+            os.makedirs(os.path.join(tmp, board), exist_ok=True)
+            return board in build_ok
+
+        def generate(build_dir, _filters, _example=None):
+            board, side = os.path.relpath(build_dir, tmp).split(os.sep)
+            return sizes[(board, 'base' if side == 'base' else 'current')]
+
+        argv = ['-b', 'b1', '-b', 'b2', '--combined'] + (['-e', example] if example else [])
+        rc, out = self._run_main(tmp, argv, build_board, generate)
+        combined = os.path.join(tmp, '_combined', 'metrics_compare.md')
+        md = None
+        if os.path.isfile(combined):
+            with open(combined) as f:
+                md = f.read()
+        return rc, out, md
+
+    def test_membrowse_combined_pairs_every_board(self):
+        sizes = {('b1', 'base'): ({'ex/ex.elf': _elf(10)}, []),
+                 ('b1', 'current'): ({'ex/ex.elf': _elf(10)}, []),
+                 ('b2', 'base'): ({'ex/ex.elf': _elf(10)}, []),
+                 ('b2', 'current'): ({'ex/ex.elf': _elf(50)}, [])}
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, _out, md = self._main_membrowse_combined(tmp, sizes)
+        self.assertEqual(rc, 0)
+        self.assertIn('Coverage (complete):** 2 of 2 matched elf pairs compared, 1 changed', md)
+        self.assertIn('- boards: `b1`, `b2`', md)
+        self.assertIn('| x.c | 1/2 | 0 | +40 (b2: ex/ex.elf) |', md)
+
+    def test_membrowse_combined_records_a_failed_board(self):
+        sizes = {('b1', 'base'): ({'ex/ex.elf': _elf(10)}, []),
+                 ('b1', 'current'): ({'ex/ex.elf': _elf(12)}, [])}
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, _out, md = self._main_membrowse_combined(tmp, sizes, build_ok=('b1',))
+        self.assertEqual(rc, 1)
+        self.assertIn('Coverage (INCOMPLETE):** 1 of 1 matched', md)
+        self.assertIn('FAILED `b2` base build', md)
+        self.assertIn('- boards: `b1`, `b2`', md)
+
+    def test_membrowse_combined_keeps_one_boards_filter_failure(self):
+        # b1 matches files, b2 matches none: the combined report still names b2
+        empty = {'files': {}, 'all': {'flash': 4, 'ram': 0}}
+        sizes = {('b1', 'base'): ({'ex/ex.elf': _elf(10)}, []),
+                 ('b1', 'current'): ({'ex/ex.elf': _elf(10)}, []),
+                 ('b2', 'base'): ({'ex/ex.elf': empty}, []),
+                 ('b2', 'current'): ({'ex/ex.elf': empty}, [])}
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, _out, md = self._main_membrowse_combined(tmp, sizes)
+        self.assertEqual(rc, 1)
+        self.assertIn('Coverage (INCOMPLETE)', md)
+        self.assertEqual(md.count('FAILED `b2` both filter'), 1)
+
+    def test_failed_build_writes_a_per_board_report_for_each_scope(self):
+        for example, name in ((None, 'metrics_compare.md'),
+                              ('device/cdc_msc', 'metrics_compare_device_cdc_msc.md')):
+            with tempfile.TemporaryDirectory() as tmp:
+                def build_board(*_args, **_kwargs):
+                    os.makedirs(os.path.join(tmp, 'b'), exist_ok=True)
+                    return False
+                argv = ['-b', 'b'] + (['-e', example] if example else [])
+                rc, _out = self._run_main(tmp, argv, build_board)
+                self.assertEqual(rc, 1)
+                with open(os.path.join(tmp, 'b', name)) as f:
+                    md = f.read()
+                self.assertIn('INCOMPLETE', md)
+                self.assertIn('FAILED `b` base build', md)
+                self.assertIn('_no comparable pairs_', md)
+
+    def test_later_scope_build_failure_skips_collection_and_bloaty(self):
+        # -e a builds, -e b fails: both scopes' reports carry the failure, no elf
+        # is collected or bloaty-diffed, and the combined report lists it once
+        with tempfile.TemporaryDirectory() as tmp:
+            def build_board(_src, _build_dir, board, example, *_args, **_kwargs):
+                os.makedirs(os.path.join(tmp, board), exist_ok=True)
+                return example == 'device/a'
+            cmds = []
+
+            def run(cmd, **_kwargs):
+                cmds.append(cmd)
+                return subprocess.CompletedProcess([], 0, '', '')
+            generate = mock.Mock()
+            rc, _out = self._run_main(tmp, ['-b', 'b', '-e', 'device/a', '-e', 'device/b',
+                                            '--bloaty', '--combined'],
+                                      build_board, generate, run)
+            self.assertEqual(rc, 1)
+            generate.assert_not_called()
+            self.assertFalse(any('bloaty' in cmd for cmd in cmds))
+            for name in ('metrics_compare_device_a.md', 'metrics_compare_device_b.md'):
+                with open(os.path.join(tmp, 'b', name)) as f:
+                    self.assertIn('FAILED `b` base build: build failed --target b', f.read())
+            with open(os.path.join(tmp, '_combined', 'metrics_compare.md')) as f:
+                self.assertEqual(f.read().count('FAILED `b`'), 1)
+
+    def test_membrowse_combined_with_an_example(self):
+        sizes = {(b, side): ({'device/cdc_msc/cdc_msc.elf': _elf(5)}, [])
+                 for b in ('b1', 'b2') for side in ('base', 'current')}
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, _out, md = self._main_membrowse_combined(tmp, sizes, example='device/cdc_msc')
+            self.assertTrue(os.path.isfile(os.path.join(tmp, 'b1', 'metrics_compare_device_cdc_msc.md')))
+        self.assertEqual(rc, 0)
+        self.assertIn('2 of 2 matched elf pairs compared, 0 changed', md)
+
+    def test_membrowse_combined_replaces_the_previous_report_when_no_board_builds(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._seed_combined_report(tmp)
+            rc, _out, md = self._main_membrowse_combined(tmp, {}, build_ok=())
+        self.assertEqual(rc, 1)
+        self.assertNotIn('previous run', md)
+        self.assertIn('_no comparable pairs_', md)
 
     def _main_combined(self, tmp, fail_out=None, metrics=True, build_ok=True, example=None):
         """main() with --combined --engine linkermap and metrics.py stubbed out.
@@ -374,17 +513,70 @@ class GlobMetacharsInBuildDir(unittest.TestCase):
             self.assertIn(map_json, cmds[0])
 
     def test_elf_found(self):
-        fake_report = {'symbols': [
-            {'name': 'x', 'size': 4, 'section': '.text',
-             'object_file': 'build/x.c.obj', 'source_file': 'x.c'},
-        ]}
         with tempfile.TemporaryDirectory() as tmp:
             build_dir, _elf, _map_json = self._tree(tmp)
             with mock.patch.object(membrowse_compare, 'report_for_elf',
-                                   return_value=fake_report):
-                result = mcb.generate_membrowse_sizes(build_dir, ['build/'])
-            self.assertIsNotNone(result)
-            self.assertEqual(result['x.c']['flash'], 4)
+                                   return_value=_report(4)):
+                sizes, errors = mcb.generate_membrowse_sizes(build_dir, ['build/'])
+            self.assertEqual(errors, [])
+            self.assertEqual(sizes['device/cdc_msc/cdc_msc.elf']['files']['x.c']['flash'], 4)
+
+
+class CiBoardSet(unittest.TestCase):
+    def _boards_built(self, tmp, pinned_json):
+        """Boards main() builds for `--ci -b extra -b b1`, with `pinned_json` as the pinned file."""
+        pinned = os.path.join(tmp, 'ci-pinned-boards.json')
+        with open(pinned, 'w') as f:
+            f.write(pinned_json)
+        built = []
+
+        def build(_src, _build_dir, board, *_args, **_kwargs):
+            built.append(board)
+            os.makedirs(os.path.join(tmp, board), exist_ok=True)
+            return False  # stop at the base build: only the board set matters
+        ok = subprocess.CompletedProcess([], 0, '', '')
+        with mock.patch.object(sys, 'argv', ['x', '--ci', '-b', 'extra', '-b', 'b1']), \
+             mock.patch.object(mcb, 'METRICS_DIR', tmp), \
+             mock.patch.object(mcb, 'CI_PINNED_BOARDS', pinned), \
+             mock.patch.object(mcb, 'run', return_value=ok), \
+             mock.patch.object(mcb, 'symlink_deps'), \
+             mock.patch.object(mcb, 'build_board', side_effect=build), \
+             contextlib.redirect_stdout(io.StringIO()):
+            mcb.main()
+        return built
+
+    def test_ci_adds_the_pinned_boards_after_the_named_ones(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            built = self._boards_built(tmp, '{"boards": [{"board": "b1"}, {"board": "b2"}], '
+                                            '"uncovered": []}')
+            self.assertEqual(built, ['extra', 'b1', 'b2'])
+
+
+class SymlinkDeps(unittest.TestCase):
+    def test_links_each_dep_path_of_the_worktrees_own_manifest(self):
+        deps = {'hw/mcu/broadcom': [], 'hw/mcu/raspberry_pi/Pico-PIO-USB': [],
+                'hw/mcu/wch/ch58x': [], 'lib/lwip': [], 'lib/not_fetched': []}
+        with tempfile.TemporaryDirectory() as main, tempfile.TemporaryDirectory() as wt:
+            for rel in ('hw/mcu/broadcom/broadcom', 'hw/mcu/raspberry_pi/Pico-PIO-USB',
+                        'hw/mcu/wch/ch58x', 'hw/mcu/wch/ch583', 'lib/lwip',
+                        'hw/mcu/raspberry_pi/tracked'):
+                os.makedirs(os.path.join(main, rel))
+            open(os.path.join(main, 'hw/mcu/broadcom/core_ca72.h'), 'w').close()
+            os.makedirs(os.path.join(wt, 'lib/lwip'))  # already present: left alone
+            os.makedirs(os.path.join(wt, 'tools'))
+            with open(os.path.join(wt, 'tools', 'get_deps.py'), 'w') as f:
+                f.write(f'deps_all = {deps!r}\n')
+            mcb.symlink_deps(main, wt)
+            # a whole-vendor-dep keeps its root files
+            self.assertTrue(os.path.isfile(os.path.join(wt, 'hw/mcu/broadcom/core_ca72.h')))
+            self.assertTrue(os.path.islink(os.path.join(wt, 'hw/mcu/broadcom')))
+            self.assertTrue(os.path.islink(os.path.join(wt, 'hw/mcu/raspberry_pi/Pico-PIO-USB')))
+            # the base's path, not the current checkout's rename
+            self.assertTrue(os.path.islink(os.path.join(wt, 'hw/mcu/wch/ch58x')))
+            self.assertFalse(os.path.lexists(os.path.join(wt, 'hw/mcu/wch/ch583')))
+            self.assertFalse(os.path.islink(os.path.join(wt, 'lib/lwip')))
+            self.assertFalse(os.path.lexists(os.path.join(wt, 'lib/not_fetched')))
+            self.assertFalse(os.path.lexists(os.path.join(wt, 'hw/mcu/raspberry_pi/tracked')))
 
 
 if __name__ == '__main__':

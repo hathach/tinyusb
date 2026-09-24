@@ -26,7 +26,7 @@ from `.github/actions/get_deps/action.yml`, which never runs locally.
 
     cmake --build <dir> --target <example>-membrowse     # Ninja only
 
-Runs `tools/membrowse_report.py` (linker-script + `--defsym` extraction from
+Runs `tools/membrowse_cli.py report` (linker-script + `--defsym` extraction from
 the ninja graph, then `membrowse report`). For a bare elf: `membrowse report
 --help`.
 
@@ -34,8 +34,9 @@ the ninja graph, then `membrowse report`). For a bare elf: `membrowse report
 
     python3 tools/metrics_compare_base.py -b <board> [-e device/cdc_msc]
 
-`--engine linkermap` is the legacy fallback (needs `tools/get_deps.py`) and
-is required for `--combined`/`--ci`, which error under the membrowse engine.
+Pairs base and current elfs by (board, elf path) and reports per-pair deltas
+for every scope, including `--combined`/`--ci`; see the `code-size` skill.
+`--engine linkermap` is the legacy fallback (needs `tools/get_deps.py`).
 
 ## CI boards
 
@@ -62,18 +63,24 @@ CI-only under normal operation (build_util.yml). Manual, matching CI:
 
     MEMBROWSE_API_KEY=... python3 tools/build.py --ci-pinned-boards .github/ci-pinned-boards.json --ci-pinned-boards-only --target examples-membrowse-upload -j 1 <family>
 
-The key is read at build time by `tools/membrowse_report.py`, never baked at
+The key is read at build time by `tools/membrowse_cli.py report`, never baked at
 configure time, never printed.
 
 ## History backfill (onboard)
 
 A newly added CI board has no history before its first upload. From the repo root:
 
-    python3 tools/membrowse_onboard.py <board> <role>/<example> [-n 30]           # dry-run
-    python3 tools/membrowse_onboard.py <board> <role>/<example> [-n 30] --upload  # real run
+    python3 tools/membrowse_cli.py onboard <board> <role>/<example> [-n 30]           # dry-run
+    python3 tools/membrowse_cli.py onboard <board> <role>/<example> [-n 30] --upload  # real run
 
 The wrapper runs in a disposable worktree, derives the build script, elf path
-and CI-matching target name, and skips rebuilds for commits touching none of the
-example's sources (`src/`, `hw/`, `lib/`, the example dir, `tools/get_deps.py`). Extra flags
-pass through to `membrowse onboard` (see its `--help`). Run once per CI
-board/example.
+and CI-matching target name, and by default skips rebuilds for commits touching
+none of the example's inputs (`src/`, `hw/`, `lib/`, `examples/build_system/`,
+`examples/CMakeLists.txt`, `examples/<role>/CMakeLists.txt`, the example dir,
+`tools/get_deps.py`; `--binary-search` drops this). Extra flags pass through to
+`membrowse onboard` (see its `--help`). Run once per CI board/example.
+
+`membrowse onboard` runs its reports from the repo root, so a linker-script
+`INCLUDE` found only through the link's `-L` dirs is dropped: rp2040/rp2350
+backfills report FLASH inferred from the elf (pico-sdk's generated
+`pico_flash_region.ld`), unlike CI uploads, which run from the build dir.

@@ -1,6 +1,6 @@
 ---
 name: code-size
-description: Use when comparing TinyUSB code size between a base ref (master by default) and the current branch to evaluate the size impact of changes. Three granularities — single example on one board (with optional bloaty), all examples on one board, or all examples across CI families combined.
+description: Use when comparing TinyUSB code size between a base ref (master by default) and the current branch to evaluate the size impact of changes. Three granularities — single example on one board (with optional bloaty), all examples on one board, or all examples across the CI-pinned boards combined.
 ---
 
 # Code Size Comparison
@@ -11,17 +11,17 @@ Compare TinyUSB code size between a base ref (default `master`) and the current 
 |---|---|---|
 | **single example, one board** | Focused change touching one feature | `-b BOARD -e device/cdc_msc` |
 | **all examples, one board** | Per-board regression sweep | `-b BOARD` |
-| **all examples, all CI families (combined)** | Pre-merge full check | `--ci --engine linkermap` |
+| **all examples, CI-pinned boards (combined)** | Pre-merge full check | `--ci` |
 
-The script does the whole base-vs-branch dance itself: a temporary git worktree of the base ref under `cmake-metrics/_worktree/` (removed on exit), base + branch builds under `cmake-metrics/<board>/{base,build}/`, then a per-file compare — `tools/membrowse_compare.py` for the default engine, or `tools/metrics.py compare` for `--engine linkermap` (report paths under Outputs).
+The script does the whole base-vs-branch dance itself: a temporary git worktree of the base ref under `cmake-metrics/_worktree/` (removed on exit), base + branch builds under `cmake-metrics/<board>/{base,build}/`, then a compare via `tools/membrowse_compare.py` (report paths under Outputs).
 
-Default size-diff engine is membrowse (local `membrowse report --json --all-symbols` per elf), which requires the `membrowse` CLI (`pip install membrowse`) — CI gets it from `.github/actions/get_deps/action.yml`, which never runs locally; pass `--engine linkermap` for the legacy map.json-based engine, which needs `python3 tools/get_deps.py` for `tools/linkermap` and is required today for `--combined`/`--ci` (the membrowse engine doesn't support `--combined` yet). The script builds the linkermap engine's map.json files itself, through the `examples-linkermap` (or `<example>-linkermap`) target. See the `membrowse` skill for engine details.
+The default engine, membrowse, runs `membrowse report --json --all-symbols` per elf and needs the `membrowse` CLI (`pip install membrowse`; CI gets it from `.github/actions/get_deps/action.yml`, which never runs locally). It **pairs** each base elf with the current elf of the same (board, elf path) and reports deltas per pair; sizes are never averaged or summed across examples or boards, since TinyUSB's size depends on each board's port and each example's `tusb_config.h`. `--engine linkermap` is the legacy map.json engine (needs `python3 tools/get_deps.py`), kept only until its removal. See the `membrowse` skill for engine details.
 
 ## Choosing arguments
 
 Infer from the user's request:
 
-- **Board(s):** named board → `-b BOARD` (repeatable). "All boards" / "CI" / "full sweep" → `--ci --engine linkermap` (first board of each arm-gcc family; `--ci` implies `--combined`, which the membrowse engine doesn't support yet). Default to a fast board (`raspberry_pi_pico`) if unspecified for an iterative check.
+- **Board(s):** named board → `-b BOARD` (repeatable; add `--combined` for one report over them). "All boards" / "CI" / "full sweep" → `--ci` (the membrowse CI-pinned boards in `.github/ci-pinned-boards.json`, which cover every dcd/hcd driver not waived in its `uncovered` list; implies `--combined`; needs the arm, riscv and msp430 toolchains). Default to a fast board (`raspberry_pi_pico`) if unspecified for an iterative check.
 - **Example:** named example → `-e <group>/<name>` (e.g. `-e device/cdc_msc`). "All examples" → omit `-e`.
 - **Bloaty:** only with `-e`. Use when the user wants a section/symbol-level breakdown for a single binary.
 - **Base ref:** default `master`. Override with `--base-branch <ref>` (tag or commit also works).
@@ -36,27 +36,32 @@ python3 tools/metrics_compare_base.py -b raspberry_pi_pico -e device/cdc_msc
 # All examples for one board (repeat -b for several boards):
 python3 tools/metrics_compare_base.py -b raspberry_pi_pico
 
-# Full CI sweep (first board per arm-gcc family, combined; needs --engine linkermap):
-python3 tools/metrics_compare_base.py --ci --engine linkermap
+# Full CI sweep (CI-pinned boards, combined):
+python3 tools/metrics_compare_base.py --ci
 ```
 
 ## Outputs
 
-- **Per-board:** `cmake-metrics/<board>/metrics_compare.md` (and `_<example>.md` when `-e` is set)
-- **Combined (`--combined`, auto-set by `--ci`):** `cmake-metrics/_combined/metrics_compare.md`, aggregating all boards
+- **Per-board:** `cmake-metrics/<board>/metrics_compare.md`, or `metrics_compare_<example>.md` instead when `-e` is set
+- **Combined (`--combined`, auto-set by `--ci`):** `cmake-metrics/_combined/metrics_compare.md`, over every board's pairs
 - **Bloaty:** printed to stdout as section + symbol diffs
 
 ## Timing
 
 - Single example, single board: ~30 s
 - All examples, single board: ~60-90 s
-- `--ci` (all arm-gcc families, first board each): 4-8 minutes — sequential sweep across boards (Ninja parallelizes within each board, not across)
+- `--ci` (the CI-pinned boards): ~7-8 minutes — sequential sweep across boards (Ninja parallelizes within each board, not across)
 
-Use timeouts ≥ 10 minutes (600000 ms) for `--ci`.
+Run `--ci` in the background: it comes close to a 10-minute (600000 ms) command timeout.
 
 ## Reporting results
 
-After running:
-- Show the markdown report's summary table to the user.
-- Highlight any row with a non-zero delta (`Flash Δ`/`RAM Δ` for the membrowse engine, `% diff` for `--engine linkermap`) — under the default filter every row is a TinyUSB stack source file (e.g. `usbd.c`, `cdc_device.c`, `dcd_<port>.c`), so any non-zero delta is a real stack-size impact.
+Each report opens with a coverage line; `INCOMPLETE` means a build, report or filter match failed, or an elf exists on one side only (listed as base-only / current-only, outside every statistic). Then:
+- **One pair** (one board, one elf): the per-file base/new/Δ table and the all-symbols delta.
+- **Many pairs:** changed pairs with their filtered (default: TinyUSB `src/`) and all-symbols Flash/RAM Δ; changed files with `Changed / present` pair counts and the min/max Δ, each nonzero one naming the pair it came from; a collapsed per-file table for each changed pair (in the `.md` only, not on stdout).
+
+After running, show the coverage line and both tables (say so if the report is `INCOMPLETE`), then:
+- Any non-zero delta under the default filter is a real stack-size impact in that configuration. An all-symbols Δ with a zero filtered total is a net symbol-size change outside the filter (e.g. inlined headers, example/BSP code); check the per-file table for cancelling filtered changes. All-symbols sums overlap through aliases and exclude padding, so they are not whole-elf bytes.
+- Per file and metric: min > 0 means growth in every present pair, max > 0 growth in at least one; name the worst-growth pair.
+- Unexpected filtered Δ with an unchanged all-symbols total may be the known map-attribution bug: membrowse ≤ 1.2.9 credits a symbol to the wrong object when a `.debug_*` map offset collides with its address ([membrowse-action#168](https://github.com/membrowse/membrowse-action/pull/168)). Confirm with a zero-change run (`--base-branch HEAD`) or the pair's symbol/object evidence before dismissing it; real growth inside the filter can also cancel shrinkage outside it.
 - If the diff is unexpected, follow up with a single-example `--bloaty` run to localize.

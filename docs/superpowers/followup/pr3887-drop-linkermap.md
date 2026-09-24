@@ -1,5 +1,7 @@
 # Drop the linkermap Metrics Pipeline
 
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
 **Goal:** Remove the legacy linkermap-based code-size pipeline (CMake targets,
 `tools/metrics.py`, the `tools/linkermap` dependency, and `--engine linkermap`) once the
 membrowse engine has proven itself in daily CI use, leaving membrowse as the only size-diff
@@ -30,21 +32,19 @@ file when its own PR lands.
   basename, so an absolute-path filter matched nothing) was found and fixed by keying/filtering
   on `object_file` instead (`tools/membrowse_compare.py` module docstring + `per_file_sizes`).
   After the fix, an equivalence re-run passed: **`tusb.c` attributed +40 B on both engines**
-  (recorded for commits `314520011..39c53cdd4`; original run log unavailable). That is the evidence a wholesale engine swap is safe for the
+  (`.superpowers/sdd/2026-08-25-rework-metrics/progress.md:45`, commits
+  `314520011..39c53cdd4`). That is the evidence a wholesale engine swap is safe for the
   per-file delta table, not just for totals.
 - **CI no longer asks linkermap to run.** `tools/build.py`'s cmake configure step used to pass
   `-DLINKERMAP_OPTION=-q -f tinyusb/src` on every build (removed in this same fix wave, see F7
   of the final-review report) and no CI build target requests `<example>-linkermap` or
   `examples-linkermap` any more — those targets are dead weight in a normal CI run, built only
   when `tools/metrics_compare_base.py --engine linkermap` explicitly asks for them.
-- **The remaining necessary use of `--engine linkermap` is narrow and identified.** It is
-  `--combined`/`--ci` only: `metrics_compare_base.py` hard-refuses
-  `--combined` with the membrowse engine (`parser.error('--combined is not yet supported with
-  --engine membrowse ...')`), and `--ci` implies `--combined`
-  by setting `args.combined = True`. Every other invocation (single example, all examples on
-  one board) already defaults to membrowse. `.claude/skills/code-size/SKILL.md` and
-  `.claude/skills/membrowse/SKILL.md` both point users at `--engine linkermap` for exactly
-  this one case.
+- **No mode needs `--engine linkermap` any more.** The membrowse engine now covers
+  `--combined`/`--ci` too, pairing base and current elfs by (board, elf path) instead of
+  averaging sizes; the old `parser.error` is gone. Its per-pair deltas do not match
+  linkermap's averaged numbers by design, so validation is "a zero-change run reports every
+  pair unchanged", not number-for-number agreement.
 - **Inventory of what removal touches** (`grep -rl linkermap` across the tree, minus this
   branch's own planning docs):
   - `hw/bsp/family_support.cmake` — `family_add_linkermap()`, the `<target>-linkermap`
@@ -62,29 +62,23 @@ file when its own PR lands.
 
 ## What remains (not started)
 
-1. Land `pr3887-membrowse-combined.md` first (the blocker below).
-2. Delete `family_add_linkermap` and its two custom targets from
+1. Delete `family_add_linkermap` and its two custom targets from
    `hw/bsp/family_support.cmake`; drop the call to it inside the block that currently calls
    `family_add_bloaty(${TARGET})` / `family_add_linkermap(${TARGET})` /
    `family_add_membrowse(${TARGET})`.
-3. Delete `tools/metrics.py`.
-4. Delete the `tools/linkermap` entry from `deps_all` in `tools/get_deps.py`.
-5. Collapse `tools/metrics_compare_base.py` to membrowse-only: drop `--engine`, the
+2. Delete `tools/metrics.py`.
+3. Delete the `tools/linkermap` entry from `deps_all` in `tools/get_deps.py`.
+4. Collapse `tools/metrics_compare_base.py` to membrowse-only: drop `--engine`, the
    `want_linkermap` branch, `generate_metrics()`, and the combined-mode linkermap
-   aggregation — `--combined`/`--ci` then call the membrowse combine path added by the other
-   follow-up instead of erroring.
-6. Update `test/hil/test/test_metrics_compare_base.py`, `.claude/skills/code-size/SKILL.md`,
+   aggregation; `--combined`/`--ci` already use the membrowse path.
+5. Update `test/hil/test/test_metrics_compare_base.py`, `.claude/skills/code-size/SKILL.md`,
    `.claude/skills/membrowse/SKILL.md` to match.
-7. Full sweep validation: `pre-commit run --all-files`, plus one real `--ci` run to confirm
-   the membrowse combined path (once it exists) produces the same shape of report the
-   linkermap combined path did.
+6. Full sweep validation: `pre-commit run --all-files`, plus one real `--ci` run.
 
 ## Why this is a separate PR
 
-- **It is blocked**, not merely deferred: `--combined`/`--ci` has no membrowse
-  implementation yet (`pr3887-membrowse-combined.md`), and linkermap is the only
-  engine that path can use today. Removing linkermap before that lands would delete
-  the only way to run a full CI-family size sweep.
+- **It is no longer blocked** on code: membrowse covers every mode. The remaining gate is
+  the time-based one below.
 - **"Proven in daily use" is a time-based gate, not a code-based one.** The rework-metrics
   branch is membrowse's first real deployment; the right trigger for this removal is
   "membrowse has been uploading real CI numbers without a regression for some weeks," which
