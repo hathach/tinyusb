@@ -26,7 +26,8 @@ static struct {
 
 static uint32_t refuse_receive_at; // this data_receive call since begin_command() fails (0: none)
 bool tud_mtp_data_receive(mtp_container_info_t* p_container) { (void) p_container; api.data_receive++; return api.data_receive != refuse_receive_at; }
-bool tud_mtp_data_send(mtp_container_info_t* p_container) { (void) p_container; api.data_send++; return true; }
+static bool refuse_send;
+bool tud_mtp_data_send(mtp_container_info_t* p_container) { (void) p_container; api.data_send++; return !refuse_send; }
 bool tud_mtp_response_send(mtp_container_info_t* p_container) {
   api.response_send++;
   api.resp_code = p_container->header->code;
@@ -47,10 +48,12 @@ static uint8_t epbuf[BUFSIZE];
 static mtp_container_header_t io_header; // the driver's saved header for 2nd+ packets
 static tud_mtp_cb_data_t cb;
 
-static void begin_command(uint16_t code, uint32_t p0) {
+static void begin_command3(uint16_t code, uint32_t p0, uint32_t p1, uint32_t p2) {
   memset(&command, 0, sizeof(command));
-  command.header = (mtp_container_header_t){ .len = HDR + 4, .type = MTP_CONTAINER_TYPE_COMMAND_BLOCK, .code = code, .transaction_id = 1 };
+  command.header = (mtp_container_header_t){ .len = HDR + 12, .type = MTP_CONTAINER_TYPE_COMMAND_BLOCK, .code = code, .transaction_id = 1 };
   command.params[0] = p0;
+  command.params[1] = p1;
+  command.params[2] = p2;
   memset(epbuf, 0, sizeof(epbuf));
   cb = (tud_mtp_cb_data_t){
     .phase = MTP_PHASE_COMMAND,
@@ -63,6 +66,8 @@ static void begin_command(uint16_t code, uint32_t p0) {
   memset(&api, 0, sizeof(api));
   TEST_ASSERT_GREATER_OR_EQUAL(0, tud_mtp_command_received_cb(&cb)); // the example returns the response code
 }
+
+static void begin_command(uint16_t code, uint32_t p0) { begin_command3(code, p0, 0, 0); }
 
 // deliver one data-OUT packet the way mtpd_xfer_cb() does: the 1st carries the header, later
 // ones are the headerless view whose payload starts at the top of the endpoint buffer
@@ -117,15 +122,20 @@ static uint32_t send_object_info(uint32_t size) {
   return send_obj_handle;
 }
 
+static bool object_exists(uint32_t handle) {
+  return handle > 0 && handle <= FS_MAX_FILE_COUNT && fs_file_exist(&fs_objects[handle - 1]);
+}
+
 static fs_file_t fs_objects_initial[FS_MAX_FILE_COUNT];
 static bool fs_objects_saved;
 
 void setUp(void) {
   memset(&api, 0, sizeof(api));
   refuse_receive_at = 0;
+  refuse_send = false;
   is_session_opened = false;
   send_obj_handle = 0;
-  send_obj_info_incomplete = false;
+  send_obj_incomplete = false;
   memset(fs_buf, SENTINEL, sizeof(fs_buf));
   // the example's file table as built: frees the one RAM slot a previous test created a file in
   if (!fs_objects_saved) {
@@ -212,7 +222,7 @@ void test_cancel_drops_the_staged_handle_but_keeps_the_session(void) {
   tud_mtp_request_cb_data_t req = { .buf = (uint8_t*) &command };
   TEST_ASSERT_TRUE(tud_mtp_request_cancel_cb(&req));
   TEST_ASSERT_TRUE(is_session_opened);
-  TEST_ASSERT_TRUE(fs_file_exist(fs_get_file(handle))); // a completed ObjectInfo is a real object
+  TEST_ASSERT_TRUE(object_exists(handle)); // a completed ObjectInfo is a real object
   begin_command(MTP_OP_SEND_OBJECT, 0);
   TEST_ASSERT_EQUAL_HEX16(MTP_RESP_INVALID_OBJECT_HANDLE, api.resp_code);
 }
@@ -234,7 +244,7 @@ void test_device_reset_closes_the_session(void) {
   TEST_ASSERT_TRUE(tud_mtp_request_device_reset_cb(&req));
   TEST_ASSERT_FALSE(is_session_opened);
   TEST_ASSERT_EQUAL(0, send_obj_handle);
-  TEST_ASSERT_TRUE(fs_file_exist(fs_get_file(handle)));
+  TEST_ASSERT_TRUE(object_exists(handle));
 }
 
 void test_device_reset_mid_send_object_info_discards_the_staged_object(void) {
@@ -339,7 +349,7 @@ void test_send_object_info_without_a_filename_character_is_refused(void) {
   TEST_ASSERT_EQUAL(1, api.response_send);
   TEST_ASSERT_EQUAL_HEX16(MTP_RESP_INVALID_DATASET, api.resp_code);
   TEST_ASSERT_EQUAL(0, send_obj_handle);
-  TEST_ASSERT_FALSE(send_obj_info_incomplete);
+  TEST_ASSERT_FALSE(send_obj_incomplete);
   TEST_ASSERT_EQUAL(files, fs_get_file_count());
 }
 
@@ -359,7 +369,8 @@ void test_send_object_large_command_receive_refused_answers_error(void) { check_
 
 static void check_send_object_continuation_refused(uint32_t refused_at) {
   open_session();
-  send_object_info(100);
+  const uint32_t files = fs_get_file_count();
+  const uint32_t handle = send_object_info(100);
   begin_command(MTP_OP_SEND_OBJECT, 0);
   refuse_receive_at = refused_at;
   uint8_t pkt[BUFSIZE] = { 0 };
@@ -372,6 +383,8 @@ static void check_send_object_continuation_refused(uint32_t refused_at) {
   TEST_ASSERT_EQUAL(1, api.response_send);
   TEST_ASSERT_EQUAL_HEX16(MTP_RESP_GENERAL_ERROR, api.resp_code);
   TEST_ASSERT_EQUAL(HDR, api.resp_len);
+  TEST_ASSERT_FALSE(object_exists(handle)); // partly written: discarded
+  TEST_ASSERT_EQUAL(files, fs_get_file_count());
 }
 void test_send_object_first_packet_receive_refused_answers_error(void) { check_send_object_continuation_refused(2); }
 void test_send_object_later_packet_receive_refused_answers_error(void) { check_send_object_continuation_refused(3); }
@@ -389,7 +402,7 @@ void test_send_object_short_is_incomplete_and_discarded(void) {
   TEST_ASSERT_EQUAL(1, api.response_send);
   TEST_ASSERT_EQUAL_HEX16(MTP_RESP_INCOMPLETE_TRANSFER, api.resp_code);
   TEST_ASSERT_EQUAL(HDR, api.resp_len);
-  TEST_ASSERT_FALSE(fs_file_exist(fs_get_file(handle)));
+  TEST_ASSERT_FALSE(object_exists(handle));
   TEST_ASSERT_EQUAL(files, fs_get_file_count());
   TEST_ASSERT_EQUAL(0, send_obj_handle);
 }
@@ -410,7 +423,7 @@ void test_send_object_exact_size_is_kept(void) {
   const uint32_t files = fs_get_file_count();
   const uint32_t handle = send_object_exact(0xA5);
   TEST_ASSERT_EQUAL(HDR, api.resp_len);
-  TEST_ASSERT_TRUE(fs_file_exist(fs_get_file(handle)));
+  TEST_ASSERT_TRUE(object_exists(handle));
   TEST_ASSERT_EQUAL(files + 1, fs_get_file_count());
   TEST_ASSERT_EACH_EQUAL_HEX8(0xA5, fs_buf, 100);
 }
@@ -423,6 +436,131 @@ void test_send_object_again_without_object_info_is_refused(void) {
   TEST_ASSERT_EQUAL(0, api.data_receive);
   TEST_ASSERT_EQUAL(1, api.response_send);
   TEST_ASSERT_EQUAL_HEX16(MTP_RESP_INVALID_OBJECT_HANDLE, api.resp_code);
-  TEST_ASSERT_TRUE(fs_file_exist(fs_get_file(handle)));
+  TEST_ASSERT_TRUE(object_exists(handle));
   TEST_ASSERT_EACH_EQUAL_HEX8(0xA5, fs_buf, 100);
 }
+
+// Cancel or Device Reset once SendObject's data phase has started: the partly written object goes
+static void check_interrupted_send_object(bool reset) {
+  open_session();
+  const uint32_t files = fs_get_file_count();
+  const uint32_t handle = send_object_info(100);
+  uint8_t pkt[50];
+  memset(pkt, 0x5A, sizeof(pkt));
+  begin_command(MTP_OP_SEND_OBJECT, 0);
+  deliver_out(pkt, sizeof(pkt), 100);
+  tud_mtp_request_cb_data_t req = { .buf = (uint8_t*) &command };
+  TEST_ASSERT_TRUE(reset ? tud_mtp_request_device_reset_cb(&req) : tud_mtp_request_cancel_cb(&req));
+  TEST_ASSERT_EQUAL(0, send_obj_handle);
+  TEST_ASSERT_FALSE(object_exists(handle));
+  TEST_ASSERT_EQUAL(files, fs_get_file_count());
+}
+void test_cancel_mid_send_object_discards_the_object(void) { check_interrupted_send_object(false); }
+void test_device_reset_mid_send_object_discards_the_object(void) { check_interrupted_send_object(true); }
+
+// a SendObject refused before its data phase keeps the ObjectInfo: the host may retry it
+void test_send_object_command_refused_can_be_retried(void) {
+  open_session();
+  const uint32_t handle = send_object_info(100);
+  refuse_receive_at = 1;
+  begin_command(MTP_OP_SEND_OBJECT, 0);
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_GENERAL_ERROR, api.resp_code);
+  refuse_receive_at = 0;
+  uint8_t pkt[100];
+  memset(pkt, 0xA5, sizeof(pkt));
+  begin_command(MTP_OP_SEND_OBJECT, 0);
+  TEST_ASSERT_EQUAL(1, api.data_receive);
+  deliver_out(pkt, sizeof(pkt), sizeof(pkt));
+  data_complete();
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_OK, api.resp_code);
+  TEST_ASSERT_TRUE(object_exists(handle));
+  TEST_ASSERT_EACH_EQUAL_HEX8(0xA5, fs_buf, 100);
+}
+
+// ... and a Cancel after that refusal leaves the completed ObjectInfo's object in place
+void test_send_object_command_refused_then_cancel_keeps_the_object(void) {
+  open_session();
+  const uint32_t handle = send_object_info(100);
+  refuse_receive_at = 1;
+  begin_command(MTP_OP_SEND_OBJECT, 0);
+  tud_mtp_request_cb_data_t req = { .buf = (uint8_t*) &command };
+  TEST_ASSERT_TRUE(tud_mtp_request_cancel_cb(&req));
+  TEST_ASSERT_TRUE(object_exists(handle));
+}
+
+// an object handle whose slot holds no object is refused, not described or deleted
+static uint32_t empty_slot_handle(void) {
+  for (uint32_t i = 0; i < FS_MAX_FILE_COUNT; i++) {
+    if (!fs_file_exist(&fs_objects[i])) return i + 1;
+  }
+  TEST_FAIL_MESSAGE("no empty slot");
+  return 0;
+}
+static void check_empty_slot_refused(uint16_t code) {
+  open_session();
+  const uint32_t files = fs_get_file_count();
+  begin_command(code, empty_slot_handle());
+  TEST_ASSERT_EQUAL(0, api.data_send);
+  TEST_ASSERT_EQUAL(1, api.response_send);
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_INVALID_OBJECT_HANDLE, api.resp_code);
+  TEST_ASSERT_EQUAL(files, fs_get_file_count());
+}
+void test_get_object_info_on_empty_slot_is_refused(void) { check_empty_slot_refused(MTP_OP_GET_OBJECT_INFO); }
+void test_get_object_on_empty_slot_is_refused(void) { check_empty_slot_refused(MTP_OP_GET_OBJECT); }
+void test_get_partial_object_on_empty_slot_is_refused(void) { check_empty_slot_refused(MTP_OP_GET_PARTIAL_OBJECT); }
+void test_delete_object_on_empty_slot_is_refused(void) { check_empty_slot_refused(MTP_OP_DELETE_OBJECT); }
+
+void test_send_object_info_under_an_empty_slot_parent_is_refused(void) {
+  open_session();
+  begin_command(MTP_OP_SEND_OBJECT_INFO, SUPPORTED_STORAGE_ID);
+  uint8_t dataset[sizeof(mtp_object_info_header_t) + 1 + 2 * 4] = { 0 };
+  fill_object_info((mtp_object_info_header_t*) dataset, 100);
+  ((mtp_object_info_header_t*) dataset)->parent_object = empty_slot_handle();
+  dataset[sizeof(mtp_object_info_header_t)] = 2;
+  dataset[sizeof(mtp_object_info_header_t) + 1] = 'a';
+  // a deleted folder leaves its association type behind in the slot
+  fs_objects[empty_slot_handle() - 1].association_type = MTP_ASSOCIATION_GENERIC_FOLDER;
+  deliver_out(dataset, sizeof(dataset), sizeof(dataset));
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_INVALID_PARENT_OBJECT, api.resp_code);
+}
+
+// a data IN the driver refuses to start leaves the command phase: answer it with Device_Busy
+static void check_first_send_refused(uint16_t code, uint32_t p0) {
+  open_session();
+  refuse_send = true;
+  begin_command(code, p0);
+  TEST_ASSERT_EQUAL(1, api.data_send);
+  TEST_ASSERT_EQUAL(1, api.response_send);
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_DEVICE_BUSY, api.resp_code);
+  TEST_ASSERT_EQUAL(HDR, api.resp_len);
+}
+void test_get_storage_ids_send_refused_answers_busy(void) { check_first_send_refused(MTP_OP_GET_STORAGE_IDS, 0); }
+void test_get_storage_info_send_refused_answers_busy(void) { check_first_send_refused(MTP_OP_GET_STORAGE_INFO, SUPPORTED_STORAGE_ID); }
+void test_get_object_handles_send_refused_answers_busy(void) { check_first_send_refused(MTP_OP_GET_OBJECT_HANDLES, SUPPORTED_STORAGE_ID); }
+void test_get_object_info_send_refused_answers_busy(void) { check_first_send_refused(MTP_OP_GET_OBJECT_INFO, 1); }
+void test_get_object_send_refused_answers_busy(void) { check_first_send_refused(MTP_OP_GET_OBJECT, 1); }
+void test_get_partial_object_send_refused_answers_busy(void) { check_first_send_refused(MTP_OP_GET_PARTIAL_OBJECT, 1); }
+void test_get_device_prop_desc_send_refused_answers_busy(void) {
+  check_first_send_refused(MTP_OP_GET_DEVICE_PROP_DESC, MTP_DEV_PROP_DEVICE_FRIENDLY_NAME);
+}
+void test_get_device_prop_value_send_refused_answers_busy(void) {
+  check_first_send_refused(MTP_OP_GET_DEVICE_PROP_VALUE, MTP_DEV_PROP_DEVICE_FRIENDLY_NAME);
+}
+
+// a refused continuation cannot be answered while the host is reading data: cancel the data phase
+static void check_continuation_send_refused(uint16_t code) {
+  open_session();
+  const uint32_t handle = send_object_exact(0xA5);
+  fs_get_file(handle)->size = 3 * BUFSIZE; // spans several packets; the bytes past 100 are don't-care
+  begin_command3(code, handle, 0, 3 * BUFSIZE); // GetPartialObject: offset 0, up to 3 packets
+  TEST_ASSERT_EQUAL(1, api.data_send);
+  refuse_send = true;
+  cb.phase = MTP_PHASE_DATA;
+  cb.total_xferred_bytes = BUFSIZE;
+  cb.io_container = (mtp_container_info_t){ .header = &io_header, .payload = epbuf, .payload_bytes = BUFSIZE };
+  TEST_ASSERT_LESS_THAN(0, tud_mtp_data_xfer_cb(&cb));
+  TEST_ASSERT_EQUAL(2, api.data_send);
+  TEST_ASSERT_EQUAL(0, api.response_send);
+}
+void test_get_object_continuation_send_refused_cancels(void) { check_continuation_send_refused(MTP_OP_GET_OBJECT); }
+void test_get_partial_object_continuation_send_refused_cancels(void) { check_continuation_send_refused(MTP_OP_GET_PARTIAL_OBJECT); }

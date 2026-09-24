@@ -173,21 +173,23 @@ fs_op_handler_dict_t fs_op_handler_dict[] = {
 
 static bool is_session_opened = false;
 static uint32_t send_obj_handle = 0;
-static bool send_obj_info_incomplete = false; // SendObjectInfo's dataset is still being read
+// the staged slot holds an unfinished object: SendObjectInfo's dataset or SendObject's data is still being read
+static bool send_obj_incomplete = false;
 
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
 // Get pointer to object info from handle
+static inline bool fs_file_exist(fs_file_t* f) {
+  return f->name[0] != 0;
+}
+
+// Get pointer to object info from handle; NULL for a handle whose slot holds no object
 static inline fs_file_t* fs_get_file(uint32_t handle) {
-  if (handle == 0 || handle > FS_MAX_FILE_COUNT) {
+  if (handle == 0 || handle > FS_MAX_FILE_COUNT || !fs_file_exist(&fs_objects[handle-1])) {
     return NULL;
   }
   return &fs_objects[handle-1];
-}
-
-static inline bool fs_file_exist(fs_file_t* f) {
-  return f->name[0] != 0;
 }
 
 // Get the number of allocated nodes in filesystem
@@ -206,21 +208,30 @@ static inline fs_file_t* fs_create_file(void) {
     fs_file_t* f = &fs_objects[i];
     if (!fs_file_exist(f)) {
       send_obj_handle = i + 1;
-      send_obj_info_incomplete = true;
+      send_obj_incomplete = true;
       return f;
     }
   }
   return NULL;
 }
 
-// drop the object SendObjectInfo staged when its dataset or SendObject's data falls short
+// drop the object SendObjectInfo staged when its dataset or SendObject's data falls short or is cancelled
 static void fs_discard_staged_file(void) {
   fs_file_t* f = fs_get_file(send_obj_handle);
   if (f != NULL) {
     f->name[0] = 0;
   }
   send_obj_handle = 0;
-  send_obj_info_incomplete = false;
+  send_obj_incomplete = false;
+}
+
+// A data IN the driver refuses to start leaves the transaction in its command phase: answer
+// Device_Busy. A refused continuation cannot be answered while the host reads data: cancel it.
+static int32_t send_data(tud_mtp_cb_data_t* cb_data) {
+  if (tud_mtp_data_send(&cb_data->io_container)) {
+    return 0;
+  }
+  return (cb_data->phase == MTP_PHASE_COMMAND) ? MTP_RESP_DEVICE_BUSY : -1;
 }
 
 // simple malloc
@@ -244,8 +255,8 @@ bool tud_mtp_request_cancel_cb(tud_mtp_request_cb_data_t* cb_data) {
   memcpy(&cancel_data, cb_data->buf, sizeof(cancel_data));
   (void) cancel_data.code;
   (void ) cancel_data.transaction_id;
-  if (send_obj_info_incomplete) {
-    fs_discard_staged_file(); // the slot holds a name but no complete ObjectInfo
+  if (send_obj_incomplete) {
+    fs_discard_staged_file(); // its ObjectInfo or data is only partly read
   }
   send_obj_handle = 0; // a cancelled SendObjectInfo/SendObject leaves no object to write to
   return true;
@@ -256,7 +267,7 @@ bool tud_mtp_request_cancel_cb(tud_mtp_request_cb_data_t* cb_data) {
 bool tud_mtp_request_device_reset_cb(tud_mtp_request_cb_data_t* cb_data) {
   (void) cb_data;
   is_session_opened = false; // Device Reset closes all open sessions (Still Image CDD B.9)
-  if (send_obj_info_incomplete) {
+  if (send_obj_incomplete) {
     fs_discard_staged_file();
   }
   send_obj_handle = 0;       // ... and with them any object SendObjectInfo was staging
@@ -333,7 +344,7 @@ int32_t tud_mtp_data_xfer_cb(tud_mtp_cb_data_t* cb_data) {
     io_container->header->code = (uint16_t)resp_code;
     tud_mtp_response_send(io_container);
   }
-  return 0;
+  return (resp_code < 0) ? resp_code : 0; // negative: the driver stalls, cancelling the data phase
 }
 
 int32_t tud_mtp_data_complete_cb(tud_mtp_cb_data_t* cb_data) {
@@ -351,7 +362,7 @@ int32_t tud_mtp_data_complete_cb(tud_mtp_cb_data_t* cb_data) {
       (void) mtp_container_add_uint32(resp, SUPPORTED_STORAGE_ID);
       (void) mtp_container_add_uint32(resp, f->parent);
       (void) mtp_container_add_uint32(resp, send_obj_handle);
-      send_obj_info_incomplete = false;
+      send_obj_incomplete = false;
       resp->header->code = MTP_RESP_OK;
       break;
     }
@@ -369,6 +380,7 @@ int32_t tud_mtp_data_complete_cb(tud_mtp_cb_data_t* cb_data) {
         break;
       }
       send_obj_handle = 0; // the ObjectInfo is consumed: another SendObject needs a new one (PTP 10.4.13)
+      send_obj_incomplete = false;
       resp->header->code = MTP_RESP_OK;
       break;
     }
@@ -438,8 +450,7 @@ static int32_t fs_get_storage_ids(tud_mtp_cb_data_t* cb_data) {
   mtp_container_info_t* io_container = &cb_data->io_container;
   uint32_t storage_ids [] = { SUPPORTED_STORAGE_ID };
   (void) mtp_container_add_auint32(io_container, 1, storage_ids);
-  tud_mtp_data_send(io_container);
-  return 0;
+  return send_data(cb_data);
 }
 
 static int32_t fs_get_storage_info(tud_mtp_cb_data_t* cb_data) {
@@ -452,8 +463,7 @@ static int32_t fs_get_storage_info(tud_mtp_cb_data_t* cb_data) {
   storage_info.free_space_in_objects = FS_MAX_FILE_COUNT - fs_get_file_count();
   storage_info.free_space_in_bytes = storage_info.free_space_in_objects ? FS_MAX_CAPACITY_BYTES : 0;
   (void) mtp_container_add_raw(io_container, &storage_info, sizeof(storage_info));
-  tud_mtp_data_send(io_container);
-  return 0;
+  return send_data(cb_data);
 }
 
 static int32_t fs_get_device_properties(tud_mtp_cb_data_t* cb_data) {
@@ -473,8 +483,7 @@ static int32_t fs_get_device_properties(tud_mtp_cb_data_t* cb_data) {
         (void) mtp_container_add_cstring(io_container, DEV_PROP_FRIENDLY_NAME); // factory
         (void) mtp_container_add_cstring(io_container, DEV_PROP_FRIENDLY_NAME); // current
         (void) mtp_container_add_uint8(io_container, 0); // no form
-        tud_mtp_data_send(io_container);
-        break;
+        return send_data(cb_data);
 
       default:
         return MTP_RESP_PARAMETER_NOT_SUPPORTED;
@@ -484,14 +493,12 @@ static int32_t fs_get_device_properties(tud_mtp_cb_data_t* cb_data) {
     switch (dev_prop_code) {
       case MTP_DEV_PROP_DEVICE_FRIENDLY_NAME:
         (void) mtp_container_add_cstring(io_container, DEV_PROP_FRIENDLY_NAME);
-        tud_mtp_data_send(io_container);
-        break;
+        return send_data(cb_data);
 
       default:
         return MTP_RESP_PARAMETER_NOT_SUPPORTED;
     }
   }
-  return 0;
 }
 
 static int32_t fs_get_object_handles(tud_mtp_cb_data_t* cb_data) {
@@ -517,9 +524,7 @@ static int32_t fs_get_object_handles(tud_mtp_cb_data_t* cb_data) {
     }
   }
   (void) mtp_container_add_auint32(io_container, count, handles);
-  tud_mtp_data_send(io_container);
-
-  return 0;
+  return send_data(cb_data);
 }
 
 static int32_t fs_get_object_info(tud_mtp_cb_data_t* cb_data) {
@@ -552,9 +557,7 @@ static int32_t fs_get_object_info(tud_mtp_cb_data_t* cb_data) {
   (void) mtp_container_add_cstring(io_container, FS_FIXED_DATETIME);
   (void) mtp_container_add_cstring(io_container, FS_FIXED_DATETIME);
   (void) mtp_container_add_cstring(io_container, ""); // keywords, not used
-  tud_mtp_data_send(io_container);
-
-  return 0;
+  return send_data(cb_data);
 }
 
 static int32_t fs_get_object(tud_mtp_cb_data_t* cb_data) {
@@ -570,14 +573,14 @@ static int32_t fs_get_object(tud_mtp_cb_data_t* cb_data) {
     // If file contents is larger than CFG_TUD_MTP_EP_BUFSIZE, data may only partially is added here
     // the rest will be sent in tud_mtp_data_more_cb
     (void) mtp_container_add_raw(io_container, f->data, f->size);
-    tud_mtp_data_send(io_container);
+    return send_data(cb_data);
   } else if (cb_data->phase == MTP_PHASE_DATA) {
     // continue sending remaining data: file contents offset is xferred byte minus header size
     const uint32_t offset = cb_data->total_xferred_bytes - sizeof(mtp_container_header_t);
     const uint32_t xact_len = tu_min32(f->size - offset, io_container->payload_bytes);
     if (xact_len > 0) {
       memcpy(io_container->payload, f->data + offset, xact_len);
-      tud_mtp_data_send(io_container);
+      return send_data(cb_data);
     }
   } else {
     // nothing to do
@@ -604,14 +607,14 @@ static int32_t fs_get_partial_object(tud_mtp_cb_data_t* cb_data) {
     // If file contents is larger than CFG_TUD_MTP_EP_BUFSIZE, data may only partially be added here
     // the rest will be sent in tud_mtp_data_more_cb
     (void) mtp_container_add_raw(io_container, f->data + req_offset, to_send);
-    tud_mtp_data_send(io_container);
+    return send_data(cb_data);
   } else if (cb_data->phase == MTP_PHASE_DATA) {
     // continue sending remaining data: file contents offset is xferred byte minus header size
     const uint32_t offset = cb_data->total_xferred_bytes - sizeof(mtp_container_header_t);
     const uint32_t xact_len = tu_min32(to_send - offset, io_container->payload_bytes);
     if (xact_len > 0) {
       memcpy(io_container->payload, f->data + offset + req_offset, xact_len);
-      tud_mtp_data_send(io_container);
+      return send_data(cb_data);
     }
   } else {
     // nothing to do
@@ -715,8 +718,9 @@ static int32_t fs_send_object(tud_mtp_cb_data_t* cb_data) {
   if (cb_data->phase == MTP_PHASE_COMMAND) {
     io_container->header->len += f->size;
     if (!tud_mtp_data_receive(io_container)) {
-      return MTP_RESP_GENERAL_ERROR;
+      return MTP_RESP_GENERAL_ERROR; // no data phase: the ObjectInfo stays for a retry
     }
+    send_obj_incomplete = true;
   } else {
     // file contents offset is total xferred minus header size minus last received chunk
     const uint32_t offset = cb_data->total_xferred_bytes - sizeof(mtp_container_header_t) - io_container->payload_bytes;
@@ -726,6 +730,7 @@ static int32_t fs_send_object(tud_mtp_cb_data_t* cb_data) {
     }
     // keep reading to the host's declared length; anything past f->size is discarded above
     if (cb_data->total_xferred_bytes < io_container->header->len && !tud_mtp_data_receive(io_container)) {
+      fs_discard_staged_file(); // partly written
       return MTP_RESP_GENERAL_ERROR; // answered while the host still owes data: the driver stalls
     }
   }
