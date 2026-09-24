@@ -160,6 +160,12 @@ static inline xfer_td_t* get_td(uint8_t epnum, uint8_t dir) {
   return &_dcd.xfer[epnum][dir];
 }
 
+// its deferred DMA, completion and re-arm must no longer see the queued transfer
+static inline void retire_xfer(xfer_td_t* xfer) {
+  xfer->started = false;
+  xfer->gen++;
+}
+
 static void xact_out_dma(uint8_t epnum);
 static void xact_in_dma(uint8_t epnum);
 static void ep0_task(volatile uint32_t* reg, uint8_t dir);
@@ -212,7 +218,6 @@ static void edpt_dma_end(void) {
   atomic_flag_clear(&_dcd.dma_running);
 }
 
-
 // Start DMA to move data from Endpoint -> RAM
 static void xact_out_dma(uint8_t epnum) {
   xfer_td_t* xfer = get_td(epnum, TUSB_DIR_OUT);
@@ -253,7 +258,6 @@ static void xact_out_dma(uint8_t epnum) {
     start_dma(&NRF_USBD->TASKS_STARTEPOUT[epnum]);
   }
 }
-
 
 // Prepare for a CBI transaction IN, call at the start
 // it start DMA to transfer data from RAM -> Endpoint
@@ -567,9 +571,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
     }
   }
   if (epnum != EP_ISO_NUM) {
-    // retire the queued transfer: its deferred DMA, completion and re-arm must not see it
-    xfer->started = false;
-    xfer->gen++;
+    retire_xfer(xfer);
   }
   dcd_int_enable(rhport);
 
@@ -741,8 +743,7 @@ void dcd_int_handler(uint8_t rhport) {
   if (int_status & USBD_INTEN_EP0SETUP_Msk) {
     // a SETUP supersedes an EP0 transfer the host abandoned, e.g. a data stage it stopped reading
     for (uint8_t dir = 0; dir < 2; dir++) {
-      _dcd.xfer[0][dir].started = false;
-      _dcd.xfer[0][dir].gen++;
+      retire_xfer(get_td(0, dir));
     }
     uint8_t const setup[8] = {
         NRF_USBD->BMREQUESTTYPE, NRF_USBD->BREQUEST, NRF_USBD->WVALUEL, NRF_USBD->WVALUEH,
