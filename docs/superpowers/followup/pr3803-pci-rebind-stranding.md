@@ -1,7 +1,5 @@
 # `pci-rebind` Stranding Investigation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Settle when a PCI unbind/rebind of an xHCI controller strands it driverless, so
 the `usb-kernel-recover` skill can state a rule instead of a hypothesis.
 
@@ -9,7 +7,7 @@ the `usb-kernel-recover` skill can state a rule instead of a hypothesis.
 kernel, ending in a documentation change and — if the boundary turns out to be
 detectable — a guard in `usb_recover.sh`.
 
-**Tech Stack:** Linux 6.12.96 (ci.lan), Renesas uPD720201 xHCI, `usb_recover.sh`.
+**Tech Stack:** Linux 6.12.96 on ci.lan when filed (check `uname -r`), Renesas uPD720201 xHCI, `usb_recover.sh`.
 
 ## Global Constraints
 
@@ -98,7 +96,7 @@ Record whether the holder is on the SAME controller you will rebind.
 - [ ] **Step 1: Rebind, with a bounded observer**
 
 ```bash
-timeout 120 sudo usb_recover.sh pci-rebind <addr>; echo "rc=$?"
+timeout 120 sudo .claude/skills/usb-kernel-recover/scripts/usb_recover.sh pci-rebind <addr>; echo "rc=$?"
 ```
 
 - [ ] **Step 2: Record which of the three outcomes occurred**
@@ -112,7 +110,7 @@ Capture `sudo journalctl -k --since ...` around the attempt either way.
 - [ ] **Step 3: If stranded, recover**
 
 ```bash
-sudo usb_recover.sh pci-bind <addr>
+sudo .claude/skills/usb-kernel-recover/scripts/usb_recover.sh pci-bind <addr>
 ```
 
 If that hangs too, the only remaining step is a PVE host power cycle — an operator action.

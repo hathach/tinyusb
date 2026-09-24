@@ -1,7 +1,5 @@
 # Drop the linkermap Metrics Pipeline
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Remove the legacy linkermap-based code-size pipeline (CMake targets,
 `tools/metrics.py`, the `tools/linkermap` dependency, and `--engine linkermap`) once the
 membrowse engine has proven itself in daily CI use, leaving membrowse as the only size-diff
@@ -32,8 +30,7 @@ file when its own PR lands.
   basename, so an absolute-path filter matched nothing) was found and fixed by keying/filtering
   on `object_file` instead (`tools/membrowse_compare.py` module docstring + `per_file_sizes`).
   After the fix, an equivalence re-run passed: **`tusb.c` attributed +40 B on both engines**
-  (`.superpowers/sdd/2026-08-25-rework-metrics/progress.md:45`, commits
-  `314520011..39c53cdd4`). That is the evidence a wholesale engine swap is safe for the
+  (recorded for commits `314520011..39c53cdd4`; original run log unavailable). That is the evidence a wholesale engine swap is safe for the
   per-file delta table, not just for totals.
 - **CI no longer asks linkermap to run.** `tools/build.py`'s cmake configure step used to pass
   `-DLINKERMAP_OPTION=-q -f tinyusb/src` on every build (removed in this same fix wave, see F7
@@ -60,7 +57,7 @@ file when its own PR lands.
     linkermap aggregation block.
   - `test/hil/test/test_metrics_compare_base.py` — whatever linkermap-specific cases exist
     there today need triage (drop, or repoint at membrowse if they test shared plumbing).
-  - `CLAUDE.md`, `.claude/skills/code-size/SKILL.md`, `.claude/skills/membrowse/SKILL.md` —
+  - `.claude/skills/code-size/SKILL.md`, `.claude/skills/membrowse/SKILL.md` —
     every `--engine linkermap` / `tools/linkermap` mention.
 
 ## What remains (not started)
@@ -71,9 +68,7 @@ file when its own PR lands.
    `family_add_bloaty(${TARGET})` / `family_add_linkermap(${TARGET})` /
    `family_add_membrowse(${TARGET})`.
 3. Delete `tools/metrics.py`.
-4. Delete the `tools/linkermap` entry from `deps_all` in `tools/get_deps.py`; update
-   `CLAUDE.md`'s worktree-symlink note (it lists `tools/linkermap` as an example
-   `deps_all` key — pick a different example or drop the parenthetical).
+4. Delete the `tools/linkermap` entry from `deps_all` in `tools/get_deps.py`.
 5. Collapse `tools/metrics_compare_base.py` to membrowse-only: drop `--engine`, the
    `want_linkermap` branch, `generate_metrics()`, and the combined-mode linkermap
    aggregation — `--combined`/`--ci` then call the membrowse combine path added by the other

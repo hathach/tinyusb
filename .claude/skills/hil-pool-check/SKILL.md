@@ -12,8 +12,7 @@ applies safe per-device recovery (probe authorized-toggle, board reset), re-park
 `board_test`, and prints a summary table plus a USB topology report. Flags and details: `--help`
 and the module docstring.
 
-**REQUIRED BACKGROUND:** the `hil` skill owns config-by-hostname selection (run `hostname`
-first) and the board-lock protocol. Locked boards are reported 🔒 locked and skipped — never
+Read the `hil` skill first: it owns config selection by hostname and the board-lock protocol. Locked boards are reported 🔒 locked and skipped — never
 waited on, never bypassed; a needed build peeks the lock first. A CI worker reaching a board the
 pool check holds fails it as "board locked" — prefer running between CI runs.
 
@@ -97,7 +96,7 @@ this order:
    hits every board under the root port and nothing maps a sysfs busport to a board name, so
    `--all` is the only reservation that actually covers them:
    ```bash
-   python3 test/hil/helper/hil_lock.py hold --all --config test/hil/tinyusb.json --reason "probe power cycle"
+   python3 test/hil/helper/hil_lock.py hold --all --config <this host's config> --reason "probe power cycle"
    ```
    It is all-or-nothing: a refusal naming `hil_test.py` means a CI job is mid-test — wait, do
    not force, and do not substitute a partial hold. Release before step 5: `hil_pool_check.py`

@@ -50,15 +50,17 @@ grep -l <SERIAL> /sys/bus/usb/devices/*/serial    # only on a HEALTHY device
 
 ## 2. Shield first (prerequisite for anything using libusb)
 
+Repository paths in the commands below are relative to the checkout root.
+
 A wedged device blocks every enumerator that reads its locking attributes —
 JLinkExe, uhubctl, openocd's HID fallback. `chmod 000` makes the VFS reject the
 read before `->show()` runs, so they skip it and keep enumerating. `chmod` never
 blocks (inode setattr, no `show()`), so it works on a fully wedged device.
 
 ```bash
-sudo usb_recover.sh shield <busport> $$        # leaf + parent hub + root hub, modes recorded first
-sudo usb_recover.sh shield-status              # who holds what, owner alive/dead, what re-enumerated
-sudo usb_recover.sh unshield <busport> $$      # restore the recorded modes; the owner pid, or none once it is dead
+sudo .claude/skills/usb-kernel-recover/scripts/usb_recover.sh shield <busport> $$    # leaf + parent hub + root hub, modes recorded first
+sudo .claude/skills/usb-kernel-recover/scripts/usb_recover.sh shield-status          # who holds what, owner alive/dead, what re-enumerated
+sudo .claude/skills/usb-kernel-recover/scripts/usb_recover.sh unshield <busport> $$  # restore the recorded modes; the owner pid, or none once it is dead
 ```
 
 - The owner pid is the recovery session (your shell, the orchestrating process),
@@ -92,11 +94,11 @@ openocd -c "adapter serial <probe-sn>" <flasher args> -c "init; reset run; shutd
 Any other runs only behind the shield (section 2), then unshield; for JLink:
 
 ```bash
-sudo usb_recover.sh shield <busport> $$
+sudo .claude/skills/usb-kernel-recover/scripts/usb_recover.sh shield <busport> $$
 printf "r\ng\nq\n" > /tmp/rec.jlink
 JLinkExe -device <DEV> -if SWD -speed 4000 -SelectEmuBySN <probe-sn> \
          -autoconnect 1 -nogui 1 -CommandFile /tmp/rec.jlink
-sudo usb_recover.sh unshield <busport> $$
+sudo .claude/skills/usb-kernel-recover/scripts/usb_recover.sh unshield <busport> $$
 ```
 
 Reset **before** park-flash: non-destructive (the firmware under test survives
@@ -166,21 +168,19 @@ as opposed to ONE device wedged. The rungs above cannot help; the controller
 itself needs re-initialising.
 
 ```bash
-sudo usb_recover.sh pci-rebind <pciaddr>     # unbind + bind the whole xHCI
-sudo usb_recover.sh pci-bind   <pciaddr>     # only if it ends up driverless
+sudo .claude/skills/usb-kernel-recover/scripts/usb_recover.sh pci-rebind <pciaddr>  # unbind + bind the whole xHCI
+sudo .claude/skills/usb-kernel-recover/scripts/usb_recover.sh pci-bind   <pciaddr>  # only if it ends up driverless
 ```
 
-Measured on ci.lan 2026-08-17 02:34:41 after a `hub-cycle` failed to take: unbind
-deregistered buses 17 and 18, the re-bind registered new buses **1 and 2** one
-second later, and every fixture re-enumerated. **It renumbers every bus that
-controller owns**, so hold all affected boards' locks first (`hil_lock.py hold
---all`) and re-derive busports afterwards.
+On a successful rebind every fixture re-enumerates, and **it renumbers every bus that
+controller owns** (buses 17 and 18 came back as 1 and 2 on ci.lan, 2026-08-17), so take
+the rig-wide hold as in rung 2 before the rebind, release it after, and re-derive busports.
 
 Do NOT reach for it while a device-lock convoy is live — see Common mistakes.
 
 ## 4. If nothing is in D state
 
-The device is dead or silent, not wedged. `sudo usb_recover.sh authorized
+The device is dead or silent, not wedged. `sudo .claude/skills/usb-kernel-recover/scripts/usb_recover.sh authorized
 <busport>` unconfigures and reconfigures it (`usb_set_configuration(dev, -1)`
 then re-choose, hub.c) — it fixes stale driver/interface state, does **not**
 replug: the `usb_device` survives, so most probes keep their sysfs node. If that
