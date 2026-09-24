@@ -51,6 +51,8 @@ __pycache__
 cmake-build/
 cmake-build-*
 sdkconfig
+# ESP-IDF component manager lock
+dependencies.lock
 .PVS-Studio
 .vscode/
 CMakeFiles
