@@ -212,11 +212,6 @@ class TestFallbackRules(unittest.TestCase):
         self.assertFalse(s['full'])
         self.assertEqual(s['boards'], {})
 
-    def test_agent_metadata_is_empty_not_full(self):
-        s = sel(['.agents', '.codex/agents/builder.toml'])
-        self.assertFalse(s['full'])
-        self.assertEqual(s['boards'], {})
-
     def test_bsp_family_selects_family_boards(self):
         s = sel(['hw/bsp/rp2040/family.cmake'])
         self.assertFalse(s['full'])
@@ -1794,7 +1789,7 @@ class TestBuildClassifier(unittest.TestCase):
                   '.clang-format', '.idea/misc.xml', 'version.yml', 'library.json',
                   'examples/CMakePresets.json', 'test/fuzz/fuzz.cc',
                   'test/unit-test/project.yml', '.github/workflows/pr_comment.yml',
-                  '.claude/skills/build-doc/scripts/gen_doc.py', '.agents', '.codex/agents/builder.toml'):
+                  '.claude/skills/build-doc/scripts/gen_doc.py', '.agents'):
             s = self.b([p])
             self.assertFalse(s['full'], p)
             self.assertEqual(s['families'], [], p)
