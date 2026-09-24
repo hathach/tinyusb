@@ -133,11 +133,14 @@ static void expect_stall_both(void) {
 static void expect_command_read(void) {
   expect_call(DCD_XFER, EP_OUT, BUFSIZE);
 }
-static void expect_bulk_aborted(void) {
+static void expect_bulk_reset(void) {
   expect_call(DCD_STALL, EP_OUT, 0);
   expect_call(DCD_CLEAR_STALL, EP_OUT, 0);
   expect_call(DCD_STALL, EP_IN, 0);
   expect_call(DCD_CLEAR_STALL, EP_IN, 0);
+}
+static void expect_bulk_aborted(void) {
+  expect_bulk_reset();
   expect_command_read();
 }
 
@@ -408,6 +411,19 @@ static uint32_t start_data_out(uint32_t total, uint8_t* pkt) {
   return tid;
 }
 
+// a data-IN transaction the app sends `len` payload bytes for; returns the tid
+static uint32_t start_data_in(uint32_t len) {
+  app.data_mode = APP_SEND;
+  app.data_len = len;
+  return host_command(MTP_OP_GET_DEVICE_INFO, NULL, 0);
+}
+
+// the next command, OpenSession, is answered OK
+static void expect_next_command_ok(void) {
+  const uint32_t tid = host_command(MTP_OP_OPEN_SESSION, NULL, 0);
+  expect_response(tid, MTP_RESP_OK, 0);
+}
+
 static mtp_container_info_t headered_io(void) {
   mtp_container_header_t* h = (mtp_container_header_t*) xfer_of(EP_OUT)->buf;
   return (mtp_container_info_t){ .header = h, .payload = (uint8_t*) h + HDR, .payload_bytes = BUFSIZE - HDR };
@@ -429,34 +445,41 @@ static void check_no_data_command(tusb_speed_t speed) {
 void test_no_data_command_fs(void) { check_no_data_command(TUSB_SPEED_FULL); }
 void test_no_data_command_hs(void) { check_no_data_command(TUSB_SPEED_HIGH); }
 
-// data IN: 700 bytes = 512 + 200, no ZLP since the last packet is short
-static void check_data_in(tusb_speed_t speed) {
+// data IN of `len` payload bytes, ending with a ZLP when `zlp`: every block's bytes are checked
+static void check_data_in_len(tusb_speed_t speed, uint32_t len, bool zlp) {
   open_device(speed);
-  app.data_mode = APP_SEND;
-  app.data_len = 700;
-  const uint32_t tid = host_command(MTP_OP_GET_DEVICE_INFO, NULL, 0);
-
-  const dcd_call_t* c = expect_call(DCD_XFER, EP_IN, BUFSIZE);
-  const mtp_generic_container_t* d = (const mtp_generic_container_t*) c->data;
-  TEST_ASSERT_EQUAL(HDR + 700, d->header.len);
-  TEST_ASSERT_EQUAL(MTP_CONTAINER_TYPE_DATA_BLOCK, d->header.type);
-  TEST_ASSERT_EQUAL(tid, d->header.transaction_id);
-  for (uint32_t i = 0; i < BUFSIZE - HDR; i++) TEST_ASSERT_EQUAL_HEX8(pattern(i), d->payload[i]);
-  expect_no_more_calls();
-  host_in_done(BUFSIZE);
-
-  c = expect_call(DCD_XFER, EP_IN, 700 + HDR - BUFSIZE);
-  for (uint32_t i = 0; i < c->len; i++) TEST_ASSERT_EQUAL_HEX8(pattern(BUFSIZE - HDR + i), c->data[i]);
-  expect_no_more_calls();
-  host_in_done(c->len);
-
+  const uint32_t tid = start_data_in(len);
+  uint32_t sent = 0; // container bytes, header included
+  while (sent < HDR + len) {
+    const uint16_t n = (uint16_t) tu_min32(HDR + len - sent, BUFSIZE);
+    const dcd_call_t* c = expect_call(DCD_XFER, EP_IN, n);
+    uint32_t i = 0;
+    if (sent == 0) {
+      const mtp_container_header_t* h = (const mtp_container_header_t*) c->data;
+      TEST_ASSERT_EQUAL(HDR + len, h->len);
+      TEST_ASSERT_EQUAL(MTP_CONTAINER_TYPE_DATA_BLOCK, h->type);
+      TEST_ASSERT_EQUAL(tid, h->transaction_id);
+      i = HDR;
+    }
+    for (; i < n; i++) TEST_ASSERT_EQUAL_HEX8(pattern(sent + i - HDR), c->data[i]);
+    expect_no_more_calls();
+    host_in_done(n);
+    sent += n;
+  }
+  if (zlp) {
+    expect_call(DCD_XFER, EP_IN, 0);
+    expect_no_more_calls();
+    TEST_ASSERT_EQUAL(0, app.complete_calls);
+    host_in_done(0);
+  }
   TEST_ASSERT_EQUAL(1, app.complete_calls);
   TEST_ASSERT_EQUAL(MTP_PHASE_DATA_COMPLETE, app.complete_phase);
   expect_response(tid, MTP_RESP_OK, 0);
 }
 
-void test_data_in_fs(void) { check_data_in(TUSB_SPEED_FULL); }
-void test_data_in_hs(void) { check_data_in(TUSB_SPEED_HIGH); }
+// 700 bytes = 512 + 200, no ZLP since the last packet is short
+void test_data_in_fs(void) { check_data_in_len(TUSB_SPEED_FULL, 700, false); }
+void test_data_in_hs(void) { check_data_in_len(TUSB_SPEED_HIGH, 700, false); }
 
 // data OUT: the host declares 700 bytes in its container header; the app only asked for a read
 static void check_data_out(tusb_speed_t speed) {
@@ -485,13 +508,13 @@ void test_data_out_hs(void) { check_data_out(TUSB_SPEED_HIGH); }
 //--------------------------------------------------------------------+
 // Class and standard requests
 //--------------------------------------------------------------------+
-static const tusb_control_request_t req_cancel = { .bmRequestType = 0x21, .bRequest = MTP_REQ_CANCEL, .wLength = 6 };
+static const tusb_control_request_t req_cancel = { .bmRequestType = 0x21, .bRequest = MTP_REQ_CANCEL, .wLength = sizeof(mtp_request_reset_cancel_data_t) };
 static const tusb_control_request_t req_reset = { .bmRequestType = 0x21, .bRequest = MTP_REQ_RESET };
 static const tusb_control_request_t req_status = { .bmRequestType = 0xA1, .bRequest = MTP_REQ_GET_DEVICE_STATUS, .wLength = 16 };
 
 static void host_cancel(uint32_t tid) {
-  const uint16_t data[3] = { 0x4001, (uint16_t) tid, (uint16_t) (tid >> 16) };
-  TEST_ASSERT_EQUAL(6, host_control(&req_cancel, data, NULL));
+  const mtp_request_reset_cancel_data_t data = { .code = MTP_EVENT_CANCEL_TRANSACTION, .transaction_id = tid };
+  TEST_ASSERT_EQUAL(6, host_control(&req_cancel, &data, NULL));
 }
 static void host_clear_halt(uint8_t ep) {
   const tusb_control_request_t req = { .bmRequestType = 0x02, .bRequest = TUSB_REQ_CLEAR_FEATURE,
@@ -603,8 +626,7 @@ void test_leftover_zlp_in_command_phase_is_absorbed(void) {
   TEST_ASSERT_EQUAL(0, app.cmd_calls);
   expect_command_read();
   expect_no_more_calls();
-  const uint32_t tid = host_command(MTP_OP_OPEN_SESSION, NULL, 0);
-  expect_response(tid, MTP_RESP_OK, 0);
+  expect_next_command_ok();
 }
 
 // the dcd refuses the command read after a leftover ZLP: halt rather than idle with nothing armed
@@ -615,8 +637,7 @@ void test_leftover_zlp_read_refused_stalls(void) {
   TEST_ASSERT_EQUAL_MESSAGE(-1, dcd_refuse_ep, "command read never attempted");
   TEST_ASSERT_EQUAL(0, app.cmd_calls);
   recover_from_error(EP_OUT, EP_IN);
-  const uint32_t tid = host_command(MTP_OP_OPEN_SESSION, NULL, 0);
-  expect_response(tid, MTP_RESP_OK, 0);
+  expect_next_command_ok();
 }
 
 // the dcd refuses the command read once the response is sent: halt rather than idle with nothing armed
@@ -630,8 +651,7 @@ void test_response_complete_read_refused_stalls(void) {
   TEST_ASSERT_EQUAL_MESSAGE(-1, dcd_refuse_ep, "command read never attempted");
   TEST_ASSERT_EQUAL(1, app.resp_complete_calls);
   recover_from_error(EP_IN, EP_OUT);
-  const uint32_t tid = host_command(MTP_OP_OPEN_SESSION, NULL, 0);
-  expect_response(tid, MTP_RESP_OK, 0);
+  expect_next_command_ok();
 }
 
 //--------------------------------------------------------------------+
@@ -833,8 +853,9 @@ void test_nonzero_out_in_response_phase_stalls(void) {
   recover_from_error(EP_OUT, EP_IN);
 }
 
-// response from a 2nd+ packet: the headerless view's params sit where the header goes
-void test_response_from_headerless_packet_keeps_params(void) {
+// response from a 2nd+ packet: the headerless view's params sit where the header goes; when the
+// dcd refuses the first attempt, the retry must find the headerless view intact
+static void check_response_from_headerless(bool refused) {
   open_device(TUSB_SPEED_HIGH);
   uint8_t pkt[BUFSIZE];
   const uint32_t tid = start_data_out(2 * BUFSIZE - HDR, pkt);
@@ -842,27 +863,15 @@ void test_response_from_headerless_packet_keeps_params(void) {
   expect_call(DCD_XFER, EP_OUT, BUFSIZE);
   app.respond_at_xfer = 2;
   app.resp_nparams = 2;
+  app.resp_refused_once = refused;
   host_out(pkt, BUFSIZE);
   check_response(expect_call(DCD_XFER, EP_IN, HDR + 8), tid, MTP_RESP_OK, 2);
   expect_call(DCD_XFER, EP_OUT, BUFSIZE); // ZLP read
   expect_no_more_calls();
 }
 
-// same, with the dcd refusing the first attempt: the retry must find the headerless view intact
-void test_response_from_headerless_packet_retried_after_refusal(void) {
-  open_device(TUSB_SPEED_HIGH);
-  uint8_t pkt[BUFSIZE];
-  const uint32_t tid = start_data_out(2 * BUFSIZE - HDR, pkt);
-  host_out(pkt, BUFSIZE);
-  expect_call(DCD_XFER, EP_OUT, BUFSIZE);
-  app.respond_at_xfer = 2;
-  app.resp_nparams = 2;
-  app.resp_refused_once = true;
-  host_out(pkt, BUFSIZE);
-  check_response(expect_call(DCD_XFER, EP_IN, HDR + 8), tid, MTP_RESP_OK, 2);
-  expect_call(DCD_XFER, EP_OUT, BUFSIZE); // ZLP read
-  expect_no_more_calls();
-}
+void test_response_from_headerless_packet_keeps_params(void) { check_response_from_headerless(false); }
+void test_response_from_headerless_packet_retried_after_refusal(void) { check_response_from_headerless(true); }
 
 void test_deferred_response_after_data_complete(void) {
   open_device(TUSB_SPEED_HIGH);
@@ -907,28 +916,6 @@ void test_data_receive_refused_while_read_outstanding(void) {
 //--------------------------------------------------------------------+
 // Data IN
 //--------------------------------------------------------------------+
-static void check_data_in_len(tusb_speed_t speed, uint32_t len, bool zlp) {
-  open_device(speed);
-  app.data_mode = APP_SEND;
-  app.data_len = len;
-  const uint32_t tid = host_command(MTP_OP_GET_DEVICE_INFO, NULL, 0);
-  uint32_t left = HDR + len;
-  while (left) {
-    const uint16_t n = (uint16_t) tu_min32(left, BUFSIZE);
-    expect_call(DCD_XFER, EP_IN, n);
-    expect_no_more_calls();
-    host_in_done(n);
-    left -= n;
-  }
-  if (zlp) {
-    expect_call(DCD_XFER, EP_IN, 0);
-    expect_no_more_calls();
-    TEST_ASSERT_EQUAL(0, app.complete_calls);
-    host_in_done(0);
-  }
-  TEST_ASSERT_EQUAL(1, app.complete_calls);
-  expect_response(tid, MTP_RESP_OK, 0);
-}
 void test_data_in_fs_short_no_zlp(void) { check_data_in_len(TUSB_SPEED_FULL, 100, false); }
 void test_data_in_fs_packet_multiple_zlp(void) { check_data_in_len(TUSB_SPEED_FULL, 64 - HDR, true); }
 void test_data_in_hs_buffer_multiple_zlp(void) { check_data_in_len(TUSB_SPEED_HIGH, 2 * BUFSIZE - HDR, true); }
@@ -936,9 +923,7 @@ void test_data_in_hs_fs_packet_multiple_no_zlp(void) { check_data_in_len(TUSB_SP
 
 void test_data_in_xfer_callback_negative_stalls(void) {
   open_device(TUSB_SPEED_HIGH);
-  app.data_mode = APP_SEND;
-  app.data_len = 1000;
-  host_command(MTP_OP_GET_DEVICE_INFO, NULL, 0);
+  start_data_in(1000);
   expect_call(DCD_XFER, EP_IN, BUFSIZE);
   app.xfer_ret = -1;
   host_in_done(BUFSIZE);
@@ -947,10 +932,8 @@ void test_data_in_xfer_callback_negative_stalls(void) {
 
 void test_data_in_complete_callback_negative_stalls(void) {
   open_device(TUSB_SPEED_HIGH);
-  app.data_mode = APP_SEND;
-  app.data_len = 100;
   app.complete_ret = -1;
-  host_command(MTP_OP_GET_DEVICE_INFO, NULL, 0);
+  start_data_in(100);
   expect_call(DCD_XFER, EP_IN, HDR + 100);
   host_in_done(HDR + 100);
   TEST_ASSERT_EQUAL(1, app.complete_calls);
@@ -959,9 +942,7 @@ void test_data_in_complete_callback_negative_stalls(void) {
 
 void test_data_in_failed_transfer_stalls(void) {
   open_device(TUSB_SPEED_HIGH);
-  app.data_mode = APP_SEND;
-  app.data_len = 100;
-  host_command(MTP_OP_GET_DEVICE_INFO, NULL, 0);
+  start_data_in(100);
   expect_call(DCD_XFER, EP_IN, HDR + 100);
   host_complete(EP_IN, NULL, HDR + 100, XFER_RESULT_FAILED);
   TEST_ASSERT_EQUAL(0, app.complete_calls);
@@ -970,10 +951,8 @@ void test_data_in_failed_transfer_stalls(void) {
 
 void test_data_send_refused_while_transfer_outstanding(void) {
   open_device(TUSB_SPEED_HIGH);
-  app.data_mode = APP_SEND;
-  app.data_len = 100;
   app.queue_twice = true;
-  const uint32_t tid = host_command(MTP_OP_GET_DEVICE_INFO, NULL, 0);
+  const uint32_t tid = start_data_in(100);
   expect_call(DCD_XFER, EP_IN, HDR + 100);
   expect_no_more_calls();
   host_in_done(HDR + 100);
@@ -1015,9 +994,7 @@ void test_cancel_then_leftover_zlp(void) {
 
 void test_cancel_in_data_in_defers_read_until_in_completes(void) {
   open_device(TUSB_SPEED_HIGH);
-  app.data_mode = APP_SEND;
-  app.data_len = 1000;
-  const uint32_t tid = host_command(MTP_OP_GET_DEVICE_INFO, NULL, 0);
+  const uint32_t tid = start_data_in(1000);
   expect_call(DCD_XFER, EP_IN, BUFSIZE);
   host_cancel(tid);
   TEST_ASSERT_EQUAL(1, app.cancel_calls);
@@ -1032,9 +1009,7 @@ void test_cancel_in_data_in_defers_read_until_in_completes(void) {
 // the dcd refuses the Cancel-deferred read once the abandoned data IN completes: halt
 void test_cancel_in_data_in_deferred_read_refused_stalls(void) {
   open_device(TUSB_SPEED_HIGH);
-  app.data_mode = APP_SEND;
-  app.data_len = 1000;
-  const uint32_t tid = host_command(MTP_OP_GET_DEVICE_INFO, NULL, 0);
+  const uint32_t tid = start_data_in(1000);
   expect_call(DCD_XFER, EP_IN, BUFSIZE);
   host_cancel(tid);
   expect_no_more_calls();
@@ -1044,17 +1019,14 @@ void test_cancel_in_data_in_deferred_read_refused_stalls(void) {
   TEST_ASSERT_EQUAL(0, app.xfer_calls);
   recover_from_error(EP_OUT, EP_IN);
   app.data_mode = APP_NO_DATA;
-  const uint32_t next = host_command(MTP_OP_OPEN_SESSION, NULL, 0);
-  expect_response(next, MTP_RESP_OK, 0);
+  expect_next_command_ok();
 }
 
 // libmtp 1.1.22 (ptp_read_cancel_func) polls Get Device Status for as long as it reads Device
 // Busy and only then drains the Bulk-in pipe: the undrained IN must not hold the status at Busy
 void test_cancel_in_data_in_status_polled_before_drain(void) {
   open_device(TUSB_SPEED_HIGH);
-  app.data_mode = APP_SEND;
-  app.data_len = 1000;
-  const uint32_t tid = host_command(MTP_OP_GET_DEVICE_INFO, NULL, 0);
+  const uint32_t tid = start_data_in(1000);
   expect_call(DCD_XFER, EP_IN, BUFSIZE);
   host_cancel(tid);
   expect_status_ok();
@@ -1064,8 +1036,7 @@ void test_cancel_in_data_in_status_polled_before_drain(void) {
   expect_no_more_calls();
   expect_status_ok();
   app.data_mode = APP_NO_DATA;
-  const uint32_t next = host_command(MTP_OP_OPEN_SESSION, NULL, 0);
-  expect_response(next, MTP_RESP_OK, 0);
+  expect_next_command_ok();
 }
 
 void test_cancel_in_data_complete_returns_to_command(void) {
@@ -1094,8 +1065,7 @@ void test_cancel_read_refused_stalls(void) {
   TEST_ASSERT_EQUAL(1, app.cancel_calls);
   recover_from_error(EP_OUT, EP_IN);
   app.data_mode = APP_NO_DATA;
-  const uint32_t next = host_command(MTP_OP_OPEN_SESSION, NULL, 0);
-  expect_response(next, MTP_RESP_OK, 0);
+  expect_next_command_ok();
 }
 
 void test_cancel_in_command_and_response_changes_nothing(void) {
@@ -1114,9 +1084,7 @@ void test_cancel_in_command_and_response_changes_nothing(void) {
 
 void test_device_reset_in_data_phase(void) {
   open_device(TUSB_SPEED_HIGH);
-  app.data_mode = APP_SEND;
-  app.data_len = 1000;
-  host_command(MTP_OP_GET_DEVICE_INFO, NULL, 0);
+  start_data_in(1000);
   expect_call(DCD_XFER, EP_IN, BUFSIZE); // busy, never drained by the host
   TEST_ASSERT_EQUAL(0, host_control(&req_reset, NULL, NULL));
   TEST_ASSERT_EQUAL(1, app.reset_calls);
@@ -1124,8 +1092,7 @@ void test_device_reset_in_data_phase(void) {
   expect_no_more_calls();
   expect_status_ok();
   app.data_mode = APP_NO_DATA;
-  const uint32_t tid = host_command(MTP_OP_OPEN_SESSION, NULL, 0);
-  expect_response(tid, MTP_RESP_OK, 0);
+  expect_next_command_ok();
 }
 
 void test_device_reset_in_error_phase(void) {
@@ -1147,13 +1114,9 @@ void test_device_reset_read_refused_stalls(void) {
   TEST_ASSERT_EQUAL(0, host_control(&req_reset, NULL, NULL));
   TEST_ASSERT_EQUAL_MESSAGE(-1, dcd_refuse_ep, "command read never attempted");
   TEST_ASSERT_EQUAL(1, app.reset_calls);
-  expect_call(DCD_STALL, EP_OUT, 0);
-  expect_call(DCD_CLEAR_STALL, EP_OUT, 0);
-  expect_call(DCD_STALL, EP_IN, 0);
-  expect_call(DCD_CLEAR_STALL, EP_IN, 0);
+  expect_bulk_reset();
   recover_from_error(EP_IN, EP_OUT);
-  const uint32_t tid = host_command(MTP_OP_OPEN_SESSION, NULL, 0);
-  expect_response(tid, MTP_RESP_OK, 0);
+  expect_next_command_ok();
 }
 
 // the dcd refuses the command read once the host has cleared both halts: halt again
@@ -1169,8 +1132,7 @@ void test_clear_halt_read_refused_stalls(void) {
   TEST_ASSERT_EQUAL_MESSAGE(-1, dcd_refuse_ep, "command read never attempted");
   recover_from_error(EP_IN, EP_OUT);
   app.cmd_ret = 0;
-  const uint32_t tid = host_command(MTP_OP_OPEN_SESSION, NULL, 0);
-  expect_response(tid, MTP_RESP_OK, 0);
+  expect_next_command_ok();
 }
 
 void test_clear_halt_outside_error_phase_does_not_rearm(void) {
