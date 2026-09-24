@@ -62,7 +62,7 @@ class ResolveTest(unittest.TestCase):
         return rc, json.loads(out.write.call_args_list[0][0][0]), b1
 
     def test_a_scope_of_only_non_code_paths_passes_with_nothing_to_build(self):
-        rc, printed, b1 = self._main_scope(['docs/index.rst', '.claude/agents/builder.md'])
+        rc, printed, b1 = self._main_scope(['docs/index.rst', '.claude/skills/build/SKILL.md'])
         b1.assert_not_called()
         self.assertEqual((rc, printed['pass'], printed['boards'], printed['uncovered']), (0, True, [], []))
         self.assertTrue(all('non-code' in r for r in printed['nothingToBuild']), printed)
