@@ -383,12 +383,18 @@ def _start_partial_send_object(m):
     return handle, tid
 
 
+def expect_discarded(m, handle):
+    """An object whose SendObject was interrupted must not be left behind half written."""
+    if handle in m.list_handles():
+        raise RawError('object 0x%x left behind after an interrupted SendObject' % handle)
+
+
 def case_cancel_mid_send_object(m):
     handle, tid = _start_partial_send_object(m)
     m.cancel(tid)
     m.wait_status_ok()
     m.expect(RESP_INVALID_OBJECT_HANDLE, OP_SEND_OBJECT)  # the staged handle was dropped
-    m.delete(handle)
+    expect_discarded(m, handle)
     m.expect(RESP_OK, OP_GET_DEVICE_INFO, data_in=True)
 
 
@@ -396,10 +402,12 @@ def case_device_reset_mid_send_object(m):
     handle, _ = _start_partial_send_object(m)
     m.device_reset()
     m.wait_status_ok()
+    m.link.clear_halt(m.link.ep_in)   # resync the host's toggles with the aborted endpoints (#3962)
+    m.link.clear_halt(m.link.ep_out)
     m.expect(RESP_SESSION_NOT_OPEN, OP_SEND_OBJECT)
     m.expect(RESP_OK, OP_OPEN_SESSION, 1)
     m.expect(RESP_INVALID_OBJECT_HANDLE, OP_SEND_OBJECT)
-    m.delete(handle)
+    expect_discarded(m, handle)
     m.upload_readback(100)
 
 
