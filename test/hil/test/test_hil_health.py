@@ -515,36 +515,12 @@ class PermitReleasesOnlyWhatItTook(unittest.TestCase):
                          'the permit released a slot it never acquired: width grew')
 
 
-class RecoveryUsesAResetOnlyWhenThereIsARealOne(unittest.TestCase):
-    """usbtest's recovery runs the reset unconditionally before the reflash -- it is
-    non-destructive (the wedged firmware survives for autopsy), writes no flash, cannot
-    brick SWD the way a bad park image has (mimxrt1064_evk, max32666fthr), and is measured
-    at 128-129 ms against a full erase+program.
-
-    Two things still gate it, and both are what this pins: a flasher may have no reset
-    primitive at all, and reset_esptool/reset_lm4flash return rc 0 WITHOUT resetting
-    anything. Running those makes the log say "resetting <board> via <flasher>" for a step
-    that did nothing. wedged_pids() arbitrates either way, so behaviour was always right --
-    the record was not, and a false record is what keeps having to be unpicked."""
-
-    def setUp(self):
-        import usbtest          # test/hil is already on sys.path (see top of file)
-        # PRODUCTION, not a copy: re-implementing the screen here let the real gate be
-        # deleted with the suite still green, which is the failure mode this pins.
-        self._reset_fn = usbtest.reset_primitive
-
-    def test_a_stub_that_resets_nothing_is_not_claimed(self):
-        for name in ('esptool', 'lm4flash'):
-            self.assertIsNone(self._reset_fn(name),
-                              f'reset_{name} returns rc 0 without resetting; claiming it '
-                              f'puts a step that did nothing in the record')
-
-    def test_a_real_reset_primitive_is_used(self):
-        for name in ('openocd', 'jlink', 'stlink'):
-            self.assertIsNotNone(self._reset_fn(name))
-
-    def test_a_flasher_with_no_reset_primitive_goes_straight_to_the_reflash(self):
-        self.assertIsNone(self._reset_fn('nosuchflasher'))
+class RecoveryResetsBeforeTheReflash(unittest.TestCase):
+    """usbtest's recovery runs a real reset before the reflash -- it is non-destructive
+    (the wedged firmware survives for autopsy), writes no flash, cannot brick SWD the way a
+    bad park image has (mimxrt1064_evk, max32666fthr), and is measured at 128-129 ms
+    against a full erase+program. Which resets are real is hil_flash.reset_primitive's,
+    pinned in test_ci_select.ResetPrimitive."""
 
     def test_the_reset_is_attempted_before_the_reflash(self):
         """Order matters and now lives only in main()'s inline ladder, where no test
@@ -558,7 +534,7 @@ class RecoveryUsesAResetOnlyWhenThereIsARealOne(unittest.TestCase):
         fn = next(n for n in ast.walk(ast.parse(src))
                   if isinstance(n, ast.FunctionDef) and n.name == 'main')
         seg = ast.get_source_segment(src, fn)
-        reset_at = seg.index('reset_fn = reset_primitive(')
+        reset_at = seg.index('reset_fn = hil_flash.reset_primitive(')
         flash_at = seg.index("flash_fn(board, args.recover_fw")
         self.assertLess(reset_at, flash_at,
                         'the reflash is attempted before the non-destructive reset')

@@ -179,7 +179,7 @@ class UsbtestRecovery(unittest.TestCase):
                 # it, so its two legs are time the board can never spend
                 ({'name': 'openocd', 'args': '-f target/wch-riscv.cfg'},
                  reset + flash + fixed),
-                # esptool: reset_esptool is a stub (no_op) and rescue refuses a
+                # esptool: no reset primitive, and rescue refuses a
                 # non-openocd flasher, so ONE reflash is all it can ever spend
                 ({'name': 'esptool', 'args': ''}, flash + fixed),
                 # reset-only (roster "reflash": false): the reset and its settle, nothing else
@@ -691,7 +691,7 @@ class WedgeConfirmationOnTheMainPath(unittest.TestCase):
             patch(hil_flash, 'flash_openocd', reflash or (lambda board, fw, **kw: self.flashed.append(fw) or
                   types.SimpleNamespace(returncode=0, stdout=b'', stderr=b'')))
             patch(hil_flash, 'rescue_openocd', lambda *a, **k: False)
-            patch(usbtest, 'reset_primitive', lambda name: (lambda board, **kw: None))
+            patch(hil_flash, 'reset_primitive', lambda name: (lambda board, **kw: None))
         usbtest_harness.argv(self, '--timeout', '7')
         if recover:
             sys.argv += ['--recover-board', json.dumps({'name': 'b', 'flasher': {
@@ -1314,7 +1314,7 @@ class UsbtestOuterBoundIsOneValue(unittest.TestCase):
         shipped = json.loads(toks[toks.index('--recover-board') + 1])
         self.assertEqual(shipped, {'name': 'b', 'flasher': rec})
         self.assertEqual(toks[toks.index('--recover-fw') + 1], '/tmp/fw.elf')
-        # the reset step is reserved, and no Rescue-DP legs: reset_openocd is real, unlike esptool's no_op stub
+        # the reset step is reserved, and no Rescue-DP legs: reset_openocd exists, unlike esptool's
         self.assertEqual(usbtest.recovery_reserve(rec) - usbtest.recovery_reserve({'name': 'esptool'}),
                          usbtest.RECOVER_RESET_TIMEOUT + hil_test.hil_util.REAP_GRACE)
 

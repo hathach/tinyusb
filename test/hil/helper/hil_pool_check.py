@@ -366,11 +366,12 @@ def check_host_serial(board: dict, do_reset: bool = True, want_hello: bool = Fal
     console instead. The reset happens BEFORE the console opens (it owns the probe),
     which also zeroes the .bss ring — so pre-reset backlog cannot count as life, and
     without a reset Commander delivers the boot burst the preceding flash left."""
+    reset_fn = hil_flash.reset_primitive(board['flasher']['name']) if do_reset else None
     if board.get('logger') == 'rtt':
-        if do_reset:
+        if reset_fn:
             # a failed reset leaves the previous run's ring intact: attaching anyway would
             # score stale output as life, so bail to host_alive's board_test reflash ladder
-            rc, err = call_flasher(getattr(hil_flash, f'reset_{board["flasher"]["name"].lower()}'), board)
+            rc, err = call_flasher(reset_fn, board)
             if rc:
                 say(f'{board["name"]:26} reset failed: {err}')
                 return None
@@ -413,8 +414,8 @@ def check_host_serial(board: dict, do_reset: bool = True, want_hello: bool = Fal
         # count as life) while keeping the post-reset boot banner, which prints while the
         # reset tool is still tearing down and a post-reset flush would eat
         ser.reset_input_buffer()
-        if do_reset:
-            getattr(hil_flash, f'reset_{board["flasher"]["name"].lower()}')(board)
+        if reset_fn:
+            reset_fn(board)
         # judge the WHOLE window, not the first chunk: the probe's CDC bridge has its own
         # FIFO, so stale pre-flash output (e.g. board_test hellos) can arrive after our
         # host-side flush and must not decide the verdict alone.
@@ -640,7 +641,7 @@ def host_alive(board: dict, note: list, row: dict, flashed_example: bool = False
 
 def device_recover_and_check(board: dict, example: str, variant: str, old_ino, note: list, row: dict, seen: dict) -> bool:
     """Wait for the flashed board's uid to re-enumerate; on timeout, try one board
-    reset (skipped for flashers with no hardware reset — see hil_flash.RESET_NOOP,
+    reset (skipped for flashers with no hardware reset — see hil_flash.reset_primitive,
     it would just burn the wait) and wait again.
 
     The PID policy is deliberately asymmetric. Pre-reset, the re-enumeration was
@@ -674,13 +675,14 @@ def device_recover_and_check(board: dict, example: str, variant: str, old_ino, n
         return True
 
     flasher_name = board['flasher']['name'].lower()
-    if flasher_name in hil_flash.RESET_NOOP:
+    reset_fn = hil_flash.reset_primitive(flasher_name)
+    if reset_fn is None:
         note.append(f'no hardware reset available for {flasher_name}')
         row['device'] = '❌ not enumerated'
         return False
 
     say(f'{name:26} recovery: uid not up, resetting board')
-    rc, err = call_flasher(getattr(hil_flash, f'reset_{flasher_name}'), board)
+    rc, err = call_flasher(reset_fn, board)
     if rc != 0:
         note.append(f'reset failed: {err}')
     hit = wait_device(board['uid'], None, old_ino, ENUM_WAIT_RETRY)
