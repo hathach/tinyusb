@@ -143,7 +143,7 @@ whether a hung case is recoverable. Fetch the upstream version matching the rig'
 kernel (`uname -r`; the distro's own source when its patches matter):
 
 ```bash
-curl --fail -sO "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/drivers/usb/misc/usbtest.c?h=v$(uname -r | sed 's/[-+].*//; s/\.0$//')"   # run on the rig; x.y.0 is tagged vx.y
+curl --fail -sSO "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/drivers/usb/misc/usbtest.c?h=v$(uname -r | sed 's/[-+].*//; s/\.0$//')"   # run on the rig; x.y.0 is tagged vx.y
 # case N lives under `case N:` in the kernel's usbtest_do_ioctl()
 # (drivers/usb/misc/usbtest.c); kernel tools/usb/testusb.c maps the flags:
 # -c = param.iterations, -s = param.length, -g = param.sglen  (NOT what they read like)
