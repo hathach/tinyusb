@@ -218,6 +218,14 @@ class Shield(unittest.TestCase):
         self.assertIn('no such usb object', self.run_script('shield', '13-2', str(self.owner.pid), ok=False))
         self.assertIn('no shield record', self.run_script('unshield', '13-1.6', ok=False))
 
+    def test_usage_lists_the_full_path_and_every_verb_but_no_record_format(self):
+        out = self.run_script(ok=False)
+        self.assertIn('sudo .claude/skills/usb-kernel-recover/scripts/usb_recover.sh <verb>', out)
+        for verb in ('authorized', 'root-cycle', 'pci-rebind', 'pci-bind', 'resolve', 'shield ',
+                     'unshield', 'shield-status'):
+            self.assertIn(f'#   {verb}', out)
+        self.assertNotIn('owner <pid>', out)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -15,32 +15,45 @@ runs it per board and reports `✅ 30/30` cells.
 
 **Core principle: the battery is a DCD test, not a firmware test.** When a case fails, suspect the
 DCD path it exercises (table below), reproduce that one case, and root-cause on hardware before
-changing anything (`superpowers:systematic-debugging`). One variable at a time; a fix is proven by
+changing anything (agentrc's `hw-debugger`). One variable at a time; a fix is proven by
 the failing case passing *and* the full battery still at 30/30 across reflash cycles.
 
 ## Run
 
 ```bash
-# build (cmake); descriptor sizes auto-adapt per MCU via the example's own
-# src/usb_descriptors.h + src/tusb_config.h (paths below are relative to it)
-cd examples/device/usbtest && cmake -B build -DBOARD=<board> -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel && cmake --build build
-# flash, wait ~3-5 s for enumeration to settle, then:
-python3 test/hil/usbtest.py --serial <uid>            # full battery for the advertised tier
-python3 test/hil/usbtest.py --serial <uid> --tests 29 # one case
+# build through the build contract; descriptor sizes auto-adapt per MCU via the example's
+# own src/usb_descriptors.h + src/tusb_config.h. No -D: it sticks to the dir HIL flashes from.
+python3 .claude/skills/build/scripts/check_build.py --board <board> -e device/usbtest --shared
+
+# rig board, full battery: the HIL harness self-locks (no pre-hold), flashes through the
+# roster's probe, budgets the battery and enables hang recovery where the board allows
+python3 test/hil/hil_test.py -b <board> -t device/usbtest <this host's config>
+
+# one case by hand: the harness re-parks the board afterwards, so hold it, flash usbtest with
+# its probe pinned (<device> from `tools/build_utils.py board-info <board>`), wait ~3-5 s for
+# enumeration, run, release
+python3 test/hil/helper/hil_lock.py hold <board> --reason "usbtest case 29"
+JLinkExe -device <device> -USB <probe-serial> -if swd -JTAGConf -1,-1 -speed auto -nogui 1 \
+    -CommandFile cmake-build/cmake-build-<board>/device/usbtest/usbtest.jlink
+python3 test/hil/usbtest.py --serial <uid> --tests 29
+python3 test/hil/helper/hil_lock.py release <board>
 ```
+
+A bench with a single J-Link attached flashes with `ninja -C cmake-build/cmake-build-<board>
+usbtest-jlink`; Espressif boards flash with `idf.py` (CLAUDE.md, ESP-IDF).
 
 - The run registers `cafe 4010` with the usbtest module once per rig (Gadget Zero's profile) and
   leaves the id and the binding in place: an unbind has wedged host xHCIs
   (`usb_hcd_alloc_bandwidth`), and the next example enumerates under its own PID.
-- CI (`hil_test.py`) additionally passes `--budget` and
-  `--recover-board`/`--recover-fw`: on a HUNG case the battery aborts, RESETS the DUT
-  through its roster probe (non-destructive, ~130 ms) and reflashes only if that does not
-  clear the wedge (see usb-kernel-recover). Manual runs without those flags leave a HUNG
+- CI (`hil_test.py`) additionally passes `--budget` and, when the board's recovery flasher is
+  convoy-safe and flashing is on, `--recover-board`/`--recover-fw`: on a HUNG case the battery
+  aborts, RESETS the DUT through its roster probe (non-destructive, ~130 ms) and reflashes only
+  if that does not clear the wedge (see usb-kernel-recover). Manual runs without those flags leave a HUNG
   device wedged — expected; reset or reflash it yourself.
 - Always settle a few seconds after flashing — enumeration can bounce once; testusb into the gap sees
   the device drop mid-case.
-- On a CI rig: hold the board lock before touching hardware and release it after — never stop the
-  actions runner. It keeps running; the per-board flock is what arbitrates (see the `hil` skill).
+- For manual work on a CI rig: hold the board lock before touching hardware and release it
+  after — never stop the actions runner. It keeps running; the per-board flock is what arbitrates (see the `hil` skill).
   Never start a battery by hand next to a running one: `hil_test.py` budgets 2 concurrent batteries
   per host controller (`HIL_USBTEST_PARALLEL`). The width itself is a profiled throughput/bandwidth
   trade, not a safety ceiling (the concurrency note above `FLASH_PARALLEL` in `hil_lock.py`) — but
@@ -120,10 +133,11 @@ interface on the old profile.
 
 **Step 0 — read what the case actually does.** The kernel module is ground truth;
 the table above is a summary. Do this before theorising, and always before deciding
-whether a hung case is recoverable. Fetch the rig's exact version (`uname -r`):
+whether a hung case is recoverable. Fetch the upstream version matching the rig's
+kernel (`uname -r`; the distro's own source when its patches matter):
 
 ```bash
-curl -sO "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/drivers/usb/misc/usbtest.c?h=v6.12.96"
+curl -sO "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/drivers/usb/misc/usbtest.c?h=v$(uname -r | sed 's/[-+].*//')"   # run on the rig
 # case N lives under `case N:` in the kernel's usbtest_do_ioctl()
 # (drivers/usb/misc/usbtest.c); kernel tools/usb/testusb.c maps the flags:
 # -c = param.iterations, -s = param.length, -g = param.sglen  (NOT what they read like)

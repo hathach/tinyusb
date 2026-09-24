@@ -2,26 +2,27 @@
 # usb_recover.sh — USB recovery helper for the HIL rig; run with sudo. Writes only
 # to the specific sysfs control files below; arg regexes block path traversal.
 #
-# Usage:
-#   sudo usb_recover.sh authorized <busport>   # e.g. 3-2  -> deauthorize+reauthorize (re-enumerate, NO VBUS cut)
-#   sudo usb_recover.sh root-cycle <busport> [serial]  # e.g. 13-1.6 -> uhubctl port-off/on at the ROOT port feeding
-#                                              # it; [serial] is verified against the device and refused on mismatch,
-#                                              # skipping the leaf hubs (which fake ganged switching and do not
-#                                              # actually cut power). Bounces every sibling under that root port.
-#                                              # The D-state escape: no device lock, so it cannot convoy.
-#   sudo usb_recover.sh pci-rebind <pciaddr>   # e.g. 0000:05:00.0 -> unbind+bind the whole xHCI
-#                                              # controller. For a DEAD CONTROLLER, not a wedged
-#                                              # device: it renumbers every bus it owns.
-#   sudo usb_recover.sh pci-bind   <pciaddr> [drv]  # re-attach a driver to a DRIVERLESS controller
-#   sudo usb_recover.sh resolve    <devnode>   # e.g. /dev/ttyACM3 -> print its <busport> (no privilege needed)
-#   sudo usb_recover.sh shield     <busport> <owner-pid>    # chmod 000 the nine locking attrs of the wedged leaf, its
-#                                              # parent hub and the root hub so non-root libusb enumerators skip it;
-#                                              # records every original mode first. Refused while another shield
-#                                              # covers any of the same objects.
-#   sudo usb_recover.sh unshield   <busport> [owner-pid]    # restore the recorded modes on the surviving originals
-#                                              # (same inode) and drop the record; refused while a DIFFERENT owner
-#                                              # is still alive. A stale record (owner gone) needs no pid.
-#   sudo usb_recover.sh shield-status [busport] # records, their owners (alive/dead) and what is still shielded
+# Usage, from the checkout root (sudo's PATH does not include the script):
+#   sudo .claude/skills/usb-kernel-recover/scripts/usb_recover.sh <verb> ...
+#   authorized <busport>   # e.g. 3-2  -> deauthorize+reauthorize (re-enumerate, NO VBUS cut)
+#   root-cycle <busport> [serial]  # e.g. 13-1.6 -> uhubctl port-off/on at the ROOT port feeding
+#                          # it; [serial] is verified against the device and refused on mismatch,
+#                          # skipping the leaf hubs (which fake ganged switching and do not
+#                          # actually cut power). Bounces every sibling under that root port.
+#                          # The D-state escape: no device lock, so it cannot convoy.
+#   pci-rebind <pciaddr>   # e.g. 0000:05:00.0 -> unbind+bind the whole xHCI
+#                          # controller. For a DEAD CONTROLLER, not a wedged
+#                          # device: it renumbers every bus it owns.
+#   pci-bind   <pciaddr> [drv]  # re-attach a driver to a DRIVERLESS controller
+#   resolve    <devnode>   # e.g. /dev/ttyACM3 -> print its <busport> (no privilege needed)
+#   shield     <busport> <owner-pid>    # chmod 000 the nine locking attrs of the wedged leaf, its
+#                          # parent hub and the root hub so non-root libusb enumerators skip it;
+#                          # records every original mode first. Refused while another shield
+#                          # covers any of the same objects.
+#   unshield   <busport> [owner-pid]    # restore the recorded modes on the surviving originals
+#                          # (same inode) and drop the record; refused while a DIFFERENT owner
+#                          # is still alive. A stale record (owner gone) needs no pid.
+#   shield-status [busport] # records, their owners (alive/dead) and what is still shielded
 set -euo pipefail
 
 # The shield's locking attributes: served under the device lock, so a wedged device blocks
@@ -103,7 +104,7 @@ require_usb_controller() {
 }
 
 sysfs_gen() { stat -c %i "/sys/bus/usb/devices/$1/" 2>/dev/null || echo none; }
-usage() { grep -E '^#   sudo usb_recover' "$0" >&2; exit 2; }
+usage() { sed -n '/^# Usage/,/^set -euo pipefail/p' "$0" | grep -E '^#   (sudo|[a-z])' >&2; exit 2; }
 
 # ---- shield -----------------------------------------------------------------------------
 # One record per shielded busport under $SHIELD_STATE, written BEFORE the first chmod:

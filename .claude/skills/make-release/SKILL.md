@@ -24,7 +24,7 @@ $R bump X.Y.Z                                      # tusb_option.h, repository.y
 New file `docs/changelog/X.Y.Z.md`, listed **first** in `docs/changelog/index.rst`. The PR set comes from **commit reachability, not merge date** (a date query wrongly pulls in the prior release's changelog PR at the boundary):
 
 ```bash
-$R prs --prev 0.20.0 [--head master] > /tmp/prs.txt   # '#N<TAB>title<TAB>[labels]', one PR per line
+$R prs --prev <previous-X.Y.Z> [--head master] > /tmp/prs.txt   # '#N<TAB>title<TAB>[labels]', one PR per line
 ```
 It refuses when `--prev` is not an ancestor of the head, and when a first-parent commit is not a merged PR (a direct push: decide what to do with it, do not silence the guard). A PR merged into a *feature branch* folds into its parent (won't appear alone) — reflect its final state in the parent's bullet.
 
@@ -32,7 +32,7 @@ It refuses when `--prev` is not an ancestor of the head, and when a first-parent
 - Title = version (`# X.Y.Z`), then italic date (ask if unknown). Add to top of `index.rst`.
 - Section order: **General** (New MCUs and Boards / Code Quality and Build / Documentation) → **API Changes** → **Device Stack** (per class) → **Host Stack** → **Controller Driver (DCD & HCD)** (per driver) → **Testing** → **Contributors**. Sections are `##`; each class/driver group is a `###` sub-heading, not a bullet.
 - Single backticks for symbols; group related PRs into one bullet (don't dump). `Port *`/driver labels help bucket DCD/HCD.
-- **Contributors**: unique non-bot PR authors, alphabetical (the only contributor credit — no separate page): `$R contributors --prev 0.20.0` prints the line; drop any CI/service account it did not recognise.
+- **Contributors**: unique non-bot PR authors, alphabetical (the only contributor credit — no separate page): `$R contributors --prev <previous-X.Y.Z>` prints the line; drop any CI/service account it did not recognise.
 
 ## 3. Validate (leave unstaged)
 
