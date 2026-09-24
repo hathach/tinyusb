@@ -288,9 +288,7 @@ void test_send_object_info_spanning_two_packets(void) {
   for (uint32_t i = 0; i < FS_MAX_FILENAME_LEN - 1; i++) TEST_ASSERT_EQUAL_HEX16('a' + i % 26, f->name[i]);
   TEST_ASSERT_EQUAL_HEX16(0, f->name[FS_MAX_FILENAME_LEN - 1]);
   // exactly one object was created: the spare slot is used and the table has no other new file
-  uint32_t files = 0;
-  for (size_t i = 0; i < FS_MAX_FILE_COUNT; i++) files += fs_file_exist(&fs_objects[i]) ? 1 : 0;
-  TEST_ASSERT_EQUAL(3, files);
+  TEST_ASSERT_EQUAL(3, fs_get_file_count());
 }
 
 void test_send_object_info_runt_dataset_is_refused(void) {
