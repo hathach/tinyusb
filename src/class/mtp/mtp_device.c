@@ -534,9 +534,13 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       const bool is_first_out = !is_data_in && (p_mtp->xferred_len == xferred_bytes);
       if (is_first_out) {
         // the host's container header declares the data phase length; less than a header
-        // (including a bare ZLP) is a protocol error
+        // (including a bare ZLP), or a container that is not this transaction's data block,
+        // is a protocol error
         if (xferred_bytes < sizeof(mtp_container_header_t) ||
-            p_container->header.len < sizeof(mtp_container_header_t)) {
+            p_container->header.len < sizeof(mtp_container_header_t) ||
+            p_container->header.type != MTP_CONTAINER_TYPE_DATA_BLOCK ||
+            p_container->header.code != p_mtp->command.header.code ||
+            p_container->header.transaction_id != p_mtp->command.header.transaction_id) {
           p_mtp->phase = MTP_PHASE_ERROR;
           break;
         }
