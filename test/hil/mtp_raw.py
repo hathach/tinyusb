@@ -174,13 +174,10 @@ class RawMtp:
         return tid
 
     def command(self, code, *params):
+        tid = None
         if code == OP_OPEN_SESSION:
-            self.tid = 0  # outside a session the transaction id is 0; the session counts from 1
-        return self.send_container(TYPE_COMMAND, code, struct.pack('<%dI' % len(params), *params),
-                                   tid=0 if code == OP_OPEN_SESSION else None)
-
-    def send_data(self, code, tid, payload):
-        return self.send_container(TYPE_DATA, code, payload, tid)
+            tid = self.tid = 0  # outside a session the transaction id is 0; the session counts from 1
+        return self.send_container(TYPE_COMMAND, code, struct.pack('<%dI' % len(params), *params), tid)
 
     def read_container(self, size=64 * 1024):
         """One read large enough for a whole phase: the device ends it with a short packet or
@@ -207,7 +204,7 @@ class RawMtp:
         """A whole transaction: (response code, params, data received or None)."""
         tid = self.command(code, *params)
         if data_out is not None:
-            self.send_data(code, tid, data_out)
+            self.send_container(TYPE_DATA, code, data_out, tid)
         data = self.read_data(tid) if data_in else None
         resp, rparams = self.read_response(tid)
         return resp, rparams, data
@@ -383,6 +380,13 @@ def _start_partial_send_object(m):
     return handle, tid
 
 
+def reset_and_resync(m):
+    m.device_reset()
+    m.wait_status_ok()
+    m.link.clear_halt(m.link.ep_in)   # resync the host's toggles with the aborted endpoints (#3962)
+    m.link.clear_halt(m.link.ep_out)
+
+
 def expect_discarded(m, handle):
     """An object whose SendObject was interrupted must not be left behind half written."""
     if handle in m.list_handles():
@@ -400,10 +404,7 @@ def case_cancel_mid_send_object(m):
 
 def case_device_reset_mid_send_object(m):
     handle, _ = _start_partial_send_object(m)
-    m.device_reset()
-    m.wait_status_ok()
-    m.link.clear_halt(m.link.ep_in)   # resync the host's toggles with the aborted endpoints (#3962)
-    m.link.clear_halt(m.link.ep_out)
+    reset_and_resync(m)
     m.expect(RESP_SESSION_NOT_OPEN, OP_SEND_OBJECT)
     m.expect(RESP_OK, OP_OPEN_SESSION, 1)
     m.expect(RESP_INVALID_OBJECT_HANDLE, OP_SEND_OBJECT)
@@ -414,10 +415,7 @@ def case_device_reset_mid_send_object(m):
 def case_device_reset_undrained_in(m):
     m.command(OP_GET_OBJECT, 1)  # readme: its data IN is never read
     time.sleep(0.05)
-    m.device_reset()
-    m.wait_status_ok()
-    m.link.clear_halt(m.link.ep_in)   # resync the host's toggles with the aborted endpoints
-    m.link.clear_halt(m.link.ep_out)
+    reset_and_resync(m)
     m.expect(RESP_OK, OP_OPEN_SESSION, 1)
     _, data = m.expect(RESP_OK, OP_GET_OBJECT, 1, data_in=True)
     if not data:
