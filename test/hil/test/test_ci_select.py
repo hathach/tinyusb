@@ -701,8 +701,11 @@ class ResetPrimitive(unittest.TestCase):
     hil_pool_check and hil_test all resolve a flasher's reset through it."""
 
     def test_a_flasher_without_a_reset_only_mode_has_none(self):
-        for name in ('esptool', 'lm4flash'):
-            self.assertIsNone(hil_flash.reset_primitive(name))
+        """Exhaustive over every flash_*, so every roster flasher: one that loses or never
+        gains its reset_* half fails here instead of having its reset silently skipped."""
+        names = [n[len('flash_'):] for n in dir(hil_flash) if n.startswith('flash_')]
+        self.assertEqual({n for n in names if hil_flash.reset_primitive(n) is None},
+                         {'esptool', 'lm4flash'})
 
     def test_a_real_reset_primitive_is_used(self):
         for name in ('openocd', 'jlink', 'stlink'):
