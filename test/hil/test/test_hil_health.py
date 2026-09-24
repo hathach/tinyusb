@@ -5,17 +5,13 @@
 # inputs. hil_health is stdlib-only on purpose, so all of this runs on a bare CI runner
 # with nothing skipped. Run directly:
 #   python3 test/hil/test/test_hil_health.py
-import io
-import json
 import os
 import signal
 import sys
 import threading
 import time
 import subprocess
-import types
 import unittest
-from contextlib import redirect_stderr, redirect_stdout
 from multiprocessing import Pool
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -517,63 +513,6 @@ class PermitReleasesOnlyWhatItTook(unittest.TestCase):
         # one holder still holds it, so a correct exit leaves it unavailable
         self.assertFalse(sems[0].acquire(timeout=0.1),
                          'the permit released a slot it never acquired: width grew')
-
-
-class RecoveryResetsBeforeTheReflash(unittest.TestCase):
-    """usbtest's recovery runs a real reset before the reflash -- it is non-destructive
-    (the wedged firmware survives for autopsy), writes no flash, cannot brick SWD the way a
-    bad park image has (mimxrt1064_evk, max32666fthr), and is measured at 128-129 ms
-    against a full erase+program. Which resets are real is hil_flash.reset_primitive's,
-    pinned in test_ci_select.ResetPrimitive. Driven through usbtest.main() on a confirmed
-    hang, so moving, dropping or ungating the reset call fails here."""
-
-    def _recover(self, reset, scans):
-        """The ladder's calls in order ('reset', 'scan', 'flash') on a convoy-safe openocd
-        board, `reset_primitive` answering `reset` and wedged_pids answering `scans`."""
-        import usbtest_harness
-        import usbtest
-        import hil_flash
-
-        calls = []
-        scan = iter(scans)
-
-        def patch(obj, name, value):
-            usbtest_harness.patch(self, obj, name, value)
-        usbtest_harness.stub_device(self, usbtest, lambda num, d, tu, quick, timeout:
-                                    {'num': num, 'name': 'x', 'params': '', 'status': 'HUNG'})
-        patch(usbtest, 'bind_usbtest', lambda d: None)
-        patch(usbtest, 'register_usbtest_id', lambda: None)
-        patch(usbtest, 'confirm_wedge', lambda node: ([4242], True, 30.0))
-        patch(usbtest.time, 'sleep', lambda s: None)
-        patch(usbtest, 'wedged_pids', lambda node: calls.append('scan') or next(scan))
-        patch(hil_flash, 'convoy_safe', lambda f: True)
-        patch(hil_flash, 'rescue_openocd', lambda *a, **k: False)
-        patch(hil_flash, 'flash_openocd', lambda board, fw, **kw: calls.append('flash') or
-              types.SimpleNamespace(returncode=0, stdout='', stderr=''))
-        patch(hil_flash, 'reset_primitive',
-              lambda name: (lambda board, **kw: calls.append('reset')) if reset else None)
-        usbtest_harness.argv(self, '--recover-board', json.dumps(
-            {'name': 'b', 'flasher': {'name': 'openocd', 'vid_pid': '0x1 0x2', 'args': ''}}),
-            '--recover-fw', '/tmp/fw.elf')
-        out = usbtest_harness.Out()
-        with redirect_stdout(out), redirect_stderr(io.StringIO()):
-            usbtest.main()
-        return calls, json.loads(out.getvalue())
-
-    def test_the_reset_is_attempted_before_the_reflash(self):
-        calls, data = self._recover(reset=True, scans=[([4242], True), ([], True)])
-        self.assertEqual(calls, ['reset', 'scan', 'flash', 'scan'])
-        self.assertFalse(data['wedged'])
-
-    def test_a_reset_that_clears_the_wedge_skips_the_reflash(self):
-        calls, data = self._recover(reset=True, scans=[([], True)])
-        self.assertEqual(calls, ['reset', 'scan'], 'the firmware under test was overwritten')
-        self.assertFalse(data['wedged'])
-
-    def test_no_reset_primitive_goes_straight_to_the_reflash(self):
-        calls, data = self._recover(reset=False, scans=[([], True)])
-        self.assertEqual(calls, ['flash', 'scan'])
-        self.assertFalse(data['wedged'])
 
 
 class SudoSoftNeverRaises(unittest.TestCase):
