@@ -280,7 +280,8 @@ def main(argv):
     args = helper('hil_args').build_parser().parse_args([*argv, str(config_path)])
     if args.build:
         fail('--build would build on the rig, which gets binaries only; build locally with\n'
-             '  python3 .claude/skills/build/scripts/check_build.py --board <board> --shared')
+             '  python3 .claude/skills/build/scripts/check_build.py --board <board> --shared\n'
+             'or, for a board with a "variant" list, as the hil skill\'s Prerequisites says')
     check_build_dir(args.build_dir)
     try:
         config = json.loads(config_path.read_text())

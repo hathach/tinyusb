@@ -28,9 +28,8 @@ python3 .claude/skills/build/scripts/check_build.py --board <board> -e device/us
 
 # rig board, full battery: the HIL harness self-locks (no pre-hold), flashes through the
 # roster's probe, budgets the battery and enables hang recovery where the board allows.
-# A roster board with a "variant" list runs every variant from its own cmake-build-<variant>
-# with that variant's flags, which the build above does not produce: skip it and add --build
-# here, which builds each variant's full example set first.
+# A roster board with a "variant" list needs each variant built with its own flags, which
+# the build above does not do: skip it and add --build here (hil skill, Prerequisites).
 python3 test/hil/hil_test.py -b <board> -t device/usbtest <this host's config>
 
 # one case by hand: the harness re-parks the board afterwards, so hold it, flash usbtest with
@@ -143,7 +142,7 @@ whether a hung case is recoverable. Fetch the upstream version matching the rig'
 kernel (`uname -r`; the distro's own source when its patches matter):
 
 ```bash
-curl --fail -sSO "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/drivers/usb/misc/usbtest.c?h=v$(uname -r | sed -E 's/^([0-9]+\.[0-9]+(\.[0-9]+)?(-rc[0-9]+)?).*/\1/; s/\.0(-|$)/\1/')"   # run on the rig; x.y.0 is tagged vx.y, x.y.0-rcN vx.y-rcN
+curl --fail -sSO "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/drivers/usb/misc/usbtest.c?h=v$(uname -r | sed -E 's/^([0-9.]+(-rc[0-9]+)?).*/\1/; s/\.0(-|$)/\1/')"   # run on the rig; x.y.0[-rcN] is tagged vx.y[-rcN]
 # case N lives under `case N:` in the kernel's usbtest_do_ioctl()
 # (drivers/usb/misc/usbtest.c); kernel tools/usb/testusb.c maps the flags:
 # -c = param.iterations, -s = param.length, -g = param.sglen  (NOT what they read like)

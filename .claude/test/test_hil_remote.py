@@ -152,7 +152,9 @@ class Refusals(Rig):
 
     def test_build_on_the_rig(self):
         self.build('alpha')
-        self.refused(self.hil_remote('-b', 'alpha', '--build'), '--build')
+        r = self.hil_remote('-b', 'alpha', '--build')
+        self.refused(r, '--build')
+        self.assertIn('"variant" list', r.stderr)
 
     def test_unknown_board(self):
         self.build('alpha')
