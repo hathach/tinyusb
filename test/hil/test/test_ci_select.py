@@ -702,9 +702,10 @@ class TestRosterFlashersDispatch(unittest.TestCase):
                           f'with no hil_flash.FLASHER_SUFFIX entry')
 
     def test_every_real_reset_takes_the_callers_bound(self):
-        """hil_recover calls every reset primitive with timeout=, unguarded: one without the
-        parameter never resets, its TypeError logged as a reset that raised. The `no_op`
-        stubs are the ones usbtest.reset_primitive screens out, so they are never called."""
+        """usbtest and hil_recover call every reset primitive with timeout=, unguarded: one
+        without the parameter never resets, its TypeError logged as a reset that raised. The
+        `no_op` stubs are the ones usbtest.reset_primitive screens out, so they are never
+        called."""
         for fn_name in dir(hil_flash):
             fn = getattr(hil_flash, fn_name)
             if fn_name.startswith('reset_') and callable(fn) and not getattr(fn, 'no_op', False):
@@ -795,9 +796,9 @@ class FlasherRecoverEntry(unittest.TestCase):
         self.assertEqual(cap.getvalue(), '')
 
     def test_reset_jlink_forwards_the_callers_bound(self):
-        """usbtest passes RECOVER_RESET_TIMEOUT only to a primitive whose signature takes
-        it; without the parameter reset_jlink ran under run_cmd's 180 s default against a
-        30 s reserve (#3945)."""
+        """usbtest calls every reset primitive with timeout=RECOVER_RESET_TIMEOUT; without
+        the parameter reset_jlink ran under run_cmd's 180 s default against a 30 s reserve
+        (#3945)."""
         board = {'name': 'b', 'flasher': {'name': 'jlink', 'uid': 'S1', 'args': '-device x'}}
         cwd = os.getcwd()
         with tempfile.TemporaryDirectory() as d:

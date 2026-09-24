@@ -799,21 +799,12 @@ def main():
                     print(f'auto-recovering: resetting {bname} via {fname} probe '
                           f'(non-destructive; reflash only if this does not clear it)',
                           file=sys.stderr)
-                    # Inspect the signature rather than catching TypeError around the
-                    # call: a TypeError raised INSIDE the primitive would re-run it with
-                    # no bound (run_cmd's 180s CMD_TIMEOUT, against a 40s reserve), and a
-                    # raise from that retry does not reach the sibling except Exception --
-                    # it unwinds past the recovery block, so the battery exits on a
-                    # traceback with no JSON and ~29 real verdicts are discarded.
-                    import inspect
-                    kw = ({'timeout': RECOVER_RESET_TIMEOUT}
-                          if 'timeout' in inspect.signature(reset_fn).parameters else {})
                     # a recovery action changes the state: the earlier confirmation no
                     # longer describes the node until the next scan says so
                     wedge_confirmation = 'unverified'
                     try:
                         with redirect_stdout(sys.stderr):
-                            reset_fn(board, **kw)
+                            reset_fn(board, timeout=RECOVER_RESET_TIMEOUT)
                     except Exception as e:
                         print(f'probe reset raised: {e}; falling through to the reflash',
                               file=sys.stderr)
