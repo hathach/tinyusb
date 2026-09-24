@@ -122,13 +122,13 @@ class Framing(unittest.TestCase):
 
 
 def response(tid, code=0x2001):
-    return struct.pack('<IHHI', HDR, TYPE_RESPONSE, code, tid)
+    return mtp_raw.container(TYPE_RESPONSE, code, tid)
 
 
 def handles_reply(tid, *handles):
     """GetObjectHandles data block and OK response."""
     body = struct.pack('<I%dI' % len(handles), len(handles), *handles)
-    return [struct.pack('<IHHI', HDR + len(body), TYPE_DATA, 0x1007, tid) + body, response(tid)]
+    return [mtp_raw.container(TYPE_DATA, 0x1007, tid, body), response(tid)]
 
 
 class Containment(unittest.TestCase):
