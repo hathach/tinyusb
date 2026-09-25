@@ -22,10 +22,10 @@ the failing case passing *and* the full battery still at 30/30 across reflash cy
 
 ```bash
 # build through the build contract; descriptor sizes auto-adapt per MCU via the example's
-# own src/usb_descriptors.h + src/tusb_config.h. No -D: it sticks to the dirs HIL flashes from.
-# board_test is the park firmware hil_test.py flashes after the battery. --variants builds each
-# roster variant in its own cmake-build-<variant> (hil skill, Prerequisites); a board off the
-# roster drops it.
+# own src/usb_descriptors.h + src/tusb_config.h. No -D: --variants supplies each roster variant's
+# defines into its own cmake-build-<variant> (hil skill, Prerequisites), and an extra one would
+# stick to the dirs HIL flashes from. A board off the roster drops --variants.
+# board_test is the park firmware hil_test.py flashes after the battery.
 python3 .claude/skills/build/scripts/check_build.py --board <board> -e device/usbtest -e device/board_test --shared --variants <this host's config>
 
 # rig board, full battery: the HIL harness self-locks (no pre-hold), flashes through the

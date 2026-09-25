@@ -154,7 +154,7 @@ class Refusals(Rig):
         self.build('alpha')
         r = self.hil_remote('-b', 'alpha', '--build')
         self.refused(r, '--build')
-        self.assertIn('check_build.py --board <board> --shared --variants test/hil/tinyusb.json', r.stderr)
+        self.assertIn('check_build.py --board alpha --shared --variants test/hil/tinyusb.json', r.stderr)
 
     def test_unknown_board(self):
         self.build('alpha')
@@ -169,12 +169,12 @@ class Refusals(Rig):
         self.refused(r, 'no build under cmake-build/ for:')
         self.assertIn('alpha: none of cmake-build/cmake-build-alpha\n', r.stderr)
         self.assertIn('beta: none of cmake-build/cmake-build-beta_one, cmake-build/cmake-build-beta_two', r.stderr)
-        self.assertIn('--shared --variants test/hil/tinyusb.json', r.stderr)
+        self.assertIn('--board alpha --board beta --shared --variants test/hil/tinyusb.json', r.stderr)
 
     def test_all_boards_with_nothing_built(self):
         r = self.hil_remote()
         self.refused(r, 'nothing to test')
-        self.assertIn('--shared --variants test/hil/tinyusb.json', r.stderr)
+        self.assertIn('--board <board> --shared --variants test/hil/tinyusb.json', r.stderr)
 
     def test_the_build_line_quotes_the_config(self):
         (self.root / 'test/hil/my rig.json').write_text(json.dumps(CONFIG))
@@ -192,6 +192,11 @@ class Refusals(Rig):
     def test_the_preset_layout_is_not_read(self):
         self.build('alpha', root='examples')
         self.refused(self.hil_remote('-b', 'alpha'), 'no build under cmake-build/ for:')
+
+    def test_the_build_line_says_where_it_writes_under_another_build_dir(self):
+        r = self.hil_remote('-b', 'alpha', '-B', 'other')
+        self.refused(r, 'no build under other/ for:')
+        self.assertIn('--board alpha --shared --variants test/hil/tinyusb.json\n  (it writes under cmake-build/, not other/)', r.stderr)
 
     def test_bad_arguments_and_build_dirs(self):
         self.build('alpha')
