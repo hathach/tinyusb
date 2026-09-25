@@ -95,6 +95,11 @@ typedef struct {
   TUD_EPBUF_TYPE_DEF(mtp_event_t, buf_event);
 } mtpd_epbuf_t;
 
+// Transfer completion is inferred from the byte count of each queued buffer: a terminating short
+// packet must leave the buffer short, so the buffer has to be a whole number of bulk packets.
+TU_VERIFY_STATIC(CFG_TUD_MTP_EP_BUFSIZE % (TUD_OPT_HIGH_SPEED ? 512 : 64) == 0,
+                 "CFG_TUD_MTP_EP_BUFSIZE must be a multiple of the bulk max packet size");
+
 //--------------------------------------------------------------------+
 // INTERNAL FUNCTION DECLARATION
 //--------------------------------------------------------------------+
@@ -433,6 +438,12 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
         // OUT completion: reaching total_len or ZLP only. A short packet does NOT end the phase
         // (an early short packet before total_len is the cancel case, not normal completion).
         is_complete = (p_mtp->xferred_len >= p_mtp->total_len) || ((xferred_bytes == 0 && p_mtp->xferred_len > 0));
+        // Unknown length (total_len = 0xFFFFFFFF, as the container Length field is when the host does
+        // not declare a size): there is no total_len to reach, and the host only sends a ZLP when its
+        // data happens to be a multiple of the packet size, so the short packet is the terminator.
+        if (p_mtp->total_len == UINT32_MAX && xferred_bytes > 0 && xferred_bytes < threshold) {
+          is_complete = true;
+        }
       }
 
       TU_LOG_DRV("  MTP Data %s CB: xferred_bytes=%lu, xferred_len/total_len=%lu/%lu, is_complete=%d\r\n",
