@@ -711,7 +711,12 @@ def roster_variants(boards, config):
         fail(f'not in {config}: {" ".join(unknown)}; --variants takes rig board names')
     out = []
     for b in boards:
-        for v in roster[b].get('variant') or [{'name': b}]:
+        variants = roster[b].get('variant') or [{'name': b}]
+        if not isinstance(variants, list):
+            fail(f'{config}: board {b} variant needs a list of variants: {variants!r}')
+        for i, v in enumerate(variants):
+            if not isinstance(v, dict):
+                fail(f'{config}: board {b} variant {i} needs an object with name, flags and defines: {v!r}')
             name, defines, flags = v.get('name'), v.get('defines', []), v.get('flags', '')
             if not (isinstance(name, str) and isinstance(flags, str) and isinstance(defines, list)
                     and all(isinstance(d, str) for d in defines)):

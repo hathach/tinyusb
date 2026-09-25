@@ -517,8 +517,9 @@ class VariantsTest(unittest.TestCase):
         ])
 
     def test_a_malformed_variant_is_a_resolution_error(self):
-        for variant in [{'name': 'v', 'flags': None}, {'flags': '-DA=1'}, {'name': 'v', 'defines': 'X=1'}]:
-            self.config.write_text(json.dumps({'boards': [{'name': 'b', 'variant': [variant]}]}))
+        for variant in [[{'name': 'v', 'flags': None}], [{'flags': '-DA=1'}], [{'name': 'v', 'defines': 'X=1'}],
+                        ['x'], [None], {'name': 'v'}, 'v', 5]:
+            self.config.write_text(json.dumps({'boards': [{'name': 'b', 'variant': variant}]}))
             with mock.patch.object(build, 'build_one') as b1, mock.patch('sys.stdout') as out, \
                  mock.patch.object(sys, 'stderr'), self.assertRaises(SystemExit) as cm:
                 build.main(['--board', 'b', '--shared', '--variants', str(self.config)])
