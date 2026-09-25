@@ -144,6 +144,23 @@ under `.hil-remote/` in the checkout: a started record, then a receipt with its 
 the report files it copied back, written however the run ends short of a kill. Timing below
 waits on it with `python3 $R wait <id>`.
 
+A delegated run is bound to its build. The unit that builds the firmware writes, right after
+the build and on the clean tree at the HEAD it built,
+`python3 $R receipt --out .hil-remote/<name>.json -b BOARD...` (the same boards and flasher
+filters as the run), and the run passes `--receipt .hil-remote/<name>.json`:
+
+```bash
+python3 .claude/skills/hil/scripts/hil_remote.py receipt --out .hil-remote/build-1790000000.json -b raspberry_pi_pico2 -b stm32f723disco
+python3 .claude/skills/hil/scripts/hil_remote.py --run-id hil-1790000000 --receipt .hil-remote/build-1790000000.json -b raspberry_pi_pico2 -b stm32f723disco
+```
+
+`receipt` refuses a selected board with a variant that has no `.elf`/`.bin`/`.hex`, and a tree
+that is not clean, untracked files included (`.hil-remote/` is ignored): commit a
+`hw/bsp/family.json` the build rewrote, then rebuild on that commit. The run refuses, before touching the rig, when
+HEAD, the roster file or a staged file has changed since, or a board it runs is not in the
+receipt: rebuild and write a new receipt. A retry of a subset of those boards reuses it. A local
+`hil_test.py` run takes no receipt.
+
 Exit 200 means the remote tree stopped being this run's after staging (another run sharing
 `REMOTE_DIR` replaced it): `hil_test.py` did not run and nothing was copied back, so any local
 `hil_report` pair or `<config>.failed` is from an earlier run. Re-run; never report from it.
