@@ -240,7 +240,10 @@ def recover_board(board: dict, marker: dict, lock_fh, budget: Budget, out: dict 
                     return out
             else:
                 out['steps'].append(f'no shield: {fname} over {rec_board["flasher"].get("args", "")[:40]} is convoy-safe')
-            reset_fn = ut.reset_primitive(fname)
+            try:
+                reset_fn = _hil_flash().reset_primitive(fname)
+            except AttributeError:   # unknown flasher: the reflash step below records it
+                reset_fn = None
             if reset_fn:
                 try:
                     with redirect_stdout(sys.stderr):

@@ -78,9 +78,9 @@ def recovery_reserve(flasher: dict | str) -> int:
     re-decide before every step and skipped most of them on a real hang.
 
     Per FLASHER, not one number for the fleet: the Rescue-DP legs are openocd-only
-    (hil_flash.rescue_openocd returns False for anything else), and a stub reset is
-    screened out by reset_primitive -- so an esptool board reserving them would hold a
-    pool worker and a usbtest permit for 200s it can never spend.
+    (hil_flash.rescue_openocd returns False for anything else), and esptool has no reset
+    primitive -- so an esptool board reserving them would hold a pool worker and a usbtest
+    permit for 200s it can never spend.
     """
     import hil_flash
     from helper import hil_util
@@ -92,7 +92,7 @@ def recovery_reserve(flasher: dict | str) -> int:
         return bound + hil_util.REAP_GRACE
 
     total = WEDGE_CONFIRM_S + 2 * RECOVER_SETTLE + RECOVER_OVERHEAD
-    if reset_primitive(name):
+    if hil_flash.reset_primitive(name):
         total += step(RECOVER_RESET_TIMEOUT)
     # a reset-only entry (roster "reflash": false) never reflashes: no flash step, no
     # settle after it, and none of the rescue legs below
@@ -107,19 +107,6 @@ def recovery_reserve(flasher: dict | str) -> int:
                                  for cfg in hil_flash.RESCUE_CFG):
         total += 2 * step(RECOVER_FLASH_TIMEOUT)   # Rescue-DP POR + one retry
     return total
-
-
-def reset_primitive(flasher_name: str):
-    """The flasher's probe-reset callable, or None when there is nothing real to run.
-
-    Two things gate it. A flasher may have no reset_* at all, and reset_esptool /
-    reset_lm4flash return rc 0 WITHOUT resetting anything -- running those makes the log
-    say "resetting <board> via <flasher>" for a step that did nothing. wedged_pids()
-    arbitrates the outcome either way, so behaviour was always right; the RECORD was not.
-    """
-    import hil_flash   # deferred: stdlib-only unless recovery actually runs
-    fn = getattr(hil_flash, f'reset_{flasher_name.lower()}', None)
-    return None if getattr(fn, 'no_op', False) else fn
 
 
 HELPER_TIMEOUT = 30         # default bound for sudo helpers (dmesg/modprobe/setpci/tee)
@@ -792,9 +779,8 @@ def main():
                 # as a reflash does, but it is non-destructive -- the firmware under test
                 # survives for autopsy -- writes no flash, and cannot brick SWD the way a
                 # bad park image has (mimxrt1064_evk, max32666fthr). Measured ~130 ms.
-                # wedged_pids is the arbiter either way: reset_esptool is a stub that
-                # returns rc 0 without resetting anything, so an exit code proves nothing.
-                reset_fn = reset_primitive(fname)
+                # wedged_pids is the arbiter either way; an exit code proves nothing.
+                reset_fn = hil_flash.reset_primitive(fname)
                 if reset_fn:
                     print(f'auto-recovering: resetting {bname} via {fname} probe '
                           f'(non-destructive; reflash only if this does not clear it)',

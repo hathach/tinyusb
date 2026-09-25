@@ -676,16 +676,15 @@ class TestRosterFlashersDispatch(unittest.TestCase):
     """hil_test and hil_pool_check resolve a board's flasher with a bare
     getattr(hil_flash, f'flash_{name}'), and hil_test does it inside a redirect_stdout —
     so a renamed or typo'd roster name raises an AttributeError whose output is swallowed,
-    with nothing pointing at the roster as the thing to edit. Renaming a flash_*/reset_*
-    pair without updating every roster must fail here instead."""
+    with nothing pointing at the roster as the thing to edit. Renaming a flash_* without
+    updating every roster must fail here instead."""
 
-    def test_flash_and_reset_exist_for_every_roster_flasher(self):
+    def test_flash_exists_for_every_roster_flasher(self):
         for path, board in roster_flashers():
             name = board['flasher']['name'].lower()
-            for fn in (f'flash_{name}', f'reset_{name}'):
-                self.assertTrue(callable(getattr(hil_flash, fn, None)),
-                                f'{path}: {board["name"]} uses flasher "{name}" '
-                                f'but hil_flash.{fn} does not exist')
+            self.assertTrue(callable(getattr(hil_flash, f'flash_{name}', None)),
+                            f'{path}: {board["name"]} uses flasher "{name}" '
+                            f'but hil_flash.flash_{name} does not exist')
 
     def test_firmware_suffix_known_for_every_roster_flasher(self):
         """find_firmware falls back to accepting .elf-or-.bin when a flasher is missing
@@ -696,16 +695,41 @@ class TestRosterFlashersDispatch(unittest.TestCase):
                           f'{path}: {board["name"]} uses flasher "{name}" '
                           f'with no hil_flash.FLASHER_SUFFIX entry')
 
+
+class ResetPrimitive(unittest.TestCase):
+    """hil_flash.reset_primitive is the one reset dispatch: usbtest, hil_recover,
+    hil_pool_check and hil_test all resolve a flasher's reset through it."""
+
+    def test_a_flasher_without_a_reset_only_mode_has_none(self):
+        """Exhaustive over every flash_*, so every roster flasher: one that loses or never
+        gains its reset_* half fails here instead of having its reset silently skipped."""
+        names = [n[len('flash_'):] for n in dir(hil_flash) if n.startswith('flash_')]
+        self.assertEqual({n for n in names if hil_flash.reset_primitive(n) is None},
+                         {'esptool', 'lm4flash'})
+
+    def test_a_real_reset_primitive_is_used(self):
+        for name in ('openocd', 'jlink', 'stlink'):
+            self.assertIsNotNone(hil_flash.reset_primitive(name))
+
+    def test_the_raw_roster_name_is_case_folded(self):
+        self.assertIs(hil_flash.reset_primitive('OpenOCD'), hil_flash.reset_openocd)
+        self.assertIsNone(hil_flash.reset_primitive('ESPTool'))
+
+    def test_an_unknown_flasher_raises_like_the_flash_dispatch(self):
+        with self.assertRaises(AttributeError):
+            hil_flash.reset_primitive('nosuchflasher')
+
     def test_every_real_reset_takes_the_callers_bound(self):
         """usbtest and hil_recover call every reset primitive with timeout=, unguarded: one
-        without the parameter never resets, its TypeError logged as a reset that raised. The
-        `no_op` stubs are the ones usbtest.reset_primitive screens out, so they are never
-        called."""
-        for fn_name in dir(hil_flash):
-            fn = getattr(hil_flash, fn_name)
-            if fn_name.startswith('reset_') and callable(fn) and not getattr(fn, 'no_op', False):
+        without the parameter never resets, its TypeError logged as a reset that raised.
+        Flashers are enumerated by their flash_* half, so reset_primitive itself is not one."""
+        names = [n[len('flash_'):] for n in dir(hil_flash) if n.startswith('flash_')]
+        self.assertIn('jlink', names)
+        for name in names:
+            fn = hil_flash.reset_primitive(name)
+            if fn:
                 self.assertIn('timeout', inspect.signature(fn).parameters,
-                              f'hil_flash.{fn_name} takes no timeout')
+                              f'hil_flash.reset_{name} takes no timeout')
 
 
 class FlasherRecoverEntry(unittest.TestCase):
@@ -791,9 +815,7 @@ class FlasherRecoverEntry(unittest.TestCase):
         self.assertEqual(cap.getvalue(), '')
 
     def test_reset_jlink_forwards_the_callers_bound(self):
-        """usbtest calls every reset primitive with timeout=RECOVER_RESET_TIMEOUT; without
-        the parameter reset_jlink ran under run_cmd's 180 s default against a 30 s reserve
-        (#3945)."""
+        """reset_jlink forwards timeout= to run_cmd (#3945)."""
         board = {'name': 'b', 'flasher': {'name': 'jlink', 'uid': 'S1', 'args': '-device x'}}
         cwd = os.getcwd()
         with tempfile.TemporaryDirectory() as d:
@@ -806,8 +828,7 @@ class FlasherRecoverEntry(unittest.TestCase):
         self.assertEqual(kw.get('timeout'), 11)
 
     def test_reset_stlink_forwards_the_callers_bound(self):
-        """hil_recover calls every reset primitive with timeout=; without the parameter the
-        stlink boards' wedge recovery raised TypeError and never reset."""
+        """reset_stlink forwards timeout= to run_cmd; the default stays run_cmd's."""
         board = {'name': 'b', 'flasher': {'name': 'stlink', 'uid': 'S1'}}
         cmd, kw = self._capture(hil_flash.reset_stlink, board, timeout=11)
         self.assertEqual(cmd, 'STM32_Programmer_CLI --connect port=swd sn=S1 --rst --go')
@@ -1173,6 +1194,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_hil_health.py',
             'test/hil/test/test_hil_recover.py',
             'test/hil/test/test_hil_report.py',
+            'test/hil/test/test_hil_reset_order.py',
             'test/hil/test/test_hil_rtt.py',
             'test/hil/test/test_hil_usbtest_id.py',
             'test/hil/test/test_hil_util.py',

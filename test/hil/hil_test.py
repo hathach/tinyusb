@@ -331,8 +331,9 @@ def open_console_reset(board: Board):
     flasher = board['flasher']
 
     def _reset():
-        ret = getattr(hil_flash, f'reset_{flasher["name"].lower()}')(board)
-        assert ret.returncode == 0, 'Failed to reset device'
+        reset_fn = hil_flash.reset_primitive(flasher['name'])
+        if reset_fn:
+            assert reset_fn(board).returncode == 0, 'Failed to reset device'
 
     if board.get('logger') == 'rtt':
         _reset()

@@ -179,7 +179,7 @@ class UsbtestRecovery(unittest.TestCase):
                 # it, so its two legs are time the board can never spend
                 ({'name': 'openocd', 'args': '-f target/wch-riscv.cfg'},
                  reset + flash + fixed),
-                # esptool: reset_esptool is a stub (no_op) and rescue refuses a
+                # esptool: no reset primitive, and rescue refuses a
                 # non-openocd flasher, so ONE reflash is all it can ever spend
                 ({'name': 'esptool', 'args': ''}, flash + fixed),
                 # reset-only (roster "reflash": false): the reset and its settle, nothing else
@@ -663,10 +663,12 @@ class WedgeConfirmationOnTheMainPath(unittest.TestCase):
     the confirmation still reaches the finally with the hang flagged; and every recovery scan
     re-derives the confirmation, so a stale 'confirmed' never outlives an incomplete final scan."""
 
-    def _main(self, confirm, recover=None, scans=None, flasher_extra=None, reflash=None):
-        """Returns (json or None, stderr, exception or None, sysfs writes)."""
+    def _main(self, confirm, recover=None, scans=None, flasher_extra=None, reflash=None, reset=True):
+        """Returns (json or None, stderr, exception or None, sysfs writes). self.ladder
+        records the recovery's lookups, resets, settles, scans and reflashes in order."""
         import usbtest
         writes = []
+        self.ladder = []
 
         def patch(obj, name, value):
             usbtest_harness.patch(self, obj, name, value)
@@ -680,18 +682,24 @@ class WedgeConfirmationOnTheMainPath(unittest.TestCase):
         self.addCleanup(td.cleanup)
         patch(usbtest, 'DRIVER', Path(td.name))          # no bound interfaces to unbind
         patch(usbtest, 'confirm_wedge', confirm)
-        patch(usbtest.time, 'sleep', lambda s: None)
+        patch(usbtest.time, 'sleep', lambda s: self.ladder.append(('sleep', s)))
         if scans is not None:
             it = iter(scans)
-            patch(usbtest, 'wedged_pids', lambda node: next(it))
+            patch(usbtest, 'wedged_pids', lambda node: self.ladder.append('scan') or next(it))
         if recover:
             # a convoy-safe openocd board whose reset and reflash are stubs
             patch(hil_flash, 'convoy_safe', lambda f: True)
             self.flashed = []          # every in-run reflash the ladder attempted
             patch(hil_flash, 'flash_openocd', reflash or (lambda board, fw, **kw: self.flashed.append(fw) or
-                  types.SimpleNamespace(returncode=0, stdout=b'', stderr=b'')))
+                  self.ladder.append('flash') or types.SimpleNamespace(returncode=0, stdout=b'', stderr=b'')))
             patch(hil_flash, 'rescue_openocd', lambda *a, **k: False)
-            patch(usbtest, 'reset_primitive', lambda name: (lambda board, **kw: None))
+
+            def reset_primitive(name):
+                self.ladder.append(('lookup', name))
+                # `timeout` is required: a reset called without the bound raises, and the
+                # ladder records no reset
+                return (lambda board, timeout: self.ladder.append(('reset', board['name'], timeout))) if reset else None
+            patch(hil_flash, 'reset_primitive', reset_primitive)
         usbtest_harness.argv(self, '--timeout', '7')
         if recover:
             sys.argv += ['--recover-board', json.dumps({'name': 'b', 'flasher': {
@@ -751,6 +759,38 @@ class WedgeConfirmationOnTheMainPath(unittest.TestCase):
         self.assertTrue(data['wedged'])
         self.assertIn('reset-only recovery flasher', err)
         self.assertEqual(self.flashed, [], 'a reset-only entry must never reflash in-run')
+
+    # The ladder resets first: a probe reset is non-destructive (the wedged firmware survives
+    # for autopsy), writes no flash, and cannot brick SWD the way a bad park image has
+    # (mimxrt1064_evk, max32666fthr). Each step settles before the scan that judges it.
+    def _ladder(self, scans, want, reset=True):
+        import usbtest
+        data, _err, exc, writes = self._main(lambda node: ([4242], True, 30.0), recover=True,
+                                             scans=scans, reset=reset)
+        self.assertIsNone(exc)
+        self.assertEqual(writes, [])
+        self.assertFalse(data['wedged'])
+        lookups = [e[1] for e in self.ladder if e[0] == 'lookup']
+        self.assertTrue(lookups)
+        self.assertEqual(set(lookups), {'openocd'})
+        steps = {('reset', 'b', usbtest.RECOVER_RESET_TIMEOUT): 'reset',
+                 ('sleep', usbtest.RECOVER_SETTLE): 'settle', 'scan': 'scan', 'flash': 'flash'}
+        # any other reset, e.g. one with the wrong bound, stays in and fails the compare
+        ignored = [e for e in self.ladder if e[0] == 'lookup' or (e[0] == 'sleep' and e not in steps)]
+        self.assertEqual([steps.get(e, e) for e in self.ladder if e not in ignored], want)
+
+    def test_the_settle_keeps_its_validated_minimum(self):
+        import usbtest
+        self.assertGreaterEqual(usbtest.RECOVER_SETTLE, 5, 'validated minimum: metro_m4_express UF2 double-tap')
+
+    def test_the_reset_is_attempted_before_the_reflash(self):
+        self._ladder([([4242], True), ([], True)], ['reset', 'settle', 'scan', 'flash', 'settle', 'scan'])
+
+    def test_a_reset_that_clears_the_wedge_skips_the_reflash(self):
+        self._ladder([([], True)], ['reset', 'settle', 'scan'])
+
+    def test_no_reset_primitive_goes_straight_to_the_reflash(self):
+        self._ladder([([], True)], ['flash', 'settle', 'scan'], reset=False)
 
     def test_recovery_scans_re_derive_the_confirmation(self):
         # confirmed, then the reset scan and the post-reflash scan cannot see every pid:
@@ -1314,7 +1354,7 @@ class UsbtestOuterBoundIsOneValue(unittest.TestCase):
         shipped = json.loads(toks[toks.index('--recover-board') + 1])
         self.assertEqual(shipped, {'name': 'b', 'flasher': rec})
         self.assertEqual(toks[toks.index('--recover-fw') + 1], '/tmp/fw.elf')
-        # the reset step is reserved, and no Rescue-DP legs: reset_openocd is real, unlike esptool's no_op stub
+        # the reset step is reserved, and no Rescue-DP legs: reset_openocd exists, unlike esptool's
         self.assertEqual(usbtest.recovery_reserve(rec) - usbtest.recovery_reserve({'name': 'esptool'}),
                          usbtest.RECOVER_RESET_TIMEOUT + hil_test.hil_util.REAP_GRACE)
 
