@@ -120,7 +120,16 @@ def check_build_dir(build_dir):
         fail(f'-B must be a relative path inside the checkout: {build_dir}')
 
 
-def resolve_firmware(config, args):
+def build_command(config_path):
+    """The build contract's line for the dirs hil_test.py flashes, each roster variant included."""
+    try:
+        config_path = config_path.relative_to(ROOT)
+    except ValueError:
+        pass
+    return f'python3 .claude/skills/build/scripts/check_build.py --board <board> --shared --variants {config_path}'
+
+
+def resolve_firmware(config, config_path, args):
     """Return the existing <build_dir>/cmake-build-<variant> dirs to stage, refusing before
     anything remote is touched: an unknown board fails the whole remote run after staging,
     and a board with no build at all would only show up as `Skip (no binary)` rows.
@@ -144,17 +153,16 @@ def resolve_firmware(config, args):
         present = [d for d in found if d.is_dir()]
         if boards and not present:
             missing.append(f'  {name}: none of {", ".join(str(d.relative_to(ROOT)) for d in found)}')
-        for d in found:
+        for i, d in enumerate(found):
             if d not in present and boards:
                 # hil_test.py logs `Skip (no binary)` and exits 0 for these cells, except that a
                 # one-test run that flashes fails a later variant's same-PID boundary (SKILL.md Prerequisites)
-                boundary = '' if args.skip_flash else ' or fail the same-PID boundary on a one-test run'
+                boundary = '' if args.skip_flash or i == 0 else ' or fail the same-PID boundary on a one-test run'
                 print(f'warning: {name}: no {d.relative_to(ROOT)} -- its cells will be skipped{boundary}',
                       file=sys.stderr)
         dirs += present
     if missing:
-        # the dirs, not a build command: a variant's dir name and flags come from the roster
-        fail(f'no build under {build_dir}/ for:\n' + '\n'.join(missing))
+        fail(f'no build under {build_dir}/ for:\n' + '\n'.join(missing) + f'\nbuild with\n  {build_command(config_path)}')
     if not dirs:
         fail(f'no {build_dir}/cmake-build-* build for any selected board in the config -- nothing to test')
     return dirs
@@ -281,15 +289,13 @@ def main(argv):
     check_remote_dir(remote_dir)
     args = helper('hil_args').build_parser().parse_args([*argv, str(config_path)])
     if args.build:
-        fail('--build would build on the rig, which gets binaries only; build locally with\n'
-             '  python3 .claude/skills/build/scripts/check_build.py --board <board> --shared\n'
-             'or, for a board with a "variant" list, as the hil skill\'s Prerequisites says')
+        fail(f'--build would build on the rig, which gets binaries only; build locally with\n  {build_command(config_path)}')
     check_build_dir(args.build_dir)
     try:
         config = json.loads(config_path.read_text())
     except (OSError, ValueError) as e:
         fail(f'could not read the config {config_path}: {e}')
-    firmware = resolve_firmware(config, args)
+    firmware = resolve_firmware(config, config_path, args)
 
     print(f'==> Setting up remote {remote}:{remote_dir}')
     with remote_lease(remote, remote_dir, args.build_dir) as (remote_dir, token):

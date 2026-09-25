@@ -22,29 +22,30 @@ the failing case passing *and* the full battery still at 30/30 across reflash cy
 
 ```bash
 # build through the build contract; descriptor sizes auto-adapt per MCU via the example's
-# own src/usb_descriptors.h + src/tusb_config.h. No -D: it sticks to the dir HIL flashes from.
-# board_test is the park firmware hil_test.py flashes after the battery.
-python3 .claude/skills/build/scripts/check_build.py --board <board> -e device/usbtest -e device/board_test --shared
+# own src/usb_descriptors.h + src/tusb_config.h. No -D: it sticks to the dirs HIL flashes from.
+# board_test is the park firmware hil_test.py flashes after the battery. --variants builds each
+# roster variant in its own cmake-build-<variant> (hil skill, Prerequisites); a board off the
+# roster drops it.
+python3 .claude/skills/build/scripts/check_build.py --board <board> -e device/usbtest -e device/board_test --shared --variants <this host's config>
 
 # rig board, full battery: the HIL harness self-locks (no pre-hold), flashes through the
 # roster's probe, budgets the battery and enables hang recovery where the board allows.
-# A roster board with a "variant" list needs each variant built with its own flags, which
-# the build above does not do: skip it and add --build here (hil skill, Prerequisites).
 python3 test/hil/hil_test.py -b <board> -t device/usbtest <this host's config>
 
 # one case by hand: the harness re-parks the board afterwards, so hold it, flash usbtest with
 # its probe pinned, wait ~3-5 s for enumeration, run, release. From the board's entry in this
-# host's HIL config json: <probe-uid>/<args> are its flasher "uid"/"args", <uid> its own "uid".
+# host's HIL config json: <probe-uid>/<args> are its flasher "uid"/"args", <uid> its own "uid",
+# <variant> the variant under test, or the board's name when its entry has no "variant" list.
 # A non-jlink flasher: run the command flash_<flasher>() in test/hil/hil_flash.py builds for the
 # usbtest image its FLASHER_SUFFIX entry picks.
 python3 test/hil/helper/hil_lock.py hold <board> --reason "usbtest case 29"
 JLinkExe -USB <probe-uid> <args> -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 \
-    -CommandFile cmake-build/cmake-build-<board>/device/usbtest/usbtest.jlink
+    -CommandFile cmake-build/cmake-build-<variant>/device/usbtest/usbtest.jlink
 python3 test/hil/usbtest.py --serial <uid> --tests 29
 python3 test/hil/helper/hil_lock.py release <board>
 ```
 
-A bench with a single J-Link attached flashes with `ninja -C cmake-build/cmake-build-<board>
+A bench with a single J-Link attached flashes with `ninja -C cmake-build/cmake-build-<variant>
 usbtest-jlink`; Espressif boards flash with `idf.py` (CLAUDE.md, ESP-IDF).
 
 - The run registers `cafe 4010` with the usbtest module once per rig (Gadget Zero's profile) and
@@ -139,7 +140,9 @@ interface on the old profile.
 **Step 0 — read what the case actually does.** The kernel module is ground truth;
 the table above is a summary. Do this before theorising, and always before deciding
 whether a hung case is recoverable. Fetch the upstream version matching the rig's
-kernel (`uname -r`; the distro's own source when its patches matter):
+kernel (`uname -r`; the distro's own source when its patches matter). The sed reads an
+upstream or Debian `uname -r`; a Fedora (`6.14.0-0.rc3…`) or Ubuntu-mainline (`6.12.0-061200rc3-…`)
+rc kernel hides its `-rcN` from it, so name that tag by hand:
 
 ```bash
 curl --fail -sSO "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/drivers/usb/misc/usbtest.c?h=v$(uname -r | sed -E 's/^([0-9.]+(-rc[0-9]+)?).*/\1/; s/\.0(-|$)/\1/')"   # run on the rig; x.y.0[-rcN] is tagged vx.y[-rcN]
