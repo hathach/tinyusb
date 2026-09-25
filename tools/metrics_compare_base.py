@@ -3,8 +3,9 @@
 
 Creates cmake-metrics/<board>/{base,build} directories for each board.
 With --combined, also writes cmake-metrics/_combined/metrics_compare.md over every
-board's elf pairs. The membrowse engine pairs base and current elfs by (board, elf
-path) and reports per-pair deltas.
+board's elf pairs. Base and current elfs are paired by (board, elf path) and each
+pair's per-file deltas are reported; the sizes come from --engine (membrowse,
+linkermap or bloaty, see tools/metrics_compare.py).
 
 Usage:
   python tools/metrics_compare_base.py -b raspberry_pi_pico
@@ -12,6 +13,7 @@ Usage:
   python tools/metrics_compare_base.py -b raspberry_pi_pico -f portable/raspberrypi
   python tools/metrics_compare_base.py -b raspberry_pi_pico -e device/cdc_msc
   python tools/metrics_compare_base.py -b raspberry_pi_pico -e device/cdc_msc --bloaty
+  python tools/metrics_compare_base.py -b raspberry_pi_pico --engine linkermap --json
   python tools/metrics_compare_base.py --ci                                  # CI-pinned boards, combined
   python tools/metrics_compare_base.py -b raspberry_pi_pico -b raspberry_pi_pico2 --combined  # combine listed boards
 """
@@ -27,7 +29,7 @@ import shutil
 import subprocess
 import sys
 
-import membrowse_compare
+import metrics_compare
 
 TINYUSB_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 METRICS_DIR = os.path.join(TINYUSB_ROOT, 'cmake-metrics')
@@ -80,17 +82,11 @@ def ci_pinned_boards():
         return [entry['board'] for entry in json.load(f)['boards']]
 
 
-def build_board(src_dir, build_dir, board, example=None, linkermap=False):
+def build_board(src_dir, build_dir, board, example=None):
     """Configure and build examples for a board. Returns True on success.
 
     When `example` is given, only that target is built (`cmake --build --target NAME`),
     keeping single-example workflows fast.
-
-    When `linkermap` is set, also build the linkermap target (`<ex>-linkermap`, or
-    the `examples-linkermap` aggregate when no example is given) so map.json files
-    exist for the linkermap engine. A base tree older than that target still writes
-    map.json from a POST_BUILD hook, so a failed target is fatal only without map.json
-    (main() empties build_dir first, so any map.json found is this build's).
     """
     os.makedirs(build_dir, exist_ok=True)
     ret = run(['cmake', '-B', build_dir, '-G', 'Ninja',
@@ -106,56 +102,22 @@ def build_board(src_dir, build_dir, board, example=None, linkermap=False):
     if ret.returncode != 0:
         print(f'  Error building {board}: {ret.stderr}')
         return False
-
-    if linkermap:
-        target = f'{os.path.basename(example)}-linkermap' if example else 'examples-linkermap'
-        ret = run(['cmake', '--build', build_dir, '--target', target], timeout=600)
-        # escape the dir, not the wildcards: a checkout path is a path, not a pattern
-        root = glob.escape(build_dir)
-        map_pattern = f'{root}/{example}/*.map.json' if example \
-            else f'{root}/**/*.map.json'
-        if ret.returncode != 0 and not glob.glob(map_pattern, recursive=True):
-            print(f'  Error: linkermap target failed for {board} - '
-                  f'run `python3 tools/get_deps.py` to fetch tools/linkermap')
-            return False
     return True
 
 
-def generate_metrics(build_dir, out_basename, filters, example=None):
-    """Run metrics.py combine on .map.json files. Returns metrics json path or None.
-
-    `filters` is a list of substrings; metrics.py keeps a compile unit if its path
-    contains any of them.
-    """
-    # escape the dir, not the wildcards: a checkout path is a path, not a pattern
-    root = glob.escape(build_dir)
-    if example:
-        patterns = glob.glob(f'{root}/{example}/*.map.json')
-    else:
-        patterns = glob.glob(f'{root}/**/*.map.json', recursive=True)
-    if not patterns:
-        print(f'  Error: no .map.json files in {build_dir}' + (f' for {example}' if example else ''))
-        return None
-
-    metrics_py = os.path.join(TINYUSB_ROOT, 'tools', 'metrics.py')
-    cmd = [sys.executable, metrics_py, 'combine']
-    for f in filters:
-        cmd += ['-f', f]
-    cmd += ['-j', '-q', '-o', out_basename, *patterns]
-    ret = run(cmd)
-    if ret.returncode != 0:
-        print(f'  Error: {ret.stderr}')
-        return None
-    return f'{out_basename}.json'
+def report_path(board, example):
+    """A scope's report path without extension: cmake-metrics/<board>/metrics_compare[_<ex>]."""
+    suffix = f'_{example.replace("/", "_")}' if example else ''
+    return os.path.join(METRICS_DIR, board, f'metrics_compare{suffix}')
 
 
-def generate_membrowse_sizes(build_dir, filters, example=None):
+def generate_sizes(build_dir, filters, example=None, engine='membrowse'):
     """Return (sizes, errors) for the scope's elfs.
 
     `sizes` maps each elf path relative to `build_dir` to its
-    membrowse_compare.elf_sizes(), or to None when its report failed; `errors`
+    metrics_compare.ENGINES[engine] sizes, or to None when that failed; `errors`
     lists (relative elf path, message), the path None when no elf can be
-    reported at all.
+    sized at all.
     """
     # escape the dir, not the wildcards: a checkout path is a path, not a pattern
     root = glob.escape(build_dir)
@@ -166,24 +128,22 @@ def generate_membrowse_sizes(build_dir, filters, example=None):
         print(f'  Error: no .elf files in {build_dir}')
         return {}, [(None, f'no .elf files in {build_dir}')]
 
+    sizer = metrics_compare.ENGINES[engine].sizes
+
     def report(elf):
         try:
-            return membrowse_compare.elf_sizes(
-                membrowse_compare.report_for_elf(elf, elf + '.map'), filters), None
+            return sizer(elf, filters), None
         except RuntimeError as e:
             return None, str(e)
-        except json.JSONDecodeError as e:
-            return None, f'malformed membrowse report for {elf}: {e}'
 
     # report errors are caught here, not as tracebacks after both builds already ran
     try:
         with concurrent.futures.ThreadPoolExecutor() as pool:
             results = list(pool.map(report, elfs))
-    except FileNotFoundError:
-        print('  Error: `membrowse` CLI not found - install it with '
-              '`pip install membrowse`, or pass --engine linkermap to use '
-              'the legacy map.json path instead')
-        return {}, [(None, '`membrowse` CLI not found')]
+    except FileNotFoundError as e:
+        print(f'  Error: {engine} not found ({e}) - install {metrics_compare.ENGINES[engine].install}, '
+              f'or pick another --engine')
+        return {}, [(None, f'{engine} not found')]
     sizes, errors = {}, []
     for elf, (elf_sizes, error) in zip(elfs, results):
         rel = os.path.relpath(elf, build_dir)
@@ -194,12 +154,18 @@ def generate_membrowse_sizes(build_dir, filters, example=None):
     return sizes, errors
 
 
-def write_report(path, md):
-    """Write a membrowse report; stdout gets it without the per-pair details."""
-    with open(path, 'w') as f:
+def write_report(path, md, data=None):
+    """Write a report to `path`.md, and `data` to `path`.json when given; stdout
+    gets the Markdown without the per-pair details."""
+    with open(f'{path}.md', 'w') as f:
         f.write(md)
     print(md.split('\n<details>')[0].rstrip())
-    print(f'  report: {path}')
+    print(f'  report: {path}.md')
+    if data is not None:
+        with open(f'{path}.json', 'w') as f:
+            json.dump(data, f, indent=1, sort_keys=True)
+            f.write('\n')
+        print(f'  json: {path}.json')
 
 
 def main():
@@ -219,11 +185,16 @@ def main():
     parser.add_argument('-e', '--example', action='append', default=None,
                         help='Compare specific example (repeatable, e.g. -e device/cdc_msc -e host/cdc_msc_hid)')
     parser.add_argument('--bloaty', action='store_true',
-                        help='Use bloaty for detailed section/symbol diff (requires -e)')
-    parser.add_argument('--engine', choices=['membrowse', 'linkermap'],
+                        help='Also print bloaty\'s section and symbol diff of each -e example '
+                             '(console only, whatever --engine)')
+    parser.add_argument('--engine', choices=sorted(metrics_compare.ENGINES),
                         default='membrowse',
-                        help='Size-diff engine (default: membrowse local reports; '
-                             'linkermap is the legacy map.json path)')
+                        help='Where per-file sizes come from: membrowse (default, symbols with '
+                             'linker-script regions), linkermap (the GNU ld map\'s input '
+                             'sections) or bloaty (DWARF compile units)')
+    parser.add_argument('--json', action='store_true',
+                        help='Also write each report\'s paired sizes as metrics_compare*.json '
+                             'next to its .md')
     parser.add_argument('--ci', action='store_true',
                         help='Add the CI-pinned boards (.github/ci-pinned-boards.json, covering '
                              'every dcd/hcd driver not waived there). Implies --combined.')
@@ -251,7 +222,6 @@ def main():
     if not args.board:
         parser.error('at least one -b BOARD is required (or pass --ci)')
 
-    metrics_py = os.path.join(TINYUSB_ROOT, 'tools', 'metrics.py')
     worktree_dir = os.path.join(METRICS_DIR, '_worktree')
 
     # Per-side filters: when no override is given, each build uses its own
@@ -262,6 +232,21 @@ def main():
     else:
         base_filters = [tinyusb_src_filter(worktree_dir)]
         cur_filters = [tinyusb_src_filter(TINYUSB_ROOT)]
+
+    # Drop every report this run will write before anything can fail - a run that
+    # stops early (worktree setup, a build) must not leave a previous run's report
+    # for a reader to take for this one's: cmake-metrics/ is gitignored and persists.
+    # .json too: a run without --json must not leave an older one beside a newer .md.
+    examples = args.example or [None]
+    combined_dir = os.path.join(METRICS_DIR, '_combined')
+    if args.combined:
+        shutil.rmtree(combined_dir, ignore_errors=True)
+    for board in args.board:
+        for example in examples:
+            for ext in ('md', 'json'):
+                stale_path = f'{report_path(board, example)}.{ext}'
+                if os.path.isfile(stale_path):
+                    os.remove(stale_path)
 
     # Step 1: Create worktree for base branch
     print(f'[1/5] Setting up {args.base_branch} worktree...')
@@ -278,37 +263,25 @@ def main():
 
     symlink_deps(TINYUSB_ROOT, worktree_dir)
 
+    # the commit actually built, which the ref may no longer name later
+    base_sha = run(['git', '-C', worktree_dir, 'rev-parse', 'HEAD']).stdout.strip()
+
+    def report_data(data):
+        """The JSON report for --json, None without it."""
+        if not args.json:
+            return None
+        return {**data, 'base_ref': args.base_branch, 'base_sha': base_sha,
+                'filters': {'base': base_filters, 'current': cur_filters}}
+
     failed = False
     try:
-        examples = args.example or [None]
-        # linkermap --combined: boards whose both sides built
-        built_pairs = []
-        # membrowse --combined: every board's elf sizes and failures, paired at the end
+        # --combined: every board's elf sizes and failures, paired at the end
         combined_sides = {'base': {}, 'current': {}}
         combined_failures = []
-
-        combined_dir = os.path.join(METRICS_DIR, '_combined')
-        # unconditional, like the per-board cleanup below: a combined step that
-        # fails, or never runs (no board built, or -e leaving no whole-board
-        # JSONs), must not leave a previous run's report for a reader to take
-        # for this one's — cmake-metrics/ is gitignored and persists.
-        if args.combined:
-            shutil.rmtree(combined_dir, ignore_errors=True)
 
         for board in args.board:
             print(f'\n=== {board} ===')
             board_dir = os.path.join(METRICS_DIR, board)
-            for example in examples:
-                suffix = f'_{example.replace("/", "_")}' if example else ''
-                # drop the metrics JSONs too: the combined step reads them back by
-                # name, so a previous run's file would stand in for one this run
-                # failed to generate (worst case: fresh base vs stale current).
-                for stale in (f'metrics_compare{suffix}.md',
-                              f'base_metrics{suffix}.json',
-                              f'build_metrics{suffix}.json'):
-                    stale_path = os.path.join(board_dir, stale)
-                    if os.path.isfile(stale_path):
-                        os.remove(stale_path)
             base_build = os.path.join(board_dir, 'base')
             cur_build = os.path.join(board_dir, 'build')
             shutil.rmtree(base_build, ignore_errors=True)
@@ -317,66 +290,45 @@ def main():
             # Build only the requested examples (or all if -e not given). Single-example
             # mode used to build everything and filter at metric time — that was wasted work.
             board_failed = None  # the side whose build failed
-            want_linkermap = args.engine == 'linkermap'
             for example in examples:
                 build_label = f' --target {os.path.basename(example)}' if example else ''
                 print(f'[2/5] Building {args.base_branch} for {board}{build_label}...')
-                if not build_board(worktree_dir, base_build, board, example, linkermap=want_linkermap):
+                if not build_board(worktree_dir, base_build, board, example):
                     board_failed = 'base'
                     break
                 print(f'[3/5] Building current for {board}{build_label}...')
-                if not build_board(TINYUSB_ROOT, cur_build, board, example, linkermap=want_linkermap):
+                if not build_board(TINYUSB_ROOT, cur_build, board, example):
                     board_failed = 'current'
                     break
             if board_failed:
                 failed = True
-                if args.engine != 'membrowse':
-                    continue
                 # still write each scope's report, with the build failure in it
                 build_failure = ((board, None), board_failed, 'build', f'build failed{build_label}, see log')
                 combined_failures.append(build_failure)
-            else:
-                built_pairs.append((board, base_build, cur_build))
 
             for example in examples:
-                suffix = f'_{example.replace("/", "_")}' if example else ''
                 label = f' ({example})' if example else ''
 
-                # Step 4/5: Generate metrics and compare
-                out_base = os.path.join(board_dir, f'metrics_compare{suffix}')
-                if args.engine == 'membrowse':
-                    sides = {'base': {}, 'current': {}}
-                    failures = [build_failure] if board_failed else []
-                    if not board_failed:
-                        print(f'[4/5] Generating membrowse reports for {board}{label}...')
-                        for side, build, filters in (('base', base_build, base_filters),
-                                                     ('current', cur_build, cur_filters)):
-                            sizes, errors = generate_membrowse_sizes(build, filters, example)
-                            sides[side] = {(board, rel): v for rel, v in sizes.items()}
-                            failures += [((board, rel), side, 'report', msg) for rel, msg in errors]
+                # Step 4/5: Generate sizes and compare
+                sides = {'base': {}, 'current': {}}
+                failures = [build_failure] if board_failed else []
+                if not board_failed:
+                    print(f'[4/5] Sizing {board}{label} with {args.engine}...')
+                    for side, build, filters in (('base', base_build, base_filters),
+                                                 ('current', cur_build, cur_filters)):
+                        sizes, errors = generate_sizes(build, filters, example, args.engine)
+                        sides[side] = {(board, rel): v for rel, v in sizes.items()}
+                        failures += [((board, rel), side, 'report', msg) for rel, msg in errors]
 
-                    print(f'[5/5] Comparing {board}{label}...')
-                    md, failures, ok = membrowse_compare.compare_sides(
-                        sides['base'], sides['current'], failures, [board], scope=(board, None))
-                    failed |= not ok
-                    if not board_failed:  # a build failure is recorded once, above
-                        for side, sizes in sides.items():
-                            combined_sides[side].update(sizes)
-                        combined_failures += failures
-                    write_report(f'{out_base}.md', md)
-                else:
-                    print(f'[4/5] Generating metrics for {board}{label}...')
-                    base_json = generate_metrics(base_build, os.path.join(board_dir, f'base_metrics{suffix}'),
-                                                 base_filters, example)
-                    cur_json = generate_metrics(cur_build, os.path.join(board_dir, f'build_metrics{suffix}'),
-                                                cur_filters, example)
-                    if not base_json or not cur_json:
-                        failed = True
-                        continue
-
-                    print(f'[5/5] Comparing {board}{label}...')
-                    ret = run([sys.executable, metrics_py, 'compare', '-m', '-o', out_base, base_json, cur_json])
-                    print(ret.stdout)
+                print(f'[5/5] Comparing {board}{label}...')
+                md, failures, ok, data = metrics_compare.compare_sides(
+                    sides['base'], sides['current'], args.engine, failures, [board], scope=(board, None))
+                failed |= not ok
+                if not board_failed:  # a build failure is recorded once, above
+                    for side, sizes in sides.items():
+                        combined_sides[side].update(sizes)
+                    combined_failures += failures
+                write_report(report_path(board, example), md, report_data(data))
 
                 # Optional: bloaty diff
                 if args.bloaty and example and not board_failed:
@@ -401,62 +353,15 @@ def main():
                         print(f'  bloaty: ELF not found')
 
         # Optional combined comparison across all boards.
-        if args.combined and args.engine == 'membrowse':
+        if args.combined:
             os.makedirs(combined_dir, exist_ok=True)
             print(f'\n=== combined ({len(args.board)} boards) ===')
             # every scope was filter-checked above, and its failures carried over
-            md, _failures, ok = membrowse_compare.compare_sides(
-                combined_sides['base'], combined_sides['current'], combined_failures, args.board)
+            md, _failures, ok, data = metrics_compare.compare_sides(
+                combined_sides['base'], combined_sides['current'], args.engine,
+                combined_failures, args.board)
             failed |= not ok
-            write_report(os.path.join(combined_dir, 'metrics_compare.md'), md)
-        elif args.combined and built_pairs:
-            # Aggregates the per-board metrics JSONs (not raw map.json globs) so the argv
-            # stays small even with --ci spanning many boards.
-            os.makedirs(combined_dir, exist_ok=True)
-
-            # Use the no-suffix per-board JSONs (whole-board metrics). Combined mode
-            # is meant for board-level sweeps; -e/--example combinations skip combined.
-            base_jsons, cur_jsons = [], []
-            for board, _, _ in built_pairs:
-                bj = os.path.join(METRICS_DIR, board, 'base_metrics.json')
-                cj = os.path.join(METRICS_DIR, board, 'build_metrics.json')
-                if os.path.isfile(bj) and os.path.isfile(cj):
-                    base_jsons.append(bj)
-                    cur_jsons.append(cj)
-
-            if not base_jsons or not cur_jsons:
-                print('  combined: no per-board metrics found (did you pass -e? skip --combined with -e)')
-            else:
-                print(f'\n=== combined ({len(base_jsons)} boards) ===')
-                base_out = os.path.join(combined_dir, 'base_metrics')
-                cur_out = os.path.join(combined_dir, 'build_metrics')
-
-                # Per-board JSONs are already filtered to TinyUSB-only files; combine
-                # without re-filtering so we don't accidentally drop entries.
-                def _combine(out_basename, inputs):
-                    cmd = [sys.executable, metrics_py, 'combine',
-                           '-j', '-q', '-o', out_basename, *inputs]
-                    return run(cmd)
-
-                ret = _combine(base_out, base_jsons)
-                if ret.returncode != 0:
-                    print(f'  combined base error: {ret.stderr}')
-                    failed = True
-                else:
-                    ret = _combine(cur_out, cur_jsons)
-                    if ret.returncode != 0:
-                        print(f'  combined current error: {ret.stderr}')
-                        failed = True
-                    else:
-                        out_combined = os.path.join(combined_dir, 'metrics_compare')
-                        ret = run([sys.executable, metrics_py, 'compare', '-m',
-                                   '-o', out_combined, f'{base_out}.json', f'{cur_out}.json'])
-                        print(ret.stdout)
-                        if ret.returncode != 0:
-                            print(f'  combined compare error: {ret.stderr}')
-                            failed = True
-                        else:
-                            print(f'  combined report: {out_combined}.md')
+            write_report(os.path.join(combined_dir, 'metrics_compare'), md, report_data(data))
     finally:
         print(f'\nCleaning up worktree...')
         run(['git', '-C', TINYUSB_ROOT, 'worktree', 'remove', '--force', worktree_dir])

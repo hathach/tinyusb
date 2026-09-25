@@ -36,7 +36,7 @@ the ninja graph, then `membrowse report`). For a bare elf: `membrowse report
 
 Pairs base and current elfs by (board, elf path) and reports per-pair deltas
 for every scope, including `--combined`/`--ci`; see the `code-size` skill.
-`--engine linkermap` is the legacy fallback (needs `tools/get_deps.py`).
+`--engine linkermap` or `--engine bloaty` sizes the same pairs without membrowse.
 
 ## CI boards
 

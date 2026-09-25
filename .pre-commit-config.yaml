@@ -106,8 +106,8 @@ repos:
 
   - id: drivers-coverage
     name: drivers-coverage
-    files: ^(\.github/ci-pinned-boards\.json$|\.github/scripts/ci_set_matrix\.py$|tools/drivers_coverage_check\.py$|tools/ci_select\.py$|tools/build_utils\.py$|hw/bsp/|src/portable/|examples/|test/hil/test/test_drivers_coverage\.py$|tools/build\.py$|test/hil/test/test_ci_boards\.py$|tools/membrowse_compare\.py$|tools/metrics_compare_base\.py$|test/hil/test/test_membrowse_compare\.py$|test/hil/test/test_metrics_compare_base\.py$|tools/membrowse_cli\.py$|test/hil/test/test_membrowse_cli\.py$|test/hil/tinyusb\.json$|test/hil/hfp\.json$)
-    entry: sh -c "cd test/hil/test && python3 -m unittest -q test_drivers_coverage test_ci_boards test_membrowse_compare test_metrics_compare_base test_membrowse_cli"
+    files: ^(\.github/ci-pinned-boards\.json$|\.github/scripts/ci_set_matrix\.py$|tools/drivers_coverage_check\.py$|tools/ci_select\.py$|tools/build_utils\.py$|hw/bsp/|src/portable/|examples/|test/hil/test/test_drivers_coverage\.py$|tools/build\.py$|test/hil/test/test_ci_boards\.py$|tools/metrics_compare\.py$|tools/metrics_compare_base\.py$|test/hil/test/test_metrics_compare\.py$|test/hil/test/test_metrics_compare_base\.py$|tools/membrowse_cli\.py$|test/hil/test/test_membrowse_cli\.py$|test/hil/tinyusb\.json$|test/hil/hfp\.json$)
+    entry: sh -c "cd test/hil/test && python3 -m unittest -q test_drivers_coverage test_ci_boards test_metrics_compare test_metrics_compare_base test_membrowse_cli"
     pass_filenames: false
     language: python
     additional_dependencies: [pyyaml]

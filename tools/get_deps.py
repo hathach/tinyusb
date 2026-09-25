@@ -21,7 +21,7 @@ deps_mandatory = {
                     '4b6e8100d932a3a67b34c6eb17f84f3bffb9e2ae',
                     'all'],
     'tools/linkermap': ['https://github.com/hathach/linkermap.git',
-                        '8e1f440fa15c567aceb5aa0d14f6d18c329cc67f',
+                        '89b42dd5b6e5d1874769fb74e2d7b557a225213c',
                         'all'],
     'tools/uf2': ['https://github.com/microsoft/uf2.git',
                   'c594542b2faa01cc33a2b97c9fbebc38549df80a',

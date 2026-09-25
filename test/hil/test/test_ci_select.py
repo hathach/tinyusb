@@ -1229,7 +1229,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_hil_usbtest_id.py',
             'test/hil/test/test_hil_util.py',
             'test/hil/test/test_membrowse_cli.py',
-            'test/hil/test/test_membrowse_compare.py',
+            'test/hil/test/test_metrics_compare.py',
             'test/hil/test/test_metrics_compare_base.py',
             'test/hil/test/usbtest_harness.py',
         ], 'test/hil/test/ gained or lost a file; it is carved out of rule 2, so confirm '
@@ -1961,7 +1961,7 @@ class TestNoContributionPaths(unittest.TestCase):
     def test_metrics_scripts_contribute_nothing_on_either_axis(self):
         # no CI build and no rig board runs any of these (drivers_coverage_check.py is
         # pre-commit only)
-        for p in ('tools/metrics.py', 'tools/membrowse_compare.py',
+        for p in ('tools/metrics_compare_base.py', 'tools/metrics_compare.py',
                   'tools/drivers_coverage_check.py'):
             h = sel([p])
             self.assertFalse(h['full'], p)
