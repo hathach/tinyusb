@@ -341,6 +341,18 @@ def _fmt(delta):
     return f'+{delta}' if delta > 0 else str(delta)
 
 
+def md_table(header, rows):
+    """Markdown table padded so its columns also line up as plain text: the first
+    column left-aligned, the others right-aligned. Cells are strings."""
+    widths = [max(len(r[i]) for r in [header] + rows) for i in range(len(header))]
+
+    def line(cells):
+        return '| ' + ' | '.join(c.ljust(w) if i == 0 else c.rjust(w)
+                                 for i, (c, w) in enumerate(zip(cells, widths))) + ' |'
+    sep = '|' + '|'.join('-' * (w + 2) if i == 0 else '-' * (w + 1) + ':' for i, w in enumerate(widths)) + '|'
+    return '\n'.join([line(header), sep] + [line(r) for r in rows])
+
+
 def compare_reports(base_by_file, cur_by_file):
     """Markdown per-file delta table; files sorted by |flash delta| desc."""
     rows = []
@@ -351,8 +363,7 @@ def compare_reports(base_by_file, cur_by_file):
         rows.append((path, b, c, df, dr))
     rows.sort(key=lambda r: abs(r[3]), reverse=True)
 
-    lines = ['| File | Flash base | Flash new | Flash Δ | RAM base | RAM new | RAM Δ |',
-             '|------|-----------:|----------:|--------:|---------:|--------:|------:|']
+    table = []
     tb = {'flash': 0, 'ram': 0}
     tc = {'flash': 0, 'ram': 0}
     for path, b, c, df, dr in rows:
@@ -361,14 +372,131 @@ def compare_reports(base_by_file, cur_by_file):
         tc['flash'] += c['flash']; tc['ram'] += c['ram']
         if df == 0 and dr == 0:
             continue
-        lines.append(f'| {path} | {b["flash"]} | {c["flash"]} | {_fmt(df)} '
-                     f'| {b["ram"]} | {c["ram"]} | {_fmt(dr)} |')
-    lines.append(f'| **TOTAL** | {tb["flash"]} | {tc["flash"]} | '
-                 f'{_fmt(tc["flash"] - tb["flash"])} | {tb["ram"]} | {tc["ram"]} | '
-                 f'{_fmt(tc["ram"] - tb["ram"])} |')
-    if len(lines) == 3 and rows:
-        lines.insert(2, '| _no per-file changes_ | | | | | | |')
+        table.append([path, str(b['flash']), str(c['flash']), _fmt(df), str(b['ram']), str(c['ram']), _fmt(dr)])
+    if not table and rows:
+        table.append(['_no per-file changes_'] + [''] * 6)
+    table.append(['**TOTAL**', str(tb['flash']), str(tc['flash']), _fmt(tc['flash'] - tb['flash']),
+                  str(tb['ram']), str(tc['ram']), _fmt(tc['ram'] - tb['ram'])])
+    return md_table(['File', 'Flash base', 'Flash new', 'Flash Δ', 'RAM base', 'RAM new', 'RAM Δ'], table) + '\n'
+
+
+def _section_deltas(b, c, path):
+    """{section: Δ} of one file."""
+    bs, cs = b['sections'].get(path, {}), c['sections'].get(path, {})
+    return {sec: cs.get(sec, 0) - bs.get(sec, 0) for sec in set(bs) | set(cs)}
+
+
+def _symbol_deltas(b, c, path):
+    """{(section, name): Δ} of one file's changed symbols."""
+    bs, cs = b['symbols'].get(path, {}), c['symbols'].get(path, {})
+    deltas = {}
+    for sec in set(bs) | set(cs):
+        bn, cn = bs.get(sec, {}), cs.get(sec, {})
+        for name in set(bn) | set(cn):
+            if cn.get(name, 0) != bn.get(name, 0):
+                deltas[(sec, name)] = cn.get(name, 0) - bn.get(name, 0)
+    return deltas
+
+
+def _changed_files(b, c, symbols):
+    """(path, section Δs, symbol Δs) of each file whose sections, or with `symbols`
+    whose symbols, changed; a file's changes can cancel in flash/RAM."""
+    rows = []
+    for path in sorted(set(b['sections']) | set(c['sections'])):
+        secs = _section_deltas(b, c, path)
+        syms = _symbol_deltas(b, c, path) if symbols else {}
+        if any(secs.values()) or syms:
+            rows.append((path, secs, syms))
+    return rows
+
+
+def _row_label(symbols, engine):
+    if not symbols:
+        return 'File'
+    return 'File / input section' if engine == 'linkermap' else 'File / symbol'
+
+
+def size_table(sizes, symbols, engine):
+    """linkermap's table: a row per file, a column per output section, then size, % of
+    the filtered total and TOTAL; with `symbols` each file's symbols follow it."""
+    by_file = sizes['sections']
+    cols = sorted({sec for secs in by_file.values() for sec in secs}, reverse=True)
+    total = sum(sum(secs.values()) for secs in by_file.values())
+
+    def row(name, secs):
+        size = sum(secs.values())
+        pct = f'{100 * size / total:.1f}%' if total else '-'
+        return [name] + [str(secs.get(sec, 0)) for sec in cols] + [str(size), pct]
+
+    lines = []
+    for path, secs in sorted(by_file.items(), key=lambda kv: (-sum(kv[1].values()), kv[0])):
+        lines.append(row(path, secs))
+        if symbols:
+            syms = [((sec, name), n) for sec, names in sizes['symbols'].get(path, {}).items()
+                    for name, n in names.items()]
+            for (sec, name), n in sorted(syms, key=lambda kv: (-kv[1], kv[0])):
+                lines.append(row(f'└ {name}', {sec: n}))
+    lines.append(row('**TOTAL**', {sec: sum(secs.get(sec, 0) for secs in by_file.values()) for sec in cols}))
+    return md_table([_row_label(symbols, engine)] + cols + ['size', '%'], lines) + '\n'
+
+
+def render_report(sizes, engine, failures=(), boards=(), symbols=False):
+    """Markdown report of one tree's elfs keyed by (board, elf path), None for a
+    failed one; `failures` are (elf id, stage, message). One elf is inline, several
+    get a summary table and each its own table in <details>."""
+    sized = {i: s for i, s in sizes.items() if s is not None}
+    status = 'INCOMPLETE' if failures or not sized else 'complete'
+    all_label = ENGINES[engine].all_label
+    lines = [f'**Coverage ({status}, {engine}):** {len(sized)} of {len(sizes)} elfs sized']
+    if boards:
+        lines.append('- boards: ' + ', '.join(f'`{b}`' for b in boards))
+    for elf_id, stage, message in failures:
+        lines.append(f'- FAILED `{_label(elf_id)}` {stage}: {message}')
+    lines.append('')
+    if not sized:
+        return '\n'.join(lines + ['_no sized elfs_', ''])
+
+    def totals(s):
+        src = _src_total(s)
+        return (f'filtered Flash {src["flash"]}, RAM {src["ram"]}; '
+                f'{all_label} Flash {s["all"]["flash"]}, RAM {s["all"]["ram"]}')
+
+    if len(sized) == 1:
+        (elf_id, s), = sized.items()
+        return '\n'.join(lines + [f'`{_label(elf_id)}` {totals(s)}', '', size_table(s, symbols, engine)])
+    lines.append(md_table(['Elf', 'filtered Flash', 'filtered RAM', f'{all_label} Flash', f'{all_label} RAM'],
+                          [[_label(i)] + [str(t[k]) for t in (_src_total(s), s['all']) for k in ('flash', 'ram')]
+                           for i, s in sized.items()]))
+    for elf_id, s in sized.items():
+        lines += ['', f'<details><summary>{_label(elf_id)}</summary>', '',
+                  f'{totals(s)}', '', size_table(s, symbols, engine), '</details>']
     return '\n'.join(lines) + '\n'
+
+
+def delta_table(b, c, symbols, engine):
+    """linkermap's table shape as deltas: a row per changed file, a column per changed
+    output section, then size Δ and TOTAL; with `symbols` each file's changed
+    symbols follow it."""
+    rows = _changed_files(b, c, symbols)
+    if not rows:
+        return '_no section changes_\n'
+    cols = sorted({sec for _, secs, _ in rows for sec, d in secs.items() if d}
+                  | {sec for _, _, syms in rows for sec, _ in syms}, reverse=True)
+    label = _row_label(symbols, engine)
+
+    def row(name, deltas):
+        return [name] + [_fmt(deltas.get(sec, 0)) for sec in cols] + [_fmt(sum(deltas.values()))]
+
+    lines = []
+    total = {}
+    for path, secs, syms in sorted(rows, key=lambda r: (-abs(sum(r[1].values())), r[0])):
+        lines.append(row(path, secs))
+        for (sec, name), d in sorted(syms.items(), key=lambda kv: (-abs(kv[1]), kv[0])):
+            lines.append(row(f'└ {name}', {sec: d}))
+        for sec, d in secs.items():
+            total[sec] = total.get(sec, 0) + d
+    lines.append(row('**TOTAL**', total))
+    return md_table([label] + cols + ['size Δ'], lines) + '\n'
 
 
 def pair_elfs(base, cur):
@@ -425,7 +553,7 @@ def _file_stats(file_deltas):
     return stats
 
 
-def render_pairs(pairs, matched, engine, base_only=(), cur_only=(), failures=(), boards=()):
+def render_pairs(pairs, matched, engine, base_only=(), cur_only=(), failures=(), boards=(), symbols=False):
     """Markdown report over paired elfs keyed by (board, elf path).
 
     Every statistic is over per-pair deltas, sized by `engine`. `matched` counts
@@ -433,10 +561,12 @@ def render_pairs(pairs, matched, engine, base_only=(), cur_only=(), failures=(),
     `failures` are (elf id, side, stage, message), the elf path None for a
     board-level failure. Failures or unmatched elfs mark the report INCOMPLETE.
     `boards` lists the requested boards, so an unchanged or failed one is named.
+    `symbols` adds each file's changed symbols to each pair's section table.
     """
     file_deltas = {i: _file_deltas(b, c) for i, (b, c) in pairs.items()}
     changed = [i for i, (b, c) in pairs.items()
-               if any(_delta(b['all'], c['all'])) or any(any(d) for d in file_deltas[i].values())]
+               if any(_delta(b['all'], c['all'])) or any(any(d) for d in file_deltas[i].values())
+               or _changed_files(b, c, symbols)]
     status = _status(failures, base_only, cur_only)
     all_label = ENGINES[engine].all_label
     lines = [f'**Coverage ({status}, {engine}):** {len(pairs)} of {matched} matched elf pairs '
@@ -454,36 +584,35 @@ def render_pairs(pairs, matched, engine, base_only=(), cur_only=(), failures=(),
         (elf_id, (b, c)), = pairs.items()
         df, dr = _delta(b['all'], c['all'])
         lines += [f'`{_label(elf_id)}` {all_label}: Flash Δ {_fmt(df)}, RAM Δ {_fmt(dr)}', '',
-                  compare_reports(b['files'], c['files'])]
+                  compare_reports(b['files'], c['files']), delta_table(b, c, symbols, engine)]
         return '\n'.join(lines)
     if not pairs:
         return '\n'.join(lines + ['_no comparable pairs_', ''])
     if not changed:
         return '\n'.join(lines + ['_no changes_', ''])
 
-    lines += [f'| Pair | filtered Flash Δ | filtered RAM Δ | {all_label} Flash Δ | {all_label} RAM Δ |',
-              '|------|-----------------:|---------------:|------------------:|----------------:|']
+    pair_rows = []
     for elf_id in changed:
         b, c = pairs[elf_id]
         src = _delta(_src_total(b), _src_total(c))
         syms = _delta(b['all'], c['all'])
-        lines.append(f'| {_label(elf_id)} | ' + ' | '.join(_fmt(d) for d in src + syms) + ' |')
+        pair_rows.append([_label(elf_id)] + [_fmt(d) for d in src + syms])
+    lines.append(md_table(['Pair', 'filtered Flash Δ', 'filtered RAM Δ', f'{all_label} Flash Δ',
+                           f'{all_label} RAM Δ'], pair_rows))
 
     stats = _file_stats(file_deltas)
     rows = sorted((p for p, s in stats.items() if s['changed']),
                   key=lambda p: (-max(abs(v[0]) for k in ('flash', 'ram') for v in stats[p][k]), p))
-    lines += ['', '_Changed / present: pairs where the file changed / compared pairs that contain it._',
-              '', '| File | Changed / present | Flash Δ min | Flash Δ max | RAM Δ min | RAM Δ max |',
-              '|------|------------------:|------------:|------------:|----------:|----------:|']
-    for path in rows:
-        s = stats[path]
-        lines.append(f'| {path} | {s["changed"]}/{s["present"]} | '
-                     + ' | '.join(_extreme(v) for k in ('flash', 'ram') for v in s[k]) + ' |')
+    lines += ['', '_Changed / present: pairs where the file\'s Flash or RAM total changed / compared pairs '
+              'that contain it._', '',
+              md_table(['File', 'Changed / present', 'Flash Δ min', 'Flash Δ max', 'RAM Δ min', 'RAM Δ max'],
+                       [[path, f'{stats[path]["changed"]}/{stats[path]["present"]}']
+                        + [_extreme(v) for k in ('flash', 'ram') for v in stats[path][k]] for path in rows])]
 
     for elf_id in changed:
         b, c = pairs[elf_id]
         lines += ['', f'<details><summary>{_label(elf_id)}</summary>', '',
-                  compare_reports(b['files'], c['files']), '</details>']
+                  compare_reports(b['files'], c['files']), delta_table(b, c, symbols, engine), '</details>']
     return '\n'.join(lines) + '\n'
 
 
@@ -496,14 +625,19 @@ def _elf_record(elf_id):
     return {'board': board, 'elf': elf}
 
 
-def compare_sides(base, cur, engine, failures=(), boards=(), scope=None):
+def _json_sizes(sizes, symbols):
+    """An elf's sizes for JSON, symbols included only when `symbols` is set."""
+    return sizes if symbols else {k: v for k, v in sizes.items() if k != 'symbols'}
+
+
+def compare_sides(base, cur, engine, failures=(), boards=(), scope=None, symbols=False):
     """Pair two sides and render them. Returns (md, failures, ok, data).
 
     `failures` comes back with a filter failure for `scope` added when no
     compared pair matched a file (wrong filters, or an engine output change
     broke its parsing); pass `scope=None` when each scope was already checked.
     `ok` is False on any failure or when nothing was compared. `data` is the
-    report's raw paired sizes, for JSON.
+    report's raw paired sizes, for JSON, symbols included only when `symbols` is set.
     """
     pairs, base_only, cur_only = pair_elfs(base, cur)
     failures = list(failures)
@@ -511,12 +645,14 @@ def compare_sides(base, cur, engine, failures=(), boards=(), scope=None):
         failures.append((scope, 'both', 'filter',
                          f'no {engine} sizes matched filters - check them, or a change in '
                          f'{engine} output broke its parsing (try another --engine to isolate)'))
-    md = render_pairs(pairs, len(base.keys() & cur.keys()), engine, base_only, cur_only, failures, boards)
+    md = render_pairs(pairs, len(base.keys() & cur.keys()), engine, base_only, cur_only, failures, boards,
+                      symbols)
     data = {
         'engine': engine,
         'boards': list(boards),
         'status': _status(failures, base_only, cur_only),
-        'pairs': [{**_elf_record(i), 'base': b, 'current': c} for i, (b, c) in pairs.items()],
+        'pairs': [{**_elf_record(i), 'base': _json_sizes(b, symbols), 'current': _json_sizes(c, symbols)}
+                  for i, (b, c) in pairs.items()],
         'base_only': [_elf_record(i) for i in base_only],
         'current_only': [_elf_record(i) for i in cur_only],
         'failures': [{**_elf_record(i), 'side': side, 'stage': stage, 'message': message}
@@ -596,10 +732,23 @@ def build_board(src_dir, build_dir, board, example=None):
     return True
 
 
-def report_path(board, example):
-    """A scope's report path without extension: cmake-code-size/<board>/diff[_<ex>]."""
+def report_path(board, example, kind='diff'):
+    """A scope's report path without extension: cmake-code-size/<board>/<kind>[_<ex>]."""
     suffix = f'_{example.replace("/", "_")}' if example else ''
-    return os.path.join(CODE_SIZE_DIR, board, f'diff{suffix}')
+    return os.path.join(CODE_SIZE_DIR, board, f'{kind}{suffix}')
+
+
+def drop_stale_reports(boards, examples, kind):
+    """Remove the reports a run will write before anything can fail: a run that stops
+    early must not leave a previous run's report for a reader to take for this one's,
+    since cmake-code-size/ is gitignored and persists. .json too: a run without --json
+    must not leave an older one beside a newer .md."""
+    for board in boards:
+        for example in examples:
+            for ext in ('md', 'json'):
+                stale_path = f'{report_path(board, example, kind)}.{ext}'
+                if os.path.isfile(stale_path):
+                    os.remove(stale_path)
 
 
 def generate_sizes(build_dir, filters, example=None, engine='membrowse'):
@@ -659,45 +808,98 @@ def write_report(path, md, data=None):
         print(f'  json: {path}.json')
 
 
+def run_report(args):
+    """`report`: build and size the working tree, one report per board and example."""
+    filters = args.filter or [tinyusb_src_filter(TINYUSB_ROOT)]
+    examples = args.example or [None]
+    drop_stale_reports(args.board, examples, 'report')
+    failed = False
+    for board in args.board:
+        print(f'\n=== {board} ===')
+        build = os.path.join(CODE_SIZE_DIR, board, 'build')
+        shutil.rmtree(build, ignore_errors=True)
+        # each scope is its own report, so one example's build failure spares the others
+        for example in examples:
+            build_label = f' --target {os.path.basename(example)}' if example else ''
+            print(f'[1/2] Building {board}{build_label}...')
+            sizes, failures = {}, []
+            if not build_board(TINYUSB_ROOT, build, board, example):
+                failures.append(((board, None), 'build', f'build failed{build_label}, see log'))
+            else:
+                print(f'[2/2] Sizing {board}{f" ({example})" if example else ""} with {args.engine}...')
+                rel_sizes, errors = generate_sizes(build, filters, example, args.engine)
+                sizes = {(board, rel): v for rel, v in rel_sizes.items()}
+                failures += [((board, rel), 'report', msg) for rel, msg in errors]
+                failures += [(i, 'filter', f'no {args.engine} sizes matched filters - check them, or a '
+                                           f'change in {args.engine} output broke its parsing (try '
+                                           f'another --engine to isolate)')
+                             for i, s in sizes.items() if s is not None and not s['files']]
+            md = render_report(sizes, args.engine, failures, [board], args.symbols)
+            ok = not failures and any(s is not None for s in sizes.values())
+            failed |= not ok
+            data = None
+            if args.json:
+                data = {'engine': args.engine, 'boards': [board], 'filters': filters,
+                        'status': 'complete' if ok else 'INCOMPLETE',
+                        'elfs': [{**_elf_record(i), 'sizes': _json_sizes(s, args.symbols)}
+                                 for i, s in sizes.items() if s is not None],
+                        'failures': [{**_elf_record(i), 'stage': stage, 'message': message}
+                                     for i, stage, message in failures]}
+            write_report(report_path(board, example, 'report'), md, data)
+    return 1 if failed else 0
+
+
 def main():
     global verbose
 
-    top = argparse.ArgumentParser(description='Code size of TinyUSB examples')
-    sub = top.add_subparsers(dest='command', required=True)
-    parser = sub.add_parser('diff', help='diff code size against a base ref')
-    parser.add_argument('-b', '--board', action='append', default=[],
-                        help='Board name (repeatable). Required unless --ci is given.')
-    parser.add_argument('-f', '--filter', action='append', default=None,
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument('-b', '--board', action='append', default=[],
+                        help='Board name (repeatable). Required unless diff --ci is given.')
+    common.add_argument('-f', '--filter', action='append', default=None,
                         help='Path-substring filter (repeatable). When given, '
-                             'overrides the default and is applied to BOTH base and '
-                             'current builds. Default: each side\'s own absolute '
-                             '<checkout>/src/ path, which uniquely matches TinyUSB '
-                             'stack code without colliding with vendored deps.')
-    parser.add_argument('--base-branch', default='master',
-                        help='Base branch to compare against (default: master)')
-    parser.add_argument('-e', '--example', action='append', default=None,
-                        help='Compare specific example (repeatable, e.g. -e device/cdc_msc -e host/cdc_msc_hid)')
-    parser.add_argument('--bloaty', action='store_true',
-                        help='Also print bloaty\'s section and symbol diff of each -e example '
-                             '(console only, whatever --engine)')
-    parser.add_argument('--engine', choices=sorted(ENGINES),
+                             'overrides the default and is applied to every build. '
+                             'Default: each build\'s own absolute <checkout>/src/ path, '
+                             'which uniquely matches TinyUSB stack code without colliding '
+                             'with vendored deps.')
+    common.add_argument('-e', '--example', action='append', default=None,
+                        help='Size specific example (repeatable, e.g. -e device/cdc_msc -e host/cdc_msc_hid)')
+    common.add_argument('--engine', choices=sorted(ENGINES),
                         default='membrowse',
                         help='Where per-file sizes come from: membrowse (default, symbols with '
                              'ELF-header flash/RAM), linkermap (the GNU ld map\'s input '
                              'sections) or bloaty (DWARF compile units)')
-    parser.add_argument('--json', action='store_true',
-                        help='Also write each report\'s paired sizes as diff*.json '
-                             'next to its .md')
+    common.add_argument('--symbols', action='store_true',
+                        help='Show each file\'s symbols under it (linkermap: its input sections); '
+                             'with --json, include them in the JSON')
+    common.add_argument('--json', action='store_true',
+                        help='Also write each report\'s sizes as .json next to its .md')
+    common.add_argument('-v', '--verbose', action='store_true',
+                        help='Print build commands')
+
+    top = argparse.ArgumentParser(description='Code size of TinyUSB examples')
+    sub = top.add_subparsers(dest='command', required=True)
+    report_parser = sub.add_parser('report', parents=[common],
+                                   help='size the working tree (cmake-code-size/<board>/report*.md)')
+    parser = sub.add_parser('diff', parents=[common],
+                            help='diff code size against a base ref (cmake-code-size/<board>/diff*.md)')
+    parser.add_argument('--base-branch', default='master',
+                        help='Base branch to compare against (default: master)')
+    parser.add_argument('--bloaty', action='store_true',
+                        help='Also print bloaty\'s section and symbol diff of each -e example '
+                             '(console only, whatever --engine)')
     parser.add_argument('--ci', action='store_true',
                         help='Add the CI-pinned boards (.github/ci-pinned-boards.json, covering '
                              'every dcd/hcd driver not waived there). Implies --combined.')
     parser.add_argument('--combined', action='store_true',
                         help='Also write one comparison over every board '
                              '(cmake-code-size/_combined/diff.md), in addition to per-board.')
-    parser.add_argument('-v', '--verbose', action='store_true',
-                        help='Print build commands')
     args = top.parse_args()
     verbose = args.verbose
+
+    if args.command == 'report':
+        if not args.board:
+            report_parser.error('at least one -b BOARD is required')
+        return run_report(args)
 
     if args.bloaty and not args.example:
         parser.error('--bloaty requires -e/--example')
@@ -726,20 +928,11 @@ def main():
         base_filters = [tinyusb_src_filter(worktree_dir)]
         cur_filters = [tinyusb_src_filter(TINYUSB_ROOT)]
 
-    # Drop every report this run will write before anything can fail - a run that
-    # stops early (worktree setup, a build) must not leave a previous run's report
-    # for a reader to take for this one's: cmake-code-size/ is gitignored and persists.
-    # .json too: a run without --json must not leave an older one beside a newer .md.
     examples = args.example or [None]
     combined_dir = os.path.join(CODE_SIZE_DIR, '_combined')
     if args.combined:
         shutil.rmtree(combined_dir, ignore_errors=True)
-    for board in args.board:
-        for example in examples:
-            for ext in ('md', 'json'):
-                stale_path = f'{report_path(board, example)}.{ext}'
-                if os.path.isfile(stale_path):
-                    os.remove(stale_path)
+    drop_stale_reports(args.board, examples, 'diff')
 
     # Step 1: Create worktree for base branch
     print(f'[1/5] Setting up {args.base_branch} worktree...')
@@ -815,7 +1008,8 @@ def main():
 
                 print(f'[5/5] Comparing {board}{label}...')
                 md, failures, ok, data = compare_sides(
-                    sides['base'], sides['current'], args.engine, failures, [board], scope=(board, None))
+                    sides['base'], sides['current'], args.engine, failures, [board], scope=(board, None),
+                    symbols=args.symbols)
                 failed |= not ok
                 if not board_failed:  # a build failure is recorded once, above
                     for side, sizes in sides.items():
@@ -852,7 +1046,7 @@ def main():
             # every scope was filter-checked above, and its failures carried over
             md, _failures, ok, data = compare_sides(
                 combined_sides['base'], combined_sides['current'], args.engine,
-                combined_failures, args.board)
+                combined_failures, args.board, symbols=args.symbols)
             failed |= not ok
             write_report(os.path.join(combined_dir, 'diff'), md, report_data(data))
     finally:

@@ -8,6 +8,7 @@ import contextlib
 import io
 import json
 import os
+import re
 import struct
 import subprocess
 import sys
@@ -66,6 +67,20 @@ class ReportForElf(unittest.TestCase):
                 sd.report_for_elf('/b/x.elf')
 
 
+def unpad(md):
+    """`md` with md_table's column padding removed, so tests match cells, not widths."""
+    return re.sub(r' +\|', ' |', re.sub(r'\| +', '| ', md))
+
+
+class MdTable(unittest.TestCase):
+    def test_columns_line_up_as_plain_text(self):
+        md = sd.md_table(['File', 'size Δ'], [['a/long/path.c', '+1'], ['└ f', '-120']])
+        self.assertEqual(md, '| File          | size Δ |\n'
+                             '|---------------|-------:|\n'
+                             '| a/long/path.c |     +1 |\n'
+                             '| └ f           |   -120 |')
+
+
 class CompareReports(unittest.TestCase):
     def test_delta_table(self):
         md = sd.compare_reports({'portable/dcd_dwc2.c': {'flash': 100, 'ram': 64}},
@@ -75,12 +90,19 @@ class CompareReports(unittest.TestCase):
         self.assertIn('TOTAL', md)
 
 
-def elf(files, all_syms=None):
-    """An engine's sizes: files as {path: (flash, ram)}; the all total defaults to their sum."""
+def elf(files, all_syms=None, symbols=None):
+    """An engine's sizes: files as {path: (flash, ram)}; the all total defaults to their sum.
+    Flash is one .text symbol `f`, RAM one .bss symbol `v`, unless `symbols` gives
+    {path: {section: {name: size}}}; sections are the symbols' sums."""
+    if symbols is None:
+        symbols = {p: {s: {n: v} for s, n, v in (('.text', 'f', f), ('.bss', 'v', r)) if v}
+                   for p, (f, r) in files.items()}
     files = {p: {'flash': f, 'ram': r} for p, (f, r) in files.items()}
     if all_syms is None:
         all_syms = (sum(v['flash'] for v in files.values()), sum(v['ram'] for v in files.values()))
-    return {'files': files, 'all': {'flash': all_syms[0], 'ram': all_syms[1]}}
+    sections = {p: {s: sum(names.values()) for s, names in secs.items()} for p, secs in symbols.items()}
+    return {'files': files, 'all': {'flash': all_syms[0], 'ram': all_syms[1]},
+            'sections': sections, 'symbols': symbols}
 
 
 def pair_ids(n, board='b'):
@@ -98,10 +120,104 @@ class PairElfs(unittest.TestCase):
         self.assertEqual(cur_only, [d])
 
 
+class RenderReport(unittest.TestCase):
+    def report(self, *args, **kwargs):
+        return unpad(sd.render_report(*args, **kwargs))
+
+    def test_one_elf_is_a_linkermap_table_with_percent_of_the_filtered_total(self):
+        a, = pair_ids(1)
+        md = self.report({a: elf({'x.c': (60, 20), 'y.c': (20, 0)}, all_syms=(500, 40))}, 'membrowse')
+        self.assertIn('**Coverage (complete, membrowse):** 1 of 1 elfs sized', md)
+        self.assertIn('filtered Flash 80, RAM 20; all symbols Flash 500, RAM 40', md)
+        self.assertIn('| File | .text | .bss | size | % |', md)
+        self.assertLess(md.index('| x.c | 60 | 20 | 80 | 80.0% |'), md.index('| y.c | 20 | 0 | 20 | 20.0% |'))
+        self.assertIn('| **TOTAL** | 80 | 20 | 100 | 100.0% |', md)
+        self.assertNotIn('<details>', md)
+
+    def test_symbols_list_each_files_symbols_under_it(self):
+        a, = pair_ids(1)
+        syms = {'x.c': {'.text': {'f': 10, 'g': 30}, '.bss': {'v': 10}}}
+        md = self.report({a: elf({'x.c': (40, 10)}, symbols=syms)}, 'membrowse', symbols=True)
+        self.assertIn('| File / symbol | .text | .bss | size | % |', md)
+        # a tie sorts by (section, name)
+        rows = ['| x.c | 40 | 10 | 50 | 100.0% |', '| └ g | 30 | 0 | 30 | 60.0% |',
+                '| └ v | 0 | 10 | 10 | 20.0% |', '| └ f | 10 | 0 | 10 | 20.0% |']
+        self.assertEqual([md.index(r) for r in rows], sorted(md.index(r) for r in rows))
+
+    def test_linkermap_symbols_are_labelled_input_sections(self):
+        a, = pair_ids(1)
+        md = self.report({a: elf({'x.c': (1, 0)})}, 'linkermap', symbols=True)
+        self.assertIn('| File / input section | .text | size | % |', md)
+
+    def test_many_elfs_get_a_summary_and_a_table_each_in_details(self):
+        a, b = pair_ids(2)
+        md = self.report({a: elf({'x.c': (1, 0)}), b: elf({'x.c': (2, 0)})}, 'membrowse', boards=['b'])
+        self.assertIn('- boards: `b`', md)
+        self.assertIn('| b: device/ex1/ex1.elf | 2 | 0 | 2 | 0 |', md)
+        self.assertEqual(md.count('<details>'), 2)
+        self.assertLess(md.index('| Elf |'), md.index('<details>'))
+
+    def test_a_failed_elf_makes_the_report_incomplete(self):
+        a, b = pair_ids(2)
+        md = self.report({a: elf({'x.c': (1, 0)}), b: None}, 'membrowse', [(b, 'report', 'boom')])
+        self.assertIn('**Coverage (INCOMPLETE, membrowse):** 1 of 2 elfs sized', md)
+        self.assertIn('- FAILED `b: device/ex1/ex1.elf` report: boom', md)
+
+    def test_nothing_sized_is_incomplete(self):
+        md = self.report({}, 'membrowse', [(('b', None), 'build', 'build failed, see log')])
+        self.assertIn('INCOMPLETE', md)
+        self.assertIn('_no sized elfs_', md)
+
+
 class RenderPairs(unittest.TestCase):
-    def render(self, base, cur, failures=()):
+    def render(self, base, cur, failures=(), symbols=False, engine='membrowse'):
         pairs, base_only, cur_only = sd.pair_elfs(base, cur)
-        return sd.render_pairs(pairs, len(base.keys() & cur.keys()), 'membrowse', base_only, cur_only, failures)
+        return unpad(sd.render_pairs(pairs, len(base.keys() & cur.keys()), engine, base_only, cur_only,
+                                     failures, symbols=symbols))
+
+    def test_a_pair_gets_a_section_delta_table(self):
+        a, = pair_ids(1)
+        md = self.render({a: elf({'x.c': (100, 8), 'y.c': (5, 0)})}, {a: elf({'x.c': (120, 4), 'y.c': (5, 0)})})
+        self.assertIn('| File | .text | .bss | size Δ |', md)
+        self.assertIn('| x.c | +20 | -4 | +16 |', md)
+        self.assertIn('| **TOTAL** | +20 | -4 | +16 |', md)
+        self.assertNotIn('| y.c |', md)
+
+    def test_sections_cancelling_in_flash_still_mark_the_pair_changed(self):
+        # +10 .text / -10 .rodata: flash is unchanged, the sections are not
+        a, b = pair_ids(2)
+        syms = lambda t, r: {'x.c': {'.text': {'f': t}, '.rodata': {'k': r}}}
+        base = {a: elf({'x.c': (110, 0)}, symbols=syms(100, 10)), b: elf({'x.c': (1, 0)})}
+        cur = {a: elf({'x.c': (110, 0)}, symbols=syms(110, 0)), b: elf({'x.c': (1, 0)})}
+        md = self.render(base, cur)
+        self.assertIn('2 of 2 matched elf pairs compared, 1 changed', md)
+        self.assertIn('| x.c | +10 | -10 | 0 |', md)
+
+    def test_symbols_cancelling_in_a_section_show_only_with_symbols(self):
+        a, = pair_ids(1)
+        syms = lambda f, g: {'x.c': {'.text': {'f': f, 'g': g}}}
+        base = {a: elf({'x.c': (30, 0)}, symbols=syms(10, 20))}
+        cur = {a: elf({'x.c': (30, 0)}, symbols=syms(20, 10))}
+        self.assertIn('1 of 1 matched elf pairs compared, 0 changed', self.render(base, cur))
+        md = self.render(base, cur, symbols=True)
+        self.assertIn('1 of 1 matched elf pairs compared, 1 changed', md)
+        # the file row stays, zero, as the parent of its changed symbols
+        self.assertIn('| File / symbol | .text | size Δ |', md)
+        self.assertIn('| x.c | 0 | 0 |', md)
+        self.assertIn('| └ f | +10 | +10 |', md)
+        self.assertIn('| └ g | -10 | -10 |', md)
+
+    def test_linkermap_symbols_are_labelled_input_sections(self):
+        a, = pair_ids(1)
+        md = self.render({a: elf({'x.c': (1, 0)})}, {a: elf({'x.c': (2, 0)})}, symbols=True, engine='linkermap')
+        self.assertIn('| File / input section | .text | size Δ |', md)
+
+    def test_many_pairs_put_the_tables_of_changed_pairs_only_in_details(self):
+        a, b = pair_ids(2)
+        md = self.render({a: elf({'x.c': (1, 0)}), b: elf({'x.c': (1, 0)})},
+                         {a: elf({'x.c': (3, 0)}), b: elf({'x.c': (1, 0)})})
+        self.assertEqual(md.count('| File | .text | size Δ |'), 1)
+        self.assertIn('<details><summary>b: device/ex0/ex0.elf</summary>', md)
 
     def test_different_elf_sets_give_zero_on_shared_pairs(self):
         a, b, extra = pair_ids(3)
@@ -210,7 +326,7 @@ class RenderPairs(unittest.TestCase):
         md = self.render(base, cur)
         self.assertIn('| b: device/ex0/ex0.elf | 0 | 0 | +24 | 0 |', md)
 
-    def test_single_pair_keeps_the_detail_table_and_incomplete_status(self):
+    def test_single_pair_keeps_the_delta_table_and_incomplete_status(self):
         a, b = pair_ids(2)
         base = {a: elf({'x.c': (100, 0)}), b: None}
         cur = {a: elf({'x.c': (120, 0)}), b: elf({})}
@@ -608,7 +724,7 @@ class MainFailure(unittest.TestCase):
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf):
                 rc = sd.main()
-        return rc, buf.getvalue()
+        return rc, unpad(buf.getvalue())
 
     def _main(self, tmp, build_board=None, sizes=None, cur_sizes=None):
         """main() for board `b`; `sizes` is what generate_sizes() returns for
@@ -656,7 +772,7 @@ class MainFailure(unittest.TestCase):
                                   cur_sizes=({'ex/ex.elf': _elf(3)}, []))
             self.assertEqual(rc, 0)
             with open(os.path.join(tmp, 'b', 'diff.md')) as f:
-                self.assertIn('| x.c | 1 | 3 | +2 |', f.read())
+                self.assertIn('| x.c | 1 | 3 | +2 |', unpad(f.read()))
 
     def test_unmatched_elf_is_incomplete_but_not_a_failure(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -669,7 +785,7 @@ class MainFailure(unittest.TestCase):
     def test_no_symbols_matched_filters_fails(self):
         # a filter typo, or an engine output change breaking source-path
         # matching: must not silently produce an empty/degenerate table
-        empty = {'files': {}, 'all': {'flash': 4, 'ram': 0}}
+        empty = elf({}, all_syms=(4, 0))
         with tempfile.TemporaryDirectory() as tmp:
             rc, out = self._main(tmp, sizes=({'ex/ex.elf': empty}, []))
             self.assertEqual(rc, 1)
@@ -677,7 +793,7 @@ class MainFailure(unittest.TestCase):
             self.assertIn('another --engine', out)
 
     def test_one_side_without_matched_files_is_a_valid_removal(self):
-        empty = {'files': {}, 'all': {'flash': 4, 'ram': 0}}
+        empty = elf({}, all_syms=(4, 0))
         with tempfile.TemporaryDirectory() as tmp:
             rc, out = self._main(tmp, sizes=({'ex/ex.elf': _elf(8)}, []),
                                  cur_sizes=({'ex/ex.elf': empty}, []))
@@ -702,7 +818,7 @@ class MainFailure(unittest.TestCase):
         md = None
         if os.path.isfile(combined):
             with open(combined) as f:
-                md = f.read()
+                md = unpad(f.read())
         return rc, out, md
 
     def test_combined_pairs_every_board(self):
@@ -729,7 +845,7 @@ class MainFailure(unittest.TestCase):
 
     def test_combined_keeps_one_boards_filter_failure(self):
         # b1 matches files, b2 matches none: the combined report still names b2
-        empty = {'files': {}, 'all': {'flash': 4, 'ram': 0}}
+        empty = elf({}, all_syms=(4, 0))
         sizes = {('b1', 'base'): ({'ex/ex.elf': _elf(10)}, []),
                  ('b1', 'current'): ({'ex/ex.elf': _elf(10)}, []),
                  ('b2', 'base'): ({'ex/ex.elf': empty}, []),
@@ -810,7 +926,7 @@ class MainFailure(unittest.TestCase):
 
     def _read(self, *path):
         with open(os.path.join(*path)) as f:
-            return f.read()
+            return unpad(f.read())
 
     def test_engine_is_passed_to_sizing_and_named_in_the_report(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -829,10 +945,19 @@ class MainFailure(unittest.TestCase):
                 self.assertEqual(data['engine'], 'membrowse')
                 self.assertEqual((data['base_ref'], data['base_sha']), ('master', 'c0ffee'))
                 self.assertEqual(data['filters'], {'base': ['src/'], 'current': ['src/']})
+                no_symbols = {k: v for k, v in _elf(1).items() if k != 'symbols'}
                 self.assertEqual(data['pairs'], [{'board': 'b', 'elf': 'ex/ex.elf',
-                                                  'base': _elf(1), 'current': _elf(1)}])
+                                                  'base': no_symbols, 'current': no_symbols}])
                 self.assertEqual((data['base_only'], data['current_only'], data['failures']), ([], [], []))
                 self.assertEqual(data['status'], 'complete')
+
+    def test_symbols_reach_the_report_and_the_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, _ = self._main_json(tmp, ['--json', '--symbols'], ({'ex/ex.elf': _elf(1)}, []))
+            self.assertEqual(rc, 0)
+            self.assertIn('_no section changes_', self._read(tmp, 'b', 'diff.md'))
+            pair, = json.loads(self._read(tmp, 'b', 'diff.json'))['pairs']
+            self.assertEqual(pair['base']['symbols'], {'x.c': {'.text': {'f': 1}}})
 
     def test_json_of_a_failed_run_matches_its_report(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -879,6 +1004,92 @@ class MainFailure(unittest.TestCase):
         with open(stale, 'w') as f:
             f.write('| previous run | 100 | 200 |')
         return stale
+
+
+class MainReport(unittest.TestCase):
+    def _run(self, tmp, argv, sizes, build_ok=lambda _example: True):
+        """`code_size.py report -b b` plus `argv`, building and sizing stubbed;
+        `build_ok(example)` is each build's result, `sizes` what generate_sizes()
+        returns. Returns (rc, build mock, generate mock)."""
+        def build_board(_src, _build_dir, board, example):
+            os.makedirs(os.path.join(tmp, board), exist_ok=True)
+            return build_ok(example)
+        build = mock.Mock(side_effect=build_board)
+        generate = mock.Mock(side_effect=lambda *_a, **_k: sizes)
+        with mock.patch.object(sys, 'argv', ['code_size.py', 'report', '-b', 'b'] + argv), \
+             mock.patch.object(sd, 'CODE_SIZE_DIR', tmp), \
+             mock.patch.object(sd, 'run') as run, \
+             mock.patch.object(sd, 'build_board', build), \
+             mock.patch.object(sd, 'generate_sizes', generate), \
+             contextlib.redirect_stdout(io.StringIO()):
+            rc = sd.main()
+        run.assert_not_called()  # no base worktree
+        return rc, build, generate
+
+    def _read(self, *path):
+        with open(os.path.join(*path)) as f:
+            return unpad(f.read())
+
+    def test_builds_and_sizes_the_working_tree_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, build, generate = self._run(tmp, ['-e', 'device/cdc_msc', '--engine', 'bloaty'],
+                                            ({'device/cdc_msc/cdc_msc.elf': _elf(4)}, []))
+            self.assertEqual(rc, 0)
+            build.assert_called_once_with(sd.TINYUSB_ROOT, os.path.join(tmp, 'b', 'build'), 'b', 'device/cdc_msc')
+            self.assertEqual(generate.call_args.args[1:], ([sd.tinyusb_src_filter(sd.TINYUSB_ROOT)],
+                                                          'device/cdc_msc', 'bloaty'))
+            md = self._read(tmp, 'b', 'report_device_cdc_msc.md')
+            self.assertIn('Coverage (complete, bloaty)', md)
+            self.assertIn('| x.c | 4 | 4 | 100.0% |', md)
+
+    def test_json_holds_the_sizes_and_symbols_only_with_symbols(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for flag, has_symbols in (([], False), (['--symbols'], True)):
+                rc, _, _ = self._run(tmp, ['--json', '-f', 'src/'] + flag,
+                                     ({'ex/ex.elf': _elf(1)}, []))
+                self.assertEqual(rc, 0)
+                data = json.loads(self._read(tmp, 'b', 'report.json'))
+                self.assertEqual((data['engine'], data['boards'], data['filters'], data['status']),
+                                 ('membrowse', ['b'], ['src/'], 'complete'))
+                (record,) = data['elfs']
+                self.assertEqual((record['board'], record['elf']), ('b', 'ex/ex.elf'))
+                self.assertEqual('symbols' in record['sizes'], has_symbols)
+
+    def test_a_failed_build_replaces_a_stale_report_and_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(os.path.join(tmp, 'b'))
+            for ext in ('md', 'json'):
+                with open(os.path.join(tmp, 'b', f'report.{ext}'), 'w') as f:
+                    f.write('stale')
+            rc, _, generate = self._run(tmp, [], None, lambda _example: False)
+            self.assertEqual(rc, 1)
+            generate.assert_not_called()
+            self.assertIn('FAILED `b` build: build failed, see log', self._read(tmp, 'b', 'report.md'))
+            self.assertFalse(os.path.exists(os.path.join(tmp, 'b', 'report.json')))
+
+    def test_one_examples_build_failure_spares_the_others(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, _, generate = self._run(tmp, ['-e', 'device/a', '-e', 'device/b'],
+                                        ({'device/a/a.elf': _elf(1)}, []), lambda ex: ex == 'device/a')
+            self.assertEqual(rc, 1)
+            self.assertEqual(generate.call_count, 1)
+            self.assertIn('Coverage (complete, membrowse)', self._read(tmp, 'b', 'report_device_a.md'))
+            self.assertIn('FAILED `b` build: build failed --target b', self._read(tmp, 'b', 'report_device_b.md'))
+
+    def test_a_failed_or_unmatched_elf_is_incomplete_and_fails(self):
+        empty = elf({}, all_syms=(4, 0))
+        for sizes, message in ((({'a/a.elf': _elf(1), 'b/b.elf': None}, [('b/b.elf', 'boom')]), 'boom'),
+                               (({'a/a.elf': empty}, []), 'no membrowse sizes matched filters')):
+            with tempfile.TemporaryDirectory() as tmp:
+                rc, _, _ = self._run(tmp, [], sizes)
+                self.assertEqual(rc, 1)
+                md = self._read(tmp, 'b', 'report.md')
+                self.assertIn('INCOMPLETE', md)
+                self.assertIn(message, md)
+
+    def test_diff_only_options_are_refused(self):
+        with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+            self._run(tempfile.gettempdir(), ['--ci'], None)
 
 
 class GlobMetacharsInBuildDir(unittest.TestCase):
