@@ -7,13 +7,16 @@ firmware the run will look for under -B (default cmake-build, the build skill's 
 layout), runs it there, and copies the report pair and the <config>.failed re-run spec back
 to the checkout root.
 
-`--run-id ID` records the run under <checkout>/.hil-remote/: ID.started.json when it starts,
-ID.done.json (exit status, the report files it copied back) when it ends. `wait ID` blocks
-until then, at most --timeout seconds, and prints one JSON status line.
+`--run-id ID` records the run under <checkout>/.hil-remote/: ID.started.json, locked for as
+long as the run lives, then the done record ID.done.json (exit status, the report files it
+copied back). `wait ID` blocks until then, at most --timeout seconds, and prints one JSON
+status line.
 
-`receipt --out FILE [-b BOARD]...` writes a build receipt: HEAD and the digest of every file a
-run of those boards would stage, refusing an unbuilt variant or a tree that is not clean.
-`--receipt FILE` on a run refuses to stage unless HEAD and every staged file still match it.
+`receipt --out FILE [-b BOARD]...` writes a build receipt: HEAD, the roster's digest and the
+digest of every file a run of those boards would stage, refusing an unbuilt variant or a tree
+that is not clean; the build skill's check_build.py --receipt runs it right after its build.
+`--receipt FILE` on a run refuses to stage unless HEAD, the roster and every staged file still
+match it.
 
 Env overrides: REMOTE (ssh host), REMOTE_DIR (rm -rf'd and recreated each run, under a lock
 on <REMOTE_DIR>.lock that refuses a second run sharing it), CONFIG (HIL config json), ROOT_DIR
@@ -21,6 +24,7 @@ on <REMOTE_DIR>.lock that refuses a second run sharing it), CONFIG (HIL config j
 """
 import argparse
 import contextlib
+import fcntl
 import hashlib
 import importlib
 import json
@@ -172,16 +176,20 @@ def select_boards(config, args):
     return selected
 
 
+def variant_dirs(config, build_dir, board):
+    """The <build_dir>/cmake-build-<variant> dirs hil_test.py flashes a board's variants from."""
+    return [ROOT / build_dir / f'cmake-build-{v}' for v in helper('hil_report').variants_of(config, board)]
+
+
 def resolve_firmware(config, config_path, args):
     """Return the existing <build_dir>/cmake-build-<variant> dirs to stage, refusing before
     anything remote is touched: a board with no build at all would only show up as
     `Skip (no binary)` rows."""
     boards, build_dir = args.board, args.build_dir
     selected = select_boards(config, args)
-    root = ROOT / build_dir
     dirs, missing, unbuilt = [], [], []
     for name in selected:
-        found = [root / f'cmake-build-{v}' for v in helper('hil_report').variants_of(config, name)]
+        found = variant_dirs(config, build_dir, name)
         present = [d for d in found if d.is_dir()]
         if boards and not present:
             missing.append(f'  {name}: none of {", ".join(str(d.relative_to(ROOT)) for d in found)}')
@@ -357,7 +365,7 @@ def write_receipt(argv):
         fail('receipt needs --out FILE')
     args, config, config_path = parse_run(argv)
     boards = select_boards(config, args)
-    dirs = [ROOT / args.build_dir / f'cmake-build-{v}' for b in boards for v in helper('hil_report').variants_of(config, b)]
+    dirs = [d for b in boards for d in variant_dirs(config, args.build_dir, b)]
     files = staged_files(dirs)
     unbuilt = [str(d.relative_to(ROOT)) for d in dirs
                if not any(p.startswith(f'{d.relative_to(ROOT)}/') and p.endswith(STAGED_SUFFIXES) for p in files)]
@@ -368,8 +376,7 @@ def write_receipt(argv):
     if dirty:
         fail(f'the tree is not clean:\n{dirty}\na receipt pins the firmware to a commit: commit these (a hw/bsp/family.json '
              f'a build rewrote included) or remove them, then rebuild on that commit')
-    receipt = {'head': git('rev-parse', 'HEAD'), 'config': str(config_path), 'configDigest': digest(config_path),
-               'boards': boards, 'files': files}
+    receipt = {'head': git('rev-parse', 'HEAD'), 'configDigest': digest(config_path), 'boards': boards, 'files': files}
     Path(out).parent.mkdir(parents=True, exist_ok=True)
     write_json(Path(out), receipt)
     print(json.dumps({**receipt, 'files': len(receipt['files'])}))
@@ -381,7 +388,7 @@ def check_receipt(path, config_path, boards, firmware):
     try:
         receipt = json.loads(Path(path).read_text())
         head, pinned = receipt['head'], receipt['files']
-        config, config_digest, built = receipt['config'], receipt['configDigest'], receipt['boards']
+        config_digest, built = receipt['configDigest'], receipt['boards']
     except (OSError, ValueError, KeyError, TypeError) as e:
         fail(f'unusable build receipt {path}: {e!r}')
     now = git('rev-parse', 'HEAD')
@@ -391,7 +398,7 @@ def check_receipt(path, config_path, boards, firmware):
     differ = sorted({*(p for p in staged if pinned.get(p) != staged[p]),
                      *(p for p in pinned if p.startswith(prefixes) and p not in staged)})
     why = [head != now and f'it is for {head[:12]} but the checkout is at {now[:12]}',
-           (config != str(config_path) or config_digest != digest(config_path)) and f'the roster {config_path} is not the one it was built from',
+           config_digest != digest(config_path) and f'the roster {config_path} is not the one it was built from',
            unbuilt and f'it does not cover {", ".join(unbuilt)}',
            differ and f'{len(differ)} staged file(s) differ from it, first {", ".join(differ[:5])}']
     if any(why):
@@ -457,17 +464,28 @@ def run_paths(run_id):
     return runs / f'{run_id}.started.json', runs / f'{run_id}.done.json'
 
 
-def write_json(path, data, exclusive=False):
-    """Atomic: a reader sees the whole record or none. `exclusive` refuses an existing one."""
+def write_json(path, data):
+    """Atomic: a reader sees the whole record or none."""
     tmp = path.with_name(f'.{path.name}.{os.getpid()}.tmp')
     tmp.write_text(json.dumps(data) + '\n')
+    tmp.replace(path)
+
+
+def publish_locked(path, data):
+    """Publish a record under an exclusive flock taken before it appears, refusing an existing
+    one; returns the fd that holds the lock, which the kernel drops when this process dies."""
+    tmp = path.with_name(f'.{path.name}.{os.getpid()}.tmp')
+    tmp.write_text(json.dumps(data) + '\n')
+    fd = os.open(tmp, os.O_RDONLY)
     try:
-        if exclusive:
-            os.link(tmp, path)
-        else:
-            tmp.replace(path)
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        os.link(tmp, path)
+    except BaseException:
+        os.close(fd)
+        raise
     finally:
         tmp.unlink(missing_ok=True)
+    return fd
 
 
 def pop_option(argv, name):
@@ -486,12 +504,13 @@ def pop_option(argv, name):
 
 
 def run_recorded(run_id, argv, receipt):
-    """run() with a started record before it and a completion record after, whatever ends it
-    short of a kill: the receipt `wait` reads, since nothing else outlives a background run."""
+    """run() between a started record, locked while it lives, and a done record written
+    whatever ends it short of a kill: what `wait` reads, since nothing else outlives a
+    background run."""
     started, done = run_paths(run_id)
     started.parent.mkdir(exist_ok=True)
     try:
-        write_json(started, {'runId': run_id, 'pid': os.getpid(), 'startedAt': time.time()}, exclusive=True)
+        lock = publish_locked(started, {'runId': run_id, 'pid': os.getpid(), 'startedAt': time.time()})
     except FileExistsError:
         fail(f'run id {run_id} was used before ({started.relative_to(ROOT)}); pick a new one')
     rc, reports = 1, []
@@ -503,24 +522,19 @@ def run_recorded(run_id, argv, receipt):
         raise
     finally:
         write_json(done, {'runId': run_id, 'exit': rc, 'reports': reports})
+        os.close(lock)
 
 
-def run_alive(pid, run_id):
-    """The recorded pid still runs this run: a recycled pid runs something else."""
+def run_alive(started):
+    """Its run still holds the started record's lock."""
+    fd = os.open(started, os.O_RDONLY)
     try:
-        cmdline = Path(f'/proc/{pid}/cmdline').read_bytes()
-    except FileNotFoundError:
-        if Path('/proc/self').exists():
-            return False
-        try:
-            os.kill(pid, 0)
-        except ProcessLookupError:
-            return False
-        except PermissionError:
-            pass
+        fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        return False
+    except BlockingIOError:
         return True
-    args = cmdline.decode(errors='replace').split('\0')
-    return f'--run-id={run_id}' in args or any(a == '--run-id' and b == run_id for a, b in zip(args, args[1:]))
+    finally:
+        os.close(fd)
 
 
 def wait_secs(text):
@@ -533,7 +547,7 @@ def wait_secs(text):
 def wait(argv):
     p = argparse.ArgumentParser(prog='hil_remote.py wait',
                                 description=f'exit 0 done, {RUNNING} still running at --timeout, '
-                                            f'{DEAD} ended without a receipt')
+                                            f'{DEAD} ended without a done record')
     p.add_argument('run_id')
     p.add_argument('--timeout', type=wait_secs, default=WAIT_SECS, help=f'seconds, at most {WAIT_SECS} (the default)')
     a = p.parse_args(argv)
@@ -552,11 +566,11 @@ def wait(argv):
                 time.sleep(min(POLL_SECS, grace))
                 continue
             fail(f'no run {a.run_id} was started from {ROOT}')
-        if not run_alive(rec['pid'], a.run_id):
+        if not run_alive(started):
             if done.is_file():
-                continue    # it wrote the receipt between the two checks
+                continue    # it wrote the done record between the two checks
             print(json.dumps({'state': 'dead', 'runId': a.run_id, 'pid': rec['pid'],
-                              'detail': 'the run ended without a receipt (killed, or its session died): '
+                              'detail': 'the run ended without a done record (killed, or its session died): '
                                         'no local report is from it'}))
             return DEAD
         left = deadline - time.monotonic()

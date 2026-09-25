@@ -33,7 +33,7 @@ class RunRecords(unittest.TestCase):
         tmp = TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.root = Path(tmp.name)
-        for name, value in (('ROOT', self.root), ('POLL_SECS', 0.05), ('START_SECS', 0.2)):
+        for name, value in (('ROOT', self.root), ('POLL_SECS', 0.05), ('START_SECS', 20)):
             old = getattr(hil_remote, name)
             setattr(hil_remote, name, value)
             self.addCleanup(setattr, hil_remote, name, old)
@@ -49,14 +49,24 @@ class RunRecords(unittest.TestCase):
             rc = hil_remote.main(['wait', *argv])
         return rc, json.loads(out.getvalue())
 
-    def started(self, run_id, pid):
+    def started(self, run_id):
+        """A started record nobody holds: its run is gone."""
         started, _ = hil_remote.run_paths(run_id)
         started.parent.mkdir(exist_ok=True)
-        hil_remote.write_json(started, {'runId': run_id, 'pid': pid, 'startedAt': 0})
+        hil_remote.write_json(started, {'runId': run_id, 'pid': 1, 'startedAt': 0})
 
-    def process(self, run_id):
-        """A live process whose command line names the run id, as a real launch's does."""
-        p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)', '--run-id', run_id])
+    def launch(self, run_body, run_id):
+        """A real background launch in its own process, whose run() is run_body."""
+        script = textwrap.dedent(f'''
+            import importlib.util, os, signal, sys, time
+            from pathlib import Path
+            spec = importlib.util.spec_from_file_location('hil_remote', {str(SCRIPT)!r})
+            m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+            m.ROOT = Path({str(self.root)!r})
+            m.run = lambda argv, receipt=None: {run_body}
+            sys.exit(m.main(sys.argv[1:]))
+        ''')
+        p = subprocess.Popen([sys.executable, '-c', script, '--run-id', run_id])
         self.addCleanup(p.wait)
         self.addCleanup(p.kill)
         return p
@@ -84,49 +94,27 @@ class RunRecords(unittest.TestCase):
         self.assertIn('was used before', e.exception.code)
 
     def test_a_live_run_is_still_running_at_the_timeout(self):
-        self.started('r4', self.process('r4').pid)
-        rc, status = self.wait('r4', '--timeout', '0.2')
-        self.assertEqual((rc, status['state'], status['runId']), (hil_remote.RUNNING, 'running', 'r4'))
+        p = self.launch('(time.sleep(30), (0, []))[1]', 'r4')
+        rc, status = self.wait('r4', '--timeout', '2')  # the start grace covers the launch
+        self.assertEqual((rc, status['state'], status['runId'], status['pid']), (hil_remote.RUNNING, 'running', 'r4', p.pid))
 
-    def test_an_earlier_runs_receipt_does_not_answer_for_this_one(self):
+    def test_an_earlier_runs_done_record_does_not_answer_for_this_one(self):
         self.stub_run(lambda argv, receipt=None: (0, ['hil_report.md']))
         hil_remote.main(['--run-id', 'old'])
-        self.started('new', self.process('new').pid)
-        self.assertEqual(self.wait('new', '--timeout', '0.2')[1]['state'], 'running')
+        self.launch('(time.sleep(30), (0, []))[1]', 'new')
+        self.assertEqual(self.wait('new', '--timeout', '1')[1]['state'], 'running')
 
-    def test_a_recycled_pid_is_not_the_run(self):
-        self.started('r5', self.process('another-run').pid)
+    def test_a_started_record_nobody_holds_is_dead(self):
+        self.started('r5')
         self.assertEqual(self.wait('r5', '--timeout', '5')[0], hil_remote.DEAD)
 
     def test_a_run_that_ends_while_waited_on_is_done(self):
-        """wait blocks across the end: the receipt lands after wait started polling."""
-        script = textwrap.dedent(f'''
-            import importlib.util, sys, time
-            from pathlib import Path
-            spec = importlib.util.spec_from_file_location('hil_remote', {str(SCRIPT)!r})
-            m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
-            m.ROOT = Path({str(self.root)!r})
-            m.run = lambda argv, receipt=None: (time.sleep(0.5), (0, ['hil_report.md']))[1]
-            sys.exit(m.main(sys.argv[1:]))
-        ''')
-        p = subprocess.Popen([sys.executable, '-c', script, '--run-id', 'r6'])
-        self.addCleanup(p.wait)
-        started, _ = hil_remote.run_paths('r6')
-        while not started.exists():
-            pass
+        """wait blocks across the start and the end: the records land after wait began polling."""
+        self.launch("(time.sleep(0.5), (0, ['hil_report.md']))[1]", 'r6')
         self.assertEqual(self.wait('r6', '--timeout', '20'), (0, {'state': 'done', 'runId': 'r6', 'exit': 0, 'reports': ['hil_report.md']}))
 
-    def test_a_wrapper_killed_before_its_receipt_is_dead(self):
-        script = textwrap.dedent(f'''
-            import importlib.util, os, signal, sys
-            from pathlib import Path
-            spec = importlib.util.spec_from_file_location('hil_remote', {str(SCRIPT)!r})
-            m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
-            m.ROOT = Path({str(self.root)!r})
-            m.run = lambda argv, receipt=None: os.kill(os.getpid(), signal.SIGKILL)
-            m.main(sys.argv[1:])
-        ''')
-        subprocess.run([sys.executable, '-c', script, '--run-id', 'r7'])
+    def test_a_wrapper_killed_before_its_done_record_is_dead(self):
+        self.launch('os.kill(os.getpid(), signal.SIGKILL)', 'r7').wait()
         rc, status = self.wait('r7', '--timeout', '5')
         self.assertEqual((rc, status['state']), (hil_remote.DEAD, 'dead'))
         self.assertFalse(hil_remote.run_paths('r7')[1].exists())
@@ -137,13 +125,6 @@ class RunRecords(unittest.TestCase):
         timer.start()
         self.addCleanup(timer.join)
         self.assertEqual(self.wait('r8', '--timeout', '20')[1]['state'], 'done')
-
-    def test_a_process_merely_mentioning_the_id_is_not_the_run(self):
-        p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)', 'r9'])
-        self.addCleanup(p.wait)
-        self.addCleanup(p.kill)
-        self.started('r9', p.pid)
-        self.assertEqual(self.wait('r9', '--timeout', '5')[0], hil_remote.DEAD)
 
     def test_the_start_grace_ends_with_the_timeout(self):
         hil_remote.START_SECS, hil_remote.POLL_SECS = 30, 5
@@ -160,6 +141,7 @@ class RunRecords(unittest.TestCase):
             self.assertEqual(e.exception.code, 2)
 
     def test_unusable_run_ids_are_refused(self):
+        hil_remote.START_SECS = 0.2
         for argv, why in ((['wait', 'nope'], 'no run nope was started'), (['wait', '../x'], 'a run id is'),
                           (['--run-id', '.hidden'], 'a run id is'), (['-v', '--run-id'], '--run-id needs a value'),
                           (['--receipt='], '--receipt needs a value'), (['--run-id', ''], '--run-id needs a value')):
@@ -211,7 +193,7 @@ class BuildReceipts(unittest.TestCase):
 
     def check(self, *boards):
         hil_remote.check_receipt(self.receipt, (self.root / 'test/hil/tinyusb.json').resolve(), list(boards),
-                                 [self.dir(v) for b in boards for v in ({'a': ('a', 'a-dma')}.get(b, (b,)))])
+                                 [d for b in boards for d in hil_remote.variant_dirs(self.CONFIG, 'cmake-build', b)])
 
     def write(self, *boards):
         out = io.StringIO()
@@ -276,6 +258,46 @@ class BuildReceipts(unittest.TestCase):
         self.write('b')
         (self.dir('b') / 'cdc.elf').write_text('rebuilt')
         self.assertIn('staged file(s) differ', self.refused(hil_remote.main, ['--receipt', str(self.receipt), '-b', 'b']))
+
+
+class CheckBuildReceipt(unittest.TestCase):
+    """check_build.py --receipt: the receipt is written by the build that made the firmware."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location('check_build', TEST_DIR.parents[2] / '.claude/skills/build/scripts/check_build.py')
+        cls.cb = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.cb)
+
+    def main(self, *argv, status='', receipt=None, built='ok'):
+        written = []
+        cb = self.cb
+        with mock.patch.object(cb, 'git_status', return_value=status), \
+                mock.patch.object(cb, 'build_one', lambda b, *a, **k: {'board': b, 'status': built}), \
+                mock.patch.object(cb, 'write_receipt', lambda *a: written.append(a) or (receipt or {'head': 'abc'})), \
+                contextlib.redirect_stdout(io.StringIO()) as out, contextlib.redirect_stderr(io.StringIO()):
+            try:
+                rc = cb.main(['--board', 'raspberry_pi_pico', '--shared', '--variants', 'test/hil/tinyusb.json', *argv])
+            except SystemExit as e:
+                rc = e.code
+        return rc, json.loads(out.getvalue().splitlines()[-1]), written
+
+    def test_a_passing_build_writes_the_receipt_of_its_boards(self):
+        rc, out, written = self.main('--receipt', 'r.json')
+        self.assertEqual((rc, out['pass'], out['receipt']), (0, True, {'head': 'abc'}))
+        self.assertEqual(written, [('r.json', ['raspberry_pi_pico'], 'test/hil/tinyusb.json')])
+
+    def test_no_receipt_without_every_example_or_from_a_dirty_tree(self):
+        for argv, status, why in ((['-e', 'device/cdc_msc'], '', 'every example'), ([], ' M src/tusb.c', 'clean tree before the build')):
+            rc, out, written = self.main('--receipt', 'r.json', *argv, status=status)
+            self.assertEqual((rc, written), (2, []))
+            self.assertIn(why, out['error'])
+
+    def test_a_refused_receipt_or_a_failed_build_fails_the_run(self):
+        rc, out, _ = self.main('--receipt', 'r.json', receipt={'error': 'the tree is not clean: M hw/bsp/family.json'})
+        self.assertEqual((rc, out['pass'], out['receipt']['error'][:18]), (2, False, 'the tree is not cl'))
+        rc, out, written = self.main('--receipt', 'r.json', built='failed')
+        self.assertEqual((rc, out['pass'], written), (1, False, []))
 
 
 class CopyBack(unittest.TestCase):
