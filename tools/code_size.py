@@ -45,6 +45,7 @@ import shutil
 import struct
 import subprocess
 import sys
+import time
 
 from membrowse_cli import extract_ld_scripts, extract_defsyms, link_command
 
@@ -553,6 +554,16 @@ def _file_stats(file_deltas):
     return stats
 
 
+def _pair_tables(b, c, symbols, engine):
+    """A pair's Flash/RAM file table and its section delta table."""
+    return compare_reports(b['files'], c['files']), delta_table(b, c, symbols, engine)
+
+
+def _pair_changed(b, c, symbols):
+    return (any(_delta(b['all'], c['all'])) or any(any(d) for d in _file_deltas(b, c).values())
+            or bool(_changed_files(b, c, symbols)))
+
+
 def render_pairs(pairs, matched, engine, base_only=(), cur_only=(), failures=(), boards=(), symbols=False):
     """Markdown report over paired elfs keyed by (board, elf path).
 
@@ -564,10 +575,8 @@ def render_pairs(pairs, matched, engine, base_only=(), cur_only=(), failures=(),
     `symbols` adds each file's changed symbols to each pair's section table.
     """
     file_deltas = {i: _file_deltas(b, c) for i, (b, c) in pairs.items()}
-    changed = [i for i, (b, c) in pairs.items()
-               if any(_delta(b['all'], c['all'])) or any(any(d) for d in file_deltas[i].values())
-               or _changed_files(b, c, symbols)]
-    status = _status(failures, base_only, cur_only)
+    changed = [i for i, (b, c) in pairs.items() if _pair_changed(b, c, symbols)]
+    status = _status(failures, base_only, cur_only, pairs)
     all_label = ENGINES[engine].all_label
     lines = [f'**Coverage ({status}, {engine}):** {len(pairs)} of {matched} matched elf pairs '
              f'compared, {len(changed)} changed']
@@ -584,7 +593,7 @@ def render_pairs(pairs, matched, engine, base_only=(), cur_only=(), failures=(),
         (elf_id, (b, c)), = pairs.items()
         df, dr = _delta(b['all'], c['all'])
         lines += [f'`{_label(elf_id)}` {all_label}: Flash Δ {_fmt(df)}, RAM Δ {_fmt(dr)}', '',
-                  compare_reports(b['files'], c['files']), delta_table(b, c, symbols, engine)]
+                  *_pair_tables(b, c, symbols, engine)]
         return '\n'.join(lines)
     if not pairs:
         return '\n'.join(lines + ['_no comparable pairs_', ''])
@@ -612,12 +621,12 @@ def render_pairs(pairs, matched, engine, base_only=(), cur_only=(), failures=(),
     for elf_id in changed:
         b, c = pairs[elf_id]
         lines += ['', f'<details><summary>{_label(elf_id)}</summary>', '',
-                  compare_reports(b['files'], c['files']), delta_table(b, c, symbols, engine), '</details>']
+                  *_pair_tables(b, c, symbols, engine), '</details>']
     return '\n'.join(lines) + '\n'
 
 
-def _status(failures, base_only, cur_only):
-    return 'INCOMPLETE' if failures or base_only or cur_only else 'complete'
+def _status(failures, base_only, cur_only, pairs):
+    return 'INCOMPLETE' if failures or base_only or cur_only or not pairs else 'complete'
 
 
 def _elf_record(elf_id):
@@ -650,7 +659,7 @@ def compare_sides(base, cur, engine, failures=(), boards=(), scope=None, symbols
     data = {
         'engine': engine,
         'boards': list(boards),
-        'status': _status(failures, base_only, cur_only),
+        'status': _status(failures, base_only, cur_only, pairs),
         'pairs': [{**_elf_record(i), 'base': _json_sizes(b, symbols), 'current': _json_sizes(c, symbols)}
                   for i, (b, c) in pairs.items()],
         'base_only': [_elf_record(i) for i in base_only],
@@ -684,9 +693,11 @@ def run(cmd, **kwargs):
     try:
         return subprocess.run(cmd, capture_output=True, text=True, **kwargs)
     except subprocess.TimeoutExpired as e:
+        # captured output is bytes even with text=True
+        out, err = (v.decode(errors='replace') if isinstance(v, bytes) else (v or '')
+                    for v in (e.stdout, e.stderr))
         msg = f'Command timed out after {e.timeout}s: {" ".join(shlex.quote(str(c)) for c in cmd)}'
-        stderr = (e.stderr or '') + ('\n' if e.stderr else '') + msg
-        return subprocess.CompletedProcess(cmd, 124, stdout=(e.stdout or ''), stderr=stderr)
+        return subprocess.CompletedProcess(cmd, 124, stdout=out, stderr=err + ('\n' if err else '') + msg)
 
 
 def symlink_deps(main_root, worktree_dir):
@@ -709,27 +720,55 @@ def ci_pinned_boards():
         return [entry['board'] for entry in json.load(f)['boards']]
 
 
-def build_board(src_dir, build_dir, board, example=None):
-    """Configure and build examples for a board. Returns True on success.
+class Phase:
+    """A progress line `  label… 1.2s`, or `FAILED after 1.2s`; with -v the commands
+    print between the label and its time, so the time gets a line of its own."""
+    def __init__(self, label):
+        self.label, self.start = label, time.monotonic()
+        print(f'  {label}…', end='\n' if verbose else ' ', flush=True)
+
+    def done(self, failed=False):
+        took = f'{"FAILED after " if failed else ""}{time.monotonic() - self.start:.1f}s'
+        print(f'  {self.label}: {took}' if verbose else took)
+
+
+_NINJA_PROGRESS = re.compile(r'\[\d+/\d+\] ')
+
+
+def output_tail(ret, lines=20):
+    """Up to `lines` of each nonempty stream of a failed command, indented: from ninja's
+    first `FAILED:` block when there is one, else the stream's tail. ninja reports a
+    compile error on stdout, leaving stderr empty, and the jobs already running when it
+    failed finish after it, so their `[n/m]` progress lines are dropped."""
+    def excerpt(stream):
+        kept = [line for line in stream.splitlines() if not _NINJA_PROGRESS.match(line)]
+        first = next((i for i, line in enumerate(kept) if line.startswith('FAILED:')), None)
+        return kept[-lines:] if first is None else kept[first:first + lines]
+    return '\n'.join('    ' + line for stream in (ret.stdout, ret.stderr) if stream.strip()
+                     for line in excerpt(stream))
+
+
+def build_board(src_dir, build_dir, board, example, label):
+    """Configure and build examples for a board as a `label` progress phase, printing
+    the output's tail on failure. Returns True on success.
 
     When `example` is given, only that target is built (`cmake --build --target NAME`),
     keeping single-example workflows fast.
     """
+    phase = Phase(label)
     os.makedirs(build_dir, exist_ok=True)
     ret = run(['cmake', '-B', build_dir, '-G', 'Ninja',
                f'-DBOARD={board}', '-DCMAKE_BUILD_TYPE=MinSizeRel',
                os.path.join(src_dir, 'examples')])
+    if ret.returncode == 0:
+        cmd = ['cmake', '--build', build_dir]
+        if example:
+            cmd += ['--target', os.path.basename(example)]
+        ret = run(cmd, timeout=600)
+    phase.done(failed=ret.returncode != 0)
     if ret.returncode != 0:
-        print(f'  Error configuring {board}: {ret.stderr}')
-        return False
-    cmd = ['cmake', '--build', build_dir]
-    if example:
-        cmd += ['--target', os.path.basename(example)]
-    ret = run(cmd, timeout=600)
-    if ret.returncode != 0:
-        print(f'  Error building {board}: {ret.stderr}')
-        return False
-    return True
+        print(output_tail(ret))
+    return ret.returncode == 0
 
 
 def report_path(board, example, kind='diff'):
@@ -765,7 +804,6 @@ def generate_sizes(build_dir, filters, example=None, engine='membrowse'):
         else f'{root}/**/*.elf'
     elfs = sorted(glob.glob(pattern, recursive=True))
     if not elfs:
-        print(f'  Error: no .elf files in {build_dir}')
         return {}, [(None, f'no .elf files in {build_dir}')]
 
     sizer = ENGINES[engine].sizes
@@ -781,31 +819,102 @@ def generate_sizes(build_dir, filters, example=None, engine='membrowse'):
         with concurrent.futures.ThreadPoolExecutor() as pool:
             results = list(pool.map(report, elfs))
     except FileNotFoundError as e:
-        print(f'  Error: {engine} not found ({e}) - install {ENGINES[engine].install}, '
-              f'or pick another --engine')
-        return {}, [(None, f'{engine} not found')]
+        return {}, [(None, f'{engine} not found ({e}) - install {ENGINES[engine].install}, '
+                           f'or pick another --engine')]
     sizes, errors = {}, []
     for elf, (elf_sizes, error) in zip(elfs, results):
         rel = os.path.relpath(elf, build_dir)
         sizes[rel] = elf_sizes
         if error:
-            print(f'  Error: {error}')
             errors.append((rel, error))
     return sizes, errors
 
 
+def diff_summary(data, symbols):
+    """Console lines of one diff from its JSON-shaped `data`: coverage, the single
+    pair's filtered Δ, unmatched elfs and failures."""
+    pairs = {(p['board'], p['elf']): (p['base'], p['current']) for p in data['pairs']}
+    changed = sum(_pair_changed(b, c, symbols) for b, c in pairs.values())
+    line = f'{len(pairs)} pair{"" if len(pairs) == 1 else "s"}, {changed} changed'
+    if len(pairs) == 1:
+        (b, c), = pairs.values()
+        df, dr = _delta(_src_total(b), _src_total(c))
+        line += f'; filtered Flash Δ {_fmt(df)}, RAM Δ {_fmt(dr)}'
+    lines = [line if data['status'] == 'complete' else f'INCOMPLETE: {line}']
+    for key in ('base_only', 'current_only'):
+        if data[key]:
+            lines.append(f'{key.replace("_", "-")}: ' + ', '.join(_label((r['board'], r['elf'])) for r in data[key]))
+    lines += [f'FAILED {_label((f["board"], f["elf"]))} {f["side"]} {f["stage"]}: {f["message"]}'
+              for f in data['failures']]
+    return lines
+
+
+def report_summary(sizes, failures, ok):
+    """Console lines of one report: coverage, the single elf's filtered total, failures."""
+    sized = [s for s in sizes.values() if s is not None]
+    line = f'{len(sized)} of {len(sizes)} elfs sized'
+    if len(sized) == 1:
+        src = _src_total(sized[0])
+        line += f'; filtered Flash {src["flash"]}, RAM {src["ram"]}'
+    lines = [line if ok else f'INCOMPLETE: {line}']
+    return lines + [f'FAILED {_label(i)} {stage}: {message}' for i, stage, message in failures]
+
+
+def print_result(lines, prefix='', tables=()):
+    """A scope's result lines, then `tables` (Markdown, or an elf's label heading its
+    tables), indented under its phases."""
+    for i, line in enumerate(lines):
+        print(f'  {prefix}{line}' if i == 0 else f'    {line}')
+    for table in tables:
+        print('\n' + '\n'.join(f'  {row}' for row in table.rstrip('\n').split('\n')))
+    if tables:
+        print()
+
+
+def _shown(path):
+    """`path` relative to the working directory when under it."""
+    rel = os.path.relpath(path)
+    return path if rel.startswith('..') else rel
+
+
 def write_report(path, md, data=None):
-    """Write a report to `path`.md, and `data` to `path`.json when given; stdout
-    gets the Markdown without the per-pair details."""
+    """Write a report to `path`.md, and `data` to `path`.json when given, printing
+    their paths."""
     with open(f'{path}.md', 'w') as f:
         f.write(md)
-    print(md.split('\n<details>')[0].rstrip())
-    print(f'  report: {path}.md')
+    print(f'  report: {_shown(path)}.md')
     if data is not None:
         with open(f'{path}.json', 'w') as f:
             json.dump(data, f, indent=1, sort_keys=True)
             f.write('\n')
-        print(f'  json: {path}.json')
+        print(f'  json: {_shown(path)}.json')
+
+
+def _focused(boards, examples):
+    """One board and one example: the console also gets that scope's tables."""
+    return len(boards) == 1 and bool(_single_example(examples))
+
+
+def _labelled(tables_by_elf, elfs):
+    """Console tables of {elf id: tables}, each elf's under its label when the scope
+    has several `elfs`, shown or not."""
+    many = elfs > 1
+    return [t for elf_id, tables in tables_by_elf.items()
+            for t in ([f'{_label(elf_id)}:'] if many else []) + list(tables)]
+
+
+def _single_example(examples):
+    """The board header's ` / <example>` when one example is sized."""
+    return f' / {examples[0]}' if len(examples) == 1 and examples[0] else ''
+
+
+def _scope_label(examples, example):
+    """A phase label's ` <example>` suffix, needed only when a board has several."""
+    return f' {example}' if example and len(examples) > 1 else ''
+
+
+def _build_failed(example):
+    return f'build failed ({example})' if example else 'build failed'
 
 
 def run_report(args):
@@ -813,20 +922,21 @@ def run_report(args):
     filters = args.filter or [tinyusb_src_filter(TINYUSB_ROOT)]
     examples = args.example or [None]
     drop_stale_reports(args.board, examples, 'report')
+    focused = _focused(args.board, examples)
+    print(f'report working tree · {args.engine}')
     failed = False
-    for board in args.board:
-        print(f'\n=== {board} ===')
+    for n, board in enumerate(args.board, 1):
+        print(f'[{n}/{len(args.board)}] {board}{_single_example(examples)}')
         build = os.path.join(CODE_SIZE_DIR, board, 'build')
         shutil.rmtree(build, ignore_errors=True)
         # each scope is its own report, so one example's build failure spares the others
         for example in examples:
-            build_label = f' --target {os.path.basename(example)}' if example else ''
-            print(f'[1/2] Building {board}{build_label}...')
+            scope = _scope_label(examples, example)
             sizes, failures = {}, []
-            if not build_board(TINYUSB_ROOT, build, board, example):
-                failures.append(((board, None), 'build', f'build failed{build_label}, see log'))
+            if not build_board(TINYUSB_ROOT, build, board, example, f'build{scope}'):
+                failures.append(((board, None), 'build', _build_failed(example)))
             else:
-                print(f'[2/2] Sizing {board}{f" ({example})" if example else ""} with {args.engine}...')
+                phase = Phase(f'size{scope}')
                 rel_sizes, errors = generate_sizes(build, filters, example, args.engine)
                 sizes = {(board, rel): v for rel, v in rel_sizes.items()}
                 failures += [((board, rel), 'report', msg) for rel, msg in errors]
@@ -834,6 +944,7 @@ def run_report(args):
                                            f'change in {args.engine} output broke its parsing (try '
                                            f'another --engine to isolate)')
                              for i, s in sizes.items() if s is not None and not s['files']]
+                phase.done(failed=bool(failures))
             md = render_report(sizes, args.engine, failures, [board], args.symbols)
             ok = not failures and any(s is not None for s in sizes.values())
             failed |= not ok
@@ -845,6 +956,9 @@ def run_report(args):
                                  for i, s in sizes.items() if s is not None],
                         'failures': [{**_elf_record(i), 'stage': stage, 'message': message}
                                      for i, stage, message in failures]}
+            tables = _labelled({i: [size_table(s, args.symbols, args.engine)] for i, s in sizes.items() if s},
+                               len(sizes)) if focused else ()
+            print_result(report_summary(sizes, failures, ok), f'{example}: ' if scope else '', tables)
             write_report(report_path(board, example, 'report'), md, data)
     return 1 if failed else 0
 
@@ -934,8 +1048,6 @@ def main():
         shutil.rmtree(combined_dir, ignore_errors=True)
     drop_stale_reports(args.board, examples, 'diff')
 
-    # Step 1: Create worktree for base branch
-    print(f'[1/5] Setting up {args.base_branch} worktree...')
     if os.path.isdir(worktree_dir):
         run(['git', '-C', TINYUSB_ROOT, 'worktree', 'remove', '--force', worktree_dir])
     # --detach: check out the ref at a detached HEAD instead of trying to claim the
@@ -951,6 +1063,8 @@ def main():
 
     # the commit actually built, which the ref may no longer name later
     base_sha = run(['git', '-C', worktree_dir, 'rev-parse', 'HEAD']).stdout.strip()
+    print(f'diff {args.base_branch} ({base_sha[:9]}) vs working tree · {args.engine}')
+    focused = _focused(args.board, examples)
 
     def report_data(data):
         """The JSON report for --json, None without it."""
@@ -965,8 +1079,8 @@ def main():
         combined_sides = {'base': {}, 'current': {}}
         combined_failures = []
 
-        for board in args.board:
-            print(f'\n=== {board} ===')
+        for n, board in enumerate(args.board, 1):
+            print(f'[{n}/{len(args.board)}] {board}{_single_example(examples)}')
             board_dir = os.path.join(CODE_SIZE_DIR, board)
             base_build = os.path.join(board_dir, 'base')
             cur_build = os.path.join(board_dir, 'build')
@@ -977,44 +1091,46 @@ def main():
             # mode used to build everything and filter at metric time — that was wasted work.
             board_failed = None  # the side whose build failed
             for example in examples:
-                build_label = f' --target {os.path.basename(example)}' if example else ''
-                print(f'[2/5] Building {args.base_branch} for {board}{build_label}...')
-                if not build_board(worktree_dir, base_build, board, example):
+                scope = _scope_label(examples, example)
+                if not build_board(worktree_dir, base_build, board, example, f'build {args.base_branch}{scope}'):
                     board_failed = 'base'
                     break
-                print(f'[3/5] Building current for {board}{build_label}...')
-                if not build_board(TINYUSB_ROOT, cur_build, board, example):
+                if not build_board(TINYUSB_ROOT, cur_build, board, example, f'build current{scope}'):
                     board_failed = 'current'
                     break
             if board_failed:
                 failed = True
                 # still write each scope's report, with the build failure in it
-                build_failure = ((board, None), board_failed, 'build', f'build failed{build_label}, see log')
+                build_failure = ((board, None), board_failed, 'build', _build_failed(example))
                 combined_failures.append(build_failure)
 
             for example in examples:
-                label = f' ({example})' if example else ''
-
-                # Step 4/5: Generate sizes and compare
+                scope = _scope_label(examples, example)
                 sides = {'base': {}, 'current': {}}
                 failures = [build_failure] if board_failed else []
                 if not board_failed:
-                    print(f'[4/5] Sizing {board}{label} with {args.engine}...')
+                    phase = Phase(f'size and compare{scope}')
                     for side, build, filters in (('base', base_build, base_filters),
                                                  ('current', cur_build, cur_filters)):
                         sizes, errors = generate_sizes(build, filters, example, args.engine)
                         sides[side] = {(board, rel): v for rel, v in sizes.items()}
                         failures += [((board, rel), side, 'report', msg) for rel, msg in errors]
 
-                print(f'[5/5] Comparing {board}{label}...')
                 md, failures, ok, data = compare_sides(
                     sides['base'], sides['current'], args.engine, failures, [board], scope=(board, None),
                     symbols=args.symbols)
+                if not board_failed:
+                    phase.done(failed=not ok)
                 failed |= not ok
                 if not board_failed:  # a build failure is recorded once, above
                     for side, sizes in sides.items():
                         combined_sides[side].update(sizes)
                     combined_failures += failures
+                tables = _labelled({(p['board'], p['elf']): _pair_tables(p['base'], p['current'], args.symbols,
+                                                                         args.engine)
+                                    for p in data['pairs'] if _pair_changed(p['base'], p['current'], args.symbols)},
+                                   len(data['pairs'])) if focused else ()
+                print_result(diff_summary(data, args.symbols), f'{example}: ' if scope else '', tables)
                 write_report(report_path(board, example), md, report_data(data))
 
                 # Optional: bloaty diff
@@ -1042,16 +1158,19 @@ def main():
         # Optional combined comparison across all boards.
         if args.combined:
             os.makedirs(combined_dir, exist_ok=True)
-            print(f'\n=== combined ({len(args.board)} boards) ===')
+            print(f'combined ({len(args.board)} boards)')
             # every scope was filter-checked above, and its failures carried over
             md, _failures, ok, data = compare_sides(
                 combined_sides['base'], combined_sides['current'], args.engine,
                 combined_failures, args.board, symbols=args.symbols)
             failed |= not ok
+            print_result(diff_summary(data, args.symbols))
             write_report(os.path.join(combined_dir, 'diff'), md, report_data(data))
     finally:
-        print(f'\nCleaning up worktree...')
-        run(['git', '-C', TINYUSB_ROOT, 'worktree', 'remove', '--force', worktree_dir])
+        ret = run(['git', '-C', TINYUSB_ROOT, 'worktree', 'remove', '--force', worktree_dir])
+        if ret.returncode != 0:
+            print(f'Error removing worktree {worktree_dir}: {ret.stderr.strip()}')
+            failed = True
     return 1 if failed else 0
 
 

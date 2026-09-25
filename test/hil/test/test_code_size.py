@@ -236,14 +236,16 @@ class RenderPairs(unittest.TestCase):
 
     def test_zero_pairs_are_not_reported_as_no_changes(self):
         a, b = pair_ids(2)
+        # nothing compared is INCOMPLETE even without a failure or an unmatched elf
         for base, cur, failures in (({}, {}, [(('b', None), 'current', 'build', 'failed')]),
-                                    ({a: elf({})}, {b: elf({})}, [])):
+                                    ({a: elf({})}, {b: elf({})}, []), ({}, {}, [])):
             md = self.render(base, cur, failures)
             self.assertIn('Coverage (INCOMPLETE, membrowse):** 0 of 0 matched', md)
             self.assertIn('_no comparable pairs_', md)
             self.assertNotIn('_no changes_', md)
             if failures:
                 self.assertIn('FAILED `b` current build: failed', md)
+            self.assertEqual(sd.compare_sides(base, cur, 'membrowse', failures)[3]['status'], 'INCOMPLETE')
 
     def test_equal_extremes_pick_the_same_witness_whatever_the_insertion_order(self):
         a, b, c = pair_ids(3)
@@ -649,7 +651,8 @@ class GenerateSizes(unittest.TestCase):
             (sizes, errors), out = _run_capturing_stdout('/fake/build', ['/fake/src/'])
         self.assertEqual(sizes, {})
         self.assertEqual(errors[0][0], None)
-        self.assertIn('no .elf files', out)
+        self.assertIn('no .elf files', errors[0][1])
+        self.assertEqual(out, '')
 
     def test_membrowse_cli_missing_errors_and_returns_nothing(self):
         # subprocess.run(['membrowse', ...]) raises FileNotFoundError when the
@@ -660,8 +663,9 @@ class GenerateSizes(unittest.TestCase):
             (sizes, errors), out = _run_capturing_stdout('/fake/build', ['/fake/src/'])
         self.assertEqual(sizes, {})
         self.assertEqual(errors[0][0], None)
-        self.assertIn('pip install membrowse', out)
-        self.assertIn('another --engine', out)
+        self.assertIn('pip install membrowse', errors[0][1])
+        self.assertIn('another --engine', errors[0][1])
+        self.assertEqual(out, '')
 
     def test_the_selected_engine_sizes_each_elf(self):
         bloaty = mock.Mock(return_value=_elf(7))
@@ -675,8 +679,12 @@ class GenerateSizes(unittest.TestCase):
         with mock.patch('glob.glob', return_value=['/fake/build/ex/ex.elf']), \
              _engine('bloaty', mock.Mock(side_effect=FileNotFoundError('bloaty'))):
             (sizes, errors), out = _run_capturing_stdout('/fake/build', ['src/'], engine='bloaty')
-        self.assertEqual((sizes, errors), ({}, [(None, 'bloaty not found')]))
-        self.assertIn('github.com/google/bloaty', out)
+        self.assertEqual(sizes, {})
+        (elf_path, message), = errors
+        self.assertIsNone(elf_path)
+        self.assertIn('bloaty not found', message)
+        self.assertIn('github.com/google/bloaty', message)
+        self.assertEqual(out, '')
 
     def test_a_failed_elf_marks_only_that_elf(self):
         # an engine raises RuntimeError for one elf (`membrowse report` exiting
@@ -692,7 +700,8 @@ class GenerateSizes(unittest.TestCase):
         self.assertIsNone(sizes['bad/bad.elf'])
         self.assertEqual(sizes['ok/ok.elf']['files']['x.c']['flash'], 4)
         self.assertEqual([rel for rel, _ in errors], ['bad/bad.elf'])
-        self.assertIn('membrowse report failed', out)
+        self.assertIn('membrowse report failed', errors[0][1])
+        self.assertEqual(out, '')
 
     def test_each_elf_is_kept_by_its_relative_path(self):
         # no averaging or summing across elfs: every elf, including two of one
@@ -707,6 +716,54 @@ class GenerateSizes(unittest.TestCase):
         self.assertEqual({rel: s['files']['x.c']['flash'] for rel, s in sizes.items()},
                          {'ex/app.elf': 100, 'ex/loader.elf': 200, 'ex2/ex2.elf': 300})
         self.assertEqual(sizes['ex/app.elf']['all'], {'flash': 100, 'ram': 0})
+
+
+class BuildOutput(unittest.TestCase):
+    def test_a_compile_error_on_stdout_is_shown_when_stderr_is_empty(self):
+        # ninja reports the failing compile on stdout; stderr stays empty
+        ret = subprocess.CompletedProcess([], 1, 'a\nbad.c:1: error: x undeclared\nninja: build stopped\n', '')
+        self.assertEqual(sd.output_tail(ret, lines=2),
+                         '    bad.c:1: error: x undeclared\n    ninja: build stopped')
+
+    def test_ninja_progress_lines_are_dropped(self):
+        # ninja keeps building other targets after the failure, burying the error
+        out = 'FAILED: bad.c.obj\nbad.c:1: error: x undeclared\n[2/9] Building C object a.c.obj\n' \
+              '[3/9] Building C object b.c.obj\nninja: build stopped: subcommand failed.\n'
+        self.assertEqual(sd.output_tail(subprocess.CompletedProcess([], 1, out, ''), lines=3),
+                         '    FAILED: bad.c.obj\n    bad.c:1: error: x undeclared\n'
+                         '    ninja: build stopped: subcommand failed.')
+
+    def test_a_long_diagnostic_keeps_its_first_error(self):
+        out = 'FAILED: bad.c.obj\ngcc -c bad.c\nbad.c:1: error: first\n' + 'note: more\n' * 30
+        tail = sd.output_tail(subprocess.CompletedProcess([], 1, out, ''), lines=3)
+        self.assertEqual(tail, '    FAILED: bad.c.obj\n    gcc -c bad.c\n    bad.c:1: error: first')
+
+    def test_without_a_failed_block_the_tail_is_shown(self):
+        # cmake configure errors have no ninja FAILED: block
+        out = ''.join(f'line {i}\n' for i in range(30))
+        self.assertEqual(sd.output_tail(subprocess.CompletedProcess([], 1, out, ''), lines=2),
+                         '    line 28\n    line 29')
+
+    def test_both_streams_are_shown(self):
+        ret = subprocess.CompletedProcess([], 1, 'out\n', 'err\n')
+        self.assertEqual(sd.output_tail(ret), '    out\n    err')
+
+    def test_a_failed_build_prints_its_phase_and_output(self):
+        failed = subprocess.CompletedProcess([], 1, 'bad.c:1: error: x undeclared\n', '')
+        ok = subprocess.CompletedProcess([], 0, '', '')
+        with tempfile.TemporaryDirectory() as tmp, \
+             mock.patch.object(sd, 'run', side_effect=[ok, failed]), \
+             contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertFalse(sd.build_board(tmp, os.path.join(tmp, 'b'), 'b', 'device/ex', 'build master'))
+        self.assertRegex(out.getvalue(), r'^  build master… FAILED after \d+\.\ds\n    bad.c:1: error: x undeclared\n$')
+
+    def test_a_timeout_keeps_the_output_as_text(self):
+        # TimeoutExpired carries bytes even with text=True
+        expired = subprocess.TimeoutExpired(['ninja'], 600, output=b'partial\n', stderr=b'err')
+        with mock.patch('subprocess.run', side_effect=expired):
+            ret = sd.run(['ninja'], timeout=600)
+        self.assertEqual((ret.returncode, ret.stdout), (124, 'partial\n'))
+        self.assertTrue(ret.stderr.startswith('err\nCommand timed out after 600s'))
 
 
 class MainFailure(unittest.TestCase):
@@ -768,11 +825,78 @@ class MainFailure(unittest.TestCase):
 
     def test_success_returns_zero(self):
         with tempfile.TemporaryDirectory() as tmp:
-            rc, _out = self._main(tmp, sizes=({'ex/ex.elf': _elf(1)}, []),
-                                  cur_sizes=({'ex/ex.elf': _elf(3)}, []))
+            rc, out = self._main(tmp, sizes=({'ex/ex.elf': _elf(1)}, []),
+                                 cur_sizes=({'ex/ex.elf': _elf(3)}, []))
             self.assertEqual(rc, 0)
             with open(os.path.join(tmp, 'b', 'diff.md')) as f:
                 self.assertIn('| x.c | 1 | 3 | +2 |', unpad(f.read()))
+            # no -e: the console gets the summary line, the tables stay in the .md
+            self.assertIn('  1 pair, 1 changed; filtered Flash Δ +2, RAM Δ 0\n', out)
+            self.assertNotIn('| x.c |', out)
+
+    def test_a_filter_mismatch_fails_the_size_and_compare_phase(self):
+        empty = elf({}, all_syms=(4, 0))
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, out = self._main(tmp, sizes=({'ex/ex.elf': empty}, []))
+            self.assertEqual(rc, 1)
+            self.assertRegex(out, r'  size and compare… FAILED after \d+\.\ds\n  INCOMPLETE: 1 pair')
+
+    def test_a_failed_worktree_cleanup_fails_the_run(self):
+        ok = subprocess.CompletedProcess([], 0, 'c0ffee\n', '')
+        stuck = subprocess.CompletedProcess([], 1, '', 'fatal: busy')
+
+        def run(cmd, **_kwargs):
+            return stuck if cmd[3:5] == ['worktree', 'remove'] else ok
+        with tempfile.TemporaryDirectory() as tmp:
+            def build(_src, _build_dir, board, *_args):
+                os.makedirs(os.path.join(tmp, board), exist_ok=True)
+                return True
+            side_sizes = iter([({'ex/ex.elf': _elf(1)}, [])] * 2)
+            rc, out = self._run_main(tmp, ['-b', 'b'], build, lambda *_a, **_k: next(side_sizes), run)
+        self.assertEqual(rc, 1)
+        self.assertIn('Error removing worktree', out)
+
+    def test_several_elfs_of_one_example_label_their_tables(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            two = lambda f: ({'ex/app.elf': _elf(f), 'ex/boot.elf': _elf(f)}, [])
+            side_sizes = iter([two(1), two(3)])
+
+            def build(_src, _build_dir, board, *_args):
+                os.makedirs(os.path.join(tmp, board), exist_ok=True)
+                return True
+            rc, out = self._run_main(tmp, ['-b', 'b', '-e', 'ex'], build, lambda *_a, **_k: next(side_sizes))
+            self.assertEqual(rc, 0)
+            self.assertLess(out.index('\n  b: ex/app.elf:\n'), out.index('\n  b: ex/boot.elf:\n'))
+
+    def test_the_one_changed_elf_of_several_is_labelled(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            side_sizes = iter([({'ex/app.elf': _elf(1), 'ex/boot.elf': _elf(1)}, []),
+                               ({'ex/app.elf': _elf(1), 'ex/boot.elf': _elf(3)}, [])])
+
+            def build(_src, _build_dir, board, *_args):
+                os.makedirs(os.path.join(tmp, board), exist_ok=True)
+                return True
+            rc, out = self._run_main(tmp, ['-b', 'b', '-e', 'ex'], build, lambda *_a, **_k: next(side_sizes))
+            self.assertEqual(rc, 0)
+            self.assertIn('  2 pairs, 1 changed\n', out)
+            self.assertIn('\n  b: ex/boot.elf:\n', out)
+            self.assertNotIn('b: ex/app.elf:', out)
+
+    def test_a_single_example_prints_its_phases_summary_and_changed_tables(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            side_sizes = iter([({'ex/ex.elf': _elf(1)}, []), ({'ex/ex.elf': _elf(3)}, [])])
+
+            def build(_src, _build_dir, board, *_args):
+                os.makedirs(os.path.join(tmp, board), exist_ok=True)
+                return True
+            rc, out = self._run_main(tmp, ['-b', 'b', '-e', 'ex'], build, lambda *_a, **_k: next(side_sizes))
+            self.assertEqual(rc, 0)
+            self.assertRegex(out, r'^diff master \(c0ffee\) vs working tree · membrowse\n\[1/1\] b / ex\n'
+                                  r'  size and compare… \d+\.\ds\n  1 pair, 1 changed; filtered Flash Δ \+2')
+            # indented tables; unpad() folds their indent to one space
+            self.assertIn('\n | x.c | 1 | 3 | +2 |', out)
+            self.assertIn('\n | x.c | +2 | +2 |', out)
+            self.assertNotIn('**Coverage', out)
 
     def test_unmatched_elf_is_incomplete_but_not_a_failure(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -780,7 +904,8 @@ class MainFailure(unittest.TestCase):
                                  cur_sizes=({'ex/ex.elf': _elf(1), 'new/new.elf': _elf(5)}, []))
             self.assertEqual(rc, 0)
             self.assertIn('INCOMPLETE', out)
-            self.assertIn('current-only: `b: new/new.elf`', out)
+            self.assertIn('  INCOMPLETE: 1 pair, 0 changed', out)
+            self.assertIn('    current-only: b: new/new.elf', out)
 
     def test_no_symbols_matched_filters_fails(self):
         # a filter typo, or an engine output change breaking source-path
@@ -798,7 +923,9 @@ class MainFailure(unittest.TestCase):
             rc, out = self._main(tmp, sizes=({'ex/ex.elf': _elf(8)}, []),
                                  cur_sizes=({'ex/ex.elf': empty}, []))
             self.assertEqual(rc, 0)
-            self.assertIn('| x.c | 8 | 0 | -8 |', out)
+            self.assertIn('1 pair, 1 changed; filtered Flash Δ -8', out)
+            with open(os.path.join(tmp, 'b', 'diff.md')) as f:
+                self.assertIn('| x.c | 8 | 0 | -8 |', unpad(f.read()))
 
     def _main_combined(self, tmp, sizes, build_ok=('b1', 'b2'), example=None):
         """main() with -b b1 -b b2 --combined. `sizes` maps
@@ -893,7 +1020,7 @@ class MainFailure(unittest.TestCase):
             self.assertFalse(any('bloaty' in cmd for cmd in cmds))
             for name in ('diff_device_a.md', 'diff_device_b.md'):
                 with open(os.path.join(tmp, 'b', name)) as f:
-                    self.assertIn('FAILED `b` base build: build failed --target b', f.read())
+                    self.assertIn('FAILED `b` base build: build failed (device/b)', f.read())
             with open(os.path.join(tmp, '_combined', 'diff.md')) as f:
                 self.assertEqual(f.read().count('FAILED `b`'), 1)
 
@@ -970,8 +1097,8 @@ class MainFailure(unittest.TestCase):
             data = json.loads(self._read(tmp, 'b', 'diff.json'))
             self.assertEqual(data['status'], 'INCOMPLETE')
             self.assertEqual(data['failures'], [{'board': 'b', 'elf': None, 'side': 'base', 'stage': 'build',
-                                                 'message': 'build failed, see log'}])
-            self.assertIn('FAILED `b` base build: build failed, see log',
+                                                 'message': 'build failed'}])
+            self.assertIn('FAILED `b` base build: build failed',
                           self._read(tmp, 'b', 'diff.md'))
 
     def test_a_failed_worktree_setup_leaves_no_previous_report(self):
@@ -1011,7 +1138,7 @@ class MainReport(unittest.TestCase):
         """`code_size.py report -b b` plus `argv`, building and sizing stubbed;
         `build_ok(example)` is each build's result, `sizes` what generate_sizes()
         returns. Returns (rc, build mock, generate mock)."""
-        def build_board(_src, _build_dir, board, example):
+        def build_board(_src, _build_dir, board, example, _label):
             os.makedirs(os.path.join(tmp, board), exist_ok=True)
             return build_ok(example)
         build = mock.Mock(side_effect=build_board)
@@ -1021,8 +1148,9 @@ class MainReport(unittest.TestCase):
              mock.patch.object(sd, 'run') as run, \
              mock.patch.object(sd, 'build_board', build), \
              mock.patch.object(sd, 'generate_sizes', generate), \
-             contextlib.redirect_stdout(io.StringIO()):
+             contextlib.redirect_stdout(io.StringIO()) as out:
             rc = sd.main()
+        self.out = unpad(out.getvalue())
         run.assert_not_called()  # no base worktree
         return rc, build, generate
 
@@ -1035,12 +1163,16 @@ class MainReport(unittest.TestCase):
             rc, build, generate = self._run(tmp, ['-e', 'device/cdc_msc', '--engine', 'bloaty'],
                                             ({'device/cdc_msc/cdc_msc.elf': _elf(4)}, []))
             self.assertEqual(rc, 0)
-            build.assert_called_once_with(sd.TINYUSB_ROOT, os.path.join(tmp, 'b', 'build'), 'b', 'device/cdc_msc')
+            build.assert_called_once_with(sd.TINYUSB_ROOT, os.path.join(tmp, 'b', 'build'), 'b', 'device/cdc_msc',
+                                          'build')
             self.assertEqual(generate.call_args.args[1:], ([sd.tinyusb_src_filter(sd.TINYUSB_ROOT)],
                                                           'device/cdc_msc', 'bloaty'))
             md = self._read(tmp, 'b', 'report_device_cdc_msc.md')
             self.assertIn('Coverage (complete, bloaty)', md)
             self.assertIn('| x.c | 4 | 4 | 100.0% |', md)
+            self.assertRegex(self.out, r'^report working tree · bloaty\n\[1/1\] b / device/cdc_msc\n'
+                                       r'  size… \d+\.\ds\n  1 of 1 elfs sized; filtered Flash 4, RAM 0\n')
+            self.assertIn('\n | x.c | 4 | 4 | 100.0% |', self.out)
 
     def test_json_holds_the_sizes_and_symbols_only_with_symbols(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1064,7 +1196,8 @@ class MainReport(unittest.TestCase):
             rc, _, generate = self._run(tmp, [], None, lambda _example: False)
             self.assertEqual(rc, 1)
             generate.assert_not_called()
-            self.assertIn('FAILED `b` build: build failed, see log', self._read(tmp, 'b', 'report.md'))
+            self.assertIn('FAILED `b` build: build failed', self._read(tmp, 'b', 'report.md'))
+            self.assertIn('  INCOMPLETE: 0 of 0 elfs sized\n    FAILED b build: build failed\n', self.out)
             self.assertFalse(os.path.exists(os.path.join(tmp, 'b', 'report.json')))
 
     def test_one_examples_build_failure_spares_the_others(self):
@@ -1074,7 +1207,7 @@ class MainReport(unittest.TestCase):
             self.assertEqual(rc, 1)
             self.assertEqual(generate.call_count, 1)
             self.assertIn('Coverage (complete, membrowse)', self._read(tmp, 'b', 'report_device_a.md'))
-            self.assertIn('FAILED `b` build: build failed --target b', self._read(tmp, 'b', 'report_device_b.md'))
+            self.assertIn('FAILED `b` build: build failed (device/b)', self._read(tmp, 'b', 'report_device_b.md'))
 
     def test_a_failed_or_unmatched_elf_is_incomplete_and_fails(self):
         empty = elf({}, all_syms=(4, 0))
