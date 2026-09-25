@@ -126,7 +126,7 @@ def build_command(config_path):
         config_path = config_path.relative_to(ROOT)
     except ValueError:
         pass
-    return f'python3 .claude/skills/build/scripts/check_build.py --board <board> --shared --variants {config_path}'
+    return f'python3 .claude/skills/build/scripts/check_build.py --board <board> --shared --variants {shlex.quote(str(config_path))}'
 
 
 def resolve_firmware(config, config_path, args):
@@ -164,7 +164,8 @@ def resolve_firmware(config, config_path, args):
     if missing:
         fail(f'no build under {build_dir}/ for:\n' + '\n'.join(missing) + f'\nbuild with\n  {build_command(config_path)}')
     if not dirs:
-        fail(f'no {build_dir}/cmake-build-* build for any selected board in the config -- nothing to test')
+        fail(f'no {build_dir}/cmake-build-* build for any selected board in the config -- nothing to test; '
+             f'build with\n  {build_command(config_path)}')
     return dirs
 
 

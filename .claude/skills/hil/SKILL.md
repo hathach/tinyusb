@@ -85,7 +85,7 @@ See the `usb-kernel-recover` skill for what a real wedge looks like and how to c
 
 ## Prerequisites
 
-Examples must be built for the target board(s) — see [Build and Validate](../../../CLAUDE.md#build-and-validate). Build them with the `build` skill's `--shared --variants <config>`, naming the HIL config the run uses: it writes `cmake-build/cmake-build-<variant>/` for each variant the config gives a board, with that variant's `flags` and `defines` (`cmake-build-<board>/` for a board without a `"variant"` list) — the folders `hil_test.py` flashes from by default — and refuses a dir still configured with an option the variant does not set. A **remote** run stages the same folders; see Remote execution below. (This applies to `hil_test.py`; `hil_pool_check.py` builds its own missing firmware.)
+Examples must be built for the target board(s) — see [Build and Validate](../../../CLAUDE.md#build-and-validate). Build them with the `build` skill's `--shared --variants <config>`, naming the HIL config the run uses: it writes `cmake-build/cmake-build-<variant>/` for each variant the config gives a board, with that variant's `flags` and `defines` (`cmake-build-<board>/` for a board without a `"variant"` list) — the folders `hil_test.py` flashes from by default — and refuses a dir still configured with an option neither the variant nor the command line sets. A **remote** run stages the same folders; see Remote execution below. (This applies to `hil_test.py`; `hil_pool_check.py` builds its own missing firmware.)
 
 A bare `--shared` takes nothing from the roster and builds only `cmake-build-<board>/`, so a self-named variant is built without its flags (`raspberry_pi_pico`'s `CFG_TUH_RPI_PIO_USB=1`) and any other variant stays unbuilt. An unbuilt variant's tests report `Skip (no binary)` without failing the run (`stm32f723disco-DMA` goes untested). On a run of one test per variant (a single-test `-bt`, or `-t` tests the board's `only` or capabilities leave at one) without `--skip-flash`, a later unbuilt variant instead fails `same-PID boundary ... not cleared (no board_test binary)`, naming `board_test`, not the missing build.
 
@@ -137,7 +137,7 @@ it looked for (a variant's build flags are in the config); a board the filter dr
 Without `-b` it refuses with `nothing to test` when no board the filter kept is built, and stages
 what is built without a word about unbuilt variants. With `-b` it also warns for each variant of a
 requested board with no build; Prerequisites says what `hil_test.py` then reports for it. `--build` is
-refused: the rig receives binaries only. Both refusals print the `--variants` build line.
+refused: the rig receives binaries only. Each refusal over a missing build, and the `--build` one, prints the `--variants` build line.
 
 Exit 200 means the remote tree stopped being this run's after staging (another run sharing
 `REMOTE_DIR` replaced it): `hil_test.py` did not run and nothing was copied back, so any local

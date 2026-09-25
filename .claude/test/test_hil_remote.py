@@ -172,7 +172,14 @@ class Refusals(Rig):
         self.assertIn('--shared --variants test/hil/tinyusb.json', r.stderr)
 
     def test_all_boards_with_nothing_built(self):
-        self.refused(self.hil_remote(), 'nothing to test')
+        r = self.hil_remote()
+        self.refused(r, 'nothing to test')
+        self.assertIn('--shared --variants test/hil/tinyusb.json', r.stderr)
+
+    def test_the_build_line_quotes_the_config(self):
+        (self.root / 'test/hil/my rig.json').write_text(json.dumps(CONFIG))
+        r = self.hil_remote('-b', 'alpha', '--build', CONFIG=str(self.root / 'test/hil/my rig.json'))
+        self.refused(r, "--variants 'test/hil/my rig.json'")
 
     def test_a_flasher_filter_that_leaves_no_board(self):
         self.build('alpha')
