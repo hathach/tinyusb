@@ -718,9 +718,10 @@ def roster_variants(boards, config):
             if not isinstance(v, dict):
                 fail(f'{config}: board {b} variant {i} needs an object with name, flags and defines: {v!r}')
             name, defines, flags = v.get('name'), v.get('defines', []), v.get('flags', '')
-            if not (isinstance(name, str) and isinstance(flags, str) and isinstance(defines, list)
+            # an empty name would build cmake-build-<board> while hil_test.py looks in cmake-build-
+            if not (isinstance(name, str) and name and isinstance(flags, str) and isinstance(defines, list)
                     and all(isinstance(d, str) for d in defines)):
-                fail(f'{config}: board {b} variant {name!r} needs name a string, flags a string '
+                fail(f'{config}: board {b} variant {name!r} needs name a non-empty string, flags a string '
                      f'and defines a list of strings: {v}')
             out.append((b, name, defines, flags.split()))
     return out
