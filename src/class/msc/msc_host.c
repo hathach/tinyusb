@@ -84,6 +84,19 @@ static bool status_stage_xfer(uint8_t daddr, msch_interface_t* p_msc, msc_csw_t*
   return usbh_edpt_xfer(daddr, p_msc->ep_in, (uint8_t*) csw, (uint16_t) sizeof(msc_csw_t));
 }
 
+static void scsi_command_complete(uint8_t daddr, msch_interface_t* p_msc, const msc_cbw_t* cbw, const msc_csw_t* csw) {
+  p_msc->stage = MSC_STAGE_IDLE;
+  if (p_msc->complete_cb != NULL) {
+    tuh_msc_complete_data_t const cb_data = {
+        .cbw = cbw,
+        .csw = csw,
+        .scsi_data = p_msc->buffer,
+        .user_arg = p_msc->complete_arg
+    };
+    (void) p_msc->complete_cb(daddr, &cb_data);
+  }
+}
+
 //--------------------------------------------------------------------+
 // Weak stubs: invoked if no strong implementation is available
 //--------------------------------------------------------------------+
@@ -149,6 +162,7 @@ bool tuh_msc_scsi_command(uint8_t daddr, msc_cbw_t const* cbw, void* data,
   p_msc->buffer = data;
   p_msc->complete_cb = complete_cb;
   p_msc->complete_arg = arg;
+  p_msc->data_xferred = 0;
   p_msc->stage = MSC_STAGE_CMD;
 
   if (!usbh_edpt_xfer(daddr, p_msc->ep_out, (uint8_t*) &epbuf->cbw, sizeof(msc_cbw_t))) {
@@ -331,6 +345,8 @@ bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
   msc_cbw_t const * cbw = &epbuf->cbw;
   msc_csw_t       * csw = &epbuf->csw;
 
+  bool submitted = true;
+
   switch (p_msc->stage) {
     case MSC_STAGE_CMD:
       // Must be Command Block
@@ -338,10 +354,9 @@ bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
       if (cbw->total_bytes && p_msc->buffer) {
         // Data stage if any
         p_msc->stage = MSC_STAGE_DATA;
-        p_msc->data_xferred = 0;
-        TU_ASSERT(data_stage_xfer(dev_addr, p_msc, cbw));
+        submitted = data_stage_xfer(dev_addr, p_msc, cbw);
       } else {
-        TU_ASSERT(status_stage_xfer(dev_addr, p_msc, csw));
+        submitted = status_stage_xfer(dev_addr, p_msc, csw);
       }
       break;
 
@@ -349,29 +364,29 @@ bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
       p_msc->data_xferred += xferred_bytes;
       if (event == XFER_RESULT_SUCCESS && xferred_bytes == MSCH_DATA_XFER_MAX &&
           p_msc->data_xferred < cbw->total_bytes) {
-        TU_ASSERT(data_stage_xfer(dev_addr, p_msc, cbw));
+        submitted = data_stage_xfer(dev_addr, p_msc, cbw);
       } else {
-        TU_ASSERT(status_stage_xfer(dev_addr, p_msc, csw));
+        submitted = status_stage_xfer(dev_addr, p_msc, csw);
       }
       break;
 
     case MSC_STAGE_STATUS:
-      // SCSI op is complete
-      p_msc->stage = MSC_STAGE_IDLE;
-      if (p_msc->complete_cb != NULL) {
-        tuh_msc_complete_data_t const cb_data = {
-            .cbw = cbw,
-            .csw = csw,
-            .scsi_data = p_msc->buffer,
-            .user_arg = p_msc->complete_arg
-        };
-        (void) p_msc->complete_cb(dev_addr, &cb_data);
-      }
+      scsi_command_complete(dev_addr, p_msc, cbw, csw);
       break;
 
     default:
       // unknown state
       break;
+  }
+
+  if (!submitted) {
+    // nothing is pending to finish the command: complete it now with a CSW the device never sent
+    TU_LOG_DRV("  MSCh stage %u submit failed\r\n", p_msc->stage);
+    csw->signature    = MSC_CSW_SIGNATURE;
+    csw->tag          = cbw->tag;
+    csw->data_residue = cbw->total_bytes - p_msc->data_xferred;
+    csw->status       = MSC_CSW_STATUS_PHASE_ERROR;
+    scsi_command_complete(dev_addr, p_msc, cbw, csw);
   }
 
   return true;
