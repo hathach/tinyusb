@@ -844,7 +844,7 @@ def main(argv=None):
     os.chdir(ROOT)  # tools/build.py's example listing reads examples/ relative to the root
 
     extra = {}
-    if a.variants and not (a.board and a.shared):
+    if a.variants is not None and not (a.board and a.shared):
         fail('--variants needs --board and --shared: it builds the dirs hil_test.py flashes')
     if a.board:
         boards, how_resolved = a.board, 'named boards'
@@ -853,7 +853,7 @@ def main(argv=None):
         sel, reasons = select(scope=paths if a.scope is not None else None, base=a.base, config=Path(a.config))
         boards, how_resolved = boards_for(sel, paths, reasons)
     before = catalog_text()
-    builds = roster_variants(boards, a.variants) if a.variants else [(b, None, [], []) for b in boards]
+    builds = roster_variants(boards, a.variants) if a.variants is not None else [(b, None, [], []) for b in boards]
     results = [build_one(b, a.example, a.target, a.define + d, a.cflag + f, a.shared, a.fetch_deps, a.verbose, n)
                for b, n, d, f in builds]
     built_ok = all(r['status'] == 'ok' for r in results)

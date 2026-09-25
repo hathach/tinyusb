@@ -518,7 +518,8 @@ class VariantsTest(unittest.TestCase):
         for args, text in [(['--board', 'pico', '--variants', 'x'], '--variants needs --board and --shared'),
                            (['--scope', 'src', '--shared', '--variants', 'x'], '--variants needs --board and --shared'),
                            (['--board', 'nope', '--shared', '--variants', None], 'not in '),
-                           (['--board', 'pico', '--shared', '--variants', '/nonexistent.json'], 'could not read')]:
+                           (['--board', 'pico', '--shared', '--variants', '/nonexistent.json'], 'could not read'),
+                           (['--board', 'pico', '--shared', '--variants', ''], 'could not read')]:
             args = [str(self.config) if a is None else a for a in args]
             with mock.patch.object(build, 'build_one') as b1, mock.patch('sys.stdout'), \
                  mock.patch.object(sys, 'stderr') as err, self.assertRaises(SystemExit) as cm:
