@@ -85,7 +85,9 @@ See the `usb-kernel-recover` skill for what a real wedge looks like and how to c
 
 ## Prerequisites
 
-Examples must be built for the target board(s) — see [Build and Validate](../../../CLAUDE.md#build-and-validate). For a **local** run the `build` skill's `--shared` produces `cmake-build/cmake-build-<board>/`, the folder `hil_test.py` flashes from by default. A **remote** run stages the same folder; see Remote execution below. (This applies to `hil_test.py`; `hil_pool_check.py` builds its own missing firmware.)
+Examples must be built for the target board(s) — see [Build and Validate](../../../CLAUDE.md#build-and-validate). Build them with the `build` skill's `--shared --variants <config>`, naming the HIL config the run uses: it writes the `cmake-build/cmake-build-<variant>/` folders `hil_test.py` flashes from by default, each with its variant's `flags` and `defines`, and refuses a folder still configured with options neither the variant nor the command line supplies. A **remote** run stages the same folders; see Remote execution below. (This applies to `hil_test.py`; `hil_pool_check.py` builds its own missing firmware.)
+
+A bare `--shared` takes nothing from the roster and builds only `cmake-build-<board>/`, so a self-named variant is built without its flags (`raspberry_pi_pico`'s `CFG_TUH_RPI_PIO_USB=1`) and any other variant stays unbuilt. An unbuilt variant's tests report `Skip (no binary)` without failing the run (`stm32f723disco-DMA` goes untested). On a run of one test per variant (a single-test `-bt`, or `-t` tests the board's `only` or capabilities leave at one) without `--skip-flash`, a later unbuilt variant instead fails `same-PID boundary ... not cleared (no board_test binary)`, naming `board_test`, not the missing build.
 
 A board whose flasher probe has no VCOM (or whose BSP has no UART) uses RTT as its console — "No serial device found for /dev/serial/by-id/…" on every host test is the symptom. Config: `"logger": "rtt"` (jlink flashers only) plus a self-named variant carrying the define — `"variant": [{"name": "<board>", "defines": ["LOGGER=rtt"]}]` — and prebuilt example sets must carry the same `-DLOGGER=rtt`. Caveat: the cdc/msc-fixture host tests don't speak RTT yet, so such a board cannot carry `is_cdc`/`is_msc` fixtures (the config loader rejects it). Details: the `rtt` skill.
 
@@ -132,10 +134,10 @@ Before touching the rig it refuses a board not in the config, then applies `--fl
 `--exclude-flasher` (`no board left after the flasher filter` when none survives), then refuses a
 requested board the filter kept with none of its `<-B>/cmake-build-<variant>` dirs, naming the dirs
 it looked for (a variant's build flags are in the config); a board the filter drops needs no build.
-Without `-b` it refuses with `nothing to test` when no board the filter kept is built, and skips
-unbuilt variants silently. With `-b` it also warns for each variant of a requested board with no
-build, whose cells would be skipped rather than tested. `--build` is refused: the rig receives
-binaries only.
+Without `-b` it refuses with `nothing to test` when no board the filter kept is built, and stages
+what is built without a word about unbuilt variants. With `-b` it also warns for each variant of a
+requested board with no build; Prerequisites says what `hil_test.py` then reports for it. `--build` is
+refused: the rig receives binaries only.
 
 Exit 200 means the remote tree stopped being this run's after staging (another run sharing
 `REMOTE_DIR` replaced it): `hil_test.py` did not run and nothing was copied back, so any local

@@ -152,7 +152,13 @@ class Refusals(Rig):
 
     def test_build_on_the_rig(self):
         self.build('alpha')
-        self.refused(self.hil_remote('-b', 'alpha', '--build'), '--build')
+        r = self.hil_remote('-b', 'alpha', '--build')
+        self.refused(r, '--build')
+        self.assertIn('check_build.py --board alpha --shared --variants test/hil/tinyusb.json', r.stderr)
+        # without -b the line names the boards the run would select
+        r = self.hil_remote('--build', '--exclude-flasher', 'openocd')
+        self.refused(r, '--build')
+        self.assertIn('check_build.py --board alpha --shared --variants', r.stderr)
 
     def test_unknown_board(self):
         self.build('alpha')
@@ -167,9 +173,17 @@ class Refusals(Rig):
         self.refused(r, 'no build under cmake-build/ for:')
         self.assertIn('alpha: none of cmake-build/cmake-build-alpha\n', r.stderr)
         self.assertIn('beta: none of cmake-build/cmake-build-beta_one, cmake-build/cmake-build-beta_two', r.stderr)
+        self.assertIn('--board alpha --board beta --shared --variants test/hil/tinyusb.json', r.stderr)
 
     def test_all_boards_with_nothing_built(self):
-        self.refused(self.hil_remote(), 'nothing to test')
+        r = self.hil_remote()
+        self.refused(r, 'nothing to test')
+        self.assertIn('--board alpha --board beta --shared --variants test/hil/tinyusb.json', r.stderr)
+
+    def test_the_build_line_quotes_the_config(self):
+        (self.root / 'test/hil/my rig.json').write_text(json.dumps(CONFIG))
+        r = self.hil_remote('-b', 'alpha', '--build', CONFIG=str(self.root / 'test/hil/my rig.json'))
+        self.refused(r, "--variants 'test/hil/my rig.json'")
 
     def test_a_flasher_filter_that_leaves_no_board(self):
         self.build('alpha')
@@ -182,6 +196,11 @@ class Refusals(Rig):
     def test_the_preset_layout_is_not_read(self):
         self.build('alpha', root='examples')
         self.refused(self.hil_remote('-b', 'alpha'), 'no build under cmake-build/ for:')
+
+    def test_the_build_line_says_where_it_writes_under_another_build_dir(self):
+        r = self.hil_remote('-b', 'alpha', '-B', 'other')
+        self.refused(r, 'no build under other/ for:')
+        self.assertIn('--board alpha --shared --variants test/hil/tinyusb.json\n  (it writes under cmake-build/, not other/)', r.stderr)
 
     def test_bad_arguments_and_build_dirs(self):
         self.build('alpha')
@@ -224,8 +243,18 @@ class Staging(Rig):
         self.build('beta_one')
         r = self.hil_remote('-b', 'beta')
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn('no cmake-build/cmake-build-beta_two -- its cells will be skipped', r.stderr)
+        self.assertIn('no cmake-build/cmake-build-beta_two -- its cells will be skipped or fail the '
+                      'same-PID boundary on a one-test run\n', r.stderr)
         self.assertNotIn('beta_one --', r.stderr)
+        r = self.hil_remote('-b', 'beta', '--skip-flash')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn('no cmake-build/cmake-build-beta_two -- its cells will be skipped\n', r.stderr)
+
+    def test_a_missing_first_variant_has_no_boundary_to_fail(self):
+        self.build('beta_two')
+        r = self.hil_remote('-b', 'beta')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn('no cmake-build/cmake-build-beta_one -- its cells will be skipped\n', r.stderr)
 
     def test_a_board_the_flasher_filter_drops_needs_no_build(self):
         self.build('alpha')

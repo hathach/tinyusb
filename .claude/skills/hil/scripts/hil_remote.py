@@ -120,12 +120,22 @@ def check_build_dir(build_dir):
         fail(f'-B must be a relative path inside the checkout: {build_dir}')
 
 
-def resolve_firmware(config, args):
-    """Return the existing <build_dir>/cmake-build-<variant> dirs to stage, refusing before
-    anything remote is touched: an unknown board fails the whole remote run after staging,
-    and a board with no build at all would only show up as `Skip (no binary)` rows.
-    Boards are selected as hil_test.py does, so a build of a board it drops satisfies nothing."""
-    boards, build_dir = args.board, args.build_dir
+def build_command(config_path, boards, build_dir):
+    """The build contract's line for the dirs hil_test.py flashes, each roster variant included."""
+    if config_path.is_relative_to(ROOT):
+        config_path = config_path.relative_to(ROOT)
+    board_args = ' '.join(f'--board {shlex.quote(b)}' for b in boards) or '--board <board>'
+    line = (f'python3 .claude/skills/build/scripts/check_build.py {board_args} --shared '
+            f'--variants {shlex.quote(str(config_path))}')
+    if build_dir != 'cmake-build':
+        line += f'\n  (it writes under cmake-build/, not {build_dir}/)'
+    return line
+
+
+def select_boards(config, args):
+    """The boards hil_test.py will run, refusing an unknown one: it fails the whole remote run
+    after staging. A build of a board this drops satisfies nothing."""
+    boards = args.board
     roster = {b['name']: b for b in config.get('boards', [])}
     unknown = [b for b in boards if b not in roster]
     if unknown:
@@ -137,24 +147,37 @@ def resolve_firmware(config, args):
         if not selected:
             fail(f'no board left after the flasher filter (--flasher {args.flasher or "-"}, '
                  f'--exclude-flasher {args.exclude_flasher or "-"})')
+    return selected
+
+
+def resolve_firmware(config, config_path, args):
+    """Return the existing <build_dir>/cmake-build-<variant> dirs to stage, refusing before
+    anything remote is touched: a board with no build at all would only show up as
+    `Skip (no binary)` rows."""
+    boards, build_dir = args.board, args.build_dir
+    selected = select_boards(config, args)
     root = ROOT / build_dir
-    dirs, missing = [], []
+    dirs, missing, unbuilt = [], [], []
     for name in selected:
         found = [root / f'cmake-build-{v}' for v in helper('hil_report').variants_of(config, name)]
         present = [d for d in found if d.is_dir()]
         if boards and not present:
             missing.append(f'  {name}: none of {", ".join(str(d.relative_to(ROOT)) for d in found)}')
-        for d in found:
+            unbuilt.append(name)
+        for i, d in enumerate(found):
             if d not in present and boards:
-                # hil_test.py logs `Skip (no binary)` and exits 0 for these cells
-                print(f'warning: {name}: no {d.relative_to(ROOT)} -- its cells will be skipped, not tested',
+                # hil_test.py logs `Skip (no binary)` and exits 0 for these cells, except that a
+                # one-test run that flashes fails a later variant's same-PID boundary (SKILL.md Prerequisites)
+                boundary = '' if args.skip_flash or i == 0 else ' or fail the same-PID boundary on a one-test run'
+                print(f'warning: {name}: no {d.relative_to(ROOT)} -- its cells will be skipped{boundary}',
                       file=sys.stderr)
         dirs += present
     if missing:
-        # the dirs, not a build command: a variant's dir name and flags come from the roster
-        fail(f'no build under {build_dir}/ for:\n' + '\n'.join(missing))
+        fail(f'no build under {build_dir}/ for:\n' + '\n'.join(missing) +
+             f'\nbuild with\n  {build_command(config_path, unbuilt, build_dir)}')
     if not dirs:
-        fail(f'no {build_dir}/cmake-build-* build for any selected board in the config -- nothing to test')
+        fail(f'no {build_dir}/cmake-build-* build for any selected board in the config -- nothing to test; '
+             f'build with\n  {build_command(config_path, selected, build_dir)}')
     return dirs
 
 
@@ -278,15 +301,15 @@ def main(argv):
         fail(f'{ROOT} does not look like a tinyusb checkout')
     check_remote_dir(remote_dir)
     args = helper('hil_args').build_parser().parse_args([*argv, str(config_path)])
-    if args.build:
-        fail('--build would build on the rig, which gets binaries only; build locally with\n'
-             '  python3 .claude/skills/build/scripts/check_build.py --board <board> --shared')
     check_build_dir(args.build_dir)
     try:
         config = json.loads(config_path.read_text())
     except (OSError, ValueError) as e:
         fail(f'could not read the config {config_path}: {e}')
-    firmware = resolve_firmware(config, args)
+    if args.build:
+        fail(f'--build would build on the rig, which gets binaries only; build locally with\n'
+             f'  {build_command(config_path, select_boards(config, args), args.build_dir)}')
+    firmware = resolve_firmware(config, config_path, args)
 
     print(f'==> Setting up remote {remote}:{remote_dir}')
     with remote_lease(remote, remote_dir, args.build_dir) as (remote_dir, token):

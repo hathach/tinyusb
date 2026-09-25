@@ -21,7 +21,7 @@
 
 ## Build and Validate
 
-- Build contract: `.claude/skills/build/SKILL.md`. Its script resolves a change to boards and builds them; `--shared` writes `cmake-build/cmake-build-<board>`, the dir HIL flashes from, so preserve it. Flash with `ninja -C cmake-build/cmake-build-<board> <example>-jlink` or `-openocd`; for routine rig tests use the HIL harness, whose roster pins the probe.
+- Build contract: `.claude/skills/build/SKILL.md`. Its script resolves a change to boards and builds them; `--shared` writes `cmake-build/cmake-build-<board>`, or with `--variants <hil config>` one `cmake-build/cmake-build-<variant>` per roster variant, the dirs HIL flashes from, so preserve them. Flash with `ninja -C cmake-build/cmake-build-<board|variant> <example>-jlink` or `-openocd`, naming the variant for a `--variants` build; for routine rig tests use the HIL harness, whose roster pins the probe.
 - HIL contract: `.claude/skills/hil/SKILL.md`. It owns taking and releasing a rig board and names the HIL config json for the host you are on.
 - Validation: CI supplies the PR software checks (selected builds, pre-commit with the unit tests, code-size reporting, static analysis where enabled); after authorization `pr-babysit` watches them and coordinates repairs. Hardware is separate: `hil-operator` under the HIL contract, on the boards the task names, only when the task needs hardware evidence; the PR's HIL matrix is CI's.
 - ESP-IDF: `. "$IDF_PATH/export.sh"` before anything Espressif; verification still goes through the build contract, with `idf.py -DBOARD=<board> flash monitor` in the example reserved for interactive flash and monitor.

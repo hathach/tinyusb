@@ -471,6 +471,106 @@ class VerdictTest(unittest.TestCase):
         self.assertNotIn('--build-name', run.call_args[0][0])
         self.assertEqual(r['buildDir'], 'cmake-build/cmake-build-stm32f407disco')
 
+    def test_a_named_build_in_the_shared_tree_is_its_own_dir(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as root, mock.patch.object(build, 'ROOT', Path(root)), \
+             mock.patch.object(build, 'family_of', return_value='stm32f7'), \
+             mock.patch.object(build, 'run', return_value=(0, row('stm32f723disco', 'all', OK))) as run, \
+             mock.patch.object(build, 'missing_deps', return_value=[]), \
+             mock.patch.object(build.tools_build, 'cmake_registered_targets', return_value=None):
+            r = build.build_one('stm32f723disco', [], [], [], [], True, False, False, 'stm32f723disco-DMA')
+        cmd = run.call_args[0][0]
+        self.assertEqual(cmd[cmd.index('--build-name') + 1], 'stm32f723disco-DMA')
+        self.assertEqual(r['buildDir'], 'cmake-build/cmake-build-stm32f723disco-DMA')
+
+
+class VariantsTest(unittest.TestCase):
+    ROSTER = {'boards': [
+        {'name': 'plain'},
+        {'name': 'pico', 'variant': [{'name': 'pico', 'flags': '-DA=1 -DB=2'}]},
+        {'name': 'ch', 'variant': [{'name': 'ch-fs', 'defines': ['RHPORT_DEVICE=0']},
+                                   {'name': 'ch-hs', 'defines': ['RHPORT_DEVICE=1'], 'flags': ''}]},
+    ]}
+
+    def setUp(self):
+        import tempfile
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        self.config = Path(d.name) / 'rig.json'
+        self.config.write_text(json.dumps(self.ROSTER))
+
+    def main(self, *args):
+        ok = {'board': 'b', 'family': 'f', 'buildDir': 'd', 'status': 'ok', 'firstError': ''}
+        with mock.patch.object(build, 'build_one', return_value=ok) as b1, mock.patch('sys.stdout'):
+            rc = build.main(list(args))
+        return rc, [(c.args[0], c.args[3], c.args[4], c.args[8]) for c in b1.call_args_list]
+
+    def test_each_variant_builds_with_its_name_defines_and_flags(self):
+        rc, calls = self.main('--board', 'plain', '--board', 'pico', '--board', 'ch', '--shared',
+                              '--variants', str(self.config), '-D', 'LOG=2', '--cflag=-DU=1')
+        self.assertEqual(rc, 0)
+        self.assertEqual(calls, [
+            ('plain', ['LOG=2'], ['-DU=1'], 'plain'),
+            ('pico', ['LOG=2'], ['-DU=1', '-DA=1', '-DB=2'], 'pico'),
+            ('ch', ['LOG=2', 'RHPORT_DEVICE=0'], ['-DU=1'], 'ch-fs'),
+            ('ch', ['LOG=2', 'RHPORT_DEVICE=1'], ['-DU=1'], 'ch-hs'),
+        ])
+
+    def test_a_malformed_variant_is_a_resolution_error(self):
+        for variant in [[{'name': 'v', 'flags': None}], [{'flags': '-DA=1'}], [{'name': 'v', 'defines': 'X=1'}],
+                        [{'name': ''}], ['x'], [None], {'name': 'v'}, 'v', 5]:
+            self.config.write_text(json.dumps({'boards': [{'name': 'b', 'variant': variant}]}))
+            with mock.patch.object(build, 'build_one') as b1, mock.patch('sys.stdout') as out, \
+                 mock.patch.object(sys, 'stderr'), self.assertRaises(SystemExit) as cm:
+                build.main(['--board', 'b', '--shared', '--variants', str(self.config)])
+            self.assertEqual(cm.exception.code, 2, variant)
+            last = json.loads(''.join(c.args[0] for c in out.write.call_args_list).splitlines()[-1])
+            self.assertIn('board b variant', last['error'])
+            b1.assert_not_called()
+
+    def test_variants_match_the_ci_matrix_builds_of_every_rig_roster(self):
+        import shlex
+        import subprocess
+        for config in sorted((build.ROOT / 'test' / 'hil').glob('*.json')):
+            out = subprocess.run([sys.executable, str(build.ROOT / '.github/scripts/hil_ci_set_matrix.py'), str(config)],
+                                 capture_output=True, text=True, check=True).stdout
+            ci = set()
+            for arg in (a for bucket in json.loads(out).values() for a in bucket):
+                argv = shlex.split(arg)
+                board = argv[argv.index('-b') + 1]
+                name = argv[argv.index('--build-name') + 1] if '--build-name' in argv else board
+                ci.add((board, name, tuple(a[2:] for a in argv if a.startswith('-D')),
+                        tuple(a.partition('=')[2] for a in argv if a.startswith('--cflag='))))
+            boards = [b['name'] for b in json.loads(config.read_text())['boards']]
+            ours = {(b, n, tuple(d), tuple(f)) for b, n, d, f in build.roster_variants(boards, config)}
+            self.assertEqual(ours, ci, config.name)
+
+    def test_refused_without_board_and_shared_or_for_a_board_off_the_roster(self):
+        for args, text in [(['--board', 'pico', '--variants', 'x'], '--variants needs --board and --shared'),
+                           (['--scope', 'src', '--shared', '--variants', 'x'], '--variants needs --board and --shared'),
+                           (['--board', 'nope', '--shared', '--variants', str(self.config)], 'not in '),
+                           (['--board', 'pico', '--shared', '--variants', '/nonexistent.json'], 'could not read'),
+                           (['--board', 'pico', '--shared', '--variants', ''], 'could not read')]:
+            with mock.patch.object(build, 'build_one') as b1, mock.patch('sys.stdout'), \
+                 mock.patch.object(sys, 'stderr') as err, self.assertRaises(SystemExit) as cm:
+                build.main(args)
+            self.assertEqual(cm.exception.code, 2)
+            self.assertIn(text, err.write.call_args[0][0])
+            b1.assert_not_called()
+
+    def test_a_variant_dir_cached_with_flags_the_variant_lacks_is_refused(self):
+        root = self.config.parent
+        d = root / 'cmake-build' / 'cmake-build-stm32f723disco-DMA'
+        d.mkdir(parents=True)
+        (d / 'CMakeCache.txt').write_text('CFLAGS_CLI:UNINITIALIZED=-DCFG_TUD_DWC2_DMA_ENABLE=1\n')
+        with mock.patch.object(build, 'ROOT', root), mock.patch.object(build, 'family_of', return_value='stm32f7'), \
+             mock.patch.object(build, 'run') as run, \
+             mock.patch.object(build, 'missing_deps', return_value=[]), \
+             mock.patch.object(sys, 'stderr') as err, mock.patch('sys.stdout'), self.assertRaises(SystemExit):
+            build.build_one('stm32f723disco', [], [], [], [], True, False, False, 'stm32f723disco-DMA')
+        self.assertIn('CFLAGS_CLI=-DCFG_TUD_DWC2_DMA_ENABLE=1', err.write.call_args[0][0])
+        run.assert_not_called()
+
 
 class DepsTest(unittest.TestCase):
     def test_missing_deps_fail_with_the_remedy_unless_fetching(self):
