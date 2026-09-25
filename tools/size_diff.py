@@ -1,30 +1,54 @@
 #!/usr/bin/env python3
-"""Per-file flash/RAM sizes of an elf from a selectable engine, and paired
-base/current reports over them.
+"""Build the base branch (master) and the current tree, then diff their code size.
 
-Each ENGINES entry maps (elf, filters) to {'files': {key: {'flash', 'ram'}},
-'all': {'flash', 'ram'}}; the key is the source path after the matching filter,
-the same for every engine.
+Creates cmake-size-diff/<board>/{base,build} directories for each board.
+Base and current elfs are paired by (board, elf path) and each pair's per-file
+flash/RAM deltas are reported in cmake-size-diff/<board>/size_diff[_<ex>].md;
+with --combined, cmake-size-diff/_combined/size_diff.md covers every board's pairs.
+
+The sizes come from --engine; each ENGINES entry maps (elf, filters) to
+{'files': {key: {'flash', 'ram'}}, 'all': {'flash', 'ram'}}, keyed by the
+source path after the matching filter, the same for every engine.
 - membrowse: `membrowse report` symbols. Membrowse 1.2.9 truncates `source_file`,
   so paths come from `object_file`.
 - linkermap: input sections of the elf's GNU ld map, by object path.
 - bloaty: `bloaty -d compileunits,sections` VM sizes, by DWARF compile unit.
 Every engine takes flash/RAM from the elf's section and program headers
 (section_buckets()).
+
+Usage:
+  python tools/size_diff.py -b raspberry_pi_pico
+  python tools/size_diff.py -b raspberry_pi_pico -b raspberry_pi_pico2
+  python tools/size_diff.py -b raspberry_pi_pico -f portable/raspberrypi
+  python tools/size_diff.py -b raspberry_pi_pico -e device/cdc_msc
+  python tools/size_diff.py -b raspberry_pi_pico -e device/cdc_msc --bloaty
+  python tools/size_diff.py -b raspberry_pi_pico --engine linkermap --json
+  python tools/size_diff.py --ci                                  # CI-pinned boards, combined
+  python tools/size_diff.py -b raspberry_pi_pico -b raspberry_pi_pico2 --combined  # combine listed boards
 """
+import argparse
 import collections
+import concurrent.futures
 import csv
 import functools
+import glob
 import importlib.util
 import io
 import json
 import os
 import re
+import runpy
+import shlex
+import shutil
 import struct
 import subprocess
+import sys
 
 from membrowse_cli import extract_ld_scripts, extract_defsyms, link_command
 
+TINYUSB_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SIZE_DIFF_DIR = os.path.join(TINYUSB_ROOT, 'cmake-size-diff')
+CI_PINNED_BOARDS = os.path.join(TINYUSB_ROOT, '.github', 'ci-pinned-boards.json')
 _RAM_REGION_HINTS = ('ram', 'tcm', 'ddr')
 _FLASH_REGION_HINTS = ('flash', 'rom')
 
@@ -232,7 +256,7 @@ def membrowse_sizes(elf, filters):
 
 @functools.cache
 def _linkermap():
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'linkermap', 'linkermap.py')
+    path = os.path.join(TINYUSB_ROOT, 'tools', 'linkermap', 'linkermap.py')
     if not os.path.isfile(path):
         raise FileNotFoundError(f'{path} not found - run `python3 tools/get_deps.py`')
     spec = importlib.util.spec_from_file_location('linkermap', path)
@@ -487,3 +511,341 @@ def compare_sides(base, cur, engine, failures=(), boards=(), scope=None):
                      for i, side, stage, message in failures],
     }
     return md, failures, bool(pairs) and not failures, data
+
+
+def tinyusb_src_filter(checkout_dir):
+    """Return a path-substring filter that uniquely matches TinyUSB stack source files
+    in `checkout_dir`. The substring is the absolute path to the checkout's `src/`
+    dir — collision-free with vendored deps (pico-sdk, lwip, FreeRTOS, etc.) which
+    live at unrelated paths."""
+    return os.path.realpath(os.path.join(checkout_dir, 'src')) + os.sep
+
+
+verbose = False
+
+
+def run(cmd, **kwargs):
+    """Run a command. cmd must be a list (no shell=True). On `timeout=`-induced
+    TimeoutExpired, return a CompletedProcess with rc=124 instead of letting the
+    exception propagate, so the caller can fall through to error reporting and
+    worktree cleanup rather than crashing with a traceback."""
+    if not isinstance(cmd, list):
+        raise TypeError('run() requires a list, got str — fix the caller')
+    if verbose:
+        print(f'  $ {" ".join(shlex.quote(str(c)) for c in cmd)}')
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, **kwargs)
+    except subprocess.TimeoutExpired as e:
+        msg = f'Command timed out after {e.timeout}s: {" ".join(shlex.quote(str(c)) for c in cmd)}'
+        stderr = (e.stderr or '') + ('\n' if e.stderr else '') + msg
+        return subprocess.CompletedProcess(cmd, 124, stdout=(e.stdout or ''), stderr=stderr)
+
+
+def symlink_deps(main_root, worktree_dir):
+    """Symlink each dependency the worktree's own tools/get_deps.py lists, when fetched in
+    the main checkout: the worktree lacks these untracked dirs, and a base revision can
+    name paths the current manifest has renamed or dropped."""
+    manifest = runpy.run_path(os.path.join(worktree_dir, 'tools', 'get_deps.py'))
+    for rel in manifest['deps_all']:
+        src = os.path.join(main_root, rel)
+        dst = os.path.join(worktree_dir, rel)
+        if os.path.isdir(src) and not os.path.lexists(dst):
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            os.symlink(src, dst)
+
+
+def ci_pinned_boards():
+    """Boards of .github/ci-pinned-boards.json: CI's membrowse set, which covers every
+    dcd/hcd driver not waived in its `uncovered` list (drivers-coverage hook)."""
+    with open(CI_PINNED_BOARDS) as f:
+        return [entry['board'] for entry in json.load(f)['boards']]
+
+
+def build_board(src_dir, build_dir, board, example=None):
+    """Configure and build examples for a board. Returns True on success.
+
+    When `example` is given, only that target is built (`cmake --build --target NAME`),
+    keeping single-example workflows fast.
+    """
+    os.makedirs(build_dir, exist_ok=True)
+    ret = run(['cmake', '-B', build_dir, '-G', 'Ninja',
+               f'-DBOARD={board}', '-DCMAKE_BUILD_TYPE=MinSizeRel',
+               os.path.join(src_dir, 'examples')])
+    if ret.returncode != 0:
+        print(f'  Error configuring {board}: {ret.stderr}')
+        return False
+    cmd = ['cmake', '--build', build_dir]
+    if example:
+        cmd += ['--target', os.path.basename(example)]
+    ret = run(cmd, timeout=600)
+    if ret.returncode != 0:
+        print(f'  Error building {board}: {ret.stderr}')
+        return False
+    return True
+
+
+def report_path(board, example):
+    """A scope's report path without extension: cmake-size-diff/<board>/size_diff[_<ex>]."""
+    suffix = f'_{example.replace("/", "_")}' if example else ''
+    return os.path.join(SIZE_DIFF_DIR, board, f'size_diff{suffix}')
+
+
+def generate_sizes(build_dir, filters, example=None, engine='membrowse'):
+    """Return (sizes, errors) for the scope's elfs.
+
+    `sizes` maps each elf path relative to `build_dir` to its
+    ENGINES[engine] sizes, or to None when that failed; `errors`
+    lists (relative elf path, message), the path None when no elf can be
+    sized at all.
+    """
+    # escape the dir, not the wildcards: a checkout path is a path, not a pattern
+    root = glob.escape(build_dir)
+    pattern = f'{root}/{example}/*.elf' if example \
+        else f'{root}/**/*.elf'
+    elfs = sorted(glob.glob(pattern, recursive=True))
+    if not elfs:
+        print(f'  Error: no .elf files in {build_dir}')
+        return {}, [(None, f'no .elf files in {build_dir}')]
+
+    sizer = ENGINES[engine].sizes
+
+    def report(elf):
+        try:
+            return sizer(elf, filters), None
+        except RuntimeError as e:
+            return None, str(e)
+
+    # report errors are caught here, not as tracebacks after both builds already ran
+    try:
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            results = list(pool.map(report, elfs))
+    except FileNotFoundError as e:
+        print(f'  Error: {engine} not found ({e}) - install {ENGINES[engine].install}, '
+              f'or pick another --engine')
+        return {}, [(None, f'{engine} not found')]
+    sizes, errors = {}, []
+    for elf, (elf_sizes, error) in zip(elfs, results):
+        rel = os.path.relpath(elf, build_dir)
+        sizes[rel] = elf_sizes
+        if error:
+            print(f'  Error: {error}')
+            errors.append((rel, error))
+    return sizes, errors
+
+
+def write_report(path, md, data=None):
+    """Write a report to `path`.md, and `data` to `path`.json when given; stdout
+    gets the Markdown without the per-pair details."""
+    with open(f'{path}.md', 'w') as f:
+        f.write(md)
+    print(md.split('\n<details>')[0].rstrip())
+    print(f'  report: {path}.md')
+    if data is not None:
+        with open(f'{path}.json', 'w') as f:
+            json.dump(data, f, indent=1, sort_keys=True)
+            f.write('\n')
+        print(f'  json: {path}.json')
+
+
+def main():
+    global verbose
+
+    parser = argparse.ArgumentParser(description='Diff code size against the base branch')
+    parser.add_argument('-b', '--board', action='append', default=[],
+                        help='Board name (repeatable). Required unless --ci is given.')
+    parser.add_argument('-f', '--filter', action='append', default=None,
+                        help='Path-substring filter (repeatable). When given, '
+                             'overrides the default and is applied to BOTH base and '
+                             'current builds. Default: each side\'s own absolute '
+                             '<checkout>/src/ path, which uniquely matches TinyUSB '
+                             'stack code without colliding with vendored deps.')
+    parser.add_argument('--base-branch', default='master',
+                        help='Base branch to compare against (default: master)')
+    parser.add_argument('-e', '--example', action='append', default=None,
+                        help='Compare specific example (repeatable, e.g. -e device/cdc_msc -e host/cdc_msc_hid)')
+    parser.add_argument('--bloaty', action='store_true',
+                        help='Also print bloaty\'s section and symbol diff of each -e example '
+                             '(console only, whatever --engine)')
+    parser.add_argument('--engine', choices=sorted(ENGINES),
+                        default='membrowse',
+                        help='Where per-file sizes come from: membrowse (default, symbols with '
+                             'ELF-header flash/RAM), linkermap (the GNU ld map\'s input '
+                             'sections) or bloaty (DWARF compile units)')
+    parser.add_argument('--json', action='store_true',
+                        help='Also write each report\'s paired sizes as size_diff*.json '
+                             'next to its .md')
+    parser.add_argument('--ci', action='store_true',
+                        help='Add the CI-pinned boards (.github/ci-pinned-boards.json, covering '
+                             'every dcd/hcd driver not waived there). Implies --combined.')
+    parser.add_argument('--combined', action='store_true',
+                        help='Also write one comparison over every board '
+                             '(cmake-size-diff/_combined/size_diff.md), in addition to per-board.')
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        help='Print build commands')
+    args = parser.parse_args()
+    verbose = args.verbose
+
+    if args.bloaty and not args.example:
+        parser.error('--bloaty requires -e/--example')
+
+    if args.ci:
+        args.combined = True
+        ci_boards = ci_pinned_boards()
+        # Append, dedup, preserve order
+        seen = set(args.board)
+        for b in ci_boards:
+            if b not in seen:
+                args.board.append(b)
+                seen.add(b)
+
+    if not args.board:
+        parser.error('at least one -b BOARD is required (or pass --ci)')
+
+    worktree_dir = os.path.join(SIZE_DIFF_DIR, '_worktree')
+
+    # Per-side filters: when no override is given, each build uses its own
+    # absolute <checkout>/src/ path so we only match TinyUSB stack code from that
+    # checkout (and never vendored-dep `src/` like pico-sdk/src/...).
+    if args.filter:
+        base_filters = cur_filters = list(args.filter)
+    else:
+        base_filters = [tinyusb_src_filter(worktree_dir)]
+        cur_filters = [tinyusb_src_filter(TINYUSB_ROOT)]
+
+    # Drop every report this run will write before anything can fail - a run that
+    # stops early (worktree setup, a build) must not leave a previous run's report
+    # for a reader to take for this one's: cmake-size-diff/ is gitignored and persists.
+    # .json too: a run without --json must not leave an older one beside a newer .md.
+    examples = args.example or [None]
+    combined_dir = os.path.join(SIZE_DIFF_DIR, '_combined')
+    if args.combined:
+        shutil.rmtree(combined_dir, ignore_errors=True)
+    for board in args.board:
+        for example in examples:
+            for ext in ('md', 'json'):
+                stale_path = f'{report_path(board, example)}.{ext}'
+                if os.path.isfile(stale_path):
+                    os.remove(stale_path)
+
+    # Step 1: Create worktree for base branch
+    print(f'[1/5] Setting up {args.base_branch} worktree...')
+    if os.path.isdir(worktree_dir):
+        run(['git', '-C', TINYUSB_ROOT, 'worktree', 'remove', '--force', worktree_dir])
+    # --detach: check out the ref at a detached HEAD instead of trying to claim the
+    # branch. Lets us add a worktree of `master` even if master is already checked
+    # out elsewhere (main repo, another worktree).
+    ret = run(['git', '-C', TINYUSB_ROOT, 'worktree', 'add', '--detach',
+               worktree_dir, args.base_branch])
+    if ret.returncode != 0:
+        print(f'Error creating worktree: {ret.stderr}')
+        sys.exit(1)
+
+    symlink_deps(TINYUSB_ROOT, worktree_dir)
+
+    # the commit actually built, which the ref may no longer name later
+    base_sha = run(['git', '-C', worktree_dir, 'rev-parse', 'HEAD']).stdout.strip()
+
+    def report_data(data):
+        """The JSON report for --json, None without it."""
+        if not args.json:
+            return None
+        return {**data, 'base_ref': args.base_branch, 'base_sha': base_sha,
+                'filters': {'base': base_filters, 'current': cur_filters}}
+
+    failed = False
+    try:
+        # --combined: every board's elf sizes and failures, paired at the end
+        combined_sides = {'base': {}, 'current': {}}
+        combined_failures = []
+
+        for board in args.board:
+            print(f'\n=== {board} ===')
+            board_dir = os.path.join(SIZE_DIFF_DIR, board)
+            base_build = os.path.join(board_dir, 'base')
+            cur_build = os.path.join(board_dir, 'build')
+            shutil.rmtree(base_build, ignore_errors=True)
+            shutil.rmtree(cur_build, ignore_errors=True)
+
+            # Build only the requested examples (or all if -e not given). Single-example
+            # mode used to build everything and filter at metric time — that was wasted work.
+            board_failed = None  # the side whose build failed
+            for example in examples:
+                build_label = f' --target {os.path.basename(example)}' if example else ''
+                print(f'[2/5] Building {args.base_branch} for {board}{build_label}...')
+                if not build_board(worktree_dir, base_build, board, example):
+                    board_failed = 'base'
+                    break
+                print(f'[3/5] Building current for {board}{build_label}...')
+                if not build_board(TINYUSB_ROOT, cur_build, board, example):
+                    board_failed = 'current'
+                    break
+            if board_failed:
+                failed = True
+                # still write each scope's report, with the build failure in it
+                build_failure = ((board, None), board_failed, 'build', f'build failed{build_label}, see log')
+                combined_failures.append(build_failure)
+
+            for example in examples:
+                label = f' ({example})' if example else ''
+
+                # Step 4/5: Generate sizes and compare
+                sides = {'base': {}, 'current': {}}
+                failures = [build_failure] if board_failed else []
+                if not board_failed:
+                    print(f'[4/5] Sizing {board}{label} with {args.engine}...')
+                    for side, build, filters in (('base', base_build, base_filters),
+                                                 ('current', cur_build, cur_filters)):
+                        sizes, errors = generate_sizes(build, filters, example, args.engine)
+                        sides[side] = {(board, rel): v for rel, v in sizes.items()}
+                        failures += [((board, rel), side, 'report', msg) for rel, msg in errors]
+
+                print(f'[5/5] Comparing {board}{label}...')
+                md, failures, ok, data = compare_sides(
+                    sides['base'], sides['current'], args.engine, failures, [board], scope=(board, None))
+                failed |= not ok
+                if not board_failed:  # a build failure is recorded once, above
+                    for side, sizes in sides.items():
+                        combined_sides[side].update(sizes)
+                    combined_failures += failures
+                write_report(report_path(board, example), md, report_data(data))
+
+                # Optional: bloaty diff
+                if args.bloaty and example and not board_failed:
+                    elf_name = os.path.basename(example)
+                    base_elf = os.path.join(base_build, example, f'{elf_name}.elf')
+                    cur_elf = os.path.join(cur_build, example, f'{elf_name}.elf')
+                    if os.path.exists(base_elf) and os.path.exists(cur_elf):
+                        # Bloaty expects one regex; OR-join all filters (current side
+                        # for the new ELF, base side for the base ELF).
+                        bloaty_regex = '(' + '|'.join(
+                            re.escape(f) for f in (cur_filters + base_filters)
+                        ) + ')'
+                        bloaty_common = ['bloaty', '--domain=vm', f'--source-filter={bloaty_regex}']
+                        print(f'--- bloaty sections ---')
+                        ret = run(bloaty_common + ['-d', 'compileunits,sections', cur_elf, '--', base_elf])
+                        print(ret.stdout)
+                        print(f'--- bloaty symbols ---')
+                        ret = run(bloaty_common + ['-d', 'compileunits,symbols', '-s', 'vm',
+                                                    cur_elf, '--', base_elf])
+                        print(ret.stdout)
+                    else:
+                        print(f'  bloaty: ELF not found')
+
+        # Optional combined comparison across all boards.
+        if args.combined:
+            os.makedirs(combined_dir, exist_ok=True)
+            print(f'\n=== combined ({len(args.board)} boards) ===')
+            # every scope was filter-checked above, and its failures carried over
+            md, _failures, ok, data = compare_sides(
+                combined_sides['base'], combined_sides['current'], args.engine,
+                combined_failures, args.board)
+            failed |= not ok
+            write_report(os.path.join(combined_dir, 'size_diff'), md, report_data(data))
+    finally:
+        print(f'\nCleaning up worktree...')
+        run(['git', '-C', TINYUSB_ROOT, 'worktree', 'remove', '--force', worktree_dir])
+    return 1 if failed else 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

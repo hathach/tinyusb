@@ -25,7 +25,7 @@ _prune_buildable then intersects each family with what it can actually build.
 | 1 | `docs/`, `.claude/`, `*.md`, `*.rst`, `LICENSE` | — | — | — |
 | 1b | `.gitignore`, `.clang-format`, `.agents`, `.codex/**`, `.idea/**`, `test/{fuzz,unit-test}/**`, `test/hil/test/**`, non-build `.github/**`, packaging manifests | — | — | — |
 | 2 | `test/hil/**` (not `test/hil/test/**`) | — | — | all boards → all tests |
-| 2b | `tools/metrics*.py`, `tools/drivers_coverage_check.py` | — (local-only tooling, no CI build runs it) | — | — (nothing on the rig runs it) |
+| 2b | `tools/size_diff.py`, `tools/drivers_coverage_check.py` | — (local-only tooling, no CI build runs it) | — | — (nothing on the rig runs it) |
 | 2c | `.github/ci-pinned-boards.json` | `ALL` | `ALL` | — (CI board data; no rig board's behaviour depends on it) |
 | 2d | `tools/membrowse_cli.py` | `ALL` | `ALL` | — (build-time script invoked from family_support.cmake; no rig board runs it) |
 | 3 | `src/portable/<port>/dcd_*`, `*_device.[ch]` | `FAM` | `DEV`+`DUAL` | `FAM`'s device-role boards → device+dual tests |
@@ -123,14 +123,14 @@ _META_RE = re.compile(
     r'ISSUE_TEMPLATE/|'
     r'workflows/(cifuzz|claude|claude-code-review|labeler|membrowse-comment|'
     r'pr_comment|pre-commit|static_analysis|trigger)\.yml$)|'
-    # tools/ scripts no build invokes (tools/build*.py and metrics are handled above)
+    # tools/ scripts no build invokes (tools/build*.py and local tooling are handled separately)
     r'tools/(check_example_pids|file2carray|iar_gen|mksunxi|pcapng_to_corpus)\.py$|'
     r'tools/iar_template\.ipcf$'
     r')')
 # Local-only size/coverage tooling: no CI build and no rig board runs it (the
 # drivers-coverage checker is pre-commit only), so no contribution on either axis.
-_METRICS_RE = re.compile(
-    r'^tools/(metrics[^/]*|drivers_coverage_check)\.py$')
+_LOCAL_TOOLING_RE = re.compile(
+    r'^tools/(size_diff|drivers_coverage_check)\.py$')
 # CI board data (tools/build.py --ci-pinned-boards): it decides which boards a family's
 # build legs compile, so a bad edit can silently drop a family - full build matrix. No
 # rig board depends on it.
@@ -658,8 +658,8 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
     if _NONCODE_RE.match(path) or _META_RE.match(path):
         s.reasons.append(f'{path}: non-code, no contribution')
         return
-    if _METRICS_RE.match(path):                                   # rule 2b
-        s.reasons.append(f'{path}: build-size metrics tooling, no HIL contribution')
+    if _LOCAL_TOOLING_RE.match(path):                                   # rule 2b
+        s.reasons.append(f'{path}: local size/coverage tooling, no HIL contribution')
         return
     if _CI_BOARDS_RE.match(path):                                 # rule 2c
         s.reasons.append(f'{path}: CI board data, no HIL contribution')
@@ -1180,8 +1180,8 @@ def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
             return
         s.add(all_bsp_families(repo_root), exs, f'{path}: lib {lib} -> {sorted(exs)}')
         return
-    if _METRICS_RE.match(path):                                   # rule 2b
-        s.reasons.append(f'{path}: build-size metrics tooling, no build contribution')
+    if _LOCAL_TOOLING_RE.match(path):                                   # rule 2b
+        s.reasons.append(f'{path}: local size/coverage tooling, no build contribution')
         return
     if _CI_BOARDS_RE.match(path):                                 # rule 2c
         s.force_full(f'{path}: CI board data changes which boards build -> full build matrix')

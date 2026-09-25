@@ -248,6 +248,13 @@ class Compose(unittest.TestCase):
         self.assertIn('stm32f407disco/cdc_msc', cmd)
         self.assertNotIn('stm32f407disco/device/cdc_msc', cmd)
 
+    def test_ci_uploads_use_the_same_target_name(self):
+        # membrowse history is keyed on it: a rename orphans every series
+        with open(os.path.join(REPO, 'hw', 'bsp', 'family_support.cmake')) as f:
+            args = [line.split('#', 1)[0].strip() for line in f]
+        self.assertEqual([a for a in args if a.startswith('--target-name')],
+                         ['--target-name ${BOARD}/${TARGET}'])
+
     def test_paths_and_build_script_are_repo_root_relative(self):
         cmd = cli.compose('stm32f407disco', 'device/cdc_msc', 30, False, 'k', [])
         self.assertIn('cmake -S examples -B examples/cmake-build-stm32f407disco '

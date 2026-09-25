@@ -1120,8 +1120,7 @@ class TestTypecRule(unittest.TestCase):
 class TestCachesAreKeyedOnTheTree(unittest.TestCase):
     """build_utils caches on repo-RELATIVE paths while ci_select._in_repo() chdirs
     between trees, so the cwd has to be part of every cache key. Without it a second
-    tree gets the first tree's skip.txt/only.txt and FAMILY_MCUS - which is exactly the
-    base-vs-branch comparison the code-size skill does in one process."""
+    tree gets the first tree's skip.txt/only.txt and FAMILY_MCUS."""
 
     def test_a_second_tree_is_not_answered_from_the_first(self):
         import build_utils, tempfile
@@ -1229,8 +1228,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_hil_usbtest_id.py',
             'test/hil/test/test_hil_util.py',
             'test/hil/test/test_membrowse_cli.py',
-            'test/hil/test/test_metrics_compare.py',
-            'test/hil/test/test_metrics_compare_base.py',
+            'test/hil/test/test_size_diff.py',
             'test/hil/test/usbtest_harness.py',
         ], 'test/hil/test/ gained or lost a file; it is carved out of rule 2, so confirm '
            'the rig still does not read anything in there before updating this list')
@@ -1955,14 +1953,13 @@ class TestBuildPostFilter(unittest.TestCase):
 
 class TestNoContributionPaths(unittest.TestCase):
     """Paths that are inside build.yml's code filter but cannot change a compiled byte.
-    Unclassified means FULL on both axes, so a metrics-only PR would otherwise cost the
+    Unclassified means FULL on both axes, so a size/coverage-tooling-only PR would otherwise cost the
     whole build matrix plus an exclusive full-rig sweep - where master ran nothing."""
 
-    def test_metrics_scripts_contribute_nothing_on_either_axis(self):
+    def test_local_tooling_contributes_nothing_on_either_axis(self):
         # no CI build and no rig board runs any of these (drivers_coverage_check.py is
         # pre-commit only)
-        for p in ('tools/metrics_compare_base.py', 'tools/metrics_compare.py',
-                  'tools/drivers_coverage_check.py'):
+        for p in ('tools/size_diff.py', 'tools/drivers_coverage_check.py'):
             h = sel([p])
             self.assertFalse(h['full'], p)
             self.assertEqual(h['boards'], {}, p)

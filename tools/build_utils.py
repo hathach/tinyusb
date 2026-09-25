@@ -38,8 +38,8 @@ def _cwd_cache(fn):
 
     Every cached helper below takes repo-RELATIVE paths ('hw/bsp/<fam>',
     'examples/<ex>/skip.txt', or the literal 'hw/bsp' glob), while ci_select._in_repo()
-    chdirs around each call so one process can classify more than one tree - the
-    code-size skill's base-vs-branch worktrees, a test pointing at a fixture.
+    chdirs around each call so one process can classify more than one tree (e.g. a
+    test fixture).
     Without the cwd in the key the second tree silently gets the first tree's
     skip.txt/only.txt and FAMILY_MCUS answers. Master had no caching here, so this
     hazard arrived with it."""

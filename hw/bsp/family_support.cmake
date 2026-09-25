@@ -314,6 +314,7 @@ function(family_add_membrowse TARGET)
       --build-dir ${CMAKE_BINARY_DIR}
       --ninja ${CMAKE_MAKE_PROGRAM}
       --elf ${TARGET_ELF_PATH}
+      # membrowse history is keyed on this name (pinned by test_membrowse_cli): never rename
       --target-name ${BOARD}/${TARGET}
       )
     if (DEFINED MEMBROWSE_OPTION)

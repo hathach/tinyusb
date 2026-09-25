@@ -202,6 +202,9 @@ def onboard(args, extra):
     `membrowse onboard` checks out and `git clean -fdx`s every historical commit in
     place. This wrapper confines that to a disposable worktree; each build then runs
     that commit's `tools/get_deps.py` so dependency revisions match the ELF.
+
+    `membrowse onboard` reports from the repo root, dropping an INCLUDE found only via -L:
+    rp2040/rp2350 backfills infer FLASH from the ELF (pico-sdk's pico_flash_region.ld).
     """
     api_key = os.environ.get('MEMBROWSE_API_KEY')
     if args.upload and not api_key:

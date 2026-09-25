@@ -14,6 +14,12 @@ skip.txt/only.txt/example CMakeLists.txt edit shows up at its next refresh.
 `uncovered` waives drivers with a reason; a waiver may overlap a driver the
 pinned boards compile (e.g. an empty build without its CFG_ option).
 
+To add a CI board: add its entry, run `pre-commit run drivers-coverage --all-files`,
+then build it as CI does with `python3 tools/build.py --ci-pinned-boards
+.github/ci-pinned-boards.json --ci-pinned-boards-only -e device/cdc_msc <family>`.
+Its membrowse history starts at its first CI upload; `python3 tools/membrowse_cli.py
+onboard <board> <role>/<example> --upload` backfills earlier commits, one run per example.
+
 Fatal, one line per error to stderr, exit 1: malformed json, a non-object or
 board-less or duplicate entry, an unknown board, a pinned board with no
 family.json row or a null cmake row, a family no CI toolchain builds
