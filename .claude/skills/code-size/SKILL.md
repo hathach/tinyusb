@@ -45,7 +45,7 @@ The base worktree symlinks this checkout's fetched dependencies, so a `tools/get
 
 ## Outputs and timing
 
-Reports go to `cmake-code-size/<board>/{report,diff}[_<example>].md` and, when combined, `cmake-code-size/_combined/diff.md`. The exit code is nonzero on a failure, when no pair was compared (diff) or when an elf matched no file (report). The console shows each phase's time, one result line per scope and, for one board and one `-e` example, its changed tables; a failed build prints its compiler error there.
+Reports go to `cmake-code-size/<board>/{report,diff}[_<example>].md` and, when combined, `cmake-code-size/_combined/diff.md`. The exit code is nonzero on a failure, when no pair was compared (diff) or when an elf matched no file (report). The console shows each phase's time, one result line per scope and, for one board and one `-e` example, its changed tables; a failed build prints an excerpt of its output there, and its report and JSON record its first compiler, linker or CMake error, otherwise a fallback message.
 
 A report builds one tree, about half a diff's time. One diff example ~30 s; one board ~60-90 s; `--ci` ~7-8 min, boards built one after another — run it in the background, it nears the 10-minute command timeout.
 

@@ -413,7 +413,18 @@ class VerdictTest(unittest.TestCase):
 
     def test_cmake_error_is_the_first_error_when_nothing_compiled(self):
         out = 'CMake Error at hw/bsp/nrf/family.cmake:59 (add_library):\n  No SOURCES\n' + row('b', 'all', FAILED)
-        self.assertEqual(self.build(1, out)['firstError'], 'CMake Error at hw/bsp/nrf/family.cmake:59 (add_library):')
+        self.assertEqual(self.build(1, out)['firstError'],
+                         'CMake Error at hw/bsp/nrf/family.cmake:59 (add_library): No SOURCES')
+
+    def test_a_linker_overflow_is_the_first_error_not_collect2(self):
+        out = ("FAILED: a.elf\nld: region `FLASH' overflowed by 12 bytes\n"
+               'collect2: error: ld returned 1 exit status\n' + row('b', 'all', FAILED))
+        self.assertEqual(self.build(1, out)['firstError'], "ld: region `FLASH' overflowed by 12 bytes")
+
+    def test_a_missing_library_is_the_first_error(self):
+        out = ('FAILED: a.elf\n/opt/arm/bin/ld: cannot find -lfoo: No such file or directory\n'
+               'collect2: error: ld returned 1 exit status\n' + row('b', 'all', FAILED))
+        self.assertEqual(self.build(1, out)['firstError'], '/opt/arm/bin/ld: cannot find -lfoo: No such file or directory')
 
     def test_all_skipped_is_not_a_pass(self):
         r = self.build(0, row('stm32f407disco', 'examples (PR filter)', SKIPPED))

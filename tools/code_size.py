@@ -47,6 +47,7 @@ import subprocess
 import sys
 import time
 
+import build_utils
 from membrowse_cli import extract_ld_scripts, extract_defsyms, link_command
 
 TINYUSB_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -338,6 +339,11 @@ ENGINES = {
 }
 
 
+def _md_escape(text):
+    """`text` safe in Markdown prose: gcc quotes as `name', which would open a code span."""
+    return text.replace('`', '\\`')
+
+
 def _fmt(delta):
     return f'+{delta}' if delta > 0 else str(delta)
 
@@ -452,7 +458,7 @@ def render_report(sizes, engine, failures=(), boards=(), symbols=False):
     if boards:
         lines.append('- boards: ' + ', '.join(f'`{b}`' for b in boards))
     for elf_id, stage, message in failures:
-        lines.append(f'- FAILED `{_label(elf_id)}` {stage}: {message}')
+        lines.append(f'- FAILED `{_label(elf_id)}` {stage}: {_md_escape(message)}')
     lines.append('')
     if not sized:
         return '\n'.join(lines + ['_no sized elfs_', ''])
@@ -586,7 +592,7 @@ def render_pairs(pairs, matched, engine, base_only=(), cur_only=(), failures=(),
         if ids:
             lines.append(f'- {label}: ' + ', '.join(f'`{_label(i)}`' for i in ids))
     for elf_id, side, stage, message in failures:
-        lines.append(f'- FAILED `{_label(elf_id)}` {side} {stage}: {message}')
+        lines.append(f'- FAILED `{_label(elf_id)}` {side} {stage}: {_md_escape(message)}')
     lines.append('')
 
     if len(pairs) == 1:
@@ -735,22 +741,31 @@ class Phase:
 _NINJA_PROGRESS = re.compile(r'\[\d+/\d+\] ')
 
 
-def output_tail(ret, lines=20):
-    """Up to `lines` of each nonempty stream of a failed command, indented: from ninja's
-    first `FAILED:` block when there is one, else the stream's tail. ninja reports a
-    compile error on stdout, leaving stderr empty, and the jobs already running when it
-    failed finish after it, so their `[n/m]` progress lines are dropped."""
+def output_excerpt(ret, lines=20):
+    """Up to `lines` of each nonempty stream of a failed command: from ninja's first
+    `FAILED:` block when there is one, else the stream's tail. ninja reports a compile
+    error on stdout, leaving stderr empty, and the jobs already running when it failed
+    finish after it, so their `[n/m]` progress lines are dropped."""
     def excerpt(stream):
-        kept = [line for line in stream.splitlines() if not _NINJA_PROGRESS.match(line)]
+        kept = [line for line in stream.rstrip().splitlines() if not _NINJA_PROGRESS.match(line)]
         first = next((i for i, line in enumerate(kept) if line.startswith('FAILED:')), None)
         return kept[-lines:] if first is None else kept[first:first + lines]
-    return '\n'.join('    ' + line for stream in (ret.stdout, ret.stderr) if stream.strip()
-                     for line in excerpt(stream))
+    return [line for stream in (ret.stdout, ret.stderr) if stream.strip() for line in excerpt(stream)]
+
+
+def build_error(ret, src_dir):
+    """A failed build's first error for the report, from its whole output: the first
+    diagnostic, else its last line that is not ninja's own, with paths relative to `src_dir`."""
+    out = '\n'.join(stream for stream in (ret.stdout, ret.stderr) if stream)
+    lines = [line.strip() for line in out.splitlines()
+             if line.strip() and not _NINJA_PROGRESS.match(line) and not line.startswith(('ninja: ', 'FAILED: '))]
+    error = build_utils.first_error(out) or (lines[-1] if lines else 'no output')
+    return error.replace(src_dir.rstrip(os.sep) + os.sep, '')
 
 
 def build_board(src_dir, build_dir, board, example, label):
     """Configure and build examples for a board as a `label` progress phase, printing
-    the output's tail on failure. Returns True on success.
+    an excerpt of the output on failure. Returns None on success, else build_error().
 
     When `example` is given, only that target is built (`cmake --build --target NAME`),
     keeping single-example workflows fast.
@@ -765,10 +780,12 @@ def build_board(src_dir, build_dir, board, example, label):
         if example:
             cmd += ['--target', os.path.basename(example)]
         ret = run(cmd, timeout=600)
-    phase.done(failed=ret.returncode != 0)
-    if ret.returncode != 0:
-        print(output_tail(ret))
-    return ret.returncode == 0
+    failed = ret.returncode != 0
+    phase.done(failed=failed)
+    if not failed:
+        return None
+    print('\n'.join('    ' + line for line in output_excerpt(ret)))
+    return build_error(ret, src_dir)
 
 
 def report_path(board, example, kind='diff'):
@@ -913,8 +930,8 @@ def _scope_label(examples, example):
     return f' {example}' if example and len(examples) > 1 else ''
 
 
-def _build_failed(example):
-    return f'build failed ({example})' if example else 'build failed'
+def _build_failed(example, error):
+    return f'build failed{f" ({example})" if example else ""}: {error}'
 
 
 def run_report(args):
@@ -933,8 +950,9 @@ def run_report(args):
         for example in examples:
             scope = _scope_label(examples, example)
             sizes, failures = {}, []
-            if not build_board(TINYUSB_ROOT, build, board, example, f'build{scope}'):
-                failures.append(((board, None), 'build', _build_failed(example)))
+            error = build_board(TINYUSB_ROOT, build, board, example, f'build{scope}')
+            if error:
+                failures.append(((board, None), 'build', _build_failed(example, error)))
             else:
                 phase = Phase(f'size{scope}')
                 rel_sizes, errors = generate_sizes(build, filters, example, args.engine)
@@ -1089,26 +1107,27 @@ def main():
 
             # Build only the requested examples (or all if -e not given). Single-example
             # mode used to build everything and filter at metric time — that was wasted work.
-            board_failed = None  # the side whose build failed
+            build_failure = None
             for example in examples:
                 scope = _scope_label(examples, example)
-                if not build_board(worktree_dir, base_build, board, example, f'build {args.base_branch}{scope}'):
-                    board_failed = 'base'
+                for side, src, build, label in (('base', worktree_dir, base_build, f'build {args.base_branch}{scope}'),
+                                                ('current', TINYUSB_ROOT, cur_build, f'build current{scope}')):
+                    error = build_board(src, build, board, example, label)
+                    if error:
+                        build_failure = ((board, None), side, 'build', _build_failed(example, error))
+                        break
+                if build_failure:
                     break
-                if not build_board(TINYUSB_ROOT, cur_build, board, example, f'build current{scope}'):
-                    board_failed = 'current'
-                    break
-            if board_failed:
+            if build_failure:
                 failed = True
                 # still write each scope's report, with the build failure in it
-                build_failure = ((board, None), board_failed, 'build', _build_failed(example))
                 combined_failures.append(build_failure)
 
             for example in examples:
                 scope = _scope_label(examples, example)
                 sides = {'base': {}, 'current': {}}
-                failures = [build_failure] if board_failed else []
-                if not board_failed:
+                failures = [build_failure] if build_failure else []
+                if not build_failure:
                     phase = Phase(f'size and compare{scope}')
                     for side, build, filters in (('base', base_build, base_filters),
                                                  ('current', cur_build, cur_filters)):
@@ -1119,10 +1138,10 @@ def main():
                 md, failures, ok, data = compare_sides(
                     sides['base'], sides['current'], args.engine, failures, [board], scope=(board, None),
                     symbols=args.symbols)
-                if not board_failed:
+                if not build_failure:
                     phase.done(failed=not ok)
                 failed |= not ok
-                if not board_failed:  # a build failure is recorded once, above
+                if not build_failure:  # a build failure is recorded once, above
                     for side, sizes in sides.items():
                         combined_sides[side].update(sizes)
                     combined_failures += failures
@@ -1134,7 +1153,7 @@ def main():
                 write_report(report_path(board, example), md, report_data(data))
 
                 # Optional: bloaty diff
-                if args.bloaty and example and not board_failed:
+                if args.bloaty and example and not build_failure:
                     elf_name = os.path.basename(example)
                     base_elf = os.path.join(base_build, example, f'{elf_name}.elf')
                     cur_elf = os.path.join(cur_build, example, f'{elf_name}.elf')

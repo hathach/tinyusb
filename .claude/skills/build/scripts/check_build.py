@@ -51,9 +51,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[4]
 HIL_CONFIG = ROOT / 'test' / 'hil' / 'tinyusb.json'
 FULL_MATRIX_BOARDS = ['stm32f407disco', 'raspberry_pi_pico']
-# a compiler/linker diagnostic first; CMake's own error next; never ninja's FAILED: wrapper
-DIAGNOSTIC = re.compile(r'^\S+:\d+(?::\d+)?: (?:fatal )?error:|undefined reference to|multiple definition of')
-CMAKE_ERROR = re.compile(r'^CMake Error')
 BOARD_PATH = re.compile(r'^hw/bsp/([^/]+)/boards/([^/]+)/')
 ROW = re.compile(r'^\|\s*(\S+)\s*\|\s*(.+?)\s*\|\s*\x1b\[\d+m(OK|Failed|Skipped)\x1b\[0m', re.M)
 sys.path.insert(0, str(ROOT / 'tools'))
@@ -780,7 +777,7 @@ def build_one(board, examples, targets, defines, cflags, shared, fetch, verbose,
     elif all(s == 'Skipped' for s in statuses):
         status, first = 'skipped', 'no example was built for this board (all rows Skipped)'
     elif 'Failed' in statuses or rc != 0:
-        status, first = 'failed', first_error(out) or rows[-1][1]
+        status, first = 'failed', tools_build.build_utils.first_error(out) or rows[-1][1]
     else:
         status, first = 'ok', ''
     # built counts only what this invocation wrote: a shared dir keeps older elfs. A
@@ -795,12 +792,6 @@ def build_one(board, examples, targets, defines, cflags, shared, fetch, verbose,
     return {'board': board, 'family': family, 'buildDir': build_dir, 'status': status,
             'built': len(fresh), 'okExamples': sorted({e.stem for e in verified}), 'firstError': first,
             'familyJson': catalog_line}
-
-
-def first_error(out):
-    lines = [l.strip() for l in out.splitlines()]
-    return next((l for l in lines if DIAGNOSTIC.search(l)), None) or \
-        next((l for l in lines if CMAKE_ERROR.match(l)), None)
 
 
 def run(cmd, verbose):
