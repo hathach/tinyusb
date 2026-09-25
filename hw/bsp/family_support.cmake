@@ -302,7 +302,7 @@ function(family_add_membrowse TARGET)
       --target-name ${BOARD}/${TARGET}
       )
     if (DEFINED MEMBROWSE_OPTION)
-      list(APPEND MEMBROWSE_ARGS --option "${MEMBROWSE_OPTION}")
+      list(APPEND MEMBROWSE_ARGS "--option=${MEMBROWSE_OPTION}")
     endif ()
     if (DEFINED MEMBROWSE_LD_OVERRIDE)
       list(APPEND MEMBROWSE_ARGS --ld ${MEMBROWSE_LD_OVERRIDE})

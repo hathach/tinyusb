@@ -4,6 +4,7 @@ argv composition, which pins CI's target-name convention (`<board>/<cmake-target
 basename)."""
 import argparse
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -247,6 +248,15 @@ class Compose(unittest.TestCase):
         cmd = cli.compose('stm32f407disco', 'device/cdc_msc', 30, False, 'k', [])
         self.assertIn('stm32f407disco/cdc_msc', cmd)
         self.assertNotIn('stm32f407disco/device/cdc_msc', cmd)
+
+    def test_cmake_membrowse_option_reaches_membrowse(self):
+        # every membrowse option starts with '--', which argparse would take for a flag
+        with open(os.path.join(REPO, 'hw', 'bsp', 'family_support.cmake')) as f:
+            arg = re.search(r'MEMBROWSE_ARGS "(--option[^"]*)"', f.read()).group(1)
+        with mock.patch.object(cli, 'report', return_value=0) as report:
+            cli.main(['report', '--build-dir', 'b', '--ninja', 'ninja', '--elf', 'e.elf',
+                      arg.replace('${MEMBROWSE_OPTION}', '--all-symbols'), '--target-name', 'b/e'])
+        self.assertEqual(report.call_args[0][0].option, '--all-symbols')
 
     def test_ci_uploads_use_the_same_target_name(self):
         # membrowse history is keyed on it: a rename orphans every series
