@@ -282,3 +282,73 @@ void test_msc(void)
 
   tud_task();
 }
+
+// A block size computed from the CBW that does not fit 16 bits must fail, not wrap (66048 / 1 would read as 512)
+void test_msc_read10_block_size_over_16bit(void)
+{
+  uint32_t const total_bytes = 65536 + 512;
+
+  msc_cbw_t cbw_read10 =
+  {
+    .signature = MSC_CBW_SIGNATURE,
+    .tag = 0xCAFECAFE,
+    .total_bytes = total_bytes,
+    .lun = 0,
+    .dir = TUSB_DIR_IN_MASK,
+    .cmd_len = sizeof(scsi_read10_t)
+  };
+
+  scsi_read10_t cmd_read10 =
+  {
+      .cmd_code    = SCSI_CMD_READ_10,
+      .lba         = tu_htonl(0),
+      .block_count = tu_htons(1)
+  };
+
+  memcpy(cbw_read10.command, &cmd_read10, cbw_read10.cmd_len);
+
+  desc_configuration = data_desc_configuration;
+  uint8_t const* desc_ep = tu_desc_next(tu_desc_next(desc_configuration));
+
+  dcd_event_setup_received(rhport, (uint8_t*) &request_set_configuration, false);
+
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) desc_ep, true);
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep), true);
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_edpt_xfer_ReturnMemThruPtr_buffer( (uint8_t*) &cbw_read10, sizeof(msc_cbw_t));
+
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+
+  // case 4 (Hi > Dn): no data, STALL Bulk-In, then a failed CSW with full residue after the host clears it
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_IN);
+
+  tud_task();
+
+  tusb_control_request_t const request_clear_halt =
+  {
+    .bmRequestType = 0x02,
+    .bRequest      = TUSB_REQ_CLEAR_FEATURE,
+    .wValue        = TUSB_REQ_FEATURE_EDPT_HALT,
+    .wIndex        = EDPT_MSC_IN,
+    .wLength       = 0
+  };
+
+  msc_csw_t const csw =
+  {
+    .signature    = MSC_CSW_SIGNATURE,
+    .tag          = 0xCAFECAFE,
+    .data_residue = total_bytes,
+    .status       = MSC_CSW_STATUS_FAILED
+  };
+
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_clear_halt, false);
+  dcd_edpt_clear_stall_Expect(rhport, EDPT_MSC_IN);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(msc_csw_t), sizeof(msc_csw_t), false, true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+
+  tud_task();
+}
