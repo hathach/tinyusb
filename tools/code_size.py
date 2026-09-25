@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Build the base branch (master) and the current tree, then diff their code size.
+"""Code size of TinyUSB examples.
 
-Creates cmake-size-diff/<board>/{base,build} directories for each board.
-Base and current elfs are paired by (board, elf path) and each pair's per-file
-flash/RAM deltas are reported in cmake-size-diff/<board>/size_diff[_<ex>].md;
-with --combined, cmake-size-diff/_combined/size_diff.md covers every board's pairs.
+`diff` builds the base branch (master) and the current tree in
+cmake-code-size/<board>/{base,build}, pairs their elfs by (board, elf path) and reports
+each pair's per-file flash/RAM deltas in cmake-code-size/<board>/diff[_<ex>].md; with
+--combined, cmake-code-size/_combined/diff.md covers every board's pairs.
 
 The sizes come from --engine; each ENGINES entry maps (elf, filters) to
 {'files': {key: {'flash', 'ram'}}, 'all': {'flash', 'ram'}}, keyed by the
@@ -17,14 +17,14 @@ Every engine takes flash/RAM from the elf's section and program headers
 (section_buckets()).
 
 Usage:
-  python tools/size_diff.py -b raspberry_pi_pico
-  python tools/size_diff.py -b raspberry_pi_pico -b raspberry_pi_pico2
-  python tools/size_diff.py -b raspberry_pi_pico -f portable/raspberrypi
-  python tools/size_diff.py -b raspberry_pi_pico -e device/cdc_msc
-  python tools/size_diff.py -b raspberry_pi_pico -e device/cdc_msc --bloaty
-  python tools/size_diff.py -b raspberry_pi_pico --engine linkermap --json
-  python tools/size_diff.py --ci                                  # CI-pinned boards, combined
-  python tools/size_diff.py -b raspberry_pi_pico -b raspberry_pi_pico2 --combined  # combine listed boards
+  python tools/code_size.py diff -b raspberry_pi_pico
+  python tools/code_size.py diff -b raspberry_pi_pico -b raspberry_pi_pico2
+  python tools/code_size.py diff -b raspberry_pi_pico -f portable/raspberrypi
+  python tools/code_size.py diff -b raspberry_pi_pico -e device/cdc_msc
+  python tools/code_size.py diff -b raspberry_pi_pico -e device/cdc_msc --bloaty
+  python tools/code_size.py diff -b raspberry_pi_pico --engine linkermap --json
+  python tools/code_size.py diff --ci                                  # CI-pinned boards, combined
+  python tools/code_size.py diff -b raspberry_pi_pico -b raspberry_pi_pico2 --combined  # combine listed boards
 """
 import argparse
 import collections
@@ -47,7 +47,7 @@ import sys
 from membrowse_cli import extract_ld_scripts, extract_defsyms, link_command
 
 TINYUSB_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SIZE_DIFF_DIR = os.path.join(TINYUSB_ROOT, 'cmake-size-diff')
+CODE_SIZE_DIR = os.path.join(TINYUSB_ROOT, 'cmake-code-size')
 CI_PINNED_BOARDS = os.path.join(TINYUSB_ROOT, '.github', 'ci-pinned-boards.json')
 _RAM_REGION_HINTS = ('ram', 'tcm', 'ddr')
 _FLASH_REGION_HINTS = ('flash', 'rom')
@@ -585,9 +585,9 @@ def build_board(src_dir, build_dir, board, example=None):
 
 
 def report_path(board, example):
-    """A scope's report path without extension: cmake-size-diff/<board>/size_diff[_<ex>]."""
+    """A scope's report path without extension: cmake-code-size/<board>/diff[_<ex>]."""
     suffix = f'_{example.replace("/", "_")}' if example else ''
-    return os.path.join(SIZE_DIFF_DIR, board, f'size_diff{suffix}')
+    return os.path.join(CODE_SIZE_DIR, board, f'diff{suffix}')
 
 
 def generate_sizes(build_dir, filters, example=None, engine='membrowse'):
@@ -650,7 +650,9 @@ def write_report(path, md, data=None):
 def main():
     global verbose
 
-    parser = argparse.ArgumentParser(description='Diff code size against the base branch')
+    top = argparse.ArgumentParser(description='Code size of TinyUSB examples')
+    sub = top.add_subparsers(dest='command', required=True)
+    parser = sub.add_parser('diff', help='diff code size against a base ref')
     parser.add_argument('-b', '--board', action='append', default=[],
                         help='Board name (repeatable). Required unless --ci is given.')
     parser.add_argument('-f', '--filter', action='append', default=None,
@@ -672,17 +674,17 @@ def main():
                              'ELF-header flash/RAM), linkermap (the GNU ld map\'s input '
                              'sections) or bloaty (DWARF compile units)')
     parser.add_argument('--json', action='store_true',
-                        help='Also write each report\'s paired sizes as size_diff*.json '
+                        help='Also write each report\'s paired sizes as diff*.json '
                              'next to its .md')
     parser.add_argument('--ci', action='store_true',
                         help='Add the CI-pinned boards (.github/ci-pinned-boards.json, covering '
                              'every dcd/hcd driver not waived there). Implies --combined.')
     parser.add_argument('--combined', action='store_true',
                         help='Also write one comparison over every board '
-                             '(cmake-size-diff/_combined/size_diff.md), in addition to per-board.')
+                             '(cmake-code-size/_combined/diff.md), in addition to per-board.')
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Print build commands')
-    args = parser.parse_args()
+    args = top.parse_args()
     verbose = args.verbose
 
     if args.bloaty and not args.example:
@@ -701,7 +703,7 @@ def main():
     if not args.board:
         parser.error('at least one -b BOARD is required (or pass --ci)')
 
-    worktree_dir = os.path.join(SIZE_DIFF_DIR, '_worktree')
+    worktree_dir = os.path.join(CODE_SIZE_DIR, '_worktree')
 
     # Per-side filters: when no override is given, each build uses its own
     # absolute <checkout>/src/ path so we only match TinyUSB stack code from that
@@ -714,10 +716,10 @@ def main():
 
     # Drop every report this run will write before anything can fail - a run that
     # stops early (worktree setup, a build) must not leave a previous run's report
-    # for a reader to take for this one's: cmake-size-diff/ is gitignored and persists.
+    # for a reader to take for this one's: cmake-code-size/ is gitignored and persists.
     # .json too: a run without --json must not leave an older one beside a newer .md.
     examples = args.example or [None]
-    combined_dir = os.path.join(SIZE_DIFF_DIR, '_combined')
+    combined_dir = os.path.join(CODE_SIZE_DIR, '_combined')
     if args.combined:
         shutil.rmtree(combined_dir, ignore_errors=True)
     for board in args.board:
@@ -760,7 +762,7 @@ def main():
 
         for board in args.board:
             print(f'\n=== {board} ===')
-            board_dir = os.path.join(SIZE_DIFF_DIR, board)
+            board_dir = os.path.join(CODE_SIZE_DIR, board)
             base_build = os.path.join(board_dir, 'base')
             cur_build = os.path.join(board_dir, 'build')
             shutil.rmtree(base_build, ignore_errors=True)
@@ -840,7 +842,7 @@ def main():
                 combined_sides['base'], combined_sides['current'], args.engine,
                 combined_failures, args.board)
             failed |= not ok
-            write_report(os.path.join(combined_dir, 'size_diff'), md, report_data(data))
+            write_report(os.path.join(combined_dir, 'diff'), md, report_data(data))
     finally:
         print(f'\nCleaning up worktree...')
         run(['git', '-C', TINYUSB_ROOT, 'worktree', 'remove', '--force', worktree_dir])

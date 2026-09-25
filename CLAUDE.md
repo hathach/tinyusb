@@ -28,7 +28,7 @@
 - Before submitting, and again after a rebase: `pre-commit run --all-files` (includes unit tests).
 - For code changes: build the full example set for boards that exercise the changed modules. Add fuzz/HIL coverage for parsers or protocol state machines.
 - After board/dependency changes, regenerate docs with `build-doc`.
-- Before committing code changes, verify size impact with `size-diff`.
+- Before committing code changes, verify size impact with `code-size`.
 
 ## PRs and Follow-ups
 

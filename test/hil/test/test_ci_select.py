@@ -1215,6 +1215,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_ci_boards.py',
             'test/hil/test/test_ci_metrics.py',
             'test/hil/test/test_ci_select.py',
+            'test/hil/test/test_code_size.py',
             'test/hil/test/test_drivers_coverage.py',
             'test/hil/test/test_family_json.py',
             'test/hil/test/test_hil_args.py',
@@ -1228,7 +1229,6 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_hil_usbtest_id.py',
             'test/hil/test/test_hil_util.py',
             'test/hil/test/test_membrowse_cli.py',
-            'test/hil/test/test_size_diff.py',
             'test/hil/test/usbtest_harness.py',
         ], 'test/hil/test/ gained or lost a file; it is carved out of rule 2, so confirm '
            'the rig still does not read anything in there before updating this list')
@@ -1959,7 +1959,7 @@ class TestNoContributionPaths(unittest.TestCase):
     def test_local_tooling_contributes_nothing_on_either_axis(self):
         # no CI build and no rig board runs any of these (drivers_coverage_check.py is
         # pre-commit only)
-        for p in ('tools/size_diff.py', 'tools/drivers_coverage_check.py'):
+        for p in ('tools/code_size.py', 'tools/drivers_coverage_check.py'):
             h = sel([p])
             self.assertFalse(h['full'], p)
             self.assertEqual(h['boards'], {}, p)

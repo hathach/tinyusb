@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unit tests for tools/size_diff.py.
+"""Unit tests for tools/code_size.py.
 
 glob.glob, the engines and the build steps are monkeypatched in the generate_sizes
 and main tests, so no build and no real membrowse CLI invocation is needed.
@@ -17,7 +17,7 @@ from unittest import mock
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
 sys.path.insert(0, os.path.join(REPO, 'tools'))
-import size_diff as sd  # noqa: E402
+import code_size as sd  # noqa: E402
 
 
 def fake_report(symbols):
@@ -575,8 +575,8 @@ class MainFailure(unittest.TestCase):
         is its side_effect (it must create the board dir, as the real one does);
         `generate` the generate_sizes() side_effect. Returns (rc, stdout)."""
         ok = subprocess.CompletedProcess([], 0, 'c0ffee\n', '')
-        with mock.patch.object(sys, 'argv', ['size_diff.py'] + argv), \
-             mock.patch.object(sd, 'SIZE_DIFF_DIR', tmp), \
+        with mock.patch.object(sys, 'argv', ['code_size.py', 'diff'] + argv), \
+             mock.patch.object(sd, 'CODE_SIZE_DIR', tmp), \
              mock.patch.object(sd, 'run', side_effect=run or (lambda *_a, **_k: ok)), \
              mock.patch.object(sd, 'symlink_deps'), \
              mock.patch.object(sd, 'build_board', side_effect=build_board), \
@@ -615,7 +615,7 @@ class MainFailure(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             board_dir = os.path.join(tmp, 'b')
             os.makedirs(board_dir)
-            stale = os.path.join(board_dir, 'size_diff.md')
+            stale = os.path.join(board_dir, 'diff.md')
             with open(stale, 'w') as f:
                 f.write('stale')
             rc, _out = self._main(tmp, sizes=({}, [(None, 'boom')]))
@@ -631,7 +631,7 @@ class MainFailure(unittest.TestCase):
             rc, _out = self._main(tmp, sizes=({'ex/ex.elf': _elf(1)}, []),
                                   cur_sizes=({'ex/ex.elf': _elf(3)}, []))
             self.assertEqual(rc, 0)
-            with open(os.path.join(tmp, 'b', 'size_diff.md')) as f:
+            with open(os.path.join(tmp, 'b', 'diff.md')) as f:
                 self.assertIn('| x.c | 1 | 3 | +2 |', f.read())
 
     def test_unmatched_elf_is_incomplete_but_not_a_failure(self):
@@ -674,7 +674,7 @@ class MainFailure(unittest.TestCase):
 
         argv = ['-b', 'b1', '-b', 'b2', '--combined'] + (['-e', example] if example else [])
         rc, out = self._run_main(tmp, argv, build_board, generate)
-        combined = os.path.join(tmp, '_combined', 'size_diff.md')
+        combined = os.path.join(tmp, '_combined', 'diff.md')
         md = None
         if os.path.isfile(combined):
             with open(combined) as f:
@@ -717,8 +717,8 @@ class MainFailure(unittest.TestCase):
         self.assertEqual(md.count('FAILED `b2` both filter'), 1)
 
     def test_failed_build_writes_a_per_board_report_for_each_scope(self):
-        for example, name in ((None, 'size_diff.md'),
-                              ('device/cdc_msc', 'size_diff_device_cdc_msc.md')):
+        for example, name in ((None, 'diff.md'),
+                              ('device/cdc_msc', 'diff_device_cdc_msc.md')):
             with tempfile.TemporaryDirectory() as tmp:
                 def build_board(*_args, **_kwargs):
                     os.makedirs(os.path.join(tmp, 'b'), exist_ok=True)
@@ -751,10 +751,10 @@ class MainFailure(unittest.TestCase):
             self.assertEqual(rc, 1)
             generate.assert_not_called()
             self.assertFalse(any('bloaty' in cmd for cmd in cmds))
-            for name in ('size_diff_device_a.md', 'size_diff_device_b.md'):
+            for name in ('diff_device_a.md', 'diff_device_b.md'):
                 with open(os.path.join(tmp, 'b', name)) as f:
                     self.assertIn('FAILED `b` base build: build failed --target b', f.read())
-            with open(os.path.join(tmp, '_combined', 'size_diff.md')) as f:
+            with open(os.path.join(tmp, '_combined', 'diff.md')) as f:
                 self.assertEqual(f.read().count('FAILED `b`'), 1)
 
     def test_combined_with_an_example(self):
@@ -762,7 +762,7 @@ class MainFailure(unittest.TestCase):
                  for b in ('b1', 'b2') for side in ('base', 'current')}
         with tempfile.TemporaryDirectory() as tmp:
             rc, _out, md = self._main_combined(tmp, sizes, example='device/cdc_msc')
-            self.assertTrue(os.path.isfile(os.path.join(tmp, 'b1', 'size_diff_device_cdc_msc.md')))
+            self.assertTrue(os.path.isfile(os.path.join(tmp, 'b1', 'diff_device_cdc_msc.md')))
         self.assertEqual(rc, 0)
         self.assertIn('2 of 2 matched elf pairs compared, 0 changed', md)
 
@@ -793,14 +793,14 @@ class MainFailure(unittest.TestCase):
             rc, generate = self._main_json(tmp, ['--engine', 'linkermap'], ({'ex/ex.elf': _elf(1)}, []))
             self.assertEqual(rc, 0)
             self.assertEqual({c.args[3] for c in generate.call_args_list}, {'linkermap'})
-            self.assertIn('Coverage (complete, linkermap)', self._read(tmp, 'b', 'size_diff.md'))
+            self.assertIn('Coverage (complete, linkermap)', self._read(tmp, 'b', 'diff.md'))
 
     def test_json_holds_the_paired_sizes_and_provenance(self):
         with tempfile.TemporaryDirectory() as tmp:
             rc, _ = self._main_json(tmp, ['--json', '--combined', '-f', 'src/'],
                                     ({'ex/ex.elf': _elf(1)}, []))
             self.assertEqual(rc, 0)
-            for path in ((tmp, 'b', 'size_diff.json'), (tmp, '_combined', 'size_diff.json')):
+            for path in ((tmp, 'b', 'diff.json'), (tmp, '_combined', 'diff.json')):
                 data = json.loads(self._read(*path))
                 self.assertEqual(data['engine'], 'membrowse')
                 self.assertEqual((data['base_ref'], data['base_sha']), ('master', 'c0ffee'))
@@ -813,22 +813,22 @@ class MainFailure(unittest.TestCase):
     def test_json_of_a_failed_run_matches_its_report(self):
         with tempfile.TemporaryDirectory() as tmp:
             os.makedirs(os.path.join(tmp, 'b'))
-            for name in ('size_diff.md', 'size_diff.json'):
+            for name in ('diff.md', 'diff.json'):
                 with open(os.path.join(tmp, 'b', name), 'w') as f:
                     f.write('stale')
             rc, _ = self._main_json(tmp, ['--json'], None, build_ok=False)
             self.assertEqual(rc, 1)
-            data = json.loads(self._read(tmp, 'b', 'size_diff.json'))
+            data = json.loads(self._read(tmp, 'b', 'diff.json'))
             self.assertEqual(data['status'], 'INCOMPLETE')
             self.assertEqual(data['failures'], [{'board': 'b', 'elf': None, 'side': 'base', 'stage': 'build',
                                                  'message': 'build failed, see log'}])
             self.assertIn('FAILED `b` base build: build failed, see log',
-                          self._read(tmp, 'b', 'size_diff.md'))
+                          self._read(tmp, 'b', 'diff.md'))
 
     def test_a_failed_worktree_setup_leaves_no_previous_report(self):
         with tempfile.TemporaryDirectory() as tmp:
             os.makedirs(os.path.join(tmp, 'b'))
-            stale = [os.path.join(tmp, 'b', f'size_diff.{ext}') for ext in ('md', 'json')]
+            stale = [os.path.join(tmp, 'b', f'diff.{ext}') for ext in ('md', 'json')]
             for path in stale:
                 with open(path, 'w') as f:
                     f.write('stale')
@@ -840,7 +840,7 @@ class MainFailure(unittest.TestCase):
     def test_a_run_without_json_drops_a_previous_json(self):
         with tempfile.TemporaryDirectory() as tmp:
             os.makedirs(os.path.join(tmp, 'b'))
-            stale = os.path.join(tmp, 'b', 'size_diff.json')
+            stale = os.path.join(tmp, 'b', 'diff.json')
             with open(stale, 'w') as f:
                 f.write('{}')
             rc, _ = self._main_json(tmp, [], ({'ex/ex.elf': _elf(1)}, []))
@@ -849,9 +849,9 @@ class MainFailure(unittest.TestCase):
 
     def _seed_combined_report(self, tmp):
         """A previous run's combined report, left behind in the gitignored
-        cmake-size-diff/ tree that nothing else wipes."""
+        cmake-code-size/ tree that nothing else wipes."""
         os.makedirs(os.path.join(tmp, '_combined'))
-        stale = os.path.join(tmp, '_combined', 'size_diff.md')
+        stale = os.path.join(tmp, '_combined', 'diff.md')
         with open(stale, 'w') as f:
             f.write('| previous run | 100 | 200 |')
         return stale
@@ -891,8 +891,8 @@ class CiBoardSet(unittest.TestCase):
             os.makedirs(os.path.join(tmp, board), exist_ok=True)
             return False  # stop at the base build: only the board set matters
         ok = subprocess.CompletedProcess([], 0, '', '')
-        with mock.patch.object(sys, 'argv', ['x', '--ci', '-b', 'extra', '-b', 'b1']), \
-             mock.patch.object(sd, 'SIZE_DIFF_DIR', tmp), \
+        with mock.patch.object(sys, 'argv', ['x', 'diff', '--ci', '-b', 'extra', '-b', 'b1']), \
+             mock.patch.object(sd, 'CODE_SIZE_DIR', tmp), \
              mock.patch.object(sd, 'CI_PINNED_BOARDS', pinned), \
              mock.patch.object(sd, 'run', return_value=ok), \
              mock.patch.object(sd, 'symlink_deps'), \

@@ -303,7 +303,7 @@ deps_optional = {
     'lib/sct_neopixel': ['https://github.com/gsteiert/sct_neopixel.git',
                          'e73e04ca63495672d955f9268e003cffe168fcd8',
                          'lpc55'],
-    # local size tooling only (tools/size_diff.py, <ex>-linkermap): no family builds with it
+    # local size tooling only (tools/code_size.py, <ex>-linkermap): no family builds with it
     'tools/linkermap': ['https://github.com/hathach/linkermap.git',
                         '89b42dd5b6e5d1874769fb74e2d7b557a225213c',
                         ''],

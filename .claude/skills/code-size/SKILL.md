@@ -1,17 +1,17 @@
 ---
-name: size-diff
+name: code-size
 description: Use when diffing TinyUSB code size between a base ref (master by default) and the working tree to evaluate the size impact of changes — one example on one board, all examples on one board, or every CI-pinned board combined — sized by membrowse, linkermap or bloaty.
 ---
 
-# Size Diff
+# Code Size
 
-`tools/size_diff.py` builds a base ref (default `master`) in a temporary worktree and the working tree, uncommitted changes included, then pairs each base elf with the current elf of the same (board, elf path) and reports per-file deltas per pair. Sizes are never averaged or summed across examples or boards. Pick the narrowest scope that exercises the change:
+`tools/code_size.py diff` builds a base ref (default `master`) in a temporary worktree and the working tree, uncommitted changes included, then pairs each base elf with the current elf of the same (board, elf path) and reports per-file deltas per pair. Sizes are never averaged or summed across examples or boards. Pick the narrowest scope that exercises the change:
 
-| Scope                             | Command                                                 |
-|-----------------------------------|---------------------------------------------------------|
-| one example, one board            | `python3 tools/size_diff.py -b BOARD -e device/cdc_msc` |
-| all examples, one board           | `python3 tools/size_diff.py -b BOARD`                   |
-| all examples, CI-pinned, combined | `python3 tools/size_diff.py --ci`                       |
+| Scope                             | Command                                                      |
+|-----------------------------------|--------------------------------------------------------------|
+| one example, one board            | `python3 tools/code_size.py diff -b BOARD -e device/cdc_msc` |
+| all examples, one board           | `python3 tools/code_size.py diff -b BOARD`                   |
+| all examples, CI-pinned, combined | `python3 tools/code_size.py diff --ci`                       |
 
 The base worktree symlinks this checkout's fetched dependencies, so a `tools/get_deps.py` pin bump's own size change is not in the diff.
 
@@ -21,11 +21,11 @@ The base worktree symlinks this checkout's fetched dependencies, so a `tools/get
 - **`-e <group>/<name>`**, repeatable; omit for all examples.
 - **`--engine`**, membrowse unless asked:
 
-  | Engine                | Per-file sizes from                                         | Needs                                           |
-  |-----------------------|-------------------------------------------------------------|-------------------------------------------------|
-  | `membrowse` (default) | `membrowse report --json --all-symbols` symbols             | `pip install membrowse`                         |
-  | `linkermap`           | the GNU ld map's input sections, by object path             | `python3 tools/get_deps.py tools/linkermap`     |
-  | `bloaty`              | `bloaty -d compileunits,sections` VM sizes, by compile unit | `bloaty` on PATH                                |
+  | Engine                | Per-file sizes from                                         | Needs                                       |
+  |-----------------------|-------------------------------------------------------------|---------------------------------------------|
+  | `membrowse` (default) | `membrowse report --json --all-symbols` symbols             | `pip install membrowse`                     |
+  | `linkermap`           | the GNU ld map's input sections, by object path             | `python3 tools/get_deps.py tools/linkermap` |
+  | `bloaty`              | `bloaty -d compileunits,sections` VM sizes, by compile unit | `bloaty` on PATH                            |
 
   Every engine takes flash/RAM from the elf's headers (a section copied from flash counts in both). The whole-elf total counts different things per engine (membrowse's all-symbol sum overlaps aliases and omits padding), so compare it only within one.
 - **`--bloaty`**, with `-e` only: also prints bloaty's section and symbol diff to stdout.
@@ -35,7 +35,7 @@ The base worktree symlinks this checkout's fetched dependencies, so a `tools/get
 
 ## Outputs and timing
 
-Reports go to `cmake-size-diff/<board>/size_diff[_<example>].md` and, when combined, `cmake-size-diff/_combined/size_diff.md`. The exit code is nonzero on a failure or when no pair was compared.
+Reports go to `cmake-code-size/<board>/diff[_<example>].md` and, when combined, `cmake-code-size/_combined/diff.md`. The exit code is nonzero on a failure or when no pair was compared.
 
 One example ~30 s; one board ~60-90 s; `--ci` ~7-8 min, boards built one after another — run it in the background, it nears the 10-minute command timeout.
 
