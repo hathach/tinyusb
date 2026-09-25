@@ -141,8 +141,10 @@ interface on the old profile.
 the table above is a summary. Do this before theorising, and always before deciding
 whether a hung case is recoverable. Fetch the upstream version matching the rig's
 kernel (`uname -r`; the distro's own source when its patches matter). The sed reads an
-upstream or Debian `uname -r`; a Fedora (`6.14.0-0.rc3…`) or Ubuntu-mainline (`6.12.0-061200rc3-…`)
-rc kernel hides its `-rcN` from it, so name that tag by hand:
+upstream or Debian 13+ (`6.12.48+deb13-amd64`) `uname -r`. An ABI name (Debian ≤12
+`6.1.0-18-amd64`, stock Ubuntu `6.8.0-45-generic`) maps to vx.y, so read the real version from
+`/proc/version` (Debian) or `/proc/version_signature` (Ubuntu); a Fedora (`6.14.0-0.rc3…`) or
+Ubuntu-mainline (`6.12.0-061200rc3-…`) rc kernel hides its `-rcN`. Name either tag by hand:
 
 ```bash
 curl --fail -sSO "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/drivers/usb/misc/usbtest.c?h=v$(uname -r | sed -E 's/^([0-9.]+(-rc[0-9]+)?).*/\1/; s/\.0(-|$)/\1/')"   # run on the rig; x.y.0[-rcN] is tagged vx.y[-rcN]
