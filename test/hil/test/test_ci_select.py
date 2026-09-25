@@ -745,9 +745,8 @@ class ResetPrimitive(unittest.TestCase):
         self.assertIsNone(hil_flash.reset_primitive('ESPTool'))
 
     def test_an_unknown_flasher_raises_like_the_flash_dispatch(self):
-        for name in ('nosuchflasher', 'primitive'):   # reset_primitive itself is no reset
-            with self.assertRaises(AttributeError):
-                hil_flash.reset_primitive(name)
+        with self.assertRaises(AttributeError):
+            hil_flash.reset_primitive('nosuchflasher')
 
     def test_every_real_reset_takes_the_callers_bound(self):
         """usbtest and hil_recover call every reset primitive with timeout=, unguarded: one

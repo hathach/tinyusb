@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # Firmware flashing for the TinyUSB HIL rig: one flash_* per flasher type (dispatched by
-# config name via getattr), a reset_* taking timeout= where the tool can reset without
-# flashing (looked up through reset_primitive), plus find_firmware. The bounded runner run_cmd
-# lives in hil_util (never import hil_test here). Callers set the module global
+# config name through flash_primitive), a reset_* taking timeout= where the tool can reset
+# without flashing (looked up through reset_primitive), plus find_firmware. The bounded
+# runner run_cmd lives in hil_util (never import hil_test here). Callers set the module global
 # `build_dir`. `from __future__ import annotations` keeps the Board hints below
 # unevaluated: the type is not defined in this module.
 
@@ -253,7 +253,7 @@ def convoy_safe(flasher: dict) -> bool:
     if name == 'esptool':
         return True
     # EXACT, not startswith: rescue_openocd and usbtest's
-    # getattr(hil_flash, f'flash_{name}') both require the exact name, so an
+    # hil_flash.flash_primitive(name) both require the exact name, so an
     # 'openocd_wch'-style entry would pass this gate, reserve the Rescue-DP legs,
     # and then find no recovery path at all -- paying for a path that cannot fire, which
     # is the precise cost this gate exists to avoid.
