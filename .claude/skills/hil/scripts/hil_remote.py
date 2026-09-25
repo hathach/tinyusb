@@ -147,10 +147,10 @@ def resolve_firmware(config, args):
         for d in found:
             if d not in present and boards:
                 # hil_test.py logs `Skip (no binary)` and exits 0 for these cells, except that a
-                # one-test run fails a later variant's same-PID boundary (SKILL.md Prerequisites)
-                print(f'warning: {name}: no {d.relative_to(ROOT)} -- its cells will be skipped, not tested, '
-                      'or fail the same-PID boundary on a one-test run',
-                      file=sys.stderr)
+                # one-test run that flashes fails a later variant's same-PID boundary (SKILL.md Prerequisites)
+                boundary = '' if args.skip_flash else ' or fail the same-PID boundary on a one-test run'
+                print(f'warning: {name}: no {d.relative_to(ROOT)} -- its cells will be skipped, not tested,'
+                      f'{boundary}', file=sys.stderr)
         dirs += present
     if missing:
         # the dirs, not a build command: a variant's dir name and flags come from the roster
