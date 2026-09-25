@@ -709,8 +709,16 @@ def roster_variants(boards, config):
     unknown = [b for b in boards if b not in roster]
     if unknown:
         fail(f'not in {config}: {" ".join(unknown)}; --variants takes rig board names')
-    return [(b, v['name'], v.get('defines', []), v.get('flags', '').split())
-            for b in boards for v in (roster[b].get('variant') or [{'name': b}])]
+    out = []
+    for b in boards:
+        for v in roster[b].get('variant') or [{'name': b}]:
+            name, defines, flags = v.get('name'), v.get('defines', []), v.get('flags', '')
+            if not (isinstance(name, str) and isinstance(flags, str) and isinstance(defines, list)
+                    and all(isinstance(d, str) for d in defines)):
+                fail(f'{config}: board {b} variant {name!r} needs name a string, flags a string '
+                     f'and defines a list of strings: {v}')
+            out.append((b, name, defines, flags.split()))
+    return out
 
 
 def build_one(board, examples, targets, defines, cflags, shared, fetch, verbose, name=None):

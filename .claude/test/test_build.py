@@ -507,14 +507,25 @@ class VariantsTest(unittest.TestCase):
 
     def test_each_variant_builds_with_its_name_defines_and_flags(self):
         rc, calls = self.main('--board', 'plain', '--board', 'pico', '--board', 'ch', '--shared',
-                              '--variants', str(self.config), '-D', 'LOG=2')
+                              '--variants', str(self.config), '-D', 'LOG=2', '--cflag=-DU=1')
         self.assertEqual(rc, 0)
         self.assertEqual(calls, [
-            ('plain', ['LOG=2'], [], 'plain'),
-            ('pico', ['LOG=2'], ['-DA=1', '-DB=2'], 'pico'),
-            ('ch', ['LOG=2', 'RHPORT_DEVICE=0'], [], 'ch-fs'),
-            ('ch', ['LOG=2', 'RHPORT_DEVICE=1'], [], 'ch-hs'),
+            ('plain', ['LOG=2'], ['-DU=1'], 'plain'),
+            ('pico', ['LOG=2'], ['-DU=1', '-DA=1', '-DB=2'], 'pico'),
+            ('ch', ['LOG=2', 'RHPORT_DEVICE=0'], ['-DU=1'], 'ch-fs'),
+            ('ch', ['LOG=2', 'RHPORT_DEVICE=1'], ['-DU=1'], 'ch-hs'),
         ])
+
+    def test_a_malformed_variant_is_a_resolution_error(self):
+        for variant in [{'name': 'v', 'flags': None}, {'flags': '-DA=1'}, {'name': 'v', 'defines': 'X=1'}]:
+            self.config.write_text(json.dumps({'boards': [{'name': 'b', 'variant': [variant]}]}))
+            with mock.patch.object(build, 'build_one') as b1, mock.patch('sys.stdout') as out, \
+                 mock.patch.object(sys, 'stderr'), self.assertRaises(SystemExit) as cm:
+                build.main(['--board', 'b', '--shared', '--variants', str(self.config)])
+            self.assertEqual(cm.exception.code, 2, variant)
+            last = json.loads(''.join(c.args[0] for c in out.write.call_args_list).splitlines()[-1])
+            self.assertIn('board b variant', last['error'])
+            b1.assert_not_called()
 
     def test_variants_match_the_ci_matrix_builds_of_every_rig_roster(self):
         import shlex
