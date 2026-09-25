@@ -576,7 +576,7 @@ def coverage(reasons, scope, results, chosen=False, targets=()):
     benign, gaps = [], []
     for r in reasons:
         fams, exs = named_families(r), named_examples(r)
-        if r.endswith('no build contribution') or r.endswith('no dep entry changed, no contribution'):
+        if r.endswith('no build contribution') or r.endswith('no build-family dependency changed, no contribution'):
             benign.append(r)
         elif r.endswith('no contribution') or r.endswith('dropped'):
             gaps.append(r)

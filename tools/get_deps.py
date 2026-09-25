@@ -20,15 +20,12 @@ deps_mandatory = {
     'lib/threadx': ['https://github.com/eclipse-threadx/threadx.git',
                     '4b6e8100d932a3a67b34c6eb17f84f3bffb9e2ae',
                     'all'],
-    'tools/linkermap': ['https://github.com/hathach/linkermap.git',
-                        '89b42dd5b6e5d1874769fb74e2d7b557a225213c',
-                        'all'],
     'tools/uf2': ['https://github.com/microsoft/uf2.git',
                   'c594542b2faa01cc33a2b97c9fbebc38549df80a',
                   'all'],
 }
 
-# Optional Dependencies per MCU
+# Optional Dependencies per family, or fetched by path
 # path, url, commit, family (Alphabet sorted by path)
 deps_optional = {
     'hw/mcu/allwinner': ['https://github.com/hathach/allwinner_driver.git',
@@ -306,6 +303,10 @@ deps_optional = {
     'lib/sct_neopixel': ['https://github.com/gsteiert/sct_neopixel.git',
                          'e73e04ca63495672d955f9268e003cffe168fcd8',
                          'lpc55'],
+    # local size tooling only (tools/size_diff.py, <ex>-linkermap): no family builds with it
+    'tools/linkermap': ['https://github.com/hathach/linkermap.git',
+                        '89b42dd5b6e5d1874769fb74e2d7b557a225213c',
+                        ''],
 }
 
 # Files to remove after cloning to avoid conflicts with TinyUSB's custom versions
@@ -403,7 +404,8 @@ def find_family(board):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('families', nargs='*', default=[], help='Families to fetch')
+    parser.add_argument('families', nargs='*', default=[],
+                        help='Families, or optional dependency paths (e.g. tools/linkermap), to fetch')
     parser.add_argument('-b', '--board', action='append', default=[], help='Boards to fetch')
     parser.add_argument('-D', '--define', action='append', default=[], help='Have no effect')
     parser.add_argument('-f1', '--build-flags-on', action='append', default=[], help='Have no effect')
@@ -438,6 +440,13 @@ def main():
                 if f is not None:
                     families.append(f)
         for f in families:
+            if '/' in f:  # a dependency path rather than a family
+                if f not in deps_all:
+                    print(f'ERROR: {f} is not in the dependency list')
+                    return 1
+                if f in deps_optional and f not in deps:
+                    deps.append(f)
+                continue
             for d in deps_optional:
                 if d not in deps and f in deps_optional[d][2].split():
                     deps.append(d)

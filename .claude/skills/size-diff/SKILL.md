@@ -24,7 +24,7 @@ The base worktree symlinks this checkout's fetched dependencies, so a `tools/get
   | Engine                | Per-file sizes from                                         | Needs                                           |
   |-----------------------|-------------------------------------------------------------|-------------------------------------------------|
   | `membrowse` (default) | `membrowse report --json --all-symbols` symbols             | `pip install membrowse`                         |
-  | `linkermap`           | the GNU ld map's input sections, by object path             | `python3 tools/get_deps.py` (`tools/linkermap`) |
+  | `linkermap`           | the GNU ld map's input sections, by object path             | `python3 tools/get_deps.py tools/linkermap`     |
   | `bloaty`              | `bloaty -d compileunits,sections` VM sizes, by compile unit | `bloaty` on PATH                                |
 
   Every engine takes flash/RAM from the elf's headers (a section copied from flash counts in both). The whole-elf total counts different things per engine (membrowse's all-symbol sum overlaps aliases and omits padding), so compare it only within one.

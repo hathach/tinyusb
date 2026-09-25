@@ -191,7 +191,7 @@ class ResolveTest(unittest.TestCase):
         self.assertEqual(build.coverage(reasons, scope, dual)[1], [])
 
     def test_get_deps_edit_changing_no_entry_is_nothing_to_build(self):
-        r = 'tools/get_deps.py: no dep entry changed, no contribution'
+        r = 'tools/get_deps.py: no build-family dependency changed, no contribution'
         self.assertEqual(build.coverage([r], ['tools/get_deps.py'], []), ([r], []))
 
     def test_non_code_paths_beside_code_do_not_fail_the_scope(self):

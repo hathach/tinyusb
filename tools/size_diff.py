@@ -258,7 +258,7 @@ def membrowse_sizes(elf, filters):
 def _linkermap():
     path = os.path.join(TINYUSB_ROOT, 'tools', 'linkermap', 'linkermap.py')
     if not os.path.isfile(path):
-        raise FileNotFoundError(f'{path} not found - run `python3 tools/get_deps.py`')
+        raise FileNotFoundError(f'{path} not found - run `python3 tools/get_deps.py tools/linkermap`')
     spec = importlib.util.spec_from_file_location('linkermap', path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -319,7 +319,7 @@ Engine = collections.namedtuple('Engine', 'sizes all_label install')
 ENGINES = {
     'membrowse': Engine(membrowse_sizes, 'all symbols', '`pip install membrowse`'),
     'linkermap': Engine(linkermap_sizes, 'all input sections',
-                        '`python3 tools/get_deps.py` (fetches tools/linkermap)'),
+                        '`python3 tools/get_deps.py tools/linkermap`'),
     'bloaty': Engine(bloaty_sizes, 'all accounted sections',
                      'bloaty on PATH (https://github.com/google/bloaty)'),
 }

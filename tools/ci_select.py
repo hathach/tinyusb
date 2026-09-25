@@ -676,7 +676,7 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
             s.force_full(f'{path}: dep changes not resolvable -> full matrix')
             return
         if not get_deps_families:
-            s.reasons.append(f'{path}: no dep entry changed, no contribution')
+            s.reasons.append(f'{path}: no build-family dependency changed, no contribution')
             return
         fams = sorted(get_deps_families)
         s.families.update(fams)
@@ -1090,7 +1090,7 @@ def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
             s.force_full(f'{path}: dep changes not resolvable -> full build matrix')
             return
         if not get_deps_families:
-            s.reasons.append(f'{path}: no dep entry changed, no contribution')
+            s.reasons.append(f'{path}: no build-family dependency changed, no contribution')
             return
         fams = sorted(get_deps_families)
         s.add(fams, 'all', f'{path}: dep entries changed -> families {fams}')
