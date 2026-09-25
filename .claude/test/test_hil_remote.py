@@ -226,8 +226,12 @@ class Staging(Rig):
         self.build('beta_one')
         r = self.hil_remote('-b', 'beta')
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn('no cmake-build/cmake-build-beta_two -- its cells will be skipped', r.stderr)
+        self.assertIn('no cmake-build/cmake-build-beta_two -- its cells will be skipped or fail the '
+                      'same-PID boundary on a one-test run\n', r.stderr)
         self.assertNotIn('beta_one --', r.stderr)
+        r = self.hil_remote('-b', 'beta', '--skip-flash')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn('no cmake-build/cmake-build-beta_two -- its cells will be skipped\n', r.stderr)
 
     def test_a_board_the_flasher_filter_drops_needs_no_build(self):
         self.build('alpha')
