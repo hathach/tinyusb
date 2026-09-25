@@ -118,11 +118,11 @@ python3 test/hil/hil_test.py -b stm32f723disco "$CONFIG"
 
 ```bash
 R=.claude/skills/hil/scripts/hil_remote.py
-# All boards built under cmake-build/:
-python3 $R
+# All boards built under cmake-build/ (in the background, then `wait`: see Timing):
+python3 $R --run-id hil-1
 
 # A subset — repeat -b, ONE invocation for the whole set:
-python3 $R -b raspberry_pi_pico2 -b stm32f723disco -t host/cdc_msc_hid -r 1
+python3 $R --run-id hil-2 -b raspberry_pi_pico2 -b stm32f723disco -t host/cdc_msc_hid -r 1
 ```
 
 One invocation per board is wrong here, not merely slow: each run `rm -rf`s `REMOTE_DIR`
@@ -139,6 +139,11 @@ what is built without a word about unbuilt variants. With `-b` it also warns for
 requested board with no build; Prerequisites says what `hil_test.py` then reports for it. `--build` is
 refused: the rig receives binaries only.
 
+`--run-id <id>`, a new id per launch (`hil-$(date +%s)`; a used one is refused), records the run
+under `.hil-remote/` in the checkout: a started record, then a receipt with its exit status and
+the report files it copied back, written however the run ends short of a kill. Timing below
+waits on it with `python3 $R wait <id>`.
+
 Exit 200 means the remote tree stopped being this run's after staging (another run sharing
 `REMOTE_DIR` replaced it): `hil_test.py` did not run and nothing was copied back, so any local
 `hil_report` pair or `<config>.failed` is from an earlier run. Re-run; never report from it.
@@ -150,9 +155,33 @@ Env overrides: `REMOTE`, `REMOTE_DIR`, `CONFIG`, `ROOT_DIR`.
 Runs take 2-5 min per board, but a stuck fleet runs to `HIL_POOL_TIMEOUT` — 60 min
 unless the env pins it. The run logs its guard in the startup line; never declare a run
 stuck before THAT value has elapsed.
-The Bash tool caps a foreground timeout at 10 min, so **run it in the background** and
-wait for the completion notification -- never a foreground timeout, which would kill
-the run before its own guard can write a report. NEVER cancel early.
+The Bash tool caps a foreground timeout at 10 min, so **run it in the background** --
+never a foreground timeout, which would kill the run before its own guard can write a
+report. NEVER cancel early.
+
+A remote run is launched once, in the background, with `--run-id`, then waited on in the
+foreground:
+
+```bash
+# Bash run_in_background: true
+python3 .claude/skills/hil/scripts/hil_remote.py --run-id hil-1790000000 -b raspberry_pi_pico2 -b stm32f723disco
+# foreground, Bash timeout 600000
+python3 .claude/skills/hil/scripts/hil_remote.py wait hil-1790000000
+```
+
+Write the script path and the id literally in both calls: a shell variable does not survive
+from one tool call to the next.
+
+`wait` blocks up to 9.5 min and prints one JSON line:
+
+- `done` (exit 0): the run's `exit` and the `reports` it copied back. Read only those; an
+  empty list means no report is from this run, whatever the checkout holds.
+- `running` (exit 3): call `wait` again.
+- `dead` (exit 4): the run ended without a receipt (killed, or its session died); no local
+  report is from it.
+
+Never spend a tool call only to check on a run or to pass time: the next call is `wait`.
+A local `hil_test.py` run has no receipt; wait for its completion notification.
 
 ## Reporting
 

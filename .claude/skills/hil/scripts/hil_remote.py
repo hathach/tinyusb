@@ -7,10 +7,15 @@ firmware the run will look for under -B (default cmake-build, the build skill's 
 layout), runs it there, and copies the report pair and the <config>.failed re-run spec back
 to the checkout root.
 
+`--run-id ID` records the run under <checkout>/.hil-remote/: ID.started.json when it starts,
+ID.done.json (exit status, the report files it copied back) when it ends. `wait ID` blocks
+until then, at most --timeout seconds, and prints one JSON status line.
+
 Env overrides: REMOTE (ssh host), REMOTE_DIR (rm -rf'd and recreated each run, under a lock
 on <REMOTE_DIR>.lock that refuses a second run sharing it), CONFIG (HIL config json), ROOT_DIR
 (checkout to test; defaults to this script's own).
 """
+import argparse
 import contextlib
 import importlib
 import json
@@ -94,6 +99,16 @@ flock -s 9
 printf '\nHIL_REMOTE_DIR=%s\n' "$d"
 cat >/dev/null
 '''
+
+
+RUNS_DIR = '.hil-remote'
+# under the Bash tool's 10-min foreground cap, so one wait is one tool call
+WAIT_SECS = 570
+POLL_SECS = 5
+# a background launch writes its started record within this, or it never started
+START_SECS = 30
+# wait's exit statuses; errors exit 1
+RUNNING, DEAD = 3, 4
 
 
 def fail(msg):
@@ -240,7 +255,9 @@ def rsync(guard, *args, optional=False):
 
 def copy_back(remote, remote_dir, token, config_name):
     """Fetch the report pair all-or-nothing: the markdown is a rendering of the sidecar, and
-    a half-copied pair publishes last run's table beside this run's data."""
+    a half-copied pair publishes last run's table beside this run's data. Returns the
+    checkout-relative paths it wrote."""
+    copied = []
     report = helper('hil_report')
     md, js = ROOT / report.REPORT_MD, ROOT / report.REPORT_JSON
     tmp = [p.with_name(p.name + '.tmp') for p in (md, js)]
@@ -250,6 +267,7 @@ def copy_back(remote, remote_dir, token, config_name):
     if ok:
         for p, t in zip((md, js), tmp):
             t.replace(p)
+        copied += [report.REPORT_MD, report.REPORT_JSON]
         print(f'==> Report copied to {md} (+ sidecar)')
     else:
         for p in (*tmp, md, js):
@@ -260,7 +278,9 @@ def copy_back(remote, remote_dir, token, config_name):
     spec = ROOT / f'{config_name}.failed'
     spec.unlink(missing_ok=True)
     if rsync(guard, '-q', f'{remote}:{remote_dir}/{spec.name}', str(spec), optional=True) == 0 and spec.is_file():
+        copied.append(spec.name)
         print(f'==> {spec.name} copied to {spec}')
+    return copied
 
 
 @contextlib.contextmanager
@@ -292,7 +312,8 @@ def remote_lease(remote, remote_dir, build_dir):
             lease.wait()
 
 
-def main(argv):
+def run(argv):
+    """One remote run: (its exit status, the report files copied back)."""
     remote = os.environ.get('REMOTE', 'ci.lan')
     remote_dir = os.environ.get('REMOTE_DIR', '/tmp/tinyusb-hil')
     config_path = Path(os.environ.get('CONFIG') or ROOT / 'test/hil/tinyusb.json').resolve()
@@ -346,9 +367,129 @@ def stage_and_run(remote, remote_dir, token, argv, args, config, config_path, fi
     rc = subprocess.run(['ssh', *SSH_OPTS, remote, run_command(remote_dir, argv, config_path.name, token)],
                         stdin=subprocess.DEVNULL).returncode
     if rc == TREE_REPLACED:
-        return rc     # nothing of ours ran there: no report to fetch, and another run's must not land here
-    copy_back(remote, remote_dir, token, config_path.name)
-    return rc
+        return rc, []     # nothing of ours ran there: no report to fetch, and another run's must not land here
+    return rc, copy_back(remote, remote_dir, token, config_path.name)
+
+
+def run_paths(run_id):
+    if not re.fullmatch(r'[A-Za-z0-9_-][A-Za-z0-9_.-]{0,63}', run_id):
+        fail(f'a run id is 1-64 of [A-Za-z0-9_.-], not starting with a dot: {run_id!r}')
+    runs = ROOT / RUNS_DIR
+    return runs / f'{run_id}.started.json', runs / f'{run_id}.done.json'
+
+
+def write_json(path, data, exclusive=False):
+    """Atomic: a reader sees the whole record or none. `exclusive` refuses an existing one."""
+    tmp = path.with_name(f'.{path.name}.{os.getpid()}.tmp')
+    tmp.write_text(json.dumps(data) + '\n')
+    try:
+        if exclusive:
+            os.link(tmp, path)
+        else:
+            tmp.replace(path)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def pop_run_id(argv):
+    """(the --run-id value or None, argv without it): the rest goes to hil_test.py."""
+    for i, a in enumerate(argv):
+        if a == '--run-id':
+            if i + 1 == len(argv):
+                fail('--run-id needs a value')
+            return argv[i + 1], argv[:i] + argv[i + 2:]
+        if a.startswith('--run-id='):
+            return a.partition('=')[2], argv[:i] + argv[i + 1:]
+    return None, argv
+
+
+def run_recorded(run_id, argv):
+    """run() with a started record before it and a completion record after, whatever ends it
+    short of a kill: the receipt `wait` reads, since nothing else outlives a background run."""
+    started, done = run_paths(run_id)
+    started.parent.mkdir(exist_ok=True)
+    try:
+        write_json(started, {'runId': run_id, 'pid': os.getpid(), 'startedAt': time.time()}, exclusive=True)
+    except FileExistsError:
+        fail(f'run id {run_id} was used before ({started.relative_to(ROOT)}); pick a new one')
+    rc, reports = 1, []
+    try:
+        rc, reports = run(argv)
+        return rc
+    except SystemExit as e:
+        rc = e.code if isinstance(e.code, int) else int(e.code is not None)
+        raise
+    finally:
+        write_json(done, {'runId': run_id, 'exit': rc, 'reports': reports})
+
+
+def run_alive(pid, run_id):
+    """The recorded pid still runs this run: a recycled pid runs something else."""
+    try:
+        cmdline = Path(f'/proc/{pid}/cmdline').read_bytes()
+    except FileNotFoundError:
+        if Path('/proc/self').exists():
+            return False
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            pass
+        return True
+    args = cmdline.decode(errors='replace').split('\0')
+    return f'--run-id={run_id}' in args or any(a == '--run-id' and b == run_id for a, b in zip(args, args[1:]))
+
+
+def wait_secs(text):
+    secs = float(text)
+    if not 0 <= secs <= WAIT_SECS:
+        raise argparse.ArgumentTypeError(f'0 to {WAIT_SECS} s: one wait must end inside the Bash tool\'s 10-min cap')
+    return secs
+
+
+def wait(argv):
+    p = argparse.ArgumentParser(prog='hil_remote.py wait',
+                                description=f'exit 0 done, {RUNNING} still running at --timeout, '
+                                            f'{DEAD} ended without a receipt')
+    p.add_argument('run_id')
+    p.add_argument('--timeout', type=wait_secs, default=WAIT_SECS, help=f'seconds, at most {WAIT_SECS} (the default)')
+    a = p.parse_args(argv)
+    started, done = run_paths(a.run_id)
+    begun = time.monotonic()
+    deadline = begun + a.timeout
+    while True:
+        if done.is_file():
+            print(json.dumps({'state': 'done', **json.loads(done.read_text())}))
+            return 0
+        try:
+            rec = json.loads(started.read_text())
+        except FileNotFoundError:
+            grace = min(begun + START_SECS, deadline) - time.monotonic()
+            if grace > 0:
+                time.sleep(min(POLL_SECS, grace))
+                continue
+            fail(f'no run {a.run_id} was started from {ROOT}')
+        if not run_alive(rec['pid'], a.run_id):
+            if done.is_file():
+                continue    # it wrote the receipt between the two checks
+            print(json.dumps({'state': 'dead', 'runId': a.run_id, 'pid': rec['pid'],
+                              'detail': 'the run ended without a receipt (killed, or its session died): '
+                                        'no local report is from it'}))
+            return DEAD
+        left = deadline - time.monotonic()
+        if left <= 0:
+            print(json.dumps({'state': 'running', 'runId': a.run_id, 'pid': rec['pid'],
+                              'elapsedSecs': round(time.time() - rec['startedAt'])}))
+            return RUNNING
+        time.sleep(min(POLL_SECS, left))
+
+
+def main(argv):
+    if argv[:1] == ['wait']:
+        return wait(argv[1:])
+    run_id, argv = pop_run_id(argv)
+    return run(argv)[0] if run_id is None else run_recorded(run_id, argv)
 
 
 if __name__ == '__main__':
