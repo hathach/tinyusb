@@ -42,6 +42,7 @@ typedef struct {
 
   // SCSI command data
   uint8_t stage;
+  bool desync; // a stage failed to submit: the device is mid-command until re-enumerated
   void* buffer;
   uint32_t data_xferred;
   tuh_msc_complete_cb_t complete_cb;
@@ -133,7 +134,7 @@ bool tuh_msc_mounted(uint8_t dev_addr) {
 
 bool tuh_msc_ready(uint8_t dev_addr) {
   msch_interface_t* p_msc = get_itf(dev_addr);
-  TU_VERIFY(p_msc->mounted);
+  TU_VERIFY(p_msc->mounted && !p_msc->desync);
   const bool epin_busy = usbh_edpt_busy(dev_addr, p_msc->ep_in);
   const bool epout_busy = usbh_edpt_busy(dev_addr, p_msc->ep_out);
   return !epin_busy && !epout_busy;
@@ -152,7 +153,7 @@ static inline void cbw_init(msc_cbw_t* cbw, uint8_t lun) {
 bool tuh_msc_scsi_command(uint8_t daddr, msc_cbw_t const* cbw, void* data,
                           tuh_msc_complete_cb_t complete_cb, uintptr_t arg) {
   msch_interface_t* p_msc = get_itf(daddr);
-  TU_VERIFY(p_msc->configured);
+  TU_VERIFY(p_msc->configured && !p_msc->desync);
 
   // claim endpoint
   TU_VERIFY(usbh_edpt_claim(daddr, p_msc->ep_out));
@@ -386,6 +387,7 @@ bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
     csw->tag          = cbw->tag;
     csw->data_residue = cbw->total_bytes - p_msc->data_xferred;
     csw->status       = MSC_CSW_STATUS_PHASE_ERROR;
+    p_msc->desync     = true;
     scsi_command_complete(dev_addr, p_msc, cbw, csw);
   }
 
