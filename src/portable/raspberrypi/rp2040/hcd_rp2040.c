@@ -633,6 +633,19 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
 
       epx = ep;
 
+      // EPX is shared across every non-interrupt endpoint of every connected device, and we
+      // just confirmed (above, under this same critical section, so authoritative) that
+      // nothing else currently believes it owns EPX. But the hardware doesn't reliably clear
+      // USB_BUF_CTRL_AVAIL in this register on its own once a transaction completes -- if the
+      // very next EPX user re-arms immediately (e.g. the MIDI host class driver's
+      // xfer-complete callback synchronously starting the next transfer on every zero-byte
+      // completion, with no scheduler tick in between), bufctrl_write32() can see a stale
+      // AVAILABLE bit left over from the just-finished transaction and panic ("buf_ctrl
+      // already available"), even though nothing is actually still in flight. Software's own
+      // epx->state is the real authority on whether EPX is free -- we already checked it --
+      // so it's safe to force-clear any such leftover bit here before arming the new transfer.
+      *buf_reg = 0;
+
       epx_ctrl_prepare(ep->transfer_type);
       rp2usb_xfer_start(ep, ep_reg, buf_reg, buffer, NULL, buflen); // prepare bufctrl
       usb_hw->dev_addr_ctrl = (uint32_t)(ep->dev_addr | (tu_edpt_number(ep->ep_addr) << USB_ADDR_ENDP_ENDPOINT_LSB));
