@@ -231,6 +231,16 @@ class Recovery(unittest.TestCase):
         self.assertIn('reflash skipped: no flash_nosuch', out['b1']['steps'])
         self.assertTrue(out['b2']['recovered'], out)
 
+    def test_a_mixed_case_recovery_flasher_resets_and_reflashes(self):
+        """The roster name is case-folded for the reflash as it is for the reset."""
+        self.mark()
+        self.scans = [([4242], True), ([], True)]
+        b1 = dict(CFG['boards'][0], flasher_recover=dict(CFG['boards'][0]['flasher_recover'], name='OpenOCD'))
+        out = self.run_phase([b1])
+        self.assertTrue(out['b1']['recovered'], out)
+        self.assertEqual([c[0] for c in self.calls], ['shield', 'reset', 'scan', 'flash', 'scan', 'unshield'])
+        self.assertIn('reflash via OpenOCD: rc 0', out['b1']['steps'])
+
     def test_a_failed_unshield_keeps_the_marker_even_after_a_clean_scan(self):
         self.mark()
         self.script_rc['unshield'] = 1

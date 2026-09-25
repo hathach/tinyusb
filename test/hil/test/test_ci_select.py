@@ -673,18 +673,21 @@ class TestOpenocdVidPid(unittest.TestCase):
 
 
 class TestRosterFlashersDispatch(unittest.TestCase):
-    """hil_test and hil_pool_check resolve a board's flasher with a bare
-    getattr(hil_flash, f'flash_{name}'), and hil_test does it inside a redirect_stdout —
-    so a renamed or typo'd roster name raises an AttributeError whose output is swallowed,
-    with nothing pointing at the roster as the thing to edit. Renaming a flash_* without
-    updating every roster must fail here instead."""
+    """hil_test and hil_pool_check resolve a board's flasher through
+    hil_flash.flash_primitive, and hil_test does it inside a redirect_stdout — so a renamed
+    or typo'd roster name raises an AttributeError whose output is swallowed, with nothing
+    pointing at the roster as the thing to edit. Renaming a flash_* without updating every
+    roster must fail here instead."""
 
     def test_flash_exists_for_every_roster_flasher(self):
         for path, board in roster_flashers():
-            name = board['flasher']['name'].lower()
-            self.assertTrue(callable(getattr(hil_flash, f'flash_{name}', None)),
-                            f'{path}: {board["name"]} uses flasher "{name}" '
-                            f'but hil_flash.flash_{name} does not exist')
+            name = board['flasher']['name']
+            try:
+                fn = hil_flash.flash_primitive(name)
+            except AttributeError:
+                self.fail(f'{path}: {board["name"]} uses flasher "{name}" '
+                          f'but hil_flash.flash_{name.lower()} does not exist')
+            self.assertTrue(callable(fn))
 
     def test_firmware_suffix_known_for_every_roster_flasher(self):
         """find_firmware falls back to accepting .elf-or-.bin when a flasher is missing
@@ -696,6 +699,32 @@ class TestRosterFlashersDispatch(unittest.TestCase):
                           f'with no hil_flash.FLASHER_SUFFIX entry')
 
 
+def flasher_names():
+    """Every flasher hil_flash defines, by its flash_* half."""
+    return [n[len('flash_'):] for n in dir(hil_flash)
+            if n.startswith('flash_') and n != 'flash_primitive']
+
+
+class FlashPrimitive(unittest.TestCase):
+    """hil_flash.flash_primitive is the one flash dispatch: hil_test, usbtest,
+    hil_pool_check and hil_recover all resolve a flasher's flash_* through it."""
+
+    def test_every_flasher_resolves_to_its_flash(self):
+        names = flasher_names()
+        self.assertIn('jlink', names)
+        for name in names:
+            self.assertIs(hil_flash.flash_primitive(name), getattr(hil_flash, f'flash_{name}'))
+
+    def test_the_raw_roster_name_is_case_folded(self):
+        self.assertIs(hil_flash.flash_primitive('OpenOCD'), hil_flash.flash_openocd)
+        self.assertIs(hil_flash.flash_primitive('ESPTool'), hil_flash.flash_esptool)
+
+    def test_an_unknown_flasher_raises(self):
+        for name in ('nosuchflasher', 'primitive'):   # flash_primitive itself is no flasher
+            with self.assertRaises(AttributeError):
+                hil_flash.flash_primitive(name)
+
+
 class ResetPrimitive(unittest.TestCase):
     """hil_flash.reset_primitive is the one reset dispatch: usbtest, hil_recover,
     hil_pool_check and hil_test all resolve a flasher's reset through it."""
@@ -703,7 +732,7 @@ class ResetPrimitive(unittest.TestCase):
     def test_a_flasher_without_a_reset_only_mode_has_none(self):
         """Exhaustive over every flash_*, so every roster flasher: one that loses or never
         gains its reset_* half fails here instead of having its reset silently skipped."""
-        names = [n[len('flash_'):] for n in dir(hil_flash) if n.startswith('flash_')]
+        names = flasher_names()
         self.assertEqual({n for n in names if hil_flash.reset_primitive(n) is None},
                          {'esptool', 'lm4flash'})
 
@@ -716,14 +745,15 @@ class ResetPrimitive(unittest.TestCase):
         self.assertIsNone(hil_flash.reset_primitive('ESPTool'))
 
     def test_an_unknown_flasher_raises_like_the_flash_dispatch(self):
-        with self.assertRaises(AttributeError):
-            hil_flash.reset_primitive('nosuchflasher')
+        for name in ('nosuchflasher', 'primitive'):   # reset_primitive itself is no reset
+            with self.assertRaises(AttributeError):
+                hil_flash.reset_primitive(name)
 
     def test_every_real_reset_takes_the_callers_bound(self):
         """usbtest and hil_recover call every reset primitive with timeout=, unguarded: one
         without the parameter never resets, its TypeError logged as a reset that raised.
         Flashers are enumerated by their flash_* half, so reset_primitive itself is not one."""
-        names = [n[len('flash_'):] for n in dir(hil_flash) if n.startswith('flash_')]
+        names = flasher_names()
         self.assertIn('jlink', names)
         for name in names:
             fn = hil_flash.reset_primitive(name)

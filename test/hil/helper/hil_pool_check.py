@@ -306,7 +306,7 @@ def flash(board: dict, fw, allow_recovery: bool, probe_port: str, note: list) ->
 
     `fw` comes from pick_example: a re-resolve here would use the global search policy and
     miss a firmware ensure_fw just built into cmake-build/ under an exclusive -B."""
-    fn = getattr(hil_flash, f'flash_{board["flasher"]["name"].lower()}')
+    fn = hil_flash.flash_primitive(board['flasher']['name'])
     for attempt in range(3):
         if attempt == 2:
             if not (allow_recovery and probe_port):
@@ -623,7 +623,7 @@ def host_alive(board: dict, note: list, row: dict, flashed_example: bool = False
         row['status'] = 'flash-failed'
         return False
     say(f'{board["name"]:26} recovery: serial silent, flashing board_test')
-    rc, err = call_flasher(getattr(hil_flash, f'flash_{board["flasher"]["name"].lower()}'), board, str(fw))
+    rc, err = call_flasher(hil_flash.flash_primitive(board['flasher']['name']), board, str(fw))
     if rc != 0:
         note.append(f'serial silent; board_test flash failed: {err}')
         row['status'] = 'flash-failed'
@@ -863,8 +863,7 @@ def park_board(board: dict, kind: str, row: dict, note: list) -> None:
             if row['status'] == 'ok':
                 row['status'] = 'flash-failed'
         return
-    rc, err = call_flasher(getattr(hil_flash, f'flash_{board["flasher"]["name"].lower()}'),
-                           board, str(fw))
+    rc, err = call_flasher(hil_flash.flash_primitive(board['flasher']['name']), board, str(fw))
     if rc != 0:
         note.append(f'park flash failed: {err}')
         if row['status'] == 'ok':

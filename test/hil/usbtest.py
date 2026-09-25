@@ -757,7 +757,7 @@ def main():
                     board = json.loads(args.recover_board)
                     bname, fname = board['name'], board['flasher']['name']
                     import hil_flash   # deferred: stdlib-only unless recovery actually runs
-                    flash_fn = getattr(hil_flash, f'flash_{fname.lower()}')
+                    flash_fn = hil_flash.flash_primitive(fname)
                 except Exception as e:   # malformed/short json, import failure, unknown flasher
                     print(f'reflash recovery unavailable ({e})', file=sys.stderr)
                     break

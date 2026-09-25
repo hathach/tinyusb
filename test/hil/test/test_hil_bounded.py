@@ -760,6 +760,16 @@ class WedgeConfirmationOnTheMainPath(unittest.TestCase):
         self.assertIn('reset-only recovery flasher', err)
         self.assertEqual(self.flashed, [], 'a reset-only entry must never reflash in-run')
 
+    def test_an_unknown_recovery_flasher_leaves_the_wedge_unrecovered(self):
+        data, err, exc, writes = self._main(lambda node: ([4242], True, 30.0), recover=True,
+                                            flasher_extra={'name': 'nosuch'})
+        self.assertIsNone(exc)
+        self.assertTrue(data['wedged'])
+        self.assertIn('reflash recovery unavailable', err)
+        self.assertEqual([e for e in self.ladder if e[0] in ('lookup', 'reset') or e == 'flash'], [],
+                         'an unknown flasher must not reach the reset or the reflash')
+        self.assertEqual(writes, [])
+
     # The ladder resets first: a probe reset is non-destructive (the wedged firmware survives
     # for autopsy), writes no flash, and cannot brick SWD the way a bad park image has
     # (mimxrt1064_evk, max32666fthr). Each step settles before the scan that judges it.

@@ -299,15 +299,24 @@ def flash_lm4flash(board, firmware, timeout=None):
 # no reset_lm4flash: lm4flash has no reset-only mode; it resets+runs on flash
 
 
+def flash_primitive(flasher_name: str):
+    """The flasher's flash_* callable, case-folded from the roster name.
+
+    An unknown flasher raises AttributeError.
+    """
+    name = flasher_name.lower()
+    if name == 'primitive':   # this lookup shares the flash_* namespace but is no flasher
+        raise AttributeError(f'{flasher_name!r} is not a flasher')
+    return getattr(sys.modules[__name__], f'flash_{name}')
+
+
 def reset_primitive(flasher_name: str):
     """The flasher's probe-reset callable, or None when it has no reset-only mode.
 
-    An unknown flasher raises AttributeError, as the flash_* dispatch does.
+    An unknown flasher raises AttributeError, as flash_primitive does.
     """
-    module = sys.modules[__name__]
-    name = flasher_name.lower()
-    getattr(module, f'flash_{name}')
-    return getattr(module, f'reset_{name}', None)
+    flash_primitive(flasher_name)
+    return getattr(sys.modules[__name__], f'reset_{flasher_name.lower()}', None)
 
 
 # The one place a flasher's firmware extension is decided. A flasher with no entry falls

@@ -257,7 +257,10 @@ def recover_board(board: dict, marker: dict, lock_fh, budget: Budget, out: dict 
                 time.sleep(SETTLE)
                 cleared = scan('after reset')
             if not cleared:
-                flash_fn = getattr(_hil_flash(), f'flash_{fname}', None)
+                try:
+                    flash_fn = _hil_flash().flash_primitive(fname)
+                except AttributeError:   # unknown flasher: skip this board's reflash, not the fleet
+                    flash_fn = None
                 # roster `"reflash": false`: the tool has no flash driver for this chip, only a reset
                 if not rec_board['flasher'].get('reflash', True):
                     reflash_skip = 'reset-only recovery flasher'
