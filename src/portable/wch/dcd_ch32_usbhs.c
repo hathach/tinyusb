@@ -403,16 +403,39 @@ void dcd_int_handler(uint8_t rhport) {
     const uint8_t token = int_status & MASK_UIS_TOKEN;
     const uint8_t ep_num = int_status & MASK_UIS_ENDP;
     const uint16_t len = USBHSD->RX_LEN;
+    bool released = false;
 
     if (token == USBHS_TOKEN_PID_SOF) {
       uint32_t frame_count = USBHSD->FRAME_NO & USBHS_FRAME_NO_NUM_MASK;
       dcd_event_sof(rhport, frame_count, true);
     } else if (token == USBHS_TOKEN_PID_OUT) {
+      if (ep_num != 0) {
+        // Release early: ISO transfers ignore INT_BUSY and would overwrite
+        // the shared INT_ST/RX_LEN of this pending completion.
+        xfer_ctl_t const *const out = XFER_CTL_BASE(ep_num, TUSB_DIR_OUT);
+        if (!out->is_iso) {
+          EP_RX_CTRL(ep_num) = (EP_RX_CTRL(ep_num) & ~(USBHS_EP_R_RES_MASK)) | USBHS_EP_R_RES_NAK;
+        }
+        USBHSD->INT_FG = USBHS_TRANSFER_FLAG;
+        released = true;
+      }
       update_out(rhport, ep_num, len);
     } else if (token == USBHS_TOKEN_PID_IN) {
+      if (ep_num != 0) {
+        // Release early, as for OUT.
+        xfer_ctl_t const *const in = XFER_CTL_BASE(ep_num, TUSB_DIR_IN);
+        if (!in->is_iso) {
+          EP_TX_CTRL(ep_num) = (EP_TX_CTRL(ep_num) & ~(USBHS_EP_T_RES_MASK)) | USBHS_EP_T_RES_NAK;
+        }
+        USBHSD->INT_FG = USBHS_TRANSFER_FLAG;
+        released = true;
+      }
       update_in(rhport, ep_num, false);
     }
-    USBHSD->INT_FG = (int_flag & USBHS_TRANSFER_FLAG); /* Clear flag */
+    // Don't clear a completion that arrived after an early release.
+    if (!released) {
+      USBHSD->INT_FG = (int_flag & USBHS_TRANSFER_FLAG); /* Clear flag */
+    }
   } else if (int_flag & USBHS_SETUP_FLAG) {
     tusb_control_request_t const* setup =
         (tusb_control_request_t const*) ep0_buffer;
