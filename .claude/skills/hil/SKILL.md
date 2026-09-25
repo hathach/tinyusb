@@ -141,7 +141,8 @@ refused: the rig receives binaries only.
 
 A delegated run is bound to its build: the build writes a build receipt of the HEAD it built,
 and the run passes it, refusing before it touches the rig when HEAD, the roster or a staged file
-no longer match it (rebuild, which writes a new one). A retry of a subset of those boards reuses
+no longer match it, or a tracked file (the harness it stages, the roster) has changed since HEAD
+(rebuild, which writes a new one). A retry of a subset of those boards reuses
 it; a local `hil_test.py` run takes none.
 
 ```bash
@@ -172,8 +173,8 @@ refused), then waited on in the foreground; write the id literally in both calls
 variable does not survive from one tool call to the next:
 
 ```bash
-# Bash run_in_background: true
-python3 .claude/skills/hil/scripts/hil_remote.py --run-id hil-1790000000 -b raspberry_pi_pico2 -b stm32f723disco
+# Bash run_in_background: true; a delegated run adds its --receipt (Remote execution)
+python3 .claude/skills/hil/scripts/hil_remote.py --run-id hil-1790000000 --receipt .hil-remote/build-1790000000.json -b raspberry_pi_pico2 -b stm32f723disco
 # foreground, Bash timeout 600000
 python3 .claude/skills/hil/scripts/hil_remote.py wait hil-1790000000
 ```

@@ -192,8 +192,9 @@ class BuildReceipts(unittest.TestCase):
         return self.root / 'cmake-build' / f'cmake-build-{variant}'
 
     def check(self, *boards):
+        dirs = [d for b in boards for d in hil_remote.variant_dirs(self.CONFIG, 'cmake-build', b)]
         hil_remote.check_receipt(self.receipt, (self.root / 'test/hil/tinyusb.json').resolve(), list(boards),
-                                 [d for b in boards for d in hil_remote.variant_dirs(self.CONFIG, 'cmake-build', b)])
+                                 dirs, [d for d in dirs if d.is_dir()])
 
     def write(self, *boards):
         out = io.StringIO()
@@ -238,6 +239,18 @@ class BuildReceipts(unittest.TestCase):
         (self.dir('b') / 'flash_args').unlink()
         why = self.refused(self.check, 'a', 'b')
         self.assertIn('2 staged file(s) differ from it, first cmake-build/cmake-build-a/cdc.elf, cmake-build/cmake-build-b/flash_args', why)
+
+    def test_a_variant_dir_removed_since_is_refused(self):
+        self.write('a')
+        for f in self.dir('a-dma').iterdir():
+            f.unlink()
+        self.dir('a-dma').rmdir()
+        self.assertIn('2 staged file(s) differ from it, first cmake-build/cmake-build-a-dma/', self.refused(self.check, 'a'))
+
+    def test_a_harness_edited_since_is_refused(self):
+        self.write('b')
+        (self.root / 'test/hil/hil_test.py').write_text('edited after the build')
+        self.assertIn('tracked files changed since HEAD: test/hil/hil_test.py', self.refused(self.check, 'b'))
 
     def test_a_moved_head_is_refused(self):
         self.write('b')

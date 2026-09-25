@@ -383,8 +383,9 @@ def write_receipt(argv):
     return 0
 
 
-def check_receipt(path, config_path, boards, firmware):
-    """Refuse to stage firmware the build receipt at path does not pin to this HEAD and roster."""
+def check_receipt(path, config_path, boards, dirs, firmware):
+    """Refuse to stage firmware the build receipt at path does not pin to this HEAD and roster:
+    dirs are every variant dir of the run's boards, firmware the ones present to stage."""
     try:
         receipt = json.loads(Path(path).read_text())
         head, pinned = receipt['head'], receipt['files']
@@ -392,12 +393,15 @@ def check_receipt(path, config_path, boards, firmware):
     except (OSError, ValueError, KeyError, TypeError) as e:
         fail(f'unusable build receipt {path}: {e!r}')
     now = git('rev-parse', 'HEAD')
+    # the harness and roster staged beside the firmware are HEAD's only on a clean tree
+    dirty = git('status', '--porcelain', '--untracked-files=no')
     unbuilt = [b for b in boards if b not in built]
     staged = staged_files(firmware)
-    prefixes = tuple(f'{d.relative_to(ROOT)}/' for d in firmware)
+    prefixes = tuple(f'{d.relative_to(ROOT)}/' for d in dirs)
     differ = sorted({*(p for p in staged if pinned.get(p) != staged[p]),
                      *(p for p in pinned if p.startswith(prefixes) and p not in staged)})
     why = [head != now and f'it is for {head[:12]} but the checkout is at {now[:12]}',
+           dirty and f'tracked files changed since HEAD: {", ".join(line.split(None, 1)[1] for line in dirty.splitlines()[:5])}',
            config_digest != digest(config_path) and f'the roster {config_path} is not the one it was built from',
            unbuilt and f'it does not cover {", ".join(unbuilt)}',
            differ and f'{len(differ)} staged file(s) differ from it, first {", ".join(differ[:5])}']
@@ -416,7 +420,8 @@ def run(argv, receipt=None):
              f'  {build_command(config_path, select_boards(config, args), args.build_dir)}')
     firmware = resolve_firmware(config, config_path, args)
     if receipt is not None:
-        check_receipt(receipt, config_path, select_boards(config, args), firmware)
+        boards = select_boards(config, args)
+        check_receipt(receipt, config_path, boards, [d for b in boards for d in variant_dirs(config, args.build_dir, b)], firmware)
 
     print(f'==> Setting up remote {remote}:{remote_dir}')
     with remote_lease(remote, remote_dir, args.build_dir) as (remote_dir, token):
