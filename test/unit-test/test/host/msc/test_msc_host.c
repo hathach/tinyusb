@@ -22,6 +22,9 @@ static uint8_t  xfer_ep[MAX_XFERS];
 static uint8_t *xfer_buf[MAX_XFERS];
 static uint16_t xfer_len[MAX_XFERS];
 static uint8_t  xfer_count;
+static uint8_t  xfer_fail_index; // xfer_count value whose submission fails
+static uint8_t  complete_count;
+static msc_csw_t complete_csw;
 static uint8_t  enum_buf[64];
 static uint8_t  data[98304];
 
@@ -72,7 +75,13 @@ bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t *bu
   xfer_ep[xfer_count]  = ep_addr;
   xfer_buf[xfer_count] = buffer;
   xfer_len[xfer_count] = total_bytes;
-  xfer_count++;
+  return xfer_count++ != xfer_fail_index;
+}
+
+static bool record_complete(uint8_t daddr, const tuh_msc_complete_data_t *cb_data) {
+  (void) daddr;
+  complete_count++;
+  complete_csw = *cb_data->csw;
   return true;
 }
 
@@ -93,7 +102,9 @@ static void mount_bot_interface(void) {
 }
 
 void setUp(void) {
-  xfer_count = 0;
+  xfer_count      = 0;
+  xfer_fail_index = UINT8_MAX;
+  complete_count  = 0;
   msch_init();
   mount_bot_interface();
 }
@@ -101,8 +112,9 @@ void setUp(void) {
 void tearDown(void) {}
 
 static void start_data_in(void) {
-  const msc_cbw_t cbw = {.signature = MSC_CBW_SIGNATURE, .total_bytes = sizeof(data), .dir = TUSB_DIR_IN_MASK};
-  TEST_ASSERT_TRUE(tuh_msc_scsi_command(DADDR, &cbw, data, NULL, 0));
+  const msc_cbw_t cbw = {
+    .signature = MSC_CBW_SIGNATURE, .tag = 0x1234, .total_bytes = sizeof(data), .dir = TUSB_DIR_IN_MASK};
+  TEST_ASSERT_TRUE(tuh_msc_scsi_command(DADDR, &cbw, data, record_complete, 0));
   TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
 }
 
@@ -137,4 +149,34 @@ void test_msc_host_data_stage_short_ends_early(void) {
 
   TEST_ASSERT_EQUAL(3, xfer_count);
   TEST_ASSERT_EQUAL(sizeof(msc_csw_t), xfer_len[2]);
+}
+
+// No transfer is pending once a later chunk fails to submit: the command must still complete, and only once
+void test_msc_host_data_stage_chunk_submit_fail_completes(void) {
+  xfer_fail_index = 2; // CBW, first chunk, then the second chunk fails
+  start_data_in();
+  (void) msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, xfer_len[1]);
+
+  TEST_ASSERT_EQUAL(3, xfer_count);
+  TEST_ASSERT_EQUAL(1, complete_count);
+  TEST_ASSERT_EQUAL_HEX32(MSC_CSW_SIGNATURE, complete_csw.signature);
+  TEST_ASSERT_EQUAL_HEX32(0x1234, complete_csw.tag);
+  TEST_ASSERT_EQUAL(MSC_CSW_STATUS_PHASE_ERROR, complete_csw.status);
+  TEST_ASSERT_EQUAL(sizeof(data) - xfer_len[1], complete_csw.data_residue);
+
+  // the next command runs through all its stages
+  const msc_cbw_t cbw = {.signature = MSC_CBW_SIGNATURE, .tag = 0x5678};
+  TEST_ASSERT_TRUE(tuh_msc_scsi_command(DADDR, &cbw, NULL, record_complete, 0));
+  TEST_ASSERT_EQUAL(4, xfer_count);
+  TEST_ASSERT_EQUAL_HEX8(EP_OUT, xfer_ep[3]);
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
+  TEST_ASSERT_EQUAL(5, xfer_count);
+  TEST_ASSERT_EQUAL_HEX8(EP_IN, xfer_ep[4]);
+
+  const msc_csw_t csw = {.signature = MSC_CSW_SIGNATURE, .tag = 0x5678, .status = MSC_CSW_STATUS_PASSED};
+  memcpy(xfer_buf[4], &csw, sizeof(csw));
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, sizeof(msc_csw_t)));
+  TEST_ASSERT_EQUAL(2, complete_count);
+  TEST_ASSERT_EQUAL(MSC_CSW_STATUS_PASSED, complete_csw.status);
+  TEST_ASSERT_EQUAL_HEX32(0x5678, complete_csw.tag);
 }
