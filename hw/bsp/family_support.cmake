@@ -257,13 +257,6 @@ function(family_add_bloaty TARGET)
     DEPENDS ${TARGET}
     COMMAND ${BLOATY_EXE} ${OPTION_LIST} $<TARGET_FILE:${TARGET}>
     VERBATIM)
-
-  #set_property(TARGET ${TARGET}-bloaty PROPERTY FOLDER ${TARGET}-group)
-  # post build
-  #  add_custom_command(TARGET ${TARGET} POST_BUILD
-  #    COMMAND ${BLOATY_EXE} --csv ${OPTION_LIST} $<TARGET_FILE:${TARGET}> > ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}_bloaty.csv
-  #    VERBATIM
-  #    )
 endfunction()
 
 # Add linkermap target (https://github.com/hathach/linkermap)
@@ -273,22 +266,13 @@ function(family_add_linkermap TARGET)
     return()
   endif ()
 
-  set(OPTION "-j")
-  if (DEFINED LINKERMAP_OPTION)
-    string(APPEND OPTION " ${LINKERMAP_OPTION}")
-  endif ()
-  separate_arguments(OPTION_LIST UNIX_COMMAND ${OPTION})
+  separate_arguments(OPTION_LIST UNIX_COMMAND "${LINKERMAP_OPTION}")
 
   add_custom_target(${TARGET}-linkermap
     DEPENDS ${TARGET}
     COMMAND python ${LINKERMAP_PY} ${OPTION_LIST} $<TARGET_FILE:${TARGET}>.map
     VERBATIM
     )
-
-  if (NOT TARGET examples-linkermap)
-    add_custom_target(examples-linkermap)
-  endif ()
-  add_dependencies(examples-linkermap ${TARGET}-linkermap)
 endfunction()
 
 # Add membrowse target (installed with pip install membrowse). TARGET names the
@@ -329,7 +313,6 @@ function(family_add_membrowse TARGET)
       COMMAND python ${TOP}/tools/membrowse_cli.py report ${MEMBROWSE_ARGS}
       VERBATIM
       )
-    #set_property(TARGET ${TARGET}-membrowse PROPERTY FOLDER ${TARGET}-group)
 
     # No DEPENDS on ELF_TARGET here: CI's upload path must still run (as an
     # --identical metadata-only upload) for a commit that never rebuilt this elf,
@@ -343,8 +326,6 @@ function(family_add_membrowse TARGET)
       add_custom_target(examples-membrowse-upload)
     endif ()
     add_dependencies(examples-membrowse-upload ${TARGET}-membrowse-upload)
-
-    #set_property(TARGET ${TARGET}-membrowse-upload PROPERTY FOLDER ${TARGET}-group)
   endif ()
 endfunction()
 
@@ -503,19 +484,10 @@ function(family_configure_common TARGET RTOS)
   endif ()
 
   if (NOT RTOS STREQUAL zephyr)
-    # Analyze size with bloaty and linkermap
     family_add_bloaty(${TARGET})
     family_add_linkermap(${TARGET})
     family_add_membrowse(${TARGET})
   endif ()
-
-  # run size after build
-#  find_program(SIZE_EXE ${CMAKE_SIZE})
-#  if(NOT ${SIZE_EXE} STREQUAL SIZE_EXE-NOTFOUND)
-#    add_custom_command(TARGET ${TARGET} POST_BUILD
-#      COMMAND ${SIZE_EXE} $<TARGET_FILE:${TARGET}>
-#      )
-#  endif ()
 endfunction()
 
 # Add tinyusb to target

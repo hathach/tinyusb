@@ -433,6 +433,17 @@ class VerdictTest(unittest.TestCase):
         self.assertEqual(cmd[cmd.index('-D') + 1], 'LOG=2')
         self.assertIn('--cflag=-DCFG_TUH_CDC_FTDI_LATENCY=16', cmd)
 
+    def test_build_py_options_are_what_tools_build_configures_with(self):
+        failed = mock.Mock(returncode=1)
+        with mock.patch.object(build.tools_build, 'run_cmd', return_value=failed) as run_cmd, \
+             mock.patch.object(build.tools_build, 'find_family', return_value='stm32f4'), \
+             mock.patch('sys.stdout'):
+            # main() appends TOOLCHAIN= to every board's build args
+            build.tools_build.cmake_board('stm32f407disco', ['-DTOOLCHAIN=gcc'], None, [], ['all'])
+        configure = run_cmd.call_args[0][0]
+        self.assertEqual({a[2:].partition('=')[0] for a in configure if a.startswith('-D')},
+                         set(build.BUILD_PY_OPTIONS))
+
     def test_a_define_on_a_build_owned_key_is_refused(self):
         # tools/build.py passes -DBOARD first, so a caller's would win and the artifacts
         # would be named after the board that was asked for, not the one built

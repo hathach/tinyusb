@@ -640,7 +640,7 @@ def configured(board, family, examples, defines, build_dir, elfs, fresh):
 
 
 STICKY_OPTIONS = ('LOG', 'LOGGER', 'CFLAGS_CLI')   # family_support.cmake reads these with if(DEFINED)
-BUILD_PY_OPTIONS = ('BOARD', 'CMAKE_BUILD_TYPE', 'LINKERMAP_OPTION', 'TOOLCHAIN')
+BUILD_PY_OPTIONS = ('BOARD', 'CMAKE_BUILD_TYPE', 'TOOLCHAIN')
 CACHE_ENTRY = re.compile(r'^([A-Za-z_]\w*):([A-Z]+)=(.*)$')
 AGENT_DEFINES = '.agent-defines'
 
@@ -677,10 +677,11 @@ def stale_options(build_dir, supplied):
     retypes PICO_SDK_PATH to PATH - and the value then survives with nothing in the cache
     left to say a command line gave it. The entry type is the fallback for a dir configured
     before the sidecar existed: a -D no cmake code declares keeps UNINITIALIZED, the type
-    only a command line gives, and the four tools/build.py passes on every configure are
-    this run's own. A recorded name the cache no longer carries is no risk either - nothing
-    holds its value. An empty value is an option too: -DLOG= leaves a cache
-    entry, if(DEFINED LOG) is true for it, and the build compiles with CFG_TUSB_DEBUG=.
+    only a command line gives, and BUILD_PY_OPTIONS, which tools/build.py passes on
+    every configure, are this run's own. A recorded name the cache no longer carries is
+    no risk either - nothing holds its value. An empty value is an option too: -DLOG=
+    leaves a cache entry, if(DEFINED LOG) is true for it, and the build compiles with
+    CFG_TUSB_DEBUG=.
     An option this run does set is no risk: its -D overwrites the cached value.
     Espressif builds one idf tree per example under the dir, each with a cache full of
     idf.py's own untyped defines; -D is refused for that family (build_one), so there only
@@ -739,7 +740,7 @@ def build_one(board, examples, targets, defines, cflags, shared, fetch, verbose,
     owned = sorted({d.partition('=')[0].partition(':')[0] for d in defines} & set(BUILD_PY_OPTIONS))
     if owned:
         fail(f'-D {", ".join(owned)}: tools/build.py owns {"/".join(BUILD_PY_OPTIONS)}; name the board '
-             f'with --board and leave the build type, linker map and toolchain to it')
+             f'with --board and leave the build type and toolchain to it')
     ensure_deps(family, fetch, verbose)
     name = name or board
     if not shared:
