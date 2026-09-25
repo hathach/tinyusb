@@ -83,11 +83,45 @@ class MdTable(unittest.TestCase):
 
 class CompareReports(unittest.TestCase):
     def test_delta_table(self):
-        md = sd.compare_reports({'portable/dcd_dwc2.c': {'flash': 100, 'ram': 64}},
-                                {'portable/dcd_dwc2.c': {'flash': 120, 'ram': 64}})
-        self.assertIn('dcd_dwc2.c', md)
-        self.assertIn('+20', md)          # flash grew 100 -> 120
-        self.assertIn('TOTAL', md)
+        md = unpad(sd.compare_reports({'portable/dcd_dwc2.c': {'flash': 3426, 'ram': 64}},
+                                      {'portable/dcd_dwc2.c': {'flash': 3414, 'ram': 64}}))
+        self.assertIn('| File (base → new) | Flash | Flash Δ | RAM | RAM Δ |', md)
+        self.assertIn('| portable/dcd_dwc2.c | 3426 → 3414 | -12 | 64 → 64 | 0 |', md)
+        self.assertIn('| TOTAL | 3426 → 3414 | -12 | 64 → 64 | 0 |', md)
+
+    def test_base_and_new_values_line_up_down_each_column(self):
+        md = sd.compare_reports({'a.c': {'flash': 1046, 'ram': 188}, 'b.c': {'flash': 3426, 'ram': 212}},
+                                {'a.c': {'flash': 1082, 'ram': 220}, 'b.c': {'flash': 3414, 'ram': 212}})
+        self.assertEqual(md, '| File (base → new) |       Flash | Flash Δ |       RAM | RAM Δ |\n'
+                             '|-------------------|------------:|--------:|----------:|------:|\n'
+                             '| a.c               | 1046 → 1082 |     +36 | 188 → 220 |   +32 |\n'
+                             '| b.c               | 3426 → 3414 |     -12 | 212 → 212 |     0 |\n'
+                             '|-------------------|-------------|---------|-----------|-------|\n'
+                             '| TOTAL             | 4472 → 4496 |     +24 | 400 → 432 |   +32 |\n')
+
+    def test_base_and_new_are_each_padded_to_their_own_widest(self):
+        md = sd.compare_reports({'a.c': {'flash': 5, 'ram': 0}, 'b.c': {'flash': 12345, 'ram': 0}},
+                                {'a.c': {'flash': 12000, 'ram': 0}, 'b.c': {'flash': 6, 'ram': 0}})
+        rows = md.split('\n')
+        self.assertIn('|     5 → 12000 |', rows[3])
+        self.assertIn('| 12345 →     6 |', rows[2])
+        self.assertIn('| 12350 → 12006 |', rows[5])  # TOTAL, under its rule
+
+    def test_labels_name_the_sides_in_the_header(self):
+        md = sd.compare_reports({'x.c': {'flash': 1, 'ram': 0}}, {'x.c': {'flash': 2, 'ram': 0}}, ('abc1234', 'def5678'))
+        self.assertTrue(md.startswith('| File (abc1234 → def5678) |'))
+
+    def test_the_total_row_sits_under_a_rule_in_every_table(self):
+        base, cur = elf({'x.c': (1, 0)}), elf({'x.c': (3, 0)})
+        for md in (sd.compare_reports(base['files'], cur['files']), sd.delta_table(base, cur, False, 'membrowse'),
+                   sd.size_table(cur, False, 'membrowse')):
+            lines = md.rstrip('\n').split('\n')
+            self.assertEqual(lines[-2], lines[1].replace(':', '-'))
+            self.assertTrue(lines[-1].startswith('| TOTAL '))
+
+    def test_no_per_file_changes_row_spans_the_columns(self):
+        md = unpad(sd.compare_reports({'x.c': {'flash': 1, 'ram': 0}}, {'x.c': {'flash': 1, 'ram': 0}}))
+        self.assertIn('| _no per-file changes_ | | | | |', md)
 
 
 def elf(files, all_syms=None, symbols=None):
@@ -131,7 +165,7 @@ class RenderReport(unittest.TestCase):
         self.assertIn('filtered Flash 80, RAM 20; all symbols Flash 500, RAM 40', md)
         self.assertIn('| File | .text | .bss | size | % |', md)
         self.assertLess(md.index('| x.c | 60 | 20 | 80 | 80.0% |'), md.index('| y.c | 20 | 0 | 20 | 20.0% |'))
-        self.assertIn('| **TOTAL** | 80 | 20 | 100 | 100.0% |', md)
+        self.assertIn('| TOTAL | 80 | 20 | 100 | 100.0% |', md)
         self.assertNotIn('<details>', md)
 
     def test_symbols_list_each_files_symbols_under_it(self):
@@ -180,7 +214,7 @@ class RenderPairs(unittest.TestCase):
         md = self.render({a: elf({'x.c': (100, 8), 'y.c': (5, 0)})}, {a: elf({'x.c': (120, 4), 'y.c': (5, 0)})})
         self.assertIn('| File | .text | .bss | size Δ |', md)
         self.assertIn('| x.c | +20 | -4 | +16 |', md)
-        self.assertIn('| **TOTAL** | +20 | -4 | +16 |', md)
+        self.assertIn('| TOTAL | +20 | -4 | +16 |', md)
         self.assertNotIn('| y.c |', md)
 
     def test_sections_cancelling_in_flash_still_mark_the_pair_changed(self):
@@ -336,7 +370,7 @@ class RenderPairs(unittest.TestCase):
         self.assertIn('Coverage (INCOMPLETE, membrowse):** 1 of 2 matched elf pairs compared, 1 changed', md)
         self.assertIn('FAILED `b: device/ex1/ex1.elf` base report: boom', md)
         self.assertIn('all symbols: Flash Δ +20, RAM Δ 0', md)
-        self.assertIn('| x.c | 100 | 120 | +20 |', md)
+        self.assertIn('| x.c | 100 → 120 | +20 | 0 → 0 | 0 |', md)
 
 
 def write_elf(path, sections, loads, bits=32, endian='<'):
@@ -805,6 +839,23 @@ class BuildOutput(unittest.TestCase):
         self.assertTrue(ret.stderr.startswith('err\nCommand timed out after 600s'))
 
 
+class ShortHash(unittest.TestCase):
+    def hash(self, ret):
+        with mock.patch.object(sd, 'run', return_value=ret) as run:
+            return sd.short_hash('/co'), run.call_args.args[0]
+
+    def test_the_describe_output_names_the_commit(self):
+        self.assertEqual(self.hash(subprocess.CompletedProcess([], 0, 'abc1234-dirty\n', '')),
+                         ('abc1234-dirty', ['git', '-C', '/co', 'describe', '--always', '--dirty', '--exclude=*']))
+
+    def test_a_git_error_is_none_not_dirty(self):
+        self.assertIsNone(self.hash(subprocess.CompletedProcess([], 128, '', 'fatal: not a git repository'))[0])
+        self.assertIsNone(self.hash(subprocess.CompletedProcess([], 0, '\n', ''))[0])
+
+    def test_a_real_checkout_has_a_hash(self):
+        self.assertRegex(sd.short_hash(sd.TINYUSB_ROOT), r'^[0-9a-f]{7,}(-dirty)?$')
+
+
 class MainFailure(unittest.TestCase):
     def _run_main(self, tmp, argv, build_board, generate=None, run=None):
         """main() with the build, sizing and command steps stubbed. `build_board`
@@ -868,7 +919,7 @@ class MainFailure(unittest.TestCase):
                                  cur_sizes=({'ex/ex.elf': _elf(3)}, []))
             self.assertEqual(rc, 0)
             with open(os.path.join(tmp, 'b', 'diff.md')) as f:
-                self.assertIn('| x.c | 1 | 3 | +2 |', unpad(f.read()))
+                self.assertIn('| x.c | 1 → 3 | +2 | 0 → 0 | 0 |', unpad(f.read()))
             # no -e: the console gets the summary line, the tables stay in the .md
             self.assertIn('  1 pair, 1 changed; filtered Flash Δ +2, RAM Δ 0\n', out)
             self.assertNotIn('| x.c |', out)
@@ -921,6 +972,24 @@ class MainFailure(unittest.TestCase):
             self.assertIn('\n  b: ex/boot.elf:\n', out)
             self.assertNotIn('b: ex/app.elf:', out)
 
+    def test_the_table_names_the_sides_by_hash_or_falls_back(self):
+        for short, header in (('abc1234\n', 'File (abc1234 → abc1234) |'), ('', 'File (base → new) |')):
+            with tempfile.TemporaryDirectory() as tmp:
+                side_sizes = iter([({'ex/ex.elf': _elf(1)}, []), ({'ex/ex.elf': _elf(3)}, [])])
+
+                def build(_src, _build_dir, board, *_args):
+                    os.makedirs(os.path.join(tmp, board), exist_ok=True)
+                    return None
+
+                def run(cmd, **_kwargs):
+                    out = short if 'describe' in cmd else 'c0ffee\n'
+                    return subprocess.CompletedProcess(cmd, 0 if out else 128, out, '')
+                rc, out = self._run_main(tmp, ['-b', 'b', '-e', 'ex'], build, lambda *_a, **_k: next(side_sizes), run)
+                self.assertEqual(rc, 0)
+                self.assertIn(header, out)
+                with open(os.path.join(tmp, 'b', 'diff_ex.md')) as f:
+                    self.assertIn(header, unpad(f.read()))
+
     def test_a_single_example_prints_its_phases_summary_and_changed_tables(self):
         with tempfile.TemporaryDirectory() as tmp:
             side_sizes = iter([({'ex/ex.elf': _elf(1)}, []), ({'ex/ex.elf': _elf(3)}, [])])
@@ -930,10 +999,10 @@ class MainFailure(unittest.TestCase):
                 return None
             rc, out = self._run_main(tmp, ['-b', 'b', '-e', 'ex'], build, lambda *_a, **_k: next(side_sizes))
             self.assertEqual(rc, 0)
-            self.assertRegex(out, r'^diff master \(c0ffee\) vs working tree · membrowse\n\[1/1\] b / ex\n'
+            self.assertRegex(out, r'^diff master \(c0ffee\) vs working tree \(c0ffee\) · membrowse\n\[1/1\] b / ex\n'
                                   r'  size and compare… \d+\.\ds\n  1 pair, 1 changed; filtered Flash Δ \+2')
             # indented tables; unpad() folds their indent to one space
-            self.assertIn('\n | x.c | 1 | 3 | +2 |', out)
+            self.assertIn('\n | x.c | 1 → 3 | +2 | 0 → 0 | 0 |', out)
             self.assertIn('\n | x.c | +2 | +2 |', out)
             self.assertNotIn('**Coverage', out)
 
@@ -964,7 +1033,7 @@ class MainFailure(unittest.TestCase):
             self.assertEqual(rc, 0)
             self.assertIn('1 pair, 1 changed; filtered Flash Δ -8', out)
             with open(os.path.join(tmp, 'b', 'diff.md')) as f:
-                self.assertIn('| x.c | 8 | 0 | -8 |', unpad(f.read()))
+                self.assertIn('| x.c | 8 → 0 | -8 | 0 → 0 | 0 |', unpad(f.read()))
 
     def _main_combined(self, tmp, sizes, build_ok=('b1', 'b2'), example=None):
         """main() with -b b1 -b b2 --combined. `sizes` maps
@@ -1109,7 +1178,7 @@ class MainFailure(unittest.TestCase):
             for path in ((tmp, 'b', 'diff.json'), (tmp, '_combined', 'diff.json')):
                 data = json.loads(self._read(*path))
                 self.assertEqual(data['engine'], 'membrowse')
-                self.assertEqual((data['base_ref'], data['base_sha']), ('master', 'c0ffee'))
+                self.assertEqual((data['base_ref'], data['base_sha'], data['current_rev']), ('master', 'c0ffee', 'c0ffee'))
                 self.assertEqual(data['filters'], {'base': ['src/'], 'current': ['src/']})
                 no_symbols = {k: v for k, v in _elf(1).items() if k != 'symbols'}
                 self.assertEqual(data['pairs'], [{'board': 'b', 'elf': 'ex/ex.elf',

@@ -53,6 +53,8 @@ from membrowse_cli import extract_ld_scripts, extract_defsyms, link_command
 TINYUSB_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CODE_SIZE_DIR = os.path.join(TINYUSB_ROOT, 'cmake-code-size')
 CI_PINNED_BOARDS = os.path.join(TINYUSB_ROOT, '.github', 'ci-pinned-boards.json')
+# a diff's side names when git cannot give their commit hashes
+SIDE_LABELS = ('base', 'new')
 _RAM_REGION_HINTS = ('ram', 'tcm', 'ddr')
 _FLASH_REGION_HINTS = ('flash', 'rom')
 
@@ -348,43 +350,41 @@ def _fmt(delta):
     return f'+{delta}' if delta > 0 else str(delta)
 
 
-def md_table(header, rows):
+def md_table(header, rows, total=None):
     """Markdown table padded so its columns also line up as plain text: the first
-    column left-aligned, the others right-aligned. Cells are strings."""
-    widths = [max(len(r[i]) for r in [header] + rows) for i in range(len(header))]
+    column left-aligned, the others right-aligned. Cells are strings; a `total` row
+    follows the rows under a plain rule."""
+    body = rows + [total] if total else rows
+    widths = [max(len(r[i]) for r in [header] + body) for i in range(len(header))]
 
     def line(cells):
         return '| ' + ' | '.join(c.ljust(w) if i == 0 else c.rjust(w)
                                  for i, (c, w) in enumerate(zip(cells, widths))) + ' |'
     sep = '|' + '|'.join('-' * (w + 2) if i == 0 else '-' * (w + 1) + ':' for i, w in enumerate(widths)) + '|'
-    return '\n'.join([line(header), sep] + [line(r) for r in rows])
+    # only the header's rule is a delimiter; this one renders as a row, so colons would show as text
+    rule = sep.replace(':', '-')
+    return '\n'.join([line(header), sep] + [line(r) for r in rows] + ([rule, line(total)] if total else []))
 
 
-def compare_reports(base_by_file, cur_by_file):
-    """Markdown per-file delta table; files sorted by |flash delta| desc."""
-    rows = []
-    for path in sorted(set(base_by_file) | set(cur_by_file)):
-        b = base_by_file.get(path, {'flash': 0, 'ram': 0})
-        c = cur_by_file.get(path, {'flash': 0, 'ram': 0})
-        df, dr = c['flash'] - b['flash'], c['ram'] - b['ram']
-        rows.append((path, b, c, df, dr))
-    rows.sort(key=lambda r: abs(r[3]), reverse=True)
+def compare_reports(base_by_file, cur_by_file, labels=SIDE_LABELS):
+    """Markdown per-file delta table; files sorted by |flash delta| desc, TOTAL over all files.
+    Each region cell is `base → new`, both values padded so they line up down the column;
+    `labels` name the two sides in the header."""
+    zero = {'flash': 0, 'ram': 0}
+    header = [f'File ({labels[0]} → {labels[1]})', 'Flash', 'Flash Δ', 'RAM', 'RAM Δ']
+    rows = [(path, base_by_file.get(path, zero), cur_by_file.get(path, zero))
+            for path in sorted(set(base_by_file) | set(cur_by_file))]
+    changed = sorted((r for r in rows if any(_delta(r[1], r[2]))), key=lambda r: -abs(_delta(r[1], r[2])[0]))
+    shown = changed + [('TOTAL', _files_total(base_by_file), _files_total(cur_by_file))]
+    bw = {k: max(len(str(b[k])) for _, b, _ in shown) for k in zero}
+    cw = {k: max(len(str(c[k])) for _, _, c in shown) for k in zero}
 
-    table = []
-    tb = {'flash': 0, 'ram': 0}
-    tc = {'flash': 0, 'ram': 0}
-    for path, b, c, df, dr in rows:
-        # totals run over ALL rows; the table prints only changed ones
-        tb['flash'] += b['flash']; tb['ram'] += b['ram']
-        tc['flash'] += c['flash']; tc['ram'] += c['ram']
-        if df == 0 and dr == 0:
-            continue
-        table.append([path, str(b['flash']), str(c['flash']), _fmt(df), str(b['ram']), str(c['ram']), _fmt(dr)])
-    if not table and rows:
-        table.append(['_no per-file changes_'] + [''] * 6)
-    table.append(['**TOTAL**', str(tb['flash']), str(tc['flash']), _fmt(tc['flash'] - tb['flash']),
-                  str(tb['ram']), str(tc['ram']), _fmt(tc['ram'] - tb['ram'])])
-    return md_table(['File', 'Flash base', 'Flash new', 'Flash Δ', 'RAM base', 'RAM new', 'RAM Δ'], table) + '\n'
+    def cells(b, c):
+        return [cell for k in zero for cell in (f'{b[k]:>{bw[k]}} → {c[k]:>{cw[k]}}', _fmt(c[k] - b[k]))]
+    *table, total_row = [[path, *cells(b, c)] for path, b, c in shown]
+    if not changed and rows:
+        table.append(['_no per-file changes_'] + [''] * (len(header) - 1))
+    return md_table(header, table, total_row) + '\n'
 
 
 def _section_deltas(b, c, path):
@@ -443,8 +443,8 @@ def size_table(sizes, symbols, engine):
                     for name, n in names.items()]
             for (sec, name), n in sorted(syms, key=lambda kv: (-kv[1], kv[0])):
                 lines.append(row(f'└ {name}', {sec: n}))
-    lines.append(row('**TOTAL**', {sec: sum(secs.get(sec, 0) for secs in by_file.values()) for sec in cols}))
-    return md_table([_row_label(symbols, engine)] + cols + ['size', '%'], lines) + '\n'
+    total_row = row('TOTAL', {sec: sum(secs.get(sec, 0) for secs in by_file.values()) for sec in cols})
+    return md_table([_row_label(symbols, engine)] + cols + ['size', '%'], lines, total_row) + '\n'
 
 
 def render_report(sizes, engine, failures=(), boards=(), symbols=False):
@@ -464,7 +464,7 @@ def render_report(sizes, engine, failures=(), boards=(), symbols=False):
         return '\n'.join(lines + ['_no sized elfs_', ''])
 
     def totals(s):
-        src = _src_total(s)
+        src = _files_total(s['files'])
         return (f'filtered Flash {src["flash"]}, RAM {src["ram"]}; '
                 f'{all_label} Flash {s["all"]["flash"]}, RAM {s["all"]["ram"]}')
 
@@ -472,7 +472,7 @@ def render_report(sizes, engine, failures=(), boards=(), symbols=False):
         (elf_id, s), = sized.items()
         return '\n'.join(lines + [f'`{_label(elf_id)}` {totals(s)}', '', size_table(s, symbols, engine)])
     lines.append(md_table(['Elf', 'filtered Flash', 'filtered RAM', f'{all_label} Flash', f'{all_label} RAM'],
-                          [[_label(i)] + [str(t[k]) for t in (_src_total(s), s['all']) for k in ('flash', 'ram')]
+                          [[_label(i)] + [str(t[k]) for t in (_files_total(s['files']), s['all']) for k in ('flash', 'ram')]
                            for i, s in sized.items()]))
     for elf_id, s in sized.items():
         lines += ['', f'<details><summary>{_label(elf_id)}</summary>', '',
@@ -502,8 +502,7 @@ def delta_table(b, c, symbols, engine):
             lines.append(row(f'└ {name}', {sec: d}))
         for sec, d in secs.items():
             total[sec] = total.get(sec, 0) + d
-    lines.append(row('**TOTAL**', total))
-    return md_table([label] + cols + ['size Δ'], lines) + '\n'
+    return md_table([label] + cols + ['size Δ'], lines, row('TOTAL', total)) + '\n'
 
 
 def pair_elfs(base, cur):
@@ -528,8 +527,8 @@ def _file_deltas(b, c):
             for path in sorted(set(b['files']) | set(c['files']))}
 
 
-def _src_total(sizes):
-    return {k: sum(f[k] for f in sizes['files'].values()) for k in ('flash', 'ram')}
+def _files_total(by_file):
+    return {k: sum(f[k] for f in by_file.values()) for k in ('flash', 'ram')}
 
 
 def _label(elf_id):
@@ -560,9 +559,9 @@ def _file_stats(file_deltas):
     return stats
 
 
-def _pair_tables(b, c, symbols, engine):
+def _pair_tables(b, c, symbols, engine, labels):
     """A pair's Flash/RAM file table and its section delta table."""
-    return compare_reports(b['files'], c['files']), delta_table(b, c, symbols, engine)
+    return compare_reports(b['files'], c['files'], labels), delta_table(b, c, symbols, engine)
 
 
 def _pair_changed(b, c, symbols):
@@ -570,7 +569,8 @@ def _pair_changed(b, c, symbols):
             or bool(_changed_files(b, c, symbols)))
 
 
-def render_pairs(pairs, matched, engine, base_only=(), cur_only=(), failures=(), boards=(), symbols=False):
+def render_pairs(pairs, matched, engine, base_only=(), cur_only=(), failures=(), boards=(), symbols=False,
+                 labels=SIDE_LABELS):
     """Markdown report over paired elfs keyed by (board, elf path).
 
     Every statistic is over per-pair deltas, sized by `engine`. `matched` counts
@@ -578,7 +578,8 @@ def render_pairs(pairs, matched, engine, base_only=(), cur_only=(), failures=(),
     `failures` are (elf id, side, stage, message), the elf path None for a
     board-level failure. Failures or unmatched elfs mark the report INCOMPLETE.
     `boards` lists the requested boards, so an unchanged or failed one is named.
-    `symbols` adds each file's changed symbols to each pair's section table.
+    `symbols` adds each file's changed symbols to each pair's section table; `labels`
+    name the base and current sides.
     """
     file_deltas = {i: _file_deltas(b, c) for i, (b, c) in pairs.items()}
     changed = [i for i, (b, c) in pairs.items() if _pair_changed(b, c, symbols)]
@@ -599,7 +600,7 @@ def render_pairs(pairs, matched, engine, base_only=(), cur_only=(), failures=(),
         (elf_id, (b, c)), = pairs.items()
         df, dr = _delta(b['all'], c['all'])
         lines += [f'`{_label(elf_id)}` {all_label}: Flash Δ {_fmt(df)}, RAM Δ {_fmt(dr)}', '',
-                  *_pair_tables(b, c, symbols, engine)]
+                  *_pair_tables(b, c, symbols, engine, labels)]
         return '\n'.join(lines)
     if not pairs:
         return '\n'.join(lines + ['_no comparable pairs_', ''])
@@ -609,7 +610,7 @@ def render_pairs(pairs, matched, engine, base_only=(), cur_only=(), failures=(),
     pair_rows = []
     for elf_id in changed:
         b, c = pairs[elf_id]
-        src = _delta(_src_total(b), _src_total(c))
+        src = _delta(_files_total(b['files']), _files_total(c['files']))
         syms = _delta(b['all'], c['all'])
         pair_rows.append([_label(elf_id)] + [_fmt(d) for d in src + syms])
     lines.append(md_table(['Pair', 'filtered Flash Δ', 'filtered RAM Δ', f'{all_label} Flash Δ',
@@ -627,7 +628,7 @@ def render_pairs(pairs, matched, engine, base_only=(), cur_only=(), failures=(),
     for elf_id in changed:
         b, c = pairs[elf_id]
         lines += ['', f'<details><summary>{_label(elf_id)}</summary>', '',
-                  *_pair_tables(b, c, symbols, engine), '</details>']
+                  *_pair_tables(b, c, symbols, engine, labels), '</details>']
     return '\n'.join(lines) + '\n'
 
 
@@ -645,7 +646,7 @@ def _json_sizes(sizes, symbols):
     return sizes if symbols else {k: v for k, v in sizes.items() if k != 'symbols'}
 
 
-def compare_sides(base, cur, engine, failures=(), boards=(), scope=None, symbols=False):
+def compare_sides(base, cur, engine, failures=(), boards=(), scope=None, symbols=False, labels=SIDE_LABELS):
     """Pair two sides and render them. Returns (md, failures, ok, data).
 
     `failures` comes back with a filter failure for `scope` added when no
@@ -661,7 +662,7 @@ def compare_sides(base, cur, engine, failures=(), boards=(), scope=None, symbols
                          f'no {engine} sizes matched filters - check them, or a change in '
                          f'{engine} output broke its parsing (try another --engine to isolate)'))
     md = render_pairs(pairs, len(base.keys() & cur.keys()), engine, base_only, cur_only, failures, boards,
-                      symbols)
+                      symbols, labels)
     data = {
         'engine': engine,
         'boards': list(boards),
@@ -717,6 +718,13 @@ def symlink_deps(main_root, worktree_dir):
         if os.path.isdir(src) and not os.path.lexists(dst):
             os.makedirs(os.path.dirname(dst), exist_ok=True)
             os.symlink(src, dst)
+
+
+def short_hash(checkout):
+    """`checkout`'s short HEAD hash, `-dirty` when tracked files differ from it; None
+    when git cannot tell. `--exclude='*'` keeps tag names out."""
+    ret = run(['git', '-C', checkout, 'describe', '--always', '--dirty', '--exclude=*'])
+    return ret.stdout.strip() or None if ret.returncode == 0 else None
 
 
 def ci_pinned_boards():
@@ -855,7 +863,7 @@ def diff_summary(data, symbols):
     line = f'{len(pairs)} pair{"" if len(pairs) == 1 else "s"}, {changed} changed'
     if len(pairs) == 1:
         (b, c), = pairs.values()
-        df, dr = _delta(_src_total(b), _src_total(c))
+        df, dr = _delta(_files_total(b['files']), _files_total(c['files']))
         line += f'; filtered Flash Δ {_fmt(df)}, RAM Δ {_fmt(dr)}'
     lines = [line if data['status'] == 'complete' else f'INCOMPLETE: {line}']
     for key in ('base_only', 'current_only'):
@@ -871,7 +879,7 @@ def report_summary(sizes, failures, ok):
     sized = [s for s in sizes.values() if s is not None]
     line = f'{len(sized)} of {len(sizes)} elfs sized'
     if len(sized) == 1:
-        src = _src_total(sized[0])
+        src = _files_total(sized[0]['files'])
         line += f'; filtered Flash {src["flash"]}, RAM {src["ram"]}'
     lines = [line if ok else f'INCOMPLETE: {line}']
     return lines + [f'FAILED {_label(i)} {stage}: {message}' for i, stage, message in failures]
@@ -1081,14 +1089,16 @@ def main():
 
     # the commit actually built, which the ref may no longer name later
     base_sha = run(['git', '-C', worktree_dir, 'rev-parse', 'HEAD']).stdout.strip()
-    print(f'diff {args.base_branch} ({base_sha[:9]}) vs working tree · {args.engine}')
+    current_rev = short_hash(TINYUSB_ROOT)
+    labels = (short_hash(worktree_dir) or SIDE_LABELS[0], current_rev or SIDE_LABELS[1])
+    print(f'diff {args.base_branch} ({labels[0]}) vs working tree ({labels[1]}) · {args.engine}')
     focused = _focused(args.board, examples)
 
     def report_data(data):
         """The JSON report for --json, None without it."""
         if not args.json:
             return None
-        return {**data, 'base_ref': args.base_branch, 'base_sha': base_sha,
+        return {**data, 'base_ref': args.base_branch, 'base_sha': base_sha, 'current_rev': current_rev,
                 'filters': {'base': base_filters, 'current': cur_filters}}
 
     failed = False
@@ -1137,7 +1147,7 @@ def main():
 
                 md, failures, ok, data = compare_sides(
                     sides['base'], sides['current'], args.engine, failures, [board], scope=(board, None),
-                    symbols=args.symbols)
+                    symbols=args.symbols, labels=labels)
                 if not build_failure:
                     phase.done(failed=not ok)
                 failed |= not ok
@@ -1146,7 +1156,7 @@ def main():
                         combined_sides[side].update(sizes)
                     combined_failures += failures
                 tables = _labelled({(p['board'], p['elf']): _pair_tables(p['base'], p['current'], args.symbols,
-                                                                         args.engine)
+                                                                         args.engine, labels)
                                     for p in data['pairs'] if _pair_changed(p['base'], p['current'], args.symbols)},
                                    len(data['pairs'])) if focused else ()
                 print_result(diff_summary(data, args.symbols), f'{example}: ' if scope else '', tables)
@@ -1181,7 +1191,7 @@ def main():
             # every scope was filter-checked above, and its failures carried over
             md, _failures, ok, data = compare_sides(
                 combined_sides['base'], combined_sides['current'], args.engine,
-                combined_failures, args.board, symbols=args.symbols)
+                combined_failures, args.board, symbols=args.symbols, labels=labels)
             failed |= not ok
             print_result(diff_summary(data, args.symbols))
             write_report(os.path.join(combined_dir, 'diff'), md, report_data(data))
