@@ -155,6 +155,10 @@ class Refusals(Rig):
         r = self.hil_remote('-b', 'alpha', '--build')
         self.refused(r, '--build')
         self.assertIn('check_build.py --board alpha --shared --variants test/hil/tinyusb.json', r.stderr)
+        # without -b the line names the boards the run would select
+        r = self.hil_remote('--build', '--exclude-flasher', 'openocd')
+        self.refused(r, '--build')
+        self.assertIn('check_build.py --board alpha --shared --variants', r.stderr)
 
     def test_unknown_board(self):
         self.build('alpha')
@@ -174,7 +178,7 @@ class Refusals(Rig):
     def test_all_boards_with_nothing_built(self):
         r = self.hil_remote()
         self.refused(r, 'nothing to test')
-        self.assertIn('--board <board> --shared --variants test/hil/tinyusb.json', r.stderr)
+        self.assertIn('--board alpha --board beta --shared --variants test/hil/tinyusb.json', r.stderr)
 
     def test_the_build_line_quotes_the_config(self):
         (self.root / 'test/hil/my rig.json').write_text(json.dumps(CONFIG))

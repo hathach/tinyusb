@@ -132,12 +132,10 @@ def build_command(config_path, boards, build_dir):
     return line
 
 
-def resolve_firmware(config, config_path, args):
-    """Return the existing <build_dir>/cmake-build-<variant> dirs to stage, refusing before
-    anything remote is touched: an unknown board fails the whole remote run after staging,
-    and a board with no build at all would only show up as `Skip (no binary)` rows.
-    Boards are selected as hil_test.py does, so a build of a board it drops satisfies nothing."""
-    boards, build_dir = args.board, args.build_dir
+def select_boards(config, args):
+    """The boards hil_test.py will run, refusing an unknown one: it fails the whole remote run
+    after staging. A build of a board this drops satisfies nothing."""
+    boards = args.board
     roster = {b['name']: b for b in config.get('boards', [])}
     unknown = [b for b in boards if b not in roster]
     if unknown:
@@ -149,6 +147,15 @@ def resolve_firmware(config, config_path, args):
         if not selected:
             fail(f'no board left after the flasher filter (--flasher {args.flasher or "-"}, '
                  f'--exclude-flasher {args.exclude_flasher or "-"})')
+    return selected
+
+
+def resolve_firmware(config, config_path, args):
+    """Return the existing <build_dir>/cmake-build-<variant> dirs to stage, refusing before
+    anything remote is touched: a board with no build at all would only show up as
+    `Skip (no binary)` rows."""
+    boards, build_dir = args.board, args.build_dir
+    selected = select_boards(config, args)
     root = ROOT / build_dir
     dirs, missing, unbuilt = [], [], []
     for name in selected:
@@ -170,7 +177,7 @@ def resolve_firmware(config, config_path, args):
              f'\nbuild with\n  {build_command(config_path, unbuilt, build_dir)}')
     if not dirs:
         fail(f'no {build_dir}/cmake-build-* build for any selected board in the config -- nothing to test; '
-             f'build with\n  {build_command(config_path, (), build_dir)}')
+             f'build with\n  {build_command(config_path, selected, build_dir)}')
     return dirs
 
 
@@ -294,14 +301,14 @@ def main(argv):
         fail(f'{ROOT} does not look like a tinyusb checkout')
     check_remote_dir(remote_dir)
     args = helper('hil_args').build_parser().parse_args([*argv, str(config_path)])
-    if args.build:
-        fail(f'--build would build on the rig, which gets binaries only; build locally with\n'
-             f'  {build_command(config_path, args.board, args.build_dir)}')
     check_build_dir(args.build_dir)
     try:
         config = json.loads(config_path.read_text())
     except (OSError, ValueError) as e:
         fail(f'could not read the config {config_path}: {e}')
+    if args.build:
+        fail(f'--build would build on the rig, which gets binaries only; build locally with\n'
+             f'  {build_command(config_path, select_boards(config, args), args.build_dir)}')
     firmware = resolve_firmware(config, config_path, args)
 
     print(f'==> Setting up remote {remote}:{remote_dir}')
