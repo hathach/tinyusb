@@ -29,7 +29,14 @@
 
   // Struct-based EP register access (uniform layout). CH58X has a different register map and
   // defines EP_DMA/EP_TX_LEN/EP_CTRL itself in ch32_usbfs_reg.h.
-  #if CFG_TUSB_MCU == OPT_MCU_CH583
+  #if CFG_TUSB_MCU == OPT_MCU_CH32X035
+    // The first and second endpoint blocks have four-byte register strides.
+    // EP4 never receives a DMA-register write; it uses EP0's shared allocation.
+    #define X035_EP_ADDR(ep, low, high) (0x40023400u + ((ep) <= 4u ? (low) + (ep) * 4u : (high) + ((ep) - 5u) * 4u))
+    #define EP_TX_LEN(ep) (*(volatile uint16_t *)X035_EP_ADDR(ep, 0x20u, 0x64u))
+    #define EP_CTRL(ep) (*(volatile uint8_t *)X035_EP_ADDR(ep, 0x22u, 0x66u))
+    #define EP_DMA(ep) (*(volatile uint32_t *)X035_EP_ADDR(ep, 0x10u, 0x54u))
+  #elif CFG_TUSB_MCU == OPT_MCU_CH583
     // CH58X EP registers split into a low block (EP0-4) and a high block (EP5-7). Walk from each
     // block's first slot by the 4-byte slot stride (pointer arithmetic off slot 0, so the unused
     // ternary branch's index can't trip -Warray-bounds). EP4 has no DMA register of its own (it
@@ -48,8 +55,8 @@
     #define EP_RX_CTRL(ep) ((&USBOTG_FS->UEP0_RX_CTRL)[4 * ep])
   #endif
 
-// Endpoint control register access. The newer USBFS IP (CH32V20x/V307/X035) has separate
-// TX_CTRL and RX_CTRL bytes per endpoint; the older IP (CH32V103) has a single combined
+// Endpoint control register access. The newer USBFS IP (CH32V20x/V307) has separate
+// TX_CTRL and RX_CTRL bytes per endpoint; CH32V103/X035/CH58x have a single combined
 // UEPn_CTRL register. These helpers hide the difference so the rest of the driver is shared.
 // Values use the newer-IP encoding (USBFS_EP_T_*/USBFS_EP_R_*); the combined path remaps them.
 #ifdef CH32_USBFS_EP_CTRL_COMBINED
@@ -220,8 +227,8 @@ static void update_in(uint8_t rhport, uint8_t ep, bool force) {
   if (xfer->valid) {
     if (force || xfer->len) {
       size_t len = TU_MIN(xfer->max_size, xfer->len);
-#if CFG_TUSB_MCU == OPT_MCU_CH583
-      // Every CH58x endpoint buffer is 64 bytes; cap the copy so an iso mps a class mistakenly set
+#if TU_CHECK_MCU(OPT_MCU_CH583, OPT_MCU_CH32X035)
+      // Every CH58x/X035 endpoint buffer is 64 bytes; cap the copy so an iso mps a class mistakenly set
       // larger can't write past the buffer into a neighbouring endpoint's.
       len = TU_MIN(len, 64u);
 #endif
@@ -255,7 +262,7 @@ static void update_out(uint8_t rhport, uint8_t ep, size_t rx_len) {
   struct usb_xfer *xfer = &data.xfer[ep][TUSB_DIR_OUT];
   if (xfer->valid) {
     size_t len = TU_MIN(xfer->max_size, TU_MIN(xfer->len, rx_len));
-#if CFG_TUSB_MCU == OPT_MCU_CH583
+#if TU_CHECK_MCU(OPT_MCU_CH583, OPT_MCU_CH32X035)
     len = TU_MIN(len, 64u); // cap to the 64-byte EP buffer (see update_in)
 #endif
     memcpy(xfer->buffer, ep_out_buf(ep), len);
@@ -307,10 +314,13 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   // enable other endpoints but NAK everything
   USBOTG_FS->UEP4_1_MOD = 0xCC;
   USBOTG_FS->UEP2_3_MOD = 0xCC;
-#if CFG_TUSB_MCU == OPT_MCU_CH583
+#if TU_CHECK_MCU(OPT_MCU_CH583)
   // CH58X: a single mode register enables EP5/6/7 RX+TX (different bit layout than CH32).
   USBOTG_FS->UEP567_MOD = RB_UEP5_RX_EN | RB_UEP5_TX_EN | RB_UEP6_RX_EN | RB_UEP6_TX_EN |
                           RB_UEP7_RX_EN | RB_UEP7_TX_EN;
+#elif TU_CHECK_MCU(OPT_MCU_CH32X035)
+  USBOTG_FS->UEP567_MOD = USBFS_UEP5_RX_EN | USBFS_UEP5_TX_EN | USBFS_UEP6_RX_EN | USBFS_UEP6_TX_EN |
+                          USBFS_UEP7_RX_EN | USBFS_UEP7_TX_EN;
 #else
   USBOTG_FS->UEP5_6_MOD = 0xCC;
   USBOTG_FS->UEP7_MOD   = 0x0C;
@@ -395,7 +405,7 @@ void dcd_int_handler(uint8_t rhport) {
 
     USBOTG_FS->INT_FG = USBFS_INT_FG_BUS_RST;
   } else if (status & USBFS_INT_FG_SUSPEND) {
-#if CFG_TUSB_MCU == OPT_MCU_CH583
+#if TU_CHECK_MCU(OPT_MCU_CH583, OPT_MCU_CH32X035)
     // CH58x raises this single interrupt for both suspend and resume; MIS_ST's suspend bit tells
     // them apart (set while suspended, clear once resumed) so tud_resume_cb() actually fires.
     dcd_event_t event = {.rhport = rhport,
@@ -449,7 +459,7 @@ void dcd_edpt0_status_complete(uint8_t rhport, const tusb_control_request_t *req
   (void)rhport;
   if (request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_DEVICE &&
       request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD && request->bRequest == TUSB_REQ_SET_ADDRESS) {
-#if CFG_TUSB_MCU == OPT_MCU_CH583
+#if TU_CHECK_MCU(OPT_MCU_CH583, OPT_MCU_CH32X035)
     // On CH58x R8_USB_DEV_AD bit 7 is a user general-purpose flag; only bits [6:0] are the address.
     USBOTG_FS->DEV_ADDR = (uint8_t)((USBOTG_FS->DEV_ADDR & 0x80u) | (request->wValue & 0x7Fu));
 #else
@@ -490,6 +500,9 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
   uint8_t dir = tu_edpt_dir(ep_addr);
   TU_ASSERT(ep < EP_MAX);
 
+  // The X035 port currently supports control, bulk and interrupt endpoints only.
+  TU_VERIFY(CFG_TUSB_MCU != OPT_MCU_CH32X035);
+
   // Endpoint buffers are 64 B, except EP3 IN which is enlarged for full-speed iso on the parts that
   // support 1023-byte EP3 packets (CH32V20x/V30x/F20x; CFG_TUD_WCH_USBFS_EP3_BUFSIZE). Reject a
   // larger mps rather than running off the end into the neighbouring endpoint's memory.
@@ -506,6 +519,7 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
 
 bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
   (void)rhport;
+  TU_VERIFY(CFG_TUSB_MCU != OPT_MCU_CH32X035);
   const uint8_t ep = tu_edpt_number(desc_ep->bEndpointAddress);
   const uint8_t dir = tu_edpt_dir(desc_ep->bEndpointAddress);
 

@@ -111,6 +111,21 @@
 #elif CFG_TUSB_MCU == OPT_MCU_CH32V307
   #include <ch32v30x.h>
   #define USBHD_IRQn OTG_FS_IRQn
+#elif CFG_TUSB_MCU == OPT_MCU_CH32X035
+  #include <ch32x035.h>
+  #include <ch32x035_usb.h>
+  // X035 has combined endpoint control bytes, EP4 sharing EP0's DMA region,
+  // and EP5-7 registers in a second block. DMA registers are 32-bit, unlike
+  // CH58x's 16-bit addresses. Use the SDK layout rather than aliasing that IP.
+  #define USBOTG_FS USBFSD
+  #define USBHD_IRQn USBFS_IRQn
+  #define CH32_USBFS_EP_CTRL_COMBINED 1
+  #define CH32_USBFS_EP4_SHARES_EP0 1
+  // X035 uses software DATA0/DATA1 toggles, as in WCH's device driver.
+  #define CH32_USBFS_EP_MANUAL_TOG 1
+  TU_VERIFY_STATIC(offsetof(USBFSD_TypeDef, UEP0_CTRL_H) == 0x22, "X035 EP0 control");
+  TU_VERIFY_STATIC(offsetof(USBFSD_TypeDef, UEP5_DMA) == 0x54, "X035 EP5 DMA");
+  TU_VERIFY_STATIC(offsetof(USBFSD_TypeDef, UEP5_CTRL_H) == 0x66, "X035 EP5 control");
 #elif CFG_TUSB_MCU == OPT_MCU_CH583
   #include "CH58x_common.h"
   // CH582/583 USBFS device controller: same combined per-endpoint control register as
