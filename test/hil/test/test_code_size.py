@@ -351,8 +351,9 @@ class SectionBuckets(unittest.TestCase):
 
 
 def fake_map_section(section, children):
-    """A linkermap Objectfile stand-in: `children` [(object path or None, size)]."""
-    kids = [mock.Mock(path=(p, None), size=n) for p, n in children]
+    """A linkermap Objectfile stand-in: `children` [(object path or None, size[, input section])]."""
+    kids = [mock.Mock(path=(c[0], None), size=c[1], section=c[2] if len(c) > 2 else section)
+            for c in children]
     return mock.Mock(section=section, children=kids)
 
 
@@ -377,6 +378,17 @@ class LinkermapSizes(unittest.TestCase):
         self.assertEqual(s['files'], {'class/a/x.c': {'flash': 0x110, 'ram': 0x10},
                                       'portable/b/x.c': {'flash': 0x80, 'ram': 0}})
         self.assertEqual(s['all'], {'flash': 0x194, 'ram': 0x10})
+        # the non-allocated .comment is in no bucket, so in no section total either
+        self.assertEqual(s['sections'], {'class/a/x.c': {'.text': 0x100, '.data': 0x10},
+                                         'portable/b/x.c': {'.text': 0x80}})
+
+    def test_symbols_are_input_sections_counted_once(self):
+        # one input section holding several labels is one row; the same name adds up
+        s = self.sizes([fake_map_section('.text', [('o/abs/src/x.c.o', 0x20, '.text.a'),
+                                                   ('o/abs/src/x.c.o', 0x10, '.text.a'),
+                                                   ('o/abs/src/x.c.o', 0x08, '.text.b'),
+                                                   ('lib.a', 0x04, '.text.c')])])
+        self.assertEqual(s['symbols'], {'x.c': {'.text': {'.text.a': 0x30, '.text.b': 0x08}}})
 
     def test_output_section_missing_from_the_elf_fails(self):
         with self.assertRaisesRegex(RuntimeError, r'\.gone is not in'):
@@ -423,6 +435,13 @@ class MembrowseSizes(unittest.TestCase):
         self.assertEqual(s['files'], {'portable/synopsys/dwc2/dcd_dwc2.c': {'flash': 100, 'ram': 64}})
         self.assertEqual(s['all'], {'flash': 100 + 999, 'ram': 64})
 
+    def test_symbols_are_per_section_and_same_names_add_up(self):
+        s = self.sizes([{'name': 'f', 'size': 10, 'section': '.text', 'object_file': 'o/co/src/x.c.obj'},
+                        {'name': 'f', 'size': 6, 'section': '.text', 'object_file': 'o/co/src/x.c.obj'},
+                        {'name': 'v', 'size': 8, 'section': '.data', 'object_file': 'o/co/src/x.c.obj'},
+                        {'name': 'u', 'size': 4, 'section': '.text', 'object_file': 'o/elsewhere/u.c.obj'}])
+        self.assertEqual(s['symbols'], {'x.c': {'.text': {'f': 16}, '.data': {'v': 8}}})
+
     def test_keys_are_shared_across_checkout_prefixes(self):
         self.assertEqual(set(self.sizes(SYMS_BASE, ['/co/src/'])['files']),
                          set(self.sizes(SYMS_CUR, ['/co2/src/'])['files']))
@@ -430,6 +449,7 @@ class MembrowseSizes(unittest.TestCase):
     def test_data_counts_its_flash_load_image_and_ram(self):
         s = self.sizes([{'name': 'v', 'size': 8, 'section': '.data', 'object_file': 'o/co/src/x.c.obj'}])
         self.assertEqual(s['files'], {'x.c': {'flash': 8, 'ram': 8}})
+        self.assertEqual(s['sections'], {'x.c': {'.data': 8}})
 
     def test_falls_back_to_source_file_when_object_file_missing(self):
         s = self.sizes([{'name': 'a', 'size': 12, 'section': '.text',
@@ -455,17 +475,21 @@ class BloatySizes(unittest.TestCase):
                 return sd.bloaty_sizes(elf, ['/abs/src/'])
 
     def test_compile_units_are_keyed_and_bucketed_by_the_elf(self):
-        s = self.sizes('compileunits,sections,vmsize,filesize\n'
-                       '/abs/src/class/a/x.c,.text,256,256\n'
-                       '/abs/src/class/a/x.c,.data,16,16\n'
-                       '/abs/src/class/a/x.c,.bss,32,0\n'
-                       '/abs/src/class/a/x.c,.debug_info,0,900\n'
-                       '/other/y.c,.text,64,64\n'
-                       '[section .text],.text,8,8\n'
-                       '[LOAD #0 [RX]],,100,100\n'
-                       '[ELF Header],,52,52\n')
+        s = self.sizes('compileunits,sections,symbols,vmsize,filesize\n'
+                       '/abs/src/class/a/x.c,.text,f,200,200\n'
+                       '/abs/src/class/a/x.c,.text,g,56,56\n'
+                       '/abs/src/class/a/x.c,.data,v,16,16\n'
+                       '/abs/src/class/a/x.c,.bss,b,32,0\n'
+                       '/abs/src/class/a/x.c,.debug_info,[section .debug_info],0,900\n'
+                       '/other/y.c,.text,y,64,64\n'
+                       '[section .text],.text,[section .text],8,8\n'
+                       '[LOAD #0 [RX]],,[LOAD #0 [RX]],100,100\n'
+                       '[ELF Header],,[ELF Header],52,52\n')
         self.assertEqual(s['files'], {'class/a/x.c': {'flash': 256 + 16, 'ram': 16 + 32}})
         self.assertEqual(s['all'], {'flash': 256 + 16 + 64 + 8, 'ram': 48})
+        self.assertEqual(s['sections'], {'class/a/x.c': {'.text': 256, '.data': 16, '.bss': 32}})
+        self.assertEqual(s['symbols'], {'class/a/x.c': {'.text': {'f': 200, 'g': 56},
+                                                        '.data': {'v': 16}, '.bss': {'b': 32}}})
 
     def test_missing_columns_fail(self):
         with self.assertRaisesRegex(RuntimeError, 'unexpected bloaty csv columns'):
@@ -473,7 +497,7 @@ class BloatySizes(unittest.TestCase):
 
     def test_malformed_row_fails(self):
         with self.assertRaisesRegex(RuntimeError, 'malformed bloaty csv row'):
-            self.sizes('compileunits,sections,vmsize,filesize\n/abs/src/a.c,.text,n/a,4\n')
+            self.sizes('compileunits,sections,symbols,vmsize,filesize\n/abs/src/a.c,.text,a,n/a,4\n')
 
     def test_bloaty_failure_is_reported(self):
         with self.assertRaisesRegex(RuntimeError, 'bloaty failed.*boom'):
@@ -481,7 +505,7 @@ class BloatySizes(unittest.TestCase):
 
     def test_unknown_section_fails(self):
         with self.assertRaisesRegex(RuntimeError, r'\.gone is not in'):
-            self.sizes('compileunits,sections,vmsize,filesize\n/abs/src/a.c,.gone,4,4\n')
+            self.sizes('compileunits,sections,symbols,vmsize,filesize\n/abs/src/a.c,.gone,g,4,4\n')
 
 
 def _run_capturing_stdout(*args, **kwargs):

@@ -7,12 +7,14 @@ each pair's per-file flash/RAM deltas in cmake-code-size/<board>/diff[_<ex>].md;
 --combined, cmake-code-size/_combined/diff.md covers every board's pairs.
 
 The sizes come from --engine; each ENGINES entry maps (elf, filters) to
-{'files': {key: {'flash', 'ram'}}, 'all': {'flash', 'ram'}}, keyed by the
-source path after the matching filter, the same for every engine.
+{'files': {key: {'flash', 'ram'}}, 'all': {'flash', 'ram'}, 'sections': {key: {section:
+size}}, 'symbols': {key: {section: {name: size}}}}, keyed by the source path after the
+matching filter, the same for every engine.
 - membrowse: `membrowse report` symbols. Membrowse 1.2.9 truncates `source_file`,
   so paths come from `object_file`.
-- linkermap: input sections of the elf's GNU ld map, by object path.
-- bloaty: `bloaty -d compileunits,sections` VM sizes, by DWARF compile unit.
+- linkermap: input sections of the elf's GNU ld map, by object path; its symbols are
+  those input sections.
+- bloaty: `bloaty -d compileunits,sections,symbols` VM sizes, by DWARF compile unit.
 Every engine takes flash/RAM from the elf's section and program headers
 (section_buckets()).
 
@@ -224,19 +226,27 @@ def section_buckets(elf, map_path):
 
 
 class _Sizes:
-    """Accumulates one elf's filtered per-file and total sizes."""
+    """Accumulates one elf's filtered per-file flash/RAM, section and symbol sizes,
+    and its total flash/RAM."""
     def __init__(self, filters):
         self.filters, self.files, self.all = filters, {}, {'flash': 0, 'ram': 0}
+        self.sections, self.symbols = {}, {}
 
-    def add(self, path, buckets, size):
+    def add(self, path, section, buckets, size, name):
         key = _relative_key(path, self.filters) if path else None
         for b in buckets:
             self.all[b] += size
             if key is not None:
                 self.files.setdefault(key, {'flash': 0, 'ram': 0})[b] += size
+        if key is not None and buckets:
+            per_file = self.sections.setdefault(key, {})
+            per_file[section] = per_file.get(section, 0) + size
+            per_section = self.symbols.setdefault(key, {}).setdefault(section, {})
+            per_section[name] = per_section.get(name, 0) + size
 
     def result(self):
-        return {'files': self.files, 'all': self.all}
+        return {'files': self.files, 'all': self.all, 'sections': self.sections,
+                'symbols': self.symbols}
 
 
 def membrowse_sizes(elf, filters):
@@ -250,7 +260,8 @@ def membrowse_sizes(elf, filters):
             continue
         if section not in buckets:
             raise RuntimeError(f'membrowse symbol {sym.get("name")} is in section {section}, not in {elf}')
-        sizes.add(sym.get('object_file') or sym.get('source_file'), buckets[section], sym['size'])
+        sizes.add(sym.get('object_file') or sym.get('source_file'), section, buckets[section], sym['size'],
+                  sym.get('name'))
     return sizes.result()
 
 
@@ -268,7 +279,8 @@ def _linkermap():
 def linkermap_sizes(elf, filters):
     """Input sections of `<elf>.map` by full object path; analyze_map() is not used,
     it keeps only four sections. An archive member
-    (`lib.a(x.o)`) has no source dir, so it counts in 'all' only."""
+    (`lib.a(x.o)`) has no source dir, so it counts in 'all' only. The symbols are the
+    input sections (`.text.foo`), not the labels inside one."""
     map_path = elf + '.map'
     buckets = section_buckets(elf, map_path)
     with open(map_path, encoding='utf-8', errors='replace') as f:
@@ -282,19 +294,19 @@ def linkermap_sizes(elf, filters):
         if out.section not in buckets:
             raise RuntimeError(f'{map_path}: output section {out.section} is not in {elf}')
         for obj in out.children:
-            sizes.add(obj.path[0], buckets[out.section], obj.size)
+            sizes.add(obj.path[0], out.section, buckets[out.section], obj.size, obj.section)
     return sizes.result()
 
 
 def bloaty_sizes(elf, filters):
-    """VM size per DWARF compile unit and section; bytes outside any section
+    """VM size per DWARF compile unit, section and symbol; bytes outside any section
     (`[LOAD #0 [RX]]` padding, loaded ELF headers) are not counted."""
     r = subprocess.run(['bloaty', '--csv', '-n', '0', '--domain=vm',
-                        '-d', 'compileunits,sections', elf], capture_output=True, text=True)
+                        '-d', 'compileunits,sections,symbols', elf], capture_output=True, text=True)
     if r.returncode != 0:
         raise RuntimeError(f'bloaty failed for {elf}: {r.stderr.strip()}')
     rows = csv.DictReader(io.StringIO(r.stdout))
-    if not {'compileunits', 'sections', 'vmsize'} <= set(rows.fieldnames or ()):
+    if not {'compileunits', 'sections', 'symbols', 'vmsize'} <= set(rows.fieldnames or ()):
         raise RuntimeError(f'unexpected bloaty csv columns for {elf}: {rows.fieldnames}')
     buckets = section_buckets(elf, elf + '.map')
     sizes = _Sizes(filters)
@@ -309,7 +321,7 @@ def bloaty_sizes(elf, filters):
         if section not in buckets:
             raise RuntimeError(f'bloaty section {section} is not in {elf}')
         unit = row['compileunits']
-        sizes.add(None if unit.startswith('[') else unit, buckets[section], size)
+        sizes.add(None if unit.startswith('[') else unit, section, buckets[section], size, row['symbols'])
     return sizes.result()
 
 
