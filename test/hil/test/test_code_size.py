@@ -1356,7 +1356,7 @@ class GlobMetacharsInBuildDir(unittest.TestCase):
 
 class CiBoardSet(unittest.TestCase):
     def _boards_built(self, tmp, pinned_json):
-        """Boards main() builds for `--ci -b extra -b b1`, with `pinned_json` as the pinned file."""
+        """Boards main() builds for `--ci -b extra -b b1 -b extra`, with `pinned_json` as the pinned file."""
         pinned = os.path.join(tmp, 'ci-pinned-boards.json')
         with open(pinned, 'w') as f:
             f.write(pinned_json)
@@ -1367,7 +1367,7 @@ class CiBoardSet(unittest.TestCase):
             os.makedirs(os.path.join(tmp, board), exist_ok=True)
             return 'boom'  # stop at the base build: only the board set matters
         ok = subprocess.CompletedProcess([], 0, '', '')
-        with mock.patch.object(sys, 'argv', ['x', 'diff', '--ci', '-b', 'extra', '-b', 'b1']), \
+        with mock.patch.object(sys, 'argv', ['x', 'diff', '--ci', '-b', 'extra', '-b', 'b1', '-b', 'extra']), \
              mock.patch.object(sd, 'CODE_SIZE_DIR', tmp), \
              mock.patch.object(sd, 'CI_PINNED_BOARDS', pinned), \
              mock.patch.object(sd, 'run', return_value=ok), \
@@ -1377,7 +1377,7 @@ class CiBoardSet(unittest.TestCase):
             sd.main()
         return built
 
-    def test_ci_adds_the_pinned_boards_after_the_named_ones(self):
+    def test_ci_adds_the_pinned_boards_after_the_named_ones_once_each(self):
         with tempfile.TemporaryDirectory() as tmp:
             built = self._boards_built(tmp, '{"boards": [{"board": "b1"}, {"board": "b2"}], '
                                             '"uncovered": []}')

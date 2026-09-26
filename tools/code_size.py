@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Code size of TinyUSB examples.
 
+`report` builds the working tree in cmake-code-size/<board>/build and tabulates each elf's
+per-file section sizes in cmake-code-size/<board>/report[_<ex>].md.
+
 `diff` builds the base branch (master) and the current tree in
 cmake-code-size/<board>/{base,build}, pairs their elfs by (board, elf path) and reports
 each pair's per-file flash/RAM deltas in cmake-code-size/<board>/diff[_<ex>].md; with
@@ -19,6 +22,7 @@ Every engine takes flash/RAM from the elf's section and program headers
 (section_buckets()).
 
 Usage:
+  python tools/code_size.py report -b raspberry_pi_pico -e device/cdc_msc --symbols
   python tools/code_size.py diff -b raspberry_pi_pico
   python tools/code_size.py diff -b raspberry_pi_pico -b raspberry_pi_pico2
   python tools/code_size.py diff -b raspberry_pi_pico -f portable/raspberrypi
@@ -1046,13 +1050,7 @@ def main():
 
     if args.ci:
         args.combined = True
-        ci_boards = ci_pinned_boards()
-        # Append, dedup, preserve order
-        seen = set(args.board)
-        for b in ci_boards:
-            if b not in seen:
-                args.board.append(b)
-                seen.add(b)
+        args.board = list(dict.fromkeys(args.board + ci_pinned_boards()))
 
     if not args.board:
         parser.error('at least one -b BOARD is required (or pass --ci)')
@@ -1115,8 +1113,6 @@ def main():
             shutil.rmtree(base_build, ignore_errors=True)
             shutil.rmtree(cur_build, ignore_errors=True)
 
-            # Build only the requested examples (or all if -e not given). Single-example
-            # mode used to build everything and filter at metric time — that was wasted work.
             build_failure = None
             for example in examples:
                 scope = _scope_label(examples, example)
@@ -1162,7 +1158,6 @@ def main():
                 print_result(diff_summary(data, args.symbols), f'{example}: ' if scope else '', tables)
                 write_report(report_path(board, example), md, report_data(data))
 
-                # Optional: bloaty diff
                 if args.bloaty and example and not build_failure:
                     elf_name = os.path.basename(example)
                     base_elf = os.path.join(base_build, example, f'{elf_name}.elf')
@@ -1174,17 +1169,16 @@ def main():
                             re.escape(f) for f in (cur_filters + base_filters)
                         ) + ')'
                         bloaty_common = ['bloaty', '--domain=vm', f'--source-filter={bloaty_regex}']
-                        print(f'--- bloaty sections ---')
+                        print('--- bloaty sections ---')
                         ret = run(bloaty_common + ['-d', 'compileunits,sections', cur_elf, '--', base_elf])
                         print(ret.stdout)
-                        print(f'--- bloaty symbols ---')
+                        print('--- bloaty symbols ---')
                         ret = run(bloaty_common + ['-d', 'compileunits,symbols', '-s', 'vm',
                                                     cur_elf, '--', base_elf])
                         print(ret.stdout)
                     else:
-                        print(f'  bloaty: ELF not found')
+                        print('  bloaty: ELF not found')
 
-        # Optional combined comparison across all boards.
         if args.combined:
             os.makedirs(combined_dir, exist_ok=True)
             print(f'combined ({len(args.board)} boards)')
