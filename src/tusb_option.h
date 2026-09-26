@@ -782,6 +782,11 @@
   #define CFG_TUH_TASK_EVENTS_PER_RUN  16
 #endif
 
+// Enable the ChipIdea HCD's single-transfer isochronous scheduler.
+#ifndef CFG_TUH_CHIPIDEA_ISO_ENABLE
+  #define CFG_TUH_CHIPIDEA_ISO_ENABLE 0
+#endif
+
 //------------- CLASS -------------//
 
 #ifndef CFG_TUH_HUB
