@@ -2420,6 +2420,9 @@ def _abort_report(reason: str, mret: list, config_boards: list, failed_fname: Pa
     red job.
     """
     stuck = [b['name'] for b in config_boards if b['name'] not in {r[0] for r in mret}]
+    # main() seeds mret with the boards check_build.py refused; they never entered the pool
+    refused = [r[0] for r in mret if any(c.get(hil_report.RUN_ABORTED_CELL) == hil_report.BUILD_REFUSED
+                                         for _, c, _ in r[3])]
     try:
         _write_failed_spec(failed_fname, report_dir,
                            [(n, 1, [], None, 0) for n in stuck]
@@ -2429,9 +2432,11 @@ def _abort_report(reason: str, mret: list, config_boards: list, failed_fname: Pa
         # raise here replaces the caller's RuntimeError, so the operator never sees the
         # 'pool timed out' line and no report is written at all
         print(f'warning: re-run spec failed: {type(werr).__name__}: {werr}', flush=True)
-    banner = (f"**HIL run {reason}.** {len(mret)} board(s) below finished and are this "
-              f"run's; {len(stuck)} never reported and are NOT in the table: "
-              f"{', '.join(stuck)}. The re-run spec covers those.\n")
+    banner = (f"**HIL run {reason}.** {len(mret) - len(refused)} board(s) below finished "
+              f"and are this run's; {len(stuck)} never reported and are NOT in the table: "
+              f"{', '.join(stuck)}. The re-run spec covers those"
+              + (f", and the {len(refused)} whose build check_build.py refused: "
+                 f"{', '.join(refused)}" if refused else '') + ".\n")
     try:
         hil_report.accumulate_report(mret, report_dir, fresh, '',
                                      health_banner + _stray_note(mret), caveat=banner,

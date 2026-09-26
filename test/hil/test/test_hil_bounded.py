@@ -352,6 +352,22 @@ class BuildBoardContract(unittest.TestCase):
             self.assertEqual(c, {hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED})
 
 
+    def test_an_abort_banner_does_not_count_a_refused_board_as_finished(self):
+        from helper import hil_report
+        refused = ('bad', 1, [], [('bad', {hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED}, None)], 0.0)
+        good = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], 1.0)
+        with TemporaryDirectory() as td:
+            rd = Path(td)
+            hil_test._abort_report('aborted: a worker raised ValueError: x', [refused, good],
+                                   [{'name': 'good'}, {'name': 'stuck'}], rd / 'rig.json.failed',
+                                   rd, True, '')
+            caveat = json.loads((rd / hil_report.REPORT_JSON).read_text())['caveat']
+            spec = (rd / 'rig.json.failed').read_text()
+        self.assertTrue(caveat.startswith('**HIL run aborted: a worker raised ValueError: x.** '
+                                          '1 board(s) below finished'), caveat)
+        self.assertIn('1 never reported and are NOT in the table: stuck.', caveat)
+        self.assertIn("check_build.py refused: bad", caveat)
+        self.assertEqual(spec, '--accumulate -b stuck -b bad')
 
 class RemoteStaging(unittest.TestCase):
     def test_import_closure_is_staged_to_the_rig(self):
