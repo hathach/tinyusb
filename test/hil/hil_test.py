@@ -1853,10 +1853,11 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
 CHECK_BUILD = hil_util.TINYUSB_ROOT / '.claude' / 'skills' / 'build' / 'scripts' / 'check_build.py'
 
 
-def build_board(board: Board, config_file: Path) -> tuple[str, int]:
+def build_board(board: Board, config_file: Path) -> tuple[str, int, bool]:
     """Build this board's variants into cmake-build/cmake-build-<variant>/ through the build
     contract (check_build.py --variants), which refuses a dir still configured with options
-    no variant sets instead of building on them. Returns (board, failed variant builds).
+    no variant sets instead of building on them. Returns (board, failed variant builds,
+    whether check_build.py built at all: False when it refused, whose folders then hold stale firmware).
 
     Unbounded on purpose: --build is a local convenience (no CI workflow passes it), so
     the developer watching the build is the timeout."""
@@ -1881,14 +1882,14 @@ def build_board(board: Board, config_file: Path) -> tuple[str, int]:
         verdict = json.loads(out.strip().splitlines()[-1])
     except (ValueError, IndexError):
         print(f'{name}: check_build.py exited {proc.returncode} without a verdict')
-        return name, 1
+        return name, 1, False
     if verdict.get('error'):
         print(f'{name}: {verdict["error"]}')
-        return name, 1
+        return name, 1, False
     failed = [b for b in verdict.get('boards', []) if b.get('status') in ('failed', 'error')]
     for b in failed:
         print(f'{name}: {b.get("buildDir")} {b.get("status")}: {b.get("firstError")}')
-    return name, len(failed)
+    return name, len(failed), True
 
 
 def _tests_for(board: Board) -> tuple:
@@ -2600,12 +2601,25 @@ def main() -> None:
         print('-' * 30)
         print(f'Build phase: {len(config_boards)} board(s)')
         print('-' * 30)
+        refused = []
         for board in config_boards:
-            _, nfail = build_board(board, config_file.resolve())
+            _, nfail, built = build_board(board, config_file.resolve())
             build_err += nfail
+            if not built:
+                refused.append(board['name'])
         print('-' * 30)
         print(f'Build phase done: {build_err} failed')
         print('-' * 30)
+        if refused:
+            # a refused board's folders still hold the firmware the build contract would not
+            # build over; flashing it would test a configuration nobody asked for
+            print(f'not testing {", ".join(refused)}: check_build.py refused the build', flush=True)
+            config_boards = [b for b in config_boards if b['name'] not in refused]
+            if not config_boards:
+                msg = f'No boards left: check_build.py refused every build ({", ".join(refused)})'
+                print(msg, flush=True)
+                hil_report.mark_report_no_boards(report_dir, msg, fresh=not args.accumulate)
+                sys.exit(1)
 
     # A full run starts fresh; a re-run (--accumulate, which .failed always starts with)
     # merges so already-passed boards survive. -bt alone is not a re-run marker.
