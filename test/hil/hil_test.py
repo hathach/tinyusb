@@ -1850,43 +1850,45 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
     return err_count, result_status, metric
 
 
-def build_board(board: Board) -> tuple[str, int]:
-    """Build firmware for this board via tools/build.py.
-    Honors board config's variant list.
-    Output goes to cmake-build/cmake-build-<variant>/ (tools/build.py layout).
+CHECK_BUILD = hil_util.TINYUSB_ROOT / '.claude' / 'skills' / 'build' / 'scripts' / 'check_build.py'
+
+
+def build_board(board: Board, config_file: Path) -> tuple[str, int]:
+    """Build this board's variants into cmake-build/cmake-build-<variant>/ through the build
+    contract (check_build.py --variants), which refuses a dir still configured with options
+    no variant sets instead of building on them. Returns (board, failed variant builds).
 
     Unbounded on purpose: --build is a local convenience (no CI workflow passes it), so
     the developer watching the build is the timeout."""
     name = board['name']
-    variants = board.get('variant') or [{'name': name, 'flags': ''}]
-
-    failed = 0
-    for v in variants:
-        cmd = [sys.executable, str(hil_util.TINYUSB_ROOT / 'tools' / 'build.py'), '-b', name]
-        if v['name'] != name:
-            cmd += ['--build-name', v['name']]
-        for d in v.get('defines', []):
-            cmd += ['-D', d]
-        for tok in v.get('flags', '').split():
-            cmd += [f'--cflag={tok}']
-        if verbose:
-            cmd.append('-v')
-            print(f'  + {" ".join(cmd)}')
-        # stdio is inherited so the build STREAMS: a silent buffer is
-        # indistinguishable from a stall.
-        proc = subprocess.Popen(cmd, cwd=hil_util.TINYUSB_ROOT, start_new_session=True)
+    # -v: the build log goes to the inherited stderr as each variant finishes; a silent
+    # buffer is indistinguishable from a stall. stdout carries only the verdict JSON.
+    cmd = [sys.executable, str(CHECK_BUILD), '--board', name, '--shared', '--variants', str(config_file), '-v']
+    if verbose:
+        print(f'  + {" ".join(cmd)}')
+    proc = subprocess.Popen(cmd, cwd=hil_util.TINYUSB_ROOT, start_new_session=True,
+                            stdout=subprocess.PIPE, text=True)
+    try:
+        out, _ = proc.communicate()
+    except KeyboardInterrupt:
+        # start_new_session means the build never saw the terminal's SIGINT
         try:
-            rc = proc.wait()
-        except KeyboardInterrupt:
-            # start_new_session means the build never saw the terminal's SIGINT
-            try:
-                os.killpg(proc.pid, signal.SIGKILL)
-            except OSError:
-                proc.kill()
-            raise
-        if rc != 0:
-            failed += 1
-    return name, failed
+            os.killpg(proc.pid, signal.SIGKILL)
+        except OSError:
+            proc.kill()
+        raise
+    try:
+        verdict = json.loads(out.strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        print(f'{name}: check_build.py exited {proc.returncode} without a verdict')
+        return name, 1
+    if verdict.get('error'):
+        print(f'{name}: {verdict["error"]}')
+        return name, 1
+    failed = [b for b in verdict.get('boards', []) if b.get('status') in ('failed', 'error')]
+    for b in failed:
+        print(f'{name}: {b.get("buildDir")} {b.get("status")}: {b.get("firstError")}')
+    return name, len(failed)
 
 
 def _tests_for(board: Board) -> tuple:
@@ -2599,7 +2601,7 @@ def main() -> None:
         print(f'Build phase: {len(config_boards)} board(s)')
         print('-' * 30)
         for board in config_boards:
-            _, nfail = build_board(board)
+            _, nfail = build_board(board, config_file.resolve())
             build_err += nfail
         print('-' * 30)
         print(f'Build phase done: {build_err} failed')

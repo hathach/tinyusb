@@ -235,6 +235,33 @@ class UsbtestRunHelper(unittest.TestCase):
 
 
 class BuildBoardContract(unittest.TestCase):
+    def build(self, rc, out):
+        from unittest import mock
+        proc = mock.Mock(returncode=rc, pid=1)
+        proc.communicate.return_value = (out, None)
+        with mock.patch.object(hil_test.subprocess, 'Popen', return_value=proc) as popen, \
+             redirect_stdout(io.StringIO()) as printed:
+            r = hil_test.build_board({'name': 'b'}, Path('rig.json'))
+        return r, popen.call_args[0][0], printed.getvalue()
+
+    def test_it_builds_every_variant_through_the_build_contract(self):
+        ok = {'pass': True, 'boards': [{'buildDir': 'cmake-build/cmake-build-b', 'status': 'ok'},
+                                       {'buildDir': 'cmake-build/cmake-build-b-DMA', 'status': 'skipped'}]}
+        r, cmd, _ = self.build(0, 'log\n' + json.dumps(ok) + '\n')
+        self.assertEqual(r, ('b', 0))
+        self.assertEqual(cmd[1:], [str(hil_test.CHECK_BUILD), '--board', 'b', '--shared', '--variants', 'rig.json', '-v'])
+
+    def test_failed_variants_and_refusals_count_as_failures(self):
+        bad = {'pass': False, 'boards': [{'buildDir': 'd1', 'status': 'failed', 'firstError': 'x.c:1: error: y'},
+                                         {'buildDir': 'd2', 'status': 'error', 'firstError': 'z'}]}
+        r, _, printed = self.build(1, json.dumps(bad))
+        self.assertEqual(r, ('b', 2))
+        self.assertIn('d1 failed: x.c:1: error: y', printed)
+        r, _, printed = self.build(2, json.dumps({'pass': False, 'boards': [], 'error': 'was configured with CFLAGS_CLI'}))
+        self.assertEqual(r, ('b', 1))
+        self.assertIn('was configured with CFLAGS_CLI', printed)
+        self.assertEqual(self.build(1, 'Traceback')[0], ('b', 1))
+
     def test_every_return_path_is_a_pair(self):
         """main() unpacks `_, nfail = build_board(board)`; a bare int on any path
         (the timeout path did) raises TypeError before the pool exists."""

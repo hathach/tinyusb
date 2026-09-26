@@ -456,8 +456,8 @@ def boardtest_output(data: bytes) -> bool:
 
 
 def build_example(board: dict, variant: str, example: str) -> int:
-    """Build one example for this board: tools/build.py (same invocation shape as
-    hil_test.build_board), or idf.py directly for espressif (tools/build.py's esp branch
+    """Build one example for this board: tools/build.py with the variant's defines and
+    flags, or idf.py directly for espressif (tools/build.py's esp branch
     ignores -T and builds everything; variant flags travel as -DCFLAGS_CLI, the channel
     tools/build.py uses). Bounded and process-group-killed via run_cmd; 600 s covers a
     first configure+build of an SDK-heavy family (pico, nrf, esp). Builds normally run
