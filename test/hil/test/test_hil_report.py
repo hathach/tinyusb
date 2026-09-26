@@ -555,6 +555,19 @@ class SummaryFoldsReportToBoards(unittest.TestCase):
         self.assertTrue(got[0]['ran'])
         self.assertFalse(got[1]['ran'], 'a stale row must not report a removed board as run')
 
+    def test_a_malformed_variant_is_a_config_error_row_not_a_traceback(self):
+        rows = [('good', {'usbtest': 'pass'}), ('flags-v', {'usbtest': 'pass'})]
+        bad = [{'name': 'nonlist', 'variant': {'name': 'x'}},
+               {'name': 'nondict', 'variant': ['x']},
+               {'name': 'noname', 'variant': [{'name': ''}]},
+               {'name': 'flags', 'variant': [{'name': 'flags-v', 'flags': 5}]}]
+        alone = self._sum(['good'], rows, cfg_boards=[{'name': 'good'}])
+        got = self._sum(['good'] + [b['name'] for b in bad], rows, cfg_boards=[{'name': 'good'}] + bad)
+        self.assertEqual(got[0], alone[0])
+        for r in got[1:]:
+            self.assertEqual((r['ran'], r['pass']), (False, False), r)
+            self.assertTrue(r['detail'].startswith('config error:'), r)
+
     def test_a_board_refused_at_admission_is_wedged_not_run_and_not_locked(self):
         got = self._sum(['b'], [('b', {hil_report.WEDGED_CELL: hil_report.WEDGED_REFUSED})])
         self.assertEqual((got[0]['ran'], got[0]['pass'], got[0]['locked'], got[0]['wedged']),

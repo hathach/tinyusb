@@ -556,8 +556,11 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
     rows = {r['board']: r.get('cells') or {}
             for r in (report.get('rows') or [])
             if isinstance(r, dict) and 'board' in r}
+    # the raw entries, not board_variants(): a malformed board must not crash the report of
+    # the others, and its well-formed names still keep their rows from being stolen
     owner = {v['name']: b['name'] for b in cfg.get('boards', [])
-             for v in (b.get('variant') or [])}
+             if isinstance(b.get('variant'), list)
+             for v in b['variant'] if isinstance(v, dict) and isinstance(v.get('name'), str)}
     configured = {b['name'] for b in cfg.get('boards', [])}
     results = []
     for board in boards:
@@ -568,7 +571,13 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
             results.append({'board': board, 'ran': False, 'pass': False, 'locked': False,
                             'wedged': False, 'detail': 'not a board in the config'})
             continue
-        names = variants_of(cfg, board)
+        try:
+            names = variants_of(cfg, board)
+        except ValueError as err:
+            # hil_test.py refuses the whole run on this; say why rather than die with a traceback
+            results.append({'board': board, 'ran': False, 'pass': False, 'locked': False,
+                            'wedged': False, 'detail': f'config error: {err}'})
+            continue
         mine = {n: rows[n] for n in names if n in rows}
         # a variant name that is neither declared nor prefixed cannot be attributed; the
         # `<board>-` fallback only helps ad-hoc builds, it is not the primary path. It must
