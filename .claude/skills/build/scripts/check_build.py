@@ -2,7 +2,7 @@
 """Build TinyUSB examples for the boards a change affects, or for named boards.
 
   check_build.py (--scope PATH... | --base REF | --board B...) [-e role/name]... [-T target]...
-           [-D SYMBOL]... [--cflag FLAG]... [--shared [--variants CONFIG]]
+           [-D SYMBOL]... [--cflag FLAG]... [--shared [--variants CONFIG [--receipt FILE]]]
 
 Scope resolution goes through tools/ci_select.py: one board per affected family
 (a rig-roster board of that family first, else the first in hw/bsp/<family>/boards,
@@ -14,6 +14,10 @@ cmake-build-<board> that HIL flashes from, must not be shared with a parallel ag
 and is refused when it still carries an option from an earlier configure this run does not set.
 --variants builds each of a named board's HIL variants in the roster CONFIG instead, into the
 cmake-build-<variant> dir hil_test.py flashes it from, with the variant's defines and flags.
+--receipt then writes the HIL build receipt (hil_remote.py receipt: HEAD, the roster, every
+staged file's digest) after a passing build of every example on a tree clean before and after
+and a HEAD unmoved since the build began, so a receipt always comes from a build of its HEAD;
+its line is the JSON's "receipt".
 Dependencies the family needs (get_deps.py's table) are checked first: one missing,
 empty or not at the pinned commit is an error naming the remedy, or fetched when
 --fetch-deps is given.
@@ -29,7 +33,8 @@ nothing builds, a port no built board kept a line of after preprocessing - wrong
 family, or a configuration whose guard empties the driver - an example no built board wrote an elf for, or a
 build target the default sweep never runs), a coverage gap whatever else built.
 Exit 0 pass, 1 a board failed, 2 usage or resolution error ("error" carries the
-message, a missing dependency's remedy included), 3 uncovered paths.
+message, a missing dependency's remedy included) or a refused receipt ("receipt" carries
+its "error"), 3 uncovered paths.
 """
 
 import argparse
@@ -831,6 +836,26 @@ def catalog_text():
         return None
 
 
+def git_status():
+    return subprocess.run(['git', '-C', str(ROOT), 'status', '--porcelain', '--untracked-files=normal'], capture_output=True, text=True, check=True).stdout.strip()
+
+
+def git_head():
+    return subprocess.run(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], capture_output=True, text=True, check=True).stdout.strip()
+
+
+def write_receipt(out, head, boards, config):
+    """hil_remote.py's receipt of what this build of head left for a HIL run: its JSON line, or {"error"}
+    (a build that rewrote a tracked file, hw/bsp/family.json included, leaves the tree unclean)."""
+    run = subprocess.run([sys.executable, str(ROOT / '.claude/skills/hil/scripts/hil_remote.py'), 'receipt', '--out', out,
+                          '--head', head,
+                          *(x for b in boards for x in ('-b', b))],
+                         cwd=ROOT, env={**os.environ, 'CONFIG': str(Path(config).resolve())}, capture_output=True, text=True)
+    if run.returncode:
+        return {'error': run.stderr.strip()}
+    return json.loads(run.stdout.strip().splitlines()[-1])
+
+
 def main(argv=None):
     p = Parser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     how = p.add_mutually_exclusive_group(required=True)
@@ -852,6 +877,8 @@ def main(argv=None):
     p.add_argument('--variants', metavar='CONFIG',
                    help='with --board and --shared: build each HIL variant the roster CONFIG gives the board, '
                         'in its cmake-build-<variant> with its defines and flags')
+    p.add_argument('--receipt', metavar='FILE',
+                   help='with --variants and every example: write the HIL build receipt after a passing build')
     p.add_argument('--config', default=str(HIL_CONFIG), help='rig roster for ci_select (default: tinyusb.json)')
     p.add_argument('-v', '--verbose', action='store_true', help='stream build output to stderr')
     a = p.parse_args(argv)
@@ -860,6 +887,11 @@ def main(argv=None):
     extra = {}
     if a.variants is not None and not (a.board and a.shared):
         fail('--variants needs --board and --shared: it builds the dirs hil_test.py flashes')
+    if a.receipt is not None and (a.variants is None or a.example or a.target):
+        fail('--receipt needs --variants and every example (no -e/-T): it pins everything a HIL run stages')
+    if a.receipt is not None and git_status():
+        fail(f'--receipt needs a clean tree before the build:\n{git_status()}\ncommit or remove these first')
+    head = git_head() if a.receipt is not None else None
     if a.board:
         boards, how_resolved = a.board, 'named boards'
     else:
@@ -880,6 +912,11 @@ def main(argv=None):
         extra['nothingToBuild'], extra['uncovered'] = coverage(
             reasons, paths, results, bool(a.example or a.target), a.target)
     ok = built_ok and not extra.get('uncovered')
+    if ok and a.receipt is not None:
+        extra['receipt'] = write_receipt(a.receipt, head, boards, a.variants)
+        if 'error' in extra['receipt']:
+            print(json.dumps({'pass': False, 'boards': results, 'resolution': how_resolved, **extra}))
+            return 2
     print(json.dumps({'pass': ok, 'boards': results, 'resolution': how_resolved, **extra}))
     return 0 if ok else (1 if not built_ok else 3)
 

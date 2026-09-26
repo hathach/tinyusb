@@ -117,13 +117,13 @@ python3 test/hil/hil_test.py -b stm32f723disco "$CONFIG"
 `scripts/hil_remote.py` takes `hil_test.py`'s own arguments, minus the config. It stages the harness, the config and the firmware the run will read under `-B` (default `cmake-build`, the `build` skill's `--shared` layout), runs `hil_test.py` on `ci.lan` with `tinyusb.json`, and copies the report pair and `<config>.failed` back to the checkout root:
 
 ```bash
-R=.claude/skills/hil/scripts/hil_remote.py
 # All boards built under cmake-build/:
-python3 $R
-
+python3 .claude/skills/hil/scripts/hil_remote.py
 # A subset — repeat -b, ONE invocation for the whole set:
-python3 $R -b raspberry_pi_pico2 -b stm32f723disco -t host/cdc_msc_hid -r 1
+python3 .claude/skills/hil/scripts/hil_remote.py -b raspberry_pi_pico2 -b stm32f723disco -t host/cdc_msc_hid -r 1
 ```
+
+An agent launches it with `--run-id` and waits on it as Timing says.
 
 One invocation per board is wrong here, not merely slow: each run `rm -rf`s `REMOTE_DIR`
 and rewrites the report, so only the last board's rows survive. A second run sharing
@@ -139,6 +139,31 @@ what is built without a word about unbuilt variants. With `-b` it also warns for
 requested board with no build; Prerequisites says what `hil_test.py` then reports for it. `--build` is
 refused: the rig receives binaries only.
 
+A delegated run is bound to its build: the build writes a build receipt of the HEAD it built,
+and the run passes it, refusing before it touches the rig when HEAD, the roster or a staged file
+no longer match it, or a tracked file (the harness it stages, the roster) has changed since HEAD
+(rebuild, which writes a new one). A retry of a subset of those boards reuses
+it; a local `hil_test.py` run takes none.
+
+```bash
+python3 .claude/skills/build/scripts/check_build.py --board raspberry_pi_pico2 --board stm32f723disco --shared --variants test/hil/tinyusb.json --receipt .hil-remote/build-1790000000.json
+python3 .claude/skills/hil/scripts/hil_remote.py --run-id hil-1790000000 --receipt .hil-remote/build-1790000000.json -b raspberry_pi_pico2 -b stm32f723disco
+```
+
+The build refuses a receipt for a tree that is not clean before or after it (commit a
+`hw/bsp/family.json` it rewrote, then build again). `.hil-remote/` is ignored.
+
+A CI firmware artifact is the one delegated run without a receipt: download it straight into a
+fresh `-B` dir under `cmake-build/`, never a symlink to it (the staging rsync would copy the link).
+Run it from a checkout whose harness and roster match the artifact's head, since those are staged
+from the checkout. Report the artifact's name, run, head and staged sha256s beside the results.
+
+```bash
+mkdir -p cmake-build && mkdir cmake-build/ci-36166669952
+gh run download 36166669952 -n 'binaries-arm-gcc--b raspberry_pi_pico_w' -D cmake-build/ci-36166669952
+python3 .claude/skills/hil/scripts/hil_remote.py --run-id hil-1790000000 -B cmake-build/ci-36166669952 -b raspberry_pi_pico_w
+```
+
 Exit 200 means the remote tree stopped being this run's after staging (another run sharing
 `REMOTE_DIR` replaced it): `hil_test.py` did not run and nothing was copied back, so any local
 `hil_report` pair or `<config>.failed` is from an earlier run. Re-run; never report from it.
@@ -150,9 +175,31 @@ Env overrides: `REMOTE`, `REMOTE_DIR`, `CONFIG`, `ROOT_DIR`.
 Runs take 2-5 min per board, but a stuck fleet runs to `HIL_POOL_TIMEOUT` — 60 min
 unless the env pins it. The run logs its guard in the startup line; never declare a run
 stuck before THAT value has elapsed.
-The Bash tool caps a foreground timeout at 10 min, so **run it in the background** and
-wait for the completion notification -- never a foreground timeout, which would kill
-the run before its own guard can write a report. NEVER cancel early.
+The Bash tool caps a foreground timeout at 10 min, so **run it in the background** --
+never a foreground timeout, which would kill the run before its own guard can write a
+report. NEVER cancel early.
+
+A remote run is launched once, in the background, with a new `--run-id` (a used one is
+refused), then waited on in the foreground; write the id literally in both calls, since a shell
+variable does not survive from one tool call to the next:
+
+```bash
+# Bash run_in_background: true; a delegated run adds its --receipt (Remote execution)
+python3 .claude/skills/hil/scripts/hil_remote.py --run-id hil-1790000000 --receipt .hil-remote/build-1790000000.json -b raspberry_pi_pico2 -b stm32f723disco
+# foreground, Bash timeout 600000
+python3 .claude/skills/hil/scripts/hil_remote.py wait hil-1790000000
+```
+
+`wait` blocks up to 9.5 min and prints one JSON line:
+
+- `done` (exit 0): the run's `exit` and the `reports` it copied back. Read only those; an
+  empty list means no report is from this run, whatever the checkout holds.
+- `running` (exit 3): call `wait` again.
+- `dead` (exit 4): the run ended without its done record (killed, or its session died); no
+  local report is from it.
+
+Never spend a tool call only to check on a run or to pass time: the next call is `wait`.
+A local `hil_test.py` run has no done record; wait for its completion notification.
 
 ## Reporting
 

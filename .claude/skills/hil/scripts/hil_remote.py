@@ -7,16 +7,34 @@ firmware the run will look for under -B (default cmake-build, the build skill's 
 layout), runs it there, and copies the report pair and the <config>.failed re-run spec back
 to the checkout root.
 
+`--run-id ID` records the run under <checkout>/.hil-remote/: ID.started.json, locked for as
+long as the run lives, then the done record ID.done.json (exit status, the report files it
+copied back). `wait ID` blocks until then, at most --timeout seconds, and prints one JSON
+status line.
+
+`receipt --out FILE --head SHA [-b BOARD]...` writes a build receipt: HEAD, the roster's digest
+and the digest of every file a run of those boards would stage, refusing an unbuilt variant, a
+stale example's firmware left in a variant dir, a tree that is not clean or a HEAD other than
+SHA, the one the build began at; the build skill's check_build.py --receipt runs it right after
+its build.
+`--receipt FILE` on a run refuses to stage unless HEAD, the roster and every staged file still
+match it, stages the snapshot of the firmware it checked, and runs nothing when HEAD, the roster
+or a tracked file moved while it staged.
+
 Env overrides: REMOTE (ssh host), REMOTE_DIR (rm -rf'd and recreated each run, under a lock
 on <REMOTE_DIR>.lock that refuses a second run sharing it), CONFIG (HIL config json), ROOT_DIR
 (checkout to test; defaults to this script's own).
 """
+import argparse
 import contextlib
+import fcntl
+import hashlib
 import importlib
 import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -50,8 +68,12 @@ HARNESS_FILES = (
 # up to HIL_POOL_TIMEOUT, so ssh itself drops a peer silent for 30 s x 4.
 SSH_OPTS = ('-o', 'ServerAliveInterval=30', '-o', 'ServerAliveCountMax=4', '-o', 'ConnectTimeout=20')
 
-FIRMWARE_FILTER = ['--prune-empty-dirs', '--include=*/', '--include=*.elf', '--include=*.bin',
-                   '--include=*.hex', '--include=config.env', '--include=flash_args', '--exclude=*']
+STAGED_SUFFIXES = ('.elf', '.bin', '.hex')
+STAGED_NAMES = ('config.env', 'flash_args')
+FIRMWARE_FILTER = ['--prune-empty-dirs', '--include=*/', *(f'--include=*{x}' for x in STAGED_SUFFIXES),
+                   *(f'--include={n}' for n in STAGED_NAMES), '--exclude=*']
+# a variant dir's <role>/<name> example dirs, examples/'s layout, which hil_test.py flashes from
+EXAMPLE_ROLES = ('device', 'dual', 'host', 'typec')
 
 # The screen is for the tilde: the remote shell would expand `~/` alone to HOME, which this
 # run rm -rf's. `/` or `~/` plus at least one named component, no `..`, no `//`.
@@ -94,6 +116,16 @@ flock -s 9
 printf '\nHIL_REMOTE_DIR=%s\n' "$d"
 cat >/dev/null
 '''
+
+
+RUNS_DIR = '.hil-remote'
+# under the Bash tool's 10-min foreground cap, so one wait is one tool call
+WAIT_SECS = 570
+POLL_SECS = 5
+# a background launch writes its started record within this, or it never started
+START_SECS = 30
+# wait's exit statuses; errors exit 1
+RUNNING, DEAD = 3, 4
 
 
 def fail(msg):
@@ -150,16 +182,20 @@ def select_boards(config, args):
     return selected
 
 
+def variant_dirs(config, build_dir, board):
+    """The <build_dir>/cmake-build-<variant> dirs hil_test.py flashes a board's variants from."""
+    return [ROOT / build_dir / f'cmake-build-{v}' for v in helper('hil_report').variants_of(config, board)]
+
+
 def resolve_firmware(config, config_path, args):
     """Return the existing <build_dir>/cmake-build-<variant> dirs to stage, refusing before
     anything remote is touched: a board with no build at all would only show up as
     `Skip (no binary)` rows."""
     boards, build_dir = args.board, args.build_dir
     selected = select_boards(config, args)
-    root = ROOT / build_dir
     dirs, missing, unbuilt = [], [], []
     for name in selected:
-        found = [root / f'cmake-build-{v}' for v in helper('hil_report').variants_of(config, name)]
+        found = variant_dirs(config, build_dir, name)
         present = [d for d in found if d.is_dir()]
         if boards and not present:
             missing.append(f'  {name}: none of {", ".join(str(d.relative_to(ROOT)) for d in found)}')
@@ -240,7 +276,9 @@ def rsync(guard, *args, optional=False):
 
 def copy_back(remote, remote_dir, token, config_name):
     """Fetch the report pair all-or-nothing: the markdown is a rendering of the sidecar, and
-    a half-copied pair publishes last run's table beside this run's data."""
+    a half-copied pair publishes last run's table beside this run's data. Returns the
+    checkout-relative paths it wrote."""
+    copied = []
     report = helper('hil_report')
     md, js = ROOT / report.REPORT_MD, ROOT / report.REPORT_JSON
     tmp = [p.with_name(p.name + '.tmp') for p in (md, js)]
@@ -250,6 +288,7 @@ def copy_back(remote, remote_dir, token, config_name):
     if ok:
         for p, t in zip((md, js), tmp):
             t.replace(p)
+        copied += [report.REPORT_MD, report.REPORT_JSON]
         print(f'==> Report copied to {md} (+ sidecar)')
     else:
         for p in (*tmp, md, js):
@@ -260,7 +299,9 @@ def copy_back(remote, remote_dir, token, config_name):
     spec = ROOT / f'{config_name}.failed'
     spec.unlink(missing_ok=True)
     if rsync(guard, '-q', f'{remote}:{remote_dir}/{spec.name}', str(spec), optional=True) == 0 and spec.is_file():
+        copied.append(spec.name)
         print(f'==> {spec.name} copied to {spec}')
+    return copied
 
 
 @contextlib.contextmanager
@@ -292,31 +333,181 @@ def remote_lease(remote, remote_dir, build_dir):
             lease.wait()
 
 
-def main(argv):
-    remote = os.environ.get('REMOTE', 'ci.lan')
-    remote_dir = os.environ.get('REMOTE_DIR', '/tmp/tinyusb-hil')
-    config_path = Path(os.environ.get('CONFIG') or ROOT / 'test/hil/tinyusb.json').resolve()
+def git(*argv):
+    out = subprocess.run(['git', '-C', str(ROOT), *argv], capture_output=True, text=True)
+    if out.returncode:
+        fail(f'git {" ".join(argv)}: {out.stderr.strip()}')
+    return out.stdout.strip()
 
+
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def staged_paths(dirs):
+    """The files FIRMWARE_FILTER stages from dirs."""
+    return [f for d in dirs for f in sorted(d.rglob('*'))
+            if f.is_file() and (f.suffix in STAGED_SUFFIXES or f.name in STAGED_NAMES)]
+
+
+def staged_files(dirs, base=None):
+    """{path relative to base (default the checkout): sha256} of what FIRMWARE_FILTER stages from dirs."""
+    return {str(f.relative_to(base or ROOT)): digest(f) for f in staged_paths(dirs)}
+
+
+def snapshot(dirs, into):
+    """Copy what FIRMWARE_FILTER stages from dirs to the same checkout-relative layout under
+    into, returning the copied dirs: a build rewriting cmake-build/ after the receipt check
+    would otherwise send the rig bytes the receipt does not pin."""
+    for f in staged_paths(dirs):
+        dest = into / f.relative_to(ROOT)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(f, dest)
+    copies = [into / d.relative_to(ROOT) for d in dirs]
+    for c in copies:
+        c.mkdir(parents=True, exist_ok=True)   # rsync needs every source, staged files or not
+    return copies
+
+
+def example_firmware(d, files):
+    """The <role>/<name> example dirs of variant dir d holding staged <name>.<suffix> firmware,
+    directly or in one config subdir, where hil_flash.find_firmware() looks."""
+    prefix = f'{d.relative_to(ROOT)}/'
+    return {'/'.join(parts[:2]) for parts in (p[len(prefix):].split('/') for p in files if p.startswith(prefix))
+            if len(parts) in (3, 4) and parts[0] in EXAMPLE_ROLES
+            and Path(parts[-1]).stem == parts[1] and Path(parts[-1]).suffix in STAGED_SUFFIXES}
+
+
+def unverified_examples(board, d, examples):
+    """The examples of variant dir d the board's build does not build: a shared dir keeps a
+    skipped or dropped example's old firmware. The same test as check_build's configured()."""
+    if str(ROOT / 'tools') not in sys.path:
+        sys.path.insert(0, str(ROOT / 'tools'))
+    tools_build = importlib.import_module('build')
+    if [p.parent.parent.name for p in ROOT.glob(f'hw/bsp/*/boards/{board}')] == ['espressif']:
+        # one idf tree per example: the build attempted the ones tools/build.py does not skip
+        cwd = os.getcwd()
+        os.chdir(ROOT)  # tools/build.py reads examples/ and hw/bsp/ relative to the working directory
+        try:
+            built = {e for e in tools_build.get_examples('espressif') if not tools_build.build_utils.skip_example(e, board)}
+        finally:
+            os.chdir(cwd)
+    else:
+        registered = tools_build.cmake_registered_targets(str(d))
+        if registered is None:
+            fail(f'cmake cannot list the targets of {d.relative_to(ROOT)}, so the firmware its build made cannot be told '
+                 f'from a stale one')
+        built = {e for e in examples if e.split('/')[1] in registered}
+    return sorted(examples - built)
+
+
+def parse_run(argv):
+    """(args, config, config path) of hil_test.py's arguments."""
+    config_path = Path(os.environ.get('CONFIG') or ROOT / 'test/hil/tinyusb.json').resolve()
     if not (ROOT / 'test/hil/hil_test.py').is_file():
         fail(f'{ROOT} does not look like a tinyusb checkout')
-    check_remote_dir(remote_dir)
     args = helper('hil_args').build_parser().parse_args([*argv, str(config_path)])
     check_build_dir(args.build_dir)
     try:
         config = json.loads(config_path.read_text())
     except (OSError, ValueError) as e:
         fail(f'could not read the config {config_path}: {e}')
+    return args, config, config_path
+
+
+def write_receipt(argv):
+    out, argv = pop_option(argv, '--out')
+    if not out:
+        fail('receipt needs --out FILE')
+    built_head, argv = pop_option(argv, '--head')
+    if not built_head:
+        fail('receipt needs --head SHA, the HEAD the build began at')
+    args, config, config_path = parse_run(argv)
+    boards = select_boards(config, args)
+    dirs = [(b, d) for b in boards for d in variant_dirs(config, args.build_dir, b)]
+    files = staged_files([d for _, d in dirs])
+    # only example firmware: CMake's compiler-ABI probes leave a .bin in a dir never built
+    examples = {d: example_firmware(d, files) for _, d in dirs}
+    unbuilt = [str(d.relative_to(ROOT)) for _, d in dirs if not examples[d]]
+    if unbuilt:
+        fail(f'not built: {", ".join(unbuilt)}; a receipt covers every variant the run selects, build with\n'
+             f'  {build_command(config_path, boards, args.build_dir)}')
+    stale = [f'{d.relative_to(ROOT)}/{e}' for b, d in dirs for e in unverified_examples(b, d, examples[d])]
+    if stale:
+        fail(f'firmware of an example the build does not build: {", ".join(stale)}; a receipt pins only firmware '
+             f'the build verified and a run stages every file there, so remove those dirs and write the receipt again')
+    dirty = git('status', '--porcelain', '--untracked-files=normal')
+    if dirty:
+        fail(f'the tree is not clean:\n{dirty}\na receipt pins the firmware to a commit: commit these (a hw/bsp/family.json '
+             f'a build rewrote included) or remove them, then rebuild on that commit')
+    head = git('rev-parse', 'HEAD')
+    if head != built_head:
+        fail(f'HEAD is {head[:12]}, not {built_head[:12]} the build began at: a commit landed during the build, '
+             f'so its firmware is not of HEAD; build again')
+    receipt = {'head': head, 'configDigest': digest(config_path), 'boards': boards, 'files': files}
+    Path(out).parent.mkdir(parents=True, exist_ok=True)
+    write_json(Path(out), receipt)
+    print(json.dumps({**receipt, 'files': len(receipt['files'])}))
+    return 0
+
+
+def check_receipt(path, config_path, boards, dirs, staged):
+    """Refuse to stage firmware the build receipt at path does not pin to this HEAD and roster:
+    dirs are every variant dir of the run's boards, staged the checkout-relative digests of
+    the firmware to stage."""
+    try:
+        receipt = json.loads(Path(path).read_text())
+        head, pinned = receipt['head'], receipt['files']
+        config_digest, built = receipt['configDigest'], receipt['boards']
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        fail(f'unusable build receipt {path}: {e!r}')
+    unbuilt = [b for b in boards if b not in built]
+    prefixes = tuple(f'{d.relative_to(ROOT)}/' for d in dirs)
+    differ = sorted({*(p for p in staged if pinned.get(p) != staged[p]),
+                     *(p for p in pinned if p.startswith(prefixes) and p not in staged)})
+    why = [*checkout_drift(head, config_digest, config_path),
+           unbuilt and f'it does not cover {", ".join(unbuilt)}',
+           differ and f'{len(differ)} staged file(s) differ from it, first {", ".join(differ[:5])}']
+    if any(why):
+        fail(f'the build receipt {path} does not match: {"; ".join(filter(None, why))}; rebuild and write a new receipt')
+    return head, config_digest
+
+
+def checkout_drift(head, config_digest, config_path):
+    """Why the harness and roster the checkout stages are not those of head and config_digest."""
+    now = git('rev-parse', 'HEAD')
+    # the harness and roster staged beside the firmware are HEAD's only on a clean tree
+    dirty = git('status', '--porcelain', '--untracked-files=no')
+    return [head != now and f'it is for {head[:12]} but the checkout is at {now[:12]}',
+            dirty and f'tracked files changed since HEAD: {", ".join(line.split(None, 1)[1] for line in dirty.splitlines()[:5])}',
+            config_digest != digest(config_path) and f'the roster {config_path} is not the one it was built from']
+
+
+def run(argv, receipt=None):
+    """One remote run: (its exit status, the report files copied back)."""
+    remote = os.environ.get('REMOTE', 'ci.lan')
+    remote_dir = os.environ.get('REMOTE_DIR', '/tmp/tinyusb-hil')
+    check_remote_dir(remote_dir)
+    args, config, config_path = parse_run(argv)
     if args.build:
         fail(f'--build would build on the rig, which gets binaries only; build locally with\n'
              f'  {build_command(config_path, select_boards(config, args), args.build_dir)}')
     firmware = resolve_firmware(config, config_path, args)
+    with tempfile.TemporaryDirectory(prefix='hil-remote-') as snap:
+        pinned = None
+        if receipt is not None:
+            firmware = snapshot(firmware, Path(snap))
+            boards = select_boards(config, args)
+            pinned = check_receipt(receipt, config_path, boards,
+                                   [d for b in boards for d in variant_dirs(config, args.build_dir, b)],
+                                   staged_files(firmware, Path(snap)))
 
-    print(f'==> Setting up remote {remote}:{remote_dir}')
-    with remote_lease(remote, remote_dir, args.build_dir) as (remote_dir, token):
-        return stage_and_run(remote, remote_dir, token, argv, args, config, config_path, firmware)
+        print(f'==> Setting up remote {remote}:{remote_dir}')
+        with remote_lease(remote, remote_dir, args.build_dir) as (remote_dir, token):
+            return stage_and_run(remote, remote_dir, token, argv, args, config, config_path, firmware, receipt, pinned)
 
 
-def stage_and_run(remote, remote_dir, token, argv, args, config, config_path, firmware):
+def stage_and_run(remote, remote_dir, token, argv, args, config, config_path, firmware, receipt=None, pinned=None):
     guard = (remote_dir, token)
     if args.accumulate:
         # the wipe cleared the rig's copy; without the local sidecar as merge base the retry's
@@ -341,14 +532,152 @@ def stage_and_run(remote, remote_dir, token, argv, args, config, config_path, fi
     # one transfer: every dir lands under the same <build_dir>/, by its own name
     if rsync(guard, '-a', *FIRMWARE_FILTER, *map(str, firmware), f'{remote}:{remote_dir}/{args.build_dir}/') != 0:
         fail('could not stage the firmware')
+    # the harness and roster went from the live checkout, which may have moved since the receipt check
+    drift = pinned and list(filter(None, checkout_drift(*pinned, config_path)))
+    if drift:
+        fail(f'the checkout changed during the rig set-up, so what was staged is not what it checked against the build '
+             f'receipt {receipt}: {"; ".join(drift)}; not running it')
 
     print(f'==> Running HIL test on {remote}')
     rc = subprocess.run(['ssh', *SSH_OPTS, remote, run_command(remote_dir, argv, config_path.name, token)],
                         stdin=subprocess.DEVNULL).returncode
     if rc == TREE_REPLACED:
-        return rc     # nothing of ours ran there: no report to fetch, and another run's must not land here
-    copy_back(remote, remote_dir, token, config_path.name)
-    return rc
+        return rc, []     # nothing of ours ran there: no report to fetch, and another run's must not land here
+    return rc, copy_back(remote, remote_dir, token, config_path.name)
+
+
+def run_paths(run_id):
+    if not re.fullmatch(r'[A-Za-z0-9_-][A-Za-z0-9_.-]{0,63}', run_id):
+        fail(f'a run id is 1-64 of [A-Za-z0-9_.-], not starting with a dot: {run_id!r}')
+    runs = ROOT / RUNS_DIR
+    return runs / f'{run_id}.started.json', runs / f'{run_id}.done.json'
+
+
+def write_json(path, data):
+    """Atomic: a reader sees the whole record or none."""
+    tmp = path.with_name(f'.{path.name}.{os.getpid()}.tmp')
+    tmp.write_text(json.dumps(data) + '\n')
+    tmp.replace(path)
+
+
+def publish_locked(path, data):
+    """Publish a record under an exclusive flock taken before it appears, refusing an existing
+    one; returns the fd that holds the lock, which the kernel drops when this process dies."""
+    tmp = path.with_name(f'.{path.name}.{os.getpid()}.tmp')
+    tmp.write_text(json.dumps(data) + '\n')
+    fd = os.open(tmp, os.O_RDONLY)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        os.link(tmp, path)
+    except BaseException:
+        os.close(fd)
+        raise
+    finally:
+        tmp.unlink(missing_ok=True)
+    return fd
+
+
+def pop_option(argv, name):
+    """(the option's value or None, argv without it): the rest goes to hil_test.py."""
+    for i, a in enumerate(argv):
+        if a == name:
+            value, rest = (argv[i + 1] if i + 1 < len(argv) else ''), argv[:i] + argv[i + 2:]
+        elif a.startswith(f'{name}='):
+            value, rest = a.partition('=')[2], argv[:i] + argv[i + 1:]
+        else:
+            continue
+        if not value:
+            fail(f'{name} needs a value')
+        return value, rest
+    return None, argv
+
+
+def run_recorded(run_id, argv, receipt):
+    """run() between a started record, locked while it lives, and a done record written
+    whatever ends it short of a kill: what `wait` reads, since nothing else outlives a
+    background run."""
+    started, done = run_paths(run_id)
+    started.parent.mkdir(exist_ok=True)
+    try:
+        lock = publish_locked(started, {'runId': run_id, 'pid': os.getpid(), 'startedAt': time.time()})
+    except FileExistsError:
+        fail(f'run id {run_id} was used before ({started.relative_to(ROOT)}); pick a new one')
+    rc, reports = 1, []
+    try:
+        rc, reports = run(argv, receipt)
+        return rc
+    except SystemExit as e:
+        rc = e.code if isinstance(e.code, int) else int(e.code is not None)
+        raise
+    finally:
+        write_json(done, {'runId': run_id, 'exit': rc, 'reports': reports})
+        os.close(lock)
+
+
+def run_alive(started):
+    """Its run still holds the started record's lock."""
+    fd = os.open(started, os.O_RDONLY)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        return False
+    except BlockingIOError:
+        return True
+    finally:
+        os.close(fd)
+
+
+def wait_secs(text):
+    secs = float(text)
+    if not 0 <= secs <= WAIT_SECS:
+        raise argparse.ArgumentTypeError(f'0 to {WAIT_SECS} s: one wait must end inside the Bash tool\'s 10-min cap')
+    return secs
+
+
+def wait(argv):
+    p = argparse.ArgumentParser(prog='hil_remote.py wait',
+                                description=f'exit 0 done, {RUNNING} still running at --timeout, '
+                                            f'{DEAD} ended without a done record')
+    p.add_argument('run_id')
+    p.add_argument('--timeout', type=wait_secs, default=WAIT_SECS, help=f'seconds, at most {WAIT_SECS} (the default)')
+    a = p.parse_args(argv)
+    started, done = run_paths(a.run_id)
+    begun = time.monotonic()
+    deadline = begun + a.timeout
+    while True:
+        if done.is_file():
+            print(json.dumps({'state': 'done', **json.loads(done.read_text())}))
+            return 0
+        try:
+            rec = json.loads(started.read_text())
+        except FileNotFoundError:
+            grace = min(begun + START_SECS, deadline) - time.monotonic()
+            if grace > 0:
+                time.sleep(min(POLL_SECS, grace))
+                continue
+            fail(f'no run {a.run_id} was started from {ROOT}')
+        if not run_alive(started):
+            if done.is_file():
+                continue    # it wrote the done record between the two checks
+            print(json.dumps({'state': 'dead', 'runId': a.run_id, 'pid': rec['pid'],
+                              'detail': 'the run ended without a done record (killed, or its session died): '
+                                        'no local report is from it'}))
+            return DEAD
+        left = deadline - time.monotonic()
+        if left <= 0:
+            print(json.dumps({'state': 'running', 'runId': a.run_id, 'pid': rec['pid'],
+                              'elapsedSecs': round(time.time() - rec['startedAt'])}))
+            return RUNNING
+        time.sleep(min(POLL_SECS, left))
+
+
+def main(argv):
+    if argv[:1] == ['wait']:
+        return wait(argv[1:])
+    if argv[:1] == ['receipt']:
+        return write_receipt(argv[1:])
+    run_id, argv = pop_option(argv, '--run-id')
+    receipt, argv = pop_option(argv, '--receipt')
+    return run(argv, receipt)[0] if run_id is None else run_recorded(run_id, argv, receipt)
 
 
 if __name__ == '__main__':

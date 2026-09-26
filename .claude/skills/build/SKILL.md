@@ -15,10 +15,11 @@ python3 $B --board stm32f407disco [-e device/cdc_msc] [-T target]
 python3 $B --board stm32f407disco -e host/cdc_msc_hid --cflag=-DCFG_TUH_CDC_FTDI_LATENCY=16
 python3 $B ... --shared                       # canonical cmake-build-<board>, the dir HIL flashes from
 python3 $B --board <b> --shared --variants <hil config>   # one cmake-build-<variant> per roster variant
+python3 $B --board <b> --shared --variants <hil config> --receipt .hil-remote/<name>.json   # plus the build receipt a delegated HIL run checks (hil skill)
 python3 $B ... --fetch-deps                   # fetch a family's missing deps instead of failing
 ```
 
-The last stdout line is JSON: `pass`, per-board `status` (`ok`, `failed`, `skipped`, `error`), `built` (elf files this run wrote), `firstError`, `buildDir`, how the boards were resolved, and the scope paths nothing builds, split into `nothingToBuild` and `uncovered`. Exit 0 pass, 1 a board failed, 2 usage or resolution error with the message in `error` (a missing dependency names its remedy there), 3 an uncovered path. `-v` streams the build to stderr.
+The last stdout line is JSON: `pass`, per-board `status` (`ok`, `failed`, `skipped`, `error`), `built` (elf files this run wrote), `firstError`, `buildDir`, how the boards were resolved, and the scope paths nothing builds, split into `nothingToBuild` and `uncovered`. Exit 0 pass, 1 a board failed, 2 usage or resolution error with the message in `error` (a missing dependency names its remedy there) or a refused receipt with its reason in `receipt.error`, 3 an uncovered path. `-v` streams the build to stderr.
 
 ## Judgment
 
