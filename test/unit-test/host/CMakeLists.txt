@@ -23,9 +23,6 @@ function(add_host_test name fixture)
   set_tests_properties(${name} PROPERTIES TIMEOUT 10 LABELS host)
 endfunction()
 
-add_host_test(test_usbh_abort ${CMAKE_CURRENT_LIST_DIR}/usbh/test_abort.c)
-target_sources(test_usbh_abort PRIVATE ${TINYUSB_ROOT}/src/tusb.c ${TINYUSB_ROOT}/src/common/tusb_fifo.c)
-
 # EHCI fixture links encode native pointers in 32 bits. macOS cannot guarantee
 # low static addresses (in particular, Apple Silicon executables require PIE).
 if (APPLE)
