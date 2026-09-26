@@ -15,13 +15,15 @@ set(JLINK_DEVICE MIMXRT1176xxxA${JLINK_CORE})
 set(PYOCD_TARGET mimxrt1170${MCU_CORE})
 set(NXPLINK_DEVICE MIMXRT1176xxxxx:MIMXRT1170-EVK)
 
+if (NOT DEFINED RHPORT_HOST)
+  set(RHPORT_HOST 1)
+endif ()
+
 function(update_board TARGET)
   target_sources(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/evkbmimxrt1170_flexspi_nor_config.c
     )
   target_compile_definitions(${TARGET} PUBLIC
     CPU_MIMXRT1176DVMAA${MCU_CORE}
-    BOARD_TUD_RHPORT=0
-    BOARD_TUH_RHPORT=1
     )
 endfunction()

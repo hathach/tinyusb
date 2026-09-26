@@ -106,7 +106,7 @@ Audio device mounted: idx=0 addr=1
 ## Configuration
 
 Edit `src/tusb_config.h` to modify:
-- `CFG_TUH_AUDIO_MAX`: Maximum number of audio devices supported
+- `CFG_TUH_AUDIO`: Maximum number of Audio Control instances across all devices (0 disables the driver)
 - `CFG_TUH_AUDIO_PROTOCOLS`: Bitmask selecting UAC1 and/or UAC2 support; the example enables both
 - `CFG_TUH_AUDIO_MAX_SAM_FREQ`: Maximum number of discrete frequencies retained per alternate setting or UAC2 Clock Source
 - `CFG_TUH_AUDIO_EPIN_BUFSIZE`: Maximum size of one capture transfer the driver submits (configurations needing a larger per-poll-interval packet are rejected)

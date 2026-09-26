@@ -617,6 +617,12 @@
   #define CFG_TUD_MEM_SECTION     CFG_TUSB_MEM_SECTION
 #endif
 
+// Attribute for controller structures that require uncached (or DMA-coherent) RAM.
+// If the default section is cacheable, override this with an uncached section.
+#ifndef CFG_TUD_UNCACHED_MEM_SECTION
+  #define CFG_TUD_UNCACHED_MEM_SECTION CFG_TUD_MEM_SECTION
+#endif
+
 // Attribute to align memory for device controller (default: CFG_TUSB_MEM_ALIGN)
 #ifndef CFG_TUD_MEM_ALIGN
   #define CFG_TUD_MEM_ALIGN       CFG_TUSB_MEM_ALIGN
@@ -771,6 +777,12 @@
   #define CFG_TUH_MEM_SECTION   CFG_TUSB_MEM_SECTION
 #endif
 
+// Attribute for controller structures that require uncached (or DMA-coherent) RAM.
+// If the default section is cacheable, override this with an uncached section.
+#ifndef CFG_TUH_UNCACHED_MEM_SECTION
+  #define CFG_TUH_UNCACHED_MEM_SECTION CFG_TUH_MEM_SECTION
+#endif
+
 // Attribute to align memory for host controller
 #ifndef CFG_TUH_MEM_ALIGN
   #define CFG_TUH_MEM_ALIGN     CFG_TUSB_MEM_ALIGN
@@ -791,6 +803,11 @@
 // max events processed in one tuh_task_ext() call, 0 for unlimited
 #ifndef CFG_TUH_TASK_EVENTS_PER_RUN
   #define CFG_TUH_TASK_EVENTS_PER_RUN  16
+#endif
+
+// Enable the ChipIdea HCD's single-transfer isochronous scheduler.
+#ifndef CFG_TUH_CHIPIDEA_ISO_ENABLE
+  #define CFG_TUH_CHIPIDEA_ISO_ENABLE 0
 #endif
 
 //------------- CLASS -------------//
