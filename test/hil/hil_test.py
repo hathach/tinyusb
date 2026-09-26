@@ -2117,8 +2117,11 @@ def test_board(board: Board) -> tuple:
 
 def _owned_rows(boards: list) -> dict:
     """board -> its declared variant row names, the ownership accumulate_report needs to
-    recover an earlier attempt's wedge cells on the right rows."""
-    return {b['name']: [v['name'] for v in (b.get('variant') or [])] for b in boards}
+    recover an earlier attempt's wedge cells on the right rows. Malformed entries are skipped,
+    as summarize() does: callers pass the whole roster, which _config_abort never validated."""
+    return {b['name']: [v['name'] for v in (b['variant'] if isinstance(b.get('variant'), list) else [])
+                        if isinstance(v, dict) and isinstance(v.get('name'), str)]
+            for b in boards}
 
 
 def _after_pool(config: dict, boards: list, mret: list, abort_args) -> dict:

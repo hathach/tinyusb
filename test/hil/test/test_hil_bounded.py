@@ -351,6 +351,22 @@ class BuildBoardContract(unittest.TestCase):
         for c in cells.values():
             self.assertEqual(c, {hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED})
 
+    def test_an_unselected_malformed_variant_does_not_crash_the_report(self):
+        from helper import hil_report
+        cfg = {'boards': [{'name': 'good', 'uid': '1', 'flasher': {'name': 'jlink'}},
+                          {'name': 'owner', 'uid': '3', 'flasher': {'name': 'jlink'},
+                           'variant': [None, {'name': 'owner-a'}]},
+                          {'name': 'unselected', 'uid': '2', 'flasher': {'name': 'jlink'}, 'variant': [None]}]}
+        good_row = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], 1.0)
+        for refuse, results, cell in (({'good'}, [], {hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED}),
+                                      (set(), [good_row], {'device/cdc_msc': 'pass'})):
+            rc, d, _, _ = self.run_main(cfg, [], ['-b', 'good'], refuse, results)
+            doc = json.loads((d / hil_report.REPORT_JSON).read_text())
+            self.assertEqual({r['board']: r['cells'] for r in doc['rows']}, {'good': cell})
+            self.assertEqual(rc, 1 if refuse else 0)
+        self.assertEqual(hil_test._owned_rows(cfg['boards'])['owner'], ['owner-a'],
+                         'a well-formed claim beside a malformed one still owns its row')
+
 
     def test_an_abort_banner_does_not_count_a_refused_board_as_finished(self):
         from helper import hil_report
