@@ -98,7 +98,6 @@ extern "C" {
 #ifndef CFG_TUH_CHIPIDEA_ISO_ENABLE
   #define CFG_TUH_CHIPIDEA_ISO_ENABLE 1
 #endif
-#define CFG_TUH_AUDIO_MAX           1
 #define CFG_TUH_AUDIO_EPIN_BUFSIZE  256 // max capture transfer the application submits
 #define CFG_TUH_AUDIO_EPOUT_BUFSIZE 256 // max playback transfer the application submits
 
