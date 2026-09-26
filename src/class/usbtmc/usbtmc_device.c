@@ -287,6 +287,7 @@ uint16_t usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const *itf_desc, 
 
   uint16_t drv_len;
   uint8_t const *p_desc;
+  uint8_t const *desc_end = (uint8_t const *)itf_desc + max_len;
   uint8_t found_endpoints = 0;
 
   TU_VERIFY(itf_desc->bInterfaceClass == TUD_USBTMC_APP_CLASS, 0);
@@ -332,7 +333,7 @@ uint16_t usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const *itf_desc, 
         default:
           TU_ASSERT(false, 0);
       }
-      TU_ASSERT(usbd_edpt_open(rhport, ep_desc), 0);
+      TU_ASSERT(usbd_edpt_open(rhport, ep_desc, desc_end), 0);
       found_endpoints++;
     }
 

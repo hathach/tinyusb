@@ -557,7 +557,7 @@ void edpt0_open(uint8_t rhport) {
   ep_write(0, ep_reg, false);
 }
 
-bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
+bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep, uint8_t const * desc_end TU_ATTR_UNUSED) {
   (void)rhport;
   const uint8_t    ep_addr     = desc_ep->bEndpointAddress;
   const uint8_t    ep_num      = tu_edpt_number(ep_addr);

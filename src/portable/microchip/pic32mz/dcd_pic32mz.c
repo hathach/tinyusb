@@ -379,7 +379,7 @@ static bool ep0_xfer(xfer_ctl_t * xfer, int dir)
 /* DCD Endpoint port
  *------------------------------------------------------------------*/
 
-bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
+bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt, uint8_t const * desc_end TU_ATTR_UNUSED)
 {
   (void) rhport;
   uint8_t const epnum = tu_edpt_number(desc_edpt->bEndpointAddress);
@@ -700,8 +700,8 @@ void dcd_int_handler(uint8_t rhport)
   }
   if (csr2_bits.RESETIF)
   {
-    dcd_edpt_open(0, &ep0OUT_desc);
-    dcd_edpt_open(0, &ep0IN_desc);
+    dcd_edpt_open(0, &ep0OUT_desc, NULL);
+    dcd_edpt_open(0, &ep0IN_desc, NULL);
     dcd_event_bus_reset(0, USB_REGS->POWERbits.HSMODE ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL, true);
   }
   if (csr2_bits.SUSPIF)
