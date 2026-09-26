@@ -1861,8 +1861,8 @@ def build_board(board: Board, config_file: Path) -> tuple[int, bool]:
     Unbounded on purpose: --build is a local convenience (no CI workflow passes it), so
     the developer watching the build is the timeout."""
     name = board['name']
-    # -v: the build log goes to the inherited stderr as each variant finishes; a silent
-    # buffer is indistinguishable from a stall. stdout carries only the verdict JSON.
+    # -v: check_build.py streams the build log to the inherited stderr as it is produced; a
+    # silent buffer is indistinguishable from a stall. stdout carries only the verdict JSON.
     cmd = [sys.executable, str(CHECK_BUILD), '--board', name, '--shared', '--variants', str(config_file), '-v']
     if verbose:
         print(f'  + {" ".join(cmd)}')

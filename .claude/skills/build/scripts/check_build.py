@@ -797,10 +797,17 @@ def first_error(out):
 
 
 def run(cmd, verbose):
-    r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=ROOT)
-    if verbose:
-        sys.stderr.write(r.stdout)
-    return r.returncode, r.stdout
+    # streamed as it arrives: a variant build runs for minutes, and a silent buffer reads as a
+    # stall. PYTHONUNBUFFERED, or tools/build.py block-buffers its piped stdout until it exits
+    out = []
+    with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=ROOT,
+                          env={**os.environ, 'PYTHONUNBUFFERED': '1'}) as p:
+        for line in p.stdout:
+            out.append(line)
+            if verbose:
+                sys.stderr.write(line)
+                sys.stderr.flush()
+    return p.returncode, ''.join(out)
 
 
 class Parser(argparse.ArgumentParser):
