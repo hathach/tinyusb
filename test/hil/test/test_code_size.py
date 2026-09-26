@@ -1328,6 +1328,19 @@ class MainReport(unittest.TestCase):
                 self.assertIn('INCOMPLETE', md)
                 self.assertIn(message, md)
 
+    def test_reports_that_all_failed_add_no_filter_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, _, _ = self._run(tmp, [], ({'a/a.elf': None}, [('a/a.elf', 'boom')]))
+            self.assertEqual(rc, 1)
+            self.assertNotIn('matched filters', self._read(tmp, 'b', 'report.md'))
+
+    def test_an_elf_without_tinyusb_code_is_complete_when_another_matched(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, _, _ = self._run(tmp, [], ({'a/a.elf': _elf(1), 'board_test/board_test.elf': elf({}, all_syms=(4, 0))},
+                                           []))
+            self.assertEqual(rc, 0)
+            self.assertIn('Coverage (complete, membrowse)', self._read(tmp, 'b', 'report.md'))
+
     def test_diff_only_options_are_refused(self):
         with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
             self._run(tempfile.gettempdir(), ['--ci'], None)
@@ -1352,6 +1365,19 @@ class GlobMetacharsInBuildDir(unittest.TestCase):
                 sizes, errors = sd.generate_sizes(build_dir, ['build/'])
             self.assertEqual(errors, [])
             self.assertEqual(sizes['device/cdc_msc/cdc_msc.elf']['files']['x.c']['flash'], 4)
+
+    def test_helper_elf_below_an_example_is_skipped(self):
+        """pico-sdk's boot stage 2 links its own elf under the role dir; it has no
+        TinyUSB file and must not be sized as an example."""
+        with tempfile.TemporaryDirectory() as tmp:
+            build_dir = self._tree(tmp)
+            bs2_dir = os.path.join(build_dir, 'device', 'pico-sdk', 'src', 'rp2040', 'boot_stage2')
+            os.makedirs(bs2_dir)
+            open(os.path.join(bs2_dir, 'bs2_default.elf'), 'w').close()
+            with _engine('membrowse', mock.Mock(return_value=_elf(4))):
+                sizes, errors = sd.generate_sizes(build_dir, ['build/'])
+            self.assertEqual(errors, [])
+            self.assertEqual(list(sizes), ['device/cdc_msc/cdc_msc.elf'])
 
 
 class CiBoardSet(unittest.TestCase):

@@ -650,6 +650,11 @@ def _json_sizes(sizes, symbols):
     return sizes if symbols else {k: v for k, v in sizes.items() if k != 'symbols'}
 
 
+def _filter_failure(engine):
+    return (f'no {engine} sizes matched filters - check them, or a change in '
+            f'{engine} output broke its parsing (try another --engine to isolate)')
+
+
 def compare_sides(base, cur, engine, failures=(), boards=(), scope=None, symbols=False, labels=SIDE_LABELS):
     """Pair two sides and render them. Returns (md, failures, ok, data).
 
@@ -662,9 +667,7 @@ def compare_sides(base, cur, engine, failures=(), boards=(), scope=None, symbols
     pairs, base_only, cur_only = pair_elfs(base, cur)
     failures = list(failures)
     if scope and pairs and not any(b['files'] or c['files'] for b, c in pairs.values()):
-        failures.append((scope, 'both', 'filter',
-                         f'no {engine} sizes matched filters - check them, or a change in '
-                         f'{engine} output broke its parsing (try another --engine to isolate)'))
+        failures.append((scope, 'both', 'filter', _filter_failure(engine)))
     md = render_pairs(pairs, len(base.keys() & cur.keys()), engine, base_only, cur_only, failures, boards,
                       symbols, labels)
     data = {
@@ -829,9 +832,8 @@ def generate_sizes(build_dir, filters, example=None, engine='membrowse'):
     """
     # escape the dir, not the wildcards: a checkout path is a path, not a pattern
     root = glob.escape(build_dir)
-    pattern = f'{root}/{example}/*.elf' if example \
-        else f'{root}/**/*.elf'
-    elfs = sorted(glob.glob(pattern, recursive=True))
+    # <role>/<example>/*.elf: deeper elfs are helpers, e.g. pico-sdk's bs2_default.elf
+    elfs = sorted(glob.glob(f'{root}/{example or "*/*"}/*.elf'))
     if not elfs:
         return {}, [(None, f'no .elf files in {build_dir}')]
 
@@ -970,10 +972,10 @@ def run_report(args):
                 rel_sizes, errors = generate_sizes(build, filters, example, args.engine)
                 sizes = {(board, rel): v for rel, v in rel_sizes.items()}
                 failures += [((board, rel), 'report', msg) for rel, msg in errors]
-                failures += [(i, 'filter', f'no {args.engine} sizes matched filters - check them, or a '
-                                           f'change in {args.engine} output broke its parsing (try '
-                                           f'another --engine to isolate)')
-                             for i, s in sizes.items() if s is not None and not s['files']]
+                # per scope, as diff: an example need not link TinyUSB (board_test)
+                sized = [s for s in sizes.values() if s is not None]
+                if sized and not any(s['files'] for s in sized):
+                    failures.append(((board, None), 'filter', _filter_failure(args.engine)))
                 phase.done(failed=bool(failures))
             md = render_report(sizes, args.engine, failures, [board], args.symbols)
             ok = not failures and any(s is not None for s in sizes.values())
