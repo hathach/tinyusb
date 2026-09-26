@@ -8,6 +8,29 @@ CPU_CORE ?= cortex-m7
 MCU_VARIANT_WITH_CORE = ${MCU_VARIANT}${MCU_CORE}
 MCU_DIR = $(MCUX_DEVICES)/$(MCU_FAMILY)/$(MCU_VARIANT)
 
+# ----------------------
+# Port & Speed Selection
+# ----------------------
+RHPORT_SPEED ?= OPT_MODE_HIGH_SPEED OPT_MODE_HIGH_SPEED
+RHPORT_DEVICE ?= 0
+RHPORT_HOST ?= 0
+
+ifndef RHPORT_DEVICE_SPEED
+ifeq ($(RHPORT_DEVICE), 0)
+  RHPORT_DEVICE_SPEED = $(firstword $(RHPORT_SPEED))
+else
+  RHPORT_DEVICE_SPEED = $(lastword $(RHPORT_SPEED))
+endif
+endif
+
+ifndef RHPORT_HOST_SPEED
+ifeq ($(RHPORT_HOST), 0)
+  RHPORT_HOST_SPEED = $(firstword $(RHPORT_SPEED))
+else
+  RHPORT_HOST_SPEED = $(lastword $(RHPORT_SPEED))
+endif
+endif
+
 # XIP boot files: some devices reference RT1052's xip (see each device's xip/CMakeLists.txt)
 ifeq ($(MCU_FAMILY),RT1064)
   XIP_DIR = $(MCUX_DEVICES)/RT1064/MIMXRT1064/xip
@@ -22,20 +45,16 @@ CFLAGS += \
 	-D__START=main \
   -D__STARTUP_CLEAR_BSS \
   -DCFG_TUSB_MCU=OPT_MCU_MIMXRT1XXX \
+  -DBOARD_TUD_RHPORT=$(RHPORT_DEVICE) \
+  -DBOARD_TUD_MAX_SPEED=$(RHPORT_DEVICE_SPEED) \
+  -DBOARD_TUH_RHPORT=$(RHPORT_HOST) \
+  -DBOARD_TUH_MAX_SPEED=$(RHPORT_HOST_SPEED) \
   -DCFG_TUSB_MEM_SECTION='__attribute__((section("NonCacheable")))' \
 
 ifneq ($(M4), 1)
 CFLAGS += \
   -DXIP_EXTERNAL_FLASH=1 \
   -DXIP_BOOT_HEADER_ENABLE=1
-endif
-
-ifdef BOARD_TUD_RHPORT
-CFLAGS += -DBOARD_TUD_RHPORT=$(BOARD_TUD_RHPORT)
-endif
-
-ifdef BOARD_TUH_RHPORT
-CFLAGS += -DBOARD_TUH_RHPORT=$(BOARD_TUH_RHPORT)
 endif
 
 # mcu driver cause following warnings
