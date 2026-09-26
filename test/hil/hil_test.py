@@ -1885,7 +1885,7 @@ def build_board(board: Board, config_file: Path) -> tuple[int, bool]:
     if verdict.get('error'):
         print(f'{name}: {verdict["error"]}')
         return 1, False
-    failed = [b for b in verdict['boards'] if b['status'] in ('failed', 'error')]
+    failed = [b for b in verdict['boards'] if b['status'] != 'ok']
     for b in failed:
         print(f'{name}: {b["buildDir"]} {b["status"]}: {b["firstError"]}')
     return len(failed), True

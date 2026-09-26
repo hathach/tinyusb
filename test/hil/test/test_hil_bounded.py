@@ -246,16 +246,17 @@ class BuildBoardContract(unittest.TestCase):
 
     def test_it_builds_every_variant_through_the_build_contract(self):
         ok = {'pass': True, 'boards': [{'buildDir': 'cmake-build/cmake-build-b', 'status': 'ok'},
-                                       {'buildDir': 'cmake-build/cmake-build-b-DMA', 'status': 'skipped'}]}
+                                       {'buildDir': 'cmake-build/cmake-build-b-DMA', 'status': 'ok'}]}
         r, cmd, _ = self.build(0, json.dumps(ok) + '\n')
         self.assertEqual(r, (0, True))
         self.assertEqual(cmd[1:], [str(hil_test.CHECK_BUILD), '--board', 'b', '--shared', '--variants', 'rig.json', '-v'])
 
     def test_failed_variants_and_refusals_count_as_failures(self):
         bad = {'pass': False, 'boards': [{'buildDir': 'd1', 'status': 'failed', 'firstError': 'x.c:1: error: y'},
-                                         {'buildDir': 'd2', 'status': 'error', 'firstError': 'z'}]}
+                                         {'buildDir': 'd2', 'status': 'error', 'firstError': 'z'},
+                                         {'buildDir': 'd3', 'status': 'skipped', 'firstError': 'nothing built'}]}
         r, _, printed = self.build(1, json.dumps(bad))
-        self.assertEqual(r, (2, True))
+        self.assertEqual(r, (3, True))
         self.assertIn('d1 failed: x.c:1: error: y', printed)
         r, _, printed = self.build(2, json.dumps({'pass': False, 'boards': [], 'error': 'was configured with CFLAGS_CLI'}))
         self.assertEqual(r, (1, False))
