@@ -13,8 +13,9 @@ copied back). `wait ID` blocks until then, at most --timeout seconds, and prints
 status line.
 
 `receipt --out FILE [-b BOARD]...` writes a build receipt: HEAD, the roster's digest and the
-digest of every file a run of those boards would stage, refusing an unbuilt variant or a tree
-that is not clean; the build skill's check_build.py --receipt runs it right after its build.
+digest of every file a run of those boards would stage, refusing an unbuilt variant, a stale
+example's firmware left in a variant dir or a tree that is not clean; the build skill's
+check_build.py --receipt runs it right after its build.
 `--receipt FILE` on a run refuses to stage unless HEAD, the roster and every staged file still
 match it.
 
@@ -68,6 +69,8 @@ STAGED_SUFFIXES = ('.elf', '.bin', '.hex')
 STAGED_NAMES = ('config.env', 'flash_args')
 FIRMWARE_FILTER = ['--prune-empty-dirs', '--include=*/', *(f'--include=*{x}' for x in STAGED_SUFFIXES),
                    *(f'--include={n}' for n in STAGED_NAMES), '--exclude=*']
+# a variant dir's <role>/<name> example dirs, examples/'s layout, which hil_test.py flashes from
+EXAMPLE_ROLES = ('device', 'dual', 'host', 'typec')
 
 # The screen is for the tilde: the remote shell would expand `~/` alone to HOME, which this
 # run rm -rf's. `/` or `~/` plus at least one named component, no `..`, no `//`.
@@ -345,6 +348,37 @@ def staged_files(dirs):
             if f.is_file() and (f.suffix in STAGED_SUFFIXES or f.name in STAGED_NAMES)}
 
 
+def unverified_examples(board, d, files):
+    """The <role>/<name> example dirs of variant dir d holding staged firmware of an example
+    the board's build does not build: a shared dir keeps a skipped or dropped example's old
+    firmware. The same test as check_build's configured(), on the <name>.<suffix> files
+    hil_flash.find_firmware() looks for, directly or in one config subdir."""
+    prefix = f'{d.relative_to(ROOT)}/'
+    examples = {'/'.join(parts[:2]) for parts in (p[len(prefix):].split('/') for p in files if p.startswith(prefix))
+                if len(parts) in (3, 4) and parts[0] in EXAMPLE_ROLES
+                and Path(parts[-1]).stem == parts[1] and Path(parts[-1]).suffix in STAGED_SUFFIXES}
+    if not examples:
+        return []
+    if str(ROOT / 'tools') not in sys.path:
+        sys.path.insert(0, str(ROOT / 'tools'))
+    tools_build = importlib.import_module('build')
+    if [p.parent.parent.name for p in ROOT.glob(f'hw/bsp/*/boards/{board}')] == ['espressif']:
+        # one idf tree per example: the build attempted the ones tools/build.py does not skip
+        cwd = os.getcwd()
+        os.chdir(ROOT)  # tools/build.py reads examples/ and hw/bsp/ relative to the working directory
+        try:
+            built = {e for e in tools_build.get_examples('espressif') if not tools_build.build_utils.skip_example(e, board)}
+        finally:
+            os.chdir(cwd)
+    else:
+        registered = tools_build.cmake_registered_targets(str(d))
+        if registered is None:
+            fail(f'cmake cannot list the targets of {prefix[:-1]}, so the firmware its build made cannot be told '
+                 f'from a stale one')
+        built = {e for e in examples if e.split('/')[1] in registered}
+    return sorted(examples - built)
+
+
 def parse_run(argv):
     """(args, config, config path) of hil_test.py's arguments."""
     config_path = Path(os.environ.get('CONFIG') or ROOT / 'test/hil/tinyusb.json').resolve()
@@ -372,6 +406,11 @@ def write_receipt(argv):
     if unbuilt:
         fail(f'not built: {", ".join(unbuilt)}; a receipt covers every variant the run selects, build with\n'
              f'  {build_command(config_path, boards, args.build_dir)}')
+    stale = [f'{d.relative_to(ROOT)}/{e}' for b in boards for d in variant_dirs(config, args.build_dir, b)
+             for e in unverified_examples(b, d, files)]
+    if stale:
+        fail(f'firmware of an example the build does not build: {", ".join(stale)}; a receipt pins only firmware '
+             f'the build verified and a run stages every file there, so remove those dirs and write the receipt again')
     dirty = git('status', '--porcelain')
     if dirty:
         fail(f'the tree is not clean:\n{dirty}\na receipt pins the firmware to a commit: commit these (a hw/bsp/family.json '
