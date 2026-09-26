@@ -120,7 +120,7 @@ static void hw_endpoint_abort_xfer(struct hw_endpoint* ep) {
   // Abort any pending transfer
   const uint8_t  dir        = (uint8_t)tu_edpt_dir(ep->ep_addr);
   const uint8_t  epnum      = tu_edpt_number(ep->ep_addr);
-  const uint32_t abort_mask = TU_BIT((epnum << 1) | (dir ? 0 : 1));
+  const uint32_t abort_mask = rp2usb_ep_bit(ep->ep_addr);
 
   // Due to Errata RP2040-E2: ABORT flag is only applicable for B2 and later (unusable for B0, B1).
   // Which means we are not guaranteed to safely abort pending transfer on B0 and B1.
