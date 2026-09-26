@@ -60,6 +60,25 @@ class OneClassifierForBothArtifacts(unittest.TestCase):
                              f' meant to be the one source')
 
 
+class BoardVariantsIsTheRostersOneReading(unittest.TestCase):
+    def test_a_board_without_a_list_builds_as_itself(self):
+        self.assertEqual(hil_report.board_variants({'name': 'b'}),
+                         [{'name': 'b', 'defines': [], 'flags': []}])
+
+    def test_each_variant_carries_its_defines_and_split_flags(self):
+        board = {'name': 'b', 'variant': [{'name': 'b-x', 'defines': ['RHPORT_DEVICE=1'], 'flags': '-DA=1  -DB=2'},
+                                          {'name': 'b'}]}
+        self.assertEqual(hil_report.board_variants(board),
+                         [{'name': 'b-x', 'defines': ['RHPORT_DEVICE=1'], 'flags': ['-DA=1', '-DB=2']},
+                          {'name': 'b', 'defines': [], 'flags': []}])
+
+    def test_a_malformed_variant_raises(self):
+        for variant in [[{'name': 'v', 'flags': None}], [{'flags': '-DA=1'}], [{'name': 'v', 'defines': 'X=1'}],
+                        [{'name': ''}], ['x'], [None], {'name': 'v'}, 'v', 5]:
+            with self.assertRaises(ValueError, msg=variant):
+                hil_report.board_variants({'name': 'b', 'variant': variant})
+
+
 class ModuleWorksImportedAndAsAScript(unittest.TestCase):
     """It is imported as helper.hil_report by hil_test, and run as a script by the operator
     (the HIL contract, .claude/skills/hil/SKILL.md). A script run puts helper/ on sys.path, NOT test/hil,

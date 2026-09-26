@@ -4,6 +4,9 @@ import shlex
 import os
 import sys
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'test', 'hil', 'helper'))
+import hil_report  # noqa: E402  stdlib-only; board_variants() is the roster's one reading of a board's builds
+
 
 def _resolve_config_path(config_file):
     if os.path.exists(config_file):
@@ -115,7 +118,10 @@ def main():
             # -D defines and raw CFLAGS. No 'variant' -> a single build named after
             # the board; an always-on define (MAX3421_HOST=1, LOGGER=rtt) is a single
             # self-named variant carrying it.
-            variants = board.get('variant') or [{'name': name, 'flags': ''}]
+            try:
+                variants = hil_report.board_variants(board)
+            except ValueError as e:
+                raise SystemExit(f'{config_file}: {e}')
             for v in variants:
                 arg = build_board
                 if v['name'] != name:
@@ -125,9 +131,9 @@ def main():
                 # build_board's argv path. The SAME string also reaches the get_deps
                 # env expansion and the artifact-name charset, where spaced/quoted
                 # values still fail (loudly) -- keep defines space-free
-                for d in v.get('defines', []):
+                for d in v['defines']:
                     arg += f' -D{shlex.quote(d)}'
-                for tok in v.get('flags', '').split():
+                for tok in v['flags']:
                     arg += f' --cflag={tok}'
                 append_build_arg(toolchain, arg)
 

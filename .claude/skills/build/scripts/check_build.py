@@ -55,6 +55,8 @@ sys.path.insert(0, str(ROOT / 'tools'))
 import build as tools_build  # noqa: E402  tools/build.py, first on the path above
 import ci_select  # noqa: E402  the same classifier run below, here for its option knowledge
 import family_json  # noqa: E402  hw/bsp/family.json: what each board's default configure compiles
+sys.path.insert(0, str(ROOT / 'test' / 'hil' / 'helper'))
+import hil_report  # noqa: E402  stdlib-only; its board_variants() is the roster's one reading of a board's builds
 
 
 def family_of(board):
@@ -700,8 +702,7 @@ def stale_options(build_dir, supplied):
 
 
 def roster_variants(boards, config):
-    """(board, build name, defines, cflags) for each variant hil_test.py runs of each board:
-    the rules of its build_board(), where a board with no variant list runs as itself."""
+    """(board, build name, defines, cflags) for each variant hil_test.py runs of each board."""
     try:
         roster = {b['name']: b for b in json.loads(Path(config).read_text())['boards']}
     except (OSError, ValueError, KeyError, TypeError) as e:
@@ -711,19 +712,11 @@ def roster_variants(boards, config):
         fail(f'not in {config}: {" ".join(unknown)}; --variants takes rig board names')
     out = []
     for b in boards:
-        variants = roster[b].get('variant') or [{'name': b}]
-        if not isinstance(variants, list):
-            fail(f'{config}: board {b} variant needs a list of variants: {variants!r}')
-        for i, v in enumerate(variants):
-            if not isinstance(v, dict):
-                fail(f'{config}: board {b} variant {i} needs an object with name, flags and defines: {v!r}')
-            name, defines, flags = v.get('name'), v.get('defines', []), v.get('flags', '')
-            # an empty name would build cmake-build-<board> while hil_test.py looks in cmake-build-
-            if not (isinstance(name, str) and name and isinstance(flags, str) and isinstance(defines, list)
-                    and all(isinstance(d, str) for d in defines)):
-                fail(f'{config}: board {b} variant {name!r} needs name a non-empty string, flags a string '
-                     f'and defines a list of strings: {v}')
-            out.append((b, name, defines, flags.split()))
+        try:
+            variants = hil_report.board_variants(roster[b])
+        except ValueError as e:
+            fail(f'{config}: {e}')
+        out += [(b, v['name'], v['defines'], v['flags']) for v in variants]
     return out
 
 

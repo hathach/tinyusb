@@ -1984,7 +1984,7 @@ def test_board(board: Board) -> tuple:
         # a -t/-bt filtered run times only a subset; report no duration so an accumulate
         # re-run keeps the previous full-run value
         partial = bool(test_only) or name in board_test
-        variants = board.get('variant') or [{'name': name, 'flags': ''}]
+        variants = hil_report.board_variants(board)
 
         prev_last = None  # last test of the previous variant: the variant boundary is an adjacency too
         for v in variants:
@@ -2548,8 +2548,7 @@ def main() -> None:
         _rtt_config_abort(f'"logger": "rtt" needs a jlink flasher: {", ".join(bad_rtt)}')
     rtt_no_logger_def = [e['name'] for e in config_boards
                          if e.get('logger') == 'rtt'
-                         and any('LOGGER=rtt' not in (v.get('defines') or [])
-                                 for v in (e.get('variant') or [{}]))]
+                         and any('LOGGER=rtt' not in v['defines'] for v in hil_report.board_variants(e))]
     if rtt_no_logger_def:
         # a prebuilt cmake-build-<board> configured with -DLOGGER=rtt is a legitimate
         # build path the roster need not describe, so warn there -- but when this run is

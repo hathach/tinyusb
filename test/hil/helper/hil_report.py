@@ -517,10 +517,34 @@ def write_timeout_report(report_dir: Path, boards, secs: int,
             _p(f'warning: fallback {REPORT_MD} write failed too: {e2}', flush=True)
 
 
+def board_variants(board: dict) -> list:
+    """The builds a roster board runs as, each {'name', 'defines', 'flags'}: its "variant"
+    list, else the board as itself. 'name' is the build dir (cmake-build-<name>) and report
+    row, 'defines' the cmake -D list, 'flags' the compiler flags split into tokens. The one
+    reading of the roster every builder, runner and reader shares; a malformed entry raises
+    ValueError rather than send anyone to a dir the roster did not mean."""
+    name = board['name']
+    variants = board.get('variant') or [{'name': name}]
+    if not isinstance(variants, list):
+        raise ValueError(f'board {name} variant must be a list of variants: {variants!r}')
+    out = []
+    for i, v in enumerate(variants):
+        if not isinstance(v, dict):
+            raise ValueError(f'board {name} variant {i} must be an object with name, flags and defines: {v!r}')
+        vname, defines, flags = v.get('name'), v.get('defines', []), v.get('flags', '')
+        # an empty name would put the build in cmake-build-, which nothing looks in
+        if not (isinstance(vname, str) and vname and isinstance(flags, str) and isinstance(defines, list)
+                and all(isinstance(d, str) for d in defines)):
+            raise ValueError(f'board {name} variant {vname!r} needs name a non-empty string, flags a '
+                             f'string and defines a list of strings: {v}')
+        out.append({'name': vname, 'defines': list(defines), 'flags': flags.split()})
+    return out
+
+
 def variants_of(cfg: dict, board: str) -> list:
     for b in cfg.get('boards', []):
         if b['name'] == board:
-            return [v['name'] for v in (b.get('variant') or [])] or [board]
+            return [v['name'] for v in board_variants(b)]
     return [board]
 
 
