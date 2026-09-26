@@ -1756,8 +1756,7 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
                 with hil_lock.flash_permit(board['uid']):
                     t_flash = time.monotonic()
                     try:
-                        ret = getattr(hil_flash,
-                                      f'flash_{board["flasher"]["name"].lower()}')(board, str(fw_name))
+                        ret = hil_flash.flash_primitive(board['flasher']['name'])(board, str(fw_name))
                     except Exception as e:
                         # A flasher that RAISES (esptool's get_serial_dev when the adapter
                         # drops off the bus, a missing config.env, an unwritable CWD) would

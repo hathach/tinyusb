@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # Firmware flashing for the TinyUSB HIL rig: one flash_* per flasher type (dispatched by
-# config name via getattr), a reset_* taking timeout= where the tool can reset without
-# flashing (looked up through reset_primitive), plus find_firmware. The bounded runner run_cmd
-# lives in hil_util (never import hil_test here). Callers set the module global
+# config name through flash_primitive), a reset_* taking timeout= where the tool can reset
+# without flashing (looked up through reset_primitive), plus find_firmware. The bounded
+# runner run_cmd lives in hil_util (never import hil_test here). Callers set the module global
 # `build_dir`. `from __future__ import annotations` keeps the Board hints below
 # unevaluated: the type is not defined in this module.
 
@@ -253,7 +253,7 @@ def convoy_safe(flasher: dict) -> bool:
     if name == 'esptool':
         return True
     # EXACT, not startswith: rescue_openocd and usbtest's
-    # getattr(hil_flash, f'flash_{name}') both require the exact name, so an
+    # hil_flash.flash_primitive(name) both require the exact name, so an
     # 'openocd_wch'-style entry would pass this gate, reserve the Rescue-DP legs,
     # and then find no recovery path at all -- paying for a path that cannot fire, which
     # is the precise cost this gate exists to avoid.
@@ -299,15 +299,24 @@ def flash_lm4flash(board, firmware, timeout=None):
 # no reset_lm4flash: lm4flash has no reset-only mode; it resets+runs on flash
 
 
+def flash_primitive(flasher_name: str):
+    """The flasher's flash_* callable, case-folded from the roster name.
+
+    An unknown flasher raises AttributeError.
+    """
+    name = flasher_name.lower()
+    if name == 'primitive':   # this lookup shares the flash_* namespace but is no flasher
+        raise AttributeError(f'{flasher_name!r} is not a flasher')
+    return getattr(sys.modules[__name__], f'flash_{name}')
+
+
 def reset_primitive(flasher_name: str):
     """The flasher's probe-reset callable, or None when it has no reset-only mode.
 
-    An unknown flasher raises AttributeError, as the flash_* dispatch does.
+    An unknown flasher raises AttributeError, as flash_primitive does.
     """
-    module = sys.modules[__name__]
-    name = flasher_name.lower()
-    getattr(module, f'flash_{name}')
-    return getattr(module, f'reset_{name}', None)
+    flash_primitive(flasher_name)
+    return getattr(sys.modules[__name__], f'reset_{flasher_name.lower()}', None)
 
 
 # The one place a flasher's firmware extension is decided. A flasher with no entry falls
