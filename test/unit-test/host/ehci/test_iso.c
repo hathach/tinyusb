@@ -21,6 +21,15 @@ _Static_assert(sizeof(ehci_itd_t) == 64, "iTD ABI");
 _Static_assert(sizeof(ehci_sitd_t) == 32, "siTD ABI");
 _Static_assert(sizeof(ehci_cap_registers_t) == 16, "capability register ABI");
 
+extern unsigned test_cache_calls[3];
+
+// Cache hooks may touch application buffers, never uncached controller storage.
+void test_cache_buffer(void const* addr, uint32_t size) {
+  uintptr_t const start = (uintptr_t) addr;
+  uintptr_t const descriptors = (uintptr_t) &ehci_data;
+  assert(start + size <= descriptors || start >= descriptors + sizeof(ehci_data));
+}
+
 static ehci_registers_t regs;
 static ehci_cap_registers_t caps;
 static tuh_bus_info_t buses[8];
@@ -869,6 +878,12 @@ int main(void) {
   };
   assert(!hcd_edpt_open(0, 1, &iso_desc));
   assert(regs.command_bm.int_threshold == 8);
+#endif
+#if CFG_TUH_MEM_DCACHE_ENABLE
+  // Cached payloads must still exercise clean, invalidate and clean/invalidate.
+  for (unsigned i = 0; i < TU_ARRAY_SIZE(test_cache_calls); i++) {
+    assert(test_cache_calls[i] > 0);
+  }
 #endif
   puts("EHCI ISO regression tests passed");
   return 0;

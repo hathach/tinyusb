@@ -606,6 +606,12 @@
   #define CFG_TUD_MEM_SECTION     CFG_TUSB_MEM_SECTION
 #endif
 
+// Attribute for controller structures that require uncached (or DMA-coherent) RAM.
+// If the default section is cacheable, override this with an uncached section.
+#ifndef CFG_TUD_UNCACHED_MEM_SECTION
+  #define CFG_TUD_UNCACHED_MEM_SECTION CFG_TUD_MEM_SECTION
+#endif
+
 // Attribute to align memory for device controller (default: CFG_TUSB_MEM_ALIGN)
 #ifndef CFG_TUD_MEM_ALIGN
   #define CFG_TUD_MEM_ALIGN       CFG_TUSB_MEM_ALIGN
@@ -758,6 +764,12 @@
 // Attribute to place data in accessible RAM for host controller (default: CFG_TUSB_MEM_SECTION)
 #ifndef CFG_TUH_MEM_SECTION
   #define CFG_TUH_MEM_SECTION   CFG_TUSB_MEM_SECTION
+#endif
+
+// Attribute for controller structures that require uncached (or DMA-coherent) RAM.
+// If the default section is cacheable, override this with an uncached section.
+#ifndef CFG_TUH_UNCACHED_MEM_SECTION
+  #define CFG_TUH_UNCACHED_MEM_SECTION CFG_TUH_MEM_SECTION
 #endif
 
 // Attribute to align memory for host controller
