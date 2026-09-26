@@ -90,6 +90,8 @@ typedef struct {
   TU_ATTR_ALIGNED(4) uint8_t control_buf[CFG_TUD_MTP_EP_CONTROL_BUFSIZE];
 } mtpd_interface_t;
 
+TU_VERIFY_STATIC(CFG_TUD_MTP_EP_BUFSIZE <= UINT16_MAX, "usbd_edpt_xfer() length is 16-bit");
+
 typedef struct {
   TUD_EPBUF_DEF(buf, CFG_TUD_MTP_EP_BUFSIZE);
   TUD_EPBUF_TYPE_DEF(mtp_event_t, buf_event);
@@ -223,6 +225,7 @@ bool tud_mtp_data_receive(mtp_container_info_t *p_container) {
 
 bool tud_mtp_response_send(mtp_container_info_t* p_container) {
   mtpd_interface_t* p_mtp = &_mtpd_itf;
+  TU_VERIFY(p_container->header->len <= CFG_TUD_MTP_EP_BUFSIZE);
   p_mtp->phase = MTP_PHASE_RESPONSE;
   p_container->header->type = MTP_CONTAINER_TYPE_RESPONSE_BLOCK;
   p_container->header->transaction_id = p_mtp->command.header.transaction_id;

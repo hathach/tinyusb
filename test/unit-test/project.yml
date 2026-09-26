@@ -139,6 +139,10 @@
       - CFG_TUSB_DEBUG=0
       - CFG_TUH_AUDIO_EPIN_BUFSIZE=1024
       - CFG_TUH_AUDIO_EPOUT_BUFSIZE=1024
+    :test_msc_host:
+      - CFG_TUH_ENABLED=1
+      - CFG_TUH_MSC=1
+      - CFG_TUSB_DEBUG=0
   :release: []
 
   # Enable to inject name of a test as a unique compilation symbol into its respective executable build.

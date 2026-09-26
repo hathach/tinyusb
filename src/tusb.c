@@ -406,7 +406,7 @@ uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t *s) {
 
 uint32_t tu_edpt_stream_write(tu_edpt_stream_t *s, const void *buffer, uint32_t bufsize) {
   TU_VERIFY(bufsize > 0);
-  const uint16_t ret = tu_fifo_write_n(&s->ff, buffer, (uint16_t) bufsize);
+  const uint16_t ret = tu_fifo_write_n(&s->ff, buffer, (uint16_t) tu_min32(bufsize, UINT16_MAX));
 
   // flush if fifo has more than packet size or
   // in rare case: fifo depth is configured too small (which never reach packet size)
@@ -448,7 +448,7 @@ uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s) {
 }
 
 uint32_t tu_edpt_stream_read(tu_edpt_stream_t *s, void *buffer, uint32_t bufsize) {
-  const uint32_t num_read = tu_fifo_read_n(&s->ff, buffer, (uint16_t)bufsize);
+  const uint32_t num_read = tu_fifo_read_n(&s->ff, buffer, (uint16_t) tu_min32(bufsize, UINT16_MAX));
   tu_edpt_stream_read_xfer(s);
   return num_read;
 }

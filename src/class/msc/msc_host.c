@@ -42,7 +42,9 @@ typedef struct {
 
   // SCSI command data
   uint8_t stage;
+  bool desync; // a stage failed to submit: the device is mid-command until re-enumerated
   void* buffer;
+  uint32_t data_xferred;
   tuh_msc_complete_cb_t complete_cb;
   uintptr_t complete_arg;
 
@@ -66,6 +68,34 @@ TU_ATTR_ALWAYS_INLINE static inline msch_interface_t* get_itf(uint8_t daddr) {
 
 TU_ATTR_ALWAYS_INLINE static inline msch_epbuf_t* get_epbuf(uint8_t daddr) {
   return &_msch_epbuf[daddr - 1];
+}
+
+// usbh_edpt_xfer() length is 16-bit: a larger data stage is split into transfers of this size,
+// a multiple of every bulk max packet size so that only the last one can end short
+#define MSCH_DATA_XFER_MAX 0xFC00u
+
+static bool data_stage_xfer(uint8_t daddr, msch_interface_t* p_msc, const msc_cbw_t* cbw) {
+  const uint8_t  ep_data = (cbw->dir & TUSB_DIR_IN_MASK) ? p_msc->ep_in : p_msc->ep_out;
+  const uint16_t len     = (uint16_t) tu_min32(cbw->total_bytes - p_msc->data_xferred, MSCH_DATA_XFER_MAX);
+  return usbh_edpt_xfer(daddr, ep_data, (uint8_t*) p_msc->buffer + p_msc->data_xferred, len);
+}
+
+static bool status_stage_xfer(uint8_t daddr, msch_interface_t* p_msc, msc_csw_t* csw) {
+  p_msc->stage = MSC_STAGE_STATUS;
+  return usbh_edpt_xfer(daddr, p_msc->ep_in, (uint8_t*) csw, (uint16_t) sizeof(msc_csw_t));
+}
+
+static void scsi_command_complete(uint8_t daddr, msch_interface_t* p_msc, const msc_cbw_t* cbw, const msc_csw_t* csw) {
+  p_msc->stage = MSC_STAGE_IDLE;
+  if (p_msc->complete_cb != NULL) {
+    tuh_msc_complete_data_t const cb_data = {
+        .cbw = cbw,
+        .csw = csw,
+        .scsi_data = p_msc->buffer,
+        .user_arg = p_msc->complete_arg
+    };
+    (void) p_msc->complete_cb(daddr, &cb_data);
+  }
 }
 
 //--------------------------------------------------------------------+
@@ -104,7 +134,7 @@ bool tuh_msc_mounted(uint8_t dev_addr) {
 
 bool tuh_msc_ready(uint8_t dev_addr) {
   msch_interface_t* p_msc = get_itf(dev_addr);
-  TU_VERIFY(p_msc->mounted);
+  TU_VERIFY(p_msc->mounted && !p_msc->desync);
   const bool epin_busy = usbh_edpt_busy(dev_addr, p_msc->ep_in);
   const bool epout_busy = usbh_edpt_busy(dev_addr, p_msc->ep_out);
   return !epin_busy && !epout_busy;
@@ -123,7 +153,7 @@ static inline void cbw_init(msc_cbw_t* cbw, uint8_t lun) {
 bool tuh_msc_scsi_command(uint8_t daddr, msc_cbw_t const* cbw, void* data,
                           tuh_msc_complete_cb_t complete_cb, uintptr_t arg) {
   msch_interface_t* p_msc = get_itf(daddr);
-  TU_VERIFY(p_msc->configured);
+  TU_VERIFY(p_msc->configured && !p_msc->desync);
 
   // claim endpoint
   TU_VERIFY(usbh_edpt_claim(daddr, p_msc->ep_out));
@@ -133,6 +163,7 @@ bool tuh_msc_scsi_command(uint8_t daddr, msc_cbw_t const* cbw, void* data,
   p_msc->buffer = data;
   p_msc->complete_cb = complete_cb;
   p_msc->complete_arg = arg;
+  p_msc->data_xferred = 0;
   p_msc->stage = MSC_STAGE_CMD;
 
   if (!usbh_edpt_xfer(daddr, p_msc->ep_out, (uint8_t*) &epbuf->cbw, sizeof(msc_cbw_t))) {
@@ -222,7 +253,9 @@ bool tuh_msc_read10(uint8_t dev_addr, uint8_t lun, void* buffer, uint32_t lba, u
   msc_cbw_t cbw;
   cbw_init(&cbw, lun);
 
-  cbw.total_bytes = block_count * p_msc->capacity[lun].block_size;
+  const uint32_t block_size = p_msc->capacity[lun].block_size;
+  TU_VERIFY(block_count <= UINT32_MAX / tu_max32(block_size, 1)); // CBW data length is 32-bit
+  cbw.total_bytes = block_count * block_size;
   cbw.dir = TUSB_DIR_IN_MASK;
   cbw.cmd_len = sizeof(scsi_read10_t);
 
@@ -244,7 +277,9 @@ bool tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const* buffer, uint32_t
   msc_cbw_t cbw;
   cbw_init(&cbw, lun);
 
-  cbw.total_bytes = block_count * p_msc->capacity[lun].block_size;
+  const uint32_t block_size = p_msc->capacity[lun].block_size;
+  TU_VERIFY(block_count <= UINT32_MAX / tu_max32(block_size, 1)); // CBW data length is 32-bit
+  cbw.total_bytes = block_count * block_size;
   cbw.dir         = TUSB_DIR_OUT;
   cbw.cmd_len     = sizeof(scsi_write10_t);
 
@@ -311,6 +346,8 @@ bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
   msc_cbw_t const * cbw = &epbuf->cbw;
   msc_csw_t       * csw = &epbuf->csw;
 
+  bool submitted = true;
+
   switch (p_msc->stage) {
     case MSC_STAGE_CMD:
       // Must be Command Block
@@ -318,35 +355,40 @@ bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
       if (cbw->total_bytes && p_msc->buffer) {
         // Data stage if any
         p_msc->stage = MSC_STAGE_DATA;
-        uint8_t const ep_data = (cbw->dir & TUSB_DIR_IN_MASK) ? p_msc->ep_in : p_msc->ep_out;
-        TU_ASSERT(usbh_edpt_xfer(dev_addr, ep_data, p_msc->buffer, (uint16_t) cbw->total_bytes));
-        break;
+        submitted = data_stage_xfer(dev_addr, p_msc, cbw);
+      } else {
+        submitted = status_stage_xfer(dev_addr, p_msc, csw);
       }
-      TU_ATTR_FALLTHROUGH; // fallthrough to data stage
+      break;
 
     case MSC_STAGE_DATA:
-      // Status stage
-      p_msc->stage = MSC_STAGE_STATUS;
-      TU_ASSERT(usbh_edpt_xfer(dev_addr, p_msc->ep_in, (uint8_t*) csw, (uint16_t) sizeof(msc_csw_t)));
+      p_msc->data_xferred += xferred_bytes;
+      if (event == XFER_RESULT_SUCCESS && xferred_bytes == MSCH_DATA_XFER_MAX &&
+          p_msc->data_xferred < cbw->total_bytes) {
+        submitted = data_stage_xfer(dev_addr, p_msc, cbw);
+      } else {
+        submitted = status_stage_xfer(dev_addr, p_msc, csw);
+      }
       break;
 
     case MSC_STAGE_STATUS:
-      // SCSI op is complete
-      p_msc->stage = MSC_STAGE_IDLE;
-      if (p_msc->complete_cb != NULL) {
-        tuh_msc_complete_data_t const cb_data = {
-            .cbw = cbw,
-            .csw = csw,
-            .scsi_data = p_msc->buffer,
-            .user_arg = p_msc->complete_arg
-        };
-        (void) p_msc->complete_cb(dev_addr, &cb_data);
-      }
+      scsi_command_complete(dev_addr, p_msc, cbw, csw);
       break;
 
     default:
       // unknown state
       break;
+  }
+
+  if (!submitted) {
+    // nothing is pending to finish the command: complete it now with a CSW the device never sent
+    TU_LOG_DRV("  MSCh stage %u submit failed\r\n", p_msc->stage);
+    csw->signature    = MSC_CSW_SIGNATURE;
+    csw->tag          = cbw->tag;
+    csw->data_residue = cbw->total_bytes - p_msc->data_xferred;
+    csw->status       = MSC_CSW_STATUS_PHASE_ERROR;
+    p_msc->desync     = true;
+    scsi_command_complete(dev_addr, p_msc, cbw, csw);
   }
 
   return true;
