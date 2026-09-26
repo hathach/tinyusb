@@ -6,7 +6,7 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   enable_testing()
 endif ()
 
-if (NOT CMAKE_C_COMPILER_ID MATCHES "^(GNU|Clang)$")
+if (NOT CMAKE_C_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang)$")
   message(FATAL_ERROR "Host fixtures require GCC or Clang (MinGW on Windows).")
 endif ()
 
@@ -22,6 +22,16 @@ function(add_host_test name fixture)
   add_test(NAME ${name} COMMAND ${name})
   set_tests_properties(${name} PROPERTIES TIMEOUT 10 LABELS host)
 endfunction()
+
+add_host_test(test_usbh_abort ${CMAKE_CURRENT_LIST_DIR}/usbh/test_abort.c)
+target_sources(test_usbh_abort PRIVATE ${TINYUSB_ROOT}/src/tusb.c ${TINYUSB_ROOT}/src/common/tusb_fifo.c)
+
+# EHCI fixture links encode native pointers in 32 bits. macOS cannot guarantee
+# low static addresses (in particular, Apple Silicon executables require PIE).
+if (APPLE)
+  message(STATUS "Skipping EHCI fixtures on macOS: static DMA addresses must fit in 32 bits.")
+  return()
+endif ()
 
 foreach (variant IN ITEMS generic disabled enabled cached)
   set(name test_ehci_iso_${variant})
