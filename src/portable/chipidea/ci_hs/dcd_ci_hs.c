@@ -170,7 +170,9 @@ typedef struct {
   dcd_qtd_t qtd[TUP_DCD_ENDPOINT_MAX][2] TU_ATTR_ALIGNED(32);
 } dcd_data_t;
 
-CFG_TUD_MEM_SECTION TU_ATTR_ALIGNED(2048) static dcd_data_t _dcd_data;
+// Queue heads and TDs are shared with the controller; cache maintenance cannot
+// safely synchronize a cache line that both sides can update.
+CFG_TUD_UNCACHED_MEM_SECTION TU_ATTR_ALIGNED(2048) static dcd_data_t _dcd_data;
 
 // What the next Port Change Detect will be. Each one is preceded by the interrupt that causes it:
 // a reset interrupt for the end of a bus reset - where the speed first becomes final - or a
@@ -264,7 +266,7 @@ static void bus_reset_begin(uint8_t rhport) {
 
   _dcd_data.qhd[0][0].int_on_setup = 1; // OUT only
 
-  dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
+  TU_MEMORY_BARRIER();
 }
 
 /// Reset the controller and bring it back up in device mode. Also the manual's remedy when the
@@ -304,7 +306,7 @@ static bool controller_reset(uint8_t rhport) {
   dcd_reg->PORTSC1 &= ~USB_PORTSC1_STS_MASK;
   #endif
 
-  dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
+  TU_MEMORY_BARRIER();
 
   _port_change_reason[rhport] = PORT_CHANGE_REASON_RESET;
 
@@ -490,7 +492,7 @@ static void qhd_init(dcd_qhd_t *p_qhd, uint16_t max_packet_size, uint8_t iso_mul
   p_qhd->max_packet_size         = max_packet_size;
   p_qhd->iso_mult                = iso_mult;
   p_qhd->qtd_overlay.next        = QTD_NEXT_INVALID;
-  dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
+  TU_MEMORY_BARRIER();
 }
 
 bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *endpoint_desc) {
@@ -536,9 +538,6 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
   dcd_qhd_t         *p_qhd     = &_dcd_data.qhd[epnum][dir];
   volatile uint32_t *endptctrl = &dcd_reg->ENDPTCTRL[epnum];
 
-  // _dcd_data.qhd[epnum][dir].qtd_overlay.halted = 1;
-  // dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
-
   // Flush EP
   flush_endpoints(dcd_reg, TU_BIT(epnum + (dir ? 16 : 0)));
 
@@ -575,8 +574,8 @@ static bool qhd_start_xfer(uint8_t rhport, uint8_t epnum, uint8_t dir) {
   p_qhd->qtd_overlay.active = false;           // a flushed prime leaves stale ACTIVE state; clear it so the fresh qtd loads
   p_qhd->qtd_overlay.next   = (uint32_t)p_qtd; // link qtd to qhd
 
-  // flush cache
-  dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
+  // Publish descriptor updates before priming the endpoint.
+  TU_MEMORY_BARRIER();
 
   if (epnum == 0) {
     // Setup lockout (IMXRT1060RM 42.5.6.4.2.1 Setup Phase, p.2403): never prime EP0 while a new
@@ -747,8 +746,8 @@ void dcd_int_handler(uint8_t rhport) {
   // OTGSC BSV is the manual's disconnect indicator, and it is board dependent.
 
   if (int_status & INTR_USB) {
-    // Make sure we read the latest version of _dcd_data.
-    dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
+    // Read controller-written descriptors after observing completion.
+    TU_MEMORY_BARRIER();
 
     const uint32_t edpt_complete = dcd_reg->ENDPTCOMPLETE;
     dcd_reg->ENDPTCOMPLETE       = edpt_complete; // acknowledge

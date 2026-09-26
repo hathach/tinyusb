@@ -104,7 +104,7 @@
  * the buffer to USBH, following NXP's EHCI completion/release sequence.
  * The ISO TD occupies one QH slot and its software state one qTD slot until
  * endpoint close. Bulk/interrupt transfers use the remaining slots.
- * Descriptor/link memory must be coherent or non-cacheable for live unlinking;
+ * CFG_TUH_UNCACHED_MEM_SECTION must be coherent or non-cacheable for live unlinking;
  * use DTCM or MPU-configured non-cacheable SRAM on RT1064. Payload buffers
  * retain their cache maintenance.
  *
@@ -197,8 +197,8 @@ typedef struct {
   volatile uint32_t uframe_number;
 }ehci_data_t;
 
-// Periodic frame list must be 4K alignment
-CFG_TUH_MEM_SECTION TU_ATTR_ALIGNED(4096) static ehci_data_t ehci_data;
+// Live descriptors/links must be uncached or DMA-coherent. The frame list must be 4K aligned.
+CFG_TUH_UNCACHED_MEM_SECTION TU_ATTR_ALIGNED(4096) static ehci_data_t ehci_data;
 
 #if defined(TUP_USBIP_CHIPIDEA_HS) && CFG_TUH_CHIPIDEA_ISO_ENABLE
 TU_ATTR_ALWAYS_INLINE static inline bool qhd_is_iso(size_t index) {
@@ -521,7 +521,7 @@ bool ehci_init(uint8_t rhport, uint32_t capability_reg, uint32_t operatial_reg)
   init_periodic_list(rhport);
   regs->periodic_list_base = (uint32_t) ehci_data.period_framelist;
 
-  hcd_dcache_clean(&ehci_data, sizeof(ehci_data_t));
+  TU_MEMORY_BARRIER();
 
   //------------- TT Control (NXP only) -------------//
   regs->nxp_tt_control = 0;
@@ -611,9 +611,6 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   TU_ASSERT(list_head);
 
   list_insert(list_head, (ehci_link_t*) p_qhd, EHCI_QTYPE_QHD);
-
-  hcd_dcache_clean(p_qhd, sizeof(ehci_qhd_t));
-  hcd_dcache_clean(list_head, sizeof(ehci_qhd_t));
 
   return true;
 }
@@ -732,7 +729,6 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   ehci_qtd_t * volatile qtd = qhd->attached_qtd;
   TU_VERIFY(qtd != NULL); // no queued transfer
 
-  hcd_dcache_invalidate(qtd, sizeof(ehci_qtd_t));
   TU_VERIFY(qtd->active); // transfer is already complete
 
   // HC is still processing, disable HC list schedule before making changes
@@ -745,12 +741,12 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   if (still_active) {
     // remove TD from QH overlay
     qhd->qtd_overlay.next.terminate = 1;
-    hcd_dcache_clean(qhd, sizeof(ehci_qhd_t));
 
     // remove TD from QH software list
     qhd_remove_qtd(qhd);
   }
 
+  TU_MEMORY_BARRIER();
   ehci_enable_schedule(ehci_data.regs, is_period);
 
   return still_active; // true if removed an active transfer
@@ -762,7 +758,7 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
   TU_VERIFY(qhd != NULL);
   qhd->qtd_overlay.halted = 0;
   qhd->qtd_overlay.data_toggle = 0;
-  hcd_dcache_clean_invalidate(qhd, sizeof(ehci_qhd_t));
+  TU_MEMORY_BARRIER();
 
   return true;
 }
@@ -796,7 +792,6 @@ static void iso_ep_free(iso_ep_t* ep) {
   size_t const qhd_index = (ehci_ep_t*) ep->td - ehci_data.qhd_pool;
   size_t const qtd_index = (ehci_td_t*) ep - ehci_data.qtd_pool;
   tu_memclr(ep->td, sizeof(iso_td_t));
-  hcd_dcache_clean(ep->td, sizeof(iso_td_t));
   tu_memclr(ep, sizeof(*ep));
   ehci_data.qhd_is_iso[qhd_index / 32] &= ~TU_BIT(qhd_index % 32);
   ehci_data.qtd_is_iso[qtd_index / 32] &= ~TU_BIT(qtd_index % 32);
@@ -892,7 +887,6 @@ static bool iso_ep_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t cons
       td->sitd.fl_int_cmask = 0xf0;
     }
   }
-  hcd_dcache_clean(td, sizeof(*td));
   ehci_data.regs->status = EHCI_INT_MASK_NXP_SOF;
   ehci_data.regs->inten |= EHCI_INT_MASK_NXP_SOF;
   hcd_int_enable(rhport);
@@ -906,17 +900,14 @@ static void iso_td_unlink(iso_ep_t const* ep) {
   ehci_link_t* link = &ehci_data.period_framelist[(ep->uframe >> 3) % FRAMELIST_SIZE];
   while (!link->terminate && tu_align32(link->address) != (uint32_t) td) {
     link = list_next(link);
-    if (CFG_TUH_MEM_DCACHE_ENABLE) {
-      hcd_dcache_invalidate(link, sizeof(iso_td_t));
-    }
   }
   if (!link->terminate) {
     *link = td->itd.next;
-    hcd_dcache_clean((void*) tu_align32((uint32_t) link), 32);
   }
   // Retire the single transaction, including cancelled or timed-out work.
+  TU_MEMORY_BARRIER();
   td->words[ep->speed == TUSB_SPEED_HIGH ? 1 + (ep->uframe & 7) : 3] = 0;
-  hcd_dcache_clean(td, sizeof(*td));
+  TU_MEMORY_BARRIER();
 }
 
 // Called with the controller interrupt excluded. Only arm a frame after its
@@ -953,16 +944,16 @@ static void iso_arm(iso_ep_t* ep, uint32_t now) {
   // The previous request in this slot was unlinked before its completion event.
   ehci_link_t* head = &ehci_data.period_framelist[(ep->uframe >> 3) % FRAMELIST_SIZE];
   td->itd.next = *head;
-  hcd_dcache_clean(td, sizeof(*td));
+  TU_MEMORY_BARRIER();
   head->address = (uint32_t) td | ((ep->speed == TUSB_SPEED_HIGH ? EHCI_QTYPE_ITD : EHCI_QTYPE_SITD) << 1);
-  hcd_dcache_clean((void*) tu_align32((uint32_t) head), 32);
+  TU_MEMORY_BARRIER();
   if (ep->speed == TUSB_SPEED_HIGH) {
     td->itd.xact[ep->uframe & 7].active = 1;
   } else {
     td->sitd.active = 1;
   }
   ep->armed = true;
-  hcd_dcache_clean(td, sizeof(*td));
+  TU_MEMORY_BARRIER();
 }
 
 static bool iso_xfer(uint8_t rhport, iso_ep_t* ep, uint8_t* buffer, uint16_t buflen) {
@@ -1013,7 +1004,7 @@ static void iso_process(bool in_isr) {
     if (!ep->armed && (int32_t) (ep->uframe - iso_earliest(now)) >= 0) {
       iso_arm(ep, now);
     }
-    // Future requests cannot complete yet; keep descriptor cache lines alone.
+    // Future requests cannot complete yet.
     if ((int32_t) (now - ep->uframe) < 0) {
       continue;
     }
@@ -1022,9 +1013,6 @@ static void iso_process(bool in_isr) {
     uint32_t actual = 0;
     iso_td_t* td = ep->armed ? ep->td : NULL;
     if (ep->armed) {
-      if (CFG_TUH_MEM_DCACHE_ENABLE) {
-        hcd_dcache_invalidate(td, sizeof(*td));
-      }
       if (ep->speed == TUSB_SPEED_HIGH) {
         uint8_t const slot = ep->uframe & 7;
         uint32_t const status = td->words[1 + slot]; // iTD transaction status/control
@@ -1067,6 +1055,7 @@ static void iso_process(bool in_isr) {
     if (error) {
       actual = 0; // descriptor byte counts need not be valid on an error
     }
+    TU_MEMORY_BARRIER();
     if (CFG_TUH_MEM_DCACHE_ENABLE && tu_edpt_dir(ep->ep_addr) && actual != 0) {
       if (!hcd_dcache_invalidate(ep->buffer, actual)) {
         error = true;
@@ -1099,7 +1088,6 @@ static bool iso_stop(uint8_t rhport, iso_ep_t* ep, bool close) {
   bool queued = true;
   if (!close && ep->armed) {
     iso_td_t* td = ep->td;
-    hcd_dcache_invalidate(td, sizeof(*td));
     bool const active = ep->speed == TUSB_SPEED_HIGH ?
       td->itd.xact[ep->uframe & 7].active : td->sitd.active;
     queued = active && (int32_t) (ep->uframe - earliest) >= 0;
@@ -1176,7 +1164,6 @@ static void qhd_xfer_complete_isr(ehci_qhd_t * qhd) {
   if (qtd == NULL) {
     return;
   }
-  hcd_dcache_invalidate(qhd, sizeof(ehci_qhd_t)); // HC may have updated the overlay
   volatile ehci_qtd_t *qtd_overlay = &qhd->qtd_overlay;
 
   // process non-active (completed) QHD with attached (scheduled) TD
@@ -1184,10 +1171,10 @@ static void qhd_xfer_complete_isr(ehci_qhd_t * qhd) {
     // An unrelated periodic interrupt can arrive before the controller has
     // fetched a newly attached qTD. The inactive overlay then still belongs
     // to the previous transfer; only a retired qTD establishes completion.
-    hcd_dcache_invalidate(qtd, sizeof(ehci_qtd_t));
     if (qtd->active) {
       return;
     }
+    TU_MEMORY_BARRIER();
     xfer_result_t xfer_result;
 
     if ( qtd_overlay->halted ) {
@@ -1355,7 +1342,9 @@ TU_ATTR_ALWAYS_INLINE static inline ehci_link_t* list_next(ehci_link_t const *p_
 
 TU_ATTR_ALWAYS_INLINE static inline void list_insert(ehci_link_t *current, ehci_link_t *entry, uint8_t type) {
   entry->address = current->address;
+  TU_MEMORY_BARRIER();
   current->address = ((uint32_t) entry) | (type << 1);
+  TU_MEMORY_BARRIER();
 }
 
 // Remove a queue head from the list.
@@ -1364,6 +1353,7 @@ TU_ATTR_ALWAYS_INLINE static inline void list_insert(ehci_link_t *current, ehci_
 TU_ATTR_ALWAYS_INLINE static inline void list_remove(ehci_link_t* head, ehci_link_t* prev, ehci_qhd_t* qhd) {
   // TODO deactivate all TD, wait for QHD to inactive before removal
   prev->address = qhd->next.address;
+  TU_MEMORY_BARRIER();
 
   // link the removed qhd's next to list head
   qhd->next.address = ((uint32_t) head) | (EHCI_QTYPE_QHD << 1);
@@ -1375,9 +1365,7 @@ TU_ATTR_ALWAYS_INLINE static inline void list_remove(ehci_link_t* head, ehci_lin
     // async list use async advance handshake. Mark as removing, will completely re-usable when async advance isr occurs
     qhd->removing = 1;
   }
-
-  hcd_dcache_clean(qhd, sizeof(ehci_qhd_t));
-  hcd_dcache_clean(prev, sizeof(ehci_qhd_t));
+  TU_MEMORY_BARRIER();
 }
 
 // Remove queue head belong to this device address
@@ -1547,11 +1535,10 @@ static void qhd_attach_qtd(ehci_qhd_t *qhd, ehci_qtd_t *qtd) {
   qhd->attached_qtd = qtd;
   qhd->attached_buffer = qtd->buffer[0];
 
-  // clean and invalidate cache before physically write
-  hcd_dcache_clean_invalidate(qtd, sizeof(ehci_qtd_t));
-
+  // Publish the initialized TD before linking it into the active queue.
+  TU_MEMORY_BARRIER();
   qhd->qtd_overlay.next.address = (uint32_t) qtd;
-  hcd_dcache_clean_invalidate(qhd, sizeof(ehci_qhd_t));
+  TU_MEMORY_BARRIER();
 }
 
 // Remove an attached TD from queue head
@@ -1560,10 +1547,8 @@ static void qhd_remove_qtd(ehci_qhd_t *qhd) {
 
   qhd->attached_qtd = NULL;
   qhd->attached_buffer = 0;
-  hcd_dcache_clean(qhd, sizeof(ehci_qhd_t));
 
   qtd->used = 0; // free QTD
-  hcd_dcache_clean(qtd, sizeof(ehci_qtd_t));
 }
 
 //--------------------------------------------------------------------+
