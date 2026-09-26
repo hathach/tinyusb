@@ -16,7 +16,7 @@ function(add_host_test name fixture)
   add_executable(${name} ${fixture})
   get_filename_component(fixture_dir "${fixture}" DIRECTORY)
   target_include_directories(${name} PRIVATE ${fixture_dir} ${TINYUSB_ROOT}/src)
-  set_target_properties(${name} PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED YES)
+  set_target_properties(${name} PROPERTIES C_STANDARD 99 C_STANDARD_REQUIRED YES)
   # Keep assertions active even when configured with a release build type.
   target_compile_options(${name} PRIVATE -O2 -g -Wall -Wextra -Werror -UNDEBUG)
   add_test(NAME ${name} COMMAND ${name})
