@@ -210,7 +210,7 @@ class BuildReceipts(unittest.TestCase):
     def check(self, *boards):
         dirs = [d for b in boards for d in hil_remote.variant_dirs(self.CONFIG, 'cmake-build', b)]
         hil_remote.check_receipt(self.receipt, (self.root / 'test/hil/tinyusb.json').resolve(), list(boards),
-                                 dirs, [d for d in dirs if d.is_dir()])
+                                 dirs, hil_remote.staged_files([d for d in dirs if d.is_dir()]))
 
     def write(self, *boards, head=None):
         out = io.StringIO()
@@ -282,6 +282,11 @@ class BuildReceipts(unittest.TestCase):
         (self.root / 'test/hil/hil_test.py').write_text('changed')
         self.assertIn('M test/hil/hil_test.py', self.refused(self.write, 'b'))
 
+    def test_an_untracked_file_gets_no_receipt_whatever_status_shows(self):
+        self.git('config', 'status.showUntrackedFiles', 'no')
+        (self.root / 'src.h').write_text('untracked source a build could read')
+        self.assertIn('the tree is not clean:\n?? src.h', self.refused(self.write, 'b'))
+
     def test_a_rebuilt_or_removed_artifact_is_refused(self):
         self.write('a', 'b')
         self.example('a', 'device/cdc').write_text('rebuilt')
@@ -320,6 +325,28 @@ class BuildReceipts(unittest.TestCase):
         self.example('b', 'device/cdc').write_text('rebuilt')
         self.assertIn('staged file(s) differ', self.refused(hil_remote.main, ['--receipt', str(self.receipt), '-b', 'b']))
 
+    def test_a_run_stages_the_bytes_the_receipt_checked(self):
+        self.write('b')
+        pinned = json.loads(self.receipt.read_text())['files']
+        sent = {}
+
+        @contextlib.contextmanager
+        def lease(remote, remote_dir, build_dir):
+            self.example('b', 'device/cdc').write_text('rebuilt while the rig was set up')
+            yield '/tmp/t', 'tok'
+
+        def rsync(guard, *args, optional=False):
+            if '--prune-empty-dirs' not in args:
+                return 0
+            for src in (Path(a) for a in args if not a.startswith('-') and ':' not in a):
+                sent.update({str(f.relative_to(src.parent.parent)): hil_remote.digest(f) for f in src.rglob('*')
+                             if f.suffix in hil_remote.STAGED_SUFFIXES or f.name in hil_remote.STAGED_NAMES})
+            return 1  # stop the run once the firmware transfer is seen
+        with mock.patch.object(hil_remote, 'remote_lease', lease), mock.patch.object(hil_remote, 'rsync', rsync), \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertIn('could not stage the firmware', self.refused(hil_remote.main, ['--receipt', str(self.receipt), '-b', 'b']))
+        self.assertEqual(sent, pinned)
+
 
 class CheckBuildReceipt(unittest.TestCase):
     """check_build.py --receipt: the receipt is written by the build that made the firmware."""
@@ -355,6 +382,15 @@ class CheckBuildReceipt(unittest.TestCase):
             rc, out, written = self.main('--receipt', 'r.json', *argv, status=status)
             self.assertEqual((rc, written), (2, []))
             self.assertIn(why, out['error'])
+
+    def test_the_clean_tree_check_sees_untracked_files_whatever_status_shows(self):
+        with TemporaryDirectory() as tmp, mock.patch.object(self.cb, 'ROOT', Path(tmp)), mock.patch.dict(os.environ):
+            for k in [k for k in os.environ if k.startswith('GIT_')]:
+                del os.environ[k]  # a pre-commit hook's GIT_DIR would point git at the real checkout
+            subprocess.run(['git', '-C', tmp, 'init', '-q'], check=True)
+            subprocess.run(['git', '-C', tmp, 'config', 'status.showUntrackedFiles', 'no'], check=True)
+            (Path(tmp) / 'src.h').write_text('untracked source a build could read')
+            self.assertEqual(self.cb.git_status(), '?? src.h')
 
     def test_a_refused_receipt_or_a_failed_build_fails_the_run(self):
         rc, out, _ = self.main('--receipt', 'r.json', receipt={'error': 'the tree is not clean: M hw/bsp/family.json'})

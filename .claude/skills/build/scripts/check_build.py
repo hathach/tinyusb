@@ -837,7 +837,7 @@ def catalog_text():
 
 
 def git_status():
-    return subprocess.run(['git', '-C', str(ROOT), 'status', '--porcelain'], capture_output=True, text=True, check=True).stdout.strip()
+    return subprocess.run(['git', '-C', str(ROOT), 'status', '--porcelain', '--untracked-files=normal'], capture_output=True, text=True, check=True).stdout.strip()
 
 
 def git_head():

@@ -18,7 +18,7 @@ stale example's firmware left in a variant dir, a tree that is not clean or a HE
 SHA, the one the build began at; the build skill's check_build.py --receipt runs it right after
 its build.
 `--receipt FILE` on a run refuses to stage unless HEAD, the roster and every staged file still
-match it.
+match it, and stages the snapshot of the firmware it checked.
 
 Env overrides: REMOTE (ssh host), REMOTE_DIR (rm -rf'd and recreated each run, under a lock
 on <REMOTE_DIR>.lock that refuses a second run sharing it), CONFIG (HIL config json), ROOT_DIR
@@ -33,6 +33,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -342,11 +343,29 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def staged_files(dirs):
-    """{checkout-relative path: sha256} of what FIRMWARE_FILTER stages from dirs."""
-    return {str(f.relative_to(ROOT)): digest(f)
-            for d in dirs for f in sorted(d.rglob('*'))
-            if f.is_file() and (f.suffix in STAGED_SUFFIXES or f.name in STAGED_NAMES)}
+def staged_paths(dirs):
+    """The files FIRMWARE_FILTER stages from dirs."""
+    return [f for d in dirs for f in sorted(d.rglob('*'))
+            if f.is_file() and (f.suffix in STAGED_SUFFIXES or f.name in STAGED_NAMES)]
+
+
+def staged_files(dirs, base=None):
+    """{path relative to base (default the checkout): sha256} of what FIRMWARE_FILTER stages from dirs."""
+    return {str(f.relative_to(base or ROOT)): digest(f) for f in staged_paths(dirs)}
+
+
+def snapshot(dirs, into):
+    """Copy what FIRMWARE_FILTER stages from dirs to the same checkout-relative layout under
+    into, returning the copied dirs: a build rewriting cmake-build/ after the receipt check
+    would otherwise send the rig bytes the receipt does not pin."""
+    for f in staged_paths(dirs):
+        dest = into / f.relative_to(ROOT)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(f, dest)
+    copies = [into / d.relative_to(ROOT) for d in dirs]
+    for c in copies:
+        c.mkdir(parents=True, exist_ok=True)   # rsync needs every source, staged files or not
+    return copies
 
 
 def example_firmware(d, files):
@@ -416,7 +435,7 @@ def write_receipt(argv):
     if stale:
         fail(f'firmware of an example the build does not build: {", ".join(stale)}; a receipt pins only firmware '
              f'the build verified and a run stages every file there, so remove those dirs and write the receipt again')
-    dirty = git('status', '--porcelain')
+    dirty = git('status', '--porcelain', '--untracked-files=normal')
     if dirty:
         fail(f'the tree is not clean:\n{dirty}\na receipt pins the firmware to a commit: commit these (a hw/bsp/family.json '
              f'a build rewrote included) or remove them, then rebuild on that commit')
@@ -431,9 +450,10 @@ def write_receipt(argv):
     return 0
 
 
-def check_receipt(path, config_path, boards, dirs, firmware):
+def check_receipt(path, config_path, boards, dirs, staged):
     """Refuse to stage firmware the build receipt at path does not pin to this HEAD and roster:
-    dirs are every variant dir of the run's boards, firmware the ones present to stage."""
+    dirs are every variant dir of the run's boards, staged the checkout-relative digests of
+    the firmware to stage."""
     try:
         receipt = json.loads(Path(path).read_text())
         head, pinned = receipt['head'], receipt['files']
@@ -444,7 +464,6 @@ def check_receipt(path, config_path, boards, dirs, firmware):
     # the harness and roster staged beside the firmware are HEAD's only on a clean tree
     dirty = git('status', '--porcelain', '--untracked-files=no')
     unbuilt = [b for b in boards if b not in built]
-    staged = staged_files(firmware)
     prefixes = tuple(f'{d.relative_to(ROOT)}/' for d in dirs)
     differ = sorted({*(p for p in staged if pinned.get(p) != staged[p]),
                      *(p for p in pinned if p.startswith(prefixes) and p not in staged)})
@@ -467,13 +486,16 @@ def run(argv, receipt=None):
         fail(f'--build would build on the rig, which gets binaries only; build locally with\n'
              f'  {build_command(config_path, select_boards(config, args), args.build_dir)}')
     firmware = resolve_firmware(config, config_path, args)
-    if receipt is not None:
-        boards = select_boards(config, args)
-        check_receipt(receipt, config_path, boards, [d for b in boards for d in variant_dirs(config, args.build_dir, b)], firmware)
+    with tempfile.TemporaryDirectory(prefix='hil-remote-') as snap:
+        if receipt is not None:
+            firmware = snapshot(firmware, Path(snap))
+            boards = select_boards(config, args)
+            check_receipt(receipt, config_path, boards, [d for b in boards for d in variant_dirs(config, args.build_dir, b)],
+                          staged_files(firmware, Path(snap)))
 
-    print(f'==> Setting up remote {remote}:{remote_dir}')
-    with remote_lease(remote, remote_dir, args.build_dir) as (remote_dir, token):
-        return stage_and_run(remote, remote_dir, token, argv, args, config, config_path, firmware)
+        print(f'==> Setting up remote {remote}:{remote_dir}')
+        with remote_lease(remote, remote_dir, args.build_dir) as (remote_dir, token):
+            return stage_and_run(remote, remote_dir, token, argv, args, config, config_path, firmware)
 
 
 def stage_and_run(remote, remote_dir, token, argv, args, config, config_path, firmware):
