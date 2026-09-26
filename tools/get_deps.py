@@ -344,8 +344,8 @@ MCU low-level peripheral drivers and external libraries for building TinyUSB exa
 
 
 def run_cmd(cmd):
-    r = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    title = f'Command Error: {cmd}'
+    r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    title = f'Command Error: {subprocess.list2cmdline([str(arg) for arg in cmd])}'
     if r.returncode != 0:
         print(title)
         print(r.stdout.decode("utf-8"))
@@ -363,23 +363,35 @@ def get_a_dep(d):
     print(f'cloning {d} with {url}')
 
     p = Path(TOP / d)
-    git_cmd = f"git -C {p}"
+    git_cmd = ["git", "-C", str(p)]
 
-    # Init git deps if not existed
-    if not p.exists():
-        p.mkdir(parents=True)
-        run_cmd(f"{git_cmd} init")
-        run_cmd(f"{git_cmd} remote add origin {url}")
+    # Init git deps if not initialized. Checking only p.exists() lets git -C walk
+    # up to TinyUSB's repository when an empty dependency directory is present.
+    if not (p / '.git').exists():
+        p.mkdir(parents=True, exist_ok=True)
+        if run_cmd([*git_cmd, "init"]).returncode != 0 or not (p / '.git').exists():
+            return 1
+        if run_cmd([*git_cmd, "remote", "add", "origin", url]).returncode != 0:
+            return 1
         head = None
     else:
-        # Check if commit is already fetched
-        result = run_cmd(f"{git_cmd} rev-parse HEAD")
-        head = result.stdout.decode("utf-8").splitlines()[0]
-        run_cmd(f"{git_cmd} reset --hard")
+        result = run_cmd([*git_cmd, "rev-parse", "--is-inside-work-tree"])
+        if result.returncode != 0 or result.stdout.strip() != b"true":
+            return 1
+        if run_cmd([*git_cmd, "remote", "get-url", "origin"]).returncode != 0 and \
+                run_cmd([*git_cmd, "remote", "add", "origin", url]).returncode != 0:
+            return 1
+        result = run_cmd([*git_cmd, "rev-parse", "--verify", "HEAD"])
+        heads = result.stdout.decode("utf-8").splitlines()
+        head = heads[0] if result.returncode == 0 and heads else None
+        if head is not None and run_cmd([*git_cmd, "reset", "--hard"]).returncode != 0:
+            return 1
 
     if commit != head:
-        run_cmd(f"{git_cmd} fetch --depth 1 origin {commit}")
-        run_cmd(f"{git_cmd} checkout FETCH_HEAD")
+        if run_cmd([*git_cmd, "fetch", "--depth", "1", "origin", commit]).returncode != 0:
+            return 1
+        if run_cmd([*git_cmd, "checkout", "FETCH_HEAD"]).returncode != 0:
+            return 1
 
     # Remove files that conflict with TinyUSB's custom versions
     if d in deps_remove_files:
