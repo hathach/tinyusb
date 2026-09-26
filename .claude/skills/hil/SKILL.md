@@ -218,19 +218,27 @@ PREFIX, since each carries trailing detail and two are blockquotes:
 - `**HIL run abandoned: worker pool timed out after …s.**` and
   `**HIL run aborted: a worker raised …**` — the pool guard fired, or a worker crashed. The
   banner counts what happened: "N board(s) below finished and are this run's; K never
-  reported and are NOT in the table: <names>". The N finished boards' rows are this run's:
-  report them. The K named boards are not this run's whatever the table shows — on a fresh
-  run they have no row, on an `--accumulate` retry a previous attempt's row survives under
-  the banner and `hil_report.py` still folds it into `results` as ran — so name them as not
-  run; the `<config>.failed` re-run spec covers them. Never `"pass": true`.
+  reported and are NOT in the table: <names>", plus, when `check_build.py` refused a board
+  under `--build`, ", and the M whose build check_build.py refused: <names>". The N finished
+  boards' rows are this run's: report them. The K named boards are not this run's whatever
+  the table shows — on a fresh run they have no row, on an `--accumulate` retry a previous
+  attempt's row survives under the banner and `hil_report.py` still folds it into `results`
+  as ran — so name them as not run. The M refused boards DO have a `build refused` row and
+  count as ran/failed, but sit outside N; the `<config>.failed` re-run spec covers both K and
+  M. Never `"pass": true`.
 - `**HIL run abandoned: the worker pool would not shut down.**` — DIFFERENT: the table
   below IS this run's, but the pool could not be shut down afterwards (the job exits
   non-zero even if every board passed). Report the results AND the abandonment; never
   `"pass": true`.
-- `**HIL run selected no boards.**` — the filters intersected to nothing. A fresh run shows
-  no table; an `--accumulate` run keeps the previous attempt's rows under the notice, and
-  they are not this run's. Report the empty selection (and the filter shown), never
-  `"pass": true`.
+- `**HIL run selected no boards.**` — the filters intersected to nothing, or, under
+  `--build`, `check_build.py` refused every board. On the filter case, a fresh run shows no
+  table; an `--accumulate` run keeps the previous attempt's rows under the notice, and they
+  are not this run's. On the all-refused-build case, a fresh run AND an `--accumulate` run
+  alike instead write every board's `build refused` row as this run's — report them
+  ran=false/pass=false; `--accumulate` also keeps an earlier LOCKED/WEDGED cell for that
+  board. Either way the `<config>.failed` re-run spec is written or refreshed to name the
+  boards, and the exit code is nonzero. Report what the message shows (the filter, or the
+  refused boards), never `"pass": true`.
 - `> **Rig note.**` — a process was in D state when the run started. This is NOT a wedge:
   a healthy in-flight testusb is uninterruptible for most of every case, and the rig
   supports a dev run alongside CI. On its own it is never `wedged: true` and never turns a
