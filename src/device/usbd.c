@@ -1732,6 +1732,16 @@ void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   _usbd_dev.ep_status[epnum][dir] &= (uint8_t) ~clear_mask;
 }
 
+// Abort an in-flight transfer on a non-control endpoint and release its claim, so the endpoint
+// can be armed again. Not valid for EP0, where dcd_edpt_stall() means "stall the control
+// transfer" rather than "cancel".
+// TODO replace this stall/clear-stall stand-in with a dcd_edpt_abort_xfer() returning bool, like
+// hcd_edpt_abort_xfer(): the stall is wire-visible and the clear resets the toggle.
+void usbd_edpt_abort(uint8_t rhport, uint8_t ep_addr) {
+  usbd_edpt_stall(rhport, ep_addr);
+  usbd_edpt_clear_stall(rhport, ep_addr);
+}
+
 bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr) {
   (void) rhport;
 

@@ -8,7 +8,8 @@ Scope resolution goes through tools/ci_select.py: one board per affected family
 (a rig-roster board of that family first, else the first in hw/bsp/<family>/boards,
 preferring one that builds an example the change affects), plus one more board per
 changed driver none of them compiles by its hw/bsp/family.json row, or the
-representative pair when the selection is the full matrix. Each board builds through
+representative pair when the selection is the full matrix. Drivers without USB-IP
+guards add a compiling board per MCU_VARIANT of the family. Each board builds through
 tools/build.py in a private cmake-build-agent-<pid> dir; --shared uses the canonical
 cmake-build-<board> that HIL flashes from, must not be shared with a parallel agent,
 and is refused when it still carries an option from an earlier configure this run does not set.
@@ -174,9 +175,12 @@ def representatives(candidates, examples, drivers=(), keep=()):
     the driver, selects the USB IPs its guard names where the probe can say, and its row
     and own cmake turn on no option the guard negates and leave off none of the per-board
     ones it requires: hcd_dwc2.c is empty on a MAX3421 board, hcd_rp2040.c on a PIO-USB
-    one, hcd_pio_usb.c on a board that is neither), plus a
-    plain first pick when that leaves nothing. A candidate that compiles one of the affected examples
-    is preferred, the criterion dropped rather than returning nothing when it leaves no
+    one, hcd_pio_usb.c on a board that is neither). Drivers without USB-IP guards need
+    one compiling board per MCU_VARIANT in board.cmake; boards without it share one
+    group. The missing guard is a deliberate selection proxy for variant-dependent code,
+    not a claim that guarded drivers have no variant-specific behaviour. Add a plain
+    first pick when that leaves nothing. A candidate that compiles
+    one of the affected examples is preferred, the criterion dropped when it leaves no
     candidate: ci_select keeps a family when ANY of its boards builds the selection under
     EITHER build system, so the first candidate can be one skipped for every affected
     example (samd11's cynthion_d11 is skip.txt'd out of device/mtp) and verify none of the
@@ -199,11 +203,14 @@ def representatives(candidates, examples, drivers=(), keep=()):
         pool = [b for b in pool if builds_any(b)] or pool
     picked = list(keep)
     for driver in sorted(drivers):
-        if any(compiles(b, driver) for b in picked):
-            continue
-        hit = next((b for b in pool if compiles(b, driver)), None)
-        if hit:
-            picked.append(hit)
+        src = str(ROOT / 'src' / 'portable' / driver)
+        group = (lambda b: None) if source_usbips(src) else board_mcu_variant
+        covered = {group(b) for b in picked if compiles(b, driver)}
+        for board in pool:
+            variant = group(board)
+            if variant not in covered and compiles(board, driver):
+                picked.append(board)
+                covered.add(variant)
     return picked or [pool[0]]
 
 
@@ -223,8 +230,7 @@ CMAKE_FALSE = {'', '0', 'OFF', 'NO', 'FALSE', 'N', 'IGNORE', 'NOTFOUND'}
 def source_usbips(src):
     """What one driver's body needs defined, read off the `defined(TUP_USBIP_*)` conjuncts
     of the first #if guard naming one (a negated or bracketed term is not a conjunct and
-    is left out). Empty for a driver no TUP_USBIP gates (rp2040, nrf5x), which its family
-    compiles outright."""
+    is left out). Empty for a driver no TUP_USBIP gates (rp2040, nrf5x)."""
     try:
         text = Path(src).read_text(encoding='utf-8', errors='replace')
     except OSError:                  # a file the change deletes is still in the diff
@@ -303,6 +309,18 @@ def board_usbips(board):
         return None
     ips, _ = family_json.usbips(family_json.host_probe_argv(row))
     return ips
+
+
+@functools.lru_cache(maxsize=None)
+def board_mcu_variant(board):
+    """The board.cmake MCU_VARIANT, or None for the shared unset group."""
+    path = ROOT / 'hw' / 'bsp' / family_of(board) / 'boards' / board / 'board.cmake'
+    try:
+        text = path.read_text(encoding='utf-8', errors='replace')
+    except OSError:
+        return None
+    match = re.search(r'^\s*set\s*\(\s*MCU_VARIANT\s+"?([^\s")]+)', text, re.M | re.I)
+    return match.group(1) if match else None
 
 
 @functools.lru_cache(maxsize=None)

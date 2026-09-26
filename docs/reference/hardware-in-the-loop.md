@@ -172,7 +172,7 @@ written is expected — it busy-waits over PCI config space for ~30 s.
 |-----------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
 | Build                       | `cmake`, `ninja-build`, and a toolchain per family: `gcc-arm-none-eabi`, a RISC-V GCC, ESP-IDF                                            |
 | Flashing                    | Five tools, one per `Flasher` value — see below                                                                                           |
-| Test harness                | `pip install -r test/hil/requirements.txt` — hidapi, pyserial, esptool                                                                    |
+| Test harness                | `pip install -r test/hil/requirements.txt` — hidapi, pyserial, esptool, pyusb (the raw MTP cases)                                         |
 | Host-side test tools        | `dfu-util`, `mtools`, `libmtp9`, `libmtp-runtime`, `alsa-utils` (apt) — the DFU, MSC, MTP and audio tests shell out to these              |
 | USB inspection and recovery | `pciutils` (the `usbtest` firmware gate), `uhubctl` (apt), `tshark` for usbmon capture, `testusb` from the kernel's `tools/usb/testusb.c` |
 
@@ -333,7 +333,7 @@ Host-side prerequisites, beyond a cross toolchain:
 
 ```bash
 python3 tools/get_deps.py <family>            # MCU SDKs for your boards
-pip install -r test/hil/requirements.txt      # hidapi, pyserial, esptool
+pip install -r test/hil/requirements.txt      # hidapi, pyserial, esptool, pyusb
 sudo apt install cmake ninja-build uhubctl \
                  dfu-util mtools libmtp9 libmtp-runtime alsa-utils
 ```

@@ -36,7 +36,8 @@ typedef enum {
   MTP_PHASE_COMMAND = 0,
   MTP_PHASE_DATA,
   MTP_PHASE_RESPONSE,
-  MTP_PHASE_ERROR
+  MTP_PHASE_ERROR,
+  MTP_PHASE_DATA_COMPLETE, ///< data phase fully finished (incl. terminating ZLP), response not sent yet
 } mtp_phase_type_t;
 
 // PTP/MTP Class requests, PIMA 15740-2000: D.5.2
@@ -876,9 +877,15 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_auint32(mtp_conta
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
-TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_get_string(uint8_t* buf, uint16_t utf16[]) {
-  size_t nchars = *buf++;
-  memcpy(utf16, buf, 2u * nchars);
+// Copy an MTP string into utf16[max_chars], always null-terminated: the host-controlled count may
+// exceed the buffer and its null may be absent. Returns the string's length on the wire.
+TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_get_string(const uint8_t* buf, uint16_t utf16[], size_t max_chars) {
+  const size_t nchars = *buf++;
+  if (max_chars > 0) {
+    const size_t ncopy = tu_min32(nchars, max_chars - 1);
+    memcpy(utf16, buf, 2u * ncopy);
+    utf16[ncopy] = 0;
+  }
   return 1u + 2u * nchars;
 }
 

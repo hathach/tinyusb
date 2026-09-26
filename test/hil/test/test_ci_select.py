@@ -1221,6 +1221,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_hil_args.py',
             'test/hil/test/test_hil_bounded.py',
             'test/hil/test/test_hil_health.py',
+            'test/hil/test/test_hil_mtp_raw.py',
             'test/hil/test/test_hil_recover.py',
             'test/hil/test/test_hil_report.py',
             'test/hil/test/test_hil_reset_order.py',
