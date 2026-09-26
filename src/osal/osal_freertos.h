@@ -77,7 +77,7 @@ TU_ATTR_ALWAYS_INLINE static inline osal_task_handle_t osal_task_get_current_han
   return xTaskGetCurrentTaskHandle();
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint32_t _osal_ms2tick(uint32_t msec) {
+TU_ATTR_ALWAYS_INLINE static inline uint64_t _osal_ms2tick(uint32_t msec) {
   if (msec == OSAL_TIMEOUT_WAIT_FOREVER) { return portMAX_DELAY; }
   if (msec == 0) { return 0; }
 

@@ -63,11 +63,11 @@ void usbh_spin_unlock(bool in_isr);
 //--------------------------------------------------------------------+
 
 // Submit a usb transfer with callback support, require CFG_TUH_API_EDPT_XFER
-bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes,
+bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint32_t total_bytes,
                                   tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
 TU_ATTR_ALWAYS_INLINE static inline
-bool usbh_edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes) {
+bool usbh_edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint32_t total_bytes) {
   return usbh_edpt_xfer_with_callback(dev_addr, ep_addr, buffer, total_bytes, NULL, 0);
 }
 

@@ -143,7 +143,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t const * e
 bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr);
 
 // Submit a transfer, when complete hcd_event_xfer_complete() must be invoked
-bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen);
+bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buffer, uint32_t buflen);
 
 // Abort a queued transfer. Note: it can only abort transfer that has not been started
 // Return true if a queued transfer is aborted, false if there is no transfer to abort
@@ -154,6 +154,9 @@ bool hcd_setup_send(uint8_t rhport, uint8_t daddr, uint8_t const setup_packet[8]
 
 // clear stall, data toggle is also reset to DATA0
 bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr);
+
+// parse xHCI configuration descriptor
+bool hcd_parse_full_conf_descriptor(tusb_desc_configuration_t *desc_cfg, uint8_t rhport);
 
 //--------------------------------------------------------------------+
 // USBH implemented API

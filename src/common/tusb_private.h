@@ -20,7 +20,7 @@ typedef void (*tusb_defer_func_t)(uintptr_t param);
  // Configuration
  //--------------------------------------------------------------------+
 
-#define TUP_USBIP_CONTROLLER_NUM 2
+#define TUP_USBIP_CONTROLLER_NUM 3
 extern tusb_role_t _tusb_rhport_role[TUP_USBIP_CONTROLLER_NUM];
 
 //--------------------------------------------------------------------+
