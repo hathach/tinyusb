@@ -9,7 +9,11 @@ ctest --test-dir build/host-test --output-on-failure
 ```
 
 Use GCC or Clang (MinGW on Windows, with runtime DLLs on PATH).
-Three configurations cover generic EHCI and ChipIdea with ISO disabled/enabled.
+The USBH fixture checks failed abort ownership, pending completion delivery,
+successful cancellation, and endpoint close/reopen in both directions.
+
+Four EHCI configurations cover generic EHCI, ChipIdea with ISO disabled/enabled,
+and ChipIdea ISO with payload D-cache maintenance enabled.
 The enabled fixture uses the actual HCD with simulated DMA writeback and
 FRINDEX. It checks native FS, split transfers, HS, single-request ownership,
 shared QH/qTD allocation and exhaustion, early completion, TD reuse, errors,
@@ -19,3 +23,5 @@ HS service is checked with exactly one TD per endpoint.
 Assertions remain enabled in release builds; each test has a 10-second limit.
 Static simulated DMA addresses are below 4 GiB. These tests do not emulate
 DMA/cache coherency or real USB timing; hardware validation is still needed.
+The EHCI fixtures are skipped on macOS, which cannot guarantee low static
+addresses. The USBH fixture has no such restriction and still runs there.
