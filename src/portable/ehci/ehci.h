@@ -141,7 +141,8 @@ typedef struct TU_ATTR_ALIGNED(32) {
   uint8_t pid;
   uint8_t interval_ms;// polling interval in frames (or millisecond)
 
-  uint8_t TU_RESERVED[4];
+  uint16_t ep_key; // Little-endian device/endpoint address pair for software lookup.
+  uint8_t TU_RESERVED[2];
 
   // Attached TD management, note usbh will only queue 1 TD per QHD.
   // buffer for dcache invalidate since td's buffer is modified by HC and finding initial buffer address is not trivial
