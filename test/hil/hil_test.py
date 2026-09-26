@@ -2599,6 +2599,9 @@ def main() -> None:
     health_banner = f'> **Rig note.** {note}. Not a fault on its own -- a healthy testusb sits in D state for most of every case.\n' if note else ''
 
     build_err = 0
+    # result tuples for the boards whose build check_build.py refused: reported and put in
+    # the re-run spec like any failed board, or an --accumulate run keeps their old green rows
+    refused_rows = []
     if args.build:
         if hil_flash.build_dir != 'cmake-build':
             print(f'warning: --build writes into cmake-build/, but -B is {hil_flash.build_dir!r}; '
@@ -2609,11 +2612,15 @@ def main() -> None:
         refused = []
         for board in config_boards:
             nfail, built = build_board(board, config_file.resolve())
-            build_err += nfail
-            if not built:
+            if built:
+                build_err += nfail
+            else:
                 refused.append(board['name'])
+                refused_rows.append((board['name'], 1, [], [
+                    (v['name'], {hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED}, None)
+                    for v in hil_report.board_variants(board)], 0.0))
         print('-' * 30)
-        print(f'Build phase done: {build_err} failed')
+        print(f'Build phase done: {build_err + len(refused)} failed')
         print('-' * 30)
         if refused:
             # a refused board's folders still hold the firmware the build contract would not
@@ -2651,7 +2658,7 @@ def main() -> None:
     pool = mgr = cmap = None
     # Defined before the pool so _abandon_exit always has a value: a raise before
     # `err_count = build_err + ...` would turn the containment path into a NameError.
-    err_count = build_err
+    err_count = build_err + len(refused_rows)
     # Fail CLOSED: only a shutdown_pool() that actually returned True clears this, and the
     # assignment sits at the END of the inner finally, so anything raising before it
     # (kill_worker_children, a BrokenPipeError from its print) leaves _abandon_exit armed.
@@ -2686,7 +2693,7 @@ def main() -> None:
             # completed rig time -- and left the re-run spec unwritten, so CI re-tested all
             # ~26 boards to find the one that wedged. Draining as results arrive keeps what
             # finished and names only what was still in flight.
-            mret = []   # before imap: the pool finally reads it on every path
+            mret = list(refused_rows)   # before imap: the pool finally reads it on every path
             it = pool.imap_unordered(test_board, config_boards)
             deadline = time.monotonic() + POOL_TIMEOUT
             try:
@@ -2760,7 +2767,8 @@ def main() -> None:
                 with (report_dir / 'hil_profile_ctrl.json').open('w') as f:
                     json.dump(dict(cmap), f, indent=1, sort_keys=True)
             _save_controller_hints(
-                hints, mret, {b['name']: b['uid'] for b in config['boards']}, cmap)
+                hints, mret[len(refused_rows):],   # the refused rows lead mret and never ran
+                {b['name']: b['uid'] for b in config['boards']}, cmap)
         except Exception as e:
             # Deliberately broad, and it must stay that way: this best-effort refresh makes
             # Manager proxy RPCs that raise EOFError / BrokenPipeError / RemoteError when

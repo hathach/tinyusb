@@ -608,6 +608,30 @@ class SummaryFoldsReportToBoards(unittest.TestCase):
         r = hil_report.summarize(cfg, ['b'], doc)['results'][0]
         self.assertEqual((r['ran'], r['wedged'], r['pass']), (True, False, True))
 
+    def test_a_build_refusal_keeps_the_earlier_cells_and_a_real_run_clears_it(self):
+        td = TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        d = Path(td.name)
+        cfg = {'boards': [{'name': 'b', 'variant': [{'name': 'b-fs'}]}]}
+        hil_report.write_report(d, {'rows': [
+            {'board': 'b', 'cells': {hil_report.LOCKED_CELL: 'fail'}, 'duration': None},
+            {'board': 'b-fs', 'cells': {'usbtest': '❌ 3/30', hil_report.WEDGED_CELL: 'fail'}, 'duration': '9s'}],
+            'banner': '', 'scope': '', 'caveat': ''})
+        unbuilt = [('b', 1, [], [('b-fs', {hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED}, None)], 0.0)]
+        doc = self._acc(d, unbuilt, False)
+        cells = {r['board']: r['cells'] for r in doc['rows']}
+        self.assertEqual(cells['b'], {hil_report.LOCKED_CELL: 'fail'})
+        self.assertEqual(cells['b-fs'], {'usbtest': '❌ 3/30', hil_report.WEDGED_CELL: 'fail',
+                                         hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED})
+        r = hil_report.summarize(cfg, ['b'], doc)['results'][0]
+        self.assertEqual((r['ran'], r['pass'], r['locked'], r['wedged']), (False, False, False, True))
+        self.assertIn('build refused', r['detail'])
+        clean = [('b', 0, [], [('b-fs', {'usbtest': 'pass'}, '8s')], 10.0)]
+        doc = self._acc(d, clean, False)
+        self.assertEqual([(r['board'], r['cells']) for r in doc['rows']], [('b-fs', {'usbtest': 'pass'})])
+        r = hil_report.summarize(cfg, ['b'], doc)['results'][0]
+        self.assertEqual((r['ran'], r['pass']), (True, True))
+
     def test_a_confirmed_wedge_during_the_run_is_wedged_and_ran(self):
         got = self._sum(['b'], [('b', {'usbtest': '❌ 3/30', hil_report.WEDGED_CELL: 'fail'})])
         self.assertEqual((got[0]['ran'], got[0]['pass'], got[0]['wedged']), (True, False, True))

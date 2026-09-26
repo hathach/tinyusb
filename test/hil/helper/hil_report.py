@@ -81,6 +81,9 @@ POOL_TIMEOUT_CELL = 'pool-timeout'
 # shape, different cause, and naming the cause is the whole point of the column -- a board
 # marked pool-timeout by an abort that never timed out sends the reader after the guard.
 RUN_ABORTED_CELL = 'run-aborted'
+# its value for a board hil_test.py --build did not test because check_build.py refused the
+# build: nothing ran, so the board's earlier cells stand beside it
+BUILD_REFUSED = f'{REPORT_CELL["fail"]} build refused'
 
 
 def _load(report_dir: Path) -> tuple:
@@ -367,6 +370,7 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
     # duration None, keeping the previous full-run value
     for name, _, _, rows, *_ in mret:
         refused = any(cells.get(WEDGED_CELL) in REFUSED_CELLS for _, cells, _ in rows)
+        unbuilt = any(cells.get(RUN_ABORTED_CELL) == BUILD_REFUSED for _, cells, _ in rows)
         if any(cells.get(WEDGED_CELL) in RECOVERED_CELLS for _, cells, _ in rows):
             # the post-run recovery verified the board: every wedge cell an earlier attempt
             # left on its rows (the board row and its DECLARED variants, `owned`, never a
@@ -376,7 +380,7 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
                 cells = acc.get(key, [{}])[0]
                 if recovered_form(cells.get(WEDGED_CELL)):
                     cells[WEDGED_CELL] = recovered_form(cells[WEDGED_CELL])
-        if rows and not refused and not any(LOCKED_CELL in cells for _, cells, _ in rows):
+        if rows and not refused and not unbuilt and not any(LOCKED_CELL in cells for _, cells, _ in rows):
             # board ran for real: clear a stale lock-failure cell (its row is keyed by
             # board name; test rows may be variant names), and a stale wedge cell on every
             # row of the board -- admission let it in, so the marker was cleared, and a
@@ -396,6 +400,9 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
                     del acc[name]
         for row_label, cells, dur in rows:
             row = acc.setdefault(row_label, [{}, None])
+            if unbuilt:
+                row[0].update(cells)
+                continue
             # a row that ran is no longer pool-timed-out, whatever it is keyed by
             row[0].pop(POOL_TIMEOUT_CELL, None)
             row[0].pop(RUN_ABORTED_CELL, None)
@@ -613,6 +620,7 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
                            for cells in mine.values() if WEDGED_CELL in cells)
         recovered = any(cells.get(WEDGED_CELL) in RECOVERED_CELLS for cells in mine.values())
         refused = any(cells.get(WEDGED_CELL) in REFUSED_CELLS for cells in mine.values())
+        unbuilt = any(cells.get(RUN_ABORTED_CELL) == BUILD_REFUSED for cells in mine.values())
         locked = not wedged and not board_wedged and any(LOCKED_CELL in cells for cells in mine.values())
         bad = []
         for vname, cells in sorted(mine.items()):
@@ -634,10 +642,10 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
             detail = f'{len(mine)} variant(s), {sum(len(c) for c in mine.values())} cell(s) ok'
         if recovered and not board_wedged:
             detail += '; wedge recovered post-run (marker cleared)'
-        # an admission refusal never flashed this attempt, whatever test history an
-        # --accumulate re-run kept in the row
-        results.append({'board': board, 'ran': not refused, 'pass': ok, 'locked': locked,
-                        'wedged': board_wedged, 'detail': detail})
+        # an admission or build refusal never flashed this attempt, whatever test history
+        # an --accumulate re-run kept in the row
+        results.append({'board': board, 'ran': not refused and not unbuilt, 'pass': ok,
+                        'locked': locked, 'wedged': board_wedged, 'detail': detail})
     # `caveat` too: an abandoned or no-boards run says so THERE, and this JSON is all
     # an agent gets -- leaving it in the sidecar puts it back where only a human looks.
     caveat = report.get('caveat', '')

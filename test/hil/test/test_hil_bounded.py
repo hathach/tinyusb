@@ -263,6 +263,52 @@ class BuildBoardContract(unittest.TestCase):
         self.assertIn('was configured with CFLAGS_CLI', printed)
         self.assertEqual(self.build(1, 'Traceback')[0], (1, False))
 
+    def test_a_refused_board_is_reported_failed_over_its_accumulated_pass(self):
+        from unittest import mock
+        from helper import hil_report
+        for g in ('verbose', 'test_only', 'max_retry', 'skip_flash'):
+            self.addCleanup(setattr, hil_test, g, getattr(hil_test, g))
+        self.addCleanup(setattr, hil_test.hil_util, 'verbose', hil_test.hil_util.verbose)
+        self.addCleanup(setattr, hil_flash, 'build_dir', hil_flash.build_dir)
+        td = TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        d = Path(td.name)
+        cfg = {'boards': [{'name': 'bad', 'uid': '1', 'flasher': {'name': 'jlink'},
+                           'variant': [{'name': 'bad-a'}, {'name': 'bad-b'}]},
+                          {'name': 'good', 'uid': '2', 'flasher': {'name': 'jlink'}}]}
+        (d / 'rig.json').write_text(json.dumps(cfg))
+        hil_report.write_report(d, {'rows': [{'board': n, 'cells': {'device/cdc_msc': 'pass'}, 'duration': '1s'}
+                                             for n in ('bad-a', 'bad-b', 'good')],
+                                    'banner': '', 'scope': '', 'caveat': ''})
+        good_row = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], 1.0)
+        pool = mock.Mock()
+        pool.imap_unordered.return_value.next.side_effect = [good_row]
+        with mock.patch.object(sys, 'argv', ['hil_test.py', str(d / 'rig.json'), '--build', '--accumulate']), \
+             mock.patch.dict(os.environ, {'HIL_REPORT_DIR': str(d)}), \
+             mock.patch.object(hil_test, 'build_board', lambda b, c: (1, False) if b['name'] == 'bad' else (0, True)), \
+             mock.patch.object(hil_test, 'Manager', mock.Mock()), \
+             mock.patch.object(hil_test, '_start_pool', return_value=({}, pool)), \
+             mock.patch.object(hil_test, '_load_controller_hints', return_value=({}, {})), \
+             mock.patch.object(hil_test, '_save_controller_hints') as hints, \
+             mock.patch.object(hil_test, '_after_pool', return_value={}), \
+             mock.patch.object(hil_test.hil_health, 'd_state_note', return_value=''), \
+             mock.patch.object(hil_test.hil_health, 'kill_worker_children'), \
+             mock.patch.object(hil_test.hil_health, 'shutdown_pool', return_value=True), \
+             mock.patch.object(hil_test, 'log_line'), \
+             redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as exited:
+            hil_test.main()
+        self.assertEqual(exited.exception.code, 1)
+        self.assertEqual([b['name'] for b in pool.imap_unordered.call_args[0][1]], ['good'])
+        self.assertEqual([r[0] for r in hints.call_args[0][1]], ['good'], 'a refused board never ran')
+        doc = json.loads((d / hil_report.REPORT_JSON).read_text())
+        cells = {r['board']: r['cells'] for r in doc['rows']}
+        for n in ('bad-a', 'bad-b'):
+            self.assertEqual(cells[n][hil_report.RUN_ABORTED_CELL], hil_report.BUILD_REFUSED)
+        verdict = hil_report.summarize(cfg, ['bad', 'good'], doc)
+        self.assertFalse(verdict['pass'])
+        self.assertEqual([(r['ran'], r['pass']) for r in verdict['results']], [(False, False), (True, True)])
+        self.assertEqual((d / 'rig.json.failed').read_text(), '--accumulate -b bad')
+
 
 class RemoteStaging(unittest.TestCase):
     def test_import_closure_is_staged_to_the_rig(self):
