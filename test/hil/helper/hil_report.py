@@ -10,7 +10,9 @@ writers, and the fold to one machine-readable verdict per board.
 Dual-mode by design: imported as `helper.hil_report` by hil_test.py, and run as a script by
 the operator (the HIL contract's Reporting section, .claude/skills/hil/SKILL.md). A script run puts test/hil/helper on
 sys.path rather than test/hil, so this module imports no sibling helper at all --
-_p and the width helpers below are defined locally for that reason.
+_p and the width helpers below are defined locally for that reason. The same property makes it
+the home of board_variants(), the roster reading the builders (check_build.py, the CI matrix)
+import by path.
 """
 import argparse
 import json
@@ -518,15 +520,14 @@ def write_timeout_report(report_dir: Path, boards, secs: int,
 
 
 def board_variants(board: dict) -> list:
-    """The builds a roster board runs as, each {'name', 'defines', 'flags'}: its "variant"
-    list, else the board as itself. 'name' is the build dir (cmake-build-<name>) and report
-    row, 'defines' the cmake -D list, 'flags' the compiler flags split into tokens. The one
-    reading of the roster every builder, runner and reader shares; a malformed entry raises
-    ValueError rather than send anyone to a dir the roster did not mean."""
+    """The builds a roster board runs as, each {'name' (its cmake-build-<name> dir and report
+    row), 'defines' (cmake -D list), 'flags' (compiler flag tokens)}: its "variant" list, else
+    the board as itself. A malformed entry raises ValueError."""
     name = board['name']
-    variants = board.get('variant') or [{'name': name}]
+    variants = board.get('variant', [])
     if not isinstance(variants, list):
         raise ValueError(f'board {name} variant must be a list of variants: {variants!r}')
+    variants = variants or [{'name': name}]
     out = []
     for i, v in enumerate(variants):
         if not isinstance(v, dict):

@@ -208,7 +208,7 @@ class Board(TypedDict):
     flasher: FlasherCfg
     # every build knob lives here, including a board's always-on defines: a board that
     # needs one carries a single variant named after itself (metro_m4_express /
-    # MAX3421_HOST=1), which is exactly what the `or [...]` default below synthesises
+    # MAX3421_HOST=1), which is exactly what hil_report.board_variants() synthesises
     variant: NotRequired[list[VariantCfg]]
     logger: NotRequired[str]  # "rtt": console = the debug probe's RTT channel 0, not a VCOM (rtt skill)
     toolchain: NotRequired[str]  # CI build bucket override, e.g. "riscv-gcc" (consumed by hil_ci_set_matrix.py)
@@ -1853,11 +1853,10 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
 CHECK_BUILD = hil_util.TINYUSB_ROOT / '.claude' / 'skills' / 'build' / 'scripts' / 'check_build.py'
 
 
-def build_board(board: Board, config_file: Path) -> tuple[str, int, bool]:
+def build_board(board: Board, config_file: Path) -> tuple[int, bool]:
     """Build this board's variants into cmake-build/cmake-build-<variant>/ through the build
     contract (check_build.py --variants), which refuses a dir still configured with options
-    no variant sets instead of building on them. Returns (board, failed variant builds,
-    whether check_build.py built at all: False when it refused, whose folders then hold stale firmware).
+    no variant sets. Returns (failed variant builds, whether check_build.py accepted the build).
 
     Unbounded on purpose: --build is a local convenience (no CI workflow passes it), so
     the developer watching the build is the timeout."""
@@ -1879,17 +1878,17 @@ def build_board(board: Board, config_file: Path) -> tuple[str, int, bool]:
             proc.kill()
         raise
     try:
-        verdict = json.loads(out.strip().splitlines()[-1])
-    except (ValueError, IndexError):
+        verdict = json.loads(out)
+    except ValueError:
         print(f'{name}: check_build.py exited {proc.returncode} without a verdict')
-        return name, 1, False
+        return 1, False
     if verdict.get('error'):
         print(f'{name}: {verdict["error"]}')
-        return name, 1, False
-    failed = [b for b in verdict.get('boards', []) if b.get('status') in ('failed', 'error')]
+        return 1, False
+    failed = [b for b in verdict['boards'] if b['status'] in ('failed', 'error')]
     for b in failed:
-        print(f'{name}: {b.get("buildDir")} {b.get("status")}: {b.get("firstError")}')
-    return name, len(failed), True
+        print(f'{name}: {b["buildDir"]} {b["status"]}: {b["firstError"]}')
+    return len(failed), True
 
 
 def _tests_for(board: Board) -> tuple:
@@ -2529,9 +2528,9 @@ def main() -> None:
     config_boards = [e for e in config_boards if e['flasher']['name'] not in args.exclude_flasher
                      and (not args.flasher or e['flasher']['name'] in args.flasher)]
 
-    # fail rtt misconfigurations before the first flash cycle -- but only for boards
+    # fail roster misconfigurations before the first flash cycle -- but only for boards
     # this run actually touches: one bad roster entry must not abort other runs' subsets
-    def _rtt_config_abort(msg: str):
+    def _config_abort(msg: str):
         # loud AND leaving evidence, like the no-boards branch below: exiting with no
         # report at all lets the PR comment keep the previous push's stale table
         print(f'ERROR: {msg}', flush=True)
@@ -2539,16 +2538,22 @@ def main() -> None:
         hil_report.mark_report_no_boards(rd, f'config error: {msg}', fresh=not args.accumulate)
         sys.exit(1)
 
+    for e in config_boards:
+        try:
+            hil_report.board_variants(e)
+        except ValueError as err:
+            # here, not in a pool worker after other boards have started flashing
+            _config_abort(str(err))
     bad_logger = [e['name'] for e in config_boards if e.get('logger') not in (None, 'rtt')]
     if bad_logger:
         # only the exact string activates RTT handling; anything else would silently
         # mean VCOM and reproduce the misleading 'No serial device found' failure
-        _rtt_config_abort(f'unknown "logger" value (only "rtt" is supported): {", ".join(bad_logger)}')
+        _config_abort(f'unknown "logger" value (only "rtt" is supported): {", ".join(bad_logger)}')
     bad_rtt = [e['name'] for e in config_boards
                if e.get('logger') == 'rtt' and e['flasher']['name'].lower() != 'jlink']
     if bad_rtt:
         # JlinkRtt speaks JLinkExe only (the OpenOCD RTT route is manual — rtt skill)
-        _rtt_config_abort(f'"logger": "rtt" needs a jlink flasher: {", ".join(bad_rtt)}')
+        _config_abort(f'"logger": "rtt" needs a jlink flasher: {", ".join(bad_rtt)}')
     rtt_no_logger_def = [e['name'] for e in config_boards
                          if e.get('logger') == 'rtt'
                          and any('LOGGER=rtt' not in v['defines'] for v in hil_report.board_variants(e))]
@@ -2562,7 +2567,7 @@ def main() -> None:
         msg = (f'"logger": "rtt" board has a variant without LOGGER=rtt in its defines '
                f'({", ".join(rtt_no_logger_def)})')
         if args.build or os.environ.get('GITHUB_ACTIONS'):
-            _rtt_config_abort(f'{msg} -- the firmware built for this run cannot serve the '
+            _config_abort(f'{msg} -- the firmware built for this run cannot serve the '
                               f'configured RTT console')
         print(f'warning: {msg} -- fine for prebuilt example sets, wrong for --build/CI '
               f'builds', flush=True)
@@ -2603,7 +2608,7 @@ def main() -> None:
         print('-' * 30)
         refused = []
         for board in config_boards:
-            _, nfail, built = build_board(board, config_file.resolve())
+            nfail, built = build_board(board, config_file.resolve())
             build_err += nfail
             if not built:
                 refused.append(board['name'])
@@ -2613,13 +2618,13 @@ def main() -> None:
         if refused:
             # a refused board's folders still hold the firmware the build contract would not
             # build over; flashing it would test a configuration nobody asked for
-            print(f'not testing {", ".join(refused)}: check_build.py refused the build', flush=True)
             config_boards = [b for b in config_boards if b['name'] not in refused]
             if not config_boards:
                 msg = f'No boards left: check_build.py refused every build ({", ".join(refused)})'
                 print(msg, flush=True)
                 hil_report.mark_report_no_boards(report_dir, msg, fresh=not args.accumulate)
                 sys.exit(1)
+            print(f'not testing {", ".join(refused)}: check_build.py refused the build', flush=True)
 
     # A full run starts fresh; a re-run (--accumulate, which .failed always starts with)
     # merges so already-passed boards survive. -bt alone is not a re-run marker.

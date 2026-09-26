@@ -74,7 +74,7 @@ class BoardVariantsIsTheRostersOneReading(unittest.TestCase):
 
     def test_a_malformed_variant_raises(self):
         for variant in [[{'name': 'v', 'flags': None}], [{'flags': '-DA=1'}], [{'name': 'v', 'defines': 'X=1'}],
-                        [{'name': ''}], ['x'], [None], {'name': 'v'}, 'v', 5]:
+                        [{'name': ''}], ['x'], [None], {'name': 'v'}, 'v', 5, {}, 0, False, '', None]:
             with self.assertRaises(ValueError, msg=variant):
                 hil_report.board_variants({'name': 'b', 'variant': variant})
 

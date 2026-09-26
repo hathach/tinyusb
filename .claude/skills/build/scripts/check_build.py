@@ -56,7 +56,7 @@ import build as tools_build  # noqa: E402  tools/build.py, first on the path abo
 import ci_select  # noqa: E402  the same classifier run below, here for its option knowledge
 import family_json  # noqa: E402  hw/bsp/family.json: what each board's default configure compiles
 sys.path.insert(0, str(ROOT / 'test' / 'hil' / 'helper'))
-import hil_report  # noqa: E402  stdlib-only; its board_variants() is the roster's one reading of a board's builds
+import hil_report  # noqa: E402  stdlib-only; board_variants() reads a roster board's builds
 
 
 def family_of(board):

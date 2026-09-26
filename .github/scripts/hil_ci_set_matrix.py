@@ -5,7 +5,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'test', 'hil', 'helper'))
-import hil_report  # noqa: E402  stdlib-only; board_variants() is the roster's one reading of a board's builds
+import hil_report  # noqa: E402  stdlib-only; board_variants() reads a roster board's builds
 
 
 def _resolve_config_path(config_file):
@@ -114,10 +114,7 @@ def main():
             for ex in ex_map.get(name, []):
                 build_board += f' -e {ex}'
 
-            # Each variant builds into cmake-build-<variant.name> with its own cmake
-            # -D defines and raw CFLAGS. No 'variant' -> a single build named after
-            # the board; an always-on define (MAX3421_HOST=1, LOGGER=rtt) is a single
-            # self-named variant carrying it.
+            # an always-on define (MAX3421_HOST=1, LOGGER=rtt) is a single self-named variant
             try:
                 variants = hil_report.board_variants(board)
             except ValueError as e:
