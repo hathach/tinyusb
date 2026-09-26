@@ -630,6 +630,35 @@ class MainTest(unittest.TestCase):
             self.assertEqual(build.main(['--board', 'b']), 1)
 
 
+class RunTest(unittest.TestCase):
+    def test_verbose_streams_each_line_before_the_child_exits(self):
+        import io, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            seen = Path(d) / 'seen'
+            # no flush in the child, and it waits for its first line to reach our stderr:
+            # held back until exit, it prints 'buffered' instead of 'second'
+            child = (f'import os, time\nprint("first")\ndeadline = time.time() + 10\n'
+                     f'while not os.path.exists({str(seen)!r}) and time.time() < deadline:\n    time.sleep(0.01)\n'
+                     f'print("second" if os.path.exists({str(seen)!r}) else "buffered")\n')
+
+            class Err(io.StringIO):
+                def write(self, s):
+                    if 'first' in s:
+                        seen.touch()
+                    return super().write(s)
+            with mock.patch('sys.stderr', Err()) as err:
+                rc, out = build.run([sys.executable, '-c', child], True)
+        self.assertEqual((rc, out), (0, 'first\nsecond\n'))
+        self.assertEqual(err.getvalue(), out)
+
+    def test_quiet_collects_the_output_and_the_exit_status(self):
+        import io
+        with mock.patch('sys.stderr', io.StringIO()) as err:
+            rc, out = build.run([sys.executable, '-c', 'import sys; print("x"); sys.stderr.write("y\\n"); sys.exit(3)'], False)
+        self.assertEqual((rc, err.getvalue()), (3, ''))
+        self.assertEqual(sorted(out.split()), ['x', 'y'])
+
+
 UTILS = Path(__file__).resolve().parents[2] / 'tools' / 'build_utils.py'
 _uspec = importlib.util.spec_from_file_location('build_utils_under_test', UTILS)
 utils = importlib.util.module_from_spec(_uspec)

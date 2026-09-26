@@ -60,6 +60,25 @@ class OneClassifierForBothArtifacts(unittest.TestCase):
                              f' meant to be the one source')
 
 
+class BoardVariantsIsTheRostersOneReading(unittest.TestCase):
+    def test_a_board_without_a_list_builds_as_itself(self):
+        self.assertEqual(hil_report.board_variants({'name': 'b'}),
+                         [{'name': 'b', 'defines': [], 'flags': []}])
+
+    def test_each_variant_carries_its_defines_and_split_flags(self):
+        board = {'name': 'b', 'variant': [{'name': 'b-x', 'defines': ['RHPORT_DEVICE=1'], 'flags': '-DA=1  -DB=2'},
+                                          {'name': 'b'}]}
+        self.assertEqual(hil_report.board_variants(board),
+                         [{'name': 'b-x', 'defines': ['RHPORT_DEVICE=1'], 'flags': ['-DA=1', '-DB=2']},
+                          {'name': 'b', 'defines': [], 'flags': []}])
+
+    def test_a_malformed_variant_raises(self):
+        for variant in [[{'name': 'v', 'flags': None}], [{'flags': '-DA=1'}], [{'name': 'v', 'defines': 'X=1'}],
+                        [{'name': ''}], ['x'], [None], {'name': 'v'}, 'v', 5, {}, 0, False, '', None]:
+            with self.assertRaises(ValueError, msg=variant):
+                hil_report.board_variants({'name': 'b', 'variant': variant})
+
+
 class ModuleWorksImportedAndAsAScript(unittest.TestCase):
     """It is imported as helper.hil_report by hil_test, and run as a script by the operator
     (the HIL contract, .claude/skills/hil/SKILL.md). A script run puts helper/ on sys.path, NOT test/hil,
@@ -536,6 +555,19 @@ class SummaryFoldsReportToBoards(unittest.TestCase):
         self.assertTrue(got[0]['ran'])
         self.assertFalse(got[1]['ran'], 'a stale row must not report a removed board as run')
 
+    def test_a_malformed_variant_is_a_config_error_row_not_a_traceback(self):
+        rows = [('good', {'usbtest': 'pass'}), ('flags-v', {'usbtest': 'pass'})]
+        bad = [{'name': 'nonlist', 'variant': {'name': 'x'}},
+               {'name': 'nondict', 'variant': ['x']},
+               {'name': 'noname', 'variant': [{'name': ''}]},
+               {'name': 'flags', 'variant': [{'name': 'flags-v', 'flags': 5}]}]
+        alone = self._sum(['good'], rows, cfg_boards=[{'name': 'good'}])
+        got = self._sum(['good'] + [b['name'] for b in bad], rows, cfg_boards=[{'name': 'good'}] + bad)
+        self.assertEqual(got[0], alone[0])
+        for r in got[1:]:
+            self.assertEqual((r['ran'], r['pass']), (False, False), r)
+            self.assertTrue(r['detail'].startswith('config error:'), r)
+
     def test_a_board_refused_at_admission_is_wedged_not_run_and_not_locked(self):
         got = self._sum(['b'], [('b', {hil_report.WEDGED_CELL: hil_report.WEDGED_REFUSED})])
         self.assertEqual((got[0]['ran'], got[0]['pass'], got[0]['locked'], got[0]['wedged']),
@@ -575,6 +607,30 @@ class SummaryFoldsReportToBoards(unittest.TestCase):
             self.assertNotIn(hil_report.WEDGED_CELL, row['cells'], row)
         r = hil_report.summarize(cfg, ['b'], doc)['results'][0]
         self.assertEqual((r['ran'], r['wedged'], r['pass']), (True, False, True))
+
+    def test_a_build_refusal_keeps_the_earlier_cells_and_a_real_run_clears_it(self):
+        td = TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        d = Path(td.name)
+        cfg = {'boards': [{'name': 'b', 'variant': [{'name': 'b-fs'}]}]}
+        hil_report.write_report(d, {'rows': [
+            {'board': 'b', 'cells': {hil_report.LOCKED_CELL: 'fail'}, 'duration': None},
+            {'board': 'b-fs', 'cells': {'usbtest': '❌ 3/30', hil_report.WEDGED_CELL: 'fail'}, 'duration': '9s'}],
+            'banner': '', 'scope': '', 'caveat': ''})
+        unbuilt = [('b', 1, [], [('b-fs', {hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED}, None)], 0.0)]
+        doc = self._acc(d, unbuilt, False)
+        cells = {r['board']: r['cells'] for r in doc['rows']}
+        self.assertEqual(cells['b'], {hil_report.LOCKED_CELL: 'fail'})
+        self.assertEqual(cells['b-fs'], {'usbtest': '❌ 3/30', hil_report.WEDGED_CELL: 'fail',
+                                         hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED})
+        r = hil_report.summarize(cfg, ['b'], doc)['results'][0]
+        self.assertEqual((r['ran'], r['pass'], r['locked'], r['wedged']), (False, False, False, True))
+        self.assertIn('build refused', r['detail'])
+        clean = [('b', 0, [], [('b-fs', {'usbtest': 'pass'}, '8s')], 10.0)]
+        doc = self._acc(d, clean, False)
+        self.assertEqual([(r['board'], r['cells']) for r in doc['rows']], [('b-fs', {'usbtest': 'pass'})])
+        r = hil_report.summarize(cfg, ['b'], doc)['results'][0]
+        self.assertEqual((r['ran'], r['pass']), (True, True))
 
     def test_a_confirmed_wedge_during_the_run_is_wedged_and_ran(self):
         got = self._sum(['b'], [('b', {'usbtest': '❌ 3/30', hil_report.WEDGED_CELL: 'fail'})])

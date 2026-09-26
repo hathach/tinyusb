@@ -235,18 +235,155 @@ class UsbtestRunHelper(unittest.TestCase):
 
 
 class BuildBoardContract(unittest.TestCase):
-    def test_every_return_path_is_a_pair(self):
-        """main() unpacks `_, nfail = build_board(board)`; a bare int on any path
-        (the timeout path did) raises TypeError before the pool exists."""
-        import ast
-        src = (Path(TEST_DIR).parents[0] / 'hil_test.py').read_text()
-        fn = next(n for n in ast.walk(ast.parse(src))
-                  if isinstance(n, ast.FunctionDef) and n.name == 'build_board')
-        for node in ast.walk(fn):
-            if isinstance(node, ast.Return) and node.value is not None:
-                self.assertIsInstance(node.value, ast.Tuple,
-                                      f'build_board returns a non-tuple at line {node.lineno}')
+    def build(self, rc, out):
+        from unittest import mock
+        proc = mock.Mock(returncode=rc, pid=1)
+        proc.communicate.return_value = (out, None)
+        with mock.patch.object(hil_test.subprocess, 'Popen', return_value=proc) as popen, \
+             redirect_stdout(io.StringIO()) as printed:
+            r = hil_test.build_board({'name': 'b'}, Path('rig.json'))
+        return r, popen.call_args[0][0], printed.getvalue()
 
+    def test_it_builds_every_variant_through_the_build_contract(self):
+        ok = {'pass': True, 'boards': [{'buildDir': 'cmake-build/cmake-build-b', 'status': 'ok'},
+                                       {'buildDir': 'cmake-build/cmake-build-b-DMA', 'status': 'ok'}]}
+        r, cmd, _ = self.build(0, json.dumps(ok) + '\n')
+        self.assertEqual(r, (0, True))
+        self.assertEqual(cmd[1:], [str(hil_test.CHECK_BUILD), '--board', 'b', '--shared', '--variants', 'rig.json', '-v'])
+
+    def test_failed_variants_and_refusals_count_as_failures(self):
+        bad = {'pass': False, 'boards': [{'buildDir': 'd1', 'status': 'failed', 'firstError': 'x.c:1: error: y'},
+                                         {'buildDir': 'd2', 'status': 'error', 'firstError': 'z'},
+                                         {'buildDir': 'd3', 'status': 'skipped', 'firstError': 'nothing built'}]}
+        r, _, printed = self.build(1, json.dumps(bad))
+        self.assertEqual(r, (3, True))
+        self.assertIn('d1 failed: x.c:1: error: y', printed)
+        r, _, printed = self.build(2, json.dumps({'pass': False, 'boards': [], 'error': 'was configured with CFLAGS_CLI'}))
+        self.assertEqual(r, (1, False))
+        self.assertIn('was configured with CFLAGS_CLI', printed)
+        self.assertEqual(self.build(1, 'Traceback')[0], (1, False))
+
+    def run_main(self, cfg, prior_rows, argv, refuse, results=()):
+        """main() over a fake rig in a temp report dir: (exit code, report dir, pool, hints)."""
+        from unittest import mock
+        from helper import hil_report
+        for g in ('verbose', 'test_only', 'max_retry', 'skip_flash'):
+            self.addCleanup(setattr, hil_test, g, getattr(hil_test, g))
+        self.addCleanup(setattr, hil_test.hil_util, 'verbose', hil_test.hil_util.verbose)
+        self.addCleanup(setattr, hil_flash, 'build_dir', hil_flash.build_dir)
+        td = TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        d = Path(td.name)
+        (d / 'rig.json').write_text(json.dumps(cfg))
+        hil_report.write_report(d, {'rows': prior_rows, 'banner': '', 'scope': '', 'caveat': ''})
+        (d / 'rig.json.failed').write_text('--accumulate -b stale')
+        pool = mock.Mock()
+        pool.imap_unordered.return_value.next.side_effect = list(results)
+        with mock.patch.object(sys, 'argv', ['hil_test.py', str(d / 'rig.json'), '--build', *argv]), \
+             mock.patch.dict(os.environ, {'HIL_REPORT_DIR': str(d)}), \
+             mock.patch.object(hil_test, 'build_board', lambda b, c: (1, False) if b['name'] in refuse else (0, True)), \
+             mock.patch.object(hil_test, 'Manager', mock.Mock()), \
+             mock.patch.object(hil_test, '_start_pool', return_value=({}, pool)), \
+             mock.patch.object(hil_test, '_load_controller_hints', return_value=({}, {})), \
+             mock.patch.object(hil_test, '_save_controller_hints') as hints, \
+             mock.patch.object(hil_test, '_after_pool', return_value={}), \
+             mock.patch.object(hil_test.hil_health, 'd_state_note', return_value=''), \
+             mock.patch.object(hil_test.hil_health, 'kill_worker_children'), \
+             mock.patch.object(hil_test.hil_health, 'shutdown_pool', return_value=True), \
+             mock.patch.object(hil_test, 'log_line'), \
+             redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as exited:
+            hil_test.main()
+        return exited.exception.code, d, pool, hints
+
+    def test_a_refused_board_is_reported_failed_over_its_accumulated_pass(self):
+        from helper import hil_report
+        cfg = {'boards': [{'name': 'bad', 'uid': '1', 'flasher': {'name': 'jlink'},
+                           'variant': [{'name': 'bad-a'}, {'name': 'bad-b'}]},
+                          {'name': 'good', 'uid': '2', 'flasher': {'name': 'jlink'}}]}
+        prior = [{'board': n, 'cells': {'device/cdc_msc': 'pass'}, 'duration': '1s'}
+                 for n in ('bad-a', 'bad-b', 'good')]
+        good_row = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], 1.0)
+        rc, d, pool, hints = self.run_main(cfg, prior, ['--accumulate'], {'bad'}, [good_row])
+        self.assertEqual(rc, 1)
+        self.assertEqual([b['name'] for b in pool.imap_unordered.call_args[0][1]], ['good'])
+        self.assertEqual([r[0] for r in hints.call_args[0][1]], ['good'], 'a refused board never ran')
+        doc = json.loads((d / hil_report.REPORT_JSON).read_text())
+        cells = {r['board']: r['cells'] for r in doc['rows']}
+        for n in ('bad-a', 'bad-b'):
+            self.assertEqual(cells[n][hil_report.RUN_ABORTED_CELL], hil_report.BUILD_REFUSED)
+        verdict = hil_report.summarize(cfg, ['bad', 'good'], doc)
+        self.assertFalse(verdict['pass'])
+        self.assertEqual([(r['ran'], r['pass']) for r in verdict['results']], [(False, False), (True, True)])
+        self.assertEqual((d / 'rig.json.failed').read_text(), '--accumulate -b bad')
+
+    def all_refused(self, argv):
+        from helper import hil_report
+        cfg = {'boards': [{'name': 'bad', 'uid': '1', 'flasher': {'name': 'jlink'},
+                           'variant': [{'name': 'bad-a'}, {'name': 'bad-b'}]},
+                          {'name': 'worse', 'uid': '2', 'flasher': {'name': 'jlink'}}]}
+        prior = ([{'board': n, 'cells': {'device/cdc_msc': 'pass'}, 'duration': '1s'}
+                  for n in ('bad-a', 'bad-b', 'worse')]
+                 + [{'board': 'bad', 'cells': {hil_report.LOCKED_CELL: 'held'}, 'duration': None}])
+        rc, d, pool, _ = self.run_main(cfg, prior, argv, {'bad', 'worse'})
+        self.assertNotIn(rc, (0, None))
+        pool.imap_unordered.assert_not_called()
+        doc = json.loads((d / hil_report.REPORT_JSON).read_text())
+        cells = {r['board']: r['cells'] for r in doc['rows']}
+        for n in ('bad-a', 'bad-b', 'worse'):
+            self.assertEqual(cells[n][hil_report.RUN_ABORTED_CELL], hil_report.BUILD_REFUSED)
+        self.assertIn('**HIL run selected no boards.**', doc['caveat'])
+        verdict = hil_report.summarize(cfg, ['bad', 'worse'], doc)
+        self.assertFalse(verdict['pass'])
+        self.assertEqual([(r['ran'], r['pass']) for r in verdict['results']], [(False, False)] * 2)
+        self.assertEqual((d / 'rig.json.failed').read_text(), '--accumulate -b bad -b worse')
+        return cells
+
+    def test_an_all_refused_accumulate_run_reports_every_board_failed(self):
+        from helper import hil_report
+        cells = self.all_refused(['--accumulate'])
+        self.assertEqual(cells['bad'], {hil_report.LOCKED_CELL: 'held'}, 'an earlier lock cell is kept')
+        self.assertEqual(cells['bad-a']['device/cdc_msc'], 'pass', 'test history is kept on --accumulate')
+
+    def test_an_all_refused_fresh_run_reports_only_its_refusals(self):
+        from helper import hil_report
+        cells = self.all_refused([])
+        self.assertEqual(sorted(cells), ['bad-a', 'bad-b', 'worse'])
+        for c in cells.values():
+            self.assertEqual(c, {hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED})
+
+    def test_an_unselected_malformed_variant_does_not_crash_the_report(self):
+        from helper import hil_report
+        cfg = {'boards': [{'name': 'good', 'uid': '1', 'flasher': {'name': 'jlink'}},
+                          {'name': 'owner', 'uid': '3', 'flasher': {'name': 'jlink'},
+                           'variant': [None, {'name': 'owner-a'}]},
+                          {'name': 'unselected', 'uid': '2', 'flasher': {'name': 'jlink'}, 'variant': [None]}]}
+        good_row = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], 1.0)
+        for refuse, results, cell in (({'good'}, [], {hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED}),
+                                      (set(), [good_row], {'device/cdc_msc': 'pass'})):
+            rc, d, _, _ = self.run_main(cfg, [], ['-b', 'good'], refuse, results)
+            doc = json.loads((d / hil_report.REPORT_JSON).read_text())
+            self.assertEqual({r['board']: r['cells'] for r in doc['rows']}, {'good': cell})
+            self.assertEqual(rc, 1 if refuse else 0)
+        self.assertEqual(hil_test._owned_rows(cfg['boards'])['owner'], ['owner-a'],
+                         'a well-formed claim beside a malformed one still owns its row')
+
+
+    def test_an_abort_banner_does_not_count_a_refused_board_as_finished(self):
+        from helper import hil_report
+        refused = ('bad', 1, [], [('bad', {hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED}, None)], 0.0)
+        good = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], 1.0)
+        with TemporaryDirectory() as td:
+            rd = Path(td)
+            hil_test._abort_report('aborted: a worker raised ValueError: x', [refused, good],
+                                   [{'name': 'good'}, {'name': 'stuck'}], rd / 'rig.json.failed',
+                                   rd, True, '')
+            caveat = json.loads((rd / hil_report.REPORT_JSON).read_text())['caveat']
+            spec = (rd / 'rig.json.failed').read_text()
+        self.assertTrue(caveat.startswith('**HIL run aborted: a worker raised ValueError: x.** '
+                                          '1 board(s) below finished'), caveat)
+        self.assertIn('1 never reported and are NOT in the table: stuck.', caveat)
+        self.assertIn("check_build.py refused: bad", caveat)
+        self.assertEqual(spec, '--accumulate -b stuck -b bad')
 
 class RemoteStaging(unittest.TestCase):
     def test_import_closure_is_staged_to_the_rig(self):

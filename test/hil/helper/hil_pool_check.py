@@ -37,7 +37,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # hil_flash + the helper package
 import hil_flash
-from helper import hil_lock, hil_util
+from helper import hil_lock, hil_report, hil_util
 
 REPO_ROOT = hil_util.TINYUSB_ROOT
 USB_RECOVER = REPO_ROOT / '.claude' / 'skills' / 'usb-kernel-recover' / 'scripts' / 'usb_recover.sh'
@@ -212,7 +212,7 @@ def resolve_variant(board: dict, example: str, note: list | None = None) -> str:
     differs from the board name (e.g. nanoch32v203's build dir is variant
     'nanoch32v203-fsdev', not the board name)."""
     name = board['name']
-    for v in board.get('variant') or [{'name': name}]:
+    for v in hil_report.board_variants(board):
         vn = v['name']
         if hil_flash.find_firmware(vn, example, flasher=board['flasher']['name']):
             if vn != name and note is not None and f'variant: {vn}' not in note:
@@ -252,7 +252,7 @@ def pick_example(board: dict, note: list, build_missing: bool = True):
     pref = [c for c in dict.fromkeys(cand) if c not in skip and (not only or c in only)]
     if not pref:
         return None, kind, None, None
-    variant = (board.get('variant') or [{'name': board['name']}])[0]['name']
+    variant = hil_report.board_variants(board)[0]['name']
     for ex in pref[:2]:  # the second candidate covers a preferred example that fails to build
         fw = ensure_fw(board, variant, ex, note)
         if fw:
@@ -456,8 +456,8 @@ def boardtest_output(data: bytes) -> bool:
 
 
 def build_example(board: dict, variant: str, example: str) -> int:
-    """Build one example for this board: tools/build.py (same invocation shape as
-    hil_test.build_board), or idf.py directly for espressif (tools/build.py's esp branch
+    """Build one example for this board: tools/build.py with the variant's defines and
+    flags, or idf.py directly for espressif (tools/build.py's esp branch
     ignores -T and builds everything; variant flags travel as -DCFLAGS_CLI, the channel
     tools/build.py uses). Bounded and process-group-killed via run_cmd; 600 s covers a
     first configure+build of an SDK-heavy family (pico, nrf, esp). Builds normally run
@@ -465,7 +465,7 @@ def build_example(board: dict, variant: str, example: str) -> int:
     compile parallelism is capped at cpu/-j so -j concurrent builds cannot swamp sibling
     workers' verification windows. Returns the returncode (127 = ESP-IDF env missing)."""
     name = board['name']
-    variants = board.get('variant') or [{'name': name}]
+    variants = hil_report.board_variants(board)
     vcfg = next((v for v in variants if v['name'] == variant), variants[0])
     if board['flasher']['name'].lower() == 'esptool':
         idf_path = os.environ.get('IDF_PATH')
@@ -476,10 +476,10 @@ def build_example(board: dict, variant: str, example: str) -> int:
         cmd = ['idf.py', '-C', f'examples/{example}',
                '-B', f'cmake-build/cmake-build-{vcfg["name"]}/{example}',
                '-G', 'Ninja', f'-DBOARD={name}', 'build']
-        for d in vcfg.get('defines', []):
+        for d in vcfg['defines']:
             cmd.insert(-1, f'-D{d}')
-        if vcfg.get('flags'):
-            cmd.insert(-1, f'-DCFLAGS_CLI={vcfg["flags"]}')
+        if vcfg['flags']:
+            cmd.insert(-1, f'-DCFLAGS_CLI={" ".join(vcfg["flags"])}')
         # source export.sh in THIS subprocess only, via bash -c: it mutates PATH/venv
         # (idf.py, xtensa/riscv toolchain, IDF's own python) which must not leak into
         # the parent process or sibling threads' concurrent ARM/RISC-V builds
@@ -497,9 +497,9 @@ def build_example(board: dict, variant: str, example: str) -> int:
            '-j', str(max(1, (os.cpu_count() or _jobs) // _jobs))]
     if vcfg['name'] != name:
         cmd += ['--build-name', vcfg['name']]
-    for d in vcfg.get('defines', []):
+    for d in vcfg['defines']:
         cmd += ['-D', d]
-    for tok in vcfg.get('flags', '').split():
+    for tok in vcfg['flags']:
         cmd += [f'--cflag={tok}']
     with _build_sem:
         return hil_util.run_cmd(shlex.join(cmd), cwd=str(hil_util.TINYUSB_ROOT),
@@ -585,7 +585,7 @@ def ensure_board_test(board: dict, variant: str, note: list):
     fw = hil_flash.find_firmware(variant, 'device/board_test', flasher=board['flasher']['name'])
     if fw:
         return fw
-    variants = board.get('variant') or [{'name': board['name']}]
+    variants = hil_report.board_variants(board)
     if not any(v['name'] == variant for v in variants):
         variant = variants[0]['name']
     return ensure_fw(board, variant, 'device/board_test', note)
