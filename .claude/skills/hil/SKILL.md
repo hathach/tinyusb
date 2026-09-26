@@ -153,6 +153,17 @@ python3 .claude/skills/hil/scripts/hil_remote.py --run-id hil-1790000000 --recei
 The build refuses a receipt for a tree that is not clean before or after it (commit a
 `hw/bsp/family.json` it rewrote, then build again). `.hil-remote/` is ignored.
 
+A CI firmware artifact is the one delegated run without a receipt: download it straight into a
+fresh `-B` dir under `cmake-build/`, never a symlink to it (the staging rsync would copy the link).
+Run it from a checkout whose harness and roster match the artifact's head, since those are staged
+from the checkout. Report the artifact's name, run, head and staged sha256s beside the results.
+
+```bash
+mkdir -p cmake-build && mkdir cmake-build/ci-36166669952
+gh run download 36166669952 -n 'binaries-arm-gcc--b raspberry_pi_pico_w' -D cmake-build/ci-36166669952
+python3 .claude/skills/hil/scripts/hil_remote.py --run-id hil-1790000000 -B cmake-build/ci-36166669952 -b raspberry_pi_pico_w
+```
+
 Exit 200 means the remote tree stopped being this run's after staging (another run sharing
 `REMOTE_DIR` replaced it): `hil_test.py` did not run and nothing was copied back, so any local
 `hil_report` pair or `<config>.failed` is from an earlier run. Re-run; never report from it.
