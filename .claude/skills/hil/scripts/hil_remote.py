@@ -18,7 +18,8 @@ stale example's firmware left in a variant dir, a tree that is not clean or a HE
 SHA, the one the build began at; the build skill's check_build.py --receipt runs it right after
 its build.
 `--receipt FILE` on a run refuses to stage unless HEAD, the roster and every staged file still
-match it, and stages the snapshot of the firmware it checked.
+match it, stages the snapshot of the firmware it checked, and runs nothing when HEAD, the roster
+or a tracked file moved while it staged.
 
 Env overrides: REMOTE (ssh host), REMOTE_DIR (rm -rf'd and recreated each run, under a lock
 on <REMOTE_DIR>.lock that refuses a second run sharing it), CONFIG (HIL config json), ROOT_DIR
@@ -460,20 +461,26 @@ def check_receipt(path, config_path, boards, dirs, staged):
         config_digest, built = receipt['configDigest'], receipt['boards']
     except (OSError, ValueError, KeyError, TypeError) as e:
         fail(f'unusable build receipt {path}: {e!r}')
-    now = git('rev-parse', 'HEAD')
-    # the harness and roster staged beside the firmware are HEAD's only on a clean tree
-    dirty = git('status', '--porcelain', '--untracked-files=no')
     unbuilt = [b for b in boards if b not in built]
     prefixes = tuple(f'{d.relative_to(ROOT)}/' for d in dirs)
     differ = sorted({*(p for p in staged if pinned.get(p) != staged[p]),
                      *(p for p in pinned if p.startswith(prefixes) and p not in staged)})
-    why = [head != now and f'it is for {head[:12]} but the checkout is at {now[:12]}',
-           dirty and f'tracked files changed since HEAD: {", ".join(line.split(None, 1)[1] for line in dirty.splitlines()[:5])}',
-           config_digest != digest(config_path) and f'the roster {config_path} is not the one it was built from',
+    why = [*checkout_drift(head, config_digest, config_path),
            unbuilt and f'it does not cover {", ".join(unbuilt)}',
            differ and f'{len(differ)} staged file(s) differ from it, first {", ".join(differ[:5])}']
     if any(why):
         fail(f'the build receipt {path} does not match: {"; ".join(filter(None, why))}; rebuild and write a new receipt')
+    return head, config_digest
+
+
+def checkout_drift(head, config_digest, config_path):
+    """Why the harness and roster the checkout stages are not those of head and config_digest."""
+    now = git('rev-parse', 'HEAD')
+    # the harness and roster staged beside the firmware are HEAD's only on a clean tree
+    dirty = git('status', '--porcelain', '--untracked-files=no')
+    return [head != now and f'it is for {head[:12]} but the checkout is at {now[:12]}',
+            dirty and f'tracked files changed since HEAD: {", ".join(line.split(None, 1)[1] for line in dirty.splitlines()[:5])}',
+            config_digest != digest(config_path) and f'the roster {config_path} is not the one it was built from']
 
 
 def run(argv, receipt=None):
@@ -487,18 +494,20 @@ def run(argv, receipt=None):
              f'  {build_command(config_path, select_boards(config, args), args.build_dir)}')
     firmware = resolve_firmware(config, config_path, args)
     with tempfile.TemporaryDirectory(prefix='hil-remote-') as snap:
+        pinned = None
         if receipt is not None:
             firmware = snapshot(firmware, Path(snap))
             boards = select_boards(config, args)
-            check_receipt(receipt, config_path, boards, [d for b in boards for d in variant_dirs(config, args.build_dir, b)],
-                          staged_files(firmware, Path(snap)))
+            pinned = check_receipt(receipt, config_path, boards,
+                                   [d for b in boards for d in variant_dirs(config, args.build_dir, b)],
+                                   staged_files(firmware, Path(snap)))
 
         print(f'==> Setting up remote {remote}:{remote_dir}')
         with remote_lease(remote, remote_dir, args.build_dir) as (remote_dir, token):
-            return stage_and_run(remote, remote_dir, token, argv, args, config, config_path, firmware)
+            return stage_and_run(remote, remote_dir, token, argv, args, config, config_path, firmware, receipt, pinned)
 
 
-def stage_and_run(remote, remote_dir, token, argv, args, config, config_path, firmware):
+def stage_and_run(remote, remote_dir, token, argv, args, config, config_path, firmware, receipt=None, pinned=None):
     guard = (remote_dir, token)
     if args.accumulate:
         # the wipe cleared the rig's copy; without the local sidecar as merge base the retry's
@@ -523,6 +532,11 @@ def stage_and_run(remote, remote_dir, token, argv, args, config, config_path, fi
     # one transfer: every dir lands under the same <build_dir>/, by its own name
     if rsync(guard, '-a', *FIRMWARE_FILTER, *map(str, firmware), f'{remote}:{remote_dir}/{args.build_dir}/') != 0:
         fail('could not stage the firmware')
+    # the harness and roster went from the live checkout, which may have moved since the receipt check
+    drift = pinned and list(filter(None, checkout_drift(*pinned, config_path)))
+    if drift:
+        fail(f'the checkout changed during the rig set-up, so what was staged is not what it checked against the build '
+             f'receipt {receipt}: {"; ".join(drift)}; not running it')
 
     print(f'==> Running HIL test on {remote}')
     rc = subprocess.run(['ssh', *SSH_OPTS, remote, run_command(remote_dir, argv, config_path.name, token)],

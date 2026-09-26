@@ -347,6 +347,66 @@ class BuildReceipts(unittest.TestCase):
             self.assertIn('could not stage the firmware', self.refused(hil_remote.main, ['--receipt', str(self.receipt), '-b', 'b']))
         self.assertEqual(sent, pinned)
 
+    def staged_run(self, change, *argv):
+        """A run whose lease set-up is overlapped by change(): (the SystemExit code, or None when
+        hil_test.py started; the lease ended; the snapshot dirs the firmware transfer sent)."""
+        state = {'leased': False, 'sources': []}
+
+        @contextlib.contextmanager
+        def lease(remote, remote_dir, build_dir):
+            change()
+            state['leased'] = True
+            try:
+                yield '/tmp/t', 'tok'
+            finally:
+                state['leased'] = False
+
+        def rsync(guard, *args, optional=False):
+            if '--prune-empty-dirs' in args:
+                state['sources'] += [Path(a) for a in args if not a.startswith('-') and ':' not in a]
+            return 0
+
+        def run_command(*a, **k):
+            state['started'] = True
+            return 'true'
+        with mock.patch.object(hil_remote, 'remote_lease', lease), mock.patch.object(hil_remote, 'rsync', rsync), \
+                mock.patch.object(hil_remote, 'run_command', run_command), \
+                mock.patch.object(hil_remote, 'copy_back', lambda *a: []), \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            try:
+                hil_remote.main([*argv, '-b', 'b'])
+                code = None
+            except SystemExit as e:
+                code = e.code
+        self.assertEqual(code is None, state.get('started', False), 'hil_test.py starts only when the run is not refused')
+        return code, state['leased'], state['sources']
+
+    def test_a_harness_or_roster_changed_while_the_rig_is_set_up_is_refused(self):
+        def edit(path, text):
+            return lambda: (self.root / path).write_text(text)
+        for what, change, why in (
+                ('harness', edit('test/hil/hil_test.py', 'checked out during the set-up'),
+                 'tracked files changed since HEAD: test/hil/hil_test.py'),
+                ('roster', edit('test/hil/tinyusb.json', json.dumps({**self.CONFIG, 'note': 'edited during the set-up'})),
+                 'is not the one it was built from'),
+                ('head', lambda: self.commit('landed during the set-up'), 'it is for')):
+            with self.subTest(what):
+                self.git('reset', '-q', '--hard', 'HEAD')
+                self.write('b')
+                run_id = f'set-up-{what}'
+                code, leased, sources = self.staged_run(change, '--run-id', run_id, '--receipt', str(self.receipt))
+                self.assertIn(why, code or '')
+                self.assertIn('what was staged is not what it checked', code)
+                self.assertFalse(leased, 'the refusal ends the lease')
+                self.assertTrue(sources and not any(s.exists() for s in sources), 'the refusal removes the snapshot')
+                done = json.loads(hil_remote.run_paths(run_id)[1].read_text())
+                self.assertEqual((done['exit'], done['reports']), (1, []))
+                self.git('reset', '-q', '--hard', 'HEAD@{1}' if what == 'head' else 'HEAD')
+
+    def test_a_run_without_a_receipt_stages_the_checkout_as_it_is(self):
+        code, _, _ = self.staged_run(lambda: (self.root / 'test/hil/hil_test.py').write_text('a CI artifact run'))
+        self.assertIsNone(code)
+
 
 class CheckBuildReceipt(unittest.TestCase):
     """check_build.py --receipt: the receipt is written by the build that made the firmware."""
