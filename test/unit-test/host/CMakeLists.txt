@@ -1,0 +1,44 @@
+cmake_minimum_required(VERSION 3.20)
+
+# Also allow running the host fixtures without installing Ceedling.
+if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  project(tinyusb_host_tests LANGUAGES C)
+  enable_testing()
+endif ()
+
+if (NOT CMAKE_C_COMPILER_ID MATCHES "^(GNU|Clang)$")
+  message(FATAL_ERROR "Host fixtures require GCC or Clang (MinGW on Windows).")
+endif ()
+
+get_filename_component(TINYUSB_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
+
+function(add_host_test name fixture)
+  add_executable(${name} ${fixture})
+  get_filename_component(fixture_dir "${fixture}" DIRECTORY)
+  target_include_directories(${name} PRIVATE ${fixture_dir} ${TINYUSB_ROOT}/src)
+  set_target_properties(${name} PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED YES)
+  # Keep assertions active even when configured with a release build type.
+  target_compile_options(${name} PRIVATE -O2 -g -Wall -Wextra -Werror -UNDEBUG)
+  add_test(NAME ${name} COMMAND ${name})
+  set_tests_properties(${name} PROPERTIES TIMEOUT 10 LABELS host)
+endfunction()
+
+foreach (variant IN ITEMS generic disabled enabled)
+  set(name test_ehci_iso_${variant})
+  add_host_test(${name} ${CMAKE_CURRENT_LIST_DIR}/ehci/test_iso.c)
+  target_sources(${name} PRIVATE ${CMAKE_CURRENT_LIST_DIR}/ehci/cache_stubs.c)
+  if (NOT variant STREQUAL "disabled")
+    target_compile_definitions(${name} PRIVATE CFG_TUH_CHIPIDEA_ISO_ENABLE=1)
+  endif ()
+  if (variant STREQUAL "generic")
+    target_compile_definitions(${name} PRIVATE TEST_EHCI_GENERIC)
+  endif ()
+  target_compile_options(${name} PRIVATE -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast)
+  # EHCI hardware links are 32-bit; keep simulated DMA memory below 4 GiB.
+  if (WIN32)
+    target_link_options(${name} PRIVATE -Wl,--image-base,0x400000,--disable-dynamicbase)
+  else ()
+    target_compile_options(${name} PRIVATE -fno-pie)
+    target_link_options(${name} PRIVATE -no-pie)
+  endif ()
+endforeach ()
