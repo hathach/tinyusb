@@ -6,20 +6,20 @@
 
 // The QH software tail and ISO state contain native pointers. On a 64-bit test
 // host their sizes differ from the target ABI. Recheck hardware layouts below.
+#pragma push_macro("TU_VERIFY_STATIC")
 #undef TU_VERIFY_STATIC
 #define TU_VERIFY_STATIC(condition, ...) \
-  _Static_assert((condition) || sizeof(void*) == 8, "EHCI ABI")
+  enum { TU_XSTRCAT(_verify_static_, TU_COUNTER) = 1 / (!!((condition) || sizeof(void*) == 8)) }
 #include "portable/ehci/ehci.h"
 #include "portable/ehci/ehci.c"
-#undef TU_VERIFY_STATIC
-#define TU_VERIFY_STATIC(condition, ...) _Static_assert(condition, __VA_ARGS__)
+#pragma pop_macro("TU_VERIFY_STATIC")
 
-_Static_assert(sizeof(ehci_link_t) == 4, "link ABI");
-_Static_assert(sizeof(ehci_qtd_t) == 32, "qTD ABI");
-_Static_assert(offsetof(ehci_qhd_t, qtd_overlay) == 16, "QH hardware prefix");
-_Static_assert(sizeof(ehci_itd_t) == 64, "iTD ABI");
-_Static_assert(sizeof(ehci_sitd_t) == 32, "siTD ABI");
-_Static_assert(sizeof(ehci_cap_registers_t) == 16, "capability register ABI");
+TU_VERIFY_STATIC(sizeof(ehci_link_t) == 4, "link ABI");
+TU_VERIFY_STATIC(sizeof(ehci_qtd_t) == 32, "qTD ABI");
+TU_VERIFY_STATIC(offsetof(ehci_qhd_t, qtd_overlay) == 16, "QH hardware prefix");
+TU_VERIFY_STATIC(sizeof(ehci_itd_t) == 64, "iTD ABI");
+TU_VERIFY_STATIC(sizeof(ehci_sitd_t) == 32, "siTD ABI");
+TU_VERIFY_STATIC(sizeof(ehci_cap_registers_t) == 16, "capability register ABI");
 
 extern unsigned test_cache_calls[3];
 
@@ -234,7 +234,7 @@ static void test_sparse_iso_pool(void) {
   reset(TUSB_SPEED_HIGH);
   // Keep the first 31 QHs/qTDs occupied by other endpoint types. ISO lookup and
   // completion must handle both sides of the ownership bitmap boundary.
-  _Static_assert(QHD_MAX > 32, "fixture must exercise multiple bitmap words");
+  TU_VERIFY_STATIC(QHD_MAX > 32, "fixture must exercise multiple bitmap words");
   for (size_t i = 0; i < 31; i++) {
     ehci_data.qhd_pool[i].qhd.used = 1;
     ehci_data.qtd_pool[i].qtd.used = 1;
