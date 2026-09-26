@@ -65,6 +65,29 @@ USB.5: An isochronous IN endpoint sending a 1024-byte maximum-packet-size packet
 interrupt and its command/status entry is not updated. Workaround: cap the isochronous IN maximum
 packet size at 1023 bytes in the descriptor.
 
+STMicroelectronics STM32F7
+---------------------------------
+**Severity: High** when a low-speed device is connected through a hub to an internal full-speed interface
+
+Reference: `STM32F76xxx/77xxx Errata Sheet`_ OTG_FS 2.19.2 and OTG_HS 2.20.2
+
+.. _STM32F76xxx/77xxx Errata Sheet: https://www.st.com/resource/en/errata_sheet/es0334-stm32f76xxx-and-stm32f77xxx-device-errata-stmicroelectronics.pdf
+
+The transmitter state machine may hang when the host connects to a low-speed device through a hub using
+the full-speed interface. After a timeout, the controller disables the still-connected root port and raises
+a port interrupt. ST documents this for the STM32F76xxx/77xxx OTG_FS peripheral and for the OTG_HS
+peripheral when it uses its internal full-speed interface.
+
+TinyUSB hardware testing reproduced the same behavior on an STM32F723ZE, although the
+`STM32F72xxx/73xxx Errata Sheet`_ does not list this limitation. Treat the STM32F723 result as an observed
+silicon limitation rather than an official ST erratum.
+
+.. _STM32F72xxx/73xxx Errata Sheet: https://www.st.com/resource/en/errata_sheet/es0360-stm32f72xxx-and-stm32f73xxx-device-limitations-stmicroelectronics.pdf
+
+There is no software workaround. Connect the low-speed device directly, or use a high-speed root
+connection and a high-speed hub so the controller uses split transactions instead of low-speed preambles.
+ST notes that adding capacitance to the data lines may reduce the occurrence, but does not eliminate it.
+
 WCH CH32F20x/CH32V20x/CH32V30x
 ---------------------------------
 **Severity: Medium**
