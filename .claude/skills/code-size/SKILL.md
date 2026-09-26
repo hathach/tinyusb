@@ -1,62 +1,59 @@
 ---
 name: code-size
-description: Use when comparing TinyUSB code size between a base ref (master by default) and the current branch to evaluate the size impact of changes. Three granularities — single example on one board (with optional bloaty), all examples on one board, or all examples across CI families combined.
+description: Use when sizing TinyUSB examples per file, section or symbol (report), or diffing them between a base ref (master by default) and the working tree to evaluate the size impact of changes (diff) — one example on one board, all examples on one board, or every CI-pinned board combined — sized by membrowse, linkermap or bloaty.
 ---
 
-# Code Size Comparison
+# Code Size
 
-Compare TinyUSB code size between a base ref (default `master`) and the current branch using `tools/metrics_compare_base.py`. Three granularities — pick the narrowest one that exercises your change:
+`tools/code_size.py` has two subcommands:
 
-| Granularity | When to use | Command |
-|---|---|---|
-| **single example, one board** | Focused change touching one feature | `-b BOARD -e device/cdc_msc` |
-| **all examples, one board** | Per-board regression sweep | `-b BOARD` |
-| **all examples, all CI families (combined)** | Pre-merge full check | `--ci --engine linkermap` |
+- **`report`** builds the working tree, uncommitted changes included, and tabulates each elf as linkermap does: a row per file, a column per output section, size and % of that elf's filtered total.
+- **`diff`** builds a base ref (default `master`) in a temporary worktree and the working tree, pairs each base elf with the current elf of the same (board, elf path) and reports per-file deltas per pair: a Flash/RAM table and the same section table as signed deltas, changed rows only.
 
-The script does the whole base-vs-branch dance itself: a temporary git worktree of the base ref under `cmake-metrics/_worktree/` (removed on exit), base + branch builds under `cmake-metrics/<board>/{base,build}/`, then a per-file compare — `tools/membrowse_compare.py` for the default engine, or `tools/metrics.py compare` for `--engine linkermap` (report paths under Outputs).
+Sizes are never averaged or summed across examples or boards. Pick the narrowest scope that exercises the change:
 
-Default size-diff engine is membrowse (local `membrowse report --json --all-symbols` per elf), which requires the `membrowse` CLI (`pip install membrowse`) — CI gets it from `.github/actions/get_deps/action.yml`, which never runs locally; pass `--engine linkermap` for the legacy map.json-based engine, which needs `python3 tools/get_deps.py` for `tools/linkermap` and is required today for `--combined`/`--ci` (the membrowse engine doesn't support `--combined` yet). The script builds the linkermap engine's map.json files itself, through the `examples-linkermap` (or `<example>-linkermap`) target. See the `membrowse` skill for engine details.
+| Scope                             | Command                                                        |
+|-----------------------------------|----------------------------------------------------------------|
+| one example, one board            | `python3 tools/code_size.py diff -b BOARD -e device/cdc_msc`   |
+| all examples, one board           | `python3 tools/code_size.py diff -b BOARD`                     |
+| all examples, CI-pinned, combined | `python3 tools/code_size.py diff --ci`                         |
+| one tree, no diff                 | `python3 tools/code_size.py report -b BOARD -e device/cdc_msc` |
 
-## Choosing arguments
+The base worktree symlinks this checkout's fetched dependencies, so a `tools/get_deps.py` pin bump's own size change is not in the diff.
 
-Infer from the user's request:
+## Arguments
 
-- **Board(s):** named board → `-b BOARD` (repeatable). "All boards" / "CI" / "full sweep" → `--ci --engine linkermap` (first board of each arm-gcc family; `--ci` implies `--combined`, which the membrowse engine doesn't support yet). Default to a fast board (`raspberry_pi_pico`) if unspecified for an iterative check.
-- **Example:** named example → `-e <group>/<name>` (e.g. `-e device/cdc_msc`). "All examples" → omit `-e`.
-- **Bloaty:** only with `-e`. Use when the user wants a section/symbol-level breakdown for a single binary.
-- **Base ref:** default `master`. Override with `--base-branch <ref>` (tag or commit also works).
-- **Filter:** default is the absolute path of each side's `<checkout>/src/` directory, which uniquely identifies TinyUSB stack code without matching vendored deps that also have a `src/` (e.g. `pico-sdk/src/`). Override with one or more `-f SUBSTRING` flags to use repo-relative substrings instead. Change only if asked.
+- **`-b BOARD`**, repeatable. For an iterative check with no board named, pass `-b raspberry_pi_pico`.
+- **`-e <group>/<name>`**, repeatable; omit for all examples.
+- **`--engine`**, membrowse unless asked:
 
-## Common invocations
+  | Engine                | Per-file sizes from                                                 | Needs                                       |
+  |-----------------------|---------------------------------------------------------------------|---------------------------------------------|
+  | `membrowse` (default) | `membrowse report --json --all-symbols` symbols                     | `pip install membrowse`                     |
+  | `linkermap`           | the GNU ld map's input sections, by object path                     | `python3 tools/get_deps.py tools/linkermap` |
+  | `bloaty`              | `bloaty -d compileunits,sections,symbols` VM sizes, by compile unit | `bloaty` on PATH                            |
 
-```bash
-# Single example, one board (add --bloaty for section/symbol breakdown):
-python3 tools/metrics_compare_base.py -b raspberry_pi_pico -e device/cdc_msc
+  Every engine takes flash/RAM from the elf's headers (a section copied from flash counts in both). The whole-elf total counts different things per engine (membrowse's all-symbol sum overlaps aliases and omits padding), so compare it only within one.
+- **`--symbols`**: lists each file's symbols under it (`└ name`); without it the table stops at files. linkermap's rows are input sections (`.text.cdcd_open`), not symbols. A diff counts a pair changed when its sections or, with `--symbols`, symbols moved even if Flash/RAM cancel.
+- **`--json`**: also writes each report's raw sizes (paired, with the base SHA, for diff), filters and failures as `.json` beside the `.md`; symbols only with `--symbols`.
+- **`-f SUBSTRING`**, only if asked: replaces the default filter, each build's absolute `<checkout>/src/` path, which matches TinyUSB code and no vendored `src/`.
+- diff only:
+  - **`--base-branch <ref>`**: any branch, tag or commit.
+  - **`--combined`**: also one report over every `-b` board.
+  - **`--ci`**, for "all boards" / "CI": adds the `.github/ci-pinned-boards.json` boards, covering every dcd/hcd driver not waived there, and implies `--combined`; needs the arm, riscv and msp430 toolchains.
+  - **`--bloaty`**, with `-e` only: also prints bloaty's section and symbol diff to stdout.
 
-# All examples for one board (repeat -b for several boards):
-python3 tools/metrics_compare_base.py -b raspberry_pi_pico
+## Outputs and timing
 
-# Full CI sweep (first board per arm-gcc family, combined; needs --engine linkermap):
-python3 tools/metrics_compare_base.py --ci --engine linkermap
-```
+Reports go to `cmake-code-size/<board>/{report,diff}[_<example>].md` and, when combined, `cmake-code-size/_combined/diff.md`. The exit code is nonzero on a failure, when no pair was compared (diff) or no elf of a scope matched a file. The console shows each phase's time, one result line per scope and, for one board and one `-e` example, its changed tables; a failed build prints an excerpt of its output there, and its report and JSON record its first compiler, linker or CMake error, otherwise a fallback message.
 
-## Outputs
-
-- **Per-board:** `cmake-metrics/<board>/metrics_compare.md` (and `_<example>.md` when `-e` is set)
-- **Combined (`--combined`, auto-set by `--ci`):** `cmake-metrics/_combined/metrics_compare.md`, aggregating all boards
-- **Bloaty:** printed to stdout as section + symbol diffs
-
-## Timing
-
-- Single example, single board: ~30 s
-- All examples, single board: ~60-90 s
-- `--ci` (all arm-gcc families, first board each): 4-8 minutes — sequential sweep across boards (Ninja parallelizes within each board, not across)
-
-Use timeouts ≥ 10 minutes (600000 ms) for `--ci`.
+A report builds one tree, about half a diff's time. One diff example ~30 s; one board ~60-90 s; `--ci` ~7-8 min, boards built one after another — run it in the background, it nears the 10-minute command timeout.
 
 ## Reporting results
 
-After running:
-- Show the markdown report's summary table to the user.
-- Highlight any row with a non-zero delta (`Flash Δ`/`RAM Δ` for the membrowse engine, `% diff` for `--engine linkermap`) — under the default filter every row is a TinyUSB stack source file (e.g. `usbd.c`, `cdc_device.c`, `dcd_<port>.c`), so any non-zero delta is a real stack-size impact.
-- If the diff is unexpected, follow up with a single-example `--bloaty` run to localize.
+Each report opens with a coverage line; `INCOMPLETE` means a build, report or filter match failed, or an elf exists on one side only (listed, outside every statistic). A many-pair diff counts each file whose Flash or RAM changed as `Changed / present` pairs with its min/max Δ naming the pair; a many-elf report lists each elf's totals. Per-elf tables are then in the `.md`'s `<details>` only.
+
+Show the coverage line and the relevant tables, then:
+- A filtered delta suggests a TinyUSB size impact in that configuration. A whole-elf Δ with a zero filtered total is outside the filter (inlined headers, example/BSP code); check the per-file table for changes that cancel.
+- min > 0 means growth in every present pair, max > 0 in at least one; name the worst-growth pair.
+- Corroborate a surprising delta on its own board and example, not the whole sweep: `-b <board> -e <example> --engine linkermap` (~30 s; every run rebuilds both trees); add `--bloaty` if bloaty is on PATH to see the sections and symbols behind it.

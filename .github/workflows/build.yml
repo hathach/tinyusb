@@ -41,7 +41,7 @@ jobs:
               - 'tools/ci_select.py'
               - 'tools/get_deps.py'
               - 'tools/rtt.py'
-              - 'tools/membrowse_report.py'
+              - 'tools/membrowse_cli.py'
               - '.github/ci-pinned-boards.json'
               - '.github/actions/**'
               - '.github/workflows/build.yml'
@@ -327,7 +327,7 @@ jobs:
   # event it defaults to "run everything", not "skip"). This job takes the opposite
   # gate instead, with no downstream dependents, so it can never reach the rig.
   # --identical needs neither a compiled elf nor a configured build dir
-  # (tools/membrowse_report.py's --elf-missing path; tools/build.py's espressif
+  # (`tools/membrowse_cli.py report`'s --elf-missing path; tools/build.py's espressif
   # branch routes straight to it when there is no build dir), so plain python on
   # ubuntu-latest is enough - no ESP-IDF docker image, no idf.py, no compiler.
   hil-build-esp-identical:
