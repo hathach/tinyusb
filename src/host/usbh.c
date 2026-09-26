@@ -1201,8 +1201,8 @@ bool tuh_edpt_abort_xfer(uint8_t daddr, uint8_t ep_addr) {
     TU_VERIFY(dev);
 
     TU_VERIFY(dev->ep_status[epnum][dir] & TU_EDPT_STATE_BUSY); // non-control skip if not busy
-    // abort then mark as ready and release endpoint
-    hcd_edpt_abort_xfer(dev->bus_info.rhport, daddr, ep_addr);
+    // If cancellation fails, retain ownership until the normal completion.
+    TU_VERIFY(hcd_edpt_abort_xfer(dev->bus_info.rhport, daddr, ep_addr));
     dev->ep_status[epnum][dir] &= (uint8_t) ~TU_EDPT_STATE_BUSY; // clear busy
     tu_edpt_release(&dev->ep_status[epnum][dir], _usbh_mutex);
   }
@@ -1350,8 +1350,14 @@ bool tuh_edpt_open(uint8_t dev_addr, tusb_desc_endpoint_t const* desc_ep) {
 
 bool tuh_edpt_close(uint8_t daddr, uint8_t ep_addr) {
   TU_VERIFY(0 != tu_edpt_number(ep_addr)); // cannot close EP0
+  usbh_device_t* dev = get_device(daddr);
+  TU_VERIFY(dev);
   tuh_edpt_abort_xfer(daddr, ep_addr); // abort any pending transfer
-  return hcd_edpt_close(usbh_get_rhport(daddr), daddr, ep_addr);
+  TU_VERIFY(hcd_edpt_close(dev->bus_info.rhport, daddr, ep_addr));
+  // Close also retires in-flight work that could not be aborted.
+  dev->ep_status[tu_edpt_number(ep_addr)][tu_edpt_dir(ep_addr)] &=
+    (uint8_t) ~(TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED);
+  return true;
 }
 
 bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr) {
