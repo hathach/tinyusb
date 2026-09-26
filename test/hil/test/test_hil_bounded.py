@@ -263,7 +263,8 @@ class BuildBoardContract(unittest.TestCase):
         self.assertIn('was configured with CFLAGS_CLI', printed)
         self.assertEqual(self.build(1, 'Traceback')[0], (1, False))
 
-    def test_a_refused_board_is_reported_failed_over_its_accumulated_pass(self):
+    def run_main(self, cfg, prior_rows, argv, refuse, results=()):
+        """main() over a fake rig in a temp report dir: (exit code, report dir, pool, hints)."""
         from unittest import mock
         from helper import hil_report
         for g in ('verbose', 'test_only', 'max_retry', 'skip_flash'):
@@ -273,19 +274,14 @@ class BuildBoardContract(unittest.TestCase):
         td = TemporaryDirectory()
         self.addCleanup(td.cleanup)
         d = Path(td.name)
-        cfg = {'boards': [{'name': 'bad', 'uid': '1', 'flasher': {'name': 'jlink'},
-                           'variant': [{'name': 'bad-a'}, {'name': 'bad-b'}]},
-                          {'name': 'good', 'uid': '2', 'flasher': {'name': 'jlink'}}]}
         (d / 'rig.json').write_text(json.dumps(cfg))
-        hil_report.write_report(d, {'rows': [{'board': n, 'cells': {'device/cdc_msc': 'pass'}, 'duration': '1s'}
-                                             for n in ('bad-a', 'bad-b', 'good')],
-                                    'banner': '', 'scope': '', 'caveat': ''})
-        good_row = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], 1.0)
+        hil_report.write_report(d, {'rows': prior_rows, 'banner': '', 'scope': '', 'caveat': ''})
+        (d / 'rig.json.failed').write_text('--accumulate -b stale')
         pool = mock.Mock()
-        pool.imap_unordered.return_value.next.side_effect = [good_row]
-        with mock.patch.object(sys, 'argv', ['hil_test.py', str(d / 'rig.json'), '--build', '--accumulate']), \
+        pool.imap_unordered.return_value.next.side_effect = list(results)
+        with mock.patch.object(sys, 'argv', ['hil_test.py', str(d / 'rig.json'), '--build', *argv]), \
              mock.patch.dict(os.environ, {'HIL_REPORT_DIR': str(d)}), \
-             mock.patch.object(hil_test, 'build_board', lambda b, c: (1, False) if b['name'] == 'bad' else (0, True)), \
+             mock.patch.object(hil_test, 'build_board', lambda b, c: (1, False) if b['name'] in refuse else (0, True)), \
              mock.patch.object(hil_test, 'Manager', mock.Mock()), \
              mock.patch.object(hil_test, '_start_pool', return_value=({}, pool)), \
              mock.patch.object(hil_test, '_load_controller_hints', return_value=({}, {})), \
@@ -297,7 +293,18 @@ class BuildBoardContract(unittest.TestCase):
              mock.patch.object(hil_test, 'log_line'), \
              redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as exited:
             hil_test.main()
-        self.assertEqual(exited.exception.code, 1)
+        return exited.exception.code, d, pool, hints
+
+    def test_a_refused_board_is_reported_failed_over_its_accumulated_pass(self):
+        from helper import hil_report
+        cfg = {'boards': [{'name': 'bad', 'uid': '1', 'flasher': {'name': 'jlink'},
+                           'variant': [{'name': 'bad-a'}, {'name': 'bad-b'}]},
+                          {'name': 'good', 'uid': '2', 'flasher': {'name': 'jlink'}}]}
+        prior = [{'board': n, 'cells': {'device/cdc_msc': 'pass'}, 'duration': '1s'}
+                 for n in ('bad-a', 'bad-b', 'good')]
+        good_row = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], 1.0)
+        rc, d, pool, hints = self.run_main(cfg, prior, ['--accumulate'], {'bad'}, [good_row])
+        self.assertEqual(rc, 1)
         self.assertEqual([b['name'] for b in pool.imap_unordered.call_args[0][1]], ['good'])
         self.assertEqual([r[0] for r in hints.call_args[0][1]], ['good'], 'a refused board never ran')
         doc = json.loads((d / hil_report.REPORT_JSON).read_text())
@@ -308,6 +315,42 @@ class BuildBoardContract(unittest.TestCase):
         self.assertFalse(verdict['pass'])
         self.assertEqual([(r['ran'], r['pass']) for r in verdict['results']], [(False, False), (True, True)])
         self.assertEqual((d / 'rig.json.failed').read_text(), '--accumulate -b bad')
+
+    def all_refused(self, argv):
+        from helper import hil_report
+        cfg = {'boards': [{'name': 'bad', 'uid': '1', 'flasher': {'name': 'jlink'},
+                           'variant': [{'name': 'bad-a'}, {'name': 'bad-b'}]},
+                          {'name': 'worse', 'uid': '2', 'flasher': {'name': 'jlink'}}]}
+        prior = ([{'board': n, 'cells': {'device/cdc_msc': 'pass'}, 'duration': '1s'}
+                  for n in ('bad-a', 'bad-b', 'worse')]
+                 + [{'board': 'bad', 'cells': {hil_report.LOCKED_CELL: 'held'}, 'duration': None}])
+        rc, d, pool, _ = self.run_main(cfg, prior, argv, {'bad', 'worse'})
+        self.assertNotIn(rc, (0, None))
+        pool.imap_unordered.assert_not_called()
+        doc = json.loads((d / hil_report.REPORT_JSON).read_text())
+        cells = {r['board']: r['cells'] for r in doc['rows']}
+        for n in ('bad-a', 'bad-b', 'worse'):
+            self.assertEqual(cells[n][hil_report.RUN_ABORTED_CELL], hil_report.BUILD_REFUSED)
+        self.assertIn('**HIL run selected no boards.**', doc['caveat'])
+        verdict = hil_report.summarize(cfg, ['bad', 'worse'], doc)
+        self.assertFalse(verdict['pass'])
+        self.assertEqual([(r['ran'], r['pass']) for r in verdict['results']], [(False, False)] * 2)
+        self.assertEqual((d / 'rig.json.failed').read_text(), '--accumulate -b bad -b worse')
+        return cells
+
+    def test_an_all_refused_accumulate_run_reports_every_board_failed(self):
+        from helper import hil_report
+        cells = self.all_refused(['--accumulate'])
+        self.assertEqual(cells['bad'], {hil_report.LOCKED_CELL: 'held'}, 'an earlier lock cell is kept')
+        self.assertEqual(cells['bad-a']['device/cdc_msc'], 'pass', 'test history is kept on --accumulate')
+
+    def test_an_all_refused_fresh_run_reports_only_its_refusals(self):
+        from helper import hil_report
+        cells = self.all_refused([])
+        self.assertEqual(sorted(cells), ['bad-a', 'bad-b', 'worse'])
+        for c in cells.values():
+            self.assertEqual(c, {hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED})
+
 
 
 class RemoteStaging(unittest.TestCase):

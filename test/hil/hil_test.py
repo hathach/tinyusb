@@ -2629,8 +2629,17 @@ def main() -> None:
             if not config_boards:
                 msg = f'No boards left: check_build.py refused every build ({", ".join(refused)})'
                 print(msg, flush=True)
-                hil_report.mark_report_no_boards(report_dir, msg, fresh=not args.accumulate)
-                sys.exit(1)
+                # the partial-refusal report and re-run spec, not mark_report_no_boards: that
+                # left an --accumulate run's green rows and a stale .failed standing
+                _write_failed_spec(report_dir / (config_file.name + '.failed'), report_dir,
+                                   refused_rows)
+                scoped = sorted(set(args.board) | set(board_test))
+                hil_report.accumulate_report(
+                    refused_rows, report_dir, not args.accumulate,
+                    f'{len(scoped)} board(s) — {", ".join(scoped)}' if scoped else '',
+                    health_banner, caveat=f'**HIL run selected no boards.** {msg}\n',
+                    owned=_owned_rows(config['boards']))
+                sys.exit(min(len(refused_rows), 125))
             print(f'not testing {", ".join(refused)}: check_build.py refused the build', flush=True)
 
     # A full run starts fresh; a re-run (--accumulate, which .failed always starts with)
