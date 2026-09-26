@@ -12,10 +12,11 @@ long as the run lives, then the done record ID.done.json (exit status, the repor
 copied back). `wait ID` blocks until then, at most --timeout seconds, and prints one JSON
 status line.
 
-`receipt --out FILE [-b BOARD]...` writes a build receipt: HEAD, the roster's digest and the
-digest of every file a run of those boards would stage, refusing an unbuilt variant, a stale
-example's firmware left in a variant dir or a tree that is not clean; the build skill's
-check_build.py --receipt runs it right after its build.
+`receipt --out FILE --head SHA [-b BOARD]...` writes a build receipt: HEAD, the roster's digest
+and the digest of every file a run of those boards would stage, refusing an unbuilt variant, a
+stale example's firmware left in a variant dir, a tree that is not clean or a HEAD other than
+SHA, the one the build began at; the build skill's check_build.py --receipt runs it right after
+its build.
 `--receipt FILE` on a run refuses to stage unless HEAD, the roster and every staged file still
 match it.
 
@@ -348,17 +349,18 @@ def staged_files(dirs):
             if f.is_file() and (f.suffix in STAGED_SUFFIXES or f.name in STAGED_NAMES)}
 
 
-def unverified_examples(board, d, files):
-    """The <role>/<name> example dirs of variant dir d holding staged firmware of an example
-    the board's build does not build: a shared dir keeps a skipped or dropped example's old
-    firmware. The same test as check_build's configured(), on the <name>.<suffix> files
-    hil_flash.find_firmware() looks for, directly or in one config subdir."""
+def example_firmware(d, files):
+    """The <role>/<name> example dirs of variant dir d holding staged <name>.<suffix> firmware,
+    directly or in one config subdir, where hil_flash.find_firmware() looks."""
     prefix = f'{d.relative_to(ROOT)}/'
-    examples = {'/'.join(parts[:2]) for parts in (p[len(prefix):].split('/') for p in files if p.startswith(prefix))
-                if len(parts) in (3, 4) and parts[0] in EXAMPLE_ROLES
-                and Path(parts[-1]).stem == parts[1] and Path(parts[-1]).suffix in STAGED_SUFFIXES}
-    if not examples:
-        return []
+    return {'/'.join(parts[:2]) for parts in (p[len(prefix):].split('/') for p in files if p.startswith(prefix))
+            if len(parts) in (3, 4) and parts[0] in EXAMPLE_ROLES
+            and Path(parts[-1]).stem == parts[1] and Path(parts[-1]).suffix in STAGED_SUFFIXES}
+
+
+def unverified_examples(board, d, examples):
+    """The examples of variant dir d the board's build does not build: a shared dir keeps a
+    skipped or dropped example's old firmware. The same test as check_build's configured()."""
     if str(ROOT / 'tools') not in sys.path:
         sys.path.insert(0, str(ROOT / 'tools'))
     tools_build = importlib.import_module('build')
@@ -373,7 +375,7 @@ def unverified_examples(board, d, files):
     else:
         registered = tools_build.cmake_registered_targets(str(d))
         if registered is None:
-            fail(f'cmake cannot list the targets of {prefix[:-1]}, so the firmware its build made cannot be told '
+            fail(f'cmake cannot list the targets of {d.relative_to(ROOT)}, so the firmware its build made cannot be told '
                  f'from a stale one')
         built = {e for e in examples if e.split('/')[1] in registered}
     return sorted(examples - built)
@@ -397,17 +399,20 @@ def write_receipt(argv):
     out, argv = pop_option(argv, '--out')
     if not out:
         fail('receipt needs --out FILE')
+    built_head, argv = pop_option(argv, '--head')
+    if not built_head:
+        fail('receipt needs --head SHA, the HEAD the build began at')
     args, config, config_path = parse_run(argv)
     boards = select_boards(config, args)
-    dirs = [d for b in boards for d in variant_dirs(config, args.build_dir, b)]
-    files = staged_files(dirs)
-    unbuilt = [str(d.relative_to(ROOT)) for d in dirs
-               if not any(p.startswith(f'{d.relative_to(ROOT)}/') and p.endswith(STAGED_SUFFIXES) for p in files)]
+    dirs = [(b, d) for b in boards for d in variant_dirs(config, args.build_dir, b)]
+    files = staged_files([d for _, d in dirs])
+    # only example firmware: CMake's compiler-ABI probes leave a .bin in a dir never built
+    examples = {d: example_firmware(d, files) for _, d in dirs}
+    unbuilt = [str(d.relative_to(ROOT)) for _, d in dirs if not examples[d]]
     if unbuilt:
         fail(f'not built: {", ".join(unbuilt)}; a receipt covers every variant the run selects, build with\n'
              f'  {build_command(config_path, boards, args.build_dir)}')
-    stale = [f'{d.relative_to(ROOT)}/{e}' for b in boards for d in variant_dirs(config, args.build_dir, b)
-             for e in unverified_examples(b, d, files)]
+    stale = [f'{d.relative_to(ROOT)}/{e}' for b, d in dirs for e in unverified_examples(b, d, examples[d])]
     if stale:
         fail(f'firmware of an example the build does not build: {", ".join(stale)}; a receipt pins only firmware '
              f'the build verified and a run stages every file there, so remove those dirs and write the receipt again')
@@ -415,7 +420,11 @@ def write_receipt(argv):
     if dirty:
         fail(f'the tree is not clean:\n{dirty}\na receipt pins the firmware to a commit: commit these (a hw/bsp/family.json '
              f'a build rewrote included) or remove them, then rebuild on that commit')
-    receipt = {'head': git('rev-parse', 'HEAD'), 'configDigest': digest(config_path), 'boards': boards, 'files': files}
+    head = git('rev-parse', 'HEAD')
+    if head != built_head:
+        fail(f'HEAD is {head[:12]}, not {built_head[:12]} the build began at: a commit landed during the build, '
+             f'so its firmware is not of HEAD; build again')
+    receipt = {'head': head, 'configDigest': digest(config_path), 'boards': boards, 'files': files}
     Path(out).parent.mkdir(parents=True, exist_ok=True)
     write_json(Path(out), receipt)
     print(json.dumps({**receipt, 'files': len(receipt['files'])}))

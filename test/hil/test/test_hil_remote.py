@@ -9,11 +9,13 @@ import importlib.util
 import io
 import json
 import os
+import shutil
 import subprocess
 import sys
 import textwrap
 import threading
 import time
+import types
 import unittest
 from unittest import mock
 from pathlib import Path
@@ -167,6 +169,12 @@ class BuildReceipts(unittest.TestCase):
         # a pre-commit hook exports GIT_DIR/GIT_INDEX_FILE: the temp checkout's git must not act on the real one
         for k in [k for k in os.environ if k == 'CONFIG' or k.startswith('GIT_')]:
             del os.environ[k]
+        # tools/build.py as unverified_examples() imports it: cmake has configured cdc alone
+        self.registered = {'cdc'}
+        self.tools_build = types.SimpleNamespace(cmake_registered_targets=lambda d: self.registered)
+        for patch in (mock.patch.dict(sys.modules, {'build': self.tools_build}), mock.patch.object(sys, 'path', list(sys.path))):
+            patch.start()
+            self.addCleanup(patch.stop)
         (self.root / 'test/hil').mkdir(parents=True)
         (self.root / 'test/hil/hil_test.py').write_text('')
         (self.root / 'test/hil/tinyusb.json').write_text(json.dumps(self.CONFIG))
@@ -175,8 +183,7 @@ class BuildReceipts(unittest.TestCase):
         self.commit('base')
         for v in ('a', 'a-dma', 'b'):
             d = self.dir(v)
-            d.mkdir(parents=True)
-            (d / 'cdc.elf').write_text(v)
+            self.example(v, 'device/cdc').write_text(v)
             (d / 'flash_args').write_text('--x')
             (d / 'build.ninja').write_text('not staged')
         self.receipt = self.root / '.hil-remote/build.json'  # its dir does not exist before the first run
@@ -191,15 +198,25 @@ class BuildReceipts(unittest.TestCase):
     def dir(self, variant):
         return self.root / 'cmake-build' / f'cmake-build-{variant}'
 
+    def example(self, variant, example, suffix='.elf'):
+        """The firmware path of example role/name in a variant dir, its dir created."""
+        d = self.dir(variant) / example
+        d.mkdir(parents=True, exist_ok=True)
+        return d / f'{Path(example).name}{suffix}'
+
+    def head(self):
+        return subprocess.run(['git', '-C', str(self.root), 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()
+
     def check(self, *boards):
         dirs = [d for b in boards for d in hil_remote.variant_dirs(self.CONFIG, 'cmake-build', b)]
         hil_remote.check_receipt(self.receipt, (self.root / 'test/hil/tinyusb.json').resolve(), list(boards),
                                  dirs, [d for d in dirs if d.is_dir()])
 
-    def write(self, *boards):
+    def write(self, *boards, head=None):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            rc = hil_remote.main(['receipt', '--out', str(self.receipt), *(x for b in boards for x in ('-b', b))])
+            rc = hil_remote.main(['receipt', '--out', str(self.receipt), '--head', head or self.head(),
+                                  *(x for b in boards for x in ('-b', b))])
         return rc, json.loads(out.getvalue())
 
     def refused(self, fn, *argv):
@@ -211,20 +228,52 @@ class BuildReceipts(unittest.TestCase):
         rc, out = self.write('a', 'b')
         self.assertEqual(rc, 0)
         receipt = json.loads(self.receipt.read_text())
-        head = subprocess.run(['git', '-C', str(self.root), 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()
-        self.assertEqual((receipt['head'], receipt['boards'], out['files']), (head, ['a', 'b'], 6))
+        self.assertEqual((receipt['head'], receipt['boards'], out['files']), (self.head(), ['a', 'b'], 6))
         self.assertEqual(sorted(receipt['files']), sorted(f'cmake-build/cmake-build-{v}/{f}' for v in ('a', 'a-dma', 'b')
-                                                           for f in ('cdc.elf', 'flash_args')), 'build.ninja is not staged')
+                                                           for f in ('device/cdc/cdc.elf', 'flash_args')), 'build.ninja is not staged')
         self.check('a', 'b')
         self.check('b')  # a retry of a subset
 
     def test_an_unbuilt_variant_gets_no_receipt(self):
-        (self.dir('a-dma') / 'cdc.elf').unlink()
+        self.example('a-dma', 'device/cdc').unlink()
         self.assertIn('not built: cmake-build/cmake-build-a-dma', self.refused(self.write, 'a'), 'flash_args alone is no firmware')
-        for f in ('flash_args', 'build.ninja'):
-            (self.dir('a-dma') / f).unlink()
-        self.dir('a-dma').rmdir()
+        probe = self.dir('a-dma') / 'CMakeFiles/4.1.2/CMakeDetermineCompilerABI_C.bin'
+        probe.parent.mkdir(parents=True)
+        probe.write_text('compiler probe')
+        self.assertIn('not built: cmake-build/cmake-build-a-dma', self.refused(self.write, 'a'), 'a configure alone is no firmware')
+        shutil.rmtree(self.dir('a-dma'))
         self.assertIn('not built: cmake-build/cmake-build-a-dma', self.refused(self.write, 'a'))
+
+    def test_firmware_of_an_example_the_build_does_not_build_gets_no_receipt(self):
+        self.example('b', 'device/old').write_text('left by an earlier configure')
+        self.assertIn('firmware of an example the build does not build: cmake-build/cmake-build-b/device/old',
+                      self.refused(self.write, 'b'))
+        self.registered = {'cdc', 'old'}
+        self.assertEqual(self.write('b')[0], 0)
+
+    def test_a_dir_cmake_cannot_list_gets_no_receipt(self):
+        self.registered = None
+        self.assertIn('cmake cannot list the targets of cmake-build/cmake-build-b', self.refused(self.write, 'b'))
+
+    def test_espressif_firmware_is_checked_against_the_examples_its_build_attempts(self):
+        (self.root / 'hw/bsp/espressif/boards/b').mkdir(parents=True)
+        self.tools_build.get_examples = lambda family: ['device/cdc', 'device/skipped']
+        self.tools_build.build_utils = types.SimpleNamespace(skip_example=lambda e, board: e == 'device/skipped')
+        self.tools_build.cmake_registered_targets = None  # idf lists no <name>.elf target
+        for f in ('bootloader/bootloader.elf', 'partition_table/partition-table.bin'):
+            (self.dir('b') / 'device/cdc' / f).parent.mkdir()
+            (self.dir('b') / 'device/cdc' / f).write_text('idf')
+        self.assertEqual(self.write('b')[0], 0)
+        self.example('b', 'device/skipped').write_text('skipped this build')
+        self.assertIn('does not build: cmake-build/cmake-build-b/device/skipped', self.refused(self.write, 'b'))
+
+    def test_a_commit_during_the_build_gets_no_receipt(self):
+        began = self.head()
+        (self.root / 'README').write_text('x')
+        self.commit('landed during the build')
+        self.assertIn(f'not {began[:12]} the build began at', self.refused(lambda: self.write('b', head=began)))
+        self.assertFalse(self.receipt.exists())
+        self.assertIn('receipt needs --head', self.refused(hil_remote.main, ['receipt', '--out', str(self.receipt), '-b', 'b']))
 
     def test_a_tree_that_is_not_clean_gets_no_receipt(self):
         (self.root / 'src.h').write_text('untracked source a build could read')
@@ -235,16 +284,15 @@ class BuildReceipts(unittest.TestCase):
 
     def test_a_rebuilt_or_removed_artifact_is_refused(self):
         self.write('a', 'b')
-        (self.dir('a') / 'cdc.elf').write_text('rebuilt')
+        self.example('a', 'device/cdc').write_text('rebuilt')
         (self.dir('b') / 'flash_args').unlink()
         why = self.refused(self.check, 'a', 'b')
-        self.assertIn('2 staged file(s) differ from it, first cmake-build/cmake-build-a/cdc.elf, cmake-build/cmake-build-b/flash_args', why)
+        self.assertIn('2 staged file(s) differ from it, first cmake-build/cmake-build-a/device/cdc/cdc.elf, '
+                      'cmake-build/cmake-build-b/flash_args', why)
 
     def test_a_variant_dir_removed_since_is_refused(self):
         self.write('a')
-        for f in self.dir('a-dma').iterdir():
-            f.unlink()
-        self.dir('a-dma').rmdir()
+        shutil.rmtree(self.dir('a-dma'))
         self.assertIn('2 staged file(s) differ from it, first cmake-build/cmake-build-a-dma/', self.refused(self.check, 'a'))
 
     def test_a_harness_edited_since_is_refused(self):
@@ -269,7 +317,7 @@ class BuildReceipts(unittest.TestCase):
 
     def test_a_run_checks_the_receipt_before_touching_the_rig(self):
         self.write('b')
-        (self.dir('b') / 'cdc.elf').write_text('rebuilt')
+        self.example('b', 'device/cdc').write_text('rebuilt')
         self.assertIn('staged file(s) differ', self.refused(hil_remote.main, ['--receipt', str(self.receipt), '-b', 'b']))
 
 
@@ -283,10 +331,11 @@ class CheckBuildReceipt(unittest.TestCase):
         spec.loader.exec_module(cls.cb)
 
     def main(self, *argv, status='', receipt=None, built='ok'):
-        written = []
+        written, self.order = [], []
         cb = self.cb
         with mock.patch.object(cb, 'git_status', return_value=status), \
-                mock.patch.object(cb, 'build_one', lambda b, *a, **k: {'board': b, 'status': built}), \
+                mock.patch.object(cb, 'git_head', lambda: self.order.append('head') or 'h0'), \
+                mock.patch.object(cb, 'build_one', lambda b, *a, **k: self.order.append('build') or {'board': b, 'status': built}), \
                 mock.patch.object(cb, 'write_receipt', lambda *a: written.append(a) or (receipt or {'head': 'abc'})), \
                 contextlib.redirect_stdout(io.StringIO()) as out, contextlib.redirect_stderr(io.StringIO()):
             try:
@@ -298,7 +347,8 @@ class CheckBuildReceipt(unittest.TestCase):
     def test_a_passing_build_writes_the_receipt_of_its_boards(self):
         rc, out, written = self.main('--receipt', 'r.json')
         self.assertEqual((rc, out['pass'], out['receipt']), (0, True, {'head': 'abc'}))
-        self.assertEqual(written, [('r.json', ['raspberry_pi_pico'], 'test/hil/tinyusb.json')])
+        self.assertEqual(written, [('r.json', 'h0', ['raspberry_pi_pico'], 'test/hil/tinyusb.json')])
+        self.assertEqual(self.order, ['head', 'build'], 'the receipt checks HEAD against the one the build began at')
 
     def test_no_receipt_without_every_example_or_from_a_dirty_tree(self):
         for argv, status, why in ((['-e', 'device/cdc_msc'], '', 'every example'), ([], ' M src/tusb.c', 'clean tree before the build')):
