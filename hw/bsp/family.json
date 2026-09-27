@@ -517,6 +517,24 @@
       }
     }
   },
+  "ch32x035": {
+    "weact_ch32x035_core_board": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "CH32X035"
+        ],
+        "mcu": "OPT_MCU_CH32X035",
+        "options": {},
+        "portable": [
+          "wch/dcd_ch32_usbfs.c"
+        ],
+        "roles": [
+          "device"
+        ]
+      }
+    }
+  },
   "ch583": {
     "ch582m_evt": {
       "cmake": {
