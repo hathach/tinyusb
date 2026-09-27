@@ -9,6 +9,7 @@ import io
 import json
 import os
 import re
+import shutil
 import signal
 import struct
 import subprocess
@@ -820,7 +821,7 @@ class BuildOutput(unittest.TestCase):
         self.assertEqual(self.error(''), 'no output')
 
     def test_ninjas_own_error_is_kept(self):
-        # `cmake --build --target <ex>` of an unknown target: ninja's error is the only output
+        # `ninja -C <dir> <ex>` of an unknown target: its error is the only output
         self.assertEqual(self.error('', "ninja: error: unknown target 'foo', did you mean '.'?\n"),
                          "ninja: error: unknown target 'foo', did you mean '.'?")
 
@@ -848,39 +849,46 @@ class BuildOutput(unittest.TestCase):
              contextlib.redirect_stdout(io.StringIO()):
             self.assertIsNone(sd.build_board(tmp, os.path.join(tmp, 'b'), 'b', None, 'build'))
 
-    def test_a_timeout_kills_the_grandchildren_and_keeps_the_output_as_text(self):
-        # as cmake's ninja and compilers are: a grandchild holding the output pipes
-        ret = sd.run(['sh', '-c', 'printf err >&2; sleep 30 & echo $!; wait'], timeout=1)
+    def test_the_build_step_runs_ninja_for_the_example_with_a_timeout(self):
+        ok = subprocess.CompletedProcess([], 0, '', '')
+        with tempfile.TemporaryDirectory() as tmp, \
+             mock.patch.object(sd, 'run', return_value=ok) as run, \
+             contextlib.redirect_stdout(io.StringIO()):
+            sd.build_board(tmp, os.path.join(tmp, 'b'), 'b', 'device/ex', 'build')
+        self.assertEqual(run.call_args, mock.call(['ninja', '-C', os.path.join(tmp, 'b'), 'ex'], timeout=600))
+
+    def test_a_timeout_returns_124_and_keeps_the_output_as_text(self):
+        ret = sd.run(['sh', '-c', 'printf err >&2; echo out; exec sleep 30'], timeout=1)
         self.assertEqual(ret.returncode, 124)
+        self.assertEqual(ret.stdout, 'out\n')
         self.assertTrue(ret.stderr.startswith('err\nCommand timed out after 1s'))
+
+    def test_a_command_ignoring_sigterm_is_killed_after_the_grace(self):
+        with mock.patch.object(sd, 'TERMINATE_GRACE', 0.5):
+            ret = sd.run(['sh', '-c', "trap '' TERM; echo $$; while :; do sleep 0.1; done"], timeout=1)
+        self.assertEqual(ret.returncode, 124)
         self.assertTrue(_dies(int(ret.stdout)))
 
-    def test_sigterm_kills_the_command_group_and_exits(self):
-        # as GNU timeout, a closed terminal or a harness stopping code_size.py mid-build
+    @unittest.skipUnless(shutil.which('ninja'), 'needs ninja')
+    def test_a_timed_out_ninja_stops_its_jobs(self):
+        # ninja runs each job in a process group of its own, as it does the compilers
         with tempfile.TemporaryDirectory() as tmp:
-            pid_file = os.path.join(tmp, 'pid')
-            script = ('import sys; sys.path.insert(0, sys.argv[1]); import code_size as sd; '
-                      'sd.exit_on_termination(); '
-                      'sd.run(["sh", "-c", f"echo $$ > {sys.argv[2]}.tmp && mv {sys.argv[2]}.tmp {sys.argv[2]} '
-                      '&& exec sleep 30"])')
-            child = subprocess.Popen([sys.executable, '-c', script, os.path.join(REPO, 'tools'), pid_file])
-            grandchild = None
-            try:
-                deadline = time.monotonic() + 10
-                while not os.path.exists(pid_file) and time.monotonic() < deadline:
-                    self.assertIsNone(child.poll())
-                    time.sleep(0.02)
-                with open(pid_file) as f:
-                    grandchild = int(f.read())
-                child.send_signal(signal.SIGTERM)
-                self.assertEqual(child.wait(timeout=10), 128 + signal.SIGTERM)
-                self.assertTrue(_dies(grandchild))
-            finally:
-                child.kill()
-                child.wait()
-                if grandchild:
-                    with contextlib.suppress(ProcessLookupError):
-                        os.kill(grandchild, signal.SIGKILL)
+            with open(os.path.join(tmp, 'build.ninja'), 'w') as f:
+                f.write('rule job\n  command = sh -c \'echo $$$$ > $out.pid; exec sleep 30\'\n'
+                        'build a: job\nbuild b: job\n')
+            ret = sd.run(['ninja', '-C', tmp, '-j', '2'], timeout=1)
+            pids = []
+            for target in 'ab':
+                with open(os.path.join(tmp, f'{target}.pid')) as f:
+                    pids.append(int(f.read()))
+        try:
+            self.assertEqual(ret.returncode, 124)
+            self.assertIn('Command timed out after 1s', ret.stderr)
+            self.assertTrue(all(_dies(pid) for pid in pids))
+        finally:
+            for pid in pids:
+                with contextlib.suppress(ProcessLookupError):
+                    os.kill(pid, signal.SIGKILL)
 
 
 def _dies(pid, timeout=5):
@@ -1019,6 +1027,22 @@ class MainFailure(unittest.TestCase):
             rc, out = self._run_main(tmp, ['-b', 'b'], build, lambda *_a, **_k: next(side_sizes), run)
         self.assertEqual(rc, 1)
         self.assertIn('Error removing worktree', out)
+
+    def test_a_leftover_worktree_is_removed_even_when_locked(self):
+        # a killed `git worktree add` leaves it locked, which one --force refuses
+        failed = subprocess.CompletedProcess([], 128, '', 'fatal: stop after the add')
+        cmds = []
+
+        def run(cmd, **_kwargs):
+            cmds.append(cmd)
+            return failed
+        with tempfile.TemporaryDirectory() as tmp:
+            worktree = os.path.join(tmp, '_worktree')
+            os.makedirs(worktree)
+            with self.assertRaises(SystemExit):
+                self._run_main(tmp, ['-b', 'b'], mock.Mock(), run=run)
+        self.assertEqual(cmds[0], ['git', '-C', sd.TINYUSB_ROOT, 'worktree', 'remove', '--force', '--force', worktree])
+        self.assertEqual(cmds[1][3:5], ['worktree', 'add'])
 
     def test_several_elfs_of_one_example_label_their_tables(self):
         with tempfile.TemporaryDirectory() as tmp:

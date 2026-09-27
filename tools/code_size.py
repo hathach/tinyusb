@@ -35,7 +35,6 @@ Usage:
 import argparse
 import collections
 import concurrent.futures
-import contextlib
 import csv
 import functools
 import glob
@@ -47,7 +46,6 @@ import re
 import runpy
 import shlex
 import shutil
-import signal
 import struct
 import subprocess
 import sys
@@ -702,39 +700,33 @@ def tinyusb_src_filter(checkout_dir):
 
 
 verbose = False
+TERMINATE_GRACE = 10  # s a timed-out command gets to exit on SIGTERM before SIGKILL
 
 
 def run(cmd, timeout=None):
-    """Run a command. cmd must be a list (no shell=True). On `timeout`, kill the
-    command's whole process group (cmake's ninja and compilers too) and return a
-    CompletedProcess with rc=124 instead of raising TimeoutExpired, so the caller can
-    fall through to error reporting and worktree cleanup rather than crashing with a
-    traceback."""
+    """Run a command. cmd must be a list (no shell=True). On `timeout`, SIGTERM the
+    command, SIGKILL it if it outlives a grace period, and return a CompletedProcess
+    with rc=124 instead of raising TimeoutExpired, so the caller can fall through to
+    error reporting and worktree cleanup rather than crashing with a traceback."""
     if not isinstance(cmd, list):
         raise TypeError('run() requires a list, got str — fix the caller')
     if verbose:
         print(f'  $ {" ".join(shlex.quote(str(c)) for c in cmd)}')
-    with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-                          start_new_session=True) as proc:
+    # the command stays in our process group, so Ctrl-C or a hangup reaches it directly
+    with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as proc:
         try:
             out, err = proc.communicate(timeout=timeout)
-        except BaseException as e:
-            # its own session keeps Ctrl-C from the group too, so kill it on any exit
-            with contextlib.suppress(ProcessLookupError):
-                os.killpg(proc.pid, signal.SIGKILL)
-            if not isinstance(e, subprocess.TimeoutExpired):
-                raise
-            out, err = proc.communicate()
+        except subprocess.TimeoutExpired:
+            # SIGTERM lets ninja stop its jobs, which it runs in process groups of their own
+            proc.terminate()
+            try:
+                out, err = proc.communicate(timeout=TERMINATE_GRACE)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                out, err = proc.communicate()
             msg = f'Command timed out after {timeout}s: {" ".join(shlex.quote(str(c)) for c in cmd)}'
             return subprocess.CompletedProcess(cmd, 124, stdout=out, stderr=err + ('\n' if err else '') + msg)
     return subprocess.CompletedProcess(cmd, proc.returncode, stdout=out, stderr=err)
-
-
-def exit_on_termination():
-    """Exit on SIGTERM and SIGHUP as on Ctrl-C: through run()'s process-group kill
-    and main()'s worktree removal, instead of dying and orphaning the build."""
-    for signum in (signal.SIGTERM, signal.SIGHUP):
-        signal.signal(signum, lambda sig, _frame: sys.exit(128 + sig))
 
 
 def symlink_deps(main_root, worktree_dir):
@@ -813,7 +805,7 @@ def build_board(src_dir, build_dir, board, example, label):
     """Configure and build examples for a board as a `label` progress phase, printing
     an excerpt of the output on failure. Returns None on success, else build_error().
 
-    When `example` is given, only that target is built (`cmake --build --target NAME`),
+    When `example` is given, only that target is built (`ninja -C DIR NAME`),
     keeping single-example workflows fast.
     """
     phase = Phase(label)
@@ -822,9 +814,10 @@ def build_board(src_dir, build_dir, board, example, label):
                f'-DBOARD={board}', '-DCMAKE_BUILD_TYPE=MinSizeRel',
                os.path.join(src_dir, 'examples')])
     if ret.returncode == 0:
-        cmd = ['cmake', '--build', build_dir]
+        # ninja itself, not `cmake --build`: cmake does not pass a timeout's SIGTERM on
+        cmd = ['ninja', '-C', build_dir]
         if example:
-            cmd += ['--target', os.path.basename(example)]
+            cmd.append(os.path.basename(example))
         ret = run(cmd, timeout=600)
     failed = ret.returncode != 0
     phase.done(failed=failed)
@@ -1116,7 +1109,8 @@ def main():
     drop_stale_reports(args.board, examples, 'diff')
 
     if os.path.isdir(worktree_dir):
-        run(['git', '-C', TINYUSB_ROOT, 'worktree', 'remove', '--force', worktree_dir])
+        # twice: a killed `worktree add` leaves it locked `initializing`
+        run(['git', '-C', TINYUSB_ROOT, 'worktree', 'remove', '--force', '--force', worktree_dir])
     # --detach: check out the ref at a detached HEAD instead of trying to claim the
     # branch. Lets us add a worktree of `master` even if master is already checked
     # out elsewhere (main repo, another worktree).
@@ -1244,5 +1238,4 @@ def main():
 
 
 if __name__ == '__main__':
-    exit_on_termination()
     sys.exit(main())
