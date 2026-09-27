@@ -841,18 +841,23 @@ class BuildOutput(unittest.TestCase):
         ret = sd.run(['sh', '-c', 'printf err >&2; sleep 30 & echo $!; wait'], timeout=1)
         self.assertEqual(ret.returncode, 124)
         self.assertTrue(ret.stderr.startswith('err\nCommand timed out after 1s'))
-        grandchild = int(ret.stdout)
+        self.assertTrue(_dies(int(ret.stdout)))
 
-        def running():
-            try:
-                with open(f'/proc/{grandchild}/stat') as f:
-                    return f.read().rpartition(')')[2].split()[0] != 'Z'
-            except OSError:  # reaped
-                return False
-        deadline = time.monotonic() + 5
-        while running() and time.monotonic() < deadline:
-            time.sleep(0.05)
-        self.assertFalse(running())
+
+def _dies(pid, timeout=5):
+    """Whether `pid` ends within `timeout` seconds, by the last /proc read: a reaped
+    process passes zombie (Z), dead (X), gone."""
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            with open(f'/proc/{pid}/stat') as f:
+                if f.read().rpartition(')')[2].split()[0] in ('Z', 'X'):
+                    return True
+        except OSError:  # reaped
+            return True
+        if time.monotonic() > deadline:
+            return False
+        time.sleep(0.05)
 
 
 class ShortHash(unittest.TestCase):
