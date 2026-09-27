@@ -3,6 +3,7 @@ manufacturer: WCH
 */
 
 #include <stdio.h>
+#include <string.h>
 
 // https://github.com/openwch/ch32v307/pull/90
 // https://github.com/openwch/ch32v20x/pull/12
@@ -128,14 +129,12 @@ uint32_t board_button_read(void) {
 }
 
 size_t board_get_unique_id(uint8_t id[], size_t max_len) {
-  (void)max_len;
   volatile uint32_t *ch32_uuid = ((volatile uint32_t *)0x1FFFF7E8UL);
-  uint32_t          *serial_32 = (uint32_t *)(uintptr_t)id;
-  serial_32[0]                 = ch32_uuid[0];
-  serial_32[1]                 = ch32_uuid[1];
-  serial_32[2]                 = ch32_uuid[2];
+  uint32_t uid[3] = {ch32_uuid[0], ch32_uuid[1], ch32_uuid[2]};
+  size_t len = TU_MIN(max_len, sizeof(uid));
+  memcpy(id, uid, len);
 
-  return 12;
+  return len;
 }
 
 int board_uart_read(uint8_t *buf, int len) {
