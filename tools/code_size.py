@@ -719,6 +719,13 @@ def run(cmd, timeout=None):
     return subprocess.CompletedProcess(cmd, proc.returncode, stdout=out, stderr=err)
 
 
+def exit_on_termination():
+    """Exit on SIGTERM and SIGHUP as on Ctrl-C: through run()'s process-group kill
+    and main()'s worktree removal, instead of dying and orphaning the build."""
+    for signum in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(signum, lambda sig, _frame: sys.exit(128 + sig))
+
+
 def symlink_deps(main_root, worktree_dir):
     """Symlink each dependency the worktree's own tools/get_deps.py lists, when fetched in
     the main checkout: the worktree lacks these untracked dirs, and a base revision can
@@ -1219,4 +1226,5 @@ def main():
 
 
 if __name__ == '__main__':
+    exit_on_termination()
     sys.exit(main())

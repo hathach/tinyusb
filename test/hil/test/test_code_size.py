@@ -9,6 +9,7 @@ import io
 import json
 import os
 import re
+import signal
 import struct
 import subprocess
 import sys
@@ -842,6 +843,33 @@ class BuildOutput(unittest.TestCase):
         self.assertEqual(ret.returncode, 124)
         self.assertTrue(ret.stderr.startswith('err\nCommand timed out after 1s'))
         self.assertTrue(_dies(int(ret.stdout)))
+
+    def test_sigterm_kills_the_command_group_and_exits(self):
+        # as GNU timeout, a closed terminal or a harness stopping code_size.py mid-build
+        with tempfile.TemporaryDirectory() as tmp:
+            pid_file = os.path.join(tmp, 'pid')
+            script = ('import sys; sys.path.insert(0, sys.argv[1]); import code_size as sd; '
+                      'sd.exit_on_termination(); '
+                      'sd.run(["sh", "-c", f"echo $$ > {sys.argv[2]}.tmp && mv {sys.argv[2]}.tmp {sys.argv[2]} '
+                      '&& exec sleep 30"])')
+            child = subprocess.Popen([sys.executable, '-c', script, os.path.join(REPO, 'tools'), pid_file])
+            grandchild = None
+            try:
+                deadline = time.monotonic() + 10
+                while not os.path.exists(pid_file) and time.monotonic() < deadline:
+                    self.assertIsNone(child.poll())
+                    time.sleep(0.02)
+                with open(pid_file) as f:
+                    grandchild = int(f.read())
+                child.send_signal(signal.SIGTERM)
+                self.assertEqual(child.wait(timeout=10), 128 + signal.SIGTERM)
+                self.assertTrue(_dies(grandchild))
+            finally:
+                child.kill()
+                child.wait()
+                if grandchild:
+                    with contextlib.suppress(ProcessLookupError):
+                        os.kill(grandchild, signal.SIGKILL)
 
 
 def _dies(pid, timeout=5):
