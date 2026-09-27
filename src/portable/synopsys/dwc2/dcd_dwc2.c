@@ -631,6 +631,7 @@ void dcd_edpt_close_all(uint8_t rhport) {
 
   // Disable non-control interrupt
   dwc2->daintmsk = (1 << DAINTMSK_OEPM_Pos) | (1 << DAINTMSK_IEPM_Pos);
+  dwc2->diepempmsk = 0;
 
   for (uint8_t n = 1; n < ep_count; n++) {
     for (uint8_t d = 0; d < 2; d++) {
@@ -758,6 +759,7 @@ static void handle_bus_reset(uint8_t rhport) {
   dwc2_regs_t *dwc2 = DWC2_REG(rhport);
   const uint8_t ep_count =  dwc2_ep_count(dwc2);
 
+  dwc2->diepempmsk = 0;
   tu_memclr(xfer_status, sizeof(xfer_status));
 
   _dcd_data.ep0_pending[TUSB_DIR_OUT] = 0;

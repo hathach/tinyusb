@@ -85,7 +85,9 @@ See the `usb-kernel-recover` skill for what a real wedge looks like and how to c
 
 ## Prerequisites
 
-Examples must be built for the target board(s) — see [Build and Validate](../../../CLAUDE.md#build-and-validate). For a **local** run the `build` skill's `--shared` produces `cmake-build/cmake-build-<board>/`, the folder `hil_test.py` flashes from by default. A **remote** run stages the same folder; see Remote execution below. (This applies to `hil_test.py`; `hil_pool_check.py` builds its own missing firmware.)
+Examples must be built for the target board(s) — see [Build and Validate](../../../CLAUDE.md#build-and-validate). Build them with the `build` skill's `--shared --variants <config>`, naming the HIL config the run uses: it writes the `cmake-build/cmake-build-<variant>/` folders `hil_test.py` flashes from by default, each with its variant's `flags` and `defines`, and refuses a folder still configured with options neither the variant nor the command line supplies. A local `hil_test.py --build` runs that same build for the selected boards first. A **remote** run stages the same folders; see Remote execution below. (This applies to `hil_test.py`; `hil_pool_check.py` builds its own missing firmware.)
+
+A bare `--shared` takes nothing from the roster and builds only `cmake-build-<board>/`, so a self-named variant is built without its flags (`raspberry_pi_pico`'s `CFG_TUH_RPI_PIO_USB=1`) and any other variant stays unbuilt. An unbuilt variant's tests report `Skip (no binary)` without failing the run (`stm32f723disco-DMA` goes untested). On a run of one test per variant (a single-test `-bt`, or `-t` tests the board's `only` or capabilities leave at one) without `--skip-flash`, a later unbuilt variant instead fails `same-PID boundary ... not cleared (no board_test binary)`, naming `board_test`, not the missing build.
 
 A board whose flasher probe has no VCOM (or whose BSP has no UART) uses RTT as its console — "No serial device found for /dev/serial/by-id/…" on every host test is the symptom. Config: `"logger": "rtt"` (jlink flashers only) plus a self-named variant carrying the define — `"variant": [{"name": "<board>", "defines": ["LOGGER=rtt"]}]` — and prebuilt example sets must carry the same `-DLOGGER=rtt`. Caveat: the cdc/msc-fixture host tests don't speak RTT yet, so such a board cannot carry `is_cdc`/`is_msc` fixtures (the config loader rejects it). Details: the `rtt` skill.
 
@@ -115,13 +117,13 @@ python3 test/hil/hil_test.py -b stm32f723disco "$CONFIG"
 `scripts/hil_remote.py` takes `hil_test.py`'s own arguments, minus the config. It stages the harness, the config and the firmware the run will read under `-B` (default `cmake-build`, the `build` skill's `--shared` layout), runs `hil_test.py` on `ci.lan` with `tinyusb.json`, and copies the report pair and `<config>.failed` back to the checkout root:
 
 ```bash
-R=.claude/skills/hil/scripts/hil_remote.py
 # All boards built under cmake-build/:
-python3 $R
-
+python3 .claude/skills/hil/scripts/hil_remote.py
 # A subset — repeat -b, ONE invocation for the whole set:
-python3 $R -b raspberry_pi_pico2 -b stm32f723disco -t host/cdc_msc_hid -r 1
+python3 .claude/skills/hil/scripts/hil_remote.py -b raspberry_pi_pico2 -b stm32f723disco -t host/cdc_msc_hid -r 1
 ```
+
+An agent launches it with `--run-id` and waits on it as Timing says.
 
 One invocation per board is wrong here, not merely slow: each run `rm -rf`s `REMOTE_DIR`
 and rewrites the report, so only the last board's rows survive. A second run sharing
@@ -132,10 +134,35 @@ Before touching the rig it refuses a board not in the config, then applies `--fl
 `--exclude-flasher` (`no board left after the flasher filter` when none survives), then refuses a
 requested board the filter kept with none of its `<-B>/cmake-build-<variant>` dirs, naming the dirs
 it looked for (a variant's build flags are in the config); a board the filter drops needs no build.
-Without `-b` it refuses with `nothing to test` when no board the filter kept is built, and skips
-unbuilt variants silently. With `-b` it also warns for each variant of a requested board with no
-build, whose cells would be skipped rather than tested. `--build` is refused: the rig receives
-binaries only.
+Without `-b` it refuses with `nothing to test` when no board the filter kept is built, and stages
+what is built without a word about unbuilt variants. With `-b` it also warns for each variant of a
+requested board with no build; Prerequisites says what `hil_test.py` then reports for it. `--build` is
+refused: the rig receives binaries only.
+
+A delegated run is bound to its build: the build writes a build receipt of the HEAD it built,
+and the run passes it, refusing before it touches the rig when HEAD, the roster or a staged file
+no longer match it, or a tracked file (the harness it stages, the roster) has changed since HEAD
+(rebuild, which writes a new one). A retry of a subset of those boards reuses
+it; a local `hil_test.py` run takes none.
+
+```bash
+python3 .claude/skills/build/scripts/check_build.py --board raspberry_pi_pico2 --board stm32f723disco --shared --variants test/hil/tinyusb.json --receipt .hil-remote/build-1790000000.json
+python3 .claude/skills/hil/scripts/hil_remote.py --run-id hil-1790000000 --receipt .hil-remote/build-1790000000.json -b raspberry_pi_pico2 -b stm32f723disco
+```
+
+The build refuses a receipt for a tree that is not clean before or after it (commit a
+`hw/bsp/family.json` it rewrote, then build again). `.hil-remote/` is ignored.
+
+A CI firmware artifact is the one delegated run without a receipt: download it straight into a
+fresh `-B` dir under `cmake-build/`, never a symlink to it (the staging rsync would copy the link).
+Run it from a checkout whose harness and roster match the artifact's head, since those are staged
+from the checkout. Report the artifact's name, run, head and staged sha256s beside the results.
+
+```bash
+mkdir -p cmake-build && mkdir cmake-build/ci-36166669952
+gh run download 36166669952 -n 'binaries-arm-gcc--b raspberry_pi_pico_w' -D cmake-build/ci-36166669952
+python3 .claude/skills/hil/scripts/hil_remote.py --run-id hil-1790000000 -B cmake-build/ci-36166669952 -b raspberry_pi_pico_w
+```
 
 Exit 200 means the remote tree stopped being this run's after staging (another run sharing
 `REMOTE_DIR` replaced it): `hil_test.py` did not run and nothing was copied back, so any local
@@ -148,9 +175,31 @@ Env overrides: `REMOTE`, `REMOTE_DIR`, `CONFIG`, `ROOT_DIR`.
 Runs take 2-5 min per board, but a stuck fleet runs to `HIL_POOL_TIMEOUT` — 60 min
 unless the env pins it. The run logs its guard in the startup line; never declare a run
 stuck before THAT value has elapsed.
-The Bash tool caps a foreground timeout at 10 min, so **run it in the background** and
-wait for the completion notification -- never a foreground timeout, which would kill
-the run before its own guard can write a report. NEVER cancel early.
+The Bash tool caps a foreground timeout at 10 min, so **run it in the background** --
+never a foreground timeout, which would kill the run before its own guard can write a
+report. NEVER cancel early.
+
+A remote run is launched once, in the background, with a new `--run-id` (a used one is
+refused), then waited on in the foreground; write the id literally in both calls, since a shell
+variable does not survive from one tool call to the next:
+
+```bash
+# Bash run_in_background: true; a delegated run adds its --receipt (Remote execution)
+python3 .claude/skills/hil/scripts/hil_remote.py --run-id hil-1790000000 --receipt .hil-remote/build-1790000000.json -b raspberry_pi_pico2 -b stm32f723disco
+# foreground, Bash timeout 600000
+python3 .claude/skills/hil/scripts/hil_remote.py wait hil-1790000000
+```
+
+`wait` blocks up to 9.5 min and prints one JSON line:
+
+- `done` (exit 0): the run's `exit` and the `reports` it copied back. Read only those; an
+  empty list means no report is from this run, whatever the checkout holds.
+- `running` (exit 3): call `wait` again.
+- `dead` (exit 4): the run ended without its done record (killed, or its session died); no
+  local report is from it.
+
+Never spend a tool call only to check on a run or to pass time: the next call is `wait`.
+A local `hil_test.py` run has no done record; wait for its completion notification.
 
 ## Reporting
 
@@ -216,19 +265,28 @@ PREFIX, since each carries trailing detail and two are blockquotes:
 - `**HIL run abandoned: worker pool timed out after …s.**` and
   `**HIL run aborted: a worker raised …**` — the pool guard fired, or a worker crashed. The
   banner counts what happened: "N board(s) below finished and are this run's; K never
-  reported and are NOT in the table: <names>". The N finished boards' rows are this run's:
-  report them. The K named boards are not this run's whatever the table shows — on a fresh
-  run they have no row, on an `--accumulate` retry a previous attempt's row survives under
-  the banner and `hil_report.py` still folds it into `results` as ran — so name them as not
-  run; the `<config>.failed` re-run spec covers them. Never `"pass": true`.
+  reported and are NOT in the table: <names>. The re-run spec covers those", plus, when
+  `check_build.py` refused a board under `--build`, ", and the M whose build check_build.py
+  refused: <names>." The N finished boards' rows are this run's: report them. The K named
+  boards are not this run's whatever the table shows — on a fresh run they have no row, on
+  an `--accumulate` retry a previous attempt's row survives under the banner and
+  `hil_report.py` still folds it into `results` as ran — so name them as not run. The M
+  refused boards DO have a `build refused` row, reported ran=false/pass=false (not run,
+  failed), but sit outside N; the `<config>.failed` re-run spec covers both K and M. Never
+  `"pass": true`.
 - `**HIL run abandoned: the worker pool would not shut down.**` — DIFFERENT: the table
   below IS this run's, but the pool could not be shut down afterwards (the job exits
   non-zero even if every board passed). Report the results AND the abandonment; never
   `"pass": true`.
-- `**HIL run selected no boards.**` — the filters intersected to nothing. A fresh run shows
-  no table; an `--accumulate` run keeps the previous attempt's rows under the notice, and
-  they are not this run's. Report the empty selection (and the filter shown), never
-  `"pass": true`.
+- `**HIL run selected no boards.**` — the filters intersected to nothing, or, under
+  `--build`, `check_build.py` refused every board. On the filter case, a fresh run shows no
+  table; an `--accumulate` run keeps the previous attempt's rows under the notice, and they
+  are not this run's. On the all-refused-build case, a fresh run AND an `--accumulate` run
+  alike instead write every board's `build refused` row as this run's — report them
+  ran=false/pass=false; `--accumulate` also keeps an earlier LOCKED/WEDGED cell for that
+  board, and the `<config>.failed` re-run spec is written or refreshed to name the boards.
+  Either way the exit code is nonzero. Report what the message shows (the filter, or the
+  refused boards), never `"pass": true`.
 - `> **Rig note.**` — a process was in D state when the run started. This is NOT a wedge:
   a healthy in-flight testusb is uninterruptible for most of every case, and the rig
   supports a dev run alongside CI. On its own it is never `wedged: true` and never turns a

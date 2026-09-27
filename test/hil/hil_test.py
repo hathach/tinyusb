@@ -62,7 +62,7 @@ from multiprocessing import TimeoutError as MpTimeoutError
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # PYTHONSAFEPATH drops it
 import hil_flash
-import usbtest    # for the recovery bounds only; hil_test runs it as a subprocess
+import usbtest    # the recovery bounds and the id registration; batteries run it as a subprocess
 from helper import hil_args, hil_health, hil_lock, hil_recover, hil_report, hil_util
 from helper.hil_util import device_tests, dual_tests, host_test
 
@@ -208,7 +208,7 @@ class Board(TypedDict):
     flasher: FlasherCfg
     # every build knob lives here, including a board's always-on defines: a board that
     # needs one carries a single variant named after itself (metro_m4_express /
-    # MAX3421_HOST=1), which is exactly what the `or [...]` default below synthesises
+    # MAX3421_HOST=1), which is exactly what hil_report.board_variants() synthesises
     variant: NotRequired[list[VariantCfg]]
     logger: NotRequired[str]  # "rtt": console = the debug probe's RTT channel 0, not a VCOM (rtt skill)
     toolchain: NotRequired[str]  # CI build bucket override, e.g. "riscv-gcc" (consumed by hil_ci_set_matrix.py)
@@ -331,8 +331,9 @@ def open_console_reset(board: Board):
     flasher = board['flasher']
 
     def _reset():
-        ret = getattr(hil_flash, f'reset_{flasher["name"].lower()}')(board)
-        assert ret.returncode == 0, 'Failed to reset device'
+        reset_fn = hil_flash.reset_primitive(flasher['name'])
+        if reset_fn:
+            assert reset_fn(board).returncode == 0, 'Failed to reset device'
 
     if board.get('logger') == 'rtt':
         _reset()
@@ -1533,16 +1534,12 @@ def test_device_usbtest(board):
     # that gap sees the device drop mid-case
     time.sleep(USBTEST_SETTLE)
 
-    # --keep-binding is required for concurrent batteries: usbtest.py's cleanup unbinds
-    # EVERY usbtest-bound interface, killing a peer battery under USBTEST_PARALLEL > 1, and
-    # that unbind path has also wedged a host xHCI (usb_hcd_alloc_bandwidth) here. Harmless
-    # to leave: the next example enumerates under a different PID.
     script = Path(__file__).resolve().parent / 'usbtest.py'
     # --budget makes the battery a real bound: repeated case timeouts (a FAIL, not a HUNG,
     # so the battery keeps going) can otherwise spend the whole outer timeout inside the
     # case loop, leaving the recovery below nothing.
     cmd = (f'{shlex.quote(sys.executable)} {shlex.quote(str(script))} '
-           f'--serial {shlex.quote(uid)} --json --keep-binding '
+           f'--serial {shlex.quote(uid)} --json '
            f'--timeout 60 --budget {USBTEST_BATTERY_BUDGET}')
     # Post-hang recovery reflashes the DUT through its own probe, NEVER a root-port cycle
     # (one board reached instead of every fixture under the port; see usb-kernel-recover).
@@ -1759,8 +1756,7 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
                 with hil_lock.flash_permit(board['uid']):
                     t_flash = time.monotonic()
                     try:
-                        ret = getattr(hil_flash,
-                                      f'flash_{board["flasher"]["name"].lower()}')(board, str(fw_name))
+                        ret = hil_flash.flash_primitive(board['flasher']['name'])(board, str(fw_name))
                     except Exception as e:
                         # A flasher that RAISES (esptool's get_serial_dev when the adapter
                         # drops off the bus, a missing config.env, an unwritable CWD) would
@@ -1854,47 +1850,49 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
     return err_count, result_status, metric
 
 
-def build_board(board: Board) -> tuple[str, int]:
-    """Build firmware for this board via tools/build.py.
-    Honors board config's variant list.
-    Output goes to cmake-build/cmake-build-<variant>/ (tools/build.py layout).
+CHECK_BUILD = hil_util.TINYUSB_ROOT / '.claude' / 'skills' / 'build' / 'scripts' / 'check_build.py'
+
+
+def build_board(board: Board, config_file: Path) -> tuple[int, bool]:
+    """Build this board's variants into cmake-build/cmake-build-<variant>/ through the build
+    contract (check_build.py --variants), which refuses a dir still configured with options
+    no variant sets. Returns (failed variant builds, whether check_build.py accepted the build).
 
     Unbounded on purpose: --build is a local convenience (no CI workflow passes it), so
     the developer watching the build is the timeout."""
     name = board['name']
-    variants = board.get('variant') or [{'name': name, 'flags': ''}]
-
-    failed = 0
-    for v in variants:
-        cmd = [sys.executable, str(hil_util.TINYUSB_ROOT / 'tools' / 'build.py'), '-b', name]
-        if v['name'] != name:
-            cmd += ['--build-name', v['name']]
-        for d in v.get('defines', []):
-            cmd += ['-D', d]
-        for tok in v.get('flags', '').split():
-            cmd += [f'--cflag={tok}']
-        if verbose:
-            cmd.append('-v')
-            print(f'  + {" ".join(cmd)}')
-        # stdio is inherited so the build STREAMS: a silent buffer is
-        # indistinguishable from a stall.
-        proc = subprocess.Popen(cmd, cwd=hil_util.TINYUSB_ROOT, start_new_session=True)
+    # -v: check_build.py streams the build log to the inherited stderr as it is produced; a
+    # silent buffer is indistinguishable from a stall. stdout carries only the verdict JSON.
+    cmd = [sys.executable, str(CHECK_BUILD), '--board', name, '--shared', '--variants', str(config_file), '-v']
+    if verbose:
+        print(f'  + {" ".join(cmd)}')
+    proc = subprocess.Popen(cmd, cwd=hil_util.TINYUSB_ROOT, start_new_session=True,
+                            stdout=subprocess.PIPE, text=True)
+    try:
+        out, _ = proc.communicate()
+    except KeyboardInterrupt:
+        # start_new_session means the build never saw the terminal's SIGINT
         try:
-            rc = proc.wait()
-        except KeyboardInterrupt:
-            # start_new_session means the build never saw the terminal's SIGINT
-            try:
-                os.killpg(proc.pid, signal.SIGKILL)
-            except OSError:
-                proc.kill()
-            raise
-        if rc != 0:
-            failed += 1
-    return name, failed
+            os.killpg(proc.pid, signal.SIGKILL)
+        except OSError:
+            proc.kill()
+        raise
+    try:
+        verdict = json.loads(out)
+    except ValueError:
+        print(f'{name}: check_build.py exited {proc.returncode} without a verdict')
+        return 1, False
+    if verdict.get('error'):
+        print(f'{name}: {verdict["error"]}')
+        return 1, False
+    failed = [b for b in verdict['boards'] if b['status'] != 'ok']
+    for b in failed:
+        print(f'{name}: {b["buildDir"]} {b["status"]}: {b["firstError"]}')
+    return len(failed), True
 
 
-def _tests_for(board: Board) -> list:
-    """Which examples this board runs, in roster order.
+def _tests_for(board: Board) -> tuple:
+    """Which examples this board runs, in roster order, and the roster skips removed.
 
     Three sources, most specific first: an explicit -bt list for this board, a global -t
     list filtered against what the board can actually do, or the roster's own capability
@@ -1903,18 +1901,18 @@ def _tests_for(board: Board) -> list:
     """
     name = board['name']
     if name in board_test:
-        return list(board_test[name])
+        return list(board_test[name]), []
 
     board_tests = board.get('tests', {})
     if test_only:
         if 'only' in board_tests:
             allowed = set(board_tests['only'])
-            return [t for t in test_only if t in allowed]
+            return [t for t in test_only if t in allowed], []
         return [t for t in test_only
-                if board_tests.get(t.split('/', 1)[0]) is True]
+                if board_tests.get(t.split('/', 1)[0]) is True], []
 
     if 'tests' not in board:
-        return []
+        return [], []
     test_list: list = []
     if board_tests.get('device') is True:
         test_list += list(device_tests)
@@ -1924,11 +1922,23 @@ def _tests_for(board: Board) -> list:
         test_list += host_test
     if 'only' in board_tests:
         test_list = list(board_tests['only'])
-    for skip in board_tests.get('skip', []):
-        if skip in test_list:
-            test_list.remove(skip)
-            log_line(f'{name:25} {skip:30} ... Skip')
-    return test_list
+    skipped = [s for s in board_tests.get('skip', []) if s in test_list]
+    return [t for t in test_list if t not in skipped], skipped
+
+
+def register_usbtest_if_selected(boards: list, report_dir: Path, fresh: bool) -> None:
+    """Register usbtest's id once, before any battery: a new_id write during batteries
+    waits for every peer's in-flight case (usbtest.register_usbtest_id). A failure stops the
+    run here, leaving a report rather than the previous run's table."""
+    if not any('device/usbtest' in _tests_for(b)[0] for b in boards):
+        return
+    try:
+        usbtest.register_usbtest_id()
+    except SystemExit as e:
+        msg = f'usbtest id registration failed: {e}'
+        print(f'ERROR: {msg}', flush=True)
+        hil_report.mark_report_no_boards(report_dir, msg, fresh=fresh)
+        sys.exit(1)
 
 
 def test_board(board: Board) -> tuple:
@@ -1965,7 +1975,9 @@ def test_board(board: Board) -> tuple:
     # after the lock: flock wait behind a concurrent run is not board cost
     t_board = time.monotonic()
     try:
-        test_list = _tests_for(board)
+        test_list, skipped = _tests_for(board)
+        for skip in skipped:
+            log_line(f'{name:25} {skip:30} ... Skip')
 
         err_count = 0
         failed_tests = []
@@ -1974,7 +1986,7 @@ def test_board(board: Board) -> tuple:
         # a -t/-bt filtered run times only a subset; report no duration so an accumulate
         # re-run keeps the previous full-run value
         partial = bool(test_only) or name in board_test
-        variants = board.get('variant') or [{'name': name, 'flags': ''}]
+        variants = hil_report.board_variants(board)
 
         prev_last = None  # last test of the previous variant: the variant boundary is an adjacency too
         for v in variants:
@@ -2105,8 +2117,11 @@ def test_board(board: Board) -> tuple:
 
 def _owned_rows(boards: list) -> dict:
     """board -> its declared variant row names, the ownership accumulate_report needs to
-    recover an earlier attempt's wedge cells on the right rows."""
-    return {b['name']: [v['name'] for v in (b.get('variant') or [])] for b in boards}
+    recover an earlier attempt's wedge cells on the right rows. Malformed entries are skipped,
+    as summarize() does: callers pass the whole roster, which _config_abort never validated."""
+    return {b['name']: [v['name'] for v in (b['variant'] if isinstance(b.get('variant'), list) else [])
+                        if isinstance(v, dict) and isinstance(v.get('name'), str)]
+            for b in boards}
 
 
 def _after_pool(config: dict, boards: list, mret: list, abort_args) -> dict:
@@ -2408,6 +2423,9 @@ def _abort_report(reason: str, mret: list, config_boards: list, failed_fname: Pa
     red job.
     """
     stuck = [b['name'] for b in config_boards if b['name'] not in {r[0] for r in mret}]
+    # main() seeds mret with the boards check_build.py refused; they never entered the pool
+    refused = [r[0] for r in mret if any(c.get(hil_report.RUN_ABORTED_CELL) == hil_report.BUILD_REFUSED
+                                         for _, c, _ in r[3])]
     try:
         _write_failed_spec(failed_fname, report_dir,
                            [(n, 1, [], None, 0) for n in stuck]
@@ -2417,9 +2435,11 @@ def _abort_report(reason: str, mret: list, config_boards: list, failed_fname: Pa
         # raise here replaces the caller's RuntimeError, so the operator never sees the
         # 'pool timed out' line and no report is written at all
         print(f'warning: re-run spec failed: {type(werr).__name__}: {werr}', flush=True)
-    banner = (f"**HIL run {reason}.** {len(mret)} board(s) below finished and are this "
-              f"run's; {len(stuck)} never reported and are NOT in the table: "
-              f"{', '.join(stuck)}. The re-run spec covers those.\n")
+    banner = (f"**HIL run {reason}.** {len(mret) - len(refused)} board(s) below finished "
+              f"and are this run's; {len(stuck)} never reported and are NOT in the table: "
+              f"{', '.join(stuck)}. The re-run spec covers those"
+              + (f", and the {len(refused)} whose build check_build.py refused: "
+                 f"{', '.join(refused)}" if refused else '') + ".\n")
     try:
         hil_report.accumulate_report(mret, report_dir, fresh, '',
                                      health_banner + _stray_note(mret), caveat=banner,
@@ -2516,9 +2536,9 @@ def main() -> None:
     config_boards = [e for e in config_boards if e['flasher']['name'] not in args.exclude_flasher
                      and (not args.flasher or e['flasher']['name'] in args.flasher)]
 
-    # fail rtt misconfigurations before the first flash cycle -- but only for boards
+    # fail roster misconfigurations before the first flash cycle -- but only for boards
     # this run actually touches: one bad roster entry must not abort other runs' subsets
-    def _rtt_config_abort(msg: str):
+    def _config_abort(msg: str):
         # loud AND leaving evidence, like the no-boards branch below: exiting with no
         # report at all lets the PR comment keep the previous push's stale table
         print(f'ERROR: {msg}', flush=True)
@@ -2526,20 +2546,25 @@ def main() -> None:
         hil_report.mark_report_no_boards(rd, f'config error: {msg}', fresh=not args.accumulate)
         sys.exit(1)
 
+    for e in config_boards:
+        try:
+            hil_report.board_variants(e)
+        except ValueError as err:
+            # here, not in a pool worker after other boards have started flashing
+            _config_abort(str(err))
     bad_logger = [e['name'] for e in config_boards if e.get('logger') not in (None, 'rtt')]
     if bad_logger:
         # only the exact string activates RTT handling; anything else would silently
         # mean VCOM and reproduce the misleading 'No serial device found' failure
-        _rtt_config_abort(f'unknown "logger" value (only "rtt" is supported): {", ".join(bad_logger)}')
+        _config_abort(f'unknown "logger" value (only "rtt" is supported): {", ".join(bad_logger)}')
     bad_rtt = [e['name'] for e in config_boards
                if e.get('logger') == 'rtt' and e['flasher']['name'].lower() != 'jlink']
     if bad_rtt:
         # JlinkRtt speaks JLinkExe only (the OpenOCD RTT route is manual — rtt skill)
-        _rtt_config_abort(f'"logger": "rtt" needs a jlink flasher: {", ".join(bad_rtt)}')
+        _config_abort(f'"logger": "rtt" needs a jlink flasher: {", ".join(bad_rtt)}')
     rtt_no_logger_def = [e['name'] for e in config_boards
                          if e.get('logger') == 'rtt'
-                         and any('LOGGER=rtt' not in (v.get('defines') or [])
-                                 for v in (e.get('variant') or [{}]))]
+                         and any('LOGGER=rtt' not in v['defines'] for v in hil_report.board_variants(e))]
     if rtt_no_logger_def:
         # a prebuilt cmake-build-<board> configured with -DLOGGER=rtt is a legitimate
         # build path the roster need not describe, so warn there -- but when this run is
@@ -2550,10 +2575,13 @@ def main() -> None:
         msg = (f'"logger": "rtt" board has a variant without LOGGER=rtt in its defines '
                f'({", ".join(rtt_no_logger_def)})')
         if args.build or os.environ.get('GITHUB_ACTIONS'):
-            _rtt_config_abort(f'{msg} -- the firmware built for this run cannot serve the '
+            _config_abort(f'{msg} -- the firmware built for this run cannot serve the '
                               f'configured RTT console')
         print(f'warning: {msg} -- fine for prebuilt example sets, wrong for --build/CI '
               f'builds', flush=True)
+    # The report sidecar and the .failed re-run spec live in report_dir (CI keys it by run
+    # id: persistent across attempts, private to one run)
+    report_dir = Path(os.environ.get('HIL_REPORT_DIR', '.'))
     if not config_boards:
         # same reason the unknown -b board exits 1: 'No tests were run.' with rc 0 reads as
         # a green HIL leg, so a roster edit emptying a leg's filter stops testing silently
@@ -2562,13 +2590,12 @@ def main() -> None:
         print(msg, flush=True)
         # loud AND leaving evidence: exiting with no report at all lets the PR comment
         # keep the previous push's stale table under a red job
-        rd = Path(os.environ.get('HIL_REPORT_DIR', '.'))
         # fresh must be threaded through: this runs BEFORE the `if fresh:` wipe below, so
         # defaulting it here wiped an --accumulate run's accumulated rows -- the exact
         # regression the parameter exists to prevent.
-        hil_report.mark_report_no_boards(rd, msg, fresh=not args.accumulate)
+        hil_report.mark_report_no_boards(report_dir, msg, fresh=not args.accumulate)
         sys.exit(1)
-
+    register_usbtest_if_selected(config_boards, report_dir, fresh=not args.accumulate)
 
     # Before the build: the probe needs nothing from it, and the annotation is more useful
     # early than after a multi-board cmake build has been paid for.
@@ -2580,6 +2607,9 @@ def main() -> None:
     health_banner = f'> **Rig note.** {note}. Not a fault on its own -- a healthy testusb sits in D state for most of every case.\n' if note else ''
 
     build_err = 0
+    # result tuples for the boards whose build check_build.py refused: reported and put in
+    # the re-run spec like any failed board, or an --accumulate run keeps their old green rows
+    refused_rows = []
     if args.build:
         if hil_flash.build_dir != 'cmake-build':
             print(f'warning: --build writes into cmake-build/, but -B is {hil_flash.build_dir!r}; '
@@ -2587,18 +2617,41 @@ def main() -> None:
         print('-' * 30)
         print(f'Build phase: {len(config_boards)} board(s)')
         print('-' * 30)
+        refused = []
         for board in config_boards:
-            _, nfail = build_board(board)
-            build_err += nfail
+            nfail, built = build_board(board, config_file.resolve())
+            if built:
+                build_err += nfail
+            else:
+                refused.append(board['name'])
+                refused_rows.append((board['name'], 1, [], [
+                    (v['name'], {hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED}, None)
+                    for v in hil_report.board_variants(board)], 0.0))
         print('-' * 30)
-        print(f'Build phase done: {build_err} failed')
+        print(f'Build phase done: {build_err + len(refused)} failed')
         print('-' * 30)
+        if refused:
+            # a refused board's folders still hold the firmware the build contract would not
+            # build over; flashing it would test a configuration nobody asked for
+            config_boards = [b for b in config_boards if b['name'] not in refused]
+            if not config_boards:
+                msg = f'No boards left: check_build.py refused every build ({", ".join(refused)})'
+                print(msg, flush=True)
+                # the partial-refusal report and re-run spec, not mark_report_no_boards: that
+                # left an --accumulate run's green rows and a stale .failed standing
+                _write_failed_spec(report_dir / (config_file.name + '.failed'), report_dir,
+                                   refused_rows)
+                scoped = sorted(set(args.board) | set(board_test))
+                hil_report.accumulate_report(
+                    refused_rows, report_dir, not args.accumulate,
+                    f'{len(scoped)} board(s) — {", ".join(scoped)}' if scoped else '',
+                    health_banner, caveat=f'**HIL run selected no boards.** {msg}\n',
+                    owned=_owned_rows(config['boards']))
+                sys.exit(min(len(refused_rows), 125))
+            print(f'not testing {", ".join(refused)}: check_build.py refused the build', flush=True)
 
-    # The report sidecar and the .failed re-run spec live in report_dir (CI keys it by run
-    # id: persistent across attempts, private to one run). A full run starts fresh; a re-run
-    # (--accumulate, which .failed always starts with) merges so already-passed boards
-    # survive. -bt alone is not a re-run marker.
-    report_dir = Path(os.environ.get('HIL_REPORT_DIR', '.'))
+    # A full run starts fresh; a re-run (--accumulate, which .failed always starts with)
+    # merges so already-passed boards survive. -bt alone is not a re-run marker.
     failed_fname = report_dir / (config_file.name + '.failed')
     fresh = not args.accumulate
 
@@ -2622,7 +2675,7 @@ def main() -> None:
     pool = mgr = cmap = None
     # Defined before the pool so _abandon_exit always has a value: a raise before
     # `err_count = build_err + ...` would turn the containment path into a NameError.
-    err_count = build_err
+    err_count = build_err + len(refused_rows)
     # Fail CLOSED: only a shutdown_pool() that actually returned True clears this, and the
     # assignment sits at the END of the inner finally, so anything raising before it
     # (kill_worker_children, a BrokenPipeError from its print) leaves _abandon_exit armed.
@@ -2657,7 +2710,7 @@ def main() -> None:
             # completed rig time -- and left the re-run spec unwritten, so CI re-tested all
             # ~26 boards to find the one that wedged. Draining as results arrive keeps what
             # finished and names only what was still in flight.
-            mret = []   # before imap: the pool finally reads it on every path
+            mret = list(refused_rows)   # before imap: the pool finally reads it on every path
             it = pool.imap_unordered(test_board, config_boards)
             deadline = time.monotonic() + POOL_TIMEOUT
             try:
@@ -2731,7 +2784,8 @@ def main() -> None:
                 with (report_dir / 'hil_profile_ctrl.json').open('w') as f:
                     json.dump(dict(cmap), f, indent=1, sort_keys=True)
             _save_controller_hints(
-                hints, mret, {b['name']: b['uid'] for b in config['boards']}, cmap)
+                hints, mret[len(refused_rows):],   # the refused rows lead mret and never ran
+                {b['name']: b['uid'] for b in config['boards']}, cmap)
         except Exception as e:
             # Deliberately broad, and it must stay that way: this best-effort refresh makes
             # Manager proxy RPCs that raise EOFError / BrokenPipeError / RemoteError when

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# Firmware flashing for the TinyUSB HIL rig: one flash_*/reset_* pair per flasher type
-# (dispatched by config name via getattr) plus find_firmware. The bounded runner run_cmd
-# lives in hil_util (never import hil_test here). Callers set the module global
+# Firmware flashing for the TinyUSB HIL rig: one flash_* per flasher type (dispatched by
+# config name through flash_primitive), a reset_* taking timeout= where the tool can reset
+# without flashing (looked up through reset_primitive), plus find_firmware. The bounded
+# runner run_cmd lives in hil_util (never import hil_test here). Callers set the module global
 # `build_dir`. `from __future__ import annotations` keeps the Board hints below
 # unevaluated: the type is not defined in this module.
 
@@ -20,9 +21,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # PYTHONSAFEPATH
 from helper import hil_util
 
 build_dir = 'cmake-build'
-
-# flasher names (dispatch key, board['flasher']['name'].lower()) whose reset_* is a no-op
-RESET_NOOP = {'esptool', 'lm4flash'}
 
 # extra parents find_firmware ALSO searches after build_dir. Empty by default so
 # hil_test's -B stays authoritative: a board missing there must report "Skip (no
@@ -255,7 +253,7 @@ def convoy_safe(flasher: dict) -> bool:
     if name == 'esptool':
         return True
     # EXACT, not startswith: rescue_openocd and usbtest's
-    # getattr(hil_flash, f'flash_{name}') both require the exact name, so an
+    # hil_flash.flash_primitive(name) both require the exact name, so an
     # 'openocd_wch'-style entry would pass this gate, reserve the Rescue-DP legs,
     # and then find no recovery path at all -- paying for a path that cannot fire, which
     # is the precise cost this gate exists to avoid.
@@ -287,14 +285,7 @@ def flash_esptool(board: Board, firmware: str, timeout=None) -> subprocess.Compl
     return ret
 
 
-def reset_esptool(board):
-    # NO-OP, and marked as one: esptool's reset would be `--after hard_reset`, which is not
-    # wired here. Returning rc 0 without resetting is why callers must never read the exit
-    # code as proof -- usbtest's recovery skips a primitive carrying `no_op`.
-    return subprocess.CompletedProcess(args=['dummy'], returncode=0)
-
-
-reset_esptool.no_op = True
+# no reset_esptool: esptool's reset would be `--after hard_reset`, which is not wired here
 
 
 def flash_lm4flash(board, firmware, timeout=None):
@@ -305,12 +296,27 @@ def flash_lm4flash(board, firmware, timeout=None):
     return ret
 
 
-def reset_lm4flash(board):
-    # lm4flash has no reset-only mode; it resets+runs on flash, so reset is a no-op
-    return subprocess.CompletedProcess(args=['dummy'], returncode=0)
+# no reset_lm4flash: lm4flash has no reset-only mode; it resets+runs on flash
 
 
-reset_lm4flash.no_op = True
+def flash_primitive(flasher_name: str):
+    """The flasher's flash_* callable, case-folded from the roster name.
+
+    An unknown flasher raises AttributeError.
+    """
+    name = flasher_name.lower()
+    if name == 'primitive':   # this lookup shares the flash_* namespace but is no flasher
+        raise AttributeError(f'{flasher_name!r} is not a flasher')
+    return getattr(sys.modules[__name__], f'flash_{name}')
+
+
+def reset_primitive(flasher_name: str):
+    """The flasher's probe-reset callable, or None when it has no reset-only mode.
+
+    An unknown flasher raises AttributeError, as flash_primitive does.
+    """
+    flash_primitive(flasher_name)
+    return getattr(sys.modules[__name__], f'reset_{flasher_name.lower()}', None)
 
 
 # The one place a flasher's firmware extension is decided. A flasher with no entry falls
