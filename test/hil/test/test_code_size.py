@@ -13,6 +13,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -806,6 +807,11 @@ class BuildOutput(unittest.TestCase):
                                     'ninja: build stopped: subcommand failed.\n'), 'Killed')
         self.assertEqual(self.error(''), 'no output')
 
+    def test_ninjas_own_error_is_kept(self):
+        # `cmake --build --target <ex>` of an unknown target: ninja's error is the only output
+        self.assertEqual(self.error('', "ninja: error: unknown target 'foo', did you mean '.'?\n"),
+                         "ninja: error: unknown target 'foo', did you mean '.'?")
+
     def test_markdown_escapes_the_backticks_of_a_diagnostic(self):
         md = sd.render_report({}, 'membrowse', [(('b', None), 'build', "build failed: ld: region `FLASH' overflowed")])
         self.assertIn("build failed: ld: region \\`FLASH' overflowed", md)
@@ -830,13 +836,23 @@ class BuildOutput(unittest.TestCase):
              contextlib.redirect_stdout(io.StringIO()):
             self.assertIsNone(sd.build_board(tmp, os.path.join(tmp, 'b'), 'b', None, 'build'))
 
-    def test_a_timeout_keeps_the_output_as_text(self):
-        # TimeoutExpired carries bytes even with text=True
-        expired = subprocess.TimeoutExpired(['ninja'], 600, output=b'partial\n', stderr=b'err')
-        with mock.patch('subprocess.run', side_effect=expired):
-            ret = sd.run(['ninja'], timeout=600)
-        self.assertEqual((ret.returncode, ret.stdout), (124, 'partial\n'))
-        self.assertTrue(ret.stderr.startswith('err\nCommand timed out after 600s'))
+    def test_a_timeout_kills_the_grandchildren_and_keeps_the_output_as_text(self):
+        # as cmake's ninja and compilers are: a grandchild holding the output pipes
+        ret = sd.run(['sh', '-c', 'printf err >&2; sleep 30 & echo $!; wait'], timeout=1)
+        self.assertEqual(ret.returncode, 124)
+        self.assertTrue(ret.stderr.startswith('err\nCommand timed out after 1s'))
+        grandchild = int(ret.stdout)
+
+        def running():
+            try:
+                with open(f'/proc/{grandchild}/stat') as f:
+                    return f.read().rpartition(')')[2].split()[0] != 'Z'
+            except OSError:  # reaped
+                return False
+        deadline = time.monotonic() + 5
+        while running() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        self.assertFalse(running())
 
 
 class ShortHash(unittest.TestCase):
@@ -854,6 +870,18 @@ class ShortHash(unittest.TestCase):
 
     def test_a_real_checkout_has_a_hash(self):
         self.assertRegex(sd.short_hash(sd.TINYUSB_ROOT), r'^[0-9a-f]{7,}(-dirty)?$')
+
+
+class SymlinkedCheckout(unittest.TestCase):
+    def test_the_root_matches_its_own_filter_through_a_symlink(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            link = os.path.join(tmp, 'tinyusb')
+            os.symlink(REPO, link)
+            out = subprocess.run([sys.executable, '-c', 'import code_size as sd; '
+                                  'print(sd.tinyusb_src_filter(sd.TINYUSB_ROOT).startswith(sd.TINYUSB_ROOT + "/"))'],
+                                 cwd=tmp, env={**os.environ, 'PYTHONPATH': os.path.join(link, 'tools')},
+                                 capture_output=True, text=True, check=True).stdout
+        self.assertEqual(out, 'True\n')
 
 
 class MainFailure(unittest.TestCase):
@@ -1120,9 +1148,10 @@ class MainFailure(unittest.TestCase):
                 cmds.append(cmd)
                 return subprocess.CompletedProcess([], 0, '', '')
             generate = mock.Mock()
-            rc, _out = self._run_main(tmp, ['-b', 'b', '-e', 'device/a', '-e', 'device/b',
-                                            '--bloaty', '--combined'],
-                                      build_board, generate, run)
+            with mock.patch.object(sd.shutil, 'which', return_value='/usr/bin/bloaty'):
+                rc, _out = self._run_main(tmp, ['-b', 'b', '-e', 'device/a', '-e', 'device/b',
+                                                '--bloaty', '--combined'],
+                                          build_board, generate, run)
             self.assertEqual(rc, 1)
             generate.assert_not_called()
             self.assertFalse(any('bloaty' in cmd for cmd in cmds))
@@ -1208,6 +1237,33 @@ class MainFailure(unittest.TestCase):
                                                  'message': 'build failed: boom'}])
             self.assertIn('FAILED `b` base build: build failed: boom',
                           self._read(tmp, 'b', 'diff.md'))
+
+    def test_bloaty_missing_is_refused_before_any_worktree_work(self):
+        with tempfile.TemporaryDirectory() as tmp, \
+             mock.patch.object(sd.shutil, 'which', return_value=None), \
+             contextlib.redirect_stderr(io.StringIO()) as err:
+            run = mock.Mock()
+            with self.assertRaises(SystemExit):
+                self._run_main(tmp, ['-b', 'b', '-e', 'device/a', '--bloaty'], mock.Mock(), run=run)
+        run.assert_not_called()
+        self.assertIn('--bloaty requires bloaty on PATH', err.getvalue())
+
+    def test_a_failed_base_setup_still_removes_the_worktree(self):
+        ok = subprocess.CompletedProcess([], 0, '', '')
+        cmds = []
+
+        def run(cmd, **_kwargs):
+            cmds.append(cmd[3:5])
+            return ok
+        with tempfile.TemporaryDirectory() as tmp, \
+             mock.patch.object(sys, 'argv', ['code_size.py', 'diff', '-b', 'b']), \
+             mock.patch.object(sd, 'CODE_SIZE_DIR', tmp), \
+             mock.patch.object(sd, 'run', side_effect=run), \
+             mock.patch.object(sd, 'symlink_deps', side_effect=FileNotFoundError('tools/get_deps.py')), \
+             contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaises(FileNotFoundError):
+                sd.main()
+        self.assertEqual(cmds, [['worktree', 'add'], ['worktree', 'remove']])
 
     def test_a_failed_worktree_setup_leaves_no_previous_report(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -35,6 +35,7 @@ Usage:
 import argparse
 import collections
 import concurrent.futures
+import contextlib
 import csv
 import functools
 import glob
@@ -46,6 +47,7 @@ import re
 import runpy
 import shlex
 import shutil
+import signal
 import struct
 import subprocess
 import sys
@@ -54,7 +56,8 @@ import time
 import build_utils
 from membrowse_cli import extract_ld_scripts, extract_defsyms, link_command, report_inputs
 
-TINYUSB_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# resolved like tinyusb_src_filter(), so a symlinked checkout still matches its filter
+TINYUSB_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 CODE_SIZE_DIR = os.path.join(TINYUSB_ROOT, 'cmake-code-size')
 CI_PINNED_BOARDS = os.path.join(TINYUSB_ROOT, '.github', 'ci-pinned-boards.json')
 # a diff's side names when git cannot give their commit hashes
@@ -690,23 +693,30 @@ def tinyusb_src_filter(checkout_dir):
 verbose = False
 
 
-def run(cmd, **kwargs):
-    """Run a command. cmd must be a list (no shell=True). On `timeout=`-induced
-    TimeoutExpired, return a CompletedProcess with rc=124 instead of letting the
-    exception propagate, so the caller can fall through to error reporting and
-    worktree cleanup rather than crashing with a traceback."""
+def run(cmd, timeout=None):
+    """Run a command. cmd must be a list (no shell=True). On `timeout`, kill the
+    command's whole process group (cmake's ninja and compilers too) and return a
+    CompletedProcess with rc=124 instead of raising TimeoutExpired, so the caller can
+    fall through to error reporting and worktree cleanup rather than crashing with a
+    traceback."""
     if not isinstance(cmd, list):
         raise TypeError('run() requires a list, got str — fix the caller')
     if verbose:
         print(f'  $ {" ".join(shlex.quote(str(c)) for c in cmd)}')
-    try:
-        return subprocess.run(cmd, capture_output=True, text=True, **kwargs)
-    except subprocess.TimeoutExpired as e:
-        # captured output is bytes even with text=True
-        out, err = (v.decode(errors='replace') if isinstance(v, bytes) else (v or '')
-                    for v in (e.stdout, e.stderr))
-        msg = f'Command timed out after {e.timeout}s: {" ".join(shlex.quote(str(c)) for c in cmd)}'
-        return subprocess.CompletedProcess(cmd, 124, stdout=out, stderr=err + ('\n' if err else '') + msg)
+    with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                          start_new_session=True) as proc:
+        try:
+            out, err = proc.communicate(timeout=timeout)
+        except BaseException as e:
+            # its own session keeps Ctrl-C from the group too, so kill it on any exit
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(proc.pid, signal.SIGKILL)
+            if not isinstance(e, subprocess.TimeoutExpired):
+                raise
+            out, err = proc.communicate()
+            msg = f'Command timed out after {timeout}s: {" ".join(shlex.quote(str(c)) for c in cmd)}'
+            return subprocess.CompletedProcess(cmd, 124, stdout=out, stderr=err + ('\n' if err else '') + msg)
+    return subprocess.CompletedProcess(cmd, proc.returncode, stdout=out, stderr=err)
 
 
 def symlink_deps(main_root, worktree_dir):
@@ -771,10 +781,12 @@ def output_excerpt(ret, lines=20):
 
 def build_error(ret, src_dir):
     """A failed build's first error for the report, from its whole output: the first
-    diagnostic, else its last line that is not ninja's own, with paths relative to `src_dir`."""
+    diagnostic, else its last line that is not ninja's progress, `FAILED:` or stop line
+    (its own `ninja: error:` stays), with paths relative to `src_dir`."""
     out = '\n'.join(stream for stream in (ret.stdout, ret.stderr) if stream)
     lines = [line.strip() for line in out.splitlines()
-             if line.strip() and not _NINJA_PROGRESS.match(line) and not line.startswith(('ninja: ', 'FAILED: '))]
+             if line.strip() and not _NINJA_PROGRESS.match(line)
+             and not line.startswith(('ninja: build stopped', 'ninja: Entering directory', 'FAILED: '))]
     error = build_utils.first_error(out) or (lines[-1] if lines else 'no output')
     return error.replace(src_dir.rstrip(os.sep) + os.sep, '')
 
@@ -1052,6 +1064,8 @@ def main():
 
     if args.bloaty and not args.example:
         parser.error('--bloaty requires -e/--example')
+    if args.bloaty and not shutil.which('bloaty'):
+        parser.error('--bloaty requires bloaty on PATH')
 
     if args.ci:
         args.combined = True
@@ -1090,24 +1104,24 @@ def main():
         print(f'Error creating worktree: {ret.stderr}')
         sys.exit(1)
 
-    symlink_deps(TINYUSB_ROOT, worktree_dir)
-
-    # the commit actually built, which the ref may no longer name later
-    base_sha = run(['git', '-C', worktree_dir, 'rev-parse', 'HEAD']).stdout.strip()
-    current_rev = short_hash(TINYUSB_ROOT)
-    labels = (short_hash(worktree_dir) or SIDE_LABELS[0], current_rev or SIDE_LABELS[1])
-    print(f'diff {args.base_branch} ({labels[0]}) vs working tree ({labels[1]}) · {args.engine}')
-    focused = _focused(args.board, examples)
-
-    def report_data(data):
-        """The JSON report for --json, None without it."""
-        if not args.json:
-            return None
-        return {**data, 'base_ref': args.base_branch, 'base_sha': base_sha, 'current_rev': current_rev,
-                'filters': {'base': base_filters, 'current': cur_filters}}
-
     failed = False
     try:
+        symlink_deps(TINYUSB_ROOT, worktree_dir)
+
+        # the commit actually built, which the ref may no longer name later
+        base_sha = run(['git', '-C', worktree_dir, 'rev-parse', 'HEAD']).stdout.strip()
+        current_rev = short_hash(TINYUSB_ROOT)
+        labels = (short_hash(worktree_dir) or SIDE_LABELS[0], current_rev or SIDE_LABELS[1])
+        print(f'diff {args.base_branch} ({labels[0]}) vs working tree ({labels[1]}) · {args.engine}')
+        focused = _focused(args.board, examples)
+
+        def report_data(data):
+            """The JSON report for --json, None without it."""
+            if not args.json:
+                return None
+            return {**data, 'base_ref': args.base_branch, 'base_sha': base_sha, 'current_rev': current_rev,
+                    'filters': {'base': base_filters, 'current': cur_filters}}
+
         # --combined: every board's elf sizes and failures, paired at the end
         combined_sides = {'base': {}, 'current': {}}
         combined_failures = []
