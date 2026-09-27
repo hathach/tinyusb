@@ -494,8 +494,8 @@ def main():
     parallel_jobs = args.jobs
     configure_only = args.configure_only
     # decided before TOOLCHAIN= joins the defines: a -D, --cflag or another toolchain
-    # describes a variant, not the board. A private dir is fine (cmake_board refuses one
-    # with a leftover cache); -e only selects targets, the cmake tree configures whole.
+    # describes a variant, not the board. A private dir is fine (canonical_row refuses one
+    # that existed before the configure); -e only selects targets, the cmake tree configures whole.
     # The command line is only half of it - canonical_row() refuses the flags CFLAGS and
     # its siblings add to a configure this test cannot see
     canonical = build_system == 'cmake' and not build_defines and not build_cflags and toolchain == 'gcc'

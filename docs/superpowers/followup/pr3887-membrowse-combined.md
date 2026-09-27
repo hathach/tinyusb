@@ -1,7 +1,5 @@
 # membrowse Engine: `--combined`/`--ci` Support
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Let `tools/metrics_compare_base.py --combined` (and `--ci`, which implies it)
 aggregate per-board membrowse deltas into one report, the way it already does for the
 linkermap engine, so `--engine linkermap` is no longer required for a full CI-family sweep.

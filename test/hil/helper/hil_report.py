@@ -10,7 +10,9 @@ writers, and the fold to one machine-readable verdict per board.
 Dual-mode by design: imported as `helper.hil_report` by hil_test.py, and run as a script by
 the operator (the HIL contract's Reporting section, .claude/skills/hil/SKILL.md). A script run puts test/hil/helper on
 sys.path rather than test/hil, so this module imports no sibling helper at all --
-_p and the width helpers below are defined locally for that reason.
+_p and the width helpers below are defined locally for that reason. The same property makes it
+the home of board_variants(), the roster reading the builders (check_build.py, the CI matrix)
+import by path.
 """
 import argparse
 import json
@@ -79,6 +81,9 @@ POOL_TIMEOUT_CELL = 'pool-timeout'
 # shape, different cause, and naming the cause is the whole point of the column -- a board
 # marked pool-timeout by an abort that never timed out sends the reader after the guard.
 RUN_ABORTED_CELL = 'run-aborted'
+# its value for a board hil_test.py --build did not test because check_build.py refused the
+# build: nothing ran, so the board's earlier cells stand beside it
+BUILD_REFUSED = f'{REPORT_CELL["fail"]} build refused'
 
 
 def _load(report_dir: Path) -> tuple:
@@ -365,6 +370,7 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
     # duration None, keeping the previous full-run value
     for name, _, _, rows, *_ in mret:
         refused = any(cells.get(WEDGED_CELL) in REFUSED_CELLS for _, cells, _ in rows)
+        unbuilt = any(cells.get(RUN_ABORTED_CELL) == BUILD_REFUSED for _, cells, _ in rows)
         if any(cells.get(WEDGED_CELL) in RECOVERED_CELLS for _, cells, _ in rows):
             # the post-run recovery verified the board: every wedge cell an earlier attempt
             # left on its rows (the board row and its DECLARED variants, `owned`, never a
@@ -374,7 +380,7 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
                 cells = acc.get(key, [{}])[0]
                 if recovered_form(cells.get(WEDGED_CELL)):
                     cells[WEDGED_CELL] = recovered_form(cells[WEDGED_CELL])
-        if rows and not refused and not any(LOCKED_CELL in cells for _, cells, _ in rows):
+        if rows and not refused and not unbuilt and not any(LOCKED_CELL in cells for _, cells, _ in rows):
             # board ran for real: clear a stale lock-failure cell (its row is keyed by
             # board name; test rows may be variant names), and a stale wedge cell on every
             # row of the board -- admission let it in, so the marker was cleared, and a
@@ -394,6 +400,9 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
                     del acc[name]
         for row_label, cells, dur in rows:
             row = acc.setdefault(row_label, [{}, None])
+            if unbuilt:
+                row[0].update(cells)
+                continue
             # a row that ran is no longer pool-timed-out, whatever it is keyed by
             row[0].pop(POOL_TIMEOUT_CELL, None)
             row[0].pop(RUN_ABORTED_CELL, None)
@@ -517,10 +526,33 @@ def write_timeout_report(report_dir: Path, boards, secs: int,
             _p(f'warning: fallback {REPORT_MD} write failed too: {e2}', flush=True)
 
 
+def board_variants(board: dict) -> list:
+    """The builds a roster board runs as, each {'name' (its cmake-build-<name> dir and report
+    row), 'defines' (cmake -D list), 'flags' (compiler flag tokens)}: its "variant" list, else
+    the board as itself. A malformed entry raises ValueError."""
+    name = board['name']
+    variants = board.get('variant', [])
+    if not isinstance(variants, list):
+        raise ValueError(f'board {name} variant must be a list of variants: {variants!r}')
+    variants = variants or [{'name': name}]
+    out = []
+    for i, v in enumerate(variants):
+        if not isinstance(v, dict):
+            raise ValueError(f'board {name} variant {i} must be an object with name, flags and defines: {v!r}')
+        vname, defines, flags = v.get('name'), v.get('defines', []), v.get('flags', '')
+        # an empty name would put the build in cmake-build-, which nothing looks in
+        if not (isinstance(vname, str) and vname and isinstance(flags, str) and isinstance(defines, list)
+                and all(isinstance(d, str) for d in defines)):
+            raise ValueError(f'board {name} variant {vname!r} needs name a non-empty string, flags a '
+                             f'string and defines a list of strings: {v}')
+        out.append({'name': vname, 'defines': list(defines), 'flags': flags.split()})
+    return out
+
+
 def variants_of(cfg: dict, board: str) -> list:
     for b in cfg.get('boards', []):
         if b['name'] == board:
-            return [v['name'] for v in (b.get('variant') or [])] or [board]
+            return [v['name'] for v in board_variants(b)]
     return [board]
 
 
@@ -531,8 +563,11 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
     rows = {r['board']: r.get('cells') or {}
             for r in (report.get('rows') or [])
             if isinstance(r, dict) and 'board' in r}
+    # the raw entries, not board_variants(): a malformed board must not crash the report of
+    # the others, and its well-formed names still keep their rows from being stolen
     owner = {v['name']: b['name'] for b in cfg.get('boards', [])
-             for v in (b.get('variant') or [])}
+             if isinstance(b.get('variant'), list)
+             for v in b['variant'] if isinstance(v, dict) and isinstance(v.get('name'), str)}
     configured = {b['name'] for b in cfg.get('boards', [])}
     results = []
     for board in boards:
@@ -543,7 +578,13 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
             results.append({'board': board, 'ran': False, 'pass': False, 'locked': False,
                             'wedged': False, 'detail': 'not a board in the config'})
             continue
-        names = variants_of(cfg, board)
+        try:
+            names = variants_of(cfg, board)
+        except ValueError as err:
+            # hil_test.py refuses the whole run on this; say why rather than die with a traceback
+            results.append({'board': board, 'ran': False, 'pass': False, 'locked': False,
+                            'wedged': False, 'detail': f'config error: {err}'})
+            continue
         mine = {n: rows[n] for n in names if n in rows}
         # a variant name that is neither declared nor prefixed cannot be attributed; the
         # `<board>-` fallback only helps ad-hoc builds, it is not the primary path. It must
@@ -579,6 +620,7 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
                            for cells in mine.values() if WEDGED_CELL in cells)
         recovered = any(cells.get(WEDGED_CELL) in RECOVERED_CELLS for cells in mine.values())
         refused = any(cells.get(WEDGED_CELL) in REFUSED_CELLS for cells in mine.values())
+        unbuilt = any(cells.get(RUN_ABORTED_CELL) == BUILD_REFUSED for cells in mine.values())
         locked = not wedged and not board_wedged and any(LOCKED_CELL in cells for cells in mine.values())
         bad = []
         for vname, cells in sorted(mine.items()):
@@ -600,10 +642,10 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
             detail = f'{len(mine)} variant(s), {sum(len(c) for c in mine.values())} cell(s) ok'
         if recovered and not board_wedged:
             detail += '; wedge recovered post-run (marker cleared)'
-        # an admission refusal never flashed this attempt, whatever test history an
-        # --accumulate re-run kept in the row
-        results.append({'board': board, 'ran': not refused, 'pass': ok, 'locked': locked,
-                        'wedged': board_wedged, 'detail': detail})
+        # an admission or build refusal never flashed this attempt, whatever test history
+        # an --accumulate re-run kept in the row
+        results.append({'board': board, 'ran': not refused and not unbuilt, 'pass': ok,
+                        'locked': locked, 'wedged': board_wedged, 'detail': detail})
     # `caveat` too: an abandoned or no-boards run says so THERE, and this JSON is all
     # an agent gets -- leaving it in the sidecar puts it back where only a human looks.
     caveat = report.get('caveat', '')

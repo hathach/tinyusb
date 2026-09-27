@@ -205,7 +205,7 @@ class Recovery(unittest.TestCase):
 
     def test_no_reset_primitive_goes_straight_to_the_reflash(self):
         self.mark()
-        self.patch(usbtest, 'reset_primitive', lambda name: None)
+        self.patch(hil_flash, 'reset_primitive', lambda name: None)
         self.scans = [([4242], True)]
         out = self.run_phase()
         self.assertFalse(out['b1']['recovered'])
@@ -214,13 +214,32 @@ class Recovery(unittest.TestCase):
 
     def test_no_reset_primitive_and_no_reflash_scans_nothing(self):
         self.mark(fw='')
-        self.patch(usbtest, 'reset_primitive', lambda name: None)
+        self.patch(hil_flash, 'reset_primitive', lambda name: None)
         out = self.run_phase()
         self.assertFalse(out['b1']['recovered'])
         self.assertEqual(out['b1']['why'],
                          'holder not re-scanned; no reset or reflash ran; reflash skipped: no firmware artifact recorded')
         self.assertEqual([c[0] for c in self.calls], ['shield', 'unshield'])
         self.assertIsNotNone(hil_lock.read_wedged('b1'))
+
+    def test_an_unknown_recovery_flasher_fails_its_board_and_the_next_is_still_tried(self):
+        self.mark()
+        self.mark_b2()
+        b1 = dict(CFG['boards'][0], flasher_recover={'name': 'nosuch', 'args': ''})
+        out = self.run_phase([b1, CFG['boards'][1]])
+        self.assertFalse(out['b1']['recovered'])
+        self.assertIn('reflash skipped: no flash_nosuch', out['b1']['steps'])
+        self.assertTrue(out['b2']['recovered'], out)
+
+    def test_a_mixed_case_recovery_flasher_resets_and_reflashes(self):
+        """The roster name is case-folded for the reflash as it is for the reset."""
+        self.mark()
+        self.scans = [([4242], True), ([], True)]
+        b1 = dict(CFG['boards'][0], flasher_recover=dict(CFG['boards'][0]['flasher_recover'], name='OpenOCD'))
+        out = self.run_phase([b1])
+        self.assertTrue(out['b1']['recovered'], out)
+        self.assertEqual([c[0] for c in self.calls], ['shield', 'reset', 'scan', 'flash', 'scan', 'unshield'])
+        self.assertIn('reflash via OpenOCD: rc 0', out['b1']['steps'])
 
     def test_a_failed_unshield_keeps_the_marker_even_after_a_clean_scan(self):
         self.mark()

@@ -240,7 +240,10 @@ def recover_board(board: dict, marker: dict, lock_fh, budget: Budget, out: dict 
                     return out
             else:
                 out['steps'].append(f'no shield: {fname} over {rec_board["flasher"].get("args", "")[:40]} is convoy-safe')
-            reset_fn = ut.reset_primitive(fname)
+            try:
+                reset_fn = _hil_flash().reset_primitive(fname)
+            except AttributeError:   # unknown flasher: the reflash step below records it
+                reset_fn = None
             if reset_fn:
                 try:
                     with redirect_stdout(sys.stderr):
@@ -254,7 +257,10 @@ def recover_board(board: dict, marker: dict, lock_fh, budget: Budget, out: dict 
                 time.sleep(SETTLE)
                 cleared = scan('after reset')
             if not cleared:
-                flash_fn = getattr(_hil_flash(), f'flash_{fname}', None)
+                try:
+                    flash_fn = _hil_flash().flash_primitive(fname)
+                except AttributeError:   # unknown flasher: skip this board's reflash, not the fleet
+                    flash_fn = None
                 # roster `"reflash": false`: the tool has no flash driver for this chip, only a reset
                 if not rec_board['flasher'].get('reflash', True):
                     reflash_skip = 'reset-only recovery flasher'
