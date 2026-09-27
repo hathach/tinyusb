@@ -734,6 +734,12 @@ def short_hash(checkout):
     return ret.stdout.strip() or None if ret.returncode == 0 else None
 
 
+def invalid_boards(boards):
+    """Boards that are not a plain name: a board names a cmake-code-size/<board> dir that
+    gets removed before the build can reject it, so `..` or a path must not pass."""
+    return [b for b in boards if not re.fullmatch(r'[A-Za-z0-9_-]+', b)]
+
+
 def ci_pinned_boards():
     """Boards of .github/ci-pinned-boards.json: CI's membrowse set, which covers every
     dcd/hcd driver not waived in its `uncovered` list (drivers-coverage hook)."""
@@ -1045,6 +1051,8 @@ def main():
     if args.command == 'report':
         if not args.board:
             report_parser.error('at least one -b BOARD is required')
+        if invalid := invalid_boards(args.board):
+            report_parser.error(f'invalid board name: {", ".join(invalid)}')
         return run_report(args)
 
     if args.bloaty and not args.example:
@@ -1056,6 +1064,8 @@ def main():
 
     if not args.board:
         parser.error('at least one -b BOARD is required (or pass --ci)')
+    if invalid := invalid_boards(args.board):
+        parser.error(f'invalid board name: {", ".join(invalid)}')
 
     worktree_dir = os.path.join(CODE_SIZE_DIR, '_worktree')
 
