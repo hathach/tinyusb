@@ -58,6 +58,18 @@ def extract_defsyms(commands_text):
     return list(dict.fromkeys(DEFSYM_RE.findall(commands_text)))
 
 
+def report_inputs(elf, ld_scripts, defsyms):
+    """The membrowse report argv naming one elf's inputs: elf, linker scripts,
+    --def per defsym, and its .map when present."""
+    inputs = [elf, ' '.join(ld_scripts)]
+    for sym in defsyms:
+        inputs += ['--def', sym]
+    map_path = elf + '.map'
+    if os.path.isfile(map_path):
+        inputs += ['--map-file', map_path]
+    return inputs
+
+
 def build_membrowse_cmd(args, commands_text):
     """Compose the membrowse argv (list form, no shell) for this report."""
     if args.ld is not None:
@@ -65,22 +77,13 @@ def build_membrowse_cmd(args, commands_text):
     else:
         ld_scripts = extract_ld_scripts(commands_text)
 
-    def_args = []
-    for sym in extract_defsyms(commands_text):
-        def_args += ['--def', sym]
-
-    map_args = []
-    map_path = args.elf + '.map'
-    if os.path.isfile(map_path):
-        map_args = ['--map-file', map_path]
-
     cmd = ['membrowse', 'report'] + shlex.split(args.option)
     if os.path.isfile(args.elf):
         if not ld_scripts:
             # same silent default-regions report as a failed ninja query
             sys.exit(f'error: no linker script found in the ninja build graph for '
                       f'{args.elf!r}; pass --ld to supply linker scripts explicitly')
-        cmd += [args.elf, ' '.join(ld_scripts)] + def_args + map_args
+        cmd += report_inputs(args.elf, ld_scripts, extract_defsyms(commands_text))
     else:
         cmd += ['--identical']
 

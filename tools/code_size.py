@@ -52,7 +52,7 @@ import sys
 import time
 
 import build_utils
-from membrowse_cli import extract_ld_scripts, extract_defsyms, link_command
+from membrowse_cli import extract_ld_scripts, extract_defsyms, link_command, report_inputs
 
 TINYUSB_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CODE_SIZE_DIR = os.path.join(TINYUSB_ROOT, 'cmake-code-size')
@@ -92,13 +92,8 @@ def _link_settings(elf_path):
 def report_for_elf(elf_path):
     """Run membrowse local report on one elf, return parsed JSON dict."""
     build_dir, ld_scripts, defsyms = _link_settings(elf_path)
-    cmd = ['membrowse', 'report', elf_path, ' '.join(ld_scripts),
-           '--json', '--all-symbols']
-    for sym in defsyms:
-        cmd += ['--def', sym]
-    map_path = elf_path + '.map'
-    if os.path.isfile(map_path):
-        cmd += ['--map-file', map_path]
+    cmd = (['membrowse', 'report'] + report_inputs(elf_path, ld_scripts, defsyms)
+           + ['--json', '--all-symbols'])
     # from the link's working dir, as membrowse_cli.report() does
     r = subprocess.run(cmd, capture_output=True, text=True, cwd=build_dir)
     if r.returncode != 0:
