@@ -1197,13 +1197,16 @@ def main():
                             re.escape(f) for f in (cur_filters + base_filters)
                         ) + ')'
                         bloaty_common = ['bloaty', '--domain=vm', f'--source-filter={bloaty_regex}']
-                        print('--- bloaty sections ---')
-                        ret = run(bloaty_common + ['-d', 'compileunits,sections', cur_elf, '--', base_elf])
-                        print(ret.stdout)
-                        print('--- bloaty symbols ---')
-                        ret = run(bloaty_common + ['-d', 'compileunits,symbols', '-s', 'vm',
-                                                    cur_elf, '--', base_elf])
-                        print(ret.stdout)
+                        for title, options in (('sections', ['-d', 'compileunits,sections']),
+                                               ('symbols', ['-d', 'compileunits,symbols', '-s', 'vm'])):
+                            print(f'--- bloaty {title} ---')
+                            ret = run(bloaty_common + options + [cur_elf, '--', base_elf])
+                            if ret.returncode == 0:
+                                print(ret.stdout)
+                            else:
+                                print(f'  bloaty FAILED (exit {ret.returncode})')
+                                print('\n'.join('    ' + line for line in output_excerpt(ret)))
+                                failed = True
                     else:
                         print('  bloaty: ELF not found')
 

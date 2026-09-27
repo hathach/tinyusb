@@ -1281,6 +1281,24 @@ class MainFailure(unittest.TestCase):
         run.assert_not_called()
         self.assertIn('--bloaty requires bloaty on PATH', err.getvalue())
 
+    def test_a_bloaty_failure_is_printed_and_fails_the_run(self):
+        for rc, printed in ((0, '\nsection diff\n'), (1, '\n  bloaty FAILED (exit 1)\n    bloaty: missing debug info\n')):
+            with self.subTest(rc=rc), tempfile.TemporaryDirectory() as tmp:
+                def build(_src, build_dir, board, example, *_args):
+                    os.makedirs(os.path.join(build_dir, example))
+                    open(os.path.join(build_dir, example, 'ex.elf'), 'w').close()
+                    return None
+                ok = subprocess.CompletedProcess([], 0, 'c0ffee\n', '')
+                bloaty = subprocess.CompletedProcess([], rc, 'section diff\n' if rc == 0 else '',
+                                                     'bloaty: missing debug info\n' if rc else '')
+                sizes = ({'ex/ex.elf': _elf(1)}, [])
+                with mock.patch.object(sd.shutil, 'which', return_value='/usr/bin/bloaty'):
+                    code, out = self._run_main(tmp, ['-b', 'b', '-e', 'ex', '--bloaty'], build,
+                                               lambda *_a, **_k: sizes,
+                                               lambda cmd, **_k: bloaty if cmd[0] == 'bloaty' else ok)
+                self.assertEqual(code, rc)
+                self.assertEqual(out.count(printed), 2)
+
     def test_a_failed_base_setup_still_removes_the_worktree(self):
         ok = subprocess.CompletedProcess([], 0, '', '')
         cmds = []
