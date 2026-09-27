@@ -702,14 +702,23 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
       TU_VERIFY(request->bmRequestType == 0xA2);// in,class,interface
       TU_VERIFY(request->wLength == sizeof(rsp));
       TU_VERIFY(request->wIndex == usbtmc_state.ep_bulk_in);
-      // wValue is the requested bTag to abort
-      if ((usbtmc_state.state == STATE_TX_REQUESTED || usbtmc_state.state == STATE_TX_INITIATED) &&
-          usbtmc_state.lastBulkInTag == (request->wValue & 0x7Fu)) {
+      // wValue D7..D0 is the bTag of the transfer to abort, all eight bits of it (USBTMC 1.0 Table 24).
+      // The transfer is in progress until its short packet has been sent (USBTMC 1.0 section 3.3 rule 10),
+      // so TX_SHORTED, with that packet queued but not yet read, is still in progress.
+      bool const bulkInInProgress = (usbtmc_state.state == STATE_TX_REQUESTED) ||
+                                    (usbtmc_state.state == STATE_TX_INITIATED) ||
+                                    (usbtmc_state.state == STATE_TX_SHORTED);
+      if (bulkInInProgress && usbtmc_state.lastBulkInTag == tu_u16_low(request->wValue)) {
         rsp.USBTMC_status = USBTMC_STATUS_SUCCESS;
         usbtmc_state.transfer_size_remaining = 0u;
         // Check if we've queued a short packet
         criticalEnter();
-        usbtmc_state.state = ((usbtmc_state.transfer_size_sent % usbtmc_state.ep_bulk_in_wMaxPacketSize) == 0) ? STATE_ABORTING_BULK_IN : STATE_ABORTING_BULK_IN_SHORTED;
+        if (usbtmc_state.state == STATE_TX_SHORTED) {
+          // The transfer's own short packet is queued already
+          usbtmc_state.state = STATE_ABORTING_BULK_IN_SHORTED;
+        } else {
+          usbtmc_state.state = ((usbtmc_state.transfer_size_sent % usbtmc_state.ep_bulk_in_wMaxPacketSize) == 0) ? STATE_ABORTING_BULK_IN : STATE_ABORTING_BULK_IN_SHORTED;
+        }
         criticalLeave();
         if (usbtmc_state.transfer_size_sent == 0) {
           // Send short packet, nothing is in the buffer yet
@@ -717,7 +726,7 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
           usbtmc_state.state = STATE_ABORTING_BULK_IN_SHORTED;
         }
         TU_VERIFY(tud_usbtmc_initiate_abort_bulk_in_cb(&(rsp.USBTMC_status)));
-      } else if ((usbtmc_state.state == STATE_TX_REQUESTED || usbtmc_state.state == STATE_TX_INITIATED)) {// FIXME: Unsure how to check  if the OUT endpoint fifo is non-empty....
+      } else if (bulkInInProgress) {// FIXME: Unsure how to check  if the OUT endpoint fifo is non-empty....
         rsp.USBTMC_status = USBTMC_STATUS_TRANSFER_NOT_IN_PROGRESS;
       } else {
         rsp.USBTMC_status = USBTMC_STATUS_FAILED;
