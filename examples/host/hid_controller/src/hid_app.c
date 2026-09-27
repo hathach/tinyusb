@@ -310,7 +310,8 @@ static void process_sony_ds4(uint8_t const* report, uint16_t len)
 
 // Invoked when received report from device via interrupt endpoint
 void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t const *report, uint16_t len) {
-  if (is_sony_ds4(dev_addr)) {
+  // report is NULL when the transfer failed. Nothing to process then, but keep polling.
+  if (report != NULL && is_sony_ds4(dev_addr)) {
     process_sony_ds4(report, len);
   }
 
