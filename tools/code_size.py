@@ -343,6 +343,17 @@ ENGINES = {
 }
 
 
+def engine_missing(engine):
+    """Whether `engine`'s tool is absent; membrowse and bloaty are commands of that name."""
+    if engine == 'linkermap':
+        try:
+            _linkermap()
+        except FileNotFoundError:
+            return True
+        return False
+    return not shutil.which(engine)
+
+
 def _md_escape(text):
     """`text` safe in Markdown prose: gcc quotes as `name', which would open a code span."""
     return text.replace('`', '\\`')
@@ -1061,6 +1072,10 @@ def main():
                              '(cmake-code-size/_combined/diff.md), in addition to per-board.')
     args = top.parse_args()
     verbose = args.verbose
+
+    if engine_missing(args.engine):
+        sub.choices[args.command].error(f'{args.engine} not found - install {ENGINES[args.engine].install}, '
+                                        f'or pick another --engine')
 
     if args.command == 'report':
         if not args.board:

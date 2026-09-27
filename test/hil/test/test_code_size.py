@@ -722,6 +722,17 @@ class GenerateSizes(unittest.TestCase):
         self.assertIn('github.com/google/bloaty', message)
         self.assertEqual(out, '')
 
+    def test_an_absent_engine_tool_is_missing(self):
+        with mock.patch.object(sd.shutil, 'which', side_effect=lambda cmd: None if cmd == 'bloaty' else '/bin/x'):
+            self.assertTrue(sd.engine_missing('bloaty'))
+            self.assertFalse(sd.engine_missing('membrowse'))
+        sd._linkermap.cache_clear()
+        try:
+            with mock.patch('os.path.isfile', return_value=False):
+                self.assertTrue(sd.engine_missing('linkermap'))
+        finally:
+            sd._linkermap.cache_clear()
+
     def test_a_failed_elf_marks_only_that_elf(self):
         # an engine raises RuntimeError for one elf (`membrowse report` exiting
         # non-zero, malformed output): that elf fails, the others are still sized
@@ -917,6 +928,8 @@ class SymlinkedCheckout(unittest.TestCase):
         self.assertEqual(out, 'True\n')
 
 
+# main() tests stub the builds and sizing, so need no engine tool
+@mock.patch.object(sd, 'engine_missing', new=lambda _engine: False)
 class MainFailure(unittest.TestCase):
     def _run_main(self, tmp, argv, build_board, generate=None, run=None):
         """main() with the build, sizing and command steps stubbed. `build_board`
@@ -1281,6 +1294,17 @@ class MainFailure(unittest.TestCase):
         run.assert_not_called()
         self.assertIn('--bloaty requires bloaty on PATH', err.getvalue())
 
+    def test_a_missing_engine_is_refused_before_any_worktree_work(self):
+        with tempfile.TemporaryDirectory() as tmp, \
+             mock.patch.object(sd, 'engine_missing', return_value=True), \
+             contextlib.redirect_stderr(io.StringIO()) as err:
+            run = mock.Mock()
+            with self.assertRaises(SystemExit):
+                self._run_main(tmp, ['-b', 'b', '--engine', 'bloaty'], mock.Mock(), run=run)
+        run.assert_not_called()
+        self.assertIn('bloaty not found - install bloaty on PATH (https://github.com/google/bloaty), '
+                      'or pick another --engine', err.getvalue())
+
     def test_a_bloaty_failure_is_printed_and_fails_the_run(self):
         for rc, printed in ((0, '\nsection diff\n'), (1, '\n  bloaty FAILED (exit 1)\n    bloaty: missing debug info\n')):
             with self.subTest(rc=rc), tempfile.TemporaryDirectory() as tmp:
@@ -1348,6 +1372,7 @@ class MainFailure(unittest.TestCase):
         return stale
 
 
+@mock.patch.object(sd, 'engine_missing', new=lambda _engine: False)
 class MainReport(unittest.TestCase):
     def _run(self, tmp, argv, sizes, build_ok=lambda _example: True):
         """`code_size.py report -b b` plus `argv`, building and sizing stubbed;
@@ -1372,6 +1397,15 @@ class MainReport(unittest.TestCase):
     def _read(self, *path):
         with open(os.path.join(*path)) as f:
             return unpad(f.read())
+
+    def test_a_missing_engine_is_refused_before_any_build(self):
+        with tempfile.TemporaryDirectory() as tmp, \
+             mock.patch.object(sd, 'engine_missing', side_effect=lambda engine: engine == 'linkermap'), \
+             contextlib.redirect_stderr(io.StringIO()) as err:
+            with self.assertRaises(SystemExit):
+                self._run(tmp, ['--engine', 'linkermap'], ({}, []))
+            self.assertEqual(os.listdir(tmp), [])  # no build dir
+        self.assertIn('linkermap not found - install `python3 tools/get_deps.py tools/linkermap`', err.getvalue())
 
     def test_builds_and_sizes_the_working_tree_only(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1487,6 +1521,7 @@ class GlobMetacharsInBuildDir(unittest.TestCase):
             self.assertEqual(list(sizes), ['device/cdc_msc/cdc_msc.elf'])
 
 
+@mock.patch.object(sd, 'engine_missing', new=lambda _engine: False)
 class CiBoardSet(unittest.TestCase):
     def _boards_built(self, tmp, pinned_json):
         """Boards main() builds for `--ci -b extra -b b1 -b extra`, with `pinned_json` as the pinned file."""
