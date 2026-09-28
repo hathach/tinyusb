@@ -1023,6 +1023,13 @@ def run_report(args):
     return 1 if failed else 0
 
 
+def example_arg(value):
+    example = value.rstrip('/')
+    if not example:
+        raise argparse.ArgumentTypeError(f'{value!r} names no example')
+    return example
+
+
 def main():
     global verbose
 
@@ -1035,7 +1042,7 @@ def main():
                              'Default: each build\'s own absolute <checkout>/src/ path, '
                              'which uniquely matches TinyUSB stack code without colliding '
                              'with vendored deps.')
-    common.add_argument('-e', '--example', action='append', default=None, type=lambda e: e.rstrip('/'),
+    common.add_argument('-e', '--example', action='append', default=None, type=example_arg,
                         help='Size specific example (repeatable, e.g. -e device/cdc_msc -e host/cdc_msc_hid)')
     common.add_argument('--engine', choices=sorted(ENGINES),
                         default='membrowse',

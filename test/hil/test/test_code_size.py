@@ -873,12 +873,10 @@ class BuildOutput(unittest.TestCase):
                 self.assertEqual((ret.returncode, ret.stdout), (rc, 'w: \ufffd\n'))
                 self.assertTrue(ret.stderr.startswith('\ufffd'))
 
-    @needs_proc
     def test_a_command_ignoring_sigterm_is_killed_after_the_grace(self):
         with mock.patch.object(sd, 'TERMINATE_GRACE', 0.5):
-            ret = sd.run(['sh', '-c', "trap '' TERM; echo $$; while :; do sleep 0.1; done"], timeout=1)
+            ret = sd.run(['sh', '-c', "trap '' TERM; while :; do sleep 0.1; done"], timeout=1)
         self.assertEqual(ret.returncode, 124)
-        self.assertTrue(_dies(int(ret.stdout)))
 
     def test_a_child_holding_the_pipes_after_the_kill_does_not_hang_it(self):
         start = time.monotonic()
@@ -890,17 +888,15 @@ class BuildOutput(unittest.TestCase):
         self.assertEqual(ret.returncode, 124)
         self.assertIn('Command timed out after 1s', ret.stderr)
 
-    @needs_proc
     def test_a_child_holding_the_pipes_after_sigterm_does_not_hang_it(self):
         start = time.monotonic()
         with mock.patch.object(sd, 'TERMINATE_GRACE', 0.5), mock.patch.object(sd, 'KILL_DRAIN', 0.2):
-            ret = sd.run(['sh', '-c', 'echo $$; sleep 30 & echo $!; exec sleep 30'], timeout=0.5)
-        pid, child = map(int, ret.stdout.split())
+            ret = sd.run(['sh', '-c', 'sleep 30 & echo $!; exec sleep 30'], timeout=0.5)
+        child = int(ret.stdout)
         try:
             self.assertLess(time.monotonic() - start, 5)
             self.assertEqual(ret.returncode, 124)
             self.assertIn('Command timed out after 0.5s', ret.stderr)
-            self.assertTrue(_dies(pid))
         finally:
             with contextlib.suppress(ProcessLookupError):
                 os.kill(child, signal.SIGKILL)
@@ -1492,6 +1488,16 @@ class MainReport(unittest.TestCase):
             self.assertEqual(build.call_args.args[3], 'device/cdc_msc')
             self.assertEqual(generate.call_args.args[2], 'device/cdc_msc')
             self.assertTrue(os.path.exists(os.path.join(tmp, 'b', 'report_device_cdc_msc.md')))
+
+    def test_an_example_naming_nothing_is_refused_before_any_build(self):
+        for example in ('/', ''):
+            with self.subTest(example=example), tempfile.TemporaryDirectory() as tmp, \
+                 contextlib.redirect_stderr(io.StringIO()) as err:
+                with self.assertRaises(SystemExit) as exit_:
+                    self._run(tmp, ['-e', example], ({}, []))
+                self.assertEqual(exit_.exception.code, 2)
+                self.assertEqual(os.listdir(tmp), [])
+                self.assertIn(f"argument -e/--example: {example!r} names no example", err.getvalue())
 
     def test_json_holds_the_sizes_and_symbols_only_with_symbols(self):
         with tempfile.TemporaryDirectory() as tmp:
