@@ -1170,7 +1170,7 @@ bool tuh_edpt_xfer(tuh_xfer_t* xfer) {
   uint8_t const daddr = xfer->daddr;
   uint8_t const ep_addr = xfer->ep_addr;
 
-  TU_VERIFY(daddr && ep_addr);
+  TU_VERIFY(daddr && ep_addr && xfer->buflen <= UINT16_MAX);
   TU_VERIFY(usbh_edpt_claim(daddr, ep_addr));
 
   if (!usbh_edpt_xfer_with_callback(daddr, ep_addr, xfer->buffer, (uint16_t) xfer->buflen,

@@ -253,7 +253,7 @@ uint32_t tud_vendor_n_write(uint8_t idx, const void *buffer, uint32_t bufsize) {
   vendord_interface_t *p_itf = &_vendord_itf[idx];
 
   #if CFG_TUD_VENDOR_TXRX_BUFFERED
-  return tu_edpt_stream_write(&p_itf->tx_stream, buffer, (uint16_t)bufsize);
+  return tu_edpt_stream_write(&p_itf->tx_stream, buffer, bufsize);
 
   #else
   // non-fifo mode: direct transfer (ep_in is 0 while an altsetting without a bulk IN ep is active)
