@@ -40,9 +40,10 @@ python3 .claude/skills/usbtest/scripts/run_case.py --config <this host's config>
 
 `--after leave` keeps usbtest running for a debug session. `--variant` is required when the board
 has several. It refuses before touching hardware (exit 2) on an unknown or ambiguous board or
-variant, a wedged marker, missing firmware, a held lock, or a live `testusb`, `usbtest.py` or
-`hil_test.py` on the host; pass `--allow-concurrent` only after checking no battery shares the
-board's host controller. It writes the wedged marker on a confirmed wedge, as HIL does. The last
+variant, a board whose roster `tests` never run `device/usbtest` (a host-only board's device port
+may not reach the rig), a wedged marker, missing firmware, a held lock, or a live `testusb`,
+`usbtest.py` or `hil_test.py` on the host; pass `--allow-concurrent` only after checking no
+battery shares the board's host controller. It writes the wedged marker on a confirmed wedge, as HIL does. The last
 stdout line is its JSON verdict.
 
 ## Rig hazards

@@ -21,9 +21,16 @@ spec.loader.exec_module(run_case)
 
 ROSTER = {
     'boards': [
-        {'name': 'solo', 'uid': 'UID1', 'flasher': {'name': 'jlink', 'uid': 'P1', 'args': '-device X'}},
+        {'name': 'solo', 'uid': 'UID1', 'flasher': {'name': 'jlink', 'uid': 'P1', 'args': '-device X'},
+         'tests': {'device': True, 'host': False}},
         {'name': 'duo', 'uid': 'UID2', 'flasher': {'name': 'openocd', 'uid': 'P2', 'args': ''},
-         'variant': [{'name': 'duo-a', 'flags': ''}, {'name': 'duo-b', 'flags': ''}]},
+         'variant': [{'name': 'duo-a', 'flags': ''}, {'name': 'duo-b', 'flags': ''}],
+         'tests': {'only': ['device/board_test', 'device/usbtest']}},
+        {'name': 'hostonly', 'uid': 'UID4', 'flasher': {'name': 'openocd'}, 'tests': {'device': False, 'host': True}},
+        {'name': 'skips', 'uid': 'UID5', 'flasher': {'name': 'jlink'},
+         'tests': {'device': True, 'skip': ['device/usbtest']}},
+        {'name': 'notlisted', 'uid': 'UID6', 'flasher': {'name': 'jlink'}, 'tests': {'only': ['device/cdc_msc']}},
+        {'name': 'untested', 'uid': 'UID7', 'flasher': {'name': 'jlink'}},
     ],
     'boards-skip': [{'name': 'parked', 'uid': 'UID3', 'flasher': {'name': 'jlink'}}],
 }
@@ -122,6 +129,10 @@ class Refusals(unittest.TestCase):
         for argv, says in (
                 (['--board', 'nosuch'], 'nosuch is not a board'),
                 (['--board', 'parked'], 'parked is in boards-skip'),
+                (['--board', 'hostonly'], 'hostonly does not run device/usbtest'),
+                (['--board', 'skips'], 'skips does not run device/usbtest'),
+                (['--board', 'notlisted'], 'notlisted does not run device/usbtest'),
+                (['--board', 'untested'], 'untested does not run device/usbtest'),
                 (['--board', 'duo'], 'duo has variants duo-a, duo-b: pass --variant'),
                 (['--board', 'duo', '--variant', 'duo-c'], 'duo has no variant duo-c'),
                 (['--board', 'solo', '--variant', 'duo-a'], 'solo has no variant duo-a')):

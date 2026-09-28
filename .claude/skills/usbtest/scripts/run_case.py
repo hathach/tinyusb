@@ -9,7 +9,7 @@ For a session that has NOT taken the board. Inside a lock you already hold, with
 already flashed, run `test/hil/usbtest.py --serial <uid> --tests N --json` directly instead.
 
 Refuses before touching hardware (exit 2) when: the board or variant is unknown or ambiguous,
-the board sits in boards-skip or carries a wedged marker, the usbtest (or, for --after park,
+the board sits in boards-skip, does not run device/usbtest in the roster, or carries a wedged marker, the usbtest (or, for --after park,
 the board_test) firmware is not built, the board lock is held or unusable, or a testusb,
 usbtest.py or hil_test.py process is alive on this host. That last check is host-wide and
 racy, and cannot join hil_test.py's per-controller battery permits: --allow-concurrent skips
@@ -49,6 +49,13 @@ class Refused(Exception):
     """Stop before any hardware action."""
 
 
+def runs_usbtest(board):
+    """Whether hil_test.py's roster rule (_tests_for) gives this board device/usbtest."""
+    tests = board.get('tests', {})
+    listed = tests['only'] if 'only' in tests else hil_util.device_tests if tests.get('device') is True else []
+    return 'device/usbtest' in listed and 'device/usbtest' not in tests.get('skip', [])
+
+
 def resolve(config, board_name, variant):
     """(board, variant name) from the roster, or Refused naming the alternatives."""
     try:
@@ -64,6 +71,9 @@ def resolve(config, board_name, variant):
             raise Refused(f'{board_name} is in boards-skip of {config}')
         raise Refused(f'{board_name} is not a board in {config}')
     board = boards[board_name]
+    if not runs_usbtest(board):
+        raise Refused(f'{board_name} does not run device/usbtest in {config} (its "tests" entry); '
+                      f'its device port may not reach this host')
     names = [v['name'] for v in hil_report.board_variants(board)]
     if len(set(names)) != len(names):
         raise Refused(f'{board_name} lists a variant name twice: {", ".join(names)}')
