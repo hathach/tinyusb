@@ -714,7 +714,8 @@ def run(cmd, timeout=None):
     if verbose:
         print(f'  $ {" ".join(shlex.quote(str(c)) for c in cmd)}')
     # the command stays in our process group, so Ctrl-C or a hangup reaches it directly
-    with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as proc:
+    with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                          encoding='utf-8', errors='replace') as proc:
         try:
             out, err = proc.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
@@ -1034,7 +1035,7 @@ def main():
                              'Default: each build\'s own absolute <checkout>/src/ path, '
                              'which uniquely matches TinyUSB stack code without colliding '
                              'with vendored deps.')
-    common.add_argument('-e', '--example', action='append', default=None,
+    common.add_argument('-e', '--example', action='append', default=None, type=lambda e: e.rstrip('/'),
                         help='Size specific example (repeatable, e.g. -e device/cdc_msc -e host/cdc_msc_hid)')
     common.add_argument('--engine', choices=sorted(ENGINES),
                         default='membrowse',

@@ -766,6 +766,9 @@ class GenerateSizes(unittest.TestCase):
         self.assertEqual(sizes['ex/app.elf']['all'], {'flash': 100, 'ram': 0})
 
 
+needs_proc = unittest.skipUnless(os.path.exists('/proc/self/stat'), 'needs /proc')
+
+
 class BuildOutput(unittest.TestCase):
     @staticmethod
     def excerpt(stdout, stderr='', lines=20):
@@ -863,6 +866,14 @@ class BuildOutput(unittest.TestCase):
         self.assertEqual(ret.stdout, 'out\n')
         self.assertTrue(ret.stderr.startswith('err\nCommand timed out after 1s'))
 
+    def test_output_that_is_not_utf8_is_decoded_with_replacement(self):
+        for timeout, rc, tail in ((None, 0, ''), (0.3, 124, 'exec sleep 30')):
+            with self.subTest(timeout=timeout):
+                ret = sd.run(['sh', '-c', f"printf 'w: \\251\\n'; printf '\\377' >&2; {tail}"], timeout=timeout)
+                self.assertEqual((ret.returncode, ret.stdout), (rc, 'w: \ufffd\n'))
+                self.assertTrue(ret.stderr.startswith('\ufffd'))
+
+    @needs_proc
     def test_a_command_ignoring_sigterm_is_killed_after_the_grace(self):
         with mock.patch.object(sd, 'TERMINATE_GRACE', 0.5):
             ret = sd.run(['sh', '-c', "trap '' TERM; echo $$; while :; do sleep 0.1; done"], timeout=1)
@@ -877,7 +888,24 @@ class BuildOutput(unittest.TestCase):
             os.kill(int(ret.stdout), signal.SIGKILL)  # the pid printed before the kill is kept
         self.assertLess(time.monotonic() - start, 5)
         self.assertEqual(ret.returncode, 124)
+        self.assertIn('Command timed out after 1s', ret.stderr)
 
+    @needs_proc
+    def test_a_child_holding_the_pipes_after_sigterm_does_not_hang_it(self):
+        start = time.monotonic()
+        with mock.patch.object(sd, 'TERMINATE_GRACE', 0.5), mock.patch.object(sd, 'KILL_DRAIN', 0.2):
+            ret = sd.run(['sh', '-c', 'echo $$; sleep 30 & echo $!; exec sleep 30'], timeout=0.5)
+        pid, child = map(int, ret.stdout.split())
+        try:
+            self.assertLess(time.monotonic() - start, 5)
+            self.assertEqual(ret.returncode, 124)
+            self.assertIn('Command timed out after 0.5s', ret.stderr)
+            self.assertTrue(_dies(pid))
+        finally:
+            with contextlib.suppress(ProcessLookupError):
+                os.kill(child, signal.SIGKILL)
+
+    @needs_proc
     @unittest.skipUnless(shutil.which('ninja'), 'needs ninja')
     def test_a_timed_out_ninja_stops_its_jobs(self):
         # ninja runs each job in a process group of its own, as it does the compilers
@@ -1455,6 +1483,15 @@ class MainReport(unittest.TestCase):
             self.assertRegex(self.out, r'^report working tree · bloaty\n\[1/1\] b / device/cdc_msc\n'
                                        r'  size… \d+\.\ds\n  1 of 1 elfs sized; filtered Flash 4, RAM 0\n')
             self.assertIn('\n | x.c | 4 | 4 | 100.0% |', self.out)
+
+    def test_an_examples_trailing_slash_is_dropped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, build, generate = self._run(tmp, ['-e', 'device/cdc_msc/'],
+                                            ({'device/cdc_msc/cdc_msc.elf': _elf(4)}, []))
+            self.assertEqual(rc, 0)
+            self.assertEqual(build.call_args.args[3], 'device/cdc_msc')
+            self.assertEqual(generate.call_args.args[2], 'device/cdc_msc')
+            self.assertTrue(os.path.exists(os.path.join(tmp, 'b', 'report_device_cdc_msc.md')))
 
     def test_json_holds_the_sizes_and_symbols_only_with_symbols(self):
         with tempfile.TemporaryDirectory() as tmp:
