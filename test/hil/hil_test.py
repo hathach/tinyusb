@@ -219,11 +219,8 @@ class HilConfig(TypedDict):
 POOL_TIMEOUT = hil_util.pos_int_env('HIL_POOL_TIMEOUT', 3600)
 
 
-# The post-hang recovery reserve is PER BOARD and lives in usbtest.recovery_reserve(),
-# derived from the ladder that file itself declares. Reserved whole, which is what lets the
-# child run the ladder straight through instead of asking "does the next step still fit?"
-# before each step. It only ELAPSES when cases actually time out; a healthy battery returns
-# in ~200s and never touches it.
+# The post-hang recovery reserve is PER BOARD: usbtest.recovery_reserve(). It only ELAPSES
+# when cases actually time out; a healthy battery returns in ~200s and never touches it.
 
 # How long usbtest.py may keep starting new cases (--budget). The outer run_cmd timeout is
 # always this PLUS the overshoot PLUS the recovery reserve when one can run, never a
@@ -1610,8 +1607,7 @@ def _usbtest_verdict(board: Board, data: dict, out: str, passed: int, failed: in
 
     Also latches board_wedged, which stops the REST of this board's examples: each would
     flash THROUGH the poisoned usbfs node, block, survive SIGKILL and add another stray --
-    one wedge becoming one stray per remaining example, which is the convoy this whole
-    containment path exists to prevent.
+    one wedge becoming one stray per remaining example.
     """
     global board_wedged
     # The battery's OWN verdict, not 'HUNG' in its output: `recovery` only says the flags
@@ -1953,8 +1949,6 @@ def test_board(board: Board) -> tuple:
                 # -bt run has nothing to swap with). Park on board_test first: it disables
                 # the board's USB, so the next flash must re-enumerate to be seen.
                 t_park = time.monotonic()
-                # _should_park, same as the teardown park: this is attempt 0, so
-                # test_example's retry guard does not stop it flashing into a poisoned node
                 park_ec, park_status, _ = (
                     test_example(board, vname, 'device/board_test') if _should_park(skip_flash)
                     else (0, 'skip', None))
@@ -2018,12 +2012,6 @@ def test_board(board: Board) -> tuple:
 
         # park: flash board_test last to disable the board's usb; teardown, not a test,
         # so it is not recorded in the report.
-        #
-        # NOT on a wedged board: the latch has just skipped every remaining test precisely
-        # because flashing through a D-state-held node blocks, survives SIGKILL and leaves
-        # a stray -- and this park is a flash like any other. test_example's own guard does
-        # not stop it (that one only suppresses RETRIES, and this is attempt 0), so the
-        # containment path would add the very stray it exists to prevent.
         if _should_park(skip_flash):
             test_example(board, variants[0]['name'], 'device/board_test')
 
@@ -2080,8 +2068,8 @@ def _write_failed_spec(failed_fname: Path, report_dir: Path, mret: list) -> None
 class PoolDrainTimeout(MpTimeoutError):
     """Guard expiry, carrying the rows that DID finish.
 
-    They ride on the exception because the raise is the containment path: losing them here
-    is what map_async did, and what the drain exists to stop.
+    They ride on the exception because the raise is the abort path: losing them here is
+    what map_async did, and what the drain exists to stop.
     """
 
     def __init__(self, finished: list):
@@ -2122,8 +2110,7 @@ def _should_park(skip_flash: bool) -> bool:
     Not on a wedged board. The latch has just skipped every remaining test precisely
     because flashing through a D-state-held node blocks, survives SIGKILL and leaves a
     stray -- and the park is a flash like any other. test_example's own guard does not stop
-    it either: that one only suppresses RETRIES, and the park is always attempt 0. So the
-    containment path would end by adding the very stray it exists to prevent.
+    it either: that one only suppresses RETRIES, and the park is always attempt 0.
     """
     return not skip_flash and not board_wedged
 
@@ -2183,7 +2170,8 @@ def _save_controller_hints(hints: dict, mret: list, uid_of: dict, cmap) -> None:
 
 
 def _abort_report(reason: str, mret: list, config_boards: list, failed_fname: Path,
-                  report_dir: Path, fresh: bool, timeout_secs: int | None = None) -> None:
+                  report_dir: Path, fresh: bool,
+                  cell: str = hil_report.RUN_ABORTED_CELL) -> None:
     """Keep what finished, name what did not, and get a report on disk. Never raises.
 
     Both abort paths -- the pool guard expiring and a worker raising -- need exactly this,
@@ -2192,9 +2180,10 @@ def _abort_report(reason: str, mret: list, config_boards: list, failed_fname: Pa
     boards that never reported go in it.
 
     The report follows, before anything that can block, and the caller raises afterwards.
-    `timeout_secs` adds the pool-guard fallback: when accumulate_report itself fails -- an
-    unwritable report dir, a torn JSON -- the artifact upload would find nothing and the
-    sticky PR comment keep the previous push's green table under a red job.
+    When accumulate_report itself fails -- an unwritable report dir, a torn JSON -- the
+    fallback marks the boards that never reported with `cell`, or the artifact upload
+    would find nothing and the sticky PR comment keep the previous push's green table
+    under a red job.
     """
     stuck = [b['name'] for b in config_boards if b['name'] not in {r[0] for r in mret}]
     # main() seeds mret with the boards check_build.py refused; they never entered the pool
@@ -2221,15 +2210,10 @@ def _abort_report(reason: str, mret: list, config_boards: list, failed_fname: Pa
         print(f'warning: partial report failed: {type(rerr).__name__}: {rerr}'
               + '; falling back to the board list', flush=True)
     try:
-        # banner=, or write_timeout_report's default caveat publishes 'No per-board
-        # results could be collected' onto a report where mret DID hold finished rows
         # the CELL names the cause: a board the pool guard never reached did not
         # "pool-timeout", and marking it so sends the reader after a guard that did not fire
         hil_report.write_timeout_report(
-            report_dir, [b for b in config_boards if b['name'] in stuck],
-            timeout_secs or 0, banner=banner,
-            cell=(hil_report.POOL_TIMEOUT_CELL if timeout_secs
-                  else hil_report.RUN_ABORTED_CELL))
+            report_dir, [b for b in config_boards if b['name'] in stuck], banner, cell)
     except Exception as re2:  # noqa: BLE001
         print(f'warning: fallback report failed too: {type(re2).__name__}: {re2}',
               flush=True)
@@ -2448,7 +2432,7 @@ def main() -> None:
             mret = te.finished
             _abort_report(f'aborted: worker pool timed out after {POOL_TIMEOUT}s',
                           mret, config_boards, failed_fname, report_dir, fresh,
-                          timeout_secs=POOL_TIMEOUT)
+                          cell=hil_report.POOL_TIMEOUT_CELL)
             raise RuntimeError(f'HIL worker pool timed out after {POOL_TIMEOUT}s')
         except Exception as e:
             # A worker RAISED -- e.g. a flasher adapter dropping off the bus makes

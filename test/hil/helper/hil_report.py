@@ -10,7 +10,7 @@ writers, and the fold to one machine-readable verdict per board.
 Dual-mode by design: imported as `helper.hil_report` by hil_test.py, and run as a script by
 the operator (the HIL contract's Reporting section, .claude/skills/hil/SKILL.md). A script run puts test/hil/helper on
 sys.path rather than test/hil, so this module imports no sibling helper at all --
-_p and the width helpers below are defined locally for that reason. The same property makes it
+the width helpers below are defined locally for that reason. The same property makes it
 the home of board_variants(), the roster reading the builders (check_build.py, the CI matrix)
 import by path.
 """
@@ -26,7 +26,7 @@ def _w(s: str) -> int:
     character and TWO columns wide, so len() pads a cell holding one a column short and
     the pipes drift out of line with the header rule for the whole table.
 
-    Local, like _p above and for the same reason: this module is also run as a script, and
+    Local: this module is also run as a script, and
     under PYTHONSAFEPATH=1 a sibling import dies before argparse runs. hil_util carries the
     same pair for callers that can import it.
     """
@@ -347,21 +347,16 @@ def _write_stuck_over_prior_md(report_dir: Path, doc: dict) -> None:
     (report_dir / REPORT_MD).write_text(head + '\n' + body, encoding='utf-8')
 
 
-def write_timeout_report(report_dir: Path, boards, secs: int,
-                         banner: str = '', cell: str = POOL_TIMEOUT_CELL) -> None:
+def write_timeout_report(report_dir: Path, boards, caveat: str,
+                         cell: str = POOL_TIMEOUT_CELL) -> None:
     """Leave a report behind when the pool guard expires or a worker raises.
 
     Any prior attempt's rows are kept and each stuck board is marked with `cell` beside
-    them. The notice goes to the caveat, which an --accumulate retry does not carry."""
+    them. `caveat` is the notice, which an --accumulate retry does not carry."""
     try:
         # names INSIDE the try: a roster entry that is not a dict raises here, and outside
         # it that escaped and stranded the runner.
         names = [b.get('name', '?') if isinstance(b, dict) else '?' for b in boards]
-        caveat = banner or (
-            f'**HIL run aborted: worker pool timed out after {secs}s.**\n\n'
-            f'No per-board results could be collected for this attempt. Rows other than '
-            f'the {cell} cells below are from an earlier attempt. Boards '
-            f'dispatched:\n\n' + '\n'.join(f'- {n}' for n in names) + '\n')
         doc, readable = _load(report_dir)
         rows = doc['rows']
         by_board = {r['board']: r for r in rows}
@@ -387,22 +382,13 @@ def write_timeout_report(report_dir: Path, boards, secs: int,
         # would replace that error with this one.
         print(f'warning: cannot write {REPORT_MD} to {report_dir}: {e}', flush=True)
         try:
-            # Same wording as above and the same guarded name extraction -- the fallback
-            # used to re-derive b.get("name") outside any try and raise identically, so a
-            # malformed roster left NO artifact at all.
-            names = [b.get('name', '?') if isinstance(b, dict) else '?' for b in boards]
-            head = banner or (
-                f'**HIL run aborted: worker pool timed out after {secs}s.**\n\n'
-                f'No per-board results could be collected for this attempt, so the table '
-                f'below (if any) is from an earlier one. Boards dispatched:\n\n'
-                + '\n'.join(f'- {n}' for n in names) + '\n')
             try:
                 prior = (report_dir / REPORT_MD).read_text(encoding='utf-8')
             except (OSError, ValueError):
                 prior = ''
             report_dir.mkdir(parents=True, exist_ok=True)
             (report_dir / REPORT_MD).write_text(
-                head + (f'\n{prior}' if prior else ''), encoding='utf-8')
+                caveat + (f'\n{prior}' if prior else ''), encoding='utf-8')
         except Exception as e2:  # noqa: BLE001
             print(f'warning: fallback {REPORT_MD} write failed too: {e2}', flush=True)
 
@@ -491,16 +477,16 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
         # the caller then RE-RUNS, paying another pool guard on it. RUN_ABORTED_CELL
         # is written by the same _abort_report path for a board the guard never reached,
         # and must outrank it for the same reason.
-        wedged = any(POOL_TIMEOUT_CELL in cells or RUN_ABORTED_CELL in cells
-                     for cells in mine.values())
-        # the per-row VERIFIED wedge, distinct from `wedged` above, which is this run's
+        aborted = any(POOL_TIMEOUT_CELL in cells or RUN_ABORTED_CELL in cells
+                      for cells in mine.values())
+        # the per-row VERIFIED wedge, distinct from `aborted` above, which is this run's
         # pool-level outcome and never proof about one board. It outranks a lock cell the
         # same way: a wedged board must never be published as LOCKED, which the caller
         # re-runs.
         board_wedged = any(cell_state(cells[WEDGED_CELL]) == 'fail'
                            for cells in mine.values() if WEDGED_CELL in cells)
         unbuilt = any(cells.get(RUN_ABORTED_CELL) == BUILD_REFUSED for cells in mine.values())
-        locked = not wedged and not board_wedged and any(LOCKED_CELL in cells for cells in mine.values())
+        locked = not aborted and not board_wedged and any(LOCKED_CELL in cells for cells in mine.values())
         bad = []
         for vname, cells in sorted(mine.items()):
             for test, val in sorted(cells.items()):

@@ -689,8 +689,7 @@ jobs:
         # Bounded SEPARATELY from the job. This is the only HIL job that builds inline
         # (hil-tinyusb downloads artifacts), and the job ceiling went 30 -> 105 to give the
         # HIL step room -- which would hand a stalled IAR build the whole window on the
-        # shared self-hosted runner, never reaching hil_test.py or the report upload. That
-        # is the stranded-runner-with-no-report failure this branch exists to prevent.
+        # shared self-hosted runner, never reaching hil_test.py or the report upload.
         # Typical full build here is a few minutes; 30 leaves generous headroom.
         timeout-minutes: 30
         run: |

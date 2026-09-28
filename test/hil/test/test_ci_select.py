@@ -872,7 +872,7 @@ class FlasherRecoverEntry(unittest.TestCase):
         flash the part (ci.lan 2026-08-17, 2026-09-21 and 2026-09-22, tusb 2026-09-21 for
         lpcxpresso43s67). A new one is added only
         after the same demonstration. frdm_k64f is host-only, so usbtest never marks
-        it; its entry lets a dispatched rung-1 reset skip the shield. Left out, and why: stm32f769disco (probe not on the rig to demonstrate), ra4m1_ek (reset-only
+        it; its entry serves a manual reset through the recovery flasher. Left out, and why: stm32f769disco (probe not on the rig to demonstrate), ra4m1_ek (reset-only
         worked ~80% under openocd, SYSRESETREQ or srst, where JLinkExe resets 5/5; 2026-09-22).
         mimxrt1064_evk and lpcxpresso55s28 are reset-only: openocd 0ce743125 has no target cfg and
         no flash driver for them (FlexSPI, LPC55), so their entries declare a bare SWD DAP and

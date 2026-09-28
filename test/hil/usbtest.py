@@ -49,8 +49,6 @@ REGISTER_LOCK_NAME = 'usbtest-new_id.registry'
 REGISTER_LOCK_TIMEOUT = 30  # a holder only checks and writes new_id, itself bounded at 15 s
 RECOVER_FLASH_TIMEOUT = 90  # bound on the post-hang reflash; typical flash is 10-20s
 RECOVER_RESET_TIMEOUT = 30  # bound on the post-hang probe reset; jlink ResetTarget ~130ms, stlink --rst --go ~100ms
-
-
 RECOVER_SETTLE = 5          # after the recovery step, to let a freed ioctl unwind
 # How long a HUNG case is watched before it counts as a wedge. HUNG only says the kill was
 # not reaped within 5 s; testusb waiting on a peer's held device lock looks the same and is
@@ -65,7 +63,7 @@ RECOVER_REAP = 5            # after the settle: a freed testusb reaps within thi
 RECOVER_OVERHEAD = 40
 
 
-def recovery_reserve(flasher: dict | str) -> int:
+def recovery_reserve(flasher: dict) -> int:
     """Seconds this flasher's post-hang recovery can spend: the confirmation window, ONE
     bounded step (a probe reset where the flasher has one, else a reflash) plus run_cmd's
     post-SIGKILL reap, the settle and the reap check after it, and the overhead above.
@@ -73,8 +71,6 @@ def recovery_reserve(flasher: dict | str) -> int:
     on the probe."""
     import hil_flash
     from helper import hil_util
-    if isinstance(flasher, str):
-        flasher = {'name': flasher, 'args': ''}
     name = (flasher.get('name') or '').lower()
     step = RECOVER_RESET_TIMEOUT if hil_flash.reset_primitive(name) else RECOVER_FLASH_TIMEOUT
     return (WEDGE_CONFIRM_S + step + hil_util.REAP_GRACE + RECOVER_SETTLE + RECOVER_REAP
@@ -447,8 +443,6 @@ def dmesg_tail():
     return '\n'.join(lines[-8:])
 
 
-
-
 def run_case(num, dev, testusb, quick, timeout):
     fs_hs = PARAMS[num][0 if dev['speed'] == '12' else 1]
     if quick:
@@ -714,7 +708,7 @@ def main():
                 # two nodes now answer to one serial (the dual-port WCH parts do this
                 # around a re-enumeration). Picking either would file the rest of the
                 # battery's verdicts under a device we cannot identify, so stop here and
-                # keep the recovery in play rather than guess.
+                # latch board_wedged rather than guess.
                 abort_reason = (f'serial {dev["serial"]} matches more than one device '
                                 f'({", ".join(live["ambiguous"])}) after case {num}')
                 unrecovered_hang = True
@@ -724,8 +718,7 @@ def main():
                 # like a disconnect from here, and the difference decides whether this
                 # board is reported wedged. A device that is merely unreadable is probably
                 # wedged, so fail CLOSED: if anything gave up during this scan, treat it as
-                # the wedge it probably is, which keeps the recovery and the board_wedged
-                # latch in play.
+                # the wedge it probably is, which latches board_wedged.
                 if _hu().path_stranded(str(SYS_USB / dev['sysname'] / 'serial')):
                     abort_reason = (f'cannot tell whether the device is still present '
                                     f'after case {num}: its serial read gave up')

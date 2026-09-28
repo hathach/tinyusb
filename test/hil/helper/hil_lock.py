@@ -261,9 +261,8 @@ class controller_permit:
             try:
                 for s in self.slots:
                     # BOUNDED. multiprocessing semaphores are NOT released when a holder
-                    # dies, and the pool sweep SIGKILLs workers -- so a permit lost that
-                    # way would block every later worker on this controller forever, and
-                    # boards unrelated to the wedge would burn the whole pool guard. On
+                    # dies, so a permit lost to a killed worker would block every later
+                    # worker on this controller until the pool guard. On
                     # expiry proceed over-subscribed and say so: a slower controller is a
                     # far better failure than a hung run.
                     if not self.sems[s].acquire(timeout=PERMIT_TIMEOUT):

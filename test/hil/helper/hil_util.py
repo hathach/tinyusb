@@ -353,10 +353,7 @@ def run_alongside(argv: list, work, timeout: int) -> subprocess.CompletedProcess
                 out, err = p.communicate(timeout=REAP_GRACE)
             except subprocess.TimeoutExpired:
                 # Outlasted SIGKILL: uninterruptible, still holding whatever it opened.
-                # Abandoned like any other stray -- but as a real child in its own
-                # session, so the containment sweep FINDS it (child_procs walks the ppid
-                # tree) and the report names it. That is the whole difference from a
-                # blocked thread, which no sweep can see and no signal can reach.
+                # Abandoned.
                 out, err = b'', b''
                 _close_pipes(p)     # our own fds must not leak either
             return subprocess.CompletedProcess(argv, 124, out, err)
@@ -451,7 +448,7 @@ def run_cmd(cmd: str | list, cwd: str | None = None, timeout: int | None = None,
         except subprocess.TimeoutExpired:
             # Something in the group outlived SIGKILL: D state (truly unkillable), or
             # root-owned because sudo FORKS rather than execs, so the wrapper dies and its
-            # root child does not. Abandon it and let the report name it; the harness never
+            # root child does not. Abandon it; the harness never
             # sudo-kills its way out. Our ends of its pipes must not leak, though: a pool
             # worker lives for the whole run, so every wedged command would cost it two fds.
             out, err = None, None

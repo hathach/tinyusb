@@ -18,6 +18,8 @@ sys.path.insert(0, HIL_DIR)
 
 from helper import hil_report
 
+CAVEAT = '**HIL run aborted: worker pool timed out after 3600s.**\n'
+
 
 class OneClassifierForBothArtifacts(unittest.TestCase):
     """The markdown tally and the agent's verdict used to classify cells with two separate
@@ -191,7 +193,7 @@ class EveryExitPathLeavesBothArtifacts(unittest.TestCase):
         import io
         from contextlib import redirect_stdout
         with redirect_stdout(io.StringIO()):
-            hil_report.write_timeout_report(bad, [{'name': 'b1'}], 3600)
+            hil_report.write_timeout_report(bad, [{'name': 'b1'}], CAVEAT)
 
 
 class MarkdownIsAlwaysARenderingOfTheJson(unittest.TestCase):
@@ -237,15 +239,15 @@ class MarkdownIsAlwaysARenderingOfTheJson(unittest.TestCase):
         rd = Path(td.name)
         hil_report.accumulate_report(
             [('done', 0, 0, [('done', {'cdc_msc': 'OK'}, '1s')], 0)], rd, True, '', '')
-        hil_report.write_timeout_report(rd, [{'name': 'stuck'}], 3600)
+        hil_report.write_timeout_report(rd, [{'name': 'stuck'}], CAVEAT)
         self._check(rd)
 
 class WriteTimeoutReport(unittest.TestCase):
     def test_writes_a_report_where_there_would_be_none(self):
         with TemporaryDirectory() as td:
-            hil_report.write_timeout_report(Path(td), [{'name': 'ra6m5_ek'}], 4200)
+            hil_report.write_timeout_report(Path(td), [{'name': 'ra6m5_ek'}], CAVEAT)
             md = (Path(td) / hil_report.REPORT_MD).read_text()
-        self.assertIn('4200s', md)
+        self.assertIn(CAVEAT, md)
         self.assertIn('ra6m5_ek', md)
 
     def test_the_prior_attempts_rows_survive(self):
@@ -257,7 +259,7 @@ class WriteTimeoutReport(unittest.TestCase):
         rd = Path(td.name)
         hil_report.accumulate_report(
             [('done', 0, 0, [('done', {'cdc_msc': 'OK'}, '1s')], 0)], rd, True, '', '')
-        hil_report.write_timeout_report(rd, [{'name': 'stuck'}], 3600)
+        hil_report.write_timeout_report(rd, [{'name': 'stuck'}], CAVEAT)
         doc = json.loads((rd / hil_report.REPORT_JSON).read_text())
         self.assertEqual([r['board'] for r in doc['rows']], ['done', 'stuck'])
         md = (rd / hil_report.REPORT_MD).read_text()
@@ -267,12 +269,6 @@ class WriteTimeoutReport(unittest.TestCase):
         self.assertLess(md.index('aborted'), md.index('done'))
         self.assertEqual(md.count('| Board'), 1, 'the prior table was duplicated, not merged')
 
-    def test_custom_banner_is_used(self):
-        with TemporaryDirectory() as td:
-            hil_report.write_timeout_report(Path(td), [], 0,
-                                            banner='**refused to start.**\n')
-            self.assertIn('refused to start', (Path(td) / hil_report.REPORT_MD).read_text())
-
     def test_timeout_report_writes_the_sidecar(self):
         """This path used to write markdown only, so summarize() -- which is all an
         agent gets -- reported the whole fleet as 'no report row' on exactly the runs
@@ -280,7 +276,7 @@ class WriteTimeoutReport(unittest.TestCase):
         td = TemporaryDirectory()
         self.addCleanup(td.cleanup)
         rd = Path(td.name)
-        hil_report.write_timeout_report(rd, [{'name': 'boardA'}], 3600)
+        hil_report.write_timeout_report(rd, [{'name': 'boardA'}], CAVEAT)
         self.assertTrue((rd / hil_report.REPORT_JSON).is_file())
         self.assertIn('boardA', (rd / hil_report.REPORT_JSON).read_text())
 
@@ -293,7 +289,7 @@ class WriteTimeoutReport(unittest.TestCase):
         (rd / hil_report.REPORT_JSON).write_text(json.dumps(
             {'rows': [{'board': 'done', 'cells': {'cdc_msc': 'pass'}, 'duration': '1s'}],
              'scope': '', 'caveat': ''}))
-        hil_report.write_timeout_report(rd, [{'name': 'stuck'}], 3600)
+        hil_report.write_timeout_report(rd, [{'name': 'stuck'}], CAVEAT)
         rows = json.loads((rd / hil_report.REPORT_JSON).read_text())['rows']
         self.assertEqual([r['board'] for r in rows], ['done', 'stuck'])
 
@@ -302,7 +298,7 @@ class WriteTimeoutReport(unittest.TestCase):
         self.addCleanup(td.cleanup)
         rd = Path(td.name)
         (rd / hil_report.REPORT_JSON).write_text('{ truncated mid-')
-        hil_report.write_timeout_report(rd, [{'name': 'stuck'}], 3600)
+        hil_report.write_timeout_report(rd, [{'name': 'stuck'}], CAVEAT)
         rows = json.loads((rd / hil_report.REPORT_JSON).read_text())['rows']
         self.assertEqual([r['board'] for r in rows], ['stuck'])
 
@@ -312,14 +308,13 @@ class WriteTimeoutReport(unittest.TestCase):
         td = TemporaryDirectory()
         self.addCleanup(td.cleanup)
         rd = Path(td.name)
-        hil_report.write_timeout_report(rd, [{}], 3600)
+        hil_report.write_timeout_report(rd, [{}], CAVEAT)
         rows = json.loads((rd / hil_report.REPORT_JSON).read_text())['rows']
         self.assertEqual([r['board'] for r in rows], ['?'])
 
     def test_unwritable_dir_does_not_raise(self):
-        """The caller may be about to os._exit; losing the report must not also lose the
-        exit path."""
-        hil_report.write_timeout_report(Path('/proc/nonexistent/nope'), [], 0)
+        """The caller raises its abort right after; a raise here would replace it."""
+        hil_report.write_timeout_report(Path('/proc/nonexistent/nope'), [], CAVEAT)
 
 
 class SummaryFoldsReportToBoards(unittest.TestCase):
@@ -532,7 +527,7 @@ class WriteReportFailsLoudly(unittest.TestCase):
         buf = io.StringIO()
         with redirect_stdout(buf):
             hil_report.write_timeout_report(Path('/proc/nonexistent/nope'),
-                                            [{'name': 'b1'}], 3600)
+                                            [{'name': 'b1'}], CAVEAT)
         self.assertIn('warning', buf.getvalue().lower(), 'the failure was silent')
 
 
@@ -545,7 +540,7 @@ class PoolTimeoutCellIsHonest(unittest.TestCase):
         rd = Path(td.name)
         hil_report.accumulate_report(
             [('stm32f4', 0, 0, [('stm32f4', {'cdc_msc': 'OK'}, '1s')], 0)], rd, True, '', '')
-        hil_report.write_timeout_report(rd, [{'name': 'stm32f4'}], 3600)
+        hil_report.write_timeout_report(rd, [{'name': 'stm32f4'}], CAVEAT)
         doc = json.loads((rd / hil_report.REPORT_JSON).read_text())
         verdict = hil_report.summarize({'boards': [{'name': 'stm32f4'}]}, ['stm32f4'], doc)
         self.assertFalse(verdict['results'][0]['pass'],
@@ -557,7 +552,7 @@ class PoolTimeoutCellIsHonest(unittest.TestCase):
         td = TemporaryDirectory()
         self.addCleanup(td.cleanup)
         rd = Path(td.name)
-        hil_report.write_timeout_report(rd, [{'name': 'stuck'}], 3600)
+        hil_report.write_timeout_report(rd, [{'name': 'stuck'}], CAVEAT)
         hil_report.accumulate_report(
             [('stuck', 0, 0, [('stuck', {'cdc_msc': 'OK'}, '2s')], 0)], rd, False, '', '')
         doc = json.loads((rd / hil_report.REPORT_JSON).read_text())
@@ -573,10 +568,11 @@ class PoolTimeoutCellIsHonest(unittest.TestCase):
         rd = Path(td.name)
         (rd / hil_report.REPORT_MD).write_text('| Board | t |\n| a | OK |\n| b | OK |\n')
         (rd / hil_report.REPORT_JSON).write_text('{ truncated')
-        hil_report.write_timeout_report(rd, [{'name': 'stuck'}], 3600)
+        hil_report.write_timeout_report(rd, [{'name': 'stuck'}], CAVEAT)
         md = (rd / hil_report.REPORT_MD).read_text()
         self.assertIn('| a | OK |', md, "an earlier attempt's real results were destroyed")
-        self.assertIn('stuck', md)
+        doc = json.loads((rd / hil_report.REPORT_JSON).read_text())
+        self.assertEqual([r['board'] for r in doc['rows']], ['stuck'])
 
 
 class SummarizeSeesEveryRow(unittest.TestCase):
@@ -607,7 +603,7 @@ class RunVerdictIsASnapshot(unittest.TestCase):
     It judges THIS report only: accumulate_report() drops an earlier attempt's caveat, so the
     verdict of a retry sequence is the caller's from every attempt's result."""
 
-    ABANDON = '**HIL run aborted: worker pool timed out after 1s.** treat board results as unverified.\n'
+    ABORTED = '**HIL run aborted: worker pool timed out after 1s.** treat board results as unverified.\n'
 
     def _verdict(self, boards, rows, cfg_boards=None, caveat=''):
         td = TemporaryDirectory()
@@ -623,7 +619,7 @@ class RunVerdictIsASnapshot(unittest.TestCase):
         self.assertTrue(v['pass'])
 
     def test_a_caveat_fails_a_run_whose_rows_all_pass(self):
-        v = self._verdict(['a'], [('a', {'usbtest': 'pass'})], caveat=self.ABANDON)
+        v = self._verdict(['a'], [('a', {'usbtest': 'pass'})], caveat=self.ABORTED)
         self.assertTrue(all(r['pass'] for r in v['results']))
         self.assertFalse(v['pass'])
 
@@ -647,7 +643,7 @@ class RunVerdictIsASnapshot(unittest.TestCase):
         # an aborted first attempt: the caveat is set on a report whose rows pass
         hil_report.accumulate_report(rows, rd, True, '', '')
         doc, _ = hil_report._load(rd)
-        doc['caveat'] = self.ABANDON
+        doc['caveat'] = self.ABORTED
         hil_report.write_report(rd, doc)
         self.assertFalse(hil_report.summarize(cfg, ['boardA'], hil_report._load(rd)[0])['pass'])
         # a clean accumulated re-run clears the caveat, and THIS snapshot passes: the sequence
@@ -656,7 +652,7 @@ class RunVerdictIsASnapshot(unittest.TestCase):
         self.assertTrue(hil_report.summarize(cfg, ['boardA'], hil_report._load(rd)[0])['pass'])
         # the other direction: a clean first attempt, then a re-run that aborted
         doc, _ = hil_report._load(rd)
-        doc['caveat'] = self.ABANDON
+        doc['caveat'] = self.ABORTED
         hil_report.write_report(rd, doc)
         self.assertFalse(hil_report.summarize(cfg, ['boardA'], hil_report._load(rd)[0])['pass'])
 
@@ -744,7 +740,7 @@ class CaveatDoesNotCarryAcrossARetry(unittest.TestCase):
         rd = Path(td.name)
         hil_report.accumulate_report([('a', 0, 0, [('a', {'t': 'OK'}, '1s')], 0)],
                                      rd, True, '', '')
-        hil_report.write_timeout_report(rd, [], 3600)
+        hil_report.write_timeout_report(rd, [], CAVEAT)
         hil_report.accumulate_report([('a', 0, 0, [('a', {'t': 'OK'}, '2s')], 0)],
                                      rd, False, '', '')
         self.assertEqual(json.loads((rd / hil_report.REPORT_JSON).read_text())['caveat'], '')
@@ -773,7 +769,7 @@ class AMalformedSidecarNeverCostsTheReport(unittest.TestCase):
         rd = Path(td.name)
         self._write(rd, {'rows': [{'board': 'boardA', 'cells': None, 'duration': '61s'}],
                          'caveat': '', 'scope': ''})
-        hil_report.write_timeout_report(rd, [{'name': 'boardA'}], 3600)
+        hil_report.write_timeout_report(rd, [{'name': 'boardA'}], CAVEAT)
         doc = json.loads((rd / hil_report.REPORT_JSON).read_text())
         v = hil_report.summarize({'boards': [{'name': 'boardA'}]}, ['boardA'], doc)
         self.assertFalse(v['results'][0]['pass'],
@@ -786,7 +782,7 @@ class AMalformedSidecarNeverCostsTheReport(unittest.TestCase):
         import io
         from contextlib import redirect_stdout
         with redirect_stdout(io.StringIO()):
-            hil_report.write_timeout_report(rd, ['plainstring'], 3600)
+            hil_report.write_timeout_report(rd, ['plainstring'], CAVEAT)
         self.assertTrue((rd / hil_report.REPORT_MD).is_file(), 'no artifact at all')
 
 
@@ -842,7 +838,7 @@ class NoBoardsExitRespectsFreshness(unittest.TestCase):
         rd = Path(td.name)
         hil_report.accumulate_report([('a', 0, 0, [('a', {'t': 'OK'}, '1s')], 0)],
                                      rd, True, '', '')
-        hil_report.write_timeout_report(rd, [], 3600)
+        hil_report.write_timeout_report(rd, [], CAVEAT)
         hil_report.mark_report_no_boards(rd, 'filters emptied', fresh=False)
         self.assertIn('aborted',
                       json.loads((rd / hil_report.REPORT_JSON).read_text())['caveat'])
@@ -910,7 +906,7 @@ class MissingSidecarDoesNotDestroyTheMarkdown(unittest.TestCase):
         self.addCleanup(td.cleanup)
         rd = Path(td.name)
         (rd / hil_report.REPORT_MD).write_text('| Board | t |\n| a | OK |\n| b | OK |\n')
-        hil_report.write_timeout_report(rd, [{'name': 'stuck'}], 3600)
+        hil_report.write_timeout_report(rd, [{'name': 'stuck'}], CAVEAT)
         self.assertIn('| a | OK |', (rd / hil_report.REPORT_MD).read_text())
 
 
@@ -997,7 +993,7 @@ class NoBoardsGuardOnlyAppliesWhenAccumulating(unittest.TestCase):
         rd = Path(td.name)
         hil_report.accumulate_report([('old', 0, 0, [('old', {'t': 'OK'}, '1s')], 0)],
                                      rd, True, '', '')
-        hil_report.write_timeout_report(rd, [], 3600)
+        hil_report.write_timeout_report(rd, [], CAVEAT)
         hil_report.mark_report_no_boards(rd, 'filters emptied', fresh=True)
         doc = json.loads((rd / hil_report.REPORT_JSON).read_text())
         self.assertEqual(doc['rows'], [])

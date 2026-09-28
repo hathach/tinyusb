@@ -963,9 +963,8 @@ class MtpGioFallthrough(unittest.TestCase):
 
 
 class RunWhileContract(unittest.TestCase):
-    """The read-while-we-write runner. Its child can still outlast SIGKILL -- but unlike
-    the thread it replaced, an abandoned child is a real process in its own session, so
-    the containment sweep finds it and the report names it."""
+    """The read-while-we-write runner. Its child can still outlast SIGKILL, and is then
+    abandoned with our pipe ends closed."""
 
     def setUp(self):
         from helper import hil_util
@@ -1344,7 +1343,7 @@ class PoolGuardKeepsWhatFinished(unittest.TestCase):
 
 
 class WedgedBoardCosts(unittest.TestCase):
-    """Two decisions the containment latch makes, tested as decisions rather than through
+    """Two decisions the board_wedged latch makes, tested as decisions rather than through
     test_board's loop -- the loop-level predecessor of these tests reimplemented that loop
     and asserted on its own copy, which is how both defects survived it."""
 
@@ -1630,21 +1629,23 @@ class MixedWidthRowsSurviveTheReportWriters(unittest.TestCase):
         from helper import hil_report
         real = hil_report.accumulate_report
 
-        def render(reason, secs):
+        def render(reason, cell):
             hil_report.accumulate_report = lambda *a, **k: (_ for _ in ()).throw(
                 OSError('report dir unwritable'))
             try:
                 with TemporaryDirectory() as td:
                     rd = Path(td)
                     hil_test._abort_report(reason, [], [{'name': 'boardA'}],
-                                           rd / 'c.failed', rd, True, timeout_secs=secs)
+                                           rd / 'c.failed', rd, True, cell=cell)
                     return (rd / hil_report.REPORT_MD).read_text()
             finally:
                 hil_report.accumulate_report = real
 
-        guard = render('aborted: worker pool timed out after 3600s', 3600)
+        guard = render('aborted: worker pool timed out after 3600s',
+                       hil_report.POOL_TIMEOUT_CELL)
         self.assertIn(hil_report.POOL_TIMEOUT_CELL, guard)
-        raised = render('aborted: a worker raised ValueError: x', None)
+        raised = render('aborted: a worker raised ValueError: x',
+                        hil_report.RUN_ABORTED_CELL)
         self.assertIn(hil_report.RUN_ABORTED_CELL, raised)
         self.assertNotIn(hil_report.POOL_TIMEOUT_CELL, raised,
                          'a run that aborted on a raise is not a pool timeout')
