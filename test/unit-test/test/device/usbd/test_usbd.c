@@ -563,3 +563,52 @@ void test_usbd_stream_write_zlp_after_full_packet(void)
   dcd_edpt_xfer_ExpectAndReturn(rhport, 0x82, NULL, 0, false, true);
   TEST_ASSERT_TRUE(tu_edpt_stream_write_zlp_if_needed(&stream, 64));
 }
+
+//--------------------------------------------------------------------+
+// Endpoint stream wide requests
+//--------------------------------------------------------------------+
+
+// The stream API takes a uint32_t request but the fifo API is uint16_t: narrowed, 65536 becomes 0
+// and 65537 becomes 1, so the request must be clamped to UINT16_MAX first. A closed stream
+// (ep_addr 0) never claims an endpoint, so no DCD expectation is needed.
+enum { WIDE_REQ_MAX = 65537 };
+static uint8_t wide_src[WIDE_REQ_MAX];
+static uint8_t wide_dst[WIDE_REQ_MAX];
+
+static void wide_stream_setup(tu_edpt_stream_t *stream, bool overwritable, uint8_t *ff_buf) {
+  memset(stream, 0, sizeof(*stream));
+  TEST_ASSERT_TRUE(tu_edpt_stream_init(stream, false, true, overwritable, ff_buf, 64, NULL));
+}
+
+void test_usbd_stream_wide_request(void)
+{
+  static const uint32_t sizes[] = { 65535, 65536, WIDE_REQ_MAX };
+  uint8_t ff_buf[64];
+  tu_edpt_stream_t stream;
+
+  for (uint32_t i = 0; i < WIDE_REQ_MAX; i++) {
+    wide_src[i] = (uint8_t) (i * 7u + 3u);
+  }
+
+  for (size_t i = 0; i < TU_ARRAY_SIZE(sizes); i++) {
+    // write: the fifo takes the first 64 bytes of the request
+    wide_stream_setup(&stream, false, ff_buf);
+    TEST_ASSERT_EQUAL_UINT32(64, tu_edpt_stream_write(&stream, wide_src, sizes[i]));
+    TEST_ASSERT_EQUAL_UINT16(64, tu_fifo_count(&stream.ff));
+    TEST_ASSERT_EQUAL_MEMORY(wide_src, ff_buf, 64);
+
+    // read: the 64 queued bytes come out and nothing past them is written
+    memset(wide_dst, 0xA5, sizeof(wide_dst));
+    TEST_ASSERT_EQUAL_UINT32(64, tu_edpt_stream_read(&stream, wide_dst, sizes[i]));
+    TEST_ASSERT_EQUAL_UINT16(0, tu_fifo_count(&stream.ff));
+    TEST_ASSERT_EQUAL_MEMORY(wide_src, wide_dst, 64);
+    TEST_ASSERT_EQUAL_UINT8(0xA5, wide_dst[64]);
+  }
+
+  // overwritable: the fifo keeps the tail of the clamped 65535-byte request, not of the whole one
+  wide_stream_setup(&stream, true, ff_buf);
+  TEST_ASSERT_EQUAL_UINT32(64, tu_edpt_stream_write(&stream, wide_src, 65536));
+  TEST_ASSERT_EQUAL_UINT16(64, tu_fifo_count(&stream.ff));
+  TEST_ASSERT_EQUAL_UINT32(64, tu_edpt_stream_read(&stream, wide_dst, 64));
+  TEST_ASSERT_EQUAL_MEMORY(wide_src + 65535 - 64, wide_dst, 64);
+}
