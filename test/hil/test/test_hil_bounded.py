@@ -1490,6 +1490,39 @@ class WedgedBoardCannotReportAPass(unittest.TestCase):
         self.assertIn('30/30', cell)
 
 
+class WedgeMessageNamesTheCause(unittest.TestCase):
+    """The latch text sends the operator to a probe or a setting, so it must name what
+    happened: the ambiguous and unreadable-serial aborts run no recovery, and --skip-flash
+    is not the flasher's fault."""
+
+    def setUp(self):
+        self.addCleanup(setattr, hil_test, 'board_wedged', hil_test.board_wedged)
+        self.addCleanup(setattr, hil_test, 'skip_flash', hil_test.skip_flash)
+        hil_test.skip_flash = False
+
+    def _latch(self, cases, recovery):
+        hil_test.board_wedged = ''
+        data = {'passed': 1, 'failed': 1, 'notrun': 0, 'wedged': True, 'cases': cases}
+        with self.assertRaises(hil_test.TestFail):
+            hil_test._usbtest_verdict({'name': 'b'}, data, '', 1, 1, recovery,
+                                      {'name': 'openocd'})
+        return hil_test.board_wedged
+
+    def test_a_hang_names_the_recovery_or_what_blocked_it(self):
+        hung = [{'num': 10, 'status': 'HUNG'}]
+        self.assertIn('after a recovery via openocd', self._latch(hung, True))
+        self.assertIn('openocd cannot deliver a recovery', self._latch(hung, False))
+        hil_test.skip_flash = True
+        msg = self._latch(hung, False)
+        self.assertIn('--skip-flash', msg)
+        self.assertNotIn('openocd', msg)
+
+    def test_an_abort_without_a_hang_names_no_recovery(self):
+        msg = self._latch([{'num': 10, 'status': 'FAIL'}], True)
+        self.assertIn('could no longer be identified', msg)
+        self.assertNotIn('recovery', msg)
+
+
 def _gil_stall_available() -> bool:
     """Whether the hid stub can simulate a GIL-HOLDING stall on this host.
 

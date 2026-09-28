@@ -1614,10 +1614,17 @@ def _usbtest_verdict(board: Board, data: dict, out: str, passed: int, failed: in
     # were passed, and a HUNG case whose kill landed late is a timeout, not a wedge (#3944).
     # rec_flasher, not board['flasher']: the two diverge on a roster with `flasher_recover`,
     # and naming the wrong one sends the operator to the wrong probe.
+    # No HUNG case: usbtest aborted on an ambiguous or unreadable serial, before any recovery.
     if data.get('wedged'):
-        board_wedged = (f'{board["name"]}: usbtest reports the device wedged '
-                        + (f'after a recovery via {rec_flasher["name"]}' if recovery
-                           else f'and {rec_flasher["name"]} cannot deliver a recovery'))
+        if not any(c.get('status') == 'HUNG' for c in data.get('cases', [])):
+            cause = 'as it could no longer be identified'
+        elif recovery:
+            cause = f'after a recovery via {rec_flasher["name"]}'
+        elif skip_flash:
+            cause = 'and --skip-flash disabled the recovery'
+        else:
+            cause = f'and {rec_flasher["name"]} cannot deliver a recovery'
+        board_wedged = f'{board["name"]}: usbtest reports the device wedged {cause}'
 
     # notrun counts toward the denominator but is NOT a failure: listing cases that never
     # ran as failures sends a maintainer bisecting one of them.
