@@ -600,7 +600,7 @@ void dcd_int_handler(uint8_t rhport)
   uint32_t const cmd_stat = dcd_reg->DEVCMDSTAT;
 
   uint32_t int_status = dcd_reg->INTSTAT;
-	int_status &= dcd_reg->INTEN;
+  int_status &= dcd_reg->INTEN;
   dcd_reg->INTSTAT = int_status; // Acknowledge handled interrupt
 
   if (int_status == 0) return;
