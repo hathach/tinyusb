@@ -46,6 +46,7 @@ import re
 import runpy
 import shlex
 import shutil
+import signal
 import struct
 import subprocess
 import sys
@@ -708,7 +709,9 @@ def run(cmd, timeout=None):
     """Run a command. cmd must be a list (no shell=True). On `timeout`, SIGTERM the
     command, SIGKILL it if it outlives a grace period, and return a CompletedProcess
     with rc=124 instead of raising TimeoutExpired, so the caller can fall through to
-    error reporting and worktree cleanup rather than crashing with a traceback."""
+    error reporting and worktree cleanup rather than crashing with a traceback. Any
+    other exception, e.g. exit_on_termination()'s exit, stops the command the same way
+    and is re-raised: Popen's exit would otherwise wait for it."""
     if not isinstance(cmd, list):
         raise TypeError('run() requires a list, got str — fix the caller')
     if verbose:
@@ -718,7 +721,7 @@ def run(cmd, timeout=None):
                           encoding='utf-8', errors='replace') as proc:
         try:
             out, err = proc.communicate(timeout=timeout)
-        except subprocess.TimeoutExpired:
+        except BaseException as stopped:
             # SIGTERM lets ninja stop its jobs, which it runs in process groups of their own;
             # a descendant can outlive the SIGKILL holding the pipes open, so stop reading then
             for stop, wait in ((proc.terminate, TERMINATE_GRACE), (proc.kill, KILL_DRAIN)):
@@ -728,9 +731,18 @@ def run(cmd, timeout=None):
                     break
                 except subprocess.TimeoutExpired as e:
                     out, err = ((b or b'').decode(errors='replace') for b in (e.stdout, e.stderr))
+            if not isinstance(stopped, subprocess.TimeoutExpired):
+                raise
             msg = f'Command timed out after {timeout}s: {" ".join(shlex.quote(str(c)) for c in cmd)}'
             return subprocess.CompletedProcess(cmd, 124, stdout=out, stderr=err + ('\n' if err else '') + msg)
     return subprocess.CompletedProcess(cmd, proc.returncode, stdout=out, stderr=err)
+
+
+def exit_on_termination():
+    """Exit on a SIGTERM or SIGHUP sent to this process alone as on Ctrl-C: through run()'s
+    stop of its command and main()'s worktree removal, instead of orphaning the build."""
+    for signum in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(signum, lambda sig, _frame: sys.exit(128 + sig))
 
 
 def symlink_deps(main_root, worktree_dir):
@@ -1122,17 +1134,16 @@ def main():
     if os.path.isdir(worktree_dir):
         # twice: a killed `worktree add` leaves it locked `initializing`
         run(['git', '-C', TINYUSB_ROOT, 'worktree', 'remove', '--force', '--force', worktree_dir])
-    # --detach: check out the ref at a detached HEAD instead of trying to claim the
-    # branch. Lets us add a worktree of `master` even if master is already checked
-    # out elsewhere (main repo, another worktree).
-    ret = run(['git', '-C', TINYUSB_ROOT, 'worktree', 'add', '--detach',
-               worktree_dir, args.base_branch])
-    if ret.returncode != 0:
-        print(f'Error creating worktree: {ret.stderr}')
-        sys.exit(1)
-
     failed = False
     try:
+        # --detach: check out the ref at a detached HEAD instead of trying to claim the
+        # branch. Lets us add a worktree of `master` even if master is already checked
+        # out elsewhere (main repo, another worktree).
+        ret = run(['git', '-C', TINYUSB_ROOT, 'worktree', 'add', '--detach',
+                   worktree_dir, args.base_branch])
+        if ret.returncode != 0:
+            print(f'Error creating worktree: {ret.stderr}')
+            sys.exit(1)
         symlink_deps(TINYUSB_ROOT, worktree_dir)
 
         # the commit actually built, which the ref may no longer name later
@@ -1241,12 +1252,15 @@ def main():
             print_result(diff_summary(data, args.symbols))
             write_report(os.path.join(combined_dir, 'diff'), md, report_data(data))
     finally:
-        ret = run(['git', '-C', TINYUSB_ROOT, 'worktree', 'remove', '--force', worktree_dir])
-        if ret.returncode != 0:
+        # an add stopped by a signal leaves it too, locked `initializing`
+        ret = run(['git', '-C', TINYUSB_ROOT, 'worktree', 'remove', '--force', '--force', worktree_dir]) \
+            if os.path.isdir(worktree_dir) else None
+        if ret and ret.returncode != 0:
             print(f'Error removing worktree {worktree_dir}: {ret.stderr.strip()}')
             failed = True
     return 1 if failed else 0
 
 
 if __name__ == '__main__':
+    exit_on_termination()
     sys.exit(main())

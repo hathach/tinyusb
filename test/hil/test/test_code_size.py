@@ -4,7 +4,9 @@
 glob.glob, the engines and the build steps are monkeypatched in the generate_sizes
 and main tests, so no build and no real membrowse CLI invocation is needed.
 """
+import concurrent.futures
 import contextlib
+import functools
 import io
 import json
 import os
@@ -734,6 +736,25 @@ class GenerateSizes(unittest.TestCase):
         finally:
             sd._linkermap.cache_clear()
 
+    def test_an_exit_while_sizing_cancels_the_elfs_not_yet_started(self):
+        """Executor.map cancels its pending calls when its results stop being read, so
+        exit_on_termination() waits only for the elfs being sized."""
+        elfs = [f'/fake/build/ex{i}/ex{i}.elf' for i in range(200)]
+        sized = []
+
+        def sizes(elf, _filters):
+            if elf == elfs[0]:
+                raise SystemExit(143)  # as exit_on_termination()'s handler, surfacing from the map
+            time.sleep(0.02)
+            sized.append(elf)
+            return _elf(4)
+        # one worker: elfs[0]'s exit is read long before the others could all be sized
+        one_worker = functools.partial(concurrent.futures.ThreadPoolExecutor, max_workers=1)
+        with mock.patch('glob.glob', return_value=elfs), _engine('membrowse', sizes), \
+             mock.patch('concurrent.futures.ThreadPoolExecutor', one_worker), self.assertRaises(SystemExit):
+            sd.generate_sizes('/fake/build', ['build/'])
+        self.assertLess(len(sized), len(elfs) - 1)
+
     def test_a_failed_elf_marks_only_that_elf(self):
         # an engine raises RuntimeError for one elf (`membrowse report` exiting
         # non-zero, malformed output): that elf fails, the others are still sized
@@ -872,6 +893,44 @@ class BuildOutput(unittest.TestCase):
                 ret = sd.run(['sh', '-c', f"printf 'w: \\251\\n'; printf '\\377' >&2; {tail}"], timeout=timeout)
                 self.assertEqual((ret.returncode, ret.stdout), (rc, 'w: \ufffd\n'))
                 self.assertTrue(ret.stderr.startswith('\ufffd'))
+
+    def test_sigterm_to_the_script_alone_stops_its_command_and_runs_cleanup(self):
+        """Popen's exit waits for the command, so the handler passes the signal on, and
+        kills a command ignoring it after the grace."""
+        for action, forwarded in (('echo got > {got}; exit', True), ('', False)):
+            with self.subTest(forwarded=forwarded), tempfile.TemporaryDirectory() as tmp:
+                pidfile, got = os.path.join(tmp, 'pid'), os.path.join(tmp, 'got')
+                # the pid is written once the trap is in place, so the signal meets it
+                command = f"trap '{action.format(got=got)}' TERM; echo $$ > {pidfile}; while :; do sleep 0.1; done"
+                script = ('import code_size as c\n'
+                          'c.TERMINATE_GRACE = 0.2\n'
+                          'c.exit_on_termination()\n'
+                          'try:\n'
+                          f'    c.run(["sh", "-c", {command!r}])\n'
+                          'finally:\n'
+                          '    print("cleaned up", flush=True)\n')
+                proc = subprocess.Popen([sys.executable, '-c', script], stdout=subprocess.PIPE, text=True,
+                                        cwd=os.path.dirname(sd.__file__))
+                child = None
+                try:
+                    deadline = time.monotonic() + 5
+                    while not (os.path.exists(pidfile) and os.path.getsize(pidfile)):
+                        self.assertLess(time.monotonic(), deadline)
+                        time.sleep(0.05)
+                    with open(pidfile) as f:
+                        child = int(f.read())
+                    proc.send_signal(signal.SIGTERM)
+                    out, _ = proc.communicate(timeout=5)
+                    self.assertEqual((proc.returncode, out), (128 + signal.SIGTERM, 'cleaned up\n'))
+                    self.assertEqual(os.path.exists(got), forwarded)
+                    with self.assertRaises(ProcessLookupError):
+                        os.kill(child, 0)
+                finally:
+                    proc.kill()
+                    proc.wait()
+                    if child:
+                        with contextlib.suppress(ProcessLookupError):
+                            os.kill(child, signal.SIGKILL)
 
     def test_a_command_ignoring_sigterm_is_killed_after_the_grace(self):
         with mock.patch.object(sd, 'TERMINATE_GRACE', 0.5):
@@ -1051,6 +1110,8 @@ class MainFailure(unittest.TestCase):
         stuck = subprocess.CompletedProcess([], 1, '', 'fatal: busy')
 
         def run(cmd, **_kwargs):
+            if cmd[3:5] == ['worktree', 'add']:
+                os.makedirs(cmd[-2])
             return stuck if cmd[3:5] == ['worktree', 'remove'] else ok
         with tempfile.TemporaryDirectory() as tmp:
             def build(_src, _build_dir, board, *_args):
@@ -1386,6 +1447,8 @@ class MainFailure(unittest.TestCase):
 
         def run(cmd, **_kwargs):
             cmds.append(cmd[3:5])
+            if cmd[3:5] == ['worktree', 'add']:
+                os.makedirs(cmd[-2])
             return ok
         with tempfile.TemporaryDirectory() as tmp, \
              mock.patch.object(sys, 'argv', ['code_size.py', 'diff', '-b', 'b']), \
@@ -1396,6 +1459,24 @@ class MainFailure(unittest.TestCase):
             with self.assertRaises(FileNotFoundError):
                 sd.main()
         self.assertEqual(cmds, [['worktree', 'add'], ['worktree', 'remove']])
+
+    def test_a_worktree_add_stopped_by_a_signal_is_removed(self):
+        cmds = []
+
+        def run(cmd, **_kwargs):
+            cmds.append(cmd[3:])
+            if cmd[3:5] == ['worktree', 'add']:
+                os.makedirs(cmd[-2])  # git has created it, locked `initializing`
+                raise SystemExit(143)  # exit_on_termination(), through run()
+            return subprocess.CompletedProcess([], 0, '', '')
+        with tempfile.TemporaryDirectory() as tmp, \
+             mock.patch.object(sys, 'argv', ['code_size.py', 'diff', '-b', 'b']), \
+             mock.patch.object(sd, 'CODE_SIZE_DIR', tmp), \
+             mock.patch.object(sd, 'run', side_effect=run), \
+             contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                sd.main()
+            self.assertEqual(cmds[-1], ['worktree', 'remove', '--force', '--force', os.path.join(tmp, '_worktree')])
 
     def test_a_failed_worktree_setup_leaves_no_previous_report(self):
         with tempfile.TemporaryDirectory() as tmp:
