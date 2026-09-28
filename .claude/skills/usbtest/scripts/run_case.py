@@ -27,7 +27,6 @@ lock was taken, 2 refused before any hardware action.
 import argparse
 import json
 import os
-import subprocess
 import sys
 import tempfile
 import time
@@ -219,19 +218,17 @@ def main():
     except Refused as e:
         return finish(2, str(e))
 
-    workdir = None
     try:
-        # flash_jlink writes its command file into the cwd: keep it out of the checkout
-        workdir = tempfile.mkdtemp(prefix='run_case-')
-        os.chdir(workdir)
-        return run_locked(board, lock, fw, park_fw, tests, args.timeout, report, finish)
+        # flash_jlink writes its command file into the cwd: keep it out of the checkout. Cleanup
+        # runs after run_locked printed the verdict, so its errors must not add a second one.
+        with tempfile.TemporaryDirectory(prefix='run_case-', ignore_cleanup_errors=True) as workdir:
+            os.chdir(workdir)
+            return run_locked(board, lock, fw, park_fw, tests, args.timeout, report, finish)
     except Exception as e:   # any failure after the lock still ends with a verdict line
         return finish(1, f'{type(e).__name__}: {e}')
     finally:
         try:
             os.chdir(cwd)
-            if workdir:
-                subprocess.run(['rm', '-rf', workdir], check=False)
         finally:
             release(lock)
 

@@ -309,7 +309,7 @@ class Chain(unittest.TestCase):
 
     def test_a_setup_error_after_the_lock_still_reports(self):
         rig = Rig(self)
-        with mock.patch.object(run_case.tempfile, 'mkdtemp', side_effect=OSError('disk full')):
+        with mock.patch.object(run_case.tempfile, 'TemporaryDirectory', side_effect=OSError('disk full')):
             rc, report, _ = rig.run('--board', 'solo', '--tests', '29', '--after', 'park')
         self.assertEqual((rc, report['error'], report['boardState']), (1, 'OSError: disk full', 'untouched'))
         self.assertEqual(rig.calls, [('lock', 'solo')])
