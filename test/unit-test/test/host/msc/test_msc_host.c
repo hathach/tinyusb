@@ -27,6 +27,7 @@ static uint8_t  complete_count;
 static uint8_t  set_config_count;
 static msc_csw_t complete_csw;
 static bool     retry_submitted;
+static bool     ctrl_xfer_fail;
 static tuh_xfer_cb_t ctrl_complete_cb;
 static uint8_t  enum_buf[64];
 static uint8_t  data[98304];
@@ -39,7 +40,7 @@ bool tuh_edpt_open(uint8_t daddr, const tusb_desc_endpoint_t *desc_ep) {
 
 bool tuh_control_xfer(tuh_xfer_t *xfer) {
   ctrl_complete_cb = xfer->complete_cb;
-  return true;
+  return !ctrl_xfer_fail;
 }
 
 uint8_t *usbh_get_enum_buf(void) {
@@ -96,7 +97,7 @@ static bool retry_complete(uint8_t daddr, const tuh_msc_complete_data_t *cb_data
   return true;
 }
 
-static void mount_bot_interface(void) {
+static void open_bot_interface(void) {
   struct TU_ATTR_PACKED {
     tusb_desc_interface_t itf;
     tusb_desc_endpoint_t  ep_out;
@@ -109,6 +110,10 @@ static void mount_bot_interface(void) {
   };
 
   TEST_ASSERT_EQUAL(sizeof(desc), msch_open(0, DADDR, &desc.itf, sizeof(desc)));
+}
+
+static void mount_bot_interface(void) {
+  open_bot_interface();
   TEST_ASSERT_TRUE(msch_set_config(DADDR, 0));
 }
 
@@ -153,6 +158,7 @@ void setUp(void) {
   complete_count  = 0;
   set_config_count = 0;
   retry_submitted = false;
+  ctrl_xfer_fail  = false;
   msch_init();
   mount_bot_interface();
 }
@@ -334,6 +340,17 @@ void test_msc_host_enum_read_capacity_submit_fail(void) {
   TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
 
   assert_enum_ended_unmounted(4);
+}
+
+// usbh ignores set_config's result, so a Get Max LUN that fails to submit must end the configuration itself
+void test_msc_host_enum_get_max_lun_submit_fail(void) {
+  msch_close(DADDR);
+  set_config_count = 0;
+  ctrl_xfer_fail   = true;
+  open_bot_interface();
+  (void) msch_set_config(DADDR, 0);
+
+  assert_enum_ended_unmounted(0);
 }
 
 // usbh closes the driver before failing the in-flight Get Max LUN, and has already ended the enumeration

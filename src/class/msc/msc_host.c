@@ -466,7 +466,11 @@ bool msch_set_config(uint8_t daddr, uint8_t itf_num) {
       .complete_cb = config_get_maxlun_complete,
       .user_data    = 0
   };
-  TU_ASSERT(tuh_control_xfer(&xfer));
+  // usbh ignores set_config's result: report completion here or the enumeration never ends
+  if (!tuh_control_xfer(&xfer)) {
+    config_abort(daddr);
+    return false;
+  }
 
   return true;
 }
