@@ -527,8 +527,7 @@ def open_printer_dev(id: str, vendor_str, product_str, ifnum: int) -> str:
         return lp_dev if lp_dev and os.path.exists(lp_dev) else None
 
     lp_dev = wait_until(try_find)
-    assert lp_dev, (f'Printer device not found for {id} if{ifnum:02d}'
-                    + hil_util.strand_note())
+    assert lp_dev, f'Printer device not found for {id} if{ifnum:02d}'
     return lp_dev
 
 
@@ -1518,10 +1517,7 @@ def test_device_usbtest(board):
     # mutex for minutes behind real batteries just to have usbtest.py report "no device"
     if not seen:
         # 0/30 rather than a bare cell: the battery never ran (30 = standard case count)
-        # maxtasksperchild=1, so this worker only ever handled THIS board: a give-up here
-        # is about this device. Without the caveat a wedged-but-present DUT reads as a
-        # positive absence claim -- the conflation this whole path exists to avoid.
-        raise TestFail(f'no cafe:4010 device with serial {uid}{hil_util.strand_note()}',
+        raise TestFail(f'no cafe:4010 device with serial {uid}',
                        metric=f'{hil_report.REPORT_CELL["fail"]} 0/30')
     # settle: right after flashing the enumeration can bounce once (and on dual-port parts
     # the other port's stale node — same serial and PID — lingers), and testusb run into

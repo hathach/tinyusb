@@ -253,8 +253,6 @@ class BoundedReadForGuardlessCallers(unittest.TestCase):
         for name in ('_stranded', '_strand_hits'):
             self.addCleanup(setattr, hil_util, name, dict(getattr(hil_util, name)))
             getattr(hil_util, name).clear()
-        self.addCleanup(setattr, hil_util, '_ever_stranded', hil_util._ever_stranded)
-        hil_util._ever_stranded = False
         self.td = TemporaryDirectory()
         self.addCleanup(self.td.cleanup)
         self.fifo = os.path.join(self.td.name, 'serial')
@@ -295,9 +293,8 @@ class BoundedReadForGuardlessCallers(unittest.TestCase):
                          'the healthy new inode was recorded as the wedged one')
 
     def test_concurrent_readers_of_one_path_spend_one_credit(self):
-        """hil_pool_check polls one bus from four threads. Counting each READER let four
-        threads on ONE wedged device spend four of the process budget between them --
-        latching on the single wedge the tool was run to find."""
+        """hil_pool_check polls one bus from four threads; counting each READER would
+        spend the per-path cap on a single wedge."""
         ts = [threading.Thread(target=lambda: self.hil_util.read_sysfs(self.fifo, timeout=0.3))
               for _ in range(4)]
         [t.start() for t in ts]
@@ -320,7 +317,7 @@ class BoundedReadForGuardlessCallers(unittest.TestCase):
     def test_a_value_that_arrived_at_the_deadline_is_not_a_strand(self):
         """`out` is checked BEFORE is_alive(): a reader can deposit its value and still be
         alive for a moment after join() returns. Counting that as a strand blacklists a
-        healthy attribute by inode forever AND latches sysfs_stranded for the process."""
+        healthy attribute by inode forever."""
         good = Path(self.td.name) / 'idVendor'
         good.write_text('cafe\n')
         real_thread = threading.Thread
@@ -334,28 +331,13 @@ class BoundedReadForGuardlessCallers(unittest.TestCase):
         self.addCleanup(setattr, self.hil_util.threading, 'Thread', real_thread)
         self.assertEqual(self.hil_util.read_sysfs(str(good), timeout=0.3), 'cafe')
         self.assertNotIn(str(good), self.hil_util._stranded)
-        self.assertFalse(self.hil_util.sysfs_stranded())
 
-    def test_path_stranded_answers_per_device_not_per_process(self):
-        """usbtest decides whether to run lock-taking cleanup on this result; the sticky
-        process-wide flag would let any peer's wedge answer for our board."""
+    def test_path_stranded_answers_per_device(self):
         other = Path(self.td.name) / 'peer'
         other.write_text('PEER\n')
         self.hil_util.read_sysfs(self.fifo, timeout=0.3)
         self.assertTrue(self.hil_util.path_stranded(self.fifo))
         self.assertFalse(self.hil_util.path_stranded(str(other)))
-        self.assertTrue(self.hil_util.sysfs_stranded(), 'the process-wide flag is sticky')
-
-    def test_a_refused_read_is_stranded_not_vouched_for(self):
-        """usbtest fails CLOSED on path_stranded() before reporting a board absent rather than
-        wedged. Past _STRAND_MAX read_sysfs answers None WITHOUT looking -- so answering
-        False there hands that guard a fabricated all-clear for a device nobody read, and a
-        wedged board is reported as merely unplugged."""
-        self.hil_util._stranded.update(
-            {f'/sys/fake/{i}': i for i in range(self.hil_util._STRAND_MAX)})
-        self.assertIsNone(self.hil_util.read_sysfs(self.fifo, timeout=0.3))
-        self.assertTrue(self.hil_util.path_stranded(self.fifo),
-                        'a path the reader refused to open was reported readable-and-absent')
 
     def test_a_stat_that_races_the_reader_still_memoises(self):
         """The pre-read stat is the memo KEY, and it can fail while the open that follows
@@ -377,18 +359,6 @@ class BoundedReadForGuardlessCallers(unittest.TestCase):
         self.assertIn(self.fifo, self.hil_util._stranded,
                       'a lost stat race leaks a fresh reader on every later poll')
 
-    def test_a_successful_read_clears_an_earlier_refusal(self):
-        """_refused feeds path_stranded(), which usbtest reads to tell "cannot tell" from
-        a real disconnect. Left sticky, a board that recovered and then genuinely left the
-        bus is classified as an unrecovered wedge for the rest of the process."""
-        good = Path(self.td.name) / 'serial2'
-        good.write_text('ABC123\n')
-        self.hil_util._refused.add(str(good))
-        self.addCleanup(self.hil_util._refused.discard, str(good))
-        self.assertEqual(self.hil_util.read_sysfs(str(good), timeout=0.3), 'ABC123')
-        self.assertFalse(self.hil_util.path_stranded(str(good)),
-                         'a path that answered is still reported unreadable')
-
     def test_a_recovered_device_is_seen_again_on_the_same_busport(self):
         """THE recovery flow: hil_pool_check resets or reflashes a wedged board, then
         wait_device polls find_device -> scan_usb for the NEW inode. A busport does not
@@ -404,15 +374,6 @@ class BoundedReadForGuardlessCallers(unittest.TestCase):
         self.assertEqual(self.hil_util.read_sysfs(self.fifo, timeout=1), 'CAFE01',
                          'a board that came back on the same busport stayed blacklisted')
 
-    def test_the_caveat_stays_true_after_a_recovery(self):
-        """Rows collected while the device was unreadable keep whatever they said, so the
-        footer must still warn even once the memo has cleared."""
-        self.hil_util.read_sysfs(self.fifo, timeout=0.3)
-        os.unlink(self.fifo)
-        Path(self.fifo).write_text('CAFE01\n')
-        self.hil_util.read_sysfs(self.fifo, timeout=1)
-        self.assertTrue(self.hil_util.sysfs_stranded())
-
     def test_a_stranded_path_is_never_read_twice(self):
         """Each expiry strands a thread and an fd for the life of the process, and
         hil_pool_check POLLS -- wait_device re-scans every 0.5s until its budget runs
@@ -424,19 +385,12 @@ class BoundedReadForGuardlessCallers(unittest.TestCase):
         self.assertLess(time.monotonic() - t0, 0.3,
                         'repeat reads of a known-stranded path paid the grace again')
 
-    def test_the_caller_can_say_the_table_may_be_wrong(self):
-        self.assertFalse(self.hil_util.sysfs_stranded())
-        self.hil_util.read_sysfs(self.fifo, timeout=0.3)
-        self.assertTrue(self.hil_util.sysfs_stranded(),
-                        'nothing would tell the operator a missing row may be this tool '
-                        'losing sight of healthy hardware')
-
     def test_a_healthy_attribute_is_not_blacklisted(self):
         good = os.path.join(self.td.name, 'idVendor')
         Path(good).write_text('cafe\n')
         for _ in range(3):
             self.assertEqual(self.hil_util.read_sysfs(good, timeout=1), 'cafe')
-        self.assertFalse(self.hil_util.sysfs_stranded())
+        self.assertFalse(self.hil_util.path_stranded(good))
 
     def test_without_a_timeout_the_read_stays_plain(self):
         good = os.path.join(self.td.name, 'busnum')

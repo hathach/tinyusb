@@ -173,57 +173,23 @@ SYSFS_READ_GRACE = 2.0        # default bound on one attribute read; see read_sy
 # does not call ->show(), so it cannot block on the lock the reader is stuck behind.
 _stranded: dict = {}
 _strand_hits: dict = {}       # path -> how many times it has stranded, ever
-_refused: set = set()         # paths answered None WITHOUT reading, once past _STRAND_MAX
 _strand_lock = threading.Lock()
-_ever_stranded = False
 
 # Each strand costs a thread AND an fd for the life of the process -- on sysfs the open()
-# SUCCEEDS and only the read blocks. Two ceilings, because they bound different things:
-#
-# _PATH_STRAND_MAX -- a device that FLAPS while still wedged re-enumerates, clears the
-#   inode memo, and strands again. Per path, so one sick board cannot leak without bound.
-#   After this many it stays memoised whatever its inode says.
-# _STRAND_MAX -- a whole-process backstop against RLIMIT_NOFILE or the thread ceiling,
-#   which would raise inside a worker and lose every board's result. Counted PER PATH, not
-#   per reader: hil_pool_check runs four poll threads over one bus, and counting each
-#   reader let four threads on ONE wedged device spend four credits between them. With
-#   per-path counting a 27-board rig cannot approach this.
+# SUCCEEDS and only the read blocks. A device that FLAPS while still wedged re-enumerates,
+# clears the inode memo, and strands again; after this many it stays memoised whatever its
+# inode says, so one sick board cannot leak without bound.
 _PATH_STRAND_MAX = 4
-_STRAND_MAX = 64
-
-
-def sysfs_stranded() -> bool:
-    """True once any bounded read has given up, and it STAYS true.
-
-    A sticky, process-wide fact, so it answers exactly one question: "could anything in
-    this process's output be the tool losing sight of healthy hardware?" -- which is what
-    hil_pool_check's footer needs. It canNOT answer "is THIS device unreadable" for a
-    caller deciding what a single missing device means; use path_stranded() for that.
-    """
-    return _ever_stranded
-
-
-def strand_note() -> str:
-    """Suffix for an absence claim, so "not found" never reads as proven absence.
-
-    Lives here because every caller that can say "not found" needs the same sentence, and
-    the one that had to re-invent it got missed: a wedged-but-enumerated printer was
-    reported as an enumeration failure, sending a maintainer after firmware.
-    """
-    return (' (a bounded sysfs read gave up, so "not found" here means "could not tell"'
-            ' -- see the usb-kernel-recover skill)') if sysfs_stranded() else ''
 
 
 def path_stranded(path: str) -> bool:
     """Whether THIS attribute is currently memoised as unreadable.
 
-    The per-device question sysfs_stranded() cannot answer. usbtest uses it to tell a DUT
-    whose `serial` is held under device_lock from one that genuinely left the bus, because
-    the difference decides whether it performs driver-registry writes that take the
-    UNINTERRUPTIBLE device_lock.
+    usbtest uses it to tell a DUT whose `serial` is held under device_lock from one that
+    genuinely left the bus.
     """
     with _strand_lock:
-        return path in _stranded or path in _refused
+        return path in _stranded
 
 
 def read_sysfs(path: str, timeout: float = SYSFS_READ_GRACE) -> str | None:
@@ -248,7 +214,6 @@ def read_sysfs(path: str, timeout: float = SYSFS_READ_GRACE) -> str | None:
     with _strand_lock:
         was = _stranded.get(path)
         stuck_for_good = _strand_hits.get(path, 0) >= _PATH_STRAND_MAX
-        budget_spent = len(_stranded) >= _STRAND_MAX
     if was is not None:
         try:
             if os.stat(path).st_ino == was:
@@ -259,13 +224,6 @@ def read_sysfs(path: str, timeout: float = SYSFS_READ_GRACE) -> str | None:
             return None       # flapped too many times; see _PATH_STRAND_MAX
         with _strand_lock:
             _stranded.pop(path, None)         # a different inode is the all-clear
-    elif budget_spent:
-        # see _STRAND_MAX. Recorded, not just returned: usbtest fails CLOSED on
-        # path_stranded() before the lock-taking cleanup, and a path we declined to read
-        # is exactly the case it must not be told is readable-and-absent.
-        with _strand_lock:
-            _refused.add(path)
-        return None
 
     # BEFORE the read, not after: a node that re-enumerates DURING the grace would
     # otherwise have its brand-new HEALTHY inode recorded as the wedged one, and only a
@@ -289,14 +247,7 @@ def read_sysfs(path: str, timeout: float = SYSFS_READ_GRACE) -> str | None:
     t.join(timeout)
     # `out` FIRST: a reader can deposit its value and still be alive for a moment
     # afterwards, and counting that as a strand blacklists a healthy attribute forever
-    if 'v' in out:
-        # a path that answered is not refused any more: _refused feeds path_stranded(),
-        # and a stale entry makes usbtest read a LATER genuine disconnect as "cannot tell"
-        with _strand_lock:
-            _refused.discard(path)
     if t.is_alive() and 'v' not in out:
-        global _ever_stranded
-        announce = False
         if ino is None:
             # the pre-read stat lost a race the open then won -- the node was replaced
             # between them. Re-stat now: the reader is blocked on whatever node exists,
@@ -306,21 +257,11 @@ def read_sysfs(path: str, timeout: float = SYSFS_READ_GRACE) -> str | None:
                 ino = os.stat(path).st_ino
             except OSError:
                 pass
-        with _strand_lock:
-            _ever_stranded = True
-            if ino is not None:
-                first = path not in _stranded     # count the PATH once, not each reader
-                _stranded[path] = ino
-                if first:
+        if ino is not None:
+            with _strand_lock:
+                if path not in _stranded:         # count the PATH once, not each reader
                     _strand_hits[path] = _strand_hits.get(path, 0) + 1
-                    announce = len(_stranded) == _STRAND_MAX
-            else:
-                _refused.add(path)    # unkeyable: at least do not vouch for it
-        if announce:
-            print(f'warning: {_STRAND_MAX} devices have unreadable sysfs attributes; '
-                  f'refusing to start more bounded readers, so later reads answer None '
-                  f'without looking. Find the wedged device (usb-kernel-recover skill).',
-                  file=sys.stderr, flush=True)
+                _stranded[path] = ino
         return None
     return out.get('v')
 

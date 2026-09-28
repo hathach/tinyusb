@@ -1702,53 +1702,6 @@ class UsbtestAbsentDeviceVerdict(unittest.TestCase):
         self.assertIn('no cafe:4010 device', str(cm.exception))
         self.assertIn('0/30', cm.exception.metric)
 
-    def test_a_scan_that_gave_up_says_could_not_tell_instead(self):
-        """The conflation this whole path exists to avoid: an unreadable DUT is not an
-        absent one, and the bare string sends a maintainer after a firmware regression on
-        hardware that is merely wedged."""
-        from helper import hil_util
-        self.addCleanup(setattr, hil_util, '_ever_stranded', hil_util._ever_stranded)
-        hil_util._ever_stranded = True
-        with self.assertRaises(hil_test.TestFail) as cm:
-            hil_test.test_device_usbtest({'name': 'b', 'uid': 'NOPE',
-                                          'flasher': {'name': 'stlink', 'uid': 'X'}})
-        self.assertIn('could not tell', str(cm.exception))
-
-
-class UsbtestStartupDoesNotClaimAbsenceBlind(unittest.TestCase):
-    """usbtest.py's own startup lookup, the sibling of the arm above. hil_test relays its
-    stderr verbatim into the report cell, so a positive 'no cafe:4010 device' from a scan
-    that gave up is the same conflation one process further out. Structural because the
-    exit sits mid-main(), behind argparse and the testusb probe."""
-
-    def test_the_sysfs_backed_absence_claims_carry_the_note(self):
-        """Both claims that a bounded read can turn into a false absence. The printer one
-        was missed: read_sysfs folds a timed-out `serial` into None, so a wedged-but-
-        enumerated printer read as 'Printer device not found' -- an enumeration verdict for
-        hardware that is merely unreadable. The MIDI lookup is deliberately NOT here: it
-        globs /dev/snd/by-id and readlinks it, so no bounded read can blind it."""
-        import ast
-        tree = ast.parse(Path(hil_test.__file__).read_text())
-        claims = [ast.unparse(n) for n in ast.walk(tree)
-                  if isinstance(n, (ast.Assert, ast.Raise))
-                  and ('Printer device not found' in ast.unparse(n)
-                       or 'no cafe:4010 device' in ast.unparse(n))]
-        self.assertEqual(len(claims), 2, 'a sysfs-backed absence claim moved or was added')
-        for c in claims:
-            self.assertIn('strand_note', c, f'absence claimed without the note: {c[:70]}')
-
-    def test_the_absence_exit_carries_the_stranded_caveat(self):
-        import ast
-        import usbtest
-        tree = ast.parse(Path(usbtest.__file__).read_text())
-        exits = [n for n in ast.walk(tree)
-                 if isinstance(n, ast.Call) and ast.unparse(n.func) == 'sys.exit'
-                 and 'no {VID}:{PID} device' in ast.unparse(n)]
-        self.assertEqual(len(exits), 1, 'the absence exit moved; retarget this test')
-        self.assertIn('strand_note', ast.unparse(exits[0]),
-                      'usbtest claims absence without consulting sysfs_stranded()')
-
-
 class PermitReleasesOnlyWhatItTook(unittest.TestCase):
     """The bounded acquire skips a slot it could not get ('proceeding over-subscribed') and
     deliberately leaves it out of `taken`, but __exit__ released every slot in self.slots.

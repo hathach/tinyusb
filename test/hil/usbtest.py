@@ -575,14 +575,8 @@ def main():
             if dev and 'ambiguous' in dev:
                 sys.exit(f"multiple devices with serial {args.serial}: {', '.join(dev['ambiguous'])} "
                          '— stale enumeration from another port? replug or retry')
-            # a bounded `serial` read that gave up looks exactly like a disconnect from
-            # here, and hil_test relays this line verbatim into the report cell. The
-            # sticky process-wide flag is the RIGHT question at startup -- nothing but
-            # this scan has read anything yet -- unlike mid-battery, where a peer that
-            # stranded at case 2 would answer for our board at case 29.
             sys.exit(f'no {VID}:{PID} device'
-                     + (f' with serial {args.serial}' if args.serial else '')
-                     + _hu().strand_note())
+                     + (f' with serial {args.serial}' if args.serial else ''))
         time.sleep(0.5)
 
     # a stale/foreign device advertising an out-of-range tier must not silently run an
@@ -732,10 +726,6 @@ def main():
                 # wedged, so fail CLOSED: if anything gave up during this scan, treat it as
                 # the wedge it probably is, which keeps the recovery and the board_wedged
                 # latch in play.
-                # OUR device's own attribute, not the process-wide sysfs_stranded():
-                # that flag is sticky and every DUT here is cafe:4010, so a peer that
-                # stranded at case 2 would make a genuine disconnect at case 29 report as
-                # an unrecovered wedge for the rest of the run.
                 if _hu().path_stranded(str(SYS_USB / dev['sysname'] / 'serial')):
                     abort_reason = (f'cannot tell whether the device is still present '
                                     f'after case {num}: its serial read gave up')
