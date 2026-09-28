@@ -53,7 +53,8 @@ usbtest-jlink`; Espressif boards flash with `idf.py` (CLAUDE.md, ESP-IDF).
   (`usb_hcd_alloc_bandwidth`), and the next example enumerates under its own PID.
 - CI (`hil_test.py`) additionally passes `--budget` and, when the board's recovery flasher is
   convoy-safe and flashing is on, `--recover-board`/`--recover-fw`: a HUNG case (the killed
-  testusb not reaped within 30 s; a peer's held lock reaps later and counts as a timeout) aborts
+  testusb not reaped within 30 s; a peer's held lock reaps later and counts as a timeout; under
+  sudo the child is the wrapper, so HUNG stands after 5 s and nothing can clear it) aborts
   the battery and RESETS the DUT through its roster probe (non-destructive, ~130 ms), or reflashes
   it where the flasher has no reset (esptool); the child reaping afterwards is what clears
   `wedged` (see usb-kernel-recover). Manual runs without those flags leave a HUNG device wedged —
