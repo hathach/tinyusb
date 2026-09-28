@@ -208,7 +208,8 @@ uint32_t tud_cdc_n_write_flush(uint8_t itf) {
 uint32_t tud_cdc_n_write_available(uint8_t itf) {
   TU_VERIFY(itf < CFG_TUD_CDC, 0);
   cdcd_interface_t *p_cdc = &_cdcd_itf[itf];
-  return tu_edpt_stream_write_available(&p_cdc->tx_stream);
+  uint32_t AvailBytes = tu_edpt_stream_write_available(&p_cdc->tx_stream);
+  return AvailBytes;
 }
 
 bool tud_cdc_n_write_clear(uint8_t itf) {
