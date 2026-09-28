@@ -221,8 +221,8 @@ def sysfs_write(path, data, check=True):
         r = sudo(['tee', str(path)], input=data, timeout=15)
     except subprocess.TimeoutExpired:
         sys.exit(f'write "{data}" > {path} blocked >15s: a device lock is held -- possible '
-                 'device-lock contention or a wedged device. Check `hil_lock.py wedged status` '
-                 'and dmesg before any recovery (usb-kernel-recover skill).')
+                 'device-lock contention or a wedged device. Check dmesg before any recovery '
+                 '(usb-kernel-recover skill).')
     if check and r.returncode != 0:
         sys.exit(f'write "{data}" > {path} failed: {r.stderr.strip()}')
     return r.returncode == 0
@@ -808,7 +808,7 @@ def main():
                 if not board['flasher'].get('reflash', True):
                     # roster "reflash": false: the tool has no flash driver for this chip
                     print(f'reset-only recovery flasher {fname}: no reflash; the device '
-                          f'stays wedged for the post-run recovery', file=sys.stderr)
+                          f'stays wedged', file=sys.stderr)
                     break
                 wedge_confirmation = 'unverified'   # the reflash changes the state
                 print(f'auto-recovering: reflashing {bname} via '

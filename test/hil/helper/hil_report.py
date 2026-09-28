@@ -62,18 +62,10 @@ REPORT_JSON = 'hil_report.json'
 REPORT_CELL = {'pass': '✅', 'fail': '❌', 'skip': '⚪'}
 BOUNDARY_CELL = 'same-PID boundary'
 LOCKED_CELL = 'board-locked'
-# a CONFIRMED wedge (usbtest saw a D-state holder on the node after its confirmation
-# window) has value 'fail'; a board refused at admission because a previous run left that
-# marker has WEDGED_REFUSED (fail-icon prefixed so the tally counts it, distinct so the
-# verdict knows nothing was flashed this attempt)
+# 'fail' when the board's usbtest battery reported the device wedged (a HUNG case its
+# recovery could not clear, or a device it could no longer identify), so the rest of the
+# board was skipped
 WEDGED_CELL = 'board-wedged'
-WEDGED_REFUSED = f'{REPORT_CELL["fail"]} refused at admission'
-# the post-pool recovery verified the holder gone and the DUT enumerated, and cleared the
-# marker: the test verdict stands, the board is no longer wedged
-WEDGED_RECOVERED = f'{REPORT_CELL["skip"]} recovered post-run'
-WEDGED_REFUSED_RECOVERED = f'{REPORT_CELL["skip"]} refused at admission; recovered post-run'
-REFUSED_CELLS = (WEDGED_REFUSED, WEDGED_REFUSED_RECOVERED)
-RECOVERED_CELLS = (WEDGED_RECOVERED, WEDGED_REFUSED_RECOVERED)
 # A pseudo-test column, not a real one: write_timeout_report marks the boards that were
 # still dispatched when the pool guard fired. accumulate_report clears it on a retry.
 POOL_TIMEOUT_CELL = 'pool-timeout'
@@ -127,13 +119,6 @@ def _load(report_dir: Path) -> tuple:
     text = lambda k: raw[k] if isinstance(raw.get(k), str) else ''
     return {'rows': rows, 'banner': text('banner'), 'scope': text('scope'),
             'caveat': text('caveat')}, True
-
-
-def recovered_form(cell):
-    """The recovered form of a failed wedge cell, None for any other cell."""
-    if cell == WEDGED_REFUSED:
-        return WEDGED_REFUSED_RECOVERED
-    return WEDGED_RECOVERED if cell is not None and cell_state(cell) == 'fail' else None
 
 
 def cell_state(v) -> str:
@@ -341,7 +326,7 @@ def mark_report_no_boards(report_dir: Path, msg: str, fresh: bool = True) -> Non
 
 
 def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = '',
-                      banner: str = '', caveat: str = '', owned: dict | None = None) -> str:
+                      banner: str = '', caveat: str = '') -> str:
     """Merge this run's results into json in report_dir, then (re)write
     the markdown matrix to md. `fresh` (a first run, no --accumulate)
     starts a new report; otherwise a re-run accumulates so boards/tests that
@@ -369,22 +354,12 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
     # current cells override prior for boards/tests that ran; a filtered run reports
     # duration None, keeping the previous full-run value
     for name, _, _, rows, *_ in mret:
-        refused = any(cells.get(WEDGED_CELL) in REFUSED_CELLS for _, cells, _ in rows)
         unbuilt = any(cells.get(RUN_ABORTED_CELL) == BUILD_REFUSED for _, cells, _ in rows)
-        if any(cells.get(WEDGED_CELL) in RECOVERED_CELLS for _, cells, _ in rows):
-            # the post-run recovery verified the board: every wedge cell an earlier attempt
-            # left on its rows (the board row and its DECLARED variants, `owned`, never a
-            # name that merely shares the prefix) is that same wedge, so it is recovered
-            # too; the test failures beside it stay
-            for key in {name, *(owned or {}).get(name, [])}:
-                cells = acc.get(key, [{}])[0]
-                if recovered_form(cells.get(WEDGED_CELL)):
-                    cells[WEDGED_CELL] = recovered_form(cells[WEDGED_CELL])
-        if rows and not refused and not unbuilt and not any(LOCKED_CELL in cells for _, cells, _ in rows):
+        if rows and not unbuilt and not any(LOCKED_CELL in cells for _, cells, _ in rows):
             # board ran for real: clear a stale lock-failure cell (its row is keyed by
             # board name; test rows may be variant names), and a stale wedge cell on every
-            # row of the board -- admission let it in, so the marker was cleared, and a
-            # green re-run must not stay red for ever under last time's wedge
+            # row of the board -- a green re-run must not stay red for ever under last
+            # time's wedge
             stale = acc.get(name)
             if stale is not None:
                 stale[0].pop(LOCKED_CELL, None)
@@ -618,8 +593,6 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
         # re-runs.
         board_wedged = any(cell_state(cells[WEDGED_CELL]) == 'fail'
                            for cells in mine.values() if WEDGED_CELL in cells)
-        recovered = any(cells.get(WEDGED_CELL) in RECOVERED_CELLS for cells in mine.values())
-        refused = any(cells.get(WEDGED_CELL) in REFUSED_CELLS for cells in mine.values())
         unbuilt = any(cells.get(RUN_ABORTED_CELL) == BUILD_REFUSED for cells in mine.values())
         locked = not wedged and not board_wedged and any(LOCKED_CELL in cells for cells in mine.values())
         bad = []
@@ -629,22 +602,18 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
                     continue
                 if cell_state(val) == 'fail':
                     bad.append(f'{vname} {test}: {val}')
-        ok = not bad and not locked and not board_wedged and not refused
+        ok = not bad and not locked and not board_wedged
         if locked:
             detail = 'held by another holder; not flashed'
-        elif refused:
-            detail = 'marked wedged by a previous run; not flashed'
         elif board_wedged:
-            detail = 'wedged (confirmed D-state holder on the node); ' + '; '.join(bad)
+            detail = 'wedged (usbtest reported the device wedged); ' + '; '.join(bad)
         elif bad:
             detail = '; '.join(bad)
         else:
             detail = f'{len(mine)} variant(s), {sum(len(c) for c in mine.values())} cell(s) ok'
-        if recovered and not board_wedged:
-            detail += '; wedge recovered post-run (marker cleared)'
-        # an admission or build refusal never flashed this attempt, whatever test history
-        # an --accumulate re-run kept in the row
-        results.append({'board': board, 'ran': not refused and not unbuilt, 'pass': ok,
+        # a build refusal never flashed this attempt, whatever test history an --accumulate
+        # re-run kept in the row
+        results.append({'board': board, 'ran': not unbuilt, 'pass': ok,
                         'locked': locked, 'wedged': board_wedged, 'detail': detail})
     # `caveat` too: an abandoned or no-boards run says so THERE, and this JSON is all
     # an agent gets -- leaving it in the sidecar puts it back where only a human looks.

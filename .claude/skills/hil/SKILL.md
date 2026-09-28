@@ -37,7 +37,7 @@ python3 test/hil/helper/hil_lock.py release BOARD [BOARD...]
 - Never pre-hold boards you are about to run `hil_test.py` on — it self-locks and would treat your own hold as a conflict.
 - Rig-wide operations (uhubctl power cycling, `usb_recover.sh root-cycle`, pci-rebind, controller resets — bus renumbering) affect every board: `hil_lock.py hold --all --config <this host's config> --reason "..."` first — `--all` defaults to `tinyusb.json`, so on `tusb` it would reserve 27 boards that do not exist there and none of the three that do. Even a single root-port bounce needs `--all`: nothing maps a sysfs busport to a board name, and `hil_lock.py hold` accepts any string, so a "just the siblings" hold reserves nothing while reporting success. If `--all` cannot be taken, wait: a partial hold is worse than none, because it reads as protection.
 - `hil_lock.py status` lists holders. Locks auto-release when the holder process dies (kernel flock); `/tmp` clears on reboot.
-- A board that finished a run with a confirmed wedge (usbtest still saw a D-state holder on its node after the confirmation window) is marked `<board>.wedged` beside its flock, and `hil_test.py` refuses it in seconds with a `board-wedged` cell until the marker is cleared. `hil_lock.py wedged status` lists markers; after recovery has been verified, `hil_lock.py wedged clear BOARD --evidence '{"board": "BOARD", "uid": "<marker uid>", "holders": [], "complete": true, "identity": "<serial>@<busport>"}'` clears one, refusing while the board is held or when the evidence does not verify that marker. Once its worker pool is down (on an abort too), `hil_test.py` tries to recover every board of the run that carries a marker, from this run's worker or an earlier run's, when the marker's uid is the roster's: with every board in the config reserved in-process (refused if any is held, then the markers stay), one board at a time it resets through the recovery flasher, shielding the DUT's leaf, hub and root hub (`usb_recover.sh shield`) around it only when that flasher is not convoy-safe, reflashes the artifact under test if a holder survives, and clears the marker only on a complete holder scan with no holder plus the DUT enumerated again; the row then shows `⚪ recovered post-run` (or `⚪ refused at admission; recovered post-run`) in `board-wedged`, the test verdict and `ran` unchanged. A board that needs the shield recovers only as a non-root user with passwordless sudo (root ignores the shield), otherwise it keeps its marker and the others proceed; the phase never runs under `--skip-flash` and runs within `HIL_RECOVERY_TIMEOUT` (600 s) for the whole phase plus one step's overrun. The phase is a forked supervisor in its own session: it holds the reservation, reports its verdicts, then keeps every board reserved until each step process it started has ended, so neither a killed `hil_test.py` nor a step that will not die (a privileged child in D state) leaves the fleet unprotected; such a survivor is named in the log with the supervisor's pid. The marker and its `<board>.wedge-dmesg.txt` share the lock dir's lifetime. It contains that board's reuse only: it does not shield other enumerators from the poisoned node, a worker killed before writing leaves none, and a reboot clears the marker and the kernel's stuck processes but not necessarily the DUT, probe or controller, so post-reboot health still needs `hil-pool-check`.
+- A board whose usbtest battery reported the device wedged (a HUNG case the in-run probe reset could not clear, or a device it could no longer identify afterwards) gets a `board-wedged` cell and the rest of its examples are skipped for that run; nothing outlives the run, so the next run flashes it again. If it is still wedged, recover it by hand (`usb-kernel-recover`) before re-running.
 - Forcing past a lock: `HIL_NO_BOARD_LOCK=1 python3 test/hil/hil_test.py ...` bypasses the guard without killing the holder. Only when the request or task scope explicitly names forcing that board — it risks colliding with whatever holds it; a refused hold alone never adds that scope.
 
 ## Pool check (board/probe health)
@@ -243,9 +243,10 @@ retry below runs only on a report with no `locked` or `wedged` board and an empt
 any other outcome returns to the caller as it is. On `locked` the caller bypasses with `HIL_NO_BOARD_LOCK=1` only
 when the task scope names bypassing those boards' locks, never releasing or killing the holder;
 or waits and re-runs the locked boards with `--accumulate`; or accepts, reporting the boards not
-covered. A `wedged` board is never re-run. A delegated run recovers it only through its own paths (the
-in-run confirmation, the post-pool phase under Board locks); a marker still standing after them is
-reported, and any further recovery is a separately dispatched recovery action (below).
+covered. A `wedged` board is never re-run. A delegated run recovers it only through usbtest's in-run
+recovery (a probe reset, or a reflash where the flasher has no reset); a board still wedged
+after that is reported, and any further recovery is a separately dispatched recovery action
+(below).
 
 A dispatched recovery action is its own operation, never part of a run: the prompt names one
 board, its busport, the rung ceiling, the budget and the reservation. Follow `usb-kernel-recover`
@@ -254,10 +255,7 @@ Rung 1 resets through the board's recovery flasher (`flasher_recover`, else `fla
 is not `convoy_safe`, JLinkExe included, runs only behind `usb_recover.sh shield` on the board's
 busport, unshielded afterwards;
 sysrq and the hypervisor rungs need the user and are returned as the blocker in a headless run.
-Clear the marker only with `hil_lock.py wedged clear` and the evidence it verifies; a marker it
-refuses as untrusted or invalid-name is reported for a human to inspect and remove by hand. Report
-the cleanup explicitly: marker cleared, or kept with the reason, plus any shield record or hold
-still standing. A HIL run on that board follows only a cleared marker.
+Report the cleanup explicitly: the board's state, plus any shield record or hold still standing.
 
 **First check what sits above the table.** Six banners can appear there; match on a
 PREFIX, since each carries trailing detail and two are blockquotes:

@@ -286,7 +286,6 @@ class BuildBoardContract(unittest.TestCase):
              mock.patch.object(hil_test, '_start_pool', return_value=({}, pool)), \
              mock.patch.object(hil_test, '_load_controller_hints', return_value=({}, {})), \
              mock.patch.object(hil_test, '_save_controller_hints') as hints, \
-             mock.patch.object(hil_test, '_after_pool', return_value={}), \
              mock.patch.object(hil_test.hil_health, 'd_state_note', return_value=''), \
              mock.patch.object(hil_test.hil_health, 'kill_worker_children'), \
              mock.patch.object(hil_test.hil_health, 'shutdown_pool', return_value=True), \
@@ -364,8 +363,6 @@ class BuildBoardContract(unittest.TestCase):
             doc = json.loads((d / hil_report.REPORT_JSON).read_text())
             self.assertEqual({r['board']: r['cells'] for r in doc['rows']}, {'good': cell})
             self.assertEqual(rc, 1 if refuse else 0)
-        self.assertEqual(hil_test._owned_rows(cfg['boards'])['owner'], ['owner-a'],
-                         'a well-formed claim beside a malformed one still owns its row')
 
 
     def test_an_abort_banner_does_not_count_a_refused_board_as_finished(self):
@@ -978,210 +975,6 @@ class WedgeConfirmationOnTheMainPath(unittest.TestCase):
         self.assertEqual(data['wedge_confirmation'], 'cleared')
 
 
-class WedgedMarker(unittest.TestCase):
-    """#3944: a confirmed wedge marks the board beside its flock so the next run refuses it
-    in seconds; the marker needs a reservation to write and recovery evidence to clear."""
-
-    def setUp(self):
-        from helper import hil_lock
-        td = TemporaryDirectory()
-        self.addCleanup(td.cleanup)
-        self.addCleanup(setattr, hil_lock, 'BOARD_LOCK_DIR', hil_lock.BOARD_LOCK_DIR)
-        hil_lock.BOARD_LOCK_DIR = td.name
-        self.dir = Path(td.name)
-        self.hl = hil_lock
-        self.ok = {'board': 'b', 'holders': [], 'complete': True, 'identity': 'U@1-1'}
-
-    def test_a_marker_needs_a_reservation_to_be_written(self):
-        self.assertFalse(self.hl.write_wedged('b', {'reason': 'x'}, None))
-        self.assertIsNone(self.hl.read_wedged('b'))
-        fh = self.hl.flock_nb('b')
-        self.addCleanup(fh.close)
-        self.assertTrue(self.hl.write_wedged('b', {'reason': 'x'}, fh))
-        info = self.hl.read_wedged('b')
-        self.assertEqual((info['board'], info['reason']), ('b', 'x'))
-        self.assertTrue(info['since'])
-        self.assertEqual([], [p for p in self.dir.iterdir() if p.name.endswith('.tmp')])
-
-    def test_a_marker_that_cannot_be_trusted_still_refuses_the_board(self):
-        os.symlink('/nonexistent', self.dir / 'b.wedged')
-        self.assertIn('symlink', self.hl.read_wedged('b')['reason'])
-        fh = self.hl.flock_nb('b')
-        self.addCleanup(fh.close)
-        self.assertFalse(self.hl.write_wedged('b', {}, fh), 'never write through a symlink')
-        (self.dir / 'c.wedged').write_text('{not json')
-        self.assertIn('unreadable', self.hl.read_wedged('c')['reason'])
-        (self.dir / 'd.wedged').write_text('{}')
-        self.assertIn('malformed', self.hl.read_wedged('d')['reason'], 'an empty object admitted the board')
-        (self.dir / 'e.wedged').mkdir()
-        self.assertIn('not a regular file', self.hl.read_wedged('e')['reason'])
-        os.mkfifo(self.dir / 'f.wedged')
-        self.assertIn('not a regular file', self.hl.read_wedged('f')['reason'], 'a FIFO must not block admission')
-        self.assertIn('untrusted', self.hl.clear_wedged('f', dict(self.ok, board='f')),
-                      'no evidence verifies a marker this code did not write')
-        with self.assertRaises(ValueError):
-            self.hl.read_wedged('../etc')
-
-    def test_a_reservation_must_be_this_boards_open_lock(self):
-        other = self.hl.flock_nb('other')
-        self.addCleanup(other.close)
-        self.assertFalse(self.hl.write_wedged('b', {'reason': 'x'}, other), 'another board\'s lock is not a reservation')
-        fh = self.hl.flock_nb('b')
-        self.assertTrue(self.hl.write_wedged('b', {'reason': 'x'}, fh))
-        self.assertIn('does not hold', self.hl.clear_wedged('b', self.ok, lock_fh=other))
-        fh.close()
-        self.assertIn('does not hold', self.hl.clear_wedged('b', self.ok, lock_fh=fh), 'a closed handle')
-        self.assertIsNotNone(self.hl.read_wedged('b'))
-
-    def test_evidence_must_verify_this_marker(self):
-        fh = self.hl.flock_nb('b')
-        self.hl.write_wedged('b', {'reason': 'x', 'uid': 'UID1'}, fh)
-        fh.close()
-        for bad, why in ((dict(self.ok, board='other'), 'names board'),
-                         (dict(self.ok, uid='WRONG'), 'uid'),
-                         (dict(self.ok, uid='UID1', identity='no-busport'), 'identity'),
-                         (dict(self.ok, uid='UID1', identity='@1-1'), 'identity'),
-                         (dict(self.ok, uid='UID1', identity='U@'), 'identity'),
-                         (dict(self.ok, uid='UID1', holders=[7]), 'holder'),
-                         ('not a dict', 'JSON object')):
-            self.assertIn(why, self.hl.clear_wedged('b', bad), bad)
-        self.assertEqual(self.hl.clear_wedged('b', dict(self.ok, uid='UID1')), '')
-
-    def test_the_identity_must_match_the_serial_the_wedge_was_observed_on(self):
-        fh = self.hl.flock_nb('b')
-        self.hl.write_wedged('b', {'reason': 'x', 'uid': 'UID1', 'evidence': {'serial': 'RIGHT'}}, fh)
-        fh.close()
-        self.assertIn('observed on', self.hl.clear_wedged('b', dict(self.ok, uid='UID1', identity='WRONG@1-1')))
-        self.assertIsNotNone(self.hl.read_wedged('b'))
-        self.assertEqual(self.hl.clear_wedged('b', dict(self.ok, uid='UID1', identity='RIGHT@1-1')), '')
-
-    def test_a_short_write_keeps_the_previous_marker(self):
-        fh = self.hl.flock_nb('b')
-        self.addCleanup(fh.close)
-        self.assertTrue(self.hl.write_wedged('b', {'reason': 'first'}, fh))
-        import resource
-        soft, hard = resource.getrlimit(resource.RLIMIT_FSIZE)
-        self.addCleanup(resource.setrlimit, resource.RLIMIT_FSIZE, (soft, hard))
-        import signal
-        prev = signal.signal(signal.SIGXFSZ, signal.SIG_IGN)   # get EFBIG, not a signal
-        self.addCleanup(signal.signal, signal.SIGXFSZ, prev)
-        resource.setrlimit(resource.RLIMIT_FSIZE, (4, hard))
-        self.assertFalse(self.hl.write_wedged('b', {'reason': 'second, much longer'}, fh))
-        resource.setrlimit(resource.RLIMIT_FSIZE, (soft, hard))
-        self.assertEqual(self.hl.read_wedged('b')['reason'], 'first', 'a torn marker replaced the good one')
-        self.assertEqual([], [p for p in self.dir.iterdir() if p.name.endswith('.tmp')])
-
-    def test_the_temporary_file_never_follows_a_symlink(self):
-        victim = self.dir / 'victim'
-        victim.write_text('keep me')
-        os.symlink(victim, self.dir / f'b.wedged.{os.getpid()}.tmp')
-        fh = self.hl.flock_nb('b')
-        self.addCleanup(fh.close)
-        self.assertFalse(self.hl.write_wedged('b', {'reason': 'x'}, fh))
-        self.assertEqual(victim.read_text(), 'keep me')
-        self.assertIsNone(self.hl.read_wedged('b'))
-
-    def test_clearing_needs_evidence_and_a_free_board(self):
-        fh = self.hl.flock_nb('b')
-        self.assertTrue(self.hl.write_wedged('b', {'reason': 'x'}, fh))
-        self.hl.write_record(fh, 'dev session')
-        self.assertIn('held by', self.hl.clear_wedged('b', self.ok), 'a held board is not cleared')
-        self.assertIsNotNone(self.hl.read_wedged('b'))
-        fh.close()
-        self.assertIn('evidence', self.hl.clear_wedged('b', {}))
-        self.assertIn('evidence', self.hl.clear_wedged('b', dict(self.ok, holders=[1])))
-        self.assertIn('evidence', self.hl.clear_wedged('b', dict(self.ok, complete=False)))
-        self.assertIsNotNone(self.hl.read_wedged('b'))
-        self.assertEqual(self.hl.clear_wedged('b', self.ok), '')
-        self.assertIsNone(self.hl.read_wedged('b'))
-        self.assertEqual(self.hl.clear_wedged('b', self.ok), 'not marked')
-
-    def test_the_holder_clears_under_its_own_reservation(self):
-        fh = self.hl.flock_nb('b')
-        self.addCleanup(fh.close)
-        self.hl.write_wedged('b', {'reason': 'x'}, fh)
-        self.assertEqual(self.hl.clear_wedged('b', self.ok, lock_fh=fh), '')
-
-    def test_the_cli_lists_and_clears(self):
-        fh = self.hl.flock_nb('b')
-        self.hl.write_wedged('b', {'reason': 'x'}, fh)
-        fh.close()
-        out = io.StringIO()
-        with redirect_stdout(out):
-            self.assertEqual(self.hl.cmd_wedged('status'), 0)
-        self.assertIn('b: {', out.getvalue())
-        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-            self.assertEqual(self.hl.cmd_wedged('clear', 'b', 'not json'), 2)
-            self.assertEqual(self.hl.cmd_wedged('clear', 'b', '{}'), 1)
-            self.assertEqual(self.hl.cmd_wedged('clear', 'b', json.dumps(self.ok)), 0)
-        self.assertIsNone(self.hl.read_wedged('b'))
-
-    def _admit(self, board_name='b'):
-        called = []
-        self.addCleanup(setattr, hil_test, '_tests_for', hil_test._tests_for)
-        hil_test._tests_for = lambda board: called.append(board) or ([], [])
-        ret = hil_test.test_board({'name': board_name, 'uid': 'U', 'flasher': {'name': 'openocd'}})
-        return ret, called
-
-    def test_admission_refuses_a_marked_board_before_any_hardware_access(self):
-        fh = self.hl.flock_nb('b')
-        self.hl.write_wedged('b', {'reason': 'still wedged'}, fh)
-        fh.close()
-        (name, err, failed, rows, dur), called = self._admit()
-        self.assertEqual((name, err, failed, dur), ('b', 1, [], 0.0))
-        self.assertEqual(rows, [('b', {hil_test.hil_report.WEDGED_CELL: hil_test.hil_report.WEDGED_REFUSED}, None)])
-        self.assertEqual(called, [], 'the board was touched despite the marker')
-        self.assertIsNone(self.hl.read_record('b') or None, 'the lock record was left behind')
-        fh2 = self.hl.flock_nb('b')   # the flock was dropped again
-        fh2.close()
-
-    def test_admission_is_checked_even_when_the_lock_is_bypassed(self):
-        fh = self.hl.flock_nb('b')
-        self.hl.write_wedged('b', {'reason': 'still wedged'}, fh)
-        fh.close()
-        self.addCleanup(os.environ.pop, 'HIL_NO_BOARD_LOCK', None)
-        os.environ['HIL_NO_BOARD_LOCK'] = '1'
-        (_n, err, _f, rows, _d), called = self._admit()
-        self.assertEqual((err, called), (1, []))
-        self.assertEqual(rows[0][1], {hil_test.hil_report.WEDGED_CELL: hil_test.hil_report.WEDGED_REFUSED})
-
-    def test_admission_refuses_an_empty_object_marker(self):
-        (self.dir / 'b.wedged').write_text('{}')
-        (_n, err, _f, rows, _d), called = self._admit()
-        self.assertEqual((err, called), (1, []), 'an empty marker admitted the board')
-        self.assertEqual(rows[0][1], {hil_test.hil_report.WEDGED_CELL: hil_test.hil_report.WEDGED_REFUSED})
-
-    def test_mark_wedged_writes_marker_and_dmesg_under_a_reservation_only(self):
-        import subprocess as sp
-        self.addCleanup(setattr, hil_test.usbtest, '_sudo_soft', hil_test.usbtest._sudo_soft)
-        hil_test.usbtest._sudo_soft = lambda cmd, **kw: sp.CompletedProcess(
-            cmd, 0, stdout='\n'.join(f'line {i}' for i in range(80)), stderr='')
-        self.addCleanup(setattr, hil_test, 'board_wedged', hil_test.board_wedged)
-        self.addCleanup(setattr, hil_test, 'board_wedge_evidence', hil_test.board_wedge_evidence)
-        hil_test.board_wedged = 'b: usbtest reports the device still wedged'
-        hil_test.board_wedge_evidence = {'node': '/dev/bus/usb/003/009', 'holders': [4242],
-                                         'complete': True, 'serial': 'UID1'}
-        board = {'name': 'b', 'uid': 'UID1', 'flasher': {'name': 'openocd'}}
-        victim = self.dir / 'victim'
-        victim.write_text('keep me')
-        os.symlink(victim, self.dir / 'b.wedge-dmesg.txt')
-        hil_test._mark_wedged(board, None)
-        self.assertIsNone(self.hl.read_wedged('b'), 'no reservation, no marker')
-        self.assertEqual(victim.read_text(), 'keep me', 'the sidecar was written without a reservation')
-        (self.dir / 'b.wedge-dmesg.txt').unlink()
-        fh = self.hl.flock_nb('b')
-        self.addCleanup(fh.close)
-        hil_test._mark_wedged(board, fh)
-        info = self.hl.read_wedged('b')
-        self.assertEqual((info['uid'], info['confirmation']), ('UID1', 'confirmed'))
-        self.assertIn('still wedged', info['reason'])
-        self.assertEqual(info['evidence']['node'], '/dev/bus/usb/003/009')
-        self.assertEqual(info['evidence']['holders'], [4242])
-        dmesg = Path(info['dmesg'])
-        self.assertEqual(dmesg.parent, self.dir, 'evidence lives with the marker, not in a checkout')
-        self.assertEqual(len(dmesg.read_text().splitlines()), 50)
-
-
 class MtpGioOrdering(_MtpFakeRig, unittest.TestCase):
     """gio must not run until the device is READY.
 
@@ -1759,13 +1552,6 @@ class WedgeVerdictReachesTheLatch(unittest.TestCase):
     def test_no_wedge_reported_does_not_latch(self):
         js = '{"serial":"U","speed":"480","tier":1,"passed":2,"failed":0,"notrun":0,'              '"wedged":false,"cases":[]}'
         self.assertFalse(self._run(js))
-
-    def test_only_a_confirmed_wedge_qualifies_for_the_marker(self):
-        for confirmation, want in (('confirmed', True), ('unverified', False), ('', False)):
-            js = ('{"serial":"U","speed":"480","tier":1,"passed":1,"failed":1,"notrun":0,'
-                  f'"wedged":true,"wedge_confirmation":"{confirmation}","cases":[]}}')
-            self.assertTrue(self._run(js), confirmation)
-            self.assertIs(hil_test.board_wedge_confirmed, want, confirmation)
 
     def test_a_late_cleared_timeout_on_a_board_without_recovery_does_not_latch(self):
         """usbtest watches a HUNG node before it says wedged (#3944); the old inference
