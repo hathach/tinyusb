@@ -43,6 +43,7 @@ typedef struct {
   // SCSI command data
   uint8_t stage;
   void* buffer;
+  uint32_t data_xferred;
   tuh_msc_complete_cb_t complete_cb;
   uintptr_t complete_arg;
 
@@ -66,6 +67,21 @@ TU_ATTR_ALWAYS_INLINE static inline msch_interface_t* get_itf(uint8_t daddr) {
 
 TU_ATTR_ALWAYS_INLINE static inline msch_epbuf_t* get_epbuf(uint8_t daddr) {
   return &_msch_epbuf[daddr - 1];
+}
+
+// usbh_edpt_xfer() length is 16-bit: a larger data stage is split into transfers of this size,
+// a multiple of every bulk max packet size so that only the last one can end short
+#define MSCH_DATA_XFER_MAX 0xFC00u
+
+static bool data_stage_xfer(uint8_t daddr, msch_interface_t* p_msc, const msc_cbw_t* cbw) {
+  const uint8_t  ep_data = (cbw->dir & TUSB_DIR_IN_MASK) ? p_msc->ep_in : p_msc->ep_out;
+  const uint16_t len     = (uint16_t) tu_min32(cbw->total_bytes - p_msc->data_xferred, MSCH_DATA_XFER_MAX);
+  return usbh_edpt_xfer(daddr, ep_data, (uint8_t*) p_msc->buffer + p_msc->data_xferred, len);
+}
+
+static bool status_stage_xfer(uint8_t daddr, msch_interface_t* p_msc, msc_csw_t* csw) {
+  p_msc->stage = MSC_STAGE_STATUS;
+  return usbh_edpt_xfer(daddr, p_msc->ep_in, (uint8_t*) csw, (uint16_t) sizeof(msc_csw_t));
 }
 
 //--------------------------------------------------------------------+
@@ -222,7 +238,9 @@ bool tuh_msc_read10(uint8_t dev_addr, uint8_t lun, void* buffer, uint32_t lba, u
   msc_cbw_t cbw;
   cbw_init(&cbw, lun);
 
-  cbw.total_bytes = block_count * p_msc->capacity[lun].block_size;
+  const uint32_t block_size = p_msc->capacity[lun].block_size;
+  TU_VERIFY(block_count <= UINT32_MAX / tu_max32(block_size, 1)); // CBW data length is 32-bit
+  cbw.total_bytes = block_count * block_size;
   cbw.dir = TUSB_DIR_IN_MASK;
   cbw.cmd_len = sizeof(scsi_read10_t);
 
@@ -244,7 +262,9 @@ bool tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const* buffer, uint32_t
   msc_cbw_t cbw;
   cbw_init(&cbw, lun);
 
-  cbw.total_bytes = block_count * p_msc->capacity[lun].block_size;
+  const uint32_t block_size = p_msc->capacity[lun].block_size;
+  TU_VERIFY(block_count <= UINT32_MAX / tu_max32(block_size, 1)); // CBW data length is 32-bit
+  cbw.total_bytes = block_count * block_size;
   cbw.dir         = TUSB_DIR_OUT;
   cbw.cmd_len     = sizeof(scsi_write10_t);
 
@@ -318,16 +338,21 @@ bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
       if (cbw->total_bytes && p_msc->buffer) {
         // Data stage if any
         p_msc->stage = MSC_STAGE_DATA;
-        uint8_t const ep_data = (cbw->dir & TUSB_DIR_IN_MASK) ? p_msc->ep_in : p_msc->ep_out;
-        TU_ASSERT(usbh_edpt_xfer(dev_addr, ep_data, p_msc->buffer, (uint16_t) cbw->total_bytes));
-        break;
+        p_msc->data_xferred = 0;
+        TU_ASSERT(data_stage_xfer(dev_addr, p_msc, cbw));
+      } else {
+        TU_ASSERT(status_stage_xfer(dev_addr, p_msc, csw));
       }
-      TU_ATTR_FALLTHROUGH; // fallthrough to data stage
+      break;
 
     case MSC_STAGE_DATA:
-      // Status stage
-      p_msc->stage = MSC_STAGE_STATUS;
-      TU_ASSERT(usbh_edpt_xfer(dev_addr, p_msc->ep_in, (uint8_t*) csw, (uint16_t) sizeof(msc_csw_t)));
+      p_msc->data_xferred += xferred_bytes;
+      if (event == XFER_RESULT_SUCCESS && xferred_bytes == MSCH_DATA_XFER_MAX &&
+          p_msc->data_xferred < cbw->total_bytes) {
+        TU_ASSERT(data_stage_xfer(dev_addr, p_msc, cbw));
+      } else {
+        TU_ASSERT(status_stage_xfer(dev_addr, p_msc, csw));
+      }
       break;
 
     case MSC_STAGE_STATUS:

@@ -1,0 +1,140 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2026 TinyUSB contributors
+ * SPDX-License-Identifier: MIT
+ */
+
+#include "unity.h"
+#include "tusb_option.h"
+#include "host/usbh.h"
+#include "host/usbh_pvt.h"
+#include "class/msc/msc_host.h"
+
+TEST_SOURCE_FILE("msc_host.c")
+
+enum {
+  DADDR     = 1,
+  EP_OUT    = 0x01,
+  EP_IN     = 0x81,
+  MAX_XFERS = 8,
+};
+
+static uint8_t  xfer_ep[MAX_XFERS];
+static uint8_t *xfer_buf[MAX_XFERS];
+static uint16_t xfer_len[MAX_XFERS];
+static uint8_t  xfer_count;
+static uint8_t  enum_buf[64];
+static uint8_t  data[98304];
+
+bool tuh_edpt_open(uint8_t daddr, const tusb_desc_endpoint_t *desc_ep) {
+  (void) daddr;
+  (void) desc_ep;
+  return true;
+}
+
+bool tuh_control_xfer(tuh_xfer_t *xfer) {
+  (void) xfer;
+  return true;
+}
+
+uint8_t *usbh_get_enum_buf(void) {
+  return enum_buf;
+}
+
+void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
+  (void) dev_addr;
+  (void) itf_num;
+}
+
+bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr) {
+  (void) dev_addr;
+  (void) ep_addr;
+  return true;
+}
+
+bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr) {
+  (void) dev_addr;
+  (void) ep_addr;
+  return true;
+}
+
+bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr) {
+  (void) dev_addr;
+  (void) ep_addr;
+  return false;
+}
+
+bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes,
+                                  tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  (void) dev_addr;
+  (void) complete_cb;
+  (void) user_data;
+  TEST_ASSERT_LESS_THAN(MAX_XFERS, xfer_count);
+  xfer_ep[xfer_count]  = ep_addr;
+  xfer_buf[xfer_count] = buffer;
+  xfer_len[xfer_count] = total_bytes;
+  xfer_count++;
+  return true;
+}
+
+static void mount_bot_interface(void) {
+  struct TU_ATTR_PACKED {
+    tusb_desc_interface_t itf;
+    tusb_desc_endpoint_t  ep_out;
+    tusb_desc_endpoint_t  ep_in;
+  } const desc = {
+    .itf    = {sizeof(tusb_desc_interface_t), TUSB_DESC_INTERFACE, 0, 0, 2, TUSB_CLASS_MSC, MSC_SUBCLASS_SCSI,
+               MSC_PROTOCOL_BOT, 0},
+    .ep_out = {sizeof(tusb_desc_endpoint_t), TUSB_DESC_ENDPOINT, EP_OUT, {.xfer = TUSB_XFER_BULK}, 512, 0},
+    .ep_in  = {sizeof(tusb_desc_endpoint_t), TUSB_DESC_ENDPOINT, EP_IN, {.xfer = TUSB_XFER_BULK}, 512, 0},
+  };
+
+  TEST_ASSERT_EQUAL(sizeof(desc), msch_open(0, DADDR, &desc.itf, sizeof(desc)));
+  TEST_ASSERT_TRUE(msch_set_config(DADDR, 0));
+}
+
+void setUp(void) {
+  xfer_count = 0;
+  msch_init();
+  mount_bot_interface();
+}
+
+void tearDown(void) {}
+
+static void start_data_in(void) {
+  const msc_cbw_t cbw = {.signature = MSC_CBW_SIGNATURE, .total_bytes = sizeof(data), .dir = TUSB_DIR_IN_MASK};
+  TEST_ASSERT_TRUE(tuh_msc_scsi_command(DADDR, &cbw, data, NULL, 0));
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
+}
+
+// usbh_edpt_xfer() takes a 16-bit length, so a data stage of 64 KiB or more must be split into
+// packet-aligned transfers rather than narrowed (98304 would otherwise become 32768).
+void test_msc_host_data_stage_over_64k(void) {
+  start_data_in();
+  TEST_ASSERT_EQUAL(2, xfer_count);
+  TEST_ASSERT_EQUAL_HEX8(EP_IN, xfer_ep[1]);
+  TEST_ASSERT_EQUAL_PTR(data, xfer_buf[1]);
+  const uint16_t first = xfer_len[1];
+  TEST_ASSERT_TRUE(first > sizeof(data) - UINT16_MAX);
+  TEST_ASSERT_EQUAL(0, first % 512);
+
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, first));
+  TEST_ASSERT_EQUAL(3, xfer_count);
+  TEST_ASSERT_EQUAL_HEX8(EP_IN, xfer_ep[2]);
+  TEST_ASSERT_EQUAL_PTR(data + first, xfer_buf[2]);
+  TEST_ASSERT_EQUAL(sizeof(data) - first, xfer_len[2]);
+
+  // last data transfer done: status stage reads the CSW
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, xfer_len[2]));
+  TEST_ASSERT_EQUAL(4, xfer_count);
+  TEST_ASSERT_EQUAL_HEX8(EP_IN, xfer_ep[3]);
+  TEST_ASSERT_EQUAL(sizeof(msc_csw_t), xfer_len[3]);
+}
+
+// A short transfer ends the data stage early: go straight to the CSW
+void test_msc_host_data_stage_short_ends_early(void) {
+  start_data_in();
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, 512));
+
+  TEST_ASSERT_EQUAL(3, xfer_count);
+  TEST_ASSERT_EQUAL(sizeof(msc_csw_t), xfer_len[2]);
+}
