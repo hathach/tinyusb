@@ -399,6 +399,38 @@ class BoundedReadForGuardlessCallers(unittest.TestCase):
         self.assertIsNone(self.hil_util.read_sysfs(os.path.join(self.td.name, 'nope')))
 
 
+class PoolCheckStrandCaveat(unittest.TestCase):
+    """A device whose bounded `serial` read gave up is absent from scan_usb, so its row
+    says "probe MISSING"/"off bus" for hardware that may be present; the scan says so once."""
+
+    def setUp(self):
+        from helper import hil_pool_check
+        self.pc = hil_pool_check
+        for mod, name in ((hil_util, 'usb_scan'), (hil_util, 'path_stranded'),
+                          (hil_pool_check.glob, 'glob'), (hil_pool_check, 'say'),
+                          (hil_pool_check, 'stranded_seen')):
+            self.addCleanup(setattr, mod, name, getattr(mod, name))
+        hil_util.usb_scan = lambda **k: []
+        hil_pool_check.glob.glob = lambda pat: ['/sys/bus/usb/devices/1-1/serial']
+        hil_pool_check.stranded_seen = False
+        self.said = []
+        hil_pool_check.say = self.said.append
+
+    def test_a_stranded_read_warns_once(self):
+        hil_util.path_stranded = lambda p: True
+        self.pc.scan_usb()
+        self.pc.scan_usb()
+        self.assertEqual(len(self.said), 1, self.said)
+        self.assertIn('present but unreadable', self.said[0])
+        self.assertTrue(self.pc.stranded_seen, 'the footer would drop the caveat')
+
+    def test_no_strand_no_warning(self):
+        hil_util.path_stranded = lambda p: False
+        self.pc.scan_usb()
+        self.assertEqual(self.said, [])
+        self.assertFalse(self.pc.stranded_seen)
+
+
 class PoolCheckEspIdfBuild(unittest.TestCase):
     def setUp(self):
         from helper import hil_pool_check

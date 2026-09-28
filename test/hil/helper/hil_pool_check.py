@@ -54,6 +54,7 @@ ENUM_WAIT_RETRY = 8  # s, uid wait after a recovery reset/re-flash
 SERIAL_WAIT = 6      # s, host-board serial-output wait
 
 print_mutex = threading.Lock()
+stranded_seen = False   # scan_usb's caveat: once per process, not once per poll
 t0 = time.monotonic()
 
 
@@ -73,8 +74,17 @@ def scan_usb() -> dict:
     found = {}
     # usb_scan's `serial` read is bounded by default (see hil_util.read_sysfs) -- this tool
     # has no pool guard behind it and is run exactly when a device is suspected wedged. A
-    # device that will not answer is simply absent from the table.
+    # device that will not answer is absent from the table, so its row reads as missing.
     devs = hil_util.usb_scan()
+    # At scan time, not only in the footer: rows stream for minutes and a run cut short
+    # by ^C never reaches the footer.
+    global stranded_seen
+    if not stranded_seen and any(hil_util.path_stranded(p)
+                                 for p in glob.glob('/sys/bus/usb/devices/*-*/serial')):
+        stranded_seen = True
+        say('WARNING: a bounded sysfs serial read gave up; a probe or board reported '
+            'missing may be present but unreadable. Find the wedged device '
+            '(usb-kernel-recover) and re-run.')
     for dev in devs:
         try:
             found[dev['busport']] = {
@@ -1043,6 +1053,10 @@ def main() -> None:
         counts[r.get('status', 'failed')] += 1
     print(f'\n{counts["ok"]} ok · {counts["flash-failed"]} flash-failed · {counts["failed"]} failed '
           f'· {counts["locked"]} locked · in {time.monotonic() - t0:.0f}s')
+    if stranded_seen:
+        print('WARNING: a bounded sysfs serial read gave up during this run; a probe or board '
+              'reported missing above may be present but unreadable. Find the wedged device '
+              '(usb-kernel-recover) and re-run before acting on the table.')
     sys.exit(min(counts['flash-failed'] + counts['failed'], 125))
 
 
