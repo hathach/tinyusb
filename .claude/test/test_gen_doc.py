@@ -2,14 +2,18 @@
 get_deps.py --gen-doc writes the dependency table in the shape the committed
 docs/reference/dependencies.rst has, without fetching anything; gen_doc.py
 builds boards.rst from the metadata blocks and hil_boards.md from the rosters,
-naming what it left out instead of dropping it silently."""
+naming what it left out instead of dropping it silently. get_deps.py also
+fetches an optional dependency named by its path."""
+import contextlib
 import importlib.util
+import io
 import json
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 GET_DEPS = ROOT / 'tools' / 'get_deps.py'
@@ -144,6 +148,34 @@ class GenDocTest(unittest.TestCase):
         r = subprocess.run([sys.executable, str(GET_DEPS), '--help'], capture_output=True, text=True)
         self.assertIn('docs/reference/dependencies.rst', r.stdout)
         self.assertEqual(get_deps.DEPS_RST, ROOT / 'docs/reference/dependencies.rst')
+
+
+class FetchByPathTest(unittest.TestCase):
+    def _main(self, *argv):
+        """get_deps.py main() with `argv`; returns (rc, fetched paths, stdout)."""
+        fetched = []
+
+        def get_a_dep(path):
+            fetched.append(path)
+            return 0
+        pool = mock.MagicMock()
+        pool.__enter__.return_value.map = lambda fn, deps: list(map(fn, deps))
+        with mock.patch.object(sys, 'argv', ['get_deps.py', *argv]), \
+             mock.patch.object(get_deps, 'Pool', return_value=pool), \
+             mock.patch.object(get_deps, 'get_a_dep', get_a_dep), \
+             contextlib.redirect_stdout(io.StringIO()) as out:
+            rc = get_deps.main()
+        return rc, fetched, out.getvalue()
+
+    def test_an_optional_path_is_fetched_with_the_mandatory_deps(self):
+        rc, fetched, _ = self._main('tools/linkermap')
+        self.assertEqual(rc, 0)
+        self.assertEqual(fetched, ['tools/linkermap', *get_deps.deps_mandatory])
+
+    def test_an_unknown_path_fails_before_fetching(self):
+        rc, fetched, out = self._main('tools/no_such_dep')
+        self.assertEqual((rc, fetched), (1, []))
+        self.assertIn('ERROR: tools/no_such_dep is not in the dependency list', out)
 
 
 if __name__ == '__main__':
