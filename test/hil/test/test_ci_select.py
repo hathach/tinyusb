@@ -870,7 +870,7 @@ class FlasherRecoverEntry(unittest.TestCase):
         probe as its jlink primary and dispatches. The set is the boards whose reset over
         openocd+jlink was demonstrated on their roster's rig, and flash too wherever openocd can
         flash the part (ci.lan 2026-08-17, 2026-09-21 and 2026-09-22, tusb 2026-09-21 for
-        lpcxpresso43s67); a reset-only entry says so in its `note`. A new one is added only
+        lpcxpresso43s67). A new one is added only
         after the same demonstration. frdm_k64f is host-only, so usbtest never marks
         it; its entry lets a dispatched rung-1 reset skip the shield. Left out, and why: stm32f769disco (probe not on the rig to demonstrate), ra4m1_ek (reset-only
         worked ~80% under openocd, SYSRESETREQ or srst, where JLinkExe resets 5/5; 2026-09-22).
@@ -915,11 +915,6 @@ class FlasherRecoverEntry(unittest.TestCase):
             self.assertIn('interface/jlink.cfg', rec['args'], name)
             self.assertIn('transport select swd', rec['args'], name)
             stm32 = re.search(r'-f target/(stm32(?:f0|f4|f7|l4)x)\.cfg', rec['args'])
-            self.assertEqual(rec.get('note', '').startswith('reset only'),
-                             name in reset_only or name == 'nrf54lm20dk', f'{name}: reset-only note')
-            # machine-readable twin of the note: usbtest skips the reflash on it
-            self.assertEqual(rec.get('reflash', True), not rec.get('note', '').startswith('reset only'),
-                             f'{name}: "reflash": false iff the note says reset only')
             if name in reset_only:
                 self.assertEqual(rec['args'], reset_only[name])
             elif stm32:

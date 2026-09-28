@@ -1536,38 +1536,32 @@ def test_device_usbtest(board):
     cmd = (f'{shlex.quote(sys.executable)} {shlex.quote(str(script))} '
            f'--serial {shlex.quote(uid)} --json '
            f'--timeout 60 --budget {USBTEST_BATTERY_BUDGET}')
-    # Post-hang recovery reflashes the DUT through its own probe, NEVER a root-port cycle
-    # (one board reached instead of every fixture under the port; see usb-kernel-recover).
-    # _current_fw is the artifact test_example flashed for THIS test: re-deriving it from
-    # board['name'] reflashes the wrong build on variant-only boards. Our run_cmd bound
-    # below RESERVES the whole ladder (usbtest.recovery_reserve), which is what lets the
-    # child run it straight through without an outer kill landing mid-flash and orphaning
-    # the flasher (own session) on the probe. Never under --skip-flash -- and say so: a
-    # HUNG case then holds the DUT's usbfs lock for the rest of the run, and a probe reset
-    # is no substitute (the DWC2 pullup survives a core halt).
-    # ...and only when this flasher can DELIVER that reflash past a poisoned node
-    # (hil_flash.convoy_safe). Otherwise the flags cost twice: the delivery adds a SECOND
-    # stray, and the board reserves recovery budget for a path that cannot fire.
-    # The RECOVERY flasher, which may be the roster's optional `flasher_recover` rather
-    # than the primary -- a jlink/stlink board can name an openocd entry that reaches the
-    # same probe convoy-safely without changing how the board is normally flashed.
+    # Post-hang recovery resets the DUT through its own probe, or reflashes it where the
+    # flasher has no reset (esptool), NEVER a root-port cycle (one board reached instead of
+    # every fixture under the port; see usb-kernel-recover). _current_fw is the artifact
+    # test_example flashed for THIS test: re-deriving it from board['name'] reflashes the
+    # wrong build on variant-only boards. Our run_cmd bound below RESERVES the step
+    # (usbtest.recovery_reserve) so no outer kill lands mid-flash and orphans the flasher
+    # (own session) on the probe. Never under --skip-flash, and only when this flasher can
+    # DELIVER past a poisoned node (hil_flash.convoy_safe): otherwise the delivery adds a
+    # SECOND stray and the board reserves budget for a path that cannot fire. The RECOVERY
+    # flasher may be the roster's optional `flasher_recover`: a jlink/stlink board can name
+    # an openocd entry that reaches the same probe convoy-safely.
     _rec_flasher = hil_flash.recover_flasher(board)
     recovery = bool(_current_fw and not skip_flash and hil_flash.convoy_safe(_rec_flasher))
     # ONE bound: run_cmd's kill below. It carries the recovery reserve only when a
-    # recovery can actually run, and only what THIS flasher's ladder can spend -- a board
-    # that cannot recover used to hold a pool worker AND its battery permit idle for a
-    # reserve it had no way to spend, under a usbtest width of 2.
-    # Without recovery the child still watches a HUNG node for usbtest.WEDGE_CONFIRM_S
-    # before calling it a wedge, so that window is reserved on both paths.
+    # recovery can actually run. Without recovery the child still watches a HUNG child for
+    # usbtest.WEDGE_CONFIRM_S before calling it a wedge, so that window is reserved on
+    # both paths.
     outer = USBTEST_BATTERY_BUDGET + USBTEST_OVERSHOOT + (
         usbtest.recovery_reserve(_rec_flasher) if recovery else usbtest.WEDGE_CONFIRM_S)
     if _current_fw and skip_flash:
-        print('note: --skip-flash disables usbtest hang recovery; a confirmed wedge will '
-              'leave the device wedged until it is reflashed', flush=True)
+        print('note: --skip-flash disables usbtest hang recovery; a hang will leave the '
+              'device wedged until it is reset or reflashed', flush=True)
     elif _current_fw and not recovery:
-        print(f'note: {_rec_flasher["name"]} cannot deliver a reflash past a poisoned '
-              f'usbfs node, so usbtest hang recovery is disabled for {board["name"]}; a '
-              f'confirmed wedge will leave it wedged for the rest of the run', flush=True)
+        print(f'note: {_rec_flasher["name"]} cannot reach its probe past a poisoned usbfs '
+              f'node, so usbtest hang recovery is disabled for {board["name"]}; a hang will '
+              f'leave it wedged for the rest of the run', flush=True)
     if recovery:
         # ship the RECOVERY flasher as `flasher`: usbtest.py and convoy_safe both read
         # board['flasher'], so substituting here keeps the entire child side unaware that
@@ -1575,8 +1569,8 @@ def test_device_usbtest(board):
         rb = json.dumps({'name': board['name'], 'flasher': _rec_flasher})
         cmd += f' --recover-board {shlex.quote(rb)} --recover-fw {shlex.quote(_current_fw)}'
     # The reserve above USBTEST_BATTERY_BUDGET exists because the battery can overrun by
-    # one already-started case, and a hang there needs room for the recovery (whose reflash
-    # is bounded by usbtest.RECOVER_FLASH_TIMEOUT, not HIL_CMD_TIMEOUT). Without it run_cmd
+    # one already-started case, and a hang there needs room for the recovery (whose step
+    # is bounded by usbtest.RECOVER_*_TIMEOUT, not HIL_CMD_TIMEOUT). Without it run_cmd
     # SIGKILLs usbtest.py mid-recovery, losing the JSON and the diagnosis.
     with hil_lock.usbtest_permit(uid):
         # split_stderr: the battery's final JSON is parsed from stdout, and stderr is the

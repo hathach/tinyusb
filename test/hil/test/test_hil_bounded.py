@@ -160,53 +160,27 @@ class UsbtestRecovery(unittest.TestCase):
         for flag in ('--recover-board', '--recover-fw'):
             self.assertIn(flag, r.stdout)
 
-    def test_the_reserve_covers_every_step_of_its_own_ladder(self):
+    def test_the_reserve_covers_the_window_one_step_and_the_checks_after_it(self):
         """Enumerated from the SIDE EFFECTS usbtest performs, so dropping a step from
-        recovery_reserve() fails here. Overrun means run_cmd's outer kill lands MID-FLASH
-        and orphans the flasher (start_new_session, so killpg misses it) on the probe.
-        """
+        recovery_reserve() fails here. Overrun means run_cmd's outer kill lands MID-STEP and
+        orphans the flasher (start_new_session, so killpg misses it) on the probe."""
         import usbtest
         from helper import hil_util as _hu
-        # each bounded step costs its timeout PLUS run_cmd's post-SIGKILL reap
-        flash = usbtest.RECOVER_FLASH_TIMEOUT + _hu.REAP_GRACE
-        reset = usbtest.RECOVER_RESET_TIMEOUT + _hu.REAP_GRACE
-        fixed = usbtest.WEDGE_CONFIRM_S + 2 * usbtest.RECOVER_SETTLE + usbtest.RECOVER_OVERHEAD
-        rp = {'name': 'openocd', 'args': '-f target/rp2040.cfg'}
-        for flasher, steps in (
-                # an RP openocd board: reset, reflash, then Rescue-DP POR + one retry
-                (rp, reset + flash + 2 * flash + fixed),
-                # openocd on a NON-RP target: rescue_openocd has no RESCUE_CFG entry for
-                # it, so its two legs are time the board can never spend
-                ({'name': 'openocd', 'args': '-f target/wch-riscv.cfg'},
-                 reset + flash + fixed),
-                # esptool: no reset primitive, and rescue refuses a
-                # non-openocd flasher, so ONE reflash is all it can ever spend
-                ({'name': 'esptool', 'args': ''}, flash + fixed),
-                # reset-only (roster "reflash": false): the reset and its settle, nothing else
-                ({'name': 'openocd', 'args': '-f interface/jlink.cfg', 'reflash': False},
-                 reset + usbtest.WEDGE_CONFIRM_S + usbtest.RECOVER_SETTLE + usbtest.RECOVER_OVERHEAD)):
-            self.assertEqual(usbtest.recovery_reserve(flasher), steps,
-                             f'{flasher} reserves time it cannot spend, or too little')
+        fixed = (usbtest.WEDGE_CONFIRM_S + _hu.REAP_GRACE + usbtest.RECOVER_SETTLE
+                 + usbtest.RECOVER_REAP + usbtest.RECOVER_OVERHEAD)
+        # a flasher with a reset primitive resets, nothing else; one without reflashes
+        self.assertEqual(usbtest.recovery_reserve({'name': 'openocd', 'args': '-f target/rp2040.cfg'}),
+                         usbtest.RECOVER_RESET_TIMEOUT + fixed)
+        self.assertEqual(usbtest.recovery_reserve({'name': 'esptool', 'args': ''}),
+                         usbtest.RECOVER_FLASH_TIMEOUT + fixed)
 
     def test_the_reserve_leaves_room_for_the_work_no_step_bounds(self):
-        """The ladder's step timeouts do not cover the two /proc walks, the roster
-        json.loads, the child's first import, or the JSON print. With zero margin any
-        env-overridable bound moving up puts the outer killpg inside the reflash."""
+        """The step timeout does not cover the roster json.loads, the child's first import,
+        or the JSON print. With zero margin any env-overridable bound moving up puts the
+        outer killpg inside the step."""
         import usbtest
         self.assertGreater(usbtest.RECOVER_OVERHEAD, 0)
-        rp = {'name': 'openocd', 'args': '-f target/rp2350.cfg'}
-        bounded = (usbtest.RECOVER_RESET_TIMEOUT + 3 * usbtest.RECOVER_FLASH_TIMEOUT)
-        self.assertGreaterEqual(usbtest.recovery_reserve(rp) - bounded,
-                                usbtest.RECOVER_OVERHEAD,
-                                'the reserve equals its own worst case with no margin')
-
-    def test_a_flasher_reserves_nothing_for_a_rescue_it_cannot_run(self):
-        """rescue_openocd returns False for anything but openocd, so reserving its two
-        legs elsewhere holds a pool worker AND a usbtest permit for 200s of dead time."""
-        import usbtest
-        self.assertLess(usbtest.recovery_reserve({'name': 'esptool', 'args': ''}),
-                        usbtest.recovery_reserve({'name': 'openocd',
-                                                  'args': '-f target/rp2040.cfg'}))
+        self.assertGreater(usbtest.WEDGE_CONFIRM_S, 5, 'must outlast the 5 s reap that produced HUNG')
 
 
 class UsbtestRunHelper(unittest.TestCase):
@@ -723,121 +697,120 @@ class ReRunSpecNamesOnlyWhatFailed(unittest.TestCase):
             self.assertFalse(spec.exists(), 'a stale spec would re-run last time\'s boards')
 
 
-class WedgedPidsFailsClosed(unittest.TestCase):
-    """A scan that could not SEE the holder must not report "no holder". The holder is
-    root-owned (run_case uses sudo -n when the node is not writable) and that is exactly
-    what a hidepid/ProtectProc mount hides — so an unreadable /proc reading as clear
-    clears unrecovered_hang and reports a device whose usbfs lock is still held as
-    recovered, which is the wedge the operator then has to find."""
+class _FakeProc:
+    """A killed testusb child: `reaps` says whether wait() returns or times out."""
+    def __init__(self, reaps: bool):
+        self.reaps, self.waits = reaps, []
 
-    def test_returns_a_completeness_flag_not_just_pids(self):
+    def wait(self, timeout=None):
+        self.waits.append(timeout)
+        if not self.reaps:
+            raise subprocess.TimeoutExpired('testusb', timeout)
+
+
+class RunCaseConfirmsByReap(unittest.TestCase):
+    """HUNG is 'SIGKILL not reaped in 5 s', which testusb blocked on a PEER's held device lock
+    also produces (its own device walk opens every node). Watching our child for
+    WEDGE_CONFIRM_S tells the two apart: reaped late is a timeout, not a wedge (#3944).
+    Under sudo the child is the wrapper, so its reaping proves nothing."""
+
+    def _run_case(self, sudo: bool, reaps_late: bool):
         import usbtest
-        got = usbtest.wedged_pids('/dev/bus/usb/999/999')
-        self.assertIsInstance(got, tuple)
-        self.assertEqual(len(got), 2, 'the caller needs (pids, complete)')
 
-    def test_a_restricted_proc_is_reported_incomplete(self):
+        class Popen:
+            def __init__(self, cmd, **kw):
+                self.cmd = cmd
+                self.communicates = 0
+
+            def communicate(self, timeout=None):
+                self.communicates += 1
+                raise subprocess.TimeoutExpired(self.cmd, timeout)
+
+            def kill(self):
+                pass
+
+            def wait(self, timeout=None):
+                self.waited = timeout
+                if not reaps_late:
+                    raise subprocess.TimeoutExpired(self.cmd, timeout)
+
+        usbtest_harness.patch(self, usbtest.subprocess, 'Popen', Popen)
+        usbtest_harness.patch(self, usbtest, 'dmesg_tail', lambda: '')
+        usbtest_harness.patch(self, usbtest.os, 'access', lambda p, m: not sudo)
+        usbtest_harness.patch(self, usbtest.os, 'geteuid', lambda: 1000)
+        return usbtest.run_case(1, dict(usbtest_harness.DEV), '/bin/true', False, 7)
+
+    def test_a_child_reaped_within_the_window_is_a_late_timeout(self):
+        r = self._run_case(sudo=False, reaps_late=True)
+        self.assertEqual(r['status'], 'FAIL')
+        self.assertTrue(r['late_cleared'])
+        self.assertIn('landed', r['detail'])
+        self.assertNotIn('_proc', r)
+
+    def test_a_child_still_stuck_after_the_window_is_hung_with_its_handle(self):
         import usbtest
-        self.addCleanup(setattr, usbtest.os, 'geteuid', usbtest.os.geteuid)
-        self.addCleanup(setattr, usbtest.os, 'access', usbtest.os.access)
-        usbtest.os.geteuid = lambda: 1000          # not root
-        usbtest.os.access = lambda p, m: False     # /proc/1/cmdline unreadable
-        _, complete = usbtest.wedged_pids('/dev/bus/usb/999/999')
-        self.assertFalse(complete, 'a hidden holder was reported as absent')
+        r = self._run_case(sudo=False, reaps_late=False)
+        self.assertEqual(r['status'], 'HUNG')
+        self.assertEqual(r['_proc'].waited, usbtest.WEDGE_CONFIRM_S)
+
+    def test_under_sudo_the_wrapper_reaping_proves_nothing(self):
+        r = self._run_case(sudo=True, reaps_late=True)
+        self.assertEqual(r['status'], 'HUNG')
+        self.assertIsNone(r['_proc'], 'the wrapper is not the child to watch')
 
 
-class WedgeConfirmation(unittest.TestCase):
-    """A HUNG verdict is 'the kill was not reaped in 5 s', which a slow but finite in-kernel
-    wait also produces. Only a holder still on the node after WEDGE_CONFIRM_S is a wedge; a
-    holder that clears is a timeout (false wedges on stm32f746disco, #3944)."""
+class HangRecoveryOnTheMainPath(unittest.TestCase):
+    """The transitions through usbtest.main(): a HUNG case aborts the battery; ONE recovery
+    step runs through the convoy-safe flasher (reset where it has one, else reflash); the
+    child reaping afterwards is the only thing that clears `wedged`; an unverifiable child
+    (sudo) keeps the hang; a late-cleared timeout also aborts but is not a wedge."""
 
-    def _confirm(self, scans, budget=30):
-        import usbtest
-        self.addCleanup(setattr, usbtest, 'wedged_pids', usbtest.wedged_pids)
-        self.addCleanup(setattr, usbtest.time, 'sleep', usbtest.time.sleep)
-        self.addCleanup(setattr, usbtest.time, 'monotonic', usbtest.time.monotonic)
-        it = iter(scans)
-        last = scans[-1]
-        usbtest.wedged_pids = lambda node: next(it, last)
-        clock = [0.0]
-        usbtest.time.sleep = lambda s: clock.__setitem__(0, clock[0] + s)
-        usbtest.time.monotonic = lambda: clock[0]
-        return usbtest.confirm_wedge('/dev/bus/usb/999/999', budget=budget, poll=1.0)
-
-    def test_a_holder_that_clears_is_a_timeout_not_a_wedge(self):
-        stuck, complete, waited = self._confirm([([4242], True), ([4242], True), ([], True)])
-        self.assertEqual(stuck, [])
-        self.assertTrue(complete)
-        self.assertAlmostEqual(waited, 2.0)
-
-    def test_a_holder_still_there_at_the_budget_is_a_wedge(self):
-        stuck, complete, waited = self._confirm([([4242], True)], budget=30)
-        self.assertEqual(stuck, [4242])
-        self.assertTrue(complete)
-        self.assertGreaterEqual(waited, 30)
-
-    def test_an_incomplete_scan_never_reads_as_clear(self):
-        stuck, complete, waited = self._confirm([([], False)], budget=5)
-        self.assertFalse(complete, 'a hidden holder was reported as absent')
-        self.assertGreaterEqual(waited, 5, 'gave up before the budget on an incomplete scan')
-
-    def test_the_reserve_pays_for_the_confirmation_on_every_path(self):
-        """hil_test.py reserves the window on the no-recovery path too (#3944): the outer
-        bound is what keeps run_cmd's kill from landing inside the confirmation."""
-        import usbtest
-        self.assertGreater(usbtest.WEDGE_CONFIRM_S, 5, 'must outlast the 5 s reap that produced HUNG')
-        self.assertGreaterEqual(usbtest.recovery_reserve({'name': 'esptool', 'args': ''}),
-                                usbtest.WEDGE_CONFIRM_S + usbtest.RECOVER_FLASH_TIMEOUT)
-
-
-class WedgeConfirmationOnTheMainPath(unittest.TestCase):
-    """The transitions together, through usbtest.main(): a cleared holder ends the battery as
-    a timeout FAIL with nothing written; a persistent holder is a confirmed wedge;
-    an incomplete scan is contained like a wedge but reported unverified; an exception during
-    the confirmation still reaches the finally with the hang flagged; and every recovery scan
-    re-derives the confirmation, so a stale 'confirmed' never outlives an incomplete final scan."""
-
-    def _main(self, confirm, recover=None, scans=None, flasher_extra=None, reflash=None, reset=True):
+    def _main(self, proc=None, recover=None, reset=True, raising_reset=False, late=False):
         """Returns (json or None, stderr, exception or None, sysfs writes). self.ladder
-        records the recovery's lookups, resets, settles, scans and reflashes in order."""
+        records the recovery's lookups, resets, settles and reflashes in order."""
         import usbtest
         writes = []
         self.ladder = []
 
         def patch(obj, name, value):
             usbtest_harness.patch(self, obj, name, value)
-        usbtest_harness.stub_device(self, usbtest, lambda num, d, tu, quick, timeout:
-                                    {'num': num, 'name': 'x', 'params': '', 'status': 'HUNG',
-                                     'detail': f'testusb stuck in D state after {timeout}s'})
+
+        def run_case(num, d, tu, quick, timeout):
+            if late:
+                return {'num': num, 'name': 'x', 'params': '', 'status': 'FAIL', 'late_cleared': True,
+                        'detail': 'timeout after 7s (the kill landed 3s late)'}
+            return {'num': num, 'name': 'x', 'params': '', 'status': 'HUNG',
+                    'detail': f'testusb stuck in D state after {timeout}s', '_proc': proc}
+        usbtest_harness.stub_device(self, usbtest, run_case)
         patch(usbtest, 'bind_usbtest', lambda d: None)
         patch(usbtest, 'register_usbtest_id', lambda: None)
         patch(usbtest, 'sysfs_write', lambda path, data, check=True: writes.append((str(path), data)))
         td = TemporaryDirectory()
         self.addCleanup(td.cleanup)
         patch(usbtest, 'DRIVER', Path(td.name))          # no bound interfaces to unbind
-        patch(usbtest, 'confirm_wedge', confirm)
         patch(usbtest.time, 'sleep', lambda s: self.ladder.append(('sleep', s)))
-        if scans is not None:
-            it = iter(scans)
-            patch(usbtest, 'wedged_pids', lambda node: self.ladder.append('scan') or next(it))
         if recover:
             # a convoy-safe openocd board whose reset and reflash are stubs
             patch(hil_flash, 'convoy_safe', lambda f: True)
-            self.flashed = []          # every in-run reflash the ladder attempted
-            patch(hil_flash, 'flash_openocd', reflash or (lambda board, fw, **kw: self.flashed.append(fw) or
-                  self.ladder.append('flash') or types.SimpleNamespace(returncode=0, stdout=b'', stderr=b'')))
-            patch(hil_flash, 'rescue_openocd', lambda *a, **k: False)
+            self.flashed = []          # every in-run reflash attempted
+            patch(hil_flash, 'flash_openocd', lambda board, fw, **kw: self.flashed.append((fw, kw.get('timeout')))
+                  or self.ladder.append('flash') or types.SimpleNamespace(returncode=0, stdout=b'', stderr=b''))
 
             def reset_primitive(name):
                 self.ladder.append(('lookup', name))
-                # `timeout` is required: a reset called without the bound raises, and the
-                # ladder records no reset
-                return (lambda board, timeout: self.ladder.append(('reset', board['name'], timeout))) if reset else None
+                if not reset:
+                    return None
+
+                def _reset(board, timeout):
+                    self.ladder.append(('reset', board['name'], timeout))
+                    if raising_reset:
+                        raise RuntimeError('probe gone')
+                return _reset
             patch(hil_flash, 'reset_primitive', reset_primitive)
         usbtest_harness.argv(self, '--timeout', '7')
         if recover:
             sys.argv += ['--recover-board', json.dumps({'name': 'b', 'flasher': {
-                'name': 'openocd', 'vid_pid': '0x1 0x2', 'args': '', **(flasher_extra or {})}}),
+                'name': 'openocd', 'vid_pid': '0x1 0x2', 'args': '', **(recover if isinstance(recover, dict) else {})}}),
                          '--recover-fw', '/tmp/fw.elf']
         out, err, exc = usbtest_harness.Out(), io.StringIO(), None
         with redirect_stdout(out), redirect_stderr(err):
@@ -848,131 +821,79 @@ class WedgeConfirmationOnTheMainPath(unittest.TestCase):
         data = json.loads(out.getvalue()) if out.getvalue().strip() else None
         return data, err.getvalue(), exc, writes
 
-    def test_a_cleared_holder_is_a_timeout_fail_and_nothing_is_written(self):
-        data, err, exc, writes = self._main(lambda node: ([], True, 6.0))
+    def test_a_late_cleared_timeout_aborts_the_battery_but_is_not_a_wedge(self):
+        data, err, exc, writes = self._main(late=True)
         self.assertIsNone(exc)
         self.assertFalse(data['wedged'])
-        self.assertEqual(data['wedge_confirmation'], 'cleared')
         self.assertEqual(data['cases'][0]['status'], 'FAIL')
-        self.assertIn('no holder observed after 6s', data['cases'][0]['detail'])
+        self.assertIn('not a wedge', err)
         self.assertNotIn('unrecovered hang', err)
         self.assertEqual(writes, [], 'a standalone run removed the id or unbound a peer')
 
-    def test_a_persistent_holder_is_a_confirmed_wedge_and_nothing_is_written(self):
-        data, err, _exc, writes = self._main(lambda node: ([4242], True, 30.0))
+    def test_a_hang_without_recovery_flags_stays_wedged_and_nothing_is_written(self):
+        data, err, _exc, writes = self._main(proc=_FakeProc(reaps=True))
         self.assertTrue(data['wedged'])
-        self.assertEqual(data['wedge_confirmation'], 'confirmed')
         self.assertEqual(data['cases'][0]['status'], 'HUNG')
-        self.assertIn('unrecovered hang: ask the operator', err)
+        self.assertNotIn('_proc', data['cases'][0])
+        self.assertIn('unrecovered hang', err)
         self.assertEqual(writes, [])
-
-    def test_an_incomplete_scan_is_contained_but_reported_unverified(self):
-        data, err, _exc, writes = self._main(lambda node: ([], False, 30.0))
-        self.assertTrue(data['wedged'], 'an unseen holder must still be contained')
-        self.assertEqual(data['wedge_confirmation'], 'unverified')
-        self.assertIn('unverified', err)
-        self.assertIn('unrecovered hang: ask the operator', err)
-        self.assertEqual(writes, [])
-
-    def test_an_exception_during_confirmation_still_reports_the_hang(self):
-        def boom(node):
-            raise RuntimeError('proc walk failed')
-        data, err, exc, writes = self._main(boom)
-        self.assertIsInstance(exc, RuntimeError)
-        self.assertIsNone(data, 'no verdict was printed')
-        self.assertIn('unrecovered hang: ask the operator', err)
-        self.assertEqual(writes, [])
-
-    def test_a_reset_only_recovery_flasher_never_reflashes_in_run(self):
-        # the holder survives the reset, so the ladder reflashes...
-        self._main(lambda node: ([4242], True, 30.0), recover=True, scans=[([4242], True), ([4242], True)])
-        self.assertEqual(self.flashed, ['/tmp/fw.elf'])
-        # ...unless the entry is reset-only
-        data, err, _exc, _w = self._main(lambda node: ([4242], True, 30.0), recover=True,
-                                         scans=[([4242], True)], flasher_extra={'reflash': False})
-        self.assertTrue(data['wedged'])
-        self.assertIn('reset-only recovery flasher', err)
-        self.assertEqual(self.flashed, [], 'a reset-only entry must never reflash in-run')
 
     def test_an_unknown_recovery_flasher_leaves_the_wedge_unrecovered(self):
-        data, err, exc, writes = self._main(lambda node: ([4242], True, 30.0), recover=True,
-                                            flasher_extra={'name': 'nosuch'})
+        data, err, exc, writes = self._main(proc=_FakeProc(reaps=True), recover={'name': 'nosuch'})
         self.assertIsNone(exc)
         self.assertTrue(data['wedged'])
-        self.assertIn('reflash recovery unavailable', err)
-        self.assertEqual([e for e in self.ladder if e[0] in ('lookup', 'reset') or e == 'flash'], [],
-                         'an unknown flasher must not reach the reset or the reflash')
+        self.assertIn('recovery unavailable', err)
+        self.assertEqual(self.ladder, [], 'an unknown flasher must not reach the reset or the reflash')
         self.assertEqual(writes, [])
 
-    # The ladder resets first: a probe reset is non-destructive (the wedged firmware survives
-    # for autopsy), writes no flash, and cannot brick SWD the way a bad park image has
-    # (mimxrt1064_evk, max32666fthr). Each step settles before the scan that judges it.
-    def _ladder(self, scans, want, reset=True):
+    def _steps(self):
         import usbtest
-        data, _err, exc, writes = self._main(lambda node: ([4242], True, 30.0), recover=True,
-                                             scans=scans, reset=reset)
+        names = {('reset', 'b', usbtest.RECOVER_RESET_TIMEOUT): 'reset',
+                 ('sleep', usbtest.RECOVER_SETTLE): 'settle', 'flash': 'flash'}
+        return [names.get(e, e) for e in self.ladder if e[0] != 'lookup']
+
+    def test_a_reset_that_frees_the_child_clears_the_wedge(self):
+        proc = _FakeProc(reaps=True)
+        data, err, exc, _w = self._main(proc=proc, recover=True)
         self.assertIsNone(exc)
-        self.assertEqual(writes, [])
         self.assertFalse(data['wedged'])
-        lookups = [e[1] for e in self.ladder if e[0] == 'lookup']
-        self.assertTrue(lookups)
-        self.assertEqual(set(lookups), {'openocd'})
-        steps = {('reset', 'b', usbtest.RECOVER_RESET_TIMEOUT): 'reset',
-                 ('sleep', usbtest.RECOVER_SETTLE): 'settle', 'scan': 'scan', 'flash': 'flash'}
-        # any other reset, e.g. one with the wrong bound, stays in and fails the compare
-        ignored = [e for e in self.ladder if e[0] == 'lookup' or (e[0] == 'sleep' and e not in steps)]
-        self.assertEqual([steps.get(e, e) for e in self.ladder if e not in ignored], want)
+        self.assertEqual(self._steps(), ['reset', 'settle'], 'reset first, then settle, never a reflash')
+        self.assertEqual(self.flashed, [])
+        self.assertEqual(proc.waits, [__import__('usbtest').RECOVER_REAP])
+        self.assertIn('recovery freed the device', err)
+
+    def test_a_reset_that_leaves_the_child_stuck_keeps_the_wedge(self):
+        data, err, _exc, _w = self._main(proc=_FakeProc(reaps=False), recover=True)
+        self.assertTrue(data['wedged'])
+        self.assertEqual(self._steps(), ['reset', 'settle'])
+        self.assertIn('still in D state', err)
+        self.assertIn('unrecovered hang', err)
+
+    def test_no_reset_primitive_reflashes_the_firmware_under_test(self):
+        import usbtest
+        data, _err, exc, _w = self._main(proc=_FakeProc(reaps=True), recover=True, reset=False)
+        self.assertIsNone(exc)
+        self.assertFalse(data['wedged'])
+        self.assertEqual(self._steps(), ['flash', 'settle'])
+        self.assertEqual(self.flashed, [('/tmp/fw.elf', usbtest.RECOVER_FLASH_TIMEOUT)])
+
+    def test_a_step_that_raises_still_settles_and_checks_the_child(self):
+        proc = _FakeProc(reaps=True)
+        data, err, exc, _w = self._main(proc=proc, recover=True, raising_reset=True)
+        self.assertIsNone(exc)
+        self.assertIn('recovery step raised', err)
+        self.assertEqual(self._steps(), ['reset', 'settle'])
+        self.assertFalse(data['wedged'], 'the reset landed before the flasher raised')
+
+    def test_under_sudo_the_hang_cannot_be_cleared(self):
+        data, err, _exc, _w = self._main(proc=None, recover=True)
+        self.assertTrue(data['wedged'])
+        self.assertEqual(self._steps(), ['reset', 'settle'], 'the step still runs; only the verdict is withheld')
+        self.assertIn('cannot confirm', err)
 
     def test_the_settle_keeps_its_validated_minimum(self):
         import usbtest
         self.assertGreaterEqual(usbtest.RECOVER_SETTLE, 5, 'validated minimum: metro_m4_express UF2 double-tap')
-
-    def test_the_reset_is_attempted_before_the_reflash(self):
-        self._ladder([([4242], True), ([], True)], ['reset', 'settle', 'scan', 'flash', 'settle', 'scan'])
-
-    def test_a_reset_that_clears_the_wedge_skips_the_reflash(self):
-        self._ladder([([], True)], ['reset', 'settle', 'scan'])
-
-    def test_no_reset_primitive_goes_straight_to_the_reflash(self):
-        self._ladder([([], True)], ['flash', 'settle', 'scan'], reset=False)
-
-    def test_recovery_scans_re_derive_the_confirmation(self):
-        # confirmed, then the reset scan and the post-reflash scan cannot see every pid:
-        # the stale 'confirmed' must not survive into the verdict
-        data, _err, _exc, _w = self._main(lambda node: ([4242], True, 30.0), recover=True,
-                                          scans=[([], False), ([], False)])
-        self.assertTrue(data['wedged'])
-        self.assertEqual(data['wedge_confirmation'], 'unverified')
-        # unverified at first, then a complete scan finds the holder after both actions
-        data, _err, _exc, _w = self._main(lambda node: ([], False, 30.0), recover=True,
-                                          scans=[([4242], True), ([4242], True)])
-        self.assertTrue(data['wedged'])
-        self.assertEqual(data['wedge_confirmation'], 'confirmed')
-        # confirmed, then the probe reset clears it
-        data, _err, _exc, _w = self._main(lambda node: ([4242], True, 30.0), recover=True,
-                                          scans=[([], True)])
-        self.assertFalse(data['wedged'])
-        self.assertEqual(data['wedge_confirmation'], 'cleared')
-
-    @staticmethod
-    def _raising_reflash(board, fw, **kw):
-        raise RuntimeError('probe gone')
-
-    def test_a_reflash_that_raises_still_gets_the_rescan_on_a_kept_holder(self):
-        data, err, exc, _w = self._main(lambda node: ([4242], True, 30.0), recover=True,
-                                        scans=[([4242], True), ([4242], True)], reflash=self._raising_reflash)
-        self.assertIsNone(exc)
-        self.assertTrue(data['wedged'])
-        self.assertEqual(data['wedge_confirmation'], 'confirmed')
-        self.assertEqual(data['wedge_evidence']['after'], 'reflash')
-        self.assertIn('reflash raised', err)
-
-    def test_a_reflash_that_raises_still_gets_the_rescan_on_a_cleared_holder(self):
-        data, _err, exc, _w = self._main(lambda node: ([4242], True, 30.0), recover=True,
-                                         scans=[([4242], True), ([], True)], reflash=self._raising_reflash)
-        self.assertIsNone(exc)
-        self.assertFalse(data['wedged'])
-        self.assertEqual(data['wedge_confirmation'], 'cleared')
 
 
 class MtpGioOrdering(_MtpFakeRig, unittest.TestCase):
@@ -1246,15 +1167,16 @@ class UsbtestOuterBoundIsOneValue(unittest.TestCase):
                 + usbtest.recovery_reserve(flasher))
         self.assertEqual(seen['timeout'], want)
 
-    def test_the_reserve_follows_the_board_not_a_fleet_constant(self):
-        """Two convoy-safe openocd boards, one RP and one not: the non-RP board cannot
-        run rescue_openocd, so reserving its two legs holds a pool worker and a usbtest
-        permit for 200s of dead time."""
-        rp = self._invoke({'name': 'openocd', 'vid_pid': '0x1366 0x1024',
-                           'args': '-f target/rp2040.cfg'})
-        wch = self._invoke({'name': 'openocd', 'vid_pid': '0x1366 0x1024',
-                            'args': '-f target/wch-riscv.cfg'})
-        self.assertLess(wch['timeout'], rp['timeout'])
+    def test_the_reserve_follows_the_flasher_not_a_fleet_constant(self):
+        """A flasher with a reset primitive reserves the reset bound, one without (esptool)
+        the reflash bound: the difference is dead time a pool worker and a usbtest permit
+        would otherwise hold."""
+        import usbtest
+        ocd = self._invoke({'name': 'openocd', 'vid_pid': '0x1366 0x1024',
+                            'args': '-f target/rp2040.cfg'})
+        esp = self._invoke({'name': 'esptool', 'args': ''})
+        self.assertEqual(esp['timeout'] - ocd['timeout'],
+                         usbtest.RECOVER_FLASH_TIMEOUT - usbtest.RECOVER_RESET_TIMEOUT)
 
     def test_a_board_with_no_recovery_does_not_pay_for_one(self):
         import usbtest
@@ -1294,9 +1216,9 @@ class UsbtestOuterBoundIsOneValue(unittest.TestCase):
         shipped = json.loads(toks[toks.index('--recover-board') + 1])
         self.assertEqual(shipped, {'name': 'b', 'flasher': rec})
         self.assertEqual(toks[toks.index('--recover-fw') + 1], '/tmp/fw.elf')
-        # the reset step is reserved, and no Rescue-DP legs: reset_openocd exists, unlike esptool's
+        # the reset step is reserved, not a reflash: reset_openocd exists, unlike esptool's
         self.assertEqual(usbtest.recovery_reserve(rec) - usbtest.recovery_reserve({'name': 'esptool'}),
-                         usbtest.RECOVER_RESET_TIMEOUT + hil_test.hil_util.REAP_GRACE)
+                         usbtest.RECOVER_RESET_TIMEOUT - usbtest.RECOVER_FLASH_TIMEOUT)
 
     def test_skip_flash_still_bounds_the_child(self):
         """--skip-flash disables recovery, so the child must not be given a reserve it
