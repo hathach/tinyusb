@@ -17,6 +17,7 @@
 - Skill script tests live in `.claude/test/test_*.py`.
 - Hardware diagnosis and repair use agentrc's `hw-debugger`; independent hardware claims and committed-fix validation use `hw-validator`; routine HIL runs use `hil-operator`, which follows the HIL contract below — all orchestrated by `chief`.
 - Driver audit: the `code-audit` workflow with `dirs` (e.g. `src/portable/<vendor>/<driver>`) and `dimensions`: `correctness: transfer state machines, endpoint bookkeeping, completion and error paths`; `ISR safety: work deferred to task context, shared-state races, register access ordering`; `register use vs datasheet and MCU errata: cross-check the reference manual AND errata sheets via the read-doc skill; if the skill is unavailable treat the document as absent (low confidence, never a web/filesystem substitute); a missing erratum workaround is a finding`; `style: repo conventions (TU_ASSERT, no dynamic allocation, include order, naming)`.
+- usbtest battery: load `usbtest` before bringing up `examples/device/usbtest` on a new MCU or DCD, or before debugging a failed usbtest case (a red usbtest cell, a testusb errno, NOTRUN or HUNG); it maps the case to the DCD path and runs chosen cases on one board.
 - Static analysis: the `pvs-studio` agent with rules `.PVS-Studio/.pvsconfig` (never add suppressions) on a board's examples build; `raspberry_pi_pico` mirrors CI, `stm32f407disco` is fastest.
 
 ## Build and Validate
@@ -27,6 +28,7 @@
 - ESP-IDF: `. "$IDF_PATH/export.sh"` before anything Espressif; verification still goes through the build contract, with `idf.py -DBOARD=<board> flash monitor` in the example reserved for interactive flash and monitor.
 - Before submitting, and again after a rebase: `pre-commit run --all-files` (includes unit tests).
 - For code changes: build the full example set for boards that exercise the changed modules. Add fuzz/HIL coverage for parsers or protocol state machines.
+- For DCD bring-up or a behavior change (`src/portable/<vendor>/<driver>`), use the usbtest battery for hardware sign-off: run every case of the justified tier. If no suitable rig board is available, report hardware validation pending.
 - After board/dependency changes, regenerate docs with `build-doc`.
 - Before committing code changes, verify size impact with `code-size`.
 

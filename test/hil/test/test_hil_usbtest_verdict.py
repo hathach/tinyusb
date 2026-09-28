@@ -134,6 +134,12 @@ class ExitStatus(unittest.TestCase):
         self.assertEqual((rc, data['wedged']), (1, True))
         self.assertIn('unrecovered hang', err)
 
+    def test_failed_case_points_at_the_skill_once(self):
+        for status in ('FAIL', 'NOTRUN'):
+            rc, data, err = self.main('--tests', '0,1', status=status)
+            self.assertEqual((rc, data['failed']), (2, 2))
+            self.assertEqual(err.count('usbtest skill'), 1, status)
+
     def test_duplicate_case_numbers_are_refused(self):
         with self.assertRaises(SystemExit) as e:
             self.main('--tests', '0,1,0')

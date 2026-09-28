@@ -240,6 +240,11 @@ The arguments are:
 
 Stalling is one way an endpoint can indicate failure such as when an unsupported command is transmitted. The pair of ``dcd_edpt_stall()``, ``dcd_edpt_clear_stall()`` help manage the stall state of all endpoints.
 
+Validate with usbtest
+---------------------
+
+Once ``cdc_msc`` enumerates, build ``examples/device/usbtest`` and run the Linux kernel ``usbtest`` battery against it from a Linux host. It stresses the device controller driver harder than a class example, and its tiers add vendor control, interrupt and isochronous coverage as the port supports them. See the `example README <https://github.com/hathach/tinyusb/tree/master/examples/device/usbtest>`_ for the tiers, the cases and how to run it.
+
 Woohoo!
 -------
 

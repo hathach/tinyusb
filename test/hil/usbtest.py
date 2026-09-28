@@ -792,6 +792,9 @@ def main():
             print(f"  FAILED test {r['num']}: {r.get('detail', '')}")
             if r.get('dmesg'):
                 print('    ' + r['dmesg'].replace('\n', '\n    '))
+    if failed:
+        print('diagnose failed cases with the usbtest skill, "Failed case" '
+              '(.claude/skills/usbtest/SKILL.md)', file=sys.stderr)
     # NOTRUN counts toward the exit status even though it is reported separately: a
     # standalone run whose cases were all skipped has NOT passed, and returning 0 hands a
     # false success to any script driving this directly. So does a device reported wedged
