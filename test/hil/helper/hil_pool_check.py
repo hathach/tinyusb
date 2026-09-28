@@ -79,8 +79,7 @@ def scan_usb() -> dict:
     # At scan time, not only in the footer: rows stream for minutes and a run cut short
     # by ^C never reaches the footer.
     global stranded_seen
-    if not stranded_seen and any(hil_util.path_stranded(p)
-                                 for p in glob.glob('/sys/bus/usb/devices/*-*/serial')):
+    if not stranded_seen and hil_util.sysfs_stranded():
         stranded_seen = True
         say('WARNING: a bounded sysfs serial read gave up; a probe or board reported '
             'missing may be present but unreadable. Find the wedged device '
@@ -1053,7 +1052,7 @@ def main() -> None:
         counts[r.get('status', 'failed')] += 1
     print(f'\n{counts["ok"]} ok · {counts["flash-failed"]} flash-failed · {counts["failed"]} failed '
           f'· {counts["locked"]} locked · in {time.monotonic() - t0:.0f}s')
-    if stranded_seen:
+    if hil_util.sysfs_stranded():
         print('WARNING: a bounded sysfs serial read gave up during this run; a probe or board '
               'reported missing above may be present but unreadable. Find the wedged device '
               '(usb-kernel-recover) and re-run before acting on the table.')
