@@ -13,6 +13,7 @@ TEST_SOURCE_FILE("msc_host.c")
 
 enum {
   DADDR     = 1,
+  ITF_NUM   = 2, // not 0, so an interface number the driver loses or zeroes shows
   EP_OUT    = 0x01,
   EP_IN     = 0x81,
   MAX_XFERS = 8,
@@ -25,6 +26,8 @@ static uint8_t  xfer_count;
 static uint8_t  xfer_fail_index; // xfer_count value whose submission fails
 static uint8_t  complete_count;
 static uint8_t  set_config_count;
+static uint8_t  set_config_daddr;
+static uint8_t  set_config_itf;
 static msc_csw_t complete_csw;
 static bool     retry_submitted;
 static bool     ctrl_xfer_fail;
@@ -48,8 +51,8 @@ uint8_t *usbh_get_enum_buf(void) {
 }
 
 void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
-  (void) dev_addr;
-  (void) itf_num;
+  set_config_daddr = dev_addr;
+  set_config_itf   = itf_num;
   set_config_count++;
 }
 
@@ -103,7 +106,7 @@ static void open_bot_interface(void) {
     tusb_desc_endpoint_t  ep_out;
     tusb_desc_endpoint_t  ep_in;
   } const desc = {
-    .itf    = {sizeof(tusb_desc_interface_t), TUSB_DESC_INTERFACE, 0, 0, 2, TUSB_CLASS_MSC, MSC_SUBCLASS_SCSI,
+    .itf    = {sizeof(tusb_desc_interface_t), TUSB_DESC_INTERFACE, ITF_NUM, 0, 2, TUSB_CLASS_MSC, MSC_SUBCLASS_SCSI,
                MSC_PROTOCOL_BOT, 0},
     .ep_out = {sizeof(tusb_desc_endpoint_t), TUSB_DESC_ENDPOINT, EP_OUT, {.xfer = TUSB_XFER_BULK}, 512, 0},
     .ep_in  = {sizeof(tusb_desc_endpoint_t), TUSB_DESC_ENDPOINT, EP_IN, {.xfer = TUSB_XFER_BULK}, 512, 0},
@@ -112,9 +115,16 @@ static void open_bot_interface(void) {
   TEST_ASSERT_EQUAL(sizeof(desc), msch_open(0, DADDR, &desc.itf, sizeof(desc)));
 }
 
+// usbh resumes enumeration from the interface it is told completed
+static void assert_config_completed(void) {
+  TEST_ASSERT_EQUAL(1, set_config_count);
+  TEST_ASSERT_EQUAL(DADDR, set_config_daddr);
+  TEST_ASSERT_EQUAL(ITF_NUM, set_config_itf);
+}
+
 static void mount_bot_interface(void) {
   open_bot_interface();
-  TEST_ASSERT_TRUE(msch_set_config(DADDR, 0));
+  TEST_ASSERT_TRUE(msch_set_config(DADDR, ITF_NUM));
 }
 
 static void reply_csw(uint8_t status) {
@@ -148,7 +158,7 @@ static void enumerate(void) {
   reply_csw_passed();
 
   TEST_ASSERT_TRUE(tuh_msc_mounted(DADDR));
-  TEST_ASSERT_EQUAL(1, set_config_count);
+  assert_config_completed();
   xfer_count = 0;
 }
 
@@ -301,7 +311,7 @@ void test_msc_host_data_stage_chunk_submit_fail_completes(void) {
 // is done: until then it holds the enumeration, blocking this device's other interfaces and every later device.
 static void assert_enum_ended_unmounted(uint8_t submitted) {
   TEST_ASSERT_EQUAL(submitted, xfer_count);
-  TEST_ASSERT_EQUAL(1, set_config_count);
+  assert_config_completed();
   TEST_ASSERT_FALSE(tuh_msc_mounted(DADDR));
   TEST_ASSERT_FALSE(tuh_msc_ready(DADDR));
 }
@@ -348,7 +358,7 @@ void test_msc_host_enum_get_max_lun_submit_fail(void) {
   set_config_count = 0;
   ctrl_xfer_fail   = true;
   open_bot_interface();
-  (void) msch_set_config(DADDR, 0);
+  (void) msch_set_config(DADDR, ITF_NUM);
 
   assert_enum_ended_unmounted(0);
 }
