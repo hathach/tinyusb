@@ -31,6 +31,8 @@ ROSTER = {
          'tests': {'device': True, 'skip': ['device/usbtest']}},
         {'name': 'notlisted', 'uid': 'UID6', 'flasher': {'name': 'jlink'}, 'tests': {'only': ['device/cdc_msc']}},
         {'name': 'untested', 'uid': 'UID7', 'flasher': {'name': 'jlink'}},
+        {'name': 'malformed', 'uid': 'UID8', 'flasher': {'name': 'jlink'}, 'tests': {'device': True},
+         'variant': [{'name': ''}]},
     ],
     'boards-skip': [{'name': 'parked', 'uid': 'UID3', 'flasher': {'name': 'jlink'}}],
 }
@@ -51,11 +53,12 @@ class Rig:
     """Stubs for everything run_case.py touches, recording the order of hardware actions."""
 
     def __init__(self, test):
-        self.test, self.calls = test, []
+        self.calls = []
         self.firmware = {'device/usbtest': '/fw/usbtest.elf', 'device/board_test': '/fw/board_test.elf'}
         self.flash_rc = 0
         self.enumerates = True
         self.verdict = (PASS_JSON, '')
+        self.killed = ''
         self.lock = Lock()
         self.lock_error = None
         self.marker = None
@@ -88,7 +91,7 @@ class Rig:
             self.calls.append(('battery', tuple(tests), fw))
             if isinstance(self.verdict, BaseException):
                 raise self.verdict
-            return self.verdict
+            return (*self.verdict, self.killed)
 
         for obj, name, value in (
                 (run_case.hil_flash, 'find_firmware',
@@ -133,6 +136,7 @@ class Refusals(unittest.TestCase):
                 (['--board', 'skips'], 'skips does not run device/usbtest'),
                 (['--board', 'notlisted'], 'notlisted does not run device/usbtest'),
                 (['--board', 'untested'], 'untested does not run device/usbtest'),
+                (['--board', 'malformed'], 'malformed: board malformed variant'),
                 (['--board', 'duo'], 'duo has variants duo-a, duo-b: pass --variant'),
                 (['--board', 'duo', '--variant', 'duo-c'], 'duo has no variant duo-c'),
                 (['--board', 'solo', '--variant', 'duo-a'], 'solo has no variant duo-a')):
@@ -242,9 +246,13 @@ class Chain(unittest.TestCase):
         rig = Rig(self)
         rig.verdict = (None, 'killed')
         rc, report, _ = rig.run('--board', 'solo', '--tests', '29', '--after', 'park')
-        self.assertEqual((rc, report['boardState']), (1, 'usbtest firmware, verdict incomplete'))
+        self.assertEqual((rc, report['boardState'], report['error']),
+                         (1, 'usbtest firmware, verdict incomplete', 'usbtest.py printed no verdict'))
         self.assertEqual(sum(c[0] == 'flash' for c in rig.calls), 1)
         self.released(rig)
+        rig.killed = 'usbtest.py killed at its 999s bound (rc 124)'
+        rc, report, _ = rig.run('--board', 'solo', '--tests', '29', '--after', 'park')
+        self.assertEqual((rc, report['error']), (1, rig.killed))
 
     def test_flash_failure_or_no_device_stops_there(self):
         rig = Rig(self)
@@ -318,8 +326,13 @@ class Chain(unittest.TestCase):
     def test_a_failed_cwd_restore_still_releases_the_lock(self):
         rig = Rig(self)
         real = os.chdir
-        with mock.patch.object(run_case.os, 'chdir', side_effect=lambda d: (_ for _ in ()).throw(OSError('gone'))
-                               if not d.startswith(tempfile.gettempdir()) else real(d)):
+
+        def chdir(d):   # into the temp dir works; back to the checkout fails
+            if not d.startswith(tempfile.gettempdir()):
+                raise OSError('gone')
+            real(d)
+
+        with mock.patch.object(run_case.os, 'chdir', side_effect=chdir):
             with self.assertRaises(OSError):
                 rig.run('--board', 'solo', '--tests', '29', '--after', 'park')
         real(REPO)
@@ -345,8 +358,8 @@ class Battery(unittest.TestCase):
 
         board = {'name': 'b', 'uid': 'UID', 'flasher': flasher}
         with mock.patch.object(run_case.hil_util, 'run_cmd', run_cmd):
-            data, err = run_case.battery(board, '/fw/u.elf', [13, 29], 60)
-        self.assertEqual((data, err), (PASS_JSON, 'note'))
+            data, err, killed = run_case.battery(board, '/fw/u.elf', [13, 29], 60)
+        self.assertEqual((data, err, killed), (PASS_JSON, 'note', ''))
         return seen
 
     def test_recovery_only_when_the_flasher_can_deliver_it(self):
@@ -354,17 +367,31 @@ class Battery(unittest.TestCase):
             seen = self.command({'name': 'openocd', 'args': '', 'uid': 'P'})
         self.assertIn('--recover-fw', seen['cmd'])
         self.assertEqual(seen['cmd'][seen['cmd'].index('--tests') + 1], '13,29')
-        self.assertEqual(seen['timeout'], 2 * 100 + run_case.usbtest.recovery_reserve({'name': 'openocd', 'args': ''}))
+        per_case = 60 + 5 + (run_case.usbtest.HELPER_TIMEOUT + 5) + 5
+        budget = run_case.SETUP_S + 2 * per_case
+        self.assertEqual(seen['cmd'][seen['cmd'].index('--budget') + 1], str(budget))
+        self.assertEqual(seen['timeout'], budget + per_case
+                         + run_case.usbtest.recovery_reserve({'name': 'openocd', 'args': ''}))
         with mock.patch.object(run_case.hil_flash, 'convoy_safe', lambda f: False):
             seen = self.command({'name': 'jlink', 'args': '', 'uid': 'P'})
         self.assertNotIn('--recover-board', seen['cmd'])
-        self.assertEqual(seen['timeout'], 2 * 100 + run_case.usbtest.WEDGE_CONFIRM_S)
+        self.assertEqual(seen['timeout'], budget + per_case + run_case.usbtest.WEDGE_CONFIRM_S)
+
+    def test_a_kill_at_the_bound_is_named(self):
+        board = {'name': 'b', 'uid': 'UID', 'flasher': {'name': 'jlink', 'args': '', 'uid': 'P'}}
+        for out in ('partial', json.dumps(PASS_JSON)):   # a verdict printed before the kill counts for nothing
+            killed = lambda cmd, timeout, split_stderr: subprocess.CompletedProcess(cmd, 124, out, '')
+            with mock.patch.object(run_case.hil_util, 'run_cmd', killed), \
+                    mock.patch.object(run_case.hil_flash, 'convoy_safe', lambda f: False):
+                data, _, note = run_case.battery(board, '/fw/u.elf', [29], 60)
+            self.assertIsNone(data)
+            self.assertRegex(note, r'^usbtest.py killed at its \d+s bound \(rc 124\)$')
 
 
 class LivePeers(unittest.TestCase):
     def test_matches_battery_processes_by_argv(self):
         with tempfile.TemporaryDirectory() as d:
-            for pid, argv in ((11, ['sudo', '-n', '/home/u/testusb', '-D', 'x']),
+            for pid, argv in ((1, ['/sbin/init']), (11, ['sudo', '-n', '/home/u/testusb', '-D', 'x']),
                               (12, ['python3', 'test/hil/usbtest.py', '--json']),
                               (13, ['/usr/bin/python3', '/r/test/hil/hil_test.py', 'c.json']),
                               (14, ['python3', 'run_case.py']), (15, ['bash'])):
@@ -378,6 +405,11 @@ class LivePeers(unittest.TestCase):
                 self.assertTrue(run_case.live_peers()[1])
                 (Path(d) / '17' / 'cmdline').mkdir(parents=True)  # unreadable for another reason
                 self.assertFalse(run_case.live_peers()[1])
+
+    def test_a_restricted_proc_is_incomplete(self):
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(run_case, 'PROC', Path(d)), \
+                mock.patch.object(run_case.os, 'geteuid', lambda: 1000):
+            self.assertEqual(run_case.live_peers(), ([], False))   # hidepid: not even pid 1
 
 
 if __name__ == '__main__':

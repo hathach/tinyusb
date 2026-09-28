@@ -89,7 +89,7 @@ class Server:
 
         self.httpd = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
         self.url = f'http://127.0.0.1:{self.httpd.server_address[1]}'
-        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
+        threading.Thread(target=self.httpd.serve_forever, kwargs={'poll_interval': 0.05}, daemon=True).start()
 
     def close(self):
         self.httpd.shutdown()
@@ -122,11 +122,11 @@ class ReleaseToTag(unittest.TestCase):
 class CaseBlock(unittest.TestCase):
     lines = USBTEST_C.splitlines()
 
-    def numbers(self, num):
+    def texts(self, num):
         return [text.strip() for _, text in kernel_src.case_block(self.lines, num)]
 
     def test_block_runs_to_the_next_top_level_label(self):
-        block = self.numbers(5)
+        block = self.texts(5)
         self.assertEqual(block[0], 'case 5:')
         self.assertIn('case 7:', block)            # nested label stays inside the block
         self.assertEqual(block[-1], 'break;')
@@ -134,8 +134,8 @@ class CaseBlock(unittest.TestCase):
 
     def test_fall_through_label_carries_the_shared_body(self):
         shared = ['retval = test_queue(dev, param);', 'break;']
-        self.assertEqual(self.numbers(15), ['case 15:', '/* shared with 16 */', 'case 16:', *shared])
-        self.assertEqual(self.numbers(16), ['case 16:', *shared])   # last case: up to the switch end
+        self.assertEqual(self.texts(15), ['case 15:', '/* shared with 16 */', 'case 16:', *shared])
+        self.assertEqual(self.texts(16), ['case 16:', *shared])   # last case: up to the switch end
 
     def test_line_numbers_are_one_based(self):
         n, text = kernel_src.case_block(self.lines, 0)[0]
@@ -162,8 +162,9 @@ class WaitSites(unittest.TestCase):
 
 class Cli(unittest.TestCase):
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp())
-        self.addCleanup(subprocess.run, ['rm', '-rf', str(self.tmp)])
+        td = tempfile.TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        self.tmp = Path(td.name)
         src = self.tmp / 'srv'
         for rel, text in (('drivers/usb/misc/usbtest.c', USBTEST_C), ('tools/usb/testusb.c', TESTUSB_C)):
             (src / rel).parent.mkdir(parents=True, exist_ok=True)

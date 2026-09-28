@@ -39,11 +39,9 @@ python3 .claude/skills/usbtest/scripts/run_case.py --config <this host's config>
 ```
 
 `--after leave` keeps usbtest running for a debug session. `--variant` is required when the board
-has several. It refuses before touching hardware (exit 2) on an unknown or ambiguous board or
-variant, a board whose roster `tests` never run `device/usbtest` (a host-only board's device port
-may not reach the rig), a wedged marker, missing firmware, a held lock, or a live `testusb`,
-`usbtest.py` or `hil_test.py` on the host; pass `--allow-concurrent` only after checking no
-battery shares the board's host controller. It writes the wedged marker on a confirmed wedge, as HIL does. The last
+has several. It refuses with exit 2 and the reason before touching hardware, including while any
+battery runs on the host; pass `--allow-concurrent` only after checking no battery shares the
+board's host controller. It writes the wedged marker on a confirmed wedge, as HIL does. The last
 stdout line is its JSON verdict.
 
 ## Rig hazards
@@ -76,7 +74,7 @@ python3 .claude/skills/usbtest/scripts/kernel_src.py --release "$(ssh <rig> unam
 ```
 
 It prints the `case N:` block of `usbtest_do_ioctl()` and every completion wait with its function.
-A Debian release maps to an upstream candidate; other distro names are refused, so pass `--tag`.
+A Debian release maps only to an upstream candidate, which the distro may have patched.
 `testusb -c` is iterations, `-s` length, `-g` sglen, `-v` vary; the runner's per-speed values are
 its `PARAMS` table. In v6.12, `test_ctrl_queue` (case 10), `unlink1` (11, 12), `unlink_queued` (24)
 and `test_queue` (15, 16, 22, 23, 27, 28) wait with no timeout while holding the device lock, so a
