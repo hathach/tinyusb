@@ -532,16 +532,17 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
     if (dir == TUSB_DIR_OUT) {
       USB_REG->DEVEPTIER[epnum] = DEVEPTIER_RXOUTES;
     } else if (total_bytes == 0 && epnum != 0) {
-      // Clearing FIFOCON on a busy bank is a no-op that swallows the ZLP, so the empty bank is validated
-      // from the TXINI handler, where it is guaranteed free. TXINI is sticky and every bank freed while it
-      // was masked (DMA transfers run with it masked) leaves it set, so acknowledge it first; if a bank is
-      // writable already, raise the interrupt by hand like the ASF driver does
-      xfer->zlp_pending         = true;
+      // TXINI is sticky: every bank freed while it was masked (DMA transfers run with it masked) leaves it
+      // set, so acknowledge it first. Only then does NBUSYBK say whether the empty bank can be validated
+      // right away or whether that has to wait for the next TXINI, because clearing FIFOCON on a busy bank
+      // is a no-op that swallows the ZLP
       USB_REG->DEVEPTICR[epnum] = DEVEPTICR_TXINIC;
-      if (USB_REG->DEVEPTISR[epnum] & DEVEPTISR_RWALL) {
-        USB_REG->DEVEPTIFR[epnum] = DEVEPTIFR_TXINIS;
+      if (USB_REG->DEVEPTISR[epnum] & DEVEPTISR_NBUSYBK) {
+        xfer->zlp_pending         = true;
+        USB_REG->DEVEPTIER[epnum] = DEVEPTIER_TXINES;
+      } else {
+        dcd_transmit_packet(xfer, epnum);
       }
-      USB_REG->DEVEPTIER[epnum] = DEVEPTIER_TXINES;
     } else {
       dcd_transmit_packet(xfer, epnum);
     }
