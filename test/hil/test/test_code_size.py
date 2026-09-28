@@ -869,6 +869,15 @@ class BuildOutput(unittest.TestCase):
         self.assertEqual(ret.returncode, 124)
         self.assertTrue(_dies(int(ret.stdout)))
 
+    def test_a_child_holding_the_pipes_after_the_kill_does_not_hang_it(self):
+        start = time.monotonic()
+        with mock.patch.object(sd, 'TERMINATE_GRACE', 0.5):
+            ret = sd.run(['sh', '-c', "trap '' TERM; sleep 30 & echo $!; while :; do sleep 0.1; done"], timeout=1)
+        with contextlib.suppress(ProcessLookupError):
+            os.kill(int(ret.stdout), signal.SIGKILL)  # the pid printed before the kill is kept
+        self.assertLess(time.monotonic() - start, 5)
+        self.assertEqual(ret.returncode, 124)
+
     @unittest.skipUnless(shutil.which('ninja'), 'needs ninja')
     def test_a_timed_out_ninja_stops_its_jobs(self):
         # ninja runs each job in a process group of its own, as it does the compilers

@@ -701,6 +701,7 @@ def tinyusb_src_filter(checkout_dir):
 
 verbose = False
 TERMINATE_GRACE = 10  # s a timed-out command gets to exit on SIGTERM before SIGKILL
+KILL_DRAIN = 1  # s to read what a killed command left in its pipes
 
 
 def run(cmd, timeout=None):
@@ -717,13 +718,15 @@ def run(cmd, timeout=None):
         try:
             out, err = proc.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
-            # SIGTERM lets ninja stop its jobs, which it runs in process groups of their own
-            proc.terminate()
-            try:
-                out, err = proc.communicate(timeout=TERMINATE_GRACE)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                out, err = proc.communicate()
+            # SIGTERM lets ninja stop its jobs, which it runs in process groups of their own;
+            # a descendant can outlive the SIGKILL holding the pipes open, so stop reading then
+            for stop, wait in ((proc.terminate, TERMINATE_GRACE), (proc.kill, KILL_DRAIN)):
+                stop()
+                try:
+                    out, err = proc.communicate(timeout=wait)
+                    break
+                except subprocess.TimeoutExpired as e:
+                    out, err = ((b or b'').decode(errors='replace') for b in (e.stdout, e.stderr))
             msg = f'Command timed out after {timeout}s: {" ".join(shlex.quote(str(c)) for c in cmd)}'
             return subprocess.CompletedProcess(cmd, 124, stdout=out, stderr=err + ('\n' if err else '') + msg)
     return subprocess.CompletedProcess(cmd, proc.returncode, stdout=out, stderr=err)
