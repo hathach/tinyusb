@@ -19,9 +19,9 @@ agentrc issue #1 (move the hil skill out of tinyusb, give chief a rig probe) and
 Generic layer today, in `test/hil/`: roster loading, flashers (`hil_flash.py`:
 jlink/stlink/openocd/esptool/lm4flash), board locks + controller permits
 (`helper/hil_lock.py`), consoles (pyserial + `tools/rtt.py`), sysfs/usb_scan and
-bounded subprocess helpers (`helper/hil_util.py`), pool + health
-(`helper/hil_health.py`), pool check (`helper/hil_pool_check.py`), report
-(`helper/hil_report.py`), SSH staging (`.claude/skills/hil/scripts/hil_remote.py`).
+bounded subprocess helpers (`helper/hil_util.py`), pool check
+(`helper/hil_pool_check.py`), report (`helper/hil_report.py`), SSH staging
+(`.claude/skills/hil/scripts/hil_remote.py`).
 
 Project layer: the ~30 `test_*` cases and `_tests_for` map in `hil_test.py`
 (~1500 lines), the example list in `hil_util.py:31-52`, `find_firmware` and the
