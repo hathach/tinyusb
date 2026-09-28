@@ -749,10 +749,13 @@ def main():
         # Nothing is written: remove_id/unbind take the uninterruptible device_lock (see
         # register_usbtest_id; the unbind path has wedged a host xHCI), and cafe:4010 is
         # usbtest's own PID, so a binding left behind claims nothing else.
-        if unrecovered_hang:
+        if unrecovered_hang and any(r['status'] == 'HUNG' for r in results):
             # testusb still holds the device lock in a usbfs ioctl (see usb-kernel-recover)
             print('unrecovered hang: the device keeps its usbfs lock until the DUT is reset '
                   'or the host is power-cycled (usb-kernel-recover skill)', file=sys.stderr)
+        elif unrecovered_hang:
+            # the ambiguous/unreadable-serial aborts: no case hung, so no held lock is known
+            print(f'reported wedged: {abort_reason}', file=sys.stderr)
 
     # BUDGET, not NOTRUN: NOTRUN is taken, for a case the KERNEL gated off (-EOPNOTSUPP,
     # see run_case) -- a real result that must stay in `failed` and keep its case number.

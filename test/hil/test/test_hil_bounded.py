@@ -893,6 +893,37 @@ class HangRecoveryOnTheMainPath(unittest.TestCase):
         self.assertGreaterEqual(usbtest.RECOVER_SETTLE, 5, 'validated minimum: metro_m4_express UF2 double-tap')
 
 
+class UnidentifiedDeviceIsNotAHang(unittest.TestCase):
+    """The ambiguous and unreadable-serial aborts latch `wedged` with no HUNG case, so
+    nothing is known to hold the usbfs lock: stderr names the abort, not the lock."""
+
+    def _stderr(self, live, stranded):
+        import usbtest
+
+        def patch(obj, name, value):
+            usbtest_harness.patch(self, obj, name, value)
+        usbtest_harness.stub_device(self, usbtest, lambda num, d, tu, quick, timeout: {
+            'num': num, 'name': 'x', 'params': '', 'status': 'PASS'})
+        found = iter([dict(usbtest_harness.DEV), live])
+        patch(usbtest, 'find_device', lambda serial, first=False: next(found))
+        patch(usbtest, '_hu', lambda: types.SimpleNamespace(path_stranded=lambda p: stranded))
+        patch(usbtest, 'bind_usbtest', lambda d: None)
+        patch(usbtest, 'register_usbtest_id', lambda: None)
+        usbtest_harness.argv(self)
+        out, err = usbtest_harness.Out(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            usbtest.main()
+        self.assertTrue(json.loads(out.getvalue())['wedged'])
+        self.assertNotIn('usbfs lock', err.getvalue())
+        return err.getvalue()
+
+    def test_an_ambiguous_serial_names_the_abort(self):
+        self.assertIn('matches more than one device', self._stderr({'ambiguous': ['1-1', '1-2']}, False))
+
+    def test_an_unreadable_serial_names_the_abort(self):
+        self.assertIn('its serial read gave up', self._stderr(None, True))
+
+
 class MtpGioOrdering(_MtpFakeRig, unittest.TestCase):
     """gio must not run until the device is READY.
 
