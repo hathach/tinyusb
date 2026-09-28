@@ -479,10 +479,11 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
         # and must outrank it for the same reason.
         aborted = any(POOL_TIMEOUT_CELL in cells or RUN_ABORTED_CELL in cells
                       for cells in mine.values())
-        # the per-row VERIFIED wedge, distinct from `aborted` above, which is this run's
-        # pool-level outcome and never proof about one board. It outranks a lock cell the
-        # same way: a wedged board must never be published as LOCKED, which the caller
-        # re-runs.
+        # the per-row wedge latch -- a confirmed hang, or one the battery could not rule out
+        # (sudo, an ambiguous or unreadable serial) -- distinct from `aborted` above, which
+        # is this run's pool-level outcome and never proof about one board. It outranks a
+        # lock cell the same way: a wedged board must never be published as LOCKED, which
+        # the caller re-runs.
         board_wedged = any(cell_state(cells[WEDGED_CELL]) == 'fail'
                            for cells in mine.values() if WEDGED_CELL in cells)
         unbuilt = any(cells.get(RUN_ABORTED_CELL) == BUILD_REFUSED for cells in mine.values())

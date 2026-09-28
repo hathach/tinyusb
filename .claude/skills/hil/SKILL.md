@@ -223,7 +223,8 @@ this report snapshot: every row can pass on an aborted or no-boards run, so the 
 clears an earlier attempt's caveat by design, so the verdict of a retry sequence is the caller's:
 keep every attempt's result, a clean subset re-run never erases an earlier run-level failure, and
 a re-run's own caveat fails the sequence. Each row's `wedged`
-is the report's verified verdict (a `board-wedged` cell) and is copied with the row; the
+is the report's own verdict (a `board-wedged` cell: a confirmed hang, or one the battery could
+not rule out) and is copied with the row; the
 top-level `wedged` — the boards the run left unresponsive, usually none — is the operator's
 own observation and the only field it authors when a run happened; it names requested boards,
 never a variant row name.
