@@ -67,17 +67,51 @@ packet size at 1023 bytes in the descriptor.
 
 WCH CH32F20x/CH32V20x/CH32V30x
 ---------------------------------
-**Severity: Medium**
-
-**Not recommended for USB audio applications**
+**Severity: High**
 
 Reference: `CH32V30X Reference Manual`_ USBFS/USBHS controller chapter
 
 .. _CH32V30X Reference Manual: https://www.wch-ic.com/downloads/CH32FV2x_V3xRM_PDF.html
 
-Data corruption may occur on isochronous endpoints. Due to the lacking of FIFO for interrupt status registers, later completed transfer will overwrite `INT_ST` and `RX_LEN` register if previous transfer processing is not completed.
+.. _wch-iso-status-overwrite:
 
-Other types of transfers are not affected.
+**1. Isochronous transfer status overwritten**
+
+**Not recommended for USB audio applications**
+
+The controllers have no FIFO for transfer completion status. A later isochronous transfer can
+overwrite ``INT_ST`` and ``RX_LEN`` before software finishes processing the previous transfer,
+causing data corruption.
+
+.. _wch-usbhs-interrupt-starvation:
+
+**2. USBHS interrupt endpoint starvation**
+
+The USBHS driver's ``INT_BUSY`` protection makes endpoints respond with NAK while a transfer
+interrupt is pending. This mainly affects interrupt IN endpoints: closely spaced transactions
+on different endpoints can reduce throughput or starve an interrupt endpoint, even when its buffer
+is ready. Disabling ``INT_BUSY`` is not a safe workaround: an OUT endpoint can accept another packet
+before software processes the previous packet and updates its buffer and response.
+
+For example, on NanoCH32V305 with Windows, three 20-byte interrupt IN endpoints polled every
+125 us at HS had NAK rates of approximately 80%, 20%, and 0%; the longest gap between successful
+EP1 reports was 4 ms. At FS with 1 ms polling, all three delivered approximately 1,000 reports/s
+without sequence gaps in an 8-second test.
+
+Workaround: force full speed on the USBHS controller when the application's bandwidth permits it:
+
+.. code-block:: c
+
+   tusb_rhport_init_t dev_init = {
+     .role = TUSB_ROLE_DEVICE,
+     .speed = TUSB_SPEED_FULL
+   };
+   tusb_init(BOARD_TUD_RHPORT, &dev_init);
+
+For CH32V30x examples, keep the build option ``SPEED=high`` to select the USBHS controller and
+its physical port; the initialization above selects its operating speed. Use descriptors suitable
+for full speed. This reduces the timing pressure but does not remove the shared-register
+limitation; validate the application's endpoint mix, especially when using isochronous transfers.
 
 Puya PY32F071/072
 ---------------------------------
