@@ -54,7 +54,6 @@ from typing import TypedDict, NotRequired, cast
 
 import serial
 import subprocess
-import traceback
 import json
 import glob
 import multiprocessing
@@ -63,7 +62,7 @@ from multiprocessing import TimeoutError as MpTimeoutError
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # PYTHONSAFEPATH drops it
 import hil_flash
 import usbtest    # the recovery bounds and the id registration; batteries run it as a subprocess
-from helper import hil_args, hil_health, hil_lock, hil_report, hil_util
+from helper import hil_args, hil_lock, hil_report, hil_util
 from helper.hil_util import device_tests, dual_tests, host_test
 
 # Raw Lock/Semaphore objects in Pool initargs are inheritable only under fork
@@ -1911,10 +1910,7 @@ def register_usbtest_if_selected(boards: list, report_dir: Path, fresh: bool) ->
 
 
 def test_board(board: Board) -> tuple:
-    # (name, err_count, failed_tests, rows, duration[, strays]) -- the board-LOCKED early
-    # return is 5 wide, the normal one 6. _stray_note reads index 5 behind a len() guard,
-    # so a field inserted anywhere before it silently reports a duration as a stray count.
-    swept = False
+    # (name, err_count, failed_tests, rows, duration)
     name = board['name']
     flasher = board['flasher']
 
@@ -2035,27 +2031,9 @@ def test_board(board: Board) -> tuple:
         if _should_park(skip_flash):
             test_example(board, variants[0]['name'], 'device/board_test')
 
-        # Sweep HERE, not in main()'s finally: maxtasksperchild=1 retires this process as
-        # soon as it returns, reparenting anything it spawned to init and off the pool's
-        # ppid tree, so the main-side sweep walks fresh idle workers and finds nothing.
-        # Measured: 4 tasks, zero overlap, sweep 0, all 4 strays alive.
-        stray = hil_health.kill_own_children()
-        swept = True
-
-        # LAST field: what this worker could not kill. Only the worker can answer it, and
-        # the result tuple already crosses back, so no Manager round-trip.
         return (name, err_count, [] if board_wide_fail else sorted(set(failed_tests)),
-                rows, t_total, stray)
+                rows, t_total)
     finally:
-        # A raise skips the sweep above, and maxtasksperchild=1 retires this process
-        # immediately afterwards -- reparenting its flasher to init and erasing the ppid
-        # link, so main's sweep cannot see it either. The count cannot reach the report on
-        # this path (there is no result tuple), but the KILL still frees the probe.
-        if not swept:
-            try:
-                hil_health.kill_own_children()
-            except Exception as se:   # noqa: BLE001 - never mask the original failure
-                print(f'warning: stray sweep failed: {type(se).__name__}: {se}', flush=True)
         if _lock_fh:
             # clear our pid record before dropping the flock: this worker process
             # lives on (pool reuse), so a stale record would make hil_lock's
@@ -2154,78 +2132,6 @@ def _should_park(skip_flash: bool) -> bool:
     return not skip_flash and not board_wedged
 
 
-def _stray_note(mret: list) -> str:
-    """Name the strays the workers could not kill, for the report banner.
-
-    Summed from the result tuples rather than computed in main()'s finally: that finally
-    runs AFTER accumulate_report on both abort paths, so a banner appended there was
-    written to a variable nobody read again.
-    """
-    dirty = [(r[0], r[5]) for r in mret if len(r) > 5 and r[5]]
-    if not dirty:
-        return ''
-    total = sum(n for _, n in dirty)
-    return (f'> **Rig dirty.** {total} process(es) survived SIGKILL and still hold a probe '
-            f'or usbfs node into the next job: '
-            f'{", ".join(f"{b} ({n})" for b, n in dirty)}.\n')
-
-
-# containment paths print through hil_health._p: stdout may already be a dead pipe (a
-# dropped ssh session), and a BrokenPipeError there would skip os._exit
-_p = hil_health._p
-
-
-def _abandon_exit(pool, mgr, abandoned: bool, err_count: int,
-                  report_dir: Path | None = None) -> None:
-    """Free the runner when the pool could not be shut down. Returns only if not abandoned.
-
-    Must run even while an exception is propagating: multiprocessing's atexit handler
-    SIGTERMs its daemon workers (ignored in uninterruptible sleep) and then join()s them
-    with NO timeout, so an abandoned pool plus any raise between the pool's finally and
-    here hangs the interpreter until the job ceiling kills it. Reproduced: rc=124 at 25s
-    with SIGTERM-ignoring workers standing in for D state."""
-    if not abandoned:
-        return
-    try:
-        if sys.exc_info()[0] is not None:
-            # os._exit below discards the traceback, and this is often the only place the
-            # real failure would ever be printed
-            traceback.print_exc()
-    except OSError:
-        pass
-    # Word this on evidence: shutdown_pool also returns False when terminate() RAISES, and
-    # a live worker after terminate() is what distinguishes a wedge from a harness bug.
-    # Count WORKERS only -- _pool_procs appends the Manager, our own healthy child, so
-    # including it made n >= 1 always and the harness-error branch unreachable. It is killed
-    # separately: os._exit skips its finalizer, and orphaned it holds the runner's stdout.
-    n = hil_health.kill_pool_children(pool)
-    hil_health.kill_pool_children(None, mgr)
-    if n:
-        _p(f'HIL worker pool would not terminate ({n} worker(s) still live, '
-           f'uninterruptible); SIGKILLed them and abandoned the rest to free the '
-           f'runner. Boards held by any leaked worker stay locked until the host is '
-           f'power-cycled.', flush=True)
-    else:
-        _p('HIL worker pool shutdown failed but left no live worker behind, so this is '
-           'a harness error rather than a wedged rig -- see the Pool.terminate() '
-           'warning above. Exiting early anyway to free the runner; no board should '
-           'stay locked.', flush=True)
-    # A report already written by accumulate_report says nothing about the abandon, and a
-    # green table under a red job is how an agent ends up pasting it as this run's result.
-    # Set the caveat in the DOCUMENT -- prepending to the markdown alone left the sidecar,
-    # which is all hil_report.summarize() and therefore an agent ever sees, saying nothing.
-    # Best-effort, never at the cost of exiting.
-    if report_dir is not None:
-        hil_report.mark_report_abandoned(report_dir, 'the worker pool would not shut down.')
-    try:
-        sys.stdout.flush()
-    except OSError:
-        pass
-    # Clamped: os._exit takes a status byte, so err_count == 256 would truncate to 0 and
-    # report a failing, abandoned run as green.
-    os._exit(min(err_count, 125) if err_count else 1)
-
-
 def _load_controller_hints() -> tuple[dict, dict]:
     """The uid -> {name, pci, duration} cache, plus the uid -> pci view scheduling wants.
 
@@ -2281,8 +2187,7 @@ def _save_controller_hints(hints: dict, mret: list, uid_of: dict, cmap) -> None:
 
 
 def _abort_report(reason: str, mret: list, config_boards: list, failed_fname: Path,
-                  report_dir: Path, fresh: bool, health_banner: str,
-                  timeout_secs: int | None = None) -> None:
+                  report_dir: Path, fresh: bool, timeout_secs: int | None = None) -> None:
     """Keep what finished, name what did not, and get a report on disk. Never raises.
 
     Both abort paths -- the pool guard expiring and a worker raising -- need exactly this,
@@ -2290,12 +2195,10 @@ def _abort_report(reason: str, mret: list, config_boards: list, failed_fname: Pa
     leaving it unwritten is what made a GitHub re-run repeat the whole fleet. Only the
     boards that never reported go in it.
 
-    The report follows, before anything that can block, and the caller raises afterwards
-    into the one containment path. `timeout_secs` adds the pool-guard fallback: when
-    accumulate_report itself fails -- an unwritable report dir, a torn JSON --
-    _abandon_exit can only stamp a report that EXISTS, so without it the artifact upload
-    finds nothing and the sticky PR comment keeps the previous push's green table under a
-    red job.
+    The report follows, before anything that can block, and the caller raises afterwards.
+    `timeout_secs` adds the pool-guard fallback: when accumulate_report itself fails -- an
+    unwritable report dir, a torn JSON -- the artifact upload would find nothing and the
+    sticky PR comment keep the previous push's green table under a red job.
     """
     stuck = [b['name'] for b in config_boards if b['name'] not in {r[0] for r in mret}]
     # main() seeds mret with the boards check_build.py refused; they never entered the pool
@@ -2316,8 +2219,7 @@ def _abort_report(reason: str, mret: list, config_boards: list, failed_fname: Pa
               + (f", and the {len(refused)} whose build check_build.py refused: "
                  f"{', '.join(refused)}" if refused else '') + ".\n")
     try:
-        hil_report.accumulate_report(mret, report_dir, fresh, '',
-                                     health_banner + _stray_note(mret), caveat=banner)
+        hil_report.accumulate_report(mret, report_dir, fresh, '', caveat=banner)
         return
     except Exception as rerr:  # noqa: BLE001 - the caller's raise must still happen
         print(f'warning: partial report failed: {type(rerr).__name__}: {rerr}'
@@ -2329,7 +2231,7 @@ def _abort_report(reason: str, mret: list, config_boards: list, failed_fname: Pa
         # "pool-timeout", and marking it so sends the reader after a guard that did not fire
         hil_report.write_timeout_report(
             report_dir, [b for b in config_boards if b['name'] in stuck],
-            timeout_secs or 0, banner=banner, prefix=health_banner,
+            timeout_secs or 0, banner=banner,
             cell=(hil_report.POOL_TIMEOUT_CELL if timeout_secs
                   else hil_report.RUN_ABORTED_CELL))
     except Exception as re2:  # noqa: BLE001
@@ -2338,12 +2240,7 @@ def _abort_report(reason: str, mret: list, config_boards: list, failed_fname: Pa
 
 
 def _start_pool(mgr, seed: str, hints_by_uid: dict):
-    """(cmap, pool). Split out so main()'s try/finally reads as one shape.
-
-    The Manager is created by the CALLER and passed in: Pool() forks, and after a convoy
-    that fork is what hits EAGAIN/ENOMEM. Creating the Manager here too would leave main()
-    with `mgr` still None while a live SyncManager child exists -- os._exit skips its
-    finalizer and the orphan holds the runner's stdout, so the job step never completes.
+    """(cmap, pool).
 
     maxtasksperchild=1: a fresh worker per board makes cross-board contamination
     structural rather than dependent on every module global being reset by hand
@@ -2471,15 +2368,6 @@ def main() -> None:
         sys.exit(1)
     register_usbtest_if_selected(config_boards, report_dir, fresh=not args.accumulate)
 
-    # Before the build: the probe needs nothing from it, and the annotation is more useful
-    # early than after a multi-board cmake build has been paid for.
-    # One line, not a probe: a D-state pid at start-up is a hint for whoever reads a red
-    # cell, never a reason to refuse the run. hil_pool_check does diagnosis.
-    note = hil_health.d_state_note()
-    if note:
-        log_line(f'rig note: {note}')
-    health_banner = f'> **Rig note.** {note}. Not a fault on its own -- a healthy testusb sits in D state for most of every case.\n' if note else ''
-
     build_err = 0
     # result tuples for the boards whose build check_build.py refused: reported and put in
     # the re-run spec like any failed board, or an --accumulate run keeps their old green rows
@@ -2519,7 +2407,7 @@ def main() -> None:
                 hil_report.accumulate_report(
                     refused_rows, report_dir, not args.accumulate,
                     f'{len(scoped)} board(s) — {", ".join(scoped)}' if scoped else '',
-                    health_banner, caveat=f'**HIL run selected no boards.** {msg}\n')
+                    caveat=f'**HIL run selected no boards.** {msg}\n')
                 sys.exit(min(len(refused_rows), 125))
             print(f'not testing {", ".join(refused)}: check_build.py refused the build', flush=True)
 
@@ -2540,148 +2428,78 @@ def main() -> None:
     config_boards = schedule_boards(config_boards, hints_by_uid)
     log_line('dispatch order: ' + ', '.join(b['name'] for b in config_boards))
 
-    # Bound BEFORE the try so the finally can name them whatever failed: Pool() forks, and
-    # the EAGAIN/ENOMEM the wipe comment below worries about is most likely to come from
-    # that fork -- after a convoy, where every stranded read holds a thread and an fd. Left
-    # outside, an OSError there escaped with mgr LIVE and `pool` unbound, so no report was
-    # written and the interpreter unwound into multiprocessing's unbounded atexit join.
-    pool = mgr = cmap = None
-    # Defined before the pool so _abandon_exit always has a value: a raise before
-    # `err_count = build_err + ...` would turn the containment path into a NameError.
-    err_count = build_err + len(refused_rows)
-    # Fail CLOSED: only a shutdown_pool() that actually returned True clears this, and the
-    # assignment sits at the END of the inner finally, so anything raising before it
-    # (kill_worker_children, a BrokenPipeError from its print) leaves _abandon_exit armed.
-    pool_abandoned = True
-    # BEFORE Manager()/Pool(), not inside the try: a fresh invocation may reuse a report dir
-    # holding a previous run's report, so if a fork failure (OSError/EAGAIN right
-    # after a convoy -- the case this whole block guards) skipped the wipe, the finally's
-    # _abandon_exit would stamp "HIL run abandoned" onto the PREVIOUS run's report and
-    # publish last night's board results as this run's. Nothing is live yet here, so an
-    # OSError from the wipe itself just exits with its traceback -- it cannot strand the
-    # interpreter in multiprocessing's unbounded atexit join, which is what deferring it
-    # was protecting against.
     if fresh:
         report_dir.mkdir(parents=True, exist_ok=True)
         for f in (hil_report.REPORT_JSON, hil_report.REPORT_MD):
             (report_dir / f).unlink(missing_ok=True)
         failed_fname.unlink(missing_ok=True)
-    try:
-        # BOUND FIRST, in main's own scope: a Pool fork failure inside _start_pool must
-        # still leave a live Manager reachable by the finally below, or its child is
-        # orphaned holding the runner's stdout.
-        mgr = Manager()
-        cmap, pool = _start_pool(mgr, seed, hints_by_uid)
-        # OUTER: encloses the pool block too, not just the reporting below. An exception
-        # escaping async_ret.get() (a worker exception, a Ctrl-C) runs the pool finally and
-        # then propagates straight out of main(); with _abandon_exit in a sibling try it
-        # was never reached.
+    mgr = Manager()
+    cmap, pool = _start_pool(mgr, seed, hints_by_uid)
+    # `with` terminates and joins the pool. A worker stuck in uninterruptible sleep hangs
+    # that join until the CI job ceiling; the abort paths below have written the report
+    # and the re-run spec by then.
+    with pool:
+        # imap_unordered, NOT map_async: map_async is all-or-nothing, so a guard expiry
+        # threw away every board that had already finished and left the re-run spec
+        # unwritten. Draining as results arrive keeps what finished and names only what
+        # was still in flight.
+        mret = list(refused_rows)
+        it = pool.imap_unordered(test_board, config_boards)
+        deadline = time.monotonic() + POOL_TIMEOUT
         try:
-            # imap_unordered, NOT map_async: map_async is all-or-nothing, so a guard expiry
-            # threw away every board that had already finished -- up to a worker-width of
-            # completed rig time -- and left the re-run spec unwritten, so CI re-tested all
-            # ~26 boards to find the one that wedged. Draining as results arrive keeps what
-            # finished and names only what was still in flight.
-            mret = list(refused_rows)   # before imap: the pool finally reads it on every path
-            it = pool.imap_unordered(test_board, config_boards)
-            deadline = time.monotonic() + POOL_TIMEOUT
-            try:
-                mret = drain_pool(it, config_boards, deadline, out=mret)
-            except MpTimeoutError as te:
-                # RAISE afterwards into the ONE containment path: the inner finally runs
-                # the ordered sweep (kill_worker_children BEFORE terminate, or a reaped
-                # worker's flasher reparents out of reach), the outer one os._exit's.
-                mret = te.finished
-                _abort_report(f'abandoned: worker pool timed out after {POOL_TIMEOUT}s',
-                              mret, config_boards, failed_fname, report_dir, fresh,
-                              health_banner, timeout_secs=POOL_TIMEOUT)
-                _p(f'HIL worker pool timed out after {POOL_TIMEOUT}s; sweeping and '
-                   f'shutting it down (abandoning it if a worker is unkillable)',
-                   flush=True)
-                raise RuntimeError(f'HIL worker pool timed out after {POOL_TIMEOUT}s')
-            except Exception as e:
-                # A worker RAISED -- e.g. a flasher adapter dropping off the bus makes
-                # get_serial_dev raise in the worker's flash section, which no per-test
-                # handler guards. The drain means `mret` already holds every board that
-                # finished, so keep those rows and name only the ones still in flight.
-                _abort_report(f'aborted: a worker raised {type(e).__name__}: {e}',
-                              mret, config_boards, failed_fname, report_dir, fresh,
-                              health_banner)
-                raise
-
-            err_count = build_err + sum(e[1] for e in mret)
-            _write_failed_spec(failed_fname, report_dir, mret)
-        finally:
-            # Not `with Pool(...)`: its __exit__ joins the workers unbounded and hangs on
-            # any worker in uninterruptible sleep. shutdown_pool bounds the same terminate()
-            # and returns False when the pool is NOT cleanly closed.
-            #
-            # Sweep BEFORE shutdown: what the workers spawned must be snapshotted and
-            # killed while its parent is alive, or terminate() reparents it out of reach.
-            #
-            # Both calls stay guarded and neither exits: a raise here would skip
-            # accumulate_report and publish an empty report dir for a run whose boards all
-            # passed. pool_abandoned is fail-CLOSED, so _abandon_exit still arms.
-            try:
-                # Still worth running for the TIMEOUT path, where the workers are
-                # genuinely stuck mid-task and their children are still reachable through
-                # the pool's ppid tree. On the normal path every worker has already swept
-                # its own (kill_own_children) and retired, so this finds nothing.
-                #
-                # No banner from here: this finally runs AFTER accumulate_report on both
-                # abort paths, so anything appended to health_banner now is written to a
-                # variable nobody reads again. The report gets its count from the result
-                # tuples instead, via _stray_note.
-                hil_health.kill_worker_children(pool, mgr)
-            except Exception as e:
-                print(f'warning: worker-child sweep failed: {type(e).__name__}: {e}',
-                      flush=True)
-            try:
-                pool_abandoned = not hil_health.shutdown_pool(pool)
-            except Exception as e:
-                print(f'warning: pool shutdown failed: {type(e).__name__}: {e}', flush=True)
-
-        # refresh controller hints: pci resolved this run, plus durations from full runs
-        # only (a filtered run would understate the board's real cost)
-        try:
-            if PROFILE:
-                # debug snapshot of the run's live uid->PCI / PCI->slot resolutions
-                report_dir.mkdir(parents=True, exist_ok=True)
-                with (report_dir / 'hil_profile_ctrl.json').open('w') as f:
-                    json.dump(dict(cmap), f, indent=1, sort_keys=True)
-            _save_controller_hints(
-                hints, mret[len(refused_rows):],   # the refused rows lead mret and never ran
-                {b['name']: b['uid'] for b in config['boards']}, cmap)
+            mret = drain_pool(it, config_boards, deadline, out=mret)
+        except MpTimeoutError as te:
+            mret = te.finished
+            _abort_report(f'aborted: worker pool timed out after {POOL_TIMEOUT}s',
+                          mret, config_boards, failed_fname, report_dir, fresh,
+                          timeout_secs=POOL_TIMEOUT)
+            raise RuntimeError(f'HIL worker pool timed out after {POOL_TIMEOUT}s')
         except Exception as e:
-            # Deliberately broad, and it must stay that way: this best-effort refresh makes
-            # Manager proxy RPCs that raise EOFError / BrokenPipeError / RemoteError when
-            # the Manager child has died, none of them OSErrors -- an OSError-only guard let
-            # those skip accumulate_report(). Nothing here is worth the report.
-            print(f'warning: cannot persist controller hints to {CONTROLLER_CACHE}: '
-                  f'{type(e).__name__}: {e}')
+            # A worker RAISED -- e.g. a flasher adapter dropping off the bus makes
+            # get_serial_dev raise in the worker's flash section, which no per-test
+            # handler guards. The drain means `mret` already holds every board that
+            # finished, so keep those rows and name only the ones still in flight.
+            _abort_report(f'aborted: a worker raised {type(e).__name__}: {e}',
+                          mret, config_boards, failed_fname, report_dir, fresh)
+            raise
 
+    err_count = build_err + sum(e[1] for e in mret)
+    _write_failed_spec(failed_fname, report_dir, mret)
 
-        # board x test result matrix -> hil_report.md (accumulates across re-runs) + stdout.
-        # -b/-bt means a filtered run (PR selection or a re-run spec): say so, or the report
-        # looks exactly like a full run that happened to be small
-        scoped = sorted(set(args.board) | set(board_test))
-        scope = f'{len(scoped)} board(s) — {", ".join(scoped)}' if scoped else ''
-        report = hil_report.accumulate_report(mret, report_dir, fresh, scope,
-                                              health_banner + _stray_note(mret))
-        print()
-        print(report)
-        print(f'\nReport written to {(report_dir / hil_report.REPORT_MD).resolve()}')
+    # refresh controller hints: pci resolved this run, plus durations from full runs
+    # only (a filtered run would understate the board's real cost)
+    try:
+        if PROFILE:
+            # debug snapshot of the run's live uid->PCI / PCI->slot resolutions
+            report_dir.mkdir(parents=True, exist_ok=True)
+            with (report_dir / 'hil_profile_ctrl.json').open('w') as f:
+                json.dump(dict(cmap), f, indent=1, sort_keys=True)
+        _save_controller_hints(
+            hints, mret[len(refused_rows):],   # the refused rows lead mret and never ran
+            {b['name']: b['uid'] for b in config['boards']}, cmap)
+    except Exception as e:
+        # Deliberately broad, and it must stay that way: this best-effort refresh makes
+        # Manager proxy RPCs that raise EOFError / BrokenPipeError / RemoteError when
+        # the Manager child has died, none of them OSErrors -- an OSError-only guard let
+        # those skip accumulate_report(). Nothing here is worth the report.
+        print(f'warning: cannot persist controller hints to {CONTROLLER_CACHE}: '
+              f'{type(e).__name__}: {e}')
 
-        duration = time.time() - duration
-        print()
-        print("-" * 30)
-        print(f'Total failed: {err_count} in {duration:.1f}s')
-        print("-" * 30)
-    finally:
-        # In the finally, not after: any raise above (accumulate_report sits outside the
-        # OSError handler) would skip the abandon path and unwind into multiprocessing's
-        # unbounded atexit join, hanging the runner.
-        _abandon_exit(pool, mgr, pool_abandoned, err_count, report_dir)
+    # board x test result matrix -> hil_report.md (accumulates across re-runs) + stdout.
+    # -b/-bt means a filtered run (PR selection or a re-run spec): say so, or the report
+    # looks exactly like a full run that happened to be small
+    scoped = sorted(set(args.board) | set(board_test))
+    scope = f'{len(scoped)} board(s) — {", ".join(scoped)}' if scoped else ''
+    report = hil_report.accumulate_report(mret, report_dir, fresh, scope)
+    print()
+    print(report)
+    print(f'\nReport written to {(report_dir / hil_report.REPORT_MD).resolve()}')
+
+    duration = time.time() - duration
+    print()
+    print("-" * 30)
+    print(f'Total failed: {err_count} in {duration:.1f}s')
+    print("-" * 30)
     # Same clamp: exit status is a byte either way, so 256 failures would report green.
     sys.exit(min(err_count, 125))
 

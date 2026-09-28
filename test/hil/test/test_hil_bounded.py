@@ -249,9 +249,9 @@ class BuildBoardContract(unittest.TestCase):
         self.addCleanup(td.cleanup)
         d = Path(td.name)
         (d / 'rig.json').write_text(json.dumps(cfg))
-        hil_report.write_report(d, {'rows': prior_rows, 'banner': '', 'scope': '', 'caveat': ''})
+        hil_report.write_report(d, {'rows': prior_rows, 'scope': '', 'caveat': ''})
         (d / 'rig.json.failed').write_text('--accumulate -b stale')
-        pool = mock.Mock()
+        pool = mock.MagicMock()   # main() enters it as a context manager
         pool.imap_unordered.return_value.next.side_effect = list(results)
         with mock.patch.object(sys, 'argv', ['hil_test.py', str(d / 'rig.json'), '--build', *argv]), \
              mock.patch.dict(os.environ, {'HIL_REPORT_DIR': str(d)}), \
@@ -260,9 +260,6 @@ class BuildBoardContract(unittest.TestCase):
              mock.patch.object(hil_test, '_start_pool', return_value=({}, pool)), \
              mock.patch.object(hil_test, '_load_controller_hints', return_value=({}, {})), \
              mock.patch.object(hil_test, '_save_controller_hints') as hints, \
-             mock.patch.object(hil_test.hil_health, 'd_state_note', return_value=''), \
-             mock.patch.object(hil_test.hil_health, 'kill_worker_children'), \
-             mock.patch.object(hil_test.hil_health, 'shutdown_pool', return_value=True), \
              mock.patch.object(hil_test, 'log_line'), \
              redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as exited:
             hil_test.main()
@@ -1071,49 +1068,6 @@ class UsbScanIsTheOneWalk(unittest.TestCase):
         self.assertNotIn(str(self.root / '1-1' / 'serial'), self.reads)
 
 
-class AbandonExitSurvivesAFailedFork(unittest.TestCase):
-    """Pool() forks, and after a convoy -- every stranded read holding a thread and an fd --
-    that fork is what hits EAGAIN/ENOMEM. It now runs inside the try, so the finally can
-    reach _abandon_exit with pool and mgr still None."""
-
-    def test_none_pool_and_manager_still_write_the_banner(self):
-        # a subprocess, because _abandon_exit ends in os._exit: in-process it would take
-        # the test runner with it, before any assertion could run
-        import json
-        import subprocess
-        with TemporaryDirectory() as td:
-            rd = Path(td)
-            # it takes the report DIRECTORY now and re-renders both artifacts from the
-            # sidecar, so seed the sidecar -- the markdown is output, not input
-            (rd / 'hil_report.json').write_text(json.dumps(
-                {'rows': [{'board': 'boardA', 'cells': {'cdc_msc': 'pass'},
-                           'duration': '1s'}],
-                 'banner': '', 'scope': '', 'caveat': ''}))
-            src = (
-                'import sys, types\n'
-                f'sys.path.insert(0, {str(Path(TEST_DIR).parents[0])!r})\n'
-                'st = types.ModuleType("serial")\n'
-                'st.Serial = type("Serial", (), {})\n'
-                'st.SerialException = type("SerialException", (Exception,), {})\n'
-                'st.SerialTimeoutException = type("E2", (Exception,), {})\n'
-                'sys.modules.setdefault("serial", st)\n'
-                'import hil_test\n'
-                f'hil_test._abandon_exit(None, None, True, 1, __import__("pathlib")'
-                f'.Path({str(rd)!r}))\n')
-            r = subprocess.run([sys.executable, '-c', src], capture_output=True,
-                               text=True, timeout=120)
-            self.assertEqual(r.returncode, 1, r.stderr)
-            self.assertTrue((rd / 'hil_report.md').read_text().startswith(
-                '**HIL run abandoned'), 'the abandon banner never reached the report')
-            self.assertIn('abandoned',
-                          json.loads((rd / 'hil_report.json').read_text())['caveat'])
-
-    def test_kill_pool_children_tolerates_a_pool_that_never_existed(self):
-        from helper import hil_health
-        self.assertEqual(hil_health.kill_pool_children(None), 0)
-        self.assertEqual(hil_health.kill_pool_children(None, None), 0)
-
-
 class UsbtestOuterBoundIsOneValue(unittest.TestCase):
     """run_cmd's kill is the ONE bound, and it must carry a recovery reserve only when a
     recovery can actually run. Otherwise a board on a path that cannot recover holds a pool
@@ -1353,7 +1307,7 @@ class PoolGuardKeepsWhatFinished(unittest.TestCase):
 
     def test_finished_rows_survive_a_guard_expiry(self):
         boards = [{'name': 'fast1'}, {'name': 'fast2'}, {'name': 'wedged'}]
-        rows = [('fast1', 0, [], [], 1.0, False), ('fast2', 0, [], [], 1.0, False)]
+        rows = [('fast1', 0, [], [], 1.0), ('fast2', 0, [], [], 1.0)]
         with self.assertRaises(hil_test.PoolDrainTimeout) as cm:
             hil_test.drain_pool(self._It(rows), boards, time.monotonic() + 5)
         self.assertEqual([r[0] for r in cm.exception.finished], ['fast1', 'fast2'])
@@ -1361,7 +1315,7 @@ class PoolGuardKeepsWhatFinished(unittest.TestCase):
     def test_an_expired_deadline_stops_before_asking_for_more(self):
         """Left <= 0 must not be handed to it.next() as a zero/negative timeout."""
         boards = [{'name': 'a'}, {'name': 'b'}]
-        it = self._It([('a', 0, [], [], 1.0, False)])
+        it = self._It([('a', 0, [], [], 1.0)])
         with self.assertRaises(hil_test.PoolDrainTimeout) as cm:
             hil_test.drain_pool(it, boards, time.monotonic() - 1)     # already past
         self.assertEqual(cm.exception.finished, [])
@@ -1377,14 +1331,14 @@ class PoolGuardKeepsWhatFinished(unittest.TestCase):
                 return super().next(timeout)
 
         boards = [{'name': n} for n in ('a', 'b', 'c', 'd')]
-        rows = [(n, 0, [], [], 1.0, False) for n in ('a', 'b', 'c', 'd')]
+        rows = [(n, 0, [], [], 1.0) for n in ('a', 'b', 'c', 'd')]
         with self.assertRaises(hil_test.PoolDrainTimeout) as cm:
             hil_test.drain_pool(Slow(rows), boards, time.monotonic() + 0.3)
         self.assertTrue(cm.exception.finished, 'rows collected before the expiry were lost')
 
     def test_every_board_finishing_returns_them_all(self):
         boards = [{'name': 'a'}, {'name': 'b'}]
-        rows = [('a', 0, [], [], 1.0, False), ('b', 1, [], [], 2.0, False)]
+        rows = [('a', 0, [], [], 1.0), ('b', 1, [], [], 2.0)]
         got = hil_test.drain_pool(self._It(rows), boards, time.monotonic() + 5)
         self.assertEqual(got, rows)
 
@@ -1653,54 +1607,16 @@ class HidEchoRunsInAChild(unittest.TestCase):
         self.assertIn('short read', self._stderr(r))
 
 
-class StrayNoteSurvivesTheTupleWidth(unittest.TestCase):
-    """_stray_note reads r[5] -- and three producers build this tuple at three widths, so
-    `len(r) > 5 and r[5]` reads a WRONG SLOT rather than raising if a field is ever
-    inserted. The live handoff in issue #3896 proposes exactly that, and the
-    report would then say "no strays" while probes and usbfs nodes stay held into the next
-    job. The index changed once already in this branch (r[6] -> r[5])."""
-
-    def test_it_names_the_board_and_the_count(self):
-        wide = ('dirty', 1, [], [], 9.0, 2)
-        clean = ('fine', 0, [], [], 8.0, 0)
-        note = hil_test._stray_note([wide, clean])
-        self.assertIn('dirty (2)', note)
-        self.assertIn('2 process(es)', note)
-        self.assertNotIn('fine', note, 'a clean board must not appear in the note')
-
-    def test_a_narrow_row_from_the_timeout_path_is_not_misread(self):
-        """The abort paths synthesise 5-field rows for boards that never reported."""
-        self.assertEqual(hil_test._stray_note([('stuck', 1, [], None, 0)]), '')
-        self.assertEqual(hil_test._stray_note([('fine', 0, [], [], 8.0, 0)]), '')
-
-    def test_the_slot_it_reads_is_the_slot_test_board_writes(self):
-        """Pins the index against the producer, so inserting a field fails HERE rather
-        than silently reporting a duration as a stray count."""
-        import ast
-        src = (Path(TEST_DIR).parents[0] / 'hil_test.py').read_text()
-        fn = next(n for n in ast.walk(ast.parse(src))
-                  if isinstance(n, ast.FunctionDef) and n.name == 'test_board')
-        widths = sorted({len(n.value.elts) for n in ast.walk(fn)
-                         if isinstance(n, ast.Return) and isinstance(n.value, ast.Tuple)})
-        # the board-LOCKED early return is 5 wide and carries no stray count; the normal
-        # one is 6, with strays last
-        self.assertEqual(widths, [5, 6],
-                         'the result tuple changed width; _stray_note reads index 5')
-
-
 class MixedWidthRowsSurviveTheReportWriters(unittest.TestCase):
     """_abort_report hands `[(n, 1, [], None, 0) for n in stuck] + [r for r in mret ...]`
-    to both writers -- 5-field synthetic rows mixed with 6-field worker rows. Every other
-    test uses uniform widths, so replacing either `*_` unpack with a fixed-width one keeps
-    the suite green and raises only INSIDE the containment path, where a raise costs every
-    board's results."""
+    to the re-run spec: synthetic rows (rows=None) mixed with worker rows."""
 
     def _mixed(self):
-        return [('stuck', 1, [], None, 0),                       # synthetic, 5 wide
+        return [('stuck', 1, [], None, 0),                       # synthetic
                 ('ran', 1, ['device/dfu'],
-                 [('ran', {'device/dfu': '❌ boom'}, '8s')], 8.0, 2)]   # worker, 6 wide
+                 [('ran', {'device/dfu': '❌ boom'}, '8s')], 8.0)]      # worker
 
-    def test_the_rerun_spec_accepts_both_widths(self):
+    def test_the_rerun_spec_accepts_both_kinds(self):
         with TemporaryDirectory() as td:
             rd = Path(td)
             hil_test._write_failed_spec(rd / 'c.json.failed', rd, self._mixed())
@@ -1721,13 +1637,12 @@ class MixedWidthRowsSurviveTheReportWriters(unittest.TestCase):
                 with TemporaryDirectory() as td:
                     rd = Path(td)
                     hil_test._abort_report(reason, [], [{'name': 'boardA'}],
-                                           rd / 'c.failed', rd, True, '',
-                                           timeout_secs=secs)
+                                           rd / 'c.failed', rd, True, timeout_secs=secs)
                     return (rd / hil_report.REPORT_MD).read_text()
             finally:
                 hil_report.accumulate_report = real
 
-        guard = render('abandoned: worker pool timed out after 3600s', 3600)
+        guard = render('aborted: worker pool timed out after 3600s', 3600)
         self.assertIn(hil_report.POOL_TIMEOUT_CELL, guard)
         raised = render('aborted: a worker raised ValueError: x', None)
         self.assertIn(hil_report.RUN_ABORTED_CELL, raised)
@@ -1740,7 +1655,7 @@ class MixedWidthRowsSurviveTheReportWriters(unittest.TestCase):
     def test_only_the_rerun_spec_sees_the_synthetic_rows(self):
         """accumulate_report gets `mret` alone -- worker rows, always 4th field a real
         list. Widening _abort_report to hand it the synthetic list too would crash the
-        containment path: those rows carry rows=None and render_matrix iterates it."""
+        abort path: those rows carry rows=None and render_matrix iterates it."""
         import ast
         src = (Path(TEST_DIR).parents[0] / 'hil_test.py').read_text()
         fn = next(n for n in ast.walk(ast.parse(src))
@@ -1832,6 +1747,60 @@ class UsbtestStartupDoesNotClaimAbsenceBlind(unittest.TestCase):
         self.assertEqual(len(exits), 1, 'the absence exit moved; retarget this test')
         self.assertIn('strand_note', ast.unparse(exits[0]),
                       'usbtest claims absence without consulting sysfs_stranded()')
+
+
+class PermitReleasesOnlyWhatItTook(unittest.TestCase):
+    """The bounded acquire skips a slot it could not get ('proceeding over-subscribed') and
+    deliberately leaves it out of `taken`, but __exit__ released every slot in self.slots.
+    multiprocessing.Semaphore is unbounded, so each timeout permanently widened that
+    controller's permit -- the throttle this branch NARROWED (FLASH_PARALLEL 8->4,
+    USBTEST_PARALLEL 4->2) for xHCI bandwidth margin."""
+
+    def test_a_timed_out_slot_is_not_released_on_exit(self):
+        from helper import hil_lock
+        import multiprocessing
+
+        sems = [multiprocessing.Semaphore(1)]
+        sems[0].acquire()                      # width 1, already held: the next wait times out
+        self.addCleanup(setattr, hil_lock, 'PERMIT_TIMEOUT', hil_lock.PERMIT_TIMEOUT)
+        hil_lock.PERMIT_TIMEOUT = 0.1
+
+        permit = hil_lock.controller_permit(sems, 'UID')
+        permit.slots = [0]
+        with permit:
+            pass
+
+        # one holder still holds it, so a correct exit leaves it unavailable
+        self.assertFalse(sems[0].acquire(timeout=0.1),
+                         'the permit released a slot it never acquired: width grew')
+
+
+class SudoSoftNeverRaises(unittest.TestCase):
+    """Two of its four call sites are inside run_case's timeout handler, where ANY raise
+    costs the HUNG verdict, the recovery and the JSON report -- and sudo() sys.exit()s on
+    'a password is required', which is a raise like any other."""
+
+    def setUp(self):
+        import usbtest
+        self.u = usbtest
+        self.addCleanup(setattr, usbtest, 'sudo', usbtest.sudo)
+
+    def _check(self, exc):
+        def boom(*a, **k):
+            raise exc
+        self.u.sudo = boom
+        r = self.u._sudo_soft(['dmesg'])            # must not propagate
+        self.assertEqual(r.returncode, 1)
+        self.assertIn(f'dmesg: {type(exc).__name__}: {exc}', r.stderr)   # callers quote it
+
+    def test_systemexit_from_a_password_prompt_is_contained(self):
+        self._check(SystemExit('sudo needs a password'))
+
+    def test_oserror_is_contained(self):
+        self._check(OSError('no such binary'))
+
+    def test_subprocess_error_is_contained(self):
+        self._check(subprocess.SubprocessError('timed out'))
 
 
 class UsbtestNeverCleansUp(unittest.TestCase):

@@ -67,19 +67,17 @@ unclassified change) and "nothing selected" (skip). Skip only when `full` is fal
 Unit suites (no hardware) live in `test/hil/test/test_*.py`; the `hil-test` pre-commit hook
 runs every `test_hil*.py`, `ci-select-test` the two `test_ci_*` suites plus
 `test_hil_util.BottomLayer`. `test_ci_select.py` covers only selection, `test_ci_metrics.py`
-only the code-size plumbing; the containment work --- bounded reads, the kill ladders, the
-build and pool guards --- lives in `test_hil_bounded.py`, `test_hil_health.py` and
-`test_hil_util.py`; `test_hil_report.py` covers the report document and `test_hil_rtt.py`
+only the code-size plumbing; the bounded reads and the build and pool guards live in
+`test_hil_bounded.py` and `test_hil_util.py`; `test_hil_report.py` covers the report document and `test_hil_rtt.py`
 the RTT console. Run them all when changing `test/hil`:
 `for f in test/hil/test/test_*.py; do python3 "$f"; done` (about a minute, half of it
 `test_hil_bounded.py`'s deliberate hang/timeout simulation).
 
-## Pre-flight rig health check
+## Stuck runs
 
-`hil_test.py` notes any process already in D state when the run starts, as one line above
-the table. It never aborts, and it is a hint rather than a diagnosis. What bounds a stuck
-run is `HIL_POOL_TIMEOUT` plus the job's `timeout-minutes`; what diagnoses a wedged rig is
-the `hil-pool-check` skill.
+What bounds a stuck run is `HIL_POOL_TIMEOUT` plus the job's `timeout-minutes`: a worker
+the kernel will not let die (D state) holds the job until that ceiling. What diagnoses a
+wedged rig is the `hil-pool-check` skill.
 
 See the `usb-kernel-recover` skill for what a real wedge looks like and how to clear it, and the `usb-kernel-debug` skill to explain WHY the kernel rejected a device (dmesg analysis).
 
@@ -205,23 +203,23 @@ A local `hil_test.py` run has no done record; wait for its completion notificati
 
 Two audiences, two shapes. Interactively, the answer to a HIL run IS the tool's summary table:
 paste the complete per-board table (and footer counts) verbatim — never truncate rows or reduce
-it to a prose digest. Commentary below it covers only what the table cannot show: a banner
-verdict from the list below, a retry, a wedged board.
+it to a prose digest. Commentary below it covers only what the table cannot show: a notice
+from the list below, a retry, a wedged board.
 
 A delegated run (the `hil-operator` role) returns the machine output instead: exactly
-`{ pass, results, banner, caveat, wedged }` and nothing else. From the directory the run wrote its
+`{ pass, results, caveat, wedged }` and nothing else. From the directory the run wrote its
 report to:
 
 ```bash
 python3 test/hil/helper/hil_report.py <config> -b BOARD [-b BOARD...]
 ```
 
-`pass`, `results`, `banner` and `caveat` are copied from its output verbatim — never retyped,
+`pass`, `results` and `caveat` are copied from its output verbatim — never retyped,
 reworded or re-ordered: rows are named per variant, a variant name need not start with the board
 name, and lock contention is a cell rather than a phrase, so any of it re-derived by hand has come
 out wrong before. `results` has exactly one entry per requested board. `pass` is the verdict of
-this report snapshot: every row can pass on an abandoned or no-boards run, so the run-level
-`caveat` (abandoned, aborted, no boards; empty on every other run) gates it. `--accumulate`
+this report snapshot: every row can pass on an aborted or no-boards run, so the run-level
+`caveat` (aborted, no boards; empty on every other run) gates it. `--accumulate`
 clears an earlier attempt's caveat by design, so the verdict of a retry sequence is the caller's:
 keep every attempt's result, a clean subset re-run never erases an earlier run-level failure, and
 a re-run's own caveat fails the sequence. Each row's `wedged`
@@ -235,7 +233,7 @@ requested list on the `hil_report.py` call, which emits a `ran: false` row for e
 board. When no run started (a missing config, every name unknown, a refused hold with no
 permitted retry, a scope gap, unbuilt firmware), it authors the rows instead: one per requested
 board, `ran: false`, `pass: false`, `locked` as observed, the reason in `detail`, top-level
-`pass: false`, `banner` and `caveat` empty — and reads no stale report. The caller treats a
+`pass: false`, `caveat` empty — and reads no stale report. The caller treats a
 missing or malformed reply as inconclusive, never as a pass or a fail.
 
 The caller decides what follows a run. The whole board set goes to ONE run (above); the failure
@@ -257,24 +255,20 @@ busport, unshielded afterwards;
 sysrq and the hypervisor rungs need the user and are returned as the blocker in a headless run.
 Report the cleanup explicitly: the board's state, plus any shield record or hold still standing.
 
-**First check what sits above the table.** Six banners can appear there; match on a
-PREFIX, since each carries trailing detail and two are blockquotes:
+**First check what sits above the table.** Three notices can appear there; match on a
+PREFIX, since each carries trailing detail:
 
-- `**HIL run abandoned: worker pool timed out after …s.**` and
+- `**HIL run aborted: worker pool timed out after …s.**` and
   `**HIL run aborted: a worker raised …**` — the pool guard fired, or a worker crashed. The
-  banner counts what happened: "N board(s) below finished and are this run's; K never
+  notice counts what happened: "N board(s) below finished and are this run's; K never
   reported and are NOT in the table: <names>. The re-run spec covers those", plus, when
   `check_build.py` refused a board under `--build`, ", and the M whose build check_build.py
   refused: <names>." The N finished boards' rows are this run's: report them. The K named
   boards are not this run's whatever the table shows — on a fresh run they have no row, on
-  an `--accumulate` retry a previous attempt's row survives under the banner and
+  an `--accumulate` retry a previous attempt's row survives under the notice and
   `hil_report.py` still folds it into `results` as ran — so name them as not run. The M
   refused boards DO have a `build refused` row, reported ran=false/pass=false (not run,
   failed), but sit outside N; the `<config>.failed` re-run spec covers both K and M. Never
-  `"pass": true`.
-- `**HIL run abandoned: the worker pool would not shut down.**` — DIFFERENT: the table
-  below IS this run's, but the pool could not be shut down afterwards (the job exits
-  non-zero even if every board passed). Report the results AND the abandonment; never
   `"pass": true`.
 - `**HIL run selected no boards.**` — the filters intersected to nothing, or, under
   `--build`, `check_build.py` refused every board. On the filter case, a fresh run shows no
@@ -285,14 +279,6 @@ PREFIX, since each carries trailing detail and two are blockquotes:
   board, and the `<config>.failed` re-run spec is written or refreshed to name the boards.
   Either way the exit code is nonzero. Report what the message shows (the filter, or the
   refused boards), never `"pass": true`.
-- `> **Rig note.**` — a process was in D state when the run started. This is NOT a wedge:
-  a healthy in-flight testusb is uninterruptible for most of every case, and the rig
-  supports a dev run alongside CI. On its own it is never `wedged: true` and never turns a
-  green table into `"pass": false`. Mention it only when a board below failed, as the first
-  thing to check.
-- `> **Rig dirty.**` — a process survived SIGKILL and still holds a probe or usbfs node
-  into the NEXT job. The table below is this run's and can be reported, but say the rig is
-  dirty: the next job starts degraded and nothing in the harness can clear it.
 
 On a test failure, retry once with `-v` — only when the report has no `locked` or `wedged` board
 and an empty `caveat`; otherwise return the snapshot without retrying, since the `.failed` spec
@@ -303,7 +289,7 @@ already begins with `--accumulate` and restricts each board to its failed tests.
 whole-fleet table with a one-row table. A usbtest battery that produced per-case verdicts is not
 auto-retried; its result already stands. If a board or fixture stops enumerating, or a tool of
 yours hangs in D state, that is a wedge: save `dmesg | tail -50` as an artifact beside the
-report (never into the report's rows) and name the board in `wedged`, without recovering it —
-a `> **Rig note.**` banner about someone else's D-state process is not that. If a retry is still not enough, an interactive
+report (never into the report's rows) and name the board in `wedged`, without recovering it.
+If a retry is still not enough, an interactive
 session may add temporary debug prints to `hil_test.py`; a non-editing operator returns the
 failure for diagnosis instead.
