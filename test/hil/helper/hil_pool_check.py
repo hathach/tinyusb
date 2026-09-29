@@ -775,10 +775,10 @@ def main() -> None:
             sys.stdout.flush()
             os.dup2(saved, 1)
             os.close(saved)
-        doc = pool_document(host, cfg_path.name, args.scan_only, rows)
+        doc = pool_document(host, str(args.config_path), args.scan_only, rows)
         print(json.dumps(doc, ensure_ascii=False))
     else:
-        doc = pool_document(host, cfg_path.name, args.scan_only, check_pool(boards, args, header))
+        doc = pool_document(host, str(args.config_path), args.scan_only, check_pool(boards, args, header))
         print(render_table(doc))
     counts = doc['counts']
     sys.exit(min(counts['flash-failed'] + counts['failed'], 125))

@@ -330,6 +330,7 @@ class Main(unittest.TestCase):
         self.assertEqual(after, 'after')
         doc = json.loads(doc_line)
         self.assertEqual(doc['rows'][0]['name'], 'b')
+        self.assertEqual(doc['config'], os.path.realpath(self.cfg))
         self.assertEqual(code, 1)
         self.assertIn('pool check: host', err)
         return err
