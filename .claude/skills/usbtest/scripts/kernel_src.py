@@ -20,6 +20,7 @@ case reaches or whether a hang there recovers: read the functions the case calls
 Exit 0 ok, 1 fetch or extraction failed, 2 usage error or a refused release.
 """
 import argparse
+import http.client
 import os
 import re
 import sys
@@ -83,7 +84,7 @@ def fetch(tag, cache):
             try:
                 with urllib.request.urlopen(req, timeout=FETCH_TIMEOUT) as r:
                     data = r.read()
-            except (urllib.error.URLError, OSError) as e:
+            except (urllib.error.URLError, http.client.HTTPException, OSError) as e:
                 fail(f'cannot fetch {rel} at {tag} ({url}): {e}')
             if not data:
                 fail(f'{rel} at {tag} came back empty ({url})')
