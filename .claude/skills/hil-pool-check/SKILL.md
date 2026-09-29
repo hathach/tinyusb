@@ -8,7 +8,8 @@ description: Use when asked for a pool check or board/probe health scan on a Tin
 `test/hil/helper/hil_pool_check.py` checks each board of the rig's roster in turn: the probe
 is on the bus, a light example flashes (the first built of a candidate list and the roster's
 `only` list; host-only boards are judged by serial or RTT output), the board comes back, and
-it is re-parked with `board_test`. It never recovers a probe or a board: a wedge is reported
+it is re-parked with `board_test`. A host-only board with no light firmware is judged by the
+output of whatever it already runs, without a flash or a park. It never recovers a probe or a board: a wedge is reported
 for `usb-kernel-recover`. Flags: `--help`.
 
 The `hil` skill owns config selection by hostname and the board-lock protocol. The tool takes
@@ -35,11 +36,11 @@ ssh ci.lan 'cd ~/code/tinyusb && python3 test/hil/helper/hil_pool_check.py'
 
 Missing firmware is built through the build contract (`check_build.py --variants`, every
 roster variant of the board) before the board is locked; `--no-build` opts out and those
-boards report `flash-failed`. A named `boards-skip` board is never built: the build contract
+boards report `flash-failed`, host-only boards excepted as above. A named `boards-skip` board is never built: the build contract
 refuses it, so its firmware must already exist. ESP boards need `idf.py` on PATH or
 `IDF_PATH` exported; without either the row notes `ESP-IDF env missing`. A run that has to
-build takes minutes: run it in the background and never cancel it, since a killed run leaves
-builds running and board locks held under the protected `pool_check` reason.
+build takes minutes: run it in the background and never cancel it, since a killed run can
+leave a build or a flasher running with no board lock behind it.
 
 ## Reading the result
 

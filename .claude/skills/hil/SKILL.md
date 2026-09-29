@@ -69,8 +69,8 @@ Unit suites (no hardware) live in `test/hil/test/test_*.py`; the `hil-test` pre-
 runs every `test_hil*.py`, `ci-select-test` the two `test_ci_*` suites plus
 `test_hil_util.BottomLayer`. `test_ci_select.py` covers only selection, `test_ci_metrics.py`
 only the code-size plumbing; the bounded reads and the build and pool guards live in
-`test_hil_bounded.py` and `test_hil_util.py`; `test_hil_report.py` covers the report document and `test_hil_rtt.py`
-the RTT console. Run them all when changing `test/hil`:
+`test_hil_bounded.py` and `test_hil_util.py`; `test_hil_report.py` covers the report document, `test_hil_rtt.py`
+the RTT console and `test_hil_pool_check.py` the pool check's verdicts and output. Run them all when changing `test/hil`:
 `for f in test/hil/test/test_*.py; do python3 "$f"; done` (about a minute, half of it
 `test_hil_bounded.py`'s deliberate hang/timeout simulation).
 
