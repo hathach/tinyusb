@@ -51,9 +51,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[4]
 HIL_CONFIG = ROOT / 'test' / 'hil' / 'tinyusb.json'
 FULL_MATRIX_BOARDS = ['stm32f407disco', 'raspberry_pi_pico']
-# a compiler/linker diagnostic first; CMake's own error next; never ninja's FAILED: wrapper
-DIAGNOSTIC = re.compile(r'^\S+:\d+(?::\d+)?: (?:fatal )?error:|undefined reference to|multiple definition of')
-CMAKE_ERROR = re.compile(r'^CMake Error')
 BOARD_PATH = re.compile(r'^hw/bsp/([^/]+)/boards/([^/]+)/')
 ROW = re.compile(r'^\|\s*(\S+)\s*\|\s*(.+?)\s*\|\s*\x1b\[\d+m(OK|Failed|Skipped)\x1b\[0m', re.M)
 sys.path.insert(0, str(ROOT / 'tools'))
@@ -563,9 +560,10 @@ def coverage(reasons, scope, results, chosen=False, targets=()):
     named examples is a gap when no board wrote an elf for any of them; a core stack path
     names every example of its role; any other contributing path is a gap when the run
     produced no elf at all (-T help is a green build of nothing). A path whose reason names
-    a build target rather than families or examples (tools/membrowse_report.py is verified
-    by examples-membrowse-upload) is a gap unless the run selected that target: the default
-    sweep builds `all`, which never runs it, and another -e or -T does not stand in for it.
+    a build target rather than families or examples (a membrowse build-time script is
+    verified by examples-membrowse-upload) is a gap unless the run selected that target:
+    the default sweep builds `all`, which never runs it, and another -e or -T does not
+    stand in for it.
     `chosen` (-e or -T given) hands the rest to the caller, bar a family no board of which
     was built and bar that target: narrowing the examples does not change which families
     the scope resolves to. With no
@@ -575,7 +573,7 @@ def coverage(reasons, scope, results, chosen=False, targets=()):
     benign, gaps = [], []
     for r in reasons:
         fams, exs = named_families(r), named_examples(r)
-        if r.endswith('no build contribution') or r.endswith('no dep entry changed, no contribution'):
+        if r.endswith('no build contribution') or r.endswith('no build-family dependency changed, no contribution'):
             benign.append(r)
         elif r.endswith('no contribution') or r.endswith('dropped'):
             gaps.append(r)
@@ -639,7 +637,7 @@ def configured(board, family, examples, defines, build_dir, elfs, fresh):
 
 
 STICKY_OPTIONS = ('LOG', 'LOGGER', 'CFLAGS_CLI')   # family_support.cmake reads these with if(DEFINED)
-BUILD_PY_OPTIONS = ('BOARD', 'CMAKE_BUILD_TYPE', 'LINKERMAP_OPTION', 'TOOLCHAIN')
+BUILD_PY_OPTIONS = ('BOARD', 'CMAKE_BUILD_TYPE', 'TOOLCHAIN')
 CACHE_ENTRY = re.compile(r'^([A-Za-z_]\w*):([A-Z]+)=(.*)$')
 AGENT_DEFINES = '.agent-defines'
 
@@ -676,10 +674,11 @@ def stale_options(build_dir, supplied):
     retypes PICO_SDK_PATH to PATH - and the value then survives with nothing in the cache
     left to say a command line gave it. The entry type is the fallback for a dir configured
     before the sidecar existed: a -D no cmake code declares keeps UNINITIALIZED, the type
-    only a command line gives, and the four tools/build.py passes on every configure are
-    this run's own. A recorded name the cache no longer carries is no risk either - nothing
-    holds its value. An empty value is an option too: -DLOG= leaves a cache
-    entry, if(DEFINED LOG) is true for it, and the build compiles with CFG_TUSB_DEBUG=.
+    only a command line gives, and BUILD_PY_OPTIONS, which tools/build.py passes on
+    every configure, are this run's own. A recorded name the cache no longer carries is
+    no risk either - nothing holds its value. An empty value is an option too: -DLOG=
+    leaves a cache entry, if(DEFINED LOG) is true for it, and the build compiles with
+    CFG_TUSB_DEBUG=.
     An option this run does set is no risk: its -D overwrites the cached value.
     Espressif builds one idf tree per example under the dir, each with a cache full of
     idf.py's own untyped defines; -D is refused for that family (build_one), so there only
@@ -738,7 +737,7 @@ def build_one(board, examples, targets, defines, cflags, shared, fetch, verbose,
     owned = sorted({d.partition('=')[0].partition(':')[0] for d in defines} & set(BUILD_PY_OPTIONS))
     if owned:
         fail(f'-D {", ".join(owned)}: tools/build.py owns {"/".join(BUILD_PY_OPTIONS)}; name the board '
-             f'with --board and leave the build type, linker map and toolchain to it')
+             f'with --board and leave the build type and toolchain to it')
     ensure_deps(family, fetch, verbose)
     name = name or board
     if not shared:
@@ -778,7 +777,7 @@ def build_one(board, examples, targets, defines, cflags, shared, fetch, verbose,
     elif all(s == 'Skipped' for s in statuses):
         status, first = 'skipped', 'no example was built for this board (all rows Skipped)'
     elif 'Failed' in statuses or rc != 0:
-        status, first = 'failed', first_error(out) or rows[-1][1]
+        status, first = 'failed', tools_build.build_utils.first_error(out) or rows[-1][1]
     else:
         status, first = 'ok', ''
     # built counts only what this invocation wrote: a shared dir keeps older elfs. A
@@ -793,12 +792,6 @@ def build_one(board, examples, targets, defines, cflags, shared, fetch, verbose,
     return {'board': board, 'family': family, 'buildDir': build_dir, 'status': status,
             'built': len(fresh), 'okExamples': sorted({e.stem for e in verified}), 'firstError': first,
             'familyJson': catalog_line}
-
-
-def first_error(out):
-    lines = [l.strip() for l in out.splitlines()]
-    return next((l for l in lines if DIAGNOSTIC.search(l)), None) or \
-        next((l for l in lines if CMAKE_ERROR.match(l)), None)
 
 
 def run(cmd, verbose):

@@ -68,6 +68,8 @@ docs/examples/
 .claude/worktrees/
 .claude/skills/update-sponsor/state.json
 cmake-metrics/
+cmake-size-diff/
+cmake-code-size/
 # Directories fetched by tools/get_deps.py - not to be committed
 lib/CMSIS_5
 lib/CMSIS_6

@@ -181,12 +181,12 @@ def cmake_board(board, build_args, build_name, build_cflags, build_targets, exam
             elif not os.path.isdir(example_build_dir) and build_targets == ['examples-membrowse-upload']:
                 # 'all' never ran here (e.g. no code change). Other families get their
                 # --identical upload from a cheap cmake configure; espressif's only
-                # equivalent is a full idf.py build, so call membrowse_report.py's
+                # equivalent is a full idf.py build, so call `membrowse_cli.py report`'s
                 # --identical path directly, which needs no elf or build dir.
                 name = example.split('/', 1)[1]
                 rcmd = run_cmd([
-                    sys.executable, os.path.join(os.path.dirname(__file__), 'membrowse_report.py'),
-                    '--build-dir', example_build_dir, '--ninja', 'ninja', '--target', name,
+                    sys.executable, os.path.join(os.path.dirname(__file__), 'membrowse_cli.py'), 'report',
+                    '--build-dir', example_build_dir, '--ninja', 'ninja',
                     '--elf', f'{example_build_dir}/{name}.elf',
                     '--target-name', f'{board}/{name}', '--upload',
                 ])

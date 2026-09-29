@@ -257,13 +257,6 @@ function(family_add_bloaty TARGET)
     DEPENDS ${TARGET}
     COMMAND ${BLOATY_EXE} ${OPTION_LIST} $<TARGET_FILE:${TARGET}>
     VERBATIM)
-
-  #set_property(TARGET ${TARGET}-bloaty PROPERTY FOLDER ${TARGET}-group)
-  # post build
-  #  add_custom_command(TARGET ${TARGET} POST_BUILD
-  #    COMMAND ${BLOATY_EXE} --csv ${OPTION_LIST} $<TARGET_FILE:${TARGET}> > ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}_bloaty.csv
-  #    VERBATIM
-  #    )
 endfunction()
 
 # Add linkermap target (https://github.com/hathach/linkermap)
@@ -273,22 +266,13 @@ function(family_add_linkermap TARGET)
     return()
   endif ()
 
-  set(OPTION "-j")
-  if (DEFINED LINKERMAP_OPTION)
-    string(APPEND OPTION " ${LINKERMAP_OPTION}")
-  endif ()
-  separate_arguments(OPTION_LIST UNIX_COMMAND ${OPTION})
+  separate_arguments(OPTION_LIST UNIX_COMMAND "${LINKERMAP_OPTION}")
 
   add_custom_target(${TARGET}-linkermap
     DEPENDS ${TARGET}
     COMMAND python ${LINKERMAP_PY} ${OPTION_LIST} $<TARGET_FILE:${TARGET}>.map
     VERBATIM
     )
-
-  if (NOT TARGET examples-linkermap)
-    add_custom_target(examples-linkermap)
-  endif ()
-  add_dependencies(examples-linkermap ${TARGET}-linkermap)
 endfunction()
 
 # Add membrowse target (installed with pip install membrowse). TARGET names the
@@ -302,7 +286,7 @@ function(family_add_membrowse TARGET)
     set(ELF_TARGET ${TARGET})
   endif ()
 
-  # For Ninja generator, tools/membrowse_report.py extracts linker scripts (with
+  # For Ninja generator, `tools/membrowse_cli.py report` extracts linker scripts (with
   # INCLUDE resolution) and --defsym symbols from the ninja build graph, then runs
   # `membrowse report` (looked up on PATH, see the script). It also handles
   # MEMBROWSE_API_KEY at build time (not here at configure time) so the key is never
@@ -313,12 +297,12 @@ function(family_add_membrowse TARGET)
     set(MEMBROWSE_ARGS
       --build-dir ${CMAKE_BINARY_DIR}
       --ninja ${CMAKE_MAKE_PROGRAM}
-      --target ${ELF_TARGET}
       --elf ${TARGET_ELF_PATH}
+      # membrowse history is keyed on this name (pinned by test_membrowse_cli): never rename
       --target-name ${BOARD}/${TARGET}
       )
     if (DEFINED MEMBROWSE_OPTION)
-      list(APPEND MEMBROWSE_ARGS --option "${MEMBROWSE_OPTION}")
+      list(APPEND MEMBROWSE_ARGS "--option=${MEMBROWSE_OPTION}")
     endif ()
     if (DEFINED MEMBROWSE_LD_OVERRIDE)
       list(APPEND MEMBROWSE_ARGS --ld ${MEMBROWSE_LD_OVERRIDE})
@@ -326,16 +310,15 @@ function(family_add_membrowse TARGET)
 
     add_custom_target(${TARGET}-membrowse
       DEPENDS ${ELF_TARGET}
-      COMMAND python ${TOP}/tools/membrowse_report.py ${MEMBROWSE_ARGS}
+      COMMAND python ${TOP}/tools/membrowse_cli.py report ${MEMBROWSE_ARGS}
       VERBATIM
       )
-    #set_property(TARGET ${TARGET}-membrowse PROPERTY FOLDER ${TARGET}-group)
 
     # No DEPENDS on ELF_TARGET here: CI's upload path must still run (as an
     # --identical metadata-only upload) for a commit that never rebuilt this elf,
     # so this target must never force a rebuild.
     add_custom_target(${TARGET}-membrowse-upload
-      COMMAND python ${TOP}/tools/membrowse_report.py ${MEMBROWSE_ARGS} --upload
+      COMMAND python ${TOP}/tools/membrowse_cli.py report ${MEMBROWSE_ARGS} --upload
       VERBATIM
       )
 
@@ -343,8 +326,6 @@ function(family_add_membrowse TARGET)
       add_custom_target(examples-membrowse-upload)
     endif ()
     add_dependencies(examples-membrowse-upload ${TARGET}-membrowse-upload)
-
-    #set_property(TARGET ${TARGET}-membrowse-upload PROPERTY FOLDER ${TARGET}-group)
   endif ()
 endfunction()
 
@@ -503,19 +484,10 @@ function(family_configure_common TARGET RTOS)
   endif ()
 
   if (NOT RTOS STREQUAL zephyr)
-    # Analyze size with bloaty and linkermap
     family_add_bloaty(${TARGET})
     family_add_linkermap(${TARGET})
     family_add_membrowse(${TARGET})
   endif ()
-
-  # run size after build
-#  find_program(SIZE_EXE ${CMAKE_SIZE})
-#  if(NOT ${SIZE_EXE} STREQUAL SIZE_EXE-NOTFOUND)
-#    add_custom_command(TARGET ${TARGET} POST_BUILD
-#      COMMAND ${SIZE_EXE} $<TARGET_FILE:${TARGET}>
-#      )
-#  endif ()
 endfunction()
 
 # Add tinyusb to target

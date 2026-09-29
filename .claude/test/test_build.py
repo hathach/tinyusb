@@ -168,16 +168,16 @@ class ResolveTest(unittest.TestCase):
 
     def test_a_membrowse_script_change_needs_its_own_target_not_a_default_sweep(self):
         # examples-membrowse-upload is a plain add_custom_target: `all` never runs
-        # tools/membrowse_report.py, so a green sweep is no evidence for it
-        r = 'tools/membrowse_report.py: membrowse build-time script -> full build matrix'
+        # tools/membrowse_cli.py, so a green sweep is no evidence for it
+        r = 'tools/membrowse_cli.py: membrowse build-time script -> full build matrix'
         built = [{'family': 'stm32f4', 'okExamples': ['cdc_msc']}]
         gap = (f'{r} (the default sweep builds `all`, which does not run '
                f'examples-membrowse-upload: rerun with -T all -T examples-membrowse-upload)')
-        self.assertEqual(build.coverage([r], ['tools/membrowse_report.py'], built)[1], [gap])
+        self.assertEqual(build.coverage([r], ['tools/membrowse_cli.py'], built)[1], [gap])
         # another -e/-T does not stand in for the target
-        self.assertEqual(build.coverage([r], ['tools/membrowse_report.py'], built,
+        self.assertEqual(build.coverage([r], ['tools/membrowse_cli.py'], built,
                                         chosen=True, targets=('all',))[1], [gap])
-        self.assertEqual(build.coverage([r], ['tools/membrowse_report.py'], built, chosen=True,
+        self.assertEqual(build.coverage([r], ['tools/membrowse_cli.py'], built, chosen=True,
                                         targets=('all', 'examples-membrowse-upload'))[1], [])
 
     def test_a_core_stack_path_needs_a_built_example_of_its_role(self):
@@ -191,7 +191,7 @@ class ResolveTest(unittest.TestCase):
         self.assertEqual(build.coverage(reasons, scope, dual)[1], [])
 
     def test_get_deps_edit_changing_no_entry_is_nothing_to_build(self):
-        r = 'tools/get_deps.py: no dep entry changed, no contribution'
+        r = 'tools/get_deps.py: no build-family dependency changed, no contribution'
         self.assertEqual(build.coverage([r], ['tools/get_deps.py'], []), ([r], []))
 
     def test_non_code_paths_beside_code_do_not_fail_the_scope(self):
@@ -413,7 +413,18 @@ class VerdictTest(unittest.TestCase):
 
     def test_cmake_error_is_the_first_error_when_nothing_compiled(self):
         out = 'CMake Error at hw/bsp/nrf/family.cmake:59 (add_library):\n  No SOURCES\n' + row('b', 'all', FAILED)
-        self.assertEqual(self.build(1, out)['firstError'], 'CMake Error at hw/bsp/nrf/family.cmake:59 (add_library):')
+        self.assertEqual(self.build(1, out)['firstError'],
+                         'CMake Error at hw/bsp/nrf/family.cmake:59 (add_library): No SOURCES')
+
+    def test_a_linker_overflow_is_the_first_error_not_collect2(self):
+        out = ("FAILED: a.elf\nld: region `FLASH' overflowed by 12 bytes\n"
+               'collect2: error: ld returned 1 exit status\n' + row('b', 'all', FAILED))
+        self.assertEqual(self.build(1, out)['firstError'], "ld: region `FLASH' overflowed by 12 bytes")
+
+    def test_a_missing_library_is_the_first_error(self):
+        out = ('FAILED: a.elf\n/opt/arm/bin/ld: cannot find -lfoo: No such file or directory\n'
+               'collect2: error: ld returned 1 exit status\n' + row('b', 'all', FAILED))
+        self.assertEqual(self.build(1, out)['firstError'], '/opt/arm/bin/ld: cannot find -lfoo: No such file or directory')
 
     def test_all_skipped_is_not_a_pass(self):
         r = self.build(0, row('stm32f407disco', 'examples (PR filter)', SKIPPED))
@@ -432,6 +443,17 @@ class VerdictTest(unittest.TestCase):
         cmd = run.call_args[0][0]
         self.assertEqual(cmd[cmd.index('-D') + 1], 'LOG=2')
         self.assertIn('--cflag=-DCFG_TUH_CDC_FTDI_LATENCY=16', cmd)
+
+    def test_build_py_options_are_what_tools_build_configures_with(self):
+        failed = mock.Mock(returncode=1)
+        with mock.patch.object(build.tools_build, 'run_cmd', return_value=failed) as run_cmd, \
+             mock.patch.object(build.tools_build, 'find_family', return_value='stm32f4'), \
+             mock.patch('sys.stdout'):
+            # main() appends TOOLCHAIN= to every board's build args
+            build.tools_build.cmake_board('stm32f407disco', ['-DTOOLCHAIN=gcc'], None, [], ['all'])
+        configure = run_cmd.call_args[0][0]
+        self.assertEqual({a[2:].partition('=')[0] for a in configure if a.startswith('-D')},
+                         set(build.BUILD_PY_OPTIONS))
 
     def test_a_define_on_a_build_owned_key_is_refused(self):
         # tools/build.py passes -DBOARD first, so a caller's would win and the artifacts
