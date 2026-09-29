@@ -1588,12 +1588,6 @@ def test_device_usbtest(board):
         # in-band recovery is off (--skip-flash, a flasher failing convoy_safe, a terminal
         # wedge) that reflash is the only thing left to unpoison the DUT for the boards
         # that share its controller.
-        # No JSON to read the verdict from, so fall back to the text: a battery SIGKILLed
-        # mid-hang still says HUNG on stdout, and this raise happens BEFORE the latch below
-        # -- which is why the outer-timeout case, the likeliest real wedge, never latched.
-        if 'HUNG' in out:
-            board_wedged = (f'{board["name"]}: usbtest reported a hang and was killed '
-                            f'before it could report a verdict')
         raise TestFail(f'usbtest did not run: {detail}',
                        metric=f'{hil_report.REPORT_CELL["fail"]} 0/30')
 

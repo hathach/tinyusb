@@ -1417,10 +1417,9 @@ class WedgedBoardCosts(unittest.TestCase):
 
 class WedgeVerdictReachesTheLatch(unittest.TestCase):
     """usbtest computes `unrecovered_hang` but never reported it, so hil_test inferred the
-    latch from `not recovery and 'HUNG' in out` and missed three cases: recovery ran and
-    FAILED (convoy-safe boards -- max32666fthr HUNG in the 08-14 run), the `ambiguous`
-    abort (which sets the flag but leaves no case at status HUNG), and an unparsable JSON,
-    which is the outer-timeout kill and the case where a wedge is most likely."""
+    latch from `not recovery and 'HUNG' in out` and missed two cases: recovery ran and
+    FAILED (convoy-safe boards -- max32666fthr HUNG in the 08-14 run), and the `ambiguous`
+    abort (which sets the flag but leaves no case at status HUNG)."""
 
     def setUp(self):
         self.addCleanup(setattr, hil_test, 'board_wedged', hil_test.board_wedged)
@@ -1444,10 +1443,11 @@ class WedgeVerdictReachesTheLatch(unittest.TestCase):
         hil_lock.usbtest_permit = contextmanager(lambda uid: iter([None]))
         board = {'name': 'b', 'uid': 'U',
                  'flasher': flasher or {'name': 'openocd', 'vid_pid': '0x1 0x2'}}
+        self.raised = None
         try:
             hil_test.test_device_usbtest(board)
-        except Exception:
-            pass
+        except Exception as e:  # noqa: BLE001 - the verdict raises; tests assert the latch
+            self.raised = e
         return hil_test.board_wedged
 
     def test_a_reported_wedge_latches_even_when_recovery_ran(self):
@@ -1468,9 +1468,12 @@ class WedgeVerdictReachesTheLatch(unittest.TestCase):
         self.assertFalse(self._run(js, flasher={'name': 'stlink', 'uid': 'X'}),
                          'a cleared holder latched the board as wedged')
 
-    def test_an_unparseable_battery_that_mentions_HUNG_still_latches(self):
-        """rc 124 mid-print: no JSON to read, and this is the likeliest real wedge."""
-        self.assertTrue(self._run('TEST 10 HUNG: device wedged mid-transfer', rc=124))
+    def test_an_unparseable_battery_does_not_latch(self):
+        """Only the battery's JSON verdict latches: a truncated one may describe a hang the
+        recovery already cleared, so text alone never latches."""
+        self.assertFalse(self._run('{"cases": [{"num": 10, "status": "HUNG"', rc=124))
+        self.assertIsInstance(self.raised, hil_test.TestFail)
+        self.assertIn('usbtest did not run', str(self.raised))
 
 
 class WedgedBoardCannotReportAPass(unittest.TestCase):
