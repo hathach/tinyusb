@@ -174,7 +174,6 @@ SYSFS_READ_GRACE = 2.0        # default bound on one attribute read; see read_sy
 _stranded: dict = {}
 _strand_hits: dict = {}       # path -> how many times it has stranded, ever
 _strand_lock = threading.Lock()
-_ever_stranded = False        # sticky: a later re-enumeration clears _stranded, not this
 
 # Each strand costs a thread AND an fd for the life of the process -- on sysfs the open()
 # SUCCEEDS and only the read blocks. A device that FLAPS while still wedged re-enumerates,
@@ -191,15 +190,6 @@ def path_stranded(path: str) -> bool:
     """
     with _strand_lock:
         return path in _stranded
-
-
-def sysfs_stranded() -> bool:
-    """Whether any bounded read in this process has given up, ever.
-
-    hil_pool_check's caveat needs this, not path_stranded(): a concurrent board check can
-    clear a path's memo before the scan that dropped the device looks at it.
-    """
-    return _ever_stranded
 
 
 def read_sysfs(path: str, timeout: float = SYSFS_READ_GRACE) -> str | None:
@@ -258,8 +248,6 @@ def read_sysfs(path: str, timeout: float = SYSFS_READ_GRACE) -> str | None:
     # `out` FIRST: a reader can deposit its value and still be alive for a moment
     # afterwards, and counting that as a strand blacklists a healthy attribute forever
     if t.is_alive() and 'v' not in out:
-        global _ever_stranded
-        _ever_stranded = True
         if ino is None:
             # the pre-read stat lost a race the open then won -- the node was replaced
             # between them. Re-stat now: the reader is blocked on whatever node exists,

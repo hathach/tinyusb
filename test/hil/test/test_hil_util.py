@@ -253,7 +253,6 @@ class BoundedReadForGuardlessCallers(unittest.TestCase):
         for name in ('_stranded', '_strand_hits'):
             self.addCleanup(setattr, hil_util, name, dict(getattr(hil_util, name)))
             getattr(hil_util, name).clear()
-        self.addCleanup(setattr, hil_util, '_ever_stranded', hil_util._ever_stranded)
         self.td = TemporaryDirectory()
         self.addCleanup(self.td.cleanup)
         self.fifo = os.path.join(self.td.name, 'serial')
@@ -398,59 +397,6 @@ class BoundedReadForGuardlessCallers(unittest.TestCase):
         Path(good).write_text('3\n')
         self.assertEqual(self.hil_util.read_sysfs(good), '3')
         self.assertIsNone(self.hil_util.read_sysfs(os.path.join(self.td.name, 'nope')))
-
-
-class PoolCheckStrandCaveat(unittest.TestCase):
-    """A device whose bounded `serial` read gave up is absent from scan_usb, so its row
-    says "probe MISSING"/"off bus" for hardware that may be present; the scan says so once."""
-
-    def setUp(self):
-        from helper import hil_pool_check
-        self.pc = hil_pool_check
-        for mod, name in ((hil_util, 'usb_scan'), (hil_util, 'sysfs_stranded'),
-                          (hil_pool_check, 'say'), (hil_pool_check, 'stranded_seen')):
-            self.addCleanup(setattr, mod, name, getattr(mod, name))
-        hil_util.usb_scan = lambda **k: []
-        hil_pool_check.stranded_seen = False
-        self.said = []
-        hil_pool_check.say = self.said.append
-
-    def test_a_stranded_read_warns_once(self):
-        hil_util.sysfs_stranded = lambda: True
-        self.pc.scan_usb()
-        self.pc.scan_usb()
-        self.assertEqual(len(self.said), 1, self.said)
-        self.assertIn('present but unreadable', self.said[0])
-        self.assertTrue(self.pc.stranded_seen)
-
-    def test_a_strand_cleared_before_the_check_still_warns(self):
-        # a concurrent board check re-reads the path after a re-enumeration, popping the
-        # per-path memo between usb_scan returning and the caveat check
-        for name in ('_stranded', '_strand_hits'):
-            self.addCleanup(setattr, hil_util, name, dict(getattr(hil_util, name)))
-        self.addCleanup(setattr, hil_util, '_ever_stranded', hil_util._ever_stranded)
-        hil_util._ever_stranded = False
-        td = TemporaryDirectory()
-        self.addCleanup(td.cleanup)
-        serial = os.path.join(td.name, 'serial')
-        os.mkfifo(serial)
-
-        def scan(**k):
-            hil_util.read_sysfs(serial, timeout=0.05)     # gives up: the device drops out
-            os.unlink(serial)
-            Path(serial).write_text('X\n')               # a new inode is the all-clear
-            hil_util.read_sysfs(serial)
-            return []
-        hil_util.usb_scan = scan
-        self.pc.scan_usb()
-        self.assertEqual(len(self.said), 1, self.said)
-        self.assertTrue(hil_util.sysfs_stranded(), 'the footer would drop the caveat')
-
-    def test_no_strand_no_warning(self):
-        hil_util.sysfs_stranded = lambda: False
-        self.pc.scan_usb()
-        self.assertEqual(self.said, [])
-        self.assertFalse(self.pc.stranded_seen)
 
 
 class PoolCheckEspIdfBuild(unittest.TestCase):
