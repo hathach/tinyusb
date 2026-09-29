@@ -468,20 +468,22 @@ class KillChildren(unittest.TestCase):
         p = subprocess.Popen(['sh', '-c', script], stdout=subprocess.PIPE, text=True, **kw)
         self.addCleanup(p.wait)
         self.addCleanup(p.stdout.close)
-        self.addCleanup(self.kill, p.pid)
+        self.addCleanup(p.kill)   # skips a child already reaped, whose pid may be reused
         return p
 
     def echoed(self, p):
         """The pid of the background process p's script echoes."""
         pid = int(p.stdout.readline())
         self.assertGreater(pid, 1)   # kill(0) or kill(-1) would hit far more than this test
-        self.addCleanup(self.kill, pid)
+        pidfd = os.pidfd_open(pid)   # pins this process: once reaped, a signal fails, never hits a reused pid
+        self.addCleanup(os.close, pidfd)
+        self.addCleanup(self.kill, pidfd)
         return pid
 
     @staticmethod
-    def kill(pid):
+    def kill(pidfd):
         try:
-            os.kill(pid, signal.SIGKILL)
+            signal.pidfd_send_signal(pidfd, signal.SIGKILL)
         except ProcessLookupError:
             pass
 
