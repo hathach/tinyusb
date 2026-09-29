@@ -467,7 +467,7 @@ def check_board(board: dict, args) -> dict:
             example = ex
             break
     bt_fw = None if args.no_park else find_image(board, 'device/board_test')[1]
-    fresh = False
+    fresh = no_idf = False
     # the second candidate covers a preferred example the build system skips for this board
     wanted = buildable[:2] if example is None else []
     if not args.no_park and bt_fw is None:
@@ -481,14 +481,19 @@ def check_board(board: dict, args) -> dict:
         note.append('not built: a boards-skip board needs prebuilt firmware')
     elif wanted:
         # builds are long and run BEFORE locking (park must never hold the flock through
-        # one); skip a board CI holds right now. is_locked reads the holder record only:
-        # probing the flock itself would make a concurrent CI acquire fail spuriously
+        # one), so a board CI holds right now is spared one. The holder record decides only
+        # that: a flock probe of a FREE board could fail a CI acquire racing it, and the
+        # flock, not a possibly stale record, decides the row
+        built = None
         if hil_lock.is_locked(name):
-            row['flash'], row['status'] = '🔒 locked', 'locked'
-            note.append(json.dumps(hil_lock.read_record(name)))
-            say(f'{name:26} locked: {note[-1]}')
-            return row
-        built = build(board, wanted, args.config_path, note)
+            lk = lock_board(name)
+            if isinstance(lk, str):
+                return not_locked(row, lk)
+            unlock_board(lk)
+            note.append('build skipped: a stale holder record said the board was held')
+        else:
+            no_idf = idf_env_missing(board)
+            built = build(board, wanted, args.config_path, note)
         if built is not None:
             if bt_fw is None and not args.no_park:
                 bt_fw = find_image(board, 'device/board_test', ['cmake-build'], built)[1]
@@ -546,22 +551,23 @@ def check_board(board: dict, args) -> dict:
             # teardown for EVERY path that attempted a flash (a failed programmer op can
             # still have erased/half-written the target), while the lock is still held
             if not args.no_park:
-                park_board(board, kind, bt_fw, row, note)
+                park_board(board, kind, bt_fw, row, note, no_idf)
     finally:
         unlock_board(lk)
 
 
-def park_board(board: dict, kind: str, fw, row: dict, note: list) -> None:
+def park_board(board: dict, kind: str, fw, row: dict, note: list, no_idf: bool = False) -> None:
     """Flash board_test and VERIFY it took: board_test never enumerates USB, so a device
     board's cafe device must drop off the bus, and a host board must answer with
     board_test's own output. A board left unparked turns an ok row flash-failed (a
     'failed' verdict is kept: it is the more diagnostic one), except an ESP board that
-    could not build board_test for want of the IDF env — noted, not a board fault."""
+    could not build board_test for want of the IDF env (`no_idf`) — noted, not a board
+    fault."""
     # capture BEFORE the park flash: uid-disappearance only verifies the park if the
     # device was on the bus to begin with
     on_bus_before = kind != 'host' and find_device(board['uid']) is not None
     if fw is None:
-        if idf_env_missing(board):
+        if no_idf:
             note.append('park skipped (no ESP-IDF env)')
         else:
             # --no-build disables builds, not parking (--no-park is that opt-out): a board

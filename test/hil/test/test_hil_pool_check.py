@@ -203,15 +203,29 @@ class BuildPeek(unittest.TestCase):
         patch(self, hil_pool_check, 'find_usb', lambda uid: '1-1')
         patch(self, hil_pool_check, 'find_image', lambda *a: (None, None))
         patch(self, hil_pool_check, 'build', lambda *a: self.fail('built for a held board'))
-        self.args = types.SimpleNamespace(scan_only=False, no_build=False, no_park=False, parked=set())
+        self.args = types.SimpleNamespace(scan_only=False, no_build=False, no_park=False, parked=set(),
+                                          config_path='roster.json')
 
-    def test_a_held_board_is_not_built_and_its_flock_is_not_probed(self):
-        with open(hil_lock.lock_path('b'), 'w') as f:
-            json.dump({'pid': os.getpid(), 'reason': 'hil_test.py'}, f)
-        patch(self, hil_lock, 'flock_nb', lambda name: self.fail('probed the flock CI may be taking'))
+    def test_a_held_board_is_not_built(self):
+        held = hil_lock.flock_nb('b')
+        self.addCleanup(held.close)
+        hil_lock.write_record(held, 'hil_test.py')
         row = hil_pool_check.check_board(dict(BOARD, tests={'device': True}), self.args)
         self.assertEqual(row['status'], 'locked')
         self.assertIn('hil_test.py', row['note'][-1])
+
+    def test_a_stale_record_skips_the_build_but_not_the_verdict(self):
+        with open(hil_lock.lock_path('b'), 'w') as f:
+            json.dump({'pid': os.getpid(), 'reason': 'hil_test.py'}, f)   # no flock behind it
+        row = hil_pool_check.check_board(dict(BOARD, tests={'device': True}), self.args)
+        self.assertEqual(row['status'], 'flash-failed')
+        self.assertIn('stale holder record', '; '.join(row['note']))
+
+    def test_a_free_board_is_built_without_probing_its_flock_first(self):
+        patch(self, hil_pool_check, 'build', lambda *a: None)
+        patch(self, hil_lock, 'flock_nb', lambda name: self.fail('probed the flock a CI acquire may race'))
+        row = hil_pool_check.check_board(dict(BOARD, tests={'device': True}), self.args)
+        self.assertEqual(row['status'], 'flash-failed')
 
 
 class ParkedBoard(unittest.TestCase):
@@ -254,6 +268,15 @@ class Park(unittest.TestCase):
         note, row = self.park(on_bus_after=True)
         self.assertEqual(row['status'], 'flash-failed')
         self.assertIn('park unverified', note[-1])
+
+    def test_a_missing_board_test_is_excused_only_when_the_idf_env_blocked_its_build(self):
+        note, row = [], {'status': 'ok'}
+        hil_pool_check.park_board(BOARD, 'device', None, row, note, no_idf=True)
+        self.assertEqual((row['status'], note[-1]), ('ok', 'park skipped (no ESP-IDF env)'))
+        note, row = [], {'status': 'ok'}
+        patch(self, hil_pool_check, 'find_device', lambda uid: None)
+        hil_pool_check.park_board(BOARD, 'device', None, row, note)
+        self.assertEqual((row['status'], note[-1]), ('flash-failed', 'unparked: no board_test firmware'))
 
     def test_a_failed_park_flash_fails_an_ok_row(self):
         note, row = self.park(on_bus_after=True, flash_rc=1)
