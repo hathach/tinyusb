@@ -9,6 +9,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
@@ -349,6 +350,9 @@ class Sigterm(unittest.TestCase):
         self.addCleanup(signal.signal, signal.SIGTERM, signal.getsignal(signal.SIGTERM))
         self.previous = lambda signum, frame: None
         signal.signal(signal.SIGTERM, self.previous)
+        patcher = mock.patch.object(run_case, 'kill_children')   # the real one SIGKILLs our children
+        self.kill_children = patcher.start()
+        self.addCleanup(patcher.stop)
 
     def terminated_mid_run(self, rig):
         cwd = os.getcwd()
@@ -396,6 +400,7 @@ class Sigterm(unittest.TestCase):
         with self.assertRaises(run_case.Terminated):
             run_case.on_sigterm(signal.SIGTERM, None)
         self.assertIs(signal.getsignal(signal.SIGTERM), signal.SIG_IGN)
+        self.kill_children.assert_called_once_with()
 
 
 class Battery(unittest.TestCase):
@@ -438,6 +443,98 @@ class Battery(unittest.TestCase):
                 data, _, note = run_case.battery(board, '/fw/u.elf', [29], 60)
             self.assertIsNone(data)
             self.assertRegex(note, r'^usbtest.py killed at its \d+s bound \(rc 124\)$')
+
+
+class OnlyThese:
+    """/proc narrowed to the given pids, so the real kill_children cannot reach anything else."""
+
+    def __init__(self, *pids):
+        self.pids = pids
+
+    def glob(self, pattern):
+        return [Path('/proc') / str(pid) for pid in self.pids]
+
+
+def gone(pid):
+    """pid has exited and been reaped, or is a zombie waiting for its new parent to reap it."""
+    try:
+        return Path(f'/proc/{pid}/stat').read_text().rsplit(')', 1)[1].split()[0] == 'Z'
+    except OSError:
+        return True
+
+
+class KillChildren(unittest.TestCase):
+    def spawn(self, script, **kw):
+        p = subprocess.Popen(['sh', '-c', script], stdout=subprocess.PIPE, text=True, **kw)
+        self.addCleanup(p.wait)
+        self.addCleanup(p.stdout.close)
+        self.addCleanup(self.kill, p.pid)
+        return p
+
+    def echoed(self, p):
+        """The pid of the background process p's script echoes."""
+        pid = int(p.stdout.readline())
+        self.assertGreater(pid, 1)   # kill(0) or kill(-1) would hit far more than this test
+        self.addCleanup(self.kill, pid)
+        return pid
+
+    @staticmethod
+    def kill(pid):
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+    def wait_gone(self, pid):
+        for _ in range(50):
+            if gone(pid):
+                return True
+            time.sleep(0.1)
+        return False
+
+    def test_children_and_the_session_die_others_live(self):
+        leader = self.spawn('sleep 30 >/dev/null & echo $!; wait', start_new_session=True)
+        grandchild = self.echoed(leader)
+        plain = self.spawn('exec sleep 30')
+        helper = self.spawn('sleep 30 >/dev/null & echo $!')
+        stranger = self.echoed(helper)
+        helper.wait(timeout=5)                   # stranger is now nobody's child of ours
+        with mock.patch.object(run_case, 'PROC', OnlyThese(leader.pid, grandchild, plain.pid, stranger)):
+            run_case.kill_children()
+        self.assertEqual((leader.wait(timeout=5), plain.wait(timeout=5)), (-9, -9))
+        self.assertTrue(self.wait_gone(grandchild))
+        self.assertFalse(gone(stranger))
+
+    def test_a_permission_error_is_swallowed(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / '31').mkdir()
+            (Path(d) / '31' / 'stat').write_text(f'31 (a) b) S {os.getpid()} 31 0\n')
+            denied = mock.Mock(side_effect=PermissionError)
+            with mock.patch.object(run_case, 'PROC', Path(d)), \
+                    mock.patch.object(run_case.os, 'killpg', denied), \
+                    mock.patch.object(run_case.os, 'kill', denied):
+                run_case.kill_children()
+        self.assertEqual(denied.call_args_list, [mock.call(31, signal.SIGKILL)] * 2)
+
+
+class ArgvPeer(unittest.TestCase):
+    def test_a_peer_is_the_program_or_the_script_python_runs(self):
+        for argv, peer in (
+                (['/home/u/testusb', '-D', 'x'], 'testusb'),
+                (['sudo', '-n', 'testusb', '-t', '9'], 'testusb'),
+                (['python3', 'test/hil/usbtest.py'], 'usbtest.py'),
+                (['sudo', '-n', 'python3', '/r/test/hil/hil_test.py', 'c.json'], 'hil_test.py'),
+                (['timeout', '900', 'python3', 'run_case.py'], 'run_case.py'),
+                (['python3', '-W', 'ignore', '-u', 'test/hil/usbtest.py', '--json'], 'usbtest.py'),
+                (['git', 'diff', '--', 'test/hil/usbtest.py'], None),
+                (['vim', '-o', 'a', 'b', 'run_case.py'], None),
+                (['sed', '-n', '1p', 'run_case.py'], None),
+                (['python3', 'other.py', 'usbtest.py'], None),
+                (['python3', '-c', 'pass', 'usbtest.py'], None),
+                (['python3'], None),
+                ([''], None)):
+            with self.subTest(argv=argv):
+                self.assertEqual(run_case.argv_peer(argv), peer)
 
 
 class LivePeers(unittest.TestCase):

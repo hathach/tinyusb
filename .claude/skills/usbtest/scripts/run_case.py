@@ -168,15 +168,25 @@ def live_peers():
 
 
 def argv_peer(argv):
-    """The PEERS name argv runs: testusb, or the first script past wrappers (sudo -n, timeout N)
-    and interpreter options (python3 -W ignore -u); None once another script or -c/-m ends it."""
-    for a in argv:
-        name = os.path.basename(a)
-        if name in PEERS:
-            return name
-        if name.endswith('.py') or a in ('-c', '-m'):
+    """The PEERS name argv runs: its program past wrappers (sudo, timeout, env, nice) and their
+    options, numbers and VAR=value, or for python the script past its options; -c/-m run none."""
+    rest = iter(argv)
+    prog = next((a for a in rest if not (os.path.basename(a) in ('sudo', 'timeout', 'env', 'nice')
+                                         or a.startswith('-') or '=' in a
+                                         or a.rstrip('smhd').replace('.', '', 1).isdigit())), '')
+    if os.path.basename(prog).rstrip('0123456789.') == 'python':
+        for a in rest:
+            if a in ('-c', '-m'):
+                return None
+            if a in ('-W', '-X'):   # the python options that take a separate value
+                next(rest, None)
+            elif not a.startswith('-'):
+                prog = a
+                break
+        else:
             return None
-    return None
+    name = os.path.basename(prog)
+    return name if name in PEERS else None
 
 
 def check_peers():
