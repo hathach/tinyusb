@@ -73,7 +73,10 @@ def tag_for_release(release):
 
 def fetch(tag, cache):
     out = cache / tag
-    out.mkdir(parents=True, exist_ok=True)
+    try:
+        out.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        fail(f'cannot create the cache {out}: {e}')
     paths = []
     for rel in FILES:
         dest = out / Path(rel).name
@@ -89,8 +92,11 @@ def fetch(tag, cache):
             if not data:
                 fail(f'{rel} at {tag} came back empty ({url})')
             tmp = dest.with_suffix('.part')
-            tmp.write_bytes(data)
-            tmp.replace(dest)
+            try:
+                tmp.write_bytes(data)
+                tmp.replace(dest)
+            except OSError as e:
+                fail(f'cannot write {dest}: {e}')
         paths.append(dest)
     return paths
 

@@ -1,14 +1,18 @@
 """kernel_src.py against a local HTTP server standing in for git.kernel.org and a trimmed
 usbtest.c fixture. Plumbing only: the real fetch is proved by a run against kernel.org."""
+import http.client
 import http.server
 import importlib.util
+import io
 import os
 import subprocess
 import sys
 import tempfile
 import threading
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
+from unittest import mock
 
 REPO = Path(__file__).resolve().parents[2]
 SCRIPT = REPO / '.claude' / 'skills' / 'usbtest' / 'scripts' / 'kernel_src.py'
@@ -209,6 +213,35 @@ class Cli(unittest.TestCase):
         r = self.run_script('--tag', 'v6.12.107')
         self.assertEqual(r.returncode, 1)
         self.assertIn('came back empty', r.stderr)
+
+    def test_a_truncated_response_exits_1(self):
+        class Truncated:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def read(self):
+                raise http.client.IncompleteRead(b'part', 100)
+
+        err = io.StringIO()
+        with mock.patch.object(kernel_src.urllib.request, 'urlopen', lambda req, timeout: Truncated()), \
+                redirect_stderr(err), self.assertRaises(SystemExit) as e:
+            kernel_src.fetch('v6.12.107', self.tmp / 'cache')
+        self.assertEqual(e.exception.code, 1)
+        self.assertIn('error: cannot fetch drivers/usb/misc/usbtest.c', err.getvalue())
+
+    def test_cache_write_errors_exit_1(self):
+        (self.tmp / 'file').write_text('')
+        r = self.run_script('--tag', 'v6.12.107', '--cache', str(self.tmp / 'file'))
+        self.assertEqual(r.returncode, 1, r.stderr)
+        self.assertIn('error: cannot create the cache', r.stderr)
+        (self.tmp / 'cache' / 'v6.12.107' / 'usbtest.part').mkdir(parents=True)   # write_bytes fails
+        r = self.run_script('--tag', 'v6.12.107')
+        self.assertEqual(r.returncode, 1, r.stderr)
+        self.assertIn('error: cannot write', r.stderr)
+        self.assertNotIn('Traceback', r.stderr)
 
     def test_usage_errors_exit_2_before_any_fetch(self):
         for args in (['--release', '6.8.0-45-generic'], ['--tag', '6.12.107'], ['--tag', 'v6/../x'],
