@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import json
 import re
+import signal
 import subprocess
+import time
 from pathlib import Path
 
 import os
@@ -33,28 +35,47 @@ _VID_PID_WARNED: set = set()   # one warning per probe, not per command
 # -------------------------------------------------------------
 # Flashing firmware
 # -------------------------------------------------------------
+# libjlinkarm.so (V9.66 and V9.78) corrupts its heap on on-board J-Link probes (OB, LPC-Link 2,
+# reflashed ST-Link) and dies by SIGSEGV or SIGABRT ("double free"), 3 of 810 runs on feather's OB.
+# Every crash seen came right after reading the probe's S/N, before target access, so the whole
+# script can rerun. rc is 128+N through the shell, -N when it execs directly.
+JLINK_CRASH_RCS = {128 + signal.SIGSEGV, -signal.SIGSEGV, 128 + signal.SIGABRT, -signal.SIGABRT}
+JLINK_CRASH_RETRIES = 2
+
+
+def _run_jlink(flasher: dict, command_file: Path, timeout=None) -> subprocess.CompletedProcess:
+    cmd = (f'JLinkExe -USB {flasher["uid"]} {flasher["args"]} -if swd -JTAGConf -1,-1 -speed auto '
+           f'-NoGui 1 -ExitOnError 1 -CommandFile {command_file}')
+    if timeout is None:
+        timeout = hil_util.CMD_TIMEOUT
+    deadline = time.monotonic() + timeout
+    ret = hil_util.run_cmd(cmd, timeout=timeout)
+    for _ in range(JLINK_CRASH_RETRIES):
+        left = deadline - time.monotonic()
+        if ret.returncode not in JLINK_CRASH_RCS or left <= 0:
+            break
+        print(f'JLinkExe -USB {flasher["uid"]} crashed (rc {ret.returncode}), rerunning', flush=True)
+        ret = hil_util.run_cmd(cmd, timeout=left)
+    return ret
+
+
 def flash_jlink(board: Board, firmware: str, timeout=None) -> subprocess.CompletedProcess:
-    flasher = board['flasher']
     script = ['halt', 'r', f'loadfile {firmware}', 'r', 'go', 'exit']
     f_jlink = Path(f'{board["name"]}_{Path(firmware).name}.jlink')
     with f_jlink.open('w') as f:
         f.writelines(f'{s}\n' for s in script)
-    ret = hil_util.run_cmd(f'JLinkExe -USB {flasher["uid"]} {flasher["args"]} -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile {f_jlink}',
-                           timeout=timeout)
+    ret = _run_jlink(board['flasher'], f_jlink, timeout)
     f_jlink.unlink(missing_ok=True)
     return ret
 
 
 def reset_jlink(board: Board, timeout=None) -> subprocess.CompletedProcess:
-    flasher = board['flasher']
     script = ['halt', 'r', 'go', 'exit']
     f_jlink = Path(f'{board["name"]}_reset.jlink')
     if not f_jlink.exists():
         with f_jlink.open('w') as f:
             f.writelines(f'{s}\n' for s in script)
-    ret = hil_util.run_cmd(f'JLinkExe -USB {flasher["uid"]} {flasher["args"]} -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile {f_jlink}',
-                           timeout=timeout)
-    return ret
+    return _run_jlink(board['flasher'], f_jlink, timeout)
 
 
 def flash_stlink(board, firmware, timeout=None):

@@ -856,6 +856,45 @@ class FlasherRecoverEntry(unittest.TestCase):
         self.assertIn('JLinkExe -USB S1', cmd)
         self.assertEqual(kw.get('timeout'), 11)
 
+    @staticmethod
+    def _jlink_runs(fn, rcs, *args, took=0, **kw):
+        """Run fn with run_cmd answering rcs in turn, each call taking `took` s on a fake clock;
+        return the rc and each call's timeout."""
+        from unittest import mock
+        timeouts, rc_iter = [], iter(rcs)
+        now = [0.0]
+
+        def fake(cmd, **k):
+            timeouts.append(k.get('timeout'))
+            now[0] += took
+            return subprocess.CompletedProcess(cmd, next(rc_iter), '', '')
+        cwd = os.getcwd()
+        with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()), \
+                mock.patch.object(hil_flash.hil_util, 'run_cmd', fake), \
+                mock.patch.object(hil_flash, 'time', types.SimpleNamespace(monotonic=lambda: now[0])):
+            os.chdir(d)
+            try:
+                ret = fn(*args, **kw)
+            finally:
+                os.chdir(cwd)
+        return ret.returncode, timeouts
+
+    def test_jlink_reruns_a_crash_within_the_callers_bound(self):
+        board = {'name': 'b', 'flasher': {'name': 'jlink', 'uid': 'S1', 'args': '-device x'}}
+        self.assertEqual(self._jlink_runs(hil_flash.flash_jlink, [139, -6, 0], board, '/tmp/fw.hex',
+                                          timeout=30, took=10), (0, [30, 20, 10]))
+        # no caller bound: the three runs share run_cmd's default one
+        cap = hil_flash.hil_util.CMD_TIMEOUT
+        self.assertEqual(self._jlink_runs(hil_flash.reset_jlink, [134, -11, 139], board, took=1),
+                         (139, [cap, cap - 1, cap - 2]))
+        # the bound is spent: no rerun
+        self.assertEqual(self._jlink_runs(hil_flash.reset_jlink, [139], board, timeout=5, took=5), (139, [5]))
+
+    def test_jlink_does_not_rerun_other_failures(self):
+        board = {'name': 'b', 'flasher': {'name': 'jlink', 'uid': 'S1', 'args': '-device x'}}
+        for rc in (1, 124):
+            self.assertEqual(self._jlink_runs(hil_flash.reset_jlink, [rc], board, timeout=5), (rc, [5]))
+
     def test_reset_stlink_forwards_the_callers_bound(self):
         """reset_stlink forwards timeout= to run_cmd; the default stays run_cmd's."""
         board = {'name': 'b', 'flasher': {'name': 'stlink', 'uid': 'S1'}}
