@@ -214,12 +214,14 @@ class BuildPeek(unittest.TestCase):
         self.assertEqual(row['status'], 'locked')
         self.assertIn('hil_test.py', row['note'][-1])
 
-    def test_a_stale_record_skips_the_build_but_not_the_verdict(self):
+    def test_a_stale_record_still_builds(self):
         with open(hil_lock.lock_path('b'), 'w') as f:
             json.dump({'pid': os.getpid(), 'reason': 'hil_test.py'}, f)   # no flock behind it
+        builds = []
+        patch(self, hil_pool_check, 'build', lambda *a: builds.append(a) and None)
         row = hil_pool_check.check_board(dict(BOARD, tests={'device': True}), self.args)
-        self.assertEqual(row['status'], 'flash-failed')
-        self.assertIn('stale holder record', '; '.join(row['note']))
+        self.assertEqual(len(builds), 1)
+        self.assertNotEqual(row['status'], 'locked')
 
     def test_a_free_board_is_built_without_probing_its_flock_first(self):
         patch(self, hil_pool_check, 'build', lambda *a: None)

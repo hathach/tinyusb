@@ -484,16 +484,13 @@ def check_board(board: dict, args) -> dict:
         # one), so a board CI holds right now is spared one. The holder record decides only
         # that: a flock probe of a FREE board could fail a CI acquire racing it, and the
         # flock, not a possibly stale record, decides the row
-        built = None
         if hil_lock.is_locked(name):
             lk = lock_board(name)
             if isinstance(lk, str):
                 return not_locked(row, lk)
-            unlock_board(lk)
-            note.append('build skipped: a stale holder record said the board was held')
-        else:
-            no_idf = idf_env_missing(board)
-            built = build(board, wanted, args.config_path, note)
+            unlock_board(lk)  # a stale record: the board is free
+        no_idf = idf_env_missing(board)
+        built = build(board, wanted, args.config_path, note)
         if built is not None:
             if bt_fw is None and not args.no_park:
                 bt_fw = find_image(board, 'device/board_test', ['cmake-build'], built)[1]
