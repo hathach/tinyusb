@@ -236,7 +236,7 @@ def call_flasher(fn, *fn_args) -> tuple[int, str]:
     """Run a hil_flash flash_*/reset_* backend, normalizing raises to a failure: several
     backends raise instead of returning nonzero (get_serial_dev when a bridge's
     /dev/serial/by-id node vanishes, a missing config.env, a .jlink script OSError), and an
-    exception must not skip the caller's retry/recovery ladder. Returns (rc, error line)."""
+    exception must become a noted failure, not a crashed row. Returns (rc, error line)."""
     try:
         ret = fn(*fn_args)
         if ret.returncode == 0:
@@ -293,7 +293,7 @@ def check_host_serial(board: dict, do_reset: bool = True, want_hello: bool = Fal
     if board.get('logger') == 'rtt':
         if reset_fn:
             # a failed reset leaves the previous run's ring intact: attaching anyway would
-            # score stale output as life, so bail to host_alive's board_test reflash ladder
+            # score stale output as life
             rc, err = call_flasher(reset_fn, board)
             if rc:
                 say(f'{board["name"]:26} reset failed: {err}')
@@ -595,10 +595,8 @@ def check_board(board: dict, args) -> dict:
 
     bt_variant = resolve_variant(board, 'device/board_test', note)
     need_example = example is None and not args.no_build
-    # board_test is also host_alive's recovery image, so host boards pre-build it
-    # even under --no-park; --no-build gates EVERY build, board_test included
-    need_bt = (not args.no_build
-               and (not args.no_park or kind == 'host')
+    # board_test is only the park image; --no-build gates EVERY build, board_test included
+    need_bt = (not args.no_build and not args.no_park
                and hil_flash.find_firmware(bt_variant, 'device/board_test',
                                            flasher=board['flasher']['name']) is None)
     if need_example or need_bt:

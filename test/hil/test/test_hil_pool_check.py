@@ -108,6 +108,26 @@ class HostVerdict(unittest.TestCase):
         self.assertFalse(ok)
 
 
+class NoPark(unittest.TestCase):
+    def test_a_host_board_under_no_park_builds_no_board_test(self):
+        host = dict(BOARD, tests={'host': True})
+        patch(self, hil_pool_check, 'find_usb', lambda uid: ('1-1', '1d50:6018', 1))
+        patch(self, hil_pool_check, 'pick_example',
+              lambda *a, **kw: ('host/device_info', 'host', 'b', 'device_info.elf'))
+        patch(self, hil_pool_check.hil_flash, 'find_firmware', lambda *a, **kw: None)
+        patch(self, hil_pool_check, 'ensure_board_test',
+              lambda *a: self.fail('board_test is only the park image'))
+        patch(self, hil_pool_check, 'ensure_fw', lambda *a: self.fail('nothing needs a build'))
+        patch(self, hil_pool_check, 'lock_board', lambda name: types.SimpleNamespace())
+        patch(self, hil_pool_check, 'unlock_board', lambda fh: None)
+        patch(self, hil_pool_check, 'find_device', lambda uid, pid: None)
+        patch(self, hil_pool_check, 'flash', lambda board, fw, note: True)
+        patch(self, hil_pool_check, 'host_alive', lambda *a, **kw: True)
+        patch(self, hil_pool_check, 'park_board', lambda *a: self.fail('--no-park parks nothing'))
+        args = types.SimpleNamespace(scan_only=False, no_build=False, no_park=True)
+        self.assertEqual(hil_pool_check.check_board(host, args)['status'], 'ok')
+
+
 class Park(unittest.TestCase):
     """A park is verified: board_test never enumerates, so the device must leave the bus."""
 
