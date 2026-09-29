@@ -52,10 +52,16 @@ usbtest-jlink`; Espressif boards flash with `idf.py` (CLAUDE.md, ESP-IDF).
   leaves the id and the binding in place: an unbind has wedged host xHCIs
   (`usb_hcd_alloc_bandwidth`), and the next example enumerates under its own PID.
 - CI (`hil_test.py`) additionally passes `--budget` and, when the board's recovery flasher is
-  convoy-safe and flashing is on, `--recover-board`/`--recover-fw`: on a HUNG case the battery
-  aborts, RESETS the DUT through its roster probe (non-destructive, ~130 ms) and reflashes only
-  if that does not clear the wedge (see usb-kernel-recover). Manual runs without those flags leave a HUNG
-  device wedged — expected; reset or reflash it yourself.
+  convoy-safe and flashing is on, `--recover-board`/`--recover-fw`: a HUNG case (the killed
+  testusb not reaped within 30 s; a peer's held lock reaps later and counts as a timeout) aborts
+  the battery and RESETS the DUT through its roster probe (non-destructive, ~130 ms), or reflashes
+  it where the flasher has no reset (esptool); the child reaping afterwards is what clears
+  `wedged` (see usb-kernel-recover). Manual runs without those flags leave a HUNG device wedged —
+  expected; reset or reflash it yourself.
+- A non-root caller whose device node is not writable runs testusb under `sudo -n`, and the
+  child it can kill is only the wrapper. A case is HUNG when the read after the kill still times
+  out after 5 s; it still attempts the recovery step when one is available, but cannot confirm
+  the test process was reaped, so `wedged` stays set.
 - Always settle a few seconds after flashing — enumeration can bounce once; testusb into the gap sees
   the device drop mid-case.
 - For manual work on a CI rig: hold the board lock before touching hardware and release it

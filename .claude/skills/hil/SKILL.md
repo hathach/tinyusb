@@ -37,7 +37,7 @@ python3 test/hil/helper/hil_lock.py release BOARD [BOARD...]
 - Never pre-hold boards you are about to run `hil_test.py` on — it self-locks and would treat your own hold as a conflict.
 - Rig-wide operations (uhubctl power cycling, `usb_recover.sh root-cycle`, pci-rebind, controller resets — bus renumbering) affect every board: `hil_lock.py hold --all --config <this host's config> --reason "..."` first — `--all` defaults to `tinyusb.json`, so on `tusb` it would reserve 27 boards that do not exist there and none of the three that do. Even a single root-port bounce needs `--all`: nothing maps a sysfs busport to a board name, and `hil_lock.py hold` accepts any string, so a "just the siblings" hold reserves nothing while reporting success. If `--all` cannot be taken, wait: a partial hold is worse than none, because it reads as protection.
 - `hil_lock.py status` lists holders. Locks auto-release when the holder process dies (kernel flock); `/tmp` clears on reboot.
-- A board that finished a run with a confirmed wedge (usbtest still saw a D-state holder on its node after the confirmation window) is marked `<board>.wedged` beside its flock, and `hil_test.py` refuses it in seconds with a `board-wedged` cell until the marker is cleared. `hil_lock.py wedged status` lists markers; after recovery has been verified, `hil_lock.py wedged clear BOARD --evidence '{"board": "BOARD", "uid": "<marker uid>", "holders": [], "complete": true, "identity": "<serial>@<busport>"}'` clears one, refusing while the board is held or when the evidence does not verify that marker. Once its worker pool is down (on an abort too), `hil_test.py` tries to recover every board of the run that carries a marker, from this run's worker or an earlier run's, when the marker's uid is the roster's: with every board in the config reserved in-process (refused if any is held, then the markers stay), one board at a time it resets through the recovery flasher, shielding the DUT's leaf, hub and root hub (`usb_recover.sh shield`) around it only when that flasher is not convoy-safe, reflashes the artifact under test if a holder survives, and clears the marker only on a complete holder scan with no holder plus the DUT enumerated again; the row then shows `⚪ recovered post-run` (or `⚪ refused at admission; recovered post-run`) in `board-wedged`, the test verdict and `ran` unchanged. A board that needs the shield recovers only as a non-root user with passwordless sudo (root ignores the shield), otherwise it keeps its marker and the others proceed; the phase never runs under `--skip-flash` and runs within `HIL_RECOVERY_TIMEOUT` (600 s) for the whole phase plus one step's overrun. The phase is a forked supervisor in its own session: it holds the reservation, reports its verdicts, then keeps every board reserved until each step process it started has ended, so neither a killed `hil_test.py` nor a step that will not die (a privileged child in D state) leaves the fleet unprotected; such a survivor is named in the log with the supervisor's pid. The marker and its `<board>.wedge-dmesg.txt` share the lock dir's lifetime. It contains that board's reuse only: it does not shield other enumerators from the poisoned node, a worker killed before writing leaves none, and a reboot clears the marker and the kernel's stuck processes but not necessarily the DUT, probe or controller, so post-reboot health still needs `hil-pool-check`.
+- A board whose usbtest battery reported the device wedged (a HUNG case the in-run recovery could not clear, or a device it could no longer identify afterwards) gets a `board-wedged` cell and the rest of its examples are skipped for that run. No admission marker blocks the next run; the harness tries to flash the board again. Interactively, follow `usb-kernel-recover` from its triage before running it again; a delegated run follows Reporting.
 - Forcing past a lock: `HIL_NO_BOARD_LOCK=1 python3 test/hil/hil_test.py ...` bypasses the guard without killing the holder. Only when the request or task scope explicitly names forcing that board — it risks colliding with whatever holds it; a refused hold alone never adds that scope.
 
 ## Pool check (board/probe health)
@@ -67,19 +67,17 @@ unclassified change) and "nothing selected" (skip). Skip only when `full` is fal
 Unit suites (no hardware) live in `test/hil/test/test_*.py`; the `hil-test` pre-commit hook
 runs every `test_hil*.py`, `ci-select-test` the two `test_ci_*` suites plus
 `test_hil_util.BottomLayer`. `test_ci_select.py` covers only selection, `test_ci_metrics.py`
-only the code-size plumbing; the containment work --- bounded reads, the kill ladders, the
-build and pool guards --- lives in `test_hil_bounded.py`, `test_hil_health.py` and
-`test_hil_util.py`; `test_hil_report.py` covers the report document and `test_hil_rtt.py`
+only the code-size plumbing; the bounded reads and the build and pool guards live in
+`test_hil_bounded.py` and `test_hil_util.py`; `test_hil_report.py` covers the report document and `test_hil_rtt.py`
 the RTT console. Run them all when changing `test/hil`:
 `for f in test/hil/test/test_*.py; do python3 "$f"; done` (about a minute, half of it
 `test_hil_bounded.py`'s deliberate hang/timeout simulation).
 
-## Pre-flight rig health check
+## Stuck runs
 
-`hil_test.py` notes any process already in D state when the run starts, as one line above
-the table. It never aborts, and it is a hint rather than a diagnosis. What bounds a stuck
-run is `HIL_POOL_TIMEOUT` plus the job's `timeout-minutes`; what diagnoses a wedged rig is
-the `hil-pool-check` skill.
+What bounds a stuck run is `HIL_POOL_TIMEOUT` plus the job's `timeout-minutes`: a worker
+the kernel will not let die (D state) holds the job until that ceiling. What diagnoses a
+wedged rig is the `hil-pool-check` skill.
 
 See the `usb-kernel-recover` skill for what a real wedge looks like and how to clear it, and the `usb-kernel-debug` skill to explain WHY the kernel rejected a device (dmesg analysis).
 
@@ -205,27 +203,28 @@ A local `hil_test.py` run has no done record; wait for its completion notificati
 
 Two audiences, two shapes. Interactively, the answer to a HIL run IS the tool's summary table:
 paste the complete per-board table (and footer counts) verbatim — never truncate rows or reduce
-it to a prose digest. Commentary below it covers only what the table cannot show: a banner
-verdict from the list below, a retry, a wedged board.
+it to a prose digest. Commentary below it covers only what the table cannot show: a notice
+from the list below, a retry, a wedged board.
 
 A delegated run (the `hil-operator` role) returns the machine output instead: exactly
-`{ pass, results, banner, caveat, wedged }` and nothing else. From the directory the run wrote its
+`{ pass, results, caveat, wedged }` and nothing else. From the directory the run wrote its
 report to:
 
 ```bash
 python3 test/hil/helper/hil_report.py <config> -b BOARD [-b BOARD...]
 ```
 
-`pass`, `results`, `banner` and `caveat` are copied from its output verbatim — never retyped,
+`pass`, `results` and `caveat` are copied from its output verbatim — never retyped,
 reworded or re-ordered: rows are named per variant, a variant name need not start with the board
 name, and lock contention is a cell rather than a phrase, so any of it re-derived by hand has come
 out wrong before. `results` has exactly one entry per requested board. `pass` is the verdict of
-this report snapshot: every row can pass on an abandoned or no-boards run, so the run-level
-`caveat` (abandoned, aborted, no boards; empty on every other run) gates it. `--accumulate`
+this report snapshot: every row can pass on an aborted or no-boards run, so the run-level
+`caveat` (aborted, no boards; empty on every other run) gates it. `--accumulate`
 clears an earlier attempt's caveat by design, so the verdict of a retry sequence is the caller's:
 keep every attempt's result, a clean subset re-run never erases an earlier run-level failure, and
 a re-run's own caveat fails the sequence. Each row's `wedged`
-is the report's verified verdict (a `board-wedged` cell) and is copied with the row; the
+is the report's own verdict (a `board-wedged` cell: a confirmed hang, or one the battery could
+not rule out) and is copied with the row; the
 top-level `wedged` — the boards the run left unresponsive, usually none — is the operator's
 own observation and the only field it authors when a run happened; it names requested boards,
 never a variant row name.
@@ -235,7 +234,7 @@ requested list on the `hil_report.py` call, which emits a `ran: false` row for e
 board. When no run started (a missing config, every name unknown, a refused hold with no
 permitted retry, a scope gap, unbuilt firmware), it authors the rows instead: one per requested
 board, `ran: false`, `pass: false`, `locked` as observed, the reason in `detail`, top-level
-`pass: false`, `banner` and `caveat` empty — and reads no stale report. The caller treats a
+`pass: false`, `caveat` empty — and reads no stale report. The caller treats a
 missing or malformed reply as inconclusive, never as a pass or a fail.
 
 The caller decides what follows a run. The whole board set goes to ONE run (above); the failure
@@ -243,9 +242,10 @@ retry below runs only on a report with no `locked` or `wedged` board and an empt
 any other outcome returns to the caller as it is. On `locked` the caller bypasses with `HIL_NO_BOARD_LOCK=1` only
 when the task scope names bypassing those boards' locks, never releasing or killing the holder;
 or waits and re-runs the locked boards with `--accumulate`; or accepts, reporting the boards not
-covered. A `wedged` board is never re-run. A delegated run recovers it only through its own paths (the
-in-run confirmation, the post-pool phase under Board locks); a marker still standing after them is
-reported, and any further recovery is a separately dispatched recovery action (below).
+covered. A `wedged` board is never re-run. A delegated run recovers it only through usbtest's in-run
+recovery (a probe reset, or a reflash where the flasher has no reset); a board still wedged
+after that is reported, and any further recovery is a separately dispatched recovery action
+(below).
 
 A dispatched recovery action is its own operation, never part of a run: the prompt names one
 board, its busport, the rung ceiling, the budget and the reservation. Follow `usb-kernel-recover`
@@ -254,29 +254,22 @@ Rung 1 resets through the board's recovery flasher (`flasher_recover`, else `fla
 is not `convoy_safe`, JLinkExe included, runs only behind `usb_recover.sh shield` on the board's
 busport, unshielded afterwards;
 sysrq and the hypervisor rungs need the user and are returned as the blocker in a headless run.
-Clear the marker only with `hil_lock.py wedged clear` and the evidence it verifies; a marker it
-refuses as untrusted or invalid-name is reported for a human to inspect and remove by hand. Report
-the cleanup explicitly: marker cleared, or kept with the reason, plus any shield record or hold
-still standing. A HIL run on that board follows only a cleared marker.
+Report the cleanup explicitly: the board's state, plus any shield record or hold still standing.
 
-**First check what sits above the table.** Six banners can appear there; match on a
-PREFIX, since each carries trailing detail and two are blockquotes:
+**First check what sits above the table.** Three notices can appear there; match on a
+PREFIX, since each carries trailing detail:
 
-- `**HIL run abandoned: worker pool timed out after …s.**` and
+- `**HIL run aborted: worker pool timed out after …s.**` and
   `**HIL run aborted: a worker raised …**` — the pool guard fired, or a worker crashed. The
-  banner counts what happened: "N board(s) below finished and are this run's; K never
+  notice counts what happened: "N board(s) below finished and are this run's; K never
   reported and are NOT in the table: <names>. The re-run spec covers those", plus, when
   `check_build.py` refused a board under `--build`, ", and the M whose build check_build.py
   refused: <names>." The N finished boards' rows are this run's: report them. The K named
   boards are not this run's whatever the table shows — on a fresh run they have no row, on
-  an `--accumulate` retry a previous attempt's row survives under the banner and
+  an `--accumulate` retry a previous attempt's row survives under the notice and
   `hil_report.py` still folds it into `results` as ran — so name them as not run. The M
   refused boards DO have a `build refused` row, reported ran=false/pass=false (not run,
   failed), but sit outside N; the `<config>.failed` re-run spec covers both K and M. Never
-  `"pass": true`.
-- `**HIL run abandoned: the worker pool would not shut down.**` — DIFFERENT: the table
-  below IS this run's, but the pool could not be shut down afterwards (the job exits
-  non-zero even if every board passed). Report the results AND the abandonment; never
   `"pass": true`.
 - `**HIL run selected no boards.**` — the filters intersected to nothing, or, under
   `--build`, `check_build.py` refused every board. On the filter case, a fresh run shows no
@@ -287,14 +280,6 @@ PREFIX, since each carries trailing detail and two are blockquotes:
   board, and the `<config>.failed` re-run spec is written or refreshed to name the boards.
   Either way the exit code is nonzero. Report what the message shows (the filter, or the
   refused boards), never `"pass": true`.
-- `> **Rig note.**` — a process was in D state when the run started. This is NOT a wedge:
-  a healthy in-flight testusb is uninterruptible for most of every case, and the rig
-  supports a dev run alongside CI. On its own it is never `wedged: true` and never turns a
-  green table into `"pass": false`. Mention it only when a board below failed, as the first
-  thing to check.
-- `> **Rig dirty.**` — a process survived SIGKILL and still holds a probe or usbfs node
-  into the NEXT job. The table below is this run's and can be reported, but say the rig is
-  dirty: the next job starts degraded and nothing in the harness can clear it.
 
 On a test failure, retry once with `-v` — only when the report has no `locked` or `wedged` board
 and an empty `caveat`; otherwise return the snapshot without retrying, since the `.failed` spec
@@ -305,7 +290,7 @@ already begins with `--accumulate` and restricts each board to its failed tests.
 whole-fleet table with a one-row table. A usbtest battery that produced per-case verdicts is not
 auto-retried; its result already stands. If a board or fixture stops enumerating, or a tool of
 yours hangs in D state, that is a wedge: save `dmesg | tail -50` as an artifact beside the
-report (never into the report's rows) and name the board in `wedged`, without recovering it —
-a `> **Rig note.**` banner about someone else's D-state process is not that. If a retry is still not enough, an interactive
+report (never into the report's rows) and name the board in `wedged`, without recovering it.
+If a retry is still not enough, an interactive
 session may add temporary debug prints to `hil_test.py`; a non-editing operator returns the
 failure for diagnosis instead.

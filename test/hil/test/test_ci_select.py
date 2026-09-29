@@ -707,7 +707,7 @@ def flasher_names():
 
 class FlashPrimitive(unittest.TestCase):
     """hil_flash.flash_primitive is the one flash dispatch: hil_test, usbtest,
-    hil_pool_check and hil_recover all resolve a flasher's flash_* through it."""
+    hil_pool_check all resolve a flasher's flash_* through it."""
 
     def test_every_flasher_resolves_to_its_flash(self):
         names = flasher_names()
@@ -726,7 +726,7 @@ class FlashPrimitive(unittest.TestCase):
 
 
 class ResetPrimitive(unittest.TestCase):
-    """hil_flash.reset_primitive is the one reset dispatch: usbtest, hil_recover,
+    """hil_flash.reset_primitive is the one reset dispatch: usbtest,
     hil_pool_check and hil_test all resolve a flasher's reset through it."""
 
     def test_a_flasher_without_a_reset_only_mode_has_none(self):
@@ -749,7 +749,7 @@ class ResetPrimitive(unittest.TestCase):
             hil_flash.reset_primitive('nosuchflasher')
 
     def test_every_real_reset_takes_the_callers_bound(self):
-        """usbtest and hil_recover call every reset primitive with timeout=, unguarded: one
+        """usbtest calls every reset primitive with timeout=, unguarded: one
         without the parameter never resets, its TypeError logged as a reset that raised.
         Flashers are enumerated by their flash_* half, so reset_primitive itself is not one."""
         names = flasher_names()
@@ -870,9 +870,9 @@ class FlasherRecoverEntry(unittest.TestCase):
         probe as its jlink primary and dispatches. The set is the boards whose reset over
         openocd+jlink was demonstrated on their roster's rig, and flash too wherever openocd can
         flash the part (ci.lan 2026-08-17, 2026-09-21 and 2026-09-22, tusb 2026-09-21 for
-        lpcxpresso43s67); a reset-only entry says so in its `note`. A new one is added only
+        lpcxpresso43s67). A new one is added only
         after the same demonstration. frdm_k64f is host-only, so usbtest never marks
-        it; its entry lets a dispatched rung-1 reset skip the shield. Left out, and why: stm32f769disco (probe not on the rig to demonstrate), ra4m1_ek (reset-only
+        it; its entry serves a manual reset through the recovery flasher. Left out, and why: stm32f769disco (probe not on the rig to demonstrate), ra4m1_ek (reset-only
         worked ~80% under openocd, SYSRESETREQ or srst, where JLinkExe resets 5/5; 2026-09-22).
         mimxrt1064_evk and lpcxpresso55s28 are reset-only: openocd 0ce743125 has no target cfg and
         no flash driver for them (FlexSPI, LPC55), so their entries declare a bare SWD DAP and
@@ -880,9 +880,8 @@ class FlasherRecoverEntry(unittest.TestCase):
         lpcxpresso55s28 logs "DP initialisation failed" after each reset yet resets. Same trade as
         nrf54lm20dk below. nrf54lm20dk's reset works (libjaylink 0.5.0 finds its PID 0x1069; 0.4.0 did
         not) but its reflash cannot: nrf54l.cfg declares no RRAM flash bank. Accepted trade:
-        the entry arms in-run recovery (a reset) where JLinkExe allowed none, but replaces the
-        post-run fallback, which was a shielded JLinkExe reflash, with one that fails and
-        leaves the chip halted; a wedge the reset does not clear stays marked. The STM32 entries empty
+        the entry arms in-run recovery (a reset) where JLinkExe allowed none; a wedge the reset
+        does not clear stays wedged for the run. The STM32 entries empty
         their target's reset-init event: stm32f0x/f4x/f7x/l4x.cfg set `adapter speed 8000` there,
         these on-board J-Link probes cap at 4000 and fail even at 4000 (auto_probe failed, SWD
         parity mismatch; stm32f407disco and stm32f072disco, 2026-09-22), and `program` runs
@@ -916,11 +915,6 @@ class FlasherRecoverEntry(unittest.TestCase):
             self.assertIn('interface/jlink.cfg', rec['args'], name)
             self.assertIn('transport select swd', rec['args'], name)
             stm32 = re.search(r'-f target/(stm32(?:f0|f4|f7|l4)x)\.cfg', rec['args'])
-            self.assertEqual(rec.get('note', '').startswith('reset only'),
-                             name in reset_only or name == 'nrf54lm20dk', f'{name}: reset-only note')
-            # machine-readable twin of the note: hil_recover skips the reflash on it
-            self.assertEqual(rec.get('reflash', True), not rec.get('note', '').startswith('reset only'),
-                             f'{name}: "reflash": false iff the note says reset only')
             if name in reset_only:
                 self.assertEqual(rec['args'], reset_only[name])
             elif stm32:
@@ -1220,8 +1214,6 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_family_json.py',
             'test/hil/test/test_hil_args.py',
             'test/hil/test/test_hil_bounded.py',
-            'test/hil/test/test_hil_health.py',
-            'test/hil/test/test_hil_recover.py',
             'test/hil/test/test_hil_remote.py',
             'test/hil/test/test_hil_report.py',
             'test/hil/test/test_hil_reset_order.py',

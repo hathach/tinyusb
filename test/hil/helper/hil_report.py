@@ -10,7 +10,7 @@ writers, and the fold to one machine-readable verdict per board.
 Dual-mode by design: imported as `helper.hil_report` by hil_test.py, and run as a script by
 the operator (the HIL contract's Reporting section, .claude/skills/hil/SKILL.md). A script run puts test/hil/helper on
 sys.path rather than test/hil, so this module imports no sibling helper at all --
-_p and the width helpers below are defined locally for that reason. The same property makes it
+the width helpers below are defined locally for that reason. The same property makes it
 the home of board_variants(), the roster reading the builders (check_build.py, the CI matrix)
 import by path.
 """
@@ -26,7 +26,7 @@ def _w(s: str) -> int:
     character and TWO columns wide, so len() pads a cell holding one a column short and
     the pipes drift out of line with the header rule for the whole table.
 
-    Local, like _p above and for the same reason: this module is also run as a script, and
+    Local: this module is also run as a script, and
     under PYTHONSAFEPATH=1 a sibling import dies before argparse runs. hil_util carries the
     same pair for callers that can import it.
     """
@@ -42,18 +42,6 @@ def _pad(s: str, width: int, center: bool = False) -> str:
     return ' ' * left + s + ' ' * (room - left)
 
 
-def _p(*args, **kwargs) -> None:
-    """Print that cannot raise. Defined here rather than imported from hil_health: this
-    module is ALSO run as a script (the HIL contract invokes it by path), and under
-    PYTHONSAFEPATH=1 -- which the suite's own MTP fixtures set -- sys.path[0] is not the
-    script dir, so any sibling import dies before argparse runs. Five lines beat that."""
-    try:
-        print(*args, **kwargs)
-    except (OSError, ValueError):
-        # ValueError too: printing to a CLOSED stream raises "I/O operation on closed
-        # file", and escaping here skips the containment path's os._exit.
-        pass
-
 REPORT_MD = 'hil_report.md'
 REPORT_JSON = 'hil_report.json'
 # The status vocabulary, shared by the code that WRITES a cell (hil_test's test runners) and
@@ -62,18 +50,10 @@ REPORT_JSON = 'hil_report.json'
 REPORT_CELL = {'pass': '✅', 'fail': '❌', 'skip': '⚪'}
 BOUNDARY_CELL = 'same-PID boundary'
 LOCKED_CELL = 'board-locked'
-# a CONFIRMED wedge (usbtest saw a D-state holder on the node after its confirmation
-# window) has value 'fail'; a board refused at admission because a previous run left that
-# marker has WEDGED_REFUSED (fail-icon prefixed so the tally counts it, distinct so the
-# verdict knows nothing was flashed this attempt)
+# 'fail' when the board's usbtest battery reported the device wedged (a HUNG case its
+# recovery could not clear, or a device it could no longer identify), so the rest of the
+# board was skipped
 WEDGED_CELL = 'board-wedged'
-WEDGED_REFUSED = f'{REPORT_CELL["fail"]} refused at admission'
-# the post-pool recovery verified the holder gone and the DUT enumerated, and cleared the
-# marker: the test verdict stands, the board is no longer wedged
-WEDGED_RECOVERED = f'{REPORT_CELL["skip"]} recovered post-run'
-WEDGED_REFUSED_RECOVERED = f'{REPORT_CELL["skip"]} refused at admission; recovered post-run'
-REFUSED_CELLS = (WEDGED_REFUSED, WEDGED_REFUSED_RECOVERED)
-RECOVERED_CELLS = (WEDGED_RECOVERED, WEDGED_REFUSED_RECOVERED)
 # A pseudo-test column, not a real one: write_timeout_report marks the boards that were
 # still dispatched when the pool guard fired. accumulate_report clears it on a retry.
 POOL_TIMEOUT_CELL = 'pool-timeout'
@@ -92,7 +72,7 @@ def _load(report_dir: Path) -> tuple:
     hil_remote.py uploads a sidecar as the --accumulate merge base, so a non-conforming one is
     reachable from OUTSIDE the harness -- and every writer here runs on a path where a
     TypeError costs the whole report. Coerce once, at the boundary, instead of guarding
-    each use: `banner: null` used to kill a fully successful run with a traceback and no
+    each use: a null text field used to kill a fully successful run with a traceback and no
     artifact at all, and `cells: null` sent write_timeout_report down its fallback so a
     board that ate the whole pool guard was published as a pass.
 
@@ -101,13 +81,13 @@ def _load(report_dir: Path) -> tuple:
     that may still hold them."""
     jpath = report_dir / REPORT_JSON
     if not jpath.is_file():
-        return {'rows': [], 'banner': '', 'scope': '', 'caveat': ''}, False
+        return {'rows': [], 'scope': '', 'caveat': ''}, False
     try:
         raw = json.loads(jpath.read_text())
         if not isinstance(raw, dict):
             raise ValueError('sidecar is not an object')
     except (OSError, ValueError, TypeError):
-        return {'rows': [], 'banner': '', 'scope': '', 'caveat': ''}, False
+        return {'rows': [], 'scope': '', 'caveat': ''}, False
     rows = []
     # isinstance, not `or []`: a sidecar with `rows: 1` iterates an int and raises outside
     # the parse handler above.
@@ -125,15 +105,7 @@ def _load(report_dir: Path) -> tuple:
                               if isinstance(cells, dict) else {},
                      'duration': dur if isinstance(dur, str) else None})
     text = lambda k: raw[k] if isinstance(raw.get(k), str) else ''
-    return {'rows': rows, 'banner': text('banner'), 'scope': text('scope'),
-            'caveat': text('caveat')}, True
-
-
-def recovered_form(cell):
-    """The recovered form of a failed wedge cell, None for any other cell."""
-    if cell == WEDGED_REFUSED:
-        return WEDGED_REFUSED_RECOVERED
-    return WEDGED_RECOVERED if cell is not None and cell_state(cell) == 'fail' else None
+    return {'rows': rows, 'scope': text('scope'), 'caveat': text('caveat')}, True
 
 
 def cell_state(v) -> str:
@@ -216,21 +188,15 @@ def render_matrix(rows_all: list) -> str:
 def render_report(doc: dict) -> str:
     """The markdown IS a rendering of the sidecar. Every writer goes through here, so a
     table can never contain something the JSON does not."""
-    # .get throughout, not subscripts: mark_report_abandoned renders a sidecar it did NOT
-    # write (a report dir can hold an older version's or a torn one) on the way to os._exit, and a KeyError there is not in its handler --
-    # it would unwind into multiprocessing's unbounded join and hang the runner it is
-    # trying to free. Same reason summarize() below reads cells as `r.get('cells') or {}`.
+    # .get throughout, not subscripts: a report dir can hold an older version's sidecar or
+    # an uploaded one. Same reason summarize() below reads cells as `r.get('cells') or {}`.
     md = render_matrix([(r.get('board', '?'), r.get('cells') or {}, r.get('duration'))
                         for r in doc.get('rows') or [] if isinstance(r, dict)])
     if doc.get('scope'):
         # a scoped run's small table is otherwise indistinguishable from a full one, and
         # it replaces the previous full table in the sticky PR comment
         md = f'_Scoped run: {doc["scope"]}. Boards/tests not listed were not run._\n\n' + md
-    # banner, then caveat: a rig-health caveat outranks the table AND the scope note, and an
-    # abandon notice outranks even that -- the top of the report is where hil/SKILL.md tells
-    # the agent to look
-    if doc.get('banner'):
-        md = doc['banner'] + '\n' + md
+    # the top of the report is where hil/SKILL.md tells the agent to look
     if doc.get('caveat'):
         md = doc['caveat'] + '\n' + md
     return md
@@ -240,12 +206,12 @@ def write_report(report_dir: Path, doc: dict) -> None:
     """Write both artifacts from one document.
 
     RAISES on failure, deliberately: every caller is on a path whose own handler exists to
-    report exactly this (write_timeout_report's _p warning, hil_test's fallback-of-the-
+    report exactly this (write_timeout_report's warning, hil_test's fallback-of-the-
     fallback). Swallowing OSError here made both of those dead code, so an unwritable or
     root-owned report dir produced no artifact AND no message.
 
     Renders BEFORE writing anything: committing the JSON first and then raising in
-    render_report left a sidecar saying "abandoned" beside a markdown still reading as a
+    render_report left a sidecar saying "aborted" beside a markdown still reading as a
     clean green table -- the one invariant this module exists to hold."""
     md = render_report(doc) + '\n'
     report_dir.mkdir(parents=True, exist_ok=True)
@@ -253,63 +219,9 @@ def write_report(report_dir: Path, doc: dict) -> None:
     (report_dir / REPORT_MD).write_text(md, encoding='utf-8')
 
 
-def _abandon_notice(why: str) -> str:
-    # Wording is a CONTRACT: .claude/skills/hil/SKILL.md pins this banner as the case where
-    # "the table below IS this run's ... Report the results AND the abandonment". Calling
-    # the table partial would send the reading agent to re-run boards that already passed.
-    return (f'**HIL run abandoned: {why}** The table below was collected before the '
-            f'abandon; treat board results as unverified.\n')
-
-
-def _already_abandoned(doc: dict) -> bool:
-    """Whether THIS attempt already recorded how it ended.
-
-    `caveat` only. It used to check `banner` too, because hil_test.py folded its abandon
-    notices in there -- but banner is carried across an --accumulate retry by design, so a
-    stale notice from an earlier attempt silenced a genuinely new abandon and the run's own
-    failure went unrecorded. banner now carries rig HEALTH (which describes the conditions
-    the cells were collected under, and so must persist); caveat carries the run's OUTCOME
-    (which must not)."""
+def _already_aborted(doc: dict) -> bool:
+    """Whether THIS attempt already recorded how it ended."""
     return '**HIL run ab' in doc.get('caveat', '')
-
-
-def _stamp_markdown(report_dir: Path, notice: str) -> None:
-    """Last line of defence: prepend the notice to the markdown itself.
-
-    pr_comment.yml cats only hil_report.md, so a path that gives up here publishes a clean
-    green table under an abandoned, non-zero job. Master did this unconditionally."""
-    mpath = report_dir / REPORT_MD
-    if not mpath.is_file():
-        return
-    # errors='replace' and catch ValueError: a torn report or a LANG=C locale raises
-    # UnicodeDecodeError -- NOT an OSError -- straight past os._exit.
-    body = mpath.read_text(encoding='utf-8', errors='replace')
-    if '**HIL run ab' not in body[:2000]:
-        mpath.write_text(notice + '\n' + body, encoding='utf-8')
-
-
-def mark_report_abandoned(report_dir: Path, why: str) -> None:
-    """Stamp an existing report as abandoned, in BOTH artifacts.
-
-    Best-effort and silent: this runs while the interpreter is being torn down, and an
-    exception here hangs the process in multiprocessing's unbounded join()."""
-    notice = _abandon_notice(why)
-    try:
-        doc, readable = _load(report_dir)
-        if readable:
-            if _already_abandoned(doc):
-                return                      # whoever got there first wins, WRITE included
-            doc['caveat'] = notice
-            write_report(report_dir, doc)
-            return
-    except (OSError, ValueError, TypeError, AttributeError):
-        pass        # fall through -- a failure here must not cost the stamp entirely
-    # Unreadable sidecar, or the document write failed. Either way the markdown is what
-    # the PR comment reads, so stamp it directly rather than giving up.
-    try:
-        _stamp_markdown(report_dir, notice)
-    except (OSError, ValueError, TypeError, AttributeError):
-        pass
 
 
 def mark_report_no_boards(report_dir: Path, msg: str, fresh: bool = True) -> None:
@@ -321,27 +233,26 @@ def mark_report_no_boards(report_dir: Path, msg: str, fresh: bool = True) -> Non
     keeps them, since nothing this attempt did invalidates them."""
     try:
         doc, _ = _load(report_dir)
-        if not fresh and _already_abandoned(doc):
-            # SKILL.md gives the two notices OPPOSITE rules, and an abandon outranks a
+        if not fresh and _already_aborted(doc):
+            # SKILL.md gives the two notices OPPOSITE rules, and an abort outranks a
             # filter that matched nothing -- do not overwrite the record of a failed run.
             # Only while ACCUMULATING, though: this runs before the fresh wipe, so guarding
-            # a fresh run would leave the previous attempt's rows AND its abandon notice
+            # a fresh run would leave the previous attempt's rows AND its abort notice
             # published as this run's.
             return
-        # A fresh run carries NOTHING from the prior sidecar -- rows, banner and scope
-        # alike, matching accumulate_report, which builds from an empty prior when fresh.
-        # Resetting only rows republished a stale rig-health note and a stale scope line
-        # under this run's notice, from a leftover or uploaded sidecar.
-        prior = {'rows': [], 'banner': '', 'scope': ''} if fresh else doc
-        write_report(report_dir, {'rows': prior['rows'], 'banner': prior['banner'],
-                                  'scope': prior['scope'],
+        # A fresh run carries NOTHING from the prior sidecar -- rows and scope alike,
+        # matching accumulate_report, which builds from an empty prior when fresh.
+        # Resetting only rows republished a stale scope line under this run's notice,
+        # from a leftover or uploaded sidecar.
+        prior = {'rows': [], 'scope': ''} if fresh else doc
+        write_report(report_dir, {'rows': prior['rows'], 'scope': prior['scope'],
                                   'caveat': f'**HIL run selected no boards.** {msg}\n'})
     except (OSError, ValueError, TypeError, AttributeError):
         pass          # loud on stdout already; the exit code is what the job reads
 
 
 def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = '',
-                      banner: str = '', caveat: str = '', owned: dict | None = None) -> str:
+                      caveat: str = '') -> str:
     """Merge this run's results into json in report_dir, then (re)write
     the markdown matrix to md. `fresh` (a first run, no --accumulate)
     starts a new report; otherwise a re-run accumulates so boards/tests that
@@ -355,36 +266,23 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
     the subtle parts -- stale board-locked clearing, BOUNDARY_CELL dropping, duration=None
     preservation -- for a tidier seam. Data-shape coupling, not an import cycle."""
     # ONE canonical load: a sidecar reaching here may have been uploaded by hil_remote.py as
-    # the merge base, so it is untrusted input. `banner` carries forward -- it describes
-    # the conditions the earlier cells were collected under, and the .failed spec re-runs
-    # only FAILURES so those passes are never re-earned. `caveat` does NOT: it records how
-    # a RUN ENDED, and this attempt has not ended yet. Carrying it made a clean retry
-    # publish "HIL run abandoned" over a run where nothing was abandoned.
-    prior = {'rows': [], 'banner': ''}
+    # the merge base, so it is untrusted input. `caveat` does NOT carry forward: it records
+    # how a RUN ENDED, and this attempt has not ended yet. Carrying it made a clean retry
+    # publish "HIL run aborted" over a run where nothing was aborted.
+    prior = {'rows': []}
     if not fresh:
         prior, _ = _load(report_dir)
     acc = {r['board']: [dict(r['cells']), r['duration']] for r in prior['rows']}
-    prior_banner = prior['banner']
 
     # current cells override prior for boards/tests that ran; a filtered run reports
     # duration None, keeping the previous full-run value
     for name, _, _, rows, *_ in mret:
-        refused = any(cells.get(WEDGED_CELL) in REFUSED_CELLS for _, cells, _ in rows)
         unbuilt = any(cells.get(RUN_ABORTED_CELL) == BUILD_REFUSED for _, cells, _ in rows)
-        if any(cells.get(WEDGED_CELL) in RECOVERED_CELLS for _, cells, _ in rows):
-            # the post-run recovery verified the board: every wedge cell an earlier attempt
-            # left on its rows (the board row and its DECLARED variants, `owned`, never a
-            # name that merely shares the prefix) is that same wedge, so it is recovered
-            # too; the test failures beside it stay
-            for key in {name, *(owned or {}).get(name, [])}:
-                cells = acc.get(key, [{}])[0]
-                if recovered_form(cells.get(WEDGED_CELL)):
-                    cells[WEDGED_CELL] = recovered_form(cells[WEDGED_CELL])
-        if rows and not refused and not unbuilt and not any(LOCKED_CELL in cells for _, cells, _ in rows):
+        if rows and not unbuilt and not any(LOCKED_CELL in cells for _, cells, _ in rows):
             # board ran for real: clear a stale lock-failure cell (its row is keyed by
             # board name; test rows may be variant names), and a stale wedge cell on every
-            # row of the board -- admission let it in, so the marker was cleared, and a
-            # green re-run must not stay red for ever under last time's wedge
+            # row of the board -- a green re-run must not stay red for ever under last
+            # time's wedge
             stale = acc.get(name)
             if stale is not None:
                 stale[0].pop(LOCKED_CELL, None)
@@ -418,16 +316,8 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
                 row[1] = dur
 
     report_dir.mkdir(parents=True, exist_ok=True)
-    # by LINE, deduped: attempts repeat the same caveat far more often than they add a new
-    # one, and three copies of the D-state note reads as three incidents
-    seen, merged = set(), []
-    for line in (prior_banner + banner).splitlines():
-        if line.strip() and line not in seen:
-            seen.add(line)
-            merged.append(line)
-    banner = '\n'.join(merged) + '\n' if merged else ''
     doc = {'rows': [{'board': k, 'cells': c, 'duration': d} for k, (c, d) in acc.items()],
-           'banner': banner, 'scope': scope, 'caveat': caveat}
+           'scope': scope, 'caveat': caveat}
     # through write_report, not hand-rolled: writing the JSON and only then rendering is
     # the ordering write_report exists to forbid -- a render failure left the sidecar ahead
     # of the markdown, which is the one invariant this module holds.
@@ -449,7 +339,7 @@ def _write_stuck_over_prior_md(report_dir: Path, doc: dict) -> None:
     # can merge them back. Claiming the sidecar represents them would be false.
     note = ('_The table below is a previous attempt\'s rendered output. The sidecar could '
             'not be read, so those rows are NOT in it and will not survive another run._\n')
-    head = (doc['banner'] + '\n' if doc['banner'] else '') + doc['caveat'] + '\n' + note
+    head = doc['caveat'] + '\n' + note
     body = prior if prior.strip() else render_matrix(
         [(r['board'], r['cells'], r['duration']) for r in doc['rows']])
     report_dir.mkdir(parents=True, exist_ok=True)
@@ -457,28 +347,16 @@ def _write_stuck_over_prior_md(report_dir: Path, doc: dict) -> None:
     (report_dir / REPORT_MD).write_text(head + '\n' + body, encoding='utf-8')
 
 
-def write_timeout_report(report_dir: Path, boards, secs: int,
-                         banner: str = '', prefix: str = '',
+def write_timeout_report(report_dir: Path, boards, caveat: str,
                          cell: str = POOL_TIMEOUT_CELL) -> None:
-    """Leave a report behind when the worker pool has to be abandoned.
+    """Leave a report behind when the pool guard expires or a worker raises.
 
-    map_async is all-or-nothing, so a timeout loses every per-board result and the report
-    dir would stay empty with no reason for the failure. Any prior attempt's rows are kept
-    and each stuck board is marked with a POOL_TIMEOUT_CELL beside them.
-
-    `prefix` is the preflight rig-health verdict and goes to the BANNER, where rig health
-    lives and where an --accumulate retry carries it forward; the abandon notice goes to
-    the caveat, which does not carry. Folding both into the caveat is what made a clean
-    retry report an abandonment that had not happened."""
+    Any prior attempt's rows are kept and each stuck board is marked with `cell` beside
+    them. `caveat` is the notice, which an --accumulate retry does not carry."""
     try:
         # names INSIDE the try: a roster entry that is not a dict raises here, and outside
         # it that escaped and stranded the runner.
         names = [b.get('name', '?') if isinstance(b, dict) else '?' for b in boards]
-        caveat = banner or (
-            f'**HIL run abandoned: worker pool timed out after {secs}s.**\n\n'
-            f'No per-board results could be collected for this attempt. Rows other than '
-            f'the {cell} cells below are from an earlier attempt. Boards '
-            f'dispatched:\n\n' + '\n'.join(f'- {n}' for n in names) + '\n')
         doc, readable = _load(report_dir)
         rows = doc['rows']
         by_board = {r['board']: r for r in rows}
@@ -492,9 +370,7 @@ def write_timeout_report(report_dir: Path, boards, secs: int,
                 # sidecar can no longer send this down the fallback and publish a board
                 # that ate the whole pool guard as a pass.
                 row['cells'][cell] = 'fail'
-        out = {'rows': rows, 'scope': doc['scope'], 'caveat': caveat,
-               'banner': ((doc['banner'] + prefix) if prefix not in doc['banner']
-                          else doc['banner'])}
+        out = {'rows': rows, 'scope': doc['scope'], 'caveat': caveat}
         if not readable and (report_dir / REPORT_MD).is_file():
             # `readable` covers ABSENT as well as torn: an absent sidecar beside an intact
             # markdown used to re-render from the stuck row alone and destroy real results.
@@ -502,28 +378,19 @@ def write_timeout_report(report_dir: Path, boards, secs: int,
             return
         write_report(report_dir, out)
     except Exception as e:  # noqa: BLE001
-        # Deliberately broad: this is the first statement of the pool-abandon path, so ANY
-        # escape skips kill_pool_children and os._exit and strands the runner.
-        _p(f'warning: cannot write {REPORT_MD} to {report_dir}: {e}', flush=True)
+        # Deliberately broad: the caller raises the abort right after, and an escape here
+        # would replace that error with this one.
+        print(f'warning: cannot write {REPORT_MD} to {report_dir}: {e}', flush=True)
         try:
-            # Same wording as above and the same guarded name extraction -- the fallback
-            # used to re-derive b.get("name") outside any try and raise identically, so a
-            # malformed roster left NO artifact at all.
-            names = [b.get('name', '?') if isinstance(b, dict) else '?' for b in boards]
-            head = (prefix + '\n' if prefix else '') + (banner or (
-                f'**HIL run abandoned: worker pool timed out after {secs}s.**\n\n'
-                f'No per-board results could be collected for this attempt, so the table '
-                f'below (if any) is from an earlier one. Boards dispatched:\n\n'
-                + '\n'.join(f'- {n}' for n in names) + '\n'))
             try:
                 prior = (report_dir / REPORT_MD).read_text(encoding='utf-8')
             except (OSError, ValueError):
                 prior = ''
             report_dir.mkdir(parents=True, exist_ok=True)
             (report_dir / REPORT_MD).write_text(
-                head + (f'\n{prior}' if prior else ''), encoding='utf-8')
+                caveat + (f'\n{prior}' if prior else ''), encoding='utf-8')
         except Exception as e2:  # noqa: BLE001
-            _p(f'warning: fallback {REPORT_MD} write failed too: {e2}', flush=True)
+            print(f'warning: fallback {REPORT_MD} write failed too: {e2}', flush=True)
 
 
 def board_variants(board: dict) -> list:
@@ -610,18 +477,17 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
         # the caller then RE-RUNS, paying another pool guard on it. RUN_ABORTED_CELL
         # is written by the same _abort_report path for a board the guard never reached,
         # and must outrank it for the same reason.
-        wedged = any(POOL_TIMEOUT_CELL in cells or RUN_ABORTED_CELL in cells
-                     for cells in mine.values())
-        # the per-row VERIFIED wedge, distinct from `wedged` above, which is this run's
-        # pool-level outcome and never proof about one board. It outranks a lock cell the
-        # same way: a wedged board must never be published as LOCKED, which the caller
-        # re-runs.
+        aborted = any(POOL_TIMEOUT_CELL in cells or RUN_ABORTED_CELL in cells
+                      for cells in mine.values())
+        # the per-row wedge latch -- a confirmed hang, or one the battery could not rule out
+        # (sudo, an ambiguous or unreadable serial) -- distinct from `aborted` above, which
+        # is this run's pool-level outcome and never proof about one board. It outranks a
+        # lock cell the same way: a wedged board must never be published as LOCKED, which
+        # the caller re-runs.
         board_wedged = any(cell_state(cells[WEDGED_CELL]) == 'fail'
                            for cells in mine.values() if WEDGED_CELL in cells)
-        recovered = any(cells.get(WEDGED_CELL) in RECOVERED_CELLS for cells in mine.values())
-        refused = any(cells.get(WEDGED_CELL) in REFUSED_CELLS for cells in mine.values())
         unbuilt = any(cells.get(RUN_ABORTED_CELL) == BUILD_REFUSED for cells in mine.values())
-        locked = not wedged and not board_wedged and any(LOCKED_CELL in cells for cells in mine.values())
+        locked = not aborted and not board_wedged and any(LOCKED_CELL in cells for cells in mine.values())
         bad = []
         for vname, cells in sorted(mine.items()):
             for test, val in sorted(cells.items()):
@@ -629,31 +495,27 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
                     continue
                 if cell_state(val) == 'fail':
                     bad.append(f'{vname} {test}: {val}')
-        ok = not bad and not locked and not board_wedged and not refused
+        ok = not bad and not locked and not board_wedged
         if locked:
             detail = 'held by another holder; not flashed'
-        elif refused:
-            detail = 'marked wedged by a previous run; not flashed'
         elif board_wedged:
-            detail = 'wedged (confirmed D-state holder on the node); ' + '; '.join(bad)
+            detail = 'wedged (usbtest reported the device wedged); ' + '; '.join(bad)
         elif bad:
             detail = '; '.join(bad)
         else:
             detail = f'{len(mine)} variant(s), {sum(len(c) for c in mine.values())} cell(s) ok'
-        if recovered and not board_wedged:
-            detail += '; wedge recovered post-run (marker cleared)'
-        # an admission or build refusal never flashed this attempt, whatever test history
-        # an --accumulate re-run kept in the row
-        results.append({'board': board, 'ran': not refused and not unbuilt, 'pass': ok,
+        # a build refusal never flashed this attempt, whatever test history an --accumulate
+        # re-run kept in the row
+        results.append({'board': board, 'ran': not unbuilt, 'pass': ok,
                         'locked': locked, 'wedged': board_wedged, 'detail': detail})
-    # `caveat` too: an abandoned or no-boards run says so THERE, and this JSON is all
+    # `caveat` too: an aborted or no-boards run says so THERE, and this JSON is all
     # an agent gets -- leaving it in the sidecar puts it back where only a human looks.
     caveat = report.get('caveat', '')
-    # the verdict of THIS snapshot: every row can pass on an abandoned or no-boards run, so
+    # the verdict of THIS snapshot: every row can pass on an aborted or no-boards run, so
     # the caveat gates it. --accumulate clears an earlier attempt's caveat by design, so the
     # verdict of a retry sequence is the caller's, from every attempt's result.
     return {'pass': bool(results) and all(r['pass'] for r in results) and not caveat,
-            'results': results, 'banner': report.get('banner', ''), 'caveat': caveat}
+            'results': results, 'caveat': caveat}
 
 
 def main() -> int:

@@ -45,8 +45,7 @@ ROOT = Path(os.environ.get('ROOT_DIR') or Path(__file__).resolve().parents[4]).r
 
 # Everything the rig executes, by repo-relative path. test_hil_bounded's RemoteStaging walks
 # the harness's import closure and requires each file here, so keep this a plain literal.
-# tools/rtt.py is loaded by hil_util through exec_module, which no import walk can see, and
-# usb_recover.sh is run by hil_recover through sudo for the wedge-recovery shield.
+# tools/rtt.py is loaded by hil_util through exec_module, which no import walk can see.
 HARNESS_FILES = (
     'test/hil/hil_test.py',
     'test/hil/hil_flash.py',
@@ -55,13 +54,10 @@ HARNESS_FILES = (
     'test/hil/mtp_test.py',
     'test/hil/helper/__init__.py',
     'test/hil/helper/hil_args.py',
-    'test/hil/helper/hil_health.py',
     'test/hil/helper/hil_lock.py',
-    'test/hil/helper/hil_recover.py',
     'test/hil/helper/hil_report.py',
     'test/hil/helper/hil_util.py',
     'tools/rtt.py',
-    '.claude/skills/usb-kernel-recover/scripts/usb_recover.sh',
 )
 
 # A stalled link must end the run, not hang it: no subprocess timeout fits a HIL run of
