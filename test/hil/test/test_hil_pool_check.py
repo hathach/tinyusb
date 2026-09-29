@@ -3,6 +3,7 @@
 # hil_pool_check's verdicts with the bus, the flasher and the lock dir faked: no board is
 # touched. Run directly:
 #   python3 test/hil/test/test_hil_pool_check.py
+import json
 import os
 import sys
 import tempfile
@@ -57,8 +58,7 @@ class DeviceVerdict(unittest.TestCase):
         patch(self, hil_pool_check, 'get_expected_pid', lambda ex: '4001')
         patch(self, hil_pool_check, 'wait_device',
               lambda *a: ('1-1', vidpid, 2) if vidpid else None)
-        builds = {('b', 'device/x'): ('fw', 'ok')} if built_this_run else {}
-        patch(self, hil_pool_check, '_builds', builds)
+        patch(self, hil_pool_check, '_built', {('b', 'device/x')} if built_this_run else set())
         note, row = [], {'status': 'failed'}
         return hil_pool_check.check_device(BOARD, 'device/x', 'b', 1, note, row), note, row
 
@@ -113,19 +113,90 @@ class NoPark(unittest.TestCase):
         host = dict(BOARD, tests={'host': True})
         patch(self, hil_pool_check, 'find_usb', lambda uid: ('1-1', '1d50:6018', 1))
         patch(self, hil_pool_check, 'pick_example',
-              lambda *a, **kw: ('host/device_info', 'host', 'b', 'device_info.elf'))
+              lambda *a: ('host/device_info', 'host', 'b', 'device_info.elf'))
         patch(self, hil_pool_check.hil_flash, 'find_firmware', lambda *a, **kw: None)
-        patch(self, hil_pool_check, 'ensure_board_test',
-              lambda *a: self.fail('board_test is only the park image'))
-        patch(self, hil_pool_check, 'ensure_fw', lambda *a: self.fail('nothing needs a build'))
+        patch(self, hil_pool_check, 'build', lambda *a: self.fail('nothing needs a build'))
         patch(self, hil_pool_check, 'lock_board', lambda name: types.SimpleNamespace())
         patch(self, hil_pool_check, 'unlock_board', lambda fh: None)
         patch(self, hil_pool_check, 'find_device', lambda uid, pid: None)
         patch(self, hil_pool_check, 'flash', lambda board, fw, note: True)
         patch(self, hil_pool_check, 'host_alive', lambda *a, **kw: True)
         patch(self, hil_pool_check, 'park_board', lambda *a: self.fail('--no-park parks nothing'))
-        args = types.SimpleNamespace(scan_only=False, no_build=False, no_park=True)
+        args = types.SimpleNamespace(scan_only=False, no_build=False, no_park=True, parked=set())
         self.assertEqual(hil_pool_check.check_board(host, args)['status'], 'ok')
+
+
+class Build(unittest.TestCase):
+    """The build goes through check_build.py; its JSON verdict decides."""
+
+    def setUp(self):
+        self.calls = []
+        patch(self, hil_pool_check.shutil, 'which', lambda cmd: '/usr/bin/idf.py')
+
+    def run_build(self, board, verdict='', rc=0):
+        def run_cmd(cmd, **kw):
+            self.calls.append(cmd)
+            return types.SimpleNamespace(returncode=rc, stdout=f'log line\n{verdict}\n')
+        patch(self, hil_pool_check.hil_util, 'run_cmd', run_cmd)
+        note = []
+        return hil_pool_check.build(board, ['device/dfu_runtime', 'device/board_test'],
+                                    'roster.json', note), note
+
+    def test_it_builds_the_named_images_for_every_roster_variant(self):
+        ok, _ = self.run_build(BOARD, json.dumps({'pass': True, 'boards': [{'status': 'ok'}]}))
+        self.assertTrue(ok)
+        cmd = self.calls[0]
+        self.assertEqual(cmd[1:], [str(hil_pool_check.CHECK_BUILD), '--board', 'b', '--shared',
+                                   '--variants', 'roster.json', '--fetch-deps',
+                                   '-e', 'device/dfu_runtime', '-e', 'device/board_test'])
+
+    def test_a_failed_board_names_its_first_error(self):
+        verdict = {'pass': False, 'boards': [{'status': 'failed', 'buildDir': 'cmake-build/cmake-build-b',
+                                              'firstError': 'undefined reference to foo'}]}
+        ok, note = self.run_build(BOARD, json.dumps(verdict), rc=1)
+        self.assertFalse(ok)
+        self.assertIn('undefined reference to foo', note[0])
+
+    def test_a_refusal_carries_check_builds_error(self):
+        ok, note = self.run_build(BOARD, json.dumps({'error': 'not in roster.json: b'}), rc=2)
+        self.assertFalse(ok)
+        self.assertIn('not in roster.json', note[0])
+
+    def test_no_verdict_is_a_failure(self):
+        ok, note = self.run_build(BOARD, '', rc=1)
+        self.assertFalse(ok)
+        self.assertIn('without a verdict', note[0])
+
+    def test_esp_without_the_idf_env_is_not_built(self):
+        patch(self, hil_pool_check.shutil, 'which', lambda cmd: None)
+        patch(self, hil_pool_check.os, 'environ', {'IDF_PATH': '/definitely/missing'})
+        ok, note = self.run_build(dict(BOARD, flasher={'name': 'esptool', 'uid': 'P'}))
+        self.assertFalse(ok)
+        self.assertEqual(self.calls, [])
+        self.assertIn('ESP-IDF env missing', note[0])
+
+    def test_esp_sources_export_sh_in_the_build_child_only(self):
+        patch(self, hil_pool_check.shutil, 'which', lambda cmd: None)
+        with tempfile.TemporaryDirectory(prefix='idf $path ') as td:
+            open(os.path.join(td, 'export.sh'), 'w').close()
+            patch(self, hil_pool_check.os, 'environ', {'IDF_PATH': td})
+            self.run_build(dict(BOARD, flasher={'name': 'esptool', 'uid': 'P'}),
+                           json.dumps({'pass': True, 'boards': []}))
+        cmd = self.calls[0]
+        self.assertEqual(cmd[:2], ['bash', '-c'])
+        self.assertTrue(cmd[2].startswith('. "$IDF_PATH/export.sh" >/dev/null && '))
+        self.assertIn(' --board b --shared --variants roster.json ', cmd[2])
+
+
+class ParkedBoard(unittest.TestCase):
+    def test_a_boards_skip_board_without_firmware_is_not_built(self):
+        patch(self, hil_pool_check, 'find_usb', lambda uid: ('1-1', '1366:0105', 1))
+        patch(self, hil_pool_check.hil_flash, 'find_firmware', lambda *a, **kw: None)
+        patch(self, hil_pool_check, 'build', lambda *a: self.fail('check_build refuses boards-skip'))
+        args = types.SimpleNamespace(scan_only=False, no_build=False, no_park=False, parked={'b'})
+        row = hil_pool_check.check_board(dict(BOARD, tests={'device': True}), args)
+        self.assertEqual(row['status'], 'flash-failed')
+        self.assertIn('boards-skip board needs prebuilt firmware', '; '.join(row['note']))
 
 
 class Park(unittest.TestCase):
@@ -135,7 +206,7 @@ class Park(unittest.TestCase):
         state = {'on_bus': True}
         patch(self, hil_pool_check, 'find_device',
               lambda uid, pid: ('1-1', 'cafe:4001', 1) if state['on_bus'] else None)
-        patch(self, hil_pool_check, 'ensure_board_test', lambda *a: 'board_test.elf')
+        patch(self, hil_pool_check.hil_flash, 'find_firmware', lambda *a, **kw: 'board_test.elf')
 
         def flash(board, fw):
             state['on_bus'] = on_bus_after
