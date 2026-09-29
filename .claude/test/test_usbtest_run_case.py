@@ -5,6 +5,7 @@ import importlib.util
 import io
 import json
 import os
+import signal
 import subprocess
 import sys
 import tempfile
@@ -46,6 +47,7 @@ class Lock:
     def __init__(self):
         self.closed = False
         self.cleared = False
+        self.sigterm = None     # the SIGTERM disposition when the lock was released
 
     def close(self):
         self.closed = True
@@ -76,9 +78,13 @@ class Rig:
             self.calls.append(('flash', board['name'], fw))
             self.cwds.append(os.getcwd())
             rc = self.flash_rcs.pop(0) if self.flash_rcs else self.flash_rc
+            if isinstance(rc, BaseException):
+                raise rc
             return subprocess.CompletedProcess('flash', rc, 'probe says no', '')
 
         def acquire(name, reason):
+            if isinstance(self.lock_error, BaseException):
+                raise self.lock_error
             if self.lock_error:
                 raise RuntimeError(self.lock_error)
             self.calls.append(('lock', name))
@@ -86,6 +92,7 @@ class Rig:
 
         def clear(fh):
             fh.cleared = True
+            fh.sigterm = signal.getsignal(signal.SIGTERM)
 
         def battery(board, fw, tests, timeout):
             self.calls.append(('battery', tuple(tests), fw))
@@ -333,6 +340,62 @@ class Chain(unittest.TestCase):
         with self.assertRaises(KeyboardInterrupt):
             rig.run('--board', 'solo', '--tests', '29', '--after', 'park')
         self.released(rig)
+
+
+class Sigterm(unittest.TestCase):
+    """What `hil_lock.py release` sends the lock holder, raised in-process as on_sigterm would."""
+
+    def setUp(self):
+        self.addCleanup(signal.signal, signal.SIGTERM, signal.getsignal(signal.SIGTERM))
+        self.previous = lambda signum, frame: None
+        signal.signal(signal.SIGTERM, self.previous)
+
+    def terminated_mid_run(self, rig):
+        cwd = os.getcwd()
+        rc, report, _ = rig.run('--board', 'solo', '--tests', '29', '--after', 'park')
+        self.assertEqual((rc, report['pass'], report['boardState']),
+                         (1, False, 'unknown: terminated (SIGTERM) mid-run'))
+        self.assertIn('terminated (SIGTERM)', report['error'])
+        self.assertTrue(rig.lock.cleared and rig.lock.closed)
+        self.assertEqual(os.getcwd(), cwd)
+        self.assertIs(signal.getsignal(signal.SIGTERM), self.previous)
+
+    def test_during_the_battery(self):
+        rig = Rig(self)
+        rig.verdict = run_case.Terminated()
+        self.terminated_mid_run(rig)
+        self.assertEqual(sum(c[0] == 'flash' for c in rig.calls), 1)   # never parked
+
+    def test_during_the_flash_is_not_a_failed_flash(self):
+        rig = Rig(self)
+        rig.flash_rcs = [run_case.Terminated()]
+        self.terminated_mid_run(rig)
+        self.assertNotIn('enumerated', [c[0] for c in rig.calls])
+
+    def test_before_the_lock_is_a_refusal(self):
+        rig = Rig(self)
+        rig.lock_error = run_case.Terminated()
+        rc, report, _ = rig.run('--board', 'solo', '--tests', '29', '--after', 'park')
+        self.assertEqual((rc, report['boardState'], report['error']),
+                         (2, 'untouched', 'terminated (SIGTERM) before any hardware action'))
+        self.assertEqual(rig.calls, [])
+        self.assertIs(signal.getsignal(signal.SIGTERM), self.previous)
+
+    def test_handler_installed_for_the_run_then_restored(self):
+        rig = Rig(self)
+        during = []
+        battery = run_case.battery
+        with mock.patch.object(run_case, 'battery',
+                               lambda *a: during.append(signal.getsignal(signal.SIGTERM)) or battery(*a)):
+            self.assertEqual(rig.run('--board', 'solo', '--tests', '29', '--after', 'park')[0], 0)
+        self.assertEqual(during, [run_case.on_sigterm])
+        self.assertIs(rig.lock.sigterm, signal.SIG_IGN)   # after the verdict line, before the release
+        self.assertIs(signal.getsignal(signal.SIGTERM), self.previous)
+
+    def test_a_second_sigterm_is_ignored(self):
+        with self.assertRaises(run_case.Terminated):
+            run_case.on_sigterm(signal.SIGTERM, None)
+        self.assertIs(signal.getsignal(signal.SIGTERM), signal.SIG_IGN)
 
 
 class Battery(unittest.TestCase):
