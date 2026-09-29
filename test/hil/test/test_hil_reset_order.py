@@ -105,28 +105,6 @@ class ResetCallersKeepTheirOrder(unittest.TestCase):
         self.assertTrue(hil_pool_check.check_host_serial(VCOM_BOARD, want_hello=True))
         self.assertEqual(self.calls, ['open', 'flush', ('reset', 'openocd')])
 
-    def recover(self, flasher):
-        self.patch(hil_pool_check, 'get_expected_pid', lambda example: None)
-        self.patch(hil_pool_check, 'wait_device', lambda *a: self.calls.append('wait') or None)
-        note, row = [], {}
-        ok = hil_pool_check.device_recover_and_check(dict(VCOM_BOARD, flasher={'name': flasher}),
-                                                     'device/x', '', None, note, row, {})
-        return ok, note, row
-
-    def test_pool_check_skips_the_retry_wait_without_a_reset(self):
-        self.no_reset()
-        ok, note, row = self.recover('esptool')
-        self.assertFalse(ok)
-        self.assertEqual(self.calls, ['wait'], 'burned a second wait with nothing reset')
-        self.assertIn('no hardware reset', note[0])
-        self.assertIn('not enumerated', row.get('device', ''))
-
-    def test_pool_check_resets_then_waits_again(self):
-        self.fake_reset()
-        ok, _note, _row = self.recover('openocd')
-        self.assertFalse(ok)
-        self.assertEqual(self.calls, ['wait', ('reset', 'openocd'), 'wait'])
-
 
 if __name__ == '__main__':
     unittest.main()

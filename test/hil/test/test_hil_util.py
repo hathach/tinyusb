@@ -360,8 +360,8 @@ class BoundedReadForGuardlessCallers(unittest.TestCase):
                       'a lost stat race leaks a fresh reader on every later poll')
 
     def test_a_recovered_device_is_seen_again_on_the_same_busport(self):
-        """THE recovery flow: hil_pool_check resets or reflashes a wedged board, then
-        wait_device polls find_device -> scan_usb for the NEW inode. A busport does not
+        """THE flash flow: hil_pool_check flashes a board, then wait_device polls
+        find_device -> scan_usb for the NEW inode. A busport does not
         change when the board comes back on the same physical port, so a path-only
         blacklist would make that poll look at everything except the device it is waiting
         for -- the board recovers physically and the tool reports it gone for the rest of

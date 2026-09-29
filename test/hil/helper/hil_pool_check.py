@@ -4,8 +4,8 @@
 For every board in the rig's HIL config: is the flash probe on the USB bus, does a
 light example flash, and does the board's USB device (uid) come back up? Missing
 firmware is BUILT on the spot (tools/build.py, idf.py for espressif; one get_deps
-retry) — never skipped; --no-build opts out. Applies only per-device-safe recovery
-(probe authorized-toggle, board reset/re-flash) and prints a markdown summary
+retry) — never skipped; --no-build opts out. No recovery: a wedged probe or board is
+reported, and recovering it is usb-kernel-recover's job. Prints a markdown summary
 table. Row statuses: ok (flashed and verified; under --scan-only: probe present —
 the scan checks presence only), flash-failed (firmware delivery failed: probe
 missing, build failed, flasher error, silent flash no-op, park not verified),
@@ -16,14 +16,12 @@ reported, never waited on or bypassed).
 Config is picked by hostname unless given: ci -> tinyusb.json, tusb (hifiphile
 rig) -> hfp.json, anything else is a dev PC -> local.json.
 
-Lives in test/hil/helper/ beside hil_lock.py; imports it and hil_flash; board
-recovery uses the repo's .claude/skills/usb-kernel-recover/scripts/usb_recover.sh.
+Lives in test/hil/helper/ beside hil_lock.py; imports it and hil_flash.
 """
 
 import argparse
 import io
 import json
-import glob
 import os
 import re
 import shlex
@@ -40,8 +38,6 @@ import hil_flash
 from helper import hil_lock, hil_report, hil_util
 
 REPO_ROOT = hil_util.TINYUSB_ROOT
-USB_RECOVER = REPO_ROOT / '.claude' / 'skills' / 'usb-kernel-recover' / 'scripts' / 'usb_recover.sh'
-SEEN_CACHE = Path.home() / '.cache' / 'tinyusb-hil' / 'pool_seen.json'
 CONFIG_BY_HOST = {'ci': 'tinyusb.json', 'tusb': 'hfp.json'}  # anything else: dev PC -> local.json
 
 # light-example preference; first built wins
@@ -50,7 +46,6 @@ DEVICE_CANDIDATES = ['device/dfu_runtime', 'device/cdc_msc', 'device/cdc_msc_fre
 HOST_CANDIDATES = ['host/device_info', 'host/cdc_msc_hid', 'host/msc_file_explorer_freertos']
 
 ENUM_WAIT = 12       # s, uid wait after flash
-ENUM_WAIT_RETRY = 8  # s, uid wait after a recovery reset/re-flash
 SERIAL_WAIT = 6      # s, host-board serial-output wait
 
 print_mutex = threading.Lock()
@@ -141,11 +136,11 @@ def lock_board(name: str):
     os.makedirs(hil_lock.BOARD_LOCK_DIR, exist_ok=True)
     try:
         fh = hil_lock.flock_nb(name)
-    except OSError:
-        # NB: conflates a held flock with open() failures (EACCES/EROFS/ENOSPC) — benign
-        # while everything on the rig runs as one uid
+    except BlockingIOError:  # EWOULDBLOCK: the flock is held
         info = hil_lock.read_record(name)
         return json.dumps(info) if info else 'unknown holder'
+    except OSError as e:  # the lock file itself (EACCES/EROFS/ENOSPC), not a holder
+        return f'ERROR: lock file: {e.strerror}'
     if not hil_lock.write_record(fh, 'pool_check'):
         # an invisible lock (flock held, no record) is worse than no lock: status cannot
         # show us and release cannot recognize the protected holder
@@ -158,41 +153,6 @@ def lock_board(name: str):
 def unlock_board(fh) -> None:
     hil_lock.clear_record(fh)
     fh.close()
-
-
-def can_recover() -> bool:
-    if not USB_RECOVER.is_file():
-        return False
-    try:
-        # run_cmd, not subprocess.run: run's post-timeout reap is an UNBOUNDED wait(), and
-        # our kill bounces off a setuid-root sudo with EPERM, leaving communicate() on a
-        # pipe that never closes. run_cmd killpgs, escalates through sudo, reaps bounded.
-        r = hil_util.run_cmd('sudo -n true', timeout=10, quiet=True)
-    except OSError:  # sudo not installed
-        return False
-    return r.returncode == 0
-
-
-def recover_probe(uid: str, busport: str) -> bool:
-    """Soft-replug an enumerated-but-wedged probe: deauthorize+reauthorize (no VBUS cut,
-    touches only this device). Success = the probe re-enumerated (new sysfs inode), not the
-    helper's exit code, which flakes while the toggle works. J-Links respond with a full
-    disconnect and can stay off the bus for >8 s."""
-    pre = find_usb(uid)
-    # Bounded through run_cmd (same reason as can_recover): the sysfs authorized store can
-    # block in D state on a wedged device, and this runs while the board's release-
-    # PROTECTED flock is held -- a hang here would lock the board until the host reboots.
-    cmd = ' '.join(shlex.quote(a) for a in
-                   ['sudo', '-n', str(USB_RECOVER), 'authorized', busport])
-    if hil_util.run_cmd(cmd, timeout=30, quiet=True).returncode == 124:
-        return False
-    deadline = time.monotonic() + 20
-    while time.monotonic() < deadline:
-        post = find_usb(uid)
-        if post and (pre is None or post[2] != pre[2]):
-            return True
-        time.sleep(0.5)
-    return False
 
 
 def resolve_variant(board: dict, example: str, note: list | None = None) -> str:
@@ -287,45 +247,19 @@ def call_flasher(fn, *fn_args) -> tuple[int, str]:
         return -1, repr(e)[:90]
 
 
-def flash(board: dict, fw, allow_recovery: bool, probe_port: str, note: list) -> bool:
-    """Flash the resolved firmware with one retry; on repeated failure soft-replug the
-    probe and always make one final attempt afterward, confirmed replug or not — some
-    probes (WCH-Link, ST-Link, CP210x, picoprobe) keep their sysfs kobject across an
-    authorized toggle instead of dropping off the bus. Returns True on success.
+def flash(board: dict, fw, note: list) -> bool:
+    """One flash attempt; a failure is noted, never retried or recovered here.
 
     `fw` comes from pick_example: a re-resolve here would use the global search policy and
     miss a firmware ensure_fw just built into cmake-build/ under an exclusive -B."""
-    fn = hil_flash.flash_primitive(board['flasher']['name'])
-    for attempt in range(3):
-        if attempt == 2:
-            if not (allow_recovery and probe_port):
-                return False
-            cur = find_usb(board['flasher']['uid'])
-            if cur is None:
-                # probe gone from the bus: its old busport may now hold an UNRELATED device
-                # (bus renumbering) and the helper only checks occupancy, so toggling would
-                # deauthorize an innocent fixture
-                note.append('probe vanished before toggle')
-            else:
-                say(f'{board["name"]:26} recovery: replugging probe {cur[0]} (authorized toggle)')
-                if recover_probe(board['flasher']['uid'], cur[0]):
-                    note.append('probe replugged')
-                    time.sleep(2)  # udev recreates /dev/serial/by-id symlinks after re-enumeration
-                else:
-                    note.append('probe toggle unconfirmed')
-        rc, err = call_flasher(fn, board, str(fw))
-        if rc == 0:
-            return True
-        if rc == 127:  # flasher binary missing: retries/probe recovery can't fix env
-            note.append(f'flasher tool missing ({err}) — esptool needs the ESP-IDF env '
-                        f'(. "$IDF_PATH/export.sh")'
-                        if board['flasher']['name'].lower() == 'esptool' else
-                        f'flasher tool missing: {err}')
-            return False
-        if attempt == 0:
-            say(f'{board["name"]:26} flash retry: {err}')
-        else:
-            note.append(f'flash: {err}')
+    rc, err = call_flasher(hil_flash.flash_primitive(board['flasher']['name']), board, str(fw))
+    if rc == 0:
+        return True
+    if rc == 127 and board['flasher']['name'].lower() == 'esptool':
+        note.append(f'flasher tool missing ({err}) — esptool needs the ESP-IDF env '
+                    f'(. "$IDF_PATH/export.sh")')
+    else:
+        note.append(f'flash: {err}')
     return False
 
 
@@ -587,115 +521,42 @@ def verdict(row: dict, ok: bool) -> str:
 
 
 def host_alive(board: dict, note: list, row: dict, flashed_example: bool = False) -> bool:
-    """Serial aliveness with recovery: silent -> (build and) flash board_test (it
-    hellos every second and echoes) -> recheck. Also cures a silent flash no-op
-    that left the board crashed.
-
-    With flashed_example=True (a host example was just flashed), board_test-shaped
-    output FAILS the check: the parked image still talking means the example flash
-    silently didn't take — the host analog of the device path's PID check.
-
-    Side effect: delivery-class failures (silent no-op, board_test build/flash
-    failure) set row['status'] = 'flash-failed' so verdict() preserves the cause;
-    the caller derives the final status from the return value via verdict()."""
+    """Serial aliveness. With flashed_example=True (a host example was just flashed),
+    board_test-shaped output FAILS the check: the parked image still talking means the
+    example flash silently didn't take — the host analog of the device path's PID check,
+    and a delivery failure (row['status'] = 'flash-failed', which verdict() keeps)."""
     data = check_host_serial(board)
-    if data:
-        if flashed_example and boardtest_output(data):
-            note.append('board_test output after example flash: silent flash no-op')
+    if data and flashed_example and boardtest_output(data):
+        note.append('board_test output after example flash: silent flash no-op')
+        row['status'] = 'flash-failed'
+        return False
+    return bool(data)
+
+
+def check_device(board: dict, example: str, variant: str, old_ino, note: list, row: dict) -> bool:
+    """Wait for the flashed board's uid to re-enumerate. A PID mismatch means the build
+    dir is stale (warn) — unless this run built the firmware, when stale is impossible
+    and it can only be a silent flash no-op (fail). An unknown expected PID scores ok
+    with a 'pid unverified' note."""
+    expected_pid = get_expected_pid(example)
+    hit = wait_device(board['uid'], None, old_ino, ENUM_WAIT)
+    if not hit:
+        row['device'] = '❌ not enumerated'
+        return False
+    if expected_pid is None:
+        note.append('pid unverified')
+    elif not hit[1].endswith(expected_pid):
+        if _builds.get((variant, example), (None, ''))[1] == 'ok':
+            row['device'] = f'❌ {hit[1]}'
+            note.append(f'pid {hit[1]}, this run built {expected_pid}: silent flash no-op')
             row['status'] = 'flash-failed'
             return False
-        return True
-    variant = resolve_variant(board, 'device/board_test', note)
-    fw = ensure_board_test(board, variant, note)
-    if fw is None:
-        note.append('serial silent; board_test unavailable')
-        row['status'] = 'flash-failed'
-        return False
-    say(f'{board["name"]:26} recovery: serial silent, flashing board_test')
-    rc, err = call_flasher(hil_flash.flash_primitive(board['flasher']['name']), board, str(fw))
-    if rc != 0:
-        note.append(f'serial silent; board_test flash failed: {err}')
-        row['status'] = 'flash-failed'
-        return False
-    if not check_host_serial(board):
-        return False
-    if flashed_example:
-        # board_test talking proves the BOARD is alive, but the just-flashed
-        # example never produced serial — that verification still fails
-        note.append('example silent; board alive via board_test reflash')
-        return False
-    note.append('recovered via board_test reflash')
+        note.append(f'⚠ pid {hit[1]}, source says {expected_pid}: stale build or silent flash no-op')
+    row['device'] = f'✅ {hit[1]}'
     return True
 
 
-def device_recover_and_check(board: dict, example: str, variant: str, old_ino, note: list, row: dict, seen: dict) -> bool:
-    """Wait for the flashed board's uid to re-enumerate; on timeout, try one board
-    reset (skipped for flashers with no hardware reset — see hil_flash.reset_primitive,
-    it would just burn the wait) and wait again.
-
-    The PID policy is deliberately asymmetric. Pre-reset, the re-enumeration was
-    caused by the flash itself, so a PID mismatch most likely means the build dir
-    is stale (the flash DID write what find_firmware found) — warn, don't fail —
-    UNLESS the firmware was built this very run: then 'stale build' is impossible
-    and the mismatch can only be a silent flash no-op, which fails. Post-reset,
-    the re-enumeration proves nothing about the flash (the reset alone explains
-    it), so a mismatch is treated as a silent flash no-op and fails; an unknown
-    expected PID scores ok with a 'pid unverified' note in both paths."""
-    name = board['name']
-    expected_pid = get_expected_pid(example)
-    built_this_run = _builds.get((variant, example), (None, ''))[1] == 'ok'
-
-    def seen_hit(hit):
-        seen[board['uid']] = {'name': name, 'busport': hit[0], 'when': time.strftime('%Y-%m-%d %H:%M')}
-
-    hit = wait_device(board['uid'], None, old_ino, ENUM_WAIT)
-    if hit:
-        if expected_pid is not None and not hit[1].endswith(expected_pid):
-            if built_this_run:
-                row['device'] = f'❌ {hit[1]}'
-                note.append(f'pid {hit[1]}, this run built {expected_pid}: silent flash no-op')
-                row['status'] = 'flash-failed'
-                return False
-            note.append(f'⚠ pid {hit[1]}, source says {expected_pid}: stale build or silent flash no-op')
-        elif expected_pid is None:
-            note.append('pid unverified')
-        row['device'] = f'✅ {hit[1]}'
-        seen_hit(hit)
-        return True
-
-    flasher_name = board['flasher']['name'].lower()
-    reset_fn = hil_flash.reset_primitive(flasher_name)
-    if reset_fn is None:
-        note.append(f'no hardware reset available for {flasher_name}')
-        row['device'] = '❌ not enumerated'
-        return False
-
-    say(f'{name:26} recovery: uid not up, resetting board')
-    rc, err = call_flasher(reset_fn, board)
-    if rc != 0:
-        note.append(f'reset failed: {err}')
-    hit = wait_device(board['uid'], None, old_ino, ENUM_WAIT_RETRY)
-    if not hit:
-        row['device'] = '❌ not enumerated'
-        note.append('reset did not help')
-        return False
-    if expected_pid is None:
-        row['device'] = f'✅ {hit[1]}'
-        note.append('reset recovered (pid unverified)')
-        seen_hit(hit)
-        return True
-    if hit[1].endswith(expected_pid):
-        row['device'] = f'✅ {hit[1]}'
-        note.append('reset recovered')
-        seen_hit(hit)
-        return True
-    row['device'] = f'❌ {hit[1]}'
-    note.append(f'reset recovered wrong pid, expected {expected_pid}: silent flash no-op')
-    row['status'] = 'flash-failed'
-    return False
-
-
-def check_board(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
+def check_board(board: dict, args) -> dict:
     name = board['name']
     row = {'name': name, 'probe': '❌ missing', 'flash': '–', 'device': '–', 'note': [], 'status': 'failed'}
     note = row['note']
@@ -703,12 +564,7 @@ def check_board(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
     probe = find_usb(board['flasher']['uid'])
     if probe:
         row['probe'] = f'✅ {probe[0]}'
-        seen[board['flasher']['uid']] = {'name': f'{name} probe', 'busport': probe[0],
-                                         'when': time.strftime('%Y-%m-%d %H:%M')}
     else:
-        last = seen.get(board['flasher']['uid'])
-        note.append(f'probe last seen {last["busport"]} {last["when"]}' if last
-                    else 'probe never seen by pool_check')
         say(f'{name:26} probe MISSING ({board["flasher"]["name"]} {board["flasher"]["uid"]})')
 
     # existing firmware only; a missing build is built further down (after a lock peek),
@@ -802,7 +658,7 @@ def check_board(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
         old_ino = pre[2] if pre else None
 
         try:
-            if not flash(board, fw, allow_recovery, probe[0], note):
+            if not flash(board, fw, note):
                 row['flash'] = f'❌ {Path(example).name}'
                 row['status'] = 'flash-failed'
                 say(f'{name:26} flash FAILED ({example})')
@@ -813,7 +669,7 @@ def check_board(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
                 ok = host_alive(board, note, row, flashed_example=True)
                 row['device'] = '✅ serial out' if ok else '❌ no serial out'
             else:
-                ok = device_recover_and_check(board, example, variant, old_ino, note, row, seen)
+                ok = check_device(board, example, variant, old_ino, note, row)
             row['status'] = verdict(row, ok)
             say(f'{name:26} {row["flash"]}  {row["device"]}')
             return row
@@ -883,51 +739,16 @@ def park_board(board: dict, kind: str, row: dict, note: list) -> None:
         row['status'] = 'flash-failed'
 
 
-def check_board_safe(board: dict, args, allow_recovery: bool, seen: dict) -> dict:
+def check_board_safe(board: dict, args) -> dict:
     """Isolate one board's exceptions: a crashing worker must not discard every
-    other board's row, the table, the topology, and the seen-cache write."""
+    other board's row and the table."""
     try:
-        return check_board(board, args, allow_recovery, seen)
+        return check_board(board, args)
     except Exception as e:
         name = board.get('name', '?')
         say(f'{name:26} INTERNAL ERROR: {e!r}')
         return {'name': name, 'probe': '–', 'flash': '–', 'device': '❌ error',
                 'note': [repr(e)[:120]], 'status': 'failed'}
-
-
-def controller_summary() -> list[str]:
-    """USB topology: controller (PCI addr, vendor) -> bus -> root-port subtree device
-    counts (hubs included, interfaces/root hubs not). Bus numbers renumber every boot;
-    PCI addresses and root-port numbers are stable."""
-    vendor_names = {'0x1022': 'AMD', '0x1912': 'Renesas', '0x8086': 'Intel', '0x1b21': 'ASMedia'}
-    ctrl = {}
-    for root in glob.glob('/sys/bus/usb/devices/usb*'):
-        bus = int(os.path.basename(root)[3:])
-        m = re.findall(r'[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-9a-f]', os.path.realpath(root))
-        pci = m[-1] if m else '?'
-        c = ctrl.setdefault(pci, {'vendor': '?', 'buses': {}})
-        subtrees = {}
-        for d in glob.glob(f'/sys/bus/usb/devices/{bus}-*'):
-            b = os.path.basename(d)
-            if ':' in b:
-                continue
-            subtrees[b.split('.')[0]] = subtrees.get(b.split('.')[0], 0) + 1
-        c['buses'][bus] = subtrees
-        try:
-            vid = open(f'/sys/bus/pci/devices/{pci}/vendor').read().strip()
-            c['vendor'] = vendor_names.get(vid, vid)
-        except OSError:
-            pass
-
-    lines = []
-    for pci, c in sorted(ctrl.items()):
-        lines.append(f'{pci} ({c["vendor"]})')
-        for bus, subtrees in sorted(c['buses'].items()):
-            detail = '   '.join(f'{k}: {n} dev' for k, n in
-                                sorted(subtrees.items(), key=lambda i: int(i[0].split('-')[1])))
-            lines.append(f'  bus {bus}: {sum(subtrees.values())} devices'
-                         + (f'   {detail}' if detail else ''))
-    return lines
 
 
 def main() -> None:
@@ -984,37 +805,19 @@ def main() -> None:
         # ESP-IDF, examples/ from manual builds). An EXPLICIT -B stays exclusive: the caller
         # named an artifact tree, so a miss must report rather than flash an older build.
         hil_flash.EXTRA_BUILD_DIRS = ['cmake-build', 'examples']
-    allow_recovery = not args.scan_only and can_recover()
-    seen = {}
-    try:
-        loaded = json.loads(SEEN_CACHE.read_text())
-        if isinstance(loaded, dict):  # tolerate a torn/hand-edited cache
-            seen = {k: v for k, v in loaded.items() if isinstance(v, dict)}
-    except (OSError, ValueError):
-        pass
-
     roots = ' + '.join(dict.fromkeys([hil_flash.build_dir, *hil_flash.EXTRA_BUILD_DIRS]))
     say(f'pool check: host {host}, config {cfg_path.name}, {len(boards)} boards, '
-        f'{"scan-only" if args.scan_only else f"flash via {{{roots}}}/cmake-build-<board>"}'
-        f'{"" if allow_recovery or args.scan_only else ", recovery unavailable (no sudo -n / usb_recover.sh)"}')
+        f'{"scan-only" if args.scan_only else f"flash via {{{roots}}}/cmake-build-<board>"}')
 
     if args.verbose:
-        rows = [check_board_safe(b, args, allow_recovery, seen) for b in boards]
+        rows = [check_board_safe(b, args) for b in boards]
     else:
         with io.StringIO() as spool, ThreadPoolExecutor(max_workers=args.jobs) as pool:
             sys.stdout = spool  # silence hil_util.run_cmd's COMMAND FAILED dumps; say() uses __stdout__
             try:
-                rows = list(pool.map(lambda b: check_board_safe(b, args, allow_recovery, seen), boards))
+                rows = list(pool.map(lambda b: check_board_safe(b, args), boards))
             finally:
                 sys.stdout = sys.__stdout__
-
-    try:
-        SEEN_CACHE.parent.mkdir(parents=True, exist_ok=True)
-        tmp = SEEN_CACHE.with_suffix('.json.tmp')
-        tmp.write_text(json.dumps(seen, indent=1, sort_keys=True) + '\n')
-        tmp.replace(SEEN_CACHE)  # atomic: a killed run can't tear the cache
-    except OSError:
-        pass
 
     status_mark = {'ok': '✅ ok', 'flash-failed': '❌ flash-failed', 'failed': '❌ failed',
                    'locked': '🔒 locked'}
@@ -1033,10 +836,6 @@ def main() -> None:
     print('|' + '|'.join('-' * (w + 2) for w in widths) + '|')
     for c in cells:
         print(line(c))
-
-    print('\nUSB topology (controller → root-port subtree):')
-    for line in controller_summary():
-        print(f'  {line}')
 
     counts = {'ok': 0, 'flash-failed': 0, 'failed': 0, 'locked': 0}
     for r in rows:

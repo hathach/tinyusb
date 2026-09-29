@@ -1218,7 +1218,8 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
 
     def test_the_harness_own_tests_select_nothing_on_either_axis(self):
         for p in ('test/hil/test/test_ci_select.py', 'test/hil/test/test_ci_metrics.py',
-                  'test/hil/test/test_hil_bounded.py', 'test/hil/test/stubs/pymtp.py',
+                  'test/hil/test/test_hil_bounded.py',
+            'test/hil/test/test_hil_pool_check.py', 'test/hil/test/stubs/pymtp.py',
                   'test/hil/test/stubs/hid.py', 'test/hil/test/usbtest_harness.py'):
             s = ci_select.classify([p], REPO, ROSTERS)
             self.assertFalse(s['full'], p)
@@ -1253,6 +1254,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_family_json.py',
             'test/hil/test/test_hil_args.py',
             'test/hil/test/test_hil_bounded.py',
+            'test/hil/test/test_hil_pool_check.py',
             'test/hil/test/test_hil_remote.py',
             'test/hil/test/test_hil_report.py',
             'test/hil/test/test_hil_reset_order.py',

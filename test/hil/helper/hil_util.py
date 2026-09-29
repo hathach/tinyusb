@@ -166,7 +166,7 @@ SYSFS_READ_GRACE = 2.0        # default bound on one attribute read; see read_sy
 
 # path -> the kernfs inode the node had when its bounded read gave up. Keyed by INODE, not
 # by path alone: a busport does not change when a board returns to the same physical port,
-# so a path-only blacklist outlives the wedge -- hil_pool_check resets or reflashes the
+# so a path-only blacklist outlives the wedge -- hil_pool_check reflashes the
 # board, wait_device polls that busport for the new inode, and the scan it polls through
 # would never look at the device again. A re-enumeration destroys the kernfs node and makes
 # a new one, so a CHANGED inode is the all-clear. os.stat is safe on a wedged device: it
