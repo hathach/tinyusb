@@ -6,7 +6,7 @@ light example flash, and does the board's USB device (uid) come back up? Missing
 firmware is BUILT on the spot through the build contract (check_build.py) — never
 skipped; --no-build opts out, and a named boards-skip board must be prebuilt. No recovery: a wedged probe or board is
 reported, and recovering it is usb-kernel-recover's job. Prints a markdown summary
-table. Row statuses: ok (flashed and verified; under --scan-only: probe present —
+table, or with --json one JSON document the table is rendered from. Row statuses: ok (flashed and verified; under --scan-only: probe present —
 the scan checks presence only), flash-failed (firmware delivery failed: probe
 missing, build failed, flasher error, silent flash no-op, park not verified),
 failed (the check ran but did not verify: flashed with no enumeration/serial, or
@@ -20,6 +20,7 @@ Lives in test/hil/helper/ beside hil_lock.py; imports it and hil_flash.
 """
 
 import argparse
+import contextlib
 import io
 import json
 import os
@@ -28,9 +29,7 @@ import shlex
 import shutil
 import socket
 import sys
-import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # hil_flash + the helper package
@@ -50,13 +49,11 @@ ENUM_WAIT = 12       # s, uid wait after flash
 SERIAL_WAIT = 6      # s, host-board serial-output wait
 BUILD_TIMEOUT = 1800  # s, one board's light images for every roster variant, first configure included
 
-print_mutex = threading.Lock()
 t0 = time.monotonic()
 
 
 def say(msg: str) -> None:
-    with print_mutex:
-        print(f'[{time.monotonic() - t0:6.1f}s] {msg}', file=sys.__stdout__, flush=True)
+    print(f'[{time.monotonic() - t0:6.1f}s] {msg}', file=sys.__stdout__, flush=True)
 
 
 def scan_usb() -> dict:
@@ -388,8 +385,6 @@ def boardtest_output(data: bytes) -> bool:
     return len(residue) == 0
 
 
-_build_lock = threading.Lock()  # one check_build at a time: --fetch-deps and idf.py's
-                                # source-tree dependencies.lock are shared by every board
 _built: set = set()             # (variant, example) this run built
 
 
@@ -409,9 +404,8 @@ def build(board: dict, examples: list, config: Path, note: list) -> dict | None:
             return None
         # sourced in this child only: export.sh rewrites PATH and the python venv
         cmd = ['bash', '-c', f'. "$IDF_PATH/export.sh" >/dev/null && {shlex.join(cmd)}']
-    with _build_lock:
-        r = hil_util.run_cmd(cmd, cwd=str(REPO_ROOT), timeout=BUILD_TIMEOUT,
-                             split_stderr=True, quiet=True)
+    r = hil_util.run_cmd(cmd, cwd=str(REPO_ROOT), timeout=BUILD_TIMEOUT,
+                         split_stderr=True, quiet=True)
     if r.returncode == 124:
         note.append('build timeout')
         return None
@@ -477,12 +471,14 @@ def check_device(board: dict, example: str, variant: str, old_ino, note: list, r
 
 def check_board(board: dict, args) -> dict:
     name = board['name']
-    row = {'name': name, 'probe': '❌ missing', 'flash': '–', 'device': '–', 'note': [], 'status': 'failed'}
+    row = {'name': name, 'probe': '❌ missing', 'probe_busport': None, 'flash': '–', 'device': '–',
+           'note': [], 'status': 'failed'}
     note = row['note']
 
     probe = find_usb(board['flasher']['uid'])
     if probe:
         row['probe'] = f'✅ {probe[0]}'
+        row['probe_busport'] = probe[0]
     else:
         say(f'{name:26} probe MISSING ({board["flasher"]["name"]} {board["flasher"]["uid"]})')
 
@@ -674,8 +670,49 @@ def check_board_safe(board: dict, args) -> dict:
     except Exception as e:
         name = board.get('name', '?')
         say(f'{name:26} INTERNAL ERROR: {e!r}')
-        return {'name': name, 'probe': '–', 'flash': '–', 'device': '❌ error',
+        return {'name': name, 'probe': '–', 'probe_busport': None, 'flash': '–', 'device': '❌ error',
                 'note': [repr(e)[:120]], 'status': 'failed'}
+
+
+def check_pool(boards: list, args, header: str) -> list:
+    say(header)
+    if args.verbose:
+        return [check_board_safe(b, args) for b in boards]
+    # silence hil_util.run_cmd's COMMAND FAILED dumps; say() writes to sys.__stdout__
+    with contextlib.redirect_stdout(io.StringIO()):
+        return [check_board_safe(b, args) for b in boards]
+
+
+def pool_document(host: str, config: str, scan_only: bool, rows: list) -> dict:
+    """The one result both outputs come from. `coverage` says what a row's status covers:
+    probe-only (--scan-only), skipped-locked (never touched) or full-attempted."""
+    counts = {'ok': 0, 'flash-failed': 0, 'failed': 0, 'locked': 0}
+    for r in rows:
+        counts[r['status']] += 1
+        r['coverage'] = ('probe-only' if scan_only else
+                         'skipped-locked' if r['status'] == 'locked' else 'full-attempted')
+    return {'host': host, 'config': config, 'mode': 'scan-only' if scan_only else 'full',
+            'rows': rows, 'counts': counts, 'elapsed_s': round(time.monotonic() - t0, 1)}
+
+
+def render_table(doc: dict) -> str:
+    status_mark = {'ok': '✅ ok', 'flash-failed': '❌ flash-failed', 'failed': '❌ failed',
+                   'locked': '🔒 locked'}
+    headers = ['Board', 'Probe', 'Flash', 'Device', 'Status', 'Note']
+    cells = [[r['name'], r['probe'], r['flash'], r['device'],
+              status_mark.get(r['status'], r['status']), '; '.join(r['note'])] for r in doc['rows']]
+    # display_width, not len(): ✅ / ❌ / 🔒 / ⚠ are one character and two columns, so
+    # len() pads every row holding one a column short of the header rule
+    _w = hil_util.display_width
+    widths = [max(_w(h), *(_w(c[i]) for c in cells)) if cells else _w(h)
+              for i, h in enumerate(headers)]
+    line = lambda vals: ('| ' + ' | '.join(hil_util.pad(v, w)
+                                           for v, w in zip(vals, widths)) + ' |')
+    counts = doc['counts']
+    return '\n'.join(['', line(headers), '|' + '|'.join('-' * (w + 2) for w in widths) + '|',
+                      *(line(c) for c in cells), '',
+                      f'{counts["ok"]} ok · {counts["flash-failed"]} flash-failed · {counts["failed"]} failed '
+                      f'· {counts["locked"]} locked · in {doc["elapsed_s"]:.0f}s'])
 
 
 def main() -> None:
@@ -697,9 +734,8 @@ def main() -> None:
                         help='do not build missing firmware (default: build the light example on the spot)')
     parser.add_argument('--no-park', action='store_true',
                         help='leave the light example running (default: park with board_test)')
-    # no cross-process flash budget against a concurrent hil_test.py run (its semaphores
-    # are in-process), so keep this modest
-    parser.add_argument('-j', '--jobs', type=int, default=4)
+    parser.add_argument('--json', action='store_true',
+                        help='print only the result document on stdout; progress goes to stderr')
     parser.add_argument('-v', '--verbose', action='store_true')
     args = parser.parse_args()
 
@@ -731,44 +767,27 @@ def main() -> None:
         # named an artifact tree, so a miss must report rather than flash an older build.
         hil_flash.EXTRA_BUILD_DIRS = ['cmake-build', 'examples']
     roots = ' + '.join(dict.fromkeys([hil_flash.build_dir, *hil_flash.EXTRA_BUILD_DIRS]))
-    say(f'pool check: host {host}, config {cfg_path.name}, {len(boards)} boards, '
-        f'{"scan-only" if args.scan_only else f"flash via {{{roots}}}/cmake-build-<board>"}')
+    header = (f'pool check: host {host}, config {cfg_path.name}, {len(boards)} boards, '
+              f'{"scan-only" if args.scan_only else f"flash via {{{roots}}}/cmake-build-<board>"}')
 
-    if args.verbose:
-        rows = [check_board_safe(b, args) for b in boards]
+    if args.json:
+        # fd level, so flasher and build children cannot write to stdout either
+        sys.stdout.flush()
+        saved = os.dup(1)
+        try:
+            os.dup2(2, 1)
+            rows = check_pool(boards, args, header)
+        finally:
+            sys.stdout.flush()
+            os.dup2(saved, 1)
+            os.close(saved)
+        doc = pool_document(host, cfg_path.name, args.scan_only, rows)
+        print(json.dumps(doc, ensure_ascii=False))
     else:
-        with io.StringIO() as spool, ThreadPoolExecutor(max_workers=args.jobs) as pool:
-            sys.stdout = spool  # silence hil_util.run_cmd's COMMAND FAILED dumps; say() uses __stdout__
-            try:
-                rows = list(pool.map(lambda b: check_board_safe(b, args), boards))
-            finally:
-                sys.stdout = sys.__stdout__
-
-    status_mark = {'ok': '✅ ok', 'flash-failed': '❌ flash-failed', 'failed': '❌ failed',
-                   'locked': '🔒 locked'}
-    headers = ['Board', 'Probe', 'Flash', 'Device', 'Status', 'Note']
-    cells = [[r['name'], r['probe'], r['flash'], r['device'],
-              status_mark.get(r['status'], r['status']), '; '.join(r['note'])] for r in rows]
-    # display_width, not len(): ✅ / ❌ / 🔒 / ⚠ are one character and two columns, so
-    # len() pads every row holding one a column short of the header rule
-    _w = hil_util.display_width
-    widths = [max(_w(h), *(_w(c[i]) for c in cells)) if cells else _w(h)
-              for i, h in enumerate(headers)]
-    line = lambda vals: ('| ' + ' | '.join(hil_util.pad(v, w)
-                                           for v, w in zip(vals, widths)) + ' |')
-    print()
-    print(line(headers))
-    print('|' + '|'.join('-' * (w + 2) for w in widths) + '|')
-    for c in cells:
-        print(line(c))
-
-    counts = {'ok': 0, 'flash-failed': 0, 'failed': 0, 'locked': 0}
-    for r in rows:
-        counts[r.get('status', 'failed')] += 1
-    print(f'\n{counts["ok"]} ok · {counts["flash-failed"]} flash-failed · {counts["failed"]} failed '
-          f'· {counts["locked"]} locked · in {time.monotonic() - t0:.0f}s')
+        doc = pool_document(host, cfg_path.name, args.scan_only, check_pool(boards, args, header))
+        print(render_table(doc))
+    counts = doc['counts']
     sys.exit(min(counts['flash-failed'] + counts['failed'], 125))
-
 
 if __name__ == '__main__':
     main()

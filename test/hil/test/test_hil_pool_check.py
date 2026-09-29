@@ -204,6 +204,7 @@ class FreshFirmware(unittest.TestCase):
 
 class ParkedBoard(unittest.TestCase):
     def test_a_boards_skip_board_without_firmware_is_not_built(self):
+        patch(self, hil_pool_check, 'say', lambda msg: None)
         patch(self, hil_pool_check, 'find_usb', lambda uid: ('1-1', '1366:0105', 1))
         patch(self, hil_pool_check.hil_flash, 'find_firmware', lambda *a, **kw: None)
         patch(self, hil_pool_check, 'build', lambda *a: self.fail('check_build refuses boards-skip'))
@@ -247,6 +248,115 @@ class Park(unittest.TestCase):
         note, row = self.park(on_bus_after=True, flash_rc=1)
         self.assertEqual(row['status'], 'flash-failed')
         self.assertIn('park flash failed', note[-1])
+
+
+def row(name, status):
+    return {'name': name, 'probe': '✅ 1-1', 'probe_busport': '1-1', 'flash': '–', 'device': '–',
+            'note': [], 'status': status}
+
+
+class Document(unittest.TestCase):
+    def test_coverage_says_what_each_status_covers(self):
+        doc = hil_pool_check.pool_document('ci', 'tinyusb.json', False,
+                                           [row('a', 'ok'), row('b', 'locked'), row('c', 'failed')])
+        self.assertEqual([r['coverage'] for r in doc['rows']],
+                         ['full-attempted', 'skipped-locked', 'full-attempted'])
+        self.assertEqual(doc['counts'], {'ok': 1, 'flash-failed': 0, 'failed': 1, 'locked': 1})
+        self.assertEqual((doc['host'], doc['config'], doc['mode']), ('ci', 'tinyusb.json', 'full'))
+
+    def test_every_scan_only_row_is_probe_only(self):
+        doc = hil_pool_check.pool_document('ci', 'x.json', True, [row('a', 'ok'), row('b', 'flash-failed')])
+        self.assertEqual({r['coverage'] for r in doc['rows']}, {'probe-only'})
+        self.assertEqual(doc['mode'], 'scan-only')
+
+    def test_the_table_is_a_rendering_of_the_document(self):
+        doc = hil_pool_check.pool_document('ci', 'x.json', False, [dict(row('a', 'locked'), note=['held'])])
+        lines = hil_pool_check.render_table(doc).splitlines()
+        self.assertTrue(lines[1].startswith('| Board'))
+        self.assertIn('🔒 locked', lines[3])
+        self.assertIn('held', lines[3])
+        self.assertTrue(lines[-1].startswith('0 ok · 0 flash-failed · 0 failed · 1 locked'))
+
+
+class Main(unittest.TestCase):
+    """main() on a one-board roster with check_board faked; fds 1 and 2 are captured."""
+
+    def setUp(self):
+        td = tempfile.TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        self.cfg = os.path.join(td.name, 'roster.json')
+        with open(self.cfg, 'w') as f:
+            json.dump({'boards': [dict(BOARD, tests={'device': True})]}, f)
+        for obj, name in ((hil_pool_check.hil_flash, 'build_dir'), (hil_pool_check.hil_flash, 'EXTRA_BUILD_DIRS'),
+                          (hil_pool_check.hil_util, 'verbose')):
+            patch(self, obj, name, getattr(obj, name))
+
+    def noisy_board(self, board, args):
+        print('python noise')
+        os.write(1, b'child noise\n')
+        return row(board['name'], 'failed')
+
+    def run_main(self, *argv):
+        patch(self, sys, 'argv', ['hil_pool_check.py', self.cfg, *argv])
+        with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
+            sys.stdout.flush()
+            sys.stderr.flush()
+            saved = os.dup(1), os.dup(2)
+            os.dup2(out.fileno(), 1)
+            os.dup2(err.fileno(), 2)
+            code = None
+            try:
+                hil_pool_check.main()
+            except SystemExit as e:
+                code = e.code
+            except RuntimeError as e:
+                code = e
+            finally:
+                sys.stdout.flush()
+                sys.stderr.flush()
+                os.write(1, b'after\n')   # must land where fd 1 pointed before main()
+                os.dup2(saved[0], 1)
+                os.dup2(saved[1], 2)
+                os.close(saved[0])
+                os.close(saved[1])
+            out.seek(0)
+            err.seek(0)
+            return code, out.read().decode(), err.read().decode()
+
+    def assert_json_only(self, *argv):
+        patch(self, hil_pool_check, 'check_board_safe', self.noisy_board)
+        code, out, err = self.run_main('--json', *argv)
+        doc_line, after = out.splitlines()
+        self.assertEqual(after, 'after')
+        doc = json.loads(doc_line)
+        self.assertEqual(doc['rows'][0]['name'], 'b')
+        self.assertEqual(code, 1)
+        self.assertIn('pool check: host', err)
+        return err
+
+    def test_json_stdout_carries_only_the_document(self):
+        err = self.assert_json_only()
+        self.assertIn('child noise', err)
+
+    def test_json_stdout_stays_pure_under_verbose(self):
+        err = self.assert_json_only('-v')
+        self.assertIn('python noise', err)
+        self.assertIn('child noise', err)
+
+    def test_an_exception_restores_stdout(self):
+        def boom(*a):
+            raise RuntimeError('boom')
+        patch(self, hil_pool_check, 'check_pool', boom)
+        code, out, _ = self.run_main('--json')
+        self.assertIsInstance(code, RuntimeError)
+        self.assertEqual(out, 'after\n')
+
+    def test_the_default_output_is_the_table(self):
+        patch(self, hil_pool_check, 'check_board_safe', lambda board, args: row(board['name'], 'ok'))
+        code, out, _ = self.run_main()
+        self.assertEqual(code, 0)
+        self.assertIn('| Board', out)
+        self.assertIn('1 ok · 0 flash-failed', out)
 
 
 if __name__ == '__main__':

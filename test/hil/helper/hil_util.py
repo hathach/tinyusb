@@ -428,7 +428,7 @@ def run_cmd(cmd: str | list, cwd: str | None = None, timeout: int | None = None,
     if not binary:
         popen_kwargs.update({'text': True, 'encoding': 'utf-8', 'errors': 'replace'})
     # C-level setsid, same process-group semantics as preexec_fn=os.setsid but safe when
-    # called from threads (pool_check runs flashes from a thread pool)
+    # called from threads
     popen_kwargs['start_new_session'] = True
 
     p = subprocess.Popen(cmd, **popen_kwargs)

@@ -293,8 +293,8 @@ class BoundedReadForGuardlessCallers(unittest.TestCase):
                          'the healthy new inode was recorded as the wedged one')
 
     def test_concurrent_readers_of_one_path_spend_one_credit(self):
-        """hil_pool_check polls one bus from four threads; counting each READER would
-        spend the per-path cap on a single wedge."""
+        """Several threads reading one path: counting each READER would spend the
+        per-path cap on a single wedge."""
         ts = [threading.Thread(target=lambda: self.hil_util.read_sysfs(self.fifo, timeout=0.3))
               for _ in range(4)]
         [t.start() for t in ts]
