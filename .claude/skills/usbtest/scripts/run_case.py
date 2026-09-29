@@ -25,11 +25,14 @@ device/board_test afterwards unless the device is wedged or the verdict is incom
 stdout ends with one JSON line: {"pass", "board", "variant", "tests", "cases", "wedged",
 "boardState", "error"}, each case with usbtest.py's num, name, status, detail and, when it captured
 them, stderr and dmesg. Exit 0 every case passed, 1 a case failed or the run failed after the
-lock was taken, 2 refused before any hardware action.
+lock was taken, 2 refused before any hardware action. A SIGTERM (`hil_lock.py release` sends one
+to the lock holder) kills the running flasher or usbtest.py, reports boardState unknown with a
+verdict line, then releases the lock.
 """
 import argparse
 import json
 import os
+import signal
 import sys
 import tempfile
 import time
@@ -60,6 +63,16 @@ PROC = Path('/proc')
 
 class Refused(Exception):
     """Stop before any hardware action."""
+
+
+class Terminated(BaseException):
+    """SIGTERM: a BaseException, like KeyboardInterrupt, so run_cmd kills its child on the way out
+    and no `except Exception` on the path (flash()'s) mistakes it for a failed step."""
+
+
+def on_sigterm(signum, frame):
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)   # a second one must not cut the cleanup short
+    raise Terminated()
 
 
 def resolve(config, board_name, variant):
@@ -220,6 +233,7 @@ def main():
               'cases': [], 'wedged': False, 'boardState': 'untouched', 'error': ''}
 
     def finish(code, error=''):
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)   # one verdict line; the release still follows
         report['error'] = error
         if error:
             print(f'error: {error}', file=sys.stderr)
@@ -235,6 +249,14 @@ def main():
     if args.timeout <= 0:
         return finish(2, '--timeout must be positive')
 
+    previous = signal.signal(signal.SIGTERM, on_sigterm)
+    try:
+        return lock_and_run(args, tests, report, finish)
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+
+
+def lock_and_run(args, tests, report, finish):
     cwd = os.getcwd()   # before the lock: nothing after it may fail outside the cleanup
     try:
         board, variant = resolve(args.config, args.board, args.variant)
@@ -252,6 +274,8 @@ def main():
             raise Refused(f'{board["name"]}: board lock unavailable or bypassed (HIL_NO_BOARD_LOCK)')
     except Refused as e:
         return finish(2, str(e))
+    except Terminated:
+        return finish(2, 'terminated (SIGTERM) before any hardware action')
 
     try:
         if not args.allow_concurrent:
@@ -264,6 +288,10 @@ def main():
         with tempfile.TemporaryDirectory(prefix='run_case-', ignore_cleanup_errors=True) as workdir:
             os.chdir(workdir)
             return run_locked(board, fw, park_fw, tests, args.timeout, report, finish)
+    except Terminated:
+        report['pass'] = False
+        report['boardState'] = 'unknown: terminated (SIGTERM) mid-run'
+        return finish(1, 'terminated (SIGTERM), e.g. by hil_lock.py release')
     except Exception as e:   # any failure after the lock still ends with a verdict line
         return finish(1, f'{type(e).__name__}: {e}')
     finally:
