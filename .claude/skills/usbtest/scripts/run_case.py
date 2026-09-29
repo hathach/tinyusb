@@ -72,7 +72,26 @@ class Terminated(BaseException):
 
 def on_sigterm(signum, frame):
     signal.signal(signal.SIGTERM, signal.SIG_IGN)   # a second one must not cut the cleanup short
+    kill_children()
     raise Terminated()
+
+
+def kill_children():
+    """SIGKILL every child and its session: run_cmd's cleanup misses a child forked before its
+    try, e.g. when the signal lands inside Popen, which does not kill a child it has started."""
+    me = os.getpid()
+    for d in PROC.glob('[0-9]*'):
+        try:
+            if int((d / 'stat').read_text().rsplit(')', 1)[1].split()[1]) != me:
+                continue
+        except (OSError, ValueError, IndexError):
+            continue
+        pid = int(d.name)   # unreaped, so neither this pid nor its group can be reused
+        for kill in (os.killpg, os.kill):   # kill: a child not yet in its own session
+            try:
+                kill(pid, signal.SIGKILL)
+            except OSError:
+                pass
 
 
 def resolve(config, board_name, variant):
@@ -142,12 +161,22 @@ def live_peers():
         except OSError:
             complete = False    # could be a battery we cannot see
             continue
-        # argv[0] for testusb, argv[1] for a script run by python3, later under sudo -n
-        names = [os.path.basename(a.decode(errors='replace')) for a in argv[:4]]
-        hit = next((n for n in names if n in PEERS), None)
+        hit = argv_peer([a.decode(errors='replace') for a in argv])
         if hit:
             found.append((int(d.name), hit))
     return found, complete
+
+
+def argv_peer(argv):
+    """The PEERS name argv runs: testusb, or the first script past wrappers (sudo -n, timeout N)
+    and interpreter options (python3 -W ignore -u); None once another script or -c/-m ends it."""
+    for a in argv:
+        name = os.path.basename(a)
+        if name in PEERS:
+            return name
+        if name.endswith('.py') or a in ('-c', '-m'):
+            return None
+    return None
 
 
 def check_peers():
