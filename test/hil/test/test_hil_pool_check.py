@@ -13,13 +13,9 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from helper import hil_lock, hil_pool_check   # noqa: E402
+from usbtest_harness import patch               # noqa: E402
 
 BOARD = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd', 'uid': 'P'}}
-
-
-def patch(test, obj, name, value):
-    test.addCleanup(setattr, obj, name, getattr(obj, name))
-    setattr(obj, name, value)
 
 
 class Lock(unittest.TestCase):
@@ -58,9 +54,8 @@ class DeviceVerdict(unittest.TestCase):
         patch(self, hil_pool_check, 'get_expected_pid', lambda ex: '4001')
         patch(self, hil_pool_check, 'wait_device',
               lambda *a: ('1-1', vidpid, 2) if vidpid else None)
-        patch(self, hil_pool_check, '_built', {('b', 'device/x')} if built_this_run else set())
         note, row = [], {'status': 'failed'}
-        return hil_pool_check.check_device(BOARD, 'device/x', 'b', 1, note, row), note, row
+        return hil_pool_check.check_device(BOARD, 'device/x', built_this_run, 1, note, row), note, row
 
     def test_the_expected_pid_passes(self):
         ok, note, row = self.run_check('cafe:4001', built_this_run=False)
@@ -78,9 +73,7 @@ class DeviceVerdict(unittest.TestCase):
         self.assertEqual(row['status'], 'flash-failed')
         self.assertIn('silent flash no-op', note[0])
 
-    def test_no_enumeration_fails_without_a_reset_retry(self):
-        patch(self, hil_pool_check.hil_flash, 'reset_primitive',
-              lambda name: self.fail('the pool check no longer resets a board'))
+    def test_no_enumeration_fails(self):
         ok, _, row = self.run_check(None, built_this_run=False)
         self.assertFalse(ok)
         self.assertIn('not enumerated', row['device'])
@@ -101,9 +94,7 @@ class HostVerdict(unittest.TestCase):
         ok, _, _ = self.alive(b'TinyUSB Host Example\r\n', flashed_example=True)
         self.assertTrue(ok)
 
-    def test_silence_is_not_alive_and_nothing_is_reflashed(self):
-        patch(self, hil_pool_check, 'call_flasher',
-              lambda *a: self.fail('the pool check no longer reflashes a silent board'))
+    def test_silence_is_not_alive(self):
         ok, _, _ = self.alive(b'', flashed_example=False)
         self.assertFalse(ok)
 
@@ -111,14 +102,13 @@ class HostVerdict(unittest.TestCase):
 class NoPark(unittest.TestCase):
     def test_a_host_board_under_no_park_builds_no_board_test(self):
         host = dict(BOARD, tests={'host': True})
-        patch(self, hil_pool_check, 'find_usb', lambda uid: ('1-1', '1d50:6018', 1))
-        patch(self, hil_pool_check, 'pick_example',
-              lambda *a: ('host/device_info', 'host', 'b', 'device_info.elf'))
-        patch(self, hil_pool_check.hil_flash, 'find_firmware', lambda *a, **kw: None)
+        patch(self, hil_pool_check, 'find_usb', lambda uid: '1-1')
+        patch(self, hil_pool_check, 'find_image', lambda board, ex, *a: (
+            ('b', 'device_info.elf') if ex == 'host/device_info' else (None, None)))
         patch(self, hil_pool_check, 'build', lambda *a: self.fail('nothing needs a build'))
         patch(self, hil_pool_check, 'lock_board', lambda name: types.SimpleNamespace())
         patch(self, hil_pool_check, 'unlock_board', lambda fh: None)
-        patch(self, hil_pool_check, 'find_device', lambda uid, pid: None)
+        patch(self, hil_pool_check, 'find_device', lambda uid: None)
         patch(self, hil_pool_check, 'flash', lambda board, fw, note: True)
         patch(self, hil_pool_check, 'host_alive', lambda *a, **kw: True)
         patch(self, hil_pool_check, 'park_board', lambda *a: self.fail('--no-park parks nothing'))
@@ -191,21 +181,43 @@ class Build(unittest.TestCase):
         self.assertIn(' --board b --shared --variants roster.json ', cmd[2])
 
 
-class FreshFirmware(unittest.TestCase):
+class FindImage(unittest.TestCase):
     def test_an_image_the_build_skipped_is_not_picked_up(self):
         patch(self, hil_pool_check.hil_flash, 'find_firmware', lambda *a, **kw: 'old.elf')
         board = dict(BOARD, variant=[{'name': 'b'}, {'name': 'b-DMA'}])
-        self.assertEqual(hil_pool_check.fresh_firmware(board, 'device/dfu_runtime', {'b': set()}),
-                         (None, None))
-        self.assertEqual(hil_pool_check.fresh_firmware(board, 'device/dfu_runtime',
-                                                       {'b': set(), 'b-DMA': {'dfu_runtime'}}),
+        self.assertEqual(hil_pool_check.find_image(board, 'device/dfu_runtime', ['cmake-build'],
+                                                   {'b': set()}), (None, None))
+        self.assertEqual(hil_pool_check.find_image(board, 'device/dfu_runtime', ['cmake-build'],
+                                                   {'b': set(), 'b-DMA': {'dfu_runtime'}}),
                          ('b-DMA', 'old.elf'))
+
+
+class BuildPeek(unittest.TestCase):
+    """A board CI holds is skipped before minutes of building, without touching its flock."""
+
+    def setUp(self):
+        td = tempfile.TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        patch(self, hil_lock, 'BOARD_LOCK_DIR', td.name)
+        patch(self, hil_pool_check, 'say', lambda msg: None)
+        patch(self, hil_pool_check, 'find_usb', lambda uid: '1-1')
+        patch(self, hil_pool_check, 'find_image', lambda *a: (None, None))
+        patch(self, hil_pool_check, 'build', lambda *a: self.fail('built for a held board'))
+        self.args = types.SimpleNamespace(scan_only=False, no_build=False, no_park=False, parked=set())
+
+    def test_a_held_board_is_not_built_and_its_flock_is_not_probed(self):
+        with open(hil_lock.lock_path('b'), 'w') as f:
+            json.dump({'pid': os.getpid(), 'reason': 'hil_test.py'}, f)
+        patch(self, hil_lock, 'flock_nb', lambda name: self.fail('probed the flock CI may be taking'))
+        row = hil_pool_check.check_board(dict(BOARD, tests={'device': True}), self.args)
+        self.assertEqual(row['status'], 'locked')
+        self.assertIn('hil_test.py', row['note'][-1])
 
 
 class ParkedBoard(unittest.TestCase):
     def test_a_boards_skip_board_without_firmware_is_not_built(self):
         patch(self, hil_pool_check, 'say', lambda msg: None)
-        patch(self, hil_pool_check, 'find_usb', lambda uid: ('1-1', '1366:0105', 1))
+        patch(self, hil_pool_check, 'find_usb', lambda uid: '1-1')
         patch(self, hil_pool_check.hil_flash, 'find_firmware', lambda *a, **kw: None)
         patch(self, hil_pool_check, 'build', lambda *a: self.fail('check_build refuses boards-skip'))
         args = types.SimpleNamespace(scan_only=False, no_build=False, no_park=False, parked={'b'})
@@ -220,8 +232,7 @@ class Park(unittest.TestCase):
     def park(self, on_bus_after, flash_rc=0):
         state = {'on_bus': True}
         patch(self, hil_pool_check, 'find_device',
-              lambda uid, pid: ('1-1', 'cafe:4001', 1) if state['on_bus'] else None)
-        patch(self, hil_pool_check.hil_flash, 'find_firmware', lambda *a, **kw: 'board_test.elf')
+              lambda uid: ('1-1', 'cafe:4001', 1) if state['on_bus'] else None)
 
         def flash(board, fw):
             state['on_bus'] = on_bus_after
@@ -231,7 +242,7 @@ class Park(unittest.TestCase):
         clock = iter(range(0, 1000, 5))
         patch(self, hil_pool_check.time, 'monotonic', lambda: next(clock))
         note, row = [], {'status': 'ok'}
-        hil_pool_check.park_board(BOARD, 'device', row, note)
+        hil_pool_check.park_board(BOARD, 'device', 'board_test.elf', row, note)
         return note, row
 
     def test_a_device_that_leaves_the_bus_is_parked(self):
@@ -251,8 +262,7 @@ class Park(unittest.TestCase):
 
 
 def row(name, status):
-    return {'name': name, 'probe': '✅ 1-1', 'probe_busport': '1-1', 'flash': '–', 'device': '–',
-            'note': [], 'status': status}
+    return hil_pool_check.new_row(name, probe='✅ 1-1', probe_busport='1-1', status=status)
 
 
 class Document(unittest.TestCase):
