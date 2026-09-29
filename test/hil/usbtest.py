@@ -519,6 +519,14 @@ def run_case(num, dev, testusb, quick, timeout):
                       'is not writable')
         return result
 
+    # testusb prints '<speed> speed\t<node>\t<ifnum>' once it has opened the node
+    # (tools/usb/testusb.c handle_testdev). Without it testusb never reached the ioctl: an
+    # open failure, a usage error. Not NOTRUN, which sends the reader to the binding profile.
+    if not re.search(rf'^\S+ speed\t{re.escape(dev["node"])}\t\d+$', out, re.M):
+        result.update(status='FAIL', detail=f'testusb did not run the case (rc {p.returncode})',
+                      stderr=out.strip())
+        return result
+
     # no result line: the kernel returned -EOPNOTSUPP (capability profile or
     # in-kernel parameter gate) and testusb skipped silently
     result.update(status='NOTRUN', detail='case gated off: check binding profile/pattern',
@@ -585,6 +593,9 @@ def main():
             tok = tok.strip()
             if not tok.isdecimal() or int(tok) not in PARAMS:  # isdecimal rejects unicode digits
                 sys.exit(f'--tests: {tok!r} is not a known case number (valid 0..{max(PARAMS)})')
+            # results are keyed by case number: an unrun duplicate would vanish from the report
+            if int(tok) in cases:
+                sys.exit(f'--tests: case {int(tok)} is listed twice')
             cases.append(int(tok))
     else:
         cases = [n for t in range(1, tier + 1) for n in TIER_CASES[t]]
@@ -781,10 +792,14 @@ def main():
             print(f"  FAILED test {r['num']}: {r.get('detail', '')}")
             if r.get('dmesg'):
                 print('    ' + r['dmesg'].replace('\n', '\n    '))
+    if failed:
+        print('diagnose failed cases with the usbtest skill, "Failed case" '
+              '(.claude/skills/usbtest/SKILL.md)', file=sys.stderr)
     # NOTRUN counts toward the exit status even though it is reported separately: a
     # standalone run whose cases were all skipped has NOT passed, and returning 0 hands a
-    # false success to any script driving this directly.
-    return len(failed) + len(notrun)
+    # false success to any script driving this directly. So does a device reported wedged
+    # after its last case passed.
+    return len(failed) + len(notrun) or int(unrecovered_hang)
 
 
 if __name__ == '__main__':

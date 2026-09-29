@@ -1,210 +1,197 @@
 ---
 name: usbtest
-description: Use when running, debugging, or porting the Linux usbtest/testusb battery (examples/device/usbtest, cafe:4010) — device "did not bind", SET_CONFIGURATION fails, a case fails with errno 110/32/5/71, toggle-clear/halt/unlink/iso failures, iso packets dropped, or a new MCU/DCD needs the full 30/30 sign-off. Needs a Linux PC as the link's host driving TinyUSB in device role — it exercises the DCD, not the TinyUSB host stack.
+description: Use when bringing up examples/device/usbtest (cafe:4010) on a new MCU or DCD, or when a usbtest case fails — a red usbtest cell in a HIL report, testusb errno 110/32/5/71, NOTRUN or HUNG cases, device "did not bind", SET_CONFIGURATION fails, halt/toggle-clear/unlink/interrupt/isochronous failures. Load it before reproducing or debugging the case. A Linux PC hosts the link and drives TinyUSB in device role: it exercises the DCD, not the TinyUSB host stack.
 ---
 
-# usbtest — porting & debugging the Linux kernel USB battery
+# usbtest — bring-up and failed cases of the Linux kernel USB battery
 
-## Overview
+`examples/device/usbtest` is the device-side peer of the kernel's `usbtest.ko`/`testusb`
+(Gadget Zero source/sink): 30 cases over EP0, bulk, interrupt and isochronous, including halt,
+data-toggle and unlink storms. The example README describes every case and tier; the host runner
+is `test/hil/usbtest.py`.
 
-`examples/device/usbtest` is the device-side peer of the Linux kernel's `usbtest.ko`/`testusb`
-(gadget-zero source/sink protocol): 30 cases over bulk, EP0, interrupt, and isochronous, including
-halt, data-toggle, and unlink storms. It is the most adversarial exerciser a DCD gets — every port
-so far surfaced at least one real driver bug. Host runner: `test/hil/usbtest.py`; HIL integration
-runs it per board and reports `✅ 30/30` cells.
+**The battery tests the DCD, not the firmware.** A failed case points at the DCD path it
+exercises (map below). Reproduce that one case, root-cause it on hardware before changing
+anything (agentrc's `hw-debugger`), one variable at a time. A fix is proven when the case passes
+and the full battery still passes across reflash cycles.
 
-**Core principle: the battery is a DCD test, not a firmware test.** When a case fails, suspect the
-DCD path it exercises (table below), reproduce that one case, and root-cause on hardware before
-changing anything (agentrc's `hw-debugger`). One variable at a time; a fix is proven by
-the failing case passing *and* the full battery still at 30/30 across reflash cycles.
+## Choose the path
 
-## Run
+| Situation                                        | Do                                                                                  |
+|--------------------------------------------------|-------------------------------------------------------------------------------------|
+| Routine full battery on rig boards               | The HIL contract (`hil` skill): `hil_test.py -b <board> -t device/usbtest <config>` |
+| Chosen cases on a board you have not taken       | `scripts/run_case.py` (below)                                                       |
+| Chosen cases inside a lock you hold, firmware on | `python3 test/hil/usbtest.py --serial <uid> --tests 13,29 --json`                   |
+| What a case does, or whether its hang can clear  | `scripts/kernel_src.py` (below), then read the functions the case calls             |
+| New MCU or DCD                                   | Bring-up ladder                                                                     |
+
+Build first, through the build contract; `--variants` gives each roster variant its own
+`cmake-build-<variant>` dir, the one HIL and `run_case.py` flash from. A board not yet in the
+roster builds without `--variants` and is flashed by hand until it is added:
 
 ```bash
-# build through the build contract; descriptor sizes auto-adapt per MCU via the example's
-# own src/usb_descriptors.h + src/tusb_config.h. No -D: --variants supplies each roster variant's
-# defines into its own cmake-build-<variant> (hil skill, Prerequisites), and an extra one would
-# stick to the dirs HIL flashes from. A board off the roster drops --variants.
-# board_test is the park firmware hil_test.py flashes after the battery.
 python3 .claude/skills/build/scripts/check_build.py --board <board> -e device/usbtest -e device/board_test --shared --variants <this host's config>
-
-# rig board, full battery: the HIL harness self-locks (no pre-hold), flashes through the
-# roster's probe, budgets the battery and enables hang recovery where the board allows.
-python3 test/hil/hil_test.py -b <board> -t device/usbtest <this host's config>
-
-# one case by hand: the harness re-parks the board afterwards, so hold it, flash usbtest with
-# its probe pinned, wait ~3-5 s for enumeration, run, release. From the board's entry in this
-# host's HIL config json: <probe-uid>/<args> are its flasher "uid"/"args", <uid> its own "uid",
-# <variant> the variant under test, or the board's name when its entry has no "variant" list.
-# A non-jlink flasher: run the command flash_<flasher>() in test/hil/hil_flash.py builds for the
-# usbtest image its FLASHER_SUFFIX entry picks.
-python3 test/hil/helper/hil_lock.py hold <board> --reason "usbtest case 29"
-JLinkExe -USB <probe-uid> <args> -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 \
-    -CommandFile cmake-build/cmake-build-<variant>/device/usbtest/usbtest.jlink
-python3 test/hil/usbtest.py --serial <uid> --tests 29
-python3 test/hil/helper/hil_lock.py release <board>
 ```
-
-A bench with a single J-Link attached flashes with `ninja -C cmake-build/cmake-build-<variant>
-usbtest-jlink`; Espressif boards flash with `idf.py` (CLAUDE.md, ESP-IDF).
-
-- The run registers `cafe 4010` with the usbtest module once per rig (Gadget Zero's profile) and
-  leaves the id and the binding in place: an unbind has wedged host xHCIs
-  (`usb_hcd_alloc_bandwidth`), and the next example enumerates under its own PID.
-- CI (`hil_test.py`) additionally passes `--budget` and, when the board's recovery flasher is
-  convoy-safe and flashing is on, `--recover-board`/`--recover-fw`: a HUNG case (the killed
-  testusb not reaped within 30 s; a peer's held lock reaps later and counts as a timeout) aborts
-  the battery and RESETS the DUT through its roster probe (non-destructive, ~130 ms), or reflashes
-  it where the flasher has no reset (esptool); the child reaping afterwards is what clears
-  `wedged` (see usb-kernel-recover). Manual runs without those flags leave a HUNG device wedged —
-  expected; reset or reflash it yourself.
-- A non-root caller whose device node is not writable runs testusb under `sudo -n`, and the
-  child it can kill is only the wrapper. A case is HUNG when the read after the kill still times
-  out after 5 s; it still attempts the recovery step when one is available, but cannot confirm
-  the test process was reaped, so `wedged` stays set.
-- Always settle a few seconds after flashing — enumeration can bounce once; testusb into the gap sees
-  the device drop mid-case.
-- For manual work on a CI rig: hold the board lock before touching hardware and release it
-  after — never stop the actions runner. It keeps running; the per-board flock is what arbitrates (see the `hil` skill).
-  Never start a battery by hand next to a running one: `hil_test.py` budgets 2 concurrent batteries
-  per host controller (`HIL_USBTEST_PARALLEL`). The width itself is a profiled throughput/bandwidth
-  trade, not a safety ceiling (the concurrency note above `FLASH_PARALLEL` in `hil_lock.py`) — but
-  a battery outside the budget is a real hazard: unbudgeted concurrent batteries have hard-frozen
-  the rig with a fatal PCIe error on a VFIO-passed xHCI, and a marginal DUT port bouncing under
-  concurrent batteries has killed a uPD720201 outright, which lowering the widths does not fix
-  (that note records every such death).
-
-## Repair a wrong profile
-
-The listing (`/sys/bus/usb/drivers/usbtest/new_id`) shows only `cafe 4010`, never the profile behind
-it; a bound interface keeps the profile it was probed with. Symptoms of a wrong one (say the
-user-mode profile `0525 a4a4`): cases 14/21, 25/26 and 15/16/22/23 come back NOTRUN while
-the bulk cases pass, and `dmesg` names the probe (`Linux gadget zero` is the right one).
-Repair is a module reload on a reserved, idle rig; `remove_id` alone leaves every bound
-interface on the old profile.
-
-1. Reserve the whole fleet as the `hil` skill's rig-wide rule says (it owns that command and
-   its per-host config trap); go on only once it holds, and confirm no `testusb`/`usbtest.py`
-   is running.
-2. `sudo modprobe -r usbtest`, then `sudo modprobe usbtest`. A refused unload means an interface
-   is still in use: find that holder and wait; never force it.
-3. Register the correct entry: the next run of `usbtest.py` or `hil_test.py` does it.
-4. Verify `dmesg` shows a `Linux gadget zero` probe for the next enumerated board, then release.
-
-## Porting ladder — new MCU/DCD to 30/30
-
-1. **Tier 1 (bulk)**: set `USBTEST_TIER 1`, get enumeration + cases 0,9,10 (EP0) + 1–8,17–20,27,28
-   solid. EP0 correctness first — everything else reports through it.
-2. **Tier 2 (ctrl_out 14/21)**, **tier 3 (interrupt 25/26)**, **tier 4 (iso 15/16/22/23)** — raise
-   the tier only when the layer below is clean; run the *full* battery after each layer.
-3. **Fit the endpoints**: tier 4 needs 6 endpoints + EP0. Small parts need per-MCU mps/epbuf
-   overrides in the example's own `src/usb_descriptors.h` (`USBTEST_INT/ISO_EP_MPS_FS`) and
-   `src/tusb_config.h` (`CFG_TUD_VENDOR_TX_EPSIZE`) — follow the existing CH32/LPC11 patterns.
-   Parts that can't fit go in `skip.txt`.
-4. **Sign-off = reliability, not one pass**: 3–10 full flash→battery cycles. One 30/30 proves
-   nothing on a flaky bring-up; deterministic partial counts (e.g. exactly 1-in-8 lost) are a
-   signature, not noise — chase them.
-5. Register the board in `test/hil/tinyusb.json` so the HIL suite runs it.
-
-## Case → DCD subsystem map
-
-| Failing case(s) | Exercises | First suspect |
-|---|---|---|
-| 9, 10 | EP0 control storms | EP0 state machine, ZLP/status stage, control starvation under load |
-| 1–8, 17–20, 27, 28 | bulk source/sink, sg, perf | FIFO handling, multi-packet, ZLP tolerance |
-| 11, 12, 24 | URB unlink mid-transfer | abort/close paths leaving state half-armed |
-| 13 | set/clear halt | stall must kill the transfer; halt on armed IN must flush the TX FIFO |
-| **29** | clear-halt on an **armed, un-halted** ep | **the classic**: `dcd_edpt_clear_stall` resets toggle but disarms the queued receive → NAKs forever, errno 110. Fix: reset toggle to DATA0 *and* re-arm/preserve the pending transfer. Found independently on rp2040, fsdev, ch32_usbhs, rusb2 |
-| 14, 21 | vendor EP0 write/readback | multi-packet control-OUT chunking, DCP flow control |
-| 25, 26 | interrupt src/sink | usually free once bulk works |
-| 15, 16, 22, 23 | isochronous | see iso rules below |
-
-## Iso rules (most-violated contract)
-
-- **DATA0-only in BOTH directions** at FS — never run bulk-style toggle logic on an iso endpoint
-  (manual-toggle parts: skip the ISR toggle flip for iso IN *and* the toggle-mismatch drop for iso
-  OUT). Symptom of violating it: exactly every-other packet lost.
-- **No handshake** — iso never NAKs/STALLs; parts with response fields use their "no response"
-  encoding (e.g. NYET on WCH).
-- `dcd_edpt_iso_alloc`/`iso_activate` **must not be stubs returning false** — usbd fails the
-  interface open and the kernel logs "did not bind"/SET_CONFIG times out. If a DCD refuses iso
-  "because the hardware can't", **verify against the datasheet — the manual outranks the code
-  comment** (two "no iso support" claims in this tree were false, incl. a per-endpoint exception
-  the RM documents for one endpoint number only).
-- A multi-packet iso IN submit is legal: the DCD streams it one packet per frame, refilling in the
-  ISR. Slow cores may need double-buffered iso to make the frame deadline.
-
-## Debug ladder (escalate in order)
-
-| errno | Meaning                                                      |
-|-------|--------------------------------------------------------------|
-| 110   | timeout — endpoint NAKing forever / device wedged            |
-| 32    | EPIPE — unexpected STALL                                     |
-| 5     | EIO — iso packet errors (check `dmesg`: "N errors out of M") |
-| 71    | EPROTO — device answered wrong / too slow (after HC retries) |
-
-**Step 0 — read what the case actually does.** The kernel module is ground truth;
-the table above is a summary. Do this before theorising, and always before deciding
-whether a hung case is recoverable. Fetch the upstream version matching the rig's
-kernel (`uname -r`; the distro's own source when its patches matter). The sed reads an
-upstream or Debian 13+ (`6.12.48+deb13-amd64`) `uname -r`. An ABI name (Debian ≤12
-`6.1.0-18-amd64`, stock Ubuntu `6.8.0-45-generic`) maps to vx.y, so read the real version from
-`/proc/version` (Debian) or `/proc/version_signature` (Ubuntu); a Fedora (`6.14.0-0.rc3…`) or
-Ubuntu-mainline (`6.12.0-061200rc3-…`) rc kernel hides its `-rcN`. Name either tag by hand:
 
 ```bash
-curl --fail -sSO "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/drivers/usb/misc/usbtest.c?h=v$(uname -r | sed -E 's/^([0-9.]+(-rc[0-9]+)?).*/\1/; s/\.0(-|$)/\1/')"   # run on the rig; x.y.0[-rcN] is tagged vx.y[-rcN]
-# case N lives under `case N:` in the kernel's usbtest_do_ioctl()
-# (drivers/usb/misc/usbtest.c); kernel tools/usb/testusb.c maps the flags:
-# -c = param.iterations, -s = param.length, -g = param.sglen  (NOT what they read like)
+# lock, flash usbtest from the roster, wait for cafe:4010, run, park on board_test, release
+python3 .claude/skills/usbtest/scripts/run_case.py --config <this host's config> --board <board> --tests 13,29 --after park
 ```
 
-- **Real traffic and pass criteria.** Case 24 at `-c 256 -s 1024 -g 8` is 256 rounds
-  of 8 bulk-OUT URBs, unlinking `urbs[num-4]`/`urbs[num-2]` and requiring
-  `-ECONNRESET` on those two plus normal completion on the other 6 — not the
-  "256 URBs" the flags suggest.
-- **Whether the wait is bounded** — decisive for recovery. `simple_io` uses
-  `wait_for_completion_timeout` (:481); the unlink paths use a bare
-  `wait_for_completion` (:1502, :1615). A device stalling there wedges the ioctl in
-  **D state permanently** — it holds the device lock, so nothing recovers it
-  (usb-kernel-recover, "The terminal case"). Knowing this first stops you burning
-  the rig on attempts that cannot work.
-- **Which DCD path is implicated**, precisely rather than by category.
+`--after leave` keeps usbtest running for a debug session. `--variant` is required when the board
+has several. It refuses with exit 2 and the reason before touching hardware, including while any
+battery or another `run_case.py` runs on the host; pass `--allow-concurrent` only after checking
+no battery shares the board's host controller. A wedged device is never parked. The last stdout
+line is its JSON verdict; each of its `cases` carries `usbtest.py`'s `detail`, and `stderr` and
+`dmesg` when it captured them.
 
-1. `usbtest.py` per-case output + its captured `dmesg` (`TEST n` markers bracket each case).
-2. **usbmon** (`usb-kernel-debug` skill): URB-level ground truth. **It cannot show data toggles or NAKs** —
-   a toggle desync and a dead endpoint look identical (Submits without Completes); distinguish
-   device-side with GDB.
-3. **Target-side diagnosis**: `target-debug` (`esp-target-debug` for Espressif) on the original failing case.
-4. **Cross-check the reference manual** (`read-doc` skill) before changing any register-level code —
-   per CLAUDE.md, and because comments/assumptions in DCDs have been wrong about hardware caps.
-5. Check the vendor's **silicon errata** early for timing/DMA hangs (an unimplemented erratum
-   workaround caused a case-10 hang on one port).
+## Rig hazards
 
-## Traps that pass gcc/desk review but fail elsewhere
+- **Batteries are budgeted per host controller.** `hil_test.py` runs at most 2 per controller
+  (`HIL_USBTEST_PARALLEL`); those permits live inside its process, so a battery started outside it
+  is not counted. Unbudgeted batteries on one controller have frozen the rig, and a marginal DUT
+  port bouncing under concurrent batteries has killed a uPD720201 (the note above
+  `FLASH_PARALLEL` in `hil_lock.py`). Never start a battery outside `hil_test.py` on a controller
+  another battery is using.
+- **A wedged peer stalls every testusb on the host.** `testusb` opens every usbfs node while
+  scanning, even with `-D` (`tools/usb/testusb.c` find_testdev), and opening a node takes its
+  device lock. Once any device holds its lock for good, each new case blocks there in D state,
+  and `usbtest.py` blames the device under test. When testusb runs without `sudo -n`, a hold that
+  ends within the 30 s watch is a FAIL `timeout after Ns (the kill landed Ns late; a peer held the
+  node)` that stops the battery; one that outlasts the watch becomes HUNG. Check for other D-state
+  `testusb` processes on the host before trusting a HUNG verdict on a healthy board.
+- **The id and binding stay.** `usbtest.py` registers `cafe 4010` once and never unbinds or
+  removes it: those writes take the uninterruptible device lock. Recovery of a HUNG case is one
+  step: a probe reset, or a reflash where the flasher has none (esptool); never a root-port
+  cycle (`usb-kernel-recover`). Only the killed testusb reaping afterwards clears `wedged`, so
+  under `sudo -n` (node not writable, the child is the wrapper) it stays set. A manual run
+  without `--recover-board` leaves a HUNG device wedged. `wedged` is also set with no HUNG case
+  when the serial matches two devices or cannot be read after a case; stderr names which
+  (`reported wedged: ...`).
 
-- `TUD_OPT_HIGH_SPEED` is a **compile-time capability, not the live speed**: the FS config
-  descriptor (and OTHER_SPEED) must use FS-legal sizes (int ≤ 64, iso IN+OUT ≤ 1023 B/frame) even
-  on HS builds — use separate `_FS`/`_HS` descriptor macros.
-- Unused `static inline` helpers: clang `-Wunused-function` and IAR `Pe177` error where gcc stays
-  quiet → `TU_ATTR_UNUSED`.
-- A symbol referenced only inside naked asm is invisible to LTO and gets dropped in `-flto` make
-  builds → keep a `TU_ATTR_USED` C reference to it.
-- Nested USB IRQs on cores with hardware context stacks (QingKe HWSTK): plain
-  `__attribute__((interrupt))` corrupts the return — use naked handlers relying on the HW stack.
-- Dedicated USB RAM budgets (PMA/USB-RAM) differ per part *and* per build system section placement:
-  check the link map, not just that it builds.
+## Failed case
 
-## Red flags — stop and re-examine
+**Step 0: read the case in the rig's kernel.** The flags do not mean what they look like, and
+whether a hang can clear depends on the wait the case reaches, not on the rig:
 
-- "One pass = done" → run reflash cycles.
-- "The DCD comment says the hardware can't" → open the datasheet.
-- "usbmon shows no toggle problem" → usbmon can't see toggles.
-- "It works on gcc" → clang/IAR/LTO/make still pending.
-- "Fixed iso IN" → apply the same exemption to iso OUT (toggle logic is symmetric).
-- A clean single-board run does not validate concurrent/fleet behavior — a fleet run puts up to 2
-  batteries per host controller (`HIL_USBTEST_PARALLEL`) plus concurrent flashes on the same hub
-  uplinks, which one board never exercises.
-- Reasoning about a case from its name or table row → open `usbtest.c` (step 0). The
-  flags don't mean what they look like, and recoverability is a property of that
-  case's wait, not of the rig.
+```bash
+python3 .claude/skills/usbtest/scripts/kernel_src.py --release "$(ssh <rig> uname -r)" --case 24
+```
+
+It prints the `case N:` block of `usbtest_do_ioctl()` and every completion wait with its function.
+A Debian release maps only to an upstream candidate, which the distro may have patched.
+`testusb -c` is iterations, `-s` length, `-g` sglen, `-v` vary; the runner's per-speed values are
+its `PARAMS` table. In v6.12, `test_ctrl_queue` (case 10), `unlink1` (11, 12), `unlink_queued` (24)
+and `test_queue` (15, 16, 22, 23, 27, 28) wait with no timeout while holding the device lock, so a
+device that stops answering there leaves `testusb` in D state for good; scatter-gather (5-8) runs
+under a timer.
+
+| Verdict or errno   | Meaning                                                                                    |
+|--------------------|--------------------------------------------------------------------------------------------|
+| 110                | Timeout: an endpoint NAKs forever or the device wedged                                     |
+| 32                 | EPIPE: unexpected STALL                                                                    |
+| 5                  | EIO: isochronous packet errors; dmesg says "N errors out of M"                             |
+| 71                 | EPROTO: the device answered wrong or too slowly after host retries                         |
+| NOTRUN             | testusb opened the device and the kernel skipped the case: profile or parameter gate       |
+| FAIL "did not run" | testusb never reached the ioctl (open or usage error): read the case's captured `stderr`   |
+| HUNG               | testusb not reaped 35 s after SIGKILL; under `sudo -n` 5 s and unconfirmed (wrapper only)  |
+| BUDGET             | never dispatched: the battery stopped first; its detail names why                          |
+
+| Failing case(s)    | Exercises                                  | First suspect                                                              |
+|--------------------|--------------------------------------------|----------------------------------------------------------------------------|
+| 9, 10              | EP0 control, queued control                | EP0 state machine, ZLP and status stage, control starvation under load     |
+| 1-8, 17-20, 27, 28 | bulk source/sink, sg, perf                 | FIFO handling, multi-packet transfers, ZLP tolerance                       |
+| 11, 12, 24         | URB unlink mid-transfer                    | abort and close paths that leave an endpoint half-armed                    |
+| 13                 | set/clear halt                             | a stall must kill the armed transfer and flush a loaded IN FIFO            |
+| 29                 | clear-halt on an armed, un-halted bulk OUT | toggle reset that also disarms the queued receive: NAKs forever, errno 110 |
+| 14, 21             | vendor EP0 write and readback              | multi-packet control-OUT data stages                                       |
+| 25, 26             | interrupt source/sink                      | usually clean once bulk works                                              |
+| 15, 16, 22, 23     | isochronous                                | the isochronous rules below                                                |
+
+Case 29 (`test_toggle_sync`: clear halt, write, clear halt, write) is the most common DCD bug here:
+reset the toggle to DATA0 **and** keep the pending transfer armed (fixed that way in rp2040
+ad7acc849, fsdev 046463687, ch32_usbhs d63a45509).
+
+Escalate in order:
+1. The case's `detail` and captured `dmesg` in the JSON verdict (`TEST n` lines bracket each case).
+2. usbmon (`usb-kernel-debug`): URB-level truth. It cannot show data toggles or NAKs, so a toggle
+   desync and a dead endpoint look the same (Submits without Completes); tell them apart on the
+   target.
+3. Target-side evidence: `target-debug` (`esp-target-debug` on Espressif) on the failing case.
+4. The reference manual and errata (`read-doc`) before changing any register-level code: DCD
+   comments have been wrong about what the hardware can do.
+
+## Isochronous rules
+
+From USB 2.0 §8.5.5 (Calibre book 775, p. 229-230):
+- **No handshake, no retry.** An isochronous endpoint never NAKs or STALLs; parts with a response
+  field use their "no response" encoding.
+- **No toggle sequencing.** A full-speed device sends only DATA0 and should accept DATA0 or DATA1:
+  skip bulk-style toggle logic on isochronous endpoints in both directions (no toggle flip on IN,
+  no toggle-mismatch drop on OUT). Symptom of breaking it: every other packet lost.
+- **Full-speed sizes:** isochronous up to 1023 bytes per endpoint (§5.6.3), interrupt up to 64
+  (§5.7.3). `TUD_OPT_HIGH_SPEED` is a build capability, not the live speed, so the full-speed and
+  other-speed descriptors need full-speed sizes even on a high-speed build (`_FS`/`_HS` macros in
+  the example's `src/usb_descriptors.h`).
+- On ports that define `TUP_DCD_EDPT_ISO_ALLOC`, `dcd_edpt_iso_alloc`/`dcd_edpt_iso_activate` must
+  work: a stub returning false fails the vendor interface open, SET_CONFIGURATION is refused and
+  the runner reports "did not bind". Before accepting "the hardware has no isochronous", check the
+  reference manual: two such claims in this tree were false.
+- A multi-packet isochronous IN submit is legal: the DCD sends one packet per frame and refills in
+  its ISR. Slow cores may need double buffering to meet the frame deadline.
+
+## Bring-up ladder
+
+1. **Tier 1, bulk and EP0** (`USBTEST_TIER 1`): enumeration, then cases 0, 9, 10 first (everything
+   else reports through EP0), then 1-8, 11-13, 17-20, 24, 27-29 (`TIER_CASES` in `usbtest.py`).
+2. **Tier 2** control-OUT (14, 21), **tier 3** interrupt (25, 26), **tier 4** isochronous
+   (15, 16, 22, 23): raise the tier only when the layer below is clean, and run the full battery
+   after each.
+3. **Fit the endpoints.** Tier 4 needs six endpoints plus EP0. Small parts take per-MCU sizes in
+   the example's `src/usb_descriptors.h` (`USBTEST_INT_EP_MPS_FS`, `USBTEST_ISO_EP_MPS_FS`) and
+   `src/tusb_config.h` (`CFG_TUD_VENDOR_TX_EPSIZE`), as the CH32 and LPC11 entries do. A part whose
+   DCD cannot serve a tier lowers its default `USBTEST_TIER` there, with the reason (RA2A1 is
+   tier 3); one that cannot fit at all goes in `skip.txt`.
+4. **Sign-off is every case of the justified tier, across 3-10 flash-and-run cycles.** The device
+   advertises its tier in `bcdDevice`, so the battery is 30 cases only at tier 4. One pass proves
+   nothing on a flaky bring-up; a deterministic partial count (exactly 1 in 8 lost) is a signature
+   to chase, not noise.
+5. Add the board to the HIL roster (`test/hil/*.json`) when roster edits are in the task's scope;
+   otherwise hand it to the owner. Automated PR repair never touches the rosters.
+
+## Wrong profile
+
+`/sys/bus/usb/drivers/usbtest/new_id` lists only `cafe 4010`, never the profile behind it, and a
+bound interface keeps the profile it was probed with. The right one probes as `Linux gadget zero`
+in dmesg; the user-mode profile (`0525 a4a4`) passes bulk but reports 14, 21, 25, 26 and 15, 16,
+22, 23 as NOTRUN. Repair is a module reload on a reserved, idle rig:
+
+1. Reserve the whole fleet as the `hil` skill's rig-wide rule says, and confirm no `testusb` or
+   `usbtest.py` is running: `modprobe -r` detaches every bound interface and blocks, unkillably,
+   behind any case still in flight. It is never refused for an interface in use.
+2. `sudo modprobe -r usbtest && sudo modprobe usbtest`.
+3. The next `usbtest.py` or `hil_test.py` run registers the id again.
+4. Confirm a `Linux gadget zero` probe for the next board, then release.
+
+## Traps that pass gcc and desk review
+
+Carried over from earlier ports, not re-verified:
+- clang `-Wunused-function` and IAR `Pe177` reject an unused `static inline` that gcc accepts:
+  `TU_ATTR_UNUSED`.
+- A symbol referenced only from naked asm is dropped by `-flto` make builds: keep a
+  `TU_ATTR_USED` C reference.
+- Nested USB IRQs on cores with a hardware context stack (QingKe HWSTK): a plain
+  `__attribute__((interrupt))` corrupts the return; use naked handlers.
+- Dedicated USB RAM (PMA, USB-RAM) budgets differ per part and per build system's section
+  placement: check the link map, not only that it builds.
+
+## Red flags
+
+- "One pass means done": run reflash cycles.
+- "The DCD comment says the hardware can't": open the reference manual.
+- "usbmon shows no toggle problem": usbmon cannot see toggles.
+- "Fixed isochronous IN": apply the same exemption to OUT.
+- "It works on gcc": clang, IAR, LTO and make builds are still pending.
+- "A clean single-board run": fleet runs put two batteries per controller plus concurrent flashes
+  on shared hub uplinks.
+- Reasoning about a case from its name or a table row: run step 0.

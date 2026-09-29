@@ -23,6 +23,7 @@ GitHub CI `hil-tinyusb (hfp.json)` matrix job — **never run HIL against it unl
 The `ci` rig also hosts a GitHub Actions runner that flashes boards and runs HIL as part of CI. Hardware access is arbitrated **per board** with kernel flocks in `/tmp/tinyusb-hil-locks/` — do NOT stop the runner service.
 
 - `hil_test.py` self-locks each board for its flash+test (holder reason `hil_test.py`). A locked board fails immediately (`<board>  Failed: board locked: {holder info}`) without flashing — in CI, re-run the failed job later; if your `hold` is refused with reason `hil_test.py`, a CI job is mid-test — wait a few minutes and retry rather than forcing.
+- For usbtest bring-up or case diagnosis, load the `usbtest` skill before a manual case run; its `run_case.py` takes and releases the lock itself. This skill still owns board locks and rig selection.
 - For hardware work outside `hil_test.py` (JLink/GDB, manual flashing, `usbtest.py`, serial poking), hold the lock first and release it when done — release is mandatory cleanup; the auto-release on holder death is a backstop, not the plan:
 
 ```bash
@@ -288,7 +289,8 @@ from the `<config>.failed` spec the run just wrote, which
 already begins with `--accumulate` and restricts each board to its failed tests. A hand-scoped
 `-b <board>` retry MUST pass `--accumulate` too: a fresh run unlinks the report, replacing the
 whole-fleet table with a one-row table. A usbtest battery that produced per-case verdicts is not
-auto-retried; its result already stands. If a board or fixture stops enumerating, or a tool of
+auto-retried; its result already stands, and its FAIL, NOTRUN or HUNG cases go to the `usbtest`
+skill for diagnosis. If a board or fixture stops enumerating, or a tool of
 yours hangs in D state, that is a wedge: save `dmesg | tail -50` as an artifact beside the
 report (never into the report's rows) and name the board in `wedged`, without recovering it.
 If a retry is still not enough, an interactive
