@@ -40,6 +40,7 @@ static xfer_ctl_t xfer_status[EP_MAX][2];
 /* Endpoint Buffer */
 TU_ATTR_ALIGNED(4) static uint8_t ep0_buffer[CFG_TUD_ENDPOINT0_SIZE];
 static bool ep0_tog;
+static bool reset_evt_pending;
 
 static void queue_in_packet(uint8_t ep_num, xfer_ctl_t* xfer) {
   uint16_t remaining = xfer->total_len - xfer->queued_len;
@@ -101,13 +102,9 @@ static void update_in(uint8_t rhport, uint8_t ep_num, bool force) {
   }
 }
 
-static void update_out(uint8_t rhport, uint8_t ep_num, uint16_t rx_len, bool is_tog_ok) {
+static void update_out(uint8_t rhport, uint8_t ep_num, uint16_t rx_len) {
   xfer_ctl_t* xfer = XFER_CTL_BASE(ep_num, TUSB_DIR_OUT);
   if (!xfer->valid) {
-    return;
-  }
-
-  if (!is_tog_ok && ep_num != 0 && !xfer->is_iso) {
     return;
   }
 
@@ -140,22 +137,25 @@ static void update_out(uint8_t rhport, uint8_t ep_num, uint16_t rx_len, bool is_
 
 bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   (void)rhport;
-  (void)rh_init;
 
   memset(&xfer_status, 0, sizeof(xfer_status));
   ep0_tog = true;
+  reset_evt_pending = false;
 
   USBHSD->HOST_CTRL = 0x00;
   USBHSD->HOST_CTRL = USBHS_PHY_SUSPENDM;
 
   USBHSD->CONTROL = 0;
 
-  #if TUD_OPT_HIGH_SPEED
-  USBHSD->CONTROL = USBHS_DMA_EN | USBHS_INT_BUSY_EN | USBHS_HIGH_SPEED;
-  #else
-    #error OPT_MODE_FULL_SPEED not currently supported on CH32
-  USBHSD->CONTROL = USBHS_DMA_EN | USBHS_INT_BUSY_EN | USBHS_FULL_SPEED;
-  #endif
+  if (rh_init->speed == TUSB_SPEED_HIGH || rh_init->speed == TUSB_SPEED_AUTO) {
+    USBHSD->CONTROL = USBHS_DMA_EN | USBHS_INT_BUSY_EN | USBHS_HIGH_SPEED;
+  } else if (rh_init->speed == TUSB_SPEED_FULL) {
+    USBHSD->CONTROL = USBHS_DMA_EN | USBHS_INT_BUSY_EN | USBHS_FULL_SPEED;
+  } else if (rh_init->speed == TUSB_SPEED_LOW) {
+    USBHSD->CONTROL = USBHS_DMA_EN | USBHS_INT_BUSY_EN | USBHS_LOW_SPEED;
+  } else {
+    return false;
+  }
 
   USBHSD->INT_EN = 0;
   USBHSD->INT_EN = USBHS_SETUP_ACT_EN | USBHS_TRANSFER_EN | USBHS_BUS_RST_EN | USBHS_SUSPEND_EN;
@@ -378,20 +378,78 @@ void dcd_int_handler(uint8_t rhport) {
   uint8_t int_flag   = USBHSD->INT_FG;
   uint8_t int_status = USBHSD->INT_ST;
 
-  if (int_flag & USBHS_TRANSFER_FLAG) {
+  if (int_flag & USBHS_BUS_RST_FLAG) {
+    // Reset invalidates pending completions, so handle it before TRANSFER or SETUP.
+    // The first SOF follows speed negotiation and completes the reset notification.
+    reset_evt_pending = true;
+    USBHSD->INT_EN |= USBHS_SOF_ACT_EN;
+    dcd_event_bus_signal(rhport, DCD_EVENT_BUS_RESET_START, true);
+
+    USBHSD->DEV_AD = 0;
+    ep0_tog = true;
+    EP_RX_CTRL(0) = USBHS_EP_R_RES_ACK | USBHS_EP_R_TOG_0;
+    EP_TX_CTRL(0) = USBHS_EP_T_RES_NAK | USBHS_EP_T_TOG_0;
+    // The flags do not identify which side of reset a pending transaction belongs to.
+    // Clear only the reset/transaction flags observed in the entry snapshot.
+    USBHSD->INT_FG = int_flag & (USBHS_BUS_RST_FLAG | USBHS_TRANSFER_FLAG | USBHS_SETUP_FLAG);
+  } else if (int_flag & USBHS_TRANSFER_FLAG) {
     const uint8_t token = int_status & MASK_UIS_TOKEN;
     const uint8_t ep_num = int_status & MASK_UIS_ENDP;
     const uint16_t len = USBHSD->RX_LEN;
+    bool released = false;
 
     if (token == USBHS_TOKEN_PID_SOF) {
-      uint32_t frame_count = USBHSD->FRAME_NO & USBHS_FRAME_NO_NUM_MASK;
-      dcd_event_sof(rhport, frame_count, true);
-    } else if (token == USBHS_TOKEN_PID_OUT) {
-      update_out(rhport, ep_num, len, (int_status & USBHS_TOG_MATCH) != 0);
+      if (reset_evt_pending) {
+        reset_evt_pending = false;
+        tusb_speed_t actual_speed;
+        switch (USBHSD->SPEED_TYPE & USBHS_SPEED_TYPE_MASK) {
+          case USBHS_SPEED_TYPE_FULL:
+            actual_speed = TUSB_SPEED_FULL;
+            break;
+          case USBHS_SPEED_TYPE_LOW:
+            actual_speed = TUSB_SPEED_LOW;
+            break;
+          default:
+            actual_speed = TUSB_SPEED_HIGH;
+            break;
+        }
+        dcd_event_bus_reset(rhport, actual_speed, true);
+        USBHSD->INT_EN &= ~USBHS_SOF_ACT_EN;
+      } else {
+        uint32_t frame_count = USBHSD->FRAME_NO & USBHS_FRAME_NO_NUM_MASK;
+        dcd_event_sof(rhport, frame_count, true);
+      }
+    // Drop an OUT packet whose data toggle doesn't match what we expect -- a host retransmit
+    // after a lost ACK, or a host that doesn't alternate DATA0/DATA1.
+    } else if (token == USBHS_TOKEN_PID_OUT && (int_status & USBHS_DEV_UIS_TOG_OK)) {
+      if (ep_num != 0) {
+        // Release early: ISO transfers ignore INT_BUSY and would overwrite
+        // the shared INT_ST/RX_LEN of this pending completion.
+        xfer_ctl_t const *const out = XFER_CTL_BASE(ep_num, TUSB_DIR_OUT);
+        // Keep the receive armed if update_out() rejects this packet's toggle.
+        if (!out->is_iso) {
+          EP_RX_CTRL(ep_num) = (EP_RX_CTRL(ep_num) & ~(USBHS_EP_R_RES_MASK)) | USBHS_EP_R_RES_NAK;
+        }
+        USBHSD->INT_FG = USBHS_TRANSFER_FLAG;
+        released = true;
+      }
+      update_out(rhport, ep_num, len);
     } else if (token == USBHS_TOKEN_PID_IN) {
+      if (ep_num != 0) {
+        // Release early, as for OUT.
+        xfer_ctl_t const *const in = XFER_CTL_BASE(ep_num, TUSB_DIR_IN);
+        if (!in->is_iso) {
+          EP_TX_CTRL(ep_num) = (EP_TX_CTRL(ep_num) & ~(USBHS_EP_T_RES_MASK)) | USBHS_EP_T_RES_NAK;
+        }
+        USBHSD->INT_FG = USBHS_TRANSFER_FLAG;
+        released = true;
+      }
       update_in(rhport, ep_num, false);
     }
-    USBHSD->INT_FG = (int_flag & USBHS_TRANSFER_FLAG); /* Clear flag */
+    // Don't clear a completion that arrived after an early release.
+    if (!released) {
+      USBHSD->INT_FG = (int_flag & USBHS_TRANSFER_FLAG); /* Clear flag */
+    }
   } else if (int_flag & USBHS_SETUP_FLAG) {
     tusb_control_request_t const* setup =
         (tusb_control_request_t const*) ep0_buffer;
@@ -402,34 +460,6 @@ void dcd_int_handler(uint8_t rhport) {
     dcd_event_setup_received(0, ep0_buffer, true);
 
     USBHSD->INT_FG = USBHS_SETUP_FLAG; /* Clear flag */
-  } else if (int_flag & USBHS_BUS_RST_FLAG) {
-    // TODO CH32 does not detect actual speed at this time (should be known at end of reset)
-    // This interrupt probably triggered at start of bus reset
-    //    tusb_speed_t actual_speed;
-    //    switch(USBHSD->SPEED_TYPE & USBHS_SPEED_TYPE_MASK){
-    //      case USBHS_SPEED_TYPE_HIGH:
-    //        actual_speed = TUSB_SPEED_HIGH;
-    //        break;
-    //      case USBHS_SPEED_TYPE_FULL:
-    //        actual_speed = TUSB_SPEED_FULL;
-    //        break;
-    //      case USBHS_SPEED_TYPE_LOW:
-    //        actual_speed = TUSB_SPEED_LOW;
-    //        break;
-    //      default:
-    //        TU_ASSERT(0,);
-    //        break;
-    //    }
-    //    dcd_event_bus_reset(0, actual_speed, true);
-
-    dcd_event_bus_reset(0, TUSB_SPEED_HIGH, true);
-
-    USBHSD->DEV_AD = 0;
-    ep0_tog = true;
-    EP_RX_CTRL(0)  = USBHS_EP_R_RES_ACK | USBHS_EP_R_TOG_0;
-    EP_TX_CTRL(0)  = USBHS_EP_T_RES_NAK | USBHS_EP_T_TOG_0;
-
-    USBHSD->INT_FG = USBHS_BUS_RST_FLAG; /* Clear flag */
   } else if (int_flag & USBHS_SUSPEND_FLAG) {
     dcd_event_t event = {.rhport = rhport, .event_id = DCD_EVENT_SUSPEND};
     dcd_event_handler(&event, true);
