@@ -41,8 +41,8 @@ python3 .claude/skills/usbtest/scripts/run_case.py --config <this host's config>
 `--after leave` keeps usbtest running for a debug session. `--variant` is required when the board
 has several. It refuses with exit 2 and the reason before touching hardware, including while any
 battery runs on the host; pass `--allow-concurrent` only after checking no battery shares the
-board's host controller. It writes the wedged marker on a confirmed wedge, as HIL does. The last
-stdout line is its JSON verdict.
+board's host controller. A wedged device is never parked. The last stdout line is its JSON
+verdict.
 
 ## Rig hazards
 
@@ -55,14 +55,18 @@ stdout line is its JSON verdict.
 - **A wedged peer stalls every testusb on the host.** `testusb` opens every usbfs node while
   scanning, even with `-D` (`tools/usb/testusb.c` find_testdev), and opening a node takes its
   device lock. Once any device holds its lock for good, each new case blocks there in D state,
-  and `usbtest.py` blames the device under test. Check for other D-state `testusb` processes on
-  the host before trusting a HUNG verdict on a healthy board.
+  and `usbtest.py` blames the device under test. When testusb runs without `sudo -n`, a hold that
+  ends within the 30 s watch is a FAIL `timeout after Ns (the kill landed Ns late; a peer held the
+  node)` that stops the battery; one that outlasts the watch becomes HUNG. Check for other D-state
+  `testusb` processes on the host before trusting a HUNG verdict on a healthy board.
 - **The id and binding stay.** `usbtest.py` registers `cafe 4010` once and never unbinds or
   removes it: those writes take the uninterruptible device lock. Recovery of a HUNG case is one
   step: a probe reset, or a reflash where the flasher has none (esptool); never a root-port
   cycle (`usb-kernel-recover`). Only the killed testusb reaping afterwards clears `wedged`, so
   under `sudo -n` (node not writable, the child is the wrapper) it stays set. A manual run
-  without `--recover-board` leaves a HUNG device wedged.
+  without `--recover-board` leaves a HUNG device wedged. `wedged` is also set with no HUNG case
+  when the serial matches two devices or cannot be read after a case; stderr names which
+  (`reported wedged: ...`).
 
 ## Failed case
 
@@ -89,7 +93,8 @@ under a timer.
 | 71                 | EPROTO: the device answered wrong or too slowly after host retries                         |
 | NOTRUN             | testusb opened the device and the kernel skipped the case: profile or parameter gate       |
 | FAIL "did not run" | testusb never reached the ioctl (open or usage error): read its captured stderr            |
-| HUNG               | the killed testusb did not reap within 30 s: an in-kernel wait; see the rig hazards        |
+| HUNG               | testusb not reaped 35 s after SIGKILL; under `sudo -n` 5 s and unconfirmed (wrapper only)  |
+| BUDGET             | never dispatched: the battery stopped first; its detail names why                          |
 
 | Failing case(s)    | Exercises                                  | First suspect                                                              |
 |--------------------|--------------------------------------------|----------------------------------------------------------------------------|

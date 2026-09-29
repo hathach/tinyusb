@@ -8,6 +8,7 @@ import json
 import os
 import stat
 import sys
+import types
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from tempfile import TemporaryDirectory
@@ -92,15 +93,13 @@ class ExitStatus(unittest.TestCase):
 
     def main(self, *extra, find=None, status='PASS', stranded=False):
         usbtest_harness.stub_device(self, usbtest, lambda num, d, tu, quick, timeout:
-                                    {'num': num, 'name': 'x', 'params': '', 'status': status, 'secs': 0.1,
-                                     **({'_proc': None} if status == 'HUNG' else {})})
+                                    {'num': num, 'name': 'x', 'params': '', 'status': status, 'secs': 0.1})
         usbtest_harness.patch(self, usbtest, 'register_usbtest_id', lambda: None)
         usbtest_harness.patch(self, usbtest, 'bind_usbtest', lambda d: None)
         if find:
             usbtest_harness.patch(self, usbtest, 'find_device', find)
         if stranded:
-            hu = type('Hu', (), {'path_stranded': staticmethod(lambda p: True),
-                                 'strand_note': staticmethod(lambda: '')})
+            hu = types.SimpleNamespace(path_stranded=lambda p: True)
             usbtest_harness.patch(self, usbtest, '_hu', lambda: hu)
         usbtest_harness.argv(self, *extra)
         out, err = usbtest_harness.Out(), io.StringIO()
@@ -114,25 +113,18 @@ class ExitStatus(unittest.TestCase):
         return lambda serial, first=False: next(seq)
 
     def test_ambiguous_device_after_the_last_case_is_not_a_success(self):
-        rc, data, err = self.main('--tests', '0', find=self.lookups(
+        rc, data, _ = self.main('--tests', '0', find=self.lookups(
             dict(usbtest_harness.DEV), {'ambiguous': ['1-1', '1-2']}))
-        self.assertEqual((data['passed'], data['wedged']), (1, True))
-        self.assertEqual(rc, 1)
-        self.assertIn('unrecovered hang', err)
+        self.assertEqual((rc, data['passed'], data['wedged']), (1, 1, True))
 
     def test_unreadable_device_after_the_last_case_is_not_a_success(self):
-        rc, data, err = self.main('--tests', '0', stranded=True,
-                                  find=self.lookups(dict(usbtest_harness.DEV), None))
+        rc, data, _ = self.main('--tests', '0', stranded=True,
+                                find=self.lookups(dict(usbtest_harness.DEV), None))
         self.assertEqual((rc, data['wedged']), (1, True))
 
     def test_clean_run_still_exits_0(self):
         rc, data, err = self.main('--tests', '0')
         self.assertEqual((rc, data['wedged'], err), (0, False, ''))
-
-    def test_hung_case_without_recovery_stays_wedged(self):
-        rc, data, err = self.main('--tests', '0', status='HUNG')
-        self.assertEqual((rc, data['wedged']), (1, True))
-        self.assertIn('unrecovered hang', err)
 
     def test_failed_case_points_at_the_skill_once(self):
         for status in ('FAIL', 'NOTRUN'):

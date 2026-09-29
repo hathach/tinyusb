@@ -9,9 +9,9 @@ For a session that has NOT taken the board. Inside a lock you already hold, with
 already flashed, run `test/hil/usbtest.py --serial <uid> --tests N --json` directly instead.
 
 Refuses before touching hardware (exit 2) when: the board or variant is unknown or ambiguous,
-the board sits in boards-skip, does not run device/usbtest in the roster, or carries a wedged
-marker, the usbtest (or, for --after park, the board_test) firmware is not built, the board lock
-is held or unusable, or a testusb, usbtest.py or hil_test.py process is alive on this host. That last check is host-wide and
+the board sits in boards-skip or does not run device/usbtest in the roster, the usbtest (or, for
+--after park, the board_test) firmware is not built, the board lock is held or unusable, or a
+testusb, usbtest.py or hil_test.py process is alive on this host. That last check is host-wide and
 racy, and cannot join hil_test.py's per-controller battery permits: --allow-concurrent skips
 it only once you have established that no battery shares this board's host controller.
 
@@ -95,8 +95,8 @@ def resolve(config, board_name, variant):
 def live_peers():
     """([(pid, name)], complete) for processes that run or drive a battery on this host."""
     found, complete = [], True
-    # hidepid hides other users' processes without an error: detect the restriction itself,
-    # as usbtest.wedged_pids does, since testusb runs under sudo
+    # hidepid hides other users' processes without an error, and testusb may run under sudo:
+    # detect the restriction itself
     if os.geteuid() != 0 and not os.access(PROC / '1' / 'cmdline', os.R_OK):
         complete = False
     for d in PROC.glob('[0-9]*'):
@@ -156,13 +156,13 @@ def battery(board, fw, tests, timeout):
         cmd += ['--recover-board', json.dumps({'name': board['name'], 'flasher': rec}),
                 '--recover-fw', fw]
     # usbtest.py stops dispatching cases at its budget, as under hil_test.py, so the kill needs
-    # room past it only for the one case already started, then the whole post-hang ladder or
-    # the wedge confirmation when no recovery can run
+    # room past it only for the one case already started, then usbtest.recovery_reserve() when
+    # a recovery can run, else the WEDGE_CONFIRM_S watch
     budget = SETUP_S + len(tests) * (timeout + CASE_EXTRA_S)
     cmd += ['--budget', str(budget)]
     bound = budget + timeout + CASE_EXTRA_S + (
         usbtest.recovery_reserve(rec) if recovery else usbtest.WEDGE_CONFIRM_S)
-    r = hil_util.run_cmd(cmd, timeout=bound, split_stderr=True)
+    r = hil_util.run_cmd(cmd, timeout=bound, split_stderr=True, quiet=True)
     out, err = hil_util.cmd_stdout_text(r.stdout), hil_util.cmd_stdout_text(r.stderr)
     if r.returncode == 124:     # whatever it printed, a killed battery has no verdict
         return None, err, f'usbtest.py killed at its {bound}s bound (rc 124)'
@@ -230,16 +230,11 @@ def main():
         return finish(2, str(e))
 
     try:
-        # under the lock: a previous holder may have marked the board just before releasing it
-        marker = hil_lock.read_wedged(board['name'])
-        if marker:
-            return finish(2, f'{board["name"]} is marked wedged ({marker.get("reason")}): '
-                             'recover it first (hil skill)')
         # flash_jlink writes its command file into the cwd: keep it out of the checkout. Cleanup
         # runs after run_locked printed the verdict, so its errors must not add a second one.
         with tempfile.TemporaryDirectory(prefix='run_case-', ignore_cleanup_errors=True) as workdir:
             os.chdir(workdir)
-            return run_locked(board, lock, fw, park_fw, tests, args.timeout, report, finish)
+            return run_locked(board, fw, park_fw, tests, args.timeout, report, finish)
     except Exception as e:   # any failure after the lock still ends with a verdict line
         return finish(1, f'{type(e).__name__}: {e}')
     finally:
@@ -254,17 +249,7 @@ def release(lock):
     lock.close()
 
 
-def mark_wedged(board, lock, data, fw):
-    """The admission marker hil_test.py writes for a confirmed wedge, so the next run refuses
-    the board until it is recovered (hil_lock.py wedged clear)."""
-    info = {'uid': board.get('uid', ''), 'confirmation': 'confirmed',
-            'reason': f'{board["name"]}: usbtest reports the device still wedged (run_case.py)',
-            'evidence': dict(data.get('wedge_evidence') or {}, serial=data.get('serial', '')),
-            'run': f'pid {os.getpid()}', 'report_dir': '', 'dmesg': '', 'fw': fw}
-    return hil_lock.write_wedged(board['name'], info, lock)
-
-
-def run_locked(board, lock, fw, park_fw, tests, timeout, report, finish):
+def run_locked(board, fw, park_fw, tests, timeout, report, finish):
     err = flash(board, fw)
     report['boardState'] = 'flash failed' if err else 'usbtest firmware'
     if err:
@@ -286,9 +271,7 @@ def run_locked(board, lock, fw, park_fw, tests, timeout, report, finish):
     for c in report['cases']:
         print(f"case {c['num']:2d} {c.get('name', ''):22s} {c['status']:6s} {c.get('detail', '')}")
     if report['wedged']:
-        report['boardState'] = 'wedged: recover it (hil skill, usb-kernel-recover)'
-        if data.get('wedge_confirmation') == 'confirmed' and not mark_wedged(board, lock, data, fw):
-            return finish(1, 'confirmed wedge, but the wedged marker could not be written')
+        report['boardState'] = 'wedged: recover it (usb-kernel-recover)'
         return finish(1)
     if park_fw:
         err = flash(board, park_fw)

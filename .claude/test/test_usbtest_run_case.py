@@ -61,10 +61,7 @@ class Rig:
         self.killed = ''
         self.lock = Lock()
         self.lock_error = None
-        self.marker = None
         self.peers = ([], True)
-        self.marks = []
-        self.mark_ok = True
         self.flash_rcs = []          # per-flash return codes, then flash_rc
         tmp = tempfile.TemporaryDirectory()
         test.addCleanup(tmp.cleanup)
@@ -99,9 +96,6 @@ class Rig:
                 (run_case.hil_flash, 'flash_primitive', lambda name: flash_fn),
                 (run_case.hil_lock, 'acquire_board_lock', acquire),
                 (run_case.hil_lock, 'clear_record', clear),
-                (run_case.hil_lock, 'read_wedged', lambda name: self.marker),
-                (run_case.hil_lock, 'write_wedged',
-                 lambda name, info, fh: self.marks.append((name, info, fh)) or self.mark_ok),
                 (run_case, 'enumerated', lambda uid: self.calls.append(('enumerated', uid)) or self.enumerates),
                 (run_case, 'battery', battery),
                 (run_case, 'live_peers', lambda: self.peers)):
@@ -148,13 +142,6 @@ class Refusals(unittest.TestCase):
         for tests in ('29,29', '30', 'x', '29,'):
             self.refused(Rig(self), '--board', 'solo', '--tests', tests, '--after', 'leave',
                          says='--tests')
-
-    def test_wedged_marker_is_read_under_the_lock(self):
-        rig = Rig(self)
-        rig.marker = {'reason': 'confirmed wedge'}
-        self.refused(rig, '--board', 'solo', '--tests', '29', '--after', 'leave', says='marked wedged')
-        self.assertEqual(rig.calls, [('lock', 'solo')])
-        self.assertTrue(rig.lock.cleared and rig.lock.closed)
 
     def test_duplicate_roster_names(self):
         roster = json.loads(json.dumps(ROSTER))
@@ -285,29 +272,6 @@ class Chain(unittest.TestCase):
         self.assertIn('probe says no', report['error'])
         self.released(rig)
 
-    def test_a_confirmed_wedge_marks_the_board_under_the_lock(self):
-        rig = Rig(self)
-        rig.verdict = ({**PASS_JSON, 'wedged': True, 'wedge_confirmation': 'confirmed', 'serial': 'UID1',
-                        'wedge_evidence': {'node': '/dev/bus/usb/001/005', 'holders': [7], 'complete': True}}, '')
-        rc, report, _ = rig.run('--board', 'solo', '--tests', '29', '--after', 'park')
-        self.assertEqual(rc, 1)
-        [(name, info, fh)] = rig.marks
-        self.assertEqual((name, fh, info['confirmation'], info['fw']), ('solo', rig.lock, 'confirmed', '/fw/usbtest.elf'))
-        self.assertEqual(info['evidence'], {'node': '/dev/bus/usb/001/005', 'holders': [7], 'complete': True,
-                                            'serial': 'UID1'})
-        self.released(rig)
-        rig = Rig(self)
-        rig.mark_ok = False
-        rig.verdict = ({**PASS_JSON, 'wedged': True, 'wedge_confirmation': 'confirmed'}, '')
-        rc, report, _ = rig.run('--board', 'solo', '--tests', '29', '--after', 'park')
-        self.assertIn('marker could not be written', report['error'])
-
-    def test_an_unverified_wedge_is_not_marked(self):
-        rig = Rig(self)
-        rig.verdict = ({**PASS_JSON, 'wedged': True, 'wedge_confirmation': 'unverified'}, '')
-        self.assertEqual(rig.run('--board', 'solo', '--tests', '29', '--after', 'park')[0], 1)
-        self.assertEqual(rig.marks, [])
-
     def test_an_error_after_the_lock_still_reports(self):
         rig = Rig(self)
         rig.verdict = RuntimeError('usb_scan blew up')
@@ -352,7 +316,7 @@ class Battery(unittest.TestCase):
     def command(self, flasher):
         seen = {}
 
-        def run_cmd(cmd, timeout, split_stderr):
+        def run_cmd(cmd, timeout, split_stderr, quiet):
             seen.update(cmd=cmd, timeout=timeout)
             return subprocess.CompletedProcess(cmd, 0, 'banner\n' + json.dumps(PASS_JSON), 'note')
 
@@ -380,7 +344,7 @@ class Battery(unittest.TestCase):
     def test_a_kill_at_the_bound_is_named(self):
         board = {'name': 'b', 'uid': 'UID', 'flasher': {'name': 'jlink', 'args': '', 'uid': 'P'}}
         for out in ('partial', json.dumps(PASS_JSON)):   # a verdict printed before the kill counts for nothing
-            killed = lambda cmd, timeout, split_stderr: subprocess.CompletedProcess(cmd, 124, out, '')
+            killed = lambda cmd, timeout, split_stderr, quiet: subprocess.CompletedProcess(cmd, 124, out, '')
             with mock.patch.object(run_case.hil_util, 'run_cmd', killed), \
                     mock.patch.object(run_case.hil_flash, 'convoy_safe', lambda f: False):
                 data, _, note = run_case.battery(board, '/fw/u.elf', [29], 60)
