@@ -430,6 +430,20 @@ class SummaryFoldsReportToBoards(unittest.TestCase):
             self.assertEqual((r['ran'], r['pass']), (False, False), r)
             self.assertTrue(r['detail'].startswith('config error:'), r)
 
+    def test_each_not_run_path_has_the_same_fields_and_its_own_detail(self):
+        cases = [('gone', 'not a board in the config'), ('bad', 'config error: '),
+                 ('idle', 'no report row for this board')]
+        got = self._sum([b for b, _ in cases], [],
+                        cfg_boards=[{'name': 'bad', 'variant': {'name': 'x'}}, {'name': 'idle'}])
+        self.assertEqual(len(got), len(cases))
+        for r, (board, detail) in zip(got, cases):
+            self.assertEqual(r, {'board': board, 'ran': False, 'pass': False, 'locked': False,
+                                 'wedged': False, 'detail': r['detail']})
+            if board == 'bad':    # the wording after the prefix is variants_of's
+                self.assertTrue(r['detail'].startswith(detail), r)
+            else:
+                self.assertEqual(r['detail'], detail)
+
     def test_a_wedge_outranks_a_lock_cell(self):
         """the caller re-runs LOCKED boards; a wedged one must never read as locked."""
         got = self._sum(['b'], [('b', {hil_report.LOCKED_CELL: 'fail', hil_report.WEDGED_CELL: 'fail'})])

@@ -423,6 +423,11 @@ def variants_of(cfg: dict, board: str) -> list:
     return [board]
 
 
+def _not_run(board: str, detail: str) -> dict:
+    return {'board': board, 'ran': False, 'pass': False, 'locked': False, 'wedged': False,
+            'detail': detail}
+
+
 def summarize(cfg: dict, boards: list, report: dict) -> dict:
     # .get, not a subscript: this is the one reader an agent's verdict depends on, and a
     # row without 'board' used to kill the CLI with a traceback and no results at all --
@@ -442,15 +447,13 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
         # without this guard variants_of() falls back to the name itself and a declared
         # variant of another board, or a stale row keyed by that name, reports it as ran.
         if board not in configured:
-            results.append({'board': board, 'ran': False, 'pass': False, 'locked': False,
-                            'wedged': False, 'detail': 'not a board in the config'})
+            results.append(_not_run(board, 'not a board in the config'))
             continue
         try:
             names = variants_of(cfg, board)
         except ValueError as err:
             # hil_test.py refuses the whole run on this; say why rather than die with a traceback
-            results.append({'board': board, 'ran': False, 'pass': False, 'locked': False,
-                            'wedged': False, 'detail': f'config error: {err}'})
+            results.append(_not_run(board, f'config error: {err}'))
             continue
         mine = {n: rows[n] for n in names if n in rows}
         # a variant name that is neither declared nor prefixed cannot be attributed; the
@@ -468,8 +471,7 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
         if board in rows and board not in mine:
             mine[board] = rows[board]
         if not mine:
-            results.append({'board': board, 'ran': False, 'pass': False, 'locked': False,
-                            'wedged': False, 'detail': 'no report row for this board'})
+            results.append(_not_run(board, 'no report row for this board'))
             continue
         # a wedge outranks lock contention: `locked` short-circuits `detail` below, so a
         # stale board-locked cell from an earlier attempt used to mask the pool-timeout
