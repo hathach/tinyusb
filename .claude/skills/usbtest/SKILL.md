@@ -40,9 +40,10 @@ python3 .claude/skills/usbtest/scripts/run_case.py --config <this host's config>
 
 `--after leave` keeps usbtest running for a debug session. `--variant` is required when the board
 has several. It refuses with exit 2 and the reason before touching hardware, including while any
-battery runs on the host; pass `--allow-concurrent` only after checking no battery shares the
-board's host controller. A wedged device is never parked. The last stdout line is its JSON
-verdict.
+battery or another `run_case.py` runs on the host; pass `--allow-concurrent` only after checking
+no battery shares the board's host controller. A wedged device is never parked. The last stdout
+line is its JSON verdict; each of its `cases` carries `usbtest.py`'s `detail`, and `stderr` and
+`dmesg` when it captured them.
 
 ## Rig hazards
 
@@ -92,7 +93,7 @@ under a timer.
 | 5                  | EIO: isochronous packet errors; dmesg says "N errors out of M"                             |
 | 71                 | EPROTO: the device answered wrong or too slowly after host retries                         |
 | NOTRUN             | testusb opened the device and the kernel skipped the case: profile or parameter gate       |
-| FAIL "did not run" | testusb never reached the ioctl (open or usage error): read its captured stderr            |
+| FAIL "did not run" | testusb never reached the ioctl (open or usage error): read the case's captured `stderr`   |
 | HUNG               | testusb not reaped 35 s after SIGKILL; under `sudo -n` 5 s and unconfirmed (wrapper only)  |
 | BUDGET             | never dispatched: the battery stopped first; its detail names why                          |
 
@@ -112,7 +113,7 @@ reset the toggle to DATA0 **and** keep the pending transfer armed (fixed that wa
 ad7acc849, fsdev 046463687, ch32_usbhs d63a45509).
 
 Escalate in order:
-1. `usbtest.py`'s per-case detail and its captured dmesg (`TEST n` lines bracket each case).
+1. The case's `detail` and captured `dmesg` in the JSON verdict (`TEST n` lines bracket each case).
 2. usbmon (`usb-kernel-debug`): URB-level truth. It cannot show data toggles or NAKs, so a toggle
    desync and a dead endpoint look the same (Submits without Completes); tell them apart on the
    target.

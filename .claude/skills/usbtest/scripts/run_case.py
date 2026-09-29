@@ -9,11 +9,13 @@ For a session that has NOT taken the board. Inside a lock you already hold, with
 already flashed, run `test/hil/usbtest.py --serial <uid> --tests N --json` directly instead.
 
 Refuses before touching hardware (exit 2) when: the board or variant is unknown or ambiguous,
-the board sits in boards-skip or does not run device/usbtest in the roster, the usbtest (or, for
---after park, the board_test) firmware is not built, the board lock is held or unusable, or a
-testusb, usbtest.py or hil_test.py process is alive on this host. That last check is host-wide and
-racy, and cannot join hil_test.py's per-controller battery permits: --allow-concurrent skips
-it only once you have established that no battery shares this board's host controller.
+the board sits in boards-skip, does not run device/usbtest or lacks a uid or flasher name in the
+roster, the usbtest (or, for --after park, the board_test) firmware is not built, the board lock
+is held or unusable, or a testusb, usbtest.py, hil_test.py or other run_case.py process is alive
+on this host, checked before and again after taking the lock. That check is host-wide and does
+not see a hil_test.py started after it, nor join hil_test.py's per-controller battery permits:
+--allow-concurrent skips it only once you have established that no battery shares this board's
+host controller.
 
 Flashes with the roster's flasher from cmake-build/cmake-build-<variant> (the build skill's
 --shared --variants layout), waits for cafe:4010 with the board's serial, and runs usbtest.py
@@ -21,7 +23,8 @@ with post-hang recovery when the board's recovery flasher can deliver it. --afte
 device/board_test afterwards unless the device is wedged or the verdict is incomplete.
 
 stdout ends with one JSON line: {"pass", "board", "variant", "tests", "cases", "wedged",
-"boardState", "error"}. Exit 0 every case passed, 1 a case failed or the run failed after the
+"boardState", "error"}, each case with usbtest.py's num, name, status, detail and, when it captured
+them, stderr and dmesg. Exit 0 every case passed, 1 a case failed or the run failed after the
 lock was taken, 2 refused before any hardware action.
 """
 import argparse
@@ -43,7 +46,7 @@ from helper import hil_lock, hil_report, hil_util  # noqa: E402
 
 ENUM_TIMEOUT = 8        # hil_test.py ENUM_TIMEOUT
 SETTLE = 3              # hil_test.py USBTEST_SETTLE: enumeration can bounce once after a flash
-PEERS = ('testusb', 'usbtest.py', 'hil_test.py')
+PEERS = ('testusb', 'usbtest.py', 'hil_test.py', 'run_case.py')
 HELPER_S = usbtest.HELPER_TIMEOUT + 5   # a sudo helper at its bound plus usbtest.run()'s reap
 # usbtest.py's start before case 1, its steps at their bounds: the 8 s device wait, 3 s of
 # host-compat retries, setpci, modprobe, the id-registration lock, the new_id and pattern writes
@@ -77,6 +80,10 @@ def resolve(config, board_name, variant):
     if 'device/usbtest' not in ci_select.board_tests(board):
         raise Refused(f'{board_name} does not run device/usbtest in {config} (its "tests" entry); '
                       f'its device port may not reach this host')
+    flasher = board.get('flasher')
+    if not (isinstance(board.get('uid'), str) and board['uid'] and isinstance(flasher, dict)
+            and isinstance(flasher.get('name'), str) and flasher['name']):
+        raise Refused(f'{board_name} in {config} needs a "uid" and a "flasher" with a "name"')
     try:
         names = [v['name'] for v in hil_report.board_variants(board)]
     except ValueError as e:
@@ -92,15 +99,28 @@ def resolve(config, board_name, variant):
     return board, variant
 
 
+def lineage():
+    """This process and its ancestors: a wrapper such as sudo or timeout names run_case.py too."""
+    pids, pid = set(), os.getpid()
+    while pid > 1 and pid not in pids:
+        pids.add(pid)
+        try:
+            pid = int((PROC / str(pid) / 'stat').read_text().rsplit(')', 1)[1].split()[1])
+        except (OSError, ValueError, IndexError):
+            break
+    return pids
+
+
 def live_peers():
     """([(pid, name)], complete) for processes that run or drive a battery on this host."""
     found, complete = [], True
+    own = lineage()
     # hidepid hides other users' processes without an error, and testusb may run under sudo:
     # detect the restriction itself
     if os.geteuid() != 0 and not os.access(PROC / '1' / 'cmdline', os.R_OK):
         complete = False
     for d in PROC.glob('[0-9]*'):
-        if int(d.name) == os.getpid():
+        if int(d.name) in own:
             continue
         try:
             argv = (d / 'cmdline').read_bytes().split(b'\0')
@@ -115,6 +135,16 @@ def live_peers():
         if hit:
             found.append((int(d.name), hit))
     return found, complete
+
+
+def check_peers():
+    peers, complete = live_peers()
+    if peers:
+        raise Refused('a battery may be running on this host: '
+                      + ', '.join(f'{name} (pid {pid})' for pid, name in peers))
+    if not complete:
+        raise Refused('cannot read every process on this host, so a running battery '
+                      'cannot be ruled out')
 
 
 def firmware(variant, example, flasher):
@@ -213,13 +243,7 @@ def main():
         fw = firmware(variant, 'device/usbtest', flasher)
         park_fw = firmware(variant, 'device/board_test', flasher) if args.after == 'park' else None
         if not args.allow_concurrent:
-            peers, complete = live_peers()
-            if peers:
-                raise Refused('a battery may be running on this host: '
-                              + ', '.join(f'{name} (pid {pid})' for pid, name in peers))
-            if not complete:
-                raise Refused('cannot read every process on this host, so a running battery '
-                              'cannot be ruled out')
+            check_peers()
         try:
             lock = hil_lock.acquire_board_lock(board['name'], reason=f'run_case.py usbtest {args.tests}')
         except RuntimeError as e:
@@ -230,6 +254,11 @@ def main():
         return finish(2, str(e))
 
     try:
+        if not args.allow_concurrent:
+            try:
+                check_peers()   # again: a peer may have started before the lock was taken
+            except Refused as e:
+                return finish(2, str(e))
         # flash_jlink writes its command file into the cwd: keep it out of the checkout. Cleanup
         # runs after run_locked printed the verdict, so its errors must not add a second one.
         with tempfile.TemporaryDirectory(prefix='run_case-', ignore_cleanup_errors=True) as workdir:
@@ -263,13 +292,16 @@ def run_locked(board, fw, park_fw, tests, timeout, report, finish):
     if data is None:
         report['boardState'] = 'usbtest firmware, verdict incomplete'
         return finish(1, killed or 'usbtest.py printed no verdict')
-    report['cases'] = [{k: c[k] for k in ('num', 'name', 'status', 'detail') if k in c}
+    report['cases'] = [{k: c[k] for k in ('num', 'name', 'status', 'detail', 'stderr', 'dmesg') if k in c}
                        for c in data.get('cases', [])]
     report['wedged'] = bool(data.get('wedged'))
     report['pass'] = (not report['wedged'] and data.get('failed') == 0
                       and data.get('notrun') == 0 and len(report['cases']) == len(tests))
     for c in report['cases']:
         print(f"case {c['num']:2d} {c.get('name', ''):22s} {c['status']:6s} {c.get('detail', '')}")
+        for k in ('stderr', 'dmesg'):
+            if c.get(k):
+                print('    ' + c[k].replace('\n', '\n    '))
     if report['wedged']:
         report['boardState'] = 'wedged: recover it (usb-kernel-recover)'
         return finish(1)

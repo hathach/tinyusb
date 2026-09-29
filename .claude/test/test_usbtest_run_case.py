@@ -33,6 +33,8 @@ ROSTER = {
         {'name': 'untested', 'uid': 'UID7', 'flasher': {'name': 'jlink'}},
         {'name': 'malformed', 'uid': 'UID8', 'flasher': {'name': 'jlink'}, 'tests': {'device': True},
          'variant': [{'name': ''}]},
+        {'name': 'noflasher', 'uid': 'UID9', 'tests': {'only': ['device/usbtest']}},
+        {'name': 'nouid', 'flasher': {'name': 'jlink'}, 'tests': {'only': ['device/usbtest']}},
     ],
     'boards-skip': [{'name': 'parked', 'uid': 'UID3', 'flasher': {'name': 'jlink'}}],
 }
@@ -62,6 +64,7 @@ class Rig:
         self.lock = Lock()
         self.lock_error = None
         self.peers = ([], True)
+        self.peer_scans = []         # per-scan live_peers results, then peers
         self.flash_rcs = []          # per-flash return codes, then flash_rc
         tmp = tempfile.TemporaryDirectory()
         test.addCleanup(tmp.cleanup)
@@ -98,7 +101,7 @@ class Rig:
                 (run_case.hil_lock, 'clear_record', clear),
                 (run_case, 'enumerated', lambda uid: self.calls.append(('enumerated', uid)) or self.enumerates),
                 (run_case, 'battery', battery),
-                (run_case, 'live_peers', lambda: self.peers)):
+                (run_case, 'live_peers', lambda: self.peer_scans.pop(0) if self.peer_scans else self.peers)):
             patcher = mock.patch.object(obj, name, value)
             patcher.start()
             test.addCleanup(patcher.stop)
@@ -108,7 +111,8 @@ class Rig:
         with mock.patch.object(sys, 'argv', ['run_case.py', '--config', str(self.config), *argv]), \
                 redirect_stdout(out), redirect_stderr(err):
             rc = run_case.main()
-        return rc, json.loads(out.getvalue().splitlines()[-1]), err.getvalue()
+        self.stdout = out.getvalue()
+        return rc, json.loads(self.stdout.splitlines()[-1]), err.getvalue()
 
 
 class Refusals(unittest.TestCase):
@@ -131,6 +135,8 @@ class Refusals(unittest.TestCase):
                 (['--board', 'notlisted'], 'notlisted does not run device/usbtest'),
                 (['--board', 'untested'], 'untested does not run device/usbtest'),
                 (['--board', 'malformed'], 'malformed: board malformed variant'),
+                (['--board', 'noflasher'], 'noflasher in'),
+                (['--board', 'nouid'], 'nouid in'),
                 (['--board', 'duo'], 'duo has variants duo-a, duo-b: pass --variant'),
                 (['--board', 'duo', '--variant', 'duo-c'], 'duo has no variant duo-c'),
                 (['--board', 'solo', '--variant', 'duo-a'], 'solo has no variant duo-a')):
@@ -172,6 +178,13 @@ class Refusals(unittest.TestCase):
         rig = Rig(self)
         rig.peers = ([], False)
         self.refused(rig, '--board', 'solo', '--tests', '29', '--after', 'leave', says='cannot read every process')
+
+    def test_a_peer_that_started_before_the_lock(self):
+        rig = Rig(self)
+        rig.peer_scans = [([], True), ([(4343, 'run_case.py')], True)]
+        self.refused(rig, '--board', 'solo', '--tests', '29', '--after', 'leave', says='run_case.py (pid 4343)')
+        self.assertEqual(rig.calls, [('lock', 'solo')])
+        self.assertTrue(rig.lock.cleared and rig.lock.closed)
 
     def test_allow_concurrent_skips_only_the_peer_check(self):
         rig = Rig(self)
@@ -256,6 +269,18 @@ class Chain(unittest.TestCase):
         self.assertIn('no cafe:4010 device with serial UID1', report['error'])
         self.assertNotIn('battery', [c[0] for c in rig.calls])
         self.released(rig)
+
+    def test_captured_stderr_and_dmesg_are_reported(self):
+        rig = Rig(self)
+        cases = [{'num': 13, 'name': 'halt', 'status': 'FAIL', 'detail': 'errno 32', 'dmesg': 'usbtest a\nusbtest b'},
+                 {'num': 29, 'status': 'FAIL', 'detail': 'testusb did not run the case (rc 1)',
+                  'stderr': 'no such device', 'secs': 1.0}]
+        rig.verdict = ({**PASS_JSON, 'failed': 2, 'cases': cases}, '')
+        rc, report, _ = rig.run('--board', 'solo', '--tests', '13,29', '--after', 'leave')
+        self.assertEqual(rc, 1)
+        self.assertEqual(report['cases'], [{k: v for k, v in c.items() if k != 'secs'} for c in cases])
+        self.assertIn('    usbtest a\n    usbtest b\n', rig.stdout)
+        self.assertIn('    no such device\n', rig.stdout)
 
     def test_case_0_keeps_its_number(self):
         rig = Rig(self)
@@ -364,11 +389,24 @@ class LivePeers(unittest.TestCase):
             with mock.patch.object(run_case, 'PROC', Path(d)):
                 peers, complete = run_case.live_peers()
                 self.assertEqual((sorted(peers), complete),
-                                 ([(11, 'testusb'), (12, 'usbtest.py'), (13, 'hil_test.py')], True))
+                                 ([(11, 'testusb'), (12, 'usbtest.py'), (13, 'hil_test.py'), (14, 'run_case.py')],
+                                  True))
                 (Path(d) / '16').mkdir()                          # exited: no cmdline left
                 self.assertTrue(run_case.live_peers()[1])
                 (Path(d) / '17' / 'cmdline').mkdir(parents=True)  # unreadable for another reason
                 self.assertFalse(run_case.live_peers()[1])
+
+    def test_its_own_wrappers_are_not_peers(self):
+        me = os.getpid()
+        with tempfile.TemporaryDirectory() as d:
+            for pid, ppid, argv in ((me, 21, ['python3', 'run_case.py']),
+                                    (21, 1, ['timeout', '900', 'python3', 'run_case.py']),
+                                    (22, 1, ['python3', 'run_case.py'])):
+                (Path(d) / str(pid)).mkdir()
+                (Path(d) / str(pid) / 'stat').write_text(f'{pid} (a) b) S {ppid} {pid} 0\n')
+                (Path(d) / str(pid) / 'cmdline').write_bytes(b'\0'.join(a.encode() for a in argv) + b'\0')
+            with mock.patch.object(run_case, 'PROC', Path(d)):
+                self.assertEqual(run_case.live_peers()[0], [(22, 'run_case.py')])
 
     def test_a_restricted_proc_is_incomplete(self):
         with tempfile.TemporaryDirectory() as d, mock.patch.object(run_case, 'PROC', Path(d)), \
