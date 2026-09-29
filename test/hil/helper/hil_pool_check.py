@@ -469,6 +469,16 @@ def check_device(board: dict, example: str, variant: str, old_ino, note: list, r
     return True
 
 
+def not_locked(row: dict, why: str) -> dict:
+    """The row for a board lock_board could not take: held elsewhere, or an ERROR: from the
+    lock file itself, which is an environment failure rather than contention."""
+    held = not why.startswith('ERROR:')
+    row['flash'], row['status'] = ('🔒 locked', 'locked') if held else ('❌ lock', 'failed')
+    row['note'].append(why)
+    say(f'{row["name"]:26} locked: {why}')
+    return row
+
+
 def check_board(board: dict, args) -> dict:
     name = board['name']
     row = {'name': name, 'probe': '❌ missing', 'probe_busport': None, 'flash': '–', 'device': '–',
@@ -526,15 +536,7 @@ def check_board(board: dict, args) -> dict:
         # swapped under — a board CI holds right now
         peek = lock_board(name)
         if isinstance(peek, str):
-            if peek.startswith('ERROR:'):  # environment failure, not a held lock
-                row['flash'] = '❌ lock'
-                row['status'] = 'failed'
-            else:
-                row['flash'] = '🔒 locked'
-                row['status'] = 'locked'
-            note.append(peek)
-            say(f'{name:26} locked: {peek}')
-            return row
+            return not_locked(row, peek)
         unlock_board(peek)
         built = build(board, wanted, args.config_path, note)
         if built is not None and example is None:
@@ -562,15 +564,7 @@ def check_board(board: dict, args) -> dict:
 
     lk = lock_board(name)
     if isinstance(lk, str):
-        if lk.startswith('ERROR:'):  # environment failure, not a held lock
-            row['flash'] = '❌ lock'
-            row['status'] = 'failed'
-        else:
-            row['flash'] = '🔒 locked'
-            row['status'] = 'locked'
-        note.append(lk)
-        say(f'{name:26} locked: {lk}')
-        return row
+        return not_locked(row, lk)
     try:
         if example is None:  # host-only without firmware: UART-only aliveness check
             ok = host_alive(board, note, row)
