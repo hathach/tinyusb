@@ -204,11 +204,14 @@ def pick_example(board: dict, note: list):
     return None, kind, None, None
 
 
-def fresh_firmware(board: dict, example: str):
-    """(variant, fw) this run's build wrote. check_build writes cmake-build/, so it is
-    looked there even when an explicit -B narrowed the search: this is OUR fresh build,
-    not a stale fallback."""
+def fresh_firmware(board: dict, example: str, built: dict | None = None):
+    """(variant, fw) of `example` under cmake-build/, where check_build writes — looked
+    there even when an explicit -B narrowed the search. With `built` (build()'s result),
+    only a variant whose build verified that image counts: a pass can still have skipped it,
+    leaving an older file in the dir."""
     for v in hil_report.board_variants(board):
+        if built is not None and Path(example).name not in built.get(v['name'], ()):
+            continue
         fw = hil_flash.find_firmware(v['name'], example, roots=['cmake-build'],
                                      flasher=board['flasher']['name'])
         if fw:
@@ -390,10 +393,11 @@ _build_lock = threading.Lock()  # one check_build at a time: --fetch-deps and id
 _built: set = set()             # (variant, example) this run built
 
 
-def build(board: dict, examples: list, config: Path, note: list) -> bool:
+def build(board: dict, examples: list, config: Path, note: list) -> dict | None:
     """Build `examples` for every roster variant of this board through the build contract,
     into the cmake-build/cmake-build-<variant> dirs hil_test.py flashes too. Call BEFORE
-    taking the board lock: builds are long. False with the failure noted."""
+    taking the board lock: builds are long. Returns {variant: example names the build
+    verified}, or None with the failure noted."""
     cmd = [sys.executable, str(CHECK_BUILD), '--board', board['name'], '--shared',
            '--variants', str(config), '--fetch-deps']
     for e in examples:
@@ -402,7 +406,7 @@ def build(board: dict, examples: list, config: Path, note: list) -> bool:
         idf_path = os.environ.get('IDF_PATH')
         if not idf_path or not (Path(idf_path) / 'export.sh').is_file():
             note.append('cannot build: ESP-IDF env missing (. "$IDF_PATH/export.sh")')
-            return False
+            return None
         # sourced in this child only: export.sh rewrites PATH and the python venv
         cmd = ['bash', '-c', f'. "$IDF_PATH/export.sh" >/dev/null && {shlex.join(cmd)}']
     with _build_lock:
@@ -410,22 +414,23 @@ def build(board: dict, examples: list, config: Path, note: list) -> bool:
                              split_stderr=True, quiet=True)
     if r.returncode == 124:
         note.append('build timeout')
-        return False
+        return None
     lines = hil_util.cmd_stdout_text(r.stdout).strip().splitlines()
     try:
         result = json.loads(lines[-1])
     except (IndexError, ValueError):
         note.append(f'build: check_build.py exited {r.returncode} without a verdict')
-        return False
+        return None
     if result.get('error'):
         note.append(f'build: {result["error"][:120]}')
-        return False
+        return None
     bad = [b for b in result.get('boards', []) if b.get('status') != 'ok']
     if bad or not result.get('pass'):
         b = bad[0] if bad else {}
         note.append(f'build failed: {b.get("buildDir", "?")}: {(b.get("firstError") or "")[:90]}')
-        return False
-    return True
+        return None
+    return {b['buildDir'].rsplit('cmake-build-', 1)[-1]: set(b.get('okExamples', ()))
+            for b in result['boards']}
 
 
 def verdict(row: dict, ok: bool) -> str:
@@ -535,9 +540,12 @@ def check_board(board: dict, args) -> dict:
             say(f'{name:26} locked: {peek}')
             return row
         unlock_board(peek)
-        if build(board, wanted, args.config_path, note) and example is None:
+        built = build(board, wanted, args.config_path, note)
+        if built is not None and example is None:
             for ex in buildable[:2]:
-                variant, fw = fresh_firmware(board, ex)
+                # verified by check_build, so current with the tree: a wrong PID from it
+                # can only be a silent flash no-op
+                variant, fw = fresh_firmware(board, ex, built)
                 if fw:
                     example = ex
                     _built.add((variant, ex))
@@ -706,7 +714,7 @@ def main() -> None:
         config = json.load(f)
 
     boards = list(config['boards'])  # boards-skip (parked hardware) is not scanned by default
-    args.config_path = cfg_path
+    args.config_path = cfg_path.resolve()  # check_build.py reads it from the repo root
     args.parked = {b['name'] for b in config.get('boards-skip', [])}
     if args.board:
         boards += config.get('boards-skip', [])  # explicitly named parked boards are fair game

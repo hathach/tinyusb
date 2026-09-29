@@ -143,8 +143,11 @@ class Build(unittest.TestCase):
                                     'roster.json', note), note
 
     def test_it_builds_the_named_images_for_every_roster_variant(self):
-        ok, _ = self.run_build(BOARD, json.dumps({'pass': True, 'boards': [{'status': 'ok'}]}))
-        self.assertTrue(ok)
+        verdict = {'pass': True, 'boards': [
+            {'status': 'ok', 'buildDir': 'cmake-build/cmake-build-b', 'okExamples': ['board_test']},
+            {'status': 'ok', 'buildDir': 'cmake-build/cmake-build-b-DMA', 'okExamples': []}]}
+        built, _ = self.run_build(BOARD, json.dumps(verdict))
+        self.assertEqual(built, {'b': {'board_test'}, 'b-DMA': set()})
         cmd = self.calls[0]
         self.assertEqual(cmd[1:], [str(hil_pool_check.CHECK_BUILD), '--board', 'b', '--shared',
                                    '--variants', 'roster.json', '--fetch-deps',
@@ -154,24 +157,24 @@ class Build(unittest.TestCase):
         verdict = {'pass': False, 'boards': [{'status': 'failed', 'buildDir': 'cmake-build/cmake-build-b',
                                               'firstError': 'undefined reference to foo'}]}
         ok, note = self.run_build(BOARD, json.dumps(verdict), rc=1)
-        self.assertFalse(ok)
+        self.assertIsNone(ok)
         self.assertIn('undefined reference to foo', note[0])
 
     def test_a_refusal_carries_check_builds_error(self):
         ok, note = self.run_build(BOARD, json.dumps({'error': 'not in roster.json: b'}), rc=2)
-        self.assertFalse(ok)
+        self.assertIsNone(ok)
         self.assertIn('not in roster.json', note[0])
 
     def test_no_verdict_is_a_failure(self):
         ok, note = self.run_build(BOARD, '', rc=1)
-        self.assertFalse(ok)
+        self.assertIsNone(ok)
         self.assertIn('without a verdict', note[0])
 
     def test_esp_without_the_idf_env_is_not_built(self):
         patch(self, hil_pool_check.shutil, 'which', lambda cmd: None)
         patch(self, hil_pool_check.os, 'environ', {'IDF_PATH': '/definitely/missing'})
         ok, note = self.run_build(dict(BOARD, flasher={'name': 'esptool', 'uid': 'P'}))
-        self.assertFalse(ok)
+        self.assertIsNone(ok)
         self.assertEqual(self.calls, [])
         self.assertIn('ESP-IDF env missing', note[0])
 
@@ -186,6 +189,17 @@ class Build(unittest.TestCase):
         self.assertEqual(cmd[:2], ['bash', '-c'])
         self.assertTrue(cmd[2].startswith('. "$IDF_PATH/export.sh" >/dev/null && '))
         self.assertIn(' --board b --shared --variants roster.json ', cmd[2])
+
+
+class FreshFirmware(unittest.TestCase):
+    def test_an_image_the_build_skipped_is_not_picked_up(self):
+        patch(self, hil_pool_check.hil_flash, 'find_firmware', lambda *a, **kw: 'old.elf')
+        board = dict(BOARD, variant=[{'name': 'b'}, {'name': 'b-DMA'}])
+        self.assertEqual(hil_pool_check.fresh_firmware(board, 'device/dfu_runtime', {'b': set()}),
+                         (None, None))
+        self.assertEqual(hil_pool_check.fresh_firmware(board, 'device/dfu_runtime',
+                                                       {'b': set(), 'b-DMA': {'dfu_runtime'}}),
+                         ('b-DMA', 'old.elf'))
 
 
 class ParkedBoard(unittest.TestCase):
