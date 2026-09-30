@@ -5,10 +5,13 @@
 #   python3 test/hil/test/test_hil_pool_check.py
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import types
 import unittest
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -96,7 +99,7 @@ class CheckBoard(unittest.TestCase):
         patch(self, hil_pool_check, 'flash', lambda board, fw, note: self.flashed.append(fw) or True)
         patch(self, hil_pool_check, 'host_alive', lambda *a: True)
         patch(self, hil_pool_check, 'check_device', lambda *a: True)
-        self.args = types.SimpleNamespace(scan_only=False, no_park=False)
+        self.args = types.SimpleNamespace(scan_only=False, no_park=False, uncached={})
 
     def images(self, *examples):
         patch(self, hil_pool_check.hil_flash, 'find_firmware', lambda variant, ex, **kw: (
@@ -130,6 +133,12 @@ class CheckBoard(unittest.TestCase):
         row = hil_pool_check.check_board(dict(BOARD, tests={'device': True}), self.args)
         self.assertEqual((row['status'], self.flashed), ('flash-failed', []))
 
+    def test_a_variant_the_fetch_could_not_cache_says_why(self):
+        self.images()
+        self.args.uncached = {'b': 'not cached: no usable master artifact in 90 days'}
+        row = hil_pool_check.check_board(dict(BOARD, tests={'device': True}), self.args)
+        self.assertEqual(row['note'][-1], 'b: not cached: no usable master artifact in 90 days')
+
     def test_an_rtt_host_board_is_unsupported_and_untouched(self):
         self.images('host/device_info', 'device/board_test')
         row = hil_pool_check.check_board(dict(BOARD, tests={'host': True}, logger='rtt'), self.args)
@@ -142,6 +151,107 @@ class CheckBoard(unittest.TestCase):
         patch(self, hil_pool_check, 'park_board', lambda *a: None)
         hil_pool_check.check_board(board, self.args)
         self.assertEqual(self.flashed, ['b/device/cdc_dual_ports.elf'])
+
+
+class Fetch(unittest.TestCase):
+    """fetch_missing against a fake gh: runs newest first, artifacts that unpack like CI's."""
+
+    def setUp(self):
+        td = tempfile.TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        self.cache = Path(td.name) / 'cache'
+        patch(self, hil_pool_check, 'CACHE_DIR', self.cache)
+        patch(self, hil_pool_check, 'say', lambda msg: None)
+        self.runs = []          # [(run dict, {artifact name: examples in it})]
+        self.downloads = []
+        patch(self, hil_pool_check, 'gh', self.fake_gh)
+
+    def add_run(self, run_id, artifacts, status='completed', age_days=1, event='push', branch='master'):
+        created = datetime.now(timezone.utc) - timedelta(days=age_days)
+        self.runs.append(({'id': run_id, 'head_sha': f'{run_id:040x}', 'status': status, 'event': event,
+                           'head_branch': branch, 'created_at': created.isoformat()}, artifacts))
+
+    def fake_gh(self, *args, env=None):
+        if args[0] == 'api' and '/workflows/' in args[1]:
+            page = int(args[1].rsplit('page=', 1)[1])
+            runs = [r for r, _ in self.runs] if page == 1 else []
+            return json.dumps({'workflow_runs': runs})
+        if args[0] == 'api':
+            run_id = int(args[2].split('/runs/')[1].split('/')[0])
+            return ''.join(f'{n}\n' for r, arts in self.runs if r['id'] == run_id for n in arts)
+        run_id, name, dest = int(args[2]), args[6], Path(args[8])
+        self.assertEqual(env['TMPDIR'], str(self.cache))
+        self.downloads.append((run_id, name))
+        variant = hil_pool_check.artifact_variant(name)
+        for ex in dict(self.runs[[r['id'] for r, _ in self.runs].index(run_id)][1])[name]:
+            fw = dest / f'cmake-build-{variant}' / ex / f'{Path(ex).name}.elf'
+            fw.parent.mkdir(parents=True)
+            fw.write_text(f'run {run_id}')
+        return ''
+
+    def source(self, variant):
+        return json.loads((self.cache / f'cmake-build-{variant}' / '.source').read_text())
+
+    GOOD = ['device/dfu_runtime', 'device/board_test']
+
+    def test_artifact_names_map_to_variants(self):
+        v = hil_pool_check.artifact_variant
+        self.assertEqual(v('binaries-arm-gcc--b stm32g0b1nucleo'), 'stm32g0b1nucleo')
+        self.assertEqual(v('binaries-esp-idf--b espressif_s3_devkitm --build-name espressif_s3_devkitm-DMA '
+                           '--cflag=-DCFG_TUD_DWC2_DMA_ENABLE=1'), 'espressif_s3_devkitm-DMA')
+        self.assertEqual(v('binaries-arm-gcc--b ea4088_quickstart -DLOGGER=rtt'), 'ea4088_quickstart')
+
+    def test_each_variant_comes_from_the_newest_run_that_has_it(self):
+        board = dict(BOARD, tests={'device': True}, variant=[{'name': 'b'}, {'name': 'b-DMA'}])
+        self.add_run(3, {'binaries-arm-gcc--b b': self.GOOD})
+        self.add_run(2, {'binaries-arm-gcc--b b': self.GOOD, 'binaries-arm-gcc--b b --build-name b-DMA': self.GOOD})
+        self.assertEqual(hil_pool_check.fetch_missing([board]), {})
+        self.assertEqual((self.source('b')['run'], self.source('b-DMA')['run']), (3, 2))
+        self.assertEqual(sorted(p.name for p in self.cache.iterdir()), ['cmake-build-b', 'cmake-build-b-DMA'])
+
+    def test_an_artifact_without_board_test_falls_back_to_an_older_run(self):
+        self.add_run(3, {'binaries-arm-gcc--b b': ['device/dfu_runtime']})
+        self.add_run(2, {'binaries-arm-gcc--b b': self.GOOD})
+        self.assertEqual(hil_pool_check.fetch_missing([dict(BOARD, tests={'device': True})]), {})
+        self.assertEqual(self.source('b')['run'], 2)
+
+    def test_untrusted_unfinished_or_expired_runs_are_skipped(self):
+        self.add_run(6, {'binaries-arm-gcc--b b': self.GOOD}, event='pull_request')
+        self.add_run(5, {'binaries-arm-gcc--b b': self.GOOD}, branch='fork-branch')
+        self.add_run(4, {'binaries-arm-gcc--b b': self.GOOD}, status='in_progress')
+        self.add_run(3, {'binaries-arm-gcc--b b': self.GOOD}, age_days=91)
+        self.add_run(2, {'binaries-arm-gcc--b b': self.GOOD}, age_days=92)
+        got = hil_pool_check.fetch_missing([dict(BOARD, tests={'device': True})])
+        self.assertIn('no usable master artifact', got['b'])
+        self.assertEqual(self.downloads, [])
+
+    def test_a_cached_variant_is_never_refetched(self):
+        (self.cache / 'cmake-build-b').mkdir(parents=True)
+        patch(self, hil_pool_check, 'gh', lambda *a, **kw: self.fail('asked GitHub'))
+        self.assertEqual(hil_pool_check.fetch_missing([dict(BOARD, tests={'device': True})]), {})
+
+    def test_losing_the_publish_race_keeps_the_winners_tree(self):
+        self.add_run(3, {'binaries-arm-gcc--b b': self.GOOD})
+        real = self.fake_gh
+
+        def racing_gh(*args, env=None):
+            out = real(*args, env=env)
+            if args[0] == 'run':
+                winner = self.cache / 'cmake-build-b'
+                winner.mkdir()
+                (winner / 'winner').write_text('')
+            return out
+        patch(self, hil_pool_check, 'gh', racing_gh)
+        self.assertEqual(hil_pool_check.fetch_missing([dict(BOARD, tests={'device': True})]), {})
+        self.assertEqual([p.name for p in (self.cache / 'cmake-build-b').iterdir()], ['winner'])
+        self.assertEqual([p.name for p in self.cache.iterdir()], ['cmake-build-b'])
+
+    def test_a_gh_failure_is_every_missing_variants_reason(self):
+        def broken(*args, env=None):
+            raise subprocess.CalledProcessError(4, 'gh', stderr='gh: To get started, run: gh auth login\n')
+        patch(self, hil_pool_check, 'gh', broken)
+        got = hil_pool_check.fetch_missing([dict(BOARD, tests={'device': True})])
+        self.assertEqual(got, {'b': 'not cached, fetch failed: gh: To get started, run: gh auth login'})
 
 
 class Park(unittest.TestCase):
@@ -218,6 +328,8 @@ class Main(unittest.TestCase):
         for obj, name in ((hil_pool_check.hil_flash, 'build_dir'), (hil_pool_check.hil_flash, 'EXTRA_BUILD_DIRS'),
                           (hil_pool_check.hil_util, 'verbose')):
             patch(self, obj, name, getattr(obj, name))
+        self.fetched = []
+        patch(self, hil_pool_check, 'fetch_missing', lambda boards: self.fetched.append(boards) or {})
 
     def noisy_board(self, board, args):
         print('python noise')
@@ -279,6 +391,14 @@ class Main(unittest.TestCase):
         code, out, _ = self.run_main('--json')
         self.assertIsInstance(code, RuntimeError)
         self.assertEqual(out, 'after\n')
+
+    def test_only_the_default_cache_is_fetched_into(self):
+        patch(self, hil_pool_check, 'check_board_safe', lambda board, args: row(board['name'], 'ok'))
+        self.run_main('-B', 'cmake-build')
+        self.run_main('--scan-only')
+        self.assertEqual(self.fetched, [])
+        self.run_main()
+        self.assertEqual([[b['name'] for b in boards] for boards in self.fetched], [['b']])
 
     def test_the_default_output_is_the_table(self):
         patch(self, hil_pool_check, 'check_board_safe', lambda board, args: row(board['name'], 'ok'))

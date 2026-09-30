@@ -3,7 +3,9 @@
 
 For every board in the rig's HIL config: is the flash probe on the USB bus, does a light
 example flash, and does the board's USB device (uid) come back up? Firmware is never
-built here: it is looked up under -B. No recovery: a wedged probe or board is reported
+built here: by default it comes from a per-host cache (CACHE_DIR) of CI artifacts, and
+variants the cache lacks are downloaded once from master push runs; -B names another
+firmware root, never fetched into. No recovery: a wedged probe or board is reported
 for usb-kernel-recover. Prints a markdown table, or
 with --json the JSON document the table is rendered from. Row statuses: ok, flash-failed
 (firmware not delivered or not verified as delivered), failed (the check ran but did not
@@ -15,12 +17,18 @@ hfp.json, anything else is a dev PC -> local.json.
 
 import argparse
 import contextlib
+import errno
 import io
 import json
 import os
+import re
+import shutil
 import socket
+import subprocess
 import sys
+import tempfile
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # hil_flash + the helper package
@@ -29,6 +37,10 @@ from helper import hil_lock, hil_report, hil_util
 
 REPO_ROOT = hil_util.TINYUSB_ROOT
 CONFIG_BY_HOST = {'ci': 'tinyusb.json', 'tusb': 'hfp.json'}  # anything else: dev PC -> local.json
+# persistent and shared by the host's worktrees; not /tmp, which is RAM on ci.lan
+CACHE_DIR = Path.home() / '.cache' / 'tinyusb-hil' / 'firmware'
+REPO = 'hathach/tinyusb'
+RETENTION_DAYS = 90  # GitHub artifact retention: older runs have nothing left to download
 
 # light-example preference; first one found wins
 DEVICE_CANDIDATES = ['device/dfu_runtime', 'device/cdc_msc', 'device/cdc_msc_freertos',
@@ -152,6 +164,113 @@ def find_image(board: dict, example: str):
         if fw:
             return v['name'], fw
     return None, None
+
+
+def gh(*args: str, env: dict | None = None) -> str:
+    return subprocess.run(['gh', *args], capture_output=True, text=True, timeout=600,
+                          check=True, env=env).stdout
+
+
+def master_runs():
+    """Completed master push runs of build.yml, newest first, within artifact retention.
+    Only master pushes: a fork PR's artifact is built by untrusted code, and esptool's
+    flash_args reaches a command line. Filtered here, not by the API: its branch/event/
+    status filters have returned lists missing the newest runs."""
+    horizon = datetime.now(timezone.utc) - timedelta(days=RETENTION_DAYS)
+    page = 1
+    while True:
+        runs = json.loads(gh('api', f'repos/{REPO}/actions/workflows/build.yml/runs'
+                                    f'?per_page=100&page={page}'))['workflow_runs']
+        if not runs:
+            return
+        for r in runs:
+            if datetime.fromisoformat(r['created_at']) < horizon:
+                return
+            if (r['head_branch'], r['event'], r['status']) == ('master', 'push', 'completed'):
+                yield r
+        page += 1
+
+
+def artifact_variant(name: str) -> str | None:
+    """Variant of a 'binaries-<toolchain>-<matrix args>' artifact (build_util.yml)."""
+    m = re.search(r'--build-name[ =](\S+)', name) or re.search(r'-b (\S+)', name)
+    return m.group(1) if m else None
+
+
+def run_artifacts(run_id: int) -> dict:
+    """variant -> artifact name, for a run's unexpired firmware artifacts."""
+    out = gh('api', '--paginate', f'repos/{REPO}/actions/runs/{run_id}/artifacts?per_page=100',
+             '-q', '.artifacts[] | select(.expired | not) | .name')
+    names = [n for n in out.splitlines() if n.startswith('binaries-')]
+    return {artifact_variant(n): n for n in names if artifact_variant(n)}
+
+
+def usable(board: dict, variant: str, root: Path) -> bool:
+    """The variant tree under `root` holds a light image and board_test, plus the files
+    flash_esptool opens next to an esptool image."""
+    flasher = board['flasher']['name']
+    find = lambda ex: hil_flash.find_firmware(variant, ex, roots=[str(root)], flasher=flasher)
+    light = next(filter(None, map(find, light_candidates(board)[1])), None)
+    fws = [light, find('device/board_test')]
+    return all(fws) and (flasher.lower() != 'esptool' or all(
+        (fw.parent / f).is_file() for fw in fws for f in ('config.env', 'flash_args')))
+
+
+def fetch_variant(board: dict, variant: str, run: dict, artifact: str) -> bool:
+    """Download one artifact and publish its variant tree into CACHE_DIR if usable. One
+    rename publishes it, so a reader never sees a partial tree; losing that rename to a
+    concurrent fetch keeps the winner's copy."""
+    staging = Path(tempfile.mkdtemp(dir=CACHE_DIR, prefix='.staging-'))
+    tree = staging / f'cmake-build-{variant}'
+    try:
+        # gh stages the zip in TMPDIR whatever -D says
+        gh('run', 'download', str(run['id']), '-R', REPO, '-n', artifact, '-D', str(staging),
+           env=dict(os.environ, TMPDIR=str(CACHE_DIR)))
+        if not usable(board, variant, staging):
+            say(f'{variant:26} run {run["id"]}: no light image or board_test, trying older')
+            return False
+        (tree / '.source').write_text(json.dumps(
+            {'run': run['id'], 'sha': run['head_sha'], 'artifact': artifact}) + '\n')
+        try:
+            tree.rename(CACHE_DIR / tree.name)
+        except OSError as e:
+            if e.errno not in (errno.EEXIST, errno.ENOTEMPTY):
+                raise
+        say(f'{variant:26} cached from run {run["id"]} ({run["head_sha"][:9]})')
+        return True
+    except (OSError, subprocess.SubprocessError) as e:
+        say(f'{variant:26} run {run["id"]}: {gh_error(e)}')
+        return False
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+
+
+def gh_error(e: Exception) -> str:
+    lines = (getattr(e, 'stderr', None) or str(e)).strip().splitlines()
+    return lines[-1][:120] if lines else repr(e)[:120]
+
+
+def fetch_missing(boards: list) -> dict:
+    """Fill CACHE_DIR with every variant of `boards` it lacks, each from the newest run
+    with a usable artifact; returns {variant: reason} for those still missing. A cached
+    tree is never revalidated or replaced: delete it to refetch."""
+    want = {v['name']: b for b in boards for v in hil_report.board_variants(b)
+            if not (CACHE_DIR / f'cmake-build-{v["name"]}').is_dir()}
+    if not want:
+        return {}
+    say(f'fetching {len(want)} variant(s) from CI master runs into {CACHE_DIR}')
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        for run in master_runs():
+            artifacts = run_artifacts(run['id'])
+            for variant in [v for v in want if v in artifacts]:
+                if fetch_variant(want[variant], variant, run, artifacts[variant]):
+                    del want[variant]
+            if not want:
+                return {}
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError) as e:
+        return dict.fromkeys(want, f'not cached, fetch failed: {gh_error(e)}')
+    return dict.fromkeys(want, f'not cached: no usable master artifact in {RETENTION_DAYS} days')
 
 
 def call_flasher(fn, *fn_args) -> tuple[int, str]:
@@ -338,7 +457,9 @@ def check_board(board: dict, args) -> dict:
             break
     if example is None:
         row['status'] = 'flash-failed'
-        note.append(f'no light example firmware under {hil_flash.build_dir}')
+        why = [f'{v["name"]}: {args.uncached[v["name"]]}' for v in hil_report.board_variants(board)
+               if v['name'] in args.uncached]
+        note.extend(why or [f'no light example firmware under {hil_flash.build_dir}'])
         return row
     if variant != name:
         note.append(f'variant: {variant}')
@@ -497,8 +618,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('config', nargs='?', help='HIL config json (default: by hostname)')
     parser.add_argument('-b', '--board', action='append', default=[], help='only these boards')
-    parser.add_argument('-B', '--build-dir', default='cmake-build',
-                        help='firmware parent dir holding cmake-build-<variant> (default: cmake-build)')
+    parser.add_argument('-B', '--build-dir', default=None,
+                        help='firmware parent dir holding cmake-build-<variant>, e.g. cmake-build '
+                             f'for a local build (default: the CI artifact cache {CACHE_DIR})')
     parser.add_argument('--scan-only', action='store_true',
                         help='USB presence scan only: no locks, no flashing')
     parser.add_argument('--no-park', action='store_true',
@@ -526,12 +648,14 @@ def main() -> None:
             sys.exit(f'board(s) not in {cfg_path.name}: {", ".join(sorted(unknown))}')
         boards = [b for b in boards if b['name'] in args.board]
 
-    hil_flash.build_dir = args.build_dir
+    hil_flash.build_dir = str(args.build_dir or CACHE_DIR)
     hil_util.verbose = args.verbose
     header = (f'pool check: host {host}, config {cfg_path.name}, {len(boards)} boards, '
-              f'{"scan-only" if args.scan_only else f"flash via {args.build_dir}/cmake-build-<variant>"}')
+              f'{"scan-only" if args.scan_only else f"flash via {hil_flash.build_dir}/cmake-build-<variant>"}')
 
     with stdout_to_stderr() if args.json else contextlib.nullcontext():
+        fetch = not args.scan_only and args.build_dir is None
+        args.uncached = fetch_missing(boards) if fetch else {}
         rows = check_pool(boards, args, header)
     doc = pool_document(host, str(cfg_path.resolve()), args.scan_only, rows)
     print(json.dumps(doc, ensure_ascii=False) if args.json else render_table(doc))
