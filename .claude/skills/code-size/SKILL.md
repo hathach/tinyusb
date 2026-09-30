@@ -40,7 +40,7 @@ The base worktree symlinks this checkout's fetched dependencies, so a `tools/get
 - diff only:
   - **`--base-branch <ref>`**: any branch, tag or commit.
   - **`--combined`**: also one report over every `-b` board.
-  - **`--ci`**, for "all boards" / "CI": adds the `.github/ci-pinned-boards.json` boards, covering every dcd/hcd driver not waived there, and implies `--combined`; needs the arm, riscv and msp430 toolchains.
+  - **`--ci`**, for "all boards" / "CI": adds the `.github/ci-pinned-boards.json` boards except espressif's (ESP-IDF builds them per example), covering every dcd/hcd driver not waived there, and implies `--combined`; needs the arm, riscv, msp430 and ft9xx toolchains.
   - **`--bloaty`**, with `-e` only: also prints bloaty's section and symbol diff to stdout.
 
 ## Outputs and timing

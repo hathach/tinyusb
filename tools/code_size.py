@@ -773,9 +773,16 @@ def invalid_boards(boards):
 
 def ci_pinned_boards():
     """Boards of .github/ci-pinned-boards.json: CI's membrowse set, which covers every
-    dcd/hcd driver not waived in its `uncovered` list (drivers-coverage hook)."""
+    dcd/hcd driver not waived in its `uncovered` list (drivers-coverage hook). Espressif
+    boards are left out: each example is its own ESP-IDF project, which build_board()'s
+    single examples/ configure cannot build."""
+    esp_boards = os.path.join(TINYUSB_ROOT, 'hw', 'bsp', 'espressif', 'boards')
     with open(CI_PINNED_BOARDS) as f:
-        return [entry['board'] for entry in json.load(f)['boards']]
+        pinned = [entry['board'] for entry in json.load(f)['boards']]
+    esp = [b for b in pinned if os.path.isdir(os.path.join(esp_boards, b))]
+    if esp:
+        print(f'--ci skips {", ".join(esp)}: ESP-IDF builds each example as its own project')
+    return [b for b in pinned if b not in esp]
 
 
 class Phase:

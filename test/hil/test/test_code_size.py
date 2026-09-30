@@ -1708,6 +1708,17 @@ class CiBoardSet(unittest.TestCase):
                                             '"uncovered": []}')
             self.assertEqual(built, ['extra', 'b1', 'b2'])
 
+    def test_ci_skips_pinned_espressif_boards(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            built = self._boards_built(tmp, '{"boards": [{"board": "b1"}, '
+                                            '{"board": "espressif_s3_devkitm"}], "uncovered": []}')
+            self.assertEqual(built, ['extra', 'b1'])
+            out = io.StringIO()
+            with mock.patch.object(sd, 'CI_PINNED_BOARDS', os.path.join(tmp, 'ci-pinned-boards.json')), \
+                 contextlib.redirect_stdout(out):
+                sd.ci_pinned_boards()
+            self.assertIn('--ci skips espressif_s3_devkitm', out.getvalue())
+
 
 class SymlinkDeps(unittest.TestCase):
     def test_links_each_dep_path_of_the_worktrees_own_manifest(self):

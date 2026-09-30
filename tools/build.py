@@ -419,7 +419,7 @@ def resolve_ci_boards(boards_path, family, boards_only, examples=None,
     with open(boards_path) as f:
         data = json.load(f)
     # membership in this family's board dir, not find_family() per entry: that walks
-    # every hw/bsp family for each of the 23 pinned boards to answer one family's question
+    # every hw/bsp family for each pinned board to answer one family's question
     family_boards = {e.name for e in os.scandir(f'hw/bsp/{family}/boards') if e.is_dir()}
     ci_boards = [t['board'] for t in data['boards']
                  if t['board'] in family_boards
