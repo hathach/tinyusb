@@ -41,8 +41,8 @@ CONFIG_BY_HOST = {'ci': 'tinyusb.json', 'tusb': 'hfp.json'}  # anything else: de
 CACHE_DIR = Path.home() / '.cache' / 'tinyusb-hil' / 'firmware'
 REPO = 'hathach/tinyusb'
 RETENTION_DAYS = 90  # GitHub artifact retention: older runs have nothing left to download
-# master pushes build the whole HIL matrix (PR runs are change-selected), so a variant
-# missing from this many is not coming; bounds the walk every run repeats for it
+# bounds the search every run repeats for unavailable firmware; master pushes build the
+# whole HIL matrix (PR runs are change-selected), though older runs may still hold one
 MASTER_RUNS = 10
 
 # light-example preference; first one found wins

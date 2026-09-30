@@ -21,14 +21,16 @@ running between CI runs.
 
 It checks basic USB function, not the current checkout, so it flashes older CI builds from a
 per-host cache, `~/.cache/tinyusb-hil/firmware/cmake-build-<variant>/`, shared by the host's
-worktrees. Every roster variant the cache lacks is downloaded once, before any board is locked,
-from the newest completed master push run of `hathach/tinyusb`'s `build.yml` (whatever the
-checkout's remote) whose artifact holds a light image and `board_test`; PR runs are never used.
-`.source` in each variant dir names its run and commit. That needs `gh` logged in; the first
-fetch of ci.lan's roster downloads 34 variants, about 1.3 GB unpacked, in ~15 min. Each board
-check then uses one variant that has light firmware; a board with none is `flash-failed`, with
-the fetch's reason (no artifact in the 90-day retention window, or the failure) where there is
-one.
+worktrees. A board with no variant cached gets one downloaded once, before any board is locked.
+The search covers up to 10 completed master push runs of `hathach/tinyusb`'s `build.yml`
+(whatever the checkout's remote) within the 90-day artifact retention, newest first; within a
+run, the board's variants are tried in roster order, and the first whose artifact holds a light
+image and `board_test` is cached. PR runs are never used; master pushes build the whole HIL
+matrix, so 10 runs have covered every variant so far. `.source` in each variant dir names its
+run and commit. That needs `gh` logged in; the first fetch of ci.lan's roster downloads 28
+variants, about 1.1 GB unpacked, in ~12 min. The cached variant may hold a less preferred light
+example than another variant would. A board left without firmware is `flash-failed`, with the
+fetch's reason.
 
 A CI build of `board_test` is silent by design (`CI_BUILD`), so a host-only board's park cannot
 be verified from the cache: its row keeps its status with `park unverified: board_test image
