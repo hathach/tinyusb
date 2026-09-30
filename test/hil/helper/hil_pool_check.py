@@ -502,8 +502,8 @@ def check_board(board: dict, args) -> dict:
 def park_board(board: dict, kind: str, fw, row: dict, note: list) -> None:
     """Flash board_test and VERIFY it took: board_test never enumerates USB, so a device
     board's cafe device must drop off the bus, and a host board must answer with
-    board_test's own output. A board left unparked turns an ok row flash-failed (a
-    'failed' verdict is kept: it is the more diagnostic one)."""
+    board_test's own output (only noted for an image without it). A board left unparked
+    turns an ok row flash-failed (a 'failed' verdict is kept: it is the more diagnostic one)."""
     # capture BEFORE the park flash: uid-disappearance only verifies the park if the
     # device was on the bus to begin with
     on_bus_before = kind != 'host' and find_device(board['uid']) is not None
@@ -514,6 +514,11 @@ def park_board(board: dict, kind: str, fw, row: dict, note: list) -> None:
             row['status'] = 'flash-failed'
         return
     if kind == 'host':
+        if b'Hello from TinyUSB' not in Path(fw).read_bytes():
+            # a CI build (CI_BUILD) of board_test is silent by design, and silence cannot
+            # tell a park from a quiet host example
+            note.append('park unverified: board_test image has no UART hello marker')
+            return
         # no second reset (the park flash's own reset started board_test); POSITIVE
         # marker: its hello must appear, and stale bridge-FIFO output alongside it is not
         # disqualifying
