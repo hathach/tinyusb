@@ -24,7 +24,9 @@ OP_SEND_OBJECT = 0x100D
 
 RESP_OK = 0x2001
 RESP_SESSION_NOT_OPEN = 0x2003
+RESP_INCOMPLETE_TRANSFER = 0x2007
 RESP_INVALID_OBJECT_HANDLE = 0x2009
+RESP_NO_VALID_OBJECTINFO = 0x2015
 RESP_SESSION_ALREADY_OPEN = 0x201E
 RESP_TRANSACTION_CANCELLED = 0x201F
 
@@ -322,6 +324,7 @@ def case_boundaries(m):
 def case_long_name(m):
     name = ''.join(chr(ord('a') + i % 26) for i in range(254))  # count 255 on the wire
     handle = m.create(100, name)
+    m.expect(RESP_OK, OP_SEND_OBJECT, data_out=bytes(100))  # the object exists once sent
     _, info = m.expect(RESP_OK, OP_GET_OBJECT_INFO, handle, data_in=True)
     got = object_info_name(info)
     if got != name[:NAME_MAX_CHARS]:
@@ -387,19 +390,29 @@ def reset_and_resync(m):
     m.link.clear_halt(m.link.ep_out)
 
 
-def expect_discarded(m, handle):
-    """An object whose SendObject was interrupted must not be left behind half written."""
+def expect_not_visible(m, handle):
+    """A nonempty object whose SendObject has not succeeded is not an object yet: never listed or described."""
     if handle in m.list_handles():
-        raise RawError('object 0x%x left behind after an interrupted SendObject' % handle)
+        raise RawError('object 0x%x listed before its SendObject succeeded' % handle)
+    m.expect(RESP_INVALID_OBJECT_HANDLE, OP_GET_OBJECT_INFO, handle)
+
+
+def retry_send_object(m, handle, size):
+    """SendObject alone against the ObjectInfo the device kept; the object then reads back whole."""
+    data = bytes((i * 5 + 1) & 0xFF for i in range(size))
+    m.expect(RESP_OK, OP_SEND_OBJECT, data_out=data)
+    _, back = m.expect(RESP_OK, OP_GET_OBJECT, handle, data_in=True)
+    if back != data:
+        raise RawError('object differs from the retried SendObject')
+    m.delete(handle)
 
 
 def case_cancel_mid_send_object(m):
     handle, tid = _start_partial_send_object(m)
     m.cancel(tid)
     m.wait_status_ok()
-    m.expect(RESP_INVALID_OBJECT_HANDLE, OP_SEND_OBJECT)  # the staged handle was dropped
-    expect_discarded(m, handle)
-    m.expect(RESP_OK, OP_GET_DEVICE_INFO, data_in=True)
+    expect_not_visible(m, handle)
+    retry_send_object(m, handle, 100)  # a Cancel keeps the ObjectInfo (PTP 10.4.13)
 
 
 def case_device_reset_mid_send_object(m):
@@ -407,9 +420,29 @@ def case_device_reset_mid_send_object(m):
     reset_and_resync(m)
     m.expect(RESP_SESSION_NOT_OPEN, OP_SEND_OBJECT)
     m.expect(RESP_OK, OP_OPEN_SESSION, 1)
-    m.expect(RESP_INVALID_OBJECT_HANDLE, OP_SEND_OBJECT)
-    expect_discarded(m, handle)
+    m.expect(RESP_NO_VALID_OBJECTINFO, OP_SEND_OBJECT)  # the session, and its ObjectInfo, ended
+    expect_not_visible(m, handle)
     m.upload_readback(100)
+
+
+def case_short_send_object_retry(m):
+    handle = m.create(100)
+    m.expect(RESP_INCOMPLETE_TRANSFER, OP_SEND_OBJECT, data_out=bytes(60))
+    expect_not_visible(m, handle)
+    retry_send_object(m, handle, 100)
+
+
+def case_object_info_replacement(m):
+    m.create(100, 'a.txt')
+    handle = m.create(50, 'b.txt')  # replaces the held ObjectInfo in the one writable slot
+    m.expect(RESP_OK, OP_SEND_OBJECT, data_out=bytes(range(50)))
+    _, info = m.expect(RESP_OK, OP_GET_OBJECT_INFO, handle, data_in=True)
+    if object_info_name(info) != 'b.txt' or struct.unpack_from('<I', info, 8)[0] != 50:
+        raise RawError('the replacement ObjectInfo did not win')
+    _, back = m.expect(RESP_OK, OP_GET_OBJECT, handle, data_in=True)
+    if back != bytes(range(50)):
+        raise RawError('replacement object differs')
+    m.delete(handle)
 
 
 def case_device_reset_undrained_in(m):
@@ -432,6 +465,8 @@ CASES = [
     ('early_rejection', case_early_rejection),
     ('cancel_mid_send_object', case_cancel_mid_send_object),
     ('device_reset_mid_send_object', case_device_reset_mid_send_object),
+    ('short_send_object_retry', case_short_send_object_retry),
+    ('object_info_replacement', case_object_info_replacement),
     ('device_reset_undrained_in', case_device_reset_undrained_in),
 ]
 

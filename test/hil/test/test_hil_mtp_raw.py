@@ -212,6 +212,38 @@ class Containment(unittest.TestCase):
         self.assertEqual(struct.pack('<IHHII', 16, TYPE_COMMAND, 0x100B, 2, 3), link.writes[-1])
 
 
+class HeldObjectChecks(unittest.TestCase):
+    """The case helpers must fail on the device behaviour they exist to catch."""
+
+    def test_expect_not_visible_fails_when_listed(self):
+        link = FakeLink()
+        link.reads += handles_reply(1, 3) + [response(2, 0x2009)]  # GetObjectInfo refuses it
+        with self.assertRaisesRegex(RawError, 'listed'):
+            mtp_raw.expect_not_visible(RawMtp(link), 3)
+
+    def test_expect_not_visible_fails_when_described(self):
+        link = FakeLink()
+        link.reads += handles_reply(1) + [response(2)]      # GetObjectInfo answers OK
+        with self.assertRaises(RawError):
+            mtp_raw.expect_not_visible(RawMtp(link), 3)
+
+    def test_retry_send_object_fails_on_other_bytes(self):
+        link = FakeLink()
+        link.reads += [response(1), mtp_raw.container(TYPE_DATA, 0x1009, 2, bytes(4)), response(2)]
+        with self.assertRaises(RawError):
+            mtp_raw.retry_send_object(RawMtp(link), 3, 4)
+
+    def test_retry_send_object_sends_only_the_object_and_deletes_it(self):
+        link = FakeLink()
+        data = bytes((i * 5 + 1) & 0xFF for i in range(4))
+        link.reads += [response(1), mtp_raw.container(TYPE_DATA, 0x1009, 2, data), response(2), response(3)]
+        mtp_raw.retry_send_object(RawMtp(link), 3, 4)
+        commands = [struct.unpack_from('<HH', w, 4) for w in link.writes if w]
+        self.assertEqual([(TYPE_COMMAND, 0x100D), (TYPE_DATA, 0x100D), (TYPE_COMMAND, 0x1009),
+                          (TYPE_COMMAND, 0x100B)], commands)
+        self.assertEqual(3, struct.unpack_from('<I', link.writes[-1], 12)[0])
+
+
 class UsbErrorMapping(unittest.TestCase):
     def test_pipe_error_is_a_stall_and_timeout_is_an_error(self):
         try:
