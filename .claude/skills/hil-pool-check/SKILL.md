@@ -70,9 +70,9 @@ behind it.
 Statuses: `ok`, `flash-failed` (firmware not delivered, or shown not delivered: probe missing,
 not cached, flasher error, a host example answered by `board_test`'s output, a park that failed
 to flash, drew no `board_test` hello from a host board or left a device enumerated), `failed`
-(the check ran but did not verify), `locked`. An `ok` note can flag what the check could not
-tell: `new image unverified` (the device came back with its pre-flash VID:PID) and `park
-unverified (device already off bus)`.
+(the check ran but did not verify; a park failure then keeps `failed` and adds its note),
+`locked`. An `ok` note can flag what the check could not tell: `new image unverified` (the device
+came back with its pre-flash VID:PID) and `park unverified (device already off bus)`.
 The exit code counts `flash-failed` + `failed`; `locked` rows and every `--scan-only` row are
 unverified, not healthy, so read the footer or the JSON `coverage` (`probe-only`,
 `skipped-locked`, `full-attempted`), never `$?` alone. A probe that enumerates but will not
