@@ -209,6 +209,74 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         # (tools/build.py sets build_examples=None) and compile every example
         self.assertNotIn('--ci-pinned-boards-only', self.jobs['cmake'])
 
+    def test_the_code_size_scope_lists_every_cmake_leg(self):
+        # pr_comment.yml's compare expects a snapshot artifact per listed leg: the list
+        # must be the cmake job's matrix, from the one toolchain list both read
+        import subprocess, tempfile
+        self.assertIn('fromJSON(needs.set-matrix.outputs.cmake_toolchains)', self.jobs['cmake'])
+        m = re.search(r"echo 'cmake_toolchains=(\[.*\])' >> \$GITHUB_OUTPUT", self.build)
+        toolchains = json.loads(m.group(1))
+        self.assertNotIn('esp-idf', toolchains)
+        i = self.build.index('mkdir -p code-size-scope')
+        i = self.build.rindex('\n', 0, i) + 1
+        j = self.build.index('cat code-size-scope/scope.json', i)
+        block = re.sub(r'^ {10}', '', self.build[i:j], flags=re.M)
+        pinned = {'arm-gcc': ['stm32f4', 'imxrt'], 'riscv-gcc': ['fomu'], 'esp-idf': ['espressif']}
+        with tempfile.TemporaryDirectory() as d:
+            r = subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', block], cwd=d, capture_output=True, text=True,
+                               env={**os.environ, 'TOOLCHAINS': m.group(1), 'PINNED_JSON': json.dumps(pinned),
+                                    'EXAMPLE_MAP': '{"stm32f4": ["device/cdc_msc"]}', 'CODE_CHANGED': 'true'})
+            self.assertEqual(r.returncode, 0, r.stderr)
+            with open(os.path.join(d, 'code-size-scope', 'scope.json')) as fh:
+                scope = json.load(fh)
+        self.assertEqual(scope['legs'], [{'toolchain': 'arm-gcc', 'arg': 'stm32f4'},
+                                         {'toolchain': 'arm-gcc', 'arg': 'imxrt'},
+                                         {'toolchain': 'riscv-gcc', 'arg': 'fomu'}])
+        self.assertEqual((scope['code_changed'], scope['family_examples']),
+                         (True, {'stm32f4': ['device/cdc_msc']}))
+        with tempfile.TemporaryDirectory() as d:  # no code change: nothing to measure
+            subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', block], cwd=d, capture_output=True, check=True,
+                           env={**os.environ, 'TOOLCHAINS': m.group(1), 'PINNED_JSON': json.dumps(pinned),
+                                'EXAMPLE_MAP': '{}', 'CODE_CHANGED': 'false'})
+            with open(os.path.join(d, 'code-size-scope', 'scope.json')) as fh:
+                self.assertEqual(json.load(fh)['legs'], [])
+
+    def test_the_code_size_comment_is_written_even_without_usable_snapshots(self):
+        # a run without usable snapshots, and a baseline lookup that fails, must still
+        # leave a comment.md, so the post replaces an earlier push's table
+        import subprocess, tempfile
+        with open(os.path.join(REPO, '.github', 'workflows', 'pr_comment.yml')) as f:
+            text = f.read()
+
+        def step_script(name):
+            i = text.index('run: |\n', text.index(f'- name: {name}\n')) + len('run: |\n')
+            j = re.search(r'^\s*$', text[i:], re.M).start() + i  # the block ends at the first blank line
+            return re.sub(r'^ {10}', '', text[i:j], flags=re.M)
+        with tempfile.TemporaryDirectory() as d:
+            env = {**os.environ, 'RUNNER_TEMP': d, 'REPO': 'x/y', 'RUN_URL': 'https://example/run',
+                   'GITHUB_STEP_SUMMARY': os.path.join(d, 'summary.md'), 'GITHUB_OUTPUT': os.path.join(d, 'out'),
+                   'PATH': d + os.pathsep + os.environ['PATH']}
+            with open(os.path.join(d, 'gh'), 'w') as f:  # any API call fails
+                f.write('#!/bin/sh\nexit 1\n')
+            os.chmod(os.path.join(d, 'gh'), 0o755)
+            leg = os.path.join(d, 'code-size', 'current', 'code-size-arm-gcc-x')
+            os.makedirs(leg)
+            with open(os.path.join(leg, 'leg.json'), 'w') as f:
+                json.dump({'schema': 1, 'boards': [], 'examples': None, 'build_outcome': 'success',
+                           'sha': 'a' * 40, 'base_sha': 'a' * 40, 'head_sha': 'a' * 40}, f)
+            for name in ('Find the baseline', 'Compare against the baseline'):
+                r = subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', step_script(name)], cwd=REPO,
+                                   capture_output=True, text=True, env=env)
+                self.assertEqual(r.returncode, 0, f'{name}: {r.stderr}')
+            with open(os.path.join(d, 'out')) as f:
+                self.assertEqual(f.read(), 'run_id=\n')  # no baseline download
+            with open(os.path.join(d, 'code-size', 'out', 'comment.md')) as f:
+                comment = f.read()
+        self.assertTrue(comment.startswith('## Code size'))
+        self.assertIn('Baseline: unavailable - the baseline lookup failed', comment)
+        self.assertIn('no usable scope manifest', comment)
+        self.assertTrue(comment.endswith('_[Full report](https://example/run)_\n'))
+
     def _run_matrix_step(self, sel, fail_pinned=False):
         """Run the whole 'Generate matrix json' step for real, optionally with the
         SCOPED --pinned invocation failing (the unscoped fallback still works, as a

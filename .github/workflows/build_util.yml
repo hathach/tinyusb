@@ -100,6 +100,7 @@ jobs:
           echo "EX_ARGS=$EX_ARGS" >> $GITHUB_ENV
 
       - name: Build
+        id: build
         if: ${{ inputs.code-changed }}
         env:
           IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
@@ -114,6 +115,23 @@ jobs:
             BUILD_PY_ARGS="-s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }} --target all"
             python tools/build.py $BUILD_PY_ARGS ${{ matrix.arg }} $EX_ARGS
           fi
+        shell: bash
+
+      - name: Code size snapshot
+        id: code-size
+        # measurement only: it also runs after a failed Build and records that in the
+        # snapshot, and a sizing failure never fails the leg. Before the membrowse upload,
+        # so a membrowse service error cannot cost the local measurement. esp-idf is not
+        # sized (each espressif example is its own ESP-IDF project).
+        if: ${{ !cancelled() && inputs.upload-membrowse && inputs.code-changed && inputs.toolchain != 'esp-idf' }}
+        continue-on-error: true
+        env:
+          ARG: ${{ matrix.arg }}
+          BUILD_OUTCOME: ${{ steps.build.outcome }}
+        # only build.yml's `cmake` job gets here (hil-build-esp is esp-idf), whose args are bare
+        # families: no variant leg to skip, unlike Membrowse Upload
+        run: |
+          python tools/code_size.py snapshot --symbols --build-outcome "$BUILD_OUTCOME" -o code-size $ARG $EX_ARGS
         shell: bash
 
       - name: Membrowse Upload
@@ -161,7 +179,7 @@ jobs:
         shell: bash
 
       - name: Artifact name
-        if: inputs.upload-artifacts == true
+        if: ${{ !cancelled() && (inputs.upload-artifacts || steps.code-size.outcome == 'success' || steps.code-size.outcome == 'failure') }}
         env:
           ARG: ${{ matrix.arg }}
         run: |
@@ -196,3 +214,15 @@ jobs:
             cmake-build/cmake-build-*/*/*/config.env
             cmake-build/cmake-build-*/*/*/flash_args
             cmake-build/hw/mcu/**/*.ld
+
+      - name: Upload code size snapshot
+        if: ${{ !cancelled() && (steps.code-size.outcome == 'success' || steps.code-size.outcome == 'failure') }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          # the toolchain too: the same family could be a leg of two toolchains
+          name: code-size-${{ inputs.toolchain }}-${{ env.ARTIFACT_TAG }}
+          path: code-size/*.json
+          # master's snapshots are the baselines PRs compare against
+          retention-days: ${{ github.event_name == 'push' && 90 || 14 }}
+          if-no-files-found: ignore

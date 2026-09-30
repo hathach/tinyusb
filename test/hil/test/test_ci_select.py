@@ -1249,6 +1249,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_ci_metrics.py',
             'test/hil/test/test_ci_select.py',
             'test/hil/test/test_code_size.py',
+            'test/hil/test/test_code_size_ci.py',
             'test/hil/test/test_drivers_coverage.py',
             'test/hil/test/test_family_json.py',
             'test/hil/test/test_hil_args.py',
@@ -1871,7 +1872,7 @@ class TestBuildClassifier(unittest.TestCase):
                   '.clang-format', '.idea/misc.xml', 'version.yml', 'library.json',
                   'examples/CMakePresets.json', 'test/fuzz/fuzz.cc',
                   'test/unit-test/project.yml', '.github/workflows/pr_comment.yml',
-                  '.claude/skills/build-doc/scripts/gen_doc.py', '.agents'):
+                  '.github/scripts/code_size_ci.py', '.claude/skills/build-doc/scripts/gen_doc.py', '.agents'):
             s = self.b([p])
             self.assertFalse(s['full'], p)
             self.assertEqual(s['families'], [], p)
@@ -1989,9 +1990,8 @@ class TestNoContributionPaths(unittest.TestCase):
     whole build matrix plus an exclusive full-rig sweep - where master ran nothing."""
 
     def test_local_tooling_contributes_nothing_on_either_axis(self):
-        # no CI build and no rig board runs any of these (drivers_coverage_check.py is
-        # pre-commit only)
-        for p in ('tools/code_size.py', 'tools/drivers_coverage_check.py'):
+        # no CI build and no rig board runs it (pre-commit only)
+        for p in ('tools/drivers_coverage_check.py',):
             h = sel([p])
             self.assertFalse(h['full'], p)
             self.assertEqual(h['boards'], {}, p)
@@ -2007,13 +2007,14 @@ class TestNoContributionPaths(unittest.TestCase):
         self.assertEqual(h['boards'], {}, p)
         self.assertTrue(ci_select.classify_build([p], REPO)['full'], p)
 
-    def test_membrowse_cli_is_a_full_build_matrix_without_hil(self):
-        # run by family_add_membrowse() for every pinned board (rule 2d)
-        p = 'tools/membrowse_cli.py'
-        h = sel([p])
-        self.assertFalse(h['full'], p)
-        self.assertEqual(h['boards'], {}, p)
-        self.assertTrue(ci_select.classify_build([p], REPO)['full'], p)
+    def test_ci_size_scripts_are_a_full_build_matrix_without_hil(self):
+        # run by every pinned build leg (rule 2d): membrowse_cli.py from
+        # family_add_membrowse(), code_size.py as the CI size snapshot
+        for p in ('tools/membrowse_cli.py', 'tools/code_size.py'):
+            h = sel([p])
+            self.assertFalse(h['full'], p)
+            self.assertEqual(h['boards'], {}, p)
+            self.assertTrue(ci_select.classify_build([p], REPO)['full'], p)
 
     def test_typec_example_builds_but_runs_nothing(self):
         # examples/typec is compiled by the build matrix and run by no rig board; the

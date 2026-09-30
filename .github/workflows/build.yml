@@ -42,6 +42,7 @@ jobs:
               - 'tools/get_deps.py'
               - 'tools/rtt.py'
               - 'tools/membrowse_cli.py'
+              - 'tools/code_size.py'
               - '.github/ci-pinned-boards.json'
               - '.github/actions/**'
               - '.github/workflows/build.yml'
@@ -51,6 +52,7 @@ jobs:
   set-matrix:
     runs-on: ubuntu-latest
     outputs:
+      cmake_toolchains: ${{ steps.set-matrix-json.outputs.cmake_toolchains }}
       pinned_json: ${{ steps.set-matrix-json.outputs.pinned_matrix }}
       hil_json: ${{ steps.set-matrix-json.outputs.hil_matrix }}
       example_map: ${{ steps.set-matrix-json.outputs.example_map }}
@@ -178,6 +180,9 @@ jobs:
           echo "pinned_matrix=$PINNED_JSON"
           echo "pinned_matrix=$PINNED_JSON" >> $GITHUB_OUTPUT
           echo "example_map=$EXAMPLE_MAP" >> $GITHUB_OUTPUT
+          # the `cmake` job's toolchains, one list for its matrix and the code-size scope
+          # (arm-clang and esp-idf are not built there: see that job's comment)
+          echo 'cmake_toolchains=["aarch64-gcc", "arm-gcc", "ft9xx-gcc", "msp430-gcc", "riscv-gcc"]' >> $GITHUB_OUTPUT
 
           # HIL matrix (merged from tinyusb + hifiphile configs), scoped on PRs.
           # Scoping is best-effort too: fall back to the unscoped (full) matrix.
@@ -194,6 +199,39 @@ jobs:
           echo "hil_matrix=$HIL_MATRIX_JSON"
           echo "hil_matrix=$HIL_MATRIX_JSON" >> $GITHUB_OUTPUT
 
+  # The legs this run expects a code-size snapshot from, for pr_comment.yml's compare: a
+  # leg that dies before its snapshot step leaves no artifact, which only this manifest
+  # can tell apart from a leg that was never selected. No legs when no code changed.
+  # Nothing needs it, so it stays off the critical path; measurement only, never red.
+  code-size-scope:
+    needs: [ check-paths, set-matrix ]
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Code size scope
+        env:
+          TOOLCHAINS: ${{ needs.set-matrix.outputs.cmake_toolchains }}
+          PINNED_JSON: ${{ needs.set-matrix.outputs.pinned_json }}
+          EXAMPLE_MAP: ${{ needs.set-matrix.outputs.example_map }}
+          CODE_CHANGED: ${{ needs.check-paths.outputs.code_changed }}
+        run: |
+          mkdir -p code-size-scope
+          jq -n --argjson tc "$TOOLCHAINS" --argjson pinned "$PINNED_JSON" --argjson ex "$EXAMPLE_MAP" \
+                --arg changed "$CODE_CHANGED" \
+            '{schema: 1, code_changed: ($changed == "true"), family_examples: $ex,
+              legs: (if $changed == "true" then [$tc[] as $t | ($pinned[$t] // [])[] | {toolchain: $t, arg: .}]
+                     else [] end)}' \
+            > code-size-scope/scope.json
+          cat code-size-scope/scope.json
+
+      - name: Upload code size scope
+        uses: actions/upload-artifact@v7
+        with:
+          name: code-size-scope
+          path: code-size-scope/scope.json
+          retention-days: ${{ github.event_name == 'push' && 90 || 14 }}
+
   # ------------------------------------------------------------------------------
   # CMake build: the families with a membrowse CI board, building that board - the only
   # boards this job exists for, since CircleCI builds every board of every family. A
@@ -209,14 +247,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        toolchain:
-          - 'aarch64-gcc'
-          #- 'arm-clang'
-          - 'arm-gcc'
-          #- 'esp-idf'
-          - 'ft9xx-gcc'
-          - 'msp430-gcc'
-          - 'riscv-gcc'
+        # arm-clang and esp-idf stay out: esp-idf would double-build hil-build-esp's boards
+        toolchain: ${{ fromJSON(needs.set-matrix.outputs.cmake_toolchains) }}
     with:
       build-system: 'cmake'
       toolchain: ${{ matrix.toolchain }}

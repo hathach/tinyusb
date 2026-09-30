@@ -1,11 +1,11 @@
 ---
 name: code-size
-description: Use when sizing TinyUSB examples per file, section or symbol (report), or diffing them between a base ref (master by default) and the working tree to evaluate the size impact of changes (diff) — one example on one board, all examples on one board, or every CI-pinned board combined — sized by membrowse, linkermap or bloaty.
+description: Use when sizing TinyUSB examples per file, section or symbol (report), or diffing them between a base ref (master by default) and the working tree to evaluate the size impact of changes (diff) — one example on one board, all examples on one board, or every CI-pinned board combined — sized by membrowse, linkermap or bloaty; also when reading or debugging the PR's "Code size" comment (CI snapshot/compare).
 ---
 
 # Code Size
 
-`tools/code_size.py` has two subcommands:
+`tools/code_size.py` has two local subcommands (and two CI ones, see [CI comment](#ci-comment)):
 
 - **`report`** builds the working tree, uncommitted changes included, and tabulates each elf as linkermap does: a row per file, a column per output section, size and % of that elf's filtered total.
 - **`diff`** builds a base ref (default `master`) in a temporary worktree and the working tree, pairs each base elf with the current elf of the same (board, elf path) and reports per-file deltas per pair: a Flash/RAM table and the same section table as signed deltas, changed rows only.
@@ -57,3 +57,11 @@ Show the coverage line and the relevant tables, then:
 - A filtered delta suggests a TinyUSB size impact in that configuration. A whole-elf Δ with a zero filtered total is outside the filter (inlined headers, example/BSP code); check the per-file table for changes that cancel.
 - min > 0 means growth in every present pair, max > 0 in at least one; name the worst-growth pair.
 - Corroborate a surprising delta on its own board and example, not the whole sweep: `-b <board> -e <example> --engine linkermap` (~30 s; every run rebuilds both trees); add `--bloaty` if bloaty is on PATH to see the sections and symbols behind it.
+
+## CI comment
+
+CI never builds a base. In a code-changing run, each selected pinned `cmake` build leg runs `code_size.py snapshot` on the boards it already built and uploads `code-size-<toolchain>-<leg>` (`leg.json` and one `code-size-<board>.json` per board, symbols included); a `code-size-scope` job uploads the legs and examples the run selected, none without a code change. Master push runs keep them 90 days as baselines, PR runs 14.
+
+`pr_comment.yml`'s `code-size-comment` job, run from the default branch, downloads the PR run's snapshots, finds the baseline with `.github/scripts/code_size_ci.py baseline` (the master push run of the merge commit's first parent, else its nearest first-parent ancestor with snapshots, up to 30, labelled approximate), runs `python3 tools/code_size.py compare CUR BASE -o OUT --symbols --baseline-info INFO` and posts `comment.md` as the sticky `code-size` comment once `code_size_ci.py is-current` confirms no newer push, run or attempt. The full report is the job summary and the `code-size-report` artifact. It reports only; it never fails the PR.
+
+Reading the comment: `INCOMPLETE` lists why (a leg or board with no snapshot, no baseline for a board, a failed build, snapshots of mismatched commits); an approximate baseline counts master changes after it as the PR's; a compiler or membrowse difference is noted, not failed; baseline elfs of examples the PR did not build are counted outside coverage. To reproduce locally, `gh run download` both runs' `code-size-*` artifacts into two directories and run `compare` on them. Espressif boards are not snapshotted.
