@@ -156,7 +156,7 @@ static void start_dma(volatile uint32_t* reg_startep) {
 }
 
 // helper getting td
-static inline xfer_td_t* get_td(uint8_t epnum, uint8_t dir) {
+TU_ATTR_ALWAYS_INLINE static inline xfer_td_t* get_td(uint8_t epnum, uint8_t dir) {
   return &_dcd.xfer[epnum][dir];
 }
 
@@ -170,25 +170,26 @@ static void xact_out_dma(uint8_t epnum);
 static void xact_in_dma(uint8_t epnum);
 static void ep0_task(volatile uint32_t* reg, uint8_t dir);
 
-// A deferred DMA start carries (generation << 8 | flags | epnum) and is dropped once the transfer
-// it was queued for is retired; the check and the start are one critical section so a SETUP
-// cannot retire the transfer in between.
-enum { DMA_TOKEN_DIR_IN = 0x10, DMA_TOKEN_EP0_STATUS = 0x20, DMA_TOKEN_EP0_RCVOUT = 0x40 };
+// A deferred DMA start carries (flags << 16 | generation << 8 | ep_addr) and is dropped once the
+// transfer it was queued for is retired; the check and the start are one critical section so a
+// SETUP cannot retire the transfer in between.
+enum { DMA_TOKEN_EP0_STATUS = 0x01, DMA_TOKEN_EP0_RCVOUT = 0x02 };
 
 static inline void* dma_token(uint8_t epnum, uint8_t dir, uint8_t flags) {
-  flags |= (dir == TUSB_DIR_IN) ? DMA_TOKEN_DIR_IN : 0;
-  return (void*) (uintptr_t) (((uintptr_t) get_td(epnum, dir)->gen << 8) | flags | epnum);
+  return (void*) (uintptr_t) (((uintptr_t) flags << 16) | ((uintptr_t) get_td(epnum, dir)->gen << 8) |
+                              tu_edpt_addr(epnum, dir));
 }
 
 static void dma_deferred(void* token) {
   uintptr_t const v = (uintptr_t) token;
-  uint8_t const epnum = (uint8_t) (v & 0x0F);
-  uint8_t const dir = (v & DMA_TOKEN_DIR_IN) ? TUSB_DIR_IN : TUSB_DIR_OUT;
+  uint8_t const epnum = tu_edpt_number((uint8_t) v);
+  uint8_t const dir = tu_edpt_dir((uint8_t) v);
+  uint8_t const flags = (uint8_t) (v >> 16);
   dcd_int_disable(0);
   if (get_td(epnum, dir)->gen == (uint8_t) (v >> 8)) {
-    if (v & DMA_TOKEN_EP0_STATUS) {
+    if (flags & DMA_TOKEN_EP0_STATUS) {
       ep0_task(&NRF_USBD->TASKS_EP0STATUS, dir);
-    } else if (v & DMA_TOKEN_EP0_RCVOUT) {
+    } else if (flags & DMA_TOKEN_EP0_RCVOUT) {
       ep0_task(&NRF_USBD->TASKS_EP0RCVOUT, dir);
     } else if (dir == TUSB_DIR_IN) {
       xact_in_dma(epnum);
