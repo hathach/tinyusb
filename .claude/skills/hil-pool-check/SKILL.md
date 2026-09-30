@@ -21,17 +21,18 @@ running between CI runs.
 
 It checks basic USB function, not the current checkout, so it flashes older CI builds from a
 per-host cache, `~/.cache/tinyusb-hil/firmware/cmake-build-<variant>/`, shared by the host's
-worktrees. A board with no variant cached gets one downloaded once, before any board is locked.
-The search covers up to 10 completed master push runs of `hathach/tinyusb`'s `build.yml`
-(whatever the checkout's remote) that uploaded firmware, within the 90-day artifact retention,
-newest first; within a run, the board's variants are tried in roster order, and the first whose
-artifact holds a light image and `board_test` is cached. PR runs are never used. A master push
-builds the whole HIL matrix unless it changed no code (`build.yml` then skips the HIL build, and
-the run is not counted), so 10 runs have covered every variant so far. `.source` in each variant dir names its
-run and commit. That needs `gh` logged in; the first fetch of ci.lan's roster downloads 28
-variants, about 1.1 GB unpacked, in ~12 min. The cached variant may hold a less preferred light
-example than another variant would. A board left without firmware is `flash-failed`, with the
-fetch's reason.
+worktrees. A board with no variant cached gets one downloaded and kept, before any board is
+locked. The search covers up to 10 completed master push runs of `hathach/tinyusb`'s
+`build.yml` (whatever the checkout's remote) that uploaded firmware, within the 90-day artifact
+retention, newest first; within a run, the board's variants are tried in roster order, and the
+first whose artifact holds a light image and `board_test` is cached. PR runs are never used. A
+master push builds the whole HIL matrix unless it changed no code (`build.yml` then skips the
+HIL build, and the run is not counted), so 10 runs have covered every variant so far. `.source`
+in each variant dir names its run and commit. That needs `gh` logged in; the first fetch of
+ci.lan's roster downloads 28 variants, about 1.1 GB unpacked, in ~12 min. The cached variant may
+hold a less preferred light example than another variant would. A board left without firmware
+is `flash-failed`, with the fetch's reason; nothing records a failed search, so every run
+searches again and re-downloads any artifact that lacked a usable image.
 
 CI built a silent `board_test` while it defined `CI_BUILD`, so a cached variant whose `.source`
 commit still contains that branch (`git grep -q CI_BUILD <sha> -- examples/device/board_test`
@@ -66,8 +67,12 @@ behind it.
 
 ## Reading the result
 
-Statuses: `ok`, `flash-failed` (firmware not delivered: probe missing, not cached, flasher
-error, silent no-op, park unverified), `failed` (the check ran but did not verify), `locked`.
+Statuses: `ok`, `flash-failed` (firmware not delivered, or shown not delivered: probe missing,
+not cached, flasher error, a host example answered by `board_test`'s output, a park that failed
+to flash, drew no `board_test` hello from a host board or left a device enumerated), `failed`
+(the check ran but did not verify), `locked`. An `ok` note can flag what the check could not
+tell: `new image unverified` (the device came back with its pre-flash VID:PID) and `park
+unverified (device already off bus)`.
 The exit code counts `flash-failed` + `failed`; `locked` rows and every `--scan-only` row are
 unverified, not healthy, so read the footer or the JSON `coverage` (`probe-only`,
 `skipped-locked`, `full-attempted`), never `$?` alone. A probe that enumerates but will not

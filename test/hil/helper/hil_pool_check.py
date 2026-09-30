@@ -4,11 +4,11 @@
 For every board in the rig's HIL config: is the flash probe on the USB bus, does a light
 example flash, and does the board's USB device (uid) come back up? Firmware is never
 built here: by default it comes from a per-host cache (CACHE_DIR) of CI artifacts, and
-a board the cache has no variant of gets one downloaded once from master push runs; -B names another
-firmware root, never fetched into. No recovery: a wedged probe or board is reported for
-usb-kernel-recover. Prints a markdown table, or with --json the JSON document the table is
-rendered from. Row statuses: ok, flash-failed (firmware not delivered or not verified as
-delivered), failed (the check ran but did not verify), locked (held by another process;
+a board the cache has no variant of gets one downloaded from master push runs and kept; -B
+names another firmware root, never fetched into. No recovery: a wedged probe or board is
+reported for usb-kernel-recover. Prints a markdown table, or with --json the JSON document
+the table is rendered from. Row statuses: ok, flash-failed (firmware not delivered or shown
+not delivered), failed (the check ran but did not verify), locked (held by another process;
 never waited on or bypassed).
 
 Config is picked by hostname unless given: ci -> tinyusb.json, tusb (hifiphile rig) ->
