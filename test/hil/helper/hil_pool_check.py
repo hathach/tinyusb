@@ -258,9 +258,14 @@ def fetch_missing(boards: list) -> dict:
     usable in the newest of the last MASTER_RUNS runs with firmware artifacts that carries it.
     Returns {variant: reason} for the variants of boards left without one. A cached tree is
     never revalidated or replaced: delete it to refetch."""
-    want = {b['name']: [v['name'] for v in hil_report.board_variants(b)] for b in boards}
-    want = {name: vs for name, vs in want.items()
-            if not any((CACHE_DIR / f'cmake-build-{v}').is_dir() for v in vs)}
+    want = {}
+    for b in boards:
+        try:
+            vs = [v['name'] for v in hil_report.board_variants(b)]
+        except ValueError:
+            continue  # a malformed variant list is reported on the board's own row
+        if not any((CACHE_DIR / f'cmake-build-{v}').is_dir() for v in vs):
+            want[b['name']] = vs
     if not want:
         return {}
     say(f'fetching firmware for {len(want)} board(s) from CI master runs into {CACHE_DIR}')

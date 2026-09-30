@@ -136,6 +136,11 @@ class CheckBoard(unittest.TestCase):
         row = hil_pool_check.check_board(dict(BOARD, tests={'device': True}), self.args)
         self.assertEqual(row['note'][-1], 'b: not cached: no usable artifact in the latest 10 completed master push runs')
 
+    def test_a_malformed_variant_list_is_the_boards_own_error_row(self):
+        row = hil_pool_check.check_board_safe(dict(BOARD, tests={'device': True}, variant=[{'name': ''}]), self.args)
+        self.assertEqual((row['status'], row['device'], self.flashed), ('failed', '❌ error', []))
+        self.assertIn('ValueError', row['note'][0])
+
     def test_an_rtt_host_board_is_unsupported_and_untouched(self):
         self.images('host/device_info', 'device/board_test')
         row = hil_pool_check.check_board(dict(BOARD, tests={'host': True}, logger='rtt'), self.args)
@@ -269,6 +274,12 @@ class Fetch(unittest.TestCase):
         patch(self, hil_pool_check, 'gh', lambda *a, **kw: json.dumps(
             {'workflow_runs': pages[int(a[1].rsplit('page=', 1)[1])]}))
         self.assertEqual([r['id'] for r in hil_pool_check.master_runs()], [3, 2, 1])
+
+    def test_a_malformed_variant_list_does_not_stop_other_boards(self):
+        self.add_run(3, {'binaries-arm-gcc--b b': self.GOOD})
+        bad = dict(BOARD, name='bad', tests={'device': True}, variant=[{'name': ''}])
+        self.assertEqual(hil_pool_check.fetch_missing([bad, dict(BOARD, tests={'device': True})]), {})
+        self.assertEqual(self.source('b')['run'], 3)
 
     def test_a_board_left_without_firmware_reports_every_variant(self):
         got = hil_pool_check.fetch_missing([self.MULTI])
