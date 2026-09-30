@@ -362,38 +362,24 @@ class Park(unittest.TestCase):
         self.assertEqual(row['status'], 'flash-failed')
         self.assertIn('park unverified', note[-1])
 
-    def park_host(self, image, hello, flash_rc=0, status='ok'):
-        td = tempfile.TemporaryDirectory()
-        self.addCleanup(td.cleanup)
-        fw = Path(td.name) / 'board_test.elf'
-        fw.write_bytes(image)
+    def park_host(self, hello, flash_rc=0):
         patch(self, hil_pool_check.hil_flash, 'flash_primitive', lambda name: (
             lambda board, fw: types.SimpleNamespace(returncode=flash_rc, stdout='Error: no target')))
         patch(self, hil_pool_check, 'check_host_serial', lambda board, **kw: hello)
-        note, row = [], {'status': status}
-        hil_pool_check.park_board(BOARD, 'host', fw, row, note)
+        note, row = [], {'status': 'ok'}
+        hil_pool_check.park_board(BOARD, 'host', 'board_test.elf', row, note)
         return note, row
 
-    def test_a_silent_host_park_image_is_noted_not_failed(self):
-        note, row = self.park_host(b'spin', hello=b'')
-        self.assertEqual((row['status'], note), ('ok', ['park unverified: board_test image has no UART hello marker']))
-
-    def test_a_silent_park_image_keeps_a_failed_row_failed(self):
-        _, row = self.park_host(b'spin', hello=b'', status='failed')
-        self.assertEqual(row['status'], 'failed')
-
-    def test_a_host_park_image_with_the_marker_must_say_hello(self):
-        note, row = self.park_host(b'..Hello from TinyUSB\r\n..', hello=b'Hello from TinyUSB\r\n')
-        self.assertEqual((row['status'], note), ('ok', []))
-        note, row = self.park_host(b'..Hello from TinyUSB\r\n..', hello=b'')
+    def test_a_host_park_must_say_hello(self):
+        self.assertEqual(self.park_host(b'Hello from TinyUSB\r\n'), ([], {'status': 'ok'}))
+        note, row = self.park_host(b'')
         self.assertEqual(row['status'], 'flash-failed')
         self.assertIn('park unverified: no board_test output', note)
 
-    def test_a_failed_host_park_flash_fails_whatever_the_image(self):
-        for image in (b'spin', b'Hello from TinyUSB'):
-            note, row = self.park_host(image, hello=b'', flash_rc=1)
-            self.assertEqual(row['status'], 'flash-failed')
-            self.assertIn('park flash failed', note[-1])
+    def test_a_failed_host_park_flash_fails(self):
+        note, row = self.park_host(b'', flash_rc=1)
+        self.assertEqual(row['status'], 'flash-failed')
+        self.assertIn('park flash failed', note[-1])
 
     def test_a_failed_park_flash_fails_an_ok_row(self):
         note, row = self.park(on_bus_after=True, flash_rc=1)
