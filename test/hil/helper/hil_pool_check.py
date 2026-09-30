@@ -22,7 +22,6 @@ import io
 import json
 import os
 import re
-import shutil
 import socket
 import subprocess
 import sys
@@ -217,14 +216,14 @@ def usable(board: dict, variant: str, root: Path) -> bool:
 
 
 def fetch_variant(board: dict, variant: str, run: dict, artifact: str) -> bool:
-    """Download one artifact and publish its variant tree into CACHE_DIR if usable. One
-    rename publishes it, so a reader never sees a partial tree; losing that rename to a
-    concurrent fetch keeps the winner's copy."""
-    staging = Path(tempfile.mkdtemp(dir=CACHE_DIR, prefix='.staging-'))
-    tree = staging / f'cmake-build-{variant}'
-    try:
+    """Download one artifact and publish its variant tree into CACHE_DIR; False when it
+    lacks a usable image. One rename publishes it, so a reader never sees a partial tree;
+    losing that rename to a concurrent fetch keeps the winner's copy."""
+    with tempfile.TemporaryDirectory(dir=CACHE_DIR, prefix='.staging-', ignore_cleanup_errors=True) as td:
+        staging = Path(td)
+        tree = staging / f'cmake-build-{variant}'
         # gh stages the zip in TMPDIR whatever -D says
-        gh('run', 'download', str(run['id']), '-R', REPO, '-n', artifact, '-D', str(staging),
+        gh('run', 'download', str(run['id']), '-R', REPO, '-n', artifact, '-D', td,
            env=dict(os.environ, TMPDIR=str(CACHE_DIR)))
         if not usable(board, variant, staging):
             say(f'{variant:26} run {run["id"]}: no light image or board_test, trying older')
@@ -233,16 +232,12 @@ def fetch_variant(board: dict, variant: str, run: dict, artifact: str) -> bool:
             {'run': run['id'], 'sha': run['head_sha'], 'artifact': artifact}) + '\n')
         try:
             tree.rename(CACHE_DIR / tree.name)
+            say(f'{variant:26} cached from run {run["id"]} ({run["head_sha"][:9]})')
         except OSError as e:
             if e.errno not in (errno.EEXIST, errno.ENOTEMPTY):
                 raise
-        say(f'{variant:26} cached from run {run["id"]} ({run["head_sha"][:9]})')
+            say(f'{variant:26} cached meanwhile by another fetch')
         return True
-    except (OSError, subprocess.SubprocessError) as e:
-        say(f'{variant:26} run {run["id"]}: {gh_error(e)}')
-        return False
-    finally:
-        shutil.rmtree(staging, ignore_errors=True)
 
 
 def gh_error(e: Exception) -> str:
@@ -259,8 +254,8 @@ def fetch_missing(boards: list) -> dict:
     if not want:
         return {}
     say(f'fetching {len(want)} variant(s) from CI master runs into {CACHE_DIR}')
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
     try:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
         for run in master_runs():
             artifacts = run_artifacts(run['id'])
             for variant in [v for v in want if v in artifacts]:

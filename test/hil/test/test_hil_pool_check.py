@@ -174,8 +174,7 @@ class Fetch(unittest.TestCase):
     def fake_gh(self, *args, env=None):
         if args[0] == 'api' and '/workflows/' in args[1]:
             page = int(args[1].rsplit('page=', 1)[1])
-            runs = [r for r, _ in self.runs] if page == 1 else []
-            return json.dumps({'workflow_runs': runs})
+            return json.dumps({'workflow_runs': [r for r, _ in self.runs][2 * page - 2:2 * page]})
         if args[0] == 'api':
             run_id = int(args[2].split('/runs/')[1].split('/')[0])
             return ''.join(f'{n}\n' for r, arts in self.runs if r['id'] == run_id for n in arts)
@@ -184,9 +183,13 @@ class Fetch(unittest.TestCase):
         self.downloads.append((run_id, name))
         variant = hil_pool_check.artifact_variant(name)
         for ex in dict(self.runs[[r['id'] for r, _ in self.runs].index(run_id)][1])[name]:
-            fw = dest / f'cmake-build-{variant}' / ex / f'{Path(ex).name}.elf'
+            ex, *sidecars = ex.split('+')    # 'device/x.bin+config.env+flash_args': an ESP image
+            fw = dest / f'cmake-build-{variant}' / Path(ex).with_suffix('') / Path(ex).name
+            fw = fw if fw.suffix else fw.with_suffix('.elf')
             fw.parent.mkdir(parents=True)
             fw.write_text(f'run {run_id}')
+            for f in sidecars:
+                (fw.parent / f).write_text('')
         return ''
 
     def source(self, variant):
@@ -214,6 +217,39 @@ class Fetch(unittest.TestCase):
         self.add_run(2, {'binaries-arm-gcc--b b': self.GOOD})
         self.assertEqual(hil_pool_check.fetch_missing([dict(BOARD, tests={'device': True})]), {})
         self.assertEqual(self.source('b')['run'], 2)
+
+    def test_runs_past_the_first_page_are_searched(self):
+        self.add_run(9, {})
+        self.add_run(8, {})
+        self.add_run(7, {'binaries-arm-gcc--b b': self.GOOD})
+        self.assertEqual(hil_pool_check.fetch_missing([dict(BOARD, tests={'device': True})]), {})
+        self.assertEqual(self.source('b')['run'], 7)
+
+    def test_an_esp_image_needs_its_flash_sidecars(self):
+        esp = dict(BOARD, tests={'device': True}, flasher={'name': 'esptool', 'uid': 'P'})
+        self.add_run(3, {'binaries-esp-idf--b b': ['device/dfu_runtime.bin', 'device/board_test.bin']})
+        self.add_run(2, {'binaries-esp-idf--b b': ['device/dfu_runtime.bin+config.env+flash_args',
+                                                   'device/board_test.bin+config.env+flash_args']})
+        self.assertEqual(hil_pool_check.fetch_missing([esp]), {})
+        self.assertEqual(self.source('b')['run'], 2)
+
+    def test_a_failed_download_is_reported_not_skipped(self):
+        self.add_run(3, {'binaries-arm-gcc--b b': self.GOOD})
+        self.add_run(2, {'binaries-arm-gcc--b b': self.GOOD})
+        real = self.fake_gh
+
+        def full_disk(*args, env=None):
+            if args[0] == 'run':
+                raise OSError(28, 'No space left on device')
+            return real(*args, env=env)
+        patch(self, hil_pool_check, 'gh', full_disk)
+        got = hil_pool_check.fetch_missing([dict(BOARD, tests={'device': True})])
+        self.assertEqual(got, {'b': 'not cached, fetch failed: [Errno 28] No space left on device'})
+
+    def test_an_unusable_cache_dir_is_a_reason_not_a_crash(self):
+        self.cache.write_text('')    # a file where the cache dir belongs
+        got = hil_pool_check.fetch_missing([dict(BOARD, tests={'device': True})])
+        self.assertIn('not cached, fetch failed', got['b'])
 
     def test_untrusted_unfinished_or_expired_runs_are_skipped(self):
         self.add_run(6, {'binaries-arm-gcc--b b': self.GOOD}, event='pull_request')
