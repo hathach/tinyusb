@@ -106,24 +106,43 @@ static void fill_object_info(mtp_object_info_header_t* oi, uint32_t size) {
   oi->parent_object = 0xFFFFFFFFu;
 }
 
-// SendObjectInfo declaring `size` bytes; returns the new handle
-static uint32_t send_object_info(uint32_t size) {
+// SendObjectInfo declaring `size` bytes for the file "<initial>.t"; returns the new handle
+static uint32_t send_object_info_named(uint32_t size, uint16_t initial) {
   begin_command(MTP_OP_SEND_OBJECT_INFO, SUPPORTED_STORAGE_ID);
   TEST_ASSERT_EQUAL(1, api.data_receive);
   uint8_t dataset[sizeof(mtp_object_info_header_t) + 1 + 2 * 8] = { 0 };
   fill_object_info((mtp_object_info_header_t*) dataset, size);
   uint8_t* name = dataset + sizeof(mtp_object_info_header_t);
   name[0] = 4;
-  const uint16_t utf16[4] = { 'a', '.', 't', 0 };
+  const uint16_t utf16[4] = { initial, '.', 't', 0 };
   memcpy(name + 1, utf16, sizeof(utf16));
   deliver_out(dataset, sizeof(dataset), sizeof(dataset));
   data_complete();
   TEST_ASSERT_EQUAL_HEX16(MTP_RESP_OK, api.resp_code);
   return send_obj_handle;
 }
+static uint32_t send_object_info(uint32_t size) { return send_object_info_named(size, 'a'); }
 
+// published: GetObjectHandles lists it and the object operations accept its handle
 static bool object_exists(uint32_t handle) {
-  return handle > 0 && handle <= FS_MAX_FILE_COUNT && fs_file_exist(&fs_objects[handle - 1]);
+  return fs_get_file(handle) != NULL;
+}
+
+// a SendObjectInfo's ObjectInfo held for SendObject, its object not published yet
+static bool object_info_held(uint32_t handle) {
+  return handle != 0 && send_obj_handle == handle && !object_exists(handle);
+}
+
+static bool listed(uint32_t handle) {
+  begin_command3(MTP_OP_GET_OBJECT_HANDLES, SUPPORTED_STORAGE_ID, 0, 0xFFFFFFFFu);
+  uint32_t count;
+  memcpy(&count, epbuf + HDR, 4);
+  for (uint32_t i = 0; i < count; i++) {
+    uint32_t h;
+    memcpy(&h, epbuf + HDR + 4 + 4 * i, 4);
+    if (h == handle) return true;
+  }
+  return false;
 }
 
 static fs_file_t fs_objects_initial[FS_MAX_FILE_COUNT];
@@ -135,7 +154,7 @@ void setUp(void) {
   refuse_send = false;
   is_session_opened = false;
   send_obj_handle = 0;
-  send_obj_incomplete = false;
+  send_obj_info_incomplete = false;
   memset(fs_buf, SENTINEL, sizeof(fs_buf));
   // the example's file table as built: frees the one RAM slot a previous test created a file in
   if (!fs_objects_saved) {
@@ -204,10 +223,10 @@ void test_send_object_without_session_is_refused(void) {
 }
 
 // a SendObjectInfo whose dataset is still being read: the object is staged but not created
-static void stage_object_info(void) {
+static void stage_object_info_sized(uint32_t size) {
   begin_command(MTP_OP_SEND_OBJECT_INFO, SUPPORTED_STORAGE_ID);
   uint8_t dataset[sizeof(mtp_object_info_header_t) + 1 + 2 * 8] = { 0 };
-  fill_object_info((mtp_object_info_header_t*) dataset, 100);
+  fill_object_info((mtp_object_info_header_t*) dataset, size);
   uint8_t* name = dataset + sizeof(mtp_object_info_header_t);
   name[0] = 4;
   const uint16_t utf16[4] = { 'a', '.', 't', 0 };
@@ -215,16 +234,29 @@ static void stage_object_info(void) {
   deliver_out(dataset, sizeof(dataset), sizeof(dataset) + 64);
   TEST_ASSERT_NOT_EQUAL(0, send_obj_handle);
 }
+static void stage_object_info(void) { stage_object_info_sized(100); }
 
-void test_cancel_drops_the_staged_handle_but_keeps_the_session(void) {
+// SendObject's data for the held ObjectInfo: `size` bytes of `fill`, all of them delivered
+static void send_object_data(uint32_t size, uint8_t fill) {
+  uint8_t pkt[100];
+  TEST_ASSERT_LESS_OR_EQUAL(sizeof(pkt), size);
+  memset(pkt, fill, sizeof(pkt));
+  begin_command(MTP_OP_SEND_OBJECT, 0);
+  TEST_ASSERT_EQUAL(1, api.data_receive);
+  deliver_out(pkt, size, size);
+  data_complete();
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_OK, api.resp_code);
+}
+
+void test_cancel_keeps_a_complete_object_info_for_send_object(void) {
   open_session();
   const uint32_t handle = send_object_info(100);
   tud_mtp_request_cb_data_t req = { .buf = (uint8_t*) &command };
   TEST_ASSERT_TRUE(tud_mtp_request_cancel_cb(&req));
   TEST_ASSERT_TRUE(is_session_opened);
-  TEST_ASSERT_TRUE(object_exists(handle)); // a completed ObjectInfo is a real object
-  begin_command(MTP_OP_SEND_OBJECT, 0);
-  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_INVALID_OBJECT_HANDLE, api.resp_code);
+  TEST_ASSERT_TRUE(object_info_held(handle));
+  send_object_data(100, 0xA5);
+  TEST_ASSERT_TRUE(object_exists(handle));
 }
 
 void test_cancel_mid_send_object_info_discards_the_staged_object(void) {
@@ -239,12 +271,27 @@ void test_cancel_mid_send_object_info_discards_the_staged_object(void) {
 
 void test_device_reset_closes_the_session(void) {
   open_session();
+  const uint32_t files = fs_get_file_count();
   const uint32_t handle = send_object_info(100);
   tud_mtp_request_cb_data_t req = { 0 };
   TEST_ASSERT_TRUE(tud_mtp_request_device_reset_cb(&req));
   TEST_ASSERT_FALSE(is_session_opened);
   TEST_ASSERT_EQUAL(0, send_obj_handle);
-  TEST_ASSERT_TRUE(object_exists(handle));
+  TEST_ASSERT_FALSE(object_exists(handle));
+  TEST_ASSERT_EQUAL(files, fs_get_file_count()); // the reservation is released
+}
+
+void test_close_session_releases_the_held_object_info(void) {
+  open_session();
+  const uint32_t files = fs_get_file_count();
+  send_object_info(100);
+  begin_command(MTP_OP_CLOSE_SESSION, 0);
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_OK, api.resp_code);
+  TEST_ASSERT_EQUAL(0, send_obj_handle);
+  TEST_ASSERT_EQUAL(files, fs_get_file_count());
+  open_session();
+  begin_command(MTP_OP_SEND_OBJECT, 0);
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_NO_VALID_OBJECTINFO, api.resp_code);
 }
 
 void test_device_reset_mid_send_object_info_discards_the_staged_object(void) {
@@ -282,8 +329,8 @@ void test_send_object_info_spanning_two_packets(void) {
   TEST_ASSERT_EQUAL_HEX16(MTP_RESP_OK, api.resp_code);
 
   const uint32_t handle = send_obj_handle;
-  TEST_ASSERT_NOT_EQUAL(0, handle);
-  const fs_file_t* f = fs_get_file(handle);
+  TEST_ASSERT_TRUE(object_info_held(handle));
+  const fs_file_t* f = fs_get_staged_file();
   TEST_ASSERT_EQUAL(100, f->size);
   for (uint32_t i = 0; i < FS_MAX_FILENAME_LEN - 1; i++) TEST_ASSERT_EQUAL_HEX16('a' + i % 26, f->name[i]);
   TEST_ASSERT_EQUAL_HEX16(0, f->name[FS_MAX_FILENAME_LEN - 1]);
@@ -347,7 +394,7 @@ void test_send_object_info_without_a_filename_character_is_refused(void) {
   TEST_ASSERT_EQUAL(1, api.response_send);
   TEST_ASSERT_EQUAL_HEX16(MTP_RESP_INVALID_DATASET, api.resp_code);
   TEST_ASSERT_EQUAL(0, send_obj_handle);
-  TEST_ASSERT_FALSE(send_obj_incomplete);
+  TEST_ASSERT_FALSE(send_obj_info_incomplete);
   TEST_ASSERT_EQUAL(files, fs_get_file_count());
 }
 
@@ -381,14 +428,20 @@ static void check_send_object_continuation_refused(uint32_t refused_at) {
   TEST_ASSERT_EQUAL(1, api.response_send);
   TEST_ASSERT_EQUAL_HEX16(MTP_RESP_GENERAL_ERROR, api.resp_code);
   TEST_ASSERT_EQUAL(HDR, api.resp_len);
-  TEST_ASSERT_FALSE(object_exists(handle)); // partly written: discarded
-  TEST_ASSERT_EQUAL(files, fs_get_file_count());
+  // the partly written object is not published; its ObjectInfo stays for a retry (PTP 10.4.13)
+  TEST_ASSERT_TRUE(object_info_held(handle));
+  TEST_ASSERT_EQUAL(files + 1, fs_get_file_count());
+  refuse_receive_at = 0;
+  send_object_data(100, 0xA5);
+  TEST_ASSERT_TRUE(object_exists(handle));
+  TEST_ASSERT_EACH_EQUAL_HEX8(0xA5, fs_buf, 100);
 }
 void test_send_object_first_packet_receive_refused_answers_error(void) { check_send_object_continuation_refused(2); }
 void test_send_object_later_packet_receive_refused_answers_error(void) { check_send_object_continuation_refused(3); }
 
-// the host's container declares fewer bytes than SendObjectInfo did: PTP 11.3.7 says discard
-void test_send_object_short_is_incomplete_and_discarded(void) {
+// the host's container declares fewer bytes than SendObjectInfo did: the data is discarded
+// (PTP 11.3.7) but the ObjectInfo is kept, so SendObject alone can be retried (PTP 10.4.13)
+void test_send_object_short_is_incomplete_and_retried(void) {
   open_session();
   const uint32_t files = fs_get_file_count();
   const uint32_t handle = send_object_info(100);
@@ -400,19 +453,18 @@ void test_send_object_short_is_incomplete_and_discarded(void) {
   TEST_ASSERT_EQUAL(1, api.response_send);
   TEST_ASSERT_EQUAL_HEX16(MTP_RESP_INCOMPLETE_TRANSFER, api.resp_code);
   TEST_ASSERT_EQUAL(HDR, api.resp_len);
-  TEST_ASSERT_FALSE(object_exists(handle));
-  TEST_ASSERT_EQUAL(files, fs_get_file_count());
-  TEST_ASSERT_EQUAL(0, send_obj_handle);
+  TEST_ASSERT_TRUE(object_info_held(handle));
+  TEST_ASSERT_FALSE(listed(handle));
+  TEST_ASSERT_EQUAL(files + 1, fs_get_file_count()); // still reserved
+  send_object_data(100, 0xA5);
+  TEST_ASSERT_TRUE(object_exists(handle));
+  TEST_ASSERT_TRUE(listed(handle));
+  TEST_ASSERT_EACH_EQUAL_HEX8(0xA5, fs_buf, 100);
 }
 
 static uint32_t send_object_exact(uint8_t fill) {
   const uint32_t handle = send_object_info(100);
-  uint8_t pkt[100];
-  memset(pkt, fill, sizeof(pkt));
-  begin_command(MTP_OP_SEND_OBJECT, 0);
-  deliver_out(pkt, sizeof(pkt), sizeof(pkt));
-  data_complete();
-  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_OK, api.resp_code);
+  send_object_data(100, fill);
   return handle;
 }
 
@@ -433,15 +485,22 @@ void test_send_object_again_without_object_info_is_refused(void) {
   begin_command(MTP_OP_SEND_OBJECT, 0);
   TEST_ASSERT_EQUAL(0, api.data_receive);
   TEST_ASSERT_EQUAL(1, api.response_send);
-  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_INVALID_OBJECT_HANDLE, api.resp_code);
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_NO_VALID_OBJECTINFO, api.resp_code);
   TEST_ASSERT_TRUE(object_exists(handle));
   TEST_ASSERT_EACH_EQUAL_HEX8(0xA5, fs_buf, 100);
 }
 
-// Cancel or Device Reset once SendObject's data phase has started: the partly written object goes
-static void check_interrupted_send_object(bool reset) {
+void test_send_object_without_object_info_is_refused(void) {
   open_session();
-  const uint32_t files = fs_get_file_count();
+  begin_command(MTP_OP_SEND_OBJECT, 0);
+  TEST_ASSERT_EQUAL(0, api.data_receive);
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_NO_VALID_OBJECTINFO, api.resp_code);
+}
+
+// Cancel or Device Reset once SendObject's data phase has started: the partly written object is
+// never published. Cancel keeps its ObjectInfo for a retry; Device Reset ends the session and it.
+static uint32_t interrupt_send_object(bool reset) {
+  open_session();
   const uint32_t handle = send_object_info(100);
   uint8_t pkt[50];
   memset(pkt, 0x5A, sizeof(pkt));
@@ -449,12 +508,27 @@ static void check_interrupted_send_object(bool reset) {
   deliver_out(pkt, sizeof(pkt), 100);
   tud_mtp_request_cb_data_t req = { .buf = (uint8_t*) &command };
   TEST_ASSERT_TRUE(reset ? tud_mtp_request_device_reset_cb(&req) : tud_mtp_request_cancel_cb(&req));
-  TEST_ASSERT_EQUAL(0, send_obj_handle);
   TEST_ASSERT_FALSE(object_exists(handle));
-  TEST_ASSERT_EQUAL(files, fs_get_file_count());
+  return handle;
 }
-void test_cancel_mid_send_object_discards_the_object(void) { check_interrupted_send_object(false); }
-void test_device_reset_mid_send_object_discards_the_object(void) { check_interrupted_send_object(true); }
+
+void test_cancel_mid_send_object_keeps_the_object_info(void) {
+  const uint32_t handle = interrupt_send_object(false);
+  TEST_ASSERT_TRUE(object_info_held(handle));
+  send_object_data(100, 0xA5);
+  TEST_ASSERT_TRUE(object_exists(handle));
+  TEST_ASSERT_EACH_EQUAL_HEX8(0xA5, fs_buf, 100);
+}
+
+void test_device_reset_mid_send_object_releases_the_object_info(void) {
+  const uint32_t files = fs_get_file_count();
+  interrupt_send_object(true);
+  TEST_ASSERT_EQUAL(0, send_obj_handle);
+  TEST_ASSERT_EQUAL(files, fs_get_file_count());
+  open_session();
+  begin_command(MTP_OP_SEND_OBJECT, 0);
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_NO_VALID_OBJECTINFO, api.resp_code);
+}
 
 // a SendObject refused before its data phase keeps the ObjectInfo: the host may retry it
 void test_send_object_command_refused_can_be_retried(void) {
@@ -475,15 +549,176 @@ void test_send_object_command_refused_can_be_retried(void) {
   TEST_ASSERT_EACH_EQUAL_HEX8(0xA5, fs_buf, 100);
 }
 
-// ... and a Cancel after that refusal leaves the completed ObjectInfo's object in place
-void test_send_object_command_refused_then_cancel_keeps_the_object(void) {
+// ... and a Cancel after that refusal still leaves the ObjectInfo for a retry
+void test_send_object_command_refused_then_cancel_keeps_the_object_info(void) {
   open_session();
   const uint32_t handle = send_object_info(100);
   refuse_receive_at = 1;
   begin_command(MTP_OP_SEND_OBJECT, 0);
   tud_mtp_request_cb_data_t req = { .buf = (uint8_t*) &command };
   TEST_ASSERT_TRUE(tud_mtp_request_cancel_cb(&req));
+  TEST_ASSERT_TRUE(object_info_held(handle));
+  refuse_receive_at = 0;
+  send_object_data(100, 0xA5);
   TEST_ASSERT_TRUE(object_exists(handle));
+}
+
+// a held nonempty object is not an object yet: not listed, and its handle is refused
+static void check_held_object_refused(uint16_t code) {
+  open_session();
+  const uint32_t handle = send_object_info(100);
+  TEST_ASSERT_FALSE(listed(handle));
+  begin_command(code, handle);
+  TEST_ASSERT_EQUAL(0, api.data_send);
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_INVALID_OBJECT_HANDLE, api.resp_code);
+  TEST_ASSERT_TRUE(object_info_held(handle));
+}
+void test_get_object_info_on_held_object_is_refused(void) { check_held_object_refused(MTP_OP_GET_OBJECT_INFO); }
+void test_get_object_on_held_object_is_refused(void) { check_held_object_refused(MTP_OP_GET_OBJECT); }
+void test_get_partial_object_on_held_object_is_refused(void) { check_held_object_refused(MTP_OP_GET_PARTIAL_OBJECT); }
+void test_delete_object_on_held_object_is_refused(void) { check_held_object_refused(MTP_OP_DELETE_OBJECT); }
+
+// MTP 1.1 D.2.12: a zero-length object is created by its ObjectInfo, an empty SendObject is optional
+void test_zero_length_object_info_publishes_the_object(void) {
+  open_session();
+  const uint32_t handle = send_object_info(0);
+  TEST_ASSERT_TRUE(object_exists(handle));
+  TEST_ASSERT_TRUE(listed(handle));
+  TEST_ASSERT_EQUAL(handle, send_obj_handle);
+  send_object_data(0, 0);
+  TEST_ASSERT_EQUAL(0, send_obj_handle);
+  TEST_ASSERT_TRUE(object_exists(handle));
+  begin_command(MTP_OP_SEND_OBJECT, 0);
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_NO_VALID_OBJECTINFO, api.resp_code);
+}
+
+void test_zero_length_object_info_is_hidden_until_its_dataset_completes(void) {
+  open_session();
+  stage_object_info_sized(0);
+  const uint32_t handle = send_obj_handle;
+  TEST_ASSERT_FALSE(object_exists(handle));
+  uint8_t rest[64] = { 0 };
+  deliver_out(rest, sizeof(rest), 0);
+  data_complete();
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_OK, api.resp_code);
+  TEST_ASSERT_TRUE(object_exists(handle));
+}
+
+void test_zero_length_object_survives_close_session(void) {
+  open_session();
+  const uint32_t handle = send_object_info(0);
+  begin_command(MTP_OP_CLOSE_SESSION, 0);
+  TEST_ASSERT_EQUAL(0, send_obj_handle);
+  TEST_ASSERT_TRUE(object_exists(handle));
+}
+
+void test_deleting_a_zero_length_object_ends_its_object_info(void) {
+  open_session();
+  const uint32_t handle = send_object_info(0);
+  begin_command(MTP_OP_DELETE_OBJECT, handle);
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_OK, api.resp_code);
+  TEST_ASSERT_FALSE(object_exists(handle));
+  begin_command(MTP_OP_SEND_OBJECT, 0);
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_NO_VALID_OBJECTINFO, api.resp_code);
+}
+
+// PTP 10.4.12: a new ObjectInfo replaces the held one, so the single writable slot is reused
+static void check_replacement_stored(uint32_t handle) {
+  const fs_file_t* f = fs_get_file(handle);
+  TEST_ASSERT_NOT_NULL(f);
+  TEST_ASSERT_EQUAL(50, f->size);
+  TEST_ASSERT_EQUAL_HEX16('b', f->name[0]);
+  TEST_ASSERT_EACH_EQUAL_HEX8(0xA5, fs_buf, 50);
+}
+
+void test_object_info_replaces_the_held_one(void) {
+  open_session();
+  send_object_info(100);
+  const uint32_t handle = send_object_info_named(50, 'b');
+  TEST_ASSERT_TRUE(object_info_held(handle));
+  send_object_data(50, 0xA5);
+  check_replacement_stored(handle);
+}
+
+void test_object_info_replaces_one_whose_send_object_failed(void) {
+  open_session();
+  send_object_info(100);
+  uint8_t pkt[60] = { 0 };
+  begin_command(MTP_OP_SEND_OBJECT, 0);
+  deliver_out(pkt, sizeof(pkt), sizeof(pkt));
+  data_complete();
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_INCOMPLETE_TRANSFER, api.resp_code);
+  const uint32_t handle = send_object_info_named(50, 'b');
+  send_object_data(50, 0xA5);
+  check_replacement_stored(handle);
+}
+
+// the driver ends a SendObjectInfo whose transfer fails mid-dataset without telling the example,
+// and a cleared halt takes the next command: its half-read ObjectInfo is not valid for SendObject
+void test_send_object_after_an_unfinished_object_info_is_refused(void) {
+  open_session();
+  const uint32_t files = fs_get_file_count();
+  stage_object_info();
+  begin_command(MTP_OP_SEND_OBJECT, 0);
+  TEST_ASSERT_EQUAL(0, api.data_receive);
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_NO_VALID_OBJECTINFO, api.resp_code);
+  TEST_ASSERT_EQUAL(0, send_obj_handle);
+  TEST_ASSERT_EQUAL(files, fs_get_file_count());
+  send_object_exact(0xA5);
+}
+
+static uint32_t empty_slot_handle(void);
+
+// a refused replacement leaves no ObjectInfo held, whether refused by its command or its dataset
+static void check_refused_replacement(bool at_command) {
+  open_session();
+  const uint32_t files = fs_get_file_count();
+  send_object_info(100);
+  if (at_command) {
+    begin_command(MTP_OP_SEND_OBJECT_INFO, 0x00020001u);
+    TEST_ASSERT_EQUAL_HEX16(MTP_RESP_INVALID_STORAGE_ID, api.resp_code);
+  } else {
+    begin_command(MTP_OP_SEND_OBJECT_INFO, SUPPORTED_STORAGE_ID);
+    uint8_t dataset[sizeof(mtp_object_info_header_t) + 1 + 2 * 4] = { 0 };
+    fill_object_info((mtp_object_info_header_t*) dataset, 100);
+    ((mtp_object_info_header_t*) dataset)->parent_object = empty_slot_handle();
+    dataset[sizeof(mtp_object_info_header_t)] = 2;
+    dataset[sizeof(mtp_object_info_header_t) + 1] = 'a';
+    deliver_out(dataset, sizeof(dataset), sizeof(dataset));
+    TEST_ASSERT_EQUAL_HEX16(MTP_RESP_INVALID_PARENT_OBJECT, api.resp_code);
+  }
+  TEST_ASSERT_EQUAL(0, send_obj_handle);
+  TEST_ASSERT_EQUAL(files, fs_get_file_count());
+  begin_command(MTP_OP_SEND_OBJECT, 0);
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_NO_VALID_OBJECTINFO, api.resp_code);
+  send_object_exact(0xA5);
+}
+void test_object_info_refused_by_its_command_drops_the_held_one(void) { check_refused_replacement(true); }
+void test_object_info_refused_by_its_dataset_drops_the_held_one(void) { check_refused_replacement(false); }
+
+void test_refused_replacement_keeps_a_zero_length_object(void) {
+  open_session();
+  const uint32_t handle = send_object_info(0);
+  begin_command(MTP_OP_SEND_OBJECT_INFO, 0x00020001u);
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_INVALID_STORAGE_ID, api.resp_code);
+  TEST_ASSERT_TRUE(object_exists(handle));
+  begin_command(MTP_OP_SEND_OBJECT, 0);
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_NO_VALID_OBJECTINFO, api.resp_code);
+}
+
+// a published object is never reclaimed by a new ObjectInfo: the store is full
+void test_object_info_does_not_reclaim_a_published_object(void) {
+  open_session();
+  const uint32_t handle = send_object_exact(0xA5);
+  begin_command(MTP_OP_SEND_OBJECT_INFO, SUPPORTED_STORAGE_ID);
+  uint8_t dataset[sizeof(mtp_object_info_header_t) + 1 + 2 * 4] = { 0 };
+  fill_object_info((mtp_object_info_header_t*) dataset, 100);
+  dataset[sizeof(mtp_object_info_header_t)] = 2;
+  dataset[sizeof(mtp_object_info_header_t) + 1] = 'b';
+  deliver_out(dataset, sizeof(dataset), sizeof(dataset));
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_STORE_FULL, api.resp_code);
+  TEST_ASSERT_TRUE(object_exists(handle));
+  TEST_ASSERT_EACH_EQUAL_HEX8(0xA5, fs_buf, 100);
 }
 
 // an object handle whose slot holds no object is refused, not described or deleted

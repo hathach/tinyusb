@@ -172,9 +172,10 @@ fs_op_handler_dict_t fs_op_handler_dict[] = {
 };
 
 static bool is_session_opened = false;
+// the slot SendObjectInfo reserved for the next SendObject (0: no ObjectInfo held). A nonempty
+// object stays hidden until SendObject succeeds; a zero-length one is complete with its ObjectInfo.
 static uint32_t send_obj_handle = 0;
-// the staged slot holds an unfinished object: SendObjectInfo's dataset or SendObject's data is still being read
-static bool send_obj_incomplete = false;
+static bool send_obj_info_incomplete = false; // SendObjectInfo's dataset is still being read
 
 //--------------------------------------------------------------------+
 //
@@ -183,12 +184,21 @@ static inline bool fs_file_exist(fs_file_t* f) {
   return f->name[0] != 0;
 }
 
-// Get pointer to object info from handle; NULL for a handle whose slot holds no object
+static inline bool fs_is_pending(uint32_t handle) {
+  return handle != 0 && handle == send_obj_handle &&
+         (send_obj_info_incomplete || fs_objects[handle-1].size != 0);
+}
+
+// Get pointer to object info from handle; NULL for a handle whose slot holds no published object
 static inline fs_file_t* fs_get_file(uint32_t handle) {
-  if (handle == 0 || handle > FS_MAX_FILE_COUNT || !fs_file_exist(&fs_objects[handle-1])) {
+  if (handle == 0 || handle > FS_MAX_FILE_COUNT || !fs_file_exist(&fs_objects[handle-1]) || fs_is_pending(handle)) {
     return NULL;
   }
   return &fs_objects[handle-1];
+}
+
+static inline fs_file_t* fs_get_staged_file(void) {
+  return (send_obj_handle == 0) ? NULL : &fs_objects[send_obj_handle-1];
 }
 
 // Get the number of allocated nodes in filesystem
@@ -207,21 +217,20 @@ static inline fs_file_t* fs_create_file(void) {
     fs_file_t* f = &fs_objects[i];
     if (!fs_file_exist(f)) {
       send_obj_handle = i + 1;
-      send_obj_incomplete = true;
+      send_obj_info_incomplete = true;
       return f;
     }
   }
   return NULL;
 }
 
-// drop the object SendObjectInfo staged when its dataset or SendObject's data falls short or is cancelled
-static void fs_discard_staged_file(void) {
-  fs_file_t* f = fs_get_file(send_obj_handle);
-  if (f != NULL) {
-    f->name[0] = 0;
+// drop the held ObjectInfo, freeing its slot unless it is already a published (zero-length) object
+static void fs_release_staged_file(void) {
+  if (fs_is_pending(send_obj_handle)) {
+    fs_objects[send_obj_handle-1].name[0] = 0;
   }
   send_obj_handle = 0;
-  send_obj_incomplete = false;
+  send_obj_info_incomplete = false;
 }
 
 // A data IN the driver refuses to start leaves the transaction in its command phase: answer
@@ -234,23 +243,23 @@ static int32_t send_data(tud_mtp_cb_data_t* cb_data) {
 }
 
 // Keep reading to the host's declared length. A refused read is answered while the host still owes
-// data, which makes the driver stall, and leaves the staged object partly received: discard it.
+// data, which makes the driver stall; a partly read ObjectInfo is dropped.
 static int32_t receive_rest(tud_mtp_cb_data_t* cb_data) {
   mtp_container_info_t* io_container = &cb_data->io_container;
   if (cb_data->total_xferred_bytes < io_container->header->len && !tud_mtp_data_receive(io_container)) {
-    fs_discard_staged_file();
+    if (send_obj_info_incomplete) {
+      fs_release_staged_file();
+    }
     return MTP_RESP_GENERAL_ERROR;
   }
   return 0;
 }
 
-// a cancelled or reset SendObjectInfo/SendObject leaves no object to write to; a completed
-// ObjectInfo is kept, a partly read one is discarded
+// a cancelled SendObjectInfo leaves no ObjectInfo; a complete one is kept for a retry (PTP 10.4.13)
 static void fs_abandon_send_object(void) {
-  if (send_obj_incomplete) {
-    fs_discard_staged_file();
+  if (send_obj_info_incomplete) {
+    fs_release_staged_file();
   }
-  send_obj_handle = 0;
 }
 
 // simple malloc
@@ -283,7 +292,7 @@ bool tud_mtp_request_cancel_cb(tud_mtp_request_cb_data_t* cb_data) {
 bool tud_mtp_request_device_reset_cb(tud_mtp_request_cb_data_t* cb_data) {
   (void) cb_data;
   is_session_opened = false; // Device Reset closes all open sessions (Still Image CDD B.9)
-  fs_abandon_send_object();
+  fs_release_staged_file(); // a held ObjectInfo lasts at most for the session (PTP 10.4.13)
   return true;
 }
 
@@ -342,7 +351,7 @@ int32_t tud_mtp_data_complete_cb(tud_mtp_cb_data_t* cb_data) {
 
   switch (command->header.code) {
     case MTP_OP_SEND_OBJECT_INFO: {
-      fs_file_t* f = fs_get_file(send_obj_handle);
+      fs_file_t* f = fs_get_staged_file();
       if (f == NULL) {
         resp->header->code = MTP_RESP_GENERAL_ERROR;
         break;
@@ -351,25 +360,24 @@ int32_t tud_mtp_data_complete_cb(tud_mtp_cb_data_t* cb_data) {
       (void) mtp_container_add_uint32(resp, SUPPORTED_STORAGE_ID);
       (void) mtp_container_add_uint32(resp, f->parent);
       (void) mtp_container_add_uint32(resp, send_obj_handle);
-      send_obj_incomplete = false;
+      send_obj_info_incomplete = false;
       resp->header->code = MTP_RESP_OK;
       break;
     }
 
     case MTP_OP_SEND_OBJECT: {
-      fs_file_t* f = fs_get_file(send_obj_handle);
+      fs_file_t* f = fs_get_staged_file();
       if (f == NULL) {
         resp->header->code = MTP_RESP_GENERAL_ERROR;
         break;
       }
       const uint32_t received = cb_data->total_xferred_bytes - sizeof(mtp_container_header_t);
       if (received < f->size) {
-        fs_discard_staged_file(); // the unwritten tail would read back stale fs_buf contents
+        // the ObjectInfo stays held, its object unpublished, for a retry (PTP 10.4.13, 11.3.7)
         resp->header->code = MTP_RESP_INCOMPLETE_TRANSFER;
         break;
       }
-      send_obj_handle = 0; // the ObjectInfo is consumed: another SendObject needs a new one (PTP 10.4.13)
-      send_obj_incomplete = false;
+      send_obj_handle = 0; // publish the object; another SendObject needs a new ObjectInfo (PTP 10.4.13)
       resp->header->code = MTP_RESP_OK;
       break;
     }
@@ -431,6 +439,7 @@ static int32_t fs_open_close_session(tud_mtp_cb_data_t* cb_data) {
       return MTP_RESP_SESSION_NOT_OPEN;
     }
     is_session_opened = false;
+    fs_release_staged_file(); // a held ObjectInfo lasts at most for the session (PTP 10.4.13)
   }
   return MTP_RESP_OK;
 }
@@ -506,9 +515,8 @@ static int32_t fs_get_object_handles(tud_mtp_cb_data_t* cb_data) {
   uint32_t handles[FS_MAX_FILE_COUNT] = { 0 };
   uint32_t count = 0u;
   for (uint8_t i = 0u; i < FS_MAX_FILE_COUNT; i++) {
-    fs_file_t* f = &fs_objects[i];
-    if (fs_file_exist(f) &&
-        (parent_handle == f->parent || (parent_handle == 0xFFFFFFFFu && f->parent == 0u))) {
+    const fs_file_t* f = fs_get_file(i + 1u);
+    if (f != NULL && (parent_handle == f->parent || (parent_handle == 0xFFFFFFFFu && f->parent == 0u))) {
       handles[count++] = (uint32_t) i + 1u; // handle is index + 1
     }
   }
@@ -622,6 +630,9 @@ static int32_t fs_send_object_info(tud_mtp_cb_data_t* cb_data) {
   if (!is_session_opened) {
     return MTP_RESP_SESSION_NOT_OPEN;
   }
+  if (cb_data->phase == MTP_PHASE_COMMAND) {
+    fs_release_staged_file(); // a new ObjectInfo replaces the held one, even if it is refused (PTP 10.4.12)
+  }
   if (storage_id != 0xFFFFFFFFu && storage_id != SUPPORTED_STORAGE_ID) {
     return MTP_RESP_INVALID_STORAGE_ID;
   }
@@ -675,7 +686,7 @@ static int32_t fs_send_object_info(tud_mtp_cb_data_t* cb_data) {
     const uint32_t name_units_here = (io_container->payload_bytes - sizeof(mtp_object_info_header_t) - 1) / 2;
     (void) mtp_container_get_string(buf, f->name, tu_min32(TU_ARRAY_SIZE(f->name), name_units_here + 1));
     if (f->name[0] == 0) {
-      fs_discard_staged_file(); // an unnamed object would be invisible to GetObjectHandles
+      fs_release_staged_file(); // an unnamed object would be invisible to GetObjectHandles
       return MTP_RESP_INVALID_DATASET;
     }
     // ignore date created/modified/keywords
@@ -692,9 +703,12 @@ static int32_t fs_send_object(tud_mtp_cb_data_t* cb_data) {
   if (!is_session_opened) {
     return MTP_RESP_SESSION_NOT_OPEN;
   }
-  fs_file_t* f = fs_get_file(send_obj_handle);
+  if (send_obj_info_incomplete) {
+    fs_release_staged_file(); // its SendObjectInfo failed mid-dataset without a Cancel or Reset
+  }
+  fs_file_t* f = fs_get_staged_file();
   if (f == NULL) {
-    return MTP_RESP_INVALID_OBJECT_HANDLE;
+    return MTP_RESP_NO_VALID_OBJECTINFO;
   }
 
   if (cb_data->phase == MTP_PHASE_COMMAND) {
@@ -702,7 +716,6 @@ static int32_t fs_send_object(tud_mtp_cb_data_t* cb_data) {
     if (!tud_mtp_data_receive(io_container)) {
       return MTP_RESP_GENERAL_ERROR; // no data phase: the ObjectInfo stays for a retry
     }
-    send_obj_incomplete = true;
   } else {
     // file contents offset is total xferred minus header size minus last received chunk
     const uint32_t offset = cb_data->total_xferred_bytes - sizeof(mtp_container_header_t) - io_container->payload_bytes;
@@ -732,5 +745,8 @@ static int32_t fs_delete_object(tud_mtp_cb_data_t* cb_data) {
 
   // delete object by clear the name
   f->name[0] = 0;
+  if (obj_handle == send_obj_handle) {
+    send_obj_handle = 0; // a zero-length object deleted before its optional SendObject
+  }
   return MTP_RESP_OK;
 }
