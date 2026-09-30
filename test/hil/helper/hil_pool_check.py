@@ -262,8 +262,8 @@ def fetch_missing(boards: list) -> dict:
     for b in boards:
         try:
             vs = [v['name'] for v in hil_report.board_variants(b)]
-        except ValueError:
-            continue  # check_board raises it on the board's row once it looks for firmware
+        except (ValueError, KeyError):
+            continue  # no name or a malformed variant list: check_board raises it on the board's row
         if not any((CACHE_DIR / f'cmake-build-{v}').is_dir() for v in vs):
             want[b['name']] = vs
     if not want:
@@ -273,7 +273,7 @@ def fetch_missing(boards: list) -> dict:
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
         runs = ((run, arts) for run in master_runs() if (arts := run_artifacts(run['id'])))
         for run, artifacts in itertools.islice(runs, MASTER_RUNS):
-            for board in [b for b in boards if b['name'] in want]:
+            for board in [b for b in boards if b.get('name') in want]:
                 for variant in want[board['name']]:
                     if variant in artifacts and fetch_variant(board, variant, run, artifacts[variant]):
                         del want[board['name']]
@@ -638,10 +638,10 @@ def main() -> None:
     boards = list(config['boards'])  # boards-skip (parked hardware) is not scanned by default
     if args.board:
         boards += config.get('boards-skip', [])  # explicitly named parked boards are fair game
-        unknown = set(args.board) - {b['name'] for b in boards}
+        unknown = set(args.board) - {b.get('name') for b in boards}
         if unknown:
             sys.exit(f'board(s) not in {cfg_path.name}: {", ".join(sorted(unknown))}')
-        boards = [b for b in boards if b['name'] in args.board]
+        boards = [b for b in boards if b.get('name') in args.board]
 
     hil_flash.build_dir = str(args.build_dir or CACHE_DIR)
     hil_util.verbose = args.verbose

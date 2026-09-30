@@ -281,6 +281,12 @@ class Fetch(unittest.TestCase):
         self.assertEqual(hil_pool_check.fetch_missing([bad, dict(BOARD, tests={'device': True})]), {})
         self.assertEqual(self.source('b')['run'], 3)
 
+    def test_a_board_without_a_name_does_not_stop_other_boards(self):
+        self.add_run(3, {'binaries-arm-gcc--b b': self.GOOD})
+        nameless = {'uid': 'U', 'flasher': BOARD['flasher'], 'tests': {'device': True}}
+        self.assertEqual(hil_pool_check.fetch_missing([nameless, dict(BOARD, tests={'device': True})]), {})
+        self.assertEqual(self.source('b')['run'], 3)
+
     def test_a_board_left_without_firmware_reports_every_variant(self):
         got = hil_pool_check.fetch_missing([self.MULTI])
         self.assertEqual(set(got), {'b', 'b-DMA'})
@@ -537,6 +543,17 @@ class Main(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn('| Board', out)
         self.assertIn('1 ok · 0 flash-failed', out)
+
+    def test_a_board_without_a_name_is_its_own_error_row(self):
+        with open(self.cfg, 'w') as f:
+            json.dump({'boards': [{'uid': 'U', 'flasher': BOARD['flasher']}, dict(BOARD, tests={'device': True})]}, f)
+        patch(self, hil_pool_check, 'check_board', lambda board, args: row(board['name'], 'ok'))
+        code, out, _ = self.run_main('--json')
+        rows = json.loads(out.splitlines()[0])['rows']
+        self.assertEqual([(r['name'], r['status']) for r in rows], [('?', 'failed'), ('b', 'ok')])
+        self.assertIn('KeyError', rows[0]['note'][0])
+        code, out, _ = self.run_main('--json', '-b', 'b')
+        self.assertEqual((code, [r['name'] for r in json.loads(out.splitlines()[0])['rows']]), (0, ['b']))
 
 
 if __name__ == '__main__':
