@@ -106,16 +106,31 @@ static void fill_object_info(mtp_object_info_header_t* oi, uint32_t size) {
   oi->parent_object = 0xFFFFFFFFu;
 }
 
-// SendObjectInfo declaring `size` bytes for the file "<initial>.t"; returns the new handle
-static uint32_t send_object_info_named(uint32_t size, uint16_t initial) {
-  begin_command(MTP_OP_SEND_OBJECT_INFO, SUPPORTED_STORAGE_ID);
-  TEST_ASSERT_EQUAL(1, api.data_receive);
-  uint8_t dataset[sizeof(mtp_object_info_header_t) + 1 + 2 * 8] = { 0 };
+// a whole ObjectInfo dataset declaring `size` bytes for the file "<initial>.t"
+typedef uint8_t object_info_dataset_t[sizeof(mtp_object_info_header_t) + 1 + 2 * 8];
+static void build_object_info(object_info_dataset_t dataset, uint32_t size, uint16_t initial) {
+  memset(dataset, 0, sizeof(object_info_dataset_t));
   fill_object_info((mtp_object_info_header_t*) dataset, size);
   uint8_t* name = dataset + sizeof(mtp_object_info_header_t);
   name[0] = 4;
   const uint16_t utf16[4] = { initial, '.', 't', 0 };
   memcpy(name + 1, utf16, sizeof(utf16));
+}
+
+static uint32_t empty_slot_handle(void) {
+  for (uint32_t i = 0; i < FS_MAX_FILE_COUNT; i++) {
+    if (!fs_file_exist(&fs_objects[i])) return i + 1;
+  }
+  TEST_FAIL_MESSAGE("no empty slot");
+  return 0;
+}
+
+// SendObjectInfo declaring `size` bytes for the file "<initial>.t"; returns the new handle
+static uint32_t send_object_info_named(uint32_t size, uint16_t initial) {
+  begin_command(MTP_OP_SEND_OBJECT_INFO, SUPPORTED_STORAGE_ID);
+  TEST_ASSERT_EQUAL(1, api.data_receive);
+  object_info_dataset_t dataset;
+  build_object_info(dataset, size, initial);
   deliver_out(dataset, sizeof(dataset), sizeof(dataset));
   data_complete();
   TEST_ASSERT_EQUAL_HEX16(MTP_RESP_OK, api.resp_code);
@@ -225,12 +240,8 @@ void test_send_object_without_session_is_refused(void) {
 // a SendObjectInfo whose dataset is still being read: the object is staged but not created
 static void stage_object_info_sized(uint32_t size) {
   begin_command(MTP_OP_SEND_OBJECT_INFO, SUPPORTED_STORAGE_ID);
-  uint8_t dataset[sizeof(mtp_object_info_header_t) + 1 + 2 * 8] = { 0 };
-  fill_object_info((mtp_object_info_header_t*) dataset, size);
-  uint8_t* name = dataset + sizeof(mtp_object_info_header_t);
-  name[0] = 4;
-  const uint16_t utf16[4] = { 'a', '.', 't', 0 };
-  memcpy(name + 1, utf16, sizeof(utf16));
+  object_info_dataset_t dataset;
+  build_object_info(dataset, size, 'a');
   deliver_out(dataset, sizeof(dataset), sizeof(dataset) + 64);
   TEST_ASSERT_NOT_EQUAL(0, send_obj_handle);
 }
@@ -246,6 +257,18 @@ static void send_object_data(uint32_t size, uint8_t fill) {
   deliver_out(pkt, size, size);
   data_complete();
   TEST_ASSERT_EQUAL_HEX16(MTP_RESP_OK, api.resp_code);
+}
+
+// a SendObject whose container carries only `sent` of the held ObjectInfo's bytes
+static void send_object_short(uint32_t sent) {
+  uint8_t pkt[100];
+  memset(pkt, 0x5A, sizeof(pkt));
+  begin_command(MTP_OP_SEND_OBJECT, 0);
+  deliver_out(pkt, sent, sent);
+  data_complete();
+  TEST_ASSERT_EQUAL(1, api.response_send);
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_INCOMPLETE_TRANSFER, api.resp_code);
+  TEST_ASSERT_EQUAL(HDR, api.resp_len);
 }
 
 void test_cancel_keeps_a_complete_object_info_for_send_object(void) {
@@ -266,6 +289,19 @@ void test_cancel_mid_send_object_info_discards_the_staged_object(void) {
   tud_mtp_request_cb_data_t req = { .buf = (uint8_t*) &command };
   TEST_ASSERT_TRUE(tud_mtp_request_cancel_cb(&req));
   TEST_ASSERT_EQUAL(0, send_obj_handle);
+  TEST_ASSERT_EQUAL(files, fs_get_file_count());
+}
+
+// the zero-length exception applies to a complete ObjectInfo only: a cancelled one frees its slot
+void test_cancel_mid_zero_length_object_info_frees_the_slot(void) {
+  open_session();
+  const uint32_t files = fs_get_file_count();
+  stage_object_info_sized(0);
+  const uint32_t handle = send_obj_handle;
+  tud_mtp_request_cb_data_t req = { .buf = (uint8_t*) &command };
+  TEST_ASSERT_TRUE(tud_mtp_request_cancel_cb(&req));
+  TEST_ASSERT_EQUAL(0, send_obj_handle);
+  TEST_ASSERT_FALSE(object_exists(handle));
   TEST_ASSERT_EQUAL(files, fs_get_file_count());
 }
 
@@ -445,14 +481,7 @@ void test_send_object_short_is_incomplete_and_retried(void) {
   open_session();
   const uint32_t files = fs_get_file_count();
   const uint32_t handle = send_object_info(100);
-  uint8_t pkt[60];
-  memset(pkt, 0x5A, sizeof(pkt));
-  begin_command(MTP_OP_SEND_OBJECT, 0);
-  deliver_out(pkt, sizeof(pkt), sizeof(pkt));
-  data_complete();
-  TEST_ASSERT_EQUAL(1, api.response_send);
-  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_INCOMPLETE_TRANSFER, api.resp_code);
-  TEST_ASSERT_EQUAL(HDR, api.resp_len);
+  send_object_short(60);
   TEST_ASSERT_TRUE(object_info_held(handle));
   TEST_ASSERT_FALSE(listed(handle));
   TEST_ASSERT_EQUAL(files + 1, fs_get_file_count()); // still reserved
@@ -643,11 +672,7 @@ void test_object_info_replaces_the_held_one(void) {
 void test_object_info_replaces_one_whose_send_object_failed(void) {
   open_session();
   send_object_info(100);
-  uint8_t pkt[60] = { 0 };
-  begin_command(MTP_OP_SEND_OBJECT, 0);
-  deliver_out(pkt, sizeof(pkt), sizeof(pkt));
-  data_complete();
-  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_INCOMPLETE_TRANSFER, api.resp_code);
+  send_object_short(60);
   const uint32_t handle = send_object_info_named(50, 'b');
   send_object_data(50, 0xA5);
   check_replacement_stored(handle);
@@ -667,8 +692,6 @@ void test_send_object_after_an_unfinished_object_info_is_refused(void) {
   send_object_exact(0xA5);
 }
 
-static uint32_t empty_slot_handle(void);
-
 // a refused replacement leaves no ObjectInfo held, whether refused by its command or its dataset
 static void check_refused_replacement(bool at_command) {
   open_session();
@@ -679,11 +702,9 @@ static void check_refused_replacement(bool at_command) {
     TEST_ASSERT_EQUAL_HEX16(MTP_RESP_INVALID_STORAGE_ID, api.resp_code);
   } else {
     begin_command(MTP_OP_SEND_OBJECT_INFO, SUPPORTED_STORAGE_ID);
-    uint8_t dataset[sizeof(mtp_object_info_header_t) + 1 + 2 * 4] = { 0 };
-    fill_object_info((mtp_object_info_header_t*) dataset, 100);
+    object_info_dataset_t dataset;
+    build_object_info(dataset, 100, 'b');
     ((mtp_object_info_header_t*) dataset)->parent_object = empty_slot_handle();
-    dataset[sizeof(mtp_object_info_header_t)] = 2;
-    dataset[sizeof(mtp_object_info_header_t) + 1] = 'a';
     deliver_out(dataset, sizeof(dataset), sizeof(dataset));
     TEST_ASSERT_EQUAL_HEX16(MTP_RESP_INVALID_PARENT_OBJECT, api.resp_code);
   }
@@ -711,10 +732,8 @@ void test_object_info_does_not_reclaim_a_published_object(void) {
   open_session();
   const uint32_t handle = send_object_exact(0xA5);
   begin_command(MTP_OP_SEND_OBJECT_INFO, SUPPORTED_STORAGE_ID);
-  uint8_t dataset[sizeof(mtp_object_info_header_t) + 1 + 2 * 4] = { 0 };
-  fill_object_info((mtp_object_info_header_t*) dataset, 100);
-  dataset[sizeof(mtp_object_info_header_t)] = 2;
-  dataset[sizeof(mtp_object_info_header_t) + 1] = 'b';
+  object_info_dataset_t dataset;
+  build_object_info(dataset, 100, 'b');
   deliver_out(dataset, sizeof(dataset), sizeof(dataset));
   TEST_ASSERT_EQUAL_HEX16(MTP_RESP_STORE_FULL, api.resp_code);
   TEST_ASSERT_TRUE(object_exists(handle));
@@ -722,13 +741,6 @@ void test_object_info_does_not_reclaim_a_published_object(void) {
 }
 
 // an object handle whose slot holds no object is refused, not described or deleted
-static uint32_t empty_slot_handle(void) {
-  for (uint32_t i = 0; i < FS_MAX_FILE_COUNT; i++) {
-    if (!fs_file_exist(&fs_objects[i])) return i + 1;
-  }
-  TEST_FAIL_MESSAGE("no empty slot");
-  return 0;
-}
 static void check_empty_slot_refused(uint16_t code) {
   open_session();
   const uint32_t files = fs_get_file_count();
@@ -746,11 +758,9 @@ void test_delete_object_on_empty_slot_is_refused(void) { check_empty_slot_refuse
 void test_send_object_info_under_an_empty_slot_parent_is_refused(void) {
   open_session();
   begin_command(MTP_OP_SEND_OBJECT_INFO, SUPPORTED_STORAGE_ID);
-  uint8_t dataset[sizeof(mtp_object_info_header_t) + 1 + 2 * 4] = { 0 };
-  fill_object_info((mtp_object_info_header_t*) dataset, 100);
+  object_info_dataset_t dataset;
+  build_object_info(dataset, 100, 'a');
   ((mtp_object_info_header_t*) dataset)->parent_object = empty_slot_handle();
-  dataset[sizeof(mtp_object_info_header_t)] = 2;
-  dataset[sizeof(mtp_object_info_header_t) + 1] = 'a';
   // a deleted folder leaves its association type behind in the slot
   fs_objects[empty_slot_handle() - 1].association_type = MTP_ASSOCIATION_GENERIC_FOLDER;
   deliver_out(dataset, sizeof(dataset), sizeof(dataset));

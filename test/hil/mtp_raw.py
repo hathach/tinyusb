@@ -270,13 +270,16 @@ class RawMtp:
             raise RawError(f'GetObjectHandles declares {n} handles in {len(data)} bytes')
         return set(struct.unpack_from('<%dI' % n, data, 4))
 
-    def upload_readback(self, size, name='t.txt'):
-        data = bytes((i * 7 + 3) & 0xFF for i in range(size))
-        handle = self.create(size, name)
+    def send_readback(self, handle, data):
+        """SendObject `data` against the held ObjectInfo; the object must then read back whole."""
         self.expect(RESP_OK, OP_SEND_OBJECT, data_out=data)
         _, back = self.expect(RESP_OK, OP_GET_OBJECT, handle, data_in=True)
         if back != data:
-            raise RawError(f'{size}-byte readback differs')
+            raise RawError(f'{len(data)}-byte readback differs')
+
+    def upload_readback(self, size, name='t.txt'):
+        handle = self.create(size, name)
+        self.send_readback(handle, bytes((i * 7 + 3) & 0xFF for i in range(size)))
         self.delete(handle)
 
 
@@ -323,8 +326,7 @@ def case_boundaries(m):
 
 def case_long_name(m):
     name = ''.join(chr(ord('a') + i % 26) for i in range(254))  # count 255 on the wire
-    handle = m.create(100, name)
-    m.expect(RESP_OK, OP_SEND_OBJECT, data_out=bytes(100))  # the object exists once sent
+    handle = m.create(0, name)  # a zero-length object exists with its ObjectInfo (MTP 1.1 D.2.12)
     _, info = m.expect(RESP_OK, OP_GET_OBJECT_INFO, handle, data_in=True)
     got = object_info_name(info)
     if got != name[:NAME_MAX_CHARS]:
@@ -398,12 +400,8 @@ def expect_not_visible(m, handle):
 
 
 def retry_send_object(m, handle, size):
-    """SendObject alone against the ObjectInfo the device kept; the object then reads back whole."""
-    data = bytes((i * 5 + 1) & 0xFF for i in range(size))
-    m.expect(RESP_OK, OP_SEND_OBJECT, data_out=data)
-    _, back = m.expect(RESP_OK, OP_GET_OBJECT, handle, data_in=True)
-    if back != data:
-        raise RawError('object differs from the retried SendObject')
+    """SendObject alone against the ObjectInfo the device kept."""
+    m.send_readback(handle, bytes((i * 5 + 1) & 0xFF for i in range(size)))
     m.delete(handle)
 
 
@@ -435,13 +433,10 @@ def case_short_send_object_retry(m):
 def case_object_info_replacement(m):
     m.create(100, 'a.txt')
     handle = m.create(50, 'b.txt')  # replaces the held ObjectInfo in the one writable slot
-    m.expect(RESP_OK, OP_SEND_OBJECT, data_out=bytes(range(50)))
+    m.send_readback(handle, bytes(range(50)))
     _, info = m.expect(RESP_OK, OP_GET_OBJECT_INFO, handle, data_in=True)
     if object_info_name(info) != 'b.txt' or struct.unpack_from('<I', info, 8)[0] != 50:
         raise RawError('the replacement ObjectInfo did not win')
-    _, back = m.expect(RESP_OK, OP_GET_OBJECT, handle, data_in=True)
-    if back != bytes(range(50)):
-        raise RawError('replacement object differs')
     m.delete(handle)
 
 

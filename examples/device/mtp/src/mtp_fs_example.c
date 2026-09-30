@@ -255,13 +255,6 @@ static int32_t receive_rest(tud_mtp_cb_data_t* cb_data) {
   return 0;
 }
 
-// a cancelled SendObjectInfo leaves no ObjectInfo; a complete one is kept for a retry (PTP 10.4.13)
-static void fs_abandon_send_object(void) {
-  if (send_obj_info_incomplete) {
-    fs_release_staged_file();
-  }
-}
-
 // simple malloc
 static inline uint8_t* fs_malloc(size_t size) {
 #ifdef CFG_EXAMPLE_MTP_READONLY
@@ -283,7 +276,10 @@ bool tud_mtp_request_cancel_cb(tud_mtp_request_cb_data_t* cb_data) {
   memcpy(&cancel_data, cb_data->buf, sizeof(cancel_data));
   (void) cancel_data.code;
   (void ) cancel_data.transaction_id;
-  fs_abandon_send_object();
+  // a cancelled SendObjectInfo leaves no ObjectInfo; a complete one is kept for a retry (PTP 10.4.13)
+  if (send_obj_info_incomplete) {
+    fs_release_staged_file();
+  }
   return true;
 }
 
