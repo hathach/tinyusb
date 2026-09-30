@@ -263,7 +263,7 @@ def fetch_missing(boards: list) -> dict:
         try:
             vs = [v['name'] for v in hil_report.board_variants(b)]
         except (ValueError, KeyError):
-            continue  # no name or a malformed variant list: check_board raises it on the board's row
+            continue  # check_board raises it: no name at once, a bad variant list on firmware lookup
         if not any((CACHE_DIR / f'cmake-build-{v}').is_dir() for v in vs):
             want[b['name']] = vs
     if not want:

@@ -549,6 +549,7 @@ class Main(unittest.TestCase):
             json.dump({'boards': [{'uid': 'U', 'flasher': BOARD['flasher']}, dict(BOARD, tests={'device': True})]}, f)
         patch(self, hil_pool_check, 'check_board', lambda board, args: row(board['name'], 'ok'))
         code, out, _ = self.run_main('--json')
+        self.assertEqual(code, 1)
         rows = json.loads(out.splitlines()[0])['rows']
         self.assertEqual([(r['name'], r['status']) for r in rows], [('?', 'failed'), ('b', 'ok')])
         self.assertIn('KeyError', rows[0]['note'][0])
