@@ -89,15 +89,14 @@ typedef struct {
   volatile uint16_t actual_len;
   uint16_t mps; // max packet size
 
-  // nRF will auto accept OUT packet after DMA is done
-  // indicate packet is already ACK
+  // nRF will auto accept OUT packet after DMA is done, indicate packet is already ACK
   volatile bool data_received;
   volatile bool started;
 
-  // Bumped by every arm and every stall: a deferred DMA start or an ENDEPOUT for an older
-  // generation belongs to a retired transfer, whatever the descriptor holds by then.
-  volatile uint8_t gen;
-  uint8_t dma_gen; // generation the OUT DMA in flight was started for
+  // Bumped at every arm and retire (stall, SETUP), wrapping at 256: a deferred DMA start or an
+  // ENDEPOUT carrying another id belongs to a retired transfer, whatever the td holds by then.
+  volatile uint8_t xferid;
+  uint8_t dma_xferid;
 
   // Set to true when data was transferred from RAM to ISO IN output buffer.
   // New data can be put in ISO IN output buffer after SOF.
@@ -163,21 +162,21 @@ TU_ATTR_ALWAYS_INLINE static inline xfer_td_t* get_td(uint8_t epnum, uint8_t dir
 // its deferred DMA, completion and re-arm must no longer see the queued transfer
 static inline void retire_xfer(xfer_td_t* xfer) {
   xfer->started = false;
-  xfer->gen++;
+  xfer->xferid++;
 }
 
 static void xact_out_dma(uint8_t epnum);
 static void xact_in_dma(uint8_t epnum);
 static void ep0_task(volatile uint32_t* reg, uint8_t dir);
 
-// A deferred DMA start carries (flags << 16 | generation << 8 | ep_addr) and is dropped once the
+// A deferred DMA start carries (flags << 16 | xferid << 8 | ep_addr) and is dropped once the
 // transfer it was queued for is retired; the check and the start are one critical section so a
 // SETUP cannot retire the transfer in between.
 enum { DMA_TOKEN_EP0_STATUS = 0x01, DMA_TOKEN_EP0_RCVOUT = 0x02 };
 
 static inline void* dma_token(uint8_t epnum, uint8_t dir, uint8_t flags) {
-  return (void*) (uintptr_t) (((uintptr_t) flags << 16) | ((uintptr_t) get_td(epnum, dir)->gen << 8) |
-                              tu_edpt_addr(epnum, dir));
+  uint8_t const xferid = get_td(epnum, dir)->xferid;
+  return (void*) (uintptr_t) (((uintptr_t) flags << 16) | ((uintptr_t) xferid << 8) | tu_edpt_addr(epnum, dir));
 }
 
 static void dma_deferred(void* token) {
@@ -186,7 +185,7 @@ static void dma_deferred(void* token) {
   uint8_t const dir = tu_edpt_dir((uint8_t) v);
   uint8_t const flags = (uint8_t) (v >> 16);
   dcd_int_disable(0);
-  if (get_td(epnum, dir)->gen == (uint8_t) (v >> 8)) {
+  if (get_td(epnum, dir)->xferid == (uint8_t) (v >> 8)) {
     if (flags & DMA_TOKEN_EP0_STATUS) {
       ep0_task(&NRF_USBD->TASKS_EP0STATUS, dir);
     } else if (flags & DMA_TOKEN_EP0_RCVOUT) {
@@ -230,7 +229,7 @@ static void xact_out_dma(uint8_t epnum) {
     usbd_defer_func(dma_deferred, dma_token(epnum, TUSB_DIR_OUT, 0), is_in_isr());
     return;
   }
-  xfer->dma_gen = xfer->gen;
+  xfer->dma_xferid = xfer->xferid;
   if (epnum == EP_ISO_NUM) {
     xact_len = NRF_USBD->SIZE.ISOOUT;
     // If ZERO bit is set, ignore ISOOUT length
@@ -496,7 +495,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
   xfer_td_t* xfer = get_td(epnum, dir);
 
   TU_ASSERT(!xfer->started);
-  xfer->gen++;
+  xfer->xferid++;
   xfer->buffer = buffer;
   xfer->total_len = total_bytes;
   xfer->actual_len = 0;
@@ -806,7 +805,7 @@ void dcd_int_handler(uint8_t rhport) {
   for (uint8_t epnum = 0; epnum < EP_CBI_COUNT + 1; epnum++) {
     if (tu_bit_test(int_status, USBD_INTEN_ENDEPOUT0_Pos + epnum)) {
       xfer_td_t* xfer = get_td(epnum, TUSB_DIR_OUT);
-      if (xfer->dma_gen != xfer->gen) {
+      if (xfer->dma_xferid != xfer->xferid) {
         continue; // the DMA was started for a transfer since retired: the packet is dropped
       }
       uint16_t const xact_len = NRF_USBD->EPOUT[epnum].AMOUNT;
