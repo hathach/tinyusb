@@ -19,7 +19,7 @@ import usbtest_harness  # noqa: E402 - stubs serial before hil_test is imported
 import usbtest  # noqa: E402
 
 NODE = '/dev/bus/usb/001/005'
-# testusb -D <node> -t <n>: stderr first, then stdout. FAKE_OUT is a format string over the
+# testusb -A <node> -D <node> -t <n>: stderr first, then stdout. FAKE_OUT is a format string over the
 # node and case; '%s' is the device name as testusb prints it.
 FAKE_TESTUSB = f'''#!{sys.executable}
 import os, sys
@@ -69,10 +69,6 @@ class RunCase(unittest.TestCase):
         r = self.case(SPEED)                           # -EOPNOTSUPP: testusb continues silently
         self.assertEqual(r['status'], 'NOTRUN')
 
-    def test_other_nodes_it_could_not_open_do_not_change_a_skip(self):
-        r = self.case('/dev/bus/usb/002/001: Permission denied\n' + SPEED)   # ftw's perror(name)
-        self.assertEqual(r['status'], 'NOTRUN')
-
     def test_never_opened_the_node_is_a_failure_not_a_skip(self):
         for out, rc in (("can't open dev file r/w: Permission denied\n", 0),
                         ("must specify '-a' or '-D dev', or DEVICE=/dev/bus/usb/BBB/DDD in env\n", 1),
@@ -86,6 +82,34 @@ class RunCase(unittest.TestCase):
     def test_speed_line_for_another_node_does_not_count(self):
         r = self.case('high speed\t/dev/bus/usb/001/006\t0\n')
         self.assertEqual(r['status'], 'FAIL')
+
+
+class ScanScope(unittest.TestCase):
+    """testusb -D alone still ftw()s and opens every usbfs node; -A <node> scans only the DUT
+    (#4047). -A falls through to -a and clears -D, so it must come first."""
+
+    def argv(self, node, sudo):
+        cmds = []
+
+        class Popen:
+            def __init__(self, cmd, **kw):
+                cmds.append(cmd)
+                self.returncode = 0
+
+            def communicate(self, timeout=None):
+                return '', None
+
+        usbtest_harness.patch(self, usbtest.subprocess, 'Popen', Popen)
+        usbtest_harness.patch(self, usbtest.os, 'access', lambda p, m: not sudo)
+        usbtest_harness.patch(self, usbtest.os, 'geteuid', lambda: 1000)
+        usbtest.run_case(0, {'node': node, 'speed': '480'}, '/x/testusb', False, 30)
+        return cmds[0]
+
+    def test_scan_is_confined_to_the_node_before_it_is_selected(self):
+        for sudo, prefix in ((False, []), (True, ['sudo', '-n'])):
+            for node in ('/dev/bus/usb/001/005', '/dev/bus/usb/003/017'):
+                self.assertEqual(self.argv(node, sudo)[:len(prefix) + 7],
+                                 prefix + ['/x/testusb', '-A', node, '-D', node, '-t', '0'])
 
 
 class ExitStatus(unittest.TestCase):

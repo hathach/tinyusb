@@ -88,7 +88,9 @@ at full speed).
 # driver_info NULL, which usbtest_probe() dereferences -> kernel oops.
 sudo modprobe usbtest
 echo "cafe 4010 0 0525 a4a0" | sudo tee /sys/bus/usb/drivers/usbtest/new_id
-# example: bulk write/read
-sudo testusb -D /dev/bus/usb/<BBB>/<DDD> -t 1 -c 128 -s 1024 -v 512
-sudo testusb -D /dev/bus/usb/<BBB>/<DDD> -t 2 -c 128 -s 1024 -v 512
+# example: bulk write/read. -A <node> first: with -D alone testusb opens every
+# usbfs node and blocks on any stuck device's lock
+N=/dev/bus/usb/<BBB>/<DDD>
+sudo testusb -A $N -D $N -t 1 -c 128 -s 1024 -v 512
+sudo testusb -A $N -D $N -t 2 -c 128 -s 1024 -v 512
 ```

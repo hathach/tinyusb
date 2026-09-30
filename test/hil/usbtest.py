@@ -51,8 +51,8 @@ RECOVER_FLASH_TIMEOUT = 90  # bound on the post-hang reflash; typical flash is 1
 RECOVER_RESET_TIMEOUT = 30  # bound on the post-hang probe reset; jlink ResetTarget ~130ms, stlink --rst --go ~100ms
 RECOVER_SETTLE = 5          # after the recovery step, to let a freed ioctl unwind
 # How long a HUNG case is watched before it counts as a wedge. HUNG only says the kill was
-# not reaped within 5 s; testusb waiting on a peer's held device lock looks the same and is
-# reaped once that lock is released. Reserved on every HUNG path, recovery or not.
+# not reaped within 5 s; a finite hold on the DUT's device lock looks the same and is reaped
+# once it ends. Reserved on every HUNG path, recovery or not.
 WEDGE_CONFIRM_S = 30
 RECOVER_REAP = 5            # after the settle: a freed testusb reaps within this
 # The unbounded work around the recovery step: json.loads of the roster entry, the child's
@@ -447,14 +447,16 @@ def run_case(num, dev, testusb, quick, timeout):
     fs_hs = PARAMS[num][0 if dev['speed'] == '12' else 1]
     if quick:
         fs_hs = re.sub(r'-c (\d+)', lambda m: f'-c {max(1, int(m.group(1)) // 8)}', fs_hs)
-    cmd = [testusb, '-D', dev['node'], '-t', str(num)] + fs_hs.split()
+    # -A <node> confines testusb's ftw() device scan to the DUT: with -D alone it opens every
+    # usbfs node, blocking on any peer's held device lock (#4047). -A must precede -D, it clears it.
+    cmd = [testusb, '-A', dev['node'], '-D', dev['node'], '-t', str(num)] + fs_hs.split()
     # device nodes are usually opened directly (udev rule); sudo only if not
     if not os.access(dev['node'], os.W_OK) and os.geteuid() != 0:
         cmd = ['sudo', '-n'] + cmd
     result = {'num': num, 'name': CASE_NAMES[num], 'params': fs_hs}
 
     # NO start_new_session: testusb must stay in OUR process group so the caller's outer
-    # killpg still reaps it; a sudo-wrapped child is escalated through sudo below instead.
+    # killpg still reaps it.
     # errors='replace': testusb output is not guaranteed UTF-8, and a strict decode would
     # raise out of here and out of main(), printing no JSON at all (battery '0/30').
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -474,11 +476,10 @@ def run_case(num, dev, testusb, quick, timeout):
         try:
             out, _ = p.communicate(timeout=5)
         except subprocess.TimeoutExpired:
-            # SIGKILL had no effect: the child is in uninterruptible sleep on an in-kernel
-            # usbfs ioctl. A finite one -- testusb's own device walk waiting on a peer's
-            # held device lock -- is reaped once that lock is released, so watch the child
-            # for WEDGE_CONFIRM_S before calling it a wedge (#3944). Under sudo the child
-            # is the wrapper and reaps at once, which proves nothing about testusb.
+            # SIGKILL had no effect: the child is in uninterruptible sleep on the DUT's
+            # device lock or an in-kernel usbfs ioctl. A finite hold is reaped once it ends,
+            # so watch the child for WEDGE_CONFIRM_S before calling it a wedge (#3944). Under
+            # sudo the child is the wrapper and reaps at once, which proves nothing.
             if cmd[0] != 'sudo':
                 t0 = time.monotonic()
                 try:
@@ -486,7 +487,8 @@ def run_case(num, dev, testusb, quick, timeout):
                     waited = time.monotonic() - t0
                     result.update(status='FAIL', dmesg=dmesg_tail(), late_cleared=True,
                                   detail=f'timeout after {timeout}s (the kill landed '
-                                         f'{waited:.0f}s late; a peer held the node)')
+                                         f'{waited:.0f}s late; testusb reaped during the '
+                                         f'confirmation watch)')
                     return result
                 except subprocess.TimeoutExpired:
                     pass
@@ -616,10 +618,10 @@ def main():
 
         abort_reason = None   # set on any early exit; drives the BUDGET back-fill below
         for idx, num in enumerate(cases):
-            # Only a HUNG case aborts the battery; an ordinary case timeout is a FAIL and
-            # the loop continues, each burning --timeout+5s, so without this the run can
-            # still be in the case loop when the outer timeout SIGKILLs it before it emits
-            # JSON. Checked before dispatch: worst overshoot is one case.
+            # An ordinary case timeout is a FAIL and the loop continues, each burning
+            # --timeout+5s, so without this the run can still be in the case loop when the
+            # outer timeout SIGKILLs it before it emits JSON. Checked before dispatch: worst
+            # overshoot is one case.
             if args.budget and time.monotonic() - t_start > args.budget:
                 abort_reason = f'battery budget {args.budget}s exhausted'
                 break
@@ -630,8 +632,8 @@ def main():
                 extra += f" {r['mbps']} MB/s" if 'mbps' in r else ''
                 print(f"test {num:2d} {r['name']:22s} {r['status']:6s}{extra}")
             if r.get('late_cleared'):
-                # a peer's wedge held our device lock: the rest of this battery would
-                # stall the same way, and a re-run costs less than the guesswork
+                # something held the DUT's device lock past the kill: the rest of this
+                # battery could stall the same way, and a re-run costs less than the guesswork
                 abort_reason = f'battery ended on a late-cleared timeout in case {num}'
                 print(f'case {num} timed out; the kill landed late, not a wedge', file=sys.stderr)
                 break

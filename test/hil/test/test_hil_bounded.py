@@ -706,9 +706,9 @@ class _FakeProc:
 
 
 class RunCaseConfirmsByReap(unittest.TestCase):
-    """HUNG is 'SIGKILL not reaped in 5 s', which testusb blocked on a PEER's held device lock
-    also produces (its own device walk opens every node). Watching our child for
-    WEDGE_CONFIRM_S tells the two apart: reaped late is a timeout, not a wedge (#3944).
+    """HUNG is 'SIGKILL not reaped in 5 s', which a finite hold on the DUT's device lock also
+    produces. Watching our child for WEDGE_CONFIRM_S tells the two apart: reaped late is a
+    timeout, not a wedge (#3944).
     Under sudo the child is the wrapper, so its reaping proves nothing."""
 
     def _run_case(self, sudo: bool, reaps_late: bool):

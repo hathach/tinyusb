@@ -53,13 +53,13 @@ line is its JSON verdict; each of its `cases` carries `usbtest.py`'s `detail`, a
   port bouncing under concurrent batteries has killed a uPD720201 (the note above
   `FLASH_PARALLEL` in `hil_lock.py`). Never start a battery outside `hil_test.py` on a controller
   another battery is using.
-- **A wedged peer stalls every testusb on the host.** `testusb` opens every usbfs node while
-  scanning, even with `-D` (`tools/usb/testusb.c` find_testdev), and opening a node takes its
-  device lock. Once any device holds its lock for good, each new case blocks there in D state,
-  and `usbtest.py` blames the device under test. When testusb runs without `sudo -n`, a hold that
-  ends within the 30 s watch is a FAIL `timeout after Ns (the kill landed Ns late; a peer held the
-  node)` that stops the battery; one that outlasts the watch becomes HUNG. Check for other D-state
-  `testusb` processes on the host before trusting a HUNG verdict on a healthy board.
+- **Run testusb with `-A <node> -D <node>`, never `-D` alone.** Stock `testusb` opens every usbfs
+  node while scanning, even with `-D` (`tools/usb/testusb.c` find_testdev), and opening a node
+  takes its device lock, so one stuck peer or hub stalls every case on the host. `-A <node>`
+  confines the scan to the DUT (`usbtest.py` does this; `-A` must come first, it clears `-D`).
+  When testusb runs without `sudo -n`, a hold on the DUT's own lock that ends within the 30 s
+  watch is a FAIL `timeout after Ns (the kill landed Ns late; ...)` that stops the battery; one
+  that outlasts the watch becomes HUNG.
 - **The id and binding stay.** `usbtest.py` registers `cafe 4010` once and never unbinds or
   removes it: those writes take the uninterruptible device lock. Recovery of a HUNG case is one
   step: a probe reset, or a reflash where the flasher has none (esptool); never a root-port
