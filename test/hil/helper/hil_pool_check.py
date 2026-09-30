@@ -475,6 +475,9 @@ def check_board(board: dict, args) -> dict:
                 hit = wait_device(board['uid'], old_ino, ENUM_WAIT)
                 row['device'] = f'✅ {hit[1]}' if hit else '❌ not enumerated'
                 row['status'] = 'ok' if hit else 'failed'
+                if hit and pre and hit[1] == pre[1]:
+                    # a silent flash no-op re-enumerates the previous image on the flash's reset
+                    note.append(f'{hit[1]} before the flash too: new image unverified')
             say(f'{name:26} {row["flash"]}  {row["device"]}')
             return row
         finally:
