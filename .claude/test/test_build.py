@@ -642,7 +642,7 @@ class DepsTest(unittest.TestCase):
         clean = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
 
         def repo(path):
-            git = ['git', '-C', str(path), '-c', 'user.name=t', '-c', 'user.email=t@t']
+            git = ['git', '-C', str(path), '-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false']
             subprocess.run(['git', 'init', '-q', str(path)], check=True, env=clean)
             subprocess.run(git + ['commit', '-q', '--allow-empty', '-m', str(path)], check=True, env=clean)
             return subprocess.run(git + ['rev-parse', 'HEAD'], capture_output=True, text=True, check=True,
@@ -651,7 +651,9 @@ class DepsTest(unittest.TestCase):
             outer, dep = Path(td) / 'outer', Path(td) / 'dep'
             outer_head, dep_head = repo(outer), repo(dep)
             # what git exports to a pre-commit hook run from a worktree
-            with mock.patch.dict(os.environ, {'GIT_DIR': str(outer / '.git'), 'GIT_INDEX_FILE': str(outer / '.git' / 'index')}):
+            hook_env = {'GIT_DIR': str(outer / '.git'), 'GIT_WORK_TREE': str(outer),
+                        'GIT_INDEX_FILE': str(outer / '.git' / 'index'), 'GIT_COMMON_DIR': str(outer / '.git')}
+            with mock.patch.dict(os.environ, hook_env):
                 self.assertEqual(build.tools_build.build_utils.dep_head(dep), dep_head)
             self.assertNotEqual(dep_head, outer_head)
 

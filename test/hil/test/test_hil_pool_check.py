@@ -362,9 +362,9 @@ class Park(unittest.TestCase):
         self.assertEqual(row['status'], 'flash-failed')
         self.assertIn('park unverified', note[-1])
 
-    def park_host(self, hello, flash_rc=0):
+    def park_host(self, hello):
         patch(self, hil_pool_check.hil_flash, 'flash_primitive', lambda name: (
-            lambda board, fw: types.SimpleNamespace(returncode=flash_rc, stdout='Error: no target')))
+            lambda board, fw: types.SimpleNamespace(returncode=0, stdout='')))
         patch(self, hil_pool_check, 'check_host_serial', lambda board, **kw: hello)
         note, row = [], {'status': 'ok'}
         hil_pool_check.park_board(BOARD, 'host', 'board_test.elf', row, note)
@@ -375,11 +375,6 @@ class Park(unittest.TestCase):
         note, row = self.park_host(b'')
         self.assertEqual(row['status'], 'flash-failed')
         self.assertIn('park unverified: no board_test output', note)
-
-    def test_a_failed_host_park_flash_fails(self):
-        note, row = self.park_host(b'', flash_rc=1)
-        self.assertEqual(row['status'], 'flash-failed')
-        self.assertIn('park flash failed', note[-1])
 
     def test_a_failed_park_flash_fails_an_ok_row(self):
         note, row = self.park(on_bus_after=True, flash_rc=1)

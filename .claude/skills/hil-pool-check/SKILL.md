@@ -32,6 +32,12 @@ variants, about 1.1 GB unpacked, in ~12 min. The cached variant may hold a less 
 example than another variant would. A board left without firmware is `flash-failed`, with the
 fetch's reason.
 
+CI built a silent `board_test` while it defined `CI_BUILD`, so a cached variant whose `.source`
+commit still contains that branch (`git grep -q CI_BUILD <sha> -- examples/device/board_test`
+exits 0) cannot prove a host-only board's park: the row reads `park unverified: no board_test
+output`. Once a master run provides updated artifacts for those variants, delete their dirs (or
+the whole cache) and let the next run refetch; until then use `-B` with a fresh local build.
+
 A cached variant is never revalidated or replaced. To refresh one (roster change, damaged
 files), delete its dir while no pool check is running; the next run fetches it again.
 `-B DIR` flashes from another firmware root instead (e.g. `-B cmake-build` after a local
@@ -62,11 +68,11 @@ behind it.
 Statuses: `ok`, `flash-failed` (firmware not delivered: probe missing, not cached, flasher
 error, silent no-op, park unverified), `failed` (the check ran but did not verify), `locked`.
 The exit code counts `flash-failed` + `failed`; `locked` rows and every `--scan-only` row are
-unverified, not healthy, so read the footer or the JSON `coverage` (`probe-only`, `skipped-
-locked`, `full-attempted`), never `$?` alone. A probe that enumerates but will not flash shows
-`flash-failed` with the flasher's error; confirm it with the flasher's own probe list
-(`STM32_Programmer_CLI -l st-link`, `ShowEmuList` in a `JLinkExe` script), then follow `usb-
-kernel-recover` from its triage.
+unverified, not healthy, so read the footer or the JSON `coverage` (`probe-only`,
+`skipped-locked`, `full-attempted`), never `$?` alone. A probe that enumerates but will not
+flash shows `flash-failed` with the flasher's error; confirm it with the flasher's own probe
+list (`STM32_Programmer_CLI -l st-link`, `ShowEmuList` in a `JLinkExe` script), then follow
+`usb-kernel-recover` from its triage.
 
 When a recovery is needed, let the pool check finish first: a root-port bounce re-enumerates
 every board under that port. Release any hold before re-checking, since the pool check reports

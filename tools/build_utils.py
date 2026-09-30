@@ -443,11 +443,8 @@ def dep_head(path):
     a checkout broken partway - where the revision built is anybody's guess."""
     if not (path / '.git').exists():
         return None
-    # a git hook (pre-commit's family-json) inherits GIT_DIR & co., which outrank -C and
-    # would answer for the enclosing repo
-    env = {k: v for k, v in os.environ.items()
-           if k not in ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR')}
-    r = subprocess.run(['git', '-C', str(path), 'rev-parse', 'HEAD'], capture_output=True, text=True, env=env)
+    # --git-dir, not -C: a hook's inherited GIT_DIR outranks -C and names the enclosing repo
+    r = subprocess.run(['git', '--git-dir', str(path / '.git'), 'rev-parse', 'HEAD'], capture_output=True, text=True)
     head = r.stdout.strip()
     return head if r.returncode == 0 and head else HEAD_UNKNOWN
 
