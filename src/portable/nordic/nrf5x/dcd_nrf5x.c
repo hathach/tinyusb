@@ -167,7 +167,7 @@ static inline void retire_xfer(xfer_td_t* xfer) {
 
 static void xact_out_dma(uint8_t epnum);
 static void xact_in_dma(uint8_t epnum);
-static void ep0_task(volatile uint32_t* reg, uint8_t dir);
+static void ep0_task(uint8_t kind, uint8_t dir);
 
 // A deferred DMA start carries (flags << 16 | xferid << 8 | ep_addr) and is dropped once the
 // transfer it was queued for is retired; the check and the start are one critical section so a
@@ -185,10 +185,8 @@ static void dma_deferred(void* token) {
   uint8_t const flags = tu_u32_byte2(v);
   dcd_int_disable(0);
   if (get_td(epnum, dir)->xferid == tu_u32_byte1(v)) {
-    if (flags & DMA_TOKEN_EP0_STATUS) {
-      ep0_task(&NRF_USBD->TASKS_EP0STATUS, dir);
-    } else if (flags & DMA_TOKEN_EP0_RCVOUT) {
-      ep0_task(&NRF_USBD->TASKS_EP0RCVOUT, dir);
+    if (flags) {
+      ep0_task(flags, dir);
     } else if (dir == TUSB_DIR_IN) {
       xact_in_dma(epnum);
     } else {
@@ -198,13 +196,19 @@ static void dma_deferred(void* token) {
   dcd_int_enable(0);
 }
 
-// EP0STATUS / EP0RCVOUT take the EasyDMA slot; `dir` names the EP0 transfer they belong to
-static void ep0_task(volatile uint32_t* reg, uint8_t dir) {
+// Take the EasyDMA slot, or queue this start to retry once the running transfer ends
+static bool dma_acquire_or_defer(uint8_t epnum, uint8_t dir, uint8_t flags) {
   if (atomic_flag_test_and_set(&_dcd.dma_running)) {
-    uint8_t const flags = (reg == &NRF_USBD->TASKS_EP0RCVOUT) ? DMA_TOKEN_EP0_RCVOUT : DMA_TOKEN_EP0_STATUS;
-    usbd_defer_func(dma_deferred, dma_token(0, dir, flags), is_in_isr());
-  } else {
-    start_dma(reg);
+    usbd_defer_func(dma_deferred, dma_token(epnum, dir, flags), is_in_isr());
+    return false;
+  }
+  return true;
+}
+
+// EP0STATUS / EP0RCVOUT need the EasyDMA slot; `dir` names the EP0 transfer they belong to
+static void ep0_task(uint8_t kind, uint8_t dir) {
+  if (dma_acquire_or_defer(0, dir, kind)) {
+    start_dma(kind == DMA_TOKEN_EP0_RCVOUT ? &NRF_USBD->TASKS_EP0RCVOUT : &NRF_USBD->TASKS_EP0STATUS);
   }
 }
 
@@ -222,10 +226,8 @@ static void xact_out_dma(uint8_t epnum) {
   xfer_td_t* xfer = get_td(epnum, TUSB_DIR_OUT);
   uint32_t xact_len;
 
-  // DMA can't be active during read of SIZE.EPOUT or SIZE.ISOOUT, so try to lock,
-  // If already running defer call regardless if it was called from ISR or task,
-  if (atomic_flag_test_and_set(&_dcd.dma_running)) {
-    usbd_defer_func(dma_deferred, dma_token(epnum, TUSB_DIR_OUT, 0), is_in_isr());
+  // DMA can't be active during read of SIZE.EPOUT or SIZE.ISOOUT
+  if (!dma_acquire_or_defer(epnum, TUSB_DIR_OUT, 0)) {
     return;
   }
   xfer->dma_xferid = xfer->xferid;
@@ -262,8 +264,7 @@ static void xact_out_dma(uint8_t epnum) {
 // it start DMA to transfer data from RAM -> Endpoint
 static void xact_in_dma(uint8_t epnum) {
   xfer_td_t* xfer = get_td(epnum, TUSB_DIR_IN);
-  if (atomic_flag_test_and_set(&_dcd.dma_running)) {
-    usbd_defer_func(dma_deferred, dma_token(epnum, TUSB_DIR_IN, 0), is_in_isr());
+  if (!dma_acquire_or_defer(epnum, TUSB_DIR_IN, 0)) {
     return;
   }
 
@@ -507,12 +508,12 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
     dcd_event_xfer_complete(0, ep_addr, 0, XFER_RESULT_SUCCESS, is_in_isr());
 
     // Status Phase also requires EasyDMA has to be available as well !!!!
-    ep0_task(&NRF_USBD->TASKS_EP0STATUS, dir);
+    ep0_task(DMA_TOKEN_EP0_STATUS, dir);
   } else if (dir == TUSB_DIR_OUT) {
     xfer->started = true;
     if (epnum == 0) {
       // Accept next Control Out packet. TASKS_EP0RCVOUT also require EasyDMA
-      ep0_task(&NRF_USBD->TASKS_EP0RCVOUT, TUSB_DIR_OUT);
+      ep0_task(DMA_TOKEN_EP0_RCVOUT, TUSB_DIR_OUT);
     } else {
       // started just set, it could start DMA transfer if interrupt was trigger after this line
       // code only needs to start transfer (from Endpoint to RAM) when data_received was set
@@ -544,13 +545,17 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
 
+  if (epnum == EP_ISO_NUM) {
+    return; // EPSTALL selects endpoints 0..7 only: isochronous has no halt
+  }
+
   xfer_td_t* xfer = get_td(epnum, dir);
 
   // retire before the ISR can continue a multi-packet transfer into the disarmed buffer
   dcd_int_disable(rhport);
   if (epnum == 0) {
     NRF_USBD->TASKS_EP0STALL = 1;
-  } else if (epnum != EP_ISO_NUM) {
+  } else {
     NRF_USBD->EPSTALL = (USBD_EPSTALL_STALL_Stall << USBD_EPSTALL_STALL_Pos) | ep_addr;
 
     if (dir == TUSB_DIR_OUT) {
@@ -569,9 +574,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
       (void) test_reg[1];
     }
   }
-  if (epnum != EP_ISO_NUM) {
-    retire_xfer(xfer);
-  }
+  retire_xfer(xfer);
   dcd_int_enable(rhport);
 
   __ISB();
@@ -816,7 +819,7 @@ void dcd_int_handler(uint8_t rhport) {
       if ((epnum != EP_ISO_NUM) && (xact_len == xfer->mps) && (xfer->actual_len < xfer->total_len)) {
         if (epnum == 0) {
           // Accept next Control Out packet. TASKS_EP0RCVOUT also require EasyDMA
-          ep0_task(&NRF_USBD->TASKS_EP0RCVOUT, TUSB_DIR_OUT);
+          ep0_task(DMA_TOKEN_EP0_RCVOUT, TUSB_DIR_OUT);
         } else {
           // nRF auto accept next Bulk/Interrupt OUT packet
           // nothing to do
