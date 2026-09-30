@@ -6,20 +6,36 @@ description: Use when asked for a pool check or board/probe health scan on a Tin
 # HIL Pool Check (board/probe health)
 
 `test/hil/helper/hil_pool_check.py` checks each board of the rig's roster in turn: the probe
-is on the bus, a light example flashes (the first built of a candidate list and the roster's
-`only` list; host-only boards are judged by serial or RTT output), the board comes back, and
-it is re-parked with `board_test`. A host-only board with no light firmware is judged by the
-output of whatever it already runs, without a flash or a park. It never recovers a probe or a
-board: a wedge is reported for `usb-kernel-recover`. Flags: `--help`.
+is on the bus, a light example flashes (the first found of a candidate list and the roster's
+`only` list; host-only boards are judged by UART output, and an RTT host-only board is
+reported unsupported), the board comes back, and it is re-parked with `board_test` from the
+same variant. It never builds firmware and never recovers a probe or a board: a wedge is
+reported for `usb-kernel-recover`. Flags: `--help`.
 
 The `hil` skill owns config selection by hostname and the board-lock protocol. The tool takes
 each board's lock itself; a held board is reported 🔒 locked and skipped, never waited on or
 bypassed. A CI job reaching a board the pool check holds fails it as "board locked", so prefer
 running between CI runs.
 
+## Firmware: the CI artifact cache
+
+It checks basic USB function, not the current checkout, so it flashes older CI builds from a
+per-host cache, `~/.cache/tinyusb-hil/firmware/cmake-build-<variant>/`, shared by the host's
+worktrees. A variant the cache lacks is downloaded once, before any board is locked, from the
+newest completed master push run of `build.yml` whose artifact holds a light image and
+`board_test` (PR runs are never used); `.source` in each variant dir names its run and commit.
+That needs `gh` logged in; the first fetch of a whole roster downloads ~300 MB. A variant with
+no such artifact in the 90-day retention window, or a failed fetch, makes its row
+`flash-failed` with the reason.
+
+A cached variant is never revalidated or replaced. To refresh one (roster change, damaged
+files), delete its dir while no pool check is running; the next run fetches it again.
+`-B DIR` flashes from another firmware root instead (e.g. `-B cmake-build` after a local
+build contract run) and never fetches.
+
 ## A "pool check" means the full check
 
-Run the default full check. Use `--scan-only` (probe presence, no locks, flashing or builds)
+Run the default full check. Use `--scan-only` (probe presence, no locks, flashing or fetch)
 only when the user asks for a quick look, or when `python3 test/hil/helper/hil_lock.py status`
 shows `hil_test.py` holders right now; a suspicion that CI might be running is no reason,
 since the full check is lock-safe. Say which mode ran and why.
@@ -34,24 +50,18 @@ python3 test/hil/helper/hil_pool_check.py --json          # delegated callers: o
 ssh ci.lan 'cd ~/code/tinyusb && python3 test/hil/helper/hil_pool_check.py'
 ```
 
-Missing firmware is built through the build contract (`check_build.py --variants`, every
-roster variant of the board) before the board is locked; `--no-build` opts out and those
-boards report `flash-failed`, host-only boards excepted as above. A named `boards-skip` board
-is never built: the build contract refuses it, so its firmware must already exist. ESP boards
-need `idf.py` on PATH or `IDF_PATH` exported; without either the row notes `ESP-IDF env
-missing`. A run that has to build takes minutes: run it in the background and never cancel it,
-since a killed run can leave a build or a flasher running with no board lock behind it.
+Never cancel a run: a killed run can leave a download or a flasher running with no board lock
+behind it.
 
 ## Reading the result
 
-Statuses: `ok`, `flash-failed` (firmware not delivered: probe missing, build failed, flasher
+Statuses: `ok`, `flash-failed` (firmware not delivered: probe missing, not cached, flasher
 error, silent no-op, park unverified), `failed` (the check ran but did not verify), `locked`.
 The exit code counts `flash-failed` + `failed`; `locked` rows and every `--scan-only` row are
 unverified, not healthy, so read the footer or the JSON `coverage` (`probe-only`,
-`skipped-locked`, `full-attempted`), never `$?` alone. A `⚠ pid … source says …` note is a
-stale build or a silent flash no-op. A probe that enumerates but will not flash shows
-`flash-failed` with the flasher's error; confirm it with the flasher's own probe list
-(`STM32_Programmer_CLI -l st-link`, `ShowEmuList` in a `JLinkExe` script), then follow
+`skipped-locked`, `full-attempted`), never `$?` alone. A probe that enumerates but will not
+flash shows `flash-failed` with the flasher's error; confirm it with the flasher's own probe
+list (`STM32_Programmer_CLI -l st-link`, `ShowEmuList` in a `JLinkExe` script), then follow
 `usb-kernel-recover` from its triage.
 
 When a recovery is needed, let the pool check finish first: a root-port bounce re-enumerates
