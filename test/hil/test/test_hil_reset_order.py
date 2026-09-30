@@ -40,7 +40,7 @@ class ResetCallersKeepTheirOrder(unittest.TestCase):
         self.patch(hil_flash, 'reset_primitive', lambda name: None)
 
     def fake_consoles(self):
-        """JlinkRtt and serial.Serial both become a console that says hello at once."""
+        """serial.Serial becomes a console that says hello at once."""
         calls = self.calls
 
         class Console:
@@ -58,7 +58,6 @@ class ResetCallersKeepTheirOrder(unittest.TestCase):
 
             def close(self):
                 pass
-        self.patch(hil_pool_check.hil_util, 'JlinkRtt', Console)
         self.patch(sys.modules['serial'], 'Serial', Console)
         self.patch(hil_pool_check.hil_util, 'get_serial_dev', lambda *a: '/dev/null')
 

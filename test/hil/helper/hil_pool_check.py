@@ -155,7 +155,7 @@ def find_image(board: dict, example: str):
 
 
 def call_flasher(fn, *fn_args) -> tuple[int, str]:
-    """Run a hil_flash flash_*/reset_* backend, normalizing raises to a failure: several
+    """Run a hil_flash flash_* backend, normalizing raises to a failure: several
     backends raise instead of returning nonzero (get_serial_dev when a bridge's
     /dev/serial/by-id node vanishes, a missing config.env, a .jlink script OSError), and an
     exception must become a noted failure, not a crashed row. Returns (rc, error line)."""
@@ -174,11 +174,7 @@ def flash(board: dict, fw, note: list) -> bool:
     rc, err = call_flasher(hil_flash.flash_primitive(board['flasher']['name']), board, str(fw))
     if rc == 0:
         return True
-    if rc == 127 and board['flasher']['name'].lower() == 'esptool':
-        note.append(f'flasher tool missing ({err}) — esptool needs the ESP-IDF env '
-                    f'(. "$IDF_PATH/export.sh")')
-    else:
-        note.append(f'flash: {err}')
+    note.append(f'flash: {err}')
     return False
 
 
@@ -251,7 +247,7 @@ def boardtest_output(data: bytes) -> bool:
     beyond that (an example banner, log lines) proves other firmware is talking,
     however much stale board_test backlog surrounds it. Used as a negative
     identity marker — after flashing a host example, board_test-only chatter
-    means the flash silently didn't take (the host analog of the PID check)."""
+    means the flash silently didn't take."""
     residue = data.replace(b'Hello from TinyUSB', b'')
     for junk in (b'U', b'\r', b'\n'):
         residue = residue.replace(junk, b'')
