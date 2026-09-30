@@ -21,12 +21,19 @@ running between CI runs.
 
 It checks basic USB function, not the current checkout, so it flashes older CI builds from a
 per-host cache, `~/.cache/tinyusb-hil/firmware/cmake-build-<variant>/`, shared by the host's
-worktrees. A variant the cache lacks is downloaded once, before any board is locked, from the
-newest completed master push run of `build.yml` whose artifact holds a light image and
-`board_test` (PR runs are never used); `.source` in each variant dir names its run and commit.
-That needs `gh` logged in; the first fetch of a whole roster downloads ~300 MB. A variant with
-no such artifact in the 90-day retention window, or a failed fetch, makes its row
-`flash-failed` with the reason.
+worktrees. Every roster variant the cache lacks is downloaded once, before any board is locked,
+from the newest completed master push run of `hathach/tinyusb`'s `build.yml` (whatever the
+checkout's remote) whose artifact holds a light image and `board_test`; PR runs are never used.
+`.source` in each variant dir names its run and commit. That needs `gh` logged in; the first
+fetch of ci.lan's roster downloads 34 variants, about 1.3 GB unpacked, in ~15 min. Each board
+check then uses one variant that has light firmware; a board with none is `flash-failed`, with
+the fetch's reason (no artifact in the 90-day retention window, or the failure) where there is
+one.
+
+A CI build of `board_test` is silent by design (`CI_BUILD`), so a host-only board's park cannot
+be verified from the cache: its row keeps its status with `park unverified: board_test image
+has no UART hello marker`. Device boards verify the park by the device leaving the bus, and a
+local `board_test` (`-B cmake-build`) still proves a host park by its hello.
 
 A cached variant is never revalidated or replaced. To refresh one (roster change, damaged
 files), delete its dir while no pool check is running; the next run fetches it again.
@@ -56,13 +63,13 @@ behind it.
 ## Reading the result
 
 Statuses: `ok`, `flash-failed` (firmware not delivered: probe missing, not cached, flasher
-error, silent no-op, park unverified), `failed` (the check ran but did not verify), `locked`.
-The exit code counts `flash-failed` + `failed`; `locked` rows and every `--scan-only` row are
-unverified, not healthy, so read the footer or the JSON `coverage` (`probe-only`,
-`skipped-locked`, `full-attempted`), never `$?` alone. A probe that enumerates but will not
-flash shows `flash-failed` with the flasher's error; confirm it with the flasher's own probe
-list (`STM32_Programmer_CLI -l st-link`, `ShowEmuList` in a `JLinkExe` script), then follow
-`usb-kernel-recover` from its triage.
+error, silent no-op, park unverified except the silent-image note above), `failed` (the check
+ran but did not verify), `locked`. The exit code counts `flash-failed` + `failed`; `locked`
+rows and every `--scan-only` row are unverified, not healthy, so read the footer or the JSON
+`coverage` (`probe-only`, `skipped-locked`, `full-attempted`), never `$?` alone. A probe that
+enumerates but will not flash shows `flash-failed` with the flasher's error; confirm it with
+the flasher's own probe list (`STM32_Programmer_CLI -l st-link`, `ShowEmuList` in a `JLinkExe`
+script), then follow `usb-kernel-recover` from its triage.
 
 When a recovery is needed, let the pool check finish first: a root-port bounce re-enumerates
 every board under that port. Release any hold before re-checking, since the pool check reports
