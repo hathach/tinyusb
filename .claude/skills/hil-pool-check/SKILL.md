@@ -23,10 +23,11 @@ It checks basic USB function, not the current checkout, so it flashes older CI b
 per-host cache, `~/.cache/tinyusb-hil/firmware/cmake-build-<variant>/`, shared by the host's
 worktrees. A board with no variant cached gets one downloaded once, before any board is locked.
 The search covers up to 10 completed master push runs of `hathach/tinyusb`'s `build.yml`
-(whatever the checkout's remote) within the 90-day artifact retention, newest first; within a
-run, the board's variants are tried in roster order, and the first whose artifact holds a light
-image and `board_test` is cached. PR runs are never used; master pushes build the whole HIL
-matrix, so 10 runs have covered every variant so far. `.source` in each variant dir names its
+(whatever the checkout's remote) that uploaded firmware, within the 90-day artifact retention,
+newest first; within a run, the board's variants are tried in roster order, and the first whose
+artifact holds a light image and `board_test` is cached. PR runs are never used. A master push
+builds the whole HIL matrix unless it changed no code (`build.yml` then skips the HIL build, and
+the run is not counted), so 10 runs have covered every variant so far. `.source` in each variant dir names its
 run and commit. That needs `gh` logged in; the first fetch of ci.lan's roster downloads 28
 variants, about 1.1 GB unpacked, in ~12 min. The cached variant may hold a less preferred light
 example than another variant would. A board left without firmware is `flash-failed`, with the

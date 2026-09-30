@@ -41,8 +41,9 @@ CONFIG_BY_HOST = {'ci': 'tinyusb.json', 'tusb': 'hfp.json'}  # anything else: de
 CACHE_DIR = Path.home() / '.cache' / 'tinyusb-hil' / 'firmware'
 REPO = 'hathach/tinyusb'
 RETENTION_DAYS = 90  # GitHub artifact retention: older runs have nothing left to download
-# bounds the search every run repeats for unavailable firmware; master pushes build the
-# whole HIL matrix (PR runs are change-selected), though older runs may still hold one
+# bounds the search every run repeats for unavailable firmware, counting only runs with
+# firmware artifacts: a master push builds the whole HIL matrix (PR runs are change-selected)
+# unless it changed no code, when build.yml skips hil-build
 MASTER_RUNS = 10
 
 # light-example preference; first one found wins
@@ -180,6 +181,7 @@ def master_runs():
     flash_args reaches a command line. Filtered here, not by the API: its branch/event/
     status filters have returned lists missing the newest runs."""
     horizon = datetime.now(timezone.utc) - timedelta(days=RETENTION_DAYS)
+    seen = set()  # a run created between page fetches shifts an older one onto the next page
     page = 1
     while True:
         runs = json.loads(gh('api', f'repos/{REPO}/actions/workflows/build.yml/runs'
@@ -189,6 +191,9 @@ def master_runs():
         for r in runs:
             if datetime.fromisoformat(r['created_at']) < horizon:
                 return
+            if r['id'] in seen:
+                continue
+            seen.add(r['id'])
             if (r['head_branch'], r['event'], r['status']) == ('master', 'push', 'completed'):
                 yield r
         page += 1
@@ -250,9 +255,9 @@ def gh_error(e: Exception) -> str:
 
 def fetch_missing(boards: list) -> dict:
     """Cache one variant of each board that has none cached: the first, in roster order,
-    usable in the newest of the last MASTER_RUNS runs carrying it. Returns {variant: reason} for the variants of
-    boards left without one. A cached tree is never revalidated or replaced: delete it to
-    refetch."""
+    usable in the newest of the last MASTER_RUNS runs with firmware artifacts that carries it.
+    Returns {variant: reason} for the variants of boards left without one. A cached tree is
+    never revalidated or replaced: delete it to refetch."""
     want = {b['name']: [v['name'] for v in hil_report.board_variants(b)] for b in boards}
     want = {name: vs for name, vs in want.items()
             if not any((CACHE_DIR / f'cmake-build-{v}').is_dir() for v in vs)}
@@ -261,8 +266,8 @@ def fetch_missing(boards: list) -> dict:
     say(f'fetching firmware for {len(want)} board(s) from CI master runs into {CACHE_DIR}')
     try:
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        for run in itertools.islice(master_runs(), MASTER_RUNS):
-            artifacts = run_artifacts(run['id'])
+        runs = ((run, arts) for run in master_runs() if (arts := run_artifacts(run['id'])))
+        for run, artifacts in itertools.islice(runs, MASTER_RUNS):
             for board in [b for b in boards if b['name'] in want]:
                 for variant in want[board['name']]:
                     if variant in artifacts and fetch_variant(board, variant, run, artifacts[variant]):
@@ -270,7 +275,7 @@ def fetch_missing(boards: list) -> dict:
                         break
             if not want:
                 return {}
-        reason = f'not cached: no usable artifact in the latest {MASTER_RUNS} completed master push runs'
+        reason = f'not cached: no usable artifact in the latest {MASTER_RUNS} completed master push runs with firmware'
     except (OSError, subprocess.SubprocessError, ValueError, KeyError) as e:
         reason = f'not cached, fetch failed: {gh_error(e)}'
     return {v: reason for vs in want.values() for v in vs}

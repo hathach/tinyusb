@@ -228,28 +228,47 @@ class Fetch(unittest.TestCase):
         self.assertEqual(hil_pool_check.fetch_missing([self.MULTI]), {})
         self.assertEqual([p.name for p in self.cache.iterdir()], ['cmake-build-b'])
 
+    OTHER = {'binaries-arm-gcc--b other': GOOD}
+
     def test_the_search_stops_after_the_last_budgeted_master_run(self):
         for i in range(hil_pool_check.MASTER_RUNS):
-            self.add_run(100 - i, {})
+            self.add_run(100 - i, self.OTHER)
         self.add_run(50, {'binaries-arm-gcc--b b': self.GOOD})
         got = hil_pool_check.fetch_missing([dict(BOARD, tests={'device': True})])
-        self.assertIn(f'latest {hil_pool_check.MASTER_RUNS} completed master push runs', got['b'])
+        self.assertIn(f'latest {hil_pool_check.MASTER_RUNS} completed master push runs with firmware', got['b'])
 
     def test_the_last_budgeted_master_run_is_searched(self):
         for i in range(hil_pool_check.MASTER_RUNS - 1):
-            self.add_run(100 - i, {})
+            self.add_run(100 - i, self.OTHER)
         self.add_run(50, {'binaries-arm-gcc--b b': self.GOOD})
         self.assertEqual(hil_pool_check.fetch_missing([dict(BOARD, tests={'device': True})]), {})
 
     def test_untrusted_or_unfinished_runs_do_not_use_the_budget(self):
         for i in range(hil_pool_check.MASTER_RUNS):
             self.add_run(200 - i, {'binaries-arm-gcc--b b': self.GOOD}, event='pull_request')
-            self.add_run(150 - i, {}, status='in_progress')
+            self.add_run(150 - i, self.OTHER, status='in_progress')
         for i in range(hil_pool_check.MASTER_RUNS - 1):
-            self.add_run(100 - i, {})
+            self.add_run(100 - i, self.OTHER)
         self.add_run(50, {'binaries-arm-gcc--b b': self.GOOD})
         self.assertEqual(hil_pool_check.fetch_missing([dict(BOARD, tests={'device': True})]), {})
         self.assertEqual(self.source('b')['run'], 50)
+
+    def test_runs_without_firmware_do_not_use_the_budget(self):
+        for i in range(hil_pool_check.MASTER_RUNS):
+            self.add_run(100 - i, {})    # a push that changed no code: build.yml skips hil-build
+        self.add_run(50, {'binaries-arm-gcc--b b': self.GOOD})
+        self.assertEqual(hil_pool_check.fetch_missing([dict(BOARD, tests={'device': True})]), {})
+        self.assertEqual(self.source('b')['run'], 50)
+
+    def test_a_run_shifted_onto_the_next_page_is_yielded_once(self):
+        self.add_run(3, {})
+        self.add_run(2, {})
+        self.add_run(1, {})
+        r3, r2, r1 = (r for r, _ in self.runs)
+        pages = {1: [r3, r2], 2: [r2, r1], 3: []}   # a run created after page 1 pushed r2 down
+        patch(self, hil_pool_check, 'gh', lambda *a, **kw: json.dumps(
+            {'workflow_runs': pages[int(a[1].rsplit('page=', 1)[1])]}))
+        self.assertEqual([r['id'] for r in hil_pool_check.master_runs()], [3, 2, 1])
 
     def test_a_board_left_without_firmware_reports_every_variant(self):
         got = hil_pool_check.fetch_missing([self.MULTI])
