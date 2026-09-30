@@ -315,16 +315,15 @@ def board_usbips(board):
     return ips
 
 
+def board_cmake_path(board):
+    return ROOT / 'hw' / 'bsp' / family_of(board) / 'boards' / board / 'board.cmake'
+
+
 @functools.lru_cache(maxsize=None)
 def board_mcu_variant(board):
     """The board.cmake MCU_VARIANT, or None for the shared unset group."""
-    path = ROOT / 'hw' / 'bsp' / family_of(board) / 'boards' / board / 'board.cmake'
-    try:
-        text = path.read_text(encoding='utf-8', errors='replace')
-    except OSError:
-        return None
-    match = re.search(r'^\s*set\s*\(\s*MCU_VARIANT\s+"?([^\s")]+)', text, re.M | re.I)
-    return match.group(1) if match else None
+    values = tools_build.build_utils._cmake_set_values(board_cmake_path(board), 'MCU_VARIANT')
+    return values[0] if values else None
 
 
 @functools.lru_cache(maxsize=None)
@@ -335,9 +334,8 @@ def board_cmake_options(board):
     hcd_rp2040.c's guard negates, and its row's `defines` are empty. Scraped rather than
     observed, which only a selection may do - a candidate is rejected, never accepted, on
     this, and the body test after the build is still the verdict."""
-    path = ROOT / 'hw' / 'bsp' / family_of(board) / 'boards' / board / 'board.cmake'
     try:
-        text = path.read_text(encoding='utf-8', errors='replace')
+        text = board_cmake_path(board).read_text(encoding='utf-8', errors='replace')
     except OSError:                  # Make-only board, or a family whose cmake is elsewhere
         return frozenset()
     return frozenset(m.group(1) for m in BOARD_CMAKE_SET.finditer(text)
