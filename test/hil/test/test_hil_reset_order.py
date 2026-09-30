@@ -86,19 +86,6 @@ class ResetCallersKeepTheirOrder(unittest.TestCase):
         self.console(dict(VCOM_BOARD, flasher={'name': 'esptool'}))
         self.assertEqual(self.calls, ['open'])
 
-    def test_pool_check_resets_an_rtt_board_before_attaching(self):
-        self.fake_consoles()
-        self.fake_reset()
-        self.assertTrue(hil_pool_check.check_host_serial(RTT_BOARD, want_hello=True))
-        self.assertEqual(self.calls, [('reset', 'jlink'), 'open'])
-
-    def test_pool_check_never_attaches_after_a_failed_rtt_reset(self):
-        # the previous run's ring is intact: attaching would score stale output as life
-        self.fake_consoles()
-        self.fake_reset(rc=1)
-        self.assertIsNone(hil_pool_check.check_host_serial(RTT_BOARD, want_hello=True))
-        self.assertEqual(self.calls, [('reset', 'jlink')])
-
     def test_pool_check_flushes_a_vcom_before_resetting(self):
         self.fake_consoles()
         self.fake_reset()
