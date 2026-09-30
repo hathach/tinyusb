@@ -134,7 +134,7 @@ class ExitStatus(unittest.TestCase):
 
     def lookups(self, *answers):
         seq = iter(answers)
-        return lambda serial, first=False: next(seq)
+        return lambda serial: next(seq)
 
     def test_ambiguous_device_after_the_last_case_is_not_a_success(self):
         rc, data, _ = self.main('--tests', '0', find=self.lookups(
@@ -145,6 +145,19 @@ class ExitStatus(unittest.TestCase):
         rc, data, _ = self.main('--tests', '0', stranded=True,
                                 find=self.lookups(dict(usbtest_harness.DEV), None))
         self.assertEqual((rc, data['wedged']), (1, True))
+
+    def test_drop_after_the_last_case_fails_its_pass_only(self):
+        for status, want in (('PASS', 'FAIL'), ('FAIL', 'FAIL'), ('NOTRUN', 'NOTRUN')):
+            rc, data, _ = self.main('--tests', '0', status=status,
+                                    find=self.lookups(dict(usbtest_harness.DEV), None))
+            case = data['cases'][0]
+            self.assertEqual((rc, data['wedged'], case['status']), (1, False, want), status)
+            self.assertEqual('dropped off the bus' in case.get('detail', ''), status == 'PASS')
+
+    def test_drop_mid_battery_keeps_the_pass_and_budgets_the_rest(self):
+        rc, data, _ = self.main('--tests', '0,1', find=self.lookups(dict(usbtest_harness.DEV), None))
+        self.assertEqual([c['status'] for c in data['cases']], ['PASS', 'BUDGET'])
+        self.assertEqual((rc, data['passed'], data['notrun']), (1, 1, 1))
 
     def test_clean_run_still_exits_0(self):
         rc, data, err = self.main('--tests', '0')

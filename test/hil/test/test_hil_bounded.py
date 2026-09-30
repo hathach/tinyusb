@@ -905,7 +905,7 @@ class UnidentifiedDeviceIsNotAHang(unittest.TestCase):
         usbtest_harness.stub_device(self, usbtest, lambda num, d, tu, quick, timeout: {
             'num': num, 'name': 'x', 'params': '', 'status': 'PASS'})
         found = iter([dict(usbtest_harness.DEV), live])
-        patch(usbtest, 'find_device', lambda serial, first=False: next(found))
+        patch(usbtest, 'find_device', lambda serial: next(found))
         patch(usbtest, '_hu', lambda: types.SimpleNamespace(path_stranded=lambda p: stranded))
         patch(usbtest, 'bind_usbtest', lambda d: None)
         patch(usbtest, 'register_usbtest_id', lambda: None)
