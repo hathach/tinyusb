@@ -175,17 +175,16 @@ static void ep0_task(volatile uint32_t* reg, uint8_t dir);
 enum { DMA_TOKEN_EP0_STATUS = 0x01, DMA_TOKEN_EP0_RCVOUT = 0x02 };
 
 static inline void* dma_token(uint8_t epnum, uint8_t dir, uint8_t flags) {
-  uint8_t const xferid = get_td(epnum, dir)->xferid;
-  return (void*) (uintptr_t) (((uintptr_t) flags << 16) | ((uintptr_t) xferid << 8) | tu_edpt_addr(epnum, dir));
+  return (void*) (uintptr_t) tu_u32(0, flags, get_td(epnum, dir)->xferid, tu_edpt_addr(epnum, dir));
 }
 
 static void dma_deferred(void* token) {
-  uintptr_t const v = (uintptr_t) token;
-  uint8_t const epnum = tu_edpt_number((uint8_t) v);
-  uint8_t const dir = tu_edpt_dir((uint8_t) v);
-  uint8_t const flags = (uint8_t) (v >> 16);
+  uint32_t const v = (uint32_t) (uintptr_t) token;
+  uint8_t const epnum = tu_edpt_number(tu_u32_byte0(v));
+  uint8_t const dir = tu_edpt_dir(tu_u32_byte0(v));
+  uint8_t const flags = tu_u32_byte2(v);
   dcd_int_disable(0);
-  if (get_td(epnum, dir)->xferid == (uint8_t) (v >> 8)) {
+  if (get_td(epnum, dir)->xferid == tu_u32_byte1(v)) {
     if (flags & DMA_TOKEN_EP0_STATUS) {
       ep0_task(&NRF_USBD->TASKS_EP0STATUS, dir);
     } else if (flags & DMA_TOKEN_EP0_RCVOUT) {
