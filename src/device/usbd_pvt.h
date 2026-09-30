@@ -93,7 +93,8 @@ void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr);
 // Check if endpoint is stalled
 bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr);
 
-// Abort an in-flight transfer on a non-control endpoint and release its claim
+// Abort an in-flight transfer on a non-control endpoint and release its claim, so the endpoint
+// can be armed again
 void usbd_edpt_abort(uint8_t rhport, uint8_t ep_addr);
 
 // Allocate packet buffer used by ISO endpoints
