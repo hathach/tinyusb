@@ -225,8 +225,18 @@ static void dispatch_command(mtpd_interface_t* p_mtp) {
   }
 }
 
-// Deferred behind every completion queued so far, so that one of the abandoned data IN is absorbed
-// before anything new is queued on ep_in: usbd_edpt_abort() does not drop a queued completion.
+static void dispatch_waiting_command(void* param);
+
+// Run the waiting command behind every completion queued so far, so that one of the abandoned data
+// IN is absorbed before anything new is queued on ep_in: usbd_edpt_abort() does not drop a queued
+// completion. Refused, it cannot be ordered: ERROR, the host recovers through Get Device Status.
+static void wait_out_queued_completions(mtpd_interface_t* p_mtp) {
+  if (!usbd_defer_func_after_queue(dispatch_waiting_command, NULL)) {
+    p_mtp->cmd_waiting = false;
+    p_mtp->phase = MTP_PHASE_ERROR;
+  }
+}
+
 static void dispatch_waiting_command(void* param) {
   (void) param;
   mtpd_interface_t* p_mtp = &_mtpd_itf;
@@ -237,11 +247,11 @@ static void dispatch_waiting_command(void* param) {
     // not drained, the host follows Still Image CDD 1.0 7.2.1.1: retire it, then wait out a
     // completion it may have queued before the abort
     usbd_edpt_abort(p_mtp->rhport, p_mtp->ep_in);
-    usbd_defer_func(dispatch_waiting_command, NULL, false);
-    return;
+    wait_out_queued_completions(p_mtp);
+  } else {
+    p_mtp->cmd_waiting = false;
+    dispatch_command(p_mtp);
   }
-  p_mtp->cmd_waiting = false;
-  dispatch_command(p_mtp);
   if (p_mtp->phase == MTP_PHASE_ERROR) {
     halt_bulk_endpoints(p_mtp);
   }
@@ -579,7 +589,7 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
         // a data IN abandoned on Cancel: drained with its completion queued behind this one, or
         // never drained
         p_mtp->cmd_waiting = true;
-        usbd_defer_func(dispatch_waiting_command, NULL, false);
+        wait_out_queued_completions(p_mtp);
         break;
       }
       dispatch_command(p_mtp);

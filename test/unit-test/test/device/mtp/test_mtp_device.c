@@ -73,7 +73,10 @@ typedef struct {
 static xfer_t xfers[2][16]; // [dir][epnum]
 
 static int dcd_refuse_ep; // the dcd refuses the next transfer on this endpoint, once; -1: none
-static int32_t drain_behind_deferred_len; // see tud_event_hook_cb(); -1: none
+// an interrupt that fires, once, at the next dcd_int_enable() (after the stack held interrupts off
+// to take an event) or the next stall of EP_IN; NULL: none
+static void (*isr_at_int_enable)(void);
+static void (*isr_at_in_stall)(void);
 
 static uint32_t app_received_now(void);
 
@@ -97,25 +100,37 @@ static bool stub_edpt_xfer(uint8_t rhport, uint8_t ep, uint8_t* buf, uint16_t le
   *x = (xfer_t){ true, buf, len, c };
   return true;
 }
+static void fire(void (**isr)(void)) {
+  void (*const f)(void) = *isr;
+  *isr = NULL;
+  if (f) f();
+}
 static void stub_edpt_stall(uint8_t rhport, uint8_t ep, int n) {
   (void) rhport; (void) n;
   log_calls[log_count++] = (dcd_call_t){ .type = DCD_STALL, .ep = ep };
+  if (ep == EP_IN) fire(&isr_at_in_stall);
   xfer_of(ep)->active = false; // a dcd disables the endpoint, dropping its transfer
 }
 static void stub_edpt_clear_stall(uint8_t rhport, uint8_t ep, int n) {
   (void) rhport; (void) n;
   log_calls[log_count++] = (dcd_call_t){ .type = DCD_CLEAR_STALL, .ep = ep };
 }
-// The next call the stack defers is followed by an IN completion of drain_behind_deferred_len
-// bytes: the host drained the abandoned data IN after the dcd reported its next command.
-void tud_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr) {
-  (void) rhport; (void) in_isr;
-  if (eventid == USBD_EVENT_FUNC_CALL && drain_behind_deferred_len >= 0) {
-    const uint32_t len = (uint32_t) drain_behind_deferred_len;
-    drain_behind_deferred_len = -1;
-    xfer_of(EP_IN)->active = false; // not host_finish(): the command already overwrote the buffer
-    dcd_event_xfer_complete(RHPORT, EP_IN, len, XFER_RESULT_SUCCESS, false);
-  }
+static void stub_int_enable(uint8_t rhport, int n) {
+  (void) rhport; (void) n;
+  fire(&isr_at_int_enable);
+}
+// the host drained the abandoned data IN after the dcd reported its next command
+static void isr_in_drained(void) {
+  xfer_of(EP_IN)->active = false; // not host_finish(): the command already overwrote the buffer
+  dcd_event_xfer_complete(RHPORT, EP_IN, BUFSIZE, XFER_RESULT_SUCCESS, true);
+}
+// interrupt producers take every free slot of the (empty) event queue; the events do nothing
+static void isr_fill_queue(void) {
+  const dcd_event_t filler = { .rhport = RHPORT, .event_id = USBD_EVENT_FUNC_CALL };
+  for (unsigned i = 0; i < CFG_TUD_TASK_QUEUE_SZ; i++) dcd_event_handler(&filler, true);
+}
+static void run_task_until_idle(void) {
+  for (unsigned i = 0; i < CFG_TUD_TASK_QUEUE_SZ / CFG_TUD_TASK_EVENTS_PER_RUN + 2; i++) tud_task();
 }
 static bool stub_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t* desc, int n) {
   (void) rhport; (void) desc; (void) n;
@@ -375,7 +390,7 @@ static void open_device(tusb_speed_t speed) {
 
 void setUp(void) {
   dcd_int_disable_Ignore();
-  dcd_int_enable_Ignore();
+  dcd_int_enable_Stub(stub_int_enable);
   dcd_edpt_close_all_Ignore();
   dcd_set_address_Ignore();
   dcd_edpt0_status_complete_Ignore();
@@ -385,7 +400,8 @@ void setUp(void) {
   dcd_edpt_clear_stall_Stub(stub_edpt_clear_stall);
   memset(xfers, 0, sizeof(xfers));
   dcd_refuse_ep = -1;
-  drain_behind_deferred_len = -1;
+  isr_at_int_enable = NULL;
+  isr_at_in_stall = NULL;
   log_reset();
 
   if (!tud_inited()) {
@@ -1113,30 +1129,79 @@ void test_cancel_in_data_in_drain_completion_behind_next_data_in(void) {
   expect_response(tid, MTP_RESP_OK, 0);
 }
 
-// the drain completes after the command was reported, before the IN is aborted: its completion
-// lands behind the command and must still be absorbed
-void test_cancel_in_data_in_drain_completion_after_next_command(void) {
-  cancel_data_in();
-  app.data_mode = APP_NO_DATA;
-  drain_behind_deferred_len = BUFSIZE;
-  const uint32_t tid = host_command(MTP_OP_OPEN_SESSION, NULL, 0);
-  TEST_ASSERT_EQUAL_MESSAGE(-1, drain_behind_deferred_len, "command answered without waiting out the IN");
-  TEST_ASSERT_EQUAL(2, app.cmd_calls);
-  TEST_ASSERT_EQUAL(0, app.xfer_calls);
-  TEST_ASSERT_EQUAL(0, app.resp_complete_calls);
-  expect_call(DCD_STALL, EP_IN, 0); // still busy when checked: aborted
-  expect_call(DCD_CLEAR_STALL, EP_IN, 0);
-  expect_response(tid, MTP_RESP_OK, 0);
-  TEST_ASSERT_EQUAL(1, app.resp_complete_calls);
-}
-
-// the next command is reported, but does not reach the task before the event queued after it
-static void queue_command_after_cancel_data_in(void) {
+// the next command is reported, but does not reach the task before the event queued after it;
+// returns the tid
+static uint32_t queue_command_after_cancel_data_in(void) {
   cancel_data_in();
   app.data_mode = APP_NO_DATA;
   const mtp_container_command_t cmd = make_command(MTP_OP_OPEN_SESSION, NULL, 0);
   host_finish(EP_OUT, &cmd, cmd.header.len);
   dcd_event_xfer_complete(RHPORT, EP_OUT, cmd.header.len, XFER_RESULT_SUCCESS, false);
+  return cmd.header.transaction_id;
+}
+
+// the drain completes after the task took the command, while it waits: absorbed, nothing aborted
+void test_cancel_in_data_in_drain_completion_after_next_command(void) {
+  const uint32_t tid = queue_command_after_cancel_data_in();
+  isr_at_int_enable = isr_in_drained;
+  tud_task();
+  TEST_ASSERT_NULL(isr_at_int_enable);
+  TEST_ASSERT_EQUAL(2, app.cmd_calls);
+  TEST_ASSERT_EQUAL(0, app.xfer_calls);
+  TEST_ASSERT_EQUAL(0, app.resp_complete_calls);
+  expect_response(tid, MTP_RESP_OK, 0);
+  TEST_ASSERT_EQUAL(1, app.resp_complete_calls);
+}
+
+// the drain completes as the IN is aborted: its completion lands behind the abort and must still
+// be absorbed
+void test_cancel_in_data_in_drain_completion_at_abort(void) {
+  cancel_data_in();
+  app.data_mode = APP_NO_DATA;
+  isr_at_in_stall = isr_in_drained;
+  const uint32_t tid = host_command(MTP_OP_OPEN_SESSION, NULL, 0);
+  TEST_ASSERT_NULL_MESSAGE(isr_at_in_stall, "command answered without retiring the IN");
+  TEST_ASSERT_EQUAL(2, app.cmd_calls);
+  TEST_ASSERT_EQUAL(0, app.xfer_calls);
+  TEST_ASSERT_EQUAL(0, app.resp_complete_calls);
+  expect_call(DCD_STALL, EP_IN, 0);
+  expect_call(DCD_CLEAR_STALL, EP_IN, 0);
+  expect_response(tid, MTP_RESP_OK, 0);
+  TEST_ASSERT_EQUAL(1, app.resp_complete_calls);
+}
+
+// the command waits for an undrained IN while interrupt producers keep the event queue full: it is
+// still answered, once the queue drains
+static void check_undrained_in_with_queue_refilled(void (**isr)(void)) {
+  const uint32_t tid = queue_command_after_cancel_data_in();
+  *isr = isr_fill_queue;
+  run_task_until_idle();
+  TEST_ASSERT_NULL(*isr);
+  TEST_ASSERT_EQUAL_MESSAGE(2, app.cmd_calls, "waiting command lost");
+  expect_call(DCD_STALL, EP_IN, 0);
+  expect_call(DCD_CLEAR_STALL, EP_IN, 0);
+  expect_response(tid, MTP_RESP_OK, 0);
+}
+// ... refilled as soon as the task took the command, before it could queue anything
+void test_cancel_in_data_in_queue_refilled_behind_next_command(void) {
+  check_undrained_in_with_queue_refilled(&isr_at_int_enable);
+}
+// ... refilled as the IN is aborted
+void test_cancel_in_data_in_queue_refilled_at_abort(void) {
+  check_undrained_in_with_queue_refilled(&isr_at_in_stall);
+}
+
+static void other_after_queue_call(void* param) { (void) param; }
+
+// usbd holds another call: the command cannot be ordered behind the IN, halt for the host to recover
+void test_cancel_in_data_in_waiting_command_refused_halts(void) {
+  cancel_data_in();
+  app.data_mode = APP_NO_DATA;
+  TEST_ASSERT_TRUE(usbd_defer_func_after_queue(other_after_queue_call, NULL));
+  host_command(MTP_OP_OPEN_SESSION, NULL, 0);
+  TEST_ASSERT_EQUAL(1, app.cmd_calls);
+  recover_from_error(EP_OUT, EP_IN);
+  expect_next_command_ok();
 }
 
 // a bus reset drops the command that waits for the abandoned data IN

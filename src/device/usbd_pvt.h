@@ -117,6 +117,11 @@ void usbd_sof_enable(uint8_t rhport, sof_consumer_t consumer, bool en);
 bool usbd_open_edpt_pair(uint8_t rhport, uint8_t const* p_desc, uint8_t ep_count, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in);
 void usbd_defer_func(osal_task_func_t func, void *param, bool in_isr);
 
+// Call func(param) in the usbd task once its event queue is found empty, i.e. after every event
+// queued before this call. Nothing is queued, so it neither blocks nor is lost on a full queue.
+// usbd task only. One call is held at a time: false if a different one is pending.
+bool usbd_defer_func_after_queue(osal_task_func_t func, void *param);
+
 #ifdef __cplusplus
  }
 #endif

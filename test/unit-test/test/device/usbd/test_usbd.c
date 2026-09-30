@@ -644,3 +644,57 @@ void test_usbd_stream_wide_request(void)
   TEST_ASSERT_EQUAL_UINT32(64, tu_edpt_stream_read(&stream, wide_dst, 64));
   TEST_ASSERT_EQUAL_MEMORY(wide_src + 65535 - 64, wide_dst, 64);
 }
+
+//--------------------------------------------------------------------+
+// usbd_defer_func_after_queue
+//--------------------------------------------------------------------+
+static unsigned deferred_calls;
+static unsigned after_queue_runs;
+static unsigned deferred_calls_at_after_queue;
+
+static void deferred_call(void* param) {
+  (void) param;
+  deferred_calls++;
+}
+
+static void after_queue_call(void* param) {
+  (void) param;
+  after_queue_runs++;
+  deferred_calls_at_after_queue = deferred_calls;
+}
+
+// runs after every event queued before it, although the queue is full and takes more than one run
+void test_usbd_defer_func_after_queue_runs_after_queued_events(void) {
+  deferred_calls = after_queue_runs = 0;
+  for (unsigned i = 0; i < CFG_TUD_TASK_QUEUE_SZ; i++) {
+    usbd_defer_func(deferred_call, NULL, false);
+  }
+  TEST_ASSERT_TRUE(usbd_defer_func_after_queue(after_queue_call, NULL));
+
+  for (unsigned i = 0; i < (CFG_TUD_TASK_QUEUE_SZ / CFG_TUD_TASK_EVENTS_PER_RUN) + 2; i++) {
+    tud_task();
+  }
+  TEST_ASSERT_EQUAL(1, after_queue_runs);
+  TEST_ASSERT_EQUAL(CFG_TUD_TASK_QUEUE_SZ, deferred_calls_at_after_queue);
+}
+
+// one call is held at a time: the same one again is already held, a different one is refused. A
+// held call is work for tud_task() although the queue is empty.
+void test_usbd_defer_func_after_queue_holds_one_call(void) {
+  deferred_calls = after_queue_runs = 0;
+  TEST_ASSERT_FALSE(tud_task_event_ready());
+  TEST_ASSERT_TRUE(usbd_defer_func_after_queue(after_queue_call, NULL));
+  TEST_ASSERT_TRUE(tud_task_event_ready());
+  TEST_ASSERT_TRUE(usbd_defer_func_after_queue(after_queue_call, NULL));
+  TEST_ASSERT_FALSE(usbd_defer_func_after_queue(deferred_call, NULL));
+  TEST_ASSERT_FALSE(usbd_defer_func_after_queue(after_queue_call, &after_queue_runs));
+
+  tud_task();
+  TEST_ASSERT_EQUAL(1, after_queue_runs);
+  TEST_ASSERT_EQUAL(0, deferred_calls);
+  TEST_ASSERT_FALSE(tud_task_event_ready());
+
+  TEST_ASSERT_TRUE(usbd_defer_func_after_queue(deferred_call, NULL));
+  tud_task();
+  TEST_ASSERT_EQUAL(1, deferred_calls);
+}

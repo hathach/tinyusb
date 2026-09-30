@@ -399,6 +399,12 @@ static OSAL_SPINLOCK_DEF(_usbd_spin, usbd_int_set);
 OSAL_QUEUE_DEF(usbd_int_set, _usbd_qdef, CFG_TUD_TASK_QUEUE_SZ, dcd_event_t);
 static osal_queue_t _usbd_q;
 
+// held by usbd_defer_func_after_queue(), set and run by the usbd task only
+static struct {
+  osal_task_func_t func;
+  void* param;
+} _usbd_after_queue;
+
 // Mutex for claiming endpoint
 #if OSAL_MUTEX_REQUIRED
   static osal_mutex_def_t _ubsd_mutexdef;
@@ -611,6 +617,7 @@ bool tud_deinit(uint8_t rhport) {
   // Deinit device queue & task
   osal_queue_delete(_usbd_q);
   _usbd_q = NULL;
+  tu_varclr(&_usbd_after_queue);
 
 #if OSAL_MUTEX_REQUIRED
   // TODO make sure there is no task waiting on this mutex
@@ -649,7 +656,18 @@ static void usbd_reset(uint8_t rhport) {
 
 bool tud_task_event_ready(void) {
   TU_VERIFY(tud_inited()); // Skip if stack is not initialized
-  return !osal_queue_empty(_usbd_q);
+  return !osal_queue_empty(_usbd_q) || _usbd_after_queue.func != NULL;
+}
+
+// the call usbd_defer_func_after_queue() holds; false if none
+static bool run_after_queue_call(void) {
+  osal_task_func_t const func = _usbd_after_queue.func;
+  if (func == NULL) {
+    return false;
+  }
+  _usbd_after_queue.func = NULL;
+  func(_usbd_after_queue.param);
+  return true;
 }
 
 //--------------------------------------------------------------------+
@@ -686,8 +704,12 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
     }
 #endif
     dcd_event_t event;
-    if (!osal_queue_receive(_usbd_q, &event, timeout_ms)) {
-      return;
+    if (!osal_queue_receive(_usbd_q, &event, (_usbd_after_queue.func != NULL) ? 0 : timeout_ms)) {
+      if (!run_after_queue_call()) {
+        return;
+      }
+      timeout_ms = 0;
+      continue;
     }
 
 #if CFG_TUSB_DEBUG >= CFG_TUD_LOG_LEVEL
@@ -1561,6 +1583,15 @@ void usbd_defer_func(osal_task_func_t func, void* param, bool in_isr) {
   event.func_call.param = param;
 
   queue_event(&event, in_isr);
+}
+
+bool usbd_defer_func_after_queue(osal_task_func_t func, void* param) {
+  if (_usbd_after_queue.func != NULL) {
+    return _usbd_after_queue.func == func && _usbd_after_queue.param == param;
+  }
+  _usbd_after_queue.func = func;
+  _usbd_after_queue.param = param;
+  return true;
 }
 
 //--------------------------------------------------------------------+
