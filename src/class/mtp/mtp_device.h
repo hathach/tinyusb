@@ -35,6 +35,7 @@ typedef struct {
 typedef struct {
   uint8_t idx;
   uint8_t stage; // control stage
+
   // buffer for data stage
   uint16_t bufsize;
   uint8_t* buf;

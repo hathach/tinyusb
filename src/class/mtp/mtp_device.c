@@ -181,16 +181,23 @@ static bool prepare_new_command(mtpd_interface_t* p_mtp) {
   if (usbd_edpt_busy(p_mtp->rhport, p_mtp->ep_out)) {
     return true; // a read is already outstanding and will receive the command block
   }
-  return usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_out, _mtpd_epbuf.buf, CFG_TUD_MTP_EP_BUFSIZE, false);
+  if (!usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_out, _mtpd_epbuf.buf, CFG_TUD_MTP_EP_BUFSIZE, false)) {
+    p_mtp->phase = MTP_PHASE_ERROR; // nothing armed to receive the next command
+    return false;
+  }
+  return true;
+}
+
+static void halt_bulk_endpoints(mtpd_interface_t* p_mtp) {
+  usbd_edpt_stall(p_mtp->rhport, p_mtp->ep_out);
+  usbd_edpt_stall(p_mtp->rhport, p_mtp->ep_in);
 }
 
 // A refused command read halts both bulk endpoints rather than idle with nothing armed: Get Device
 // Status reports them, and the host clearing both retries the read.
 static void prepare_new_command_or_halt(mtpd_interface_t* p_mtp) {
   if (!prepare_new_command(p_mtp)) {
-    p_mtp->phase = MTP_PHASE_ERROR;
-    usbd_edpt_stall(p_mtp->rhport, p_mtp->ep_out);
-    usbd_edpt_stall(p_mtp->rhport, p_mtp->ep_in);
+    halt_bulk_endpoints(p_mtp);
   }
 }
 
@@ -504,9 +511,7 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       if (ep_addr == p_mtp->ep_in || xferred_bytes == 0) {
         // leftover of an abandoned transaction: an IN freeing the buffer the Cancel-deferred read
         // needs, or the host's terminating ZLP. Absorb it and listen again.
-        if (!prepare_new_command(p_mtp)) {
-          p_mtp->phase = MTP_PHASE_ERROR; // nothing armed to receive the next command
-        }
+        (void) prepare_new_command(p_mtp);
         break;
       }
       // received new command: a header and 0 to 5 whole parameters, all of them delivered (which
@@ -654,9 +659,7 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       }
       // response phase is complete -> prepare for new command
       tud_mtp_response_complete_cb(&cb_data);
-      if (!prepare_new_command(p_mtp)) {
-        p_mtp->phase = MTP_PHASE_ERROR; // nothing armed to receive the next command
-      }
+      (void) prepare_new_command(p_mtp);
       break;
 
     case MTP_PHASE_ERROR:
@@ -665,10 +668,8 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
     default: return false;
   }
 
-   if (p_mtp->phase == MTP_PHASE_ERROR) {
-    // stall both IN & OUT endpoints
-    usbd_edpt_stall(rhport, p_mtp->ep_out);
-    usbd_edpt_stall(rhport, p_mtp->ep_in);
+  if (p_mtp->phase == MTP_PHASE_ERROR) {
+    halt_bulk_endpoints(p_mtp);
   }
 
   return true;
