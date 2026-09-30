@@ -24,11 +24,6 @@ from helper import hil_util
 
 build_dir = 'cmake-build'
 
-# extra parents find_firmware ALSO searches after build_dir. Empty by default so
-# hil_test's -B stays authoritative: a board missing there must report "Skip (no
-# binary)", never silently flash a stale binary from another tree.
-EXTRA_BUILD_DIRS: list = []
-
 _VID_PID_WARNED: set = set()   # one warning per probe, not per command
 
 
@@ -353,8 +348,8 @@ FLASHER_SUFFIX = {
 
 
 def find_firmware(variant: str, example: str, roots: list | None = None, flasher: str | None = None):
-    """Locate a built example's firmware under <build_dir>/cmake-build-<variant>/<example>/,
-    then under EXTRA_BUILD_DIRS. `roots` overrides that search list entirely for one call
+    """Locate a built example's firmware under <build_dir>/cmake-build-<variant>/<example>/.
+    `roots` replaces build_dir with that search list for one call
     (e.g. a build just produced by tools/build.py in its fixed cmake-build/ layout)
     without widening the global policy. `flasher` is the roster flasher name and selects
     which extension counts (FLASHER_SUFFIX), so a build that produced only the other one
@@ -367,7 +362,7 @@ def find_firmware(variant: str, example: str, roots: list | None = None, flasher
     suffixes = [FLASHER_SUFFIX.get(flasher.lower())] if flasher else []
     if not suffixes or suffixes == [None]:
         suffixes = ['.elf', '.bin']
-    for bd in dict.fromkeys(roots if roots is not None else [build_dir, *EXTRA_BUILD_DIRS]):
+    for bd in dict.fromkeys(roots if roots is not None else [build_dir]):
         fw_dir = hil_util.TINYUSB_ROOT / bd / f'cmake-build-{variant}' / example
         if not fw_dir.is_dir():
             continue

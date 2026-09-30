@@ -49,41 +49,22 @@ class Lock(unittest.TestCase):
         self.assertIn('pool_check', hil_lock.PROTECTED_REASONS)
 
 
-class DeviceVerdict(unittest.TestCase):
-    def run_check(self, vidpid):
-        patch(self, hil_pool_check, 'wait_device', lambda *a: ('1-1', vidpid, 2) if vidpid else None)
-        row = {'status': 'failed'}
-        return hil_pool_check.check_device(BOARD, 1, row), row
-
-    def test_a_re_enumerated_device_passes(self):
-        ok, row = self.run_check('cafe:4001')
-        self.assertTrue(ok)
-        self.assertEqual(row['device'], '✅ cafe:4001')
-
-    def test_no_enumeration_fails(self):
-        ok, row = self.run_check(None)
-        self.assertFalse(ok)
-        self.assertIn('not enumerated', row['device'])
-
-
-class HostVerdict(unittest.TestCase):
-    def alive(self, data):
+class HostStatus(unittest.TestCase):
+    def status(self, data):
         patch(self, hil_pool_check, 'check_host_serial', lambda board: data)
-        note, row = [], {'status': 'failed'}
-        return hil_pool_check.host_alive(BOARD, note, row), note, row
+        note = []
+        return hil_pool_check.host_status(BOARD, note), note
 
     def test_board_test_output_after_an_example_flash_is_a_silent_no_op(self):
-        ok, note, row = self.alive(b'Hello from TinyUSB\r\nU')
-        self.assertFalse(ok)
-        self.assertEqual(row['status'], 'flash-failed')
+        status, note = self.status(b'Hello from TinyUSB\r\nU')
+        self.assertEqual(status, 'flash-failed')
+        self.assertIn('silent flash no-op', note[0])
 
     def test_example_output_is_alive(self):
-        ok, _, _ = self.alive(b'TinyUSB Host Example\r\n')
-        self.assertTrue(ok)
+        self.assertEqual(self.status(b'TinyUSB Host Example\r\n')[0], 'ok')
 
     def test_silence_is_not_alive(self):
-        ok, _, _ = self.alive(b'')
-        self.assertFalse(ok)
+        self.assertEqual(self.status(b'')[0], 'failed')
 
 
 class CheckBoard(unittest.TestCase):
@@ -96,9 +77,9 @@ class CheckBoard(unittest.TestCase):
         patch(self, hil_pool_check, 'lock_board', lambda name: types.SimpleNamespace())
         patch(self, hil_pool_check, 'unlock_board', lambda fh: None)
         patch(self, hil_pool_check, 'find_device', lambda uid: None)
-        patch(self, hil_pool_check, 'flash', lambda board, fw, note: self.flashed.append(fw) or True)
-        patch(self, hil_pool_check, 'host_alive', lambda *a: True)
-        patch(self, hil_pool_check, 'check_device', lambda *a: True)
+        patch(self, hil_pool_check, 'flash', lambda board, fw: self.flashed.append(fw) or '')
+        patch(self, hil_pool_check, 'host_status', lambda *a: 'ok')
+        patch(self, hil_pool_check, 'wait_device', lambda *a: ('1-1', 'cafe:4001', 2))
         self.args = types.SimpleNamespace(scan_only=False, no_park=False, uncached={})
 
     def images(self, *examples):
@@ -122,6 +103,22 @@ class CheckBoard(unittest.TestCase):
         self.assertEqual((row['status'], self.flashed, parked),
                          ('ok', ['b-DMA/device/dfu_runtime.elf'], ['b-DMA/device/board_test.elf']))
 
+    def test_a_device_that_does_not_re_enumerate_fails(self):
+        self.images('device/dfu_runtime', 'device/board_test')
+        patch(self, hil_pool_check, 'park_board', lambda *a: None)
+        patch(self, hil_pool_check, 'wait_device', lambda *a: None)
+        row = hil_pool_check.check_board(dict(BOARD, tests={'device': True}), self.args)
+        self.assertEqual((row['status'], row['device']), ('failed', '❌ not enumerated'))
+
+    def test_a_failed_flash_is_flash_failed_and_still_parks(self):
+        self.images('device/dfu_runtime', 'device/board_test')
+        parked = []
+        patch(self, hil_pool_check, 'park_board', lambda *a: parked.append(a[2]))
+        patch(self, hil_pool_check, 'flash', lambda board, fw: 'Error: no target')
+        row = hil_pool_check.check_board(dict(BOARD, tests={'device': True}), self.args)
+        self.assertEqual((row['status'], row['note'][-1]), ('flash-failed', 'flash: Error: no target'))
+        self.assertEqual(parked, ['b/device/board_test.elf'])
+
     def test_no_park_image_fails_before_flashing(self):
         self.images('device/dfu_runtime')
         row = hil_pool_check.check_board(dict(BOARD, tests={'device': True}), self.args)
@@ -135,9 +132,9 @@ class CheckBoard(unittest.TestCase):
 
     def test_a_variant_the_fetch_could_not_cache_says_why(self):
         self.images()
-        self.args.uncached = {'b': 'not cached: no usable master artifact in 90 days'}
+        self.args.uncached = {'b': 'not cached: no usable artifact in the latest 10 completed master push runs'}
         row = hil_pool_check.check_board(dict(BOARD, tests={'device': True}), self.args)
-        self.assertEqual(row['note'][-1], 'b: not cached: no usable master artifact in 90 days')
+        self.assertEqual(row['note'][-1], 'b: not cached: no usable artifact in the latest 10 completed master push runs')
 
     def test_an_rtt_host_board_is_unsupported_and_untouched(self):
         self.images('host/device_info', 'device/board_test')
@@ -182,7 +179,7 @@ class Fetch(unittest.TestCase):
         self.assertEqual(env['TMPDIR'], str(self.cache))
         self.downloads.append((run_id, name))
         variant = hil_pool_check.artifact_variant(name)
-        for ex in dict(self.runs[[r['id'] for r, _ in self.runs].index(run_id)][1])[name]:
+        for ex in next(arts for r, arts in self.runs if r['id'] == run_id)[name]:
             ex, *sidecars = ex.split('+')    # 'device/x.bin+config.env+flash_args': an ESP image
             fw = dest / f'cmake-build-{variant}' / Path(ex).with_suffix('') / Path(ex).name
             fw = fw if fw.suffix else fw.with_suffix('.elf')
@@ -204,13 +201,59 @@ class Fetch(unittest.TestCase):
                            '--cflag=-DCFG_TUD_DWC2_DMA_ENABLE=1'), 'espressif_s3_devkitm-DMA')
         self.assertEqual(v('binaries-arm-gcc--b ea4088_quickstart -DLOGGER=rtt'), 'ea4088_quickstart')
 
-    def test_each_variant_comes_from_the_newest_run_that_has_it(self):
-        board = dict(BOARD, tests={'device': True}, variant=[{'name': 'b'}, {'name': 'b-DMA'}])
-        self.add_run(3, {'binaries-arm-gcc--b b': self.GOOD})
-        self.add_run(2, {'binaries-arm-gcc--b b': self.GOOD, 'binaries-arm-gcc--b b --build-name b-DMA': self.GOOD})
-        self.assertEqual(hil_pool_check.fetch_missing([board]), {})
-        self.assertEqual((self.source('b')['run'], self.source('b-DMA')['run']), (3, 2))
-        self.assertEqual(sorted(p.name for p in self.cache.iterdir()), ['cmake-build-b', 'cmake-build-b-DMA'])
+    MULTI = dict(BOARD, tests={'device': True}, variant=[{'name': 'b'}, {'name': 'b-DMA'}])
+
+    def test_a_board_gets_its_first_variant_from_the_newest_run(self):
+        self.add_run(3, {'binaries-arm-gcc--b b': self.GOOD, 'binaries-arm-gcc--b b --build-name b-DMA': self.GOOD})
+        self.add_run(2, {'binaries-arm-gcc--b b': self.GOOD})
+        self.assertEqual(hil_pool_check.fetch_missing([self.MULTI]), {})
+        self.assertEqual(self.source('b')['run'], 3)
+        self.assertEqual([p.name for p in self.cache.iterdir()], ['cmake-build-b'])
+
+    def test_a_board_with_any_variant_cached_is_satisfied(self):
+        (self.cache / 'cmake-build-b-DMA').mkdir(parents=True)
+        patch(self, hil_pool_check, 'gh', lambda *a, **kw: self.fail('asked GitHub'))
+        self.assertEqual(hil_pool_check.fetch_missing([self.MULTI]), {})
+
+    def test_an_unusable_first_variant_falls_back_to_the_next(self):
+        self.add_run(3, {'binaries-arm-gcc--b b': ['device/dfu_runtime'],
+                         'binaries-arm-gcc--b b --build-name b-DMA': self.GOOD})
+        self.assertEqual(hil_pool_check.fetch_missing([self.MULTI]), {})
+        self.assertEqual([p.name for p in self.cache.iterdir()], ['cmake-build-b-DMA'])
+
+    def test_the_first_usable_variant_wins_even_with_a_less_preferred_example(self):
+        # fetch stops at variant b's cdc_msc, where a full cache would flash b-DMA's dfu_runtime
+        self.add_run(3, {'binaries-arm-gcc--b b': ['device/cdc_msc', 'device/board_test'],
+                         'binaries-arm-gcc--b b --build-name b-DMA': self.GOOD})
+        self.assertEqual(hil_pool_check.fetch_missing([self.MULTI]), {})
+        self.assertEqual([p.name for p in self.cache.iterdir()], ['cmake-build-b'])
+
+    def test_the_search_stops_after_the_last_budgeted_master_run(self):
+        for i in range(hil_pool_check.MASTER_RUNS):
+            self.add_run(100 - i, {})
+        self.add_run(50, {'binaries-arm-gcc--b b': self.GOOD})
+        got = hil_pool_check.fetch_missing([dict(BOARD, tests={'device': True})])
+        self.assertIn(f'latest {hil_pool_check.MASTER_RUNS} completed master push runs', got['b'])
+
+    def test_the_last_budgeted_master_run_is_searched(self):
+        for i in range(hil_pool_check.MASTER_RUNS - 1):
+            self.add_run(100 - i, {})
+        self.add_run(50, {'binaries-arm-gcc--b b': self.GOOD})
+        self.assertEqual(hil_pool_check.fetch_missing([dict(BOARD, tests={'device': True})]), {})
+
+    def test_untrusted_or_unfinished_runs_do_not_use_the_budget(self):
+        for i in range(hil_pool_check.MASTER_RUNS):
+            self.add_run(200 - i, {'binaries-arm-gcc--b b': self.GOOD}, event='pull_request')
+            self.add_run(150 - i, {}, status='in_progress')
+        for i in range(hil_pool_check.MASTER_RUNS - 1):
+            self.add_run(100 - i, {})
+        self.add_run(50, {'binaries-arm-gcc--b b': self.GOOD})
+        self.assertEqual(hil_pool_check.fetch_missing([dict(BOARD, tests={'device': True})]), {})
+        self.assertEqual(self.source('b')['run'], 50)
+
+    def test_a_board_left_without_firmware_reports_every_variant(self):
+        got = hil_pool_check.fetch_missing([self.MULTI])
+        self.assertEqual(set(got), {'b', 'b-DMA'})
 
     def test_an_artifact_without_board_test_falls_back_to_an_older_run(self):
         self.add_run(3, {'binaries-arm-gcc--b b': ['device/dfu_runtime']})
@@ -258,7 +301,7 @@ class Fetch(unittest.TestCase):
         self.add_run(3, {'binaries-arm-gcc--b b': self.GOOD}, age_days=91)
         self.add_run(2, {'binaries-arm-gcc--b b': self.GOOD}, age_days=92)
         got = hil_pool_check.fetch_missing([dict(BOARD, tests={'device': True})])
-        self.assertIn('no usable master artifact', got['b'])
+        self.assertIn('no usable artifact', got['b'])
         self.assertEqual(self.downloads, [])
 
     def test_a_cached_variant_is_never_refetched(self):
@@ -394,7 +437,7 @@ class Main(unittest.TestCase):
         self.cfg = os.path.join(td.name, 'roster.json')
         with open(self.cfg, 'w') as f:
             json.dump({'boards': [dict(BOARD, tests={'device': True})]}, f)
-        for obj, name in ((hil_pool_check.hil_flash, 'build_dir'), (hil_pool_check.hil_flash, 'EXTRA_BUILD_DIRS'),
+        for obj, name in ((hil_pool_check.hil_flash, 'build_dir'),
                           (hil_pool_check.hil_util, 'verbose')):
             patch(self, obj, name, getattr(obj, name))
         self.fetched = []

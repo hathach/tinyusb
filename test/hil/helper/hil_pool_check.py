@@ -4,12 +4,12 @@
 For every board in the rig's HIL config: is the flash probe on the USB bus, does a light
 example flash, and does the board's USB device (uid) come back up? Firmware is never
 built here: by default it comes from a per-host cache (CACHE_DIR) of CI artifacts, and
-variants the cache lacks are downloaded once from master push runs; -B names another
-firmware root, never fetched into. No recovery: a wedged probe or board is reported
-for usb-kernel-recover. Prints a markdown table, or
-with --json the JSON document the table is rendered from. Row statuses: ok, flash-failed
-(firmware not delivered or not verified as delivered), failed (the check ran but did not
-verify), locked (held by another process; never waited on or bypassed).
+a board the cache has no variant of gets one downloaded once from master push runs; -B names another
+firmware root, never fetched into. No recovery: a wedged probe or board is reported for
+usb-kernel-recover. Prints a markdown table, or with --json the JSON document the table is
+rendered from. Row statuses: ok, flash-failed (firmware not delivered or not verified as
+delivered), failed (the check ran but did not verify), locked (held by another process;
+never waited on or bypassed).
 
 Config is picked by hostname unless given: ci -> tinyusb.json, tusb (hifiphile rig) ->
 hfp.json, anything else is a dev PC -> local.json.
@@ -19,6 +19,7 @@ import argparse
 import contextlib
 import errno
 import io
+import itertools
 import json
 import os
 import re
@@ -40,6 +41,9 @@ CONFIG_BY_HOST = {'ci': 'tinyusb.json', 'tusb': 'hfp.json'}  # anything else: de
 CACHE_DIR = Path.home() / '.cache' / 'tinyusb-hil' / 'firmware'
 REPO = 'hathach/tinyusb'
 RETENTION_DAYS = 90  # GitHub artifact retention: older runs have nothing left to download
+# master pushes build the whole HIL matrix (PR runs are change-selected), so a variant
+# missing from this many is not coming; bounds the walk every run repeats for it
+MASTER_RUNS = 10
 
 # light-example preference; first one found wins
 DEVICE_CANDIDATES = ['device/dfu_runtime', 'device/cdc_msc', 'device/cdc_msc_freertos',
@@ -200,8 +204,7 @@ def run_artifacts(run_id: int) -> dict:
     """variant -> artifact name, for a run's unexpired firmware artifacts."""
     out = gh('api', '--paginate', f'repos/{REPO}/actions/runs/{run_id}/artifacts?per_page=100',
              '-q', '.artifacts[] | select(.expired | not) | .name')
-    names = [n for n in out.splitlines() if n.startswith('binaries-')]
-    return {artifact_variant(n): n for n in names if artifact_variant(n)}
+    return {v: n for n in out.splitlines() if n.startswith('binaries-') and (v := artifact_variant(n))}
 
 
 def usable(board: dict, variant: str, root: Path) -> bool:
@@ -246,50 +249,45 @@ def gh_error(e: Exception) -> str:
 
 
 def fetch_missing(boards: list) -> dict:
-    """Fill CACHE_DIR with every variant of `boards` it lacks, each from the newest run
-    with a usable artifact; returns {variant: reason} for those still missing. A cached
-    tree is never revalidated or replaced: delete it to refetch."""
-    want = {v['name']: b for b in boards for v in hil_report.board_variants(b)
-            if not (CACHE_DIR / f'cmake-build-{v["name"]}').is_dir()}
+    """Cache one variant of each board that has none cached: the first, in roster order,
+    usable in the newest of the last MASTER_RUNS runs carrying it. Returns {variant: reason} for the variants of
+    boards left without one. A cached tree is never revalidated or replaced: delete it to
+    refetch."""
+    want = {b['name']: [v['name'] for v in hil_report.board_variants(b)] for b in boards}
+    want = {name: vs for name, vs in want.items()
+            if not any((CACHE_DIR / f'cmake-build-{v}').is_dir() for v in vs)}
     if not want:
         return {}
-    say(f'fetching {len(want)} variant(s) from CI master runs into {CACHE_DIR}')
+    say(f'fetching firmware for {len(want)} board(s) from CI master runs into {CACHE_DIR}')
     try:
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        for run in master_runs():
+        for run in itertools.islice(master_runs(), MASTER_RUNS):
             artifacts = run_artifacts(run['id'])
-            for variant in [v for v in want if v in artifacts]:
-                if fetch_variant(want[variant], variant, run, artifacts[variant]):
-                    del want[variant]
+            for board in [b for b in boards if b['name'] in want]:
+                for variant in want[board['name']]:
+                    if variant in artifacts and fetch_variant(board, variant, run, artifacts[variant]):
+                        del want[board['name']]
+                        break
             if not want:
                 return {}
+        reason = f'not cached: no usable artifact in the latest {MASTER_RUNS} completed master push runs'
     except (OSError, subprocess.SubprocessError, ValueError, KeyError) as e:
-        return dict.fromkeys(want, f'not cached, fetch failed: {gh_error(e)}')
-    return dict.fromkeys(want, f'not cached: no usable master artifact in {RETENTION_DAYS} days')
+        reason = f'not cached, fetch failed: {gh_error(e)}'
+    return {v: reason for vs in want.values() for v in vs}
 
 
-def call_flasher(fn, *fn_args) -> tuple[int, str]:
-    """Run a hil_flash flash_* backend, normalizing raises to a failure: several
-    backends raise instead of returning nonzero (get_serial_dev when a bridge's
-    /dev/serial/by-id node vanishes, a missing config.env, a .jlink script OSError), and an
-    exception must become a noted failure, not a crashed row. Returns (rc, error line)."""
+def flash(board: dict, fw) -> str:
+    """One flash attempt, never retried or recovered here: '' on success, else its most
+    informative error line. Several backends raise instead of returning nonzero
+    (get_serial_dev when a bridge's /dev/serial/by-id node vanishes, a missing config.env, a
+    .jlink script OSError); that must become a noted failure, not a crashed row."""
     try:
-        ret = fn(*fn_args)
-        if ret.returncode == 0:
-            return 0, ''
-        err = flash_error_line(hil_util.cmd_stdout_text(ret.stdout))
-        return ret.returncode, err or f'rc={ret.returncode}'
+        ret = hil_flash.flash_primitive(board['flasher']['name'])(board, str(fw))
     except Exception as e:
-        return -1, repr(e)[:90]
-
-
-def flash(board: dict, fw, note: list) -> bool:
-    """One flash attempt; a failure is noted, never retried or recovered here."""
-    rc, err = call_flasher(hil_flash.flash_primitive(board['flasher']['name']), board, str(fw))
-    if rc == 0:
-        return True
-    note.append(f'flash: {err}')
-    return False
+        return repr(e)[:90]
+    if ret.returncode == 0:
+        return ''
+    return flash_error_line(hil_util.cmd_stdout_text(ret.stdout)) or f'rc={ret.returncode}'
 
 
 def flash_error_line(out: str) -> str:
@@ -368,29 +366,15 @@ def boardtest_output(data: bytes) -> bool:
     return len(residue) == 0
 
 
-def verdict(row: dict, ok: bool) -> str:
-    """Row status for a verification result, preserving a 'flash-failed' a deeper
-    layer already recorded (silent flash no-op, board_test delivery failure)."""
-    return 'ok' if ok else ('flash-failed' if row['status'] == 'flash-failed' else 'failed')
-
-
-def host_alive(board: dict, note: list, row: dict) -> bool:
-    """Serial aliveness after a host example flash. board_test-shaped output FAILS the
-    check: the parked image still talking means the example flash silently didn't take —
-    a delivery failure (row['status'] = 'flash-failed', which verdict() keeps)."""
+def host_status(board: dict, note: list) -> str:
+    """Row status from a host example's serial output after its flash. board_test-shaped
+    output means the parked image is still talking: the example flash silently didn't take,
+    a delivery failure."""
     data = check_host_serial(board)
     if data and boardtest_output(data):
         note.append('board_test output after example flash: silent flash no-op')
-        row['status'] = 'flash-failed'
-        return False
-    return bool(data)
-
-
-def check_device(board: dict, old_ino, row: dict) -> bool:
-    """Wait for the flashed board's uid to re-enumerate as a new device."""
-    hit = wait_device(board['uid'], old_ino, ENUM_WAIT)
-    row['device'] = f'✅ {hit[1]}' if hit else '❌ not enumerated'
-    return hit is not None
+        return 'flash-failed'
+    return 'ok' if data else 'failed'
 
 
 def not_locked(row: dict, why: str) -> dict:
@@ -475,7 +459,9 @@ def check_board(board: dict, args) -> dict:
         old_ino = pre[2] if pre else None
 
         try:
-            if not flash(board, fw, note):
+            err = flash(board, fw)
+            if err:
+                note.append(f'flash: {err}')
                 row['flash'] = f'❌ {Path(example).name}'
                 row['status'] = 'flash-failed'
                 say(f'{name:26} flash FAILED ({example})')
@@ -483,11 +469,12 @@ def check_board(board: dict, args) -> dict:
             row['flash'] = f'✅ {Path(example).name}'
 
             if kind == 'host':
-                ok = host_alive(board, note, row)
-                row['device'] = '✅ serial out' if ok else '❌ no serial out'
+                row['status'] = host_status(board, note)
+                row['device'] = '✅ serial out' if row['status'] == 'ok' else '❌ no serial out'
             else:
-                ok = check_device(board, old_ino, row)
-            row['status'] = verdict(row, ok)
+                hit = wait_device(board['uid'], old_ino, ENUM_WAIT)
+                row['device'] = f'✅ {hit[1]}' if hit else '❌ not enumerated'
+                row['status'] = 'ok' if hit else 'failed'
             say(f'{name:26} {row["flash"]}  {row["device"]}')
             return row
         finally:
@@ -507,8 +494,8 @@ def park_board(board: dict, kind: str, fw, row: dict, note: list) -> None:
     # capture BEFORE the park flash: uid-disappearance only verifies the park if the
     # device was on the bus to begin with
     on_bus_before = kind != 'host' and find_device(board['uid']) is not None
-    rc, err = call_flasher(hil_flash.flash_primitive(board['flasher']['name']), board, str(fw))
-    if rc != 0:
+    err = flash(board, fw)
+    if err:
         note.append(f'park flash failed: {err}')
         if row['status'] == 'ok':
             row['status'] = 'flash-failed'
