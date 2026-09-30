@@ -366,7 +366,7 @@ class Fetch(unittest.TestCase):
 class Park(unittest.TestCase):
     """A park is verified: board_test never enumerates, so the device must leave the bus."""
 
-    def park(self, on_bus_after, flash_rc=0):
+    def park(self, on_bus_after, flash_rc=0, status='ok'):
         state = {'on_bus': True}
         patch(self, hil_pool_check, 'find_device',
               lambda uid: ('1-1', 'cafe:4001', 1) if state['on_bus'] else None)
@@ -378,7 +378,7 @@ class Park(unittest.TestCase):
         patch(self, hil_pool_check.time, 'sleep', lambda s: None)
         clock = iter(range(0, 1000, 5))
         patch(self, hil_pool_check.time, 'monotonic', lambda: next(clock))
-        note, row = [], {'status': 'ok'}
+        note, row = [], {'status': status}
         hil_pool_check.park_board(BOARD, 'device', 'board_test.elf', row, note)
         return note, row
 
@@ -392,11 +392,11 @@ class Park(unittest.TestCase):
         self.assertEqual(row['status'], 'flash-failed')
         self.assertIn('park unverified', note[-1])
 
-    def park_host(self, hello):
+    def park_host(self, hello, status='ok'):
         patch(self, hil_pool_check.hil_flash, 'flash_primitive', lambda name: (
             lambda board, fw: types.SimpleNamespace(returncode=0, stdout='')))
         patch(self, hil_pool_check, 'check_host_serial', lambda board, **kw: hello)
-        note, row = [], {'status': 'ok'}
+        note, row = [], {'status': status}
         hil_pool_check.park_board(BOARD, 'host', 'board_test.elf', row, note)
         return note, row
 
@@ -410,6 +410,14 @@ class Park(unittest.TestCase):
         note, row = self.park(on_bus_after=True, flash_rc=1)
         self.assertEqual(row['status'], 'flash-failed')
         self.assertIn('park flash failed', note[-1])
+
+    def test_a_failed_park_keeps_a_failed_row(self):
+        for (note, row), want in (
+                (self.park(on_bus_after=True, flash_rc=1, status='failed'), 'park flash failed'),
+                (self.park(on_bus_after=True, status='failed'), 'park unverified: device still enumerated'),
+                (self.park_host(b'', status='failed'), 'park unverified: no board_test output')):
+            self.assertEqual(row['status'], 'failed')
+            self.assertIn(want, note[-1])
 
 
 def row(name, status):
