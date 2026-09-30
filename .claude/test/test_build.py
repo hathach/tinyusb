@@ -635,6 +635,26 @@ class DepsTest(unittest.TestCase):
              mock.patch.dict(os.environ, {'CFLAGS': '  '}):
             self.assertEqual(tb.canonical_row('f', ['cmake-build/x'], []), 'family.json: updated b', 'blank is unset')
 
+    def test_a_dep_head_is_its_own_under_a_hooks_git_dir(self):
+        import subprocess
+        import tempfile
+        # run from a hook, these fixture commands would otherwise act on the enclosing repo
+        clean = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
+
+        def repo(path):
+            git = ['git', '-C', str(path), '-c', 'user.name=t', '-c', 'user.email=t@t']
+            subprocess.run(['git', 'init', '-q', str(path)], check=True, env=clean)
+            subprocess.run(git + ['commit', '-q', '--allow-empty', '-m', str(path)], check=True, env=clean)
+            return subprocess.run(git + ['rev-parse', 'HEAD'], capture_output=True, text=True, check=True,
+                                  env=clean).stdout.strip()
+        with tempfile.TemporaryDirectory() as td:
+            outer, dep = Path(td) / 'outer', Path(td) / 'dep'
+            outer_head, dep_head = repo(outer), repo(dep)
+            # what git exports to a pre-commit hook run from a worktree
+            with mock.patch.dict(os.environ, {'GIT_DIR': str(outer / '.git'), 'GIT_INDEX_FILE': str(outer / '.git' / 'index')}):
+                self.assertEqual(build.tools_build.build_utils.dep_head(dep), dep_head)
+            self.assertNotEqual(dep_head, outer_head)
+
     def test_family_deps_come_from_get_deps_table(self):
         self.assertIn('hw/mcu/nordic/nrfx', [d for d, e in build.tools_build.build_utils.get_deps.deps_optional.items() if 'nrf' in e[2].split()])
 
