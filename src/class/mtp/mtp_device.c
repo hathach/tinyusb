@@ -80,6 +80,7 @@ typedef struct {
   uint8_t ep_sz_fs;
   // Bulk Only Transfer (BOT) Protocol
   uint8_t  phase;
+  bool cmd_waiting; // the saved command waits for a data IN abandoned on Cancel to retire
 
   uint32_t total_len;
   uint32_t xferred_len;
@@ -197,6 +198,51 @@ static void halt_bulk_endpoints(mtpd_interface_t* p_mtp) {
 // Status reports them, and the host clearing both retries the read.
 static void prepare_new_command_or_halt(mtpd_interface_t* p_mtp) {
   if (!prepare_new_command(p_mtp)) {
+    halt_bulk_endpoints(p_mtp);
+  }
+}
+
+// Hand the command saved in p_mtp->command to the application; the endpoint buffer still holds it
+static void dispatch_command(mtpd_interface_t* p_mtp) {
+  mtp_generic_container_t* p_container = (mtp_generic_container_t*) _mtpd_epbuf.buf;
+  tud_mtp_cb_data_t cb_data = {
+    .idx = 0,
+    .phase = MTP_PHASE_COMMAND,
+    .session_id = p_mtp->session_id,
+    .command_container = &p_mtp->command,
+    .io_container = {
+      .header = &p_container->header,
+      .payload = p_container->payload,
+      .payload_bytes = CFG_TUD_MTP_EP_BUFSIZE - sizeof(mtp_container_header_t)
+    },
+    .xfer_result = XFER_RESULT_SUCCESS,
+    .total_xferred_bytes = 0
+  };
+  p_container->header.len = sizeof(mtp_container_header_t); // default container to header only
+  preprocess_cmd(p_mtp, &cb_data);
+  if (tud_mtp_command_received_cb(&cb_data) < 0) {
+    p_mtp->phase = MTP_PHASE_ERROR;
+  }
+}
+
+// Deferred behind every completion queued so far, so that one of the abandoned data IN is absorbed
+// before anything new is queued on ep_in: usbd_edpt_abort() does not drop a queued completion.
+static void dispatch_waiting_command(void* param) {
+  (void) param;
+  mtpd_interface_t* p_mtp = &_mtpd_itf;
+  if (!p_mtp->cmd_waiting) {
+    return; // dropped by a bus reset or Device Reset
+  }
+  if (usbd_edpt_busy(p_mtp->rhport, p_mtp->ep_in)) {
+    // not drained, the host follows Still Image CDD 1.0 7.2.1.1: retire it, then wait out a
+    // completion it may have queued before the abort
+    usbd_edpt_abort(p_mtp->rhport, p_mtp->ep_in);
+    usbd_defer_func(dispatch_waiting_command, NULL, false);
+    return;
+  }
+  p_mtp->cmd_waiting = false;
+  dispatch_command(p_mtp);
+  if (p_mtp->phase == MTP_PHASE_ERROR) {
     halt_bulk_endpoints(p_mtp);
   }
 }
@@ -427,6 +473,7 @@ bool mtpd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
         // no completion will ever release its claim, so every later claim on it would fail.
         usbd_edpt_abort(rhport, p_mtp->ep_out);
         usbd_edpt_abort(rhport, p_mtp->ep_in);
+        p_mtp->cmd_waiting = false;
         // no data stage: the status stage must be armed explicitly, otherwise the request
         // never completes and CONTROL_STAGE_ACK below is never reached
         tud_control_status(rhport, request);
@@ -470,6 +517,9 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
   }
 
   mtpd_interface_t* p_mtp = &_mtpd_itf;
+  if (p_mtp->cmd_waiting && ep_addr == p_mtp->ep_in) {
+    return true; // the abandoned data IN: nothing else is queued on ep_in while the command waits
+  }
   mtp_generic_container_t* p_container = (mtp_generic_container_t*) _mtpd_epbuf.buf;
 
 #if CFG_TUSB_DEBUG >= CFG_TUD_MTP_LOG_LEVEL
@@ -522,17 +572,17 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
         p_mtp->phase = MTP_PHASE_ERROR;
         break;
       }
-      if (usbd_edpt_busy(rhport, p_mtp->ep_in)) {
-        usbd_edpt_abort(rhport, p_mtp->ep_in); // a data IN abandoned on Cancel and never drained
-      }
       // absent parameters read as 0, never stale bytes
       memcpy(&p_mtp->command, p_container, cmd_len); // save new command
       tu_memclr((uint8_t*) &p_mtp->command + cmd_len, sizeof(mtp_container_command_t) - cmd_len);
-      p_container->header.len = sizeof(mtp_container_header_t); // default container to header only
-      preprocess_cmd(p_mtp, &cb_data);
-      if (tud_mtp_command_received_cb(&cb_data) < 0) {
-        p_mtp->phase = MTP_PHASE_ERROR;
+      if (usbd_edpt_busy(rhport, p_mtp->ep_in)) {
+        // a data IN abandoned on Cancel: drained with its completion queued behind this one, or
+        // never drained
+        p_mtp->cmd_waiting = true;
+        usbd_defer_func(dispatch_waiting_command, NULL, false);
+        break;
       }
+      dispatch_command(p_mtp);
       break;
     }
 
