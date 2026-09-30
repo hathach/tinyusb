@@ -992,48 +992,53 @@ void test_cancel_then_leftover_zlp(void) {
   TEST_ASSERT_EQUAL_MESSAGE(0, app.complete_calls, "the abandoned transaction must not complete");
 }
 
-void test_cancel_in_data_in_defers_read_until_in_completes(void) {
+// Still Image CDD 1.0 7.2.1.1: the host stops issuing IN tokens, so the abandoned data IN is never
+// drained; the next command retires it instead of the host needing Device Reset
+void test_cancel_in_data_in_next_command_retires_undrained_in(void) {
   open_device(TUSB_SPEED_HIGH);
   const uint32_t tid = start_data_in(1000);
   expect_call(DCD_XFER, EP_IN, BUFSIZE);
   host_cancel(tid);
   TEST_ASSERT_EQUAL(1, app.cancel_calls);
-  expect_no_more_calls(); // the IN is still sending out of the shared buffer: no read yet
-  // documented current behaviour: the read waits for that IN to complete
-  host_in_done(BUFSIZE);
-  TEST_ASSERT_EQUAL_MESSAGE(0, app.xfer_calls, "abandoned data IN must not continue");
   expect_command_read();
   expect_no_more_calls();
+  expect_status_ok();
+  app.data_mode = APP_NO_DATA;
+  const uint32_t next = host_command(MTP_OP_OPEN_SESSION, NULL, 0);
+  TEST_ASSERT_EQUAL(2, app.cmd_calls);
+  TEST_ASSERT_EQUAL_MESSAGE(0, app.xfer_calls, "abandoned data IN must not continue");
+  expect_call(DCD_STALL, EP_IN, 0);
+  expect_call(DCD_CLEAR_STALL, EP_IN, 0);
+  expect_response(next, MTP_RESP_OK, 0);
 }
 
-// the dcd refuses the Cancel-deferred read once the abandoned data IN completes: halt
-void test_cancel_in_data_in_deferred_read_refused_stalls(void) {
+// the dcd refuses the command read Cancel arms while the abandoned data IN is queued: halt
+void test_cancel_in_data_in_read_refused_stalls(void) {
   open_device(TUSB_SPEED_HIGH);
   const uint32_t tid = start_data_in(1000);
   expect_call(DCD_XFER, EP_IN, BUFSIZE);
-  host_cancel(tid);
-  expect_no_more_calls();
   dcd_refuse_ep = EP_OUT;
-  host_in_done(BUFSIZE);
+  host_cancel(tid);
   TEST_ASSERT_EQUAL_MESSAGE(-1, dcd_refuse_ep, "command read never attempted");
-  TEST_ASSERT_EQUAL(0, app.xfer_calls);
+  TEST_ASSERT_EQUAL(1, app.cancel_calls);
   recover_from_error(EP_OUT, EP_IN);
   app.data_mode = APP_NO_DATA;
   expect_next_command_ok();
 }
 
 // libmtp 1.1.22 (ptp_read_cancel_func) polls Get Device Status for as long as it reads Device
-// Busy and only then drains the Bulk-in pipe: the undrained IN must not hold the status at Busy
+// Busy and only then drains the Bulk-in pipe: the drained IN is absorbed and nothing is aborted
 void test_cancel_in_data_in_status_polled_before_drain(void) {
   open_device(TUSB_SPEED_HIGH);
   const uint32_t tid = start_data_in(1000);
   expect_call(DCD_XFER, EP_IN, BUFSIZE);
   host_cancel(tid);
-  expect_status_ok();
-  expect_no_more_calls();
-  host_in_done(BUFSIZE); // the drain
   expect_command_read();
   expect_no_more_calls();
+  expect_status_ok();
+  host_in_done(BUFSIZE); // the drain
+  TEST_ASSERT_EQUAL_MESSAGE(0, app.xfer_calls, "abandoned data IN must not continue");
+  expect_no_more_calls(); // the read armed at Cancel stays armed
   expect_status_ok();
   app.data_mode = APP_NO_DATA;
   expect_next_command_ok();

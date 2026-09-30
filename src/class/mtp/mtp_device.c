@@ -399,12 +399,11 @@ bool mtpd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
         return tud_control_xfer(rhport, request, p_mtp->control_buf, CFG_TUD_MTP_EP_CONTROL_BUFSIZE);
       } else if (stage == CONTROL_STAGE_ACK) {
         // Only a data phase is abandoned; any other phase holds the next command or a response.
+        // A data IN may still be queued. Not aborted here: that resets the IN toggle under a host
+        // that drains it (libmtp). A host following Still Image CDD 1.0 7.2.1.1 issues no more IN
+        // tokens, and the next command retires it.
         if (p_mtp->phase == MTP_PHASE_DATA || p_mtp->phase == MTP_PHASE_DATA_COMPLETE) {
-          p_mtp->phase = MTP_PHASE_COMMAND;
-          // a data IN still sending from the shared buffer defers the read to its completion
-          if (!usbd_edpt_busy(rhport, p_mtp->ep_in)) {
-            prepare_new_command_or_halt(p_mtp);
-          }
+          prepare_new_command_or_halt(p_mtp);
         }
         return tud_mtp_request_cancel_cb(&cb_data);
       }
@@ -509,8 +508,8 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
   switch (p_mtp->phase) {
     case MTP_PHASE_COMMAND: {
       if (ep_addr == p_mtp->ep_in || xferred_bytes == 0) {
-        // leftover of an abandoned transaction: an IN freeing the buffer the Cancel-deferred read
-        // needs, or the host's terminating ZLP. Absorb it and listen again.
+        // leftover of an abandoned transaction: a data IN the host drained after Cancel, or the
+        // host's terminating ZLP. Absorb it and listen again.
         (void) prepare_new_command(p_mtp);
         break;
       }
@@ -522,6 +521,9 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
           p_container->header.type != MTP_CONTAINER_TYPE_COMMAND_BLOCK) {
         p_mtp->phase = MTP_PHASE_ERROR;
         break;
+      }
+      if (usbd_edpt_busy(rhport, p_mtp->ep_in)) {
+        usbd_edpt_abort(rhport, p_mtp->ep_in); // a data IN abandoned on Cancel and never drained
       }
       // absent parameters read as 0, never stale bytes
       memcpy(&p_mtp->command, p_container, cmd_len); // save new command
