@@ -267,10 +267,23 @@ TU_ATTR_ALWAYS_INLINE static inline bool hwfifo_config(musb_regs_t* musb, unsign
 #endif
 
 // Flush FIFO and clear data toggle
-TU_ATTR_ALWAYS_INLINE static inline void hwfifo_flush(musb_regs_t* musb, unsigned epnum, unsigned is_rx, bool clear_dtog) {
+static void hwfifo_flush(musb_regs_t* musb, unsigned epnum, unsigned is_rx, bool clear_dtog) {
   (void) epnum;
   const uint8_t csrl_dtog = clear_dtog ? MUSB_CSRL_CLEAR_DATA_TOGGLE(is_rx) : 0;
   musb_ep_maxp_csr_t* maxp_csr = &musb->indexed_csr.maxp_csr[is_rx];
+  if (!is_rx) {
+    // FIFONE, not TXRDY: a double-packet FIFO clears TXRDY once a lone packet is loaded (TM4C123GH6PM
+    // DS p1170). FIFONE is written back as 1 like Linux does, it is write-0-to-clear (MAX32665 UG p422).
+    uint8_t csrl = maxp_csr->csrl;
+    for (unsigned i = 0; i < 2 && (csrl & MUSB_TXCSRL1_FIFONE); i++) {
+      maxp_csr->csrl = MUSB_CSRL_FLUSH_FIFO(0) | MUSB_TXCSRL1_FIFONE | csrl_dtog;
+      unsigned spin = 1000;
+      do {
+        csrl = maxp_csr->csrl;
+      } while ((csrl & MUSB_CSRL_FLUSH_FIFO(0)) && --spin); // self-clears once its packet is gone
+    }
+    return;
+  }
   // may need to flush twice for double packet
   for (unsigned i=0; i<2; i++) {
     if (maxp_csr->csrl & MUSB_CSRL_PACKET_READY(is_rx)) {
@@ -963,7 +976,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
     const uint8_t is_rx = (ep_dir == TUSB_DIR_OUT ? 1u : 0u);
     // A halt aborts the transfer: flush staged FIFO packet(s) before stalling, else leftover TX data
     // concatenates with the next transfer after un-halt -> host sees an oversized packet (babble).
-    // FLUSH must precede SEND_STALL, which clears the TXRDY that hwfifo_flush() gates on.
+    // FLUSH must precede SEND_STALL, whose write clears the RXRDY hwfifo_flush() gates on for OUT.
     hwfifo_flush(musb_regs, epn, is_rx, false);
     ep_csr->maxp_csr[is_rx].csrl = MUSB_CSRL_SEND_STALL(is_rx);
     pipe_state_t* pipe = pipe_get(epn, ep_dir);
