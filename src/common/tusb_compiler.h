@@ -171,11 +171,18 @@
                             (((u32) & 0x000000ff) << 24))
   // armcc v5 (AC5) in --gnu mode defines __GNUC__ but lacks __builtin_bswap16/32
   #elif defined(__CC_ARM)
-    #define TU_BSWAP16(u16) ((((u16) & 0x00ffu) << 8) | (((u16) & 0xff00u) >> 8))
-    #define TU_BSWAP32(u32) ((((u32) & 0xff000000u) >> 24) | \
-                            (((u32) & 0x00ff0000u) >> 8)  | \
-                            (((u32) & 0x0000ff00u) << 8)  | \
-                            (((u32) & 0x000000ffu) << 24))
+    TU_ATTR_ALWAYS_INLINE static inline unsigned short tu_bswap16_armcc(unsigned short value) {
+      return (unsigned short) (((value & 0x00ffU) << 8) |
+                              ((value & 0xff00U) >> 8));
+    }
+    TU_ATTR_ALWAYS_INLINE static inline unsigned long tu_bswap32_armcc(unsigned long value) {
+      return ((value & 0xff000000UL) >> 24) |
+            ((value & 0x00ff0000UL) >> 8)  |
+            ((value & 0x0000ff00UL) << 8)  |
+            ((value & 0x000000ffUL) << 24);
+    }
+    #define TU_BSWAP16(u16) tu_bswap16_armcc(u16)
+    #define TU_BSWAP32(u32) tu_bswap32_armcc(u32)
   #else
     #define TU_BSWAP16(u16) (__builtin_bswap16(u16))
     #define TU_BSWAP32(u32) (__builtin_bswap32(u32))
