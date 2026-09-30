@@ -62,7 +62,7 @@ from multiprocessing import TimeoutError as MpTimeoutError
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # PYTHONSAFEPATH drops it
 import hil_flash
 import usbtest    # the recovery bounds and the id registration; batteries run it as a subprocess
-from helper import hil_args, hil_lock, hil_report, hil_util
+from helper import hil_args, hil_lock, hil_report, hil_tt, hil_util
 from helper.hil_util import device_tests, dual_tests, host_test
 
 # Raw Lock/Semaphore objects in Pool initargs are inheritable only under fork
@@ -1658,6 +1658,25 @@ def _usbtest_verdict(board: Board, data: dict, out: str, passed: int, failed: in
 # -------------------------------------------------------------
 
 
+_dut_port: dict = {}   # board uid -> busport last seen: a stuck port stops enumerating
+
+
+def reset_dut_tt(board: Board) -> None:
+    """Reset the TT of the board's hub port before a flash (helper/hil_tt): a leaked TT
+    buffer from the previous test would otherwise fail this one's enumeration."""
+    found = hil_util.usb_scan(vid='cafe', serial=board['uid'])
+    if len(found) > 1:
+        return      # one serial on two ports (dual-port parts mid-reflash): no safe target
+    if found:
+        _dut_port[board['uid']] = found[0]['busport']
+    busport = _dut_port.get(board['uid'])
+    if busport:
+        # no speed: the device is gone, as on the stuck port this exists for; a high-speed
+        # device leaks no TT buffer, and resetting its TT disturbs nothing
+        speed = hil_util.read_sysfs(os.path.join('/sys/bus/usb/devices', busport, 'speed')) or '12'
+        hil_tt.reset_tt(busport, speed)
+
+
 def test_example(board: Board, variant: str, example: str) -> tuple[int, str, str | None]:
     """
     Test example firmware
@@ -1715,6 +1734,7 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
         with redirect_stdout(attempt_out):
             if not skip_flash:
                 with hil_lock.flash_permit(board['uid']):
+                    reset_dut_tt(board)
                     t_flash = time.monotonic()
                     try:
                         ret = hil_flash.flash_primitive(board['flasher']['name'])(board, str(fw_name))
