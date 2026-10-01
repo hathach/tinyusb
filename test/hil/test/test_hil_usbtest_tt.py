@@ -167,10 +167,10 @@ class BeforeFlash(unittest.TestCase):
     """hil_test resets the port's TT before each flash, from one unambiguous live port, else
     the last port it saw the board on."""
 
-    def resets(self, *scans, ok=True, speed='12'):
+    def resets(self, *scans, ok=True):
         it = iter(scans)
         usbtest_harness.patch(self, hil_test.hil_util, 'usb_scan', lambda **kw: next(it))
-        usbtest_harness.patch(self, hil_test.hil_util, 'read_sysfs', lambda path, *a: speed)
+        usbtest_harness.patch(self, hil_test.hil_util, 'read_sysfs', lambda path, *a: '12')
         seen = []
         usbtest_harness.patch(self, hil_test.hil_tt, 'reset_tt',
                               lambda busport, speed: seen.append((busport, speed)) or ok)
