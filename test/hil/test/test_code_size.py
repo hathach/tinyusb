@@ -1918,7 +1918,7 @@ class Snapshot(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             _touch(tmp, 'device/a/a.elf')
             with _engine('membrowse', lambda _p, _f: _elf(5)), \
-                 mock.patch.object(sd.build_utils, 'skip_example', side_effect=lambda e, b: e == 'device/skipped'):
+                 mock.patch.object(sd.build_utils, 'skip_example', side_effect=lambda e, b, _d: e == 'device/skipped'):
                 elfs, failures = sd.board_snapshot('b1', tmp, ['device/a', 'device/skipped', 'device/gone'],
                                                    ['src/'])
         self.assertEqual(list(elfs), ['device/a/a.elf'])
@@ -1983,7 +1983,7 @@ class Snapshot(unittest.TestCase):
                  mock.patch.object(build, 'resolve_ci_boards', return_value=['p2']) as resolve:
                 boards = sd.snapshot_boards(['fam'], ['p1', 'notpinned', 'p2'], ['device/a'])
         self.assertEqual(boards, ['p1', 'p2'])
-        resolve.assert_called_once_with(pinned, 'fam', True, ['device/a'])
+        resolve.assert_called_once_with(pinned, 'fam', True, ['device/a'], extra_defines=())
 
     def test_a_pinned_board_that_builds_none_of_the_examples_is_not_expected(self):
         # build.py skips it before configuring: no build dir, and no failure either
@@ -1993,7 +1993,7 @@ class Snapshot(unittest.TestCase):
                 f.write('{"boards": [{"board": "p1"}, {"board": "p2"}]}')
             import build
             with mock.patch.object(sd, 'CI_PINNED_BOARDS', pinned), \
-                 mock.patch.object(build, 'builds_any', side_effect=lambda b, _e: b == 'p2'):
+                 mock.patch.object(build, 'builds_any', side_effect=lambda b, _e, _d: b == 'p2'):
                 self.assertEqual(sd.snapshot_boards([], ['p1', 'p2'], ['host/device_info']), ['p2'])
 
     def test_non_integer_sizes_fail_the_elf(self):
@@ -2022,7 +2022,7 @@ class Snapshot(unittest.TestCase):
             for symbols in (False, True):
                 args = mock.Mock(event='push', families=[], board=['b1'], example=None, output=out,
                                  build_root=build_root, build_outcome='failure', symbols=symbols, filter=None,
-                                 build_name=None)
+                                 build_name=None, define_symbol=[])
                 with _engine('membrowse', lambda _p, _f: _elf(5)), \
                      mock.patch.object(sd, '_git_shas', return_value=(self.SHA[0],) * 3), \
                      mock.patch.object(sd, 'snapshot_boards', return_value=['b1']), \
@@ -2040,7 +2040,8 @@ class Snapshot(unittest.TestCase):
     def test_a_leg_without_pinned_boards_still_leaves_its_marker(self):
         with tempfile.TemporaryDirectory() as tmp:
             args = mock.Mock(event='push', families=['fam'], board=[], example=['device/a'], output=tmp,
-                             build_root=tmp, build_outcome='success', symbols=False, filter=None, build_name=None)
+                             build_root=tmp, build_outcome='success', symbols=False, filter=None, build_name=None,
+                             define_symbol=[])
             with mock.patch.object(sd, '_git_shas', return_value=(self.SHA[0],) * 3), \
                  mock.patch.object(sd, 'snapshot_boards', return_value=[]), \
                  contextlib.redirect_stdout(io.StringIO()):
@@ -2056,11 +2057,11 @@ class Snapshot(unittest.TestCase):
             _touch(build_root, 'cmake-build-b1/device/a/a.elf', 'cmake-build-b1-DMA/device/a/a.elf')
             args = mock.Mock(event='push', families=[], board=['b1'], example=['device/a'], output=out,
                              build_root=build_root, build_outcome='success', symbols=False, filter=None,
-                             build_name='b1-DMA')
+                             build_name='b1-DMA', define_symbol=['MAX3421_HOST=1'])
             sized = []
             with _engine('membrowse', lambda p, _f: sized.append(p) or _elf(5)), \
                  mock.patch.object(sd, '_git_shas', return_value=(self.SHA[0],) * 3), \
-                 mock.patch.object(sd, 'snapshot_boards', return_value=['b1']), \
+                 mock.patch.object(sd, 'snapshot_boards', return_value=['b1']) as boards, \
                  mock.patch.object(sd.build_utils, 'skip_example', return_value=False) as skip, \
                  contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(sd.run_snapshot(args), 0)
@@ -2070,17 +2071,27 @@ class Snapshot(unittest.TestCase):
             with open(os.path.join(out, 'code-size-b1-DMA.json')) as f:
                 self.assertEqual(json.load(f)['board'], 'b1-DMA')
         self.assertEqual([os.path.relpath(p, build_root) for p in sized], ['cmake-build-b1-DMA/device/a/a.elf'])
-        skip.assert_called_with('device/a', 'b1')  # the board's own skip rules
+        # the board's own skip rules, with the leg's defines as build.py applied them
+        boards.assert_called_once_with([], ['b1'], ['device/a'], ('MAX3421_HOST=1',))
+        skip.assert_called_with('device/a', 'b1', ('MAX3421_HOST=1',))
 
     def test_a_variant_needs_one_board_and_a_build_name(self):
         for argv in (['-b', 'b1', '-b', 'b2', '--build-name', 'x'], ['fam', '--build-name', 'x'],
-                     ['-b', 'b1', '--cflag=-DX=1'], ['-b', 'b1', '--build-name', '../x']):
+                     ['-b', 'b1', '--cflag=-DX=1'], ['-b', 'b1', '-DX=1'], ['-b', 'b1', '--build-name', '../x']):
             with mock.patch.object(sd, 'engine_missing', return_value=False), \
                  mock.patch.object(sd, 'run_snapshot') as run, \
                  mock.patch.object(sys, 'argv', ['code_size.py', 'snapshot', '-o', 'out'] + argv), \
                  contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
                 sd.main()
             run.assert_not_called()
+
+    def test_a_variant_takes_build_py_defines(self):
+        argv = ['-b', 'b1', '--build-name', 'b1-X', '-DX=1', '--define-symbol', 'Y=2', '--cflag=-DZ=3']
+        with mock.patch.object(sd, 'engine_missing', return_value=False), \
+             mock.patch.object(sd, 'run_snapshot', return_value=0) as run, \
+             mock.patch.object(sys, 'argv', ['code_size.py', 'snapshot', '-o', 'out'] + argv):
+            self.assertEqual(sd.main(), 0)
+        self.assertEqual((run.call_args[0][0].define_symbol, run.call_args[0][0].cflag), (['X=1', 'Y=2'], ['-DZ=3']))
 
 
 def _shard(board, elfs, sha='a', base='b', head='c', failures=(), examples=None, compiler='gcc 14'):

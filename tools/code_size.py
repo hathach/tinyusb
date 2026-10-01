@@ -1239,20 +1239,21 @@ def _git_shas(event):
     return (shas[0], shas[1], shas[2]) if len(shas) == 3 else (shas[0], shas[0], shas[0])
 
 
-def snapshot_boards(families, boards, examples):
+def snapshot_boards(families, boards, examples, defines=()):
     """The CI-pinned boards a build leg produced, as the Membrowse upload step picks them:
     each family's pinned boards that build one of `examples` (build.py's
-    resolve_ci_boards, boards-only), plus each `-b` board that is pinned."""
+    resolve_ci_boards, boards-only), plus each `-b` board that is pinned. `defines` are
+    the leg's -D tokens, which can enable examples (MAX3421_HOST=1)."""
     import build  # tools/build.py; its import has no side effects
     pinned = ci_pinned_boards()
     # build.py skips a -b board that builds none of the examples, before configuring it
-    picked = [b for b in boards if b in pinned and build.builds_any(b, examples)]
+    picked = [b for b in boards if b in pinned and build.builds_any(b, examples, defines)]
     for family in families:
-        picked += build.resolve_ci_boards(CI_PINNED_BOARDS, family, True, examples)
+        picked += build.resolve_ci_boards(CI_PINNED_BOARDS, family, True, examples, extra_defines=defines)
     return list(dict.fromkeys(picked))
 
 
-def board_snapshot(board, build_dir, examples, filters):
+def board_snapshot(board, build_dir, examples, filters, defines=()):
     """(elfs, failures) of one board's build dir: {elf path: sizes} of every sized elf,
     and [{'elf', 'stage', 'message'}]. A missing build dir, an example of the scope the
     board builds but has no elf for, or an elf that failed to size is a failure, never a
@@ -1260,7 +1261,8 @@ def board_snapshot(board, build_dir, examples, filters):
     if not os.path.isdir(build_dir):
         return {}, [{'elf': None, 'stage': 'build', 'message': f'no build dir {_shown(build_dir)}'}]
     elfs, failures = {}, []
-    scopes = [e for e in dict.fromkeys(examples) if not build_utils.skip_example(e, board)] if examples else [None]
+    scopes = [e for e in dict.fromkeys(examples)
+              if not build_utils.skip_example(e, board, defines)] if examples else [None]
     for example in scopes:
         sizes, errors = generate_sizes(build_dir, filters, example)
         for rel, s in sizes.items():
@@ -1287,7 +1289,8 @@ def run_snapshot(args):
     except Exception:
         membrowse_version = ''
     filters = args.filter or [tinyusb_src_filter(TINYUSB_ROOT)]
-    boards = snapshot_boards(args.families, args.board, args.example)
+    defines = tuple(args.define_symbol)
+    boards = snapshot_boards(args.families, args.board, args.example, defines)
     # a variant leg (--build-name) reports its one board under the build name
     names = {args.build_name or b: b for b in boards}
     os.makedirs(args.output, exist_ok=True)
@@ -1302,7 +1305,7 @@ def run_snapshot(args):
     failed = False
     for board, base_board in names.items():
         build_dir = os.path.join(args.build_root, f'cmake-build-{board}')
-        elfs, failures = board_snapshot(base_board, build_dir, args.example, filters)
+        elfs, failures = board_snapshot(base_board, build_dir, args.example, filters, defines)
         # the leg's commits, examples and build outcome are in its leg.json
         data = {'schema': SNAPSHOT_SCHEMA, 'board': board, 'engine': 'membrowse',
                 'membrowse_version': membrowse_version, 'compiler': _cmake_compiler(build_dir),
@@ -1651,6 +1654,8 @@ def main():
                       help='Examples the leg built (repeatable); omit when it built all')
     snap.add_argument('--build-name', help='A variant leg\'s build name (as tools/build.py): its build dir, and '
                                           'the board it reports as')
+    snap.add_argument('-D', '--define-symbol', action='append', default=[],
+                      help='A variant leg\'s build-system define (as tools/build.py); it needs --build-name')
     snap.add_argument('--cflag', action='append', default=[],
                       help='A variant leg\'s compiler flag (as tools/build.py); it needs --build-name')
     snap.add_argument('-o', '--output', required=True, help='Directory for the code-size-<board>.json files')
@@ -1686,8 +1691,8 @@ def main():
             snap.error(f'invalid board name: {", ".join(invalid)}')
         if args.build_name and (args.families or len(args.board) != 1):
             snap.error('--build-name names exactly one -b board and no families')
-        if args.cflag and not args.build_name:
-            snap.error('--cflag makes a variant, which needs --build-name to report under')
+        if (args.define_symbol or args.cflag) and not args.build_name:
+            snap.error('-D or --cflag makes a variant, which needs --build-name to report under')
         return run_snapshot(args)
 
     if engine_missing(args.engine):
