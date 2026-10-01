@@ -1661,49 +1661,15 @@ def _usbtest_verdict(board: Board, data: dict, out: str, passed: int, failed: in
 _dut_port: dict = {}   # board uid -> busport last seen: a stuck port stops enumerating
 
 
-def _dut_port_file(uid: str) -> str:
-    return os.path.join(hil_lock.BOARD_LOCK_DIR, f'{uid}.port')
-
-
-def _save_dut_port(uid: str, busport: str) -> None:
-    """Persist the port across runs: a run killed mid-usbtest leaves the TT stuck for the
-    next one, whose fresh process has not seen the board."""
-    try:
-        os.makedirs(hil_lock.BOARD_LOCK_DIR, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=hil_lock.BOARD_LOCK_DIR, prefix=f'.{uid}.port.')
-        with os.fdopen(fd, 'w') as f:
-            f.write(busport)
-        os.replace(tmp, _dut_port_file(uid))
-    except OSError:
-        pass        # best effort: the in-process cache still covers this run
-
-
-def _saved_dut_port(uid: str) -> str | None:
-    """The port a previous run saw the board on, only while nothing is enumerated there:
-    the board may have been re-cabled since, and Reset_TT would disturb the device that
-    sits there now."""
-    try:
-        with open(_dut_port_file(uid)) as f:
-            busport = f.read().strip()
-    except OSError:
-        return None
-    if not busport or os.path.exists(os.path.join('/sys/bus/usb/devices', busport)):
-        return None
-    return busport
-
-
 def reset_dut_tt(board: Board) -> None:
     """Reset the TT of the board's hub port before a flash (helper/hil_tt): a leaked TT
     buffer from the previous test would otherwise fail this one's enumeration."""
-    uid = board['uid']
-    found = hil_util.usb_scan(vid='cafe', serial=uid)
+    found = hil_util.usb_scan(vid='cafe', serial=board['uid'])
     if len(found) > 1:
         return      # one serial on two ports (dual-port parts mid-reflash): no safe target
     if found:
-        if _dut_port.get(uid) != found[0]['busport']:
-            _save_dut_port(uid, found[0]['busport'])
-        _dut_port[uid] = found[0]['busport']
-    busport = _dut_port.get(uid) or _saved_dut_port(uid)
+        _dut_port[board['uid']] = found[0]['busport']
+    busport = _dut_port.get(board['uid'])
     if busport:
         # no speed: the device is gone, as on the stuck port this exists for; a high-speed
         # device leaks no TT buffer, and resetting its TT disturbs nothing
