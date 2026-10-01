@@ -167,10 +167,10 @@ class BeforeFlash(unittest.TestCase):
     """hil_test resets the port's TT before each flash, from one unambiguous live port, else
     the last port it saw the board on."""
 
-    def resets(self, *scans, ok=True):
+    def resets(self, *scans, ok=True, speed='12'):
         it = iter(scans)
         usbtest_harness.patch(self, hil_test.hil_util, 'usb_scan', lambda **kw: next(it))
-        usbtest_harness.patch(self, hil_test.hil_util, 'read_sysfs', lambda path, *a: None)
+        usbtest_harness.patch(self, hil_test.hil_util, 'read_sysfs', lambda path, *a: speed)
         seen = []
         usbtest_harness.patch(self, hil_test.hil_tt, 'reset_tt',
                               lambda busport, speed: seen.append((busport, speed)) or ok)
@@ -181,6 +181,31 @@ class BeforeFlash(unittest.TestCase):
     def test_uses_the_live_port_then_the_last_seen_one(self):
         seen = self.resets([{'busport': '5-1.2', 'dir': '/x'}], [])
         self.assertEqual(seen, [('5-1.2', '12')] * 2)
+
+    def test_a_gone_device_is_reset_only_if_last_seen_at_full_speed(self):
+        td = TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        intf = Path(td.name) / '5-1' / '5-1:1.0'
+        intf.mkdir(parents=True)
+        (intf / 'bInterfaceProtocol').write_text('02\n')
+        (intf.parent / 'busnum').write_text('5\n')
+        (intf.parent / 'devnum').write_text('58\n')
+        usbtest_harness.patch(self, hil_tt, 'SYS_USB', Path(td.name))
+        usbtest_harness.patch(self, hil_tt, '_unconfirmed', set())
+        spawned = []
+        usbtest_harness.patch(self, hil_util, 'run_cmd', lambda cmd, **kw: spawned.append(cmd)
+                              or subprocess.CompletedProcess(cmd, 0, '', None))
+        for speed, helpers in (('480', 0), ('12', 1)):
+            spawned.clear()
+            it = iter([[{'busport': '5-1.2', 'dir': '/x'}], []])
+            sysfs = iter([speed])   # read only while the device is present
+            usbtest_harness.patch(self, hil_test.hil_util, 'usb_scan', lambda **kw: next(it))
+            usbtest_harness.patch(self, hil_test.hil_util, 'read_sysfs', lambda path, *a: next(sysfs))
+            usbtest_harness.patch(self, hil_test, '_dut_port', {})
+            hil_test.reset_dut_tt({'uid': 'U', 'name': 'b'})
+            spawned.clear()
+            self.assertTrue(hil_test.reset_dut_tt({'uid': 'U', 'name': 'b'}))
+            self.assertEqual(len(spawned), helpers, speed)
 
     def test_ambiguity_is_left_alone_and_keeps_the_cache(self):
         two = [{'busport': '5-1.3', 'dir': '/x'}, {'busport': '5-1.4', 'dir': '/y'}]

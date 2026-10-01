@@ -1658,7 +1658,7 @@ def _usbtest_verdict(board: Board, data: dict, out: str, passed: int, failed: in
 # -------------------------------------------------------------
 
 
-_dut_port: dict = {}   # board uid -> busport last seen: a stuck port stops enumerating
+_dut_port: dict = {}   # board uid -> (busport, speed) last seen: a stuck port stops enumerating
 
 
 def reset_dut_tt(board: Board) -> bool:
@@ -1669,13 +1669,12 @@ def reset_dut_tt(board: Board) -> bool:
     if len(found) > 1:
         return True  # one serial on two ports (dual-port parts mid-reflash): no safe target
     if found:
-        _dut_port[board['uid']] = found[0]['busport']
-    busport = _dut_port.get(board['uid'])
-    if busport:
-        # no speed: the device is gone, as on the stuck port this exists for; a high-speed
-        # device leaks no TT buffer, and resetting its TT disturbs nothing
-        speed = hil_util.read_sysfs(os.path.join('/sys/bus/usb/devices', busport, 'speed')) or '12'
-        return hil_tt.reset_tt(busport, speed)
+        busport = found[0]['busport']
+        speed = hil_util.read_sysfs(os.path.join('/sys/bus/usb/devices', busport, 'speed'))
+        _dut_port[board['uid']] = (busport, speed)
+    if board['uid'] in _dut_port:
+        # a gone device keeps the speed it was seen at: a high-speed one has no TT to reset
+        return hil_tt.reset_tt(*_dut_port[board['uid']])
     return True
 
 
