@@ -57,6 +57,7 @@ HARNESS_FILES = (
     'test/hil/helper/hil_args.py',
     'test/hil/helper/hil_lock.py',
     'test/hil/helper/hil_report.py',
+    'test/hil/helper/hil_tt.py',
     'test/hil/helper/hil_util.py',
     'tools/rtt.py',
 )

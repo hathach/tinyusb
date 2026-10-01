@@ -87,6 +87,8 @@ TIER_CASES = {
     4: [15, 16, 22, 23],
 }
 
+UNLINK_CASES = (11, 12, 24)   # URB unlink mid-transfer: can strand a hub TT buffer (hil_tt)
+
 # Per-case testusb parameters (full speed / high speed). All -s/-v values are multiples
 # of 512 so transfers stay packet-aligned at both speeds: the device streams whole max-size
 # packets and a non-aligned IN length would babble. 14/21 must never run with defaults
@@ -97,7 +99,7 @@ PARAMS = {
     10: ('-c 64 -g 16', '-c 256 -g 16'),
     **{n: ('-c 128 -s 1024 -v 512', '-c 512 -s 1024 -v 512') for n in (1, 2, 3, 4, 17, 18, 19, 20)},
     **{n: ('-c 8 -s 1024 -g 8', '-c 32 -s 1024 -g 16') for n in (5, 6, 7, 8)},
-    **{n: ('-c 64 -s 1024 -g 8', '-c 256 -s 1024 -g 8') for n in (11, 12, 24)},
+    **{n: ('-c 64 -s 1024 -g 8', '-c 256 -s 1024 -g 8') for n in UNLINK_CASES},
     13: ('-c 16 -s 512', '-c 64 -s 512'),
     29: ('-c 16 -s 512', '-c 64 -s 512'),
     27: ('-c 16 -s 1024 -g 32', '-c 128 -s 1024 -g 32'),
@@ -199,6 +201,11 @@ def _hu():
     """The helper module, imported lazily like every other helper use in this file."""
     from helper import hil_util
     return hil_util
+
+
+def _tt():
+    from helper import hil_tt
+    return hil_tt
 
 
 SERIAL_GRACE = 1.0   # tighter than hil_util's shared default on purpose: find_device
@@ -697,6 +704,14 @@ def main():
                       file=sys.stderr)
                 unrecovered_hang = not recover_hang(args.recover_board, args.recover_fw,
                                                     r.pop('_proc'), dev)
+                break
+            if (num in UNLINK_CASES or r['status'] != 'PASS') and \
+                    not _tt().reset_tt(dev['sysname'], dev['speed']):
+                # unconfirmed (hil_tt.reset_tt): the rest may stall on the same port. Not a
+                # wedge of this device -- a sibling port's enumeration can hold the hub.
+                abort_reason = f'Reset_TT after case {num} unconfirmed'
+                if r['status'] == 'PASS':   # the battery must not read as a clean pass
+                    r.update(status='FAIL', detail=abort_reason)
                 break
             # re-resolve: a re-enumeration changes the node path. The concrete serial, not
             # args.serial (may be None), so this never retargets another cafe:4010 device.
