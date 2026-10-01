@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 import signal
 import subprocess
 import time
@@ -143,7 +144,11 @@ def _openocd_cmd_base(flasher):
 def flash_openocd(board, firmware, timeout=None):
     flasher = board['flasher']
     verify = ' verify' if flasher.get('verify', True) else ''
-    return hil_util.run_cmd(f'{_openocd_cmd_base(flasher)} -c "program {firmware}{verify} reset exit"',
+    rp = _rp_target(flasher)
+    # RP2 SYSRESETREQ leaves USB live: halt the old image, then hold USBCTRL in reset until the
+    # new one releases it
+    pre_program = f'init; reset halt; {RP_CFG[rp][3]}; ' if rp else ''
+    return hil_util.run_cmd(f'{_openocd_cmd_base(flasher)} -c "{pre_program}program {firmware}{verify} reset exit"',
                             timeout=timeout)
 
 
@@ -167,17 +172,23 @@ JLINK_CFG = 'interface/jlink.cfg'
 # these appear ("CMSIS-DAP: Interface ready" is still logged); the chip's debug clock is
 # gone, which no probe-driven reset fixes -- the CMSIS-DAP probe has no nRESET line. Which
 # message appears depends on DAP topology, not the board, so both are accepted for both
-# chips; RESCUE_CFG below picks the rescue.
+# chips; RP_CFG below picks the rescue.
 DAP_WEDGED = ('Failed to connect multidrop', 'Error connecting DP: cannot read IDR')
 
-# How each RP target reaches its Rescue DP, keyed by the target cfg named in flasher args:
-# (cfg substitution, pre args, post args). rp2040.cfg drives the Rescue DP behind a RESCUE
-# flag and init/shutdowns itself; rp2350-rescue.cfg never shuts down, so it needs an
-# explicit one or it sits in the server loop until CMD_TIMEOUT.
-RESCUE_CFG = {
-    'target/rp2040.cfg': ('target/rp2040.cfg', '-c "set RESCUE 1" ', ''),
-    'target/rp2350.cfg': ('target/rp2350-rescue.cfg', '', ' -c "shutdown"'),
+# Per RP target, keyed by the target cfg named in flasher args: how it reaches its Rescue DP
+# (cfg substitution, pre args, post args), and the write that holds USBCTRL in reset through
+# RESETS' SET alias (pico-sdk 2.2.0 addressmap.h and resets.h). rp2040.cfg drives the Rescue
+# DP behind a RESCUE flag and init/shutdowns itself; rp2350-rescue.cfg never shuts down, so it
+# needs an explicit one or it sits in the server loop until CMD_TIMEOUT.
+RP_CFG = {
+    'target/rp2040.cfg': ('target/rp2040.cfg', '-c "set RESCUE 1" ', '', 'mww 0x4000e000 0x01000000'),
+    'target/rp2350.cfg': ('target/rp2350-rescue.cfg', '', ' -c "shutdown"', 'mww 0x40022000 0x10000000'),
 }
+
+
+def _rp_target(flasher):
+    """The RP_CFG key flasher args name as a whole token, or None."""
+    return next((t for t in shlex.split(flasher['args']) if t in RP_CFG), None)
 
 
 def rescue_openocd(board, flash_out: str = '', timeout=None) -> bool:
@@ -192,12 +203,13 @@ def rescue_openocd(board, flash_out: str = '', timeout=None) -> bool:
     flasher = board['flasher']
     if flasher['name'].lower() != 'openocd' or not any(m in flash_out for m in DAP_WEDGED):
         return False
-    for cfg, (rescue_cfg, pre, post) in RESCUE_CFG.items():
-        if cfg in flasher['args']:
-            args = flasher['args'].replace(cfg, rescue_cfg)
-            return hil_util.run_cmd(f'{_openocd_cmd_base({**flasher, "args": pre + args})}{post}',
-                                    timeout=timeout).returncode == 0
-    return False
+    cfg = _rp_target(flasher)
+    if cfg is None:
+        return False
+    rescue_cfg, pre, post, _ = RP_CFG[cfg]
+    args = flasher['args'].replace(cfg, rescue_cfg)
+    return hil_util.run_cmd(f'{_openocd_cmd_base({**flasher, "args": pre + args})}{post}',
+                            timeout=timeout).returncode == 0
 
 
 # openocd's own syntax: one or more "0xVVVV 0xPPPP" pairs. Validated rather than merely
