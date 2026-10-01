@@ -49,6 +49,7 @@ static uint8_t const midi2_test_configuration[] = {
 static inline void midi2_test_init(void) {
   dcd_int_disable_Ignore();
   dcd_int_enable_Ignore();
+  dcd_edpt0_setup_begin_Ignore();
 
   if (!tud_inited()) {
     tusb_rhport_init_t dev_init = {
