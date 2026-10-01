@@ -164,6 +164,15 @@ void setUp(void) {
 void tearDown(void) {
 }
 
+void test_usbd_task_idle_does_not_mask_interrupts(void) {
+  TEST_ASSERT_FALSE(tud_task_event_ready());
+  dcd_int_disable_StopIgnore();
+  dcd_int_enable_StopIgnore();
+
+  // An empty task poll must not call either interrupt mock.
+  tud_task();
+}
+
 //--------------------------------------------------------------------+
 // Get Descriptor
 //--------------------------------------------------------------------+
