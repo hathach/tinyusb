@@ -706,9 +706,9 @@ class _FakeProc:
 
 
 class RunCaseConfirmsByReap(unittest.TestCase):
-    """HUNG is 'SIGKILL not reaped in 5 s', which testusb blocked on a PEER's held device lock
-    also produces (its own device walk opens every node). Watching our child for
-    WEDGE_CONFIRM_S tells the two apart: reaped late is a timeout, not a wedge (#3944).
+    """HUNG is 'SIGKILL not reaped in 5 s', which a finite hold on the DUT's device lock also
+    produces. Watching our child for WEDGE_CONFIRM_S tells the two apart: reaped late is a
+    timeout, not a wedge (#3944).
     Under sudo the child is the wrapper, so its reaping proves nothing."""
 
     def _run_case(self, sudo: bool, reaps_late: bool):
@@ -905,7 +905,7 @@ class UnidentifiedDeviceIsNotAHang(unittest.TestCase):
         usbtest_harness.stub_device(self, usbtest, lambda num, d, tu, quick, timeout: {
             'num': num, 'name': 'x', 'params': '', 'status': 'PASS'})
         found = iter([dict(usbtest_harness.DEV), live])
-        patch(usbtest, 'find_device', lambda serial, first=False: next(found))
+        patch(usbtest, 'find_device', lambda serial: next(found))
         patch(usbtest, '_hu', lambda: types.SimpleNamespace(path_stranded=lambda p: stranded))
         patch(usbtest, 'bind_usbtest', lambda d: None)
         patch(usbtest, 'register_usbtest_id', lambda: None)
