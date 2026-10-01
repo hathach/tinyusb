@@ -167,16 +167,15 @@ class BeforeFlash(unittest.TestCase):
     """hil_test resets the port's TT before each flash, from one unambiguous live port, else
     the last port it saw the board on."""
 
-    def resets(self, *scans):
+    def resets(self, *scans, ok=True):
         it = iter(scans)
         usbtest_harness.patch(self, hil_test.hil_util, 'usb_scan', lambda **kw: next(it))
         usbtest_harness.patch(self, hil_test.hil_util, 'read_sysfs', lambda path, *a: None)
         seen = []
         usbtest_harness.patch(self, hil_test.hil_tt, 'reset_tt',
-                              lambda busport, speed: seen.append((busport, speed)) or True)
+                              lambda busport, speed: seen.append((busport, speed)) or ok)
         usbtest_harness.patch(self, hil_test, '_dut_port', {})
-        for _ in scans:
-            hil_test.reset_dut_tt({'uid': 'U', 'name': 'b'})
+        self.results = [hil_test.reset_dut_tt({'uid': 'U', 'name': 'b'}) for _ in scans]
         return seen
 
     def test_uses_the_live_port_then_the_last_seen_one(self):
@@ -188,6 +187,25 @@ class BeforeFlash(unittest.TestCase):
         self.assertEqual(self.resets(two), [])
         seen = self.resets([{'busport': '5-1.2', 'dir': '/x'}], two, [])
         self.assertEqual(seen, [('5-1.2', '12')] * 2)
+
+    def test_unconfirmed_reset_is_returned(self):
+        two = [{'busport': '5-1.3', 'dir': '/x'}, {'busport': '5-1.4', 'dir': '/y'}]
+        self.resets([{'busport': '5-1.2', 'dir': '/x'}], two, ok=False)
+        self.assertEqual(self.results, [False, True])
+
+    def test_unconfirmed_reset_is_named_in_the_attempt(self):
+        logs = []
+        usbtest_harness.patch(self, hil_flash, 'find_firmware', lambda *a, **k: Path('/fw.elf'))
+        usbtest_harness.patch(self, hil_flash, 'flash_primitive',
+                              lambda name: lambda *a, **k: subprocess.CompletedProcess('flash', 1, ''))
+        usbtest_harness.patch(self, hil_test, 'reset_dut_tt', lambda b: False)
+        usbtest_harness.patch(self, hil_test, 'skip_flash', False)
+        usbtest_harness.patch(self, hil_test, 'max_retry', 1)
+        usbtest_harness.patch(self, hil_test, 'log_line', lambda m, **k: logs.append(m))
+        with redirect_stdout(io.StringIO()):
+            hil_test.test_example({'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd'}},
+                                  'v', 'device/cdc_msc')
+        self.assertIn('Reset_TT unconfirmed', logs[-1])
 
     def test_reset_runs_inside_the_flash_permit(self):
         order = []
@@ -203,7 +221,7 @@ class BeforeFlash(unittest.TestCase):
                               lambda name: lambda *a, **k: order.append('flash')
                               or subprocess.CompletedProcess('flash', 1, ''))
         usbtest_harness.patch(self, hil_test.hil_lock, 'flash_permit', flash_permit)
-        usbtest_harness.patch(self, hil_test, 'reset_dut_tt', lambda b: order.append('reset'))
+        usbtest_harness.patch(self, hil_test, 'reset_dut_tt', lambda b: order.append('reset') or True)
         usbtest_harness.patch(self, hil_test, 'skip_flash', False)
         usbtest_harness.patch(self, hil_test, 'max_retry', 1)
         usbtest_harness.patch(self, hil_test, 'log_line', lambda *a, **k: None)

@@ -1661,12 +1661,13 @@ def _usbtest_verdict(board: Board, data: dict, out: str, passed: int, failed: in
 _dut_port: dict = {}   # board uid -> busport last seen: a stuck port stops enumerating
 
 
-def reset_dut_tt(board: Board) -> None:
+def reset_dut_tt(board: Board) -> bool:
     """Reset the TT of the board's hub port before a flash (helper/hil_tt): a leaked TT
-    buffer from the previous test would otherwise fail this one's enumeration."""
+    buffer from the previous test would otherwise fail this one's enumeration. False when
+    hil_tt.reset_tt could not confirm the reset."""
     found = hil_util.usb_scan(vid='cafe', serial=board['uid'])
     if len(found) > 1:
-        return      # one serial on two ports (dual-port parts mid-reflash): no safe target
+        return True  # one serial on two ports (dual-port parts mid-reflash): no safe target
     if found:
         _dut_port[board['uid']] = found[0]['busport']
     busport = _dut_port.get(board['uid'])
@@ -1674,7 +1675,8 @@ def reset_dut_tt(board: Board) -> None:
         # no speed: the device is gone, as on the stuck port this exists for; a high-speed
         # device leaks no TT buffer, and resetting its TT disturbs nothing
         speed = hil_util.read_sysfs(os.path.join('/sys/bus/usb/devices', busport, 'speed')) or '12'
-        hil_tt.reset_tt(busport, speed)
+        return hil_tt.reset_tt(busport, speed)
+    return True
 
 
 def test_example(board: Board, variant: str, example: str) -> tuple[int, str, str | None]:
@@ -1734,7 +1736,11 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
         with redirect_stdout(attempt_out):
             if not skip_flash:
                 with hil_lock.flash_permit(board['uid']):
-                    reset_dut_tt(board)
+                    if not reset_dut_tt(board):
+                        # flash anyway: the hub stays unconfirmed for the rest of the run, so
+                        # refusing would fail every later test on it; a late Reset_TT from
+                        # the timed-out helper can still disturb this attempt, so name it
+                        print('Reset_TT unconfirmed before flash', flush=True)
                     t_flash = time.monotonic()
                     try:
                         ret = hil_flash.flash_primitive(board['flasher']['name'])(board, str(fw_name))
