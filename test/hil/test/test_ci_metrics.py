@@ -282,7 +282,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
             self.assertTrue(log[0].startswith('docker run --rm -e ARG -e EX_ARGS -e BUILD_OUTCOME -e GITHUB_EVENT_NAME '
                                               f'-v {d}:/project -w /project espressif/idf:tinyusb bash -c'))
             self.assertEqual(log[1:3], ['git config --global --add safe.directory /project',
-                                        'pip install --only-binary :all: membrowse==1.2.9'])
+                                        'pip install --only-binary :all: membrowse'])
             self.assertEqual(log[3], 'python [tools/code_size.py] [snapshot] [--symbols] [--build-outcome] [success] '
                                      '[-o] [code-size] [-b] [espressif_s3_devkitm] [$(touch] [pwned)] [;id]')
             self.assertEqual(run('stm32f4', toolchain='arm-gcc'),  # every other toolchain sizes on the runner
