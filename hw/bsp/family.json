@@ -668,6 +668,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -693,6 +694,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -718,6 +720,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -743,6 +746,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -762,6 +766,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -787,6 +792,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -806,6 +812,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -831,6 +838,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -856,6 +864,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -875,6 +884,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -894,6 +904,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -913,6 +924,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -932,6 +944,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -951,6 +964,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -970,6 +984,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }

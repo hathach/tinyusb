@@ -77,17 +77,10 @@ def get_examples(family):
         if d.is_dir() and 'cmake' not in d.name and 'build_system' not in d.name:
             for entry in os.scandir(d.path):
                 if entry.is_dir() and 'cmake' not in entry.name:
-                    if family != 'espressif' or 'freertos' in entry.name:
+                    # espressif builds only examples with an ESP-IDF component (src/CMakeLists.txt)
+                    if family != 'espressif' or os.path.isfile(os.path.join(entry.path, 'src', 'CMakeLists.txt')):
                         all_examples.append(d.name + '/' + entry.name)
 
-    if family == 'espressif':
-        all_examples.append('device/board_test')
-        all_examples.append('device/cdc_msc_throughput')
-        all_examples.append('device/dfu_runtime')
-        all_examples.append('device/mtp')
-        all_examples.append('device/usbtest')
-        all_examples.append('device/video_capture')
-        all_examples.append('host/device_info')
     all_examples.sort()
     return all_examples
 
