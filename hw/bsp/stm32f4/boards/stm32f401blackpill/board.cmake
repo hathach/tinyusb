@@ -1,3 +1,6 @@
+# 64 KiB total RAM: the family's 65536 SystemView default cannot link here.
+set(SYSVIEW_BUFFER_SIZE_DEFAULT 4096)
+
 set(MCU_VARIANT stm32f401xc)
 set(JLINK_DEVICE stm32f401cc)
 

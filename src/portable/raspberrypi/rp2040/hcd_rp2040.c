@@ -27,6 +27,7 @@
 
   #include "host/hcd.h"
   #include "host/usbh.h"
+  #include "common/tusb_sysview.h"
 
 //--------------------------------------------------------------------+
 //
@@ -282,6 +283,12 @@ static void __tusb_irq_path_func(handle_buf_status_isr)(void) {
 }
 
 static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
+  // The SDK registers this function directly as the hardware ISR (irq_add_shared_handler below)
+  // rather than going through hcd_int_handler()/tuh_int_handler() (usbh.h) the way most BSPs'
+  // vector ISRs do, so usbh.h's TU_SYSVIEW_ISR_ENTER/EXIT wrap there never runs for this family
+  // -- wrap the real entry point instead. Single exit path (no early returns, panic() aside),
+  // so ENTER/EXIT bracket the whole body; both compile away at SYSVIEW=0.
+  TU_SYSVIEW_ISR_ENTER();
   const uint32_t status = usb_hw->ints;
 
   if (status & USB_INTS_HOST_CONN_DIS_BITS) {
@@ -378,6 +385,8 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
     usb_hw_clear->sie_status = USB_SIE_STATUS_DATA_SEQ_ERROR_BITS;
     panic("Data Seq Error \n");
   }
+
+  TU_SYSVIEW_ISR_EXIT();
 }
 
 void __tusb_irq_path_func(hcd_int_handler)(uint8_t rhport, bool in_isr) {

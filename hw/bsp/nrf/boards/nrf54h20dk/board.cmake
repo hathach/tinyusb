@@ -1,3 +1,7 @@
+# .data/.bss live in the 32 KiB primary RAM: the family's 65536 SystemView default
+# cannot link here.
+set(SYSVIEW_BUFFER_SIZE_DEFAULT 4096)
+
 set(MCU_VARIANT nrf54h20)
 
 function(update_board TARGET)

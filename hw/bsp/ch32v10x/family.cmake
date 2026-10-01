@@ -59,6 +59,18 @@ function(family_configure_example TARGET RTOS)
   family_configure_common(${TARGET} ${RTOS})
   family_add_tinyusb(${TARGET} OPT_MCU_CH32V103)
 
+  if (SYSVIEW)
+    # ch32v103 startup runs in U-mode (see family.c board_init()): the vendor SDK's
+    # __disable_irq()/__enable_irq() write mstatus, which traps from U-mode, and writing the
+    # custom CSR 0x800 (INTSYSCR) directly -- the trick the other WCH families use -- corrupts the
+    # QingKe V3 interrupt-mode config (previously hung the board, USB IRQ vector jumping to PC=0).
+    # No verified-safe way to mask interrupts from application code exists on this family, so
+    # SEGGER_RTT_LOCK()/UNLOCK() can only be a no-op -- and RTT writes racing an ISR would silently
+    # corrupt SystemView's stream. Refuse to build instead of shipping unsound numbers.
+    message(FATAL_ERROR "SYSVIEW needs an RTT lock; ch32v10x runs in U-mode where mstatus CSR "
+      "access traps and no safe mask is wired -- numbers would be silently corrupt")
+  endif ()
+
   target_sources(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c

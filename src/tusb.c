@@ -11,6 +11,7 @@
 
 #include "tusb.h"
 #include "common/tusb_private.h"
+#include "common/tusb_sysview.h"
 
 #if CFG_TUD_ENABLED
 #include "device/usbd_pvt.h"
@@ -128,20 +129,26 @@ bool tusb_inited(void) {
 }
 
 void tusb_int_handler(uint8_t rhport, bool in_isr) {
-  TU_VERIFY(rhport < TUP_USBIP_CONTROLLER_NUM,);
+  // only record an ISR span when actually in one -- ports may call this from task
+  // context with in_isr=false, which would otherwise log a phantom interrupt
+  if (in_isr) { TU_SYSVIEW_ISR_ENTER(); }
 
-  #if CFG_TUD_ENABLED
-  if (_tusb_rhport_role[rhport] == TUSB_ROLE_DEVICE) {
-    (void) in_isr;
-    dcd_int_handler(rhport);
-  }
-  #endif
+  if (rhport < TUP_USBIP_CONTROLLER_NUM) {
+    #if CFG_TUD_ENABLED
+    if (_tusb_rhport_role[rhport] == TUSB_ROLE_DEVICE) {
+      (void) in_isr;
+      dcd_int_handler(rhport);
+    }
+    #endif
 
-  #if CFG_TUH_ENABLED
-  if (_tusb_rhport_role[rhport] == TUSB_ROLE_HOST) {
-    hcd_int_handler(rhport, in_isr);
+    #if CFG_TUH_ENABLED
+    if (_tusb_rhport_role[rhport] == TUSB_ROLE_HOST) {
+      hcd_int_handler(rhport, in_isr);
+    }
+    #endif
   }
-  #endif
+
+  if (in_isr) { TU_SYSVIEW_ISR_EXIT(); }
 }
 
 bool tusb_deinit(uint8_t rhport) {

@@ -13,6 +13,7 @@
 #endif
 
 #include "common/tusb_common.h"
+#include "common/tusb_sysview.h"
 
 #if CFG_TUH_MAX3421
 #include "portable/analog/max3421/hcd_max3421.h"
@@ -176,10 +177,28 @@ bool tuh_task_event_ready(void);
 extern void hcd_int_handler(uint8_t rhport, bool in_isr);
 #endif
 
-// Interrupt handler alias to HCD with in_isr as optional parameter
-#define _tuh_int_handler_arg0()                   TU_VERIFY_STATIC(false, "tuh_int_handler() must have 1 or 2 arguments")
-#define _tuh_int_handler_arg1(_rhport)            hcd_int_handler(_rhport, true)
-#define _tuh_int_handler_arg2(_rhport, _in_isr)   hcd_int_handler(_rhport, _in_isr)
+// Interrupt handler alias to HCD with in_isr as optional parameter. Most BSPs
+// call this macro directly from their vector ISR rather than
+// tusb_int_handler() (src/tusb.c) — wrap it here so CFG_TUH_SYSVIEW's ISR
+// level (Ruling A) actually sees real interrupt entry/exit
+// instead of being dead code on those boards.
+#define _tuh_int_handler_arg0()   TU_VERIFY_STATIC(false, "tuh_int_handler() must have 1 or 2 arguments")
+#if CFG_TUH_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_ISR
+  #define _tuh_int_handler_arg1(_rhport) \
+    do { TU_SYSVIEW_ISR_ENTER(); hcd_int_handler(_rhport, true); TU_SYSVIEW_ISR_EXIT(); } while(0)
+  // _in_isr evaluated exactly once into a local: used 3x below, so a side-effecting/volatile
+  // argument would otherwise run 2-3x, and re-reading it after hcd_int_handler() runs (in case
+  // the handler itself clears whatever flag backs it) could see ENTER's check true but EXIT's
+  // check false, leaving a mismatched ENTER with no EXIT.
+  #define _tuh_int_handler_arg2(_rhport, _in_isr) \
+    do { bool const _sv_in_isr = (_in_isr); \
+         if (_sv_in_isr) { TU_SYSVIEW_ISR_ENTER(); } \
+         hcd_int_handler(_rhport, _sv_in_isr); \
+         if (_sv_in_isr) { TU_SYSVIEW_ISR_EXIT(); } } while(0)
+#else
+  #define _tuh_int_handler_arg1(_rhport)            hcd_int_handler(_rhport, true)
+  #define _tuh_int_handler_arg2(_rhport, _in_isr)   hcd_int_handler(_rhport, _in_isr)
+#endif
 
 // 1st argument is rhport (mandatory), 2nd argument in_isr (optional)
 #define tuh_int_handler(...)   TU_FUNC_OPTIONAL_ARG(_tuh_int_handler, __VA_ARGS__)
