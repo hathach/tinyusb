@@ -54,19 +54,6 @@ void tusb_time_delay_ms_api(uint32_t ms) {
 //
 //--------------------------------------------------------------------+
 
-// CI_BUILD (defined for all CI builds, see hw/bsp/family_support.cmake) skips the
-// blink/echo loop below: after HIL tests, this firmware is flashed to park the
-// board in a quiet, low-power idle state (no USB, LED, or UART activity).
-#ifdef CI_BUILD
-int main(void) {
-  while (1) {
-    #if defined(ESP_PLATFORM)
-    vTaskDelay(portMAX_DELAY);
-    #endif
-  }
-}
-
-#else
 // Task parameter type: ULONG for ThreadX, void* for FreeRTOS and noos
 #if CFG_TUSB_OS == OPT_OS_THREADX
   #define RTOS_PARAM ULONG
@@ -180,7 +167,6 @@ void tx_application_define(void *first_unused_memory) {
                    1, 1, TX_NO_TIME_SLICE, TX_AUTO_START);
 }
 #endif
-#endif // CI_BUILD
 
 #ifdef ESP_PLATFORM
 void app_main(void) {

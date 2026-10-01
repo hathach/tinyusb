@@ -166,7 +166,7 @@ SYSFS_READ_GRACE = 2.0        # default bound on one attribute read; see read_sy
 
 # path -> the kernfs inode the node had when its bounded read gave up. Keyed by INODE, not
 # by path alone: a busport does not change when a board returns to the same physical port,
-# so a path-only blacklist outlives the wedge -- hil_pool_check resets or reflashes the
+# so a path-only blacklist outlives the wedge -- hil_pool_check reflashes the
 # board, wait_device polls that busport for the new inode, and the scan it polls through
 # would never look at the device again. A re-enumeration destroys the kernfs node and makes
 # a new one, so a CHANGED inode is the all-clear. os.stat is safe on a wedged device: it
@@ -428,7 +428,7 @@ def run_cmd(cmd: str | list, cwd: str | None = None, timeout: int | None = None,
     if not binary:
         popen_kwargs.update({'text': True, 'encoding': 'utf-8', 'errors': 'replace'})
     # C-level setsid, same process-group semantics as preexec_fn=os.setsid but safe when
-    # called from threads (pool_check runs flashes from a thread pool)
+    # called from threads
     popen_kwargs['start_new_session'] = True
 
     p = subprocess.Popen(cmd, **popen_kwargs)

@@ -218,9 +218,6 @@ Actions runner nor `hil_remote.py` sources a login profile. Keep them in `~/.loc
 `pciutils` and passwordless sudo are hard requirements, not conveniences:
 `test/hil/usbtest.py` shells out as `sudo -n` for `setpci`, `modprobe`, `dmesg` and
 `testusb`, and exits outright if it cannot read the host controller's firmware version.
-`helper/hil_pool_check.py` gates recovery on the same `sudo -n` plus
-`.claude/skills/usb-kernel-recover/scripts/usb_recover.sh` being present; without both it
-cannot re-authorize a wedged probe's port and files the board `flash-failed` instead.
 
 The `usbtest` battery additionally needs `testusb` built from the kernel tools and
 `CONFIG_USB_TEST=m` available.

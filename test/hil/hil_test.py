@@ -352,7 +352,7 @@ def serial_write_all(ser: serial.Serial, data: bytes):
 
 
 # J-Link Commander's telnet greeting: never target output (defined with the console
-# in tools/rtt.py; hil_pool_check strips it through the same object)
+# in tools/rtt.py)
 RTT_BANNER_RE = hil_util.RTT_BANNER_RE
 
 LP_OPEN_TIMEOUT = 5   # bound on opening the printer lp node; see test_device_printer_to_cdc

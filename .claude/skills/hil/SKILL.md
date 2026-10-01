@@ -1,6 +1,6 @@
 ---
 name: hil
-description: Use when running TinyUSB Hardware-in-the-Loop (HIL) tests on physical boards, when a HIL run fails, hangs, reports a board locked, or produces a report you need to interpret, or when copying firmware to a test rig (ci.lan, hifiphile/tusb, or a dev PC). For board/probe health scans ("pool check") use the hil-pool-check skill instead.
+description: Use when running TinyUSB Hardware-in-the-Loop (HIL) tests on physical boards, when a HIL run fails, hangs, reports a board locked, or produces a report you need to interpret, or when copying firmware to a test rig (ci.lan, hifiphile/tusb, or a dev PC). For board/probe health scans ("pool check") use the hil-pool-check skill instead: it assesses the pool, this skill runs and interprets tests.
 ---
 
 # Hardware-in-the-Loop (HIL) Testing
@@ -69,22 +69,22 @@ Unit suites (no hardware) live in `test/hil/test/test_*.py`; the `hil-test` pre-
 runs every `test_hil*.py`, `ci-select-test` the two `test_ci_*` suites plus
 `test_hil_util.BottomLayer`. `test_ci_select.py` covers only selection, `test_ci_metrics.py`
 only the code-size plumbing; the bounded reads and the build and pool guards live in
-`test_hil_bounded.py` and `test_hil_util.py`; `test_hil_report.py` covers the report document and `test_hil_rtt.py`
-the RTT console. Run them all when changing `test/hil`:
+`test_hil_bounded.py` and `test_hil_util.py`; `test_hil_report.py` covers the report document, `test_hil_rtt.py`
+the RTT console and `test_hil_pool_check.py` the pool check's verdicts and output. Run them all when changing `test/hil`:
 `for f in test/hil/test/test_*.py; do python3 "$f"; done` (about a minute, half of it
 `test_hil_bounded.py`'s deliberate hang/timeout simulation).
 
 ## Stuck runs
 
 What bounds a stuck run is `HIL_POOL_TIMEOUT` plus the job's `timeout-minutes`: a worker
-the kernel will not let die (D state) holds the job until that ceiling. What diagnoses a
-wedged rig is the `hil-pool-check` skill.
+the kernel will not let die (D state) holds the job until that ceiling. The `hil-pool-check`
+skill finds which boards a wedge left unusable.
 
 See the `usb-kernel-recover` skill for what a real wedge looks like and how to clear it, and the `usb-kernel-debug` skill to explain WHY the kernel rejected a device (dmesg analysis).
 
 ## Prerequisites
 
-Examples must be built for the target board(s) — see [Build and Validate](../../../CLAUDE.md#build-and-validate). Build them with the `build` skill's `--shared --variants <config>`, naming the HIL config the run uses: it writes the `cmake-build/cmake-build-<variant>/` folders `hil_test.py` flashes from by default, each with its variant's `flags` and `defines`, and refuses a folder still configured with options neither the variant nor the command line supplies. A local `hil_test.py --build` runs that same build for the selected boards first. A **remote** run stages the same folders; see Remote execution below. (This applies to `hil_test.py`; `hil_pool_check.py` builds its own missing firmware.)
+Examples must be built for the target board(s) — see [Build and Validate](../../../CLAUDE.md#build-and-validate). Build them with the `build` skill's `--shared --variants <config>`, naming the HIL config the run uses: it writes the `cmake-build/cmake-build-<variant>/` folders `hil_test.py` flashes from by default, each with its variant's `flags` and `defines`, and refuses a folder still configured with options neither the variant nor the command line supplies. A local `hil_test.py --build` runs that same build for the selected boards first. A **remote** run stages the same folders; see Remote execution below. (This applies to `hil_test.py`; `hil_pool_check.py` never builds: it flashes CI artifacts from its own cache, see **hil-pool-check**.)
 
 A bare `--shared` takes nothing from the roster and builds only `cmake-build-<board>/`, so a self-named variant is built without its flags (`raspberry_pi_pico`'s `CFG_TUH_RPI_PIO_USB=1`) and any other variant stays unbuilt. An unbuilt variant's tests report `Skip (no binary)` without failing the run (`stm32f723disco-DMA` goes untested). On a run of one test per variant (a single-test `-bt`, or `-t` tests the board's `only` or capabilities leave at one) without `--skip-flash`, a later unbuilt variant instead fails `same-PID boundary ... not cleared (no board_test binary)`, naming `board_test`, not the missing build.
 

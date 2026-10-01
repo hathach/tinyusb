@@ -109,7 +109,7 @@ jobs:
             # targets (they are not part of CMake's default `all`, and family_add_membrowse
             # only declares them at configure time) - membrowse itself never runs in this
             # step, so it does not need installing here.
-            docker run --rm -e CI="$CI" -v $PWD:/project -w /project espressif/idf:tinyusb bash -c "python tools/build.py ${{ inputs.build-options }} --target all ${{ matrix.arg }} $EX_ARGS"
+            docker run --rm -v $PWD:/project -w /project espressif/idf:tinyusb bash -c "python tools/build.py ${{ inputs.build-options }} --target all ${{ matrix.arg }} $EX_ARGS"
           else
             BUILD_PY_ARGS="-s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }} --target all"
             python tools/build.py $BUILD_PY_ARGS ${{ matrix.arg }} $EX_ARGS

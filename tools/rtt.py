@@ -140,11 +140,10 @@ RTT_BANNER_RE = re.compile(r'^(SEGGER J-|J-Link[ 0-9]|J-Trace[ 0-9]|Process:\s)'
 def strip_banner(data: bytes, complete_only: bool = False) -> bytes:
     """Target bytes only: drop the J-Link server banner lines and blanks.
 
-    Both harness consumers (hil_test's device_info verdict, hil_pool_check's
-    aliveness score) must judge "did the target speak" through this one filter,
-    or the same byte stream scores differently per consumer. complete_only=True
-    additionally drops a trailing unterminated line — for poll loops judging a
-    growing buffer, where a banner FRAGMENT at a read boundary (b'SEGG', b'Proce')
+    Harness consumers (hil_test's device_info verdict) judge "did the target
+    speak" through this one filter, so the same byte stream scores the same for
+    every consumer. complete_only=True additionally drops a trailing unterminated
+    line — for poll loops judging a growing buffer, where a banner FRAGMENT at a read boundary (b'SEGG', b'Proce')
     would defeat the prefix regex and count as target output; the final verdict
     after the window should pass complete_only=False to keep a genuine
     unterminated tail."""
