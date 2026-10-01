@@ -35,6 +35,7 @@ Usage:
 import argparse
 import collections
 import concurrent.futures
+import contextlib
 import csv
 import functools
 import glob
@@ -859,16 +860,9 @@ def invalid_boards(boards):
 
 def ci_pinned_boards():
     """Boards of .github/ci-pinned-boards.json: CI's membrowse set, which covers every
-    dcd/hcd driver not waived in its `uncovered` list (drivers-coverage hook). Espressif
-    boards are left out: each example is its own ESP-IDF project, which build_board()'s
-    single examples/ configure cannot build."""
-    esp_boards = os.path.join(TINYUSB_ROOT, 'hw', 'bsp', 'espressif', 'boards')
+    dcd/hcd driver not waived in its `uncovered` list (drivers-coverage hook)."""
     with open(CI_PINNED_BOARDS) as f:
-        pinned = [entry['board'] for entry in json.load(f)['boards']]
-    esp = [b for b in pinned if os.path.isdir(os.path.join(esp_boards, b))]
-    if esp:
-        print(f'--ci skips {", ".join(esp)}: ESP-IDF builds each example as its own project')
-    return [b for b in pinned if b not in esp]
+        return [entry['board'] for entry in json.load(f)['boards']]
 
 
 class Phase:
@@ -910,24 +904,101 @@ def build_error(ret, src_dir):
     return error.replace(src_dir.rstrip(os.sep) + os.sep, '')
 
 
+ESP_IDF_IMAGE = 'espressif/idf:tinyusb'  # .github/actions/setup_toolchain/espressif's tag
+
+
+def _esp_examples(src_dir, board, example):
+    """The examples tools/build.py builds for espressif `board` that `src_dir` has (`example`
+    alone when given): get_examples() names some itself, and src_dir may be the base."""
+    import build  # tools/build.py; its import has no side effects
+    with contextlib.chdir(src_dir):  # build.py and build_utils read examples/ and hw/bsp from the cwd
+        return [e for e in build.get_examples('espressif')
+                if example in (None, e) and os.path.isdir(os.path.join('examples', e))
+                and not build_utils.skip_example(e, board)]
+
+
+def _link_hops(path):
+    """The paths a symlink resolves through, its real path last."""
+    hops = []
+    while os.path.islink(path):
+        path = os.path.normpath(os.path.join(os.path.dirname(path), os.readlink(path)))
+        hops.append(path)
+    return hops
+
+
+def _idf_command(src_dir, build_dir, name):
+    """The argv that runs idf.py on `src_dir` into `build_dir`: an exported ESP-IDF, else CI's
+    image as this user in a container `name`, with both mounted at their own paths so the
+    elfs' DWARF matches the filters, and each symlinked dependency's real dir at every path
+    its link goes through (a base worktree's links point at the checkout's, which may point
+    at the main checkout's). None when neither is available."""
+    if shutil.which('idf.py'):
+        return ['idf.py']
+    if not shutil.which('docker') or run(['docker', 'image', 'inspect', ESP_IDF_IMAGE]).returncode != 0:
+        return None
+    # the image enables ccache; kept here it serves the next run (its default hash_dir keeps
+    # one tree's DWARF paths out of the other's objects)
+    cache = os.path.join(CODE_SIZE_DIR, '_ccache')
+    os.makedirs(cache, exist_ok=True)
+    mounts = {p: os.path.realpath(p) for p in map(os.path.abspath, (src_dir, build_dir, cache))}
+    for dep in runpy.run_path(os.path.join(src_dir, 'tools', 'get_deps.py'))['deps_all']:
+        path = os.path.join(src_dir, dep)
+        mounts.update((hop, os.path.realpath(path)) for hop in _link_hops(path))
+    cmd = ['docker', 'run', '--rm', '--name', name, '--user', f'{os.getuid()}:{os.getgid()}',
+           '-e', 'HOME=/tmp', '-e', f'CCACHE_DIR={os.path.abspath(cache)}']
+    for target, source in sorted(mounts.items()):
+        cmd += ['-v', f'{source}:{target}']
+    return cmd + [ESP_IDF_IMAGE, 'idf.py']
+
+
+def _build_idf(src_dir, build_dir, board, example):
+    """Build each ESP-IDF example project's app, as tools/build.py does (its bootloader is
+    not sized); the first failure stops."""
+    examples = _esp_examples(src_dir, board, example)
+    if not examples:
+        return subprocess.CompletedProcess([], 1, '', f'{board} builds no {example or "example"}')
+    container = f'tinyusb-code-size-{os.getpid()}'
+    idf = _idf_command(src_dir, build_dir, container)
+    if idf is None:
+        return subprocess.CompletedProcess([], 1, '', f'{board} needs ESP-IDF: source $IDF_PATH/export.sh, or '
+                                                      f'docker with {ESP_IDF_IMAGE} (docker tag espressif/idf:v5.5.3 '
+                                                      f'{ESP_IDF_IMAGE}, as CI does)')
+    for ex in examples:
+        ret = None
+        try:
+            ret = run(idf + ['-C', os.path.join(src_dir, 'examples', ex), '-B', os.path.join(build_dir, ex),
+                             '-GNinja', f'-DBOARD={board}', 'app'], timeout=600)
+        finally:
+            # stopping the docker CLI leaves its container building; --rm only removes an exited one
+            if idf[0] == 'docker' and (ret is None or ret.returncode == 124):
+                run(['docker', 'rm', '-f', container])
+        if ret.returncode != 0:
+            break
+    return ret
+
+
 def build_board(src_dir, build_dir, board, example, label):
     """Configure and build examples for a board as a `label` progress phase, printing
     an excerpt of the output on failure. Returns None on success, else build_error().
 
     When `example` is given, only that target is built (`ninja -C DIR NAME`),
-    keeping single-example workflows fast.
+    keeping single-example workflows fast. An espressif board builds each example as
+    its own ESP-IDF project.
     """
     phase = Phase(label)
     os.makedirs(build_dir, exist_ok=True)
-    ret = run(['cmake', '-B', build_dir, '-G', 'Ninja',
-               f'-DBOARD={board}', '-DCMAKE_BUILD_TYPE=MinSizeRel',
-               os.path.join(src_dir, 'examples')])
-    if ret.returncode == 0:
-        # ninja itself, not `cmake --build`: cmake does not pass a timeout's SIGTERM on
-        cmd = ['ninja', '-C', build_dir]
-        if example:
-            cmd.append(os.path.basename(example))
-        ret = run(cmd, timeout=600)
+    if os.path.isdir(os.path.join(src_dir, 'hw', 'bsp', 'espressif', 'boards', board)):
+        ret = _build_idf(src_dir, build_dir, board, example)
+    else:
+        ret = run(['cmake', '-B', build_dir, '-G', 'Ninja',
+                   f'-DBOARD={board}', '-DCMAKE_BUILD_TYPE=MinSizeRel',
+                   os.path.join(src_dir, 'examples')])
+        if ret.returncode == 0:
+            # ninja itself, not `cmake --build`: cmake does not pass a timeout's SIGTERM on
+            cmd = ['ninja', '-C', build_dir]
+            if example:
+                cmd.append(os.path.basename(example))
+            ret = run(cmd, timeout=600)
     failed = ret.returncode != 0
     phase.done(failed=failed)
     if not failed:
@@ -1173,8 +1244,7 @@ def snapshot_boards(families, boards, examples):
     each family's pinned boards that build one of `examples` (build.py's
     resolve_ci_boards, boards-only), plus each `-b` board that is pinned."""
     import build  # tools/build.py; its import has no side effects
-    with open(CI_PINNED_BOARDS) as f:
-        pinned = [entry['board'] for entry in json.load(f)['boards']]
+    pinned = ci_pinned_boards()
     # build.py skips a -b board that builds none of the examples, before configuring it
     picked = [b for b in boards if b in pinned and build.builds_any(b, examples)]
     for family in families:

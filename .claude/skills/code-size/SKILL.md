@@ -40,14 +40,16 @@ The base worktree symlinks this checkout's fetched dependencies, so a `tools/get
 - diff only:
   - **`--base-branch <ref>`**: any branch, tag or commit.
   - **`--combined`**: also one report over every `-b` board.
-  - **`--ci`**, for "all boards" / "CI": adds the `.github/ci-pinned-boards.json` boards except espressif's (ESP-IDF builds them per example), covering every dcd/hcd driver not waived there, and implies `--combined`; needs the arm, riscv, msp430 and ft9xx toolchains.
+  - **`--ci`**, for "all boards" / "CI": adds the `.github/ci-pinned-boards.json` boards, covering every dcd/hcd driver not waived there, and implies `--combined`; needs the arm, riscv, msp430 and ft9xx toolchains, and ESP-IDF for the espressif boards.
   - **`--bloaty`**, with `-e` only: also prints bloaty's section and symbol diff to stdout.
+
+An espressif board builds each example as its own ESP-IDF project, as `tools/build.py` does: with the exported ESP-IDF (`. "$IDF_PATH/export.sh"`), else in CI's image through docker, as your user (`docker pull espressif/idf:v5.5.3 && docker tag espressif/idf:v5.5.3 espressif/idf:tinyusb` once, 8.4 GB).
 
 ## Outputs and timing
 
 Reports go to `cmake-code-size/<board>/{report,diff}[_<example>].md` and, when combined, `cmake-code-size/_combined/diff.md`. The exit code is nonzero on a failure, when no pair was compared (diff) or no elf of a scope matched a file. The console shows each phase's time, one result line per scope and, for one board and one `-e` example, its changed tables; a failed build prints an excerpt of its output there, and its report and JSON record its first compiler, linker or CMake error, otherwise a fallback message.
 
-A report builds one tree, about half a diff's time. One diff example ~30 s; one board ~60-90 s; `--ci` ~7-8 min, boards built one after another — run it in the background, it nears the 10-minute command timeout.
+A report builds one tree, about half a diff's time. One diff example ~30 s; one board ~60-90 s, an espressif one ~10 min (13 IDF projects a side); `--ci` ~30 min, 20 of it the two espressif boards, boards built one after another — run it in the background, past the 10-minute command timeout.
 
 ## Reporting results
 
@@ -66,4 +68,4 @@ CI never builds a base. In a code-changing run, each selected pinned `cmake` bui
 
 Reading the comment: `INCOMPLETE` lists why (a leg or board with no snapshot, no baseline for a board, a failed build, snapshots of mismatched commits); an approximate baseline counts master changes after it as the PR's; a compiler or membrowse difference is noted, not failed; baseline elfs of examples the PR did not build are counted outside coverage. To reproduce locally, `gh run download` both runs' `code-size-*` artifacts into two directories and run `compare` on them.
 
-An ESP-IDF app is split by its image, not its map: initialized `.flash*` sections are flash, every other initialized section (IRAM code, DRAM data) counts as both flash and RAM since the bootloader copies it out of the image, other BSS is RAM, and `.flash*` NOBITS reservations are not counted. Its TinyUSB files come from DWARF, as IDF links them from an archive whose members membrowse names by basename only. `diff --ci` still skips espressif: its builder cannot build IDF projects.
+An ESP-IDF app is split by its image, not its map: initialized `.flash*` sections are flash, every other initialized section (IRAM code, DRAM data) counts as both flash and RAM since the bootloader copies it out of the image, other BSS is RAM, and `.flash*` NOBITS reservations are not counted. Its TinyUSB files come from DWARF, as IDF links them from an archive whose members membrowse names by basename only.

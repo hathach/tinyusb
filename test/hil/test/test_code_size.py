@@ -970,6 +970,89 @@ class BuildOutput(unittest.TestCase):
             sd.build_board(tmp, os.path.join(tmp, 'b'), 'b', 'device/ex', 'build')
         self.assertEqual(run.call_args, mock.call(['ninja', '-C', os.path.join(tmp, 'b'), 'ex'], timeout=600))
 
+    def _esp_src(self, tmp):
+        """A checkout with one espressif board, one example and a dependency linked in two
+        hops, as a base worktree's: src -> checkout -> main checkout."""
+        src = os.path.join(tmp, 'src')
+        os.makedirs(os.path.join(src, 'hw', 'bsp', 'espressif', 'boards', 'esp'))
+        os.makedirs(os.path.join(src, 'examples', 'device', 'a_freertos'))
+        os.makedirs(os.path.join(src, 'tools'))
+        os.makedirs(os.path.join(src, 'lib'))
+        os.makedirs(os.path.join(tmp, 'main', 'lib', 'dep'))
+        os.makedirs(os.path.join(tmp, 'checkout', 'lib'))
+        os.symlink(os.path.join(tmp, 'main', 'lib', 'dep'), os.path.join(tmp, 'checkout', 'lib', 'dep'))
+        os.symlink(os.path.join(tmp, 'checkout', 'lib', 'dep'), os.path.join(src, 'lib', 'dep'))
+        with open(os.path.join(src, 'tools', 'get_deps.py'), 'w') as f:
+            f.write("deps_all = {'lib/dep': None, 'lib/absent': None}\n")
+        return src
+
+    def _build_esp(self, tmp, example='device/a_freertos', which=('idf.py',), inspect=0, rc=0, runs=None):
+        """(build_board's error, its run() calls but the image check, also into `runs`); `rc`
+        an exception class raises it from the build."""
+        runs = [] if runs is None else runs
+        def run(cmd, timeout=None):
+            if cmd[:3] == ['docker', 'image', 'inspect']:
+                return subprocess.CompletedProcess([], inspect, '', '')
+            runs.append((cmd, timeout))
+            if isinstance(rc, type) and 'app' in cmd:
+                raise rc
+            return subprocess.CompletedProcess([], rc, '', 'x')
+        with mock.patch.object(sd, 'run', run), mock.patch.object(sd, 'CODE_SIZE_DIR', tmp), \
+             mock.patch.object(sd.shutil, 'which', lambda name: f'/bin/{name}' if name in which else None), \
+             mock.patch.object(sd.build_utils, 'skip_example', return_value=False), \
+             contextlib.redirect_stdout(io.StringIO()):
+            error = sd.build_board(self._esp_src(tmp), os.path.join(tmp, 'b'), 'esp', example, 'build')
+        return error, runs
+
+    def test_an_espressif_board_builds_each_examples_app_as_an_idf_project(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            error, runs = self._build_esp(tmp)
+        self.assertIsNone(error)
+        self.assertEqual(runs, [(['idf.py', '-C', os.path.join(tmp, 'src', 'examples', 'device', 'a_freertos'),
+                                  '-B', os.path.join(tmp, 'b', 'device', 'a_freertos'), '-GNinja', '-DBOARD=esp',
+                                  'app'], 600)])
+
+    def test_without_an_exported_idf_it_builds_in_cis_image_as_this_user(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            error, runs = self._build_esp(tmp, which=('docker',))
+            dep, cache = os.path.realpath(os.path.join(tmp, 'main', 'lib', 'dep')), os.path.join(tmp, '_ccache')
+            mounts = [f'{os.path.realpath(tmp)}/_ccache:{cache}', f'{os.path.realpath(tmp)}/b:{tmp}/b',
+                      f'{dep}:{tmp}/checkout/lib/dep', f'{dep}:{tmp}/main/lib/dep',
+                      f'{os.path.realpath(tmp)}/src:{tmp}/src']
+            self.assertTrue(os.path.isdir(cache))
+        self.assertIsNone(error)
+        cmd = runs[0][0]
+        self.assertEqual(cmd[:11], ['docker', 'run', '--rm', '--name', f'tinyusb-code-size-{os.getpid()}',
+                                    '--user', f'{os.getuid()}:{os.getgid()}', '-e', 'HOME=/tmp',
+                                    '-e', f'CCACHE_DIR={cache}'])
+        self.assertEqual([cmd[i + 1] for i, a in enumerate(cmd) if a == '-v'], mounts)
+        self.assertEqual(cmd[cmd.index(sd.ESP_IDF_IMAGE):][:3], [sd.ESP_IDF_IMAGE, 'idf.py', '-C'])
+
+    def test_without_idf_or_its_image_the_espressif_build_fails_saying_how_to_get_one(self):
+        for which, inspect in (((), 0), (('docker',), 1)):
+            with tempfile.TemporaryDirectory() as tmp:
+                error, runs = self._build_esp(tmp, which=which, inspect=inspect)
+            self.assertEqual(runs, [])
+            self.assertIn('esp needs ESP-IDF: source $IDF_PATH/export.sh', error)
+
+    def test_an_example_the_tree_does_not_build_for_espressif_fails_the_build(self):
+        # device/board_test is one get_examples() names itself, absent from this tree
+        for example in ('device/cdc_msc', 'device/board_test'):
+            with tempfile.TemporaryDirectory() as tmp:
+                error, runs = self._build_esp(tmp, example=example)
+            self.assertEqual((error, runs), (f'esp builds no {example}', []))
+
+    def test_a_timed_out_or_interrupted_docker_build_removes_its_container(self):
+        rm = ['docker', 'rm', '-f', f'tinyusb-code-size-{os.getpid()}']
+        for which, rc, removed in ((('docker',), 124, True), (('docker',), 2, False), (('idf.py',), 124, False)):
+            with tempfile.TemporaryDirectory() as tmp:
+                _error, runs = self._build_esp(tmp, which=which, rc=rc)
+            self.assertEqual(runs[-1][0] == rm, removed, (which, rc))
+        runs = []
+        with tempfile.TemporaryDirectory() as tmp, self.assertRaises(KeyboardInterrupt):
+            self._build_esp(tmp, which=('docker',), rc=KeyboardInterrupt, runs=runs)
+        self.assertEqual(runs[-1][0], rm)
+
     def test_a_timeout_returns_124_and_keeps_the_output_as_text(self):
         ret = sd.run(['sh', '-c', 'printf err >&2; echo out; exec sleep 30'], timeout=1)
         self.assertEqual(ret.returncode, 124)
@@ -1797,16 +1880,11 @@ class CiBoardSet(unittest.TestCase):
                                             '"uncovered": []}')
             self.assertEqual(built, ['extra', 'b1', 'b2'])
 
-    def test_ci_skips_pinned_espressif_boards(self):
+    def test_ci_builds_pinned_espressif_boards_too(self):
         with tempfile.TemporaryDirectory() as tmp:
             built = self._boards_built(tmp, '{"boards": [{"board": "b1"}, '
                                             '{"board": "espressif_s3_devkitm"}], "uncovered": []}')
-            self.assertEqual(built, ['extra', 'b1'])
-            out = io.StringIO()
-            with mock.patch.object(sd, 'CI_PINNED_BOARDS', os.path.join(tmp, 'ci-pinned-boards.json')), \
-                 contextlib.redirect_stdout(out):
-                sd.ci_pinned_boards()
-            self.assertIn('--ci skips espressif_s3_devkitm', out.getvalue())
+        self.assertEqual(built, ['extra', 'b1', 'espressif_s3_devkitm'])
 
 
 def _touch(root, *rels):
