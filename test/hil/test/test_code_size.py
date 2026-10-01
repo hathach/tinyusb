@@ -711,16 +711,23 @@ class MembrowseSizes(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, r'section \.gone, not in'):
             self.sizes([{'name': 'g', 'size': 4, 'section': '.gone', 'object_file': 'o/co/src/g.c.obj'}])
 
+    @staticmethod
+    def pins(text):
+        return re.findall(r'pip3? install [^\n]*?\bmembrowse\b(==[^\s\'"]+)?', text.replace('\\\n', ' '))
+
+    def test_pins_reports_unpinned_installs_in_every_shell_form(self):
+        self.assertEqual(self.pins('pip3 install membrowse\n'
+                                   'pip install \\\n  --only-binary :all: \\\n  membrowse\n'
+                                   'python -m pip install membrowse\n'), ['', '', ''])
+
     def test_every_ci_install_pins_the_version_the_install_hint_names(self):
-        def pins(text):
-            return re.findall(r'pip install [^\n]*?\bmembrowse\b(==[^\s\'"]+)?', text)
-        self.assertEqual(pins("pip install membrowse==1.2.12rc1 'x'; pip install membrowse >/dev/null"),
+        self.assertEqual(self.pins("pip install membrowse==1.2.12rc1 'x'; pip install membrowse >/dev/null"),
                          ['==1.2.12rc1', ''])
         installs = []
         for root, _, files in os.walk(os.path.join(REPO, '.github')):
             for name in files:
                 with open(os.path.join(root, name), errors='replace') as f:
-                    installs += pins(f.read())
+                    installs += self.pins(f.read())
         self.assertGreaterEqual(len(installs), 4)
         self.assertEqual(set(installs), {f'=={sd.MEMBROWSE_CI_VERSION}'})
         self.assertIn(f'membrowse=={sd.MEMBROWSE_CI_VERSION}', sd.ENGINES['membrowse'].install)
