@@ -173,6 +173,8 @@ fs_op_handler_dict_t fs_op_handler_dict[] = {
 
 static bool is_session_opened = false;
 static uint32_t send_obj_handle = 0;
+static bool send_obj_size_unknown = false; // ObjectInfo declared no size: receive until a short packet
+static bool send_obj_overflow = false;     // an undeclared-size object outgrew the store
 
 //--------------------------------------------------------------------+
 //
@@ -331,6 +333,11 @@ int32_t tud_mtp_data_complete_cb(tud_mtp_cb_data_t* cb_data) {
       resp->header->code = MTP_RESP_OK;
       break;
     }
+
+    case MTP_OP_SEND_OBJECT:
+      resp->header->code = send_obj_overflow ? MTP_RESP_STORE_FULL
+                         : (cb_data->xfer_result == XFER_RESULT_SUCCESS) ? MTP_RESP_OK : MTP_RESP_GENERAL_ERROR;
+      break;
 
     case MTP_OP_GET_PARTIAL_OBJECT: {
       // response parameter: actual length of data sent excluding container header
@@ -608,7 +615,12 @@ static int32_t fs_send_object_info(tud_mtp_cb_data_t* cb_data) {
       }
     }
 
-    uint8_t* f_buf = fs_malloc(obj_info->object_compressed_size);
+    // ObjectCompressedSize 0 or 0xFFFFFFFF: the host did not declare a size. Reserve the whole
+    // store and let a short packet end the SendObject data phase (see tud_mtp_data_receive).
+    const uint32_t declared_size = obj_info->object_compressed_size;
+    send_obj_size_unknown = (declared_size == 0u || declared_size == 0xFFFFFFFFu);
+    send_obj_overflow = false;
+    uint8_t* f_buf = fs_malloc(send_obj_size_unknown ? FS_MAX_CAPACITY_BYTES : declared_size);
     if (f_buf == NULL) {
       return MTP_RESP_STORE_FULL;
     }
@@ -624,7 +636,7 @@ static int32_t fs_send_object_info(tud_mtp_cb_data_t* cb_data) {
     f->image_bit_depth = obj_info->image_bit_depth;
     f->parent = obj_info->parent_object;
     f->association_type = obj_info->association_type;
-    f->size = obj_info->object_compressed_size;
+    f->size = send_obj_size_unknown ? 0u : declared_size; // grows as data arrives when unknown
     f->data = f_buf;
     uint8_t* buf = io_container->payload + sizeof(mtp_object_info_header_t);
     (void) mtp_container_get_string(buf, f->name);
@@ -644,14 +656,34 @@ static int32_t fs_send_object(tud_mtp_cb_data_t* cb_data) {
   }
 
   if (cb_data->phase == MTP_PHASE_COMMAND) {
-    io_container->header->len += f->size;
+    if (send_obj_size_unknown) {
+      io_container->header->len = UINT32_MAX; // undeclared: a short packet ends the phase
+    } else {
+      io_container->header->len += f->size;
+    }
     tud_mtp_data_receive(io_container);
   } else {
     // file contents offset is total xferred minus header size minus last received chunk
     const uint32_t offset = cb_data->total_xferred_bytes - sizeof(mtp_container_header_t) - io_container->payload_bytes;
-    memcpy(f->data + offset, io_container->payload, io_container->payload_bytes);
-    if (cb_data->total_xferred_bytes - sizeof(mtp_container_header_t) < f->size) {
-      tud_mtp_data_receive(io_container);
+    if (send_obj_size_unknown) {
+      if (offset + io_container->payload_bytes > FS_MAX_CAPACITY_BYTES) {
+        send_obj_overflow = true; // keep draining to the terminator; STORE_FULL goes in the response
+      } else {
+        memcpy(f->data + offset, io_container->payload, io_container->payload_bytes);
+        f->size = offset + io_container->payload_bytes;
+      }
+      // Re-arm only while the chunk filled the buffer (the first one also carries the 12-byte
+      // header): a short chunk has ended the phase, and a full final chunk is followed by a ZLP
+      // that the driver completes on.
+      const uint32_t full_chunk = CFG_TUD_MTP_EP_BUFSIZE - ((offset == 0u) ? sizeof(mtp_container_header_t) : 0u);
+      if (io_container->payload_bytes == full_chunk) {
+        tud_mtp_data_receive(io_container);
+      }
+    } else {
+      memcpy(f->data + offset, io_container->payload, io_container->payload_bytes);
+      if (cb_data->total_xferred_bytes - sizeof(mtp_container_header_t) < f->size) {
+        tud_mtp_data_receive(io_container);
+      }
     }
   }
 
