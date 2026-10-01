@@ -209,10 +209,10 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         # (tools/build.py sets build_examples=None) and compile every example
         self.assertNotIn('--ci-pinned-boards-only', self.jobs['cmake'])
 
-    def test_the_code_size_scope_lists_every_cmake_leg_and_plain_esp_leg(self):
+    def test_the_code_size_scope_lists_every_cmake_leg_and_esp_leg(self):
         # pr_comment.yml's compare expects a snapshot artifact per listed leg: the list
-        # must be the cmake job's matrix, from the one toolchain list both read, plus the
-        # non-variant hil-build-esp legs under that job's owner gate
+        # must be the cmake job's matrix, from the one toolchain list both read, plus every
+        # hil-build-esp leg (a -DMA variant is a board of its own) under that job's owner gate
         import subprocess, tempfile
         self.assertIn('fromJSON(needs.set-matrix.outputs.cmake_toolchains)', self.jobs['cmake'])
         self.assertIn("github.repository_owner == 'hathach'", self.jobs['hil-build-esp'])
@@ -226,8 +226,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         pinned = {'arm-gcc': ['stm32f4', 'imxrt'], 'riscv-gcc': ['fomu'], 'esp-idf': ['espressif']}
         hil = {'arm-gcc': ['-b x'], 'esp-idf': [
             '-b espressif_s3_devkitm -e device/cdc_msc_freertos',
-            '-b espressif_s3_devkitm --build-name espressif_s3_devkitm-DMA --cflag=-DCFG_TUD_DWC2_DMA_ENABLE=1',
-            '-b espressif_p4_function_ev -DCFG_X=1']}
+            '-b espressif_s3_devkitm --build-name espressif_s3_devkitm-DMA --cflag=-DCFG_TUD_DWC2_DMA_ENABLE=1']}
 
         def scope(changed, owner='hathach'):
             with tempfile.TemporaryDirectory() as d:
@@ -240,8 +239,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         cmake = [{'toolchain': 'arm-gcc', 'arg': 'stm32f4'}, {'toolchain': 'arm-gcc', 'arg': 'imxrt'},
                  {'toolchain': 'riscv-gcc', 'arg': 'fomu'}]
         s = scope('true')
-        self.assertEqual(s['legs'], cmake + [{'toolchain': 'esp-idf',
-                                              'arg': '-b espressif_s3_devkitm -e device/cdc_msc_freertos'}])
+        self.assertEqual(s['legs'], cmake + [{'toolchain': 'esp-idf', 'arg': a} for a in hil['esp-idf']])
         self.assertEqual((s['code_changed'], s['family_examples']), (True, {'stm32f4': ['device/cdc_msc']}))
         self.assertEqual(scope('true', owner='fork')['legs'], cmake)  # hil-build-esp does not run there
         self.assertEqual(scope('false')['legs'], [])  # no code change: nothing to measure
@@ -253,9 +251,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         def step_script(name):
             i = text.index('run: |\n', text.index(f'- name: {name}\n')) + len('run: |\n')
             return re.sub(r'^ {10}', '', text[i:text.index('        shell: bash', i)], flags=re.M)
-        block, leg_kind = step_script('Code size snapshot'), step_script('Leg kind')
-        self.assertIn("steps.leg.outputs.variant == 'false'", text[text.index('- name: Code size snapshot\n'):
-                                                                  text.index('- name: Membrowse Upload\n')])
+        block = step_script('Code size snapshot')
         with tempfile.TemporaryDirectory() as d:
             # docker runs its inner command here with the env it was told to pass; git, pip
             # and python only record their argv
@@ -288,16 +284,10 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
             self.assertEqual(run('stm32f4', toolchain='arm-gcc'),  # every other toolchain sizes on the runner
                              ['python [tools/code_size.py] [snapshot] [--symbols] [--build-outcome] [success] '
                               '[-o] [code-size] [stm32f4]'])
-
-            def kind(arg):
-                out = os.path.join(d, 'out')
-                open(out, 'w').close()
-                subprocess.run(['bash', '-e', '-c', leg_kind], check=True,
-                               env={**env, 'ARG': arg, 'GITHUB_OUTPUT': out})
-                with open(out) as f:
-                    return f.read().strip()
-            self.assertEqual(kind('-b espressif_s3_devkitm --build-name x-DMA --cflag=-DY=1'), 'variant=true')
-            self.assertEqual(kind('-b espressif_s3_devkitm -e device/cdc_msc_freertos'), 'variant=false')
+            # a variant leg is sized too, as the board its --build-name names
+            self.assertEqual(run('-b espressif_s3_devkitm --build-name x-DMA --cflag=-DY=1')[-1],
+                             'python [tools/code_size.py] [snapshot] [--symbols] [--build-outcome] [success] '
+                             '[-o] [code-size] [-b] [espressif_s3_devkitm] [--build-name] [x-DMA] [--cflag=-DY=1]')
 
     def test_the_code_size_comment_is_written_even_without_usable_snapshots(self):
         # a run without usable snapshots, and a baseline lookup that fails, must still

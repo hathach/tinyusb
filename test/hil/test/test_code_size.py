@@ -1943,7 +1943,8 @@ class Snapshot(unittest.TestCase):
             _touch(build_root, 'cmake-build-b1/device/a/a.elf')
             for symbols in (False, True):
                 args = mock.Mock(event='push', families=[], board=['b1'], example=None, output=out,
-                                 build_root=build_root, build_outcome='failure', symbols=symbols, filter=None)
+                                 build_root=build_root, build_outcome='failure', symbols=symbols, filter=None,
+                                 build_name=None)
                 with _engine('membrowse', lambda _p, _f: _elf(5)), \
                      mock.patch.object(sd, '_git_shas', return_value=(self.SHA[0],) * 3), \
                      mock.patch.object(sd, 'snapshot_boards', return_value=['b1']), \
@@ -1961,7 +1962,7 @@ class Snapshot(unittest.TestCase):
     def test_a_leg_without_pinned_boards_still_leaves_its_marker(self):
         with tempfile.TemporaryDirectory() as tmp:
             args = mock.Mock(event='push', families=['fam'], board=[], example=['device/a'], output=tmp,
-                             build_root=tmp, build_outcome='success', symbols=False, filter=None)
+                             build_root=tmp, build_outcome='success', symbols=False, filter=None, build_name=None)
             with mock.patch.object(sd, '_git_shas', return_value=(self.SHA[0],) * 3), \
                  mock.patch.object(sd, 'snapshot_boards', return_value=[]), \
                  contextlib.redirect_stdout(io.StringIO()):
@@ -1970,6 +1971,38 @@ class Snapshot(unittest.TestCase):
             with open(os.path.join(tmp, 'leg.json')) as f:
                 leg = json.load(f)
         self.assertEqual((leg['boards'], leg['examples']), ([], ['device/a']))
+
+    def test_a_variant_reports_its_board_under_the_build_name(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            build_root, out = os.path.join(tmp, 'cmake-build'), os.path.join(tmp, 'out')
+            _touch(build_root, 'cmake-build-b1/device/a/a.elf', 'cmake-build-b1-DMA/device/a/a.elf')
+            args = mock.Mock(event='push', families=[], board=['b1'], example=['device/a'], output=out,
+                             build_root=build_root, build_outcome='success', symbols=False, filter=None,
+                             build_name='b1-DMA')
+            sized = []
+            with _engine('membrowse', lambda p, _f: sized.append(p) or _elf(5)), \
+                 mock.patch.object(sd, '_git_shas', return_value=(self.SHA[0],) * 3), \
+                 mock.patch.object(sd, 'snapshot_boards', return_value=['b1']), \
+                 mock.patch.object(sd.build_utils, 'skip_example', return_value=False) as skip, \
+                 contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(sd.run_snapshot(args), 0)
+            self.assertEqual(sorted(os.listdir(out)), ['code-size-b1-DMA.json', 'leg.json'])
+            with open(os.path.join(out, 'leg.json')) as f:
+                self.assertEqual(json.load(f)['boards'], ['b1-DMA'])
+            with open(os.path.join(out, 'code-size-b1-DMA.json')) as f:
+                self.assertEqual(json.load(f)['board'], 'b1-DMA')
+        self.assertEqual([os.path.relpath(p, build_root) for p in sized], ['cmake-build-b1-DMA/device/a/a.elf'])
+        skip.assert_called_with('device/a', 'b1')  # the board's own skip rules
+
+    def test_a_variant_needs_one_board_and_a_build_name(self):
+        for argv in (['-b', 'b1', '-b', 'b2', '--build-name', 'x'], ['fam', '--build-name', 'x'],
+                     ['-b', 'b1', '--cflag=-DX=1'], ['-b', 'b1', '--build-name', '../x']):
+            with mock.patch.object(sd, 'engine_missing', return_value=False), \
+                 mock.patch.object(sd, 'run_snapshot') as run, \
+                 mock.patch.object(sys, 'argv', ['code_size.py', 'snapshot', '-o', 'out'] + argv), \
+                 contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                sd.main()
+            run.assert_not_called()
 
 
 def _shard(board, elfs, sha='a', base='b', head='c', failures=(), examples=None, compiler='gcc 14'):

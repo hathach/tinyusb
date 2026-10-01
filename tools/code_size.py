@@ -1218,19 +1218,21 @@ def run_snapshot(args):
         membrowse_version = ''
     filters = args.filter or [tinyusb_src_filter(TINYUSB_ROOT)]
     boards = snapshot_boards(args.families, args.board, args.example)
+    # a variant leg (--build-name) reports its one board under the build name
+    names = {args.build_name or b: b for b in boards}
     os.makedirs(args.output, exist_ok=True)
     # written even with no board: `compare` tells a leg that ran from one that never did
     with open(os.path.join(args.output, 'leg.json'), 'w') as f:
-        json.dump({'schema': SNAPSHOT_SCHEMA, 'examples': args.example, 'boards': boards,
+        json.dump({'schema': SNAPSHOT_SCHEMA, 'examples': args.example, 'boards': list(names),
                    'build_outcome': args.build_outcome, 'sha': sha, 'base_sha': base_sha, 'head_sha': head_sha},
                   f, sort_keys=True)
     if not boards:
         print('snapshot: no CI-pinned board in this leg')
         return 0
     failed = False
-    for board in boards:
+    for board, base_board in names.items():
         build_dir = os.path.join(args.build_root, f'cmake-build-{board}')
-        elfs, failures = board_snapshot(board, build_dir, args.example, filters)
+        elfs, failures = board_snapshot(base_board, build_dir, args.example, filters)
         # the leg's commits, examples and build outcome are in its leg.json
         data = {'schema': SNAPSHOT_SCHEMA, 'board': board, 'engine': 'membrowse',
                 'membrowse_version': membrowse_version, 'compiler': _cmake_compiler(build_dir),
@@ -1577,6 +1579,10 @@ def main():
     snap.add_argument('-b', '--board', action='append', default=[], help='Board the leg built (repeatable)')
     snap.add_argument('-e', '--example', action='append', default=None, type=example_arg,
                       help='Examples the leg built (repeatable); omit when it built all')
+    snap.add_argument('--build-name', help='A variant leg\'s build name (as tools/build.py): its build dir, and '
+                                          'the board it reports as')
+    snap.add_argument('--cflag', action='append', default=[],
+                      help='A variant leg\'s compiler flag (as tools/build.py); it needs --build-name')
     snap.add_argument('-o', '--output', required=True, help='Directory for the code-size-<board>.json files')
     snap.add_argument('--build-root', default=os.path.join(TINYUSB_ROOT, 'cmake-build'),
                       help='Where tools/build.py put cmake-build-<board> (default: cmake-build)')
@@ -1604,8 +1610,12 @@ def main():
     if args.command == 'snapshot':
         if engine_missing('membrowse'):
             snap.error(f'membrowse not found - install {ENGINES["membrowse"].install}')
-        if invalid := invalid_boards(args.board):
+        if invalid := invalid_boards(args.board + ([args.build_name] if args.build_name else [])):
             snap.error(f'invalid board name: {", ".join(invalid)}')
+        if args.build_name and (args.families or len(args.board) != 1):
+            snap.error('--build-name names exactly one -b board and no families')
+        if args.cflag and not args.build_name:
+            snap.error('--cflag makes a variant, which needs --build-name to report under')
         return run_snapshot(args)
 
     if engine_missing(args.engine):

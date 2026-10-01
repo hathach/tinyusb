@@ -2303,6 +2303,25 @@ class TestHilCiSetMatrixExamples(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         return r.stdout
 
+    def test_an_esp_idf_variant_must_name_itself(self):
+        # hil-build-esp sizes and uploads every leg under its --build-name: an unnamed
+        # esp-idf variant would collide with the plain board; other buckets never upload
+        import tempfile
+        other = {'name': 'metro_m4_express', 'uid': 'm', 'flasher': {'name': 'jlink'},
+                 'variant': [{'name': 'metro_m4_express', 'defines': ['MAX3421_HOST=1']}]}
+        for vname, ok in (('espressif_s3_devkitm', False), ('espressif_s3_devkitm-X', True)):
+            esp = {'name': 'espressif_s3_devkitm', 'uid': 'u', 'flasher': {'name': 'esptool'},
+                   'variant': [{'name': vname, 'defines': ['X=1']}]}
+            with tempfile.NamedTemporaryFile('w', suffix='.json') as f:
+                json.dump({'boards': [esp, other]}, f)
+                f.flush()
+                r = subprocess.run([sys.executable, HIL_SET_MATRIX, f.name], capture_output=True, text=True)
+            self.assertEqual(r.returncode == 0, ok, r.stderr)
+            if ok:
+                self.assertEqual(json.loads(r.stdout)['arm-gcc'], ['-b metro_m4_express -DMAX3421_HOST=1'])
+            else:
+                self.assertIn('an esp-idf variant needs a name of its own', r.stderr)
+
     def test_no_hil_examples_is_byte_identical(self):
         plain = self.run_matrix()
         sel = json.dumps({'full': True, 'boards': {}})
@@ -2434,6 +2453,36 @@ class TestBuildPyExampleFilter(unittest.TestCase):
         # `membrowse_cli.py report`'s own elf-missing check takes the --identical branch
         self.assertEqual(cmd[cmd.index('--elf') + 1],
                          'cmake-build/cmake-build-espressif_s3_devkitc/device/cdc_msc_freertos/cdc_msc_freertos.elf')
+
+    def test_a_variant_is_a_membrowse_board_named_by_its_build_name(self):
+        from unittest import mock
+        calls = []
+        def fake_run(cmd):
+            calls.append(cmd)
+            return types.SimpleNamespace(returncode=0)
+        real_isdir = os.path.isdir
+        no_build_dir = lambda p: False if str(p).startswith('cmake-build/') else real_isdir(p)
+        with mock.patch.object(self.build, 'run_cmd', fake_run), \
+             mock.patch.object(self.build.os.path, 'isdir', no_build_dir):
+            self.build.cmake_board('espressif_s3_devkitc', [], 'espressif_s3_devkitc-DMA', ['-DX=1'], ['all'],
+                                   examples=['device/cdc_msc_freertos'])
+            self.build.cmake_board('espressif_s3_devkitc', [], 'espressif_s3_devkitc-DMA', [],
+                                   ['examples-membrowse-upload'], examples=['device/cdc_msc_freertos'])
+        idf, identical = calls
+        self.assertIn('-DMEMBROWSE_BOARD=espressif_s3_devkitc-DMA', idf)
+        self.assertIn('cmake-build/cmake-build-espressif_s3_devkitc-DMA/device/cdc_msc_freertos', idf)
+        self.assertEqual(identical[identical.index('--target-name') + 1], 'espressif_s3_devkitc-DMA/cdc_msc_freertos')
+
+    def test_an_unnamed_variant_never_uploads_under_the_plain_board(self):
+        from unittest import mock
+        for argv, refused in ((['-b', 'b1', '--cflag=-DX=1'], True), (['-b', 'b1', '-DX=1'], True),
+                              (['-b', 'b1', '--build-name', 'b1-X', '--cflag=-DX=1'], False), (['-b', 'b1'], False)):
+            with mock.patch.object(self.build, 'build_boards_list', return_value=[1, 0, 0]) as build, \
+                 mock.patch.object(sys, 'argv', ['build.py', '-T', 'examples-membrowse-upload'] + argv), \
+                 contextlib.redirect_stdout(io.StringIO()) as out:
+                ret = self.build.main()
+            self.assertEqual((ret, build.called), (1, False) if refused else (0, True), argv)
+            self.assertEqual('requires --build-name' in out.getvalue(), refused)
 
     def test_make_one_example_uses_make_semantics(self):
         # F1 end to end: the make path must ask skip_example with build_system='make',
