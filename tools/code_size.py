@@ -53,7 +53,7 @@ import sys
 import time
 
 import build_utils
-from membrowse_cli import extract_ld_scripts, extract_defsyms, link_command, report_inputs
+from membrowse_cli import IDF_LD_SCRIPTS, extract_ld_scripts, extract_defsyms, link_command, report_inputs
 
 # resolved like tinyusb_src_filter(), so a symlinked checkout still matches its filter
 TINYUSB_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -84,6 +84,12 @@ def _link_settings(elf_path):
         raise RuntimeError(f'no build.ninja found above {elf_path} - cannot '
                             f'determine its linker scripts')
     commands = link_command('ninja', build_dir, elf_path)
+    # ESP-IDF links its generated scripts by bare name via -L
+    idf_ld = [os.path.join(build_dir, p) for p in IDF_LD_SCRIPTS]
+    if any(map(os.path.isfile, idf_ld)):
+        if not all(map(os.path.isfile, idf_ld)):
+            raise RuntimeError(f'ESP-IDF build {build_dir} lacks one of {", ".join(idf_ld)}')
+        return build_dir, idf_ld, extract_defsyms(commands)
     ld_scripts = extract_ld_scripts(commands)
     if not ld_scripts:
         raise RuntimeError(f'no linker script found in the ninja build graph '
@@ -175,6 +181,12 @@ def _elf_layout(data):
     return [(name(h[0]), h[1], h[2], h[3], h[5]) for h in headers[1:]], loads
 
 
+def _map_path(elf):
+    """The elf's GNU ld map: `<elf>.map`, or ESP-IDF's `<name>.map` beside it."""
+    idf = os.path.splitext(elf)[0] + '.map'
+    return idf if not os.path.isfile(elf + '.map') and os.path.isfile(idf) else elf + '.map'
+
+
 def map_regions(map_path):
     """[(name, origin, length)] of a GNU ld map's Memory Configuration."""
     if not os.path.isfile(map_path):
@@ -199,6 +211,8 @@ def section_buckets(elf, map_path):
     run location; one running where it loads is flash unless writable, when the
     map region holding it decides. Raises RuntimeError rather than guess."""
     sections, loads = elf_layout(elf)
+    if any(s[0] == '.flash.appdesc' for s in sections):
+        return _esp_idf_buckets(sections)
     regions = map_regions(map_path)
     buckets = {}
     for name, sh_type, flags, addr, size in sections:
@@ -230,6 +244,24 @@ def section_buckets(elf, map_path):
     return buckets
 
 
+def _esp_idf_buckets(sections):
+    """section_buckets() of an ESP-IDF app (it has `.flash.appdesc`), whose ELF runs every
+    section where it loads. IDF's sections.ld names each output section in a flash-mapped region
+    `.flash*`; esptool's elf2image stores the rest in the image too, for the bootloader to load
+    into RAM (bin_image.py is_flash_addr())."""
+    buckets = {}
+    for name, sh_type, flags, _addr, _size in sections:
+        if not flags & SHF_ALLOC or (sh_type == SHT_NOBITS and name.startswith('.flash')):
+            buckets[name] = _NOT_COUNTED  # reserved flash-window address space, not storage
+        elif sh_type == SHT_NOBITS:
+            buckets[name] = frozenset({'ram'})
+        elif name.startswith('.flash'):
+            buckets[name] = frozenset({'flash'})
+        else:
+            buckets[name] = frozenset({'flash', 'ram'})
+    return buckets
+
+
 class _Sizes:
     """Accumulates one elf's filtered per-file flash/RAM, section and symbol sizes,
     and its total flash/RAM."""
@@ -254,10 +286,47 @@ class _Sizes:
                 'symbols': self.symbols}
 
 
+@functools.lru_cache(maxsize=None)
+def _dwarf_sources(elf):
+    """{basename: {full source path}} of the elf's DWARF compile units."""
+    try:
+        from elftools.elf.elffile import ELFFile  # pyelftools, a membrowse dependency
+    except ImportError as e:
+        raise RuntimeError(f'pyelftools is needed to resolve {elf}\'s source paths ({e})')
+    sources = {}
+    with open(elf, 'rb') as f:
+        elffile = ELFFile(f)
+        if not elffile.has_dwarf_info():
+            return sources
+        for cu in elffile.get_dwarf_info().iter_CUs():
+            top = cu.get_top_DIE().attributes
+            if 'DW_AT_name' in top:
+                comp_dir = top['DW_AT_comp_dir'].value.decode() if 'DW_AT_comp_dir' in top else ''
+                path = os.path.normpath(os.path.join(comp_dir, top['DW_AT_name'].value.decode()))
+                sources.setdefault(os.path.basename(path), set()).add(path)
+    return sources
+
+
+def _source_path(sym, elf, filters):
+    """A symbol's source path. An archive member has no object path and membrowse 1.2.9
+    keeps only the basename of its source, so the DWARF compile unit of that name gives it
+    back (ESP-IDF links TinyUSB from an archive)."""
+    path = sym.get('object_file') or sym.get('source_file')
+    if not path or '/' in path:
+        return path
+    candidates = _dwarf_sources(elf).get(path, set())
+    if len(candidates) == 1:
+        return next(iter(candidates))
+    if any(_relative_key(c, filters) for c in candidates):
+        raise RuntimeError(f'{elf}: {path} names several compile units ({", ".join(sorted(candidates))}), '
+                           f'one of them filtered; cannot tell which holds {sym.get("name")}')
+    return path
+
+
 def membrowse_sizes(elf, filters):
     """Symbols of `membrowse report`; linker-defined symbols without a section
     (`__StackLimit`) are not counted."""
-    buckets = section_buckets(elf, elf + '.map')
+    buckets = section_buckets(elf, _map_path(elf))
     sizes = _Sizes(filters)
     for sym in report_for_elf(elf).get('symbols', []):
         section = sym.get('section')
@@ -265,8 +334,7 @@ def membrowse_sizes(elf, filters):
             continue
         if section not in buckets:
             raise RuntimeError(f'membrowse symbol {sym.get("name")} is in section {section}, not in {elf}')
-        sizes.add(sym.get('object_file') or sym.get('source_file'), section, buckets[section], sym['size'],
-                  sym.get('name'))
+        sizes.add(_source_path(sym, elf, filters), section, buckets[section], sym['size'], sym.get('name'))
     return sizes.result()
 
 
@@ -282,11 +350,11 @@ def _linkermap():
 
 
 def linkermap_sizes(elf, filters):
-    """Input sections of `<elf>.map` by full object path; analyze_map() is not used,
+    """Input sections of the elf's map by full object path; analyze_map() is not used,
     it keeps only four sections. An archive member
     (`lib.a(x.o)`) has no source dir, so it counts in 'all' only. The symbols are the
     input sections (`.text.foo`), not the labels inside one."""
-    map_path = elf + '.map'
+    map_path = _map_path(elf)
     buckets = section_buckets(elf, map_path)
     with open(map_path, encoding='utf-8', errors='replace') as f:
         sections = _linkermap().parseSections(f)
@@ -313,7 +381,7 @@ def bloaty_sizes(elf, filters):
     rows = csv.DictReader(io.StringIO(r.stdout))
     if not {'compileunits', 'sections', 'symbols', 'vmsize'} <= set(rows.fieldnames or ()):
         raise RuntimeError(f'unexpected bloaty csv columns for {elf}: {rows.fieldnames}')
-    buckets = section_buckets(elf, elf + '.map')
+    buckets = section_buckets(elf, _map_path(elf))
     sizes = _Sizes(filters)
     for row in rows:
         section = row['sections']
@@ -1068,7 +1136,11 @@ def _cmake_compiler(build_dir):
     """{'id', 'version', 'name', 'build_type'} of a configured build dir, from CMake's own
     compiler detection (not the host gcc), '' where CMake recorded none."""
     info = {'id': '', 'version': '', 'name': '', 'build_type': ''}
-    for path in glob.glob(os.path.join(glob.escape(build_dir), 'CMakeFiles', '*', 'CMakeCCompiler.cmake')):
+    found = glob.glob(os.path.join(glob.escape(build_dir), 'CMakeFiles', '*', 'CMakeCCompiler.cmake'))
+    if not found:  # ESP-IDF: one project per <role>/<example>, all on the board's one toolchain
+        projects = sorted(glob.glob(os.path.join(glob.escape(build_dir), '*', '*', 'CMakeFiles')))
+        return _cmake_compiler(os.path.dirname(projects[0])) if projects else info
+    for path in found:
         with open(path) as f:
             text = f.read()
         for key, var in (('id', 'CMAKE_C_COMPILER_ID'), ('version', 'CMAKE_C_COMPILER_VERSION'),

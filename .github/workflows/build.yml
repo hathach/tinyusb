@@ -201,7 +201,9 @@ jobs:
 
   # The legs this run expects a code-size snapshot from, for pr_comment.yml's compare: a
   # leg that dies before its snapshot step leaves no artifact, which only this manifest
-  # can tell apart from a leg that was never selected. No legs when no code changed.
+  # can tell apart from a leg that was never selected: the cmake job's pinned families and
+  # hil-build-esp's plain legs (build_util.yml's Leg kind variant test), under that job's own
+  # gate. No legs when no code changed.
   # Nothing needs it, so it stays off the critical path; measurement only, never red.
   code-size-scope:
     needs: [ check-paths, set-matrix ]
@@ -215,12 +217,17 @@ jobs:
           PINNED_JSON: ${{ needs.set-matrix.outputs.pinned_json }}
           EXAMPLE_MAP: ${{ needs.set-matrix.outputs.example_map }}
           CODE_CHANGED: ${{ needs.check-paths.outputs.code_changed }}
+          HIL_JSON: ${{ needs.set-matrix.outputs.hil_json }}
+          OWNER: ${{ github.repository_owner }}
         run: |
           mkdir -p code-size-scope
           jq -n --argjson tc "$TOOLCHAINS" --argjson pinned "$PINNED_JSON" --argjson ex "$EXAMPLE_MAP" \
-                --arg changed "$CODE_CHANGED" \
+                --argjson hil "$HIL_JSON" --arg changed "$CODE_CHANGED" --arg owner "$OWNER" \
             '{schema: 1, code_changed: ($changed == "true"), family_examples: $ex,
               legs: (if $changed == "true" then [$tc[] as $t | ($pinned[$t] // [])[] | {toolchain: $t, arg: .}]
+                       + [if $owner == "hathach" then ($hil["esp-idf"] // [])[] else empty end
+                          | select(" \(.) " | test(" --build-name | -D| --cflag=") | not)
+                          | {toolchain: "esp-idf", arg: .}]
                      else [] end)}' \
             > code-size-scope/scope.json
           cat code-size-scope/scope.json
@@ -391,7 +398,7 @@ jobs:
           python3 .github/scripts/hil_ci_set_matrix.py test/hil/tinyusb.json |
           python3 -c 'import json, sys; [print(a) for a in json.load(sys.stdin)["esp-idf"]]' |
           while IFS= read -r arg; do
-            # same variant guard as build_util.yml's Membrowse Upload step: a
+            # same variant guard as build_util.yml's Leg kind step: a
             # -DMA variant leg configures with the same -DBOARD=<name> as the
             # plain leg, and membrowse's target-name ({board}/{example}) is
             # derived from the board alone - uploading both would write two

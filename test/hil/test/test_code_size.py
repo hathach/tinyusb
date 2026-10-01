@@ -64,6 +64,21 @@ class ReportForElf(unittest.TestCase):
             self.assertEqual(cmd[cmd.index('--def') + 1], 'X=1')
             self.assertEqual(run.call_args.kwargs['cwd'], build)
 
+    def test_an_esp_idf_build_uses_its_generated_scripts(self):
+        with tempfile.TemporaryDirectory() as build:
+            open(os.path.join(build, 'build.ninja'), 'w').close()
+            ld = os.path.join(build, 'esp-idf', 'esp_system', 'ld')
+            os.makedirs(ld)
+            commands = 'cc -T memory.ld -T sections.ld -T esp32s3.rom.ld -Wl,--defsym=X=1 -o x.elf\n'
+            open(os.path.join(ld, 'memory.ld'), 'w').close()
+            with mock.patch.object(sd, 'link_command', return_value=commands), \
+                 self.assertRaisesRegex(RuntimeError, 'lacks one of'):
+                sd._link_settings(os.path.join(build, 'x.elf'))
+            open(os.path.join(ld, 'sections.ld'), 'w').close()
+            with mock.patch.object(sd, 'link_command', return_value=commands):
+                self.assertEqual(sd._link_settings(os.path.join(build, 'x.elf')),
+                                 (build, [os.path.join(ld, 'memory.ld'), os.path.join(ld, 'sections.ld')], ['X=1']))
+
     def test_malformed_output_is_a_runtime_error(self):
         done = subprocess.CompletedProcess([], 0, 'not json', '')
         with mock.patch.object(sd, '_link_settings', return_value=('/b', ['m.ld'], [])), \
@@ -461,6 +476,44 @@ class SectionBuckets(unittest.TestCase):
         b = self.buckets([('.init_array', INIT_ARRAY, WA, 0x54a4, 4)], [(0x200, 0x200, 0x6000)])
         self.assertEqual(b['.init_array'], {'flash'})
 
+    def test_an_esp_idf_app_is_split_by_its_flash_mapped_sections(self):
+        # every section runs where it loads; .flash* is flash-mapped, the rest the bootloader
+        # copies from the image into RAM (real S3 names, incl. writable .flash.rodata)
+        sections = [('.flash.appdesc', PROGBITS, A, 0x3c020020, 0x100),
+                    ('.flash.rodata', PROGBITS, WA, 0x3c020120, 0x10),
+                    ('.flash.text', PROGBITS, AX, 0x42000020, 0x10),
+                    ('.flash_rodata_dummy', NOBITS, WA, 0x3c000020, 0x20000),
+                    ('.iram0.text', PROGBITS, AX, 0x40374404, 0x10),
+                    ('.dram0.data', PROGBITS, WA, 0x3fc88000, 0x10),
+                    ('.rtc.force_slow', PROGBITS, WA, 0x50000000, 0x10),
+                    ('.dram0.bss', NOBITS, WA, 0x3fc96d20, 0x10)]
+        with tempfile.TemporaryDirectory() as tmp:
+            elf = os.path.join(tmp, 'x.elf')
+            write_elf(elf, sections, [(0, 0, 0xffffffff)])
+            b = sd.section_buckets(elf, os.path.join(tmp, 'no.map'))  # an IDF app never reads the map
+        self.assertEqual({n: set(v) for n, v in b.items() if n != '.shstrtab'},
+                         {'.flash.appdesc': {'flash'}, '.flash.rodata': {'flash'}, '.flash.text': {'flash'},
+                          '.flash_rodata_dummy': set(), '.iram0.text': {'flash', 'ram'},
+                          '.dram0.data': {'flash', 'ram'}, '.rtc.force_slow': {'flash', 'ram'},
+                          '.dram0.bss': {'ram'}})
+
+    def test_overlapping_flash_and_ram_regions_still_fail_outside_esp_idf(self):
+        regions = MAP_REGIONS.replace('m_text           0x00000000         0x00010000         xr',
+                                      'drom0_0_seg      0x3c000020         0x01ffffe0         r\n'
+                                      'extern_ram_seg   0x3c000020         0x01ffffe0         xrw')
+        with self.assertRaisesRegex(RuntimeError, 'no map region recognized'):
+            self.buckets([('.ext_ram.data', PROGBITS, WA, 0x3c040020, 0x10)],
+                         [(0x3c040020, 0x3c040020, 0x200)], regions)
+
+    def test_an_esp_idf_map_is_named_after_the_project(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            elf = os.path.join(tmp, 'x.elf')
+            self.assertEqual(sd._map_path(elf), elf + '.map')  # neither: the usual name, reported missing
+            open(os.path.join(tmp, 'x.map'), 'w').close()
+            self.assertEqual(sd._map_path(elf), os.path.join(tmp, 'x.map'))
+            open(elf + '.map', 'w').close()
+            self.assertEqual(sd._map_path(elf), elf + '.map')
+
     def test_writable_data_in_place_takes_its_map_region(self):
         # RAM-only image (raspberrypi_zero): .data runs where it loads, in RAM
         b = self.buckets([('.data', PROGBITS, WA, 0x20000000, 0x10)], [(0x20000000, 0x20000000, 0x10)])
@@ -578,6 +631,42 @@ THREE_SECTIONS = ([('.text', PROGBITS, AX, 0x10000000, 0x400),
                    ('.data', PROGBITS, WA, 0x20000000, 0x10),
                    ('.bss', NOBITS, WA, 0x20000010, 0x20)],
                   [(0x10000000, 0x10000000, 0x400), (0x20000000, 0x10000400, 0x30)])
+
+
+class DwarfSources(unittest.TestCase):
+    @unittest.skipUnless(shutil.which('gcc'), 'needs gcc to build an elf with DWARF')
+    def test_compile_units_are_found_by_basename(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for rel, code in (('src/device/usbd.c', 'int usbd(void) { return 1; }\n'),
+                              ('main.c', 'int usbd(void);\nint main(void) { return usbd(); }\n')):
+                os.makedirs(os.path.dirname(os.path.join(tmp, rel)), exist_ok=True)
+                with open(os.path.join(tmp, rel), 'w') as f:
+                    f.write(code)
+            subprocess.run(['gcc', '-g', '-o', 'x.elf', 'main.c', 'src/device/usbd.c'], cwd=tmp, check=True)
+            sources = sd._dwarf_sources(os.path.join(tmp, 'x.elf'))
+            self.assertEqual(sources['usbd.c'], {os.path.join(os.path.realpath(tmp), 'src', 'device', 'usbd.c')})
+
+
+class SourcePath(unittest.TestCase):
+    def path(self, sym, sources):
+        with mock.patch.object(sd, '_dwarf_sources', return_value=sources):
+            return sd._source_path(sym, 'x.elf', ['/c/src/'])
+
+    def test_an_object_path_or_full_source_is_kept(self):
+        self.assertEqual(self.path({'object_file': '/c/src/tusb.c.obj', 'source_file': 'tusb.c'}, {}),
+                         '/c/src/tusb.c.obj')
+        self.assertEqual(self.path({'source_file': '/c/src/tusb.c'}, {}), '/c/src/tusb.c')
+
+    def test_a_bare_source_name_takes_its_one_compile_unit(self):
+        # ESP-IDF archive member: membrowse keeps only the basename
+        self.assertEqual(self.path({'source_file': 'usbd.c'}, {'usbd.c': {'/c/src/device/usbd.c'}}),
+                         '/c/src/device/usbd.c')
+
+    def test_an_ambiguous_name_fails_only_when_one_candidate_is_filtered(self):
+        self.assertEqual(self.path({'source_file': 'port.c'}, {'port.c': {'/idf/a/port.c', '/idf/b/port.c'}}),
+                         'port.c')
+        with self.assertRaisesRegex(RuntimeError, 'several compile units'):
+            self.path({'source_file': 'x.c', 'name': 'f'}, {'x.c': {'/c/src/x.c', '/idf/x.c'}})
 
 
 class MembrowseSizes(unittest.TestCase):
@@ -1779,6 +1868,17 @@ class Snapshot(unittest.TestCase):
                                                        'name': 'arm-none-eabi-gcc', 'build_type': 'MinSizeRel'})
         self.assertEqual(sd._cmake_compiler('/nonexistent'), {'id': '', 'version': '', 'name': '', 'build_type': ''})
 
+    def test_an_esp_idf_board_reads_its_first_example_project(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for ex, ver in (('device/b', '14.2.0'), ('device/a', '14.2.0'), ('device/a/bootloader', '1.0')):
+                os.makedirs(os.path.join(tmp, ex, 'CMakeFiles', '3.30'))
+                with open(os.path.join(tmp, ex, 'CMakeFiles', '3.30', 'CMakeCCompiler.cmake'), 'w') as f:
+                    f.write(f'set(CMAKE_C_COMPILER "/idf/xtensa-esp32s3-elf-gcc")\nset(CMAKE_C_COMPILER_VERSION "{ver}")\n')
+            with open(os.path.join(tmp, 'device', 'a', 'CMakeCache.txt'), 'w') as f:
+                f.write('CMAKE_BUILD_TYPE:STRING=\n')
+            self.assertEqual(sd._cmake_compiler(tmp), {'id': '', 'version': '14.2.0',
+                                                       'name': 'xtensa-esp32s3-elf-gcc', 'build_type': ''})
+
     def test_a_pull_request_reads_base_and_head_from_the_merge_commit(self):
         ret = subprocess.CompletedProcess([], 0, '\n'.join(self.SHA) + '\n', '')
         with mock.patch.object(sd, 'run', return_value=ret) as run:
@@ -1938,6 +2038,19 @@ class Compare(unittest.TestCase):
         scope = {**self.SCOPE, 'family_examples': {'fam': ['device/a']}}
         _md, _c, data = self.compare([_shard('b1', {'device/z/z.elf': _elf(1)})], [cur], scope=scope)
         self.assertIn(('code-size-arm-gcc-fam', 'current', 'scope'), self.failed(data))
+
+    def test_an_esp_leg_matches_its_artifact_and_its_own_examples(self):
+        arg = '-b espressif_s3_devkitm -e device/cdc_msc_freertos'
+        scope = {'code_changed': True, 'legs': [{'toolchain': 'esp-idf', 'arg': arg}]}
+        legs = {'code-size-esp-idf--b espressif_s3_devkitm': ['espressif_s3_devkitm']}
+        elfs = {'device/cdc_msc_freertos/cdc_msc_freertos.elf': _elf(1)}
+        _md, _c, data = self.compare([_shard('espressif_s3_devkitm', elfs)],
+                                     [_shard('espressif_s3_devkitm', elfs, examples=['device/cdc_msc_freertos'])],
+                                     cur_legs=legs, scope=scope)
+        self.assertEqual(data['status'], 'complete')
+        _md, _c, data = self.compare([], [_shard('espressif_s3_devkitm', elfs, examples=['device/other'])],
+                                     cur_legs=legs, scope=scope)
+        self.assertIn(('code-size-esp-idf--b espressif_s3_devkitm', 'current', 'scope'), self.failed(data))
 
     def test_a_leg_outside_the_scope_and_a_shard_outside_its_leg_fail(self):
         shards = [_shard('b1', {'device/a/a.elf': _elf(1)}), _shard('b2', {'device/a/a.elf': _elf(1)})]

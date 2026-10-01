@@ -110,7 +110,7 @@ repos:
     entry: sh -c "cd test/hil/test && python3 -m unittest -q test_drivers_coverage test_ci_boards test_code_size test_code_size_ci test_membrowse_cli"
     pass_filenames: false
     language: python
-    additional_dependencies: [pyyaml]
+    additional_dependencies: [pyyaml, pyelftools]
 
 #  - id: build-fuzzer
 #    name: build-fuzzer
