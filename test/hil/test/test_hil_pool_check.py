@@ -147,12 +147,17 @@ class CheckBoard(unittest.TestCase):
         self.assertEqual((row['status'], self.flashed), ('failed', []))
         self.assertIn('RTT host boards unsupported', row['note'])
 
-    def test_an_only_list_board_gets_one_of_its_own_examples(self):
+    def test_an_only_list_device_board_still_flashes_dfu_runtime(self):
         self.images('device/dfu_runtime', 'device/cdc_dual_ports', 'device/board_test')
-        board = dict(BOARD, tests={'only': ['device/cdc_dual_ports']})
         patch(self, hil_pool_check, 'park_board', lambda *a: None)
-        hil_pool_check.check_board(board, self.args)
-        self.assertEqual(self.flashed, ['b/device/cdc_dual_ports.elf'])
+        hil_pool_check.check_board(dict(BOARD, tests={'only': ['device/cdc_dual_ports']}), self.args)
+        self.assertEqual(self.flashed, ['b/device/dfu_runtime.elf'])
+
+    def test_a_skipped_dfu_runtime_leaves_a_device_board_no_light_image(self):
+        self.images('device/dfu_runtime', 'device/board_test')
+        row = hil_pool_check.check_board(dict(BOARD, tests={'device': True, 'skip': ['device/dfu_runtime']}),
+                                         self.args)
+        self.assertEqual((row['status'], self.flashed), ('flash-failed', []))
 
 
 class Fetch(unittest.TestCase):
@@ -227,10 +232,10 @@ class Fetch(unittest.TestCase):
         self.assertEqual([p.name for p in self.cache.iterdir()], ['cmake-build-b-DMA'])
 
     def test_the_first_usable_variant_wins_even_with_a_less_preferred_example(self):
-        # fetch stops at variant b's cdc_msc, where a full cache would flash b-DMA's dfu_runtime
-        self.add_run(3, {'binaries-arm-gcc--b b': ['device/cdc_msc', 'device/board_test'],
-                         'binaries-arm-gcc--b b --build-name b-DMA': self.GOOD})
-        self.assertEqual(hil_pool_check.fetch_missing([self.MULTI]), {})
+        # fetch stops at variant b's cdc_msc_hid, where a full cache would flash b-DMA's device_info
+        self.add_run(3, {'binaries-arm-gcc--b b': ['host/cdc_msc_hid', 'device/board_test'],
+                         'binaries-arm-gcc--b b --build-name b-DMA': ['host/device_info', 'device/board_test']})
+        self.assertEqual(hil_pool_check.fetch_missing([dict(self.MULTI, tests={'host': True})]), {})
         self.assertEqual([p.name for p in self.cache.iterdir()], ['cmake-build-b'])
 
     OTHER = {'binaries-arm-gcc--b other': GOOD}

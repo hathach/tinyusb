@@ -59,6 +59,7 @@
                 "only": [
                     "device/cdc_msc_freertos",
                     "device/cdc_msc_throughput",
+                    "device/dfu_runtime",
                     "device/hid_composite_freertos",
                     "device/audio_test_freertos",
                     "device/mtp",
@@ -101,6 +102,7 @@
                 "only": [
                     "device/cdc_msc_freertos",
                     "device/cdc_msc_throughput",
+                    "device/dfu_runtime",
                     "device/hid_composite_freertos",
                     "device/audio_test_freertos",
                     "device/mtp",

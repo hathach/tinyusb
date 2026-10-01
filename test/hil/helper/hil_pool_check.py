@@ -47,8 +47,7 @@ RETENTION_DAYS = 90  # GitHub artifact retention: older runs have nothing left t
 MASTER_RUNS = 10
 
 # light-example preference; first one found wins
-DEVICE_CANDIDATES = ['device/dfu_runtime', 'device/cdc_msc', 'device/cdc_msc_freertos',
-                     'device/hid_composite_freertos', 'device/cdc_dual_ports']
+DEVICE_CANDIDATES = ['device/dfu_runtime']
 HOST_CANDIDATES = ['host/device_info', 'host/cdc_msc_hid', 'host/msc_file_explorer_freertos']
 
 ENUM_WAIT = 12       # s, uid wait after flash
@@ -145,19 +144,16 @@ def unlock_board(fh) -> None:
 
 def light_candidates(board: dict):
     """(kind, candidates): kind is 'device' (uid check) or 'host' (serial-output check);
-    candidates in preference order, the roster's skip list removed, and an only-list board
-    limited to its own examples."""
+    candidates in preference order, the roster's skip list removed, and an only-list host
+    board limited to its own examples (`only` picks tests; a device board is checked with
+    dfu_runtime wherever it is built)."""
     tests = board.get('tests', {})
     only = tests.get('only', [])
     skip = set(tests.get('skip', []))  # config's known-broken examples: never pick one
-    is_device = tests.get('device') or any(t.startswith('device/') for t in only)
-    if is_device:
-        cand = DEVICE_CANDIDATES + [t for t in only if t.startswith('device/') and t != 'device/usbtest']
-        kind = 'device'
-    else:
-        cand = HOST_CANDIDATES + [t for t in only if t.startswith('host/')]
-        kind = 'host'
-    return kind, [c for c in dict.fromkeys(cand) if c not in skip and (not only or c in only)]
+    if tests.get('device') or any(t.startswith('device/') for t in only):
+        return 'device', [c for c in DEVICE_CANDIDATES if c not in skip]
+    cand = HOST_CANDIDATES + [t for t in only if t.startswith('host/')]
+    return 'host', [c for c in dict.fromkeys(cand) if c not in skip and (not only or c in only)]
 
 
 def find_image(board: dict, example: str):

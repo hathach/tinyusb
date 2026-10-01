@@ -1250,7 +1250,7 @@ def _prune_buildable(fams, fam_ex, repo_root):
                 continue
             # what this family's build path can even see, asked the same way for
             # every family. build.py's espressif branch builds get_examples('espressif')
-            # only (the *_freertos examples plus a short extra list); keeping the family
+            # only (the examples with an ESP-IDF component); keeping the family
             # for anything else spins up CI's most expensive leg to skip every example
             # it was given. Identical to the unfiltered list on all 81 other families.
             pool = set(build_py.get_examples(fam))
