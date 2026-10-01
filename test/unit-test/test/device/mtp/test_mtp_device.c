@@ -341,7 +341,7 @@ int32_t tud_mtp_data_xfer_cb(tud_mtp_cb_data_t* cb) {
     TEST_ASSERT_LESS_OR_EQUAL(sizeof(app.rx), app.received + io->payload_bytes);
     memcpy(app.rx + app.received, io->payload, io->payload_bytes);
     app.received += io->payload_bytes;
-    if (app.receive_after_last || cb->total_xferred_bytes < io->header->len) tud_mtp_data_receive(io);
+    if (app.receive_after_last || cb->total_xferred_bytes < io->header->len) TEST_ASSERT_TRUE(tud_mtp_data_receive(io));
   }
   return 0;
 }
