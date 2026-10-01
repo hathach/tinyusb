@@ -1671,6 +1671,9 @@ def reset_dut_tt(board: Board) -> bool:
     if found:
         busport = found[0]['busport']
         speed = hil_util.read_sysfs(os.path.join('/sys/bus/usb/devices', busport, 'speed'))
+        last = _dut_port.get(board['uid'])
+        if speed is None and last and last[0] == busport:
+            speed = last[1]  # unreadable mid-re-enumeration: keep the speed last seen there
         _dut_port[board['uid']] = (busport, speed)
     if board['uid'] in _dut_port:
         # a gone device keeps the speed it was seen at: a high-speed one has no TT to reset
