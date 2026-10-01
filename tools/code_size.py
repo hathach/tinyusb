@@ -1678,7 +1678,9 @@ def main():
         return run_compare(args)
 
     if args.command == 'snapshot':
-        if engine_missing('membrowse'):
+        # a leg whose build did not succeed may have skipped the membrowse install too;
+        # its snapshot still records that outcome, and any elf it left fails to size
+        if engine_missing('membrowse') and args.build_outcome == 'success':
             snap.error(f'membrowse not found - install {ENGINES["membrowse"].install}')
         if invalid := invalid_boards(args.board + ([args.build_name] if args.build_name else [])):
             snap.error(f'invalid board name: {", ".join(invalid)}')
