@@ -28,11 +28,12 @@ static uint32_t refuse_receive_at; // this data_receive call since begin_command
 bool tud_mtp_data_receive(mtp_container_info_t* p_container) { (void) p_container; api.data_receive++; return api.data_receive != refuse_receive_at; }
 static bool refuse_send;
 bool tud_mtp_data_send(mtp_container_info_t* p_container) { (void) p_container; api.data_send++; return !refuse_send; }
+static bool refuse_response;
 bool tud_mtp_response_send(mtp_container_info_t* p_container) {
   api.response_send++;
   api.resp_code = p_container->header->code;
   api.resp_len = p_container->header->len;
-  return true;
+  return !refuse_response;
 }
 bool tud_mtp_event_send(mtp_event_t* event) { (void) event; return true; }
 bool tud_mtp_mounted(void) { return true; }
@@ -87,12 +88,14 @@ static void deliver_out(const uint8_t* payload, uint32_t payload_bytes, uint32_t
   TEST_ASSERT_EQUAL(0, tud_mtp_data_xfer_cb(&cb));
 }
 
-static void data_complete(void) {
+static int32_t data_complete_ret(void) {
   cb.phase = MTP_PHASE_DATA_COMPLETE;
   cb.io_container = (mtp_container_info_t){ .header = (mtp_container_header_t*) epbuf, .payload = epbuf + HDR, .payload_bytes = BUFSIZE - HDR };
   cb.io_container.header->len = HDR;
-  TEST_ASSERT_EQUAL(0, tud_mtp_data_complete_cb(&cb));
+  return tud_mtp_data_complete_cb(&cb);
 }
+
+static void data_complete(void) { TEST_ASSERT_EQUAL(0, data_complete_ret()); }
 
 static void open_session(void) {
   begin_command(MTP_OP_OPEN_SESSION, 1);
@@ -167,6 +170,7 @@ void setUp(void) {
   memset(&api, 0, sizeof(api));
   refuse_receive_at = 0;
   refuse_send = false;
+  refuse_response = false;
   is_session_opened = false;
   send_obj_handle = 0;
   send_obj_info_incomplete = false;
@@ -807,3 +811,23 @@ static void check_continuation_send_refused(uint16_t code) {
 }
 void test_get_object_continuation_send_refused_cancels(void) { check_continuation_send_refused(MTP_OP_GET_OBJECT); }
 void test_get_partial_object_continuation_send_refused_cancels(void) { check_continuation_send_refused(MTP_OP_GET_PARTIAL_OBJECT); }
+
+// a refused response is negative, so the driver halts the bulk endpoints instead of idling
+void test_command_response_refused_is_negative(void) {
+  open_session();
+  refuse_response = true;
+  memset(&api, 0, sizeof(api));
+  TEST_ASSERT_LESS_THAN(0, tud_mtp_command_received_cb(&cb)); // OpenSession again
+  TEST_ASSERT_EQUAL(1, api.response_send);
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_SESSION_ALREADY_OPEN, api.resp_code);
+}
+
+void test_data_complete_response_refused_is_negative(void) {
+  open_session();
+  begin_command(MTP_OP_GET_STORAGE_IDS, 0);
+  TEST_ASSERT_EQUAL(1, api.data_send);
+  refuse_response = true;
+  TEST_ASSERT_LESS_THAN(0, data_complete_ret());
+  TEST_ASSERT_EQUAL(1, api.response_send);
+  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_OK, api.resp_code);
+}

@@ -312,7 +312,8 @@ int32_t tud_mtp_request_get_device_status_cb(tud_mtp_request_cb_data_t* cb_data)
 // Bulk Only Protocol
 //--------------------------------------------------------------------+
 // Look up and run the operation's handler; a positive code is its response, sent here with a bare
-// header since a handler that answers early or failed to start its data phase may have grown len
+// header since a handler that answers early or failed to start its data phase may have grown len.
+// A refused response is negative: the driver halts both bulk endpoints rather than idle.
 static int32_t dispatch_op(tud_mtp_cb_data_t* cb_data) {
   fs_op_handler_t handler = NULL;
   for (size_t i = 0; i < TU_ARRAY_SIZE(fs_op_handler_dict); i++) {
@@ -327,7 +328,9 @@ static int32_t dispatch_op(tud_mtp_cb_data_t* cb_data) {
     mtp_container_info_t* io_container = &cb_data->io_container;
     io_container->header->len = sizeof(mtp_container_header_t);
     io_container->header->code = (uint16_t)resp_code;
-    tud_mtp_response_send(io_container);
+    if (!tud_mtp_response_send(io_container)) {
+      return -1;
+    }
   }
   return resp_code;
 }
@@ -391,8 +394,7 @@ int32_t tud_mtp_data_complete_cb(tud_mtp_cb_data_t* cb_data) {
       break;
   }
 
-  tud_mtp_response_send(resp);
-  return 0;
+  return tud_mtp_response_send(resp) ? 0 : -1;
 }
 
 int32_t tud_mtp_response_complete_cb(tud_mtp_cb_data_t* cb_data) {
