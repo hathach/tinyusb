@@ -161,19 +161,21 @@ class IsCurrent(unittest.TestCase):
 
     def test_a_moved_head_a_newer_run_or_attempt_is_stale(self):
         self.assertEqual(self.check(pr_head=sha('d')), (1, 'stale: the PR head moved on'))
-        self.assertEqual(self.check(runs=(pr_run(7), pr_run(8))), (1, 'stale: a newer Build run exists'))
+        self.assertEqual(self.check(runs=(pr_run(7), pr_run(8))), (1, 'stale: a newer Build run exists: run 8 of #5'))
         self.assertEqual(self.check(attempts={7: 2}), (1, 'stale: a newer attempt exists'))
+        self.assertEqual(self.check(runs=()), (1, 'stale: no Build run of the PR head found'))
 
     def test_a_newer_run_of_another_pr_sharing_the_head_does_not_supersede(self):
         self.assertEqual(self.check(runs=(pr_run(7), pr_run(8, prs=(6,)))), (0, 'current'))
-        self.assertEqual(self.check(runs=(pr_run(7), pr_run(8, prs=(5, 6)))), (1, 'stale: a newer Build run exists'))
+        self.assertEqual(self.check(runs=(pr_run(7), pr_run(8, prs=(5, 6)))),
+                         (1, 'stale: a newer Build run exists: run 8 of #5, #6'))
 
     def test_a_fork_prs_unlisted_runs_count_by_their_head_branch_and_repo(self):
         fork = 'someone/tinyusb'
         own = pr_run(7, prs=(), repo=fork)
         self.assertEqual(self.check(runs=(own,), pr_repo=fork), (0, 'current'))
         self.assertEqual(self.check(runs=(own, pr_run(8, prs=(), repo=fork)), pr_repo=fork),
-                         (1, 'stale: a newer Build run exists'))
+                         (1, 'stale: a newer Build run exists: run 8 of someone/tinyusb:feature'))
         self.assertEqual(self.check(runs=(own, pr_run(8, prs=(), branch='other', repo=fork)), pr_repo=fork),
                          (0, 'current'))
         self.assertEqual(self.check(runs=(own, pr_run(8, prs=(), repo='other/tinyusb')), pr_repo=fork),

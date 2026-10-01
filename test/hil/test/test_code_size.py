@@ -711,6 +711,20 @@ class MembrowseSizes(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, r'section \.gone, not in'):
             self.sizes([{'name': 'g', 'size': 4, 'section': '.gone', 'object_file': 'o/co/src/g.c.obj'}])
 
+    def test_every_ci_install_pins_the_version_the_install_hint_names(self):
+        def pins(text):
+            return re.findall(r'pip install [^\n]*?\bmembrowse\b(==[^\s\'"]+)?', text)
+        self.assertEqual(pins("pip install membrowse==1.2.12rc1 'x'; pip install membrowse >/dev/null"),
+                         ['==1.2.12rc1', ''])
+        installs = []
+        for root, _, files in os.walk(os.path.join(REPO, '.github')):
+            for name in files:
+                with open(os.path.join(root, name), errors='replace') as f:
+                    installs += pins(f.read())
+        self.assertGreaterEqual(len(installs), 4)
+        self.assertEqual(set(installs), {f'=={sd.MEMBROWSE_CI_VERSION}'})
+        self.assertIn(f'membrowse=={sd.MEMBROWSE_CI_VERSION}', sd.ENGINES['membrowse'].install)
+
 
 class BloatySizes(unittest.TestCase):
     def sizes(self, csv_text, returncode=0):
@@ -1035,6 +1049,21 @@ class BuildOutput(unittest.TestCase):
                 error, runs = self._build_esp(tmp, which=which, inspect=inspect)
             self.assertEqual(runs, [])
             self.assertIn('esp needs ESP-IDF: source $IDF_PATH/export.sh', error)
+
+    def test_without_idf_report_and_diff_refuse_an_espressif_board_before_building(self):
+        pinned = ['stm32f407disco', 'espressif_s3_devkitm']
+        for argv in (['report', '-b', pinned[0], '-b', pinned[1]], ['diff', '-b', pinned[0], '-b', pinned[1]],
+                     ['diff', '--ci']):
+            err = io.StringIO()
+            with mock.patch.object(sys, 'argv', ['code_size.py'] + argv), \
+                 mock.patch.object(sd, 'ci_pinned_boards', return_value=pinned), \
+                 mock.patch.object(sd, 'engine_missing', return_value=False), \
+                 mock.patch.object(sd.shutil, 'which', return_value=None), \
+                 mock.patch.object(sd, 'run') as run, contextlib.redirect_stderr(err):
+                with self.assertRaises(SystemExit):
+                    sd.main()
+            run.assert_not_called()
+            self.assertIn('espressif_s3_devkitm need ESP-IDF: source $IDF_PATH/export.sh', err.getvalue())
 
     def test_an_example_the_tree_does_not_build_for_espressif_fails_the_build(self):
         # device/board_test: an espressif example absent from this tree

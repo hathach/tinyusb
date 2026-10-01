@@ -402,8 +402,9 @@ def bloaty_sizes(elf, filters):
 # all_label: what the engine's 'all' total sums (totals of different engines are
 # not comparable); install: how to get its tool when `sizes` raises FileNotFoundError
 Engine = collections.namedtuple('Engine', 'sizes all_label install')
+MEMBROWSE_CI_VERSION = '1.2.12'  # every CI install pins this; attribution can differ across versions
 ENGINES = {
-    'membrowse': Engine(membrowse_sizes, 'all symbols', '`pip install membrowse`'),
+    'membrowse': Engine(membrowse_sizes, 'all symbols', f'`pip install membrowse=={MEMBROWSE_CI_VERSION}`'),
     'linkermap': Engine(linkermap_sizes, 'all input sections',
                         '`python3 tools/get_deps.py tools/linkermap`'),
     'bloaty': Engine(bloaty_sizes, 'all accounted sections',
@@ -905,6 +906,8 @@ def build_error(ret, src_dir):
 
 
 ESP_IDF_IMAGE = 'espressif/idf:tinyusb'  # .github/actions/setup_toolchain/espressif's tag
+ESP_IDF_MISSING = (f'ESP-IDF: source $IDF_PATH/export.sh, or docker with {ESP_IDF_IMAGE} '
+                   f'(docker tag espressif/idf:v5.5.3 {ESP_IDF_IMAGE}, as CI does)')
 
 
 def _esp_examples(src_dir, board, example):
@@ -926,6 +929,22 @@ def _link_hops(path):
     return hops
 
 
+def is_espressif(board, src_dir=TINYUSB_ROOT):
+    return os.path.isdir(os.path.join(src_dir, 'hw', 'bsp', 'espressif', 'boards', board))
+
+
+def _idf_image():
+    return bool(shutil.which('docker')) and run(['docker', 'image', 'inspect', ESP_IDF_IMAGE]).returncode == 0
+
+
+def esp_without_idf(boards):
+    """The error for espressif `boards` no exported ESP-IDF or CI's image can build, else None."""
+    esp = [b for b in boards if is_espressif(b)]
+    if esp and not (shutil.which('idf.py') or _idf_image()):
+        return f'{", ".join(esp)} need {ESP_IDF_MISSING}'
+    return None
+
+
 def _idf_command(src_dir, build_dir, name):
     """The argv that runs idf.py on `src_dir` into `build_dir`: an exported ESP-IDF, else CI's
     image as this user in a container `name`, with both mounted at their own paths so the
@@ -934,7 +953,7 @@ def _idf_command(src_dir, build_dir, name):
     at the main checkout's). None when neither is available."""
     if shutil.which('idf.py'):
         return ['idf.py']
-    if not shutil.which('docker') or run(['docker', 'image', 'inspect', ESP_IDF_IMAGE]).returncode != 0:
+    if not _idf_image():
         return None
     # the image enables ccache; kept here it serves the next run (its default hash_dir keeps
     # one tree's DWARF paths out of the other's objects)
@@ -960,9 +979,7 @@ def _build_idf(src_dir, build_dir, board, example):
     container = f'tinyusb-code-size-{os.getpid()}'
     idf = _idf_command(src_dir, build_dir, container)
     if idf is None:
-        return subprocess.CompletedProcess([], 1, '', f'{board} needs ESP-IDF: source $IDF_PATH/export.sh, or '
-                                                      f'docker with {ESP_IDF_IMAGE} (docker tag espressif/idf:v5.5.3 '
-                                                      f'{ESP_IDF_IMAGE}, as CI does)')
+        return subprocess.CompletedProcess([], 1, '', f'{board} needs {ESP_IDF_MISSING}')
     for ex in examples:
         ret = None
         try:
@@ -987,7 +1004,7 @@ def build_board(src_dir, build_dir, board, example, label):
     """
     phase = Phase(label)
     os.makedirs(build_dir, exist_ok=True)
-    if os.path.isdir(os.path.join(src_dir, 'hw', 'bsp', 'espressif', 'boards', board)):
+    if is_espressif(board, src_dir):
         ret = _build_idf(src_dir, build_dir, board, example)
     else:
         ret = run(['cmake', '-B', build_dir, '-G', 'Ninja',
@@ -1704,6 +1721,8 @@ def main():
             report_parser.error('at least one -b BOARD is required')
         if invalid := invalid_boards(args.board):
             report_parser.error(f'invalid board name: {", ".join(invalid)}')
+        if error := esp_without_idf(args.board):
+            report_parser.error(error)
         return run_report(args)
 
     if args.bloaty and not args.example:
@@ -1719,6 +1738,9 @@ def main():
         parser.error('at least one -b BOARD is required (or pass --ci)')
     if invalid := invalid_boards(args.board):
         parser.error(f'invalid board name: {", ".join(invalid)}')
+    # before any board builds: a --ci run would otherwise fail its espressif boards last
+    if error := esp_without_idf(args.board):
+        parser.error(error)
 
     worktree_dir = os.path.join(CODE_SIZE_DIR, '_worktree')
 

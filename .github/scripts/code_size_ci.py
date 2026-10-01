@@ -125,6 +125,14 @@ def is_run_of(run, pr, head):
         (run.get('head_repository') or {}).get('full_name') == (head.get('repo') or {}).get('full_name')
 
 
+def run_owner(run):
+    """Run `run`'s id and whose it is, so a stale verdict names what superseded it."""
+    numbers = [p['number'] for p in run.get('pull_requests') or []]
+    owner = ', '.join(f'#{n}' for n in numbers) if numbers else \
+        f"{(run.get('head_repository') or {}).get('full_name')}:{run.get('head_branch')}"
+    return f"run {run['id']} of {owner}"
+
+
 def is_current(args):
     """Whether run `args.run_id` attempt `args.attempt` of the PR head is still the newest."""
     why = None
@@ -135,8 +143,10 @@ def is_current(args):
         runs = [r for r in gh_items(f'repos/{args.repo}/actions/workflows/{WORKFLOW}/runs?head_sha={args.head_sha}'
                                     f'&event=pull_request', 'workflow_runs') if is_run_of(r, args.pr, head)]
         latest = max(runs, key=lambda r: r['run_number'], default=None)
-        if latest is None or latest['id'] != args.run_id:
-            why = 'a newer Build run exists'
+        if latest is None:
+            why = 'no Build run of the PR head found'
+        elif latest['id'] != args.run_id:
+            why = f'a newer Build run exists: {run_owner(latest)}'
         elif gh(f'repos/{args.repo}/actions/runs/{args.run_id}')['run_attempt'] != args.attempt:
             why = 'a newer attempt exists'
     print(f'stale: {why}' if why else 'current')
