@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # Offline tests for teardown_stress: device discovery, argument limits and the verdict on each
-# iteration's checks, against a scripted device. Whether a configuration change under traffic really leaves EP0 alive
-# is proven on the rig.
+# iteration's checks, against a scripted device. Whether a configuration change under traffic
+# really leaves EP0 alive is proven on the rig.
 import errno
 import os
 import sys
 import unittest
 import unittest.mock
 
+try:
+    import usb.core
+    import usb.util
+except ImportError:
+    raise unittest.SkipTest('pyusb not installed')
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import usb.core
-import usb.util
 import teardown_stress as ts
 
 
