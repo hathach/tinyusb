@@ -571,13 +571,7 @@ void test_send_object_command_refused_can_be_retried(void) {
   begin_command(MTP_OP_SEND_OBJECT, 0);
   TEST_ASSERT_EQUAL_HEX16(MTP_RESP_GENERAL_ERROR, api.resp_code);
   refuse_receive_at = 0;
-  uint8_t pkt[100];
-  memset(pkt, 0xA5, sizeof(pkt));
-  begin_command(MTP_OP_SEND_OBJECT, 0);
-  TEST_ASSERT_EQUAL(1, api.data_receive);
-  deliver_out(pkt, sizeof(pkt), sizeof(pkt));
-  data_complete();
-  TEST_ASSERT_EQUAL_HEX16(MTP_RESP_OK, api.resp_code);
+  send_object_data(100, 0xA5);
   TEST_ASSERT_TRUE(object_exists(handle));
   TEST_ASSERT_EACH_EQUAL_HEX8(0xA5, fs_buf, 100);
 }
