@@ -443,6 +443,38 @@ static bool xfer_cb_claim_after_consume(uint8_t rhport_, uint8_t ep_addr, xfer_r
   return true;
 }
 
+// usbd_edpt_abort() drops the in-flight transfer (stall + clear-stall) and releases the claim
+void test_usbd_edpt_abort_releases_busy_endpoint(void) {
+  msc_out_armed();
+  TEST_ASSERT_TRUE(usbd_edpt_busy(rhport, EDPT_MSC_OUT));
+  TEST_ASSERT_FALSE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
+
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
+  dcd_edpt_clear_stall_Expect(rhport, EDPT_MSC_OUT);
+  usbd_edpt_abort(rhport, EDPT_MSC_OUT);
+
+  TEST_ASSERT_FALSE(usbd_edpt_busy(rhport, EDPT_MSC_OUT));
+  TEST_ASSERT_FALSE(usbd_edpt_stalled(rhport, EDPT_MSC_OUT));
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, msc_out_buf, sizeof(msc_out_buf), false, true);
+  TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport, EDPT_MSC_OUT, msc_out_buf, sizeof(msc_out_buf), false));
+}
+
+// an idle endpoint: the same dcd sequence, and it stays claimable
+void test_usbd_edpt_abort_idle_endpoint(void) {
+  msc_out_armed();
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_out_buf), XFER_RESULT_SUCCESS, false);
+  mscd_xfer_cb_IgnoreAndReturn(true);
+  tud_task();
+  usbd_edpt_rx_consume(rhport, EDPT_MSC_OUT);
+  TEST_ASSERT_FALSE(usbd_edpt_busy(rhport, EDPT_MSC_OUT));
+
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
+  dcd_edpt_clear_stall_Expect(rhport, EDPT_MSC_OUT);
+  usbd_edpt_abort(rhport, EDPT_MSC_OUT);
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
+}
+
 void test_usbd_out_complete_refuses_claim_until_consumed(void) {
   msc_out_armed();
   msc_out_complete(xfer_cb_claim_after_consume);
@@ -611,4 +643,58 @@ void test_usbd_stream_wide_request(void)
   TEST_ASSERT_EQUAL_UINT16(64, tu_fifo_count(&stream.ff));
   TEST_ASSERT_EQUAL_UINT32(64, tu_edpt_stream_read(&stream, wide_dst, 64));
   TEST_ASSERT_EQUAL_MEMORY(wide_src + 65535 - 64, wide_dst, 64);
+}
+
+//--------------------------------------------------------------------+
+// usbd_defer_func_after_queue
+//--------------------------------------------------------------------+
+static unsigned deferred_calls;
+static unsigned after_queue_runs;
+static unsigned deferred_calls_at_after_queue;
+
+static void deferred_call(void* param) {
+  (void) param;
+  deferred_calls++;
+}
+
+static void after_queue_call(void* param) {
+  (void) param;
+  after_queue_runs++;
+  deferred_calls_at_after_queue = deferred_calls;
+}
+
+// runs after every event queued before it, although the queue is full and takes more than one run
+void test_usbd_defer_func_after_queue_runs_after_queued_events(void) {
+  deferred_calls = after_queue_runs = 0;
+  for (unsigned i = 0; i < CFG_TUD_TASK_QUEUE_SZ; i++) {
+    usbd_defer_func(deferred_call, NULL, false);
+  }
+  TEST_ASSERT_TRUE(usbd_defer_func_after_queue(after_queue_call, NULL));
+
+  for (unsigned i = 0; i < (CFG_TUD_TASK_QUEUE_SZ / CFG_TUD_TASK_EVENTS_PER_RUN) + 2; i++) {
+    tud_task();
+  }
+  TEST_ASSERT_EQUAL(1, after_queue_runs);
+  TEST_ASSERT_EQUAL(CFG_TUD_TASK_QUEUE_SZ, deferred_calls_at_after_queue);
+}
+
+// one call is held at a time: the same one again is already held, a different one is refused. A
+// held call is work for tud_task() although the queue is empty.
+void test_usbd_defer_func_after_queue_holds_one_call(void) {
+  deferred_calls = after_queue_runs = 0;
+  TEST_ASSERT_FALSE(tud_task_event_ready());
+  TEST_ASSERT_TRUE(usbd_defer_func_after_queue(after_queue_call, NULL));
+  TEST_ASSERT_TRUE(tud_task_event_ready());
+  TEST_ASSERT_TRUE(usbd_defer_func_after_queue(after_queue_call, NULL));
+  TEST_ASSERT_FALSE(usbd_defer_func_after_queue(deferred_call, NULL));
+  TEST_ASSERT_FALSE(usbd_defer_func_after_queue(after_queue_call, &after_queue_runs));
+
+  tud_task();
+  TEST_ASSERT_EQUAL(1, after_queue_runs);
+  TEST_ASSERT_EQUAL(0, deferred_calls);
+  TEST_ASSERT_FALSE(tud_task_event_ready());
+
+  TEST_ASSERT_TRUE(usbd_defer_func_after_queue(deferred_call, NULL));
+  tud_task();
+  TEST_ASSERT_EQUAL(1, deferred_calls);
 }

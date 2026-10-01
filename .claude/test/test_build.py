@@ -211,6 +211,39 @@ class ResolveTest(unittest.TestCase):
         self.assertEqual(boards, ['stm32f411blackpill'])
         self.assertIn('changed boards', how)
 
+    def test_an_unguarded_nrf_driver_selects_each_compiling_mcu_variant(self):
+        path = 'src/portable/nordic/nrf5x/dcd_nrf5x.c'
+        reasons = [f"{path}: port nordic/nrf5x -> families ['nrf']"]
+        sel = {'build': {'full': False, 'families': ['nrf']}, 'boards': {'nrf52840dk': 'all'}}
+        boards, _ = build.boards_for(sel, [path], reasons)
+        self.assertEqual(boards, ['nrf52840dk', 'nrf52833dk', 'nrf5340dk'])
+        sel['build']['full'] = True
+        boards, _ = build.boards_for(sel, [path, 'src/tusb.c'], reasons)
+        self.assertEqual(boards, build.FULL_MATRIX_BOARDS + ['nrf52840dk', 'nrf52833dk', 'nrf5340dk'])
+
+    def test_a_guarded_driver_does_not_add_boards_per_mcu_variant(self):
+        path = 'src/portable/synopsys/dwc2/dcd_dwc2.c'
+        reasons = [f"{path}: port synopsys/dwc2 -> families ['stm32f4']"]
+        sel = {'build': {'full': False, 'families': ['stm32f4']}, 'boards': {'stm32f407disco': 'all'}}
+        self.assertEqual(build.boards_for(sel, [path], reasons)[0], ['stm32f407disco'])
+
+    def test_variant_selection_keeps_changed_boards_and_the_example_filter(self):
+        pool = ['nrf52840dk', 'nrf52840dongle', 'nrf52833dk', 'nrf5340dk', 'nrf54h20dk']
+        driver = 'nordic/nrf5x/dcd_nrf5x.c'
+        keep = pool[:2]
+        self.assertEqual(build.representatives(pool, None, [driver], keep), keep + ['nrf52833dk', 'nrf5340dk'])
+        with mock.patch.object(build.tools_build.build_utils, 'skip_example',
+                               side_effect=lambda e, b: b != 'nrf52833dk'):
+            self.assertEqual(build.representatives(pool, ['device/cdc_msc'], [driver], keep),
+                             keep + ['nrf52833dk'])
+        with mock.patch.object(build.tools_build.build_utils, 'skip_example', return_value=True):
+            self.assertEqual(build.representatives(pool, ['device/cdc_msc'], [driver]),
+                             ['nrf52840dk', 'nrf52833dk', 'nrf5340dk'])
+
+    def test_boards_without_mcu_variant_share_one_group(self):
+        pool = build.family_boards('rp2040')
+        self.assertEqual(build.representatives(pool, None, ['raspberrypi/rp2040/dcd_rp2040.c']), [pool[0]])
+
     def test_a_directory_scope_expands_to_its_tracked_files(self):
         # a bare board directory matches neither ci_select's rules nor the changed-board
         # rule, and would resolve to the family's sample instead of the board edited

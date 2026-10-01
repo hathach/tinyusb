@@ -518,6 +518,9 @@ static void process_pipe_brdy(uint8_t rhport, unsigned num)
 
   if (dir) {
     /* IN */
+    if (!pipe->queued) {
+      return; // no transfer to continue, e.g. one retired by a stall
+    }
     if (pipe->zlp_pending) {
       // The submit-time ZLP couldn't be queued (FIFO full); a freed buffer plane lets us queue it
       // now. Don't report completion until the ZLP is actually queued (and then sent, next BRDY),
@@ -945,6 +948,34 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_
   return r;
 }
 
+// The pipe of a non-control, non-isochronous IN endpoint, whose halt aborts its transfer; else 0
+static unsigned halting_in_pipe(rusb2_reg_t *rusb, uint8_t ep_addr) {
+  const unsigned num = tu_edpt_dir(ep_addr) ? _dcd.ep[TUSB_DIR_IN][tu_edpt_number(ep_addr)] : 0;
+  if (num == 0) {
+    return 0;
+  }
+  rusb->PIPESEL = (uint16_t) num;
+  return (rusb->PIPECFG & RUSB2_PIPECFG_TYPE_Msk) != RUSB2_PIPECFG_TYPE_ISO ? num : 0;
+}
+
+// Discard the packets in a halted IN pipe's buffer, leaving PID = NAK. ACLRM needs PID = NAK (STALL
+// 11b goes through 10b), PBUSY = 0 and the pipe in no FIFO port's CURPIPE (RA4M1 UM PIPEnCTR notes
+// 2-3, p641); only D0FIFO serves non-control pipes here. If those are not reached the packet stays:
+// clear-halt cannot fail, and usbd has already released the endpoint.
+static void pipe_in_discard(rusb2_reg_t *rusb, unsigned num, volatile uint16_t *ctr) {
+  *ctr = RUSB2_PIPE_CTR_PID_STALL;
+  *ctr = RUSB2_PIPE_CTR_PID_NAK;
+  if (rusb->D0FIFOSEL_b.CURPIPE == num) {
+    rusb->D0FIFOSEL = 0;
+  }
+  uint32_t spin = RUSB2_FIFO_READY_SPIN;
+  while ((rusb->D0FIFOSEL_b.CURPIPE == num || (*ctr & RUSB2_PIPE_CTR_PBUSY_Msk)) && --spin) {}
+  if (spin) {
+    *ctr = RUSB2_PIPE_CTR_ACLRM_Msk;
+    *ctr = 0;
+  }
+}
+
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
   volatile uint16_t *ctr = ep_addr_to_pipectr(rhport, ep_addr);
@@ -955,6 +986,11 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   const uint32_t pid = *ctr & 0x3;
   *ctr = pid | RUSB2_PIPE_CTR_PID_STALL;
   *ctr = RUSB2_PIPE_CTR_PID_STALL;
+  const unsigned num = halting_in_pipe(RUSB2_REG(rhport), ep_addr);
+  if (num) {
+    // a halt aborts the IN transfer; dcd_edpt_clear_stall() discards what it left in the buffer
+    _dcd.pipe[num].queued = false;
+  }
   dcd_int_enable(rhport);
 }
 
@@ -967,6 +1003,12 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   }
 
   dcd_int_disable(rhport);
+  if ((*ctr & RUSB2_PIPE_CTR_PID_Msk) >= RUSB2_PIPE_CTR_PID_STALL) {
+    const unsigned num_in = halting_in_pipe(rusb, ep_addr);
+    if (num_in) {
+      pipe_in_discard(rusb, num_in, ctr);
+    }
+  }
   *ctr = RUSB2_PIPE_CTR_SQCLR_Msk;
 
   if (tu_edpt_dir(ep_addr)) { /* IN */
