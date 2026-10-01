@@ -758,6 +758,8 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
         _usbd_dev.ep_status[0][TUSB_DIR_OUT] = 0;
         _usbd_dev.ep_status[0][TUSB_DIR_IN] = 0;
 
+        dcd_edpt0_setup_begin(event.rhport, event.setup_gen);
+
         // Process control request
         if (!process_setup_received(event.rhport, &event.setup_received)) {
           TU_LOG_USBD("  Stall EP0\r\n");
@@ -851,6 +853,12 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
 //--------------------------------------------------------------------+
 // Control Endpoint
 //--------------------------------------------------------------------+
+
+// Weak hook: invoked when the stack starts processing a SETUP
+TU_ATTR_WEAK void dcd_edpt0_setup_begin(uint8_t rhport, uint16_t setup_gen) {
+  (void) rhport;
+  (void) setup_gen;
+}
 
 // Weak hook: invoked when the control transfer's status stage completes
 TU_ATTR_WEAK void dcd_edpt0_status_complete(uint8_t rhport, const tusb_control_request_t* request) {
