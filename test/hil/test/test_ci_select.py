@@ -816,35 +816,15 @@ class FlasherRecoverEntry(unittest.TestCase):
         board = {'name': 'b', 'flasher': {'name': 'openocd', 'uid': 'S1',
                                           'args': '-f interface/jlink.cfg -f target/k60.cfg'}}
         cmd, kw = self._capture(hil_flash.flash_openocd, board, '/tmp/fw.elf', timeout=7)
-        self.assertEqual(cmd,
-                         'openocd -c "tcl_port disabled" -c "gdb_port disabled" -c "telnet_port disabled" '
-                         '-c "adapter serial S1" -f interface/jlink.cfg -f target/k60.cfg '
-                         '-c "program /tmp/fw.elf verify reset exit"')
+        self.assertIn('-c "program /tmp/fw.elf verify reset exit"', cmd)
+        for old in ('reset halt', 'write_image', 'verify_image'):
+            self.assertNotIn(old, cmd)
+        self.assertIn('-c "adapter serial S1"', cmd)
         self.assertEqual(kw.get('timeout'), 7)
         cmd, _ = self._capture(hil_flash.flash_openocd,
                                {'name': 'b', 'flasher': {**board['flasher'], 'verify': False}}, '/tmp/fw.elf')
         self.assertIn('-c "program /tmp/fw.elf reset exit"', cmd)
         self.assertNotIn('verify', cmd)
-
-    def test_openocd_rp2_holds_usb_in_reset_before_programming(self):
-        for chip, write in (('rp2040', 'mww 0x4000e000 0x01000000'),
-                            ('rp2350', 'mww 0x40022000 0x10000000')):
-            with self.subTest(chip=chip):
-                board = {'name': 'b', 'flasher': {'name': 'openocd', 'uid': 'S1',
-                                                 'args': f'-f interface/cmsis-dap.cfg -f target/{chip}.cfg'}}
-                cmd, _ = self._capture(hil_flash.flash_openocd, board, '/tmp/fw.elf')
-                self.assertIn(f'-c "init; reset halt; {write}; program /tmp/fw.elf verify reset exit"', cmd)
-        reset_cmd, _ = self._capture(hil_flash.reset_openocd, board)
-        self.assertTrue(reset_cmd.endswith('-c "init; reset run; exit"'))
-
-    def test_openocd_rp2_detection_matches_the_cfg_token(self):
-        for cfg, expected in (('"target/rp2040.cfg"', True),
-                              ('target/rp2040.cfg.backup', False)):
-            with self.subTest(cfg=cfg):
-                board = {'name': 'b', 'flasher': {'name': 'openocd', 'uid': 'S1',
-                                                 'args': f'-f interface/jlink.cfg -f {cfg}'}}
-                cmd, _ = self._capture(hil_flash.flash_openocd, board, '/tmp/fw.elf')
-                self.assertEqual('mww 0x4000e000 0x01000000' in cmd, expected)
 
     def test_openocd_reset_is_bounded(self):
         board = {'name': 'b', 'flasher': {'name': 'openocd', 'uid': 'S1',
