@@ -138,7 +138,7 @@ jobs:
           # does not own the runner's checkout, which git refuses without safe.directory.
           docker run --rm -e ARG -e EX_ARGS -e BUILD_OUTCOME -e GITHUB_EVENT_NAME -v "$PWD:/project" -w /project \
             espressif/idf:tinyusb bash -c 'git config --global --add safe.directory /project &&
-              pip install --only-binary :all: membrowse >/dev/null &&
+              pip install --only-binary :all: membrowse==1.2.12 >/dev/null &&
               python tools/code_size.py snapshot --symbols --build-outcome "$BUILD_OUTCOME" -o code-size $ARG $EX_ARGS'
         shell: bash
 
@@ -168,7 +168,7 @@ jobs:
                         -e GITHUB_EVENT_PATH="$GITHUB_EVENT_PATH")
             DOCKER_MOUNTS=(-v $PWD:/project)
             [ -n "$GITHUB_EVENT_PATH" ] && DOCKER_MOUNTS+=(-v "$GITHUB_EVENT_PATH:$GITHUB_EVENT_PATH:ro")
-            docker run --rm "${DOCKER_ENV[@]}" "${DOCKER_MOUNTS[@]}" -w /project espressif/idf:tinyusb bash -c "pip install --only-binary :all: membrowse >/dev/null && $CMD"
+            docker run --rm "${DOCKER_ENV[@]}" "${DOCKER_MOUNTS[@]}" -w /project espressif/idf:tinyusb bash -c "pip install --only-binary :all: membrowse==1.2.12 >/dev/null && $CMD"
           else
             $CMD
           fi

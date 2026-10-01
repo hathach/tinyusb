@@ -382,9 +382,9 @@ jobs:
           persist-credentials: false
 
       - name: Install membrowse
-        # wheel-only: an sdist would run its setup scripts on a runner that holds
-        # MEMBROWSE_API_KEY
-        run: 'pip install --only-binary :all: membrowse'
+        # this runner holds MEMBROWSE_API_KEY: wheel-only runs no sdist setup script,
+        # pinned runs no new release unreviewed
+        run: 'pip install --only-binary :all: membrowse==1.2.12'
 
       - name: Membrowse identical upload (espressif, no code change)
         continue-on-error: true
