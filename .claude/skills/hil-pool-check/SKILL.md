@@ -6,11 +6,12 @@ description: Use when asked for a pool check or board/probe health scan on a Tin
 # HIL Pool Check (board/probe health)
 
 `test/hil/helper/hil_pool_check.py` checks each board of the rig's roster in turn: the probe
-is on the bus, a light example flashes (the first found of a candidate list and the roster's
-`only` list; host-only boards are judged by UART output, and an RTT host-only board is
-reported unsupported), the board comes back, and it is re-parked with `board_test` from the
-same variant. It never builds firmware and never recovers a probe or a board: a wedge is
-reported for `usb-kernel-recover`. Flags: `--help`.
+is on the bus, a light example flashes (`dfu_runtime`, whatever the roster's `only` list says;
+a host-only board takes the first found of a candidate list and the roster's `only` list, is
+judged by UART output, and is reported unsupported when it logs over RTT), the board comes
+back, and it is re-parked with `board_test` from the same variant. It never builds firmware
+and never recovers a probe or a board: a wedge is reported for `usb-kernel-recover`. Flags:
+`--help`.
 
 The `hil` skill owns config selection by hostname and the board-lock protocol. The tool takes
 each board's lock itself; a held board is reported 🔒 locked and skipped, never waited on or
