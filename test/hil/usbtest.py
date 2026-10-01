@@ -711,7 +711,7 @@ def main():
                 # wedge of this device -- a sibling port's enumeration can hold the hub.
                 abort_reason = f'Reset_TT after case {num} unconfirmed'
                 if r['status'] == 'PASS':   # the battery must not read as a clean pass
-                    results[-1] = dict(r, status='FAIL', detail=abort_reason)
+                    r.update(status='FAIL', detail=abort_reason)
                 break
             # re-resolve: a re-enumeration changes the node path. The concrete serial, not
             # args.serial (may be None), so this never retargets another cafe:4010 device.
