@@ -1,16 +1,11 @@
 ---
 name: code-size
-description: Use when sizing TinyUSB examples per file, section or symbol (report), or diffing them between a base ref (master by default) and the working tree to evaluate the size impact of changes (diff) — one example on one board, all examples on one board, or every CI-pinned board combined — sized by membrowse, linkermap or bloaty; also when reading or debugging the PR's "Code size" comment (CI snapshot/compare).
+description: Use when sizing TinyUSB examples per file, section or symbol (report), diffing them against a base ref to judge a change's size impact (diff), or reading or debugging the PR's "Code size" comment (CI snapshot/compare).
 ---
 
 # Code Size
 
-`tools/code_size.py` has two local subcommands (and two CI ones, see [CI comment](#ci-comment)):
-
-- **`report`** builds the working tree, uncommitted changes included, and tabulates each elf as linkermap does: a row per file, a column per output section, size and % of that elf's filtered total.
-- **`diff`** builds a base ref (default `master`) in a temporary worktree and the working tree, pairs each base elf with the current elf of the same (board, elf path) and reports per-file deltas per pair: a Flash/RAM table and the same section table as signed deltas, changed rows only.
-
-Sizes are never averaged or summed across examples or boards. Pick the narrowest scope that exercises the change:
+`tools/code_size.py report` sizes the working tree, uncommitted changes included. `diff` builds a base ref (default `master`) in a temporary worktree and the working tree, pairs elfs by board and elf path, and reports per-file deltas. Pick the narrowest scope that exercises the change; sizes are never summed or averaged across examples or boards.
 
 | Scope                             | Command                                                        |
 |-----------------------------------|----------------------------------------------------------------|
@@ -19,53 +14,36 @@ Sizes are never averaged or summed across examples or boards. Pick the narrowest
 | all examples, CI-pinned, combined | `python3 tools/code_size.py diff --ci`                         |
 | one tree, no diff                 | `python3 tools/code_size.py report -b BOARD -e device/cdc_msc` |
 
-The base worktree symlinks this checkout's fetched dependencies, so a `tools/get_deps.py` pin bump's own size change is not in the diff.
+The base worktree symlinks this checkout's fetched dependencies, so a `tools/get_deps.py` pin bump's own size change is not in the diff. A local `report` or `diff` cannot size a `-D` variant build.
 
-## Arguments
+## Setup and choices
 
-- **`-b BOARD`**, repeatable. For an iterative check with no board named, pass `-b raspberry_pi_pico`.
-- **`-e <group>/<name>`**, repeatable; omit for all examples.
-- **`--engine`**, membrowse unless asked:
+Flags and syntax: `python3 tools/code_size.py <command> --help`. The choices:
 
-  | Engine                | Per-file sizes from                                                 | Needs                                       |
-  |-----------------------|---------------------------------------------------------------------|---------------------------------------------|
-  | `membrowse` (default) | `membrowse report --json --all-symbols` symbols                     | `pip install membrowse`                     |
-  | `linkermap`           | the GNU ld map's input sections, by object path                     | `python3 tools/get_deps.py tools/linkermap` |
-  | `bloaty`              | `bloaty -d compileunits,sections,symbols` VM sizes, by compile unit | `bloaty` on PATH                            |
+- No board named for an iterative check: `-b raspberry_pi_pico`. `-f` only if asked.
+- `--engine` membrowse unless asked (`pip install membrowse`; `membrowse==1.2.12` matches CI's attribution); linkermap needs `python3 tools/get_deps.py tools/linkermap`, bloaty needs `bloaty` on PATH. Flash/RAM come from the elf's headers for every engine. Membrowse's all-symbol total can overlap aliases and omit padding, so compare whole-elf totals only within one engine.
+- `--symbols` when Flash/RAM cancel: a pair counts as changed when its sections or symbols moved.
+- `--ci` for "all boards" / "CI"; it needs the arm, riscv, msp430 and ft9xx toolchains, and ESP-IDF or docker.
+- An espressif board builds each example `tools/build.py` picks as its own ESP-IDF project: with the exported ESP-IDF (`. "$IDF_PATH/export.sh"`), else in CI's image through docker, as your user (once: `docker pull espressif/idf:v5.5.3 && docker tag espressif/idf:v5.5.3 espressif/idf:tinyusb`, about 8.4 GB).
 
-  Every engine takes flash/RAM from the elf's headers (a section copied from flash counts in both). The whole-elf total counts different things per engine (membrowse's all-symbol sum overlaps aliases and omits padding), so compare it only within one.
-- **`--symbols`**: lists each file's symbols under it (`└ name`); without it the table stops at files. linkermap's rows are input sections (`.text.cdcd_open`), not symbols. A diff counts a pair changed when its sections or, with `--symbols`, symbols moved even if Flash/RAM cancel.
-- **`--json`**: also writes each report's raw sizes (paired, with the base SHA, for diff), filters and failures as `.json` beside the `.md`; symbols only with `--symbols`.
-- **`-f SUBSTRING`**, only if asked: replaces the default filter, each build's absolute `<checkout>/src/` path, which matches TinyUSB code and no vendored `src/`.
-- diff only:
-  - **`--base-branch <ref>`**: any branch, tag or commit.
-  - **`--combined`**: also one report over every `-b` board.
-  - **`--ci`**, for "all boards" / "CI": adds the `.github/ci-pinned-boards.json` boards, covering every dcd/hcd driver not waived there, and implies `--combined`; needs the arm, riscv, msp430 and ft9xx toolchains, and ESP-IDF for the espressif boards.
-  - **`--bloaty`**, with `-e` only: also prints bloaty's section and symbol diff to stdout.
+## Results
 
-An espressif board builds each example as its own ESP-IDF project, as `tools/build.py` does: with the exported ESP-IDF (`. "$IDF_PATH/export.sh"`), else in CI's image through docker, as your user (`docker pull espressif/idf:v5.5.3 && docker tag espressif/idf:v5.5.3 espressif/idf:tinyusb` once, 8.4 GB).
+Reports go under `cmake-code-size/<board>/`, combined diffs under `cmake-code-size/_combined/`. A local command exits nonzero on a build or report failure or when no TinyUSB file matched; `report` also when it sized no elf, `diff` when it compared no pair. A failed build prints an excerpt on the console; its report records the first compiler, linker or CMake error.
 
-## Outputs and timing
+Approximate times: one diff example ~30 s, one board ~1-1.5 min, an espressif board 10+ min, `--ci` 30+ min. A report is about half a diff. A diff rebuilds both trees every run, so ask for `--symbols` or `--bloaty` in the same run. Run a long sweep in the background.
 
-Reports go to `cmake-code-size/<board>/{report,diff}[_<example>].md` and, when combined, `cmake-code-size/_combined/diff.md`. The exit code is nonzero on a failure, when no pair was compared (diff) or no elf of a scope matched a file. The console shows each phase's time, one result line per scope and, for one board and one `-e` example, its changed tables; a failed build prints an excerpt of its output there, and its report and JSON record its first compiler, linker or CMake error, otherwise a fallback message.
+Each report opens with a coverage line. `INCOMPLETE` means a build, measurement or filter match failed, or an elf exists on one side only; those elfs are listed and excluded, never counted as zero. Show the coverage line and the relevant tables, then:
 
-A report builds one tree, about half a diff's time. One diff example ~30 s; one board ~60-90 s, an espressif one ~10 min (13 IDF projects a side); `--ci` ~30 min, 20 of it the two espressif boards, boards built one after another — run it in the background, past the 10-minute command timeout.
+- A many-elf report summarizes each elf, a many-pair diff each file; per-elf tables are in the `.md`'s `<details>`. Diff statistics cover compared pairs only: `Changed / present` is the pairs whose Flash or RAM of the file changed over the compared pairs containing it. min > 0 means growth in every such pair, max > 0 in at least one; name the worst-growth pair.
+- A whole-elf Δ with a zero filtered Δ is unfiltered code (inlined headers, example/BSP code) or an attribution difference; check the per-file table for rows that cancel.
+- Corroborate a surprising delta on its own board and example, not the whole sweep: `-b <board> -e <example> --engine linkermap`, plus `--bloaty` if bloaty is on PATH.
 
-## Reporting results
-
-Each report opens with a coverage line; `INCOMPLETE` means a build, report or filter match failed, or an elf exists on one side only (listed, outside every statistic). A many-pair diff counts each file whose Flash or RAM changed as `Changed / present` pairs with its min/max Δ naming the pair; a many-elf report lists each elf's totals. Per-elf tables are then in the `.md`'s `<details>` only.
-
-Show the coverage line and the relevant tables, then:
-- A filtered delta suggests a TinyUSB size impact in that configuration. A whole-elf Δ with a zero filtered total is outside the filter (inlined headers, example/BSP code); check the per-file table for changes that cancel.
-- min > 0 means growth in every present pair, max > 0 in at least one; name the worst-growth pair.
-- Corroborate a surprising delta on its own board and example, not the whole sweep: `-b <board> -e <example> --engine linkermap` (~30 s; every run rebuilds both trees); add `--bloaty` if bloaty is on PATH to see the sections and symbols behind it.
+An ESP-IDF app is sized by its image: initialized IRAM/DRAM counts in both Flash and RAM, `.flash*` NOBITS reservations are not counted, and its TinyUSB files come from DWARF.
 
 ## CI comment
 
-CI never builds a base. In a code-changing run, each selected pinned `cmake` build leg, and each `hil-build-esp` leg inside the ESP-IDF image, runs `code_size.py snapshot` on the boards it already built and uploads `code-size-<toolchain>-<leg>` (`leg.json` and one `code-size-<board>.json` per board, symbols included). A `-DMA` variant leg reports as a board of its own named by its `--build-name` (`espressif_s3_devkitm-DMA`), in the comment and on the Membrowse dashboard. A `code-size-scope` job uploads the legs and examples the run selected, none without a code change. Master push runs keep them 90 days as baselines, PR runs 14.
+CI never rebuilds for sizing. In a code-changing run, each selected pinned `cmake` build leg, and each `hil-build-esp` leg inside the ESP-IDF image, snapshots the boards it built and uploads `code-size-<toolchain>-<leg>`; it tries even after a failed build, which a missing membrowse does not stop it recording. A `-DMA` variant leg reports as a board of its own named by its `--build-name` (`espressif_s3_devkitm-DMA`), in the comment and on the Membrowse dashboard; reproducing its snapshot needs that name and the leg's `-D` defines, which can enable examples. A `code-size-scope` job uploads the legs and examples the run selected. Master push runs keep snapshots 90 days as baselines, PR runs 14.
 
-`pr_comment.yml`'s `code-size-comment` job, run from the default branch, downloads the PR run's snapshots, finds the baseline with `.github/scripts/code_size_ci.py baseline` (the master push run of the merge commit's first parent, else its nearest first-parent ancestor with snapshots, up to 30, labelled approximate), runs `python3 tools/code_size.py compare CUR BASE -o OUT --symbols --baseline-info INFO` and posts `comment.md` as the sticky `code-size` comment once `code_size_ci.py is-current` confirms no newer push, run or attempt. The full report is the job summary and the `code-size-report` artifact. It reports only; it never fails the PR.
+`pr_comment.yml`'s `code-size-comment` job runs the default branch's scripts. `.github/scripts/code_size_ci.py baseline` takes the master push run of the merge commit's first parent, else its nearest first-parent ancestor with snapshots (up to 30), labelled approximate: master changes after it count as the PR's. `code_size.py compare` produces the report, which the job publishes as its summary and the `code-size-report` artifact; the sticky `code-size` comment is posted only when `code_size_ci.py is-current` finds no newer push, Build run or attempt for the PR. Runs of other PRs on the same commit are ignored; two open PRs from one head branch can still mask each other. A comment that did not update: read that step's output. Neither the job nor `compare` fails on `INCOMPLETE`.
 
-Reading the comment: `INCOMPLETE` lists why (a leg or board with no snapshot, no baseline for a board, a failed build, snapshots of mismatched commits); an approximate baseline counts master changes after it as the PR's; a compiler or membrowse difference is noted, not failed; baseline elfs of examples the PR did not build are counted outside coverage. To reproduce locally, `gh run download` both runs' `code-size-*` artifacts into two directories and run `compare` on them.
-
-An ESP-IDF app is split by its image, not its map: initialized `.flash*` sections are flash, every other initialized section (IRAM code, DRAM data) counts as both flash and RAM since the bootloader copies it out of the image, other BSS is RAM, and `.flash*` NOBITS reservations are not counted. Its TinyUSB files come from DWARF, as IDF links them from an archive whose members membrowse names by basename only.
+Reading the comment: CI's `INCOMPLETE` adds a leg or board with no snapshot, a board with no baseline, and snapshots of mismatched commits. Compiler and membrowse differences are noted, not failed; baseline elfs of examples the PR did not build are outside coverage. To reproduce, `gh run download` both runs' `code-size-*` artifacts into two directories and run `python3 tools/code_size.py compare CUR BASE -o OUT --symbols`, adding `--baseline-info INFO` for the baseline annotations.
