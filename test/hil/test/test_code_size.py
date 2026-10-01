@@ -975,7 +975,9 @@ class BuildOutput(unittest.TestCase):
         hops, as a base worktree's: src -> checkout -> main checkout."""
         src = os.path.join(tmp, 'src')
         os.makedirs(os.path.join(src, 'hw', 'bsp', 'espressif', 'boards', 'esp'))
-        os.makedirs(os.path.join(src, 'examples', 'device', 'a_freertos'))
+        os.makedirs(os.path.join(src, 'examples', 'device', 'a_freertos', 'src'))
+        # an ESP-IDF component, which get_examples('espressif') requires
+        open(os.path.join(src, 'examples', 'device', 'a_freertos', 'src', 'CMakeLists.txt'), 'w').close()
         os.makedirs(os.path.join(src, 'tools'))
         os.makedirs(os.path.join(src, 'lib'))
         os.makedirs(os.path.join(tmp, 'main', 'lib', 'dep'))
