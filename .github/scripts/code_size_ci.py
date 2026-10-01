@@ -114,14 +114,26 @@ def baseline(args):
     return 0
 
 
+def is_run_of(run, pr, head):
+    """Whether a pull_request Build run may be PR `pr`'s, whose head is `head`: another PR can
+    share the commit. GitHub lists the open same-repo PRs of the run's head in pull_requests and
+    leaves it empty for a fork's, so an unlisted run counts when it built the PR's head branch."""
+    numbers = [p['number'] for p in run.get('pull_requests') or []]
+    if numbers:
+        return pr in numbers
+    return run.get('head_branch') == head.get('ref') and \
+        (run.get('head_repository') or {}).get('full_name') == (head.get('repo') or {}).get('full_name')
+
+
 def is_current(args):
     """Whether run `args.run_id` attempt `args.attempt` of the PR head is still the newest."""
     why = None
-    if gh(f'repos/{args.repo}/pulls/{args.pr}')['head']['sha'] != args.head_sha:
+    head = gh(f'repos/{args.repo}/pulls/{args.pr}')['head']
+    if head['sha'] != args.head_sha:
         why = 'the PR head moved on'
     else:
-        runs = gh_items(f'repos/{args.repo}/actions/workflows/{WORKFLOW}/runs?head_sha={args.head_sha}'
-                        f'&event=pull_request', 'workflow_runs')
+        runs = [r for r in gh_items(f'repos/{args.repo}/actions/workflows/{WORKFLOW}/runs?head_sha={args.head_sha}'
+                                    f'&event=pull_request', 'workflow_runs') if is_run_of(r, args.pr, head)]
         latest = max(runs, key=lambda r: r['run_number'], default=None)
         if latest is None or latest['id'] != args.run_id:
             why = 'a newer Build run exists'

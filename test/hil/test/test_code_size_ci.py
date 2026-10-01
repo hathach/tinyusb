@@ -38,7 +38,7 @@ class FakeGh:
 
     def __init__(self, parents, runs=None, artifacts=None, status='ahead'):
         self.parents, self.runs, self.artifacts, self.status = parents, runs or {}, artifacts or {}, status
-        self.pr_head, self.attempts = None, {}
+        self.pr_head, self.pr_repo, self.attempts = None, NAME, {}
 
     def __call__(self, path, paginate=False):
         reply = self.reply(path)
@@ -55,7 +55,7 @@ class FakeGh:
             parent = self.parents.get(m.group(1))
             return {'parents': [{'sha': parent}] if parent else []}
         if re.fullmatch(rf'repos/{NAME}/pulls/\d+', path):
-            return {'head': {'sha': self.pr_head}}
+            return {'head': {'sha': self.pr_head, 'ref': 'feature', 'repo': {'full_name': self.pr_repo}}}
         if re.fullmatch(rf'repos/{NAME}/compare/\w+\.\.\.master', path):
             return {'status': self.status}
         raise AssertionError(f'unexpected API call {path}')
@@ -140,10 +140,15 @@ class Baseline(unittest.TestCase):
         self.assertIn('the baseline lookup failed: gh api: HTTP 502', info['note'])
 
 
+def pr_run(run_id, prs=(5,), branch='feature', repo=NAME):
+    return {**run(run_id, sha('c'), event='pull_request', branch=branch, repo=repo),
+            'pull_requests': [{'number': n} for n in prs]}
+
+
 class IsCurrent(unittest.TestCase):
-    def check(self, pr_head=sha('c'), runs=(7,), attempts=None):
-        fake = FakeGh({}, {sha('c'): [run(r, sha('c'), event='pull_request') for r in runs]})
-        fake.pr_head, fake.attempts = pr_head, attempts or {7: 1}
+    def check(self, pr_head=sha('c'), runs=(pr_run(7),), attempts=None, pr_repo=NAME):
+        fake = FakeGh({}, {sha('c'): list(runs)})
+        fake.pr_head, fake.pr_repo, fake.attempts = pr_head, pr_repo, attempts or {7: 1}
         args = ['code_size_ci.py', 'is-current', '--repo', NAME, '--pr', '5', '--run-id', '7',
                 '--attempt', '1', '--head-sha', sha('c')]
         out = io.StringIO()
@@ -156,8 +161,23 @@ class IsCurrent(unittest.TestCase):
 
     def test_a_moved_head_a_newer_run_or_attempt_is_stale(self):
         self.assertEqual(self.check(pr_head=sha('d')), (1, 'stale: the PR head moved on'))
-        self.assertEqual(self.check(runs=(7, 8)), (1, 'stale: a newer Build run exists'))
+        self.assertEqual(self.check(runs=(pr_run(7), pr_run(8))), (1, 'stale: a newer Build run exists'))
         self.assertEqual(self.check(attempts={7: 2}), (1, 'stale: a newer attempt exists'))
+
+    def test_a_newer_run_of_another_pr_sharing_the_head_does_not_supersede(self):
+        self.assertEqual(self.check(runs=(pr_run(7), pr_run(8, prs=(6,)))), (0, 'current'))
+        self.assertEqual(self.check(runs=(pr_run(7), pr_run(8, prs=(5, 6)))), (1, 'stale: a newer Build run exists'))
+
+    def test_a_fork_prs_unlisted_runs_count_by_their_head_branch_and_repo(self):
+        fork = 'someone/tinyusb'
+        own = pr_run(7, prs=(), repo=fork)
+        self.assertEqual(self.check(runs=(own,), pr_repo=fork), (0, 'current'))
+        self.assertEqual(self.check(runs=(own, pr_run(8, prs=(), repo=fork)), pr_repo=fork),
+                         (1, 'stale: a newer Build run exists'))
+        self.assertEqual(self.check(runs=(own, pr_run(8, prs=(), branch='other', repo=fork)), pr_repo=fork),
+                         (0, 'current'))
+        self.assertEqual(self.check(runs=(own, pr_run(8, prs=(), repo='other/tinyusb')), pr_repo=fork),
+                         (0, 'current'))
 
 
 if __name__ == '__main__':
