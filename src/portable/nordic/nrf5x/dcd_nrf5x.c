@@ -114,6 +114,8 @@ static struct {
 
   // nRF can only carry one DMA at a time; owned by the USBD ISR
   bool dma_running;
+  bool dma_canceled; // a bus reset discarded the running DMA's transfer: its END only releases
+  uint8_t dma_owner; // request bit position of the running DMA
   uint8_t dma_rr; // bit position of the last bulk/interrupt request started, for round-robin
 
   // Track whether sof has been manually enabled
@@ -181,7 +183,8 @@ static void xact_in_dma(uint8_t epnum);
 // Start queued requests while the channel is free: EP0 first, then ISO, then the other endpoints
 // round-robin. USBD ISR only, after its END events released the channel.
 static void dma_pump(void) {
-  while (!_dcd.dma_running && _dcd.dma_pending) {
+  // NRF_USBD->ENABLE: an unplug disabled USBD; what is still pending is dropped by the next bus reset
+  while (!_dcd.dma_running && _dcd.dma_pending && NRF_USBD->ENABLE) {
     uint32_t const pending = _dcd.dma_pending;
     uint32_t req = pending & DMA_REQ_EP0;
     if (req == 0) {
@@ -197,6 +200,7 @@ static void dma_pump(void) {
 
     uint8_t const pos = (uint8_t) __CLZ(__RBIT(req));
     _dcd.dma_pending &= ~TU_BIT(pos);
+    _dcd.dma_owner = pos;
     if (is_cbi) {
       _dcd.dma_rr = pos;
     }
@@ -226,6 +230,53 @@ static void edpt_dma_end(void) {
     NRF_USBD_ERRATA_199_REG = 0x00000000UL;
   }
   _dcd.dma_running = false;
+}
+
+// INTEN / EVENTS index of the END event of the running DMA
+static uint8_t dma_owner_end_pos(void) {
+  uint8_t const pos = _dcd.dma_owner;
+  if (pos >= 16) {
+    return (uint8_t) (USBD_INTEN_ENDEPOUT0_Pos + pos - 16); // ENDISOOUT follows ENDEPOUT7
+  }
+  return (pos == EP_ISO_NUM) ? (uint8_t) USBD_INTEN_ENDISOIN_Pos : (uint8_t) (USBD_INTEN_ENDEPIN0_Pos + pos);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline volatile uint32_t* end_event(uint8_t end_pos) {
+  return &NRF_USBD->EVENTS_USBRESET + end_pos;
+}
+
+// Clear a stale ISO END before enabling its interrupt, but never the END of the running DMA
+// (one a bus reset discarded included): it is that DMA's only release. Task context.
+static void iso_end_clear(volatile uint32_t* evt) {
+  usbd_spin_lock(false);
+  if (!(_dcd.dma_running && evt == end_event(dma_owner_end_pos()))) {
+    *evt = 0;
+  }
+  usbd_spin_unlock(false);
+}
+
+// Release the channel once the running DMA's END is seen, captured in *int_status or still set in
+// its EVENTS register (its INTEN may be off), without accounting the transfer, which the caller is
+// discarding. The caller excludes the USBD ISR. max_polls == 0 waits until the END or a bus reset,
+// which may abort the DMA without one. Also gives up once an unplug disabled USBD, which releases the
+// channel itself. Returns false if no END was seen.
+static bool dma_drain(uint32_t* int_status, uint32_t max_polls) {
+  uint8_t const end_pos = dma_owner_end_pos();
+  if (int_status != NULL && tu_bit_test(*int_status, end_pos)) {
+    *int_status &= ~TU_BIT(end_pos);
+  } else {
+    volatile uint32_t* const evt = end_event(end_pos);
+    for (uint32_t n = 0; *evt == 0; n++) {
+      if (((max_polls != 0) ? (n >= max_polls) : (NRF_USBD->EVENTS_USBRESET != 0)) || NRF_USBD->ENABLE == 0) {
+        return false;
+      }
+    }
+    *evt = 0;
+    __ISB();
+    __DSB();
+  }
+  edpt_dma_end();
+  return true;
 }
 
 // Start DMA to move data from Endpoint -> RAM. Called by dma_pump() with the channel free, as
@@ -374,7 +425,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const* desc_edpt) {
       if (_dcd.xfer[EP_ISO_NUM][TUSB_DIR_IN].mps) NRF_USBD->ISOSPLIT = USBD_ISOSPLIT_SPLIT_HalfIN;
 
       // Clear old events
-      NRF_USBD->EVENTS_ENDISOOUT = 0;
+      iso_end_clear(&NRF_USBD->EVENTS_ENDISOOUT);
 
       // Clear SOF event in case interrupt was not enabled yet.
       if ((NRF_USBD->INTEN & USBD_INTEN_SOF_Msk) == 0) NRF_USBD->EVENTS_SOF = 0;
@@ -383,7 +434,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const* desc_edpt) {
       NRF_USBD->INTENSET = USBD_INTENSET_ENDISOOUT_Msk | USBD_INTENSET_SOF_Msk;
       NRF_USBD->EPOUTEN |= USBD_EPOUTEN_ISOOUT_Msk;
     } else {
-      NRF_USBD->EVENTS_ENDISOIN = 0;
+      iso_end_clear(&NRF_USBD->EVENTS_ENDISOIN);
 
       // SPLIT ISO buffer when ISO OUT endpoint is already opened.
       if (_dcd.xfer[EP_ISO_NUM][TUSB_DIR_OUT].mps) NRF_USBD->ISOSPLIT = USBD_ISOSPLIT_SPLIT_HalfIN;
@@ -409,6 +460,16 @@ void dcd_edpt_close_all(uint8_t rhport) {
   usbd_spin_lock(false);
   _dcd.dma_pending &= DMA_REQ_EP0;
 
+  // The END of a DMA on an endpoint closed here is never seen once its INTEN is cleared below, so
+  // wait for it now rather than let the stack reuse a buffer the DMA still accesses. Outside a bus
+  // reset an EasyDMA copy always ends; a reset hands the DMA to bus_reset(), which owns that case,
+  // and so does a DMA a bus reset already discarded: both keep their END interrupt.
+  bool drained = false;
+  if (_dcd.dma_running && !_dcd.dma_canceled && !(DMA_REQ_EP0 & TU_BIT(_dcd.dma_owner))) {
+    drained = dma_drain(NULL, 0);
+    _dcd.dma_canceled = !drained && NRF_USBD->ENABLE;
+  }
+
   // disable all non-control (bulk + interrupt) endpoints
   for (uint8_t ep = 1; ep < EP_CBI_COUNT; ep++) {
     NRF_USBD->INTENCLR = TU_BIT(USBD_INTEN_ENDEPOUT0_Pos + ep) | TU_BIT(USBD_INTEN_ENDEPIN0_Pos + ep);
@@ -428,11 +489,20 @@ void dcd_edpt_close_all(uint8_t rhport) {
 
   tu_memclr(_dcd.xfer[EP_ISO_NUM], 2 * sizeof(xfer_td_t));
 
+  if (_dcd.dma_canceled) {
+    NRF_USBD->INTENSET = TU_BIT(dma_owner_end_pos());
+  }
+
   // de-activate all non-control
   NRF_USBD->EPOUTEN = 1UL;
   NRF_USBD->EPINEN = 1UL;
 
+  bool const kick = drained && _dcd.dma_pending;
   usbd_spin_unlock(false);
+
+  if (kick) {
+    NVIC_SetPendingIRQ(USBD_IRQn); // the END that would have run dma_pump() was consumed here
+  }
 }
 
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
@@ -467,12 +537,12 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
   if (dir == TUSB_DIR_OUT) {
     // SPLIT ISO buffer when the ISO IN endpoint is already active.
     if (_dcd.xfer[EP_ISO_NUM][TUSB_DIR_IN].mps) NRF_USBD->ISOSPLIT = USBD_ISOSPLIT_SPLIT_HalfIN;
-    NRF_USBD->EVENTS_ENDISOOUT = 0;
+    iso_end_clear(&NRF_USBD->EVENTS_ENDISOOUT);
     if ((NRF_USBD->INTEN & USBD_INTEN_SOF_Msk) == 0) NRF_USBD->EVENTS_SOF = 0;
     NRF_USBD->INTENSET = USBD_INTENSET_ENDISOOUT_Msk | USBD_INTENSET_SOF_Msk;
     NRF_USBD->EPOUTEN |= USBD_EPOUTEN_ISOOUT_Msk;
   } else {
-    NRF_USBD->EVENTS_ENDISOIN = 0;
+    iso_end_clear(&NRF_USBD->EVENTS_ENDISOIN);
     // SPLIT ISO buffer when the ISO OUT endpoint is already active.
     if (_dcd.xfer[EP_ISO_NUM][TUSB_DIR_OUT].mps) NRF_USBD->ISOSPLIT = USBD_ISOSPLIT_SPLIT_HalfIN;
     if ((NRF_USBD->INTEN & USBD_INTEN_SOF_Msk) == 0) NRF_USBD->EVENTS_SOF = 0;
@@ -609,7 +679,15 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
 /*------------------------------------------------------------------*/
 /* Interrupt Handler
  *------------------------------------------------------------------*/
-static void bus_reset(void) {
+static void bus_reset(uint32_t* int_status) {
+  // The running DMA's END is the only release of the channel: consume it before its INTEN and our
+  // state are reset. Whether USBRESET aborts a running EasyDMA without END is undocumented, so wait
+  // a bounded time; if it has not ended, keep the channel owned until that END arrives.
+  bool const carried = _dcd.dma_running && !dma_drain(int_status, _dcd.dma_canceled ? 1 : SystemCoreClock / 1000) &&
+                       NRF_USBD->ENABLE;
+  uint8_t const owner = _dcd.dma_owner;
+  uint32_t const carried_end = carried ? TU_BIT(dma_owner_end_pos()) : 0;
+
   // 6.35.6 USB controller automatically disabled all endpoints (except control)
   NRF_USBD->EPOUTEN = 1UL;
   NRF_USBD->EPINEN = 1UL;
@@ -630,9 +708,14 @@ static void bus_reset(void) {
   NRF_USBD->INTENCLR = NRF_USBD->INTEN;
   NRF_USBD->INTENSET = USBD_INTEN_USBRESET_Msk | USBD_INTEN_USBEVENT_Msk | USBD_INTEN_EPDATA_Msk |
                        USBD_INTEN_EP0SETUP_Msk | USBD_INTEN_EP0DATADONE_Msk | USBD_INTEN_ENDEPIN0_Msk |
-                       USBD_INTEN_ENDEPOUT0_Msk;
+                       USBD_INTEN_ENDEPOUT0_Msk | carried_end;
 
   tu_varclr(&_dcd);
+  if (carried) {
+    _dcd.dma_running = true;
+    _dcd.dma_canceled = true;
+    _dcd.dma_owner = owner;
+  }
   _dcd.xfer[0][TUSB_DIR_IN].mps = MAX_PACKET_SIZE;
   _dcd.xfer[0][TUSB_DIR_OUT].mps = MAX_PACKET_SIZE;
 }
@@ -655,8 +738,20 @@ static void handle_events(void) {
   }
 
   if (int_status & USBD_INTEN_USBRESET_Msk) {
-    bus_reset();
+    bus_reset(&int_status);
     dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
+    // transfer events captured with the reset belong to transfers it discarded
+    int_status &= ~(EDPT_END_ALL_MASK | USBD_INTEN_EPDATA_Msk | USBD_INTEN_EP0DATADONE_Msk);
+  }
+
+  if (_dcd.dma_canceled) {
+    uint8_t const owner_end_pos = dma_owner_end_pos();
+    if (tu_bit_test(int_status, owner_end_pos)) {
+      // END of the DMA a bus reset discarded: release only, nothing to account
+      int_status &= ~TU_BIT(owner_end_pos);
+      _dcd.dma_canceled = false;
+      edpt_dma_end();
+    }
   }
 
   // ISOIN: Data was moved to endpoint buffer, client will be notified in SOF
@@ -1158,9 +1253,19 @@ void tusb_hal_nrf_power_event(uint32_t event) {
         // disable all interrupt
         NRF_USBD->INTENCLR = NRF_USBD->INTEN;
 
+        // PS 6.35.4: let a running EasyDMA finish before disabling USBD
+        if (_dcd.dma_running) {
+          (void) dma_drain(NULL, SystemCoreClock / 1000);
+        }
+
         NRF_USBD->ENABLE = 0;
         __ISB();
         __DSB(); // for sync
+
+        // Ownership does not survive disabling USBD: nothing left could release it. Software state
+        // only: without an END the errata-199 latch stays as the next DMA start finds it.
+        _dcd.dma_running = false;
+        _dcd.dma_canceled = false;
 
         hfclk_disable();
 
