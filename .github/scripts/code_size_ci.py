@@ -116,14 +116,17 @@ def baseline(args):
 
 def is_current(args):
     """Whether run `args.run_id` attempt `args.attempt` of the PR head is still the newest."""
-    head = gh(f'repos/{args.repo}/pulls/{args.pr}')['head']['sha']
-    runs = gh_items(f'repos/{args.repo}/actions/workflows/{WORKFLOW}/runs?head_sha={args.head_sha}'
-                    f'&event=pull_request', 'workflow_runs')
-    latest = max(runs, key=lambda r: r['run_number'], default=None)
-    attempt = gh(f'repos/{args.repo}/actions/runs/{args.run_id}')['run_attempt']
-    why = ('the PR head moved on' if head != args.head_sha
-           else 'a newer Build run exists' if latest is None or latest['id'] != args.run_id
-           else 'a newer attempt exists' if attempt != args.attempt else None)
+    why = None
+    if gh(f'repos/{args.repo}/pulls/{args.pr}')['head']['sha'] != args.head_sha:
+        why = 'the PR head moved on'
+    else:
+        runs = gh_items(f'repos/{args.repo}/actions/workflows/{WORKFLOW}/runs?head_sha={args.head_sha}'
+                        f'&event=pull_request', 'workflow_runs')
+        latest = max(runs, key=lambda r: r['run_number'], default=None)
+        if latest is None or latest['id'] != args.run_id:
+            why = 'a newer Build run exists'
+        elif gh(f'repos/{args.repo}/actions/runs/{args.run_id}')['run_attempt'] != args.attempt:
+            why = 'a newer attempt exists'
     print(f'stale: {why}' if why else 'current')
     return 1 if why else 0
 
