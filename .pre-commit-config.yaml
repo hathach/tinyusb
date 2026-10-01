@@ -74,12 +74,15 @@ repos:
   # No types_or: the rig rosters (*.json) are inputs too.
   # examples/device/mtp/src is in scope: test_hil_bounded parses README_TXT_CONTENT
   # and md5-checks the logo header from there as its MTP fixtures.
+  # language: python so pre-commit's venv supplies pyusb and pyserial, which the rig
+  # scripts under test import.
   - id: hil-test
     name: hil-test
     files: ^(test/hil/|examples/device/mtp/src/|tools/rtt\.py$|\.claude/skills/hil/scripts/hil_remote\.py$)
     entry: python3 -m unittest discover -s test/hil/test -p 'test_hil*.py'
     pass_filenames: false
-    language: system
+    language: python
+    additional_dependencies: [pyusb, pyserial]
   - id: family-json
     name: family-json
     entry: sh -c "python3 tools/family_json.py fix && python3 test/hil/test/test_family_json.py"
