@@ -6,17 +6,38 @@
 import errno
 import os
 import sys
+import types
 import unittest
 import unittest.mock
 
+pyusb_stub = {}
 try:
     import usb.core
     import usb.util
 except ImportError:
-    raise unittest.SkipTest('pyusb not installed')
+    # the bare pre-commit runner lacks pyusb; no test reaches libusb, so stand in for the names
+    # teardown_stress uses, with pyusb's signatures and constants, for its import only
+    class USBError(IOError):
+        def __init__(self, strerror, error_code=None, errno=None):
+            IOError.__init__(self, errno, strerror)
+            self.backend_error_code = error_code
+
+    usb = types.ModuleType('usb')
+    usb.core = types.ModuleType('usb.core')
+    usb.core.USBError = USBError
+    usb.core.USBTimeoutError = type('USBTimeoutError', (USBError,), {})
+    usb.core.find = lambda **kw: None
+    usb.util = types.ModuleType('usb.util')
+    usb.util.ENDPOINT_TYPE_BULK, usb.util.ENDPOINT_IN = 0x02, 0x80
+    usb.util.endpoint_type = lambda bmAttributes: bmAttributes & 0x03
+    usb.util.endpoint_direction = lambda address: address & 0x80
+    pyusb_stub = {'usb': usb, 'usb.core': usb.core, 'usb.util': usb.util}
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.modules.update(pyusb_stub)
 import teardown_stress as ts
+for name in pyusb_stub:   # other suites must still see pyusb as missing
+    del sys.modules[name]
 
 
 class FakeDev:
