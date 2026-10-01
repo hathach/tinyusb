@@ -908,8 +908,8 @@ ESP_IDF_IMAGE = 'espressif/idf:tinyusb'  # .github/actions/setup_toolchain/espre
 
 
 def _esp_examples(src_dir, board, example):
-    """The examples tools/build.py builds for espressif `board` that `src_dir` has (`example`
-    alone when given): get_examples() names some itself, and src_dir may be the base."""
+    """The examples tools/build.py builds for espressif `board` (`example` alone when given):
+    those get_examples('espressif') lists that `src_dir` has, less skip_example's."""
     import build  # tools/build.py; its import has no side effects
     with contextlib.chdir(src_dir):  # build.py and build_utils read examples/ and hw/bsp from the cwd
         return [e for e in build.get_examples('espressif')

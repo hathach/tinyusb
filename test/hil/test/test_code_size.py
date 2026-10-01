@@ -1037,7 +1037,7 @@ class BuildOutput(unittest.TestCase):
             self.assertIn('esp needs ESP-IDF: source $IDF_PATH/export.sh', error)
 
     def test_an_example_the_tree_does_not_build_for_espressif_fails_the_build(self):
-        # device/board_test is one get_examples() names itself, absent from this tree
+        # device/board_test: an espressif example absent from this tree
         for example in ('device/cdc_msc', 'device/board_test'):
             with tempfile.TemporaryDirectory() as tmp:
                 error, runs = self._build_esp(tmp, example=example)
