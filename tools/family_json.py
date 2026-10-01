@@ -21,7 +21,8 @@ driver coverage `portable` cannot answer: a board compiling an hcd its family al
 covers nothing if it configures no host or dual example. `refresh` is the release sweep: every
 cmake board re-observed the same way, exit 1 when any board could not be. Between releases an
 edit to what every row is observed through (src/common/tusb_mcu.h, hw/bsp/family_support.cmake,
-and for `roles` an example's own CMakeLists.txt, skip.txt or only.txt) is not detected.
+and for `roles` an example's own CMakeLists.txt, skip.txt or only.txt, or for Espressif rows
+tools/build.py get_examples) is not detected.
 """
 import argparse
 import json
@@ -415,7 +416,8 @@ def stale_rows(changed, tree):
     its CMakeLists.txt: hw/bsp/espressif/components/tinyusb_src/CMakeLists.txt is where
     every Espressif row's portable sources and defines come from. hw/bsp/family_support.cmake,
     src/common/tusb_mcu.h and the example tree (an example's CMakeLists.txt, skip.txt or
-    only.txt decides `roles` for any board) are left out on purpose: each feeds every row, and
+    only.txt decides `roles` for any board, tools/build.py get_examples for an Espressif one)
+    are left out on purpose: each feeds every row of its scope, and
     re-observing all of them is a sweep, not a hook; that sweep is `refresh`, run when a
     release is cut."""
     out = set()
