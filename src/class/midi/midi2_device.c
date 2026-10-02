@@ -161,7 +161,7 @@ static const uint8_t _default_gtb_desc[] = {
   0x00,                                     // nGroupTrm: first group (0)
   CFG_TUD_MIDI2_NUM_GROUPS,                 // nNumGroupTrm
   CFG_TUD_MIDI2_BLOCK_STRIDX,               // iBlockItem: string descriptor index (0 = none)
-  0x00,                                     // bMIDIProtocol: unknown/not fixed
+  CFG_TUD_MIDI2_GTB_PROTOCOL,               // bMIDIProtocol: default MIDI protocol
   0, 0,                                     // wMaxInputBandwidth: unknown
   0, 0                                      // wMaxOutputBandwidth: unknown
 };

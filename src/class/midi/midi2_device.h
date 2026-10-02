@@ -75,6 +75,14 @@ extern "C" {
   #define CFG_TUD_MIDI2_BLOCK_STRIDX 0
 #endif
 
+// Default MIDI protocol (bMIDIProtocol, USB-MIDI 2.0 Table 5-6) of the default
+// Group Terminal Block and of TUD_MIDI2_GTB_BLOCK. MIDI 2.0 matches the
+// driver's own default protocol; a host may treat an unknown protocol (0x00)
+// as MIDI 1.0, as macOS does.
+#ifndef CFG_TUD_MIDI2_GTB_PROTOCOL
+  #define CFG_TUD_MIDI2_GTB_PROTOCOL MIDI2_GTB_PROTOCOL_MIDI2
+#endif
+
 //--------------------------------------------------------------------+
 // Group Terminal Block descriptor builders (USB-MIDI 2.0 Table 5-5/5-6)
 //--------------------------------------------------------------------+
@@ -92,6 +100,18 @@ enum {
   MIDI2_GTB_OUTPUT_ONLY   = 0x02,
 };
 
+// Default MIDI protocol of a block's Group Terminals (bMIDIProtocol),
+// USB-MIDI 2.0 Appendix A.7. JR: Jitter Reduction Timestamps.
+enum {
+  MIDI2_GTB_PROTOCOL_UNKNOWN      = 0x00,  // use MIDI-CI
+  MIDI2_GTB_PROTOCOL_MIDI1_64     = 0x01,  // MIDI 1.0, UMP up to 64 bits
+  MIDI2_GTB_PROTOCOL_MIDI1_64_JR  = 0x02,
+  MIDI2_GTB_PROTOCOL_MIDI1_128    = 0x03,  // MIDI 1.0, UMP up to 128 bits
+  MIDI2_GTB_PROTOCOL_MIDI1_128_JR = 0x04,
+  MIDI2_GTB_PROTOCOL_MIDI2        = 0x11,  // MIDI 2.0
+  MIDI2_GTB_PROTOCOL_MIDI2_JR     = 0x12,
+};
+
 // GTB descriptor sizes (bytes).
 enum {
   MIDI2_GTB_HEADER_LEN = 5,   // list header
@@ -104,9 +124,13 @@ enum {
 #define TUD_MIDI2_GTB_HEADER(_nblocks) \
   MIDI2_GTB_HEADER_LEN, MIDI2_CS_GRP_TRM_BLOCK, MIDI2_GRP_TRM_BLOCK_HEADER, \
   U16_TO_U8S_LE(TUD_MIDI2_GTB_DESC_LEN(_nblocks))
-#define TUD_MIDI2_GTB_BLOCK(_id, _type, _first_group, _num_groups, _stridx) \
+// A block entry with its default MIDI protocol (MIDI2_GTB_PROTOCOL_*).
+#define TUD_MIDI2_GTB_BLOCK_PROTOCOL(_id, _type, _first_group, _num_groups, _stridx, _protocol) \
   MIDI2_GTB_ENTRY_LEN, MIDI2_CS_GRP_TRM_BLOCK, MIDI2_GRP_TRM_BLOCK_ENTRY, \
-  (_id), (_type), (_first_group), (_num_groups), (_stridx), 0x00, 0, 0, 0, 0
+  (_id), (_type), (_first_group), (_num_groups), (_stridx), (_protocol), 0, 0, 0, 0
+// A block entry with CFG_TUD_MIDI2_GTB_PROTOCOL.
+#define TUD_MIDI2_GTB_BLOCK(_id, _type, _first_group, _num_groups, _stridx) \
+  TUD_MIDI2_GTB_BLOCK_PROTOCOL(_id, _type, _first_group, _num_groups, _stridx, CFG_TUD_MIDI2_GTB_PROTOCOL)
 
 //--------------------------------------------------------------------+
 // MIDI Protocol Values (returned by tud_midi2_n_protocol)
