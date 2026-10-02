@@ -1709,23 +1709,25 @@ def _download_baseline(ci, repo, run_id):
             return os.path.join(dest, 'snapshots')
         tmp = f'{dest}.tmp-{os.getpid()}'
         shutil.rmtree(tmp, ignore_errors=True)
-        ret = run(['gh', 'run', 'download', str(run_id), '-R', repo, '-p', 'code-size-*',
-                   '-D', os.path.join(tmp, 'snapshots')], timeout=DOWNLOAD_TIMEOUT)
-        if ret.returncode != 0:
-            shutil.rmtree(tmp, ignore_errors=True)
-            raise BaselineUnavailable(f'gh run download {run_id}: {_clean(ret.stderr) or f"exit {ret.returncode}"}')
-        now = ci.gh(f'repos/{repo}/actions/runs/{run_id}')['run_attempt']
-        if now != attempt:  # a re-run replaced artifacts mid-download: this copy is of neither attempt
-            shutil.rmtree(tmp, ignore_errors=True)
-            attempt = now
-            continue
-        with open(os.path.join(tmp, 'manifest.json'), 'w') as f:
-            json.dump({'repo': repo, 'run_id': run_id, 'run_attempt': attempt}, f, indent=1, sort_keys=True)
         try:
-            os.rename(tmp, dest)
-        except OSError:  # another run published it first
-            shutil.rmtree(tmp, ignore_errors=True)
-        return os.path.join(dest, 'snapshots')
+            ret = run(['gh', 'run', 'download', str(run_id), '-R', repo, '-p', 'code-size-*',
+                       '-D', os.path.join(tmp, 'snapshots')], timeout=DOWNLOAD_TIMEOUT)
+            if ret.returncode != 0:
+                raise BaselineUnavailable(f'gh run download {run_id}: {_clean(ret.stderr) or f"exit {ret.returncode}"}')
+            now = ci.gh(f'repos/{repo}/actions/runs/{run_id}')['run_attempt']
+            if now != attempt:  # a re-run replaced artifacts mid-download: this copy is of neither attempt
+                attempt = now
+                continue
+            try:
+                with open(os.path.join(tmp, 'manifest.json'), 'w') as f:
+                    json.dump({'repo': repo, 'run_id': run_id, 'run_attempt': attempt}, f, indent=1, sort_keys=True)
+                os.rename(tmp, dest)
+            except OSError as e:
+                if not os.path.isfile(os.path.join(dest, 'manifest.json')):  # else another run published it first
+                    raise BaselineUnavailable(f'caching run {run_id}: {e}') from e
+            return os.path.join(dest, 'snapshots')
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)  # gone after a successful rename
     raise BaselineUnavailable(f'run {run_id} was re-run during the download')
 
 
