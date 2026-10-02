@@ -2243,19 +2243,24 @@ class Compare(unittest.TestCase):
         self.assertEqual(data['boards'], ['b1', 'b2'])
 
     def test_a_new_elf_is_current_only(self):
-        _md, _c, data = self.compare([_shard('b1', {'device/a/a.elf': _elf(10)})],
-                                     [_shard('b1', {'device/a/a.elf': _elf(10), 'device/n/n.elf': _elf(1)})])
+        md, comment, data = self.compare([_shard('b1', {'device/a/a.elf': _elf(10), 'device/o/o.elf': _elf(1)})],
+                                         [_shard('b1', {'device/a/a.elf': _elf(10), 'device/n/n.elf': _elf(1)})])
         self.assertEqual(data['current_only'], [{'board': 'b1', 'elf': 'device/n/n.elf'}])
         self.assertEqual(data['status'], 'INCOMPLETE')
+        self.assertIn('- missing in this PR: `b1: device/o/o.elf`\n'
+                      '- new in this PR (no master size yet): `b1: device/n/n.elf`\n', comment)
+        self.assertIn('current-only: `b1: device/n/n.elf`', md)  # the full report keeps its terms
 
     def test_a_board_without_baseline_leaves_coverage_incomplete(self):
         md, comment, data = self.compare([_shard('b1', {'device/a/a.elf': _elf(10)})],
-                                    [_shard('b1', {'device/a/a.elf': _elf(10)}), _shard('b2', {'device/a/a.elf': _elf(1)})])
+                                         [_shard('b1', {'device/a/a.elf': _elf(10)}), _shard('b2', {'device/a/a.elf': _elf(1)})])
         self.assertEqual(data['no_baseline'], ['b2'])
         self.assertEqual(data['status'], 'INCOMPLETE')
         self.assertIn('FAILED `b2` base snapshot: no baseline snapshot', md)
         self.assertEqual(len(data['pairs']), 1)
-        self.assertIn('**INCOMPLETE:** 1 builds on 1 boards compared', comment)
+        self.assertIn('1 builds on 1 boards compared, 0 changed\n\nNot compared:\n\n'
+                      '- FAILED `b2` master snapshot: no baseline snapshot\n', comment)
+        self.assertNotIn('INCOMPLETE', comment)
 
     def test_a_missing_scope_or_a_failed_build_leaves_coverage_incomplete(self):
         broken = {**_shard('b1', {'device/a/a.elf': _elf(1)}), 'build_outcome': 'failure'}
@@ -2333,6 +2338,7 @@ class Compare(unittest.TestCase):
                           ['device/usbd.c', '0', '0 → +4']])
         self.assertIn('1 other build changed without a TinyUSB file-size change.', comment)
         self.assertNotIn('boards: ', comment)
+        self.assertNotIn('Not compared', comment)
         self.assertNotIn('| b1: ', comment)
         self.assertNotIn('<details>', comment)
         self.assertIn('<details>', md)

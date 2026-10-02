@@ -668,11 +668,16 @@ def _range(lo, hi):
     return _fmt(lo) if lo == hi else f'{_fmt(lo)} → {_fmt(hi)}'
 
 
-def _problems(base_only, cur_only, failures):
-    """Report lines for one-sided elfs and failures, each id named."""
-    lines = [f'- {label}: ' + ', '.join(f'`{_label(i)}`' for i in ids)
+COMMENT_TERMS = {'base-only': 'missing in this PR', 'current-only': 'new in this PR (no master size yet)',
+                 'base': 'master', 'current': 'PR'}
+
+
+def _problems(base_only, cur_only, failures, terms=None):
+    """Report lines for one-sided elfs and failures, each id named; `terms` rewords the report's words."""
+    word = lambda w: (terms or {}).get(w, w)  # noqa: E731
+    lines = [f'- {word(label)}: ' + ', '.join(f'`{_label(i)}`' for i in ids)
              for label, ids in (('base-only', base_only), ('current-only', cur_only)) if ids]
-    return lines + [f'- FAILED `{_label(elf_id)}` {side} {stage}: {_md_escape(message)}'
+    return lines + [f'- FAILED `{_label(elf_id)}` {word(side)} {stage}: {_md_escape(message)}'
                     for elf_id, side, stage, message in failures]
 
 
@@ -695,8 +700,8 @@ def render_comment(pairs, engine, base_only=(), cur_only=(), failures=(), symbol
         flash, ram = zip(*(_delta(pairs[i][0]['all'], pairs[i][1]['all']) for i in changed))
         head += f'. Whole firmware¹ Flash Δ {_range(min(flash), max(flash))}, RAM Δ {_range(min(ram), max(ram))}'
         footnote = f'\n¹ Sum of {ENGINES[engine].all_label} measured by {engine}, not the exact image size.\n'
-    status = _status(failures, base_only, cur_only, pairs)
-    lines = [head if status == 'complete' else f'**INCOMPLETE:** {head}', *_problems(base_only, cur_only, failures), '']
+    problems = _problems(base_only, cur_only, failures, COMMENT_TERMS)
+    lines = [head, ''] + (['Not compared:', '', *problems, ''] if problems else [])
     if not changed:
         return '\n'.join(lines + ['_no changes_' if pairs else '_no comparable pairs_', '']), footnote
     stats = _file_stats(file_deltas)
