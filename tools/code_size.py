@@ -971,7 +971,10 @@ def build_error(ret, src_dir):
              if line.strip() and not _NINJA_PROGRESS.match(line)
              and not line.startswith(('ninja: build stopped', 'ninja: Entering directory', 'FAILED: '))]
     error = build_utils.first_error(out) or (lines[-1] if lines else 'no output')
-    return error.replace(src_dir.rstrip(os.sep) + os.sep, '')
+    root = src_dir.rstrip(os.sep)
+    for prefix in {root + os.sep, root.replace(os.sep, '/') + '/'}:  # Windows: CMake passes the compiler D:/a/...
+        error = error.replace(prefix, '')
+    return error
 
 
 ESP_IDF_IMAGE = 'espressif/idf:tinyusb'  # .github/actions/setup_toolchain/espressif's tag

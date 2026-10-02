@@ -27,6 +27,9 @@ REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
 sys.path.insert(0, os.path.join(REPO, 'tools'))
 import code_size as sd  # noqa: E402
 
+posix_only = unittest.skipIf(os.name == 'nt', 'needs a POSIX shell and signals')
+no_esp_on_windows = unittest.skipIf(os.name == 'nt', 'code_size.py refuses ESP-IDF on Windows')
+
 
 def fake_report(symbols):
     return {'symbols': symbols}
@@ -66,6 +69,7 @@ class ReportForElf(unittest.TestCase):
             self.assertEqual(cmd[cmd.index('--def') + 1], 'X=1')
             self.assertEqual(run.call_args.kwargs['cwd'], build)
 
+    @no_esp_on_windows
     def test_an_esp_idf_build_uses_its_generated_scripts(self):
         with tempfile.TemporaryDirectory() as build:
             open(os.path.join(build, 'build.ninja'), 'w').close()
@@ -636,7 +640,7 @@ THREE_SECTIONS = ([('.text', PROGBITS, AX, 0x10000000, 0x400),
 
 
 class DwarfSources(unittest.TestCase):
-    @unittest.skipUnless(shutil.which('gcc'), 'needs gcc to build an elf with DWARF')
+    @unittest.skipUnless(shutil.which('gcc') and os.name != 'nt', 'needs a gcc that builds an elf with DWARF')
     def test_compile_units_are_found_by_basename(self):
         with tempfile.TemporaryDirectory() as tmp:
             for rel, code in (('src/device/usbd.c', 'int usbd(void) { return 1; }\n'),
@@ -1037,6 +1041,7 @@ class BuildOutput(unittest.TestCase):
             error = sd.build_board(self._esp_src(tmp), os.path.join(tmp, 'b'), 'esp', example, 'build')
         return error, runs
 
+    @no_esp_on_windows
     def test_an_espressif_board_builds_each_examples_app_as_an_idf_project(self):
         with tempfile.TemporaryDirectory() as tmp:
             error, runs = self._build_esp(tmp)
@@ -1045,6 +1050,7 @@ class BuildOutput(unittest.TestCase):
                                   '-B', os.path.join(tmp, 'b', 'device', 'a_freertos'), '-GNinja', '-DBOARD=esp',
                                   'app'], 600)])
 
+    @no_esp_on_windows
     def test_without_an_exported_idf_it_builds_in_cis_image_as_this_user(self):
         with tempfile.TemporaryDirectory() as tmp:
             error, runs = self._build_esp(tmp, which=('docker',))
@@ -1091,6 +1097,7 @@ class BuildOutput(unittest.TestCase):
                 error, runs = self._build_esp(tmp, example=example)
             self.assertEqual((error, runs), (f'esp builds no {example}', []))
 
+    @no_esp_on_windows
     def test_a_timed_out_or_interrupted_docker_build_removes_its_container(self):
         rm = ['docker', 'rm', '-f', f'tinyusb-code-size-{os.getpid()}']
         for which, rc, removed in ((('docker',), 124, True), (('docker',), 2, False), (('idf.py',), 124, False)):
@@ -1115,6 +1122,7 @@ class BuildOutput(unittest.TestCase):
                 self.assertEqual((ret.returncode, ret.stdout), (rc, 'w: \ufffd\n'))
                 self.assertTrue(ret.stderr.startswith('\ufffd'))
 
+    @posix_only
     def test_sigterm_to_the_script_alone_stops_its_command_and_runs_cleanup(self):
         """Popen's exit waits for the command, so the handler passes the signal on, and
         kills a command ignoring it after the grace."""
@@ -1158,6 +1166,7 @@ class BuildOutput(unittest.TestCase):
             ret = sd.run(['sh', '-c', "trap '' TERM; while :; do sleep 0.1; done"], timeout=1)
         self.assertEqual(ret.returncode, 124)
 
+    @posix_only
     def test_a_child_holding_the_pipes_after_the_kill_does_not_hang_it(self):
         start = time.monotonic()
         with mock.patch.object(sd, 'TERMINATE_GRACE', 0.5):
@@ -1168,6 +1177,7 @@ class BuildOutput(unittest.TestCase):
         self.assertEqual(ret.returncode, 124)
         self.assertIn('Command timed out after 1s', ret.stderr)
 
+    @posix_only
     def test_a_child_holding_the_pipes_after_sigterm_does_not_hang_it(self):
         start = time.monotonic()
         with mock.patch.object(sd, 'TERMINATE_GRACE', 0.5), mock.patch.object(sd, 'KILL_DRAIN', 0.2):
@@ -1986,6 +1996,7 @@ class CiBoardSet(unittest.TestCase):
                                             '"uncovered": []}')
             self.assertEqual(built, ['extra', 'b1', 'b2'])
 
+    @mock.patch.object(sd, 'WINDOWS', new=False)
     def test_ci_builds_pinned_espressif_boards_too(self):
         with tempfile.TemporaryDirectory() as tmp:
             built = self._boards_built(tmp, '{"boards": [{"board": "b1"}, '
@@ -2176,7 +2187,7 @@ class Snapshot(unittest.TestCase):
                 self.assertEqual(json.load(f)['boards'], ['b1-DMA'])
             with open(os.path.join(out, 'code-size-b1-DMA.json')) as f:
                 self.assertEqual(json.load(f)['board'], 'b1-DMA')
-        self.assertEqual([os.path.relpath(p, build_root) for p in sized], ['cmake-build-b1-DMA/device/a/a.elf'])
+        self.assertEqual([os.path.relpath(p, build_root) for p in sized], [os.path.join('cmake-build-b1-DMA', 'device', 'a', 'a.elf')])
         # the board's own skip rules, with the leg's defines as build.py applied them
         boards.assert_called_once_with([], ['b1'], ['device/a'], ('MAX3421_HOST=1',))
         skip.assert_called_with('device/a', 'b1', ('MAX3421_HOST=1',))

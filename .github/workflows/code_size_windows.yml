@@ -27,7 +27,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
-      - run: python -m pip install pytest
+      - run: python -m pip install pytest pyyaml pyelftools
       - run: python -m pytest -q test/hil/test/test_code_size.py test/hil/test/test_code_size_ci.py test/hil/test/test_membrowse_cli.py
 
   smoke:

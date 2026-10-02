@@ -17,6 +17,10 @@ sys.path.insert(0, os.path.join(REPO, 'tools'))
 import membrowse_cli as cli  # noqa: E402
 
 
+# the tests run executable #! stubs, and onboard composes a bash build script
+posix_only = unittest.skipIf(os.name == 'nt', 'needs POSIX executables and shell')
+
+
 def _write_stub(directory, name, body):
     path = os.path.join(directory, name)
     with open(path, 'w') as f:
@@ -55,6 +59,7 @@ class Regexes(unittest.TestCase):
 
 
 class LinkCommand(unittest.TestCase):
+    @posix_only
     def test_asks_ninja_for_only_the_elfs_final_command(self):
         # -s: without it, a target's commands include helper executables' links
         # (pico-sdk's boot_stage2) whose linker scripts are not the elf's
@@ -145,6 +150,7 @@ class Redaction(unittest.TestCase):
                              ['membrowse', 'report', 'x'])
 
 
+@posix_only
 class ReportCli(unittest.TestCase):
     """End-to-end CLI tests: real `python3 tools/membrowse_cli.py report` subprocess,
     with a stub `membrowse` injected into PATH so the real tool is never invoked."""
@@ -327,6 +333,7 @@ class Compose(unittest.TestCase):
         cmd = cli.compose('b', 'device/x', 5, False, 'k', ['--commits', 'a b'])
         self.assertNotIn('5', cmd[:4])
 
+    @posix_only
     def test_each_historical_build_fetches_its_own_deps_and_linker_settings(self):
         cmd = cli.compose('b', 'device/x', 5, False, 'k', [])
         i = cmd.index('--ld-scripts')
@@ -350,6 +357,7 @@ class WriteLinkerShim(unittest.TestCase):
             with open(out) as f:
                 self.assertEqual(f.read(), 'FLASH_SIZE = 256K;\nINCLUDE "/tree/board.ld"\n')
 
+    @posix_only
     def test_explicit_scripts_are_resolved_from_the_build_dir(self):
         with tempfile.TemporaryDirectory() as tmp:
             build = os.path.join(tmp, 'build')
@@ -368,6 +376,7 @@ class WriteLinkerShim(unittest.TestCase):
                                  f'INCLUDE "{script_dir}/memory.ld"\n'
                                  f'INCLUDE "{script_dir}/sections.ld"\n')
 
+    @posix_only
     def test_subcommand_runs_as_onboards_build_script_calls_it(self):
         # the historical build script runs `<python> <abs membrowse_cli.py> linker-shim ninja ...`
         with tempfile.TemporaryDirectory() as tmp:
@@ -390,6 +399,7 @@ class WriteLinkerShim(unittest.TestCase):
         self.assertNotIn('linker-shim', r.stdout)
 
 
+@posix_only
 class DisposableWorktree(unittest.TestCase):
     """`membrowse onboard` checks out and `git clean -fdx`s every historical
     commit unconditionally, in whatever directory it runs (membrowse/utils/
