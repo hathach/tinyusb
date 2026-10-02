@@ -1068,6 +1068,7 @@ class BuildOutput(unittest.TestCase):
             self.assertEqual(runs, [])
             self.assertIn('esp needs ESP-IDF: source $IDF_PATH/export.sh', error)
 
+    @mock.patch.object(sd, 'WINDOWS', new=False)
     def test_without_idf_report_and_diff_refuse_an_espressif_board_before_building(self):
         pinned = ['stm32f407disco', 'espressif_s3_devkitm']
         for argv in (['report', '-b', pinned[0], '-b', pinned[1]], ['diff', '-b', pinned[0], '-b', pinned[1]],
@@ -1236,6 +1237,7 @@ class ShortHash(unittest.TestCase):
         self.assertRegex(sd.short_hash(sd.TINYUSB_ROOT), r'^[0-9a-f]{7,}(-dirty)?$')
 
 
+@unittest.skipIf(os.name == 'nt', 'the Windows filter drops the drive')
 class SymlinkedCheckout(unittest.TestCase):
     def test_the_root_matches_its_own_filter_through_a_symlink(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1246,6 +1248,41 @@ class SymlinkedCheckout(unittest.TestCase):
                                  cwd=tmp, env={**os.environ, 'PYTHONPATH': os.path.join(link, 'tools')},
                                  capture_output=True, text=True, check=True).stdout
         self.assertEqual(out, 'True\n')
+
+
+@mock.patch.object(sd, 'WINDOWS', new=True)
+class WindowsHost(unittest.TestCase):
+    def test_a_backslash_object_path_matches_the_forward_slash_filter(self):
+        for f in ('/a/tinyusb/src/', '\\a\\tinyusb\\src\\'):
+            self.assertEqual(sd._relative_key(r'cdc_msc.dir\D_\a\tinyusb\src\device\usbd.c.obj', [f]), 'device/usbd.c')
+
+    def test_espressif_boards_are_refused(self):
+        self.assertRegex(sd.esp_without_idf(['espressif_s3_devkitc', 'stm32f407disco']),
+                         r'^espressif_s3_devkitc need ESP-IDF, .* not support on Windows')
+        self.assertIsNone(sd.esp_without_idf(['stm32f407disco']))
+
+    def test_a_timeout_kills_the_command_tree(self):
+        with mock.patch('subprocess.run') as taskkill:
+            ret = sd.run([sys.executable, '-c', 'import time; time.sleep(30)'], timeout=0.5)
+        self.assertEqual(ret.returncode, 124)
+        argv = taskkill.call_args.args[0]
+        self.assertEqual(argv[:2] + argv[3:], ['taskkill', '/PID', '/T', '/F'])
+
+    def test_a_symlink_without_the_privilege_names_developer_mode(self):
+        denied = OSError(22, 'A required privilege is not held by the client')
+        denied.winerror = 1314
+        with tempfile.TemporaryDirectory() as main, tempfile.TemporaryDirectory() as wt:
+            os.makedirs(os.path.join(main, 'lib/lwip'))
+            os.makedirs(os.path.join(wt, 'tools'))
+            with open(os.path.join(wt, 'tools', 'get_deps.py'), 'w') as f:
+                f.write("deps_all = {'lib/lwip': []}\n")
+            with mock.patch('os.symlink', side_effect=denied), \
+                    self.assertRaisesRegex(SystemExit, 'Developer Mode, or use --base-source ci'):
+                sd.symlink_deps(main, wt)
+
+    def test_a_path_on_another_drive_is_shown_absolute(self):
+        with mock.patch('os.path.relpath', side_effect=ValueError('path is on mount C:, start on mount D:')):
+            self.assertEqual(sd._shown('C:/x/report.md'), 'C:/x/report.md')
 
 
 # main() tests stub the builds and sizing, so need no engine tool

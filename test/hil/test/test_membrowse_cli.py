@@ -36,6 +36,15 @@ class Regexes(unittest.TestCase):
         self.assertEqual(cli.extract_ld_scripts(text),
                          ['C:/work/tinyusb/board.ld', '/work/a b/board.ld'])
 
+    def test_ld_script_extraction_unwraps_the_windows_ninja_cmd_wrapper(self):
+        # shortened from a windows-latest `ninja -t commands` link line
+        text = (r'C:\Windows\system32\cmd.exe /C "cd . && C:\gcc\bin\arm-none-eabi-gcc.exe -Os '
+                r'-Wl,-Map=D:/a/out/cdc_msc.elf.map -Wl,--script=D:/a/bsp/STM32F407VGTx_FLASH.ld '
+                r'main.c.obj -o device\cdc_msc\cdc_msc.elf  lib/libboard.a && C:\Windows\system32\cmd.exe /C '
+                r'"cd /D D:\a\out && C:\gcc\bin\arm-none-eabi-objcopy.exe -Obinary D:/a/out/cdc_msc.elf '
+                r'D:/a/out/cdc_msc.bin""' '\n')
+        self.assertEqual(cli.extract_ld_scripts(text), ['D:/a/bsp/STM32F407VGTx_FLASH.ld'])
+
     def test_defsym_extraction_both_separators(self):
         text = 'cc -Wl,--defsym=FOO=0x10 -Wl,--defsym,BAR=1 -o out.elf\n'
         self.assertEqual(cli.DEFSYM_RE.findall(text), ['FOO=0x10', 'BAR=1'])

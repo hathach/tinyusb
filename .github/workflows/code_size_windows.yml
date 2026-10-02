@@ -2,18 +2,48 @@ name: Code size on Windows
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths: &code_size_paths
+      - 'tools/code_size.py'
+      - 'tools/membrowse_cli.py'
+      - 'tools/build_utils.py'
+      - 'test/hil/test/test_code_size*.py'
+      - 'test/hil/test/test_membrowse_cli.py'
+      - '.github/scripts/code_size_ci.py'
+      - '.github/workflows/code_size_windows.yml'
   push:
-    branches: [ claude/code-size-windows ]
+    branches: [ master, claude/code-size-windows ]
+    paths: *code_size_paths
 
 permissions:
   contents: read
+  actions: read
+
+env:
+  PYTHONUTF8: '1'
 
 jobs:
-  evidence:
+  unit-test:
     runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - run: python -m pip install pytest
+      - run: python -m pytest -q test/hil/test/test_code_size.py test/hil/test/test_code_size_ci.py test/hil/test/test_membrowse_cli.py
+
+  smoke:
+    runs-on: windows-latest
+    env:
+      BOARD: stm32f407disco
+      EXAMPLE: device/cdc_msc
+      GH_TOKEN: ${{ github.token }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Checkout TinyUSB
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Setup Toolchain
         uses: ./.github/actions/setup_toolchain
@@ -27,50 +57,27 @@ jobs:
 
       - name: Install membrowse
         run: 'python -m pip install --only-binary :all: membrowse==1.2.12'
-        shell: bash
 
-      - name: Build one example as code_size.py does
+      - name: Report
         run: |
-          cmake -B evidence -G Ninja -DBOARD=stm32f407disco -DCMAKE_BUILD_TYPE=MinSizeRel examples
-          ninja -C evidence cdc_msc
-        shell: bash
-
-      - name: Dump link command and membrowse source paths
-        run: |
-          mkdir -p evidence-out
-          find evidence -name 'cdc_msc.elf' | tee evidence-out/elf.txt
-          ninja -C evidence -t commands -s device/cdc_msc/cdc_msc.elf > evidence-out/link-fwd.txt 2>&1 || true
-          ninja -C evidence -t commands -s 'device\cdc_msc\cdc_msc.elf' > evidence-out/link-back.txt 2>&1 || true
-          tail -c 4000 evidence-out/link-fwd.txt
-          python -X utf8 - <<'EOF' > evidence-out/membrowse-paths.txt 2>&1 || true
-          import json, os, subprocess, sys
-          sys.path.insert(0, 'tools')
-          from membrowse_cli import extract_ld_scripts, extract_defsyms, link_command, report_inputs
-          elf = os.path.join('evidence', 'device', 'cdc_msc', 'cdc_msc.elf')
-          commands = link_command('ninja', 'evidence', elf)
-          print('ld scripts:', extract_ld_scripts(commands))
-          print('defsyms:', extract_defsyms(commands))
-          cmd = ['membrowse', 'report'] + report_inputs(elf, extract_ld_scripts(commands), extract_defsyms(commands)) + ['--json', '--all-symbols']
-          print('cmd:', cmd)
-          r = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
-          print('rc', r.returncode, r.stderr[-2000:])
-          if r.returncode == 0:
-              data = json.loads(r.stdout)
-              files = sorted({f"{s.get('object_file')} | {s.get('source_file')}" for s in data.get('symbols', [])})
-              print('source files:', len(files))
-              print('\n'.join(files[:80]))
+          python tools/code_size.py report -b $BOARD -e $EXAMPLE --json
+          python - <<'EOF'
+          import json
+          data = json.load(open('cmake-code-size/stm32f407disco/report_device_cdc_msc.json'))
+          files = {f for e in data['elfs'] for f in e['sizes']['files']}
+          print(data['status'], sorted(files))
+          assert data['status'] == 'complete' and any(f.endswith('usbd.c') for f in files), 'no TinyUSB files'
           EOF
-          cat evidence-out/membrowse-paths.txt
-        shell: bash
 
-      - name: Probe the unchanged CLI (expected to fail)
-        continue-on-error: true
-        run: python -X utf8 tools/code_size.py report -b stm32f407disco -e device/cdc_msc 2>&1 | tee evidence-out/probe.txt
-        shell: bash
+      - name: Diff against a local base
+        run: |
+          python tools/code_size.py diff -b $BOARD -e $EXAMPLE --base-source local --base-branch HEAD --json
+          python - <<'EOF'
+          import json
+          data = json.load(open('cmake-code-size/stm32f407disco/diff_device_cdc_msc.json'))
+          assert data['status'] == 'complete' and data['pairs'], data['status']
+          assert all(p['base']['files'] == p['current']['files'] for p in data['pairs']), 'HEAD vs HEAD changed'
+          EOF
 
-      - name: Upload evidence
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: code-size-windows-evidence
-          path: evidence-out/
+      - name: Diff against CI snapshots
+        run: python tools/code_size.py diff -b $BOARD -e $EXAMPLE --base-source ci --base-branch origin/master

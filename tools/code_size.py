@@ -60,9 +60,11 @@ from membrowse_cli import IDF_LD_SCRIPTS, extract_ld_scripts, extract_defsyms, l
 # resolved like tinyusb_src_filter(), so a symlinked checkout still matches its filter
 TINYUSB_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 CODE_SIZE_DIR = os.path.join(TINYUSB_ROOT, 'cmake-code-size')
+WINDOWS = os.name == 'nt'
 # a master run's snapshots are the same for every checkout; XDG ignores a relative XDG_CACHE_HOME
-_xdg_cache = os.environ.get('XDG_CACHE_HOME', '')
-BASELINE_CACHE_DIR = os.path.join(_xdg_cache if os.path.isabs(_xdg_cache) else os.path.expanduser('~/.cache'),
+_cache_home = os.environ.get('LOCALAPPDATA' if WINDOWS else 'XDG_CACHE_HOME', '')
+BASELINE_CACHE_DIR = os.path.join(_cache_home if os.path.isabs(_cache_home) else
+                                  os.path.expanduser('~/AppData/Local' if WINDOWS else '~/.cache'),
                                   'tinyusb', 'code-size-baseline')
 CI_PINNED_BOARDS = os.path.join(TINYUSB_ROOT, '.github', 'ci-pinned-boards.json')
 # a diff's side names when git cannot give their commit hashes
@@ -131,6 +133,9 @@ def _classify_region(name):
 def _relative_key(src, filters):
     """Source path relative to the first matching filter, object suffix stripped,
     or None when no filter matches."""
+    if WINDOWS:
+        src = src.replace('\\', '/')
+        filters = [f.replace('\\', '/') for f in filters]
     for f in filters:
         idx = src.find(f)
         if idx < 0:
@@ -836,7 +841,9 @@ def tinyusb_src_filter(checkout_dir):
     in `checkout_dir`. The substring is the absolute path to the checkout's `src/`
     dir — collision-free with vendored deps (pico-sdk, lwip, FreeRTOS, etc.) which
     live at unrelated paths."""
-    return os.path.realpath(os.path.join(checkout_dir, 'src')) + os.sep
+    path = os.path.realpath(os.path.join(checkout_dir, 'src')) + os.sep
+    # Windows: CMake names an out-of-tree object D_/a/.../src/x.c.obj and DWARF D:/a/...: match past the drive
+    return os.path.splitdrive(path)[1].replace('\\', '/') if WINDOWS else path
 
 
 verbose = False
@@ -861,6 +868,10 @@ def run(cmd, timeout=None):
         try:
             out, err = proc.communicate(timeout=timeout)
         except BaseException as stopped:
+            if WINDOWS:  # terminate() and kill() stop only the command, not ninja's compilers
+                with contextlib.suppress(OSError, subprocess.SubprocessError):
+                    subprocess.run(['taskkill', '/PID', str(proc.pid), '/T', '/F'],
+                                   capture_output=True, timeout=TERMINATE_GRACE)
             # SIGTERM lets ninja stop its jobs, which it runs in process groups of their own;
             # a descendant can outlive the SIGKILL holding the pipes open, so stop reading then
             for stop, wait in ((proc.terminate, TERMINATE_GRACE), (proc.kill, KILL_DRAIN)):
@@ -880,8 +891,9 @@ def run(cmd, timeout=None):
 def exit_on_termination():
     """Exit on a SIGTERM or SIGHUP sent to this process alone as on Ctrl-C: through run()'s
     stop of its command and main()'s worktree removal, instead of orphaning the build."""
-    for signum in (signal.SIGTERM, signal.SIGHUP):
-        signal.signal(signum, lambda sig, _frame: sys.exit(128 + sig))
+    for name in ('SIGTERM', 'SIGHUP'):  # Windows has no SIGHUP
+        if hasattr(signal, name):
+            signal.signal(getattr(signal, name), lambda sig, _frame: sys.exit(128 + sig))
 
 
 def symlink_deps(main_root, worktree_dir):
@@ -894,7 +906,13 @@ def symlink_deps(main_root, worktree_dir):
         dst = os.path.join(worktree_dir, rel)
         if os.path.isdir(src) and not os.path.lexists(dst):
             os.makedirs(os.path.dirname(dst), exist_ok=True)
-            os.symlink(src, dst)
+            try:
+                os.symlink(src, dst, target_is_directory=True)
+            except OSError as e:
+                if getattr(e, 'winerror', None) == 1314:  # ERROR_PRIVILEGE_NOT_HELD
+                    sys.exit(f'Error: cannot symlink {rel} into the base worktree: enable Windows Developer '
+                             'Mode, or use --base-source ci when CI stored a baseline')
+                raise
 
 
 def short_hash(checkout):
@@ -991,6 +1009,8 @@ def _idf_image():
 def esp_without_idf(boards):
     """The error for espressif `boards` no exported ESP-IDF or CI's image can build, else None."""
     esp = [b for b in boards if is_espressif(b)]
+    if esp and WINDOWS:
+        return f'{", ".join(esp)} need ESP-IDF, which code_size.py does not support on Windows'
     if esp and not (shutil.which('idf.py') or _idf_image()):
         return f'{", ".join(esp)} need {ESP_IDF_MISSING}'
     return None
@@ -1128,7 +1148,7 @@ def generate_sizes(build_dir, filters, example=None, engine='membrowse'):
                            f'or pick another --engine')]
     sizes, errors = {}, []
     for elf, (elf_sizes, error) in zip(elfs, results):
-        rel = os.path.relpath(elf, build_dir)
+        rel = os.path.relpath(elf, build_dir).replace(os.sep, '/')  # one elf id on every host
         sizes[rel] = elf_sizes
         if error:
             errors.append((rel, error))
@@ -1178,7 +1198,10 @@ def print_result(lines, prefix='', tables=()):
 
 def _shown(path):
     """`path` relative to the working directory when under it."""
-    rel = os.path.relpath(path)
+    try:
+        rel = os.path.relpath(path)
+    except ValueError:  # on another Windows drive
+        return path
     return path if rel.startswith('..') else rel
 
 
