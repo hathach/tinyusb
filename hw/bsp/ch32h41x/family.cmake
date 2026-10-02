@@ -64,6 +64,7 @@ function(family_add_board BOARD_TARGET)
       -mno-save-restore
       -fmessage-length=0
       -fsigned-char
+      -Wno-error=strict-prototypes
       )
   endif ()
 endfunction()

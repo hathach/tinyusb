@@ -18,6 +18,7 @@ CFLAGS += \
 	-mno-save-restore \
 	-fmessage-length=0 \
 	-fsigned-char \
+	-Wno-error=strict-prototypes \
 	-DCH32H417 \
 	-DCFG_TUSB_MCU=OPT_MCU_CH32H41X
 

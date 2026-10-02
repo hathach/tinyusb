@@ -43,7 +43,7 @@ static tusb_desc_device_t const desc_device =
     .bDeviceClass       = TUSB_CLASS_MISC,
     .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
     .bDeviceProtocol    = MISC_PROTOCOL_IAD,
-    .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
+    .bMaxPacketSize0    = TUD_OPT_SUPER_SPEED ? 9 : CFG_TUD_ENDPOINT0_SIZE,
 
     .idVendor           = 0xCafe,
     .idProduct          = USB_PID,
