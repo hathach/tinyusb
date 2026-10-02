@@ -820,9 +820,7 @@ class GenerateSizes(unittest.TestCase):
         # picotool's enc_bootloader.elf has no linker map, so sizing it fails every rp2 board
         sizer = mock.Mock(return_value=_elf(7))
         with tempfile.TemporaryDirectory() as build:
-            for rel in ('device/ex/ex.elf', '_deps/picotool/enc_bootloader.elf'):
-                os.makedirs(os.path.dirname(os.path.join(build, rel)), exist_ok=True)
-                open(os.path.join(build, rel), 'w').close()
+            _touch(build, 'device/ex/ex.elf', '_deps/picotool/enc_bootloader.elf')
             with _engine('bloaty', sizer):
                 sizes, errors = sd.generate_sizes(build, ['src/'], engine='bloaty')
         self.assertEqual((list(sizes), errors), (['device/ex/ex.elf'], []))
