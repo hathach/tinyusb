@@ -209,7 +209,7 @@ static uint8_t const ncm_hs_configuration[] = {
 #if TUD_OPT_SUPER_SPEED
 static uint8_t const ncm_ss_configuration[] = {
   // Config number (index+1), interface count, string index, total length, attribute, power in mA
-  TUD_CONFIG_DESCRIPTOR(CONFIG_ID_NCM + 1, ITF_NUM_TOTAL, 0, NCM_CONFIG_TOTAL_LEN_SS, 0, 100),
+  TUD_CONFIG_DESCRIPTOR_SUPERSPEED(CONFIG_ID_NCM + 1, ITF_NUM_TOTAL, 0, NCM_CONFIG_TOTAL_LEN_SS, 0, 100),
 
   // Interface Association
   8, TUSB_DESC_INTERFACE_ASSOCIATION, ITF_NUM_CDC, 2, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_NETWORK_CONTROL_MODEL, 0, 0,

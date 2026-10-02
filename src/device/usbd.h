@@ -243,6 +243,11 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 #define TUD_CONFIG_DESCRIPTOR(config_num, _itfcount, _stridx, _total_len, _attribute, _power_ma) \
   9, TUSB_DESC_CONFIGURATION, U16_TO_U8S_LE(_total_len), _itfcount, config_num, _stridx, TU_BIT(7) | _attribute, (uint8_t)TU_MIN((_power_ma)/2, UINT8_MAX)
 
+// Same arguments as TUD_CONFIG_DESCRIPTOR; SuperSpeed bMaxPower uses 8 mA units,
+// rounded up and clamped to UINT8_MAX. Divide before adding to avoid overflow.
+#define TUD_CONFIG_DESCRIPTOR_SUPERSPEED(config_num, _itfcount, _stridx, _total_len, _attribute, _power_ma) \
+  9, TUSB_DESC_CONFIGURATION, U16_TO_U8S_LE(_total_len), _itfcount, config_num, _stridx, TU_BIT(7) | _attribute, (uint8_t)TU_MIN((_power_ma)/8 + ((_power_ma)%8 != 0), UINT8_MAX)
+
 #define TUD_SUPERSPEED_DESC_EP_COMPANION(_max_burst, _attr, _bytes_per_interval) \
   6, TUSB_DESC_SUPERSPEED_ENDPOINT_COMPANION, _max_burst, _attr, U16_TO_U8S_LE(_bytes_per_interval)
 

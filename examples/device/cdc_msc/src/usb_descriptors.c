@@ -204,7 +204,7 @@ uint8_t const *tud_descriptor_other_speed_configuration_cb(uint8_t index) {
 #if TUD_OPT_SUPER_SPEED
 static uint8_t const desc_ss_configuration[] = {
     // Config number, interface count, string index, total length, attribute, power in mA
-    TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN_SS, 0x00, 100),
+    TUD_CONFIG_DESCRIPTOR_SUPERSPEED(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN_SS, 0x00, 100),
 
     // Interface Associate
     8, TUSB_DESC_INTERFACE_ASSOCIATION, ITF_NUM_CDC, 2, TUSB_CLASS_CDC,

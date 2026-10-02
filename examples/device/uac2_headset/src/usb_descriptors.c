@@ -168,7 +168,7 @@ TU_VERIFY_STATIC(sizeof(desc_uac2_configuration) == CONFIG_UAC2_TOTAL_LEN, "Inco
 uint8_t const desc_uac2_ss_configuration[] =
 {
     // Config number, interface count, string index, total length, attribute, power in mA
-    TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_UAC2_TOTAL_LEN_SS, 0x00, 100),
+    TUD_CONFIG_DESCRIPTOR_SUPERSPEED(1, ITF_NUM_TOTAL, 0, CONFIG_UAC2_TOTAL_LEN_SS, 0x00, 100),
 
     // String index, EP Out & EP In address, EP Interrupt address
     TUD_AUDIO20_HEADSET_STEREO_DESCRIPTOR_SS(5, EPNUM_AUDIO_OUT, EPNUM_AUDIO_IN | 0x80, EPNUM_AUDIO_INT | 0x80)
