@@ -186,6 +186,8 @@ typedef struct {
   uint16_t expired_events; // events processed since the deadline passed (CFG_TUH_CONTROL_TIMEOUT_MS)
 } usbh_ctrl_xfer_info_t;
 
+TU_VERIFY_STATIC(CFG_TUH_CONTROL_TIMEOUT_MS > 0, "CFG_TUH_CONTROL_TIMEOUT_MS must be > 0");
+
 typedef struct {
   tusb_defer_func_t func;
   uintptr_t         arg;
@@ -351,9 +353,7 @@ TU_ATTR_ALWAYS_INLINE static inline usbh_class_driver_t const *get_driver(uint8_
 //--------------------------------------------------------------------+
 static void enum_new_device(hcd_event_t* event);
 static void enum_delay_async(uintptr_t state);
-#if CFG_TUH_CONTROL_TIMEOUT_MS
 static void control_xfer_timeout_expired(void);
-#endif
 static void process_remove_event(hcd_event_t *event);
 static void remove_device_tree(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port);
 
@@ -688,13 +688,11 @@ bool tuh_task_event_ready(void) {
     }
   }
 
-#if CFG_TUH_CONTROL_TIMEOUT_MS
   // in-flight control transfer watchdog expired
   if (_usbh_data.ctrl_xfer_info.stage != CONTROL_STAGE_IDLE &&
       (int32_t)(_usbh_data.ctrl_xfer_info.timeout_at_ms - tusb_time_millis_api()) <= 0) {
     return true;
   }
-#endif
 
   return false;
 }
@@ -767,7 +765,6 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
       control_xfer_dispatch_pending();
     }
 
-  #if CFG_TUH_CONTROL_TIMEOUT_MS
     // Control transfer watchdog. A completion already queued must win over a synthesized timeout,
     // so an expired transfer fires once the queue is found empty, or once a queue depth of events
     // has been processed since it expired (sustained traffic). After dispatch_pending(), which can
@@ -779,7 +776,6 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
       control_xfer_timeout_expired();
       continue;
     }
-  #endif
 
     hcd_event_t event;
 
@@ -795,18 +791,14 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
   #endif
     {
       if (!osal_queue_receive(_usbh_q, &event, timeout_ms)) {
-  #if CFG_TUH_CONTROL_TIMEOUT_MS
         if (ctrl_xfer_expired) {
           control_xfer_timeout_expired();
         }
-  #endif
         return;
       }
-  #if CFG_TUH_CONTROL_TIMEOUT_MS
       if (ctrl_xfer_expired) {
         ctrl_info->expired_events++;
       }
-  #endif
     }
 
     switch (event.event_id) {
@@ -1021,7 +1013,7 @@ bool tuh_control_xfer (tuh_xfer_t* xfer) {
     return false;
   }
 
-#if CFG_TUSB_OS_HAS_SCHEDULER && CFG_TUH_CONTROL_TIMEOUT_MS
+#if CFG_TUSB_OS_HAS_SCHEDULER
   if (osal_task_get_current_handle() != _usbh_data.task_hdl) {
     usbh_defer_func(NULL, NULL, false); // a host task blocked in its queue wait has not seen this deadline
   }
@@ -2282,7 +2274,6 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
   }
 }
 
-#if CFG_TUH_CONTROL_TIMEOUT_MS
 // Watchdog expired (e.g. the device NAKs a stage forever, or a completion was lost): abort and
 // complete as TIMEOUT. A completion the hcd still delivers is dropped as stale unless the same
 // device already has a new transfer in flight (#4070).
@@ -2304,7 +2295,6 @@ static void control_xfer_timeout_expired(void) {
   hcd_edpt_abort_xfer(rhport, daddr, ep_addr);
   control_xfer_complete(daddr, XFER_RESULT_TIMEOUT);
 }
-#endif
 
 static void enum_full_complete(bool success) {
   enum_finish(success, false);
