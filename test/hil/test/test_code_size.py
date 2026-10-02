@@ -1279,6 +1279,28 @@ class WindowsHost(unittest.TestCase):
         argv = taskkill.call_args.args[0]
         self.assertEqual(argv[:2] + argv[3:], ['taskkill', '/PID', '/T', '/F'])
 
+    @unittest.skipUnless(os.name == 'nt', 'a real Windows process tree')
+    def test_a_timeout_stops_a_grandchild_holding_the_pipes(self):
+        # as ninja's compilers do: terminate() alone stops only the direct child
+        parent = ('import subprocess, sys, time; '
+                  'p = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"], '
+                  'stdout=sys.stdout, stderr=sys.stderr); '
+                  'print(p.pid, flush=True); time.sleep(60)')
+        start = time.monotonic()
+        ret = sd.run([sys.executable, '-c', parent], timeout=5)
+        elapsed = time.monotonic() - start
+        pid = ret.stdout.strip()
+        try:
+            self.assertEqual(ret.returncode, 124)
+            self.assertTrue(pid.isdigit(), ret.stdout)
+            tasks = subprocess.run(['tasklist', '/FI', f'PID eq {pid}', '/FO', 'CSV', '/NH'],
+                                   capture_output=True, text=True, check=True, timeout=10).stdout
+            self.assertNotIn(f'"{pid}"', tasks)
+            self.assertLess(elapsed, 30)  # well before the grandchild's own exit
+        finally:
+            if pid.isdigit():
+                subprocess.run(['taskkill', '/PID', pid, '/F'], capture_output=True)
+
     def test_a_symlink_without_the_privilege_names_developer_mode(self):
         denied = OSError(22, 'A required privilege is not held by the client')
         denied.winerror = 1314
