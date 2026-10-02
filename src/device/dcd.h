@@ -44,6 +44,7 @@ typedef enum {
 typedef struct TU_ATTR_ALIGNED(4) {
   uint8_t rhport;
   uint8_t event_id;
+  uint16_t setup_gen; // SETUP_RECEIVED: the DCD's tag, handed back by dcd_edpt0_setup_begin()
 
   union {
     // BUS RESET
@@ -137,6 +138,11 @@ void dcd_enter_test_mode(uint8_t rhport, tusb_feature_test_mode_t test_selector)
 // Endpoint API
 //--------------------------------------------------------------------+
 
+// Invoked when the stack starts processing a SETUP, with the setup_gen its DCD put in the event.
+// A DCD can then drop EP0 arms and stalls made for a SETUP that a newer one superseded, this API is
+// optional.
+void dcd_edpt0_setup_begin(uint8_t rhport, uint16_t setup_gen);
+
 // Invoked when a control transfer's status stage is complete.
 // May help DCD to prepare for next control transfer, this API is optional.
 void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * request);
@@ -202,11 +208,12 @@ TU_ATTR_ALWAYS_INLINE static inline  void dcd_event_bus_reset (uint8_t rhport, t
   dcd_event_handler(&event, in_isr);
 }
 
-// helper to send setup received
-TU_ATTR_ALWAYS_INLINE static inline void dcd_event_setup_received(uint8_t rhport, uint8_t const * setup, bool in_isr) {
+// helper to send setup received, tagged with setup_gen for dcd_edpt0_setup_begin()
+TU_ATTR_ALWAYS_INLINE static inline void dcd_event_setup_received_gen(uint8_t rhport, uint8_t const * setup, uint16_t setup_gen, bool in_isr) {
   dcd_event_t event;
   event.rhport = rhport;
   event.event_id = DCD_EVENT_SETUP_RECEIVED;
+  event.setup_gen = setup_gen;
   (void) memcpy(&event.setup_received, setup, sizeof(tusb_control_request_t));
   // USB wire format is little-endian. Convert multi-byte fields to host byte order
   // so the stack always sees correct values regardless of CPU endianness.
@@ -214,6 +221,11 @@ TU_ATTR_ALWAYS_INLINE static inline void dcd_event_setup_received(uint8_t rhport
   event.setup_received.wIndex  = tu_le16toh(event.setup_received.wIndex);
   event.setup_received.wLength = tu_le16toh(event.setup_received.wLength);
   dcd_event_handler(&event, in_isr);
+}
+
+// helper to send setup received
+TU_ATTR_ALWAYS_INLINE static inline void dcd_event_setup_received(uint8_t rhport, uint8_t const * setup, bool in_isr) {
+  dcd_event_setup_received_gen(rhport, setup, 0, in_isr);
 }
 
 // helper to send transfer complete event

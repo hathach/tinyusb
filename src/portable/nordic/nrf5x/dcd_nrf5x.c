@@ -122,6 +122,19 @@ static struct {
   bool sof_enabled;
 } _dcd;
 
+// EP0 control-transfer identity, kept across bus_reset()'s tu_varclr(&_dcd)
+static struct {
+  // SETUPs received (hardware-handled SET_ADDRESS included) plus bus resets and unplugs, and the
+  // count the stack is serving (dcd_edpt0_setup_begin()). They differ while an EP0 arm or stall
+  // made for an older SETUP is still possible: such an arm is dropped. Aliasing needs 65536 of
+  // them while the stack is still on one SETUP, with every newer SETUP event lost.
+  volatile uint16_t setup_rcv;
+  uint16_t setup_served;
+
+  // the received SETUP's status stage endpoint (USB 2.0 8.5.3), captured with it rather than read later
+  uint8_t status_ep;
+} _ep0;
+
 /*------------------------------------------------------------------*/
 /* Control / Bulk / Interrupt (CBI) Transfer
  *------------------------------------------------------------------*/
@@ -161,6 +174,13 @@ static inline void retire_xfer(xfer_td_t* xfer) {
   xfer->xferid++;
 }
 
+// An EP0 arm or stall now would belong to a SETUP a newer one superseded, including one received
+// but not yet handled by the ISR. Caller excludes the USBD ISR. Not caught: a SETUP landing between
+// this check and the EP0 task, and an old SETUP's deferred arm run after the stack began a newer one.
+TU_ATTR_ALWAYS_INLINE static inline bool ep0_superseded(void) {
+  return (_ep0.setup_served != _ep0.setup_rcv) || (NRF_USBD->EVENTS_EP0SETUP != 0);
+}
+
 // EasyDMA requests, one bit each: EPIN n at bit n, EPOUT n at bit 16+n (ISO is n = 8), plus the two
 // EP0 tasks that only need the channel to be free.
 #define DMA_REQ_EP0STATUS TU_BIT(9)
@@ -185,7 +205,14 @@ static void xact_in_dma(uint8_t epnum);
 static void dma_pump(void) {
   // NRF_USBD->ENABLE: an unplug disabled USBD; what is still pending is dropped by the next bus reset
   while (!_dcd.dma_running && _dcd.dma_pending && NRF_USBD->ENABLE) {
-    uint32_t const pending = _dcd.dma_pending;
+    uint32_t pending = _dcd.dma_pending;
+    // a SETUP received since this ISR captured its events retires EP0 when the next ISR handles it
+    if ((pending & DMA_REQ_EP0) && NRF_USBD->EVENTS_EP0SETUP) {
+      pending &= ~DMA_REQ_EP0;
+      if (pending == 0) {
+        break;
+      }
+    }
     uint32_t req = pending & DMA_REQ_EP0;
     if (req == 0) {
       req = pending & DMA_REQ_ISO;
@@ -210,6 +237,9 @@ static void dma_pump(void) {
       // the channel stays free and no ERRATA-199 latch is needed
       if (TU_BIT(pos) == DMA_REQ_EP0STATUS) {
         NRF_USBD->TASKS_EP0STATUS = 1;
+        // The nRF doesn't interrupt on status transmit so we queue up a success response, now that
+        // no newer SETUP can have been queued before it
+        dcd_event_xfer_complete(0, _ep0.status_ep, 0, XFER_RESULT_SUCCESS, true);
       } else {
         NRF_USBD->TASKS_EP0RCVOUT = 1;
       }
@@ -369,6 +399,10 @@ void dcd_remote_wakeup(uint8_t rhport) {
 void dcd_disconnect(uint8_t rhport) {
   (void) rhport;
   NRF_USBD->USBPULLUP = 0;
+
+  usbd_spin_lock(false);
+  _ep0.setup_rcv++; // as a physical unplug
+  usbd_spin_unlock(false);
 
   // Disable Pull-up does not trigger Power USB Removed, in fact it have no
   // impact on the USB Power status at all -> need to submit unplugged event to the stack.
@@ -555,6 +589,11 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
   return true;
 }
 
+void dcd_edpt0_setup_begin(uint8_t rhport, uint16_t setup_gen) {
+  (void) rhport;
+  _ep0.setup_served = setup_gen;
+}
+
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes, bool is_isr) {
   (void) rhport;
 
@@ -565,17 +604,15 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
 
   TU_ASSERT(!xfer->started);
 
-  // Control endpoint with zero-length packet and opposite direction to 1st request byte --> status stage
-  bool const control_status = (epnum == 0 && total_bytes == 0 && dir != tu_edpt_dir((uint8_t)NRF_USBD->BMREQUESTTYPE));
-
-  if (control_status) {
-    // The nRF doesn't interrupt on status transmit so we queue up a success response.
-    dcd_event_xfer_complete(0, ep_addr, 0, XFER_RESULT_SUCCESS, is_in_isr());
-  }
-
   // a SETUP or EPDATA handled by the ISR must not interleave with arming the td and its DMA request
   uint32_t req = 0;
   usbd_spin_lock(is_isr);
+  if (epnum == 0 && ep0_superseded()) {
+    usbd_spin_unlock(is_isr);
+    return true; // the host abandoned that control transfer: the newer SETUP resets EP0 in usbd
+  }
+
+  bool const control_status = (epnum == 0 && total_bytes == 0 && ep_addr == _ep0.status_ep);
   xfer->xferid++;
   xfer->buffer = buffer;
   xfer->total_len = total_bytes;
@@ -624,6 +661,10 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
 
   // retire before the ISR can continue a multi-packet transfer into the disarmed buffer
   usbd_spin_lock(false);
+  if (epnum == 0 && ep0_superseded()) {
+    usbd_spin_unlock(false);
+    return; // a stall for an abandoned control transfer must not stall the newer one
+  }
   if (epnum == 0) {
     NRF_USBD->TASKS_EP0STALL = 1;
   } else {
@@ -711,6 +752,7 @@ static void bus_reset(uint32_t* int_status) {
                        USBD_INTEN_ENDEPOUT0_Msk | carried_end;
 
   tu_varclr(&_dcd);
+  _ep0.setup_rcv++; // a reset supersedes any control transfer the stack is still on
   if (carried) {
     _dcd.dma_running = true;
     _dcd.dma_canceled = true;
@@ -851,10 +893,14 @@ static void handle_events(void) {
     // nrf5x hw auto handle set address, there is no need to inform usb stack
     tusb_control_request_t const* request = (tusb_control_request_t const*) setup;
 
+    _ep0.setup_rcv++;
+    // IN for a request without data stage, else opposite to the data stage
+    _ep0.status_ep = ((setup[6] | setup[7]) && (setup[0] & TUSB_DIR_IN_MASK)) ? 0x00 : TUSB_DIR_IN_MASK;
+
     if (!(TUSB_REQ_RCPT_DEVICE == request->bmRequestType_bit.recipient &&
           TUSB_REQ_TYPE_STANDARD == request->bmRequestType_bit.type &&
           TUSB_REQ_SET_ADDRESS == request->bRequest)) {
-      dcd_event_setup_received(0, setup, true);
+      dcd_event_setup_received_gen(0, setup, _ep0.setup_rcv, true);
     }
   }
 
@@ -1269,6 +1315,7 @@ void tusb_hal_nrf_power_event(uint32_t event) {
 
         hfclk_disable();
 
+        _ep0.setup_rcv++; // as a bus reset, with the USBD IRQ already disabled
         dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, is_in_isr());
       }
       break;

@@ -202,6 +202,7 @@ void setUp(void)
 {
   dcd_int_disable_Ignore();
   dcd_int_enable_Ignore();
+  dcd_edpt0_setup_begin_Ignore();
 
   if ( !tud_inited() ) {
     tusb_rhport_init_t dev_init = {
