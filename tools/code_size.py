@@ -60,6 +60,10 @@ from membrowse_cli import IDF_LD_SCRIPTS, extract_ld_scripts, extract_defsyms, l
 # resolved like tinyusb_src_filter(), so a symlinked checkout still matches its filter
 TINYUSB_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 CODE_SIZE_DIR = os.path.join(TINYUSB_ROOT, 'cmake-code-size')
+# a master run's snapshots are the same for every checkout; XDG ignores a relative XDG_CACHE_HOME
+_xdg_cache = os.environ.get('XDG_CACHE_HOME', '')
+BASELINE_CACHE_DIR = os.path.join(_xdg_cache if os.path.isabs(_xdg_cache) else os.path.expanduser('~/.cache'),
+                                  'tinyusb', 'code-size-baseline')
 CI_PINNED_BOARDS = os.path.join(TINYUSB_ROOT, '.github', 'ci-pinned-boards.json')
 # a diff's side names when git cannot give their commit hashes
 SIDE_LABELS = ('base', 'new')
@@ -1700,7 +1704,7 @@ def _download_baseline(ci, repo, run_id):
     attempt into the cache and published whole; a re-run during the download is retried once."""
     attempt = ci.gh(f'repos/{repo}/actions/runs/{run_id}')['run_attempt']
     for _ in range(2):
-        dest = os.path.join(CODE_SIZE_DIR, '_baseline', repo.replace('/', '_'), f'{run_id}-{attempt}')
+        dest = os.path.join(BASELINE_CACHE_DIR, repo.replace('/', '_'), f'{run_id}-{attempt}')
         if os.path.isfile(os.path.join(dest, 'manifest.json')):
             return os.path.join(dest, 'snapshots')
         tmp = f'{dest}.tmp-{os.getpid()}'

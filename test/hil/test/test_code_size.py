@@ -2520,11 +2520,11 @@ class CiBaseline(unittest.TestCase):
             return sd.ci_baseline('o/r', 'b' * 40)
 
     def test_a_found_run_is_downloaded_once_and_its_manifest_kept_apart(self):
-        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(sd, 'CODE_SIZE_DIR', tmp):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(sd, 'BASELINE_CACHE_DIR', tmp):
             downloads = []
             path, info = self.baseline(_fake_ci(), downloads)
             self.assertEqual(info['run_id'], 7)
-            cache = os.path.join(tmp, '_baseline', 'o_r', '7-1')
+            cache = os.path.join(tmp, 'o_r', '7-1')
             self.assertEqual(path, os.path.join(cache, 'snapshots'))
             with open(os.path.join(cache, 'manifest.json')) as f:
                 self.assertEqual(json.load(f), {'repo': 'o/r', 'run_id': 7, 'run_attempt': 1})
@@ -2533,19 +2533,19 @@ class CiBaseline(unittest.TestCase):
             self.assertEqual(len(downloads), 1)  # the second lookup reused the published copy
 
     def test_a_rerun_during_the_download_is_retried_under_its_attempt(self):
-        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(sd, 'CODE_SIZE_DIR', tmp):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(sd, 'BASELINE_CACHE_DIR', tmp):
             downloads = []
             path, _info = self.baseline(_fake_ci(attempts=(1, 2, 2)), downloads)
             self.assertEqual(os.path.basename(os.path.dirname(path)), '7-2')
             self.assertEqual(len(downloads), 2)
-            self.assertEqual(os.listdir(os.path.join(tmp, '_baseline', 'o_r')), ['7-2'])  # the first copy discarded
+            self.assertEqual(os.listdir(os.path.join(tmp, 'o_r')), ['7-2'])  # the first copy discarded
 
     def test_what_makes_the_ci_base_unavailable(self):
         cases = {'no master Build run with snapshots': _fake_ci(info={'sha': None, 'note': 'no master Build run with '
                                                                                           'snapshots'}),
                  'the baseline lookup failed: gh api x: HTTP 401': _fake_ci(error=RuntimeError('gh api x: HTTP 401'))}
         for why, fake in cases.items():
-            with self.subTest(why), tempfile.TemporaryDirectory() as tmp, mock.patch.object(sd, 'CODE_SIZE_DIR', tmp):
+            with self.subTest(why), tempfile.TemporaryDirectory() as tmp, mock.patch.object(sd, 'BASELINE_CACHE_DIR', tmp):
                 with self.assertRaisesRegex(sd.BaselineUnavailable, re.escape(why)):
                     self.baseline(fake)
         with mock.patch.object(sd.shutil, 'which', return_value=None), \
@@ -2553,10 +2553,10 @@ class CiBaseline(unittest.TestCase):
             sd.ci_baseline('o/r', 'b' * 40)
 
     def test_a_failed_download_publishes_nothing(self):
-        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(sd, 'CODE_SIZE_DIR', tmp):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(sd, 'BASELINE_CACHE_DIR', tmp):
             with self.assertRaisesRegex(sd.BaselineUnavailable, 'artifact expired'):
                 self.baseline(_fake_ci(), rc=1)
-            self.assertEqual(os.listdir(os.path.join(tmp, '_baseline', 'o_r')), [])
+            self.assertEqual(os.listdir(os.path.join(tmp, 'o_r')), [])
 
 
 class BaselineShards(unittest.TestCase):
