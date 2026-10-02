@@ -129,6 +129,11 @@ TU_ATTR_ALWAYS_INLINE static inline bool is_in_isr(void) {
   return (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) ? true : false;
 }
 
+// VECTACTIVE is the exception number, IRQn + 16 (ARMv7-M B3.2.4, ARMv8-M D1.2 ICSR)
+TU_ATTR_ALWAYS_INLINE static inline bool is_in_usbd_isr(void) {
+  return (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) == (uint32_t) USBD_IRQn + 16u;
+}
+
 // Errata 199 "USBD cannot receive tasks during DMA": while an EasyDMA transfer is in progress the
 // controller may drop an incoming SETUP/IN/OUT token (lost event -> stuck EP0, esp. under rapid
 // back-to-back control transfers). The workaround latches an undocumented "DMA in progress" test
@@ -534,8 +539,9 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
   dma_request(req);
   usbd_spin_unlock(is_isr);
 
-  if (req) {
-    NVIC_SetPendingIRQ(USBD_IRQn); // dma_dispatch_isr() runs in the USBD ISR
+  // dma_dispatch_isr() runs in the USBD ISR: in it, dcd_int_handler() calls it after handle_events_isr()
+  if (req && !is_in_usbd_isr()) {
+    NVIC_SetPendingIRQ(USBD_IRQn);
   }
 
   return true;
