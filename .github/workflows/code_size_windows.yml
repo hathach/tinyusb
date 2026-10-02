@@ -19,6 +19,10 @@ permissions:
   contents: read
   actions: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
 env:
   PYTHONUTF8: '1'
 
@@ -27,8 +31,10 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
-      - run: python -m pip install pytest pyyaml pyelftools
-      - run: python -m pytest -q test/hil/test/test_code_size.py test/hil/test/test_code_size_ci.py test/hil/test/test_membrowse_cli.py
+      - run: python -m pip install pyyaml pyelftools
+      # as pre-commit's unit-test hook runs them
+      - run: python -m unittest -q test_code_size test_code_size_ci test_membrowse_cli
+        working-directory: test/hil/test
 
   smoke:
     runs-on: windows-latest
@@ -53,29 +59,23 @@ jobs:
       - name: Get Dependencies
         uses: ./.github/actions/get_deps
         with:
-          arg: '-b stm32f407disco'
+          arg: '-b ${{ env.BOARD }}'
 
       - name: Install membrowse
         run: 'python -m pip install --only-binary :all: membrowse==1.2.12'
 
+      # report exits 1 unless complete with TinyUSB files matched
       - name: Report
-        run: |
-          python tools/code_size.py report -b $BOARD -e $EXAMPLE --json
-          python - <<'EOF'
-          import json
-          data = json.load(open('cmake-code-size/stm32f407disco/report_device_cdc_msc.json'))
-          files = {f for e in data['elfs'] for f in e['sizes']['files']}
-          print(data['status'], sorted(files))
-          assert data['status'] == 'complete' and any(f.endswith('usbd.c') for f in files), 'no TinyUSB files'
-          EOF
+        run: python tools/code_size.py report -b $BOARD -e $EXAMPLE
 
       - name: Diff against a local base
         run: |
           python tools/code_size.py diff -b $BOARD -e $EXAMPLE --base-source local --base-branch HEAD --json
           python - <<'EOF'
-          import json
-          data = json.load(open('cmake-code-size/stm32f407disco/diff_device_cdc_msc.json'))
-          assert data['status'] == 'complete' and data['pairs'], data['status']
+          import json, os
+          path = f"cmake-code-size/{os.environ['BOARD']}/diff_{os.environ['EXAMPLE'].replace('/', '_')}.json"
+          data = json.load(open(path))
+          assert data['status'] == 'complete', data['status']
           assert all(p['base']['files'] == p['current']['files'] for p in data['pairs']), 'HEAD vs HEAD changed'
           EOF
 

@@ -1264,7 +1264,8 @@ class SymlinkedCheckout(unittest.TestCase):
 class WindowsHost(unittest.TestCase):
     def test_a_backslash_object_path_matches_the_forward_slash_filter(self):
         for f in ('/a/tinyusb/src/', '\\a\\tinyusb\\src\\'):
-            self.assertEqual(sd._relative_key(r'cdc_msc.dir\D_\a\tinyusb\src\device\usbd.c.obj', [f]), 'device/usbd.c')
+            self.assertEqual(sd._relative_key(r'cdc_msc.dir\D_\a\tinyusb\src\device\usbd.c.obj', [sd.filter_arg(f)]),
+                             'device/usbd.c')
 
     def test_espressif_boards_are_refused(self):
         self.assertRegex(sd.esp_without_idf(['espressif_s3_devkitc', 'stm32f407disco']),

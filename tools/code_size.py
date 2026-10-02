@@ -63,8 +63,7 @@ CODE_SIZE_DIR = os.path.join(TINYUSB_ROOT, 'cmake-code-size')
 WINDOWS = os.name == 'nt'
 # a master run's snapshots are the same for every checkout; XDG ignores a relative XDG_CACHE_HOME
 _cache_home = os.environ.get('LOCALAPPDATA' if WINDOWS else 'XDG_CACHE_HOME', '')
-BASELINE_CACHE_DIR = os.path.join(_cache_home if os.path.isabs(_cache_home) else
-                                  os.path.expanduser('~/AppData/Local' if WINDOWS else '~/.cache'),
+BASELINE_CACHE_DIR = os.path.join(_cache_home if os.path.isabs(_cache_home) else os.path.expanduser('~/.cache'),
                                   'tinyusb', 'code-size-baseline')
 CI_PINNED_BOARDS = os.path.join(TINYUSB_ROOT, '.github', 'ci-pinned-boards.json')
 # a diff's side names when git cannot give their commit hashes
@@ -135,7 +134,6 @@ def _relative_key(src, filters):
     or None when no filter matches."""
     if WINDOWS:
         src = src.replace('\\', '/')
-        filters = [f.replace('\\', '/') for f in filters]
     for f in filters:
         idx = src.find(f)
         if idx < 0:
@@ -841,8 +839,12 @@ def tinyusb_src_filter(checkout_dir):
     in `checkout_dir`. The substring is the absolute path to the checkout's `src/`
     dir — collision-free with vendored deps (pico-sdk, lwip, FreeRTOS, etc.) which
     live at unrelated paths."""
-    path = os.path.realpath(os.path.join(checkout_dir, 'src')) + os.sep
-    # Windows: CMake names an out-of-tree object D_/a/.../src/x.c.obj and DWARF D:/a/...: match past the drive
+    return filter_arg(os.path.realpath(os.path.join(checkout_dir, 'src')) + os.sep)
+
+
+def filter_arg(path):
+    """A path filter in the form sizes are matched in: on Windows, past the drive with '/',
+    as CMake names an out-of-tree object D_/a/.../src/x.c.obj and DWARF D:/a/..."""
     return os.path.splitdrive(path)[1].replace('\\', '/') if WINDOWS else path
 
 
@@ -1856,7 +1858,7 @@ def main():
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument('-b', '--board', action='append', default=[],
                         help='Board name (repeatable). Required unless diff --ci is given.')
-    common.add_argument('-f', '--filter', action='append', default=None,
+    common.add_argument('-f', '--filter', action='append', default=None, type=filter_arg,
                         help='Path-substring filter (repeatable). When given, '
                              'overrides the default and is applied to every build. '
                              'Default: each build\'s own absolute <checkout>/src/ path, '
@@ -1919,7 +1921,7 @@ def main():
                       help='CI event; pull_request reads base/head from the merge commit '
                            '(default: $GITHUB_EVENT_NAME, else push)')
     snap.add_argument('--build-outcome', default='success', help='The Build step\'s outcome, recorded as is')
-    snap.add_argument('-f', '--filter', action='append', default=None,
+    snap.add_argument('-f', '--filter', action='append', default=None, type=filter_arg,
                       help='Path-substring filter (repeatable); default: this checkout\'s <checkout>/src/')
     snap.add_argument('--symbols', action='store_true', help='Include each file\'s symbols')
     snap.add_argument('-v', '--verbose', action='store_true', help='Print commands')
