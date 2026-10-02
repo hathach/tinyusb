@@ -190,6 +190,10 @@ typedef struct {
 TU_VERIFY_STATIC(CFG_TUH_CONTROL_TIMEOUT_MS > 0 && CFG_TUH_CONTROL_TIMEOUT_MS <= INT32_MAX,
                  "CFG_TUH_CONTROL_TIMEOUT_MS must be in 1..INT32_MAX");
 
+// enum_attempt is uint8_t: a larger limit would wrap it and retry forever
+TU_VERIFY_STATIC(CFG_TUH_ENUM_ATTEMPT_MAX >= 1 && CFG_TUH_ENUM_ATTEMPT_MAX <= 256,
+                 "CFG_TUH_ENUM_ATTEMPT_MAX must be in 1..256");
+
 typedef struct {
   tusb_defer_func_t func;
   uintptr_t         arg;
