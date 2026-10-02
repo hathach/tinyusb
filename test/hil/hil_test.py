@@ -77,13 +77,12 @@ import string
 # ENUM_TIMEOUT_RETRY -- a device that will enumerate shows up within seconds, so a failing
 # test costs ~3-5x a passing one instead of 10-30x. Set per attempt by test_example(); a
 # module global is safe because each pool worker is its own process.
-# 12 covers one full usbh watchdog recovery: CFG_TUH_CONTROL_TIMEOUT_MS (5 s) on a wedged
-# first attempt + port re-reset + re-enumeration + example boot, with margin.
-# ENUM_TIMEOUT_RETRY must still exceed CFG_TUH_CONTROL_TIMEOUT_MS (5 s), or a retry that is
-# flaky precisely because it needs that same watchdog recovery can never budget enough time
-# for it and always fails again.
-ENUM_TIMEOUT = 12
-ENUM_TIMEOUT_RETRY = 8
+ENUM_TIMEOUT = 8
+ENUM_TIMEOUT_RETRY = 4
+# Board-as-host tests must outlast one usbh watchdog recovery: CFG_TUH_CONTROL_TIMEOUT_MS (5 s)
+# + port re-reset + re-enumeration, on the first attempt and on a retry alike.
+HOST_ENUM_TIMEOUT = 12
+HOST_ENUM_TIMEOUT_RETRY = 8
 _enum_timeout = ENUM_TIMEOUT
 
 
@@ -312,7 +311,6 @@ def open_board_console(board: Board):
         assert board['flasher']['name'].lower() == 'jlink', \
             f'{board["name"]}: "logger": "rtt" needs a jlink flasher, not {board["flasher"]["name"]}'
         return hil_util.JlinkRtt(board)
-    # uart_uid: console bridge serial when the probe has no CDC (e.g. J-Trace + CP2102N)
     ser = open_serial_dev(hil_util.get_serial_dev(board.get('uart_uid') or board['flasher']["uid"], None, None, 0))
     ser.timeout = 0.1
     return ser
@@ -1740,7 +1738,10 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
             # for every local run and for the workflows that pass no -r.
             wedge_break = True
             break
-        _enum_timeout = ENUM_TIMEOUT if i == 0 else ENUM_TIMEOUT_RETRY
+        if example.startswith(('host/', 'dual/')):
+            _enum_timeout = HOST_ENUM_TIMEOUT if i == 0 else HOST_ENUM_TIMEOUT_RETRY
+        else:
+            _enum_timeout = ENUM_TIMEOUT if i == 0 else ENUM_TIMEOUT_RETRY
         attempt_out = io.StringIO()
         with redirect_stdout(attempt_out):
             if not skip_flash:
@@ -2439,7 +2440,8 @@ def main() -> None:
     seed = os.getenv('HIL_SHUFFLE_SEED') or str(int(time.time()))
     log_line(f'test-order shuffle seed: {seed} (HIL_SHUFFLE_SEED={seed} to replay); '
              f'flash/usbtest parallel per controller: {hil_lock.FLASH_PARALLEL}/{hil_lock.USBTEST_PARALLEL}; '
-             f'enum timeout first/retry: {ENUM_TIMEOUT}/{ENUM_TIMEOUT_RETRY}s; '
+             f'enum timeout first/retry: {ENUM_TIMEOUT}/{ENUM_TIMEOUT_RETRY}s '
+             f'(host {HOST_ENUM_TIMEOUT}/{HOST_ENUM_TIMEOUT_RETRY}s); '
              # all three are env-tunable, so a run that dies on the guard is otherwise
              # unattributable from the log alone
              f'pool guard: {POOL_TIMEOUT}s')
