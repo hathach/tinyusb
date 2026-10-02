@@ -1718,9 +1718,17 @@ class MainFailure(unittest.TestCase):
             for path in stale:
                 with open(path, 'w') as f:
                     f.write('stale')
-            failed = subprocess.CompletedProcess([], 128, '', 'fatal: invalid reference')
-            with self.assertRaises(SystemExit):
-                self._run_main(tmp, ['-b', 'b'], mock.Mock(), run=lambda *_a, **_k: failed)
+            cmds = []
+
+            def run(cmd, **_kwargs):
+                cmds.append(cmd[3:5])
+                if cmd[3:5] == ['worktree', 'add']:
+                    return subprocess.CompletedProcess(cmd, 128, '', 'fatal: invalid reference')
+                return subprocess.CompletedProcess(cmd, 0, 'c0ffee\n', '')
+            with self.assertRaises(SystemExit) as stop:
+                self._run_main(tmp, ['-b', 'b'], mock.Mock(), run=run)
+            self.assertEqual(stop.exception.code, 1)  # 'Error creating worktree', not a usage error
+            self.assertIn(['worktree', 'add'], cmds)
             self.assertFalse(any(os.path.exists(path) for path in stale))
 
     def test_a_run_without_json_drops_a_previous_json(self):
@@ -2544,7 +2552,9 @@ class CiBaseline(unittest.TestCase):
     def test_what_makes_the_ci_base_unavailable(self):
         cases = {'no master Build run with snapshots': _fake_ci(info={'sha': None, 'note': 'no master Build run with '
                                                                                           'snapshots'}),
-                 'the baseline lookup failed: gh api x: HTTP 401': _fake_ci(error=RuntimeError('gh api x: HTTP 401'))}
+                 'the baseline lookup failed: gh api x: HTTP 401': _fake_ci(error=RuntimeError('gh api x: HTTP 401')),
+                 'running gh failed: Too many open files':
+                     _fake_ci(error=OSError(errno.EMFILE, 'Too many open files'))}
         for why, fake in cases.items():
             with self.subTest(why), tempfile.TemporaryDirectory() as tmp, mock.patch.object(sd, 'BASELINE_CACHE_DIR', tmp):
                 with self.assertRaisesRegex(sd.BaselineUnavailable, re.escape(why)):
@@ -2580,12 +2590,14 @@ class CiBaseline(unittest.TestCase):
 
     def test_a_copy_published_first_by_another_run_is_used(self):
         def publish_first(_src, dst):
+            _write(dst, 'snapshots/theirs.json', {})
             _write(dst, 'manifest.json', {'repo': 'o/r', 'run_id': 7, 'run_attempt': 1})
             raise OSError(errno.ENOTEMPTY, 'Directory not empty')
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(sd, 'BASELINE_CACHE_DIR', tmp), \
              mock.patch.object(sd.os, 'rename', side_effect=publish_first):
             path, _info = self.baseline(_fake_ci())
             self.assertEqual(path, os.path.join(tmp, 'o_r', '7-1', 'snapshots'))
+            self.assertTrue(os.path.isfile(os.path.join(path, 'theirs.json')))
             self.assertEqual(os.listdir(os.path.join(tmp, 'o_r')), ['7-1'])
 
 

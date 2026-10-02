@@ -1746,6 +1746,8 @@ def ci_baseline(repo, sha):
         return _download_baseline(ci, repo, info['run_id']), info
     except (RuntimeError, KeyError, TypeError, ValueError) as e:  # gh auth, transport or an unexpected reply
         raise BaselineUnavailable(f'the baseline lookup failed: {_clean(str(e))}') from e
+    except OSError as e:  # gh could not be started, e.g. EMFILE
+        raise BaselineUnavailable(f'running gh failed: {_clean(e.strerror or e)}') from e
 
 
 def resolve_base(base_source, unsupported, repo, sha):
